@@ -5,6 +5,8 @@ From Coq Require Import ZArith.
 Require Import expr compiler_util.
 Import Utf8.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Module E.
 
 Definition pass_name := "allocation"%string.
@@ -546,7 +548,8 @@ Section WITH_PARAMS.
 
 Context
   {asm_op syscall_state : Type}
-  {asmop:asmOp asm_op}.
+  {asmop:asmOp asm_op}
+  {LC : LoopCounter}.
 
 Section FUNCTION.
 
@@ -594,7 +597,7 @@ Fixpoint check_i (i1 i2:instr_r) r :=
       let check_c r :=
         check_var x1 x2 r >>=
         fold2 E.fold2 check_I c1 c2 in
-      loop check_c Loop.nb rhi
+      loop check_c loop_counter rhi
 
     | Cwhile a1 c1 e1 _ c1', Cwhile a2 c2 e2 _ c2' =>
       let check_c r :=
@@ -602,7 +605,7 @@ Fixpoint check_i (i1 i2:instr_r) r :=
         Let re := check_e e1 e2 r in
         Let r' := fold2 E.fold2 check_I c1' c2' re in
         ok (re, r') in
-      Let r := loop2 check_c Loop.nb r in
+      Let r := loop2 check_c loop_counter r in
       ok r
 
     | _, _ => Error (alloc_error "instructions not equals")

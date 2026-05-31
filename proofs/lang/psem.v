@@ -5,12 +5,14 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From ITree Require Import ITreeFacts.
 
 Require Import xseq.
-Require Export array type expr gen_map warray_ sem_type sem_op_typed values varmap expr_facts low_memory syscall_sem psem_defs.
+Require Export type expr gen_map warray_ sem_type sem_op_typed values varmap expr_facts low_memory syscall_sem psem_defs.
 Require Export psem_core it_sems_core hoare_logic relational_logic.
 Require Export
   flag_combination
   sem_params.
 Import Utf8.
+
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
 Local Open Scope Z_scope.
 Local Open Scope seq_scope.
@@ -370,6 +372,7 @@ Lemma sem_iE s i s' :
     [/\ sem_pexprs true gd s es = ok ves,
         exec_syscall s.(escs) s.(emem) o ves = ok (scs, m, vs) &
         write_lvals true gd (with_scs (with_mem s m) scs) xs vs = ok s']
+  | Cassert _ => False
   | Cif e th el =>
     ∃ b, sem_pexpr true gd s e = ok (Vbool b) ∧ sem s (if b then th else el) s'
   | Cfor i (d, lo, hi) c =>
@@ -616,6 +619,13 @@ Proof.
   by have [vm2 h ->] := write_lvars_ext_eq h1 h2; eexists; eauto.
 Qed.
 
+Lemma st_eq_sem_eassert d e :
+  wrequiv (st_eq d) ((sem_eassert (p_globs p))^~ e) ((sem_eassert (p_globs p'))^~ e) eq.
+Proof.
+  move=> s t v /st_relP [-> /=] hvm; rewrite eq_globs.
+  rewrite -sem_eassert_ext_eq //; eauto.
+Qed.
+
 Lemma wdb_ok_eq wdb1 wdb2 : wdb_ok wdb1 wdb2 -> wdb1 = wdb2.
 Proof. by case => -[-> ->]. Qed.
 
@@ -625,7 +635,10 @@ Proof.
   + by move=> wdb _ d es1 es2 d' /wdb_ok_eq <- <-; apply st_eq_sem_pexprs.
   move=> wdb _ d xs1 xs2 d' /wdb_ok_eq <- <- vs; apply st_eq_write_lvals.
 Qed.
-#[local] Hint Resolve checker_st_eqP : core.
+
+Lemma checker_a_st_eqP : Checker_a_eq p p' checker_a_st_eq.
+Proof. constructor; move=> > ->; apply st_eq_sem_eassert. Qed.
+#[local] Hint Resolve checker_st_eqP checker_a_st_eqP : core.
 
 Section FUN.
 
@@ -647,6 +660,7 @@ Proof.
   + by move=> >;apply wequiv_assgn_rel_eq with checker_st_eq tt.
   + by move=> >; apply wequiv_opn_rel_eq with checker_st_eq tt.
   + by move=> >; apply wequiv_syscall_rel_eq with checker_st_eq tt.
+  + by move=> a ii; apply wequiv_assert_rel_eq with checker_a_st_eq.
   + by move=> > hc1 hc2 ii; apply wequiv_if_rel_eq with checker_st_eq tt tt tt.
   + by move=> > hc ii; apply wequiv_for_rel_eq with checker_st_eq tt tt.
   + by move=> > hc hc' ii; apply wequiv_while_rel_eq with checker_st_eq tt.
@@ -922,6 +936,15 @@ Proof.
   by apply: (eq_onI hsub).
 Qed.
 
+Lemma read_eassert_st_eq_on gd e X :
+  Sv.Subset (read_eassert e) X ->
+  wrequiv (st_eq_on X) ((sem_eassert gd)^~ e) ((sem_eassert gd)^~ e) eq.
+Proof.
+  move=> hsub s t b [???]. rewrite (eq_on_sem_eassert _ (s' := t)) //.
+  + by move => ->; eauto.
+  by apply: (eq_onI hsub).
+Qed.
+
 Lemma write_lvals_st_eq_on gd wdb xs vs X :
   Sv.Subset (read_rvs xs) X ->
   wrequiv
@@ -947,6 +970,17 @@ Definition checker_st_eq_on : Checker_e (st_rel eq_on) :=
   {| check_es := check_es_st_eq_on;
      check_lvals := check_lvals_st_eq_on;
      check_esP_rel := check_esP_R_st_eq_on |}.
+
+Definition check_a_st_eq_on (X:Sv.t) (e1 e2 : eassert) (X':Sv.t) :=
+  [/\ Sv.Subset X' X, e1 = e2 & Sv.Subset (read_eassert e1) X].
+
+Lemma check_aP_st_eq_on X e1 e2 X':
+  check_a_st_eq_on X e1 e2 X' → ∀ s1 s2, st_rel eq_on X s1 s2 → st_rel eq_on X' s1 s2.
+Proof. by move=> [h _ _]; apply st_rel_weaken => vm1 vm2; apply eq_onI. Qed.
+
+Definition checker_a_st_eq_on : Checker_a (st_rel eq_on) :=
+  {| check_a := check_a_st_eq_on
+   ; check_aP_rel := check_aP_st_eq_on |}.
 
 Definition st_uincl_on X := st_rel uincl_on X.
 
@@ -1013,7 +1047,15 @@ Proof.
   + by apply st_rel_weaken => ??; apply eq_onI.
   by apply write_lvals_st_eq_on.
 Qed.
-#[local] Hint Resolve checker_st_eq_onP : core.
+
+Lemma checker_a_st_eq_onP : Checker_a_eq p p' checker_a_st_eq_on.
+Proof.
+  constructor.
+  move=> d es1 es2 d' [? <- ?]; rewrite eq_globs.
+  by apply read_eassert_st_eq_on.
+Qed.
+
+#[local] Hint Resolve checker_st_eq_onP checker_a_st_eq_onP: core.
 
 Lemma checker_st_uincl_onP : Checker_uincl p p' checker_st_uincl_on.
 Proof.
@@ -1061,6 +1103,8 @@ Proof.
     by apply wequiv_opn_rel_eq with checker_st_eq_on X => //=; split=> //; SvD.fsetdec.
   + move=> xs sc es ii X. rewrite read_i_syscall => hsub.
     by apply wequiv_syscall_rel_eq with checker_st_eq_on X => //=; split=> //; SvD.fsetdec.
+  + move=> a ii X; rewrite read_i_assert => hsub.
+    by apply wequiv_assert_rel_eq with checker_a_st_eq_on => //; split.
   + move=> e c1 c2 hc1 hc2 ii X. rewrite read_i_if => hsub.
     apply wequiv_if_rel_eq with checker_st_eq_on X X X => //.
     + by split => //; rewrite /read_es /= read_eE; SvD.fsetdec.
@@ -1506,6 +1550,7 @@ Proof.
   + by move=> x tg ty e ii; apply wequiv_assgn_rel_uincl with checker_st_uincl tt.
   + by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with checker_st_uincl tt.
   + by move=> xs sc es ii; apply wequiv_syscall_rel_uincl with checker_st_uincl tt.
+  + by move=> a ii; apply wequiv_noassert.
   + by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with checker_st_uincl tt tt tt.
   + by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
   + by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.
@@ -1595,6 +1640,339 @@ Lemma it_sem_uincl c :
 Proof. by apply it_sem_uincl_aux => //; move=> ? fn ?? h; apply it_sem_uincl_f. Qed.
 
 End REFL.
+
+Section REC.
+
+Context (p p':prog) (ev ev': extra_val_t).
+
+Context (eq_globs: p_globs p = p_globs p').
+
+Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+
+Lemma it_sem_uincl_rec c :
+  wequiv_rec p p' ev ev' uincl_spec (st_uincl tt) c c (st_uincl tt).
+Proof.
+  apply it_sem_uincl_aux => //.
+  by move=> ii f s t hu; apply xrutt_facts.xrutt_trigger.
+Qed.
+
+End REC.
+
+Section EQ_CMD.
+
+Section SEM.
+
+Context (p : prog) (ev : extra_val_t).
+
+Let Pi s1 (i:instr) s2 :=
+  forall i', eq_instr i i' ->
+  sem_I p ev s1 i' s2.
+
+Let Pi_r s1 (i:instr_r) s2 :=
+  forall i', eq_instr_r i i' ->
+  sem_i p ev s1 i' s2.
+
+Let Pc s1 (c:cmd) s2 :=
+  forall c', eq_cmd c c' ->
+  sem p ev s1 c' s2.
+
+Let Pfor (i:var_i) vs s1 c s2 :=
+  forall i' c', v_var i = v_var i' -> eq_cmd c c' ->
+  sem_for p ev i' vs s1 c' s2.
+
+Let Pfun (_:syscall_state) (_:mem) (_:funname) (_:values) (_:syscall_state) (_:mem) (_:values) := True.
+
+Local Lemma Hcmd_eq_skip : sem_Ind_nil Pc.
+Proof. by move=> s [|//] _; apply Eskip. Qed.
+
+Local Lemma Hcmd_eq_cons : sem_Ind_cons p ev Pc Pi.
+Proof.
+  move=> s1 s2 s3 i c _ hi _ hc [//|i' c'] /= /andP [/hi{}hi /hc{}hc].
+  by apply Eseq with s2.
+Qed.
+
+Local Lemma Hcmd_eq_mkI : sem_Ind_mkI p ev Pi_r Pi.
+Proof. by move=> ii i s1 s2 _ hi [??] /= /hi{}hi; apply EmkI. Qed.
+
+Local Lemma Hcmd_eq_assgn : sem_Ind_assgn p Pi_r.
+Proof.
+  move=> s1 s2 x t ty e v v' he htr hw [] //= x' t' ty' e'
+    /andP[] /andP[] /andP[] /eqP <- /eqP <- heqx heqe.
+  apply: Eassgn htr _.
+  + by rewrite -(eq_exprP _ _ _ heqe).
+  by rewrite -(eq_lvalP _ _ _ _ heqx).
+Qed.
+
+Local Lemma Hcmd_eq_opn : sem_Ind_opn p Pi_r.
+Proof.
+  move=> s1 s2 t o xs es hopn [] //= t' o' xs' es'
+    /andP[] /andP[] /andP[] heqxs /eqP <- /eqP <- heqes.
+  apply Eopn.
+  move: hopn; rewrite /sem_sopn; t_xrbindP=> vs v.
+  by rewrite (eq_exprsP _ _ _ heqes) (eq_lvalsP _ _ _ _ heqxs) => -> /= -> /= ->.
+Qed.
+
+Local Lemma Hcmd_eq_if_true : sem_Ind_if_true p ev Pc Pi_r.
+Proof.
+  move=> s1 s2 e c1 c2 He Hs Hc [] //= e' c1' c2' /andP[] /andP[] heqe /Hc{}Hc _.
+  apply Eif_true => //.
+  by rewrite -(eq_exprP _ _ _ heqe).
+Qed.
+
+Local Lemma Hcmd_eq_if_false : sem_Ind_if_false p ev Pc Pi_r.
+Proof.
+  move=> s1 s2 e c1 c2 He Hs Hc [] //= e' c1' c2' /andP[] /andP[] heqe _ /Hc{}Hc.
+  apply Eif_false => //.
+  by rewrite -(eq_exprP _ _ _ heqe).
+Qed.
+
+Local Lemma Hcmd_eq_while_true : sem_Ind_while_true p ev Pc Pi_r.
+Proof.
+  move=> s1 s2 s3 s4 a c1 e ei c2 sem_s1_s2 H_s1_s2.
+  move=> sem_s2_e sem_s2_s3 H_s2_s3 sem_s3_s4 H_s3_s4.
+  move=> [] //= a' c1' e' ei' c2' /[dup] /(H_s3_s4 (Cwhile _ _ _ ei' _)) {}H_s3_s4
+    /andP[] /andP[] /andP[] /eqP ? /H_s1_s2{}H_s1_s2 heqe /H_s2_s3{}H_s2_s3; subst a'.
+  apply: Ewhile_true H_s1_s2 _ H_s2_s3 H_s3_s4.
+  by rewrite -(eq_exprP _ _ _ heqe).
+Qed.
+
+Local Lemma Hcmd_eq_while_false : sem_Ind_while_false p ev Pc Pi_r.
+Proof.
+  move=> s1 s2 a c1 e ei c2 He Hc eq_s_e [] //= a' c1' e' ei' c2'
+    /andP[] /andP[] /andP[] /eqP <- /Hc{}Hc heqe _.
+  apply Ewhile_false => //.
+  by rewrite -(eq_exprP _ _ _ heqe).
+Qed.
+
+Local Lemma Hcmd_eq_for_nil : sem_Ind_for_nil Pfor.
+Proof.
+  move=> s1 x c x' c' _ _.
+  by apply EForDone.
+Qed.
+
+Local Lemma Hcmd_eq_for_cons : sem_Ind_for_cons p ev Pc Pfor.
+Proof.
+  move=> s1 s2 s3 s4 [x ?] w ws c eq_s2 sem_s2_s3 H_s2_s3 H_s3_s4 Pfor_s3_s4.
+  move=> [x' ?] c' /= <- heqc.
+  by eapply EForOne; eauto.
+Qed.
+
+Local Lemma Hcmd_eq_for : sem_Ind_for p ev Pi_r Pfor.
+Proof.
+  move=> s1 s2 x d lo hi c vlo vhi cpl_lo cpl_hi cpl_for sem_s1_s2.
+  move=> [] //= x' [[d' lo'] hi'] c' /andP[] /andP[] /andP[] /andP[]
+    /eqP /sem_s1_s2{}sem_s1_s2 /eqP <- heqlo heqhi /sem_s1_s2{}sem_s1_s2.
+  apply: Efor sem_s1_s2.
+  + by rewrite -(eq_exprP _ _ _ heqlo).
+  by rewrite -(eq_exprP _ _ _ heqhi).
+Qed.
+
+Local Lemma Hcmd_eq_call : sem_Ind_call p ev Pi_r Pfun.
+Proof.
+  move=> s1 scs m s2 lv fn args vargs vres hvargs hcall _ hs2.
+  move=> [] //= lv' fn' args' /andP[] /andP[] heqlv /eqP <- heqargs.
+  apply: Ecall hcall _.
+  + by rewrite -(eq_exprsP _ _ _ heqargs).
+  by rewrite -(eq_lvalsP _ _ _ _ heqlv).
+Qed.
+
+Local Lemma Hcmd_eq_proc : sem_Ind_proc p ev Pc Pfun.
+Proof. done. Qed.
+
+Local Lemma Hcmd_eq_syscall : sem_Ind_syscall p Pi_r.
+Proof.
+  move=> s1 scs m s2 o xs es ves vs hes ho hw [] //= xs' o' es'
+    /andP[] /andP[] heqxs /eqP <- heqes.
+  apply: Esyscall ho _.
+  + by rewrite -(eq_exprsP _ _ _ heqes).
+  by rewrite -(eq_lvalsP _ _ _ _ heqxs).
+Qed.
+
+Lemma eq_instr_rP s1 i i' s2 :
+  eq_instr_r i i' ->
+  sem_i p ev s1 i s2 ->
+  sem_i p ev s1 i' s2.
+Proof.
+  move=> + hsem.
+  by
+    apply (sem_i_Ind
+      Hcmd_eq_skip
+      Hcmd_eq_cons
+      Hcmd_eq_mkI
+      Hcmd_eq_assgn
+      Hcmd_eq_opn
+      Hcmd_eq_syscall
+      Hcmd_eq_if_true
+      Hcmd_eq_if_false
+      Hcmd_eq_while_true
+      Hcmd_eq_while_false
+      Hcmd_eq_for
+      Hcmd_eq_for_nil
+      Hcmd_eq_for_cons
+      Hcmd_eq_call
+      Hcmd_eq_proc).
+Qed.
+
+Lemma eq_instrP s1 i i' s2 :
+  eq_instr i i' ->
+  sem_I p ev s1 i s2 ->
+  sem_I p ev s1 i' s2.
+Proof.
+  move=> + hsem.
+  by
+    apply (sem_I_Ind
+      Hcmd_eq_skip
+      Hcmd_eq_cons
+      Hcmd_eq_mkI
+      Hcmd_eq_assgn
+      Hcmd_eq_opn
+      Hcmd_eq_syscall
+      Hcmd_eq_if_true
+      Hcmd_eq_if_false
+      Hcmd_eq_while_true
+      Hcmd_eq_while_false
+      Hcmd_eq_for
+      Hcmd_eq_for_nil
+      Hcmd_eq_for_cons
+      Hcmd_eq_call
+      Hcmd_eq_proc).
+Qed.
+
+Lemma eq_cmdP s1 c c' s2 :
+  eq_cmd c c' ->
+  sem p ev s1 c s2 ->
+  sem p ev s1 c' s2.
+Proof.
+  move=> + hsem.
+  by
+    apply (sem_Ind
+      Hcmd_eq_skip
+      Hcmd_eq_cons
+      Hcmd_eq_mkI
+      Hcmd_eq_assgn
+      Hcmd_eq_opn
+      Hcmd_eq_syscall
+      Hcmd_eq_if_true
+      Hcmd_eq_if_false
+      Hcmd_eq_while_true
+      Hcmd_eq_while_false
+      Hcmd_eq_for
+      Hcmd_eq_for_nil
+      Hcmd_eq_for_cons
+      Hcmd_eq_call
+      Hcmd_eq_proc).
+Qed.
+
+End SEM.
+
+Section IT.
+
+Section PROG.
+
+Context (p p':prog) (ev ev': extra_val_t).
+
+Context (eq_globs : p.(p_globs) = p'.(p_globs)).
+
+Definition check_es_eq_cmd (_:unit) es1 es2 (_:unit) : Prop := all2 eq_expr es1 es2.
+Definition check_lvals_eq_cmd (_:unit) lvs1 lvs2 (_:unit) : Prop := all2 eq_lval lvs1 lvs2.
+
+Lemma check_esP_R_st_eq_cmd (d:unit) es1 es2 (d':unit) :
+  check_es_eq_cmd d es1 es2 d' → ∀ s1 s2, st_rel (λ _ : unit, vm_uincl) d s1 s2 → st_rel (λ _ : unit, vm_uincl) d' s1 s2.
+Proof. by move=> ?; apply st_rel_weaken. Qed.
+
+Definition checker_eq_cmd : Checker_e (st_rel (λ _ : unit, vm_uincl)) :=
+  {| check_es := check_es_eq_cmd;
+     check_lvals := check_lvals_eq_cmd;
+     check_esP_rel := check_esP_R_st_eq_cmd |}.
+
+Lemma checker_eq_cmdP : Checker_uincl p p' checker_eq_cmd.
+Proof.
+  constructor; rewrite -eq_globs.
+  + move=> wdb _ d es1 es2 d' /wdb_ok_eq <- hes s t vs1 /st_relP [-> /= huincl] hvs1.
+    have [vs2 hvs2 hincl]:= sem_pexprs_uincl huincl hvs1.
+    rewrite (eq_exprsP _ _ _ hes) in hvs2.
+    by exists vs2.
+  move=> wdb _ d xs1 xs2 d' /wdb_ok_eq <- hxs vs1 vs2 hincl s t s' /st_relP [-> /= huincl] hs'.
+  have [vm2 {}hs' {}huincl] := writes_uincl huincl hincl hs'.
+  rewrite (eq_lvalsP _ _ _ _ hxs) in hs'.
+  by exists (with_vm s' vm2).
+Qed.
+#[local] Hint Resolve checker_eq_cmdP : core.
+
+Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}.
+
+Let Pi i :=
+  forall i', eq_instr i i' ->
+  wequiv p p' ev ev' (st_uincl tt) [::i] [::i'] (st_uincl tt).
+
+Let Pi_r i :=
+  forall i', eq_instr_r i i' ->
+  forall ii ii', wequiv p p' ev ev' (st_uincl tt) [::MkI ii i] [::MkI ii' i'] (st_uincl tt).
+
+Let Pc c :=
+  forall c', eq_cmd c c' ->
+  wequiv p p' ev ev' (st_uincl tt) c c' (st_uincl tt).
+
+Lemma it_eq_cmdP_aux c :
+  (forall ii ii' fn,
+     wequiv_f_ii p p' ev ev' (λ (_ _ : funname), fs_uincl) ii ii' fn fn (λ _ _  _ _, fs_uincl)) ->
+  forall c', eq_cmd c c' ->
+  wequiv p p' ev ev' (st_uincl tt) c c' (st_uincl tt).
+Proof.
+  move=> hfn; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => {c}.
+  + by move=> i ii hi [??] /= ?; apply hi.
+  + by move=> [|//] _; apply wequiv_nil.
+  + move=> i c hi hc [//|i' c'] /= /andP [/hi{}hi /hc{}hc].
+    by apply wequiv_cons with (st_uincl tt).
+  + move=> x tg ty e [] //= x' tg' ty' e' /andP[] /andP[] /andP[] /eqP -> /eqP -> heq1 heq2 ??.
+    apply wequiv_assgn_rel_uincl with checker_eq_cmd tt => //.
+    + by rewrite /= /check_es_eq_cmd /= andbT.
+    by rewrite /= /check_lvals_eq_cmd /= andbT.
+  + move=> xs tg o es [] //= xs' tg' o' es' /andP[] /andP[] /andP[] heq1 /eqP -> /eqP -> heq2 ??.
+    by apply wequiv_opn_rel_uincl with checker_eq_cmd tt.
+  + move=> xs o es [] //= xs' o' es' /andP[] /andP[] heq1 /eqP -> heq2 ??.
+    by apply wequiv_syscall_rel_uincl with checker_eq_cmd tt.
+  + move=> [??] [] //= [??] /= /andP[] /eqP -> heq ??.
+    by apply wequiv_noassert.
+  + move=> e c1 c2 hc1 hc2 [] //= e' c1' c2' /andP[] /andP[] heq /hc1{}hc1 /hc2{}hc2 ??.
+    apply wequiv_if_rel_uincl with checker_eq_cmd tt tt tt => //.
+    by rewrite /= /check_es_eq_cmd /= andbT.
+  + move=> [??] dir lo hi c hc [] //= [??] [[dir' lo'] hi'] c'
+      /andP[] /andP[] /andP[] /andP[] /eqP -> /eqP -> heq1 heq2 /hc{}hc ??.
+    apply wequiv_for_rel_uincl with checker_eq_cmd tt tt => //.
+    + by rewrite /= /check_es_eq_cmd /= heq1 heq2.
+    by rewrite /= /check_lvals_eq_cmd /= eqxx.
+  + move=> a c1 e info c2 hc1 hc2 [] //= a' c1' e' info' c2'
+      /andP[] /andP[] /andP[] /eqP -> /hc1{}hc1 heq /hc2{}hc2 ??.
+    apply wequiv_while_rel_uincl with checker_eq_cmd tt => //.
+    by rewrite /= /check_es_eq_cmd /= andbT.
+  move=> xs fn es [] //= xs' fn' es' /andP[] /andP[] heq1 /eqP -> heq2 ??.
+  by apply wequiv_call_rel_uincl with checker_eq_cmd tt.
+Qed.
+
+End PROG.
+
+Section REC.
+
+Context (p p':prog) (ev ev': extra_val_t).
+
+Context (eq_globs: p_globs p = p_globs p').
+
+Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+
+Lemma it_eq_cmdP_rec c c' :
+  eq_cmd c c' ->
+  wequiv_rec p p' ev ev' uincl_spec (st_uincl tt) c c' (st_uincl tt).
+Proof.
+  apply it_eq_cmdP_aux => //.
+  by move=> ii ii' f s t hu; apply xrutt_facts.xrutt_trigger.
+Qed.
+
+End REC.
+
+End IT.
+
+End EQ_CMD.
 
 Context
   {pT1 : progT}
@@ -1765,6 +2143,7 @@ Context
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
   {wsw1 wsw2 wsw3 : WithSubWord}
+  {wa1 wa2 wa3 : WithAssert}
   {scP1 : semCallParams (wsw := wsw1) (pT := pT1)}
   {scP2 : semCallParams (wsw := wsw2) (pT := pT2)}
   {scP3 : semCallParams (wsw := wsw3) (pT := pT3)}
@@ -1791,6 +2170,7 @@ Context
 Let wiequiv_f_trans' :=
   wiequiv_f_trans
     (wsw1 := wsw1) (wsw2 := wsw2) (wsw3 := wsw3)
+    (wa1 := wa1) (wa2 := wa2) (wa3 := wa3)
     (scP1 := scP1) (scP2 := scP2) (scP3 := scP3)
     (dc1 := dc1) (dc2 := dc2) (dc3 := dc3)
     (p1 := p1) (p2 := p2) (p3 := p3)

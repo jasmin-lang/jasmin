@@ -317,3 +317,12 @@ Definition is_expandable_or_shift (n : Z) : bool :=
    | EI_byte | EI_pattern | EI_shift => true
    | EI_none => false
   end.
+
+
+
+Definition arm_internal_call_conv : internal_calling_convention :=
+  {| icall_reg   := [:: R00; R01; R02; R03; R04; R05; R06; R07; R08; R09; R10; R11; R12]
+   ; icall_regx  := [::]
+   ; icall_xreg  := [::]
+   ; icall_rflag := [:: CF; NF; ZF; VF ]
+  |}.

@@ -86,6 +86,8 @@ end = struct
       Cassgn (mk_lval fn lv, tag, ty, mk_expr fn e)
     | Copn (lvls, tag, opn, exprs) ->
       Copn (mk_lvals fn lvls, tag, opn, mk_exprs fn exprs)
+    | Cassert (msg, e) ->
+       Cassert (msg, mk_eassert fn e)
     | Csyscall (lvls, o, exprs) ->
         Csyscall(mk_lvals fn lvls, o, mk_exprs fn exprs)
     | Cif (e, st, st') ->
@@ -114,6 +116,14 @@ end = struct
 
   and mk_exprs fn exprs = List.map (mk_expr fn) exprs
 
+  and mk_eassert fn e =
+    match e with
+    | Pexpr e -> Pexpr (mk_expr fn e)
+    | PappN_safety(op, es) -> PappN_safety(op, mk_exprs fn es)
+    | Pis_var_init x -> Pis_var_init (mk_v_loc fn x)
+    | Pis_mem_init(e1, e2) -> Pis_mem_init(mk_expr fn e1, mk_expr fn e2)
+    | Pand(e1, e2) -> Pand(mk_eassert fn e1, mk_eassert fn e2)
+
   let mk_uniq main_decl ((glob_decls, fun_decls) : (unit, 'asm) prog) =
     Hashtbl.clear ht_uniq;
     Hashtbl.clear htv;
@@ -136,10 +146,10 @@ module MakePreAnalysis (Arch : SafetyArch.SafetyArch) = struct
 let decompose_address e =
   let rec aux e =
     match e with
-    | Pvar x -> x, Papp1 (E.Oword_of_int Arch.pointer_data, Pconst Z.zero)
-    | Papp2(E.Oadd (Op_w ws), Pvar x, offset) when ws = Arch.pointer_data -> x, offset
-    | Papp2(E.Owi2 (_, ws, E.WIadd ), Pvar x, offset) when ws = Arch.pointer_data -> x, offset
-    | Papp1(E.Owi1 (_, E.WIword_of_wint ws), e) when ws = Arch.pointer_data -> aux e
+    | Pvar x -> x, Papp1 (Oword_of_int Arch.pointer_data, Pconst Z.zero)
+    | Papp2(Oadd (Op_w ws), Pvar x, offset) when ws = Arch.pointer_data -> x, offset
+    | Papp2(Owi2 (_, ws, WIadd ), Pvar x, offset) when ws = Arch.pointer_data -> x, offset
+    | Papp1(Owi1 (_, WIword_of_wint ws), e) when ws = Arch.pointer_data -> aux e
     | _ -> raise Not_found in
   let x, offset = aux e in
   if x.gs = Slocal then L.unloc x.gv, offset
@@ -357,6 +367,8 @@ end = struct
           | _ -> assert false
       else None
 
+    | Cassert _ -> None
+
     | Cif (_, c1, c2) ->
       begin match pa_flag_setfrom v c1, pa_flag_setfrom v c2 with
         | None, None -> None
@@ -379,6 +391,8 @@ end = struct
 
     | Copn (lvs, _, _, es) | Csyscall(lvs, _, es) -> List.fold_left (fun st lv ->
         List.fold_left (fun st e -> pa_lv st lv e) st es) st lvs
+
+    | Cassert _ -> st
 
     | Cif (b, c1, c2) ->
       let vs,st = expr_vars st b in
@@ -505,6 +519,9 @@ module FSPa : sig
   val fs_pa_make : ('info, Arch.extended_op) func -> (unit, Arch.extended_op) func * Pa.pa_res
 end = struct
   exception Fcall
+
+  (* This is very close to vars_e, vars_es, vars_lv, vars_a, vars_i and vars_c.
+     The only diff is that this function fail if a call remains *)
   let rec collect_vars_e sv = function
     | Pconst _ | Pbool _ | Parr_init _ -> sv
     | Pvar v ->
@@ -531,6 +548,8 @@ end = struct
 
   let collect_vars_lvs sv = List.fold_left collect_vars_lv sv
 
+  let collect_vars_eassert sv a = Sv.union sv (vars_a a)
+
   let rec collect_vars_i sv i = match i.i_desc with
     | Cif (e, st1, st2)
     | Cwhile (_, st1, e, _, st2) ->
@@ -547,6 +566,7 @@ end = struct
       let sv = collect_vars_lv sv lv in
       collect_vars_e sv e
     | Ccall _ -> raise Fcall
+    | Cassert (_, e) ->  collect_vars_eassert sv e
 
   and collect_vars_is sv is = List.fold_left collect_vars_i sv is
 

@@ -1,7 +1,5 @@
 open Utils
-open PrintCommon
 open PrintASM
-open Prog
 open Arch_decl
 open X86_decl
 open Wsize
@@ -11,9 +9,6 @@ type rsize = [ `U8 | `U16 | `U32 | `U64 ]
 
 (* -------------------------------------------------------------------- *)
 exception InvalidRegSize of wsize
-
-(* -------------------------------------------------------------------- *)
-let iwidth = 4
 
 (* -------------------------------------------------------------------- *)
 type lreg =
@@ -369,6 +364,15 @@ and type asm_op = X86_instr_decl.x86_op
   let pp_name_ext pp_op =
     Format.asprintf "%s%s" pp_op.pp_aop_name (pp_ext pp_op.pp_aop_ext)
 
+  let pp_asm_arg_ty lty arg =
+    match lty with
+    | Type.Coq_lbool ->
+      begin match arg with
+      | Condt ct -> pp_ct ct
+      | _ -> assert false
+      end
+    | Type.Coq_lword ws -> pp_asm_arg (ws, arg)
+
   let pp_instr_r name (instr_r : (_, _, _, _, _, _) Arch_decl.asm_i_r) =
     match instr_r with
     | ALIGN ->
@@ -392,7 +396,10 @@ and type asm_op = X86_instr_decl.x86_op
     | SysCall(op) ->
       let name = "call" in
       [Instr(name, [pp_syscall op])]
-
+    | Declassify_val (lty, a) ->
+      declassify_val pp_asm_arg_ty lty a
+    | Declassify_mem (len, a) ->
+      declassify_mem x86_decl len a
     | AsmOp(op, args) ->
       let id = instr_desc X86_decl.x86_decl X86_instr_decl.x86_op_decl (None, op) in
       let pp = id.id_pp_asm args in

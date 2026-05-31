@@ -7,6 +7,8 @@ Require Import strings word utils.
 Import Utf8 ZArith Lia.
 Require Import ssrring.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Local Open Scope Z_scope.
 
 (* LittleEndian *)
@@ -35,13 +37,15 @@ Module LE.
   Qed.
 
   Definition wread8 ws (v:word ws) (k:Z) :=
-    nth 0%R (encode v) (Z.to_nat k).
+    nth 0%w (encode v) (Z.to_nat k).
 
   Lemma encode8E (w: u8): encode w = [:: w].
   Proof.
+  Local Opaque word.subword.
     have {2}<-:= decodeK w.
     rewrite /encode /decode /make_vec /split_vec divnn modnn /= mul0n.
     by rewrite Z.lor_0_r /wrepr word.ureprK.
+  Local Transparent word.subword.
   Qed.
 
   Lemma encodeE s (w:word s) : encode w = [seq wread8 w k | k <- ziota 0 (wsize_size s)].
@@ -148,7 +152,8 @@ Section CoreMem.
 
   Definition write (m:core_mem) (al: aligned) (ptr:pointer) (sz:wsize) (w: word sz) : exec core_mem :=
     Let _ := assert (is_aligned_if al ptr sz) ErrAddrInvalid in
-    foldM (fun k m => set m (add ptr k) (LE.wread8 w k)) m (ziota 0 (wsize_size sz)).
+    let bytes := LE.encode w in
+    foldM (fun k m => set m (add ptr k) (nth 0%w bytes (Z.to_nat k))) m (ziota 0 (wsize_size sz)).
 
   Definition validw (m:core_mem) (al: aligned) (ptr:pointer) (sz:wsize) :=
     is_aligned_if al ptr sz && all (fun k => valid8 m (add ptr k)) (ziota 0 (wsize_size sz)).
@@ -180,8 +185,9 @@ Section CoreMem.
 
   Lemma set_write8 m al p w: set m p w = write m al p w.
   Proof.
-    rewrite /write is_aligned_if_is_align /= ?is_align8 // /= add_0.
+    rewrite /write is_aligned_if_is_align; last by rewrite is_align8.
     have := LE.encode8E w; rewrite LE.encodeE /= => -[->].
+    rewrite add_0.
     by case: set.
   Qed.
 
@@ -574,28 +580,32 @@ Qed.
 Instance PointerW : pointer_op pointer.
 Proof.
 refine
-  {| add p k   := (p + wrepr Uptr k)%R
-   ; sub p1 p2 := wunsigned (p1 - p2)%R
+  {| add p k   := (p + wrepr Uptr k)%w
+   ; sub p1 p2 := wunsigned (p1 - p2)%w
    ; p_to_z p  := wunsigned p
   |}.
-- abstract (move=> p k; rewrite wrepr_unsigned; ssring).
+- abstract (move=> p k; rewrite wrepr_unsigned add_wordE sub_wordE; ssring).
 - abstract (move=> p k => hk;
   rewrite -{2}(@wunsigned_repr_small Uptr k);
-    [ f_equal; ssring
+    [ f_equal; rewrite add_wordE sub_wordE; ssring
     | have := wsize_size_wbase U256;
       have := wbase_m (wsize_le_U8 (@Uptr pd));
       Lia.lia ]).
-- abstract (move => p; rewrite wrepr0; ssring).
+- abstract (move => p; rewrite wrepr0 add_wordE; ssring).
 Defined.
 
 Lemma addE p k : add p k = (p + wrepr Uptr k)%R.
 Proof. by []. Qed.
 
 Lemma subE p1 p2 : sub p1 p2 = wunsigned (p1 - p2).
-Proof. by []. Qed.
+Proof.
+Local Opaque sub_word.
+  by rewrite [LHS]/= sub_wordE.
+Local Transparent sub_word.
+Qed.
 
 Lemma addC p i j : add (add p i) j = add p (i + j).
-Proof. rewrite /= wrepr_add; ssring. Qed.
+Proof. by rewrite /= wrepr_add !add_wordE; ssring. Qed.
 
 Lemma p_to_zE p : p_to_z p = wunsigned p.
 Proof. done. Qed.

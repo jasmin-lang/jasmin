@@ -253,8 +253,8 @@ Definition lower_Papp2_op
       else Some (ROR, e0, [:: e1 ])
   | Orol U32 =>
       let%opt c := is_wconst U8 e1 in
-      if c == 0%R then Some (MOV, e0, [::])
-      else Some (ROR, e0, [:: wconst (32 - c) ])
+      if c == 0%w then Some (MOV, e0, [::])
+      else Some (ROR, e0, [:: wconst (wrepr _ 32 - c)%w ])
   | _ =>
       None
   end.
@@ -341,6 +341,8 @@ Definition lower_cassgn_bool (lv : lval) (tag: assgn_tag) (e : pexpr) : option (
 (* -------------------------------------------------------------------- *)
 (* Lowering of architecture-specific operations. *)
 
+Definition isLnone x : bool := if x is Lnone _ _ then true else false.
+
 Definition lower_add_carry
   (lvs : seq lval) (es : seq pexpr) : option copn_args :=
   match lvs, es with
@@ -352,11 +354,12 @@ Definition lower_add_carry
         | _ => None
         end
       in
+      let cf_not_none := ~~ isLnone cf in
       let opts :=
-        {| set_flags := true; is_conditional := false; has_shift := None; |}
+        {| set_flags := cf_not_none; is_conditional := false; has_shift := None; |}
       in
       let lnoneb := Lnone dummy_var_info abool in
-      let lvs' := [:: lnoneb; lnoneb; cf; lnoneb; r ] in
+      let lvs' := if cf_not_none then [:: lnoneb; lnoneb; cf; lnoneb; r ] else [:: r ] in
       Some (lvs', Oasm (BaseOp (None, ARM_op mn opts)), es')
   | _, _ =>
       None

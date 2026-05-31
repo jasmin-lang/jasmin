@@ -14,13 +14,16 @@ Reference documentation of the language and compiler are on [readthedocs](https:
 
 ## Installation
 
-For a complete installation guide covering several usecases, please read our
+For a complete installation guide covering several use cases, please read our
 [documentation](https://jasmin-lang.readthedocs.io/en/stable/misc/installation_guide.html).
 
 If you just want to install the Jasmin tools, here is a TL;DR:
 
 - with APT (debian, ubuntu), a package is available in a dedicated repository,
   see the [documentation](https://jasmin-lang.readthedocs.io/en/stable/misc/installation_guide.html#on-debian-and-related-linux-distributions)
+
+- from AUR (arch linux), a package is available in the Arch User Repository,
+  see the [documentation](https://jasmin-lang.readthedocs.io/en/stable/misc/installation_guide.html#on-arch-linux)
 
 - with nix
   ```

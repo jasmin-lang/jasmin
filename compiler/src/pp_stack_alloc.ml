@@ -3,9 +3,6 @@ open Stack_alloc
 let pp_var ~debug fmt x =
   Printer.pp_var ~debug fmt (Conv.var_of_cvar x)
 
-let pp_expr ~debug fmt x =
-  Printer.pp_expr ~debug fmt (Conv.expr_of_cexpr x)
-
 let pp_region ~debug fmt r =
   Format.fprintf fmt "{ slot = %a; align = %s; writable = %b }"
     (pp_var ~debug) r.r_slot

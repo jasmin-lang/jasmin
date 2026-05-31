@@ -16,17 +16,17 @@ val z_of_pos : BinNums.positive -> Z.t
 val cz_of_z : Z.t -> BinNums.coq_Z
 val z_of_cz : BinNums.coq_Z -> Z.t
 
-val word_of_z : wsize -> Z.t -> Obj.t
-val int64_of_z : Z.t -> Obj.t
-val int32_of_z : Z.t -> Obj.t
-val z_of_int256 : Obj.t -> Z.t
-val z_of_int128 : Obj.t -> Z.t
-val z_of_int64 : Obj.t -> Z.t
-val z_of_int32 : Obj.t -> Z.t
-val z_of_int16 : Obj.t -> Z.t
-val z_of_int8 : Obj.t -> Z.t
-val z_of_word : wsize -> Obj.t -> Z.t
-val z_unsigned_of_word : wsize -> Obj.t -> Z.t
+val word_of_z : wsize -> Z.t -> Word0.word
+val int64_of_z : Z.t -> Word0.word
+val int32_of_z : Z.t -> Word0.word
+val z_of_int256 : Word0.word -> Z.t
+val z_of_int128 : Word0.word -> Z.t
+val z_of_int64 : Word0.word -> Z.t
+val z_of_int32 : Word0.word -> Z.t
+val z_of_int16 : Word0.word -> Z.t
+val z_of_int8 : Word0.word -> Z.t
+val z_of_word : wsize -> Word0.word -> Z.t
+val z_unsigned_of_word : wsize -> Word0.word -> Z.t
 
 (* -------------------------------------------------------------------- *)
 val cty_of_ty : Prog.ty -> Type.atype

@@ -15,6 +15,8 @@ Require Import
 
 Require Export riscv_lower_addressing.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 (* ** proofs
  * -------------------------------------------------------------------- *)
 
@@ -483,6 +485,7 @@ Proof.
     by eexists; first apply h.
   + move=> xs sc es ii; rewrite !read_writeE => hsub.
     by apply (wequiv_syscall_rel_eq (sip:=sip)) with checker_st_eq_on X => //=; split=> //; SvD.fsetdec.
+  + by move=> ? ii ?; apply wequiv_noassert with (ev1:=ev) (ii:=ii).
   + move=> e c1 c2 hc1 hc2 ii; rewrite !read_writeE => hsub.
     apply (wequiv_if_rel_eq (sip:=sip)) with checker_st_eq_on X X X => //.
     + by split => //; rewrite /read_es /= read_eE; SvD.fsetdec.

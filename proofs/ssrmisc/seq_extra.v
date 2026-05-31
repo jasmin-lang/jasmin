@@ -67,6 +67,15 @@ Lemma drop_onth (T : Type) n (s : seq T) :
   end.
 Proof. by elim: s n => [|x s IHs] //= [|n] /=; rewrite ?drop0. Qed.
 
+Lemma onth_take_drop (T:Type) (t:T) l i:
+  onth l i = Some t ->
+  l = take i l ++ t :: drop (i.+1) l.
+Proof.
+  elim: l i => // t1 l ih [ | i] /=.
+  + by move=> [->]; rewrite drop0.
+  by move=> /ih <-.
+Qed.
+
 Section AllProps.
 
   Lemma allE (T: Type) (p: pred T) m :
@@ -81,6 +90,11 @@ Section AllProps.
     by case/List_Forall_inv.
   Qed.
 
+  Lemma allInP (T:Type) (P : T -> bool) l : reflect (forall t, List.In t l -> P t) (all P l).
+  Proof.
+    by rewrite -List.Forall_forall; apply allE.
+  Qed.
+
 End AllProps.
 
 Lemma all_has {T} (p q: pred T) (s: seq T) :
@@ -92,4 +106,18 @@ Proof.
   - exists t; first by left.
     by rewrite pt.
   by case: (ih ps r) => y Y Z; exists y; first right.
+Qed.
+
+Lemma all2_symm T (p : rel T) : pre_symmetric p → pre_symmetric (all2 p).
+Proof.
+  move=> hsymm.
+  elim=> [|x1 l1 ih] [|x2 l2] //=.
+  by move=> /andP [/hsymm -> /ih ->].
+Qed.
+
+Lemma all2_trans T (p : rel T) : transitive p → transitive (all2 p).
+Proof.
+  move=> htrans.
+  elim=> [|x1 l1 ih] [|x2 l2] [|x3 l3] //=.
+  by move=> /andP [/htrans{}htrans /ih{}ih] /andP [/htrans -> /ih ->].
 Qed.

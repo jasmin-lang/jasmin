@@ -4,10 +4,11 @@ From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype choice.
 From mathcomp Require Import fintype finfun.
 From Coq.Unicode Require Import Utf8.
-From Coq Require Import ZArith Zwf Setoid Morphisms CMorphisms CRelationClasses.
+From Coq Require Import ZArith Zwf Setoid Morphisms CMorphisms CRelationClasses String.
 Require Import xseq oseq.
 From mathcomp Require Import word_ssrZ.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
 Local Open Scope Z_scope.
 
@@ -214,8 +215,11 @@ Lemma map_errP eT1 eT2 aT (f : eT1 -> eT2) (r : result eT1 aT) x :
 Proof. by case: r => //= ? [->]. Qed.
 Arguments map_errP {_ _ _ _ _ _}.
 
+Definition assertion_label := string.
+
 Variant error :=
- | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType | ErrArith | ErrSemUndef.
+ | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType | ErrArith | ErrSemUndef
+ | ErrAssert of assertion_label.
 
 Definition exec t := result error t.
 
@@ -499,6 +503,9 @@ Qed.
 Lemma mapM_ok {eT} {A B:Type} (f: A -> B) (l:list A) :
   mapM (eT:=eT) (fun x => ok (f x)) l = ok (map f l).
 Proof. by elim l => //= ?? ->. Qed.
+
+Definition sndM eT aT bT cT (f : bT -> result eT cT) (ab : aT * bT) : result eT (aT * cT) :=
+  Let c := f ab.2 in ok (ab.1, c).
 
 Section FOLDM.
 
@@ -1242,14 +1249,15 @@ Definition conc_map aT bT (f : aT -> seq bT) (l : seq aT) :=
 
 Section CTRANS.
 
-  Definition ctrans c1 c2 := nosimpl (
+  Definition ctrans c1 c2 :=
     match c1, c2 with
     | Eq, _  => Some c2
     | _ , Eq => Some c1
     | Lt, Lt => Some Lt
     | Gt, Gt => Some Gt
     | _ , _  => None
-    end).
+    end.
+  Arguments ctrans : simpl never.
 
   Lemma ctransI c : ctrans c c = Some c.
   Proof. by case: c. Qed.
@@ -1570,7 +1578,7 @@ Proof.
   apply Z.compare_eq.
 Qed.
 
-Lemma Z_to_nat_le0 z : z <= 0 -> Z.to_nat z = 0%N.
+Lemma Z_to_nat_le0 z : z <= 0 -> Z.to_nat z = 0%nat.
 Proof. by rewrite /Z.to_nat; case: z => //=; rewrite /Z.le. Qed.
 
 Lemma Z_odd_pow_2 n x :
@@ -1882,6 +1890,14 @@ Proof.
   by rewrite nth_default in hnth.
 Qed.
 
+Lemma onth_size (A:Type) (l:list A) n a :
+  onth l n = Some a -> (n < size l)%nat.
+Proof.
+  rewrite onth_nth => h.
+  rewrite - (size_map Some).
+  by apply (nth_not_default h).
+Qed.
+
 Lemma all_behead {A} {p : A -> bool} {xs : seq A} :
   all p xs -> all p (behead xs).
 Proof.
@@ -1922,8 +1938,6 @@ Variant and9 (P1 P2 P3 P4 P5 P6 P7 P8 P9 : Prop) : Prop :=
 Variant and10 (P1 P2 P3 P4 P5 P6 P7 P8 P9 P10 : Prop) : Prop :=
   And10 of P1 & P2 & P3 & P4 & P5 & P6 & P7 & P8 & P9 & P10.
 
-Notation "[ /\ P1 , P2 , P3 , P4 , P5 & P6 ]" :=
-  (and6 P1 P2 P3 P4 P5 P6) : type_scope.
 Notation "[ /\ P1 , P2 , P3 , P4 , P5 & P6 ]" :=
   (and6 P1 P2 P3 P4 P5 P6) : type_scope.
 Notation "[ /\ P1 , P2 , P3 , P4 , P5 , P6 & P7 ]" :=

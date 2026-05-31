@@ -346,7 +346,7 @@ Definition ad_nzcv : seq arg_desc := map F [:: NF; ZF; CF; VF ].
 (* Common flag definitions. *)
 
 Definition NF_of_word (ws : wsize) (w : word ws) := msb w.
-Definition ZF_of_word (ws : wsize) (w : word ws) := w == 0%R.
+Definition ZF_of_word (ws : wsize) (w : word ws) := w == 0%w.
 
 (* Compute the value of the flags for an arithmetic operation.
    For instance, for <+> a binary operation, this function should be called
@@ -705,7 +705,7 @@ Let string_of_arm_mnemonic mn :=
 Definition arm_ADD_semi (wn wm : ty_r) : ty_nzcv_r :=
   let x :=
     nzcv_w_of_aluop
-      (wn + wm)%R
+      (wn + wm)%w
       (wunsigned wn + wunsigned wm)%Z
       (wsigned wn + wsigned wm)%Z
   in
@@ -750,7 +750,7 @@ Definition arm_ADC_semi (wn wm : ty_r) (cf : bool) : ty_nzcv_r :=
   let c := Z.b2z cf in
   let x :=
     nzcv_w_of_aluop
-      (wn + wm + wrepr reg_size c)%R
+      (wn + wm + wrepr reg_size c)%w
       (wunsigned wn + wunsigned wm + c)%Z
       (wsigned wn + wsigned wm + c)%Z
   in
@@ -793,7 +793,7 @@ Definition arm_ADC_instr : instr_desc_t :=
   else drop_nzcv x.
 
 Definition arm_MUL_semi (wn wm : ty_r) : ty_nz_r :=
-  let res := (wn * wm)%R in
+  let res := (wn * wm)%w in
   (:: Some (NF_of_word res), Some (ZF_of_word res) & res).
 
 (* Registers that cannot be encoded using three bits and are therefore unusable with MULS *)
@@ -833,7 +833,7 @@ Definition arm_MUL_instr : instr_desc_t :=
   else drop_nz x.
 
 Definition arm_MLA_semi (wn wm wa: ty_r) : ty_r :=
-  (wn * wm + wa)%R.
+  (wn * wm + wa)%w.
 
 Definition arm_MLA_instr : instr_desc_t :=
   let mn := MLA in
@@ -859,7 +859,7 @@ Definition arm_MLA_instr : instr_desc_t :=
   |}.
 
 Definition arm_MLS_semi (wn wm wa: ty_r) : ty_r :=
-  (wa - wn * wm)%R.
+  (wa - wn * wm)%w.
 
 Definition arm_MLS_instr : instr_desc_t :=
   let mn := MLS in
@@ -916,7 +916,7 @@ Definition arm_SUB_semi (wn wm : ty_r) : ty_nzcv_r :=
   let wmnot := wnot wm in
   let x :=
     nzcv_w_of_aluop
-      (wn + wmnot + 1)%R
+      (wn + wmnot + 1)%w
       (wunsigned wn + wunsigned wmnot + 1)%Z
       (wsigned wn + wsigned wmnot + 1)%Z
   in
@@ -1250,7 +1250,7 @@ Definition arm_SMMULR_instr : instr_desc_t :=
 Definition get_hw (hw : halfword) (x : wreg) : u16 :=
   if split_vec 16 x is [:: lo; hi ]
   then if hw is HWT then hi else lo
-  else 0%R. (* Never happens. *)
+  else 0%w. (* Never happens. *)
 
 Definition arm_smul_hw_semi (hwn hwm : halfword) (wn wm : wreg) : wreg :=
   let n := get_hw hwn wn in
@@ -2080,7 +2080,7 @@ Definition arm_SBFX_instr : instr_desc_t :=
 Definition arm_CMP_semi (wn wm : ty_r) : ty_nzcv :=
   let wmnot := wnot wm in
   nzcv_of_aluop
-      (wn + wmnot + 1)%R
+      (wn + wmnot + 1)%w
       (wunsigned wn + wunsigned wmnot + 1)%Z
       (wsigned wn + wsigned wmnot + 1)%Z.
 

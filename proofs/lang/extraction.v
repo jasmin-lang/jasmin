@@ -9,6 +9,7 @@ From Coq Require ExtrOCamlInt63.
 (* This is a hack to force the extraction to keep the singleton here,
    This need should be removed if we add more constructor to syscall_t *)
 Extract Inductive syscall.syscall_t => "(Wsize.wsize * BinNums.positive) Syscall_t.syscall_t" ["Syscall_t.RandomBytes"].
+Set Extraction File Comment "This prelude is added at extraction time. See lang/extraction.v. *) [@@@ocaml.warning ""-9-20-27-32-33-34-37-39-50-67""] (* End of prelude. ".
 
 Extraction Inline ssrbool.is_left.
 Extraction Inline ssrbool.predT ssrbool.pred_of_argType.
@@ -51,8 +52,6 @@ Extract Constant ident.Cident.tag     => "CoreIdent.Cident.tag".
 Extract Constant ident.Cident.id_name => "CoreIdent.Cident.id_name".
 Extract Constant ident.Cident.id_kind => "CoreIdent.Cident.id_kind".
 
-Extract Constant ident.Cident.spill_to_mmx => "CoreIdent.Cident.spill_to_mmx".
-
 Set Extraction Output Directory "lang/ocaml".
 
 Extraction Blacklist String List Nat Uint63 Utils Var Array.
@@ -66,6 +65,7 @@ Separate Extraction
   stack_zero_strategy
   lower_spill.spill_uprog
   psem_defs
+  sem_params
   sem_params_of_arch_extra
   arch_decl
   arch_extra

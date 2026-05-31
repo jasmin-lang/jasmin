@@ -3,6 +3,8 @@ From Coq Require Import FMaps FMapAVL FSetAVL.
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype.
 Require Import utils.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Lemma InAE (A: Type) (eqA: relation A) a m :
   InA eqA a m ->
   match m with

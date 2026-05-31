@@ -1,24 +1,25 @@
 open Jasmin
 open Prog
+open Operators
 
 type t = range
 
 let first ((d, f, l) : t) : expr =
     match d with
-    | E.UpTo -> f
-    | E.DownTo -> l
+    | UpTo -> f
+    | DownTo -> l
 
 let last ((d, f, l) : t) : expr =
     match d with
-    | E.UpTo -> l
-    | E.DownTo -> f
+    | UpTo -> l
+    | DownTo -> f
 
-let incr_operator ((d, _, _) : t) : E.sop2 =
+let incr_operator ((d, _, _) : t) : sop2 =
     match d with
-    | E.UpTo -> E.Oadd Op_int
-    | E.DownTo -> E.Osub Op_int
+    | UpTo -> Oadd Op_int
+    | DownTo -> Osub Op_int
 
-let cmp_operator ((d, _, _) : t) : E.sop2 =
+let cmp_operator ((d, _, _) : t) : sop2 =
     match d with
-    | E.UpTo -> E.Olt Cmp_int
-    | E.DownTo -> E.Ogt Cmp_int
+    | UpTo -> Olt Cmp_int
+    | DownTo -> Ogt Cmp_int

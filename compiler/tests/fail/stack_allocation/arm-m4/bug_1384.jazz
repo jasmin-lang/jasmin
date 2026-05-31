@@ -1,0 +1,7 @@
+export fn spilled_int() -> reg u32 {
+  reg int x = 0;
+  () = #spill(x);
+  () = #unspill(x);
+  reg u32 y = (64u)x;
+  return y;
+}

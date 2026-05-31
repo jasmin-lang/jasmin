@@ -1,9 +1,8 @@
 (* * Pretty-print Jasmin program (concrete syntax) as LATEX fragments *)
 
 open Utils
-open Annotations
 open Syntax
-
+open SPrinter
 module F = Format
 module L = Location
 
@@ -36,14 +35,6 @@ let quotedouble fmt () = F.fprintf fmt "\\textquotedbl{}"
 
 let indent fmt d = if d > 0 then latex "indent" fmt (string_of_int d)
 
-let pp_opt p fmt =
-  function
-  | None -> ()
-  | Some x -> p fmt x
-
-let pp_paren p fmt =
-  F.fprintf fmt "(%a)" p
-
 let pp_string fmt s =
   F.asprintf "%S" s |>
   String.iter @@ function
@@ -59,13 +50,8 @@ let pp_string fmt s =
   | '^' -> caret fmt ()
   | c -> F.fprintf fmt "%c" c
 
-let pp_loc_string fmt s = L.unloc s |> pp_string fmt
-
 let pp_cc =
     pp_opt (fun fmt x -> F.fprintf fmt "%a " kw (match x with `Inline -> "inline" | `Export -> "export"))
-
-let pp_var fmt x =
-  F.fprintf fmt "%s" (L.unloc x)
 
 let pp_castop fmt =
   function
@@ -106,50 +92,7 @@ let pp_op2 fmt =
   | `Ge s -> g s ">="
   | `Raw -> ret ""
 
-type prio =
-  | Pmin
-  | Pternary
-  | Por
-  | Pand
-  | Pbwor
-  | Pbwxor
-  | Pbwand
-  | Pcmpeq
-  | Pcmp
-  | Pshift
-  | Padd
-  | Pmul
-  | Punary
-  | Pbang
-
-let prio_of_op1 =
-  function
-  | `Cast _
-  | `Not _ -> Pbang
-  | `Neg _ -> Punary
-
-let prio_of_op2 =
-  function
-  | `Add _ | `Sub _ -> Padd
-  | `Mul _ | `Div _ | `Mod _ -> Pmul
-  | `And -> Pand
-  | `Or -> Por
-  | `BAnd _ -> Pbwand
-  | `BOr _ -> Pbwor
-  | `BXOr _ -> Pbwxor
-  | `ShR _  | `ShL _ | `ROR _ | `ROL _ -> Pshift
-  | `Eq _ | `Neq _ -> Pcmpeq
-  | `Lt _ | `Le _ | `Gt _ | `Ge _
-    -> Pcmp
-
-let optparent fmt ctxt prio p =
-  if prio < ctxt then F.fprintf fmt "%s" p
-
 let string_of_wsize w = Format.sprintf "u%d" (bits_of_wsize w)
-
-let pp_svsize fmt (vs,s,ve) =
-  Format.fprintf fmt "%d%s%d"
-    (int_of_vsize vs) (string_of_sign s) (bits_of_vesize ve)
 
 let pp_space fmt _ =
   F.fprintf fmt " "
@@ -159,11 +102,6 @@ let pp_attribute_key fmt s =
   then pannot fmt s
   else F.fprintf fmt "%S" s
 
-let string_of_align =
-  function
-  | `Aligned -> "aligned"
-  | `Unaligned -> "unaligned"
-
 let pp_aligned =
   pp_opt (fun fmt al ->
       F.fprintf fmt "%a%a " sharp () pannot (string_of_align al)
@@ -171,12 +109,10 @@ let pp_aligned =
 
 let rec pp_simple_attribute fmt a =
   match L.unloc a with
-  | Aint i -> Z.pp_print fmt i
-  | Aid s -> pannot fmt s
-  | Astring s -> pannot fmt (Format.asprintf "%a" pp_string s)
-  | Aws ws -> Format.fprintf fmt "%a" ptype (string_of_wsize ws)
-  | Astruct struct_ -> Format.fprintf fmt "(%a)" pp_struct_attribute struct_
-
+  | PAstring s -> pannot fmt (Format.asprintf "%a" pp_string s)
+  | PAws ws -> Format.fprintf fmt "%a" ptype (string_of_wsize ws)
+  | PAstruct struct_ -> Format.fprintf fmt "\\{%a\\}" pp_struct_attribute struct_
+  | PAexpr e -> pp_expr fmt e
 and pp_struct_attribute fmt struct_ =
   Format.fprintf fmt "@[<hov 2>%a@]" (pp_list ",@ " pp_annotation) struct_
 
@@ -187,19 +123,12 @@ and pp_attribute fmt = function
 and pp_annotation fmt (id, atr) =
   Format.fprintf fmt "%a%a" pp_attribute_key (L.unloc id) pp_attribute atr
 
-let pp_top_annotations fmt annot =
+and pp_annotations fmt annot =
   match annot with
   | []  -> ()
-  | [a] -> Format.fprintf fmt "@[%a%a\\\\@]\n" sharp () pp_annotation a
   | _   -> Format.fprintf fmt "#[%a]" pp_struct_attribute annot
 
-let pp_inline_annotations fmt annot =
-  match annot with
-  | []  -> ()
-  | [a] -> Format.fprintf fmt "%a%a " sharp () pp_annotation a
-  | _   -> Format.fprintf fmt "#[%a]" pp_struct_attribute annot
-
-let rec pp_expr_rec prio fmt pe =
+and pp_expr_rec prio fmt pe =
   match L.unloc pe with
   | PEParens e -> pp_expr_rec prio fmt e
   | PEVar x -> pp_var fmt x
@@ -208,6 +137,7 @@ let rec pp_expr_rec prio fmt pe =
   | PEFetch me -> pp_mem_access fmt me
   | PEpack (vs,es) ->
     F.fprintf fmt "(%a)[@[%a@]]" pp_svsize vs (pp_list ",@ " pp_expr) es
+  | PEstring s -> pp_string fmt s
   | PEBool b -> F.fprintf fmt "%s" (if b then "true" else "false")
   | PEInt i -> F.fprintf fmt "%s" i
   | PECall (f, args) -> F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
@@ -267,7 +197,7 @@ let pp_sto_ty fmt (sto, ty) =
   F.fprintf fmt "%a %a" pp_storage sto pp_type ty
 
 let pp_annot_sto_ty fmt (annot, stoty) =
-  F.fprintf fmt "%a%a" pp_inline_annotations annot pp_sto_ty stoty
+  F.fprintf fmt "%a%a" pp_annotations annot pp_sto_ty stoty
 
 let pp_args fmt (sty, xs) =
   F.fprintf
@@ -281,7 +211,7 @@ let pp_varinit fmt v =
   F.fprintf fmt "%a = %a" pp_var x pp_expr e
 
 let pp_annot_args fmt  (annot, args) =
-  F.fprintf fmt "%a%a" pp_inline_annotations annot pp_args args
+  F.fprintf fmt "%a%a" pp_annotations annot pp_args args
 
 let pp_rty =
   pp_opt
@@ -312,7 +242,7 @@ let pp_sidecond fmt =
   F.fprintf fmt " %a %a" kw "if" pp_expr
 
 let rec pp_instr depth fmt (annot, p) =
-  if annot <> [] then F.fprintf fmt "%a%a" indent depth pp_top_annotations annot;
+  if annot <> [] then F.fprintf fmt "%a%a" indent depth pp_annotations annot;
   indent fmt depth;
   match L.unloc p with
   | PIdecl (sty, vds) -> F.fprintf fmt "%a %a;" pp_sto_ty sty (pp_list " " pp_var) vds
@@ -342,6 +272,8 @@ let rec pp_instr depth fmt (annot, p) =
     F.fprintf fmt "%a%a;"
       pp_expr e
       (pp_opt pp_sidecond) cnd
+  | PIAssert (msg, e) ->
+     F.fprintf fmt "%a(%a, %a)" kw "assert" pp_string (L.unloc msg) pp_expr e
   | PIIf (b, th, el) ->
     begin
     F.fprintf fmt "%a %a %a"
@@ -390,7 +322,7 @@ let pp_fundef fmt { pdf_cc ; pdf_name ; pdf_args ; pdf_rty ; pdf_body ; pdf_anno
   F.fprintf
     fmt
     "%a%a%a %a(%a)%a %a"
-    pp_top_annotations pdf_annot
+    pp_annotations pdf_annot
     pp_cc pdf_cc
     kw "fn"
     dname (L.unloc pdf_name)
@@ -406,13 +338,12 @@ let pp_param fmt { ppa_ty ; ppa_name ; ppa_init } =
     pp_expr ppa_init
 
 let pp_pgexpr fmt = function
-  | GEword e -> pp_expr fmt e
+  | GEexpr e -> pp_expr fmt e
   | GEarray es ->
     F.fprintf fmt "%a @[%a@] %a"
       openbrace ()
       (pp_list ",@ " pp_expr) es
       closebrace ()
-  | GEstring e -> pp_loc_string fmt e
 
 let pp_global fmt { pgd_type ; pgd_name ; pgd_val } =
   F.fprintf fmt "%a %a = %a;"

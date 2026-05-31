@@ -75,11 +75,6 @@ let collect_export_info env prog asm_prog =
 
 let pp_size fmt i = F.fprintf fmt "%i" i
 
-let pp_type_with_ptr fmt var =
-  if is_ptr var.v_kind then
-    F.fprintf fmt "ptr %a" (pp_gtype ?w:None pp_size) var.v_ty
-  else F.fprintf fmt "%a" (pp_gtype ?w:None pp_size) var.v_ty
-
 let escape_string_json s =
   String.replace_chars (function
       | '"' -> "\\\""

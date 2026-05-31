@@ -40,7 +40,7 @@ type stk_alloc_oracle_t =
   }
 
 type glob_alloc_oracle_t = 
-  { gao_data : Obj.t list 
+  { gao_data : Word0.word list 
   ; gao_slots  : (var * wsize * int) list 
   ; gao_align : wsize
   ; gao_size  : int               (* Not normalized with respect to sao_local_align *)
@@ -71,6 +71,10 @@ let get_stack_pointer pd x =
     r
 in
 
+let is_ty_word =
+  function Bty (U _) -> true | _ -> false
+in
+
 let preprocess_liveset (s: Sv.t) : Sv.t =
   Sv.fold (fun x s ->
       if is_ty_arr x.v_ty
@@ -85,7 +89,7 @@ let preprocess_liveset (s: Sv.t) : Sv.t =
         then Sv.add (get_stack_pointer pd x) s
         else s
       else
-        if is_stack_kind x.v_kind
+        if is_stack_kind x.v_kind && is_ty_word x.v_ty
         then Sv.add x s
         else s
     ) s Sv.empty
@@ -101,7 +105,7 @@ in
 
 let rec live_ranges_instr_r d_acc =
   function
-  | (Cassgn _ | Copn _ | Csyscall _ | Ccall _) -> d_acc
+  | (Cassgn _ | Copn _ | Csyscall _ | Ccall _ | Cassert _) -> d_acc
   | Cif (_, s1, s2)
   | Cwhile (_, s1, _, _, s2) ->
      let d_acc = live_ranges_stmt d_acc s1 in
@@ -197,6 +201,7 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
     try match i.i_desc with
     | Cassgn(x,_,_,e) -> add_lv x; add_e e
     | Copn(xs,_,_,es) | Csyscall(xs,_,es) -> add_lvs xs; add_es es
+    | Cassert _ -> assert false (* used after remove_assert *)
     | Cif(e, _, _) | Cwhile (_, _, e, _, _) -> add_e e
     | Cfor _ -> assert false
     | Ccall(xs, fn, es) ->
@@ -244,11 +249,16 @@ let init_slots pd stack_pointers alias coloring fv =
             (* TODO: do we need to check that we are exact and fail otherwise? *)
             add_local v (Direct (slot, r2i c.range, E.Slocal))
           end
-      else
-        let sz = size_of v.v_ty in
-        let slot = get_slot coloring v in
-        add_slot slot;
-        add_local v (Direct (slot, r2i(0, sz), E.Slocal))
+      else begin match v.v_ty with
+           | Bty (U ws) ->
+              let sz = size_of_ws ws in
+              let slot = get_slot coloring v in
+              add_slot slot;
+              add_local v (Direct (slot, r2i(0, sz), E.Slocal))
+           | _ -> hierror ~loc:(Lone v.v_dloc) "cannot allocate in the stack the variable “%a” of type %a"
+                    (Printer.pp_var ~debug:false) v
+                    PrintCommon.pp_ty v.v_ty
+           end
 
     | Stack (Pointer _) ->
       let xp = get_stack_pointer stack_pointers v in
@@ -350,13 +360,13 @@ let alloc_local_stack size slots atbl =
 
 (* --------------------------------------------------- *)
 let get_returned_params ~funname (alias: Alias.alias) args =
+  let arg_slices = List.map (fun arg -> if is_ptr arg.v_kind then Some (Alias.normalize_var alias arg) else None) args in
   List.map (fun xr ->
       let x = L.unloc xr in
       if is_ptr x.v_kind then
         let c = Alias.normalize_var alias x in
-        let arg_slices = List.map (Alias.normalize_var alias) args in
-        match List.index_of c arg_slices with
-        | None ->
+        match fst (List.findi (fun _ slice -> Some c = slice) arg_slices) with
+        | exception Not_found ->
            let msg =
              if List.mem c.in_var args
              then "a strict sub-slice of a parameter"
@@ -367,7 +377,7 @@ let get_returned_params ~funname (alias: Alias.alias) args =
              (Printer.pp_var ~debug:false) x
              msg
              Alias.pp_slice c
-        | i -> i
+        | i -> Some i
       else None
     )
 

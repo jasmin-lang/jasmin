@@ -1,0 +1,6 @@
+export fn main () -> reg u64 {
+  reg u64 x = 0;
+  reg bool b = true;
+  x = b ? b : x;
+  return x;
+}

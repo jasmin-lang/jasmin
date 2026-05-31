@@ -35,7 +35,7 @@ let parse () =
   | infile :: s :: _ -> raise CLI_errors.(CLIerror (RedundantInputFile (infile, s)))
 
 (* -------------------------------------------------------------------- *)
-let check_safety_p pd msf_size asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
+let check_safety_p pd msf_size asmOp analyze s (p : (_, 'asm) Prog.prog) =
   let () = if SafetyConfig.sc_print_program () then
       let s1,s2 = Glob_options.print_strings s in
       Format.eprintf "@[<v>At compilation pass: %s@;%s@;@;\
@@ -52,57 +52,19 @@ let check_safety_p pd msf_size asmOp analyze s (p : (_, 'asm) Prog.prog) source_
           let () = Format.eprintf "@[<v>Analyzing function %s@]@."
               f_decl.f_name.fn_name in
 
-          let source_f_decl = List.find (fun source_f_decl ->
-              f_decl.f_name.fn_name = source_f_decl.f_name.fn_name
-            ) (snd source_p) in
-          analyze source_f_decl f_decl p && res
+          analyze ?fmt:None ~safety_param:!Glob_options.safety_param f_decl p && res
         else res)
       true
       (List.rev (snd p)) in
   if not is_safe then exit(2)
 
 (* -------------------------------------------------------------------- *)
-module type ArchWithAnalyze = sig
-  module A : Arch_full.Arch
-  val analyze :
-    (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) func ->
-    (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) func ->
-    (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) prog ->
-    bool
-end
-
-
 let main () =
 
   try
     let infile = parse() in
 
-    let (module P : ArchWithAnalyze) =
-      match !target_arch with
-      | X86_64 ->
-         (module struct
-            module C = (val CoreArchFactory.core_arch_x86 ~use_lea:!lea ~use_set0:!set0 !call_conv)
-            module A = Arch_full.Arch_from_Core_arch (C)
-            module Safety = SafetyMain.Make (Jasmin_checksafety.X86_safety.X86_safety (A))
-            let analyze = Safety.analyze ?fmt:None
-          end)
-      | ARM_M4 ->
-         (module struct
-            module C = CoreArchFactory.Core_arch_ARM
-            module A = Arch_full.Arch_from_Core_arch (C)
-            open Jasmin_checksafety
-            module Safety = SafetyMain.Make (Jasmin_checksafety.Arm_safety.Arm_safety (A))
-            let analyze = Safety.analyze ?fmt:None
-          end)
-      | RISCV ->
-         (module struct
-            module C = CoreArchFactory.Core_arch_RISCV
-            module A = Arch_full.Arch_from_Core_arch (C)
-            open Jasmin_checksafety
-            module Safety = SafetyMain.Make (Jasmin_checksafety.Riscv_safety.Riscv_safety (A))
-            let analyze = Safety.analyze ?fmt:None
-          end)
-    in
+    let (module P) = SafetyMain.get_arch_with_analyze !target_arch !call_conv in
     let module Arch = P.A in
 
     if !safety_makeconfigdoc <> None
@@ -125,7 +87,6 @@ let main () =
     let env, pprog, _ast =
       try Compile.parse_file Arch.arch_info ~idirs:!Glob_options.idirs infile
       with
-      | Annot.AnnotationError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
       | Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror code
       | Syntax.ParseError (loc, msg) ->
           let msg =
@@ -176,9 +137,6 @@ let main () =
         )
     end;
 
-    (* The source program, before any compilation pass. *)
-    let source_prog = prog in
-
     (* This function is called after each compilation pass.
         - Check program safety (and exit) if the time has come
         - Pretty-print the program
@@ -193,7 +151,6 @@ let main () =
           P.analyze
           s
           p
-          source_prog
         |> fun () -> exit 0
       else
         eprint s (Printer.pp_prog ~debug Arch.pointer_data Arch.msf_size Arch.asmOp) p
@@ -264,8 +221,11 @@ let main () =
           if !debug then Format.eprintf "assembly listing written@."
       end else if List.mem Compiler.Assembly !print_list then
           Format.printf "%a%!" Arch.pp_asm asm
+    | exception Annot.AnnotationError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
     end
   with
+
+
   | Utils.HiError e ->
     Format.eprintf "%a@." pp_hierror e;
     exit 1

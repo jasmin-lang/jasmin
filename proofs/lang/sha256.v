@@ -3,7 +3,7 @@ Require Import word.
 Import Utf8 ZArith.
 Import utils.
 
-#[local] Open Scope ring_scope.
+#[local] Open Scope word_scope.
 
 Definition ch (e f g: u32) : u32 :=
   wxor (wand e f) (wand (wnot e) g).
@@ -56,4 +56,4 @@ Definition sha256rnds2 (x y z: u128) : u128 :=
     let a₂ := t₁ + maj a₁ a₀ b₀ + Σ₀ a₁ in
     let e₂ := t₁ + c₀ in
     make_vec U128 [:: e₁; e₂; a₁; a₂ ]
-  else 0 (* absurd case *).
+  else 0%w (* absurd case *).

@@ -19,10 +19,25 @@ abstract theory ByteArray.
 
   abbrev [-printing] of_list8 = of_list.
 
+  op is_init_cell (t:t) (i: int): bool = 0 <= i < size => t.[i] = W8.of_int 255.
+
+  op is_init (t:t) (k l : int): bool = forall i, k <= i => i < k + l => is_init_cell t i.
+
+  op init_arr (b : W8.t) : t =
+    init (fun _ => b).
+
+ lemma init_arrP (t: t) (k: int) : is_init_cell (init_arr (W8.of_int 255))  k.
+ proof. by move => hk; rewrite /is_init_cell initE hk. qed.
+
+ lemma is_init_set_last t len :
+   is_init t 0 len => is_init t.[len <- W8.of_int 255] 0 (len + 1).
+ proof. move => h k k0 klen k_in_bounds; rewrite get_set_if /#. qed.
+
   abstract theory WSB.
     type B.
     op r : int.
     op _zero : B.
+    op _m_one : B.
     op _of_list : W8.t list -> B.
     op (\bits8) : B -> int -> W8.t.
 
@@ -36,6 +51,7 @@ abstract theory ByteArray.
       w1 = w2.
     axiom _zero_bits8 i : _zero \bits8 i = W8.zero.
 
+    axiom _m_one_bits8 i :  0<=i < r =>  _m_one \bits8 i = W8.onew.
 
     op get'Sd (t:t) (i:int) : B =
       _of_list (sub t i r)
@@ -57,6 +73,15 @@ abstract theory ByteArray.
       (set'Sd t i w).[j] =
       if i <= j < i + r /\ 0 <= j && j < ByteArray.size then  w \bits8 (j - i) else t.[j].
     proof. by rewrite /set'Sd filliEs. qed.
+
+    lemma is_init_cell_set'Sd (t:t) (i j: int):
+        is_init_cell (set'Sd t i _m_one) j = (i <= j < i + r \/ is_init_cell t j).
+    proof.
+      rewrite /is_init_cell get8_set'SdE -oneE /=.
+      smt(_m_one_bits8).
+    qed.
+
+    hint simplify is_init_cell_set'Sd.
 
     lemma get'Sd_byte (t:t) (i k:int) :
       0 <= k < r =>
@@ -182,60 +207,70 @@ abstract theory ByteArray.
     type B <- W16.t,
     op r <- 2,
     op _zero <- W16.zero,
+    op _m_one <- W16.of_int 65535,
     op _of_list <- W2u8.pack2,
     op (\bits8) <- W2u8.(\bits8),
     axiom _gt0_r <- W2u8.gt0_r,
     axiom _nth_of_list <- W2u8.get_pack2,
     axiom _wordP <- W2u8.wordP,
-    axiom _zero_bits8 <- W2u8.get_zero
+    axiom _zero_bits8 <- W2u8.get_zero,
+    axiom _m_one_bits8 <- W2u8._m_one_bits8
   rename [op, lemma, theory] "'S" as "16".
 
   clone include WSB with
     type B <- W32.t,
     op r <- 4,
     op _zero <- W32.zero,
+    op _m_one <- W32.of_int 4294967295,
     op _of_list <- W4u8.pack4,
     op (\bits8) <- W4u8.(\bits8),
     axiom _gt0_r <- W4u8.gt0_r,
     axiom _nth_of_list <- W4u8.get_pack4,
     axiom _wordP <- W4u8.wordP,
-    axiom _zero_bits8 <- W4u8.get_zero
+    axiom _zero_bits8 <- W4u8.get_zero,
+    axiom _m_one_bits8 <- W4u8._m_one_bits8
   rename [op, lemma, theory] "'S" as "32".
 
   clone include WSB with
     type B <- W64.t,
     op r <- 8,
     op _zero <- W64.zero,
+    op _m_one <- W64.of_int 18446744073709551615,
     op _of_list <- W8u8.pack8,
     op (\bits8) <- W8u8.(\bits8),
     axiom _gt0_r <- W8u8.gt0_r,
     axiom _nth_of_list <- W8u8.get_pack8,
     axiom _wordP <- W8u8.wordP,
-    axiom _zero_bits8 <- W8u8.get_zero
+    axiom _zero_bits8 <- W8u8.get_zero,
+    axiom _m_one_bits8 <- W8u8._m_one_bits8
   rename [op, lemma, theory] "'S" as "64".
 
   clone include WSB with
     type B <- W128.t,
     op r <- 16,
     op _zero <- W128.zero,
+    op _m_one <- W128.of_int 340282366920938463463374607431768211455,
     op _of_list <- W16u8.pack16,
     op (\bits8) <- W16u8.(\bits8),
     axiom _gt0_r <- W16u8.gt0_r,
     axiom _nth_of_list <- W16u8.get_pack16,
     axiom _wordP <- W16u8.wordP,
-    axiom _zero_bits8 <- W16u8.get_zero
+    axiom _zero_bits8 <- W16u8.get_zero,
+    axiom _m_one_bits8 <- W16u8._m_one_bits8
   rename [op, lemma, theory] "'S" as "128".
 
   clone include WSB with
     type B <- W256.t,
     op r <- 32,
     op _zero <- W256.zero,
+    op _m_one <-  W256.of_int 115792089237316195423570985008687907853269984665640564039457584007913129639935,
     op _of_list <- W32u8.pack32,
     op (\bits8) <- W32u8.(\bits8),
     axiom _gt0_r <- W32u8.gt0_r,
     axiom _nth_of_list <- W32u8.get_pack32,
     axiom _wordP <- W32u8.wordP,
-    axiom _zero_bits8 <- W32u8.get_zero
+    axiom _zero_bits8 <- W32u8.get_zero,
+    axiom _m_one_bits8 <- W32u8._m_one_bits8
   rename [op, lemma, theory] "'S" as "256".
 
 end ByteArray.
@@ -280,6 +315,15 @@ abstract theory SubByteArray.
      if (i <= k < i + Asmall.size) /\ (0 <= k < Abig.size) then Asmall.get8 s (k - i)
      else Abig.get8 a k.
   proof. by rewrite Abig.filliEs. qed.
+
+  lemma is_init_cell_get (t: Abig.t) (i j: int):
+      (0 <= i < Asmall.size) => (0 <= j + i < Abig.size) => (Asmall.is_init_cell (get_sub t j) i)  =  Abig.is_init_cell t (j+i).
+  proof. by move => hi hij; rewrite /is_init_cell get8_get_sub hi hij. qed.
+
+  lemma is_init_cell_set  (t1: Abig.t) (t2: Asmall.t) (i j:int):
+    Abig.is_init_cell(set_sub t1 i t2) j =
+      if i <= j < Asmall.size + i /\ 0 <= j < Abig.size then Asmall.is_init_cell t2 (j - i) else  Abig.is_init_cell t1 j.
+  proof. rewrite /is_init_cell get8_set_sub /#. qed.
 
   abstract theory GETSUB.
     type B.

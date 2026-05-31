@@ -159,6 +159,7 @@ let rec modmsf_i fenv i =
       let r = modmsf_c fenv c0 in
       if is_Modified r then r else modmsf_c fenv c1
     else modified_here
+  | Cassert _
   | Cassgn _ -> NotModified
   | Copn (_, _, o, _) ->
     begin match is_special o with
@@ -266,6 +267,8 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
         error ~loc "syscalls destroy msf variables, %a are required" pp_vset ms;
       (* withcheck => is_empty ms *)
       ms
+
+  | Cassert _ -> ms
 
   | Cif (_, c1, c2) ->
     let ms1 = infer_msf_c ~withcheck fenv tbl c1 ms in
@@ -382,14 +385,11 @@ module Env : sig
   val dpublic    : env -> vty
   val dsecret    : env -> vty
 
-  val get   : venv -> var -> vty
   val get_i : venv -> var_i -> vty
   val gget  : venv -> int ggvar -> vty
 
-  val fresh  : ?name:string -> env -> Lvl.t
   val fresh2 : ?name:string -> env -> VlPairs.t
 
-  val init_ty : env -> venv -> var -> vty -> venv
   val set_ty : env -> venv -> var_i -> vty -> venv
   val set_init_msf : env -> venv -> var_i option -> venv
 
@@ -742,15 +742,12 @@ module MSF : sig
   val loop : Env.env -> L.i_loc -> t -> t
   val end_loop : L.t -> t -> t -> t
 
-  val pp : Format.formatter -> t -> unit
-
   end = struct
 
   type t = Sv.t * expr option
 
   let toinit = (Sv.empty, None)
   let exact xs = (xs, None)
-  let trans xs e = (xs, Some e)
 
   let exact1 x =
     ensure_register ~direct:true x;
@@ -910,9 +907,6 @@ let ty_lval env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
 let ty_lvals1 env (msf_e : msf_e) xs ety : msf_e =
   List.fold_left (fun msf_e x -> ty_lval env msf_e x ety) msf_e xs
 
-let ty_lvals env (msf_e : msf_e) xs tys : msf_e =
-  List.fold_left2 (ty_lval env) msf_e xs tys
-
 
 (* -------------------------------------------------------------- *)
 (* declassify                                                     *)
@@ -928,10 +922,6 @@ let declassify env = function
 let declassify_ty ~loc env annot ty = if CT.is_declassify ~loc annot
   then declassify env ty
   else ty
-
-let declassify_tys ~loc env annot tys = if CT.is_declassify ~loc annot
-  then List.map (declassify env) tys
-  else tys
 
 let declassify_expr ~loc env ((msf, venv) as msf_e) =
   function
@@ -1027,6 +1017,8 @@ and ty_instr_r is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
       let ety = ty_exprs_max ~public env venv loc es in
       ty_lvals1 env msf_e xs (declassify_ty ~loc:i.i_loc env i.i_annot ety)
     end
+
+  | Cassert _ -> msf_e
 
   | Cif(e, c1, c2) ->
     let msf1, msf2 =
@@ -1264,7 +1256,7 @@ let init_constraint fenv f =
     error ~loc
       "%s annotation not allowed here" smsf in
 
-  (** The [is_local] argument is true when variable [x] is a local variable as
+  (* The [is_local] argument is true when variable [x] is a local variable as
   opposed to an argument or a returned value which inherits constraints from the call-sites. *)
   let mk_vty loc ~is_local ~(msf:bool) x ls an =
     let msf, ovty =

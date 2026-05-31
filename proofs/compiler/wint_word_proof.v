@@ -13,7 +13,8 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}.
+  {sip : SemInstrParams asm_op syscall_state}
+  {LC : LoopCounter}.
 
 Context
   (remove_wint_annot: funname -> fundef -> fundef)
@@ -100,6 +101,7 @@ Section E.
       1-8: by case: k => /= > -> /= > -> /= > [->] <-; (eexists; first reflexivity).
       case: o; rewrite /= /mk_sem_wiop2 /=.
       1-3: by move=> > -> > -> /= > /wint_of_intP [-> _] <-; (eexists; first reflexivity);
+           rewrite (add_wordE, mul_wordE, sub_wordE);
            rewrite (wrepr_add, wrepr_mul, wrepr_sub) !wrepr_int_of_word.
       1-2: by move=> > -> > -> /= > -> <- /=; (eexists; first reflexivity) => /=.
       + move=> > -> w2 -> /= > /wint_of_intP /= [-> _] <-; (eexists; first reflexivity).
@@ -108,7 +110,7 @@ Section E.
         by have := wunsigned_range w2; Lia.lia.
       + rewrite /mk_sem_wishift; case: si => /= w1 -> w2 -> > /=;
         move=> /wint_of_intP [-> ?] <-;  (eexists; first reflexivity) => /=;
-        rewrite /sem_sar /sem_shr /sem_shift /wsar /wshr /zasr /zlsl;
+        rewrite /sem_sar /sem_shr /sem_shift ?wsar_alt /wsar_naive ?wshr_alt /wshr_naive /zasr /zlsl;
         have [h _ ] := wunsigned_range w2;
         (case: ZleP;
         [ case/Zle_lt_or_eq: h; first Lia.lia;
@@ -344,7 +346,7 @@ Proof.
   + by rewrite get_map_prog Hfun.
   move=> {Hfun}.
   case: f htra Hi Hw Hc Hres Hfull Hfi hfun' => /=.
-  move=> info tyin params body tyout res extra htra hi hw hc hres hfull hfi hfun'.
+  move=> info fci tyin params body tyout res extra htra hi hw hc hres hfull hfi hfun'.
   have [vargs2 {}htra hu1] := mapM2_dc_truncate_val htra hu.
   have [vm1 {}hw hu2] := [elaborate write_vars_uincl (vm_uincl_refl _) hu1 hw].
   have [vm' {}hc hu3] := hc _ hu2.
@@ -444,6 +446,7 @@ Proof.
   + by move=> x tg ty e ii; apply wequiv_assgn_rel_uincl with checker_wi2w tt.
   + by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with checker_wi2w tt.
   + by move=> xs o es ii; apply wequiv_syscall_rel_uincl with checker_wi2w tt.
+  + by move=> >; apply wequiv_noassert.
   + by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with checker_wi2w tt tt tt.
   + by move=> v dir lo hi c hc ii; apply wequiv_for_rel_uincl with checker_wi2w tt tt.
   + by move=> a c e ii' c' hc hc' ii; apply wequiv_while_rel_uincl with checker_wi2w tt.

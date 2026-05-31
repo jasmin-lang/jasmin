@@ -177,6 +177,7 @@ Qed.
 
 Lemma sadd_wP sz e1 e2 : Papp2 (Oadd (Op_w sz)) e1 e2 =E sadd_w sz e1 e2.
 Proof.
+Local Opaque add_word.
 rewrite /sadd_w.
 case h1: (is_wconst sz e1) => [ n1 | ];
 case h2: (is_wconst sz e2) => [ n2 | ] //.
@@ -188,12 +189,13 @@ case h2: (is_wconst sz e2) => [ n2 | ] //.
   have! := (is_wconstP wdb gd s h1).
   t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 <-; clarify.
   case: (to_wordI k6) => sz' [w' [? /truncate_word_uincl ?]]; subst.
-  by rewrite GRing.add0r k4;eauto.
+  by rewrite add_wordE GRing.add0r k4;eauto.
 case: eqP => // hz s v /=; rewrite /sem_sop2 /=.
 have! := (is_wconstP wdb gd s h2).
 t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 <-; clarify.
 case: (to_wordI k5) => sz' [w' [? /truncate_word_uincl ?]]; subst.
-by rewrite GRing.addr0 k3;eauto.
+by rewrite add_wordE GRing.addr0 k3;eauto.
+Local Transparent add_word.
 Qed.
 
 Lemma saddP ty e1 e2 : Papp2 (Oadd ty) e1 e2 =E sadd ty e1 e2.
@@ -211,6 +213,7 @@ Qed.
 
 Lemma ssub_wP sz e1 e2 : Papp2 (Osub (Op_w sz)) e1 e2 =E ssub_w sz e1 e2.
 Proof.
+Local Opaque sub_word.
 rewrite /ssub_w.
 case h1: (is_wconst sz e1) => [ n1 | ];
 case h2: (is_wconst sz e2) => [ n2 | ] //.
@@ -222,7 +225,8 @@ case: eqP => // hz s v /=; rewrite /sem_sop2 /=.
 have! := (is_wconstP wdb gd s h2).
 t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 <-; clarify.
 case: (to_wordI k5) => sz' [w' [? /truncate_word_uincl ?]]; subst.
-by rewrite GRing.subr0 k3;eauto.
+by rewrite sub_wordE GRing.subr0 k3;eauto.
+Local Transparent sub_word.
 Qed.
 
 Lemma ssubP ty e1 e2 : Papp2 (Osub ty) e1 e2 =E ssub ty e1 e2.
@@ -246,6 +250,7 @@ Qed.
 
 Lemma smul_wP sz e1 e2 : Papp2 (Omul (Op_w sz)) e1 e2 =E smul_w sz e1 e2.
 Proof.
+Local Opaque mul_word.
 rewrite /smul_w.
 case h1: (is_wconst sz e1) => [ n1 | ];
 case h2: (is_wconst sz e2) => [ n2 | ] //.
@@ -256,17 +261,18 @@ case h2: (is_wconst sz e2) => [ n2 | ] //.
 + case: eqP => hn1; [| case: eqP => hn2] => s v /=; rewrite /sem_sop2 /sem_sop1 /=;
   have! := (is_wconstP wdb gd s h1);
   t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 ?; clarify.
-  - rewrite wrepr_unsigned GRing.mul0r;eauto.
+  - by rewrite wrepr0 mul_wordE GRing.mul0r;eauto.
   - case: (to_wordI k6) => {k6} sz' [w] [? /truncate_word_uincl]; subst.
-    by rewrite k4 GRing.mul1r; eauto.
+    by rewrite k4 mul_wordE GRing.mul1r; eauto.
   by rewrite k4 /= k6 /= wrepr_unsigned truncate_word_u /=;eexists;split;eauto => /=.
 case: eqP => hn1; [| case: eqP => hn2] => s v /=; rewrite /sem_sop2 /sem_sop1 /=;
 have! := (is_wconstP wdb gd s h2);
 t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 ?; clarify.
-- by rewrite wrepr_unsigned GRing.mulr0;eauto.
+- by rewrite wrepr0 mul_wordE GRing.mulr0;eauto.
 - case: (to_wordI k5) => {k5} sz' [w] [? /truncate_word_uincl ?]; subst.
-  by rewrite k3 GRing.mulr1;eauto.
+  by rewrite k3 mul_wordE GRing.mulr1;eauto.
 by rewrite k3 /= k5 /= truncate_word_u wrepr_unsigned /=;eexists;split;eauto => /=.
+Local Transparent mul_word.
 Qed.
 
 Lemma smulP ty e1 e2 : Papp2 (Omul ty) e1 e2 =E smul ty e1 e2.
@@ -488,14 +494,11 @@ Proof.
 
 Opaque app_sopn values.app_sopn.
   rewrite /s_opN.
+  case: op => [ sz' pe | // | c ];
   case h: app_sopn => [r | //].
-  case: op r h => [sz' pe | c] /=.
-
-  + move=> w h.
-    rewrite /sem_sop1 /= wrepr_unsigned /sem_opN /=.
+  + rewrite /= /sem_sop1 /= wrepr_unsigned /sem_opN /=.
     by rewrite -Let_Let (app_sopnP _ h).
 
-  move=> b h.
   rewrite /sem_opN /=.
   by rewrite -Let_Let (app_sopnP s h).
 Transparent app_sopn values.app_sopn.
@@ -889,6 +892,9 @@ Section PROPER.
     by do 3 f_equal; apply: map_ext => z _; rewrite Heq.
   Qed.
 
+  Local Lemma Wassert a : Pr (Cassert a).
+  Proof. done. Qed.
+
   Local Lemma Wif e c1 c2: Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Proof.
     move=> Hc1 Hc2 ii m1 m2 Heq /=.
@@ -946,7 +952,7 @@ Lemma const_prop_i_m :
 Proof.
   move=> g _ <- m1 m2 Hm i1 i2 <-.
   exact:
-    (instr_Rect (Wmk (gd:=g)) (Wnil g) (Wcons (gd:=g)) (Wasgn g) (Wopn g) (Wsyscall g)
+    (instr_Rect (Wmk (gd:=g)) (Wnil g) (Wcons (gd:=g)) (Wasgn g) (Wopn g) (Wsyscall g) (Wassert g)
        (Wif (gd:=g)) (Wfor (gd:=g)) (Wwhile (gd:=g)) (Wcall g)).
 Qed.
 
@@ -955,7 +961,7 @@ Lemma const_prop_i_r_m :
 Proof.
   move=> g _ <- m1 m2 Hm ii1 ii2 <- i1 i2 <-.
   exact:
-    (instr_r_Rect (Wmk (gd:=g)) (Wnil g) (Wcons (gd:=g)) (Wasgn g) (Wopn g) (Wsyscall g)
+    (instr_r_Rect (Wmk (gd:=g)) (Wnil g) (Wcons (gd:=g)) (Wasgn g) (Wopn g) (Wsyscall g) (Wassert g)
        (Wif (gd:=g)) (Wfor (gd:=g)) (Wwhile (gd:=g)) (Wcall g)).
 Qed.
 
@@ -964,7 +970,7 @@ Lemma const_prop_m g :
 Proof.
   move=> m1 m2 Hm c1 c2 <-.
   exact:
-    (cmd_rect (Wmk (gd:=g)) (Wnil g) (Wcons (gd:=g)) (Wasgn g) (Wopn g) (Wsyscall g)
+    (cmd_rect (Wmk (gd:=g)) (Wnil g) (Wcons (gd:=g)) (Wasgn g) (Wopn g) (Wsyscall g) (Wassert g)
        (Wif (gd:=g)) (Wfor (gd:=g)) (Wwhile (gd:=g)) (Wcall g)).
 Qed.
 
@@ -1274,18 +1280,17 @@ Section PROOF.
 
   Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
   Proof.
-    move => scs1 m1 sc2 m2 fn f vargs vargs' s0 s1 s2 vres vres'.
-    case: f=> fi ftin fparams fc ftout fres fex /= Hget Hargs Hi Hw _ Hc Hres Hfull Hscs Hfi.
+    move => scs1 m1 sc2 m2 fn f vargs vargs' s0 s1 s2 vres vres' /= Hget Hargs Hi Hw _ Hc Hres Hfull Hscs Hfi.
     generalize (get_map_prog (const_prop_fun gd) p fn); rewrite Hget /=.
     have : valid_cpm (evm s1) empty_cpm by move=> x n;rewrite Mvar.get0.
-    move=> /Hc [];case: const_prop => m c' /= hcpm hc' hget vargs1 hargs'.
+    move=> /Hc [] /= hcpm hc' hget vargs1 hargs'.
     have [vargs1' htr hu1]:= mapM2_dc_truncate_val Hargs hargs'.
     have [vm3 /= hw hu3]:= write_vars_uincl (vm_uincl_refl _) hu1 Hw.
     have [vm4 /= []hc hu4]:= hc' _ hu3.
     have [vres1 hvres1 hu5] := get_var_is_uincl hu4 Hres.
     have [vres1' ??]:= mapM2_dc_truncate_val Hfull hu5.
-    exists vres1';split => //.
-    econstructor;eauto => /=.
+    exists vres1';split => //=.
+    econstructor; eauto => /=.
     by move: hw;rewrite with_vm_same.
   Qed.
 
@@ -1451,6 +1456,7 @@ Qed.
 
 Lemma it_const_prop_callP fn : wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
+Local Opaque opp_word.
   apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
   exists (const_prop_fun (p_globs p) fd).
   + by rewrite get_map_prog hget.
@@ -1461,8 +1467,7 @@ Proof.
         , f_extra fd = f_extra (const_prop_fun gd fd)
         , f_params fd = f_params (const_prop_fun gd fd)
         & f_res fd = f_res (const_prop_fun gd fd)
-       ].
-  + by case fd => /= >; case: (const_prop _ _ _).
+       ] by done.
   have : exists2 t1, initialize_funcall p' ev (const_prop_fun gd fd) ft = ok t1 &
                        cmpl_inv empty_cpm s1 t1.
   + by have [t h1 []] := fs_uincl_initialize (p':=p') hin hex hpar erefl hfsu hinit; exists t.
@@ -1472,8 +1477,7 @@ Proof.
   + apply wrequiv_weaken with (st_uincl tt) fs_uincl => //.
     + by move=> > [] ?? [??].
     by apply fs_uincl_finalize.
-  have -> : f_body (const_prop_fun gd fd) = (const_prop (const_prop_i gd) empty_cpm (f_body fd)).2.
-  + by case fd => /= >; case: const_prop.
+  have -> : f_body (const_prop_fun gd fd) = (const_prop (const_prop_i gd) empty_cpm (f_body fd)).2 by done.
   apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {fd fn fs hfsu hinit hin hout hex hpar hres hinv ht1 t1 ft s1}.
   + by move=> ?; apply wequiv_nil.
   + move=> i c hi hc m /=.
@@ -1528,6 +1532,8 @@ Proof.
   + move=> xs o es ii m /=.
     rewrite (surjective_pairing (const_prop_rvs _ _ _)) /=.
     by apply wequiv_syscall_rel_uincl with checker_cp m.
+  + move=> a ii m /=.
+    by apply wequiv_noassert.
   + move=> e c1 c2 hc1 hc2 ii m /=.
     case heq : is_bool => [b|].
     + apply wequiv_if_rcond with b.
@@ -1591,6 +1597,7 @@ Proof.
   rewrite (surjective_pairing (const_prop_rvs _ _ _)) /=.
   apply wequiv_call_rel_uincl with checker_cp m => // ???.
   exact: wequiv_fun_rec.
+Local Transparent opp_word.
 Qed.
 
 End IT_PROOF.

@@ -1,8 +1,8 @@
 open Utils
 open Wsize
 open Prog
+open Operators
 open PrintCommon
-module E = Expr
 
 type amodel =
   | ArrayOld
@@ -96,7 +96,8 @@ let ec_keyword =
  ; "match"
  ; "for"
  ; "while"
- ; "assert"
+ ; "raise"
+ ; "assert" (* No longer a keyword since 2026.03 *)
  ; "return"
  ; "res"
  ; "equiv"
@@ -232,6 +233,7 @@ let ec_keyword =
  ; "of"
  ; "const"
  ; "op"
+ ; "exception"
  ; "pred"
  ; "inductive"
  ; "notation"
@@ -242,7 +244,7 @@ let ec_keyword =
  ; "section"
  ; "subtype"
  ; "type"
- ; "class"
+ ; "class" (* No longer a keyword since 2026.02 *)
  ; "instance"
  ; "print"
  ; "search"
@@ -325,12 +327,12 @@ type ec_var = string * ec_ty
 
 type ec_fun_decl = {
     fname: string;
-    args: (string * ec_ty) list;
+    args: ec_var list;
     rtys: ec_ty list;
 }
 type ec_fun = {
     decl: ec_fun_decl;
-    locals: (string * ec_ty) list;
+    locals: ec_var list;
     stmt: ec_stmt;
 }
 
@@ -352,7 +354,6 @@ type ec_module = {
 type ec_item =
     | IrequireImport of string list
     | Iimport of string list
-    | IfromImport of string * (string list)
     | IfromRequireImport of string * (string list)
     | Iabbrev of string * ec_expr
     | ImoduleType of ec_module_type
@@ -400,7 +401,7 @@ end
 
 module Env: EnvT = struct
   module PTcmp = struct
-    type t = string * ec_ty
+    type t = ec_var
     let compare = compare
   end
 
@@ -597,16 +598,16 @@ let fmt_Wsz sz = Format.asprintf "W%i" (int_of_ws sz)
 
 let fmt_op2 fmt op =
   let fmt_signed fmt ws is = function
-    | E.Cmp_w (Signed, _)   -> Format.fprintf fmt "\\s%s" ws
-    | E.Cmp_w (Unsigned, _) -> Format.fprintf fmt "\\u%s" ws
+    | Cmp_w (Signed, _)   -> Format.fprintf fmt "\\s%s" ws
+    | Cmp_w (Unsigned, _) -> Format.fprintf fmt "\\u%s" ws
     | _                     -> Format.fprintf fmt "%s" is
   in
   let fmt_div fmt ws uints sints sg k =
     match sg, k with
-    | Signed, E.Op_w _   -> Format.fprintf fmt "\\s%s" ws
-    | Unsigned, E.Op_w _ -> Format.fprintf fmt "\\u%s" ws
-    | Signed, E.Op_int   -> Format.fprintf fmt "%s" sints
-    | Unsigned, E.Op_int -> Format.fprintf fmt "%s" uints
+    | Signed, Op_w _   -> Format.fprintf fmt "\\s%s" ws
+    | Unsigned, Op_w _ -> Format.fprintf fmt "\\u%s" ws
+    | Signed, Op_int   -> Format.fprintf fmt "%s" sints
+    | Unsigned, Op_int -> Format.fprintf fmt "%s" uints
   in
 
   let fmt_vop2 fmt (s,ve,ws) =
@@ -614,29 +615,29 @@ let fmt_op2 fmt op =
   in
 
   match op with
-  | E.Obeq   -> Format.fprintf fmt "="
-  | E.Oand   -> Format.fprintf fmt "/\\"
-  | E.Oor    -> Format.fprintf fmt "\\/"
-  | E.Oadd _ -> Format.fprintf fmt "+"
-  | E.Omul _ -> Format.fprintf fmt "*"
-  | E.Odiv(sg, k) -> fmt_div fmt "div" "%/" "\\zquot" sg k
-  | E.Omod(sg, k) -> fmt_div fmt "mod" "%%" "\\zrem"  sg k
+  | Obeq   -> Format.fprintf fmt "="
+  | Oand   -> Format.fprintf fmt "/\\"
+  | Oor    -> Format.fprintf fmt "\\/"
+  | Oadd _ -> Format.fprintf fmt "+"
+  | Omul _ -> Format.fprintf fmt "*"
+  | Odiv(sg, k) -> fmt_div fmt "div" "%/" "\\zquot" sg k
+  | Omod(sg, k) -> fmt_div fmt "mod" "%%" "\\zrem"  sg k
 
-  | E.Osub  _ -> Format.fprintf fmt "-"
+  | Osub  _ -> Format.fprintf fmt "-"
 
-  | E.Oland _ -> Format.fprintf fmt "`&`"
-  | E.Olor  _ -> Format.fprintf fmt "`|`"
-  | E.Olxor _ -> Format.fprintf fmt "`^`"
-  | E.Olsr  _ -> Format.fprintf fmt "`>>`"
-  | E.Olsl  _ -> Format.fprintf fmt "`<<`"
-  | E.Oasr  _ -> Format.fprintf fmt "`|>>`"
-  | E.Orol _ -> Format.fprintf fmt "`|<<|`"
-  | E.Oror _ -> Format.fprintf fmt "`|>>|`"
+  | Oland _ -> Format.fprintf fmt "`&`"
+  | Olor  _ -> Format.fprintf fmt "`|`"
+  | Olxor _ -> Format.fprintf fmt "`^`"
+  | Olsr  _ -> Format.fprintf fmt "`>>`"
+  | Olsl  _ -> Format.fprintf fmt "`<<`"
+  | Oasr  _ -> Format.fprintf fmt "`|>>`"
+  | Orol _ -> Format.fprintf fmt "`|<<|`"
+  | Oror _ -> Format.fprintf fmt "`|>>|`"
 
-  | E.Oeq   _ -> Format.fprintf fmt "="
-  | E.Oneq  _ -> Format.fprintf fmt "<>"
-  | E.Olt s| E.Ogt s -> fmt_signed fmt "lt" "<" s
-  | E.Ole s | E.Oge s -> fmt_signed fmt "le" "<=" s
+  | Oeq   _ -> Format.fprintf fmt "="
+  | Oneq  _ -> Format.fprintf fmt "<>"
+  | Olt s| Ogt s -> fmt_signed fmt "lt" "<" s
+  | Ole s | Oge s -> fmt_signed fmt "le" "<=" s
 
   | Ovadd(ve,ws) -> fmt_vop2 fmt ("add", ve, ws)
   | Ovsub(ve,ws) -> fmt_vop2 fmt ("sub", ve, ws)
@@ -759,8 +760,6 @@ let pp_ec_item fmt it =
     Format.fprintf fmt "@[require import@ @[%a@].@]" (pp_list "@ " pp_string) is
   | Iimport is ->
     Format.fprintf fmt "@[import@ @[%a@].@]" (pp_list "@ " pp_string) is
-  | IfromImport (m, is) ->
-    Format.fprintf fmt "@[from %s import@ @[%a@].@]" m (pp_list "@ " pp_string) is
   | IfromRequireImport (m, is) ->
     Format.fprintf fmt "@[from %s require import@ @[%a@].@]" m (pp_list "@ " pp_string) is
   | Iabbrev (a, e) ->
@@ -778,7 +777,7 @@ let pp_ec_item fmt it =
       (fun fmt _ -> if m.vars = [] then (Format.fprintf fmt "") else (Format.fprintf fmt "@ ")) ()
       (pp_list "@ " pp_ec_fun) m.funs
 
-let pp_ec_prog fmt prog = Format.fprintf fmt "@[<v>%a@]" (pp_list "@ @ " pp_ec_item) prog
+let pp_ec_prog fmt (prog:ec_prog) = Format.fprintf fmt "@[<v>%a@]" (pp_list "@ @ " pp_ec_item) prog
 
 (* ------------------------------------------------------------------- *)
 (* Array theory cloning *)
@@ -892,16 +891,16 @@ let fmt_bytearray_decl fmt n =
 let fmt_subbytearray_decl fmt (s:subarray) =
   let arrays = fmt_array_theory (ByteArray s.sizes) in
   let arrayb = fmt_array_theory (ByteArray s.sizeb) in
-  let fmt_insts fmt (s: subarray) =
+  let fmt_insts fmt =
     Format.fprintf fmt "%a,@ %a"
     fmt_th ("Asmall", arrays)
     fmt_th ("Abig", arrayb)
   in
   Format.fprintf fmt "@[<v>from Jasmin require import JByte_array.@ @ ";
   Format.fprintf fmt "@[<v>require import %s %s.@ @ " arrays arrayb;
-  Format.fprintf fmt "clone SubByteArray as %s  with @[%a@].@]@."
+  Format.fprintf fmt "clone SubByteArray as %s  with @[%t@].@]@."
     (fmt_array_theory (SubByteArray s))
-    fmt_insts s
+    fmt_insts
 
 let save_array_theory ~prefix at =
   let fname = Format.sprintf "%s.ec" (fmt_array_theory at) in
@@ -933,8 +932,6 @@ let ec_vari env (x:var) = Eident [ec_vars env x]
 
 let glob_mem = ["Glob"; "mem"]
 let glob_memi = Eident glob_mem
-
-let ec_pd env = Eident [Format.sprintf "W%d" (int_of_ws (Env.pd env)); "to_uint"]
 
 let ec_apps1 s e = Eapp (ec_ident s, [e])
 
@@ -1020,7 +1017,7 @@ module EcArrayOld : EcArray = struct
     let init_fun = Efun1 (i, Eapp (geti, [ec_initi env (e, ne, wse); ec_ident i])) in
     Eapp (ec_Array_init env n, [init_fun])
 
-  let toec_pget env (a, aa, ws, x, e) =
+  let toec_pget env (_a, aa, ws, x, e) =
     let (xws, n) = array_kind x.v_ty in
     if ws = xws && aa = Warray_.AAscale then
        ec_aget (ec_vari env x) e
@@ -1127,7 +1124,7 @@ module EcWArray: EcArray = struct
     let sa = fmt_array_theory (SubArrayCast { sizews; sizewb; sizes = n; sizeb = ne }) in
     Eapp (Eident [sa; "get_sub"], [e; ec_int 0])
 
-  let toec_pget env (a, aa, ws, x, e) =
+  let toec_pget env (_a, aa, ws, x, e) =
     let (xws,n) = array_kind x.v_ty in
     if ws = xws && aa = Warray_.AAscale then
        ec_aget (ec_vari env x) e
@@ -1227,7 +1224,7 @@ module EcBArray : EcArray = struct
   let ec_darray8 (env: Env.t) (sz:int) =
     Eident [ec_BArray env sz; "darray"]
 
-  let ec_cast_array (env:Env.t) (ws1, sz1) (ws2, sz2) e =
+  let ec_cast_array (_env:Env.t) (ws1, sz1) (ws2, sz2) e =
     assert (Prog.arr_size ws1 sz1 = Prog.arr_size ws2 sz2);
     e
 
@@ -1241,7 +1238,7 @@ module EcBArray : EcArray = struct
     | Warray_.AAdirect -> ""
     | Warray_.AAscale -> Format.sprintf "%i" (int_of_ws ws)
 
-  let toec_pget (env:Env.t) (a, aa, ws, x, ei) =
+  let toec_pget (env:Env.t) (_a, aa, ws, x, ei) =
     let (xws, n) = array_kind x.v_ty in
     let sz = arr_size xws n in
     Eapp (Eident [ec_BArray env sz; Format.sprintf "get%i%s" (int_of_ws ws) (direct aa)],
@@ -1334,6 +1331,7 @@ let rec is_write_i x i =
     is_write_lv x lv
   | Copn(lvs,_,_,_) | Ccall(lvs, _, _) | Csyscall(lvs,_,_) ->
     is_write_lvs x lvs
+  | Cassert _ -> false
   | Cif(_, c1, c2) | Cwhile(_, c1, _, _, c2) ->
     is_write_c x c1 || is_write_c x c2
   | Cfor(x',_,c) ->
@@ -1344,7 +1342,7 @@ and is_write_c x c = List.exists (is_write_i x) c
 let rec remove_for_i i =
   let i_desc =
     match i.i_desc with
-    | Cassgn _ | Copn _ | Ccall _ | Csyscall _ -> i.i_desc
+    | Cassgn _ | Copn _ | Ccall _ | Csyscall _ | Cassert _ -> i.i_desc
     | Cif(e, c1, c2) -> Cif(e, remove_for c1, remove_for c2)
     | Cwhile(a, c1, e, loc, c2) -> Cwhile(a, remove_for c1, e, loc, remove_for c2)
     | Cfor(j,r,c) ->
@@ -1372,11 +1370,11 @@ module type EcExpression = sig
   val toec_expr: Env.t -> expr -> ec_expr
 end
 
-let int_of_word ws e = Papp1 (E.Oint_of_word(Unsigned, ws), e)
+let int_of_word ws e = Papp1 (Oint_of_word(Unsigned, ws), e)
 
 let int_of_ptr pd e =
    match e with
-   | Papp1(E.Owi1(_, E.WIwint_of_int ws), e) when ws = pd -> e
+   | Papp1(Owi1(_, WIwint_of_int ws), e) when ws = pd -> e
    | _ -> int_of_word pd e
 
 (* ------------------------------------------------------------------- *)
@@ -1395,18 +1393,18 @@ module EcExpression(EA: EcArray): EcExpression = struct
               EA.ec_cast_array env (ws, n) (wse, ne) e
 
   let rec ec_op1 op e = match op with
-    | E.Oword_of_int sz ->
+    | Oword_of_int sz ->
       ec_apps1 (Format.sprintf "%s.of_int" (fmt_Wsz sz)) e
-    | E.Oint_of_word(s, sz) ->
+    | Oint_of_word(s, sz) ->
       ec_apps1 (Format.sprintf "%s.to_%sint" (fmt_Wsz sz) (string_of_signess s)) e
-    | E.Osignext(szo,_szi) ->
+    | Osignext(szo,_szi) ->
       ec_apps1 (Format.sprintf "sigextu%i" (int_of_ws szo)) e
-    | E.Ozeroext(szo,szi) -> ec_zeroext_sz (szo, szi) e
-    | E.Onot     -> ec_apps1 "!" e
-    | E.Olnot _  -> ec_apps1 "invw" e
-    | E.Oneg _   -> ec_apps1 "-" e
-    | E.Owi1 (_, WIwint_of_int sz) -> ec_op1 (E.Oword_of_int sz) e
-    | E.Owi1 _ -> assert false (* other wint operator should have been removed by wint_int or wint_word *)
+    | Ozeroext(szo,szi) -> ec_zeroext_sz (szo, szi) e
+    | Onot     -> ec_apps1 "!" e
+    | Olnot _  -> ec_apps1 "invw" e
+    | Oneg _   -> ec_apps1 "-" e
+    | Owi1 (_, WIwint_of_int sz) -> ec_op1 (Oword_of_int sz) e
+    | Owi1 _ -> assert false (* other wint operator should have been removed by wint_int or wint_word *)
 
   let rec toec_expr env (e: expr) =
       match e with
@@ -1429,7 +1427,7 @@ module EcExpression(EA: EcArray): EcExpression = struct
           let te1 = (Conv.ty_of_cty t1, e1) in
           let te2 = (Conv.ty_of_cty t2, e2) in
           let te1, te2 = match op2 with
-            | E.Ogt _ | E.Oge _ -> te2, te1
+            | Ogt _ | Oge _ -> te2, te1
             | _ -> te1, te2
           in
           let op = Infix (Format.asprintf "%a" fmt_op2 op2) in
@@ -1455,6 +1453,11 @@ module EcExpression(EA: EcArray): EcExpression = struct
               Eapp (
                   ec_ident (Printer.string_of_combine_flags c),
                   List.map (toec_expr env) es
+              )
+          | Oarray len ->
+              Eapp (
+                  EA.of_list env U8 (Conv.int_of_pos len),
+                  [Elist (List.map (toec_expr env) es)]
               )
           end
       | Pif(_,e1,et,ef) ->
@@ -1486,20 +1489,20 @@ module type EcLeakage = sig
 end
 
 module EcLeakNormal(EE: EcExpression): EcLeakage = struct
-  let ec_leaks_es env es = []
-  let ec_leaks_opn env es = []
+  let ec_leaks_es _env _es = []
+  let ec_leaks_opn _env _es = []
   let ec_leaking_if env e c1 c2 = [ESif (EE.toec_expr env e, c1 env, c2 env)]
   let ec_leaking_while env c1 e c2 =
     c1 env @ [ESwhile (EE.toec_expr env e, (c2 env @ c1 env))]
-  let ec_leaking_for env c e1 e2 init cond i_upd = init @ [ESwhile (cond, c env @ i_upd)]
-  let ec_leaks_lvs env lvs = []
-  let global_leakage_vars env = []
-  let leakage_imports env = []
-  let ec_fun_leak_init env = []
-  let ec_leak_ret env ret = ret
-  let ec_leak_rty env rtys = rtys
-  let ec_leak_call_lvs env = []
-  let ec_leak_call_acc env = []
+  let ec_leaking_for env c _e1 _e2 init cond i_upd = init @ [ESwhile (cond, c env @ i_upd)]
+  let ec_leaks_lvs _env _lvs = []
+  let global_leakage_vars _env = []
+  let leakage_imports _env = []
+  let ec_fun_leak_init _env = []
+  let ec_leak_ret _env ret = ret
+  let ec_leak_rty _env rtys = rtys
+  let ec_leak_call_lvs _env = []
+  let ec_leak_call_acc _env = []
 end
 
 module EcLeakConstantTimeGlobal(EE: EcExpression): EcLeakage = struct
@@ -1565,27 +1568,25 @@ module EcLeakConstantTimeGlobal(EE: EcExpression): EcLeakage = struct
 
   let ec_leaks_lvs env lvs = List.concat_map (ec_leaks_lv env) lvs
 
-  let global_leakage_vars env = [("leakages", "leakages_glob_t")]
+  let global_leakage_vars _env = [("leakages", "leakages_glob_t")]
 
-  let leakage_imports env = [IfromRequireImport ("Jasmin", ["JLeakage"])]
+  let leakage_imports _env = [IfromRequireImport ("Jasmin", ["JLeakage"])]
 
-  let ec_fun_leak_init env = []
+  let ec_fun_leak_init _env = []
 
-  let ec_leak_ret env ret = ret
+  let ec_leak_ret _env ret = ret
 
-  let ec_leak_rty env rtys = rtys
+  let ec_leak_rty _env rtys = rtys
 
-  let ec_leak_call_lvs env = []
+  let ec_leak_call_lvs _env = []
 
-  let ec_leak_call_acc env = []
+  let ec_leak_call_acc _env = []
 end
 
 module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
   open EE
 
   let asgn s e = ESasgn ([LvIdent [s]], e)
-
-  let int_of_word ws e = Papp1 (E.Oint_of_word(Unsigned, ws), e)
 
   let leak_addr e = Eapp (ec_ident "Leak_int", [e])
 
@@ -1594,7 +1595,7 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
     | Bty Bool -> "bool"
     | Bty Int  -> "int"
     | Bty (U ws) -> fmt_Wsz ws
-    | Arr(ws, n) -> assert false
+    | Arr(_ws, _n) -> assert false
     in
     let leakf = ec_ident (Format.sprintf "Leak_%s" sty) in
     [Eapp (leakf, [toec_expr env e])]
@@ -1705,9 +1706,9 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
     [ESwhile (cond, leak_block env c leak_c @ i_upd)] @
     push_leak (leakacc env) (leaklistv leak_c)
 
-  let global_leakage_vars env = []
+  let global_leakage_vars _env = []
 
-  let leakage_imports env = [IfromRequireImport ("Jasmin", ["JLeakage"])]
+  let leakage_imports _env = [IfromRequireImport ("Jasmin", ["JLeakage"])]
 
   let ec_fun_leak_init env = start_leakacc env
 
@@ -1717,7 +1718,7 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
   let leak_ret_ty = "JLeakage.leakage"
   let leak_ret_prefix = "leak_c"
 
-  let ec_leak_rty env rtys = leak_ret_ty :: rtys
+  let ec_leak_rty _env rtys = leak_ret_ty :: rtys
 
   let ec_leak_call_lvs env = [LvIdent [Env.create_aux env leak_ret_prefix leak_ret_ty]]
 
@@ -1767,11 +1768,6 @@ struct
   (* Instruction extraction *)
 
   let toec_ty = toec_ty EA.onarray_ty
-
-  let add_ty env = function
-    | Bty _ -> ()
-    | Arr (ws, n) -> EA.add_arr env ws n
-
 
   let ec_assgn env lv (etyo, etyi) e =
       let e = e |> ec_zeroext (etyo, etyi) |> ec_cast env (ty_lval lv, etyo) in
@@ -1857,6 +1853,7 @@ struct
           let args = List.map (toec_cast env) (List.combine itys es) in
           (ec_leaks_es env es) @
           (ec_pcall env lvs [] otys [ec_syscall env o] args)
+      | Cassert _a -> [(* TODO *)]
       | Cif (e, c1, c2) ->
           let c1 env = toec_cmd asmOp env c1 in
           let c2 env = toec_cmd asmOp env c2 in
@@ -2055,7 +2052,7 @@ and used_func_c used c =
 
 and used_func_i used i =
   match i.i_desc with
-  | Cassgn _ | Copn _ | Csyscall _ -> used
+  | Cassgn _ | Copn _ | Csyscall _ | Cassert _ -> used
   | Cif (_,c1,c2)     -> used_func_c (used_func_c used c1) c2
   | Cfor(_,_,c)       -> used_func_c used c
   | Cwhile(_, c1, _, _, c2) -> used_func_c (used_func_c used c1) c2

@@ -18,7 +18,7 @@ From ITree Require Import
   Basics.HeterogeneousRelations
   Props.Leaf.
 
-Require Import xrutt.
+Require Import xrutt while.
 
 (* Morphisms related to [REv] and [RAns]. Symmetry results when
 flipped. Note: the first section is copied from RuttFacts.v in ITree;
@@ -596,8 +596,39 @@ Proof.
   - pstep; red; constructor; assumption.
 Qed.
 
-End XRuttIter.
+Lemma xrutt_iter_n :
+  (forall j1 j2, RI j1 j2 ->
+     exists n,
+       xrutt EE1 EE2 RPreE RPostE
+          (sum_rel RI RR) (body1 j1) (iter_n body2 n j2)) ->
+  forall (i1 : I1) (i2 : I2) (RI_i : RI i1 i2),
+    @xrutt E1 E2 R1 R2 EE1 EE2 RPreE RPostE RR
+      (ITree.iter body1 i1) (ITree.iter body2 i2).
+Proof.
+  ginit. gcofix CIH.
+  intros.
+  rewrite unfold_iter.
+  case (H0 _ _ RI_i); intros n hn.
+  rewrite (unfold_iter_n body2 n).
+  eapply gpaco2_uclo; [|eapply xrutt_clo_bind|]; eauto with paco.
+  econstructor; eauto. intros; subst. gfinal. right.
+  destruct u1; try discriminate.
+  destruct u2; try discriminate.
+  pstep; red.
+  econstructor.
+  right.
+  eapply CIH; eauto.
+  inversion H; subst; auto.
+  pstep; red.
+  inversion H; subst.
+  destruct u2; try discriminate.
+  inversion H; subst.
+  pstep; red.
+  econstructor.
+  inversion H; subst; auto.
+Qed.
 
+End XRuttIter.
 
 (* weakening lemmas *)
 
@@ -784,7 +815,7 @@ Proof.
         (* vis3 *)
         { remember (VisF e1 k1) as ot2.
           hinduction H3 before CIH; intros; try discriminate.
-  
+
           { dependent destruction Heqot2.
             constructor; eauto.
             - econstructor; eauto.
@@ -863,7 +894,7 @@ Proof.
       { eapply EqTauR.
         eapply IHINR; eauto.
       }
-  }  
+  }
   (* 6: tau1 *)
   { constructor. eapply IHINL; eauto. }
   (* 7: tau2 *)
@@ -897,4 +928,30 @@ Lemma xrutt_trans {E1 E2 E3: Type -> Type} {R1 R2 R3 : Type}
       (rcompose RR12 RR23) t1 t3.
 Proof.
   now apply xrutt_gen_trans.
+Qed.
+
+Lemma xrutt_refl {E} {R: Type}
+  (EE1: forall X, E X -> bool)
+  (EE2: forall X, E X -> bool)
+  (REv : prerel E E)
+  (RAns: postrel E E) :
+  (forall T (ev:E T), IsNoCut_ EE1 T ev -> IsNoCut_ EE2 T ev -> REv T T ev ev) ->
+  (forall T (ev:E T) (t1 t2:T) , IsNoCut_ EE1 T ev -> IsNoCut_ EE2 T ev -> RAns T T ev t1 ev t2 -> t1 = t2 ) ->
+  forall (t: itree E R), xrutt (@EE1) (@EE2) REv RAns eq t t.
+Proof.
+  intros hpre hans.
+  ginit. gcofix CIH. intros t.
+  rewrite itree_eta.
+  destruct (observe t); gstep.
+  + constructor; trivial.
+  + apply EqTau; constructor; constructor; right; apply CIH.
+  case_eq (EE1 X e); intros heq1.
+  + apply EqCutL; trivial.
+  case_eq (EE2 X e); intros heq2.
+  + apply EqCutR; trivial.
+  apply EqVis; trivial.
+  + apply hpre; trivial.
+  intros t1 t2 hpost.
+  rewrite (hans _ _ _ _ heq1 heq2 hpost).
+  constructor; constructor; right; apply CIH.
 Qed.

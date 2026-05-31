@@ -12,6 +12,8 @@ Import type word utils.
 Import memory_example.
 Export memory_model.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Notation "f '=3' g" := (∀ x, f x =2 g x) (at level 70, g at next level).
 
 Module Memory := MemoryI.
@@ -105,7 +107,7 @@ Proof.
     Lia.lia.
   etransitivity; last exact: (proj2 (Memory.alloc_stackP A).(ass_above_limit)).
   rewrite (alloc_stack_top_stack A) (top_stack_after_aligned_alloc _ AL) wrepr_opp.
-  Lia.lia.
+  by move: (_ - _)%R; Lia.lia.
 Qed.
 
 (* -------------------------------------------------------------- *)

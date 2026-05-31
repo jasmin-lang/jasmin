@@ -15,6 +15,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
+  {LC : LoopCounter}
   (is_move_op : asm_op_t -> bool)
   (is_move_opP :
     forall op vx v,
@@ -411,7 +412,7 @@ Section PROOF.
   Local Lemma Hfor : sem_Ind_for p ev Pi_r Pfor.
   Proof.
     move=> s1 s2 i d lo hi c vlo vhi Hlo Hhi Hc Hfor ii I c_ O /=.
-    case Hloop: (loop (dead_code_c (dead_code_i is_move_op do_nop onfun) c) ii Loop.nb Sv.empty (Sv.add i Sv.empty) O)=> [[sv1 sc1] /=|//] [??]; subst I c_.
+    case Hloop: (loop (dead_code_c (dead_code_i is_move_op do_nop onfun) c) ii loop_counter Sv.empty (Sv.add i Sv.empty) O)=> [[sv1 sc1] /=|//] [??]; subst I c_.
     move: (loopP Hloop)=> [H1 [sv2 [H2 H2']]] vm1' Hvm.
     have [|vm2' [Hvm2'1 Hvm2'2]] := Hfor _ _ _ H2 H2' vm1'.
     + move: Hvm; rewrite !read_eE=> Hvm.
@@ -496,9 +497,9 @@ Section PROOF.
     have dcok : map_cfprog_name (dead_code_fd is_move_op do_nop onfun) (p_funcs p) = ok (p_funcs p').
     + by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? ? <-.
     have [f' Hf'1 Hf'2] := get_map_cfprog_name_gen dcok Hfun.
-    case: f Hf'1 Hfun htra Hi Hw Hsem Hc Hres Hfull Hscs Hfi => fi ft fp /= c f_tyout res fb
+    case: f Hf'1 Hfun htra Hi Hw Hsem Hc Hres Hfull Hscs Hfi => fi fc ft fp /= c f_tyout res fb
       Hf'1 Hfun htra Hi Hw Hsem Hc Hres Hfull Hscs Hfi.
-    move: Hf'1; t_xrbindP => -[sv sc] Hd H; subst f'.
+    move: Hf'1; rewrite /dead_code_fd; t_xrbindP => -[sv sc] Hd H; subst f'.
     move: Hw; rewrite (write_vars_lvals _ gd) => Hw.
     have heq : Sv.Equal (read_rvs [seq Lvar i | i <- fp]) Sv.empty.
     + elim: (fp);first by rewrite read_rvs_nil;SvD.fsetdec.
@@ -530,6 +531,7 @@ Section PROOF.
     eexists vres2; split=> //=.
     apply EcallRun with  {|
            f_info := fi;
+           f_contract := fc;
            f_tyin := ft;
            f_params := fp;
            f_body := sc;
@@ -608,9 +610,9 @@ Section PROOF.
     + by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? ? <-.
     have [fd' hfd' hget'] := get_map_cfprog_name_gen dcok hget.
     exists fd' => // {hget}.
-    case: fd hfd' => fi ftyin fp /= c ftyout res fextra.
+    case: fd hfd' => fi fc ftyin fp /= c ftyout res fextra.
     set fd := {| f_info := _ |}.
-    t_xrbindP; set O := read_es _; move=> [I c'] hc ?; subst fd'.
+    rewrite /dead_code_fd /=; t_xrbindP; set O := read_es _; move=> [I c'] hc ?; subst fd'.
     set fd' := {| f_info := _ |}.
     move=> s1 hinit.
     have [s1' hinit' hu1] := fs_uincl_initialize (fd':= fd') erefl erefl erefl eq_p_extra hfsu hinit.
@@ -639,7 +641,7 @@ Section PROOF.
       have [vres2 -> /= ?] := mapM2_dc_truncate_val htr' Hvl.
       by eexists; eauto.
     rewrite /=; move: (I) (c') (O) hc.
-    move => { hu1 hinit' s1' hinit s1 fd' fd hget' fextra res ftyout fp ftyin fi hfsu fs ft I O fn dcok c'}.
+    move => { hu1 hinit' s1' hinit s1 fd' fd hget' fextra res ftyout fp ftyin fi fc hfsu fs ft I O fn dcok c'}.
     apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //; rewrite /Pi_r /Pi /Pc; clear Pi_r Pi Pc c.
     + by move=> _ _ O [<- <-]; apply wequiv_nil.
     + move=> i c hi hc I c_ O /=; t_xrbindP.
@@ -655,6 +657,8 @@ Section PROOF.
       apply wequiv_syscall_rel_uincl with checker_st_uincl_on I => //=; subst I.
       + by split => //; rewrite read_esE; SvD.fsetdec.
       by split => //; rewrite read_esE read_rvsE; SvD.fsetdec.
+    + move=> /= a ii I c' O [hI <-].
+      by apply wequiv_noassert.
     + move=> e c1 c2 hc1 hc2 ii I c' O /=; t_xrbindP.
       move=> [I1 c1'] /hc1{}hc1 [I2 c2'] /hc2{}hc2 [??]; subst I c'.
       apply wequiv_if_rel_uincl with checker_st_uincl_on (read_e_rec (Sv.union I1 I2) e) O O => //=.
@@ -817,7 +821,7 @@ Lemma dead_code_fd_meta do_nop onfun fn (fd fd': sfundef) :
    fd'.(f_extra) = fd.(f_extra)
   ].
 Proof.
-  by case: fd => /= ; t_xrbindP => /= ????????? <-.
+  by rewrite /dead_code_fd; t_xrbindP => > _ <-.
 Qed.
 
 End IT.

@@ -30,8 +30,9 @@ Fixpoint remove_init_i i :=
           end in
         if t then [::] else [::i]
       else [::i]
-    | Copn _ _ _ _   => [::i]
-    | Csyscall _ _ _ => [::i]
+    | Copn _ _ _ _
+    | Csyscall _ _ _
+    | Cassert _ => [::i]
     | Cif e c1 c2  =>
       let c1 := foldr (fun i c => remove_init_i i ++ c) [::] c1 in
       let c2 := foldr (fun i c => remove_init_i i ++ c) [::] c2 in
@@ -52,14 +53,7 @@ Definition remove_init_c c :=  foldr (fun i c => remove_init_i i ++ c) [::] c.
 Context {pT: progT}.
 
 Definition remove_init_fd (fd:fundef) :=
-  {| f_info   := fd.(f_info);
-     f_tyin   := fd.(f_tyin);
-     f_params := fd.(f_params);
-     f_body   := remove_init_c fd.(f_body);
-     f_tyout  := fd.(f_tyout);
-     f_res    := fd.(f_res);
-     f_extra  := fd.(f_extra);
-  |}.
+  with_body fd (remove_init_c fd.(f_body)).
 
 Definition remove_init_prog (p:prog) := map_prog remove_init_fd p.
 
@@ -117,14 +111,7 @@ Context {pT: progT}.
 Definition add_init_fd (fd:fundef) :=
   let I := vrvs [seq (Lvar i) | i <- f_params fd] in
   let f_body  := (add_init_c add_init_i I fd.(f_body)).1 in
-  {| f_info   := fd.(f_info);
-     f_tyin   := fd.(f_tyin);
-     f_params := fd.(f_params);
-     f_body   := f_body;
-     f_tyout  := fd.(f_tyout);
-     f_res    := fd.(f_res);
-     f_extra  := fd.(f_extra);
-  |}.
+  with_body fd f_body.
 
 Definition add_init_prog (p:prog) := map_prog add_init_fd p.
 

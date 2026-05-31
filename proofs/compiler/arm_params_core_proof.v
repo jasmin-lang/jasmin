@@ -21,6 +21,8 @@ Require Import
   arm_instr_decl
   arm_params_core.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Module ARMFopn_coreP.
 
 Section Section.
@@ -85,7 +87,7 @@ Lemma sub_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr}
 Proof.
   move=> hc.
   rewrite /=; t_xrbindP => *; t_arm_op.
-  by rewrite /= wsub_wnot1 set_var_truncate // (convertible_eval_atype hc).
+  by rewrite /= !add_wordE wsub_wnot1 set_var_truncate // (convertible_eval_atype hc).
 Qed.
 
 Lemma subi_sem_fopn_args {s} {xi:var_i} {y imm wy} :
@@ -97,7 +99,7 @@ Lemma subi_sem_fopn_args {s} {xi:var_i} {y imm wy} :
 Proof.
   move=> hc.
   rewrite /=; t_xrbindP => *; t_arm_op.
-  by rewrite /= wsub_wnot1 set_var_truncate // (convertible_eval_atype hc).
+  by rewrite /= !add_wordE wsub_wnot1 set_var_truncate // (convertible_eval_atype hc).
 Qed.
 
 Lemma mov_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} :

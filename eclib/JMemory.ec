@@ -12,10 +12,16 @@ export W8List.
 (* -------------------------------------------------------------------- *)
 type address = int.
 
+type global_mem_v_t.
 type global_mem_t.
 
 op "_.[_]" : global_mem_t -> address -> W8.t.
 op "_.[_<-_]" : global_mem_t -> address -> W8.t -> global_mem_t.
+
+op valid1 : global_mem_v_t -> address -> bool.
+
+op is_valid (mod: int) (mem_v: global_mem_v_t) (p: address) (l: int) =
+  (forall i, p <= i < p + l => valid1 mem_v i) /\ (0 <= p /\ p + l < mod).
 
 axiom mem_eq_ext (m1 m2:global_mem_t) : (forall j, m1.[j] = m2.[j]) => m1 = m2.
 
@@ -273,4 +279,5 @@ qed.
 
 module Glob = {
   var mem : global_mem_t
+  var mem_v : global_mem_v_t
 }.

@@ -2,6 +2,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 From Coq Require Import Utf8.
 Require Import expr label.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
 Module Type EqType.
 

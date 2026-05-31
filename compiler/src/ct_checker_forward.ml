@@ -1,5 +1,6 @@
 open Utils
 open Prog
+open Operators
 
 module A = Annotations
 module S = Syntax
@@ -52,8 +53,6 @@ module Lvl : sig
 
   val maxs : t list -> t
 
-  val equal : t -> t -> bool
-
   val le : t -> t -> bool
 
   val pp : Format.formatter -> t -> unit
@@ -73,13 +72,6 @@ end = struct
     | Poly l1, Poly l2 -> Poly (Svl.union l1 l2)
 
   let maxs ls = List.fold_left max Public ls
-
-  let equal l1 l2 =
-    match l1, l2 with
-    | Public, Public -> true
-    | Secret, Secret -> true
-    | Poly l1, Poly l2 -> Svl.equal l1 l2
-    | _, _ -> false
 
   let le l1 l2 =
     match l1, l2 with
@@ -318,15 +310,15 @@ let instanciate_fty fty lvls  =
   tyout
 
 (* -----------------------------------------------------------*)
-let is_ct_op1 (_: Expr.sop1) = true
+let is_ct_op1 (_: sop1) = true
 
-let is_ct_op2 (o: Expr.sop2) =
+let is_ct_op2 (o: sop2) =
   match o with
   | Omod (_, Op_w _) | Odiv (_, Op_w _) -> false
   | Owi2(_, _, (WImod | WIdiv)) -> false
   | _ -> true
 
-let is_ct_opN (_ : Expr.opN) = true
+let is_ct_opN (_ : opN) = true
 
 let is_ct_sopn is_ct_asm (o : 'a Sopn.sopn) =
   match o with
@@ -568,6 +560,9 @@ let rec ty_instr is_ct_asm fenv env i =
   | Csyscall(xs, RandomBytes _, es) ->
     let env, _ = ty_exprs_max ~public:true env es in
     ty_lvals1 env xs (declassify_lvl ~loc i.i_annot Secret)
+
+  (* We ignore the contents of assertion *)
+  | Cassert _ -> env
 
   | Cif(e, c1, c2) ->
     let env, _ = ty_expr ~public:true env e in

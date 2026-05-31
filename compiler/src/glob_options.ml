@@ -141,6 +141,7 @@ let set_cc cc =
   in call_conv := cc
 
 let print_strings = function
+  | Compiler.RemoveAssertion             -> "rmassert", "remove logical assertion"
   | Compiler.Typing                      -> "typing"   , "typing"
   | Compiler.ParamsExpansion             -> "cstexp"   , "param expansion"
   | Compiler.InsertRenaming              -> "rename"   , "add renaming assignments at export function boundaries"

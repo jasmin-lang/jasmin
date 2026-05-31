@@ -885,6 +885,7 @@ Context
   {pd : PointerData}
   {msfsz : MSFsize}
   {asmop : asmOp asm_op}
+  {LC : LoopCounter}
 .
 
 Context
@@ -1781,6 +1782,9 @@ Fixpoint alloc_i sao (trmap:table*region_map) (i: instr) : cexec (table * region
     Let: (rmap, c) := alloc_syscall ii rmap rs o es in
     ok (table, rmap, c)
 
+  | Cassert _ =>
+    Error (pp_at_ii ii (stk_ierror_no_var "don't deal with assert"))
+
   | Cif e c1 c2 =>
     Let e := add_iinfo ii (alloc_e rmap e abool) in
     Let: (table1, rmap1, c1) := fmapM (alloc_i sao) (table, rmap) c1 in
@@ -1796,7 +1800,7 @@ Fixpoint alloc_i sao (trmap:table*region_map) (i: instr) : cexec (table * region
       Let: (table2, rmap2, c2) := fmapM (alloc_i sao) (table1, rmap1) c2 in
       ok ((table1, rmap1), (table2, rmap2), (e, c1, c2))
     in
-    Let: (table, rmap, (e, c1, c2)) := loop2 ii check_c Loop.nb table rmap in
+    Let: (table, rmap, (e, c1, c2)) := loop2 ii check_c loop_counter table rmap in
     ok (table, rmap, [:: MkI ii (Cwhile a (flatten c1) e info (flatten c2))])
 
   | Ccall rs fn es =>
@@ -2039,6 +2043,7 @@ Definition alloc_fd_aux P p_extra mglob (local_alloc: funname -> stk_alloc_oracl
       check_results pmap rmap paramsi fd.(f_params) sao.(sao_return) fd.(f_res) in
   ok {|
     f_info := f_info fd;
+    f_contract := f_contract fd;
     f_tyin := map2 (fun o ty => if o is Some _ then aword Uptr else ty) sao.(sao_params) fd.(f_tyin);
     f_params := params;
     f_body := flatten body;

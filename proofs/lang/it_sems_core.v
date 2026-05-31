@@ -10,122 +10,10 @@ Import Basics.Monads.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 
 Require Import expr psem_defs psem_core it_exec rec_facts.
+Require Export it_sems_core_defs.
 
 Import MonadNotation.
 Local Open Scope monad_scope.
-
-(**** Error semantics ******************************************)
-Section Errors.
-
-(* error events *)
-Definition ErrEvent : Type -> Type := exceptE error_data.
-
-(* execT (itree E) R = itree E (execS R) *)
-Definition handle_Err {E} : ErrEvent ~> execT (itree E) :=
-  fun _ e =>
-    match e with
-    | Throw e' => Ret (ESerror _ e')
-    end.
-
-(* ErrEvnt handler *)
-Definition ext_handle_Err {E: Type -> Type} :
-  ErrEvent +' E ~> execT (itree E) :=
-  fun _ e =>
-  match e with
-  | inl1 e' => handle_Err e'
-  | inr1 e' => Vis e' (pure (fun x => ESok x)) end.
-
-(* ErrEvent interpreter *)
-Definition interp_Err {E: Type -> Type} {A}
-  (t: itree (ErrEvent +' E) A) : execT (itree E) A :=
-  interp_exec ext_handle_Err t.
-
-(*** auxiliary error functions *)
-
-Definition ioget {E: Type -> Type} `{ErrEvent -< E} {V} (err: error_data) (o: option V) : itree E V :=
-  match o with
-  | Some v => Ret v
-  | None => throw err
-  end.
-
-Definition err_result {E: Type -> Type} `{ErrEvent -< E} (Err : error -> error_data) :
-  result error ~> itree E :=
-  fun _ t => match t with
-             | Ok v => Ret v
-             | Error e => throw (Err e) end.
-
-End Errors.
-
-(** Type function isomorphism class *)
-Class FIso (E1 E2: Type -> Type) : Type := FI {
-    mfun1 : E1 -< E2 ;
-    mfun2 : E2 -< E1 ;
-    mid12 : forall T (x : E2 T), mfun1 (mfun2 x) = x ;
-    mid21 : forall T (x : E1 T), mfun2 (mfun1 x) = x ;
-}.
-
-Notation with_Error E E0 := (FIso E (ErrEvent +' E0)).
-
-#[global] Instance fromErr E E0 {wE : with_Error E E0} : ErrEvent -< E :=
-  fun T (e:ErrEvent T) => mfun2 (inl1 e).
-
-Definition is_error {E E0 : Type -> Type} (wE : with_Error E E0) (T : Type) (e : E T) :=
-  match mfun1 e with
-  | inl1 _ => true
-  | inr1 _ => false
-  end.
-
-(* with_Error (ErrEvent +' void1) void1 *)
-#[global]
-Instance FIsoId E : FIso E E :=
-  {| mfun1 := fun T x => x
-   ; mfun2 := fun T x => x
-   ; mid12 := fun T x => erefl
-   ; mid21 := fun T x => erefl |}.
-
-(* with_Error E E0 -> with_Error (E1 +' E) (E1 +' E0) *)
-Section FIso_suml.
-Context (E1 E E0 Err : Type -> Type) {FI : FIso E (Err +' E0)}.
-
-Definition mfun1_suml T (e : (E1 +' E) T) : (Err +' (E1 +' E0)) T :=
-  match e with
-  | inl1 e1 => inr1 (inl1 e1)
-  | inr1 e =>
-    match mfun1 e with
-    | inl1 err => inl1 err
-    | inr1 e0  => inr1 (inr1 e0)
-    end
-  end.
-
-Definition mfun2_suml T (e : (Err +' (E1 +' E0)) T) : (E1 +' E) T :=
-  match e with
-  | inl1 err => inr1 (mfun2 (inl1 err))
-  | inr1 e10 =>
-    match e10 with
-    | inl1 e1 => inl1 e1
-    | inr1 e0  => inr1 (mfun2 (inr1 e0))
-    end
-  end.
-
-Lemma mfun_suml_12 T (x : (Err +' (E1 +' E0)) T) :
-  mfun1_suml (mfun2_suml x) = x.
-Proof. by case: x => [err | [e1 | e0]] //=; rewrite ?(mid12, mid21). Qed.
-
-Lemma mfun_suml_21 T (x : (E1 +' E) T) :
-  mfun2_suml (mfun1_suml x) = x.
-Proof.
-  case: x => [e1 | e] //=.
-  by case heq : (mfun1 e) => [err | e0] /=; rewrite -heq ?(mid12, mid21).
-Qed.
-
-#[global]
-Instance FIso_suml : FIso (E1 +' E) (Err +' (E1 +' E0)) :=
-  {| mfun1 := mfun1_suml
-   ; mfun2 := mfun2_suml
-   ; mid12 := mfun_suml_12
-   ; mid21 := mfun_suml_21 |}.
-
-End FIso_suml.
 
 Section WSW.
 Context
@@ -135,6 +23,7 @@ Context
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {wa: WithAssert}
   {sip : SemInstrParams asm_op syscall_state}
   {pT : progT}
   {scP : semCallParams}.
@@ -219,6 +108,42 @@ Definition sem_bound (gd : glob_decls) (lo hi : pexpr) (s : estate) :
 Definition isem_bound (lo hi : pexpr) (s : estate) : itree E (Z * Z) :=
   iresult s (sem_bound (p_globs p) lo hi s).
 
+Definition isem_assert (a: assertion) (s: estate) : itree E unit :=
+  iresult s (sem_assert (p_globs p) s a).
+
+Definition sem_pre {dc: DirectCall} (P : prog) (fn:funname) (fs: fstate) :=
+  if ~~assert_allowed then ok tt
+  else if get_fundef (p_funcs P) fn is Some f then
+    match f.(f_contract) with
+    | Some ci =>
+      Let vargs := mapM2 ErrType dc_truncate_val (map eval_atype f.(f_tyin)) fs.(fvals) in
+      Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate fs.(fscs) fs.(fmem) Vm.init) in
+      Let _ := mapM (sem_assert (p_globs P) s) ci.(f_pre) in
+      ok tt
+    | None => ok tt
+    end
+  else Error ErrType.
+
+Definition isem_pre {dc : DirectCall} s (fn : funname) (fs:fstate) : itree E unit :=
+  iresult s (sem_pre p fn fs).
+
+Definition sem_post {dc: DirectCall} (P : prog) (fn:funname) (vargs' : values) (fs: fstate) :=
+  if ~~assert_allowed then ok tt
+  else if get_fundef (p_funcs P) fn is Some f then
+    match f.(f_contract) with
+    | Some ci =>
+      Let vargs := mapM2 ErrType dc_truncate_val (map eval_atype f.(f_tyin)) vargs' in
+      Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate fs.(fscs) fs.(fmem) Vm.init) in
+      Let s :=  write_vars (~~direct_call) ci.(f_ires) fs.(fvals) s in
+      Let _ := mapM (sem_assert (p_globs P) s) ci.(f_post) in
+      ok tt
+    | None => ok tt
+    end
+  else Error ErrType.
+
+Definition isem_post {dc : DirectCall} s (fn : funname) (vargs : values) (fr:fstate) : itree E unit :=
+  iresult s (sem_post p fn vargs fr).
+
 (* recCall trigger *)
 Definition rec_call (ii:instr_info) (f : funname) (fs : fstate) :
    itree (recCall +' E) fstate :=
@@ -288,6 +213,8 @@ Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
 
   | Csyscall xs o es => iresult s (sem_syscall p xs o es s)
 
+  | Cassert a => isem_assert p a s;; Ret s
+
   | Cif e c1 c2 =>
     b <- isem_cond p e s;;
     isem_foldr isem_i_body p ev (if b then c1 else c2) s
@@ -301,8 +228,12 @@ Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
 
   | Ccall xs fn args =>
     vargs <- isem_pexprs  (~~direct_call) (p_globs p) args s;;
-    fs <- sem_fun p ev ii fn (mk_fstate vargs s) ;;
+    let fi := mk_fstate vargs s in
+    isem_pre p s fn fi;;
+    fs <- sem_fun p ev ii fn fi ;;
+    isem_post p s fn vargs fs;;
     iresult s (upd_estate (~~direct_call) (p_globs p) xs fs s)
+
   end.
 (* similar, for commands *)
 Definition isem_cmd_ := isem_foldr isem_i_body.
@@ -353,9 +284,12 @@ Definition isem_fun_body (p : prog) (ev : extra_val_t)
    (fn : funname) (fs : fstate) :=
    fd <- kget_fundef (p_funcs p) fn fs;;
    let sinit := estate0 fs in
+   isem_pre p sinit fn fs;;
    s1 <- iresult sinit (initialize_funcall p ev fd fs);;
    s2 <- isem_cmd_ p ev fd.(f_body) s1;;
-   iresult s2 (finalize_funcall fd s2).
+   fr <- iresult s2 (finalize_funcall fd s2);;
+   isem_post p s2 fn fs.(fvals) fr;;
+   Ret fr.
 
 (* A variant of the semantic based on exec, usefull for the proofs *)
 Fixpoint esem_i (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
@@ -367,6 +301,8 @@ Fixpoint esem_i (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
   | Copn xs tg o es => sem_sopn (p_globs p) o s xs es
 
   | Csyscall xs o es => sem_syscall p xs o es s
+
+  | Cassert a => Let _ := sem_assert (p_globs p) s a in ok s
 
   | Cif e c1 c2 =>
     Let b := sem_cond (p_globs p) e s in
@@ -402,6 +338,7 @@ Proof.
   + move=> > /= [<-]; reflexivity.
   + by move=> i c hi hc s s' /=; t_xrbindP => s1 /hi ->; rewrite bind_ret_l; apply hc.
   1-3: move=> > /= -> /=; reflexivity.
+  + move => a ii s s' /=; t_xrbindP; rewrite /isem_assert => -> <-; rewrite bind_ret_l; reflexivity.
   + move=> > hc1 hc2 ii s s' /=.
     rewrite /isem_cond; t_xrbindP => b -> /=.
     by rewrite bind_ret_l; case: b; [apply hc1 | apply hc2].
@@ -480,7 +417,9 @@ Proof.
     by apply eqit_bind; [apply hc' | reflexivity].
   move=> xs f es ii s /=.
   apply eqit_bind; first reflexivity.
+  move=> ?; apply eqit_bind; first reflexivity.
   move=> ?; apply eqit_bind; first by apply sem_F_ext.
+  move=> ?; apply eqit_bind; first reflexivity.
   move=> ?; reflexivity.
 Qed.
 
@@ -605,6 +544,10 @@ Proof.
   + move=> i c hi hc s; rewrite interp_bind;apply eqit_bind; first by apply hi.
     by move=> s'; apply hc.
   1-3: by move=> >; apply interp_iresult.
+  + move => a ii s /=.
+    rewrite interp_bind; apply eqit_bind.
+    + by apply interp_iresult.
+    move => ?; rewrite interp_ret; reflexivity.
   + move=> e c1 c2 hc1 hc2 ii s; rewrite /isem_i /isem_i_rec /=.
     rewrite interp_bind; apply eqit_bind.
     + by apply interp_iresult.
@@ -628,9 +571,13 @@ Proof.
     rewrite interp_ret; reflexivity.
   move=> xs f es ii s; rewrite /isem_i /isem_i_rec /=.
   rewrite interp_bind; apply eqit_bind; first by apply interp_iresult.
-  move=> vs.
-  rewrite interp_bind; apply eqit_bind; last by move=> >; apply interp_iresult.
-  rewrite interp_mrecursive; reflexivity.
+  move=> vs; rewrite interp_bind; apply eqit_bind.
+  + by apply interp_iresult.
+  move => ?;rewrite interp_bind;apply eqit_bind.
+  + rewrite interp_mrecursive; reflexivity.
+  move => ?;rewrite interp_bind;apply eqit_bind.
+  + by apply interp_iresult.
+  move=> ?; exact: interp_iresult.
 Qed.
 
 Lemma isem_call_unfold (fn : funname) (fs : fstate) :
@@ -642,10 +589,16 @@ Proof.
   rewrite interp_bind; apply eqit_bind.
   + by apply interp_ioget.
   move=> fd; rewrite interp_bind; apply eqit_bind.
+ + by apply interp_iresult.
+  move=> _; rewrite interp_bind; apply eqit_bind.
   + by apply interp_iresult.
   move=> s1; rewrite interp_bind; apply eqit_bind.
   + apply interp_isem_cmd.
-  move=> s2; apply interp_iresult.
+  move=> s2; rewrite interp_bind; apply eqit_bind.
+  + by apply interp_iresult.
+  move=> fr; rewrite interp_bind; apply eqit_bind.
+  + by apply interp_iresult.
+  move=> _; rewrite interp_ret; reflexivity.
 Qed.
 
 Lemma interp_cond_throw  (cond : forall T, recCall T -> bool) (ctx : forall T, recCall T -> itree (recCall +' E) T) (e: error * unit) T :
@@ -680,9 +633,12 @@ Proof.
   have haux : forall (ii1 : instr_info) (fn1 : funname) (fs1 : fstate),
     ctx2_cond cond F (RecCall ii1 fn1 fs1)
     ≈ fd <- kget_fundef (p_funcs p) fn1 fs1;;
+      _ <- isem_pre p (estate0 fs1) fn1 fs1;;
       s1 <- iresult (estate0 fs1) (initialize_funcall p ev fd fs1);;
       s2 <- isem_cmd_ (sem_F:= sem_fun_inline do_inline fn1) p ev (f_body fd) s1;;
-      iresult s2 (finalize_funcall fd s2).
+      fr <- iresult s2 (finalize_funcall fd s2) ;;
+      _ <- isem_post p s2 fn1 (fvals fs1) fr;;
+      Ret fr.
   + move=> ii1 fn1 fs1.
     rewrite /ctx2_cond /Handler.cat interp_bind.
     apply eutt_eq_bind'.
@@ -692,10 +648,18 @@ Proof.
     move=> fd.
     rewrite interp_bind.
     apply eutt_eq_bind'.
+    + rewrite interp_cond_iresult; reflexivity.
+    move=> ?.
+    rewrite interp_bind.
+    apply eutt_eq_bind'.
     + by apply interp_cond_iresult.
     move=> s; rewrite interp_bind.
     apply eutt_eq_bind'; last first.
-    + by move=> s'; apply interp_cond_iresult.
+    + move=> ?; rewrite interp_bind; apply eutt_eq_bind'.
+      + by apply interp_cond_iresult.
+      move=> ?; rewrite interp_bind; apply eutt_eq_bind'.
+      + by apply interp_cond_iresult.
+      move=> ?; rewrite interp_ret; reflexivity.
     set Pi := fun i =>
       forall s,
        interp (ctx_cond (cond fstate (RecCall dummy_instr_info fn1 fs1)) F)
@@ -714,6 +678,9 @@ Proof.
     + by move=> > ? >; apply interp_cond_iresult.
     + by move=> > ? > ? > ; apply interp_cond_iresult.
     + by move=> > ? >; apply interp_cond_iresult.
+    + move=> a ii s; rewrite interp_bind; apply eutt_eq_bind'.
+      + by apply interp_cond_iresult.
+      by move=> ?; rewrite interp_ret; reflexivity.
     + move=> e c1 c2 hc1 hc2 ii s; rewrite interp_bind.
       rewrite /isem_cond interp_cond_iresult.
       by apply/eutt_eq_bind; case; [apply hc1 | apply hc2].
@@ -737,10 +704,13 @@ Proof.
       rewrite interp_ret; reflexivity.
     move=> xs f es ii s; rewrite interp_bind.
     rewrite /isem_pexprs interp_cond_iresult; apply eutt_eq_bind => ?.
-    rewrite interp_bind.
-    apply eutt_eq_bind'.
+    rewrite interp_bind; apply eutt_eq_bind'.
+    + by apply interp_cond_iresult.
+    move=> _; rewrite interp_bind; apply eutt_eq_bind'.
     + rewrite /ctx_cond /cond /Handler.case_ /rec_call /F.
       setoid_rewrite interp_trigger; reflexivity.
+    move=> ?; rewrite interp_bind; apply eutt_eq_bind'.
+    + by apply interp_cond_iresult.
     by move=> ?; apply interp_cond_iresult.
   apply Proper_interp_mrec => //.
   by move=> T [].

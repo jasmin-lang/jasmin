@@ -6,9 +6,7 @@ Immediate values (denoted <imm>) are always nonnegative integers.
 
 open Arch_decl
 open Utils
-open PrintCommon
 open PrintASM
-open Prog
 open Asm_utils
 
 (* Architecture imports*)
@@ -195,8 +193,6 @@ let pp_ADR pp opts args =
   in
   [ Instr(name_lo, args_lo); Instr(name_hi, args_hi) ]
 
-let arch = arm_decl
-
 module ArmTarget : AsmTargetBuilder.AsmTarget with
 type reg = Arm_decl.register
 and type regx = Arch_utils.empty
@@ -274,6 +270,12 @@ and type asm_op = arm_op
     | SysCall op ->
         [Instr ("bl", [ pp_syscall op ])]
 
+    | Declassify_val (lty, a) ->
+        declassify_val (fun _lty a -> Option.default "" (pp_asm_arg a)) lty a
+
+    | Declassify_mem (len, a) ->
+        declassify_mem arch len a
+
     | AsmOp (op, args) ->
         let id = instr_desc arm_decl arm_op_decl (None, op) in
         let pp = id.id_pp_asm args in
@@ -289,6 +291,7 @@ and type asm_op = arm_op
             in
             let args = pp_shift op args in
             get_IT i @ [ Instr (name, args) ]
+
 
 end
 

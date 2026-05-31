@@ -1,145 +1,17 @@
-(* ** Imports and settings *)
 From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype div ssralg.
 Require Import oseq.
 From Coq Require Export ZArith Setoid Morphisms.
 From mathcomp Require Import word_ssrZ.
-Require Export strings word utils type ident var global sem_type slh_ops sopn syscall.
+Require Export strings word utils type ident var global sem_type slh_ops sopn syscall operators.
 Require Import xseq.
 Import Utf8 ZArith.
 
 Local Unset Elimination Schemes.
 
-(* ** Operators
- * -------------------------------------------------------------------- *)
-(* *** Summary
-   Operators represent several constructs in the Ocaml compiler:
-   - const-op: compile-time expressions (constexpr in C++)
-   - list-op: argument and result lists
-   - arr-op: reading and writing arrays
-   - cpu-op: CPU instructions such as addition with carry
-*)
-
-#[only(eqbOK)] derive
-Variant cmp_kind :=
-  | Cmp_int
-  | Cmp_w of signedness & wsize.
-
-#[only(eqbOK)] derive
-Variant op_kind :=
-  | Op_int
-  | Op_w of wsize.
-
-#[only(eqbOK)] derive
-Variant wiop1 :=
-| WIwint_of_int  of wsize (* int → word *)
-| WIint_of_wint  of wsize (* word/uint/sint → int, signed or unsigned interpretation *)
-| WIword_of_wint of wsize (* uint/sint -> word *)
-| WIwint_of_word of wsize (* word -> uint/sint *)
-| WIwint_ext     of wsize & wsize (* Size-extension: output-size, input-size *)
-| WIneg          of wsize (* negation *)
-.
-
-#[only(eqbOK)] derive
-Variant sop1 :=
-| Oword_of_int of wsize     (* int → word *)
-| Oint_of_word of signedness & wsize (* word → signed/unsigned int *)
-| Osignext of wsize & wsize (* Sign-extension: output-size, input-size *)
-| Ozeroext of wsize & wsize (* Zero-extension: output-size, input-size *)
-| Onot                      (* Boolean negation *)
-| Olnot of wsize            (* Bitwize not: 1s’ complement *)
-| Oneg  of op_kind          (* Arithmetic negation *)
-(* wint operations *)
-| Owi1 of signedness & wiop1
-.
-
 Definition uint_of_word ws := Oint_of_word Unsigned ws.
 Definition sint_of_word ws := Oint_of_word Signed ws.
-
-#[only(eqbOK)] derive
-Variant wiop2 :=
-| WIadd
-| WImul
-| WIsub
-| WIdiv
-| WImod
-| WIshl
-| WIshr
-| WIeq
-| WIneq
-| WIlt
-| WIle
-| WIgt
-| WIge
-.
-
-#[only(eqbOK)] derive
-Variant sop2 :=
-| Obeq                        (* const : abool -> abool -> abool *)
-| Oand                        (* const : abool -> abool -> abool *)
-| Oor                         (* const : abool -> abool -> abool *)
-
-| Oadd  of op_kind
-| Omul  of op_kind
-| Osub  of op_kind
-| Odiv  of signedness & op_kind
-| Omod  of signedness & op_kind
-
-| Oland of wsize
-| Olor  of wsize
-| Olxor of wsize
-| Olsr  of wsize
-| Olsl  of op_kind
-| Oasr  of op_kind
-| Oror  of wsize
-| Orol  of wsize
-
-| Oeq   of op_kind
-| Oneq  of op_kind
-| Olt   of cmp_kind
-| Ole   of cmp_kind
-| Ogt   of cmp_kind
-| Oge   of cmp_kind
-
-(* vector operation *)
-| Ovadd of velem & wsize (* VPADD   *)
-| Ovsub of velem & wsize (* VPSUB   *)
-| Ovmul of velem & wsize (* VPMULLW *)
-| Ovlsr of velem & wsize
-| Ovlsl of velem & wsize
-| Ovasr of velem & wsize
-
-(* wint operations *)
-| Owi2 of signedness & wsize & wiop2
-.
-
-(* N-ary operators *)
-#[only(eqbOK)] derive
-Variant combine_flags :=
-| CF_LT    of signedness   (* Alias : signed => L  ; unsigned => B   *)
-| CF_LE    of signedness   (* Alias : signed => LE ; unsigned => BE  *)
-| CF_EQ                    (* Alias : E                              *)
-| CF_NEQ                   (* Alias : !E                             *)
-| CF_GE    of signedness   (* Alias : signed => !L ; unsigned => !B  *)
-| CF_GT    of signedness   (* Alias : signed => !LE; unsigned => !BE *)
-.
-
-#[only(eqbOK)] derive
-Variant opN :=
-| Opack of wsize & pelem (* Pack words of size pelem into one word of wsize *)
-| Ocombine_flags of combine_flags
-.
-
-HB.instance Definition _ := hasDecEq.Build op_kind op_kind_eqb_OK.
-
-HB.instance Definition _ := hasDecEq.Build sop1 sop1_eqb_OK.
-
-HB.instance Definition _ := hasDecEq.Build sop2 sop2_eqb_OK.
-
-HB.instance Definition _ := hasDecEq.Build opN opN_eqb_OK.
-
-(* ----------------------------------------------------------------------------- *)
 
 (* Type of unany operators: input, output *)
 Definition etype_of_wiop1 {len:Type} (s: signedness) (o:wiop1) : extended_type len * extended_type len :=
@@ -332,8 +204,14 @@ Definition type_of_opN (op: opN) : seq atype * atype :=
   | Opack ws p =>
     let n := nat_of_wsize ws %/ nat_of_pelem p in
     (nseq n aint, aword ws)
+  | Oarray len => (nseq (Pos.to_nat len) (aword U8), aarr U8 len)
   | Ocombine_flags c => (tin_combine_flags, abool)
   end.
+
+Definition type_of_opN_safety (op: opN_safety) : seq atype * atype :=
+  (match op with
+   | Ois_arr_init len | Ois_barr_init len => [:: aarr U8 len; aint; aint]
+   end, abool).
 
 (* ** Expressions
  * -------------------------------------------------------------------- *)
@@ -367,7 +245,7 @@ Notation vid ident :=
   (mk_var_i {| vtype := aword Uptr; vname := ident%string; |}).
 
 #[only(eqbOK)] derive
-Variant v_scope := 
+Variant v_scope :=
   | Slocal
   | Sglob.
 
@@ -395,6 +273,15 @@ Inductive pexpr : Type :=
 | Pif    : atype -> pexpr -> pexpr -> pexpr -> pexpr.
 
 Notation pexprs := (seq pexpr).
+
+Local Set Elimination Schemes.
+
+Inductive eassert : Type :=
+| Pexpr : pexpr → eassert
+| PappN_safety : opN_safety → seq pexpr -> eassert
+| Pis_var_init : var_i → eassert
+| Pis_mem_init : pexpr → pexpr → eassert
+| Pand : eassert → eassert → eassert.
 
 Definition Plvar x : pexpr := Pvar (mk_lvar x).
 
@@ -506,6 +393,16 @@ Variant align :=
   | Align
   | NoAlign.
 
+(* We avoid clash with [is_align] using option "module". *)
+#[only(eqbOK),module] derive align.
+
+HB.instance Definition _ := hasDecEq.Build align align.eqb_OK.
+
+(* -------------------------------------------------------------------- *)
+
+Definition assertion := (assertion_label * eassert)%type.
+Definition assertions := seq assertion.
+
 (* -------------------------------------------------------------------- *)
 
 Section ASM_OP.
@@ -516,6 +413,7 @@ Inductive instr_r :=
 | Cassgn   : lval -> assgn_tag -> atype -> pexpr -> instr_r
 | Copn     : lvals -> assgn_tag -> sopn -> pexprs -> instr_r
 | Csyscall : lvals -> syscall_t -> pexprs -> instr_r
+| Cassert  : assertion -> instr_r
 | Cif      : pexpr -> seq instr -> seq instr  -> instr_r
 | Cfor     : var_i -> range -> seq instr -> instr_r
 | Cwhile   : align -> seq instr -> pexpr -> instr_info -> seq instr -> instr_r
@@ -538,6 +436,7 @@ Section CMD_RECT.
   Hypothesis Hasgn: forall x tg ty e, Pr (Cassgn x tg ty e).
   Hypothesis Hopn : forall xs t o es, Pr (Copn xs t o es).
   Hypothesis Hsyscall : forall xs o es, Pr (Csyscall xs o es).
+  Hypothesis Hassert : forall a, Pr (Cassert a).
   Hypothesis Hif  : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Hypothesis Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
   Hypothesis Hwhile : forall a c e info c', Pc c -> Pc c' -> Pr (Cwhile a c e info c').
@@ -562,6 +461,7 @@ Section CMD_RECT.
     | Cassgn x tg ty e => Hasgn x tg ty e
     | Copn xs t o es => Hopn xs t o es
     | Csyscall xs o es => Hsyscall xs o es
+    | Cassert a => Hassert a
     | Cif e c1 c2  => @Hif e c1 c2 (cmd_rect_aux instr_Rect c1) (cmd_rect_aux instr_Rect c2)
     | Cfor i (dir,lo,hi) c => @Hfor i dir lo hi c (cmd_rect_aux instr_Rect c)
     | Cwhile a c e info c'   => @Hwhile a c e info c' (cmd_rect_aux instr_Rect c) (cmd_rect_aux instr_Rect c')
@@ -581,8 +481,8 @@ End FunInfoT.
 Module FunInfo : FunInfoT.
   Definition t := positive.
   Definition witness : t := 1%positive.
-  Definition entry_info of t := dummy_instr_info.
-  Definition ret_info of t := dummy_instr_info.
+  Definition entry_info (_: t) := dummy_instr_info.
+  Definition ret_info (_: t) := dummy_instr_info.
 End FunInfo.
 
 Definition fun_info := FunInfo.t.
@@ -602,8 +502,16 @@ Class progT := {
   extra_val_t  : Type;
 }.
 
+Record fun_contract := MkContra {
+    f_iparams : seq var_i;  (* names of the parameters used in pre and post *)
+    f_ires    : seq var_i;  (* name of the result used in post *)
+    f_pre     : assertions;
+    f_post    : assertions;
+  }.
+
 Record _fundef (extra_fun_t: Type) := MkFun {
   f_info   : fun_info;
+  f_contract : option fun_contract;
   f_tyin   : seq atype;
   f_params : seq var_i;
   f_body   : cmd;
@@ -786,23 +694,25 @@ Definition to_sprog (p:_sprog) : sprog := p.
 
 (* Update functions *)
 Definition with_body eft (fd:_fundef eft) (body : cmd) := {|
-  f_info   := fd.(f_info);
-  f_tyin   := fd.(f_tyin);
-  f_params := fd.(f_params);
-  f_body   := body;
-  f_tyout  := fd.(f_tyout);
-  f_res    := fd.(f_res);
-  f_extra  := fd.(f_extra);
+  f_info     := fd.(f_info);
+  f_contract := fd.(f_contract);
+  f_tyin     := fd.(f_tyin);
+  f_params   := fd.(f_params);
+  f_body     := body;
+  f_tyout    := fd.(f_tyout);
+  f_res      := fd.(f_res);
+  f_extra    := fd.(f_extra);
 |}.
 
 Definition swith_extra {_: PointerData} (fd:ufundef) f_extra : sfundef := {|
-  f_info   := fd.(f_info);
-  f_tyin   := fd.(f_tyin);
-  f_params := fd.(f_params);
-  f_body   := fd.(f_body);
-  f_tyout  := fd.(f_tyout);
-  f_res    := fd.(f_res);
-  f_extra  := f_extra;
+  f_info     := fd.(f_info);
+  f_contract := fd.(f_contract);
+  f_tyin     := fd.(f_tyin);
+  f_params   := fd.(f_params);
+  f_body     := fd.(f_body);
+  f_tyout    := fd.(f_tyout);
+  f_res      := fd.(f_res);
+  f_extra    := f_extra;
 |}.
 
 End ASM_OP.
@@ -936,6 +846,7 @@ Fixpoint write_i_rec s (i:instr_r) :=
   | Cassgn x _ _ _  => vrv_rec s x
   | Copn xs _ _ _   => vrvs_rec s xs
   | Csyscall xs _ _ => vrvs_rec s xs
+  | Cassert _       => s
   | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
   | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
   | Cwhile _ c _ _ c' => foldl write_I_rec (foldl write_I_rec s c') c
@@ -1006,11 +917,23 @@ Definition read_rv := read_rv_rec Sv.empty.
 Definition read_rvs_rec := foldl read_rv_rec.
 Definition read_rvs := read_rvs_rec Sv.empty.
 
+Fixpoint read_eassert_rec (s:Sv.t) (e:eassert) :=
+  match e with
+  | Pexpr e => read_e_rec s e
+  | PappN_safety _ es => read_es_rec s es
+  | Pis_var_init x => Sv.add x s
+  | Pis_mem_init e1 e2 => read_e_rec (read_e_rec s e2) e1
+  | Pand e1 e2 => read_eassert_rec (read_eassert_rec s e2) e1
+  end.
+
+Definition read_eassert := read_eassert_rec Sv.empty.
+
 Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
   match i with
   | Cassgn x _ _ e => read_rv_rec (read_e_rec s e) x
   | Copn xs _ _ es => read_es_rec (read_rvs_rec s xs) es
   | Csyscall xs _ es => read_es_rec (read_rvs_rec s xs) es
+  | Cassert a => read_eassert_rec s a.2
   | Cif b c1 c2 =>
     let s := foldl read_I_rec s c1 in
     let s := foldl read_I_rec s c2 in
@@ -1084,6 +1007,64 @@ Fixpoint eq_expr (e e' : pexpr) :=
     (t == t') && eq_expr e e' && eq_expr e1 e1' && eq_expr e2 e2'
   | _             , _                 => false
   end.
+
+Definition eq_lval (x x': lval) : bool :=
+  match x, x' with
+  | Lnone _ ty, Lnone _ ty' => ty == ty'
+  | Lvar v, Lvar v' => v_var v == v_var v'
+  | Lmem al w _ e, Lmem al' w' _ e' => (al == al') && (w == w') && eq_expr e e'
+  | Laset al aa w v e, Laset al' aa' w' v' e' =>
+      (al == al') && (aa == aa') && (w == w') && (v_var v == v_var v') && eq_expr e e'
+  | Lasub aa w len v e, Lasub aa' w' len' v' e' =>
+      (aa == aa') && (w == w') && (len == len') && (v_var v == v_var v') && eq_expr e e'
+
+  | _, _ => false
+  end.
+
+Fixpoint eq_eassert (e e' : eassert) : bool :=
+  match e, e' with
+  | Pexpr e, Pexpr e' => eq_expr e e'
+  | PappN_safety o es, PappN_safety o' es' => (o == o') && all2 eq_expr es es'
+  | Pis_var_init x, Pis_var_init x' => v_var x == v_var x'
+  | Pis_mem_init e1 e2, Pis_mem_init e1' e2' => eq_expr e1 e1' && eq_expr e2 e2'
+  | Pand e1 e2, Pand e1' e2' => eq_eassert e1 e1' && eq_eassert e2 e2'
+  | _, _ => false
+  end.
+
+(* --------------------------------------------------------------------- *)
+(* Test the equality of two instructions modulo variable & instr info    *)
+
+Section EQ_INSTR.
+
+Context {asm_op : Type} {asmop : asmOp asm_op}.
+
+Fixpoint eq_instr_r (i1 i2:instr_r) :=
+  match i1, i2 with
+  | Cassgn x1 tag1 ty1 e1, Cassgn x2 tag2 ty2 e2 =>
+     (tag1 == tag2) && (ty1 == ty2) && eq_lval x1 x2 && eq_expr e1 e2
+  | Copn x1 tag1 o1 e1, Copn x2 tag2 o2 e2 =>
+     all2 eq_lval x1 x2 && (tag1 == tag2) && (o1 == o2) && all2 eq_expr e1 e2
+  | Csyscall xs1 o1 es1, Csyscall xs2 o2 es2 =>
+     all2 eq_lval xs1 xs2 && (o1 == o2) && all2 eq_expr es1 es2
+  | Cassert a1, Cassert a2 => (a1.1 == a2.1) && eq_eassert a1.2 a2.2
+  | Cif e1 c11 c12, Cif e2 c21 c22 =>
+    eq_expr e1 e2 && all2 eq_instr c11 c21 && all2 eq_instr c12 c22
+  | Cfor i1 (dir1,lo1,hi1) c1, Cfor i2 (dir2,lo2,hi2) c2 =>
+    (v_var i1 == v_var i2) && (dir1 == dir2) && eq_expr lo1 lo2 && eq_expr hi1 hi2 && all2 eq_instr c1 c2
+  | Cwhile a1 c1 e1 _ c1' , Cwhile a2 c2 e2 _ c2' =>
+    (a1 == a2) && all2 eq_instr c1 c2 && eq_expr e1 e2 && all2 eq_instr c1' c2'
+  | Ccall x1 f1 arg1, Ccall x2 f2 arg2 =>
+    all2 eq_lval x1 x2 && (f1 == f2) && all2 eq_expr arg1 arg2
+  | _, _ => false
+  end
+with eq_instr i1 i2 :=
+  match i1, i2 with
+  | MkI _ i1, MkI _ i2 => eq_instr_r i1 i2
+  end.
+
+Definition eq_cmd c1 c2 := all2 eq_instr c1 c2.
+
+End EQ_INSTR.
 
 (* ------------------------------------------------------------------- *)
 Definition to_lvals (l:seq var) : seq lval :=

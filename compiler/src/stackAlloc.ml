@@ -182,6 +182,7 @@ let memory_analysis pp_sr pp_err ~debug up =
         Arch.pointer_data
         Arch.msf_size
         Arch.asmOp
+        Compiler.default_LoopCounter
         Arch.aparams.ap_shp
         Arch.aparams.ap_sap
         Arch.aparams.ap_is_move_op
@@ -234,7 +235,7 @@ let memory_analysis pp_sr pp_err ~debug up =
   let deadcode (extra, fd) =
     let (fn, cfd) = Conv.cufdef_of_fdef fd in
     let fd = 
-      match Dead_code.dead_code_fd Arch.asmOp Arch.aparams.ap_is_move_op false tokeep fn cfd with
+      match Dead_code.dead_code_fd Arch.asmOp Compiler.default_LoopCounter Arch.aparams.ap_is_move_op false tokeep fn cfd with
       | Utils0.Ok cfd -> Conv.fdef_of_cufdef (fn, cfd)
       | Utils0.Error _ -> assert false in 
     (extra,fd) in
@@ -262,7 +263,7 @@ let memory_analysis pp_sr pp_err ~debug up =
     let rastack = Regalloc.subroutine_ra_by_stack fd in
     let extra = [] in
 
-    let extra_size, align, extrapos = Varalloc.extend_sao sao extra in
+    let extra_size, align, _extrapos = Varalloc.extend_sao sao extra in
 
     let align =
       if rastack && wsize_lt align Arch.reg_size then Arch.reg_size

@@ -1,7 +1,6 @@
 %{
 
   open Syntax
-  open Annotations
 
 %}
 
@@ -24,6 +23,7 @@
 %token ALIGNED
 %token AMP
 %token AMPAMP
+%token ASSERT
 %token BANG
 %token BANGEQ
 %token COLON
@@ -125,20 +125,14 @@ annotationlabel:
   | id=loc(keyword) { id }
   | s=loc(STRING) { s }
 
-int:
-  | i=INT       { Syntax.parse_int i }
-  | MINUS i=INT { Z.neg (Syntax.parse_int i ) }
-
 simple_attribute:
-  | i=int          { Aint i    }
-  | id=NID         { Aid id    }
-  | s=STRING       { Astring s }
-  | s=keyword      { Astring s }
-  | ws=utype       { Aws (fst ws) }
+  | e=pexpr_noarr  { PAexpr e}
+  | s=keyword      { PAstring s }
+  | ws=utype       { PAws (fst ws) }
 
 attribute:
   | EQ ap=loc(simple_attribute) { ap }
-  | EQ s=loc(braces(struct_annot)) { Location.mk_loc (Location.loc s) (Astruct (Location.unloc s)) }
+  | EQ s=loc(braces(struct_annot)) { Location.mk_loc (Location.loc s) (PAstruct (Location.unloc s)) }
 
 annotation:
   | k=annotationlabel v=attribute? { k, v }
@@ -273,7 +267,7 @@ arr_access:
    let s = if s = None then Warray_.AAscale else Warray_.AAdirect in
    s, i }
 
-pexpr_r:
+pexpr_noarr_r(parent):
 | v=var
     { PEVar v }
 
@@ -292,29 +286,37 @@ pexpr_r:
 | ma=mem_access
     { PEFetch ma }
 
-| ct=parens(svsize) LBRACKET es=rtuple1(pexpr) RBRACKET
+| ct=parens(svsize) LBRACKET es=rtuple1(parent) RBRACKET
     { PEpack(ct,es) }
 
-| ct=parens(cast) e=pexpr %prec BANG
+| e = STRING { PEstring e }
+
+| ct=parens(cast) e=parent %prec BANG
     { PEOp1 (`Cast(ct), e) }
 
-| o=peop1 e=pexpr
+| o=peop1 e=parent
     { PEOp1 (o, e) }
 
-| e1=pexpr o=peop2 e2=pexpr
+| e1=parent o=peop2 e2=parent
     { PEOp2 (o, (e1, e2)) }
 
-| e=parens(pexpr)
+| e=parens(parent)
     { PEParens e }
 
-| f=var args=parens_tuple(pexpr)
+| f=var args=parens_tuple(parent)
     { PECall (f, args) }
 
-| f=prim args=parens_tuple(pexpr)
+| f=prim args=parens_tuple(parent)
     { PEPrim (f, args) }
 
-| e1=pexpr QUESTIONMARK e2=pexpr COLON e3=pexpr
+| e1=parent QUESTIONMARK e2=parent COLON e3=parent
     { PEIf(e1, e2, e3) }
+
+pexpr_noarr:
+| e=loc(pexpr_noarr_r(pexpr_noarr)) { e }
+
+pexpr_r:
+| e = pexpr_noarr_r(pexpr) { e }
 
 pexpr:
 | e=loc(pexpr_r) { e }
@@ -379,6 +381,9 @@ pinstr_r:
     c=prefix(IF, pexpr)? SEMICOLON
     { let { Location.pl_loc = loc; Location.pl_desc = (f, args) } = fc in
       PIAssign ((None, []), `Raw, Location.mk_loc loc (PECall (f, args)), c) }
+
+| ASSERT LPAREN msg=loc(STRING) COMMA e=pexpr RPAREN SEMICOLON
+    { PIAssert(msg, e) }
 
 | s=pif { s }
 
@@ -493,9 +498,8 @@ pparam:
 
 (* -------------------------------------------------------------------- *)
 pgexpr:
-| e=pexpr { GEword e }
+| e=pexpr { GEexpr e }
 | LBRACE es = rtuple1(pexpr) RBRACE { GEarray es }
-| e=loc(STRING) { GEstring e }
 
 pglobal:
 | pgd_type=ptype pgd_name=ident EQ pgd_val=pgexpr SEMICOLON

@@ -1,5 +1,6 @@
 open Utils
 open Prog
+open Operators
 module L = Location
 
 (* When there is no location, we report an internal error. *)
@@ -49,6 +50,16 @@ let gsubst_lval (flen: ?loc:L.t -> 'len1 -> 'len2) f lv =
 let gsubst_lvals flen f  = List.map (gsubst_lval flen f)
 let gsubst_es flen f = List.map (gsubst_e flen f)
 
+let rec gsubst_a flen f = function
+  | Pexpr e -> Pexpr (gsubst_e flen f e)
+  | PappN_safety (o, es) -> PappN_safety(o, gsubst_es flen f es)
+  | Pis_var_init x -> Pis_var_init (gsubst_vdest f x)
+  | Pis_mem_init (e1, e2) -> Pis_mem_init(gsubst_e flen f e1, gsubst_e flen f e2)
+  | Pand (e1, e2) -> Pand (gsubst_a flen f e1, gsubst_a flen f e2)
+
+let gsubst_as flen f = List.map (fun (msg,a) -> (msg, gsubst_a flen f a))
+
+
 let rec gsubst_i (flen: ?loc:L.t -> 'len1 -> 'len2) f i =
   let i_desc =
     match i.i_desc with
@@ -59,6 +70,7 @@ let rec gsubst_i (flen: ?loc:L.t -> 'len1 -> 'len2) f i =
       Cassgn(x, tg, ty, e)
     | Copn(x,t,o,e)   -> Copn(gsubst_lvals flen f x, t, o, gsubst_es flen f e)
     | Csyscall(x,o,e)   -> Csyscall(gsubst_lvals flen f x, o, gsubst_es flen f e)
+    | Cassert (msg, e)  -> Cassert (msg, gsubst_a flen f e)
     | Cif(e,c1,c2)  -> Cif(gsubst_e flen f e, gsubst_c flen f c1, gsubst_c flen f c2)
     | Cfor(x,(d,e1,e2),c) ->
         Cfor(gsubst_vdest f x, (d, gsubst_e flen f e1, gsubst_e flen f e2), gsubst_c flen f c)
@@ -69,10 +81,19 @@ let rec gsubst_i (flen: ?loc:L.t -> 'len1 -> 'len2) f i =
 
 and gsubst_c flen f c = List.map (gsubst_i flen f) c
 
+let gsubst_cf_contract flen f c =
+  {
+    f_iparams = List.map (gsubst_vdest f) c.f_iparams;
+    f_ires = List.map (gsubst_vdest f) c.f_ires;
+    f_pre = gsubst_as flen f c.f_pre;
+    f_post = gsubst_as flen f c.f_post;
+  }
+
 let gsubst_func (flen: ?loc:L.t -> 'len1 -> 'len2) f fc =
   let dov v = L.unloc (gsubst_vdest f (L.mk_loc L._dummy v)) in
   { fc with
     f_tyin = List.map (gsubst_ty (flen ?loc:None)) fc.f_tyin;
+    f_contract = Option.map (gsubst_cf_contract flen f) fc.f_contract;
     f_args = List.map dov fc.f_args;
     f_body = gsubst_c flen f fc.f_body;
     f_tyout = List.map (gsubst_ty (flen ?loc:None)) fc.f_tyout;
@@ -151,9 +172,13 @@ let psubst_prog (prog:('info, 'asm) pprog) =
         let subst_ty = psubst_ty subst_v in
         let dov v =
           L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
+        let subst_contract =
+          gsubst_cf_contract (psubst_e_ subst_v) subst_v
+        in
         let fc = {
             fc with
             f_tyin = List.map subst_ty fc.f_tyin;
+            f_contract = Option.map subst_contract fc.f_contract;
             f_args = List.map dov fc.f_args;
             f_body = gsubst_c (psubst_e_ subst_v) subst_v fc.f_body;
             f_tyout = List.map subst_ty fc.f_tyout;
@@ -166,7 +191,7 @@ let psubst_prog (prog:('info, 'asm) pprog) =
 (* Simplify type                                                    *)
 let int_of_op1 ?loc =
   function
-  | Expr.Oneg Op_int -> Z.neg
+  | Oneg Op_int -> Z.neg
   | o -> hierror ?loc "unary operator %s not supported in array sizes" (PrintCommon.string_of_op1 ~debug:false o)
 
 let shift_left ?loc (x: Z.t) (y: Z.t) : Z.t =
@@ -179,15 +204,17 @@ let shift_right ?loc (x: Z.t) (y: Z.t) : Z.t =
   | exception Z.Overflow -> hierror ?loc "overflow in right shift by %s" (Z.to_string y)
   | y -> if y < 0 then Z.shift_left x (-y) else Z.shift_right x y
 
+let zremu (x : Z.t) (y : Z.t) = Z.(of_int (sign y) * erem (of_int (sign y) * x) y)
+
 let int_of_op2 ?loc o =
   match o with
-  | Expr.Oadd Op_int -> Z.add
-  | Expr.Omul Op_int -> Z.mul
-  | Expr.Osub Op_int -> Z.sub
-  | Expr.Odiv(sg, Op_int) -> if sg = Unsigned then Z.ediv else Z.div
-  | Expr.Omod(sg, Op_int) -> if sg = Unsigned then Z.erem else Z.rem
-  | Expr.Olsl Op_int -> shift_left ?loc
-  | Expr.Oasr Op_int -> shift_right ?loc
+  | Oadd Op_int -> Z.add
+  | Omul Op_int -> Z.mul
+  | Osub Op_int -> Z.sub
+  | Odiv(sg, Op_int) -> if sg = Unsigned then Z.fdiv else Z.div
+  | Omod(sg, Op_int) -> if sg = Unsigned then zremu else Z.rem
+  | Olsl Op_int -> shift_left ?loc
+  | Oasr Op_int -> shift_right ?loc
   | _     -> hierror ?loc "operator %s not allowed in array size (only standard arithmetic operators and modulo are allowed)" (PrintCommon.string_of_op2 o)
 
 let rec int_of_expr ?loc e =
@@ -270,6 +297,7 @@ let isubst_prog glob prog =
     let fc = {
         fc with
         f_tyin = List.map isubst_ty fc.f_tyin;
+        f_contract = Option.map (gsubst_cf_contract isubst_len subst_v) fc.f_contract;
         f_args;
         f_body = gsubst_c isubst_len subst_v fc.f_body;
         f_tyout = List.map isubst_ty fc.f_tyout;
@@ -337,7 +365,7 @@ let remove_params (prog : ('info, 'asm) pprog) =
       | Bty (U ws), GEword e ->
         begin try Global.Gword (ws, mk_word ws e)
         with NotAConstantExpr ->
-          hierror ~loc:x.v_dloc "the expression assigned to global variable %a must evaluate to a constant"
+          hierror ~loc:x.v_dloc "the expression assigned to global variable %a must evaluate to a constant word"
             (Printer.pp_var ~debug:false) x
         end
       | Arr (_ws, n), GEarray es when List.length es <> n ->
@@ -393,7 +421,7 @@ let clone_func fc =
 let rec extend_iinfo_i pre i =
   let i_desc =
     match i.i_desc with
-    | Cassgn _ | Copn _ | Csyscall _ | Ccall _ -> i.i_desc
+    | Cassgn _ | Copn _ | Csyscall _ | Ccall _ | Cassert _ -> i.i_desc
     | Cif(e,c1,c2) ->
       Cif(e, extend_iinfo_c pre c1, extend_iinfo_c pre c2)
     | Cfor(x,r,c) ->
@@ -427,6 +455,9 @@ let vsubst_es s = gsubst_es (fun ?loc:_ ty -> ty) (vsubst_ve s)
 
 let vsubst_lval  s = gsubst_lval  (fun ?loc:_ ty -> ty) (vsubst_ve s)
 let vsubst_lvals s = gsubst_lvals (fun ?loc:_ ty -> ty) (vsubst_ve s)
+
+let vsubst_a  s = gsubst_a  (fun ?loc:_ ty -> ty) (vsubst_ve s)
+let vsubst_as s = gsubst_as (fun ?loc:_ ty -> ty) (vsubst_ve s)
 
 let vsubst_i s = gsubst_i (fun ?loc:_ ty -> ty) (vsubst_ve s)
 let vsubst_c s = gsubst_c (fun ?loc:_ ty -> ty) (vsubst_ve s)

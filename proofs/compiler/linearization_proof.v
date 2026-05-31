@@ -16,6 +16,8 @@ Require Import fexpr fexpr_sem fexpr_facts.
 Require Export linearization linear_sem linear_facts.
 Import Memory.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 #[local] Existing Instance withsubword.
 #[local] Opaque eval_jump.
 
@@ -138,6 +140,10 @@ Section CAT.
   Proof. by []. Qed.
 
   #[ local ]
+  Lemma cat_assert : forall a, Pr (Cassert a).
+  Proof. by []. Qed.
+
+  #[ local ]
   Lemma cat_if   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Proof.
     move=> e c1 c2 Hc1 Hc2 ii fn lbl l /=.
@@ -185,7 +191,7 @@ Section CAT.
      let: (lbl, lc) := linear_i fn i lbl [::] in (lbl, lc ++ tail).
   Proof.
     exact:
-      (instr_Rect cat_mkI cat_skip cat_seq cat_assgn cat_opn cat_syscall cat_if cat_for cat_while cat_call).
+      (instr_Rect cat_mkI cat_skip cat_seq cat_assgn cat_opn cat_syscall cat_assert cat_if cat_for cat_while cat_call).
   Qed.
 
   Lemma linear_c_nil fn c lbl tail :
@@ -193,7 +199,7 @@ Section CAT.
      let: (lbl, lc) := linear_c (linear_i fn) c lbl [::] in (lbl, lc ++ tail).
   Proof.
     exact:
-      (cmd_rect cat_mkI cat_skip cat_seq cat_assgn cat_opn cat_syscall cat_if cat_for cat_while cat_call).
+      (cmd_rect cat_mkI cat_skip cat_seq cat_assgn cat_opn cat_syscall cat_assert cat_if cat_for cat_while cat_call).
   Qed.
 
 End CAT.
@@ -830,6 +836,10 @@ Section VALIDITY.
   Proof. move => ?; exact: default. Qed.
 
   #[ local ]
+  Lemma valid_labels_assert (a : assertion) : Pr (Cassert a).
+  Proof. move=> ?; exact: default. Qed.
+
+  #[ local ]
   Lemma valid_labels_if (e : pexpr) (c1 c2 : cmd) : Pc c1 → Pc c2 → Pr (Cif e c1 c2).
   Proof.
     move => hc1 hc2 ii fn lbl /=.
@@ -921,10 +931,10 @@ Section VALIDITY.
   Qed.
 
   Definition linear_has_valid_labels : ∀ c, Pc c :=
-    cmd_rect valid_labels_MkI valid_labels_nil valid_labels_cons valid_labels_assign valid_labels_opn valid_labels_syscall valid_labels_if valid_labels_for valid_labels_while valid_labels_call.
+    cmd_rect valid_labels_MkI valid_labels_nil valid_labels_cons valid_labels_assign valid_labels_opn valid_labels_syscall valid_labels_assert valid_labels_if valid_labels_for valid_labels_while valid_labels_call.
 
   Definition linear_has_valid_labels_instr : ∀ i, Pi i :=
-    instr_Rect valid_labels_MkI valid_labels_nil valid_labels_cons valid_labels_assign valid_labels_opn valid_labels_syscall valid_labels_if valid_labels_for valid_labels_while valid_labels_call.
+    instr_Rect valid_labels_MkI valid_labels_nil valid_labels_cons valid_labels_assign valid_labels_opn valid_labels_syscall valid_labels_assert valid_labels_if valid_labels_for valid_labels_while valid_labels_call.
 
 End VALIDITY.
 
@@ -987,6 +997,10 @@ Section NUMBER_OF_LABELS.
   #[ local ]
   Lemma nb_labels_syscall (xs : lvals) (o : syscall_t) (es : pexprs) : Pr (Csyscall xs o es).
   Proof. by move=> ii fn lbl /=; apply Z.le_refl. Qed.
+
+  #[ local ]
+  Lemma nb_labels_assert (a : assertion) : Pr (Cassert a).
+  Proof. by move => ii fn lbl /=; apply Z.le_refl. Qed.
 
   #[ local ]
   Lemma nb_labels_if (e : pexpr) (c1 c2 : cmd) : Pc c1 → Pc c2 → Pr (Cif e c1 c2).
@@ -1078,10 +1092,10 @@ Section NUMBER_OF_LABELS.
   Qed.
 
   Definition linear_c_nb_labels : ∀ c, Pc c :=
-    cmd_rect nb_labels_MkI nb_labels_nil nb_labels_cons nb_labels_assign nb_labels_opn nb_labels_syscall nb_labels_if nb_labels_for nb_labels_while nb_labels_call.
+    cmd_rect nb_labels_MkI nb_labels_nil nb_labels_cons nb_labels_assign nb_labels_opn nb_labels_syscall nb_labels_assert nb_labels_if nb_labels_for nb_labels_while nb_labels_call.
 
   Definition linear_i_nb_labels : ∀ i, Pi i :=
-    instr_Rect nb_labels_MkI nb_labels_nil nb_labels_cons nb_labels_assign nb_labels_opn nb_labels_syscall nb_labels_if nb_labels_for nb_labels_while nb_labels_call.
+    instr_Rect nb_labels_MkI nb_labels_nil nb_labels_cons nb_labels_assign nb_labels_opn nb_labels_syscall nb_labels_assert nb_labels_if nb_labels_for nb_labels_while nb_labels_call.
 
   Lemma linear_body_nb_labels fn fi e body :
     let: (lbl, lc) := linear_body liparams p fn fi e body in
@@ -2491,7 +2505,7 @@ Section PROOF.
     move: a => []; last by rewrite cats0 -hpc setpc_id.
     rewrite size_cat /= addn1.
     move=> hbody hpc' /lsem_split_start [? | [ls0 hsem1 hsem]].
-    - subst ls'. move: hpc. rewrite hpc' /addn /addn_rec. clear; lia.
+    - subst ls'. move: hpc. rewrite hpc' /addn. clear; lia.
     apply: (lsem_trans _ hsem).
     move: hsem1.
     rewrite /lsem1 /step (find_instr_skip0 hbody) //= -hpc.
@@ -2508,7 +2522,7 @@ Section PROOF.
     lsem p' (setpc ls (size P).+1) ls'.
   Proof.
     move=> hbody hpc' /lsem_split_start [? | [ls0 hsem1 hsem]].
-    - subst ls'. move: hpc. rewrite hpc' /addn /addn_rec. clear; lia.
+    - subst ls'. move: hpc. rewrite hpc' /addn. clear; lia.
     apply: (lsem_trans _ hsem).
     move: hsem1.
     rewrite /lsem1 /step (find_instr_skip0 hbody) //= -hpc.
@@ -2528,7 +2542,7 @@ Section PROOF.
     lsem p' (setpc ls (size P + size Q).+2) ls'.
   Proof.
     move=> hbody hpc' Dp Dq /lsem_split_start [? | [ls0 hsem1 hsem]].
-    - subst ls'. move: hpc. rewrite hpc' /addn /addn_rec. clear; lia.
+    - subst ls'. move: hpc. rewrite hpc' /addn. clear; lia.
     apply: (lsem_trans _ hsem).
     move: hsem1.
     rewrite /lsem1 /step (find_instr_skip0 hbody) //=.
@@ -3062,8 +3076,8 @@ Section PROOF.
 
   Local Lemma Hcall : sem_Ind_call p var_tmps Pi_r Pfun.
   Proof.
-    move=> ii k s1 s2 res fn' args xargs xres
-      ok_xargs ok_xres exec_call ih fn lbl /checked_iE[] fd ok_fd chk_call.
+    move=> ii k s1 s2 res fn' args
+      exec_call ih fn lbl /checked_iE[] fd ok_fd chk_call.
     case linear_eq: linear_i => [lbli li].
     move=> ls m1 vm2 P Q M X D C hpc hfn sp hsp S MAX.
     move: chk_call => /=.
@@ -4488,20 +4502,7 @@ Section PROOF.
           rewrite -ts_rsp (alloc_stack_top_stack ok_m1').
           rewrite top_stack_after_aligned_alloc // wrepr_opp.
           have := ass_ioff (alloc_stackP ok_m1'); rewrite -hioff => uptr_sz.
-          clear - stk_sz_pos stk_extra_sz_pos frame_noof uptr_sz.
-          have := round_ws_range (sf_align (f_extra fd)) (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd)).
-          rewrite -/(stack_frame_allocation_size (f_extra fd)) => hround.
-          set L := stack_limit (emem s1).
-          have L_range := wunsigned_range L.
-          move: (stack_frame_allocation_size _) hround frame_noof => SF hround frame_noof.
-          move: (top_stack (emem s1)) => T above_limit.
-          have SF_range : (0 <= SF < wbase Uptr)%Z.
-          - by move: (sf_stk_sz (f_extra fd)) (sf_stk_extra_sz (f_extra fd)) stk_sz_pos stk_extra_sz_pos hround; lia.
-          have X : (wunsigned (T - wrepr Uptr SF) <= wunsigned T)%Z.
-          * move: (sf_stk_sz _) stk_sz_pos above_limit => n; lia.
-          have {X} TmS := wunsigned_sub_small SF_range X.
-          rewrite TmS in above_limit.
-          lia.
+          by clear -uptr_sz; lia.
         exists m1s; split=> //.
         + apply: (eval_lsem_step1 (pre := [:: P1 ]) ok_body) => //.
           apply: (spec_lstore hliparams) => //=.

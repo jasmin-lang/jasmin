@@ -77,6 +77,8 @@ $(DISTDIR).tgz: MANIFEST
 	cp -riv ../eclib $(DISTDIR)/
 	cp ../Makefile.compiler $(DISTDIR)/Makefile
 	cp jasmin.opam $(DISTDIR)/
+	cp ../README.compiler.md $(DISTDIR)/README.md
+	cp ../LICENSE $(DISTDIR)/
 	tar -czvf $(DISTDIR).tgz --owner=0 --group=0 $(DISTDIR)
 	$(RM) -r $(DISTDIR)
 

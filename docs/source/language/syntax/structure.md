@@ -107,7 +107,7 @@ Storage type is thus not a type, and should not be aliased.
 
 ## Global variables
 
-A global variable is a named valued. Unlike parameters, said value is not
+A global variable is a named value. Unlike parameters, said value is not
 available at compile-time
 (i.e., it cannot be used as part of a type), but it is available at run-time.
 
@@ -173,6 +173,24 @@ is a local function that copies the contents of a register `x` to an address
 from the stack.
 
 TODO: Add link to annotation syntax.
+
+### Safety annotations
+
+Function definitions can be annotated with safety contracts, whose syntax is illustrated below.
+
+```
+#[safety = {
+   args = {<var>, …, <var>},
+   res = {<var>, …, <var>},
+   requires = <expr_assert>,
+   ensures = <expr_assert>
+  } ]
+```
+
+Field `args` (resp. `res`) is optional: by default it is filled with the
+function parameters (resp. function returned variables).
+
+[The assertions (`<expr_assert>`) are described in a dedicated section.](./code.md#assertions)
 
 ## Namespaces
 

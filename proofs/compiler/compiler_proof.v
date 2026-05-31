@@ -25,6 +25,7 @@ Require Import
   dead_code_proof
   array_expansion
   array_expansion_proof
+  remove_assert_proof
   remove_globals_proof
   stack_alloc_proof_2
   tunneling_proof
@@ -44,6 +45,8 @@ Require Import
   sem_params_of_arch_extra.
 Import Utf8.
 Import wsize.
+
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
 #[local] Existing Instance withsubword.
 
@@ -231,7 +234,7 @@ Lemma unrollP  {dc : DirectCall} (fn : funname) (p p' : prog) ev scs mem va va' 
        /\ List.Forall2 value_uincl vr vr'.
 Proof.
   rewrite /unroll_loop; t_xrbindP.
-  elim: Loop.nb p va va' vr => //= n Hn p va va' vr p1 ok_p1.
+  elim: loop_counter p va va' vr => //= n Hn p va va' vr p1 ok_p1.
   case e: unroll_prog => [ p2 [] ]; last first.
   { move/ok_inj => {n Hn} <- E A.
     have [ vr' {} E R ] := postprocessP ok_p1 E A.
@@ -315,7 +318,8 @@ Lemma compiler_first_partP entries (p: prog) (p': uprog) scs m fn va scs' m' vr 
     List.Forall2 value_uincl vr vr' &
     sem_call (dc:=direct_c) p' tt scs m fn va scs' m' vr'.
 Proof.
-  rewrite /compiler_first_part; t_xrbindP => paw ok_paw pa0.
+  rewrite /compiler_first_part; t_xrbindP => paw.
+  rewrite print_uprogP => ok_paw pa0.
   rewrite !print_uprogP => ok_pa0 pb.
   rewrite print_uprogP => ok_pb pa ok_pa pc ok_pc ok_puc ok_puc'.
   rewrite !print_uprogP => pd ok_pd.
@@ -345,7 +349,8 @@ Proof.
          ok_fvars).
   apply: compose_pass.
   + by move=> vr'; apply: load_constants_progP; apply ok_plc.
-  apply: compose_pass; first by move => vr'; apply: (RGP.remove_globP ok_pi).
+  apply: compose_pass_uincl'.
+  - move => vr'; apply: (RGP.remove_globP ok_pi).
   apply: compose_pass_uincl'.
   - move => vr'; apply: (live_range_splittingP ok_ph).
   apply: compose_pass.
@@ -378,6 +383,8 @@ Proof.
     exact.
   apply: compose_pass_uincl'.
   + by move=> vr'; apply: wi2w_progP; apply ok_paw.
+  apply: compose_pass.
+  + move => vr'; exact: remove_assert_progP.
   apply: compose_pass; first by move => vr'; exact: psem_call_u.
   exists vr => //.
   exact: values_uincl_refl.
@@ -429,7 +436,7 @@ Proof.
   move: (alloc_pc _ get_fdc).
   have [_ _ ->]:= dead_code_fd_meta ok_fdc.
   rewrite /sf_total_stack.
-  have [ <- <- <- ] := [elaborate @check_fundef_meta _ _ _ _ _ _ _ _ (_, fda) _ _ _ ok_fdb].
+  have [ <- <- <- ] := [elaborate @check_fundef_meta _ _ _ _ _ _ _ _ _ (_, fda) _ _ _ ok_fdb].
   have [_ _ ->]:= dead_code_fd_meta ok_fda.
   done.
 Qed.

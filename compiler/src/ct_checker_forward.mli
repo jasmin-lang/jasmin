@@ -1,8 +1,9 @@
 open Prog
+open Operators
 
-val is_ct_op1 : Expr.sop1 -> bool
-val is_ct_op2 : Expr.sop2 -> bool
-val is_ct_opN : Expr.opN -> bool
+val is_ct_op1 : sop1 -> bool
+val is_ct_op2 : sop2 -> bool
+val is_ct_opN : opN -> bool
 val is_ct_sopn : ('asm -> bool) -> 'asm Sopn.sopn -> bool
 
 val is_declassify : loc:Location.i_loc -> Annotations.annotations -> bool

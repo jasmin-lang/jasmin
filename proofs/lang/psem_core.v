@@ -3,11 +3,13 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 Require Import xseq.
-Require Export array type expr gen_map warray_ sem_type sem_op_typed values varmap expr_facts low_memory syscall_sem psem_defs.
+Require Export type expr gen_map warray_ sem_type sem_op_typed values varmap expr_facts low_memory syscall_sem psem_defs.
 Require Export
   flag_combination
   sem_params.
 Import Utf8.
+
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
 Local Open Scope Z_scope.
 Local Open Scope seq_scope.
@@ -727,6 +729,27 @@ Proof.
   by case: s' eq_mem => /= > <-.
 Qed.
 
+Lemma eq_on_sem_eassert s' gd s e :
+  emem s = emem s' →
+  evm s =[read_eassert e] evm s' →
+  sem_eassert gd s e = sem_eassert gd s' e.
+Proof.
+  move=> hmem; elim: e.
+  + by move=> e; rewrite read_eassert_Pexpr /= => /(eq_on_sem_pexpr true gd hmem) ->.
+  + move=> o es; rewrite read_eassert_PappN /= => hes.
+    have := eq_on_sem_pexprs true gd hmem hes.
+    by rewrite /sem_pexprs => ->.
+  + move=> x; rewrite read_eassert_Pis_var_init /= => hx.
+    by rewrite (hx x) //; clear; SvD.fsetdec.
+  + move=> e1 e2; rewrite read_eassert_Pis_mem_init /= => h.
+    rewrite !(eq_on_sem_pexpr true gd hmem) ?hmem //;
+    by apply: eq_onI h; clear; SvD.fsetdec.
+  move=> e1 he1 e2 he2.
+  rewrite read_eassert_Pand /= => h.
+  rewrite he1 ?he2 //;
+  by apply: eq_onI h; clear; SvD.fsetdec.
+Qed.
+
 Section UseMem.
 
 Context (wdb : bool) (s1 s2 : estate) (heq : evm s1 = evm s2).
@@ -920,7 +943,7 @@ Proof.
   have -> /= := vuincl_sopn _ hvs ok_q.
   + by eauto.
   case: {q ok_q} op => //.
-  by move => sz n; rewrite /= all_map all_nseq orbT.
+  all: by move => *; rewrite /= all_map all_nseq orbT.
 Qed.
 
 Lemma sem_opN_truncate_val o vs v :
@@ -1377,6 +1400,11 @@ Lemma sem_pexprs_ext_eq es vm :
   sem_pexprs wdb gd s es = sem_pexprs wdb gd (with_vm s vm) es.
 Proof. by move=> heq; apply/read_es_eq_on_empty/vm_eq_eq_on. Qed.
 
+Lemma sem_eassert_ext_eq e vm :
+  (evm s =1 vm)%vm ->
+   sem_eassert gd s e = sem_eassert gd (with_vm s vm) e.
+Proof. by move=> heq; apply/eq_on_sem_eassert. Qed.
+
 Lemma write_lvar_ext_eq x v s1 s2 vm1 :
   (evm s1 =1 vm1)%vm ->
   write_lval wdb gd x v s1 = ok s2 ->
@@ -1438,6 +1466,27 @@ Proof. exact: (proj1 (eq_exprP_pair wdb gd s)). Qed.
 Lemma eq_exprsP wdb gd m es1 es2:
   all2 eq_expr es1 es2 → sem_pexprs wdb gd m es1 = sem_pexprs wdb gd m es2.
 Proof. exact: (proj2 (eq_exprP_pair wdb gd m)). Qed.
+
+Lemma eq_lvalP wdb gd m lv lv' v :
+  eq_lval lv lv' ->
+  write_lval wdb gd lv v m = write_lval wdb gd lv' v m.
+Proof.
+  case: lv lv'=> [ ?? | [??] | al sz ? e | al aa sz [??] e | aa sz len [??] e]
+                 [ ?? | [??] | al' sz' ? e' | al' aa' sz' [??] e' | aa' sz' len' [??] e'] //=.
+  + by move=> /eqP ->.
+  + by move=> /eqP ->.
+  + by case/andP => /andP [] /eqP -> /eqP -> /eq_exprP ->.
+  + by move=> /andP [] /andP [] /andP [] /andP [] /eqP -> /eqP -> /eqP -> /eqP -> /eq_exprP ->.
+  by move=> /andP [] /andP [] /andP [] /andP [] /eqP -> /eqP -> /eqP -> /eqP -> /eq_exprP ->.
+Qed.
+
+Lemma eq_lvalsP wdb gd m ls1 ls2 vs:
+  all2 eq_lval ls1 ls2 → write_lvals wdb gd m ls1 vs = write_lvals wdb gd m ls2 vs.
+Proof.
+ rewrite /write_lvals.
+ elim: ls1 ls2 vs m => [ | l1 ls1 Hrec] [ | l2 ls2] //= [] // v vs m.
+ by move=> /andP [] /eq_lvalP -> /Hrec; case: write_lval => /=.
+Qed.
 
 Lemma get_var_undef vm x v ty h :
   get_var true vm x = ok v -> v <> Vundef ty h.

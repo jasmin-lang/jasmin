@@ -1,7 +1,4 @@
-open Prog
 open Utils
-open PrintCommon
-open Arch_decl
 
 type asm_element =
 | Header of string * string list

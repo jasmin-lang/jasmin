@@ -17,35 +17,32 @@ let inherit (lib) optionals; in
 
 let coqPackages =
   if coqMaster then
-    let elpi-version = "2.0.7"; in
+    let elpi-version = "3.7.1"; in
     let rocqPackages = pkgs.rocqPackages.overrideScope (self: super: {
       rocq-core = super.rocq-core.override { version = "master"; };
       rocq-elpi = super.rocq-elpi.override { version = "master"; inherit elpi-version; };
+      micromega-plugin = super.micromega-plugin.override { version = "master"; };
       stdlib = super.stdlib.override { version = "master"; };
     });
     in
     pkgs.coqPackages.overrideScope (self: super: {
-      coq = super.coq.override { version = "master"; };
+      coq = super.coq.override { version = "master"; inherit rocqPackages; };
       inherit (rocqPackages) stdlib;
       mathcomp = super.mathcomp.override { version = "master"; };
-      mathcomp-algebra-tactics = super.mathcomp-algebra-tactics.override { version = "master"; };
       mathcomp-zify = super.mathcomp-zify.override { version = "master"; };
-      coq-elpi = super.coq-elpi.override {
-        version = "master";
-	inherit elpi-version rocqPackages;
-      };
+      coq-elpi = super.coq-elpi.override { version = "master"; inherit elpi-version; };
       hierarchy-builder = super.hierarchy-builder.override { version = "master"; };
       ExtLib = super.ExtLib.override { version = "master"; };
       paco = super.paco.override { version = "master"; };
       ITree = super.ITree.override { version = "master"; };
     })
-  else coqPackages_8_20.overrideScope (self: super: {
+  else coqPackages_9_0.overrideScope (self: super: {
       coq-elpi = super.coq-elpi.override {
         version = "2.5.2";
         elpi-version = "2.0.7";
       };
       hierarchy-builder = super.hierarchy-builder.override { version = "1.9.1"; };
-      mathcomp = super.mathcomp.override { version = "2.2.0"; };
+      mathcomp = super.mathcomp.override { version = "2.3.0"; };
   })
 ; in
 
@@ -86,7 +83,6 @@ stdenv.mkDerivation {
     ++ optionals coqDeps [
       coqPackages.coq
       mathcomp-word
-      coqPackages.mathcomp-algebra-tactics
       coqPackages.ITree
     ]
     ++ optionals testDeps ([ curl.bin oP.apron.out llvmPackages.bintools-unwrapped ] ++ (with python3Packages; [ python pyyaml ]))

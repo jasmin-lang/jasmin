@@ -23,6 +23,8 @@ Require Import
   riscv
   riscv_params_core.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Module RISCVFopn_coreP.
 
 Section Section.
@@ -88,6 +90,7 @@ Lemma sub_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr}
 Proof.
   move=> hc.
   rewrite /=; t_xrbindP => *; t_riscv_op.
+  rewrite /= /riscv_sub_semi sub_wordE.
   by rewrite /= set_var_truncate // (convertible_eval_atype hc).
 Qed.
 

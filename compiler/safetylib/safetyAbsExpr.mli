@@ -60,11 +60,11 @@ module AbsExpr (Arch: SafetyArch.SafetyArch) (AbsDom : SafetyInterfaces.AbsNumBo
   val linearize_smpl_wexpr : AbsDom.t -> expr -> Mtexpr.t option
 
   val bexpr_to_btcons : expr -> AbsDom.t -> btcons option
-
+  val eassert_to_btcons : eassert -> AbsDom.t -> btcons option
   val set_zeros : mvar list -> AbsDom.t -> AbsDom.t
 
   val set_bounds :
-    mvar list -> mvar list -> AbsDom.t ->
+    mvar list -> AbsDom.t ->
     AbsDom.t * (Format.formatter -> unit) list
 
   val apply_glob : global_decl list -> AbsDom.t -> AbsDom.t

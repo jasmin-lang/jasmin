@@ -25,6 +25,9 @@ val vsubst_vi : vsubst -> var_i -> var_i
 val vsubst_e  : vsubst -> expr  -> expr
 val vsubst_es : vsubst -> exprs -> exprs
 
+val vsubst_a  : vsubst -> eassert  -> eassert
+val vsubst_as : vsubst -> int assertion list -> int assertion list
+
 val vsubst_lval  : vsubst -> lval  -> lval
 val vsubst_lvals : vsubst -> lvals -> lvals
 

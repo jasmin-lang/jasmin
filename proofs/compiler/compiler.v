@@ -33,6 +33,7 @@ Require Import
   propagate_inline
   slh_lowering
   remove_globals
+  remove_assert
   stack_alloc
   stack_zeroization
   tunneling
@@ -46,6 +47,13 @@ Require
 
 (* FIXME: expr exports wsize, which overrides this. *)
 Definition pp_s := compiler_util.pp_s.
+
+#[export]
+Instance default_LoopCounter : LoopCounter :=
+  {
+    loop_counter := 100;
+    loop_counterP := erefl;
+  }.
 
 Section IS_MOVE_OP.
 
@@ -74,7 +82,7 @@ Fixpoint unroll (n: nat) (p: uprog) : cexec uprog :=
 
 Definition unroll_loop (p: uprog) :=
   Let p := postprocess p in
-  unroll Loop.nb p.
+  unroll loop_counter p.
 
 End IS_MOVE_OP.
 
@@ -85,6 +93,7 @@ Section COMPILER.
 Variant compiler_step :=
   | Typing                      : compiler_step
   | ParamsExpansion             : compiler_step
+  | RemoveAssertion             : compiler_step
   | InsertRenaming              : compiler_step
   | WintWord                    : compiler_step
   | ArrayCopy                   : compiler_step
@@ -122,6 +131,7 @@ Definition compiler_step_list := [::
     Typing
   ; ParamsExpansion
   ; InsertRenaming
+  ; RemoveAssertion
   ; WintWord
   ; ArrayCopy
   ; AddArrInit
@@ -168,7 +178,7 @@ Record compiler_params
   {asm_op : Type}
   {asmop : asmOp asm_op}
   (lowering_options : Type) := {
-  rename_fd        : instr_info -> funname -> _ufundef -> _ufundef;
+  extend_iinfo     : instr_info -> instr_info -> instr_info;
   expand_fd        : funname -> _ufundef -> expand_info;
   split_live_ranges_fd : funname -> _ufundef -> _ufundef;
   renaming_fd      : funname -> _ufundef -> _ufundef;
@@ -186,8 +196,8 @@ Record compiler_params
   warning          : instr_info -> warning_msg -> instr_info;
   lowering_opt     : lowering_options;
   insert_renaming  : fun_info -> bool;
-  fresh_id         : glob_decls -> var -> Ident.ident;
   fresh_var_ident  : v_kind -> instr_info -> int -> string -> atype -> Ident.ident;
+  spill_to_mmx     : var -> bool;
   slh_info         : _uprog → funname → seq slh_t * seq slh_t;
   stack_zero_info  : funname -> option (stack_zero_strategy * option wsize);
   dead_vars_ufd    : _ufun_decl -> instr_info -> Sv.t;
@@ -248,7 +258,7 @@ Definition live_range_splitting (p: uprog) : cexec uprog :=
   ok p.
 
 Definition inlining (to_keep: seq funname) (p: uprog) : cexec uprog :=
-  Let p := inline_prog_err (wsw := withsubword) cparams.(rename_fd) cparams.(dead_vars_ufd) p in
+  Let p := inline_prog_err cparams.(extend_iinfo) p in
   let p := cparams.(print_uprog) Inlining p in
 
   Let p := dead_calls_err_seq to_keep p in
@@ -257,13 +267,16 @@ Definition inlining (to_keep: seq funname) (p: uprog) : cexec uprog :=
 
 Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :=
 
+  let p := remove_assert_prog p in
+  let p := cparams.(print_uprog) RemoveAssertion p in
+
   Let p := wi2w_prog (wsw:=withsubword) cparams.(remove_wint_annot) cparams.(dead_vars_ufd) p in
   let p := cparams.(print_uprog) WintWord p in
 
   let p := insert_renaming_prog cparams.(insert_renaming) p in
   let p := cparams.(print_uprog) InsertRenaming p in
 
-  Let p := array_copy_prog (λ k, cparams.(fresh_var_ident) k dummy_instr_info 0) p in
+  Let p := array_copy_prog (λ k ii, cparams.(fresh_var_ident) k ii 0) p in
   let p := cparams.(print_uprog) ArrayCopy p in
 
   let p := add_init_prog p in
@@ -272,6 +285,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :
   Let p :=
     spill_prog
       (fresh_var_ident cparams)
+      (spill_to_mmx cparams)
       p in
   let p := cparams.(print_uprog) LowerSpill p in
 
@@ -298,7 +312,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :
 
   Let pe := live_range_splitting pe in
 
-  Let pg := remove_glob_prog cparams.(fresh_id) pe in
+  Let pg := remove_glob_prog pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
 
   Let pp := load_constants_prog (fresh_var_ident cparams (Reg (Normal, Direct))) aparams.(ap_plp) pg in

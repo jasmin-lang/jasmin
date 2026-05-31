@@ -1,0 +1,12 @@
+param int N = 42;
+
+export fn main() -> reg u32 {
+    inline int i j;
+    reg u32 r;
+    for i = 0 to N {
+      i = 0 + min(i, N >> 1);
+      j = 0 + max(i % 2, - (i % -2));
+    }
+    r = j;
+    return r;
+}

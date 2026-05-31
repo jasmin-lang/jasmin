@@ -1,11 +1,12 @@
 val escape : string -> string
 (** replace dots & columns by underscores *)
 
+val string_of_ltype : Type.ltype -> string
 val pp_wsize : Format.formatter -> Wsize.wsize -> unit
 val string_of_signess : Wsize.signedness -> string
 val string_of_velem : Wsize.signedness -> Wsize.wsize -> Wsize.velem -> string
-val string_of_op1 : debug:bool -> Expr.sop1 -> string
-val string_of_op2 : Expr.sop2 -> string
+val string_of_op1 : debug:bool -> Operators.sop1 -> string
+val string_of_op2 : Operators.sop2 -> string
 
 val pp_opn :
   Wsize.wsize ->
@@ -58,7 +59,7 @@ val pp_arr_slice :
 
 val pp_len : Format.formatter -> int -> unit
 val pp_ty : Format.formatter -> Prog.ty -> unit
-val pp_datas : Format.formatter -> Obj.t list -> unit
+val pp_datas : Format.formatter -> Word0.word list -> unit
 val pp_var : Format.formatter -> Var0.Var.var -> unit
 val pp_var_i : Format.formatter -> Expr.var_i -> unit
 
@@ -73,10 +74,10 @@ val associativity : priority -> associativity
 val priority_min : priority
 (** Minimal priority level *)
 
-val priority_of_op1 : Expr.sop1 -> priority
+val priority_of_op1 : Operators.sop1 -> priority
 (** Priority level of unary operators *)
 
-val priority_of_op2 : Expr.sop2 -> priority
+val priority_of_op2 : Operators.sop2 -> priority
 (** Priority level of binary operators *)
 
 val priority_ternary : priority

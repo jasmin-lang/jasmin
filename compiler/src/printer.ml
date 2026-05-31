@@ -1,10 +1,10 @@
 (* -------------------------------------------------------------------- *)
 open Utils
 open Prog
+open Operators
 open PrintCommon
 module W = Wsize
 module T = Type
-module E = Expr
 module F = Format
 
 (* -------------------------------------------------------------------- *)
@@ -17,15 +17,23 @@ let pp_gvar_i pp_var fmt v = pp_var fmt (L.unloc v)
 (* -------------------------------------------------------------------- *)
 
 let string_of_combine_flags = function
-  | E.CF_LT s -> Format.sprintf "_%sLT" (string_of_signess s)
-  | E.CF_LE s -> Format.sprintf "_%sLE" (string_of_signess s)
-  | E.CF_EQ   -> Format.sprintf "_EQ"
-  | E.CF_NEQ  -> Format.sprintf "_NEQ"
-  | E.CF_GE s -> Format.sprintf "_%sGE" (string_of_signess s)
-  | E.CF_GT s -> Format.sprintf "_%sGT" (string_of_signess s)
+  | CF_LT s -> Format.sprintf "_%sLT" (string_of_signess s)
+  | CF_LE s -> Format.sprintf "_%sLE" (string_of_signess s)
+  | CF_EQ   -> Format.sprintf "_EQ"
+  | CF_NEQ  -> Format.sprintf "_NEQ"
+  | CF_GE s -> Format.sprintf "_%sGE" (string_of_signess s)
+  | CF_GT s -> Format.sprintf "_%sGT" (string_of_signess s)
 
 (* -------------------------------------------------------------------- *)
-let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
+let as_string es =
+  List.map (function
+  | Papp1 (Oword_of_int U8, Pconst z) -> char_of_int (Z.to_int z)
+  | _ -> raise Not_found
+  ) es |> String.of_list
+
+(* -------------------------------------------------------------------- *)
+
+let pp_ge_aux ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : associativity -> priority -> 'len gexpr pp =
   let pp_var_i = pp_gvar_i pp_var in
   let pp_gvar fmt (x: 'len ggvar) =
     let s = if is_gkvar x then "" else "/* global: */ " in
@@ -50,21 +58,50 @@ let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
   | Papp2(op,e1,e2) ->
      let p = priority_of_op2 op in
      optparent fmt prio side p "%a %s %a" (pp_expr Left p) e1 (string_of_op2 op) (pp_expr Right p) e2
-  | PappN (E.Opack(_sz, pe), es) ->
+  | PappN (Opack(_sz, pe), es) ->
     F.fprintf fmt "@[(%du%n)[%a]@]" (List.length es) (int_of_pe pe) (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
   | PappN (Ocombine_flags c, es) ->
     F.fprintf fmt "@[%s(%a)@]" (string_of_combine_flags c) (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
+  | PappN (Oarray len, es) ->
+     begin match as_string es with
+     | s -> F.fprintf fmt "%S" s
+     | exception Not_found ->
+     F.fprintf fmt "/* %du8 */ @[{ %a }@]" (Conv.int_of_pos len) (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
+     end
   | Pif(_, e,e1,e2) ->
      let p = priority_ternary in
      optparent fmt prio side p "%a ? %a : %a" (pp_expr Left p) e (pp_expr NoAssoc p) e1 (pp_expr Right p) e2
   in
-  pp_expr NoAssoc priority_min
+  pp_expr
+
+let pp_ge ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gexpr pp =
+   pp_ge_aux ~debug pp_len pp_var NoAssoc priority_min
+
+let pp_ga ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : 'len gassert pp =
+  let pp_expr = pp_ge_aux ~debug pp_len pp_var in
+  let pp_expr0 = pp_expr NoAssoc priority_min in
+  let rec aux side prio fmt = function
+   | Pexpr e -> F.fprintf fmt "%a" (pp_expr side prio) e
+   | PappN_safety (o, es) ->
+       let s =
+         match o with
+         | Ois_arr_init _len -> "is_arr_init"
+         | Ois_barr_init _len -> "is_barr_init"
+       in
+       F.fprintf fmt "@[%s(%a)@]" s (pp_list ",@ " pp_expr0) es
+   | Pis_var_init x -> F.fprintf fmt "@[is_var_init(%a)@]" (pp_gvar_i pp_var) x
+   | Pis_mem_init (e1,e2) -> F.fprintf fmt "@[is_mem_init(%a,@ %a)@]" pp_expr0 e1 pp_expr0 e2
+   | Pand (e1, e2) ->
+     let op = Oand in
+     let p = priority_of_op2 op in
+     optparent fmt prio side p "%a %s %a" (aux Left p) e1 (string_of_op2 op) (aux Right p) e2
+  in aux NoAssoc priority_min
 
 (* -------------------------------------------------------------------- *)
 let pp_glv ~debug pp_len pp_var fmt =
   let pp_ge = pp_ge ~debug in
   function
-  | Lnone (_, ty) -> F.fprintf fmt "_ /* %a */" (pp_gtype (fun fmt _ -> F.fprintf fmt "?")) ty
+  | Lnone (_, ty) -> F.fprintf fmt "_ /* %a */" (pp_gtype pp_len) ty
   | Lvar x  -> pp_gvar_i pp_var fmt x
   | Lmem (al, ws, _, e) ->
     pp_mem_access (pp_ge pp_len pp_var) fmt al (Some ws) e
@@ -82,10 +119,8 @@ let pp_ges ~debug pp_len pp_var fmt es =
 
 (* -------------------------------------------------------------------- *)
 let pp_glvs ~debug pp_len pp_var fmt lvs =
-  match lvs with
-  | [] -> F.fprintf fmt "()"
-  | [x] -> pp_glv ~debug pp_len pp_var fmt x
-  | _   -> F.fprintf fmt "(@[%a@])" (pp_list ",@ " (pp_glv ~debug pp_len pp_var)) lvs
+  if lvs != [] then
+    Format.fprintf fmt "@[%a@] =@ " (pp_list ",@ " (pp_glv ~debug pp_len pp_var)) lvs
 
 (* -------------------------------------------------------------------- *)
 let pp_escape_string fmt =
@@ -128,6 +163,10 @@ let pp_align fmt = function
   | E.Align -> Format.fprintf fmt "#[align]@ "
   | E.NoAlign -> ()
 
+let pp_optional_comment fmt s =
+  if s <> "" then
+    Format.fprintf fmt " /* %s */" s
+
 let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
   F.fprintf fmt "%a" pp_info (i.i_loc, i.i_info);
   F.fprintf fmt "%a" pp_annotations i.i_annot;
@@ -151,14 +190,19 @@ let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
       | Sopn.Oasm (Arch_extra.BaseOp(Some ws, _)) -> Format.fprintf fmt "(%du)" (int_of_ws ws)
       | _ -> () in
 
-    F.fprintf fmt "@[<hov 2>%a =@ %a#%a(%a); /* %s */@]"
+    F.fprintf fmt "@[<hov 2>%a%a#%a(%a);%a@]"
       (pp_glvs ~debug pp_len pp_var) x pp_cast o pp_opn o
       (pp_ges ~debug pp_len pp_var) e
-      (pp_tag t)
+      pp_optional_comment (pp_tag t)
 
   | Csyscall(x, o, e) ->
-      F.fprintf fmt "@[<hov 2>%a =@ %s(%a);@]"
+      F.fprintf fmt "@[<hov 2>%a%s(%a);@]"
         (pp_glvs ~debug pp_len pp_var) x (pp_syscall o) (pp_ges ~debug pp_len pp_var) e
+
+  | Cassert(msg, e) ->
+    F.fprintf fmt "@[<hov 2>assert(\"%a\", %a);@]"
+      pp_escape_string msg
+     (pp_ga ~debug pp_len pp_var) e
 
   | Cif(e, c, []) ->
     F.fprintf fmt "@[<v>if %a %a@]"
@@ -201,7 +245,7 @@ let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
   | Ccall(x, f, e) ->
     let pp_x fmt = function
       | [] -> ()
-      | x -> F.fprintf fmt "%a =@ " (pp_glvs ~debug pp_len pp_var) x in
+      | x -> F.fprintf fmt "%a" (pp_glvs ~debug pp_len pp_var) x in
     F.fprintf fmt "@[<hov 2>%a%s(%a);@]"
       pp_x x f.fn_name (pp_ges ~debug pp_len pp_var) e
 
@@ -233,6 +277,22 @@ let pp_return_type pp_size fmt =
   in
   F.fprintf fmt "%a" (pp_list ",@ " pp)
 
+
+let pp_contract ~debug pp_len pp_var fmt fc =
+  let pp_vars fmt = F.fprintf fmt "@[%a@]" (pp_list ",@ " (pp_gvar_i pp_var)) in
+  let pp_cond s fmt (_, e) =
+    F.fprintf fmt "@ , %s = %a" s (pp_ga ~debug pp_len pp_var) e in
+  let pp_conds s = pp_list "" (pp_cond s) in
+  F.fprintf fmt "@[<v>#[safety =@   @[<v>{ args = {%a}@ , res = {%a}@ %a%a@ }@]]@ @]"
+    pp_vars fc.f_iparams
+    pp_vars fc.f_ires
+    (pp_conds "requires") fc.f_pre
+    (pp_conds "ensures") fc.f_post
+
+
+let pp_ocontract ~debug pp_len pp_var fmt fc =
+  Option.may (pp_contract ~debug pp_len pp_var fmt) fc
+
 let pp_gfun ~debug (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
   let ds = ScopeTree.get_declaration_sites fd in
   let pp_vd =  pp_var_decl pp_var pp_size in
@@ -251,12 +311,12 @@ let pp_gfun ~debug (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
     if Miloc.is_empty ds then
       List.iter (fun x ->
           if not (List.mem x fd.f_args) then F.fprintf fmt "%a;@ " pp_vd x) ret;
-    F.fprintf fmt "return @[(%a)@];"
+    F.fprintf fmt "return @[%a@];"
       (pp_list ",@ " pp_var) ret in
 
-
-  F.fprintf fmt "@[<v>%a%afn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@]@ }@]"
+  F.fprintf fmt "@[<v>%a%a%afn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@]@ }@]"
    pp_annotations fd.f_annot.f_user_annot
+   (pp_ocontract ~debug pp_size pp_var) fd.f_contract
    pp_call_conv fd.f_cc
    fd.f_name.fn_name
    (pp_list ",@ " pp_vd) fd.f_args
@@ -331,8 +391,9 @@ let pp_fun_ ~debug ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
   let pp_ret fmt () =
     F.fprintf fmt "return @[(%a)@];"
       (pp_list ",@ " pp_var) ret in
-  F.fprintf fmt "@[<v>%a%a {@   @[<v>%a@ %a@ %a@]@ }@]"
+  F.fprintf fmt "@[<v>%a%a%a {@   @[<v>%a@ %a@ %a@]@ }@]"
    pp_call_conv fd.f_cc
+   (pp_ocontract ~debug pp_len pp_var) fd.f_contract
    (pp_header_ pp_var) fd
    pp_locals locals
    (pp_gc ~debug pp_info pp_len pp_opn pp_var) fd.f_body
@@ -355,6 +416,9 @@ let pp_dvar ~debug fmt x =
 
 let pp_expr ~debug fmt e =
   pp_ge ~debug pp_len (pp_var ~debug) fmt e
+
+let pp_eassert ~debug fmt e =
+  pp_ga ~debug pp_len (pp_var ~debug) fmt e
 
 let pp_lval ~debug fmt x =
   pp_glv ~debug pp_len (pp_var ~debug) fmt x

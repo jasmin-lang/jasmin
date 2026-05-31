@@ -10,6 +10,7 @@ Jasmin code comprises the following constructs:
 <instr> ::=
   | <instr_assign>
   | <instr_intrinsic>
+  | <instr_assert>
   | <instr_conditional>
   | <instr_while>
   | <instr_for>
@@ -108,13 +109,42 @@ The list of available architecture-specific instructions can be seen using
 `$ jasminc -help-intrinsics`.
 
 
+## Assertions
+
+```
+<instr_assert> ::=
+  | assert("label", <expr_assert>);
+
+<expr_assert> ::=
+  | is_var_init(<var>)
+  | is_arr_init(<expr>, <expr>, <expr>)
+  | is_mem_init(<expr>, <expr>)
+  | <expr_assert> && <expr_assert>
+  | <expr>
+```
+
+Assertions do nothing, provided their argument evaluates properly to `true`.
+They can be used in the [reference
+interpreter](../../tools/reference_interpreter). The compiler erases the
+assertions in an early pass (soon after type-checking): they do not contribute
+to any code in the target assembly program.
+
+The constructions occurring in assertions have the following semantics:
+
+ - `a && b`: checks that both assertions `a` and `b` hold;
+ - `is_var_init(x)`: checks that the variable `x` is initialized;
+ - `is_arr_init(t, ofs, len)`: checks that all bytes of the array `t` between
+   `ofs` (included) and `ofs + len` (excluded) are initialized;
+ - `is_mem_init(p, len)`: checks that all addresses between `p` and `p + len`
+   are initialized.
+
 ## Conditionals
 
 ```
 <instr_conditional> ::=
-  | if ( <expr> ) { <code> }
-  | if ( <expr> ) { <code> } else { <code> }
-  | if ( <expr> ) { <code> } else <instr_conditional>  // else-if syntax.
+  | if <expr> { <code> }
+  | if <expr> { <code> } else { <code> }
+  | if <expr> { <code> } else <instr_conditional>  // else-if syntax.
 ```
 
 Conditionals take an expression and two pieces of code, and execute one piece

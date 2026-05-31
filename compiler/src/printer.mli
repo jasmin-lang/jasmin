@@ -16,10 +16,11 @@ val pp_pprog : debug:bool -> Wsize.wsize -> Wsize.wsize -> ('reg, 'regx, 'xreg, 
 val pp_var   : debug:bool -> Format.formatter -> var -> unit
 val pp_dvar  : debug:bool -> Format.formatter -> var -> unit
 
-val string_of_combine_flags : Expr.combine_flags -> string
+val string_of_combine_flags : Operators.combine_flags -> string
 
 val pp_expr  : debug:bool -> Format.formatter -> expr -> unit
 val pp_lval  : debug:bool -> Format.formatter -> lval -> unit
+val pp_eassert : debug:bool -> Format.formatter -> eassert -> unit
 
 val pp_instr : debug:bool ->
                Wsize.wsize ->

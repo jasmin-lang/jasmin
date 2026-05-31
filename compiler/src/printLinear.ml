@@ -13,10 +13,7 @@ module P = Prog
 module F = Format
 
 (* ---------------------------------------------------------------- *)
-let pp_ltype fmt =
-  function
-  | T.Coq_lbool  -> F.fprintf fmt "bool"
-  | T.Coq_lword sz -> F.fprintf fmt "u%a" pp_wsize sz
+let pp_ltype fmt t = F.fprintf fmt "%s" (string_of_ltype t)
 
 (* ---------------------------------------------------------------- *)
 let pp_label fmt lbl =

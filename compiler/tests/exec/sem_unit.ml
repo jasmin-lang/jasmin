@@ -25,4 +25,7 @@ let () =
   exec prog [] "shrd_16" [ w16 "2"; w16 "9"; w8 "16" ];
   exec prog [] "shrd_16" [ w16 "2"; w16 "9"; w8 "17" ];
   exec prog [] "divu64" [];
+  exec prog [] "global_u16" [];
+  exec prog [] "wide_shift" [ w128 "0x10000000000" ];
+  exec prog [] "wide_shift" [ w128 "0x1f2e3d4c5b6a79800000000000000004" ];
   ()

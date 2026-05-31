@@ -38,6 +38,8 @@ Require Import
   x86_stack_zeroization_proof.
 Require Export x86_params.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 #[local] Existing Instance withsubword.
 #[local] Existing Instance direct_c.
 
@@ -141,6 +143,7 @@ Proof.
   rewrite /= Hvm /= /eval_instr /= /sem_sopn /sem_sop2 /exec_sopn /= !truncate_word_u /= truncate_word_u /=.
   eexists; split; first reflexivity.
   + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; SvD.fsetdec.
+  rewrite sub_wordE.
   by rewrite Vm.setP_eq vm_truncate_val_eq.
 Qed.
 
@@ -171,7 +174,7 @@ Proof.
        (if sz != 0%Z then x86_allocate_stack_frame rsp None sz else [::]) = ok (with_vm s vm2).
   + rewrite /vm2; case: eqP => hsz //=.
     rewrite get_var_neq // hget /= /sem_sop2 /= !truncate_word_u /=.
-    by rewrite /exec_sopn /= truncate_word_u /=.
+    by rewrite /exec_sopn /= sub_wordE truncate_word_u /=.
   have -> /= : get_var true vm2 vrsp = ok (Vword (ts - wrepr U64 sz)).
   + rewrite /vm2; case: eqP => ? /=.
     + by subst sz; rewrite get_var_neq // hget wrepr0 GRing.subr0.
@@ -700,7 +703,7 @@ Proof.
     case: xs => // hargs _ [<-] <-; rewrite /se_init_sem.
     case: lvs => // x [] /=; t_xrbindP => // m1 hw ? <- /=; subst m1.
     t_xrbindP => z [op oargs] hass <- <- hlo /=.
-    by rewrite -(wrepr0 U64) in hw; apply (assemble_mov hlo hw hass).
+    by rewrite word0E -(wrepr0 U64) in hw; apply (assemble_mov hlo hw hass).
 
   (* SLHupdate *)
   + rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /= /x86_se_update_sem /=; t_xrbindP.
@@ -873,10 +876,33 @@ Transparent cat.
   by rewrite !Vm.setP_neq.
 Qed.
 
+Lemma assemble_extra_sz ii op lvs args ops :
+   to_asm ii op lvs args = ok ops -> ssrnat.leq 1 (size ops).
+Proof.
+  rewrite /to_asm /= /assemble_extra /=.
+  case: op.
+  + move=> w.
+    by case: (rev lvs) => // -[] //; t_xrbindP => *; subst.
+  + by case: args => // ? [] // [] // [] // ? [] //; t_xrbindP => *; subst.
+  + by case: lvs => // -[] // ? [] //= [<-].
+  + by move=> ?; case: lvs => // -[] // ? [] // [] // ? [] //; t_xrbindP => *; subst.
+  + by move=> w; case: lvs => // -[] // ? [] //; t_xrbindP => *; subst.
+  + by move=> [<-].
+  + rewrite /assemble_slh_update; case: lvs => // -[] // ? [] // ? [] //.
+    by case: args => // -[] // ? [] // ? [] //; t_xrbindP => *; subst.
+  + by move=> [<-].
+  move=> r w; rewrite /assemble_slh_protect.
+  case: ifP => _.
+  + by move=> [<-].
+  case: lvs => // -[] // ? [] // ? [] //.
+  by case: args => // ? [] // ? [] //; t_xrbindP => *; subst.
+Qed.
+
 Definition x86_hagparams : h_asm_gen_params (ap_agp x86_params) :=
   {|
     hagp_eval_assemble_cond := eval_assemble_cond;
     hagp_assemble_extra_op := assemble_extra_op;
+    hagp_assemble_extra_sz := assemble_extra_sz;
   |}.
 
 End ASM_GEN.

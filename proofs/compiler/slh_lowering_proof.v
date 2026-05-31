@@ -11,6 +11,8 @@ Require
   expr_facts
   constant_prop_proof.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Section CONST_PROP.
 
   Import constant_prop_proof.
@@ -144,14 +146,14 @@ Section CONST_PROP.
       by rewrite (use_mem_s_op2 _ h0 h1).
 
     - rewrite /s_opN.
-      case: app_sopn; first by case: opn.
-      move=> _.
-      elim: es h hindes => //= e es hind /norP [he hes] hindes.
-      rewrite negb_or.
-      rewrite (hindes _ _ he) /=; last by left.
-      apply: (hind hes) => e' he'.
-      apply: hindes.
-      by right.
+      have ih : ~~ has use_mem [seq const_prop_e None cpm i | i <- es].
+      + elim: es h hindes => //= e es hind /norP [he hes] hindes.
+        rewrite negb_or.
+        rewrite (hindes _ _ he) /=; last by left.
+        apply: (hind hes) => e' he'.
+        apply: hindes.
+        by right.
+      case: opn => [ sz' pe | len | c ] => //; by case: app_sopn.
 
     rewrite /s_if /=.
     move: h => /norP [] /norP [] /hinde h /hinde0 h0 /hinde1 h1.
@@ -207,7 +209,10 @@ Import Env.
 
 Section WITH_PARAMS.
 
-Context {fcparams : flag_combination.FlagCombinationParams}.
+Context
+  {LC : LoopCounter}
+  {fcparams : flag_combination.FlagCombinationParams}
+.
 
 Lemma empty_msf_vars x :
   ~~ is_msf_var empty x.
@@ -273,6 +278,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
+  {LC : LoopCounter}
 .
 
 Definition wf_vars (msf_vars: Sv.t) (vm:Vm.t) :=
@@ -638,7 +644,7 @@ Section LOWER_SLHO.
          split => //;
          apply: (hshp_spec_lower hshparams) hsemes hexec hwrite.
     move: hwf hcheck hsemes hexec hwrite.
-    clear.
+    clear hlower.
     case: slho => [|||ws|ws sz|ws sz].
     - exact: lower_SLHinit.
     - exact: lower_SLHupdate.
@@ -960,7 +966,7 @@ Proof.
       case: lvs hwrite => //= x []; t_xrbindP => //= s1 hw [?]; subst s1.
       split; last by apply: wf_env_after_assign_vars1 hwf hw.
       do 2!constructor.
-      by rewrite /sem_sopn hsemes /exec_sopn /sopn_sem /sopn_sem_ /= hv1 truncate_word_u /se_protect_ptr_fail_sem /= eqxx /= hw.
+      by rewrite /sem_sopn hsemes /exec_sopn /sopn_sem /sopn_sem_ /= hv1 truncate_word_u /se_protect_ptr_fail_sem /= hw.
     case hlower: shp_lower => [[[lvs' op'] es']|] //= hcheck [<-] hexec.
     have [hs hw]:= lower_slhoP hshparams hwf hcheck hlower hsemes hexec hwrite.
     by split => //; do 2!constructor.
@@ -1066,7 +1072,7 @@ Proof.
   have hcheck :
     check_i fun_info (MkI ii (Cwhile al c0 cond cond_info c1)) env_fix
     = ok (Env.update_cond env0 (enot cond)).
-  - by rewrite /= hmem /= Loop.nbP /= hcheck0 /= hcheck1 /= hle1.
+  - by rewrite /= hmem /= loop_counterP /= hcheck0 /= hcheck1 /= hle1.
 
   have [hsem hwf0'] := hind _ _ _ _ hwffix hcheck hlower.
 
@@ -1165,7 +1171,7 @@ Qed.
 
 Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
 Proof.
-  move=> scs1 m1 _ _ fn [f_i f_tyi f_p f_b f_tyo f_r f_e] /= vargs vargs' s0 s1 s2 vres vres'
+  move=> scs1 m1 _ _ fn fd /= vargs vargs' s0 s1 s2 vres vres'
     hf htargs hinit hwargs _ hrec hrres htres -> ->.
   move: (hp); rewrite /lower_slh_prog; t_xrbindP => hent fds hmap heq.
   have [fd' + hget]:= get_map_cfprog_name_gen hmap hf.
@@ -1208,7 +1214,7 @@ Proof.
    move: (hp); rewrite /lower_slh_prog; t_xrbindP => /allP -/(_ _ hent).
    rewrite heq => /= hall fds hmap heq1.
    have [fd' + hget'] := get_map_cfprog_name_gen hmap hget.
-   rewrite /lower_fd /check_fd /= heq; t_xrbindP=> z hz _ _ _ _ _ {heq hsem}.
+   rewrite /lower_fd /check_fd /= heq; t_xrbindP => z hz _ _ _ _ _ _ _ {heq hsem}.
    apply: all_is_slh_none hall.
    rewrite -(size_init_fun_env hz).
    by have := size_mapM2 hm; rewrite size_map => -[-> _].
@@ -1255,8 +1261,8 @@ Lemma lower_fdP fn fd fd' :
     & f_extra fd' = f_extra fd
   ].
 Proof.
-case: fd; case: fd'; rewrite /lower_fd;
-  by t_xrbindP=> /= > -> _ -> -> -> -> -> -> -> ->.
+case: fd; case: fd'; rewrite /lower_fd.
+by t_xrbindP=> /= > -> ? -> // *; subst.
 Qed.
 
 Definition st_eq (env : Env.t) (s t : estate) : Prop :=
@@ -1353,7 +1359,7 @@ case: is_protect_ptrP hargs hchk hexec => {slho} [[ws sz]|slho] /=; t_xrbindP.
     hsemes (mapM_nth (Pconst 0%Z) (Vint 0) (n := 1) hsemes);
     last by rewrite (size_mapM hsemes).
   move=> [->] ?? /= -> /= ?.
-  rewrite truncate_word_u /= eqxx /= => - _ [->] ?; subst res.
+  rewrite truncate_word_u /= => - _ [->] ?; subst res.
   move: xs hwrite; rewrite /write_lvals; destruct_opn_args=> {}s' hwrite [<-].
   rewrite hwrite; exists s' => //; split=> //.
   exact: wf_env_after_assign_vars1 hwf hwrite.
@@ -1444,6 +1450,7 @@ apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) c env env' c' => //;
   [ | | |
   | exact: it_lower_opn
   |
+  |
   | exact: lower_it_if
   | exact: lower_it_for
   | exact: lower_it_while
@@ -1466,16 +1473,19 @@ apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) c env env' c' => //;
     exact: EnvP.le_refl.
 
 (* Syscall *)
-move=> xs o es ii env _ _ _ [<-] [<- <-]; apply (
-  wequiv_syscall_rel_eq_core_R
-    _ _
-    (de := env)
-    (de' := Env.after_assign_vars Env.empty (vrvs xs))
-) => //.
-- by move=> > [-> _].
-- by move=> > [-> _].
-- split=> //. exact: EnvP.le_refl.
-exact: wrequiv_eq.
++ move=> xs o es ii env _ _ _ [<-] [<- <-]; apply (
+    wequiv_syscall_rel_eq_core_R
+      _ _
+      (de := env)
+      (de' := Env.after_assign_vars Env.empty (vrvs xs))
+  ) => //.
+  - by move=> > [-> _].
+  - by move=> > [-> _].
+  - split=> //. exact: EnvP.le_refl.
+  exact: wrequiv_eq.
+
+(* Assert *)
+by move=> > /= [<-] [<- <-]; apply wequiv_assert => //.
 Qed.
 
 Lemma it_lower_call {fn} : wiequiv_f p p' ev ev rpreF fn fn rpostF.

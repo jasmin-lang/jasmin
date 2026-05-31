@@ -27,6 +27,7 @@ proved correct. Each pass falls into one of the three following categories.
 Here is a list of the passes with a short description of what each does.
 Each pass is described in more detail on a dedicated page.
 
+- [Automated spilling](auto_spill) inserts spilling automatically (experimental)
 - [Replace word ints](wint_word) replaces word-sized integers with machine words
 - [Insert renaming](insert_renaming) introduces renaming assignments at export function boundaries
 - [Array copy](array_copy) expands `#copy` operations into explicit `for` loops
@@ -79,6 +80,7 @@ Each pass is described in more detail on a dedicated page.
 :::{toctree}
 :hidden:
 
+auto_spill
 wint_word
 insert_renaming
 array_copy

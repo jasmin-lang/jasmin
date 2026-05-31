@@ -4,6 +4,8 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import xseq strings utils var type values sopn expr fexpr arch_decl.
 Require Import compiler_util.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Section ToIdent.
 
 Context (t:ltype) (T:Type) {tS: ToString t T}.

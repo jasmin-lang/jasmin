@@ -40,6 +40,8 @@ Require Import
   riscv_stack_zeroization_proof.
 Require Export riscv_params.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Section Section.
 
 Context
@@ -104,6 +106,7 @@ Proof.
       exists (evm s2) => //.
       rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb ok_vo /=
         /exec_sopn /= ok_wb ok_wo /= /riscv_add_semi.
+      rewrite add_wordE.
       move: lea_sem; rewrite wrepr1 GRing.mul1r wrepr0 GRing.addr0 => ->.
       by rewrite hw /= with_vm_same.
     move=> [?]; subst wo.
@@ -120,12 +123,14 @@ Proof.
       exists s2.(evm) => //.
       rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb /=
         /exec_sopn /= ok_wb truncate_word_u /= /riscv_add_semi.
+      rewrite add_wordE.
       move: lea_sem; rewrite GRing.mulr0 GRing.addr0 => ->.
       by rewrite hw /= with_vm_same.
     move=> [<-] hw.
     exists s2.(evm) => //.
     rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb /=
       /exec_sopn /= ok_wb truncate_word_u /=.
+    rewrite add_wordE.
     move: lea_sem; rewrite GRing.mulr0 GRing.addr0 => ->.
     by rewrite hw /= with_vm_same.
   move=> al ws_ x_ e_; move: (Lmem al ws_ x_ e_) => {al ws_ x_ e_} x.
@@ -561,10 +566,30 @@ Proof.
   exact: assemble_add_large_imm_correct.
 Qed.
 
+Lemma risc_assemble_extra_sz ii op lvs args ops :
+   to_asm ii op lvs args = ok ops -> ssrnat.leq 1 (size ops).
+Proof.
+  rewrite /to_asm /= /assemble_extra /=.
+  case: op.
+  + move=> w; case: eqP => // _.
+    case: lvs => // -[] // ? [] // -[] // ? [] //.
+    case: args => // -[] // [] // ? [] // [] // [] // ? [] //.
+    by t_xrbindP => _ _ _ <-.
+  case: lvs => // -[] // ? [] //.
+  case: args => // -[] // [] // ? [] // [] // [] // [] // ? [] // ? [] //.
+  t_xrbindP => /negPf hne _ <-.
+  rewrite /asm_args_of_opn_args /= /RISCVFopn_core.smart_addi /=.
+  rewrite /RISCVFopn_core.gen_smart_opi /RISCVFopn_core.smart_mov.
+  case: ifP => //.
+  + by rewrite hne.
+  by case: ifP.
+Qed.
+
 Definition riscv_hagparams : h_asm_gen_params (ap_agp riscv_params) :=
   {|
     hagp_eval_assemble_cond := riscv_eval_assemble_cond;
     hagp_assemble_extra_op := riscv_assemble_extra_op;
+    hagp_assemble_extra_sz := risc_assemble_extra_sz;
   |}.
 
 End ASM_GEN.

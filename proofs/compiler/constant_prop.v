@@ -16,33 +16,33 @@ Section WITH_PARAMS.
 
 Context {fcp : FlagCombinationParams}.
 
-Definition e2bool (e:pexpr) : exec bool := 
+Definition e2bool (e:pexpr) : exec bool :=
   match e with
   | Pbool b => ok b
   | _       => type_error
   end.
 
-Definition e2int (e:pexpr) : exec Z := 
+Definition e2int (e:pexpr) : exec Z :=
   match e with
   | Pconst z => ok z
   | _        => type_error
   end.
 
-Definition e2word (sz:wsize) (e:pexpr) : exec (word sz) := 
+Definition e2word (sz:wsize) (e:pexpr) : exec (word sz) :=
   match is_wconst sz e with
   | Some w => ok w
   | None   => type_error
   end.
- 
+
 Definition of_expr (t:ctype) : pexpr -> exec (sem_t t) :=
   match t return pexpr -> exec (sem_t t) with
   | cbool   => e2bool
   | cint    => e2int
-  | carr n  => fun _ => type_error 
+  | carr n  => fun _ => type_error
   | cword sz => e2word sz
   end.
 
-Definition to_expr (t:ctype) : sem_t t -> exec pexpr := 
+Definition to_expr (t:ctype) : sem_t t -> exec pexpr :=
   match t return sem_t t -> exec pexpr with
   | cbool => fun b => ok (Pbool b)
   | cint  => fun z => ok (Pconst z)
@@ -50,23 +50,23 @@ Definition to_expr (t:ctype) : sem_t t -> exec pexpr :=
   | cword sz => fun w => ok (wconst w)
   end.
 
-Definition ssem_sop1 (o: sop1) (e: pexpr) : pexpr := 
-  let r := 
+Definition ssem_sop1 (o: sop1) (e: pexpr) : pexpr :=
+  let r :=
     Let x := of_expr _ e in
     Let v := sem_sop1_typed o x in
     to_expr v in
-  match r with 
+  match r with
   | Ok e => e
   | _ => Papp1 o e
   end.
 
-Definition ssem_sop2 (o: sop2) (e1 e2: pexpr) : pexpr := 
-  let r := 
+Definition ssem_sop2 (o: sop2) (e1 e2: pexpr) : pexpr :=
+  let r :=
     Let x1 := of_expr _ e1 in
     Let x2 := of_expr _ e2 in
     Let v  := sem_sop2_typed o x1 x2 in
-    to_expr v in 
-  match r with 
+    to_expr v in
+  match r with
   | Ok e => e
   | _ => Papp2 o e1 e2
   end.
@@ -98,17 +98,17 @@ Definition s_op1 o e :=
   | Oneg Op_int => sneg_int e
   | _           => ssem_sop1 o e
   end.
- 
+
 (* ------------------------------------------------------------------------ *)
 
-Definition sbeq e1 e2 := 
+Definition sbeq e1 e2 :=
   match is_bool e1, is_bool e2 with
   | Some b1, Some b2 => Pbool (b1 == b2)
-  | Some b, _ => if b then e2 else snot e2 
-  | _, Some b => if b then e1 else snot e1 
+  | Some b, _ => if b then e2 else snot e2
+  | _, Some b => if b then e1 else snot e1
   | _, _      => Papp2 Obeq e1 e2
   end.
-  
+
 Definition sand e1 e2 :=
   match is_bool e1, is_bool e2 with
   | Some b, _ => if b then e2 else false
@@ -137,9 +137,9 @@ Definition sadd_int e1 e2 :=
 
 Definition sadd_w sz e1 e2 :=
   match is_wconst sz e1, is_wconst sz e2 with
-  | Some n1, Some n2 => wconst (n1 + n2)
-  | Some n, _ => if n == 0%R then e2 else Papp2 (Oadd (Op_w sz)) e1 e2
-  | _, Some n => if n == 0%R then e1 else Papp2 (Oadd (Op_w sz)) e1 e2
+  | Some n1, Some n2 => wconst (n1 + n2)%w
+  | Some n, _ => if n == 0%w then e2 else Papp2 (Oadd (Op_w sz)) e1 e2
+  | _, Some n => if n == 0%w then e1 else Papp2 (Oadd (Op_w sz)) e1 e2
   | _, _ => Papp2 (Oadd (Op_w sz)) e1 e2
   end.
 
@@ -159,8 +159,8 @@ Definition ssub_int e1 e2 :=
 
 Definition ssub_w sz e1 e2 :=
   match is_wconst sz e1, is_wconst sz e2 with
-  | Some n1, Some n2 => wconst (n1 - n2)
-  | _, Some n => if n == 0%R then e1 else Papp2 (Osub (Op_w sz)) e1 e2
+  | Some n1, Some n2 => wconst (n1 - n2)%w
+  | _, Some n => if n == 0%w then e1 else Papp2 (Osub (Op_w sz)) e1 e2
   | _, _ => Papp2 (Osub (Op_w sz)) e1 e2
   end.
 
@@ -186,14 +186,14 @@ Definition smul_int e1 e2 :=
 
 Definition smul_w sz e1 e2 :=
   match is_wconst sz e1, is_wconst sz e2 with
-  | Some n1, Some n2 => wconst (n1 * n2)
+  | Some n1, Some n2 => wconst (n1 * n2)%w
   | Some n, _ =>
-    if n == 0%R then @wconst sz 0
-    else if n == 1%R then e2
+    if n == 0%w then @wconst sz 0%w
+    else if n == 1%w then e2
     else Papp2 (Omul (Op_w sz)) (wconst n) e2
   | _, Some n =>
-    if n == 0%R then @wconst sz 0
-    else if n == 1%R then e1
+    if n == 0%w then @wconst sz 0%w
+    else if n == 1%w then e1
     else Papp2 (Omul (Op_w sz)) e1 (wconst n)
   | _, _ => Papp2 (Omul (Op_w sz)) e1 e2
   end.
@@ -268,7 +268,7 @@ Definition sge ty e1 e2 :=
 
 Definition s_op2 o e1 e2 :=
   match o with
-  | Obeq    => sbeq e1 e2 
+  | Obeq    => sbeq e1 e2
   | Oand    => sand e1 e2
   | Oor     => sor  e1 e2
   | Oadd ty => sadd ty e1 e2
@@ -288,13 +288,10 @@ Definition app_sopn := app_sopn of_expr.
 Arguments app_sopn {A} ts _ _.
 
 Definition s_opN (op:opN) (es:pexprs) : pexpr :=
-  match app_sopn _ (sem_opN_typed op) es with
-  | Ok r =>
-    match op return sem_t (eval_atype (type_of_opN op).2) -> _ with
-    | Opack ws _ => fun w => Papp1 (Oword_of_int ws) (Pconst (wunsigned w))
-    | Ocombine_flags _ => fun b => Pbool b
-    end r
-  | _ => PappN op es
+  match op, app_sopn _ (sem_opN_typed op) es with
+  | Opack ws _, Ok w => Papp1 (Oword_of_int ws) (Pconst (wunsigned w))
+  | Ocombine_flags _, Ok b => Pbool b
+  | _, _ => PappN op es
   end.
 
 Definition s_if t e e1 e2 :=
@@ -385,6 +382,8 @@ Fixpoint const_prop_e (m:cpm) e :=
   | PappN op es   => s_opN op (map (const_prop_e m) es)
   | Pif t e e1 e2 => s_if t (const_prop_e m e) (const_prop_e m e1) (const_prop_e m e2)
   end.
+
+Definition const_prop_assert (m:cpm) (e:eassert) := e.
 
 End GLOBALS.
 
@@ -489,7 +488,7 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     let ir :=
       if is_update_imm xs o es is Some (x, b, e) then
         if b then Copn [:: x ] AT_none (Oslh SLHmove) [:: e ]
-        else Cassgn x AT_none ty_msf (wconst (sz := msf_size) (-1))
+        else Cassgn x AT_none ty_msf (wconst (sz := msf_size) (-1%w)%w)
       else (Copn xs t o es)
     in
     (m, [:: MkI ii ir ])
@@ -498,6 +497,10 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     let es := map (const_prop_e without_globals m) es in
     let (m,xs) := const_prop_rvs without_globals m xs in
     (m, [:: MkI ii (Csyscall xs o es) ])
+
+  | Cassert a =>
+    let b := const_prop_assert m a.2 in
+    (m, [:: MkI ii (Cassert (a.1, b)) ])
 
   | Cif b c1 c2 =>
     let b := const_prop_e without_globals m b in
@@ -548,9 +551,8 @@ Section Section.
 Context {pT: progT}.
 
 Definition const_prop_fun (gd: glob_decls) (f: fundef) :=
-  let 'MkFun ii si p c so r ev := f in
-  let (_, c) := const_prop (const_prop_i gd) empty_cpm c in
-  MkFun ii si p c so r ev.
+  let c := const_prop (const_prop_i gd) empty_cpm f.(f_body) in
+  with_body f c.2.
 
 Definition const_prop_prog (p:prog) : prog := map_prog (const_prop_fun p.(p_globs)) p.
 

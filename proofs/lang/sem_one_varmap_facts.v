@@ -6,6 +6,8 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Import low_memory.
 Import psem psem_facts sem_one_varmap.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 #[local] Existing Instance withsubword.
 
 Section PROG.
@@ -232,7 +234,7 @@ Proof. by []. Qed.
 
 Lemma Hcall_nw : sem_Ind_call p var_tmp Pi_r Pfun.
 Proof.
-  move=> ii k s1 s2 res fn args xargs xres ???.
+  move=> ii k s1 s2 res fn args ?.
   rewrite /Pfun /Pi_r /kill_tmp_call /= => h1 x hx.
   have /Sv_memP/negbTE hn : ¬ Sv.In x (fd_tmp_call p fn) by SvD.fsetdec.
   rewrite kill_varsE hn -h1 ?kill_varsE ?hn //; SvD.fsetdec.

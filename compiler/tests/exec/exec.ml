@@ -1,11 +1,15 @@
 open Execlib
 
+let jasmin_bool b = Jasmin.Values.Vbool b
+
 let () =
   let prog = load_file "basic.jazz" in
   exec prog [] "f" [];
   exec prog [] "ft" [];
   exec prog [ (Z.of_string "0x1000", Z.of_int 8) ] "mem" [];
-  exec prog [ (Z.of_string "0x1000", Z.of_int 16) ] "mem1" []
+  exec prog [ (Z.of_string "0x1000", Z.of_int 16) ] "mem1" [];
+  exec prog [] "test_assert" [ jasmin_bool true ];
+  exec prog [] "test_assert" [ jasmin_bool false ]
 
 let () =
   let prog = load_file "../success/x86-64/clc-stc.jazz" in
@@ -67,3 +71,8 @@ let () =
 let () =
   let prog = load_file "wide_rotation.jazz" in
   exec prog [] "main" []
+
+let () =
+  let prog = load_file "../success/common/literal-arrays.jazz" in
+  let w z = Jasmin.(Values.Vword (U32, Conv.word_of_z U32 z)) in
+  exec prog [] "test_string" [ w Z.zero ]

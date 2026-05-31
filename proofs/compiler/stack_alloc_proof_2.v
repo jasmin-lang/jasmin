@@ -9,8 +9,9 @@ From mathcomp Require Import word_ssrZ.
 From Coq Require Import Uint63.
 Require Import psem psem_facts compiler_util.
 Require Export stack_alloc stack_alloc_proof_1.
-From mathcomp Require Import ring.
 From Coq Require Import Utf8 Lia.
+
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
 Local Open Scope seq_scope.
 Local Open Scope Z_scope.
@@ -36,6 +37,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
+  {LC : LoopCounter}
   (rip : pointer)
   (no_overflow_glob_size : no_overflow rip glob_size)
   (mglob : Mvar.t (Z * wsize))
@@ -47,22 +49,22 @@ Notation gd := (p_globs P).
 Lemma ztakeP (A:Type) z (l l1 l2:list A) :
   ztake z l = Some(l1, l2) -> l = l1 ++ l2 /\ size l1 = Z.to_nat z.
 Proof.
+Local Opaque Pos.to_nat.
   case: z => //= [ [<- <-] // | p ].
   case heq: (ptake p [::] l) => [ [r l2']| //].
   move=> [<- <- {l1 l2}].
-  suff : rev [::] ++ l = rev r ++ l2' ∧ size (rev r) = (Pos.to_nat p + size (@nil A))%nat.
-  + by rewrite /= addn0.
+  suff : rev [::] ++ l = rev r ++ l2' ∧ size (rev r) = (Pos.to_nat p + size (@nil A))%coq_nat.
+  + by rewrite /= Nat.add_0_r.
   elim: p [::] l r l2' heq => /= [p hp | p hp | ] acc l r l2.
   + case: l => // x l.
     case: ptake (hp (x::acc) l) => // -[r1 l21] /(_ _ _ erefl) [h1 h2] /hp [h3 h4].
     rewrite -cat_rcons -rev_cons h1 h3 h4 -(size_rev r1) h2; split => //=.
-    rewrite Pos2Nat.inj_xI.
-    change ((Pos.to_nat p + (Pos.to_nat p + (size acc).+1))%nat = ((2 * Pos.to_nat p).+1 + size acc)%nat); ring.
+    by rewrite Pos2Nat.inj_xI; lia.
   + case: ptake (hp acc l) => // -[r1 l21] /(_ _ _ erefl) [h1 h2] /hp [h3 h4].
     rewrite h1 h3 h4 -(size_rev r1) h2; split => //=.
-    rewrite Pos2Nat.inj_xO.
-    change ((Pos.to_nat p + (Pos.to_nat p + (size acc)))%nat = ((2 * Pos.to_nat p) + size acc)%nat); ring.
+    by rewrite Pos2Nat.inj_xO; lia.
   by case: l => // x l [<- <-]; rewrite rev_cons cat_rcons size_rcons size_rev.
+Local Transparent Pos.to_nat.
 Qed.
 
 Lemma check_globP data gv tt :
@@ -156,9 +158,10 @@ Proof.
   + by have := size_slot_gt0 x; lia.
   + exists (l0 ++ rdata ++ vdata).
     rewrite heq -!catA; split => //.
-    have ? := size_slot_gt0 x.
-    rewrite -Nat2Z.inj_iff !size_cat !Nat2Z.inj_add Z2Nat.id //; last by lia.
-    by rewrite hsz1 hsz2 heqsz !Z2Nat.id //; first ring; lia.
+    have slot_x_gt0 := size_slot_gt0 x.
+    rewrite !size_cat hsz1 hsz2 heqsz; clear -hbase1 h1 slot_x_gt0.
+    do 2![rewrite -Z2Nat.z2nD /GRing.zero/=; [|by apply/ZleP; lia..]].
+    lia.
   move=> x1 ofs1 ws1.
   rewrite Mvar.setP.
   case: eqP => [|_].
@@ -2383,6 +2386,9 @@ Proof.
   by apply wfr_VARS_STATUS_merge.
 Qed.
 
+Local Lemma Wassert a: Pi_r (Cassert a).
+Proof. done. Qed.
+
 Local Lemma Wif e c1 c2: Pc c1 -> Pc c2 -> Pi_r (Cif e c1 c2).
 Proof.
   move=> Hc1 Hc2 table1 rmap1 table2 rmap2 ii c /=.
@@ -2456,7 +2462,7 @@ Lemma alloc_i_invariant table1 rmap1 i table2 rmap2 c2 :
   wf_table_vars table1 rmap1 ->
   wf_table_vars table2 rmap2 /\ Sv.Subset table1.(vars) table2.(vars).
 Proof.
-  exact: (instr_Rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wif Wfor Wwhile Wcall).
+  exact: (instr_Rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wassert Wif Wfor Wwhile Wcall).
 Qed.
 
 Lemma alloc_is_invariant table1 rmap1 c1 table2 rmap2 c2 :
@@ -2464,7 +2470,7 @@ Lemma alloc_is_invariant table1 rmap1 c1 table2 rmap2 c2 :
   wf_table_vars table1 rmap1 ->
   wf_table_vars table2 rmap2 /\ Sv.Subset table1.(vars) table2.(vars).
 Proof.
-  exact: (cmd_rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wif Wfor Wwhile Wcall).
+  exact: (cmd_rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wassert Wif Wfor Wwhile Wcall).
 Qed.
 
 End SYNTACTIC_INVARIANTS.
@@ -3701,7 +3707,7 @@ Proof.
   have /= := Hwhile _ _ _ _ _ _ table2 rmap2 table3 rmap3 ii c hpmap hwf sao.
   have hsao3 := stack_stable_wf_sao (sem_stack_stable_sprog hs2) hsao2.
   have hext3 := valid_state_extend_mem hwf hvs2 hext2 hvs3 (sem_validw_stable_uprog hhi2) (sem_validw_stable_sprog hs2).
-  rewrite Loop.nbP /= hc1 /= he /= hc2 /= hinclt4 hinclr4 /=.
+  rewrite loop_counterP /= hc1 /= he /= hc2 /= hinclt4 hinclr4 /=.
   move=> /(_ erefl _ _ _ hvs3 hext3 hsao3) [s4' [vme4 [/sem_seq1_iff/sem_IE hs3 hvs4 vme_eq3]]].
   exists s4', vme4; split=> //.
   + by apply sem_seq1; constructor; apply: Ewhile_true; eassumption.
@@ -4447,7 +4453,7 @@ Proof.
     have /vs_top_stack -> := hvs.
     by apply is_align_m.
 
-  apply wequiv_call_core with sa_pre sa_post Rv.
+  apply wequiv_call_core_wa with sa_pre sa_post Rv => //.
   + move => _ _ vargs1 [-> ->] hvargs1.
     have [vargs2 [*]]:= alloc_call_argsP hwf_Slots.(wfsl_no_overflow) hwf_Slots.(wfsl_disjoint)
       hwf_Slots.(wfsl_align) hwf_Slots.(wfsl_not_glob) hwf_pmap hvs hcargs hvargs1.
@@ -4800,6 +4806,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
+  {LC : LoopCounter}
   (shparams : slh_lowering.sh_params)
   (hshparams : slh_lowering_proof.h_sh_params shparams)
   (saparams : stack_alloc_params)

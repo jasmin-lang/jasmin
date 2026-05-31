@@ -21,7 +21,7 @@ We additionally maintain two invariants:
 
 *)
 
-Require memory_model array type.
+Require memory_model type.
 
 Import Utf8.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
@@ -31,6 +31,8 @@ Import type word utils gen_map.
 Import memory_model.
 Import GRing.Theory.
 Import ssrring.
+
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
 Local Open Scope Z_scope.
 
@@ -128,7 +130,7 @@ Module MemoryI : MemoryT.
 
   Definition get (m:mem) (p:pointer) := 
     Let _ := assert (is_alloc m p && is_init m p) ErrAddrInvalid in
-    ok (odflt 0%R (Mz.get m.(data) (wunsigned p))).
+    ok (odflt 0%w (Mz.get m.(data) (wunsigned p))).
 
   Definition set (m:mem) (p:pointer) (w:u8) :=
     Let _ := assert (is_alloc m p) ErrAddrInvalid in
@@ -455,7 +457,7 @@ Module MemoryI : MemoryT.
       ok
         {| data := Mz.empty _;
            alloc := init_mem_alloc s;
-           stk_limit := 0%R;
+           stk_limit := 0%w;
            stk_root := stk;
            frames := [::];
            framesP := init_mem_framesP stk;
@@ -556,6 +558,7 @@ Module MemoryI : MemoryT.
     wunsigned (stack_limit m) <= wunsigned (top_stack m')
     ∧ wunsigned (top_stack m') + sz + Z.max 0 sz' <= wunsigned (top_stack m).
   Proof.
+  Local Opaque GRing.add.
     rewrite /alloc_stack; case: Sumbool.sumbool_of_bool => // h [<-].
     rewrite /top_stack /=.
     rewrite !addE.
@@ -572,6 +575,7 @@ Module MemoryI : MemoryT.
     1, 3-4: lia.
     rewrite /f /footprint_of_frame /=.
     lia.
+  Local Transparent GRing.add.
   Qed.
 
   Lemma alloc_stack_ioff  m ws_stk sz ioff sz' m' :

@@ -38,6 +38,7 @@ module ReachingDefinitionLogic :
   let syscall loc lvs _ _ domain = logic loc lvs domain
   let assign loc lv _ _ _ domain = logic loc [ lv ] domain
   let opn loc lvs _ _ _ domain = logic loc lvs domain
+  let assertion loc _ _ domain = logic loc [] domain
 end
 
 include ForwardAnalyser.Make (ReachingDefinitionLogic)

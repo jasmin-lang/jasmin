@@ -50,17 +50,25 @@ let rec warn_extra_i pd msfsize asmOp i =
   | Cfor _ ->
       hierror ~loc:(Lmore i.i_loc) ~kind:"compilation error" ~internal:true
         "for loop remains"
-  | Ccall _ | Csyscall _ -> ()
+  | Ccall _ | Csyscall _ | Cassert _ -> ()
 
 let warn_extra_fd pd msfsize asmOp (_, fd) = List.iter (warn_extra_i pd msfsize asmOp) fd.f_body
 
 (* -------------------------------------------------------------------- *)
+let spill_to_mmx x = spill_to_mmx x.Var0.Var.vname
 
 let do_spill_unspill asmop ?(debug = false) cp =
   let p = Conv.cuprog_of_prog cp in
-  match Lower_spill.spill_uprog asmop Conv.fresh_var_ident p with
+  match Lower_spill.spill_uprog asmop Compiler.default_LoopCounter Conv.fresh_var_ident spill_to_mmx p with
   | Utils0.Error msg -> Error (Conv.error_of_cerror (Printer.pp_err ~debug) msg)
   | Utils0.Ok p -> Ok (Conv.prog_of_cuprog p)
+
+let catch_error cp =
+  match cp with
+  | Utils0.Ok cp -> cp
+  | Utils0.Error e ->
+    let e = Conv.error_of_cerror (Printer.pp_err ~debug:false) e in
+    raise (HiError e)
 
 let do_wint_int
    (type reg regx xreg rflag cond asm_op extra_op)
@@ -73,9 +81,11 @@ let do_wint_int
        and type asm_op = asm_op
        and type extra_op = extra_op) prog =
   let fdsi = snd prog in
-  let fv = List.fold_left (fun fv fd -> Sv.union fv (vars_fc fd)) Sv.empty fdsi in
-  let m =
-    Sv.fold (fun x m ->
+  let get_info p =
+    let p = Conv.prog_of_cuprog p in
+    let fv = List.fold_left (fun fv fd -> Sv.union fv (vars_fc_contract fd)) Sv.empty (snd p) in
+    let m =
+      Sv.fold (fun x m ->
           match x.v_ty with
           | Bty (U _) ->
             begin match Annotations.has_wint x.v_annot with
@@ -87,17 +97,14 @@ let do_wint_int
             end
           | _ -> m)
       fv Mv.empty in
+    let info x =
+      let x = Conv.var_of_cvar x in
+      Mv.find_opt x m in
+    Conv.csv_of_sv fv ,info
+  in
   let cp = Conv.cuprog_of_prog prog in
-  let info x =
-    let x = Conv.var_of_cvar x in
-     Mv.find_opt x m in
-  let cp = Wint_int.wi2i_prog Arch.asmOp Arch.pointer_data Arch.msf_size info cp in
-  let cp =
-    match cp with
-    | Utils0.Ok cp -> cp
-    | Utils0.Error e ->
-      let e = Conv.error_of_cerror (Printer.pp_err ~debug:false) e in
-      raise (HiError e) in
+  let cp = Wint_int.wi2i_prog Arch.asmOp Arch.pointer_data Arch.msf_size get_info cp in
+  let cp = catch_error cp in
   let (gd, fdso) = Conv.prog_of_cuprog cp in
   (* Restore type of array in the functions signature *)
   let restore_ty tyi tyo =
@@ -212,13 +219,18 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
 
   let pp_linear fmt lp = PrintLinear.pp_prog Arch.pointer_data Arch.msf_size Arch.asmOp fmt lp in
 
-  let rename_fd ii fn cfd =
-    let ii, _ = ii in
-    let doit fd =
-      let fd = Subst.clone_func fd in
-      Subst.extend_iinfo ii fd
+  let extend_iinfo ii1 ii2 =
+    let l1 =
+      let ii1, _ = ii1 in
+      let { L.base_loc = b1; L.stack_loc = l1 } = ii1 in
+      b1 :: l1
     in
-    apply "rename_fd" doit fn cfd
+    let ii2, annot2 = ii2 in
+    let ii2 =
+      let { L.base_loc = b2; L.stack_loc = l2 } = ii2 in
+      L.i_loc b2 (l2 @ l1)
+    in
+    ii2, annot2
   in
 
   let expand_fd fn cfd =
@@ -259,11 +271,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
      let loc, _ = ii in
      warning UseLea loc "%a" Printer.pp_warning_msg msg);
     ii
-  in
-
-  let fresh_id _gd x =
-    let x = Conv.var_of_cvar x in
-    Prog.V.clone x
   in
 
   let split_live_ranges_fd fd = Ssa.split_live_ranges true fd in
@@ -375,7 +382,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
 
   let cparams =
     {
-      Compiler.rename_fd;
+      Compiler.extend_iinfo;
       Compiler.expand_fd;
       Compiler.split_live_ranges_fd =
         apply "split live ranges" split_live_ranges_fd;
@@ -411,8 +418,8 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.refresh_instr_info;
       Compiler.warning;
       Compiler.lowering_opt = Arch.lowering_opt;
-      Compiler.fresh_id;
       Compiler.fresh_var_ident = Conv.fresh_var_ident;
+      Compiler.spill_to_mmx;
       Compiler.slh_info;
       Compiler.stack_zero_info = szs_of_fn;
       Compiler.dead_vars_ufd;

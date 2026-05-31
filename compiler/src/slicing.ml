@@ -20,6 +20,15 @@ let rec inspect_e k = function
 
 and inspect_es k es = List.fold_left inspect_e k es
 
+let rec inspect_a k = function
+  | Pexpr e -> inspect_e k e
+  | PappN_safety (_, es) -> inspect_es k es
+  | Pis_var_init _x -> k
+  | Pis_mem_init (e1, e2) -> inspect_es k [e1; e2]
+  | Pand (e1, e2) -> inspect_a (inspect_a k e1) e2
+
+let inspect_as =  List.fold_left (fun k (_,a) -> inspect_a k a)
+
 let inspect_lv k = function
   | Lnone _ | Lvar _ -> k
   | Lmem (_, _, _, e) | Laset (_, _, _, _, e) | Lasub (_, _, _, _, e) -> inspect_e k e
@@ -33,10 +42,18 @@ and inspect_instr_r k = function
   | Cassgn (x, _, _, e) -> inspect_lv (inspect_e k e) x
   | Copn (xs, _, _, es) | Csyscall (xs, _, es) ->
       inspect_lvs (inspect_es k es) xs
+  | Cassert (_, e) -> inspect_a k e
   | Cif (g, a, b) | Cwhile (_, a, g, _, b) ->
       inspect_stmt (inspect_stmt (inspect_e k g) a) b
   | Cfor (_, (_, e1, e2), s) -> inspect_stmt (inspect_es k [ e1; e2 ]) s
   | Ccall (xs, fn, es) -> with_fun (inspect_lvs (inspect_es k es) xs) fn
+
+let inspect_fun k fd =
+  let k =
+    match fd.f_contract with
+    | None -> k
+    | Some fc -> inspect_as (inspect_as k fc.f_pre) fc.f_post in
+  inspect_stmt k fd.f_body
 
 let slice fs (gd, fds) =
   let funs =
@@ -52,7 +69,7 @@ let slice fs (gd, fds) =
   let k =
     List.fold_left
       (fun k fd ->
-        if Sf.mem fd.f_name k.funs then inspect_stmt k fd.f_body else k)
+        if Sf.mem fd.f_name k.funs then inspect_fun k fd else k)
       { vars = Sv.empty; funs } fds
   in
   (* Keep only global variables that are referenced *)

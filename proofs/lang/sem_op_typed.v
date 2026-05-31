@@ -38,7 +38,7 @@ Definition sem_sop1_typed (o : sop1) :
   | Onot => mk_sem_sop1 negb
   | Olnot sz => mk_sem_sop1 (@wnot sz)
   | Oneg Op_int => mk_sem_sop1 Z.opp
-  | Oneg (Op_w sz) => mk_sem_sop1 (-%R)%R
+  | Oneg (Op_w sz) => mk_sem_sop1 -%w
   | Owi1 sign o => sem_wiop1_typed sign o
   end.
 
@@ -61,9 +61,9 @@ Definition sem_shl {s} := @sem_shift (@wshl) s.
 Definition sem_ror {s} := @sem_shift (@wror) s.
 Definition sem_rol {s} := @sem_shift (@wrol) s.
 
-Definition sem_vadd (ve:velem) {ws:wsize} := (lift2_vec ve +%R ws).
-Definition sem_vsub (ve:velem) {ws:wsize} := (lift2_vec ve (fun x y => x - y)%R ws).
-Definition sem_vmul (ve:velem) {ws:wsize} := (lift2_vec ve *%R ws).
+Definition sem_vadd (ve:velem) {ws:wsize} := (lift2_vec ve +%w ws).
+Definition sem_vsub (ve:velem) {ws:wsize} := (lift2_vec ve (fun x y => x - y)%w ws).
+Definition sem_vmul (ve:velem) {ws:wsize} := (lift2_vec ve *%w ws).
 
 Definition sem_vshr (ve:velem) {ws:wsize} (v : word ws) (i: u128) :=
   lift1_vec ve (fun x => wshr x (wunsigned i)) ws v.
@@ -75,7 +75,7 @@ Definition sem_vshl (ve:velem) {ws:wsize} (v : word ws) (i: u128) :=
   lift1_vec ve (fun x => wshl x (wunsigned i)) ws v.
 
 Definition mk_sem_divmod (si: signedness) sz o (w1 w2: word sz) : exec (word sz) :=
-  if ((w2 == 0) || [&& si == Signed, wsigned w1 == wmin_signed sz & w2 == -1])%R then Error ErrArith
+  if ((w2 == 0) || [&& si == Signed, wsigned w1 == wmin_signed sz & w2 == -1%w])%w then Error ErrArith
   else ok (o w1 w2).
 
 Definition mk_sem_sop2 (t1 t2 t3: Type) (o:t1 -> t2 -> t3) v1 v2 : exec t3 :=
@@ -125,11 +125,11 @@ Definition sem_sop2_typed (o: sop2) :
   | Oor  => mk_sem_sop2 orb
 
   | Oadd Op_int     => mk_sem_sop2 Z.add
-  | Oadd (Op_w s)   => mk_sem_sop2 +%R
+  | Oadd (Op_w s)   => mk_sem_sop2 +%w
   | Omul Op_int     => mk_sem_sop2 Z.mul
-  | Omul (Op_w s)   => mk_sem_sop2 *%R
+  | Omul (Op_w s)   => mk_sem_sop2 *%w
   | Osub Op_int     => mk_sem_sop2 Z.sub
-  | Osub (Op_w s)   => mk_sem_sop2 (fun x y =>  x - y)%R
+  | Osub (Op_w s)   => mk_sem_sop2 (fun x y =>  x - y)%w
   | Odiv u Op_int   => mk_sem_sop2 (signed Z.div Z.quot u)
   | Odiv u (Op_w s) => @mk_sem_divmod u s (signed wdiv wdivi u)
   | Omod u Op_int   => mk_sem_sop2 (signed Z.modulo Z.rem u)
@@ -188,8 +188,35 @@ Definition sem_opN_typed (o: opN) :
   | Opack sz pe =>
       let ty := curry (A := cint) (sz %/ pe) (λ vs, ok (wpack sz pe vs)) in
       ecast l (sem_prod l _) (esym (map_nseq _ _ _)) ty
+  | Oarray len =>
+      let ty := sem_prod_app (collect (Pos.to_nat len) [::]) (λ vs : seq (sem_t (cword U8)), WArray.fill len vs) in
+      ecast l (sem_prod l _) (esym (map_nseq _ _ _)) ty
   | Ocombine_flags cf =>
       fun b0 b1 b2 b3 => ok (sem_combine_flags cf b0 b1 b2 b3)
   end.
 
+Lemma sem_opN_typed_ok (op: opN) :
+  sem_forall (@is_ok _ _) _ (sem_opN_typed op).
+Proof.
+  case: op => // [ ws pe | len ] /=; rewrite -> map_nseq => /=.
+  + by case: ws pe => - [].
+  apply: sem_forall_prod_app (size_collect (Pos.to_nat len) [::]) => bytes /=.
+  rewrite ssrnat.addn0 /WArray.fill => hlen; rewrite hlen eqxx /=.
+  by case/is_okP: (WArray.fill_aux_ok (Nat.eq_le_incl _ _ hlen)) => ? ->.
+Qed.
+
 End WITH_PARAMS.
+
+Definition sem_opN_safety_typed (o: opN_safety) :
+  let t := type_of_opN_safety o in
+  let t := (map eval_atype t.1, eval_atype t.2) in
+  sem_prod t.1 (exec (sem_t t.2)) :=
+  match o with
+  | Ois_arr_init alen =>
+      fun (a:WArray.array alen) (lo:Z) (len:Z) =>
+        ok (all (WArray.is_init a) (ziota lo len))
+  | Ois_barr_init alen =>
+      fun (a:WArray.array alen) (lo:Z) (len:Z) =>
+        ok (all (WArray.is_initb a) (ziota lo len))
+  end.
+

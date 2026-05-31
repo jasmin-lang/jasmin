@@ -59,12 +59,7 @@ HB.instance Definition _ := hasDecEq.Build signedness signedness_eqb_OK.
 HB.instance Definition _ := hasDecEq.Build wsize wsize_eqb_OK.
 
 (* We still need the sumbool version *)
-Definition wsize_eq_dec ws1 ws2 := Bool.reflect_dec _ _ (wsize_eqb_OK ws1 ws2).
-
-(* Tactic "injection" treats specially the types for which it knows a decidable
-   equality. This is done automatically in the dev version of elpi.derive, but
-   we have to do it manually in the previous versions. *)
-Register Scheme wsize_eq_dec as eq_dec for wsize.
+Definition wsize_eq_dec := wsize_eqb_OK_sumbool.
 
 Definition wsizes :=
   [:: U8 ; U16 ; U32 ; U64 ; U128 ; U256 ].

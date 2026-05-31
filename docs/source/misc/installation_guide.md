@@ -53,6 +53,22 @@ Then update the list of available packages (`sudo apt update`) and install the p
 - **easycrypt** (Trixie only) has the proof assistant
 - **libjasmin-easycrypt** has the EasyCrypt libraries used for verifying Jasmin implementations
 
+#### On Arch Linux
+
+The packages are distributed through Arch User Repository (AUR), the relevant packages are:
+- [**jasmin-compiler-bin**](https://aur.archlinux.org/packages/jasmin-compiler-bin): the command-line tools
+- [**easycrypt-bin**](https://aur.archlinux.org/packages/easycrypt-bin): the proof assistant
+- [**libjasmin-easycrypt-bin**](https://aur.archlinux.org/packages/libjasmin-easycrypt-bin): the EasyCrypt libraries
+
+Install any of them with your AUR Helper with a command like the following:
+~~~
+# with yay
+yay -S jasmin-compiler-bin
+
+# with paru
+paru -S jasmin-compiler-bin
+~~~
+
 #### Using the nix (or lix) package manager, on linux, macos, wsl, etc.
 
 Assuming the package-manager is set up and working (see
@@ -180,9 +196,9 @@ Pick a branch or tag that corresponds to your needs:
 
 The dependencies of the Coq development are as follows:
 
-  - [Coq](https://coq.inria.fr/) at version 8.20
-  - The [Mathematical Components](https://math-comp.github.io/) library, at version 2.2 (only the following sub-libraries are required: ssreflect, fingroup, algebra, algebra-tactics)
-  - The [mathcomp-word](https://github.com/jasmin-lang/coqword) library, at version 3.2
+  - [Coq](https://coq.inria.fr/) at version 9.0
+  - The [Mathematical Components](https://math-comp.github.io/) library, at version 2.3 (only the following sub-libraries are required: ssreflect, fingroup, algebra)
+  - The [mathcomp-word](https://github.com/jasmin-lang/coqword) library, at version 3.4
   - The [Interaction Trees](https://github.com/DeepSpec/InteractionTrees) library, at version 5.2.1
 
 The file `default.nix` at the root of the repository contains a precise description of these dependencies.

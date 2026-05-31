@@ -1,0 +1,24 @@
+param int N = 42;
+
+#[safety = {
+    requires = is_mem_init(in, N),
+    ensures = is_arr_init(out, 0, N)
+  }]
+export fn load_from_mem(reg ptr u8[N] out, reg u64 in) -> reg ptr u8[N] {
+  reg ui64 i = 0;
+  while (i < N) {
+    out[i] = [:u8 in + (64u)i];
+    i += 1;
+  }
+  return out;
+}
+
+#[
+  safety = {
+    requires = ofs <s 8 && is_arr_init(t, 0, 8) && 0 <=s ofs
+  }
+]
+export fn load_byte(reg si64 ofs, reg ptr u8[8] t) -> reg u8 {
+  reg u8 r = t[(int)ofs];
+  return r;
+}

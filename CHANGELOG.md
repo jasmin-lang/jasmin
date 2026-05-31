@@ -1,3 +1,133 @@
+# Jasmin 2026.03.1 — 2026-04-14
+
+## New features
+
+- Extraction as EasyCrypt code targets version 2026.03
+  ([PR #1420](https://github.com/jasmin-lang/jasmin/pull/1420)).
+
+## Other changes
+
+- Zero-extension from 32/64 to 128 bits on x86 uses the AVX instructions
+  (`VMOVD`/`VMOVQ`) instead of the SSE2 instructions (`MOVD`/`MOVQ`)
+  ([PR 1433](https://github.com/jasmin-lang/jasmin/pull/1433)).
+
+# Jasmin 2026.03.0 — 2026-03-09
+
+## New features
+
+- String constants can occur as literal values (`"abcd"`)
+  ([PR 1375](https://github.com/jasmin-lang/jasmin/pull/1375),
+  [PR 1376](https://github.com/jasmin-lang/jasmin/pull/1376),
+  [PR 1386](https://github.com/jasmin-lang/jasmin/pull/1386)).
+
+- Add support for assertions; `assert` is now a keyword
+  ([PR 1389](https://github.com/jasmin-lang/jasmin/pull/1389)).
+
+## Bug fixes
+
+- Propagation of parameters in array lengths used a wrong implementation
+  for unsigned division and unsigned remainder, giving
+  possibly wrong results on negative integers
+  ([PR 1382](https://github.com/jasmin-lang/jasmin/pull/1382)).
+
+- Fail properly when stack variables have type `int`
+  ([PR #1385](https://github.com/jasmin-lang/jasmin/pull/1385);
+  fixes [#1384](https://github.com/jasmin-lang/jasmin/issues/1384)).
+
+- Do not crash when too few explicit L-values are given
+  ([PR #1393](https://github.com/jasmin-lang/jasmin/pull/1393);
+  fixes [#1366](https://github.com/jasmin-lang/jasmin/issues/1366)).
+
+- Fix some type errors
+  ([PR 1394](https://github.com/jasmin-lang/jasmin/pull/1394)).
+
+- The semantics of the x86 SIMD shifts (instructions `VPSLL`, `VPSRL`, and
+  `VPSRA`) has been corrected: the second operand (the shift amount) is a
+  128-bit value, but only its 64 least significant bits are meaningful.
+  Consequently, these instructions cannot be used for implementing the Jasmin
+  operators such as `<<2u64` in full generality: only selected patterns are
+  recognized by the compiler
+  ([PR 1399](https://github.com/jasmin-lang/jasmin/pull/1399);
+  fixes [#1397](https://github.com/jasmin-lang/jasmin/issues/1397)).
+
+## Other changes
+
+- The deprecated syntax for memory accesses (e.g., `(u8)[p + i]`) is no longer
+  supported; the typing annotation should be put *inside* the square brackets
+  (i.e., `[:u8 p + i]`) instead
+  ([PR #1336](https://github.com/jasmin-lang/jasmin/pull/1336)).
+
+- Pretty-printing of Jasmin programs and expressions use less parentheses,
+  taking into account priority and associativity of operators
+  ([PR #1340](https://github.com/jasmin-lang/jasmin/pull/1340)).
+
+- Annotations without delimiting square brackets are no longer supported
+  ([PR #1353](https://github.com/jasmin-lang/jasmin/pull/1353)).
+
+- When an intrinsic operator does not return any result, the equal sign and the
+  empty list of L-values can be omitted (e.g., it is now possible to write
+  instructions such as `#LFENCE();` or `#spill(x);`)
+  ([PR #1355](https://github.com/jasmin-lang/jasmin/pull/1355)).
+
+- Zero-extension from 128-bit to 256-bit is now supported on x86
+  ([PR #1364](https://github.com/jasmin-lang/jasmin/pull/1364)).
+
+- The assembly output of the compiler features an `.ident` directive including
+  the version of the compiler
+  ([PR #1365](https://github.com/jasmin-lang/jasmin/pull/1365)).
+
+- On arm-m4, the add-with-carry operation `_, r = a + b + c` is translated into
+  `ADC` (as opposed to `ADCS`) when the output carry is explicitly ignored
+  (i.e., written as an underscore)
+  ([PR #1369](https://github.com/jasmin-lang/jasmin/pull/1369)).
+
+# Jasmin 2025.06.3 — Nancy, 2025-12-18
+
+## New features
+
+- The safety checker used to support only x86-64, it now also supports ARMv7 and RISC-V.
+  It has not been specialized yet to these new architectures, so it might be imprecise.
+  ([PR #1316](https://github.com/jasmin-lang/jasmin/pull/1316);
+  fixes [#1315](https://github.com/jasmin-lang/jasmin/issues/1315)).
+
+- Declassification can be expressed using a pseudo-operator that applies to a
+  single variable: `() = #declassify(x)`; the legacy annotation `#[declassify]`
+  on assignements is deprecated
+  ([PR #1328](https://github.com/jasmin-lang/jasmin/pull/1328);
+  fixes [#746](https://github.com/jasmin-lang/jasmin/issues/746)).
+
+- The assembly produced by `jasminc` compiler slightly depends on the target
+  system: on macOS exported symbols have a leading underscore whereas on other
+  systems, the assembly features `.type` directives for every function and
+  `.note.GNU-stack` section. The default target system is chosen when building
+  the compiler and can be selected when running it using the new `-target`
+  command-line argument.
+  ([PR #1339](https://github.com/jasmin-lang/jasmin/pull/1339)).
+
+- The `#swap` pseudo-operator can be applied to word-sized integers
+  ([PR #1342](https://github.com/jasmin-lang/jasmin/pull/1342)).
+
+- When one of the “auto-spill” flag is set on the command-line, automatically
+  insert spill and unspill operations in the program
+  ([PR #1356](https://github.com/jasmin-lang/jasmin/pull/1356)).
+
+## Bug fixes
+
+- Fix extraction to EasyCrypt of (un)spill operations involving word-sized integers
+  ([PR #1341](https://github.com/jasmin-lang/jasmin/pull/1341);
+  fixes [#1335](https://github.com/jasmin-lang/jasmin/issues/1335)).
+
+- Warn as expected when defining two (global) variables with the same name in
+  the same namespace
+  ([PR 1348](https://github.com/jasmin-lang/jasmin/pull/1348);
+  fixes [#1347](https://github.com/jasmin-lang/jasmin/issues/1347)).
+
+## Other changes
+
+- Annotations must be enclosed within square brackets; syntax without square
+  brackets is now deprecated
+  ([PR 1346](https://github.com/jasmin-lang/jasmin/pull/1346)).
+
 # Jasmin 2025.06.2 — Nancy, 2025-11-20
 
 ## New features

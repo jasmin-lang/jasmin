@@ -3,6 +3,8 @@ Require Import psem.
 Import Utf8 Lia.
 Import Memory low_memory.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Section WITH_PARAMS.
 
 Context
@@ -793,7 +795,7 @@ Proof.
   all: apply/andP; split; first by auto.
   - by rewrite wadd_zero_extend // !zero_extend_u wrepr_add.
   - by rewrite wmul_zero_extend // !zero_extend_u wrepr_mul.
-  by rewrite wsub_zero_extend // !zero_extend_u wrepr_sub.
+  by rewrite sub_wordE wsub_zero_extend // !zero_extend_u wrepr_sub.
 Qed.
 
 End WITH_PARAMS.

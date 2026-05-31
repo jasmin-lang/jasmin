@@ -1,0 +1,7 @@
+export fn add_carry(reg u32 a b) -> reg u32 {
+  reg bool c;
+  c, a = a + b;  // ADDS
+  _, a += b + c; // ADC
+  _, a += b + c; // `c` is still available here
+  return a;
+}

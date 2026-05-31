@@ -39,7 +39,7 @@ Definition ii_loop_iterator :=
 End E.
 
 Section PROG.
-Context {pd: PointerData} {syscall_state : Type} {asm_op} {asmop : asmOp asm_op} {ovm_i : one_varmap_info}.
+Context {pd: PointerData} {syscall_state : Type} {asm_op} {asmop : asmOp asm_op} {ovm_i : one_varmap_info} {LC : LoopCounter}.
 Context (p: sprog).
 Context (var_tmp : Sv.t).
 
@@ -67,6 +67,7 @@ Section WRITE1.
     | Cassgn x _ _ _  => vrv_rec s x
     | Copn xs _ _ _   => vrvs_rec s xs
     | Csyscall xs o _ => vrvs_rec (Sv.union s syscall_kill) (to_lvals (syscall_sig o).(scs_vout))
+    | Cassert _       => s
     | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
     | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
     | Cwhile _ c _ _ c' => foldl write_I_rec (foldl write_I_rec s c') c
@@ -173,6 +174,8 @@ Section CHECK.
         (E.internal_error ii "bad syscall dests") in
       let W := syscall_kill in
       ok (Sv.diff (Sv.union D W) (vrvs (to_lvals (syscall_sig o).(scs_vout))))
+    | Cassert _ =>
+      Error (E.internal_error ii "assert remain")
     | Cif b c1 c2 =>
       Let _ := check_e ii D b in
       Let D1 := check_c (check_i sz) D c1 in
@@ -182,7 +185,7 @@ Section CHECK.
       Error (E.internal_error ii "for loop should be unrolled")
     | Cwhile _ c e _ c' =>
       if is_false e then check_c (check_i sz) D c
-      else wloop (check_i sz) ii c (read_e e) c' Loop.nb D
+      else wloop (check_i sz) ii c (read_e e) c' loop_counter D
 
     | Ccall xs fn es =>
       if get_fundef (p_funcs p) fn is Some fd then

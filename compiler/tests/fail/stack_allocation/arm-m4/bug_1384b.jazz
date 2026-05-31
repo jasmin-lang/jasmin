@@ -1,0 +1,4 @@
+export fn stack_bool() {
+  #[keep]
+  stack bool b = true;
+}

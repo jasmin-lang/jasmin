@@ -1,7 +1,5 @@
 open Arch_decl
-open Prog
 open Riscv_decl
-open Riscv_extra
 
 module type Riscv_input = sig
   val call_conv : (register, Arch_utils.empty, Arch_utils.empty, Arch_utils.empty, condt) calling_convention
@@ -32,12 +30,12 @@ module Riscv_core = struct
     match o with
     | _ -> true
 
-  let is_ct_asm_extra (o : extra_op) = true
+  let is_ct_asm_extra (_o : extra_op) = true
 
-  let is_doit_asm_op (o : asm_op) = true
+  let is_doit_asm_op (_o : asm_op) = true
 
   (* All of the extra ops compile into DIT instructions only, but this needs to be checked manually. *)
-  let is_doit_asm_extra (o : extra_op) = true
+  let is_doit_asm_extra (_o : extra_op) = true
 
 end
 
@@ -59,4 +57,6 @@ module Riscv (Lowering_params : Riscv_input) : Arch_full.Core_arch
   let pp_asm = Pp_riscv.print_prog
 
   let callstyle = Arch_full.ByReg { call = Some RA; return = true }
+
+  let internal_call_conv = Riscv_decl.riscv_internal_call_conv
 end

@@ -22,6 +22,8 @@ Require Import
   riscv_instr_decl
   riscv_lowering.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Section PROOF.
 
 Context
@@ -437,12 +439,12 @@ Proof.
       + by rewrite ok_v1.
       + apply (minus_insertP h_insert).
         by rewrite ok_v2.
-      by rewrite /= wadd_zero_extend.
+      by rewrite /= sub_wordE wadd_zero_extend.
     move=> [<- <- <-].
     set op2' := Oasm _.
     have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
       Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
-    by rewrite sem_correct //= wsub_zero_extend.
+    by rewrite sem_correct //= /semi_to_atype /= /riscv_sub_semi !sub_wordE wsub_zero_extend.
   + case => // -[] // [] //=.
     + rewrite /sem_sop2 /=.
       t_xrbindP=> w1 ok_w1 w2 ok_w2.
@@ -809,6 +811,8 @@ Proof.
   + move=> xs o es ii.
     by apply (wequiv_syscall_rel_eq (sip:=sip)) with
        checker_st_eq tt.
+  (* Assert *)
+  + by move=> ? ii; apply wequiv_noassert with (ev1:=ev) (ii:=ii).
   (* If *)
   + move=> e c1 c2 hc1 hc2 ii /=.
     by apply (wequiv_if_rel_eq (sip:=sip)) with checker_st_eq tt tt tt.

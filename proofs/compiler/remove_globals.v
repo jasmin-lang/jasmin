@@ -3,7 +3,14 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
 Require Import xseq.
+Require Import psem_defs.
 Require Import expr compiler_util.
+
+Definition type_of_glob_value (gv: glob_value) : atype :=
+  match gv with
+  | Gword ws _ => aword ws
+  | Garr p _ => aarr U8 p
+  end.
 
 Local Open Scope seq_scope.
 
@@ -11,8 +18,8 @@ Module Import E.
 
   Definition pass : string := "remove globals".
 
-  Definition rm_glob_error (ii:instr_info) (x:var) := {|
-    pel_msg := pp_box [:: pp_s "Cannot remove global variable"; pp_var x];
+  Definition rm_glob_error_gen (ii: instr_info) (x: var) (extra: seq pp_error) := {|
+    pel_msg := pp_box (pp_s "Cannot remove global variable" :: pp_var x :: extra);
     pel_fn := None;
     pel_fi := None;
     pel_ii := Some ii;
@@ -20,6 +27,8 @@ Module Import E.
     pel_pass := Some pass;
     pel_internal := false
   |}.
+
+  Definition rm_glob_error ii x := rm_glob_error_gen ii x [::].
 
   Definition rm_glob_error_dup (ii:instr_info) (x:var) := {|
     pel_msg := pp_box [:: pp_s "Duplicate definition of global variable"; pp_var x];
@@ -40,33 +49,49 @@ End E.
 Section REMOVE.
 
   Context `{asmop:asmOp}.
-  Context (fresh_id : glob_decls -> var -> Ident.ident).
+  Context {fcp : FlagCombinationParams}.
+  Context {LC : LoopCounter}.
 
   Notation venv := (Mvar.t var).
 
-  Definition check_data (d:glob_value) (ws:wsize) (w:word ws) := 
-    match d with
-    | @Gword ws' w' => (ws == ws') && (w == zero_extend ws w')
-    | _             => false
+  Definition check_data (d' d: glob_value) : bool :=
+    match d', d with
+    | @Gword ws' w', @Gword ws w => (ws == ws') && (w == zero_extend ws w')
+    | @Garr len' arr', @Garr len arr => WArray.is_uincl arr arr'
+    | _, _ => false
     end.
 
-  Definition find_glob ii (xi:var_i) (gd:glob_decls) (ws:wsize) (w:word ws) :=
-    let test (gv:glob_decl) := 
-      if convertible (aword ws) (vtype gv.1) && (check_data gv.2 w) then Some gv.1
-      else None in 
+  Definition check (gv: glob_value) (gd: glob_decl) : bool :=
+    (convertible (type_of_glob_value gv) (vtype gd.1)) && (check_data gd.2 gv).
+
+  Definition find_glob ii (xi: var_i) (gd: glob_decls) (gv: glob_value) :=
+    let test gd := if check gv gd then Some gd.1 else None in
     match find_map test gd with
     | None => Error (rm_glob_error ii xi)
     | Some g => ok g
-    end. 
+    end.
 
-  Definition add_glob ii (x:var) (gd:glob_decls) (ws:wsize) (w:word ws) :=
-    let test (gv:glob_decl) := 
-       convertible (aword ws) (vtype gv.1) && (check_data gv.2 w) in
-    if has test gd then ok gd 
+  Definition add_glob ii (x: var) (gd: glob_decls) (gv: glob_value) :=
+    if has (check gv) gd then ok gd
     else
-      let gx := {| vtype := vtype x; vname := fresh_id gd x |} in
-      if has (fun g' => g'.1 == gx) gd then Error (rm_glob_error_dup ii gx)
-      else ok ((gx, Gword w) :: gd).
+      (* at that point of the compiler, liverange splitting made variable names
+         unique, so we keep the same name *)
+      if has (fun g' => g'.1 == x) gd then Error (rm_glob_error_dup ii x)
+      else ok ((x, gv) :: gd).
+
+  Definition evaluate_bytes ii x : pexprs -> result pp_error_loc values :=
+    mapM (fun pe =>
+      if pe is Papp1 (Oword_of_int sz) (Pconst z)
+      then ok (Vword (wrepr sz z))
+      else Error (rm_glob_error_gen ii x [:: pp_s "a cell has a non-constant value"; pp_e pe ])
+    ).
+
+  Definition array_from_cells ii x (len: positive) (cells: pexprs) : result pp_error_loc (WArray.array len) :=
+    Let bytes := evaluate_bytes ii x cells in
+    match sem_opN (Oarray len) bytes >>= to_arr len with
+    | Ok array => Ok _ array
+    | Error _ => Error (rm_glob_error_gen ii x [:: pp_s "cannot fill the array"])
+    end.
 
   Fixpoint extend_glob_i  (i:instr) (gd:glob_decls) :=
     let (ii,i) := i in
@@ -77,13 +102,16 @@ Section REMOVE.
         let x := xi.(v_var) in
         if is_glob_var x then
           match e with
-          | Papp1 (Oword_of_int ws) (Pconst z) => add_glob ii x gd (wrepr ws z)
+          | Papp1 (Oword_of_int ws) (Pconst z) => add_glob ii x gd (Gword (wrepr ws z))
+          | PappN (Oarray len) cells =>
+              Let array := array_from_cells ii x len cells in
+              add_glob ii x gd (Garr array)
           | _                   => Error (rm_glob_error ii xi)
           end
         else ok gd
       | _ => ok gd
       end
-    | Copn _ _ _ _ | Csyscall _ _ _ | Ccall _ _ _ => ok gd
+    | Copn _ _ _ _ | Csyscall _ _ _ | Cassert _ | Ccall _ _ _ => ok gd
     | Cif _ c1 c2 =>
       Let gd := foldM extend_glob_i gd c1 in
       foldM extend_glob_i gd c2
@@ -248,9 +276,15 @@ Section REMOVE.
               match e with
               | Papp1 (Oword_of_int ws) (Pconst z) =>
                 if convertible ty (aword ws) && convertible (vtype x) (aword ws) then
-                  Let g := find_glob ii xi gd (wrepr ws z) in
+                  Let g := find_glob ii xi gd (Gword (wrepr ws z)) in
                   ok (Mvar.set env x g, [::])
                 else Error (rm_glob_error ii xi)
+              | PappN (Oarray len) cells =>
+                  if convertible (vtype x) (aarr U8 len) then
+                    Let array := array_from_cells ii x len cells in
+                    Let g := find_glob ii xi gd (Garr array) in
+                    ok (Mvar.set env x g, [::])
+                  else Error (rm_glob_error ii xi)
               | _ => Error (rm_glob_error ii xi)
               end
             else
@@ -268,6 +302,8 @@ Section REMOVE.
           Let lvs := mapM (remove_glob_lv ii env) lvs in
           Let es  := mapM (remove_glob_e ii env) es in
           ok (env, [::MkI ii (Csyscall lvs o es)])
+        | Cassert a =>
+          Error (pp_safety_remains_at E.pass ii)
         | Cif e c1 c2 =>
           Let e := remove_glob_e ii env e in
           Let envc1 := remove_glob remove_glob_i env c1 in
@@ -285,7 +321,7 @@ Section REMOVE.
             Let e := remove_glob_e ii env1 e in
             Let envc2 := remove_glob remove_glob_i env1 c2 in
             ok (Check2_r e envc1 envc2) in
-          Let lr := loop2 check_c Loop.nb env in
+          Let lr := loop2 check_c loop_counter env in
           let: (Loop2_r e c1 c2 env) := lr in
           ok (env, [::MkI ii (Cwhile a c1 e info c2)])
         | Cfor xi (d,e1,e2) c =>
@@ -294,7 +330,7 @@ Section REMOVE.
             Let e1 := remove_glob_e ii env e1 in
             Let e2 := remove_glob_e ii env e2 in
             let check_c env := remove_glob remove_glob_i env c in
-            Let envc := loop check_c Loop.nb env in
+            Let envc := loop check_c loop_counter env in
             let: (env, c) := envc in
             ok (env, [::MkI ii (Cfor xi (d,e1,e2) c)])
         | Ccall lvs fn es =>
@@ -313,15 +349,8 @@ Section REMOVE.
       Let _ := mapM check_var f.(f_params) in
       Let _ := mapM check_var f.(f_res) in
       Let envc := remove_glob remove_glob_i env f.(f_body) in
-      ok
-        {| f_info   := f.(f_info);
-           f_tyin   := f.(f_tyin);
-           f_params := f.(f_params);
-           f_body   := envc.2;
-           f_tyout  := f.(f_tyout);
-           f_res    := f.(f_res);
-           f_extra  := f.(f_extra);
-        |}.
+      ok (with_body f envc.2).
+
   End GD.
 
   Definition remove_glob_prog (p:uprog) :=

@@ -46,8 +46,6 @@ let pp_alias fmt a =
     pp_aliasing a
 
 (* --------------------------------------------------- *)
-let size_of_range (lo, hi) = hi - lo
-
 let align_of_offset lo =
   if lo land 0x1f = 0 then U256
   else if lo land 0xf = 0 then U128
@@ -209,6 +207,7 @@ let slice_of_pexpr a =
   | Parr_init _ -> None
   | Pvar x -> Some (normalize_gvar a x)
   | Psub (aa, ws, len, x, i) -> Some (normalize_asub a aa ws len x i)
+  | PappN (Oarray _, _) -> hierror_no_loc "stack literal arrays are not supported"
   | (Pconst _ | Pbool _ | Pget _ | Pload _ | Papp1 _ | Papp2 _ | PappN _ ) -> assert false
   | Pif _ -> hierror_no_loc "conditional move of (ptr) arrays is not supported yet"
 
@@ -253,6 +252,7 @@ let rec analyze_instr_r params cc a =
     | None -> a 
     | Some l -> link_array_return params a xs es l
     end
+  | Cassert _ -> a
   | Cif(_, s1, s2) ->
      let a1 = analyze_stmt params cc a s1 |> normalize_map in
      let a2 = analyze_stmt params cc a s2 |> normalize_map in
@@ -278,10 +278,6 @@ let analyze_fd cc fd =
   let params = Sv.of_list fd.f_args in
   try analyze_stmt params cc Mv.empty fd.f_body |> normalize_map
   with (HiError e) -> raise (HiError { e with err_funname = Some fd.f_name.fn_name })
-
-let analyze_fd_ignore cc fd =
-  let a = analyze_fd cc fd in
-  Format.eprintf "Aliasing forest for function %s:@.%a@." fd.f_name.fn_name pp_alias a
 
 (* --------------------------------------------------- *)
 let classes (a: alias) : Sv.t Mv.t =

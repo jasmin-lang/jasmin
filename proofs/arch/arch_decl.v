@@ -583,7 +583,9 @@ Variant asm_i_r : Type :=
   | POPPC (* Pop a destination from the stack and jump there, arm : POP PC, x86 : RET *)
   (* Instructions exposed at source-level *)
   | AsmOp  of asm_op_t' & asm_args
-  | SysCall of syscall_t.
+  | SysCall of syscall_t
+  | Declassify_val of ltype & asm_arg
+  | Declassify_mem of positive & address.
 
 Record asm_i : Type := MkAI { asmi_ii : instr_info; asmi_i : asm_i_r }.
 
@@ -677,6 +679,14 @@ Definition check_call_conv {call_conv:calling_convention} (fd:asm_fundef) :=
         check_list get_AXReg fd.(asm_fd_arg) call_xreg_args,
         check_list get_ARReg fd.(asm_fd_res) call_reg_ret &
         check_list get_AXReg fd.(asm_fd_res) call_xreg_ret].
+
+
+Class internal_calling_convention :=
+  { icall_reg   : seq reg_t
+  ; icall_regx  : seq regx_t
+  ; icall_xreg  : seq xreg_t
+  ; icall_rflag : seq rflag_t
+  }.
 
 End DECL.
 
