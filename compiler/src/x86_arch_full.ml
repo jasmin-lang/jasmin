@@ -74,7 +74,8 @@ module X86_core = struct
     | CLFLUSH -> false (* Not DOIT *)
     | CMOVcc _ -> true
     | CMP _ -> true
-    | CQO _ -> true
+    | CQO U64 -> true
+    | CQO _ -> false (* Not DOIT *)
     | DEC _ -> true
     | DIV _ -> false (* Not DOIT *)
     | IDIV _ -> false (* Not DOIT *)

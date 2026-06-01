@@ -1,0 +1,5 @@
+#[ct = "secret → secret"]
+export fn sign_extend(reg u64 a) -> reg u64 {
+    reg u64 d = #CQO_64(a);
+    return d;
+}

@@ -1,0 +1,6 @@
+/* CDQ/CWD are not explicitly listed as DOIT */
+#[ct = "secret → secret"]
+export fn sign_extend(reg u32 a) -> reg u32 {
+    reg u32 d = #CQO_32(a);
+    return d;
+}
