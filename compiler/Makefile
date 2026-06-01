@@ -45,11 +45,10 @@ CIL:
 	cp ../proofs/lang/ocaml/*.ml  src/CIL/
 	cp ../proofs/lang/ocaml/*.mli src/CIL/
 
-check: all
-	$(CHECK) --report=report.log $(CHECKCATS)
+check: all check-ci
 
 check-ci:
-	$(CHECK) --report=- $(CHECKCATS)
+	$(CHECK) --report=report.log $(CHECKCATS)
 
 check-ec:
 	$(MAKE) -C examples/gimli/proofs
