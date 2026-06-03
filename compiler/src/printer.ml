@@ -392,8 +392,8 @@ let pp_fun_ ~debug ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
     F.fprintf fmt "return @[(%a)@];"
       (pp_list ",@ " pp_var) ret in
   F.fprintf fmt "@[<v>%a%a%a {@   @[<v>%a@ %a@ %a@]@ }@]"
-   pp_call_conv fd.f_cc
    (pp_ocontract ~debug pp_len pp_var) fd.f_contract
+   pp_call_conv fd.f_cc
    (pp_header_ pp_var) fd
    pp_locals locals
    (pp_gc ~debug pp_info pp_len pp_opn pp_var) fd.f_body
