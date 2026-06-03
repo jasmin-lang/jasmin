@@ -302,7 +302,7 @@ let pp_header_ pp_size pp_var fmt fd =
     (pp_list ",@ " pp_vd) fd.f_args
     (pp_return_type pp_size) (List.combine fd.f_ret_info.ret_annot (List.map2 set_var_type ret fd.f_tyout))
 
-let pp_gfun ~debug (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
+let pp_pfun ~debug pp_size pp_opn pp_var fmt fd =
   let ds = ScopeTree.get_declaration_sites fd in
   let pp_vd =  pp_var_decl pp_var pp_size in
   let pp_info fmt (n, _) =
@@ -338,7 +338,7 @@ let pp_gexpr ~debug pp_len pp_var fmt = function
 
 let pp_pitem ~debug pp_len pp_opn pp_var =
   let aux fmt = function
-   | MIfun fd -> pp_gfun ~debug pp_len pp_opn pp_var fmt fd
+   | MIfun fd -> pp_pfun ~debug pp_len pp_opn pp_var fmt fd
    | MIparam (x,e) ->
       F.fprintf fmt "%a = %a;"
         (pp_var_decl pp_var pp_len) x
