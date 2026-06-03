@@ -447,8 +447,6 @@ let pp_func ~debug pd msfsize asmOp fmt fd =
   pp_fun_ ~debug pp_opn pp_var fmt fd
 
 let pp_glob pp_var fmt (x, gd) =
-  let pp_size fmt i = F.fprintf fmt "%i" i in
-  let pp_vd =  pp_var_decl pp_var pp_size in
   let pp_gd fmt gd =
     match gd with
     | Global.Gword(ws,w) ->
@@ -458,8 +456,9 @@ let pp_glob pp_var fmt (x, gd) =
       Format.fprintf fmt "@[{%a}@]"
         (pp_list ",@ " pp_print_X)
         (Array.to_list t)  in
-  Format.fprintf fmt "@[%a =@ %a;@]"
-    pp_vd x pp_gd gd
+  Format.fprintf fmt "@[%a %a =@ %a;@]"
+    (pp_gtype pp_len) x.v_ty
+    pp_var x pp_gd gd
 
 let pp_globs pp_var fmt gds =
   Format.fprintf fmt "@[<v>%a@]"
