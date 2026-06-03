@@ -293,6 +293,15 @@ let pp_contract ~debug pp_len pp_var fmt fc =
 let pp_ocontract ~debug pp_len pp_var fmt fc =
   Option.may (pp_contract ~debug pp_len pp_var fmt) fc
 
+let pp_header_ pp_size pp_var fmt fd =
+  let pp_vd =  pp_var_decl pp_var pp_size in
+  let ret = List.map L.unloc fd.f_ret in
+  let set_var_type x ty = GV.mk x.v_name x.v_kind ty x.v_dloc x.v_annot in
+  F.fprintf fmt "fn %s @[(%a)@] -> @[(%a)@]"
+    fd.f_name.fn_name
+    (pp_list ",@ " pp_vd) fd.f_args
+    (pp_return_type pp_size) (List.combine fd.f_ret_info.ret_annot (List.map2 set_var_type ret fd.f_tyout))
+
 let pp_gfun ~debug (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
   let ds = ScopeTree.get_declaration_sites fd in
   let pp_vd =  pp_var_decl pp_var pp_size in
@@ -301,7 +310,6 @@ let pp_gfun ~debug (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
     |> Spv.iter (F.fprintf fmt "%a;@ " pp_vd)
   in
   let ret = List.map L.unloc fd.f_ret in
-  let set_var_type x ty = GV.mk x.v_name x.v_kind ty x.v_dloc x.v_annot in
   let pp_ret fmt () =
     (* In the rare case where there is no instruction in the function,
        the results that are not arguments are not get properly declared
@@ -314,13 +322,11 @@ let pp_gfun ~debug (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
     F.fprintf fmt "return @[%a@];"
       (pp_list ",@ " pp_var) ret in
 
-  F.fprintf fmt "@[<v>%a%a%afn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@]@ }@]"
+  F.fprintf fmt "@[<v>%a%a%a%a {@   @[<v>%a@ %a@]@ }@]"
    pp_annotations fd.f_annot.f_user_annot
    (pp_ocontract ~debug pp_size pp_var) fd.f_contract
    pp_call_conv fd.f_cc
-   fd.f_name.fn_name
-   (pp_list ",@ " pp_vd) fd.f_args
-   (pp_return_type pp_size) (List.combine fd.f_ret_info.ret_annot (List.map2 set_var_type ret fd.f_tyout))
+   (pp_header_ pp_size pp_var) fd
    (pp_gc ~debug pp_info pp_size pp_opn pp_var) fd.f_body
    pp_ret ()
 
@@ -375,14 +381,6 @@ let pp_pprog ~debug pd msfsize asmOp fmt p =
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_pitem ~debug (pp_pexpr_ ~debug) pp_opn pp_pvar)) (List.rev p)
 
-let pp_header_ pp_var fmt fd =
-  let pp_vd =  pp_var_decl pp_var pp_len in
-  let ret = List.map L.unloc fd.f_ret in
-  F.fprintf fmt "fn %s @[(%a)@] -> @[(%a)@]"
-    fd.f_name.fn_name
-    (pp_list ",@ " pp_vd) fd.f_args
-    (pp_list ",@ " (pp_ty_decl pp_len)) ret
-
 let pp_fun_ ~debug ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in
   let pp_locals = Option.default (fun fmt -> Sv.iter (F.fprintf fmt "%a;@ " pp_vd)) pp_locals in
@@ -395,7 +393,7 @@ let pp_fun_ ~debug ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
    pp_annotations fd.f_annot.f_user_annot
    (pp_ocontract ~debug pp_len pp_var) fd.f_contract
    pp_call_conv fd.f_cc
-   (pp_header_ pp_var) fd
+   (pp_header_ pp_len pp_var) fd
    pp_locals locals
    (pp_gc ~debug pp_info pp_len pp_opn pp_var) fd.f_body
    pp_ret ()
@@ -436,7 +434,7 @@ let pp_stmt ~debug pd msfsize asmOp fmt i =
 
 let pp_header ~debug fmt fd =
   let pp_var = pp_var ~debug in
-  pp_header_ pp_var fmt fd
+  pp_header_ pp_len pp_var fmt fd
 
 let pp_ifunc ~debug pp_info pd msfsize asmOp fmt fd =
   let pp_opn = pp_opn pd msfsize asmOp in
