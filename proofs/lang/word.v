@@ -70,8 +70,19 @@ Definition wsize_size_minus_1 (s: wsize) : nat :=
 Coercion nat_of_wsize (sz : wsize) :=
   (wsize_size_minus_1 sz).+1.
 
-Definition wsize_bits (s:wsize) : Z :=
-  Zpos (Pos.of_succ_nat (wsize_size_minus_1 s)).
+Definition wsize_bits (sz: wsize) : Z :=
+  Zpos match sz return positive with
+  | U8   => 8
+  | U16  => 16
+  | U32  => 32
+  | U64  => 64
+  | U128 => 128
+  | U256 => 256
+  end.
+
+Lemma wsize_bitsE s :
+  wsize_bits s = Zpos (Pos.of_succ_nat (wsize_size_minus_1 s)).
+Proof. by case: s. Qed.
 
 Definition wsize_log2 sz : nat :=
   match sz with
@@ -117,7 +128,7 @@ Lemma log2_wsize_bits sz x :
   Z.log2 x < wsize_bits sz.
 Proof.
   case => /Z.le_lteq[]; last by move => <-; clear; case: sz.
-  by move => h0; rewrite -Z.log2_lt_pow2 // -wbaseE.
+  by move => h0; rewrite -Z.log2_lt_pow2 // wsize_bitsE -wbaseE.
 Qed.
 
 Lemma wsize_size_pos sz :
@@ -469,7 +480,7 @@ Definition high_bits sz (n : Z) : word sz :=
 
 Lemma high_bits_wbase sz n :
   high_bits sz n = wrepr sz (n / wbase sz).
-Proof. by rewrite /high_bits Z.shiftr_div_pow2 // -wbaseE. Qed.
+Proof. by rewrite /high_bits Z.shiftr_div_pow2 // wsize_bitsE -wbaseE. Qed.
 
 Definition wmulhu sz (x y: word sz) : word sz :=
   high_bits sz (wunsigned x * wunsigned y).
@@ -901,7 +912,7 @@ Proof. by rewrite /wshr Z.shiftr_0_r ureprK. Qed.
 Lemma wshr_full sz (w : word sz) : wshr w (wsize_bits sz) = 0%R.
 Proof.
   apply/eqP; rewrite word_eqE; apply/eqP.
-  rewrite /wsize_bits Zpos_P_of_succ_nat -Nat2Z.inj_succ.
+  rewrite wsize_bitsE Zpos_P_of_succ_nat -Nat2Z.inj_succ.
   rewrite -!/(wunsigned _) wunsigned_wshr wunsigned0.
   rewrite -two_power_nat_equiv.
   exact: Z.div_small (wunsigned_range w).
@@ -915,7 +926,7 @@ Proof.
   apply/eqP/eq_from_wbit_n.
   move=> i.
   rewrite wshlE; last by [].
-  rewrite /wsize_bits /=.
+  rewrite wsize_bitsE /=.
   rewrite SuccNat2Pos.id_succ.
   case hi: (_ <= _ <= _)%N; last by rewrite w0E.
   by move: hi => /andP [] /ltn_geF ->.
