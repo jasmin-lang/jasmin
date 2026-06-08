@@ -406,6 +406,13 @@ let fresh_var_ident =
     | x -> x
     | exception Not_found ->
         let ty = ty_of_cty st in
-        let x = V.mk n r ty i_loc.L.base_loc [] in
+        let v_annot =
+          (* When generating an mmx variable, we add the #[mmx] annotation
+             for the sake of clarity when printing programs *)
+          match r with
+          | Wsize.Reg (Extra, _) -> [(L.mk_loc L._dummy "mmx", None)]
+          | _ -> []
+        in
+        let x = V.mk n r ty i_loc.L.base_loc v_annot in
         Hashtbl.add memo k x;
         x
