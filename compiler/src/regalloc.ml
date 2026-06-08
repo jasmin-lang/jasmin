@@ -717,37 +717,32 @@ module Regalloc (Arch : Arch_full.Arch)
       in
       allocate_one nv vars loc cnf x i y a
     in
-    let mallocate_one x y a =
-      match x with Pvar x when is_gkvar x -> allocate_one x.gv y a | _ -> ()
+    let var_of_expr e =
+      match e with Pvar x when is_gkvar x -> Some x.gv | _ -> None
+    in
+    let var_of_lval lv =
+      match lv with Lvar w -> Some w | _ -> None
+    in
+    let force_constraint get_var cnf ad arg =
+      let xarg = get_var arg in
+      let add = conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp in
+      match ad with
+      | ADImplicit v
+      | ADExplicit (_, ACR_exact v) ->
+        Option.may (fun x -> allocate_one x (Conv.var_of_cvar v) a) xarg;
+        cnf
+      | ADExplicit (_, ACR_any) -> cnf
+      | ADExplicit (_, ACR_subset rs) ->
+        match xarg with
+        | Some x ->
+          List.rev_map Conv.var_of_cvar rs |>
+          List.fold_left (fun cnf r -> add vars tr Lnone (L.unloc x) r cnf) cnf
+        | None -> cnf
     in
     let id = get_instr_desc Arch.pointer_data Arch.reg_size Arch.asmOp op in
-    List.iter2 (fun ad lv ->
-        match ad with
-        | ADImplicit v ->
-           begin match lv with
-           | Lvar w -> allocate_one w (Conv.var_of_cvar v) a
-           | _ -> assert false
-           end
-        | ADExplicit _ -> ()) id.i_out lvs;
-    let cnf =
-      List.fold_left2 (fun cnf ad e ->
-          match ad with
-          | ADImplicit v
-          | ADExplicit (_, ACR_exact v) ->
-            mallocate_one e (Conv.var_of_cvar v) a;
-            cnf
-          | ADExplicit (_, (ACR_any)) -> cnf
-          | ADExplicit (_, ACR_subset rs) ->
-             let rs = List.rev_map Conv.var_of_cvar rs in
-              match e with
-              | Pvar x ->
-                  List.fold_left (fun cnf r ->
-                      conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp vars tr Lnone (L.unloc x.gv) r cnf
-                  ) cnf rs
-              | _ -> cnf
-          ) cnf id.i_in es
-          in
-          cnf
+    let cnf = List.fold_left2 (force_constraint var_of_lval) cnf id.i_out lvs in
+    let cnf = List.fold_left2 (force_constraint var_of_expr) cnf id.i_in es in
+    cnf
 
 
 let stable_call_conv = "stable_call_conv"
