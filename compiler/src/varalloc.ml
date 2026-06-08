@@ -410,8 +410,7 @@ let alloc_stack_fd callstyle pd get_info gtbl fd =
 
   let getfun fn = (get_info fn).sao_params in
   let ctbl, sao_calls =
-    try classes_alignment getfun gtbl alias fd.f_body
-    with HiError e -> raise (HiError { e with err_funname = Some fd.f_name.fn_name })
+    classes_alignment getfun gtbl alias fd.f_body
   in
   let sao_return = get_returned_params ~funname:fd.f_name.fn_name alias fd.f_args fd.f_ret in
 
@@ -503,8 +502,10 @@ let alloc_stack_prog callstyle pd (globs, fds) =
   let get_info fn = Hf.find ftbl fn in
   let set_info fn sao = Hf.add ftbl fn sao in
   let doit fd =
-    let sao = alloc_stack_fd callstyle pd get_info gtbl fd in
-    set_info fd.f_name sao in
+    try
+      let sao = alloc_stack_fd callstyle pd get_info gtbl fd in
+      set_info fd.f_name sao
+    with HiError e -> raise (HiError { e with err_funname = Some fd.f_name.fn_name }) in
   List.iter doit (List.rev fds);
   let gao =  alloc_mem (Hv.map (fun _ x -> x.ac_heuristic) gtbl) globs in
   gao, ftbl
