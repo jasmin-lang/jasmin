@@ -1043,9 +1043,11 @@ stack allocation: do not know how to compile this array access into a memory acc
 
 fail/stack_allocation/x86-64/bad_alignment.jazz:
 
-"fail/stack_allocation/x86-64/bad_alignment.jazz", line 5 (2-3):
+"fail/stack_allocation/x86-64/bad_alignment.jazz", line 7 (8-9):
 compilation error in function f:
-stack allocation: bad alignment for var a: 32 (expected: 64)
+stack allocation: the access to array b (aligned on 32) could not be proved to be aligned on 64;
+                  if you know what you are doing or want to perform an unaligned access,
+                  you can use “#unaligned”
 
 fail/stack_allocation/x86-64/bad_range_alignment.jazz:
 
@@ -1283,7 +1285,7 @@ fail/stack_allocation/x86-64/unaligned_sub_offset.jazz:
 
 "fail/stack_allocation/x86-64/unaligned_sub_offset.jazz", line 9 (8-9):
 compilation error in function main:
-stack allocation: the access to array r could not be proved to be aligned;
+stack allocation: the access to array r (aligned on 32) could not be proved to be aligned on 64;
                   if you know what you are doing or want to perform an unaligned access,
                   you can use “#unaligned”
 
@@ -1291,7 +1293,7 @@ fail/stack_allocation/x86-64/unaligned_sub_offset_unscaled.jazz:
 
 "fail/stack_allocation/x86-64/unaligned_sub_offset_unscaled.jazz", line 8 (8-9):
 compilation error in function main:
-stack allocation: the access to array r could not be proved to be aligned;
+stack allocation: the access to array r (aligned on 8) could not be proved to be aligned on 64;
                   if you know what you are doing or want to perform an unaligned access,
                   you can use “#unaligned”
 
@@ -1330,14 +1332,7 @@ fail/subarrays/x86-64/unscaled_access.jazz:
 
 "fail/subarrays/x86-64/unscaled_access.jazz", line 14 (2-4):
 compilation error in function main:
-stack allocation: the assignment to array s2 cannot be turned into a nop
-source
-  { region = { slot = s; align = u32; writable = true };
-    zone = [0:40][1 * (uint) i:20] }
-and destination
-  { region = { slot = s; align = u32; writable = true };
-    zone = [0:20] }
-regions are not equal
+stack allocation: cannot allocate in the stack the variable “s2” to “s” with non constant start index
 
 fail/subarrays/x86-64/write_and_read_fails.jazz:
 
