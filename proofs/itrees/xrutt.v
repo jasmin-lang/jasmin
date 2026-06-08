@@ -40,10 +40,10 @@ Local Open Scope monad_scope.
 
 (** Auxiliary notation *)
 
-Notation IsCut EE e := (EE e = true).
-Notation IsNoCut EE e := (EE e = false).
-Notation IsCut_ EE A e := (EE A e = true).
-Notation IsNoCut_ EE A e := (EE A e = false).
+Notation IsCut EE e := (EE e = true) (only parsing).
+Notation IsNoCut EE e := (EE e = false) (only parsing).
+Notation IsCut_ EE A e := (EE A e = true) (only parsing).
+Notation IsNoCut_ EE A e := (EE A e = false) (only parsing).
 
 Notation DoCutoffF EE t :=
  (exists T (e: _ T) k, IsCut EE e /\ t = VisF e k).
