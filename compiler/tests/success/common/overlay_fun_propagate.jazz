@@ -1,0 +1,20 @@
+inline fn overlay_f () -> stack u32[1] {
+  stack u32[1] s;
+  reg u32 z = 0;
+  s[0] = z;
+  return s;
+}
+
+#[stacksize = 20]
+export fn overlay () -> reg u32 {
+  #[overlay = myoverlay] stack u32[5] s2;
+  #[overlay = myoverlay] stack u32[1] s;
+  reg u32 i z;
+  z = 0;
+  s = overlay_f();
+  i = s[0];
+  s2[0] = z; s2[4] = z;
+  z = s2[0];
+  i += z;
+  return i;
+}

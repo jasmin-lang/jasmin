@@ -308,9 +308,44 @@ and analyze_instr params cc a { i_loc ; i_desc } =
 and analyze_stmt params cc a s =
   List.fold_left (analyze_instr params cc) a s
 
+let is_stack_direct k = k = Stack Direct
+
+let has_overlay annot =
+  Annot.ensure_uniq1
+    "overlay"
+    (Annot.on_attribute ~on_id:(fun _ _ s -> s) ~on_string:(fun _ _ s -> s)
+       (fun loc id -> Annot. error ~loc "attribute for “%s” should be a string" id))
+    annot
+
+let merge_overlay params fd =
+  let vars = vars_c fd.f_body in
+  let process x m =
+    if is_stack_direct x.v_kind then
+      match has_overlay x.v_annot with
+      | Some s -> Ms.modify_def Sv.empty s (Sv.add x) m
+      | None -> m
+    else m in
+  let m = Sv.fold process vars Ms.empty in
+  let a =
+    Ms.fold (fun s sv a ->
+      match Sv.pop sv with
+      | exception Not_found -> a
+      | (x, sv) ->
+          if Sv.is_empty sv then
+            warning Always (Location.i_loc0 x.v_dloc)
+              "“overlay = %s” is applied only to one variable (“%a”), this will have no effect. Is it a typo?"
+              s pp_var x;
+          Sv.fold (fun y a ->
+              let s1 = normalize_var a x in
+              let s2 = normalize_var a y in
+              merge_slices params a s1 s2) sv a) m Mv.empty in
+   a
+
 let analyze_fd cc fd =
   let params = Sv.of_list fd.f_args in
-  try analyze_stmt params cc Mv.empty fd.f_body |> normalize_map
+  try
+    let a = merge_overlay params fd in
+    analyze_stmt params cc a fd.f_body |> normalize_map
   with (HiError e) -> raise (HiError { e with err_funname = Some fd.f_name.fn_name })
 
 (* --------------------------------------------------- *)
