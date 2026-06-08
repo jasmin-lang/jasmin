@@ -152,15 +152,15 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
         set al c.in_var c.scope ws;
         if al == Aligned then
          match c.kind with
-         | Exact ->
-             if (fst c.range + i) land (size_of_ws ws - 1) <> 0 then
-            hierror ~loc:(Lone (L.loc x.gv)) "bad range alignment for %a[%d]: %a was allocated in slot %a, which conflicts with the required alignment (%s)"
-              (Printer.pp_var ~debug:false) x' i
-              (Printer.pp_var ~debug:false) x' Alias.pp_slice c (string_of_ws ws)
+         | Exact range ->
+            if (fst range + i) land (size_of_ws ws - 1) <> 0 then
+              hierror ~loc:(Lone (L.loc x.gv)) "bad range alignment for %a[%d]: %a was allocated in slot %a, which conflicts with the required alignment (%s)"
+                (Printer.pp_var ~debug:false) x' i
+                (Printer.pp_var ~debug:false) x' Alias.pp_slice c (string_of_ws ws)
          | Sub ws' ->
-             if not (wsize_le ws ws') then
-               hierror ~loc:(Lone (L.loc x.gv)) "bad alignment for var %a: %a (expected: %a)"
-                 (Printer.pp_var ~debug:false) x' PrintCommon.pp_wsize ws' PrintCommon.pp_wsize ws
+           if not (wsize_le ws ws') then
+             hierror ~loc:(Lone (L.loc x.gv)) "@[the access to array %a (aligned on %a) could not be proved to be aligned on %a;@ if you know what you are doing or want to perform an unaligned access,@ you can use “#unaligned”@]"
+               (Printer.pp_var ~debug:false) x' PrintCommon.pp_wsize ws' PrintCommon.pp_wsize ws
       end
     else set al x' E.Sglob ws in
 
@@ -239,15 +239,20 @@ let init_slots pd stack_pointers alias coloring fv =
     | Stack Direct ->
       if is_ty_arr v.v_ty then
         let c = Alias.normalize_var alias v in
+        let range =
+          match c.kind with
+          | Exact range -> range
+          | Sub _ ->
+              hierror ~loc:(Lone v.v_dloc) "cannot allocate in the stack the variable “%a” to “%a” with non constant start index"
+                    (Printer.pp_var ~debug:false) v
+                    (Printer.pp_var ~debug:false) c.in_var in
         if c.scope = E.Sglob then
-          (* TODO: do we need to check that we are exact and fail otherwise? *)
-          add_local v (Direct (c.in_var, r2i c.range, E.Sglob))
+          add_local v (Direct (c.in_var, r2i range, E.Sglob))
         else
           begin
             let slot = get_slot coloring c.in_var in
             add_slot slot;
-            (* TODO: do we need to check that we are exact and fail otherwise? *)
-            add_local v (Direct (slot, r2i c.range, E.Slocal))
+            add_local v (Direct (slot, r2i range, E.Slocal))
           end
       else begin match v.v_ty with
            | Bty (U ws) ->

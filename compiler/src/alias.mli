@@ -1,13 +1,13 @@
 open Prog
 
+type range = int * int
 type sub_slice_kind =
-  | Exact
+  | Exact of range
     (* the range is exact *)
   | Sub of Wsize.wsize
-    (* the precise offset is not known, we remember that it is a subpart
-       and its alignment *)
+    (* the precise offset is not known, we remember its alignment *)
 
-type slice = { in_var : var ; scope : E.v_scope ; range : int * int; kind : sub_slice_kind }
+type slice = { in_var : var ; scope : E.v_scope ; kind : sub_slice_kind }
 
 type alias = slice Mv.t
 
