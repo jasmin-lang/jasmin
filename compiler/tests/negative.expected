@@ -1002,19 +1002,19 @@ speculative execution lowering: Not able to prove that ! __zf__
 fail/stack_allocation/arm-m4/bug_1384.jazz:
 
 "fail/stack_allocation/arm-m4/bug_1384.jazz", line 3 (14-15):
-compilation error:
+compilation error in function spilled_int:
 stack allocation: cannot allocate in the stack the variable “x_spill” of type int
 
 fail/stack_allocation/arm-m4/bug_1384a.jazz:
 
 "fail/stack_allocation/arm-m4/bug_1384a.jazz", line 2 (12-17):
-compilation error:
+compilation error in function stack_int:
 stack allocation: cannot allocate in the stack the variable “x” of type int
 
 fail/stack_allocation/arm-m4/bug_1384b.jazz:
 
 "fail/stack_allocation/arm-m4/bug_1384b.jazz", line 3 (13-21):
-compilation error:
+compilation error in function stack_bool:
 stack allocation: cannot allocate in the stack the variable “b” of type bool
 
 fail/stack_allocation/arm-m4/cannot_compute_address.jazz:
