@@ -5,7 +5,7 @@ open Prog
 
 module G = IntervalGraphColoring
 
-let hierror = hierror ~kind:"compilation error" ~sub_kind:"variable allocation"
+let hierror = hierror ~kind:"compilation error" ~sub_kind:"stack allocation"
 
 type liverange = G.graph Mint.t
 
