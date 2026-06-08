@@ -1,0 +1,14 @@
+/* The stacksize of 20 ensure that s and s2 overlay else a size of 24 is needed */
+#[stacksize = 20]
+export fn overlay () -> reg u32 {
+  #[overlay = myoverlay] stack u32[1] s;
+  #[overlay = myoverlay] stack u32[5] s2;
+  reg u32 i z;
+  z = 0;
+  s[0] = z;
+  i = s[0];
+  s2[0] = z; s2[4] = z;
+  z = s2[0];
+  i += z;
+  return i;
+}

@@ -1,0 +1,13 @@
+export fn overlay_live () -> reg u32 {
+  #[overlay = o1] stack u32[2] t1;
+  #[overlay = o1] stack u32[1] t2;
+  t1[0] = 0;
+  t1[1] = 0;
+  t2[0] = 0;
+  reg u32 x y;
+  x = t2[0];
+  // Remark it would be nice if the the example work with `y = t1[1];`
+  y = t1[0];
+  x = x + y;
+  return x;
+}

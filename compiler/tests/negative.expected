@@ -538,6 +538,24 @@ fail/common/not-unrollable-for-loop.jazz:
 compilation error in function main:
 loop unrolling: for loops remain
 
+fail/common/overlay_live.jazz:
+
+"fail/common/overlay_live.jazz", line 10 (6-8):
+compilation error in function overlay_live:
+stack allocation: the region associated to variable t1 is partial
+
+fail/common/overlay_live.jazz:
+
+"fail/common/overlay_live.jazz", line 10 (6-8):
+compilation error in function overlay_live:
+stack allocation: the region associated to variable t1 is partial
+
+fail/common/overlay_live.jazz:
+
+"fail/common/overlay_live.jazz", line 10 (6-8):
+compilation error in function overlay_live:
+stack allocation: the region associated to variable t1 is partial
+
 fail/common/storage_signature_mismatch.jazz:
 
 "fail/common/storage_signature_mismatch.jazz", line 1 (0) to line 4 (1): In function “sum”, return statement variable “r” has storage type “reg”, which differs from declared return storage type “stack”
@@ -1575,4 +1593,4 @@ Statistics:
 	Pretyping:  48
 	Parsing:     4
 	Typing:      1
-	Compile:   194
+	Compile:   197
