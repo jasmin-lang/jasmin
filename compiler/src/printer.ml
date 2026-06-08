@@ -512,7 +512,7 @@ let pp_sprog ~debug pd msfsize asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sp
   let pp_opn = pp_opn pd msfsize asmOp in
   let pp_var = pp_var ~debug in
   let pp_f_extra fmt f_extra =
-    Format.fprintf fmt "(* @[<v>alignment = %s; argument alignment = [%a];@ stack size = %a + %a; max stack size = %a;@ max call depth = %a;@ saved register = @[%a@];@ saved stack = %a;@ return_addr = %a@] *)"
+    Format.fprintf fmt "/* @[<v>alignment = %s; argument alignment = [%a];@ stack size = %a + %a; max stack size = %a;@ max call depth = %a;@ saved register = @[%a@];@ saved stack = %a;@ return_addr = %a@] */"
       (string_of_ws f_extra.Expr.sf_align)
       (pp_list ", " pp_wsize) (f_extra.Expr.sf_align_args)
       Z.pp_print (Conv.z_of_cz f_extra.Expr.sf_stk_sz)
