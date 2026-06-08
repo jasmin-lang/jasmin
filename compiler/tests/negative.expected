@@ -1003,19 +1003,19 @@ fail/stack_allocation/arm-m4/bug_1384.jazz:
 
 "fail/stack_allocation/arm-m4/bug_1384.jazz", line 3 (14-15):
 compilation error:
-variable allocation: cannot allocate in the stack the variable “x_spill” of type int
+stack allocation: cannot allocate in the stack the variable “x_spill” of type int
 
 fail/stack_allocation/arm-m4/bug_1384a.jazz:
 
 "fail/stack_allocation/arm-m4/bug_1384a.jazz", line 2 (12-17):
 compilation error:
-variable allocation: cannot allocate in the stack the variable “x” of type int
+stack allocation: cannot allocate in the stack the variable “x” of type int
 
 fail/stack_allocation/arm-m4/bug_1384b.jazz:
 
 "fail/stack_allocation/arm-m4/bug_1384b.jazz", line 3 (13-21):
 compilation error:
-variable allocation: cannot allocate in the stack the variable “b” of type bool
+stack allocation: cannot allocate in the stack the variable “b” of type bool
 
 fail/stack_allocation/arm-m4/cannot_compute_address.jazz:
 
@@ -1045,13 +1045,13 @@ fail/stack_allocation/x86-64/bad_alignment.jazz:
 
 "fail/stack_allocation/x86-64/bad_alignment.jazz", line 5 (2-3):
 compilation error in function f:
-variable allocation: bad alignment for var a: 32 (expected: 64)
+stack allocation: bad alignment for var a: 32 (expected: 64)
 
 fail/stack_allocation/x86-64/bad_range_alignment.jazz:
 
 "fail/stack_allocation/x86-64/bad_range_alignment.jazz", line 5 (2-3):
 compilation error in function f:
-variable allocation: bad range alignment for a[0]: a was allocated in slot b[4; 20[, which conflicts with the required alignment (u64)
+stack allocation: bad range alignment for a[0]: a was allocated in slot b[4; 20[, which conflicts with the required alignment (u64)
 
 fail/stack_allocation/x86-64/bug_54.jazz:
 
@@ -1069,7 +1069,7 @@ fail/stack_allocation/x86-64/local_stack_to_pointer.jazz:
 
 "fail/stack_allocation/x86-64/local_stack_to_pointer.jazz", line 1 (0) to line 6 (1):
 compilation error in function f:
-variable allocation: cannot put a reg ptr argument into the local stack
+stack allocation: cannot put a reg ptr argument into the local stack
 
 fail/stack_allocation/x86-64/merge_global_param.jazz:
 
@@ -1202,7 +1202,7 @@ fail/stack_allocation/x86-64/pointer_to_local_stack.jazz:
 
 "fail/stack_allocation/x86-64/pointer_to_local_stack.jazz", line 1 (0) to line 8 (1):
 compilation error in function bad:
-variable allocation: cannot put a reg ptr argument into the local stack
+stack allocation: cannot put a reg ptr argument into the local stack
 
 fail/stack_allocation/x86-64/protect_ptr_arg.jazz:
 
@@ -1259,19 +1259,19 @@ fail/stack_allocation/x86-64/return_ptr_global.jazz:
 
 "fail/stack_allocation/x86-64/return_ptr_global.jazz", line 5 (9-10):
 compilation error in function main:
-variable allocation: returned variable p points to a region that should not escape the local scope: #g:g[0; 4[
+stack allocation: returned variable p points to a region that should not escape the local scope: #g:g[0; 4[
 
 fail/stack_allocation/x86-64/return_ptr_local.jazz:
 
 "fail/stack_allocation/x86-64/return_ptr_local.jazz", line 5 (9-10):
 compilation error in function main:
-variable allocation: returned variable r points to a region that should not escape the local scope: s[0; 4[
+stack allocation: returned variable r points to a region that should not escape the local scope: s[0; 4[
 
 fail/stack_allocation/x86-64/return_subslice.jazz:
 
 "fail/stack_allocation/x86-64/return_subslice.jazz", line 3 (9-10):
 compilation error in function sub:
-variable allocation: returned variable r points to a strict sub-slice of a parameter: p[0; 1[
+stack allocation: returned variable r points to a strict sub-slice of a parameter: p[0; 1[
 
 fail/stack_allocation/x86-64/stack_ptr_in_expr.jazz:
 
