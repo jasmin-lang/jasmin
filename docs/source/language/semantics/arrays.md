@@ -41,7 +41,7 @@ Consider for instance the following snippet:
 
     stack u64[4] a;
     a[3] = 1;
-    
+
 The second line accesses the 64 bits in memory at offset 3 × 8 after the beginning of the array `a`.
 Indeed, according to the declared type of the array, each element is 8 bytes wide, therefore the fourth elements starts at offset 24.
 If the index is statically known, scaling is computed at compile-time.
@@ -49,7 +49,7 @@ If the index is statically known, scaling is computed at compile-time.
 The Jasmin language allows to disable the implicit scaling through the following syntax for direct access (i.e., not scaled):
 
     a.[24] = 1;
-    
+
 Notice the dot before the opening square bracket.
 
 This feature is specially useful when the instruction set does not provide the addressing mode with appropriate scaling.
@@ -104,3 +104,105 @@ sp = r;   // the address is copied in the stack, the register can be used for ot
 r = sp;   // the address is put back into a register
 ...       // r can be used again
 ```
+
+## Sharing Stack Space
+
+The Jasmin compiler automatically tries to reduce stack usage by sharing stack arrays of the same size when they do not overlap in their lifetimes.
+
+For example:
+
+```
+#[stacksize = 20]
+export fn test() -> reg u32 {
+  stack u32[5] t1;
+  stack u32[5] t2;
+  inline int i;
+
+  for i = 0 to 5 {
+    t1[i] = i;
+  }
+
+  reg u32 s = 0;
+
+  for i = 0 to 5 {
+    s += t1[i];
+  }
+
+  for i = 0 to 5 {
+    t2[i] = i;
+  }
+
+  for i = 0 to 5 {
+    s += t2[i];
+  }
+
+  return s;
+}
+```
+
+Here, the arrays `t1` and `t2` are not live at the same time, so they can share the same stack location (i.e., they are merged).
+
+The annotation `#[stacksize = 20]` ensures that the stack size of the function `test` does not exceed 20 bytes (`5 × 4` bytes). If the arrays were not merged, 40 bytes of stack space would be required.
+
+### Overlay
+
+The compiler only shares memory regions of the same size. To share memory regions of different sizes (similarly to using a `union` type in C), you can use the `overlay` annotation on stack variables:
+
+```
+#[stacksize = 20]
+export fn overlay() -> reg u32 {
+  #[overlay = myoverlay] stack u32[1] s;
+  #[overlay = myoverlay] stack u32[5] s2;
+
+  reg u32 i;
+
+  s[0] = 0;
+  i = s[0];
+
+  s2[0] = 0;
+  s2[4] = 0;
+
+  i += s2[0];
+
+  return i;
+}
+```
+
+In this example, all stack variables that share the same `overlay` identifier (here, `myoverlay`) are allocated in the same stack region.
+
+The stack space required for this function is 20 bytes (`5 × 4`). Without the overlay, 24 bytes would be required.
+
+Naturally, you can define and use multiple overlays if needed.
+
+The `overlay` annotation is compatible with function inlining, as shown below:
+
+```
+inline fn overlay_f() -> reg u32 {
+  #[overlay = myoverlay] stack u32[1] s;
+
+  reg u32 i;
+
+  s[0] = 0;
+  i = s[0];
+
+  return i;
+}
+
+#[stacksize = 20]
+export fn overlay() -> reg u32 {
+  #[overlay = myoverlay] stack u32[5] s2;
+
+  reg u32 i;
+
+  i = overlay_f();
+
+  s2[0] = 0;
+  s2[4] = 0;
+
+  i += s2[0];
+
+  return i;
+}
+```
+
+In this example, the stack variable `s` from the inlined function `overlay_f` and the stack variable `s2` from `overlay` share the same overlay region and therefore the same stack allocation.
