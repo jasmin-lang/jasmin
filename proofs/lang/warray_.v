@@ -526,12 +526,12 @@ Module WArray.
   Proof. by rewrite /set_sub; case: ifP => //; rewrite !zify. Qed.
 
   Transparent arr_size. Opaque Z.mul ziota.
-  Lemma set_sub_get lena ws len (t: array lena) i (s: array (Z.to_pos (arr_size ws len))) t':
+  Lemma set_sub_get lena ws len (t: array lena) i (s: array (Z.to_pos (arr_size ws len))) t' al :
     set_sub AAscale t i s = ok t' ->
     forall j,
-    get Aligned AAscale ws t' j =
-      if ((i <=? j) && (j <? i + len))%Z then get Aligned AAscale ws s (j - i)%Z
-      else get Aligned AAscale ws t j.
+    get al AAscale ws t' j =
+      if ((i <=? j) && (j <? i + len))%Z then get al AAscale ws s (j - i)%Z
+      else get al AAscale ws t j.
   Proof.
     move=> hget j.
     have ht':= set_sub_get8 hget.
@@ -542,17 +542,19 @@ Module WArray.
     case: ifPn.
     + move=> /andP[]/ZleP ? /ZltP ?.
       have -> // :
-        mapM (λ k : Z, read t' Aligned (add ( j      * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)) =
-        mapM (λ k : Z, read s  Aligned (add ((j - i) * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)).
+        mapM (λ k : Z, read t' al (add ( j      * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)) =
+        mapM (λ k : Z, read s  al (add ((j - i) * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)).
       apply eq_mapM => k; rewrite in_ziota => /andP []/ZleP ? /ZltP ?.
+      rewrite !(read8_alignment Aligned _ al).
       rewrite ht' /= !WArray.addE.
       case: ifPn => [ _ | /negP]; first by f_equal; ring.
       elim; apply/andP; split; [apply/ZleP|apply/ZltP; rewrite /arr_size]; nia.
     move=> /negP hij.
     have -> // :
-        mapM (λ k : Z, read t' Aligned (add (j * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)) =
-        mapM (λ k : Z, read t  Aligned (add (j * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)).
+        mapM (λ k : Z, read t' al (add (j * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)) =
+        mapM (λ k : Z, read t  al (add (j * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)).
     apply eq_mapM => k; rewrite in_ziota => /andP []/ZleP ? /ZltP ?.
+    rewrite !(read8_alignment Aligned _ al).
     rewrite ht' /= !WArray.addE /arr_size.
     case: ifPn => // /andP [] /ZleP ? /ZltP ?; elim hij.
     apply/andP; split; [apply/ZleP|apply/ZltP]; nia.
