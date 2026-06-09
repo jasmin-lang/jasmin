@@ -132,6 +132,7 @@ and   pvar_i = pexpr_ gvar_i
 and   plval  = pexpr_ glval
 and   plvals = pexpr_ glvals
 and   pexpr  = pexpr_ gexpr
+and   pexprs = pexpr_ gexpr list
 and   pexpr_ = PE of pexpr [@@unboxed]
 
 type epty   = pexpr_ gety
@@ -165,9 +166,11 @@ val is_gkvar : 'len ggvar -> bool
 
 module Mpv : Map.S  with type key = pvar
 module Spv : Set.S  with type elt = pvar
+module Hpv : Hash.S with type key = pvar
 
 val pty_equal : pty -> pty -> bool
 val pexpr_equal : pexpr -> pexpr -> bool
+val pexpr__equal : pexpr_ -> pexpr_ -> bool
 
 val epty_equal : epty -> epty -> bool
 
@@ -242,6 +245,7 @@ val vars_c  : ('info, 'asm) stmt  -> Sv.t
 val pvars_c : ('info, 'asm) pstmt  -> Spv.t
 val vars_fc : ('info, 'asm) func  -> Sv.t
 val vars_fc_contract : ('info, 'asm) func  -> Sv.t
+val pvars_fc : ('info, 'asm) pfunc  -> Spv.t
 
 val rvars_e : ('a gvar -> 'b -> 'b) -> 'b -> 'a gexpr -> 'b
 val rvars_es : ('a gvar -> 'b -> 'b) -> 'b -> 'a gexprs -> 'b
@@ -252,6 +256,7 @@ val rvars_a : ('a gvar -> 'b -> 'b) -> 'b -> 'a gassert -> 'b
 val rvars_as : ('a gvar -> 'b -> 'b) -> 'b -> 'a assertion list -> 'b
 
 val locals  : ('info, 'asm) func -> Sv.t
+val plocals  : ('info, 'asm) pfunc -> Spv.t
 
 val spilled :  ('info, 'asm) func -> Sv.t
 

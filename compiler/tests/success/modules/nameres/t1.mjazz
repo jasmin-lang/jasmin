@@ -12,7 +12,6 @@ module M2
      return a;
    }
 }
-
 module A2 = M2(n);
 module A4 = M1(2*n);
 module B4 = M2(4);

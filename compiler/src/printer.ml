@@ -413,7 +413,7 @@ let pp_gmarg pp_size fmt (arg: ('len,'info, 'asm) modulearg) =
   | MaParam pa ->
     F.fprintf fmt "%a" pp_size pa
   | MaGlob pa ->
-    F.fprintf fmt "%a" pp_size pa
+    F.fprintf fmt "%s"  pa.pl_desc.v_name
   | MaFun pa ->
     F.fprintf fmt "%s" pa.f_name.fn_name
 

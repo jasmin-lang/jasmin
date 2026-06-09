@@ -3,28 +3,40 @@ open Cmdliner
 open CommonCLI
 open Utils
 
-let extract_to_file prog mprog arch pd msfsz asmOp model amodel fnames array_dir outfile mjazz =
+let extract_to_file _ mprog arch pd msfsz asmOp model amodel fnames array_dir outfile _ mfile_ec =
   let array_dir =
     if array_dir = None then Option.map Filename.dirname outfile else array_dir
   in
+  let array_dir = 
+    if array_dir = None then mfile_ec else array_dir
+  in
+  let mprog = Subst.remove_params_modular mprog in
   let fmt, close =
-    match outfile with
-    | None -> (Format.std_formatter, fun () -> ())
-    | Some f ->
-        let out = open_out f in
-        let fmt = Format.formatter_of_out_channel out in
-        (fmt, fun () -> close_out out)
+    if mfile_ec!=None then
+      let folder_name = Option.get mfile_ec in
+      List.fold_left ( fun (fmts,c) m ->
+          let out = open_out (folder_name ^ "/" ^m.Mprog.name ^".ec") in
+          let fmt = Format.formatter_of_out_channel out in
+          fmts @ [fmt], c @ [(fun () -> close_out out)]
+      ) ([],[]) mprog
+      
+    else
+      match outfile with
+      | None -> ([Format.std_formatter], [fun () -> ()])
+      | Some f ->
+          let out = open_out f in
+          let fmt = Format.formatter_of_out_channel out in
+          [fmt], [fun () -> close_out out]
   in
   try
     BatPervasives.finally
-      (fun () -> close ())
+      (fun () -> List.iter (fun c -> c() ) close)
       (fun () ->
-        if mjazz then
-          let mprog = Subst.remove_params_modular mprog in
-          ToEC.extract_modular mprog arch pd msfsz asmOp model amodel fnames
+        (* if mjazz then *)
+          ToEC_pexpr.extract_modular mprog arch pd msfsz asmOp model amodel fnames
             array_dir fmt
-        else
-          ToEC.extract prog arch pd msfsz asmOp model amodel fnames array_dir fmt
+        (* else
+          ToEC_pexpr.extract prog arch pd msfsz asmOp model amodel fnames array_dir fmt *)
       )
       ()
   with e ->
@@ -36,15 +48,15 @@ let extract_to_file prog mprog arch pd msfsz asmOp model amodel fnames array_dir
 let parse_and_extract arch call_conv idirs =
   let module A = (val CoreArchFactory.get_arch_module arch call_conv) in
 
-  let extract model amodel functions array_dir output pass file modular_jazz =
+  let extract model amodel functions array_dir output pass file modular_jazz mfile_ec =
     if modular_jazz then Glob_options.modular_jazz := true;
     let prog, mprog = parse_and_compile (module A) ~wi2i:true pass file idirs in
     extract_to_file prog mprog arch A.reg_size A.msf_size A.asmOp model amodel functions
-        array_dir output modular_jazz
+        array_dir output modular_jazz mfile_ec
   in
-  fun model amodel functions array_dir output pass file warn modular_jazz ->
+  fun model amodel functions array_dir output pass file warn modular_jazz mfile_ec ->
     if not warn then nowarning ();
-    match extract model amodel functions array_dir output pass file modular_jazz with
+    match extract model amodel functions array_dir output pass file modular_jazz mfile_ec with
     | () -> ()
     | exception HiError e ->
         Format.eprintf "%a@." pp_hierror e;
@@ -67,7 +79,7 @@ let model =
 
 let array_model =
   let alts =
-    [ ("old", ToEC.ArrayOld); ("warray", ToEC.WArray); ("barray", ToEC.BArray) ]
+    [ ("old", ToEC_pexpr.ArrayOld); ("warray", ToEC_pexpr.WArray); ("barray", ToEC_pexpr.BArray) ]
   in
 
   let doc =
@@ -76,7 +88,7 @@ let array_model =
      $(b,barray): use byte arrays (functions predefined in eclib).
      (Deprecated) $(b,old): old representation for array operations (anonymous functions instead of eclib functions)."
   in
-  Arg.(value & opt (Arg.enum alts) ToEC.BArray & info [ "array-model" ] ~doc)
+  Arg.(value & opt (Arg.enum alts) ToEC_pexpr.BArray & info [ "array-model" ] ~doc)
 
 let functions =
   let doc =
@@ -112,6 +124,14 @@ let modular_jazz =
   let doc = "Indicates that the input Jasmin file is in modular Jazz format." in
   Arg.(value & flag & info [ "mjazz" ] ~doc)
 
+let multifile_extraction =
+  let doc = "For each Jazz file generate a EC file with the same name (experimental)." in
+  Arg.(
+    value
+    & opt (some dir) None
+    & info [ "mfile_ec" ] ~doc)
+
+
 let () =
   let doc = "Extract Jasmin program to easycrypt" in
   let man =
@@ -128,5 +148,5 @@ let () =
   Cmd.v info
     Term.(
       const parse_and_extract $ arch $ call_conv $ idirs $ model $ array_model 
-      $ functions $ array_dir $ output $ after_pass $ file $ warn $ modular_jazz)
+      $ functions $ array_dir $ output $ after_pass $ file $ warn $ modular_jazz $ multifile_extraction)
     |> Cmd.eval |> exit

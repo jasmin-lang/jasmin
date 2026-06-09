@@ -8,6 +8,8 @@ module M1
   fn f(reg ptr u64[n] a) -> reg ptr u64[n]
   { return a; }
 
+fn ff(reg ptr u64[n*2] a) -> reg ptr u64[n*2]
+  { return a; }
 }
 
 module M2
@@ -16,11 +18,14 @@ module M2
 {
    module B = M1(2*c);
    fn ff(reg ptr u64[2*c] a) -> reg ptr u64[2*c] {
+     reg u32[2*c*2] b;
      a = B::f(a);
+     b[0] = (32u) a[1];
      return a;
    }
 }
 
 module A2 = M2(n);
-module A4 = M1(2*n);
 module B4 = M2(4);
+
+module A4 = M1(2*n);

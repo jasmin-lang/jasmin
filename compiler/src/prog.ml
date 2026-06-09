@@ -177,6 +177,7 @@ and   pvar_i = pexpr_ gvar_i
 and   plval  = pexpr_ glval
 and   plvals = pexpr_ glvals
 and   pexpr  = pexpr_ gexpr
+and   pexprs = pexpr_ gexpr list
 and   pexpr_ = PE of pexpr [@@unboxed]
 
 
@@ -202,6 +203,8 @@ end
 
 module Mpv : Map.S with type key = pvar = Map.Make (PV)
 module Spv = Set.Make  (PV)
+module Hpv = Hash.Make (PV)
+
 
 (* ------------------------------------------------------------------------ *)
 
@@ -358,6 +361,20 @@ let locals fc =
   let s1 = params fc in
   let s2 = Sv.diff (vars_fc fc) s1 in
   Sv.filter V.is_local s2
+
+let pparams fc =
+  List.fold_left (fun s v -> Spv.add v s) Spv.empty fc.f_args
+
+let pvars_fc fc =
+  let s = pparams fc in
+  let s = List.fold_left (fun s v -> Spv.add (L.unloc v) s) s fc.f_ret in
+  rvars_c Spv.add s fc.f_body
+
+let plocals fc =
+  let s1 = pparams fc in
+  let s2 = Spv.diff (pvars_fc fc) s1 in
+  Spv.filter PV.is_local s2
+
 
 let written_lv s =
   function

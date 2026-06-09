@@ -403,7 +403,12 @@ let get_param_decls subst =
 let get_args subst = 
   List.map (function
   | Mprog.MaParam e -> Mprog.MaParam (psubst_e (psubst_v !subst) e)
-  | MaGlob e -> MaGlob (psubst_e (psubst_v !subst) e)
+  | MaGlob v -> 
+    let v = {gs=E.Sglob; gv = v} in
+    begin match (psubst_v !subst) v with
+    | Pvar v' -> MaGlob v'.gv
+    | _ -> hierror ~loc:(L.loc v.gv) "expected a global variable as argument, but got an expression"
+    end
   | MaFun funname -> MaFun funname)
 
 let rec psubst_mprog prog subst =
@@ -412,7 +417,7 @@ let rec psubst_mprog prog subst =
    | Mprog.MdFunctor fd :: items -> 
     let params =  get_param_decls subst fd.functorparams in
     let globs,modules,funs =  psubst_mbody subst fd.functorbody in
-    {Mprog.name = fd.functorname; params; globs; modules; funs} :: psubst_mprog items subst
+    {Mprog.name = fd.functorname; requires =fd.functorimports; params; globs; modules; funs} :: psubst_mprog items subst
    | _ -> hierror "expecting module, incorrect syntax"
 
 and psubst_mbody subst mbody =
@@ -442,7 +447,7 @@ and psubst_mbody subst mbody =
      in 
   aux mbody
 
-  let isubst_v subst =
+let isubst_v subst =
     let aux v0 =
       let k = v0.gs in
       let v = v0.gv in
@@ -466,7 +471,7 @@ and psubst_mbody subst mbody =
       | _      -> e in
     aux 
 
-    let isubst_gv scope subst =
+    (* let isubst_gv scope subst =
     let aux gv0 =
       let e =
         try Mpv.find gv0 !subst
@@ -488,7 +493,7 @@ and psubst_mbody subst mbody =
         let x = {gv = x; gs = k} in
         Pvar x
       | _      -> e in
-    aux 
+    aux  *)
   let isubst_glob (x, gd) subst =
     let subst_v = isubst_v subst in
     let x =
@@ -502,7 +507,7 @@ and psubst_mbody subst mbody =
       | GEarray es -> GEarray (List.map (gsubst_e isubst_len subst_v) es) in
     x, gd 
   
-   let isubst_item subst fc =
+   (* let isubst_item subst fc =
     let subst_v = isubst_v subst in
     let dov v =
       L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
@@ -519,9 +524,9 @@ and psubst_mbody subst mbody =
         f_tyout = List.map isubst_ty fc.f_tyout;
         f_ret;
       } in
-    fc
+    fc *)
 
-let isubst_params subst = 
+(* let isubst_params subst = 
   function
   | Mprog.Param gv -> 
       let e = isubst_gv E.Sglob subst gv in
@@ -543,11 +548,16 @@ let isubst_params subst =
 let isubst_arg subst =
     function
     | Mprog.MaParam e -> Mprog.MaParam (gsubst_e isubst_len (isubst_v subst) e)
-    | MaGlob e ->  Mprog.MaGlob (gsubst_e isubst_len (isubst_v subst) e)
-    | MaFun f -> MaFun (isubst_item subst f)
+    | MaGlob v -> 
+      let v = {gs=E.Sglob; gv = v} in
+      begin match isubst_v subst v with
+      | Pvar v' -> MaGlob v'.gv
+      | _ -> hierror ~loc:(L.loc v.gv) "expected a global variable as argument, but got an expression"
+      end
+    | MaFun f -> MaFun (isubst_item subst f) *)
 
 
-let isubst_mprog : (pexpr_, 'info, 'asm) Mprog.module_summary list -> (int, 'info, 'asm) Mprog.module_summary list =
+let isubst_mprog : (pexpr_, pexpr_, 'info, 'asm) Mprog.module_summary list -> (pexpr_, int, 'info, 'asm) Mprog.module_summary list =
   fun mprog ->
   let subst : expr Mpv.t ref = ref Mpv.empty in
   let rec aux =
@@ -555,32 +565,24 @@ let isubst_mprog : (pexpr_, 'info, 'asm) Mprog.module_summary list -> (int, 'inf
     | [] -> []
     | minfo::ms ->
        let globs =  List.map (fun g -> isubst_glob g subst) minfo.Mprog.globs in
-       let params = List.map (isubst_params subst) minfo.params in
-       let funs = List.map (
-        function 
-        | Mprog.MsFun f -> Mprog.MsFun (isubst_item subst f)
-        | MsModApp mapp -> 
-          let ma_args = List.map (isubst_arg subst) mapp.Mprog.ma_args in
-          MsModApp {mapp with ma_args}
-        ) minfo.funs in 
        let modules = List.map (
         function
         | Mprog.MsMod m -> Mprog.MsMod (aux [m] |> List.hd)
-        | MsClone mapp -> 
-          let ma_args = List.map (isubst_arg subst) mapp.Mprog.ma_args in
-          MsClone {mapp with ma_args}
-       ) minfo.modules in
+        | MsClone mapp -> MsClone mapp
+        ) minfo.modules
+      in
        let ms = aux ms in
-       {minfo with globs; funs;params; modules} :: ms
+       {minfo with globs; funs = minfo.funs;params = minfo.params; modules} :: ms
         in 
   aux mprog
   
 
-let remove_params_modular : ('info, 'asm) Mprog.mpprog -> (int, 'info, 'asm) Mprog.module_summary list =
+
+let remove_params_modular : ('info, 'asm) Mprog.mpprog -> ('len, int, 'info, 'asm) Mprog.module_summary list =
   fun mprog ->
     let subst = ref (Mpv.empty : pexpr Mpv.t) in
     let mprog = psubst_mprog mprog subst in
-    isubst_mprog mprog 
+    isubst_mprog mprog
 
 let remove_params (prog : ('info, 'asm) pprog) =
   let globals, prog = psubst_prog prog in

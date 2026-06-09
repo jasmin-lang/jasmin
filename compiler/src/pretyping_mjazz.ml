@@ -2461,7 +2461,7 @@ let rec tt_instr arch_info (st : 'asm Env.store) ((pannot,pi) : S.pinstr) : 'asm
       let es  = tt_exprs_cast arch_info.pd st_rhs (L.loc pi) args tlvs.fs_tin in
       let is_inline =
         match fsig.f_pfunc with
-        | None -> false (* We'll update this later *)
+        | None -> true (* FIXME - update this later *)
         | Some f ->
           f.P.f_cc = FInfo.Internal
           || FInfo.is_export f.P.f_cc

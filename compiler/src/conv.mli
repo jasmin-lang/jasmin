@@ -31,6 +31,7 @@ val z_unsigned_of_word : wsize -> Word0.word -> Z.t
 (* -------------------------------------------------------------------- *)
 val cty_of_ty : Prog.ty -> Type.atype
 val ty_of_cty : Type.atype -> Prog.ty
+val pty_of_cty : Type.atype -> Prog.pty
 
 (* -------------------------------------------------------------------- *)
 val cvar_of_var : var -> Var0.Var.var
