@@ -2789,7 +2789,7 @@ struct
       end
     
 
-  let toec_mprog mprog env asmOp =
+  let toec_mprog mprog env asmOp imports =
       let add_glob_env m env (x, d) =
         add_glob_arrsz env (x, d);
         let x' = var_to_pvar x in
@@ -2825,7 +2825,7 @@ struct
           Iimport [lib_slh env];
       ] in
       let rec extract_module env m =
-           let imports = List.map (fun m -> IrequireImport [m]) m.Mprog.requires in
+           let imports = if imports then List.map (fun m -> IrequireImport [m]) m.Mprog.requires else [] in
            let get_param_name e p = match p with
             | Mprog.Param v
             | Glob v -> 
@@ -2995,11 +2995,11 @@ struct
 
   let pp_mprog mprog env asmOp fmt =
     if List.length fmt == 1 then
-      let _, ec_items = toec_mprog mprog env asmOp in
+      let _, ec_items = toec_mprog mprog env asmOp false in
       Format.fprintf (List.hd fmt) "%a@." pp_ec_prog ec_items
     else 
       let _, items = List.fold_left (fun (env,items) m ->
-        let env, i = toec_mprog [m] env asmOp in
+        let env, i = toec_mprog [m] env asmOp true in
         env, items @ [i]
       ) (env,[]) mprog in
       List.iter2 (fun fmt i -> Format.fprintf fmt "%a@." pp_ec_prog i) fmt items
