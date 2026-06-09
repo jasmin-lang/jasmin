@@ -28,6 +28,5 @@ module M2
 }
 
 module A2 = M2(n,y);
-module A3 = M2(n,(64u) 5);
+module A3 = M2(n,y);
 module A4 = M1(2*n);
-module A5 = M2(n,((64u) 5) + y);

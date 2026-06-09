@@ -43,6 +43,7 @@ fn inc(reg u64 x) -> reg u64 {
 }
 
 module A2 = M2(n,I::inc);
+module A4 = M2(4,I::inc);
 
 fn inc1(reg u64 i1) -> reg u64 {
   reg u64 i2;

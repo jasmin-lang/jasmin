@@ -42,6 +42,12 @@ let ty_of_cty = function
   | T.Coq_aword sz -> Bty (U sz)
   | T.Coq_aarr (sz, len) -> Arr (sz, int_of_cz len)
 
+let pty_of_cty = function
+  | T.Coq_abool  ->  Bty Bool
+  | T.Coq_aint   ->  Bty Int
+  | T.Coq_aword sz -> Bty (U sz)
+  | T.Coq_aarr (sz, len) -> Arr (sz, PE (Pconst (Z.of_int (int_of_cz len))))
+
 (* ------------------------------------------------------------------------ *)
 
 let cvar_of_var v =

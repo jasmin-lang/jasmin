@@ -2329,8 +2329,8 @@ struct
     
   let toec_modulearg env arg arg_name =
       match arg with
-      | Mprog.MaParam e 
-      | MaGlob e -> [(arg_name, toec_expr env e)]
+      | Mprog.MaParam e  -> [(arg_name, toec_expr env e)]
+      | MaGlob v -> [(arg_name, toec_expr env (Pvar{gs=E.Sglob; gv = v}))]
       | MaFun _ -> []
     
   let in_range s sz i =

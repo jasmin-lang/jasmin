@@ -4,7 +4,7 @@ type modulename = Name.t
 
 type ('len,'info, 'asm) modulearg =
   | MaParam of 'len gexpr
-  | MaGlob  of 'len gexpr
+  | MaGlob  of 'len gvar_i
   | MaFun   of ('len,'info, 'asm) gfunc
 
 type ('len,'info, 'asm) moduleargs = ('len,'info, 'asm) modulearg list
@@ -31,6 +31,7 @@ type 'len mparamdecls = 'len mparamdecl list
 type ('len,'info,'asm) functor_def =
   { functorname : modulename;
     functorparams : 'len mparamdecls;
+    functorimports: string list;
     functorbody: ('len,'info,'asm) gmodule_item list
   }
 
@@ -49,14 +50,15 @@ type ('len,'info,'asm) ms_funs =
   | MsFun of ('len,'info, 'asm) gfunc
   | MsModApp of ('len,'info, 'asm) module_app
 
-type ('len,'info,'asm) ms_modules =
-  | MsMod of ('len,'info, 'asm) module_summary
+type ('len,'len2, 'info,'asm) ms_modules =
+  | MsMod of ('len,'len2,'info, 'asm) module_summary
   | MsClone of ('len,'info, 'asm) module_app
 
-and ('len,'info, 'asm) module_summary = {
+and ('len,'len2,'info, 'asm) module_summary = {
   name : string;
+  requires: string list;
   params : 'len mparamdecl list;
-  globs : ('len gvar * 'len ggexpr) list;
-  modules: ('len,'info,'asm) ms_modules list;
+  globs : ('len2 gvar * 'len2 ggexpr) list;
+  modules: ('len,'len2, 'info,'asm) ms_modules list;
   funs : ('len, 'info, 'asm) ms_funs list;
 }
