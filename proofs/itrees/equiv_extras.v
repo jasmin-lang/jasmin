@@ -20,13 +20,114 @@ From ITree Require Import
 
 From mathcomp Require Import word_ssrZ ssreflect ssrfun ssrbool eqtype.
 
-Require Import rutt_extras xrutt xrutt_facts.
+Require Import rutt_extras xrutt xrutt_facts. 
 
 Import Monads.
 Import MonadNotation.
 Local Open Scope monad_scope.
 
-(* Lemmas about eutt, rutt and xrutt, mainly about weakening and
+(** basic lemmas about simple_rutt (equivalent to eutt) *)
+
+(*
+Definition simple_rutt E T1 T2 RR
+  (t1 : itree E T1) (t2 : itree E T2) : Prop := 
+  rutt (fun U1 U2 (e1: E U1) (e2: E U2) =>
+             exists h : U2 = U1, e1 = eq_rect U2 E e2 U1 h)
+       (fun U1 U2 (e1: E U1) (u1: U1) (e2: E U2) (u2: U2) => JMeq u1 u2)
+       RR t1 t2.
+
+Lemma rutt2eutt E T1 T2 RR 
+  (t1: itree E T1) (t2: itree E T2) :
+ @simple_rutt E T1 T2 RR t1 t2 -> eutt RR t1 t2.
+Proof.
+  revert t1 t2.
+  ginit; gcofix CIH.
+  unfold simple_rutt.
+  intros t1 t2 H.
+  rewrite (itree_eta t1).
+  rewrite (itree_eta t2).
+  punfold H; red in H; simpl in H.   
+  remember (observe t1) as ot1.
+  remember (observe t2) as ot2.
+  hinduction H before CIH.
+  
+  { intros t1 t2 H0 H1.
+    gstep; red; simpl.
+    econstructor; auto.
+  }
+  { intros t1 t2 H0 H1.
+    gstep; red; simpl; pclearbot.
+    econstructor; eauto.
+    gfinal; left.
+    eapply CIH; auto.
+  }
+  { intros t1 t2 H1 H2.
+    gstep; red; simpl.
+    destruct H as [ee HA].
+    dependent destruction ee.
+    simpl in HA. inv HA.  
+    econstructor.
+    intros v; unfold Datatypes.id; simpl.
+    gfinal; left; pclearbot.
+    eapply CIH; auto; simpl.
+    eapply H0; auto.
+  }
+  { intros t1' t2 H0 H1.
+    guclo eqit_clo_trans.
+    econstructor 1 with (RR1 := eq) (RR2:= eq); auto.
+    instantiate (1:= t1).
+    eapply eqit_Tau_l; reflexivity.
+    reflexivity.
+    setoid_rewrite (itree_eta t1).
+    pclearbot; eapply IHruttF; auto.
+    exact H1.
+    intros; inv H2; auto.
+    intros; inv H2; auto.
+  }
+  { intros t1 t2' H0 H1.
+    guclo eqit_clo_trans.
+    econstructor 1 with (RR1 := eq) (RR2:= eq); auto.
+    3: { eapply IHruttF; try reflexivity; eauto. }
+    { inv H0; simpl.
+      setoid_rewrite (itree_eta t1) at 2; reflexivity.
+    }  
+    { eapply eqit_Tau_l.
+      setoid_rewrite (itree_eta t2) at 1; reflexivity.
+    }  
+    { intros; inv H2; auto. }
+    { intros; inv H2; auto. }
+  }
+Qed.  
+
+Lemma simple_rutt_eutt_equiv E T1 T2 RR 
+  (t1: itree E T1) (t2: itree E T2) :
+ @simple_rutt E T1 T2 RR t1 t2 <-> eutt RR t1 t2.
+Proof.
+  split; intros.
+  - eapply rutt2eutt; eauto.
+  - eapply gen_eutt_rutt; eauto.
+    + intros; exists erefl; simpl; auto.
+    + intros T e a b H0. dependent destruction H0; auto.  
+Qed.
+*)
+
+Lemma gen_rutt2eutt E T1 T2 REv RAns RR 
+  (t1: itree E T1) (t2: itree E T2) 
+  (Hyp1: forall U1 U2 (e1: E U1) (e2: E U2),
+    REv U1 U2 e1 e2 ->
+    exists h : U2 = U1, e1 = eq_rect U2 E e2 U1 h)
+  (Hyp2: forall U1 U2  (e1: E U1) (u1: U1) (e2: E U2) (u2: U2),
+    REv U1 U2 e1 e2 ->
+    JMeq u1 u2 -> RAns U1 U2 e1 u1 e2 u2) :
+ rutt REv RAns RR t1 t2 -> eutt RR t1 t2.
+Proof.
+  intro H.
+  eapply rutt2eutt; auto.
+  eapply (rutt_weaken Hyp1 Hyp2); eauto.
+Qed.
+
+
+(** Lemmas about eutt, rutt and xrutt, mainly about weakening and
    strengthening the relations. *)
 
 (* weakening eqit to eutt. probably already proved somewhere *)
@@ -51,7 +152,9 @@ Proof.
   }  
 Qed.  
 
-Lemma eutt_interp_RR {E F X Y} (RR : X -> Y -> Prop) (H : Handler E F) t1 t2 :
+(* seemingly redundant, but used somewhere *)
+Lemma eutt_interp_RR {E F X Y} (RR : X -> Y -> Prop)
+  (H : Handler E F) t1 t2 :
   eutt RR t1 t2 ->
   eutt RR (interp H t1) (interp H t2).
 Proof.
@@ -253,11 +356,11 @@ Section IrrStrength.
   Context (EE2: forall X, E2 X -> bool).
 
   Context (REv REv0 : forall (A B : Type), E1 A -> E2 B -> Prop).
-  Context (RAns : forall (A B : Type), E1 A -> A -> E2 B -> B -> Prop).
+  Context (RAns RAns0 : forall (A B : Type), E1 A -> A -> E2 B -> B -> Prop).
   Context (RR : R1 -> R2 -> Prop).
 
 (* xrutt can be irrelevantly strengthened by weakening the REv just
-   for cutoffs; general version *)
+   for cutoffs *)
 Lemma xrutt_irr_strength_impl
     (H: forall T1 T2 (e1: E1 T1) (e2: E2 T2),
       REv0 e1 e2 -> REv e1 e2 \/ EE1 e1 \/ EE2 e2) t1 t2 :   
@@ -287,6 +390,46 @@ Proof.
   { econstructor; eauto. }
 Qed.  
 
+(* xrutt can be irrelevantly strengthened by weakening the REv just
+   for cutoffs, and by similarly strengthening the RAns; general
+   version *)
+Lemma xrutt_irr_strength_impl_gen
+  (H: forall T1 T2 (e1: E1 T1) (e2: E2 T2),
+      REv0 e1 e2 -> REv e1 e2 \/ EE1 e1 \/ EE2 e2)  
+  (H0: forall T1 T2 (e1: E1 T1) (e2: E2 T2) u1 u2,
+      RAns e1 u1 e2 u2 -> RAns0 e1 u1 e2 u2 \/ EE1 e1 \/ EE2 e2)
+   t1 t2 :
+  xrutt EE1 EE2 REv0 RAns0 RR t1 t2 ->
+  xrutt EE1 EE2 REv RAns RR t1 t2.
+Proof.
+  revert t1 t2.
+  pcofix CIH; intros t1 t2 H1.
+  pstep; red; punfold H1; red in H1.
+  hinduction H1 before CIH; pclearbot.
+  { econstructor; auto. }
+  { econstructor.
+    right; eapply CIH; eauto.
+  }
+  { specialize (H A B e1 e2).
+    eapply H in H3.
+    destruct H3 as [H3 | [H3 | H3]].
+    - econstructor; eauto. intros a b H5.
+      specialize (H0 A B e1 e2 a b).
+      eapply H0 in H5.
+      destruct H5 as [H5 | [H5 | H5]]; auto.
+      - right; eapply CIH; eauto.
+        eapply H4; eauto.
+      - destruct (EE1 e1); discriminate. 
+        destruct (EE2 e2); discriminate.
+    - destruct (EE1 e1); discriminate.
+    - destruct (EE2 e2); discriminate.
+  }
+  { eapply EqCutL; eauto. }
+  { eapply EqCutR; eauto. }
+  { econstructor; eauto. }
+  { econstructor; eauto. }
+Qed.  
+
 Lemma xrutt_irr_strength_equiv :
   (forall T1 T2 (e1: E1 T1) (e2: E2 T2),
       REv0 e1 e2 <-> REv e1 e2 \/ EE1 e1 \/ EE2 e2) ->   
@@ -305,6 +448,32 @@ Proof.
   - eapply xrutt_irr_strength_impl; eauto.
     eapply H.
 Qed.
+
+Lemma xrutt_irr_strength_equiv_gen :
+  (forall T1 T2 (e1: E1 T1) (e2: E2 T2),
+      REv0 e1 e2 <-> REv e1 e2 \/ EE1 e1 \/ EE2 e2) ->   
+  (forall T1 T2 (e1: E1 T1) (e2: E2 T2) u1 u2,
+      RAns e1 u1 e2 u2 <-> RAns0 e1 u1 e2 u2 \/ EE1 e1 \/ EE2 e2) ->
+  forall t1 t2, 
+  xrutt EE1 EE2 REv RAns RR t1 t2 <-> xrutt EE1 EE2 REv0 RAns0 RR t1 t2.
+Proof.
+  split; intros H1.
+  - eapply xrutt_weaken with (REv := REv) (REv' := REv0)
+                             (RAns := RAns) (RAns' := RAns0).
+    + intros A e1 H2; eexact H2.
+    + intros A e2 H2; eexact H2.
+    + intros T1 T2 e1 e2 H2.
+      eapply H; left; auto.
+    + intros T1 T2 e1 u1 e2 u2 H2 H3 H4 H5.
+      eapply H0; left; auto.
+    + intros; auto.
+    + intros; eauto.
+    + auto.
+  - eapply xrutt_irr_strength_impl_gen; eauto.
+    eapply H.
+    eapply H0.
+Qed.
+
 
 (* just for left cutoffs *)
 Lemma xrutt_left_irr_strength_impl
@@ -341,4 +510,152 @@ Proof.
 Qed.
 
 End IrrStrength.
+
+
+Section RHandlerSwitch.
+
+Context {E D} (hnd0 hnd1: D ~> itree (D +' E)).
+Context (hnd_hyp: forall T (e: D T),
+           eqit eq true false (interp_mrec hnd0 (hnd0 e))
+                              (interp_mrec hnd0 (hnd1 e))).
+
+Inductive invarHS : forall T, itree E T -> itree E T -> Prop :=
+  | BASE_HS T (t0: itree (D +' E) T) :
+       invarHS (@interp_mrec D E hnd0 T t0)
+               (@interp_mrec D E hnd1 T t0)
+  | CALL_HS T T0 (t0: itree (D +' E) T0) (k1 k2: T0 -> itree E T) :
+    (forall x, invarHS (k1 x) (k2 x)) ->
+     invarHS (ITree.bind (@interp_mrec D E hnd0 T0 t0) k1)
+             (ITree.bind (@interp_mrec D E hnd1 T0 t0) k2).
+
+Lemma invarHS_rec_handler_switch T (t1 t2: itree E T) :
+  @invarHS T t1 t2 -> eutt eq t1 t2.
+Proof.
+  revert t1 t2.
+  ginit. gcofix CIH.
+  induction 1.
+  setoid_rewrite unfold_interp_mrec.
+  remember (observe t0) as ot0.
+  destruct ot0; simpl.
+  { gstep; red. econstructor; auto. }
+  { gstep; red. econstructor.
+    gfinal; left; eapply CIH.
+    econstructor 1.
+  }
+  { destruct e; simpl.
+    - gstep; red. econstructor.
+      setoid_rewrite interp_mrec_bind.
+      guclo eqit_clo_trans.
+      econstructor 1 with (RR1 := eq).
+      + instantiate (1:= (ITree.bind (interp_mrec hnd0 (hnd1 d))
+                            (fun x : X => interp_mrec hnd0 (k x)))).
+        eapply eqit_bind; try reflexivity.
+        eapply hnd_hyp.       
+      + reflexivity.
+      + gfinal; left; eapply CIH.
+        econstructor.
+        intros x. econstructor.
+
+      + intros x x' y H H0. inversion H0; subst; auto.
+      + intros x y y' H H0. inversion H0; subst; auto.
+
+    - gstep; red. econstructor. 
+      intros v; unfold Datatypes.id; simpl.
+      gstep; red. econstructor.
+      gfinal; left; eapply CIH.
+      econstructor 1.
+   }          
+   { setoid_rewrite unfold_interp_mrec.
+    remember (observe t0) as ot0.
+    destruct ot0; simpl.
+    { setoid_rewrite bind_ret_l.
+      eapply H0.
+      eapply CIH.
+    }  
+    { setoid_rewrite bind_tau.
+      gstep; red. econstructor.
+      gfinal; left; eapply CIH.
+      econstructor 2.
+      eapply H.
+    }  
+    { destruct e; simpl.
+      - setoid_rewrite bind_tau.
+        gstep; red. econstructor.
+        setoid_rewrite interp_mrec_bind.
+        setoid_rewrite bind_bind.   
+        guclo eqit_clo_trans.
+        econstructor 1 with (RR1:= eq).
+        + instantiate (1:= (ITree.bind (interp_mrec hnd0 (hnd1 d))
+                (fun r0 : X => ITree.bind (interp_mrec hnd0 (k r0)) k1))). 
+          eapply eqit_bind; try reflexivity.
+          eapply hnd_hyp.
+        + reflexivity.
+        + gfinal; left; eapply CIH.
+          econstructor 2.
+          intros x; econstructor 2; eauto.
+        + intros x x' y H1 H2. inversion H2; subst; auto.
+        + intros x y y' H1 H2. inversion H2; subst; auto.
+      - setoid_rewrite bind_vis.
+        gstep; red; econstructor.
+        intros v; unfold Datatypes.id; simpl.
+        guclo eqit_clo_trans.
+        econstructor.
+        + setoid_rewrite tau_euttge; reflexivity.
+        + setoid_rewrite tau_euttge; reflexivity.
+        + gfinal; left; eapply CIH.
+          econstructor 2; eapply H.
+        + intros x x' y H1 H2. inversion H2; subst; auto.
+        + intros x y y' H1 H2. inversion H2; subst; auto.      
+    }
+  }  
+Qed.
+
+Lemma interp_mrec_handler_switch T (t0: itree (D +' E) T) :
+  eutt eq (@interp_mrec D E hnd0 T t0)
+          (@interp_mrec D E hnd1 T t0).
+Proof.
+  eapply invarHS_rec_handler_switch.
+  econstructor.
+Qed.  
+
+Lemma interp_mrecursive_trigger (h: D ~> itree (D +' E)) R
+  (t0: itree D R) :
+  interp (fun (T : Type) (e : D T) =>
+            interp (mrecursive h) (ITree.trigger (inl1 e))) t0 ≈
+  interp (fun (T : Type) (e : D T) => interp (mrecursive h)
+                                        (h _ e)) t0.
+Proof.  
+  eapply eutt_interp; try reflexivity.
+  intros T e.
+  setoid_rewrite interp_trigger.
+  setoid_rewrite <- interp_mrec_as_interp; reflexivity.
+Qed.
+
+Lemma interp_mrecursive_interp {R}
+  (H: forall (t : itree (D +' E) R),
+     interp (mrecursive hnd0) t ≈ interp (mrecursive hnd1) t)
+         (t0: itree D R) :
+  interp (mrecursive hnd0) (interp hnd0 t0)
+  ≈ interp (mrecursive hnd1) (interp hnd1 t0).
+Proof.
+  specialize (H (translate inl1 t0)).
+  setoid_rewrite translate_to_interp in H.
+  setoid_rewrite interp_interp in H.
+  setoid_rewrite interp_interp.
+  setoid_rewrite <- interp_mrecursive_trigger; auto.
+Qed.
+    
+Lemma mrec_handler_switch_aux {R} (H: forall (t : itree (D +' E) R),
+      eutt eq (@interp_mrec D E hnd0 _ t)
+              (@interp_mrec D E hnd1 _ t)) (d: D R) :
+  eutt eq (mrec hnd0 d) (mrec hnd1 d).
+Proof.
+  setoid_rewrite interp_mrec_as_interp.
+  setoid_rewrite <- interp_trigger.
+  setoid_rewrite interp_mrec_as_interp in H.
+  generalize (ITree.trigger d) as t0.
+  eapply interp_mrecursive_interp; auto.
+Qed.
+  
+End RHandlerSwitch.  
 

@@ -143,8 +143,15 @@ Qed.
 Lemma interp_mrec_check {R} (t : itree (D +' E) R) : interp_mrec ctx t ≈ interp_mrec ctx' t.
 Proof. apply interp_mrec_check_aux; constructor. Qed.
 
+Require Import equiv_extras.
+
 Lemma mrec_check {R} (d : D R) : mrec ctx d ≈ mrec ctx' d.
 Proof.
+  eapply mrec_handler_switch_aux.
+  eapply interp_mrec_check.
+Qed.
+
+(*
   unfold mrec; rewrite <- interp_mrec_check .
   unfold ctx', ctx1. generalize (ctx d); clear d.
   ginit; pcofix cih; intros t.
@@ -171,6 +178,7 @@ Proof.
   setoid_rewrite tau_euttge. setoid_rewrite bind_ret_l.
   gstep; constructor => x; gfinal; left; apply cih.
 Qed.
+*)
 
 End CONTEXT.
 
