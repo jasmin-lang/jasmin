@@ -155,6 +155,8 @@ module X86_core = struct
     | VPACKSS _ -> true
     | VPACKUS _ -> true
     | VPADD _ -> true
+    | VPHADD _ -> true
+    | VPHADDS _ -> true
     | VPALIGNR _ -> true
     | VPAND _ -> true
     | VPANDN _ -> true

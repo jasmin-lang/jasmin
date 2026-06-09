@@ -112,6 +112,8 @@ Variant x86_op : Type :=
 | VPXOR    `(wsize)
 | VPADD    `(velem) `(wsize)
 | VPSUB    `(velem) `(wsize)
+| VPHADD   `(velem) `(wsize)
+| VPHADDS  `(velem) `(wsize)
 | VPAVG of velem & wsize
 | VPMULL   `(velem) `(wsize)
 | VPMULH   of wsize   (* signed multiplication of 16-bits*)
@@ -1407,6 +1409,41 @@ Definition x86_VPSUB (ve: velem) sz :=
 
 Definition Ox86_VPSUB_instr  := mk_ve_instr_w2_w_120 "VPSUB"   x86_VPSUB  check_xmm_xmm_xmmm (primV VPSUB) (fun ve sz => size_128_256 sz) (pp_viname "vpsub").
 
+Fixpoint wphaddw ve (op: word ve -> word ve -> word ve) (l: seq (word ve)) : seq (word ve) :=
+  match l with
+  | w1 :: w2 :: t => op w1 w2 :: wphaddw op t
+  | _ => [::]
+  end.
+
+Definition wphadd sz ve (w1 w2 : word sz) :=
+  let v1: seq (word ve) := split_vec ve w1 in
+  let v2: seq (word ve) := split_vec ve w2 in
+  let r := wphaddw +%w v1 ++ wphaddw +%w v2 in
+  make_vec sz r.
+
+Definition x86_VPHADD (ve: velem) sz (v1 v2:word sz) : tpl (w_ty sz) :=
+  let doit sz (v1 v2: word sz) :=
+    wphadd sz v1 v2 in
+  if sz == U128 then doit sz v1 v2
+  else lift2_vec U128 (doit U128) sz v1 v2.
+
+Definition Ox86_VPHADD_instr  := mk_ve_instr_w2_w_120 "VPHADD"   x86_VPHADD  check_xmm_xmm_xmmm (primV_16_32 VPHADD) (fun ve sz => size_16_32 ve && size_128_256 sz) (pp_viname "vphadd").
+
+Definition wphadds sz ve (w1 w2 : word sz) :=
+  let v1: seq (word ve) := split_vec ve w1 in
+  let v2: seq (word ve) := split_vec ve w2 in
+  let op (x y: word ve) := wrepr_saturated_signed ve (wsigned x + wsigned y)%Z in
+  let r := wphaddw op v1 ++ wphaddw op v2 in
+  make_vec sz r.
+
+Definition x86_VPHADDS (ve: velem) sz (v1 v2:word sz) : tpl (w_ty sz) :=
+  let doit sz (v1 v2: word sz) :=
+    wphadds sz v1 v2 in
+  if sz == U128 then doit sz v1 v2
+  else lift2_vec U128 (doit U128) sz v1 v2.
+
+Definition Ox86_VPHADDS_instr  := mk_ve_instr_w2_w_120 "VPHADDS"   x86_VPHADDS  check_xmm_xmm_xmmm (primV_16 VPHADDS) (fun ve sz => (ve=VE16) && size_128_256 sz) (pp_viname "vphadds").
+
 Definition x86_VPAVG (ve: velem) (sz: wsize) v1 v2 :=
   let avg x y := wrepr ve ((wunsigned x + wunsigned y + 1) / 2) in
   lift2_vec ve avg sz v1 v2.
@@ -2248,6 +2285,8 @@ Definition x86_instr_desc o : instr_desc_t :=
   | VPXOR sz           => Ox86_VPXOR_instr.1 sz
   | VPADD sz sz'       => Ox86_VPADD_instr.1 sz sz'
   | VPSUB sz sz'       => Ox86_VPSUB_instr.1 sz sz'
+  | VPHADD sz sz'      => Ox86_VPHADD_instr.1 sz sz'
+  | VPHADDS sz sz'     => Ox86_VPHADDS_instr.1 sz sz'
   | VPAVG sz sz'       => Ox86_VPAVG_instr.1 sz sz'
   | VPMULL sz sz'      => Ox86_VPMULL_instr.1 sz sz'
   | VPMUL sz           => Ox86_VPMUL_instr.1 sz
@@ -2413,6 +2452,8 @@ Definition x86_prim_string :=
    Ox86_VPXOR_instr.2;
    Ox86_VPADD_instr.2;
    Ox86_VPSUB_instr.2;
+   Ox86_VPHADD_instr.2;
+   Ox86_VPHADDS_instr.2;
    Ox86_VPAVG_instr.2;
    Ox86_VPMULL_instr.2;
    Ox86_VPMUL_instr.2;
