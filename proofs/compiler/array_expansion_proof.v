@@ -487,7 +487,7 @@ Proof.
    [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Aligned AAscale (ai_ty ai) ra (i + x0))) | x0 <- ziota 0 len'] =
    [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Aligned AAscale (ai_ty ai) sa i0)) | i0 <- ziota 0 len'].
   + apply eq_in_map => j; rewrite in_ziota => /andP [] /ZleP ? /ZltP ?.
-    rewrite (WArray.set_sub_get hra).
+    rewrite (WArray.set_sub_get _ hra).
     have -> : (i <=? i + j)%Z && (i + j <? i + len')%Z; last by do 3!f_equal; ring.
     by apply/andP; split; [apply/ZleP|apply/ZltP]; nia.
   move=> -> hvm2; eexists; eauto.
@@ -508,7 +508,7 @@ Proof.
   subst y; rewrite hga => -[<-] hin.
   rewrite in_ziota (convertible_eval_atype (x_ty hva)); case: ifP => //=; rewrite eqxx //.
   move: (hin); rewrite -(zindex_bound _ hva) => /andP [] /ZleP ? /ZltP ? hn.
-  rewrite /= (WArray.set_sub_get hra).
+  rewrite /= (WArray.set_sub_get _ hra).
   by rewrite hn; have [_ /(_ _ _ _ hga hin)]:= heqv; rewrite heqx.
 Qed.
 
