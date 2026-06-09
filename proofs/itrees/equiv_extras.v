@@ -152,6 +152,27 @@ Proof.
   }  
 Qed.  
 
+(* seemingly redundant, but used somewhere *)
+Lemma eutt_interp_RR {E F X Y} (RR : X -> Y -> Prop)
+  (H : Handler E F) t1 t2 :
+  eutt RR t1 t2 ->
+  eutt RR (interp H t1) (interp H t2).
+Proof.
+  intros HEUTT. revert t1 t2 HEUTT.
+  einit. ecofix CIH. intros.
+  rewrite !unfold_interp. punfold HEUTT.
+  induction HEUTT; intros; subst; pclearbot; simpl.
+  - estep.
+  - estep.
+  - ebind. econstructor.
+    + reflexivity.
+    + intros; subst. estep. ebase.
+  - eapply euttG_cong_euttge;
+      [apply tau_euttge | reflexivity | rewrite unfold_interp; exact IHHEUTT].
+  - eapply euttG_cong_euttge;
+      [reflexivity | apply tau_euttge | rewrite unfold_interp; exact IHHEUTT].
+Qed.
+
 (* eqit symmetry. probably already proved somewhere *)
 Lemma eqit_eq_sym {E: Type -> Type} {T} {b1 b2}
   (t1 t2: itree E T) : 
