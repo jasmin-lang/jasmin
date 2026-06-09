@@ -28,6 +28,7 @@ Local Open Scope monad_scope.
 
 (** basic lemmas about simple_rutt (equivalent to eutt) *)
 
+(*
 Definition simple_rutt E T1 T2 RR
   (t1 : itree E T1) (t2 : itree E T2) : Prop := 
   rutt (fun U1 U2 (e1: E U1) (e2: E U2) =>
@@ -108,6 +109,7 @@ Proof.
     + intros; exists erefl; simpl; auto.
     + intros T e a b H0. dependent destruction H0; auto.  
 Qed.
+*)
 
 Lemma gen_rutt2eutt E T1 T2 REv RAns RR 
   (t1: itree E T1) (t2: itree E T2) 

@@ -101,7 +101,7 @@ Lemma safe_default_basic V1 d1 d2
   simple_rutt RR (ret_dflt d1 t1) (ret_dflt d2 t2).
 Proof.
   intros H H0.
-  eapply simple_rutt_eutt_equiv; eauto.
+  eapply simple_rutt_eutt; eauto.
   eapply rutt2eutt in H0.
   eapply eqit_bind'.
   - instantiate (1 := exec_rel RR).
@@ -356,7 +356,7 @@ Lemma safe_default_void (VV : E = void1) V1 d1 d2
 Proof.
   unfold safe, lutt.
   intros H H0.
-  eapply simple_rutt_eutt_equiv; eauto.
+  eapply simple_rutt_eutt; eauto.
   eapply rutt2eutt in H0.
   eapply luttNL2rutt_inr_exec_with_id in H.
   eapply eqit_bind'.  
@@ -589,7 +589,7 @@ Lemma test2_rev (VV : E = void1) V1 d1 d2
 Proof.
   unfold safe, lutt.
   intros H H0.
-  eapply simple_rutt_eutt_equiv; eauto.
+  eapply simple_rutt_eutt; eauto.
   eapply rutt2eutt in H0.
   eapply luttNL2rutt_inr_exec_with_id in H.
   eapply eqit_bind'.
@@ -640,7 +640,7 @@ Lemma gen_safe_default_ok1 V1 d1 d2
 Proof.
   unfold safe, lutt.
   intros H H0.
-  eapply simple_rutt_eutt_equiv; eauto.
+  eapply simple_rutt_eutt; eauto.
   eapply rutt2eutt in H0.
   eapply eqit_bind'.
   
@@ -664,7 +664,7 @@ Lemma test2_gen_ok2 V1 d1 d2
 Proof.
   unfold safe, lutt.
   intros H H0.
-  eapply simple_rutt_eutt_equiv; eauto.
+  eapply simple_rutt_eutt; eauto.
   eapply rutt2eutt in H0.
   eapply eqit_bind'.
   
