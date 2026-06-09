@@ -629,17 +629,18 @@ Module WArray.
   Qed.
 
   Transparent arr_size.
-  Lemma get_sub_get ws lena len (t:WArray.array lena) i st:
+  Lemma get_sub_get ws lena len (t:WArray.array lena) i st al :
     WArray.get_sub AAscale ws len t i = ok st ->
     forall j, (0 <= j < len)%Z ->
-    WArray.get Aligned AAscale ws st j = WArray.get Aligned AAscale ws t (i + j)%Z.
+    WArray.get al AAscale ws st j = WArray.get al AAscale ws t (i + j)%Z.
   Proof.
     move=> /WArray.get_sub_get8 => hr j hj.
     rewrite /WArray.get !readE !is_aligned_if_is_align ?WArray.is_align_scale //.
     have -> // :
-      mapM (λ k : Z, read st Aligned (add (j * mk_scale AAscale ws)%Z k) U8) (ziota 0 (wsize_size ws)) =
-      mapM (λ k : Z, read t Aligned (add ((i + j) * mk_scale AAscale ws)%Z k) U8) (ziota 0 (wsize_size ws)).
+      mapM (λ k : Z, read st al (add (j * mk_scale AAscale ws)%Z k) U8) (ziota 0 (wsize_size ws)) =
+      mapM (λ k : Z, read t al (add ((i + j) * mk_scale AAscale ws)%Z k) U8) (ziota 0 (wsize_size ws)).
     apply eq_mapM => k; rewrite in_ziota => /andP []/ZleP ? /ZltP ?.
+    rewrite !(read8_alignment Aligned _ al).
     rewrite hr /= !WArray.addE.
     have ? := wsize_size_pos ws.
     have -> /= : (0 <=? j * wsize_size ws + k)%Z.

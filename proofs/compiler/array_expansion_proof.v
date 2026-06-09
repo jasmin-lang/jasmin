@@ -386,7 +386,7 @@ Proof.
   + by apply /andP; split; [apply/ZleP|apply/ZltP] => //; nia.
   case: h => _ _ -[_ /(_ _ _ _ hga){hga}hgai].
   move/hgai: (wf_mem (v_var (gv g)) vai hbound); rewrite -hgx /= => -[<-].
-  by rewrite (wf_index _ vai hbound) (WArray.get_sub_get hst).
+  by rewrite (wf_index _ vai hbound) (WArray.get_sub_get _ hst).
 Qed.
 
 Lemma wf_write_get s (x:var_i) ai (a : WArray.array (Z.to_pos (arr_size (ai_ty ai) (Z.to_pos (ai_len ai))))) i len :
