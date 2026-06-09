@@ -310,12 +310,17 @@ Module WArray.
          else read m Aligned k U8.
   Proof. by eauto using write_read8. Qed.
 
-  Lemma setP len (m m':array len) al p1 p2 ws (v: word ws) :
+  Lemma setP len (m m':array len) al al' p1 p2 ws (v: word ws) :
     set m al AAscale p1 v = ok m' ->
-    get al AAscale ws m' p2 = if p1 == p2 then ok v else get al AAscale ws m p2.
+    get al' AAscale ws m' p2 = if p1 == p2 then ok v else get al' AAscale ws m p2.
   Proof.
-    rewrite /set /get; case:eqP => [<- | hne hw]; first by apply writeP_eq.
-    apply: (CoreMem.writeP_neq _ hw); move=> ??; rewrite !addE /mk_scale;nia.
+    rewrite /set /get; case:eqP => [<- | hne hw]; last first.
+    - apply: (CoreMem.writeP_neq _ hw); move=> ??; rewrite !addE /mk_scale;nia.
+    move => hwrite.
+    apply: writeP_eq.
+    have hal := is_align_scale p1 ws.
+    move: hwrite; rewrite /write (is_aligned_if_is_align al hal) (is_aligned_if_is_align al' hal).
+    exact.
   Qed.
 
   Lemma setP_eq len (m m':array len) al p1 ws (v: word ws) :
@@ -323,10 +328,10 @@ Module WArray.
     get al AAscale ws m' p1 = ok v.
   Proof. by move=> /setP ->; rewrite eqxx. Qed.
 
-  Lemma setP_neq len (m m':array len) al p1 p2 ws (v: word ws) :
+  Lemma setP_neq len (m m':array len) al al' p1 p2 ws (v: word ws) :
     p1 != p2 ->
     set m al AAscale p1 v = ok m' ->
-    get al AAscale ws m' p2 = get al AAscale ws m p2.
+    get al' AAscale ws m' p2 = get al' AAscale ws m p2.
   Proof. by move=> /negPf h /setP ->; rewrite h. Qed.
 
   Lemma mk_scale_bound aa ws : (1 <= mk_scale aa ws <= wsize_size ws)%Z.
@@ -468,7 +473,7 @@ Module WArray.
       (0 <=? k - z0) && (k - z0 <? Pos.of_succ_nat (size l)) =
       (k == z0) || (0 <=? k - (z0 + 1)) && (k - (z0 + 1) <? Z.of_nat (size l)).
     + by apply /idP/idP; rewrite !zify (rwR2 (@eqP _)); lia.
-    have := setP k hset; rewrite !get8_read => ->.
+    have := setP Aligned k hset; rewrite !get8_read => ->.
     rewrite orbC.
     case: ifP => /=.
     + rewrite !zify => h.

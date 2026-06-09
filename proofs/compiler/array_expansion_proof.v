@@ -295,7 +295,7 @@ Proof.
     rewrite Vm.setP //; case: eqP => hxx'.
     + subst x'; move: hx'; rewrite hai => -[?]; subst ai'.
       rewrite hty /= eqxx.
-      rewrite (WArray.setP _ ht').
+      rewrite (WArray.setP _ _ ht').
       rewrite Vm.setP; case: (xi =P xi') => hxixi'.
       + by subst xi'; rewrite (wf_index _ vai hbound) eqxx htrvi'.
       case: eqP => ?.
