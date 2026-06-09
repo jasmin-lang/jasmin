@@ -304,12 +304,17 @@ Module WArray.
          else read m Aligned k U8.
   Proof. by eauto using write_read8. Qed.
 
-  Lemma setP len (m m':array len) al p1 p2 ws (v: word ws) :
+  Lemma setP len (m m':array len) al al' p1 p2 ws (v: word ws) :
     set m al AAscale p1 v = ok m' ->
-    get al AAscale ws m' p2 = if p1 == p2 then ok v else get al AAscale ws m p2.
+    get al' AAscale ws m' p2 = if p1 == p2 then ok v else get al' AAscale ws m p2.
   Proof.
-    rewrite /set /get; case:eqP => [<- | hne hw]; first by apply writeP_eq.
-    apply: (CoreMem.writeP_neq _ hw); move=> ??; rewrite !addE /mk_scale;nia.
+    rewrite /set /get; case:eqP => [<- | hne hw]; last first.
+    - apply: (CoreMem.writeP_neq _ hw); move=> ??; rewrite !addE /mk_scale;nia.
+    move => hwrite.
+    apply: writeP_eq.
+    have hal := is_align_scale p1 ws.
+    move: hwrite; rewrite /write (is_aligned_if_is_align al hal) (is_aligned_if_is_align al' hal).
+    exact.
   Qed.
 
   Lemma setP_eq len (m m':array len) al p1 ws (v: word ws) :
@@ -317,10 +322,10 @@ Module WArray.
     get al AAscale ws m' p1 = ok v.
   Proof. by move=> /setP ->; rewrite eqxx. Qed.
 
-  Lemma setP_neq len (m m':array len) al p1 p2 ws (v: word ws) :
+  Lemma setP_neq len (m m':array len) al al' p1 p2 ws (v: word ws) :
     p1 != p2 ->
     set m al AAscale p1 v = ok m' ->
-    get al AAscale ws m' p2 = get al AAscale ws m p2.
+    get al' AAscale ws m' p2 = get al' AAscale ws m p2.
   Proof. by move=> /negPf h /setP ->; rewrite h. Qed.
 
   Lemma mk_scale_bound aa ws : (1 <= mk_scale aa ws <= wsize_size ws)%Z.
@@ -462,7 +467,7 @@ Module WArray.
       (0 <=? k - z0) && (k - z0 <? Pos.of_succ_nat (size l)) =
       (k == z0) || (0 <=? k - (z0 + 1)) && (k - (z0 + 1) <? Z.of_nat (size l)).
     + by apply /idP/idP; rewrite !zify (rwR2 (@eqP _)); lia.
-    have := setP k hset; rewrite !get8_read => ->.
+    have := setP Aligned k hset; rewrite !get8_read => ->.
     rewrite orbC.
     case: ifP => /=.
     + rewrite !zify => h.
@@ -515,12 +520,12 @@ Module WArray.
   Proof. by rewrite /set_sub; case: ifP => //; rewrite !zify. Qed.
 
   Transparent arr_size. Opaque Z.mul ziota.
-  Lemma set_sub_get lena ws len (t: array lena) i (s: array (Z.to_pos (arr_size ws len))) t':
+  Lemma set_sub_get lena ws len (t: array lena) i (s: array (Z.to_pos (arr_size ws len))) t' al :
     set_sub AAscale t i s = ok t' ->
     forall j,
-    get Aligned AAscale ws t' j =
-      if ((i <=? j) && (j <? i + len))%Z then get Aligned AAscale ws s (j - i)%Z
-      else get Aligned AAscale ws t j.
+    get al AAscale ws t' j =
+      if ((i <=? j) && (j <? i + len))%Z then get al AAscale ws s (j - i)%Z
+      else get al AAscale ws t j.
   Proof.
     move=> hget j.
     have ht':= set_sub_get8 hget.
@@ -531,17 +536,19 @@ Module WArray.
     case: ifPn.
     + move=> /andP[]/ZleP ? /ZltP ?.
       have -> // :
-        mapM (λ k : Z, read t' Aligned (add ( j      * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)) =
-        mapM (λ k : Z, read s  Aligned (add ((j - i) * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)).
+        mapM (λ k : Z, read t' al (add ( j      * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)) =
+        mapM (λ k : Z, read s  al (add ((j - i) * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)).
       apply eq_mapM => k; rewrite in_ziota => /andP []/ZleP ? /ZltP ?.
+      rewrite !(read8_alignment Aligned _ al).
       rewrite ht' /= !WArray.addE.
       case: ifPn => [ _ | /negP]; first by f_equal; ring.
       elim; apply/andP; split; [apply/ZleP|apply/ZltP; rewrite /arr_size]; nia.
     move=> /negP hij.
     have -> // :
-        mapM (λ k : Z, read t' Aligned (add (j * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)) =
-        mapM (λ k : Z, read t  Aligned (add (j * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)).
+        mapM (λ k : Z, read t' al (add (j * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)) =
+        mapM (λ k : Z, read t  al (add (j * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)).
     apply eq_mapM => k; rewrite in_ziota => /andP []/ZleP ? /ZltP ?.
+    rewrite !(read8_alignment Aligned _ al).
     rewrite ht' /= !WArray.addE /arr_size.
     case: ifPn => // /andP [] /ZleP ? /ZltP ?; elim hij.
     apply/andP; split; [apply/ZleP|apply/ZltP]; nia.
@@ -618,17 +625,18 @@ Module WArray.
   Qed.
 
   Transparent arr_size.
-  Lemma get_sub_get ws lena len (t:WArray.array lena) i st:
+  Lemma get_sub_get ws lena len (t:WArray.array lena) i st al :
     WArray.get_sub AAscale ws len t i = ok st ->
     forall j, (0 <= j < len)%Z ->
-    WArray.get Aligned AAscale ws st j = WArray.get Aligned AAscale ws t (i + j)%Z.
+    WArray.get al AAscale ws st j = WArray.get al AAscale ws t (i + j)%Z.
   Proof.
     move=> /WArray.get_sub_get8 => hr j hj.
     rewrite /WArray.get !readE !is_aligned_if_is_align ?WArray.is_align_scale //.
     have -> // :
-      mapM (λ k : Z, read st Aligned (add (j * mk_scale AAscale ws)%Z k) U8) (ziota 0 (wsize_size ws)) =
-      mapM (λ k : Z, read t Aligned (add ((i + j) * mk_scale AAscale ws)%Z k) U8) (ziota 0 (wsize_size ws)).
+      mapM (λ k : Z, read st al (add (j * mk_scale AAscale ws)%Z k) U8) (ziota 0 (wsize_size ws)) =
+      mapM (λ k : Z, read t al (add ((i + j) * mk_scale AAscale ws)%Z k) U8) (ziota 0 (wsize_size ws)).
     apply eq_mapM => k; rewrite in_ziota => /andP []/ZleP ? /ZltP ?.
+    rewrite !(read8_alignment Aligned _ al).
     rewrite hr /= !WArray.addE.
     have ? := wsize_size_pos ws.
     have -> /= : (0 <=? j * wsize_size ws + k)%Z.
