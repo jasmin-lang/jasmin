@@ -124,7 +124,6 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
       match Mvar.get m.(sarrs) x, is_const e1 with
       | Some ai, Some i =>
         Let _ := assert (ai.(ai_ty) == ws) (reg_error x "(the default scale must be used)") in
-        Let _ := assert (al == Aligned) (reg_error x "(alignement must be enforced)") in
         Let _ := assert (aa == AAscale) (reg_error x "(the default scale must be used)") in
         Let _ := assert [&& 0 <=? i & i <? ai.(ai_len)]%Z (reg_error x "(index out of bounds)") in
         let v := znth (v_var x) ai.(ai_elems) i in
@@ -182,7 +181,6 @@ Definition expand_lv (m : t) (x : lval)  :=
       match Mvar.get m.(sarrs) x, is_const e with
       | Some ai, Some i =>
         Let _ := assert (ai.(ai_ty) == ws) (reg_error x "(the default scale must be used)") in
-        Let _ := assert (al == Aligned) (reg_error x "(alignement must be enforced)") in
         Let _ := assert (aa == AAscale) (reg_error x "(the default scale must be used)") in
         Let _ := assert [&& 0 <=? i & i <? ai.(ai_len)]%Z (reg_error x "(index out of bounds)") in
         let v := znth (v_var x) ai.(ai_elems) i in

@@ -309,7 +309,7 @@ fail/array_expansion/x86-64/default_scale_2.jazz:
 
 "fail/array_expansion/x86-64/default_scale_2.jazz", line 10 (8-9):
 compilation error in function main:
-array expansion: cannot expand variable r (alignement must be enforced)
+array expansion: cannot expand variable r (the default scale must be used)
 
 fail/array_expansion/x86-64/default_scale_lv.jazz:
 
@@ -321,7 +321,7 @@ fail/array_expansion/x86-64/default_scale_lv_2.jazz:
 
 "fail/array_expansion/x86-64/default_scale_lv_2.jazz", line 10 (2-3):
 compilation error in function main:
-array expansion: cannot expand variable r (alignement must be enforced)
+array expansion: cannot expand variable r (the default scale must be used)
 
 fail/array_expansion/x86-64/default_scale_param.jazz:
 
@@ -1563,12 +1563,6 @@ fail/x86-64/swap_type_mismatch.jazz:
 
 "fail/x86-64/swap_type_mismatch.jazz", line 2 (18-19): the expression has type u64 instead of u8[8]
 
-fail/x86-64/unaligned_slice_copy.jazz:
-
-"fail/x86-64/unaligned_slice_copy.jazz", line 6 (3-24):
-compilation error in function main:
-variable allocation: bad range alignment for src[0]: src was allocated in slot s[3; 7[, which conflicts with the required alignment (u32)
-
 fail/x86-64/zxspill.jazz:
 
 "fail/x86-64/zxspill.jazz", line 5 (2-14):
@@ -1582,4 +1576,4 @@ Statistics:
 	Pretyping:  51
 	Parsing:     4
 	Typing:      1
-	Compile:   195
+	Compile:   194

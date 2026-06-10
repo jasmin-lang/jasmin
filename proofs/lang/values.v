@@ -908,7 +908,7 @@ Definition interp_safe_cond (vs : values) (sc : safe_cond) :=
   | AllInit ws p k =>
     forall t, to_arr (Z.to_pos (arr_size ws p)) (nth undef_b vs k) = ok t ->
     forall i, (0 <= i < p)%Z ->
-     exists w, WArray.get Aligned AAscale ws t i = ok w
+     exists w, WArray.get Unaligned AAscale ws t i = ok w
   | X86Division sz sign =>
     forall hi lo dv,
       mapM (to_word sz) (take 3 vs) = ok [:: hi; lo; dv] ->
