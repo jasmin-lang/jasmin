@@ -631,7 +631,10 @@ rewrite /istep /iresult /=; case: next_is_Lsyscall => [o|];
   [ exact: translate_lexec_syscall | exact: translate_err_result ].
 Qed.
 
-Lemma mix_ilsteps_eq cond s : mix_ilsteps cond s ≈ mix_steps istep is_call check_call cond s.
+Notation mix_stepsI := (@mix_steps funname lstate E E0 wE is_call check_call
+     (fun _ _ => true) (fun s => translate inr1 (istep s))).
+
+Lemma mix_ilsteps_eq cond s : mix_ilsteps cond s ≈ mix_stepsI cond s.
 Proof.
 apply eutt_iter' with eq => // {}s _ <-.
 rewrite /while_body; case: ifP => _.
@@ -642,12 +645,16 @@ rewrite /while_body; case: ifP => _.
 by apply eqit_Ret; constructor.
 Qed.
 
+Notation mix_semI := (@mix_sem funname lstate E E0 wE handle_call_cond
+                          is_call check_call
+     (fun _ _ => true) (fun s => translate inr1 (istep s))).
+
 Lemma mix_ilsem_ilsem fn s :
   xrutt.xrutt (core_logics.errcutoff (is_error wE)) core_logics.nocutoff rutt_extras.RPre_eq rutt_extras.RPost_eq
     eq (mix_ilsem (endpc fn) s) (ilsem (endpc fn) s).
 Proof.
   move: I.
-  have -> : mix_ilsem (endpc fn) s ≈ mix_sem istep handle_call_cond is_call check_call (endpc fn) s.
+  have -> : mix_ilsem (endpc fn) s ≈ mix_semI (endpc fn) s.
   + apply Proper_interp_mrec.
     + by move=> _ [] fn' {}s /=; apply mix_ilsteps_eq.
     by apply mix_ilsteps_eq.
