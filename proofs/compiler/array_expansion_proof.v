@@ -26,7 +26,7 @@ Definition wf_t (m : t) :=
 
 Definition eval_array ws v i :=
   if v is Varr _ t
-  then ok (rdflt undef_w (rmap (@Vword _) (WArray.get Aligned AAscale ws t i)))
+  then ok (rdflt undef_w (rmap (@Vword _) (WArray.get Unaligned AAscale ws t i)))
   else type_error.
 
 Definition eq_alloc_vm {wsw : WithSubWord} (m : t) vm1 vm2 :=
@@ -112,7 +112,7 @@ Qed.
 
 Lemma expand_vP n a ws l :
   mapM (eval_array ws (@Varr n a)) l =
-    ok (map (fun i => rdflt undef_w (rmap (@Vword _) (WArray.get Aligned AAscale ws a i)))  l).
+    ok (map (fun i => rdflt undef_w (rmap (@Vword _) (WArray.get Unaligned AAscale ws a i)))  l).
 Proof. by elim: l => // *; simpl map; rewrite -mapM_cons. Qed.
 
 
@@ -199,10 +199,12 @@ Proof.
       apply: on_arr_gvarP => n t hty ->.
       by t_xrbindP=> i vi /he -> /= -> /= w -> <-.
     case hgetx : Mvar.get => [ax|//]; case: is_constP => // i.
-    t_xrbindP=> /eqP <- /eqP -> /eqP -> hbound <- v; have hai := valid hgetx.
+    t_xrbindP=> /eqP <- /eqP -> hbound <- v; have hai := valid hgetx.
     apply: on_arr_gvarP => n t /eqP hty.
     rewrite /get_gvar hlv{hlv} => /get_varP [ hx1 _ _] /=.
-    t_xrbindP=> ? hw <-.
+    t_xrbindP => z /(@aligned_le_read _ _ _ _ _ _ _ _ Unaligned) /=.
+    rewrite /aligned_le eqxx => /(_ erefl).
+    rewrite -/(WArray.get Unaligned AAscale _ t _) => hw <-.
     case: h=> _ _ -[_] /(_ _ _ _ hgetx (wf_mem (v_var (gv x)) hai hbound)).
     by rewrite -hx1 /= (wf_index _ hai hbound) /get_gvar /get_var hw /= => -[<-] /=; rewrite orbT.
   + move=> aa sz len x e hrec e2 he e1 /hrec hrec1 <- /=.
@@ -267,7 +269,7 @@ Proof.
       t_xrbindP => i vi /(expand_eP h he) -> /= -> /= ? -> /= t' -> hw.
       by apply (eq_alloc_write_var h hin hw).
     case hai: Mvar.get => [ai | //].
-    case: is_constP => // i ; t_xrbindP => /eqP <- /eqP -> /eqP -> hbound <- v s1'.
+    case: is_constP => // i ; t_xrbindP => /eqP <- /eqP -> hbound <- v s1'.
     apply on_arr_varP => n t hty hget /=.
     t_xrbindP => w hvw t' ht' /[dup] hw1 /write_varP [? _ htrv]; subst s1'.
     have vai := valid hai; have hin := wf_mem (v_var x) vai hbound.
@@ -394,12 +396,12 @@ Lemma wf_write_get s (x:var_i) ai (a : WArray.array (Z.to_pos (arr_size (ai_ty a
   (0 <= i)%Z -> (i + len <= ai_len ai)%Z -> (0 <= len)%Z ->
   exists2 vm,
     write_lvals false gd s [seq Lvar {| v_var := znth (v_var x) (ai_elems ai) x0; v_info := v_info x |} | x0 <- ziota i len]
-      [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Aligned AAscale (ai_ty ai) a i)) | i <- ziota i len] = ok (with_vm s vm) &
+      [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Unaligned AAscale (ai_ty ai) a i)) | i <- ziota i len] = ok (with_vm s vm) &
     forall y,
       vm.[y] =
         let j := zindex y (ai_elems ai) in
         if j \in ziota i len then
-           rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Aligned AAscale (ai_ty ai) a j))
+           rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Unaligned AAscale (ai_ty ai) a j))
         else (evm s).[y].
 Proof.
   move => hva h0i hilen h0l.
@@ -414,7 +416,7 @@ Proof.
   + by apply/andP; split; [apply/ZleP|apply/ZltP]; lia.
   have hin := wf_mem (v_var x) hva hk1.
   rewrite (xi_ty hva hin).
-  have -> /= : (truncatable false (cword (ai_ty ai)) (rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Aligned AAscale (ai_ty ai) a k)))).
+  have -> /= : (truncatable false (cword (ai_ty ai)) (rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Unaligned AAscale (ai_ty ai) a k)))).
   + by case: WArray.get => //=.
   set s1 := with_vm _ _.
   case: (hrec s1 huni) => vm -> hvm; exists vm => // y; rewrite in_cons.
@@ -484,8 +486,8 @@ Proof.
   have [vm2 ] := wf_write_get s2 ra hva h0i hilen' (Zle_0_pos _).
   rewrite {1 2}(ziota_shift i len') -!map_comp /comp.
   have -> :
-   [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Aligned AAscale (ai_ty ai) ra (i + x0))) | x0 <- ziota 0 len'] =
-   [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Aligned AAscale (ai_ty ai) sa i0)) | i0 <- ziota 0 len'].
+   [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Unaligned AAscale (ai_ty ai) ra (i + x0))) | x0 <- ziota 0 len'] =
+   [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Unaligned AAscale (ai_ty ai) sa i0)) | i0 <- ziota 0 len'].
   + apply eq_in_map => j; rewrite in_ziota => /andP [] /ZleP ? /ZltP ?.
     rewrite (WArray.set_sub_get _ hra).
     have -> : (i <=? i + j)%Z && (i + j <? i + len')%Z; last by do 3!f_equal; ring.
@@ -633,7 +635,7 @@ Proof.
   have h : ((0 <= Z0 < wsize_size (ai_ty ai)))%Z.
   + by move=> /=; have := wsize_size_pos (ai_ty ai); lia.
   have [_ /(_ Z0 h)] := read_read8 heq.
-  by rewrite WArray.get0 //= WArray.addE; have := wsize_size_pos (ai_ty ai); lia.
+  by rewrite (read8_alignment Aligned) WArray.get0 //= WArray.addE; have := wsize_size_pos (ai_ty ai); lia.
 Qed.
 
 Lemma mapM2_dc_truncate_id tys vs vs':

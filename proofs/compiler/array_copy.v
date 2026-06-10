@@ -45,15 +45,15 @@ Context (fi : fun_info).
 *)
 
 Definition direct_copy ws x y i :=
-  [:: Cassgn (Laset Aligned AAscale ws x i) AT_none (aword ws) (Pget Aligned AAscale ws y i) ].
+  [:: Cassgn (Laset Unaligned AAscale ws x i) AT_none (aword ws) (Pget Unaligned AAscale ws y i) ].
 
 Definition tmp_var ws :=
   {| vtype := aword ws; vname := fresh_temporary fi ws |}.
 
 Definition indirect_copy ws x y i :=
   let tmp := {| v_var := tmp_var ws ; v_info := v_info x |} in
-  [:: Cassgn (Lvar tmp) AT_none (aword ws) (Pget Aligned AAscale ws y i);
-   Cassgn (Laset Aligned AAscale ws x i) AT_none (aword ws) (Pvar (mk_lvar tmp)) ].
+  [:: Cassgn (Lvar tmp) AT_none (aword ws) (Pget Unaligned AAscale ws y i);
+   Cassgn (Laset Unaligned AAscale ws x i) AT_none (aword ws) (Pvar (mk_lvar tmp)) ].
 
 Definition needs_temporary x y : bool :=
   is_var_in_memory x && is_var_in_memory y.

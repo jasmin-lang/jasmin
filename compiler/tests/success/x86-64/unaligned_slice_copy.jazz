@@ -1,4 +1,4 @@
-// Cannot copy by chunks of 4 bytes starting at offset 3 bytes
+// Ensure we can copy by chunks of 4 bytes starting at offset 3 bytes
 export fn main() -> reg u32 {
    stack u8[8] s;
    s[:u64 0] = 0;
