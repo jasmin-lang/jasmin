@@ -171,7 +171,7 @@ Definition Ox86SLHprotect_instr rk :=
   let out := map sopn_arg_desc implicit_flags ++ [:: E 0] in
   fun (ws:wsize) =>
   if rk is Extra then
-    mk_instr_desc_safe (pp_sz SLHprotect_str ws)
+    mk_instr_desc_safe (pp_sz Ox86SLHprotect_str ws)
       [:: aword ws; aword ws]
       [:: E 0; E 1 ]
       [:: aword ws ]
@@ -179,7 +179,7 @@ Definition Ox86SLHprotect_instr rk :=
       (@se_protect_mmx_sem ws)
       (ws == reg_size)
   else if (ws <= Uptr)%CMP then
-    mk_instr_desc_safe (pp_sz SLHprotect_str ws)
+    mk_instr_desc_safe (pp_sz Ox86SLHprotect_str ws)
                   [:: aword ws; aword ws]
                   [:: E 0; E 1]
                   [:: abool; abool; abool; abool; abool; aword ws]
@@ -187,7 +187,7 @@ Definition Ox86SLHprotect_instr rk :=
                   (@se_protect_small_sem ws)
                   true
   else
-    mk_instr_desc_safe (pp_sz SLHprotect_str ws)
+    mk_instr_desc_safe (pp_sz Ox86SLHprotect_str ws)
                   [:: aword ws; ty_msf]
                   [:: E 0; E 1]
                   [:: aword ws; aword ws]
