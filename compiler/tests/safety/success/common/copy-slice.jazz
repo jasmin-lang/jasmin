@@ -1,0 +1,14 @@
+export fn main(reg u32 x) -> reg u32 {
+  stack u8[16] s;
+  stack u32[1] z;
+  z[0] = x;
+  inline int i;
+  for i = 0 to 4 {
+    s[:u32 i : 1] = #copy_32(z[0:1]);
+  }
+  x = s[:u32 2];
+  s[:u32 1] = x;
+  z = #copy_32(s.[:u16 4 : 2]);
+  x = z[0];
+  return x;
+}
