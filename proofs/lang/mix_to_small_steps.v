@@ -72,8 +72,6 @@ Import ITreeNotations.
 
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 
-Require Import xrutt xrutt_facts.
-
 Require Import while it_sems_core_defs core_logics rutt_extras.
 
 Notation ircheck cnd a v :=
@@ -160,7 +158,7 @@ Lemma ss_stk_sem_ss_sem (cond : lstate -> bool) :
               then (forall ls, fun_cond fn ls -> cond ls)
               else True) (istep s) (istep s)) ->
   forall s, wf_stk cond s.(stk) ->
-    xrutt (errcutoff (is_error wE)) nocutoff
+    xrutt.xrutt (errcutoff (is_error wE)) nocutoff
       rutt_extras.RPre_eq rutt_extras.RPost_eq eq
       (ss_stk_sem s) (ss_sem cond s.(st)).
 Proof.
@@ -188,7 +186,7 @@ Proof.
        end).
 
       eapply gpaco2_uclo;
-        [|eapply xrutt_clo_bind|]; eauto with paco.  
+        [|eapply xrutt_facts.xrutt_clo_bind|]; eauto with paco.  
       econstructor 1 with (RU := @FRel st1).    
       eapply rutt2xrutt. 
       eapply gen_eutt_rutt; eauto.
@@ -233,7 +231,7 @@ Proof.
        end).
 
       eapply gpaco2_uclo;
-        [|eapply xrutt_clo_bind|]; eauto with paco.  
+        [|eapply xrutt_facts.xrutt_clo_bind|]; eauto with paco.  
       econstructor 1 with (RU := @FRel st1).
       eapply rutt2xrutt. 
       eapply gen_eutt_rutt; eauto.
@@ -400,6 +398,8 @@ Definition mix_chk_stk_steps_sem (s:stk_lstate) : itree E lstate :=
 
 (*************************************************************************)
 
+Require Import xrutt xrutt_facts.
+
 Lemma mix_chk_stk_mix_stk_steps s : xrutt (EE_MR (errcutoff (is_error wE))
   (D:=CallE)) (EE_MR nocutoff (D:=CallE))
   (HeterogeneousRelations.sum_prerel RPre_eq RPre_eq)
@@ -407,23 +407,23 @@ Lemma mix_chk_stk_mix_stk_steps s : xrutt (EE_MR (errcutoff (is_error wE))
   (mix_chk_stk_steps s) (mix_stk_steps s).
 Proof.
   rewrite /mix_chk_stk_steps /mix_stk_steps.
-  apply xrutt_iter with eq => // {}s _ <-.
+  apply xrutt_facts.xrutt_iter with eq => // {}s _ <-.
   rewrite /mix_chk_stk_step /mix_stk_step.
   case: stk.
-  + by apply xrutt_Ret; constructor.
-  move=> cond conds; case: ifP => _; last by apply xrutt_Ret;
+  + by apply xrutt.xrutt_Ret; constructor.
+  move=> cond conds; case: ifP => _; last by apply xrutt.xrutt_Ret;
                                     constructor.
-  apply xrutt_bind with eq.
-  + apply xrutt_refl => //.
+  apply xrutt_facts.xrutt_bind with eq.
+  + apply xrutt_facts.xrutt_refl => //.
     + by move=> T [] e _ _; constructor; exists refl_equal.
     by move=> T [] e t1 t2 _ _ /sum_postrelP /= ->.
   move=> s1 _ <-.
   case: is_call. 
-  + move=> fn. rewrite !bind_trigger; apply xrutt_Vis.
+  + move=> fn. rewrite !bind_trigger; apply xrutt.xrutt_Vis.
     * by constructor; exists refl_equal.
     move=> s2 _ /sum_postrelP /= -> /=.
-    case: ifP => _; first by apply xrutt_Ret; constructor.
-    apply xrutt_CutL.
+    case: ifP => _; first by apply xrutt.xrutt_Ret; constructor.
+    apply xrutt.xrutt_CutL.
     by rewrite /xrutt_facts.EE_MR /errcutoff
          /is_error /Subevent.subevent /resum /fromErr /= mid12.
   + simpl; destruct (pc_check (st s) s1).
@@ -434,15 +434,15 @@ Proof.
 Qed.
 
 Lemma mix_chk_stk_mix_stk_sem (s:stk_lstate) :
-  xrutt (errcutoff (is_error wE))
+  xrutt.xrutt (errcutoff (is_error wE))
     nocutoff rutt_extras.RPre_eq rutt_extras.RPost_eq eq
     (mix_chk_stk_steps_sem s) (mix_stk_steps_sem s).
 Proof.
-  apply interp_mrec_xrutt with
+  apply xrutt_facts.interp_mrec_xrutt with
     (RPreInv:= rutt_extras.RPre_eq) (RPostInv:= rutt_extras.RPost_eq).
   + move=> R1 R2 d1 d2 [??]; subst R2 d2.
     case: d1 => fn {} s /=.
-    apply: xrutt_weaken (mix_chk_stk_mix_stk_steps {| st := s; stk := [:: fun_cond fn] |}) => //.
+    apply: xrutt_facts.xrutt_weaken (mix_chk_stk_mix_stk_steps {| st := s; stk := [:: fun_cond fn] |}) => //.
     by move=> ? _ <- h ; rewrite (Eqdep.EqdepTheory.UIP_refl _ _ h).
   apply mix_chk_stk_mix_stk_steps.
 Qed.
@@ -555,7 +555,7 @@ Lemma mix_sem_ss_sem (cond : lstate -> bool) :
          then (forall ls, fun_cond fn ls -> cond ls)
          else True) (istep s) (istep s)) ->
   forall s,
-    xrutt (errcutoff (is_error wE)) nocutoff
+    xrutt.xrutt (errcutoff (is_error wE)) nocutoff
       rutt_extras.RPre_eq rutt_extras.RPost_eq eq
      (mix_sem (fun s => translate inr1 (istep s)) cond s)
      (ss_sem istep cond s).
