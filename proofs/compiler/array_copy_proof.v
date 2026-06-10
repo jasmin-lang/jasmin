@@ -196,6 +196,7 @@ Opaque esem.
         case: (hu) => _ h /h hw8; rewrite (write_read8 hset) /=.
         rewrite WArray.subE; case: andP => //; rewrite !zify => hb.
         have [ _ /(_ _ hb) ] := read_read8 hget.
+        rewrite (read8_alignment Aligned).
         case: hu => _ hu /hu <-.
         by rewrite -hw8 WArray.addE /mk_scale; f_equal; ring.
       rewrite Vm.setP_neq; last by apply /eqP.

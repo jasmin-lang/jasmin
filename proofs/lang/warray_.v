@@ -146,7 +146,7 @@ Module WArray.
 
   Definition fcopy ws len (a t: WArray.array len) i j :=
     foldM (fun i t =>
-             Let w := get Aligned AAscale ws a i in set t Aligned AAscale i w) t
+             Let w := get Unaligned AAscale ws a i in set t Unaligned AAscale i w) t
       (ziota i j).
 
   Definition copy ws p (a:array (Z.to_pos (arr_size ws p))) :=

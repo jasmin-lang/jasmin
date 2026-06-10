@@ -206,9 +206,9 @@ Proof.
   move=> j js hj hrec t1 /=.
   have [w -> /=] := h _ hj; rewrite /WArray.set.
   have := [elaborate (writeV (CM:= WArray.array_CM (Z.to_pos (arr_size ws p))))].
-  move => /(_ _ w t1 Aligned (j * mk_scale AAscale ws)%Z) wP.
-  assert (h1 : validw t1 Aligned (j * mk_scale AAscale ws)%Z ws).
-  + rewrite /validw /is_aligned_if WArray.is_align_scale andTb.
+  move => /(_ _ w t1 Unaligned (j * mk_scale AAscale ws)%Z) wP.
+  assert (h1 : validw t1 Unaligned (j * mk_scale AAscale ws)%Z ws).
+  + rewrite /validw /is_aligned_if andTb.
     apply ziota_ind => //= i ? hi ->; rewrite andbT; apply/WArray.in_boundP.
     rewrite WArray.addE; change (Zpos _) with ((wsize_size ws) * p)%Z;Lia.nia.
   move/wP: h1 => [t2 ->] /=; apply hrec.
