@@ -1442,7 +1442,7 @@ Definition x86_VPHADDS (ve: velem) sz (v1 v2:word sz) : tpl (w_ty sz) :=
   if sz == U128 then doit sz v1 v2
   else lift2_vec U128 (doit U128) sz v1 v2.
 
-Definition Ox86_VPHADDS_instr  := mk_ve_instr_w2_w_120 "VPHADDS"   x86_VPHADDS  check_xmm_xmm_xmmm (primV_16 VPHADDS) (fun ve sz => (ve=VE16) && size_128_256 sz) (pp_viname "vphadds").
+Definition Ox86_VPHADDS_instr  := mk_ve_instr_w2_w_120 "VPHADDS"   x86_VPHADDS  check_xmm_xmm_xmmm (primV_16 VPHADDS) (fun (ve:velem) sz => (if ve is VE16 then true else false) && size_128_256 sz) (pp_viname "vphadds").
 
 Definition x86_VPAVG (ve: velem) (sz: wsize) v1 v2 :=
   let avg x y := wrepr ve ((wunsigned x + wunsigned y + 1) / 2) in
