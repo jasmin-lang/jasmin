@@ -543,7 +543,8 @@ Context
 .
 
 Definition check_call (s s'' : lstate) :=
-  (lfn s'' == lfn s) && (lpc s'' == (lpc s).+2). (* We jump the call and the label after the call *)
+  (lfn s'' == lfn s) && (lpc s'' == (lpc s).+2).
+(* We jump the call and the label after the call *)
 
 Definition mix_ilstep s :=
   s' <- istep (E:=CallE funname lstate +' E) s;;
@@ -631,26 +632,28 @@ rewrite /istep /iresult /=; case: next_is_Lsyscall => [o|];
   [ exact: translate_lexec_syscall | exact: translate_err_result ].
 Qed.
 
-Notation mix_stepsI := (@mix_steps funname lstate E E0 wE is_call check_call
-     (fun _ _ => true) (fun s => translate inr1 (istep s))).
+Notation mix_stepsI := (@mix_steps funname lstate E E0 wE is_call
+   (fun s => translate inr1 (istep s)) (fun _ _ => true) check_call).
 
 Lemma mix_ilsteps_eq cond s : mix_ilsteps cond s ≈ mix_stepsI cond s.
 Proof.
 apply eutt_iter' with eq => // {}s _ <-.
 rewrite /while_body; case: ifP => _.
 - apply eutt_clo_bind with eq.
-  + rewrite /mix_ilstep /mix_step translate_istep; apply: eutt_eq_bind => s'.
+  + rewrite /mix_ilstep /mix_step translate_istep;
+      apply: eutt_eq_bind => s'.
     reflexivity.
   by move=> ? _ <-; apply eqit_Ret; constructor.
 by apply eqit_Ret; constructor.
 Qed.
 
 Notation mix_semI := (@mix_sem funname lstate E E0 wE handle_call_cond
-                          is_call check_call
-     (fun _ _ => true) (fun s => translate inr1 (istep s))).
+                        is_call (fun s => translate inr1 (istep s))
+                        (fun _ _ => true) check_call).
 
 Lemma mix_ilsem_ilsem fn s :
-  xrutt.xrutt (core_logics.errcutoff (is_error wE)) core_logics.nocutoff rutt_extras.RPre_eq rutt_extras.RPost_eq
+  xrutt.xrutt (core_logics.errcutoff (is_error wE))
+    core_logics.nocutoff rutt_extras.RPre_eq rutt_extras.RPost_eq
     eq (mix_ilsem (endpc fn) s) (ilsem (endpc fn) s).
 Proof.
   move: I.
@@ -658,9 +661,10 @@ Proof.
   + apply Proper_interp_mrec.
     + by move=> _ [] fn' {}s /=; apply mix_ilsteps_eq.
     by apply mix_ilsteps_eq.
-  have -> : ilsem (endpc fn) s ≈ ss_sem istep (endpc fn) s by reflexivity.
+  have -> : ilsem (endpc fn) s ≈ ss_sem istep (fun _ _ => true) (endpc fn) s
+      by reflexivity.
   move=> _.
-  apply: mix_sem_ss_sem => {}s; rewrite /istep.
+  apply: mix__ss_sem => {}s; rewrite /istep.
   case h: next_is_Lsyscall => [o|].
   - apply: eutt_eq_bind => vs; apply: eutt_eq_bind => fs /=.
     apply: eutt_eq_bind => s'; apply eqit_Ret.
@@ -702,7 +706,8 @@ Lemma mix_ilsem_exportcall_ilsem_exportcall fn s :
     (mix_ilsem_exportcall fn s) (ilsem_exportcall fn s).
 Proof.
 rewrite /mix_ilsem_exportcall /ilsem_exportcall.
-apply (xrutt_bind (RR := (fun fd fd' => fd = fd' /\ get_fundef P.(lp_funcs) fn = Some fd))).
+apply (xrutt_bind (RR := (fun fd fd' => fd = fd'
+             /\ get_fundef P.(lp_funcs) fn = Some fd))).
 - case: get_fundef => [fd|] /=; first by apply xrutt_Ret.
   apply: xrutt_Vis => //=; by exists erefl.
 move=> fd ? [<- ok_fn].

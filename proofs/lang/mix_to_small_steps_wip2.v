@@ -361,7 +361,7 @@ Qed.
 End IPARAMS1. 
 
 
-(* snity check *)
+(* sanity check *)
 Lemma ss_sem__eq istep cond (s:lstate) :
   ss_sem' istep cond s = ss_sem istep (fun _ _ => true) cond s. 
 Proof.
