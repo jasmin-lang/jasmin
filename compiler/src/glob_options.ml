@@ -29,6 +29,7 @@ let introduce_array_copy = ref true
 let introduce_export_renaming = ref true
 let print_dependencies = ref false
 let lazy_regalloc = ref false
+let collect_errors = ref false
 
 let verbosity = ref 1
 
@@ -243,7 +244,8 @@ let options = [
     "-stack-zero-size",
       Arg.Symbol (List.map fst Annot.ws_strings, set_stack_zero_size),
       " Select stack zeroization size for export functions";
-    "-pliveness", Arg.Set print_liveness, " Print liveness information during register allocation"
+    "-pliveness", Arg.Set print_liveness, " Print liveness information during register allocation";
+    "-collect-errors", Arg.Set collect_errors, " Collect all errors instead of stopping at the first one (for Preprocess and Type-check passes)"
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 
 let usage_msg = "Usage : jasminc [option] filename"

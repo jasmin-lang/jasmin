@@ -1,0 +1,17 @@
+param
+
+fn f1 () {
+  reg usd
+}
+
+export fn f2 () -> reg u32 {
+  reg u32 res;
+  return res+1;
+}
+
+param int N = 5;
+
+export fn f3 () -> reg u64 {
+  reg u64 res = N;
+  return res;
+}

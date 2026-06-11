@@ -29,8 +29,8 @@ let load_file arch_info pointer_data msf_size asmOp name =
   try
     let open Pretyping in
     name
-    |> tt_file arch_info Env.empty None None
-    |> fst |> Env.decls
+    |> tt_file arch_info (Some [], Env.empty) None None
+    |> fun (_, env, _)-> Env.decls env
     |> Compile.preprocess pointer_data msf_size asmOp
   with Syntax.ParseError (loc, msg) ->
     Format.eprintf "%a: %s@." Location.pp_loc loc

@@ -2,6 +2,9 @@ type tyerror
 
 exception TyError of Location.t * tyerror
 
+(* Error resilience types *)
+type error_accumulator = (Location.t * tyerror) list option
+
 val pp_tyerror : Format.formatter -> tyerror -> unit
 
 type fun_sig = { fs_tin : Prog.epty list ; fs_tout : Prog.epty list }
@@ -53,8 +56,10 @@ type ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info = {
 
 val tt_item :
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info ->
+  error_accumulator *
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env ->
   Syntax.pitem Location.located ->
+  error_accumulator *
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env
 
 val tt_param :
@@ -62,10 +67,11 @@ val tt_param :
 
 val tt_fundef :
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info ->
+  error_accumulator *
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env ->
   Location.t ->
   Syntax.pfundef ->
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env
+  error_accumulator * ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env
 
 val tt_global :
   Wsize.wsize -> 'asm Env.env -> 'a -> Syntax.pglobal -> 'asm Env.env
@@ -86,8 +92,11 @@ val tt_program :
 
 val tt_file :
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info ->
+  error_accumulator *
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env ->
   Annotations.pident option ->
   Location.t option ->
   string ->
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env * Syntax.pprogram
+  error_accumulator *
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env *
+  Syntax.pprogram

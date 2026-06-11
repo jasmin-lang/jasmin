@@ -87,7 +87,8 @@ let main () =
     let env, pprog, _ast =
       try Compile.parse_file Arch.arch_info ~idirs:!Glob_options.idirs infile
       with
-      | Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror code
+      | Pretyping.TyError (loc, code) ->
+          hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror code
       | Syntax.ParseError (loc, msg) ->
           let msg =
             match msg with
