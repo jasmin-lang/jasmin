@@ -44,7 +44,7 @@ inline fn __addratebit_ref
 
 module Keccak1600ref_imem
  with fn KECCAK_F(keccak_state) -> keccak_state;
-      fn __addratebit_ref_mem(u64[25], int) -> u64[25];
+      fn __addratebit_ref(u64[25], int) -> u64[25];
 {
 
 /*
@@ -140,7 +140,7 @@ inline fn __absorb_imem_ref
   if ( (AT+LEN) < RATE8 ) { // not enough to fill a block!
     st, AT, buf = __addstate_imem_ref(st, AT, buf, LEN, TRAILB);
     if (TRAILB != 0) { // add pstate and closes the state
-      st = __addratebit_ref_mem(st, RATE8);
+      st = __addratebit_ref(st, RATE8);
     }
   } else { // at least a block is filled
     if ( AT != 0 ) { // start by filling the first block
@@ -166,7 +166,7 @@ inline fn __absorb_imem_ref
     // last incomplete block
     LEN = ALL % RATE8;
     st, AT, buf = __addstate_imem_ref(st, 0, buf, LEN, TRAILB);
-    if (TRAILB!=0) { st = __addratebit_ref_mem(st, RATE8); }
+    if (TRAILB!=0) { st = __addratebit_ref(st, RATE8); }
   }
   return st, AT, buf;
 } 
@@ -238,7 +238,7 @@ inline fn __squeeze_imem_ref
 module Keccak1600ref_array
  with param int ASIZE;
       fn KECCAK_F(keccak_state) -> keccak_state;
-      fn __addratebit_ref_array(u64[25], int) -> u64[25];
+      fn __addratebit_ref(u64[25], int) -> u64[25];
 {
 
 module SRW = SRW_array(ASIZE);
@@ -343,7 +343,7 @@ inline fn __absorb_array_ref
   if ( (AT+LEN) < RATE8 ) { // not enough to fill a block!
     st, AT, offset = __addstate_array_ref(st, AT, buf, offset, LEN, TRAILB);
     if (TRAILB != 0) { // add pstate and closes the state
-      st = __addratebit_ref_array(st, RATE8);
+      st = __addratebit_ref(st, RATE8);
     }
   } else { // at least a block is filled
     if ( AT != 0 ) { // start by filling the first block
@@ -369,7 +369,7 @@ inline fn __absorb_array_ref
     // last incomplete block
     LEN = ALL % RATE8;
     st, AT, offset = __addstate_array_ref(st, 0, buf, offset, LEN, TRAILB);
-    if (TRAILB!=0) { st = __addratebit_ref_array(st, RATE8); }
+    if (TRAILB!=0) { st = __addratebit_ref(st, RATE8); }
   }
   return st, AT, offset;
 } 
