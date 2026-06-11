@@ -110,7 +110,7 @@ module MEnv = struct
     ; mi_ast: (S.pitem L.located) list
     ; mi_decls : (P.pexpr_, unit, 'asm) M.gmodule_item list
     ; mi_opened: M.modulename list
-    ; mi_instances : (((P.pexpr_,unit, 'asm) M.modulearg list)*(M.modulename list)*M.modulename) list
+    ; mi_instances : (((P.pexpr_,unit, 'asm) M.modulearg list)*(M.modulename list)*M.modulename*bool) list
     }
 
   let functor_from_modinfo modname imports modinfo =
@@ -685,8 +685,8 @@ let equal_args arg1 arg2 =
   | _, _ -> false
 
 let has_instance insts args =
-  match List.find_opt (fun (a,_,_) -> List.for_all2 equal_args a args) insts with
-  | Some (_,mnames,iname) -> Some (mnames,iname)
+  match List.find_opt (fun (a,_,_,_) -> List.for_all2 equal_args a args) insts with
+  | Some (_,mnames,iname,_) -> Some (mnames,iname)
   | None -> None
 
 
@@ -764,7 +764,7 @@ let rec get_instance_modules (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_u
             | Some (mnames,iname) -> 
               let rec insert_instance margs = function
                 | [] -> []
-                | (a,_,_)::xs when a=margs -> (margs,full_name::mnames,iname)::xs
+                | (a,_,_,_)::xs when a=margs -> (margs,full_name::mnames,iname,false)::xs
                 | x::xs -> x::(insert_instance margs xs)
               in
               let instances = insert_instance margs modinfo.mi_instances in
@@ -785,7 +785,7 @@ let rec get_instance_modules (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_u
               let menv',_ = MEnv.enter_ground_module arch_info.pd mod_name margs modinfo.mi_params menv' in
               let menv' = get_instance_modules arch_info menv' modinfo.mi_ast in
               let menv = merge_instances menv menv' in
-              let instances = (margs,[full_name], iname) :: modinfo.mi_instances
+              let instances = (margs,[full_name], iname,false) :: modinfo.mi_instances
               in let new_modinfo = { modinfo with mi_instances = instances }
               in let me_env = Map.add (L.unloc modfunc) new_modinfo menv.me_env
               in {menv with me_env = me_env} 
@@ -888,7 +888,7 @@ and mt_moduleapp arch_info _ menv mname modfuncname margs_original =
         | Some (mnames,iname) -> 
           let rec insert_instance margs = function
             | [] -> []
-            | (a,_,_)::xs when List.for_all2 equal_args a margs -> (margs,full_name::mnames,iname)::xs
+            | (a,_,_,_)::xs when List.for_all2 equal_args a margs -> (margs,full_name::mnames,iname,false)::xs
             | x::xs -> x::(insert_instance margs xs) (*FIX ME: duplicate work*)
           in
           let instances = insert_instance margs modinfo.mi_instances in
@@ -910,7 +910,7 @@ and mt_moduleapp arch_info _ menv mname modfuncname margs_original =
           let menv',_ = MEnv.enter_ground_module arch_info.pd mod_name margs modinfo.mi_params menv' in
           let menv' = get_instance_modules arch_info menv' modinfo.mi_ast in
           let menv = merge_instances menv menv' in
-          let instances = (margs,[full_name], iname) :: modinfo.mi_instances
+          let instances = (margs,[full_name], iname,false) :: modinfo.mi_instances
           in let new_modinfo = { modinfo with mi_instances = instances }
           in let me_env = Map.add (L.unloc modfunc) new_modinfo menv.me_env
           in {menv with me_env = me_env} 
@@ -1167,100 +1167,112 @@ let add_new_items (new_vars:(string,P.pvar) Utils.Map.t) new_funcs module_name i
   in
   new_vars, new_funcs
   
+let rec find_init_modapps menv new_vars new_funcs suffix  = 
+  function
+  | [] -> menv, new_vars, new_funcs, []
+  | x::xs-> 
+    match x with
+    | Mprog.MdFunctor f -> 
+      let menv, new_vars, new_funcs, items = find_init_modapps menv new_vars new_funcs suffix f.functorbody in
+      let menv, new_vars, new_funcs, items' = find_init_modapps menv new_vars new_funcs suffix xs in
+      menv, new_vars, new_funcs, items @ items'
+    | MdModApp mapp -> 
+      let menv, new_vars, new_funcs, items = init_modapp menv new_vars new_funcs suffix mapp.ma_name mapp.ma_func in
+      let menv, new_vars, new_funcs, items' = find_init_modapps menv new_vars new_funcs suffix xs in
+      menv, new_vars, new_funcs, items @ items'
+    | _ -> find_init_modapps menv new_vars new_funcs suffix xs
+
+and init_instance menv suffix new_vars new_funcs args mname name =
+    let _, modfunc = Env.Modules.get menv.MEnv.me_store (L.mk_loc (L._dummy) mname) in
+    let modinfo =
+      match Map.find (L.unloc modfunc) menv.me_env with
+      | modi -> modi
+      | exception Not_found ->
+        rs_mjazzerror ~loc:(L.loc modfunc)
+          (NonExistentMod (L.unloc modfunc)) in
+    let suffix_mod = (L.unloc modfunc,name) in
+    let inst_param new_vars new_funcs mp arg = 
+      match mp, arg with
+      | Mprog.Param v, Mprog.MaParam e -> 
+        let new_name_mod = replace_with_suffix suffix_mod v.v_name in
+        let v = P.PV.mk new_name_mod v.v_kind (change_ty new_vars suffix v.v_ty) v.v_dloc v.v_annot in
+        let new_vars = Map.add v.v_name v new_vars in
+        let e = add_suffix_gexpr new_vars suffix e in
+        new_vars, new_funcs, [P.MIparam (v , e)]
+      | Mprog.Glob v, Mprog.MaGlob v' ->
+        let new_name_mod = replace_with_suffix suffix_mod v.v_name in
+        let v = P.PV.mk new_name_mod v.v_kind (change_ty new_vars suffix v.v_ty) v.v_dloc v.v_annot in
+        let new_vars = Map.add v.v_name v new_vars in
+        let v' = {P.gs=E.Sglob; gv = v'} in
+        let v' = P.Pvar (get_new_var new_vars suffix v') in
+        new_vars, new_funcs, [P.MIglobal ( v , GEword v')]
+     | Mprog.Fun fs, Mprog.MaFun fn -> 
+        let name = replace_with_suffix suffix_mod (fs.name.fn_name) in
+        let f = Map.find fn.f_name.fn_name new_funcs in (*FIX ME - fix error message*)
+        let new_funcs = Map.add name f new_funcs in
+        new_vars, new_funcs, []
+      | _ , _ -> rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Mismatch between module parameters and arguments") 
+    in
+    let rec inst_params new_vars new_funcs m a =
+      match m, a with
+      | mp::mps , arg::args ->
+        let new_vars, new_funcs, p = inst_param new_vars new_funcs mp arg in
+        let new_vars', new_funcs', p' = inst_params new_vars new_funcs mps args in
+        Map.union_stdlib (fun _ _ v2 -> Some v2) new_vars new_vars', Map.union_stdlib (fun _ _ v2 -> Some v2) new_funcs new_funcs', p@p'
+      | _ , _ -> new_vars, new_funcs, []
+    in 
+    let new_vars, new_funcs, items' = inst_params new_vars new_funcs modinfo.mi_params args in
+    let menv, new_vars, new_funcs, body = mprog_topprog menv new_vars new_funcs suffix_mod (List.rev modinfo.mi_decls) in
+    menv, new_vars, new_funcs, items' @ body
 
 
-let instantiate_pprog menv =
-  let mprog = List.hd menv.MEnv.me_decls in
-  let rec mprog_topprog new_vars new_funcs suffix = function
-    | [] -> new_vars, new_funcs, []
+and init_modapp menv new_vars new_funcs suffix ma_name ma_func =
+  let _, modfunc = Env.Modules.get menv.MEnv.me_store (L.mk_loc (L._dummy) ma_func) in
+  let modinfo =
+      match Map.find (L.unloc modfunc) menv.me_env with
+      | modi -> modi
+      | exception Not_found ->
+        rs_mjazzerror ~loc:(L.loc modfunc)
+          (NonExistentMod (L.unloc modfunc)) in
+  let mname = replace_with_suffix suffix ma_name in
+  let instance = List.find_opt (fun (_,mnames,_,generated)-> (not generated) && List.exists (fun n -> n = mname) mnames) modinfo.mi_instances in
+  if instance = None then menv, new_vars, new_funcs, []
+  else
+    let (args,_,iname,_) = Option.get instance in
+    let menv, new_vars, new_funcs, items = find_init_modapps menv new_vars new_funcs (L.unloc modfunc,iname) modinfo.mi_decls in
+    let menv, new_vars, new_funcs, items' = init_instance menv suffix new_vars new_funcs args ma_func iname in
+    let new_vars, new_funcs = add_new_items new_vars new_funcs mname (L.unloc modfunc,iname) modinfo.mi_store in
+    let mi_instances = List.remove_if (fun(_,_,iname',_) -> iname = iname') modinfo.mi_instances in
+    let minfo = {modinfo with mi_instances} in
+    let me_env = Map.add (L.unloc modfunc) minfo menv.MEnv.me_env in
+    let menv = {menv with me_env} in
+    menv, new_vars, new_funcs, items @ items' 
+
+and mprog_topprog menv new_vars new_funcs suffix = function
+    | [] -> menv,new_vars, new_funcs, []
     | x::xs ->
-      (* Format.eprintf "MPROG TO PPROG: @.%a@. \n\n\n"
-      (Printer.pp_gmprog ~debug:true false (Printer.pp_pexpr_ ~debug:true) (fun _ _ -> ()) Printer.pp_pvar) [x]; *)
       match x with 
       | Mprog.MdItem item -> 
         let new_vars, new_funcs, item = add_suffix_item new_vars new_funcs suffix item in
-        let new_vars, new_funcs, rest = mprog_topprog new_vars new_funcs suffix xs in
-        new_vars, new_funcs, item :: rest
+        let menv, new_vars, new_funcs, rest = mprog_topprog menv new_vars new_funcs suffix xs in
+        menv, new_vars, new_funcs, item :: rest
       | Mprog.MdFunctor m -> 
         if m.functorparams = []
         then 
-          let new_vars, new_funcs, mitems = mprog_topprog new_vars new_funcs suffix (List.rev m.Mprog.functorbody) in
-          let new_vars, new_funcs, xs_items = (mprog_topprog new_vars new_funcs suffix xs) in
-          new_vars, new_funcs, mitems @ xs_items
+          let menv, new_vars, new_funcs, mitems = mprog_topprog menv new_vars new_funcs suffix (List.rev m.Mprog.functorbody) in
+          let menv, new_vars, new_funcs, xs_items = (mprog_topprog menv new_vars new_funcs suffix xs) in
+          menv, new_vars, new_funcs, mitems @ xs_items
         else 
-          let _, modfunc = Env.Modules.get menv.me_store (L.mk_loc (L._dummy) m.functorname) in
-          let modinfo =
-            match Map.find (L.unloc modfunc) menv.me_env with
-            | modi -> modi
-            | exception Not_found ->
-              rs_mjazzerror ~loc:(L.loc modfunc)
-                (NonExistentMod (L.unloc modfunc)) in
-            let new_vars, new_funcs, items = List.fold_left (fun (new_vars,new_funcs,items)(args,_,name) ->
-              let suffix_mod = (L.unloc modfunc,name) in
-              let inst_param new_vars new_funcs mp arg = 
-                match mp, arg with
-                | Mprog.Param v, Mprog.MaParam e -> 
-                  let new_name_mod = replace_with_suffix suffix_mod v.v_name in
-                  let v = P.PV.mk new_name_mod v.v_kind (change_ty new_vars suffix v.v_ty) v.v_dloc v.v_annot in
-                  let new_vars = Map.add v.v_name v new_vars in
-                  let e = add_suffix_gexpr new_vars suffix e in
-                  new_vars, new_funcs, P.MIparam (v , e)
-                | Mprog.Glob v, Mprog.MaGlob v' ->
-                  let new_name_mod = replace_with_suffix suffix_mod v.v_name in
-                  let v = P.PV.mk new_name_mod v.v_kind (change_ty new_vars suffix v.v_ty) v.v_dloc v.v_annot in
-                  let new_vars = Map.add v.v_name v new_vars in
-                  let v' = {P.gs=E.Sglob; gv = v'} in
-                  let v' = P.Pvar (get_new_var new_vars suffix v') in
-                  new_vars, new_funcs, P.MIglobal ( v , GEword v')
-               | Mprog.Fun fs, Mprog.MaFun fn -> 
-                  let name = replace_with_suffix suffix_mod (fs.name.fn_name) in
-                  let fname = P.F.mk name in
-                  let f = Map.find fn.f_name.fn_name new_funcs in (*FIX ME - fix error message*)
-                  let f = {f with P.f_name = fname} in
-                  let new_funcs = Map.add name f new_funcs in
-                  new_vars, new_funcs, P.MIfun f
-                | _ , _ -> rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Mismatch between module parameters and arguments") 
-                in
-                let rec inst_params new_vars new_funcs m a =
-                  match m, a with
-                  | mp::mps , arg::args ->
-                    let new_vars, new_funcs, p = inst_param new_vars new_funcs mp arg in
-                    let new_vars', new_funcs', p' = inst_params new_vars new_funcs mps args in
-                    Map.union_stdlib (fun _ _ v2 -> Some v2) new_vars new_vars', Map.union_stdlib (fun _ _ v2 -> Some v2) new_funcs new_funcs', p::p'
-                  | _ , _ -> new_vars, new_funcs, []
-                in 
-                let new_vars, new_funcs, items' = inst_params new_vars new_funcs modinfo.mi_params args in
-                let new_vars, new_funcs, body = mprog_topprog new_vars new_funcs suffix_mod (List.rev m.Mprog.functorbody) in
-                new_vars, new_funcs, items @ items' @ body
-              ) (new_vars,new_funcs,[]) modinfo.mi_instances in
-            let new_vars, new_funcs, items_xs = mprog_topprog new_vars new_funcs suffix xs in
-            new_vars, new_funcs, items @ items_xs
+          mprog_topprog menv new_vars new_funcs suffix xs 
       | Mprog.MdModApp m -> 
-        (* get modinfo of ma_func, search for ma_name  *)
-        let _, modfunc = Env.Modules.get menv.me_store (L.mk_loc (L._dummy) m.ma_func) in
-        let modinfo =
-            match Map.find (L.unloc modfunc) menv.me_env with
-            | modi -> modi
-            | exception Not_found ->
-              rs_mjazzerror ~loc:(L.loc modfunc)
-                (NonExistentMod (L.unloc modfunc)) in
-        let mname = replace_with_suffix suffix m.ma_name in
-        let instance_name =
-          match List.find_map (fun (_, names, iname) ->
-            if List.exists (fun n -> n = mname) names
-            then Some iname
-            else None
-          ) modinfo.mi_instances with
-          | iname -> iname
-          | exception Not_found ->
-            rs_mjazzerror ~loc:(L._dummy)
-              (MJazzStringError (Printf.sprintf "Instance name for module %s not found" mname))
-        in
-        let new_vars,new_funcs = add_new_items new_vars new_funcs mname (L.unloc modfunc,instance_name) modinfo.mi_store in
-        mprog_topprog new_vars new_funcs suffix xs 
-  in
-  let _, _, pprog = mprog_topprog Map.empty Map.empty ("","") (List.rev mprog) in
-  let pprog =   List.rev pprog in
+        let menv, new_vars, new_funcs, items = init_modapp menv new_vars new_funcs suffix m.ma_name m.ma_func in
+        let menv, new_vars, new_funcs, items' = mprog_topprog menv new_vars new_funcs suffix xs in
+        menv, new_vars, new_funcs, items @ items'
+
+let instantiate_pprog menv =
+  let mprog = List.hd menv.MEnv.me_decls in
+  let _,_, _, pprog = mprog_topprog menv Map.empty Map.empty ("","") (List.rev mprog) in
+  let pprog =  List.rev pprog in
   pprog
 
 (** Parses (modular) program and resolves instantiation *)
@@ -1268,8 +1280,8 @@ let parse_file arch_info idirs fname =
   let menv = parse_mfile arch_info idirs fname
   in let deps: Path.t list =
        List.map (fun x->snd x) menv.me_processed in
-  (* Format.eprintf "Updated program: @.%a@."
+  (*Format.eprintf "Updated program: @.%a@."
     (Printer.pp_gmprog ~debug:true true (Printer.pp_pexpr_ ~debug:true) (fun _ _ -> ()) Printer.pp_pvar)
-    (List.hd menv.me_decls); *)
+    (List.hd menv.me_decls);*)
   deps, [], instantiate_pprog menv , List.rev (List.hd menv.me_decls)
 
