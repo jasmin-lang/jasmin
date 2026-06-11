@@ -1,4 +1,4 @@
-require "tests/success/modules/nameres/t0.mjazz"
+require "t0.mjazz"
 
 param int n = 2;
 
