@@ -777,16 +777,23 @@ end *) = struct
     let find (x : A.symbol) (st : 'asm store) =
       find (fun b -> b.gb_funs) x st
 
+    let err_double_decl f map =
+      let name = f.f_name.fn_name in
+      match Map.find name map with
+      | exception Not_found -> ()
+      | f' -> err_duplicate_fun name (f,()) f'
+
     let push st (v : (unit, 'asm) P.pfunc) rty =
       let name = v.P.f_name.P.fn_name
-      in let v = { v with f_name = P.F.mk (fully_qualified (fst st.s_bindings) name) }
-      in let vsig = pfunc_to_pfuncsig v
+      in let v' = { v with f_name = P.F.mk (fully_qualified (fst st.s_bindings) name) }
+      in let vsig = pfunc_to_pfuncsig v'
       in begin match find name st with
         | Some fd ->
           warn_duplicate_fun name (vsig, ()) fd
         | None -> ()
       end;
       let doit m =
+        err_double_decl (pfunc_to_pfuncsig v) m.gb_funs;
         { m with gb_funs = Map.add name (vsig, rty) m.gb_funs }
       in
       let s_bindings =
@@ -795,24 +802,23 @@ end *) = struct
         | (_, _, true) :: _, _ -> assert false 	(* opened namespaces are readonly *)
         | (ns, top, false) :: stack, bot ->
           (ns, doit top, false) :: stack, bot
-      in { st with s_bindings }, [P.MIfun v]
+      in { st with s_bindings }, [P.MIfun v']
+
 
     let push_modp_fun st (v : 'asm pfuncsig) rty =
       let name = v.f_name.P.fn_name
-      in let v = { v with f_name = P.F.mk (fully_qualified (fst st.s_bindings) name) }
-      in match find name st with
-      | None ->
-         let doit m =
-           { m with gb_funs = Map.add name (v,rty) m.gb_funs }
-         in let s_bindings =
-              match st.s_bindings with
-              | [], bot -> [], doit bot
-              | (_, _, true) :: _, _ -> assert false 	(* opened namespaces are readonly *)
-              | (ns, top, false) :: stack, bot ->
-                (ns, doit top, false) :: stack, bot
-         in v,{ st with s_bindings }
-      | Some fd ->
-         err_duplicate_fun name (v, ()) fd
+      in let v' = { v with f_name = P.F.mk (fully_qualified (fst st.s_bindings) name) }
+      in let doit m =
+         err_double_decl v m.gb_funs;
+        { m with gb_funs = Map.add name (v',rty) m.gb_funs }
+      in let s_bindings =
+           match st.s_bindings with
+           | [], bot -> [], doit bot
+           | (_, _, true) :: _, _ -> assert false 	(* opened namespaces are readonly *)
+           | (ns, top, false) :: stack, bot ->
+             (ns, doit top, false) :: stack, bot
+      in v',{ st with s_bindings }
+          
 
   end
 
