@@ -4,6 +4,10 @@ fail/annotation/x86-64/calldepth.jazz:
 compilation error in function f:
 stack allocation: the maximum call depth is 1 (expected: 2)
 
+fail/annotation/x86-64/returnaddress.jazz:
+
+"fail/annotation/x86-64/returnaddress.jazz", line 3 (2-15): attribute for “returnaddress” should be one of “stack”, “reg”
+
 fail/annotation/x86-64/stackalign.jazz:
 
 "fail/annotation/x86-64/stackalign.jazz", line 4 (0) to line 14 (1):
@@ -1572,7 +1576,7 @@ Allowed args are:
   [[reg]; [reg; mem (glob allowed)]]
 
 Statistics:
-	Annots:      0
+	Annots:      1
 	Pretyping:  51
 	Parsing:     4
 	Typing:      1
