@@ -1,0 +1,4 @@
+// wrong annotation, we check that an error is reported
+
+#[returnaddress]
+export fn f () {}

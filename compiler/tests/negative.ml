@@ -88,7 +88,7 @@ let check_file_on_arch path errors arch =
        | Utils0.Ok _asm -> raise Did_not_fail
      with
     | Annot.AnnotationError (loc, code) ->
-        printf "%a: %t" Location.pp_loc loc code;
+        printf "%a: %t\n\n" Location.pp_loc loc code;
         counters.annot <- counters.annot + 1
     | Pretyping.TyError (loc, code) ->
         printf "%a: %a\n\n" Location.pp_loc loc Pretyping.pp_tyerror code;
