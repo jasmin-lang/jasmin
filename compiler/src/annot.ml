@@ -40,8 +40,8 @@ let filter_string_list dfl l arg =
   let error loc nid =
     assert (l <> []);
     let pp fmt l =
-      Format.fprintf fmt "(@[%a@])"
-        (pp_list " |@ " (fun fmt (s, _) -> Format.pp_print_string fmt s))
+      Format.fprintf fmt "one of %a"
+        (pp_list ", " (fun fmt (s, _) -> Format.fprintf fmt "“%s”" s))
         l
     in
     error_attribute loc nid pp l Format.pp_print_string dfl
