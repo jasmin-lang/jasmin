@@ -782,7 +782,7 @@ Class memory (mem: Type) (CM: coreMem pointer mem) : Type :=
       stack_root : mem -> pointer
     ; stack_limit : mem -> pointer
     ; frames : mem -> seq pointer
-    ; alloc_stack : mem -> wsize -> Z -> Z -> Z -> exec mem (* alignement, size, extra initial size, extra-size *)
+    ; alloc_stack : mem -> wsize -> Z -> Z -> Z -> exec mem (* alignment, size, extra initial size, extra-size *)
     ; free_stack : mem -> mem
     ; init : seq (pointer * Z) → pointer → exec mem
 
