@@ -505,8 +505,8 @@ Definition pop_to_save
     Let last := foldM (λ a base,
                        Let: (ofs, ws) := check_to_save_slot a in
                        Let _ := assert (base <=? ofs)%Z (E.my_error (pp_hov [::pp_s "to-save: overlap"; pp_e (Pconst base); pp_e (Pconst ofs)])) in
-                       Let _ := assert (ws ≤ al)%CMP (E.error "to-save: bad frame alignement") in
-                       Let _ := assert (is_align (wrepr Uptr ofs) ws) (E.error "to-save: bad slot alignement") in
+                       Let _ := assert (ws ≤ al)%CMP (E.error "to-save: bad frame alignment") in
+                       Let _ := assert (is_align (wrepr Uptr ofs) ws) (E.error "to-save: bad slot alignment") in
                        Let _ := assert (lip_check_ws liparams ws) (E.error "to-save: bad wsize") in
                        ok (ofs + wsize_size ws)%Z
                       ) lo m in
