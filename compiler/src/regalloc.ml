@@ -744,6 +744,43 @@ module Regalloc (Arch : Arch_full.Arch)
     let cnf = List.fold_left2 (force_constraint var_of_expr) cnf id.i_in es in
     cnf
 
+  let force_regalloc_name = "force_regalloc"
+
+  let parse_force_regalloc x =
+    let on_name loc _ s =
+      try List.find (fun r -> r.v_name = s) Arch.all_registers
+      with Not_found ->
+        hierror_reg ~loc:(Lone loc)
+          "unknown register “%s” in %s annotation on variable %a"
+          s force_regalloc_name (Printer.pp_var ~debug:true) x
+    in
+    let on_error loc _ =
+      hierror_reg ~loc:(Lone loc)
+        "the “%s” annotation on variable %a requires a register name"
+        force_regalloc_name (Printer.pp_var ~debug:true) x
+    in
+    let on_attr =
+      Annot.on_attribute ~on_id:on_name ~on_string:on_name on_error
+    in
+    Annot.ensure_uniq1 force_regalloc_name on_attr x.v_annot
+
+  let allocate_hints nv vars a cnf =
+    let allocate_one x i y =
+      if types_cannot_conflict Arch.reg_size x.v_kind x.v_ty y.v_kind y.v_ty
+      then hierror_reg ~loc:Lnone
+             "variable %a (declared at %a with type \"%a\") must be allocated \
+                to register %a with an incompatible type"
+            (Printer.pp_var ~debug:true) x
+            L.pp_sloc x.v_dloc
+            PrintCommon.pp_ty x.v_ty
+            (Printer.pp_var ~debug:false) y;
+      allocate_one nv vars L.i_dummy cnf x i y a
+    in
+    let apply_force_regalloc x i =
+      parse_force_regalloc x |> Option.may (allocate_one x i)
+    in
+    Hv.iter apply_force_regalloc vars;
+    cnf
 
 let stable_call_conv = "stable_call_conv"
 
@@ -1450,6 +1487,8 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
       conflicts
       funcs
   in
+
+  let conflicts = allocate_hints nv vars a conflicts in
 
   if !Glob_options.print_liveness then pp_liveness vars liveness_per_callsite liveness_table a;
 
