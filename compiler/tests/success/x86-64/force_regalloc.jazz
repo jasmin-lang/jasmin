@@ -1,0 +1,10 @@
+// The compiler inserts self-assignments before and after the body of the
+// export function, but they inherit the annotations, so we must pick RAX
+// here.
+
+export fn main(reg u64 a) -> reg u64 {
+  #[force_regalloc=RAX] reg u64 x;
+  x = a;
+  x += 1;
+  return x;
+}
