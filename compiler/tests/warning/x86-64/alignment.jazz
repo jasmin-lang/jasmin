@@ -1,0 +1,20 @@
+#[required_alignment = { hello = u32 }]
+export fn no_argument() {}
+
+#[required_alignment = u32 ]
+export fn unstructured_alignment(reg ptr u32[1] arg) -> reg u32 {
+  reg u32 v = arg[0];
+  return v;
+}
+
+#[required_alignment = { arg }]
+export fn empty_alignment(reg ptr u32[1] arg) -> reg u32 {
+  reg u32 v = arg[0];
+  return v;
+}
+
+#[required_alignment = { arg = { size = u32 } }]
+export fn invalid_alignment(reg ptr u32[1] arg) -> reg u32 {
+  reg u32 v = arg[0];
+  return v;
+}

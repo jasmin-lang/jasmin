@@ -291,7 +291,7 @@ let init_slots pd stack_pointers alias coloring fv =
   !slots, lalloc
 
 (* --------------------------------------------------- *)
-let all_alignment pd (ctbl: alignment) alias params lalloc : param_info option list * wsize Hv.t =
+let all_alignment ~funname ~contract pd (ctbl: alignment) alias params lalloc : param_info option list * wsize Hv.t =
 
   let get_align c =
     try Hv.find ctbl c.Alias.in_var
@@ -308,6 +308,18 @@ let all_alignment pd (ctbl: alignment) alias params lalloc : param_info option l
         | _ | exception Not_found -> assert false in
       let pi_writable = w = Writable in
       let pi_align = get_align c in
+      let pi_align =
+        (* Check the contract for array arguments and propagate to callers *)
+        match Ms.find x.v_name contract with
+        | exception Not_found -> pi_align
+        | ws ->
+          if wsize_cmp ws pi_align.ac_strict.get_ws == Lt then
+            hierror ~funname ~loc:(Lone x.v_dloc) "argument %a is used with %a-bit alignment at:\n%a"
+              (Printer.pp_var ~debug:false) x
+              PrintCommon.pp_wsize pi_align.ac_strict.get_ws
+              (pp_list "@ " L.pp_iloc) (Siloc.elements pi_align.ac_strict.trace);
+          max_align ~loc:Siloc.empty Aligned ws pi_align
+      in
       Some { pi_ptr; pi_writable; pi_align }
     | _ -> assert false in
   let params = List.map doparam params in
@@ -431,7 +443,8 @@ let alloc_stack_fd callstyle pd get_info gtbl fd =
   in
   let sao_return = get_returned_params ~funname:fd.f_name.fn_name alias fd.f_args fd.f_ret in
 
-  let sao_params, atbl = all_alignment pd ctbl alias fd.f_args lalloc in
+  let contract = FunctionAnnotations.get_required_alignment fd in
+  let sao_params, atbl = all_alignment ~funname:fd.f_name.fn_name ~contract pd ctbl alias fd.f_args lalloc in
 
   let ra_on_stack =
     match fd.f_cc with

@@ -1,0 +1,28 @@
+/* This function uses its first argument a with 32-bit alignment and its second
+ * argument b without any specific alignment.
+    The annotation checks that the actual accesses do not excess the claimed
+    bounds (dst is used with alignment at most u32 and src with alignment at
+    most u128) and asks the caller to ensure the constraints (dst should have
+    alignment at least u32 and src at least u128). */
+#[required_alignment = { dst = u32, src = u128 }]
+fn copy(reg ptr u8[4] dst src) -> reg ptr u8[4] {
+  reg u32 x = src[#unaligned:u32 0];
+  dst[#aligned:u32 0] = x;
+  return dst;
+}
+
+/* In order to comply with the alignment requirement for the src parameter of
+ * function copy, the compiler will lay out the stack in such a way that the 
+   data array is aligned to 128 bits; the following annotation asserts that
+   this is indeed the case. */
+#[stackalign = u128]
+export
+fn main(reg ptr u8[4] p) -> reg u32 {
+  stack u32[3] data;
+  reg ptr u32[1] in = data[0:1], out = data[2:1];
+  reg u32 v = p[#unaligned:u32 0];
+  in[#unaligned 0] = v;
+  out = copy(out, in);
+  v = out[#unaligned 0];
+  return v;
+}

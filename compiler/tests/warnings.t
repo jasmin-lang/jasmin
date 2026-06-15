@@ -89,3 +89,13 @@
   warning: the variable g is already declared at "warning/common/bug_1347.jazz", line 2 (6-7)
   "warning/common/bug_1347.jazz", line 8 (20-21)
   warning: the variable C::x is already declared at "warning/common/bug_1347.jazz", line 7 (20-21)
+
+  $ ../jasminc warning/x86-64/alignment.jazz
+  "warning/x86-64/alignment.jazz", line 1 (25-30)
+  warning: ignored unknown argument hello in “required_alignment” annotation
+  "warning/x86-64/alignment.jazz", line 4 (23-26)
+  warning: ignored ill-formed required_alignment annotation
+  "warning/x86-64/alignment.jazz", line 10 (25-28)
+  warning: invalid constraint for argument arg (word-size expected)
+  "warning/x86-64/alignment.jazz", line 16 (25-28)
+  warning: invalid constraint for argument arg (word-size expected)

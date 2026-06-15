@@ -1,0 +1,9 @@
+#[required_alignment = { src = u256 }]
+export
+fn copy_256AU(reg ptr u256[4] dst src, reg u64 offset) -> reg ptr u256[4] {
+  offset &= 3;
+  offset <<= 5;
+  reg u256 t = #VMOVDQA_256(src.[#aligned offset]);
+  dst[0] = t;
+  return dst;
+}

@@ -4,13 +4,14 @@ fn double (reg ptr u32[N] a) -> reg ptr u32[N] {
   inline int i;
   reg u32 tmp;
   for i = 0 to N {
-    tmp = a[i];
+    tmp = a[#aligned i];
     tmp *= 2;
-    a[i] = tmp;
+    a[#aligned i] = tmp;
   }
   return a;
 }
 
+#[required_alignment = { a = u32 }]
 export fn main (reg ptr u32[4*N] a) -> reg ptr u32[4*N] {
   reg u64 i = 0;
   while (i < 4*N) {

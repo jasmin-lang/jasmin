@@ -484,6 +484,48 @@ fail/asmgen/x86-64/uninit_flag.jazz:
 compilation error:
 register allocation: variables { unitialized } remain unallocated
 
+fail/common/alignment.jazz:
+
+"fail/common/alignment.jazz", line 1 (42-43):
+compilation error in function assumes_alignment:
+stack allocation: argument a is used with 32-bit alignment at:
+"fail/common/alignment.jazz", line 2 (2-32)
+
+fail/common/alignment.jazz:
+
+"fail/common/alignment.jazz", line 1 (42-43):
+compilation error in function assumes_alignment:
+stack allocation: argument a is used with 32-bit alignment at:
+"fail/common/alignment.jazz", line 2 (2-32)
+
+fail/common/alignment.jazz:
+
+"fail/common/alignment.jazz", line 1 (42-43):
+compilation error in function assumes_alignment:
+stack allocation: argument a is used with 32-bit alignment at:
+"fail/common/alignment.jazz", line 2 (2-32)
+
+fail/common/alignment_internal.jazz:
+
+"fail/common/alignment_internal.jazz", line 8 (29-30):
+compilation error in function main:
+stack allocation: argument a is used with 32-bit alignment at:
+"fail/common/alignment_internal.jazz", line 10 (2-23)
+
+fail/common/alignment_internal.jazz:
+
+"fail/common/alignment_internal.jazz", line 8 (29-30):
+compilation error in function main:
+stack allocation: argument a is used with 32-bit alignment at:
+"fail/common/alignment_internal.jazz", line 10 (2-23)
+
+fail/common/alignment_internal.jazz:
+
+"fail/common/alignment_internal.jazz", line 8 (29-30):
+compilation error in function main:
+stack allocation: argument a is used with 32-bit alignment at:
+"fail/common/alignment_internal.jazz", line 10 (2-23)
+
 fail/common/bug_1214.jazz:
 
 "fail/common/bug_1214.jazz", line 13 (6-7):
@@ -1605,4 +1647,4 @@ Statistics:
 	Pretyping:  47
 	Parsing:     4
 	Typing:      5
-	Compile:   197
+	Compile:   203
