@@ -3,6 +3,7 @@
 , stdenv
 , fetchFromGitHub
 , fetchpatch
+, dune
 , ocamlPackages
 , python3
 , why3
@@ -19,13 +20,13 @@ with {
   };
 
   "release" = rec {
-    version = "2026.05";
+    version = "2026.06";
     rev = "r${version}";
     src = fetchFromGitHub {
       owner = "easycrypt";
       repo = "easycrypt";
       inherit rev;
-      hash = "sha256-+tVGJAfngTHpn7qFGwl36verbcxOqH21zwojgOxcuuY=";
+      hash = "sha256-+exP4UWfNGZauznLZTA/NkMOHJNstz4oaTqI0bSnkH8=";
     };
     extraBuildInputs = [];
   };
@@ -37,7 +38,7 @@ stdenv.mkDerivation rec {
   inherit version src;
 
   nativeBuildInputs = with ocamlPackages; [
-    dune_3
+    dune
     findlib
     menhir
     ocaml
