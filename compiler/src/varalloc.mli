@@ -1,8 +1,10 @@
 open Wsize
 open Prog
 
+type wsize_constraint = { get_ws : wsize ; trace : Utils.Siloc.t }
+
 type alignment_constraint =
-  { ac_strict: wsize
+  { ac_strict: wsize_constraint
   ; ac_heuristic: wsize }
 
 type param_info = {

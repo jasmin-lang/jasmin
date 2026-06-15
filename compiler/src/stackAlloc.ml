@@ -121,7 +121,7 @@ let memory_analysis pp_sr pp_err ~debug up =
       Stack_alloc.({
         pp_ptr = Conv.cvar_of_var pi.pi_ptr;
         pp_writable = pi.pi_writable;
-        pp_align    = pi.pi_align.ac_strict;
+        pp_align    = pi.pi_align.ac_strict.get_ws;
       }) in
     let conv_sub (i:Interval.t) = 
       Stack_alloc.{ cs_ofs = Conv.cz_of_int i.min;
