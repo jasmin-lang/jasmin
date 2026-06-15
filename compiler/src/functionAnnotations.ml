@@ -86,3 +86,32 @@ let process_f_annot loc funname f_cc annot =
     stack_zero_strategy;
     f_user_annot          = annot;
   }
+
+let get_required_alignment fd =
+  let key = "required_alignment" in
+  let args = List.fold_left (fun s x -> Ss.add x.v_name s) Ss.empty fd.f_args in
+  let default =
+    if FInfo.is_export fd.f_cc then
+      Ss.fold (fun a -> Ms.add a Wsize.U8) args Ms.empty
+    else Ms.empty
+  in
+  match Annotations.get key fd.f_annot.f_user_annot with
+  | None | Some None -> default
+  | Some (Some { L.pl_desc = Astruct ra }) ->
+      List.fold_left
+        (fun m (x, k) ->
+          let iloc = L.i_loc0 (L.loc x) in
+          let a = L.unloc x in
+          if not (Ss.mem a args) then
+            warning Always iloc "ignored unknown argument %s in “%s” annotation"
+              a key;
+          match k with
+          | Some { L.pl_desc = Annotations.Aws ws } -> Ms.add a ws m
+          | _ ->
+              warning Always iloc
+                "invalid constraint for argument %s (word-size expected)" a;
+              m)
+        default ra
+  | Some (Some { L.pl_loc = loc }) ->
+      warning Always (L.i_loc0 loc) "ignored ill-formed %s annotation" key;
+      default

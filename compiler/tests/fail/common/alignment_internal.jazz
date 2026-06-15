@@ -1,0 +1,12 @@
+/* This function needs no specific alignment but requires it. */
+#[required_alignment = { p = u32 }]
+fn inner(reg ptr u32[1] p) -> reg u32 {
+  reg u32 x = p[#unaligned 0];
+  return x;
+}
+
+export fn main(reg ptr u8[4] a) -> reg u32 {
+  /* Caller must comply with the contract of the callee; here, it does not */
+  reg u32 r = inner(a);
+  return r;
+}

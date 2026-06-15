@@ -1,0 +1,16 @@
+/* This function has no real alignement constraints but requires it through its annotation */
+#[required_alignment = { p = u256 }]
+fn load_aligned(reg ptr u8[4] p) -> reg u32 {
+  reg u32 r = p[#unaligned:u32 0];
+  return r;
+}
+
+#[stackalign = u256]
+export
+fn main() -> reg u32 {
+  reg u32 v = 42;
+  stack u32[1] s;
+  s[0] = v;
+  v = load_aligned(s);
+  return v;
+}
