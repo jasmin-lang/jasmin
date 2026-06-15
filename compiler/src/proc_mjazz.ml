@@ -1240,14 +1240,20 @@ and init_modapp menv new_vars new_funcs suffix ma_name ma_func =
         rs_mjazzerror ~loc:(L.loc modfunc)
           (NonExistentMod (L.unloc modfunc)) in
   let mname = replace_with_suffix suffix ma_name in
-  let instance = List.find_opt (fun (_,mnames,_,generated)-> (not generated) && List.exists (fun n -> n = mname) mnames) modinfo.mi_instances in
-  if instance = None then menv, new_vars, new_funcs, []
+  let instance = List.find_opt (fun (_,mnames,_,_)-> List.exists (fun n -> n = mname) mnames) modinfo.mi_instances in
+  let instance_opt = List.find_opt (fun (_,mnames,_,generated)-> (not generated) && List.exists (fun n -> n = mname) mnames) modinfo.mi_instances in
+  if instance_opt = None then 
+    if instance = None then menv, new_vars, new_funcs, []
+    else
+      let (_,_,iname,_) = Option.get instance in
+      let new_vars, new_funcs = add_new_items new_vars new_funcs mname (L.unloc modfunc,iname) modinfo.mi_store in
+      menv, new_vars, new_funcs, []
   else
-    let (args,_,iname,_) = Option.get instance in
+    let (args,_,iname,_) = Option.get instance_opt in
     let menv, new_vars, new_funcs, items = find_init_modapps menv new_vars new_funcs (L.unloc modfunc,iname) modinfo.mi_decls in
     let menv, new_vars, new_funcs, items' = init_instance menv suffix new_vars new_funcs args ma_func iname in
     let new_vars, new_funcs = add_new_items new_vars new_funcs mname (L.unloc modfunc,iname) modinfo.mi_store in
-    let mi_instances = List.remove_if (fun(_,_,iname',_) -> iname = iname') modinfo.mi_instances in
+    let mi_instances = List.map (fun(a,ms,iname',g) -> if iname = iname' then (a,ms,iname',true) else (a,ms,iname',g)) modinfo.mi_instances in
     let minfo = {modinfo with mi_instances} in
     let me_env = Map.add (L.unloc modfunc) minfo menv.MEnv.me_env in
     let menv = {menv with me_env} in

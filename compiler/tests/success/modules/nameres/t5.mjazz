@@ -40,10 +40,15 @@ fn inc(reg u64 x) -> reg u64 {
   x += 1;
   return x;
 }
+
+fn inc2(reg u64 x) -> reg u64 {
+  x += 1;
+  return x;
+}
 }
 
 module A2 = M2(n,I::inc);
-module A4 = M2(4,I::inc);
+module A4 = M2(2,I::inc2);
 
 fn inc1(reg u64 i1) -> reg u64 {
   reg u64 i2;
