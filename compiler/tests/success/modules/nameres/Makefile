@@ -1,7 +1,18 @@
-JASMINC = OCAMLRUNPARAM=b ../../../../jasminc -mjazz -pmodules
-JASMINC = OCAMLRUNPARAM=b ../../../../jasminc -mjazz -debug -pmodules
+EXTRACTION_DIR := extraction
 
-ALL = t1.mjazz t2.mjazz t2.mjazz
+JASMIN2EC := ../../../../jasmin2ec --mjazz --mfile_ec $(EXTRACTION_DIR)
+SOURCES := $(wildcard *.mjazz)
+EXTRACTED := $(SOURCES:.mjazz=.ec)
 
-all: t3.mjazz
-	$(JASMINC) $<
+all: extraction $(EXTRACTED)
+
+extraction:
+	mkdir -p $(EXTRACTION_DIR)
+
+%.ec: %.mjazz
+	$(JASMIN2EC) $<
+
+clean:
+	$(RM) -rf $(EXTRACTION_DIR)
+
+.PHONY: all clean
