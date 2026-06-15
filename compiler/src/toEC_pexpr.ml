@@ -2475,7 +2475,6 @@ struct
     | None -> raise (Failure "Expected constant array size")
 
   let ec_glob_decl env (x,d) =
-    let x = var_to_pvar x in
     let w_of_z ws z = Eapp (Eident [fmt_Wsz ws; "of_int"], [Econst z]) in
     let mk_abbrev e = Iabbrev (ec_vars env x, e) in
     match d with
@@ -2794,7 +2793,7 @@ struct
         add_glob_arrsz env (x, d);
         let x' = var_to_pvar x in
         let env = Env.add_module_var env m.Mprog.name x' in
-        Env.set_var env x'
+        x', Env.set_var env x'
       in
       let pp_array_theories ats = match Sarraytheory.elements ats with
           | [] -> []
@@ -2869,7 +2868,10 @@ struct
               env, [ImoduleType{name = mname; funs = fun_sigs}]
           in
           let globs = List.map doglob m.globs in
-          let env = List.fold_left (add_glob_env m) env globs in
+          let env, globs = List.fold_left (fun (env,gs)  (v,gv)-> 
+                let g,env =  add_glob_env m env (v,gv) in
+                env, gs @ [(g,gv)]
+          ) (env,[]) globs in
           let glob_items = (List.map (fun glob -> ec_glob_decl env glob) globs) in
           let env, items = List.fold_left (fun (env, items) sm ->
               match sm with
@@ -2971,7 +2973,6 @@ struct
             | _ -> env
             ) env m.funs 
            in
-          let env = List.fold_left ( fun env (g,_) -> Env.add_module_var env m.name (var_to_pvar g)) env globs in
           let init_abstract_arrays = List.map (fun (ma,i) -> 
             let t, arr = fmt_abstract_array_theory ma i in
             let ops,theories = get_array_params env ma in
