@@ -1,16 +1,15 @@
 EXTRACTION_DIR := extraction
 
 JASMIN2EC := ../../../../jasmin2ec --mjazz --mfile_ec $(EXTRACTION_DIR)
-SOURCES := $(wildcard *.mjazz)
-EXTRACTED := $(SOURCES:.mjazz=.ec)
+TARGET := $(EXTRACTION_DIR)/Keccak1600_ref_test.ec
 
-all: extraction $(EXTRACTED)
+all: $(TARGET)
 
 extraction:
 	mkdir -p $(EXTRACTION_DIR)
 
-%.ec: %.mjazz
-	$(JASMIN2EC) $<
+$(TARGET): keccak1600_ref_test.jazz | extraction
+	$(JASMIN2EC) keccak1600_ref_test.jazz
 
 clean:
 	$(RM) -rf $(EXTRACTION_DIR)

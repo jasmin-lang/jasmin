@@ -1050,20 +1050,20 @@ let get_new_lvar new_vars suffix (lv:'len P.glval) =
   | _ -> lv
 
 let rec add_suffix_instr new_vars new_funcs suffix (instr:('len,'info,'asm) P.ginstr) =
-  let i_desc = 
+  let i_desc, i_annot = 
     match instr.i_desc with
     | Cassgn (lv,at,ty,e) ->
         let lv' = get_new_lvar new_vars suffix lv in
         let e' = add_suffix_gexpr new_vars suffix e in
-        P.Cassgn (lv',at,ty,e')
+        P.Cassgn (lv',at,ty,e'), instr.i_annot
     | Copn (lvs, at,o,es) ->
         let lvs' = List.map (get_new_lvar new_vars suffix) lvs in
         let es' = List.map (add_suffix_gexpr new_vars suffix) es in
-        Copn (lvs', at,o,es')
+        Copn (lvs', at,o,es'), instr.i_annot
     | Csyscall(lvs,sc,es) ->
         let lvs' = List.map (get_new_lvar new_vars suffix) lvs in
         let es' = List.map (add_suffix_gexpr new_vars suffix) es in
-        P.Csyscall(lvs',sc,es')
+        P.Csyscall(lvs',sc,es'), instr.i_annot
     | Cassert(s,ga) -> 
         let rec add_suffix_gassert =
           function
@@ -1082,35 +1082,40 @@ let rec add_suffix_instr new_vars new_funcs suffix (instr:('len,'info,'asm) P.gi
               let ga2' = add_suffix_gassert ga2 in
               Pand (ga1',ga2')
         in 
-        P.Cassert(s,add_suffix_gassert ga)
+        P.Cassert(s,add_suffix_gassert ga), instr.i_annot
     | Cif (e,s1,s2) ->
       let e' = add_suffix_gexpr new_vars suffix e in
       let s1' = List.map (add_suffix_instr new_vars new_funcs suffix) s1 in
       let s2' = List.map (add_suffix_instr new_vars new_funcs suffix) s2 in
-      P.Cif (e',s1',s2')
+      P.Cif (e',s1',s2'), instr.i_annot
     | Cfor (v,(d,e1,e2),s) ->
       let v' = {P.gv=v; P.gs =Slocal} in
       let v' = (get_new_var new_vars suffix v').gv in
       let e1' = add_suffix_gexpr new_vars suffix e1 in
       let e2' = add_suffix_gexpr new_vars suffix e2 in
       let s' = List.map (add_suffix_instr new_vars new_funcs suffix) s in
-      P.Cfor (v',(d,e1',e2'),s')
+      P.Cfor (v',(d,e1',e2'),s'), instr.i_annot
     | Cwhile(a,s1,e,ii,s2) ->
       let e' = add_suffix_gexpr new_vars suffix e in
       let s1' = List.map (add_suffix_instr new_vars new_funcs suffix) s1 in
       let s2' = List.map (add_suffix_instr new_vars new_funcs suffix) s2 in
-      P.Cwhile(a,s1',e',ii,s2')
+      P.Cwhile(a,s1',e',ii,s2'), instr.i_annot
     | Ccall (lvs,fname,es) ->
       let lvs' = List.map (get_new_lvar new_vars suffix) lvs in
       let es' = List.map (add_suffix_gexpr new_vars suffix) es in
       let name = replace_with_suffix suffix fname.fn_name in
       match Map.find_opt name new_funcs with
       | Some f ->
-        P.Ccall (lvs',f.Prog.f_name,es')
+        let is_inline = f.P.f_cc = FInfo.Internal || FInfo.is_export f.P.f_cc in
+        let is_inline = is_inline || Annotations.has_symbol "inline" instr.i_annot in
+        let annot = if is_inline
+                    then Annotations.add_symbol ~loc:instr.i_loc.base_loc "inline" instr.i_annot
+                    else instr.i_annot in
+        P.Ccall (lvs',f.Prog.f_name,es'), annot
       | None -> 
-        P.Ccall (lvs',fname,es')
+        P.Ccall (lvs',fname,es'), instr.i_annot
     in
-    { instr with i_desc }
+    { instr with i_desc; i_annot }
 
 let add_suffix_item new_vars new_funcs (suffix:string*string) item =
   match item with 

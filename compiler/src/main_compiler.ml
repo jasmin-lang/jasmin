@@ -89,6 +89,7 @@ let main () =
       with
       | Annot.AnnotationError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
       | Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror code
+      | Pretyping_mjazz.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping_mjazz.pp_tyerror code
       | Proc_mjazz.MJazzError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"modules" "%a" Proc_mjazz.pp_mjazzerror code
       | Syntax.ParseError (loc, msg) ->
           let msg =

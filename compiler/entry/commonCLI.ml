@@ -65,6 +65,9 @@ let parse_and_compile (type reg regx xreg rflag cond asm_op extra_op)
     | Pretyping.TyError (loc, code) ->
         hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror
           code
+    | Pretyping_mjazz.TyError (loc, code) ->
+        hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping_mjazz.pp_tyerror
+          code
     | Proc_mjazz.MJazzError (loc, code) ->
         hierror ~loc:(Lone loc) ~kind:"modules error" "%a" Proc_mjazz.pp_mjazzerror
           code
