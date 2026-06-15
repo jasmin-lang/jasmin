@@ -215,3 +215,54 @@ frames in such a way that the resulting pointers are aligned. On the other hand,
 `#aligned` accesses must be applied to aligned pointer and thus the compiler may
 turn them into instructions that require this alignment (e.g., `vmovdqa` on
 x86_64).
+
+When some array accesses assume that some `export` functions receive **aligned**
+pointers as argument, these requirements **must** be documented. Otherwise the
+[stack allocation pass](../../compiler/passes/stack_alloc) will produce an
+error. To describe alignment requirements, function declarations can be
+decorated with a `required_alignment` annotation whose value is a map whose keys
+are *names* of function parameters and values are word-sizes. Parameters of the
+function that are not bound in this map have no requirement. For instance, the
+program below reads from its `src` parameter assuming it is aligned to 32 bytes.
+Alignment makes no sense for the numerical `offset` parameter and is irrelevant
+for the `dst` parameter; therefore none of them is listed in the annotation.
+
+~~~
+#[required_alignment = { src = u256 }]
+export
+fn copy_256AU(reg ptr u256[4] dst src, reg u64 offset) -> reg ptr u256[4] {
+  offset &= 3;
+  offset <<= 5;
+  reg u256 t = #VMOVDQA_256(src.[#aligned offset]);
+  dst[#unaligned 0] = t;
+  return dst;
+}
+~~~
+
+When used on local functions, this annotation acts as an assertion about the
+upper bound on the expected alignment and as a lower bound that the compiler
+should enforce. In the following example, the annotation claims that indeed, no
+access inside the function needs a more specific alignment than what is written
+and asks the compiler to enforce that the arrays that are given as argument are
+at least as aligned as what is written.
+
+~~~
+#[required_alignment = { dst = u32, src = u128 }]
+fn copy(reg ptr u8[4] dst src) -> reg ptr u8[4] {
+  reg u32 x = src[#unaligned:u32 0];
+  dst[#aligned:u32 0] = x;
+  return dst;
+}
+
+#[stackalign = u128]
+export
+fn main(reg ptr u8[4] p) -> reg u32 {
+  stack u32[3] data;
+  reg ptr u32[1] in = data[0:1], out = data[2:1];
+  reg u32 v = p[#unaligned:u32 0];
+  in[#unaligned 0] = v;
+  out = copy(out, in);
+  v = out[#unaligned 0];
+  return v;
+}
+~~~

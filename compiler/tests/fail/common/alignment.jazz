@@ -1,0 +1,4 @@
+export fn assumes_alignment(reg ptr u8[4] a) -> reg u32 {
+  reg u32 r = a[#aligned:u32 0];
+  return r;
+}
