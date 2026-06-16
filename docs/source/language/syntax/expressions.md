@@ -5,12 +5,12 @@
   | <bool>  // Boolean constant.
   | <string> // String constant.
   | <var>  // Variable.
-  | [<expr>] // Memory access.
-  | [:<wsize> <expr>] // Memory access.
-  | <var>[<expr>]  // Array access.
-  | <var>[:<wsize> <expr>]  // Array access.
-  | <var>.[<expr>]  // Unscaled array access.
-  | <var>.[:<wsize> <expr>]  // Unscaled array access.
+  | [<align> <expr>] // Memory access.
+  | [<align>:<wsize> <expr>] // Memory access.
+  | <var>[<align> <expr>]  // Array access.
+  | <var>[<align>:<wsize> <expr>]  // Array access.
+  | <var>.[<align> <expr>]  // Unscaled array access.
+  | <var>.[<align>:<wsize> <expr>]  // Unscaled array access.
   | <var>[<expr> : <expr>]  // Subarray.
   | <var>[:<wsize> <expr> : <expr>]  // Subarray.
   | <var>.[<expr> : <expr>]  // Unscaled subarray.
@@ -20,6 +20,11 @@
   | <expr> ? <expr> : <expr>  // Conditional.
   | (<int><sign><int>)[<expr>, ..., <expr>] // Packing.
   | (<expr>)
+
+<align> ::=
+  |
+  | #aligned
+  | #unaligned
 ```
 
 At source level, Jasmin program contain expressions whose concrete syntax is described below.
@@ -167,13 +172,47 @@ type-casting are supported: `a.[i:N]`, `a[u16 i:N]`, `a.[u16 i:N]`.
 
 ## Memory accesses
 
-Suppose a register `reg u64` whose value is a memory address.
+Suppose a register variable `reg u64 pointer` whose value is a memory address.
 Then, for loading values from memory the notation is as follows:
 ```
 reg u64 var;
-var = [ptr + offset];
+var = [pointer + offset];
 // or for better understanding
-var = (64u)[ptr + offset];
+var = [:u64 pointer + offset];
 ```
-`offset` is measured in bytes.
+`offset` is measured in bytes and may be an expression, depending on the
+addressing modes available on the target platform.
 
+## Alignment assumptions
+
+Memory and array accesses may have alignment annotations, either `#aligned` or
+`#unaligned`. They denote whether, *after compilation*, the pointer (i.e.,
+memory address) underlying the access is aligned, i.e., a multiple of the size
+(in bytes) of the accessed data.
+
+When no annotation is given it defaults to `#aligned` for scaled array accesses
+and `#unaligned` otherwise (unscaled array access, memory access).
+
+They are used in two ways by the compiler:
+
+1. when selecting instructions and generating assembly, to pick appropriate
+   instructions and discharge their preconditions regarding alignment (if any);
+2. when allocating local variables into the stack, the layout of each frame is
+   computed so that these assumptions are met (knowing that each `export`
+   function enforces that the stack pointer is sufficiently aligned initially).
+
+Therefore, some of these annotations hold by virtue of the correctness of the
+compiler, but the other ones are **assumptions**, used as trusted hints by the
+compiler. Notably the ones that involve pointers or arrays that are arguments to
+export functions. The [safety checker](../../tools/safety_checker) may prove
+that some of them hold, the remaining ones are plain assumptions about the
+external world.
+
+In short, `#unaligned` accesses can be used both with aligned and unaligned
+pointers and the compiler turns them into instructions that do not have any
+alignment requirement; when applied to data that is stored in the local stack of
+some Jasmin function, the compiler will nonetheless attempt to layout the stack
+frames in such a way that the resulting pointers are aligned. On the other hand,
+`#aligned` accesses must be applied to aligned pointer and thus the compiler may
+turn them into instructions that require this alignment (e.g., `vmovdqa` on
+x86_64).
