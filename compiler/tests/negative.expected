@@ -552,15 +552,15 @@ fail/common/storage_signature_mismatch.jazz:
 
 fail/common/typealias_annotation_param.jazz:
 
-"fail/common/typealias_annotation_param.jazz", line 5 (29-30): unknown function: `f'
+"fail/common/typealias_annotation_param.jazz", line 4 (32-41): attribute for “stackzerosize” should be a word size
 
 fail/common/typealias_annotation_param.jazz:
 
-"fail/common/typealias_annotation_param.jazz", line 5 (29-30): unknown function: `f'
+"fail/common/typealias_annotation_param.jazz", line 4 (32-41): attribute for “stackzerosize” should be a word size
 
 fail/common/typealias_annotation_param.jazz:
 
-"fail/common/typealias_annotation_param.jazz", line 5 (29-30): unknown function: `f'
+"fail/common/typealias_annotation_param.jazz", line 4 (32-41): attribute for “stackzerosize” should be a word size
 
 fail/common/typealias_arrayelement.jazz:
 
@@ -1576,8 +1576,8 @@ Allowed args are:
   [[reg]; [reg; mem (glob allowed)]]
 
 Statistics:
-	Annots:      1
-	Pretyping:  51
+	Annots:      4
+	Pretyping:  48
 	Parsing:     4
 	Typing:      1
 	Compile:   194
