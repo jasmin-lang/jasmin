@@ -541,7 +541,7 @@ end *) = struct
       | [] -> None
       | (ns, top, _) :: stack ->
         if !Glob_options.debug
-        then Printf.eprintf "%s:%d \n" ns (Map.cardinal (proj top));
+        then Printf.eprintf "%s: %s \n\n" ns (Map.keys (proj top) |> List.of_enum |> String.concat "," );
         match Map.find x (proj top) with
         | exception Not_found -> loop x stack
         | v -> Some v

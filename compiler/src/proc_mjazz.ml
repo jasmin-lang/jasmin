@@ -332,7 +332,7 @@ let pp_mpprog ~debug fmt p =
   Format.fprintf fmt "@[<v>%a@]"
     (Printer.pp_gmprog ~debug true (Printer.pp_pexpr_ ~debug) pp_opn Printer.pp_pvar) p
 
-let exit_module_moduleapp menv mname modname: 'asm menv =
+let exit_module_moduleapp menv mname modname add_module: 'asm menv =
    let rec loop = function
       | [], _ ->
         rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "empty module stack")
@@ -353,7 +353,9 @@ let exit_module_moduleapp menv mname modname: 'asm menv =
                     me_store = {menv.me_store with s_bindings = glob_bs }
                   ; me_gmod = List.tl menv.me_gmod
                   }
-      in upd_store (fun st -> Env.Modules.push st mname modname) menv
+      in
+      if add_module then upd_store (fun st -> Env.Modules.push st mname modname) menv
+      else menv
 
 
   (** exit of a non-toplevel module *)
@@ -521,7 +523,38 @@ let add_opened modname menv =
         then collect_opennings modm l xs
         else collect_opennings modm (collect_opennings modm (x::l) (Map.find x modm).mi_opened) xs
     in List.fold_left (fun x y -> add_opened y x) menv (collect_opennings menv.me_env [] l)
+  
+  let open_as_modules m m' menv = 
+    let rec collect_opennings modm l = function
+      | [] -> l
+      | x::xs ->
+        if List.mem x l
+        then collect_opennings modm l xs
+        else collect_opennings modm (collect_opennings modm (x::l) (Map.find x modm).mi_opened) xs
+    in let ms = collect_opennings menv.me_env [] [m] in 
+    let add_module = ref true in
+    List.fold_left (fun menv m -> 
+    let stack, bot = menv.me_store.s_bindings in 
+       let s_bindings = match Map.find m menv.me_env with
+                | exception Not_found ->
+                  rs_mjazzerror ~loc:(L._dummy)
+                    (NonExistentMod m)
+                | minfo -> ((L.unloc m'), minfo.mi_store, false)::stack, bot 
+      in 
+      let full_name = qualify (fully_qualified_modname menv.me_store) (L.unloc m') in 
+      let menv =
+       { menv with
+         me_gmod = true :: menv.me_gmod       
+       ; me_decls = []::menv.me_decls;
+          me_store = { menv.me_store with s_bindings };
+       } in
+      let menv = exit_module_moduleapp menv m' full_name !add_module in
+      add_module := false;
+      menv
+    ) menv ms
 
+    
+    
 
   let exit_file menv requires saved =
     let modname, p = List.hd menv.me_visiting
@@ -834,8 +867,9 @@ let rec mt_item (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_utils.arch_inf
   | S.POpen (mname, None) ->
     let _, m = Env.Modules.get menv.me_store mname
     in MEnv.open_modules [L.unloc m] menv
-  | S.POpen (mname, Some _) ->
-    rs_mjazzerror ~loc:(L.loc mname) MJazzNYS
+  | S.POpen (mname, Some newname) ->
+    let _, m = Env.Modules.get menv.me_store mname
+    in MEnv.open_as_modules (L.unloc m) newname menv
   | S.Prequire (from, fs) ->
     List.fold_left (mt_file_loc arch_info from) menv fs
   | S.PNamespace (ns, _) ->
@@ -882,7 +916,7 @@ and mt_moduleapp arch_info _ menv mname modfuncname margs_original =
         me_store = { menv.me_store with s_bindings };
         me_env
      } in
-    let menv = MEnv.exit_module_moduleapp menv mname full_name in
+    let menv = MEnv.exit_module_moduleapp menv mname full_name true in
     let menv = if ground_module && margs != [] then 
         match has_instance modinfo.mi_instances margs with
         | Some (mnames,iname) -> 
