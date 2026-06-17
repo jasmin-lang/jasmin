@@ -190,8 +190,7 @@ Memory and array accesses may have alignment annotations, either `#aligned` or
 memory address) underlying the access is aligned, i.e., a multiple of the size
 (in bytes) of the accessed data.
 
-When no annotation is given it defaults to `#aligned` for scaled array accesses
-and `#unaligned` otherwise (unscaled array access, memory access).
+When no annotation is given it defaults to `#unaligned`.
 
 They are used in two ways by the compiler:
 

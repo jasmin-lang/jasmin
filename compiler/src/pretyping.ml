@@ -1182,10 +1182,10 @@ let is_combine_flags id =
   List.mem_assoc (L.unloc id) combine_flags
 
 (* -------------------------------------------------------------------- *)
-let tt_al aa =
+let tt_al =
   let open Memory_model in
   function
-  | None -> (match aa with Warray_.AAdirect -> Unaligned | AAscale -> Aligned)
+  | None
   | Some `Unaligned -> Unaligned
   | Some `Aligned -> Aligned
 
@@ -1287,7 +1287,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     let i = cast_int (L.loc pi) (Some `Unsigned) i ity in
     begin match olen with
     | None ->
-       let al = tt_al aa al in
+       let al = tt_al al in
        P.Pget (al, aa, ws, x, i), ty
     | Some plen ->
        ignore_align ~loc:(L.loc pe) al;
@@ -1419,7 +1419,7 @@ and tt_mem_access pd ?(mode=`AllVar) (env : 'asm Env.env)
   let loc = L.loc e in
   let e = tt_expr_cast ~mode pd env e (P.etw pd) in
   let ct = tt_mem_wsize pd ct in
-  let al = tt_al AAdirect al in
+  let al = tt_al al in
   (ct, loc, e, al)
 
 (* -------------------------------------------------------------------- *)
@@ -1517,7 +1517,7 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
     let i = cast_int (L.loc pi) (Some `Unsigned) i ity in
     begin match olen with
     | None ->
-      let al = tt_al aa al in
+      let al = tt_al al in
       loc, (fun _ -> P.Laset (al, aa, ws, L.mk_loc xlc x, i)), Some ty
     | Some plen ->
       ignore_align ~loc al;

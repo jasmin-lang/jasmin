@@ -4,6 +4,6 @@ export fn f (reg u64 i) -> reg u32 {
   reg ptr u32[3] b;
   a[i]=0;
   b[1:2] = a[:u32 i:2];
-  res = b[:u64 1];
+  res = b[#aligned:u64 1];
   return res;
 }
