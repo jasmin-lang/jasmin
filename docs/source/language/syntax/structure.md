@@ -1,244 +1,325 @@
-# Structure
+# Program structure
 
-A Jasmin program is a collection of:
+A Jasmin source file is a sequence of top-level items:
 
-  - requires;
-  - parameters;
-  - global variables;
-  - types aliases;
-  - functions.
+```
+require "common.jinc"
 
-Each of these can potentially be defined inside a namespace.
+param int N = 10;
+
+type word = u64;
+
+u128 pattern = (16u8)[12, 15, 14, 13, 8, 11, 10, 9, 4, 7, 6, 5, 0, 3, 2, 1];
+
+namespace Crypto {
+  export fn process(reg u64 p) { ... }
+}
+```
+
+```
+<program> ::= <top-level-item>*
+
+<top-level-item> ::= <require>
+                   | <param>
+                   | <type-alias>
+                   | <global>
+                   | <function>
+                   | <namespace>
+```
 
 ## Require
 
 ```
-require <string>
-```
-```
-require <string> ... <string>
-```
-```
-from <ident> require <string> ... <string>
+require "utils.jinc"
+require "file1.jinc" "file2.jinc"
+from AES require "aes.jinc"
 ```
 
-Since version 2022.04.0, a program may be split into several files using a
-`require` clause. Its simplest form is as follows
-
-    require "path/file.jinc"
-
-Relative paths are resolved relative to the current file.
-
-The required file is treated (mostly) as if its contents were put in
-place of the `require` clause.
-
-TODO: More detail about "mostly"
-
-Files can also be searched in named locations, for instance:
-
-    from AES require "aes.jinc"
-
-This clause requires the file `aes.jinc` that is located in a path named `AES`.
-There are two ways to give names to paths in the file-system:
-
-  - either on the command-line using the argument `-I AES:actual/path/`;
-  - or using the `JASMINPATH` environment variable, as in
-  `export JASMINPATH=AES=actual/path/`.
-
-If several paths must be named, the `-I` argument can be used multiple
-times, and in the environment variable value,
-several `ID=path` pairs can be separated by a colon (`:`).
-
-Both `require` clauses and `from` can take several arguments, as in
 ```
-require "path/file1.jinc" "path/file2.jinc" "path/file3.jinc"
+<require> ::= "require" <string>+
+            | "from" <ident> "require" <string>+
 ```
-and
+
+A require clause includes the contents of another file.
+Relative paths are resolved relative to the directory of the current file.
+The required file is treated as if its contents were placed at the location
+of the require clause.
+
+The `from` variant searches for files in a named location. Named locations
+can be defined in two ways:
+
+- On the command line: `-I AES=actual/path/`
+- Via the environment variable `JASMINPATH`: `export JASMINPATH=AES=actual/path/`
+
+Multiple named paths can be specified by repeating `-I` or separating entries
+with `:` in `JASMINPATH`.
+
+Both forms accept multiple file arguments:
+
 ```
+require "file1.jinc" "file2.jinc" "file3.jinc"
 from PATH require "file1.jinc" "file2.jinc" "file3.jinc"
 ```
+
+:::{note}
+An established practice is to name included files with a `.jinc` suffix.
+However, this is not mandatory. Any name (and thus any suffix) can be used.
+:::
 
 ## Parameters
 
 ```
-param <type> <ident> = <expr>;
+param int ROUNDS = 24;
+param int BLOCK_SIZE = 4 * ROUNDS;
 ```
 
-A parameter is a named value. The name can be used within types
-(e.g., as the size of an array):
-as such, they can be used to provide a limited form of genericity.
-
-Parameters are removed by the compiler right after parsing; in particular,
-they do not appear
-in the Coq abstract syntax. Therefore, they have no formal semantics.
-
-A parameter is introduced by the `param` keyword, followed by a type, a
-name, and the value. For instance:
-
-    param int cROUNDS = 2;
-
-## Types Aliases
-
-Jasmin compiler latest development version (still unreleased) introduced a
-new syntax feature for type definition. A type alias can be defined at top
-level of a program or a namespace. The aim of this feature is to improve
-genericity of Jasmin code. The types aliases are resolved like params,
-during parsing.
-
-To define a type alias, we introduced the `type` keyword, which is followed
-by a name, and the a type. For example :
 ```
-type reg_size = u64;
-```
-Defined types can then be used in programs in place of the compiler types.
-```
-reg reg_size a; //declaring variable a with type reg_size
-reg reg_size[10] b; //declaring an array with elements of type reg_size
+<param> ::= "param" <type> <ident> "=" <expr> ";"
 ```
 
-We can note that the feature doesn't allow definitions like :
+A parameter is a named compile-time constant,
+defined in terms of literals and other parameters.
+Parameters can be used within types (e.g., as the size of an array),
+providing a limited form of genericity.
+
+Parameters are resolved by the compiler right after parsing. They do not appear
+in the formal (Rocq) abstract syntax and have no formal semantics.
+
+## Type aliases
+
 ```
-type x = reg u64;
+type word = u64;
+type block = u32[4];
 ```
 
-We can consider that the storage type (`reg`, `stack`, `inline` ...) is
-similar to the declaration keyword `let` in other languages (for instance Rust).
-Storage type is thus not a type, and should not be aliased.
+```
+<type-alias> ::= "type" <ident> "=" <type> ";"
+```
+
+A type alias introduces an alternative name for a type. The alias can then be
+used anywhere a type is expected:
+
+```
+reg word x;
+stack word[4] buf1;
+stack block buf2;
+```
+
+Type aliases are resolved at parse time, like parameters. They cannot alias
+storage qualifiers: `type x = reg u64;` is not valid. See [types](types.md) for
+the full set of available types.
 
 ## Global variables
 
-A global variable is a named value. Unlike parameters, said value is not
-available at compile-time
-(i.e., it cannot be used as part of a type), but it is available at run-time.
+```
+u128 rotate24pattern = (16u8)[12, 15, 14, 13, 8, 11, 10, 9, 4, 7, 6, 5, 0, 3, 2, 1];
+u64 constant = 0x1234;
+```
 
-Technically, global variables are stored in the code segment and are accessed
-to using PC-relative addressing mode.
+```
+<global> ::= <type> <ident> "=" <global-expr> ";"
 
-There is no keyword to introduce a global variable declaration at the top-level,
-only its type, name, and value. For instance:
+<global-expr> ::= <expr>
+                | "{" <expr> ("," <expr>)* "}"
+```
 
-    u128 rotate24pattern = (16u8)[ 12, 15, 14, 13, 8, 11, 10, 9, 4, 7, 6, 5, 0, 3, 2, 1 ];
+A global variable is a named read-only value available at runtime.
+Unlike parameters, global values cannot be used as part of a type
+(e.g., as an array size), but they can be accessed during execution.
 
-In this example, the value is a 128-bit machine-word, described as a vector
-of 16 8-bit machine-words.
+Global variables are stored in the code segment and accessed using PC-relative
+addressing. There is no introducing keyword; a top-level declaration without
+`param`, `fn`, `type`, or `namespace` is parsed as a global.
+
+The brace syntax allows initializing arrays element by element:
+
+```
+u32[4] constants = { 0x61707865, 0x3320646e, 0x79622d32, 0x6b206574 };
+```
+
+The string syntax can be used to initialize arrays of bytes:
+
+```
+u8[4] bytes = "abcd";
+```
+
+:::{caution}
+The strings are not automatically zero-terminated.
+:::
 
 ## Functions
 
-A function is introduced using the `fn` keyword, followed by the function name,
-the list of its parameters, its return type (if any), and its body.
-The body begins with the declaration of local variables and ends with
-a `return` statement.
-
-Here is an example function:
-
-    inline
-    fn shift(reg u128 x, inline int count) -> reg u128 {
-      reg u128 r;
-      r = #VPSLL_4u32(x, count);
-      return r;
-    }
-
 ```
+inline
+fn rotate(reg u32 x, inline int bits) -> reg u32 {
+    x = x <<r bits;
+    return x;
+}
+
 export
-fn add(reg u64 x, reg u64 y) -> reg u64 {
-  reg u64 r;
-  r = x;
-  r += y;
-  return r;
+fn process(reg u64 ptr) {
+    reg u64 t;
+    t = [ptr];
+    [ptr] = t;
+}
+
+#[returnaddress = stack]
+fn helper(reg u64 x) -> reg u64 {
+    x += 1;
+    return x;
 }
 ```
 
-Function definitions can be prefixed with either the `inline` or `export`
-keywords to denote, respectively, that the function will be inlined by the
-compiler or that it will respect a specified calling convention.
-
-Since version 2022.04.0, functions may not be marked
-with `inline` or `export`. Such functions are called local functions, and
-they will be preserved by the compiler but are not visible from the outside
-(i.e., they cannot be called from non-Jasmin code).
-
-Function definitions can also be prefixed by annotations.
-Annotations are key-value pairs that customize the behaviour of the compiler,
-for instance to store the return address of a function in a register or in the
-stack.
-For instance,
 ```
-#[returnaddress=stack]
-fn copy_to_memory(reg u64 x, reg u64 p) {
-    [p + 8] = x;
+<function> ::= <annotations>? <fn-kind>? "fn" <ident>
+               "(" <arg-list> ")" ("->" <result-types>)? <body>
+
+<fn-kind> ::= "inline" | "export"
+
+<arg-list> ::= (<annot-arg> ("," <annot-arg>)*)?
+
+<annot-arg> ::= <annotations>? <storage> <type> <ident>+
+
+<result-types> ::= <annot-result> ("," <annot-result>)*
+
+<annot-result> ::= <annotations>? <storage> <type>
+
+<body> ::= "{" <instr>* <return-stmt>? "}"
+
+<return-stmt> ::= "return" <ident> ("," <ident>)* ";"
+```
+
+A function is introduced by the `fn` keyword, preceded by an optional
+function kind and optional [annotations](../annotations/index.md).
+
+### Kinds of functions
+
+There are three kinds of functions:
+
+**`inline`** -- The function is inlined at every call site. Inline functions
+are erased during compilation and produce no standalone assembly code.
+
+**`export`** -- The function is visible from outside (can be called from C or
+other non-Jasmin code). It follows the platform ABI for argument passing
+and return values.
+
+**No keyword (local/subroutine)** -- The function is compiled as a subroutine
+with a Jasmin-internal calling convention. It is not visible to external code
+but is preserved as a separate function in the generated assembly.
+
+### Arguments and results
+
+Each argument has an [annotation](../annotations/index.md) (optional),
+a [storage qualifier and type](types.md), and one or more names.
+Multiple arguments of the same storage and type can share a declaration:
+
+```
+fn f(reg u64 x y, stack u8[32] buf) -> reg u64 { ... }
+```
+
+Result types are declared after `->` and specify the storage and type
+(but not the name) of each result. The names of the returned values
+appear in the `return` statement at the end of the function body.
+
+:::{attention}
+The `return` statement can only reference variables, not expressions.
+:::
+
+Commas are used to separate result types and returned values.
+
+```
+fn min_max (reg u64 n m) -> reg u64, reg u64 {
+  reg u64 min max;
+  if (n < m) { min = n; max = m; } else { min = m; max = n; }
+  return min, max;
 }
 ```
-is a local function that copies the contents of a register `x` to an address
-(stored in a register `p`) with an offset of 8, and takes its return address
-from the stack.
 
-TODO: Add link to annotation syntax.
+A function with no results omits the `->`:
 
-### Safety annotations
+```
+fn store(reg u64 p, reg u64 v) {
+    [p] = v;
+}
+```
 
-Function definitions can be annotated with safety contracts, whose syntax is illustrated below.
+
+
+### Safety contracts
+
+Functions can be annotated with safety contracts for use with the
+[safety checker](../../tools/safety_checker.md):
 
 ```
 #[safety = {
-   args = {<var>, …, <var>},
-   res = {<var>, …, <var>},
-   requires = <expr_assert>,
-   ensures = <expr_assert>
-  } ]
+    args    = { x, y },
+    res     = { r },
+    requires = x + y < 0xFFFFFFFFFFFFFFFF,
+    ensures  = r == x + y
+}]
+fn add(reg u64 x, reg u64 y) -> reg u64 {
+    reg u64 r;
+    r = x + y;
+    return r;
+}
 ```
 
-Field `args` (resp. `res`) is optional: by default it is filled with the
-function parameters (resp. function returned variables).
-
-[The assertions (`<expr_assert>`) are described in a dedicated section.](./code.md#assertions)
+See the [annotations reference](../annotations/index.md#safety) for details
+on the contract fields.
 
 ## Namespaces
 
-Jasmin features a simple namespace system, with a syntax similar to that of C++.
-
-A namespace is opened with the keyword `namespace`. It is followed by its name,
-and curly brackets enclosing the definitions placed inside the namespace.
-For instance,
 ```
-namespace A {
-  u32 g = 1;
-
-  fn f (reg u32 x) -> reg u32 {
-    return x;
-  }
-}
-```
-defines a global variable called `g` and a function called `f` inside a namespace called `A`.
-
-Referring to an object outside the namespace where it was defined can be done using `::`.
-In the last example, one would write `A::g` and `A::f`.
-
-Namespaces can be nested. For instance,
-```
-namespace A {
-  namespace B {
-    fn f (reg u32 x) -> reg u32 {
-      return x;
+namespace Crypto {
+    fn encrypt(reg u64 x) -> reg u64 {
+        return x;
     }
-  }
 }
-```
-defines `f` inside the namespace `B`, which is itself inside the namespace `A`. To refer to `f` outside `A`,
-one would write `A::B::f`.
 
-A namespace can be closed and reopened, but accesses to objects defined in previous blocks
-of the same namespace must be prefixed.
-For instance,
+/* Call from outside: */
+r = Crypto::encrypt(x);
+```
+
+```
+<namespace> ::= "namespace" <ident> "{" <top-level-item>* "}"
+```
+
+A namespace groups top-level items under a common prefix.
+Items inside a namespace are referenced from outside using `::`:
+
 ```
 namespace A {
-  u32 g = 1;
+    u32 g = 1;
+    fn f(reg u32 x) -> reg u32 { return x; }
+}
+
+/* Access: A::g, A::f */
+```
+
+Namespaces can be nested:
+
+```
+namespace A {
+    namespace B {
+        fn f(reg u32 x) -> reg u32 { return x; }
+    }
+}
+/* Access: A::B::f */
+```
+
+A namespace can be closed and reopened, but items defined in a previous block
+of the same namespace must be accessed with the full prefix:
+
+```
+namespace A {
+    u32 g = 1;
 }
 
 namespace A {
-  u32 g2 = A::g; // g needs to be prefixed
+    u32 g2 = A::g;  /* A::g must be qualified */
 }
 ```
 
-Defining an export function inside a namespace has an impact on its label in the assembly produced
-by the compiler. The rule of thumb is: `::` are replaced with `__`.
-For instance, a function `A::B::f` will have symbol `A__B__f`.
+Export functions inside namespaces have their `::` separators replaced with
+`__` in the generated assembly symbol. For example, `A::B::f` becomes
+`A__B__f`.

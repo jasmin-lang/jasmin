@@ -1,241 +1,296 @@
-# Code
+# Statements
 
-Jasmin code comprises the following constructs:
+The body of a function is a sequence of statements (instructions).
+Each statement can be preceded by [annotations](../annotations/index.md).
 
 ```
-<code> ::=
-  | <empty>
-  | <instr> <code>
+<block> ::= "{" <instr>* "}"
 
-<instr> ::=
-  | <instr_assign>
-  | <instr_intrinsic>
-  | <instr_assert>
-  | <instr_conditional>
-  | <instr_while>
-  | <instr_for>
-  | <instr_call>
+<instr> ::= <annotations>? <instr-body>
+
+<instr-body> ::= <var-decl>
+               | <assignment>
+               | <intrinsic-call>
+               | <function-call>
+               | <conditional>
+               | <for-loop>
+               | <while-loop>
+               | <assertion>
+               | <array-init>
 ```
 
-## Variable declaration
+## Variable declarations
 
-Variables in Jasmin have both a type (`int`, `bool`, `u8`, `u16`, `u32`, ...)
-and a storage qualifier (`inline`, `reg`, `stack`).
-Variables qualified as `inline` are removed in compile time, for instance the
-counter of a for loop that is unrolled.
-Variables qualified as `reg` must go into architecture registers or flags,
-and those qualified as `stack` must live in the stack.
-In Jasmin there is no variable spilling: the programmer must do it explicitly.
-
-Syntax for variable declaration is as follows:
 ```
-<var_list> ::=
-  | <var>
-  | <var>, <var_list>
-
-<var_decl> ::=
-  | <type> <var_list>;
-```
-For instance,
-```
-reg u64 var;
-stack u64[N] arr;
-inline int i, j;
+reg u64 x;
+stack u8[32] buf;
+inline int i;
+reg u64 a b c;         /* multiple variables, same type */
+reg u32 x = 1;         /* declaration with initialization */
+reg u64 a = 2, b = a;  /* sequential initialization */
 ```
 
-Note that the separating comma may be omitted.
+```
+<var-decl> ::= <storage> <type> <ident> (","? <ident>)* ";"
+             | <storage> <type> <ident> "=" <expr> ("," <ident> "=" <expr>)* ";"
+```
 
-### Declaration with initialization
+Each variable must have a [storage qualifier and type](types.md).
 
-Variables may be declared and initialized at once, in which case if several
-variables are declared, they must all be given an initial value, and separating
-commas are mandatory. Variables are declared and initialized in the given order,
-therefore an initialization expression can refer to a variable declared earlier
-in the same declaration list.
+For plain declarations (without initialization), the separating comma between
+variable names is optional. For declarations with initialization, commas are
+mandatory and all variables must have an initial value.
 
-Some examples are given below.
+Initialized variables are declared and assigned in order, so later initializers
+can reference earlier variables from the same declaration:
 
-~~~
-reg u32 x = 1; // Declares and initializes a variable x
-reg u64 a = 2, b = 0x10, c = 0o07; // Declares and initializes three variables: a, b, and c
-reg u32 base = 10, exp = x << base; // Declares and initilizes two variables: base, and exp.
-~~~
+```
+reg u32 base = 10, exp = x << base;
+```
 
-The expression representing the initial value of a declared variable is any
-Jasmin expression evaluating to a single value, for instance an immediate value,
-an arithmetic expression, a memory read, a function call, etc.
-
+The initial value can be any expression that evaluates to a single value.
 
 ## Assignments
 
 ```
-<instr_assign> ::=
-  | <lval> = <expr>;
-```
-
-The basic syntax for assignments is the usual equal sign:
-```
 x = y + 1;
-```
-and prefixing the equal sign with a binary operator `x += y;` is simply
-syntactic sugar for `x = x + y;`.
-
-There is an [expression](expressions) on the right-hand side of the expression
-and a [left-value](lvalues) on the left-hand side.
-
-Assignments can be made conditional by adding an `if` clause as a suffix
-```
+x += y;
 x = y if b;
 ```
-This means that the assignment is only performed if the condition `b` evaluates to `true`.
-
-## Intrinsics
 
 ```
-<instr_intrinsic> ::=
-  | <lval>, ..., <lval> = #<ident>(<expr>, ..., <expr>);
+<assignment> ::= <lvalues> <assign-op> <expr> ("if" <expr>)? ";"
+
+<lvalues> ::= <lvalue> ("," <lvalue>)*
+            | "(" ")"
+            | <implicits> ("," <lvalue> ("," <lvalue>)*)?
+
+<implicits> ::= "?" "{" <struct-annot> "}"
+
+<assign-op> ::= "="
+              | "+=" | "-=" | "*=" | "/=" | "%="
+              | "&=" | "|=" | "^="
+              | "<<=" | ">>=" | "<<r=" | ">>r="
 ```
 
-Intrinsics are architecture-specific instructions.
-The basic syntax is as follows
-```
-of, cf, x = #ROL(y, 4);
-```
-where to the left of the equals sign is a list of variables and to the right
-the architecture-specific instruction is prefixed by a `#` and used as a
-function name.
+The basic assignment uses `=`. Compound assignment operators (like `+=`) are
+syntactic sugar: `x += y` is equivalent to `x = x + y`.
 
-The list of available architecture-specific instructions can be seen using
-`$ jasminc -help-intrinsics`.
+Compound operators can carry size and sign annotations, just like the
+corresponding binary operators: `x +=32u y;`, `x >>=s 4;`.
 
+### Conditional assignments
 
-## Assertions
+Appending `if <expr>` makes the assignment conditional:
 
 ```
-<instr_assert> ::=
-  | assert("label", <expr_assert>);
-
-<expr_assert> ::=
-  | is_var_init(<var>)
-  | is_arr_init(<expr>, <expr>, <expr>)
-  | is_mem_init(<expr>, <expr>)
-  | <expr_assert> && <expr_assert>
-  | <expr>
+x = y if b;       /* assigns y to x only if b is true */
+x += z if cond;
 ```
 
-Assertions do nothing, provided their argument evaluates properly to `true`.
-They can be used in the [reference
-interpreter](../../tools/reference_interpreter). The compiler erases the
-assertions in an early pass (soon after type-checking): they do not contribute
-to any code in the target assembly program.
+### Implicit flag capture
 
-The constructions occurring in assertions have the following semantics:
+Intrinsics and some operations produce CPU status flags. These can be captured
+using the `?{ ... }` syntax on the left-hand side:
 
- - `a && b`: checks that both assertions `a` and `b` hold;
- - `is_var_init(x)`: checks that the variable `x` is initialized;
- - `is_arr_init(t, ofs, len)`: checks that all bytes of the array `t` between
-   `ofs` (included) and `ofs + len` (excluded) are initialized;
- - `is_mem_init(p, len)`: checks that all addresses between `p` and `p + len`
-   are initialized.
+```
+?{of=of, cf=cf}, x = #ADD_64(x, y);
+?{}, x = #SUB_64(x, y);     /* ignore all flags */
+?{zf=zf}, x = #XOR_64(x, x);
+```
+
+The braces contain named flag bindings: `flag_name = variable`.
+Use `?{}` to indicate that flags are produced but all are discarded.
+
+### Multiple return values
+
+Functions and intrinsics can return multiple values:
+
+```
+q, r = #DIVMOD(x, y);
+a, b, c = swap_and_add(a, b, c);
+```
+
+Use `_` to discard unwanted return values (see [left-values](lvalues.md)).
+
+## Intrinsic calls
+
+```
+of, cf, x = #ROL_64(y, 4);
+x = #VPAND_256(a, b);
+#VPBROADCAST_4u64(x);
+```
+
+```
+<intrinsic-call> ::= <lvalues>? "#" <ident> "(" (<expr> ("," <expr>)*)? ")" ";"
+```
+
+Intrinsics invoke architecture-specific instructions directly. The instruction
+name is prefixed with `#`.
+
+The list of available intrinsics depends on the target architecture and can be
+viewed with:
+
+```
+jasminc -help-intrinsics
+```
+
+### Flag handling
+
+Many intrinsics produce CPU flags as additional outputs. These appear as extra
+left-values before the primary result:
+
+```
+/* x86-64: ROL produces overflow and carry flags */
+of, cf, x = #ROL_64(y, 4);
+
+/* Capture specific flags by name */
+?{zf = zero_flag}, x = #AND_64(x, mask);
+
+/* Ignore unwanted flags with _ */
+_, _, x = #ADDC_64(x, y, cf);
+```
+
+### Architecture examples
+
+**x86-64:**
+```
+x = #VMOVDQU_256([ptr]);             /* 256-bit unaligned load */
+a = #VPSHUFB_256(a, pattern);         /* byte shuffle */
+?{cf = cf}, x = #ADD_64(x, y);       /* addition with carry flag */
+```
+
+**ARMv7-M (ARM Cortex-M4):**
+```
+x = #UXTB(y);                        /* unsigned extend byte */
+x = #REV(y);                         /* byte reverse */
+x = #MUL(x, y);                      /* multiply */
+```
+
+**RISC-V:**
+```
+x = #ADD(x, y);
+x = #SLL(x, shift);
+```
+
+## Function calls
+
+```
+z = add_then_shift(x, y, 2);
+do_something(x, y);
+a, b = swap(a, b);
+r = A::helper(x);
+```
+
+```
+<function-call> ::= <lvalues> "=" <var> "(" (<expr> ("," <expr>)*)? ")" ";"
+                  | <var> "(" (<expr> ("," <expr>)*)? ")" ";"
+```
+
+Function calls pass arguments by value and return zero or more values.
+The left-hand side is a comma-separated list of [left-values](lvalues.md)
+matching the function's result types, followed by `=`.
+
+A function with no results can be called without a left-hand side:
+
+```
+store_result(ptr, value);
+```
+
+A call can be forced to inline at a specific site using the
+[`#[inline]` annotation](../annotations/index.md#inline):
+
+```
+#[inline] x = f(y);
+```
 
 ## Conditionals
 
 ```
-<instr_conditional> ::=
-  | if <expr> { <code> }
-  | if <expr> { <code> } else { <code> }
-  | if <expr> { <code> } else <instr_conditional>  // else-if syntax.
-```
+if x != y {
+    x += 1;
+}
 
-Conditionals take an expression and two pieces of code, and execute one piece
-or the other depending on whether the expression evaluates to `true` or
-`false` (conditions cannot be complex expressions).
-The basic syntax for conditionals is as follows
-```
-if (x != y) {
+if x < y {
     x += 1;
 } else {
     x += 2;
 }
-```
-where the `else` branch can be omitted.
 
-Conditionals can be chained as follows
-```
-if (x < y) {
-    x += 1
-} else if (x == y) {
-    x += 2;
+if x < y {
+    x = 1;
+} else if x == y {
+    x = 2;
 } else {
-    x += 3;
+    x = 3;
 }
 ```
-where again last `else` branch can be omitted.
-This is syntactic sugar for nested conditionals.
 
+```
+<conditional> ::= "if" <expr> <block> ("else" (<block> | <conditional>))?
+```
+
+The `else` branch is optional. Conditionals can be chained with `else if`,
+which is syntactic sugar for nested conditionals.
 
 ## For loops
 
 ```
-<instr_for> ::=
-  | for <ident> = <expr> to <expr> { <code> }
-  | for <ident> = <expr> downto <expr> { <code> }
-```
-
-For loops execute a piece of code some fixed number of times.
-These iterations depend on an `inline int` counter, that takes values in a given
-range.
-The basic syntax for for loops is
-```
-for i = 0 to 13 {
-    x += x;
-    i += 2;
+for i = 0 to 5 {
+    a[i] = 0;
 }
-```
-where the counter starts taking the value of the first expression, and increases
-until it reaches the second one.
-For example, the loop `for i = 0 to 5 { ... }` executes the code in the body of
-the loop five times, as `i` takes the values 0, 1, 2, 3, and 4 in each iteration
-respectively.
 
-The iteration can be made decreasing as well, as follows
-```
-for i = 13 downto 0 {
-    x += x;
-    i -= 2;
+for i = 4 downto 0 {
+    process(a[i]);
 }
 ```
 
+```
+<for-loop> ::= "for" <ident> "=" <expr> ("to" | "downto") <expr> <block>
+```
+
+For loops execute the body a fixed number of times. The loop variable is
+implicitly `inline int` and does not need to be declared.
+
+With `to`, the variable starts at the first bound and increases by 1 each
+iteration, stopping *before* reaching the second bound (half-open range).
+`for i = 0 to 5` runs with `i` = 0, 1, 2, 3, 4.
+
+With `downto`, the variable starts at the first bound and decreases by 1 each
+iteration, stopping *before* reaching the second bound.
+`for i = 4 downto 0` runs with `i` = 4, 3, 2, 1.
+
+Both bounds must be compile-time constant expressions. For loops are always
+fully unrolled by the compiler.
 
 ## While loops
 
-```
-<instr_while> ::=
-  | while ( <expr> ) { <code> }  // Usual while loop.
-  | while { <code> } ( <expr> )  // do-while loop.
-  | while { <code> } ( <expr> ) { <code> }  // Both.
-```
+Jasmin supports three forms of while loops:
 
-While loops execute a piece of code until a condition is met.
-The basic syntax for while loops is
+### Pre-condition (while)
+
 ```
 while (x <= y) {
     y -= 1;
 }
 ```
-where the condition `x <= y` is evaluated before each iteration, and the body
-is executed only if it evaluated to `true`.
 
-Do-while loops first execute the body and only then evaluate the condition, and
-are written as follows
+The condition is evaluated before each iteration. The body executes only if the
+condition is true.
+
+### Post-condition (do-while)
+
 ```
 while {
     y -= 1;
 } (x <= y)
 ```
 
-In Jasmin, we can do both: execute some code before evaluating the condition,
-and also after
+The body executes first, then the condition is evaluated. The body always
+executes at least once.
+
+### Combined (do-while-do)
+
 ```
 while {
     y -= 1;
@@ -244,24 +299,60 @@ while {
 }
 ```
 
-
-## Function calls
+The first block (before the condition) executes, then the condition is evaluated.
+If true, the second block executes and the loop repeats from the first block.
 
 ```
-<instr_call> ::=
-  | <ident>(<expr>, ..., <expr>);
-  | <lval>, ..., <lval> = <ident>(<expr>, ..., <expr>);
+<while-loop> ::= "while" <block>? "(" <expr> ")" <block>?
 ```
 
-The syntax for function calls is as follows
-```
-z = add_then_shift_left(x, y, 2);
-```
-where to the left of the equals sign we have a comma-separated list of
-[left-values](lvalues) corresponding to the return type of the function and the
-parentheses contain the arguments as a comma-separated list of [expression](expressions).
+At least one block must be present. The loop entry point can be aligned using
+the [`#[align]` annotation](../annotations/index.md#align).
 
-The following is valid syntax for a function that does not return any values:
+## Assertions
+
 ```
-do_side_effect_computation(x, y);
+assert("bounds check", i < 10);
+assert("initialized", is_var_init(x));
 ```
+
+```
+<assertion> ::= "assert" "(" <string> "," <assert-expr> ")" ";"
+
+<assert-expr> ::= "is_var_init" "(" <var> ")"
+                | "is_arr_init" "(" <expr> "," <expr> "," <expr> ")"
+                | "is_mem_init" "(" <expr> "," <expr> ")"
+                | <assert-expr> "&&" <assert-expr>
+                | <expr>
+```
+
+Assertions are erased by the compiler in an early pass. They do not contribute
+to the generated assembly. They are meaningful in the
+[reference interpreter](../../tools/reference_interpreter.md) and the
+[safety checker](../../tools/safety_checker.md).
+
+The first argument is a label string identifying the assertion. The second
+argument is the assertion expression, which can use these special forms:
+
+| Form | Description |
+|------|-------------|
+| `is_var_init(x)` | Checks that variable `x` is initialized. |
+| `is_arr_init(t, ofs, len)` | Checks that bytes `ofs` to `ofs+len` of array `t` are initialized. |
+| `is_mem_init(p, len)` | Checks that addresses `p` to `p+len` are initialized. |
+
+Assertion expressions can be combined with `&&`.
+
+## Array initialization
+
+```
+stack u64[10] a;
+ArrayInit(a);
+```
+
+```
+<array-init> ::= "ArrayInit" "(" <var> ")" ";"
+```
+
+`ArrayInit` marks a stack array as initialized without writing specific values.
+This is used to satisfy initialization checks when the array will be fully
+written before being read.
