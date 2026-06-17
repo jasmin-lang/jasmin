@@ -19,12 +19,6 @@ let pp_aligned fmt =
      Format.fprintf fmt "#aligned "
   | Unaligned -> ()
 
-let pp_unaligned fmt =
-  function
-  | Memory_model.Aligned -> ()
-  | Unaligned ->
-     Format.fprintf fmt "#unaligned "
-
 (* -------------------------------------------------------------------- *)
 
 let string_of_signess s = if s = Unsigned then "u" else "s"
@@ -210,7 +204,7 @@ let pp_arr_access pp_gvar pp_expr fmt al aa ws x e =
   fprintf fmt "%a%s[%a%a%a]"
     pp_gvar x
     (if aa = Warray_.AAdirect then "." else "")
-    pp_unaligned al
+    pp_aligned al
     pp_access_size ws
     pp_expr (peel_implicit_cast_to_uint e)
 

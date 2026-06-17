@@ -140,7 +140,7 @@ let pp_arr_slice fmt slice =
   let pp_expr = Printer.pp_expr ~debug:false in
   let ws = non_default_wsize slice.as_arr slice.as_wsize in
   if Stdlib.Int.equal slice.as_len 1 then
-    pp_arr_access pp_var pp_expr fmt Memory_model.Aligned slice.as_access ws
+    pp_arr_access pp_var pp_expr fmt Memory_model.Unaligned slice.as_access ws
       slice.as_arr slice.as_offset
   else
     pp_arr_slice pp_var pp_expr pp_len fmt slice.as_access ws slice.as_arr
