@@ -103,7 +103,7 @@ Proof.
 Qed.
 
 
-Section COMBS.
+Section Combinators.
 Context {E E0:Type -> Type} {wE : with_Error E E0}.
 Context (funname : eqType).
 Context (A B: Type).
@@ -146,20 +146,18 @@ Definition steps_K (cnd: A -> bool) (sa: B) : itree E A :=
 Definition stk_steps_K (sa: B) : itree E A :=
   ITree.iter stk_step_K sa.
 
-End COMBS.
+End Combinators.
 
 
-Section SEM1.
+Section Semantics.
 Context {E E0:Type -> Type} {wE : with_Error E E0}.
 Context (funname : eqType).
 Context (lstate: Type).
 Context (is_call : lstate -> option funname).
 Context (fun_cond : funname -> lstate -> bool). 
-
-Section SEM11.
 Context (istep : lstate -> itree E lstate).
 
-Section SEM111.
+Section SEM1.
 Context (icheck : lstate -> lstate -> bool).
 Context (check_ac : lstate -> lstate -> bool). 
 
@@ -171,62 +169,52 @@ Record stk_lstate :=
     stk : list (lstate -> bool);
   }.
 
-Definition ss_sem_IC : funname -> lstate -> lstate ->
+Definition ss_IC : funname -> lstate -> lstate ->
     list (lstate -> bool) -> itree E (lstate + lstate) :=
   fun _ s _ _ => Ret (inl s).
-Definition ss_sem_IT :
+Definition ss_IT :
   lstate -> list (lstate -> bool) -> itree E (lstate + lstate) :=
   fun s _ => Ret (inl s).
 
-Definition ss_step (cnd: lstate -> bool)
-  (s: lstate) : itree E (lstate + lstate) :=
-   @step_K E E0 wE funname lstate lstate (@id lstate) (fun _ => nil)
-      is_call istep icheck ss_sem_IC ss_sem_IT cnd s.
-
 (* Plain small step semantics (defined with some redundancy) *)
 Definition ss_sem (cnd: lstate -> bool)
-  (s:lstate) : itree E lstate := ITree.iter (ss_step cnd) s.
+  (s: lstate) : itree E lstate :=
+   @steps_K E E0 wE funname lstate lstate (@id lstate) (fun _ => nil)
+      is_call istep icheck ss_IC ss_IT cnd s.
 
-Definition stk_sem_IC : funname -> lstate -> lstate ->
+Definition stk_IC : funname -> lstate -> lstate ->
     list (lstate -> bool) -> itree E (stk_lstate + lstate) :=
   fun fn s _ stk0 => let stk1 := fun_cond fn :: stk0 
                      in Ret (inl {| st := s ; stk := stk1 |}).
-Definition stk_sem_IT :
+Definition stk_IT :
     lstate -> list (lstate -> bool) -> itree E (stk_lstate + lstate) :=
   fun s stk0 => Ret (inl {| st := s ; stk := stk0 |}). 
 
-Definition stk_step : stk_lstate -> itree E (stk_lstate + lstate) :=
-  @stk_step_K E E0 wE funname lstate stk_lstate
+(* Small step semantics with stack of conditions *)
+Definition ss_stk_sem : stk_lstate -> itree E lstate :=
+  @stk_steps_K E E0 wE funname lstate stk_lstate
     (fun s => s.(st)) (fun s => s.(stk))
     (fun s stk0 => {| st := s; stk := stk0 |}) is_call istep 
-    icheck stk_sem_IC stk_sem_IT.
-
-(* Small step semantics with stack of conditions *)
-Definition ss_stk_sem (s: stk_lstate) : itree E lstate :=
-  ITree.iter stk_step s.
+    icheck stk_IC stk_IT.
 
 (** Mix-step semantic with and without stack *)
 (* call events *)
 Variant CallE : Type -> Type :=
   | Call : funname -> lstate -> CallE lstate.
 
-Definition mix_sem_IC : funname -> lstate -> lstate ->
+Definition mix_IC : funname -> lstate -> lstate ->
     list (lstate -> bool) -> itree (CallE +' E) (lstate + lstate) :=
   fun fn s' s _ => (s'' <- trigger_inl1 (Call fn s') ;;
                   ircheckT (uncurry check_ac) (s, s'') (Ret (inl s'')))%itree.
-Definition mix_sem_IT : lstate -> 
+Definition mix_IT : lstate -> 
     list (lstate -> bool) -> itree (CallE +' E) (lstate + lstate) :=
   fun s _ => Ret (inl s).
 
-Definition mix_step (cnd: lstate -> bool) (s: lstate) :
-  itree (CallE +' E) (lstate + lstate) :=
-  @step_K (CallE +' E) (CallE +' E0) _ funname lstate lstate
-    (@id lstate) (fun _ => nil) is_call (fun s => translate inr1 (istep s)) 
-    icheck mix_sem_IC mix_sem_IT cnd s.  
-
 Definition mix_steps (cnd: lstate -> bool) (s: lstate) :
-   itree (CallE +' E) lstate := 
-  ITree.iter (mix_step cnd) s.
+  itree (CallE +' E) lstate :=
+  @steps_K (CallE +' E) (CallE +' E0) _ funname lstate lstate
+    (@id lstate) (fun _ => nil) is_call (fun s => translate inr1 (istep s)) 
+    icheck mix_IC mix_IT cnd s.  
 
 Definition handle_call :
   CallE ~> itree (CallE +' E) :=
@@ -239,25 +227,22 @@ Definition handle_call :
 Definition mix_sem (cnd: lstate -> bool) (s: lstate) :
    itree E lstate := interp_mrec handle_call (mix_steps cnd s).
 
-Definition mix_chk_stk_sem_IC : funname -> lstate -> lstate ->
+Definition mix_chk_stk_IC : funname -> lstate -> lstate ->
     list (lstate -> bool) -> itree (CallE +' E) (stk_lstate + lstate) :=
   fun fn s' s stk => (s'' <- trigger_inl1 (Call fn s');;
                              ircheck (uncurry check_ac) (s, s'')
                                      (inl {| st:= s''; stk := stk |}))%itree.
-Definition mix_chk_stk_sem_IT : lstate -> 
+Definition mix_chk_stk_IT : lstate -> 
     list (lstate -> bool) -> itree (CallE +' E) (stk_lstate + lstate) :=
   fun s stk => Ret (inl {| st := s; stk := stk |}).
 
-Definition mix_chk_stk_step :
-   stk_lstate -> itree (CallE +' E) (stk_lstate + lstate) :=
-  @stk_step_K (CallE +' E) (CallE +' E0) _ funname lstate stk_lstate
+Definition mix_chk_stk_steps :
+  stk_lstate -> itree (CallE +' E) lstate :=
+  @stk_steps_K (CallE +' E) (CallE +' E0) _ funname lstate stk_lstate
     (fun s => s.(st)) (fun s => s.(stk))
     (fun s stk0 => {| st := s; stk := stk0 |})
     is_call (fun s => translate inr1 (istep s))
-    icheck mix_chk_stk_sem_IC mix_chk_stk_sem_IT.
-
-Definition mix_chk_stk_steps (s: stk_lstate) : itree (CallE +' E) lstate := 
-  ITree.iter mix_chk_stk_step s.
+    icheck mix_chk_stk_IC mix_chk_stk_IT.
 
 Definition handle_call_chk_stk : CallE ~> itree (CallE +' E) :=
   fun T (c:CallE T) =>
@@ -298,9 +283,9 @@ Proof.
        | Some fn => forall ls : lstate, fun_cond fn ls -> cond ls
        | None => True
        end).
-  hinduction hwf before CIH; intros st1.
-  { rewrite /ss_step /stk_step.
-    rewrite !unfold_iter; simpl.
+  unfold stk_steps_K, steps_K; simpl.
+  hinduction hwf before CIH; intros st1 FRel.
+  { rewrite !unfold_iter; simpl.
     unfold stk_step_K, step_K; simpl.
     destruct (cond st1) eqn: w_c1; simpl; last first.
     { setoid_rewrite bind_ret_l; simpl.
@@ -315,7 +300,7 @@ Proof.
       intros st2 st3 hh. inversion hh; subst. clear hh; simpl.
       destruct (icheck st1 st3) eqn: w_pc2; simpl.
       - destruct (is_call st1) eqn: w_ic1; simpl;
-          unfold stk_sem_IC, stk_sem_IT; simpl;
+          unfold stk_IC, stk_IT; simpl;
           setoid_rewrite bind_ret_l; simpl.
         + gstep; red. econstructor.
           gfinal; left. eapply CIH.      
@@ -329,10 +314,8 @@ Proof.
         intros v. destruct v.
     }
   }
-  { intros FRel. 
-    rewrite unfold_iter.
-    unfold stk_step at 1. unfold stk_step_K, step_K; simpl.
-    unfold ss_step at 1; unfold step_K, pstep_K; simpl.
+  { rewrite unfold_iter.
+    unfold stk_step_K at 1. unfold step_K, pstep_K; simpl.
     destruct (cond' st1) eqn: w_c1.
     - setoid_rewrite unfold_iter at 1.
       setoid_rewrite bind_bind; simpl.
@@ -343,7 +326,7 @@ Proof.
       econstructor 1 with (RU:= FRel st1). eapply hstep.
       intros st2 st3 hh. inversion hh; subst. clear hh; simpl.
       destruct (icheck st1 st3) eqn: w_pc.
-      + destruct (is_call st1) eqn: w_ic2; unfold stk_sem_IC, stk_sem_IT;
+      + destruct (is_call st1) eqn: w_ic2; unfold stk_IC, stk_IT;
         setoid_rewrite bind_ret_l; simpl.  
         * gstep; red. econstructor.
           gfinal; left. eapply CIH; eauto.
@@ -365,8 +348,8 @@ Lemma mix__mix_chk_stk_steps cond s :
     mix_chk_stk_steps {| st := s; stk := [:: cond] |}.
 Proof.
   move: s; einit; ecofix CIH => s.
-  rewrite /mix_chk_stk_steps /mix_steps !unfold_iter. 
-  rewrite {1}/mix_chk_stk_step /= {1}/mix_step.
+  rewrite /mix_chk_stk_steps /mix_steps.
+  rewrite /steps_K /stk_steps_K /= !unfold_iter. 
   unfold step_K, pstep_K, stk_step_K; simpl.
   case: ifP => _; last first.
   - rewrite !bind_ret_l unfold_iter /= bind_ret_l.
@@ -404,11 +387,11 @@ Lemma bind_mix_stk_steps ls cond conds :
 Proof.
   move: ls cond conds.
   ginit; gcofix SELF => ls cond conds.
-  rewrite /mix_chk_stk_steps !unfold_iter {1 4}/mix_chk_stk_step /=.
-  unfold stk_step_K, pstep_K.
+  rewrite /mix_chk_stk_steps /stk_steps_K
+    !unfold_iter /stk_step_K /pstep_K /=.
   rewrite bind_bind; simpl.
   case: ifP => hcond; last first.
-  + rewrite !bind_ret_l unfold_iter {1}/mix_chk_stk_step /=.
+  + rewrite !bind_ret_l unfold_iter /=.
     rewrite bind_tau !bind_ret_l.
     apply gpaco2_mon with bot2 bot2 => //.
     gfinal. right.
@@ -433,10 +416,10 @@ Proof.
       gstep; red. econstructor. intro v. destruct v.
 Qed. 
 
-End SEM111.
+End SEM1.
 
 
-Section SEM112.
+Section SEM2.
 Context (icheck1 icheck2 : lstate -> lstate -> bool).
 
 Lemma ss_sem_weakening (cond : lstate -> bool) :
@@ -450,7 +433,7 @@ Proof.
   intros H s.
   rewrite /ss_sem.
   apply xrutt_facts.xrutt_iter with eq => // {}s _ <-.
-  rewrite /ss_step /step_K /pstep_K; simpl.
+  rewrite /steps_K /step_K /pstep_K; simpl.
   destruct (cond s) eqn: w_c.
 
   - apply xrutt_facts.xrutt_bind with eq; simpl. 
@@ -464,7 +447,7 @@ Proof.
 
       destruct (icheck1 s s2) eqn: w_c1; simpl.
       * eapply H in w_c1. rewrite w_c1; simpl.
-        destruct (is_call s); unfold ss_sem_IC, ss_sem_IT; 
+        destruct (is_call s); unfold ss_IC, ss_IT; 
          simpl; apply xrutt_Ret; eauto.
       * apply xrutt_CutL.
         unfold errcutoff, is_error; simpl.
@@ -472,10 +455,10 @@ Proof.
   - apply xrutt_Ret; eauto.
 Qed.    
 
-End SEM112.
+End SEM2.
 
 
-Section SEM113.
+Section SEM3.
 Context (icheck : lstate -> lstate -> bool).
 Context (check_ac1 check_ac2 : lstate -> lstate -> bool). 
 
@@ -492,7 +475,7 @@ Proof.
   intros H s.
   rewrite /mix_chk_stk_steps.
   apply xrutt_facts.xrutt_iter with eq => // {}s _ <-.
-  rewrite /mix_chk_stk_step /stk_step_K /pstep_K; simpl.
+  rewrite /stk_steps_K /stk_step_K /pstep_K; simpl.
   case: stk.
   + by apply xrutt_Ret; constructor.
   move=> cond conds; case: ifP => _; last by apply xrutt_Ret;
@@ -502,7 +485,7 @@ Proof.
     + by move=> T [] e _ _; constructor; exists refl_equal.
     by move=> T [] e t1 t2 _ _ /sum_postrelP /= ->.
   move=> s1 _ <-; simpl.
-  unfold mix_chk_stk_sem_IC, mix_chk_stk_sem_IT; simpl.
+  unfold mix_chk_stk_IC, mix_chk_stk_IT; simpl.
   destruct (icheck (st s) s1) eqn: w_pc; simpl.
   - case: is_call. 
     { move=> fn. rewrite !bind_trigger; apply xrutt_Vis.
@@ -541,10 +524,10 @@ Proof.
   - apply mix_chk_stk_steps_weakening; eauto.
 Qed.
 
-End SEM113.
+End SEM3.
 
 
-Section SEM114.
+Section SEM4.
 Context (icheck1 icheck2 : lstate -> lstate -> bool).
 Context (check_ac : lstate -> lstate -> bool). 
 
@@ -561,7 +544,7 @@ Proof.
   intros H s.
   rewrite /mix_chk_stk_steps.
   apply xrutt_facts.xrutt_iter with eq => // {}s _ <-.
-  rewrite /mix_chk_stk_step /stk_step_K /pstep_K; simpl.
+  rewrite /stk_steps_K /stk_step_K /pstep_K; simpl.
   case: stk.
   + by apply xrutt_Ret; constructor.
   move=> cond conds; case: ifP => _; last by apply xrutt_Ret;
@@ -571,7 +554,7 @@ Proof.
     + by move=> T [] e _ _; constructor; exists refl_equal.
     by move=> T [] e t1 t2 _ _ /sum_postrelP /= ->.
   move=> s1 _ <-; simpl.
-  unfold mix_chk_stk_sem_IC, mix_chk_stk_sem_IT; simpl.
+  unfold mix_chk_stk_IC, mix_chk_stk_IT; simpl.
   
   (* case: is_call. *)
   destruct (icheck1 (st s) s1) eqn: w_ac1; simpl.
@@ -590,36 +573,24 @@ Proof.
     by rewrite /xrutt_facts.EE_MR /errcutoff /is_error /= mid12.
 Qed.
 
-End SEM114.
+End SEM4.
 
-End SEM11.
-
-
-Notation mix_stk_step :=
-  (fun istep icheck =>
-    mix_chk_stk_step istep icheck (fun _ _ => true)).
-
-Notation mix_stk_steps istep icheck :=
-  (fun istep instr_check =>
-        ITree.iter (mix_stk_step istep icheck)).
 
 Notation mix_stk_sem :=
-  (fun istep icheck =>
-       mix_chk_stk_sem istep icheck (fun _ _ => true)).
+  (fun icheck => mix_chk_stk_sem icheck (fun _ _ => true)).
 
 
-Section SEM12.
-Context (istep : lstate -> itree E lstate).
+Section SEM5.
 Context (icheck : lstate -> lstate -> bool).
 Context (check_ac : lstate -> lstate -> bool). 
 
 Lemma mix_stk__ss_stk_sem s :
-  mix_stk_sem istep icheck s ≈ ss_stk_sem istep icheck s.
+  mix_stk_sem icheck s ≈ ss_stk_sem icheck s.
 Proof.
-  rewrite /ss_stk_sem /mix_chk_stk_sem /mix_chk_stk_steps.
+  rewrite /ss_stk_sem /mix_chk_stk_sem /mix_chk_stk_steps /stk_steps_K.
   move: s.
   einit. ecofix SELF => s.
-  rewrite 2!unfold_iter {1}/mix_chk_stk_step {1} /stk_step. simpl.
+  rewrite 2!unfold_iter {1}/stk_step_K. simpl.
   unfold stk_step_K, pstep_K; simpl. 
   case: (stk s).
   + by rewrite !bind_ret_l !unfold_interp_mrec /=; eret.
@@ -632,7 +603,7 @@ Proof.
   apply pbc_intro_h with eq.
   + apply interp_mrec_translate.
   move=> ls _ <-. simpl.
-  unfold mix_chk_stk_sem_IC, mix_chk_stk_sem_IT; simpl in *.
+  unfold mix_chk_stk_IC, mix_chk_stk_IT; simpl in *.
   destruct (icheck (st s) ls) eqn: w_cc. 
   - case: is_call. simpl.
     + move=> fn.
@@ -661,8 +632,8 @@ Lemma mix__ss_sem (cond : lstate -> bool) :
   forall s,
     xrutt (errcutoff (is_error wE)) nocutoff
       rutt_extras.RPre_eq rutt_extras.RPost_eq eq
-     (mix_sem istep icheck check_ac cond s)
-     (ss_sem istep (fun _ _ => true) cond s).
+     (mix_sem icheck check_ac cond s)
+     (ss_sem (fun _ _ => true) cond s).
 Proof.
   move=> hstep s.
   rewrite mix__mix_chk_stk_sem.
@@ -682,7 +653,7 @@ Proof.
   eapply ss_sem_weakening; eauto.
 Qed.
 
-End SEM12.
-End SEM1.
+End SEM5.
+End Semantics.
 
 
