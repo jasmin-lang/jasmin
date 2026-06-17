@@ -5,7 +5,7 @@ export fn main (reg u64 i) -> reg u64 {
 
   s[i] = 0;
   r = s.[i:2]; // unscaled access: r is known to be aligned on U8
-  res = r[0]; // but not to be aligned on U64 -> error
+  res = r[#aligned 0]; // but not to be aligned on U64 -> error
 
   return res;
 }
