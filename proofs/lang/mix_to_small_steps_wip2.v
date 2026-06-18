@@ -102,19 +102,19 @@ Proof.
   by gstep; constructor => x; gfinal; left; apply CIH.
 Qed.
 
-
+(*
 Section Combinators.
 Context {E E0:Type -> Type} {wE : with_Error E E0}.
 Context (funname : eqType).
 Context (A B: Type).
-Context (prj1: B -> A).
-Context (prj2: B -> list (A -> bool)).
-Context (injB: A -> list (A -> bool) -> B).
 Context (is_call : A -> option funname).
 Context (fun_cond : funname -> A -> bool). 
 Context (istep : A -> itree E A).
 Context (icheck : A -> A -> bool).
 Context (check_ac : A -> A -> bool). 
+Context (prj1: B -> A).
+Context (prj2: B -> list (A -> bool)).
+Context (injB: A -> list (A -> bool) -> B).
 Context (SemC: funname -> A -> A -> list (A -> bool) -> itree E (B + A)).
 Context (SemT: A -> list (A -> bool) -> itree E (B + A)).
 
@@ -147,19 +147,78 @@ Definition stk_steps_K (sa: B) : itree E A :=
   ITree.iter stk_step_K sa.
 
 End Combinators.
+*)
 
-
-Section Semantics.
-Context {E E0:Type -> Type} {wE : with_Error E E0}.
+Section PARAMS.
 Context (funname : eqType).
 Context (lstate: Type).
 Context (is_call : lstate -> option funname).
 Context (fun_cond : funname -> lstate -> bool). 
+
+
+Section Combinators.
+Context (icheck : lstate -> lstate -> bool).
+Context (check_ac : lstate -> lstate -> bool). 
+Context (B: Type).
+Context (prj1: B -> lstate).
+Context (prj2: B -> list (lstate -> bool)).
+Context (injB: lstate -> list (lstate -> bool) -> B).
+Context {E E0:Type -> Type} {wE : with_Error E E0}.
+Context (istep : lstate -> itree E lstate).
+Context (SemC: funname -> lstate -> lstate ->
+               list (lstate -> bool) -> itree E (B + lstate)).
+Context (SemT: lstate -> list (lstate -> bool) -> itree E (B + lstate)).
+
+Definition pstep_K (cnd: lstate -> bool) (sa: B) : itree E (B + lstate) :=
+  let s := prj1 sa in    
+  (s' <- istep s ;; 
+        ircheckT (uncurry icheck) (s, s')
+          (if is_call s is Some fn
+           then SemC fn s' s (prj2 sa)
+           else SemT s' (prj2 sa)))%itree. 
+
+Definition stk_step_K (sa: B) : itree E (B + lstate) :=
+  let s := prj1 sa in    
+  match prj2 sa with
+  | [::] => Ret (inr s)
+  | cnd0 :: cnds =>
+      if cnd0 s 
+      then @pstep_K cnd0 sa
+      else Ret (inl (injB s cnds))
+  end.
+
+Definition step_K (cnd: lstate -> bool) (sa: B) : itree E (B + lstate) :=
+  let s := prj1 sa in 
+  if cnd s then (pstep_K cnd sa) else Ret (inr s). 
+
+Definition steps_K (cnd: lstate -> bool) (sa: B) : itree E lstate :=
+  ITree.iter (step_K cnd) sa.
+
+Definition stk_steps_K (sa: B) : itree E lstate :=
+  ITree.iter stk_step_K sa.
+  
+End Combinators.
+
+
+Section Semantics. 
+Context {E E0:Type -> Type} {wE : with_Error E E0}.
 Context (istep : lstate -> itree E lstate).
 
 Section SEM1.
 Context (icheck : lstate -> lstate -> bool).
 Context (check_ac : lstate -> lstate -> bool). 
+
+(* Small step semantics without stack and without call events
+   (parameterized) *)
+(* This is the semantics we want after linearization *)
+Definition ss_step cond (s:lstate) : itree E (lstate + lstate) :=
+    if cond s 
+    then (s' <- istep s ;;
+       ircheck (uncurry icheck) (s, s') (inl s'))%itree
+    else Ret (inr s).
+
+Definition ss_sem cond (s:lstate) : itree E lstate :=
+  ITree.iter (ss_step cond) s.
 
 (** Small step semantic with and without stack *)
 (* The stack is mostly used to decide more easily when to stop the
@@ -177,10 +236,10 @@ Definition ss_IT :
   fun s _ => Ret (inl s).
 
 (* Plain small step semantics (defined with some redundancy) *)
-Definition ss_sem (cnd: lstate -> bool)
+Definition ss_csem (cnd: lstate -> bool)
   (s: lstate) : itree E lstate :=
-   @steps_K E E0 wE funname lstate lstate (@id lstate) (fun _ => nil)
-      is_call istep icheck ss_IC ss_IT cnd s.
+  @steps_K icheck lstate (@id lstate) (fun _ => nil)
+    E E0 wE istep ss_IC ss_IT cnd s.
 
 Definition stk_IC : funname -> lstate -> lstate ->
     list (lstate -> bool) -> itree E (stk_lstate + lstate) :=
@@ -192,10 +251,10 @@ Definition stk_IT :
 
 (* Small step semantics with stack of conditions *)
 Definition ss_stk_sem : stk_lstate -> itree E lstate :=
-  @stk_steps_K E E0 wE funname lstate stk_lstate
+  @stk_steps_K icheck stk_lstate
     (fun s => s.(st)) (fun s => s.(stk))
-    (fun s stk0 => {| st := s; stk := stk0 |}) is_call istep 
-    icheck stk_IC stk_IT.
+    (fun s stk0 => {| st := s; stk := stk0 |}) E E0 wE istep 
+    stk_IC stk_IT.
 
 (** Mix-step semantic with and without stack *)
 (* call events *)
@@ -212,9 +271,9 @@ Definition mix_IT : lstate ->
 
 Definition mix_steps (cnd: lstate -> bool) (s: lstate) :
   itree (CallE +' E) lstate :=
-  @steps_K (CallE +' E) (CallE +' E0) _ funname lstate lstate
-    (@id lstate) (fun _ => nil) is_call (fun s => translate inr1 (istep s)) 
-    icheck mix_IC mix_IT cnd s.  
+  @steps_K icheck lstate 
+    (@id lstate) (fun _ => nil) (CallE +' E) (CallE +' E0) _
+    (fun s => translate inr1 (istep s)) mix_IC mix_IT cnd s.  
 
 Definition handle_call :
   CallE ~> itree (CallE +' E) :=
@@ -238,11 +297,11 @@ Definition mix_chk_stk_IT : lstate ->
 
 Definition mix_chk_stk_steps :
   stk_lstate -> itree (CallE +' E) lstate :=
-  @stk_steps_K (CallE +' E) (CallE +' E0) _ funname lstate stk_lstate
+  @stk_steps_K icheck stk_lstate
     (fun s => s.(st)) (fun s => s.(stk))
     (fun s stk0 => {| st := s; stk := stk0 |})
-    is_call (fun s => translate inr1 (istep s))
-    icheck mix_chk_stk_IC mix_chk_stk_IT.
+    (CallE +' E) (CallE +' E0) _ (fun s => translate inr1 (istep s)) 
+    mix_chk_stk_IC mix_chk_stk_IT.
 
 Definition handle_call_chk_stk : CallE ~> itree (CallE +' E) :=
   fun T (c:CallE T) =>
@@ -265,17 +324,43 @@ Inductive wf_stk (cond : lstate -> bool) :
       (forall ls, cond' ls -> cond ls) ->
          wf_stk conds -> wf_stk (cond' :: conds).
 
-Lemma ss_stk__ss_sem (cond : lstate -> bool) :
+Lemma ss_csem__sem (cond : lstate -> bool) s :
+    eq_itree eq (ss_csem cond s) (ss_sem cond s).
+Proof.
+  revert s.
+  ginit. gcofix CIH.
+  unfold ss_csem, ss_sem, steps_K, step_K, ss_step.
+  intros s.  
+  rewrite !unfold_iter; simpl.
+  guclo eqit_clo_bind.
+  econstructor 1 with (RU := eq).
+  { unfold pstep_K; simpl.
+    destruct (cond s); simpl; try reflexivity.
+    unfold ss_IC, ss_IT; simpl.
+    eapply eqit_bind; try reflexivity.
+    intros s1.
+    destruct (icheck s s1); simpl; try reflexivity.
+    destruct (is_call s); simpl; try reflexivity.
+  }
+  intros s1 s2 hh. inversion hh; subst. clear H.
+  destruct s2; simpl.
+  { gstep. econstructor.
+    gfinal. left. eapply CIH.
+  }
+  gstep. econstructor; auto.
+Qed.  
+  
+Lemma ss_stk__ss_csem (cond : lstate -> bool) :
    (forall s,
       eutt (fun s1 s2 => s1 = s2 /\
               if is_call s is Some fn
               then (forall ls, fun_cond fn ls -> cond ls)
               else True) (istep s) (istep s)) ->
    forall s, wf_stk cond s.(stk) ->
-    eutt eq (ss_stk_sem s) (ss_sem cond s.(st)).
+    eutt eq (ss_stk_sem s) (ss_csem cond s.(st)).
 Proof.
   move=> hstep.
-  rewrite /ss_stk_sem /ss_sem.
+  rewrite /ss_stk_sem /ss_csem.
   ginit. gcofix CIH => -[st conds] /= hwf.
   set (FRel := fun s s1 s2 : lstate =>
        s1 = s2 /\
@@ -422,16 +507,16 @@ End SEM1.
 Section SEM2.
 Context (icheck1 icheck2 : lstate -> lstate -> bool).
 
-Lemma ss_sem_weakening (cond : lstate -> bool) :
+Lemma ss_csem_weakening (cond : lstate -> bool) :
   (forall s1 s2, icheck1 s1 s2 -> icheck2 s1 s2) -> 
   forall s, 
     xrutt (errcutoff (is_error wE)) nocutoff
       rutt_extras.RPre_eq rutt_extras.RPost_eq eq
-        (ss_sem icheck1 cond s)
-        (ss_sem icheck2 cond s).
+        (ss_csem icheck1 cond s)
+        (ss_csem icheck2 cond s).
 Proof.
   intros H s.
-  rewrite /ss_sem.
+  rewrite /ss_csem.
   apply xrutt_facts.xrutt_iter with eq => // {}s _ <-.
   rewrite /steps_K /step_K /pstep_K; simpl.
   destruct (cond s) eqn: w_c.
@@ -648,12 +733,13 @@ Proof.
     exists erefl; simpl; auto.
   - unfold RPost_eq; simpl; intros; eauto.
     specialize (H erefl); simpl in *; eauto.    
-  eapply ss_stk__ss_sem; eauto.
-  econstructor.  
-  eapply ss_sem_weakening; eauto.
+  eapply ss_stk__ss_csem; eauto.
+  econstructor.
+  rewrite <- ss_csem__sem.
+  eapply ss_csem_weakening; eauto.
 Qed.
 
 End SEM5.
 End Semantics.
-
+End PARAMS.
 
