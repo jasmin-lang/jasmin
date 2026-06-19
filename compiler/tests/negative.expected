@@ -1371,6 +1371,10 @@ fail/typing/x86-64/bug_69.jazz:
 
 "fail/typing/x86-64/bug_69.jazz", line 5 (3-28): primitive operator AND_64 returns an output of size 64; it cannot be zero-extended to size 32
 
+fail/typing/x86-64/conditional_not_bool.jazz:
+
+"fail/typing/x86-64/conditional_not_bool.jazz", line 3 (2-16): the expression x has type u64 while bool is expected
+
 fail/typing/x86-64/conditional_op_mismatch.jazz:
 
 "fail/typing/x86-64/conditional_op_mismatch.jazz", line 4 (14-15): the expression has type u64 instead of bool
@@ -1592,5 +1596,5 @@ Statistics:
 	Annots:      4
 	Pretyping:  48
 	Parsing:     4
-	Typing:      1
+	Typing:      2
 	Compile:   197
