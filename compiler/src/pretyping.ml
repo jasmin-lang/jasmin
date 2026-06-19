@@ -692,11 +692,6 @@ let check_sig_lvs loc sig_ lvs =
   if nlvs <> nsig_ then
     rs_tyerror ~loc:(loc ()) (InvalidLvalCount(nlvs, nsig_));
 
-  List.iter2
-    (fun ty (loc, _, lty) -> lty
-      |> Option.may (fun lty -> check_ty_eq ~loc ~from:lty ~to_:ty))
-     sig_ lvs;
-
   List.map2 (fun ty (_,flv,_) -> flv ty) sig_ lvs
 
 
