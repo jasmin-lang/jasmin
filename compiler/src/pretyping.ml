@@ -1402,11 +1402,10 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
      P.PappN (Oarray len, es), P.(ETarr (U8, PE (Pconst (Conv.z_of_pos len))))
 
   | S.PEIf (pe1, pe2, pe3) ->
-    let e1, ty1 = tt_expr ~mode pd env pe1 in
+    let e1, _ty1 = tt_expr ~mode pd env pe1 in
     let e2, ty2 = tt_expr ~mode pd env pe2 in
     let e3, ty3 = tt_expr ~mode pd env pe3 in
 
-    check_ty_eq ~loc:(L.loc pe1) ~from:ty1 ~to_:P.etbool;
     let ty = max_ty ty2 ty3 |> oget ~exn:(tyerror ~loc:(L.loc pe3) (TypeMismatch (ty3, ty2))) in
     P.Pif(P.gty_of_gety ty, e1, e2, e3), ty
 
