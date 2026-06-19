@@ -1453,6 +1453,10 @@ fail/typing/x86-64/res_wrong_type.jazz:
 
 "fail/typing/x86-64/res_wrong_type.jazz", line 1 (0) to line 11 (1): In function “init”, return statement variable “pt” has storage type “reg mut ptr”, which differs from declared return storage type “stack”
 
+fail/typing/x86-64/return.jazz:
+
+"fail/typing/x86-64/return.jazz", line 1 (0) to line 4 (1): the expression x has type u64 while u256 is expected
+
 fail/typing/x86-64/subarray_non_const_len.jazz:
 
 "fail/typing/x86-64/subarray_non_const_len.jazz", line 5 (6-7): only param variables are allowed here
@@ -1604,5 +1608,5 @@ Statistics:
 	Annots:      4
 	Pretyping:  47
 	Parsing:     4
-	Typing:      5
+	Typing:      6
 	Compile:   197

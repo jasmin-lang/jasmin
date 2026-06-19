@@ -1,0 +1,3 @@
+export fn fake_truncate(reg u32 arg) -> reg u8 {
+  return arg;
+}

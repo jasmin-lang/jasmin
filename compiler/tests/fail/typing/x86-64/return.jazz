@@ -1,0 +1,4 @@
+export fn main() -> reg u256 {
+  reg u64 x = 0;
+  return x;
+}

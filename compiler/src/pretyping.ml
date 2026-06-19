@@ -646,10 +646,7 @@ let check_return_statement ~loc name (declared : P.epty list) (given : (L.t * P.
      then rs_tyerror ~loc (NoReturnStatement (name, declared_size)))
   else
     if not (Stdlib.Int.equal given_size declared_size)
-    then rs_tyerror ~loc:(loc_of_tuples loc (List.rev_map fst given)) (InvalidReturnStatement (name, given_size, declared_size));
-  List.iter2
-    (fun ty1 (loc, ty2) -> check_ty_eq ~loc ~from:ty2 ~to_:ty1)
-    declared given
+    then rs_tyerror ~loc:(loc_of_tuples loc (List.rev_map fst given)) (InvalidReturnStatement (name, given_size, declared_size))
 
 let check_return_storage ~loc fname =
   List.iter2 (
