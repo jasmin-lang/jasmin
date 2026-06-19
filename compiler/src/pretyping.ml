@@ -2155,8 +2155,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm 
   | PIFor ({ pl_loc = lx } as x, (d, i1, i2), s) ->
       let i1   = tt_expr_int arch_info.pd env i1 in
       let i2   = tt_expr_int arch_info.pd env i2 in
-      let vx, xty = tt_var `AllVar env x in
-      check_ty_eq ~loc:lx ~from:xty ~to_:P.etint;
+      let vx, _xty = tt_var `AllVar env x in
       let s    = tt_block arch_info env s in
       let d    = match d with `Down -> E.DownTo | `Up -> E.UpTo in
       env, [mk_i (P.Cfor (L.mk_loc lx vx, (d, i1, i2), s))]
