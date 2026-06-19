@@ -1395,6 +1395,10 @@ fail/typing/x86-64/export_stack_res.jazz:
 "fail/typing/x86-64/export_stack_res.jazz", line 5 (9-10):
 typing error: x has kind stack, only reg or reg ptr are allowed in result of non inlined function
 
+fail/typing/x86-64/flags_not_bool.jazz:
+
+"fail/typing/x86-64/flags_not_bool.jazz", line 4 (2-22): the expression x has type u64 while bool is expected
+
 fail/typing/x86-64/for_not_int.jazz:
 
 "fail/typing/x86-64/for_not_int.jazz", line 2 (2) to line 3 (3): the expression a has type u32 while int is expected
@@ -1600,5 +1604,5 @@ Statistics:
 	Annots:      4
 	Pretyping:  48
 	Parsing:     4
-	Typing:      3
+	Typing:      4
 	Compile:   197

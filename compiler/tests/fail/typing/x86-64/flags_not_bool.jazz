@@ -1,0 +1,5 @@
+export fn main(reg u64 x) {
+  reg bool o c s p z;
+  o, c, s, p, z = #CMP(x, x);
+  p = _EQ(o, c, x, z);
+}
