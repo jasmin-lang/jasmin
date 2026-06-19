@@ -1,0 +1,5 @@
+export fn main(reg ui32 a b) -> reg ui32 {
+  for a = 0 to b {
+  }
+  return a;
+}
