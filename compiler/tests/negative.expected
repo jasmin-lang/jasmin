@@ -986,7 +986,7 @@ speculative constant type checker: instruction assigns msf, which is required to
 
 fail/slh/x86-64/invalid_type.jazz:
 
-"fail/slh/x86-64/invalid_type.jazz", line 2 (4-5): the expression has type u32 instead of u64
+"fail/slh/x86-64/invalid_type.jazz", line 2 (17-18): can not implicitly cast u32 into u64
 
 fail/slh/x86-64/mov_msf.jazz:
 
@@ -1425,7 +1425,7 @@ fail/typing/x86-64/init_global.jazz:
 
 fail/typing/x86-64/lval_mismatch.jazz:
 
-"fail/typing/x86-64/lval_mismatch.jazz", line 4 (7-8): the expression has type bool instead of u64
+"fail/typing/x86-64/lval_mismatch.jazz", line 4 (2-26): the left value b has type bool while u64 is expected
 
 fail/typing/x86-64/lval_param.jazz:
 
@@ -1602,7 +1602,7 @@ Allowed args are:
 
 Statistics:
 	Annots:      4
-	Pretyping:  48
+	Pretyping:  47
 	Parsing:     4
-	Typing:      4
+	Typing:      5
 	Compile:   197
