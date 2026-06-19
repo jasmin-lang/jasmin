@@ -1363,8 +1363,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
       if nargs <> nexp then
         rs_tyerror ~loc:(L.loc pe) (InvalidArgCount(nargs, nexp));
       let tt_expr pe =
-        let e, ety = tt_expr ~mode pd env pe in
-        check_ty_eq ~loc:(L.loc pe) ~from:ety ~to_:P.etbool;
+        let e, _ety = tt_expr ~mode pd env pe in
         e in
       let args = List.map tt_expr args in
       P.PappN (Ocombine_flags c, args), P.etbool
