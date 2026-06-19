@@ -1457,6 +1457,18 @@ fail/typing/x86-64/return.jazz:
 
 "fail/typing/x86-64/return.jazz", line 1 (0) to line 4 (1): the expression x has type u64 while u256 is expected
 
+fail/typing/x86-64/slice_length_not_int.jazz:
+
+"fail/typing/x86-64/slice_length_not_int.jazz", line 4 (21-22):
+compilation error in function main:
+param expansion: expression false not allowed in array size (only constant arithmetic expressions are allowed)
+
+fail/typing/x86-64/slice_lval_length_not_int.jazz:
+
+"fail/typing/x86-64/slice_lval_length_not_int.jazz", line 4 (2-3):
+compilation error in function main:
+param expansion: expression true not allowed in array size (only constant arithmetic expressions are allowed)
+
 fail/typing/x86-64/subarray_non_const_len.jazz:
 
 "fail/typing/x86-64/subarray_non_const_len.jazz", line 5 (6-7): only param variables are allowed here
@@ -1609,4 +1621,4 @@ Statistics:
 	Pretyping:  47
 	Parsing:     4
 	Typing:      6
-	Compile:   197
+	Compile:   199

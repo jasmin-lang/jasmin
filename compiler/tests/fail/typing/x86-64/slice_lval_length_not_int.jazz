@@ -1,0 +1,5 @@
+export fn main() {
+  stack u8[4] s;
+  s[:u32 0] = 0;
+  s[1:true] = #copy_8(s[0:1]);
+}

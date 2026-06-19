@@ -1283,8 +1283,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
        P.Pget (al, aa, ws, x, i), ty
     | Some plen ->
        ignore_align ~loc:(L.loc pe) al;
-      let len,ity  = tt_expr ~mode:`OnlyParam pd env plen in
-      check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.etint;
+      let len,_ity = tt_expr ~mode:`OnlyParam pd env plen in
       let ty = P.ETarr (ws, P.PE len) in
       P.Psub (aa, ws, P.PE len, x, i), ty
     end
@@ -1511,8 +1510,7 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
       loc, (fun _ -> P.Laset (al, aa, ws, L.mk_loc xlc x, i)), Some ty
     | Some plen ->
       ignore_align ~loc al;
-      let len,ity  = tt_expr ~mode:`OnlyParam pd env plen in
-      check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.etint;
+      let len, _ity = tt_expr ~mode:`OnlyParam pd env plen in
       let ty = P.ETarr(ws, P.PE len) in
       loc, (fun _ -> P.Lasub (aa, ws, P.PE len, L.mk_loc xlc x, i)), Some ty
     end
