@@ -147,6 +147,14 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     cufdef_of_fdef fd
   in
 
+  let apply' msg trans fn cfd =
+    if !debug then Format.eprintf "START %s@." msg;
+    let fd = fdef_of_cufdef fn cfd in
+    if !debug then Format.eprintf "back to ocaml@.";
+    let fd, extra = trans fd in
+    cufdef_of_fdef fd, List.map (fun (r, m) -> Conv.cvar_of_var r, Conv.cvar_of_var m) extra
+  in
+
   (* Kind of duplicate of pp_sub_region... *)
   let pp_sr sr =
     let open Compiler_util in
@@ -312,6 +320,12 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     tokeep
   in
 
+  let autospill_fd =
+    Option.map
+      (fun strategy -> AutoSpill.spill_all_fd strategy)
+      !Glob_options.do_auto_spill
+  in
+
   let remove_wint_annot fd =
     let vars = Prog.vars_fc fd in
     let subst =
@@ -418,6 +432,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.renaming_fd = apply "alloc inline assgn" renaming_fd;
       Compiler.remove_phi_nodes_fd =
         apply "remove phi nodes" remove_phi_nodes_fd;
+      Compiler.autospill_fd = Option.map (apply' "auto-spill") autospill_fd;
       Compiler.stack_register_symbol =
         Var0.Var.vname (Conv.cvar_of_var Arch.rsp_var);
       Compiler.global_static_data_symbol =

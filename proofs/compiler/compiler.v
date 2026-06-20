@@ -19,6 +19,7 @@ Require Import
   array_copy
   array_expansion
   array_init
+  auto_spill
   constant_prop
   dead_calls
   lower_spill
@@ -110,6 +111,7 @@ Variant compiler_step :=
   | MakeRefArguments            : compiler_step
   | RegArrayExpansion           : compiler_step
   | RemoveGlobal                : compiler_step
+  | AutoSpill                   : compiler_step
   | LoadConstantsInCond         : compiler_step
   | LowerInstruction            : compiler_step
   | PropagateInline             : compiler_step
@@ -147,6 +149,7 @@ Definition compiler_step_list := [::
   ; MakeRefArguments
   ; RegArrayExpansion
   ; RemoveGlobal
+  ; AutoSpill
   ; LoadConstantsInCond
   ; LowerInstruction
   ; PropagateInline
@@ -183,6 +186,7 @@ Record compiler_params
   split_live_ranges_fd : funname -> _ufundef -> _ufundef;
   renaming_fd      : funname -> _ufundef -> _ufundef;
   remove_phi_nodes_fd : funname -> _ufundef -> _ufundef;
+  autospill_fd : option (funname -> _ufundef -> _ufundef * list (var * var));
   stack_register_symbol: Ident.ident;
   global_static_data_symbol: Ident.ident;
   stackalloc       : _uprog → stack_alloc_oracles;
@@ -313,6 +317,9 @@ Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :
 
   Let pg := remove_glob_prog pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
+
+  Let pg := auto_spill_prog cparams.(autospill_fd) pg in
+  let pg := cparams.(print_uprog) AutoSpill pg in
 
   Let pp := load_constants_prog (fresh_var_ident cparams (Reg (Normal, Direct))) aparams.(ap_plp) pg in
   let pp := cparams.(print_uprog) LoadConstantsInCond pp in

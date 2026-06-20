@@ -31,13 +31,13 @@ type twins = var Hv.t
 (** Each spilled variable has a twin in the stack. A [twins] remembers their
     names *)
 
-let get_twin (m: twins) x =
+let get_twin (m : twins) x =
   let open Wsize in
   try Hv.find m x
   with Not_found ->
     let kind =
       let ref = match x.v_kind with Reg (_, ref) -> ref | _ -> assert false in
-      if Cident.spill_to_mmx x then Reg (Extra, ref) else Stack ref
+      if spill_to_mmx x then Reg (Extra, ref) else Stack ref
     in
     let annot = Annot.consume "spill" x.v_annot in
     let y = V.mk x.v_name kind x.v_ty x.v_dloc annot in
@@ -51,7 +51,7 @@ let spill_x m o x =
   let lv = Lvar (L.mk_loc L._dummy d) in
   Cassgn (lv, AT_none, s.v_ty, e)
 
-let mk_spill m o s = Sv.fold (fun x acc -> spill_x m o x :: acc) s []
+let mk_spill (m : twins) o s = Sv.fold (fun x acc -> spill_x m o x :: acc) s []
 
 let vars_lv = function
   | Lnone _ | Lvar _ -> Sv.empty
@@ -102,9 +102,9 @@ let rec spill_all_i m strategy i =
 and spill_all_c m strategy c = List.concat_map (spill_all_i m strategy) c
 
 let spill_all_fd strategy fd =
-  if has_nospill fd.f_annot.f_user_annot then fd
+  if has_nospill fd.f_annot.f_user_annot then (fd, [])
   else
-    let twins = Hv.create 17 in
+    let twins : twins = Hv.create 17 in
     let wrap i_desc =
       {
         i_desc;
@@ -121,6 +121,7 @@ let spill_all_fd strategy fd =
       (op Spill fd.f_args @ spill_all_c twins strategy fd.f_body)
       @ op Unspill (List.map L.unloc fd.f_ret)
     in
-    { fd with f_body }
+    ({ fd with f_body }, Hv.to_list twins)
 
-let doit strategy (gd, fds) = (gd, List.map (spill_all_fd strategy) fds)
+let doit strategy (gd, fds) =
+  (gd, List.map (fun fd -> fst (spill_all_fd strategy fd)) fds)

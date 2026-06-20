@@ -356,6 +356,7 @@ Module Type InstrInfoT <: TAG.
   Include TAG.
   Parameter with_location : t -> t.
   Parameter is_inline : t -> bool.
+  Parameter eqb: t -> t -> bool.
   Parameter var_info_of_ii : t -> var_info.
 End InstrInfoT.
 
@@ -364,6 +365,7 @@ Module InstrInfo : InstrInfoT.
   Definition witness : t := 1%positive.
   Definition with_location (ii : t) := ii.
   Definition is_inline (_ : t) : bool := false.
+  Definition eqb (_ _: t) : bool := false.
   Definition var_info_of_ii (_ : t) : var_info := dummy_var_info.
 End InstrInfo.
 
@@ -372,6 +374,7 @@ Definition dummy_instr_info : instr_info := InstrInfo.witness.
 Definition ii_with_location (ii : instr_info) : instr_info :=
   InstrInfo.with_location ii.
 Definition ii_is_inline (ii : instr_info) : bool := InstrInfo.is_inline ii.
+Definition ii_eqb (ii ii': instr_info) : bool := InstrInfo.eqb ii ii'.
 Definition var_info_of_ii (ii : instr_info) : var_info := InstrInfo.var_info_of_ii ii.
 
 #[only(eqbOK)] derive

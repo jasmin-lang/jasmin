@@ -71,6 +71,8 @@ compiler/array_copy.v
 compiler/array_copy_proof.v
 compiler/array_init.v
 compiler/array_init_proof.v
+compiler/auto_spill.v
+compiler/auto_spill_proof.v
 compiler/compiler_util.v
 compiler/compiler.v
 compiler/constant_prop.v

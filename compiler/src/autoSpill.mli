@@ -26,6 +26,13 @@ type strategy =
   | OptIn  (** reg variables explicitly annotated with [spill] *)
   | OptOut  (** all reg variables, except the ones annotated with [nospill] *)
 
-val doit : strategy -> ('info, 'asm) Prog.prog -> ('info, 'asm) Prog.prog
+open Prog
+
+val spill_all_fd :
+  strategy -> ('info, 'asm) func -> ('info, 'asm) func * (var * var) list
+(** Insert spill and unspill operators in a function, according to the chosen
+    strategy. *)
+
+val doit : strategy -> ('info, 'asm) prog -> ('info, 'asm) prog
 (** Insert spill and unspill operators in a program, according to the chosen
     strategy. *)

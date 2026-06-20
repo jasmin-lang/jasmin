@@ -165,6 +165,7 @@ let print_strings = function
   | Compiler.RemoveArrInit               -> "rmarrinit", "remove array initialisation"
   | Compiler.RegArrayExpansion           -> "arrexp"   , "expansion of register arrays"
   | Compiler.RemoveGlobal                -> "rmglobals", "remove globals variables"
+  | Compiler.AutoSpill                   -> "autospill", "introduce (un)spilling"
   | Compiler.MakeRefArguments            -> "makeref"  , "add assignments before and after call to ensure that arguments and results are ref ptr"
   | Compiler.LoadConstantsInCond         -> "loadconst", "introduce registers for constants appearing in conditions (RISC-V only)"
   | Compiler.LowerInstruction            -> "lowering" , "lowering of instructions"
