@@ -81,7 +81,7 @@ module type Arch = sig
 
   val callstyle : var callstyle 
   
-  val arch_info : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Pretyping_utils.arch_info
+  val arch_info : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Pretyping.arch_info
 
   val is_ct_sopn : ?doit:bool -> extended_op -> bool
 

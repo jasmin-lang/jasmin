@@ -1,6 +1,6 @@
 (* -------------------------------------------------------------------- *)
 open Utils
-open Pretyping_mjazz
+open Pretyping
 module Path = BatPathGen.OfString
 module F = Format
 module L = Location
@@ -105,7 +105,7 @@ let fmodule_name (fname: string) : M.modulename =
 module MEnv = struct
 
   type 'asm modinfo =
-    { mi_store : 'asm Env.global_bindings
+    { mi_store : 'asm global_bindings
     ; mi_params: P.pexpr_ M.mparamdecl list
     ; mi_ast: (S.pitem L.located) list
     ; mi_decls : (P.pexpr_, unit, 'asm) M.gmodule_item list
@@ -136,7 +136,7 @@ module MEnv = struct
     }
 
   let mpath menv =
-    List.map (fun x -> let ns,_,_ = x in ns) (fst menv.me_store.s_bindings)
+    List.map (fun x -> let ns,_,_ = x in ns) (fst (Env.bindings menv.me_store))
 
   let empty froms =
     let idir = Path.of_string (Sys.getcwd ())
@@ -218,7 +218,7 @@ let pp_pprog ~debug fmt p =
 (*  let mk_fun *)
 
   let fully_qualified_modname st =
-    match st.Env.s_bindings with
+    match Env.bindings st with
     | [], _ -> 
       rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "empty module stack")
     | (ns,_,_)::xs, _ ->
@@ -240,11 +240,11 @@ let pp_pprog ~debug fmt p =
     | MSfn (name, tyin, tyout) ->
       let tyins = List.map (tt_type pd st) tyin
       in let tyouts = List.map (tt_type pd st) tyout
-      in let funcsig = { Env.f_loc = L.loc name
-                       ; Env.f_name = P.F.mk (L.unloc name)
-                       ; Env.f_tyin = List.map (P.gty_of_gety) tyins
-                       ; Env.f_tyout =  List.map (P.gty_of_gety) tyouts
-                       ; Env.f_pfunc = None
+      in let funcsig = { f_loc = L.loc name
+                       ; f_name = P.F.mk (L.unloc name)
+                       ; f_tyin = List.map (P.gty_of_gety) tyins
+                       ; f_tyout =  List.map (P.gty_of_gety) tyouts
+                       ; f_pfunc = None
                        }
 
       in let funcsig,st = Env.Funs.push_modp_fun st funcsig { fs_tin = tyins; fs_tout = tyouts}
@@ -347,10 +347,10 @@ let exit_module_moduleapp menv mname modname add_module: 'asm menv =
       | (m1, bs1, false) :: (m2, bs2, false) :: stack, bot ->
         let merged = Env.merge_bindings (m1,bs1) bs2 in
         ((m2, merged, false) :: stack, bot), []
-        in let glob_bs, _ = loop menv.me_store.s_bindings
+        in let glob_bs, _ = loop (Env.bindings menv.me_store)
         in let menv, _ = pop_ldecls menv
         in let menv = { menv with
-                    me_store = {menv.me_store with s_bindings = glob_bs }
+                    me_store = Env.update_bindings menv.me_store glob_bs
                   ; me_gmod = List.tl menv.me_gmod
                   }
       in
@@ -383,8 +383,8 @@ let exit_module_moduleapp menv mname modname add_module: 'asm menv =
     in let modname = fully_qualified_modname menv.me_store
     in if !Glob_options.debug
     then Printf.eprintf "Exiting module \"%s\" (fullname=%s)\n%!" (L.unloc mname) modname;
-    let _, mod_bs, _ = List.hd (fst menv.me_store.s_bindings)
-    in let glob_bs, mod_omods = loop menv.me_store.s_bindings
+    let _, mod_bs, _ = List.hd (fst (Env.bindings menv.me_store))
+    in let glob_bs, mod_omods = loop (Env.bindings menv.me_store)
     in let menv, mdecls = pop_ldecls menv
     in 
       if !Glob_options.debug
@@ -399,7 +399,7 @@ let exit_module_moduleapp menv mname modname add_module: 'asm menv =
          }
     in let menv = add_decls menv [functor_from_modinfo modname imports modinfo]
     in let menv = { menv with
-                    me_store = {menv.me_store with s_bindings = glob_bs }
+                    me_store = Env.update_bindings menv.me_store glob_bs
                   ; me_env = Map.add modname modinfo menv.me_env
                   ; me_gmod = List.tl menv.me_gmod
                   }
@@ -410,21 +410,18 @@ let exit_module_moduleapp menv mname modname add_module: 'asm menv =
   let save_filectxt menv modname =
     if !Glob_options.debug then Printf.eprintf "save filectxt \"%s\" \n%!" modname;
     let newtopbs = modname, Env.empty_gb, false
-    in match menv.me_store.s_bindings with
+    in match Env.bindings menv.me_store with
     | [], bot -> (* no filectxt to save *)
       if !Glob_options.debug then Printf.eprintf "clean ctxt!\n";
+      let me_store = Env.update_bindings menv.me_store ([newtopbs], bot) in
       let menv =
         { menv with 
-          me_store = 
-            { menv.me_store with
-              s_bindings = [newtopbs] , bot
-            }
+          me_store
         ; me_decls = []::menv.me_decls
         }
       in Some (menv, None)
     | x::xs, bot -> (* save top ctxt (st & decls) *)
-      let st = { menv.me_store with
-                 s_bindings = [newtopbs], bot }
+      let st = Env.update_bindings menv.me_store ([newtopbs], bot)
       in let topdecls = List.hd menv.me_decls
       in if List.for_all (fun (_,_,b) -> b) xs
       then Some ( { menv with
@@ -495,15 +492,13 @@ let exit_module_moduleapp menv mname modname add_module: 'asm menv =
 
 let add_opened modname menv =
   let add_opened_bs minfo st =
-    match st.Env.s_bindings with
+    match Env.bindings st with
     | [], _ ->
       rs_mjazzerror ~loc:(L._dummy)
         (MJazzStringError "(Internal Error) non-existent toplevel module")
     | x::xs, bot ->
       if minfo.mi_params = []
-      then { st with
-             s_bindings = x::(modname, minfo.mi_store, true)::xs, bot
-           }
+      then Env.update_bindings  st (x::(modname, minfo.mi_store, true)::xs, bot)
       else rs_mjazzerror ~loc:(L._dummy)
           (MJazzStringError "(Internal Error) cannot open parametric module")
   in match Map.find modname menv.me_env with
@@ -534,19 +529,20 @@ let add_opened modname menv =
     in let ms = collect_opennings menv.me_env [] [m] in 
     let add_module = ref true in
     List.fold_left (fun menv m -> 
-    let stack, bot = menv.me_store.s_bindings in 
+    let stack, bot = Env.bindings menv.me_store in 
        let s_bindings = match Map.find m menv.me_env with
                 | exception Not_found ->
                   rs_mjazzerror ~loc:(L._dummy)
                     (NonExistentMod m)
                 | minfo -> ((L.unloc m'), minfo.mi_store, false)::stack, bot 
       in 
-      let full_name = qualify (fully_qualified_modname menv.me_store) (L.unloc m') in 
+      let full_name = qualify (fully_qualified_modname menv.me_store) (L.unloc m') in
+      let me_store = Env.update_bindings menv.me_store s_bindings in 
       let menv =
        { menv with
          me_gmod = true :: menv.me_gmod       
        ; me_decls = []::menv.me_decls;
-          me_store = { menv.me_store with s_bindings };
+          me_store;
        } in
       let menv = exit_module_moduleapp menv m' full_name !add_module in
       add_module := false;
@@ -566,11 +562,10 @@ let add_opened modname menv =
       ; me_visiting = List.tl menv.me_visiting
       }
     | Some (top,saved_decls) ->
+      let me_store = Env.update_bindings menv.me_store (top, snd (Env.bindings menv.me_store)) in
       let menv = open_modules [modname]
                     { menv with
-                      me_store = { menv.me_store with
-                                   s_bindings = top, snd menv.me_store.s_bindings
-                                 }
+                      me_store
                     ; me_decls = saved_decls::menv.me_decls
                     ; me_processed = (modname,p) :: menv.me_processed
                     ; me_visiting = List.tl menv.me_visiting
@@ -608,7 +603,7 @@ end
 
 
 let merge_top st modname bs =
-  match st.Env.s_bindings with
+  match Env.bindings st with
   | [], _ -> assert false
   | (_,_,true)::_, _ -> assert false
   | (m,top,false)::l, bot ->
@@ -657,7 +652,7 @@ let mt_margs pd menv _ mparams margs =
       let st, adecls = Env.Vars.push_param st (pi,et,e,e) in
       st, M.MaParam e, adecls
     | M.Glob pg, S.PEVar pv ->
-      let v,vt,_ = tt_var_global `AllVar st pv
+      let v,vt, _ = tt_var_global `AllVar st pv
       in let pgty = P.gety_of_gty pg.P.v_ty
       in if pgty <> vt
       then rs_tyerror ~loc:(L.loc pe) (TypeMismatch (pgty,vt));
@@ -666,7 +661,7 @@ let mt_margs pd menv _ mparams margs =
     | M.Glob _, _ ->
       rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Type error (param glob)")
     | M.Fun pf, S.PEVar v ->
-      let func,_ = tt_fun v st
+      let func,_ = tt_fun st v
       in let f = Option.get func.f_pfunc
       in let tres, targs = f_sig func
       in if !Glob_options.debug
@@ -682,15 +677,15 @@ let mt_margs pd menv _ mparams margs =
       begin match Env.Funs.find name st with
         | None ->
           let doit m =
-            { m with Env.gb_funs = Map.add name (func, {fs_tin; fs_tout}) m.Env.gb_funs }
+            { m with gb_funs = Map.add name (func, {fs_tin; fs_tout}) m.gb_funs }
           in
           let s_bindings =
-               match st.s_bindings with
+               match Env.bindings st with
                | [], bot -> [], doit bot
                | (_, _, true) :: _, _ -> assert false 	(* opened namespaces are readonly *)
                | (ns, top, false) :: stack, bot ->
                  (ns, doit top, false) :: stack, bot
-          in { st with s_bindings },
+          in Env.update_bindings st s_bindings,
              M.MaFun f, []
         | Some _ ->
           st, M.MaFun f, []
@@ -723,7 +718,7 @@ let has_instance insts args =
   | None -> None
 
 
-let rename_module_bindings _ full_name _ modfunc (st:'asm Env.global_bindings) =
+let rename_module_bindings _ full_name _ modfunc (st:'asm global_bindings) =
   let rename_value v =
     String.concat "" [full_name;(String.sub v (String.length modfunc) (String.length v - String.length modfunc))]
   in
@@ -736,15 +731,15 @@ let rename_module_bindings _ full_name _ modfunc (st:'asm Env.global_bindings) =
       Map.add k renamed_value acc
     ) Map.empty (BatList.of_enum (Map.keys m)) in
   let f_funs (func, sig_) =
-    let new_f_name = P.F.mk (rename_value (func.Env.f_name.fn_name)) in
+    let new_f_name = P.F.mk (rename_value (func.f_name.fn_name)) in
     let f_pfunc = 
-      match func.Env.f_pfunc with
+      match func.f_pfunc with
       | Some pf -> 
         let f_name = P.F.mk (rename_value (pf.f_name.fn_name)) in
         Some { pf with f_name }
       | None -> None
       in
-    let renamed_func = { func with Env.f_name = new_f_name; f_pfunc} in
+    let renamed_func = { func with f_name = new_f_name; f_pfunc} in
     (renamed_func, sig_)
   in
   let f_vars (v,ty,s) =
@@ -769,7 +764,7 @@ let merge_instances (menv:'asm MEnv.menv) (menv': 'asm MEnv.menv) =
       Some {minfo with MEnv.mi_instances = minfo'.MEnv.mi_instances}) menv.me_env menv'.me_env in
   { menv with me_env }
 
-let rec get_instance_modules (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_utils.arch_info) (menv: 'asm MEnv.menv) body =
+let rec get_instance_modules (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping.arch_info) (menv: 'asm MEnv.menv) body =
   match body with
   | [] -> menv
   | mitem::rest ->
@@ -805,12 +800,9 @@ let rec get_instance_modules (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_u
               let me_env = Map.add (L.unloc modfunc) new_modinfo menv.me_env
               in {menv with me_env = me_env} 
             | None -> 
-              let stack, bot = menv.me_store.s_bindings in
+              let stack, bot = Env.bindings menv.me_store in
               let menv' = { menv with
-                       MEnv.me_store =
-                         { menv.MEnv.me_store with
-                           s_bindings = List.map (fun(ns,top,_) -> (ns,top,true)) stack, bot
-                         }
+                       MEnv.me_store = Env.update_bindings menv.me_store (List.map (fun(ns,top,_) -> (ns,top,true)) stack, bot)
                      } in
               let instance_number = string_of_int (List.length modinfo.mi_instances) in
               let iname = (L.unloc modfunc) ^ "::" ^ instance_number in
@@ -825,18 +817,18 @@ let rec get_instance_modules (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_u
         in
         get_instance_modules arch_info menv rest
     | S.PParam pp -> 
-      let me_store, _ = tt_param arch_info.pd (L.loc mitem) pp menv.me_store in
+      let me_store, _ = tt_param arch_info.pd pp menv.me_store in
       let menv = { menv with me_store } in
       get_instance_modules arch_info menv rest
     | S.PGlobal pg ->
-      let me_store, _ = tt_global arch_info.pd (L.loc mitem) pg menv.me_store in
+      let me_store, _ = tt_global arch_info.pd pg menv.me_store in
       let menv = { menv with me_store } in
       get_instance_modules arch_info menv rest
     | _ ->
       get_instance_modules arch_info menv rest
 
 
-let rec mt_item (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_utils.arch_info) add_d (menv: 'asm MEnv.menv) mitem : 'asm MEnv.menv =
+let rec mt_item (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping.arch_info) add_d (menv: 'asm MEnv.menv) mitem : 'asm MEnv.menv =
   match L.unloc mitem with
   | S.PModule (mname, mparams, body) ->
     (* reject nested parametric modules *)
@@ -880,9 +872,9 @@ let rec mt_item (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping_utils.arch_inf
   | S.PTypeAlias (id,ty) ->
     MEnv.upd_store (tt_typealias arch_info id ty) menv
   | S.PParam pp -> 
-    MEnv.upd_storedecls add_d (tt_param arch_info.pd (L.loc mitem) pp) menv
+    MEnv.upd_storedecls add_d (tt_param arch_info.pd pp) menv
   | S.PGlobal pg ->
-    MEnv.upd_storedecls add_d (tt_global arch_info.pd (L.loc mitem) pg) menv
+    MEnv.upd_storedecls add_d (tt_global arch_info.pd pg) menv
   | S.PFundef pf ->
     MEnv.upd_storedecls add_d (tt_fundef arch_info (L.loc mitem) pf) menv
 
@@ -899,8 +891,8 @@ and mt_moduleapp arch_info _ menv mname modfuncname margs_original =
     let ground_module = List.for_all identity menv.MEnv.me_gmod   in
     let _, margs, _ = mt_margs arch_info.pd menv mname modinfo.mi_params margs_original in
     let mi_store = rename_module_bindings (L.unloc mname) full_name (L.unloc modfuncname) (L.unloc modfunc) modinfo.mi_store in
-    let s_bindings = match menv.me_store with
-      | {s_bindings = stack, bot} -> ((L.unloc mname), mi_store, false)::stack, bot
+    let s_bindings = match Env.bindings menv.me_store with
+      |  stack, bot -> ((L.unloc mname), mi_store, false)::stack, bot
       in
     let me_env = Map.add full_name {modinfo with mi_store; mi_params = [] } menv.MEnv.me_env in
     let me_env = Map.foldi (fun m ml me_env ->
@@ -913,7 +905,7 @@ and mt_moduleapp arch_info _ menv mname modfuncname margs_original =
      { menv with
        me_gmod = (margs=[]) :: menv.me_gmod       
      ; me_decls = []::menv.me_decls;
-        me_store = { menv.me_store with s_bindings };
+        me_store = Env.update_bindings menv.me_store s_bindings;
         me_env
      } in
     let menv = MEnv.exit_module_moduleapp menv mname full_name true in
@@ -931,12 +923,9 @@ and mt_moduleapp arch_info _ menv mname modfuncname margs_original =
           in {menv with me_env = me_env}
         | None ->
           (* Format.eprintf "Generating new instance for %s - %s\n%!" full_name (L.unloc modfunc); *)
-          let stack, bot = menv.me_store.s_bindings in
+          let stack, bot = Env.bindings menv.me_store in
           let menv' = { menv with
-                       MEnv.me_store =
-                         { menv.MEnv.me_store with
-                           s_bindings = List.map (fun(ns,top,_) -> (ns,top,true)) stack, bot
-                         }
+                       MEnv.me_store = Env.update_bindings menv.me_store (List.map (fun(ns,top,_) -> (ns,top,true)) stack, bot)
                      } in
           let instance_number = string_of_int (List.length modinfo.mi_instances) in
           let iname = (L.unloc modfunc) ^ "::" ^ instance_number in
@@ -1185,7 +1174,7 @@ let add_suffix_item new_vars new_funcs (suffix:string*string) item =
       let new_vars = Map.add new_name v' new_vars in
       new_vars, new_funcs, P.MIparam (v', e)
 
-let add_new_items (new_vars:(string,P.pvar) Utils.Map.t) new_funcs module_name instance_name (store:'asm Env.global_bindings) =
+let add_new_items (new_vars:(string,P.pvar) Utils.Map.t) new_funcs module_name instance_name (store:'asm global_bindings) =
   let new_vars = List.fold_left (fun new_vars (name,(v,_,_)) -> 
     let name_var_instance = module_name ^ "::" ^ name in
     let vi_name = replace_with_suffix instance_name v.P.v_name in
@@ -1196,7 +1185,7 @@ let add_new_items (new_vars:(string,P.pvar) Utils.Map.t) new_funcs module_name i
   in 
    let new_funcs = List.fold_left (fun new_funcs (name,(pfs,_)) ->
     let name_func_instance = module_name ^ "::" ^ name in
-    let fi_name = replace_with_suffix instance_name pfs.Env.f_name.fn_name in
+    let fi_name = replace_with_suffix instance_name pfs.f_name.fn_name in
     (* Printf.eprintf "Searching for function instance %s \n%!" fi_name;
     Map.iter (fun k _ -> Printf.eprintf "Existing function in new_funcs: %s \n%!" k) new_funcs; *)
     let f = Map.find fi_name new_funcs in

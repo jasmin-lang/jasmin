@@ -42,13 +42,13 @@ let collect_export_info_rets fn_prog =
 
 let collect_export_info_fn (fn_prog, fn_asm) =
   {
-    name = fn_prog.f_name;
+    name = fn_prog.Prog.f_name;
     args = collect_export_info_args fn_prog fn_asm;
     rets = collect_export_info_rets fn_prog;
     annotations = fn_prog.f_annot.f_user_annot;
   }
 
-let collect_export_info env prog asm_prog =
+let collect_export_info env (prog:(unit, 'asm) Prog.prog) asm_prog =
   let funcs_prog = snd prog in
 
   (* merge together the prog and the associated assembly of exported functions *)
@@ -56,7 +56,7 @@ let collect_export_info env prog asm_prog =
     List.filter_map
       (fun ((fname, asm_func) as asm) ->
         match
-          List.find_opt (fun func_prog -> func_prog.f_name = fname) funcs_prog
+          List.find_opt (fun func_prog -> func_prog.Prog.f_name = fname) funcs_prog
         with
         | Some p when asm_func.asm_fd_export -> Some (p, asm)
         | _ -> None)
@@ -165,6 +165,6 @@ let pp_export_info_json fmt export_info =
     pp_params
     (List.rev export_info.params)
 
-let pp_export_info_json fmt env prog asm_prog =
+let pp_export_info_json fmt env (prog:(unit, 'asm) Prog.prog)  asm_prog =
   let export_info = collect_export_info env prog asm_prog in
   pp_export_info_json fmt export_info
