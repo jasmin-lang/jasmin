@@ -130,8 +130,9 @@ let main () =
       let vi_errors = VariableInitialisation.check_prog ([], funcs) in
       let funcs = List.map LivenessAnalyser.analyse_function funcs in
       let dv_errors = DeadVariables.check_prog ([], funcs) in
+      let ir_errors = TaintAnalysis.check_prog ([], funcs) in
       let open CompileError in
-      vi_errors @ dv_errors
+      vi_errors @ dv_errors @ ir_errors
       |> List.filter (fun e -> e.level <= !Glob_options.linting_level)
       |> List.iter (fun error ->
           warning Linter (Location.i_loc0 error.location) "%t" error.to_text

@@ -1,0 +1,9 @@
+/* The number of iterations is not known until run time: loop unrolling fails. */
+export fn count(reg ui32 up) -> reg u8 {
+  reg u8 r = 0;
+  inline int i;
+  for i = 0 to up {
+    r += 1;
+  }
+  return r;
+}

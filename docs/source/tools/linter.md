@@ -23,6 +23,7 @@ reported.
 1. Level 1 reports:
   - Variables used without initialization
   - Instructions assigning dead variables only
+  - Inline variables whose values depend on non-inline ones
 2. Level 2 also reports:
   - Dead variables assigned within an instruction that has other effects
 
@@ -106,7 +107,7 @@ no warning.
 ~~~
 fn dead_no_warn(reg u64 x) {
   reg u64 msf = #init_msf();
-  #keep x += 1;
+  #[keep] x += 1;
 }
 ~~~
 
@@ -121,5 +122,24 @@ fn only_one_live_result(reg u64 x) -> reg u64 {
   reg u64 z = 0;
   x, z = #swap(z, x); // z is assigned but never used afterwards
   return x;
+}
+~~~
+
+## Flows from non-inline variables to inline variables
+
+This check warns about inline variables whose values depend on the values of
+non-inline variables. This situation usually leads to compilation failure. For
+instance in the following program, the number of iteration of a `for` loop
+depends on a run-time value (the argument `up`); therefore the loop cannot be
+unrolled and the program cannot be compiled.
+
+~~~
+export fn count(reg ui32 up) -> reg u8 {
+  reg u8 r = 0;
+  inline int i;
+  for i = 0 to up {
+    r += 1;
+  }
+  return r;
 }
 ~~~
