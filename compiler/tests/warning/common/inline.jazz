@@ -1,0 +1,44 @@
+inline fn id(inline u32 x) -> inline u32 { return x; }
+inline fn zero() -> reg u32 { reg u32 z = 0; return z; }
+
+fn funcall(reg u32 a) -> reg u32 {
+  a = id(a);
+  inline u32 b = zero();
+  inline u32 c = id(b);
+  return a;
+}
+
+fn after_if(reg u32 a) -> reg u32 {
+  reg u32 b = 0;
+  inline u32 t;
+  reg u32 c = a;
+  if c <s 0 { t = 1; }
+  b += t;
+  return b;
+}
+
+fn for_guard(reg u32 p) {
+  inline int i;
+  for i = 0 to p {}
+}
+
+fn ok(reg u32 x) -> reg u32 {
+  inline int i;
+  if x <s 0 { i = 0; x = i; }
+  for i = 0 to 4 {
+    if x < i {
+      i = 0;
+      x = i;
+    }
+  }
+  return x;
+}
+
+fn indirect(reg u32 a) -> reg u32 {
+  inline u32 z = 0;
+  if a <s 0 {
+    z = id(1);
+  }
+  a += z;
+  return a;
+}
