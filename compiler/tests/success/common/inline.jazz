@@ -1,0 +1,15 @@
+inline fn inc(reg u32 x, inline u32 g) -> reg u32, inline u32 {
+  x += 1;
+  g += 1;
+  return x, g;
+}
+
+export fn main(reg u32 a) -> reg u32 {
+  inline u32 i = 0;
+  reg u32 b = 12 + i;
+  while (a < b) {
+    a, i = inc(a, 0);
+    a += i;
+  }
+  return a;
+}

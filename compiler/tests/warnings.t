@@ -99,3 +99,23 @@
   warning: invalid constraint for argument arg (word-size expected)
   "warning/x86-64/alignment.jazz", line 16 (25-28)
   warning: invalid constraint for argument arg (word-size expected)
+
+  $ ../jasminc warning/common/inline.jazz
+  "warning/common/inline.jazz", line 5 (2-12)
+  warning: Inline parameter “x” depends on (non-inline) variable “a (declared at "warning/common/inline.jazz", line 4 (19-20))”
+  "warning/common/inline.jazz", line 6 (2-24)
+  warning: Inline variable “b” depends on (non-inline) variable “z (declared at "warning/common/inline.jazz", line 2 (38-39))”
+  "warning/common/inline.jazz", line 15 (2-22)
+  warning: Inline variable “t” depends on (non-inline) variable “c (declared at "warning/common/inline.jazz", line 14 (10-11))”
+  "warning/common/inline.jazz", line 22 (2-19)
+  warning: For loop counter “i” depends on (non-inline) variable “p (declared at "warning/common/inline.jazz", line 20 (21-22))”
+  "warning/common/inline.jazz", line 39 (2) to line 41 (3)
+  warning: Inline variable “z” depends on (non-inline) variable “a (declared at "warning/common/inline.jazz", line 37 (20-21))”
+  "warning/common/inline.jazz", line 48 (2-17)
+  warning: Inline variable “v” depends on (non-inline) variable “b (declared at "warning/common/inline.jazz", line 46 (23-24))”
+  "warning/common/inline.jazz", line 54 (2) to line 57 (3)
+  warning: Inline variable “i” depends on (non-inline) variable “x (declared at "warning/common/inline.jazz", line 52 (16-17))”
+  "warning/common/inline.jazz", line 68 (2) to line 71 (3)
+  warning: Inline variable “b” depends on (non-inline) variable “a (declared at "warning/common/inline.jazz", line 66 (17-18))”
+  "warning/common/inline.jazz", line 69 (4-10)
+  warning: Inline variable “b” depends on (non-inline) variable “a (declared at "warning/common/inline.jazz", line 66 (17-18))”

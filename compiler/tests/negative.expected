@@ -1536,6 +1536,12 @@ internal compilation error:
   unrolling: loop iterator too small
 Please report at https://github.com/jasmin-lang/jasmin/issues
 
+fail/unroll/x86-64/run-time-bound.jazz:
+
+"fail/unroll/x86-64/run-time-bound.jazz", line 5 (2) to line 7 (3):
+compilation error in function count:
+loop unrolling: for loops remain
+
 fail/x86-64/bug_1366.jazz:
 
 "fail/x86-64/bug_1366.jazz", line 2 (2-21): invalid number of lvalues, 1 provided instead of 2
@@ -1647,4 +1653,4 @@ Statistics:
 	Pretyping:  47
 	Parsing:     4
 	Typing:      5
-	Compile:   203
+	Compile:   204
