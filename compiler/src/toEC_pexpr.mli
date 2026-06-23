@@ -1,8 +1,3 @@
-type amodel =
-  | ArrayOld
-  | WArray
-  | BArray
-
 val ty_expr : Prog.pexpr -> Prog.pty
 val ty_lval : Prog.plval -> Prog.pty
 
@@ -13,7 +8,7 @@ val extract_modular :
   Wsize.wsize ->
   ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
   Utils.model ->
-  amodel ->
+  ToEC.amodel ->
   string list ->
   string option ->
   Format.formatter list ->

@@ -3,8 +3,8 @@ open Cmdliner
 open CommonCLI
 open Utils
 
-let extract_to_file _prog mprog arch pd msfsz asmOp model amodel _global_options 
-    fnames array_dir outfile _mjazz mfile_ec =
+let extract_to_file prog mprog arch pd msfsz asmOp model amodel global_options 
+    fnames array_dir outfile mjazz mfile_ec =
   let array_dir =
     if array_dir = None then Option.map Filename.dirname outfile else array_dir
   in
@@ -13,7 +13,7 @@ let extract_to_file _prog mprog arch pd msfsz asmOp model amodel _global_options
   in
   let mprog = Subst.remove_params_modular mprog in
   let fmt, close =
-    if mfile_ec!=None then
+    if mfile_ec!=None && mjazz then
       let folder_name = Option.get mfile_ec in
       List.fold_left ( fun (fmts,c) m ->
           let out = open_out (folder_name ^ "/" ^m.Mprog.name ^".ec") in
@@ -33,12 +33,11 @@ let extract_to_file _prog mprog arch pd msfsz asmOp model amodel _global_options
     BatPervasives.finally
       (fun () -> List.iter (fun c -> c() ) close)
       (fun () ->
-        (*if mjazz then*)
-          ToEC_pexpr.extract_modular mprog arch pd msfsz asmOp model amodel
-          fnames array_dir fmt
-       (* else
-          ToEC.extract prog arch pd msfsz asmOp model amodel global_options
-          fnames array_dir fmt*)
+         if mjazz then
+          ToEC_pexpr.extract_modular mprog arch pd msfsz asmOp model amodel fnames
+            array_dir fmt
+        else
+          ToEC.extract prog arch pd msfsz asmOp model amodel global_options fnames array_dir (List.hd fmt)
       )
       ()
   with e ->
@@ -86,7 +85,7 @@ let model =
 
 let array_model =
   let alts =
-    [ ("old", ToEC_pexpr.ArrayOld); ("warray", ToEC_pexpr.WArray); ("barray", ToEC_pexpr.BArray) ]
+    [ ("old", ToEC.ArrayOld); ("warray", ToEC.WArray); ("barray", ToEC.BArray) ]
   in
 
   let doc =
@@ -95,7 +94,7 @@ let array_model =
      $(b,barray): use byte arrays (functions predefined in eclib).
      (Deprecated) $(b,old): old representation for array operations (anonymous functions instead of eclib functions)."
   in
-  Arg.(value & opt (Arg.enum alts) ToEC_pexpr.BArray & info [ "array-model" ] ~doc)
+  Arg.(value & opt (Arg.enum alts) ToEC.BArray & info [ "array-model" ] ~doc)
 
 (* The extraction of global variables is configured by the repeatable
    --global-model option, whose value selects either the kind of the EasyCrypt

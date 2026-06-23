@@ -2035,13 +2035,6 @@ let prim_of_pe pe =
   | _ -> raise exn
 
 (* -------------------------------------------------------------------- *)
-type ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info = {
-  pd : Wsize.wsize;
-  asmOp : ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Sopn.sopn Sopn.asmOp;
-  known_implicits : (CoreIdent.Name.t * string) list;
-  flagnames: CoreIdent.Name.t list;
-}
-
 let pexpr_of_plvalue exn l =
   match L.unloc l with
   | S.PLIgnore      -> raise exn

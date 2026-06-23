@@ -46,17 +46,3 @@ val extract :
   string option ->
   Format.formatter ->
   unit
-
-val extract_modular :
-  (int, int, 'info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) Mprog.module_summary list ->
-  Utils.architecture ->
-  Wsize.wsize ->
-  Wsize.wsize ->
-  ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
-  Utils.model ->
-  amodel ->
-  global_options ->
-  string list ->
-  string option ->
-  Format.formatter ->
-  unit
