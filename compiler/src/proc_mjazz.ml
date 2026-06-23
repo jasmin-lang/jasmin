@@ -37,14 +37,14 @@ type mjazzerror =
 
 exception MJazzError of L.t * mjazzerror
 
-let mjazz_string_error fmt =
+(* let mjazz_string_error fmt =
   let buf  = Buffer.create 127 in
   let bfmt = Format.formatter_of_buffer buf in
   Format.kfprintf
     (fun bfmt ->
       Format.pp_print_flush bfmt ();
       (MJazzStringError (Buffer.contents buf)))
-    bfmt fmt
+    bfmt fmt *)
 
 let mjazzerror ~loc (code: mjazzerror) =
   MJazzError (loc, code)
@@ -74,8 +74,8 @@ let pp_mjazzerror fmt = function
 
 (* Combines a [mpath] into a [mname]
   (e.g. mname_from_mpath ["M2";"M1"] = "M1::M2")                        *)
-let mname_from_mpath (mpath: M.modulename list): M.modulename =
-  List.fold_left (fun r m -> r ^ ("::" ^ m)) "" mpath
+(* let mname_from_mpath (mpath: M.modulename list): M.modulename =
+  List.fold_left (fun r m -> r ^ ("::" ^ m)) "" mpath 
 
 (* reconstructs the [mpath] from a [mname]
   (e.g. mname_to_mpath "M1::M2" = ["M2";"M1"])                          *)
@@ -88,7 +88,7 @@ let mname_to_mpath (mname: M.modulename): M.modulename list =
 let mname_split (mname: M.modulename): (string*M.modulename) option =
   try let qname = BatString.split mname ~by:"::" in Some qname
   with Not_found -> None
-
+*)
 (* Each file is implicitly a module. Its name is derived directly from
   the filename (ignoring the 'from'-key)                                *)
 let fmodule_name (fname: string) : M.modulename =
@@ -135,8 +135,8 @@ module MEnv = struct
     ; me_processed : (M.modulename * Path.t) list (* topsort of dependencies *)
     }
 
-  let mpath menv =
-    List.map (fun x -> let ns,_,_ = x in ns) (fst (Env.bindings menv.me_store))
+  (* let mpath menv =
+    List.map (fun x -> let ns,_,_ = x in ns) (fst (Env.bindings menv.me_store)) *)
 
   let empty froms =
     let idir = Path.of_string (Sys.getcwd ())
@@ -602,13 +602,13 @@ end
 
 
 
-let merge_top st modname bs =
+(* let merge_top st modname bs =
   match Env.bindings st with
   | [], _ -> assert false
   | (_,_,true)::_, _ -> assert false
   | (m,top,false)::l, bot ->
     let newtop = Env.merge_bindings (modname, bs) top
-    in (m, newtop,false)::l, bot
+    in (m, newtop,false)::l, bot *)
 
 (*
 1) verifica concordância de tipos dos argumentos

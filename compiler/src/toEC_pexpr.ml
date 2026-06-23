@@ -4,11 +4,6 @@ open Prog
 open Operators
 open PrintCommon
 
-type amodel =
-  | ArrayOld
-  | WArray
-  | BArray
-
 let ws2bytes ws = (int_of_ws ws) / 8
 
 module Scmp = struct
@@ -127,6 +122,7 @@ let ec_keyword =
  ; "match"
  ; "for"
  ; "while"
+ ; "raise"
  ; "assert"
  ; "return"
  ; "res"
@@ -263,6 +259,7 @@ let ec_keyword =
  ; "of"
  ; "const"
  ; "op"
+ ; "exception"
  ; "pred"
  ; "inductive"
  ; "notation"
@@ -542,7 +539,7 @@ module type EnvT = sig
 end
 
 
-module Env : EnvT  = struct
+module Env: EnvT = struct
   module PTcmp = struct
     type t = ec_var
     let compare = compare
@@ -3022,7 +3019,7 @@ let extract_modular mprog arch pd msfsz asmOp (model: model) amodel _fnames arra
   let env = Env.empty arch pd msfsz array_theories abs_array_theories in
   let module EA: EcArray =
   (val match amodel with
-    | BArray   -> (module EcBArray  : EcArray)
+    | ToEC.BArray   -> (module EcBArray  : EcArray)
     | ArrayOld -> (module EcArrayOld: EcArray)
     | WArray   -> (module EcWArray  : EcArray) 
   ) in
