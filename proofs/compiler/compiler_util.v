@@ -216,41 +216,60 @@ Definition map_cfprog_gen {T1 T2} (info : T1 -> fun_info) (F: T1 -> cexec T2) :=
 Notation map_cfprog_name := (map_cfprog_name_gen (@f_info _ _ _)).
 Notation map_cfprog := (map_cfprog_gen (@f_info _ _ _)).
 
-Lemma get_map_cfprog_name_gen {T1 T2} (info : T1 -> fun_info) (F: funname -> T1 -> cexec T2) p p' fn f:
+Section PROOF.
+
+Context
+  {T1 T2 : Type}
+  {info : T1 -> fun_info}
+  {p : seq (funname * T1)}
+  {p' : seq (funname * T2)}
+.
+
+Lemma get_map_cfprog_name_gen_aux F fn :
+  map_cfprog_name_gen info F p = ok p' ->
+  if get_fundef p fn is Some f then
+    exists2 f', F fn f = ok f' & get_fundef p' fn = Some f'
+  else get_fundef p' fn = None.
+Proof.
+move=> hmap; case hget: get_fundef => [fd|].
+- have [|f' /= hF hf'] := mapM_assoc _ hmap hget.
+  + by move=> [??] [??] /=; t_xrbindP.
+  by exists f' => //; move: hF; t_xrbindP=> f'' /add_finfoP /add_funnameP -> ->.
+case hget': get_fundef => [fd'|//].
+have [|f /= _ hf] := mapM_assoc' _ hmap hget'.
+- by move=> [??] [??] /=; t_xrbindP.
+by rewrite /get_fundef hf in hget.
+Qed.
+
+Lemma get_map_cfprog_name_gen F fn f :
   map_cfprog_name_gen info F p = ok p' ->
   get_fundef p fn = Some f ->
   exists2 f', F fn f = ok f' & get_fundef p' fn = Some f'.
-Proof.
-  move=> Hmap H.
-  have [|f' /= hF hf'] := mapM_assoc _ Hmap H.
-  + by move=> {fn f H} [fn f] [fn' f'] /=; t_xrbindP.
-  exists f' => //.
-  by move: hF; t_xrbindP => f'' /add_finfoP /add_funnameP -> ->.
-Qed.
+Proof. by move=> /(get_map_cfprog_name_gen_aux fn) /[swap] ->. Qed.
 
-Lemma get_map_cfprog_gen {T1 T2} (info : T1 -> fun_info) (F: T1 -> cexec T2) p p' fn f:
+Lemma get_map_cfprog_gen F fn f:
   map_cfprog_gen info F p = ok p' ->
   get_fundef p fn = Some f ->
   exists2 f', F f = ok f' & get_fundef p' fn = Some f'.
 Proof. by apply get_map_cfprog_name_gen. Qed.
 
-Lemma get_map_cfprog_name_gen' {T1 T2} (info : T1 -> fun_info) (F: funname -> T1 -> cexec T2) p p' fn f':
+Lemma get_map_cfprog_name_gen' F fn f':
   map_cfprog_name_gen info F p = ok p' ->
   get_fundef p' fn = Some f' ->
   exists2 f, F fn f = ok f' & get_fundef p fn = Some f.
 Proof.
-  move=> Hmap H.
-  have [|f /= hF hf] := mapM_assoc' _ Hmap H.
-  + by move=> {fn f' H} [fn f] [fn' f'] /=; t_xrbindP.
-  exists f => //.
-  by move: hF; t_xrbindP=> f'' /add_finfoP /add_funnameP -> ->.
+move=> /(get_map_cfprog_name_gen_aux fn) /[swap] ->.
+case hget: get_fundef => [fd|//] [fd' ? [?]]; subst fd'.
+by exists fd.
 Qed.
 
-Lemma get_map_cfprog_gen' {T1 T2} (info: T1 -> fun_info) (F: T1 -> cexec T2) p p' fn f':
+Lemma get_map_cfprog_gen' F fn f':
   map_cfprog_gen info F p = ok p' ->
   get_fundef p' fn = Some f' ->
   exists2 f, F f = ok f' & get_fundef p fn = Some f.
 Proof. by apply get_map_cfprog_name_gen'. Qed.
+
+End PROOF.
 
 (* -------------------------------------------------------- *)
 (* Internal error                                           *)

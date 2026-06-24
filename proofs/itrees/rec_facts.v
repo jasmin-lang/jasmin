@@ -74,7 +74,7 @@ Section CONTEXT.
 Context {D E E0 : Type -> Type} {wE : with_Error E E0}.
 Context (ctx : forall T : Type, D T -> itree (D +' E) T).
 Context (check : forall T : Type, D T -> bool).
-Context (exn : it_exec.error_data).
+Context (exn : utils.error).
 Context (ncheck_throw :
   forall (T : Type) (d : D T), check d = false -> ctx d ≳ Exception.throw exn).
 

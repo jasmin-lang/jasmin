@@ -299,6 +299,7 @@ Definition arm_linux_call_conv : calling_convention :=
   {| callee_saved :=
       map ARReg [:: R04; R05; R06; R07; R08; R09; R10; R11; SP ]
    ; callee_saved_not_bool := erefl true
+   ; callee_saved_has_rsp  := erefl true
    ; call_reg_args  := [:: R00; R01; R02; R03 ]
    ; call_xreg_args := [::]
    ; call_reg_ret   := [:: R00; R01 ]

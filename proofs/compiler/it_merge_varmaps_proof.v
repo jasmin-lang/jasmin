@@ -418,7 +418,7 @@ Qed.
 Lemma check_esP wdb ii I es s t vs u : check_es ii I es = ok u ->
   match_estate I s t ->
   sem_pexprs wdb (p_globs p) s es = ok vs ->
-  exists2 vs', sem_pexprs wdb (p_globs p) t es = ok vs' & List.Forall2 value_uincl vs vs'.
+  exists2 vs', sem_pexprs wdb (p_globs p) t es = ok vs' & values_uincl vs vs'.
 Proof.
   rewrite /check_es => hc hsim; elim: es tt hc vs => [ | e es hrec] /=.
   + by move=> _ _ _ [<-]; exists [::].
@@ -448,7 +448,7 @@ Qed.
 Lemma check_lvsP_match_estate ii I xs O s1 s2 t1 vs vs': check_lvs ii I xs = ok O ->
   match_estate I s1 t1 ->
   write_lvals true (p_globs p) s1 xs vs = ok s2 ->
-  List.Forall2 value_uincl vs vs' ->
+  values_uincl vs vs' ->
   exists2 t2, write_lvals true (p_globs p) t1 xs vs' = ok t2 & match_estate O s2 t2.
 Proof.
   rewrite /check_lvs.
@@ -494,7 +494,7 @@ Lemma check_lvsP ii I xs O s1 s2 t1 vs vs':
   check_lvs ii I xs = ok O ->
   merged_vmap_inv I s1 t1 ->
   write_lvals true (p_globs p) s1 xs vs = ok s2 ->
-  List.Forall2 value_uincl vs vs' ->
+  values_uincl vs vs' ->
   exists2 t2, write_lvals true (p_globs p) t1 xs vs' = ok t2 & merged_vmap_inv O s2 t2.
 Proof.
   move=> hsub hch [] hmatch hstable hw hu.
@@ -967,9 +967,8 @@ Proof.
         by apply Vm.initP.
       have hz : value_uincl (evm s1).[z] (evm t1).[z].
       + case: (Sv_memP z (sv_of_list v_var (f_params fd))) => hinp.
-        + have : List.Forall2 value_uincl vargs vs.
-          + apply: Forall2_trans hu; first by apply: value_uincl_trans.
-            by apply: mapM2_dc_truncate_value_uincl ok_vargs.
+        + have : values_uincl vargs vs.
+          + apply: values_uincl_trans hu; by apply: mapM2_dc_truncate_value_uincl ok_vargs.
           move/Sv_memP: hinp; rewrite sv_of_listE /=.
           elim: (f_params fd) (vargs) (vs) (s0') ok_s1 hgetvs => [ | x xs hrec] [ | v vs1] vs_ s //=.
           t_xrbindP => s' hx hxs vs' hmap <-; rewrite inE => hin /List_Forall2_inv[] ? H0.
@@ -1065,7 +1064,7 @@ Proof.
   have [tres ok_tres res_uincl] :
     let: vm := (set_RSP p (free_stack (emem kt2.2)) (kill_vars (ra_vm_return (f_extra fd)) (evm kt2.2))) in
     exists2 tres,
-      get_var_is false vm (f_res fd) = ok tres & List.Forall2 value_uincl vres' tres.
+      get_var_is false vm (f_res fd) = ok tres & values_uincl vres' tres.
   - have : forall x, (x \in [seq (v_var i) | i <- f_res fd]) -> ~ Sv.In x DF.
     + move=> x hx; have /Sv_memP: Sv.mem x res by rewrite /res sv_of_listE.
       by move /Sv.is_empty_spec: hdisj; SvD.fsetdec.
@@ -1129,7 +1128,7 @@ Lemma merge_varmaps_export_callP fn:
                [/\ tvm1.[vrsp] = Vword (top_stack m)
                  , tvm1.[vgd] = Vword global_data
                  , get_var_is false tvm1 (f_params fd) = ok args'
-                 & List.Forall2 value_uincl args args']
+                 & values_uincl args args']
           | None => true
           end])
     (isem_fun p global_data fn)
@@ -1144,7 +1143,7 @@ Lemma merge_varmaps_export_callP fn:
           | Some fd =>
             ∃ (res' : seq value),
               get_var_is false tvm2 (f_res fd) = ok res' /\
-              List.Forall2 value_uincl res res'
+              values_uincl res res'
           | None => false
           end]).
 Proof.
@@ -1180,39 +1179,43 @@ Proof.
   by rewrite /= bind_ret_l; apply xrutt.xrutt_Ret; split => //; exists vres'; split.
 Qed.
 
+Definition ovm_pre fn fs t :=
+  [/\ fscs fs = escs t
+    , fmem fs = emem t
+    & let: m := fmem fs in
+      let: tvm1 := evm t in
+      let: args := fvals fs in
+      match get_fundef (p_funcs p) fn with
+      | Some fd =>
+         ∃ (args' : seq value),
+           [/\ tvm1.[vrsp] = Vword (top_stack m)
+             , tvm1.[vgd] = Vword global_data
+             , get_var_is false tvm1 (f_params fd) = ok args'
+             & values_uincl args args']
+      | None => true
+      end].
+
+Definition ovm_post fn fs' t' :=
+  [/\ fscs fs' = escs t'
+    , fmem fs' = emem t'
+    & let: m' := fmem fs' in
+      let: res := fvals fs' in
+      let: tvm2 := evm t' in
+      match get_fundef (p_funcs p) fn with
+      | Some fd =>
+        ∃ (res' : seq value),
+          get_var_is false tvm2 (f_res fd) = ok res' /\
+          values_uincl res res'
+      | None => false
+      end].
+
 Lemma merge_varmaps_export_call_checkP fn:
   is_export p fn →
   wkequiv
-    (fun fs t =>
-      [/\ fscs fs = escs t
-        , fmem fs = emem t
-        & let m := fmem fs in
-          let tvm1 := evm t in
-          let args := fvals fs in
-          match get_fundef (p_funcs p) fn with
-          | Some fd =>
-             ∃ (args' : seq value),
-               [/\ tvm1.[vrsp] = Vword (top_stack m)
-                 , tvm1.[vgd] = Vword global_data
-                 , get_var_is false tvm1 (f_params fd) = ok args'
-                 & List.Forall2 value_uincl args args']
-          | None => true
-          end])
+    (ovm_pre fn)
     (isem_fun p global_data fn)
     (it_sems_one_varmap.isem_exportcall_check var_tmps p global_data fn)
-    (fun fs' t' =>
-      [/\ fscs fs' = escs t'
-        , fmem fs' = emem t'
-        & let m' := fmem fs' in
-          let res := fvals fs' in
-          let tvm2 := evm t' in
-          match get_fundef (p_funcs p) fn with
-          | Some fd =>
-            ∃ (res' : seq value),
-              get_var_is false tvm2 (f_res fd) = ok res' /\
-              List.Forall2 value_uincl res res'
-          | None => false
-          end]).
+    (ovm_post fn).
 Proof.
   move=> /merge_varmaps_export_callP => h fs s /h.
   have -> // : isem_exportcall var_tmps p global_data fn s ≈ isem_exportcall_check var_tmps p global_data fn s.

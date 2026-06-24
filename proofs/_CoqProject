@@ -34,6 +34,7 @@ arch/arch_extra.v
 arch/arch_sem.v
 arch/arch_utils.v
 arch/arm_expand_imm.v
+arch/asm_invariant.v
 arch/asm_gen.v
 arch/asm_gen_proof.v
 arch/label.v
@@ -74,6 +75,7 @@ compiler/dead_calls_proof.v
 compiler/dead_code.v
 compiler/dead_code_proof.v
 compiler/direct_call_proof.v
+compiler/hoare_valid.v
 compiler/inline.v
 compiler/inline_proof.v
 compiler/insert_renaming.v

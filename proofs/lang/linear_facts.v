@@ -228,8 +228,8 @@ Opaque eval_jump.
     + exact: write_lvals_stack_stable hw.
     exact: write_lvals_validw hw.
   + move=> [p|].
-    + by t_xrbindP=> _ _ _ _ _ _ _ /eval_jump_mem_eq /= <-.
-    t_xrbindP=> ??? _ _ _ _ w _ ? hw /eval_jump_mem_eq /= <-.
+    + by t_xrbindP=> _ _ _ _ _ _ _ _ /eval_jump_mem_eq /= <-.
+    t_xrbindP=> ??? _ _ _ _ _ w _ ? hw /eval_jump_mem_eq /= <-.
     split.
     + exact: Memory.write_mem_stable hw.
     by move=> ???; rewrite (write_validw_eq hw).
@@ -463,9 +463,9 @@ Lemma step_mix_ilsteps_eq_itree fn P Q pcs pce ls  :
     if is_Lcall (li_i (nth dummy_linstr Q 0)) is Some fn' then
        ITree.bind (trigger_inl1 (mix_to_small_steps.Call fn' ls2))
         (λ ls3, if check_call ls ls3 then Tau (mix_ilsteps lp (pc_between fn pcs pce) ls3)
-                else Exception.throw (ErrSemUndef, tt))
+                else Exception.throw ErrSemUndef)
     else Tau (mix_ilsteps lp (pc_between fn pcs pce) ls2)
-  | Error e => Exception.throw (e, tt)
+  | Error e => Exception.throw e
   end.
 Proof.
   rewrite {1}/mix_ilsteps while.unfold_while => C hfn hpc hsz h0Q.
@@ -494,9 +494,9 @@ Lemma step_mix_ilsteps fn P Q pcs pce ls  :
     if is_Lcall (li_i (nth dummy_linstr Q 0)) is Some fn' then
        ITree.bind (trigger_inl1 (mix_to_small_steps.Call fn' ls2))
         (λ ls3, if check_call ls ls3 then mix_ilsteps lp (pc_between fn pcs pce) ls3
-                else Exception.throw (ErrSemUndef, tt))
+                else Exception.throw ErrSemUndef)
     else mix_ilsteps lp (pc_between fn pcs pce) ls2
-  | Error e => Exception.throw (e, tt)
+  | Error e => Exception.throw e
   end.
 Proof.
   move=> C hfn hpc hsz h0Q; rewrite (step_mix_ilsteps_eq_itree C) //.
@@ -516,7 +516,7 @@ Lemma sem_fopns_args_mix_ilsteps fn P Q ii lc pcs pce ls :
   mix_ilsteps lp (pc_between fn pcs pce) ls ≈
     match sem_fopns_args (to_estate ls) lc with
     | Ok s' => Ret (of_estate s' fn pce)
-    | Error err => Exception.throw (err, tt)
+    | Error err => Exception.throw err
     end.
 Proof.
   move=> + ? + ??; subst fn pcs pce.

@@ -64,20 +64,6 @@ Context {E E0} {wE : with_Error E E0}
 
 (* folding instruction semantics on commands *)
 
-(*
-Definition isem_foldr (c: cmd) : estate -> itree E (Sv.t * estate) :=
-  foldr (fun i k s => s' <- sem_i p ev i s.2 ;; k (Sv.union s.1 s'.1, s'.2))
-        (fun s => Ret (Sv.empty, s)) c.
-*)
-(*
-Fixpoint isem_cmd_ (c: cmd) : estate -> itree E (Sv.t * estate) :=
-  fun s =>
-   match c with
-   | [::] => Ret (Sv.empty, s)
-   | i :: c => ks <- sem_i p ev i s;; ks' <- isem_cmd_ c ks.2;; Ret (Sv.union ks.1 ks'.1, ks'.2)
-   end.
-*)
-
 Fixpoint isem_cmd_ (c: cmd) : Sv.t * estate -> itree E (Sv.t * estate) :=
   fun ks =>
    match c with
@@ -190,20 +176,20 @@ Fixpoint isem_i(p : sprog) (i : instr) (s : estate) :
     itree E (Sv.t * estate) :=
   let: (MkI ii i) := i in
   ks <- isem_ir p i s;;
-  _ <- iresult (ks.2)
+  _ <- iresult
          (assert ([&& is_stack_stable (emem s) (emem ks.2)
                     , valid_RSP p (emem ks.2) (evm ks.2)
                     & disjoint ks.1 (magic_variables p)]) ErrSemUndef);;
   Ret ks
 with isem_ir (p : sprog) (i : instr_r) (s : estate) : itree E (Sv.t * estate) :=
   match i with
-  | Cassgn x tg ty e => iresult s (add_fv (vrv x) (sem_assgn p x tg ty e s))
+  | Cassgn x tg ty e => iresult (add_fv (vrv x) (sem_assgn p x tg ty e s))
 
-  | Copn xs tg o es => iresult s (add_fv (vrvs xs) (sem_sopn (p_globs p) o s xs es))
+  | Copn xs tg o es => iresult (add_fv (vrvs xs) (sem_sopn (p_globs p) o s xs es))
 
   | Csyscall xs o es =>
     let fv := Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout))) in
-    iresult s (add_fv fv (sem_syscall p o s))
+    iresult (add_fv fv (sem_syscall p o s))
 
   | Cif e c1 c2 =>
     b <- isem_cond p e s;;
@@ -214,13 +200,13 @@ with isem_ir (p : sprog) (i : instr_r) (s : estate) : itree E (Sv.t * estate) :=
 
   | Ccall xs fn args =>
     let fi := kill_tmp_call p fn s in
-    iresult s (is_disjoint_magic p fn);;
+    iresult (is_disjoint_magic p fn);;
     fs <- sem_funK p fn fi;;
-    iresult s (assert (valid_RSP p (emem fi) (evm fs.2) && Sv.subset (writefun_RA p fn) fs.1) ErrSemUndef);;
+    iresult (assert (valid_RSP p (emem fi) (evm fs.2) && Sv.subset (writefun_RA p fn) fs.1) ErrSemUndef);;
     Ret (Sv.union fs.1 (fd_tmp_call p fn), kill_tmp_call p fn fs.2)
 
-  | Cassert _ => Exception.throw (ErrSemUndef, tt)
-  | Cfor _ _ _ => Exception.throw (ErrSemUndef, tt)
+  | Cassert _ => Exception.throw ErrSemUndef
+  | Cfor _ _ _ => Exception.throw ErrSemUndef
   end.
 
 Definition isem_cmd (p:sprog) c s :=
@@ -239,12 +225,12 @@ Definition finalize_funcall p f ks2 :=
 
 Definition isem_fun_body (p : prog)
    (fn : funname) (fs : estate) :=
-   fd <- ioget (ErrSemUndef, tt) (get_fundef (p_funcs p) fn);;
-   iresult fs (assert (saved_stack_valid_init p fd) ErrSemUndef);;
-   s1 <- iresult fs (Result.map_err (fun _ => ErrSemUndef) (initialize_funcall p fd fs));;
+   fd <- ioget ErrSemUndef (get_fundef (p_funcs p) fn);;
+   iresult (assert (saved_stack_valid_init p fd) ErrSemUndef);;
+   s1 <- iresult (Result.map_err (fun _ => ErrSemUndef) (initialize_funcall p fd fs));;
    ks2 <- isem_cmd p fd.(f_body) s1;;
-   ks3 <- iresult ks2.2 (finalize_funcall p fd ks2);;
-   _ <- iresult ks3.2 (assert (is_stack_stable (emem fs) (emem ks3.2)) ErrSemUndef);;
+   ks3 <- iresult (finalize_funcall p fd ks2);;
+   _ <- iresult (assert (is_stack_stable (emem fs) (emem ks3.2)) ErrSemUndef);;
    Ret ks3.
 
 End SEM_I.
@@ -291,7 +277,7 @@ Definition isem_fun := isem_fun_def (sem_F := fun _ => sem_funK_rec E).
  *)
 Instance sem_funK_rec_check  {E E0} {wE : with_Error E E0} : sem_FunK (recCallK +' E) | 0 :=
   {| sem_funK := fun (p:sprog) fn fs =>
-     (_ <- iresult fs (Result.map_err (fun _ => ErrSemUndef) (is_init_state_ok p fn fs));;
+     (_ <- iresult (Result.map_err (fun _ => ErrSemUndef) (is_init_state_ok p fn fs));;
       rec_callK (E:=E) fn fs)%itree |}.
 
 Definition isem_fun_check := isem_fun_def (sem_F := fun _ => sem_funK_rec_check).
@@ -305,7 +291,7 @@ Proof.
   rewrite (rec_facts.CHECK.mrec_check
     (check:= fun T (rc : recCallK T) =>
        match rc with RecCallK fn fs => is_ok (is_init_state_ok p fn fs) end)
-    (exn := (ErrSemUndef, tt))); last first.
+    (exn := ErrSemUndef)); last first.
   + move=> T [] {}fn {}s; rewrite /is_init_state_ok /handle_recCallK /isem_fun_body.
     case: (get_fundef (p_funcs p) fn) => [fd | ] /=; last first.
     + rewrite bind_throw; reflexivity.
@@ -321,8 +307,8 @@ Proof.
     rewrite /isem_fun_body.
     have F_throw : forall e, interp F (throw e) ≈ throw e.
     + by move=> ??; rewrite interp_vis bind_vis; apply eqit_Vis => -[].
-    have F_iresult : forall s T (r : exec T), interp F (iresult s r) ≈ iresult s r.
-    + move=> s1 T1 [v | err] /=; first by rewrite interp_ret; reflexivity.
+    have F_iresult : forall T (r : exec T), interp F (iresult r) ≈ iresult r.
+    + move=> T1 [v | err] /=; first by rewrite interp_ret; reflexivity.
       rewrite F_throw; reflexivity.
     case: get_fundef => [fd | ] /=; last by rewrite !bind_throw F_throw; reflexivity.
     rewrite !bind_ret_l !interp_bind !F_iresult; apply eqit_bind; first reflexivity.
@@ -374,8 +360,8 @@ Proof.
   rewrite /isem_fun_body.
   have F_throw : forall e, interp F (throw e) ≈ throw e.
   + by move=> ??; rewrite interp_vis bind_vis; apply eqit_Vis => -[].
-  have F_iresult : forall s T (r : exec T), interp F (iresult s r) ≈ iresult s r.
-  + move=> s1 T1 [v | err] /=; first by rewrite interp_ret; reflexivity.
+  have F_iresult : forall T (r : exec T), interp F (iresult r) ≈ iresult r.
+  + move=> T1 [v | err] /=; first by rewrite interp_ret; reflexivity.
     rewrite F_throw; reflexivity.
   case: get_fundef => [fd | ] /=; last by rewrite !bind_throw F_throw; reflexivity.
   rewrite !bind_ret_l !interp_bind !F_iresult; apply eqit_bind; first reflexivity.
@@ -425,33 +411,33 @@ Proof.
 Qed.
 
 Definition isem_exportcall (p:sprog) (gd: @extra_val_t progStack) fn (s:estate) :=
-  fd <-ioget (ErrType, tt) (get_fundef p.(p_funcs) fn);;
+  fd <-ioget ErrType (get_fundef p.(p_funcs) fn);;
   let vrsp : var := vid p.(p_extra).(sp_rsp) in
   let vgd : var := vid p.(p_extra).(sp_rip) in
   let vm := s.(evm) in
-  _ <- iresult s (assert [&& is_RAnone fd.(f_extra).(sf_return_address)
+  _ <- iresult (assert [&& is_RAnone fd.(f_extra).(sf_return_address)
                            , disjoint (sv_of_list fst fd.(f_extra).(sf_to_save)) (sv_of_list v_var fd.(f_res))
                            , ~~ Sv.mem vrsp (sv_of_list v_var fd.(f_res))
                            & value_eqb vm.[vgd] (Vword gd)]
                           ErrSemUndef);;
   ks2 <- isem_fun p fn s;;
   let (k, s2) := (ks2.1, ks2.2) in
-  _ <- iresult s2 (assert (Sv.subset (Sv.inter callee_saved (Sv.union k (ra_undef fd var_tmp)))
+  _ <- iresult (assert (Sv.subset (Sv.inter callee_saved (Sv.union k (ra_undef fd var_tmp)))
                                      (sv_of_list fst fd.(f_extra).(sf_to_save)))
                       ErrSemUndef);;
   Ret s2.
 
 Definition isem_exportcall_check (p:sprog) (gd: @extra_val_t progStack) fn (s:estate) :=
-  fd <-ioget (ErrType, tt) (get_fundef p.(p_funcs) fn);;
+  fd <-ioget ErrType (get_fundef p.(p_funcs) fn);;
   let vrsp : var := vid p.(p_extra).(sp_rsp) in
   let vgd : var := vid p.(p_extra).(sp_rip) in
   let vm := s.(evm) in
-  _ <- iresult s (assert [&& is_RAnone fd.(f_extra).(sf_return_address)
+  _ <- iresult (assert [&& is_RAnone fd.(f_extra).(sf_return_address)
                            , disjoint (sv_of_list fst fd.(f_extra).(sf_to_save)) (sv_of_list v_var fd.(f_res))
                            , ~~ Sv.mem vrsp (sv_of_list v_var fd.(f_res))
                            & value_eqb vm.[vgd] (Vword gd)]
                           ErrSemUndef);;
- _ <- iresult s (Result.map_err (fun _ => ErrSemUndef)
+ _ <- iresult (Result.map_err (fun _ => ErrSemUndef)
         (alloc_stack s.(emem)
           fd.(f_extra).(sf_align)
           fd.(f_extra).(sf_stk_sz)
@@ -459,7 +445,7 @@ Definition isem_exportcall_check (p:sprog) (gd: @extra_val_t progStack) fn (s:es
           fd.(f_extra).(sf_stk_extra_sz)));;
   ks2 <- isem_fun_check p fn s;;
   let (k, s2) := (ks2.1, ks2.2) in
-  _ <- iresult s2 (assert (Sv.subset (Sv.inter callee_saved (Sv.union k (ra_undef fd var_tmp)))
+  _ <- iresult (assert (Sv.subset (Sv.inter callee_saved (Sv.union k (ra_undef fd var_tmp)))
                                      (sv_of_list fst fd.(f_extra).(sf_to_save)))
                       ErrSemUndef);;
   Ret s2.
