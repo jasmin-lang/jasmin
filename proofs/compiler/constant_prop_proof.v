@@ -520,7 +520,7 @@ Lemma valid_cpm_empty vm :
 Proof. move=> x n. by rewrite Mvar.get0. Qed.
 
 Definition eqoks e1 e2 st :=
-  ∀ vs, sem_pexprs wdb gd st e1 = ok vs → exists2 vs', sem_pexprs wdb gd st e2 = ok vs' & List.Forall2 value_uincl vs vs'.
+  ∀ vs, sem_pexprs wdb gd st e1 = ok vs → exists2 vs', sem_pexprs wdb gd st e2 = ok vs' & values_uincl vs vs'.
 
 Definition valid_globs (globs: globals) : Prop :=
   if globs is Some f then
@@ -539,7 +539,8 @@ Section CONST_PROP_EP.
     - by move => ? [<-]; exists [::].
     - move => e rec es ih ?; rewrite /sem_pexprs /=.
       apply: rbindP => v /rec [v'] [->] hu.
-      by apply: rbindP => vs /ih{ih}; rewrite -/(sem_pexprs wdb gd s _) => - [vs'] -> hrec [<-] /=; eauto.
+      apply: rbindP => vs /ih{ih}; rewrite -/(sem_pexprs wdb gd s _) => - [vs'] -> hrec [<-] /=.
+      by eexists; [reflexivity | constructor].
     - move => [x []] v; rewrite /= /get_gvar /=; last first.
       + case: globs Gvalid; last by eauto.
         move => f /(_ x).
@@ -1030,10 +1031,10 @@ Section PROOF.
 
   Let Pfun scs1 m1 fd vargs scs2 m2 vres :=
     forall vargs',
-      List.Forall2 value_uincl vargs vargs' ->
+      values_uincl vargs vargs' ->
       exists vres',
         sem_call p' ev scs1 m1 fd vargs' scs2 m2 vres' /\
-        List.Forall2 value_uincl vres vres'.
+        values_uincl vres vres'.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
   Proof.
@@ -1095,7 +1096,7 @@ Section PROOF.
     case: const_prop_rvs => m' rvs' /= h1 h2;split=>//.
     move=> vm1 hvm1.
     have [vs2 hs u2]:= sem_pexprs_uincl hvm1 Hes'.
-    have [ vs3 ho' vs_vs3 ] := vuincl_exec_opn (Forall2_trans value_uincl_trans Us u2) Ho.
+    have [ vs3 ho' vs_vs3 ] := vuincl_exec_opn (values_uincl_trans Us u2) Ho.
     have [vm2 hw U]:= writes_uincl hvm1 vs_vs3 h2.
     exists vm2;split => //; apply sem_seq1; constructor.
     case heq: is_update_imm => [ [[x b] e] | ]; last first.
@@ -1119,7 +1120,7 @@ Section PROOF.
     have /(_ _ Hm) [] := const_prop_rvsP _ valid_without_globals hw.
     case: const_prop_rvs => m' rvs' /= h1 h2; split => // vm1 hvm1.
     have [vs2 hs u2]:= sem_pexprs_uincl hvm1 Hes'.
-    have [vs' ho' Us']:= exec_syscallP ho (Forall2_trans value_uincl_trans Us u2).
+    have [vs' ho' Us']:= exec_syscallP ho (values_uincl_trans Us u2).
     have  /(_ _ hvm1) [vm2 hw' U] := writes_uincl _ Us' h2.
     exists vm2; split => //=; apply sem_seq1; constructor; econstructor; eauto.
   Qed.
@@ -1272,7 +1273,7 @@ Section PROOF.
     case: const_prop_rvs => m' rvs' /= ? hw;split=>//.
     move=> vm1 hvm1.
     have [vargs'' hargs'' U] := sem_pexprs_uincl hvm1 Hargs'.
-    have [res' [hsem hres']]:= Hfun _ (Forall2_trans value_uincl_trans Hall U).
+    have [res' [hsem hres']]:= Hfun _ (values_uincl_trans Hall U).
     have /(_ _ hvm1) [vm2 /= hw' hu] := writes_uincl _ hres' hw.
     exists vm2; split => //.
     by apply sem_seq1;constructor;econstructor;eauto.
@@ -1296,8 +1297,8 @@ Section PROOF.
 
   Lemma const_prop_callP f scs mem scs' mem' va va' vr:
     sem_call p ev scs mem f va scs' mem' vr ->
-    List.Forall2 value_uincl va va' ->
-    exists vr', sem_call p' ev scs mem f va' scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
+    values_uincl va va' ->
+    exists vr', sem_call p' ev scs mem f va' scs' mem' vr' /\ values_uincl vr vr'.
   Proof.
     move=> h.
     exact:
@@ -1350,16 +1351,16 @@ Qed.
 
 Lemma const_prop_esPe m wdb es :
   wrequiv (cmpl_inv m) ((sem_pexprs wdb gd)^~ es)
-    ((sem_pexprs wdb (p_globs p'))^~ [seq const_prop_e None m i | i <- es]) (List.Forall2 value_uincl).
+    ((sem_pexprs wdb (p_globs p'))^~ [seq const_prop_e None m i | i <- es]) values_uincl.
 Proof.
   move=> s t vs /st_relP [-> /=] [hval hvm].
   move=> /(const_prop_esP hval valid_without_globals_) [vs' hes' u1].
   have [vs2 -> u2]:= sem_pexprs_uincl hvm hes'.
-  exists vs2 => //; apply: (Forall2_trans value_uincl_trans) u1 u2.
+  exists vs2 => //; apply: values_uincl_trans u1 u2.
 Qed.
 
 Lemma const_prop_rvsPe m wdb xs vs1 vs2 :
-  List.Forall2 value_uincl vs1 vs2 ->
+  values_uincl vs1 vs2 ->
   wrequiv (cmpl_inv m) (fun s => write_lvals wdb (p_globs p) s xs vs1)
                        (fun s => write_lvals wdb (p_globs p') s (const_prop_rvs None m xs).2 vs2)
           (cmpl_inv (const_prop_rvs None m xs).1).
@@ -1518,7 +1519,7 @@ Local Opaque opp_word.
       rewrite hes ho ?hxs=> -[vs' Hes' Us] Ho;
       move=> /(const_prop_rvsP hval valid_without_globals_) [] hval' hw;
       have [vs2 hs u2]:= sem_pexprs_uincl hu Hes';
-      have [ vs3 ho' vs_vs3 ] := vuincl_exec_opn (Forall2_trans value_uincl_trans Us u2) Ho;
+      have [ vs3 ho' vs_vs3 ] := vuincl_exec_opn (values_uincl_trans Us u2) Ho;
       have [vm2 {}hw U]:= writes_uincl hu vs_vs3 hw;
       move: hs => /=; t_xrbindP => _ ze he <- ?; subst vs2 => /=;
       move: ho'; rewrite ?he /exec_sopn /= /sopn_sem_ /= /se_move_sem; t_xrbindP;

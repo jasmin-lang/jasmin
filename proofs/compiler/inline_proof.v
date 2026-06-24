@@ -299,9 +299,9 @@ Section PROOF.
       sem_for p' ev i vs (with_vm s1 vm1) c' (with_vm s2 vm2).
 
   Let Pfun scs m fn vargs scs' m' vres :=
-    forall vargs', List.Forall2 value_uincl vargs vargs' ->
+    forall vargs', values_uincl vargs vargs' ->
     exists2 vres',
-       List.Forall2 value_uincl vres vres' &
+       values_uincl vres vres' &
        sem_call p' ev scs m fn vargs' scs' m' vres'.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
@@ -506,8 +506,8 @@ Section PROOF.
       move=> z Hz;apply (writeP Hsem').
       move: Hdisj;rewrite /disjoint /is_true /locals /locals_p !Sv.is_empty_spec.
       by rewrite vrvs_recE read_cE write_c_recE ;SvD.fsetdec.
-    have HH: List.Forall2 value_uincl vs vs'.
-    + by apply: (Forall2_trans value_uincl_trans Hvres Uvs).
+    have HH: values_uincl vs vs'.
+    + by apply: (values_uincl_trans Hvres Uvs).
     have [|vm4 /= Hvm4 Hw']:= write_lvals_uincl_on _ HH Hw Heqvm;first by SvD.fsetdec.
     exists vm4.
     + by apply: uincl_onI Hvm4;SvD.fsetdec.
@@ -553,10 +553,10 @@ Section PROOF.
   Qed.
 
   Lemma inline_callP f scs mem scs' mem' va va' vr :
-    List.Forall2 value_uincl va va' ->
+    values_uincl va va' ->
     sem_call p ev scs mem f va scs' mem' vr ->
     exists2 vr',
-      List.Forall2 value_uincl vr vr' &
+      values_uincl vr vr' &
       sem_call p' ev scs mem f va' scs' mem' vr'.
   Proof.
     move=> Hall Hsem.
@@ -586,10 +586,10 @@ End PROOF.
 
 Lemma inline_call_errP p p' f ev scs mem scs' mem' va va' vr:
   inline_prog_err extend_iinfo p = ok p' ->
-  List.Forall2 value_uincl va va' ->
+  values_uincl va va' ->
   sem_call p ev scs mem f va scs' mem' vr ->
   exists2 vr',
-    List.Forall2 value_uincl vr vr' &
+    values_uincl vr vr' &
     sem_call p' ev scs mem f va' scs' mem' vr'.
 Proof.
   rewrite /inline_prog_err;case:ifP => //= Hu.
@@ -888,11 +888,10 @@ Proof.
   have /(_ fn) := it_inline_fd_aux p (ev := ev) huniq' hinline.
   have := hrec fn; rewrite -catA /=.
   apply wiequiv_f_trans => //.
-  + move=> fs1 fs2 [_ ?]; exists fs1 => //; split => //.
-    by split => //; apply List_Forall2_refl.
+  + by move=> fs1 fs2 [_ ?]; exists fs1.
   move=> _ _ _ fr1 fr3 _ _ [fr2].
   rewrite /fs_uincl /fs_rel => -[-> -> h1] [-> -> h2]; split => //.
-  apply: Forall2_trans h1 h2; apply value_uincl_trans.
+  apply: values_uincl_trans h1 h2.
 Qed.
 
 Lemma it_inline_call_errP p' fn :

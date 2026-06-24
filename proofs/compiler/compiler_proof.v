@@ -212,10 +212,10 @@ Existing Instance progUnit.
 Lemma postprocessP {dc : DirectCall} (p p': uprog) ev scs m fn va scs' m' vr va' :
   dead_code_prog (ap_is_move_op aparams) (const_prop_prog p) false = ok p' →
   sem_call p ev scs m fn va scs' m' vr →
-  List.Forall2 value_uincl va va' →
+  values_uincl va va' →
   exists2 vr',
     sem_call p' ev scs m fn va' scs' m' vr'
-    & List.Forall2 value_uincl vr vr'.
+    & values_uincl vr vr'.
 Proof.
   move => ok_p' E A.
   have [ vr1 [ {} E R1 ] ] := const_prop_callP E A.
@@ -228,10 +228,10 @@ Qed.
 Lemma unrollP  {dc : DirectCall} (fn : funname) (p p' : prog) ev scs mem va va' scs' mem' vr :
   unroll_loop (ap_is_move_op aparams) p = ok p'
   -> sem_call p ev scs mem fn va scs' mem' vr
-  -> List.Forall2 value_uincl va va'
+  -> values_uincl va va'
   -> exists vr',
        sem_call p' ev scs mem fn va' scs' mem' vr'
-       /\ List.Forall2 value_uincl vr vr'.
+       /\ values_uincl vr vr'.
 Proof.
   rewrite /unroll_loop; t_xrbindP.
   elim: loop_counter p va va' vr => //= n Hn p va va' vr p1 ok_p1.
@@ -250,14 +250,14 @@ Qed.
 
 Definition compose_pass : ∀ vr (P Q: _ → Prop),
         (∀ vr', P vr' → Q vr') →
-        (exists2 vr', List.Forall2 value_uincl vr vr' & P vr') →
-        (exists2 vr', List.Forall2 value_uincl vr vr' & Q vr')
+        (exists2 vr', values_uincl vr vr' & P vr') →
+        (exists2 vr', values_uincl vr vr' & Q vr')
     := λ vr P Q h x, let 'ex_intro2 vr' u p := x in ex_intro2 _ _ vr' u (h vr' p).
 
 Definition compose_pass_uincl : ∀ vr (P Q: _ → Prop),
-        (∀ vr, P vr → ∃ vr', Q vr' ∧ List.Forall2 value_uincl vr vr') →
-        (exists2 vr', List.Forall2 value_uincl vr vr' & P vr') →
-        (exists2 vr', List.Forall2 value_uincl vr vr' & Q vr')
+        (∀ vr, P vr → ∃ vr', Q vr' ∧ values_uincl vr vr') →
+        (exists2 vr', values_uincl vr vr' & P vr') →
+        (exists2 vr', values_uincl vr vr' & Q vr')
   :=
       λ vr P Q h x,
       let 'ex_intro2 vr1 u p := x in
@@ -265,9 +265,9 @@ Definition compose_pass_uincl : ∀ vr (P Q: _ → Prop),
       ex_intro2 _ _ vr2 (values_uincl_trans u v) q.
 
 Definition compose_pass_uincl' : ∀ vr (P Q: _ → Prop),
-        (∀ vr, P vr → exists2 vr', List.Forall2 value_uincl vr vr' & Q vr') →
-        (exists2 vr', List.Forall2 value_uincl vr vr' & P vr') →
-        (exists2 vr', List.Forall2 value_uincl vr vr' & Q vr')
+        (∀ vr, P vr → exists2 vr', values_uincl vr vr' & Q vr') →
+        (exists2 vr', values_uincl vr vr' & P vr') →
+        (exists2 vr', values_uincl vr vr' & Q vr')
   :=
       λ vr P Q h x,
       let 'ex_intro2 vr1 u p := x in
@@ -278,7 +278,7 @@ Lemma live_range_splittingP {dc : DirectCall} (p p': uprog) scs m fn va scs' m' 
   live_range_splitting aparams cparams p = ok p' →
   sem_call p tt scs m fn va scs' m' vr →
   exists2 vr',
-      List.Forall2 value_uincl vr vr' &
+      values_uincl vr vr' &
       sem_call p' tt scs m fn va scs' m' vr'.
 Proof.
   rewrite /live_range_splitting; t_xrbindP.
@@ -300,7 +300,7 @@ Lemma inliningP (to_keep: seq funname) (p p': uprog) scs m fn va scs' m' vr :
   inlining cparams to_keep p = ok p' →
   fn \in to_keep →
   sem_call (wsw := withsubword) (dc := indirect_c) p tt scs m fn va scs' m' vr →
-  exists2 vr', List.Forall2 value_uincl vr vr' & sem_call (dc := indirect_c) p' tt scs m fn va scs' m' vr'.
+  exists2 vr', values_uincl vr vr' & sem_call (dc := indirect_c) p' tt scs m fn va scs' m' vr'.
 Proof.
   rewrite /inlining /=; t_xrbindP => pa.
   rewrite print_uprogP => ok_pa pb ok_pb.
@@ -315,7 +315,7 @@ Lemma compiler_first_partP entries (p: prog) (p': uprog) scs m fn va scs' m' vr 
   fn \in entries →
   sem_call (wsw:= nosubword) (dc:=indirect_c) p tt scs m fn va scs' m' vr →
   exists2 vr',
-    List.Forall2 value_uincl vr vr' &
+    values_uincl vr vr' &
     sem_call (dc:=direct_c) p' tt scs m fn va scs' m' vr'.
 Proof.
   rewrite /compiler_first_part; t_xrbindP => paw.
@@ -386,8 +386,7 @@ Proof.
   apply: compose_pass.
   + move => vr'; exact: remove_assert_progP.
   apply: compose_pass; first by move => vr'; exact: psem_call_u.
-  exists vr => //.
-  exact: values_uincl_refl.
+  by exists vr.
 Qed.
 
 Lemma compiler_third_partP returned_params (p p' : @sprog _pd _ _asmop) :
@@ -404,7 +403,7 @@ Lemma compiler_third_partP returned_params (p p' : @sprog _pd _ _asmop) :
         | None => removereturn cparams p fn
         end
       in
-      List.Forall2 value_uincl (fn_keep_only rminfo fn vr) vr' &
+      values_uincl (fn_keep_only rminfo fn vr) vr' &
       sem_call (dc:= direct_c) p' gd scs m fn va scs' m' vr' &
     ∀ fn m,
       alloc_ok p' fn m → alloc_ok p fn m
@@ -483,7 +482,7 @@ Lemma compiler_front_endP
     extend_mem m' mi' gd (sp_globs (p_extra p')),
     let n := get_nb_wptr p fn in
       List.Forall2 (value_in_mem mi') (take n vr) (take n va') /\
-      List.Forall2 value_uincl (drop n vr) vr' &
+      values_uincl (drop n vr) vr' &
     mem_unchanged_params m mi mi' (get_wptrs p fn) va va'
   ].
 Proof.
@@ -699,7 +698,7 @@ Lemma compiler_front_endP_uincl
     extend_mem m' mi' gd (sp_globs (p_extra p')),
     let n := get_nb_wptr p fn in
       List.Forall2 (value_in_mem mi') (take n vr) (take n va') /\
-      List.Forall2 value_uincl (drop n vr) vr' &
+      values_uincl (drop n vr) vr' &
     mem_unchanged_params m mi mi' (get_wptrs p fn) va va'
   ].
 Proof.
@@ -713,7 +712,7 @@ Proof.
     map3 (fun o v v' => if o is Some _ then v else v') (get_wptrs p fn) va va'.
   have [size_va size_va'] := Forall3_size va'_uinmem.
 
-  have huincl: List.Forall2 value_uincl va va2.
+  have huincl: values_uincl va va2.
   + elim: {va va' exec_p va'_wf size_va size_va'} va'_uinmem @va2 => /=.
     + by constructor.
     move=> wptr v v' wptrs va va' huinmem _ ih.
@@ -840,7 +839,7 @@ Lemma compiler_back_endP
       ∀ lm vm,
         vm.[vid tp.(lp_rsp)] = Vword (top_stack m) →
         match_mem m lm →
-        List.Forall2 value_uincl args (map (λ x : var_i, vm.[x]) fd.(lfd_arg)) →
+        values_uincl args (map (λ x : var_i, vm.[x]) fd.(lfd_arg)) →
         vm.[vid tp.(lp_rip)] = Vword rip →
         vm_initialized_on vm (lfd_callee_saved fd) →
         allocatable_stack m (lfd_total_stack fd) ->
@@ -851,7 +850,7 @@ Lemma compiler_back_endP
             (cparams.(stack_zero_info) fn <> None ->
               forall p, ~ validw m Aligned p U8 ->
                 read lm' Aligned p U8 = read lm Aligned p U8 \/ read lm' Aligned p U8 = ok 0%R) &
-            List.Forall2 value_uincl res (map (λ x : var_i, vm'.[x]) fd.(lfd_res))
+            values_uincl res (map (λ x : var_i, vm'.[x]) fd.(lfd_res))
           ]
       ].
 Proof.
@@ -1052,7 +1051,7 @@ Lemma compiler_back_end_to_asmP
             -> xm.(asm_rip) = rip
             -> asm_reg xm ad_rsp = top_stack m
             -> match_mem m xm.(asm_mem)
-            -> List.Forall2 value_uincl args (get_typed_reg_values xm xd.(asm_fd_arg))
+            -> values_uincl args (get_typed_reg_values xm xd.(asm_fd_arg))
             -> allocatable_stack m xd.(asm_fd_total_stack)
             -> exists xm',
                 [/\ asmsem_exportcall xp fn xm xm'
@@ -1061,7 +1060,7 @@ Lemma compiler_back_end_to_asmP
                       forall p, ~ validw m Aligned p U8 ->
                        read xm'.(asm_mem) Aligned p U8 = read xm.(asm_mem) Aligned p U8
                        \/ read xm'.(asm_mem) Aligned p U8 = ok 0%R)
-                  & List.Forall2 value_uincl res (get_typed_reg_values xm' xd.(asm_fd_res))
+                  & values_uincl res (get_typed_reg_values xm' xd.(asm_fd_res))
                 ]
       ].
 Proof.
@@ -1142,7 +1141,7 @@ Proof.
     by case: r => //= r _; rewrite truncate_word_u.
 
   move=> xm' xp_call LM'.
-  have : List.Forall2 value_uincl res (get_typed_reg_values xm' xres).
+  have : values_uincl res (get_typed_reg_values xm' xres).
   + elim: (lfd_res fd) (xres) ok_xres (res) res_res' => [ | [x ?] xs hrec] //=; t_xrbindP.
     + by move=> ? <- res' h; inversion_clear h => /=.
     move=> ? r h ? /hrec{}hrec <- res' /List_Forall2_inv; case: res' => // v res' [hr /hrec] /=.
@@ -1252,7 +1251,7 @@ Lemma compile_prog_to_asmP
                         \/ read xm'.(asm_mem) Aligned pr U8 = ok 0%R)
                   & let n := get_nb_wptr p fn in
                     List.Forall2 (value_in_mem (asm_mem xm')) (take n vr) (take n (get_typed_reg_values xm (asm_fd_arg xd))) /\
-                    List.Forall2 value_uincl (drop n vr) (get_typed_reg_values xm' (asm_fd_res xd))
+                    values_uincl (drop n vr) (get_typed_reg_values xm' (asm_fd_res xd))
                 ]
       ].
 Proof.
@@ -1297,7 +1296,7 @@ Proof.
   have hallocatable: allocatable_stack mi (asm_fd_total_stack xd).
   + rewrite /allocatable_stack.
     by have /= := henough _ get_xd; Lia.lia.
-  have := xp_call ok_scs ok_rsp (List_Forall2_refl _ value_uincl_refl) hallocatable.
+  have := xp_call ok_scs ok_rsp values_uincl_refl hallocatable.
   case => xm' [] {} xp_call m2 ok_scs' hzero vr'_res'.
   exists xm'; split => //.
   + case: xp_call => _ _ _ /= _ /asmsem_invariantP /= xm_xm' _.

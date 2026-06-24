@@ -44,9 +44,9 @@ Definition exec_syscall_u
 
 Lemma exec_syscallPu scs m o vargs vargs' rscs rm vres :
   exec_syscall_u scs m o vargs = ok (rscs, rm, vres) →
-  List.Forall2 value_uincl vargs vargs' →
+  values_uincl vargs vargs' →
   exists2 vres' : values,
-    exec_syscall_u scs m o vargs' = ok (rscs, rm, vres') & List.Forall2 value_uincl vres vres'.
+    exec_syscall_u scs m o vargs' = ok (rscs, rm, vres') & values_uincl vres vres'.
 Proof.
   rewrite /exec_syscall_u; case: o => [ ws p ].
   t_xrbindP => -[scs' v'] /= h ??? hu; subst scs' m v'.
@@ -72,24 +72,24 @@ Section Section.
 
 Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
 
-Definition exec_getrandom_s_core (scs : syscall_state_t) (m : mem) (p:pointer) (len:pointer) : exec (syscall_state_t * mem * pointer) := 
+Definition exec_getrandom_s_core (scs : syscall_state_t) (m : mem) (p:pointer) (len:pointer) : exec (syscall_state_t * mem * pointer) :=
   let len := wunsigned len in
   let sd := syscall.get_random scs len in
   Let m := fill_mem m p sd.2 in
   ok (sd.1, m, p).
 
-Lemma exec_getrandom_s_core_stable scs m p len rscs rm rp : 
+Lemma exec_getrandom_s_core_stable scs m p len rscs rm rp :
   exec_getrandom_s_core scs m p len = ok (rscs, rm, rp) →
   stack_stable m rm.
 Proof. by rewrite /exec_getrandom_s_core; t_xrbindP => rm' /fill_mem_stack_stable hf ? <- ?. Qed.
 
-Lemma exec_getrandom_s_core_validw scs m p len rscs rm rp : 
+Lemma exec_getrandom_s_core_validw scs m p len rscs rm rp :
   exec_getrandom_s_core scs m p len = ok (rscs, rm, rp) →
   validw m =3 validw rm.
 Proof. by rewrite /exec_getrandom_s_core; t_xrbindP => rm' /fill_mem_validw_eq hf ? <- ?. Qed.
 
 Definition sem_syscall (o:syscall_t) :
-     syscall_state_t -> mem -> sem_prod (map eval_atype (syscall_sig_s o).(scs_tin)) (exec (syscall_state_t * mem * sem_tuple (map eval_atype (syscall_sig_s o).(scs_tout)))) := 
+     syscall_state_t -> mem -> sem_prod (map eval_atype (syscall_sig_s o).(scs_tin)) (exec (syscall_state_t * mem * sem_tuple (map eval_atype (syscall_sig_s o).(scs_tout)))) :=
   match o with
   | RandomBytes _ _ => exec_getrandom_s_core
   end.
@@ -103,25 +103,25 @@ Lemma syscall_sig_s_noarr o : all is_not_carr (map eval_atype (syscall_sig_s o).
 Proof. by case: o. Qed.
 
 Lemma exec_syscallPs_eq scs m o vargs vargs' rscs rm vres :
-  exec_syscall_s scs m o vargs = ok (rscs, rm, vres) → 
-  List.Forall2 value_uincl vargs vargs' → 
+  exec_syscall_s scs m o vargs = ok (rscs, rm, vres) →
+  values_uincl vargs vargs' →
   exec_syscall_s scs m o vargs' = ok (rscs, rm, vres).
 Proof.
   rewrite /exec_syscall_s; t_xrbindP => -[[scs' m'] t] happ [<- <- <-] hu.
   by have -> := vuincl_sopn (syscall_sig_s_noarr o) hu happ.
 Qed.
- 
+
 Lemma exec_syscallPs scs m o vargs vargs' rscs rm vres :
-  exec_syscall_s scs m o vargs = ok (rscs, rm, vres) → 
-  List.Forall2 value_uincl vargs vargs' → 
+  exec_syscall_s scs m o vargs = ok (rscs, rm, vres) →
+  values_uincl vargs vargs' →
   exists2 vres' : values,
-    exec_syscall_s scs m o vargs' = ok (rscs, rm, vres') & List.Forall2 value_uincl vres vres'.
+    exec_syscall_s scs m o vargs' = ok (rscs, rm, vres') & values_uincl vres vres'.
 Proof.
   move=> h1 h2; rewrite (exec_syscallPs_eq h1 h2).
   by exists vres=> //; apply List_Forall2_refl.
 Qed.
 
-Lemma sem_syscall_equiv o scs m : 
+Lemma sem_syscall_equiv o scs m :
   mk_forall (fun (rm: (syscall_state_t * mem * _)) => mem_equiv m rm.1.2)
             (sem_syscall o scs m).
 Proof.
@@ -131,7 +131,7 @@ Proof.
 Qed.
 
 Lemma exec_syscallSs scs m o vargs rscs rm vres :
-  exec_syscall_s scs m o vargs = ok (rscs, rm, vres) → 
+  exec_syscall_s scs m o vargs = ok (rscs, rm, vres) →
   mem_equiv m rm.
 Proof.
   rewrite /exec_syscall_s; t_xrbindP => -[[scs' m'] t] happ [_ <- _].

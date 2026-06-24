@@ -122,10 +122,10 @@ Let Pfor (i:var_i) vs s1 c s2 :=
   exists2 vm2, evm s2 <=1 vm2 & sem_for (dc:= direct_c) p ev i vs (with_vm s1 vm1) c (with_vm s2 vm2).
 
 Let Pfun scs m fn vargs scs' m' vres :=
-  forall vargs', List.Forall2 value_uincl vargs vargs' ->
+  forall vargs', values_uincl vargs vargs' ->
   exists2 vres',
     sem_call (dc:= direct_c) p ev scs m fn vargs' scs' m' vres' &
-    List.Forall2 value_uincl vres vres'.
+    values_uincl vres vres'.
 
 Local Lemma Hskip : sem_Ind_nil Pc.
 Proof. move=> s1 vm1 hle; eexists; eauto; constructor. Qed.
@@ -224,7 +224,7 @@ Proof.
 Qed.
 
 Lemma mapM2_dc_truncate_weak ty vs1 vs2 vs' :
-  List.Forall2 value_uincl vs1 vs2 ->
+  values_uincl vs1 vs2 ->
   mapM2 ErrType (dc_truncate_val (dc:=indirect_c)) ty vs1 = ok vs' ->
   mapM2 ErrType (dc_truncate_val (dc:=direct_c)) ty vs2 = ok vs2.
 Proof.
@@ -235,13 +235,13 @@ Local Lemma Hproc : sem_Ind_proc (dc:=indirect_c) p ev Pc Pfun.
 Proof.
   move=> scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' hget htra hinit hw _ hc hgetr htrr -> -> vargs1 hu.
   have htra1 := mapM2_dc_truncate_weak hu htra.
-  have {}hu := Forall2_trans value_uincl_trans (mapM2_dc_truncate_value_uincl htra) hu.
+  have {}hu := values_uincl_trans (mapM2_dc_truncate_value_uincl htra) hu.
   assert (h := write_vars_uincl (vm_uincl_refl (evm s0)) hu hw).
   case: h=> vm1; rewrite with_vm_same => /(write_vars_weak false) hw1 /hc [vm2 hle2 hc2].
   have [vres2 hgetr2 hu2] := get_var_is_uincl hle2 hgetr.
   have htrr2 := mapM2_dc_truncate_weak hu2 htrr.
   exists vres2; last first.
-  + by apply: (Forall2_trans value_uincl_trans) hu2; apply: mapM2_dc_truncate_value_uincl htrr.
+  + by apply: values_uincl_trans hu2; apply: mapM2_dc_truncate_value_uincl htrr.
   econstructor; eauto => /=.
   elim: (f_res f) (vres2) hgetr2 => [ | t ty hrec] /=; t_xrbindP.
   + by move=> _ <-.
@@ -251,7 +251,7 @@ Qed.
 Lemma indirect_to_direct scs m fn va scs' m' vr :
   sem_call (dc := indirect_c) p ev scs m fn va scs' m' vr →
   exists2 vr',
-    List.Forall2 value_uincl vr vr' &
+    values_uincl vr vr' &
     sem_call (dc := direct_c) p ev scs m fn va scs' m' vr'.
 Proof.
   move=> Hsem.
@@ -274,7 +274,7 @@ Proof.
          Hproc
          Hsem
          va
-         (List_Forall2_refl va value_uincl_refl)). eauto.
+         values_uincl_refl ). eauto.
 Qed.
 
 End SEM.
@@ -312,7 +312,7 @@ Proof.
   rewrite /initialize_funcall; t_xrbindP => vs htra s0 hinit hw.
   have -> /= := mapM2_dc_truncate_weak hu htra.
   rewrite /estate0 -hscs -hmem hinit /=.
-  have {}hu := Forall2_trans value_uincl_trans (mapM2_dc_truncate_value_uincl htra) hu.
+  have {}hu := values_uincl_trans (mapM2_dc_truncate_value_uincl htra) hu.
   assert (h := write_vars_uincl (vm_uincl_refl (evm s0)) hu hw).
   case: h=> vm1; rewrite with_vm_same => /(write_vars_weak false) -> {}hu.
   eexists; first reflexivity.
@@ -327,7 +327,7 @@ Proof.
     rewrite (mapM2_dc_truncate_weak hu2 htrr) /=.
     eexists; first reflexivity.
     split => //=; first by rewrite hmem.
-    by apply: (Forall2_trans value_uincl_trans) hu2; apply: mapM2_dc_truncate_value_uincl htrr.
+    by apply: values_uincl_trans hu2; apply: mapM2_dc_truncate_value_uincl htrr.
   move: (f_body fd) => {fn fd hget}.
   apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //; subst Pi_r Pi Pc => /=.
   + by apply wequiv_nil.

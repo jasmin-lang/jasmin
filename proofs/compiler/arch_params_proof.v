@@ -165,6 +165,6 @@ Record h_architecture_params
       forall op vx v,
         ap_is_move_op aparams op
         -> exec_sopn (Oasm op) [:: vx ] = ok v
-        -> List.Forall2 value_uincl v [:: vx ];
+        -> values_uincl v [:: vx ];
   }.
 

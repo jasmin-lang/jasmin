@@ -1754,7 +1754,7 @@ Section PROOF.
   Qed.
 
   Lemma write_lvals_mem_unchanged xs vs vs' s s' t t' sp :
-    List.Forall2 value_uincl vs vs' →
+    values_uincl vs vs' →
     write_lvals true [::] s xs vs = ok s' →
     write_lvals true [::] t xs vs' = ok t' →
     escs s = escs t →
@@ -1777,7 +1777,7 @@ Section PROOF.
   Qed.
 
   Lemma preserved_metadata_write_lvals xs vs vs' s s' t t' sp :
-    List.Forall2 value_uincl vs vs' →
+    values_uincl vs vs' →
     write_lvals true [::] s xs vs = ok s' →
     write_lvals true [::] t xs vs' = ok t' →
     escs s = escs t →
@@ -2227,7 +2227,7 @@ Section PROOF.
   Qed.
 
   Lemma exec_syscall_mem_unchanged m1 m2 m1' m2' scs scs' o ves ves' vs vs' :
-    List.Forall2 value_uincl ves ves' ->
+    values_uincl ves ves' ->
     exec_syscall_s scs m1 o ves = ok (scs', m1', vs) ->
     exec_syscall_s scs m2 o ves' = ok (scs', m2', vs') ->
     forall p, ~~ validw m1 Aligned p U8 -> read m2 Aligned p U8 = read m2' Aligned p U8.
@@ -2244,7 +2244,7 @@ Section PROOF.
   Qed.
 
   Lemma preserved_metadata_syscall m1 m2 m1' m2' scs scs' o ves ves' vs vs' :
-    List.Forall2 value_uincl ves ves' ->
+    values_uincl ves ves' ->
     exec_syscall_s scs m1 o ves = ok (scs', m1', vs) ->
     exec_syscall_s scs m2 o ves' = ok (scs', m2', vs') ->
     preserved_metadata m1 m2 m2'.
@@ -4729,7 +4729,7 @@ Section PROOF.
         vm.[vid (lp_rsp p')] = Vword (top_stack m) →
         match_mem m lm →
         get_var_is false vm lfd.(lfd_arg) = ok args' →
-        List.Forall2 value_uincl args args' →
+        values_uincl args args' →
         vm.[vid p'.(lp_rip)] = Vword gd →
         vm_initialized_on vm (lfd_callee_saved lfd) →
         (fd.(f_extra).(sf_stk_max) + wsize_size fd.(f_extra).(sf_align) - 1 <= wunsigned (top_stack m))%Z ->
@@ -4740,7 +4740,7 @@ Section PROOF.
             match_mem m' lm',
             target_mem_unchanged m (align_top_stack (top_stack m) fd.(f_extra)) fd.(f_extra).(sf_stk_max) lm lm',
             get_var_is false vm' lfd.(lfd_res) = ok res' &
-            List.Forall2 value_uincl res res'
+            values_uincl res res'
           ]
       ].
   Proof.
@@ -4857,7 +4857,7 @@ Section PROOF.
       move/is_RAnoneP: Export => ->; rewrite -heq.
       by case/in_map; exists r.
     have : ∃ lres : values,
-        [/\ get_var_is false vmo (f_res fd) = ok lres & List.Forall2 value_uincl res lres ].
+        [/\ get_var_is false vmo (f_res fd) = ok lres & values_uincl res lres ].
     {
       move/mapM_Forall2: ok_res' res_res' vm2_vmo.
       move: res' res (f_res fd).

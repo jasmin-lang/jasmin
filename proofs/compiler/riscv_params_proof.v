@@ -622,7 +622,7 @@ End STACK_ZEROIZATION.
 Definition riscv_is_move_opP op vx v :
   ap_is_move_op riscv_params op
   -> exec_sopn (Oasm op) [:: vx ] = ok v
-  -> List.Forall2 value_uincl v [:: vx ].
+  -> values_uincl v [:: vx ].
 Proof.
   case: op => // -[[] // op] /= hop.
   rewrite /exec_sopn /sopn_sem /sopn_sem_ /=.

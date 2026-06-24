@@ -102,8 +102,8 @@ Section WITH_PARAMS.
           sem_for p' ev i vs (with_vm s vm) c (with_vm s' vm').
 
     Let Pfun scs1 m1 fn vargs scs2 m2 vres :=
-          ∀ vargs', List.Forall2 value_uincl vargs vargs' →
-          exists2 vres', List.Forall2 value_uincl vres vres' &
+          ∀ vargs', values_uincl vargs vargs' →
+          exists2 vres', values_uincl vres vres' &
           sem_call p' ev scs1 m1 fn vargs' scs2 m2 vres'.
 
     Lemma write_vars_defined vs' xs vs s0 s1 :
@@ -178,7 +178,7 @@ Section WITH_PARAMS.
       ∀ vm, evm s <=1 vm →
       get_var_is true vm xs = ok vr →
       ∃ vm' vr', [/\ vm  <=1 vm', sem p' ev (with_vm s vm) (rename_vars ii xs) (with_vm s vm'), get_var_is true vm' xs = ok vr' &
-                  List.Forall2 value_uincl vr vr'].
+                  values_uincl vr vr'].
     Proof.
       clear.
       elim: xs vr vr'.
@@ -210,7 +210,7 @@ Section WITH_PARAMS.
         by rewrite (truncate_val_truncatable ok_v) /= with_vm_idem.
       - by rewrite v''_defined /get_var /= get_xs /=.
       constructor; first by [].
-      exact: Forall2_trans value_uincl_trans vr_vr' vr'_vr''.
+      exact: values_uincl_trans vr_vr' vr'_vr''.
     Qed.
 
     Theorem insert_renaming_callP scs mem fn va scs' mem' vr :
@@ -326,7 +326,7 @@ Section WITH_PARAMS.
       move => /(_ _ _ _ _ ok_vr1' _ hvm2 ok_vr')[] vm3 [] vr'' [] vm2_vm3 epilogue ok_vr'' vr'_vr''.
       case: (mapM2_dc_truncate_val ok_vr1' vr'_vr'') => vr1'' ok_vr1'' vr1'_vr1''.
       exists vr1''.
-      - exact: Forall2_trans value_uincl_trans vr1vr1' vr1'_vr1''.
+      - exact: values_uincl_trans vr1vr1' vr1'_vr1''.
       econstructor.
       - exact: ok_fd'.
       - by rewrite insert_renaming_fd_tyin wt_args ok_va'.

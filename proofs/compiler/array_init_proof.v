@@ -54,9 +54,9 @@ Section REMOVE_INIT.
 
   Let Pfun scs m fn vargs scs' m' vres :=
     forall vargs',
-    List.Forall2 value_uincl vargs vargs' ->
+    values_uincl vargs vargs' ->
     exists vres', sem_call p' ev scs m fn vargs' scs' m' vres' /\
-      List.Forall2 value_uincl vres vres'.
+      values_uincl vres vres'.
 
   Local Lemma Rnil : sem_Ind_nil Pc.
   Proof. by move=> s vm1 Hvm1;exists vm1 => //;constructor. Qed.
@@ -212,9 +212,9 @@ Section REMOVE_INIT.
   Qed.
 
   Lemma remove_init_fdP f scs mem scs' mem' va va' vr:
-    List.Forall2 value_uincl va va' ->
+    values_uincl va va' ->
     sem_call p ev scs mem f va scs' mem' vr ->
-    exists vr', sem_call p' ev scs mem f va' scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
+    exists vr', sem_call p' ev scs mem f va' scs' mem' vr' /\ values_uincl vr vr'.
   Proof.
     move=> hall hsem.
     exact:
@@ -322,17 +322,17 @@ End Section.
 
 (* TODO : do we really need the instances ? *)
 Lemma remove_init_fdPu is_reg_array (p : uprog) ev f scs mem scs' mem' va va' vr:
-   List.Forall2 value_uincl va va' ->
+   values_uincl va va' ->
    sem_call p ev scs mem f va scs' mem' vr ->
    exists vr' : seq value,
-     sem_call (remove_init_prog is_reg_array p) ev scs mem f va' scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
+     sem_call (remove_init_prog is_reg_array p) ev scs mem f va' scs' mem' vr' /\ values_uincl vr vr'.
 Proof. apply remove_init_fdP. Qed.
 
 Lemma remove_init_fdPs is_reg_array (p : sprog) ev f scs mem scs' mem' va va' vr:
-   List.Forall2 value_uincl va va' ->
+   values_uincl va va' ->
    sem_call p ev scs mem f va scs' mem' vr ->
    exists vr' : seq value,
-     sem_call (remove_init_prog is_reg_array p) ev scs mem f va' scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
+     sem_call (remove_init_prog is_reg_array p) ev scs mem f va' scs' mem' vr' /\ values_uincl vr vr'.
 Proof. apply remove_init_fdP. Qed.
 
 Section IT.

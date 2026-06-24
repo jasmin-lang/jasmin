@@ -207,7 +207,7 @@ Variant sem_export_call_conclusion (scs: syscall_state_t) (m: mem) (fd: sfundef)
 (*    all2 check_ty_val fd.(f_tyin) args & *)
     sem k {| escs := scs; emem := m1 ; evm := set_RSP m1 (ra_undef_vm_none fd.(f_extra).(sf_save_stack) var_tmp vm) |} fd.(f_body) {| escs:= scs'; emem := m2 ; evm := vm2 |} &
     get_var_is false vm2 fd.(f_res) = ok res' &
-    List.Forall2 value_uincl res res' &
+    values_uincl res res' &
  (*   all2 check_ty_val fd.(f_tyout) res' & *)
     valid_RSP m2 vm2 &
     m' = free_stack m2.
@@ -220,7 +220,7 @@ Variant sem_export_call (gd: @extra_val_t progStack)  (scs: syscall_state_t) (m:
       ~~ Sv.mem vrsp (sv_of_list v_var fd.(f_res)) &
     ∀ vm args',
       get_var_is false vm fd.(f_params) = ok args' →
-      List.Forall2 value_uincl args args' →
+      values_uincl args args' →
       valid_RSP m vm →
       vm.[vgd] = Vword gd →
       sem_export_call_conclusion scs m fd args' vm scs' m' res.

@@ -223,14 +223,14 @@ Let P e : Prop :=
 
 Let Q es : Prop :=
   forall vs, sem_pexprs wdb gd s es = ok vs ->
-  exists2 vs', sem_pexprs wdb gd s (pi_es pi es) = ok vs' & List.Forall2 value_uincl vs vs'.
+  exists2 vs', sem_pexprs wdb gd s (pi_es pi es) = ok vs' & values_uincl vs vs'.
 
 Lemma pi_eP_and : (forall e, P e) /\ (forall es, Q es).
 Proof.
   apply: pexprs_ind_pair; subst P Q; split => /=.
   + by move=> ? [<-]; exists [::].
   + move=> e hrec es hrecs vs; t_xrbindP => ? /hrec [v' -> hu] ? /hrecs [vs' -> hus] <- /=.
-    by exists (v'::vs'); auto.
+    by exists (v'::vs') => //; constructor.
   1-3: by move=> > [<-]; eauto.
   + move=> x v; case: ifP => h /=; last by eauto.
     move=> hg; case heq : Mvar.get => [[e' fv m ??] | ]; last by eauto.
@@ -274,7 +274,7 @@ Proof. case: pi_eP_and => h _; apply h. Qed.
 Lemma pi_esP es vs :
   sem_pexprs wdb gd s es = ok vs ->
   exists2 vs', sem_pexprs wdb gd s (pi_es pi es) = ok vs' &
-    List.Forall2 value_uincl vs vs'.
+    values_uincl vs vs'.
 Proof. case: pi_eP_and => _ h; apply h. Qed.
 
 Context (vm:Vm.t) (hu: evm s <=1 vm).
@@ -290,10 +290,10 @@ Qed.
 Lemma pi_esP_uincl es vs :
   sem_pexprs wdb gd s es = ok vs ->
   exists2 vs', sem_pexprs wdb gd (with_vm s vm) (pi_es pi es) = ok vs' &
-    List.Forall2 value_uincl vs vs'.
+    values_uincl vs vs'.
 Proof.
   move=> /pi_esP [vs'] /(sem_pexprs_uincl hu) [vs'' ? h2] h1.
-  exists vs'' => //; apply: Forall2_trans h1 h2; apply value_uincl_trans.
+  exists vs'' => //; apply: values_uincl_trans h1 h2.
 Qed.
 
 End Expr.
@@ -388,7 +388,7 @@ Proof.
 Qed.
 
 Lemma pi_lvsP_uincl wdb pi s vm s' xs vs vs':
-  evm s <=1 vm -> List.Forall2 value_uincl vs vs' ->
+  evm s <=1 vm -> values_uincl vs vs' ->
   valid_pi s pi ->
   write_lvals wdb gd s xs vs = ok s' ->
   exists vm',
@@ -567,8 +567,8 @@ Section PROOF.
         & sem_for p2 ev i1 vs (with_vm s1 vm1) pc2.2 (with_vm s2 vm2) ].
 
   Let Pfun scs m fn vargs scs' m' vres :=
-    forall vargs', List.Forall2 value_uincl vargs vargs' ->
-    exists2 vres', List.Forall2 value_uincl vres vres' & sem_call p2 ev scs m fn vargs' scs' m' vres'.
+    forall vargs', values_uincl vargs vargs' ->
+    exists2 vres', values_uincl vres vres' & sem_call p2 ev scs m fn vargs' scs' m' vres'.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
   Proof. move=> s pi pic2 vm1 [<-] ??; exists vm1; split => //; constructor. Qed.
@@ -726,9 +726,9 @@ Section PROOF.
   Qed.
 
   Lemma pi_callP f scs mem scs' mem' va va' vr:
-    List.Forall2 value_uincl va va' ->
+    values_uincl va va' ->
     sem_call p1 ev scs mem f va scs' mem' vr ->
-    exists vr', sem_call p2 ev scs mem f va' scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
+    exists vr', sem_call p2 ev scs mem f va' scs' mem' vr' /\ values_uincl vr vr'.
   Proof.
     move=> hall hsem.
     have [vr' ??] :=
@@ -788,13 +788,13 @@ Section PROOF.
 
   Lemma pi_esPe d wdb es :
     wrequiv (st_pi d) ((sem_pexprs wdb gd)^~ es)
-      ((sem_pexprs wdb (p_globs p2))^~ (pi_es d es)) (List.Forall2 value_uincl).
+      ((sem_pexprs wdb (p_globs p2))^~ (pi_es d es)) (values_uincl).
   Proof.
     by move=> s t vs /st_piP [-> /=] hu hval; rewrite -eq_globs; apply pi_esP_uincl.
   Qed.
 
   Lemma pi_lvsPe d wdb xs vs1 vs2 :
-    List.Forall2 value_uincl vs1 vs2 ->
+    values_uincl vs1 vs2 ->
     wrequiv (st_pi d) (fun s => write_lvals wdb (p_globs p1) s xs vs1)
                       (fun s => write_lvals wdb (p_globs p2) s (pi_lvs d xs).2 vs2)
             (st_pi (pi_lvs d xs).1).

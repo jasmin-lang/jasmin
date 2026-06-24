@@ -251,9 +251,9 @@ Let rminfo (rp : funname -> option (seq (option nat))) fn :=
 Definition post_dc rp := rpostF (eS := dc_spec (rminfo rp)).
 
 Lemma fn_keep_only_uincl rm fn vs1 vs2 vs3 :
-  List.Forall2 value_uincl vs1 vs2 ->
-  List.Forall2 value_uincl (fn_keep_only rm fn vs2) vs3 ->
-  List.Forall2 value_uincl (fn_keep_only rm fn vs1) vs3.
+  values_uincl vs1 vs2 ->
+  values_uincl (fn_keep_only rm fn vs2) vs3 ->
+  values_uincl (fn_keep_only rm fn vs1) vs3.
 Proof.
 rewrite /fn_keep_only; case: rm => [tk|]; last exact: values_uincl_trans.
 elim: tk vs1 vs2 vs3 => [|[] tk hind] vs1 vs2 vs3 /=;
@@ -354,7 +354,7 @@ Let post : relPostF :=
     let: mt' := fmem t' in
     let: n := get_nb_wptr up fn in
     [/\ List.Forall2 (value_in_mem mt') (take n ress) (take n argt)
-      , List.Forall2 value_uincl (drop n ress) rest
+      , values_uincl (drop n ress) rest
       , extend_mem ms' mt'
       , mem_unchanged_params ms mt mt' (get_wptrs up fn) args argt
       & fscs s' = fscs t'
@@ -404,7 +404,7 @@ apply: (
   split=> //; only 3,4: congruence.
   + apply: Forall2_trans hptr'; first exact: value_uincl_value_in_mem_trans.
     exact: (Forall2_take hval1).
-  apply: Forall2_trans hres; first exact: value_uincl_trans.
+  apply: values_uincl_trans hres.
   exact: (Forall2_drop hval1).
 
 apply: (wequiv_fun_get (scP1 := sCP_unit) (scP2 := sCP_stack)) => /= fd1

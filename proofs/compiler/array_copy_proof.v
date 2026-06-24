@@ -361,8 +361,8 @@ Let Pfor (i:var_i) vs s1 c1 s2 :=
     sem_for p2 ev i vs (with_vm s1 vm1) c2 (with_vm s2 vm2).
 
 Let Pfun sc1 m1 fn vargs sc2 m2 vres :=
-  forall vargs', List.Forall2 value_uincl vargs vargs' ->
-  exists2 vres', sem_call p2 ev sc1 m1 fn vargs' sc2 m2 vres' & List.Forall2 value_uincl vres vres'.
+  forall vargs', values_uincl vargs vargs' ->
+  exists2 vres', sem_call p2 ev sc1 m1 fn vargs' sc2 m2 vres' & values_uincl vres vres'.
 
 Local Lemma Hskip : sem_Ind_nil Pc.
 Proof. move=> s fi X _ _ c2 [] <- vm1 hvm1; exists vm1 => //; constructor. Qed.
@@ -528,9 +528,9 @@ Proof.
 Qed.
 
 Lemma array_copy_fdP f scs mem scs' mem' va va' vr:
-  List.Forall2 value_uincl va va' ->
+  values_uincl va va' ->
   sem_call p1 ev scs mem f va scs' mem' vr ->
-  exists vr', sem_call p2 ev scs mem f va' scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
+  exists vr', sem_call p2 ev scs mem f va' scs' mem' vr' /\ values_uincl vr vr'.
 Proof.
   move=> Hall Hsem.
   have [vr' ??] :=

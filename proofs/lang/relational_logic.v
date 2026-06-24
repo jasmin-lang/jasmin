@@ -162,7 +162,7 @@ Context
   {asm_op}  {sip : SemInstrParams asm_op syscall_state}.
 
 Lemma wrequiv_exec_sopn o :
-  wrequiv (Forall2 value_uincl) (exec_sopn o) (exec_sopn o) (Forall2 value_uincl).
+  wrequiv values_uincl (exec_sopn o) (exec_sopn o) values_uincl.
 Proof. move=> vs1 vs2 vs1'; apply vuincl_exec_opn. Qed.
 
 End SOPN.
@@ -666,14 +666,14 @@ Qed.
 
 Lemma wequiv_opn_uincl P Q ii1 xs1 at1 o es1 ii2 xs2 at2 es2 :
   wrequiv P (fun s => sem_pexprs true (p_globs p1) s es1)
-           (fun s => sem_pexprs true (p_globs p2) s es2) (Forall2 value_uincl) ->
+           (fun s => sem_pexprs true (p_globs p2) s es2) values_uincl ->
   (forall vs1 vs2,
-    Forall2 value_uincl vs1 vs2 ->
+    values_uincl vs1 vs2 ->
     wrequiv P (fun s1 => write_lvals true (p_globs p1) s1 xs1 vs1)
              (fun s2 => write_lvals true (p_globs p2) s2 xs2 vs2) Q) ->
   wequiv P [:: MkI ii1 (Copn xs1 at1 o es1)] [:: MkI ii2 (Copn xs2 at2 o es2)] Q.
 Proof.
-  move=> he; apply wequiv_opn with (Forall2 value_uincl) => //.
+  move=> he; apply wequiv_opn with values_uincl => //.
   move=> *; apply wrequiv_exec_sopn.
 Qed.
 
@@ -847,7 +847,7 @@ Proof. by move=> h fs; rewrite /upd_estate => s t s' [?? hvm]; apply h. Qed.
 
 End ST_REL.
 
-Definition fs_uincl := fs_rel (List.Forall2 value_uincl).
+Definition fs_uincl := fs_rel values_uincl.
 
 Lemma fs_uinclR fs : fs_uincl fs fs.
 Proof. split=> //; exact: values_uincl_refl. Qed.
@@ -855,7 +855,7 @@ Proof. split=> //; exact: values_uincl_refl. Qed.
 Lemma wequiv_syscall_uincl P Q ii1 xs1 sc1 es1 ii2 sc2 xs2 es2 :
   (forall s1 s2, P s1 s2 -> escs s1 = escs s2 /\ emem s1 = emem s2) ->
   wrequiv P (fun s => sem_pexprs true (p_globs p1) s es1)
-           (fun s => sem_pexprs true (p_globs p2) s es2) (Forall2 value_uincl) ->
+           (fun s => sem_pexprs true (p_globs p2) s es2) values_uincl ->
   wrequiv fs_uincl (fexec_syscall (scP:=scP1) sc1)
                   (fexec_syscall (scP:=scP2) sc2) fs_uincl ->
   (forall fs1 fs2,
@@ -865,7 +865,7 @@ Lemma wequiv_syscall_uincl P Q ii1 xs1 sc1 es1 ii2 sc2 xs2 es2 :
   wequiv P [:: MkI ii1 (Csyscall xs1 sc1 es1)] [:: MkI ii2 (Csyscall xs2 sc2 es2)] Q.
 Proof.
   move=> heq he hsc.
-  apply wequiv_syscall with (Forall2 value_uincl) => //.
+  apply wequiv_syscall with values_uincl => //.
   by rewrite /mk_fstate => s1 s2 /heq [<- <-] vs1 vs2 fr1 huincl;apply hsc.
 Qed.
 
@@ -967,7 +967,7 @@ Qed.
 
 Lemma wrequiv_sem_bound (P : rel_c) lo1 hi1 lo2 hi2 :
   wrequiv P (fun s => sem_pexprs true (p_globs p1) s [::lo1; hi1])
-            (fun s => sem_pexprs true (p_globs p2) s [::lo2; hi2]) (List.Forall2 value_uincl) ->
+            (fun s => sem_pexprs true (p_globs p2) s [::lo2; hi2]) values_uincl ->
   wrequiv P (sem_bound (p_globs p1) lo1 hi1) (sem_bound (p_globs p2) lo2 hi2) eq.
 Proof.
   move=> hbound; rewrite /sem_bound.
@@ -984,7 +984,7 @@ Qed.
 Lemma wequiv_for_uincl P0 P Pi ii1 i1 d lo1 hi1 c1 ii2 i2 lo2 hi2 c2 :
   (forall s1 s2, P0 s1 s2 -> P s1 s2) ->
   wrequiv P0 (fun s => sem_pexprs true (p_globs p1) s [::lo1; hi1])
-            (fun s => sem_pexprs true (p_globs p2) s [::lo2; hi2]) (List.Forall2 value_uincl) ->
+            (fun s => sem_pexprs true (p_globs p2) s [::lo2; hi2]) values_uincl ->
   (forall i : Z, wrequiv P (write_var true i1 (Vint i)) (write_var true i2 (Vint i)) Pi) ->
   wequiv Pi c1 c2 P ->
   wequiv P0 [:: MkI ii1 (Cfor i1 (d, lo1, hi1) c1)] [:: MkI ii2 (Cfor i2 (d, lo2, hi2) c2)] P.
@@ -1362,12 +1362,12 @@ Class Checker_uincl :=
      wdb_ok wdb1 wdb2 ->
      check_es d es1 es2 d' ->
      wrequiv (R d) ((sem_pexprs wdb1 (p_globs p1))^~ es1) ((sem_pexprs wdb2 (p_globs p2))^~ es2)
-       (List.Forall2 value_uincl)
+       values_uincl
  ; ucheck_lvalsP :
    forall wdb1 wdb2 d xs1 xs2 d',
      wdb_ok wdb1 wdb2 ->
      check_lvals d xs1 xs2 d' ->
-     forall vs1 vs2, List.Forall2 value_uincl vs1 vs2 ->
+     forall vs1 vs2, values_uincl vs1 vs2 ->
      wrequiv (R d) (λ s1 : estate, write_lvals wdb1 (p_globs p1) s1 xs1 vs1)
                           (λ s2 : estate, write_lvals wdb2 (p_globs p2) s2 xs2 vs2) ( R d')
  }.
@@ -1519,16 +1519,16 @@ Lemma wequiv_call_rel_uincl_R_wa d de de' d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
      R de' (with_scs (with_mem s1 mem) scs) (with_scs (with_mem s2 mem) scs)) →
   check_es d es1 es2 de →
   check_lvals de' xs1 xs2 d' →
-  (∀ s1 s2 vs1 vs2, R d s1 s2 → List.Forall2 value_uincl vs1 vs2 →
+  (∀ s1 s2 vs1 vs2, R d s1 s2 → values_uincl vs1 vs2 →
      sem_pre1 p1 fn1 (mk_fstate vs1 s1) = ok () → sem_pre2 p2 fn2 (mk_fstate vs2 s2) = ok ()) →
   wequiv_f_ii (fun _ _ => fs_uincl) ii1 ii2 fn1 fn2 (fun _ _ _ _ => fs_uincl) →
   (∀ vs1 vs2 fr1 fr2,
-    List.Forall2 value_uincl vs1 vs2 → fs_uincl fr1 fr2 →
+    values_uincl vs1 vs2 → fs_uincl fr1 fr2 →
     sem_post1 p1 fn1 vs1 fr1 = ok () → sem_post2 p2 fn2 vs2 fr2 = ok ()) →
   wequiv (R d) [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] (R d').
 Proof.
   move=> hsm hwith hes hxs hpre hf hpost.
-  apply wequiv_call_wa with (fun _ _ => fs_uincl) (fun _ _ _ _ => fs_uincl) (List.Forall2 value_uincl).
+  apply wequiv_call_wa with (fun _ _ => fs_uincl) (fun _ _ _ _ => fs_uincl) values_uincl.
   + by apply: ucheck_esP hes.
   + by apply hpre.
   + by rewrite /mk_fstate; move=> > /hsm [-> ->] ?.
@@ -1753,11 +1753,11 @@ Lemma wequiv_call_rel_uincl_wa d de d' ii1 xs1 fn1 es1 ii2 xs2 fn2 es2 :
   check_es d es1 es2 de →
   check_lvals de xs1 xs2 d' →
   (∀ s1 s2 vs1 vs2,
-     st_rel R d s1 s2 → Forall2 value_uincl vs1 vs2 →
+     st_rel R d s1 s2 → values_uincl vs1 vs2 →
      sem_pre1 p1 fn1 (mk_fstate vs1 s1) = ok () → sem_pre2 p2 fn2 (mk_fstate vs2 s2) = ok ()) →
   wequiv_f_ii (fun _ _ => fs_uincl) ii1 ii2 fn1 fn2 (fun _ _ _ _ => fs_uincl) →
   (∀ vs1 vs2 fr1 fr2,
-     List.Forall2 value_uincl vs1 vs2 → fs_uincl fr1 fr2 →
+     values_uincl vs1 vs2 → fs_uincl fr1 fr2 →
      sem_post1 p1 fn1 vs1 fr1 = ok () → sem_post2 p2 fn2 vs2 fr2 = ok ()) →
   wequiv (st_rel R d) [:: MkI ii1 (Ccall xs1 fn1 es1)] [:: MkI ii2 (Ccall xs2 fn2 es2)] (st_rel R d').
 Proof.

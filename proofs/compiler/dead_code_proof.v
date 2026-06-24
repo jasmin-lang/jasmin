@@ -21,7 +21,7 @@ Context
     forall op vx v,
       is_move_op op
       -> exec_sopn (Oasm op) [:: vx ] = ok v
-      -> List.Forall2 value_uincl v [:: vx ]).
+      -> values_uincl v [:: vx ]).
 
 Section Section.
 
@@ -217,7 +217,7 @@ Section PROOF.
 
   Lemma write_lvals_keep_only wdb tokeep xs I O xs' s1 s2 vs vs' vm1:
      check_keep_only xs tokeep O = ok (I, xs') ->
-     List.Forall2 value_uincl (keep_only vs tokeep) vs' ->
+     values_uincl (keep_only vs tokeep) vs' ->
      write_lvals wdb gd s1 xs vs = ok s2 ->
      evm s1 <=[I]  vm1 ->
      ∃ vm2,
@@ -238,7 +238,7 @@ Section PROOF.
       + by apply: uincl_onI heq'; rewrite read_rvE; SvD.fsetdec.
       have Hvm : vm_uincl (evm (with_vm s1 vm1)) vm1. done.
       have [vm3 Hw' Hvm']:= write_uincl Hvm H1 hw'. rewrite Hw' /=. rewrite /with_vm /=.
-      have Hv' : List.Forall2 value_uincl l' l'. by apply List_Forall2_refl.
+      have Hv' : values_uincl l' l' by done.
       have [vm4 Hws' /= Hvm'']:= writes_uincl Hvm' Hv' hws'.
       exists vm4;rewrite /=; split=> //=.
       by apply: (uincl_onT heqO) => z hin; apply: Hvm''.
@@ -276,10 +276,10 @@ Section PROOF.
        sem_for p' ev i vs (with_vm s vm1') c' (with_vm s' vm2').
 
   Let Pfun scs1 m1 fn vargs scs2 m2 vres :=
-    forall vargs', List.Forall2 value_uincl vargs vargs' ->
+    forall vargs', values_uincl vargs vargs' ->
     exists vres',
        sem_call p' ev scs1 m1 fn vargs' scs2 m2 vres' /\
-       List.Forall2 value_uincl (fn_keep_only onfun fn vres) vres'.
+       values_uincl (fn_keep_only onfun fn vres) vres'.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
   Proof. move => s ? /= ? D [<- <-] vm' Hvm'; exists vm'; split => //; constructor. Qed.
@@ -482,7 +482,7 @@ Section PROOF.
             (read_es_rec
                (read_rvs_rec (Sv.diff O (vrvs xs)) xs) args).
     + by rewrite read_esE read_rvsE; SvD.fsetdec.
-    have Hv'' :  List.Forall2 value_uincl vs vs. elim: (vs). done. move=> a l Hv''.
+    have Hv'' :  values_uincl vs vs. elim: (vs). done. move=> a l Hv''.
     apply List.Forall2_cons. auto. done. move: (Hws vs Hsub Hv''). move=> [vm2] Hvm2 /= Hvm2' Hv'.
     have [vm3 Hws' Hvm'] := writes_uincl (vm_uincl_refl _) Hv' Hvm2'.
     exists vm3; split => //.
@@ -547,10 +547,10 @@ Section PROOF.
   Qed.
 
   Lemma dead_code_callP fn scs mem scs' mem' va va' vr:
-    List.Forall2 value_uincl va va' ->
+    values_uincl va va' ->
     sem_call p ev scs mem fn va scs' mem' vr ->
     exists vr',
-      sem_call p' ev scs mem fn va' scs' mem' vr' /\  List.Forall2 value_uincl (fn_keep_only onfun fn vr) vr'.
+      sem_call p' ev scs mem fn va' scs' mem' vr' /\  values_uincl (fn_keep_only onfun fn vr) vr'.
   Proof.
     move=> Hall Hsem.
     exact:
@@ -587,7 +587,7 @@ Section PROOF.
   Definition dc_spec := {|
     rpreF_ := fun fn1 fn2 fs1 fs2 => fn1 = fn2 /\ fs_uincl fs1 fs2;
     rpostF_ := fun fn1 _ fs1 _ fr1 fr2 =>
-      fs_rel (fun vres vres' => List.Forall2 value_uincl (fn_keep_only onfun fn1 vres) vres') fr1 fr2
+      fs_rel (fun vres vres' => values_uincl (fn_keep_only onfun fn1 vres) vres') fr1 fr2
    |}.
 
   Let Pi (i:instr) :=
@@ -696,7 +696,7 @@ Section PROOF.
     set sxs := (X in Let sxs := X in _).
     case heq: sxs => [ [I xs'] | ] //= [??]; subst c_ I_.
     apply wequiv_call with (Pf:=rpreF (eS:=dc_spec)) (Qf:= rpostF (eS:=dc_spec))
-      (Rv:=List.Forall2 value_uincl) => //.
+      (Rv:=values_uincl) => //.
     + by rewrite -eq_globs; apply read_es_st_uincl_on; rewrite read_esE; SvD.fsetdec.
     + by move=> > [].
     + move=> >; exact: wequiv_fun_rec.
@@ -712,8 +712,7 @@ Section PROOF.
     subst xs' I. have /= Hws := write_lvals_uincl_on _ _ hw hu.
     have Hsub : Sv.Subset (read_rvs xs) (read_rvs_rec (Sv.diff O (vrvs xs)) xs).
     + by rewrite read_rvsE; SvD.fsetdec.
-    have Hv'' : List.Forall2 value_uincl vs1 vs1.
-    + by apply List_Forall2_refl.
+    have Hv'' : values_uincl vs1 vs1 by done.
     have [vm2 Hvm2 /= Hvm2'] := Hws _ Hsub Hv'' => Hv'.
     have [vm3 Hws' /= Hvm'] := writes_uincl (vm_uincl_refl _) Hv' Hvm2'.
     rewrite Hws' /=; eexists; first reflexivity; split => //.
@@ -732,34 +731,34 @@ Section SEM.
 
 Lemma dead_code_tokeep_callPu (p p': uprog) do_nop onfun fn ev scs mem scs' mem' va va' vr:
   dead_code_prog_tokeep is_move_op do_nop onfun p = ok p' ->
-  List.Forall2 value_uincl va va' ->
+  values_uincl va va' ->
   sem_call p ev scs mem fn va scs' mem' vr ->
   exists vr',
-    sem_call p' ev scs mem fn va scs' mem' vr' /\ List.Forall2 value_uincl (fn_keep_only onfun fn vr) vr'.
+    sem_call p' ev scs mem fn va scs' mem' vr' /\ values_uincl (fn_keep_only onfun fn vr) vr'.
 Proof. by move=> hd hall;apply: (dead_code_callP hd); apply List_Forall2_refl. Qed.
 
 Lemma dead_code_tokeep_callPs (p p': sprog) do_nop onfun fn wrip scs mem scs' mem' va va' vr:
   dead_code_prog_tokeep is_move_op do_nop onfun p = ok p' ->
-  List.Forall2 value_uincl va va' ->
+  values_uincl va va' ->
   sem_call p wrip scs mem fn va scs' mem' vr ->
   exists vr',
-   sem_call p' wrip scs mem fn va scs' mem' vr' /\ List.Forall2 value_uincl (fn_keep_only onfun fn vr) vr'.
+   sem_call p' wrip scs mem fn va scs' mem' vr' /\ values_uincl (fn_keep_only onfun fn vr) vr'.
 Proof. by move=> hd hall;apply: (dead_code_callP hd); apply List_Forall2_refl. Qed.
 
 Lemma dead_code_callPu (p p': uprog) do_nop fn ev scs mem scs' mem' va va' vr:
   dead_code_prog is_move_op p do_nop = ok p' ->
-  List.Forall2 value_uincl va va' ->
+  values_uincl va va' ->
   sem_call p ev scs mem fn va scs' mem' vr ->
   exists vr',
-   sem_call p' ev scs mem fn va scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
+   sem_call p' ev scs mem fn va scs' mem' vr' /\ values_uincl vr vr'.
 Proof. apply dead_code_tokeep_callPu. Qed.
 
 Lemma dead_code_callPs (p p': sprog) do_nop fn wrip scs mem scs' mem' va va' vr:
   dead_code_prog is_move_op p do_nop = ok p' ->
-  List.Forall2 value_uincl va va' ->
+  values_uincl va va' ->
   sem_call p wrip scs mem fn va scs' mem' vr ->
   exists vr',
-    sem_call p' wrip scs mem fn va scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
+    sem_call p' wrip scs mem fn va scs' mem' vr' /\ values_uincl vr vr'.
 Proof. apply dead_code_tokeep_callPs. Qed.
 
 End SEM.

@@ -456,7 +456,7 @@ Module RGP. Section PROOFS.
       ∀ es' vs,
         mapM (remove_glob_e ii m) es = ok es' →
         sem_pexprs wdb gd s1 es = ok vs →
-        exists2 vs', sem_pexprs wdb gd s2 es' = ok vs' & List.Forall2 value_uincl vs vs'.
+        exists2 vs', sem_pexprs wdb gd s2 es' = ok vs' & values_uincl vs vs'.
 
     Lemma remove_glob_e_esP : (∀ e, Pe e) ∧ (∀ es, Pes es).
     Proof.
@@ -865,7 +865,7 @@ Module RGP. Section PROOFS.
 
   Let Pfun scs m fn vargs scs' m' vres :=
     exists2 vres',
-    List.Forall2 value_uincl vres vres' &
+    values_uincl vres vres' &
     sem_call P' ev scs m fn vargs scs' m' vres'.
 
   Local Lemma Hnil : sem_Ind_nil Pc.
@@ -1033,12 +1033,13 @@ Module RGP. Section PROOFS.
     have hval: valid (Mvar.empty var) s1 s1 by split.
     have [s2' [hs2' ws2]] := hc _ _ _ hrm _ hval.
     subst m2; case: (hs2') => /= hscse hmem hm _ _.
-    have : exists2 vres', get_var_is (~~ direct_call) (evm s2') (f_res f) = ok vres' & List.Forall2 value_uincl vres vres'.
+    have : exists2 vres', get_var_is (~~ direct_call) (evm s2') (f_res f) = ok vres' & values_uincl vres vres'.
     + elim: (f_res f) (vres) res1 hres1 hres.
       * by move => _ _ _ /ok_inj <-; exists [::]; constructor.
       move => x xs hrec vres0 res1 /=.
       t_xrbindP; case: ifPn => hglob // _ ? /hrec hres1 ? v.
-      case/(get_var_uincl_at (hm _ hglob)) => v' -> v_v' vs /hres1[] vs' -> vs_vs' <- /=; eauto.
+      case/(get_var_uincl_at (hm _ hglob)) => v' -> v_v' vs /hres1[] vs' -> vs_vs' <- /=;
+      by eexists;[reflexivity | constructor].
     case => vs ok_vs vres_vs.
     have := mapM2_dc_truncate_val hres' vres_vs.
     case => vs' ok_vs' vres_vs'.
@@ -1128,12 +1129,13 @@ Module RGP. Section PROOFS.
     exists (valid (Mvar.empty var)), (valid m'); split => // {hfs fsi hget hinit}; cycle -1.
     + move=> {hs1} s1 s2 {} fs [/= hscse hmem hm _ _]; rewrite /finalize_funcall /=; t_xrbindP.
       move=> vs hget vs' htr <-.
-      have : exists2 vres', get_var_is (~~ direct_call) (evm s2) (f_res fd) = ok vres' & List.Forall2 value_uincl vs vres'.
+      have : exists2 vres', get_var_is (~~ direct_call) (evm s2) (f_res fd) = ok vres' & values_uincl vs vres'.
       - elim: (f_res fd) (vs) res1 hres1 hget.
         * by move => _ _ _ /ok_inj <-; exists [::]; constructor.
         move => x xs hrec vres0 res1 /=.
         t_xrbindP; case: ifPn => hglob // _ ? /hrec hres1 ? v.
-        case/(get_var_uincl_at (hm _ hglob)) => v' -> v_v' qs /hres1[] qs' -> qs_qs' <- /=; eauto.
+        case/(get_var_uincl_at (hm _ hglob)) => v' -> v_v' qs /hres1[] qs' -> qs_qs' <- /=;
+        by eexists; [reflexivity | constructor].
       case => vres' -> vs_vres' /=.
       have := mapM2_dc_truncate_val htr vs_vres'.
       case => vs'' -> vs'_vs'' /=.
@@ -1192,7 +1194,7 @@ Module RGP. Section PROOFS.
     remove_glob_prog P = ok P' ->
     sem_call P ev scs mem f va scs' mem' vr ->
     exists2 vr',
-     List.Forall2 value_uincl vr vr' &
+     values_uincl vr vr' &
     sem_call P' ev scs mem f va scs' mem' vr'.
   Proof.
     rewrite /remove_glob_prog; t_xrbindP => gd' /extend_glob_progP hgd.
