@@ -167,6 +167,8 @@ Definition value_uincl (v1 v2:value) :=
   | _, _ => False
   end.
 
+Definition values_uincl := List.Forall2 value_uincl.
+
 Lemma value_uinclE v1 v2 :
   value_uincl v1 v2 →
   match v1 with
@@ -202,9 +204,13 @@ Proof.
   by move=> h /value_uincl_subctype; apply: subctype_trans.
 Qed.
 
-Definition values_uincl_refl {va} := List_Forall2_refl va value_uincl_refl.
-Definition values_uincl_trans {va vb vc} :=
-  Forall2_trans (la := va) (lb := vb) (lc := vc) value_uincl_trans.
+Lemma values_uincl_refl {va} : values_uincl va va.
+Proof. apply (List_Forall2_refl va value_uincl_refl). Qed.
+#[global]Hint Resolve values_uincl_refl : core.
+
+Lemma values_uincl_trans {va vb vc} :
+  values_uincl va vb → values_uincl vb vc → values_uincl va vc.
+Proof. apply (Forall2_trans (la := va) (lb := vb) (lc := vc) value_uincl_trans). Qed.
 
 Lemma check_ty_val_uincl v1 x v2 :
   check_ty_val x v1 → value_uincl v1 v2 → check_ty_val x v2.
@@ -689,7 +695,7 @@ Qed.
 
 Lemma mapM2_truncate_value_uincl tyin vargs1 vargs1' :
   mapM2 ErrType truncate_val tyin vargs1 = ok vargs1' ->
-  List.Forall2 value_uincl vargs1' vargs1.
+  values_uincl vargs1' vargs1.
 Proof.
   move/mapM2_Forall3.
   elim {vargs1 vargs1'} => //.
@@ -699,15 +705,16 @@ Qed.
 
 Lemma mapM2_truncate_val tys vs1' vs1 vs2' :
   mapM2 ErrType truncate_val tys vs1' = ok vs1 ->
-  List.Forall2 value_uincl vs1' vs2' ->
+  values_uincl vs1' vs2' ->
   exists2 vs2, mapM2 ErrType truncate_val tys vs2' = ok vs2 &
-    List.Forall2 value_uincl vs1 vs2.
+    values_uincl vs1 vs2.
 Proof.
   elim: tys vs1' vs1 vs2' => [ | t tys hrec] [|v1' vs1'] //=.
   + by move => ? ? [<-] /List_Forall2_inv_l ->; eauto.
   move=> vs1 vs2';t_xrbindP => v1 htr vs2 htrs <- /List_Forall2_inv_l [v] [vs] [->] [hv hvs].
   have [v2 -> hv2 /=]:= value_uincl_truncate hv htr.
-  by have [vs2'' -> hvs2 /=] := hrec _ _ _ htrs hvs;eauto.
+  have [vs2'' -> hvs2 /=] := hrec _ _ _ htrs hvs;eexists; first reflexivity.
+  by constructor.
 Qed.
 
 (* ----------------------------------------------------------------------- *)
@@ -774,7 +781,7 @@ Proof.
 Qed.
 
 Lemma vuincl_sopn T ts o vs vs' (v: T) :
-  all is_not_carr ts -> List.Forall2 value_uincl vs vs' ->
+  all is_not_carr ts -> values_uincl vs vs' ->
   app_sopn ts o vs = ok v -> app_sopn ts o vs' = ok v.
 Proof.
   elim: ts o vs vs' => /= [ | t ts Hrec] o [] //.
@@ -787,7 +794,7 @@ Proof.
 Qed.
 
 Lemma vuincl_app_sopn_v_eq tin tout (semi: sem_prod tin (exec (sem_tuple tout))) :
-  all is_not_carr tin -> forall vs vs' v, List.Forall2 value_uincl vs vs' ->
+  all is_not_carr tin -> forall vs vs' v, values_uincl vs vs' ->
   app_sopn_v semi vs = ok v -> app_sopn_v semi vs' = ok v.
 Proof.
   rewrite /app_sopn_v => hall vs vs' v hu; t_xrbindP => v' h1 h2.
@@ -797,7 +804,7 @@ Qed.
 Lemma vuincl_copy_eq ws p :
   let sz := Z.to_pos (arr_size ws p) in
   forall vs vs' v,
-  List.Forall2 value_uincl vs vs' ->
+  values_uincl vs vs' ->
   @app_sopn_v [::carr sz] [::carr sz] (@WArray.copy ws p) vs = ok v ->
   @app_sopn_v [::carr sz] [::carr sz] (@WArray.copy ws p) vs' = ok v.
 Proof.
@@ -809,9 +816,9 @@ Qed.
 
 Lemma vuincl_app_sopn_v tin tout (semi: sem_prod tin (exec (sem_tuple tout))) :
   all is_not_carr tin ->
-  forall vs vs' v, List.Forall2 value_uincl vs vs' ->
+  forall vs vs' v, values_uincl vs vs' ->
   app_sopn_v semi vs = ok v ->
-  exists2 v' : values, app_sopn_v semi vs' = ok v' & List.Forall2 value_uincl v v'.
+  exists2 v' : values, app_sopn_v semi vs' = ok v' & values_uincl v v'.
 Proof.
   move=> /vuincl_app_sopn_v_eq h ?? v /h{}h/h{}h.
   by exists v => //; exact: List_Forall2_refl.
@@ -820,9 +827,9 @@ Qed.
 Lemma vuincl_copy ws p :
   let sz := Z.to_pos (arr_size ws p) in
   forall vs vs' v,
-  List.Forall2 value_uincl vs vs' ->
+  values_uincl vs vs' ->
   @app_sopn_v [::carr sz] [::carr sz] (@WArray.copy ws p) vs = ok v ->
-  exists2 v' : values, @app_sopn_v [::carr sz] [::carr sz] (@WArray.copy ws p) vs' = ok v' & List.Forall2 value_uincl v v'.
+  exists2 v' : values, @app_sopn_v [::carr sz] [::carr sz] (@WArray.copy ws p) vs' = ok v' & values_uincl v v'.
 Proof.
   move=> ??? v /vuincl_copy_eq h/h{h}?.
   by exists v => //; exact: List_Forall2_refl.
@@ -836,9 +843,9 @@ Proof. by case: ty z z'. Qed.
 Definition swap_semi ty (x y: sem_t ty) : (sem_tuple [:: ty; ty]):= (sem_prod_id y, sem_prod_id x).
 
 Lemma swap_semu ty (vs vs' : seq value) (v : values):
-  List.Forall2 value_uincl vs vs' ->
+  values_uincl vs vs' ->
   @app_sopn_v [::ty; ty] [::ty; ty] (sem_prod_ok [::ty; ty] (@swap_semi ty)) vs = ok v ->
-  exists2 v' : values, @app_sopn_v [::ty; ty] [::ty; ty] (sem_prod_ok [::ty; ty] (@swap_semi ty)) vs' = ok v' & List.Forall2 value_uincl v v'.
+  exists2 v' : values, @app_sopn_v [::ty; ty] [::ty; ty] (sem_prod_ok [::ty; ty] (@swap_semi ty)) vs' = ok v' & values_uincl v v'.
 Proof.
   rewrite /app_sopn_v.
   case => //= v1 v1' ?? hu1; t_xrbindP.

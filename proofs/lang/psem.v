@@ -986,7 +986,7 @@ Definition st_uincl_on X := st_rel uincl_on X.
 
 Lemma read_es_st_uincl_on gd wdb es X :
   Sv.Subset (read_es es) X ->
-  wrequiv (st_uincl_on X) ((sem_pexprs wdb gd)^~ es) ((sem_pexprs wdb gd)^~ es) (List.Forall2 value_uincl).
+  wrequiv (st_uincl_on X) ((sem_pexprs wdb gd)^~ es) ((sem_pexprs wdb gd)^~ es) (values_uincl).
 Proof.
   move=> hsub s t v /st_relP [-> /= h].
   by apply: sem_pexprs_uincl_on; apply: uincl_onI h.
@@ -994,7 +994,7 @@ Qed.
 
 Lemma write_lvals_st_uincl_on gd wdb xs X vs1 vs2 :
   Sv.Subset (read_rvs xs) X ->
-  List.Forall2 value_uincl vs1 vs2 ->
+  values_uincl vs1 vs2 ->
   wrequiv
     (st_uincl_on X)
     (λ s1 : estate, write_lvals wdb gd s1 xs vs1) (λ s2 : estate, write_lvals wdb gd s2 xs vs2)
@@ -1206,10 +1206,10 @@ Let Pfor (i:var_i) zs s1 c s2 :=
 
 Let Pfun scs1 m1 fd vargs scs2 m2 vres :=
   forall vargs',
-    List.Forall2 value_uincl vargs vargs' ->
+    values_uincl vargs vargs' ->
     exists vres',
       sem_call p ev scs1 m1 fd vargs' scs2 m2 vres' /\
-      List.Forall2 value_uincl vres vres'.
+      values_uincl vres vres'.
 
 Local Lemma Hnil : sem_Ind_nil Pc.
 Proof. by move=> s vm1 Hvm1;exists vm1;split=> //;constructor. Qed.
@@ -1315,7 +1315,7 @@ Proof.
 Qed.
 
 Lemma all2_check_ty_val v1 x v2 :
-  all2 check_ty_val x v1 → List.Forall2 value_uincl v1 v2 → all2 check_ty_val x v2.
+  all2 check_ty_val x v1 → values_uincl v1 v2 → all2 check_ty_val x v2.
 Proof.
   move=> /all2P H1 H2;apply /all2P;apply: Forall2_trans H1 H2;apply check_ty_val_uincl.
 Qed.
@@ -1336,7 +1336,7 @@ Proof.
 Qed.
 
 Lemma mapM2_dc_truncate_value_uincl tyin vargs vargs' :
-  mapM2 ErrType dc_truncate_val tyin vargs = ok vargs' → List.Forall2 value_uincl vargs' vargs.
+  mapM2 ErrType dc_truncate_val tyin vargs = ok vargs' → values_uincl vargs' vargs.
 Proof.
   rewrite /dc_truncate_val; case: direct_call; last by apply mapM2_truncate_value_uincl.
   by move=> /mapM2_id ->; apply List_Forall2_refl.
@@ -1344,14 +1344,14 @@ Qed.
 
 Lemma mapM2_dc_truncate_val tys vs1' vs1 vs2' :
   mapM2 ErrType dc_truncate_val tys vs1' = ok vs1 →
-  List.Forall2 value_uincl vs1' vs2' →
+  values_uincl vs1' vs2' →
   exists2 vs2 : seq value,
-    mapM2 ErrType dc_truncate_val tys vs2' = ok vs2 & List.Forall2 value_uincl vs1 vs2.
+    mapM2 ErrType dc_truncate_val tys vs2' = ok vs2 & values_uincl vs1 vs2.
 Proof.
   rewrite /dc_truncate_val; case: direct_call; last by apply mapM2_truncate_val.
   move=> h1 h2; elim: h2 tys vs1 h1 => {vs1' vs2'} [ | v1 v2 vs1' vs2' hu hus hrec] [] //=.
   + by move=> ? [<-]; exists [::].
-  t_xrbindP => _ tys ?? /hrec [vs2 -> hall] <- /=; eexists; eauto.
+  by t_xrbindP => _ tys ?? /hrec [vs2 -> hall] <- /=; eexists; eauto; constructor.
 Qed.
 
 Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
@@ -1367,9 +1367,9 @@ Proof.
 Qed.
 
 Lemma sem_call_uincl vargs scs1 m1 f scs2 m2 vres vargs':
-  List.Forall2 value_uincl vargs vargs' ->
+  values_uincl vargs vargs' ->
   sem_call p ev scs1 m1 f vargs scs2 m2 vres ->
-  exists vres', sem_call p ev scs1 m1 f vargs' scs2 m2 vres' /\ List.Forall2 value_uincl vres vres'.
+  exists vres', sem_call p ev scs1 m1 f vargs' scs2 m2 vres' /\ values_uincl vres vres'.
 Proof.
   move=> H1 H2.
   exact:
@@ -1496,11 +1496,11 @@ Context
   {sCP : semCallParams}.
 
 Lemma read_es_st_uincl d gd wdb es :
-  wrequiv (st_uincl d) ((sem_pexprs wdb gd)^~ es) ((sem_pexprs wdb gd)^~ es) (List.Forall2 value_uincl).
+  wrequiv (st_uincl d) ((sem_pexprs wdb gd)^~ es) ((sem_pexprs wdb gd)^~ es) (values_uincl).
 Proof. by move=> s t vs /st_relP [/= -> h]; apply sem_pexprs_uincl. Qed.
 
 Lemma write_lvals_st_uincl d d' gd wdb xs vs1 vs2 :
-  List.Forall2 value_uincl vs1 vs2 ->
+  values_uincl vs1 vs2 ->
   wrequiv
     (st_uincl d)
     (λ s1 : estate, write_lvals wdb gd s1 xs vs1) (λ s2 : estate, write_lvals wdb gd s2 xs vs2)

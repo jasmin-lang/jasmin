@@ -30,8 +30,8 @@ Class semCallParams
   exec_syscall : syscall_state_t -> mem -> syscall_t -> values -> exec (syscall_state_t * mem * values);
   exec_syscallP: forall scs m o vargs vargs' rscs rm vres,
      exec_syscall scs m o vargs = ok (rscs, rm, vres) ->
-     List.Forall2 value_uincl vargs vargs' ->
-     exists2 vres', exec_syscall scs m o vargs' = ok (rscs, rm, vres') & List.Forall2 value_uincl vres vres';
+     values_uincl vargs vargs' ->
+     exists2 vres', exec_syscall scs m o vargs' = ok (rscs, rm, vres') & values_uincl vres vres';
   exec_syscallS: forall scs m o vargs rscs rm vres,
      exec_syscall scs m o vargs = ok (rscs, rm, vres) ->
      mem_equiv m rm;
@@ -934,7 +934,7 @@ Proof.
 Qed.
 
 Lemma vuincl_sem_opN op vs v vs' :
-  List.Forall2 value_uincl vs vs' →
+  values_uincl vs vs' →
   sem_opN op vs = ok v →
   sem_opN op vs' = ok v.
 Proof.
@@ -960,7 +960,7 @@ Proof.
 Qed.
 
 Lemma vuincl_exec_opn {sip : SemInstrParams asm_op syscall_state} o vs vs' v :
-  List.Forall2 value_uincl vs vs' -> exec_sopn o vs = ok v ->
+  values_uincl vs vs' -> exec_sopn o vs = ok v ->
   exists2 v', exec_sopn o vs' = ok v' & List.Forall2  value_uincl v v'.
 Proof.
   rewrite /exec_sopn /sopn_sem => vs_vs'; apply rbindP => ?; apply: rbindP => ? /assertP -> /= [<-] ho.
@@ -1000,7 +1000,7 @@ Lemma sem_pexpr_uincl_on_pair wdb gd s1 vm2 :
           sem_pexprs wdb gd s1 es = ok vs1 →
           exists2 vs2,
          sem_pexprs wdb gd (with_vm s1 vm2) es = ok vs2 &
-           List.Forall2 value_uincl vs1 vs2
+           values_uincl vs1 vs2
       ).
 Proof.
   apply: pexprs_ind_pair; split => //=;
@@ -1008,7 +1008,7 @@ Proof.
   + by move => _ _ /ok_inj <-; exists [::].
   + move => e rec es ih vs1.
     rewrite read_es_cons => /uincl_on_union_and [] /rec{}rec /ih{}ih /=.
-    by t_xrbindP => v /rec [] v' -> h vs /ih [] vs' -> hs <- /=; exists (v' :: vs'); eauto.
+    by t_xrbindP => v /rec [] v' -> h vs /ih [] vs' -> hs <- /=; exists (v' :: vs'); eauto; constructor.
   1-3: by move => > _ /ok_inj <-; eexists.
   + move => ?? Hu; apply: get_gvar_uincl_at; move: Hu; case: ifP => // _; apply; SvD.fsetdec.
   + move => al aa sz x e Hp v; rewrite read_eE => /uincl_on_union_and[] /Hp{}Hp Hu.
@@ -1061,14 +1061,14 @@ Lemma sem_pexprs_uincl_on wdb gd s1 vm2 es vs1 :
   s1.(evm) <=[read_es es] vm2 →
   sem_pexprs wdb gd s1 es = ok vs1 →
   exists2 vs2, sem_pexprs wdb gd (with_vm s1 vm2) es = ok vs2 &
-              List.Forall2 value_uincl vs1 vs2.
+              values_uincl vs1 vs2.
 Proof. exact: (proj2 (sem_pexpr_uincl_on_pair wdb gd s1 vm2)). Qed.
 
 Corollary sem_pexprs_uincl wdb gd s1 vm2 es vs1 :
   s1.(evm) <=1 vm2 →
   sem_pexprs wdb gd s1 es = ok vs1 →
   exists2 vs2, sem_pexprs wdb gd (with_vm s1 vm2) es = ok vs2 &
-              List.Forall2 value_uincl vs1 vs2.
+              values_uincl vs1 vs2.
 Proof. move => /(vm_uincl_uincl_on (dom:=read_es es)); exact: sem_pexprs_uincl_on. Qed.
 
 Lemma sem_pexpr_uincl_on' wdb gd s vm' vm scs m e v1 :
@@ -1085,7 +1085,7 @@ Lemma sem_pexprs_uincl_on' wdb gd es s scs m vm vm' vs1 :
   vm <=[read_es_rec s es] vm'->
   sem_pexprs wdb gd (Estate scs m vm) es = ok vs1 ->
   exists2 vs2,sem_pexprs wdb gd (Estate scs m vm') es = ok vs2 &
-              List.Forall2 value_uincl vs1 vs2.
+              values_uincl vs1 vs2.
 Proof.
   rewrite read_esE => /(uincl_onI (SvP.MP.union_subset_1 _)) h1 h2.
   by have /(_ _ h1) := sem_pexprs_uincl_on _ h2.
@@ -1127,7 +1127,7 @@ Qed.
 
 Lemma write_vars_uincl wdb s1 s2 vm1 vs1 vs2 xs :
   vm_uincl (evm s1) vm1 ->
-  List.Forall2 value_uincl vs1 vs2 ->
+  values_uincl vs1 vs2 ->
   write_vars wdb xs vs1 s1 = ok s2 ->
   exists2 vm2 : Vm.t,
     write_vars wdb xs vs2 (with_vm s1 vm1) = ok (with_vm s2 vm2) &
@@ -1207,7 +1207,7 @@ Qed.
 
 Lemma writes_uincl_on wdb gd s1 s2 vm1 r v1 v2:
   s1.(evm) <=[read_rvs r] vm1 ->
-  List.Forall2 value_uincl v1 v2 ->
+  values_uincl v1 v2 ->
   write_lvals wdb gd s1 r v1 = ok s2 ->
   exists2 vm2,
     write_lvals wdb gd (with_vm s1 vm1) r v2 = ok (with_vm s2 vm2) &
@@ -1235,7 +1235,7 @@ Qed.
 
 Corollary writes_uincl wdb gd s1 s2 vm1 r v1 v2:
   s1.(evm) <=1 vm1 ->
-  List.Forall2 value_uincl v1 v2 ->
+  values_uincl v1 v2 ->
   write_lvals wdb gd s1 r v1 = ok s2 ->
   exists2 vm2,
     write_lvals wdb gd (with_vm s1 vm1) r v2 = ok (with_vm s2 vm2) &
@@ -1269,7 +1269,7 @@ Lemma get_var_is_uincl_on wdb dom (xs: seq var_i) vm1 vm2 vs1:
   (∀ x, List.In x xs → Sv.mem x dom) →
   get_var_is wdb vm1 xs = ok vs1 ->
   exists2 vs2,
-    get_var_is wdb vm2 xs = ok vs2 & List.Forall2 value_uincl vs1 vs2.
+    get_var_is wdb vm2 xs = ok vs2 & values_uincl vs1 vs2.
 Proof.
   move => hvm; elim: xs vs1 => [ | x xs Hrec] /= ? hdom.
   + by move=> [<-]; exists [::].
@@ -1287,7 +1287,7 @@ Lemma get_var_is_uincl wdb xs vm1 vm2 vs1 :
   get_var_is wdb vm1 xs = ok vs1 ->
   exists2 vs2,
     get_var_is wdb vm2 xs = ok vs2
-    & List.Forall2 value_uincl vs1 vs2.
+    & values_uincl vs1 vs2.
 Proof.
   move => hvm; apply: (get_var_is_uincl_on (dom := sv_of_list v_var xs)).
   + exact: vm_uincl_uincl_on hvm.
@@ -1300,7 +1300,7 @@ Lemma get_vars_uincl wdb xs vm1 vm2 vs1 :
   get_vars wdb vm1 xs = ok vs1 ->
   exists2 vs2,
     get_vars wdb vm2 xs = ok vs2
-    & List.Forall2 value_uincl vs1 vs2.
+    & values_uincl vs1 vs2.
 Proof.
   move=> /(get_var_is_uincl (wdb := wdb) (xs := map mk_var_i xs)).
   rewrite /get_var_is !mapM_map.
@@ -1322,7 +1322,7 @@ Qed.
 
 Lemma write_lvals_uincl_on wdb gd X x v1 v2 s1 s2 vm1 :
   Sv.Subset (read_rvs x) X ->
-  List.Forall2 value_uincl v1 v2 ->
+  values_uincl v1 v2 ->
   write_lvals wdb gd s1 x v1 = ok s2 ->
   evm s1 <=[X]  vm1 ->
   exists2 vm2 : Vm.t,evm s2 <=[Sv.union (vrvs x) X]  vm2 &

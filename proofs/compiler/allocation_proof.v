@@ -108,7 +108,7 @@ Section CHECK_EP.
     ∀ scs m vs1,
       sem_pexprs wdb gd {| escs := scs; emem := m ; evm := vm1 |} es1 = ok vs1 →
     ∃ vs2, sem_pexprs wdb gd {| escs := scs; emem := m ; evm := vm2 |} es2 = ok vs2 ∧
-           List.Forall2 value_uincl vs1 vs2.
+           values_uincl vs1 vs2.
 
   Lemma check_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
   Proof.
@@ -413,10 +413,10 @@ Section PROOF.
       sem_for p2 ev i2 vs (with_vm s1 vm1) c2 (with_vm s2 vm2).
 
   Let Pfun scs m fn vargs1 scs' m' vres :=
-    forall vargs2, List.Forall2 value_uincl vargs1 vargs2 ->
+    forall vargs2, values_uincl vargs1 vargs2 ->
     exists2 vres',
        sem_call p2 ev scs m fn vargs2 scs' m' vres' &
-       List.Forall2 value_uincl vres vres'.
+       values_uincl vres vres'.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
   Proof. move=> s dead_vars r1 [ | ??] //= r2 vm1 ? [] <-;exists vm1 =>//;constructor. Qed.
@@ -460,7 +460,7 @@ Section PROOF.
     eq_alloc re s.(evm) vm /\
     forall v1,  sem_pexprs wdb gd s e1 = ok v1 ->
     exists v2, sem_pexprs wdb (p_globs p2) (with_vm s vm) e2 = ok v2 /\
-               List.Forall2 value_uincl v1 v2.
+               values_uincl v1 v2.
   Proof.
     case: s => scs mem vm1.
     rewrite -eq_globs => h1 h2; case (check_e_esP wdb gd vm) => _ /(_ _ _ _ _ _ _ h1 h2) /= [h3 h4].
@@ -470,7 +470,7 @@ Section PROOF.
   Lemma check_lvalsP wdb gd xs1 xs2 vs1 vs2 r1 r2 s1 s2 vm1 :
     check_lvals xs1 xs2 r1 = ok r2 ->
     eq_alloc r1 s1.(evm) vm1 ->
-    List.Forall2 value_uincl vs1 vs2 ->
+    values_uincl vs1 vs2 ->
     write_lvals wdb gd s1 xs1 vs1 = ok s2 ->
     exists2 vm2,
       write_lvals wdb gd (with_vm s1 vm1) xs2 vs2 = ok (with_vm s2 vm2) &
@@ -649,7 +649,7 @@ Section PROOF.
 
   Lemma alloc_callP_aux f scs mem scs' mem' va vr:
     sem_call p1 ev scs mem f va scs' mem' vr ->
-    exists vr', sem_call p2 ev scs mem f va scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
+    exists vr', sem_call p2 ev scs mem f va scs' mem' vr' /\ values_uincl vr vr'.
   Proof.
     move=> h.
     have [|]:=
@@ -670,7 +670,6 @@ Section PROOF.
           Hcall
           Hproc
           h va); eauto.
-    by apply List_Forall2_refl.
   Qed.
 
   End PSEM.
@@ -841,7 +840,7 @@ Lemma alloc_callP ev gd ep1 p1 ep2 p2 (H: check_prog ep1 p1 ep2 p2 = ok tt) f sc
     sem_call {|p_globs := gd; p_funcs := p1; p_extra := ep1; |} ev scs mem f va scs' mem' vr ->
     exists vr',
      sem_call {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev scs mem f va scs' mem' vr' /\
-                List.Forall2 value_uincl vr vr'.
+                values_uincl vr vr'.
 Proof.
   by apply alloc_callP_aux.
 Qed.
@@ -869,7 +868,7 @@ Lemma alloc_call_uprogP dead_vars_fd ev gd ep1 p1 ep2 p2
     sem_call {|p_globs := gd; p_funcs := p1; p_extra := ep1; |} ev scs mem f va scs' mem' vr ->
     exists vr',
      sem_call {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev scs mem f va scs' mem' vr' /\
-                List.Forall2 value_uincl vr vr'.
+                values_uincl vr vr'.
 Proof.
   apply: (alloc_callP init_alloc_uprogP _ H).
   by rewrite /check_f_extra_u; t_xrbindP => r e _ a1 a2 r' /eqP <-.
@@ -927,7 +926,7 @@ Proof.
   rewrite /init_alloc_sprog /init_state /= /init_stk_state /check_vars.
   t_xrbindP => ef ep1 ep2 ev s1 scs m r hc m' ha; rewrite (@write_vars_lvals _ _ _ _ _ [::]) => hw.
   have [vm2 ]:= check_lvalsP (s1 := (Estate scs m' Vm.init)) hc eq_alloc_empty
-                         (List_Forall2_refl _ (@value_uincl_refl)) hw.
+                         values_uincl_refl hw.
   rewrite ha -write_vars_lvals => ??.
   by exists vm2.
 Qed.
@@ -937,7 +936,7 @@ Lemma alloc_call_sprogP dead_vars_fd ev gd ep1 p1 ep2 p2
     sem_call {|p_globs := gd; p_funcs := p1; p_extra := ep1; |} ev scs mem f va scs' mem' vr ->
     exists vr',
      sem_call {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev scs mem f va scs' mem' vr' /\
-                List.Forall2 value_uincl vr vr'.
+                values_uincl vr vr'.
 Proof.
   apply: (alloc_callP init_alloc_sprogP _ H).
   rewrite /check_f_extra_s; t_xrbindP => r e1 e2 a1 a2 r' c1 c2.

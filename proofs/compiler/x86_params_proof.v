@@ -968,7 +968,7 @@ End STACK_ZEROIZATION.
 Definition x86_is_move_opP op vx v :
   ap_is_move_op x86_params op
   -> exec_sopn (Oasm op) [:: vx ] = ok v
-  -> List.Forall2 value_uincl v [:: vx ].
+  -> values_uincl v [:: vx ].
 Proof.
   case: op => [[[|] [] ws] | []] // _.
 

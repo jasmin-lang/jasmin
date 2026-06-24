@@ -38,9 +38,9 @@ Record instruction_desc := mkInstruction {
   conflicts: seq (arg_position * arg_position);
   semi     : sem_prod (map eval_atype tin) (exec (sem_tuple (map eval_atype tout)));
   semu     : forall vs vs' v,
-                List.Forall2 value_uincl vs vs' ->
+                values_uincl vs vs' ->
                 app_sopn_v semi vs = ok v ->
-                exists2 v', app_sopn_v semi vs' = ok v' & List.Forall2 value_uincl v v';
+                exists2 v', app_sopn_v semi vs' = ok v' & values_uincl v v';
   (* This field allows to ensure the validity of the instruction,
      it is usefull when the its name allows to encode more instructions than the real existing one.
      See field id_valid in arch/arch_decl.v
@@ -234,9 +234,9 @@ Definition declassify_semi ty : sem_prod [:: ty ] (exec (sem_tuple [::])) := fun
 Arguments declassify_semi _ : clear implicits.
 
 Lemma declassify_semu ty vs vs' u:
-  List.Forall2 value_uincl vs vs' ->
+  values_uincl vs vs' ->
   app_sopn_v (declassify_semi ty) vs = ok u ->
-  exists2 u', app_sopn_v (declassify_semi ty) vs' = ok u' & List.Forall2 value_uincl u u'.
+  exists2 u', app_sopn_v (declassify_semi ty) vs' = ok u' & values_uincl u u'.
 Proof.
   rewrite /app_sopn_v.
   case: vs => // v /=; t_xrbindP => - [] // /List_Forall2_inv_l[] v' [] _ [] -> [] v_v' /List_Forall2_inv_l -> [] t ok_t hsem <-.
@@ -320,10 +320,10 @@ Fixpoint spill_semi (tys: seq ctype) : sem_prod tys (sem_tuple [::]):=
   end.
 
 Lemma spill_semu tys (vs vs' : seq value) (v : values) :
-   List.Forall2 value_uincl vs vs' ->
+   values_uincl vs vs' ->
    app_sopn_v (sem_prod_ok tys (spill_semi tys)) vs = ok v ->
    exists2 v' : values, app_sopn_v (sem_prod_ok tys (spill_semi tys)) vs' = ok v' &
-                        List.Forall2 value_uincl v v'.
+                        values_uincl v v'.
 Proof.
   rewrite /app_sopn_v; elim: tys vs vs' v => /= [ | t tys hrec] ?? v; case => //=.
   + by move=> [<-]; exists [::].
@@ -445,11 +445,11 @@ Definition SLHprotect_instr ws :=
       true.
 
 Lemma protect_ptr_semu p vs vs' v:
-  List.Forall2 value_uincl vs vs' ->
+  values_uincl vs vs' ->
   @app_sopn_v [::carr p; cty_msf] [::carr p] (sem_prod_ok [:: carr p; cty_msf ] (@se_protect_ptr_sem p)) vs = ok v ->
   exists2 v' : values,
    @app_sopn_v [::carr p; cty_msf] [::carr p] (sem_prod_ok [:: carr p; cty_msf ] (@se_protect_ptr_sem p)) vs' = ok v' &
-   List.Forall2 value_uincl v v'.
+   values_uincl v v'.
 Proof.
   rewrite /app_sopn_v /= => -[] {vs vs'} // v1 v2 + + /of_value_uincl_te -/(_ (carr p)) /= hu.
   move=> [ | v1' [ | ]]; [ by t_xrbindP | | by t_xrbindP].
@@ -479,11 +479,11 @@ Definition SLHprotect_ptr_instr ws p :=
   |}.
 
 Lemma protect_ptr_fail_semu p vs vs' v:
-  List.Forall2 value_uincl vs vs' ->
+  values_uincl vs vs' ->
   @app_sopn_v [::carr p; cty_msf] [::carr p] (@se_protect_ptr_fail_sem p) vs = ok v ->
   exists2 v' : values,
    @app_sopn_v [::carr p; cty_msf] [::carr p] (@se_protect_ptr_fail_sem p) vs' = ok v' &
-   List.Forall2 value_uincl v v'.
+   values_uincl v v'.
 Proof.
   rewrite /app_sopn_v /= => -[] {vs vs'} // v1 v2 + + /of_value_uincl_te -/(_ (carr p)) /= hu.
   move=> [ | v1' [ | ]]; [ by t_xrbindP | | by t_xrbindP].

@@ -40,14 +40,14 @@ Section E.
   Let Q es : Prop :=
     ∀ vs,
       sem_pexprs wdb gd s es = ok vs →
-      exists2 vs', sem_pexprs wdb gd s' (map wi2w_e es) = ok vs' & List.Forall2 value_uincl vs vs'.
+      exists2 vs', sem_pexprs wdb gd s' (map wi2w_e es) = ok vs' & values_uincl vs vs'.
 
   Lemma wi2w_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
   Proof.
     apply: pexprs_ind_pair; subst P Q; split => //=; t_xrbindP.
     + by move=> _ <-; exists [::].
     + move=> e he es hes ? v /he [v' -> /= hu] vs /hes [vs' -> /= hus] <-.
-      by eexists; [reflexivity | eauto].
+      by eexists; [reflexivity | constructor].
     1-3: move=> > ->; by eexists; [reflexivity | eauto].
     + by move=> x v; apply: get_gvar_uincl.
     + move=> al aa sz x e he v.
@@ -183,7 +183,7 @@ Qed.
 
 Lemma wi2w_lvalsP wdb lvs s s' vm vs1 vs2 :
   evm s <=1 vm ->
-  List.Forall2 value_uincl vs1 vs2 ->
+  values_uincl vs1 vs2 ->
   write_lvals wdb gd s lvs vs1 = ok s' ->
   exists2 vm', write_lvals wdb gd (with_vm s vm) (map wi2w_lv lvs) vs2 = ok (with_vm s' vm') &
                evm s' <=1 vm'.
@@ -227,9 +227,9 @@ Let Pfor (i:var_i) vs s c s' :=
                  evm s' <=1 vm'.
 
 Let Pfun scs1 m1 fn vargs scs2 m2 vres :=
-  forall vargs', List.Forall2 value_uincl vargs vargs' ->
+  forall vargs', values_uincl vargs vargs' ->
   exists2 vres',
-     List.Forall2 value_uincl vres vres' &
+     values_uincl vres vres' &
      sem_call p' ev scs1 m1 fn vargs' scs2 m2 vres'.
 
 Local Lemma Hskip : sem_Ind_nil Pc.
@@ -357,10 +357,10 @@ Proof.
 Qed.
 
 Lemma wi2w_call_internalP fn scs mem scs' mem' va va' vr:
-  List.Forall2 value_uincl va va' ->
+  values_uincl va va' ->
   sem_call p ev scs mem fn va scs' mem' vr ->
   exists2 vr',
-    List.Forall2 value_uincl vr vr' &
+    values_uincl vr vr' &
     sem_call p' ev scs mem fn va' scs' mem' vr'.
 Proof.
   move=> Hall Hsem.
@@ -462,11 +462,11 @@ Lemma wi2w_progP (p' : uprog) scs m fn va scs' m' vr :
   wi2w_prog remove_wint_annot dead_vars_fd p = ok p' →
   sem_call p ev scs m fn va scs' m' vr →
   exists2 vr' : seq value,
-    List.Forall2 value_uincl vr vr' &
+    values_uincl vr vr' &
     sem_call p' ev scs m fn va scs' m' vr'.
 Proof.
   rewrite /wi2w_prog; t_xrbindP => ok_pv <- h.
-  have [vr1 hu1 {}h]:= wi2w_call_internalP (List_Forall2_refl _ value_uincl_refl) h.
+  have [vr1 hu1 {}h]:= wi2w_call_internalP values_uincl_refl h.
   have [vr2 [{}h hu2]] := alloc_call_uprogP ok_pv h.
   exists vr2 => //.
   apply (Forall2_trans value_uincl_trans hu1 hu2).
@@ -487,7 +487,7 @@ Proof.
   + by move=> fs1 fs2 hpre; exists fs1 => //; split => //; split => //; apply List_Forall2_refl.
   move=> ??? fr1 fr3 _ _ [fr2] [heq1 heq2 hu1] [heq3 heq4 hu2]; split.
   + by rewrite heq1. + by rewrite heq2.
-  by apply: Forall2_trans hu1 hu2; apply value_uincl_trans.
+  by apply: values_uincl_trans hu1 hu2.
 Qed.
 
 End IT.

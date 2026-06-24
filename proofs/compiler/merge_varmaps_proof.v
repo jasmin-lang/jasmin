@@ -375,7 +375,7 @@ Section LEMMA.
   Lemma check_esP wdb ii I es s t vs u : check_es ii I es = ok u ->
     match_estate I s t ->
     sem_pexprs wdb (p_globs p) s es = ok vs ->
-    exists2 vs', sem_pexprs wdb (p_globs p) t es = ok vs' & List.Forall2 value_uincl vs vs'.
+    exists2 vs', sem_pexprs wdb (p_globs p) t es = ok vs' & values_uincl vs vs'.
   Proof.
     rewrite /check_es => hc hsim; elim: es tt hc vs => [ | e es hrec] /=.
     + by move=> _ _ _ [<-]; exists [::].
@@ -405,7 +405,7 @@ Section LEMMA.
   Lemma check_lvsP ii I xs O s1 s2 t1 vs vs': check_lvs ii I xs = ok O ->
     match_estate I s1 t1 ->
     write_lvals true (p_globs p) s1 xs vs = ok s2 ->
-    List.Forall2 value_uincl vs vs' ->
+    values_uincl vs vs' ->
     exists2 t2, write_lvals true (p_globs p) t1 xs vs' = ok t2 & match_estate O s2 t2.
   Proof.
     rewrite /check_lvs.
@@ -581,12 +581,12 @@ Section LEMMA.
       tvm1.[vrsp] = Vword (top_stack m) →
       tvm1.[ vgd ] = Vword global_data →
       get_var_is false tvm1 fd.(f_params) = ok args' →
-      List.Forall2 value_uincl args args' →
+      values_uincl args args' →
       ∃ (k: Sv.t) tvm2 res',
         [/\ sem_call ii k {| escs := scs; emem := m ; evm := tvm1 |} fn {| escs := scs'; emem := m' ; evm := tvm2 |},
          Sv.Subset k (writefun_ra p var_tmps wrf fn),
          get_var_is false tvm2 fd.(f_res) = ok res' &
-         List.Forall2 value_uincl res res'
+         values_uincl res res'
         ].
 
   Lemma all2_get_pvar args xs : 
@@ -819,8 +819,8 @@ Section LEMMA.
         by apply Vm.initP.
       have hz : value_uincl (evm s1).[z] tvm1.[z].
       + case: (Sv_memP z (sv_of_list v_var (f_params fd))) => hinp.
-        + have : List.Forall2 value_uincl vargs args'.
-          + apply: Forall2_trans ok_args''; first by apply: value_uincl_trans.
+        + have : values_uincl vargs args'.
+          + apply: values_uincl_trans ok_args''.
             apply: mapM2_dc_truncate_value_uincl ok_vargs.
           move/Sv_memP: hinp; rewrite sv_of_listE /=.
           elim: (f_params fd) (vargs) (args') (s0) ok_s1 ok_args' => [ | x xs hrec] [ | v vs] vs_ s //=.
@@ -856,7 +856,7 @@ Section LEMMA.
       let: vm := set_RSP p (free_stack (emem t2)) (kill_vars (ra_vm_return fd.(f_extra)) (evm t2)) in
       exists2 tres,
         get_var_is false vm (f_res fd) = ok tres
-        & List.Forall2 value_uincl vres' tres.
+        & values_uincl vres' tres.
     - have : forall x, (x \in [seq (v_var i) | i <- f_res fd]) -> ~ Sv.In x DF.
       + move=> x hx; have /Sv_memP: Sv.mem x res by rewrite /res sv_of_listE.
         by move /Sv.is_empty_spec: hdisj; SvD.fsetdec.

@@ -1953,7 +1953,7 @@ Context
     forall op vx v,
       is_move_op op ->
       exec_sopn (Oasm op) [:: vx ] = ok v ->
-      List.Forall2 value_uincl v [:: vx ]).
+      values_uincl v [:: vx ]).
 
 Local Lemma clone_ty : forall x n, vtype (clone fresh_var_ident x n) = vtype x.
 Proof. by []. Qed.
@@ -3253,7 +3253,7 @@ Qed.
 
 Lemma value_uincl_wf_results fn vargs1 vargs2 vargs1' vargs2' vres1 vres2 :
   size vargs1 = size (local_alloc fn).(sao_params) ->
-  List.Forall2 value_uincl vargs1' vargs1 ->
+  values_uincl vargs1' vargs1 ->
   Forall3 (fun opi varg varg' => opi <> None -> varg = varg') (local_alloc fn).(sao_params) vargs2 vargs2' ->
   List.Forall (fun oi => forall i, oi = Some i -> nth None (local_alloc fn).(sao_params) i <> None) (local_alloc fn).(sao_return) ->
   wf_results vargs1' vargs2' fn vres1 vres2 ->
@@ -3309,7 +3309,7 @@ Proof.
 Qed.
 
 Lemma value_uincl_disjoint_from_writable_params fn vargs1 vargs1' vargs2 vargs2' p :
-  List.Forall2 value_uincl vargs1' vargs1 ->
+  values_uincl vargs1' vargs1 ->
   Forall3 (fun opi varg varg' => opi <> None -> varg = varg') (local_alloc fn).(sao_params) vargs2 vargs2' ->
   Forall3 (disjoint_from_writable_param p)
     (map (omap pp_writable) (local_alloc fn).(sao_params)) vargs1 vargs2 ->
@@ -4822,7 +4822,7 @@ Context
     forall op vx v,
       is_move_op op ->
       exec_sopn (Oasm op) [:: vx ] = ok v ->
-      List.Forall2 value_uincl v [:: vx ]).
+      values_uincl v [:: vx ]).
 
 Lemma get_alloc_fd p p_extra mglob oracle fds1 fds2 :
   map_cfprog_name (alloc_fd shparams saparams is_move_op fresh_var_ident pp_sr p p_extra mglob oracle) fds1 = ok fds2 ->
