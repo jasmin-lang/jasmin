@@ -1087,6 +1087,16 @@ Section TunnelingSem.
     by move=> fd c pe l1 l2 hgetf hfn -> /=; case c => ? -[].
   Qed.
 
+  Lemma fn_is_export_tunnel_lprog_pc p fn pc fn' :
+    fn_is_export (tunnel_lprog_pc p fn pc) fn' = fn_is_export p fn'.
+  Proof.
+    rewrite /fn_is_export /tunnel_lprog_pc lp_funcs_setfuncs /tunnel_funcs_pc.
+    case Hgfd: (get_fundef (lp_funcs p) fn) => [fd|//].
+    rewrite get_fundef_setfunc -get_fundef_in Hgfd /=.
+    case: ifP => // /eqP ?; subst fn'.
+    by rewrite Hgfd /tunnel_lfundef_pc.
+  Qed.
+
   Lemma eval_instr_tunnel_lprog_pc p fn pc :
     uniq (map fst (lp_funcs p)) ->
     eval_instr (tunnel_lprog_pc p fn pc) =2 eval_instr p.
@@ -1095,13 +1105,11 @@ Section TunnelingSem.
     + move=> o r; rewrite /eval_instr /= label_in_lprog_tunnel_lprog_pc //.
       case: o.
       * move=> lr.
-        rewrite tunnel_get_label_after_pc /rencode_label.
-        apply bind_eq => // l.
-        case: encode_label => //= wl; apply bind_eq => // m.
+        rewrite tunnel_get_label_after_pc /rencode_label !fn_is_export_tunnel_lprog_pc.
+        repeat (apply: bind_eq => // ?).
         by rewrite eval_jump_tunnel_lprog_pc.
-      rewrite tunnel_get_label_after_pc /rencode_label.
-      apply bind_eq => // u. apply bind_eq => // vm.
-      case: encode_label => //= wl; apply bind_eq => // m.
+      rewrite tunnel_get_label_after_pc /rencode_label fn_is_export_tunnel_lprog_pc.
+      repeat (apply: bind_eq => // ?).
       by rewrite eval_jump_tunnel_lprog_pc.
     + rewrite /eval_instr /= label_in_lprog_tunnel_lprog_pc /rdecode_label //.
       apply bind_eq => // ?; apply bind_eq => // ?.

@@ -664,7 +664,7 @@ Proof.
   + by move=> > hc1 hc2 ii; apply wequiv_if_rel_eq with checker_st_eq tt tt tt.
   + by move=> > hc ii; apply wequiv_for_rel_eq with checker_st_eq tt tt.
   + by move=> > hc hc' ii; apply wequiv_while_rel_eq with checker_st_eq tt.
-  move=> ????; apply wequiv_call_rel_eq with checker_st_eq tt => //; apply hinit.
+  by move=> ????; apply wequiv_call_rel_eq with checker_st_eq tt => //; apply hinit.
 Qed.
 
 End FUN.
@@ -732,7 +732,7 @@ Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
 Lemma wequiv_rec_st_eq c : wequiv_rec p p' ev ev' eq_spec (st_eq tt) c c (st_eq tt).
 Proof.
-  apply wequiv_st_eq => //.
+  apply wequiv_st_eq.
   by move=> ii f s t <-; apply xrutt_facts.xrutt_trigger.
 Qed.
 
@@ -1123,7 +1123,7 @@ Proof.
   + move=> xs fn es ii X; rewrite read_i_call => hsub.
   apply wequiv_call_rel_eq with checker_st_eq_on X => //.
   + by split => //; SvD.fsetdec.
-  + by split => //; SvD.fsetdec.
+  by split => //; SvD.fsetdec.
 Qed.
 
 End FUN.
@@ -1136,7 +1136,7 @@ Lemma it_read_cP_rec X c :
   Sv.Subset (read_c c) X ->
   wequiv_rec p p' ev ev' eq_spec (st_eq_on X) c c (st_eq_on X).
 Proof.
-  apply it_read_cP_aux => //.
+  apply it_read_cP_aux.
   by move=> ii f s t <-; apply xrutt_facts.xrutt_trigger.
 Qed.
 
@@ -1553,7 +1553,7 @@ Proof.
   + by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with checker_st_uincl tt tt tt.
   + by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
   + by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.
-  move=> xs fn es ii; apply wequiv_call_rel_uincl with checker_st_uincl tt => //.
+  by move=> xs fn es ii; apply wequiv_call_rel_uincl with checker_st_uincl tt.
 Qed.
 
 End PROG.
@@ -1630,16 +1630,14 @@ Proof.
 apply wequiv_fun_ind => {}fn _ fs1 fs2 [<-] hu fd ->.
 exists fd => // s /(fs_uincl_initialize erefl erefl erefl erefl hu) [t] -> {}hu.
 exists t => //; exists (st_uincl tt), (st_uincl tt); split=> //.
-+ apply it_sem_uincl_aux => //.
-  move=> ii fn' fs1' fs2' h; exact/wequiv_fun_rec.
++ apply it_sem_uincl_aux => // ii fn' fs1' fs2' h; exact/wequiv_fun_rec.
 exact/fs_uincl_finalize.
 Qed.
 
 Lemma it_sem_uincl c :
   wiequiv p p ev ev (st_uincl tt) c c (st_uincl tt).
 Proof.
- apply it_sem_uincl_aux => //.
- by move=> ? fn ?? h; apply it_sem_uincl_f.
+  by apply it_sem_uincl_aux => // ? fn ?? h; apply it_sem_uincl_f.
 Qed.
 
 End REFL.
@@ -1950,7 +1948,7 @@ Proof.
     apply wequiv_while_rel_uincl with checker_eq_cmd tt => //.
     by rewrite /= /check_es_eq_cmd /= andbT.
   move=> xs fn es [] //= xs' fn' es' /andP[] /andP[] heq1 /eqP -> heq2 ??.
-  apply wequiv_call_rel_uincl with checker_eq_cmd tt => //.
+  by apply wequiv_call_rel_uincl with checker_eq_cmd tt.
 Qed.
 
 End PROG.
@@ -2015,7 +2013,7 @@ apply: (
 - move=> s1 s2 [<- hincl]; by exists s1.
 - move=> s1 s2 s3 s1' s3' [<- <-] [_ hincl] [s2' [?? hincl1'] [?? hincl2']].
   split; [congruence | congruence|].
-  exact: Forall2_trans value_uincl_trans hincl1' hincl2'.
+  exact: values_uincl_trans hincl1' hincl2'.
 exact: it_sem_uincl_f.
 Qed.
 

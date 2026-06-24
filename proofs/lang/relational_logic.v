@@ -437,6 +437,12 @@ Definition rel_c := rel estate1 estate2.
 
 Notation EventRels E0 := (EventRels2 E0 E0).
 
+Definition EqRels {E0} : EventRels E0 :=
+  {|
+    EPreRel0_  := rutt_extras.RPre_eq;
+    EPostRel0_ := rutt_extras.RPost_eq;
+  |}.
+
 Section TR_MutualRec.
 
 Class EquivSpec :=
@@ -489,9 +495,9 @@ Proof.
   by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
 Qed.
 
-Lemma xrutt_iresult_left (T1 T2:Type) (s1 : estate1) (x1 : exec T1) (v2 : T2) (R : T1 -> T2 -> Prop) :
+Lemma xrutt_iresult_left (T1 T2:Type) (x1 : exec T1) (v2 : T2) (R : T1 -> T2 -> Prop) :
   (forall v1, x1 = ok v1 -> R v1 v2) ->
-  xrutt (errcutoff (is_error wE_l)) nocutoff EPreRel EPostRel R (iresult s1 x1) (Ret v2).
+  xrutt (errcutoff (is_error wE_l)) nocutoff EPreRel EPostRel R (iresult x1) (Ret v2).
 Proof.
   rewrite /iresult => h.
   case heq: x1 => [v1 | e] /=.
@@ -500,11 +506,11 @@ Proof.
   by rewrite /errcutoff /is_error /subevent /= /resum /fromErr mid12.
 Qed.
 
-Lemma xrutt_bind_iresult_left (T T1 T2:Type) (s1 : estate1) (x1 : exec T) (F1 : T -> itree E_l T1) (F2 : itree E_r T2)
+Lemma xrutt_bind_iresult_left (T T1 T2:Type) (x1 : exec T) (F1 : T -> itree E_l T1) (F2 : itree E_r T2)
   (R : T1 -> T2 -> Prop) :
   (forall v1, x1 = ok v1 ->
     xrutt (errcutoff (is_error wE_l)) nocutoff EPreRel EPostRel R (F1 v1) F2) ->
-  xrutt (errcutoff (is_error wE_l)) nocutoff EPreRel EPostRel R (ITree.bind (iresult s1 x1) F1) F2.
+  xrutt (errcutoff (is_error wE_l)) nocutoff EPreRel EPostRel R (ITree.bind (iresult x1) F1) F2.
 Proof.
   rewrite /iresult => h.
   case heq: x1 => [v1 | e] /=.
@@ -515,19 +521,19 @@ Qed.
 
 Lemma wkequiv_iresult {I1 I2 O1 O2} (P : rel I1 I2) (Q : rel O1 O2) F1 F2 :
   wrequiv P F1 F2 Q ->
-  wkequiv P (fun i => iresult (wE:=wE_l) (F1 i)) (fun i => iresult (wE:=wE_r) (F2 i)) Q.
+  wkequiv P (fun i => iresult (E:=E_l) (F1 i)) (fun i => iresult (E:=E_r) (F2 i)) Q.
 Proof. by move=> h i1 i2 hP; apply xrutt_iresult => s1'; apply: h. Qed.
 
-Lemma wkequiv_iresult_right (P : rel estate1 estate2) (Q : rel estate1 estate2)   F2 :
+Lemma wkequiv_iresult_right (P : rel estate1 estate2) (Q : rel estate1 estate2) F2 :
   (forall s t, P s t -> exists2 t', F2 t = ok t' & Q s t') ->
-  wkequiv P (fun s => Ret s) (fun t => iresult (wE:=wE_r) (F2 t)) Q.
+  wkequiv P (fun s => Ret s) (fun t => iresult (E:=E_r) (F2 t)) Q.
 Proof.
   by move=> h s t /h [t'] hF2 hQ; rewrite /iresult hF2 /=; apply xrutt_Ret.
 Qed.
 
 Lemma wkequiv_iresult_left (P : rel estate1 estate2) (Q : rel estate1 estate2) F1 :
   (forall s s' t, P s t -> F1 s = ok s' -> Q s' t) ->
-  wkequiv P (fun s => iresult (wE:=wE_l) (F1 s)) (fun t => Ret t) Q.
+  wkequiv P (fun s => iresult (E:=E_l) (F1 s)) (fun t => Ret t) Q.
 Proof.
   by move=> h s t /h{}h; apply xrutt_iresult_left.
 Qed.
@@ -578,9 +584,6 @@ Notation sem_pre1 := (sem_pre (wsw:=wsw1) (wa:=wa1) (dc:=dc1) (pT:=pT1)).
 Notation sem_pre2 := (sem_pre (wsw:=wsw2) (wa:=wa2) (dc:=dc2) (pT:=pT2)).
 Notation sem_post1 := (sem_post (wsw:=wsw1) (wa:=wa1) (dc:=dc1) (pT:=pT1)).
 Notation sem_post2 := (sem_post (wsw:=wsw2) (wa:=wa2) (dc:=dc2) (pT:=pT2)).
-
-Notation is_init_state_ok1 := (is_init_state_ok (wsw:=wsw1) (pT:=pT1)).
-Notation is_init_state_ok2 := (is_init_state_ok (wsw:=wsw2) (pT:=pT2)).
 
 Lemma wequiv_weaken P1 P2 Q1 Q2 c1 c2 :
   (forall s1 s2, P1 s1 s2 -> P2 s1 s2) ->
@@ -2408,6 +2411,78 @@ Class EventRels_trans {E0 : Type -> Type} (rE12 rE23 rE13 : EventRels E0) :=
      EPreRel0 (rE0:=rE12) e1 e2 → EPreRel0 (rE0:=rE23) e2 e3 → EPostRel0 (rE0:=rE13) e1 t1 e3 t3 →
      exists2 t2 : T2, EPostRel0 (rE0:=rE12) e1 t1 e2 t2 & EPostRel0 (rE0:=rE23) e2 t2 e3 t3; }.
 
+#[export]
+Instance EventRels_trans_eq_r {E0 : Type -> Type} {rE0 : EventRels E0} :
+  EventRels_trans rE0 EqRels rE0.
+Proof.
+constructor.
+- move=> T1 T2 T3 e1 e2 e3 h [?]; subst T2 => /= ->; exact: h.
+move=> T1 T2 T3 e1 e2 e3 a1 a3 hpre [?]; subst T2 => /= ? hpost; subst e2.
+by exists a3 => // h; dependent destruction h.
+Qed.
+
+Section WKEQUIV_TRANS.
+
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE12 : EventRels E0} {rE23 : EventRels E0} {rE13 : EventRels E0}
+  {rE_trans : EventRels_trans rE12 rE23 rE13}.
+
+Lemma wkequiv_io_trans {I1 I2 I3 O1 O2 O3}
+  (P12 : rel I1 I2) (P23 : rel I2 I3) (P13 : rel I1 I3)
+  (Q12 : rel_io I1 I2 O1 O2) (Q23 : rel_io I2 I3 O2 O3) (Q13 : rel_io I1 I3 O1 O3)
+  (F1 : ktree E I1 O1) (F2 : ktree E I2 O2) (F3 : ktree E I3 O3) :
+  (forall i1 i3,
+     P13 i1 i3 -> exists2 i2, P12 i1 i2 & P23 i2 i3) ->
+  (forall i1 i2 i3 o1 o3,
+     P12 i1 i2 -> P23 i2 i3 ->
+     rcompose (Q12 i1 i2) (Q23 i2 i3) o1 o3 -> Q13 i1 i3 o1 o3) ->
+  wkequiv_io (rE0 := rE12) P12 F1 F2 Q12 ->
+  wkequiv_io (rE0 := rE23) P23 F2 F3 Q23 ->
+  wkequiv_io (rE0 := rE13) P13 F1 F3 Q13.
+Proof.
+  move=> hpre hpost h12 h23 i1 i3 hP13.
+  have [i2 hP12 hP23] := hpre _ _ hP13.
+  apply xrutt_weaken with
+    (errcutoff (is_error wE)) nocutoff
+    (prcompose (EPreRel (rE0 := rE12)) (EPreRel (rE0 := rE23)))
+    (pocompose (EPreRel (rE0 := rE12)) (EPreRel (rE0 := rE23))
+       (EPostRel (rE0 := rE12)) (EPostRel (rE0 := rE23)))
+    (rcompose (Q12 i1 i2) (Q23 i2 i3)) => //.
+  + move=> T1 T3 e1 e3 [T2 e2]; rewrite /EPreRel.
+    case: (mfun1 e1) (mfun1 e2) (mfun1 e3) => [err1 | e0_1] /= [err2 | e0_2] //= [err3 | e0_3] //.
+    apply ERpre_trans.
+  + move=> T1 T3 e1 t1 e3 t3. rewrite /errcutoff /nocutoff /is_error => herr _ _ hh.
+    move=> T2 e2; move: hh; rewrite /EPreRel /EPostRel.
+    case: (mfun1 e1) herr => //.
+    move=> e0_1 _. case: (mfun1 e2) => //= e0_2.
+    case: (mfun1 e3) => //= e0_3.
+    by move=> ???; apply ERpost_trans.
+  + by move=> r1 r2; apply: hpost hP12 hP23.
+  have := h23 _ _ hP23; have := h12 _ _ hP12.
+  apply xrutt_facts.xrutt_trans.
+  move=> T1 T2 e1 e2 /sum_prerelP h.
+  dependent destruction h => /=.
+  + by rewrite /errcutoff /= /is_error -x0.
+  by rewrite /errcutoff /is_error -x.
+Qed.
+
+Lemma wkequiv_trans {I1 I2 I3 O1 O2 O3}
+  (P12 : rel I1 I2) (P23 : rel I2 I3) (P13 : rel I1 I3)
+  (Q12 : rel O1 O2) (Q23 : rel O2 O3) (Q13 : rel O1 O3)
+  (F1 : ktree E I1 O1) (F2 : ktree E I2 O2) (F3 : ktree E I3 O3) :
+  (forall i1 i3,
+     P13 i1 i3 -> exists2 i2, P12 i1 i2 & P23 i2 i3) ->
+  (forall i1 i2 i3 o1 o3,
+     P12 i1 i2 -> P23 i2 i3 -> rcompose Q12 Q23 o1 o3 -> Q13 o1 o3) ->
+  wkequiv (rE0 := rE12) P12 F1 F2 Q12 ->
+  wkequiv (rE0 := rE23) P23 F2 F3 Q23 ->
+  wkequiv (rE0 := rE13) P13 F1 F3 Q13.
+Proof. by move=> hpre hpost h12 h23; apply: wkequiv_io_trans; eauto. Qed.
+
+End WKEQUIV_TRANS.
+
 Section TRANSITIVITY.
 
 Context
@@ -2475,32 +2550,52 @@ Lemma wiequiv_f_trans p1 p2 p3 ev1 ev2 ev3 fn1 fn2 fn3 rpreF12 rpreF23 rpreF13
   wiequiv_f12 p1 p2 ev1 ev2 rpreF12 fn1 fn2 rpostF12 ->
   wiequiv_f23 p2 p3 ev2 ev3 rpreF23 fn2 fn3 rpostF23 ->
   wiequiv_f13 p1 p3 ev1 ev3 rpreF13 fn1 fn3 rpostF13.
-Proof.
-  move=> hpre hpost h1 h2 fs1 fs3 hpre13.
-  have [fs2 hpre12 hpre23] := hpre _ _ hpre13.
-  apply xrutt_weaken with
-    (errcutoff (is_error wE)) nocutoff (prcompose EPre12 EPre23)
-    (pocompose EPre12 EPre23 EPost12 EPost23)
-    (rcompose (rpostF12 fn1 fn2 fs1 fs2) (rpostF23 fn2 fn3 fs2 fs3)) => //.
-  + move=> T1 T3 e1 e3 [T2 e2]; rewrite /EPreRel.
-    case: (mfun1 e1) (mfun1 e2) (mfun1 e3) => [err1 | e0_1] /= [err2 | e0_2] //= [err3 | e0_3] //.
-    apply ERpre_trans.
-  + move=> T1 T3 e1 t1 e3 t3. rewrite /errcutoff /nocutoff /is_error => herr _ _ hh.
-    move=> T2 e2; move: hh; rewrite /EPreRel /EPostRel.
-    case: (mfun1 e1) herr => //.
-    move=> e0_1 _. case: (mfun1 e2) => //= e0_2.
-    case: (mfun1 e3) => //= e0_3.
-    by move=> ???; apply ERpost_trans.
-  + by move=> r1 r2; apply hpost.
-  have := h2 _ _ hpre23; have := h1 _ _ hpre12.
-  apply xrutt_facts.xrutt_trans.
-  move=> T1 T2 e1 e2 /sum_prerelP h.
-  dependent destruction h => /=.
-  + by rewrite /errcutoff /= /is_error -x0.
-  by rewrite /errcutoff /is_error -x.
-Qed.
+Proof. by move=> hpre hpost; apply wkequiv_io_trans. Qed.
 
 End TRANSITIVITY.
+
+Section WKEQUIV_EUTT.
+
+Context {E E0 : Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
+
+Lemma wkequiv_io_eutt_r {I1 I2 O1 O2}
+  (P : rel I1 I2) (Q : rel_io I1 I2 O1 O2)
+  (F1 : ktree E I1 O1) (F2 F2' : ktree E I2 O2) :
+  (forall i2, F2 i2 ≈ F2' i2) ->
+  wkequiv_io (rE0 := rE0) P F1 F2  Q ->
+  wkequiv_io (rE0 := rE0) P F1 F2' Q.
+Proof.
+  move=> heq h i1 i2 hP.
+  rewrite -(heq i2).
+  by apply h.
+Qed.
+
+End WKEQUIV_EUTT.
+
+Section FACTS.
+
+Import rutt_extras.
+
+Lemma xrutt_EqRels
+  {E E0 : Type -> Type} {wE : with_Error E E0}
+  (R1 R2 : Type)
+  {RR RR' : R1 -> R2 -> Prop}
+  (t1 : itree E R1) (t2 : itree E R2) :
+  (forall r1 r2, RR r1 r2 -> RR' r1 r2) ->
+  xrutt (errcutoff (is_error wE)) nocutoff RPre_eq RPost_eq RR t1 t2 ->
+  xrutt
+    (errcutoff (is_error wE)) nocutoff
+    (EPreRel (rE0 := EqRels)) (EPostRel (rE0 := EqRels)) RR' t1 t2.
+Proof.
+apply: xrutt_weaken => //.
++ move=> T1 T2 e1 e2 [?]; subst T2 => /= ->.
+  rewrite /EPreRel; case: mfun1 => [//|e]; by exists erefl.
+move=> T1 T2 e1 a1 e2 a2; rewrite /errcutoff /is_error /EPostRel /=.
+rewrite -[in RPost_eq _](mid21 e1) -[in RPost_eq _ _ _](mid21 e2).
+by case: mfun1 => [//|e1'] _ _ _ /=; case: mfun1 => [//|e2'].
+Qed.
+
+End FACTS.
 
 Notation pre_eq := (rpreF (eS := eq_spec)).
 Notation post_eq := (rpostF (eS := eq_spec)).

@@ -231,7 +231,7 @@ Definition mix_chk_stk_step (s:stk_lstate) : itree (CallE +' E) (stk_lstate + ls
        if is_call s.(st) is Some fn then
          st'' <- trigger_inl1 (Call fn st');;
          if check_after_call s.(st) st'' then Ret (inl {| st:= st''; stk := s.(stk) |})
-         else Exception.throw (utils.ErrSemUndef, tt)
+         else Exception.throw utils.ErrSemUndef
        else Ret (inl {| st:= st'; stk := s.(stk) |}))%itree
     else Ret (inl {| st := s.(st); stk := conds |})
   end.
@@ -293,7 +293,7 @@ Definition mix_step (s:lstate) : itree (CallE +' E) lstate :=
   if is_call s is Some fn then
     (s'' <- trigger_inl1 (Call fn s');;
     if check_after_call s s'' then Ret s''
-    else Exception.throw (utils.ErrSemUndef, tt))%itree
+    else Exception.throw utils.ErrSemUndef)%itree
   else Ret s'.
 
 Definition mix_steps cond (s:lstate) : itree (CallE +' E) lstate :=

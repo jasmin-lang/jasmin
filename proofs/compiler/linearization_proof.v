@@ -11,7 +11,7 @@ Import word_ssrZ.
 Import ssrring.
 Import psem psem_facts sem_one_varmap compiler_util label sem_one_varmap_facts low_memory.
 Require Import seq_extra.
-Require Import constant_prop.
+
 Require Import fexpr fexpr_sem fexpr_facts.
 Require Export linearization linear_sem linear_facts.
 Import Memory.
@@ -305,31 +305,6 @@ Lemma valid_has_not_label fn A B P lbl :
   ~~ has (is_label lbl) P.
 Proof.
   move => /(valid_disjoint_labels) - /(_ lbl (lbl + 1)%positive) V R; apply: V; lia.
-Qed.
-
-Lemma snot_spec gd s e b :
-  sem_pexpr true gd s e = ok (Vbool b) →
-  sem_pexpr true gd s (snot e) = sem_pexpr true gd s (Papp1 Onot e).
-Proof.
-elim: e b => //.
-- by case => // e _ b; rewrite /= /sem_sop1 /=; t_xrbindP => z -> b' /to_boolI -> _ /=;
-  rewrite negbK.
-- by case => // e1 He1 e2 He2 b /=; t_xrbindP => v1 h1 v2 h2 /sem_sop2I [b1 [b2 [b3]]] []
-  /to_boolI hb1 /to_boolI hb2 [?] ?; subst v1 v2 b3;
-  rewrite /= (He1 _ h1) (He2 _ h2) /= h1 h2;
-  apply: (f_equal (@Ok _ _)); rewrite /= ?negb_and ?negb_or.
-move => st p hp e1 he1 e2 he2 b /=.
-t_xrbindP => bp vp -> /= -> trv1 v1 h1 htr1 trv2 v2 h2 htr2 /= h.
-have : exists (b1 b2:bool), eval_atype st = cbool /\ sem_pexpr true gd s e1 = ok (Vbool b1) /\ sem_pexpr true gd s e2 = ok (Vbool b2).
-+ rewrite h1 h2;case: bp h => ?;subst.
-  + move: htr2.
-    have [-> ->]:= truncate_valI htr1.
-    by rewrite /truncate_val; t_xrbindP => /= b2 /to_boolI -> ?; eauto.
-  move: htr1.
-  have [-> ->]:= truncate_valI htr2.
-  by rewrite /truncate_val; t_xrbindP => /= b1 /to_boolI -> ?;eauto.
-move=> [b1 [b2 [-> []/[dup]hb1 /he1 -> /[dup]hb2 /he2 ->]]] /=.
-by rewrite hb1 hb2 /=; case bp.
 Qed.
 
 Lemma add_align_nil ii a c : add_align ii a c = add_align ii a [::] ++ c.
@@ -1149,25 +1124,6 @@ Section CHECK_SOME.
     Proof. exact: check_SomeP. Qed.
 
 End CHECK_SOME.
-
-Lemma to_fexpr_snot e f :
-  fexpr_of_pexpr e = Some f →
-  ∃ nf, fexpr_of_pexpr (snot e) = Some nf.
-Proof.
-  elim: e f => //=.
-  - by move => > _; eexists.
-  - by case => x [] // > _; eexists.
-  - move => op ? _ ? /oseq.obindI[] b [] hb.
-    by case: op => *; rewrite /= hb /=; eauto.
-  - move => op ? ih1 ? ih2 ? /oseq.obindI[] a [] ha /oseq.obindI[] b [] hb _.
-    case: (ih1 _ ha) => ? {} ih1.
-    case: (ih2 _ hb) => ? {} ih2.
-    by case: op => *; rewrite /= ?(ha, hb, ih2, ih1) /=; eauto.
-  case => // ? A ? B ? C ? /oseq.obindI[] a [] {}A /oseq.obindI[] b [] /B[] ? {}B /oseq.obindI[] c [] /C[] ? {}C _.
-  by rewrite A B C /=; eauto.
-Qed.
-
-
 
 Section PROOF.
 
@@ -3142,6 +3098,8 @@ Qed.
     have := get_fundef_p' ok_fd'.
     set lfd' := linear_fd _ fd'.
     move => ok_lfd'.
+    have fn'_not_export : ~~ fn_is_export p' fn'.
+    - by rewrite /fn_is_export ok_lfd' /lfd' /= (negbTE ok_ra).
     move: linear_eq. rewrite /= ok_fd' fn'_neq_fn.
     move: (checked_prog ok_fd') => /=; rewrite /check_fd /frame_size.
     t_xrbindP=> chk_body ok_to_save _ _ ok_stk_sz ok_ret_addr ok_save_stack _ A.
@@ -3259,7 +3217,7 @@ Qed.
           split => //.
           rewrite ok_ptr; exists ptr => //; rewrite Vm.setP_eq vm_truncate_val_eq //.
           by rewrite (convertible_eval_atype hty).
-        rewrite /= set_var_truncate //=.
+        rewrite fn'_not_export set_var_truncate //=.
         move: ok_ret_addr => /andP[] hty _.
         by rewrite (convertible_eval_atype hty).
       (* RAstack (Some x) ofs _ *)
@@ -3270,7 +3228,7 @@ Qed.
         + split => //.
           rewrite ok_ptr; exists ptr => //; rewrite Vm.setP_eq vm_truncate_val_eq //.
           by rewrite (convertible_eval_atype ok_ret_addr).
-        by rewrite /= set_var_truncate //= (convertible_eval_atype ok_ret_addr).
+        by rewrite fn'_not_export /= set_var_truncate //= (convertible_eval_atype ok_ret_addr).
       (* RAstack None ofs _ *)
       move: ok_ret_addr => /and5P [] _ _ /eqP ? /eqP hioff sf_align_for_ptr; subst ofs.
       have [m' ok_m' M']:
@@ -3317,7 +3275,7 @@ Qed.
           by have /= := (alloc_stackP ok_m).(ass_ioff); lia.
         move: ok_m'; rewrite -(alloc_stack_top_stack ok_m).
         by apply (target_mem_unchanged_store hb1 hb2).
-
+      rewrite fn'_not_export /=.
       set s_ := (top_stack (emem s1) - wrepr Uptr (sz - wsize_size Uptr))%R; rewrite lp_rspE.
       have -> /= : Let x := get_var true vm2_b vrsp in to_pointer x = ok s_.
       + by rewrite /get_var hvm2_b_rsp /= truncate_word_u.

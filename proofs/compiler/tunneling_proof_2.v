@@ -354,12 +354,40 @@ Qed.
 Lemma lp_rspE : lp_rsp p' = lp_rsp p.
 Proof. by move: pp'; rewrite /tunnel_program; case: ifP => // _ [<-]. Qed.
 
+Lemma lp_funcs_setfuncs p0 lf : lp_funcs (setfuncs p0 lf) = lf.
+Proof. by case: p0. Qed.
+
+Lemma get_fundef_tunnel_funcs lf fn :
+  get_fundef (tunnel_funcs lf) fn =
+  match get_fundef lf fn with
+  | Some fd => Some (tunnel_lfundef fn fd)
+  | None => None
+  end.
+Proof. by rewrite /tunnel_funcs /get_fundef assoc_mapE //. Qed.
+
+Lemma get_fundef_tunnel_program fn fd :
+  get_fundef (lp_funcs p) fn = Some fd ->
+  get_fundef (lp_funcs p') fn = Some (tunnel_lfundef fn fd).
+Proof.
+move: pp'.
+rewrite /tunnel_program; case: ifP => // Hwfp /ok_inj <- Hgfd.
+by rewrite /tunnel_lprog lp_funcs_setfuncs get_fundef_tunnel_funcs Hgfd.
+Qed.
+
+Lemma fn_is_exportE fn : fn_is_export p' fn = fn_is_export p fn.
+Proof.
+rewrite /fn_is_export.
+move: pp'; rewrite /tunnel_program; case: ifP => // _ [<-] /=.
+rewrite get_fundef_tunnel_funcs.
+by case: get_fundef => [fd|//].
+Qed.
+
 Lemma eval_instr_eq i s : eval_instr p' i s = eval_instr p i s.
 Proof.
   rewrite /eval_instr.
   rewrite get_label_after_pcE label_in_lprogE lp_rspE.
   case: li_i => //.
-  1: move=> [?|].
+  1: move=> [?|] + /[!fn_is_exportE].
   all: by move=> >; repeat (apply bind_eq => // ?); rewrite eval_jumpE.
 Qed.
 
