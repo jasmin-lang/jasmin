@@ -215,8 +215,6 @@ Context {E E0} {wE : with_Error E E0} {sem_F : sem_Fun E }.
 
 (* semantics of instructions, abstracting on function calls (through
    sem_fun) *)
-
-
 Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
     itree E estate :=
   let: (MkI ii i) := i in
@@ -717,7 +715,7 @@ Proof.
     rewrite /isem_pexprs interp_cond_iresult; apply eutt_eq_bind => ?.
     rewrite interp_bind; apply eutt_eq_bind'.
     + by apply interp_cond_iresult.
-    move=> _. rewrite interp_bind; apply eutt_eq_bind'.
+    move=> _; rewrite interp_bind; apply eutt_eq_bind'.
     + rewrite /ctx_cond /cond /Handler.case_ /rec_call /F.
       setoid_rewrite interp_trigger; reflexivity.
     move=> ?; rewrite interp_bind; apply eutt_eq_bind'.

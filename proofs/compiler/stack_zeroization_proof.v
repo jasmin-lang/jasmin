@@ -90,18 +90,25 @@ Proof.
   by t_xrbindP=> lp_funs _ <-.
 Qed.
 
-Lemma stack_zeroization_lprog_get_fundef lp lp' :
+Lemma stack_zeroization_lprog_get_fundef_aux lp lp' fn :
   stack_zeroization_lprog lp = ok lp' ->
-  forall fn lfd,
+  if get_fundef lp.(lp_funcs) fn is Some lfd then
+    exists2 lfd',
+      stack_zeroization_lfd lp.(lp_rsp) fn lfd = ok lfd' &
+      get_fundef lp'.(lp_funcs) fn = Some lfd'
+  else get_fundef lp'.(lp_funcs) fn = None.
+Proof.
+rewrite /stack_zeroization_lprog.
+by t_xrbindP=> lp_funs /(get_map_cfprog_name_gen_aux fn) + <- /=.
+Qed.
+
+Lemma stack_zeroization_lprog_get_fundef lp lp' fn lfd :
+  stack_zeroization_lprog lp = ok lp' ->
   get_fundef lp.(lp_funcs) fn = Some lfd ->
   exists2 lfd',
     stack_zeroization_lfd lp.(lp_rsp) fn lfd = ok lfd' &
     get_fundef lp'.(lp_funcs) fn = Some lfd'.
-Proof.
-  rewrite /stack_zeroization_lprog.
-  t_xrbindP=> lp_funs hmap <- /= fn lfd' hget.
-  by apply (get_map_cfprog_name_gen hmap hget).
-Qed.
+Proof. by move=> /(stack_zeroization_lprog_get_fundef_aux fn) /[swap] ->. Qed.
 
 Lemma stack_zeroization_lfd_invariants rspn fn lfd lfd' :
   stack_zeroization_lfd rspn fn lfd = ok lfd' ->
@@ -241,13 +248,27 @@ Proof.
   case: i => [ii []] //=.
   + case=> [p|].
     * rewrite (label_in_lprogP hzerolp).
-      t_xrbindP=> r lbl /(get_label_after_pcP hzerolp) -> /= w' -> /= vm ->.
-      exact: eval_jumpP.
-    t_xrbindP=> r w v.
+      t_xrbindP=> r nexp lbl /(get_label_after_pcP hzerolp) -> /= w' -> /= vm ->.
+      move=> heval.
+      suff -> : ~~ fn_is_export lp' r.1 by apply: eval_jumpP hzerolp heval.
+      move: r nexp heval => [fn l].
+      rewrite /fn_is_export /eval_jump /=.
+      case okr: get_fundef (stack_zeroization_lprog_get_fundef_aux fn hzerolp)
+           => [fd|]; last by move=> ->.
+      move=> [] lfd /stack_zeroization_lfd_invariants.
+      by move=> [_ _ _ _ _ _ -> _ _ _ -> ->].
+    t_xrbindP=> r nexp w v.
     have [_ <- _] := stack_zeroization_lprog_invariants hzerolp.
     rewrite (label_in_lprogP hzerolp).
     move=> -> /= -> /= lbl /(get_label_after_pcP hzerolp) -> /= w' -> /= m ->.
-    exact: eval_jumpP.
+    move=> heval.
+    suff -> : ~~ fn_is_export lp' r.1 by apply: eval_jumpP hzerolp heval.
+    move: r nexp heval => [fn l].
+    rewrite /fn_is_export /eval_jump /=.
+    case okr: get_fundef (stack_zeroization_lprog_get_fundef_aux fn hzerolp)
+         => [fd|]; last by move=> ->.
+    move=> [] lfd /stack_zeroization_lfd_invariants.
+    by move=> [_ _ _ _ _ _ -> _ _ _ -> ->].
   + t_xrbindP=> w v.
     have [_ <- _] := stack_zeroization_lprog_invariants hzerolp.
     rewrite (label_in_lprogP hzerolp).
@@ -472,7 +493,7 @@ Qed.
 
 End EXPORT.
 
-Lemma istack_zeroization_lprogP lp lp' fn lfd ptr :
+Lemma istack_zeroization_lprogP_aux lp lp' fn lfd ptr :
   Sv.In (vid (lp_rsp lp)) callee_saved ->
   stack_zeroization_lprog lp = ok lp' ->
   get_fundef lp.(lp_funcs) fn = Some lfd ->
@@ -579,6 +600,41 @@ Proof.
   rewrite bind_ret_l; apply xrutt.xrutt_Ret; split => //=.
   apply (eq_ex_disjoint_eq_on heqvm').
   by have [_ /disjoint_sym ?] := disjoint_union (disjoint_sym hdisj).
+Qed.
+
+#[local] Existing Instance withsubword.
+
+Definition sz_pre lp lfd (s1 s2 : estate) :=
+  exists ptr,
+    let: bottom := (align_word lfd.(lfd_align) ptr - wrepr _ lfd.(lfd_stk_max))%R in
+    [/\ (evm s1).[vid (lp_rsp lp)] = @Vword Uptr ptr
+      , s1 = s2
+      , (lfd.(lfd_stk_max) + wsize_size lfd.(lfd_align) - 1 <= wunsigned ptr)%Z
+      & valid_between (emem s1) bottom (lfd_stk_max lfd)
+    ].
+
+Definition sz_post lp fn lfd (s1 s2 s1' s2' : estate) :=
+  exists ptr,
+    let: bottom := (align_word lfd.(lfd_align) ptr - wrepr _ lfd.(lfd_stk_max))%R in
+    [/\ (evm s1).[vid (lp_rsp lp)] = @Vword Uptr ptr
+      , escs s1' = escs s2'
+      , (evm s1') =[sv_of_list v_var lfd.(lfd_res)] (evm s2')
+      & match_mem_zero_export (emem s1') (emem s2') bottom lfd.(lfd_stk_max) (szs_of_fn fn)
+    ].
+
+Lemma istack_zeroization_lprogP lp lp' fn lfd :
+  Sv.In (vid (lp_rsp lp)) callee_saved ->
+  stack_zeroization_lprog lp = ok lp' ->
+  get_fundef lp.(lp_funcs) fn = Some lfd ->
+  wkequiv_io
+    (sz_pre lp lfd)
+    (ilsem_exportcall lp fn)
+    (ilsem_exportcall lp' fn)
+    (sz_post lp fn lfd).
+Proof.
+  move=> hin hzerolp hlfd s1 _ [ptr [hrsp <- enough_stk hvalid]].
+  have := istack_zeroization_lprogP_aux hin hzerolp hlfd enough_stk (And3 erefl hvalid hrsp).
+  apply: xrutt_facts.xrutt_weaken => // o1 o2 [hscs hvm hmatch]; exists ptr; split => //.
 Qed.
 
 End ITREE.
