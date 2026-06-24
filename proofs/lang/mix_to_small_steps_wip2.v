@@ -580,14 +580,11 @@ Proof.
       * eapply H in w_ac1. rewrite w_ac1.
         apply xrutt_Ret; constructor; auto.
       destruct (check_ac2 (st s) s2) eqn: w_ac2. 
-      * apply xrutt_CutL.
-        by rewrite /xrutt_facts.EE_MR /errcutoff /is_error /= mid12.
-      apply xrutt_CutL.
-      by rewrite /xrutt_facts.EE_MR /errcutoff /is_error /= mid12.
+      * eapply lcutoff_wE.
+      apply lcutoff_wE. 
     }  
     { apply xrutt_Ret; constructor; auto. }
-    { apply xrutt_CutL.
-      by rewrite /xrutt_facts.EE_MR /errcutoff /is_error /= mid12. }     
+    { apply lcutoff_wE. }     
 Qed.      
 
 Lemma mix_chk_stk_sem_weakening :
@@ -650,12 +647,10 @@ Proof.
       move=> s2 _ /sum_postrelP /= -> /=; simpl.
       destruct (check_ac (st s) s2) eqn: w_pc.
       * apply xrutt_Ret; constructor; auto.
-      * apply xrutt_CutL.  
-        by rewrite /xrutt_facts.EE_MR /errcutoff /is_error /= mid12.
+      * apply lcutoff_wE.
     + eapply xrutt_Ret.
       econstructor; auto.  
-  - apply xrutt_CutL.  
-    by rewrite /xrutt_facts.EE_MR /errcutoff /is_error /= mid12.
+  - apply lcutoff_wE.
 Qed.
 
 End SEM4.

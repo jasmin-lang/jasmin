@@ -21,6 +21,7 @@ Local Open Scope monad_scope.
 From mathcomp Require Import ssreflect ssrfun ssrbool.
 
 Require Import xrutt xrutt_facts rutt_extras.
+Require Import it_sems_core_defs.
 
 Notation prepred E := (forall T, E T -> Prop).
 Notation postpred E := (forall T, E T -> T -> Prop).
@@ -386,6 +387,29 @@ Proof.
 Qed.
 
 End SAFE_XRUTT_RUTT.
+
+
+Section WITH_ERROR.
+
+Context {E E0: Type -> Type} {wE : with_Error E E0}.
+
+Lemma lcutoff_wE (D: Type -> Type)
+  (REv1 : forall A B, D A -> D B -> Prop)
+  (RAns1 : forall A B, D A -> A -> D B -> B -> Prop)
+  (REv2 : forall A B, E A -> E B -> Prop)
+  (RAns2 : forall A B, E A -> A -> E B -> B -> Prop)
+  T1 T2 (RR: T1 -> T2 -> Prop)
+  (e: (utils.error * unit)) (t : itree (D +' E) T2) :
+  xrutt (@EE_MR E (errcutoff (is_error wE)) D) (@EE_MR E nocutoff D)
+    (sum_prerel REv1 REv2) (sum_postrel RAns1 RAns2) RR
+    (Exception.throw e) t.
+Proof.
+  apply xrutt_CutL.
+  by rewrite /xrutt_facts.EE_MR /errcutoff /is_error /= mid12.
+Qed.      
+
+End WITH_ERROR.
+
 
 Section LUTT_RUTT_LUTT.
 

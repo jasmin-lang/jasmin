@@ -188,7 +188,6 @@ lang/distr_extra.v
 lang/dinterp.v
 lang/mix_to_small_steps.v
 lang/mix_to_small_steps_wip.v
-lang/linear_sem_wip.v
 lang/one_varmap.v
 lang/operators.v
 lang/psem.v
