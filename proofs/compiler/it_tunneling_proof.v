@@ -485,4 +485,21 @@ Proof.
   move=> s'; reflexivity.
 Qed.
 
+Lemma tunnel_program_invariants :
+  lp_rip   p = lp_rip   p' /\
+  lp_rsp   p = lp_rsp   p' /\
+  lp_globs p = lp_globs p' /\
+  map fst (lp_funcs p) = map fst (lp_funcs p') /\
+  map lfd_info   (map snd (lp_funcs p)) = map lfd_info   (map snd (lp_funcs p')) /\
+  map lfd_align  (map snd (lp_funcs p)) = map lfd_align  (map snd (lp_funcs p')) /\
+  map lfd_tyin   (map snd (lp_funcs p)) = map lfd_tyin   (map snd (lp_funcs p')) /\
+  map lfd_arg    (map snd (lp_funcs p)) = map lfd_arg    (map snd (lp_funcs p')) /\
+  map lfd_tyout  (map snd (lp_funcs p)) = map lfd_tyout  (map snd (lp_funcs p')) /\
+  map lfd_res    (map snd (lp_funcs p)) = map lfd_res    (map snd (lp_funcs p')) /\
+  map lfd_export (map snd (lp_funcs p)) = map lfd_export (map snd (lp_funcs p')).
+Proof.
+  move: pp'; rewrite /tunnel_program; case: ifP => // _ [?]; subst p'.
+  rewrite /tunnel_lprog /setfuncs /= /tunneling.tunnel_funcs -!map_comp; do!split.
+Qed.
+
 End WITH_PARAMS.
