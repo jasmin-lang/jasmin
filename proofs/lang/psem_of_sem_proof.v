@@ -185,126 +185,6 @@ move => x xs ih [] // v vs s1 s1' h /=; apply: rbindP => s' /(write_lval_sim h) 
 exact: (ih _ _ _ h').
 Qed.
 
-Let Pc s1 c s2 : Prop :=
-  ∀ s1',
-    estate_sim s1 s1' →
-    ∃ s2',
-      estate_sim s2 s2' ∧ sem p ev s1' c s2'.
-
-Let Pi_r s1 i s2 : Prop :=
-  ∀ s1',
-    estate_sim s1 s1' →
-    ∃ s2',
-      estate_sim s2 s2' ∧ sem_i p ev s1' i s2'.
-
-Let Pi s1 i s2 : Prop :=
-  ∀ s1',
-    estate_sim s1 s1' →
-    ∃ s2',
-      estate_sim s2 s2' ∧ sem_I p ev s1' i s2'.
-
-Let Pfor x ws s1 c s2 : Prop :=
-  ∀ s1',
-    estate_sim s1 s1' →
-    ∃ s2',
-      estate_sim s2 s2' ∧ sem_for p ev x ws s1' c s2'.
-
-Let Pfun := sem_call (wsw:= withsubword) p ev.
-
-Lemma psem_call scs m fn va scs' m' vr :
-
-  (forall scs1 scs2 mem1 mem2 o ves vs,
-    exec_syscall (wsw:= nosubword)   scs1 mem1 o ves = ok (scs2, mem2, vs) ->
-    exec_syscall (wsw:= withsubword) scs1 mem1 o ves = ok (scs2, mem2, vs)) ->
-
-  (forall fd scs mem s,
-    init_state (f_extra fd) (p_extra p) ev {| escs := scs; emem := mem; evm := Vm.init |} = ok s ->
-    exists2 s',
-      init_state (f_extra fd) (p_extra p) ev {| escs := scs; emem := mem; evm := Vm.init |} = ok s' &
-      estate_sim s s') ->
-
-  (forall fd mem, finalize (wsw:= nosubword) (f_extra fd) mem = finalize (wsw:= withsubword) (f_extra fd) mem) ->
-
-  sem_call (wsw:= nosubword) p ev scs m fn va scs' m' vr →
-  sem_call (wsw:= withsubword) p ev scs m fn va scs' m' vr.
-Proof.
-move=> hsyscall hinitstate hfinal.
-apply:
-  (sem_call_Ind
-     (Pc := Pc)
-     (Pi_r := Pi_r)
-     (Pi := Pi)
-     (Pfor := Pfor)
-     (Pfun := Pfun))
-  => {m fn va m' vr}.
-- by move => s s' hss'; exists s'; split; first exact: hss'; constructor.
-- move => s1 s2 s3 [ii i] c [] {ii i s1 s2} - ii i s1 s2 _ ihi _ ihc s1' hss'1.
-  case: (ihi s1' hss'1) => s2' [hss'2 hi].
-  case: (ihc s2' hss'2) => s3' [hss'3 hc].
-  by exists s3'; split; first exact: hss'3; econstructor; eauto.
-- move => ii i s1 s2 _ ih s1' hss'1.
-  case: (ih s1' hss'1) => s2' [hss'2 hi].
-  by exists s2'; split; first exact: hss'2; constructor.
-- move => s1 s2 x tg ty e v1 v2 hv1 hv2 hw s1' hss'1.
-  have hv1' := sem_pexpr_sim hss'1 hv1.
-  case: (write_lval_sim hss'1 hw) => s2' [hss'2 hw'].
-  exists s2'; split; first exact: hss'2.
-  by econstructor; eauto.
-- move => s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => vr va /sem_pexprs_sim hva hvr /write_lvals_sim hw s1' hss'1.
-  case: (hw _ hss'1) => s2' [hss'2 hw']; exists s2'; split; first exact: hss'2.
-  econstructor; eauto.
-  by rewrite /sem_sopn (hva) //= hvr.
-- move=> s1 scs1 m1 s2 o xs es ves vs hes ho hw s1' hss'1.
-  have hes' := sem_pexprs_sim hss'1 hes.
-  have /= hss':= estate_sim_scs scs1 (estate_sim_mem m1 hss'1).
-  have [s2' [??]]:= write_lvals_sim hss' hw.
-  exists s2'; split => //.
-  econstructor; eauto.
-  by case: hss'1 => <- <- ?; apply hsyscall.
-- move => s1 s2 e th el /sem_pexpr_sim he _ ih s1' hss'1.
-  case: (ih _ hss'1) => s2' [hss'2 hth].
-  exists s2'; split; first exact hss'2.
-  once (econstructor; eauto; fail).
-- move => s1 s2 e th el /sem_pexpr_sim he _ ih s1' hss'1.
-  case: (ih _ hss'1) => s2' [hss'2 hel].
-  exists s2'; split; first exact hss'2.
-  once (econstructor; eauto; fail).
-- move => s1 s2 s3 s4 a c e ei c' _ ih /sem_pexpr_sim he _ ih' _ ihwh s1' hss'1.
-  case: (ih _ hss'1) => s2' [hss'2 hc].
-  case: (ih' _ hss'2) => s3' [hss'3 hcc'].
-  case: (ihwh _ hss'3) => s4' [hss'4 hwh].
-  exists s4'; split; first exact: hss'4.
-  once (econstructor; eauto; fail).
-- move => s1 s2 a c e ei c' _ ih /sem_pexpr_sim he s1' hss'1.
-  case: (ih _ hss'1) => s2' [hss'2 hc].
-  exists s2'; split; first exact: hss'2.
-  once (econstructor; eauto; fail).
-- move => s1 s2 x d lo hi c vlo vhi /sem_pexpr_sim hlo /sem_pexpr_sim hhi _ ih s1' hss'1.
-  case: (ih _ hss'1) => s2' [hss'2 hc].
-  exists s2'; split; first exact: hss'2.
-  once (econstructor; eauto; fail).
-- by move => s1 x c s1' hss'1; exists s1'; split => //; constructor.
-- move => s1 s2 s3 s4 x w ws c /write_var_sim hw _ ih _ ih' s1' hss'1.
-  case: (hw _ hss'1) => s2' [hss'2 hw'].
-  case: (ih _ hss'2) => s3' [hss'3 hc].
-  case: (ih' _ hss'3) => s4' [hss'4 hf].
-  exists s4'; split; first exact: hss'4.
-  econstructor; eauto.
-- move=> s1 scs2 m2 s2 xs fn args vargs vs
-    /sem_pexprs_sim hargs _ ih /write_lvals_sim hres s1' [hscs hm hvm].
-  rewrite hscs hm in ih.
-  case: (hres (with_scs (with_mem s1' m2) scs2) (And3 erefl erefl hvm)) => s2' [hss'2 hw].
-  exists s2'; split; first exact: hss'2.
-  econstructor; eauto.
-  by apply: hargs; split.
-move => scs1 m scs2 m2 fn fd va va' s0 s1 s2 vr vr' hfn htyin /hinitstate [s0' hinit hsim].
-move=> /(write_vars_sim hsim) [s1' [hss'1 hargs]].
-move=> _ /(_ _ hss'1) [[scs2' m2' vm2']] [] [] /= <- <- {scs2' m2'} hvm ih.
-rewrite /get_var_is (mapM_ext (λ (x : var_i) _, get_var_sim hvm x)) hfinal
-  => hres htyout -> ->.
-econstructor; eauto.
-Qed.
-
 Section IT_SEM.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
@@ -384,33 +264,6 @@ Context
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}.
 
-Lemma psem_call_u (p:uprog) scs m fn va scs' m' vr :
-  sem_call (wsw:= nosubword)   p tt scs m fn va scs' m' vr →
-  sem_call (wsw:= withsubword) p tt scs m fn va scs' m' vr.
-Proof.
-  apply (psem_call (sCP := fun wsw => sCP_unit (wsw := wsw))) => //=.
-  move=> _ ??? [<-]; eexists; eauto.
-  by split => //= x; rewrite !Vm.initP.
-Qed.
-
-Lemma psem_call_s (p:sprog) ev scs m fn va scs' m' vr :
-  sem_call (wsw:= nosubword)   p ev scs m fn va scs' m' vr →
-  sem_call (wsw:= withsubword) p ev scs m fn va scs' m' vr.
-Proof.
-  apply (psem_call (sCP := fun wsw => sCP_stack (wsw := wsw))) => //=.
-  clear.
-  move=> fd scs mem s.
-  rewrite /init_stk_state; t_xrbindP => mem' -> hw.
-  have hsim : st_eq (wsw1:= nosubword) (wsw2:= withsubword) tt
-                 {| escs := scs; emem := mem'; evm := Vm.init |}
-                 {| escs := scs; emem := mem'; evm := Vm.init |}.
-  + by split => //= ?; rewrite !Vm.initP.
-  have [s' [hsim' hw']] := write_vars_sim hsim hw.
-  by exists s'.
-Qed.
-
-Section IT_SEM.
-
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
 Lemma it_psem_call_u (p:uprog) ev fn :
@@ -435,7 +288,5 @@ Proof.
   have [s' [hsim' hw']] := write_vars_sim hsim hw.
   by exists s'.
 Qed.
-
-End IT_SEM.
 
 End INSTANCE.

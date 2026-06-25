@@ -50,7 +50,6 @@ Require Import
   stack_zeroization_proof
   wint_word_proof
 .
-Require Import compiler_proof.
 
 Require Import
   arch_decl
@@ -61,8 +60,361 @@ Require Import
 
 Require Import asm_invariant hoare_valid.
 Require Import xrutt xrutt_facts.
+Import Utf8.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
+Section SHARED.
+
+Context
+  {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
+  `{asm_e : asm_extra} {call_conv : calling_convention} {asm_scsem : asm_syscall_sem}
+  {lowering_options : Type}
+  (aparams : architecture_params lowering_options)
+  (haparams : h_architecture_params aparams)
+  (cparams : compiler_params lowering_options).
+
+Hypothesis print_uprogP : forall s p, cparams.(print_uprog) s p = p.
+Hypothesis print_sprogP : forall s p, cparams.(print_sprog) s p = p.
+Hypothesis print_linearP : forall s p, cparams.(print_linear) s p = p.
+
+#[local] Existing Instance progUnit.
+
+Lemma compiler_third_part_meta entries (p p' : sprog) :
+  compiler_third_part aparams cparams entries p = ok p' ->
+  p_extra p' = p_extra p.
+Proof.
+  rewrite /compiler_third_part.
+  t_xrbindP => pa hpa _ pb hpb.
+  have! [_ ok_pa] := (dead_code_prog_tokeep_meta hpa).
+  have! [] := (dead_code_prog_tokeep_meta hpb).
+  rewrite !print_sprogP /= => _ ok_pb <- {p'}.
+  by rewrite ok_pb ok_pa.
+Qed.
+
+Lemma compiler_third_part_invariants entries p p' :
+  compiler_third_part aparams cparams entries p = ok p' ->
+  forall fn fd, get_fundef p.(p_funcs) fn = Some fd ->
+  exists fd', get_fundef p'.(p_funcs) fn = Some fd' /\
+  fd.(f_extra).(sf_align_args) = fd'.(f_extra).(sf_align_args).
+Proof.
+  rewrite /compiler_third_part.
+  t_xrbindP => pa hpa.
+  rewrite 2!print_sprogP /= => check_pa pb hpb.
+  rewrite print_sprogP => <-{p'}.
+  move=> fn fd ok_fd.
+  have [fda ok_fda get_fda] := [elaborate
+    dead_code_prog_tokeep_get_fundef hpa ok_fd].
+  rewrite /check_sprog in check_pa.
+  have [fda' [get_fda' check_fda']] := [elaborate
+    allocation_proof.all_checked (pT:=progStack)
+      (p2:={| p_funcs := regalloc cparams (p_funcs pa); p_globs := p_globs pa; p_extra := p_extra pa |})
+      check_pa get_fda].
+  have [fdb ok_fdb get_fdb] := [elaborate
+    dead_code_prog_tokeep_get_fundef hpb get_fda'].
+  exists fdb; split=> //.
+  have [_ _ ->] := dead_code_fd_meta ok_fdb.
+  have /= [_ _ _ <-] := [elaborate check_fundef_meta check_fda'].
+  have [_ _ ->] := dead_code_fd_meta ok_fda.
+  done.
+Qed.
+
+Lemma allNone_nth {A} (m: seq (option A)) i :
+  allNone m ->
+  nth None m i = None.
+Proof.
+  elim: m i.
+  - by move => ? _; exact: nth_nil.
+  by case => // m ih [].
+Qed.
+
+Lemma check_wf_ptrP entries p ao fn fd :
+  check_wf_ptr entries p ao = ok tt ->
+  fn \in entries ->
+  get_fundef p.(p_funcs) fn = Some fd ->
+  all2 (fun x pi => wptr_status x == omap pp_writable pi)
+    (f_params fd) (sao_params (ao fn)) /\
+  let n := find (fun x => wptr_status x != Some true) fd.(f_params) in
+  sao_return (ao fn) = [seq Some i | i <- iota 0 n] ++ nseq (size (sao_return (ao fn)) - n) None.
+Proof.
+  move=> hcheck /InP ok_fn get_fd.
+  set n := find (fun x => wptr_status x != Some true) fd.(f_params).
+  move: hcheck; rewrite /check_wf_ptr.
+  t_xrbindP=> /allMP -/(_ _ ok_fn); rewrite get_fd => /assertP hparams.
+  move=> /allMP -/(_ _ ok_fn); rewrite get_fd -/n => /assertP /andP [/eqP hl hr].
+  split=> //.
+  rewrite -{1}(cat_take_drop n (sao_return _)).
+  apply f_equal2 => //.
+  apply (@eq_from_nth _ None).
+  + by rewrite size_drop size_nseq.
+  move=> i; rewrite size_drop => hi.
+  rewrite nth_nseq hi.
+  exact: allNone_nth hr.
+Qed.
+
+Lemma keep_only_false {A} (l : seq A) n :
+  size l <= n ->
+  keep_only l (nseq n false) = [::].
+Proof. by elim: n l => [|n ih] [|a l] //= /ih. Qed.
+
+Lemma keep_only_true {A} (l : seq A) n :
+  keep_only l (nseq n true) = l.
+Proof. by elim: n l => [//|n ih] [//|a l] /=; rewrite ih. Qed.
+
+Lemma keep_only_cat {A} (l1 l2 : seq A) (tokeep1 tokeep2 : seq bool) :
+  size l1 = size tokeep1 ->
+  keep_only (l1 ++ l2) (tokeep1 ++ tokeep2) =
+  keep_only l1 tokeep1 ++ keep_only l2 tokeep2.
+Proof. by elim: tokeep1 l1 => [|b tokeep1 ih] [|a1 l1] //= [] /ih ->; case: b. Qed.
+
+Definition value_uincl_or_in_mem {A} (m : mem) (o : option A) (v v' : value) :=
+  match o with
+  | None => value_uincl v v'
+  | Some _ => value_in_mem m v v'
+  end.
+
+Definition size_glob (p:sprog) := Z.of_nat (size (sp_globs (p_extra p))).
+Definition get_wptrs (p:uprog) fn :=
+  oapp (fun fd => map wptr_status fd.(f_params)) [::] (get_fundef p.(p_funcs) fn).
+Definition get_align_args (p:sprog) fn :=
+  oapp (fun fd => fd.(f_extra).(sf_align_args)) [::] (get_fundef p.(p_funcs) fn).
+Definition get_nb_wptr (p:uprog) fn :=
+  find (fun wptr => wptr != Some true) (get_wptrs p fn).
+
+Lemma value_eq_or_in_mem_any_option {A B} (os1 : seq (option A)) (os2 : seq (option B)) m vs vs' :
+  List.Forall2 (fun o1 o2 => isSome o1 = isSome o2) os1 os2 ->
+  Forall3 (value_eq_or_in_mem m) os1 vs vs' ->
+  Forall3 (value_eq_or_in_mem m) os2 vs vs'.
+Proof.
+  move=> heq heqinmem.
+  elim: {os1 os2} heq vs vs' heqinmem.
+  move=> [|??] [|??] /List_Forall3_inv //=.
+  + by move=> _; constructor.
+  move=> o1 o2 os1 os2 heq _ ih [|??] [|??] /List_Forall3_inv // [heqinmem /ih{}ih].
+  constructor=> //.
+  by case: o1 o2 heq heqinmem => [?|] [?|].
+Qed.
+
+Lemma value_uincl_value_in_mem_trans {m} v2 v1 v3 :
+  value_uincl v1 v2 -> value_in_mem m v2 v3 -> value_in_mem m v1 v3.
+Proof.
+  move=> huincl [p [-> hread]].
+  exists p; split; first by reflexivity.
+  by move=> off w /(value_uincl_get_val_byte huincl); apply hread.
+Qed.
+
+End SHARED.
+
+Section PROOF.
+
+Context
+  {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
+  `{asm_e : asm_extra} {call_conv : calling_convention} {asm_scsem : asm_syscall_sem}
+  {lowering_options : Type}
+  (aparams : architecture_params lowering_options)
+  (haparams : h_architecture_params aparams)
+  (cparams : compiler_params lowering_options).
+
+Hypothesis print_uprogP : forall s p, cparams.(print_uprog) s p = p.
+Hypothesis print_sprogP : forall s p, cparams.(print_sprog) s p = p.
+Hypothesis print_linearP : forall s p, cparams.(print_linear) s p = p.
+
+#[local]
+Existing Instance progUnit.
+
+Lemma compiler_third_part_alloc_ok entries (p p' : sprog) (fn: funname) (m: mem) :
+  compiler_third_part aparams cparams entries p = ok p' →
+  alloc_ok p' fn m →
+  alloc_ok p fn m.
+Proof.
+  rewrite /compiler_third_part; t_xrbindP=> pa ok_pa.
+  rewrite !print_sprogP => ok_pb pc ok_pc.
+  rewrite print_sprogP => <- {p'}.
+  rewrite /alloc_ok => alloc_pc fd get_fd.
+  have [fda ok_fda get_fda] := [elaborate
+    (dead_code_prog_tokeep_get_fundef ok_pa get_fd)].
+  have [fdb [get_fdb ok_fdb]] :=
+    allocation_proof.all_checked (sip := sip_of_asm_e) ok_pb get_fda.
+  have [fdc ok_fdc get_fdc] := [elaborate
+    (dead_code_prog_tokeep_get_fundef ok_pc get_fdb)].
+  move: (alloc_pc _ get_fdc).
+  have [_ _ ->]:= dead_code_fd_meta ok_fdc.
+  rewrite /sf_total_stack.
+  have [ <- <- <- ] := [elaborate @check_fundef_meta _ _ _ _ _ _ _ _ _ (_, fda) _ _ _ ok_fdb].
+  by have [_ _ ->]:= dead_code_fd_meta ok_fda.
+Qed.
+
+Lemma ptr_eq_wf_args glob_size gd m mi wptrs aligns va1 va2 va' :
+  Forall3 (fun o v v' => o <> None -> v = v') wptrs va1 va2 ->
+  wf_args glob_size gd m mi wptrs aligns va1 va' ->
+  wf_args glob_size gd m mi wptrs aligns va2 va'.
+Proof.
+  move=> heqs hargs.
+  move=> i; move: (hargs i); rewrite /wf_arg.
+  case ok_writable: nth => [writable|//].
+  move=> [p [-> hargp]].
+  exists p; split; first by reflexivity.
+  have hi := nth_not_default ok_writable ltac:(discriminate).
+  have := Forall3_nth heqs None (Vbool true) (Vbool true) hi;
+    rewrite ok_writable => /(_ ltac:(discriminate)) <-.
+  case: hargp => halign hover hvalid hfresh hwnglob hdisj.
+  split=> //.
+  move=> hw j vaj pj neq_ij /isSomeP [writablej ok_writablej] ok_vaj ok_pj.
+  apply: (hdisj hw _ _ _ neq_ij _ _ ok_pj).
+  + by rewrite ok_writablej.
+  have hj := nth_not_default ok_writablej ltac:(discriminate).
+  have := Forall3_nth heqs None (Vbool true) (Vbool true) hj;
+    rewrite ok_writablej => /(_ ltac:(discriminate)) ->.
+  done.
+Qed.
+
+Lemma ptr_eq_mem_unchanged_params m1 m2 m3 wptrs vs1 vs2 vs' :
+  Forall3 (fun o v v' => o <> None -> v = v') wptrs vs1 vs2 ->
+  mem_unchanged_params m1 m2 m3 wptrs vs2 vs' ->
+  mem_unchanged_params m1 m2 m3 wptrs vs1 vs'.
+Proof.
+  move=> heqs hunch p hvalid hnvalid hdisj.
+  apply (hunch p hvalid hnvalid).
+  elim: {wptrs vs1 vs'} hdisj vs2 heqs {hunch}.
+  + move=> [|??] /List_Forall3_inv // _.
+    by constructor.
+  move=> wptr v1 v' wptrs vs1 vs' hdisj _ ih [|v2 vs2]
+    /List_Forall3_inv //= [heq /ih{}ih].
+  constructor=> //.
+  case: wptr heq hdisj => [writable|//].
+  by move=> /(_ ltac:(discriminate)) <-.
+Qed.
+
+Lemma compiler_back_end_meta entries (p: sprog) (tp: lprog) :
+  compiler_back_end aparams cparams entries p = ok tp →
+  [/\
+     lp_rip tp = p.(p_extra).(sp_rip),
+     lp_rsp tp = p.(p_extra).(sp_rsp) &
+     lp_globs tp = p.(p_extra).(sp_globs)
+  ].
+Proof.
+  rewrite /compiler_back_end; t_xrbindP => _ _ lp ok_lp.
+  rewrite print_linearP => zp ok_zp.
+  rewrite print_linearP => tp' ok_tp.
+  rewrite print_linearP => ?; subst tp'.
+  have! [<- [<- [<- _]]] := (tunnel_program_invariants ok_tp).
+  have! [<- <- <-] := (stack_zeroization_lprog_invariants ok_zp).
+  split.
+  - exact: lp_ripE ok_lp.
+  - exact: lp_rspE ok_lp.
+  exact: lp_globsE ok_lp.
+Qed.
+
+
+Lemma compiler_back_end_to_asm_meta entries (p : sprog) (xp : asm_prog) :
+  compiler_back_end_to_asm aparams cparams entries p = ok xp
+  -> asm_globs xp = (sp_globs (p_extra p)).
+Proof.
+  rewrite /compiler_back_end_to_asm.
+  t_xrbindP=> tp /compiler_back_end_meta[] _ _ <-.
+  by move=> /assemble_progP [_ <-].
+Qed.
+
+(* The memory has an allocated stack region that is large enough to hold the local variables of the function and all functions it may call.
+  The stack region is described by two pointers: [top-stack m] at the bottom and [root] (held in RSP) at the top
+ *)
+Definition enough_stack_space
+  (xp : asm_prog) (fn : funname) (root : pointer) (m : mem) : Prop :=
+  forall fd : asm_fundef,
+    get_fundef xp.(asm_funcs) fn = Some fd
+    -> let stk_sz := (wunsigned root - wunsigned (top_stack m))%Z in
+       (0 <= asm_fd_total_stack fd <= stk_sz)%Z.
+
+
+Lemma enough_stack_space_alloc_ok
+  entries (sp : sprog) (xp : asm_prog) (fn : funname) (m m' : mem) :
+  compiler_back_end_to_asm aparams cparams entries sp = ok xp
+  -> fn \in entries
+  -> (wunsigned (stack_limit m) <= wunsigned (top_stack m'))%Z
+  -> enough_stack_space xp fn (top_stack m) m'
+  -> alloc_ok sp fn m.
+Proof.
+  rewrite /compiler_back_end_to_asm /compiler_back_end.
+  t_xrbindP => ? /allMP ok_export _ lp ok_lp.
+  rewrite print_linearP => zp ok_zp.
+  rewrite print_linearP => tp ok_tp.
+  rewrite print_linearP => <- ok_xp /InP ok_fn M S.
+  move => fd get_fd.
+  move: ok_export => /(_ _ ok_fn); rewrite get_fd => /assertP export.
+  split; last by rewrite export.
+  have! get_lfd := (get_fundef_p' ok_lp get_fd).
+  have! [zfd ok_zfd get_zfd] := (stack_zeroization_lprog_get_fundef ok_zp get_lfd).
+  have! get_tfd := (get_fundef_tunnel_program ok_tp get_zfd).
+  have! [fd' get_fd'] := (ok_get_fundef ok_xp get_tfd).
+  case/assemble_fdI => _ _ [] ? [] ? [] ? [] _ _ _ ? _; subst fd'.
+  move: get_fd' => /S /=.
+  rewrite /lfd_total_stack /=.
+  have [ _ <- _ _ _ _ <- _ <- _] /= := stack_zeroization_lfd_invariants ok_zfd.
+  rewrite /allocatable_stack /sf_total_stack export.
+  move: (wunsigned (stack_limit m)) (wunsigned (top_stack m)) (wunsigned (top_stack m')) M => L T T'.
+  Lia.lia.
+Qed.
+
+(* Agreement relation between source and target memories.
+   Expressed in a way that streamlines the composition of compiler-correctness theorems (front-end and back-end).
+  TODO: There might be an equivalent definition that is clearer.
+*)
+
+Record mem_agreement_with_ghost (m m': mem) (gd: pointer) (data: seq u8) (ma_ghost: mem) : Prop :=
+  { ma_extend_mem : extend_mem m ma_ghost gd data
+  ; ma_match_mem : match_mem ma_ghost m'
+  ; ma_stack_stable : stack_stable m ma_ghost
+  ; ma_stack_range : (wunsigned (stack_limit ma_ghost) <= wunsigned (top_stack m'))%Z
+  }.
+
+Definition mem_agreement (m m': mem) (gd: pointer) (data: seq u8) : Prop :=
+  ∃ ma_ghost, mem_agreement_with_ghost m m' gd data ma_ghost.
+
+Definition get_asm_align_args (xp:asm_prog) fn :=
+  oapp (fun xd => xd.(asm_fd_align_args)) [::] (get_fundef xp.(asm_funcs) fn).
+
+Lemma compiler_back_end_to_asm_get_fundef entries sp xp fn :
+  compiler_back_end_to_asm aparams cparams entries sp = ok xp ->
+  fn \in entries ->
+  exists sfd xd, [/\
+    get_fundef sp.(p_funcs) fn = Some sfd,
+    get_fundef xp.(asm_funcs) fn = Some xd,
+    xd.(asm_fd_export) &
+    sfd.(f_extra).(sf_align_args) = xd.(asm_fd_align_args)].
+Proof.
+  move=> ok_xp ok_fn.
+  move: ok_xp; rewrite /compiler_back_end_to_asm.
+  t_xrbindP=> lp ok_lp ok_xp.
+  move: ok_lp; rewrite /compiler_back_end.
+  t_xrbindP=> hcheck _ lp1 ok_lp1 lp2.
+  rewrite print_linearP => ok_lp2 lp3.
+  rewrite print_linearP => ok_lp3.
+  rewrite print_linearP => ?; subst lp.
+
+  have [sfd [get_sfd ranone]]:
+    exists sfd,
+      get_fundef sp.(p_funcs) fn = Some sfd
+      /\ is_RAnone sfd.(f_extra).(sf_return_address).
+  + move: hcheck; rewrite /check_export.
+    have /InP ok_fn' := ok_fn.
+    move=> /allMP -/(_ fn ok_fn').
+    case: get_fundef => //.
+    t_xrbindP=> sfd ranone.
+    by exists sfd.
+
+  have get_lfd1 := [elaborate get_fundef_p' ok_lp1 get_sfd].
+  have [lfd2 ok_lfd2 get_lfd2] := [elaborate
+    stack_zeroization_lprog_get_fundef ok_lp2 get_lfd1].
+  have get_lfd3 := [elaborate get_fundef_tunnel_program ok_lp3 get_lfd2].
+  have [xd get_xd ok_xd] := [elaborate ok_get_fundef ok_xp get_lfd3].
+
+  exists sfd, xd.
+  move/assemble_fdI: ok_xd => [_ _ [_ [_ [_ [_ _ _ {-2}-> _]]]]] /=.
+  move/stack_zeroization_lfd_invariants: ok_lfd2 => [_ _ _ _ _ _ <- _ _ [_ <-]] /=.
+  by split.
+Qed.
+
+End PROOF.
 
 Section IT.
 
@@ -271,7 +623,7 @@ apply: wiequiv_f_trans_EU_EU; first exact: it_live_range_splittingP ok_ph.
 apply: wiequiv_f_trans_EU_EU; first exact: RGP.it_remove_globP ok_pi.
 apply: wiequiv_f_trans_EE_EU; first exact: (it_load_constants_progP ok_plc).
 apply: wiequiv_f_trans_EE_EU; first exact:
-  (hlop_it_lower_callP
+  (hlop_lower_callP
     (hap_hlop haparams)
     (lowering_opt cparams)
     (warning cparams)
@@ -499,7 +851,7 @@ apply: (
     by move=> _ ? <-; apply isSome_omap.
   + rewrite /alloc_ok get_fd2 => _ [<-].
     have :=
-      compiler_third_part_alloc_ok haparams print_sprogP ok_sp hok get_fd3.
+      compiler_third_part_alloc_ok print_sprogP ok_sp hok get_fd3.
     by rewrite -fd2_fd3_extra.
 - move=> s1 s2 _ r1 r3 [hscs_s1] hmem_s1 hwf_s1 heqinmem halloc [_ <-] [].
   move=> r2 [hscs1 m'_mi' vr2_wf vr2_eqinmem U] [hscs2 hmem2 vr_vr1].
@@ -599,7 +951,7 @@ apply: (
 apply: (
   wiequiv_f_trans
     _ _
-    (hlap_it_lower_addressP (hap_hlap haparams) ok_p3)
+    (hlap_lower_addressP (hap_hlap haparams) ok_p3)
     (it_compiler_third_part ok_sp)
 ).
 - exact: rpreF_trans_eq_eq_eq.
@@ -1059,7 +1411,7 @@ rewrite ([elaborate lp_rspE ok_lp]) -/szi => /(_ _ rsp_in_callee_saved) wsz.
 (* Tunneling *)
 have get_tfd := [elaborate get_fundef_tunnel_program ok_tp get_zfd].
 have [rip_zp_tp [rsp_zp_tp [globs_zp_tp _]]] := [elaborate
-  tunneling_proof.tunnel_program_invariants ok_tp].
+  it_tunneling_proof.tunnel_program_invariants ok_tp].
 set tfd := (X in _ = Some X) in get_tfd.
 
 exists tfd; split.

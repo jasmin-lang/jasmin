@@ -29,30 +29,6 @@ Record h_lowering_params
   {
     hlop_lower_callP :
       forall
-        (pT : progT)
-        (sCP : semCallParams)
-        (p : prog)
-        (ev : extra_val_t)
-        (options : lowering_options)
-        (warning : instr_info -> warning_msg -> instr_info)
-        (fv : lowering.fresh_vars)
-        (_ : lop_fvars_correct loparams fv (p_funcs p))
-        (f : funname)
-        (scs: syscall_state_t) (mem : low_memory.mem)
-        (scs': syscall_state_t) (mem' : low_memory.mem)
-        (va vr : seq value),
-        sem_call p ev scs mem f va scs' mem' vr
-        -> let lprog :=
-             lowering.lower_prog
-               (lop_lower_i loparams)
-               options
-               warning
-               fv
-               p
-           in
-           sem_call lprog ev scs mem f va scs' mem' vr;
-    hlop_it_lower_callP :
-      forall
         {pT : progT}
         {sCP : semCallParams}
         {E E0: Type -> Type}
@@ -98,13 +74,6 @@ Record h_lower_addressing_params
             fd.(f_extra) = fd'.(f_extra)];
 
     hlap_lower_addressP :
-      forall fresh_reg (p p':_sprog),
-      lap_lower_address laparams fresh_reg p = ok p' ->
-      forall ev scs mem f vs scs' mem' vr,
-      sem_call (pT:=progStack) p ev scs mem f vs scs' mem' vr ->
-      sem_call (pT:=progStack) p' ev scs mem f vs scs' mem' vr;
-
-    hlap_it_lower_addressP :
       forall
         {E E0: Type -> Type}
         {wE : with_Error E E0}
