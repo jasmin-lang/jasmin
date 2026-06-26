@@ -30,7 +30,7 @@ do
         make $PARAM $J
         echo CHECK CT
         make $PARAM $J check-ct
-        if [ "$i" == "x86-64 ref" ]
+        if [ "$i" = "x86-64 ref" ]
         then
             echo CHECK SCT
             make $PARAM $J check-sct
