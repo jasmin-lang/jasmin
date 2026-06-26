@@ -9,6 +9,6 @@ export fn addNumber() {
   _,_,_,_,_,_,r = #IMUL_64  (A, B);
 
   if (r != 42){
-     while (true) { A = 1; }
+     #[ensure_termination]while (true) { A = 1; }
   }
 }

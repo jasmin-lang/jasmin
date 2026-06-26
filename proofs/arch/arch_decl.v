@@ -644,6 +644,7 @@ Definition is_ABReg r :=
 Class calling_convention :=
   { callee_saved   : seq asm_typed_reg
   ; callee_saved_not_bool : all (fun r => ~~is_ABReg r) callee_saved
+  ; callee_saved_has_rsp  : ARReg ad_rsp \in callee_saved
   ; call_reg_args  : seq reg_t
   ; call_xreg_args : seq xreg_t
   ; call_reg_ret   : seq reg_t

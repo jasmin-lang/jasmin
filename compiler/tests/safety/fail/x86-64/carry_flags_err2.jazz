@@ -6,7 +6,7 @@ fn test() -> reg u64 {
   i = 0;
   cf, i -= 1;
   if (cf){
-    while (true) { i += 1;}
+    #[ensure_termination]while (true) { i += 1;}
   }
 
   return i;

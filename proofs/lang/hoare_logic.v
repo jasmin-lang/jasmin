@@ -710,6 +710,56 @@ Proof.
   by apply hPPf.
 Qed.
 
+(* FIXME: hoare_call seems to be a consequence of this lemma *)
+Lemma hoare_call' (Pf : PreF) (Qf : PostF) Rv P Q Qerr ii xs fn es :
+  (forall s e, P s -> Qerr e -> rInvErr s e) ->
+  rhoare P (fun s => sem_pexprs (~~ direct_call) (p_globs p) s es) Rv Qerr ->
+  (forall s vs, P s -> Rv vs -> Pf fn (mk_fstate vs s)) ->
+  (forall vs, Rv vs -> rhoare PredT (fun s => sem_pre p fn (mk_fstate vs s)) PredT Qerr) ->
+  hoare_f_ii Pf ii fn Qf ->
+  (forall vs fs fr,
+      Rv vs ->
+      hoare_f_ii Pf ii fn Qf -> Qf fn fs fr ->
+      rhoare PredT
+        (fun _:estate => sem_post p fn vs fr) PredT Qerr) ->
+  (forall fs fr,
+    Pf fn fs -> Qf fn fs fr ->
+    rhoare (fun i => P i /\ exists vs, fs = mk_fstate vs i)
+      (upd_estate (~~ direct_call) (p_globs p) xs fr) Q Qerr
+  )->
+  hoare P [:: MkI ii (Ccall xs fn es)] Q.
+Proof.
+  move=> herr hes hPPf hpre hCall hpost hPQf; rewrite /hoare /isem_cmd_ /=.
+  apply khoare_bind with Q; last by apply khoare_ret.
+  apply khoare_read with Rv.
+  + by apply (khoare_iresult herr) => >; apply: hes.
+  move=> vs hvs; apply khoare_eq_pred => s0.
+  set (fs := mk_fstate vs s0).
+  apply khoare_read with PredT.
+  + apply khoare_iresult with Qerr.
+    + move => s e [] heq;subst.
+      exact: herr.
+    move => s [] heq hpre'; subst.
+    by apply: (hpre _ hvs).
+  move => _ _.
+  apply khoare_read with (Qf fn fs).
+  + by move=> _ [-> hP]; apply/hCall/hPPf.
+  move=> fr hQf.
+  apply khoare_read with PredT.
+  + apply khoare_iresult with Qerr.
+    + move => s e [] heq;subst.
+      exact: herr.
+    move => s [] heq hpre';subst.
+    by apply : (hpost _ _ _ hvs hCall hQf).
+  move => _ _.
+  apply khoare_iresult with Qerr.
+  + by move=> > []; auto.
+  move=> _ [-> hP]; apply (hPQf fs fr) => //.
+  - by apply hPPf.
+    split => //.
+    by exists vs.
+Qed.
+
 Definition hoare_fun_body_hyp (Pf : PreF) fn (Qf : PostF) Qerr :=
   forall fs,
   Pf fn fs ->
@@ -949,18 +999,16 @@ Proof. by apply hoare_while. Qed.
 Lemma whoare_call (Pf : PreF) (Qf : PostF) Rv P Q ii xs fn es :
   rhoare P (fun s => sem_pexprs (~~ direct_call) (p_globs p) s es) Rv PredT ->
   (forall s vs, P s -> Rv vs -> Pf fn (mk_fstate vs s)) ->
-  (forall vs, Rv vs -> rhoare PredT (fun s => sem_pre p fn (mk_fstate vs s)) PredT PredT) ->
   whoare_f p ev Pf ii fn Qf ->
-  (forall vs fs fr,
-      Rv vs ->
-      whoare_f p ev Pf ii fn Qf -> Qf fn fs fr ->
-      rhoare PredT
-        (fun _:estate => sem_post p fn vs fr) PredT PredT) ->
   (forall fs fr,
     Pf fn fs -> Qf fn fs fr ->
     rhoare P (upd_estate (~~ direct_call) (p_globs p) xs fr) Q PredT) ->
   whoare p ev P [:: MkI ii (Ccall xs fn es)] Q.
-Proof. by apply hoare_call. Qed.
+Proof.
+  move=> h1 h2 h3. apply hoare_call with Rv => //.
+  + by move=> * ?; case: sem_pre.
+  by move=> * ? ; case: sem_post.
+Qed.
 
 End WHOARE_CORE.
 

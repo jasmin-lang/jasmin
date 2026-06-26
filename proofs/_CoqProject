@@ -34,6 +34,7 @@ arch/arch_extra.v
 arch/arch_sem.v
 arch/arch_utils.v
 arch/arm_expand_imm.v
+arch/asm_invariant.v
 arch/asm_gen.v
 arch/asm_gen_proof.v
 arch/label.v
@@ -66,8 +67,6 @@ compiler/array_init.v
 compiler/array_init_proof.v
 compiler/compiler_util.v
 compiler/compiler.v
-compiler/compiler_proof.v
-compiler/it_compiler_proof.v
 compiler/constant_prop.v
 compiler/constant_prop_proof.v
 compiler/dead_calls.v
@@ -75,10 +74,14 @@ compiler/dead_calls_proof.v
 compiler/dead_code.v
 compiler/dead_code_proof.v
 compiler/direct_call_proof.v
+compiler/hoare_valid.v
 compiler/inline.v
 compiler/inline_proof.v
 compiler/insert_renaming.v
 compiler/insert_renaming_proof.v
+compiler/it_compiler_proof.v
+compiler/it_linearization_proof.v
+compiler/it_merge_varmaps_proof.v
 compiler/jasmin_compiler.v
 compiler/lea.v
 compiler/lea_proof.v
@@ -93,7 +96,6 @@ compiler/lower_spill_proof.v
 compiler/makeReferenceArguments.v
 compiler/makeReferenceArguments_proof.v
 compiler/merge_varmaps.v
-compiler/merge_varmaps_proof.v
 compiler/post_unrolling_check.v
 compiler/propagate_inline.v
 compiler/propagate_inline_proof.v
@@ -127,7 +129,6 @@ compiler/stack_alloc_proof_2.v
 compiler/stack_zeroization.v
 compiler/stack_zeroization_proof.v
 compiler/tunneling.v
-compiler/tunneling_proof.v
 compiler/tunneling_proof_2.v
 compiler/unionfind.v
 compiler/unionfind_proof.v
@@ -166,6 +167,7 @@ lang/hoare_logic.v
 lang/ident.v
 lang/it_sems_core.v
 lang/it_sems_core_defs.v
+lang/it_sems_one_varmap.v
 lang/linear.v
 lang/linear_facts.v
 lang/linear_sem.v
