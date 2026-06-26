@@ -134,7 +134,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
        and type asm_op = asm_op
        and type extra_op = extra_op) visit_prog_after_pass prog cprog =
   let module RA = Regalloc.Regalloc (Arch) in
-  let module StackAlloc = StackAlloc.StackAlloc (Arch) in
+  let module SA = StackAlloc.StackAlloc (Arch) in
   let fdef_of_cufdef fn cfd = Conv.fdef_of_cufdef (fn, cfd) in
   let cufdef_of_fdef fd = snd (Conv.cufdef_of_fdef fd) in
 
@@ -161,7 +161,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
   in
 
   let memory_analysis up : Compiler.stack_alloc_oracles =
-    StackAlloc.memory_analysis
+    SA.memory_analysis
       pp_sr
       (Printer.pp_err ~debug:!debug)
       ~debug:!debug up
@@ -425,6 +425,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.dead_vars_ufd;
       Compiler.dead_vars_sfd;
       Compiler.pp_sr;
+      Compiler.apply_ret_annot = StackAlloc.apply_ret_annot;
     }
   in
 

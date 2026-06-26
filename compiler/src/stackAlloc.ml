@@ -3,6 +3,12 @@ open Wsize
 open Prog
 open Regalloc
 
+let apply_ret_annot f (fi : FInfo.t) : FInfo.t =
+  let (loc, annot, cc, ri) = fi in
+  let __ = let rec f _ = Obj.repr f in Obj.repr f in (* we reuse the kind of hack used by Rocq extraction *)
+  let ri = { ri with ret_annot = Obj.magic (f __ (Obj.magic ri.ret_annot)) } in
+  (loc, annot, cc, ri)
+
 let pp_var = Printer.pp_var ~debug:true
 
 let pp_var_ty fmt x =
@@ -235,7 +241,7 @@ let memory_analysis pp_sr pp_err ~debug up =
   let deadcode (extra, fd) =
     let (fn, cfd) = Conv.cufdef_of_fdef fd in
     let fd = 
-      match Dead_code.dead_code_fd Arch.asmOp Compiler.default_LoopCounter Arch.aparams.ap_is_move_op false tokeep fn cfd with
+      match Dead_code.dead_code_fd Arch.asmOp Compiler.default_LoopCounter Arch.aparams.ap_is_move_op apply_ret_annot false tokeep fn cfd with
       | Utils0.Ok cfd -> Conv.fdef_of_cufdef (fn, cfd)
       | Utils0.Error _ -> assert false in 
     (extra,fd) in
