@@ -10,10 +10,10 @@ a function is safe to call from an initial memory with some arguments whenever t
 
 Broadly speaking, safety entails:
 
-  - termination;
   - array accesses are in bounds;
   - memory accesses are valid, i.e., are properly aligned and target allocated memory;
   - arithmetic operations are applied to valid arguments.
+Optionally you can require to ensure loop termination.
 
 Jasmin functions are usually not *absolutely* safe: it may be possible to find initial states from which the execution is not properly defined. For instance, if a function accesses memory by dereferencing a pointer given as argument, said pointer must target allocated memory.
 
@@ -36,7 +36,7 @@ Analysing function add16
 
 Memory ranges:
   mem_in: [0; 128]
-  
+
 * Rel:
 {mem_in ≥ 0, inv_in ≥ 0, mem_in ≤ 128, inv_in ≤ 18446744073709551615}
 mem_in ∊ [0; 128]
@@ -46,7 +46,7 @@ mem_in ∊ [0; 128]
 This states that the function is memory safe, assuming that:
 - the input `in` points to an allocated memory region of at least 128 bytes;
 - the `Rel` part can be ignored here (we detail it in the next example);
-- the input `in` must be aligned to 64 bits. 
+- the input `in` must be aligned to 64 bits.
 
 
 ## Example: `memcmp.jazz`
@@ -70,16 +70,22 @@ Analyzing function memcmp
 
 Memory ranges:
   mem_n: [0; 0]
-  
+
 * Rel:
 {inv_n ≤ 18446744073709551615, 8·inv_n ≥ mem_q, 8·inv_n ≥ mem_p, mem_q ≥ 0, mem_p ≥ 0}
 mem_p ∊ [0; 147573952589676412920]
 mem_q ∊ [0; 147573952589676412920]
 ```
-Here, because the allocated memory regions pointed by `p` and `q` are of size depending on the initial value of `n`, we must check the `Rel` entry. This entry gives the allocated memory region safety pre-condition through a conjunctions of linear inequalities. 
+Here, because the allocated memory regions pointed by `p` and `q` are of size depending on the initial value of `n`, we must check the `Rel` entry. This entry gives the allocated memory region safety pre-condition through a conjunctions of linear inequalities.
 
 For example, we see that `mem_q` (the memory region corresponding to input pointer `q`) is such that:
 ```
 0 ≤ mem_q ≤ 8·inv_n
 ```
 Where `inv_n` is the initial value of input `n`. That is, `q` must point to an allocated memory region of length `8·n`.
+
+## Ensuring loop termination
+
+Loops can be annotated with `#[ensure_termination]` indicating to the safety checker that you want to ensure that
+the loop terminate in a finite number of iteration.
+
