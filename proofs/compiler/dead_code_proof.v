@@ -31,7 +31,7 @@ Context
 
 Section PROOF.
 
-  Context (apply_ret_annot : (forall A, seq A -> seq A) -> fun_info -> fun_info).
+  Context (apply_ret_annot : seq bool -> fun_info -> fun_info).
 
   Variables (do_nop : bool) (onfun : funname -> option (seq bool)) (p p' : prog) (ev:extra_val_t).
   Notation gd := (p_globs p).
@@ -532,7 +532,7 @@ Section PROOF.
     have [vres2 {}Hfull' Hvl'] := mapM2_dc_truncate_val Hfull' Hvl.
     eexists vres2; split=> //=.
     apply EcallRun with  {|
-           f_info := apply_ret_annot (fun A => @fn_keep_only onfun A fn) fi;
+           f_info := if onfun fn is Some select then apply_ret_annot select fi else fi;
            f_contract := fc;
            f_tyin := ft;
            f_params := fp;

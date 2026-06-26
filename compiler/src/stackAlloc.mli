@@ -1,6 +1,5 @@
-val apply_ret_annot : (Obj.t -> Obj.t list -> Obj.t list) -> FInfo.t -> FInfo.t
-  (** Apply a function (operating on lists) on the [ret_annot] part of [FInfo.t].
-      The signature is inherited from Rocq, hence the ugly [Obj.t]. *)
+val apply_ret_annot : bool list -> FInfo.t -> FInfo.t
+  (** Selects a subset of the [ret_annot] part of [FInfo.t]. *)
 
 module StackAlloc (Arch: Arch_full.Arch) : sig
 
