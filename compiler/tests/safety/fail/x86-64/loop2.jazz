@@ -5,7 +5,7 @@ fn poly1305(reg u64 in, reg u64 inlen) -> reg u64 {
   reg u64 one;
 
   one = 1;
-  while (inlen > 0) {
+  #[ensure_termination]while (inlen > 0) {
     if inlen >= 16 {
       for i = 0 to 16 {
         tmp = [:u8 in + i];

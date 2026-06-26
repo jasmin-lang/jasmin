@@ -1616,9 +1616,10 @@ end = struct
           (* We check that if the loop does not exit, then ni_e decreased by
              at least one, unless the loop is specially annotated *)
           let state_o =
-            if has_annot "no_termination_check" ginstr
-            then add_violations state_o [(InProg prog_pt, Termination false)]
-            else check_ni_dec state_o in
+            if has_annot "no_termination_check" ginstr then
+              warning Deprecated ginstr.i_loc "annotation `no_termination_check` is deprecated";
+            if has_annot "ensure_termination" ginstr then check_ni_dec state_o
+            else state_o in
 
           (* We forget the variable storing the initial value of the
              candidate decreasing quantity. *)
