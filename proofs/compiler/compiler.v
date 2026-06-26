@@ -202,6 +202,7 @@ Record compiler_params
   dead_vars_sfd    : _sfun_decl -> instr_info -> Sv.t;
     (* Same as dead_vars_ufd, but for _sfun_decl instead of _ufun_decl. *)
   pp_sr            : sub_region -> pp_error;
+  apply_ret_annot  : seq bool -> fun_info -> fun_info;
 }.
 
 Context
@@ -346,7 +347,7 @@ Definition compiler_third_part (returned_params: funname -> option (seq (option 
     | None => rminfo fn
     end
   in
-  Let pr := dead_code_prog_tokeep (ap_is_move_op aparams) false rminfo ps in
+  Let pr := dead_code_prog_tokeep (ap_is_move_op aparams) cparams.(apply_ret_annot) false rminfo ps in
   let pr := cparams.(print_sprog) RemoveReturn pr in
 
   let pa := {| p_funcs := cparams.(regalloc) pr.(p_funcs) ; p_globs := pr.(p_globs) ; p_extra := pr.(p_extra) |} in

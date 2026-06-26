@@ -81,6 +81,10 @@ Fixpoint keep_only {T:Type} (l:seq T) (tokeep : seq bool) {struct tokeep}:=
 
 Section ONFUN.
 
+(* Selects a subset of the [ret_annot] part of the [fun_info].
+   [fun_info] is opaque on the Rocq side, so this function is implemented in OCaml. *)
+Context (apply_ret_annot : seq bool -> fun_info -> fun_info).
+
 Context (do_nop: bool) (onfun: funname -> option (seq bool)).
 
 Definition fn_keep_only {T:Type} (fn:funname) (l:seq T) := 
@@ -174,6 +178,7 @@ Definition dead_code_fd {eft} fn (fd: _fundef eft) : cexec (_fundef eft) :=
   let 'MkFun ii tyi params c tyo res ef := fd in
   let res := fn_keep_only fn res in
   let tyo := fn_keep_only fn tyo in
+  let ii := if onfun fn is Some select then apply_ret_annot select ii else ii in
   let s := read_es (map Plvar res) in
   Let c := dead_code_c dead_code_i c s in
   ok (MkFun ii tyi params c.2 tyo res ef).
@@ -187,6 +192,6 @@ End Section.
 End ONFUN.
 
 Definition dead_code_prog {pT:progT} (p:prog) do_nop :=
-  @dead_code_prog_tokeep do_nop (fun _ => None) pT p.
+  @dead_code_prog_tokeep (fun _ fi => fi) do_nop (fun _ => None) pT p.
 
 End ASM_OP.

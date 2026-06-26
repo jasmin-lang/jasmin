@@ -1,3 +1,6 @@
+val apply_ret_annot : bool list -> FInfo.t -> FInfo.t
+  (** Selects a subset of the [ret_annot] part of [FInfo.t]. *)
+
 module StackAlloc (Arch: Arch_full.Arch) : sig
 
   val memory_analysis :
