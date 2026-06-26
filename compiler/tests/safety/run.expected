@@ -59,7 +59,7 @@ Analyzing function poly1305
 
 
 *** Possible Safety Violation(s):
-  "fail/arm-m4/loop2.jazz", line 8 (2) to line 20 (3): termination
+  "fail/arm-m4/loop2.jazz", line 8 (23) to line 20 (3): termination
   
 Memory ranges:
   mem_inlen: [0; 0]
@@ -161,7 +161,7 @@ Analyzing function BS2POLVECq
 
 
 *** Possible Safety Violation(s):
-  "fail/common/fail_land.jazz", line 11 (4-30): termination
+  "fail/common/fail_land.jazz", line 11 (25-51): termination
   
 Memory ranges:
   mem_b: [0; 0]
@@ -179,7 +179,7 @@ Analyzing function BS2POLVECq
 
 
 *** Possible Safety Violation(s):
-  "fail/common/fail_land.jazz", line 11 (4-30): termination
+  "fail/common/fail_land.jazz", line 11 (25-51): termination
   
 Memory ranges:
   mem_b: [0; 0]
@@ -197,7 +197,7 @@ Analyzing function BS2POLVECq
 
 
 *** Possible Safety Violation(s):
-  "fail/common/fail_land.jazz", line 11 (4-30): termination
+  "fail/common/fail_land.jazz", line 11 (25-51): termination
   
 Memory ranges:
   mem_b: [0; 0]
@@ -215,7 +215,7 @@ Analyzing function BS2POLVECq
 
 
 *** Possible Safety Violation(s):
-  "fail/common/fail_land2.jazz", line 10 (4-30): termination
+  "fail/common/fail_land2.jazz", line 10 (25-51): termination
   
 Memory ranges:
   mem_b: [0; 0]
@@ -233,7 +233,7 @@ Analyzing function BS2POLVECq
 
 
 *** Possible Safety Violation(s):
-  "fail/common/fail_land2.jazz", line 10 (4-30): termination
+  "fail/common/fail_land2.jazz", line 10 (25-51): termination
   
 Memory ranges:
   mem_b: [0; 0]
@@ -251,7 +251,7 @@ Analyzing function BS2POLVECq
 
 
 *** Possible Safety Violation(s):
-  "fail/common/fail_land2.jazz", line 10 (4-30): termination
+  "fail/common/fail_land2.jazz", line 10 (25-51): termination
   
 Memory ranges:
   mem_b: [0; 0]
@@ -478,7 +478,7 @@ Analyzing function poly1305
 
 
 *** Possible Safety Violation(s):
-  "fail/risc-v/loop2.jazz", line 8 (2) to line 20 (3): termination
+  "fail/risc-v/loop2.jazz", line 8 (23) to line 20 (3): termination
   
 Memory ranges:
   mem_inlen: [0; 0]
@@ -596,7 +596,7 @@ Analyzing function test
 
 
 *** Possible Safety Violation(s):
-  "fail/x86-64/carry_flags_err.jazz", line 9 (4-27): termination
+  "fail/x86-64/carry_flags_err.jazz", line 9 (25-48): termination
   
 Bottom ⊥
 
@@ -608,7 +608,7 @@ Analyzing function test
 
 
 *** Possible Safety Violation(s):
-  "fail/x86-64/carry_flags_err2.jazz", line 9 (4-27): termination
+  "fail/x86-64/carry_flags_err2.jazz", line 9 (25-48): termination
   
 Bottom ⊥
 
@@ -621,7 +621,6 @@ Analyzing function test
 
 *** Possible Safety Violation(s):
   "fail/x86-64/decompile_fail.jazz", line 11 (4-11): is_init i
-  "fail/x86-64/decompile_fail.jazz", line 9 (2) to line 12 (3): termination
   
 Bottom ⊥
 
@@ -654,7 +653,7 @@ Analyzing function poly1305
 
 
 *** Possible Safety Violation(s):
-  "fail/x86-64/loop2.jazz", line 8 (2) to line 20 (3): termination
+  "fail/x86-64/loop2.jazz", line 8 (23) to line 20 (3): termination
   
 Memory ranges:
   mem_inlen: [0; 0]
@@ -672,7 +671,7 @@ Analyzing function addNumber
 
 
 *** Possible Safety Violation(s):
-  "fail/x86-64/mul0.jazz", line 12 (5-28): termination
+  "fail/x86-64/mul0.jazz", line 12 (26-49): termination
   
 Bottom ⊥
 
