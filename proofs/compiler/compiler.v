@@ -209,7 +209,7 @@ Record compiler_params
   dead_vars_sfd    : _sfun_decl -> instr_info -> Sv.t;
     (* Same as dead_vars_ufd, but for _sfun_decl instead of _ufun_decl. *)
   pp_sr            : sub_region -> pp_error;
-  apply_ret_annot  : (forall A, seq A -> seq A) -> fun_info -> fun_info;
+  apply_ret_annot  : seq bool -> fun_info -> fun_info;
 }.
 
 Context

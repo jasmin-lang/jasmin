@@ -3,10 +3,9 @@ open Wsize
 open Prog
 open Regalloc
 
-let apply_ret_annot f (fi : FInfo.t) : FInfo.t =
+let apply_ret_annot tokeep (fi : FInfo.t) : FInfo.t =
   let (loc, annot, cc, ri) = fi in
-  let __ = let rec f _ = Obj.repr f in Obj.repr f in (* we reuse the kind of hack used by Rocq extraction *)
-  let ri = { ri with ret_annot = Obj.magic (f __ (Obj.magic ri.ret_annot)) } in
+  let ri = { ri with ret_annot = Dead_code.keep_only ri.ret_annot tokeep } in
   (loc, annot, cc, ri)
 
 let pp_var = Printer.pp_var ~debug:true
