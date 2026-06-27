@@ -42,3 +42,34 @@ fn indirect(reg u32 a) -> reg u32 {
   a += z;
   return a;
 }
+
+inline fn ret(reg bool b) -> inline u32 {
+  inline u32 v = 0;
+  if b { v = 1; }
+  return v;
+}
+
+fn late(reg u32 x) -> reg u32 {
+  inline int i = 0;
+  if x == 0 {
+    i = 1; // does i depends on x ? not yet
+    x = i; // this is fine
+  }
+  // here i depends on x
+  x += i; // this is bad
+  return x;
+}
+
+// In this program, we get two warnings about b depending on a
+// 1. on the assignment in the then branch
+// 2. on the if statement
+fn twice(reg u32 a) -> reg u32 {
+  inline u32 b = 0;
+  if a == 0 {
+    b = a;
+    a = b;
+  }
+  a += b;
+  a += b;
+  return a;
+}

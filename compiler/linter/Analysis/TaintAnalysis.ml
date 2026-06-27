@@ -61,9 +61,9 @@ let analyse_call_args deps args es =
 
 let analyse_stmt (context : signatures) dom stmt =
   let rec analyse_stmt dom stmt = List.fold_left_map analyse_instr dom stmt
-  and analyse_instr ((_w, deps) as dom) instr =
+  and analyse_instr dom instr =
     let dom, i_desc = analyse_instr_r dom instr.i_desc in
-    (dom, { instr with i_desc; i_info = Annotation deps })
+    (dom, { instr with i_desc; i_info = Annotation dom })
   and analyse_instr_r (w, deps) ir =
     match ir with
     | Cassgn (x, tg, ty, e) ->
@@ -129,7 +129,7 @@ let analyse_stmt (context : signatures) dom stmt =
         in
         let w', deps', c1, c2 = loop deps in
         ( (merge_writesets w w', deps'),
-          Cwhile (aa, c1, e, (ei, Annotation deps'), c2) )
+          Cwhile (aa, c1, e, (ei, Annotation (empty_writeset, deps')), c2) )
   in
   analyse_stmt dom stmt
 
@@ -137,31 +137,12 @@ let argument_dependencies args =
   List.fold_left (fun deps x -> Mv.add x (Sv.singleton x) deps) Mv.empty args
 
 let analyse_function (context : signatures) (f : ('info, 'asm) func) :
-    (dependencies annotation, 'asm) func =
+    ((writeset * dependencies) annotation, 'asm) func =
   let deps = argument_dependencies f.f_args in
-  let (_w, deps), f_body =
-    analyse_stmt context (empty_writeset, deps) f.f_body
-  in
-  { f with f_body; f_info = Annotation deps }
+  let annot, f_body = analyse_stmt context (empty_writeset, deps) f.f_body in
+  { f with f_body; f_info = Annotation annot }
 
 (* ----------------------------------------------------------- *)
-
-(** Adds to a set of variables the variables that are read when writing an
-    L-value *)
-let uses_lv s = function
-  | Lnone _ | Lvar _ -> s
-  | Lmem (_, _, _, e) -> rvars_e Sv.add s e
-  | Laset (_, _, _, x, e) | Lasub (_, _, _, x, e) ->
-      rvars_e Sv.add (Sv.add (L.unloc x) s) e
-
-let uses (i : ('info, 'asm) instr_r) : Sv.t =
-  match i with
-  | Cassgn (x, _, _, e) -> uses_lv (vars_e e) x
-  | Copn (xs, _, _, es) | Csyscall (xs, _, es) ->
-      List.fold_left uses_lv (vars_es es) xs
-  | Cassert (_, a) -> vars_a a
-  | Cif (e, _, _) | Cwhile (_, _, e, _, _) -> vars_e e
-  | Cfor _ | Ccall _ -> assert false
 
 let error ~kind x y loc =
   let pp_var = Jasmin.Printer.pp_var ~debug:false in
@@ -184,7 +165,8 @@ let error ~kind x y loc =
           pp_var x pp_varset y);
   }
 
-let check_func (context : signatures) fd : CompileError.t list =
+let check_func (context : signatures) (liveness : Sv.t Miloc.t) fd :
+    CompileError.t list =
   let errors = ref [] in
   let check_set ~kind ~loc x d =
     let ys =
@@ -198,38 +180,52 @@ let check_func (context : signatures) fd : CompileError.t list =
     if not (Sv.is_empty ys) then errors := error ~kind x ys loc :: !errors
   in
 
-  let check ?(kind = "Inline variable") ~loc a s =
-    let a = Annotation.unwrap a in
+  let check ?(kind = "Inline variable") ~loc deps s =
     Sv.iter
       (fun x ->
         if x.v_kind = Inline then
-          match Mv.find x a with
+          match Mv.find x deps with
           | exception Not_found -> ()
           | d -> check_set ~kind ~loc x d)
       s
   in
   let check_instr i =
+    let ws, deps = Annotation.unwrap i.i_info in
+    let written =
+      match i.i_desc with
+      | Cassgn _ | Copn _ | Csyscall _ | Cassert _ | Ccall _ ->
+          Jasmin.Prog.assigns i.i_desc
+      | Cif _ | Cfor _ | Cwhile _ -> ws.get_writeset
+    in
+    let live = Miloc.find_default Sv.empty i.i_loc liveness in
+    let tocheck = Sv.inter written live in
+    check ~loc:i.i_loc.base_loc deps tocheck;
     match i.i_desc with
-    | Ccall (xs, fn, es) ->
-        check ~loc:i.i_loc.base_loc i.i_info
-          (List.fold_left uses_lv (vars_es es) xs);
+    | Ccall (_xs, fn, _es) ->
         let args, _rets = Mf.find fn context in
-        let deps = Annotation.unwrap i.i_info in
-        let deps = analyse_call_args deps args es in
-        check ~kind:"Inline parameter" ~loc:i.i_loc.base_loc (Annotation deps)
+        check ~kind:"Inline parameter" ~loc:i.i_loc.base_loc deps
           (Sv.of_list args)
     | Cfor (x, (_, lo, hi), _) ->
         let loc = i.i_loc.base_loc in
-        let deps = vars_es [ lo; hi ] in
-        check_set ~kind:"For loop counter" ~loc (L.unloc x) deps;
-        check ~loc i.i_info deps
-    | ir -> check ~loc:i.i_loc.base_loc i.i_info (uses ir)
+        let s = vars_es [ lo; hi ] in
+        check_set ~kind:"For loop counter" ~loc (L.unloc x) s;
+        check ~loc deps s
+    | _ -> ()
   in
 
   iter_instr check_instr fd.f_body;
-  check ~loc:fd.f_loc fd.f_info (Sv.of_list @@ List.map L.unloc fd.f_ret);
   !errors
 
+(* ----------------------------------------------------------- *)
+let extract_liveness (fd : ('info, 'asm) func) : Sv.t Miloc.t =
+  let fd = Jasmin.Liveness.live_fd false fd in
+  let table = ref Miloc.empty in
+  iter_instr
+    (fun { i_loc; i_info = _, data; _ } -> table := Miloc.add i_loc data !table)
+    fd.f_body;
+  !table
+
+(* ----------------------------------------------------------- *)
 let check_prog (_gds, fds) : CompileError.t list =
   (* Collect function signatures *)
   let context =
@@ -240,5 +236,6 @@ let check_prog (_gds, fds) : CompileError.t list =
   fds
   |> List.map (analyse_function context)
   |> List.fold_left
-       (fun acc fd -> List.rev_append (check_func context fd) acc)
+       (fun acc fd ->
+         List.rev_append (check_func context (extract_liveness fd) fd) acc)
        []
