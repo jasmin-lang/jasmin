@@ -25,11 +25,9 @@ Require Import utils.
 Import ITreeNotations.
 Local Open Scope itree_scope.
 
-Definition error_data := (error * unit)%type.
-
 Variant execS (A:Type) :=
   | ESok : A -> execS
-  | ESerror : error_data -> execS.
+  | ESerror : error -> execS.
 
 Section ExecT.
 
@@ -71,7 +69,7 @@ End ExecT.
 Section ExecTLaws.
 
 
-Definition execS_rel {X} (R : relation X) (Re : relation error_data) :
+Definition execS_rel {X} (R : relation X) (Re : relation error) :
    relation (execS X) :=
 fun (mx my : execS X) =>
 match mx with

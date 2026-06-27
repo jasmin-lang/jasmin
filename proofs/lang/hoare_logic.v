@@ -43,11 +43,11 @@ Definition preInv0 {E0} {iE0 : InvEvent E0} := preInv0_.
 Definition postInv0 {E0} {iE0 : InvEvent E0} := postInv0_.
 
 Class InvErr :=
-  { invErr_ : it_exec.error_data -> Prop }.
+  { invErr_ : error -> Prop }.
 
 Definition invErr {iEr : InvErr} := invErr_.
 
-Definition get_error T (e : ErrEvent T) : it_exec.error_data :=
+Definition get_error T (e : ErrEvent T) : error :=
   match e with
   | Throw e' => e'
   end.
@@ -332,12 +332,12 @@ Lemma khoare_bind {I T O}
   khoare P (fun i => t <- F i;; F' t) Q.
 Proof. by move=> h h'; apply khoare_io_bind with (R := fun t => R). Qed.
 
-Definition rInvErr := fun s e => invErr (mk_error_data s e).
+Definition rInvErr := fun (s:estate) e => invErr e.
 
 (* switches error handling from rInvErr to iresult (with lifting to itree) *)
 Lemma khoare_io_iresult (T : Type) F (P : Pred_c) (Q: Pred_io estate T) :
   rhoare_io P F Q rInvErr ->
-  khoare_io P (fun s => iresult s (F s)) Q.
+  khoare_io P (fun s => iresult (F s)) Q.
 Proof.
   move=> hr s hP; have := hr s hP.
   case: (F s) => [v | e] hQ.
@@ -350,7 +350,7 @@ Qed.
 Lemma khoare_iresult (T : Type) F (P : Pred_c) (Q: Pred T) (Qerr: Pred error) :
   (forall s e, P s -> Qerr e -> rInvErr s e) ->
   rhoare P F Q Qerr ->
-  khoare P (fun s => iresult s (F s)) Q.
+  khoare P (fun s => iresult (F s)) Q.
 Proof.
   move=> herr hF; apply khoare_io_iresult.
   apply rhoare_io_weaken with P (fun=> Q) (fun _ e => Qerr e) => //.

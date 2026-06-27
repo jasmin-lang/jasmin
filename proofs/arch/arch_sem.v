@@ -612,7 +612,7 @@ Section ITREE.
 Context {E E0} {wE : with_Error E E0}.
 
 Definition ifetch_and_eval (s: asm_state) : itree E asm_state :=
-  err_result (fun e => (e, tt)) (fetch_and_eval s).
+  iresult (fetch_and_eval s).
 
 Local Notation continue_loop s := (ret (inl s)).
 Local Notation exit_loop s := (ret (inr s)).
@@ -658,7 +658,7 @@ Lemma asmsem_body_nE endpc n s :
 Proof. by case: n. Qed.
 
 Lemma i_asmsem_body endpc s :
-  iasmsem_body endpc s ≅ err_result (pair^~ tt) (asmsem_body endpc s).
+  iasmsem_body endpc s ≅ iresult (asmsem_body endpc s).
 Proof.
   rewrite /iasmsem_body /ifetch_and_eval /asmsem_body; case: eqP => h /=.
   + reflexivity.
@@ -669,7 +669,7 @@ Qed.
 
 Lemma i_asmsem_body_n endpc n s :
     (iter_n (iasmsem_body endpc) n s) ≈
-    (err_result (pair^~ tt) (asmsem_body_n endpc n s)).
+    (iresult (asmsem_body_n endpc n s)).
 Proof.
   elim: n s => /= [ | n hn] s.
   + rewrite i_asmsem_body; case: asmsem_body => [ ins|] /=; reflexivity.
@@ -724,9 +724,9 @@ Import MonadNotation.
 Local Open Scope monad_scope.
 
 Definition iasmsem_exportcall (p : asm_prog) (fn : funname) (m : asmmem) :=
-  fd <- ioget (ErrType, tt) (get_fundef (asm_funcs p) fn);;
-  _ <- err_result (fun e => (e, tt)) (assert (asm_fd_export fd) ErrSemUndef);;
-  _ <- err_result (fun e => (e, tt)) (assert (check_call_conv fd) ErrSemUndef);;
+  fd <- ioget ErrType (get_fundef (asm_funcs p) fn);;
+  _ <- iresult (assert (asm_fd_export fd) ErrSemUndef);;
+  _ <- iresult (assert (check_call_conv fd) ErrSemUndef);;
   let s := {| asm_m := m
                    ; asm_f := fn
                    ; asm_c := asm_fd_body fd
@@ -734,7 +734,7 @@ Definition iasmsem_exportcall (p : asm_prog) (fn : funname) (m : asmmem) :=
                   |} in
   s' <- iasmsem p (fn, size (asm_fd_body fd)) s;;
   let m' := s'.(asm_m) in
-  _ <- err_result (fun e => (e, tt))
+  _ <- iresult
          (assert (all (fun x => preserved_registerb x m m') callee_saved) ErrSemUndef);;
   Ret m'.
 

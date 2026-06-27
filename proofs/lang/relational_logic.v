@@ -469,9 +469,9 @@ Section IRESULT.
 
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
-Lemma rutt_iresult (T1 T2:Type) (s1 : estate1) (s2 : estate2) (x1 : exec T1) (x2 : exec T2) (R : T1 -> T2 -> Prop) :
+Lemma rutt_iresult (T1 T2:Type) (x1 : exec T1) (x2 : exec T2) (R : T1 -> T2 -> Prop) :
   (forall v1, x1 = ok v1 -> exists2 v2, x2 = ok v2 & R v1 v2) ->
-  xrutt (errcutoff (is_error wE)) nocutoff EPreRel EPostRel R (iresult s1 x1) (iresult s2 x2).
+  xrutt (errcutoff (is_error wE)) nocutoff EPreRel EPostRel R (iresult x1) (iresult x2).
 Proof.
   case: x1 => [ v1 | e1] hok.
   + have [v2 -> /=] := hok _ erefl.
@@ -480,21 +480,21 @@ Proof.
   by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
 Qed.
 
-Lemma wkequiv_iresult {I1 I2 O1 O2} (P : rel I1 I2) (Q : rel O1 O2) (f1 : I1 -> estate1) (f2 : I2 -> estate2) F1 F2 :
+Lemma wkequiv_iresult {I1 I2 O1 O2} (P : rel I1 I2) (Q : rel O1 O2) F1 F2 :
   wrequiv P F1 F2 Q ->
-  wkequiv P (fun i => iresult (f1 i) (F1 i)) (fun i => iresult (f2 i) (F2 i)) Q.
+  wkequiv P (fun i => iresult (F1 i)) (fun i => iresult (F2 i)) Q.
 Proof. by move=> h i1 i2 hP; apply rutt_iresult => s1'; apply: h. Qed.
 
-Lemma wkequiv_iresult_right (P : rel estate1 estate2) (Q : rel estate1 estate2) (f2 : estate2 -> estate2) F2 :
+Lemma wkequiv_iresult_right (P : rel estate1 estate2) (Q : rel estate1 estate2)   F2 :
   (forall s t, P s t -> exists2 t', F2 t = ok t' & Q s t') ->
-  wkequiv P (fun s => Ret s) (fun t => iresult (f2 t) (F2 t)) Q.
+  wkequiv P (fun s => Ret s) (fun t => iresult (F2 t)) Q.
 Proof.
   by move=> h s t /h [t'] hF2 hQ; rewrite /iresult hF2 /=; apply xrutt_Ret.
 Qed.
 
-Lemma wkequiv_iresult_left (P : rel estate1 estate2) (Q : rel estate1 estate2) (f1 : estate1 -> estate1) F1 :
+Lemma wkequiv_iresult_left (P : rel estate1 estate2) (Q : rel estate1 estate2) F1 :
   (forall s s' t, P s t -> F1 s = ok s' -> Q s' t) ->
-  wkequiv P (fun s => iresult (f1 s) (F1 s)) (fun t => Ret t) Q.
+  wkequiv P (fun s => iresult (F1 s)) (fun t => Ret t) Q.
 Proof.
   move=> h s t /h{}h; rewrite /iresult.
   case heq: (F1 s) => [s' | e] /=.
