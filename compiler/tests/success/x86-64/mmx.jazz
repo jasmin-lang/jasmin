@@ -13,7 +13,9 @@ export fn padd_mmx(reg ptr u64[2] p) -> reg u64 {
 }
 
 export fn padd_xmm(reg ptr u128[2] p) -> reg ptr u128[2] {
-  reg u128[2] m = #copy_128(p);
+  reg u128[2] m;
+  m[0] = p[#unaligned 0];
+  m[1] = p[#unaligned 1];
   m[0] = #PADD_16u8(m[0], m[1]);
   m[0] = #PADD_8u16(m[0], m[1]);
   m[0] = #PADD_4u32(m[0], m[1]);
@@ -22,6 +24,7 @@ export fn padd_xmm(reg ptr u128[2] p) -> reg ptr u128[2] {
   m[0] = #PADD_8u16(m[0], p[1]);
   m[0] = #PADD_4u32(m[0], p[0]);
   m[0] = #PADD_2u64(m[0], p[1]);
-  p = #copy_128(m);
+  p[#unaligned 0] = m[0];
+  p[#unaligned 1] = m[1];
   return p;
 }
