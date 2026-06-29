@@ -25,43 +25,39 @@ Require Import utils.
 Import ITreeNotations.
 Local Open Scope itree_scope.
 
-Variant execS (A:Type) :=
-  | ESok : A -> execS
-  | ESerror : error -> execS.
-
 Section ExecT.
 
   Context {m : Type -> Type} {Fm: Functor.Functor m} {Mm : Monad m}
     {MIm : MonadIter m}.
 
   Definition execT (m : Type -> Type) (a : Type) : Type :=
-    m (execS a)%type.
+    m (exec a)%type.
 
   #[global] Instance execT_fun : Functor.Functor (execT m) :=
     {| Functor.fmap :=
         fun X Y (f: X -> Y) =>
           Functor.fmap (fun x =>
                           match x with
-                          | ESerror e => ESerror _ e
-                          | ESok x => ESok (f x) end) |}.
+                          | Error e => Error e
+                          | Ok x => ok (f x) end) |}.
 
   #[global] Instance execT_monad : Monad (execT m) :=
-    {| ret := fun _ x => @ret m _ _ (ESok x);
+    {| ret := fun _ x => @ret m _ _ (ok x);
        bind := fun _ _ c k =>
                  bind (m := m) c
                    (fun x => match x with
-                             | ESerror e => @ret m _ _ (ESerror _ e)
-                             | ESok x => k x end)
+                             | Error e => @ret m _ _ (Error e)
+                             | Ok x => k x end)
     |}.
 
   #[global] Instance execT_iter  : MonadIter (execT m) :=
-    fun A I body i => Basics.iter (M := m) (I := I) (R := execS A)
+    fun A I body i => Basics.iter (M := m) (I := I) (R := exec A)
       (fun i => bind (m := m)
                (body i)
                (fun x => match x with
-                         | ESerror e       => ret (inr (ESerror _ e))
-                         | ESok (inl j) => @ret m _ _ (inl j)
-                         | ESok (inr a) => @ret m _ _ (inr (ESok a))
+                         | Error e    => ret (inr (Error e))
+                         | Ok (inl j) => @ret m _ _ (inl j)
+                         | Ok (inr a) => @ret m _ _ (inr (ok a))
                          end)) i.
 
 End ExecT.
@@ -70,30 +66,30 @@ Section ExecTLaws.
 
 
 Definition execS_rel {X} (R : relation X) (Re : relation error) :
-   relation (execS X) :=
-fun (mx my : execS X) =>
+   relation (exec X) :=
+fun (mx my : exec X) =>
 match mx with
-| ESok x => match my with
-            | ESok y => R x y
-            | ESerror _ => False
+| Ok x => match my with
+            | Ok y => R x y
+            | Error _ => False
             end
-| ESerror e0 => match my with
-          | ESok _ => False
-          | ESerror e1 => Re e0 e1
+| Error e0 => match my with
+          | Ok _ => False
+          | Error e1 => Re e0 e1
           end
 end.
 
 Lemma execS_rel_eq : forall {A : Type},
-    eq_rel (@eq (execS A)) (execS_rel eq eq).
+    eq_rel (@eq (exec A)) (execS_rel eq eq).
 Proof.
   intros ?; split; intros [] [] EQ; subst; try inv EQ; cbn; auto.
 Qed.
 
 Definition exec_rel {X: Type} (R : relation X) :
-   relation (execS X) := execS_rel R eq.
+   relation (exec X) := execS_rel R eq.
 
 Lemma exec_rel_eq : forall {A : Type},
-    eq_rel (@eq (execS A)) (exec_rel eq).
+    eq_rel (@eq (exec A)) (exec_rel eq).
 Proof.
   intros ?; split; intros [] [] EQ; subst; try inv EQ; cbn; auto.
 Qed.
@@ -240,15 +236,15 @@ Lemma interp_exec_vis {E F : Type -> Type} {T U : Type}
   : interp_exec h (Vis e k)
                 ≅ h T e >>= fun mx =>
                               match mx with
-                              | ESerror e => Ret (ESerror _ e)
-                              | ESok x => Tau (interp_exec h (k x))
+                              | Error e => Ret (Error e)
+                              | Ok x => Tau (interp_exec h (k x))
                               end.
 Proof.
   rewrite unfold_interp_exec. reflexivity.
 Qed.
 
 Lemma interp_exec_Ret : forall {X E F} (h : E ~> execT (itree F)) (x : X),
-    interp_exec h (Ret x) ≅ Ret (ESok x).
+    interp_exec h (Ret x) ≅ Ret (ok x).
 Proof.
   intros; rewrite unfold_interp_exec; reflexivity.
 Qed.
@@ -276,7 +272,7 @@ Qed.
 Lemma interp_exec_bind : forall {X Y E F} (t : itree _ X) (k : X -> itree _ Y) (h : E ~> execT (itree F)),
     interp_exec h (ITree.bind t k) ≅
                 ITree.bind (interp_exec h t)
-                (fun mx => match mx with | (ESerror e) => ret (ESerror _ e) | ESok x => interp_exec h (k x) end).
+                (fun mx => match mx with | (Error e) => ret (Error e) | Ok x => interp_exec h (k x) end).
 Proof.
   intros X Y E F; ginit; pcofix CIH; intros.
   rewrite unfold_bind.

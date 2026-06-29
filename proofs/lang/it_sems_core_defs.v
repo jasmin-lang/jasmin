@@ -23,7 +23,7 @@ Definition ErrEvent : Type -> Type := exceptE error.
 Definition handle_Err {E} : ErrEvent ~> execT (itree E) :=
   fun _ e =>
     match e with
-    | Throw e' => Ret (ESerror _ e')
+    | Throw e' => Ret (Error e')
     end.
 
 (* ErrEvnt handler *)
@@ -32,7 +32,7 @@ Definition ext_handle_Err {E: Type -> Type} :
   fun _ e =>
   match e with
   | inl1 e' => handle_Err e'
-  | inr1 e' => Vis e' (pure (fun x => ESok x)) end.
+  | inr1 e' => Vis e' (pure (fun x => ok x)) end.
 
 (* ErrEvent interpreter *)
 Definition interp_Err {E: Type -> Type} {A}
