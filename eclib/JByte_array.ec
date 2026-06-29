@@ -27,7 +27,7 @@ abstract theory ByteArray.
     init (fun _ => b).
 
  lemma init_arrP (t: t) (k: int) : is_init_cell (init_arr (W8.of_int 255))  k.
- proof. by move => hk; rewrite /is_init_cell initE hk. qed.
+ proof. by move => hk; rewrite initE hk. qed.
 
  lemma is_init_set_last t len :
    is_init t 0 len => is_init t.[len <- W8.of_int 255] 0 (len + 1).
