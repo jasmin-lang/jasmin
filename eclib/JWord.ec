@@ -2618,6 +2618,12 @@ abstract theory W_WS.
 
 end W_WS.
 
+clone export W_WS as W1u8 with
+  op sizeS <- W8.size, op sizeB <- W8.size, op r <- 1,
+  theory WS <- W8, theory WB <- W8
+  proof gt0_r by done, sizeBrS by done
+  rename [op, lemma] "'Ru'S" as "1u8" "'R" as "1" "'S" as "8" "'B" as "8".
+
 clone export W_WS as W2u8 with
   op sizeS <- W8.size, op sizeB <- W16.size, op r <- 2,
   theory WS <- W8, theory WB <- W16

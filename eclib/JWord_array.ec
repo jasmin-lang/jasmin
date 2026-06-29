@@ -290,8 +290,8 @@ abstract theory ArrayWords.
 
   (* Conversion between WArrayN.t and Word.t ArrayN.t *)
   clone W_WS as Wu8 with
-    op sizeS <= W8.size, op sizeB <= W8.size*sizeW, op r <= sizeW,
-    theory WS <= W8, theory WB <= Word
+    op sizeS <- W8.size, op sizeB <- W8.size*sizeW, op r <- sizeW,
+    theory WS <- W8, theory WB <- Word
     proof gt0_r by apply gt0_sizeW, sizeBrS by rewrite mulzC.
 
   (* direct means offset in bytes, not in words *)
@@ -401,34 +401,104 @@ abstract theory ArrayAccessCast.
     op size <- 8 * sizeWB
     proof gt0_size by rewrite pmulr_rgt0 1:// gt0_sizeWB.
 
-  clone ArrayWords as ArrayWordsB with
-    op sizeW <- sizeWB, op sizeA <- sizeB, theory Word <- WordB
-    proof gt0_sizeW by apply gt0_sizeWB, gt0_sizeA by apply gt0_sizeB.
+  clone PolyArray as ArrayN
+    with op size <- sizeB
+    proof ge0_size by apply/ltzW/gt0_sizeB.
+
+  clone import WArray as WArrayN with
+    op size <- sizeWB * sizeB
+    proof ge0_size by smt(gt0_sizeWB gt0_sizeB).
 
   clone W_WS as WSu8 with
-    op sizeS <= W8.size, op sizeB <= W8.size*sizeWS, op r <= sizeWS,
-    theory WS <= W8, theory WB <= WordS
+    op sizeS <- W8.size, op sizeB <- W8.size*sizeWS, op r <- sizeWS,
+    theory WS <- W8, theory WB <- WordS
     proof gt0_r by apply gt0_sizeWS, sizeBrS by rewrite mulzC.
 
+  clone W_WS as WBu8 with
+    op sizeS <- W8.size, op sizeB <- W8.size*sizeWB, op r <- sizeWB,
+    theory WS <- W8, theory WB <- WordB
+    proof gt0_r by apply gt0_sizeWB, sizeBrS by rewrite mulzC.
 
-  op get_cast_direct (a: WordB.t ArrayWordsB.ArrayN.t) (i: int) =
+  clone ArrayWords as ArrayWordsB with
+    op sizeW <- sizeWB, op sizeA <- sizeB, theory Word <- WordB,
+    theory ArrayN <- ArrayN, theory WArrayN <- WArrayN, theory Wu8 <- WBu8
+    proof gt0_sizeW by apply gt0_sizeWB, gt0_sizeA by apply gt0_sizeB.
+
+  op get_cast_direct (a: WordB.t ArrayN.t) (i: int) =
     WSu8.pack'R_t (
-      WSu8.Pack.init (fun j => ArrayWordsB.WArrayN."_.[_]" (ArrayWordsB.of_word_array a) (i+j))
+      WSu8.Pack.init (fun j => WArrayN."_.[_]" (ArrayWordsB.of_word_array a) (i+j))
     ).
 
-  op set_cast_direct (a: WordB.t ArrayWordsB.ArrayN.t) (i: int) (b: WordS.t) =
+  op set_cast_direct (a: WordB.t ArrayN.t) (i: int) (b: WordS.t) =
     ArrayWordsB.to_word_array (
-      ArrayWordsB.WArrayN.init (fun j =>
+      WArrayN.init (fun j =>
         if i <= j < i + sizeWS then
           WSu8.\bits'S b (j - i)
         else
-          ArrayWordsB.WArrayN."_.[_]" (ArrayWordsB.of_word_array a) j
+          WArrayN."_.[_]" (ArrayWordsB.of_word_array a) j
         )
       ).
 
-  op get_cast (a: WordB.t ArrayWordsB.ArrayN.t) (i: int) =
-    get_cast_direct a (sizeWB*i).
+  op get_cast (a: WordB.t ArrayN.t) (i: int) =
+    get_cast_direct a (sizeWS*i).
 
-  op set_cast (a: WordB.t ArrayWordsB.ArrayN.t) (i: int) (b: WordS.t) =
-    set_cast_direct a (sizeWB*i) b.
+  op set_cast (a: WordB.t ArrayN.t) (i: int) (b: WordS.t) =
+    set_cast_direct a (sizeWS*i) b.
 end ArrayAccessCast.
+
+theory ArrayAccessCastAligned.
+  clone include ArrayAccessCast.
+
+  import ArrayN.
+
+  axiom aligned : sizeWS %| sizeWB.
+
+  clone import W_WS as WSuB with
+    op sizeS <- 8 * sizeWS,
+    op sizeB <- 8 * sizeWB,
+    op r <- sizeWB %/ sizeWS,
+    theory WS <- WordS,
+    theory WB <- WordB
+    proof gt0_r, sizeBrS.
+
+  realize gt0_r.
+  proof. smt(gt0_sizeWS gt0_sizeWB aligned). qed.
+
+  realize sizeBrS.
+  proof. by rewrite mulrCA divzK // aligned. qed.
+
+  lemma get_castiE (a : WordB.t ArrayN.t) (i : int) :
+      0 <= i < sizeB * (sizeWB %/ sizeWS)
+   =>   get_cast a i
+      = a.[i %/ (sizeWB %/ sizeWS)] \bits'S (i %% (sizeWB %/ sizeWS)).
+  proof.
+  have ? := gt0_sizeWS; have ? := gt0_sizeWB; have ? := gt0_sizeB.
+  move=> rgi; rewrite /get_cast.
+  rewrite /get_cast_direct /of_word_array.
+  apply: WSu8.wordP => j rgj.
+  apply: W8.ext_eq => k rgk.
+  rewrite !WSu8.bits'SiE // !WSuB.bits'SiE ~-1:/#.
+  rewrite WSu8.pack'RwE 1:/#.
+  rewrite WSu8.Pack.initiE 1:/# /=.
+  rewrite WArrayN.initiE /=.
+  - split=> [|_]; first smt().
+    rewrite divzMDl // pdiv_small //=.
+    case: rgi => ?; rewrite ltzE -ler_subr_addr.
+    by rewrite -(ler_pmul2l sizeWS) //#.
+  rewrite WBu8.bits'SiE 1:/#; congr; first congr.
+  - rewrite divzMDl // [k %/ 8]pdiv_small //=.
+    case/dvdzP: aligned rgi => q -> rgi.
+    by rewrite [q*_]mulrC divzMr //#.
+  - rewrite divzMDl // [k %/ 8]pdiv_small //=.
+    rewrite modzMDl // [k %% 8]pmod_small //=.
+    rewrite addrA; congr.
+    rewrite mulrA mulrAC -mulrDl; congr.
+    case/dvdzP: aligned rgi => q ->.
+    rewrite mulzK 1:/# => rgi.
+    rewrite -modzDml [sizeWS * i]mulrC -mulz_modl //.
+    rewrite pmod_small //; split=> [|_]; first smt().
+    rewrite {2}[q](_ : q = q - 1 + 1) //.
+    rewrite mulrDl &(ler_lt_add) -1:/#.
+    by rewrite &(ler_pmul2r) //#.
+  qed.
+end ArrayAccessCastAligned.
