@@ -4103,8 +4103,7 @@ Qed.
          (λ (v1 : R1) (v2 : R2), PostF d1 v1 d2 v2)
          sem (handle_call p' d2); rewrite /sem => {sem}; last first.
     + apply xrutt_facts.xrutt_weaken => //.
-      + move=> T1 e1; rewrite /errcutoff /= /xrutt_facts.EE_MR.
-        by case: e1 => //= e; rewrite /is_error /=; case: mfun1.
+      + move => A e1. rewrite <- errcutoff_conv; auto.
       + move=> T1 T2 e1 e2; rewrite /EPreRel sum_prerelP.
         case: e1 e2 => [ [fn1 fs1] | e1] [ [fn2 fs2] | e2] //=.
         + by case : mfun1. + by case : mfun1.
@@ -4117,19 +4116,16 @@ Qed.
     move=> [body] [ra] [lret] [sp] [callee_saved] []hlin hisra X hvalofra hcaller hpc hissp hiscalleesaved wf_to_save ok_m0.
     rewrite /isem_fun_body.
     case ok_fd : get_fundef => [fd | ] /=; last first.
-    + rewrite bind_throw; apply xrutt.xrutt_CutL.
-      by rewrite /xrutt_facts.EE_MR /core_logics.errcutoff /is_error /subevent /resum /fromErr /= mid12.
+    + rewrite bind_throw. eapply lcutoff_wES.
     rewrite bind_ret_l.
     move: hlin hisra hvalofra hpc X hissp hiscalleesaved wf_to_save ok_m0.
     rewrite /is_linear_of /is_ra_of /value_of_ra /is_sp_for_call /is_callee_saved_of ok_fd.
     move=> [fd' ok_fd' ?] [_ [<-] <-] ok_lret hpc X [_ [<-] ok_sp] [_ [<-]] ok_callee_saved wf_to_save ok_m0; subst body.
     case hvalid_init : (saved_stack_valid_init p fd) => /=; last first.
-    + rewrite bind_throw; apply xrutt.xrutt_CutL.
-      by rewrite /xrutt_facts.EE_MR /core_logics.errcutoff /is_error /subevent /resum /fromErr /= mid12.
+    + rewrite bind_throw. eapply lcutoff_wES. 
     rewrite bind_ret_l.
     case heq: (initialize_funcall var_tmps p fd s1) => [s' | err] /=; last first.
-    + rewrite bind_throw; apply xrutt.xrutt_CutL.
-      by rewrite /xrutt_facts.EE_MR /core_logics.errcutoff /is_error /subevent /resum /fromErr /= mid12.
+    + rewrite bind_throw. eapply lcutoff_wES. 
     rewrite bind_ret_l.
     move: heq; rewrite /initialize_funcall; t_xrbindP => /andP [] rsp_aligned valid_rsp m1' /map_errP ok_m1' ?; subst s'.
     have A := alloc_stackP ok_m1'.
