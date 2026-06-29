@@ -866,8 +866,7 @@ Proof.
     checked_save_stack htmp_call_magic checked_ra.
   rewrite /iresult.
   case hinit: (initialize_funcall p global_data fd fs1) => [s1 | e] /=; last first.
-  + rewrite bind_throw;apply xrutt.xrutt_CutL.
-    by rewrite /xrutt_facts.EE_MR /errcutoff /is_error /subevent /resum /fromErr /= mid12.
+  + rewrite bind_throw. eapply lcutoff_wE.
   rewrite bind_ret_l.
   move: hinit; rewrite /initialize_funcall /init_state /=.
   t_xrbindP.
@@ -1021,8 +1020,7 @@ Proof.
     rewrite /EPostRel /=; case: mfun1 hh => //; case: mfun1 => //.
   move=> s2 kt2 hpost. setoid_rewrite bind_ret_l. rewrite bind_ret_r.
   case hfin: finalize_funcall => [s3 | e ] /=; last first.
-  + apply xrutt.xrutt_CutL.
-    by rewrite /xrutt_facts.EE_MR /errcutoff /is_error /subevent /resum /fromErr /= mid12.
+  + eapply lcutoff_wE.
   rewrite /it_sems_one_varmap.finalize_funcall.
   case: hpost => hmerge hex hk.
   have -> /= : ra_valid p fd kt2.1.
