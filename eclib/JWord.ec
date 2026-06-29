@@ -1371,7 +1371,7 @@ lemma shrw_shlw_disjoint k1 k2 w1 w2:
  0 <= k1 < size <= k1+k2 =>
  (w1 `>>>` k1) `&` (w2 `<<<` k2) = zero.
 proof.
-move=> *; apply/wordP => i Hi /=; rewrite Hi /= /min.
+move=> *; apply/wordP => i /= ->.
 smt(get_out).
 qed.
 
@@ -1701,7 +1701,7 @@ lemma DEC_XX_counter n (c:t) :
   (DEC_XX c).`4 = ((DEC_XX c).`5 = zero)) /\
   (n - to_uint c + 1 < n <=> ! (DEC_XX c).`4).
 proof.
-  move=> hc0; rewrite /DEC_XX /rflags_of_aluop_nocf_w /rflags_of_aluop_nocf /ZF_of => /=.
+  move=> hc0; rewrite /DEC_XX /rflags_of_aluop_nocf_w /ZF_of => /=.
   have -> : (c - one = zero) <=> (to_uint (c - one) = 0).
   + by split => [-> // | h]; apply (canRL _ _ _ _ to_uintK).
   have hc0': to_uint c <> 0.
@@ -2341,7 +2341,7 @@ abstract theory W_WS.
     0 <= i < r =>
     nth (WS.of_int 0) (to_list w) i = w \bits'S i.
   proof.
-    move=> hi; rewrite iotaredE (nth_map 0) 1:size_iota /max 1:gt0_r 1:// nth_iota //.
+    move=> hi; rewrite iotaredE (nth_map 0) 2:nth_iota // size_iota /max gt0_r //.
   qed.
 
   lemma nth_to_list w i :
@@ -2465,7 +2465,7 @@ abstract theory W_WS.
      move=> [h0i hir];rewrite bits'S_div //.
      rewrite WB.of_uintK modz_pow2_div.
      + by rewrite sizeBrS mulzC; apply cmpW; apply mulz_cmp_r.
-     rewrite -WS.of_int_mod modz_mod_pow2 !ger0_norm /min; 1,2: smt (sizeBrS WS.gt0_size).
+     rewrite -WS.of_int_mod modz_mod_pow2 /min !ger0_norm; 1,2: smt (sizeBrS WS.gt0_size).
      have -> /= : !sizeB - sizeS * i < sizeS.
      + rewrite sizeBrS.
        have -> : r * sizeS - sizeS * i = sizeS * (r - i) by ring.
