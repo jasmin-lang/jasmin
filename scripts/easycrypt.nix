@@ -16,7 +16,7 @@ with {
     version = "main";
     rev = "????";
     src = builtins.fetchTarball "https://api.github.com/repos/easycrypt/easycrypt/tarball/main";
-    extraBuildInputs = [];
+    extraBuildInputs = [ ocamlPackages.bitwuzla-cxx ];
   };
 
   "release" = rec {
