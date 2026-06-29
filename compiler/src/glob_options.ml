@@ -9,11 +9,7 @@ let timings = ref false
 let print_list = ref []
 let print_liveness = ref false
 let slice = ref []
-let check_safety = ref false
-let safety_param = ref None
-let safety_config = ref None
 let stop_after = ref None
-let safety_makeconfigdoc = ref None   
 let trust_aligned = ref false
 
 let help_version = ref false
@@ -95,11 +91,6 @@ let set_all_print () =
 
 let set_slice f =
   slice := f :: !slice
-
-let set_checksafety () = check_safety := true
-let set_safetyparam s = safety_param := Some s
-let set_safetyconfig s = safety_config := Some s
-let set_safety_makeconfigdoc s = safety_makeconfigdoc := Some s
 
 let set_color c =
   let assoc = function
@@ -202,17 +193,6 @@ let options = [
     "-set0"     , Arg.Set set0          , " Use [xor x x] to set x to 0 (default is not)";
     "-noset0"   , Arg.Clear set0        , " Do not use set0 option";
     "-slice"    , Arg.String set_slice  , "[f] Keep function [f] and everything it needs";
-    "-checksafety", Arg.Unit set_checksafety, " Automatically check for safety (deprecated)";
-    "-safetyparam", Arg.String set_safetyparam,
-    " Parameter for automatic safety verification:\n    \
-     format: \"f_1>param_1|f_2>param_2|...\" \
-     where each param_i is of the form:\n    \
-     pt_1,...,pt_n;len_1,...,len_k\n    \
-     pt_1,...,pt_n: input pointers of f_i\n    \
-     len_1,...,len_k: input lengths of f_i\n    (deprecated)";
-     "-safetyconfig", Arg.String set_safetyconfig, "[filename] Use filename (JSON) as configuration file for the safety checker (deprecated)";
-    "-safetymakeconfigdoc", Arg.String set_safety_makeconfigdoc, "[dir] Make the safety checker configuration docs in [dir] (deprecated)";
-    "-nocheckalignment", Arg.Set trust_aligned, " Do not report alignment issue as safety violations (deprecated)";
     "-wlea", Arg.Unit (add_warning UseLea), " Print warning when lea is used";
     "-wea", Arg.Unit (add_warning ExtraAssignment), " Print warning when extra assignment is introduced";
     "-winsertarraycopy", Arg.Unit (add_warning IntroduceArrayCopy), " Print warning when array copy is introduced";
