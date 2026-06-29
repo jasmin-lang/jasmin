@@ -34,10 +34,6 @@ Record fstate := { fscs : syscall_state_t; fmem : mem; fvals : values }.
 Variant recCall : Type -> Type :=
  | RecCall (ii:instr_info) (f:funname) (fs:fstate) : recCall fstate.
 
-Definition mk_error_data (s:estate) (e:error)  := (e, tt).
-
-Definition mk_errtype := fun s => mk_error_data s ErrType.
-
 (**** Auxiliary definitions ******************************************)
 Section CORE.
 
@@ -45,26 +41,23 @@ Context {E E0} {wE : with_Error E E0} (p : prog) (ev : extra_val_t).
 
 Definition kget_fundef (funcs: fun_decls) (fn: funname) :
     ktree E fstate fundef :=
-  fun _ => ioget (ErrType, tt) (get_fundef funcs fn).
-
-Definition iresult {T} (s:estate) (F : exec T)  : itree E T :=
-  err_result (mk_error_data s) F.
+  fun _ => ioget ErrType (get_fundef funcs fn).
 
 Definition iwrite_var (wdb : bool) (x : var_i) (v : value) (s : estate) :
     itree E estate :=
-  iresult s (write_var wdb x v s).
+  iresult (write_var wdb x v s).
 
 Definition iwrite_lval (wdb : bool) (gd : glob_decls) (x : lval)
     (v : value) (s : estate) : itree E estate :=
-  iresult s (write_lval wdb gd x v s).
+  iresult (write_lval wdb gd x v s).
 
 Definition iwrite_lvals (wdb : bool) (gd : glob_decls) (xs : lvals)
     (vs : values) (s : estate) : itree E estate :=
-  iresult s (write_lvals wdb gd s xs vs).
+  iresult (write_lvals wdb gd s xs vs).
 
 Definition isem_pexprs (wdb : bool) (gd : glob_decls) (es: pexprs)
     (s : estate) : itree E values :=
-  iresult s (sem_pexprs wdb gd s es).
+  iresult (sem_pexprs wdb gd s es).
 
 Definition sem_assgn  (x : lval) (tg : assgn_tag) (ty : atype) (e : pexpr)
     (s : estate) : exec estate :=
@@ -97,7 +90,7 @@ Lemma sem_cond_sem_pexpr gd e s b :
 Proof. rewrite /sem_cond /=; by t_xrbindP=> _ -> /to_boolI ->. Qed.
 
 Definition isem_cond (e : pexpr) (s : estate) : itree E bool :=
-  iresult s (sem_cond (p_globs p) e s).
+  iresult (sem_cond (p_globs p) e s).
 
 Definition sem_bound (gd : glob_decls) (lo hi : pexpr) (s : estate) :
     exec (Z * Z) :=
@@ -106,10 +99,10 @@ Definition sem_bound (gd : glob_decls) (lo hi : pexpr) (s : estate) :
   ok (vlo, vhi))%result.
 
 Definition isem_bound (lo hi : pexpr) (s : estate) : itree E (Z * Z) :=
-  iresult s (sem_bound (p_globs p) lo hi s).
+  iresult (sem_bound (p_globs p) lo hi s).
 
 Definition isem_assert (a: assertion) (s: estate) : itree E unit :=
-  iresult s (sem_assert (p_globs p) s a).
+  iresult (sem_assert (p_globs p) s a).
 
 Definition sem_pre {dc: DirectCall} (P : prog) (fn:funname) (fs: fstate) :=
   if ~~assert_allowed then ok tt
@@ -124,8 +117,8 @@ Definition sem_pre {dc: DirectCall} (P : prog) (fn:funname) (fs: fstate) :=
     end
   else Error ErrType.
 
-Definition isem_pre {dc : DirectCall} s (fn : funname) (fs:fstate) : itree E unit :=
-  iresult s (sem_pre p fn fs).
+Definition isem_pre {dc : DirectCall} (fn : funname) (fs:fstate) : itree E unit :=
+  iresult (sem_pre p fn fs).
 
 Definition sem_post {dc: DirectCall} (P : prog) (fn:funname) (vargs' : values) (fs: fstate) :=
   if ~~assert_allowed then ok tt
@@ -141,8 +134,8 @@ Definition sem_post {dc: DirectCall} (P : prog) (fn:funname) (vargs' : values) (
     end
   else Error ErrType.
 
-Definition isem_post {dc : DirectCall} s (fn : funname) (vargs : values) (fr:fstate) : itree E unit :=
-  iresult s (sem_post p fn vargs fr).
+Definition isem_post {dc : DirectCall} (fn : funname) (vargs : values) (fr:fstate) : itree E unit :=
+  iresult (sem_post p fn vargs fr).
 
 (* recCall trigger *)
 Definition rec_call (ii:instr_info) (f : funname) (fs : fstate) :
@@ -207,11 +200,11 @@ Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
     itree E estate :=
   let: (MkI ii i) := i in
   match i with
-  | Cassgn x tg ty e => iresult s (sem_assgn p x tg ty e s)
+  | Cassgn x tg ty e => iresult (sem_assgn p x tg ty e s)
 
-  | Copn xs tg o es => iresult s (sem_sopn (p_globs p) o s xs es)
+  | Copn xs tg o es => iresult (sem_sopn (p_globs p) o s xs es)
 
-  | Csyscall xs o es => iresult s (sem_syscall p xs o es s)
+  | Csyscall xs o es => iresult (sem_syscall p xs o es s)
 
   | Cassert a => isem_assert p a s;; Ret s
 
@@ -229,10 +222,10 @@ Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
   | Ccall xs fn args =>
     vargs <- isem_pexprs  (~~direct_call) (p_globs p) args s;;
     let fi := mk_fstate vargs s in
-    isem_pre p s fn fi;;
+    isem_pre p fn fi;;
     fs <- sem_fun p ev ii fn fi ;;
-    isem_post p s fn vargs fs;;
-    iresult s (upd_estate (~~direct_call) (p_globs p) xs fs s)
+    isem_post p fn vargs fs;;
+    iresult (upd_estate (~~direct_call) (p_globs p) xs fs s)
 
   end.
 (* similar, for commands *)
@@ -277,18 +270,18 @@ Definition finalize_funcall (fd : fundef) (s:estate) : exec fstate :=
   ok {| fscs := scs; fmem := m; fvals := vres' |}.
 
 Definition ifinalize_funcall (fd : fundef) (s:estate) : itree E fstate :=
-  err_result (fun e => (e, tt)) (finalize_funcall fd s).
+  iresult (finalize_funcall fd s).
 
 (* similar, for proper function calls *)
 Definition isem_fun_body (p : prog) (ev : extra_val_t)
    (fn : funname) (fs : fstate) :=
    fd <- kget_fundef (p_funcs p) fn fs;;
    let sinit := estate0 fs in
-   isem_pre p sinit fn fs;;
-   s1 <- iresult sinit (initialize_funcall p ev fd fs);;
+   isem_pre p fn fs;;
+   s1 <- iresult (initialize_funcall p ev fd fs);;
    s2 <- isem_cmd_ p ev fd.(f_body) s1;;
-   fr <- iresult s2 (finalize_funcall fd s2);;
-   isem_post p s2 fn fs.(fvals) fr;;
+   fr <- iresult (finalize_funcall fd s2);;
+   isem_post p fn fs.(fvals) fr;;
    Ret fr.
 
 (* A variant of the semantic based on exec, usefull for the proofs *)
@@ -329,11 +322,11 @@ Definition esem_for p ev i c :=
       foldM (esem_i p ev) s c).
 
 Lemma esem_i_bodyP p ev c s s' :
-  esem p ev c s = ok s' -> isem_cmd_ p ev c s ≈ iresult s (ok s').
+  esem p ev c s = ok s' -> isem_cmd_ p ev c s ≈ iresult (ok s').
 Proof.
-  set Pi := fun i => forall s s', esem_i p ev i s = ok s' -> isem_i_body p ev i s ≈ iresult s (ok s').
+  set Pi := fun i => forall s s', esem_i p ev i s = ok s' -> isem_i_body p ev i s ≈ iresult (ok s').
   set Pi_r := fun i => forall ii, Pi (MkI ii i).
-  set Pc := fun c => forall s s', foldM (esem_i p ev) s c = ok s' -> isem_cmd_ p ev c s ≈ iresult s (ok s').
+  set Pc := fun c => forall s s', foldM (esem_i p ev) s c = ok s' -> isem_cmd_ p ev c s ≈ iresult (ok s').
   apply (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) => {s s' c} //.
   + move=> > /= [<-]; reflexivity.
   + by move=> i c hi hc s s' /=; t_xrbindP => s1 /hi ->; rewrite bind_ret_l; apply hc.
@@ -501,14 +494,6 @@ Notation interp_rec := (interp (mrecursive (handle_recCall p ev))).
 Lemma interp_throw T e : interp_rec (throw (X:=T) e) ≈ throw e.
 Proof. rewrite interp_vis bind_trigger; apply eqit_Vis => -[]. Qed.
 
-Lemma interp_err_result e T (r : result error T) :
-  eutt (E:=E) eq (interp_rec (err_result e r)) (err_result e r).
-Proof.
-  case: r => /= [t | err].
-  + rewrite interp_ret; reflexivity.
-  apply interp_throw.
-Qed.
-
 Lemma interp_ioget Err T (o : option T) :
   eutt (E:=E) eq (interp_rec (ioget Err o)) (ioget Err o).
 Proof.
@@ -517,8 +502,8 @@ Proof.
   apply interp_throw.
 Qed.
 
-Lemma interp_iresult s T (r : exec T) :
-  eutt (E:=E) eq (interp (mrecursive (handle_recCall p ev)) (iresult s r)) (iresult s r).
+Lemma interp_iresult T (r : exec T) :
+  eutt (E:=E) eq (interp (mrecursive (handle_recCall p ev)) (iresult r)) (iresult r).
 Proof.
   case r => /= [? | ?].
   + rewrite interp_ret; reflexivity.
@@ -601,7 +586,7 @@ Proof.
   move=> _; rewrite interp_ret; reflexivity.
 Qed.
 
-Lemma interp_cond_throw  (cond : forall T, recCall T -> bool) (ctx : forall T, recCall T -> itree (recCall +' E) T) (e: error * unit) T :
+Lemma interp_cond_throw  (cond : forall T, recCall T -> bool) (ctx : forall T, recCall T -> itree (recCall +' E) T) (e: error) T :
   interp (ctx_cond cond ctx) (throw e) ≈ throw (X := T) e.
 Proof.
   rewrite /throw interp_vis /= /inr_ /Inr_sum1_Handler /Handler.inr_ /Handler.htrigger.
@@ -610,8 +595,8 @@ Proof.
 Qed.
 
 Lemma interp_cond_iresult
-  (cond : forall T, recCall T -> bool) (ctx : forall T, recCall T -> itree (recCall +' E) T) T (ex : exec T) (s : estate) :
-   interp (ctx_cond cond ctx) (iresult s ex) ≈ iresult s ex.
+  (cond : forall T, recCall T -> bool) (ctx : forall T, recCall T -> itree (recCall +' E) T) T (ex : exec T) :
+   interp (ctx_cond cond ctx) (iresult ex) ≈ iresult ex.
 Proof.
   rewrite /iresult; case ex => [t | e] /=.
   + rewrite interp_ret; reflexivity.
@@ -633,11 +618,11 @@ Proof.
   have haux : forall (ii1 : instr_info) (fn1 : funname) (fs1 : fstate),
     ctx2_cond cond F (RecCall ii1 fn1 fs1)
     ≈ fd <- kget_fundef (p_funcs p) fn1 fs1;;
-      _ <- isem_pre p (estate0 fs1) fn1 fs1;;
-      s1 <- iresult (estate0 fs1) (initialize_funcall p ev fd fs1);;
+      _ <- isem_pre p fn1 fs1;;
+      s1 <- iresult (initialize_funcall p ev fd fs1);;
       s2 <- isem_cmd_ (sem_F:= sem_fun_inline do_inline fn1) p ev (f_body fd) s1;;
-      fr <- iresult s2 (finalize_funcall fd s2) ;;
-      _ <- isem_post p s2 fn1 (fvals fs1) fr;;
+      fr <- iresult (finalize_funcall fd s2) ;;
+      _ <- isem_post p fn1 (fvals fs1) fr;;
       Ret fr.
   + move=> ii1 fn1 fs1.
     rewrite /ctx2_cond /Handler.cat interp_bind.

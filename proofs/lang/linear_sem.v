@@ -408,7 +408,7 @@ Section SMALL_STEP.
 Context {E E0} {wE : with_Error E E0}.
 
 Definition istep (s: lstate) : itree E lstate :=
-  iresult (to_estate s) (step s).
+  iresult (step s).
 
 Import MonadNotation.
 Local Open Scope monad_scope.
@@ -418,14 +418,14 @@ Definition ilsem (cond : lstate -> bool) (s:lstate) :=
 
 Definition ilsem_exportcall (fn: funname) (es:estate) :=
   let s := (ls_export_initial (escs es) (emem es) (evm es) fn) in
-  fd <-ioget (ErrType, tt) (get_fundef P.(lp_funcs) fn);;
-  _ <- iresult (to_estate s) (assert (lfd_export fd) ErrSemUndef);;
+  fd <-ioget ErrType (get_fundef P.(lp_funcs) fn);;
+  _ <- iresult (assert (lfd_export fd) ErrSemUndef);;
   s' <- ilsem (endpc fn) s;;
   let vm' := s'.(lvm) in
-  _ <- iresult (to_estate s') (assert (all (fun x => value_eqb (evm es).[x] vm'.[x]) (Sv.elements callee_saved)) ErrSemUndef);;
+  _ <- iresult (assert (all (fun x => value_eqb (evm es).[x] vm'.[x]) (Sv.elements callee_saved)) ErrSemUndef);;
   Ret (to_estate s').
 
-Lemma i_lsem_body cond s : while_body cond istep s ≅ iresult (to_estate s) (lsem_body cond s).
+Lemma i_lsem_body cond s : while_body cond istep s ≅ iresult (lsem_body cond s).
 Proof.
   rewrite /while_body /lsem_body; case: ifP => h /=; last reflexivity.
   rewrite /istep.
@@ -436,7 +436,7 @@ Qed.
 
 Lemma i_lsem_body_n cond n s :
   iter_n (while_body cond istep) n s ≈
-    err_result (pair^~ tt) (lsem_body_n cond n.+1 s).
+    iresult (lsem_body_n cond n.+1 s).
 Proof.
   rewrite /=; elim: n s => /= [ | n hn] s.
   + rewrite i_lsem_body. case: (lsem_body cond s) => [ins | e] /=; last by reflexivity.
@@ -517,11 +517,11 @@ Definition mix_ilsem cond s :=
 
 Definition mix_ilsem_exportcall (fn: funname) (es:estate) :=
   let s := (ls_export_initial (escs es) (emem es) (evm es) fn) in
-  fd <-ioget (ErrType, tt) (get_fundef P.(lp_funcs) fn);;
-  _ <- iresult (to_estate s) (assert (lfd_export fd) ErrSemUndef);;
+  fd <-ioget ErrType (get_fundef P.(lp_funcs) fn);;
+  _ <- iresult (assert (lfd_export fd) ErrSemUndef);;
   s' <- mix_ilsem (endpc fn) s;;
   let vm' := s'.(lvm) in
-  _ <- iresult (to_estate s') (assert (all (fun x => value_eqb (evm es).[x] vm'.[x]) (Sv.elements callee_saved)) ErrSemUndef);;
+  _ <- iresult (assert (all (fun x => value_eqb (evm es).[x] vm'.[x]) (Sv.elements callee_saved)) ErrSemUndef);;
   Ret (to_estate s').
 
 Lemma mix_ilsteps_eq cond s : mix_ilsteps cond s ≈ mix_steps istep is_call cond s.
