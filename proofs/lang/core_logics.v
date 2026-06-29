@@ -17,7 +17,7 @@ From ITree Require Import
 
 From mathcomp Require Import ssreflect ssrfun ssrbool.
 
-Require Import xrutt xrutt_facts rutt_extras.
+Require Import xrutt xrutt_facts rutt_extras it_sems_core_defs.
 
 Notation prepred E := (forall T, E T -> Prop).
 Notation postpred E := (forall T, E T -> T -> Prop).
@@ -338,6 +338,63 @@ Proof.
 Qed.
 
 End SAFE_XRUTT_RUTT.
+
+Section WITH_ERROR.
+
+Context {E E0: Type -> Type} {wE : with_Error E E0}.
+
+Lemma lcutoff_wE (D1 D2: Type -> Type)
+  (EE2 : forall X, (D2 +' E) X -> bool)               
+  (REv : forall A B, (D1 +' E) A -> (D2 +' E) B -> Prop)
+  (RAns : forall A B, (D1 +' E) A -> A -> (D2 +' E) B -> B -> Prop)
+  T1 T2 (RR: T1 -> T2 -> Prop)
+  (e: utils.error) (t : itree (D2 +' E) T2) :
+  xrutt (@EE_MR E (errcutoff (is_error wE)) D1) EE2 
+    REv RAns RR
+    (Exception.throw e) t.
+Proof.
+  apply xrutt_CutL.
+  by rewrite /xrutt_facts.EE_MR /errcutoff /is_error /= mid12.
+Qed.      
+
+Lemma lcutoff_wES (D1 D2: Type -> Type)
+  (EE2 : forall X, (D2 +' E) X -> bool)               
+  (REv : forall A B, (D1 +' E) A -> (D2 +' E) B -> Prop)
+  (RAns : forall A B, (D1 +' E) A -> A -> (D2 +' E) B -> B -> Prop)
+  T1 T2 (RR: T1 -> T2 -> Prop)
+  (e: utils.error) (t : itree (D2 +' E) T2) :
+  xrutt (errcutoff (is_error _)) EE2 REv RAns RR
+        (Exception.throw e) t.
+Proof.
+  apply xrutt_CutL.
+  by rewrite /xrutt_facts.EE_MR /errcutoff /is_error /= mid12.
+Qed.      
+
+Lemma errcutoff_conv' D: 
+  (@EE_MR E (errcutoff (is_error wE)) D) = 
+  (errcutoff (@is_error (sum1 D E) (sum1 D E0)
+                (@FIso_suml D E E0 ErrEvent wE))).
+Proof.
+  unfold errcutoff, EE_MR, is_error; simpl.
+  eapply functional_extensionality_dep.
+  intros X; simpl.
+  eapply functional_extensionality.
+  intro e; simpl.
+  destruct e; simpl; try reflexivity.
+  destruct (@mfun1 E (sum1 ErrEvent E0) wE X e); auto.
+Qed.  
+
+Lemma errcutoff_conv D T e: 
+  (@EE_MR E (errcutoff (is_error wE)) D) T e = 
+  (errcutoff (@is_error (sum1 D E) (sum1 D E0)
+                (@FIso_suml D E E0 ErrEvent wE))) T e.
+Proof.
+  unfold errcutoff, EE_MR, is_error; simpl.  
+  destruct e; simpl; try reflexivity.
+  destruct (@mfun1 E (sum1 ErrEvent E0) wE _ e); auto.
+Qed.  
+
+End WITH_ERROR.
 
 Section LUTT_RUTT_LUTT.
 

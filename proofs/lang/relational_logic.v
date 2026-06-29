@@ -2045,8 +2045,7 @@ Lemma xrutt_weaken_aux post (sem1 : itree (recCall +' E) fstate) (sem2 : itree (
       post sem1 sem2.
 Proof.
   apply xrutt_weaken => //.
-  + move=> T1 e1; rewrite /errcutoff /= /EE_MR.
-    by case: e1 => //= e; rewrite /is_error /=; case: mfun1.
+  + move=> A e1; rewrite <- errcutoff_conv; auto.
   + move=> T1 T2 e1 e2; rewrite /EPreRel sum_prerelP.
     case: e1 e2 => [ [ii1 fn1 fs1] | e1] [ [ii2 fn2 fs2] | e2] //=.
     + by case : mfun1. + by case : mfun1.

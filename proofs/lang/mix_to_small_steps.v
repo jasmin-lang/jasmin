@@ -26,7 +26,7 @@ Import ITreeNotations.
 
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 
-Require Import while it_sems_core_defs core_logics.
+Require Import while it_sems_core_defs core_logics xrutt xrutt_facts.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
@@ -251,39 +251,38 @@ Definition mix_chk_stk_steps_sem (s:stk_lstate) : itree E lstate :=
   interp_mrec handle_call_chk_stk (mix_chk_stk_steps s).
 
 Lemma mix_chk_stk_mix_stk_steps s :
-  xrutt.xrutt (xrutt_facts.EE_MR (errcutoff (is_error wE)) (D:=CallE)) (xrutt_facts.EE_MR nocutoff (D:=CallE))
+  xrutt (EE_MR (errcutoff (is_error wE)) (D:=CallE)) (EE_MR nocutoff (D:=CallE))
     (HeterogeneousRelations.sum_prerel rutt_extras.RPre_eq rutt_extras.RPre_eq)
     (HeterogeneousRelations.sum_postrel rutt_extras.RPost_eq rutt_extras.RPost_eq) eq (mix_chk_stk_steps s)
     (mix_stk_steps s).
 Proof.
   rewrite /mix_chk_stk_steps /mix_stk_steps.
-  apply xrutt_facts.xrutt_iter with eq => // {}s _ <-.
+  apply xrutt_iter with eq => // {}s _ <-.
   rewrite /mix_chk_stk_step /mix_stk_step.
   case: stk.
-  + by apply xrutt.xrutt_Ret; constructor.
-  move=> cond conds; case: ifP => _; last by apply xrutt.xrutt_Ret; constructor.
-  apply xrutt_facts.xrutt_bind with eq.
-  + apply xrutt_facts.xrutt_refl.
+  + by apply xrutt_Ret; constructor.
+  move=> cond conds; case: ifP => _; last by apply xrutt_Ret; constructor.
+  apply xrutt_bind with eq.
+  + apply xrutt_refl.
     + by move=> T [] e _ _; constructor; exists refl_equal.
     by move=> T [] e t1 t2 _ _ /sum_postrelP /= ->.
   move=> s1 _ <-.
-  case: is_call; last by apply xrutt.xrutt_Ret; constructor.
-  move=> fn. rewrite !bind_trigger; apply xrutt.xrutt_Vis.
+  case: is_call; last by apply xrutt_Ret; constructor.
+  move=> fn. rewrite !bind_trigger; apply xrutt_Vis.
   + by constructor; exists refl_equal.
   move=> s2 _ /sum_postrelP /= -> /=.
-  case: ifP => _; first by apply xrutt.xrutt_Ret; constructor.
-  apply xrutt.xrutt_CutL.
-  by rewrite /xrutt_facts.EE_MR /errcutoff /is_error /Subevent.subevent /resum /fromErr /= mid12.
+  case: ifP => _; first by apply xrutt_Ret; constructor.
+  eapply lcutoff_wE.
 Qed.
 
 Lemma mix_chk_stk_mix_stk_sem (s:stk_lstate) :
-  xrutt.xrutt (errcutoff (is_error wE)) nocutoff rutt_extras.RPre_eq rutt_extras.RPost_eq
+  xrutt (errcutoff (is_error wE)) nocutoff rutt_extras.RPre_eq rutt_extras.RPost_eq
   eq (mix_chk_stk_steps_sem s) (mix_stk_steps_sem s).
 Proof.
-  apply xrutt_facts.interp_mrec_xrutt with (RPreInv:= rutt_extras.RPre_eq) (RPostInv:= rutt_extras.RPost_eq).
+  apply interp_mrec_xrutt with (RPreInv:= rutt_extras.RPre_eq) (RPostInv:= rutt_extras.RPost_eq).
   + move=> R1 R2 d1 d2 [??]; subst R2 d2.
     case: d1 => fn {} s /=.
-    apply: xrutt_facts.xrutt_weaken (mix_chk_stk_mix_stk_steps {| st := s; stk := [:: fun_cond fn] |}) => //.
+    apply: xrutt_weaken (mix_chk_stk_mix_stk_steps {| st := s; stk := [:: fun_cond fn] |}) => //.
     by move=> ? _ <- h ; rewrite (Eqdep.EqdepTheory.UIP_refl _ _ h).
   apply mix_chk_stk_mix_stk_steps.
 Qed.
@@ -345,8 +344,8 @@ Lemma mix_sem_ss_sem (cond : lstate -> bool) :
               if is_call s is Some fn then (forall ls, fun_cond fn ls -> cond ls)
               else True) (istep s) (istep s)) ->
   forall s,
-    xrutt.xrutt (errcutoff (is_error wE)) nocutoff rutt_extras.RPre_eq rutt_extras.RPost_eq
-     eq
+    xrutt (errcutoff (is_error wE)) nocutoff
+      rutt_extras.RPre_eq rutt_extras.RPost_eq eq
      (mix_sem cond s) (ss_sem cond s).
 Proof.
   move=> hstep s.
