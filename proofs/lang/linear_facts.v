@@ -23,6 +23,8 @@ Require Import
   hoare_logic
 .
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Notation nify := (addnE, rwR2 (@leP), rwR2 (@andP), rwR1 (@negP)).
 
 Ltac simpl_size :=
