@@ -20,6 +20,8 @@ Export one_varmap sem_one_varmap.
 Import psem it_sems_core var.
 Import low_memory.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Local Unset Elimination Schemes.
 
 Import MonadNotation.

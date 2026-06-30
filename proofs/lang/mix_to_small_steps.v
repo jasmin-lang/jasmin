@@ -28,6 +28,8 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 
 Require Import while it_sems_core_defs core_logics.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Section PARAMS.
 Context (funname : Type).
 Context (lstate : Type).
