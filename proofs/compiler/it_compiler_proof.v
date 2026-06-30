@@ -41,7 +41,7 @@ Require Import
   remove_globals_proof
   stack_alloc_proof_2
 
-  tunneling_proof_2
+  it_tunneling_proof
   it_linearization_proof
   it_merge_varmaps_proof
   psem_of_sem_proof

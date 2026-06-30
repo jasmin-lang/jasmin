@@ -83,6 +83,7 @@ compiler/insert_renaming_proof.v
 compiler/it_compiler_proof.v
 compiler/it_linearization_proof.v
 compiler/it_merge_varmaps_proof.v
+compiler/it_tunneling_proof.v
 compiler/jasmin_compiler.v
 compiler/lea.v
 compiler/lea_proof.v
@@ -132,7 +133,6 @@ compiler/stack_zeroization.v
 compiler/stack_zeroization_proof.v
 compiler/tunneling.v
 compiler/tunneling_proof.v
-compiler/tunneling_proof_2.v
 compiler/unionfind.v
 compiler/unionfind_proof.v
 compiler/unrolling.v
