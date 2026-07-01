@@ -273,20 +273,17 @@ abstract theory ArrayWords.
 
   (* size of the array in words *)
   op sizeA: int.
-  axiom gt0_sizeA: 0 < sizeA.
 
   clone WT as Word with
     op size <- 8 * sizeW
     proof gt0_size by rewrite pmulr_rgt0 // gt0_sizeW.
 
   clone import PolyArray as ArrayN with
-    op size <- sizeA
-    proof ge0_size by rewrite ltzW gt0_sizeA.
+    op size <- sizeA.
 
   (* Equivalent array of bytes *)
   clone import WArray as WArrayN with
-    op size <- sizeW * sizeA
-    proof ge0_size by rewrite pmulr_rge0 1:gt0_sizeW ltzW gt0_sizeA.
+    op size <- sizeW * sizeA.
 
   (* Conversion between WArrayN.t and Word.t ArrayN.t *)
   clone W_WS as Wu8 with
@@ -320,10 +317,8 @@ abstract theory SubArrayCast.
   axiom gt0_sizeWB: 0 < sizeWB.
 
   op sizeS: int.
-  axiom gt0_sizeS: 0 < sizeS.
 
   op sizeB: int.
-  axiom gt0_sizeB: 0 < sizeB.
 
   clone WT as WordS with
     op size <- 8 * sizeWS
@@ -335,11 +330,11 @@ abstract theory SubArrayCast.
 
   clone ArrayWords as ArrayWordsS with
     op sizeW <- sizeWS, op sizeA <- sizeS, theory Word <- WordS
-    proof gt0_sizeW by apply gt0_sizeWS, gt0_sizeA by apply gt0_sizeS.
+    proof gt0_sizeW by apply gt0_sizeWS.
 
   clone ArrayWords as ArrayWordsB with
     op sizeW <- sizeWB, op sizeA <- sizeB, theory Word <- WordB
-    proof gt0_sizeW by apply gt0_sizeWB, gt0_sizeA by apply gt0_sizeB.
+    proof gt0_sizeW by apply gt0_sizeWB.
 
   op get_sub_direct (a: WordB.t ArrayWordsB.ArrayN.t) (i: int) =
     ArrayWordsS.to_word_array (
@@ -391,7 +386,6 @@ abstract theory ArrayAccessCast.
   axiom gt0_sizeWB: 0 < sizeWB.
 
   op sizeB: int.
-  axiom gt0_sizeB: 0 < sizeB.
 
   clone WT as WordS with
     op size <- 8 * sizeWS
@@ -403,7 +397,7 @@ abstract theory ArrayAccessCast.
 
   clone ArrayWords as ArrayWordsB with
     op sizeW <- sizeWB, op sizeA <- sizeB, theory Word <- WordB
-    proof gt0_sizeW by apply gt0_sizeWB, gt0_sizeA by apply gt0_sizeB.
+    proof gt0_sizeW by apply gt0_sizeWB.
 
   clone W_WS as WSu8 with
     op sizeS <= W8.size, op sizeB <= W8.size*sizeWS, op r <= sizeWS,

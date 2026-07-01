@@ -583,16 +583,23 @@ let check_array env x =
 (* ------------------------------------------------------------------- *)
 (* Formatting to string helpers *)
 
+(* we print negative lengths with a "m"-prefix to create valid module names *)
+let pp_length fmt i =
+  if i < 0 then
+    Format.fprintf fmt "m%d" (-i)
+  else
+    Format.fprintf fmt "%d" i
+
 let fmt_array_theory at = match at with
-  | Array n -> Format.sprintf "Array%i" n
-  | WArray n -> Format.sprintf "WArray%i" n
-  | ArrayWords aw -> Format.sprintf "ArrayWords%iW%i" aw.sizea (8*aw.sizew)
-  | SubArray x -> Format.sprintf "SubArray%i_%i" x.sizes x.sizeb
-  | SubArrayDirect x -> Format.sprintf "SubArrayDirect%i_%iW%i" x.sizes x.sizeb (8*x.sizew)
-  | SubArrayCast x -> Format.sprintf "SubArrayDirect%iW%i_%iW%i" x.sizes (8*x.sizews) x.sizeb (8*x.sizewb)
-  | ArrayAccessCast x -> Format.sprintf "ArrayAccessCastW%i_%iW%i" (8*x.sizews) x.sizeb (8*x.sizewb)
-  | ByteArray n -> Format.sprintf "BArray%i" n
-  | SubByteArray x -> Format.sprintf "SBArray%i_%i" x.sizeb x.sizes
+  | Array n -> Format.asprintf "Array%a" pp_length n
+  | WArray n -> Format.asprintf "WArray%a" pp_length n
+  | ArrayWords aw -> Format.asprintf "ArrayWords%aW%i" pp_length aw.sizea (8*aw.sizew)
+  | SubArray x -> Format.asprintf "SubArray%a_%a" pp_length x.sizes pp_length x.sizeb
+  | SubArrayDirect x -> Format.asprintf "SubArrayDirect%a_%aW%i" pp_length x.sizes pp_length x.sizeb (8*x.sizew)
+  | SubArrayCast x -> Format.asprintf "SubArrayDirect%aW%i_%aW%i" pp_length x.sizes (8*x.sizews) pp_length x.sizeb (8*x.sizewb)
+  | ArrayAccessCast x -> Format.asprintf "ArrayAccessCastW%i_%aW%i" (8*x.sizews) pp_length x.sizeb (8*x.sizewb)
+  | ByteArray n -> Format.asprintf "BArray%a" pp_length n
+  | SubByteArray x -> Format.asprintf "SBArray%a_%a" pp_length x.sizeb pp_length x.sizes
 
 let fmt_Wsz sz = Format.asprintf "W%i" (int_of_ws sz)
 
@@ -782,13 +789,21 @@ let pp_ec_prog fmt (prog:ec_prog) = Format.fprintf fmt "@[<v>%a@]" (pp_list "@ @
 (* ------------------------------------------------------------------- *)
 (* Array theory cloning *)
 
+(* For negative lengths, we need to import Int. We import it systematically. *)
+let pp_import_Int fmt () =
+  Format.fprintf fmt "require import Int.@ @ "
+
 let fmt_array_decl fmt i =
-  Format.fprintf fmt "@[<v>from Jasmin require import JArray.@ @ ";
-  Format.fprintf fmt "clone export PolyArray as Array%i  with op size <- %i.@]@." i i
+  Format.fprintf fmt "@[<v>";
+  pp_import_Int fmt ();
+  Format.fprintf fmt "from Jasmin require import JArray.@ @ ";
+  Format.fprintf fmt "clone export PolyArray as Array%a  with op size <- %i.@]@." pp_length i i
 
 let fmt_warray_decl fmt i =
-  Format.fprintf fmt "@[<v>from Jasmin require import JWord_array.@ @ ";
-  Format.fprintf fmt "clone export WArray as WArray%i  with op size <- %i.@]@." i i
+  Format.fprintf fmt "@[<v>";
+  pp_import_Int fmt ();
+  Format.fprintf fmt "from Jasmin require import JWord_array.@ @ ";
+  Format.fprintf fmt "clone export WArray as WArray%a  with op size <- %i.@]@." pp_length i i
 
 let fmt_op fmt (op_name, v) = Format.fprintf fmt "op %s <- %i" op_name v
 
@@ -797,8 +812,8 @@ let fmt_the fmt (th, v) = Format.fprintf fmt "theory %s <- %s" th v
 let fmt_th fmt (th, v) = Format.fprintf fmt "theory %s <= %s" th v
 
 let fmt_arraywords_decl fmt (aw: arraywords) =
-  let arrayn = Format.sprintf "Array%i" aw.sizea in
-  let warrayn = Format.sprintf "WArray%i" (aw.sizew*aw.sizea) in
+  let arrayn = Format.asprintf "Array%a" pp_length aw.sizea in
+  let warrayn = Format.asprintf "WArray%a" pp_length (aw.sizew*aw.sizea) in
   let fmt_insts fmt (aw: arraywords) =
     Format.fprintf fmt "%a,@ %a,@ %a,@ %a,@ %a"
     fmt_op ("sizeW", aw.sizew)
@@ -807,15 +822,16 @@ let fmt_arraywords_decl fmt (aw: arraywords) =
     fmt_th ("ArrayN", arrayn)
     fmt_th ("WArrayN", warrayn)
   in
-  Format.fprintf fmt "@[<v>from Jasmin require import JWord JWord_array.@ @ ";
-  Format.fprintf fmt "@[<v>require import %s %s.@ @ " arrayn warrayn;
+  Format.fprintf fmt "@[<v>";
+  pp_import_Int fmt ();
+  Format.fprintf fmt "require import %s %s.@ @ " arrayn warrayn;
   Format.fprintf fmt "clone export ArrayWords as %s  with @[%a@].@]@."
     (fmt_array_theory (ArrayWords aw))
     fmt_insts aw
 
 let fmt_subarray_decl fmt (s: subarray) =
-  let arrays = Format.sprintf "Array%i" s.sizes in
-  let arrayb = Format.sprintf "Array%i" s.sizeb in
+  let arrays = Format.asprintf "Array%a" pp_length s.sizes in
+  let arrayb = Format.asprintf "Array%a" pp_length s.sizeb in
   let fmt_insts fmt (s: subarray) =
     Format.fprintf fmt "%a,@ %a,@ %a,@ %a"
     fmt_op ("sizeS", s.sizes)
@@ -823,8 +839,10 @@ let fmt_subarray_decl fmt (s: subarray) =
     fmt_th ("ArrayS", arrays)
     fmt_th ("ArrayB", arrayb)
   in
-  Format.fprintf fmt "@[<v>from Jasmin require import JArray.@ @ ";
-  Format.fprintf fmt "@[<v>require import %s %s.@ @ " arrays arrayb;
+  Format.fprintf fmt "@[<v>";
+  pp_import_Int fmt ();
+  Format.fprintf fmt "from Jasmin require import JArray.@ @ ";
+  Format.fprintf fmt "require import %s %s.@ @ " arrays arrayb;
   Format.fprintf fmt "clone export SubArray as %s  with @[%a@].@]@."
     (fmt_array_theory (SubArray s))
     fmt_insts s
@@ -841,8 +859,10 @@ let fmt_subarraydirect_decl fmt (s: subarraydirect) =
     fmt_th ("ArrayWordsS", arrayws)
     fmt_th ("ArrayWordsB", arraywb)
   in
-  Format.fprintf fmt "@[<v>from Jasmin require import JWord JWord_array.@ @ ";
-  Format.fprintf fmt "@[<v>require import %s %s.@ @ " arrayws arraywb;
+  Format.fprintf fmt "@[<v>";
+  pp_import_Int fmt ();
+  Format.fprintf fmt "from Jasmin require import JWord JWord_array.@ @ ";
+  Format.fprintf fmt "require import %s %s.@ @ " arrayws arraywb;
   Format.fprintf fmt "clone export SubArrayDirect as %s  with @[%a@].@]@."
     (fmt_array_theory (SubArrayDirect s))
     fmt_insts s
@@ -861,8 +881,10 @@ let fmt_subarraycast_decl fmt (s: subarraycast) =
     fmt_th ("ArrayWordsS", arrayws)
     fmt_th ("ArrayWordsB", arraywb)
   in
-  Format.fprintf fmt "@[<v>from Jasmin require import JWord JWord_array.@ @ ";
-  Format.fprintf fmt "@[<v>require import %s %s.@ @ " arrayws arraywb;
+  Format.fprintf fmt "@[<v>";
+  pp_import_Int fmt ();
+  Format.fprintf fmt "from Jasmin require import JWord JWord_array.@ @ ";
+  Format.fprintf fmt "require import %s %s.@ @ " arrayws arraywb;
   Format.fprintf fmt "clone export SubArrayCast as %s  with @[%a@].@]@."
     (fmt_array_theory (SubArrayCast s))
     fmt_insts s
@@ -878,14 +900,18 @@ let fmt_arrayaccesscast_decl fmt (s: arrayaccesscast) =
     fmt_the ("WordB", Format.sprintf "W%i" (8*s.sizewb))
     fmt_th ("ArrayWordsB", arraywb)
   in
-  Format.fprintf fmt "@[<v>from Jasmin require import JWord JWord_array.@ @ ";
-  Format.fprintf fmt "@[<v>require import %s.@ @ " arraywb;
+  Format.fprintf fmt "@[<v>";
+  pp_import_Int fmt ();
+  Format.fprintf fmt "from Jasmin require import JWord JWord_array.@ @ ";
+  Format.fprintf fmt "require import %s.@ @ " arraywb;
   Format.fprintf fmt "clone export ArrayAccessCast as %s  with @[%a@].@]@."
     (fmt_array_theory (ArrayAccessCast s))
     fmt_insts s
 
 let fmt_bytearray_decl fmt n =
-  Format.fprintf fmt "@[<v>from Jasmin require import JByte_array.@ @ ";
+  Format.fprintf fmt "@[<v>";
+  pp_import_Int fmt ();
+  Format.fprintf fmt "from Jasmin require import JByte_array.@ @ ";
   Format.fprintf fmt "clone include ByteArray with op size <= %i.@]@." n
 
 let fmt_subbytearray_decl fmt (s:subarray) =
@@ -896,8 +922,10 @@ let fmt_subbytearray_decl fmt (s:subarray) =
     fmt_th ("Asmall", arrays)
     fmt_th ("Abig", arrayb)
   in
-  Format.fprintf fmt "@[<v>from Jasmin require import JByte_array.@ @ ";
-  Format.fprintf fmt "@[<v>require import %s %s.@ @ " arrays arrayb;
+  Format.fprintf fmt "@[<v>";
+  pp_import_Int fmt ();
+  Format.fprintf fmt "from Jasmin require import JByte_array.@ @ ";
+  Format.fprintf fmt "require import %s %s.@ @ " arrays arrayb;
   Format.fprintf fmt "clone SubByteArray as %s  with @[%t@].@]@."
     (fmt_array_theory (SubByteArray s))
     fmt_insts
@@ -944,15 +972,15 @@ let ec_zeroext_sz (szo, szi) e =
 let ec_zeroext (t_o, t_i) e =
   if t_o = t_i then e else ec_zeroext_sz (ws_of_ty t_o, ws_of_ty t_i) e
 
-let ec_Array env n = Env.add_Array env n; Format.sprintf "Array%i" n
+let ec_Array env n = Env.add_Array env n; Format.asprintf "Array%a" pp_length n
 
-let ec_WArray env n = Env.add_WArray env n; Format.sprintf "WArray%i" n
+let ec_WArray env n = Env.add_WArray env n; Format.asprintf "WArray%a" pp_length n
 
-let ec_BArray env n = Env.add_BArray env n; Format.sprintf "BArray%i" n
+let ec_BArray env n = Env.add_BArray env n; Format.asprintf "BArray%a" pp_length n
 
 let ec_SBArray env (s:subarray) =
   Env.add_SBArray env s;
-  Format.sprintf "SBArray%i_%i" s.sizeb s.sizes
+  Format.asprintf "SBArray%a_%a" pp_length s.sizeb pp_length s.sizes
 
 let toec_ty onarray env ty = match ty with
     | Bty Bool -> "bool"
@@ -1809,7 +1837,7 @@ struct
     | Syscall_t.RandomBytes (ws, n) ->
       let n = arr_size ws (Conv.int_of_cz n) in
       Env.add_randombytes env n;
-      Format.sprintf "%s.randombytes_%i" syscall_mod_arg n
+      Format.asprintf "%s.randombytes_%a" syscall_mod_arg pp_length n
 
   let ec_opn pd msfsz asmOp o =
     let s = Format.asprintf "%a" (pp_opn pd msfsz asmOp) o in
@@ -1959,7 +1987,7 @@ struct
       let randombytes_decl a n =
           let arr_ty = toec_ty env (Arr (U8, n)) in
           {
-              fname = Format.sprintf "randombytes_%i" n;
+              fname = Format.asprintf "randombytes_%a" pp_length n;
               args = [(a, arr_ty)];
               rtys = [arr_ty];
           }

@@ -1,0 +1,8 @@
+param int N = -1;
+
+export fn main (reg ptr u64[N] a) -> reg ptr u64[N] {
+  reg u64[N] r1;
+  r1 = #copy(a);
+  a = #copy(r1);
+  return a;
+}

@@ -1,0 +1,16 @@
+param int N = -1;
+param int M = -3;
+
+export fn main (reg ptr u64[N] a) -> reg ptr u64[N] {
+  return a;
+}
+
+export fn main2 (reg ptr u64[N] a) -> reg ptr u64[N] {
+  reg ptr u64[M] b = a[0:M];
+  reg u64 i = 0;
+  while (i <s M) {
+    b[i] = i;
+  }
+  a[0:M] = b;
+  return a;
+}
