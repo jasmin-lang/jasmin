@@ -1,0 +1,13 @@
+export fn main (reg ptr u64[-1] a) -> reg ptr u64[-1] {
+  return a;
+}
+
+export fn main2 (reg ptr u64[-1] a) -> reg ptr u64[-1] {
+  reg ptr u64[-2] b = a[0:-2];
+  reg u64 i = 0;
+  while (i <s -2) {
+    b[i] = i;
+  }
+  a[0:-2] = b;
+  return a;
+}

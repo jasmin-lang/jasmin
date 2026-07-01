@@ -431,6 +431,12 @@ fail/array_expansion/x86-64/sub_array_param_overflow.jazz:
 compilation error in function main:
 array expansion: cannot expand variable z (the sub-array overflows)
 
+fail/array_expansion/x86-64/sub_array_param_overflow_2.jazz:
+
+"fail/array_expansion/x86-64/sub_array_param_overflow_2.jazz", line 8 (8-9):
+compilation error in function main:
+array expansion: cannot expand variable z (the sub-array overflows)
+
 fail/array_expansion/x86-64/sub_array_return_not_reg.jazz:
 
 "fail/array_expansion/x86-64/sub_array_return_not_reg.jazz", line 16 (2-3):
@@ -440,6 +446,12 @@ array expansion: cannot expand variable s (not a reg array)
 fail/array_expansion/x86-64/sub_array_return_overflow.jazz:
 
 "fail/array_expansion/x86-64/sub_array_return_overflow.jazz", line 8 (2-3):
+compilation error in function main:
+array expansion: cannot expand variable k (the sub-array overflows)
+
+fail/array_expansion/x86-64/sub_array_return_overflow_2.jazz:
+
+"fail/array_expansion/x86-64/sub_array_return_overflow_2.jazz", line 8 (2-3):
 compilation error in function main:
 array expansion: cannot expand variable k (the sub-array overflows)
 
@@ -1635,6 +1647,12 @@ asmgen: instruction POR is given incompatible args.
 Allowed args are:
   [[regx]; [regx; mem (glob allowed)]]
 
+fail/x86-64/randombytes_negative_length.jazz:
+
+"fail/x86-64/randombytes_negative_length.jazz", line 4 (2-22):
+compilation error in function main:
+stack allocation: randombytes: the requested size is negative
+
 fail/x86-64/shift.jazz:
 
 "fail/x86-64/shift.jazz", line 5 (4-12):
@@ -1677,4 +1695,4 @@ Statistics:
 	Pretyping:  47
 	Parsing:     4
 	Typing:      5
-	Compile:   208
+	Compile:   211

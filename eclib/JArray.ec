@@ -12,8 +12,6 @@ abstract theory MonoArray.
 
   op size: int.
 
-  axiom ge0_size : 0 <= size.
-
   type t.
 
   op "_.[_]"  : t -> int -> elem.
@@ -128,8 +126,8 @@ abstract theory MonoArray.
     mkseq (fun i => t.[i]) size
   axiomatized by to_listE.
 
-  lemma size_to_list (t:t): size (to_list t) = size.
-  proof. rewrite to_listE size_mkseq /max; smt (ge0_size). qed.
+  lemma size_to_list (t:t): size (to_list t) = max 0 size.
+  proof. by rewrite to_listE size_mkseq. qed.
 
   lemma get_of_list (l:elem list) i : 0 <= i < size =>
     (of_list l).[i] = nth dfl l i.
@@ -144,9 +142,9 @@ abstract theory MonoArray.
   lemma of_listK (l : elem list) : size l = size =>
     to_list (of_list l) = l.
   proof.
-    move=> h; apply (eq_from_nth dfl); 1:by rewrite size_to_list h.
+    move=> h; apply (eq_from_nth dfl); 1:by rewrite size_to_list h; smt(size_ge0).
     move=> i; rewrite size_to_list => hi.
-    by rewrite get_to_list // get_of_list.
+    by rewrite get_to_list // get_of_list; 1:smt(size_ge0).
   qed.
 
   lemma to_listK : cancel to_list of_list.
@@ -229,13 +227,13 @@ abstract theory MonoArray.
     rewrite to_listE map2E map2_zip init_of_list /=;congr.
     apply (eq_from_nth dfl).
     + rewrite !size_map size_zip !size_map StdOrder.IntOrder.minrE /=.
-      smt (size_iota ge0_size).
+      smt (size_iota).
     move=> i; rewrite size_map => hi.
     rewrite (nth_map 0) 1:// (nth_map (dfl,dfl)).
     + rewrite size_zip StdOrder.IntOrder.minrE /= !size_map.
-      smt (size_iota ge0_size).
-    rewrite /= nth_zip ?size_map //=; 1: smt (size_iota ge0_size).
-    rewrite !(nth_map 0) // !nth_iota //; smt (ge0_size size_iota).
+      smt (size_iota).
+    rewrite /= nth_zip ?size_map //=; 1: smt (size_iota).
+    rewrite !(nth_map 0) // !nth_iota //; smt (size_iota).
   qed.
 
   hint simplify (map2iE, map2_of_list)@0.
@@ -296,8 +294,6 @@ end MonoArray.
 abstract theory PolyArray.
 
   op size: int.
-
-  axiom ge0_size : 0 <= size.
 
   type 'a t.
 
@@ -455,8 +451,8 @@ abstract theory PolyArray.
   op to_list (t:'a t) =
     mkseq (fun i => t.[i]) size.
 
-  lemma size_to_list (t:'a t): size (to_list t) = size.
-  proof. rewrite size_mkseq /max; smt (ge0_size). qed.
+  lemma size_to_list (t:'a t): size (to_list t) = max 0 size.
+  proof. by rewrite size_mkseq. qed.
 
   lemma get_of_list (dfl:'a) (l:'a list) i : 0 <= i < size =>
     (of_list dfl l).[i] = nth dfl l i.
@@ -476,17 +472,16 @@ abstract theory PolyArray.
   lemma of_listK (dfl:'a) (l : 'a list) : size l = size =>
     to_list (of_list dfl l) = l.
   proof.
-    move=> h; apply (eq_from_nth witness); 1:by rewrite size_to_list h.
+    move=> h; apply (eq_from_nth witness); 1:by rewrite size_to_list h; smt(size_ge0).
     move=> i; rewrite size_to_list => hi.
-    rewrite get_to_list // get_of_list //.
-    by rewrite nth_onth (onth_nth witness) // h.
+    rewrite get_to_list // get_of_list; 1:smt(size_ge0).
+    by rewrite nth_onth (onth_nth witness); 1:smt(size_ge0).
   qed.
 
   lemma to_listK (dfl:'a) : cancel to_list (of_list dfl).
   proof.
     move=> t; apply ext_eq => i hi.
-    by rewrite get_of_list // nth_onth (onth_nth witness) ?size_to_list //=
-      get_to_list.
+    by rewrite get_of_list // nth_onth (onth_nth witness) ?size_to_list //=; smt().
   qed.
 
   lemma to_list_inj ['a] : injective (to_list<:'a>).
@@ -550,20 +545,16 @@ end PolyArray.
 (* Array slicing *)
 abstract theory SubArray.
   op sizeS: int.
-  axiom gt0_sizeS: 0 < sizeS.
 
   op sizeB: int.
-  axiom gt0_sizeB: 0 < sizeB.
 
   (* Sub-array *)
   clone import PolyArray as ArrayS with
-    op size <- sizeS
-    proof ge0_size by rewrite ltzW gt0_sizeS.
+    op size <- sizeS.
 
   (* Base array *)
   clone import PolyArray as ArrayB with
-    op size <- sizeB
-    proof ge0_size by rewrite ltzW gt0_sizeB.
+    op size <- sizeB.
 
   op get_sub (a: 'a ArrayB.t) (i: int) = ArrayS.init (fun j => a.[i + j]).
 
