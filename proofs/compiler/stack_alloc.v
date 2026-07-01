@@ -1654,7 +1654,10 @@ Definition alloc_syscall ii rmap rs o es :=
   | RandomBytes ws n =>
     let len := arr_size ws n in
     (* per the semantics, we have [len <= wbase Uptr], but we need [<] *)
-    Let _ := assert ((0 <=? len) && (len <? wbase Uptr))%Z
+    Let _ := assert (0 <=? len)%Z
+                    (stk_error_no_var "randombytes: the requested size is negative")
+    in
+    Let _ := assert (len <? wbase Uptr)%Z
                     (stk_error_no_var "randombytes: the requested size is too large")
     in
     match rs, es with
