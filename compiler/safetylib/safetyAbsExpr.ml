@@ -417,7 +417,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
   (*-------------------------------------------------------------------------*)
   let arr_full_range x =
     List.init
-      (arr_range x * size_of_ws (arr_size x))
+      (max 0 (arr_range x * size_of_ws (arr_size x)))
       (fun i -> AarraySlice (x, U8, i))
 
   (* let abs_arr_range_at abs x acc ws ei = match aeval_cst_int abs ei with
@@ -434,7 +434,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
   let sub_arr_range x acc ws len i =
     let init_offset = access_offset acc ws i in
     let wss = size_of_ws ws in
-    List.init len (fun j -> AarraySlice (x, ws, init_offset + wss * j))
+    List.init (max 0 len) (fun j -> AarraySlice (x, ws, init_offset + wss * j))
 
   let abs_sub_arr_range_at abs x acc ws len ei =
     match Option.map Z.to_int (aeval_cst_zint abs ei) with
@@ -657,7 +657,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
     | Pget(_, access,ws,x,ei) ->
       begin
         match abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws 1 ei with
-        | [] -> assert false
+        | [] -> (* nonpositive length *) top_linexpr abs ws_e
         | [mv] ->
           let lin = Mtexpr.var mv in
           wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
@@ -1052,7 +1052,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
     | Laset (_, acc, ws, x, ei) ->
       begin
         match abs_sub_arr_range abs (L.unloc x,Expr.Slocal) acc ws 1 ei with
-        | [] -> assert false
+        | [] -> (* nonpositive length *) MLnone
         | [mv] -> MLvar (loc, mv)
         | _ as mvs -> MLvars (loc, mvs)
       end
@@ -1162,7 +1162,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
         (* [rhs.ms_offset] is not to be scaled on the word size. *)
         let eiv = Mlocal (AarraySlice (rgv,ws,rhs.ms_offset + i)) in
         (vi, eiv)
-      ) (List.init len (fun i -> i)) in
+      ) (List.init (max 0 len) (fun i -> i)) in
 
     let ves = List.map (fun (v,eiv) ->
         let ei = sexpr_from_simple_expr (Mtexpr.var eiv) in

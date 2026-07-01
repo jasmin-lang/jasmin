@@ -54,7 +54,7 @@ type glob_alloc_oracle_t =
 
 (* --------------------------------------------------- *)
 let incr_liverange r x d : liverange =
-  let s = size_of x.v_ty in
+  let s = max 0 (size_of x.v_ty) in
   let g = Mint.find_default Mv.empty s r in
   let i =
     match Mv.find x g with
@@ -230,7 +230,7 @@ let err_var_not_initialized x =
   hierror ~loc:Lnone "variable “%a” (declared at %a) may not be initialized" (Printer.pp_var ~debug:true) x Location.pp_loc x.v_dloc
 
 let get_slot ?var coloring x =
-  let sz = size_of x.v_ty in
+  let sz = max 0 (size_of x.v_ty) in
   try Mv.find x (Mint.find sz coloring)
   with Not_found -> err_var_not_initialized (Option.default x var)
 
@@ -380,7 +380,7 @@ let alloc_local_stack size slots atbl =
 
   let init_slot (x,ws) =
     let pos = round_ws ws !size in
-    let n = size_of x.v_ty in
+    let n = max 0 (size_of x.v_ty) in
     size := pos + n;
     (x,ws,pos) in
 
