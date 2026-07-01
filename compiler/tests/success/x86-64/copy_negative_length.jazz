@@ -1,0 +1,6 @@
+export fn main (reg ptr u64[-1] a) -> reg ptr u64[-1] {
+  reg u64[-1] r1;
+  r1 = #copy(a);
+  a = #copy(r1);
+  return a;
+}

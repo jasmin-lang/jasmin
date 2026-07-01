@@ -16,18 +16,7 @@ let error loc fmt =
     bfmt fmt
 
 (* -------------------------------------------------------------------- *)
-let ty_var (x: var) =
-  let ty = x.v_ty in
-  begin match ty with
-  | Arr(_, n) ->
-      if (n < 1) then
-        error (L.i_loc0 x.v_dloc)
-          "the variable %a has type %a, its array size should be positive"
-          (Printer.pp_var ~debug:false) x PrintCommon.pp_ty ty
-  | _ -> ()
-  end;
-  ty
-
+let ty_var (x: var) = x.v_ty
 
 let ty_gvar (x: int ggvar) = ty_var (L.unloc x.gv)
 
@@ -57,10 +46,6 @@ let check_type loc e te ty =
 let check_int loc e te = check_type loc e te tint
 
 let check_ptr pd loc e te = check_type loc e te (tu pd)
-
-let check_length loc len =
-  if len <= 0 then
-    error loc "the length should be strictly positive"
 
 (* -------------------------------------------------------------------- *)
 
@@ -162,7 +147,6 @@ and ty_get_set_sub pd loc ws len x e =
   let te = ty_expr pd loc e in
   check_array loc (Pvar x) tx;
   check_int loc e te;
-  check_length loc len;
   Arr(ws, len)
 
 (* -------------------------------------------------------------------- *)
@@ -265,9 +249,9 @@ let check_global_decl (g, d) =
   | Global.Garr (len, _) ->
       if
         match ty with
-        | Arr (ws, len') -> Conv.int_of_pos len <> arr_size ws len'
+        | Arr (ws, len') -> Conv.int_of_cz len <> arr_size ws len'
         | _ -> true
-      then error (Arr (U8, Conv.int_of_pos len))
+      then error (Arr (U8, Conv.int_of_cz len))
   | Gword (ws, _) ->
       if match ty with Bty (U ws') -> not (wsize_le ws ws') | _ -> true then
         error (Bty (U ws))

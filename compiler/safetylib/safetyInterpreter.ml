@@ -422,7 +422,7 @@ let safe_opn pd asmOp safe opn es =
          let n = Papp1 (E.uint_of_word sz, n) in
          let n = Papp2 (Omod (Unsigned, Op_int), n, Pconst (Z.of_int 32)) in
          [ InRange(Pconst (Conv.z_of_cz lo), Pconst (Conv.z_of_cz hi), n) ]
-      | Wsize.AllInit(ws, p, i) ->
+      | Wsize.AllInit(ws, n, i) ->
          let array, aa, offset =
            match List.nth es (Conv.int_of_nat i) with
            | Pvar y -> y, Warray_.AAscale, icnst
@@ -433,7 +433,7 @@ let safe_opn pd asmOp safe opn es =
            | _ -> assert false
          in
            List.flatten
-             (List.init (Conv.int_of_pos p) (fun i -> init_get array aa ws (offset i) 1))
+             (List.init (max 0 (Conv.int_of_cz n)) (fun i -> init_get array aa ws (offset i) 1))
       | NotZero (sz, n) ->
         [ notZero(sz, List.nth es (Conv.int_of_nat n)) ]
 
@@ -1423,12 +1423,12 @@ end = struct
 
   let cells_of_array x ofs n =
     let x = L.unloc x in
-    List.init (Conv.int_of_pos n) (fun i -> SafetyVar.AarraySlice (x, U8, ofs + i))
+    List.init (max 0 (Conv.int_of_cz n)) (fun i -> SafetyVar.AarraySlice (x, U8, ofs + i))
 
   let aeval_syscall state sc lvs _es =
     match sc with
     | Syscall_t.RandomBytes (ws, len) ->
-       let n = BinInt.Z.to_pos (Type.arr_size ws len) in
+       let n = Type.arr_size ws len in
        let cells = match lvs with
          | [ Lnone _ ] -> []
          | [ Lvar x ] -> cells_of_array x 0 n

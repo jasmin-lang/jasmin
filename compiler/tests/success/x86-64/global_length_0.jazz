@@ -1,0 +1,16 @@
+// a global array of length 0 is ok
+
+param int N = 0;
+
+u64[N] g = {};
+
+export fn main () -> reg u64 {
+  reg u64 res = 0;
+  reg ptr u64[N] r = g;
+  reg u64 i = 0;
+  while (i < N) {
+    res += r[i];
+    i += 1;
+  }
+  return res;
+}

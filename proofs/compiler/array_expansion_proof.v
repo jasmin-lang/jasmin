@@ -11,9 +11,8 @@ Local Open Scope seq_scope.
 
 Record wf_ai (m : t) (x:var) ai := {
   x_nin : ~ Sv.In x m.(svars);
-  len_pos : (0 < ai.(ai_len))%Z;
   len_def : ai_len ai = Z.of_nat (size (ai_elems ai));
-  x_ty    : convertible (vtype x) (aarr ai.(ai_ty) (Z.to_pos ai.(ai_len)));
+  x_ty    : is_aarr (vtype x);
   xi_nin  : forall xi, xi \in ai_elems ai -> ~ Sv.In xi m.(svars);
   xi_ty   : forall xi, xi \in ai_elems ai -> xi.(vtype) = aword ai.(ai_ty);
   el_uni  : uniq (ai_elems ai);
@@ -83,11 +82,14 @@ Qed.
 
 Lemma wf_take_drop dfl m x ai i len :
   wf_ai m x ai ->
-  (0 <= i)%Z -> (i + len <= ai_len ai)%Z -> (0 <= len)%Z ->
+  (0 <= i)%Z -> (i + len <= ai_len ai)%Z ->
   take (Z.to_nat len) (drop (Z.to_nat i) (ai_elems ai)) =
   map (fun j => znth dfl (ai_elems ai) (i + j)) (ziota 0 len).
 Proof.
-  move=> vai h0i hilen h0len.
+  have [hneg|hpos] := Z.nonpos_nonneg_cases len.
+  + move=> _ _ _.
+    by rewrite Z_to_nat_le0 // take0 ziota_neg //.
+  move=> vai h0i hilen.
   have heq : size (take (Z.to_nat len) (drop (Z.to_nat i) (ai_elems ai))) = Z.to_nat len.
   + rewrite size_takel // size_drop; apply/ZNleP.
     rewrite Nat2Z.n2zB.
@@ -106,8 +108,7 @@ Lemma wf_ai_elems dfl m x ai :
 Proof.
   move=> vai.
   have /= := @wf_take_drop dfl m x ai 0 ai.(ai_len) vai (Z.le_refl _) (Z.le_refl _).
-  rewrite vai.(len_def) => /(_ (Zle_0_nat _)) <-.
-  by rewrite drop0 Nat2Z.id take_size.
+  by rewrite drop0 vai.(len_def) Nat2Z.id take_size.
 Qed.
 
 Lemma expand_vP n a ws l :
@@ -339,6 +340,7 @@ Lemma expand_paramsP (s1 s2 : estate) e expdin :
     exists2 vs', expand_vs expdin vs = ok vs' &
       sem_pexprs false gd s2 (flatten es2) = ok (flatten vs').
 Proof.
+Local Opaque wsize_size.
   move=> h ?? + /mapM2_Forall3 H; elim: H => [?[<-]|]; first by eexists.
   move=> [] /=; last first.
   + by t_xrbindP => > /(expand_eP h) {}h <- ?
@@ -349,7 +351,8 @@ Proof.
     rewrite /get_gvar /=hloc{hloc} /get_var /=.
     move=> + hrec _ _ [<-] z0 /hrec{hrec}+ <- => + [? ->] /= => <-.
     have vai := (valid hga); case: h => _ _ -[_ /(_ _ _ _ hga){hga}hgai].
-    have := Vm.getP (evm s1) (gv g). rewrite (convertible_eval_atype vai.(x_ty)) /compat_val /=.
+    have /is_aarrP [xws [xlen hxty]] := vai.(x_ty).
+    have := Vm.getP (evm s1) (gv g). rewrite hxty /= /compat_val /=.
     move => /compat_ctypeE /type_of_valI [x2 /[dup] hg ->].
     rewrite /sem_pexprs mapM_cat -/(sem_pexprs _ _ _ (flatten _)) => -> /=.
     rewrite expand_vP /=; eexists; eauto.
@@ -360,40 +363,34 @@ Proof.
     by rewrite (wf_index _ vai hbound).
 
   move=> aa ws' len' g ei es >.
-  t_xrbindP=> /eqP ?; subst aa.
-  case: is_constP=> // i ? [<-].
+  t_xrbindP; case: is_constP=> // i ? [<-].
   move=> a hga.
-  move=> /and4P [] /eqP ? /eqP ? /eqP ? hloc ? _ hrec vs z; subst ws ws' len es => /=.
+  move=> /eqP ? /eqP ? hb /and3P [] /eqP ? /eqP ? hloc ? _ hrec vs z; subst aa ws ws' len es => /=.
+  move: hb; rewrite !zify => hb.
   have vai := valid hga.
 
-  apply: on_arr_gvarP; rewrite (convertible_eval_atype vai.(x_ty)) => len1 t [?]; subst len1.
+  apply: on_arr_gvarP => len1 t _.
   rewrite /get_gvar hloc => /get_varP [hgx _ _]; t_xrbindP => st hst ?; subst z.
   move=> ? /hrec[? hex +] <-; rewrite /sem_pexprs mapM_cat hex /= => -> /=.
   rewrite expand_vP /=; eexists; eauto.
   rewrite mapM_map /comp /= /get_gvar /get_var /= mapM_ok /=; do 2!f_equal.
   have := WArray.get_sub_bound hst.
   rewrite /arr_size /=.
-  move: t st hgx hst.
-  set wsaty := (X in (X * len')%positive).
-  set wsaty' := (X in (X * _)%positive).
-  have -> : wsaty' = wsaty by done.
-  have -> : Zpos (wsaty * len') = (wsize_size (ai_ty a) * Zpos len')%Z by done.
-  have -> : Zpos (wsaty * Z.to_pos (ai_len a))%positive = (wsize_size (ai_ty a) * ai_len a)%Z.
-  + by have ? := vai.(len_pos); rewrite Pos2Z.inj_mul Z2Pos.id.
-  move=> {wsaty'} t st hgx hst hi.
+  move=> hi.
   have ? := wsize_size_pos (ai_ty a).
-  rewrite -Z2Nat.inj_pos (wf_take_drop (v_var (gv g)) vai) //. 2,3: by nia.
+  rewrite (wf_take_drop (v_var (gv g)) vai) //. 2,3: by nia.
   rewrite -map_comp; apply eq_in_map => j; rewrite in_ziota /comp /= => /andP [] /ZleP ? /ZltP ?.
   have hbound : (0 <=? i + j)%Z && (i + j <? ai_len a)%Z.
   + by apply /andP; split; [apply/ZleP|apply/ZltP] => //; nia.
   case: h => _ _ -[_ /(_ _ _ _ hga){hga}hgai].
   move/hgai: (wf_mem (v_var (gv g)) vai hbound); rewrite -hgx /= => -[<-].
   by rewrite (wf_index _ vai hbound) (WArray.get_sub_get _ hst).
+Local Transparent wsize_size.
 Qed.
 
-Lemma wf_write_get s (x:var_i) ai (a : WArray.array (Z.to_pos (arr_size (ai_ty ai) (Z.to_pos (ai_len ai))))) i len :
+Lemma wf_write_get s (x:var_i) ai lena (a : WArray.array lena) i len :
   wf_ai m x ai ->
-  (0 <= i)%Z -> (i + len <= ai_len ai)%Z -> (0 <= len)%Z ->
+  (0 <= i)%Z -> (i + len <= ai_len ai)%Z ->
   exists2 vm,
     write_lvals false gd s [seq Lvar {| v_var := znth (v_var x) (ai_elems ai) x0; v_info := v_info x |} | x0 <- ziota i len]
       [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Unaligned AAscale (ai_ty ai) a i)) | i <- ziota i len] = ok (with_vm s vm) &
@@ -404,7 +401,7 @@ Lemma wf_write_get s (x:var_i) ai (a : WArray.array (Z.to_pos (arr_size (ai_ty a
            rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Unaligned AAscale (ai_ty ai) a j))
         else (evm s).[y].
 Proof.
-  move => hva h0i hilen h0l.
+  move => hva h0i hilen.
   have : uniq (ziota i len).
   + rewrite ziotaE map_inj_uniq ?iota_uniq //.
     by move=> j1 j2 h; apply Nat2Z.inj; lia.
@@ -454,10 +451,11 @@ Proof.
   + move=> x xs2.
     t_xrbindP=> ai hga; have hva:= valid hga.
     move=> /andP[/eqP? /eqP?] hmap va vs' s1'; subst.
-    move=> /write_varP [-> _]. rewrite (convertible_eval_atype hva.(x_ty)) => /vm_truncate_valEl [] a -> _.
+    have /is_aarrP [xws [xlen hxty]] := hva.(x_ty).
+    move=> /write_varP [-> _]. rewrite hxty => /vm_truncate_valEl [] a -> _.
     rewrite expand_vP => -[?]; subst vs'.
     rewrite (wf_ai_elems (v_var x) hva) -map_comp /comp.
-    have [vm2 -> hvm2 ]:= wf_write_get s2 a hva (Z.le_refl _) (Z.le_refl _) (Z.lt_le_incl _ _ (len_pos hva)).
+    have [vm2 -> hvm2 ]:= wf_write_get s2 a hva (Z.le_refl _) (Z.le_refl _).
     eexists; eauto.
     case heqa => ?? heqv; split => //; split => /=.
     + move=> y hin; rewrite hvm2 /= Vm.setP_neq; last by apply/eqP=> ?; subst y; apply (x_nin hva hin).
@@ -470,20 +468,21 @@ Proof.
       rewrite in_ziota /= (zindex_bound _ hva) => ?.
       have /(_ xi):= xi_disj hva hne hga'; elim => //.
     subst y; rewrite hga => -[<-] hin.
-    by rewrite in_ziota (zindex_bound _ hva) hin (convertible_eval_atype (x_ty hva)) vm_truncate_val_eq.
-  move => aa ws' len' x e xs2; t_xrbindP => /eqP ?; subst aa.
-  case: is_constP => // i _ [<-] ai hga; have hva:= valid hga.
-  move=> /and3P []/eqP ? /eqP ? /eqP ? <- va vs' s1'; subst a ws' len.
-  have /= := Vm.getP (evm s1) x; rewrite (convertible_eval_atype hva.(x_ty)) => /compat_valEl [a heqx]; rewrite heqx.
+    by rewrite in_ziota (zindex_bound _ hva) hin hxty vm_truncate_val_eq.
+  move => aa ws' len' x e xs2.
+  t_xrbindP; case: is_constP => // i _ [<-] ai hga; have hva:= valid hga.
+  move=> /eqP ? /eqP ? hb /andP [] /eqP ? /eqP ? <- va vs' s1'; subst aa a ws' len.
+  move: hb; rewrite !zify => hb.
+  have /is_aarrP [xws [xlen hxty]] := hva.(x_ty).
+  have /= := Vm.getP (evm s1) x; rewrite hxty => /compat_valEl [a heqx]; rewrite heqx.
   t_xrbindP => sa /to_arrI -> ra hra /write_varP [] -> _ _.
   rewrite expand_vP => -[?]; subst vs'.
   have := WArray.set_sub_bound hra.
-  have [ltws lt0len]:= (wsize_size_pos (ai_ty ai), len_pos hva).
-  rewrite /arr_size /mk_scale {1}(Z2Pos.id _ lt0len) Z2Pos.id; last by nia.
-  move=> hb; have [{hb} h0i hilen'] : (0 <= i /\ i + len' <= ai_len ai)%Z by nia.
-  have -> := wf_take_drop (v_var x) hva h0i hilen' (Zle_0_pos _).
+  rewrite /arr_size /mk_scale.
+  move=> hb'; have [{hb'} h0i hilen'] : (0 <= i /\ i + len' <= ai_len ai)%Z by nia.
+  have -> := wf_take_drop (v_var x) hva h0i hilen'.
   rewrite -map_comp /comp.
-  have [vm2 ] := wf_write_get s2 ra hva h0i hilen' (Zle_0_pos _).
+  have [vm2 ] := wf_write_get s2 ra hva h0i hilen'.
   rewrite {1 2}(ziota_shift i len') -!map_comp /comp.
   have -> :
    [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Unaligned AAscale (ai_ty ai) ra (i + x0))) | x0 <- ziota 0 len'] =
@@ -508,7 +507,7 @@ Proof.
     rewrite in_ziota /= => /hybound ?.
     have /(_ xi):= xi_disj hva hne hga'; elim => //.
   subst y; rewrite hga => -[<-] hin.
-  rewrite in_ziota (convertible_eval_atype (x_ty hva)); case: ifP => //=; rewrite eqxx //.
+  rewrite in_ziota hxty; case: ifP => //=; rewrite eqxx //.
   move: (hin); rewrite -(zindex_bound _ hva) => /andP [] /ZleP ? /ZltP ? hn.
   rewrite /= (WArray.set_sub_get _ hra).
   by rewrite hn; have [_ /(_ _ _ _ hga hin)]:= heqv; rewrite heqx.
@@ -602,7 +601,7 @@ Proof.
     + apply /andP; split => //; apply /negP => hin.
       by apply (hdis x); [clear; SvD.fsetdec | apply /sv_of_listP/map_f].
     have /= -> := Nat2Z.inj_succ (size elems); ring.
-  move=> [heq /disjointP hdis huni hlen] /andP [] /ZltP h0len hty <-.
+  move=> [heq /disjointP hdis huni hlen] hty <-.
   case: hwf => /= hwf hincl hget.
   split => /=.
   + move=> x ai /=; rewrite Mvar.setP; case: eqP.
@@ -613,7 +612,7 @@ Proof.
       + by move=> xi /mapP [id ? ->].
       move=> x' ai' xi /eqP ?. rewrite Mvar.setP_neq // => /hget -/(_ xi) h [].
       by rewrite -(map_id elems) => /sv_of_listP -/hdis h1 /h.
-    move=> hne /[dup] /hget h1 /hwf [/= ??????? xi_disj]; constructor => //=.
+    move=> hne /[dup] /hget h1 /hwf [/= ?????? xi_disj]; constructor => //=.
     move=> x' ai' xi hxx'; rewrite Mvar.setP; case: eqP => [? | hne']; last by apply xi_disj.
     by move=> [<-] [] /= /h1 /hdis h2; rewrite -(map_id elems) => /sv_of_listP.
   + by clear -heq hincl; SvD.fsetdec.
@@ -628,7 +627,8 @@ Lemma eq_alloc_empty m scs mem :
 Proof.
   move=> hwf; split => //; split => //=.
   move=> x ai xi /hwf hva hin.
-  rewrite !Vm.initP (convertible_eval_atype (x_ty hva)) (xi_ty hva hin) /=.
+  have /is_aarrP [xws [xlen hxty]] := hva.(x_ty).
+  rewrite !Vm.initP hxty (xi_ty hva hin) /=.
   case heq : WArray.get => [w | /=]; last first.
   + by rewrite /undef_v (undef_x_vundef (_ _)).
   have []:= WArray.get_bound heq; rewrite /mk_scale => ???.
