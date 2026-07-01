@@ -77,11 +77,16 @@ let config =
     value & opt (some non_dir_file) None & info [ "config" ] ~docv:"JSON" ~doc)
 
 let no_check_alignment =
-  let doc = "Do not report alignment issue as safety violations" in
+  let doc = "Do not report alignment issues as safety violations" in
   Arg.(value & flag & info [ "no-check-alignment" ] ~doc)
 
-let parse docdir arch call_conv idirs slice param no_check_alignment config file
-    =
+let print_timings =
+  let doc = "Report timing information during analysis" in
+  Arg.(value & flag & info [ "timings" ] ~doc)
+
+let parse docdir arch call_conv idirs slice param no_check_alignment
+    print_timings config file =
+  Glob_options.timings := print_timings;
   match (docdir, file) with
   | None, None -> `Error (true, "Nothing to do…")
   | Some _, Some _ -> `Error (true, "Too many arguments")
@@ -109,5 +114,5 @@ let () =
     Term.(
       ret
         (const parse $ docdir $ arch $ call_conv $ idirs $ slice $ param
-       $ no_check_alignment $ config $ file))
+       $ no_check_alignment $ print_timings $ config $ file))
   |> Cmd.eval |> exit
