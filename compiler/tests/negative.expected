@@ -333,11 +333,23 @@ fail/array_expansion/x86-64/default_scale_param.jazz:
 compilation error in function main:
 array expansion: cannot expand variable r (the default scale must be used)
 
+fail/array_expansion/x86-64/default_scale_param_2.jazz:
+
+"fail/array_expansion/x86-64/default_scale_param_2.jazz", line 8 (8-9):
+compilation error in function main:
+array expansion: cannot expand variable z (the default scale must be used)
+
 fail/array_expansion/x86-64/default_scale_return.jazz:
 
 "fail/array_expansion/x86-64/default_scale_return.jazz", line 16 (2-3):
 compilation error in function main:
 array expansion: cannot expand variable r (the default scale must be used)
+
+fail/array_expansion/x86-64/default_scale_return_2.jazz:
+
+"fail/array_expansion/x86-64/default_scale_return_2.jazz", line 8 (2-3):
+compilation error in function main:
+array expansion: cannot expand variable k (the default scale must be used)
 
 fail/array_expansion/x86-64/export_param.jazz:
 
@@ -413,11 +425,23 @@ fail/array_expansion/x86-64/sub_array_param_not_reg.jazz:
 compilation error in function main:
 array expansion: cannot expand variable s (not a reg array)
 
+fail/array_expansion/x86-64/sub_array_param_overflow.jazz:
+
+"fail/array_expansion/x86-64/sub_array_param_overflow.jazz", line 8 (8-9):
+compilation error in function main:
+array expansion: cannot expand variable z (the sub-array overflows)
+
 fail/array_expansion/x86-64/sub_array_return_not_reg.jazz:
 
 "fail/array_expansion/x86-64/sub_array_return_not_reg.jazz", line 16 (2-3):
 compilation error in function main:
 array expansion: cannot expand variable s (not a reg array)
+
+fail/array_expansion/x86-64/sub_array_return_overflow.jazz:
+
+"fail/array_expansion/x86-64/sub_array_return_overflow.jazz", line 8 (2-3):
+compilation error in function main:
+array expansion: cannot expand variable k (the sub-array overflows)
 
 fail/array_expansion/x86-64/type_mismatch_param.jazz:
 
@@ -1653,4 +1677,4 @@ Statistics:
 	Pretyping:  47
 	Parsing:     4
 	Typing:      5
-	Compile:   204
+	Compile:   208

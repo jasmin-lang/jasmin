@@ -1,0 +1,11 @@
+fn f (reg u64[2] r) -> reg u64[2] {
+  return r;
+}
+
+export fn main () -> reg u64 {
+  reg u64[2] z k;
+  z[0] = 0; z[1] = 1;
+  k[1:2] = f(z); // the subarray overflows
+  reg u64 res = k[0];
+  return res;
+}
