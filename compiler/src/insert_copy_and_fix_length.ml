@@ -53,7 +53,6 @@ and iac_instr_r pd loc ir =
       match is_array_copy x e with
       | None -> ir
       | Some (ws, n) ->
-         Typing.check_length loc n;
           warning IntroduceArrayCopy
             loc "an array copy is introduced";
           let op = Pseudo_operator.Ocopy(ws, Conv.cz_of_int n) in
@@ -80,7 +79,6 @@ and iac_instr_r pd loc ir =
           xn wsn
       else
         let len = xn / wsn in
-        Typing.check_length loc len;
         let op = Pseudo_operator.Ocopy (ws, Conv.cz_of_int len) in
         Copn(xs,t,Sopn.Opseudo_op op, es)
     | Sopn.Opseudo_op(Ocopy _), _ -> assert false
@@ -92,7 +90,6 @@ and iac_instr_r pd loc ir =
     | Sopn.Oslh (SLHprotect_ptr _), [Lvar x] ->
       (* Fix the size it is dummy for the moment *)
       let ws, len = array_kind (L.unloc x).v_ty in
-      Typing.check_length loc len;
       let op = Slh_ops.SLHprotect_ptr (ws, Conv.cz_of_int len) in
       Copn(xs,t, Sopn.Oslh op, es)
     | Sopn.Oslh (SLHprotect_ptr _), _ -> assert false

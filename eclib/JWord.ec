@@ -50,6 +50,9 @@ abstract theory BitWord.
 
 op size : {int | 0 < size} as gt0_size.
 
+lemma ge0_size : 0 <= size.
+proof. by apply ltzW; apply gt0_size. qed.
+
 clone FinType as Alphabet with
   type t    <- bool,
   op   enum <- [true; false],
@@ -62,8 +65,7 @@ clone include MonoArray with
   rename "of_list"  as "bits2w"
          "to_list"  as "w2bits"
          "^tP$"     as "wordP"
-         "sub"      as "bits"
-  proof ge0_size by (apply ltzW; apply gt0_size).
+         "sub"      as "bits".
 
 (* -------------------------------------------------------------------- *)
 abbrev modulus = 2 ^ size.
@@ -113,9 +115,12 @@ axiomatized by to_sintE.
 abbrev zero = of_int 0.
 abbrev one  = of_int 1.
 
+lemma size_w2bits' x : size (w2bits x) = size.
+proof. done. qed.
+
 lemma to_uint_cmp (x : t) : 0 <= to_uint x < modulus.
 proof.
-  by rewrite to_uintE bs2int_ge0 -(size_w2bits x) bs2int_le2Xs.
+  by rewrite to_uintE bs2int_ge0 -(size_w2bits' x) bs2int_le2Xs.
 qed.
 
 lemma to_sint_cmp (x : t) : min_sint <= to_sint x <= max_sint.
@@ -132,8 +137,8 @@ lemma to_uintK : cancel to_uint of_int.
 proof.
   move=> w; rewrite to_uintE of_intE.
   rewrite modz_small.
-  + by rewrite bs2int_ge0 ger0_norm // -(size_w2bits w) bs2int_le2Xs.
-  by rewrite -(size_w2bits w) bs2intK w2bitsK.
+  + by rewrite bs2int_ge0 ger0_norm // -(size_w2bits' w) bs2int_le2Xs.
+  by rewrite -(size_w2bits' w) bs2intK w2bitsK.
 qed.
 
 lemma to_uintK' (x: t) : of_int (to_uint x) = x.
@@ -1198,7 +1203,7 @@ move=> H; have H0: to_uint (w1 `&` w2) = 0 by smt(to_uint0).
 rewrite to_uintD_small //.
 move: H0; rewrite !to_uintE.
 rewrite andE => H0.
-apply bs2int_add_disjoint; rewrite ?size_w2bits //.
+apply bs2int_add_disjoint; rewrite ?size_w2bits ?max_size //.
 by rewrite -H0 map2_w2bits_w2bits.
 qed.
 
@@ -2178,6 +2183,9 @@ abstract theory W_WS.
   axiom gt0_r : 0 < r.
   axiom sizeBrS : sizeB = r * sizeS.
 
+  lemma ge0_size : 0 <= r.
+  proof. by smt (gt0_r). qed.
+
   clone import WT as WS with op size <- sizeS.
   clone import WT as WB with op size <- sizeB.
 
@@ -2186,7 +2194,6 @@ abstract theory W_WS.
 
     op dfl <- WS.of_int 0,
     op size <- r
-    proof ge0_size by smt (gt0_r)
     rename [type] "t" as "pack_t"
            [lemma] "tP" as "packP".
 
