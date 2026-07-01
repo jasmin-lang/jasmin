@@ -179,7 +179,7 @@ let u8_blast_at ~blast_arrays scope at =
     | Aarray v ->
       if blast_arrays then
         let iws = size_of_ws (arr_size v) in
-        let r = arr_range v in
+        let r = max 0 (arr_range v) in
         let vi i = AarraySlice (v,U8,i) in
         List.init (r * iws) vi
       else [at]
@@ -212,7 +212,7 @@ let rec expand_arr_vars = function
       | Bty _ -> assert false
       | Arr (ws, n) ->
         let wsz = size_of_ws ws in
-        List.init n (fun i -> of_scope scope (AarraySlice (v,ws,wsz * i)))
+        List.init (max 0 n) (fun i -> of_scope scope (AarraySlice (v,ws,wsz * i)))
         @ expand_arr_vars t
     end
   | v :: t -> v :: expand_arr_vars t

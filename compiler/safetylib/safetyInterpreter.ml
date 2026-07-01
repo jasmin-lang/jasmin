@@ -433,7 +433,7 @@ let safe_opn pd asmOp safe opn es =
            | _ -> assert false
          in
            List.flatten
-             (List.init (Conv.int_of_cz n) (fun i -> init_get array aa ws (offset i) 1))
+             (List.init (max 0 (Conv.int_of_cz n)) (fun i -> init_get array aa ws (offset i) 1))
       | NotZero (sz, n) ->
         [ notZero(sz, List.nth es (Conv.int_of_nat n)) ]
 
@@ -1423,7 +1423,7 @@ end = struct
 
   let cells_of_array x ofs n =
     let x = L.unloc x in
-    List.init (Conv.int_of_cz n) (fun i -> SafetyVar.AarraySlice (x, U8, ofs + i))
+    List.init (max 0 (Conv.int_of_cz n)) (fun i -> SafetyVar.AarraySlice (x, U8, ofs + i))
 
   let aeval_syscall state sc lvs _es =
     match sc with
