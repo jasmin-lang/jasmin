@@ -354,6 +354,7 @@ Proof.
 Qed.
 
 Lemma eq_extra : p_extra p = p_extra p'.
+Proof.
   move : Hp; rewrite /load_constants_prog.
   by t_xrbindP => y Hmap <-.
 Qed.

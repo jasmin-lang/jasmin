@@ -96,7 +96,8 @@ Definition wsize_log2 sz : nat :=
   | U256 => 5
   end.
 
-Lemma wsize8 : wsize_size U8 = 1%Z. done. Qed.
+Lemma wsize8 : wsize_size U8 = 1%Z.
+Proof. done. Qed.
 
 Definition wbase (s: wsize) : Z :=
   modulus (wsize_size_minus_1 s).+1.
@@ -1040,6 +1041,7 @@ Proof. exact: sreprK. Qed.
 Lemma truncate_word_le s s' (w: word s') :
   (s ≤ s')%CMP →
   truncate_word s w = ok (zero_extend s w).
+Proof.
   case: truncate_wordP' => //.
   - by move => ?; subst; rewrite zero_extend_u.
   by rewrite -cmp_nle_lt => /negbTE ->.

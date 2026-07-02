@@ -241,18 +241,19 @@ Section PROOF.
         , eq_exc_fresh s s'
         & sem_pexpr true gd s' e = ok (Vbool b)
       ].
-    + move=> wdiff bof bcf bsf bzf hws hseme0 hseme1 hw0 hw1.
-      have [s' [hwrite heq hof hcf hsf hzf]] :=
-        write_lflags s bof bcf bsf (PF_of_word wdiff) bzf.
-      rewrite /= /get_gvar /=.
-      eexists; split; cycle 1.
-      - eassumption.
-      - by t_simpl_rewrites.
-      rewrite
-         /sem_sopn /= hseme0 hseme1 /=
-         /exec_sopn /= hw0 hw1 /=
-         /sopn_sem /sopn_sem_ /= /x86_CMP /size_8_64 hws /=.
-      by rewrite /semi_to_atype /= computational_eq_refl /= sub_wordE.
+  Proof.
+    move=> wdiff bof bcf bsf bzf hws hseme0 hseme1 hw0 hw1.
+    have [s' [hwrite heq hof hcf hsf hzf]] :=
+      write_lflags s bof bcf bsf (PF_of_word wdiff) bzf.
+    rewrite /= /get_gvar /=.
+    eexists; split; cycle 1.
+    - eassumption.
+    - by t_simpl_rewrites.
+    rewrite
+       /sem_sopn /= hseme0 hseme1 /=
+       /exec_sopn /= hw0 hw1 /=
+       /sopn_sem /sopn_sem_ /= /x86_CMP /size_8_64 hws /=.
+    by rewrite /semi_to_atype /= computational_eq_refl /= sub_wordE.
   Qed.
 
   Lemma lower_condition_corr ii i e e' s1 cond :
