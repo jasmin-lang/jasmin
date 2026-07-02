@@ -258,14 +258,14 @@ case h2: (is_wconst sz e2) => [ n2 | ] //.
   have! := (is_wconstP wdb gd s h2).
   have! := (is_wconstP wdb gd s h1).
   by t_xrbindP => *; clarify; rewrite wrepr_unsigned;eauto.
-+ case: eqP => hn1; [| case: eqP => hn2] => s v /=; rewrite /sem_sop2 /sem_sop1 /=;
++ case: eqP => hn1; [| case: eqP => hn2]; move => s v /=; rewrite /sem_sop2 /sem_sop1 /=;
   have! := (is_wconstP wdb gd s h1);
   t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 ?; clarify.
   - by rewrite wrepr0 mul_wordE GRing.mul0r;eauto.
   - case: (to_wordI k6) => {k6} sz' [w] [? /truncate_word_uincl]; subst.
     by rewrite k4 mul_wordE GRing.mul1r; eauto.
   by rewrite k4 /= k6 /= wrepr_unsigned truncate_word_u /=;eexists;split;eauto => /=.
-case: eqP => hn1; [| case: eqP => hn2] => s v /=; rewrite /sem_sop2 /sem_sop1 /=;
+case: eqP => hn1; [| case: eqP => hn2]; move => s v /=; rewrite /sem_sop2 /sem_sop1 /=;
 have! := (is_wconstP wdb gd s h2);
 t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 ?; clarify.
 - by rewrite wrepr0 mul_wordE GRing.mulr0;eauto.

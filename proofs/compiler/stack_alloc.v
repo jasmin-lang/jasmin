@@ -731,7 +731,7 @@ Record table := {
 (* We need to combine [result] and [option], so let's use a new kind of "let" *)
 #[global] Notation "'Let%opt' x ':=' ox 'in' body" :=
   (if ox is Some x then body else ok None)
-  (x strict pattern, at level 25).
+  (x strict pattern, at level 25, right associativity).
 
 Section CLONE.
 

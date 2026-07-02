@@ -169,7 +169,7 @@ Definition is_lea sz x e :=
   let%opt _ :=
     oassert [&& (U16 ≤ sz)%CMP, (sz ≤ U64)%CMP & ~~ is_lval_in_memory x ]
   in
-  let%opt MkLea d b sc o := mk_lea sz e in
+  let%opt (MkLea d b sc o) := mk_lea sz e in
   let check o := if o is Some x then ~~ is_var_in_memory x.(v_var) else true in
   (* FIXME: check that d is not to big *)
   let%opt _ := oassert [&& check_scale sc, check b & check o ] in

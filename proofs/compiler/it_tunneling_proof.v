@@ -108,7 +108,7 @@ Lemma labels_of_body_cat c1 c2 :
 Proof. by rewrite /labels_of_body pmap_cat. Qed.
 
 Lemma labels_of_body_cons l c i :
-  l \in labels_of_body (i :: c) =
+  (l \in labels_of_body (i :: c)) =
    match li_i i with
    | Llabel _ lbl => l == lbl
    | _ => false
@@ -116,7 +116,7 @@ Lemma labels_of_body_cons l c i :
 Proof. by rewrite /labels_of_body /=; case: li_i. Qed.
 
 Lemma labels_of_body_rcons l c i :
-  l \in labels_of_body (rcons c i) =
+  (l \in labels_of_body (rcons c i)) =
    (l \in labels_of_body c) ||
    match li_i i with
    | Llabel _ lbl => l == lbl

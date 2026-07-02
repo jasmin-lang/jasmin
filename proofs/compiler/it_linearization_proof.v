@@ -4646,7 +4646,7 @@ Qed.
           have := read_spilled var_tmp stack_saved_rsp.
           rewrite mem_cat mem_head orbT => -[] // _ [[<-] _] [v].
           by rewrite htmp /= truncate_word_u hr3 => -[<-] [->].
-        have vrsp_to_save : vrsp \in [seq i.1 | i <- sf_to_save (f_extra fd)] = false.
+        have vrsp_to_save : (vrsp \in [seq i.1 | i <- sf_to_save (f_extra fd)]) = false.
         + by apply/negbTE/sv_of_listP/Sv_memP.
         move=> body ra lret sp callee_saved. rewrite /is_linear_of /sp_alloc_ra ok_fd' /= => -[ _ [<-] <-].
         rewrite /is_ra_of /value_of_ra /is_sp_for_call /is_callee_saved_of ok_fd => -[_ [<-] <-].

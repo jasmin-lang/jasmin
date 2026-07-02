@@ -353,7 +353,7 @@ Section PROOF.
     apply: negbTE; rewrite negb_or; apply/andP.
     rewrite Z.gtb_ltb -!Z.leb_antisym -!(rwP lezP).
     apply: zquot_bound => //; try exact: wsigned_range.
-    case /Bool.andb_false_elim: hn1 => /eqP h; [ left | right ] => //.
+    case /Bool.andb_false_elim: hn1 => /eqP h; [ by left | right ].
     by rewrite -(@wsignedN1 sz) => /(can_inj (@word.sreprK _)).
   Qed.
 

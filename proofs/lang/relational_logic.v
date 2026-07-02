@@ -1494,7 +1494,7 @@ Proof.
   + by apply: ucheck_eP hes.
   move=> b; apply wequiv_weaken with  (R de) (R d') => //.
   + by apply: check_esP_rel hes.
-  by case: b; [apply: wequiv_weaken hc1 | apply: wequiv_weaken hc2] => //; apply st_rel_weaken.
+  by case: b; [apply: wequiv_weaken hc1 | apply: wequiv_weaken hc2].
 Qed.
 
 Lemma wequiv_for_rel_uincl_R d0 d dhi di ii i dir lo hi c ii' i' lo' hi' c':
@@ -1653,7 +1653,7 @@ Proof.
   + by apply: echeck_eP hes.
   move=> b; apply wequiv_weaken with  (R de) (R d') => //.
   + by apply: check_esP_rel hes.
-  by case: b; [apply: wequiv_weaken hc1 | apply: wequiv_weaken hc2] => //; apply st_rel_weaken.
+  by case: b; [apply: wequiv_weaken hc1 | apply: wequiv_weaken hc2].
 Qed.
 
 Lemma wequiv_for_rel_eq_R d0 d dhi di ii i dir lo hi c ii' i' lo' hi' c':
