@@ -135,6 +135,8 @@ compiler/stack_alloc_proof_2.v
 compiler/stack_zeroization.v
 compiler/stack_zeroization_proof.v
 compiler/tunneling.v
+compiler/typing_new.v
+compiler/typing_proof.v
 compiler/unionfind.v
 compiler/unionfind_proof.v
 compiler/unrolling.v

@@ -40,11 +40,12 @@ val csv_of_sv : Sv.t -> Var0.SvExtra.Sv.t
 val sv_of_csv : Var0.SvExtra.Sv.t -> Sv.t
 
 val lval_of_clval : Expr.lval -> Prog.lval
+val clval_of_lval : Prog.lval -> Expr.lval
 
 val cexpr_of_expr : Prog.expr -> Expr.pexpr
 val expr_of_cexpr : Expr.pexpr -> expr
 
-val cufdef_of_fdef : (unit, 'asm) func -> Var0.funname * 'asm Expr._ufundef
+val cufdef_of_fdef : ('info, 'asm) func -> Var0.funname * 'asm Expr._ufundef
 val fdef_of_cufdef : Var0.funname * 'asm Expr._ufundef -> (unit, 'asm) func
 
 val cuprog_of_prog : (unit, 'asm) prog -> 'asm Expr._uprog

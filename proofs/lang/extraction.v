@@ -82,4 +82,5 @@ Separate Extraction
   riscv_extra
   riscv_params
   compiler
-  wint_int.
+  wint_int
+  typing_new.

@@ -37,7 +37,7 @@ let rec fix_length_eassert e =
   | Pexpr _ -> e
   | PappN_safety (o, es) ->
     let e = List.hd es in
-    let ty = Typing.type_of_expr e in
+    let ty = Typing_mix.type_of_expr e in
     let len = Conv.cz_of_int (size_of ty) in
     let o = match o with Ois_arr_init _ -> Operators.Ois_arr_init len | Ois_barr_init _ -> Ois_barr_init len in
     PappN_safety(o, es)
@@ -64,7 +64,7 @@ and iac_instr_r pd loc ir =
 
     begin match o, xs with
     | Sopn.Opseudo_op(Pseudo_operator.Ospill(o,_)), _ ->
-      let tys = List.map (fun e -> Conv.cty_of_ty (Typing.ty_expr pd loc e)) es in
+      let tys = List.map (fun e -> Conv.cty_of_ty (Typing_mix.ty_expr pd loc e)) es in
       Copn(xs,t, Sopn.Opseudo_op(Pseudo_operator.Ospill(o, tys)), es)
 
     | Sopn.Opseudo_op(Pseudo_operator.Ocopy(ws, _)), [x] ->
@@ -72,7 +72,7 @@ and iac_instr_r pd loc ir =
       let xn = size_of_lval x in
       let wsn = size_of_ws ws in
       if xn mod wsn <> 0 then
-        Typing.error loc
+        Typing_mix.error loc
           "the destination %a has size %i: it should be a multiple of %i"
           (Printer.pp_lval ~debug:false) x
           xn wsn
@@ -83,18 +83,19 @@ and iac_instr_r pd loc ir =
     | Sopn.Opseudo_op(Ocopy _), _ -> assert false
     | Sopn.Opseudo_op(Pseudo_operator.Oswap _), x::_ ->
       (* Fix the type it is dummy for the moment *)
-      let ty = Conv.cty_of_ty (Typing.ty_lval pd loc x) in
+      let ty = Conv.cty_of_ty (Typing_mix.ty_lval pd loc x) in
       Copn(xs, t, Sopn.Opseudo_op(Pseudo_operator.Oswap ty), es)
     | Sopn.Opseudo_op(Pseudo_operator.Oswap _), [] -> assert false
     | Sopn.Oslh (SLHprotect_ptr _), [Lvar x] ->
       (* Fix the size it is dummy for the moment *)
       let ws, len = array_kind (L.unloc x).v_ty in
+      Typing_mix.check_length loc len;
       let op = Slh_ops.SLHprotect_ptr (ws, Conv.cz_of_int len) in
       Copn(xs,t, Sopn.Oslh op, es)
     | Sopn.Oslh (SLHprotect_ptr _), _ -> assert false
     | Sopn.Opseudo_op (Odeclassify _), _ ->
       let arg = List.hd es in
-      let ty = Conv.cty_of_ty (Typing.ty_expr pd loc arg) in
+      let ty = Conv.cty_of_ty (Typing_mix.ty_expr pd loc arg) in
       Copn(xs, t, Sopn.Opseudo_op (Odeclassify ty), es)
     | Sopn.Opseudo_op (Onop | Odeclassify_mem _ | Omulu _ | Oaddcarry _ | Osubcarry _), _
     | Sopn.Oslh (SLHinit|SLHupdate|SLHmove|SLHprotect _|SLHprotect_ptr_fail _), _
@@ -107,7 +108,7 @@ and iac_instr_r pd loc ir =
       (* Fix the size it is dummy for the moment *)
       let ty =
         match xs with
-        | [x] -> Typing.ty_lval pd loc x
+        | [x] -> Typing_mix.ty_lval pd loc x
         | _ -> assert false in
       let ws, len = array_kind ty in
       Csyscall(xs, Syscall_t.RandomBytes (ws, Conv.cz_of_int len), es)
