@@ -113,7 +113,7 @@ let main () =
 
     let prog =
       try Compile.preprocess Arch.pointer_data Arch.msf_size Arch.asmOp pprog
-      with Typing.TyError(loc, code) ->
+      with Typing_mix.TyError(loc, code) ->
         hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
     in
 
