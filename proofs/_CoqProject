@@ -15,6 +15,9 @@
 -arg "-w -deprecated-dirpath-Coq"
 # can be solved only with Stdlib >= 9.1
 -arg "-w -deprecated-reference-since-9.1"
+# the next 2 lines can be handled when requiring Rocq >= 9.2
+-arg "-w -notation-for-abbreviation"
+-arg "-w -implicit-create-rewrite-hint-db"
 # to be handled when requiring Rocq >= 9.3
 -arg "-w -rewrite-rw"
 
