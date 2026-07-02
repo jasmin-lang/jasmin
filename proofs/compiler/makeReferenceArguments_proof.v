@@ -144,6 +144,7 @@ Context
   Qed.
 
   Lemma eq_extra : p_extra p = p_extra p'.
+  Proof.
     move : Hp.
     rewrite /makereference_prog.
     by t_xrbindP => y Hmap <-.
