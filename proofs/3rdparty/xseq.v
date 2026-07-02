@@ -67,7 +67,7 @@ case: eqP=> [->|/eqP ne_xt] t_notin_s; last first.
 + by rewrite in_cons eqE /= (negbTE ne_xt).
 rewrite inE eqE /= eqxx /=; case: eqP => [->|ne_wu] _ /=.
 + by constructor.
-suff ->: (t, w) \in s = false by constructor; case=> /esym.
+suff ->: ((t, w) \in s) = false by constructor; case=> /esym.
 by apply/negbTE; apply/contra: t_notin_s => /(map_f fst).
 Qed.
 

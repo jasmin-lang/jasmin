@@ -4297,7 +4297,7 @@ Qed.
           have := read_spilled var_tmp stack_saved_rsp.
           rewrite mem_cat mem_head orbT => -[] // _ [[<-] _] [v].
           by rewrite htmp /= truncate_word_u hr3 => -[<-] [->].
-        have vrsp_to_save : vrsp \in [seq i.1 | i <- sf_to_save (f_extra fd)] = false.
+        have vrsp_to_save : (vrsp \in [seq i.1 | i <- sf_to_save (f_extra fd)]) = false.
         + by apply/negbTE/sv_of_listP/Sv_memP.
         exists m4 vm5' => //.
         + have heq1 : (lset_estate (setpc ls (size P)) (escs s1) m3 vm2') = ls2.

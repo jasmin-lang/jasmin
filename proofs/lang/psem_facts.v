@@ -201,7 +201,9 @@ Proof.
   move => s1 scs m s2 o xs es ves vs hes h.
   have [ho1 ho2]:= exec_syscallS h.
   move=> /[dup] /write_lvals_validw ho3 /write_lvals_stack_stable ?.
-  split; [rewrite ho1 | move=> ???; rewrite ho2] => //; exact: ho3.
+  split; first by rewrite ho1.
+  move=> ???; rewrite ho2 //.
+  exact: ho3.
 Qed.
 
 Lemma mem_equiv_if_true : sem_Ind_if_true P ev Pc Pi_r.

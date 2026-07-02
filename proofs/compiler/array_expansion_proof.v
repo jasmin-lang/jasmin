@@ -385,7 +385,7 @@ Proof.
   rewrite -Z2Nat.inj_pos (wf_take_drop (v_var (gv g)) vai) //. 2,3: by nia.
   rewrite -map_comp; apply eq_in_map => j; rewrite in_ziota /comp /= => /andP [] /ZleP ? /ZltP ?.
   have hbound : (0 <=? i + j)%Z && (i + j <? ai_len a)%Z.
-  + by apply /andP; split; [apply/ZleP|apply/ZltP] => //; nia.
+  + by apply /andP; split; [apply/ZleP|apply/ZltP]; nia.
   case: h => _ _ -[_ /(_ _ _ _ hga){hga}hgai].
   move/hgai: (wf_mem (v_var (gv g)) vai hbound); rewrite -hgx /= => -[<-].
   by rewrite (wf_index _ vai hbound) (WArray.get_sub_get _ hst).

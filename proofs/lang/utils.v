@@ -182,8 +182,8 @@ Delimit Scope result_scope with result.
 Open Scope result_scope.
 
 Notation "m >>= f" := (rbind f m) (at level 58, left associativity) : result_scope.
-Notation "'Let' x ':=' m 'in' body" := (m >>= (fun x => body)) (x name, at level 25) : result_scope.
-Notation "'Let:' x ':=' m 'in' body" := (m >>= (fun x => body)) (x strict pattern, at level 25) : result_scope.
+Notation "'Let' x ':=' m 'in' body" := (m >>= (fun x => body)) (x name, at level 25, right associativity) : result_scope.
+Notation "'Let:' x ':=' m 'in' body" := (m >>= (fun x => body)) (x strict pattern, at level 25, right associativity) : result_scope.
 Notation "m >> n" := (rbind (λ _, n) m) (at level 30, right associativity, n at next level) : result_scope.
 
 Lemma bindA eT aT bT cT (f : aT -> result eT bT) (g: bT -> result eT cT) m:
@@ -1621,7 +1621,7 @@ Proof.
 Qed.
 
 Lemma lt_nm_n n m :
-  n + m < n = false.
+  (n + m < n) = false.
 Proof.
   rewrite -{2}(addn0 n).
   rewrite ltn_add2l.
@@ -2025,11 +2025,11 @@ End Option.
 
 Notation "'let%opt' x ':=' ox 'in' body" :=
   (if ox is Some x then body else None)
-  (x strict pattern, at level 25).
+  (x strict pattern, at level 25, right associativity).
 
 Notation "'let%opt '_' ':=' ox 'in' body" :=
   (if ox is Some tt then body else None)
-  (at level 25).
+  (at level 25, right associativity).
 
 Lemma obindP aT bT oa (f : aT -> option bT) a (P : Type) :
   (forall z, oa = Some z -> f z = Some a -> P) ->

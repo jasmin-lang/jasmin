@@ -464,7 +464,7 @@ Proof.
       have [ |vm' [???]] := process_conditionP hcond he _ heq.
       + by SvD.fsetdec.
       by eexists; split;eauto.
-    by move=> []; [apply hc1 | apply hc2] => //; SvD.fsetdec.
+    by move=> []; [apply hc1 | apply hc2]; move => //; clear -hsub; SvD.fsetdec.
   + move=> x dir lo hi c hc ii c_; t_xrbindP => c' hc' <-; rewrite !read_writeE => hsub.
     apply wequiv_for_rel_eq with checker_st_eq_on X X => //.
     + by split => //; rewrite /read_es /= !read_eE; SvD.fsetdec.

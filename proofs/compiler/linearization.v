@@ -468,14 +468,14 @@ Fixpoint check_bool (e:fexpr) :=
     | Cif b c1 c2 =>
       Let _ := assert (if c2 is [::] then check_bool (to_fexpr b) else true)
         (E.ii_error ii "ill typed condition in linear") in
-      check_fexpr ii b >> check_c check_i c1 >> check_c check_i c2
+      check_fexpr ii b >> (check_c check_i c1 >> check_c check_i c2)
     | Cfor _ _ _ =>
       Error (E.ii_error ii "for found in linear")
     | Cwhile _ c e _ c' =>
       match is_bool e with
       | Some false => check_c check_i c
       | Some true => check_c check_i c >> check_c check_i c'
-      | None => check_fexpr ii e >> check_c check_i c >> check_c check_i c'
+      | None => check_fexpr ii e >> (check_c check_i c >> check_c check_i c')
       end
     | Ccall xs fn es =>
       Let _ := assert (fn != this) (E.ii_error ii "call to self") in

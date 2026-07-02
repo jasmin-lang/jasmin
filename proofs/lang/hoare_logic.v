@@ -787,7 +787,8 @@ Proof.
   apply khoare_ioP => fs hPf; have [herr {}hf] := hf _ hPf.
   apply khoare_read with (fun fd => get_fundef (p_funcs p) fn = Some fd).
   + rewrite /kget_fundef => ??.
-    case: get_fundef hf => /= [fd | ] h; [apply lutt_Ret | apply lutt_Vis] => //.
+    case: get_fundef hf => /= [fd | ] h; first by apply lutt_Ret.
+    apply lutt_Vis => //.
     by rewrite preInv_Throw; apply herr.
   move=> fd hfd; move: hf; rewrite hfd => -[Pre Post [P] [Q] [hinit hbody hQerr hfin]].
   apply khoare_read with PredT.
@@ -797,7 +798,8 @@ Proof.
   move => _ _.
   apply khoare_read with P.
   + move=> _ ->; have := hinit _ hPf.
-    case: initialize_funcall => [s | e] h; [apply lutt_Ret | apply lutt_Vis] => //.
+    case: initialize_funcall => [s | e] h; first by apply lutt_Ret.
+    apply lutt_Vis => //.
     by rewrite preInv_Throw; apply herr.
     move => s1 hs1.
   eapply khoare_read.
