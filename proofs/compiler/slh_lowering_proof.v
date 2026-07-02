@@ -1336,6 +1336,7 @@ Let Pc c : Prop :=
     wequiv_rec p p' ev ev slh_spec (st_eq env) c c' (st_eq env').
 
 Lemma it_lower_opn xs tg op es : Pi_r (Copn xs tg op es).
+Proof.
 move=> ii env env' i' ii' /=; case: is_OslhP => [slho|?] /=; last first.
 - move=> [<-] [<- <-]; apply wequiv_opn_eq.
   + rewrite hp_globs; move=> s _ vs [<- _] ->; by exists vs.
@@ -1380,6 +1381,7 @@ case: b; [exact: hc1 hchk1 hc1' | exact: hc2 hchk2 hc2'].
 Qed.
 
 Lemma lower_it_for i dir lo hi c : Pc c -> Pi_r (Cfor i (dir, lo, hi) c).
+Proof.
 move=> hc ii env env' /=; t_xrbindP=> _ _ /check_forP [env0 [hchk hle hle0]] _
   c' hc' <- <- <-.
 apply

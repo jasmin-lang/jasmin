@@ -416,6 +416,7 @@ Defined.
 
 Definition add_arguments {A} {lt0 lt1} (f: sem_lprod lt0 (sem_lprod lt1 A))
   : sem_lprod (lt0 ++ lt1) A.
+Proof.
   rewrite sem_lprod_cat.
   by apply: f.
 Defined.
