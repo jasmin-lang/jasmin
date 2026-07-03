@@ -30,3 +30,14 @@ val ty_prog :
 
   When [infer] is false, checking of export functions fails unless they are correctly annotated.
 *)
+
+
+(* ------------------------------------ *)
+
+type level
+val secret : level
+val public : level
+
+val instanciate_fty : signature -> level list -> level list
+val is_public : level -> bool
+val inputs : signature -> level list

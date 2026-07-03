@@ -62,3 +62,23 @@ module SCT2CT : sig
   val typ : SCT.typ -> CT.typ
   val signature : SCT.signature -> CT.signature
 end
+
+
+module Masking : sig
+   type masking =
+    | Sharing of int (* size of the masked data *)
+    | Share of int   (* position of the share   *)
+    | Public         (* public data             *)
+
+  type signature = masking signature_gen
+
+  module PP : sig
+    val masking : masking Utils.pp
+    val signature : signature Utils.pp
+  end
+
+  val get_signature : Annotations.annotations -> signature option
+
+  val has_sharing_annot : Annotations.annotations -> int option
+  val has_assume_annot : Annotations.annotations -> bool
+end

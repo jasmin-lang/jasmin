@@ -212,3 +212,73 @@ module SCT2CT = struct
   let signature s =
     { arguments = List.map typ s.arguments; results = List.map typ s.results }
 end
+
+
+module Masking = struct
+
+  (* ----------------------------------------------------------- *)
+  (* masking base type                                           *)
+  type masking =
+    | Sharing of int (* size of the masked data *)
+    | Share of int   (* position of the share   *)
+    | Public         (* public data             *)
+
+  type signature = masking signature_gen
+
+  module PP = struct
+    let masking fmt = function
+      | Sharing sz -> Format.fprintf fmt "sharing %i" sz
+      | Share pos  -> Format.fprintf fmt "share %i" pos
+      | Public    -> Format.fprintf fmt "public"
+
+    let signature = pp_signature masking
+  end
+
+ module Parse = struct
+    open Angstrom
+    open Parse
+
+    let int : int t =
+      take_while1 (function '0'..'9' -> true | _ -> false) >>= fun digits ->
+      return (int_of_string digits)
+
+    let sharing =
+      string "sharing" *> ws *> int <* ws >>= fun sz -> return (Sharing sz)
+
+    let share =
+      string "share" *> ws *> int <* ws >>= fun pos -> return (Share pos)
+
+    let masking =
+      string "public" *> ws *> return Public
+      <|> sharing
+      <|> share
+
+    let typs =
+      char '(' *> ws *> sep_by times masking
+      <* char ')' <* ws <|> sep_by1 times masking
+
+    let signature =
+      ws *> typs >>= fun arguments ->
+      ws *> arrow *> typs >>= fun results -> return { arguments; results }
+
+    let string s =
+      match parse_string ~consume:All signature s with
+      | Ok v -> Some v
+      | Error rule ->
+          warning Always Location.i_dummy
+            "ill-formed security signature (%s): %s" rule s;
+          None
+  end
+
+  let get_signature a =
+    Option.bind (Annotations.get "msk" a) (function
+      | Some { pl_desc = Astring s; _ } -> Parse.string s
+      | _ -> None)
+
+  let has_sharing_annot a =
+    Option.map Z.to_int (Annot.ensure_uniq1 "sharing" (Annot.int None) a)
+
+  let has_assume_annot a =
+    Option.is_some (Annot.ensure_uniq1 "msk_assume" Annot.none a)
+
+end

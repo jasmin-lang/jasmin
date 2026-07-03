@@ -1,0 +1,76 @@
+#[msk = "sharing 4 * sharing 4 * sharing 4 -> sharing 4"]
+export fn xor_sh (reg ptr u32[2] d, reg ptr u32[2] x, reg ptr u32[2] y) -> reg ptr u32[2] {
+  inline int i;
+  for i = 0 to 2 {
+    reg u32 xi yi di;
+    xi = x[i];
+    yi = y[i];
+    di = xi ^ yi;
+    d[i] = di;
+  }
+  return d;
+}
+
+
+/* -------------------------------- */
+//** Set the NSHARES constant to a recognisable value to edit using sed after extraction
+param int NSHARES = 3;
+
+//** type for 64 bit integer
+type w64 = u32[2];
+#[sharing=8]type w64_sh = u32[2*NSHARES];
+
+inline fn destr_w64 (reg w64 a) -> reg u32, reg u32 {
+  reg u32 h l;
+  l = a[0];
+  h = a[1];
+  return l, h;
+}
+
+inline fn pack_w64 (reg w64 x, reg u32 l, reg u32 h) -> reg w64 {
+  ArrayInit(x);
+  x[0] = l;
+  x[1] = h;
+  return x;
+}
+
+inline fn get_sh (reg w64 dst, reg ptr w64_sh src, inline int i) -> reg w64 {
+  dst = pack_w64(dst, src[:u32 2*i], src[:u32 2*i + 1]);
+  return dst;
+}
+
+inline fn set_sh (reg ptr w64_sh dst, reg w64 src, inline int i) -> reg ptr w64_sh {
+  reg u32 l h;
+  l, h = destr_w64(src);
+  dst[:u32 2*i]     = l;
+  dst[:u32 2*i + 1] = h;
+  return dst;
+}
+
+inline fn xor_64 (reg w64 a, reg w64 b) -> reg w64 {
+  reg w64 c;
+  c[:u32 0] = a[:u32 0] ^ b[:u32 0];
+  c[:u32 1] = a[:u32 1] ^ b[:u32 1];
+  return c;
+}
+
+#[msk="sharing 8 * sharing 8 * sharing 8 -> sharing 8"]
+export fn masked_xor(reg ptr w64_sh c, reg ptr w64_sh a b) -> reg ptr w64_sh {
+  inline int i;
+  reg w64 x y;
+  for i = 0 to NSHARES {
+    x = get_sh(x, a, i);
+    y = get_sh(y, b, i);
+    x = xor_64(x, y);
+    c = set_sh(c, x, i);
+  }
+  return c;
+}
+
+
+
+
+
+
+
+

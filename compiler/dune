@@ -28,6 +28,13 @@
  (libraries commonCLI))
 
 (executable
+ (public_name jasmin-msk)
+ (name jasmin_msk)
+ (modules jasmin_msk)
+ (modes byte exe)
+ (libraries commonCLI))
+
+(executable
  (public_name jasmin2ec)
  (name jasmin2ec)
  (modules jasmin2ec)

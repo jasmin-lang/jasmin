@@ -650,7 +650,7 @@ and ty_fun is_ct_asm fenv fn =
   let tyin = List.map (fun lvl -> Env.norm_lvl env lvl) tyin in
   { tyin ; tyout }
 
-let ty_prog (is_ct_asm: 'asm -> bool)  ~infer (prog: ('info, 'asm) prog) fl =
+let ty_prog (is_ct_asm: 'asm -> bool) ~infer (prog: ('info, 'asm) prog) fl =
   let prog = snd prog in
   let fenv =
     { ensure_annot = not infer
@@ -679,3 +679,15 @@ let ty_prog (is_ct_asm: 'asm -> bool)  ~infer (prog: ('info, 'asm) prog) fl =
     List.pmap get_sig prog
   in
   List.rev sigs, status
+
+
+(* --------------------------------------------------- *)
+
+let secret = Secret
+let public = Public
+let is_public = function
+  | Public -> true
+  | _ -> false
+
+
+let inputs fty = fty.tyin

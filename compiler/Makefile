@@ -37,7 +37,7 @@ OBELISK ?= obelisk
 .PHONY: clean install uninstall dist
 
 all:
-	$(RM) jasminc jasmin2tex jasmin-ct jasmin2ec jasmin-checksafety
+	$(RM) jasminc jasmin2tex jasmin-ct jasmin-msk jasmin2ec jasmin-checksafety
 	dune build @check @install
 	for p in _build/install/default/bin/*; do ln -sf $$p $$(basename $$p); done
 
@@ -61,7 +61,7 @@ check-all: check
 
 clean:
 	dune clean
-	$(RM) jasminc jasmin2tex jasmin-ct jasmin2ec jasmin-checksafety
+	$(RM) jasminc jasmin2tex jasmin-ct jasmin-msk jasmin2ec jasmin-checksafety
 
 install:
 	dune install $(DUNE_OPTS)
