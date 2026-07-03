@@ -369,9 +369,9 @@ End PRIM_RANGE.
 
 (* -------------------------------------------------------------------- *)
 
-Notation "'tpl' A" := (sem_ltuple A) (at level 200, only parsing).
+Notation tpl A := (sem_ltuple A) (only parsing).
 
-Notation "'ex_tpl' A" := (exec (sem_ltuple A)) (at level 200, only parsing).
+Notation ex_tpl A := (exec (sem_ltuple A)) (only parsing).
 
 Definition implicit_flags      := map F [::OF; CF; SF; PF; ZF].
 Definition implicit_flags_noCF := map F [::OF; SF; PF; ZF].
