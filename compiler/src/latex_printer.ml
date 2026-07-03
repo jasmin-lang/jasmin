@@ -354,8 +354,8 @@ let pp_global fmt { pgd_type ; pgd_name ; pgd_val } =
 let pp_path fmt s =
   F.fprintf fmt "%S " (L.unloc s)
 
-let pp_typealias fmt id ty =
-  F.fprintf fmt "%a %a = %a;" kw "type" dname (L.unloc id) pp_type ty
+let pp_typealias fmt id annot ty =
+  F.fprintf fmt "%a %a %a = %a;" pp_annotations annot kw "type" dname (L.unloc id) pp_type ty
 
 let rec pp_pitem fmt pi =
   match L.unloc pi with
@@ -377,7 +377,7 @@ let rec pp_pitem fmt pi =
      List.iter (pp_pitem fmt) pis;
      F.fprintf fmt eol;
      closebrace fmt ()
-  | PTypeAlias (id,ty) -> pp_typealias fmt id ty (**)
+  | PTypeAlias (id,annot, ty) -> pp_typealias fmt id annot ty (**)
 
 let pp_info fmt =
   F.fprintf fmt "@[<v>@[%% The produced LATEX snippet is meant to be included in a@]@ ";
