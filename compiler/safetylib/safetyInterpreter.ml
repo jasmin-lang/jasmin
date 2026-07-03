@@ -1736,10 +1736,10 @@ end = struct
         (match AbsExpr.aeval_cst_int state.abs e1,
               AbsExpr.aeval_cst_int state.abs e2 with
         | Some z1, Some z2 ->
-          if z1 = z2 then state else
+          if z2 <= z1 then state else
             let init_i, final_i, op = match d with
-              | UpTo -> assert (z1 < z2); (z1, z2 - 1, fun x -> x + 1)
-              | DownTo -> assert (z1 < z2); (z2, z1 + 1, fun x -> x - 1) in
+              | UpTo -> (z1, z2 - 1, fun x -> x + 1)
+              | DownTo -> (z2, z1 + 1, fun x -> x - 1) in
 
             let rec mk_range i f op =
               if i = f then [i] else i :: mk_range (op i) f op in

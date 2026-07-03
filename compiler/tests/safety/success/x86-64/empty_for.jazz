@@ -1,0 +1,11 @@
+export fn main () -> reg u64 {
+  inline int i;
+  reg u64 res = 0;
+  for i = 3 to 0 {
+    res += i;
+  }
+  for i = 0 downto 3 {
+    res += i;
+  }
+  return res;
+}
