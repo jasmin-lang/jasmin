@@ -1460,9 +1460,10 @@ let mk_var x sto xety xlc annot =
 
 let tt_vardecl dfl_writable pd (env : 'asm Env.env) ((annot, (sto, xty)), x) =
   let { L.pl_desc = x; L.pl_loc = xlc; } = x in
-  let regkind = tt_reg_kind annot in
-  let (sto, (aty, xety)) = (tt_sto regkind (dfl_writable x) sto, tt_type_annot pd env xty) in
+  let (aty, xety) = tt_type_annot pd env xty in
   let annot = aty @ annot in
+  let regkind = tt_reg_kind annot in
+  let sto = tt_sto regkind (dfl_writable x) sto in
   let x = mk_var x sto xety xlc annot in
   if P.is_ptr sto && not (P.is_ty_arr x.v_ty) then
     rs_tyerror ~loc:xlc PtrOnlyForArray;
