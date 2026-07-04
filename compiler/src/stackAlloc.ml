@@ -316,7 +316,7 @@ let memory_analysis pp_sr pp_err ~debug up =
   List.iter fix_subroutine_csao (List.rev fds);
 
   let return_addresses = Regalloc.create_return_addresses get_internal_size fds in
-  let subst, killed, fds = Regalloc.alloc_prog return_addresses fds in
+  let subst, killed, _ = Regalloc.alloc_prog return_addresses fds in
 
   let fix_csao (_, fd) =
     let fn = fd.f_name in
@@ -339,17 +339,21 @@ let memory_analysis pp_sr pp_err ~debug up =
     | Export ->
 
     let ro = Regalloc.get_reg_oracle has_stack subst killed fd in
+    let num_callee_save = List.length ro.ro_to_save in
+    let no_room_for_rsp = ro.ro_rsp = None in
     let sao = Hf.find sao fn in
     let csao = get_sao fn in 
 
-    let to_save = ro.ro_to_save in 
+    let to_save =
+      List.take num_callee_save
+      (List.remove Arch.callee_save_vars Arch.rsp_var) in
     let has_stack = has_stack fd || to_save <> [] in
 
     let rsp = V.clone Arch.rsp_var in
     let extra =
       (* FIXME: how to make this more generic? *)
       let extra = List.rev to_save in
-      if has_stack && ro.ro_rsp = None then extra @ [rsp]
+      if has_stack && no_room_for_rsp then extra @ [rsp]
       else extra in
       
     let extra_size, align, extrapos = Varalloc.extend_sao sao extra in
@@ -423,9 +427,9 @@ let memory_analysis pp_sr pp_err ~debug up =
     let max_call_depth = Z.succ max_call_depth in
     let saved_stack = 
       if has_stack then
-        match ro.ro_rsp with
-        | Some x -> Expr.SavedStackReg (Conv.cvar_of_var x)
-        | None   -> Expr.SavedStackStk (Conv.cz_of_int (List.assoc rsp extrapos))
+        match no_room_for_rsp with
+        | false -> Expr.SavedStackReg (Conv.cvar_of_var Arch.rip)
+        | true   -> Expr.SavedStackStk (Conv.cz_of_int (List.assoc rsp extrapos))
       else Expr.SavedStackNone in
 
     let conv_to_save x =

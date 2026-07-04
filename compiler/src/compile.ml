@@ -190,20 +190,25 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       ra
     in
 
-    let subst, _killed, fds = RA.alloc_prog return_addresses fds in
-    let subst_sf_return_address : Expr.stk_fun_extra -> Expr.stk_fun_extra =
-      let subst x = x |> Conv.var_of_cvar |> subst |> Conv.cvar_of_var in
-      let osubst = Option.map subst in
+    let subst, killed, fds = RA.alloc_prog return_addresses fds in
+    let subst_sf_return_address fd : Expr.stk_fun_extra -> Expr.stk_fun_extra =
+      let csubst x = x |> Conv.var_of_cvar |> subst |> Conv.cvar_of_var in
+      let osubst = Option.map csubst in
       fun fe ->
-      { fe with
-        Expr.sf_return_address =
-          match fe.Expr.sf_return_address with
-          | RAnone -> RAnone;
-          | RAreg (ret, tmp) -> RAreg (subst ret, osubst tmp)
-          | RAstack (c, r, n, t) -> RAstack (osubst c, osubst r, n, osubst t)
-      }
+      match fe.Expr.sf_return_address with
+      | RAreg (ret, tmp) -> { fe with Expr.sf_return_address = RAreg (csubst ret, osubst tmp) }
+      | RAstack (c, r, n, t) -> { fe with Expr.sf_return_address = RAstack (osubst c, osubst r, n, osubst t) }
+      | RAnone ->
+         let ro = RA.get_reg_oracle (fun _ -> true) subst killed fd in
+         { fe with
+           Expr.sf_save_stack =
+             (match fe.Expr.sf_save_stack with
+             | (SavedStackNone | SavedStackStk _) as s -> s
+             | SavedStackReg _ -> SavedStackReg (Conv.cvar_of_var (Option.get ro.ro_rsp)))
+         ; Expr.sf_to_save = List.map2 (fun x (_, ofs) -> (Conv.cvar_of_var x, ofs)) ro.ro_to_save fe.Expr.sf_to_save
+         }
     in
-    let fds = List.map (fun (e, fd) -> subst_sf_return_address e, fd) fds in
+    let fds = List.map (fun (e, fd) -> subst_sf_return_address fd e, fd) fds in
     let fds = List.map Conv.csfdef_of_fdef fds in
     fds
   in
