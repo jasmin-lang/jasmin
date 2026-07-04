@@ -108,25 +108,38 @@ Storage type is thus not a type, and should not be aliased.
 ### Adding annotations to type aliases
 
 Annotations can be attached to type aliases:
-
 ```
-#[mmx]
-type m64 = u64;
+#[mmx] type u32x2 = u64;
 ```
-
-These annotations are automatically inherited by variables declared using the alias. For example:
-
+These annotations are automatically inherited by variables declared using the alias.
+For example:
 ```
-fn mmx_id(reg m64 x) -> reg m64 {
-    return x;
+fn inc(reg u32x2 a) -> reg u32x2 {
+  global u32x2 one = (2u32)[ 1, 1 ];
+  a = #PADD_2u32(a, one);
+  return a;
+}
+
+export fn test_inc(reg u64 i) -> reg u64 {
+  reg u32x2 v = i;
+  v = inc(v);
+  i = v;
+  return i;
 }
 ```
-
 is equivalent to:
-
 ```
-fn mmx_id(#[mmx] reg u64 x) -> reg u64 {
-    return x;
+fn inc(#[mmx]reg u64 a) -> reg u64 {
+  global u64 one = (2u32)[ 1, 1 ];
+  a = #PADD_2u32(a, one);
+  return a;
+}
+
+export fn test_inc(reg u64 i) -> reg u64 {
+  #[mmx] reg u64 v = i;
+  v = inc(v);
+  i = v;
+  return i;
 }
 ```
 
