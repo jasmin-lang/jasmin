@@ -279,8 +279,8 @@ module Env : sig
   end
 
   module TypeAlias : sig
-    val push : 'asm env -> A.pident -> P.epty -> 'asm env
-    val get : 'asm env -> A.pident -> P.epty L.located
+    val push : 'asm env -> A.pident -> A.annotations -> P.epty -> 'asm env
+    val get : 'asm env -> A.pident -> A.annotations * P.epty L.located
   end
 
   module Funs : sig
@@ -303,7 +303,7 @@ end  = struct
     }
 
   type 'asm global_bindings = {
-      gb_types : (A.symbol, P.epty L.located) Map.t;
+      gb_types : (A.symbol, A.annotations * P.epty L.located) Map.t;
       gb_vars : (A.symbol, P.pvar * P.epty * E.v_scope) Map.t;
       gb_funs : (A.symbol, (unit, 'asm) P.pfunc * fun_sig) Map.t;
     }
@@ -368,7 +368,7 @@ end  = struct
   let err_duplicate_fun name (v, _) (fd, _) =
     rs_tyerror ~loc:v.P.f_loc (DuplicateFun(name, fd.P.f_loc))
 
-  let err_duplicate_type name t1 t2 =
+  let err_duplicate_type name (_, t1) (_, t2) =
     rs_tyerror ~loc:(L.loc t2) (DuplicateAlias (name,t1,t2))
 
   let merge_bindings (ns, src) dst =
@@ -515,13 +515,13 @@ end  = struct
 
   module TypeAlias = struct
 
-    let push (env: 'asm env) (id: A.pident) (ty: P.epty) : 'asm env =
+    let push (env: 'asm env) (id: A.pident) (annot: A.annotations) (ty: P.epty) : 'asm env =
       match find (fun x -> x.gb_types) (L.unloc id) env with
-      | Some alias ->
-         rs_tyerror  ~loc:(L.loc id)  (DuplicateAlias (L.unloc id, (L.mk_loc (L.loc id) ty) ,alias) )
+      | Some (_, alias) ->
+         rs_tyerror  ~loc:(L.loc id)  (DuplicateAlias (L.unloc id, (L.mk_loc (L.loc id) ty) , alias) )
       | None ->
           let ty = L.mk_loc (L.loc id) ty in
-          let doit v = {v with gb_types = Map.add (L.unloc id) ty v.gb_types }
+          let doit v = {v with gb_types = Map.add (L.unloc id) (annot, ty) v.gb_types }
           in let binds =
           match env.e_bindings with
           | ([],gb) -> [],doit gb
@@ -529,7 +529,7 @@ end  = struct
           in
           {env with e_bindings = binds}
 
-    let get (env: 'asm env) (id: A.pident) : P.epty L.located =
+    let get (env: 'asm env) (id: A.pident) : A.annotations * P.epty L.located =
       let typea = find (fun b -> b.gb_types) (L.unloc id) env in
       match typea with
       | None ->
@@ -1416,24 +1416,28 @@ and tt_mem_access pd ?(mode=`AllVar) (env : 'asm Env.env)
   (ct, loc, e, al)
 
 (* -------------------------------------------------------------------- *)
-and tt_type pd (env : 'asm Env.env) (pty : S.ptype) : P.epty =
+and tt_type_annot pd (env : 'asm Env.env) (pty : S.ptype) : A.annotations * P.epty =
   match L.unloc pty with
-  | S.TBool     -> P.etbool
-  | S.TInt      -> P.etint
-  | S.TWord  ws -> tt_swsize ws
+  | S.TBool     -> [], P.etbool
+  | S.TInt      -> [], P.etint
+  | S.TWord  ws -> [], tt_swsize ws
   | S.TArray (ws, e) ->
      let loc, id, ety =
        match ws with
        | TypeWsize ws -> L.loc pty, None, tt_swsize ws
        | TypeSizeAlias id ->
-          let ty = Env.TypeAlias.get env id in
+          let _, ty = Env.TypeAlias.get env id in
           L.loc id, Some (L.mk_loc (L.loc ty) (L.unloc id)), L.unloc ty in
      let ws =
        match ety with
        | P.ETword(None, ws) -> ws (* wint array are not allowed this is require by wint_int *)
        | ty -> rs_tyerror ~loc (InvalidTypeAlias (id,ty))
-     in P.ETarr (ws, P.PE (fst (tt_expr ~mode:`OnlyParam pd env e)))
-  | S.TAlias id -> L.unloc (Env.TypeAlias.get env id)
+     in [], P.ETarr (ws, P.PE (fst (tt_expr ~mode:`OnlyParam pd env e)))
+  | S.TAlias id ->
+      let a, ty = Env.TypeAlias.get env id in
+      a, L.unloc ty
+
+let tt_type pd env pty : P.epty = snd (tt_type_annot pd env pty)
 
 (* -------------------------------------------------------------------- *)
 let tt_exprs pd (env : 'asm Env.env) es = List.map (tt_expr ~mode:`AllVar pd env) es
@@ -1456,8 +1460,10 @@ let mk_var x sto xety xlc annot =
 
 let tt_vardecl dfl_writable pd (env : 'asm Env.env) ((annot, (sto, xty)), x) =
   let { L.pl_desc = x; L.pl_loc = xlc; } = x in
+  let (aty, xety) = tt_type_annot pd env xty in
+  let annot = aty @ annot in
   let regkind = tt_reg_kind annot in
-  let (sto, xety) = (tt_sto regkind (dfl_writable x) sto, tt_type pd env xty) in
+  let sto = tt_sto regkind (dfl_writable x) sto in
   let x = mk_var x sto xety xlc annot in
   if P.is_ptr sto && not (P.is_ty_arr x.v_ty) then
     rs_tyerror ~loc:xlc PtrOnlyForArray;
@@ -2602,9 +2608,9 @@ let tt_global pd (env : 'asm Env.env) _loc (gd: S.pglobal) : 'asm Env.env =
   Env.Vars.push_global env (x,ty,d)
 
 
-let tt_typealias arch_info env id ty =
+let tt_typealias arch_info env id annot ty =
   let alias = tt_type arch_info.pd env ty in
-  Env.TypeAlias.push env id alias
+  Env.TypeAlias.push env id annot alias
 
 (* -------------------------------------------------------------------- *)
 let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
@@ -2624,7 +2630,9 @@ let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
      let env = List.fold_left (tt_item arch_info) env items in
      let env = Env.exit_namespace env in
      env
-  | S.PTypeAlias (id,ty) -> tt_typealias arch_info env id ty
+  | S.PTypeAlias (id, pannot, ty) ->
+      let annot = pannot_to_annotations pannot in
+      tt_typealias arch_info env id annot ty
 
 and tt_file_loc arch_info from env fname =
   fst (tt_file arch_info env from (Some (L.loc fname)) (L.unloc fname))

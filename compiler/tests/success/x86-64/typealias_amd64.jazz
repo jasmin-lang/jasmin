@@ -22,3 +22,18 @@ export fn memncopy
 
     return (target,source);
 }
+
+#[mmx] type u32x2 = u64;
+
+fn inc(reg u32x2 a) -> reg u32x2 {
+  global u32x2 one = (2u32)[ 1, 1 ];
+  a = #PADD_2u32(a, one);
+  return a;
+}
+
+export fn test_inc(reg u64 i) -> reg u64 {
+  reg u32x2 v = i;
+  v = inc(v);
+  i = v;
+  return i;
+}

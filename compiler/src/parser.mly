@@ -529,8 +529,8 @@ top:
 | x=pglobal  { Syntax.PGlobal x }
 | x=pexec    { Syntax.Pexec   x }
 | x=prequire { Syntax.Prequire x}
-| TYPE name = ident EQ ty = ptype SEMICOLON
-    { Syntax.PTypeAlias (name, ty)}
+| a=annotations TYPE name = ident EQ ty = ptype SEMICOLON
+    { Syntax.PTypeAlias (name, a, ty)}
 | NAMESPACE name = ident LBRACE pfs = loc(top)* RBRACE
     { Syntax.PNamespace (name, pfs) }
 (* -------------------------------------------------------------------- *)

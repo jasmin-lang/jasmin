@@ -79,7 +79,7 @@ name, and the value. For instance:
 
 ## Types Aliases
 
-Jasmin compiler latest development version (still unreleased) introduced a
+Jasmin compiler latest development version introduced a
 new syntax feature for type definition. A type alias can be defined at top
 level of a program or a namespace. The aim of this feature is to improve
 genericity of Jasmin code. The types aliases are resolved like params,
@@ -104,6 +104,44 @@ type x = reg u64;
 We can consider that the storage type (`reg`, `stack`, `inline` ...) is
 similar to the declaration keyword `let` in other languages (for instance Rust).
 Storage type is thus not a type, and should not be aliased.
+
+### Adding annotations to type aliases
+
+Annotations can be attached to type aliases:
+```
+#[mmx] type u32x2 = u64;
+```
+These annotations are automatically inherited by variables declared using the alias.
+For example:
+```
+fn inc(reg u32x2 a) -> reg u32x2 {
+  global u32x2 one = (2u32)[ 1, 1 ];
+  a = #PADD_2u32(a, one);
+  return a;
+}
+
+export fn test_inc(reg u64 i) -> reg u64 {
+  reg u32x2 v = i;
+  v = inc(v);
+  i = v;
+  return i;
+}
+```
+is equivalent to:
+```
+fn inc(#[mmx]reg u64 a) -> reg u64 {
+  global u64 one = (2u32)[ 1, 1 ];
+  a = #PADD_2u32(a, one);
+  return a;
+}
+
+export fn test_inc(reg u64 i) -> reg u64 {
+  #[mmx] reg u64 v = i;
+  v = inc(v);
+  i = v;
+  return i;
+}
+```
 
 ## Global variables
 
