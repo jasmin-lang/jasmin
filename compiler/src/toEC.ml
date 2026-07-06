@@ -475,6 +475,8 @@ module Env: EnvT = struct
     env.array_theories := Sarraytheory.add (SubArrayCast {sizews; sizewb; sizes; sizeb}) !(env.array_theories)
 
   let add_ArrayAccessCast env sizews sizewb sizeb =
+    add_Array env sizeb;
+    add_WArray env (sizeb * sizewb);
     add_ArrayWords env sizewb sizeb;
     env.array_theories := Sarraytheory.add (ArrayAccessCast {sizews; sizewb; sizeb}) !(env.array_theories)
 
@@ -792,24 +794,37 @@ let fmt_warray_decl fmt i =
 
 let fmt_op fmt (op_name, v) = Format.fprintf fmt "op %s <- %i" op_name v
 
-let fmt_the fmt (th, v) = Format.fprintf fmt "theory %s <- %s" th v
+let fmt_the_fmt fmt (th, pp, v) = Format.fprintf fmt "theory %s <- %a" th pp v
+
+let fmt_the fmt (th, v) =
+  fmt_the_fmt fmt (th, Format.pp_print_string, v)
 
 let fmt_th fmt (th, v) = Format.fprintf fmt "theory %s <= %s" th v
+
+let fmt_word_packing (fmt : Format.formatter) ((s, b) : int * int) =
+  Format.fprintf fmt "W%du%d {@\n  @[<v 2>rename @[ \
+      @\n \"'Ru'S\" as \"%du%d\" \
+      @\n \"'R\" as \"%d\" \
+      @\n \"'S\" as \"%d\" \
+      @\n \"'B\" as \"%d\" \
+    @]@]@\n}"
+    s b s b s b (s * b)
 
 let fmt_arraywords_decl fmt (aw: arraywords) =
   let arrayn = Format.sprintf "Array%i" aw.sizea in
   let warrayn = Format.sprintf "WArray%i" (aw.sizew*aw.sizea) in
   let fmt_insts fmt (aw: arraywords) =
-    Format.fprintf fmt "%a,@ %a,@ %a,@ %a,@ %a"
+    Format.fprintf fmt "%a,@ %a,@ %a,@ %a,@ %a,@ %a"
     fmt_op ("sizeW", aw.sizew)
     fmt_op ("sizeA", aw.sizea)
-    fmt_th ("Word", Format.sprintf "W%i" (8*aw.sizew))
-    fmt_th ("ArrayN", arrayn)
-    fmt_th ("WArrayN", warrayn)
+    fmt_the ("Word", Format.sprintf "W%i" (8*aw.sizew))
+    fmt_the ("ArrayN", arrayn)
+    fmt_the ("WArrayN", warrayn)
+    fmt_the_fmt ("Wu8", fmt_word_packing, (aw.sizew, 8))
   in
   Format.fprintf fmt "@[<v>from Jasmin require import JWord JWord_array.@ @ ";
   Format.fprintf fmt "@[<v>require import %s %s.@ @ " arrayn warrayn;
-  Format.fprintf fmt "clone export ArrayWords as %s  with @[%a@].@]@."
+  Format.fprintf fmt "clone export ArrayWords as %s with @\n@[  @[<v 0>%a@ proof * by done@]@].@]@."
     (fmt_array_theory (ArrayWords aw))
     fmt_insts aw
 
@@ -869,18 +884,32 @@ let fmt_subarraycast_decl fmt (s: subarraycast) =
 
 let fmt_arrayaccesscast_decl fmt (s: arrayaccesscast) =
   let arraywb = fmt_array_theory (ArrayWords {sizew=s.sizewb; sizea=s.sizeb}) in
+  let arrayb = fmt_array_theory (Array s.sizeb) in
+  let warraybwb = fmt_array_theory (WArray (s.sizeb * s.sizewb)) in
+  let aligned = (s.sizewb mod s.sizews) = 0 in
   let fmt_insts fmt (s: arrayaccesscast) =
-    Format.fprintf fmt "%a,@ %a,@ %a,@ %a,@ %a,@ %a"
+    Format.fprintf fmt "%a,@ %a,@ %a,@ %a,@ %a,@ %a,@ %a,@ %a,@ %a,@ %a%t"
     fmt_op ("sizeWS", s.sizews)
     fmt_op ("sizeWB", s.sizewb)
     fmt_op ("sizeB", s.sizeb)
     fmt_the ("WordS", Format.sprintf "W%i" (8*s.sizews))
     fmt_the ("WordB", Format.sprintf "W%i" (8*s.sizewb))
-    fmt_th ("ArrayWordsB", arraywb)
+    fmt_the ("ArrayN", Format.sprintf "Array%i" s.sizeb)
+    fmt_the ("WArrayN", Format.sprintf "WArray%i" (s.sizeb*s.sizewb))
+    fmt_the ("ArrayWordsB", arraywb)
+    fmt_the_fmt ("WSu8", fmt_word_packing, (s.sizews, 8))
+    fmt_the_fmt ("WBu8", fmt_word_packing, (s.sizewb, 8))
+    (fun fmt ->
+       if aligned then
+         Format.fprintf fmt ",@ %a"
+         fmt_the_fmt ("WSuB", fmt_word_packing, (s.sizewb / s.sizews, 8*s.sizews)))
   in
   Format.fprintf fmt "@[<v>from Jasmin require import JWord JWord_array.@ @ ";
+  Format.fprintf fmt "@[<v>require import %s.@ " arrayb;
+  Format.fprintf fmt "@[<v>require import %s.@ " warraybwb;
   Format.fprintf fmt "@[<v>require import %s.@ @ " arraywb;
-  Format.fprintf fmt "clone export ArrayAccessCast as %s  with @[%a@].@]@."
+  Format.fprintf fmt "clone export ArrayAccessCast%s as %s with @\n@[  @[<v 0>%a@ proof * by done@]@].@]@."
+    (if aligned then "Aligned" else "")
     (fmt_array_theory (ArrayAccessCast s))
     fmt_insts s
 
