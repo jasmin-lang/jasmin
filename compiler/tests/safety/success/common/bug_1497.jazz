@@ -1,0 +1,7 @@
+param int N = 1;
+
+inline fn f(inline u8[N] a) -> inline u8 { inline u8 r = a[0]; return r; }
+
+export fn test() {
+  _  = f("a");
+}

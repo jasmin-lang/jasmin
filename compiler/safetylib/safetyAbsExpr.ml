@@ -1216,6 +1216,14 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
     (* If any offset is unknown, we need to forget the array content. *)
     | _, _ -> array_contents lhs.ms_v |> AbsDom.forget_list abs
 
+  let init_slice abs lhs es =
+    match lhs.ms_offset with
+    | None -> array_contents lhs.ms_v |> AbsDom.forget_list abs
+    | Some loff ->
+       List.fold_lefti (fun abs i e ->
+           AbsDom.is_init abs (AarraySlice (lhs.ms_v, U8, i))
+         ) abs es
+
   let omvar_is_offset = function
     | MLvar (_, MvarOffset _) -> true
     | _ -> false
@@ -1257,16 +1265,18 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
 
       | Arr _, MLvar  _
       | Arr _, MLasub _ ->
-        let rhs = match e with
-          | Pvar x -> msub_of_arr (L.unloc x.gv) x.gs
-          | Psub _ -> msub_of_sub_expr abs e
-          | _ -> assert false in
         let lhs = match out_mvar with
           | MLvar  (_, Mlocal (Aarray v)) -> msub_of_arr v Expr.Slocal
           | MLasub (_, msub) -> msub
           | _ -> assert false
         in
-        assign_slice abs lhs rhs
+        begin match e with
+        | Pvar x -> assign_slice abs lhs (msub_of_arr (L.unloc x.gv) x.gs)
+        | Psub _ -> assign_slice abs lhs (msub_of_sub_expr abs e)
+        | PappN (Oarray _len, es) ->
+           init_slice abs lhs es
+        | _ -> assert false
+        end
 
       | _ -> assert false
 
