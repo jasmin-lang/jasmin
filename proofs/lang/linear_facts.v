@@ -64,31 +64,6 @@ Lemma lfn_lset_estate ls scs m vm :
   lfn (lset_estate ls scs m vm) = lfn ls.
 Proof. done. Qed.
 
-#[local]
-Lemma lsem_transn lp l : transn_spec (R := lsem lp) (Rstep := lsem lp) l.
-Proof. apply: transn_specP; by [| exact: rt_trans | exact: rt_refl ]. Qed.
-
-Definition lsem_trans3 lp := transn3 (lsem_transn lp).
-Definition lsem_trans4 lp := transn4 (lsem_transn lp).
-Definition lsem_trans5 lp := transn5 (lsem_transn lp).
-Definition lsem_trans6 lp := transn6 (lsem_transn lp).
-
-#[local]
-Lemma lsem1_transn lp l : transn_spec (R := lsem lp) (Rstep := lsem1 lp) l.
-Proof.
-  apply: transn_specP; by [ exact: rt_trans | exact: rt_step | exact: rt_refl ].
-Qed.
-
-Lemma lsem_step1 lp ls0 ls1 :
-  lsem1 lp ls0 ls1 ->
-  lsem lp ls0 ls1.
-Proof. exact: rt_step. Qed.
-
-Definition lsem_step2 lp := transn2 (lsem1_transn lp).
-Definition lsem_step3 lp := transn3 (lsem1_transn lp).
-Definition lsem_step4 lp := transn4 (lsem1_transn lp).
-Definition lsem_step5 lp := transn5 (lsem1_transn lp).
-Definition lsem_step6 lp := transn6 (lsem1_transn lp).
 
 Lemma label_in_lcmd_cat lc1 lc2 :
   label_in_lcmd (lc1 ++ lc2) = label_in_lcmd lc1 ++ label_in_lcmd lc2.
@@ -169,25 +144,6 @@ Lemma find_instr_skip0 lp fn pre pos :
     find_instr lp ls = oseq.onth pos 0.
 Proof. rewrite -(addn0 (size pre)). by eauto using find_instr_skip'. Qed.
 
-Lemma eval_lsem1 lp ls ls' pre pos li fn :
-  is_linear_of lp fn (pre ++ li :: pos) ->
-  lpc ls = size pre ->
-  lfn ls = fn ->
-  eval_instr lp li ls = ok ls' ->
-  lsem1 lp ls ls'.
-Proof.
-  rewrite /lsem1 /step.
-  by move=> /find_instr_skip0 /[apply] /[apply] ->.
-Qed.
-
-Lemma eval_lsem_step1 lp ls ls' pre pos li fn :
-  is_linear_of lp fn (pre ++ li :: pos) ->
-  lpc ls = size pre ->
-  lfn ls = fn ->
-  eval_instr lp li ls = ok ls' ->
-  lsem lp ls ls'.
-Proof. by eauto using lsem_step1, eval_lsem1. Qed.
-
 Lemma eval_jumpE lp fn body :
   is_linear_of lp fn body ->
   forall lbl s,
@@ -248,21 +204,14 @@ Opaque eval_jump.
 Transparent eval_jump.
 Qed.
 
+
 Lemma lsem1_mem_equiv lp s1 s2 :
-  lsem1 lp s1 s2 ->
+  step lp s1 = ok s2 ->
   mem_equiv (lmem s1) (lmem s2).
 Proof.
-  rewrite /lsem1 /step.
+  rewrite /step.
   case: find_instr => [i|//].
   exact: eval_instr_mem_equiv.
-Qed.
-
-Lemma lsem_mem_equiv lp s1 s2 :
-  lsem lp s1 s2 ->
-  mem_equiv (lmem s1) (lmem s2).
-Proof.
-  move: s1 s2; apply lsem_ind => // s1 s2 s3 /lsem1_mem_equiv heq1 _ heq2.
-  exact: mem_equiv_trans heq1 heq2.
 Qed.
 
 Lemma lsem_n_0 lp cond s :
@@ -354,23 +303,6 @@ Proof.
   move: a => [[les op] res].
   rewrite /sem_fopn_args /eval_instr /= /to_estate /=.
   by t_xrbindP=> ? -> /= ? -> /= ->.
-Qed.
-
-Lemma sem_fopns_args_lsem lp fn P Q ii lc s1 s2 :
-  sem_fopns_args s1 lc = ok s2 ->
-  is_linear_of lp fn (P ++ map (li_of_fopn_args ii) lc ++ Q) ->
-  lsem lp (of_estate s1 fn (size P)) (of_estate s2 fn (size P + size lc)).
-Proof.
-  elim: lc P s1 => /= [ | [[xs o] es] lc hrec] P s1.
-  + by move=> [<-] _; rewrite addn0; apply rt_refl.
-  rewrite /sem_fopn_args; t_xrbindP=> s1' evs hes rvs hex hw hsem hlin.
-  apply: lsem_step.
-  + rewrite /lsem1/step -{1}(addn0 (size P)).
-    have  /(_ (of_estate s1 fn (size P + 0)) 0) := find_instr_skip hlin.
-    rewrite /of_estate /setpc /= /eval_instr => -> //=.
-    by rewrite to_estate_of_estate hes /= hex /= hw /=; reflexivity.
-  move: hlin; rewrite -addSnnS -cat_rcons => hlin.
-  by have := hrec _ _ hsem hlin; rewrite size_rcons; apply.
 Qed.
 
 Lemma lsem_body_weak lp (cond1 cond2:lstate -> bool) s1 s2 :

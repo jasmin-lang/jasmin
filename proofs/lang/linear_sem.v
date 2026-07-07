@@ -191,113 +191,6 @@ Definition step (s: lstate) : exec lstate :=
     eval_instr i s
   else type_error.
 
-Definition lsem1 (s1 s2: lstate) : Prop :=
-  step s1 = ok s2.
-
-Definition lsem : relation lstate := clos_refl_trans lstate lsem1.
-
-Lemma lsem_ind (Q: lstate → lstate → Prop) :
-  (∀ s, Q s s) →
-  (∀ s1 s2 s3, lsem1 s1 s2 → lsem s2 s3 → Q s2 s3 → Q s1 s3) →
-  ∀ s1 s2, lsem s1 s2 → Q s1 s2.
-Proof.
-  move=> R S s1 s2 H; apply clos_rt_rt1n in H.
-  specialize (λ s1 s2 s3 X Y, S s1 s2 s3 X (clos_rt1n_rt _ _ _ _ Y)).
-  by elim: H.
-Qed.
-
-Lemma lsem_step s2 s1 s3 :
-  lsem1 s1 s2 →
-  lsem s2 s3 →
-  lsem s1 s3.
-Proof.
-  by move=> H; apply: rt_trans; apply: rt_step.
-Qed.
-
-Lemma lsem_step_end s2 s1 s3 :
-  lsem s1 s2 →
-  lsem1 s2 s3 →
-  lsem s1 s3.
-Proof.
-  move => h12 h23; apply: rt_trans; first exact: h12.
-  exact: rt_step.
-Qed.
-
-Definition lsem_trans s2 s1 s3 :
-  lsem s1 s2 -> lsem s2 s3 -> lsem s1 s3 :=
-  rt_trans _ _ s1 s2 s3.
-
-Lemma lsem_ind_r (Q: lstate → lstate → Prop) :
-  (∀ s, Q s s) →
-  (∀ s1 s2 s3, lsem s1 s2 → lsem1 s2 s3 → Q s1 s2 → Q s1 s3) →
-  ∀ s1 s2, lsem s1 s2 → Q s1 s2.
-Proof.
-  move=> R S s1 s2 H; apply clos_rt_rtn1 in H.
-  specialize (λ s1 s2 s3 X Y, S s1 s2 s3 (clos_rtn1_rt _ _ _ _ X) Y).
-  by elim: H => // s2' s3' H12 H23 Q12; apply: (S s1 s2' s3' H23 H12 Q12).
-Qed.
-
-Lemma lsem1_fun s1 s2 s3 :
-  lsem1 s1 s2 ->
-  lsem1 s1 s3 ->
-  s2 = s3.
-Proof.
-  by rewrite /lsem1 => ->; t_xrbindP.
-Qed.
-
-Lemma lsem_disj1 s1 s2 s3 :
-  lsem1 s1 s2 ->
-  lsem s1 s3 ->
-  (s1 = s3) \/ lsem s2 s3.
-Proof.
-  move => H12 H13; move: s1 s3 H13 s2 H12.
-  apply: lsem_ind; first by left.
-  move => s1 s2 s3 H12 H23 _ s2' H12'.
-  by right; rewrite (lsem1_fun H12' H12).
-Qed.
-
-Lemma lsem_disj s1 s2 s3 :
-  lsem s1 s2 ->
-  lsem s1 s3 ->
-  lsem s2 s3 \/ lsem s3 s2.
-Proof.
-  move => Hp12; move: s1 s2 Hp12 s3.
-  apply: lsem_ind; first by left.
-  move => s1 s2 s2' H1p12 Hp22' IHdisj s3 Hp13.
-  have:= (lsem_disj1 H1p12 Hp13).
-  case; last by apply: IHdisj.
-  by move => <-; right; apply: (lsem_trans _ Hp22'); apply: rt_step.
-Qed.
-
-Lemma lsem_split_start a z :
-  lsem a z →
-  a = z ∨ exists2 b, lsem1 a b & lsem b z.
-Proof.
-  case/clos_rt_rt1n_iff; first by left.
-  by move => b{}z ab /clos_rt_rt1n_iff bz; right; exists b.
-Qed.
-
-(* Linear execution state is final when it reaches the point after the last instruction. *)
-Definition lsem_final (s: lstate) : Prop :=
-  exists2 fd, get_fundef (lp_funcs P) (lfn s) = Some fd & lpc s = size fd.(lfd_body).
-
-Lemma lsem_final_nostep (s s': lstate) :
-  lsem_final s →
-  ¬ lsem1 s s'.
-Proof.
-  rewrite /lsem1 /step /find_instr => - [] fd -> h.
-  by rewrite oseq.onth_default // -h.
-Qed.
-
-Lemma lsem_final_stutter (s s': lstate) :
-  lsem s s' →
-  lsem_final s →
-  s' = s.
-Proof.
-  elim/lsem_ind; first by [].
-  by clear => s s' ? k _ _ /lsem_final_nostep /(_ k).
-Qed.
-
 Definition ls_export_initial scs m vm fn :=
   {|
     lscs := scs;
@@ -306,23 +199,6 @@ Definition ls_export_initial scs m vm fn :=
     lfn := fn;
     lpc := 0;
   |}.
-
-Definition ls_export_final scs m vm fn fd :=
-  {|
-    lscs := scs;
-    lmem := m;
-    lvm := vm;
-    lfn := fn;
-    lpc := size (lfd_body fd);
-  |}.
-
-Variant lsem_exportcall (scs:syscall_state_t) (m: mem) (fn: funname) (vm: Vm.t) (scs':syscall_state_t) (m': mem) (vm': Vm.t) : Prop :=
-| Lsem_exportcall (fd: lfundef) of
-    get_fundef P.(lp_funcs) fn = Some fd
-  & lfd_export fd
-  & lsem (ls_export_initial scs m vm fn) (ls_export_final scs' m' vm' fn fd)
-  & vm =[ callee_saved ] vm'
-.
 
 (* ----------------------------------------------------------------- *)
 (* ITree based Semantics                                             *)
@@ -357,19 +233,6 @@ Qed.
 
 Definition lsem_n cond (s:lstate) (s':lstate) :=
   exists n, lsem_body_n cond n s = ok (inl s').
-
-Lemma lsem_n_lsem cond s s' :
-  lsem_n cond s s' ->
-  lsem s s'.
-Proof.
-  move=> [n]; elim: n s => /= [ | n ih] s.
-  + by move=> [<-]; apply rt_refl.
-  t_xrbindP => ins.
-  rewrite /lsem_body; case:ifP => _.
-  2: by move=> [<-].
-  t_xrbindP => s1 hstep <- /ih.
-  apply: lsem_step hstep.
-Qed.
 
 Lemma lsem_n_trans s2 s1 s3 cond :
   lsem_n cond s1 s2 -> lsem_n cond s2 s3 -> lsem_n cond s1 s3.
@@ -627,4 +490,4 @@ End MIX_STEP.
 
 End SEM.
 
-Arguments lsem_split_start {_ _ _ _ _ _}.
+(* Arguments lsem_split_start {_ _ _ _ _ _}. *)

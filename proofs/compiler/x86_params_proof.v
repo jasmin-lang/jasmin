@@ -14,7 +14,7 @@ Require Import
   sem_one_varmap.
 Require Import
   linearization
-  linearization_proof
+  it_linearization_proof
   lowering
   slh_lowering
   slh_lowering_proof
