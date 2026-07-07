@@ -9,7 +9,7 @@ From Coq Require Import
   Morphisms
   RelationClasses.
 
-From Paco Require Import paco.
+From Coinduction Require Import all.
 
 From ITree Require Import
   ITree
@@ -126,16 +126,16 @@ Lemma xrutt_flip {E1 E2 R1 R2}
   xrutt EE1 EE2 REv RAns RR t1 t2 <->
     xrutt EE2 EE1 (flip_REv REv) (flip_RAns RAns) (flip RR) t2 t1.
 Proof.
-  split; revert t1 t2; pcofix CIH; intros t1 t2 Hrutt;
-  punfold Hrutt; red in Hrutt; pstep; red.
+  split; revert t1 t2; coinduction; intros t1 t2 Hrutt;
+  step in Hrutt; xrcbn.
   - induction Hrutt; try now constructor.
-    * apply EqTau. right. apply CIH. now pclearbot.
-    * apply EqVis; auto. intros b a HAns. cbn in HAns. right.
-      specialize (H2 a b HAns). apply CIH. now pclearbot.
+    * apply EqTau. now apply CIH.
+    * apply EqVis; auto. intros b a HAns. cbn in HAns.
+      specialize (H2 a b HAns). now apply CIH. 
   - induction Hrutt; try now constructor.
-    * apply EqTau. right. apply CIH. now pclearbot.
-    * apply EqVis; auto. intros b a HAns. cbn in HAns. right.
-      specialize (H2 a b HAns). apply CIH. now pclearbot.
+    * apply EqTau. now apply CIH.
+    * apply EqVis; auto. intros b a HAns. cbn in HAns.
+      specialize (H2 a b HAns). now apply CIH.
 Qed.
 
 (* Progressive [Proper] instances for [X-rutt] and congruence with eutt. *)
@@ -153,33 +153,99 @@ Proof.
   intros REv1 REv2 HREv RAns1 RAns2 HRAns RR1 RR2 HRR
          t1 _ <- t2 _ <-.
   split; intros Hrutt.
-  - revert t1 t2 Hrutt; pcofix CIH; intros t1 t2 Hrutt.
-    pstep. punfold Hrutt. red in Hrutt; red.
+  - revert t1 t2 Hrutt; coinduction; intros t1 t2 Hrutt.
+    xrcbn. step in Hrutt.
     hinduction Hrutt before CIH; intros; eauto using EqTauL, EqTauR.
     * apply EqRet. now apply HRR.
-    * apply EqTau. right. apply CIH. now pclearbot.
+    * apply EqTau. now apply CIH.
     * apply EqVis; auto. now apply HREv. intros.
       assert (H4: RAns1 A B e1 a e2 b).
       { erewrite <- eq_RAns_iff. apply H3. assumption. }
-      intros. specialize (H2 a b H4). red. right. apply CIH.
-      red in H2. now pclearbot.
+      intros. specialize (H2 a b H4). red. now apply CIH.
     * apply EqCutL; auto.
     * apply EqCutR; auto.
 
-  - revert t1 t2 Hrutt; pcofix CIH; intros t1 t2 Hrutt.
-    pstep. punfold Hrutt. red in Hrutt; red.
+  - revert t1 t2 Hrutt; coinduction; intros t1 t2 Hrutt.
+    do 3 red. step in Hrutt.
     hinduction Hrutt before CIH; intros; eauto using EqTauL, EqTauR.
     * apply EqRet. now apply HRR.
-    * apply EqTau. right. apply CIH. now pclearbot.
+    * apply EqTau. now apply CIH.
     * apply EqVis; auto. now apply HREv. intros.
       assert (H4: RAns2 A B e1 a e2 b).
       { erewrite eq_RAns_iff. apply H3. assumption. }
-      intros. specialize (H2 a b H4). red. right. apply CIH.
-      red in H2. now pclearbot.
+      intros. specialize (H2 a b H4). now apply CIH.
     * apply EqCutL; auto.
     * apply EqCutR; auto.
 Qed.
 
+(* Based on [RuttFacts.eq_proper_ruttC]. *)
+#[global] Instance eq_proper_xruttC {E1 E2 R1 R2 REv RAns}
+  (EE1: forall X, E1 X -> bool) (EE2: forall X, E2 X -> bool)
+  (RR : R1 -> R2 -> Prop) (c : Chain (@xrutt_mon E1 E2 R1 R2 EE1 EE2 REv RAns)):
+  Proper (eq_itree eq ==> eq_itree eq ==> iff) (elem c RR).
+Proof.
+  split; revert_until c; tower induction;
+    intros IH t1 t1' Ht1 t2 t2' Ht2;
+    step in Ht1; step in Ht2; xrcbn; intros Hrutt;
+    genobs t1' ot1'; genobs t2' ot2;
+    move Hrutt before IH; revert_until Hrutt;
+    hinduction Hrutt before IH; intros; subst.
+  all: inv Ht1; simpobs.
+  all: try lazymatch goal with
+    | Hdep: existT ?F ?A _ = existT ?F ?A _ |- _ =>
+        dependent destruction Hdep; simpobs
+    end.
+  all: try lazymatch goal with
+         | Hcut: IsCut _ ?e1 |- xruttF _ _ _ _ _ _ (VisF ?e1 _) _ =>
+             apply EqCutL; eauto; fail
+         end.
+  all: inv Ht2; simpobs.
+  all: try lazymatch goal with
+    | Hdep: existT ?F ?A _ = existT ?F ?A _ |- _ =>
+        dependent destruction Hdep; simpobs
+    end.
+  all: try lazymatch goal with
+         | Hcut: IsCut _ ?e2 |- xruttF _ _ _ _ _ _ _ (VisF ?e2 _) =>
+             apply EqCutR; eauto; fail
+         end.
+  all: try now constructor; eauto 3.
+  all: try now constructor; eapply IHHrutt; eauto; unstep.
+  all: try now apply EqTauL; eapply IHHrutt; eauto; try (now constructor; eauto); unstep.
+  all: try now apply EqTauR; eapply IHHrutt; eauto; try (now constructor; eauto); unstep.
+  + constructor; auto. intros.
+    eapply IH. apply REL. apply REL0. eauto.
+  + constructor; auto. intros.
+    eapply IH. apply REL. apply REL0. eauto.
+  + apply EqTauL. rewrite H.
+    eapply IHHrutt; eauto. now unstep.
+    simpobs. now constructor.
+  + apply EqTauL. rewrite H1.
+    eapply IHHrutt; eauto. now unstep.
+    rewrite <-H1. etau.
+  + apply EqTauL. rewrite H1.
+    eapply IHHrutt; eauto. now unstep.
+    rewrite <-H1. evis.
+  + apply EqTauR. rewrite H0.
+    eapply IHHrutt; eauto; last now unstep.
+    simpobs. now constructor.
+  + apply EqTauR. rewrite H0.
+    eapply IHHrutt; eauto; last now unstep.
+    rewrite <-H0. etau.
+  + apply EqTauR. rewrite H0.
+    eapply IHHrutt; eauto; last now unstep.
+    rewrite <-H0. evis.
+Qed.
+
+(* Based on [RuttFacts.eq_proper_rutt]. *)
+#[global] Instance eq_proper_xrutt {E1 E2 R1 R2 REv RAns}
+  (EE1: forall X, E1 X -> bool) (EE2: forall X, E2 X -> bool) (RR : R1 -> R2 -> Prop) :
+  Proper (eq_itree eq ==> eq_itree eq ==> iff) (@xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR).
+Proof.
+  unfold xrutt. intros t1 t1' Ht1 t2 t2' Ht2.
+  apply eq_proper_xruttC; auto.
+Qed.
+
+(* Based on [RuttFacts.rutt_Proper_R2]. *)
 #[global] Instance xrutt_Proper_R2 {E1 E2 R1 R2}
   (EE1: forall X, E1 X -> bool)
   (EE2: forall X, E2 X -> bool) :
@@ -192,21 +258,7 @@ Qed.
 Proof.
   clear. intros REv1 REv2 HREv RAns1 RAns2 HRAns RR1 RR2 HRR
            t1 t1' Ht1 t2 t2' Ht2.
-  split; intros Hrutt.
-
-  - rewrite <- HREv, <- HRAns, <- HRR; clear HREv REv2 HRAns RAns2 HRR RR2.
-    ginit. gclo. econstructor; eauto with paco.
-    * symmetry in Ht1. apply eq_sub_euttge in Ht1. apply Ht1.
-    * symmetry in Ht2. apply eq_sub_euttge in Ht2. apply Ht2.
-    * intros. inv H; auto.
-    * intros. inv H; auto.
-
-  - rewrite HREv, HRAns, HRR; clear HREv REv1 HRAns RAns1 HRR RR1.
-    ginit. gclo. econstructor; eauto with paco.
-    * apply eq_sub_euttge in Ht1. apply Ht1.
-    * apply eq_sub_euttge in Ht2. apply Ht2.
-    * intros. inv H; auto.
-    * intros. inv H; auto.
+  rewrite Ht1, Ht2. now apply xrutt_Proper_R.
 Qed.
 
 (* Similar to RuttFacts.rutt_cong_eutt *)

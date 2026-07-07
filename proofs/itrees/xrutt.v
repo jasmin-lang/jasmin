@@ -74,7 +74,6 @@ Section XRuttF.
 
   Context (REv : forall (A B : Type), E1 A -> E2 B -> Prop).
   Context (RAns : forall (A B : Type), E1 A -> A -> E2 B -> B -> Prop).
-  Context (RR : R1 -> R2 -> Prop).
 
   Arguments EE1 {X}.
   Arguments EE2 {X}.
@@ -82,6 +81,7 @@ Section XRuttF.
   Arguments RAns {A} {B}.
 
   Inductive xruttF
+    (RR : R1 -> R2 -> Prop)
     (sim : itree E1 R1 -> itree E2 R2 -> Prop) :
     itree' E1 R1 -> itree' E2 R2 -> Prop :=
   | EqRet : forall (r1 : R1) (r2 : R2),
@@ -120,9 +120,9 @@ Section XRuttF.
   Hint Constructors xruttF : itree.
 
   Definition xrutt_
-    (sim : itree E1 R1 -> itree E2 R2 -> Prop)
-    (t1 : itree E1 R1) (t2 : itree E2 R2) :=
-    xruttF sim (observe t1) (observe t2).
+    (sim : (R1 -> R2 -> Prop) -> itree E1 R1 -> itree E2 R2 -> Prop)
+    (RR : R1 -> R2 -> Prop) (t1 : itree E1 R1) (t2 : itree E2 R2) :=
+    xruttF RR (sim RR) (observe t1) (observe t2).
   Hint Unfold xrutt_ : itree.
 
   Lemma xruttF_mono :
@@ -133,24 +133,24 @@ Section XRuttF.
     Proper (leq ==> leq) xrutt_.
   Proof. monauto. Qed.
 
-  Definition xrutt_mon : mon (itree E1 R1 -> itree E2 R2 -> Prop) :=
+  Definition xrutt_mon : mon ((R1 -> R2 -> Prop) -> itree E1 R1 -> itree E2 R2 -> Prop) :=
     {| body := xrutt_; Hbody := xrutt_mono |}.
 
   Definition xrutt :
-    itree E1 R1 -> itree E2 R2 -> Prop :=
+    (R1 -> R2 -> Prop) -> itree E1 R1 -> itree E2 R2 -> Prop :=
     gfp xrutt_mon.
   Hint Unfold xrutt : itree.
 
-  Lemma xruttF_inv_VisF_r {sim} t1 U2 (e2: E2 U2) (k2: U2 -> _)
+  Lemma xruttF_inv_VisF_r {sim} RR t1 U2 (e2: E2 U2) (k2: U2 -> _)
     (hh: IsNoCut EE2 e2) :
-    xruttF sim t1 (VisF e2 k2) ->
+    xruttF RR sim t1 (VisF e2 k2) ->
     (exists U1 (e1: E1 U1) k1,
         t1 = VisF e1 k1 /\
           forall v1 v2, RAns e1 v1 e2 v2 -> sim (k1 v1) (k2 v2))
     \/
     DoCutoffF EE1 t1
     \/
-    (exists t1', t1 = TauF t1' /\ xruttF sim (observe t1') (VisF e2 k2)).
+    (exists t1', t1 = TauF t1' /\ xruttF RR sim (observe t1') (VisF e2 k2)).
   Proof.
     intros.
     remember t1 as t0.
@@ -164,10 +164,10 @@ Section XRuttF.
       + right; left; eauto.
   Qed.
 
-  Lemma xruttF_inv_VisF {sim} U1 U2
+  Lemma xruttF_inv_VisF {sim} RR U1 U2
     (e1 : E1 U1) (e2 : E2 U2)
     (k1 : U1 -> itree E1 R1) (k2 : U2 -> itree E2 R2) :
-      xruttF sim (VisF e1 k1) (VisF e2 k2) ->
+      xruttF RR sim (VisF e1 k1) (VisF e2 k2) ->
       (forall v1 v2, RAns e1 v1 e2 v2 -> sim (k1 v1) (k2 v2))
       \/
         IsCut EE1 e1
@@ -178,17 +178,16 @@ Section XRuttF.
   Qed.
 
   Lemma fold_xruttF:
-    forall (t1: itree E1 R1) (t2: itree E2 R2) ot1 ot2,
-    xruttF xrutt ot1 ot2 ->
+    forall RR (t1: itree E1 R1) (t2: itree E2 R2) ot1 ot2,
+    xruttF RR (xrutt RR) ot1 ot2 ->
     ot1 = observe t1 ->
     ot2 = observe t2 ->
-    xrutt t1 t2.
+    xrutt RR t1 t2.
   Proof.
     intros * eq -> ->. apply (pfp_gfp xrutt_mon), eq.
   Qed.
 
 End XRuttF.
-
 
 Ltac unfold_xrutt :=
     (match goal with [ |- xrutt_ _ _ _ _ _ _ _ _ ] => red end) ;
@@ -214,6 +213,12 @@ Tactic Notation "fold_xruttF" hyp(H) :=
       eapply fold_xruttF in H; [| eauto | eauto]
   end.
 
+#[local] Ltac xrunfold := unfold xrutt.
+
+Ltac xrcbn := cbn[xrutt_mon body]; try unfold xrutt_.
+
+Tactic Notation "xrstep" := apply (pfp_gfp (xrutt_mon _ _ _ _)); xrcbn.
+
 
 Section ConstructionInversion.
   Context {E1 E2: Type -> Type}.
@@ -230,7 +235,7 @@ Lemma xrutt_Ret r1 r2:
   RR r1 r2 ->
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR
     (Ret r1: itree E1 R1) (Ret r2: itree E2 R2).
-Proof. intros. apply (pfp_gfp (xrutt_mon _ _ _ _ _)); constructor; auto. Qed.
+Proof. intros. xrstep; constructor; auto. Qed.
 
 Lemma xrutt_inv_Ret r1 r2:
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR (Ret r1) (Ret r2) ->
@@ -288,7 +293,7 @@ Lemma break_inv_l t1 t2 :
 Proof.
   intros [T [e0 [k0 [H1 H2]]]].
   coinduction.
-  do 3 red.
+  xrcbn.
   setoid_rewrite H2.
   econstructor; eauto.
 Qed.
@@ -299,7 +304,7 @@ Lemma break_inv_r t1 t2 :
 Proof.
   intros [T [e0 [k0 [H1 H2]]]].
   coinduction.
-  do 3 red.
+  xrcbn.
   setoid_rewrite H2.
   econstructor; auto.
 Qed.
@@ -311,13 +316,13 @@ Proof.
   intros. step in H. simpl in *.
   remember (TauF t1) as tt1. genobs t2 ot2.
   hinduction H before t1; intros; try discriminate.
-  - inv Heqtt1. apply (pfp_gfp (xrutt_mon _ _ _ _ _)). do 3 red. simpobs. econstructor; eauto.
+  - inv Heqtt1. xrstep. simpobs. econstructor; eauto.
     unstep. assumption.
   - assert (DoCutoff_ EE2 _ t2) as A1.
     { rewrite <- Heqot2; eauto. }
     eapply break_inv_r; auto.
   - inv Heqtt1. unstep in H. assumption.
-  - red in IHxruttF. apply (pfp_gfp (xrutt_mon _ _ _ _ _)). do 3 red; simpobs. econstructor; eauto.
+  - red in IHxruttF. xrstep; simpobs. econstructor; eauto.
     unstep. eauto.
 Qed.
 
@@ -325,15 +330,14 @@ Lemma xrutt_add_Tau_l t1 t2 :
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR t1 t2 ->
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR (Tau t1) t2.
 Proof.
-  intros. apply (pfp_gfp (xrutt_mon _ _ _ _ _)). do 3 red. constructor. unstep. assumption.
+  intros. xrstep. constructor. unstep. assumption.
 Qed.
 
 Lemma xrutt_inv_Tau_r t1 t2 :
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR t1 (Tau t2) ->
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR t1 t2.
 Proof.
-  intros. step in H. simpl in *.
-  apply (pfp_gfp (xrutt_mon _ _ _ _ _)). do 3 red.
+  intros. step in H. simpl in *. xrstep.
   remember (TauF t2) as tt2 eqn:Ett2 in H.
   revert t2 Ett2.
   induction H; try discriminate; intros; inversion Ett2; subst; auto.
@@ -346,8 +350,7 @@ Lemma xrutt_add_Tau_r t1 t2 :
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR t1 t2 ->
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR t1 (Tau t2).
 Proof.
-  intros. apply (pfp_gfp (xrutt_mon _ _ _ _ _)). do 3 red.
-  constructor. unstep. assumption.
+  intros. xrstep. constructor. unstep. assumption.
 Qed.
 
 Lemma xrutt_inv_Tau t1 t2 :
@@ -362,7 +365,7 @@ Lemma xrutt_CutL {T1} (e1: E1 T1) (k1: T1 -> itree E1 R1)
   IsCut_ EE1 _ e1 ->
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR (Vis e1 k1) t.
 Proof.
-  intros; apply (pfp_gfp (xrutt_mon _ _ _ _ _)); econstructor; auto.
+  intros; xrstep; econstructor; auto.
 Qed.
 
 Lemma xrutt_CutR {T2} (e2: E2 T2) (k2: T2 -> itree E2 R2)
@@ -370,7 +373,7 @@ Lemma xrutt_CutR {T2} (e2: E2 T2) (k2: T2 -> itree E2 R2)
   IsCut_ EE2 _ e2 ->
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR t (Vis e2 k2).
 Proof.
-  intros; apply (pfp_gfp (xrutt_mon _ _ _ _ _)); econstructor; auto.
+  intros; xrstep; econstructor; auto.
 Qed.
 
 Lemma xrutt_Vis {T1 T2} (e1: E1 T1) (e2: E2 T2)
@@ -387,7 +390,7 @@ Proof.
   { eapply xrutt_CutL; eauto. }
   { eapply xrutt_CutL; eauto. }
   { eapply xrutt_CutR; eauto. }
-  { apply (pfp_gfp (xrutt_mon _ _ _ _ _)); constructor; auto. }
+  { xrstep; constructor; auto. }
 Qed.
 
 Lemma xrutt_inv_Vis_l {U1} (e1: E1 U1) k1 t2:
