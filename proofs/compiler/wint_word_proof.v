@@ -198,12 +198,6 @@ Section Internal.
 
 Let p' := wi2w_prog_internal p.
 
-Lemma eq_globs : gd = p_globs p'.
-Proof. done. Qed.
-
-Lemma eq_p_extra : p_extra p = p_extra p'.
-Proof. done. Qed.
-
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
