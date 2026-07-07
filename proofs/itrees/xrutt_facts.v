@@ -32,21 +32,6 @@ Section FromRuttFacts.
 Definition eq_tfun (E1 E2: Type -> Type) : Prop :=
   forall A, E1 A = E2 A.
 
-Global Instance subsum_eq_Proper :
-  Proper (eq_tfun ==> eq_tfun ==> eq) (fun X Y => X -< Y).
-Proof.
-  unfold Proper, eq_tfun, respectful, ReSum, IFun; simpl.
-  intros x y H x0 y0 H0.
-  assert (forall T : Type, (x T -> x0 T) = (y T -> y0 T)) as A1.
-  { intro T; rewrite <- H0.
-    rewrite <- H; auto. }
-  set (F1 := fun t => x t -> x0 t).
-  set (F2 := fun t => y t -> y0 t).
-  assert (forall T, F1 T = F2 T) as A2.
-  { subst F1 F2. simpl; auto. }
-  eapply (@forall_extensionality Type F1 F2) in A1; auto.
-Qed.
-
 Definition eq_REv {E1 E2: Type -> Type}
   (REv1 REv2 : forall A B, E1 A -> E2 B -> Prop) : Prop :=
   forall A B, eq_rel (REv1 A B) (REv2 A B).
