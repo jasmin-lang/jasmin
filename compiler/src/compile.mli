@@ -82,6 +82,7 @@ val compile :
     Sopn.asm_op_t )
   prog ->
   unit) ->
+  ?callee_saved_strategy:Utils.callee_saved_strategy ->
   _ prog ->
   ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op
   Expr._uprog ->

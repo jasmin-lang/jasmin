@@ -117,6 +117,11 @@ type model =
   | ConstantTimeGlobal
   | Normal
 
+type callee_saved_strategy =
+  | CSS_Tight (* run register allocation to compute the precise count of needed callee-saved registers *)
+  | CSS_Pessimistic (* assume all callee-saved registers are used *)
+  | CSS_Optimistic (* assume no callee-saved registers are used *)
+
 (* -------------------------------------------------------------------- *)
 (* Enables colors in errors and warnings.                               *)
 val enable_colors : unit -> unit
@@ -147,8 +152,9 @@ val hierror :
 val pp_now  : Format.formatter -> unit
 
 (* -------------------------------------------------------------------- *)
-type warning = 
-  | ExtraAssignment 
+type warning =
+  | CalleeSavedNotTight
+  | ExtraAssignment
   | UseLea
   | IntroduceArrayCopy
   | InlinedCallToExport

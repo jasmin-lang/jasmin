@@ -1,0 +1,19 @@
+param int R = 10;
+
+/* This function needs:
+  - all volatile registers,
+  - two callee-saved registers,
+  - the stack pointer register.
+  Therefore, the compiler should reject this program as it claims
+  to only use only two callee-saved registers (RSP included).
+*/
+#[callee_saved = 2]
+export
+fn main() -> reg u64 {
+  inline int i;
+  reg u64[R] t;
+  for i = 0 to R { t[i] = i; }
+  reg u64 r = i;
+  for i = 0 to R { r += t[i]; }
+  return r;
+}

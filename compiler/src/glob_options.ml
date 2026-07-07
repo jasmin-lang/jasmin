@@ -65,6 +65,14 @@ let set_stack_zero_strategy s =
 let stack_zero_size = ref None
 let set_stack_zero_size s = stack_zero_size := Some (Annot.ws_of_string s)
 
+let callee_saved_strategy_options =
+  [ "tight", CSS_Tight; "pessimistic", CSS_Pessimistic; "optimistic", CSS_Optimistic ]
+
+let callee_saved_strategy = ref CSS_Tight
+
+let set_callee_saved_strategy s =
+  callee_saved_strategy := List.assoc s callee_saved_strategy_options
+
 let target_arch = ref X86_64
 
 let set_target_arch a =
@@ -222,6 +230,9 @@ let options = [
     "-print-stack-alloc", Arg.Set print_stack_alloc, " Print the results of the stack allocation OCaml oracle";
     "-print-export-info-json", Arg.Set print_export_info_json, " Print information about exported functions in json";
     "-lazy-regalloc", Arg.Set lazy_regalloc, " Allocate variables to registers in program order";
+    "-callee-saved",
+      Arg.Symbol (List.map fst callee_saved_strategy_options, set_callee_saved_strategy),
+      " Configure how callee-saved registers are spilled in export functions";
     "-pall"    , Arg.Unit set_all_print, " Print program after each compilation steps";
     "-print-dependencies", Arg.Set print_dependencies, " Print dependencies and exit";
     "-intel", Arg.Unit (set_syntax `Intel), " Use intel syntax (default is AT&T)"; 
