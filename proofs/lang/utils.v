@@ -346,34 +346,6 @@ Qed.
 
 Local Open Scope Z_scope.
 
-Lemma mapM_onth eT aT bT (f: aT → result eT bT) (xs: seq aT) ys n x :
-  mapM f xs = ok ys →
-  onth xs n = Some x →
-  ∃ y, onth ys n = Some y ∧ f x = ok y.
-Proof.
-move => ok_ys.
-case: (leqP (size xs) n) => hsz; first by rewrite (onth_default hsz).
-elim: xs ys ok_ys n hsz.
-- by move => ys [<-].
-move => y xs ih ys' /=; t_xrbindP => z ok_z ys ok_ys <- [| n ] hsz /= ok_y.
-- by exists z; case: ok_y => <-.
-exact: (ih _ ok_ys n hsz ok_y).
-Qed.
-
-Lemma mapM_onth' eT aT bT (f: aT → result eT bT) (xs: seq aT) ys n y :
-  mapM f xs = ok ys →
-  onth ys n = Some y →
-  ∃ x, onth xs n = Some x ∧ f x = ok y.
-Proof.
-move => ok_ys.
-case: (leqP (size ys) n) => hsz; first by rewrite (onth_default hsz).
-elim: xs ys ok_ys n hsz.
-- by move => ys [<-].
-move => x xs ih ys' /=; t_xrbindP => z ok_z ys ok_ys <- [| n ] hsz /= ok_y.
-- by exists x; case: ok_y => <-.
-exact: (ih _ ok_ys n hsz ok_y).
-Qed.
-
 Lemma mapMP {eT} {aT bT: eqType} (f: aT -> result eT bT) (s: seq aT) (s': seq bT) y:
   mapM f s = ok s' ->
   reflect (exists2 x, x \in s & f x = ok y) (y \in s').
@@ -407,18 +379,6 @@ case.
 + by move=> <-; exists y; split=> //; left.
 + move=> Hl; move: (IH _ Hys Hl)=> [y0 [Hy0 Hy0']].
   by exists y0; split=> //; right.
-Qed.
-
-Lemma mapM_In' {aT bT eT} (f: aT -> result eT bT) (s: seq aT) (s': seq bT) y:
-  mapM f s = ok s' ->
-  List.In y s' -> exists2 x, List.In x s & f x = ok y.
-Proof.
-elim: s s'.
-+ by move => _ [<-].
-move => a s ih s'' /=; t_xrbindP => b ok_b s' rec <- {s''} /=.
-case.
-+ by move=> <-; exists a => //; left.
-by move => h; case: (ih _ rec h) => x hx ok_y; eauto.
 Qed.
 
 Lemma mapM_map {aT bT cT eT} (f: aT → bT) (g: bT → result eT cT) (xs: seq aT) :
@@ -504,9 +464,6 @@ Lemma mapM_ok {eT} {A B:Type} (f: A -> B) (l:list A) :
   mapM (eT:=eT) (fun x => ok (f x)) l = ok (map f l).
 Proof. by elim l => //= ?? ->. Qed.
 
-Definition sndM eT aT bT cT (f : bT -> result eT cT) (ab : aT * bT) : result eT (aT * cT) :=
-  Let c := f ab.2 in ok (ab.1, c).
-
 Section FOLDM.
 
   Context (eT aT bT:Type) (f:aT -> bT -> result eT bT).
@@ -515,12 +472,6 @@ Section FOLDM.
     match l with
     | [::]         => Ok eT acc
     | [:: a & la ] => f a acc >>= fun acc => foldM acc la
-    end.
-
-  Fixpoint foldrM (acc : bT) (l : seq aT) :=
-    match l with
-    | [::]         => Ok eT acc
-    | [:: a & la ] => foldrM acc la >>= f a
     end.
 
   Lemma foldM_cat acc l1 l2 :
@@ -827,38 +778,12 @@ Proof.
 Qed.
 Arguments nth_Forall2 [A B R la lb].
 
-Lemma Forall2_forall A B (R : A -> B -> Prop) la lb :
-  List.Forall2 R la lb ->
-  forall a b, List.In (a, b) (zip la lb) ->
-  R a b.
-Proof.
-  elim {la lb} => // a b la lb h _ ih a0 b0 /=.
-  case.
-  + by move=> [<- <-].
-  by apply ih.
-Qed.
-
 Lemma Forall2_impl A B (R1 R2 : A -> B -> Prop) :
   (forall a b, R1 a b -> R2 a b) ->
   forall la lb,
   List.Forall2 R1 la lb ->
   List.Forall2 R2 la lb.
 Proof. by move=> himpl l1 l2; elim; eauto. Qed.
-
-Lemma Forall2_impl_in A B (R1 R2 : A -> B -> Prop) la lb :
-  (forall a b, List.In a la -> List.In b lb -> R1 a b -> R2 a b) ->
-  List.Forall2 R1 la lb ->
-  List.Forall2 R2 la lb.
-Proof.
-  move=> himpl hforall.
-  elim: {la lb} hforall himpl.
-  + by constructor.
-  move=> a b la lb h _ ih himpl.
-  constructor.
-  + by apply himpl; [left; reflexivity..|].
-  apply ih.
-  by move=> ?????; apply himpl; [right..|].
-Qed.
 
 Lemma Forall2_flip A B (R : A -> B -> Prop) la lb :
   List.Forall2 R la lb ->
@@ -910,16 +835,6 @@ Proof.
 Qed.
 Arguments nth_Forall3 [A B C R la lb lc].
 
-Lemma Forall3_forall A B C (R : A -> B -> C -> Prop) la lb lc :
-  Forall3 R la lb lc ->
-  forall a b c, List.In (a, (b, c)) (zip la (zip lb lc)) -> R a b c.
-Proof.
-  elim {la lb lc} => // a b c la lb lc h _ ih a0 b0 c0 /=.
-  case.
-  + by move=> [<- <- <-].
-  by apply ih.
-Qed.
-
 Lemma Forall3_impl A B C (R1 R2 : A -> B -> C -> Prop) :
   (forall a b c, R1 a b c -> R2 a b c) ->
   forall la lb lc,
@@ -944,13 +859,6 @@ Qed.
 
 (* Inversion lemmas *)
 (* -------------------------------------------------------------- *)
-Lemma seq_eq_injL A (m n: seq A) (h: m = n) :
-  match m with
-  | [::] => if n is [::] then True else False
-  | a :: m' => if n is b :: n' then a = b ∧ m' = n' else False
-  end.
-Proof. by subst n; case: m. Qed.
-
 Lemma List_Forall_inv A (P: A → Prop) m :
   List.Forall P m →
   match m with [::] => True | x :: m' => P x ∧ List.Forall P m' end.
@@ -1148,13 +1056,6 @@ Section Map3.
     | _, _, _ => [::]
     end.
 
-  Lemma map3E ma mb mc :
-    map3 ma mb mc = map2 (λ ab, f ab.1 ab.2) (zip ma mb) mc.
-  Proof.
-    elim: ma mb mc; first by case.
-    by move => a ma ih [] // b mb [] // c mc /=; f_equal.
-  Qed.
-
 End Map3.
 
 Section MAPI.
@@ -1230,14 +1131,6 @@ Qed.
 Lemma isSome_omap aT bT (f : aT -> bT) (o : option aT) :
   isSome (Option.map f o) = isSome o.
 Proof. by case: o. Qed.
-
-Fixpoint list_to_rev (ub : nat) :=
-  match ub with
-  | O    => [::]
-  | x.+1 => [:: x & list_to_rev x ]
-  end.
-
-Definition list_to ub := rev (list_to_rev ub).
 
 (* is it not just List.flat_map? *)
 Definition conc_map aT bT (f : aT -> seq bT) (l : seq aT) :=
@@ -1721,9 +1614,6 @@ Lemma ziotaE p z :
   ziota p z = [seq p + Z.of_nat i | i <- iota 0 (Z.to_nat z)].
 Proof. exact: ziota_recP. Qed.
 
-Lemma ziota0 p : ziota p 0 = [::].
-Proof. done. Qed.
-
 Lemma ziota_neg p z: z <= 0 -> ziota p z = [::].
 Proof. by case: z. Qed.
 
@@ -1739,17 +1629,6 @@ Lemma ziotaS_cat p z: 0 <= z -> ziota p (Z.succ z) = ziota p z ++ [:: p + z].
 Proof.
   rewrite !ziotaE.
   by move=> hz;rewrite Z2Nat.inj_succ // -addn1 iotaD map_cat /= add0n Z2Nat.id.
-Qed.
-
-Lemma ziota_cat p y z: 0 <= y -> 0 <= z ->
-  ziota p y ++ ziota (p + y) z = ziota p (y + z).
-Proof.
-  move=> ? /Z2Nat.id <-; elim: (Z.to_nat _).
-  + by rewrite Z.add_0_r /= cats0.
-  move=> ? hrw; rewrite Nat2Z.inj_succ Z.add_succ_r !ziotaS_cat; last 2 first.
-  + exact: (Z.add_nonneg_nonneg _ _ _ (Zle_0_nat _)).
-  + exact: Zle_0_nat.
-  by rewrite catA hrw Z.add_assoc.
 Qed.
 
 Lemma in_ziota (p z i:Z) : (i \in ziota p z) = ((p <=? i) && (i <? p + z)).
@@ -2081,15 +1960,6 @@ Lemma cat_inj {T} (a b c d: seq T) :
 Proof.
   elim: a b c d; first by case.
   by move => x a ih [] // y b c d /= /Nat.succ_inj /ih{}ih [] -> /ih[] -> ->.
-Qed.
-
-Lemma cat_inj_head T (x y z : seq T) : x ++ y = x ++ z -> y = z.
-Proof. by move/cat_inj => /(_ erefl) []. Qed.
-
-Lemma cat_inj_tail T (x y z : seq T) : x ++ z = y ++ z -> x = y.
-Proof.
-  move => h; case: (cat_inj _ h); last by [].
-  by rewrite -(Nat.add_cancel_r _ _ (size z)) plusE -!size_cat h.
 Qed.
 
 Lemma map_const_nseq A B (l : list A) (c : B) : map (fun=> c) l = nseq (size l) c.
