@@ -70,7 +70,7 @@ Proof.
        case h: (fetch_and_eval xp s) => [s' | e].
        ++ apply lutt_Ret.
           etransitivity; first exact: hI.
-          exact: asmsem1_invariant h.
+          exact: fetch_and_eval_invariant h.
        by apply: lutt_Vis => //; case.
     move=> s' hs'; cbn; apply lutt_Ret; exact: hs'.
   move=> t1 hs'.

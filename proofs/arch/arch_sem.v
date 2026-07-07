@@ -496,11 +496,6 @@ Definition fetch_and_eval (s: asm_state) :=
     eval_instr i.(asmi_i) s
   else type_error.
 
-Definition asmsem1 (s1 s2: asm_state) : Prop :=
-  fetch_and_eval s1 = ok s2.
-
-Definition asmsem : relation asm_state := clos_refl_trans asm_state asmsem1.
-
 (* ---------------------------------------------------------------- *)
 Record asmsem_invariant (x y: asmmem) : Prop :=
   { asmsem_invariant_rip: asm_rip x = asm_rip y
@@ -590,21 +585,13 @@ Proof.
   by move=> _ [<-].
 Qed.
 
-Lemma asmsem1_invariant (s s': asm_state) :
-  asmsem1 s s' →
+Lemma fetch_and_eval_invariant (s s': asm_state) :
+  fetch_and_eval s = ok s' →
   s ≡ s'.
 Proof.
-  rewrite /asmsem1 /fetch_and_eval.
+  rewrite /fetch_and_eval.
   by case: onth => // i /eval_instr_invariant.
 Qed.
-
-Lemma asmsem_invariantP (s s': asm_state) :
-  asmsem s s' →
-  s ≡ s'.
-Proof.
-  by elim/Operators_Properties.clos_refl_trans_ind_left => {s'} // ? ? _ -> /asmsem1_invariant.
-Qed.
-
 
 (* ITree based Semantics *)
 Section ITREE.
@@ -685,37 +672,6 @@ End ITREE.
 End PROG.
 
 (* -------------------------------------------------------------------- *)
-
-Definition asmsem_trans P s2 s1 s3 :
-  asmsem P s1 s2 -> asmsem P s2 s3 -> asmsem P s1 s3 :=
-  rt_trans _ _ s1 s2 s3.
-
-Variant asmsem_exportcall
-  (p : asm_prog)
-  (fn : funname)
-  (m m' : asmmem)
-  : Prop :=
-  | Asmsem_exportcall :
-    forall (fd : asm_fundef),
-      get_fundef (asm_funcs p) fn = Some fd
-      -> asm_fd_export fd
-      -> check_call_conv fd
-      -> let s := {| asm_m := m
-                   ; asm_f := fn
-                   ; asm_c := asm_fd_body fd
-                   ; asm_ip := 0
-                  |} in
-         let s' := {| asm_m := m'
-                    ; asm_f := fn
-                    ; asm_c := asm_fd_body fd
-                    ; asm_ip := size (asm_fd_body fd)
-                   |} in
-         asmsem p s s'
-      -> (forall r,
-           r \in callee_saved
-           -> preserved_register r m m')
-      -> asmsem_exportcall.
-
 Section ITREE.
 
 Context {E E0} {wE : with_Error E E0}.
