@@ -534,9 +534,6 @@ Lemma wsigned_range_m szi szo:
   (wmin_signed szo <= wmin_signed szi /\ wmax_signed szi <= wmax_signed szo)%Z.
 Proof. by case: szi; case: szo. Qed.
 
-Lemma half_modulues_pos sz : (0 < half_modulus sz)%Z.
-Proof. by case: sz. Qed.
-
 Lemma wsar_alt sz (x: word sz) n :
   wsar x n = wsar_naive x n.
 Proof.
@@ -1411,9 +1408,6 @@ Definition mask_word (sz:wsize) : u64 :=
   | _ => 0%R
   end.
 
-Definition merge_word (wr: u64) (sz:wsize) (w:word sz) :=
-   wxor (wand (mask_word sz) wr) (zero_extend U64 w).
-
 (* -------------------------------------------------------------------*)
 Definition split_vec {sz} ve (w : word sz) :=
   let wsz := (sz %/ ve + sz %% ve)%nat in
@@ -2026,10 +2020,6 @@ Qed.
 (** Round to the multiple of [sz'] below. *)
 Definition align_word (sz sz': wsize) (p: word sz) : word sz :=
   wand p (wrepr sz (-wsize_size sz')).
-
-Lemma align_word_U8 sz (p: word sz) :
-  align_word U8 p = p.
-Proof. by rewrite /align_word wandC wandN1. Qed.
 
 Lemma align_word_aligned (sz sz': wsize) (p: word sz) :
   wunsigned (align_word sz' p) mod wsize_size sz' == 0.
