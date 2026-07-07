@@ -149,15 +149,6 @@ Lemma check_var_get s1 s2 x :
   get_var wdb (evm s1) x = get_var wdb (evm s2) x.
 Proof. by move=> /Sv_memP hin -[] _ _ [] heq _; rewrite /get_var /= heq. Qed.
 
-Lemma check_var_gets s1 s2 xs :
-  all (fun (x:var_i) => Sv.mem x (svars m)) xs ->
-  eq_alloc m s1 s2 ->
-  get_var_is wdb (evm s1) xs = get_var_is wdb (evm s2) xs.
-Proof.
-  move=> hall heqa; elim: xs hall => //= x xs hrec /andP [].
-  by move=> /(check_var_get) -/(_ _ _ heqa) -> /hrec ->.
-Qed.
-
 Lemma check_gvar_get s1 s2 x :
   check_gvar m x ->
   eq_alloc m s1 s2 ->
