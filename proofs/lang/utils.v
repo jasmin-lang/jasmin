@@ -111,11 +111,6 @@ Proof. by move=> hinj heq; apply: (iffP heq) => [| /hinj ] ->. Qed.
 (* Missing Instance in ssreflect for setoid rewrite                     *)
 
 #[global]
-Instance and3_impl_morphism :
-  Proper (Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl) and3 | 1.
-Proof. by move=> ?? h1 ?? h2 ?? h3 [/h1 ? /h2 ? /h3 ?]. Qed.
-
-#[global]
 Instance and3_iff_morphism :
   Proper (iff ==> iff ==> iff ==> iff) and3.
 Proof. by move=> ?? h1 ?? h2 ?? h3; split => -[] /h1 ? /h2 ? /h3. Qed.
@@ -1894,28 +1889,6 @@ Ltac t_inj_cases :=
   apply/eqP.
 
 (* ------------------------------------------------------------------------- *)
-
-Module Option.
-
-Variant option_spec X A o xs xn : option A -> X -> Prop :=
-| OptionSpecSome : forall a, o = Some a -> option_spec (Some a) (xs a)
-| OptionSpecNone : o = None -> option_spec None xn.
-
-Lemma oappP R A (f : A -> R) x u : option_spec u f x u (oapp f x u).
-Proof. by case: u; constructor. Qed.
-
-Lemma odfltP T (x : T) u : option_spec u id x u (odflt x u).
-Proof. by case: u; constructor. Qed.
-
-Lemma obindP A R (f : A -> option R) u : option_spec u f None u (obind f u).
-Proof. by case: u; constructor. Qed.
-
-Lemma omapP A R (f : A -> R) u :
-  option_spec u (fun x => Some (f x)) None u (Option.map f u).
-Proof. by case: u; constructor. Qed.
-
-End Option.
-
 Notation "'let%opt' x ':=' ox 'in' body" :=
   (if ox is Some x then body else None)
   (x strict pattern, at level 25, right associativity).
@@ -1936,11 +1909,6 @@ Definition oassert (b : bool) : option unit :=
 Lemma oassertP {A b a} {oa : option A} :
   (let%opt _ := oassert b in oa) = Some a ->
   b /\ oa = Some a.
-Proof. by case: b. Qed.
-
-Lemma oassertP_isSome {A b} {oa : option A} :
-  isSome (let%opt _ := oassert b in oa) ->
-  b /\ isSome oa.
 Proof. by case: b. Qed.
 
 Lemma isSomeP {A : Type} {oa : option A} :
