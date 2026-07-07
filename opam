@@ -39,9 +39,13 @@ depends: [
   "coq-mathcomp-ssreflect" {>= "2.3" & < "2.6~"}
   "coq-mathcomp-algebra"
   "coq-mathcomp-word" {>= "3.4"}
-  "coq-paco"
-  "coq-itree"
+  "rocq-coinduction" { (= "1.21") }
+  "coq-itree" { (= "dev") }
 ]
 conflicts: [
   "ez-conf-lib"
+]
+
+pin-depends: [
+  ["coq-itree.dev" "git+https://github.com/rogerburtonpatel/InteractionTrees.git#dea32013ecb2d9b466ed73949044e571b2894d04"]
 ]
