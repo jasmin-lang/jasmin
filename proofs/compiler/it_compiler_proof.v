@@ -1109,7 +1109,7 @@ Lemma linear_prog_extra_frame_size lp fn sfd :
         frame_size sfd.(f_extra) ]%Z.
 Proof.
 move=> ok_lp get_sfd.
-have := [elaborate linearization_proof.checked_prog ok_lp get_sfd].
+have := [elaborate it_linearization_proof.checked_prog ok_lp get_sfd].
 rewrite /check_fd /=; t_xrbindP=> _ _ _ _ + _ _ _.
 move=> /and4P [/ZleP stk_sz_pos /ZleP stk_extra_sz_pos _ /ZleP
   stk_frame_le_max].
@@ -1315,10 +1315,6 @@ exists o2; first exact: linpost.
 by rewrite /sz_post align_tfd stkmax_tfd res_tfd; apply: szpost.
 Qed.
 
-(* FIXME: remove this when linearization_proof is remove *)
-Lemma hlip : h_linearization_params (ap_lip aparams).
-Proof. by case (hap_hlip haparams); constructor. Qed.
-
 (* TODO
    (1) introduce wkequiv-hoare lemmas like lutt_xrutt_trans_l
    (2) lutt_xrutt_trans_l should be stated in weakened form *)
@@ -1393,7 +1389,7 @@ have cs_not_arr :
 + by move=> x /sv_of_listP /mapP [/= r _ ->]; case: r.
 have wlin := [elaborate
   linear_exportcallP
-    hlip vtmp_not_magic ok_lp cs_not_arr
+    (hap_hlip haparams) vtmp_not_magic ok_lp cs_not_arr
     (gd := rip) (fn := fn) ].
 
 (* Stack zeroization *)
@@ -1762,10 +1758,7 @@ have [fs_sp [? hsp_scs hsp_eqinmem hsp_uincl hsp_ptr_eq]] :
     move=> off w /[dup] /get_val_byte_bound hoff /hread ok_w.
     move: (hwfa i); rewrite /wf_arg ok_writable ok_pr.
     move=> [_ [[<-] hargp]].
-    (* FIXME: remove this once linearization_proof is remove *)
-    have h : match_mem mi (asm_mem xm).
-    + by case: hmga.(ma_match_mem); constructor.
-    rewrite -ok_w; apply (match_mem_read_incl_mem h).
+    rewrite -ok_w; apply (match_mem_read_incl_mem hmga.(ma_match_mem)).
     apply hargp.(wap_valid).
     by apply (between_byte hargp.(wap_no_overflow) (zbetween_refl _ _) hoff).
   exists {| fscs := fscs fs; fmem := mi
@@ -1860,10 +1853,7 @@ have /BE h_be : back_end_to_asm_pre (asm_rip xm) xfd fs_sp xm.
   - by rewrite -(ss_top_stack hmga.(ma_stack_stable)).
   - reflexivity. (* asm_rip xm = asm_rip xm *)
   - exact: hsp_uincl. (* values_uincl (fvals fs_sp) argt — STEP 1 output *)
-  - (* FIXME: remove this once linearization_proof is remove *)
-    have h : match_mem (fmem fs_sp) (asm_mem xm).
-    + by case: hmga.(ma_match_mem); constructor.
-    exact: h.
+  - exact hmga.(ma_match_mem).
   - by rewrite hsp_scs hscs_eq.
   rewrite /allocatable_stack.
   have hrange := hmga.(ma_stack_range).
@@ -1895,8 +1885,7 @@ apply: xrutt_weaken_v1;
     have hglobs := compiler_back_end_to_asm_meta print_linearP ok_xp.
     exists (fmem fs_sp'); split.
     - rewrite -hrip_eq hglobs; exact: hext.
-    - (* FIXME: remove this once linearization_proof is remove *)
-      by case: hmm; constructor.
+    - exact hmm.
     - apply: stack_stable_trans; last exact: proj1 hmem_s.
       apply: stack_stable_trans; last exact: hmga.(ma_stack_stable).
       by symmetry; exact: (proj1 hmem_u).
@@ -1910,11 +1899,8 @@ apply: xrutt_weaken_v1;
     have hpr := hzsp hszs pr.
     case: (boolP (validw (fmem fs_sp) Aligned pr U8)) => [hvalid | /hpr //].
     left.
-    (* FIXME: remove this once linearization_proof is remove *)
-    have mi2_ : match_mem (fmem fs_sp) (asm_mem xm).
-    + by case: mi2; constructor.
     rewrite
-      -(match_mem_read_incl_mem mi2_ hvalid) -(match_mem_read_incl_mem m2).
+      -(match_mem_read_incl_mem mi2 hvalid) -(match_mem_read_incl_mem m2).
     - rewrite (U _ hvalid hnvalid) //.
       have [hsz1 _] := Forall3_size hsp_ptr_eq.
       have [hsz1' _] := Forall3_size hdisj.

@@ -202,26 +202,6 @@ Opaque ARMFopn.movi.
 Opaque ARMFopn.sub.
 Opaque ARMFopn.subi.
 
-Lemma li_lsem lp fn ls ii P Q xname vi imm :
-  let: (xi, x) := mkv xname vi in
-  let: lcmd := li_of_fopn_args ii (ARMFopn.li xi imm) in
-  is_linear_of lp fn (P ++ lcmd :: Q)
-  -> lpc ls = size P
-  -> lfn ls = fn
-  -> exists vm',
-       let: ls' := setpc (lset_vm ls vm') (size P + 1) in
-       [/\ lsem lp ls ls'
-         , vm' =[\ Sv.singleton x ] lvm ls
-         & get_var true vm' x = ok (Vword (wrepr reg_size imm))
-       ].
-Proof.
-  move=> hlin hpc hfn.
-  eexists; split.
-  - rewrite addn1 -lnext_pc_setpc -hpc setpc_id.
-    exact: (eval_lsem_step1 hlin _ _ li_eval_instr).
-  - move=> x /Sv.singleton_spec /nesym /eqP hx. by rewrite Vm.setP_neq.
-  by rewrite get_var_eq.
-Qed.
 Opaque ARMFopn.li.
 
 Lemma smart_addi_sem_fopn_args (xi:var_i) y imm s (w : wreg) :

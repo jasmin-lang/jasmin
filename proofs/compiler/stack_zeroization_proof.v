@@ -288,11 +288,11 @@ Qed.
 
 Lemma stack_zeroization_lprog_lsem1 lp lp' s1 s2 :
   stack_zeroization_lprog lp = ok lp' ->
-  lsem1 lp s1 s2 ->
-  lsem1 lp' s1 s2.
+  step lp s1 = ok s2 ->
+  step lp' s1 = ok s2.
 Proof.
   move=> hzerolp.
-  rewrite /lsem1 /step /find_instr.
+  rewrite /step /find_instr.
   case hlfd: get_fundef => [lfd|//] /=.
   have [lfd' hzero ->] /= := stack_zeroization_lprog_get_fundef hzerolp hlfd.
   case hpc: oseq.onth => [i|//].
@@ -306,19 +306,6 @@ Proof.
     by apply onth_cat_l.
   rewrite hpc'.
   by apply eval_instrP.
-Qed.
-
-Lemma stack_zeroization_lprog_lsem lp lp' s1 s2 :
-  stack_zeroization_lprog lp = ok lp' ->
-  lsem lp s1 s2 ->
-  lsem lp' s1 s2.
-Proof.
-  move=> hzerolp.
-  move: s1 s2; apply lsem_ind.
-  + by move=> s; apply Relation_Operators.rt_refl.
-  move=> s1 s2 s3 hsem1 ih hsem'.
-  apply: lsem_step hsem'.
-  by apply (stack_zeroization_lprog_lsem1 hzerolp).
 Qed.
 
 Record match_mem_zero (m m': mem) (bottom : pointer) stk_max : Prop :=
@@ -335,79 +322,6 @@ Definition match_mem_zero_export (m m' : mem) top stk_max (szs : option (stack_z
   | Some _ => match_mem_zero m m' top stk_max
   | None => m = m'
   end.
-
-Lemma stack_zeroization_lprogP lp lp' scs m fn vm scs' m' vm' ptr lfd :
-  stack_zeroization_lprog lp = ok lp' ->
-  lsem_exportcall lp scs m fn vm scs' m' vm' ->
-  vm'.[vid (lp_rsp lp')] = @Vword Uptr ptr ->
-  get_fundef lp.(lp_funcs) fn = Some lfd ->
-  (lfd.(lfd_stk_max) + wsize_size lfd.(lfd_align) - 1 <= wunsigned ptr)%Z ->
-  let bottom := (align_word lfd.(lfd_align) ptr - wrepr _ lfd.(lfd_stk_max))%R in
-  valid_between m bottom (lfd_stk_max lfd) ->
-  exists m'' vm'', [/\
-    lsem_exportcall lp' scs m fn vm scs' m'' vm'',
-    vm' =[sv_of_list v_var lfd.(lfd_res)] vm'' &
-    match_mem_zero_export m' m'' bottom lfd.(lfd_stk_max) (szs_of_fn fn)
-  ].
-Proof.
-  move=> hzerolp [] {}lfd /[dup] hlfd -> hexport hsem heqvm hrsp [<-] enough_stk /= hvalid.
-  have [lfd' hzero hlfd'] := stack_zeroization_lprog_get_fundef hzerolp hlfd.
-  move: hzero; rewrite /stack_zeroization_lfd.
-  rewrite /match_mem_zero_export.
-  case: szs_of_fn => [[szs ws]|]; last first.
-  + move=> [?]; subst lfd'.
-    exists m', vm'.
-    split=> //.
-    econstructor; eauto.
-    by apply (stack_zeroization_lprog_lsem hzerolp).
-
-  rewrite hexport /=.
-  case: ZltP => [hlt|hnlt]; last first.
-  + move=> [?]; subst lfd'.
-    exists m', vm'.
-    split=> //.
-    + econstructor; eauto.
-      by apply (stack_zeroization_lprog_lsem hzerolp).
-    split=> //.
-    move=> p.
-    rewrite /between (negbTE (not_zbetween_neg _ _ _ _)) //.
-    by Lia.lia.
-
-  rewrite /stack_zeroization_lfd_body.
-  t_xrbindP=> halign1 halign2 hle [cmd vars] hcmd.
-  t_xrbindP=> /Sv_memP rsp_nin hdisj hmap.
-  have hbody: lfd_body lfd' = lfd_body lfd ++ cmd by rewrite -hmap.
-  have enough_stk': (lfd.(lfd_stk_max) <= wunsigned (align_word lfd.(lfd_align) ptr))%Z.
-  + by have := align_word_range (lfd_align lfd) ptr; Lia.lia.
-  move: hrsp.
-  have [_ <- _] := (stack_zeroization_lprog_invariants hzerolp).
-  move=> hrsp.
-  have hvalid':
-    let: n := lfd_stk_max lfd in
-    let: p := (align_word (lfd_align lfd) ptr - wrepr Uptr n)%R in
-    valid_between m' p n.
-  + move=> p hb.
-    have [_ /= <-] := lsem_mem_equiv hsem.
-    by apply hvalid.
-
-  have hlin : is_linear_of lp' fn (lfd_body lfd ++ cmd).
-  + by rewrite /is_linear_of; eauto.
-  have [m'' [vm'' [hsem' heqvm' hvalid'' hzero huntouched]]] :=
-    hszp_cmdP
-      hszparams hcmd rsp_nin hlt halign2 hle (next_lfd_lblP (lfd := lfd)) hlin
-      (ls := {| lscs := scs'; |}) erefl erefl enough_stk' hrsp hvalid'.
-  exists m'', vm''; split=> //.
-  + econstructor; eauto.
-    + by rewrite -hmap.
-    + apply: (lsem_trans (stack_zeroization_lprog_lsem hzerolp hsem)).
-      rewrite /ls_export_final hbody size_cat.
-      by apply: lsem_n_lsem hsem'.
-    apply (eq_onT heqvm).
-    apply (eq_ex_disjoint_eq_on heqvm').
-    by have [/disjoint_sym ? _] := disjoint_union (disjoint_sym hdisj).
-  apply (eq_ex_disjoint_eq_on heqvm').
-  by have [_ /disjoint_sym ?] := disjoint_union (disjoint_sym hdisj).
-Qed.
 
 (* TODO: move this *)
 

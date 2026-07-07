@@ -17,7 +17,7 @@ Require Import
 Require Import
   lea_proof
   linearization
-  linearization_proof
+  it_linearization_proof
   lowering
   stack_alloc_params_proof
   stack_zeroization_proof.

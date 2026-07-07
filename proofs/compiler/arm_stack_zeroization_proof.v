@@ -382,7 +382,7 @@ Proof.
     move: hn; rewrite Z.mul_1_l => ?; subst n.
     exists s3; split.
     + apply: (lsem_n_step_end hsem3).
-      by rewrite /lsem1 /step (find_instr_skip hbody) /= /eval_instr /=
+      by rewrite /step (find_instr_skip hbody) /= /eval_instr /=
          /get_var /= hzf3 /= GRing.addrN /ZF_of_word /= /setpc /=
          /lnext_pc /= -addnS.
     by move: hsr3; rewrite Z.sub_diag.

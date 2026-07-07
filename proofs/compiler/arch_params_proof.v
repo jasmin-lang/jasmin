@@ -11,7 +11,7 @@ Require Import
   asm_gen_proof
   sem_params_of_arch_extra.
 Require
-  linearization_proof
+  it_linearization_proof
   lowering
   stack_alloc_params_proof
   stack_zeroization_proof
@@ -96,9 +96,9 @@ Record h_architecture_params
     hap_hsap :
         stack_alloc_params_proof.h_stack_alloc_params (ap_sap aparams);
 
-    (* Linearization hypotheses. See [linearization_proof.v]. *)
+    (* Linearization hypotheses. See [it_linearization_proof.v]. *)
     hap_hlip :
-      linearization_proof.h_linearization_params
+      it_linearization_proof.h_linearization_params
         (ap_lip aparams);
 
     (* The scratch registers in linearize_params must be a register.
