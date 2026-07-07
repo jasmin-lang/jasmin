@@ -10,15 +10,14 @@ From Coq Require Import
   Setoid
   Morphisms.
 
-From Paco Require Import paco.
+From Coinduction Require Import all.
 
 From ITree Require Import
      ITree
      Basics.Utils
      Basics.HeterogeneousRelations
      Basics.Monad
-     Eq.Eqit
-     Eq.Paco2.
+     Eq.Eqit.
 
 Require Import utils.
 
@@ -135,7 +134,7 @@ Qed.
       + eapply eutt_eq_bind; intros []; reflexivity.
       + rewrite bind_ret_l; reflexivity.
     - repeat intro; cbn.
-      eapply eutt_clo_bind; eauto.
+      eapply eutt_bind_eutt; eauto.
       intros [] [] REL; cbn in *; subst; try contradiction.
       + apply H0.
       + setoid_rewrite <- eutt_Ret.
@@ -170,7 +169,7 @@ Proof.
   cbn; repeat (rewrite ?bind_bind, ?bind_ret_l, ?bind_map; try reflexivity).
   cbn; repeat (rewrite ?bind_bind, ?bind_ret_l, ?bind_map; try reflexivity).
   cbn; repeat (rewrite ?bind_bind, ?bind_ret_l, ?bind_map; try reflexivity).
-  apply eq_itree_clo_bind with (UU := Logic.eq); [reflexivity | intros x ? <-].
+  apply eq_itree_bind with (UU := Logic.eq); [reflexivity | intros x ? <-].
   destruct x as [x|].
   - rewrite bind_ret_l; reflexivity.
   - rewrite bind_ret_l; reflexivity.
@@ -181,15 +180,15 @@ Qed.
   Proper (eq_itree R ==> eq_itree (exec_rel R)) (@interp_exec _ _ _ _ _ h X).
 Proof.
   repeat red.
-  ginit.
-  pcofix CIH.
+  coinduction.
   intros s t EQ.
   rewrite 2 unfold_interp_exec.
-  punfold EQ; red in EQ.
-  destruct EQ; cbn; subst; try discriminate; pclearbot; try (gstep; constructor; eauto with paco; fail).
-  guclo eqit_clo_bind; econstructor; [reflexivity | intros x ? <-].
-  destruct x as [x|]; gstep; econstructor; eauto with paco itree.
-  unfold exec_rel, execS_rel; auto.
+  step in EQ.
+  destruct EQ; subst; try discriminate; try (constructor; eauto; fail).
+  bcbn. ebind; intros x ? <-.
+  destruct x as [x|].
+  - etau.
+  - eret.
 Qed.
 
 #[global] Instance interp_exec_eq_itree_eq {X E F} (h : E ~> execT (itree F)) :
@@ -204,17 +203,14 @@ Qed.
   Proper (eutt R ==> eutt (exec_rel R)) (@interp_exec _ _ _ _ _ h X).
 Proof.
   repeat red.
-  einit.
-  ecofix CIH.
+  coinduction.
   intros s t EQ.
   rewrite 2 unfold_interp_exec.
-  punfold EQ; red in EQ.
-  induction EQ; intros; cbn; subst; try discriminate; pclearbot; try (estep; constructor; eauto with paco; fail).
-  - ebind; econstructor; [reflexivity |].
-    intros [] [] EQ; inv EQ.
-    + estep; ebase.
+  step in EQ.
+  induction EQ; intros; bcbn; try discriminate; try (constructor; eauto; fail).
+  - ebind.
+    + intros [] [] EQ; inv EQ. etau.
     + eret.
-    + reflexivity.
   - rewrite tau_euttge, unfold_interp_exec; eauto.
   - rewrite tau_euttge, unfold_interp_exec; eauto.
 Qed.
@@ -274,23 +270,17 @@ Lemma interp_exec_bind : forall {X Y E F} (t : itree _ X) (k : X -> itree _ Y) (
                 ITree.bind (interp_exec h t)
                 (fun mx => match mx with | (Error e) => ret (Error e) | Ok x => interp_exec h (k x) end).
 Proof.
-  intros X Y E F; ginit; pcofix CIH; intros.
+  intros X Y E F; coinduction; intros.
   rewrite unfold_bind.
   rewrite (unfold_interp_exec h t).
   destruct (observe t) eqn:EQ; cbn.
   - rewrite bind_ret_l. apply reflexivity.
-  - cbn. rewrite bind_tau, !interp_exec_tau.
-    gstep. econstructor; eauto with paco.
+  - cbn. etau. eapply CIH.
   - rewrite bind_bind, interp_exec_vis.
-    guclo eqit_clo_bind; econstructor.
-    reflexivity.
+    to_mon. ebind.
     intros [] ? <-; cbn.
-    + rewrite bind_tau.
-      gstep; constructor.
-      ITree.fold_subst.
-      auto with paco.
-    + rewrite bind_ret_l.
-      apply reflexivity.
+    + etau.
+    + eret.
 Qed.
 
 (* proper *)
@@ -301,21 +291,15 @@ Lemma interp_exec_bind' : forall {X Y E F} (t : itree _ X) (k : X -> itree _ Y) 
 Proof.
   intros X Y E F.
   cbn.
-  ginit; pcofix CIH; intros.
+  coinduction; intros.
   cbn in *.
   rewrite unfold_bind, (unfold_interp_exec _ t).
   destruct (observe t) eqn:EQ; cbn.
   - rewrite bind_ret_l. apply reflexivity.
-  - rewrite bind_tau, !interp_exec_tau.
-    gstep. econstructor; eauto with paco.
+  - etau. eapply CIH.
   - rewrite bind_bind, interp_exec_vis.
-    guclo eqit_clo_bind; econstructor.
-    reflexivity.
+    to_mon. ebind.
     intros [] ? <-; cbn.
-    + rewrite bind_tau.
-      gstep; constructor.
-      ITree.fold_subst.
-      auto with paco.
-    + rewrite bind_ret_l.
-      apply reflexivity.
+    + etau.
+    + eret.
 Qed.
