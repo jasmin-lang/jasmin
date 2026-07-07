@@ -69,9 +69,6 @@ Module MvMake (I:IDENT).
     by move=> /lex_eq [] /= /(@cmp_eq _ _ atypeO) -> /(@cmp_eq _ _ K.cmpO) ->.
   Qed.
 
-  Lemma var_surj (x:var) : x = Var x.(vtype) x.(vname).
-  Proof. by case: x. Qed.
-
 End MvMake.
 
 Module Var := MvMake Ident.
@@ -83,9 +80,6 @@ Notation Var   := Var.Var.
 Notation vbool i := {| vtype := abool; vname := i; |}.
 
 Lemma vtype_diff x x': vtype x != vtype x' -> x != x'.
-Proof. by apply: contra => /eqP ->. Qed.
-
-Lemma vname_diff x x': vname x != vname x' -> x != x'.
 Proof. by apply: contra => /eqP ->. Qed.
 
 (* ------------------------------------------------------------------------- *)
@@ -204,13 +198,6 @@ Proof.
   SvD.fsetdec.
 Qed.
 
-Lemma in_disjoint_diff x a b c :
-  Sv.In x a →
-  Sv.In x b →
-  disjoint a (Sv.diff b c) →
-  Sv.In x c.
-Proof. rewrite /disjoint /is_true Sv.is_empty_spec; SvD.fsetdec. Qed.
-
 (* ---------------------------------------------------------------- *)
 Lemma Sv_mem_add (s: Sv.t) (x y: Sv.elt) :
   Sv.mem x (Sv.add y s) = (x == y) || Sv.mem x s.
@@ -263,20 +250,6 @@ Proof.
   by rewrite /= ih.
 Qed.
 
-Lemma sv_of_list_mem_head X f (x : X) xs :
-  Sv.mem (f x) (sv_of_list f (x :: xs)).
-Proof. rewrite sv_of_listE. exact: mem_head. Qed.
-
-Lemma sv_of_list_mem_tail X f v (x : X) xs :
-  Sv.mem v (sv_of_list f xs)
-  -> Sv.mem v (sv_of_list f (x :: xs)).
-Proof.
-  rewrite !sv_of_listE.
-  rewrite in_cons.
-  move=> ->.
-  exact: orbT.
-Qed.
-
 Lemma sv_of_list_fold T f l s :
   Sv.Equal (foldl (λ (s : Sv.t) (r : T), Sv.add (f r) s) s l) (Sv.union s (sv_of_list f l)).
 Proof.
@@ -305,10 +278,6 @@ Proof.
   move=> /disjoint_sym /disjoint_diff /SvP.MP.equal_sym.
   exact: SvP.MP.subset_equal.
 Qed.
-
-Lemma in_add_singleton x y :
-  Sv.In x (Sv.add y (Sv.singleton x)).
-Proof. apply: SvD.F.add_2. exact: SvD.F.singleton_2. Qed.
 
 Lemma disjoint_equal_l xs ys zs:
   Sv.Equal xs ys
@@ -361,26 +330,10 @@ Proof.
   SvD.fsetdec.
 Qed.
 
-Lemma disjoint_singleton x s :
-  disjoint (Sv.singleton x) s = ~~ Sv.mem x s.
-Proof.
-  case: disjointP; case: Sv_memP => //.
-  - move => H K; elim: (K _ _ H); SvD.fsetdec.
-  by move => H K; elim: K => y /Sv.singleton_spec ->.
-Qed.
-
-Lemma Sv_equal_add_add x s :
-  Sv.Equal (Sv.add x (Sv.add x s)) (Sv.add x s).
-Proof. SvD.fsetdec. Qed.
-
 Lemma Sv_neq_not_in_singleton x y :
   x <> y
   -> ~ Sv.In y (Sv.singleton x).
 Proof. SvD.fsetdec. Qed.
-
-Lemma Sv_subset_remove s x :
-  Sv.subset (Sv.remove x s) s.
-Proof. apply/Sv.subset_spec. by apply: SvP.MP.subset_remove_3. Qed.
 
 Lemma Sv_diff_empty s :
   Sv.Equal (Sv.diff s Sv.empty) s.
