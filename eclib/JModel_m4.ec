@@ -347,3 +347,11 @@ op UXTBcc x n g o = if g then UXTB x n else o.
 op UXTH (x: W32.t) (n: W8.t) : W32.t =
   andw (ror x (to_uint n)) (W32.of_int 65535).
 op UXTHcc x n g o = if g then UXTH x n else o.
+
+op SXTB (x: W32.t) (n: W8.t) : W32.t =
+  W32.of_int (W8.to_sint (W8.of_int (W32.to_uint (ror x (to_uint n))))).
+op SXTBcc x n g o = if g then SXTB x n else o.
+
+op SXTH (x: W32.t) (n: W8.t) : W32.t =
+  W32.of_int (W16.to_sint (W16.of_int (W32.to_uint (ror x (to_uint n))))).
+op SXTHcc x n g o = if g then SXTH x n else o.

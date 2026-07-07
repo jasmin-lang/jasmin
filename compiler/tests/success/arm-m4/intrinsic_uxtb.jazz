@@ -47,3 +47,53 @@ fn uxtb(reg u32 arg0) -> reg u32 {
     res = x;
     return res;
 }
+
+export
+fn sxtb(reg u32 arg0) -> reg u32 {
+    reg u32 x;
+    reg bool nf, zf, vf, cf;
+
+    x = #SXTB(arg0, 0);
+    x = #SXTB(x, 8);
+    x = #SXTB(x, 16);
+    x = #SXTB(x, 24);
+
+    // Conditionals.
+    nf, zf, cf, vf = #CMP(x, 0);
+
+    // EQ
+    x = #SXTBcc(arg0, 8, zf, x);
+    // NE
+    x = #SXTBcc(arg0, 8, !zf, x);
+    // CS
+    x = #SXTBcc(arg0, 8, cf, x);
+    // CC
+    x = #SXTBcc(arg0, 8, !cf, x);
+    // MI
+    x = #SXTBcc(arg0, 8, nf, x);
+    // PL
+    x = #SXTBcc(arg0, 8, !nf, x);
+    // VS
+    x = #SXTBcc(arg0, 8, vf, x);
+    // VC
+    x = #SXTBcc(arg0, 8, !vf, x);
+    // HI
+    x = #SXTBcc(arg0, 8, cf && !zf, x);
+    // LS
+    x = #SXTBcc(arg0, 8, !cf || zf, x);
+    // GE
+    x = #SXTBcc(arg0, 8, nf == vf, x);
+    // LT
+    x = #SXTBcc(arg0, 8, nf != vf, x);
+    // GT
+    x = #SXTBcc(arg0, 8, !zf && nf == vf, x);
+    // LE
+    x = #SXTBcc(arg0, 8, zf || nf != vf, x);
+
+    // Combinations.
+    x = #SXTBcc(arg0, 8, !!!!zf, x);
+
+    reg u32 res;
+    res = x;
+    return res;
+}

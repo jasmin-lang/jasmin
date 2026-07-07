@@ -78,6 +78,8 @@ module Arm_core = struct
     | ARM_op(STR, _) -> true
     | ARM_op(STRB, _) -> true
     | ARM_op(STRH, _) -> true
+    | ARM_op(SXTB, _) -> true
+    | ARM_op(SXTH, _) -> true
     | ARM_op(SUB, _) -> true
     | ARM_op(TST, _) -> true
     | ARM_op(UBFX, _) -> true
