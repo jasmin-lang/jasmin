@@ -158,9 +158,6 @@ Proof. rewrite /get_gvar /check_gvar; case: is_lvar => //=; apply check_var_get.
 Lemma eq_alloc_mem s1 s2 : eq_alloc m s1 s2 -> emem s1 = emem s2.
 Proof. by case. Qed.
 
-Lemma eq_alloc_scs s1 s2 : eq_alloc m s1 s2 -> escs s1 = escs s2.
-Proof. by case. Qed.
-
 Section EXPR.
 
 Context (s1 s2 : estate) (h : eq_alloc m s1 s2).
