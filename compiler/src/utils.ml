@@ -207,6 +207,11 @@ type model =
   | ConstantTimeGlobal
   | Normal
 
+type callee_saved_strategy =
+  | CSS_Tight
+  | CSS_Pessimistic
+  | CSS_Optimistic
+
 (* -------------------------------------------------------------------- *)
 (* Functions used to add colors to errors and warnings.                 *)
 
@@ -380,6 +385,7 @@ let pp_now =
 (* -------------------------------------------------------------------- *)
 
 type warning =
+  | CalleeSavedNotTight
   | ExtraAssignment (* -wea *)
   | UseLea (* -wlea *)
   | IntroduceArrayCopy (* -winsertarraycopy *)
@@ -409,7 +415,7 @@ let default_warnings =
       Linter;
     ]
 
-let all_warnings = ExtraAssignment :: UseLea :: KeptRenaming :: default_warnings
+let all_warnings = CalleeSavedNotTight :: ExtraAssignment :: UseLea :: KeptRenaming :: default_warnings
 
 let warns = ref default_warnings
 

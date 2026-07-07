@@ -952,6 +952,12 @@ fail/register_allocation/x86-64/bug_523.jazz:
 compilation error:
 register allocation: variable rot2 must be allocated to register RCX due to architectural constraints; this register already holds conflicting variable: rot1
 
+fail/register_allocation/x86-64/callee_saved-too-small.jazz:
+
+"fail/register_allocation/x86-64/callee_saved-too-small.jazz", line 10 (0) to line 19 (1):
+programming error in function main:
+Not enough slots for saving callee-saved registers; annotate the function with “callee_saved = 3”
+
 fail/register_allocation/x86-64/conflicting_register.jazz:
 
 "fail/register_allocation/x86-64/conflicting_register.jazz", line 9 (0-27):
@@ -1704,4 +1710,4 @@ Statistics:
 	Pretyping:  47
 	Parsing:     4
 	Typing:      5
-	Compile:   212
+	Compile:   213

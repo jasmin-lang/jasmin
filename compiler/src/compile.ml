@@ -132,7 +132,13 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
        and type rflag = rflag
        and type cond = cond
        and type asm_op = asm_op
-       and type extra_op = extra_op) visit_prog_after_pass prog cprog =
+       and type extra_op = extra_op)
+    visit_prog_after_pass
+    ?(callee_saved_strategy = !Glob_options.callee_saved_strategy)
+    prog cprog =
+  if callee_saved_strategy <> CSS_Tight then
+    warning Experimental L.i_dummy
+      "heuristics for callee-saved registers are experimental";
   let module RA = Regalloc.Regalloc (Arch) in
   let module SA = StackAlloc.StackAlloc (Arch) in
   let fdef_of_cufdef fn cfd = Conv.fdef_of_cufdef (fn, cfd) in
@@ -164,7 +170,9 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     SA.memory_analysis
       pp_sr
       (Printer.pp_err ~debug:!debug)
-      ~debug:!debug up
+      ~debug:!debug
+      callee_saved_strategy
+      up
   in
 
   let global_regalloc fds =
@@ -190,6 +198,25 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       ra
     in
 
+    let callee_saved_error fd n =
+      hierror ~loc:(Lone fd.f_loc) ~funname:fd.f_name.fn_name ~kind:"programming error"
+        "Not enough slots for saving callee-saved registers; annotate the function with “callee_saved = %d”"
+        (n + 1)
+    in
+
+    let fixup_to_save fd names slots =
+      let rec fixup_to_save n s =
+        match n, s with
+        | [], [] -> []
+        | x :: n, (_, ofs) :: s -> (Conv.cvar_of_var x, ofs) :: fixup_to_save n s
+        | [], _ ->
+           warning CalleeSavedNotTight (L.i_loc0 fd.f_loc) "unused slots: %a"
+             (pp_list ", " (fun fmt (_, ofs) -> Format.fprintf fmt "%a" Z.pp_print (Conv.z_of_cz ofs))) slots;
+           []
+        | _, [] -> callee_saved_error fd (List.length names)
+      in fixup_to_save names slots
+    in
+
     let subst, killed, fds = RA.alloc_prog return_addresses fds in
     let subst_sf_return_address fd : Expr.stk_fun_extra -> Expr.stk_fun_extra =
       let csubst x = x |> Conv.var_of_cvar |> subst |> Conv.cvar_of_var in
@@ -204,8 +231,11 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
            Expr.sf_save_stack =
              (match fe.Expr.sf_save_stack with
              | (SavedStackNone | SavedStackStk _) as s -> s
-             | SavedStackReg _ -> SavedStackReg (Conv.cvar_of_var (Option.get ro.ro_rsp)))
-         ; Expr.sf_to_save = List.map2 (fun x (_, ofs) -> (Conv.cvar_of_var x, ofs)) ro.ro_to_save fe.Expr.sf_to_save
+             | SavedStackReg _ ->
+                match ro.ro_rsp with
+                | Some r -> SavedStackReg (Conv.cvar_of_var r)
+                | None -> callee_saved_error fd 0)
+         ; Expr.sf_to_save = fixup_to_save fd ro.ro_to_save fe.Expr.sf_to_save
          }
     in
     let fds = List.map (fun (e, fd) -> subst_sf_return_address fd e, fd) fds in
