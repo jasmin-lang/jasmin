@@ -1,4 +1,4 @@
-Require Import Paco.paco.
+Require Import Coinduction.all.
 From Coq Require Import
      Program.Tactics
      Setoid
@@ -12,8 +12,9 @@ From ITree Require Import
      Core.ITreeDefinition
      Core.KTree
      Eq.Eqit
-     Eq.UpToTaus
-     Eq.Paco2
+     Eq.Shallow
+     (* Eq.UpToTaus *)
+     (* Eq.Paco2 *)
      Indexed.Sum
      Indexed.Function
      Indexed.Relation
@@ -49,22 +50,19 @@ Lemma split_while {E} {I} (cond1 cond2 : I -> bool) (step : I -> itree E I) i :
   (i' <- while (fun i => andb (cond1 i) (cond2 i)) step i;; while cond2 step i').
 Proof.
   symmetry.
-  generalize i; clear i; ginit.
-  gcofix SELF; intros i.
+  generalize i; clear i.
+  icoinduction c SELF; intros i.
   rewrite unfold_while.
-  case (cond1 i) => /=; last first.
-  + rewrite bind_ret_l.
-    apply gpaco2_mon with bot2 bot2 => //.
-    gfinal; right; rewrite -/(eqit eq false false); reflexivity.
+  case (cond1 i); bcbn; last first.
+  + rewrite bind_ret_l //.
   rewrite unfold_while.
   case: ifP => heq2.
-  + rewrite !bind_bind.
-    guclo eqit_clo_bind.
-    econstructor; first reflexivity.
+  + rewrite !bind_bind. 
+    ebind.
     intros u1 u2 heq; rewrite <- heq; clear heq.
     rewrite bind_tau.
-    gstep. constructor. gfinal. left. apply SELF.
-  by rewrite bind_ret_l unfold_while heq2; gstep; constructor.
+    etau.
+    by rewrite bind_ret_l unfold_while heq2; constructor.
 Qed.
 
 Lemma while_eq {E} {I} (cond1 cond2 : I -> bool) (step : I -> itree E I) i :
@@ -119,6 +117,22 @@ Proof.
   rewrite bind_ret_l; reflexivity.
 Qed.
 
+(* FIXME: I believe ITree needs something like this to rewrite with [_ ≅ _]
+   in goals of the form [eqit_mon b1 b2 (elem _) _ _ _ _ _] for arbitrary [b1] and [b2] *)
+#[global] Instance eq_itree_proper_eqit_mon {E R1 R2} (RR : R1 -> R2 -> Prop) {b1 b2} (c : Chain (eqit_mon b1 b2)) :
+  Proper
+    (eq_itree (E := E) eq ==> eq_itree (E := E) eq ==> Basics.flip Basics.impl)
+    (eqit_mon b1 b2 (elem c) R1 R2 RR).
+Proof.
+  intros x1 x2 Hx y1 y2 Hy H.
+  destruct b1, b2.
+  - rewrite Hx Hy //.
+  - rewrite Hx Hy //.
+  - Fail rewrite Hx Hy //.
+    admit.
+  - rewrite Hx Hy //.
+Admitted.
+
 Lemma eqit_iter_n (E : Type -> Type) {I1 I2 R1 R2}
       b1 b2
       (RI : I1 -> I2 -> Prop)
@@ -131,10 +145,10 @@ Lemma eqit_iter_n (E : Type -> Type) {I1 I2 R1 R2}
   forall (i1 : I1) (i2 : I2) (RI_i : RI i1 i2),
     eqit RR b1 b2 (ITree.iter body1 i1) (ITree.iter body2 i2).
 Proof.
-  ginit. gcofix CIH.
-  intros.
+  icoinduction c CIH.
+  intros. bcbn.
   rewrite unfold_iter.
-  have [n hn] := H0 _ _ RI_i.
+  have [n hn] := H _ _ RI_i.
   rewrite (unfold_iter_n body2 n).
   eapply gpaco2_uclo; [|eapply eqit_clo_bind|]; eauto with paco.
   econstructor; eauto. intros. gfinal. right.
