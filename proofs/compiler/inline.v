@@ -57,9 +57,6 @@ Definition locals_p (fd:ufundef) :=
   let r := read_c_rec w fd.(f_body) in
   vrvs_rec r (map Lvar fd.(f_params)).
 
-Definition locals fd :=
-  Sv.diff (locals_p fd) (sparams fd).
-
 Definition check_disjoint (fd:ufundef) (s:Sv.t) :=
   let s2 := locals_p fd in
   if disjoint s s2 then ok tt
