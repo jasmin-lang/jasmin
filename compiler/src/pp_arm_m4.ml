@@ -172,7 +172,7 @@ end = struct
     | MUL | MLA | MLS | SDIV | UDIV | UMULL | UMAAL | UMLAL | SMULL | SMLAL
     | SMMUL | SMMULR | SMUL_hw _ | SMLA_hw _ | SMULW_hw _ | BFC | BFI | ASR
     | LSL | LSR | ROR | REV | REV16 | REVSH | ADR | MOVT | UBFX | UXTB | UXTH
-    | SBFX | CLZ | LDR | LDRB | LDRH | LDRSB | LDRSH | STR | STRB | STRH
+    | SBFX | SXTB | SXTH | CLZ | LDR | LDRB | LDRH | LDRSB | LDRSH | STR | STRB | STRH
       -> ""
 end
 

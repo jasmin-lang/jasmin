@@ -130,6 +130,8 @@ Variant arm_mnemonic : Type :=
 | UXTB                           (* Extract a byte and zero extend *)
 | UXTH                           (* Extract a halfword and zero extend *)
 | SBFX                           (* Extract a sub-word and sign extend *)
+| SXTB                           (* Extract a byte and sign extend *)
+| SXTH                           (* Extract a halfword and sign extend *)
 | CLZ                            (* Count leading zeros. *)
 
 (* Comparison *)
@@ -162,7 +164,7 @@ Definition arm_mnemonics : seq arm_mnemonic :=
     ; SMULW_hw HWB; SMULW_hw HWT
     ; AND; BFC; BFI; BIC; EOR; MVN; ORR
     ; ASR; LSL; LSR; ROR; REV; REV16; REVSH
-    ; ADR; MOV; MOVT; UBFX; UXTB; UXTH; SBFX; CLZ
+    ; ADR; MOV; MOVT; UBFX; UXTB; UXTH; SBFX; SXTB; SXTH; CLZ
     ; CMP; TST; CMN
     ; LDR; LDRB; LDRH; LDRSB; LDRSH
     ; STR; STRB; STRH
@@ -197,7 +199,7 @@ Definition condition_mnemonics : seq arm_mnemonic :=
   [:: CMP; TST ].
 
 Definition always_has_shift_mnemonics : seq (arm_mnemonic * shift_kind) :=
-  [:: (UXTB, SROR); (UXTH, SROR) ].
+  [:: (UXTB, SROR); (UXTH, SROR); (SXTB, SROR); (SXTH, SROR) ].
 
 Definition wsize_uload_mn : seq (wsize * arm_mnemonic) :=
   [:: (U8, LDRB); (U16, LDRH); (U32, LDR) ].
@@ -281,6 +283,8 @@ Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
   | UXTB => "UXTB"
   | UXTH => "UXTH"
   | SBFX => "SBFX"
+  | SXTB => "SXTB"
+  | SXTH => "SXTH"
   | CLZ => "CLZ"
   | CMP => "CMP"
   | TST => "TST"
@@ -2078,6 +2082,60 @@ Definition arm_SBFX_instr : instr_desc_t :=
     id_semi_safe := fun _ => @bit_field_extract_semi_safe sh;
   |}.
 
+Definition sign_extend_bits_semi
+  (len: wsize) (wn: wreg) (wroram: u8) : wreg :=
+  sign_extend reg_size (zero_extend len (wror wn (wunsigned wroram))).
+
+Definition arm_SXTB_instr : instr_desc_t :=
+  let mn := SXTB in
+  let tin := [:: lreg; lword U8 ] in
+  let semi := sign_extend_bits_semi U8 in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2 ];
+    id_tout := [:: lreg ];
+    id_out := [:: Ea 0 ];
+    (* [wroram \in [:: 0; 8; 16; 24 ]] is enforced by args_kinds *)
+    id_semi := sem_lprod_ok tin semi;
+    id_nargs := 3;
+    id_args_kinds := ak_reg_reg_imm8_0_8_16_24;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::];
+    id_pp_asm := pp_arm_op mn opts;
+    id_valid := true;
+    id_safe_wf := refl_equal;
+    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
+    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+  |}.
+
+Definition arm_SXTH_instr : instr_desc_t :=
+  let mn := SXTH in
+  let tin := [:: lreg; lword U8 ] in
+  let semi := sign_extend_bits_semi U16 in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2 ];
+    id_tout := [:: lreg ];
+    id_out := [:: Ea 0 ];
+    (* [wroram \in [:: 0; 8; 16; 24 ]] is enforced by args_kinds *)
+    id_semi := sem_lprod_ok tin semi;
+    id_nargs := 3;
+    id_args_kinds := ak_reg_reg_imm8_0_8_16_24;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::];
+    id_pp_asm := pp_arm_op mn opts;
+    id_valid := true;
+    id_safe_wf := refl_equal;
+    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
+    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+  |}.
+
 Definition arm_CMP_semi (wn wm : ty_r) : ty_nzcv :=
   let wmnot := wnot wm in
   nzcv_of_aluop
@@ -2318,6 +2376,8 @@ Definition mn_desc (mn : arm_mnemonic) : instr_desc_t :=
   | UXTB => arm_UXTB_instr
   | UXTH => arm_UXTH_instr
   | SBFX => arm_SBFX_instr
+  | SXTB => arm_SXTB_instr
+  | SXTH => arm_SXTH_instr
   | CLZ => arm_CLZ_instr
   | CMP => arm_CMP_instr
   | TST => arm_TST_instr
