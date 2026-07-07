@@ -12,7 +12,6 @@ From ITree Require Import
      Core.ITreeDefinition
      Core.KTree
      Eq.Eqit
-     Eq.Shallow
      (* Eq.UpToTaus *)
      (* Eq.Paco2 *)
      Indexed.Sum
@@ -119,7 +118,7 @@ Qed.
 
 (* FIXME: I believe ITree needs something like this to rewrite with [_ ≅ _]
    in goals of the form [eqit_mon b1 b2 (elem _) _ _ _ _ _] for arbitrary [b1] and [b2] *)
-#[global] Instance eq_itree_proper_eqit_mon {E R1 R2} (RR : R1 -> R2 -> Prop) {b1 b2} (c : Chain (eqit_mon b1 b2)) :
+(*#[global]*) Instance eq_itree_proper_eqit_mon {E R1 R2} (RR : R1 -> R2 -> Prop) {b1 b2} (c : Chain (eqit_mon b1 b2)) :
   Proper
     (eq_itree (E := E) eq ==> eq_itree (E := E) eq ==> Basics.flip Basics.impl)
     (eqit_mon b1 b2 (elem c) R1 R2 RR).
@@ -145,25 +144,15 @@ Lemma eqit_iter_n (E : Type -> Type) {I1 I2 R1 R2}
   forall (i1 : I1) (i2 : I2) (RI_i : RI i1 i2),
     eqit RR b1 b2 (ITree.iter body1 i1) (ITree.iter body2 i2).
 Proof.
-  icoinduction c CIH.
-  intros. bcbn.
+  coinduction.
+  intros.
+  (* FIXME: This relies on [eq_itree_proper_eqit_mon]. *)
   rewrite unfold_iter.
   have [n hn] := H _ _ RI_i.
+  (* FIXME: This relies on [eq_itree_proper_eqit_mon]. *)
   rewrite (unfold_iter_n body2 n).
-  eapply gpaco2_uclo; [|eapply eqit_clo_bind|]; eauto with paco.
-  econstructor; eauto. intros. gfinal. right.
-  destruct u1; try discriminate.
-  destruct u2; try discriminate.
-  - pstep; red.
-    econstructor.
-    right.
-    eapply CIH; eauto.
-    inversion H; subst; auto.
-  - pstep; red.
-  inversion H; subst.
-  destruct u2; try discriminate.
-  inversion H; subst.
-  pstep; red.
-  econstructor.
-  inversion H; subst; auto.
+  ebind; [ apply (@gfp_chain _ _ (eqit_mon b1 b2)), hn |].
+  intros ? ? [ i1' i2' HRI | r1 r2 HRR ].
+  - etau.
+  - eret.
 Qed.
