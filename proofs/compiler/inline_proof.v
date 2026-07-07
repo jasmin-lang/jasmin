@@ -79,46 +79,6 @@ Proof.
   by apply: rbindP => ? /Hrec -> /=;apply:rbindP => ?? [] <-.
 Qed.
 
-Lemma inline_progP p p' f fd' :
-  uniq [seq x.1 | x <- p] ->
-  inline_prog' p = ok p' ->
-  get_fundef p' f = Some fd' ->
-  exists fd, get_fundef p f = Some fd /\ inline_fd' p' fd = ok fd'.
-Proof.
-  elim: p p' => [ | [f1 fd1] p Hrec] p' /=.
-  + by move=> _ [<-].
-  move=> /andP [] Hf1 Huniq.
-  rewrite /inline_fd_cons; t_xrbindP => p1 Hp1 /= fd1' Hinl <-.
-  rewrite !get_fundef_cons /=;case: eqP => [? [?]| Hne].
-  + subst f1 fd';exists fd1;split=>//.
-    apply: inline_incl Hinl => f0 fd0;rewrite get_fundef_cons /=.
-    case: eqP => // -> H; have := (get_fundef_in H)=> {}H.
-    by move: Hf1; rewrite (inline_prog_fst Hp1) H.
-  move=> /(Hrec   _ Huniq Hp1) [fd [? H]];exists fd;split=>//.
-  apply: inline_incl H => f0 fd0;rewrite get_fundef_cons /=.
-  case: eqP => // -> H; have := (get_fundef_in H)=> {}H.
-  by move: Hf1;rewrite (inline_prog_fst Hp1) H.
-Qed.
-
-Lemma inline_progP' p p' f fd :
-  uniq [seq x.1 | x <- p] ->
-  inline_prog' p = ok p' ->
-  get_fundef p f = Some fd ->
-  exists fd', get_fundef p' f = Some fd' /\ inline_fd' p' fd = ok fd'.
-Proof.
-  elim: p p' => [ | [f1 fd1] p Hrec] p' //.
-  rewrite /= /inline_fd_cons => /andP [] Hf1 Huniq; t_xrbindP => p1 Hp1 fd1' Hinl <-.
-  rewrite !get_fundef_cons /=;case: eqP => [? [?]| Hne].
-  + subst f1 fd1;exists fd1';split=>//.
-    apply: inline_incl Hinl => f0 fd0;rewrite get_fundef_cons /=.
-    case: eqP => // -> H; have := (get_fundef_in H)=> {}H.
-    by move: Hf1;rewrite (inline_prog_fst Hp1) H.
-  move=> /(Hrec   _ Huniq Hp1) [fd' [? H]];exists fd';split=>//.
-  apply: inline_incl H => f0 fd0;rewrite get_fundef_cons /=.
-  case: eqP => // -> H; have := (get_fundef_in H)=> {}H.
-  by move: Hf1;rewrite (inline_prog_fst Hp1) H.
-Qed.
-
 Section SUBSET.
 
   Variable p : ufun_decls.
@@ -183,18 +143,6 @@ Section SUBSET.
   Lemma inline_c_subset c : Pc c.
   Proof.
     exact: (cmd_rect Smk Snil Scons Sasgn Sopn Ssyscall Sassert Sif Sfor Swhile Scall).
-  Qed.
-
-  Lemma inline_i_subset i : Pr i.
-  Proof.
-    exact:
-      (instr_r_Rect Smk Snil Scons Sasgn Sopn Ssyscall Sassert Sif Sfor Swhile Scall).
-  Qed.
-
-  Lemma inline_i'_subset i : Pi i.
-  Proof.
-    exact:
-      (instr_Rect Smk Snil Scons Sasgn Sopn Ssyscall Sassert Sif Sfor Swhile Scall).
   Qed.
 
 End SUBSET.
@@ -263,30 +211,6 @@ Proof.
 Qed.
 
 Section IT.
-
-Section AUX.
-
-(* Technical lemma: we don't have equality of the type signatures anymore,
-   they are only convertible. We still manage to prove some equality, so luckily
-   we don't have to mess with itrees.
-   The lemma is put inside a different section, because we want to pick generic
-   instances of the typeclasses involved. *)
-
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0} {sem_F : sem_Fun (pT:=progUnit) E}.
-
-Lemma convertible_assgn_tuple tys1 tys2 :
-  all2 convertible tys1 tys2 ->
-  forall (p:uprog) ev ii rs tg es,
-  isem_cmd_ p ev (assgn_tuple ii rs tg tys1 es) =
-  isem_cmd_ p ev (assgn_tuple ii rs tg tys2 es).
-Proof.
-  elim: tys1 tys2 => [|ty1 tys1 ih1] [|ty2 tys2] //= /andP [hc1 hc2].
-  move=> p ev ii [|r rs] tg [|e es] //=.
-  rewrite (ih1 _ hc2).
-  by rewrite /sem_assgn (convertible_eval_atype hc1).
-Qed.
-
-End AUX.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
