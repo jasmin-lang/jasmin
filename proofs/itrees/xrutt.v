@@ -216,6 +216,10 @@ Tactic Notation "fold_xruttF" hyp(H) :=
 #[local] Ltac xrunfold := unfold xrutt.
 
 Ltac xrcbn := cbn[xrutt_mon body]; try unfold xrutt_.
+Ltac xrcbn_in H := cbn[xrutt_mon body] in H; try unfold xrutt_ in H.
+
+Tactic Notation "xrcbn" "in" ident(h) := xrcbn_in h.
+Tactic Notation "xrcbn" "in" "*" := cbn[xrutt_mon body] in *; try unfold xrutt_ in *.
 
 Tactic Notation "xrstep" := apply (pfp_gfp (xrutt_mon _ _ _ _)); xrcbn.
 

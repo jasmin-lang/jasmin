@@ -264,6 +264,21 @@ Qed.
 (* FIXME: temporary, to remove after repairing proof *)
 Set Bullet Behavior "Strict Subproofs".
 
+(* NOTE: using [change] as in [to_mon] does not seem to always work. *)
+Ltac eqit_fold' H H' :=
+  match type of H with
+  | context [@eqitF ?E ?R1 ?R2 ?RR ?b1 ?b2 (eqit ?RR ?b1 ?b2) ?ot1 ?ot2] =>
+      assert (eqit RR b1 b2 (go ot1) (go ot2)) as H'; first (now step);
+      clear H
+  end.
+Ltac eqit_fold H :=
+  match type of H with
+  | context [@eqitF ?E ?R1 ?R2 ?RR ?b1 ?b2 (eqit ?RR ?b1 ?b2) ?ot1 ?ot2] =>
+      let h := fresh "H" in
+      assert (eqit RR b1 b2 (go ot1) (go ot2)) as h; first (now step);
+      clear H; rename h into H
+  end.
+
 (* FIXME: repair comments, or try to recover upstream proof structure. *)
 (* Similar to RuttFacts.rutt_cong_eutt *)
 Lemma xrutt_cong_eutt {E1 E2 R1 R2}
@@ -307,17 +322,20 @@ Proof.
      through by CIH. The EqCutL and EqCutR cases are immediate. The
      EqTauR goes through by IHHrutt. Finally, the Eqit.EqTau case goes
      through by CIH. *)
-  - punfold Heutt; red in Heutt; cbn in Heutt.
-    rewrite itree_eta. pclearbot. fold_xruttF H.
-    remember (TauF m1) as ot1; revert m1 m2 H Heqot1.
+  - step in Heutt. cbn in Heutt.
+    rewrite <- Hot1 in Heutt. clear t1 Hot1 t2 Hot2.
+    step in H. xrcbn in H.
+    remember (TauF m1) as oTauL eqn:HoTauL.
+    revert m1 m2 H HoTauL.
 
     induction Heutt as [|m1_bis m1'| |m1_bis ot1' _|t1_bis m1'];
     intros * Hrutt Heqot1; clear t1'; try discriminate.
-    + inv Heqot1. pclearbot. gfinal; right; pstep; red.
-      apply EqTau. right. now apply (CIH m1).
-    + inv Heqot1. rewrite (itree_eta m1) in Hrutt.
+    + inv Heqot1. apply EqTau. eapply CIH; eauto. now step.
+    + inv Heqot1.
+      unstep in Hrutt.
+      rewrite (itree_eta m1) in Hrutt.
       desobs m1 Hm1; clear m1 Hm1.
-      { fold_eqitF Heutt. apply eutt_inv_Ret_l in Heutt.
+      { eqit_fold Heutt. apply eutt_inv_Ret_l in Heutt.
         rewrite Heutt, tau_euttge.
         gfinal; right. eapply paco2_mon_bot; eauto. }
       { apply xrutt_inv_Tau_l in Hrutt. eapply IHHeutt; eauto. }
