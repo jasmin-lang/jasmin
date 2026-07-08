@@ -261,6 +261,10 @@ Proof.
   rewrite Ht1, Ht2. now apply xrutt_Proper_R.
 Qed.
 
+(* FIXME: temporary, to remove after repairing proof *)
+Set Bullet Behavior "Strict Subproofs".
+
+(* FIXME: repair comments, or try to recover upstream proof structure. *)
 (* Similar to RuttFacts.rutt_cong_eutt *)
 Lemma xrutt_cong_eutt {E1 E2 R1 R2}
   (EE1: forall X, E1 X -> bool)
@@ -274,17 +278,23 @@ Proof.
   (* First by coinduction; then by induction on Hrutt (xruttF t1 t2);
      then (on some cases) by induction on Heutt (equitF t1 t1'). *)
   intros * Hrutt Heutt; revert t1 t1' Heutt t2 Hrutt.
-  ginit; gcofix CIH; intros t1 t1' Heutt t2 Hrutt.
-  punfold Hrutt; red in Hrutt.
-  rewrite (itree_eta t1) in Heutt; rewrite (itree_eta t2).
+  coinduction c CIH; icbn; intros t1 t1' Heutt t2 Hrutt.
+  step in Hrutt.
+  rewrite (itree_eta t1') in Heutt.
+  remember (observe t1) as ot1 eqn:Hot1.
+  remember (observe t2) as ot2 eqn:Hot2.
   move Hrutt before CIH. revert_until Hrutt.
   induction Hrutt as [ r1 r2 | m1 m2 | | | | m1 ot2 | ot1 m2 ];
-    clear t1 t2; intros t1' Heutt.
+    intros t1 t1' Heutt t2 Hot1 Hot2.
 
   (* EqRet: t1 = Ret r1 ≈ t1'; rewrite with the euttge closure and
      finish with EqRet. *)
-  - apply eutt_inv_Ret_l in Heutt. rewrite Heutt.
-    gfinal; right; pstep. now apply EqRet.
+  - step in Heutt. cbn in Heutt.
+    rewrite <-Hot1 in Heutt. clear Hot1 Hot2 t1 t2.
+    remember (RetF r1) as oRetL eqn:HoRetL.
+    induction Heutt; subst; try discriminate; eauto.
+    + injection HoRetL as [= ->]. now constructor.
+    + apply EqTauL. now apply IHHeutt.
 
   (* EqTau: by induction on Heutt (eqitF ot1 ot1'), remembering ot1 =
      Tau m1. The Eqit.EqTau case is straightforward by CIH. In the
