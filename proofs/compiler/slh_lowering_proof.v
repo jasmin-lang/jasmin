@@ -214,20 +214,6 @@ Context
   {fcparams : flag_combination.FlagCombinationParams}
 .
 
-Lemma empty_msf_vars x :
-  ~~ is_msf_var empty x.
-Proof. done. Qed.
-
-Lemma initial_msf_vars ox y :
-  is_msf_var (initial ox) y
-  -> ox = Some y.
-Proof. case: ox => [x|//]. by move=> /SvP.singleton_mem_3 ->. Qed.
-
-Lemma update_cond_msf_vars env cond x :
-  is_msf_var (update_cond env cond) x
-  -> is_msf_var env x.
-Proof. by move: env => [[cond'|] vars]. Qed.
-
 Lemma meet_le env0 env1 :
   le (meet env0 env1) env0 /\ le (meet env0 env1) env1.
 Proof.

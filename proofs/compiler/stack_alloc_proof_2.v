@@ -4307,20 +4307,6 @@ Proof.
   exact: get_alloc_fd.
 Qed.
 
-Lemma alloc_fd_checked_sao P p_extra mglob oracle fn fd fd' :
-  alloc_fd shparams saparams is_move_op fresh_var_ident pp_sr P p_extra mglob oracle fn fd = ok fd' →
-  [/\ size (sao_params (oracle fn)) = size (f_params fd) & size (sao_return (oracle fn)) = size (f_res fd) ].
-Proof.
-  rewrite /alloc_fd/alloc_fd_aux/check_results.
-  t_xrbindP => ?? _ [[? ?] ?] _.
-  t_xrbindP => -[[[? ?] ?] ?] ok_params.
-  t_xrbindP => _ _ [[? ?] ?] _.
-  t_xrbindP => ? _ ok_results _ _.
-  split.
-  - by case: (size_fmapM2 ok_params).
-  by case: (size_mapM2 ok_results).
-Qed.
-
 Remark alloc_prog_sp_globs nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) :
   alloc_prog shparams saparams is_move_op fresh_var_ident pp_sr nrip nrsp data oracle_g oracle P = ok SP →
   sp_globs (p_extra SP) = data.

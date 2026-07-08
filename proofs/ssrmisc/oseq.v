@@ -62,37 +62,6 @@ Lemma onth_cat T (s1 s2 : seq T) n :
 Proof. by rewrite !onth_nth map_cat nth_cat size_map. Qed.
 
 (* -------------------------------------------------------------------- *)
-Section OSeq.
-Context {T : Type}.
-
-Definition oseq (s : seq (option T)) :=
-  if size s == size (pmap idfun s) then Some (pmap idfun s) else None.
-
-Lemma oseq_nil : oseq [::] = Some [::].
-Proof. by []. Qed.
-
-Lemma oseq_cons x s :
-  oseq (x :: s) = obind (fun x => ocons x (oseq s)) x.
-Proof.
-rewrite /oseq; case: x => [x|] /=.
-+ by rewrite eqSS; case: eqP.
-+ by rewrite gtn_eqF // ltnS size_pmap; apply/count_size.
-Qed.
-End OSeq.
-
-(* -------------------------------------------------------------------- *)
-Lemma oseqP {T : eqType} (s : seq (option T)) (u : seq T) :
-  (oseq s == Some u) = (s == [seq Some x | x <- u]).
-Proof.
-apply/eqP/eqP=> [|->] //; last first.
-+ by rewrite /oseq pmap_idfun_some size_map eqxx.
-rewrite /oseq; case: ifP=> // /eqP eqsz [<-].
-rewrite pmapS_filter map_id -{1}[s]filter_predT.
-apply: eq_in_filter=> x x_in_s /=; move/esym/eqP: eqsz.
-by rewrite size_pmap -all_count => /allP /(_ _ x_in_s).
-Qed.
-
-(* -------------------------------------------------------------------- *)
 Section OMap.
 Context {T U : Type} (f : T -> option U).
 

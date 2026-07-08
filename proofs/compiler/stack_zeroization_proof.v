@@ -194,22 +194,6 @@ Proof.
   by t_xrbindP=> _ _ fd' /label_in_lcmdP <- <- lp_funcs' /ih <- <- /=.
 Qed.
 
-Lemma get_label_after_pc_in_label_in_lprog lp s lbl :
-  get_label_after_pc lp s = ok lbl ->
-  (s.(lfn), lbl) \in label_in_lprog lp.
-Proof.
-  rewrite /get_label_after_pc /find_instr /=.
-  case hget: get_fundef => [lfd|//].
-  case hnth: oseq.onth => [i|//].
-  case: i hnth => ii []//= []// lbl' hnth [?]; subst lbl'.
-  have hlinear: is_linear_of lp s.(lfn) lfd.(lfd_body).
-  + by exists lfd.
-  apply: label_in_lfundef hlinear.
-  have [cmd1 [cmd2 ->]] := List.in_split _ _ (onth_In hnth).
-  rewrite label_in_lcmd_cat /= mem_cat.
-  by apply /orP; right; apply mem_head.
-Qed.
-
 Lemma find_labelP rspn fn lfd lfd' lbl pc :
   stack_zeroization_lfd rspn fn lfd = ok lfd' ->
   find_label lbl lfd.(lfd_body) = ok pc ->

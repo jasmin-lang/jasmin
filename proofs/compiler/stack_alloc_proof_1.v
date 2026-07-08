@@ -665,24 +665,6 @@ Proof.
   by rewrite /zbetween_concrete_slice /disjoint_concrete_slice !zify; lia.
 Qed.
 
-Lemma disjoint_concrete_slice_incl_l cs1 cs1' cs2 :
-  zbetween_concrete_slice cs1 cs1' ->
-  disjoint_concrete_slice cs1 cs2 ->
-  disjoint_concrete_slice cs1' cs2.
-Proof.
-  move=> ?; apply disjoint_concrete_slice_incl => //.
-  by apply zbetween_concrete_slice_refl.
-Qed.
-
-Lemma disjoint_concrete_slice_r cs1 cs2 cs2' :
-  zbetween_concrete_slice cs2 cs2' ->
-  disjoint_concrete_slice cs1 cs2 ->
-  disjoint_concrete_slice cs1 cs2'.
-Proof.
-  move=> ?; apply disjoint_concrete_slice_incl => //.
-  by apply zbetween_concrete_slice_refl.
-Qed.
-
 Lemma sub_concrete_slice_disjoint cs cs1 cs1' cs2 cs2' :
   sub_concrete_slice cs cs1 = ok cs1' ->
   sub_concrete_slice cs cs2 = ok cs2' ->
@@ -1653,10 +1635,6 @@ Proof.
   by elim: es s => [|e es ih] s; rewrite /read_es /= ?ih ?read_eE; clear; SvD.fsetdec.
 Qed.
 
-Lemma read_es_cons e es :
-  Sv.Equal (read_es (e :: es)) (Sv.union (read_e e) (read_es es)).
-Proof. by rewrite /read_es /= !read_esE read_eE; clear; SvD.fsetdec. Qed.
-
 Lemma robindP eT aT rT oa (body : aT -> result eT (option rT)) v (P' : Type) :
   (forall z, oa = Some z -> body z = ok (Some v) -> P') ->
   Let%opt a := oa in body a = ok (Some v) ->
@@ -1761,43 +1739,6 @@ End SYMBOLIC_OF_PEXPR_VARS.
 Section WF_TABLE_SYMBOLIC_OF_PEXPR.
 
 Context (s : estate).
-
-Lemma sem_sexpr_uincl vme1 vme2 e v1 :
-  vme1 <=1 vme2 ->
-  sem_sexpr vme1 e = ok v1 ->
-  exists2 v2,
-    sem_sexpr vme2 e = ok v2 & value_uincl v1 v2.
-Proof.
-  move=> huincl.
-  elim: e v1 => [z|x|ws e ih|sg ws e ih|opk e ih|opk e1 ih1 e2 ih2|opk e1 ih1 e2 ih2|opk e1 ih1 e2 ih2] v1 /=.
-  + move=> [<-].
-    by eexists; first by reflexivity.
-  + by apply get_var_uincl.
-  + t_xrbindP=> ve1 /ih [v2 ok_v2 v_uincl] ok_v1.
-    exists v1 => //.
-    rewrite ok_v2 /=.
-    by apply (vuincl_sem_sop1 v_uincl ok_v1).
-  + t_xrbindP=> ve1 /ih [v2 ok_v2 v_uincl] ok_v1.
-    exists v1 => //.
-    rewrite ok_v2 /=.
-    by apply (vuincl_sem_sop1 v_uincl ok_v1).
-  + t_xrbindP=> ve1 /ih [v2 ok_v2 v_uincl] ok_v1.
-    exists v1 => //.
-    rewrite ok_v2 /=.
-    by apply (vuincl_sem_sop1 v_uincl ok_v1).
-  + t_xrbindP=> ve1 /ih1 [v21 ok_v21 v1_uincl] ve2 /ih2 [v22 ok_v22 v2_uincl] ok_v1.
-    exists v1 => //.
-    rewrite ok_v21 ok_v22 /=.
-    by apply (vuincl_sem_sop2 v1_uincl v2_uincl ok_v1).
-  + t_xrbindP=> ve1 /ih1 [v21 ok_v21 v1_uincl] ve2 /ih2 [v22 ok_v22 v2_uincl] ok_v1.
-    exists v1 => //.
-    rewrite ok_v21 ok_v22 /=.
-    by apply (vuincl_sem_sop2 v1_uincl v2_uincl ok_v1).
-  t_xrbindP=> ve1 /ih1 [v21 ok_v21 v1_uincl] ve2 /ih2 [v22 ok_v22 v2_uincl] ok_v1.
-  exists v1 => //.
-  rewrite ok_v21 ok_v22 /=.
-  by apply (vuincl_sem_sop2 v1_uincl v2_uincl ok_v1).
-Qed.
 
 Lemma eq_on_sem_sexpr vme vme' e :
   vme =[read_e e] vme' ->
@@ -3780,19 +3721,6 @@ Proof.
     truncate_word_u.
   eexists; first by reflexivity.
   by rewrite wrepr0 GRing.addr0.
-Qed.
-
-(* Alternative form of cast_get8, easier to use in our case *)
-Lemma cast_get8 len1 len2 (m : WArray.array len2) (m' : WArray.array len1) :
-  WArray.cast len1 m = ok m' ->
-  forall k w,
-    read m' Aligned k U8 = ok w ->
-    read m Aligned k U8 = ok w.
-Proof.
-  move=> hcast k w.
-  move=> /[dup]; rewrite -{1}get_read8 => /WArray.get_valid8 /WArray.in_boundP => hbound.
-  rewrite (WArray.cast_get8 hcast).
-  by case: hbound => _ /ZltP ->.
 Qed.
 
 Lemma wfr_WF_set vme sr x rmap rmap2 :
@@ -7151,17 +7079,6 @@ Proof.
   case: (let%opt _ := _ in get_suffix _ _) => [oz|//] /=.
   case: oz => [z'|] /=; last by apply incl_status_refl.
   by apply incl_status_clear_status_idempotent.
-Qed.
-
-Lemma Incl_set_clear_pure_idempotent rmap sr :
-  Incl (set_clear_pure rmap sr) (set_clear_pure (set_clear_pure rmap sr) sr).
-Proof.
-  split=> //.
-  move=> ry y.
-  rewrite /= !get_var_status_set_clear_status.
-  case: eqP => _ /=; last by apply incl_status_refl.
-  rewrite /clear_status_map_aux /=.
-  by apply incl_status_clear_status_map_aux_idempotent.
 Qed.
 
 Lemma wfr_VARS_ZONE_alloc_syscall ii rmap rs o es rmap2 c vars :
