@@ -279,6 +279,15 @@ Ltac eqit_fold H :=
       clear H; rename h into H
   end.
 
+(* FIXME: should this replace the [fold_xruttF] tactic? *)
+Ltac xrutt_fold H :=
+  match type of H with
+  | context [@xruttF ?E1 ?E2 ?R1 ?R2 ?EE1 ?EE2 ?REv ?RAns ?RR (?f ?m ?RR) ?ot1 ?ot2] =>
+      let h := fresh "H" in
+      assert (xrutt EE1 EE2 REv RAns RR (go ot1) (go ot2)) as h; first (now step);
+      clear H; rename h into H
+  end.
+
 (* FIXME: repair comments, or try to recover upstream proof structure. *)
 (* Similar to RuttFacts.rutt_cong_eutt *)
 Lemma xrutt_cong_eutt {E1 E2 R1 R2}
@@ -344,40 +353,39 @@ Proof.
           * subst. now constructor.
           * apply EqTauR. auto.
         - apply EqTauL. auto. }
-      
-      { apply xrutt_inv_Tau_l in Hrutt. eapply IHHeutt; eauto. }
-      { clear IHHeutt. remember (VisF e k) as m1; revert Heqm1.
-        induction Heutt as [| |U1 e1 k1 k1' Hk1k1'| |]; intros;
-          try discriminate.
-        - symmetry in Heqm1; dependent destruction Heqm1.
-          rewrite tau_euttge, (itree_eta m2).
-          punfold Hrutt; red in Hrutt; cbn in Hrutt.
-          remember (VisF e1 k1) as m1; revert Heqm1.
-          induction Hrutt; intros; try discriminate.
-          * dependent destruction Heqm1.
-            gfinal; right. pstep; red; cbn.
-            apply EqVis; auto. intros v1 v2 HAns. specialize (H2 v1 v2 HAns).
-            hnf in H2; hnf. pclearbot; right. apply (CIH (k1 v1)); auto.
-            apply Hk1k1'.
-          * dependent destruction Heqm1.
-            gstep. apply EqCutL; auto.
-          * gstep. apply EqCutR; auto.
-          * idtac. rewrite tau_euttge, (itree_eta t2). now apply IHHrutt.
-        - idtac. rewrite tau_euttge, itree_eta; now apply IHHeutt. }
-    + inv Heqot1. gfinal; right. pstep; red. apply EqTau. right.
-      fold_eqitF Heutt. rewrite tau_euttge in Heutt. now apply (CIH m1).
+      { apply (IHIHHeutt' m1_body m2); auto.
+        xrutt_fold H. apply xrutt_inv_Tau_l in H.
+        now step in H. }
+      { remember (VisF e1 k1) as oVisL eqn:HoVisL.
+        clear Hobs_m1 m1 IHIHHeutt'. revert H.
+        induction IHHeutt'; try discriminate; intros.
+        - symmetry in HoVisL; dependent destruction HoVisL.
+          apply EqTauR.
+          remember (VisF e k0) as oVisL2 eqn:HoVisL2.
+          induction H; try discriminate.
+          * dependent destruction HoVisL2.
+            apply EqVis; auto. intros a b HAns.
+            apply CIH with (k0 a); first apply REL.
+            now apply H2.
+          * dependent destruction HoVisL2. now apply EqCutL.
+          * dependent destruction HoVisL2. now apply EqCutR.
+          * apply EqTauR. now apply IHxruttF.
+        - apply EqTauL. now apply IHIHHeutt'. }
+    + apply EqTau. apply CIH with m1.
+      * rewrite <- tau_eutt with (t:=m1). step. subst t1''. exact Heutt.
+      * step. exact H.
 
   (* EqVis: Similar to EqRet, but we don't have t1' ≳ Vis e1 k1
      because the continuations are "only" ≈. We use induction on Heutt
      to analyse t1', resulting in two cases: EqVis (by CIH) and EqTauL
      (by IHHeutt). *)
-  - rewrite itree_eta. gfinal; right; pstep.
-    rename H2 into HAns. punfold Heutt; red in Heutt; cbn in Heutt.
-    remember (VisF e1 k1) as m1; revert Heqm1.
+  - step in Heutt. cbn in Heutt.
+    rewrite <- Hot1 in Heutt. clear t1 Hot1 t2 Hot2.
+    remember (VisF e1 k1) as oVisL eqn:HoVisL.
     induction Heutt; intros; try discriminate.
-    + dependent destruction Heqm1.
-      apply EqVis; auto. intros a b HAns'. specialize (HAns a b HAns').
-      hnf in HAns; hnf. pclearbot; right. apply (CIH (k1 a)); auto. apply REL.
+    + dependent destruction HoVisL.
+      apply EqVis; auto. intros a b HAns.
+      apply CIH with (k1 a); first apply REL. now apply H2.
     + now apply EqTauL, IHHeutt.
 
   (* EqCutL (left cutoff): we need induction on Heutt to analyse t1',
