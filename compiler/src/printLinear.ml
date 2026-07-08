@@ -15,6 +15,9 @@ module F = Format
 (* ---------------------------------------------------------------- *)
 let pp_ltype fmt t = F.fprintf fmt "%s" (string_of_ltype t)
 
+(* arrays are no longer there, hence the [assert false] *)
+let pp_ty = PrintCommon.pp_gtype (fun _ _ -> assert false)
+
 (* ---------------------------------------------------------------- *)
 let pp_label fmt lbl =
   F.fprintf fmt "%a" Z.pp_print (Conv.z_of_pos lbl)

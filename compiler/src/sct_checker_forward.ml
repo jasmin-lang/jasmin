@@ -386,7 +386,7 @@ module Env : sig
   val dsecret    : env -> vty
 
   val get_i : venv -> var_i -> vty
-  val gget  : venv -> int ggvar -> vty
+  val gget  : venv -> length ggvar -> vty
 
   val fresh2 : ?name:string -> env -> VlPairs.t
 
@@ -611,9 +611,9 @@ let ssafe_test x aa ws i =
   let x = L.unloc x in
   match x.v_kind, x.v_ty, i with
   | Reg (_, Direct), _, _ -> true
-  | _, Arr (ws1, len), Pconst v ->
-      let len = Z.of_int (arr_size ws1 len) in
-      let v = Z.of_int (access_offset aa ws (Z.to_int v)) in
+  | _, Arr (ws1, Const len), Pconst v -> (* FIXME: what if len is non Const ? *)
+      let len = arr_size ws1 len in
+      let v = access_offset aa ws v in
       let v_max = Z.add v (Z.of_int (size_of_ws ws - 1)) in
       Z.(leq zero v && lt v_max len)
   | _ -> false

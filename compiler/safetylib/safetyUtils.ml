@@ -239,3 +239,15 @@ let split_div sg ws es =
   let hi, lo, d = Utils.as_seq3 es in
   int_of_words sg ws hi lo,
   int_of_word sg ws d
+
+(* Quick port of the safety checker to arrays of non-const length: we fail when encountering
+   such an array. TODO: proper support *)
+let length_to_int len =
+  match len with
+  | CoreIdent.Const len -> Z.to_int len
+  | _ ->
+    Format.eprintf "Arrays of non-const length not supported yet@.";
+    assert false
+
+(* TODO: proper support of Z.t rather than int *)
+let access_offset aa ws i = Z.to_int (access_offset aa ws (Z.of_int i))

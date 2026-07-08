@@ -109,6 +109,7 @@ let check_file_on_arch path errors arch =
     errors + 1
 
 let check_file archs path errors =
+  Format.eprintf "path: %s@." path;
   config path;
   List.fold_left (check_file_on_arch path) errors archs
 

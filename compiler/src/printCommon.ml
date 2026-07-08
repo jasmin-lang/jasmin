@@ -223,10 +223,6 @@ let pp_arr_slice pp_gvar pp_expr pp_len fmt aa ws x e len =
     pp_access_size ws pp_expr (peel_implicit_cast_to_uint e) pp_len len
 
 (* -------------------------------------------------------------------- *)
-let pp_len fmt len = fprintf fmt "%i" len
-let pp_ty fmt = pp_gtype pp_len fmt
-
-(* -------------------------------------------------------------------- *)
 let pp_datas fmt data =
   let pp_w fmt w =
     let w = Conv.z_of_int8 w in

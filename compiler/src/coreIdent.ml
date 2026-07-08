@@ -91,8 +91,20 @@ end
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized variable                                                *)
 
-type ty    = int gty
-type var   = int gvar
+type length =
+  | Const of Z.t
+  | Var of Uint63.t * length gvar
+  | Neg of length
+  | Add of length * length
+  | Sub of length * length
+  | Mul of length * length
+  | Div of signedness * length * length
+  | Mod of signedness * length * length
+  | Shl of length * length
+  | Shr of length * length
+
+type ty    = length gty
+type var   = length gvar
 
 module V = struct
   type t = var

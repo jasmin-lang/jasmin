@@ -93,3 +93,5 @@ val modulus : wsize -> Z.t
 
 val split_div : signedness -> wsize -> exprs -> expr * expr
 
+val length_to_int : length -> int
+val access_offset : Warray_.arr_access -> wsize -> int -> int

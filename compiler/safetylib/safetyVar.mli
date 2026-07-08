@@ -62,7 +62,7 @@ val mvar_of_svar : string         -> mvar
 val mvar_of_avar : Apron.Var.t    -> mvar
 
 val mvar_of_scoped_var : Expr.v_scope -> Prog.var -> mvar
-val mvar_of_var        : int Prog.ggvar -> mvar
+val mvar_of_var        : length Prog.ggvar -> mvar
 
 
 (*---------------------------------------------------------------*)

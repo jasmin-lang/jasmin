@@ -8,7 +8,7 @@ module Name : sig
   type t = string
 end
 
-type uid
+type uid = Uint63.t (* FIXME: not nice to expose that, but is there another way? *)
 
 val string_of_uid : uid -> string
 
@@ -83,8 +83,20 @@ end
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized variable                                                *)
 
-type ty    = int gty
-type var   = int gvar
+type length =
+  | Const of Z.t
+  | Var of Uint63.t * length gvar
+  | Neg of length
+  | Add of length * length
+  | Sub of length * length
+  | Mul of length * length
+  | Div of signedness * length * length
+  | Mod of signedness * length * length
+  | Shl of length * length
+  | Shr of length * length
+
+type ty    = length gty
+type var   = length gvar
 
 module V : sig
   type t = var

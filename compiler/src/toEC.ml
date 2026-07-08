@@ -4,6 +4,22 @@ open Prog
 open Operators
 open PrintCommon
 
+(* Quick port of the extraction to EC to arrays of non-const length: we fail when encountering
+   such an array. TODO: proper support *)
+let length_to_int len =
+  match len with
+  | CoreIdent.Const len -> Z.to_int len
+  | _ ->
+    Format.eprintf "Arrays of non-const length not supported yet@.";
+    assert false
+
+let array_kind ty =
+  let ws, n = array_kind ty in
+  ws, length_to_int n
+
+(* TODO: proper support of Z.t rather than int *)
+let arr_size ws n = Z.to_int (arr_size ws (Z.of_int n))
+
 type amodel =
   | ArrayOld
   | WArray
@@ -509,7 +525,9 @@ module Env: EnvT = struct
 
   let add_ty env = function
       | Bty _ -> ()
-      | Arr (_ws, n) -> add_Array env n
+      | Arr (_ws, n) ->
+          let n = length_to_int n in
+          add_Array env n
 
   let empty arch pd msfsz array_theories =
     {
@@ -581,6 +599,7 @@ end
 let check_array env x =
   match (L.unloc x).v_ty with
   | Arr(ws, n) ->
+      let n = length_to_int n in
       Sarraytheory.mem (Array n) (Env.array_theories env) &&
       Sarraytheory.mem (WArray (arr_size ws n)) (Env.array_theories env)
   | _ -> true
@@ -1006,9 +1025,9 @@ module type EcArray = sig
   val ec_darray8: Env.t -> int -> ec_expr
   val ec_cast_array: Env.t -> wsize * int -> wsize * int -> ec_expr -> ec_expr
   val toec_pget: Env.t -> Memory_model.aligned * Warray_.arr_access * wsize * var * ec_expr -> ec_expr
-  val toec_psub: Env.t -> Warray_.arr_access * wsize * int * int ggvar * ec_expr -> ec_expr
+  val toec_psub: Env.t -> Warray_.arr_access * wsize * length * length ggvar * ec_expr -> ec_expr
   val toec_laset: Env.t -> Warray_.arr_access * wsize * var * ec_expr -> ec_expr -> ec_instr
-  val toec_lasub: Env.t -> Warray_.arr_access * wsize * int * var L.located * ec_expr -> ec_expr -> ec_expr
+  val toec_lasub: Env.t -> Warray_.arr_access * wsize * length * var L.located * ec_expr -> ec_expr -> ec_expr
 
   val onarray_ty: Env.t -> wsize -> int -> string
   val add_arr: Env.t -> wsize -> int -> unit
@@ -1062,6 +1081,7 @@ module EcArrayOld : EcArray = struct
 
   let toec_psub env (aa, ws, len, x, e) =
     assert (check_array env x.gv);
+    let len = length_to_int len in
     let i = Env.create_name env "i" in
     let x = L.unloc x.gv in
     let (xws,n) = array_kind x.v_ty in
@@ -1099,6 +1119,7 @@ module EcArrayOld : EcArray = struct
 
   let toec_lasub env (aa, ws, len, x, e1) e =
     assert (check_array env x);
+    let len = length_to_int len in
     let x = L.unloc x in
     let (xws, n) = array_kind x.v_ty in
     if ws = xws && aa = Warray_.AAscale then
@@ -1171,6 +1192,7 @@ module EcWArray: EcArray = struct
 
   let toec_psub env (aa, ws, len, x, e) =
     assert (check_array env x.gv);
+    let len = length_to_int len in
     let x = L.unloc x.gv in
     let (xws,n) = array_kind x.v_ty in
     let subf =
@@ -1216,6 +1238,7 @@ module EcWArray: EcArray = struct
 
   let toec_lasub env (aa, ws, len, x, e1) e =
     assert (check_array env x);
+    let len = length_to_int len in
     let x = L.unloc x in
     let (xws, n) = array_kind x.v_ty in
     let subf =
@@ -1258,7 +1281,7 @@ module EcBArray : EcArray = struct
     Eident [ec_BArray env sz; "darray"]
 
   let ec_cast_array (_env:Env.t) (ws1, sz1) (ws2, sz2) e =
-    assert (Prog.arr_size ws1 sz1 = Prog.arr_size ws2 sz2);
+    assert (Prog.arr_size ws1 (Z.of_int sz1) = Prog.arr_size ws2 (Z.of_int sz2));
     e
 
   let direct aa =
@@ -1286,6 +1309,7 @@ module EcBArray : EcArray = struct
     ESasgn ([LvIdent [ec_vars env x]], eset)
 
   let toec_psub (env:Env.t) (aa, ws, len, x, ei) =
+    let len = length_to_int len in
     let x = L.unloc x.gv in
     let (xws,n) = array_kind x.v_ty in
     let sizes = arr_size ws len in
@@ -1295,6 +1319,7 @@ module EcBArray : EcArray = struct
          [ec_vari env x; ei])
 
   let toec_lasub (env:Env.t) (aa, ws, len, x, ei) e =
+    let len = length_to_int len in
     let x = L.unloc x in
     let (xws,n) = array_kind x.v_ty in
     let sizes = arr_size ws len in
@@ -1339,7 +1364,7 @@ let ty_sopn pd msfsz asmOp op es =
   match op with
   (* Do a special case for copy since the Coq type loose information  *)
   | Sopn.Opseudo_op (Pseudo_operator.Ocopy(ws, n)) ->
-    let l = [Arr(ws, Conv.int_of_cz n)] in
+    let l = [Arr(ws, Const (Conv.z_of_cz n))] in
     l, l
   | Sopn.Opseudo_op (Pseudo_operator.Oswap _) ->
     let l = List.map ty_expr es in
@@ -1423,6 +1448,7 @@ module EcExpression(EA: EcArray): EcExpression = struct
           | Bty _ -> ec_zeroext (ty, ety) e
           | Arr(ws, n) ->
               let wse, ne = array_kind ety in
+              let n = length_to_int n in
               EA.ec_cast_array env (ws, n) (wse, ne) e
 
   let rec ec_op1 op e = match op with
@@ -1800,7 +1826,7 @@ struct
   (* ------------------------------------------------------------------- *)
   (* Instruction extraction *)
 
-  let toec_ty = toec_ty EA.onarray_ty
+  let toec_ty = toec_ty (fun env ws len -> EA.onarray_ty env ws (length_to_int len))
 
   let ec_assgn env lv (etyo, etyi) e =
       let e = e |> ec_zeroext (etyo, etyi) |> ec_cast env (ty_lval lv, etyo) in
@@ -1990,7 +2016,7 @@ struct
 
   let ec_randombytes env =
       let randombytes_decl a n =
-          let arr_ty = toec_ty env (Arr (U8, n)) in
+          let arr_ty = toec_ty env (Arr (U8, Const (Z.of_int n))) in
           {
               fname = Format.asprintf "randombytes_%a" pp_length n;
               args = [(a, arr_ty)];
@@ -2030,7 +2056,9 @@ struct
       let add_arrsz env f =
         let add env x =
           match x.v_ty with
-          | Arr(ws, n) -> EA.add_jarray env ws n
+          | Arr(ws, n) ->
+              let n = length_to_int n in
+              EA.add_jarray env ws n
           | _ -> ()
         in
         let vars = vars_fc f in

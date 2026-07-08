@@ -40,7 +40,7 @@ let pp_s_env fmt env =
   Format.printf fmt "@[<v>global variables:@;%a@]"
     (pp_list (fun fmt (_,(x,sw)) ->
          Format.fprintf fmt "@[%s: %a@]@,"
-           x PrintCommon.pp_ty (Conv.ty_of_cty sw)))
+           x Printer.pp_ty (Conv.ty_of_cty sw)))
     (Sv.to_list env.s_glob)
     (pp_list (fun fmt i -> Format.fprintf fmt "%d" i))
 
@@ -143,8 +143,8 @@ let pp_arr_slice fmt slice =
     pp_arr_access pp_var pp_expr fmt Memory_model.Unaligned slice.as_access ws
       slice.as_arr slice.as_offset
   else
-    pp_arr_slice pp_var pp_expr pp_len fmt slice.as_access ws slice.as_arr
-      slice.as_offset slice.as_len
+    pp_arr_slice pp_var pp_expr Printer.pp_len fmt slice.as_access ws slice.as_arr
+      slice.as_offset (Const (Z.of_int slice.as_len))
 
 let pp_safety_cond fmt = function
   | Initv x -> Format.fprintf fmt "is_init %a" pp_var x
@@ -240,7 +240,9 @@ module AbsMake (Arch : SafetyArch.SafetyArch) = struct
 let in_bound x access ws e len =
   let ux = L.unloc x in
   match ux.v_ty with
-  | Arr(ws',n) -> [InBound ( n * size_of_ws ws',
+  | Arr(ws',n) ->
+    let n = length_to_int n in
+                  [InBound ( n * size_of_ws ws',
                              { as_arr = ux;
                                as_len = len;
                                as_wsize = ws;
@@ -358,6 +360,7 @@ let rec safe_e_rec safe = function
     safe
 
   | Psub (access, ws, len, x, e) ->
+    let len = length_to_int len in
     in_bound    x.gv access ws e len @
     (* Remark that we do not have to check initialization for sub-arrays. *)
     (* Note that the length is scaled with the word-size, so we only
@@ -392,6 +395,7 @@ let safe_lval = function
     safe_e_rec [] e
 
   | Lasub(access,ws,len,x,e) ->
+    let len = length_to_int len in
     in_bound x access ws e len @
     arr_aligned (* x  *) access ws e @
     safe_e_rec [] e

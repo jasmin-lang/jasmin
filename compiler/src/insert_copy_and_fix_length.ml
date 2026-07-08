@@ -7,16 +7,16 @@ let is_array_copy (x:lval) (e:expr) =
   | Lvar x ->
     let x = L.unloc x in
     begin match x.v_ty with
-    | Arr (xws, xn) ->
+    | Arr (xws, Const xn) ->
       begin match e with
       | Pvar y ->
         let y = L.unloc y.gv in
         begin match y.v_ty with
-        | Arr(yws, yn) ->
+        | Arr(yws, Const yn) ->
            (* Ignore ill-typed copies: they are later rejected by “typing”. *)
            if arr_size yws yn < arr_size xws xn then None else
            if x.v_kind = Reg(Normal, Direct) then Some (xws, xn)
-           else if y.v_kind = Reg(Normal, Direct) then Some (yws, arr_size xws xn / size_of_ws yws)
+           else if y.v_kind = Reg(Normal, Direct) then Some (yws, Z.div (arr_size xws xn) (Z.of_int (size_of_ws yws)))
            else None
         | _ -> None
         end
@@ -29,7 +29,7 @@ let is_array_copy (x:lval) (e:expr) =
 let size_of_lval =
   function
   | Lvar x -> size_of (L.unloc x).v_ty
-  | Lasub (_, ws, len, _, _) -> arr_size ws len
+  | Lasub (_, ws, len, _, _) -> size_of (Arr (ws, len))
   | Lnone _ | Lmem _ | Laset _ -> assert false
 
 let rec fix_length_eassert e =
@@ -38,7 +38,12 @@ let rec fix_length_eassert e =
   | PappN_safety (o, es) ->
     let e = List.hd es in
     let ty = Typing.type_of_expr e in
-    let len = Conv.cz_of_int (size_of ty) in
+    let len =
+      match size_of ty with
+      | Const len -> len
+      | _ -> assert false (* FIXME *)
+    in
+    let len = Conv.cz_of_z len in
     let o = match o with Ois_arr_init _ -> Operators.Ois_arr_init len | Ois_barr_init _ -> Ois_barr_init len in
     PappN_safety(o, es)
   | Pis_var_init _ | Pis_mem_init _ -> e
@@ -54,7 +59,7 @@ and iac_instr_r pd loc ir =
       | Some (ws, n) ->
           warning IntroduceArrayCopy
             loc "an array copy is introduced";
-          let op = Pseudo_operator.Ocopy(ws, Conv.cz_of_int n) in
+          let op = Pseudo_operator.Ocopy(ws, Conv.cz_of_z n) in
           Copn([x], t, Sopn.Opseudo_op op, [e])
     end
   | Cif (b, th, el) -> Cif (b, iac_stmt pd th, iac_stmt pd el)
@@ -69,16 +74,20 @@ and iac_instr_r pd loc ir =
 
     | Sopn.Opseudo_op(Pseudo_operator.Ocopy(ws, _)), [x] ->
       (* Fix the size it is dummy for the moment *)
-      let xn = size_of_lval x in
+      let xn =
+        match size_of_lval x with
+        | Const xn -> xn
+        | _ -> assert false (* FIXME *)
+      in
       let wsn = size_of_ws ws in
-      if xn mod wsn <> 0 then
+      if not (Z.equal (Z.rem xn (Z.of_int wsn)) Z.zero) then
         Typing.error loc
-          "the destination %a has size %i: it should be a multiple of %i"
+          "the destination %a has size %a: it should be a multiple of %i"
           (Printer.pp_lval ~debug:false) x
-          xn wsn
+          Z.pp_print xn wsn
       else
-        let len = xn / wsn in
-        let op = Pseudo_operator.Ocopy (ws, Conv.cz_of_int len) in
+        let len = Z.div xn (Z.of_int wsn) in
+        let op = Pseudo_operator.Ocopy (ws, Conv.cz_of_z len) in
         Copn(xs,t,Sopn.Opseudo_op op, es)
     | Sopn.Opseudo_op(Ocopy _), _ -> assert false
     | Sopn.Opseudo_op(Pseudo_operator.Oswap _), x::_ ->
@@ -89,7 +98,12 @@ and iac_instr_r pd loc ir =
     | Sopn.Oslh (SLHprotect_ptr _), [Lvar x] ->
       (* Fix the size it is dummy for the moment *)
       let ws, len = array_kind (L.unloc x).v_ty in
-      let op = Slh_ops.SLHprotect_ptr (ws, Conv.cz_of_int len) in
+      let len =
+        match len with
+        | Const len -> len
+        | _ -> assert false (* FIXME *)
+      in
+      let op = Slh_ops.SLHprotect_ptr (ws, Conv.cz_of_z len) in
       Copn(xs,t, Sopn.Oslh op, es)
     | Sopn.Oslh (SLHprotect_ptr _), _ -> assert false
     | Sopn.Opseudo_op (Odeclassify _), _ ->
@@ -110,7 +124,12 @@ and iac_instr_r pd loc ir =
         | [x] -> Typing.ty_lval pd loc x
         | _ -> assert false in
       let ws, len = array_kind ty in
-      Csyscall(xs, Syscall_t.RandomBytes (ws, Conv.cz_of_int len), es)
+      let len =
+        match len with
+        | Const len -> len
+        | _ -> assert false (* FIXME *)
+      in
+      Csyscall(xs, Syscall_t.RandomBytes (ws, Conv.cz_of_z len), es)
     end
   | Cassert (msg, e) ->
     Cassert (msg, fix_length_eassert e)

@@ -216,7 +216,7 @@ let print_not_word_expr e =
   Format.eprintf "@[<v>Should be a word expression:@;\
                   @[%a@]@;Type:@;@[%a@]@]@."
     (Printer.pp_expr ~debug:(!Glob_options.debug)) e
-    (PrintCommon.pp_ty) (Conv.ty_of_cty (Conv.cty_of_ty (ty_expr e)))
+    Printer.pp_ty (Conv.ty_of_cty (Conv.cty_of_ty (ty_expr e)))
 
 let check_is_int v =
   let gv = L.unloc v.gv in
@@ -224,7 +224,7 @@ let check_is_int v =
   | Bty Int -> ()
   | _ ->
     Format.eprintf "%s should be an int but is a %a@."
-      gv.v_name PrintCommon.pp_ty gv.v_ty;
+      gv.v_name Printer.pp_ty gv.v_ty;
     raise (Aint_error "Bad type")
 
 let check_is_word v =
@@ -233,7 +233,7 @@ let check_is_word v =
   | Bty (U _) -> ()
   | _ ->
     Format.eprintf "%s should be a word but is a %a@."
-      gv.v_name PrintCommon.pp_ty gv.v_ty;
+      gv.v_name Printer.pp_ty gv.v_ty;
     raise (Aint_error "Bad type")
 
 
@@ -462,6 +462,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
       | Pget(_, access,ws,x,ei) ->
         abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws 1   ei @ acc
       | Psub (access, ws, len, x, ei) ->
+        let len = length_to_int len in
         abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws len ei @ acc
 
       | Papp1 (_, e1) -> aux acc e1
@@ -1058,6 +1059,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
       end
 
     | Lasub (acc, ws, len, x, ei) ->
+      let len = length_to_int len in
       let offset = match aeval_cst_int abs ei with
         | Some i -> Some (access_offset acc ws i)
         | None -> None in
@@ -1069,7 +1071,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
 
       MLasub (loc, msub)
 
-  let apply_offset_expr abs outv info (inv : int ggvar) offset_expr =
+  let apply_offset_expr abs outv info (inv : length ggvar) offset_expr =
     (* Global variable cannot alias to a input pointer. *)
     assert (inv.gs = Expr.Slocal);
     let inv = L.unloc inv.gv in
@@ -1136,6 +1138,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
 
   let msub_of_sub_expr abs = function
     | Psub (acc, ws, len, ggv, ei) ->
+      let len = length_to_int len in
       let offset = match aeval_cst_int abs ei with
         | Some i -> Some (access_offset acc ws i)
         | None -> None in
