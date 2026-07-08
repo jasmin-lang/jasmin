@@ -152,10 +152,10 @@ Proof.
   have [vm2 hsem eq_vm2] :
      exists2 vm2 : Vm.t, sem_sopn (p_globs p) o (with_vm s1 vm1) xs es = ok (with_vm s2 vm2) & evm s2 =[X] vm2.
     move: ok_s2; rewrite /sem_sopn; t_xrbindP => vs vr hes hex hw.
-    have [|vm2 hw2 heq2] := write_lvals_eq_on _ hw eq_vm1; first by SvD.fsetdec.
-    exists vm2; last by apply: eq_onI heq2; SvD.fsetdec.
+    have [|vm2 hw2 heq2] := write_lvals_eq_on _ hw eq_vm1; first by clear -hsub; SvD.fsetdec.
+    exists vm2; last by apply: eq_onI heq2; clear; SvD.fsetdec.
     rewrite  -(read_es_eq_on _ _ (s := X)) //; last first.
-    + by move=> z;rewrite read_esE => hz;apply eq_vm1; SvD.fsetdec.
+    + by move=> z;rewrite read_esE => hz;apply eq_vm1; clear -hsub hz; SvD.fsetdec.
     by rewrite hes /= hex /= hw2.
   rewrite eq_globs in hsem.
   have: [elaborate exists2 vm2,
@@ -178,10 +178,10 @@ Proof.
       rewrite /sem_sopn /=.
       rewrite -(eq_on_sem_pexprs _ _ (s:=with_vm s1 vm1)) //=; last first.
       + apply: (eq_ex_disjoint_eq_on eq_vm1').
-        by apply/disjointP => ?; SvD.fsetdec.
+        by apply/disjointP => ?; clear -tmp_nin hsub; SvD.fsetdec.
       rewrite ok_vs /= ok_v /= ok_ep /= ok_w /= ok_m2 /=.
       by rewrite /with_mem /with_vm /= eq_scs.
-    move=> z hz; rewrite eq_vm2 // eq_vm1' //; SvD.fsetdec.
+    move=> z hz; rewrite eq_vm2 // eq_vm1' //; clear -tmp_nin hz; SvD.fsetdec.
 
   case hes: is_one_Pload => [[[al ws] e]|//].
   move: hes => /is_one_PloadP ?; subst es.
@@ -192,11 +192,11 @@ Proof.
   rewrite ok_ve /= ok_we.
   move=> /(_ erefl) [vm1' [hsem1' eq_vm1' ok_ep]].
   have [|vm1'' ok_vm1'' eq_vm1''] := write_lvals_eq_ex _ ok_vm2 eq_vm1'.
-  + by apply/disjointP => ?; SvD.fsetdec.
+  + by apply/disjointP => ?; clear -tmp_nin hsub; SvD.fsetdec.
   exists vm1''.
   + rewrite map_cat esem_cat hsem1' /= LetK.
     by rewrite /sem_sopn /= ok_ep /= ok_w /= ok_vs /= ok_vm1''.
-  move=> z hz; rewrite eq_vm2 // -eq_vm1'' //=; SvD.fsetdec.
+  move=> z hz; rewrite eq_vm2 // -eq_vm1'' //=; clear -tmp_nin hz; SvD.fsetdec.
 Qed.
 
 Section IT.
@@ -219,7 +219,7 @@ Proof.
   move: ok_f'; rewrite /lower_addressing_fd.
   t_xrbindP=> /Sv_memP tmp_nin1 /Sv_memP tmp_nin2 ?; subst f'.
   set X := Sv.union (read_c (f_body fd)) (vars_l (f_res fd)).
-  have tmp_nin : ~Sv.In tmp X by rewrite /X; SvD.fsetdec.
+  have tmp_nin : ~Sv.In tmp X by rewrite /X; clear -tmp_nin1 tmp_nin2; SvD.fsetdec.
   have htytmp : vtype tmp = aword Uptr by [].
   rewrite -{1}hp' /=; eexists; first by eauto.
   move => s.
@@ -246,39 +246,39 @@ Proof.
   + move=> i c hi hc; rewrite read_writeE => hsub.
     rewrite /lower_addressing_c /conc_map /= -cat1s.
     apply (wequiv_cat (sip:=sip)) with (st_eq_on X).
-    + by apply hi => //; SvD.fsetdec.
-    apply hc; last by SvD.fsetdec.
+    + by apply hi => //; clear -hsub; SvD.fsetdec.
+    apply hc; last by clear -hsub; SvD.fsetdec.
   + move=> x tg ty e ii; rewrite !read_writeE => hsub.
     apply (wequiv_assgn_rel_eq (sip:=sip)) with checker_st_eq_on X => //.
-    + by split => //; rewrite /read_es /= read_eE; SvD.fsetdec.
-    split => //; first by SvD.fsetdec.
-    by rewrite /read_rvs /= read_rvE; SvD.fsetdec.
+    + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
+    split => //; first by clear; SvD.fsetdec.
+    by rewrite /read_rvs /= read_rvE; clear -hsub; SvD.fsetdec.
   + move=> xs tg o es ii hsub.
     apply (wequiv_opn_esem (sip:=sip)) => s t s' /st_relP [-> /= heq] hopn.
     have [vm2 h ?]:= Hopn_aux hopn htytmp tmp_nin hsub heq.
     by eexists; first apply h.
   + move=> xs sc es ii; rewrite !read_writeE => hsub.
-    by apply (wequiv_syscall_rel_eq (sip:=sip)) with checker_st_eq_on X => //=; split=> //; SvD.fsetdec.
+    by apply (wequiv_syscall_rel_eq (sip:=sip)) with checker_st_eq_on X => //=; split=> //; clear -hsub; SvD.fsetdec.
   + by move=> ? ii ?; apply wequiv_noassert with (ev1:=ev) (ii:=ii).
   + move=> e c1 c2 hc1 hc2 ii; rewrite !read_writeE => hsub.
     apply (wequiv_if_rel_eq (sip:=sip)) with checker_st_eq_on X X X => //.
-    + by split => //; rewrite /read_es /= read_eE; SvD.fsetdec.
-    + by apply hc1; SvD.fsetdec.
-    by apply hc2; SvD.fsetdec.
+    + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
+    + by apply hc1; clear -hsub; SvD.fsetdec.
+    by apply hc2; clear -hsub; SvD.fsetdec.
   + move=> x dir lo hi c hc ii; rewrite !read_writeE => hsub.
     apply (wequiv_for_rel_eq (sip:=sip)) with checker_st_eq_on X X => //.
-    + by split => //; rewrite /read_es /= !read_eE; SvD.fsetdec.
-    + by split => //; rewrite /read_rvs /=; SvD.fsetdec.
-    by apply hc => //; SvD.fsetdec.
+    + by split => //; rewrite /read_es /= !read_eE; clear -hsub; SvD.fsetdec.
+    + by split => //; rewrite /read_rvs /=; clear; SvD.fsetdec.
+    by apply hc => //; clear -hsub; SvD.fsetdec.
   + move=> a c1 e ii' c2 hc1 hc2 ii; rewrite !read_writeE => hsub.
     apply (wequiv_while_rel_eq (sip:=sip)) with checker_st_eq_on X => //.
-    + by split => //; rewrite /read_es /= !read_eE; SvD.fsetdec.
-    + by apply hc1 => //; SvD.fsetdec.
-    by apply hc2 => //; SvD.fsetdec.
+    + by split => //; rewrite /read_es /= !read_eE; clear -hsub; SvD.fsetdec.
+    + by apply hc1 => //; clear -hsub; SvD.fsetdec.
+    by apply hc2 => //; clear -hsub; SvD.fsetdec.
   move=> xs fn es ii; rewrite !read_writeE => hsub.
   apply (wequiv_call_rel_eq (sip:=sip)) with checker_st_eq_on X => //.
-  + by split => //; SvD.fsetdec.
-  + by split => //; SvD.fsetdec.
+  + by split => //; clear -hsub; SvD.fsetdec.
+  + by split => //; clear -hsub; SvD.fsetdec.
   by move=> ???; apply: (wequiv_fun_rec (spec := eq_spec)).
 Qed.
 

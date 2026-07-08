@@ -721,11 +721,11 @@ Lemma remove_cpm_spec (m : cpm) (xs : Sv.t) (x : CmpVar.t):
 Proof.
   rewrite /remove_cpm;apply SvP.MP.fold_rec_bis.
   + move=> s s' a Heq.
-    by case: Mvar.get=> [? [] ??| [? | ?]]; [split=> //;SvD.fsetdec | left | right;SvD.fsetdec].
-  + by case: Mvar.get=> [? | ]; [ split => //;SvD.fsetdec | left].
+    by case: Mvar.get=> [? [] ? h| [? | h]]; [split=> //;clear -Heq h; SvD.fsetdec | left | right;clear -Heq h; SvD.fsetdec].
+  + by case: Mvar.get=> [? | ]; [ split => //;clear; SvD.fsetdec | left].
   move=> ?????;rewrite Mvar.removeP;case:ifPn => /eqP Heq.
-  + by rewrite Heq=> _;right;SvD.fsetdec.
-  by case: Mvar.get=> [? [] ??| [?|?]];[split=> //;SvD.fsetdec | left | SvD.fsetdec].
+  + by rewrite Heq=> _;right;clear; SvD.fsetdec.
+  by case: Mvar.get=> [? [] ? h| [?|h]]; [split=> //;clear -Heq h; SvD.fsetdec | left | right; clear -h; SvD.fsetdec].
 Qed.
 
 Lemma get_remove_cpm m xs x n:
@@ -1187,13 +1187,13 @@ Local Opaque opp_word.
       + have Hmi : Mvar_eq m' (Mvar.remove m' i).
         + move=> z;rewrite Mvar.removeP;case:ifPn => [/eqP <- | Hneq //].
           rewrite /m'; move: (remove_cpm_spec m (write_i (Cfor i (dir, lo, hi) c)) i).
-          by case: Mvar.get => // a []; rewrite write_i_for;SvD.fsetdec.
+          by case: Mvar.get => // a []; rewrite write_i_for;clear; SvD.fsetdec.
         have -> := valid_cpm_m (refl_equal (evm s1')) Hmi.
         by apply: remove_cpm1P Hw hval.
-      have /(_ _ _ (value_uincl_refl _)) [vm1' -> hvm1'] := write_var_uincl hvm1 _ Hw.
+      have /(_ _ (value_uincl_refl _)) [vm1' -> hvm1'] := write_var_uincl hvm1 _ Hw.
       by eexists.
     apply: remove_cpm_write1 hc => //.
-    by rewrite write_i_for; SvD.fsetdec.
+    by rewrite write_i_for; clear; SvD.fsetdec.
   + rewrite /Pc => a c e ii' c' hc hc' ii m /=.
     set m' := remove_cpm m (write_i (Cwhile a c e ii' c')).
     have := hc m'; case: const_prop => mc c2 /= {}hc.
@@ -1220,8 +1220,8 @@ Local Opaque opp_word.
     + by apply wkequiv_weaken => //; intuition.
     apply wequiv_while_uincl => //.
     + eapply wrequiv_weaken; last (by apply const_prop_ePe); intuition.
-    + by apply: remove_cpm_write hc => //; rewrite write_i_while; SvD.fsetdec.
-    by apply: remove_cpm_write1 hc' => //; rewrite write_i_while; SvD.fsetdec.
+    + by apply: remove_cpm_write hc => //; rewrite write_i_while; clear; SvD.fsetdec.
+    by apply: remove_cpm_write1 hc' => //; rewrite write_i_while; clear; SvD.fsetdec.
   move=> xs f es ii m /=.
   rewrite (surjective_pairing (const_prop_rvs _ _ _)) /=.
   apply wequiv_call_rel_uincl with checker_cp m => // ???.

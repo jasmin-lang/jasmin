@@ -240,7 +240,7 @@ Proof.
   move=> /(_ _ xi xi y imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.subr0.
   move=> vm' [hsem heq heqx] ; exists vm'; split => //=.
-  apply: eq_exI heq; rewrite /xi /=; SvD.fsetdec.
+  apply: eq_exI heq; rewrite /xi /=; clear; SvD.fsetdec.
 Qed.
 
 Lemma smart_addi_tmp_sem_fopn_args s (tmp : var_i) xname vi imm w :

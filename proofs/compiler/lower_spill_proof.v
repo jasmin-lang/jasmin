@@ -60,18 +60,18 @@ Lemma update_lvP S wdb gd env lv s1 s1' vm2 v :
 Proof.
   move=> [heqon hspill] hw hsub.
   case: (write_lval_eq_on (X:=S.(X)) (vm1 := vm2) _ hw _) => //.
-  + by move: hsub; rewrite /vars_lval; SvD.fsetdec.
+  + by move: hsub; rewrite /vars_lval; clear; SvD.fsetdec.
   move=> vm2' hw' heqon'; exists vm2' => //; split.
-  + by apply: eq_onI heqon'; SvD.fsetdec.
+  + by apply: eq_onI heqon'; clear; SvD.fsetdec.
   move=> x hin; have hin' : Sv.In x (Sv.diff env (vrv lv)).
-  + by case: (lv) hin hsub; rewrite /vars_lval => /=; SvD.fsetdec.
-  case: (hspill x); first by SvD.fsetdec.
+  + by case: (lv) hin hsub; rewrite /vars_lval => /=; clear; SvD.fsetdec.
+  case: (hspill x); first by clear -hin'; SvD.fsetdec.
   move=> hIn [sx hget hvm]; split => //; exists sx => //.
   have := vrvP hw'; rewrite !evm_with_vm => {hw' hw} heq.
-  rewrite -(heq x); last by SvD.fsetdec.
+  rewrite -(heq x); last by clear -hin'; SvD.fsetdec.
   rewrite -(heq sx) //.
   have [_ ] := (get_spillP (hget dummy_instr_info)).
-  by move: hsub; rewrite /vars_lval; SvD.fsetdec.
+  by move: hsub; rewrite /vars_lval; clear; SvD.fsetdec.
 Qed.
 
 Lemma update_lvsP S wdb gd env lvs s1 s1' vm2 vs :
@@ -87,9 +87,9 @@ Proof.
   move=> lv lvs hrec [] //= v vs env s1 vm2 hval.
   t_xrbindP => s1'' hw hws.
   rewrite /vars_lvals read_rvs_cons vrvs_cons => hsub.
-  case: (update_lvP hval hw); first by rewrite /vars_lval; SvD.fsetdec.
+  case: (update_lvP hval hw); first by rewrite /vars_lval; clear -hsub; SvD.fsetdec.
   move=> vm2'' -> /= hval''.
-  case: (hrec _ _ _ _ hval'' hws); first by rewrite /vars_lvals; SvD.fsetdec.
+  case: (hrec _ _ _ _ hval'' hws); first by rewrite /vars_lvals; clear -hsub; SvD.fsetdec.
   by move=> vm2' -> hval'; exists vm2'.
 Qed.
 
@@ -99,7 +99,7 @@ Lemma valid_env_e S wdb gd env e s1 vm2 :
   sem_pexpr wdb gd s1 e = sem_pexpr wdb gd (with_vm s1 vm2) e.
 Proof.
   move=> [heq hval] hX; apply: eq_on_sem_pexpr => //.
-  move=> x hx; rewrite heq //; SvD.fsetdec.
+  move=> x hx; rewrite heq //; clear -hX hx; SvD.fsetdec.
 Qed.
 
 Lemma valid_env_es S wdb gd env es s1 vm2 :
@@ -108,7 +108,7 @@ Lemma valid_env_es S wdb gd env es s1 vm2 :
   sem_pexprs wdb gd s1 es = sem_pexprs wdb gd (with_vm s1 vm2) es.
 Proof.
   move=> [heq hval] hX; apply: eq_on_sem_pexprs => //.
-  move=> x hx; rewrite heq //; SvD.fsetdec.
+  move=> x hx; rewrite heq //; clear -hX hx; SvD.fsetdec.
 Qed.
 
 Lemma get_PvarP ii e x : get_Pvar ii e = ok x -> e = Plvar x.
@@ -160,17 +160,17 @@ Proof.
   + by move=> z hz; rewrite heq ?Vm.setP_neq //; apply/eqP => h1; apply hnin; rewrite h1.
   rewrite /mk_lvar /read_gvar /= in hX.
   move=> x' hin'; case: (v_var x =P x') => heqx.
-  + subst x'; split; first by SvD.fsetdec.
+  + subst x'; split; first by clear -hX; SvD.fsetdec.
     exists sx.
     + by apply: get_spill_ii hsx.
-    rewrite Vm.setP_eq Vm.setP_neq; last by apply/eqP; SvD.fsetdec.
+    rewrite Vm.setP_eq Vm.setP_neq; last by apply/eqP; clear -hnin hX; SvD.fsetdec.
     rewrite vm_truncate_val_eq; last by rewrite -heqt; apply: truncate_val_has_type htr.
     move/get_varP: hx => /= [?] hdef hcomp; subst vx.
-    rewrite -heq; last by SvD.fsetdec.
+    rewrite -heq; last by clear -hX; SvD.fsetdec.
     by apply: (truncate_val_subctype_eq htr); apply getP_subctype.
-  case: (hval x'); first by SvD.fsetdec.
+  case: (hval x'); first by clear -hin' heqx; SvD.fsetdec.
   move=> hIn [sx' hsx' hvm]; split => //; exists sx' => //.
-  rewrite !Vm.setP_neq //; apply /eqP => heqsx; last by SvD.fsetdec.
+  rewrite !Vm.setP_neq //; apply /eqP => heqsx; last by clear -hnin hIn heqsx; SvD.fsetdec.
   by subst sx'; apply/heqx/(get_spill_inj hsx (hsx' ii)).
 Qed.
 
@@ -191,9 +191,9 @@ Proof.
   move=> hX hval [env1 ix] hix [env2 ixs] hixs /= ??.
   subst env2 c.
   rewrite (convertible_eval_atype hc1) in htr.
-  case: (spill_xP hx htr _ hval hix); first by SvD.fsetdec.
+  case: (spill_xP hx htr _ hval hix); first by clear -hX; SvD.fsetdec.
   move=> mv1 hs1 hval1.
-  case: (hrec _ _ _ _ _ _ _ hc2 hvxs htrs _ hval1 hixs); first by SvD.fsetdec.
+  case: (hrec _ _ _ _ _ _ _ hc2 hvxs htrs _ hval1 hixs); first by clear -hX; SvD.fsetdec.
   move=> vm' hs2 hval2; exists vm' => //=.
   by rewrite hs1 /= hs2.
 Qed.
@@ -258,8 +258,8 @@ Proof.
   rewrite vars_I_opn.
   case hop: is_spill_op => [ [so tys] | ]; last first.
   + case/ok_inj => <- <- hX hval.
-    rewrite (valid_env_es true gd hval) in hes; last by SvD.fsetdec.
-    case: (update_lvsP hval hws); first by SvD.fsetdec.
+    rewrite (valid_env_es true gd hval) in hes; last by clear -hX; SvD.fsetdec.
+    case: (update_lvsP hval hws); first by clear -hX; SvD.fsetdec.
     move=> vm' hws' hval'; exists vm' => //=.
     by rewrite -eq_globs /sem_sopn hes /= hex /= hws'.
   move/is_spill_opP: hop => ?; subst o.
@@ -269,20 +269,20 @@ Proof.
   + by case: xs hws => // -[->].
   case: so.
   + move=> hspill hX hval.
-    by apply: (spill_esP hes hvs' _ hval hspill); SvD.fsetdec.
+    by apply: (spill_esP hes hvs' _ hval hspill); clear -hX; SvD.fsetdec.
   t_xrbindP => c' hunspill <- ? hX hval; subst c'.
   by apply: (unspill_esP hes hvs' hval hunspill).
 Qed.
 
 Lemma valid_env_sub S env1 env2 vm vm' :
   Sv.Subset env1 env2 -> valid_env S env2 vm vm' -> valid_env S env1 vm vm'.
-Proof. move=> hsub [heq hval]; split => // x hx; apply hval; SvD.fsetdec. Qed.
+Proof. move=> hsub [heq hval]; split => // x hx; apply hval; clear -hsub hx; SvD.fsetdec. Qed.
 
 Lemma merge_env_sub_l env1 env2 : Sv.Subset (merge_env env1 env2) env1.
-Proof. rewrite /merge_env; SvD.fsetdec. Qed.
+Proof. rewrite /merge_env; clear; SvD.fsetdec. Qed.
 
 Lemma merge_env_sub_r env1 env2 : Sv.Subset (merge_env env1 env2) env2.
-Proof. rewrite /merge_env; SvD.fsetdec. Qed.
+Proof. rewrite /merge_env; clear; SvD.fsetdec. Qed.
 
 Lemma wloopP f ii c1 c2 n env ec:
     wloop f ii c1 c2 n env = ok ec →
@@ -301,7 +301,7 @@ Proof.
     by rewrite h1 /= h2 /= hsub.
   move=> _ /ih {h1 h2 env1} [env0 [env2' [hsub1 hf1 hf2 hsub2 heq]]].
   exists env0, env2'; split => //.
-  + by have := @merge_env_sub_l env env2; SvD.fsetdec.
+  + by have := @merge_env_sub_l env env2; clear -hsub1; SvD.fsetdec.
   rewrite hf1 /= hf2 /=.
   by move/SvD.F.subset_iff: hsub2 => ->; case: (ec) => ? [].
 Qed.
@@ -321,7 +321,7 @@ Proof.
     by rewrite hc /= hsub.
   move=> _ /hrec {hc c0} [env0 [hsub1 hc hsub2 heq]].
   exists env0; split => //.
-  + by have := @merge_env_sub_l env env1; SvD.fsetdec.
+  + by have := @merge_env_sub_l env env1; clear -hsub1; SvD.fsetdec.
   by rewrite hc /=; move/SvD.F.subset_iff: hsub2 => ->.
 Qed.
 
@@ -363,24 +363,24 @@ Proof.
     rewrite {2}/test /=; case: Sv_memP; first by rewrite fold_false.
     move=> hszH' {}/hrec hrec hsub hEin hgetin hget1 hget2.
     apply: (hrec (Sv.add z D)).
-    + by SvD.fsetdec.
+    + by clear -hsub; SvD.fsetdec.
     + by move=> x sx hx; apply hEin; rewrite in_cons hx orbT.
     + move=> x /hgetin; rewrite in_cons Sv_mem_add.
       by move=> /or3P [] ->; rewrite //= orbT.
     + move=> x sx hx hgetx.
       case: (x =P z) => hxz.
       + subst z; move: hgetx; rewrite (hEin x sz) ?in_cons ?eqxx // => -[?]; subst sz.
-        by SvD.fsetdec.
-      by case: (hget1 _ _ _ hgetx); SvD.fsetdec.
+        by clear -hszH' hsub; SvD.fsetdec.
+      by case: (hget1 _ _ _ hgetx); clear -hx hxz; SvD.fsetdec.
     move=> x sx y sy hinx hiny hgetx hgety.
     case: (Sv_memP x D) => hxD.
     + case: (Sv_memP y D) => hyD; first by apply hget2.
-      have ? : y = z by SvD.fsetdec.
+      have ? : y = z by clear -hiny hyD; SvD.fsetdec.
       move=> ?; subst y sy; have [??] := hget1 _ _ hxD hgetx.
       by move: hgety; rewrite (hEin z sz) ?in_cons ?eqxx // => -[?]; subst sz.
-    have ? : x = z by SvD.fsetdec.
+    have ? : x = z by clear -hinx hxD; SvD.fsetdec.
     move=> ?; subst x sx.
-    case: (Sv_memP y D) => hyD; last by SvD.fsetdec.
+    case: (Sv_memP y D) => hyD; last by clear -hiny hyD; SvD.fsetdec.
     have [??] := hget1 _ _ hyD hgety.
     by move: hgetx; rewrite (hEin z sz) ?in_cons ?eqxx // => -[?]; subst sz.
 
@@ -388,7 +388,7 @@ Proof.
   + by move=> x sx /Mvar.elementsP.
   + move=> x /=; case heq: (Mvar.get m x) => [ sx | //] _.
     by move/(Mvar.elementsP (x, sx)): heq; apply map_f.
-  + by SvD.fsetdec. + by SvD.fsetdec.
+  + by clear; SvD.fsetdec. + by clear; SvD.fsetdec.
 Qed.
 
 Lemma lower_get_spillP fi toS X m count :
@@ -503,58 +503,58 @@ Proof.
   + move=> > hi hc env env' c2 /=.
     t_xrbindP => -[envi i'] hi' [envc c'] hc' /= <- <-; rewrite vars_c_cons => hsub.
     rewrite -cat1s; apply wequiv_cat with (st_ve S envi).
-    + by apply hi => //; SvD.fsetdec.
-    by apply hc => //; SvD.fsetdec.
+    + by apply hi => //; clear -hsub; SvD.fsetdec.
+    by apply hc => //; clear -hsub; SvD.fsetdec.
   + move=> x tg ty e ii env env' c' [<- <-]; rewrite vars_I_assgn /vars_lval => hsub.
     apply wequiv_assgn_rel_eq with (checker_st_ve S) env => //.
-    + by split => //; rewrite /read_es /= read_eE; SvD.fsetdec.
-    by split => //; rewrite /vars_lvals /read_rvs /vrvs /= read_rvE vrv_recE; SvD.fsetdec.
+    + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
+    by split => //; rewrite /vars_lvals /read_rvs /vrvs /= read_rvE vrv_recE; clear -hsub; SvD.fsetdec.
   + move=> xs tg o es ii env env' c' hspill hsub.
     apply wequiv_opn_esem => s t s' /st_relP [-> /= hval] hop.
     have [vm2 ??] := lower_sopnP hop hspill hsub hval.
     by exists (with_vm s' vm2).
   + move=> x sc es ii env env' c' [<- <-]; rewrite vars_I_syscall => hsub.
     apply wequiv_syscall_rel_eq with (checker_st_ve S) env => //.
-    + by split => //; SvD.fsetdec.
-    split => //; SvD.fsetdec.
+    + by split => //; clear -hsub; SvD.fsetdec.
+    split => //; clear -hsub; SvD.fsetdec.
   + move=> a ii env env' c' [<- <-] hsub.
     by apply wequiv_noassert.
   + move=> e c1 c2 hc1 hc2 ii env env' c' /=; t_xrbindP.
     move=> [env1 c1'] hc1' [env2 c2'] hc2' <- <-.
     rewrite vars_I_if => hsub.
     apply wequiv_if_rel_eq with (checker_st_ve S) env env1 env2 => //.
-    + by split => //; rewrite /read_es /= read_eE; SvD.fsetdec.
+    + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
     + by move=> ??; apply/valid_env_sub/merge_env_sub_l.
     + by move=> ??; apply/valid_env_sub/merge_env_sub_r.
-    + by apply hc1 => //; SvD.fsetdec.
-    by apply hc2 => //; SvD.fsetdec.
+    + by apply hc1 => //; clear -hsub; SvD.fsetdec.
+    by apply hc2 => //; clear -hsub; SvD.fsetdec.
   + move=> i d lo hi c hc ii env env' c2 /=; t_xrbindP.
     move=> [env1 c'] /loopP [env2 [hsub1 hc' hsub2 _]] <- <-.
     rewrite vars_I_for => hsub => /=.
     apply wequiv_for_rel_eq with (checker_st_ve S) env1 env1 => //=.
-    + split => //; first by SvD.fsetdec.
-      by rewrite /read_es /= !read_eE; SvD.fsetdec.
+    + split => //; first by clear -hsub1; SvD.fsetdec.
+      by rewrite /read_es /= !read_eE; clear -hsub; SvD.fsetdec.
     + split => //.
-      + by rewrite /update_lvs /=; SvD.fsetdec.
-      rewrite /vars_lvals /read_rvs /vrvs /=; SvD.fsetdec.
+      + by rewrite /update_lvs /=; clear -hsub1; SvD.fsetdec.
+      rewrite /vars_lvals /read_rvs /vrvs /=; clear -hsub; SvD.fsetdec.
     apply wequiv_weaken with (st_ve S env1) (st_ve S env2) => //.
     + by apply st_rel_weaken => ??; apply valid_env_sub.
-    apply hc => //; SvD.fsetdec.
+    apply hc => //; clear -hsub; SvD.fsetdec.
   + move=> a c e ii' c' hc hc' ii env env' c_ /=; t_xrbindP.
     move=> [env1 [c2 c2']] /wloopP [env2] [env3] [/= hsub2 hc2 hc2' hsub23 _ <- <-].
     rewrite vars_I_while => hsub.
     apply wequiv_weaken with (st_ve S env2) (st_ve S env1) => //.
     + by apply st_rel_weaken => ??; apply valid_env_sub.
     apply wequiv_while_rel_eq with (checker_st_ve S) env1 => //.
-    + by split => //; rewrite /read_es /= read_eE; SvD.fsetdec.
-    + by apply hc => //; SvD.fsetdec.
+    + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
+    + by apply hc => //; clear -hsub; SvD.fsetdec.
     apply wequiv_weaken with (st_ve S env1) (st_ve S env3) => //.
     + by apply st_rel_weaken => ??; apply valid_env_sub.
-    by apply hc' => //; SvD.fsetdec.
+    by apply hc' => //; clear -hsub; SvD.fsetdec.
   move=> xs f es ii env env' _ [<- <-]; rewrite vars_I_call => hsub.
   apply wequiv_call_rel_eq with (checker_st_ve S) env => //.
-  + split => //; SvD.fsetdec.
-  + split => //; SvD.fsetdec.
+  + split => //; clear -hsub; SvD.fsetdec.
+  + split => //; clear -hsub; SvD.fsetdec.
   move=> fs fs' <-; exact/wequiv_fun_rec.
 Qed.
 

@@ -59,7 +59,7 @@ Proof.
   exists ((evm s).[x <- Vword (wrepr ws z)]); split => //.
   + rewrite /sem_assgn /= /truncate_val /= truncate_word_u /= LetK.
     by apply write_var_eq_type.
-  + by move=> y hy /=; rewrite Vm.setP_neq //; apply/eqP; SvD.fsetdec.
+  + by move=> y hy /=; rewrite Vm.setP_neq //; apply/eqP; clear -hy; SvD.fsetdec.
   by rewrite /get_gvar /= get_var_set /= ?cmp_le_refl !orbT //= eqxx.
 Qed.
 
@@ -114,7 +114,7 @@ Proof.
   have -> /= := is_Papp2P heq1.
   t_xrbindP => v1 he1 v2 he2 ho; rewrite read_e_Papp2 => hsub heq.
   have [hsub1 hsub2]: Sv.Subset (read_e e1) X /\ Sv.Subset (read_e e2) X.
-  + by split; SvD.fsetdec.
+  + by split; clear -hsub; SvD.fsetdec.
   have [vm1 [hsem1 heqon1 hsube1 {}he1]] := process_constantP heq3 he1 hsub1 heq hd1.
   have {}he2 : sem_pexpr wdb gd (with_vm s vm1) e2 = ok v2.
   + rewrite -he2; apply eq_on_sem_pexpr => //.
@@ -157,11 +157,11 @@ Proof.
   move=> s /(eq_initialize (p':=p') (fd':=with_body fd c')) -> //; last by rewrite -hp'.
   exists s => //=; exists (st_eq_on X), (st_eq_on X); split => //; last first.
   + apply wrequiv_weaken with (st_eq_on (vars_l (f_res (with_body fd c')))) eq => //.
-    + by apply st_rel_weaken => ??; apply eq_onI; rewrite /= /X vars_l_read_es; SvD.fsetdec.
+    + by apply st_rel_weaken => ??; apply eq_onI; rewrite /= /X vars_l_read_es; clear; SvD.fsetdec.
     by apply: (st_eq_on_finalize (fd':=with_body fd c')).
   clear s fn hget hget' fs funcs Hmap hp'.
   have : Sv.Subset (read_c (f_body fd)) X.
-  + by rewrite /X; SvD.fsetdec.
+  + by rewrite /X; clear; SvD.fsetdec.
   move: X c' hc' => X; move: (f_body fd) => {fd}.
   set Pi := fun i =>
     forall c', load_constants_i fresh_reg X i = ok c' -> Sv.Subset (read_I i) X ->
@@ -174,20 +174,20 @@ Proof.
   + by move=> c_ [<-] _; apply wequiv_nil.
   + move=> i c hi hc c_.
     rewrite /load_constants_c /=; t_xrbindP.
-    move=> _ i' hli c' hmap <- <- /=; rewrite read_writeE -cat1s => ?.
+    move=> _ i' hli c' hmap <- <- /=; rewrite read_writeE -cat1s => hsub.
     apply wequiv_cat with (st_eq_on X).
-    + by apply hi => //; SvD.fsetdec.
-    apply hc; last by SvD.fsetdec.
+    + by apply hi => //; clear -hsub; SvD.fsetdec.
+    apply hc; last by clear -hsub; SvD.fsetdec.
     by rewrite /load_constants_c hmap.
   + move=> x tg ty e ii _ [<-]; rewrite !read_writeE => hsub.
     apply wequiv_assgn_rel_eq with checker_st_eq_on X => //.
-    + by split => //; rewrite /read_es /= read_eE; SvD.fsetdec.
-    split => //; first by SvD.fsetdec.
-    by rewrite /read_rvs /= read_rvE; SvD.fsetdec.
+    + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
+    split => //; first by clear; SvD.fsetdec.
+    by rewrite /read_rvs /= read_rvE; clear -hsub; SvD.fsetdec.
   + move=> xs tg o es ii _ [<-]; rewrite !read_writeE => hsub.
-    by apply wequiv_opn_rel_eq with checker_st_eq_on X => //=; split=> //; SvD.fsetdec.
+    by apply wequiv_opn_rel_eq with checker_st_eq_on X => //=; split=> //; clear -hsub; SvD.fsetdec.
   + move=> xs sc es ii _ [<-]; rewrite !read_writeE => hsub.
-    by apply wequiv_syscall_rel_eq with checker_st_eq_on X => //=; split=> //; SvD.fsetdec.
+    by apply wequiv_syscall_rel_eq with checker_st_eq_on X => //=; split=> //; clear -hsub; SvD.fsetdec.
   + by move=> *; apply wequiv_noassert.
   + move=> e c1 c2 hc1 hc2 ii c_; t_xrbindP.
     move=> [c e'] hcond; t_xrbindP => c1' hc1' c2' hc2' <-; rewrite !read_writeE => hsub.
@@ -195,27 +195,27 @@ Proof.
     apply wequiv_if_esem with (st_eq_on X).
     + move=> s t v /st_relP [-> /= heq] he.
       have [ |vm' [???]] := process_conditionP hcond he _ heq.
-      + by SvD.fsetdec.
+      + by clear -hsub; SvD.fsetdec.
       by eexists; split;eauto.
     by move=> []; [apply hc1 | apply hc2]; move => //; clear -hsub; SvD.fsetdec.
   + move=> x dir lo hi c hc ii c_; t_xrbindP => c' hc' <-; rewrite !read_writeE => hsub.
     apply wequiv_for_rel_eq with checker_st_eq_on X X => //.
-    + by split => //; rewrite /read_es /= !read_eE; SvD.fsetdec.
-    + by split => //; rewrite /read_rvs /=; SvD.fsetdec.
-    by apply hc => //; SvD.fsetdec.
+    + by split => //; rewrite /read_es /= !read_eE; clear -hsub; SvD.fsetdec.
+    + by split => //; rewrite /read_rvs /=; clear -hsub; SvD.fsetdec.
+    by apply hc => //; clear -hsub; SvD.fsetdec.
   + move=> a c1 e ii' c2 hc1 hc2 ii c_; t_xrbindP => -[c e'] hcond; t_xrbindP.
     move=> c1' hc1' c2' hc2' <-; rewrite !read_writeE => hsub.
     apply wequiv_while_esem with (st_eq_on X).
-    + by apply hc1 => //; SvD.fsetdec.
+    + by apply hc1 => //; clear -hsub; SvD.fsetdec.
     + move=> s t v /st_relP [-> /= heq] he.
       have [ |vm' [???]] := process_conditionP hcond he _ heq.
-      + by SvD.fsetdec.
+      + by clear -hsub; SvD.fsetdec.
       by eexists; split;eauto.
-    by apply hc2 => //; SvD.fsetdec.
+    by apply hc2 => //; clear -hsub; SvD.fsetdec.
   move=> xs fn es ii _ [<-]; rewrite !read_writeE => hsub.
   apply wequiv_call_rel_eq with checker_st_eq_on X => //.
-  + by split => //; SvD.fsetdec.
-  + by split => //; SvD.fsetdec.
+  + by split => //; clear -hsub; SvD.fsetdec.
+  + by split => //; clear -hsub; SvD.fsetdec.
   by move=> ???; apply: wequiv_fun_rec.
 Qed.
 

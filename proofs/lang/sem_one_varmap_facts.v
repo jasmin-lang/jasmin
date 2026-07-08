@@ -46,7 +46,7 @@ Lemma Hopn : sem_Ind_opn p Pi_r.
 Proof. by move => ii s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => ???? /write_lvals_stack_stable. Qed.
 
 Lemma Hsyscall : sem_Ind_syscall p Pi_r.
-Proof. 
+Proof.
   move => ii s1 s2 o xs es scs m ves vs hes h; have {h} := exec_syscallS h; move=> [ho _] /write_lvals_stack_stable hw.
   by rewrite /Pi_r ho.
 Qed.
@@ -324,13 +324,13 @@ End NOT_WRITTEN.
 
 Lemma disjoint_unionE a b c :
   disjoint (Sv.union a b) c = disjoint a c && disjoint b c.
-Proof. rewrite Bool.eq_iff_eq_true /disjoint Bool.andb_true_iff !Sv.is_empty_spec; intuition SvD.fsetdec. Qed.
+Proof. rewrite Bool.eq_iff_eq_true /disjoint Bool.andb_true_iff !Sv.is_empty_spec; clear; intuition SvD.fsetdec. Qed.
 
 Lemma disjoint_singletonE a b :
   disjoint (Sv.singleton a) b = ~~ Sv.mem a b.
 Proof.
   rewrite Bool.eq_iff_eq_true /disjoint Sv.is_empty_spec Bool.negb_true_iff -SvD.F.not_mem_iff.
-  intuition SvD.fsetdec.
+  clear; intuition SvD.fsetdec.
 Qed.
 
 (* The contents of RSP and GD registers are preserved. *)
@@ -345,7 +345,7 @@ Let Pfun (_: instr_info) (k: Sv.t) (_: estate) (_: funname) (_: estate) : Prop :
 
 Local Lemma Hnil_pm : sem_Ind_nil Pc.
 Proof.
-  move => s; rewrite /Pc /disjoint; SvD.fsetdec.
+  move => s; rewrite /Pc /disjoint; clear; SvD.fsetdec.
 Qed.
 
 Lemma Hcons_pm : sem_Ind_cons p var_tmp Pc Pi.
@@ -389,7 +389,7 @@ Proof.
   - have := SvD.F.inter_2 X.
     rewrite /magic_variables SvD.F.add_iff Sv.singleton_spec.
     by case => [ <- | -> ].
-  by rewrite vflagsP //; SvD.fsetdec.
+  by rewrite vflagsP //; clear -X; SvD.fsetdec.
 Qed.
 
 Lemma Hproc_pm : sem_Ind_proc p var_tmp Pc Pfun.

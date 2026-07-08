@@ -171,7 +171,7 @@ Section PROOF.
 
   Lemma read_lea_mkLea d b sc o :
     Sv.Subset (read_lea (mkLea d b sc o)) (Sv.union (read_ovar b) (read_ovar o)).
-  Proof. rewrite /mkLea; case: ifP => _; rewrite /read_lea /=; SvD.fsetdec. Qed.
+  Proof. rewrite /mkLea; case: ifP => _; rewrite /read_lea /=; clear; SvD.fsetdec. Qed.
 
   Ltac read_lea_mkLea :=
     match goal with
@@ -183,7 +183,7 @@ Section PROOF.
     Sv.Subset (read_lea m) (Sv.union (read_lea m1) (read_lea m2)).
   Proof.
   Local Ltac lar :=
-    rewrite {-1}/read_lea /=; read_lea_mkLea; SvD.fsetdec.
+    rewrite {-1}/read_lea /=; read_lea_mkLea; clear; SvD.fsetdec.
   case: m1 m2 => [d1 b1 sc1 o1] [d2 b2 sc2 o2].
   case: b1 o1 => [ b1 | ] [ o1 | ] /=; last first.
   - case => <-; rewrite SvP.MP.empty_union_1; last exact: Sv.empty_spec.
@@ -232,17 +232,17 @@ Section PROOF.
     case: (mk_lea_rec sz e1) => // m1 /(_ _ erefl) ih1 e2.
     case: (mk_lea_rec sz e2) => // m2 /(_ _ erefl) ih2 m /lea_add_read.
     rewrite /free_vars /= !free_varsE.
-    by SvD.fsetdec.
+    by clear -ih1 ih2; SvD.fsetdec.
   + case => // sz' e1.
     case: (mk_lea_rec sz e1) => // m1 /(_ _ erefl) ih1 e2.
     case: (mk_lea_rec sz e2) => // m2 /(_ _ erefl) ih2 m /lea_mul_read.
     rewrite /free_vars /= !free_varsE.
-    by SvD.fsetdec.
+    by clear -ih1 ih2; SvD.fsetdec.
   case => // sz' e1.
   case: (mk_lea_rec sz e1) => // m1 /(_ _ erefl) ih1 e2.
   case: (mk_lea_rec sz e2) => // m2 /(_ _ erefl) ih2 m /lea_sub_read.
   rewrite /free_vars /= !free_varsE.
-  by SvD.fsetdec.
+  by clear -ih1 ih2; SvD.fsetdec.
   Qed.
 
   Lemma mk_lea_read sz e m :

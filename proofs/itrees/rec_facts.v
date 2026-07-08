@@ -203,7 +203,7 @@ Lemma interp_mrec_loop2_ {D E} (cond : forall T1, D T1 -> forall T2, D T2 -> boo
   forall {t : itree (D +' E) R} {u : itree (D +' E) R},
   invariant cond ctx t u ->
   interp_mrec ctx t ≈ interp_mrec (ctx2_cond cond ctx) u.
-Proof with auto.
+Proof.
   einit.
   ecofix SELF. induction 1 as [t | T1 d1 A t k | A t k k'].
   - destruct (case_itree t) as [ ? H | u H | A [d|e] k H ]; rewrite <- H; rewrite 2 unfold_interp_mrec; simpl.

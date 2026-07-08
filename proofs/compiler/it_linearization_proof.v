@@ -1143,14 +1143,14 @@ Section PROOF.
 
   Lemma var_tmp_not_magic : ~~ Sv.mem var_tmp (magic_variables p).
   Proof.
-    move/Sv.is_empty_spec: var_tmps_not_magic; rewrite /var_tmps => ?.
-    apply/Sv_memP; SvD.fsetdec.
+    move/Sv.is_empty_spec: var_tmps_not_magic; rewrite /var_tmps => h.
+    apply/Sv_memP; clear -h; SvD.fsetdec.
   Qed.
 
   Lemma var_tmp2_not_magic : ~~ Sv.mem var_tmp2 (magic_variables p).
   Proof.
-    move/Sv.is_empty_spec: var_tmps_not_magic; rewrite /var_tmps => ?.
-    apply/Sv_memP; SvD.fsetdec.
+    move/Sv.is_empty_spec: var_tmps_not_magic; rewrite /var_tmps => h.
+    apply/Sv_memP; clear -h; SvD.fsetdec.
   Qed.
 
   Hypothesis linear_ok : linear_prog liparams p = ok p'.
@@ -3388,7 +3388,7 @@ End ILSTEPS_END.
     - by apply/compat_value_uincl_undef/Vm.getP.
     rewrite -heq //.
     case: ra hneq hnin heq => [ | ? | [?|] ?] /=;
-      SvD.fsetdec.
+      clear; SvD.fsetdec.
   Qed.
 
   Lemma has_label_allocate_stack_frame p1 b ii z tmp rastack lbl :
@@ -3959,7 +3959,7 @@ End ILSTEPS_END.
 
     rewrite /ra_undef /ra_vm hra {hra} /=.
     move=> hnin.
-    case: Sv_memP => [? | _]; first by SvD.fsetdec.
+    case: Sv_memP => [hin | _]; first by clear -hnin hin; SvD.fsetdec.
     rewrite hvm2 {hvm2}; first done.
 
     clear -hne hnin.
@@ -3967,8 +3967,8 @@ End ILSTEPS_END.
     rewrite /saved_stack_vm /savedstackreg /=.
     case: sf_save_stack => [| r | ofs] hnin.
     all: rewrite SvP.MP.add_union_singleton || rewrite Sv_union_empty.
-    all: repeat (move=> /Sv.add_spec [|] /=; first SvD.fsetdec).
-    all: SvD.fsetdec.
+    all: repeat (move=> /Sv.add_spec [|] /=; first by clear; SvD.fsetdec).
+    all: clear -hne hnin; SvD.fsetdec.
   Qed.
 
   Lemma can_push (fd : sfundef) to_save lo hi vm1  s1 m1' m1 :

@@ -287,7 +287,7 @@ Lemma wf_varsI msf1 msf2 vm :
   Sv.Subset msf2 msf1 ->
   wf_vars msf1 vm ->
   wf_vars msf2 vm.
-Proof. move=> hI h x /Sv_memP hx; apply/h/Sv_memP; SvD.fsetdec. Qed.
+Proof. move=> hI h x /Sv_memP hx; apply/h/Sv_memP; clear -hI hx; SvD.fsetdec. Qed.
 
 Lemma wf_env_le env0 env1 gd s :
   Env.le env0 env1
@@ -383,7 +383,7 @@ Proof.
     rewrite (write_getP_neq _ hwrite); last by apply /eqP.
     apply: hwfvars.
     apply/Sv_memP.
-    SvD.fsetdec.
+    clear -hy hxy; SvD.fsetdec.
   apply: wf_cond_restrict hwfcond.
   exact: (vrvP_var hwrite).
 Qed.
@@ -413,8 +413,8 @@ Lemma wf_vars_diff vm vm' msf X:
   wf_vars (Sv.diff msf X) vm'.
 Proof.
   move=> heq hvm y /Sv_memP hy.
-  rewrite /get_var -heq; last by SvD.fsetdec.
-  by have [|//] := hvm y; apply/Sv_memP; SvD.fsetdec.
+  rewrite /get_var -heq; last by clear -hy; SvD.fsetdec.
+  by have [|//] := hvm y; apply/Sv_memP; clear -hy; SvD.fsetdec.
 Qed.
 
 (* Reducing this lemma to the [after_assign_vars] case is not so
@@ -427,7 +427,7 @@ Lemma wf_env_after_assign_var wdb env gd s s' x v :
 Proof.
   rewrite /Env.after_assign_var => -[hwfvars hwfcond] /vrvP_var heq.
   split => /=; last by apply: wf_cond_restrict hwfcond.
-  apply: (@wf_varsI (Sv.diff (Env.msf_vars env) (Sv.singleton x))); first SvD.fsetdec.
+  apply: (@wf_varsI (Sv.diff (Env.msf_vars env) (Sv.singleton x))); first by clear; SvD.fsetdec.
   by apply: wf_vars_diff hwfvars.
 Qed.
 

@@ -80,7 +80,6 @@ Lemma get_sourceP ii es src pfx s vm ves :
            evm s <=[X] vm1 &
            exists2 v', get_gvar true gd vm1 src = ok v' & value_uincl v v' ].
 Proof.
-  clear -Hp freshX.
   case: es => // e [] //.
   case: e => //.
   - move => x /ok_inj[] ? <- /=; subst x.
@@ -269,7 +268,6 @@ Lemma get_targetP ii xs dst sfx s1 len (t' t'': WArray.array len) s2 vm1 :
     evm s2 <=[X] vm2 &
     esem p2 ev sfx (with_vm s1 vm1) = ok (with_vm s2 vm2).
 Proof.
-  clear -Hp.
   case: xs => // x [] //.
   case: x => //.
   { move => x /ok_inj[] ??; subst x sfx => /=.

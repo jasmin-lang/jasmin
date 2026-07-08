@@ -76,12 +76,12 @@ Section PROOF.
     rewrite write_i_assgn in Hvm.
     move: Hvm; rewrite read_rvE read_eE=> Hvm.
     rewrite (surj_estate s1) in Hv.
-    have h : (evm s1) <=[read_e e] vm1 by apply: uincl_onI Hvm;SvD.fsetdec.
+    have h : (evm s1) <=[read_e e] vm1 by apply: uincl_onI Hvm; clear; SvD.fsetdec.
     have [v'' Hv'' Hveq] :=  sem_pexpr_uincl_on' h Hv.
     have Huincl := truncate_value_uincl Hv'.
     have [v''' Ht Hv''']:= value_uincl_truncate Hveq Hv'.
-    have [| vm2 Hvm2 Hw2]:= write_lval_uincl_on _ Hv''' Hw Hvm; first by SvD.fsetdec.
-    exists vm2; first by apply: uincl_onI Hvm2; SvD.fsetdec.
+    have [| vm2 Hvm2 Hw2]:= write_lval_uincl_on _ Hv''' Hw Hvm; first by clear; SvD.fsetdec.
+    exists vm2; first by apply: uincl_onI Hvm2; clear; SvD.fsetdec.
     by rewrite /= /sem_assgn -?eq_globs Hv'' /= Ht /= Hw2.
   Qed.
 
@@ -106,9 +106,9 @@ Section PROOF.
     t_xrbindP => s3 Hw Hws;rewrite /vrvs /= vrvs_recE -/vrv negb_or.
     move=> Hdisj /andP [] Hnw Hnh.
     have /(_ s) [] := Hwrite_disj Hw _ Hnw.
-    + by move: Hdisj;rewrite /disjoint /is_true !Sv.is_empty_spec;SvD.fsetdec.
+    + by move: Hdisj;rewrite /disjoint /is_true !Sv.is_empty_spec; clear; SvD.fsetdec.
     move=> -> Hvm ->;have [] := (Hrec _ _ Hws _ Hnh).
-    + by move: Hdisj;rewrite /disjoint /is_true !Sv.is_empty_spec;SvD.fsetdec.
+    + by move: Hdisj;rewrite /disjoint /is_true !Sv.is_empty_spec; clear; SvD.fsetdec.
     move=> ? H1 H2; split=> //; apply : eq_onT Hvm H1.
   Qed.
 
@@ -211,9 +211,9 @@ Section PROOF.
     apply: rbindP=> [[sv0' sc0']] Hone.
     case: (boolP (Sv.subset (Sv.union rx (Sv.diff sv0' wx)) sv0))=> /=.
     + move=> /Sv.subset_spec Hsub [??]; subst sv1 sc1;split=>//.
-      by exists sv0'; split=>//; SvD.fsetdec.
+      by exists sv0'; split=>//; clear; SvD.fsetdec.
     move=> _ Hloop.
-    move: (IH _ Hloop)=> [Hsub [sv2 [Hsv2 Hsv2']]];split;first by SvD.fsetdec.
+    move: (IH _ Hloop)=> [Hsub [sv2 [Hsv2 Hsv2']]];split;first by clear -Hsub; SvD.fsetdec.
     by exists sv2.
   Qed.
 
@@ -234,10 +234,10 @@ Section PROOF.
     + case/ok_inj => ?? /List_Forall2_inv_l[] v' [] l' [] ->{vs'} [] H1 H3 s1' hw hws heq; subst I xs'.
       have hv : value_uincl v v. auto.
       have [] := write_lval_uincl_on _ hv hw heq.
-      + by rewrite read_rvE; SvD.fsetdec.
+      + by rewrite read_rvE; clear; SvD.fsetdec.
       move=> vm1' heq' hw' /=.
       have [|vm2 [heqO hws']] := ih xs xs1 I1 s1' vs vm1' l' hc H3 hws.
-      + by apply: uincl_onI heq'; rewrite read_rvE; SvD.fsetdec.
+      + by apply: uincl_onI heq'; rewrite read_rvE; clear; SvD.fsetdec.
       have Hvm : vm_uincl (evm (with_vm s1 vm1)) vm1. done.
       have [vm3 Hw' Hvm']:= write_uincl Hvm H1 hw'. rewrite Hw' /=. rewrite /with_vm /=.
       have Hv' : values_uincl l' l' by done.
@@ -329,18 +329,18 @@ Section PROOF.
       by have [vm2 ??]:= Hopn_esem h hs hu; exists (with_vm s' vm2).
     + move=> /= xs o es ii I c' O [hI <-].
       apply wequiv_syscall_rel_uincl with checker_st_uincl_on I => //=; subst I.
-      + by split => //; rewrite read_esE; SvD.fsetdec.
-      by split => //; rewrite read_esE read_rvsE; SvD.fsetdec.
+      + by split => //; rewrite read_esE; clear; SvD.fsetdec.
+      by split => //; rewrite read_esE read_rvsE; clear; SvD.fsetdec.
     + move=> /= a ii I c' O [hI <-].
       by apply wequiv_noassert.
     + move=> e c1 c2 hc1 hc2 ii I c' O /=; t_xrbindP.
       move=> [I1 c1'] /hc1{}hc1 [I2 c2'] /hc2{}hc2 [??]; subst I c'.
       apply wequiv_if_rel_uincl with checker_st_uincl_on (read_e_rec (Sv.union I1 I2) e) O O => //=.
-      + split => //; rewrite /read_es /= !read_eE; SvD.fsetdec.
+      + split => //; rewrite /read_es /= !read_eE; clear; SvD.fsetdec.
       + apply wequiv_weaken with (st_uincl_on I1) (st_uincl_on O) => //.
-        by apply st_rel_weaken => ??; apply uincl_onI; rewrite read_eE; SvD.fsetdec.
+        by apply st_rel_weaken => ??; apply uincl_onI; rewrite read_eE; clear; SvD.fsetdec.
       apply wequiv_weaken with (st_uincl_on I2) (st_uincl_on O) => //.
-      by apply st_rel_weaken => ??; apply uincl_onI; rewrite read_eE; SvD.fsetdec.
+      by apply st_rel_weaken => ??; apply uincl_onI; rewrite read_eE; clear; SvD.fsetdec.
     + move=> x dir lo hi c hc ii I c_ O /=.
       case Hloop: loop => [[sv1 sc1] /=|//] [??]; subst I c_.
       move: (loopP Hloop) => [H1 [sv2 [/hc{}hc H2']]].
@@ -349,9 +349,9 @@ Section PROOF.
       + by apply st_rel_weaken => ??; apply uincl_onI.
       apply wequiv_for_rel_uincl with checker_st_uincl_on
          (read_e_rec (read_e_rec sv1 hi) lo) sv2 => //.
-      + by split => //; rewrite /read_es /= !read_eE; SvD.fsetdec.
-      + by move=> ??; apply uincl_onI; rewrite !read_eE; SvD.fsetdec.
-      by split => //; rewrite /vrvs /read_rvs //=; SvD.fsetdec.
+      + by split => //; rewrite /read_es /= !read_eE; clear; SvD.fsetdec.
+      + by move=> ??; apply uincl_onI; rewrite !read_eE; clear; SvD.fsetdec.
+      by split => //; rewrite /vrvs /read_rvs //=; clear -H2'; SvD.fsetdec.
     + move=> a c1 e ii' c2 hc1 hc2 ii I c_ O /=.
       set dobody := (X in wloop X).
       case Hloop: wloop => [[sv1 [c1' c2']] /=|//] [??]; subst sv1 c_.
@@ -361,23 +361,23 @@ Section PROOF.
       case heq1 : dead_code_c => [[Ic2 c2_]/= | //] [????]; subst sv2' Ic1 c1_ c2_.
       have {}hc2 := hc2 _ _ _ heq1. clear heq1.
       apply wequiv_weaken with (st_uincl_on I) (st_uincl_on (read_e_rec sv2 e)) => //.
-      + by apply st_rel_weaken => ??; apply uincl_onI; rewrite read_eE; SvD.fsetdec.
+      + by apply st_rel_weaken => ??; apply uincl_onI; rewrite read_eE; clear -H1; SvD.fsetdec.
       apply wequiv_while_rel_uincl with checker_st_uincl_on (read_e_rec sv2 e) => //.
-      + split => //; rewrite /read_es /= !read_eE; SvD.fsetdec.
+      + split => //; rewrite /read_es /= !read_eE; clear; SvD.fsetdec.
       apply wequiv_weaken with (st_uincl_on Ic2) (st_uincl_on I) => //.
-      by apply st_rel_weaken => ??; apply uincl_onI; rewrite read_eE; SvD.fsetdec.
+      by apply st_rel_weaken => ??; apply uincl_onI; rewrite read_eE; clear -H2; SvD.fsetdec.
     move=> xs f es ii I_ c_ O /=.
     set sxs := (X in Let sxs := X in _).
     case heq: sxs => [ [I xs'] | ] //= [??]; subst c_ I_.
     apply wequiv_call with (Pf:=rpreF (eS:=dc_spec)) (Qf:= rpostF (eS:=dc_spec))
       (Rv:=values_uincl) => //.
-    + by rewrite -eq_globs; apply read_es_st_uincl_on; rewrite read_esE; SvD.fsetdec.
+    + by rewrite -eq_globs; apply read_es_st_uincl_on; rewrite read_esE; clear; SvD.fsetdec.
     + by move=> > [].
     + move=> >; exact: wequiv_fun_rec.
     move=> _ _ fr1 fr2 _ /=; apply upd_st_rel.
     move=> vs1 vs2 hall.
     apply wrequiv_weaken with (st_uincl_on I) (st_uincl_on O) => //.
-    + by apply st_rel_weaken => ??; apply uincl_onI; rewrite read_esE; SvD.fsetdec.
+    + by apply st_rel_weaken => ??; apply uincl_onI; rewrite read_esE; clear; SvD.fsetdec.
     move=> s t s' /st_relP [-> /= hu] hw.
     move: heq hall; rewrite /sxs /fn_keep_only -eq_globs; case: onfun => [tokeep | [??]].
     + t_xrbindP=> hc Hv'.
@@ -385,13 +385,13 @@ Section PROOF.
       by eexists; first reflexivity.
     subst xs' I. have /= Hws := write_lvals_uincl_on _ _ hw hu.
     have Hsub : Sv.Subset (read_rvs xs) (read_rvs_rec (Sv.diff O (vrvs xs)) xs).
-    + by rewrite read_rvsE; SvD.fsetdec.
+    + by rewrite read_rvsE; clear; SvD.fsetdec.
     have Hv'' : values_uincl vs1 vs1 by done.
     have [vm2 Hvm2 /= Hvm2'] := Hws _ Hsub Hv'' => Hv'.
     have [vm3 Hws' /= Hvm'] := writes_uincl (vm_uincl_refl _) Hv' Hvm2'.
     rewrite Hws' /=; eexists; first reflexivity; split => //.
     apply : (@uincl_onT _ vm2).
-    + by apply: uincl_onI Hvm2; rewrite read_rvsE; SvD.fsetdec.
+    + by apply: uincl_onI Hvm2; rewrite read_rvsE; clear; SvD.fsetdec.
     by move=> z Hin; apply Hvm'.
   Qed.
 

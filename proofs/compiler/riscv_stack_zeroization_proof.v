@@ -224,7 +224,7 @@ Proof.
     by rewrite Vm.setP_eq.
   + rewrite Vm.setP_eq /=.
     by rewrite wrepr0.
-  by lia.
+  by clear -lt_0_stk_max; lia.
 Qed.
 
 End INIT.
@@ -270,8 +270,8 @@ Proof.
     rewrite /between /zbetween wsize8 !zify addE /top.
     rewrite -wrepr_sub -GRing.addrA -[(_ + wrepr _ k)%R]wrepr_add.
     have hbound := hsr.(sr_bound).
-    have ? := [elaborate (wunsigned_range (align_word ws_align ptr))].
-    rewrite [_ (_ + _ + _)%R]wunsigned_add; last rewrite wunsigned_sub; lia.
+    have h := [elaborate (wunsigned_range (align_word ws_align ptr))].
+    by rewrite [_ (_ + _ + _)%R]wunsigned_add; last rewrite wunsigned_sub; clear -hstack hn hk hbound h; lia.
   move=> /(writeV 0) [m' hm'].
   eexists (Estate _ _ _); split=> /=.
   + apply: (lsem_n_eval_lin (n:=1) hbody) => //=.
@@ -317,7 +317,7 @@ Proof.
     apply: disjoint_zrange_incl_l hp.
     rewrite /top /zbetween !zify -wrepr_sub.
     assert (h := wunsigned_range (align_word ws_align ptr)).
-    by rewrite wunsigned_add; last rewrite wunsigned_sub; lia.
+    by rewrite wunsigned_add; last rewrite wunsigned_sub; clear -hstack hn hbound h; lia.
   + move=> p hb.
     rewrite (write_read8 hm') subE /=.
     case: ifPn => [_|h].
@@ -326,11 +326,11 @@ Proof.
     move: h hb; rewrite /between /zbetween wsize8 !zify /top.
     change riscv_reg_size with Uptr.
     rewrite -wrepr_sub -wrepr_opp -!GRing.addrA -!wrepr_add.
-    have ? := [elaborate (wunsigned_range (align_word ws_align ptr))].
+    have h := [elaborate (wunsigned_range (align_word ws_align ptr))].
     rewrite wunsigned_sub_if.
-    rewrite wunsigned_add; last by lia.
-    rewrite wunsigned_add; last by lia.
-    case: ZleP; lia.
+    rewrite wunsigned_add; last by clear -hstack hn hbound h; lia.
+    rewrite wunsigned_add; last by clear -hstack hbound h; lia.
+    case: ZleP; clear; lia.
   + by do 2 (rewrite (eq_ex_set_l _ (eq_ex_refl _));
       last by case; apply Sv.add_spec; right;
       apply /hsubset /sv_of_listP; rewrite !in_cons /= eqxx /= ?orbT).
@@ -344,7 +344,7 @@ Proof.
     have /is_align_addE <- := [elaborate (is_align_mul ws 1)].
     rewrite Z.mul_1_r GRing.addrC GRing.subrK.
     by rewrite WArray.arr_is_align.
-  by lia.
+  by clear -hn hbound; lia.
   Local Transparent wsize_size.
 Qed.
 
@@ -362,16 +362,16 @@ Proof.
   have [k hn]: (exists k, n = Z.of_nat k * wsize_size ws)%Z.
   + have := hsr.(sr_aligned).
     rewrite is_alignE WArray.p_to_zE.
-    move=> /eqP /Z.mod_divide [//|m ?].
+    move=> /eqP /Z.mod_divide [//|m h].
     exists (Z.to_nat m).
     rewrite Z2Nat.id //.
     have := wsize_size_pos ws.
-    by lia.
+    by clear -hlt h; lia.
   elim: k n s2 hsr hlt hn => [|k ih] n s2 hsr hlt hn.
   + move: hn; rewrite Z.mul_0_l.
-    by lia.
+    by clear -hlt; lia.
   have [s3 [hsem3 hsr3]] := loop_bodyP hsubset hsr hlt.
-  have: (k = 0 \/ 0 < k)%coq_nat by lia.
+  have: (k = 0 \/ 0 < k)%coq_nat by clear; lia.
   case=> hk.
   + subst k.
     move: hn; rewrite Z.mul_1_l => ?; subst n.
@@ -382,8 +382,8 @@ Proof.
          /get_var hsr3.(srl_off) /= /sem_sop2 /= !truncate_word_u /=
          Z.sub_diag eqxx /= -(addn1 4) addnA addn1; reflexivity.
     by move: hsr3; rewrite Z.sub_diag.
-  have hlt3: (0 < n - wsize_size ws)%Z by nia.
-  have hn3: (n - wsize_size ws)%Z = (Z.of_nat k * wsize_size ws)%Z by lia.
+  have hlt3: (0 < n - wsize_size ws)%Z by clear -hlt hn hk; nia.
+  have hn3: (n - wsize_size ws)%Z = (Z.of_nat k * wsize_size ws)%Z by clear -hn; lia.
   have [s4 [hsem4 hsr4]] := ih _ _ hsr3 hlt3 hn3.
   exists s4; split=> //.
   apply: (lsem_n_trans hsem3).
@@ -392,13 +392,13 @@ Proof.
   rewrite /get_var /= hsr3.(srl_off) /= /sem_sop2 /= !truncate_word_u /=.
   have->: (wrepr riscv_reg_size (n - wsize_size ws) != wrepr riscv_reg_size 0).
   + apply /eqP => /(f_equal wunsigned).
-    rewrite wrepr0 wunsigned0 wunsigned_repr_small; first by lia.
+    rewrite wrepr0 wunsigned0 wunsigned_repr_small; first by clear -hlt3; lia.
     change U32 with Uptr.
     change riscv_reg_size with Uptr.
     have := hsr.(sr_bound).
     have! := (wunsigned_range (align_word ws_align ptr)).
     have := wsize_size_pos ws.
-    by lia.
+    by clear -hstack hlt3; lia.
   have [lfd -> -> /=] := hbody.
   rewrite (find_label_cat_hd (sip := sip_of_asm_e) _ hlabel).
   rewrite (find_labelE (sip := sip_of_asm_e)) /=.
@@ -484,7 +484,7 @@ Proof.
 Local Opaque wsize_size Z.of_nat.
   move=> hsr hlt.
   have hlt': (0 < Z.of_nat n.+1 * wsize_size ws <= stk_max)%Z.
-  + split; first by have := wsize_size_pos ws; lia.
+  + split; first by have := wsize_size_pos ws; clear; lia.
     etransitivity; last by apply (Z.mul_div_le _ (wsize_size ws)).
     rewrite Z.mul_comm; apply Z.mul_le_mono_nonneg_l => //.
     rewrite Nat2Z.inj_succ.
@@ -500,13 +500,13 @@ Local Opaque wsize_size Z.of_nat.
     rewrite /between /zbetween wsize8 !zify addE /top.
     rewrite -GRing.addrA -[(_ + wrepr _ k)%R]wrepr_add.
     have hbound := hsr.(sr_bound).
-    have ? := [elaborate (wunsigned_range (align_word ws_align ptr))].
-    by rewrite [_ (_ + _ + _)%R]wunsigned_add; last rewrite wunsigned_sub; lia.
+    have h := [elaborate (wunsigned_range (align_word ws_align ptr))].
+    by rewrite [_ (_ + _ + _)%R]wunsigned_add; last rewrite wunsigned_sub; clear -hstack hlt' hk hbound h; lia.
   move=> /(writeV 0) [m' hm'].
   eexists (Estate _ _ _); split.
   + apply: (lsem_n_eval_lin1 (n:= n) hbody) => //.
     + rewrite oseq.onth_cat !size_map size_rev size_ziota.
-      have hlt'': n < Z.to_nat (stk_max / wsize_size ws) by apply /ltP; lia.
+      have hlt'': n < Z.to_nat (stk_max / wsize_size ws) by apply /ltP; clear -hlt; lia.
       rewrite hlt''.
       rewrite onth_map.
       rewrite oseq.onth_nth (nth_map 0%Z); last by rewrite size_rev size_ziota.
@@ -515,10 +515,10 @@ Local Opaque wsize_size Z.of_nat.
           stk_max - Z.of_nat n.+1 * wsize_size ws)%Z.
       rewrite nth_rev; last by rewrite size_ziota.
       rewrite nth_ziota /=; last first.
-      + by rewrite size_ziota -minusE; apply /ltP; lia.
+      + by rewrite size_ziota -minusE; apply /ltP; clear -hlt; lia.
       rewrite size_ziota.
       rewrite Nat2Z.n2zB //.
-      rewrite Z2Nat.id; last by lia.
+      rewrite Z2Nat.id; last by clear -hlt; lia.
       rewrite Z.mul_sub_distr_r.
       rewrite Z.mul_comm -(proj2 (Z.div_exact _ _ _)) //.
       by move: halign; rewrite is_alignE WArray.p_to_zE => /eqP.
@@ -542,7 +542,7 @@ Local Opaque wsize_size Z.of_nat.
     apply: disjoint_zrange_incl_l hp.
     rewrite /top /zbetween !zify.
     assert (h := wunsigned_range (align_word ws_align ptr)).
-    by rewrite wunsigned_add; last rewrite wunsigned_sub; lia.
+    by rewrite wunsigned_add; last rewrite wunsigned_sub; clear -hstack hlt' hbound h; lia.
   + move=> p hb.
     rewrite (write_read8 hm') subE /=.
     case: ifPn => [_|h].
@@ -551,16 +551,16 @@ Local Opaque wsize_size Z.of_nat.
     move: h hb; rewrite /between /zbetween wsize8 !zify /top.
     change riscv_reg_size with Uptr.
     rewrite -wrepr_opp -!GRing.addrA -!wrepr_add.
-    have ? := [elaborate (wunsigned_range (align_word ws_align ptr))].
+    have h := [elaborate (wunsigned_range (align_word ws_align ptr))].
     rewrite wunsigned_sub_if.
-    rewrite wunsigned_add; last by lia.
-    rewrite wunsigned_add; last by lia.
-    case: ZleP; lia.
+    rewrite wunsigned_add; last by clear -hstack hlt' hbound h; lia.
+    rewrite wunsigned_add; last by clear -hstack hbound h; lia.
+    case: ZleP; clear; lia.
   + rewrite -WArray.arr_is_align.
     have /is_align_addE <- := [elaborate (is_align_mul ws (Z.of_nat n.+1))].
     rewrite Z.mul_comm wrepr_sub GRing.addrC GRing.subrK.
     by rewrite WArray.arr_is_align.
-  by lia.
+  by clear -hlt' hbound; lia.
 Local Transparent wsize_size Z.of_nat.
 Qed.
 
@@ -583,7 +583,7 @@ Proof.
     exists (Z.to_nat m).
     split.
     + rewrite Z2Nat.id //.
-      by have := wsize_size_pos ws; lia.
+      by have := wsize_size_pos ws; clear -lt_0_stk_max h; lia.
     by rewrite h Z.div_mul.
   rewrite -(Z.sub_diag stk_max).
   rewrite {1 3}hmax {hmax}.
@@ -594,7 +594,7 @@ Proof.
     apply lsem_n_0.
   have [s3 [hsem3 hsr3]] := ih _ (ltnW hbound) hsr.
   have hbound': (Z.of_nat k < stk_max / wsize_size ws)%Z.
-  + by move/leP: hbound; lia.
+  + by move/leP: hbound; clear; lia.
   have [s4 [hsem4 hsr4]] := unrolled_bodyP hsr3 hbound'.
   exists s4; split=> //.
   by apply (lsem_n_trans hsem3).
@@ -622,7 +622,7 @@ Lemma stack_zero_loopP (s1 : estate) :
           (of_estate s2 fn (size pre + size (stack_zero_loop rspi lbl ws_align ws stk_max)))
       & state_rel_unrolled stack_zero_loop_vars s1 s2 0 ptr].
 Proof.
- move=> hvalid hrsp.
+  move=> hvalid hrsp.
   move: hbody; rewrite /stack_zero_loop -!catA => hbody'.
   have hsubset_init: Sv.Subset sz_init_vars stack_zero_loop_vars.
   + move=> x /sv_of_listP hin.
@@ -735,7 +735,7 @@ Lemma riscv_stack_zero_cmdP szs rspn lbl ws_align ws stk_max cmd vars :
   stack_zeroization_cmd szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
   stack_zeroization_proof.sz_cmd_spec rspn lbl ws_align ws stk_max cmd vars.
 Proof.
- move=> hcmd rsp_nin lt_0_stk_max halign le_ws_ws_align lp fn lc
+  move=> hcmd rsp_nin lt_0_stk_max halign le_ws_ws_align lp fn lc
     /negP hlabel hbody ls ptr hfn hpc hstack hrsp top hvalid.
   have [s2 [hsem hsr]]: [elaborate
     exists s2,
@@ -751,12 +751,12 @@ Proof.
           lt_0_stk_max halign le_ws_ws_align hstack ws_small hbody rsp_nin
           hlabel (s1 := to_estate _) hvalid hrsp.
       by rewrite -hfn -hpc of_estate_to_estate.
-    + move=> [??]; subst cmd vars.
-      rewrite -(cats0 (stack_zero_unrolled _ _ _ _)) in hbody.
-      have := stack_zero_unrolledP
-          lt_0_stk_max halign le_ws_ws_align hstack ws_small hbody rsp_nin
-          (s1 := to_estate _) hvalid hrsp.
-      by rewrite -hfn -hpc of_estate_to_estate.
+    move=> [??]; subst cmd vars.
+    rewrite -(cats0 (stack_zero_unrolled _ _ _ _)) in hbody.
+    have := stack_zero_unrolledP
+        lt_0_stk_max halign le_ws_ws_align hstack ws_small hbody rsp_nin
+        (s1 := to_estate _) hvalid hrsp.
+    by rewrite -hfn -hpc of_estate_to_estate.
 
   exists (emem s2), (evm s2); split=> //.
   + by rewrite -{2}hfn /of_estate -hsr.(sr_scs) in hsem.

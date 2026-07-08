@@ -101,8 +101,8 @@ Section SUBSET.
   Local Lemma Scons  : forall i c, Pi i -> Pc c -> Pc (i::c).
   Proof.
     move=> i c Hi Hc X2 Xc /=.
-    apply:rbindP=> Xc' /Hc ?;apply:rbindP => Xi /Hi ? [<-] /=.
-    rewrite read_c_cons;SvD.fsetdec.
+    apply:rbindP=> Xc' /Hc{}Hc;apply:rbindP => Xi /Hi{}Hi [<-] /=.
+    rewrite read_c_cons; clear -Hc Hi; SvD.fsetdec.
   Qed.
 
   Local Lemma Sasgn  : forall x tag t e, Pr (Cassgn x tag t e).
@@ -120,8 +120,8 @@ Section SUBSET.
   Local Lemma Sif    : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Proof.
     move=> e c1 c2 Hc1 Hc2 ii X2 Xc /=.
-    apply: rbindP => Xc1 /Hc1 ?;apply:rbindP=> Xc2 /Hc2 ? [<-] /=.
-    rewrite read_Ii read_i_if read_eE;SvD.fsetdec.
+    apply: rbindP => Xc1 /Hc1{}Hc1; apply:rbindP=> Xc2 /Hc2{}Hc2 [<-] /=.
+    rewrite read_Ii read_i_if read_eE; clear -Hc1 Hc2; SvD.fsetdec.
   Qed.
 
   Local Lemma Sfor   : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
@@ -163,10 +163,10 @@ Proof.
   rewrite /=;t_xrbindP => ve Hse ves Hves ??;subst => v1; rewrite /dc_truncate_val /= => htr vs1 htrs <-.
   t_xrbindP => s1 Hw Hws.
   rewrite /sem_assgn Hse /= htr /= Hw /=.
-  apply: Hrec htrs Hws;first by SvD.fsetdec.
+  apply: Hrec htrs Hws;first by clear -Hempty; SvD.fsetdec.
   symmetry; rewrite -Hves; apply eq_on_sem_pexprs.
   + by apply: write_var_memP Hw.
-  apply: (eq_ex_disjoint_eq_on (vrvP_var Hw)); apply /disjointP; SvD.fsetdec.
+  apply: (eq_ex_disjoint_eq_on (vrvP_var Hw)); apply /disjointP; clear -Hempty; SvD.fsetdec.
 Qed.
 
 Lemma assgn_tuple_Pvar (p:uprog) ev ii xs flag tys rxs vs vs' s s' :
@@ -191,11 +191,11 @@ Proof.
   t_xrbindP => ve Hse vz Hses ?? v1; rewrite /dc_truncate_val /= => htr vs1 htrs ?; subst ve vz vs'.
   t_xrbindP => s1 Hw Hws.
   rewrite /sem_assgn /= /get_gvar /mk_lvar /=.
-  have /get_var_eq_on <- //: evm s0 =[Sv.singleton rx] evm s; last by SvD.fsetdec.
-  + by move=> y ?;apply: Heqe; SvD.fsetdec.
+  have /get_var_eq_on <- //: evm s0 =[Sv.singleton rx] evm s; last by clear; SvD.fsetdec.
+  + by move=> y h; apply: Heqe; clear -Hempty h; SvD.fsetdec.
   rewrite Hse /= htr /= Hw /=.
-  apply: Hrec Hses htrs Hws;[SvD.fsetdec| |SvD.fsetdec].
-  by move=> y Hy;rewrite Heqe //;apply (vrvP Hw);SvD.fsetdec.
+  apply: Hrec Hses htrs Hws;[clear -Hsub; SvD.fsetdec| |clear -Hempty; SvD.fsetdec].
+  by move=> y Hy;rewrite Heqe //;apply (vrvP Hw); clear -Hsub Hy; SvD.fsetdec.
 Qed.
 
 Lemma extend_iinfo_cmd_eq_cmd info c :
@@ -311,36 +311,36 @@ Proof.
     by rewrite -cat1s; apply wequiv_cat with (st_uincl_on X).
   + move=> x tg ty e ii X1 X2 _ [? <-].
     apply wequiv_assgn_rel_uincl with checker_st_uincl_on X1 => //=; subst X1; split => //.
-    + by rewrite /read_es /= read_eE !read_writeE; SvD.fsetdec.
-    + by rewrite !read_writeE; SvD.fsetdec.
-    by rewrite /read_rvs !read_writeE /= read_rvE; SvD.fsetdec.
+    + by rewrite /read_es /= read_eE !read_writeE; clear; SvD.fsetdec.
+    + by rewrite !read_writeE; clear; SvD.fsetdec.
+    by rewrite /read_rvs !read_writeE /= read_rvE; clear; SvD.fsetdec.
   + move=> xs tg o es ii X1 X2 _ [? <-].
     by apply wequiv_opn_rel_uincl with checker_st_uincl_on X1 => //=; subst X1; split => //;
-      rewrite !read_writeE; SvD.fsetdec.
+      rewrite !read_writeE; clear; SvD.fsetdec.
   + move=> xs o es ii X1 X2 _ [? <-].
     by apply wequiv_syscall_rel_uincl with checker_st_uincl_on X1 => //=; subst X1; split => //;
-      rewrite !read_writeE; SvD.fsetdec.
+      rewrite !read_writeE; clear; SvD.fsetdec.
   + by move=> ? ii ??? _; apply wequiv_noassert.
   + move=> e c1 c2 hc1 hc2 ii X1 X2 c_; t_xrbindP.
     move=> [X11 c1'] /hc1{}hc1 [X12 c2'] /hc2{}hc2 ? <-.
     apply wequiv_if_rel_uincl with checker_st_uincl_on X1 X2 X2 => //=; subst X1.
-    + by split => //=; rewrite /read_es /= !read_eE; SvD.fsetdec.
+    + by split => //=; rewrite /read_es /= !read_eE; clear; SvD.fsetdec.
     + apply: wequiv_weaken hc1 => //=; apply st_rel_weaken => ??; apply uincl_onI.
-      by rewrite read_eE; SvD.fsetdec.
+      by rewrite read_eE; clear; SvD.fsetdec.
     apply: wequiv_weaken hc2 => //=; apply st_rel_weaken => ??; apply uincl_onI.
-    by rewrite read_eE; SvD.fsetdec.
+    by rewrite read_eE; clear; SvD.fsetdec.
   + move=> x dir lo hi c hc ii X1 X2 c_; t_xrbindP.
     move=> [X' c'] /[dup] /inline_c_subset /= hX' /hc{}hc ? <- /=.
     apply wequiv_weaken with (st_uincl_on X1) (st_uincl_on X1) => //.
-    + by subst X1; apply st_rel_weaken => ??; apply uincl_onI; SvD.fsetdec.
+    + by subst X1; apply st_rel_weaken => ??; apply uincl_onI; clear; SvD.fsetdec.
     apply wequiv_for_rel_uincl with checker_st_uincl_on X1 X'; subst X1 => //=.
-    + by split => //=; rewrite /read_es /= !read_eE !read_writeE; clear; SvD.fsetdec.
-    by split => //; rewrite ?hX' !read_writeE /read_rvs /=; clear; SvD.fsetdec.
+    + by split => //=; rewrite /read_es /= !read_eE !read_writeE; clear; clear; SvD.fsetdec.
+    by split => //; rewrite ?hX' !read_writeE /read_rvs /=; clear; clear; SvD.fsetdec.
   + move=> al c1 e ii' c2 hc1 hc2 ii X1 X2 c_; t_xrbindP.
     move=> [Xc1 c1'] /[dup] /inline_c_subset /= hXc1 /hc1{}hc1.
     move=> [Xc2 c2']  /[dup] /inline_c_subset /= hXc2 /hc2{}hc2 ? <-.
     apply wequiv_weaken with (st_uincl_on X1) (st_uincl_on X1) => //.
-    + by subst X1; apply st_rel_weaken => ??; apply uincl_onI; SvD.fsetdec.
+    + by subst X1; apply st_rel_weaken => ??; apply uincl_onI; clear; SvD.fsetdec.
     apply wequiv_while_rel_uincl with checker_st_uincl_on X1; subst X1 => //=.
     + by split => //; rewrite /read_es /= read_eE !read_writeE; clear; SvD.fsetdec.
     + apply: wequiv_weaken hc1 => //; apply st_rel_weaken => ??; apply uincl_onI.
@@ -445,7 +445,7 @@ Proof.
   have := assgn_tuple_Pvar _ (ii_with_location ii) AT_rename hdisjr hget' htr'.
   move=> /(_ p2 ev t1' hws1) /(esem_i_bodyP (sem_F := sem_fun_rec E)) -> /=.
   apply xrutt.xrutt_Ret.
-  by apply: st_rel_weaken hpost; subst X1 => ??; apply: uincl_onI; SvD.fsetdec.
+  by apply: st_rel_weaken hpost; subst X1 => ??; apply: uincl_onI; clear; SvD.fsetdec.
 Qed.
 
 End FD.
