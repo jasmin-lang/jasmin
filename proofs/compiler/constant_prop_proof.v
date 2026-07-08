@@ -728,14 +728,6 @@ Proof.
   by case: Mvar.get=> [? [] ??| [?|?]];[split=> //;SvD.fsetdec | left | SvD.fsetdec].
 Qed.
 
-Lemma remove_cpm2 m xs : Mvar_eq (remove_cpm (remove_cpm m xs) xs) (remove_cpm m xs).
-Proof.
-  move=> z;have := remove_cpm_spec (remove_cpm m xs) xs z.
-  case: Mvar.get=> [? [] | [ | ]] // Hin.
-  have := remove_cpm_spec m xs z.
-  by case: Mvar.get=> // ? [] _ H;elim H.
-Qed.
-
 Lemma get_remove_cpm m xs x n:
   Mvar.get (remove_cpm m xs) x = Some n ->
   Mvar.get m x = Some n /\ ~Sv.In x xs.
@@ -749,12 +741,6 @@ Proof.
   move=> Hrho Hval x nx /get_remove_cpm [] Hm Hin.
   rewrite -Hrho //; apply (Hval _ _ Hm).
 Qed.
-
-Lemma remove_cpmP s s' m x v:
-  write_lval wdb gd x v s = ok s' ->
-  valid_cpm (evm s) m ->
-  valid_cpm (evm s') (remove_cpm m (vrv x)).
-Proof. move=> Hw Hv; apply: (valid_cpm_rm _ Hv);eapply vrvP;eauto. Qed.
 
 End GLOB_DEFS.
 
@@ -947,33 +933,6 @@ Section PROPER.
   Qed.
 
 End PROPER.
-
-Lemma const_prop_i_m :
-  Proper (eq ==> @Mvar_eq const_v ==> eq ==> @Mvarc_eq const_v) const_prop_i.
-Proof.
-  move=> g _ <- m1 m2 Hm i1 i2 <-.
-  exact:
-    (instr_Rect (Wmk (gd:=g)) (Wnil g) (Wcons (gd:=g)) (Wasgn g) (Wopn g) (Wsyscall g) (Wassert g)
-       (Wif (gd:=g)) (Wfor (gd:=g)) (Wwhile (gd:=g)) (Wcall g)).
-Qed.
-
-Lemma const_prop_i_r_m :
-  Proper (eq ==> @Mvar_eq const_v ==> eq ==> eq ==> @Mvarc_eq const_v) const_prop_ir.
-Proof.
-  move=> g _ <- m1 m2 Hm ii1 ii2 <- i1 i2 <-.
-  exact:
-    (instr_r_Rect (Wmk (gd:=g)) (Wnil g) (Wcons (gd:=g)) (Wasgn g) (Wopn g) (Wsyscall g) (Wassert g)
-       (Wif (gd:=g)) (Wfor (gd:=g)) (Wwhile (gd:=g)) (Wcall g)).
-Qed.
-
-Lemma const_prop_m g :
-  Proper (@Mvar_eq const_v ==> eq ==> @Mvarc_eq const_v) (const_prop (const_prop_i g)).
-Proof.
-  move=> m1 m2 Hm c1 c2 <-.
-  exact:
-    (cmd_rect (Wmk (gd:=g)) (Wnil g) (Wcons (gd:=g)) (Wasgn g) (Wopn g) (Wsyscall g) (Wassert g)
-       (Wif (gd:=g)) (Wfor (gd:=g)) (Wwhile (gd:=g)) (Wcall g)).
-Qed.
 
 Lemma valid_cpm_m :
   Proper (eq ==> @Mvar_eq const_v ==> iff) valid_cpm.

@@ -39,9 +39,6 @@ Definition se_update_arguments (ii : instr_info) : pp_error_loc :=
 Definition se_protect_arguments (ii : instr_info) : pp_error_loc :=
   compiler_util.pp_internal_error_s_at pass_name ii "x86_protect arguments are invalid.".
 
-Definition se_protect_ptr (ii : instr_info) : pp_error_loc :=
-  compiler_util.pp_internal_error_s_at pass_name ii "Found protect_ptr.".
-
 End E.
 
 

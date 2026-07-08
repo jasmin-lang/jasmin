@@ -263,12 +263,6 @@ case hget: get_fundef => [fd|//] [fd' ? [?]]; subst fd'.
 by exists fd.
 Qed.
 
-Lemma get_map_cfprog_gen' F fn f':
-  map_cfprog_gen info F p = ok p' ->
-  get_fundef p' fn = Some f' ->
-  exists2 f, F f = ok f' & get_fundef p fn = Some f.
-Proof. by apply get_map_cfprog_name_gen'. Qed.
-
 End PROOF.
 
 (* -------------------------------------------------------- *)
@@ -291,9 +285,6 @@ Definition pp_internal_error_s_at pass (ii:instr_info) (s:string) :=
   pp_at_ii ii (pp_internal_error_s pass s).
 
 Definition safety_expression_remains := "safety expression remains"%string.
-
-Definition pp_safety_remains pass :=
-  pp_internal_error_s pass safety_expression_remains.
 
 Definition pp_safety_remains_at pass ii :=
   pp_internal_error_s_at pass ii safety_expression_remains.

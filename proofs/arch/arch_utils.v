@@ -112,12 +112,6 @@ Proof.
 Qed.
 
 #[local]
-Lemma all_beheadn {A} {p : A -> bool} {n : nat} {xs : seq A} :
-  all p xs ->
-  all p (beheadn n xs).
-Proof. move=> h. elim: n => // n'. exact: all_behead. Qed.
-
-#[local]
 Lemma all2_beheadn
   {A B} {p : A -> B -> bool} {n : nat} {xs : seq A} {ys : seq B} :
   all2 p xs ys ->

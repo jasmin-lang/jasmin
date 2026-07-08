@@ -158,12 +158,6 @@ Module Type MAP.
   Parameter removeP : forall {T} (m: t T) x y,
     (remove m x).[y] = if x == y then None else m.[y].
 
-  Parameter removeP_eq : forall {T} (m: t T) x,
-    (remove m x).[x] = None.
-
-  Parameter removeP_neq : forall {T} (m: t T) x y,
-    x != y -> (remove m x).[y] = m.[y].
-
   Parameter mapP : forall {T1 T2} (f:T1 -> T2) (m:t T1) (x:K.t),
     (map f m).[x] = omap f m.[x].
 
@@ -366,12 +360,6 @@ Module Mmake (K':CmpType) <: MAP.
     move=> Hneq;have -> // : (x == y) = false.
     by case : (x =P y) => // ?;subst;elim Hneq; exact: Ordered.eq_refl.
   Qed.
-
-  Lemma removeP_eq {T} (m: t T) x: (remove m x).[x] = None.
-  Proof. by rewrite removeP eq_refl. Qed.
-
-  Lemma removeP_neq {T} (m: t T) x y: x != y -> (remove m x).[y] = m.[y].
-  Proof. by rewrite removeP => /negPf ->. Qed.
 
   Lemma mapP {T1 T2} (f:T1 -> T2) (m:t T1) (x:K.t):
     (map f m).[x] = omap f m.[x].

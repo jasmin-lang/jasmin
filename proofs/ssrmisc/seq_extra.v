@@ -12,13 +12,6 @@ Section PairFoldLeft.
     then pairfoldl (f z t x) x s'
     else z.
 
-  Lemma pairfoldl_rcons z t s x :
-    pairfoldl z t (rcons s x) =
-    f (pairfoldl z t s) (last t s) x.
-  Proof.
-    by elim: s z t => [|hs ts IHs] /=.
-  Qed.
-
 End PairFoldLeft.
 
 
@@ -50,22 +43,6 @@ Section OnthProps.
 
 End OnthProps.
 
-
-Lemma take_onth (T : Type) n (s : seq T) :
-  take n.+1 s =
-  match onth s n with
-  | Some x => rcons (take n s) x
-  | None   => take n s
-  end.
-Proof. by elim: s n => [|x s IHs] //= [|n] /=; rewrite ?take0 ?IHs //; case: (onth _ _). Qed.
-
-Lemma drop_onth (T : Type) n (s : seq T) :
-  drop n s =
-  match onth s n with
-  | Some x => x :: (drop n.+1 s)
-  | None   => drop n.+1 s
-  end.
-Proof. by elim: s n => [|x s IHs] //= [|n] /=; rewrite ?drop0. Qed.
 
 Lemma onth_take_drop (T:Type) (t:T) l i:
   onth l i = Some t ->
@@ -113,11 +90,4 @@ Proof.
   move=> hsymm.
   elim=> [|x1 l1 ih] [|x2 l2] //=.
   by move=> /andP [/hsymm -> /ih ->].
-Qed.
-
-Lemma all2_trans T (p : rel T) : transitive p → transitive (all2 p).
-Proof.
-  move=> htrans.
-  elim=> [|x1 l1 ih] [|x2 l2] [|x3 l3] //=.
-  by move=> /andP [/htrans{}htrans /ih{}ih] /andP [/htrans -> /ih ->].
 Qed.
