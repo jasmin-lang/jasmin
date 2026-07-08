@@ -443,52 +443,53 @@ Qed.
 
 (* Bind closure and bind lemmas. *)
 
-Section XRuttBind.
-  Context {E1 E2: Type -> Type}.
-  Context {R1 R2 : Type}.
+(* Section XRuttBind. *)
+(*   Context {E1 E2: Type -> Type}. *)
+(*   Context {R1 R2 : Type}. *)
 
-  Context (EE1: forall X, E1 X -> bool).
-  Context (EE2: forall X, E2 X -> bool).
+(*   Context (EE1: forall X, E1 X -> bool). *)
+(*   Context (EE2: forall X, E2 X -> bool). *)
 
-  Context (REv : forall (A B : Type), E1 A -> E2 B -> Prop).
-  Context (RAns : forall (A B : Type), E1 A -> A -> E2 B -> B -> Prop).
-  Context (RR : R1 -> R2 -> Prop).
+(*   Context (REv : forall (A B : Type), E1 A -> E2 B -> Prop). *)
+(*   Context (RAns : forall (A B : Type), E1 A -> A -> E2 B -> B -> Prop). *)
+(*   Context (RR : R1 -> R2 -> Prop). *)
 
-Inductive xrutt_bind_clo (r : itree E1 R1 -> itree E2 R2 -> Prop) :
-  itree E1 R1 -> itree E2 R2 -> Prop :=
-| rbc_intro_h U1 U2 (RU : U1 -> U2 -> Prop) t1 t2 k1 k2
-      (EQV: xrutt EE1 EE2 REv RAns RU t1 t2)
-      (REL: forall u1 u2, RU u1 u2 -> r (k1 u1) (k2 u2))
-  : xrutt_bind_clo (ITree.bind t1 k1) (ITree.bind t2 k2)
-.
-Hint Constructors xrutt_bind_clo: core.
+(* Inductive xrutt_bind_clo (r : itree E1 R1 -> itree E2 R2 -> Prop) : *)
+(*   itree E1 R1 -> itree E2 R2 -> Prop := *)
+(* | rbc_intro_h U1 U2 (RU : U1 -> U2 -> Prop) t1 t2 k1 k2 *)
+(*       (EQV: xrutt EE1 EE2 REv RAns RU t1 t2) *)
+(*       (REL: forall u1 u2, RU u1 u2 -> r (k1 u1) (k2 u2)) *)
+(*   : xrutt_bind_clo (ITree.bind t1 k1) (ITree.bind t2 k2) *)
+(* . *)
+(* Hint Constructors xrutt_bind_clo: core. *)
 
-Lemma xrutt_clo_bind :
-  xrutt_bind_clo <3= gupaco2 (xrutt_ EE1 EE2 REv RAns RR)
-                            (euttge_trans_clo EE1 EE2 RR).
-Proof.
-  intros rr. gcofix CIH. intros. destruct PR.
-  gclo; econstructor; auto_ctrans_eq.
-  1,2: rewrite unfold_bind; reflexivity.
-  punfold EQV. unfold xrutt_ in *.
-  hinduction EQV before CIH; intros; pclearbot; cbn;
-    repeat (change (ITree.subst ?k ?m) with (ITree.bind m k)).
-  - gclo. econstructor; auto_ctrans_eq.
-    1,2: reflexivity.
-    eauto with paco.
-  - gstep. econstructor. eauto 7 with paco.
-  - gstep. econstructor; eauto 7 with paco.
-    intros. specialize (H2 a b H3). pclearbot. eauto 7 with paco.
-  - gstep. econstructor; auto.
-  - gstep. econstructor; auto.
-  - gclo. econstructor; auto_ctrans_eq; cycle -1; eauto; try reflexivity.
-    eapply eqit_Tau_l. rewrite unfold_bind. reflexivity.
-  - gclo. econstructor; auto_ctrans_eq; cycle -1; eauto; try reflexivity.
-    eapply eqit_Tau_l. rewrite unfold_bind. reflexivity.
-Qed.
+(* Lemma xrutt_clo_bind : *)
+(*   xrutt_bind_clo <3= gupaco2 (xrutt_ EE1 EE2 REv RAns RR) *)
+(*                             (euttge_trans_clo EE1 EE2 RR). *)
+(* Proof. *)
+(*   intros rr. gcofix CIH. intros. destruct PR. *)
+(*   gclo; econstructor; auto_ctrans_eq. *)
+(*   1,2: rewrite unfold_bind; reflexivity. *)
+(*   punfold EQV. unfold xrutt_ in *. *)
+(*   hinduction EQV before CIH; intros; pclearbot; cbn; *)
+(*     repeat (change (ITree.subst ?k ?m) with (ITree.bind m k)). *)
+(*   - gclo. econstructor; auto_ctrans_eq. *)
+(*     1,2: reflexivity. *)
+(*     eauto with paco. *)
+(*   - gstep. econstructor. eauto 7 with paco. *)
+(*   - gstep. econstructor; eauto 7 with paco. *)
+(*     intros. specialize (H2 a b H3). pclearbot. eauto 7 with paco. *)
+(*   - gstep. econstructor; auto. *)
+(*   - gstep. econstructor; auto. *)
+(*   - gclo. econstructor; auto_ctrans_eq; cycle -1; eauto; try reflexivity. *)
+(*     eapply eqit_Tau_l. rewrite unfold_bind. reflexivity. *)
+(*   - gclo. econstructor; auto_ctrans_eq; cycle -1; eauto; try reflexivity. *)
+(*     eapply eqit_Tau_l. rewrite unfold_bind. reflexivity. *)
+(* Qed. *)
 
-End XRuttBind.
+(* End XRuttBind. *)
 
+(* Based on [RuttFacts.rutt_bind]. *)
 Lemma xrutt_bind {E1 E2 R1 R2}
       (EE1: forall X, E1 X -> bool)
       (EE2: forall X, E2 X -> bool)
@@ -503,9 +504,23 @@ Lemma xrutt_bind {E1 E2 R1 R2}
       xrutt EE1 EE2 REv RAns RT (k1 r1) (k2 r2)) ->
     xrutt EE1 EE2 REv RAns RT (ITree.bind t1 k1) (ITree.bind t2 k2).
 Proof.
-  intros. ginit.
-  eapply gpaco2_uclo; [|eapply xrutt_clo_bind|]; eauto with paco.
-  econstructor; eauto. intros; subst. gfinal. right. apply H0. eauto.
+  revert t1 t2. coinduction c CIH. icbn. intros t1 t2 Hrutt EQK.
+  step in Hrutt. genobs t1 ot1. genobs t2 ot2.
+  hinduction Hrutt before CIH; intros.
+  - rewrite !observe_bind; simpobs.
+    specialize EQK with (1 := H).
+    step in EQK. now do 2 step.
+  - rewrite !observe_bind; simpobs.
+    apply EqTau. apply CIH; auto.
+  - rewrite !observe_bind; simpobs.
+    apply EqVis; auto. intros a b HAns.
+    apply CIH; auto. now apply H2. 
+  - rewrite !observe_bind; simpobs. now apply EqCutL.
+  - rewrite !observe_bind; simpobs. now apply EqCutR.
+  - rewrite observe_bind; simpobs.
+    apply EqTauL. apply IHHrutt; auto.
+  - rewrite (observe_bind _ k2); simpobs.
+    apply EqTauR. apply IHHrutt; auto.
 Qed.
 
 (* Used to build the cutoff predicate for itrees with recursion *)
