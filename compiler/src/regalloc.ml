@@ -957,6 +957,11 @@ let two_phase_coloring
           match get_friend_registers fr a i regs with
           | y -> y
           | exception Not_found ->
+             let regs =
+               let is_callee_saved r = List.mem r Arch.callee_save_vars in
+               let calle_saved, volatile = List.partition is_callee_saved regs in
+               if volatile = [] then calle_saved else volatile
+             in
              (* Pick a register that is currently allocated to a maximal number of variables with the same name. *)
              let same_names r = A.rfind r a |> snd |> Ss.inter names in
              let y, _ =
