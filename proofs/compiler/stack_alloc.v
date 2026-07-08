@@ -939,7 +939,7 @@ Definition get_global (x:var_i) :=
 
 Definition get_local (x:var) := Mvar.get pmap.(locals) x.
 
-Definition get_var_kind x :=
+Definition get_var_kind x : cexec var_kind :=
   let xv := x.(gv) in
   if is_glob x then
     Let z := get_global xv in
