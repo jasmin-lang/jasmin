@@ -47,7 +47,7 @@ Section INCL.
 
 
   Lemma inline_c_incl c : Pc c.
-  Proof.
+  Proof using Incl.
     apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => // {c}.
     + move=> i c Hi Hc X1 c' X2 /=.
       by t_xrbindP => -[Xc cc] /Hc -> /= -[Xi ci] /Hi -> /= -> <-.
@@ -67,7 +67,7 @@ Section INCL.
   Lemma inline_incl fd fd' :
     inline_fd' p  fd = ok fd' ->
     inline_fd' p' fd = ok fd'.
-  Proof. by rewrite /inline_fd'; t_xrbindP => -[??] /inline_c_incl -> <-. Qed.
+  Proof using Incl. by rewrite /inline_fd'; t_xrbindP => -[??] /inline_c_incl -> <-. Qed.
 
 End INCL.
 
@@ -255,7 +255,7 @@ Proof. by apply checker_st_uincl_onP. Qed.
 
 Lemma it_inline_fd_aux fn' :
   wiequiv_f p1 p2 ev ev (rpreF (eS:=uincl_spec)) fn' fn' (rpostF (eS:=uincl_spec)).
-Proof.
+Proof using uniq_funname inline_fd_ok.
   move=> fs1 fs2 hpre.
   rewrite (isem_call_inline p1 ev do_inline).
   move: fs1 fs2 hpre.
@@ -464,7 +464,7 @@ Lemma inline_fd_consP (pfuncs1 pfuncs0 pfuncs2 pfuncs: ufun_decls) :
   uniq [seq x.1 | x <- p_funcs p2] /\
   ((forall fn, wiequiv_f p p1 ev ev (rpreF (eS:=uincl_spec)) fn fn (rpostF (eS:=uincl_spec))) ->
    (forall fn, wiequiv_f p p2 ev ev (rpreF (eS:=uincl_spec)) fn fn (rpostF (eS:=uincl_spec)))).
-Proof.
+Proof using rE_trans.
   elim: pfuncs1 pfuncs0 pfuncs2 pfuncs => /= [ | [fn1 fd1] pfuncs1 hrec] pfuncs0 pfuncs2 pfuncs.
   + by move=> [->].
   rewrite {1}/inline_fd_cons; t_xrbindP.
@@ -486,7 +486,7 @@ Qed.
 Lemma it_inline_call_errP p' fn :
   inline_prog_err extend_iinfo p = ok p' ->
   wiequiv_f p p' ev ev (rpreF (eS:=uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-Proof.
+Proof using rE_trans.
   rewrite /inline_prog_err; case: ifP => //; t_xrbindP => huniq pfuncs h <-.
   have /(_ [::]) /= := inline_fd_consP h.
   rewrite cats0 => /(_ huniq) [_ ]; apply => fn'; rewrite (surj_prog p).

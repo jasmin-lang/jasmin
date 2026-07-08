@@ -223,7 +223,7 @@ Section PROOF.
 
   Lemma it_dead_calls_callP fn :
     wiequiv_f p p' ev ev (rpreF (eS:= dc_spec)) fn fn (rpostF (eS:=dc_spec)).
-  Proof.
+  Proof using pfxp.
     apply wequiv_fun_ind => {}fn _ fs _ [<- <- hin] fd hfd; exists fd => //.
     + by apply get_dead_calls.
     move=> s hinit.

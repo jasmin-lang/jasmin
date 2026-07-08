@@ -91,28 +91,28 @@ Context (eq_globs: p_globs p = p_globs p').
 
 Lemma st_eq_sem_pexpr wdb d e :
   wrequiv (st_eq d) ((sem_pexpr wdb (p_globs p))^~ e) ((sem_pexpr wdb (p_globs p'))^~ e) eq.
-Proof.
+Proof using eq_globs.
   move=> s t v /st_relP [-> /=] hvm; rewrite eq_globs.
   rewrite -sem_pexpr_ext_eq //; eauto.
 Qed.
 
 Lemma st_eq_sem_pexprs wdb d es :
   wrequiv (st_eq d) ((sem_pexprs wdb (p_globs p))^~ es) ((sem_pexprs wdb (p_globs p'))^~ es) eq.
-Proof.
+Proof using eq_globs.
   move=> s t v /st_relP [-> /=] hvm; rewrite eq_globs.
   rewrite -sem_pexprs_ext_eq //; eauto.
 Qed.
 
 Lemma st_eq_write_lvals wdb d x v d':
   wrequiv (st_eq d) (fun s => write_lvals wdb (p_globs p) s x v) (fun s => write_lvals wdb (p_globs p') s x v) (st_eq d').
-Proof.
+Proof using eq_globs.
   rewrite eq_globs => s t s' /st_relP [-> /=] h1 h2.
   by have [vm2 h ->] := write_lvars_ext_eq h1 h2; eexists; eauto.
 Qed.
 
 Lemma st_eq_sem_eassert d e :
   wrequiv (st_eq d) ((sem_eassert (p_globs p))^~ e) ((sem_eassert (p_globs p'))^~ e) eq.
-Proof.
+Proof using eq_globs.
   move=> s t v /st_relP [-> /=] hvm; rewrite eq_globs.
   rewrite -sem_eassert_ext_eq //; eauto.
 Qed.
@@ -121,14 +121,14 @@ Lemma wdb_ok_eq wdb1 wdb2 : wdb_ok wdb1 wdb2 -> wdb1 = wdb2.
 Proof. by case => -[-> ->]. Qed.
 
 Lemma checker_st_eqP : Checker_eq p p' checker_st_eq.
-Proof.
+Proof using eq_globs.
   constructor.
   + by move=> wdb _ d es1 es2 d' /wdb_ok_eq <- <-; apply st_eq_sem_pexprs.
   move=> wdb _ d xs1 xs2 d' /wdb_ok_eq <- <- vs; apply st_eq_write_lvals.
 Qed.
 
 Lemma checker_a_st_eqP : Checker_a_eq p p' checker_a_st_eq.
-Proof. constructor; move=> > ->; apply st_eq_sem_eassert. Qed.
+Proof using eq_globs. constructor; move=> > ->; apply st_eq_sem_eassert. Qed.
 #[local] Hint Resolve checker_st_eqP checker_a_st_eqP : core.
 
 Section FUN.
@@ -144,7 +144,7 @@ Let Pc c := wequiv p p' ev ev' (st_eq tt) c c (st_eq tt).
 Lemma wequiv_st_eq c :
   (forall ii f, wequiv_f_ii p p' ev ev' (λ (_ _ : funname), eq) ii ii f f (λ (_ _ : funname) (_ _ : fstate), eq)) ->
   Pc c.
-Proof.
+Proof using eq_globs.
   move=> hf; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}.
   + by apply wequiv_nil.
   + by move=> *; apply wequiv_cons with (st_eq tt).
@@ -180,7 +180,7 @@ Lemma esem_vm_eq s1 c s2 vm1:
   esem p ev c s1 = ok s2 ->
   (evm s1 =1 vm1)%vm ->
   exists2 vm2, esem p' ev c (with_vm s1 vm1) = ok (with_vm s2 vm2) & evm s2 =1 vm2.
-Proof.
+Proof using eq_globs.
   move: s1 s2 vm1; apply (cmd_rect (Pi:=Pi) (Pr:=Pi_r) (Pc:=Pc)) => // {c}.
   + by move=> s1 s2 vm1 /= [<-] ?; exists vm1.
   + move=> i c hi hc s1 s2 vm1 /=; t_xrbindP.
@@ -222,7 +222,7 @@ Section REC.
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
 Lemma wequiv_rec_st_eq c : wequiv_rec p p' ev ev' eq_spec (st_eq tt) c c (st_eq tt).
-Proof.
+Proof using eq_globs.
   apply wequiv_st_eq.
   by move=> ii f s t <-; apply xrutt_facts.xrutt_trigger.
 Qed.
@@ -241,7 +241,7 @@ Lemma st_eq_finalize fd fd' :
   f_extra fd = f_extra fd' ->
   f_res fd = f_res fd' ->
   wrequiv (st_eq tt) (finalize_funcall fd) (finalize_funcall fd') eq.
-Proof.
+Proof using spp. (* FIXME: can probably be proved without spp *)
   rewrite /finalize_funcall => <- <- <- s t fs' [h1 h2 h3].
   t_xrbindP => vs.
   rewrite -!(sem_pexprs_get_var _ [::]).
@@ -368,7 +368,7 @@ Lemma st_eq_on_finalize fd fd' :
   f_extra fd = f_extra fd' ->
   f_res fd = f_res fd' ->
   wrequiv (st_eq_on (vars_l (f_res fd))) (finalize_funcall fd) (finalize_funcall fd') eq.
-Proof.
+Proof using spp. (* FIXME: can probably be proved without spp *)
   rewrite /finalize_funcall => <- <- <- /= s t fs [hscs hmem hvm].
   t_xrbindP => vs hget vs' htr <-.
   move: hget; rewrite -(sem_pexprs_get_var _ [::]) => hres.
@@ -388,7 +388,7 @@ Local Notation gd' := (p_globs p').
 Context (eq_globs : gd = gd').
 
 Lemma checker_st_eq_onP : Checker_eq p p' checker_st_eq_on.
-Proof.
+Proof using eq_globs.
   constructor; rewrite -eq_globs.
   + by move=> wdb _ d es1 es2 d' /wdb_ok_eq <- [? <- ?]; apply read_es_st_eq_on.
   move=> wdb ? d xs1 xs2 d' /wdb_ok_eq <- [hsub <- ?] vs.
@@ -398,7 +398,7 @@ Proof.
 Qed.
 
 Lemma checker_a_st_eq_onP : Checker_a_eq p p' checker_a_st_eq_on.
-Proof.
+Proof using eq_globs.
   constructor.
   move=> d es1 es2 d' [? <- ?]; rewrite eq_globs.
   by apply read_eassert_st_eq_on.
@@ -407,7 +407,7 @@ Qed.
 #[local] Hint Resolve checker_st_eq_onP checker_a_st_eq_onP: core.
 
 Lemma checker_st_uincl_onP : Checker_uincl p p' checker_st_uincl_on.
-Proof.
+Proof using eq_globs.
   constructor; rewrite -eq_globs.
   + by move=> wdb _ d es1 es2 d' /wdb_ok_eq <- [? <- ?]; apply read_es_st_uincl_on.
   move=> wdb _ d xs1 xs2 d' /wdb_ok_eq <- [hsub <- ?] vs1 vs2 hu.
@@ -437,7 +437,7 @@ Lemma it_read_cP_aux c X :
      wequiv_f_ii p p' ev ev' (λ (_ _ : funname), eq) ii ii fn fn (λ _ _  _ _, eq)) ->
   Sv.Subset (read_c c) X ->
   wequiv p p' ev ev' (st_eq_on X) c c (st_eq_on X).
-Proof.
+Proof using eq_globs.
   move=> hfn; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c X}.
   + by move=> i ii hi X; apply hi.
   + by move=> ii X; apply wequiv_nil.
@@ -484,7 +484,7 @@ Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 Lemma it_read_cP_rec X c :
   Sv.Subset (read_c c) X ->
   wequiv_rec p p' ev ev' eq_spec (st_eq_on X) c c (st_eq_on X).
-Proof.
+Proof using eq_globs.
   apply it_read_cP_aux.
   by move=> ii f s t <-; apply xrutt_facts.xrutt_trigger.
 Qed.
@@ -587,7 +587,7 @@ Local Notation gd' := (p_globs p').
 Context (eq_globs : gd = gd').
 
 Lemma checker_st_uinclP : Checker_uincl p p' checker_st_uincl.
-Proof.
+Proof using eq_globs.
   constructor; rewrite -eq_globs.
   + by move=> wdb _ d es1 es2 d' /wdb_ok_eq <- <-; apply read_es_st_uincl.
   move=> wdb _ d xs1 xs2 d' /wdb_ok_eq <- <-; apply write_lvals_st_uincl.
@@ -608,7 +608,7 @@ Lemma it_sem_uincl_aux c :
   (forall ii fn,
      wequiv_f_ii p p' ev ev' (λ (_ _ : funname), fs_uincl) ii ii fn fn (λ _ _  _ _, fs_uincl)) ->
   wequiv p p' ev ev' (st_uincl tt) c c (st_uincl tt).
-Proof.
+Proof using eq_globs.
   move=> hfn; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}.
   + by move=> i ii hi X; apply hi.
   + by move=> ii X; apply wequiv_nil.
@@ -681,7 +681,7 @@ Lemma fs_uincl_on_finalize fd fd' :
   f_extra fd = f_extra fd' ->
   f_res fd = f_res fd' ->
   wrequiv (st_uincl_on (vars_l (f_res fd))) (finalize_funcall fd) (finalize_funcall fd') fs_uincl.
-Proof.
+Proof using spp. (* FIXME: can probably be proved without spp *)
   rewrite /finalize_funcall => <- <- <- /= s t fs /st_relP [-> /= hvm].
   t_xrbindP => vs hget vs' htr <-.
   move: hget; rewrite -(sem_pexprs_get_var _ [::]) => hres.
@@ -720,7 +720,7 @@ Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
 Lemma it_sem_uincl_rec c :
   wequiv_rec p p' ev ev' uincl_spec (st_uincl tt) c c (st_uincl tt).
-Proof.
+Proof using eq_globs.
   apply it_sem_uincl_aux => //.
   by move=> ii f s t hu; apply xrutt_facts.xrutt_trigger.
 Qed.
@@ -748,7 +748,7 @@ Definition checker_eq_cmd : Checker_e (st_rel (λ _ : unit, vm_uincl)) :=
      check_esP_rel := check_esP_R_st_eq_cmd |}.
 
 Lemma checker_eq_cmdP : Checker_uincl p p' checker_eq_cmd.
-Proof.
+Proof using eq_globs.
   constructor; rewrite -eq_globs.
   + move=> wdb _ d es1 es2 d' /wdb_ok_eq <- hes s t vs1 /st_relP [-> /= huincl] hvs1.
     have [vs2 hvs2 hincl]:= sem_pexprs_uincl huincl hvs1.
@@ -780,7 +780,7 @@ Lemma it_eq_cmdP_aux c :
      wequiv_f_ii p p' ev ev' (λ (_ _ : funname), fs_uincl) ii ii' fn fn (λ _ _  _ _, fs_uincl)) ->
   forall c', eq_cmd c c' ->
   wequiv p p' ev ev' (st_uincl tt) c c' (st_uincl tt).
-Proof.
+Proof using eq_globs.
   move=> hfn; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => {c}.
   + by move=> i ii hi [??] /= ?; apply hi.
   + by move=> [|//] _; apply wequiv_nil.
@@ -825,7 +825,7 @@ Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 Lemma it_eq_cmdP_rec c c' :
   eq_cmd c c' ->
   wequiv_rec p p' ev ev' uincl_spec (st_uincl tt) c c' (st_uincl tt).
-Proof.
+Proof using eq_globs.
   apply it_eq_cmdP_aux => //.
   by move=> ii ii' f s t hu; apply xrutt_facts.xrutt_trigger.
 Qed.
@@ -857,7 +857,7 @@ Notation wiequiv_f :=
 Lemma it_sem_refl_EU_UU :
   wiequiv_f (rpreF (eS := eq_spec)) fn1 fn2 (rpostF (eS := uincl_spec)) ->
   wiequiv_f (rpreF (eS := uincl_spec)) fn1 fn2 (rpostF (eS := uincl_spec)).
-Proof.
+Proof using rE_trans.
 move=> h.
 apply: (
   wiequiv_f_trans
@@ -879,7 +879,7 @@ Qed.
 Lemma it_sem_refl_EE_UU :
   wiequiv_f (rpreF (eS := eq_spec)) fn1 fn2 (rpostF (eS := eq_spec)) ->
   wiequiv_f (rpreF (eS := uincl_spec)) fn1 fn2 (rpostF (eS := uincl_spec)).
-Proof.
+Proof using rE_trans.
   move=> h; apply: it_sem_refl_EU_UU.
   apply: (
            wkequiv_io_weaken

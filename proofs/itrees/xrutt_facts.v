@@ -452,7 +452,7 @@ Section XRuttMrec.
                RR t1 t2 ->
       xrutt EE1 EE2 RPre RPost
         RR (interp_mrec bodies1 t1) (interp_mrec bodies2 t2).
-  Proof.
+  Proof using Hbodies.
     ginit. gcofix CIH.
     intros t1 t2 Ht12. punfold Ht12. red in Ht12.
     remember (observe t1) as ot1. remember (observe t2) as ot2.
@@ -504,7 +504,7 @@ Section XRuttMrec.
     @RPreInv A B d1 d2 ->
     xrutt EE1 EE2 RPre RPost (fun (a : A) (b : B) => @RPostInv A B d1 a d2 b)
          (mrec bodies1 d1) (mrec bodies2 d2).
-  Proof.
+  Proof using Hbodies.
     intros. apply interp_mrec_xrutt. auto.
   Qed.
 
@@ -536,7 +536,7 @@ Section XRuttRec.
       (fun (t1 : B1) (t2 : B2) =>
          @RPostInv B1 B2 (Call a1) t1 (Call a2) t2)
                    (rec bodies1 a1) (rec bodies2 a2).
-  Proof.
+  Proof using Hbodies.
     unfold rec.
     eapply mrec_xrutt with (RPreInv:=RPreInv). eauto.
   Qed.

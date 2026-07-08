@@ -374,7 +374,7 @@ Section PROOF.
     get_fundef (p_funcs p1) fn = Some fd1 ->
     exists fd2, get_fundef (p_funcs p2) fn = Some fd2 /\
                 check_fundef ep1 ep2 (fn,fd1) (fn,fd2) tt = ok tt.
-  Proof.
+  Proof using Hcheck.
     move: Hcheck; rewrite /check_prog;clear Hcheck eq_globs.
     move: (p_funcs p1) (p_funcs p2).
     elim => [ | [fn1' fd1'] pf1 Hrec] [ | [fn2 fd2] pf2] //.
@@ -394,7 +394,7 @@ Section PROOF.
     forall v1,  sem_pexprs wdb gd s e1 = ok v1 ->
     exists v2, sem_pexprs wdb (p_globs p2) (with_vm s vm) e2 = ok v2 /\
                values_uincl v1 v2.
-  Proof.
+  Proof using eq_globs.
     case: s => scs mem vm1.
     rewrite -eq_globs => h1 h2; case (check_e_esP wdb gd vm) => _ /(_ _ _ _ _ _ _ h1 h2) /= [h3 h4].
     split => // v1; apply h4.
@@ -454,7 +454,7 @@ Section PROOF.
   Lemma check_esP_R_alloc d es1 es2 d' :
     check_es_alloc d es1 es2 d' →
     ∀ s1 s2, st_rel eq_alloc d s1 s2 → st_rel eq_alloc d' s1 s2.
-  Proof.
+  Proof using spp p1. (* FIXME: we could get rid of p1 *)
     move=> he; apply st_rel_weaken => vm1 vm2 hvm.
     have [] := check_e_esP true gd vm2.
     by move=> _ /(_ _ _ _ _ vm1 _ he hvm) [].
@@ -467,7 +467,7 @@ Section PROOF.
     |}.
 
   Lemma checker_allocP : Checker_uincl p1 p2 checker_alloc.
-  Proof.
+  Proof using eq_globs.
     constructor.
     + move=> wdb _ d es1 es2 d' /wdb_ok_eq <- hes s t vs1 /st_relP [-> /= heqa].
       have [_ h]:= check_esP wdb hes heqa.
@@ -498,7 +498,7 @@ Section PROOF.
   Lemma it_alloc_cP (f_body : cmd) (dead_vars_fd0 : instr_info → Sv.t) (r1 : M.t_) (r2 : M.t) (f_body0 : cmd) :
     check_cmd dead_vars_fd0 f_body f_body0 r1 = ok r2 →
     wequiv_rec p1 p2 ev ev uincl_spec (st_eq_alloc r1) f_body f_body0 (st_eq_alloc r2).
-  Proof.
+  Proof using eq_globs.
     move: f_body dead_vars_fd0 r1 r2 f_body0.
     apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //.
     + move=> i1 ii1 hi1 dead_vars r1 r2 [ii2 i2] /=; t_xrbindP => r2' /hi1 -/(_ ii1 ii2) + <-.
@@ -573,7 +573,7 @@ Section PROOF.
 
   Lemma it_alloc_callP fn :
     wiequiv_f p1 p2 ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-  Proof.
+  Proof using init_allocP check_f_extraP Hcheck eq_globs.
     apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
     have [fd2 [Hget2 /=]]:= all_checked hget.
     t_xrbindP => /and3P [] _ htyin htyout r0 Hcinit r1 /check_f_extraP[] Hcparams hinit hfinalize r2 Hcc r3 Hcres _.
@@ -670,7 +670,7 @@ Lemma init_alloc_sprogP :
     exists vm2,
       init_state ef ep2 ev (Estate scs m Vm.init) = ok (with_vm s1 vm2) /\
       eq_alloc r s1.(evm) vm2.
-Proof.
+Proof using spp.
   rewrite /init_alloc_sprog /init_state /= /init_stk_state /check_vars.
   t_xrbindP => ef ep1 ep2 ev s1 scs m r hc m' ha; rewrite (@write_vars_lvals _ _ _ _ _ [::]) => hw.
   have [vm2 ]:= check_lvalsP (s1 := (Estate scs m' Vm.init)) hc eq_alloc_empty

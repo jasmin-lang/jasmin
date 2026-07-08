@@ -393,7 +393,7 @@ Proof.
 Qed.
 
 Lemma Hproc_pm : sem_Ind_proc p var_tmp Pc Pfun.
-Proof.
+Proof using var_tmp_not_magic.
   red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m1 /sem_stack_stable s ih ok_RSP' ->.
   have hmagic: forall (r:var),
     r != vid (sp_rip (p_extra p)) ->
@@ -425,7 +425,7 @@ Qed.
 
 Lemma sem_RSP_GD_not_written k s1 c s2 :
   sem p var_tmp k s1 c s2 → disjoint k (magic_variables p).
-Proof.
+Proof using var_tmp_not_magic.
   exact:
     (sem_Ind
        Hnil_pm
@@ -445,7 +445,7 @@ Qed.
 Lemma sem_I_RSP_GD_not_written k s1 i s2 :
   sem_I p var_tmp k s1 i s2
   → disjoint k (magic_variables p).
-Proof.
+Proof using var_tmp_not_magic.
   exact:
     (sem_I_Ind
        Hnil_pm
@@ -464,7 +464,7 @@ Qed.
 
 Lemma sem_preserved_RSP_GD k s1 c s2 :
   sem p var_tmp k s1 c s2 → evm s1 =[magic_variables p] evm s2.
-Proof.
+Proof using var_tmp_not_magic.
   move => exec.
   apply: eq_ex_disjoint_eq_on.
   - exact: sem_not_written exec.
@@ -473,7 +473,7 @@ Qed.
 
 Lemma sem_I_preserved_RSP_GD k s1 i s2 :
   sem_I p var_tmp k s1 i s2 → evm s1 =[magic_variables p] evm s2.
-Proof.
+Proof using var_tmp_not_magic.
   move => exec.
   apply: eq_ex_disjoint_eq_on.
   - exact: sem_I_not_written exec.

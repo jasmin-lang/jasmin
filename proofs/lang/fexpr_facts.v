@@ -95,7 +95,7 @@ Qed.
 Lemma free_vars_recP vm2 vm1 s f :
   vm1 =[free_vars_rec s f] vm2 ->
   sem_fexpr vm1 f = sem_fexpr vm2 f.
-Proof.
+Proof using ep spp.
   elim: f s => //= [x | o f1 hf1 | o f1 hf1 f2 hf2 | fb hfb f1 hf1 f2 hf2] s.
   + by apply: get_var_eq_on; SvD.fsetdec.
   + by move=> /hf1 ->.
@@ -110,12 +110,12 @@ Qed.
 Lemma free_varsP vm2 vm1 f :
   vm1 =[free_vars f] vm2 ->
   sem_fexpr vm1 f = sem_fexpr vm2 f.
-Proof. apply free_vars_recP. Qed.
+Proof using ep spp. apply free_vars_recP. Qed.
 
 Lemma free_vars_rP vm2 vm1 r m:
   vm1 =[free_vars_r r] vm2 ->
   sem_rexpr m vm1 r = sem_rexpr m vm2 r.
-Proof.
+Proof using spp.
   case: r => [al w f | f] /= heq; last by apply free_varsP.
   rewrite (free_vars_recP heq); SvD.fsetdec.
 Qed.

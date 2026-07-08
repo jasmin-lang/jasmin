@@ -24,7 +24,7 @@ Definition unpickle (n : nat) :=
   nth None [seq some x | x <- enum] n.
 
 Definition pickleK : pcancel pickle unpickle.
-Proof.
+Proof using A.
 move=> x; have xE: x \in enum by apply/count_memPn; rewrite (A x).
 by rewrite /pickle /unpickle (nth_map x) ?(nth_index, index_mem).
 Qed.
@@ -1011,7 +1011,7 @@ Section SameType.
     Variable Heq : forall (x y:T), reflect (x = y) (eqb x y).
 
     Lemma reflect_all2_eqb l1 l2 : reflect (l1 = l2) (all2 eqb l1 l2).
-    Proof.
+    Proof using Heq.
       elim: l1 l2 => [|e1 l1 Hrec1] [|e2 l2] /=; try by constructor.
       by apply (iffP andP) => -[] /Heq -> /Hrec1 ->.
     Defined.
@@ -1193,12 +1193,12 @@ Section CMP.
 
   Lemma cmp_trans y x z c:
     cmp x y = c -> cmp y z = c -> cmp x z = c.
-  Proof.
+  Proof using C.
     by move=> H1 H2;apply (@cmp_ctrans _ _ C y);rewrite H1 H2 ctransI.
   Qed.
 
   Lemma cmp_refl x : cmp x x = Eq.
-  Proof. by have := @cmp_sym _ _ C x x;case: (cmp x x). Qed.
+  Proof using C. by have := @cmp_sym _ _ C x x;case: (cmp x x). Qed.
 
   Definition cmp_lt x1 x2 := gcmp x1 x2 == Lt.
 
@@ -1964,7 +1964,7 @@ Definition transn_spec (l : list A) : Prop :=
   Lemma transn_spec_auxP a0 an l :
     R a0 an ->
     transn_spec_aux a0 an l.
-  Proof.
+  Proof using htrans hstep.
     elim: l an => //= an1 l hrec an h0n hnn1.
     apply: hrec.
     apply: (htrans h0n).
@@ -1972,7 +1972,7 @@ Definition transn_spec (l : list A) : Prop :=
   Qed.
 
   Lemma transn_specP l : transn_spec l.
-  Proof.
+  Proof using htrans hstep hrefl.
     case: l => [// | a0 [// | a1 l ?]].
     apply: transn_spec_auxP.
     exact: hstep.
@@ -1986,14 +1986,14 @@ Lemma transn2 a0 a1 a2 :
   Rstep a0 a1 ->
   Rstep a1 a2 ->
   R a0 a2.
-Proof. exact: (hspec [:: _; _; _ ]). Qed.
+Proof using hspec. exact: (hspec [:: _; _; _ ]). Qed.
 
 Lemma transn3 a0 a1 a2 a3 :
   Rstep a0 a1 ->
   Rstep a1 a2 ->
   Rstep a2 a3 ->
   R a0 a3.
-Proof. exact: (hspec [:: _; _; _; _ ]). Qed.
+Proof using hspec. exact: (hspec [:: _; _; _; _ ]). Qed.
 
 Lemma transn4 a0 a1 a3 a2 a4 :
   Rstep a0 a1 ->
@@ -2001,7 +2001,7 @@ Lemma transn4 a0 a1 a3 a2 a4 :
   Rstep a2 a3 ->
   Rstep a3 a4 ->
   R a0 a4.
-Proof. exact: (hspec [:: _; _; _; _; _ ]). Qed.
+Proof using hspec. exact: (hspec [:: _; _; _; _; _ ]). Qed.
 
 Lemma transn5 a0 a1 a3 a2 a4 a5 :
   Rstep a0 a1 ->
@@ -2010,7 +2010,7 @@ Lemma transn5 a0 a1 a3 a2 a4 a5 :
   Rstep a3 a4 ->
   Rstep a4 a5 ->
   R a0 a5.
-Proof. exact: (hspec [:: _; _; _; _; _; _ ]). Qed.
+Proof using hspec. exact: (hspec [:: _; _; _; _; _; _ ]). Qed.
 
 Lemma transn6 a0 a1 a3 a2 a4 a5 a6 :
   Rstep a0 a1 ->
@@ -2020,7 +2020,7 @@ Lemma transn6 a0 a1 a3 a2 a4 a5 a6 :
   Rstep a4 a5 ->
   Rstep a5 a6 ->
   R a0 a6.
-Proof. exact: (hspec [:: _; _; _; _; _; _; _ ]). Qed.
+Proof using hspec. exact: (hspec [:: _; _; _; _; _; _; _ ]). Qed.
 
 End RT_TRANSN.
 

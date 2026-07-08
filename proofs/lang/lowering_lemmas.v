@@ -203,7 +203,7 @@ Lemma st_eq_ex_finalize fd fd' X:
   f_res fd = f_res fd' ->
   disjoint (vars_l (f_res fd)) X ->
   wrequiv (st_eq_ex X) (finalize_funcall fd) (finalize_funcall fd') eq.
-Proof.
+Proof using spp.
   move=> ??? hdisj.
   apply wrequiv_weaken with (st_eq_on (vars_l (f_res fd))) eq => //.
   + move=> s t [h1 h2 h3]; split => //.
@@ -219,7 +219,7 @@ Local Notation gd' := (p_globs p').
 Context (eq_globs : gd = gd').
 
 Lemma checker_st_eq_exP : Checker_eq p p' checker_st_eq_ex.
-Proof.
+Proof using eq_globs.
   constructor; rewrite -eq_globs.
   + by move=> wdb _ d es1 es2 d' /wdb_ok_eq <- [? -> ?]; apply read_es_st_eq_ex.
   move=> wdb ? d xs1 xs2 d' /wdb_ok_eq <- [-> <- hdisj] vs.
@@ -248,7 +248,7 @@ Context
   (fv_correct : fvars_correct (p_funcs p)).
 
 Lemma fvars_fresh : disj_fvars (vars_p (p_funcs p)).
-Proof. by move: fv_correct => /andP []. Qed.
+Proof using fv_correct. by move: fv_correct => /andP []. Qed.
 
 Lemma disj_fvars_read_e_Papp2 op e0 e1 :
   disj_fvars (read_e (Papp2 op e0 e1))
@@ -348,7 +348,7 @@ Lemma disj_fvars_get_fundef fn fd :
        , disj_fvars (vars_l (f_res fd))
        & disj_fvars (vars_c (f_body fd))
      ].
-Proof.
+Proof using fv_correct.
   move=> hget.
   have := disjoint_w (vars_pP hget) fvars_fresh.
   by move=> /disjoint_union [] ? /disjoint_union [].

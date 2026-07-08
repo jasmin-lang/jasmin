@@ -53,7 +53,7 @@ Context
   Lemma make_pseudo_epilogueW ctr xftys lvs args :
        make_pseudo_epilogue fresh_reg_ptr ii X ctr xftys lvs = ok args
     -> P ctr xftys lvs args.
-  Proof.
+  Proof using P0 PSNone PSSome.
   elim: xftys lvs args ctr.
   + by move=> [] //= ?? [<-]; apply P0.
   move=> [[b x] ty] xfty ih [] //= lv lvs args ctr.
@@ -97,7 +97,7 @@ Context
   Qed.
 
   Lemma eq_globs : p_globs p = p_globs p'.
-  Proof.
+  Proof using Hp.
    case : p Hp => /= p_funcs p_globs extra.
    rewrite /makereference_prog.
    t_xrbindP => /=.
@@ -105,7 +105,7 @@ Context
   Qed.
 
   Lemma eq_extra : p_extra p = p_extra p'.
-  Proof.
+  Proof using Hp.
     move : Hp.
     rewrite /makereference_prog.
     by t_xrbindP => y Hmap <-.
@@ -122,7 +122,7 @@ Context
     write_lvals true (p_globs p) s1 lvs vst = ok s2 ->
     evm s1 =[X] vm1 ->
     exists2 vm2,sem_pis ii (with_vm s1 vm1) pis vst (with_vm s2 vm2) & evm s2 =[X] vm2.
-  Proof.
+  Proof using Hp.
     move=> h; elim /make_pseudo_epilogueW : h s1 vm1 vs vst => {ctr xtys lvs pis}.
     + by move=> _ s1 vm1 [] // _ [] <- _ [<-] ?; exists vm1 => //; constructor.
     + move=> ctr b x ty xtys lv lvs pis hnone _ ih s1 vm1 [ //| v vs] vst' /=.
@@ -256,7 +256,7 @@ Context
       esem p' ev pl (with_vm s vm1) = ok (with_vm s vm2),
       sem_pexprs true (p_globs p') (with_vm s vm2) args' = ok vargs &
       vm1 =[Y] vm2].
-  Proof.
+  Proof using Hp.
     elim.
     + move=> ctr [] //= Y _ _ [<- <-] _ _ _ vm1 [<-] _.
       exists vm1; split => //; constructor.
@@ -310,7 +310,7 @@ Context
       write_lvals true (p_globs p') (with_vm s1 vm1) lv' vs = ok s2',
       esem p' ev ep s2' = ok (with_vm s2 vm2) &
       evm s2 =[X] vm2].
-  Proof.
+  Proof using Hp.
     move=> eqE hsub hw htr heqon; move: eqE; rewrite /make_epilogue.
     t_xrbindP => pinstrs Hpseudo Hswap.
     have [vm2 Hsem_pis eq_s2_vm2]:= make_pseudo_codeP Hpseudo htr hsub hw heqon.
@@ -336,7 +336,7 @@ Context
     Sv.Subset (Sv.union (read_I (MkI ii (Copn xs t o es))) (write_I (MkI ii (Copn xs t o es)))) X →
     evm s1 =[X] vm1 →
     exists2 vm2 : Vm.t, evm s2 =[X] vm2 & esem p' ev c' (with_vm s1 vm1) = ok (with_vm s2 vm2).
-  Proof.
+  Proof using Hp.
     move=> He /=.
     case hop: is_swap_op => [ ty | ].
     {
@@ -386,7 +386,7 @@ Context
     Sv.Subset (Sv.union (read_I (MkI ii (Csyscall xs o es))) (write_I (MkI ii (Csyscall xs o es)))) X →
     evm s1 =[X] vm1 →
     exists2 vm2 : Vm.t, evm s2 =[X] vm2 & esem p' ev c' (with_vm s1 vm1) = ok (with_vm s2 vm2).
-  Proof.
+  Proof using Hp.
     move=> hes /= ho hw.
     t_xrbindP => -[pl es'] plE; apply: rbindP => -[xs' el] elE [<-].
     rewrite read_Ii read_i_syscall write_Ii write_i_syscall => hsub hvm1.
@@ -406,7 +406,7 @@ Context
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
   #[local] Lemma checker_st_eq_onP : Checker_eq p p' checker_st_eq_on.
-  Proof. apply/checker_st_eq_onP/eq_globs. Qed.
+  Proof using Hp. apply/checker_st_eq_onP/eq_globs. Qed.
   #[local] Hint Resolve checker_st_eq_onP : core.
 
   Definition mra_spec := {|
@@ -431,7 +431,7 @@ Context
 
   Lemma it_makeReferenceArguments_callP fn :
     wiequiv_f p p' ev ev (rpreF (eS:= mra_spec)) fn fn (rpostF (eS:=mra_spec)).
-  Proof.
+  Proof using Hp.
     apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
     move: Hp; rewrite /makereference_prog; t_xrbindP.
     move=> pfuncs' hmap heq.

@@ -173,7 +173,7 @@ Qed.
 Lemma label_in_lcmdP rspn fn lfd lfd' :
   stack_zeroization_lfd rspn fn lfd = ok lfd' ->
   label_in_lcmd lfd'.(lfd_body) = label_in_lcmd lfd.(lfd_body).
-Proof.
+Proof using hszparams.
   rewrite /stack_zeroization_lfd.
   case: szs_of_fn => [[??]|]; last by move=> [<-].
   case: andb; last by move=> [<-].
@@ -186,7 +186,7 @@ Qed.
 Lemma label_in_lprogP lp lp' :
   stack_zeroization_lprog lp = ok lp' ->
   label_in_lprog lp' = label_in_lprog lp.
-Proof.
+Proof using hszparams.
   rewrite /stack_zeroization_lprog /label_in_lprog.
   t_xrbindP=> lp_funcs' hmap <- /=.
   elim: lp.(lp_funcs) lp_funcs' hmap => [|[fn fd] lp_funcs ih] /=.
@@ -226,7 +226,7 @@ Lemma eval_instrP lp lp' i s1 s2 :
   stack_zeroization_lprog lp = ok lp' ->
   eval_instr lp i s1 = ok s2 ->
   eval_instr lp' i s1 = ok s2.
-Proof.
+Proof using hszparams.
   move=> hzerolp.
   rewrite /eval_instr.
   case: i => [ii []] //=.
@@ -274,7 +274,7 @@ Lemma stack_zeroization_lprog_lsem1 lp lp' s1 s2 :
   stack_zeroization_lprog lp = ok lp' ->
   step lp s1 = ok s2 ->
   step lp' s1 = ok s2.
-Proof.
+Proof using hszparams.
   move=> hzerolp.
   rewrite /step /find_instr.
   case hlfd: get_fundef => [lfd|//] /=.
@@ -370,7 +370,7 @@ Let post s1 s2 :=
 
 Lemma istack_zeroization_lprog_lsem :
   wkequiv pre (ilsem lp (endpc lp fn)) (ilsem lp' (fun s => endpc lp fn s && endpc lp' fn s)) post.
-Proof.
+Proof using hszparams pp' hget hget'.
   apply wkequiv_iter.
   rewrite /while_body => s _ [<-] hpre.
   case: ifPn => hpc /=; last first.
@@ -406,7 +406,7 @@ Lemma istack_zeroization_lprogP_aux lp lp' fn lfd ptr :
       [/\ escs s1 = escs s2
         , (evm s1) =[sv_of_list v_var lfd.(lfd_res)] (evm s2)
         & match_mem_zero_export (emem s1) (emem s2) bottom lfd.(lfd_stk_max) (szs_of_fn fn)]).
-Proof.
+Proof using hszparams.
   move=> hin hzerolp hlfd enough_stk bottom s _ [<-] hvalid hrsp.
   rewrite /ilsem_exportcall hlfd /=.
   have [lfd' hzero hlfd'] := stack_zeroization_lprog_get_fundef hzerolp hlfd.
@@ -529,7 +529,7 @@ Lemma istack_zeroization_lprogP lp lp' fn lfd :
     (ilsem_exportcall lp fn)
     (ilsem_exportcall lp' fn)
     (sz_post lp fn lfd).
-Proof.
+Proof using hszparams.
   move=> hin hzerolp hlfd s1 _ [ptr [hrsp <- enough_stk hvalid]].
   have := istack_zeroization_lprogP_aux hin hzerolp hlfd enough_stk (And3 erefl hvalid hrsp).
   apply: xrutt_facts.xrutt_weaken => // o1 o2 [hscs hvm hmatch]; exists ptr; split => //.

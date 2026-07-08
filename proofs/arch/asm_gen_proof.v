@@ -385,7 +385,7 @@ Lemma check_sopn_arg_sem_eval rip m s ii args e ad ty v vt :
   -> of_val (eval_ltype ty) v = ok vt
   -> exists2 v', eval_arg_in_v s args ad ty = ok v'
      & of_val (eval_ltype ty) v' = ok vt.
-Proof.
+Proof using eval_assemble_cond.
   move=> eqm /check_sopn_argP /= h.
   case: h vt.
   + move=> i {}ty /is_implicitP[] vi -> vt /=.
@@ -739,7 +739,7 @@ Lemma compile_asm_opn rip ii (loargs : seq asm_arg) op m s args lvs xs ys m' :
   -> check_i_args_kinds (id_args_kinds id) loargs
   -> lom_eqv rip m s
   -> exists2 s', exec_instr_op id loargs s = ok s' & lom_eqv rip m' s'.
-Proof. apply (compile_asm_opn_aux (hagp_eval_assemble_cond hagparams)). Qed.
+Proof using hagparams. apply (compile_asm_opn_aux (hagp_eval_assemble_cond hagparams)). Qed.
 
 Lemma app_sopn_apply_lprod T1 T2 tys (f : T1 -> T2) g vs :
   app_sopn tys (apply_lprod (rmap f) g) vs = rmap f (app_sopn tys g vs).
@@ -1130,7 +1130,7 @@ Lemma assemble_asm_opP rip ii op lvs args op' asm_args s m xs ys m' :
   assemble_asm_op agparams rip ii op lvs args = ok (op', asm_args) ->
   lom_eqv rip m s ->
   exists2 s', eval_op op' asm_args s = ok s' & lom_eqv rip m' s'.
-Proof.
+Proof using hagparams.
   rewrite /eval_op => ok_xs ok_ys hsem /assemble_asm_opI [hca hcd hidc ->] hlo.
   have [s' he' hlo'] := compile_asm_opn ok_xs ok_ys hsem hca hcd hidc hlo.
   exists s'; last done.
@@ -1144,7 +1144,7 @@ Lemma assemble_sopnP rip ii op lvs args ops m xs ys m' s:
   assemble_sopn agparams rip ii op lvs args = ok ops ->
   lom_eqv rip m s ->
   exists2 s', foldM (fun '(op'', asm_args) s => eval_op op'' asm_args s) s ops = ok s' & lom_eqv rip m' s'.
-Proof.
+Proof using hagparams.
   case: op => //=.
   case=> //=.
   + move=> a h1 h2 h3; t_xrbindP => -[op' args'] h4 <- h5.
@@ -1325,7 +1325,7 @@ Lemma assemble_progP :
     & map_cfprog_linear assemble_fd (lp_funcs p)
       = ok (asm_funcs p')
   ].
-Proof.
+Proof using ok_p'.
   move: ok_p'.
   rewrite /assemble_prog.
   t_xrbindP => /andP [/eqP ok_rip /eqP ok_ripx] /eqP ok_rsp fds ok_fds <-.
@@ -1346,7 +1346,7 @@ Qed.
 
 Lemma assemble_prog_labels :
   label_in_lprog p = label_in_asm_prog p'.
-Proof.
+Proof using ok_p'.
   case: assemble_progP => _ _ _ /mapM_Forall2.
   rewrite /label_in_lprog /label_in_asm_prog.
   elim => //.
@@ -1362,7 +1362,7 @@ Lemma ok_get_fundef fn fd :
   -> exists2 fd',
        get_fundef (asm_funcs p') fn = Some fd'
        & assemble_fd agparams rip rsp fd = ok fd'.
-Proof.
+Proof using ok_p'.
   move=> hfd.
   have [_ _ _ x] := assemble_progP.
   have [fd' ??] := get_map_cfprog_gen x hfd.
@@ -1417,7 +1417,7 @@ Lemma to_var_typed_flag r x : to_var r = var_of_asm_typed_reg x -> x = ABReg r.
 Proof. by case: x => //= r' h; have -> := inj_to_var h. Qed.
 
 Lemma to_var_rsp : {| vtype := aword reg_size; vname := lp_rsp p |} = to_var ad_rsp.
-Proof.
+Proof using ok_p'.
   move: ok_p'; rewrite /assemble_prog; t_xrbindP => _ /eqP h _ _ _.
   by symmetry; apply: of_varI; rewrite /of_var /= eqxx.
 Qed.
@@ -1444,7 +1444,7 @@ Lemma eval_jumpP r (xs : asm_state) ls ls' :
       eval_JMP p' r xs = ok xs' &
       exists2 lc' : lcmd,
         ssrfun.omap lfd_body (get_fundef (lp_funcs p) (lfn ls')) = Some lc' & match_state rip ls' lc' xs'.
-Proof.
+Proof using ok_p'.
   case: r => fn lbl /= heqm; t_xrbindP => body.
   case ok_fd: get_fundef => [ fd | // ] [ ] <-{body} pc ok_pc <-{ls'}.
   case/ok_get_fundef: (ok_fd) => fd' ->.
@@ -1534,7 +1534,7 @@ Lemma match_state_SysCall_eval fd ls ls' ii sc ac0 ac1 xs :
     & exists2 lc',
         ssrfun.omap lfd_body (get_fundef (lp_funcs p) (lfn ls')) = Some lc'
         & match_state rip ls' lc' xs'.
-Proof.
+Proof using hagparams ok_p'.
   move=> hloeq ok_fd hfn hass hac heq hip hnth ok_i.
   rewrite /linear_sem.eval_instr /=.
   t_xrbindP=> ves hves [[scs m] vs] ho; t_xrbindP=> s hw ?; subst ls' => /=.
@@ -1804,7 +1804,7 @@ Qed.
 Lemma assemble_sopn_pos ii lvs op pes c :
   assemble_sopn agparams rip ii op lvs pes = ok c ->
   0 < size c.
-Proof.
+Proof using hagparams.
   rewrite /assemble_sopn.
   case: op => //=.
   case => //=.
@@ -1822,7 +1822,7 @@ Lemma imatch_state_step endpc endpc' ls xs :
     (HeterogeneousRelations.sum_rel inv inv)
     (while_body (untilpc endpc) (istep p) ls)
     (iter_n (iasmsem_body p' endpc') n xs).
-Proof.
+Proof using hagparams ok_p'.
   move=> hwfend [lc omap_lc] ms.
   rewrite /while_body /untilpc.
   case: eqP.
@@ -2065,7 +2065,7 @@ Lemma imatch_state_sem endpc endpc' ls xs :
     inv
     (ilsem p (untilpc endpc) ls)
     (iasmsem p' endpc' xs).
-Proof.
+Proof using hagparams ok_p'.
   move=> hwf hinv; rewrite /ilsem /iasmsem.
   apply xrutt_facts.xrutt_iter_n with inv => //.
   move=> ls' xs'.
@@ -2082,7 +2082,7 @@ Lemma iasm_gen_exportcall fn ls :
          lom_eqv rip s' xm')
        (ilsem_exportcall p fn ls)
        (iasmsem_exportcall p' fn xm).
-Proof.
+Proof using hagparams ok_p'.
   move=> /allP ok_vm xm M.
   rewrite /ilsem_exportcall /iasmsem_exportcall.
   case ok_fd : (get_fundef (lp_funcs p) fn) => [fd | ] /=; last first.

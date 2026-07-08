@@ -95,7 +95,7 @@ Let top := (align_word ws_align ptr - wrepr Uptr stk_max)%R.
 
 #[local]
 Lemma top_aligned : is_align top ws.
-Proof.
+Proof using halign le_ws_ws_align.
   rewrite /top.
   apply is_align_add.
   + apply (is_align_m le_ws_ws_align).
@@ -164,7 +164,7 @@ Lemma sz_initP (s1 : estate) :
   exists s2,
     lsem_n lp (endpc lp fn) (of_estate s1 fn (size pre)) (of_estate s2 fn (size pre + size (sz_init rspi ws_align stk_max))) /\
     state_rel_loop sz_init_vars s1 s2 stk_max top.
-Proof.
+Proof using lt_0_stk_max halign hbody rsp_nin.
   move=> hvalid hrsp.
   move: hbody => /=.
   set isave_sp := li_of_fopn_args _ (ARMFopn.mov _ _).
@@ -259,7 +259,7 @@ Lemma loop_bodyP vars s1 s2 n :
                 (of_estate s3 fn (size pre + 3)),
         s3.(evm).[vzf] = Vbool (ZF_of_word (wrepr U32 n - wrepr U32 (wsize_size ws)))
       & state_rel_loop vars s1 s3 (n - wsize_size ws) top].
-Proof.
+Proof using halign le_ws_ws_align hstack hsmall hbody rsp_nin.
   move=> hsubset hsr hlt.
   have hn: (0 < wsize_size ws <= n)%Z.
   + split=> //.
@@ -362,7 +362,7 @@ Lemma loopP vars s1 s2 n :
     [/\ lsem_n lp (endpc lp fn) (of_estate s2 fn (size pre + 1))
                 (of_estate s3 fn (size pre + 4))
       & state_rel_loop vars s1 s3 0 top].
-Proof.
+Proof using halign le_ws_ws_align hstack hsmall hbody rsp_nin hlabel.
   move=> hsubset hsr hlt.
   have [k hn]: (exists k, n = Z.of_nat k * wsize_size ws)%Z.
   + have := hsr.(sr_aligned).
@@ -418,7 +418,7 @@ Lemma sz_loopP vars s1 s2 n :
     [/\ lsem_n lp (endpc lp fn) (of_estate s2 fn (size pre))
                 (of_estate s3 fn (size pre + size (sz_loop rspi lbl ws)))
       & state_rel_loop vars s1 s3 0 top].
-Proof.
+Proof using halign le_ws_ws_align hstack hsmall hbody rsp_nin hlabel.
   move=> hsubset hsr hlt.
   have [s3 [hsem3 hsr3]] := loopP hsubset hsr hlt.
   exists s3; split=> //.
@@ -447,7 +447,7 @@ Lemma restore_spP vars (s1 s2 : estate) :
       (of_estate s2 fn (size pre))
       (of_estate s3 fn (size pre + size (restore_sp rspi))) /\
     state_rel_unrolled vars s1 s3 0 ptr.
-Proof.
+Proof using hbody rsp_nin.
   move=> hsr.
   eexists (Estate _ _ _); split=> /=.
   + apply: (lsem_n_eval_lin1 (n:=0) hbody) => //=; first by rewrite addn0.
@@ -480,7 +480,7 @@ Lemma unrolled_bodyP vars s1 s2 n :
     [/\ lsem_n lp (endpc lp fn) (of_estate s2 fn (size pre + n))
                 (of_estate s3 fn (size pre + n.+1))
       & state_rel_unrolled vars s1 s3 (stk_max - Z.of_nat n.+1 * wsize_size ws) top].
-Proof.
+Proof using halign le_ws_ws_align hstack hsmall hbody.
 Local Opaque wsize_size Z.of_nat.
   move=> hsr hlt.
   have hlt': (0 < Z.of_nat n.+1 * wsize_size ws <= stk_max)%Z.
@@ -571,7 +571,7 @@ Lemma sz_unrolledP vars s1 s2 :
     [/\ lsem_n lp (endpc lp fn) (of_estate s2 fn (size pre))
                 (of_estate s3 fn (size pre + size (sz_unrolled rspi ws stk_max)))
       & state_rel_unrolled vars s1 s3 0 top].
-Proof.
+Proof using lt_0_stk_max halign le_ws_ws_align hstack hsmall hbody.
   move=> hsr.
   rewrite /sz_unrolled size_map size_rev size_ziota.
   have [k [hmax hbound]]:
@@ -619,7 +619,7 @@ Lemma stack_zero_loopP (s1 : estate) :
     [/\ lsem_n lp (endpc lp fn) (of_estate s1 fn (size pre))
                 (of_estate s2 fn (size pre + size (stack_zero_loop rspi lbl ws_align ws stk_max)))
       & state_rel_unrolled stack_zero_loop_vars s1 s2 0 ptr].
-Proof.
+Proof using lt_0_stk_max halign le_ws_ws_align hstack hsmall hbody rsp_nin hlabel.
   move=> hvalid hrsp.
   move: hbody; rewrite /stack_zero_loop -!catA => hbody'.
   have hsubset_init: Sv.Subset sz_init_vars stack_zero_loop_vars.
@@ -677,7 +677,7 @@ Lemma stack_zero_unrolledP (s1 : estate) :
     [/\ lsem_n lp (endpc lp fn) (of_estate s1 fn (size pre))
                 (of_estate s2 fn (size pre + size (stack_zero_unrolled rspi ws_align ws stk_max)))
       & state_rel_unrolled stack_zero_unrolled_vars s1 s2 0 ptr].
-Proof.
+Proof using lt_0_stk_max halign le_ws_ws_align hstack hsmall hbody rsp_nin.
   move=> hvalid hrsp.
   move: hbody; rewrite /stack_zero_loop -!catA => hbody'.
   have hsubset_init: Sv.Subset sz_init_vars stack_zero_unrolled_vars.

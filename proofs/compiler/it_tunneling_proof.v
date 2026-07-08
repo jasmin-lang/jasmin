@@ -36,7 +36,7 @@ Context (p' : lprog).
 Context (pp' : tunnel_program p = ok p').
 
 Lemma p_wf : well_formed_lprog p.
-Proof. by move: pp'; rewrite /tunnel_program; case: ifP. Qed.
+Proof using pp'. by move: pp'; rewrite /tunnel_program; case: ifP. Qed.
 
 (* [path_to fn endpc l l'] :
    forall state s, if we can jump just after label (fn, l),
@@ -191,7 +191,7 @@ Lemma tunnel_plan_wf_aux endpc fn fd :
     (forall l, LUF.find uf l <> l -> l \in labels_of_body lc1) ->
     wf_uf fn endpc uf ->
     wf_uf fn endpc (pairfoldl (tunnel_chart fn) uf i lc2).
-Proof.
+Proof using pp'.
   move=> hend hget /=.
   move/andP: p_wf => -[_ /allInP] /=.
   move=> /(_ _ (get_fundef_in' hget)) /= /andP [hu hgoto].
@@ -276,7 +276,7 @@ Lemma tunnel_plan_wf endpc fn fd :
   let lc := lfd_body fd in
   let uf := tunnel_plan fn LUF.empty lc in
   wf_uf fn endpc uf.
-Proof.
+Proof using pp'.
   move=> hend wfp hget /=.
   rewrite /tunnel_plan.
   case heq : (lfd_body fd) => /= [ | i lc2].
@@ -294,7 +294,7 @@ Local Open Scope monad_scope.
 Lemma get_fundefE fn :
   get_fundef (lp_funcs p') fn =
     ssrfun.omap (tunnel_lfundef fn) (get_fundef (lp_funcs p) fn).
-Proof.
+Proof using pp'.
   move: pp'; rewrite /tunnel_program; case: ifP => // _ [<-].
   by rewrite /get_fundef assoc_mapE.
 Qed.
@@ -307,7 +307,7 @@ Lemma find_instrE s :
         find_instr p' s = Some (tunnel_bore (lfn s) uf i)
   | None => find_instr p' s = None
   end.
-Proof.
+Proof using pp'.
   rewrite /find_instr get_fundefE.
   have := pp'.
   rewrite /tunnel_program; case: ifP => //= hwf _.
@@ -321,7 +321,7 @@ Qed.
 
 Lemma get_label_after_pcE s :
   get_label_after_pc p' s = get_label_after_pc p s.
-Proof.
+Proof using pp'.
   rewrite /get_label_after_pc.
   case: find_instr (find_instrE (lnext_pc s)) => [ i [fd hget ->] | ->] //=.
   by case: i => ii [] //= [] >; case: ifP.
@@ -329,7 +329,7 @@ Qed.
 
 Lemma label_in_lprogE :
   label_in_lprog p' = label_in_lprog p.
-Proof.
+Proof using pp'.
   rewrite /label_in_lprog.
   move: pp'; rewrite /tunnel_program; case: ifP => // _ [<-] /=.
   f_equal.
@@ -342,7 +342,7 @@ Proof.
 Qed.
 
 Lemma eval_jumpE d s : eval_jump p' d s = eval_jump p d s.
-Proof.
+Proof using pp'.
   rewrite /eval_jump; case: d => fn lbl.
   rewrite get_fundefE; case: get_fundef => //= fd; f_equal.
   rewrite /find_label size_map.
@@ -352,7 +352,7 @@ Proof.
 Qed.
 
 Lemma lp_rspE : lp_rsp p' = lp_rsp p.
-Proof. by move: pp'; rewrite /tunnel_program; case: ifP => // _ [<-]. Qed.
+Proof using pp'. by move: pp'; rewrite /tunnel_program; case: ifP => // _ [<-]. Qed.
 
 Lemma lp_funcs_setfuncs p0 lf : lp_funcs (setfuncs p0 lf) = lf.
 Proof. by case: p0. Qed.
@@ -368,14 +368,14 @@ Proof. by rewrite /tunnel_funcs /get_fundef assoc_mapE //. Qed.
 Lemma get_fundef_tunnel_program fn fd :
   get_fundef (lp_funcs p) fn = Some fd ->
   get_fundef (lp_funcs p') fn = Some (tunnel_lfundef fn fd).
-Proof.
+Proof using pp'.
 move: pp'.
 rewrite /tunnel_program; case: ifP => // Hwfp /ok_inj <- Hgfd.
 by rewrite /tunnel_lprog lp_funcs_setfuncs get_fundef_tunnel_funcs Hgfd.
 Qed.
 
 Lemma fn_is_exportE fn : fn_is_export p' fn = fn_is_export p fn.
-Proof.
+Proof using pp'.
 rewrite /fn_is_export.
 move: pp'; rewrite /tunnel_program; case: ifP => // _ [<-] /=.
 rewrite get_fundef_tunnel_funcs.
@@ -383,7 +383,7 @@ by case: get_fundef => [fd|//].
 Qed.
 
 Lemma eval_instr_eq i s : eval_instr p' i s = eval_instr p i s.
-Proof.
+Proof using pp'.
   rewrite /eval_instr.
   rewrite get_label_after_pcE label_in_lprogE lp_rspE.
   case: li_i => //.
@@ -407,7 +407,7 @@ Qed.
 Lemma tunnel_cmd endpc s :
   wfend endpc ->
   eqit eq true true (ilsem p' (untilpc endpc) s) (ilsem p (untilpc endpc) s).
-Proof.
+Proof using pp'.
   move=> hend.
   apply while.eqit_iter_n with eq => //.
   move=> {}s _ <-.
@@ -470,7 +470,7 @@ Qed.
 
 Lemma tunnel_funcs fn s :
   eqit eq true true (ilsem_exportcall p fn s) (ilsem_exportcall p' fn s).
-Proof.
+Proof using pp'.
   symmetry.
   rewrite /ilsem_exportcall /endpc.
   rewrite get_fundefE; case hget: get_fundef => [fd | ] /=; last first.
@@ -497,7 +497,7 @@ Lemma tunnel_program_invariants :
   map lfd_tyout  (map snd (lp_funcs p)) = map lfd_tyout  (map snd (lp_funcs p')) /\
   map lfd_res    (map snd (lp_funcs p)) = map lfd_res    (map snd (lp_funcs p')) /\
   map lfd_export (map snd (lp_funcs p)) = map lfd_export (map snd (lp_funcs p')).
-Proof.
+Proof using pp'.
   move: pp'; rewrite /tunnel_program; case: ifP => // _ [?]; subst p'.
   rewrite /tunnel_lprog /setfuncs /= /tunneling.tunnel_funcs -!map_comp; do!split.
 Qed.

@@ -33,10 +33,10 @@ Module INCL. Section INCL.
 
     Lemma gd_incl_gvar (x : gvar) (v : value) :
       get_gvar wdb gd1 (evm s) x = ok v → get_gvar wdb gd2 (evm s) x = ok v.
-    Proof. by rewrite /get_gvar; case: x => x [] //=; apply: hincl. Qed.
+    Proof using hincl. by rewrite /get_gvar; case: x => x [] //=; apply: hincl. Qed.
 
     Lemma gd_incl_e_es : (∀ e, P e) ∧ (∀ es, Q es).
-    Proof.
+    Proof using hincl.
       apply: pexprs_ind_pair; split; subst P Q => //=.
       - move => e rec es ih q; t_xrbindP => v ok_v vs ok_vs <- {q}.
         by rewrite (rec _ ok_v) /= (ih _ ok_vs).
@@ -120,7 +120,7 @@ Module INCL. Section INCL.
     |}.
 
   Lemma checker_ginclP : Checker_eq P1 P2 checker_equal.
-  Proof.
+  Proof using hincl.
     constructor.
     + move=> > /wdb_ok_eq <- <- ??? /st_equalP -> /gd_incl_es -/(_ _ hincl) ->; eexists; eauto.
     by move=> > /wdb_ok_eq <- <- ???? /st_equalP -> /gd_incl_wls -/(_ _ hincl) ->; eexists; eauto.
@@ -136,7 +136,7 @@ Module INCL. Section INCL.
     wequiv_rec P1 P2 ev ev eq_spec (st_equal tt) c c (st_equal tt).
 
   Lemma it_gd_incl_fun fn : wiequiv_f P1 P2 ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-  Proof.
+  Proof using hincl.
     apply wequiv_fun_ind => {}fn _ fs ft [<- <-] fd ->.
     exists fd => // s1 hinit; exists s1 => //.
     exists (st_equal tt), (st_equal tt); split => //; last by move=> s t vs /st_equalP <- ->; eexists; eauto.
@@ -343,7 +343,7 @@ Module RGP. Section PROOFS.
         exists2 vs', sem_pexprs wdb gd s2 es' = ok vs' & values_uincl vs vs'.
 
     Lemma remove_glob_e_esP : (∀ e, Pe e) ∧ (∀ es, Pes es).
-    Proof.
+    Proof using hvalid.
       case: hvalid => hscs hmem hm1 hm2 hm3.
       apply: pexprs_ind_pair; subst Pe Pes; split => //=.
       - by move => _ _ [<-] [<-]; exists [::].
@@ -537,7 +537,7 @@ Module RGP. Section PROOFS.
   Lemma find_globP ii xi gv g :
     find_glob ii xi gd gv = ok g ->
     exists2 gv', get_global gd g = ok (gv2val gv') & value_uincl (gv2val gv) (gv2val gv').
-  Proof.
+  Proof using uniq_gd.
     rewrite /find_glob /get_global /get_global_value.
     elim: gd uniq_gd => //= -[g' gv'] gd hrec /andP /= [hg' huniq]; case: ifPn => /= /andP.
     + case => /= ok_type ok_data /ok_inj ?; subst g'.
@@ -628,7 +628,7 @@ Module RGP. Section PROOFS.
     exists f',
        get_fundef (p_funcs P') fn = Some f' /\
        remove_glob_fundef gd f = ok f'.
-  Proof.
+  Proof using fds_ok.
     move=> hget.
     have [f' hget' hremove] := get_map_cfprog_gen fds_ok hget.
     by exists f'.
@@ -662,7 +662,7 @@ Module RGP. Section PROOFS.
     value_uincl (vm_truncate_val (eval_atype (vtype x)) v) (gv2val gv) →
     valid m s s' →
     valid (Mvar.set m x g) (with_vm s (evm s).[x <- v]) s'.
-  Proof.
+  Proof using uniq_gd.
     move => hglob hfind htr [] hscs hm hm1 hm2 hm3; split => //=.
     * move=> y hy; rewrite Vm.setP_neq; first by apply hm1.
       by apply/eqP => ?;subst y;move: hy;rewrite hglob.
@@ -679,7 +679,7 @@ Module RGP. Section PROOFS.
     forall s1 s2 s1', valid m s1 s1' ->
       sem_assgn P x tag ty e s1 = ok s2 ->
       exists2 s2', esem P' ev c' s1' = ok s2' & valid m' s2 s2'.
-  Proof.
+  Proof using uniq_gd.
     rewrite /= /sem_assgn; t_xrbindP => e' he hx s1 s2 s1' hval v hv v' htr hw.
     have [ w ok_w v_w ] := remove_glob_eP hval he hv. clear he.
     have h :
@@ -772,7 +772,7 @@ Module RGP. Section PROOFS.
     wequiv_rec P P' ev ev uincl_spec (valid d) c dc.2 (valid dc.1).
 
   Lemma it_remove_glob_call fn : wiequiv_f P P' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-  Proof.
+  Proof using fds_ok uniq_gd.
     apply wequiv_fun_ind => {}fn _ fs fs' [<-] hfs fd hget.
     have [fd' [hget' hfd']]:= get_fundefP hget.
     have fsi := fs_uincl_initialize (fd := fd) (fd' := fd').
@@ -851,7 +851,7 @@ Module RGP. Section PROOFS.
   Lemma it_remove_globP P P' ev fn:
     remove_glob_prog P = ok P' ->
     wiequiv_f P P' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:= uincl_spec)).
-  Proof.
+  Proof using rE0_trans.
     rewrite /remove_glob_prog; t_xrbindP => gd' /extend_glob_progP hgd.
     case: ifP => // huniq; t_xrbindP => fds hfds <-.
     have h1 := [elaborate it_gd_incl_fun ev hgd (fn := fn)].

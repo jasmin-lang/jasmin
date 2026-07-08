@@ -533,7 +533,7 @@ Section CONST_PROP_EP.
   Let Q es : Prop := eqoks es (map (const_prop_e globs m) es) s.
 
   Lemma const_prop_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
-  Proof.
+  Proof using Hvalid Gvalid.
     apply: pexprs_ind_pair; subst P Q; rewrite /eqok; split => /=;
     try (intros; clarify; eauto; fail).
     - by move => ? [<-]; exists [::].
