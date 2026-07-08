@@ -48,25 +48,25 @@ Section PROOF.
   Definition fvars := fvars fv.
 
   Lemma fvars_fresh: disj_fvars vars_p.
-  Proof. by move: fvars_correct => /andP []. Qed.
+  Proof using fvars_correct. by move: fvars_correct => /andP []. Qed.
 
   Lemma of_neq_cf : fv_of fv != fv_cf fv.
-  Proof. by move: fvars_correct=> /and5P [] ???? /and3P []. Qed.
+  Proof using fvars_correct. by move: fvars_correct=> /and5P [] ???? /and3P []. Qed.
 
   Lemma of_neq_sf : fv_of fv != fv_sf fv.
-  Proof. by move: fvars_correct=> /and5P [] ???? /and3P []. Qed.
+  Proof using fvars_correct. by move: fvars_correct=> /and5P [] ???? /and3P []. Qed.
 
   Lemma of_neq_zf : fv_of fv != fv_zf fv.
-  Proof. by move: fvars_correct=> /and5P [] ???? /and3P []. Qed.
+  Proof using fvars_correct. by move: fvars_correct=> /and5P [] ???? /and3P []. Qed.
 
   Lemma cf_neq_sf : fv_cf fv != fv_sf fv.
-  Proof. by move: fvars_correct=> /and5P [] ???? /and3P []. Qed.
+  Proof using fvars_correct. by move: fvars_correct=> /and5P [] ???? /and3P []. Qed.
 
   Lemma cf_neq_zf : fv_cf fv != fv_zf fv.
-  Proof. by move: fvars_correct=> /and5P [] ???? /and3P []. Qed.
+  Proof using fvars_correct. by move: fvars_correct=> /and5P [] ???? /and3P []. Qed.
 
   Lemma sf_neq_zf : fv_sf fv != fv_zf fv.
-  Proof. by move: fvars_correct=> /and5P [] ???? /and3P []. Qed.
+  Proof using fvars_correct. by move: fvars_correct=> /and5P [] ???? /and3P []. Qed.
 
   Lemma of_in_fv: Sv.In (fv_of fv) fvars.
   Proof. by rewrite /fvars /x86_lowering.fvars /= /fv_of; clear; SvD.fsetdec. Qed.
@@ -104,7 +104,7 @@ Section PROOF.
   Lemma fvars_fun fn f:
     get_fundef (p_funcs p) fn = Some f ->
     disj_fvars (vars_fd f).
-  Proof.
+  Proof using fvars_correct.
     have := fvars_fresh; rewrite /vars_p.
     move: (p_funcs p) fn f.
     elim=> // [[fn0 fd0]] l Hl fn f.
@@ -208,7 +208,7 @@ Section PROOF.
         , get_var true (evm s') vsf = ok (Vbool bsf)
         & get_var true (evm s') vzf = ok (Vbool bzf)
       ].
-  Proof.
+  Proof using fvars_correct.
     eexists; split; first done.
     2-5: rewrite /= /get_gvar /=; by t_get_var.
     rewrite /= /with_vm /=.
@@ -241,7 +241,7 @@ Section PROOF.
         , eq_exc_fresh s s'
         & sem_pexpr true gd s' e = ok (Vbool b)
       ].
-  Proof.
+  Proof using fvars_correct.
     move=> wdiff bof bcf bsf bzf hws hseme0 hseme1 hw0 hw1.
     have [s' [hwrite heq hof hcf hsf hzf]] :=
       write_lflags s bof bcf bsf (PF_of_word wdiff) bzf.
@@ -265,7 +265,7 @@ Section PROOF.
         , eq_exc_fresh s1 s2'
         & sem_pexpr true gd s2' e' = ok cond
       ].
-  Proof.
+  Proof using fvars_correct.
     move=> Hcond s1' Hs1' He.
     move: Hcond.
     rewrite /lower_condition.
@@ -1266,7 +1266,7 @@ Section PROOF.
     disj_fvars (vars_I i) ->
     eq_exc_fresh s1 s1' ->
     ∃ s2', esem p' ev (lower_i options warning fv i) s1' = ok s2' /\ eq_exc_fresh s2 s2'.
-  Proof.
+  Proof using fvars_correct.
     rewrite /sem_assgn; t_xrbindP => v Hv v' hty Hw Hdisj Hs1'.
     move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_assgn=> /disjoint_union [Hdisjl Hdisje].
     have Hv' := eeq_exc_sem_pexpr Hdisje Hs1' Hv.
@@ -1830,7 +1830,7 @@ Section PROOF.
   (* Remark: excepted the case of Cassgn and Copn, the proof if the same than the arm one *)
   Lemma it_lower_callP fn :
     wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-  Proof.
+  Proof using fvars_correct.
     apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
     have := fvars_fun hget.
     move=> /disjoint_union [Hdisjp /disjoint_union [Hdisjr Hdisjc]].

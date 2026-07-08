@@ -40,7 +40,7 @@ Qed.
 Lemma write_vars_eq_ex wdb xs vs s s' :
   write_vars wdb xs vs s = ok s' →
   evm s =[\ sv_of_list v_var xs] evm s' .
-Proof.
+Proof using spp.
   by rewrite (write_vars_lvals _ [::]) => /vrvsP; rewrite vrvs_Lvar.
 Qed.
 

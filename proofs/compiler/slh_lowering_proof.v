@@ -622,7 +622,7 @@ Section LOWER_SLHO.
     -> write_lvals true (p_globs p') s lvs res = ok s'
     -> sem_sopn (p_globs p') op' s lvs' es' = ok s'
        /\ wf_env env' (p_globs p') s'.
-  Proof.
+  Proof using hshparams.
     move=> hwf hcheck hlower hsemes hexec hwrite.
     have : not_misspeculating_args slho args /\ wf_env env' (p_globs p') s';
       last first.
@@ -758,7 +758,7 @@ Lemma lower_pP :
     , p_globs p' = p_globs p
     & p_extra p' = p_extra p
   ].
-Proof. move: hp. rewrite /lower_slh_prog; by t_xrbindP=> _ ? -> <-. Qed.
+Proof using hp. move: hp. rewrite /lower_slh_prog; by t_xrbindP=> _ ? -> <-. Qed.
 
 Definition hp_body := let 'And3 x _ _ := lower_pP in x.
 Definition hp_globs := let 'And3 _ x _ := lower_pP in x.
@@ -883,7 +883,7 @@ Instance Checker_env : Checker_e st_eq :=
 
 #[local]
 Instance Checker_envP : Checker_eq p p' Checker_env.
-Proof.
+Proof using hp.
 split.
 - rewrite hp_globs => _ _ _ _ _ _ /wdb_ok_eq <- [<- _] _ _ vs [<- _] ->.
   by exists vs.
@@ -928,7 +928,7 @@ Let Pc c : Prop :=
     wequiv_rec p p' ev ev slh_spec (st_eq env) c c' (st_eq env').
 
 Lemma it_lower_opn xs tg op es : Pi_r (Copn xs tg op es).
-Proof.
+Proof using hshparams hp.
 move=> ii env env' i' ii' /=; case: is_OslhP => [slho|?] /=; last first.
 - move=> [<-] [<- <-]; apply wequiv_opn_eq.
   + rewrite hp_globs; move=> s _ vs [<- _] ->; by exists vs.
@@ -956,7 +956,7 @@ by exists s'.
 Qed.
 
 Lemma lower_it_if e c1 c2 : Pc c1 -> Pc c2 -> Pi_r (Cif e c1 c2).
-Proof.
+Proof using hp.
 move=> hc1 hc2 ii env env' /=; t_xrbindP=> _ _ hmeme env1 hchk1 env2 hchk2 <- _
   c1' hc1' c2' hc2' <- <- <-.
 apply wequiv_if_full.
@@ -973,7 +973,7 @@ case: b; [exact: hc1 hchk1 hc1' | exact: hc2 hchk2 hc2'].
 Qed.
 
 Lemma lower_it_for i dir lo hi c : Pc c -> Pi_r (Cfor i (dir, lo, hi) c).
-Proof.
+Proof using hp.
 move=> hc ii env env' /=; t_xrbindP=> _ _ /check_forP [env0 [hchk hle hle0]] _
   c' hc' <- <- <-.
 apply
@@ -990,7 +990,7 @@ Qed.
 
 Lemma lower_it_while al c1 e ii0 c2 :
   Pc c1 -> Pc c2 -> Pi_r (Cwhile al c1 e ii0 c2).
-Proof.
+Proof using hp.
   move=> hc1 hc2 ii env env' /=; t_xrbindP=> _ _ hmeme /check_whileP
     [env_fix [env1 [env2 [hcheck1 hcheck2 hle2 hle -> {env'}]]]] _ c1' hc1' c2'
     hc2' <- <- <-.
@@ -1010,7 +1010,7 @@ move=> ??; exact: env_le_st_eq hle2.
 Qed.
 
 Lemma lower_it_call xs fn es : Pi_r (Ccall xs fn es).
-Proof.
+Proof using hp.
 move=> ii env env' /=; rewrite (surjective_pairing (fun_info _)).
 t_xrbindP=> _ _ ? hchkes hchkxs <- <-; apply (
   wequiv_call
@@ -1033,7 +1033,7 @@ Lemma it_lower_code c c' env env' :
   check_cmd fun_info env c = ok env' ->
   lower_cmd c = ok c' ->
   wequiv_rec p p' ev ev slh_spec (st_eq env) c c' (st_eq env').
-Proof.
+Proof using hshparams hp.
 apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) c env env' c' => //;
   [ | | |
   | exact: it_lower_opn
@@ -1077,7 +1077,7 @@ by move=> > /= [<-] [<- <-]; apply wequiv_assert => //.
 Qed.
 
 Lemma it_lower_call {fn} : wiequiv_f p p' ev ev rpreF fn fn rpostF.
-Proof.
+Proof using hshparams hp.
 apply: wequiv_fun_ind => {}fn _ fs _ [<- <- htin] fd
   /(get_map_cfprog_name_gen hp_body) [] fd' /lower_fdP [].
 rewrite /check_fd /= (surjective_pairing (fun_info _)).
@@ -1110,7 +1110,7 @@ Qed.
 Lemma it_lower_call_export {fn} :
   fn \in entries ->
   wiequiv_f p p' ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
-Proof.
+Proof using hshparams hp.
 move: hp; rewrite /lower_slh_prog; t_xrbindP=> /allP h _ _ _ /h {}h.
 apply: wkequiv_io_weaken it_lower_call => //.
 - by move=> s _ [_ <-]; split=> // /all_is_slh_none /(_ h).

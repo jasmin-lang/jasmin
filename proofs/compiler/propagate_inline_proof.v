@@ -226,7 +226,7 @@ Let Q es : Prop :=
   exists2 vs', sem_pexprs wdb gd s (pi_es pi es) = ok vs' & values_uincl vs vs'.
 
 Lemma pi_eP_and : (forall e, P e) /\ (forall es, Q es).
-Proof.
+Proof using hvalid.
   apply: pexprs_ind_pair; subst P Q; split => /=.
   + by move=> ? [<-]; exists [::].
   + move=> e hrec es hrecs vs; t_xrbindP => ? /hrec [v' -> hu] ? /hrecs [vs' -> hus] <- /=.
@@ -269,20 +269,20 @@ Qed.
 Lemma pi_eP e v :
   sem_pexpr wdb gd s e = ok v ->
   exists2 v', sem_pexpr wdb gd s (pi_e pi e) = ok v' & value_uincl v v'.
-Proof. case: pi_eP_and => h _; apply h. Qed.
+Proof using hvalid. case: pi_eP_and => h _; apply h. Qed.
 
 Lemma pi_esP es vs :
   sem_pexprs wdb gd s es = ok vs ->
   exists2 vs', sem_pexprs wdb gd s (pi_es pi es) = ok vs' &
     values_uincl vs vs'.
-Proof. case: pi_eP_and => _ h; apply h. Qed.
+Proof using hvalid. case: pi_eP_and => _ h; apply h. Qed.
 
 Context (vm:Vm.t) (hu: evm s <=1 vm).
 
 Lemma pi_eP_uincl e v :
   sem_pexpr wdb gd s e = ok v ->
   exists2 v', sem_pexpr wdb gd (with_vm s vm) (pi_e pi e) = ok v' & value_uincl v v'.
-Proof.
+Proof using hvalid hu.
   move=> /pi_eP [v'] /(sem_pexpr_uincl hu) [v'' ? h2] h1.
   exists v'' => //; apply: value_uincl_trans h1 h2.
 Qed.
@@ -291,7 +291,7 @@ Lemma pi_esP_uincl es vs :
   sem_pexprs wdb gd s es = ok vs ->
   exists2 vs', sem_pexprs wdb gd (with_vm s vm) (pi_es pi es) = ok vs' &
     values_uincl vs vs'.
-Proof.
+Proof using hvalid hu.
   move=> /pi_esP [vs'] /(sem_pexprs_uincl hu) [vs'' ? h2] h1.
   exists vs'' => //; apply: values_uincl_trans h1 h2.
 Qed.
@@ -414,15 +414,15 @@ Section PROOF.
   Hypothesis hcomp : pi_prog p1 = ok p2.
 
   Lemma eq_globs : p_globs p1 = p_globs p2.
-  Proof. by move: hcomp; rewrite /pi_prog; t_xrbindP => ?? <-. Qed.
+  Proof using hcomp. by move: hcomp; rewrite /pi_prog; t_xrbindP => ?? <-. Qed.
 
   Lemma eq_p_extra : ep1 = ep2.
-  Proof. by move: hcomp; rewrite /pi_prog; t_xrbindP => ? _ <-. Qed.
+  Proof using hcomp. by move: hcomp; rewrite /pi_prog; t_xrbindP => ? _ <-. Qed.
 
   Lemma all_checked fn f1 :
     get_fundef (p_funcs p1) fn = Some f1 ->
     exists2 f2, pi_fun f1 = ok f2 & get_fundef (p_funcs p2) fn = Some f2.
-  Proof.
+  Proof using hcomp.
     move: hcomp; rewrite /pi_prog; t_xrbindP => pf2 hf <- /=.
     by apply: compiler_util.get_map_cfprog_gen hf.
   Qed.
@@ -506,7 +506,7 @@ Section PROOF.
     valid_pi gd s1 pi →
     ∃ vm2 : Vm.t,
       [/\ evm s2 <=1  vm2, valid_pi gd s2 pi2.1 & esem_i p2 ev pi2.2 (with_vm s1 vm1) = ok (with_vm s2 vm2)].
-  Proof.
+  Proof using hcomp.
     rewrite /= /sem_assgn.
     case heq: pi_lv => [pi' x'] [] <- /=; t_xrbindP.
     move=> v he v' htr hwr hu hval; rewrite /sem_assgn -eq_globs.
@@ -570,7 +570,7 @@ Section PROOF.
   Lemma pi_esPe d wdb es :
     wrequiv (st_pi d) ((sem_pexprs wdb gd)^~ es)
       ((sem_pexprs wdb (p_globs p2))^~ (pi_es d es)) values_uincl.
-  Proof.
+  Proof using hcomp.
     by move=> s t vs /st_piP [-> /=] hu hval; rewrite -eq_globs; apply pi_esP_uincl.
   Qed.
 
@@ -579,14 +579,14 @@ Section PROOF.
     wrequiv (st_pi d) (fun s => write_lvals wdb (p_globs p1) s xs vs1)
                       (fun s => write_lvals wdb (p_globs p2) s (pi_lvs d xs).2 vs2)
             (st_pi (pi_lvs d xs).1).
-  Proof.
+  Proof using hcomp.
     move=> hu s t s' /st_piP [-> /= hvmu hval] hw; rewrite -eq_globs.
     have [vm' [{}hvmu {}hval ->]] := pi_lvsP_uincl hvmu hu hval hw.
     by eexists; first reflexivity.
   Qed.
 
   Lemma checker_piP : Checker_uincl p1 p2 checker_pi.
-  Proof.
+  Proof using hcomp.
     constructor.
     + by move=> > /wdb_ok_eq <- [_ ->]; apply pi_esPe.
     move=> > /wdb_ok_eq <- [-> ->]; apply pi_lvsPe.
@@ -609,7 +609,7 @@ Section PROOF.
   Proof. by move=> hincl s1 s2 [hu hval]; split => //; apply: valid_pi_incl hval. Qed.
 
   Lemma it_pi_callP fn : wiequiv_f p1 p2 ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-  Proof.
+  Proof using hcomp.
     apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd1 hget.
     have [fd2 hfun ->] := all_checked hget.
     exists fd2 => // {hget}.

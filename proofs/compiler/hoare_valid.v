@@ -271,7 +271,7 @@ Lemma sem_fun_mem_equiv fn ii :
     relT
     ii fn
     (fun _ fs fs' => mem_equiv (fmem fs) (fmem fs')).
-Proof using.
+Proof.
 move=> h; apply: (ihoare_io_fun (spec := spec) (Qerr := relT)) => {}fn.
 split=> //; case hget: get_fundef => [fd|//]; split=> //.
 exists

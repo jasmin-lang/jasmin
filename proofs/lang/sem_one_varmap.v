@@ -433,7 +433,7 @@ Section SEM_IND.
       s2' = kill_tmp_call fn s2 ->
       Pfun ii k (kill_tmp_call fn s1) fn s2 →
       Pi_r ii (Sv.union k (fd_tmp_call p fn)) s1 (Ccall res fn args) s2'.
-  Proof. move=> h3 -> h4; apply: Hcall h3 h4. Qed.
+  Proof using Hcall. move=> h3 -> h4; apply: Hcall h3 h4. Qed.
 
   Fixpoint sem_Ind (k: Sv.t) (s1 : estate) (c : cmd) (s2 : estate) (s: sem k s1 c s2) {struct s} :
     Pc k s1 c s2 :=

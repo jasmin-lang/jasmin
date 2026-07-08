@@ -43,7 +43,7 @@ Section E.
       exists2 vs', sem_pexprs wdb gd s' (map wi2w_e es) = ok vs' & values_uincl vs vs'.
 
   Lemma wi2w_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
-  Proof.
+  Proof using hincl.
     apply: pexprs_ind_pair; subst P Q; split => //=; t_xrbindP.
     + by move=> _ <-; exists [::].
     + move=> e he es hes ? v /he [v' -> /= hu] vs /hes [vs' -> /= hus] <-.
@@ -135,10 +135,10 @@ Section E.
   Qed.
 
   Lemma wi2w_eP : ∀ e, P e.
-  Proof. by case wi2w_e_esP. Qed.
+  Proof using hincl. by case wi2w_e_esP. Qed.
 
   Lemma wi2w_esP : ∀ e, Q e.
-  Proof. by case wi2w_e_esP. Qed.
+  Proof using hincl. by case wi2w_e_esP. Qed.
 
 End E.
 
@@ -275,7 +275,7 @@ Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} (rE0_tr
 Lemma it_wi2w_progP (p' : uprog) fn :
   wi2w_prog remove_wint_annot dead_vars_fd p = ok p' →
   wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-Proof.
+Proof using rE0_trans.
   rewrite /wi2w_prog; t_xrbindP => ok_pv <-.
   have := [elaborate it_alloc_call_uprogP ev (p_globs p) ok_pv (fn:= fn)].
   have := [elaborate it_wi2w_call_internalP (fn:=fn)].

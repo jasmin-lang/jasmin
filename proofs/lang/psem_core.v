@@ -756,7 +756,7 @@ Context (wdb : bool) (s1 s2 : estate) (heq : evm s1 = evm s2).
 Lemma use_memP gd e:
   ~~use_mem e ->
   sem_pexpr wdb gd s1 e = sem_pexpr wdb gd s2 e.
-Proof.
+Proof using heq.
   apply (pexpr_mut_ind (P := fun e => ~~use_mem e -> sem_pexpr wdb gd s1 e = sem_pexpr wdb gd s2 e)
                       (Q := fun e => ~~has use_mem e -> sem_pexprs wdb gd s1 e = sem_pexprs wdb gd s2 e)).
   split => //= {e}.

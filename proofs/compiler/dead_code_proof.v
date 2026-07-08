@@ -39,10 +39,10 @@ Section PROOF.
   Hypothesis dead_code_ok : dead_code_prog_tokeep is_move_op apply_ret_annot do_nop onfun p = ok p'.
 
   Lemma eq_globs : gd = p_globs p'.
-  Proof. by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? _ <-. Qed.
+  Proof using dead_code_ok. by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? _ <-. Qed.
 
   Lemma eq_p_extra : p_extra p = p_extra p'.
-  Proof. by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? _ <-. Qed.
+  Proof using dead_code_ok. by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? _ <-. Qed.
 
   Lemma check_nop_spec (r:lval) (e:pexpr): check_nop r e ->
     exists x i1 i2, r = (Lvar (VarI x i1)) /\ e = (Plvar(VarI x i2)).
@@ -71,7 +71,7 @@ Section PROOF.
     (evm s1) <=[read_rv_rec (read_e_rec (Sv.diff O (write_i (Cassgn x tag ty e))) e) x] vm1 →
     exists2 vm2, evm s2 <=[O] vm2 &
       esem p' ev [:: MkI ii (Cassgn x tag ty e)] (with_vm s1 vm1) = ok (with_vm s2 vm2).
-  Proof.
+  Proof using dead_code_ok.
     move=> Hv Hv' Hw Hvm.
     rewrite write_i_assgn in Hvm.
     move: Hvm; rewrite read_rvE read_eE=> Hvm.
@@ -118,7 +118,7 @@ Section PROOF.
     (evm s1) <=[I] vm1 →
     exists2 vm2, evm s2 <=[O] vm2 &
       esem p' ev c (with_vm s1 vm1) = ok (with_vm s2 vm2).
-  Proof.
+  Proof using dead_code_ok.
     move=> hc; rewrite /sem_assgn; t_xrbindP => v he v' htr hw.
     move: hc he htr hw => /=; case: ifP => _; last by move=> [<- <-]; apply Hassgn_esem_aux.
     case: ifP; last by move=> _ [<- <-]; apply Hassgn_esem_aux.
@@ -147,7 +147,7 @@ Section PROOF.
     evm s1 <=[read_es_rec (read_rvs_rec (Sv.diff O (vrvs xs)) xs) es]  vm1 →
     exists2 vm2, evm s2 <=[O]  vm2 &
        esem p' ev [:: MkI ii (Copn xs t o es)] (with_vm s1 vm1) = ok (with_vm s2 vm2).
-  Proof.
+  Proof using dead_code_ok.
     case: s1 => scs1 m1 vm1_ /= Hexpr Hopn Hw Hvm.
     have [ vs' Hexpr' vs_vs' ] := sem_pexprs_uincl_on' Hvm Hexpr.
     have [ v' Hopn' v_v' ] := vuincl_exec_opn vs_vs' Hopn.
@@ -165,7 +165,7 @@ Section PROOF.
     (evm s1) <=[I] vm1 →
     exists2 vm2, evm s2 <=[O] vm2 &
       esem p' ev c (with_vm s1 vm1) = ok (with_vm s2 vm2).
-  Proof.
+  Proof using is_move_opP dead_code_ok.
     move=> hc; rewrite /sem_sopn; t_xrbindP => vs' vs hes ho hws.
     move: hc hes ho hws => /=; case: ifP => _; last by move=> [<- <-]; apply Hopn_esem_aux.
     case:ifPn => [ | _] /=.
@@ -255,7 +255,7 @@ Section PROOF.
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
   #[local] Lemma checker_st_uincl_onP : Checker_uincl p p' checker_st_uincl_on.
-  Proof. apply/checker_st_uincl_onP/eq_globs. Qed.
+  Proof using dead_code_ok. apply/checker_st_uincl_onP/eq_globs. Qed.
   #[local] Hint Resolve checker_st_uincl_onP : core.
 
   Definition dc_spec := {|
@@ -278,7 +278,7 @@ Section PROOF.
 
   Lemma it_dead_code_callP fn :
     wiequiv_f p p' ev ev (rpreF (eS:= dc_spec)) fn fn (rpostF (eS:=dc_spec)).
-  Proof.
+  Proof using is_move_opP dead_code_ok.
     apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
     have dcok : map_cfprog_name (dead_code_fd is_move_op apply_ret_annot do_nop onfun) (p_funcs p) = ok (p_funcs p').
     + by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? ? <-.
@@ -407,7 +407,7 @@ Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 Lemma it_dead_code_tokeep_callPu (p p': uprog) apply_ret_annot do_nop onfun fn ev:
   dead_code_prog_tokeep is_move_op apply_ret_annot do_nop onfun p = ok p' ->
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=dc_spec onfun)).
-Proof.
+Proof using is_move_opP.
   move=> hd; apply wkequiv_io_weaken with
    (rpreF (eS:= dc_spec onfun) fn fn) (rpostF (eS:=dc_spec onfun) fn fn) => //=.
   + by move=> ?? [_ <-]; split => //; split => //; apply List_Forall2_refl.
@@ -417,7 +417,7 @@ Qed.
 Lemma it_dead_code_tokeep_callPs (p p': sprog) apply_ret_annot do_nop onfun fn wrip:
   dead_code_prog_tokeep is_move_op apply_ret_annot do_nop onfun p = ok p' ->
   wiequiv_f p p' wrip wrip (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=dc_spec onfun)).
-Proof.
+Proof using is_move_opP.
   move=> hd; apply wkequiv_io_weaken with
    (rpreF (eS:= dc_spec onfun) fn fn) (rpostF (eS:=dc_spec onfun) fn fn) => //=.
   + by move=> ?? [_ <-]; split => //; split => //; apply List_Forall2_refl.
@@ -427,12 +427,12 @@ Qed.
 Lemma it_dead_code_callPu (p p': uprog) do_nop fn ev :
   dead_code_prog is_move_op p do_nop = ok p' ->
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=uincl_spec)).
-Proof. apply it_dead_code_tokeep_callPu. Qed.
+Proof using is_move_opP. apply it_dead_code_tokeep_callPu. Qed.
 
 Lemma it_dead_code_callPs (p p': sprog) do_nop fn wrip:
   dead_code_prog is_move_op p do_nop = ok p' ->
   wiequiv_f p p' wrip wrip (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=uincl_spec)).
-Proof. apply it_dead_code_tokeep_callPs. Qed.
+Proof using is_move_opP. apply it_dead_code_tokeep_callPs. Qed.
 
 Lemma dead_code_prog_tokeep_meta (p p': sprog) apply_ret_annot do_nop onfun :
   dead_code_prog_tokeep is_move_op apply_ret_annot do_nop onfun p = ok p' →

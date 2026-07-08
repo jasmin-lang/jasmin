@@ -19,7 +19,7 @@ Section REMOVE_ASSERT.
   Hypothesis remove_assert_ok : remove_assert_prog p = p'.
 
   Lemma eq_p_extra : p_extra p' = p_extra p.
-  Proof. by rewrite -remove_assert_ok. Qed.
+  Proof using remove_assert_ok. by rewrite -remove_assert_ok. Qed.
 
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
@@ -32,7 +32,7 @@ Section REMOVE_ASSERT.
     {| check_es _ x y _ := x = y; check_lvals _ x y _ := x = y; |}.
 
   Instance checker_ra_eqP : Checker_eq p p' checker_ra_eq.
-  Proof.
+  Proof using remove_assert_ok.
     rewrite -remove_assert_ok.
     constructor.
     - by move => > /wdb_ok_eq <- <- > /st_rel_eq <-; eauto.
@@ -50,7 +50,7 @@ Section REMOVE_ASSERT.
 
   Lemma it_remove_assert_progP fn :
     wiequiv_f (wa1 := withassert) (wa2 := noassert) p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-  Proof.
+  Proof using remove_assert_ok.
     apply wequiv_fun_ind_wa => {fn}.
     move=> fn _ fs ft [<- <-] fd hget.
     rewrite -{1 2}remove_assert_ok get_map_prog hget /=.

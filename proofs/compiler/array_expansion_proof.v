@@ -174,7 +174,7 @@ Let Q es1 :=
 
 
 Lemma expand_eP_and : (forall e, P e) /\ (forall es, Q es).
-Proof.
+Proof using valid h.
   apply: pexprs_ind_pair; subst P Q; split => //=; t_xrbindP.
   + by move=> > <- > <-.
   + by move=> > he > hes > hex > hexs <- > /(he _ hex) /= -> > /(hes _ hexs) /= -> <-.
@@ -210,10 +210,10 @@ Proof.
 Qed.
 
 Lemma expand_eP e : P e.
-Proof. by case: expand_eP_and. Qed.
+Proof using valid h. by case: expand_eP_and. Qed.
 
 Lemma expand_esP e : Q e.
-Proof. by case: expand_eP_and. Qed.
+Proof using valid h. by case: expand_eP_and. Qed.
 
 End EXPR.
 
@@ -222,7 +222,7 @@ Lemma eq_alloc_write_var s1 s2 (x: var_i) v s1':
    Sv.mem x (svars m) ->
    write_var wdb x v s1 = ok s1' ->
    ∃ s2' : estate, write_var wdb x v s2 = ok s2' ∧ eq_alloc m s1' s2'.
-Proof.
+Proof using valid.
   move=> h; case: (h) => hscs hmem -[heq ha] /=.
   move=> /Sv_memP hin hw.
   have [vm2 hw2 heq2]:= write_var_eq_on hw heq.
@@ -242,7 +242,7 @@ Lemma expand_lvP (s1 s2 : estate) :
   forall v s1',
      write_lval wdb gd x1 v s1 = ok s1' ->
      exists s2', write_lval wdb gd x2 v s2 = ok s2' /\ eq_alloc m s1' s2'.
-Proof.
+Proof using valid.
   move=> h; case: (h) => hscs hmem -[heq ha] [] /=.
   + move=> ii ty _ [<-] /= ?? /[dup] /write_noneP [-> _ _] hn.
     by exists s2; split => //; apply: uincl_write_none hn.
@@ -309,7 +309,7 @@ Lemma expand_lvsP (s1 s2 : estate) :
   forall vs s1',
      write_lvals wdb gd s1 x1 vs = ok s1' ->
      exists s2', write_lvals wdb gd s2 x2 vs = ok s2' /\ eq_alloc m s1' s2'.
-Proof.
+Proof using valid.
   move=> heqa x1 x2 hex; elim: x1 x2 hex s1 s2 heqa => /=.
   + by move=> ? [<-] s1 s2 ? [ | //] ? [<-]; exists s2.
   move=> x1 xs1 hrec ?; t_xrbindP => x2 hx xs2 hxs <- s1 s2 heqa [//|v vs] s1'.
@@ -327,7 +327,7 @@ Lemma expand_paramsP (s1 s2 : estate) e expdin :
     sem_pexprs false gd s1 es1 = ok vs ->
     exists2 vs', expand_vs expdin vs = ok vs' &
       sem_pexprs false gd s2 (flatten es2) = ok (flatten vs').
-Proof.
+Proof using valid.
 Local Opaque wsize_size.
   move=> h ?? + /mapM2_Forall3 H; elim: H => [?[<-]|]; first by eexists.
   move=> [] /=; last first.
@@ -424,7 +424,7 @@ Lemma expand_returnP (s1 s2 : estate) expdout :
     expand_v expdout v = ok vs' ->
     exists2 s2', write_lvals false gd s2 xs2 vs' = ok s2' &
       eq_alloc m s1' s2'.
-Proof.
+Proof using valid.
   move=> heqa.
   case: expdout => /=; last first.
   + t_xrbindP => > /expand_lvP hlv <- > hw <- /=.
@@ -509,7 +509,7 @@ Lemma expand_returnsP (s1 s2 : estate) e expdout :
     expand_vs expdout vs = ok vs' ->
     exists2 s2', write_lvals false gd s2 (flatten xs2) (flatten vs') = ok s2' &
       eq_alloc m s1' s2'.
-Proof.
+Proof using valid.
   move=> + > /mapM2_Forall3 H; elim: H s1 s2.
   + by move=> ??? [] // ?? [<-] [<-]; eexists.
   move=> a b c la lb lc hexp _ hrec s1 s2 heqa [] // v1 vs vs' s1' /=.
@@ -534,7 +534,7 @@ Definition fsigs :=
   foldr (fun x y => Mf.set y x.1 x.2.2) (Mf.empty _) step1.
 
 Lemma eq_globs : p_globs p2 = gd.
-Proof. by move: Hcomp; rewrite /expand_prog; t_xrbindP=> z ??? <-. Qed.
+Proof using Hcomp. by move: Hcomp; rewrite /expand_prog; t_xrbindP=> z ??? <-. Qed.
 
 Lemma all_checked fn fd1 :
   get_fundef (p_funcs p1) fn = Some fd1 ->
@@ -542,7 +542,7 @@ Lemma all_checked fn fd1 :
     Mf.get fsigs fn = Some g,
     expand_fsig fi entries fn fd1 = ok (fd2', m, g) &
     expand_fbody fsigs fn (fd2', m) = ok fd2].
-Proof.
+Proof using Hcomp Hstep1.
   move=> /(get_map_cfprog_name_gen Hstep1)[[[fd2' m'] fex'] hex' hfd'].
   move: Hcomp; rewrite /expand_prog Hstep1 /=.
   t_xrbindP=> pf2 hpf2 ?; subst.
@@ -715,7 +715,7 @@ Definition checker_exp :=
   |}.
 
 Lemma checker_exp_eqP : Checker_eq p1 p2 checker_exp.
-Proof.
+Proof using Hcomp hwf.
   split.
   + move=> wdb1 _ d es1 es2 _ /wdb_ok_eq <- [-> _ hes] s t vs1 heqa he.
     have {}heqa : eq_alloc m s t by case: heqa; split.
@@ -728,7 +728,7 @@ Qed.
 #[local] Hint Resolve checker_exp_eqP : core.
 
 Lemma expand_cP c1 : Pc_ c1.
-Proof.
+Proof using Hcomp hwf.
   apply (cmd_rect (Pr := Pi_r_) (Pi:=Pi_) (Pc:=Pc_)) => // {c1}; rewrite /Pi_r_ /Pi_ /Pc_.
   + by move=> _ [<-]; apply wequiv_nil.
   + move=> i1 c1 hi hc c2_ /=; t_xrbindP => i2 /hi{}hi c2 /hc{}hc <-.
@@ -774,7 +774,7 @@ End CMD.
 
 Lemma it_expand_callP_aux fn :
   wiequiv_f p1 p2 ev ev (rpreF (eS:=exp_spec)) fn fn (rpostF (eS:=exp_spec)).
-Proof.
+Proof using Hcomp Hstep1.
   apply wequiv_fun_ind => {}fn _ fs1 fs2 [<-] [hscs hmem] [[expdin expdout]
     hexpd [vs /= hexpv hflat]] fd hget1.
   have [fd1 [fd2 [m [inout [hget2 hsigs /=]]]]]:= all_checked hget1.
@@ -846,7 +846,7 @@ Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
 Lemma it_expand_callP f :
   f \in entries ->
   wiequiv_f p1 p2 ev ev (rpreF (eS:=eq_spec)) f f (rpostF (eS:=eq_spec)).
-Proof.
+Proof using Hcomp.
   apply: (rbindP _ Hcomp) => s1 /[dup]Hs1 /it_expand_callP_aux /(_ E E0 wE rE0 f) h _ hin.
   apply wequiv_fun_get => fd hget.
   have hgets : Mf.get (fsigs s1) f =

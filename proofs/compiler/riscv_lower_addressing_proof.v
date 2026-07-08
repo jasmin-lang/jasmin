@@ -41,7 +41,7 @@ Context (ev : extra_val_t).
 
 Lemma lower_addressing_prog_invariants :
   p.(p_globs) = p'.(p_globs) /\ p.(p_extra) = p'.(p_extra).
-Proof.
+Proof using ok_p'.
   move: ok_p'; rewrite /lower_addressing_prog.
   by t_xrbindP=> _ _ <- /=.
 Qed.
@@ -50,7 +50,7 @@ Qed.
 #[local]
 Lemma eq_globs :
   p.(p_globs) = p'.(p_globs).
-Proof. by have [? _] := lower_addressing_prog_invariants. Qed.
+Proof using ok_p'. by have [? _] := lower_addressing_prog_invariants. Qed.
 
 Lemma lower_addressing_fd_invariants :
   forall fn fd,
@@ -63,7 +63,7 @@ Lemma lower_addressing_fd_invariants :
         fd.(f_tyout) = fd'.(f_tyout),
         fd.(f_res) = fd'.(f_res) &
         fd.(f_extra) = fd'.(f_extra)].
-Proof.
+Proof using ok_p'.
   move=> fn fd get_fd.
   move: ok_p'; rewrite /lower_addressing_prog.
   t_xrbindP=> funcs ok_funcs <-.
@@ -147,7 +147,7 @@ Lemma Hopn_aux (s1 s2 : estate) (t : assgn_tag) (o : sopn) (xs : lvals) (es : pe
   exists2 vm2 : Vm.t,
     esem p' ev (lower_addressing_i tmp (MkI ii (Copn xs t o es)))  (with_vm s1 vm1) = ok (with_vm s2 vm2) &
     evm s2 =[X] vm2.
-Proof.
+Proof using ok_p'.
   rewrite !read_writeE => ok_s2 tmp_ty tmp_nin hsub eq_vm1 /=.
   have [vm2 hsem eq_vm2] :
      exists2 vm2 : Vm.t, sem_sopn (p_globs p) o (with_vm s1 vm1) xs es = ok (with_vm s2 vm2) & evm s2 =[X] vm2.
@@ -205,12 +205,12 @@ Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
 
 #[ local ]
 Lemma checker_st_eq_onP_ : Checker_eq p p' checker_st_eq_on.
-Proof. apply checker_st_eq_onP; apply eq_globs. Qed.
+Proof using ok_p'. apply checker_st_eq_onP; apply eq_globs. Qed.
 #[local] Hint Resolve checker_st_eq_onP_ : core.
 
 Lemma it_lower_addressing_progP fn:
   wiequiv_f p p' ev ev (rpreF (eS:=eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-Proof.
+Proof using ok_p'.
   apply wequiv_fun_ind => {}fn _ fs _ [<-] <- fd hget.
   move: ok_p'; rewrite /lower_addressing_prog.
   set tmp := {| v_var := _; v_info := _ |}.

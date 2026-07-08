@@ -32,7 +32,7 @@ Notation gd  := (p_globs p).
 Notation gd' := (p_globs p').
 
 Lemma eq_globs : gd' = gd.
-Proof. by move: (Hp); rewrite /load_constants_prog; t_xrbindP => ? _ <-. Qed.
+Proof using Hp. by move: (Hp); rewrite /load_constants_prog; t_xrbindP => ? _ <-. Qed.
 
 Section BODY.
 
@@ -45,7 +45,7 @@ Lemma process_constantP_aux wdb ii n ws e c e' W s v :
     [/\ esem p' ev (map (MkI ii) c) s = ok (with_vm s vm),
         evm s =[\W] vm, Sv.Subset (read_e e') (Sv.union W (read_e e)) &
         sem_pexpr wdb gd' (with_vm s vm) e' = ok v].
-Proof.
+Proof using Hp.
   rewrite /process_constant; case: is_wconst_of_sizeP => [z | ]; last first.
   + move=> _ [<- -> <-] he; exists (evm s); split => //; rewrite ?with_vm_same.
     + by constructor.
@@ -73,7 +73,7 @@ Lemma process_constantP wdb ii n ws e c e' W s v vm :
     [/\ esem p' ev (map (MkI ii) c) (with_vm s vm) = ok (with_vm s vm'),
         evm s =[X] vm', Sv.Subset (read_e e') (Sv.union W (read_e e)) &
         sem_pexpr wdb gd' (with_vm s vm') e' = ok v].
-Proof.
+Proof using Hp.
   move=> he hse hsub heq /disjoint_sym hdisj.
   have {}hse: sem_pexpr wdb gd (with_vm s vm) e = ok v.
   + rewrite -hse; apply eq_on_sem_pexpr => //.
@@ -93,7 +93,7 @@ Lemma process_conditionP wdb ii e c e' s v vm:
     [/\ esem p' ev (map (MkI ii) c) (with_vm s vm) = ok (with_vm s vm'),
         evm s =[X] vm' &
         sem_pexpr wdb gd' (with_vm s vm') e' = ok v].
-Proof.
+Proof using Hp.
   rewrite /process_condition.
   have Hdfl :
    Ok pp_error_loc ([::], e) = ok (c, e')
@@ -140,12 +140,12 @@ Section IT.
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
 
 Lemma checker_st_eq_onP_ : Checker_eq p p' checker_st_eq_on.
-Proof. by apply checker_st_eq_onP; rewrite eq_globs. Qed.
+Proof using Hp. by apply checker_st_eq_onP; rewrite eq_globs. Qed.
 #[local] Hint Resolve checker_st_eq_onP_ : core.
 
 Lemma it_load_constants_progP_aux fn:
   wiequiv_f p p' ev ev (rpreF (eS:=eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-Proof.
+Proof using Hp.
   apply wequiv_fun_ind => {}fn _ fs _ [<-] <- fd hget.
   move: Hp; rewrite /load_constants_prog; t_xrbindP => funcs Hmap hp'.
   case: (get_map_cfprog_gen Hmap hget) => fd' Hupdate hget'.

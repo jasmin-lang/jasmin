@@ -107,7 +107,7 @@ Section SEM_PEXPR_SIM.
       sem_pexprs true gd s' es = ok vs.
 
   Lemma sem_pexpr_s_sim : (∀ e, P e) ∧ (∀ es, Q es).
-  Proof.
+  Proof using hs.
     case: hs => ? hmem hsim.
     apply: pexprs_ind_pair; subst P Q; split => //=; t_xrbindP.
     + by move=> ? he ? hes ?? /he -> ? /hes -> <-.

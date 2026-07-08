@@ -105,10 +105,10 @@ Let vgd : var := vid p.(p_extra).(sp_rip).
 Let vrsp : var := vid p.(p_extra).(sp_rsp).
 
 Lemma rip_neq_rsp : p.(p_extra).(sp_rip) != p.(p_extra).(sp_rsp).
-Proof. by move: ok_p; rewrite /check; t_xrbindP. Qed.
+Proof using ok_p. by move: ok_p; rewrite /check; t_xrbindP. Qed.
 
 Lemma vgd_neq_vrsp : vgd != vrsp.
-Proof.
+Proof using ok_p.
   have := rip_neq_rsp.
   rewrite /vgd /vrsp /=.
   by move=> /eqP ?; apply /eqP; congruence.
@@ -116,7 +116,7 @@ Qed.
 
 Lemma var_tmp_not_magic :
   disjoint var_tmps (magic_variables p).
-Proof. by move: ok_p; rewrite /check; t_xrbindP. Qed.
+Proof using ok_p. by move: ok_p; rewrite /check; t_xrbindP. Qed.
 
 Lemma not_written_magic W :
   disjoint W (magic_variables p) →
@@ -125,7 +125,7 @@ Proof. rewrite /disjoint /magic_variables /is_true Sv.is_empty_spec; clear; SvD.
 
 Lemma disjoint_tmp_call_magic f :
   disjoint (fd_tmp_call p f) (magic_variables p).
-Proof.
+Proof using ok_p.
   move: ok_p; rewrite /fd_tmp_call /check; t_xrbindP => _ _ _ ? ok_prog.
   have /(_ f) := get_map_cfprog_name_gen ok_prog.
   case: get_fundef => // fd /(_ _ erefl) [? ].
@@ -134,7 +134,7 @@ Qed.
 
 Lemma kill_vars_tmp_call_rsp fn vm :
   (kill_vars (fd_tmp_call p fn) vm).[vrsp] = vm.[vrsp].
-Proof.
+Proof using ok_p.
   rewrite kill_varsE; case: ifP => // /Sv_memP.
   have := disjoint_tmp_call_magic fn.
   rewrite /disjoint => /Sv.is_empty_spec.
@@ -143,7 +143,7 @@ Qed.
 
 Lemma kill_vars_tmp_call_rip fn vm :
   (kill_vars (fd_tmp_call p fn) vm).[vgd] = vm.[vgd].
-Proof.
+Proof using ok_p.
   rewrite kill_varsE; case: ifP => // /Sv_memP.
   have := disjoint_tmp_call_magic fn.
   rewrite /disjoint => /Sv.is_empty_spec.
@@ -465,7 +465,7 @@ Lemma merge_vmap_stable_trans (t1 t2:estate) X:
   stack_stable (emem t1) (emem t2) ->
   evm t1 =[\X] evm t2 ->
   merge_vmap_stable t2.
-Proof.
+Proof using mvp_not_written.
   move=> hsub [] hstable hrsp hgd hal hstable' heqex.
   have /not_written_magic [??] := disjoint_w hsub mvp_not_written.
   have heq1 := ss_top_stack hstable'.
@@ -480,7 +480,7 @@ Lemma check_lvP ii I x O s1 s2 t1 v v':
   write_lval true (p_globs p) x v s1 = ok s2 ->
   value_uincl v v' ->
   exists2 t2, write_lval true (p_globs p) x v' t1 = ok t2 & merged_vmap_inv O s2 t2.
-Proof.
+Proof using mvp_not_written.
   move=> hsub hch [] hmatch hstable hw hu.
   have [t2 hw' hmatch'] := check_lvP_match_estate hch hmatch hw hu.
   exists t2 => //; split => //.
@@ -496,7 +496,7 @@ Lemma check_lvsP ii I xs O s1 s2 t1 vs vs':
   write_lvals true (p_globs p) s1 xs vs = ok s2 ->
   values_uincl vs vs' ->
   exists2 t2, write_lvals true (p_globs p) t1 xs vs' = ok t2 & merged_vmap_inv O s2 t2.
-Proof.
+Proof using mvp_not_written.
   move=> hsub hch [] hmatch hstable hw hu.
   have [t2 hw' hmatch'] := check_lvsP_match_estate hch hmatch hw hu.
   exists t2 => //; split => //.
@@ -589,7 +589,7 @@ Lemma SvSubset_and s1 s2 s : Sv.Subset (Sv.union s1 s2) s -> Sv.Subset s1 s /\ S
 Proof. move=> h; split; clear -h; SvD.fsetdec. Qed.
 
 Lemma merge_varmaps_cmdP c : Pc c.
-Proof.
+Proof using ok_p hcall mvp_not_written.
   apply (cmd_rect (Pr:=Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}.
   (* instr_r -> instr *)
   + move=> i ii hi I O hsub /= hck s1 t1 hinv1.
@@ -846,7 +846,7 @@ Lemma merge_varmaps_funP fn1 fn2 :
     (sem_fun (sem_Fun := sem_fun_full) p global_data dummy_instr_info fn1)
     (it_sems_one_varmap.isem_fun var_tmps p fn2)
     (postF fn1 fn2).
-Proof.
+Proof using ok_p.
   move=> fs1 t1 hpre /=.
   rewrite /isem_fun /isem_fun_def /it_sems_one_varmap.isem_fun /it_sems_one_varmap.isem_fun_def.
   have {}hpre : PreF (RecCall dummy_instr_info fn1 fs1) (RecCallK fn2 t1) by done.
@@ -1144,7 +1144,7 @@ Lemma merge_varmaps_export_callP fn:
               values_uincl res res'
           | None => false
           end]).
-Proof.
+Proof using ok_p.
   case => fd ok_fd Export fs t; rewrite ok_fd /= => -[] hscs hmem /= [args'] [ hrsp hvgd hargs huargs].
   rewrite /isem_exportcall.
   case: (checkP ok_p ok_fd)=> _ok_wrf.
@@ -1214,7 +1214,7 @@ Lemma merge_varmaps_export_call_checkP fn:
     (isem_fun p global_data fn)
     (it_sems_one_varmap.isem_exportcall_check var_tmps p global_data fn)
     (ovm_post fn).
-Proof.
+Proof using ok_p.
   move=> /merge_varmaps_export_callP => h fs s /h.
   have -> // : isem_exportcall var_tmps p global_data fn s ≈ isem_exportcall_check var_tmps p global_data fn s.
   rewrite /isem_exportcall /isem_exportcall_check.

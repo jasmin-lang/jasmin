@@ -522,7 +522,7 @@ Lemma lstores_dfl_correct1 rspi to_save s top m2:
       Let v := Let x := get_var true vm1 x in to_word ws x in write m Aligned (top + wrepr Uptr ofs)%R v) m1 to_save =
     ok m2
   → sem_fopns_args s lcmd = ok (with_mem s m2) .
-Proof.
+Proof using lstore_correct.
   elim: to_save s => /= [ | [x ofs] to_save ih] s hget.
   + by move=> [<-]; rewrite with_mem_same.
   t_xrbindP; case heq: vtype => [|||ws]// m' _ [<-] hchk w v hgetx htow hw hf.
@@ -533,7 +533,7 @@ Proof.
 Qed.
 
 Lemma lstores_dfl_correct : lstores_correct_aux lip_check_ws lip_tmp2 (lstores_dfl lip_lstore).
-Proof.
+Proof using lstore_correct.
   move=> rspi to_save s top m2 /= _ _ hget hf.
   have -> := lstores_dfl_correct1 hget hf.
   by exists (evm s) => //; rewrite with_vm_same.
@@ -541,7 +541,7 @@ Qed.
 
 Lemma lstores_imm_dfl_correct :
   lstores_correct_aux lip_check_ws lip_tmp2 (lstores_imm_dfl lip_tmp2 lip_lstore lip_add_imm lip_imm_small).
-Proof.
+Proof using lstore_correct ladd_imm_correct.
   move=> rspi to_save s top m2 /= hnin hne hget hf.
   rewrite /lstores_imm_dfl.
   case: ifP => _; first by apply: lstores_dfl_correct hget hf.
@@ -577,7 +577,7 @@ Lemma lloads_aux_correct rspi to_restore s top vm2 :
        Let w := read m1 Aligned (top + wrepr Uptr ofs)%R ws in
        set_var true vm1 x (Vword w)) vm1 to_restore = ok vm2 ->
      sem_fopns_args s lcmd = ok (with_vm s vm2) /\ get_var true vm2 rspi >>= to_word Uptr = ok top.
-Proof.
+Proof using lload_correct.
   rewrite /= => /Sv_memP/sv_of_listP.
   elim: to_restore s => /=.
   + by move=> s _ ? [<-]; rewrite with_vm_same.
@@ -594,7 +594,7 @@ Qed.
 
 Lemma lloads_dfl_correct :
   lloads_correct_aux lip_check_ws lip_tmp2 (lloads_dfl lip_lload).
-Proof.
+Proof using lload_correct.
   move=> rspi to_rest ofs s top vm2 /= hnin hnin2 hne hget.
   rewrite /lloads_dfl foldM_cat; t_xrbindP => vm1 hf.
   rewrite /=; case heqt: vtype => [|||ws] //=; t_xrbindP.
@@ -611,7 +611,7 @@ Qed.
 
 Lemma lloads_imm_dfl_correct :
   lloads_correct_aux lip_check_ws lip_tmp2 (lloads_imm_dfl lip_tmp2 lip_lload lip_add_imm lip_imm_small).
-Proof.
+Proof using lload_correct ladd_imm_correct.
   move=> rspi to_rest ofs s top vm2 /= hnin hnin2 hne hget hf.
   rewrite /lloads_imm_dfl; case: ifP => _.
   + by apply: lloads_dfl_correct hnin hnin2 hne hget hf.
@@ -666,7 +666,7 @@ Section HLIPARAMS.
     let li := lmove liparams ii x y in
     let s := to_estate ls in
     eval_instr lp li ls = ok (lnext_pc (lset_estate' ls (with_vm s (evm s).[x <- Vword w]))).
-  Proof.
+  Proof using hliparams.
     move=> htx hty hget /=; rewrite -(lset_estate_same ls).
     apply sem_fopn_args_eval_instr.
     by rewrite (spec_lip_lmove hliparams (s:= to_estate ls) htx hty hget (truncate_word_u w)).
@@ -680,7 +680,7 @@ Section HLIPARAMS.
     write (lmem ls) Aligned (wx + wrepr Uptr ofs)%R wy' = ok m ->
     let: li := lstore liparams ii x ofs y in
     eval_instr lp li ls = ok (lnext_pc (lset_mem ls m)).
-  Proof.
+  Proof using hliparams.
     move=> hty hgy htr hgx hw /=.
     apply sem_fopn_args_eval_instr => /=.
     apply: (spec_lip_lstore hliparams (s:= to_estate ls) hty (spec_lip_check_ws hliparams) _ _ hw).
@@ -694,7 +694,7 @@ Section HLIPARAMS.
     read (lmem ls) Aligned (wy + wrepr Uptr ofs)%R Uptr = ok wx ->
     let: li := lload liparams ii x y ofs in
     eval_instr lp li ls = ok (lnext_pc (lset_vm ls ls.(lvm).[x <- Vword wx])).
-  Proof.
+  Proof using hliparams.
     move=> hty hgy hread /=.
     apply sem_fopn_args_eval_instr => /=.
     apply: (spec_lip_lload hliparams (s:= to_estate ls) hty (spec_lip_check_ws hliparams) _ hread).
@@ -727,7 +727,7 @@ Section HLIPARAMS.
             ~ is_defined vm'.[x] ->
             (lvm ls).[x] = vm'.[x]
       ].
-  Proof.
+  Proof using hliparams.
     move=> hlin hsize hget htyr htytmp hne hne1 hne2.
     have [vm [hsem heq hgrsp hgr hf]] :=
       spec_lip_set_up_sp_register hliparams al sz (s:= to_estate ls) hget erefl htyr htytmp hne hne1 hne2.
@@ -1142,13 +1142,13 @@ Section PROOF.
   Hypothesis var_tmps_not_magic : disjoint var_tmps (magic_variables p).
 
   Lemma var_tmp_not_magic : ~~ Sv.mem var_tmp (magic_variables p).
-  Proof.
+  Proof using var_tmps_not_magic.
     move/Sv.is_empty_spec: var_tmps_not_magic; rewrite /var_tmps => h.
     apply/Sv_memP; clear -h; SvD.fsetdec.
   Qed.
 
   Lemma var_tmp2_not_magic : ~~ Sv.mem var_tmp2 (magic_variables p).
-  Proof.
+  Proof using var_tmps_not_magic.
     move/Sv.is_empty_spec: var_tmps_not_magic; rewrite /var_tmps => h.
     apply/Sv_memP; clear -h; SvD.fsetdec.
   Qed.
@@ -1175,7 +1175,7 @@ Section PROOF.
 
   Lemma hneq_vtmp_vrsp :
     v_var var_tmp <> vrsp.
-  Proof.
+  Proof using var_tmps_not_magic.
     move: var_tmp_not_magic.
     move=> /Sv_memP.
     t_notin_add.
@@ -1184,7 +1184,7 @@ Section PROOF.
 
   Lemma hneq_vtmp2_vrsp :
     v_var var_tmp2 <> vrsp.
-  Proof.
+  Proof using var_tmps_not_magic.
     move: var_tmp2_not_magic.
     move=> /Sv_memP.
     t_notin_add.
@@ -1193,7 +1193,7 @@ Section PROOF.
 
   Lemma hneq_vtmp_vtmp2 :
     v_var var_tmp <> v_var var_tmp2.
-  Proof. move=> []; apply: spec_lip_tmp hliparams. Qed.
+  Proof using hliparams. move=> []; apply: spec_lip_tmp hliparams. Qed.
 
   Definition checked_i fn i : bool :=
     if get_fundef (p_funcs p) fn is Some fd
@@ -1235,14 +1235,14 @@ Section PROOF.
   Qed.
 
   Local Lemma p_globs_nil : p_globs p = [::].
-  Proof.
+  Proof using linear_ok.
     by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ /eqP /size0nil.
   Qed.
 
   Local Lemma checked_prog fn fd :
     get_fundef (p_funcs p) fn = Some fd →
     check_fd fn fd = ok tt.
-  Proof.
+  Proof using linear_ok.
     move: linear_ok; rewrite /linear_prog; t_xrbindP => ok_p _ _ _.
     move: ok_p; rewrite /check_prog; t_xrbindP => r C _ M.
     by have [[]]:= get_map_cfprog_name_gen C M.
@@ -1252,7 +1252,7 @@ Section PROOF.
     get_fundef (p_funcs p) f = Some fd →
     get_fundef (lp_funcs p') f
     = Some (linear_fd f fd).2.
-  Proof.
+  Proof using linear_ok.
     move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ <- /=.
     elim: (p_funcs p) 1%positive => [|[f' fd'] funcs ih] nb_lbl //=.
     set nb_lbl' := (nb_lbl + _)%positive.
@@ -1263,13 +1263,13 @@ Section PROOF.
   Qed.
 
   Lemma lp_ripE : lp_rip p' = sp_rip p.(p_extra).
-  Proof. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ <-. Qed.
+  Proof using linear_ok. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ <-. Qed.
 
   Lemma lp_rspE : lp_rsp p' = sp_rsp p.(p_extra).
-  Proof. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ <-. Qed.
+  Proof using linear_ok. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ <-. Qed.
 
   Lemma lp_globsE : lp_globs p' = sp_globs p.(p_extra).
-  Proof. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ <-. Qed.
+  Proof using linear_ok. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ <-. Qed.
 
   Lemma fmap_linear_fd_acc lbl funcs :
     let (nb_lbl, funcs') :=
@@ -1291,7 +1291,7 @@ Section PROOF.
   Qed.
 
   Lemma small_dom_p' : small_dom (label_in_lprog p').
-  Proof.
+  Proof using linear_ok.
     move: linear_ok; rewrite /linear_prog.
     t_xrbindP=> _ _ /ZleP hle <-.
     rewrite /small_dom /label_in_lprog; apply /ZleP.
@@ -1524,7 +1524,7 @@ Section PROOF.
         sem_pexprs true [::] {| escs := scs; emem := m' ; evm := vm |} es = ok vs.
 
     Lemma match_mem_gen_sem_pexpr_pair : (∀ e, P e) ∧ (∀ es, Q es).
-    Proof.
+    Proof using M.
       apply: pexprs_ind_pair; split.
       - by [].
       - by move => e ihe es ihes vs /=; t_xrbindP => ? /ihe -> /= ? /ihes -> /= ->.
@@ -1541,10 +1541,10 @@ Section PROOF.
     Qed.
 
     Lemma match_mem_gen_sem_pexpr e : P e.
-    Proof. exact: (proj1 match_mem_gen_sem_pexpr_pair). Qed.
+    Proof using M. exact: (proj1 match_mem_gen_sem_pexpr_pair). Qed.
 
     Lemma match_mem_gen_sem_pexprs es : Q es.
-    Proof. exact: (proj2 match_mem_gen_sem_pexpr_pair). Qed.
+    Proof using M. exact: (proj2 match_mem_gen_sem_pexpr_pair). Qed.
 
   End MATCH_MEM_SEM_PEXPR.
 
@@ -1554,7 +1554,7 @@ Section PROOF.
     exists2 m2',
     write_lval true [::] x v {| escs := scs1; emem := m1' ; evm := vm1 |} = ok {| escs := scs2; emem := m2' ; evm := vm2 |} &
     match_mem_gen sp m2 m2'.
-  Proof.
+  Proof using sip.
     move => M; case: x => /= [ _ ty | x | al ws vi e | al aa ws x e | aa ws n x e ].
     - by case/write_noneP; rewrite /write_none => -[-> -> ->] -> ->; exists m1'.
     - rewrite /write_var /=; t_xrbindP =>_ -> -> <- -> /=.
@@ -1571,7 +1571,7 @@ Section PROOF.
     exists2 m2',
     write_lvals true [::] {| escs := scs1; emem := m1' ; evm := vm1 |} xs vs = ok {| escs := scs2; emem := m2' ; evm := vm2 |} &
     match_mem_gen sp m2 m2'.
-  Proof.
+  Proof using sip.
     elim: xs vs scs1 vm1 m1 m1'.
     - by case => // scs1 vm1 m1 m1' M [] <- <- <-; exists m1'.
     by move => x xs ih [] // v vs scs1 vm1 m1 m1' M /=; t_xrbindP => - [] ??? /(match_mem_gen_write_lval M)[] m2' -> M2 /ih - /(_ _ M2).
@@ -1684,7 +1684,7 @@ Section PROOF.
     s <=1 t →
     match_mem_gen sp s t →
     ∀ p, ~~ validw (emem s) Aligned p U8 → read (emem t) Aligned p U8 = read (emem t') Aligned p U8.
-  Proof.
+  Proof using sip.
     case: x.
     - move => /= _ ty /write_noneP[] <- _ _ /write_noneP[] -> _ _; reflexivity.
     - move => x /write_var_memP -> /write_var_memP ->; reflexivity.
@@ -1714,7 +1714,7 @@ Section PROOF.
     s <=1 t →
     match_mem_gen sp s t →
     ∀ p, ~~ validw (emem s) Aligned p U8 → read (emem t) Aligned p U8 = read (emem t') Aligned p U8.
-  Proof.
+  Proof using sip.
     move => h; elim: h xs s t => {vs vs'}.
     - case => // ?? [] -> [] -> _ _; reflexivity.
     move => v v' vs vs' v_v' vs_vs' ih [] // x xs s t /=.
@@ -1737,7 +1737,7 @@ Section PROOF.
     vm_uincl s t →
     match_mem_gen sp s t →
     preserved_metadata (emem s) (emem t) (emem t').
-  Proof.
+  Proof using sip.
     move=> U ok_s' ok_t' E X M pr _.
     exact: (write_lvals_mem_unchanged U ok_s' ok_t' E X M).
   Qed.
@@ -1774,7 +1774,7 @@ Section PROOF.
   Hypothesis enough_space : (0 <= max0 <= wunsigned sp0)%Z.
 
   Lemma no_overflow_max0 : no_overflow (sp0 - wrepr _ max0) max0.
-  Proof.
+  Proof using enough_space.
     have ? := wunsigned_range sp0.
     by rewrite /no_overflow zify wunsigned_sub; lia.
   Qed.
@@ -3058,7 +3058,7 @@ End ILSTEPS_END.
   Qed.
 
   Lemma Hopn : ∀ (xs : lvals) (t : assgn_tag) (o : sopn) (es : pexprs), Pi_r (Copn xs t o es).
-  Proof.
+  Proof using linear_ok enough_space.
     move=> xs tag o es ii lbl lbli P li Q [/checked_iE [fd ok_fd] /=].
     t_xrbindP => /check_rexprsP [] qs -> chk_es /check_lexprsP[] ds -> chk_xs [??]; subst lbl li.
     move=> D C s1 ls1 [M1 SC1 X1 hpc hfn hsp1 S1 MAX1].
@@ -3167,7 +3167,7 @@ End ILSTEPS_END.
   Qed.
 
   Lemma Hsyscall : ∀ (xs : lvals) (o : syscall_t) (es : pexprs), Pi_r (Csyscall xs o es).
-  Proof.
+  Proof using hliparams linear_ok enough_space.
     move=> xs o es ii lbl lbli P li Q [/checked_iE [fd ok_fd] /= _] [??]; subst lbli li.
     move=> D C s1 ls1 [M1 SC1 X1 hpc hfn hsp1 S1 MAX1].
     rewrite (step_mix_ilsteps C) //; last by simpl_size; lia.
@@ -3223,7 +3223,7 @@ End ILSTEPS_END.
     check_fexpr ii e = ok tt ->
     sem_pexpr true (p_globs p) s1 e = ok (Vbool b) ->
     sem_fexpr (lvm ls1) (to_fexpr e) = ok (Vbool b).
-  Proof.
+  Proof using linear_ok.
     rewrite p_globs_nil => -[M _ U _ _ _ _ _] /check_fexprP [] f ok_f ok_e.
     rewrite /to_fexpr ok_f.
     have [ ? /(match_mem_gen_sem_pexpr M) + /value_uinclE ?]:= sem_pexpr_uincl U ok_e; subst.
@@ -3248,7 +3248,7 @@ End ILSTEPS_END.
   Proof. case => hinv *; split => //; by apply: (inv_c_setpc hinv). Qed.
 
   Lemma Hif : ∀ (e : pexpr) (c1 c2 : cmd), Pc c1 → Pc c2 → Pi_r (Cif e c1 c2).
-  Proof.
+  Proof using linear_ok.
     move => e c1 c2 ih1 ih2 ii lbl lbli P li Q hpre s1 ls1 hinv.
     have := pre_i_if hpre (inv_c_lfn hinv) (inv_c_lpc hinv).
     move=> [lbl1] [lblc1] [lc1] [P1] [Q1] [lbl2] [lblc2] [lc2] [P2] [Q2] [chk_e hpre1 hpre2 ->].
@@ -3267,7 +3267,7 @@ End ILSTEPS_END.
 
   Lemma Hwhile : ∀ (a : expr.align) (c : cmd) (e : pexpr) (info : instr_info) (c' : cmd),
       Pc c → Pc c' → Pi_r (Cwhile a c e info c').
-  Proof.
+  Proof using linear_ok.
     move=> al c1 e iiw c2 ih1 ih2 ii lbl lbli P li Q hpre s1 ls1 hinv.
     have := pre_i_while hpre (inv_c_lfn hinv) (inv_c_lpc hinv).
     move=> [lbl1] [lblc1] [lc1] [P1] [Q1] [lbl2] [lblc2] [lc2] [P2] [Q2] [chk_e hpre1 hpre2 ->] {hpre}.
@@ -3358,7 +3358,7 @@ End ILSTEPS_END.
     between top sz pr ws ->
     write m1 al pr w = ok m2 ->
     target_mem_unchanged m1 m2.
-  Proof.
+  Proof using enough_space.
     move=> hb1 hb2 ok_m2.
     move=> pr' hnv hnpr.
     symmetry; apply (writeP_neq _ ok_m2).
@@ -3406,7 +3406,7 @@ End ILSTEPS_END.
   Qed.
 
   Lemma Hcall : ∀ (xs : lvals) (f : funname) (es : pexprs), Pi_r (Ccall xs f es).
-  Proof.
+  Proof using hliparams linear_ok sp0_le enough_space.
     move=> xs f es ii lbl lbli P li Q hpre s1 ls1 hinv.
     have := pre_i_call hpre (inv_c_lfn hinv) (inv_c_lpc hinv).
     move=> [fd] [fd'] [/negbTE fn'_neq_fn ok_fd ok_fd' ok_ra ok_align /ZleP ok_max D].
@@ -3690,7 +3690,7 @@ End ILSTEPS_END.
   Qed.
 
   Lemma linear_cP c : Pc c.
-  Proof.
+  Proof using hliparams linear_ok sp0_le enough_space.
     by apply (cmd_rect (Pr:=Pi_r) (Pi:=Pi) (Pc:=Pc)
       HMkI Hnil Hcons Hassgn Hopn Hsyscall Hassert
       Hif Hfor Hwhile Hcall).
@@ -4091,7 +4091,7 @@ Qed.
       (isem_fun_check var_tmps p fn1)
       (mix_ilsem_fun p' fn2)
       (postF fn1 fn2).
-  Proof.
+  Proof using hliparams var_tmps_not_magic linear_ok sp0_le enough_space.
     move=> s1 ls1 hpre /=.
     rewrite /isem_fun /isem_fun_def /mix_ilsem_fun.
     have {}hpre: PreF (RecCallK fn1 s1) (mix_to_small_steps.Call fn2 ls1) by done.
@@ -5175,7 +5175,7 @@ Qed.
       (isem_exportcall_check var_tmps p gd fn)
       (mix_ilsem_exportcall p' fn)
       (lin_post fn).
-  Proof.
+  Proof using hliparams var_tmps_not_magic linear_ok callee_saved_not_arr.
     move=> s ls; rewrite /lin_pre /lin_post.
     rewrite /isem_exportcall_check /mix_ilsem_exportcall.
     case ok_fd: get_fundef => [fd | ] /=; last first.
@@ -5313,7 +5313,7 @@ Qed.
       (isem_exportcall_check var_tmps p gd fn)
       (ilsem_exportcall p' fn)
       (lin_post fn).
-  Proof.
+  Proof using hliparams var_tmps_not_magic linear_ok callee_saved_not_arr.
   have wlin := [elaborate linear_exportcall_mixP] gd fn.
   have wmix := [elaborate mix_ilsem_exportcall_ilsem_exportcall p' fn ].
   apply: (wkequiv_io_trans

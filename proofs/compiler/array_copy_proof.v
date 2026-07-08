@@ -35,14 +35,14 @@ Notation gd := (p_globs p1).
 Hypothesis Hp : array_copy_prog fresh_var_ident p1 = ok p2.
 
 Lemma eq_globs : gd = p_globs p2.
-Proof. by move: Hp; rewrite /array_copy_prog; t_xrbindP => ?? <-. Qed.
+Proof using Hp. by move: Hp; rewrite /array_copy_prog; t_xrbindP => ?? <-. Qed.
 
 Lemma all_checked fn fd1 :
   get_fundef (p_funcs p1) fn = Some fd1 ->
   exists2 fd2,
     array_copy_fd fresh_var_ident fd1 = ok fd2 &
     get_fundef (p_funcs p2) fn = Some fd2.
-Proof.
+Proof using Hp.
   move: Hp; rewrite /array_copy_prog; t_xrbindP => fds h1 <- hf.
   apply: (get_map_cfprog_gen h1 hf).
 Qed.
@@ -79,7 +79,7 @@ Lemma get_sourceP ii es src pfx s vm ves :
            esem p2 ev pfx (with_vm s vm) = ok (with_vm s vm1),
            evm s <=[X] vm1 &
            exists2 v', get_gvar true gd vm1 src = ok v' & value_uincl v v' ].
-Proof.
+Proof using Hp freshX.
   case: es => // e [] //.
   case: e => //.
   - move => x /ok_inj[] ? <- /=; subst x.
@@ -140,7 +140,7 @@ Lemma array_copyP ii (dst: var_i) ws n src s vm1 (t t': WArray.array (arr_size w
     (exists2 a : WArray.array (arr_size ws n), vm2.[dst] = Varr a & WArray.uincl t' a) &
     esem p2 ev (array_copy fresh_var_ident fi ii dst ws n src) (with_vm s vm1) = ok (with_vm s vm2)
   ].
-Proof.
+Proof using Hp freshX.
   move: t t'.
   set len := arr_size _ _.
 Opaque esem.
@@ -267,7 +267,7 @@ Lemma get_targetP ii xs dst sfx s1 len (t' t'': WArray.array len) s2 vm1 :
   exists2 vm2,
     evm s2 <=[X] vm2 &
     esem p2 ev sfx (with_vm s1 vm1) = ok (with_vm s2 vm2).
-Proof.
+Proof using Hp.
   case: xs => // x [] //.
   case: x => //.
   { move => x /ok_inj[] ??; subst x sfx => /=.
@@ -317,7 +317,7 @@ Lemma esem_array_copy ii xs es ws n sx sc tx tc s s' vm vs vs' :
   exists2 vm2,
     esem p2 ev (sc ++ array_copy fresh_var_ident fi ii tx ws n sx ++ tc) (with_vm s vm) = ok (with_vm s' vm2) &
     evm s' <=[X] vm2.
-Proof.
+Proof using Hp freshX.
   move=> hsub hgets hgett htx hu hes hcopy hxs.
   have hesX : Sv.Subset (read_es es) X by clear -hsub; SvD.fsetdec.
   have [ hdis [] v ? [] vm1 [] exec_pfx hvm1 [] vy hy ] := get_sourceP hgets hes hesX hu; subst vs.
@@ -351,14 +351,14 @@ Let Pc (c1 : cmd) :=
   wequiv_rec p1 p2 ev ev uincl_spec (st_uincl_on X) c1 c2 (st_uincl_on X).
 
 #[local] Lemma checker_st_uincl_onP : Checker_uincl p1 p2 checker_st_uincl_on.
-Proof. apply/checker_st_uincl_onP/eq_globs. Qed.
+Proof using Hp. apply/checker_st_uincl_onP/eq_globs. Qed.
 #[local] Hint Resolve checker_st_uincl_onP : core.
 
 Lemma eq_extra : p_extra p1 = p_extra p2.
-Proof. by move: Hp;rewrite /array_copy_prog; t_xrbindP => ?? <-. Qed.
+Proof using Hp. by move: Hp;rewrite /array_copy_prog; t_xrbindP => ?? <-. Qed.
 
 Lemma it_array_copy_fdP fn : wiequiv_f p1 p2 ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-Proof.
+Proof using Hp.
   apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd1 hget.
   have [fd2 hcopy ->] := all_checked hget; exists fd2 => //.
   move=> s1 hinit.

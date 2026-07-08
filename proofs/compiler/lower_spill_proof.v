@@ -28,10 +28,10 @@ Context
 Notation gd := (p_globs p).
 
 Lemma eq_globs : gd = p_globs p'.
-Proof. by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? _ <-. Qed.
+Proof using spill_prog_ok. by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? _ <-. Qed.
 
 Lemma eq_p_extra : p_extra p = p_extra p'.
-Proof. by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? _ <-. Qed.
+Proof using spill_prog_ok. by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? _ <-. Qed.
 
 Record spill_info := {
   get_spill : instr_info -> var -> cexec var;
@@ -148,7 +148,7 @@ Lemma spill_xP S ii x i env env' s vx vt vm :
   valid_env S env (evm s) vm ->
   spill_x S.(get_spill) ii env x = ok (env', i) ->
   exists2 vm' : Vm.t, esem_i p' ev i (with_vm s vm) = ok (with_vm s vm') & valid_env S env' (evm s) vm'.
-Proof.
+Proof using spill_prog_ok.
   rewrite /spill_x; t_xrbindP => hx htr hX [heq hval] sx hsx <- <-.
   assert (h := get_gvar_eq_on true gd hX heq).
   have [heqt hnin] := get_spillP hsx.
@@ -181,7 +181,7 @@ Lemma spill_esP S ii tys es c env env' s vs vs' vm :
   valid_env S env (evm s) vm ->
   spill_es S.(get_spill) ii env tys es = ok (env', c) ->
   exists2 vm' : Vm.t, esem p' ev c (with_vm s vm) = ok (with_vm s vm') & valid_env S env' (evm s) vm'.
-Proof.
+Proof using spill_prog_ok.
   rewrite /spill_es; t_xrbindP.
   move=> hse htr hX hval xs /get_PvarsP ? /check_tyP hc; subst es.
   elim: xs tys vs vs' env c s vm hc hse htr hX hval => [ | x xs hrec] [|ty tys] vs vs' env c s vm //=.
@@ -252,7 +252,7 @@ Lemma lower_sopnP s1 s2 ii tag o xs es S env env' c vm:
   Sv.Subset (vars_I (MkI ii (Copn xs tag o es))) (X S) →
   valid_env S env (evm s1) vm →
   exists2 vm' : Vm.t, esem p' ev c (with_vm s1 vm) = ok (with_vm s2 vm') & valid_env S env' (evm s2) vm'.
-Proof.
+Proof using spill_prog_ok.
   rewrite /sem_sopn; t_xrbindP.
   move=> vs ves hes hex hws /=.
   rewrite vars_I_opn.
@@ -442,7 +442,7 @@ Definition checker_st_ve S : Checker_e (st_rel (valid_env S)) :=
      check_esP_rel := @check_esP_R_st_ve S|}.
 
 Lemma checker_st_veP S : Checker_eq p p' (checker_st_ve S).
-Proof.
+Proof using spill_prog_ok.
   constructor.
   + move=> wdb _ d es1 es2 d' /wdb_ok_eq <- [_ <- hsub] s t vs /st_relP [-> /= hval].
     by rewrite (valid_env_es wdb gd hval hsub) eq_globs => ->; eexists; eauto.
@@ -455,7 +455,7 @@ Qed.
 
 Lemma it_lower_spill_fdP fn :
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-Proof.
+Proof using spill_prog_ok.
   apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
   have spillok : map_cfprog_name (spill_fd fresh_var_ident spill_to_mmx) (p_funcs p) = ok (p_funcs p').
   + by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? ? <-.

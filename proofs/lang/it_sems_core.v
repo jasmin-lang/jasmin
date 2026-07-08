@@ -378,7 +378,7 @@ Hypothesis sem_F_ext : forall ii fn fs,
 
 Lemma isem_cmd_ext c s :
   isem_cmd_ (sem_F := sem_F1) p ev c s ≈ isem_cmd_ (sem_F := sem_F2) p ev c s.
-Proof.
+Proof using sem_F_ext.
   apply (cmd_rect
     (Pr := fun ir => forall ii s,
        isem_i_body (sem_F:=sem_F1) p ev (MkI ii ir) s ≈ isem_i_body (sem_F:=sem_F2) p ev (MkI ii ir) s)

@@ -226,7 +226,7 @@ Lemma lower_condition_Papp2P vi s op e0 e1 mn e es v0 v1 v :
         , sem_pexprs true (p_globs p) s es = ok [:: Vword w0; Vword w1 ]
         & sem_pexpr true (p_globs p) (estate_of_condition_mn mn s w0' w1') e = ok v
       ].
-Proof.
+Proof using fv_correct.
   move=> h hseme0 hseme1 hsemop.
   move: h; rewrite /lower_condition_Papp2.
   apply: obindP => -[cf ws] hcf /chk_ws_regP [? h]; subst ws.
@@ -328,7 +328,7 @@ Lemma sem_lower_condition_pexpr vi tag s0 s0' ii e v lvs aop es c :
          , eq_fv s0 s1'
          & sem_pexpr true (p_globs p) s1' c = ok v
        ].
-Proof.
+Proof using fv_correct.
   apply: obindP => -[[op e0] e1] /is_Papp2P ?; subst.
   apply: obindP => -[[mn e] es'] h [????]; subst.
 
@@ -364,7 +364,7 @@ Lemma sem_lower_condition vi s0 s0' ii e v pre e' :
          , eq_fv s0 s1'
          & sem_pexpr true (p_globs p) s1' e' = ok v
        ].
-Proof.
+Proof using fv_correct.
   move=> h hs00 hfv hseme.
 
   move: h.
@@ -1101,7 +1101,7 @@ Lemma sem_lower_pexpr
   -> exists2 s1',
        let cmd := map (MkI ii) (pre ++ [:: Copn [:: lv ] tag op es ]) in
        esem p' ev cmd s0' = ok s1' & eq_fv s1 s1'.
-Proof.
+Proof using dc fv_correct.
   move=> h hs00 hws hfve hfvlv hseme hwrite.
 
   move: s0 ws' pre op es w h hs00 hws hfve hfvlv hseme hwrite.
@@ -1280,7 +1280,7 @@ Lemma lower_cassgn_wordP ii s0 lv tag ws e v v' s0' s1' pre lvs op es :
   -> exists2 s2',
        esem p' ev (map (MkI ii) (pre ++ [:: Copn lvs tag op es ])) s0' = ok s2'
        & eq_fv s1' s2'.
-Proof.
+Proof using dc fv_correct.
   rewrite /lower_cassgn_word.
   move=> h hseme htrunc hwrite01' hs00 hfve hfvlv hsem01'.
 
@@ -1321,7 +1321,7 @@ Lemma lower_cassgn_boolP ii s0 lv tag e v v' s0' s1' irs :
   -> exists2 s2',
        esem p' ev (map (MkI ii) irs) s0' = ok s2'
        & eq_fv s1' s2'.
-Proof.
+Proof using fv_correct.
   rewrite /lower_cassgn_bool => h ok_v ok_v' ok_s1' hs00 hfve hfvlv hsem01'.
   case h: lower_condition_pexpr h => [ [] [] [] lvs op es c | // ] /Some_inj <-{irs}.
   have [ si [] hsem0i hs0i {} ok_v ] := sem_lower_condition_pexpr tag ii h hs00 hfve ok_v.
@@ -1568,7 +1568,7 @@ Proof. apply checker_st_eq_exP => //. Qed.
 
 Lemma it_lower_callP fn :
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-Proof.
+Proof using fv_correct.
   apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
   have [_ hfvres hfvc] := disj_fvars_get_fundef hget.
   rewrite get_map_prog hget /= /lower_fd.
