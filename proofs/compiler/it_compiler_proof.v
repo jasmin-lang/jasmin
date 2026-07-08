@@ -124,7 +124,7 @@ Proof.
 move=> hp'.
 apply: wiequiv_f_trans_UU_UU; first exact: it_const_prop_callP.
 apply: it_sem_refl_EU_UU.
-exact: (it_dead_code_callPu (hap_is_move_opP haparams) ev hp' (fn := fn)).
+exact: (it_dead_code_callPu (sip:=sip_of_asm_e) (hap_is_move_opP haparams) ev hp' (fn := fn)).
 Qed.
 
 Lemma it_unrollP {dc : DirectCall} (fn : funname) (p p' : prog) ev :
@@ -158,7 +158,7 @@ apply: (
 ) => //.
 - move=> ? _ [_ <-]; split=> //; split=> //; exact: values_uincl_refl.
 apply: it_sem_refl_EU_UU.
-exact: (it_dead_code_callPu (hap_is_move_opP haparams) ev ok_pa (fn := fn)).
+exact: (it_dead_code_callPu (sip:=sip_of_asm_e) (hap_is_move_opP haparams) ev ok_pa (fn := fn)).
 Qed.
 
 Lemma it_compiler_first_part {entries p p' ev fn} :
