@@ -536,7 +536,7 @@ Proof.
 move=> hp'.
 apply: wiequiv_f_trans_UU_UU; first exact: it_const_prop_callP.
 apply: it_sem_refl_EU_UU.
-exact: (it_dead_code_callPu (hap_is_move_opP haparams) ev hp' (fn := fn)).
+exact: (it_dead_code_callPu (sip:=sip_of_asm_e) (hap_is_move_opP haparams) ev hp' (fn := fn)).
 Qed.
 
 Lemma it_unrollP {dc : DirectCall} (fn : funname) (p p' : prog) ev :
@@ -570,7 +570,7 @@ apply: (
 ) => //.
 - move=> ? _ [_ <-]; split=> //; split=> //; exact: values_uincl_refl.
 apply: it_sem_refl_EU_UU.
-exact: (it_dead_code_callPu (hap_is_move_opP haparams) ev ok_pa (fn := fn)).
+exact: (it_dead_code_callPu (sip:=sip_of_asm_e) (hap_is_move_opP haparams) ev ok_pa (fn := fn)).
 Qed.
 
 Lemma it_compiler_first_part {entries p p' ev fn} :
@@ -1539,7 +1539,7 @@ Context
   (rip : pointer)
 .
 
-Definition back_end_to_asm_pre xfd s t :=
+Definition back_end_to_asm_pre xfd (s : fstate) (t : asmmem) :=
   let: args := s.(fvals) in
   let: ms := s.(fmem) in
   let: rm := t.(asm_reg) in
@@ -1553,7 +1553,7 @@ Definition back_end_to_asm_pre xfd s t :=
     & allocatable_stack ms xfd.(asm_fd_total_stack)
   ].
 
-Definition back_end_to_asm_post fn xfd s t s' t' :=
+Definition back_end_to_asm_post fn xfd (s : fstate) (t : asmmem) (s' : fstate) (t' : asmmem) :=
   let: ms := s.(fmem) in
   let: mt := t.(asm_mem) in
   let: ress := s'.(fvals) in
@@ -1679,7 +1679,7 @@ Definition wf_args_x rip fn ms mi args argt :=
   let al := get_asm_align_args xp fn in
   wf_args n rip ms mi ws al args argt.
 
-Definition full_pre fn xfd s t :=
+Definition full_pre fn xfd (s : fstate) (t : asmmem) :=
   let: args := s.(fvals) in
   let: ms := s.(fmem) in
   let: rm := t.(asm_reg) in
@@ -1693,7 +1693,7 @@ Definition full_pre fn xfd s t :=
       , wf_args_x t.(asm_rip) fn ms mi args argt
       & Forall3 (value_uincl_or_in_mem mt) (get_wptrs up fn) args argt ].
 
-Definition full_post fn xfd s t s' t' :=
+Definition full_post fn xfd (s : fstate) (t : asmmem) (s' : fstate) (t' : asmmem) :=
   let: args := s.(fvals) in
   let: ms := s.(fmem) in
   let: argt := get_typed_reg_values t xfd.(asm_fd_arg) in
