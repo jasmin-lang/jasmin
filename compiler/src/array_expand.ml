@@ -1,15 +1,23 @@
 (* Replace register array by register *)
+open Utils
 open Prog
+
+let hierror = hierror ~kind:"compilation error" ~sub_kind:"array expansion"
 
 let init_tbl fc =
   let tbl = Hv.create 107 in
   let init_var (v:var) =
-    let ws, sz = array_kind v.v_ty in
-    let ty = Bty (U ws) in
-    let vi i =
-      V.mk (v.v_name ^ "#" ^ string_of_int i) (Reg(reg_kind v.v_kind, Direct)) ty v.v_dloc v.v_annot in
-    let t = Array.init (max 0 sz) vi in
-    Hv.add tbl v (ws, t) in
+    let ws, len = array_kind v.v_ty in
+    match len with
+    | Const len ->
+      let ty = Bty (U ws) in
+      let vi i =
+        V.mk (v.v_name ^ "#" ^ string_of_int i) (Reg(reg_kind v.v_kind, Direct)) ty v.v_dloc v.v_annot in
+      let t = Array.init (Z.to_int (Z.max Z.zero len)) vi in (* FIXME: should we catch Overflow? *)
+      Hv.add tbl v (ws, t)
+    | _ ->
+      hierror ~loc:(Lone v.v_dloc) ~funname:fc.f_name.fn_name "variable %a has a non-constant length" (Printer.pp_dvar ~debug:true) v
+  in
   let fv = vars_fc fc in
   let arrs = Sv.filter is_reg_arr (vars_fc fc) in
   let vars = Sv.diff fv arrs in

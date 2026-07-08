@@ -1,14 +1,17 @@
 open Utils
 open Printer
-open Prog
 open Wsize
+open Prog
 
 let hierror = hierror ~kind:"compilation error" ~sub_kind:"stack allocation"
 (* Most of the errors have no location initially, but they are added later
    by catching the exception and reemiting it with more information. *)
 let hierror_no_loc ?funname = hierror ~loc:Lnone ?funname
 
-type range = int * int
+type range = Z.t * length
+  (* Intervals: [low:high).
+     "low" is an integer, but "high" is a [length] expression.
+     The "high" part is used only in some checks, when it is a constant. *)
 type sub_slice_kind =
   | Exact of range
     (* the range is exact *)
@@ -33,7 +36,7 @@ let pp_scope fmt s =
   Format.fprintf fmt "%s" (if s = E.Slocal then "" else "#g:")
 
 let pp_range fmt (lo, hi) =
-  Format.fprintf fmt "%d; %d" lo hi
+  Format.fprintf fmt "%a; %a" Z.pp_print lo Printer.pp_len hi
 
 let pp_slice fmt s =
   match s.kind with
@@ -53,24 +56,32 @@ let pp_alias fmt a =
 
 (* --------------------------------------------------- *)
 let align_of_offset lo =
-  if lo land 0x1f = 0 then U256
-  else if lo land 0xf = 0 then U128
-  else if lo land 0x7 = 0 then U64
-  else if lo land 0x3 = 0 then U32
-  else if lo land 0x1 = 0 then U16
+  if Z.equal (Z.logand lo (Z.of_int 0x1f)) Z.zero then U256
+  else if Z.equal (Z.logand lo (Z.of_int 0xf)) Z.zero then U128
+  else if Z.equal (Z.logand lo (Z.of_int 0x7)) Z.zero then U64
+  else if Z.equal (Z.logand lo (Z.of_int 0x3)) Z.zero then U32
+  else if Z.equal (Z.logand lo (Z.of_int 0x1)) Z.zero then U16
   else U8
 
 let wsize_min = Utils0.cmp_min wsize_cmp
+
+let add_z_length n len =
+  match len with
+  | Const len -> Const (Z.add n len)
+  | _ -> Add (Const n, len)
 
 (* the sub slice of [s] described by [kind] *)
 let range_in_slice kind s =
   match kind, s.kind with
   | Exact (lo, hi), Exact (u, v) ->
-      if u + hi <= v
-      then { s with kind = Exact (u + lo, u + hi) }
-      else
-        hierror_no_loc "cannot access the subarray [%a[ of %a, the access overflows, your program is probably unsafe"
-          pp_range (lo, hi) pp_slice s
+      begin match hi, v with
+      | Const hi', Const v' ->
+          if not (Z.leq (Z.add u hi') v') then
+            hierror_no_loc "cannot access the subarray [%a[ of %a, the access overflows, your program is probably unsafe"
+              pp_range (lo, hi) pp_slice s
+      | _, _ -> ()
+      end;
+      { s with kind = Exact (Z.add u lo, add_z_length u hi) }
   | Sub ws, Exact (u, _v) ->
       { s with kind = Sub (wsize_min ws (align_of_offset u)) }
   | Exact(lo, _hi), Sub ws ->
@@ -79,7 +90,7 @@ let range_in_slice kind s =
       { s with kind = Sub (wsize_min ws1 ws2) }
 
 let range_of_var x =
-  0, size_of x.v_ty
+  Z.zero, size_of x.v_ty
 
 let slice_of_var ?(scope=E.Slocal) in_var =
   let range = range_of_var in_var in
@@ -125,9 +136,12 @@ let incl a1 a2 =
 (* Partial order on variables, by scope and size *)
 let compare_gvar params x gx y gy =
   let check_size kind1 kind2 x1 s1 x2 s2 =
-    if not (s1 <= s2) then
-      hierror_no_loc "cannot merge a %s and a %s that is larger (%a of size %i, and %a of size %i)"
-        kind1 kind2 pp_var x2 s2 pp_var x1 s1
+    match s1, s2 with
+    | Const s1, Const s2 ->
+      if not (s1 <= s2) then
+        hierror_no_loc "cannot merge a %s and a %s that is larger (%a of size %a, and %a of size %a)"
+          kind1 kind2 pp_var x2 Z.pp_print s2 pp_var x1 Z.pp_print s1
+    | _ -> ()
   in
 
   if V.equal x y
@@ -156,14 +170,20 @@ let compare_gvar params x gx y gy =
          match is_ptr x.v_kind, is_ptr y.v_kind with
          | true, false -> check_size "local" "pointer" x sx y sy; -1
          | false, true -> check_size "local" "pointer" y sy x sx; 1
-         | _, _ ->
-           let c = Stdlib.Int.compare sx sy in
-           if c = 0 then V.compare x y
-           else c
+         | true, true ->
+             hierror_no_loc "%a is an uninitialized pointer; it should point to (the subpart of) an argument or a stack array" pp_var y
+         | false, false ->
+           match sx, sy with
+           | Const sx, Const sy ->
+             let c = Z.compare sx sy in
+             if c = 0 then V.compare x y
+             else c
+           | Const _, _ -> hierror_no_loc "%a is a stack array, its length must be a constant (current length: %a)" pp_var y pp_len sy
+           | __ -> hierror_no_loc "%a is a stack array, its length must be a constant (current length: %a)" pp_var x pp_len sx
 
 
 let mk_sub sz1 sz2 ws =
-  if sz1 = sz2 then Exact(0,sz2)
+  if sz1 = sz2 then Exact(Z.zero,sz2)
   else Sub ws
 
 (* Precondition: s1 and s2 are normal forms (aka roots) in a *)
@@ -195,9 +215,9 @@ let merge_slices params a s1 s2 =
     let kind =
       match s1.kind, s2.kind with
       | Exact(lo1, _hi1), Exact(lo2, _hi2) ->
-        let lo = lo2 - lo1 in
-        let hi = lo + size_of s1.in_var.v_ty in
-        if lo < 0 || sz2 < hi
+        let lo = Z.sub lo2 lo1 in
+        let hi = add_z_length lo (size_of s1.in_var.v_ty) in
+        if Z.lt lo Z.zero || (match sz2, hi with | Const sz2, Const hi -> sz2 < hi | _ -> false)
         then hierror_no_loc "merging slices %a and %a may introduce invalid accesses; consider declaring variable %a smaller" pp_slice s1 pp_slice s2 pp_var s1.in_var;
         Exact(lo, hi)
       | Exact(lo1,_hi1), Sub ws2 ->
@@ -229,7 +249,7 @@ let range_of_asub aa ws len i =
         end
       in
       Sub ws
-  | Some start -> Exact (start, start + arr_size ws len)
+  | Some start -> Exact (start, add_z_length start (size_of (Arr (ws, len)))) (* FIXME: size_of a bit ugly, maybe we should introduce arr_size_const and arr_size ? *)
 
 let normalize_asub a aa ws len x i =
   let s = normalize_gvar a x in

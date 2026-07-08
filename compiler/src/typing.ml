@@ -18,7 +18,7 @@ let error loc fmt =
 (* -------------------------------------------------------------------- *)
 let ty_var (x: var) = x.v_ty
 
-let ty_gvar (x: int ggvar) = ty_var (L.unloc x.gv)
+let ty_gvar (x: length ggvar) = ty_var (L.unloc x.gv)
 
 (* -------------------------------------------------------------------- *)
 
@@ -28,20 +28,18 @@ let check_array loc e te =
   | _     ->
     error loc
       "the expression %a has type %a while an array is expected"
-      (Printer.pp_expr ~debug:false) e PrintCommon.pp_ty te
+      (Printer.pp_expr ~debug:false) e Printer.pp_ty te
 
 let subtype t1 t2 =
   match t1, t2 with
   | Bty (U ws1), Bty (U ws2) -> wsize_le ws1 ws2
-  | Bty bty1, Bty bty2 -> bty1 = bty2
-  | Arr(ws1,len1), Arr(ws2,len2) -> arr_size ws1 len1 == arr_size ws2 len2
-  | _, _ -> false
+  | _, _ -> convertible t1 t2
 
 let check_type loc e te ty =
   if not (subtype ty te) then
     error loc "the expression %a has type %a while %a is expected"
         (Printer.pp_expr ~debug:false) e
-        PrintCommon.pp_ty te PrintCommon.pp_ty ty
+        Printer.pp_ty te Printer.pp_ty ty
 
 let check_int loc e te = check_type loc e te tint
 
@@ -163,7 +161,7 @@ let check_lval pd loc x ty =
   if not (subtype tx ty) then
     error loc "the left value %a has type %a while %a is expected"
         (Printer.pp_lval ~debug:false) x
-        PrintCommon.pp_ty tx PrintCommon.pp_ty ty
+        Printer.pp_ty tx Printer.pp_ty ty
 
 let check_lvals pd loc xs tys =
   let len = List.length tys in
@@ -243,15 +241,13 @@ let check_global_decl (g, d) =
     error (L.i_loc0 g.v_dloc)
       "global variable %a has type %a but its value has type %a"
       (Printer.pp_var ~debug:false)
-      g PrintCommon.pp_ty ty PrintCommon.pp_ty vty
+      g Printer.pp_ty ty Printer.pp_ty vty
   in
   match d with
   | Global.Garr (len, _) ->
-      if
-        match ty with
-        | Arr (ws, len') -> Conv.int_of_cz len <> arr_size ws len'
-        | _ -> true
-      then error (Arr (U8, Conv.int_of_cz len))
+      let ty' = Arr (U8, Const (Conv.z_of_cz len)) in
+      if not (convertible ty ty')
+      then error ty'
   | Gword (ws, _) ->
       if match ty with Bty (U ws') -> not (wsize_le ws ws') | _ -> true then
         error (Bty (U ws))

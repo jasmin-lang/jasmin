@@ -54,7 +54,12 @@ type glob_alloc_oracle_t =
 
 (* --------------------------------------------------- *)
 let incr_liverange r x d : liverange =
-  let s = max 0 (size_of x.v_ty) in
+  let s =
+    match size_of x.v_ty with
+    | Const s -> Z.to_int s
+    | _ -> assert false
+  in
+  let s = max 0 s in
   let g = Mint.find_default Mv.empty s r in
   let i =
     match Mv.find x g with
@@ -164,9 +169,9 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
         if al == Aligned then
          match c.kind with
          | Exact range ->
-            if (fst range + i) land (size_of_ws ws - 1) <> 0 then
-              hierror ~loc:(Lone (L.loc x.gv)) "bad range alignment for %a[%d]: %a was allocated in slot %a, which conflicts with the required alignment (%s)"
-                (Printer.pp_var ~debug:false) x' i
+            if not (Z.equal (Z.logand (Z.add (fst range) i) (Z.of_int (size_of_ws ws - 1))) Z.zero) then
+              hierror ~loc:(Lone (L.loc x.gv)) "bad range alignment for %a[%a]: %a was allocated in slot %a, which conflicts with the required alignment (%s)"
+                (Printer.pp_var ~debug:false) x' Z.pp_print i
                 (Printer.pp_var ~debug:false) x' Alias.pp_slice c (string_of_ws ws)
          | Sub ws' ->
            if not (wsize_le ws ws') then
@@ -177,7 +182,7 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
 
   let rec add_e ~loc = function
     | Pconst _ | Pbool _ | Parr_init _  | Pvar _ -> ()
-    | Pget (al, _, ws, x, e) -> add_ggvar ~loc:(Siloc.singleton loc) al x ws 0; add_e ~loc e
+    | Pget (al, _, ws, x, e) -> add_ggvar ~loc:(Siloc.singleton loc) al x ws Z.zero; add_e ~loc e
     | Psub (_,_,_,_,e) | Pload (_, _, e) | Papp1 (_, e) -> add_e ~loc e
     | Papp2 (_, e1,e2) -> add_es ~loc [e1;  e2]
     | PappN (_, es) -> add_es ~loc es
@@ -187,7 +192,7 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
   let add_lv ~loc = function
     | Lnone _ | Lvar _ -> ()
     | Lmem (_, _, _, e) | Lasub (_,_,_,_,e) -> add_e ~loc e
-    | Laset(al, _, ws,x,e) -> add_ggvar ~loc:(Siloc.singleton loc) al (gkvar x) ws 0; add_e ~loc e in
+    | Laset(al, _, ws,x,e) -> add_ggvar ~loc:(Siloc.singleton loc) al (gkvar x) ws Z.zero; add_e ~loc e in
 
   let add_lvs ~loc = List.iter (add_lv ~loc) in
 
@@ -195,8 +200,8 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
     match opi, e with
     | None, _ -> add_e ~loc e
     | Some pi, Pvar x ->
-       add_ggvar ~loc:(Siloc.add loc pi.pi_align.ac_strict.trace) Aligned x pi.pi_align.ac_strict.get_ws 0;
-       add_ggvar ~loc:(Siloc.singleton loc) Unaligned x pi.pi_align.ac_heuristic 0
+       add_ggvar ~loc:(Siloc.add loc pi.pi_align.ac_strict.trace) Aligned x pi.pi_align.ac_strict.get_ws Z.zero;
+       add_ggvar ~loc:(Siloc.singleton loc) Unaligned x pi.pi_align.ac_heuristic Z.zero
     | Some pi, Psub(aa,ws,_, x, e) ->
       let i =
         match get_ofs aa ws e with
@@ -230,7 +235,12 @@ let err_var_not_initialized x =
   hierror ~loc:Lnone "variable “%a” (declared at %a) may not be initialized" (Printer.pp_var ~debug:true) x Location.pp_loc x.v_dloc
 
 let get_slot ?var coloring x =
-  let sz = max 0 (size_of x.v_ty) in
+  let sz =
+    match size_of x.v_ty with
+    | Const sz -> Z.to_int sz
+    | _ -> assert false
+  in
+  let sz = max 0 sz in
   try Mv.find x (Mint.find sz coloring)
   with Not_found -> err_var_not_initialized (Option.default x var)
 
@@ -253,7 +263,11 @@ let init_slots pd stack_pointers alias coloring fv =
         let c = Alias.normalize_var alias v in
         let range =
           match c.kind with
-          | Exact range -> range
+          | Exact (lo, Const hi) -> (lo, hi)
+          | Exact _ ->
+              hierror ~loc:(Lone v.v_dloc) "cannot allocate in the stack the variable “%a” to “%a” with non constant length"
+                    (Printer.pp_var ~debug:false) v
+                    (Printer.pp_var ~debug:false) c.in_var
           | Sub _ ->
               hierror ~loc:(Lone v.v_dloc) "cannot allocate in the stack the variable “%a” to “%a” with non constant start index"
                     (Printer.pp_var ~debug:false) v
@@ -268,13 +282,13 @@ let init_slots pd stack_pointers alias coloring fv =
           end
       else begin match v.v_ty with
            | Bty (U ws) ->
-              let sz = size_of_ws ws in
+              let sz = Z.of_int (size_of_ws ws) in
               let slot = get_slot coloring v in
               add_slot slot;
-              add_local v (Direct (slot, r2i(0, sz), E.Slocal))
+              add_local v (Direct (slot, r2i(Z.zero, sz), E.Slocal))
            | _ -> hierror ~loc:(Lone v.v_dloc) "cannot allocate in the stack the variable “%a” of type %a"
                     (Printer.pp_var ~debug:false) v
-                    PrintCommon.pp_ty v.v_ty
+                    Printer.pp_ty v.v_ty
            end
 
     | Stack (Pointer _) ->
@@ -380,7 +394,12 @@ let alloc_local_stack size slots atbl =
 
   let init_slot (x,ws) =
     let pos = round_ws ws !size in
-    let n = max 0 (size_of x.v_ty) in
+    let n =
+      match size_of x.v_ty with
+      | Const n -> Z.to_int n
+      | _ -> assert false
+    in
+    let n = max 0 n in
     size := pos + n;
     (x,ws,pos) in
 

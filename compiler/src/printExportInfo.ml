@@ -73,8 +73,6 @@ let collect_export_info env prog asm_prog =
 
 (***********************************************************************)
 
-let pp_size fmt i = F.fprintf fmt "%i" i
-
 let escape_string_json s =
   String.replace_chars (function
       | '"' -> "\\\""
@@ -119,7 +117,7 @@ let pp_export_info_json fmt export_info =
         "@[{@[\"name\": \"%a\", \"kind\" : \"%a\", \"type\" : \"%a\", \
          \"align\" : %a @]}@]"
         (pp_var ~debug:false) arg.arg_var pp_kind arg.arg_var.v_kind
-        (pp_gtype pp_size) arg.arg_var.v_ty pp_wsize arg.arg_alignment
+        (pp_gtype pp_len) arg.arg_var.v_ty pp_wsize arg.arg_alignment
     in
     F.fprintf fmt "@[<v>%a@]" (pp_list ",@ " pp_arg) args
   in
@@ -129,7 +127,7 @@ let pp_export_info_json fmt export_info =
       F.fprintf fmt
         "@[{\"name\": \"%a\", \"kind\" : \"%a\", \"type\": \"%a\"}@]"
         (pp_var ~debug:false) ret.ret_var pp_kind ret.ret_var.v_kind
-        (pp_gtype pp_size) ret.ret_var.v_ty
+        (pp_gtype pp_len) ret.ret_var.v_ty
     in
 
     F.fprintf fmt "@[%a@]" (pp_list ",@ " pp_ret) rets

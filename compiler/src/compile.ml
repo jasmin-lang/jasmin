@@ -104,7 +104,7 @@ let do_wint_int
   (* Restore type of array in the functions signature *)
   let restore_ty tyi tyo =
     match tyi, tyo with
-    | Arr(ws1, l1), Arr(ws2, l2) -> assert (arr_size ws1 l1 = arr_size ws2 l2); tyi
+    | Arr _, Arr _ -> assert (convertible tyi tyo); tyi
     | Bty (U _), Bty Int -> tyo
     | _, _ -> assert (tyi = tyo); tyo
   in

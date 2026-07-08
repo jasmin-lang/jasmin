@@ -232,9 +232,7 @@ let rec int_of_expr ?loc e =
 
 let isubst_len ?loc (PE e) =
   let z = int_of_expr ?loc e in
-  try Z.to_int z
-  with Z.Overflow ->
-    hierror ?loc "cannot define a (sub-)array of size %a, this number is too big" Z.pp_print z
+  Const z
 
 let isubst_ty ?loc = function
   | Bty ty -> Bty ty
@@ -368,15 +366,21 @@ let remove_params (prog : ('info, 'asm) pprog) =
           hierror ~loc:x.v_dloc "the expression assigned to global variable %a must evaluate to a constant word"
             (Printer.pp_var ~debug:false) x
         end
-      | Arr (_ws, n), GEarray es when List.length es <> n ->
-         let m = List.length es in
-         hierror ~loc:x.v_dloc "array size mismatch for global variable %a: %d %s given (%d expected)"
-           (Printer.pp_var ~debug:false) x
-           (List.length es)
-           (if m > 1 then "values" else "value")
-           n
       | Arr (ws, n), GEarray es ->
-        let len = Conv.cz_of_int (arr_size ws n) in
+        let n =
+          match n with
+          | Const n -> n
+          | _ -> assert false (* impossible per typing? *)
+        in
+        if not (Z.equal (Z.of_int (List.length es)) n) then
+          let m = List.length es in
+           hierror ~loc:x.v_dloc "array size mismatch for global variable %a: %d %s given (%a expected)"
+             (Printer.pp_var ~debug:false) x
+             (List.length es)
+             (if m > 1 then "values" else "value")
+             Z.pp_print n
+        else
+        let len = Conv.cz_of_z (arr_size ws n) in
         let mk_word_i i e =
           try mk_word ws e
           with NotAConstantExpr ->

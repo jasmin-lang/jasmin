@@ -11,7 +11,7 @@ let apply_ret_annot tokeep (fi : FInfo.t) : FInfo.t =
 let pp_var = Printer.pp_var ~debug:true
 
 let pp_var_ty fmt x =
- Format.fprintf fmt "%a %a" PrintCommon.pp_ty x.v_ty pp_var x
+ Format.fprintf fmt "%a %a" Printer.pp_ty x.v_ty pp_var x
 
 let pp_param_info fmt pi =
   let open Stack_alloc in
@@ -129,15 +129,15 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
         pp_align    = pi.pi_align.ac_strict.get_ws;
       }) in
     let conv_sub (i:Interval.t) = 
-      Stack_alloc.{ cs_ofs = Conv.cz_of_int i.min;
-                    cs_len = Conv.cz_of_int (Interval.size i) } in
+      Stack_alloc.{ cs_ofs = Conv.cz_of_z i.min;
+                    cs_len = Conv.cz_of_z (Interval.size i) } in
     let conv_ptr_kind x = function
       | Varalloc.Direct (s, i, sc) -> Stack_alloc.PIdirect (Conv.cvar_of_var s, conv_sub i, sc)
       | RegPtr s                   -> Stack_alloc.PIregptr(Conv.cvar_of_var s)
       | StackPtr s                 ->
         let xp = V.clone x in
         Stack_alloc.PIstkptr(Conv.cvar_of_var s,
-                             conv_sub Interval.{min = 0; max = size_of_ws Arch.reg_size}, Conv.cvar_of_var xp) in
+                             conv_sub Interval.{min = Z.zero; max = Z.of_int (size_of_ws Arch.reg_size)}, Conv.cvar_of_var xp) in
   
     let conv_alloc (x,k) = Conv.cvar_of_var x, conv_ptr_kind x k in
   

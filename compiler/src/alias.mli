@@ -1,6 +1,6 @@
 open Prog
 
-type range = int * int
+type range = Z.t * length
 type sub_slice_kind =
   | Exact of range
     (* the range is exact *)

@@ -18,6 +18,9 @@ val pp_dvar  : debug:bool -> Format.formatter -> var -> unit
 
 val string_of_combine_flags : Operators.combine_flags -> string
 
+val pp_len : Format.formatter -> CoreIdent.length -> unit
+val pp_ty : Format.formatter -> Prog.ty -> unit
+
 val pp_expr  : debug:bool -> Format.formatter -> expr -> unit
 val pp_lval  : debug:bool -> Format.formatter -> lval -> unit
 val pp_eassert : debug:bool -> Format.formatter -> eassert -> unit

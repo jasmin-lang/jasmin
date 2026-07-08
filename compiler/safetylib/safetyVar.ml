@@ -104,7 +104,7 @@ let mvar_ignore = function
     
 (*---------------------------------------------------------------*)
 let arr_range (v : var) : int = match v.v_ty with
-  | Arr (_,i) -> i
+  | Arr (_,i) -> length_to_int i
   | _ -> assert false
 
 let arr_size v = match v.v_ty with
@@ -169,7 +169,7 @@ let mvar_of_scoped_var (s : Expr.v_scope) (uv : var) =
 
   of_scope s at
 
-let mvar_of_var (v : int Prog.ggvar) =
+let mvar_of_var (v : length Prog.ggvar) =
   mvar_of_scoped_var v.gs (L.unloc v.gv)
 
 (*---------------------------------------------------------------*)
@@ -211,6 +211,7 @@ let rec expand_arr_vars = function
       match v.v_ty with
       | Bty _ -> assert false
       | Arr (ws, n) ->
+        let n = length_to_int n in
         let wsz = size_of_ws ws in
         List.init (max 0 n) (fun i -> of_scope scope (AarraySlice (v,ws,wsz * i)))
         @ expand_arr_vars t
