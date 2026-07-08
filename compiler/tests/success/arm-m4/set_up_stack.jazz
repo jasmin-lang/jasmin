@@ -5,6 +5,7 @@ param int NREGISTERS_CALLEE_SAVED = 8;
 param int n = NREGISTERS - NREGISTERS_CALLEE_SAVED - 1;
 
 /* Many free registers. */
+#[stackallocsize = 4]
 export
 fn onregister0(reg u32 x) -> reg u32 {
     reg u32 result;
@@ -27,9 +28,10 @@ fn onregister0(reg u32 x) -> reg u32 {
 }
 
 /* One free register. */
+#[stackallocsize = 4]
 export
 fn onregister1(reg u32 x) -> reg u32 {
-    reg u32 result;
+    reg u32 answer;
     reg u32[n-1] tab;
     inline int i;
     stack u32 t;
@@ -40,14 +42,15 @@ fn onregister1(reg u32 x) -> reg u32 {
         tab[i] = x;
     }
 
-    result = t;
+    answer = t;
     for i = 0 to n - 1 {
-        result += tab[i];
+        answer += tab[i];
     }
 
-    return result;
+    return answer;
 }
 
+#[stackallocsize = 8]
 export
 fn onstack0(reg u32 x) -> reg u32 {
     reg u32 result;
@@ -69,6 +72,7 @@ fn onstack0(reg u32 x) -> reg u32 {
     return result;
 }
 
+#[stackallocsize = 40]
 export
 fn onstack1(reg u32 x) -> reg u32 {
     reg u32 result;
@@ -89,4 +93,3 @@ fn onstack1(reg u32 x) -> reg u32 {
 
     return result;
 }
-
