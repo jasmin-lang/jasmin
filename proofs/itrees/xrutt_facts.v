@@ -443,16 +443,93 @@ Qed.
 
 (* Bind closure and bind lemmas. *)
 
-(* Section XRuttBind. *)
-(*   Context {E1 E2: Type -> Type}. *)
-(*   Context {R1 R2 : Type}. *)
+Section XRuttBind.
+  Context {E1 E2: Type -> Type}.
+  Context {R1 R2 : Type}.
 
-(*   Context (EE1: forall X, E1 X -> bool). *)
-(*   Context (EE2: forall X, E2 X -> bool). *)
+  Context (EE1: forall X, E1 X -> bool).
+  Context (EE2: forall X, E2 X -> bool).
 
-(*   Context (REv : forall (A B : Type), E1 A -> E2 B -> Prop). *)
-(*   Context (RAns : forall (A B : Type), E1 A -> A -> E2 B -> B -> Prop). *)
-(*   Context (RR : R1 -> R2 -> Prop). *)
+  Context (REv : forall (A B : Type), E1 A -> E2 B -> Prop).
+  Context (RAns : forall (A B : Type), E1 A -> A -> E2 B -> B -> Prop).
+  Context (RR : R1 -> R2 -> Prop).
+
+  (* FIXME: resolve question about return parameter binding for [xrutt]:
+     `https://rocq-prover.zulipchat.com/#narrow/channel/394939-Interaction-Trees/topic/coinduction.20plugin/near/608963250` *)
+
+  (* About eqit_bind_chain. *)
+  (* About eq_proper_xruttC. *)
+
+  (* Goal False. *)
+  (*   pose proof @eq_proper_xruttC. *)
+  (*   unfold Proper, respectful in H. *)
+  (* Abort. *)
+
+  (* About eqit_mon. *)
+  (* Require ITree.Eq.Rutt. *)
+  (* About Rutt.rutt_mon. *)
+
+  (* Goal forall (c : Chain (xrutt_mon EE1 EE2 REv RAns)), False. *)
+
+  (* About elem. *)
+
+  Lemma xrutt_bind_chain
+    (c : Chain (xrutt_mon EE1 EE2 REv RAns)) {U1 U2}
+    (t1 : itree E1 U1) (t2 : itree E2 U2) 
+    (k1 : U1 -> itree E1 R1) (k2 : U2 -> itree E2 R2) (UU : U1 -> U2 -> Prop) : 
+    elem c U1 U2 UU t1 t2 ->
+    (forall u1 u2, UU u1 u2 -> elem c R1 R2 RR (k1 u1) (k2 u2)) -> 
+    elem c R1 R2 RR (ITree.bind t1 k1) (ITree.bind t2 k2).
+  Proof. 
+    revert_until U2. 
+    tower induction.
+    - intros. 
+      icbn in *. 
+      genobs t1 ot1.  
+      genobs t2 ot2.
+      hinduction H0 before RR; intros; try easy. 
+      (* be careful not to rewrite all here; this will mess up taul and taur cases. *)
+      1-3: rewrite 2 observe_bind; simpobs.
+      (* ret *)
+      + eapply H1; eauto. 
+      (* taus *)
+      + constructor.
+        eapply H; eauto. 
+        intros; step; now eapply H1.
+      (* vis *)
+      + constructor. 
+        intro. 
+        eapply H; eauto.
+        intros; step; now eapply H1.
+      (* taul *)
+      + rewrite observe_bind. 
+        simpobs. 
+        taul. 
+        eapply IHeqitF; eauto.  
+      (* taur *)
+      + setoid_rewrite observe_bind at 2. 
+        simpobs. 
+        taur. 
+        eapply IHeqitF; eauto. 
+  Qed. 
+
+  Lemma eutt_bind_eutt {U1 U2 UU} t1 t2 k1 k2
+    (EQT: @eutt E U1 U2 UU t1 t2)
+    (EQK: forall u1 u2, UU u1 u2 -> eutt RR (k1 u1) (k2 u2)):
+    eutt RR (ITree.bind t1 k1) (ITree.bind t2 k2).
+  Proof.
+    unfold eutt. eapply eqit_bind_chain; eauto.  
+  Qed. 
+
+  Lemma eutt_bind_b {U1 U2 UU} t1 t2 k1 k2
+    (c : euttC)
+    (EQT: @eutt E U1 U2 UU t1 t2)
+    (EQK: forall u1 u2, UU u1 u2 -> eutt RR (k1 u1) (k2 u2)):
+    eqit_mon true true (elem c) _ _ RR (ITree.bind t1 k1) (ITree.bind t2 k2).
+  Proof.
+    eapply eqit_bind_chain; intros. 
+    all: now do 2 step; [apply EQT || apply EQK].
+  Qed. 
 
 (* Inductive xrutt_bind_clo (r : itree E1 R1 -> itree E2 R2 -> Prop) : *)
 (*   itree E1 R1 -> itree E2 R2 -> Prop := *)
@@ -487,7 +564,7 @@ Qed.
 (*     eapply eqit_Tau_l. rewrite unfold_bind. reflexivity. *)
 (* Qed. *)
 
-(* End XRuttBind. *)
+End XRuttBind.
 
 (* Based on [RuttFacts.rutt_bind]. *)
 Lemma xrutt_bind {E1 E2 R1 R2}
@@ -676,9 +753,13 @@ Lemma xrutt_iter :
     @xrutt E1 E2 R1 R2 EE1 EE2 RPreE RPostE RR
       (ITree.iter body1 i1) (ITree.iter body2 i2).
 Proof.
-  ginit. gcofix CIH.
+  coinduction.
+  ebind.
   intros.
   rewrite !unfold_iter.
+  Search eqit_mon ITree.bind.
+  eapply eq_proper_xruttC. last eapply CIH.
+  eapply xrutt_bind.
   eapply gpaco2_uclo; [|eapply xrutt_clo_bind|]; eauto with paco.
   econstructor; eauto. intros; subst. gfinal. right.
   inversion H; subst.
