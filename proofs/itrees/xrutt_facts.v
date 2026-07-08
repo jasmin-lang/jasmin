@@ -391,23 +391,25 @@ Proof.
   (* EqCutL (left cutoff): we need induction on Heutt to analyse t1',
      in case eutt has introduced some Taus. Then we apply EqTauL and
      IHHeutt. Otherwise immediate. *)
-  - rewrite itree_eta. gfinal; right; pstep.
-    remember (VisF e1 k1) as m1; revert Heqm1.
-    punfold Heutt; red in Heutt; cbn in Heutt.
+  - step in Heutt. cbn in Heutt.
+    rewrite <- Hot1 in Heutt. clear t1 Hot1 t2 Hot2.
+    remember (VisF e1 k1) as oVisL1 eqn:HoVisL1.
     induction Heutt; intros; try discriminate.
-    + dependent destruction Heqm1.
-      apply EqCutL; auto.
-    + apply EqTauL. eapply IHHeutt; auto.
+    + dependent destruction HoVisL1.
+      now apply EqCutL.
+    + apply EqTauL; eauto.
 
   (* EqCutR (right cutoff): immediate. *)
-  - gstep; red. econstructor; auto.
+  - now apply EqCutR.
 
   (* EqTauL: immediate by IHHrutt, handling the added Tau in ≈ by an
      eutt rewrite. *)
-  - apply IHHrutt. rewrite <- itree_eta. now rewrite <- tau_eutt.
+  - eapply IHHrutt with (t1:=m1) (t1':=t1') (t2:=t2); auto.
+    rewrite <- tau_eutt with (t:=m1). rewrite <- Heutt.
+    rewrite (itree_eta t1). now rewrite <- Hot1.
 
   (* EqTauR: rewriting away the added Tau, concluding by IHHrutt. *)
-  - rewrite tau_euttge. rewrite (itree_eta m2). now apply IHHrutt.
+  - apply EqTauR. eapply IHHrutt; eauto.
 Qed.
 
 #[global] Instance xrutt_Proper_R3 {E1 E2 R1 R2}
