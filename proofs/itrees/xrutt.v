@@ -189,11 +189,13 @@ Section XRuttF.
 
 End XRuttF.
 
+(* FIXME: I believe this is broken like this. *)
 Ltac unfold_xrutt :=
     (match goal with [ |- xrutt_ _ _ _ _ _ _ _ _ ] => red end) ;
     (repeat match goal with [H: xrutt_ _ _ _ _ _ _ _ _ |- _ ] =>
                               red in H end).
 
+(* FIXME: I believe this is broken like this. *)
 Tactic Notation "fold_xruttF" hyp(H) :=
   try step in H;
   try red in H;
@@ -213,7 +215,12 @@ Tactic Notation "fold_xruttF" hyp(H) :=
       eapply fold_xruttF in H; [| eauto | eauto]
   end.
 
+(** ** [X-rutt]-specific tactics.
+
+    Based upon the tactics in [Rutt.v]. *)
+
 #[local] Ltac xrunfold := unfold xrutt.
+#[local] Ltac xrunfold_in h := unfold xrutt in h.
 
 Ltac xrcbn := cbn[xrutt_mon body]; try unfold xrutt_.
 Ltac xrcbn_in H := cbn[xrutt_mon body] in H; try unfold xrutt_ in H.
@@ -221,7 +228,58 @@ Ltac xrcbn_in H := cbn[xrutt_mon body] in H; try unfold xrutt_ in H.
 Tactic Notation "xrcbn" "in" ident(h) := xrcbn_in h.
 Tactic Notation "xrcbn" "in" "*" := cbn[xrutt_mon body] in *; try unfold xrutt_ in *.
 
+(** [xrstep] unfolds [xrutt] one step, exposing the [xruttF] functor. *)
 Tactic Notation "xrstep" := apply (pfp_gfp (xrutt_mon _ _ _ _)); xrcbn.
+Tactic Notation "xrstep" "in" ident(h) := xrunfold_in h; step in h; xrcbn in h.
+
+#[local] Ltac refold :=
+  repeat lazymatch goal with
+  | |- context[gfp (@xrutt_mon ?E1 ?E2 ?R1 ?R2 ?EE1 ?EE2 ?RE ?RA)] =>
+      fold (@xrutt E1 E2 R1 R2 EE1 EE2 RE RA)
+  end.
+
+Ltac fold_xrutt :=
+  lazymatch goal with
+  | |- context[@xruttF ?E1 ?E2 ?R1 ?R2 ?EE1 ?EE2 ?REv ?RAns ?RR] =>
+      change (@xruttF E1 E2 R1 R2 EE1 EE2 REv RAns RR) with (body (@xrutt_mon E1 E2 R1 R2 EE1 EE2 REv RAns RR))
+  end.
+Ltac fold_xrutt_in h :=
+  match type of h with
+  | context[@xruttF ?E1 ?E2 ?R1 ?R2 ?EE1 ?EE2 ?REv ?RAns ?RR] =>
+      change (@xruttF E1 E2 R1 R2 EE1 EE2 REv RAns RR) with (body (@xrutt_mon E1 E2 R1 R2 EE1 EE2 REv RAns RR)) in h
+  end.
+Tactic Notation "xrunstep" := fold_xrutt; unstep.
+Tactic Notation "xrunstep" "in" ident(h) := fold_xrutt_in h; unstep in h.
+
+Ltac to_xrmon_core :=
+  lazymatch goal with
+  | |- context[@xruttF ?E1 ?E2 ?R1 ?R2 ?EE1 ?EE2 ?REv ?RAns ?RR (?f ?RR) (observe ?t1) (observe ?t2)] =>
+      change (@xruttF E1 E2 R1 R2 EE1 EE2 REv RAns RR (f RR) (observe t1) (observe t2))
+      with (@xrutt_mon E1 E2 R1 R2 EE1 EE2 REv RAns f RR t1 t2)
+  | |- context[@xruttF ?E1 ?E2 ?R1 ?R2 ?EE1 ?EE2 ?REv ?RAns ?RR (?f ?RR) (?con1 ?a1) (?con2 ?a2)] =>
+      change (@xruttF E1 E2 R1 R2 EE1 EE2 REv RAns RR (f RR) (con1 a1) (con2 a2))
+      with (@xrutt_mon E1 E2 R1 R2 EE1 EE2 REv RAns f RR (go (con1 a1)) (go (con2 a2)))
+  end.
+
+Ltac to_xrmon :=
+  let dummy := fresh "dummy" in
+  assert (dummy : True) by constructor;
+  intros;
+  to_xrmon_core;
+  Tactics.revert_until dummy;
+  clear dummy.
+
+Ltac to_xrmon_in h :=
+  lazymatch type of h with
+  | context[@xruttF ?E1 ?E2 ?R1 ?R2 ?EE1 ?EE2 ?REv ?RAns ?RR (?f ?RR) (observe ?t1) (observe ?t2)] =>
+      change (@xruttF E1 E2 R1 R2 EE1 EE2 REv RAns RR (f RR) (observe t1) (observe t2))
+      with (@xrutt_mon E1 E2 R1 R2 EE1 EE2 REv RAns f RR t1 t2) in h
+  | context[@xruttF ?E1 ?E2 ?R1 ?R2 ?EE1 ?EE2 ?REv ?RAns ?RR (?f ?RR) (?con1 ?a1) (?con2 ?a2)] =>
+      change (@xruttF E1 E2 R1 R2 EE1 EE2 REv RAns RR (f RR) (con1 a1) (con2 a2))
+      with (@xrutt_mon E1 E2 R1 R2 EE1 EE2 REv RAns f RR (go (con1 a1)) (go (con2 a2)))
+  end.
+
+Tactic Notation "to_xrmon" "in" ident(h) := to_xrmon_in h.
 
 
 Section ConstructionInversion.
@@ -245,14 +303,14 @@ Lemma xrutt_inv_Ret r1 r2:
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR (Ret r1) (Ret r2) ->
   RR r1 r2.
 Proof.
-  intros. step in H. inv H.
+  intros. xrstep in H. inv H.
 Qed.
 
 Lemma xrutt_inv_Ret_l r1 t2:
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR (Ret r1) t2 ->
   (exists r2, t2 ≳ Ret r2 /\ RR r1 r2) \/ (WillCutoff_ EE2 _ t2).
 Proof.
-  intros Hrutt; step in Hrutt; cbn in Hrutt.
+  intros Hrutt; xrstep in Hrutt; cbn in Hrutt.
   setoid_rewrite (itree_eta t2).
   remember (RetF r1) as ot1; revert Heqot1.
   induction Hrutt; intros; try discriminate.

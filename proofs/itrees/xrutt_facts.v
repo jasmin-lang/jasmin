@@ -18,7 +18,7 @@ From ITree Require Import
   Basics.HeterogeneousRelations
   Props.Leaf.
 
-Require Import xrutt while.
+Require Import xrutt while rec_facts.
 
 (* Morphisms related to [REv] and [RAns]. Symmetry results when
 flipped. Note: the first section is copied from RuttFacts.v in ITree;
@@ -565,51 +565,44 @@ Section XRuttMrec.
       xrutt EE1 EE2 RPre RPost
         RR (interp_mrec bodies1 t1) (interp_mrec bodies2 t2).
   Proof using Hbodies.
-    ginit. gcofix CIH.
-    intros t1 t2 Ht12. punfold Ht12. red in Ht12.
+    coinduction c CIH. icbn.
+    intros t1 t2 Ht12. step in Ht12.
     remember (observe t1) as ot1. remember (observe t2) as ot2.
-    hinduction Ht12 before r; intros.
+    hinduction Ht12 before CIH; intros; to_xrmon.
     - apply simpobs in Heqot1, Heqot2. rewrite Heqot1, Heqot2.
-      gstep. red. cbn. constructor. auto.
+      rewrite !unfold_interp_mrec. cbn. now constructor.
     - apply simpobs in Heqot1, Heqot2. rewrite Heqot1, Heqot2.
-      repeat rewrite unfold_interp_mrec. cbn. gstep. constructor.
-      pclearbot. gfinal. eauto.
+      rewrite !unfold_interp_mrec. cbn. constructor; now apply CIH.
     - apply simpobs in Heqot1, Heqot2. rewrite Heqot1, Heqot2.
-      repeat rewrite unfold_interp_mrec. cbn.
-      rename H into h.
-      destruct H1.
-      + gstep. constructor.
-        gfinal. left. eapply CIH; eauto.
-        eapply xrutt_bind; eauto.
-        intros. cbn in H1. clear - H1 H2.
-        specialize (H2 r1 r2 (sum_postrel_inl _ _ _ _ _ _ _ _ H1)).
-        pclearbot. auto.
-      + gstep. red. constructor; eauto.
-        intros.
-        gstep. constructor.
-        gfinal. left. eapply CIH.
-        specialize (H2 a b (sum_postrel_inr _ _ _ _ _ _ _ _ H1)).
-        pclearbot. eauto.
+      rewrite !unfold_interp_mrec. cbn.
+      inv H1.
+      + apply inj_pair2 in H3, H6. subst. constructor.
+        eapply CIH, xrutt_bind; eauto.
+        intros. cbn in *. apply H2. now constructor.
+      + apply inj_pair2 in H3, H6. subst.
+        inv H. inv H0. apply EqVis; auto.
+        intros. cbn in *.
+        rewrite <-!interp_mrec_tau.
+        eapply CIH; eauto. step. constructor.
+        eapply H2. now constructor.
     - apply simpobs in Heqot1.
       rewrite Heqot1.
       rewrite unfold_interp_mrec at 1.
       cbn.
       destruct e1; simpl in H; try congruence.
-      gstep. red.
       econstructor; auto.
     - apply simpobs in Heqot2.
       rewrite Heqot2.
       setoid_rewrite unfold_interp_mrec at 2.
       cbn.
       destruct e2; simpl in H; try congruence.
-      gstep. red.
       econstructor; auto.
     - apply simpobs in Heqot1. rewrite Heqot1.
-      rewrite unfold_interp_mrec at 1. cbn.
-      rewrite tau_euttge. auto.
+      setoid_rewrite unfold_interp_mrec at 1. cbn.
+      constructor. now apply IHHt12.
     - apply simpobs in Heqot2. rewrite Heqot2.
       setoid_rewrite unfold_interp_mrec at 2.
-      cbn. rewrite tau_euttge. auto.
+      cbn. constructor. now apply IHHt12.
   Qed.
 
   Lemma mrec_xrutt (A B : Type) (d1 : D1 A) (d2 : D2 B) :
