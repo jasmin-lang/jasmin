@@ -207,7 +207,7 @@ Section WRITE.
 
 Instance vrv_rec_m : Proper (Sv.Equal ==> eq ==> Sv.Equal) vrv_rec.
 Proof.
-  move=> s1 s2 Hs x r ->;case:r => //= [v | _ _ _ v _ | _ _ _ v _]; SvD.fsetdec.
+  move=> s1 s2 Hs x r ->;case:r => //= [v | _ _ _ v _ | _ _ _ v _]; clear -Hs; SvD.fsetdec.
 Qed.
 
 Lemma vrv_none i t: vrv (Lnone i t) = Sv.empty.
@@ -453,7 +453,7 @@ Proof. rewrite /read_i /write_i /read_i_rec read_esE read_rvsE; clear; SvD.fsetd
 Lemma read_i_assert a :
   Sv.Equal (read_i (Cassert a)) (read_eassert a.2).
 Proof.
-  rewrite /read_i /read_i_rec read_eassertE;SvD.fsetdec.
+  rewrite /read_i /read_i_rec read_eassertE; clear; SvD.fsetdec.
 Qed.
 
 Lemma read_i_if e c1 c2 :
@@ -527,7 +527,7 @@ Proof. by rewrite /vars_I read_Ii write_Ii read_i_syscall write_i_syscall /vars_
 
 Lemma vars_I_assert ii a:
   Sv.Equal (vars_I (MkI ii (Cassert a))) (read_eassert a.2).
-Proof. rewrite /vars_I read_Ii write_Ii //= !read_writeE; SvD.fsetdec. Qed.
+Proof. rewrite /vars_I read_Ii write_Ii //= !read_writeE; clear; SvD.fsetdec. Qed.
 
 Lemma vars_I_if ii e c1 c2:
   Sv.Equal (vars_I (MkI ii (Cif e c1 c2))) (Sv.union (read_e e) (Sv.union (vars_c c1) (vars_c c2))).
@@ -564,7 +564,7 @@ Lemma vars_lval_Lvar i :
   Sv.Equal (vars_lval (Lvar i)) (Sv.singleton i).
 Proof.
   rewrite /vars_lval /=.
-  SvD.fsetdec.
+  clear; SvD.fsetdec.
 Qed.
 
 Lemma get_lvar_to_lvals xs :

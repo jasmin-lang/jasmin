@@ -142,7 +142,7 @@ Proof.
   move=> sp_rsp tmp s ts sz _ Hvm.
   rewrite /= Hvm /= /eval_instr /= /sem_sopn /sem_sop2 /exec_sopn /= !truncate_word_u /= truncate_word_u /=.
   eexists; split; first reflexivity.
-  + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; SvD.fsetdec.
+  + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; clear -hz; SvD.fsetdec.
   rewrite sub_wordE.
   by rewrite Vm.setP_eq vm_truncate_val_eq.
 Qed.
@@ -153,7 +153,7 @@ Proof.
   move=> sp_rsp tmp s ts sz _ Hvm.
   rewrite /= Hvm /= /eval_instr /= /sem_sopn /sem_sop2 /exec_sopn /= !truncate_word_u /= truncate_word_u /=.
   eexists; split; first reflexivity.
-  + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; SvD.fsetdec.
+  + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; clear -hz; SvD.fsetdec.
   by rewrite Vm.setP_eq vm_truncate_val_eq.
 Qed.
 

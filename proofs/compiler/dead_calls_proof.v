@@ -101,15 +101,15 @@ apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /=
   [ i0 ii Hi | | i0 c0 Hi Hc | x t ty e | xs t o es | xs o es | a | e c1 c2 Hc1 Hc2
     | v dir lo hi c0 Hc | a c0 e ei c' Hc Hc' | ii xs f es ] c /=.
 + by apply Hi.
-+ rewrite CallsE; SfD.fsetdec.
-+ rewrite CallsE Hc Hi; SfD.fsetdec.
-1-4: SfD.fsetdec.
++ rewrite CallsE; clear; SfD.fsetdec.
++ rewrite CallsE Hc Hi; clear; SfD.fsetdec.
+1-4: clear; SfD.fsetdec.
 + rewrite /i_calls_r  -/(foldl _ _) -/(foldl _ _) -/(c_calls _ _) -/(c_calls _ _)
-    Hc2 Hc1 -/(c_Calls _) -/(c_Calls _); SfD.fsetdec.
+    Hc2 Hc1 -/(c_Calls _) -/(c_Calls _); clear; SfD.fsetdec.
 + by apply Hc.
 + rewrite /i_calls_r  -/(foldl _ _) -/(foldl _ _) -/(c_calls _ _) -/(c_calls _ _)
-    Hc' Hc -/(c_Calls _) -/(c_Calls _); SfD.fsetdec.
-rewrite /i_calls_r; SfD.fsetdec.
+    Hc' Hc -/(c_Calls _) -/(c_Calls _); clear; SfD.fsetdec.
+rewrite /i_calls_r; clear; SfD.fsetdec.
 Qed.
 
 End CALLS.
@@ -126,7 +126,7 @@ Proof.
   rewrite <- le.
   case: Sf.mem. 2: auto.
   apply: ih.
-  rewrite ! c_callsE. SfD.fsetdec.
+  rewrite ! c_callsE. clear -le; SfD.fsetdec.
 Qed.
 
 #[local]
@@ -135,19 +135,19 @@ Proof.
   move=> x y le p p' <- {p'}.
   elim: p x y le => // [[n d] p] ih x y le /=.
   case hm: Sf.mem. apply Sf.mem_spec in hm.
-  rewrite (SfD.F.mem_1 (le _ hm)). apply: ih. rewrite ! c_callsE. SfD.fsetdec.
-  case: Sf.mem. apply: ih. rewrite c_callsE. SfD.fsetdec.
+  rewrite (SfD.F.mem_1 (le _ hm)). apply: ih. rewrite ! c_callsE. clear -le; SfD.fsetdec.
+  case: Sf.mem. apply: ih. rewrite c_callsE. clear -le; SfD.fsetdec.
   auto.
 Qed.
 
 Lemma live_calls_subset c p :
   Sf.Subset c (live_calls c p).
 Proof.
-  elim: p c => /=. SfD.fsetdec.
+  elim: p c => /=. clear; SfD.fsetdec.
   move=> [n d] p ih c.
   case: Sf.mem => //.
   etransitivity. 2: apply: ih.
-  rewrite c_callsE. SfD.fsetdec.
+  rewrite c_callsE. clear; SfD.fsetdec.
 Qed.
 
 Lemma live_calls_in K p fn fd :
@@ -159,12 +159,12 @@ Proof.
   case: eqP.
   - move <- => {n} /Some_inj ->.
     rewrite (SfD.F.mem_1 hn) c_callsE.
-    etransitivity. 2: apply: live_calls_subset. SfD.fsetdec.
+    etransitivity. 2: apply: live_calls_subset. clear; SfD.fsetdec.
   - move => ne rec. specialize (ih _ _ _ hn rec).
     case hm: Sf.mem => //.
     etransitivity. exact: ih.
     apply: live_calls_mono => //.
-    rewrite c_callsE. SfD.fsetdec.
+    rewrite c_callsE. clear; SfD.fsetdec.
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -193,7 +193,7 @@ Section PROOF.
   Lemma def_incl_union a b :
     def_incl (Sf.union a b) → def_incl a ∧ def_incl b.
   Proof.
-    rewrite /def_incl; intuition SfD.fsetdec.
+    by rewrite /def_incl => h; split; clear -h; SfD.fsetdec.
   Qed.
 
   Section IT.
@@ -263,7 +263,7 @@ Lemma foldl_compat x y l (x_eq_y: Sf.Equal x y):
            (foldl (fun f c => Sf.add c f) y l).
 Proof.
 elim: l x y x_eq_y=> // a l IH /= x y x_eq_y.
-by apply: IH; SfD.fsetdec.
+by apply: IH; clear -x_eq_y; SfD.fsetdec.
 Qed.
 
 Lemma foldlE a l x:
@@ -274,7 +274,7 @@ elim: l a x=> // a0 l IH a x.
 rewrite /= in IH.
 rewrite /=.
 rewrite -IH.
-apply: foldl_compat; SfD.fsetdec.
+apply: foldl_compat; clear; SfD.fsetdec.
 Qed.
 
 (* -------------------------------------------------------------------- *)

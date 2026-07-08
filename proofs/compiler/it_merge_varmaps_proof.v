@@ -121,7 +121,7 @@ Proof. by move: ok_p; rewrite /check; t_xrbindP. Qed.
 Lemma not_written_magic W :
   disjoint W (magic_variables p) →
   ¬ Sv.In vgd W ∧ ¬ Sv.In vrsp W.
-Proof. rewrite /disjoint /magic_variables /is_true Sv.is_empty_spec; SvD.fsetdec. Qed.
+Proof. rewrite /disjoint /magic_variables /is_true Sv.is_empty_spec; clear; SvD.fsetdec. Qed.
 
 Lemma disjoint_tmp_call_magic f :
   disjoint (fd_tmp_call p f) (magic_variables p).
@@ -138,7 +138,7 @@ Proof.
   rewrite kill_varsE; case: ifP => // /Sv_memP.
   have := disjoint_tmp_call_magic fn.
   rewrite /disjoint => /Sv.is_empty_spec.
-  rewrite /magic_variables /vrsp /=; SvD.fsetdec.
+  rewrite /magic_variables /vrsp /=; clear; SvD.fsetdec.
 Qed.
 
 Lemma kill_vars_tmp_call_rip fn vm :
@@ -147,7 +147,7 @@ Proof.
   rewrite kill_varsE; case: ifP => // /Sv_memP.
   have := disjoint_tmp_call_magic fn.
   rewrite /disjoint => /Sv.is_empty_spec.
-  rewrite /magic_variables /vgd /=; SvD.fsetdec.
+  rewrite /magic_variables /vgd /=; clear; SvD.fsetdec.
 Qed.
 
 Notation write_c_rec := (merge_varmaps.write_c_rec p var_tmps wrf).
@@ -166,17 +166,17 @@ Let Pc c := forall s, Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)).
 Lemma write_c_recE c : ∀ s, Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)).
 Proof.
   apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)).
-  - by move => i ii ih s; rewrite /write_I /write_I_rec -/write_i_rec !ih; SvD.fsetdec.
-  - rewrite /Pc. by SvD.fsetdec.
-  - by move => i c' hi hc' s; rewrite /write_c /= !hc' -/write_I hi; SvD.fsetdec.
+  - by move => i ii ih s; rewrite /write_I /write_I_rec -/write_i_rec !ih; clear; SvD.fsetdec.
+  - rewrite /Pc. by clear; SvD.fsetdec.
+  - by move => i c' hi hc' s; rewrite /write_c /= !hc' -/write_I hi; clear; SvD.fsetdec.
   - by move => x tg ty e s; rewrite /write_i /write_i_rec -vrv_recE.
   - by move => xs tg op es s; rewrite /write_i /write_i_rec -vrvs_recE.
-  - by move => xs op es s; rewrite /write_i /write_i_rec !vrvs_recE; SvD.fsetdec.
-  - by move=> a s; rewrite /write_i /write_i_rec; SvD.fsetdec.
-  - by move => e c1 c2 h1 h2 s; rewrite /write_i /write_i_rec -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
-  - by move => v d lo hi body h s; rewrite /write_i /write_i_rec -!/write_c_rec !h; SvD.fsetdec.
-  - by move => a c1 e ei c2  h1 h2 s; rewrite /write_i /write_i_rec -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
-  by move=> xs fn es s; rewrite /write_i /write_i_rec; SvD.fsetdec.
+  - by move => xs op es s; rewrite /write_i /write_i_rec !vrvs_recE; clear; SvD.fsetdec.
+  - by move=> a s; rewrite /write_i /write_i_rec; clear; SvD.fsetdec.
+  - by move => e c1 c2 h1 h2 s; rewrite /write_i /write_i_rec -!/write_c_rec -/write_c !h1 h2; clear; SvD.fsetdec.
+  - by move => v d lo hi body h s; rewrite /write_i /write_i_rec -!/write_c_rec !h; clear; SvD.fsetdec.
+  - by move => a c1 e ei c2  h1 h2 s; rewrite /write_i /write_i_rec -!/write_c_rec -/write_c !h1 h2; clear; SvD.fsetdec.
+  by move=> xs fn es s; rewrite /write_i /write_i_rec; clear; SvD.fsetdec.
 Qed.
 
 Lemma write_I_recE ii i s :
@@ -193,7 +193,7 @@ Lemma write_i_if e c1 c2 :
 Proof.
   rewrite /write_i /write_i_rec -/write_c_rec !write_c_recE.
   move: (write_c c2) (write_c c1). (* SvD.fsetdec faster *)
-  SvD.fsetdec.
+  clear; SvD.fsetdec.
 Qed.
 
 Lemma write_i_while aa c1 e ei c2 :
@@ -412,7 +412,7 @@ Proof.
   rewrite /check_e/check_fv => /assertP/Sv.is_empty_spec hd sim sem.
   have := sem_pexpr_uincl_on (vm2 := evm t) _ sem.
   rewrite (with_vm_m (mvm_scs sim) (mvm_mem sim)) with_vm_same; apply.
-  by move=> x hx; apply (mvm_vmap sim); SvD.fsetdec.
+  by move=> x hx; apply (mvm_vmap sim); clear -hd hx; SvD.fsetdec.
 Qed.
 
 Lemma check_esP wdb ii I es s t vs u : check_es ii I es = ok u ->
@@ -436,13 +436,13 @@ Lemma check_lvP_match_estate ii I x O s1 s2 t1 v v': check_lv ii I x = ok O ->
 Proof.
   rewrite /check_lv /check_fv; t_xrbindP => /Sv.is_empty_spec hd <- hsim hw hu.
   have []:= write_uincl_on (vm1 := evm t1) _ hu hw.
-  + move=> z hz; apply (mvm_vmap hsim); SvD.fsetdec.
+  + move=> z hz; apply (mvm_vmap hsim); clear -hd hz; SvD.fsetdec.
   move=> vm2; rewrite (with_vm_m (mvm_scs hsim) (mvm_mem hsim)) with_vm_same => hw' hs.
   exists (with_vm s2 vm2) => //;split => // z hz.
   case: (Sv_memP z (vrv x)) => hin; first by apply hs.
-  rewrite -(vrvP hw); last by SvD.fsetdec.
-  rewrite -(vrvP hw'); last by SvD.fsetdec.
-  by apply (mvm_vmap hsim); SvD.fsetdec.
+  rewrite -(vrvP hw); last by clear -hin; SvD.fsetdec.
+  rewrite -(vrvP hw'); last by clear -hin; SvD.fsetdec.
+  by apply (mvm_vmap hsim); clear -hz hin; SvD.fsetdec.
 Qed.
 
 Lemma check_lvsP_match_estate ii I xs O s1 s2 t1 vs vs': check_lvs ii I xs = ok O ->
@@ -536,8 +536,8 @@ Lemma match_estate_kill I s1 t1 K:
    match_estate I s1 t1 -> match_estate (Sv.union I K) s1 (with_vm t1 (kill_vars K (evm t1))).
 Proof.
   move=> [h1 h2 h3]; constructor => // x hx.
-  rewrite /with_vm /= kill_varsE; case: Sv_memP => //; first by SvD.fsetdec.
-  move=> hni; apply h3; SvD.fsetdec.
+  rewrite /with_vm /= kill_varsE; case: Sv_memP => //; first by clear -hx; SvD.fsetdec.
+  move=> hni; apply h3; clear -hx; SvD.fsetdec.
 Qed.
 
 Lemma sem_pexprs_get_vars s es xs vs wdb :
@@ -574,7 +574,7 @@ Proof.
   + by apply Sv.is_empty_spec; clear; SvD.fsetdec.
   have [X' -> heq]:= hrec _ (Sv.diff X (Sv.add x' Sv.empty)) hxs.
   exists X' => //; move: heq; clear.
-  rewrite vrvs_cons /=; SvD.fsetdec.
+  rewrite vrvs_cons /=; clear; SvD.fsetdec.
 Qed.
 
 Lemma subset_merged_vmap_inv X X' s t:
@@ -582,11 +582,11 @@ Lemma subset_merged_vmap_inv X X' s t:
 Proof.
   move=> heq [h1 h2]; split => //.
   case: h1 => ?? h; split => //.
-  by move=> x hx; apply h; SvD.fsetdec.
+  by move=> x hx; apply h; clear -heq hx; SvD.fsetdec.
 Qed.
 
 Lemma SvSubset_and s1 s2 s : Sv.Subset (Sv.union s1 s2) s -> Sv.Subset s1 s /\ Sv.Subset s2 s.
-Proof. split; SvD.fsetdec. Qed.
+Proof. move=> h; split; clear -h; SvD.fsetdec. Qed.
 
 Lemma merge_varmaps_cmdP c : Pc c.
 Proof.
@@ -669,8 +669,8 @@ Proof.
       + case: hst1 => ?? hvmap; split => //= z hz.
         rewrite /vm_after_syscall kill_varsE.
         case: Sv_memP.
-        + by move=> ?; exfalso; apply hz; SvD.fsetdec.
-        by move=> hz'; apply: hvmap; SvD.fsetdec.
+        + by move=> h; exfalso; apply hz; clear -h; SvD.fsetdec.
+        by move=> hz'; apply: hvmap; clear -hz hz'; SvD.fsetdec.
       apply: (merge_vmap_stable_trans hkill hmerge) => //=.
       move=> x hx; rewrite /vm_after_syscall kill_varsE.
       by case: Sv_memP.
@@ -682,8 +682,8 @@ Proof.
     + by apply: subset_merged_vmap_inv hinv''; rewrite heq.
     + rewrite vrvs_recE Sv_union_empty.
       have /= h1 := vrvsP hw.
-      apply: eq_exT; last by apply: eq_exI h1; SvD.fsetdec.
-      apply: (eq_exI (s2:= syscall_kill));first by SvD.fsetdec.
+      apply: eq_exT; last by apply: eq_exI h1; clear; SvD.fsetdec.
+      apply: (eq_exI (s2:= syscall_kill)); first by clear; SvD.fsetdec.
       by move=> y /= /Sv_memP /negPf; rewrite /vm_after_syscall kill_varsE => ->.
     by rewrite vrvs_recE Sv_union_empty /=; apply SvD.F.Subset_refl.
   (* if *)
@@ -800,7 +800,7 @@ Proof.
   apply xrutt.xrutt_Ret => /=; split; last first.
   + by rewrite /writefun_ra_call; move: hsub'; clear; SvD.fsetdec.
   + rewrite /writefun_ra_call => x hx.
-    have /Sv_memP/negbTE hn : ¬ Sv.In x (fd_tmp_call p f) by SvD.fsetdec.
+    have /Sv_memP/negbTE hn : ¬ Sv.In x (fd_tmp_call p f) by clear -hx; SvD.fsetdec.
     rewrite kill_varsE hn.
     have ? : ¬ Sv.In x (writefun_ra p var_tmps wrf f).
     + by move: hx; clear; SvD.fsetdec.
@@ -810,12 +810,12 @@ Proof.
     + by rewrite (write_lvals_escs hws).
     + by rewrite (write_lvals_emem (all2_get_lvar hallxs) hws).
     move=> y hin; rewrite /kill_tmp_call /= kill_varsE /fd_tmp_call hget /=; case: Sv_memP.
-    + by SvD.fsetdec.
+    + by clear -hin; SvD.fsetdec.
     move=> /Sv_memP /negbTE hntc; case: (Sv_memP y (sv_of_list v_var (f_res fd))); last first.
     + move=> hx; rewrite -(vrvsP hws) /=; last by rewrite (vrvs_vars (all2_get_lvar hallxs)).
-      rewrite -heqex; last by SvD.fsetdec.
+      rewrite -heqex; last by clear -hin hx; SvD.fsetdec.
       rewrite kill_varsE /fd_tmp_call hget hntc.
-      by apply (mvm_vmap (mvi_match hinv1)); SvD.fsetdec.
+      by apply (mvm_vmap (mvi_match hinv1)); clear -hin hx; SvD.fsetdec.
     rewrite -Sv.mem_spec sv_of_listE => /= x_result.
     move: hu (f_res fd) x_result (all2_get_lvar hallxs) hget' (hallxs) (with_scs (with_mem s1 (fmem s2)) (fscs s2)) hws; clear.
     elim: xs (fvals s2) res' => [ | d ds ih ] [] //.
@@ -900,9 +900,9 @@ Proof.
       rewrite /writefun_ra hget /ra_undef /ra_vm /ra_vm_return heq /disjoint => hempty.
     split.
     + case: ra_call heq hempty hcall => [ r | ] // heq.
-      by t_xrbindP => /Sv.is_empty_spec /= h ->; split => //; SvD.fsetdec.
+      by t_xrbindP => /Sv.is_empty_spec /= h ->; split => //; clear -h; SvD.fsetdec.
     case: ra_return heq hempty hreturn => [ r | ] // heq.
-    by t_xrbindP => /Sv.is_empty_spec /= h ->; split => //; SvD.fsetdec.
+    by t_xrbindP => /Sv.is_empty_spec /= h ->; split => //; clear -h; SvD.fsetdec.
   have ra_neq_magic :
     match sf_return_address (f_extra fd) with
     | RAreg ra _ => [&& ra != vgd, ra != vrsp & convertible (vtype ra) (aword Uptr)]
@@ -996,7 +996,7 @@ Proof.
       rewrite /ra_undef_vm kill_varsE.
       have := not_written_magic preserved_magic.
       rewrite /writefun_ra hget /ra_undef.
-      by case: Sv_memP => // h [[] ]; SvD.fsetdec.
+      by case: Sv_memP => // h [[] ]; clear -h; SvD.fsetdec.
     rewrite (alloc_stack_top_stack ok_m').
     exact: do_align_is_align.
   have := merge_varmaps_cmdP hfun (m0:=emem s0') (sz:=sf_align (f_extra fd)) hdisj_w hsub checked_body.
@@ -1037,8 +1037,8 @@ Proof.
   + move: hvalra.
     rewrite /valid_writefun /write_fd /saved_stack_valid_final /=.
     case: sf_save_stack checked_save_stack => // r; t_xrbindP => _ /Sv_memP r_not_written /Sv_memP.
-    rewrite Sv.union_spec => ? /Sv.subset_spec ?; apply/Sv_memP.
-    SvD.fsetdec.
+    rewrite Sv.union_spec => h1 /Sv.subset_spec h2; apply/Sv_memP.
+    clear -hk r_not_written h2; SvD.fsetdec.
   have -> /= : valid_RSP p (emem kt2.2) (evm kt2.2).
   + by rewrite /valid_RSP; case: hmerge => ? [] _ -> _ _; apply value_eqb_refl.
   rewrite bind_ret_l /=.
@@ -1065,7 +1065,7 @@ Proof.
       get_var_is false vm (f_res fd) = ok tres & values_uincl vres' tres.
   - have : forall x, (x \in [seq (v_var i) | i <- f_res fd]) -> ~ Sv.In x DF.
     + move=> x hx; have /Sv_memP: Sv.mem x res by rewrite /res sv_of_listE.
-      by move /Sv.is_empty_spec: hdisj; SvD.fsetdec.
+      by move /Sv.is_empty_spec: hdisj; clear; SvD.fsetdec.
     move: ok_vres'; rewrite /dc_truncate_val /= => /mapM2_id ?; subst vres'.
     move: hvm' ok_vres RSP_not_result.
     rewrite /res sv_of_listE /=; clear.
@@ -1098,10 +1098,10 @@ Proof.
       exact: hrsp.
     move => /eqP r_neq_rsp.
     rewrite kill_varsE.
-    case: Sv_memP; first by SvD.fsetdec.
+    case: Sv_memP; first by clear -hr; SvD.fsetdec.
     move=> _; rewrite -(hex r).
     + rewrite /= /set_RSP Vm.setP_neq // /ra_undef_vm kill_varsE.
-      by case: Sv_memP => //; SvD.fsetdec.
+      by case: Sv_memP => //; clear -hr; SvD.fsetdec.
     move: hvalra hr; rewrite /valid_writefun /= /write_fd /= => /Sv.subset_spec.
     by clear; SvD.fsetdec.
   + by rewrite Vm.setP_eq /= cmp_le_refl hmem'.

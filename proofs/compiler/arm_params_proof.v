@@ -207,7 +207,7 @@ Proof.
     by eexists.
   rewrite /= hget /=; t_arm_op.
   eexists; split; first reflexivity.
-  + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; SvD.fsetdec.
+  + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; clear -hz; SvD.fsetdec.
   rewrite !add_wordE.
   by rewrite Vm.setP_eq wsub_wnot1 vm_truncate_val_eq.
 Qed.
@@ -224,7 +224,7 @@ Proof.
     by eexists.
   rewrite /= hget /=; t_arm_op.
   eexists; split; first reflexivity.
-  + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; SvD.fsetdec.
+  + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; clear -hz; SvD.fsetdec.
   by rewrite Vm.setP_eq vm_truncate_val_eq.
 Qed.
 
@@ -239,7 +239,7 @@ Proof.
   set vrsp := {|vname := nrsp|}; set rsp := {|v_var := vrsp|}.
   set ts' := align_word _ _.
   have := ARMFopnP.smart_subi_sem_fopn_args vi3 (y:= rsp) _ (to_word_get_var hget).
-  move=> /(_ arm_linux_call_conv ntmp sz) [].
+  move=> /(_ ntmp sz) [].
   + by right => /= -[?]; subst ntmp.
   move=> vm1 [] -> heq1 hget1 /=.
   set s1 := with_vm _ _.

@@ -238,8 +238,7 @@ Proof.
   by apply type_of_get_global.
 Qed.
 
-Lemma on_arr_varP {syscall_state : Type} {ep : EstateParams syscall_state}
-  A (f : forall n, WArray.array n -> exec A) wdb v vm x P :
+Lemma on_arr_varP A (f : forall n, WArray.array n -> exec A) wdb v vm x P :
   (forall n t, eval_atype (vtype x) = carr n ->
                get_var wdb vm x = ok (@Varr n t) ->
                f n t = ok v -> P) ->
@@ -620,7 +619,7 @@ Lemma get_gvar_eq_on wdb s gd vm' vm v: Sv.Subset (read_gvar v) s -> vm =[s]  vm
   get_gvar wdb gd vm v = get_gvar wdb gd vm' v.
 Proof.
   rewrite /read_gvar /get_gvar; case: ifP => // _ hin.
-  by apply: get_var_eq_on; SvD.fsetdec.
+  by apply: get_var_eq_on; clear -hin; SvD.fsetdec.
 Qed.
 
 Lemma on_arr_var_eq_on wdb s' X s A x (f: ∀ n, WArray.array n → exec A) :
@@ -635,7 +634,7 @@ Lemma on_arr_gvar_eq_on wdb s' gd X s A x (f: ∀ n, WArray.array n → exec A) 
    on_arr_var (get_gvar wdb gd (evm s) x) f = on_arr_var (get_gvar wdb gd (evm s') x) f.
 Proof.
   move=> Heq; rewrite /get_gvar /read_gvar;case:ifP => _ Hin //.
-  by apply: (on_arr_var_eq_on _ (X := X)) => //; SvD.fsetdec.
+  by apply: (on_arr_var_eq_on _ (X := X)) => //; clear -Hin; SvD.fsetdec.
 Qed.
 
 Lemma get_var_eq_ex wdb vm1 vm2 X x:
@@ -650,7 +649,7 @@ Lemma get_gvar_eq_ex wdb gd vm1 vm2 X x:
   get_gvar wdb gd vm1 x = get_gvar wdb gd vm2 x.
 Proof.
   rewrite /read_gvar /get_gvar; case: ifP => // _ /disjointP hin.
-  apply: get_var_eq_ex; apply hin; SvD.fsetdec.
+  apply: get_var_eq_ex; apply hin; clear; SvD.fsetdec.
 Qed.
 
 Section READ_E_ES_EQ_ON.
@@ -1101,7 +1100,7 @@ Lemma write_var_uincl_on wdb X (x : var_i) v1 v2 s1 s2 vm1 :
 Proof.
   move=> hv; rewrite /write_var;t_xrbindP => vm1' hmv1' <- /= h.
   have /(_ (Sv.add x X) vm1) []:= uincl_on_set_var hv _ hmv1'.
-  + by apply: uincl_onI h; SvD.fsetdec.
+  + by apply: uincl_onI h; clear; SvD.fsetdec.
   by move=> -> ?; eexists; eauto.
 Qed.
 

@@ -138,7 +138,7 @@ Definition cmpl_inv (I : Sv.t) := st_rel undef_vm_eq I.
 Lemma cmpl_inv_incl I1 I2 s1 s2 : Sv.Subset I1 I2 -> cmpl_inv I1 s1 s2 → cmpl_inv I2 s1 s2.
 Proof.
   move=> hincl [h1 h2 [h3 h4]]; split => //; split => //.
-  move=> z hz; apply h3; SvD.fsetdec.
+  move=> z hz; apply h3; clear -hincl hz; SvD.fsetdec.
 Qed.
 
 Let Pi i :=

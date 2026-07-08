@@ -69,15 +69,15 @@ Section PROOF.
   Proof. by move: fvars_correct=> /and5P [] ???? /and3P []. Qed.
 
   Lemma of_in_fv: Sv.In (fv_of fv) fvars.
-  Proof. by rewrite /fvars /x86_lowering.fvars /= /fv_of; SvD.fsetdec. Qed.
+  Proof. by rewrite /fvars /x86_lowering.fvars /= /fv_of; clear; SvD.fsetdec. Qed.
   Lemma cf_in_fv: Sv.In (fv_cf fv) fvars.
-  Proof. by rewrite /fvars /x86_lowering.fvars /= /fv_cf; SvD.fsetdec. Qed.
+  Proof. by rewrite /fvars /x86_lowering.fvars /= /fv_cf; clear; SvD.fsetdec. Qed.
   Lemma sf_in_fv: Sv.In (fv_sf fv) fvars.
-  Proof. by rewrite /fvars /x86_lowering.fvars /= /fv_sf; SvD.fsetdec. Qed.
+  Proof. by rewrite /fvars /x86_lowering.fvars /= /fv_sf; clear; SvD.fsetdec. Qed.
   Lemma zf_in_fv: Sv.In (fv_zf fv) fvars.
-  Proof. by rewrite /fvars /x86_lowering.fvars /= /fv_zf; SvD.fsetdec. Qed.
+  Proof. by rewrite /fvars /x86_lowering.fvars /= /fv_zf; clear; SvD.fsetdec. Qed.
   Lemma multiplicand_in_fv sz : Sv.In (vword sz (fv "__wtmp__"%string (aword sz))) fvars.
-  Proof. by rewrite /fvars /x86_lowering.fvars /=; case: sz; SvD.fsetdec. Qed.
+  Proof. by rewrite /fvars /x86_lowering.fvars /=; case: sz; clear; SvD.fsetdec. Qed.
 
   Local Hint Resolve of_neq_cf of_neq_sf of_neq_zf cf_neq_sf cf_neq_zf sf_neq_zf : core.
   Local Hint Resolve of_in_fv cf_in_fv sf_in_fv zf_in_fv multiplicand_in_fv : core.
@@ -314,7 +314,7 @@ Section PROOF.
   End LOWER_CONDITION.
 
   Lemma read_es_swap x y : Sv.Equal (read_es [:: x ; y ]) (read_es [:: y ; x ]).
-  Proof. by rewrite ! read_es_cons; SvD.fsetdec. Qed.
+  Proof. by rewrite ! read_es_cons; clear; SvD.fsetdec. Qed.
 
   (* ---------------------------------------------------------- *)
 
@@ -444,7 +444,7 @@ Section PROOF.
     have! := (is_wconstP true gd s en).
     rewrite {en} ok_a ok_c /= => hc.
     split.
-    - clear; rewrite {2}/read_e /= !read_eE; SvD.fsetdec.
+    - clear; rewrite {2}/read_e /= !read_eE; clear; SvD.fsetdec.
     eexists; first by rewrite (to_word_m ok_wa (wsize_le_U8 _)).
     move => f x; rewrite /sem_shift; do 2 f_equal.
     have := to_word_m ok_wb (wsize_le_U8 _).
@@ -720,7 +720,7 @@ Section PROOF.
           by rewrite /x86_DEC /rflags_of_aluop_nocf_w /flags_w truncate_word_le // /= /size_8_64 hsz64 /= sub_wordE; eauto.
         (* AddNone *)
         move=> _;split.
-        rewrite read_es_cons {2}/read_e /= !read_eE. SvD.fsetdec.
+        rewrite read_es_cons {2}/read_e /= !read_eE. clear; SvD.fsetdec.
         by rewrite /= ok_v1 ok_v2 /= /exec_sopn /= /sem_sopn /= !truncate_word_le // /= /sopn_sem /sopn_sem_ /=
           /semi_to_atype !computational_eq_refl /x86_ADD /= /size_8_64 hsz64 /= Hw.
       (* Omul Op_w *)
@@ -792,11 +792,11 @@ Section PROOF.
         move=> s1 hs1 hl he.
         have -> /= := eeq_exc_sem_pexpr _ hs1 hv1; last first.
         + move: he; rewrite /read_e /= /disj_fvars /x86_lowering.disj_fvars !read_eE /disjoint.
-          by rewrite /is_true !Sv.is_empty_spec;SvD.fsetdec.
+          by rewrite /is_true !Sv.is_empty_spec;clear; SvD.fsetdec.
         split => //.
         have -> /= := eeq_exc_sem_pexpr _ hs1 hv2; last first.
         + move: he; rewrite /read_e /= /disj_fvars /x86_lowering.disj_fvars !read_eE /disjoint.
-          by rewrite /is_true !Sv.is_empty_spec;SvD.fsetdec.
+          by rewrite /is_true !Sv.is_empty_spec;clear; SvD.fsetdec.
         case: ifP hw3 => // hdiv []; simpl in * => {he}.
         case/Bool.orb_false_elim: hdiv => /eqP neq.
         case: u => hdiv /= ?; subst w3;
@@ -822,11 +822,11 @@ Section PROOF.
         move=> s1 hs1 hl he.
         have -> /= := eeq_exc_sem_pexpr _ hs1 hv1; last first.
         + move: he; rewrite /read_e /= /disj_fvars /x86_lowering.disj_fvars !read_eE /disjoint.
-          by rewrite /is_true !Sv.is_empty_spec;SvD.fsetdec.
+          by rewrite /is_true !Sv.is_empty_spec;clear; SvD.fsetdec.
         split => //.
         have -> /= := eeq_exc_sem_pexpr _ hs1 hv2; last first.
         + move: he; rewrite /read_e /= /disj_fvars /x86_lowering.disj_fvars !read_eE /disjoint.
-          by rewrite /is_true !Sv.is_empty_spec;SvD.fsetdec.
+          by rewrite /is_true !Sv.is_empty_spec;clear; SvD.fsetdec.
         case: ifP hw3 => // hdiv []; simpl in * => {he}.
         case/Bool.orb_false_elim: hdiv => /eqP neq.
         case: u => hdiv /= ?; subst w3;
@@ -865,7 +865,7 @@ Section PROOF.
               have hle := cmp_le_trans hsz1 hsz.
               rewrite ha1 /= !truncate_word_le // /= truncate_word_u /=.
               rewrite !wnot_zero_extend // zero_extend_idem //; split => //.
-              by rewrite /read_e /read_es /= !read_eE; SvD.fsetdec.
+              by rewrite /read_e /read_es /= !read_eE; clear; SvD.fsetdec.
             case: is_lnot => //.
             move=> a1' [] ?? _ [sz1 ?]; subst e1 a1' e2.
             move: he;rewrite /= /sem_sop2 /= /sem_sop1 /=.
@@ -1367,7 +1367,7 @@ Section PROOF.
           apply: SvP.MP.subset_trans hrl.
           apply: (SvP.MP.subset_trans hsub).
           rewrite /read_e /= /read_lea /= /oo read_eE.
-          by case: (o) => [ ?|]; rewrite /= /read_e /=;SvD.fsetdec.
+          by case: (o) => [ ?|]; rewrite /= /read_e /=;clear; SvD.fsetdec.
         + by apply Hdisjl.
         apply (aux_eq_exc_trans Hs2').
 
@@ -1409,7 +1409,7 @@ Section PROOF.
         apply: (disj_fvars_subset _ Hdisje).
         apply: (SvD.F.Subset_trans _ hrl).
         rewrite /read_lea /=; subst ob; case: (b) => [ x | ] /=.
-        - SvD.fsetdec.
+        - clear; SvD.fsetdec.
         exact: SvP.MP.subset_empty.
       exact: (eeq_excT Hs2' hsi').
 
@@ -1882,8 +1882,8 @@ Section PROOF.
         exact: (union_disjoint hfvhi hfvlo).
       split => //.
       + rewrite /vars_lvals /read_rvs /vrvs /=; apply /disjointP.
-        by move=> z hz; move/disjointP: hfvc => /(_ z); SvD.fsetdec.
-      by apply/hc/disjointP => z hz; move/disjointP: hfvc => /(_ z); SvD.fsetdec.
+        by move=> z hz; move/disjointP: hfvc => /(_ z); clear -hz; SvD.fsetdec.
+      by apply/hc/disjointP => z hz; move/disjointP: hfvc => /(_ z); clear -hz; SvD.fsetdec.
     (* While *)
     + move=> al c e ii' c' hc hc' ii /disj_fvars_vars_I_Cwhile [/hc{}hc hfve /hc'{}hc'] /=.
       case heq: lower_condition => [pre e'].

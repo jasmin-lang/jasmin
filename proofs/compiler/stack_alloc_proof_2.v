@@ -59,10 +59,10 @@ Local Opaque Pos.to_nat.
   + case: l => // x l.
     case: ptake (hp (x::acc) l) => // -[r1 l21] /(_ _ _ erefl) [h1 h2] /hp [h3 h4].
     rewrite -cat_rcons -rev_cons h1 h3 h4 -(size_rev r1) h2; split => //=.
-    by rewrite Pos2Nat.inj_xI; lia.
+    by rewrite Pos2Nat.inj_xI; clear; lia.
   + case: ptake (hp acc l) => // -[r1 l21] /(_ _ _ erefl) [h1 h2] /hp [h3 h4].
     rewrite h1 h3 h4 -(size_rev r1) h2; split => //=.
-    by rewrite Pos2Nat.inj_xO; lia.
+    by rewrite Pos2Nat.inj_xO; clear; lia.
   by case: l => // x l [<- <-]; rewrite rev_cons cat_rcons size_rcons size_rev.
 Local Transparent Pos.to_nat.
 Qed.
@@ -91,11 +91,11 @@ Proof.
     Z.of_nat (size l) = i →
     (∀ (k : Z) (w : u8), 0%Z <= k < i -> read t Aligned k U8 = ok w → (data`_(Z.to_nat k))%R = w) →
     ∀ (k : Z) (w : u8), read t Aligned k U8 = ok w → (data`_(Z.to_nat k))%R = w); last first.
-  + by move=> hfold hsize; apply (H data 0%Z [::] z) => //; lia.
+  + by move=> hfold hsize; apply (H data 0%Z [::] z) => //; clear; lia.
   move=> {z hf }; elim => [ | w data' hrec] i l z /=.
   + rewrite cats0 => _ <- <- h k w hr.
-    have /= ? := @get_val_byte_bound (Varr t) k _ hr.
-    by apply h => //; rewrite hsz Z2Nat.id //; lia.
+    have /= hk := @get_val_byte_bound (Varr t) k _ hr.
+    by apply h => //; rewrite hsz Z2Nat.id //; clear -hk; lia.
   rewrite {2}/test; t_xrbindP => i'.
   case heq: read => [ wp | ] //.
   case: eqP => [? | //] [?] h heq' hi hr; subst wp i' i.
@@ -105,7 +105,7 @@ Proof.
   move=> k w0 hk.
   case (k =P  Z.of_nat (size l)) => [-> | ].
   + by rewrite heq heq' Nat2Z.id => -[<-]; rewrite nth_cat ltnn subnn.
-  move=> ?; apply hr; lia.
+  move=> hneq; apply hr; clear -hk hneq; lia.
 Qed.
 
 Lemma init_mapP : forall x1 ofs1 ws1,
@@ -282,8 +282,8 @@ Proof.
         ofs1 + size_slot x1 <= ofs2 \/ ofs2 + size_slot x2 <= ofs1) &
       Mvar.get mglob x1 = None];
   last first.
-  + move=> [h1 h2]; split => //; first by lia.
-    by move=> x1 ofs1 ws1 /h2 [?????]; split=> //; lia.
+  + move=> [h1 h2]; split => //; first by clear -hle h1; lia.
+    by move=> x1 ofs1 ws1 /h2 [?? h ??]; split=> //; clear -hle h; lia.
   move: hfold.
   have: sao.(sao_ioff) <= (Mvar.empty (Z * wsize), sao.(sao_ioff)).2 /\
     forall x1 ofs1 ws1,
@@ -309,28 +309,28 @@ Proof.
   move=> [<- <-].
   apply ih.
   split=> /=.
-  + by lia.
+  + by clear -hbase1 h1 h2; lia.
   move=> x1 ofs1 ws1.
   rewrite Mvar.setP.
   case: eqP => [|_].
   + move=> <- [<- <-].
     split=> //.
     + by rewrite -Zland_mod.
-    + by lia.
+    + by clear -hbase1 h1; lia.
     move=> x2 ofs2 ws2.
     rewrite Mvar.setP.
     case: eqP => [|_]; first by congruence.
-    by move=> /hbase2 [_ _ ? _ _]; lia.
-  move=> /hbase2 /= [?????]; split=> //.
-  + by lia.
+    by move=> /hbase2 [_ _ h _ _]; clear -h1 h; lia.
+  move=> /hbase2 /= [?? h ??]; split=> //.
+  + by clear -h1 h2 h; lia.
   move=> x2 ofs2 ws2.
   rewrite Mvar.setP.
   case: eqP; last by eauto.
-  by move=> <- [<- _]; lia.
+  by move=> <- [<- _]; clear -h1 h; lia.
 Qed.
 
 Lemma init_stack_layout_size_ge0 : 0 <= sao.(sao_size).
-Proof. by have [? ? _] := init_stack_layoutP; lia. Qed.
+Proof. by have [+ + _] := init_stack_layoutP; clear; lia. Qed.
 
 Lemma init_stack_layout_stack_align x1 ofs1 ws1 :
   Mvar.get stack x1 = Some (ofs1, ws1) -> (ws1 <= sao.(sao_align))%CMP.
@@ -348,7 +348,7 @@ Proof. by have [_ _ h] := init_stack_layoutP => /h [_ _ ? _ _]. Qed.
 Lemma init_stack_layout_bounded x1 ofs1 ws1 :
   Mvar.get stack x1 = Some (ofs1, ws1) ->
   0 <= ofs1 /\ ofs1 + size_slot x1 <= sao.(sao_size).
-Proof. have [? _ h] := init_stack_layoutP => /h [_ _ ? _ _]; lia. Qed.
+Proof. have [h1 _ h2] := init_stack_layoutP => /h2 [_ _ {}h2 _ _]; clear -h1 h2; lia. Qed.
 
 Lemma init_stack_layout_disjoint x1 ofs1 ws1 :
   Mvar.get stack x1 = Some (ofs1, ws1) ->
@@ -501,7 +501,7 @@ Proof.
   have hbound := init_map_bounded hget.
   move: no_overflow_glob_size; rewrite /no_overflow zify => hover.
   have := wunsigned_range rip.
-  by lia.
+  by clear -hpos hbound hover; lia.
 Qed.
 
 Lemma zbetween_Addr_globals s :
@@ -515,7 +515,7 @@ Proof.
   move=> hpos.
   rewrite /zbetween !zify (wunsigned_Addr_globals heq hpos).
   have hbound := init_map_bounded heq.
-  by lia.
+  by clear -hbound; lia.
 Qed.
 
 Lemma wunsigned_Addr_locals s ofs ws :
@@ -530,7 +530,7 @@ Proof.
   have hbound := init_stack_layout_bounded hget.
   move: no_overflow_size; rewrite /no_overflow zify => hover.
   have := wunsigned_range rsp.
-  by lia.
+  by clear -hpos hbound hover; lia.
 Qed.
 
 Lemma zbetween_Addr_locals s :
@@ -544,7 +544,7 @@ Proof.
   move=> hpos.
   rewrite /zbetween !zify (wunsigned_Addr_locals heq hpos).
   have hbound := init_stack_layout_bounded heq.
-  by lia.
+  by clear -hbound; lia.
 Qed.
 
 Lemma zbetween_Addr_locals_ioff s :
@@ -560,7 +560,7 @@ Proof.
   rewrite /zbetween !zify (wunsigned_Addr_locals heq hpos).
   have hbound := init_stack_layout_bounded_ioff heq.
   rewrite hadd.
-  by lia.
+  by clear -hbound; lia.
 Qed.
 
 Lemma disjoint_globals_locals : disjoint Slots_globals Slots_locals.
@@ -899,11 +899,11 @@ Proof.
       + move /in_Slots_slots : hin2.
         case heq: Mvar.get => [[ofs ws]|//] _.
         have := init_map_bounded heq.
-        by lia.
+        by clear -hpos2; lia.
       move /in_Slots_slots : hin1.
       case heq: Mvar.get => [[ofs ws]|//] _.
       have := init_stack_layout_bounded heq.
-      by lia.
+      by clear -hpos1; lia.
     + split=> //.
       rewrite /Addr (pick_slot_locals hin1) (pick_slot_locals hin2).
       move /in_Slots_slots : hin1.
@@ -913,14 +913,14 @@ Proof.
       rewrite (wunsigned_Addr_locals heq1 hpos1).
       rewrite (wunsigned_Addr_locals heq2 hpos2).
       have := init_stack_layout_disjoint heq1 heq2 hneq.
-      by lia.
+      by clear; lia.
     rewrite /Addr (pick_slot_locals hin1) (pick_slot_params hin2).
     apply: disjoint_zrange_incl_l (disjoint_zrange_locals_params hin2 _ hpos2).
     + by apply (zbetween_Addr_locals hin1).
     move /in_Slots_slots : hin1.
     case heq: Mvar.get => [[ofs ws]|//] _.
     have := init_stack_layout_bounded heq.
-    by lia.
+    by clear -hpos1; lia.
   move /in_Slots : hin2 => [hin2|[hin2|hin2]].
   + rewrite /Addr (pick_slot_params hin1) (pick_slot_globals hin2).
     move=> hpos1 hpos2.
@@ -931,7 +931,7 @@ Proof.
     move /in_Slots_slots : hin2.
     case heq: Mvar.get => [[ofs ws]|//] _.
     have := init_map_bounded heq.
-    by lia.
+    by clear -hpos2; lia.
   + rewrite /Addr (pick_slot_params hin1) (pick_slot_locals hin2).
     move=> hpos1 hpos2.
     apply disjoint_zrange_sym.
@@ -940,7 +940,7 @@ Proof.
     move /in_Slots_slots : hin2.
     case heq: Mvar.get => [[ofs ws]|//] _.
     have := init_stack_layout_bounded heq.
-    by lia.
+    by clear -hpos2; lia.
   rewrite /Addr (pick_slot_params hin1) (pick_slot_params hin2).
   rewrite /Writable (pick_slot_params hin1) in hw.
   by apply wf_Slots_params.
@@ -984,7 +984,7 @@ Proof.
     move /in_Slots_slots : hin.
     case heq: Mvar.get => [[ofs ws]|//] _.
     have := init_stack_layout_bounded heq.
-    by lia.
+    by clear -hpos; lia.
   rewrite /Writable /Addr !(pick_slot_params hin).
   by apply wf_Slots_params.
 Qed.
@@ -1048,7 +1048,7 @@ Proof.
     by apply.
   have := init_map_bounded heq.
   have := get_val_byte_bound ok_w; rewrite hty csize_of_eval_atype.
-  by lia.
+  by clear; lia.
 Qed.
 
 Lemma add_alloc_wf_pmap locals1' rmap1' vnew1' x pki locals2' rmap2' vnew2' :
@@ -2851,7 +2851,7 @@ Proof.
   + apply /Mvar.inclP => x.
     by case: Mvar.get.
   + apply /Uint63.lebP.
-    by lia.
+    by clear; lia.
   by apply /Sv.subset_spec.
 Qed.
 
@@ -2868,7 +2868,7 @@ Proof.
   + apply /Uint63.lebP.
     have /Uint63.lebP := hle1.
     have /Uint63.lebP := hle2.
-    by lia.
+    by clear; lia.
   apply /Sv.subset_spec.
   move/Sv.subset_spec : hsubset1.
   move/Sv.subset_spec : hsubset2.
@@ -2931,9 +2931,9 @@ Lemma sao_frame_size_ge0 sao :
 Proof.
   move=> hsz hextra.
   rewrite /sao_frame_size.
-  case: is_RAnone; first by lia.
+  case: is_RAnone; first by clear -hsz hextra; lia.
   have := round_ws_range (sao_align sao) (sao_size sao + sao_extra_size sao).
-  by lia.
+  by clear -hsz hextra; lia.
 Qed.
 
 Lemma alloc_fd_max_size_ge0 pex fn fd fd' :
@@ -3376,7 +3376,7 @@ Proof.
   move=> p2; apply: obindP => pi ? [hw] ?; subst opi varg2'.
   move=> hpos _.
   have {}hpos: 0 < size_val varg1.
-  + by have := csize_of_le (value_uincl_subctype hincl); lia.
+  + by have := csize_of_le (value_uincl_subctype hincl); clear -hpos; lia.
   apply (disjoint_zrange_incl_l (zbetween_le _ (csize_of_le (value_uincl_subctype hincl)))).
   apply: hdisj hpos erefl.
   + by rewrite /= hw.

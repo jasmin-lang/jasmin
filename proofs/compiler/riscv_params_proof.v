@@ -188,7 +188,7 @@ Proof.
     by eexists.
   rewrite /= hget /=; t_riscv_op.
   eexists; split; first reflexivity.
-  + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; SvD.fsetdec.
+  + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; clear -hz; SvD.fsetdec.
   by rewrite Vm.setP_eq /= wrepr_opp.
 Qed.
 
@@ -205,7 +205,7 @@ Proof.
     by eexists.
   rewrite /= hget /=; t_riscv_op.
   eexists; split; first reflexivity.
-  + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; SvD.fsetdec.
+  + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; clear -hz; SvD.fsetdec.
   by rewrite Vm.setP_eq vm_truncate_val_eq.
 Qed.
 

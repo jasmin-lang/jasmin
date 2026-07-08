@@ -1077,8 +1077,8 @@ Lemma get_var_is_eq_on wdb s vm vm' xs :
 Proof.
 move=> + hvm; elim: xs => [//|x xs ih].
 rewrite sv_of_list_cons => hxs.
-rewrite /= (get_var_eq_on _ _ hvm); last SvD.fsetdec.
-by rewrite ih //; SvD.fsetdec.
+rewrite /= (get_var_eq_on _ _ hvm); last by clear -hxs; SvD.fsetdec.
+by rewrite ih //; clear -hxs; SvD.fsetdec.
 Qed.
 
 Lemma trans_post_ovm_lin_alloc lfd i2 :

@@ -34,7 +34,7 @@ Lemma eq_alloc_incl r1 r2 vm vm':
   eq_alloc r2 vm vm'.
 Proof.
   move=> /M.inclP [Hi Hsub] [ epa eqa];split=>//.
-  + by move=> x Hx;apply epa;SvD.fsetdec.
+  + by move=> x Hx;apply epa; clear -Hsub Hx; SvD.fsetdec.
   move=> x x'; case: (Sv_memP x (M.mset r1)) => [ /Hi H /H /eqa // | /epa -> hget].
   apply subctype_value_uincl_undef.
   have [_ /compat_atype_ctype /compat_ctype_undef_t ->] := M.svalid hget.
@@ -55,7 +55,7 @@ Proof.
     case: Hea => _ /(_ _ _ Hget) Hev v1 {Hget}.
     rewrite /get_var; t_xrbindP => /(value_uincl_defined Hev) -> <- /=; eauto.
   t_xrbindP => /Sv_memP Hnot <- [ Hset Huincl]; split; first split => //.
-  + by move=> x;rewrite M.setP_mset => ?;apply Hset;SvD.fsetdec.
+  + by move=> x;rewrite M.setP_mset => h; apply Hset; clear -h; SvD.fsetdec.
   + move=> x id;rewrite M.setP;case:eqP => [<- [<-]| Hne].
     + rewrite (Hset _ Hnot) /=.
       by apply value_uincl_undef; rewrite (compat_ctype_undef_t (compat_atype_ctype hsub)) (compat_ctype_undef_t (Vm.getP vm2 x2)).
@@ -191,7 +191,7 @@ Proof.
   move=> [Hin Hget] Hu.
   split.
   + move=> z;rewrite M.setP_mset => Hnin.
-    by rewrite Vm.setP_neq;[apply Hin|apply /eqP];SvD.fsetdec.
+    by rewrite Vm.setP_neq;[apply Hin|apply /eqP];clear -Hnin; SvD.fsetdec.
   move=> x id;rewrite M.setP;case:eqP => [<-[<-] | /eqP Hne].
   + by rewrite !Vm.setP_eq.
   case: ifPn => //= /Sv_memP Hid Hgetx.
@@ -210,7 +210,7 @@ Proof.
   move=> [Hin Hget] v2 /= Hu.
   split.
   + move=> z; rewrite M.addP_mset => Hnin.
-    by rewrite Vm.setP_neq; [apply Hin|apply /eqP]; SvD.fsetdec.
+    by rewrite Vm.setP_neq; [apply Hin|apply /eqP]; clear -Hnin; SvD.fsetdec.
   move=> x id; rewrite M.addP; case:eqP => [<-[<-] | /eqP Hne].
   + by rewrite !Vm.setP_eq.
   move=> /Hget {} Hget; rewrite Vm.setP_neq //.

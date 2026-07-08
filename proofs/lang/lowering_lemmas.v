@@ -51,7 +51,7 @@ Proof.
   move=> /Sv.is_empty_spec hdisj [-> -> hvm].
   split=> // x hxxs.
   apply: hvm.
-  SvD.fsetdec.
+  clear -hdisj hxxs; SvD.fsetdec.
 Qed.
 
 Lemma eeq_exc_sem_pexprs wdb gd xs es v s0 s1 :
