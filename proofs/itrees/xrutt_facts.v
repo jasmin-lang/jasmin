@@ -328,16 +328,23 @@ Proof.
     remember (TauF m1) as oTauL eqn:HoTauL.
     revert m1 m2 H HoTauL.
 
-    induction Heutt as [|m1_bis m1'| |m1_bis ot1' _|t1_bis m1'];
-    intros * Hrutt Heqot1; clear t1'; try discriminate.
-    + inv Heqot1. apply EqTau. eapply CIH; eauto. now step.
-    + inv Heqot1.
-      unstep in Hrutt.
-      rewrite (itree_eta m1) in Hrutt.
-      desobs m1 Hm1; clear m1 Hm1.
-      { eqit_fold Heutt. apply eutt_inv_Ret_l in Heutt.
-        rewrite Heutt, tau_euttge.
-        gfinal; right. eapply paco2_mon_bot; eauto. }
+    induction Heutt as [r1 r2 _|m1' m1''|U' e1 k1 k1' _|t1'' ot1' _ IHHeutt'|t1'' m1''];
+      intros m1 m2 H HoTauL; try discriminate.
+    + inv HoTauL. apply EqTau. eapply CIH; eauto. now step.
+    + inv HoTauL.
+      destruct (observe m1) as [r1|m1_body|U1 e1 k1] eqn:Hobs_m1.
+      { remember (RetF r1) as oRetL eqn:HoRetL.
+        clear Hobs_m1 m1 IHIHHeutt'.
+        revert H.
+        induction IHHeutt'; try discriminate; intros.
+        - inv HoRetL. apply EqTauR.
+          remember (RetF r1) as oRetL2 eqn:HoRetL2.
+          induction H; try discriminate.
+          * inv HoRetL2. now constructor.
+          * subst. now constructor.
+          * apply EqTauR. auto.
+        - apply EqTauL. auto. }
+      
       { apply xrutt_inv_Tau_l in Hrutt. eapply IHHeutt; eauto. }
       { clear IHHeutt. remember (VisF e k) as m1; revert Heqm1.
         induction Heutt as [| |U1 e1 k1 k1' Hk1k1'| |]; intros;
