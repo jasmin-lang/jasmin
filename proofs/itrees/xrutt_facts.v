@@ -261,24 +261,6 @@ Proof.
   rewrite Ht1, Ht2. now apply xrutt_Proper_R.
 Qed.
 
-(* FIXME: temporary, to remove after repairing proof *)
-Set Bullet Behavior "Strict Subproofs".
-
-(* NOTE: using [change] as in [to_mon] does not seem to always work. *)
-Ltac eqit_fold' H H' :=
-  match type of H with
-  | context [@eqitF ?E ?R1 ?R2 ?RR ?b1 ?b2 (eqit ?RR ?b1 ?b2) ?ot1 ?ot2] =>
-      assert (eqit RR b1 b2 (go ot1) (go ot2)) as H'; first (now step);
-      clear H
-  end.
-Ltac eqit_fold H :=
-  match type of H with
-  | context [@eqitF ?E ?R1 ?R2 ?RR ?b1 ?b2 (eqit ?RR ?b1 ?b2) ?ot1 ?ot2] =>
-      let h := fresh "H" in
-      assert (eqit RR b1 b2 (go ot1) (go ot2)) as h; first (now step);
-      clear H; rename h into H
-  end.
-
 (* FIXME: repair comments, or try to recover upstream proof structure. *)
 (* Similar to RuttFacts.rutt_cong_eutt *)
 Lemma xrutt_cong_eutt {E1 E2 R1 R2}
@@ -1095,5 +1077,5 @@ Proof.
   + apply hpre; trivial.
   intros t1 t2 hpost.
   rewrite (hans _ _ _ _ heq1 heq2 hpost).
-  constructor; constructor; right; apply CIH.
+  apply CIH.
 Qed.
