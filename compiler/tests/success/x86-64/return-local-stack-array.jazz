@@ -4,7 +4,7 @@ fn squarea(stack u64[1] x) -> stack u64[1] {
   stack u64[1] ra;
   inline int i;
   for i = 0 to 1 { r[i] = x[i]; }
-  ra = r;
+  ra = #copy(r);
   return ra;
 }
 
@@ -12,7 +12,7 @@ inline
 fn invert(stack u64[1] xa) {
   stack u64[1] t;
   reg u64 k;
-  t = xa;
+  t = #copy(xa);
   k = 1; while { t = squarea(t); k+=1; } (k<5)
 }
 
