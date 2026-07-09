@@ -753,27 +753,22 @@ Lemma xrutt_iter_n :
     @xrutt E1 E2 R1 R2 EE1 EE2 RPreE RPostE RR
       (ITree.iter body1 i1) (ITree.iter body2 i2).
 Proof.
-  ginit. gcofix CIH.
+  coinduction.
   intros.
   rewrite unfold_iter.
-  case (H0 _ _ RI_i); intros n hn.
+  case (H _ _ RI_i); intros n hn.
   rewrite (unfold_iter_n body2 n).
-  eapply gpaco2_uclo; [|eapply xrutt_clo_bind|]; eauto with paco.
-  econstructor; eauto. intros; subst. gfinal. right.
+  eapply xrutt_bind_chain.
+  { apply (@gfp_chain _ _ (xrutt_mon EE1 EE2 RPreE RPostE)). eauto. }
+  intros; subst.
   destruct u1; try discriminate.
   destruct u2; try discriminate.
-  pstep; red.
-  econstructor.
-  right.
+  constructor.
   eapply CIH; eauto.
-  inversion H; subst; auto.
-  pstep; red.
-  inversion H; subst.
-  destruct u2; try discriminate.
-  inversion H; subst.
-  pstep; red.
-  econstructor.
-  inversion H; subst; auto.
+  inversion H0; subst; auto.
+  inversion H0.
+  inversion H0; subst.
+  now econstructor.
 Qed.
 
 End XRuttIter.
@@ -803,13 +798,13 @@ Lemma xrutt_weaken (E1 E2: Type -> Type) (R1 R2 : Type)
   xrutt (@EE1') (@EE2') REv' RAns' RR' t1 t2.
 Proof.
   intros hEE1 hEE2 hREv hRAns hRR. revert t1 t2.
-  pcofix CIH.
+  coinduction.
   intros t1 t2 h.
-  pstep. punfold h. red in h |- *.
+  (* pstep. punfold h. red in h |- *. *)
+  xrcbn. step in h.
   hinduction h before CIH; intros; subst.
   + eapply EqRet; auto.
-  + econstructor; eauto with paco itree. right. eapply CIH; eauto. red in H.
-    pclearbot; auto.
+  + econstructor; eauto with itree.
   + remember (EE1' A e1) as Er1.
     remember (EE2' B e2) as Er2.
     destruct Er1.
@@ -819,10 +814,10 @@ Proof.
     * destruct Er2.
       -- eapply EqCutR; auto.
       -- eapply EqVis; eauto; intros.
-         right. eapply CIH; eauto.
+         eapply CIH; eauto.
          eapply hRAns in H3; eauto.
          specialize (H2 a b H3).
-         pclearbot; auto.
+         auto.
   + eapply EqCutL; auto.
   + eapply EqCutR; auto.
   + eapply EqTauL; eauto.
@@ -923,10 +918,9 @@ Lemma xrutt_gen_trans {E1 E2 E3: Type -> Type} {R1 R2 R3 : Type}
       (rcompose RR12 RR23) t1 t3.
 Proof.
   revert t1 t2 t3.
-  pcofix CIH; intros t1 t2 t3 INL INR.
-  punfold INL; punfold INR.
-  red in INL; red in INR.
-  pstep. red.
+  coinduction; intros t1 t2 t3 INL INR.
+  step in INL; step in INR.
+  xrcbn.
   remember (observe t3) as ot3.
   clear Heqot3 t3.
 (*  assert (DEC: (exists m3, ot3 = TauF m3) \/ (forall m3, ot3 <> TauF m3)).
@@ -934,7 +928,7 @@ Proof.
   hinduction INL before CIH; intros; subst.
   (* 1 : ret1 ret2 *)
   { remember (RetF r2) as ot2.
-    hinduction INR before CIH; intros; inv Heqot2; eauto with paco itree.
+    hinduction INR before CIH; intros; inv Heqot2; eauto with itree.
     - constructor; econstructor; eauto.
     - eapply EqCutR; eauto.
     - constructor; eauto.
@@ -944,18 +938,18 @@ Proof.
     { destruct ot3; eauto; right; red; intros; inv H0. }
     destruct DEC as [EQ | EQ].
     - destruct EQ as [m3 ?]; subst.
-      econstructor. right. pclearbot.
-      eapply CIH; eauto with paco.
+      econstructor.
+      eapply CIH; eauto.
       eapply xrutt_inv_Tau.
       eapply fold_xruttF; try eapply INR; eauto.
     - inv INR; try (exfalso; eapply EQ; eauto; fail).
       + econstructor; eauto.
       + econstructor; eauto.
-        pclearbot. punfold H. red in H.
+        step in H.
         hinduction H1 before CIH; intros; try (exfalso; eapply EQ; eauto; fail).
         (* ret3 *)
         { remember (RetF r1) as ot2.
-          hinduction H0 before CIH; intros; inv Heqot2; eauto with paco itree.
+          hinduction H0 before CIH; intros; inv Heqot2; eauto with itree.
           - constructor. econstructor; eauto.
           - eapply EqCutL; eauto.
           - constructor; eapply IHxruttF; eauto.
@@ -969,7 +963,8 @@ Proof.
             - econstructor; eauto.
             - intros a b H7.
               destruct (H7 _ _ H1 H5) as [t4 HA12 HA23].
-              destruct (H2 _ _ HA12), (H6 _ _ HA23); try contradiction; eauto.
+              pose proof (H2 _ _ HA12).
+              pose proof (H6 _ _ HA23). eauto.
           }
           { eapply EqCutL; eauto. }
           { dependent destruction Heqot2.
@@ -992,7 +987,7 @@ Proof.
         (* cut3 *)
         { eapply EqCutR; eauto. }
         (* tau2 *)
-        { eapply IHxruttF; eauto. pstep_reverse.
+        { eapply IHxruttF; eauto. unstep.
           apply xrutt_inv_Tau_r; eapply fold_xruttF; eauto.
         }
   }
@@ -1007,7 +1002,6 @@ Proof.
         destruct (H7 _ _ H5 H1) as [t4 HA12 HA23].
         specialize (H6 a t4 HA12).
         specialize (H2 t4 b HA23).
-        pclearbot. right.
         eapply (CIH (k0 a) (k3 t4) (k2 b)); eauto.
     }
     (* cut2 *)
@@ -1048,7 +1042,7 @@ Proof.
   (* 7: tau2 *)
   { remember (TauF t0) as ot2.
     hinduction INR before CIH; intros; try inversion Heqot2; subst.
-    - constructor; eapply IHINL; pclearbot; punfold H.
+    - constructor; eapply IHINL; step in H. eauto.
     - eapply EqCutR; eauto.
     - eauto with itree.
     - constructor; eauto.
@@ -1088,11 +1082,11 @@ Lemma xrutt_refl {E} {R: Type}
   forall (t: itree E R), xrutt (@EE1) (@EE2) REv RAns eq t t.
 Proof.
   intros hpre hans.
-  ginit. gcofix CIH. intros t.
+  coinduction. intros t.
   rewrite itree_eta.
-  destruct (observe t); gstep.
+  destruct (observe t); xrcbn.
   + constructor; trivial.
-  + apply EqTau; constructor; constructor; right; apply CIH.
+  + apply EqTau; apply CIH.
   case_eq (EE1 X e); intros heq1.
   + apply EqCutL; trivial.
   case_eq (EE2 X e); intros heq2.
