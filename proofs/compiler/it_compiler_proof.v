@@ -69,10 +69,9 @@ Section SHARED.
 Context
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra} {call_conv : calling_convention} {asm_scsem : asm_syscall_sem}
-  {lowering_options : Type}
-  (aparams : architecture_params lowering_options)
+  (aparams : architecture_params)
   (haparams : h_architecture_params aparams)
-  (cparams : compiler_params lowering_options).
+  (cparams : compiler_params).
 
 Hypothesis print_uprogP : forall s p, cparams.(print_uprog) s p = p.
 Hypothesis print_sprogP : forall s p, cparams.(print_sprog) s p = p.
@@ -210,10 +209,9 @@ Section PROOF.
 Context
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra} {call_conv : calling_convention} {asm_scsem : asm_syscall_sem}
-  {lowering_options : Type}
-  (aparams : architecture_params lowering_options)
+  (aparams : architecture_params)
   (haparams : h_architecture_params aparams)
-  (cparams : compiler_params lowering_options).
+  (cparams : compiler_params).
 
 Hypothesis print_uprogP : forall s p, cparams.(print_uprog) s p = p.
 Hypothesis print_sprogP : forall s p, cparams.(print_sprog) s p = p.
@@ -424,10 +422,9 @@ Context
   {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
   {call_conv : calling_convention}
   {asm_scsem : asm_syscall_sem}
-  {lowering_options : Type}
-  (aparams : architecture_params lowering_options)
+  (aparams : architecture_params)
   (haparams : h_architecture_params aparams)
-  (cparams : compiler_params lowering_options)
+  (cparams : compiler_params)
   (print_uprogP : forall s p, cparams.(print_uprog) s p = p)
   (print_sprogP : forall s p, cparams.(print_sprog) s p = p)
   (print_linearP : forall s p, cparams.(print_linear) s p = p)
@@ -625,7 +622,6 @@ apply: wiequiv_f_trans_EE_EU; first exact: (it_load_constants_progP ok_plc).
 apply: wiequiv_f_trans_EE_EU; first exact:
   (hlop_lower_callP
     (hap_hlop haparams)
-    (lowering_opt cparams)
     (warning cparams)
     ok_fvars).
 apply: wiequiv_f_trans_UU_EU; first exact: (it_pi_callP _ ok_pj).

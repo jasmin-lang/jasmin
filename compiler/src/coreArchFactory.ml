@@ -10,7 +10,7 @@ module Core_arch_RISCV = Riscv_arch_full.Riscv (struct
   let call_conv = Riscv_decl.riscv_linux_call_conv
 end)
 
-let core_arch_x86 ~use_lea ~use_set0 call_conv :
+let core_arch_x86 call_conv :
     (module Arch_full.Core_arch
        with type reg = register
         and type regx = register_ext
@@ -25,9 +25,6 @@ let core_arch_x86 ~use_lea ~use_set0 call_conv :
       | Linux -> x86_linux_call_conv
       | Windows -> x86_windows_call_conv
 
-    let lowering_opt =
-      let open X86_lowering in
-      { use_lea; use_set0 }
   end in
   (module X86_arch_full.X86 (Lowering_params))
 
@@ -35,8 +32,7 @@ let get_arch_module arch call_conv : (module Arch_full.Arch) =
   (module Arch_full.Arch_from_Core_arch
             ((val match arch with
                   | X86_64 ->
-                      (module (val core_arch_x86 ~use_lea:!Glob_options.lea
-                                     ~use_set0:!Glob_options.set0 call_conv)
+                      (module (val core_arch_x86 call_conv)
                       : Arch_full.Core_arch)
                   | ARM_M4 -> (module Core_arch_ARM : Arch_full.Core_arch)
                   | RISCV -> (module Core_arch_RISCV : Arch_full.Core_arch))))

@@ -130,7 +130,7 @@ End LINEARIZATION.
 (* ------------------------------------------------------------------------ *)
 (* Lowering parameters. *)
 
-Definition x86_loparams : lowering_params lowering_options :=
+Definition x86_loparams : lowering_params :=
   {|
     lop_lower_i := lower_i;
     lop_fvars_correct := fvars_correct;
@@ -294,7 +294,7 @@ Definition x86_is_move_op (o : asm_op_t) :=
 
 (* ------------------------------------------------------------------------ *)
 
-Definition x86_params : architecture_params lowering_options :=
+Definition x86_params : architecture_params :=
   {|
     ap_sap := x86_saparams;
     ap_lip := x86_liparams;

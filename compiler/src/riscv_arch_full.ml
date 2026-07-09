@@ -14,7 +14,6 @@ module Riscv_core = struct
   type cond = condt
   type asm_op = Riscv_instr_decl.riscv_op
   type extra_op = Riscv_extra.riscv_extra_op
-  type lowering_options = Riscv_lowering.lowering_options
 
   let atoI = X86_arch_full.atoI riscv_decl
 
@@ -49,8 +48,6 @@ module Riscv (Lowering_params : Riscv_input) : Arch_full.Core_arch
    and type extra_op = Riscv_extra.riscv_extra_op = struct
   include Riscv_core
   include Lowering_params
-
-  let lowering_opt = ()
 
   let not_saved_stack = (Riscv_params.riscv_liparams atoI).lip_not_saved_stack
 

@@ -177,7 +177,7 @@ Record stack_alloc_oracles : Type :=
 Record compiler_params
   {asm_op : Type}
   {asmop : asmOp asm_op}
-  (lowering_options : Type) := {
+  := {
   extend_iinfo     : instr_info -> instr_info -> instr_info;
   expand_fd        : funname -> _ufundef -> expand_info;
   split_live_ranges_fd : funname -> _ufundef -> _ufundef;
@@ -194,7 +194,6 @@ Record compiler_params
   print_linear     : compiler_step -> lprog -> lprog;
   refresh_instr_info: funname -> _ufundef -> _ufundef;
   warning          : instr_info -> warning_msg -> instr_info;
-  lowering_opt     : lowering_options;
   insert_renaming  : fun_info -> bool;
   fresh_var_ident  : v_kind -> instr_info -> int -> string -> atype -> Ident.ident;
   spill_to_mmx     : var -> bool;
@@ -219,9 +218,8 @@ Context
 
 Context
   {call_conv: calling_convention}
-  {lowering_options : Type}
-  (aparams : architecture_params lowering_options)
-  (cparams : compiler_params lowering_options).
+  (aparams : architecture_params)
+  (cparams : compiler_params).
 
 Notation saparams := (ap_sap aparams).
 Notation liparams := (ap_lip aparams).
@@ -328,7 +326,6 @@ Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :
   let p :=
     lower_prog
       (lop_lower_i loparams)
-      (lowering_opt cparams)
       (warning cparams)
       (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0)
       pp

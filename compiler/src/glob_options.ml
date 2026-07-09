@@ -21,8 +21,6 @@ let help_intrinsics = ref false
 type color = | Auto | Always | Never
 let color = ref Auto
 
-let lea = ref false
-let set0 = ref false
 let print_stack_alloc = ref false
 let print_export_info_json = ref false
 let introduce_array_copy = ref true
@@ -197,10 +195,6 @@ let options = [
     "-debug"   , Arg.Set debug         , " Print debug information";
     "-timings" , Arg.Set timings       , " Print a timestamp and elapsed time after each pass";
     "-I"       , Arg.String set_idirs  , "[ident=path] Bind ident to path for from ident require ...";
-    "-lea"     , Arg.Set lea           , " Use lea as much as possible (default is nolea)";
-    "-nolea"   , Arg.Clear lea         , " Try to use add and mul instead of lea";
-    "-set0"     , Arg.Set set0          , " Use [xor x x] to set x to 0 (default is not)";
-    "-noset0"   , Arg.Clear set0        , " Do not use set0 option";
     "-slice"    , Arg.String set_slice  , "[f] Keep function [f] and everything it needs";
     "-checksafety", Arg.Unit set_checksafety, " Automatically check for safety (deprecated)";
     "-safetyparam", Arg.String set_safetyparam,
