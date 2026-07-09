@@ -39,11 +39,13 @@ Lemma rutt_iter_n (E1 E2 : Type -> Type) {I1 I2 R1 R2}
     @rutt E1 E2 R1 R2 RPreE RPostE RR
       (ITree.iter body1 i1) (ITree.iter body2 i2).
 Proof.
-  ginit. gcofix CIH.
+  coinduction.
   intros.
   rewrite unfold_iter.
-  have [n hn] := H0 _ _ RI_i.
+  have [n hn] := H _ _ RI_i.
   rewrite (unfold_iter_n body2 n).
+  (* FIXME: need [rutt_mon] to have [ITree.bind] support via [R1 R2] universally
+     quantified under the [sim] relation! *)
   eapply gpaco2_uclo; [|eapply rutt_clo_bind|]; eauto with paco.
   econstructor; eauto. intros; subst. gfinal. right.
   destruct u1; try discriminate.
