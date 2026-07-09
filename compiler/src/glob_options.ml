@@ -25,7 +25,6 @@ let lea = ref false
 let set0 = ref false
 let print_stack_alloc = ref false
 let print_export_info_json = ref false
-let introduce_array_copy = ref true
 let introduce_export_renaming = ref true
 let print_dependencies = ref false
 let lazy_regalloc = ref false
@@ -218,7 +217,6 @@ let options = [
     "-winsertarraycopy", Arg.Unit (add_warning IntroduceArrayCopy), " Print warning when array copy is introduced";
     "-wduplicatevar", Arg.Unit (add_warning DuplicateVar), " Print warning when two variables share the same name";
     "-wunusedvar", Arg.Unit (add_warning UnusedVar), " Print warning when a variable is not used";
-    "-noinsertarraycopy", Arg.Clear introduce_array_copy, " Do not automatically insert array copy";
     "-noinsertrenaming", Arg.Clear introduce_export_renaming, " Do not automatically insert renaming assignments at export function boundaries";
     "-wall", Arg.Unit enable_all_warnings, " Enable all warnings";
     "-nowarning", Arg.Unit (nowarning), " Do no print warnings";

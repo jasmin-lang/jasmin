@@ -397,6 +397,7 @@ type warning =
 
 let default_warnings =
     [
+      IntroduceArrayCopy;
       InlinedCallToExport;
       SimplifyVectorSuffix;
       DuplicateVar;
@@ -408,7 +409,7 @@ let default_warnings =
       Linter;
     ]
 
-let all_warnings = ExtraAssignment :: UseLea :: IntroduceArrayCopy :: KeptRenaming :: default_warnings
+let all_warnings = ExtraAssignment :: UseLea :: KeptRenaming :: default_warnings
 
 let warns = ref default_warnings
 
