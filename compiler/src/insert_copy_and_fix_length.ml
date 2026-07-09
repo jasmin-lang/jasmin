@@ -49,15 +49,14 @@ and iac_instr pd i = { i with i_desc = iac_instr_r pd i.i_loc i.i_desc }
 and iac_instr_r pd loc ir =
   match ir with
   | Cassgn (x, t, _, e) ->
-    if !Glob_options.introduce_array_copy then
-      match is_array_copy x e with
+    begin match is_array_copy x e with
       | None -> ir
       | Some (ws, n) ->
           warning IntroduceArrayCopy
             loc "an array copy is introduced";
           let op = Pseudo_operator.Ocopy(ws, Conv.cz_of_int n) in
           Copn([x], t, Sopn.Opseudo_op op, [e])
-    else ir
+    end
   | Cif (b, th, el) -> Cif (b, iac_stmt pd th, iac_stmt pd el)
   | Cfor (i, r, s) -> Cfor (i, r, iac_stmt pd s)
   | Cwhile (a, c1, t, info, c2) -> Cwhile (a, iac_stmt pd c1, t, info, iac_stmt pd c2)
