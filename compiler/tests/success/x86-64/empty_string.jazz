@@ -2,8 +2,8 @@
 
 param int N = 0;
 
-inline fn f(inline u8[N] a) {}
+inline fn f(inline u8[N] a) -> inline u8[N] { return a; }
 
 export fn test() {
-  f("");
+  _ = f("");
 }
