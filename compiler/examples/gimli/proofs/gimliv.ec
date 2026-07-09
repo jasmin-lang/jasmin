@@ -19,6 +19,6 @@ proof.
   proc; inline *; wp.
   while (={round} /\ eqstate (x{1}, y{1}, z{1}) state{2}); auto.
   unroll for{2} ^while; wp; skip => &1 &2 />.
-  rewrite !/VPSHUFD_128 !/VPSHUFD_128_B /= zeroextu128E.
+  rewrite /VPSHUFD_128 /VPSHUFD_128_B /= zeroextu128E.
   by rewrite /VPSLL_4u32 /VPSRL_4u32 /(`|<<|`) /(`<<`) !rol_xor.
 qed.
