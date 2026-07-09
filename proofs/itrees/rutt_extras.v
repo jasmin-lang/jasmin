@@ -11,14 +11,13 @@ From Coq Require Import
   Morphisms
   RelationClasses.
 
-From Paco Require Import paco.
+From Coinduction Require Import all.
 
 From ITree Require Import
   ITree
   ITreeFacts
   Basics.HeterogeneousRelations
   Interp.Recursion
-  Eq.Paco2
   Eq.Rutt
   Eq.RuttFacts.
 
