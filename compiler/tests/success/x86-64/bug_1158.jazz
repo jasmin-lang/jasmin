@@ -5,7 +5,7 @@ export fn test1(reg ptr u8[10] t) {
 
 inline
 fn test2(reg u8[T] t) {
-  reg u8[T] r = t;
+  reg u8[T] r = #copy_8(t);
 }
 
 param int N = 0;

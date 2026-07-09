@@ -15,7 +15,7 @@ x[1] = 1;
 x[0] = 0;
 
 y = swap(x);
-x = y;
+x = #copy(y);
 r = x[0];
 return r;
 }
