@@ -14,12 +14,11 @@ Require
 
 
 Record lowering_params
-  `{asmop : asmOp} (lowering_options : Type) :=
+  `{asmop : asmOp} :=
   {
     (* Lower an instruction to architecture-specific instructions. *)
     lop_lower_i :
-      lowering_options      (* Lowering options depend on the architecture. *)
-      -> (instr_info -> warning_msg -> instr_info)
+         (instr_info -> warning_msg -> instr_info)
       -> lowering.fresh_vars
       -> instr              (* Source instruction. *)
       -> cmd;
@@ -43,8 +42,7 @@ Record lower_addressing_params
   }.
 
 Record architecture_params
-  `{asm_e : asm_extra}
-  (lowering_options : Type) :=
+  `{asm_e : asm_extra} :=
   {
     (* Stack alloc parameters. See stack_alloc.v. *)
     ap_sap : stack_alloc_params.stack_alloc_params;
@@ -55,7 +53,7 @@ Record architecture_params
     ap_plp : bool; (* true if load_constants_prog should be applied *)
 
     (* Lowering parameters. Defined above. *)
-    ap_lop : lowering_params lowering_options;
+    ap_lop : lowering_params;
 
     (* Speculative execution operator lowering parameters. See
        slh_lowering.v. *)

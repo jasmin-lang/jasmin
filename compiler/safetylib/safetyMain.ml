@@ -37,8 +37,7 @@ let get_arch_with_analyze arch call_conv : (module ArchWithAnalyze) =
   | X86_64 ->
       (module struct
         module C =
-          (val CoreArchFactory.core_arch_x86 ~use_lea:!Glob_options.lea
-                 ~use_set0:!Glob_options.set0 call_conv)
+          (val CoreArchFactory.core_arch_x86 call_conv)
 
         module A = Arch_full.Arch_from_Core_arch (C)
         module Safety = Make (X86_safety.X86_safety (A))

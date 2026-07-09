@@ -154,9 +154,9 @@ End LINEARIZATION.
 
 (* ------------------------------------------------------------------------ *)
 (* Lowering parameters. *)
-Definition riscv_loparams : lowering_params lowering_options :=
+Definition riscv_loparams : lowering_params :=
   {|
-    lop_lower_i _ _ _ := lower_i;
+    lop_lower_i _ _ := lower_i;
     lop_fvars_correct := fun _ _ _ => true; (* No fresh variable introduced *)
   |}.
 
@@ -272,7 +272,7 @@ Definition riscv_is_move_op (o : asm_op_t) : bool :=
       false
   end.
 
-Definition riscv_params : architecture_params lowering_options :=
+Definition riscv_params : architecture_params :=
   {|
     ap_sap := riscv_saparams;
     ap_lip := riscv_liparams;

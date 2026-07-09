@@ -32,14 +32,13 @@ Section PROOF.
   Variable p : prog.
   Variable ev : extra_val_t.
   Notation gd := (p_globs p).
-  Context (options: lowering_options).
   Context (warning: instr_info -> warning_msg -> instr_info).
   Variable fv : fresh_vars.
 
   Notation lower_prog :=
-    (lower_prog (asmop := _asmop) lower_i options warning fv).
+    (lower_prog (asmop := _asmop) lower_i warning fv).
   Notation lower_cmd :=
-    (lower_cmd (asmop := _asmop) lower_i options warning fv).
+    (lower_cmd (asmop := _asmop) lower_i warning fv).
 
   Hypothesis fvars_correct: fvars_correct fv (p_funcs p).
 
@@ -1265,7 +1264,7 @@ Section PROOF.
     sem_assgn p l tag ty e s1 = ok s2 ->
     disj_fvars (vars_I i) ->
     eq_exc_fresh s1 s1' ->
-    ∃ s2', esem p' ev (lower_i options warning fv i) s1' = ok s2' /\ eq_exc_fresh s2 s2'.
+    ∃ s2', esem p' ev (lower_i warning fv i) s1' = ok s2' /\ eq_exc_fresh s2 s2'.
   Proof using fvars_correct.
     rewrite /sem_assgn; t_xrbindP => v Hv v' hty Hw Hdisj Hs1'.
     move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_assgn=> /disjoint_union [Hdisjl Hdisje].
@@ -1295,15 +1294,10 @@ Section PROOF.
           rewrite /get_gvar get_var_eq /= cmp_le_refl orbT // /=.
           rewrite truncate_word_u /= /= -/ℓ -hw hℓ' /=; reflexivity.
         exact: (eeq_excT Hs2' dℓ').
-      * exists s2'; split => //=.
-        case: ifP => [/andP [] /andP [] /is_zeroP he ??| _ ];first last.
-        - rewrite esem1; apply/mov_wsP => //.
-          + by rewrite h /= truncate_word_le.
-          by rewrite -hw.
-        move: h; rewrite he => /ok_word_inj [?]; subst => /= ?; subst vw.
-        rewrite hw zero_extend_u wrepr0 in Hw' => {hw}.
-        by case: ifP => hsz64;
-          rewrite /= /sem_sopn /sem_pexprs /exec_sopn /sopn_sem /sopn_sem_ /= /Oset0_instr hsz64 /= Hw'.
+      * exists s2'; split => //.
+        rewrite esem1; apply/mov_wsP => //.
+        + by rewrite h /= truncate_word_le.
+        by rewrite -hw.
     (* LowerCopn *)
     + move=> o e' H.
       exists s2' => //.
@@ -1342,7 +1336,6 @@ Section PROOF.
       have Hlea' : esem p' ev
                     [:: MkI (warning ii Use_lea) (Copn [:: l] tag (Ox86 (LEA sz)) [:: elea])] s1' = ok s2'.
       + by rewrite /= /sem_sopn Hlea /= Hw'.
-      case: use_lea; first by exists s2'.
       subst w.
       case: eqP => [ ? | _ ].
       + subst d; case: eqP => [ ? | _].
@@ -1714,7 +1707,7 @@ Section PROOF.
     sem_sopn gd o s1 xs es = ok s2 →
     disj_fvars (vars_I i) ->
     eq_exc_fresh s1 s1' ->
-    ∃ s2', esem p' ev (lower_i options warning fv i) s1' = ok s2' /\ eq_exc_fresh s2 s2'.
+    ∃ s2', esem p' ev (lower_i warning fv i) s1' = ok s2' /\ eq_exc_fresh s2 s2'.
   Proof.
     apply: rbindP=> v; apply: rbindP=> x Hx Hv Hw Hdisj Hs1'.
     move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_opn=> /disjoint_union [Hdisjl Hdisje].
@@ -1813,7 +1806,7 @@ Section PROOF.
   #[ local ]
   Definition Pi_ (i : instr) :=
     disj_fvars (vars_I i) ->
-    wequiv_rec p p' ev ev eq_spec eq_exc_fresh [::i] (lower_i options warning fv i) eq_exc_fresh.
+    wequiv_rec p p' ev ev eq_spec eq_exc_fresh [::i] (lower_i warning fv i) eq_exc_fresh.
 
   #[ local ]
   Definition Pi_r_ (i : instr_r) := forall ii, Pi_ (MkI ii i).
@@ -1837,7 +1830,7 @@ Section PROOF.
     rewrite get_map_prog hget /= /lower_fd.
     eexists; first reflexivity.
     move=> s.
-    set c' := lowering.lower_cmd _ _ _ _ _.
+    set c' := lowering.lower_cmd _ _ _ _.
     move=> /(eq_initialize (fd':= with_body fd c')) -/(_ p' erefl erefl erefl erefl) hinit.
     exists s=> //; exists eq_exc_fresh, eq_exc_fresh; split => //=; last by apply st_eq_ex_finalize.
     subst c'; move: (f_body fd) Hdisjc. clear fn fs fd hget Hdisjp Hdisjr hinit s.

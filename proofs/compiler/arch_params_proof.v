@@ -24,8 +24,7 @@ Require Export arch_params.
 Record h_lowering_params
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra}
-  (lowering_options : Type)
-  (loparams : lowering_params lowering_options) :=
+  (loparams : lowering_params) :=
   {
     hlop_lower_callP :
       forall
@@ -36,12 +35,11 @@ Record h_lowering_params
         {rE : EventRels E0}
         {p : prog}
         {ev : extra_val_t}
-        (options : lowering_options)
         (warning : instr_info -> warning_msg -> instr_info)
         {fv : lowering.fresh_vars}
         {fn : funname},
         let: p' :=
-          lowering.lower_prog (lop_lower_i loparams) options warning fv p
+          lowering.lower_prog (lop_lower_i loparams) warning fv p
         in
         lop_fvars_correct loparams fv (p_funcs p) ->
         wiequiv_f p p' ev ev pre_eq fn fn post_eq
@@ -89,8 +87,7 @@ Record h_lower_addressing_params
 Record h_architecture_params
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra} {call_conv:calling_convention}
-  (lowering_options : Type)
-  (aparams : architecture_params lowering_options) :=
+  (aparams : architecture_params) :=
   {
     (* Stack alloc hypotheses. See [stack_alloc_params_proof.v]. *)
     hap_hsap :

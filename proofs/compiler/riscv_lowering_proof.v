@@ -36,19 +36,16 @@ Context
   {sCP : semCallParams}
   (p : prog)
   (ev : extra_val_t)
-  (options : lowering_options)
   (warning : instr_info -> warning_msg -> instr_info)
   (fv : fresh_vars).
 Notation lower_cmd :=
   (lower_cmd
-     (fun _ _ _ => lower_i)
-     options
+     (fun _ _ => lower_i)
      warning
      fv).
 Notation lower_prog :=
   (lower_prog
-     (fun _ _ _ => lower_i)
-     options
+     (fun _ _ => lower_i)
      warning
      fv).
 
@@ -610,7 +607,7 @@ Proof.
   rewrite get_map_prog hget /= /lower_fd.
   eexists; first reflexivity.
   move=> s.
-  set c' := lowering.lower_cmd _ _ _ _ _.
+  set c' := lowering.lower_cmd _ _ _ _.
   move=> /(eq_initialize (fd':= with_body fd c')) -/(_ p' erefl erefl erefl erefl) hinit.
   exists s => //; exists (st_eq tt), (st_eq tt); split => //=; last by apply st_eq_finalize.
   subst c'; move: (f_body fd). clear fn fs fd hget hinit s.

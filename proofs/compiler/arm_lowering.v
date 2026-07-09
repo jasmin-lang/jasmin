@@ -441,8 +441,6 @@ Definition lower_copn
 
 (* -------------------------------------------------------------------- *)
 
-Definition lowering_options := unit.
-
 Fixpoint lower_i (i : instr) : cmd :=
   let '(MkI ii ir) := i in
   match ir with

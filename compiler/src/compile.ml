@@ -267,8 +267,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
   in
 
   let warning ii msg =
-    (if not !Glob_options.lea then
-     let loc, _ = ii in
+    (let loc, _ = ii in
      warning UseLea loc "%a" Printer.pp_warning_msg msg);
     ii
   in
@@ -417,7 +416,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
           p);
       Compiler.refresh_instr_info;
       Compiler.warning;
-      Compiler.lowering_opt = Arch.lowering_opt;
       Compiler.fresh_var_ident = Conv.fresh_var_ident;
       Compiler.spill_to_mmx;
       Compiler.slh_info;

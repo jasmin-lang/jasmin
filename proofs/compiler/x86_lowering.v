@@ -29,14 +29,6 @@ Definition mov_ws ws x y tag :=
 
 Section LOWERING.
 
-Record lowering_options : Type :=
-  {
-    use_lea  : bool;
-    use_set0 : bool;
-  }.
-
-Context (options : lowering_options).
-
 Context (warning: instr_info -> warning_msg -> instr_info).
 
 Definition vword vt vn := {| vtype := aword vt ; vname := vn |}.
@@ -454,14 +446,7 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: atype) (e
       [:: MkI ii (Copn [:: Lvar c] tg (Ox86 (MOV szty)) [:: e ])
        ; MkI ii (Copn [:: x ] tg (Ox86 (MOV szty)) [:: Plvar c ]) ]
     else
-      (* IF e is 0 then use Oset0 instruction *)
-      if (is_zero szty e) && ~~ is_lval_in_memory x && options.(use_set0) then
-        if (szty <= U64)%CMP then
-          [:: MkI ii (Copn [:: f ; f ; f ; f ; f ; x] tg (Oasm (ExtOp (Oset0 szty))) [::]) ]
-        else
-          [:: MkI ii (Copn [:: x] tg (Oasm (ExtOp (Oset0 szty))) [::]) ]
-      else 
-        [:: MkI ii (mov_ws szty x e tg)]
+      [:: MkI ii (mov_ws szty x e tg)]
   | LowerCopn o e => copn o e
   | LowerInc o e => inc o e
   | LowerFopn sz o es m => map (MkI ii) (opn_5flags m sz vi f x tg o es)
@@ -479,33 +464,31 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: atype) (e
       let mul := Papp2 (Omul (Op_w sz)) in
       let e := add de (add b (mul sce o)) in
       [:: MkI ii (Copn [::x] tg (Ox86 (LEA sz)) [:: e])] in
-    if options.(use_lea) then lea tt
     (* d + b + sc * o *)
-    else
-      if d == 0%Z then
-        (* b + sc * o *)
-        if sc == 1%Z then
-          (* b + o *)
-          [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (ADD sz)) [:: b ; o])]
-        else if is_zero sz b then
-          (* sc * o *)
-          let (op, args) := mulr sz o sce in
-          map (MkI ii) (opn_5flags (Some U32) sz vi f x tg (Ox86 op) args)
-        else lea tt
-      else if is_zero sz o then
-          (* d + b *)
-          if d == 1%Z then inc (Ox86 (INC sz)) b
-          else if d == (-1)%Z then inc (Ox86 (DEC sz)) b
-          else
-            if check_signed_range (Some U32) sz d
-            then [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (ADD sz)) [:: b ; de ])]
-            else if d == (wbase U32 / 2)%Z
-            then [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (SUB sz)) [:: b ; wconst (wrepr sz (-d)) ])]
-            else
-              let c := {| v_var := fresh_word U64 ; v_info := vi |} in
-              [:: MkI ii (Copn [:: Lvar c ] tg (Ox86 (MOV U64)) [:: de]);
-                 MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (ADD sz)) [:: b ; Plvar c ])]
+    if d == 0%Z then
+      (* b + sc * o *)
+      if sc == 1%Z then
+        (* b + o *)
+        [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (ADD sz)) [:: b ; o])]
+      else if is_zero sz b then
+        (* sc * o *)
+        let (op, args) := mulr sz o sce in
+        map (MkI ii) (opn_5flags (Some U32) sz vi f x tg (Ox86 op) args)
       else lea tt
+    else if is_zero sz o then
+        (* d + b *)
+        if d == 1%Z then inc (Ox86 (INC sz)) b
+        else if d == (-1)%Z then inc (Ox86 (DEC sz)) b
+        else
+          if check_signed_range (Some U32) sz d
+          then [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (ADD sz)) [:: b ; de ])]
+          else if d == (wbase U32 / 2)%Z
+          then [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (SUB sz)) [:: b ; wconst (wrepr sz (-d)) ])]
+          else
+            let c := {| v_var := fresh_word U64 ; v_info := vi |} in
+            [:: MkI ii (Copn [:: Lvar c ] tg (Ox86 (MOV U64)) [:: de]);
+               MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (ADD sz)) [:: b ; Plvar c ])]
+    else lea tt
 
   | LowerCond =>
     let (i,e') := lower_condition vi e in

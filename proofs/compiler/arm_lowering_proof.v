@@ -66,7 +66,6 @@ Context
   {sCP : semCallParams}
   (p : prog)
   (ev : extra_val_t)
-  (options : lowering_options)
   (warning : instr_info -> warning_msg -> instr_info)
   (fv : fresh_vars)
   (fv_correct : fvars_correct (all_fresh_vars fv) (fvars fv) (p_funcs p)).
@@ -75,14 +74,12 @@ Notation fvars := (fvars fv).
 Notation lower_pexpr := (lower_pexpr fv).
 Notation lower_cmd :=
   (lower_cmd
-     (fun _ _ => lower_i)
-     options
+     (fun _ => lower_i)
      warning
      fv).
 Notation lower_prog :=
   (lower_prog
-     (fun _ _ => lower_i)
-     options
+     (fun _ => lower_i)
      warning
      fv).
 Notation lower_i := (lower_i fv).

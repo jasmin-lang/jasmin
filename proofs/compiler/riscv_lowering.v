@@ -207,8 +207,6 @@ Definition lower_copn
 
 (* -------------------------------------------------------------------- *)
 
-Definition lowering_options := unit.
-
 (* Applied to every jasmin lines, cmd is a list of instructions *)
 Fixpoint lower_i (i : instr) : cmd :=
 (* ii : instruction info, ir : instruction itself *)
