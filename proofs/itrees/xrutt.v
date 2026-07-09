@@ -67,7 +67,6 @@ Notation WillCutoff_ EE A t :=
 Section XRuttF.
 
   Context {E1 E2: Type -> Type}.
-  Context {R1 R2 : Type}.
 
   Context (EE1: forall X, E1 X -> bool).
   Context (EE2: forall X, E2 X -> bool).
@@ -80,7 +79,11 @@ Section XRuttF.
   Arguments REv {A} {B}.
   Arguments RAns {A} {B}.
 
+  (** NOTE: We make [R1] and [R2] universally
+      quantified under the simulation [sim] in [xrutt_] and [xrutt_mon].
+      This ensures we can perform [ITree.bind] reasoning in coinductive proofs. *)
   Inductive xruttF
+    {R1 R2 : Type}
     (RR : R1 -> R2 -> Prop)
     (sim : itree E1 R1 -> itree E2 R2 -> Prop) :
     itree' E1 R1 -> itree' E2 R2 -> Prop :=
@@ -120,37 +123,53 @@ Section XRuttF.
   Hint Constructors xruttF : itree.
 
   Definition xrutt_
-    (sim : (R1 -> R2 -> Prop) -> itree E1 R1 -> itree E2 R2 -> Prop)
-    (RR : R1 -> R2 -> Prop) (t1 : itree E1 R1) (t2 : itree E2 R2) :=
-    xruttF RR (sim RR) (observe t1) (observe t2).
+    (sim : forall R1 R2, (R1 -> R2 -> Prop) -> itree E1 R1 -> itree E2 R2 -> Prop)
+    (R1 R2 : Type) (RR : R1 -> R2 -> Prop) (t1 : itree E1 R1) (t2 : itree E2 R2) :=
+    xruttF RR (sim R1 R2 RR) (observe t1) (observe t2).
   Hint Unfold xrutt_ : itree.
-
-  Lemma xruttF_mono :
-    Proper (leq ==> leq) xruttF.
-  Proof. monauto. Qed.
 
   Lemma xrutt_mono :
     Proper (leq ==> leq) xrutt_.
   Proof. monauto. Qed.
 
-  Definition xrutt_mon : mon ((R1 -> R2 -> Prop) -> itree E1 R1 -> itree E2 R2 -> Prop) :=
+  Definition xrutt_mon : mon (forall R1 R2, (R1 -> R2 -> Prop) -> itree E1 R1 -> itree E2 R2 -> Prop) :=
     {| body := xrutt_; Hbody := xrutt_mono |}.
+End XRuttF.
+
+(** NOTE: Breaking up section to restore proper argument order for [xrutt] itself.
+    For [xrutt] the type arguments must be before [REv] and [RAns], but for [xruttF],
+    [xrutt_], and [xrutt_mon] we universally quantify [R1] and [R2] _under_ the
+    simulation argument [sim] to provide flexibility with [ITree.bind] in
+    coinductive proofs.
+
+    FIXME: How do use [Arguments] command without breaking up section? *)
+Section XRuttF.
+  Context {E1 E2: Type -> Type}.
+  Context {R1 R2 : Type}.
+
+  Context (EE1: forall X, E1 X -> bool).
+  Context (EE2: forall X, E2 X -> bool).
+
+  Context (REv : forall (A B : Type), E1 A -> E2 B -> Prop).
+  Context (RAns : forall (A B : Type), E1 A -> A -> E2 B -> B -> Prop).
+
+  Implicit Type RR : R1 -> R2 -> Prop.
 
   Definition xrutt :
     (R1 -> R2 -> Prop) -> itree E1 R1 -> itree E2 R2 -> Prop :=
-    gfp xrutt_mon.
+    gfp (xrutt_mon EE1 EE2 REv RAns) R1 R2.
   Hint Unfold xrutt : itree.
 
   Lemma xruttF_inv_VisF_r {sim} RR t1 U2 (e2: E2 U2) (k2: U2 -> _)
-    (hh: IsNoCut EE2 e2) :
-    xruttF RR sim t1 (VisF e2 k2) ->
+    (hh: IsNoCut_ EE2 _ e2) :
+    xruttF EE1 EE2 REv RAns RR sim t1 (VisF e2 k2) ->
     (exists U1 (e1: E1 U1) k1,
         t1 = VisF e1 k1 /\
           forall v1 v2, RAns e1 v1 e2 v2 -> sim (k1 v1) (k2 v2))
     \/
-    DoCutoffF EE1 t1
+    DoCutoffF_ EE1 _ t1
     \/
-    (exists t1', t1 = TauF t1' /\ xruttF RR sim (observe t1') (VisF e2 k2)).
+    (exists t1', t1 = TauF t1' /\ xruttF EE1 EE2 REv RAns RR sim (observe t1') (VisF e2 k2)).
   Proof.
     intros.
     remember t1 as t0.
@@ -167,24 +186,24 @@ Section XRuttF.
   Lemma xruttF_inv_VisF {sim} RR U1 U2
     (e1 : E1 U1) (e2 : E2 U2)
     (k1 : U1 -> itree E1 R1) (k2 : U2 -> itree E2 R2) :
-      xruttF RR sim (VisF e1 k1) (VisF e2 k2) ->
+      xruttF EE1 EE2 REv RAns RR sim (VisF e1 k1) (VisF e2 k2) ->
       (forall v1 v2, RAns e1 v1 e2 v2 -> sim (k1 v1) (k2 v2))
       \/
-        IsCut EE1 e1
+        IsCut_ EE1 _ e1
       \/
-        IsCut EE2 e2.
+        IsCut_ EE2 _ e2.
   Proof.
     intros H. dependent destruction H; eauto.
   Qed.
 
   Lemma fold_xruttF:
     forall RR (t1: itree E1 R1) (t2: itree E2 R2) ot1 ot2,
-    xruttF RR (xrutt RR) ot1 ot2 ->
+    xruttF EE1 EE2 REv RAns RR (xrutt RR) ot1 ot2 ->
     ot1 = observe t1 ->
     ot2 = observe t2 ->
     xrutt RR t1 t2.
   Proof.
-    intros * eq -> ->. apply (pfp_gfp xrutt_mon), eq.
+    intros * eq -> ->. apply (pfp_gfp (xrutt_mon EE1 EE2 REv RAns)), eq.
   Qed.
 
 End XRuttF.
@@ -234,31 +253,33 @@ Tactic Notation "xrstep" "in" ident(h) := xrunfold_in h; step in h; xrcbn in h.
 
 #[local] Ltac refold :=
   repeat lazymatch goal with
-  | |- context[gfp (@xrutt_mon ?E1 ?E2 ?R1 ?R2 ?EE1 ?EE2 ?RE ?RA)] =>
-      fold (@xrutt E1 E2 R1 R2 EE1 EE2 RE RA)
+  | |- context[gfp (@xrutt_mon ?E1 ?E2 ?EE1 ?EE2 ?RE ?RA) ?R1 ?R2 ?RR] =>
+      fold (@xrutt E1 E2 EE1 EE2 RE RA R1 R2 RR)
   end.
 
 Ltac fold_xrutt :=
   lazymatch goal with
-  | |- context[@xruttF ?E1 ?E2 ?R1 ?R2 ?EE1 ?EE2 ?REv ?RAns ?RR] =>
-      change (@xruttF E1 E2 R1 R2 EE1 EE2 REv RAns RR) with (body (@xrutt_mon E1 E2 R1 R2 EE1 EE2 REv RAns RR))
+  | |- context[@xruttF ?E1 ?E2 ?EE1 ?EE2 ?REv ?RAns ?R1 ?R2 ?RR] =>
+      change (@xruttF E1 E2 EE1 EE2 REv RAns R1 R2 RR) with
+      (body (@xrutt_mon E1 E2 EE1 EE2 REv RAns) R1 R2 RR)
   end.
 Ltac fold_xrutt_in h :=
   match type of h with
-  | context[@xruttF ?E1 ?E2 ?R1 ?R2 ?EE1 ?EE2 ?REv ?RAns ?RR] =>
-      change (@xruttF E1 E2 R1 R2 EE1 EE2 REv RAns RR) with (body (@xrutt_mon E1 E2 R1 R2 EE1 EE2 REv RAns RR)) in h
+  | context[@xruttF ?E1 ?E2 ?EE1 ?EE2 ?REv ?RAns ?R1 ?R2 ?RR] =>
+      change (@xruttF E1 E2 EE1 EE2 REv RAns R1 R2 RR) with
+      (body (@xrutt_mon E1 E2 EE1 EE2 REv RAns) R1 R2 RR) in h
   end.
 Tactic Notation "xrunstep" := fold_xrutt; unstep.
 Tactic Notation "xrunstep" "in" ident(h) := fold_xrutt_in h; unstep in h.
 
 Ltac to_xrmon_core :=
   lazymatch goal with
-  | |- context[@xruttF ?E1 ?E2 ?R1 ?R2 ?EE1 ?EE2 ?REv ?RAns ?RR (?f ?RR) (observe ?t1) (observe ?t2)] =>
-      change (@xruttF E1 E2 R1 R2 EE1 EE2 REv RAns RR (f RR) (observe t1) (observe t2))
-      with (@xrutt_mon E1 E2 R1 R2 EE1 EE2 REv RAns f RR t1 t2)
-  | |- context[@xruttF ?E1 ?E2 ?R1 ?R2 ?EE1 ?EE2 ?REv ?RAns ?RR (?f ?RR) (?con1 ?a1) (?con2 ?a2)] =>
-      change (@xruttF E1 E2 R1 R2 EE1 EE2 REv RAns RR (f RR) (con1 a1) (con2 a2))
-      with (@xrutt_mon E1 E2 R1 R2 EE1 EE2 REv RAns f RR (go (con1 a1)) (go (con2 a2)))
+  | |- context[@xruttF ?E1 ?E2 ?EE1 ?EE2 ?REv ?RAns ?R1 ?R2 ?RR (?f ?R1 ?R2 ?RR) (observe ?t1) (observe ?t2)] =>
+      change (@xruttF E1 E2 EE1 EE2 REv RAns R1 R2 RR (f R1 R2 RR) (observe t1) (observe t2))
+      with (body (@xrutt_mon E1 E2 EE1 EE2 REv RAns) f R1 R2 RR t1 t2)
+  | |- context[@xruttF ?E1 ?E2 ?EE1 ?EE2 ?REv ?RAns ?R1 ?R2 ?RR (?f ?R1 ?R2 ?RR) (?con1 ?a1) (?con2 ?a2)] =>
+      change (@xruttF E1 E2 EE1 EE2 REv RAns R1 R2 RR (f R1 R2 RR) (con1 a1) (con2 a2))
+      with (body (@xrutt_mon E1 E2 EE1 EE2 REv RAns) f R1 R2 RR (go (con1 a1)) (go (con2 a2)))
   end.
 
 Ltac to_xrmon :=
@@ -271,12 +292,18 @@ Ltac to_xrmon :=
 
 Ltac to_xrmon_in h :=
   lazymatch type of h with
-  | context[@xruttF ?E1 ?E2 ?R1 ?R2 ?EE1 ?EE2 ?REv ?RAns ?RR (?f ?RR) (observe ?t1) (observe ?t2)] =>
-      change (@xruttF E1 E2 R1 R2 EE1 EE2 REv RAns RR (f RR) (observe t1) (observe t2))
-      with (@xrutt_mon E1 E2 R1 R2 EE1 EE2 REv RAns f RR t1 t2) in h
-  | context[@xruttF ?E1 ?E2 ?R1 ?R2 ?EE1 ?EE2 ?REv ?RAns ?RR (?f ?RR) (?con1 ?a1) (?con2 ?a2)] =>
-      change (@xruttF E1 E2 R1 R2 EE1 EE2 REv RAns RR (f RR) (con1 a1) (con2 a2))
-      with (@xrutt_mon E1 E2 R1 R2 EE1 EE2 REv RAns f RR (go (con1 a1)) (go (con2 a2)))
+  | context[@xruttF ?E1 ?E2 ?EE1 ?EE2 ?REv ?RAns ?R1 ?R2 ?RR (?f ?R1 ?R2 ?RR) (observe ?t1) (observe ?t2)] =>
+      change (@xruttF E1 E2 EE1 EE2 REv RAns R1 R2 RR (f R1 R2 RR) (observe t1) (observe t2))
+      with (body (@xrutt_mon E1 E2 EE1 EE2 REv RAns) f R1 R2 RR t1 t2) in h
+  | context[@xruttF ?E1 ?E2 ?EE1 ?EE2 ?REv ?RAns ?R1 ?R2 ?RR (?f ?R1 ?R2 ?RR) (?con1 ?a1) (?con2 ?a2)] =>
+      change (@xruttF E1 E2 EE1 EE2 REv RAns R1 R2 RR (f R1 R2 RR) (con1 a1) (con2 a2))
+      with (body (@xrutt_mon E1 E2 EE1 EE2 REv RAns) f R1 R2 RR (go (con1 a1)) (go (con2 a2))) in h
+  | context[@xruttF ?E1 ?E2 ?EE1 ?EE2 ?REv ?RAns ?R1 ?R2 ?RR (?f ?R1 ?R2 ?RR) (?con1 ?a1) (observe ?t2)] =>
+      change (@xruttF E1 E2 EE1 EE2 REv RAns R1 R2 RR (f R1 R2 RR) (con1 a1) (observe t2))
+      with (body (@xrutt_mon E1 E2 EE1 EE2 REv RAns) f R1 R2 RR (go (con1 a1)) t2) in h
+  | context[@xruttF ?E1 ?E2 ?EE1 ?EE2 ?REv ?RAns ?R1 ?R2 ?RR (?f ?R1 ?R2 ?RR) (observe ?t1) (?con2 ?a2)] =>
+      change (@xruttF E1 E2 EE1 EE2 REv RAns R1 R2 RR (f R1 R2 RR) (observe t1) (con2 a2))
+      with (body (@xrutt_mon E1 E2 EE1 EE2 REv RAns) f R1 R2 RR t1 (go (con2 a2))) in h
   end.
 
 Tactic Notation "to_xrmon" "in" ident(h) := to_xrmon_in h.

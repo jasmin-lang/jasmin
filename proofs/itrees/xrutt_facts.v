@@ -181,8 +181,8 @@ Qed.
 (* Based on [RuttFacts.eq_proper_ruttC]. *)
 #[global] Instance eq_proper_xruttC {E1 E2 R1 R2 REv RAns}
   (EE1: forall X, E1 X -> bool) (EE2: forall X, E2 X -> bool)
-  (RR : R1 -> R2 -> Prop) (c : Chain (@xrutt_mon E1 E2 R1 R2 EE1 EE2 REv RAns)):
-  Proper (eq_itree eq ==> eq_itree eq ==> iff) (elem c RR).
+  (RR : R1 -> R2 -> Prop) (c : Chain (@xrutt_mon E1 E2 EE1 EE2 REv RAns)):
+  Proper (eq_itree eq ==> eq_itree eq ==> iff) (elem c _ _ RR).
 Proof.
   split; revert_until c; tower induction;
     intros IH t1 t1' Ht1 t2 t2' Ht2;
@@ -279,15 +279,6 @@ Ltac eqit_fold H :=
       clear H; rename h into H
   end.
 
-(* FIXME: should this replace the [fold_xruttF] tactic? *)
-Ltac xrutt_fold H :=
-  match type of H with
-  | context [@xruttF ?E1 ?E2 ?R1 ?R2 ?EE1 ?EE2 ?REv ?RAns ?RR (?f ?m ?RR) ?ot1 ?ot2] =>
-      let h := fresh "H" in
-      assert (xrutt EE1 EE2 REv RAns RR (go ot1) (go ot2)) as h; first (now step);
-      clear H; rename h into H
-  end.
-
 (* FIXME: repair comments, or try to recover upstream proof structure. *)
 (* Similar to RuttFacts.rutt_cong_eutt *)
 Lemma xrutt_cong_eutt {E1 E2 R1 R2}
@@ -354,7 +345,8 @@ Proof.
           * apply EqTauR. auto.
         - apply EqTauL. auto. }
       { apply (IHIHHeutt' m1_body m2); auto.
-        xrutt_fold H. apply xrutt_inv_Tau_l in H.
+        to_xrmon in H. unstep in H.
+        apply xrutt_inv_Tau_l in H.
         now step in H. }
       { remember (VisF e1 k1) as oVisL eqn:HoVisL.
         clear Hobs_m1 m1 IHIHHeutt'. revert H.
@@ -454,25 +446,7 @@ Section XRuttBind.
   Context (RAns : forall (A B : Type), E1 A -> A -> E2 B -> B -> Prop).
   Context (RR : R1 -> R2 -> Prop).
 
-  (* FIXME: resolve question about return parameter binding for [xrutt]:
-     `https://rocq-prover.zulipchat.com/#narrow/channel/394939-Interaction-Trees/topic/coinduction.20plugin/near/608963250` *)
-
-  (* About eqit_bind_chain. *)
-  (* About eq_proper_xruttC. *)
-
-  (* Goal False. *)
-  (*   pose proof @eq_proper_xruttC. *)
-  (*   unfold Proper, respectful in H. *)
-  (* Abort. *)
-
-  (* About eqit_mon. *)
-  (* Require ITree.Eq.Rutt. *)
-  (* About Rutt.rutt_mon. *)
-
-  (* Goal forall (c : Chain (xrutt_mon EE1 EE2 REv RAns)), False. *)
-
-  (* About elem. *)
-
+  (** Based on [eqit_bind_chain]. *)
   Lemma xrutt_bind_chain
     (c : Chain (xrutt_mon EE1 EE2 REv RAns)) {U1 U2}
     (t1 : itree E1 U1) (t2 : itree E2 U2) 
@@ -483,51 +457,55 @@ Section XRuttBind.
   Proof. 
     revert_until U2. 
     tower induction.
-    - intros. 
-      icbn in *. 
-      genobs t1 ot1.  
-      genobs t2 ot2.
-      hinduction H0 before RR; intros; try easy. 
-      (* be careful not to rewrite all here; this will mess up taul and taur cases. *)
-      1-3: rewrite 2 observe_bind; simpobs.
-      (* ret *)
-      + eapply H1; eauto. 
-      (* taus *)
-      + constructor.
-        eapply H; eauto. 
-        intros; step; now eapply H1.
-      (* vis *)
-      + constructor. 
-        intro. 
-        eapply H; eauto.
-        intros; step; now eapply H1.
-      (* taul *)
-      + rewrite observe_bind. 
-        simpobs. 
-        taul. 
-        eapply IHeqitF; eauto.  
-      (* taur *)
-      + setoid_rewrite observe_bind at 2. 
-        simpobs. 
-        taur. 
-        eapply IHeqitF; eauto. 
-  Qed. 
+    intros. 
+    xrcbn in *. 
+    genobs t1 ot1.
+    genobs t2 ot2.
+    hinduction H0 before RR; intros.
+    - (* ret *)
+      rewrite 2 observe_bind; simpobs.
+      eapply H1; eauto. 
+    - (* taus *)
+      rewrite 2 observe_bind; simpobs.
+      constructor.
+      eapply H0; eauto.
+      intros. step. now eapply H1.
+    - (* vis *)
+      rewrite 2 observe_bind; simpobs.
+      constructor; auto.
+      intros. eapply H3; eauto.
+      intros; step; now eapply H4.
+    - (* cutl *)
+      rewrite observe_bind. simpobs.
+      now eapply EqCutL.
+    - (* cutr *)
+      setoid_rewrite observe_bind at 2. simpobs.
+      now eapply EqCutR.
+    - (* taul *)
+      rewrite observe_bind. simpobs.
+      apply EqTauL. eauto.
+    - (* taur *)
+      setoid_rewrite observe_bind at 2. simpobs. 
+      apply EqTauR. eauto.
+  Qed.
 
-  Lemma eutt_bind_eutt {U1 U2 UU} t1 t2 k1 k2
-    (EQT: @eutt E U1 U2 UU t1 t2)
-    (EQK: forall u1 u2, UU u1 u2 -> eutt RR (k1 u1) (k2 u2)):
-    eutt RR (ITree.bind t1 k1) (ITree.bind t2 k2).
+  (** Based on [eutt_bind_eutt]. *)
+  Lemma xrutt_bind_xrutt {U1 U2 UU} t1 t2 k1 k2
+    (EQT: @xrutt E1 E2 U1 U2 EE1 EE2 REv RAns UU t1 t2)
+    (EQK: forall u1 u2, UU u1 u2 -> xrutt EE1 EE2 REv RAns RR (k1 u1) (k2 u2)):
+    xrutt EE1 EE2 REv RAns RR (ITree.bind t1 k1) (ITree.bind t2 k2).
   Proof.
-    unfold eutt. eapply eqit_bind_chain; eauto.  
-  Qed. 
+    unfold xrutt. eapply xrutt_bind_chain; eauto.
+  Qed.
 
-  Lemma eutt_bind_b {U1 U2 UU} t1 t2 k1 k2
-    (c : euttC)
-    (EQT: @eutt E U1 U2 UU t1 t2)
-    (EQK: forall u1 u2, UU u1 u2 -> eutt RR (k1 u1) (k2 u2)):
-    eqit_mon true true (elem c) _ _ RR (ITree.bind t1 k1) (ITree.bind t2 k2).
+  (** Based on [eutt_bind_b]. *)
+  Lemma xrutt_bind_b {U1 U2 UU} t1 t2 k1 k2
+    (c : Chain (xrutt_mon EE1 EE2 REv RAns))
+    (EQT: @xrutt E1 E2 U1 U2 EE1 EE2 REv RAns UU t1 t2)
+    (EQK: forall u1 u2, UU u1 u2 -> xrutt EE1 EE2 REv RAns RR (k1 u1) (k2 u2)):
+    xrutt_mon EE1 EE2 REv RAns (elem c) _ _ RR (ITree.bind t1 k1) (ITree.bind t2 k2).
   Proof.
-    eapply eqit_bind_chain; intros. 
+    eapply xrutt_bind_chain; intros. 
     all: now do 2 step; [apply EQT || apply EQK].
   Qed. 
 
@@ -754,17 +732,16 @@ Lemma xrutt_iter :
       (ITree.iter body1 i1) (ITree.iter body2 i2).
 Proof.
   coinduction.
-  ebind.
   intros.
   rewrite !unfold_iter.
-  Search eqit_mon ITree.bind.
-  eapply eq_proper_xruttC. last eapply CIH.
-  eapply xrutt_bind.
-  eapply gpaco2_uclo; [|eapply xrutt_clo_bind|]; eauto with paco.
-  econstructor; eauto. intros; subst. gfinal. right.
-  inversion H; subst.
-  - pstep; red; constructor; right; apply CIH; auto.
-  - pstep; red; constructor; assumption.
+  (* Ensure that [elem] remains in the goal for the continuation. *)
+  eapply xrutt_bind_chain.
+  { now apply (@gfp_chain _ _ (xrutt_mon EE1 EE2 RPreE RPostE)), H. }
+  intros [i1' | r1] [i2' | r2] Hsum; inv Hsum.
+  (* [constructor] deals with the [chain_b] in the goal so
+     the goal matches the coinductive hypothesis. *)
+  - constructor. eapply CIH; eauto.
+  - now constructor.
 Qed.
 
 Lemma xrutt_iter_n :
