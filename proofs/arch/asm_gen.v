@@ -438,7 +438,8 @@ Definition enforce_imm_arg_kind (a:asm_arg) (cond: arg_kind) : option asm_arg :=
     let w1 := zero_extend sz' w in
     let w2 := sign_extend sz w1 in
     (* this check is not used (yet?) in the correctness proof *)
-    if (w == w2) && check_CAimm checker w1 then Some (Imm w1) else None
+    if (w == w2) && oapp (fun c => check_CAimm c w1) true checker
+    then Some (Imm w1) else None
   | Reg _, CAreg => Some a
   | Regx _, CAregx => Some a
   | Addr _, CAmem _ => Some a
@@ -460,25 +461,13 @@ Definition enforce_imm_args_kinds (args:asm_args) (cond:args_kinds) : option asm
 Definition enforce_imm_i_args_kinds (cond:i_args_kinds) (a:asm_args) :=
   utils.find_map (enforce_imm_args_kinds a) cond.
 
-Definition pp_caimm_checker_s checker :=
-  match checker with
-  | CAimmC_none => [::]
-  | CAimmC_arm_shift_amout sk =>
-    let: (lo, hi) := shift_kind.shift_amount_bounds sk in
-    [:: pp_s "["; pp_z lo; pp_s ","; pp_z hi; pp_s "]" ]
-  | CAimmC_arm_wencoding ew =>
-    [:: pp_s "(shift ="; pp_s (string_of_ew (on_shift ew));
-        pp_s ", none ="; pp_s (string_of_ew (on_none ew )); pp_s ")"]
-  | CAimmC_arm_0_8_16_24 => [:: pp_s "[0;8;16;24]"]
-  | CAimmC_riscv_12bits_signed => [:: pp_s "[-2048, 2047]"]
-  | CAimmC_riscv_5bits_unsigned => [:: pp_s "[0, 31]"]
-  end.
-
 Definition pp_arg_kind c :=
   match c with
   | CAmem b => pp_nobox [:: pp_s "mem (glob "; pp_s (if b then "" else "not ")%string; pp_s "allowed)"]
   | CAimm checker ws =>
-      pp_nobox [:: pp_s "imm ", pp_s (string_of_wsize ws) & pp_caimm_checker_s checker]
+      pp_nobox
+        ([:: pp_s "imm "; pp_s (string_of_wsize ws)]
+         ++ oapp (fun c => [:: pp_s " "; pp_s (caimm_cond_pp c)]) [::] checker)
   | CAcond => pp_s "cond"
   | CAreg => pp_s "reg"
   | CAregx => pp_s "regx"

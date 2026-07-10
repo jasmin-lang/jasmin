@@ -573,12 +573,12 @@ Definition c := [::CAcond].
 Definition r := [:: CAreg].
 Definition rx := [:: CAregx].
 Definition m b := [:: CAmem b].
-Definition i sz := [:: CAimm CAimmC_none sz].
+Definition i sz := [:: CAimm None sz].
 Definition rm b := [:: CAreg; CAmem b].
 Definition rxm b := [:: CAregx; CAmem b].
 
-Definition rmi sz := [:: CAreg; CAmem true; CAimm CAimmC_none sz].
-Definition ri  sz := [:: CAreg; CAimm CAimmC_none sz].
+Definition rmi sz := [:: CAreg; CAmem true; CAimm None sz].
+Definition ri  sz := [:: CAreg; CAimm None sz].
 
 Definition m_r := [:: m false; r].
 Definition r_rm_false := [:: r; rm false].
@@ -589,7 +589,7 @@ Definition m_ri sz := [:: m false; ri sz].
 
 Definition xmm := [:: CAxmm ].
 Definition xmmm b := [:: CAxmm; CAmem b].
-Definition xmmmi sz := [:: CAxmm; CAmem true; CAimm CAimmC_none sz].
+Definition xmmmi sz := [:: CAxmm; CAmem true; CAimm None sz].
 
 Definition xmm_xmmm := [::xmm; xmmm true].
 Definition xmmm_xmm := [::xmmm false; xmm].

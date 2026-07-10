@@ -271,14 +271,42 @@ Instance arm_fcp : FlagCombinationParams :=
 Notation register_ext := empty.
 Notation xregister := empty.
 
-Definition arm_check_CAimm (checker : caimm_checker_s) ws (w : word ws) : bool :=
+(* Immediate conditions for AArch32 (A32/T32).
+   [CAimmC_arm_shift_amout] carries a [shift_kind]: the legal amount range
+   depends on the shift type (LSL 0..31, LSR/ASR 1..32, ROR 1..31), the
+   register width being fixed at 32 bits. See [shift_amount_bounds]
+   (shift_kind.v), grounded in DecodeImmShift. *)
+#[only(eqbOK)] derive
+Variant arm_caimm_cond :=
+  | CAimmC_arm_shift_amout of shift_kind
+  | CAimmC_arm_wencoding   of expected_wencoding
+  | CAimmC_arm_0_8_16_24.
+
+#[ export ]
+Instance eqTC_arm_caimm_cond : eqTypeC arm_caimm_cond :=
+  { ceqP := arm_caimm_cond_eqb_OK }.
+
+Definition arm_check_CAimm (checker : arm_caimm_cond) ws (w : word ws) : bool :=
   match checker with
-  | CAimmC_none => true
   | CAimmC_arm_shift_amout sk => check_shift_amount sk (wunsigned w)
   | CAimmC_arm_wencoding ew => check_ei_kind ew w
   | CAimmC_arm_0_8_16_24 => let x := wunsigned w in x \in [::0;8;16;24]%Z
-  | CAimmC_riscv_12bits_signed | CAimmC_riscv_5bits_unsigned => false
   end.
+
+Definition arm_caimm_cond_pp (checker : arm_caimm_cond) : string :=
+  match checker with
+  | CAimmC_arm_shift_amout sk =>
+      match sk with
+      | SLSL => "[0, 31]"
+      | SLSR => "[1, 32]"
+      | SASR => "[1, 32]"
+      | SROR => "[1, 31]"
+      end
+  | CAimmC_arm_wencoding ew =>
+      "(shift = " ++ string_of_ew (on_shift ew)
+        ++ ", none = " ++ string_of_ew (on_none ew) ++ ")"
+  | CAimmC_arm_0_8_16_24 => "[0; 8; 16; 24]"
+  end%string.
 
 #[ export ]
 Instance arm_decl : arch_decl register register_ext xregister rflag condt :=
@@ -292,6 +320,9 @@ Instance arm_decl : arch_decl register register_ext xregister rflag condt :=
   ; reg_size_neq_xreg_size := refl_equal
   ; ad_rsp := SP
   ; ad_fcp := arm_fcp
+  ; caimm_cond := arm_caimm_cond
+  ; caimm_cond_eqC := eqTC_arm_caimm_cond
+  ; caimm_cond_pp := arm_caimm_cond_pp
   ; check_CAimm := arm_check_CAimm
   }.
 

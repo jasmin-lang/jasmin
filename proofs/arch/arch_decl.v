@@ -43,22 +43,14 @@ Existing Instance _finC.
 
 Definition rtype {t T} `{ToString t T} := t.
 
-(* This type and the field check_CAimm is not very elegant, but
-   it is the only solution I have to keep a decidable equality over the type arg_kind.
-   If new architecture need new checker for immediate then we should add an entry here.
-   But it definition can be done in the architecture itself
-*)
-
-#[only(eqbOK)] derive
-Inductive caimm_checker_s :=
-  | CAimmC_none
-  | CAimmC_arm_shift_amout of shift_kind
-  | CAimmC_arm_wencoding   of expected_wencoding
-  | CAimmC_arm_0_8_16_24
-  | CAimmC_riscv_12bits_signed
-  | CAimmC_riscv_5bits_unsigned.
-
-HB.instance Definition _ := hasDecEq.Build caimm_checker_s caimm_checker_s_eqb_OK.
+(* Immediate-argument conditions.
+   Each architecture declares its own type of validity conditions for
+   immediate operands: the [caimm_cond] field of [arch_decl] below, together
+   with [check_CAimm] to decide whether an immediate word satisfies a
+   condition and [caimm_cond_pp] to render the condition in assembly
+   generation error messages. Architectures with no special immediate
+   conditions (e.g. x86) use [empty]. This keeps each architecture's
+   conditions in its own files. *)
 
 (* -------------------------------------------------------------------- *)
 (* Basic architecture declaration.
@@ -75,11 +67,14 @@ Class arch_decl (reg regx xreg rflag cond : Type) :=
   ; reg_size_neq_xreg_size : reg_size != xreg_size
   ; ad_rsp : reg
   ; ad_fcp : FlagCombinationParams
-  ; check_CAimm : caimm_checker_s -> forall ws, word ws -> bool
+  ; caimm_cond : Type  (* architecture-specific immediate conditions *)
+  ; caimm_cond_eqC : eqTypeC caimm_cond
+  ; caimm_cond_pp : caimm_cond -> string  (* for error messages *)
+  ; check_CAimm : caimm_cond -> forall ws, word ws -> bool
   }.
 
 #[global]
-Existing Instances cond_eqC toS_r toS_rx toS_x toS_f ad_fcp.
+Existing Instances cond_eqC toS_r toS_rx toS_x toS_f ad_fcp caimm_cond_eqC.
 
 #[export]
 Instance arch_pd `{arch_decl} : PointerData := { Uptr := reg_size }.
@@ -305,14 +300,36 @@ Definition check_oreg or ai :=
 (* Argument kinds.
  * Types for arguments of assembly instructions.
  *)
-#[only(eqbOK)] derive
 Variant arg_kind :=
 | CAcond
 | CAreg
 | CAregx
 | CAxmm
 | CAmem of bool (* true if Global is allowed *)
-| CAimm of caimm_checker_s & wsize.
+| CAimm of option caimm_cond & wsize.
+
+(* [caimm_cond] is an abstract type equipped with an [eqTypeC], so the
+   decidable equality is written by hand instead of derived. *)
+Definition arg_kind_eqb (a1 a2 : arg_kind) : bool :=
+  match a1, a2 with
+  | CAcond, CAcond
+  | CAreg, CAreg
+  | CAregx, CAregx
+  | CAxmm, CAxmm => true
+  | CAmem b1, CAmem b2 => b1 == b2
+  | CAimm c1 ws1, CAimm c2 ws2 =>
+      ((c1 : option ceqT_eqType) == c2) && (ws1 == ws2)
+  | _, _ => false
+  end.
+
+Lemma arg_kind_eqb_OK : forall a1 a2, reflect (a1 = a2) (arg_kind_eqb a1 a2).
+Proof.
+  move=> a1 a2; apply: (iffP idP).
+  - case: a1 a2 => [||||b1|c1 ws1] [||||b2|c2 ws2] //=.
+    + by move=> /eqP ->.
+    by move=> /andP [/eqP -> /eqP ->].
+  move=> <-; case: a1 => //= *; by rewrite !eqxx.
+Qed.
 
 HB.instance Definition _ := hasDecEq.Build arg_kind arg_kind_eqb_OK.
 
@@ -342,7 +359,8 @@ Definition i_args_kinds := seq args_kinds.
 Definition check_arg_kind (a:asm_arg) (cond: arg_kind) :=
   match a, cond with
   | Condt _, CAcond => true
-  | Imm sz z, CAimm checker sz' => (sz == sz') && check_CAimm checker z
+  | Imm sz z, CAimm checker sz' =>
+      (sz == sz') && oapp (fun c => check_CAimm c z) true checker
   | Reg _ , CAreg => true
   | Regx _, CAregx => true
   | Addr _, CAmem _ => true
