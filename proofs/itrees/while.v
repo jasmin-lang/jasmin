@@ -12,8 +12,6 @@ From ITree Require Import
      Core.ITreeDefinition
      Core.KTree
      Eq.Eqit
-     (* Eq.UpToTaus *)
-     (* Eq.Paco2 *)
      Indexed.Sum
      Indexed.Function
      Indexed.Relation
@@ -152,7 +150,7 @@ Proof with eauto with itree.
         genobs x ox; gentau m1 om1.
         revert x Heqox.
         hinduction EQx before ox; try easy.
-        all: subst; intros [=<-] ??...
+        (* all: subst; intros [=<-] ??... *)
 (*         subst; intros [=<-] ??... *)
 (*         intros. *)
 (*         eapply IHEQx. *)

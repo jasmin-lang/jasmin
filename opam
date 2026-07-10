@@ -46,6 +46,7 @@ conflicts: [
   "ez-conf-lib"
 ]
 
+# Temporary "pin-depends" until a new ITree release with rocq-coinduction
 pin-depends: [
-  ["coq-itree.dev" "git+https://github.com/rogerburtonpatel/InteractionTrees.git#dea32013ecb2d9b466ed73949044e571b2894d04"]
+  ["coq-itree.dev" "git+https://github.com/rudynicolop/InteractionTrees.git#a3faa772697683eb2ef972a190d1ec70fcd36c3a"]
 ]

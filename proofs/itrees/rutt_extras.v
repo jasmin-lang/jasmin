@@ -44,24 +44,11 @@ Proof.
   rewrite unfold_iter.
   have [n hn] := H _ _ RI_i.
   rewrite (unfold_iter_n body2 n).
-  (* FIXME: need [rutt_mon] to have [ITree.bind] support via [R1 R2] universally
-     quantified under the [sim] relation! *)
-  eapply gpaco2_uclo; [|eapply rutt_clo_bind|]; eauto with paco.
-  econstructor; eauto. intros; subst. gfinal. right.
-  destruct u1; try discriminate.
-  destruct u2; try discriminate.
-  pstep; red.
-  econstructor.
-  right.
-  eapply CIH; eauto.
-  inversion H; subst; auto.
-  pstep; red.
-  inversion H; subst.
-  destruct u2; try discriminate.
-  inversion H; subst.
-  pstep; red.
-  econstructor.
-  inversion H; subst; auto.
+  eapply rutt_bind_chain.
+  { apply (@gfp_chain _ _ (rutt_mon RPreE RPostE)), hn. }
+  intros [i1' | r1] [i2' | r2] Hsum; inv Hsum.
+  - constructor. eapply CIH; eauto.
+  - now constructor.
 Qed.
 
 Lemma rutt_iter (E1 E2 : Type -> Type) {I1 I2 R1 R2}
@@ -77,25 +64,14 @@ Lemma rutt_iter (E1 E2 : Type -> Type) {I1 I2 R1 R2}
     @rutt E1 E2 R1 R2 RPreE RPostE RR
       (ITree.iter body1 i1) (ITree.iter body2 i2).
 Proof.
-  ginit. gcofix CIH.
+  coinduction.
   intros.
   rewrite !unfold_iter.
-  eapply gpaco2_uclo; [|eapply rutt_clo_bind|]; eauto with paco.
-  econstructor; eauto. intros; subst. gfinal. right.
-  destruct u1; try discriminate.
-  destruct u2; try discriminate.
-  pstep; red.
-  econstructor.
-  right.
-  eapply CIH; eauto.
-  inversion H; subst; auto.
-  pstep; red.
-  inversion H; subst.
-  destruct u2; try discriminate.
-  inversion H; subst.
-  pstep; red.
-  econstructor.
-  inversion H; subst; auto.
+  eapply rutt_bind_chain.
+  { now apply (@gfp_chain _ _ (rutt_mon RPreE RPostE)), H. }
+  intros [i1' | r1] [i2' | r2] Hsum; inv Hsum.
+  - constructor. eapply CIH; eauto.
+  - now constructor.
 Qed.
 
 Lemma rutt_weaken {E1 E2: Type -> Type} {O1 O2 : Type}
@@ -111,18 +87,18 @@ Lemma rutt_weaken {E1 E2: Type -> Type} {O1 O2 : Type}
   rutt REv' RAns' RR' t1 t2.
 Proof.
   move=> hEv hAns hR; move: t1 t2.
-  pcofix CIH => t1 t2 h.
-  pstep. punfold h. red in h |- *.
+  coinduction c CIH => t1 t2 h.
+  rcbn. rstep in h.
   elim: h => {t1 t2}.
   + by move=> r1 r2 /hR; apply Rutt.EqRet.
-  + by move=> t1 t2 h; constructor; pclearbot; right; auto.
+  + by move=> t1 t2 h; constructor; auto.
   + move=> T1 T2 e1 e2 k1 k2 hREv hrec.
     apply Rutt.EqVis.
     + by apply hEv.
-    move=> a b hab; right.
+    move=> a b hab.
     have h1 := hAns _ _ _ _ _ _ hREv hab.
     have ? := hrec _ _ h1.
-    pclearbot; auto.
+    auto.
   + by move=> ?? _; apply Rutt.EqTauL.
   by move=> ?? _; apply Rutt.EqTauR.
 Qed.
@@ -139,51 +115,50 @@ Lemma rutt_trans {E1 E2 E3: Type -> Type} {R1 R2 R3 : Type}
   rutt REv23 RAns23 RR23 t2 t3 ->
   rutt (prcompose REv12 REv23) (pocompose REv12 REv23 RAns12 RAns23) (rcompose RR12 RR23) t1 t3.
 Proof.
-  pcofix CIH. intros t1 t2 t3 INL INR.
-  pstep. punfold INL. punfold INR. red in INL, INR |- *. genobs_clear t3 ot3.
+  coinduction. intros t1 t2 t3 INL INR.
+  rcbn. step in INL. step in INR. genobs_clear t3 ot3.
   hinduction INL before CIH; intros; subst; clear t1 t2.
   - remember (RetF r2) as ot.
-    hinduction INR before CIH; intros; inv Heqot; eauto with paco itree.
-    + by constructor; econstructor; eauto.
-    by constructor; eauto.
+    hinduction INR before CIH; intros; inv Heqot; eauto with itree.
+    (* + constructor; eauto. *)
+    (* by constructor; eauto. *)
   - assert (DEC: (exists m3, ot3 = TauF m3) \/ (forall m3, ot3 <> TauF m3)).
-    + by destruct ot3; eauto; right; red; intros; inv H.
+    + by destruct ot3; eauto; right; red; intros. (*inv H.*)
     destruct DEC as [EQ | EQ].
     + destruct EQ as [m3 ?]; subst.
-      econstructor. right. pclearbot. eapply CIH; eauto with paco.
-      eapply rutt_inv_Tau. by eapply fold_ruttF; first eapply INR.
+      econstructor. eapply CIH; eauto.
+      eapply rutt_inv_Tau. now step.
     + inv INR; try (exfalso; eapply EQ; eauto; fail).
       econstructor; eauto.
-      pclearbot. punfold H. red in H.
+      step in H.
       hinduction H1 before CIH; intros; try (exfalso; eapply EQ; eauto; fail).
       * remember (RetF r1) as ot.
-        hinduction H0 before CIH; intros; inv Heqot; eauto with paco itree.
-        + by constructor; econstructor; eauto.
-        by constructor; eapply IHruttF; eauto.
+        hinduction H0 before CIH; intros; inv Heqot; eauto with itree.
+        (* + by constructor; econstructor; eauto. *)
+        (* by constructor; eapply IHruttF; eauto. *)
       * remember (VisF e1 k1) as ot.
         hinduction H1 before CIH; intros; try discriminate; [ inv_Vis | ].
         + constructor.
           + by econstructor; eauto.
           move=> a b /(_ _ _ H H1) [t2 HA12 HA23].
           move: H3 => /= ?; subst.
-          by destruct (H0 _ _ HA12), (H2 _ _ HA23); try contradiction; eauto.
+          eapply CIH; [apply H0 | apply H2]; eauto.
         by constructor; eauto.
-      * eapply IHruttF; eauto. pstep_reverse.
-        by apply rutt_inv_Tau_r; eapply fold_ruttF; eauto.
+      * eapply IHruttF; eauto. unstep.
+        apply rutt_inv_Tau_r; rstep; eauto.
   - remember (VisF e2 k2) as ot.
     hinduction INR before CIH; intros; try discriminate; [ inv_Vis | ].
     + constructor.
       + by econstructor; eauto.
       move: H3 => /= ?; subst.
       move=> a b /(_ _ _ H1 H) [t2 HA12 HA23].
-      by destruct (H2 _ _ HA12), (H0 _ _ HA23); try contradiction; eauto.
+      eapply CIH; [apply H2 | apply H0]; eauto.
     by constructor; eauto.
   - by constructor; eauto.
   remember (TauF t0) as ot.
   hinduction INR before CIH; intros; try inversion Heqot; subst.
-  + by constructor; eapply IHINL; pclearbot; punfold H.
+  + by constructor; eapply IHINL; step in H. eauto.
   + eauto with itree.
-  constructor; eauto.
 Qed.
 
 Lemma gen_eutt_rutt {E : Type -> Type} {R1 R2 : Type}
@@ -196,16 +171,14 @@ Lemma gen_eutt_rutt {E : Type -> Type} {R1 R2 : Type}
   eutt RR t1 t2 ->
   rutt (E1 := E) (E2 := E) RPre RPost RR t1 t2.
 Proof.
-  revert t1 t2; pcofix CIH.
-  intros t1 t2 H; pstep; red; punfold H; red in H.
+  revert t1 t2; coinduction.
+  intros t1 t2 H; rcbn; step in H.
   induction H.
   - econstructor; eauto.
   - econstructor; eauto.
-  - pclearbot; right; eapply CIH; auto.
   - econstructor; eauto.
     intros; eapply RH2 in H; subst.
-    right; eapply CIH; auto.
-    specialize (REL b); pclearbot; auto.
+    eapply CIH, REL.
   - econstructor; eauto.
   - econstructor; eauto.
 Qed.
@@ -222,18 +195,17 @@ Lemma gen_rutt_eutt {E : Type -> Type} {R1 R2 : Type}
   rutt (E1 := E) (E2 := E) RPre_eq RPost_eq RR t1 t2 ->
   eutt RR t1 t2.
 Proof.
-  revert t1 t2; pcofix CIH.
-  intros t1 t2 H; pstep; red; punfold H; red in H.
+  revert t1 t2; coinduction.
+  intros t1 t2 H; icbn; step in H.
   induction H.
   - econstructor; eauto.
   - econstructor; eauto.
-  - pclearbot; right; eapply CIH; auto.
   - destruct H; subst B e2; simpl.
     econstructor; eauto.
-    intros v; right; eapply CIH.
+    intros v; eapply CIH.
     have H1 : RPost_eq e1 v (eq_rect A E e1 A erefl) v.
     - intros Heq; rewrite (UIP_refl _ _ Heq); simpl; reflexivity.
-    specialize (H0 v v H1); pclearbot; auto.
+    specialize (H0 v v H1); auto.
   - econstructor; eauto.
   - econstructor; eauto.
 Qed.
