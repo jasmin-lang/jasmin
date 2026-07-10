@@ -1876,7 +1876,7 @@ Section PROOF.
       split => //.
       + rewrite /vars_lvals /read_rvs /vrvs /=; apply /disjointP.
         by move=> z hz; move/disjointP: hfvc => /(_ z); clear -hz; SvD.fsetdec.
-      by apply/hc/disjointP => z hz; move/disjointP: hfvc => /(_ z); clear -hz; SvD.fsetdec.
+      by apply hc; apply/disjointP => z hz; move/disjointP: hfvc => /(_ z); clear -hz; SvD.fsetdec.
     (* While *)
     + move=> al c e ii' c' hc hc' ii /disj_fvars_vars_I_Cwhile [/hc{}hc hfve /hc'{}hc'] /=.
       case heq: lower_condition => [pre e'].
