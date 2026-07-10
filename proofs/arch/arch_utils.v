@@ -51,7 +51,7 @@ Context
 Definition ak_reg_reg : i_args_kinds :=
     [:: [:: [:: CAreg ]; [:: CAreg ] ] ].
 
-Definition CAimm_sz sz := CAimm CAimmC_none sz.
+Definition CAimm_sz sz := CAimm None sz.
 
 Definition ak_reg_imm : i_args_kinds :=
     [:: [:: [:: CAreg ]; [:: CAimm_sz reg_size ] ] ].

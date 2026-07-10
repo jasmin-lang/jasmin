@@ -619,7 +619,7 @@ Definition mk_shifted
     id_semi := semi';
     id_nargs := (id_nargs idt).+1;
     id_args_kinds :=
-      map (fun x => x ++ [:: [:: CAimm (CAimmC_arm_shift_amout sk) U8] ]) (id_args_kinds idt);
+      map (fun x => x ++ [:: [:: CAimm (Some (CAimmC_arm_shift_amout sk)) U8] ]) (id_args_kinds idt);
     id_eq_size := mk_shifted_eq_size (id_eq_size idt);
     id_check_dest := id_check_dest idt;
     id_str_jas := id_str_jas idt;
@@ -634,10 +634,10 @@ Definition mk_shifted
 Arguments mk_shifted : clear implicits.
 
 Definition ak_reg_reg_imm_ ew :=
-  [:: [:: [:: CAreg]; [:: CAreg]; [:: CAimm (CAimmC_arm_wencoding ew) reg_size]]].
+  [:: [:: [:: CAreg]; [:: CAreg]; [:: CAimm (Some (CAimmC_arm_wencoding ew)) reg_size]]].
 
 Definition ak_reg_reg_imm_shift ws sk :=
-  [:: [:: [:: CAreg]; [:: CAreg]; [:: CAimm (CAimmC_arm_shift_amout sk) ws]]].
+  [:: [:: [:: CAreg]; [:: CAreg]; [:: CAimm (Some (CAimmC_arm_shift_amout sk)) ws]]].
 
 Definition ak_reg_reg_reg_or_imm_ ew :=
   ak_reg_reg_reg ++ ak_reg_reg_imm_ ew.
@@ -646,7 +646,7 @@ Definition ak_reg_reg_reg_or_imm opts ew :=
   if has_shift opts then ak_reg_reg_reg else ak_reg_reg_reg_or_imm_ ew.
 
 Definition ak_reg_imm_ ew :=
-[:: [:: [:: CAreg]; [:: CAimm (CAimmC_arm_wencoding ew) reg_size]]].
+[:: [:: [:: CAreg]; [:: CAimm (Some (CAimmC_arm_wencoding ew)) reg_size]]].
 
 Definition ak_reg_reg_or_imm_ ew :=
   ak_reg_reg ++ ak_reg_imm_ ew.
@@ -1971,7 +1971,7 @@ Proof.
 Qed.
 
 Definition ak_reg_reg_imm_imm_extr :=
-   [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAimm (CAimmC_arm_shift_amout SLSL) U8 ]; [:: CAimm_sz U8 ] ] ].
+   [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAimm (Some (CAimmC_arm_shift_amout SLSL)) U8 ]; [:: CAimm_sz U8 ] ] ].
 
 Definition arm_UBFX_instr : instr_desc_t :=
   let mn := UBFX in
@@ -2003,7 +2003,7 @@ Definition extend_bits_semi
   wand mask (wror wn roram).
 
 Definition ak_reg_reg_imm8_0_8_16_24 :=
-  [:: [:: [:: CAreg]; [:: CAreg]; [:: CAimm CAimmC_arm_0_8_16_24 U8]]].
+  [:: [:: [:: CAreg]; [:: CAreg]; [:: CAimm (Some CAimmC_arm_0_8_16_24) U8]]].
 
 Definition arm_UXTB_instr : instr_desc_t :=
   let mn := UXTB in
