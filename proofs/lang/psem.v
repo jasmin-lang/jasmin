@@ -255,8 +255,8 @@ Lemma wiequiv_f_eq fn :
 Proof.
 apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
 exists fd => // s1 ?; exists s1 => //; exists (st_eq tt), (st_eq tt).
-split=> //; first exact/wequiv_rec_st_eq.
-exact/st_eq_finalize.
+split=> //; first by apply wequiv_rec_st_eq.
+by eapply st_eq_finalize.
 Qed.
 
 Lemma wiequiv_st_eq c : wiequiv p p ev ev (st_eq tt) c c (st_eq tt).
@@ -631,7 +631,7 @@ Section REFL.
 Context (p : prog) (ev: extra_val_t).
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
-Definition uincl_spec : EquivSpec :=
+Instance uincl_spec : EquivSpec :=
   {| rpreF_ := fun (fn1 fn2 : funname) (fs1 fs2 : fstate) => fn1 = fn2 /\ fs_uincl fs1 fs2
    ; rpostF_ := fun (fn1 fn2 : funname) (fs1 fs2 fr1 fr2: fstate) => fs_uincl fr1 fr2 |}.
 
@@ -698,7 +698,9 @@ Proof.
 apply wequiv_fun_ind => {}fn _ fs1 fs2 [<-] hu fd ->.
 exists fd => // s /(fs_uincl_initialize erefl erefl erefl erefl hu) [t] -> {}hu.
 exists t => //; exists (st_uincl tt), (st_uincl tt); split=> //.
-+ apply it_sem_uincl_aux => // ii fn' fs1' fs2' h; exact/wequiv_fun_rec.
++ apply it_sem_uincl_aux => // ii fn' fs1' fs2' h.
+  change fs_uincl with (rpostF fn' fn' fs1' fs2').
+  by eapply wequiv_fun_rec.
 exact/fs_uincl_finalize.
 Qed.
 
