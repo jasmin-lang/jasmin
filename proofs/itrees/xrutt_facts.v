@@ -491,39 +491,6 @@ Section XRuttBind.
     all: now do 2 step; [apply EQT || apply EQK].
   Qed. 
 
-(* Inductive xrutt_bind_clo (r : itree E1 R1 -> itree E2 R2 -> Prop) : *)
-(*   itree E1 R1 -> itree E2 R2 -> Prop := *)
-(* | rbc_intro_h U1 U2 (RU : U1 -> U2 -> Prop) t1 t2 k1 k2 *)
-(*       (EQV: xrutt EE1 EE2 REv RAns RU t1 t2) *)
-(*       (REL: forall u1 u2, RU u1 u2 -> r (k1 u1) (k2 u2)) *)
-(*   : xrutt_bind_clo (ITree.bind t1 k1) (ITree.bind t2 k2) *)
-(* . *)
-(* Hint Constructors xrutt_bind_clo: core. *)
-
-(* Lemma xrutt_clo_bind : *)
-(*   xrutt_bind_clo <3= gupaco2 (xrutt_ EE1 EE2 REv RAns RR) *)
-(*                             (euttge_trans_clo EE1 EE2 RR). *)
-(* Proof. *)
-(*   intros rr. gcofix CIH. intros. destruct PR. *)
-(*   gclo; econstructor; auto_ctrans_eq. *)
-(*   1,2: rewrite unfold_bind; reflexivity. *)
-(*   punfold EQV. unfold xrutt_ in *. *)
-(*   hinduction EQV before CIH; intros; pclearbot; cbn; *)
-(*     repeat (change (ITree.subst ?k ?m) with (ITree.bind m k)). *)
-(*   - gclo. econstructor; auto_ctrans_eq. *)
-(*     1,2: reflexivity. *)
-(*     eauto with paco. *)
-(*   - gstep. econstructor. eauto 7 with paco. *)
-(*   - gstep. econstructor; eauto 7 with paco. *)
-(*     intros. specialize (H2 a b H3). pclearbot. eauto 7 with paco. *)
-(*   - gstep. econstructor; auto. *)
-(*   - gstep. econstructor; auto. *)
-(*   - gclo. econstructor; auto_ctrans_eq; cycle -1; eauto; try reflexivity. *)
-(*     eapply eqit_Tau_l. rewrite unfold_bind. reflexivity. *)
-(*   - gclo. econstructor; auto_ctrans_eq; cycle -1; eauto; try reflexivity. *)
-(*     eapply eqit_Tau_l. rewrite unfold_bind. reflexivity. *)
-(* Qed. *)
-
 End XRuttBind.
 
 (* Based on [RuttFacts.rutt_bind]. *)
