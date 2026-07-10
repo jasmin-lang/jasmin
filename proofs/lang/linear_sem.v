@@ -313,7 +313,7 @@ Proof.
   rewrite i_lsem_body; case: lsem_body => [ ins| e] /=;
     last by rewrite bind_throw; reflexivity.
   rewrite bind_ret_l; case: ins => s' /=; last reflexivity.
-  apply/eqit_Tau_l/hn.
+  apply eqit_Tau_l, hn.
 Qed.
 
 Lemma unfold_lsem cond s :
@@ -411,9 +411,9 @@ Lemma mix_ilsteps_eq cond s : mix_ilsteps cond s ≈ mix_steps istep is_call che
 Proof.
   apply eutt_iter' with eq => // {}s _ <-.
   rewrite /while_body; case: ifP => _.
-  + apply eutt_clo_bind with eq.
+  + apply eutt_bind_eutt with eq.
     + rewrite /mix_ilstep /mix_step.
-      apply eutt_clo_bind with eq.
+      apply eutt_bind_eutt with eq.
       + rewrite /istep /iresult /=; case: step => [s' | e] /=.
         + rewrite translate_ret; reflexivity.
         by rewrite translate_vis; apply eqit_Vis => -[].

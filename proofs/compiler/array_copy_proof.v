@@ -242,7 +242,7 @@ Transparent esem.
     rewrite /= get_var_neq; last by move=> [? _]; subst ty.
     rewrite /= /get_var hx /= truncate_word_u /=.
     by rewrite hset /= write_var_eq_type.
-  move=> /(_ n _ vm1' tx0 hvm1' htx0) [] //; first by lia.
+  move=> /(_ n _ vm1' tx0 hvm1' htx0) [] //. (*first by lia.*)
   + by rewrite Z.sub_diag.
   rewrite Z.sub_diag => vm2 [] hvm2 htx' hfor; exists vm2; split.
   + apply: uincl_onT.

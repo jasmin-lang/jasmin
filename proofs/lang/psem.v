@@ -631,7 +631,11 @@ Section REFL.
 Context (p : prog) (ev: extra_val_t).
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
-Instance uincl_spec : EquivSpec :=
+(** FIXME: am I experiencing some Rocq version or dep issue?
+    Without this, use of [apply wequiv_fun_rec] breaks.
+    Furthermore, we need to explicitly [change] the goal using
+    this instance... *)
+Global Instance uincl_spec : EquivSpec :=
   {| rpreF_ := fun (fn1 fn2 : funname) (fs1 fs2 : fstate) => fn1 = fn2 /\ fs_uincl fs1 fs2
    ; rpostF_ := fun (fn1 fn2 : funname) (fs1 fs2 fr1 fr2: fstate) => fs_uincl fr1 fr2 |}.
 
