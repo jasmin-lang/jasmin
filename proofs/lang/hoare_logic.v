@@ -5,14 +5,11 @@ From Coq Require Import
   Morphisms
   RelationClasses.
 
-From Paco Require Import paco.
-
 From ITree Require Import
   ITree
   ITreeFacts
   Basics.HeterogeneousRelations
   Interp.Recursion
-  Eq.Paco2
   Events.Exception
   Events.FailFacts
   Eq.Rutt

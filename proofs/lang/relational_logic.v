@@ -501,7 +501,7 @@ Lemma xrutt_iresult_left (T1 T2:Type) (x1 : exec T1) (v2 : T2) (R : T1 -> T2 -> 
 Proof.
   rewrite /iresult => h.
   case heq: x1 => [v1 | e] /=.
-  + by apply/xrutt_Ret/h.
+  + apply xrutt_Ret; eauto.
   apply xrutt_CutL.
   by rewrite /errcutoff /is_error /subevent /= /resum /fromErr mid12.
 Qed.
@@ -1023,7 +1023,10 @@ Lemma wequiv_for_uincl P0 P Pi ii1 i1 d lo1 hi1 c1 ii2 i2 lo2 hi2 c2 :
   (forall i : Z, wrequiv P (write_var true i1 (Vint i)) (write_var true i2 (Vint i)) Pi) ->
   wequiv Pi c1 c2 P ->
   wequiv P0 [:: MkI ii1 (Cfor i1 (d, lo1, hi1) c1)] [:: MkI ii2 (Cfor i2 (d, lo2, hi2) c2)] P.
-Proof. by move=> hP0P hbound; apply/wequiv_for/wrequiv_sem_bound. Qed.
+Proof.
+  move=> hP0P hbound.
+  apply wequiv_for; last apply wrequiv_sem_bound; eauto.
+Qed.
 
 Lemma wequiv_for_eq P0 P Pi ii1 i1 d lo1 hi1 c1 ii2 i2 lo2 hi2 c2 :
   (forall s1 s2, P0 s1 s2 -> P s1 s2) ->
@@ -1171,7 +1174,7 @@ Proof.
   apply wkequiv_read with (fun u1 u2 => sem_pre1 p1 fn1 fs1 = ok tt /\ sem_pre2 p2 fn2 fs2 = ok tt).
   + by apply wkequiv_iresult => _ _ [] [-> ->] he; have ?:= hpre _ _ _ _ hP hvs he; exists tt.
   move=> _ _ _; apply wkequiv_read with (Qf fn1 fn2 fs1 fs2).
-  + by move=> _ _ [-> ->]; apply/hCall/hPPf.
+  + move=> _ _ [-> ->]; apply hCall; first apply hPPf; eauto.
   move=> fr1 fr2 hQf.
   apply wkequiv_read with (fun u1 u2 => sem_post1 p1 fn1 fs1.(fvals) fr1 = ok tt /\ sem_post2 p2 fn2 fs2.(fvals) fr2 = ok tt).
   + apply wkequiv_iresult => _ _ [] _ hpost1.
@@ -1333,7 +1336,7 @@ Lemma wequiv_assign_right P Q ii x tg ty e :
   wequiv P [::] [::MkI ii (Cassgn x tg ty e)] Q.
 Proof.
   move=> h; rewrite /wequiv /=.
-  by apply/wkequiv_bind_ret_right/wkequiv_iresult_right.
+  by apply wkequiv_bind_ret_right, wkequiv_iresult_right.
 Qed.
 
 Lemma wequiv_assign_left P Q ii x tg ty e :
@@ -1341,7 +1344,7 @@ Lemma wequiv_assign_left P Q ii x tg ty e :
   wequiv P [::MkI ii (Cassgn x tg ty e)] [::] Q.
 Proof.
   move=> h; rewrite /wequiv /=.
-  by apply/wkequiv_bind_ret_left/wkequiv_iresult_left.
+  by apply wkequiv_bind_ret_left, wkequiv_iresult_left.
 Qed.
 
 Lemma wequiv_assert_left P Q ii a :
@@ -1350,12 +1353,12 @@ Lemma wequiv_assert_left P Q ii a :
   wequiv P [::MkI ii (Cassert a)] [::] Q.
 Proof.
   move=> h; rewrite /wequiv /=.
-  apply/wkequiv_bind_ret_left.
+  apply wkequiv_bind_ret_left.
   move=> s1 s2 hP; rewrite /isem_assert.
   case heq: sem_assert => [ []| e] /=.
   + rewrite bind_ret_l.
     move: heq; rewrite /sem_assert /sem_cond; t_xrbindP => hwa [] // he _ _.
-    by apply/xrutt_Ret/h.
+    by apply xrutt_Ret, h.
   rewrite bind_throw; apply xrutt_CutL => //.
   by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
 Qed.
@@ -2064,7 +2067,7 @@ Notation wiequiv_f rpreF fn1 fn2 rpostF :=
 
 Lemma wequiv_fun_rec ii1 ii2 fn1 fn2 :
   wequiv_f_rec rpreF ii1 ii2 fn1 fn2 rpostF.
-Proof. move=> fs1' fs2' hpre'; exact/xrutt_trigger. Qed.
+Proof. by move=> fs1' fs2' hpre'; apply xrutt_trigger. Qed.
 
 Lemma wequiv_fun_ind' :
   (forall fn1 fn2, wequiv_fun_body_hyp_rec' rpreF fn1 fn2 rpostF) ->
