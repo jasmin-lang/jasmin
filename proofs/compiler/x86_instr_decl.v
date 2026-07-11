@@ -400,6 +400,9 @@ Notation mk_instr str_jas tin tout ain aout msb semi args_kinds nargs safe_cond 
   id_check_dest := refl_equal;
   id_str_jas    := str_jas;
   id_safe       := safe_cond;
+  (* Dummy value, the real one is set in [x86_instr_desc] using
+     [x86_op_is_doit]. *)
+  id_doit       := false;
   id_pp_asm     := pp_asm;
   id_safe_wf    := safe_wf;
   id_semi_errty := semi_errty;
@@ -2139,7 +2142,170 @@ Definition Ox86_SHA256MSG2_instr :=
 
 (* -------------------------------------------------------------------------------------- *)
 
+(* Whether the instruction has data operand independent timing, i.e. belongs
+   to the DOIT (Data Operand Independent Timing) subset of instructions. *)
+Definition x86_op_is_doit (o : x86_op) : bool :=
+  match o with
+  | ADC _ => true
+  | ADCX _ => true
+  | ADD _ => true
+  | ADOX _ => true
+  | AESDEC => true
+  | AESDECLAST => true
+  | AESENC => true
+  | AESENCLAST => true
+  | AESIMC => true
+  | AESKEYGENASSIST => true
+  | AND _ => true
+  | ANDN _ => true
+  | BLENDV VE8 _ => true
+  | BLENDV _ _ => false (* Not DOIT *)
+  | BSR _ => false (* Not DOIT *)
+  | BSWAP _ => true
+  | BT _ => true
+  | BTR _ => true
+  | BTS _ => true
+  | CLC => false (* Not DOIT *)
+  | CLFLUSH => false (* Not DOIT *)
+  | CMOVcc _ => true
+  | CMP _ => true
+  | CQO U64 => true
+  | CQO _ => false (* Not DOIT *)
+  | DEC _ => true
+  | DIV _ => false (* Not DOIT *)
+  | IDIV _ => false (* Not DOIT *)
+  | IMUL _ => true
+  | IMULr _ => true
+  | IMULri _ => true
+  | INC _ => true
+  | LEA _ => true
+  | LFENCE => false (* Not DOIT *)
+  | LZCNT _ => false (* Not DOIT *)
+  | MFENCE => false (* Not DOIT *)
+  | MOV _ => true
+  | MOVD _ => true
+  | MOVEMASK VE8 _ => true
+  | MOVEMASK _ _ => false (* Not DOIT *)
+  | MOVSX _ _ => true
+  | MOVV _ => true
+  | MOVX _ => true
+  | PADD _ _ => true
+  | POR => true
+  | MOVZX _ _ => true
+  | MUL _ => true
+  | MULX_lo_hi _ => true
+  | NEG _ => true
+  | NOT _ => true
+  | OR _ => true
+  | PCLMULQDQ => true
+  | PDEP _ => false (* Not DOIT *)
+  | PEXT _ => false (* Not DOIT *)
+  | POPCNT _ => false (* Not DOIT *)
+  | PREFETCHT0 => false (* Not DOIT *)
+  | PREFETCHT1 => false (* Not DOIT *)
+  | PREFETCHT2 => false (* Not DOIT *)
+  | PREFETCHNTA => false (* Not DOIT *)
+  | RCL _ => false (* Not DOIT *)
+  | RCR _ => false (* Not DOIT *)
+  | RDTSC _ => false (* Not DOIT *)
+  | RDTSCP _ => false (* Not DOIT *)
+  | ROL _ => true
+  | RORX _ => true
+  | ROR _ => true
+  | SAL _ => false (* Not DOIT *)
+  | SAR _ => true
+  | SARX _ => false (* Not DOIT *)
+  | SBB _ => true
+  | SETcc => true
+  | SFENCE => false (* Not DOIT *)
+  | SHA256MSG1 => true
+  | SHA256MSG2 => true
+  | SHA256RNDS2 => true
+  | SHL _ => true
+  | SHLD _ => true
+  | SHLX _ => true
+  | SHR _ => true
+  | SHRD _ => true
+  | SHRX _ => true
+  | STC => false (* Not DOIT *)
+  | SUB _ => true
+  | TEST _ => true
+  | TZCNT _ => false (* Not DOIT *)
+  | VAESDEC _ => true
+  | VAESDECLAST _ => true
+  | VAESENC _ => true
+  | VAESENCLAST _ => true
+  | VAESIMC => true
+  | VAESKEYGENASSIST => true
+  | VBROADCASTI128 => true
+  | VEXTRACTI128 => true
+  | VINSERTI128 => true
+  | VMOV _ => true
+  | VMOVDQA _ => true
+  | VMOVDQU _ => true
+  | VMOVHPD => false (* Not DOIT *)
+  | VMOVLPD => false (* Not DOIT *)
+  | VMOVSHDUP _ => true
+  | VMOVSLDUP _ => true
+  | VPABS _ _ => true
+  | VPACKSS _ _ => true
+  | VPACKUS _ _ => true
+  | VPADD _ _ => true
+  | VPALIGNR _ => true
+  | VPAND _ => true
+  | VPANDN _ => true
+  | VPAVG _ _ => true
+  | VPBLEND _ _ => true
+  | VPBROADCAST _ _ => true
+  | VPCLMULQDQ _ => true
+  | VPCMPEQ _ _ => true
+  | VPCMPGT _ _ => true
+  | VPERM2I128 => true
+  | VPERMD => true
+  | VPERMQ => true
+  | VPEXTR _ => true
+  | VPINSR _ => true
+  | VPMADDUBSW _ => true
+  | VPMADDWD _ => true
+  | VPMAXS VE8 _ | VPMAXS VE16 _ => true
+  | VPMAXS _ _ => false (* Not DOIT *)
+  | VPMAXU _ _ => true
+  | VPMINS VE8 _ | VPMINS VE16 _ => true
+  | VPMINS _ _ => false (* Not DOIT *)
+  | VPMINU _ _ => true
+  | VPMOVSX _ _ _ _ => true
+  | VPMOVZX _ _ _ _ => true
+  | VPMUL _ => true
+  | VPMULH _ => true
+  | VPMULHRS _ => true
+  | VPMULHU _ => true
+  | VPMULL _ _ => true
+  | VPMULU _ => true
+  | VPOR _ => true
+  | VPSHUFB _ => true
+  | VPSHUFD _ => true
+  | VPSHUFHW _ => true
+  | VPSHUFLW _ => true
+  | VPSIGN _ _ => true
+  | VPSLL _ _ => true
+  | VPSLLDQ _ => true
+  | VPSLLV _ _ => true
+  | VPSRA _ _ => true
+  | VPSRL _ _ => true
+  | VPSRLDQ _ => true
+  | VPSRLV _ _ => true
+  | VPSUB _ _ => true
+  | VPTEST _ => true
+  | VPUNPCKH _ _ => true
+  | VPUNPCKL _ _ => true
+  | VPXOR _ => true
+  | VSHUFPS _ => false (* Not DOIT *)
+  | XCHG _ => false (* Not DOIT *)
+  | XOR _ => true
+  end.
+
 Definition x86_instr_desc o : instr_desc_t :=
+  set_id_doit
   match o with
   | MOV sz             => Ox86_MOV_instr.1 sz
   | MOVSX sz sz'       => Ox86_MOVSX_instr.1 sz sz'
@@ -2292,7 +2458,8 @@ Definition x86_instr_desc o : instr_desc_t :=
   | SHA256RNDS2        => Ox86_SHA256RNDS2_instr.1
   | SHA256MSG1         => Ox86_SHA256MSG1_instr.1
   | SHA256MSG2         => Ox86_SHA256MSG2_instr.1
-  end.
+  end
+  (x86_op_is_doit o).
 
 (* -------------------------------------------------------------------- *)
 
