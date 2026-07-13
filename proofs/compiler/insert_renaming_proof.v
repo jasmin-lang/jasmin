@@ -74,7 +74,7 @@ Section WITH_PARAMS.
     Proof. by rewrite /insert_renaming_fd; case: ifP. Qed.
 
     Lemma insert_renaming_fd_params fd :
-      f_params (insert_renaming_fd insert_renaming_p fd) = f_params fd.
+      eq_var_is (f_params fd) (f_params (insert_renaming_fd insert_renaming_p fd)).
     Proof. by rewrite /insert_renaming_fd; case: ifP. Qed.
 
     Lemma insert_renaming_fd_res fd :
@@ -167,7 +167,7 @@ Section WITH_PARAMS.
       have htyin := insert_renaming_fd_tyin insert_renaming_p fd.
       have hextra := insert_renaming_fd_extra insert_renaming_p fd.
       have hparams := insert_renaming_fd_params insert_renaming_p fd.
-      have := [elaborate fs_uincl_initialize (p' := p') (sym_eq htyin) (sym_eq hextra) (sym_eq hparams) erefl hfsu hinit].
+      have := [elaborate fs_uincl_initialize (p' := p') (sym_eq htyin) (sym_eq hextra) hparams erefl hfsu hinit].
       case => t -> hu.
       eexists; first reflexivity.
       exists (st_uincl_at_init fd), (st_uincl tt).

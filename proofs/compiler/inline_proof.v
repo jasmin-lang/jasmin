@@ -272,7 +272,7 @@ Proof using uniq_funname inline_fd_ok.
   + move=> hfn ->; exists fd1 => //.
     move=> s1 hinit.
     have [s1' hinit' hus1] :=
-      [elaborate fs_uincl_initialize (p:=p1) (p':=p2) (fs:= fs1) (fs':= fs2) erefl erefl erefl erefl hu hinit].
+      [elaborate fs_uincl_initialize (p:=p1) (p':=p2) (fs:= fs1) (fs':= fs2) erefl erefl eq_var_is_refl erefl hu hinit].
     exists s1' => //.
     exists (st_uincl ev), (st_uincl ev); split => //; last first.
     + by apply fs_uincl_finalize.
@@ -295,7 +295,7 @@ Proof using uniq_funname inline_fd_ok.
   move=> hc' -> /= s1 hinit.
   have [s1' hinit' hus1] :=
       [elaborate fs_uincl_initialize (p:=p1) (p':=p2) (fd:=fd) (fd':= with_body fd c')
-                 (fs:= fs1) (fs':= fs2) erefl erefl erefl erefl hu hinit].
+                 (fs:= fs1) (fs':= fs2) erefl erefl eq_var_is_refl erefl hu hinit].
   exists s1' => //.
   exists (st_uincl_on X1), (st_uincl_on X2); split => //;
     first (by case hus1 => ?? h; split); last first.

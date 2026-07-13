@@ -644,33 +644,55 @@ Lemma eq_initialize p' fd fd' fs s:
   initialize_funcall p' ev fd' fs = ok s.
 Proof. by rewrite /initialize_funcall => <- <- <- <-. Qed.
 
+Lemma get_eq_var_is wdb xs ys vm :
+  eq_var_is xs ys →
+  get_var_is wdb vm xs = get_var_is wdb vm ys.
+Proof.
+  elim: xs ys; first by case.
+  by move => x xs ih [] // y ys /andP[] /eqP /= -> /ih ->.
+Qed.
+
+Lemma write_vars_eq_var_is wdb xs ys vs s :
+  eq_var_is xs ys →
+  write_vars wdb xs vs s = write_vars wdb ys vs s.
+Proof.
+  elim: xs ys vs s; first by case.
+  move => x xs ih [] // y ys [] // v vs s /andP[] /eqP h /ih{}ih.
+  rewrite /= /write_var h.
+  case: set_var => ?; last done.
+  exact: ih.
+Qed.
+
 (* TODO: Can we generalize this to different semantic ? *)
 Lemma fs_uincl_initialize p' fd fd' fs fs' s:
   f_tyin fd = f_tyin fd' ->
   f_extra fd = f_extra fd' ->
-  f_params fd = f_params fd' ->
+  eq_var_is (f_params fd) (f_params fd') ->
   p_extra p = p_extra p' ->
   fs_uincl fs fs' ->
   initialize_funcall p ev fd fs = ok s ->
   exists2 s', initialize_funcall p' ev fd' fs' = ok s' & st_uincl tt s s'.
 Proof.
-  move=> hty hex hpa hpex hfs; rewrite /initialize_funcall -hty -hex -hpa -hpex /estate0 /=.
+  move=> hty hex hpa hpex hfs; rewrite /initialize_funcall -hty -hex -hpex /estate0 /=.
   case: hfs => <- <- hu.
   t_xrbindP => vs htr s0 -> hw.
   have [vs' -> {}hu /=] := mapM2_dc_truncate_val htr hu.
   have [vm] := [elaborate write_vars_uincl (vm_uincl_refl (evm s0)) hu hw].
-  by rewrite with_vm_same => -> ? /=; eexists; eauto.
+  rewrite with_vm_same (write_vars_eq_var_is _ _ _ hpa) => -> ? /=.
+  eexists; first reflexivity.
+  split; eauto.
 Qed.
 
 (* TODO: Can we generalize this to different semantic ? *)
 Lemma fs_uincl_finalize fd fd' :
   f_tyout fd = f_tyout fd' ->
   f_extra fd = f_extra fd' ->
-  f_res fd = f_res fd' ->
+  eq_var_is (f_res fd) (f_res fd') ->
   wrequiv (st_uincl tt) (finalize_funcall fd) (finalize_funcall fd') fs_uincl.
 Proof.
-  rewrite /finalize_funcall => <- <- <- /= s t fs [<- <- hvm].
+  rewrite /finalize_funcall => <- <- hres /= s t fs [<- <- hvm].
   t_xrbindP => vs hget vs' htr <-.
+  rewrite -(get_eq_var_is _ _ hres).
   have [vs1 -> hu /=] := get_var_is_uincl hvm hget.
   have [vs1' -> {}hu /=] := mapM2_dc_truncate_val htr hu.
   by eexists; eauto.
@@ -696,7 +718,7 @@ Lemma it_sem_uincl_f fn :
   wiequiv_f p p ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
 apply wequiv_fun_ind => {}fn _ fs1 fs2 [<-] hu fd ->.
-exists fd => // s /(fs_uincl_initialize erefl erefl erefl erefl hu) [t] -> {}hu.
+exists fd => // s /(fs_uincl_initialize erefl erefl eq_var_is_refl erefl hu) [t] -> {}hu.
 exists t => //; exists (st_uincl tt), (st_uincl tt); split=> //.
 + apply it_sem_uincl_aux => // ii fn' fs1' fs2' h; exact/wequiv_fun_rec.
 exact/fs_uincl_finalize.

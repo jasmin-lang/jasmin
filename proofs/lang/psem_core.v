@@ -1513,3 +1513,9 @@ Ltac t_get_var :=
     || (rewrite get_var_neq; last by [|apply/nesym])
   ).
 
+Lemma eq_var_is_refl : ssrbool.reflexive eq_var_is.
+Proof. exact: all2_refl. Qed.
+
+Arguments eq_var_is_refl {_}.
+
+Hint Resolve eq_var_is_refl : core.

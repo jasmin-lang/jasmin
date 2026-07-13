@@ -160,6 +160,10 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
 
 Definition sem_pexprs s := mapM (sem_pexpr s).
 
+(* Equality of variable lists up to var_infos *)
+Definition eq_var_is (x y: seq var_i) : bool :=
+  all2 (λ x y : var_i, x == y :> var) x y.
+
 Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
   Let vm := set_var wdb s.(evm) x v in
   ok (with_vm s vm).

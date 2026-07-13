@@ -368,7 +368,7 @@ Proof using Hp.
       [/\ f_tyin fd1 = f_tyin fd2
         , f_tyout fd1 = f_tyout fd2
         , f_extra fd1 = f_extra fd2
-        , f_params fd1 = f_params fd2
+        , eq_var_is (f_params fd1) (f_params fd2)
         , not_tmp fi X
         , array_copy_c X (array_copy_i fresh_var_ident fi) (f_body fd1) = ok (f_body fd2)
         & f_res fd1 = f_res fd2

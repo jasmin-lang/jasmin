@@ -1094,7 +1094,7 @@ Local Opaque opp_word.
       [/\ f_tyin fd = f_tyin (const_prop_fun gd fd)
         , f_tyout fd = f_tyout (const_prop_fun gd fd)
         , f_extra fd = f_extra (const_prop_fun gd fd)
-        , f_params fd = f_params (const_prop_fun gd fd)
+        , eq_var_is (f_params fd) (f_params (const_prop_fun gd fd))
         & f_res fd = f_res (const_prop_fun gd fd)
        ] by done.
   have : exists2 t1, initialize_funcall p' ev (const_prop_fun gd fd) ft = ok t1 &
