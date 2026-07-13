@@ -51,7 +51,7 @@ Definition get_global gd g : exec value :=
     let v := gv2val ga in
     if type_of_val v == eval_atype (vtype g) then ok v
     else type_error
-  else type_error.
+  else Error ErrSemUndef.
 
 Section WSW.
 Context {wsw:WithSubWord}.

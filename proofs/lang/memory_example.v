@@ -168,9 +168,12 @@ Module MemoryI : MemoryT.
   Lemma get_valid8 m p w : get m p = ok w -> is_alloc m p.
   Proof. by rewrite /get; t_xrbindP => /andP []. Qed.
 
+  Lemma get_noerrty m p e : get m p = Error e -> e <> ErrType.
+  Proof. rewrite /get /assert. case: ifP => _ //= h. congruence. Qed.
+
   #[ global ]
   Instance CM : coreMem pointer mem :=
-    CoreMem setP is_allocP get_valid8 is_alloc_set.
+    CoreMem setP is_allocP get_valid8 is_alloc_set get_noerrty.
 
   Lemma is_align_wunsigned_add ptr ws i :
     is_align ptr ws →

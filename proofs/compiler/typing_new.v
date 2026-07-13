@@ -211,7 +211,8 @@ Definition check_global_decl (gd : glob_decl) : cexec unit :=
   let ty := g.(vtype) in 
   match d with 
     | Gword ws _ => let c := match ty with
-                              | aword ws' => negb (ws <= ws')%CMP
+                              | aword ws' => negb (ws == ws')%CMP
+                              (* | aword ws' => negb (ws <= ws')%CMP *)
                               | _ => true 
                             end
                     in if c then Error global_mismatch else ok tt
