@@ -145,6 +145,7 @@ Class coreMem (core_mem: Type) := CoreMem {
   valid8P : forall m p w, reflect (exists m', set m p w = ok m') (valid8 m p);
   get_valid8 : forall m p w, get m p = ok w -> valid8 m p;
   valid8_set : forall m p w m' p', set m p w = ok m' -> valid8 m' p' = valid8 m p';
+  get_noerrty: forall m p e, get m p = Error e -> e <> ErrType;
 }.
 
 End POINTER.

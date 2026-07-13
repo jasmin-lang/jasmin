@@ -110,6 +110,12 @@ Module WArray.
     Lemma valid8_set m i w m' i' : set8 m i w = ok m' -> in_bound m' i' = in_bound m i'.
     Proof. by rewrite /set8; t_xrbindP => _ <-. Qed.
 
+    Lemma get_noerrty m p e : get8 m p = Error e -> e <> ErrType.
+    Proof. rewrite /get8 /assert. repeat case: ifP => _ //=; congruence. Qed.
+
+    Lemma get_noerrty m p e : get8 m p = Error e -> e <> ErrType.
+    Proof. rewrite /get8 /assert. repeat case: ifP => _ //=; congruence. Qed.
+
     Lemma set8P m i w i' m' :
       set8 m i w = ok m' ->
       get8 m' i' = if i == i' then ok w else get8 m i'.
@@ -120,7 +126,7 @@ Module WArray.
     Qed.
 
     Global Instance array_CM : coreMem pointer (array s) :=
-      CoreMem set8P valid8P get_valid8 valid8_set.
+      CoreMem set8P valid8P get_valid8 valid8_set get_noerrty.
 
     Definition in_range (i:pointer) (ws:wsize) :=
       ((0 <=? i) && (i + wsize_size ws <=? s))%Z.
