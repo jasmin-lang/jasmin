@@ -617,7 +617,7 @@ Section PROOF.
         [/\ f_tyin fd1 = f_tyin fd2
           , f_tyout fd1 = f_tyout fd2
           , f_extra fd1 = f_extra fd2
-          , f_params fd1 = f_params fd2
+          , eq_var_is (f_params fd1) (f_params fd2)
           , f_res fd1 = f_res fd2
           & exists2 dc, pi_c pi_i piempty (f_body fd1) = ok dc & f_body fd2 = dc.2
          ].
@@ -628,7 +628,7 @@ Section PROOF.
     exists t1 => //; exists (st_pi piempty), (st_pi dc_.1); split => //; last first.
     + apply wrequiv_weaken with (st_uincl tt) fs_uincl => //.
       + by move=> > [].
-      by apply fs_uincl_finalize.
+      by apply: fs_uincl_finalize => //; rewrite hres.
     rewrite hbody => {hbody hfun hin hout hex hpar hres hinit hst1 s1 t1 hfsu fs ft fd2 fn}.
     move: (f_body fd1) piempty dc_ hc => {fd1}.
     apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //.

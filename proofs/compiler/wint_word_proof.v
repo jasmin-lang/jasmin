@@ -246,7 +246,7 @@ Proof.
   + by rewrite get_map_prog hget.
   move=> s hinit.
   have [t -> hu] :=
-    [elaborate fs_uincl_initialize (p':=p') (fd:=fd) (fd':=wi2w_fun fd) erefl erefl erefl erefl hfsu hinit].
+    [elaborate fs_uincl_initialize (p':=p') (fd:=fd) (fd':=wi2w_fun fd) erefl erefl eq_var_is_refl erefl hfsu hinit].
   exists t => //; exists (st_uincl tt), (st_uincl tt); split => //; last by apply fs_uincl_finalize.
   rewrite /=; move: (f_body fd).
   clear fn fs ft hfsu fd hget s hinit t hu.

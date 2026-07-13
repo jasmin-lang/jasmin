@@ -778,7 +778,7 @@ Module RGP. Section PROOFS.
     have fsi := fs_uincl_initialize (fd := fd) (fd' := fd').
     exists fd' => //.
     move: hfd'; rewrite /remove_glob_fundef; t_xrbindP => _tt hparams res1 hres1 [m' c'] hrm ?;subst fd' => /=.
-    move=> s1 /fsi /= /(_ _ _ erefl erefl erefl erefl hfs)[] s1' hinit hs1.
+    move=> s1 /fsi /= /(_ _ _ erefl erefl eq_var_is_refl erefl hfs)[] s1' hinit hs1.
     exists s1'; first exact: hinit.
     exists (valid (Mvar.empty var)), (valid m'); split => // {hfs fsi hget hinit}; cycle -1.
     + move=> {hs1} s1 s2 {} fs [/= hscse hmem hm _ _]; rewrite /finalize_funcall /=; t_xrbindP.

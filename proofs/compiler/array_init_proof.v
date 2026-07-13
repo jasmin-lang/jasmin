@@ -54,7 +54,7 @@ Proof.
  move=> s hinit.
  have [t -> hu] :=
    [elaborate fs_uincl_initialize (p:=p) (p':=p') (fd:=fd) (fd':=remove_init_fd is_reg_array fd)
-           erefl erefl erefl erefl hfsu hinit].
+           erefl erefl eq_var_is_refl erefl hfsu hinit].
  exists t=> //; exists (st_uincl tt), (st_uincl tt); split => //; last by apply fs_uincl_finalize.
  clear fn fs ft hfsu hget s hinit t hu.
  rewrite /remove_init_fd /=.

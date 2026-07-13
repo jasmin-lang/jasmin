@@ -289,7 +289,7 @@ Section PROOF.
     rewrite /dead_code_fd /=; t_xrbindP; set O := read_es _; move=> [I c'] hc ?; subst fd'.
     set fd' := {| f_info := _ |}.
     move=> s1 hinit.
-    have [s1' hinit' hu1] := fs_uincl_initialize (fd':= fd') erefl erefl erefl eq_p_extra hfsu hinit.
+    have [s1' hinit' hu1] := fs_uincl_initialize (fd':= fd') erefl erefl eq_var_is_refl eq_p_extra hfsu hinit.
     exists s1' => //.
     exists (st_uincl_on I), (st_uincl_on O).
     split => //;first (by case: hu1 => *; split); last first.
