@@ -1,3 +1,111 @@
+# Jasmin 2026.03.2 — 2026-07-16
+
+## New features
+
+- More instructions are considered “DOIT” on `x86_64`: byte swap (`BSWAP`),
+  sign-extend (`CQO`), rotations (`ROL`, `RORX`, `ROR`), shifts (`SHLD`,
+  `SHRD`)
+  ([PR 1458](https://github.com/jasmin-lang/jasmin/pull/1458);
+  fixes [#1422](https://github.com/jasmin-lang/jasmin/issues/1422)).
+
+- Add `overlay` annotation allowing to force the compiler to share different stack arrays, possibly of different size.
+  ```
+  #[overlay = t] stack u32[2] t1;
+  #[overlay = t] stack u64[3] t2;
+  #[overlay = u] stack u16[5] u1;
+  #[overlay = u] stack u16[3] u2;
+  ```
+  In this case, `t1` and `t2` (resp. `u1` and `u2`) will be allocated to the same stack region
+  ([PR 1475](https://github.com/jasmin-lang/jasmin/pull/1475)).
+
+- The compiler no longer assumes non-trivial alignment of array arguments to
+  export functions; alignment requirements can be expressed through the
+  `required_alignment` annotation
+  ([PR 1482](https://github.com/jasmin-lang/jasmin/pull/1482)).
+
+- Linter now warns about inline variables whose value depends on non-inline ones
+  ([PR 1487](https://github.com/jasmin-lang/jasmin/pull/1487)).
+
+- Annotations can be added to type definitions.
+  These annotations are automatically inherited by variables when they
+  are declared ([PR 1496](https://github.com/jasmin-lang/jasmin/pull/1496)).
+
+- Add instructions `SXTB`, and `SXTH` to arm-m4;
+  ([PR 1501](https://github.com/jasmin-lang/jasmin/pull/1501);
+  fixes [#805](https://github.com/jasmin-lang/jasmin/issues/805)).
+
+- Experimental heuristics for computing how many callee-saved registers are
+  needed by each export function can be selected through the `-callee-saved`
+  command-line option
+  ([PR 1505](https://github.com/jasmin-lang/jasmin/pull/1505)).
+
+- Register allocation chooses volatile registers before callee-saved ones
+  ([PR 1507](https://github.com/jasmin-lang/jasmin/pull/1507)).
+
+- Register allocation takes into account `inplace` annotations by merging
+  the destination with the first argument
+  ([PR 1509](https://github.com/jasmin-lang/jasmin/pull/1509)).
+
+## Bug fixes
+
+- Emit neg instruction instead of not instruction when the `#NEG` intrinsic is
+  used on RISC-V
+  ([PR 1443](https://github.com/jasmin-lang/jasmin/pull/1443);
+  fixes [#1442](https://github.com/jasmin-lang/jasmin/issues/1442)).
+
+- Do not crash on functions with a mix of arrays and booleans as arguments
+  ([PR 1449](https://github.com/jasmin-lang/jasmin/pull/1449)).
+
+- The constant-time checker for DOIT runs after the lowering pass; previous
+  behavior can be restored using the `--after=propagate` command line flag
+  ([PR 1450](https://github.com/jasmin-lang/jasmin/pull/1450)).
+
+- The `randombytes` primitive accepts a hole (`_`) as destination
+  ([PR 1464](https://github.com/jasmin-lang/jasmin/pull/1464);
+  fixes [#1462](https://github.com/jasmin-lang/jasmin/issues/1462)).
+
+- Various fixes to the printer
+  ([PR 1474](https://github.com/jasmin-lang/jasmin/pull/1474)).
+
+- The BMI2 instructions that “shift without affecting flags”
+  (`SARX`/`SHLX`/`SHRX`) have no requirement about memory alignment
+  ([PR 1485](https://github.com/jasmin-lang/jasmin/pull/1485)).
+
+- Pre-typing reject less programs
+  ([PR 1486](https://github.com/jasmin-lang/jasmin/pull/1486);
+  fixes [#1479](https://github.com/jasmin-lang/jasmin/issues/1479)).
+
+- The safety checker no longer crashes on empty for loops, where the
+  start bound is greater than the end bound
+  ([PR 1498](https://github.com/jasmin-lang/jasmin/pull/1498)).
+
+- The safety checker no longer crashes on string literals
+  ([PR 1500](https://github.com/jasmin-lang/jasmin/pull/1500),
+  fixes [#1497](https://github.com/jasmin-lang/jasmin/issues/1497)).
+
+- The semantics of `BSR_16` on `x86_64` leaves the upper 48 bits unchanged
+  instead of clearing them
+  ([PR 1518](https://github.com/jasmin-lang/jasmin/pull/1518)).
+
+## Other changes
+
+- The safety checker now handles `#copy` applied to array slices
+  ([PR 1477](https://github.com/jasmin-lang/jasmin/pull/1477)).
+
+- The `#copy` operator uses “unaligned” accesses, i.e., no longer assumes that
+  its source and destination have any known alignment
+  ([PR 1478](https://github.com/jasmin-lang/jasmin/pull/1478)).
+
+- Array accesses are by default considered as “unaligned”, i.e., without any
+  requirement on the alignment of the underlying pointer; this usually relaxes
+  the assumptions made about arguments to export functions
+  ([PR 1485](https://github.com/jasmin-lang/jasmin/pull/1485)).
+
+## Documentation
+
+- Document alignment assumptions (`#aligned`, `#unaligned`)
+  ([PR 1483](https://github.com/jasmin-lang/jasmin/pull/1483)).
+
 # Jasmin 2026.03.1 — 2026-04-14
 
 ## New features
