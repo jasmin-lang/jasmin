@@ -1,5 +1,6 @@
 (* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssrnat.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
+From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith Uint63.
 Require Import global values sopn pseudo_operator expr psem compiler_util.
 
@@ -70,7 +71,7 @@ Definition pp_atype (t : atype) : pp_error :=
   | aword ws => pp_s ("u" ++ string_of_wsize ws)%string
   | aarr ws len =>
       pp_nobox [:: pp_s ("u" ++ string_of_wsize ws)%string;
-                   pp_s "["; pp_z (Zpos len); pp_s "]"]
+                   pp_s "["; pp_z len; pp_s "]"]
   end.
 
 Definition check_type (te : atype (*actual type*)) (ty : atype (*expected type*)) (*expected type <= actual type*): cexec unit :=
@@ -101,7 +102,7 @@ Definition ty_get_set (ty_expr : pexpr -> cexec atype) (ws : wsize) (x : gvar) (
   Let _ := check_int te in 
   ok (aword ws).
 
-Definition ty_get_set_sub (ty_expr : pexpr -> cexec atype) (ws : wsize) (len : positive) (x : gvar) (e' : pexpr) : cexec atype := 
+Definition ty_get_set_sub (ty_expr : pexpr -> cexec atype) (ws : wsize) (len : Z) (x : gvar) (e' : pexpr) : cexec atype := 
   let tx := ty_gvar x in
   Let te := ty_expr e' in
   Let _ := check_array tx in
@@ -211,13 +212,13 @@ Definition check_global_decl (gd : glob_decl) : cexec unit :=
   let ty := g.(vtype) in 
   match d with 
     | Gword ws _ => let c := match ty with
-                              | aword ws' => negb (ws == ws')%CMP
+                              | aword ws' => ws != ws'
                               (* | aword ws' => negb (ws <= ws')%CMP *)
                               | _ => true 
                             end
                     in if c then Error global_mismatch else ok tt
     | Garr len _ => let c := match ty with
-                              | aarr ws len' => negb (Z.eqb (Zpos len) (arr_size ws len'))
+                              | aarr ws len' => len != arr_size ws len'
                               | _ => true
                             end
                     in if c then Error global_mismatch else ok tt
