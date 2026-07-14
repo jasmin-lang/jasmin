@@ -712,7 +712,10 @@ Section REL.
 
   #[export] Instance eq_ex_m :
     Proper (Sv.Equal ==> @eq Vm.t ==> @eq Vm.t ==> iff) eq_ex.
-  Proof. by move=> s1 s2 hS; apply vm_rel_m => // x; rewrite hS. Qed.
+  Proof.
+    move=> s1 s2 hS; apply vm_rel_m => // x.
+    by split => hnx hx; apply/hnx/hS.
+  Qed.
 
   #[export] Instance uincl_on_impl :
     Proper (Basics.flip Sv.Subset ==> @eq Vm.t ==> @eq Vm.t ==> Basics.impl) uincl_on.
@@ -728,7 +731,10 @@ Section REL.
 
   #[export] Instance uincl_ex_m :
     Proper (Sv.Equal ==> @eq Vm.t ==> @eq Vm.t ==> iff) uincl_ex.
-  Proof. by move=> s1 s2 hS; apply vm_rel_m => // x; rewrite hS. Qed.
+  Proof.
+    move=> s1 s2 hS; apply vm_rel_m => // x.
+    by split => hnx hx; apply/hnx/hS.
+  Qed.
 
   Lemma vm_eq_vm_rel vm1 vm2 : vm_eq vm1 vm2 <-> vm_rel (@eq value) (fun _ => True) vm1 vm2.
   Proof. by split => [h x _ | h x]; apply h. Qed.
