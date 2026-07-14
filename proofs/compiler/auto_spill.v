@@ -1,5 +1,5 @@
 Require Import var expr.
-Require Import compiler_util.
+Require Import psem_defs compiler_util.
 
 Import Utf8 ssreflect ssrbool eqtype.
 
@@ -122,12 +122,17 @@ Section WITH_PARAMS.
         ok {| slots := Mvar.set sm.(slots) m r; spillable := im |}
         ) {| slots := Mvar.empty _; spillable := Sv.empty |} twins.
 
+  Definition check_eq_metadata (fd fd': ufundef) : bool :=
+    [&& f_tyin fd == f_tyin fd', f_extra fd == f_extra fd' & eq_var_is (f_params fd) (f_params fd') ].
+
   Definition auto_spill_prog (p: _uprog) : cexec _uprog :=
     if autospill_fd is Some transformation then
       let checked fn fd :=
         let: (fd', twins) := transformation fn fd in
         Let spillmap := build_spillmap twins in
-        check_cmd spillmap (check_instr spillmap) fd.(f_body) fd'.(f_body) Sv.empty >> ok fd'
+        Let _ := assert (check_eq_metadata fd fd') (E.gen_error None (pp_s "modified metadata")) in
+        Let exn := check_write spillmap (entry_info_of_fun_info fd.(f_info)) (sv_of_list v_var fd.(f_params)) Sv.empty in
+        check_cmd spillmap (check_instr spillmap) fd.(f_body) fd'.(f_body) exn >> ok fd'
       in
       Let fds := map_cfprog_name checked p.(p_funcs) in
       ok {|

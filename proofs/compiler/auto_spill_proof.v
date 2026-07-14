@@ -8,6 +8,14 @@ Import relational_logic.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
+Lemma sv_of_list_eq_var_is xs ys :
+  eq_var_is xs ys →
+  Sv.Equal (sv_of_list v_var xs) (sv_of_list v_var ys).
+Proof using.
+  move/eqP => h v; split => /sv_of_listP; [ rewrite h | rewrite -h ].
+  all: by apply/sv_of_listP.
+Qed.
+
 Section WITH_PARAMS.
 
 Existing Instance sCP_unit.
@@ -25,8 +33,23 @@ Context
   (auto_spill_ok: auto_spill_prog autospill_fd p = ok p')
 .
 
+Lemma initialize_funcall_undef fd s s' x :
+  initialize_funcall p tt fd s = ok s' →
+  ¬ Sv.In x (sv_of_list v_var (f_params fd)) →
+  s'.(evm).[x] = undef_addr (eval_atype (vtype x)).
+Proof using.
+  rewrite /initialize_funcall; t_xrbindP => vs ok_vs _ /ok_inj <- ok_s' x_not_param.
+  have hx : all (λ k, v_var k != x) (f_params fd).
+  - move/sv_of_listP: x_not_param; clear.
+    elim: (f_params fd) => // -[] /= y _ ys ih.
+    by rewrite notin_cons neq_sym => /andP[] -> /ih.
+  have := write_vars_get_varP_neq false hx ok_s'.
+  rewrite /get_var => /ok_inj ->.
+  exact: Vm.initP.
+Qed.
+
 Lemma eq_globs : p_globs p' = p_globs p.
-Proof.
+Proof using autospill_fd auto_spill_ok LC.
   move: auto_spill_ok; rewrite /auto_spill_prog.
   case: autospill_fd; last by move/ok_inj => <-.
   by move => transformation; t_xrbindP => fds ok_fds <-.
@@ -38,7 +61,7 @@ Definition valid_spillmap (s: spillmap) : Prop :=
 Lemma build_spillmapP twins s :
   build_spillmap twins = ok s →
   valid_spillmap s.
-Proof.
+Proof using wsw syscall_state spp ep dc.
   rewrite /build_spillmap.
   have : valid_spillmap {| slots := Mvar.empty var; spillable := Sv.empty |}.
   - move => x r /=.
@@ -53,7 +76,7 @@ Proof.
   move => a_neq_b /rec; clear; SvD.fsetdec.
 Qed.
 
-Section IT.
+Section SPILLMAP.
 
   Context (spillmap: spillmap) (ok_spillmap: valid_spillmap spillmap).
 
@@ -85,7 +108,7 @@ Section IT.
     |}.
 
   Lemma checkerP : Checker_uincl p p' checker.
-  Proof.
+  Proof using ok_spillmap autospill_fd auto_spill_ok LC.
     split.
     - move => wdb _ exn es es' exn' /wdb_ok_eq <- [] /eq_exprsP ok_es ?; subst exn'.
       move => s [] _ _ vm' vs [] /= <- <- [] ok_vm ok_s ok_vs.
@@ -115,6 +138,56 @@ Section IT.
    by rewrite xs_xs' hxr => /(_ k).
   Qed.
 
-End IT.
+  Lemma check_write_exn ii written exn exn' x r :
+    check_write spillmap ii written exn = ok exn' →
+    Mvar.get (slots spillmap) x = Some r →
+    ¬ Sv.In r exn' →
+    ¬ Sv.In x written ∧ ¬ Sv.In r written.
+  Proof using ok_spillmap.
+    clear -ok_spillmap.
+    rewrite /check_write; t_xrbindP => /SvD.F.for_all_iff hwritten <-{exn'} hxr hr; split.
+    - by move/hwritten; rewrite hxr.
+    have := ok_spillmap hxr.
+    SvD.fsetdec.
+  Qed.
+
+End SPILLMAP.
+
+Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+
+Theorem auto_spill_progP f :
+  wiequiv_f p p' tt tt (rpreF (eS := uincl_spec)) f f (rpostF (eS := uincl_spec)).
+Proof.
+  apply: wequiv_fun_ind => fn _ fs ft [] <- hfsu fd1 hget.
+  move: auto_spill_ok; rewrite /auto_spill_prog.
+  case: autospill_fd => [ transformation | ]; last first.
+  { move/ok_inj => <-; exists fd1; first exact: hget.
+    move => s ok_s.
+    have [ t ok_t {} hfsu ] := fs_uincl_initialize erefl erefl (eq_refl _) erefl hfsu ok_s.
+    exists t; first exact: ok_t.
+    exists (st_uincl tt), (st_uincl tt); split; cycle 2.
+    + exact: fs_uincl_finalize.
+    + exact: hfsu.
+    + have := (@it_sem_uincl wsw _ _ ep spp dc sip _ sCP_unit p tt _ _ _ _ (f_body fd1)).
+      admit.
+  }
+  t_xrbindP => fds' ok_fds' hp'.
+  case: {ok_fds'} (get_map_cfprog_name_gen ok_fds' hget) => fd'.
+  case: transformation => fd0 twins.
+  t_xrbindP => exn' sm /build_spillmapP hvalid /and3P[] /eqP htyin /eqP hextra hparams exn ok_exn ok_fd ? hget'; subst fd0.
+  exists fd'; first by rewrite -hp'; exact: hget'.
+  move => s ok_s.
+  have [ t ok_t {} hfsu ] := fs_uincl_initialize (p := p) (p' := {| p_funcs := fds'; p_globs := p_globs p; p_extra := p_extra p |}) htyin hextra hparams erefl hfsu ok_s.
+  exists t; first exact: ok_t.
+  exists (st_rel (uincl sm) exn), (st_rel (uincl sm) exn'); split.
+  - case: hfsu => hscs hmem le_vm.
+    split; [ exact: hscs | exact: hmem | ].
+    split; first exact: le_vm.
+    move => x r ok_r r_not_exn.
+    have [ x_not_param r_not_param ] := check_write_exn hvalid ok_exn ok_r r_not_exn.
+    have := initialize_funcall_undef ok_t.
+    move:
+    fence.
+Abort.
 
 End WITH_PARAMS.
