@@ -56,7 +56,7 @@ Proof using autospill_fd auto_spill_ok LC.
 Qed.
 
 Definition valid_spillmap (s: spillmap) : Prop :=
-  ∀ x r, Mvar.get s.(slots) x = Some r → Sv.In r s.(spillable).
+  ∀ x r, Mvar.get s.(slots) x = Some r → Sv.In r s.(spillable) ∧ convertible (vtype x) (vtype r).
 
 Lemma build_spillmapP twins s :
   build_spillmap twins = ok s →
@@ -68,12 +68,12 @@ Proof using wsw syscall_state spp ep dc.
     by rewrite Mvar.get0.
   elim: twins {| slots := _ ; |}.
   - by move=> s' ok_s' /ok_inj <-.
-  case => x a twins ih /=; t_xrbindP => acc rec _ /eqP ? /Sv_memP ? <-.
+  case => x a twins ih /=; t_xrbindP => acc rec _ /eqP ? wt /Sv_memP ? <-.
   apply: ih.
   move => b y /=.
   rewrite Mvar.setP; case: eqP.
-  - move => ? /Some_inj <-; subst b; SvD.fsetdec.
-  move => a_neq_b /rec; clear; SvD.fsetdec.
+  - move => ? /Some_inj <-; subst b; split; [ SvD.fsetdec | exact: wt ].
+  move => a_neq_b /rec; clear => - [] hy wt; split; [ SvD.fsetdec | exact: wt ].
 Qed.
 
 Section SPILLMAP.
@@ -155,6 +155,14 @@ End SPILLMAP.
 
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
+  Lemma check_cmdP spillmap cmd cmd' exn exn' :
+    valid_spillmap spillmap →
+    check_cmd spillmap (check_instr spillmap) cmd cmd' exn = ok exn' →
+    wequiv_rec
+      p p' tt tt uincl_spec (st_rel (uincl spillmap) exn) cmd cmd' (st_rel (uincl spillmap) exn').
+  Proof using.
+  Admitted.
+
 Theorem auto_spill_progP f :
   wiequiv_f p p' tt tt (rpreF (eS := uincl_spec)) f f (rpostF (eS := uincl_spec)).
 Proof.
@@ -166,7 +174,7 @@ Proof.
     have [ t ok_t {} hfsu ] := fs_uincl_initialize erefl erefl (eq_refl _) erefl hfsu ok_s.
     exists t; first exact: ok_t.
     exists (st_uincl tt), (st_uincl tt); split; cycle 2.
-    + exact: fs_uincl_finalize.
+    + apply: fs_uincl_finalize => //; exact: eq_refl.
     + exact: hfsu.
     + have := (@it_sem_uincl wsw _ _ ep spp dc sip _ sCP_unit p tt _ _ _ _ (f_body fd1)).
       admit.
@@ -174,7 +182,7 @@ Proof.
   t_xrbindP => fds' ok_fds' hp'.
   case: {ok_fds'} (get_map_cfprog_name_gen ok_fds' hget) => fd'.
   case: transformation => fd0 twins.
-  t_xrbindP => exn' sm /build_spillmapP hvalid /and3P[] /eqP htyin /eqP hextra hparams exn ok_exn ok_fd ? hget'; subst fd0.
+  t_xrbindP => exn' sm /build_spillmapP hvalid /and5P[] /eqP htyin /eqP htyout /eqP hextra hparams hresults exn ok_exn ok_fd ? hget'; subst fd0.
   exists fd'; first by rewrite -hp'; exact: hget'.
   move => s ok_s.
   have [ t ok_t {} hfsu ] := fs_uincl_initialize (p := p) (p' := {| p_funcs := fds'; p_globs := p_globs p; p_extra := p_extra p |}) htyin hextra hparams erefl hfsu ok_s.
@@ -185,9 +193,17 @@ Proof.
     split; first exact: le_vm.
     move => x r ok_r r_not_exn.
     have [ x_not_param r_not_param ] := check_write_exn hvalid ok_exn ok_r r_not_exn.
-    have := initialize_funcall_undef ok_t.
-    move:
-    fence.
+    have h := initialize_funcall_undef ok_t.
+    rewrite !h.
+    + by case: (hvalid _ _ ok_r) => _ /convertible_eval_atype ->.
+    + by move: r_not_param; rewrite (sv_of_list_eq_var_is hparams).
+    by move: x_not_param; rewrite (sv_of_list_eq_var_is hparams).
+  - exact: check_cmdP hvalid ok_fd.
+  move => s' t' r hfsu' ok_r.
+  have hst' : st_uincl tt s' t'.
+  - by case: hfsu' => ?? [] ??; split.
+  have := [elaborate fs_uincl_finalize htyout hextra hresults].
+  case/(_ s' t' r hst' ok_r); eauto.
 Abort.
 
 End WITH_PARAMS.

@@ -117,13 +117,16 @@ Section WITH_PARAMS.
   Definition build_spillmap (twins: list (var * var)) : cexec spillmap :=
     foldM (λ '(r, m) sm,
         Let _ := assert (Mvar.get sm.(slots) r == None) (E.gen_error None (pp_s "spillable spill slot")) in
+        Let _ := assert (convertible (vtype m) (vtype r)) (E.gen_error None (pp_s "incompatible types")) in
         let im := Sv.add r sm.(spillable) in
         Let _ := assert (~~ Sv.mem m im) (E.gen_error None (pp_s "a spillable register is used as a spill slot")) in
         ok {| slots := Mvar.set sm.(slots) m r; spillable := im |}
         ) {| slots := Mvar.empty _; spillable := Sv.empty |} twins.
 
   Definition check_eq_metadata (fd fd': ufundef) : bool :=
-    [&& f_tyin fd == f_tyin fd', f_extra fd == f_extra fd' & eq_var_is (f_params fd) (f_params fd') ].
+    [&& f_tyin fd == f_tyin fd', f_tyout fd == f_tyout fd'
+      , f_extra fd == f_extra fd'
+      , eq_var_is (f_params fd) (f_params fd') & eq_var_is (f_res fd) (f_res fd')].
 
   Definition auto_spill_prog (p: _uprog) : cexec _uprog :=
     if autospill_fd is Some transformation then
