@@ -48,15 +48,19 @@ Lemma ty_expr_preserves (gd : glob_decls) (s : estate) e ty v :
   sem_pexpr true gd s e = ok v ->
   type_of_val v = eval_atype ty.
 Proof.
-elim: e =>
+case: e =>
   [ z
   | b
   | ws n
   | x
-  | al aa sz x e ih
-  |
-  | al sz e ih
-  | | | |] /=.
+  | al aa sz x e
+  | al aa sz x e
+  | al sz e
+  | op e
+  | op e1 e2
+  | op es
+  | t e e1 e2 
+  ] /=.
 - by move=> [<-] [<-].
 - by move=> [<-] [<-].
 - by move=> [<-] [<-].
@@ -64,24 +68,22 @@ elim: e =>
 - rewrite /ty_get_set; t_xrbindP=> _ _ _ _ ?; subst ty.
   rewrite /on_arr_var; t_xrbindP=> -[] // len a.
   by t_xrbindP=> _ _ _ _ _ ? _ <-.
-- admit.
-  (* rewrite /= /ty_get_set_sub. t_xrbindP => _ _ _ _ ?. subst ty. rewrite /on_arr_var. t_xrbindP. case => //. t_xrbindP => _ _ _ _ _ _ _ z1 _ <-. by []. *)
+- rewrite /ty_get_set_sub; t_xrbindP=> _ _ _ _ ?; subst ty.
+  rewrite /on_arr_var; t_xrbindP=> -[] // len a.
+  by t_xrbindP=> _ _ _ _ _ ? _ <-.
 - by rewrite /ty_load_store; t_xrbindP=> _ _ _ ? _ _ _ _ ? _ ?; subst ty v.
-- admit.
-  (* rewrite /= /type_of_op1 /sem_sop1.   
-    by case: op => [ | | | | | | [] | ? []] //=; t_xrbindP => *; subst. *)
-- admit.
-  (* rewrite /= /sem_sop2 /type_of_op2.
+- rewrite /= /type_of_op1 /sem_sop1.   
+  by case: op => [ | | | | | | [] | ? []] //=; t_xrbindP => *; subst.
+- rewrite /= /sem_sop2 /type_of_op2.
     by case: op => 
     [ | | | [] | [] | [] | ? [] | ? [] | | | | | [] | [] | | | [] | [] | | | 
-    | | | | | | | | ?? [] ] //=;t_xrbindP => *; subst.    *)
-- admit.
-  (* rewrite /= /sem_opN /type_of_opN. 
-    by case: op => [ ?? | ? | ?] //=; t_xrbindP => *; subst. *)
-Admitted.
-  (* rewrite /= /check_expr. t_xrbindP => te1 _ _ te2 _ _ te3 _ _ ? valE1Bool valE1 _ HvalE1Bool valE2 valE2ty _ HvalE2ty valE3 valE3ty _ HvalE3ty ?. apply to_boolI in HvalE1Bool. subst. destruct valE1Bool.
-  { exact: truncate_val_subctype HvalE2ty. }
-  { exact: truncate_val_subctype HvalE3ty. } *)
+    | | | | | | | | ?? [] ] //=; t_xrbindP => *; subst.   
+- rewrite /= /sem_opN /type_of_opN. 
+    by case: op => //=; t_xrbindP => *; subst.
+- rewrite /= /check_expr.
+  t_xrbindP=> ? _ _ ? _ _ ? _ _ ? b ? _ _ ? ? _ hv1 ? ? _ hv2 ?; subst.
+  by case: b; [exact: truncate_val_has_type hv1 | exact: truncate_val_has_type hv2].
+Qed.
 
 Lemma check_global_declP (gd: glob_decl) : check_global_decl gd = ok tt -> (type_of_val (gv2val gd.2)) = (eval_atype (vtype gd.1)). 
 Proof.
@@ -91,11 +93,6 @@ Proof.
   - case: (vtype x) => [|| ws xlen |] //=.
   by case: ifP => // /eqP ->.
 Qed.
-
-(* Lemma get8_noerrty s m i : WArray.get8 (s:=s) m i <> Error ErrType.
-Proof.
-  rewrite /WArray.get8 /assert. case: ifP; case: ifP => //=.
-Qed. *)
 
 Lemma mapM_errty {aT bT} (f : aT -> result error bT) :
   (forall a, f a <> Error ErrType) ->
@@ -140,13 +137,13 @@ Lemma sem_warray_get_noerrty len gd s e al aa sz t tye : ty_expr (pd := Uptr) e 
                                        Let w := WArray.get (len:=len) al aa sz t i in ok (Vword w)) <> Error ErrType. 
 Proof. 
   intros Htye HtyeInt Hne.
-  case He: (sem_pexpr true gd s e) => [xx | err] //=. case Hi: (to_int xx) => [i | err] //=. case Hw: (WArray.get al aa sz t i) => [w | err] //=.  
+  case He: (sem_pexpr true gd s e) => [v | err] //=. case Hi: (to_int v) => [i | err] //=. case Hw: (WArray.get al aa sz t i) => [w | err] //=.  
       { move => Herr. case: Herr => ?; subst. apply (warray_get_noerrty Hw). } 
       { unfold to_int in Hi. rewrite /check_int /check_type in HtyeInt. simpl in HtyeInt. case Htye2: (aint != tye); rewrite Htye2 in HtyeInt. discriminate. simpl in Htye2. move: Htye2 => /negbFE /eqP ?; subst. 
-      pose proof (ty_expr_preserves Htye He) as Hxx.
-      apply type_of_valI in Hxx. destruct Hxx as [Hxxundef | Hxxint].
-        - rewrite Hxxundef in Hi. by move: Hi => -[<-].
-        - destruct Hxxint as [i Hxxint]. rewrite Hxxint in Hi. discriminate. } 
+      pose proof (ty_expr_preserves Htye He) as Hv.
+      apply type_of_valI in Hv. destruct Hv as [Hvundef | Hvint].
+        - rewrite Hvundef in Hi. by move: Hi => -[<-].
+        - destruct Hvint as [i Hvint]. rewrite Hvint in Hi. discriminate. } 
       move => Herr. case: Herr => ?; subst. apply (Hne He).
 Qed.
 
@@ -156,13 +153,13 @@ Lemma sem_warray_get_sub_noerrty lena len gd s e aa sz t tye : ty_expr (pd := Up
                                       Let i := Let x := sem_pexpr true gd s e in to_int x in (Let t' := WArray.get_sub (lena:=lena) aa sz len t i in ok (Varr t')) <> Error ErrType.
 Proof. 
   intros Htye HtyeInt Hne.
-  case He: (sem_pexpr true gd s e) => [xx | err] //=. case Hi: (to_int xx) => [i | err] //=. case Hw: (WArray.get_sub aa sz len t i) => [w | err] //=.  
+  case He: (sem_pexpr true gd s e) => [v | err] //=. case Hi: (to_int v) => [i | err] //=. case Hw: (WArray.get_sub aa sz len t i) => [w | err] //=.  
       { move => Herr. case: Herr => ?; subst. apply (warray_get_sub_noerrty Hw). } 
       { unfold to_int in Hi. rewrite /check_int /check_type in HtyeInt. simpl in HtyeInt. case Htye2: (aint != tye); rewrite Htye2 in HtyeInt. discriminate. simpl in Htye2. move: Htye2 => /negbFE /eqP ?; subst. 
-      pose proof (ty_expr_preserves Htye He) as Hxx.
-      apply type_of_valI in Hxx. destruct Hxx as [Hxxundef | Hxxint].
-        - rewrite Hxxundef in Hi. by move: Hi => -[<-].
-        - destruct Hxxint as [i Hxxint]. rewrite Hxxint in Hi. discriminate. } 
+      pose proof (ty_expr_preserves Htye He) as Hv.
+      apply type_of_valI in Hv. destruct Hv as [Hvundef | Hvint].
+        - rewrite Hvundef in Hi. by move: Hi => -[<-].
+        - destruct Hvint as [i Hvint]. rewrite Hvint in Hi. discriminate. } 
       move => Herr. case: Herr => ?; subst. apply (Hne He).
 Qed.
 
@@ -185,11 +182,11 @@ Lemma sem_read_noerrty tye gd s e ws al :
    ok (Vword w)) <> Error ErrType.
 Proof.
 move=> hty /check_ptrP [ws' ? hws']; subst tye.
-case he: sem_pexpr => [xx|//] _ /=.
+case he: sem_pexpr => [v|//] _ /=.
 have /= {}he := ty_expr_preserves hty he.
 case hptr: to_pointer => [|err] /=.
 - by case hw: read => [//|err] [?]; subst err; apply: read_noerrty hw.
-case: xx he hptr => [|||ws'' w|t ?] //=; last by move=> -> [<-].
+case: v he hptr => [|||ws'' w|t ?] //=; last by move=> -> [<-].
 move=> [?]; subst ws''.
 move=> /truncate_word_errP [].
 by rewrite -cmp_nle_lt hws'.
