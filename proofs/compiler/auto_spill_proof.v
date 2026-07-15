@@ -28,13 +28,14 @@ Context
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
   {LC  : LoopCounter}
+  {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}
   (autospill_fd: option (funname -> _ufundef -> _ufundef * list (var * var)))
-  (p p': uprog)
+  (p p': uprog) (ev: unit)
   (auto_spill_ok: auto_spill_prog autospill_fd p = ok p')
 .
 
 Lemma initialize_funcall_undef fd s s' x :
-  initialize_funcall p tt fd s = ok s' →
+  initialize_funcall p ev fd s = ok s' →
   ¬ Sv.In x (sv_of_list v_var (f_params fd)) →
   s'.(evm).[x] = undef_addr (eval_atype (vtype x)).
 Proof using.
@@ -49,7 +50,7 @@ Proof using.
 Qed.
 
 Lemma eq_globs : p_globs p' = p_globs p.
-Proof using autospill_fd auto_spill_ok LC.
+Proof using autospill_fd auto_spill_ok.
   move: auto_spill_ok; rewrite /auto_spill_prog.
   case: autospill_fd; last by move/ok_inj => <-.
   by move => transformation; t_xrbindP => fds ok_fds <-.
@@ -61,7 +62,7 @@ Definition valid_spillmap (s: spillmap) : Prop :=
 Lemma build_spillmapP twins s :
   build_spillmap twins = ok s →
   valid_spillmap s.
-Proof using wsw syscall_state spp ep dc.
+Proof using.
   rewrite /build_spillmap.
   have : valid_spillmap {| slots := Mvar.empty var; spillable := Sv.empty |}.
   - move => x r /=.
@@ -72,7 +73,7 @@ Proof using wsw syscall_state spp ep dc.
   apply: ih.
   move => b y /=.
   rewrite Mvar.setP; case: eqP.
-  - move => ? /Some_inj <-; subst b; split; [ SvD.fsetdec | exact: wt ].
+  - move => ? /Some_inj <-; subst b; split; [ clear; SvD.fsetdec | exact: wt ].
   move => a_neq_b /rec; clear => - [] hy wt; split; [ SvD.fsetdec | exact: wt ].
 Qed.
 
@@ -132,7 +133,7 @@ Section SPILLMAP.
    rewrite !evm_with_vm => {}h.
    rewrite -(h x) -?(h r) //.
    - have := ok_spillmap hxr.
-     SvD.fsetdec.
+     clear -xs_xs' hexn' hr'; SvD.fsetdec.
    move => k.
    have := hwritten x.
    by rewrite xs_xs' hxr => /(_ k).
@@ -151,22 +152,20 @@ Section SPILLMAP.
     SvD.fsetdec.
   Qed.
 
-  Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
-
   Let Pi_r (i: instr_r) : Prop :=
         ∀ i' exn exn' ii ii',
           check_instr spillmap ii i i' exn = ok exn' →
-          wequiv_rec p p' tt tt uincl_spec (st_rel uincl exn) [:: MkI ii i ] [:: MkI ii' i' ] (st_rel uincl exn').
+          wequiv_rec p p' ev ev uincl_spec (st_rel uincl exn) [:: MkI ii i ] [:: MkI ii' i' ] (st_rel uincl exn').
 
   Let Pi (i: instr) : Prop :=
         ∀ i' exn exn',
           check_cmd spillmap (check_instr spillmap) [:: i ] [:: i' ] exn = ok exn' →
-          wequiv_rec p p' tt tt uincl_spec (st_rel uincl exn) [:: i ] [:: i' ] (st_rel uincl exn').
+          wequiv_rec p p' ev ev uincl_spec (st_rel uincl exn) [:: i ] [:: i' ] (st_rel uincl exn').
 
   Let Pc (c: cmd) : Prop :=
         ∀ c' exn exn',
           check_cmd spillmap (check_instr spillmap) c c' exn = ok exn' →
-          wequiv_rec p p' tt tt uincl_spec (st_rel uincl exn) c c' (st_rel uincl exn').
+          wequiv_rec p p' ev ev uincl_spec (st_rel uincl exn) c c' (st_rel uincl exn').
 
   Lemma check_writeP ii written exn exn' :
     check_write spillmap ii written exn = ok exn' →
@@ -181,7 +180,7 @@ Section SPILLMAP.
   Lemma check_cmdP cmd cmd' exn exn' :
     check_cmd spillmap (check_instr spillmap) cmd cmd' exn = ok exn' →
     wequiv_rec
-      p p' tt tt uincl_spec (st_rel uincl exn) cmd cmd' (st_rel uincl exn').
+      p p' ev ev uincl_spec (st_rel uincl exn) cmd cmd' (st_rel uincl exn').
   Proof using ok_spillmap.
     move: cmd' exn exn'.
     apply cmd_rect with (Pr := Pi_r) (Pi := Pi) (Pc := Pc).
@@ -205,11 +204,9 @@ Section SPILLMAP.
 
 End SPILLMAP.
 
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
-
 Theorem auto_spill_progP f :
-  wiequiv_f p p' tt tt (rpreF (eS := uincl_spec)) f f (rpostF (eS := uincl_spec)).
-Proof.
+  wiequiv_f p p' ev ev (rpreF (eS := uincl_spec)) f f (rpostF (eS := uincl_spec)).
+Proof using auto_spill_ok.
   apply: wequiv_fun_ind => fn _ fs ft [] <- hfsu fd1 hget.
   move: auto_spill_ok; rewrite /auto_spill_prog.
   case: autospill_fd => [ transformation | ]; last first.
@@ -217,7 +214,7 @@ Proof.
     move => s ok_s.
     have [ t ok_t {} hfsu ] := fs_uincl_initialize erefl erefl eq_var_is_refl erefl hfsu ok_s.
     exists t; first exact: ok_t.
-    exists (st_uincl tt), (st_uincl tt); split; cycle 2.
+    exists (st_uincl ev), (st_uincl ev); split; cycle 2.
     + apply: fs_uincl_finalize => //; exact: eq_refl.
     + exact: hfsu.
     exact: it_sem_uincl_rec.
@@ -243,10 +240,10 @@ Proof.
     by move: x_not_param; rewrite (sv_of_list_eq_var_is hparams).
   - exact: (check_cmdP hvalid ok_fd).
   move => s' t' r hfsu' ok_r.
-  have hst' : st_uincl tt s' t'.
+  have hst' : st_uincl ev s' t'.
   - by case: hfsu' => ?? [] ??; split.
   have := [elaborate fs_uincl_finalize htyout hextra hresults].
   case/(_ s' t' r hst' ok_r); eauto.
-Abort.
+Admitted.
 
 End WITH_PARAMS.

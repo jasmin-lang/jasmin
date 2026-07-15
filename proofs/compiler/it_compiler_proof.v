@@ -31,6 +31,7 @@ Require Import
   array_copy
   array_copy_proof
   array_init_proof
+  auto_spill_proof
   unrolling_proof
   constant_prop_proof
   propagate_inline_proof
@@ -588,6 +589,7 @@ rewrite !print_uprogP => pe ok_pe.
 rewrite !print_uprogP => pf ok_pf.
 rewrite !print_uprogP => pg ok_pg.
 rewrite !print_uprogP => ph ok_ph pi ok_pi.
+rewrite !print_uprogP => pas ok_pas.
 rewrite !print_uprogP => plc ok_plc.
 rewrite !print_uprogP => ok_fvars pj ok_pj pp.
 rewrite !print_uprogP => ok_pp <- {p'} ok_fn.
@@ -618,6 +620,7 @@ apply: wiequiv_f_trans_UU_EU; first exact: it_indirect_to_direct.
 apply: wiequiv_f_trans_EE_EU; first exact: (it_expand_callP ok_pg ok_fn).
 apply: wiequiv_f_trans_EU_EU; first exact: it_live_range_splittingP ok_ph.
 apply: wiequiv_f_trans_EU_EU; first exact: RGP.it_remove_globP ok_pi.
+apply: wiequiv_f_trans_UU_EU; first exact: (auto_spill_progP  ev ok_pas).
 apply: wiequiv_f_trans_EE_EU; first exact: (it_load_constants_progP ok_plc).
 apply: wiequiv_f_trans_EE_EU; first exact:
   (hlop_lower_callP
