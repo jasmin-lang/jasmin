@@ -943,10 +943,15 @@ Qed.
 
 Definition Ox86_BSR_instr :=
   (fun sz =>
-     mk_instr (pp_sz "BSR" sz) [:: lword sz ] (b5w_ty sz) [:: Eu 1 ] (implicit_flags ++ [:: Ea 0 ]) MSB_CLEAR
-       (@x86_BSR sz) [:: r_rm ] 2 [:: NotZero sz 0 ] (size_16_64 sz) (pp_iname "bsr" sz)
-       erefl (@x86_BSR_errty sz) (@x86_BSR_safe sz),
-     ("BSR"%string, prim_16_64 BSR)).
+     mk_instr
+       (pp_sz "BSR" sz)
+       [:: lword sz ] (b5w_ty sz) [:: Eu 1 ] (implicit_flags ++ [:: Ea 0 ])
+       (reg_msb_flag sz)
+       (@x86_BSR sz)
+       [:: r_rm ] 2
+       [:: NotZero sz 0 ] (size_16_64 sz)
+       (pp_iname "bsr" sz) erefl (@x86_BSR_errty sz) (@x86_BSR_safe sz)
+  , ("BSR"%string, prim_16_64 BSR)).
 
 Definition check_setcc := [:: [::c; rm false]].
 
