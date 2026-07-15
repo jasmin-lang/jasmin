@@ -12,8 +12,8 @@ Lemma sv_of_list_eq_var_is xs ys :
   eq_var_is xs ys →
   Sv.Equal (sv_of_list v_var xs) (sv_of_list v_var ys).
 Proof using.
-  move/eqP => h v; split => /sv_of_listP; [ rewrite h | rewrite -h ].
-  all: by apply/sv_of_listP.
+  elim/list_all2_ind => // { xs ys} x xs y ys /eqP hxy _.
+  rewrite !sv_of_list_cons hxy; SvD.fsetdec.
 Qed.
 
 Section WITH_PARAMS.
@@ -178,7 +178,6 @@ Section SPILLMAP.
     clear; SvD.fsetdec.
   Qed.
 
-  (*
   Lemma check_cmdP cmd cmd' exn exn' :
     check_cmd spillmap (check_instr spillmap) cmd cmd' exn = ok exn' →
     wequiv_rec
@@ -195,24 +194,14 @@ Section SPILLMAP.
       + exact: checkerP.
       + by split; first rewrite /= he.
       split; first by rewrite /= hx.
-      rewrite /=.
-      move: hexn'; rewrite /check_write.
-      red; rewrite /=.
-      red.
-      apply: wequiv_assgn_core => i1 i1' i2 h1.
-      rewrite /sem_assgn; t_xrbindP => v ok_v v' ok_v' ok_i2.
-
-      move => ?.
-          -
-            -
-              -
-                -
-                  -
-                    -
-
+      exact: check_writeP hexn'.
+    -
+    -
+    -
+    -
+    -
+    -
   Admitted.
-*)
-
 
 End SPILLMAP.
 
@@ -226,7 +215,7 @@ Proof.
   case: autospill_fd => [ transformation | ]; last first.
   { move/ok_inj => <-; exists fd1; first exact: hget.
     move => s ok_s.
-    have [ t ok_t {} hfsu ] := fs_uincl_initialize erefl erefl (eq_refl _) erefl hfsu ok_s.
+    have [ t ok_t {} hfsu ] := fs_uincl_initialize erefl erefl eq_var_is_refl erefl hfsu ok_s.
     exists t; first exact: ok_t.
     exists (st_uincl tt), (st_uincl tt); split; cycle 2.
     + apply: fs_uincl_finalize => //; exact: eq_refl.
