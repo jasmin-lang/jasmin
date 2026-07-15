@@ -151,17 +151,72 @@ Section SPILLMAP.
     SvD.fsetdec.
   Qed.
 
+  Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+
+  Let Pi_r (i: instr_r) : Prop :=
+        ∀ i' exn exn' ii ii',
+          check_instr spillmap ii i i' exn = ok exn' →
+          wequiv_rec p p' tt tt uincl_spec (st_rel uincl exn) [:: MkI ii i ] [:: MkI ii' i' ] (st_rel uincl exn').
+
+  Let Pi (i: instr) : Prop :=
+        ∀ i' exn exn',
+          check_cmd spillmap (check_instr spillmap) [:: i ] [:: i' ] exn = ok exn' →
+          wequiv_rec p p' tt tt uincl_spec (st_rel uincl exn) [:: i ] [:: i' ] (st_rel uincl exn').
+
+  Let Pc (c: cmd) : Prop :=
+        ∀ c' exn exn',
+          check_cmd spillmap (check_instr spillmap) c c' exn = ok exn' →
+          wequiv_rec p p' tt tt uincl_spec (st_rel uincl exn) c c' (st_rel uincl exn').
+
+  Lemma check_writeP ii written exn exn' :
+    check_write spillmap ii written exn = ok exn' →
+    (∀ x, Sv.In x written → Mvar.get (slots spillmap) x = None) ∧
+    Sv.Subset (Sv.union exn (Sv.inter written (spillable spillmap))) exn'.
+  Proof using.
+    rewrite /check_write; t_xrbindP => /Sv.for_all_spec => h <-; split.
+    - by move => x /h /eqP.
+    clear; SvD.fsetdec.
+  Qed.
+
+  (*
+  Lemma check_cmdP cmd cmd' exn exn' :
+    check_cmd spillmap (check_instr spillmap) cmd cmd' exn = ok exn' →
+    wequiv_rec
+      p p' tt tt uincl_spec (st_rel uincl exn) cmd cmd' (st_rel uincl exn').
+  Proof using ok_spillmap.
+    move: cmd' exn exn'.
+    apply cmd_rect with (Pr := Pi_r) (Pi := Pi) (Pc := Pc).
+    - admit.
+    - admit.
+    - admit.
+    - move => x tg ty e [] // x' tg' ty' e' exn exn' ii ii' /=; t_xrbindP.
+      case/and3P => hx /eqP<-{ty'} he hexn'.
+      apply wequiv_assgn_rel_uincl with checker exn.
+      + exact: checkerP.
+      + by split; first rewrite /= he.
+      split; first by rewrite /= hx.
+      rewrite /=.
+      move: hexn'; rewrite /check_write.
+      red; rewrite /=.
+      red.
+      apply: wequiv_assgn_core => i1 i1' i2 h1.
+      rewrite /sem_assgn; t_xrbindP => v ok_v v' ok_v' ok_i2.
+
+      move => ?.
+          -
+            -
+              -
+                -
+                  -
+                    -
+
+  Admitted.
+*)
+
+
 End SPILLMAP.
 
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
-
-  Lemma check_cmdP spillmap cmd cmd' exn exn' :
-    valid_spillmap spillmap →
-    check_cmd spillmap (check_instr spillmap) cmd cmd' exn = ok exn' →
-    wequiv_rec
-      p p' tt tt uincl_spec (st_rel (uincl spillmap) exn) cmd cmd' (st_rel (uincl spillmap) exn').
-  Proof using.
-  Admitted.
 
 Theorem auto_spill_progP f :
   wiequiv_f p p' tt tt (rpreF (eS := uincl_spec)) f f (rpostF (eS := uincl_spec)).
@@ -176,8 +231,7 @@ Proof.
     exists (st_uincl tt), (st_uincl tt); split; cycle 2.
     + apply: fs_uincl_finalize => //; exact: eq_refl.
     + exact: hfsu.
-    + have := (@it_sem_uincl wsw _ _ ep spp dc sip _ sCP_unit p tt _ _ _ _ (f_body fd1)).
-      admit.
+    exact: it_sem_uincl_rec.
   }
   t_xrbindP => fds' ok_fds' hp'.
   case: {ok_fds'} (get_map_cfprog_name_gen ok_fds' hget) => fd'.
@@ -198,7 +252,7 @@ Proof.
     + by case: (hvalid _ _ ok_r) => _ /convertible_eval_atype ->.
     + by move: r_not_param; rewrite (sv_of_list_eq_var_is hparams).
     by move: x_not_param; rewrite (sv_of_list_eq_var_is hparams).
-  - exact: check_cmdP hvalid ok_fd.
+  - exact: (check_cmdP hvalid ok_fd).
   move => s' t' r hfsu' ok_r.
   have hst' : st_uincl tt s' t'.
   - by case: hfsu' => ?? [] ??; split.
