@@ -1,0 +1,1 @@
+- The semantics of `BSR_16` leaves the upper 48 bits unchanged instead of clearing them ([PR 1518](https://github.com/jasmin-lang/jasmin/pull/1518)).
