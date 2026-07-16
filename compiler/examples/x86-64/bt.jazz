@@ -3,7 +3,7 @@ fn f(reg u64 x) -> reg u64 {
 reg u64 y;
 reg bool cf;
 y = x;
-cf = #BT(x, 4);
+?{ CF = cf } = #BT(x, 4);
 _, y += x + cf;
 return y;
 }

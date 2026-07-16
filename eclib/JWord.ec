@@ -1659,7 +1659,8 @@ op DEC_XX (w: t) =
     (w - of_int 1)
     (to_sint w - 1).
 
-op BT_XX (x y: t) = x.[to_uint y %% size].
+op BT_XX (x y: t) =
+  (undefined_flag, x.[to_uint y %% size], undefined_flag, undefined_flag).
 
 op LEA_XX (addr: t) = addr.
 
@@ -1721,11 +1722,11 @@ op POPCNT_XX (v: t) =
 
 op BTR_XX (x y: t) =
   let b = to_uint y %% size in
-  (x.[b], x.[b <- false]).
+  (undefined_flag, x.[b], undefined_flag, undefined_flag, x.[b <- false]).
 
 op BTS_XX (x y: t) =
   let b = to_uint y %% size in
-  (x.[b], x.[b <- true]).
+  (undefined_flag, x.[b], undefined_flag, undefined_flag, x.[b <- true]).
 
 op PEXT_XX (v m: t) =
   let vbi = filter (fun i => m.[i]) (iota_ 0 size) in
