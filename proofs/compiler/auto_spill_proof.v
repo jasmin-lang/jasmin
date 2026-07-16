@@ -194,9 +194,21 @@ Section SPILLMAP.
       + by split; first rewrite /= he.
       split; first by rewrite /= hx.
       exact: check_writeP hexn'.
-    -
-    -
-    -
+    - move => xs tg op es [] // xs' tg' op' es' exn exn' ii ii' /=; t_xrbindP.
+      case/and3P => hxs /eqP<-{op'} hes hexn'.
+      apply wequiv_opn_rel_uincl with checker exn.
+      + exact: checkerP.
+      + done.
+      split; first exact: hxs.
+      exact: check_writeP hexn'.
+    - move => xs sc es [] // xs' sc' es' exn exn' ii ii' /=; t_xrbindP.
+      case/and3P => hxs /eqP<-{sc'} hes hexn'.
+      apply wequiv_syscall_rel_uincl with checker exn.
+      + exact: checkerP.
+      + done.
+      split; first exact: hxs.
+      exact: check_writeP hexn'.
+    - by move => a [].
     -
     -
     -
