@@ -32,10 +32,10 @@ fail/arm-m4/adc_imm_too_large.jazz:
 compilation error in function main:
 asmgen: instruction ADC is given at least one too large immediate as an argument.
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32(shift =allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = allowed, none = not allowed)]]
 All allowed args (regardless of the input) are:
   [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32(shift =allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = allowed, none = not allowed)]]
 
 fail/arm-m4/add_imm_too_large.jazz:
 
@@ -43,10 +43,10 @@ fail/arm-m4/add_imm_too_large.jazz:
 compilation error in function main:
 asmgen: instruction ADD is given at least one too large immediate as an argument.
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32(shift =allowed, none =W12)]]
+  [[reg]; [reg]; [imm 32 (shift = allowed, none = W12)]]
 All allowed args (regardless of the input) are:
   [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32(shift =allowed, none =W12)]]
+  [[reg]; [reg]; [imm 32 (shift = allowed, none = W12)]]
 
 fail/arm-m4/add_shift.jazz:
 
@@ -61,10 +61,10 @@ fail/arm-m4/addw_set_flags.jazz:
 compilation error in function main:
 asmgen: instruction ADDS is given at least one too large immediate as an argument.
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32(shift =allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = allowed, none = not allowed)]]
 All allowed args (regardless of the input) are:
   [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32(shift =allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = allowed, none = not allowed)]]
 
 fail/arm-m4/and_imm_shifted.jazz:
 
@@ -72,10 +72,10 @@ fail/arm-m4/and_imm_shifted.jazz:
 compilation error in function main:
 asmgen: instruction AND is given at least one too large immediate as an argument.
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 All allowed args (regardless of the input) are:
   [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 
 fail/arm-m4/and_imm_too_large.jazz:
 
@@ -83,10 +83,10 @@ fail/arm-m4/and_imm_too_large.jazz:
 compilation error in function main:
 asmgen: instruction AND is given at least one too large immediate as an argument.
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 All allowed args (regardless of the input) are:
   [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 
 fail/arm-m4/bic_imm_shifted.jazz:
 
@@ -94,10 +94,10 @@ fail/arm-m4/bic_imm_shifted.jazz:
 compilation error in function main:
 asmgen: instruction BIC is given at least one too large immediate as an argument.
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 All allowed args (regardless of the input) are:
   [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 
 fail/arm-m4/bic_imm_too_large.jazz:
 
@@ -105,10 +105,10 @@ fail/arm-m4/bic_imm_too_large.jazz:
 compilation error in function main:
 asmgen: instruction BIC is given at least one too large immediate as an argument.
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 All allowed args (regardless of the input) are:
   [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 
 fail/arm-m4/bug_1112.jazz:
 
@@ -129,10 +129,10 @@ fail/arm-m4/cmp_imm_too_large.jazz:
 compilation error in function main:
 asmgen: instruction CMP is given at least one too large immediate as an argument.
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [imm 32(shift =allowed, none =not allowed)]]
+  [[reg]; [imm 32 (shift = allowed, none = not allowed)]]
 All allowed args (regardless of the input) are:
   [[reg]; [reg]]
-  [[reg]; [imm 32(shift =allowed, none =not allowed)]]
+  [[reg]; [imm 32 (shift = allowed, none = not allowed)]]
 
 fail/arm-m4/eor_imm_shifted.jazz:
 
@@ -140,10 +140,10 @@ fail/arm-m4/eor_imm_shifted.jazz:
 compilation error in function main:
 asmgen: instruction EOR is given at least one too large immediate as an argument.
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 All allowed args (regardless of the input) are:
   [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 
 fail/arm-m4/eor_imm_too_large.jazz:
 
@@ -151,10 +151,10 @@ fail/arm-m4/eor_imm_too_large.jazz:
 compilation error in function main:
 asmgen: instruction EOR is given at least one too large immediate as an argument.
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 All allowed args (regardless of the input) are:
   [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 
 fail/arm-m4/mov_imm_shifted.jazz:
 
@@ -162,10 +162,10 @@ fail/arm-m4/mov_imm_shifted.jazz:
 compilation error in function main:
 asmgen: instruction MOV is given at least one too large immediate as an argument.
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [imm 32(shift =W16, none =W16)]]
+  [[reg]; [imm 32 (shift = W16, none = W16)]]
 All allowed args (regardless of the input) are:
   [[reg]; [reg]]
-  [[reg]; [imm 32(shift =W16, none =W16)]]
+  [[reg]; [imm 32 (shift = W16, none = W16)]]
 
 fail/arm-m4/mov_imm_too_large.jazz:
 
@@ -173,10 +173,10 @@ fail/arm-m4/mov_imm_too_large.jazz:
 compilation error in function main:
 asmgen: instruction MOV is given at least one too large immediate as an argument.
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [imm 32(shift =W16, none =W16)]]
+  [[reg]; [imm 32 (shift = W16, none = W16)]]
 All allowed args (regardless of the input) are:
   [[reg]; [reg]]
-  [[reg]; [imm 32(shift =W16, none =W16)]]
+  [[reg]; [imm 32 (shift = W16, none = W16)]]
 
 fail/arm-m4/mov_shiftedw_set_flags.jazz:
 
@@ -184,10 +184,10 @@ fail/arm-m4/mov_shiftedw_set_flags.jazz:
 compilation error in function main:
 asmgen: instruction MOVS is given at least one too large immediate as an argument.
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 All allowed args (regardless of the input) are:
   [[reg]; [reg]]
-  [[reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 
 fail/arm-m4/movw_set_flags.jazz:
 
@@ -195,10 +195,10 @@ fail/arm-m4/movw_set_flags.jazz:
 compilation error in function main:
 asmgen: instruction MOVS is given at least one too large immediate as an argument.
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 All allowed args (regardless of the input) are:
   [[reg]; [reg]]
-  [[reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 
 fail/arm-m4/mvn_imm_shifted.jazz:
 
@@ -206,10 +206,10 @@ fail/arm-m4/mvn_imm_shifted.jazz:
 compilation error in function main:
 asmgen: instruction MVN is given at least one too large immediate as an argument.
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 All allowed args (regardless of the input) are:
   [[reg]; [reg]]
-  [[reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 
 fail/arm-m4/mvn_imm_too_large.jazz:
 
@@ -217,10 +217,10 @@ fail/arm-m4/mvn_imm_too_large.jazz:
 compilation error in function main:
 asmgen: instruction MVN is given at least one too large immediate as an argument.
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 All allowed args (regardless of the input) are:
   [[reg]; [reg]]
-  [[reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 
 fail/arm-m4/orr_imm_shifted.jazz:
 
@@ -228,10 +228,10 @@ fail/arm-m4/orr_imm_shifted.jazz:
 compilation error in function main:
 asmgen: instruction ORR is given at least one too large immediate as an argument.
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 All allowed args (regardless of the input) are:
   [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 
 fail/arm-m4/orr_imm_too_large.jazz:
 
@@ -239,10 +239,10 @@ fail/arm-m4/orr_imm_too_large.jazz:
 compilation error in function main:
 asmgen: instruction ORR is given at least one too large immediate as an argument.
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 All allowed args (regardless of the input) are:
   [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32(shift =not allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 
 fail/arm-m4/rsb_imm_too_large.jazz:
 
@@ -250,10 +250,10 @@ fail/arm-m4/rsb_imm_too_large.jazz:
 compilation error in function main:
 asmgen: instruction RSB is given at least one too large immediate as an argument.
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32(shift =allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = allowed, none = not allowed)]]
 All allowed args (regardless of the input) are:
   [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32(shift =allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = allowed, none = not allowed)]]
 
 fail/arm-m4/sub_imm_too_large.jazz:
 
@@ -261,10 +261,10 @@ fail/arm-m4/sub_imm_too_large.jazz:
 compilation error in function main:
 asmgen: instruction SUB is given at least one too large immediate as an argument.
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32(shift =allowed, none =W12)]]
+  [[reg]; [reg]; [imm 32 (shift = allowed, none = W12)]]
 All allowed args (regardless of the input) are:
   [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32(shift =allowed, none =W12)]]
+  [[reg]; [reg]; [imm 32 (shift = allowed, none = W12)]]
 
 fail/arm-m4/subw_set_flags.jazz:
 
@@ -272,10 +272,10 @@ fail/arm-m4/subw_set_flags.jazz:
 compilation error in function main:
 asmgen: instruction SUBS is given at least one too large immediate as an argument.
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32(shift =allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = allowed, none = not allowed)]]
 All allowed args (regardless of the input) are:
   [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32(shift =allowed, none =not allowed)]]
+  [[reg]; [reg]; [imm 32 (shift = allowed, none = not allowed)]]
 
 fail/arm-m4/tst_imm_shifted.jazz:
 
