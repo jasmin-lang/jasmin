@@ -648,7 +648,7 @@ Definition check_padd : i_args_kinds := [:: [:: rx; rxm true ]; [:: xmm; xmmm tr
 Definition Ox86_PADD_instr :=
   let padd := "PADD"%string in
   (λ (ve: velem) (sz: wsize),
-    mk_instr_safe (pp_ve_sz padd ve sz) (w2_ty sz sz) (w_ty sz) [:: Eu 0; Eu 1 ] [:: Eu 0 ] MSB_CLEAR
+    mk_instr_safe (pp_ve_sz padd ve sz) (w2_ty sz sz) (w_ty sz) [:: Eu 0; if (sz ≤ U64)%CMP then Eu 1 else Ea 1 ] [:: Eu 0 ] MSB_CLEAR
       (lift2_vec ve +%w sz) check_padd 2 (size_64_128 sz) (pp_viname "padd" ve sz),
    (padd, primMMX PADD)).
 
@@ -2018,7 +2018,7 @@ Definition x86_AESIMC          (v1    : u128)           : tpl (w_ty U128) := wAE
 Definition x86_AESKEYGENASSIST (v1    : u128) (v2 : u8) : tpl (w_ty U128) := wAESKEYGENASSIST v1 v2.
 
 Definition mk_instr_aes2 jname aname (constr:x86_op) x86_sem msb_flag :=
-  mk_instr_pp jname (w2_ty U128 U128) (w_ty U128) [:: Eu 0; Eu 1] [:: Eu 0] msb_flag x86_sem
+  mk_instr_pp jname (w2_ty U128 U128) (w_ty U128) [:: Eu 0; Ea 1] [:: Eu 0] msb_flag x86_sem
          (check_xmm_xmmm U128) 2 (primM constr) (pp_name_ty aname [::U128;U128]).
 
 Definition mk_instr_aes3 jname aname (constr: wsize → x86_op) x86_sem :=
@@ -2055,7 +2055,7 @@ Definition Ox86_VAESENCLAST_instr :=
   mk_instr_aes3 "VAESENCLAST" "vaesenclast" VAESENCLAST wAESENCLAST.
 
 Definition Ox86_AESIMC_instr :=
-  mk_instr_pp "AESIMC" (w_ty U128) (w_ty U128) [:: Eu 1] [:: Eu 0] MSB_MERGE x86_AESIMC
+  mk_instr_pp "AESIMC" (w_ty U128) (w_ty U128) [:: Ea 1] [:: Eu 0] MSB_MERGE x86_AESIMC
          (check_xmm_xmmm U128) 2 (primM AESIMC) (pp_name_ty "aesimc" [::U128;U128]).
 
 Definition Ox86_VAESIMC_instr :=
@@ -2063,7 +2063,7 @@ Definition Ox86_VAESIMC_instr :=
          (check_xmm_xmmm U128) 2 (primM VAESIMC) (pp_name_ty "vaesimc" [::U128;U128]).
 
 Definition Ox86_AESKEYGENASSIST_instr :=
-  mk_instr_pp "AESKEYGENASSIST" (w2_ty U128 U8) (w_ty U128) [:: Eu 1; Eu 2] [:: Eu 0]
+  mk_instr_pp "AESKEYGENASSIST" (w2_ty U128 U8) (w_ty U128) [:: Ea 1; Eu 2] [:: Eu 0]
     MSB_MERGE x86_AESKEYGENASSIST
    (check_xmm_xmmm_imm8 U128) 3 (primM AESKEYGENASSIST)
    (pp_name_ty "aeskeygenassist" [::U128;U128;U8]).

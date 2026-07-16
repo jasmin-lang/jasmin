@@ -1697,6 +1697,41 @@ fail/x86-64/swap_type_mismatch.jazz:
 
 "fail/x86-64/swap_type_mismatch.jazz", line 2 (18-19): the expression has type u64 instead of u8[8]
 
+fail/x86-64/unaligned-sse-aesdec.jazz:
+
+"fail/x86-64/unaligned-sse-aesdec.jazz", line 3 (2-40):
+compilation error in function aesdec:
+asmgen: invalid rexpr for oprd [:u128 RDI +64u (64u) 1]
+        invalid Load alignment constraint
+
+fail/x86-64/unaligned-sse-aesenc.jazz:
+
+"fail/x86-64/unaligned-sse-aesenc.jazz", line 3 (2-40):
+compilation error in function aesenc:
+asmgen: invalid rexpr for oprd [:u128 RDI +64u (64u) 1]
+        invalid Load alignment constraint
+
+fail/x86-64/unaligned-sse-aesimc.jazz:
+
+"fail/x86-64/unaligned-sse-aesimc.jazz", line 2 (2-46):
+compilation error in function aesimc:
+asmgen: invalid rexpr for oprd [:u128 RDI +64u (64u) 1]
+        invalid Load alignment constraint
+
+fail/x86-64/unaligned-sse-aeskeygenassist.jazz:
+
+"fail/x86-64/unaligned-sse-aeskeygenassist.jazz", line 2 (2-58):
+compilation error in function aeskeygenassist:
+asmgen: invalid rexpr for oprd [:u128 RDI +64u (64u) 1]
+        invalid Load alignment constraint
+
+fail/x86-64/unaligned-sse-padd.jazz:
+
+"fail/x86-64/unaligned-sse-padd.jazz", line 3 (2-43):
+compilation error in function padd:
+asmgen: invalid rexpr for oprd [:u128 RDI +64u (64u) 1]
+        invalid Load alignment constraint
+
 fail/x86-64/zxspill.jazz:
 
 "fail/x86-64/zxspill.jazz", line 5 (2-14):
@@ -1710,4 +1745,4 @@ Statistics:
 	Pretyping:  47
 	Parsing:     4
 	Typing:      5
-	Compile:   213
+	Compile:   218
