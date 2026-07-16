@@ -1,0 +1,4 @@
+export fn aesimc(reg ptr u8[17] a) -> reg u128 {
+  reg u128 z = #AESIMC(a.[#unaligned:u128 1]);
+  return z;
+}

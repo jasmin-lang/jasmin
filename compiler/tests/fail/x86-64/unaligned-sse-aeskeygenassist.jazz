@@ -1,0 +1,5 @@
+export fn aeskeygenassist(reg ptr u8[17] a) -> reg u128 {
+  reg u128 z = #AESKEYGENASSIST(a.[#unaligned:u128 1], 0);
+  return z;
+}
+

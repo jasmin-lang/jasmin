@@ -1,0 +1,5 @@
+export fn aesenc(reg ptr u8[17] a) -> reg u128 {
+  reg u128 z = a.[#unaligned:u128 0];
+  z = #AESENC(z, a.[#unaligned:u128 1]);
+  return z;
+}
