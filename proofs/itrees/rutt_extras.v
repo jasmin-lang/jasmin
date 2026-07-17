@@ -36,7 +36,7 @@ Lemma rutt_iter_n (E1 E2 : Type -> Type) {I1 I2 R1 R2}
      exists n,
        rutt RPreE RPostE (sum_rel RI RR) (body1 j1) (iter_n body2 n j2)) ->
   forall (i1 : I1) (i2 : I2) (RI_i : RI i1 i2),
-    @rutt E1 E2 R1 R2 RPreE RPostE RR
+    @rutt E1 E2 RPreE RPostE R1 R2 RR
       (ITree.iter body1 i1) (ITree.iter body2 i2).
 Proof.
   coinduction.
@@ -61,7 +61,7 @@ Lemma rutt_iter (E1 E2 : Type -> Type) {I1 I2 R1 R2}
   (forall j1 j2, RI j1 j2 ->
                  rutt RPreE RPostE (sum_rel RI RR) (body1 j1) (body2 j2)) ->
   forall (i1 : I1) (i2 : I2) (RI_i : RI i1 i2),
-    @rutt E1 E2 R1 R2 RPreE RPostE RR
+    @rutt E1 E2 RPreE RPostE R1 R2 RR
       (ITree.iter body1 i1) (ITree.iter body2 i2).
 Proof.
   coinduction.
