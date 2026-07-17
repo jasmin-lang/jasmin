@@ -152,21 +152,6 @@ Section SPILLMAP.
     SvD.fsetdec.
   Qed.
 
-  Let Pi_r (i: instr_r) : Prop :=
-        ∀ i' exn exn' ii ii',
-          check_instr spillmap ii i i' exn = ok exn' →
-          wequiv_rec p p' ev ev uincl_spec (st_rel uincl exn) [:: MkI ii i ] [:: MkI ii' i' ] (st_rel uincl exn').
-
-  Let Pi (i: instr) : Prop :=
-        ∀ i' exn exn',
-          check_cmd spillmap (check_instr spillmap) [:: i ] [:: i' ] exn = ok exn' →
-          wequiv_rec p p' ev ev uincl_spec (st_rel uincl exn) [:: i ] [:: i' ] (st_rel uincl exn').
-
-  Let Pc (c: cmd) : Prop :=
-        ∀ c' exn exn',
-          check_cmd spillmap (check_instr spillmap) c c' exn = ok exn' →
-          wequiv_rec p p' ev ev uincl_spec (st_rel uincl exn) c c' (st_rel uincl exn').
-
   Lemma check_writeP ii written exn exn' :
     check_write spillmap ii written exn = ok exn' →
     (∀ x, Sv.In x written → Mvar.get (slots spillmap) x = None) ∧
@@ -187,6 +172,25 @@ Section SPILLMAP.
     clear -h h'; SvD.fsetdec.
   Qed.
 
+  Let Pi_r (i: instr_r) : Prop :=
+        ∀ i' exn exn' ii ii',
+          check_instr spillmap ii i i' exn = ok exn' →
+          wequiv_rec p p' ev ev uincl_spec (st_rel uincl exn) [:: MkI ii i ] [:: MkI ii' i' ] (st_rel uincl exn').
+
+  Let Pi (i: instr) : Prop :=
+        ∀ i' exn exn',
+          check_cmd spillmap (check_instr spillmap) [:: i ] [:: i' ] exn = ok exn' →
+          wequiv_rec p p' ev ev uincl_spec (st_rel uincl exn) [:: i ] [:: i' ] (st_rel uincl exn').
+
+  Let Pc (c: cmd) : Prop :=
+        ∀ c' exn exn',
+          check_cmd spillmap (check_instr spillmap) c c' exn = ok exn' →
+          wequiv_rec p p' ev ev uincl_spec (st_rel uincl exn) c c' (st_rel uincl exn').
+
+  Lemma check_cmd_nil sm F c exn :
+    check_cmd sm F [::] c exn = foldM (check_lone_instr sm) exn c.
+  Proof using. by case: c. Qed.
+
   Lemma check_cmdP cmd cmd' exn exn' :
     check_cmd spillmap (check_instr spillmap) cmd cmd' exn = ok exn' →
     wequiv_rec
@@ -194,9 +198,33 @@ Section SPILLMAP.
   Proof using ok_spillmap.
     move: cmd' exn exn'.
     apply cmd_rect with (Pr := Pi_r) (Pi := Pi) (Pc := Pc).
-    - admit.
-    - admit.
-    - admit.
+    - move => i ii hi [] ii' i' exn exn' /=.
+      case: ifP => hii.
+      + t_xrbindP => k hexn' ?; subst k.
+        exact: hi hexn'.
+      by t_xrbindP.
+    - move => c' exn exn'; rewrite check_cmd_nil.
+      elim: c' exn.
+      + move => exn /ok_inj <-{exn'}; exact: wequiv_nil.
+      case => ii [] // x tg ty e c ih exn /=; t_xrbindP => exni.
+      case: x => // x; case: e => // - [] y [] // hexni /ih.
+      rewrite -{2}(cat0s [::]) -cat1s; apply wequiv_cat.
+      apply wequiv_assign_right => s t hst.
+      case: eqP hexni.
+      + move => hxy /ok_inj<-{exni}.
+        rewrite /sem_assgn /=.
+        admit. (* FIXME *)
+      move => hxy; case: eqP; t_xrbindP => // hyx hx <-{exni}.
+      rewrite /sem_assgn /=.
+      admit. (* FIXME *)
+    - case => ii i c hi hc [] // [] ii' i' c' exn exn' /=.
+      case: ifP => hii; t_xrbindP => exni.
+      + move => ok_exni ok_exn'; apply: wequiv_cons.
+        * by apply: hi; rewrite /= hii ok_exni.
+        exact: hc ok_exn'.
+      case: i' => // - [] // x tg ty e.
+      case: e => // - [] y [] // hexni.
+      admit. (* FIXME *)
     - move => x tg ty e [] // x' tg' ty' e' exn exn' ii ii' /=; t_xrbindP.
       case/and3P => hx /eqP<-{ty'} he hexn'.
       apply wequiv_assgn_rel_uincl with checker exn.
