@@ -177,6 +177,16 @@ Section SPILLMAP.
     clear; SvD.fsetdec.
   Qed.
 
+  Lemma st_rel_uincl_subset s1 s2 exn exn' :
+    Sv.Subset exn exn' →
+    st_rel uincl exn s1 s2 →
+    st_rel uincl exn' s1 s2.
+  Proof using.
+    move => h; apply: st_rel_weaken => {}s1 {}s2 [] hvm K; split; first exact: hvm.
+    move => x r /K{}K h'; apply: K.
+    clear -h h'; SvD.fsetdec.
+  Qed.
+
   Lemma check_cmdP cmd cmd' exn exn' :
     check_cmd spillmap (check_instr spillmap) cmd cmd' exn = ok exn' →
     wequiv_rec
@@ -209,7 +219,15 @@ Section SPILLMAP.
       split; first exact: hxs.
       exact: check_writeP hexn'.
     - by move => a [].
-    -
+    - move => e c1 c2 ih1 ih2 [] // e' c1' c2' exn exn' ii ii' /=; t_xrbindP.
+      move => he exn1 hexn1 exn2 hexn2 <-{exn'}.
+      apply wequiv_if_rel_uincl_R with checker exn exn1 exn2.
+      + exact: checkerP.
+      + by split; first rewrite /= he.
+      + move => ??; apply: st_rel_uincl_subset; exact: SvP.MP.union_subset_1.
+      + move => ??; apply: st_rel_uincl_subset; exact: SvP.MP.union_subset_2.
+      + exact: ih1 hexn1.
+      exact: ih2 hexn2.
     -
     -
   Admitted.
