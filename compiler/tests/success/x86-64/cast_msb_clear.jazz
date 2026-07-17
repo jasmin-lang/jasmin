@@ -1,0 +1,5 @@
+export fn add32_ext (reg u32 a) -> reg u64 {
+  reg u64 b;
+  ?{}, b = (64u)#ADD_32(a, 1);
+  return b;
+}

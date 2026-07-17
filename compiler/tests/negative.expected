@@ -1462,7 +1462,7 @@ _16u16
 
 fail/typing/x86-64/bug_69.jazz:
 
-"fail/typing/x86-64/bug_69.jazz", line 5 (3-28): primitive operator AND_64 returns an output of size 64; it cannot be zero-extended to size 32
+"fail/typing/x86-64/bug_69.jazz", line 5 (3-28): primitive operator AND_64 does not support zero-extension to 32
 
 fail/typing/x86-64/conditional_not_bool.jazz:
 
@@ -1596,6 +1596,14 @@ loop unrolling: for loops remain
 fail/x86-64/bug_1366.jazz:
 
 "fail/x86-64/bug_1366.jazz", line 2 (2-21): invalid number of lvalues, 1 provided instead of 2
+
+fail/x86-64/cast_msb_merge.jazz:
+
+"fail/x86-64/cast_msb_merge.jazz", line 3 (2-30): primitive operator ADD_16 does not support zero-extension to 32
+
+fail/x86-64/ignored_zero_extension.jazz:
+
+"fail/x86-64/ignored_zero_extension.jazz", line 3 (2-36): primitive operator AND_64 does not support zero-extension to 64
 
 fail/x86-64/invalid_load_align.jazz:
 
@@ -1742,7 +1750,7 @@ Allowed args are:
 
 Statistics:
 	Annots:      4
-	Pretyping:  47
+	Pretyping:  49
 	Parsing:     4
 	Typing:      5
 	Compile:   218

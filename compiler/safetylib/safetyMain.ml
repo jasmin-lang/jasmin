@@ -27,8 +27,8 @@ module type ArchWithAnalyze = sig
   val analyze :
     ?fmt:Format.formatter ->
     safety_param:string option ->
-    (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) func ->
-    (unit, (A.reg, A.regx, A.xreg, A.rflag, A.cond, A.asm_op, A.extra_op) Arch_extra.extended_op) prog ->
+    (unit, A.extended_op) func ->
+    (unit, A.extended_op) prog ->
     bool
 end
 

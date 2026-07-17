@@ -71,14 +71,9 @@ let catch_error cp =
     raise (HiError e)
 
 let do_wint_int
-   (type reg regx xreg rflag cond asm_op extra_op)
+   (type asm_op extra_op)
     (module Arch : Arch_full.Arch
-      with type reg = reg
-       and type regx = regx
-       and type xreg = xreg
-       and type rflag = rflag
-       and type cond = cond
-       and type asm_op = asm_op
+       with type asm_op = asm_op
        and type extra_op = extra_op) prog =
   let fdsi = snd prog in
   let get_info p =

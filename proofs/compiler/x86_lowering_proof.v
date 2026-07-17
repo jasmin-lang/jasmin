@@ -1201,7 +1201,7 @@ Section PROOF.
       move: hr.
       apply opn_no_immP.
       - rewrite /exec_sopn /sopn_sem /sopn_sem_; case.
-        + by move => ws ? /=; case: eqP => /= ? -> /=.
+        + by move => ws ? /= ->.
         by move => _ /= ->.
       by rewrite /exec_sopn => op _ ->.
 

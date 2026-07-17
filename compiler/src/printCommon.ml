@@ -147,6 +147,10 @@ let string_of_op2 = function
 (* -------------------------------------------------------------------- *)
 let pp_opn pd msfsz asmOp fmt o = pp_string fmt (Sopn.string_of_sopn pd msfsz asmOp o)
 
+let pp_cast_opn fmt = function
+  | Sopn.Oasm (Arch_extra.BaseOp(Some ws, _)) -> Format.fprintf fmt "(%du)" (Prog.int_of_ws ws)
+  | _ -> ()
+
 (* -------------------------------------------------------------------- *)
 let pp_syscall (o : 'a Syscall_t.syscall_t) =
   match o with Syscall_t.RandomBytes _ -> "#randombytes"

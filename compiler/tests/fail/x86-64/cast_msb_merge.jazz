@@ -1,0 +1,5 @@
+export fn add16_ext (reg u16 a) -> reg u32 {
+  reg u32 b;
+  ?{}, b = (32u)#ADD_16(a, 1);
+  return b;
+}

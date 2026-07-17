@@ -18,14 +18,8 @@ val initial_memory :
 val run :
   (module Arch_full.Arch
      with type asm_op = 'asm_op
-      and type cond = 'cond
-      and type extra_op = 'extra_op
-      and type reg = 'reg
-      and type regx = 'regx
-      and type rflag = 'rflag
-      and type xreg = 'xreg) ->
-  ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op
-  Expr.uprog ->
+      and type extra_op = 'extra_op) ->
+  ('asm_op, 'extra_op) Arch_extra.extended_op_gen Expr.uprog ->
   Expr.instr_info ->
   CoreIdent.funname ->
   Values.value list ->

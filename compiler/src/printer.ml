@@ -186,12 +186,8 @@ let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
       (pp_tag tg)
 
   | Copn(x, t, o, e) ->
-    let pp_cast fmt = function
-      | Sopn.Oasm (Arch_extra.BaseOp(Some ws, _)) -> Format.fprintf fmt "(%du)" (int_of_ws ws)
-      | _ -> () in
-
     F.fprintf fmt "@[<hov 2>%a%a#%a(%a);%a@]"
-      (pp_glvs ~debug pp_len pp_var) x pp_cast o pp_opn o
+      (pp_glvs ~debug pp_len pp_var) x pp_cast_opn o pp_opn o
       (pp_ges ~debug pp_len pp_var) e
       pp_optional_comment (pp_tag t)
 

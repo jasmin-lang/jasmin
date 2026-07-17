@@ -1,7 +1,7 @@
 val pp_prog :
   Wsize.wsize ->
   Wsize.wsize ->
-  ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
+  ('asm_op, 'extra_op) Arch_extra.extended_op_gen Sopn.asmOp ->
   Format.formatter ->
-  ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Linear.lprog ->
+  ('asm_op, 'extra_op) Arch_extra.extended_op_gen Linear.lprog ->
   unit
