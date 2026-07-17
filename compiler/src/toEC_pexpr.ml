@@ -92,9 +92,6 @@ end
 module Aarraytheory = Map.Make(AbsATcmp)
 
 
-  let var_to_pvar (x:var) =
-    PV.mk x.v_name x.v_kind (Conv.pty_of_cty (Conv.cty_of_ty x.v_ty)) x.v_dloc x.v_annot
-
 (* ------------------------------------------------------------------- *)
 (* Easycrypt keywords (and extraction "pseudo-keywords") *)
 
@@ -442,10 +439,6 @@ type ec_fun_eq = {
     old_fun: string;
 }
 
-type ec_item_eq = 
-  | IEfun of ec_fun
-  | IEmod of string * string * ec_fun_eq list 
-
 type ec_modty = string
 
 type ec_module_type = {
@@ -461,22 +454,15 @@ type ec_module = {
     funs: ec_fun list;
 }
 
-type ec_module_eq = {
-    name: string;
-    params: (string * ec_modty) list;
-    ty: ec_modty option;
-    vars: (string * string) list;
-    funs: ec_item_eq list;
-}
-
 type ec_item =
     | IrequireImport of string list
     | Iimport of string list
     | IfromRequireImport of string * (string list)
     | Iabbrev of string * ec_expr
+    | IEmod of string * string * ec_fun_eq list 
+    | ImoduleEq of string * string
     | ImoduleType of ec_module_type
     | Imodule of ec_module
-    | ImoduleEq of ec_module_eq
     | Itheory of bool * string
     | EndTheory of string
     | IopA of string * ec_modty
@@ -533,8 +519,8 @@ module type EnvT = sig
   val set_fun_mod: t -> funname -> funname -> string -> t
   val set_var_mod: t -> pvar -> pvar -> string -> t
   val set_mod_mod: t -> string -> string -> string -> t
-  val set_fun_fsig: t -> string -> pexpr_ Mprog.funsig -> t
-  val rename_fun: t -> pexpr_ Mprog.funsig -> string -> t
+  val set_fun_fsig: t -> string -> Mprog.funsig -> t
+  val rename_fun: t -> Mprog.funsig -> string -> t
   val aux_vars: t -> (string * string) list
 end
 
@@ -786,14 +772,14 @@ module Env: EnvT = struct
   let get_funname env f = fst (get_fun env f)
 
 
-    let set_fun_fsig env m (fsig: pexpr_ Mprog.funsig) =
+    let set_fun_fsig env m (fsig: Mprog.funsig) =
     let s = mkname env fsig.name.fn_name in
     let s = if m = "" then s else m ^ "." ^ s in
     let funs =
       Mf.add fsig.name (s, (fsig.fs_tyout, fsig.fs_tyin)) env.funs in
     { env with funs; alls = ref (Ss.add s !(env.alls)) }
   
-  let rename_fun env (fsig: pexpr_ Mprog.funsig) new_name =
+  let rename_fun env (fsig: Mprog.funsig) new_name =
     let funs =
       Mf.add fsig.name (new_name, (fsig.fs_tyout, fsig.fs_tyin)) env.funs in
     { env with funs; alls = ref (Ss.add new_name !(env.alls)) }
@@ -849,24 +835,13 @@ module Env: EnvT = struct
     let env = List.fold_left (fun env f ->
       let fname = get_funname env f in
       let ftype = get_funtype env f in
-      let funs = Mf.add f (mname^".M."^fname, ftype) env.funs in
+      let funs = Mf.add f (mname^"."^fname, ftype) env.funs in
       {env with funs}
     ) env m_funs in
     let env = List.fold_left (fun env mm ->
       let args, mmname = get_module env mm in
       let modules = Ms.add mm (args,mname^"."^mmname) env.modules in
       {env with modules}
-    ) env m_modules in
-    let env = List.fold_left (fun env mm ->
-      if get_module env mm |> fst == [] then 
-      let modf = List.filter (fun x -> not (List.mem x m_funs)) (get_module_funcs env mm) in
-      List.fold_left (fun env f ->
-        let fname = get_funname env f in
-        let ftype = get_funtype env f in
-        let funs = Mf.add f (mname^"."^fname, ftype) env.funs in
-        {env with funs}
-        ) env modf
-      else env
     ) env m_modules in
     List.fold_left (fun env v ->
       let vname = get_varname env v in
@@ -1133,26 +1108,14 @@ let pp_ec_item fmt it =
   | ImoduleType mt ->
     Format.fprintf fmt "@[<v>@[module type %s = {@]@   @[<v>%a@]@ }.@]"
       mt.name (pp_list "@ " pp_ec_fun_decl) mt.funs
-  | ImoduleEq m ->
+  | IEmod (m, ma, funs) ->
     let pp_fun_eq fmt fe = Format.fprintf fmt "proc %s = %s" fe.new_fun fe.old_fun in
-    let pp_mod_eq fmt (ma_name, ma_func, funs) = 
-      Format.fprintf fmt "@[<v>@[module %s_args : %s.%s_args = {@]@   @[<v>%a@]@ }@ @ " ma_name ma_name ma_func (pp_list "@ " pp_fun_eq) funs;
+    let pp_mod_eq fmt () = 
+      Format.fprintf fmt "@[<v>@[module %s_args : %s.%s_args = {@]@   @[<v>%a@]@ }@ @ " m m ma (pp_list "@ " pp_fun_eq) funs;
     in
-    let pp_modargs fmt ma_name = Format.fprintf fmt "@[module %sM =@ @[%s.M(%s_args)@]@]" ma_name ma_name ma_name in
-    let pp_item_eq fmt ie = match ie with
-      | IEfun f -> pp_ec_fun fmt f
-      | IEmod (m, ma, funs) ->
-         pp_mod_eq fmt (m, ma, funs);
-         pp_modargs fmt m;
-    in
-    let pp_mp fmt (m, mt) = Format.fprintf fmt "%s:%s" m mt in
-    Format.fprintf fmt "@[<v>@[module %s@[%a@]%a = {@]@   @[<v>%a%a%a@]@ }.@]"
-      m.name
-      (pp_list_paren ",@ " pp_mp) m.params
-      (pp_option (fun fmt s -> Format.fprintf fmt " : %s" s)) m.ty
-      (pp_list "@ " (fun fmt (v, t) -> Format.fprintf fmt "@[var %s : %s@]" v t)) m.vars
-      (fun fmt _ -> if m.vars = [] then (Format.fprintf fmt "") else (Format.fprintf fmt "@ ")) ()
-      (pp_list "@ " pp_item_eq) m.funs
+    Format.fprintf fmt "@[<v>%a@ .@]" pp_mod_eq ()
+  | ImoduleEq (m,ma) ->
+     Format.fprintf fmt "@[<v>@[module %s = %s.@]" m ma;
   | Imodule m ->
     let pp_mp fmt (m, mt) = Format.fprintf fmt "%s:%s" m mt in
     Format.fprintf fmt "@[<v>@[module %s@[%a@]%a = {@]@   @[<v>%a%a%a@]@ }.@]"
@@ -2445,14 +2408,6 @@ struct
   (* ------------------------------------------------------------------- *)
   (* Program extraction *)
 
-  let add_glob_arrsz env (x,d) =
-    match d with
-    | Global.Gword _ -> ()
-    | Global.Garr(p,t) ->
-      let ws, t = Conv.to_array x.v_ty p t in
-      let n = Array.length t in
-      Env.add_jarray env ws n
-
   let jmodel env = match Env.arch env with
     | X86_64 -> "JModel_x86"
     | ARM_M4 -> "JModel_m4"
@@ -2462,24 +2417,6 @@ struct
     | X86_64 -> "SLH64"
     | ARM_M4 -> "SLH32"
     | RISCV  -> "SLH32"
-
-  let subst_ty ty =
-  match ty with
-  | Bty ty -> Bty ty
-  | Arr(ty, e) -> 
-    match get_int(e)with
-    | Some e ->  Arr(ty,  e)
-    | None -> raise (Failure "Expected constant array size")
-
-  let ec_glob_decl env (x,d) =
-    let w_of_z ws z = Eapp (Eident [fmt_Wsz ws; "of_int"], [Econst z]) in
-    let mk_abbrev e = Iabbrev (ec_vars env x, e) in
-    match d with
-    | Global.Gword(ws, w) -> mk_abbrev (w_of_z ws (Conv.z_of_word ws w))
-    | Global.Garr(p,t) ->
-      let ws, t = Conv.to_array (subst_ty x.v_ty) p t in
-      mk_abbrev (Eapp (EA.of_list env ws (Array.length t),
-                       [Elist (List.map (w_of_z ws) (Array.to_list t))]))
 
   let ec_randombytes env =
       let randombytes_decl a n =
@@ -2528,55 +2465,6 @@ struct
       | Mprog.MaParam e  -> [(arg_name, toec_expr env e)]
       | MaGlob v -> [(arg_name, toec_expr env (Pvar{gs=E.Sglob; gv = v}))]
       | MaFun _ -> []
-    
-  let in_range s sz i =
-    if s = Wsize.Signed &&
-       not (Z.lt i (Z.shift_left Z.one ((int_of_ws sz)/2))) then
-       Z.sub i (Z.shift_left Z.one (int_of_ws sz))
-    else i
-
-  let rec constant_of_expr (e: Prog.expr) : Z.t =
-  let open Prog in
-
-  match e with
-  | Papp1 (Oword_of_int sz, e) ->
-      clamp sz (constant_of_expr e)
-
-  | Papp1(Oint_of_word(s, sz), e) ->
-      let i = clamp sz (constant_of_expr e) in
-      in_range s sz i
-
-  | Pconst z ->
-      z
-
-  | _ -> assert false
-
-  let doglob (x, e) =
-    let global_tbl = Hv.create 101 in
-    let add_glob x gv = Hv.add global_tbl x gv in
-    let get_glob x = Hv.find_option global_tbl (Conv.var_of_cvar x) in
-    let mk_word ws e =
-      let open Constant_prop in
-      let e = Conv.cexpr_of_expr e in
-      let e = Wint_word.wi2w_e e in
-      let c = const_prop_e (fun _ -> assert false) (Some get_glob) Var0.Mvar.empty e in
-      let z = constant_of_expr (Conv.expr_of_cexpr c) in
-      Word0.wrepr ws (Conv.cz_of_z (clamp ws z)) in
-    let gv =
-      match x.v_ty, e with
-      | Bty (U ws), GEword e ->
-        Global.Gword (ws, mk_word ws e)
-      | Arr (_ws, n), GEarray es when List.length es <> n -> assert false
-      | Arr (ws, n), GEarray es ->
-        let p = Conv.pos_of_int (n * size_of_ws ws) in
-        let mk_word_i _ e =
-          mk_word ws e
-        in
-        let t = Warray_.WArray.of_list ws (List.mapi mk_word_i es) in
-        Global.Garr(p, t)
-      | _, _ -> assert false in
-      add_glob x gv;
-      x, gv
 
 
    let init_args_modapp env ma_args =
@@ -2584,7 +2472,7 @@ struct
       let old_fun = Env.get_funname env arg.f_name in
       {new_fun=param; old_fun}
     ) ma_args in
-    env, funs
+    funs
 
   let get_array_params env = 
     function
@@ -2782,16 +2670,50 @@ struct
       | Some sws, Some swb ->
         Env.add_ArrayAccessCast env sws swb s.sizeb;
       | _ -> assert false
-      end
-    
+      end      
+
+    let modapp_f env m mapp = 
+      let ma_params, ma_func = Env.get_module env mapp.Mprog.ma_func in
+      let ma_func_funcs = Env.get_module_funcs env mapp.Mprog.ma_func in
+      let ma_args_funcs = List.concat (List.map2 (fun param arg ->
+          match arg with
+          | Mprog.MaFun f -> [(param,f)]
+          | _ -> []
+          ) ma_params mapp.Mprog.ma_args ) in
+
+      let env, new_fs = List.fold_left ( fun (env,new_fs) f ->
+        let new_funname = F.mk (String.replace ~str:f.fn_name ~sub:mapp.ma_func ~by:mapp.ma_name |> snd) in
+        let env = Env.add_module_fun env mapp.ma_name new_funname in
+        let env = Env.add_module_fun env m.Mprog.name new_funname in
+        Env.set_fun_mod env new_funname f mapp.ma_name , new_fs @ [new_funname]
+      ) (env,[]) ma_func_funcs in
+
+      if ma_args_funcs <> []
+      then 
+        let _, ma_name = Env.get_module env mapp.ma_name in
+        let init_args = init_args_modapp env ma_args_funcs in
+        let m_args = ma_name ^ "_args" in
+        let ma_args = ma_func ^ "_args" in
+        let env, init_funs = List.fold_left ( fun (env,init_funs) f ->
+          let f_modname = String.capitalize_ascii f.fn_name |> escape in
+          let fname = Env.get_funname env f in
+          let fs_tyin,fs_tyout = Env.get_funtype env f in
+          let f = { name = f; Mprog.fs_tyin; fs_tyout} in
+          let _,new_fmodname = String.replace ~str:f_modname ~sub:ma_func ~by:ma_name in
+          let _,new_fname = String.replace ~str:fname ~sub:ma_args ~by:m_args in
+          let fname, new_fname = 
+            match List.rev (String.split_on_char '.' new_fname) with
+            | [] -> "", ""
+            | f :: m -> f, String.concat "." (List.rev m)  
+          in
+          let env = Env.rename_fun env f (new_fmodname ^ "." ^ fname) in
+          env,init_funs @ [ImoduleEq(new_fmodname,new_fname)]
+        ) (env,[]) new_fs
+        in
+        env, IEmod(ma_name,ma_func,init_args) :: init_funs
+      else env, [] 
 
   let toec_mprog mprog env asmOp imports =
-      let add_glob_env m env (x, d) =
-        add_glob_arrsz env (x, d);
-        let x' = var_to_pvar x in
-        let env = Env.add_module_var env m.Mprog.name x' in
-        x', Env.set_var env x'
-      in
       let pp_array_theories ats = match Sarraytheory.elements ats with
           | [] -> []
           | l -> [IrequireImport (List.map fmt_array_theory l)]
@@ -2853,23 +2775,17 @@ struct
               env, (theory :: params), [EndTheory(name)]
             else env, [Itheory(false,name)], [EndTheory(name)]
           in
-          let env, func_item = 
-            if pfuns = [] then env, []
+          let env, func_item, modf_args = 
+            if pfuns = [] then env, [], ""
             else
               let mname = name ^ "_args" in
-              let env, fun_sigs = List.fold_left (fun (env,fsigs) (f: pexpr_ Mprog.funsig) -> 
+              let env, fun_sigs = List.fold_left (fun (env,fsigs) (f: Mprog.funsig) -> 
                 let fname = Env.get_funname env f.name in
                 let fsig = toec_funsig env fname f in
                 Env.rename_fun env f (mname^"."^fname), fsigs @ [fsig]
                 ) (env,[]) pfuns in
-              env, [ImoduleType{name = mname; funs = fun_sigs}]
+              env, [ImoduleType{name = mname; funs = fun_sigs}], "("^mname^")"
           in
-          let globs = List.map doglob m.globs in
-          let env, globs = List.fold_left (fun (env,gs)  (v,gv)-> 
-                let g,env =  add_glob_env m env (v,gv) in
-                env, gs @ [(g,gv)]
-          ) (env,[]) globs in
-          let glob_items = (List.map (fun glob -> ec_glob_decl env glob) globs) in
           let env, items = List.fold_left (fun (env, items) sm ->
               match sm with
               | Mprog.MsMod sm -> 
@@ -2888,15 +2804,9 @@ struct
                     env
                 in
                 env, items @ i
-              | MsClone mapp -> 
+              | MsModApp mapp -> 
                 let ma_params, ma_func' = Env.get_module env mapp.Mprog.ma_func in
                 let env, ma_name' = Env.set_module env mapp.ma_name [] in
-                let ma_func_funcs = Env.get_module_funcs env mapp.Mprog.ma_func in
-                let env = List.fold_left ( fun env f ->
-                  let new_funname = F.mk (String.replace ~str:f.fn_name ~sub:mapp.ma_func ~by:mapp.ma_name |> snd) in
-                  let env = Env.add_module_fun env mapp.ma_name new_funname in
-                  Env.set_fun_mod env new_funname f mapp.ma_name
-                ) env ma_func_funcs in
                 let env = List.fold_left ( fun env v ->
                   let new_name = String.replace ~str:v.v_name ~sub:mapp.ma_func ~by:mapp.ma_name |> snd in
                   let new_var = PV.mk new_name v.v_kind v.v_ty v.v_dloc v.v_annot in
@@ -2920,63 +2830,58 @@ struct
                    let ma = ma_pexpr_to_string env ma in
                    (arr, ma)
                 ) (Env.get_module_arrays env mapp.Mprog.ma_func) in
-                env, items @ [Iclone(false,ma_func', ma_name', List.concat (List.map2 (toec_modulearg env) mapp.ma_args ma_params),theories)]
-            ) (env,[]) m.modules in
-          let modapp_f env mapp = 
-                let ma_params, ma_func = Env.get_module env mapp.Mprog.ma_func in
-                let ma_args_funcs = List.concat (List.map2 (fun param arg ->
-                    match arg with
-                    | Mprog.MaFun f -> [(param,f)]
-                    | _ -> []
-                    ) ma_params mapp.Mprog.ma_args ) in
-                let _, ma_name = Env.get_module env mapp.ma_name in
-                let env,init_args =
-                  init_args_modapp env ma_args_funcs
-                in
-                let ma_func_funcs = Env.get_module_funcs env mapp.Mprog.ma_name in
-                let env = List.fold_left ( fun env f ->
-                  let fname = Env.get_funname env f in
-                  let fs_tyin,fs_tyout = Env.get_funtype env f in
-                  let f = { name = f; Mprog.fs_tyin; fs_tyout} in
-                  let _,new_name = String.replace ~str:fname ~sub:".M." ~by:"M." in
-                  let env = Env.add_module_fun env m.Mprog.name f.name in
-                  Env.rename_fun env f new_name
-                ) env ma_func_funcs in
-                env, [IEmod(ma_name,ma_func,init_args)]
-          in
-          let env,funs = List.fold_left (
-            fun (env, items) f ->
-              let env, f = match f with
-              | Mprog.MsFun f ->
+                let env, modappf = modapp_f env m mapp in
+                env, items 
+                     @ [Iclone(false,ma_func', ma_name', List.concat (List.map2 (toec_modulearg env) mapp.ma_args ma_params),theories)] 
+                     @ modappf
+            | MsGlob (v,e) ->
+              let env = Env.set_var env v in
+              let env = Env.add_module_var env m.name v in
+              Env.add_ty env v.v_ty;
+              let e = match e with
+                | GEword e -> toec_expr env e
+                | GEarray es ->
+                   let e = List.hd es in (*FIXME - error handling*)
+                   let ws = begin match ty_expr e with
+                            | Bty (U ws) -> ws
+                            | _ -> assert false
+                            end
+                  in
+                   Eapp ((EA.of_list env ws (List.length es)),
+                   [Elist (List.map (toec_expr env) es)])                 
+              in env, items @ [Iabbrev (ec_vars env v, e)]
+            | MsFun f -> 
                 add_arrsz env f;
                 let env = Env.set_fun env f in
-                env, [IEfun (toec_fun asmOp env f)]
-              | MsModApp modapp -> modapp_f env modapp
-              in env, items @ f
-          ) (env,[]) m.funs in
-          let mod_funcs_args = if pfuns = [] then [] else [(name^"_args",name^"_args")] in
-          let top_mod = if funs <> [] then [ImoduleEq {
-            name="M";
-            params = mod_arg @ mod_funcs_args;
-            ty = None;
-            vars = global_leakage_vars env;
-            funs;
-          }] else [] 
-          in
-          let env = List.fold_left (fun env f ->
-            match f with
-            | Mprog.MsFun f ->  
-              Env.add_module_fun env m.name f.f_name
-            | _ -> env
-            ) env m.funs 
-           in
-          let init_abstract_arrays = List.map (fun (ma,i) -> 
+                let env = Env.add_module_fun env m.name f.f_name in
+                let funs = [toec_fun asmOp env f] in
+                let fsig = {
+                  Mprog.name= f.f_name;
+                  fs_tyin = f.f_tyin;
+                  fs_tyout = f.f_tyout
+                } in
+                let fname = Env.get_funname env f.f_name in
+                let cfname = String.capitalize_ascii fname in
+                let mname = Env.get_module env m.name  |> snd in
+                let modargs = if func_item <> [] then [(mname^"_args",mname^"_args")]
+                              else []  in
+                let f = [Imodule {
+                  name=String.capitalize_ascii f.f_name.fn_name |> escape;
+                  params = modargs @ mod_arg;
+                  ty = None;
+                  vars = global_leakage_vars env;
+                  funs;
+                }] in
+                let env = Env.rename_fun env fsig (cfname^modf_args^"."^fname) in
+                env, items @ f
+            ) (env,[]) m.items in
+      let init_abstract_arrays = List.map (fun (ma,i) -> 
             let t, arr = fmt_abstract_array_theory ma i in
             let ops,theories = get_array_params env ma in
             Iclone(true,t, arr, ops,theories)
           ) (Aarraytheory.to_list (Env.abstract_array_theories env)) in
           let env = Env.exit_module env m.name in
-          env, imports @ init_items @ func_item @ glob_items @ init_abstract_arrays @ items @ top_mod @ end_items
+          env, imports @ init_items @ func_item @ init_abstract_arrays @ items @ end_items
       in
       let env, items = List.fold_left (fun acc m ->
         let env, items = acc in

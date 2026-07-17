@@ -414,40 +414,35 @@ let get_args subst =
 let rec psubst_mprog prog subst =
    match prog with
    | [] -> []
-   | Mprog.MdFunctor fd :: items -> 
+   | Mprog.MdFunctor fd :: ms -> 
     let params =  get_param_decls subst fd.functorparams in
-    let globs,modules,funs =  psubst_mbody subst fd.functorbody in
-    {Mprog.name = fd.functorname; requires =fd.functorimports; params; globs; modules; funs} :: psubst_mprog items subst
+    let items =  psubst_mbody subst fd.functorbody in
+    {Mprog.name = fd.functorname; requires =fd.functorimports; params; items} :: psubst_mprog ms subst
    | _ -> hierror "expecting module, incorrect syntax"
 
 and psubst_mbody subst mbody =
   let rec aux =
     function
-     | [] -> [], [], []
+     | [] -> []
      | Mprog.MdFunctor fd :: items ->
-        let globs,modules,funs = aux items in
+        let items = aux items in
         let mitems = [Mprog.MsMod (psubst_mprog [Mprog.MdFunctor fd] subst |> List.hd)] in
-        globs,modules @ mitems, funs
+        items @ mitems
      | MdModApp ma :: items ->
-        let globs,modules,funs = aux items in
+        let items = aux items in
         let args = get_args subst ma.ma_args in
-        let fs = List.fold_left (fun fs arg -> match arg with
-          | Mprog.MaParam _ 
-          | MaGlob _ ->  fs
-          | MaFun _ ->fs @ [arg]) [] args in
         let ma = { ma with ma_args = args; } in
-        let modules = modules@[Mprog.MsClone ma] in
-        let funs = if fs<>[] then funs@[Mprog.MsModApp ma] else funs in
-        globs,modules, funs
+        items @ [Mprog.MsModApp ma]
      | MdItem mi :: items ->
-        let globs,modules,funs = aux items in
+        let items = aux items in
         let globsi, funcsi = psubst_item subst [mi] in
-        let funcsi = List.map (fun f -> Mprog.MsFun f) funcsi in
-        globs @ globsi , modules, funs @ funcsi
+        let globsi = List.map (fun g -> Mprog.MsGlob g ) globsi in
+        let funcsi = List.map (fun g -> Mprog.MsFun g ) funcsi in
+        items @ globsi @ funcsi
      in 
   aux mbody
 
-let isubst_v subst =
+    (* let isubst_v subst =
     let aux v0 =
       let k = v0.gs in
       let v = v0.gv in
@@ -471,7 +466,7 @@ let isubst_v subst =
       | _      -> e in
     aux 
 
-    (* let isubst_gv scope subst =
+ let isubst_gv scope subst =
     let aux gv0 =
       let e =
         try Mpv.find gv0 !subst
@@ -493,7 +488,7 @@ let isubst_v subst =
         let x = {gv = x; gs = k} in
         Pvar x
       | _      -> e in
-    aux  *)
+    aux  
   let isubst_glob (x, gd) subst =
     let subst_v = isubst_v subst in
     let x =
@@ -507,7 +502,7 @@ let isubst_v subst =
       | GEarray es -> GEarray (List.map (gsubst_e isubst_len subst_v) es) in
     x, gd 
   
-   (* let isubst_item subst fc =
+ let isubst_item subst fc =
     let subst_v = isubst_v subst in
     let dov v =
       L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
@@ -554,7 +549,7 @@ let isubst_arg subst =
       | Pvar v' -> MaGlob v'.gv
       | _ -> hierror ~loc:(L.loc v.gv) "expected a global variable as argument, but got an expression"
       end
-    | MaFun f -> MaFun (isubst_item subst f) *)
+    | MaFun f -> MaFun (isubst_item subst f) 
 
 
 let isubst_mprog : (pexpr_, pexpr_, 'info, 'asm) Mprog.module_summary list -> (pexpr_, int, 'info, 'asm) Mprog.module_summary list =
@@ -575,14 +570,13 @@ let isubst_mprog : (pexpr_, pexpr_, 'info, 'asm) Mprog.module_summary list -> (p
        {minfo with globs; funs = minfo.funs;params = minfo.params; modules} :: ms
         in 
   aux mprog
-  
+  *)
 
 
-let remove_params_modular : ('info, 'asm) Mprog.mpprog -> ('len, int, 'info, 'asm) Mprog.module_summary list =
+let remove_params_modular : ('info, 'asm) Mprog.mpprog -> ('info, 'asm) Mprog.module_summary list =
   fun mprog ->
     let subst = ref (Mpv.empty : pexpr Mpv.t) in
-    let mprog = psubst_mprog mprog subst in
-    isubst_mprog mprog
+    psubst_mprog mprog subst
 
 let remove_params (prog : ('info, 'asm) pprog) =
   let globals, prog = psubst_prog prog in

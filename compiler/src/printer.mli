@@ -6,15 +6,31 @@ val pp_err : debug:bool -> Format.formatter -> Compiler_util.pp_error -> unit
 
 val pp_print_X : Format.formatter -> Z.t -> unit
 
+val pp_pitem : debug:bool -> (Format.formatter -> pexpr_ -> unit) -> 
+    (Format.formatter ->('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Sopn.sopn -> unit) ->
+    (Format.formatter -> pexpr_ gvar -> unit) -> Format.formatter ->
+    (pexpr_, 'h, ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op) gmod_item -> unit
 val pp_pvar  : Format.formatter -> pvar -> unit
+val pp_pexpr_ : debug:bool -> Format.formatter -> pexpr_ -> unit
 val pp_ptype : debug:bool -> Format.formatter -> pty -> unit
 val pp_eptype : debug:bool -> Format.formatter -> epty -> unit
 val pp_plval : debug:bool -> Format.formatter -> plval -> unit
 val pp_pexpr : debug:bool -> Format.formatter -> pexpr -> unit
 val pp_pprog : debug:bool -> Wsize.wsize -> Wsize.wsize -> ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
                Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) pprog -> unit
-val pp_mpprog : Wsize.wsize -> Wsize.wsize -> ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
-               Format.formatter -> (pexpr_, 'info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) gmodule_item list -> unit
+
+
+
+val pp_gmprog: debug:bool -> bool -> (Format.formatter -> pexpr_ -> unit) ->
+  (Format.formatter -> ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Sopn.sopn -> unit) ->
+(Format.formatter -> pexpr_ gvar -> unit) ->
+Format.formatter ->
+('h, ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op)
+gmodule_item list -> unit
+
+
+val pp_mpprog : debug:bool -> Wsize.wsize -> Wsize.wsize -> ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
+               Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) gmodule_item list -> unit
 
 val pp_var   : debug:bool -> Format.formatter -> var -> unit
 val pp_dvar  : debug:bool -> Format.formatter -> var -> unit

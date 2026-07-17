@@ -408,7 +408,7 @@ let pp_gmparams pp_var pp_size fmt l =
     F.fprintf fmt "@[<v>with %a @]"
       (pp_list "@ " (pp_gmdecl pp_var pp_size)) l
 
-let pp_gmarg pp_size fmt (arg: ('len,'info, 'asm) modulearg) =
+let pp_gmarg pp_size fmt (arg: ('info, 'asm) modulearg) =
   match arg with
   | MaParam pa ->
     F.fprintf fmt "%a" pp_size pa
