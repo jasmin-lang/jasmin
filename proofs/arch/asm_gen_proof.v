@@ -1020,17 +1020,20 @@ Proof.
   case: mem_write_val => //=.
 Qed.
 
-Lemma exec_desc_desc_op op asm_args s :
+Lemma exec_desc_desc_op op asm_args s s' :
   check_i_args_kinds (instr_desc op).(id_args_kinds) asm_args ->
-  exec_instr_op (instr_desc op) asm_args s = exec_instr_op (instr_desc_op op.2) asm_args s.
+  exec_instr_op (instr_desc op) asm_args s = ok s' ->
+  exec_instr_op (instr_desc_op op.2) asm_args s = ok s'.
 Proof.
   case: op => -[ws |] //= op.
-  case: eqP => //= hclear /[dup] hcheck /exclude_mem_correct [hc hnaddr].
-  rewrite /exec_instr_op /= /eval_instr_op /= hcheck hc hclear /=.
+  move=> /[dup] hcheck /exclude_mem_correct [hc hnaddr].
+  rewrite /exec_instr_op /= /eval_instr_op /= hcheck hc /can_zeroextend.
   case: id_valid => //=.
+  case: andP => // -[ /eqP -> _] /=.
   case heq : eval_args_in => [vargs | ] //=.
   rewrite app_sopn_apply_lprod.
   case: app_sopn => //= t.
+  move=> <-; symmetry.
   apply check_not_addr_write => //.
   assert (hsize:= id_eq_size (instr_desc_op op)).
   by move: hsize => /andP [_ /eqP].
@@ -1134,7 +1137,7 @@ Proof using hagparams.
   rewrite /eval_op => ok_xs ok_ys hsem /assemble_asm_opI [hca hcd hidc ->] hlo.
   have [s' he' hlo'] := compile_asm_opn ok_xs ok_ys hsem hca hcd hidc hlo.
   exists s'; last done.
-  by rewrite -exec_desc_desc_op.
+  exact: exec_desc_desc_op.
 Qed.
 
 Lemma assemble_sopnP rip ii op lvs args ops m xs ys m' s:

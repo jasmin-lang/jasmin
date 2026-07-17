@@ -449,7 +449,12 @@ Existing Instance _eqT.
 
 Definition asm_op_t' {asm_op} {asm_op_d : asm_op_decl asm_op} := asm_op.
 (* We extend [asm_op] in order to deal with msb flags *)
-Definition asm_op_msb_t {asm_op} {asm_op_d : asm_op_decl asm_op} := (option wsize * asm_op)%type.
+
+Definition asm_op_msb_t_gen (asm_op : Type) :=
+  (option wsize * asm_op)%type.
+
+Definition asm_op_msb_t {asm_op} {asm_op_d : asm_op_decl asm_op} :=
+  asm_op_msb_t_gen asm_op.
 
 Context `{asm_op_d : asm_op_decl}.
 
@@ -558,16 +563,26 @@ Proof.
   move=> h v; apply/hrec/h.
 Qed.
 
+Definition can_zeroextend (d:instr_desc_t) :=
+  (d.(id_msb_flag) == MSB_CLEAR).
+
+Lemma and_proj1 (a b : bool) : a && b -> a.
+Proof. by move=> /andP []. Qed.
+
 Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
   let (ws, o) := o in
   let d := instr_desc_op o in
   if ws is Some ws then
-    if d.(id_msb_flag) == MSB_CLEAR then
-    {| id_valid      := d.(id_valid);
+    let valid := can_zeroextend d in
+    let tout := map (extend_size ws) d.(id_tout) in
+    {| id_valid      := d.(id_valid) &&
+          (* We reject the operator if the msb flag is not msb_clear
+             or if the cast (the extend_size) has no effect on the output type *)
+          (valid && (tout != d.(id_tout)));
        id_msb_flag   := d.(id_msb_flag);
        id_tin        := d.(id_tin);
        id_in         := d.(id_in);
-       id_tout       := map (extend_size ws) d.(id_tout);
+       id_tout       := tout;
        id_out        := d.(id_out);
        id_semi       := extend_sem ws d.(id_semi);
        id_args_kinds := exclude_mem d.(id_args_kinds) d.(id_out) ;
@@ -578,10 +593,9 @@ Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
        id_safe       := d.(id_safe);
        id_pp_asm     := d.(id_pp_asm);
        id_safe_wf    := d.(id_safe_wf);
-       id_semi_errty := fun h => extend_sem_errty ws (d.(id_semi_errty) h);
-       id_semi_safe  := fun h => extend_sem_safe ws (d.(id_semi_safe) h);
- |}
-    else d (* FIXME do the case for MSB_KEEP *)
+       id_semi_errty := fun h => extend_sem_errty ws (d.(id_semi_errty) (and_proj1 h));
+       id_semi_safe  := fun h => extend_sem_safe ws (d.(id_semi_safe) (and_proj1 h));
+    |}
   else
     d.
 

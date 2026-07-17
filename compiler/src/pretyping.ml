@@ -50,8 +50,7 @@ type tyerror =
   | PackWrongWS of int
   | PackWrongPE of int
   | PackWrongLength of int * int
-  | UnsupportedZeroExtend of (F.formatter -> unit)
-  | InvalidZeroExtend of W.wsize * W.wsize * (F.formatter -> unit)
+  | UnsupportedZeroExtend of (F.formatter -> unit) * W.wsize
   | StringError of string
 
 exception TyError of L.t * tyerror
@@ -223,11 +222,8 @@ let pp_tyerror fmt (code : tyerror) =
   | PackWrongLength (e, f) ->
     F.fprintf fmt "wrong length of pack; expected: %d; found: %d" e f
 
-  | UnsupportedZeroExtend name ->
-      F.fprintf fmt "primitive operator %t does not support zero-extension" name
-
-  | InvalidZeroExtend (src, dst, name) ->
-      F.fprintf fmt "primitive operator %t returns an output of size %a; it cannot be zero-extended to size %a" name PrintCommon.pp_wsize src PrintCommon.pp_wsize dst
+  | UnsupportedZeroExtend (name, dst) ->
+      F.fprintf fmt "primitive operator %t does not support zero-extension to %a" name PrintCommon.pp_wsize dst
 
   | StringError s ->
     F.fprintf fmt "%s" s
@@ -1753,28 +1749,6 @@ let prim_of_pe pe =
     L.mk_loc (L.loc pe) desc
   | _ -> raise exn
 
-let cast_opn ~loc id ws =
-  let open Sopn in
-  let name fmt = Format.pp_print_string fmt (id.str ()) in
-  let invalid () = rs_tyerror ~loc (UnsupportedZeroExtend name) in
-  let open Arch_extra in
-  function
-  | Oasm (BaseOp (None, op)) ->
-    begin match List.last id.tout with
-      | Coq_aword from ->
-          if not (wsize_le from ws) then rs_tyerror ~loc(InvalidZeroExtend (from, ws, name))
-          else if ws = from then begin
-            warning Always (L.i_loc0 loc)
-              "primitive operator %t already returns a value of size %a; the zero-extension is ignored"
-              name PrintCommon.pp_wsize ws;
-            Oasm (BaseOp (None, op))
-          end else
-            Oasm (BaseOp (Some ws, op))
-      | _ -> invalid ()
-  end
-  | Oasm (BaseOp (Some _, _)) -> assert false
-  | _ -> invalid ()
-
 (* -------------------------------------------------------------------- *)
 let pexpr_of_plvalue exn l =
   match L.unloc l with
@@ -1783,15 +1757,19 @@ let pexpr_of_plvalue exn l =
   | S.PLArray(al, aa,ws,x,e,len) -> L.mk_loc (L.loc l) (S.PEGet(al, aa,ws,x,e,len))
   | S.PLMem(al,ty,e) -> L.mk_loc (L.loc l) (S.PEFetch(al,ty,e))
 
+let cast_opn (arch_info : 'op P.arch_info) ~loc id ws =
+  let open Sopn in
+  let name fmt = Format.pp_print_string fmt (id.str ()) in
+  let invalid () = rs_tyerror ~loc (UnsupportedZeroExtend (name, ws)) in
+  function
+  | Oasm op ->
+    begin match arch_info.zero_extend_op op ws with
+    | None -> invalid ()
+    | Some op' -> Oasm op'
+    end
+  | _ -> invalid ()
 
-type ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info = {
-  pd : Wsize.wsize;
-  asmOp : ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Sopn.sopn Sopn.asmOp;
-  known_implicits : (CoreIdent.Name.t * string) list;
-  flagnames: CoreIdent.Name.t list;
-}
-
-let tt_lvalues arch_info env loc (pimp, pls) implicit tys =
+let tt_lvalues (arch_info : 'asm P.arch_info) env loc (pimp, pls) implicit tys =
   let pimp = Option.map (fun pimp -> L.mk_loc (L.loc pimp) (pannot_to_annotations (L.unloc pimp))) pimp in
   let loc = loc_of_tuples loc (List.map P.L.loc pls) in
 
@@ -2150,7 +2128,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm 
         in
       let p = tt_prim arch_info.asmOp f in
       let id = Sopn.asm_op_instr arch_info.asmOp p in
-      let p = cast_opn ~loc:(L.loc pi) id ws p in
+      let p = cast_opn arch_info ~loc:(L.loc pi) id ws p in
       let tlvs, tes, arguments = prim_sig arch_info.asmOp p in
       let lvs, einstr = tt_lvalues arch_info env_lhs (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast arch_info.pd env_rhs (L.loc pi) args tes in
@@ -2349,7 +2327,7 @@ and add_reserved_oc env =
 
 (* -------------------------------------------------------------------- *)
 
-let add_known_implicits arch_info env c =
+let add_known_implicits (arch_info : 'asm P.arch_info) env c =
   let env = add_reserved_c env c in
   let create env s =
     if not (Env.is_reserved env s) then s
@@ -2377,7 +2355,7 @@ let warn_unused_variables env f =
     env
 
 (* -------------------------------------------------------------------- *)
-let tt_contract arch_info env0 f_ret dfl_mut pf =
+let tt_contract (arch_info : 'asm P.arch_info) env0 f_ret dfl_mut pf =
   let safety, annot =
     List.partition (fun (id, _) -> String.equal "safety" (L.unloc id)) pf.S.pdf_annot
   in
@@ -2518,7 +2496,7 @@ let tt_contract arch_info env0 f_ret dfl_mut pf =
   (annot, f_contract)
 
 (* -------------------------------------------------------------------- *)
-let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.env =
+let tt_fundef (arch_info : 'asm P.arch_info) (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.env =
   let env = Env.Vars.clear_locals env0 in
   if is_combine_flags pf.pdf_name then
     rs_tyerror ~loc:(L.loc pf.pdf_name) (string_error "invalid function name");
@@ -2608,12 +2586,12 @@ let tt_global pd (env : 'asm Env.env) _loc (gd: S.pglobal) : 'asm Env.env =
   Env.Vars.push_global env (x,ty,d)
 
 
-let tt_typealias arch_info env id annot ty =
+let tt_typealias (arch_info : 'asm P.arch_info) env id annot ty =
   let alias = tt_type arch_info.pd env ty in
   Env.TypeAlias.push env id annot alias
 
 (* -------------------------------------------------------------------- *)
-let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
+let rec tt_item (arch_info : 'asm P.arch_info) (env : 'asm Env.env) pt : 'asm Env.env =
   match L.unloc pt with
   | S.PParam  pp -> tt_param  arch_info.pd env (L.loc pt) pp
   | S.PFundef pf -> tt_fundef arch_info env (L.loc pt) pf
@@ -2652,7 +2630,7 @@ and tt_file arch_info env from loc fname =
     Env.exit_file env, ast
 
 (* -------------------------------------------------------------------- *)
-let tt_program arch_info (env : 'asm Env.env) (fname : string) =
+let tt_program (arch_info : 'asm P.arch_info) (env : 'asm Env.env) (fname : string) =
   let env, ast = tt_file arch_info env None None fname in
   env, Env.decls env, ast
 

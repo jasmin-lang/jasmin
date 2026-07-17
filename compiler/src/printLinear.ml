@@ -29,13 +29,9 @@ let pp_label_kind fmt = function
 let pp_instr pd msfsize asmOp fmt i =
   match i.li_i with
   | Lopn (lvs, op, es) ->
-    let pp_cast fmt = function
-      | Sopn.Oasm (Arch_extra.BaseOp(Some ws, _)) -> Format.fprintf fmt "(%du)" (P.int_of_ws ws)
-      | _ -> () in
-
     F.fprintf fmt "@[%a@] = %a%a@[(%a)@]"
       (pp_list ",@ " pp_lexpr) lvs
-      pp_cast op
+      pp_cast_opn op
       (pp_opn pd msfsize asmOp) op
       (pp_list ",@ " pp_rexpr) es
   | Lsyscall o -> F.fprintf fmt "SysCall %s" (pp_syscall o)

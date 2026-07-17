@@ -13,23 +13,10 @@ val preprocess :
     Raises `Typing.TyError`. *)
 
 val parse_file :
-  ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Pretyping.arch_info ->
+  'asm arch_info ->
   ?idirs:(string * string) list ->
   string ->
-  ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op
-  Pretyping.Env.env
-  * ( unit,
-      ( 'reg,
-        'regx,
-        'xreg,
-        'rflag,
-        'cond,
-        'asm_op,
-        'extra_op )
-      Arch_extra.extended_op )
-    pmod_item
-    list
-  * Syntax.pprogram
+  'asm Pretyping.Env.env * (unit, 'asm) pmod_item list * Syntax.pprogram
 (** Parsing and pre-typing of a complete file. Require directives are resolved
     using named path given through the [idirs] argument and the JASMINPATH
     environment variable.
@@ -45,19 +32,10 @@ val do_spill_unspill :
 
 val do_wint_int :
   (module Arch_full.Arch
-     with type reg = 'reg
-      and type regx = 'regx
-      and type xreg = 'xreg
-      and type rflag = 'rflag
-      and type cond = 'cond
-      and type asm_op = 'asm_op
+     with type asm_op = 'asm_op
       and type extra_op = 'extra_op) ->
-  (unit,
-    ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asm_op_t)
-   prog ->
-  (unit,
-    ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asm_op_t)
-   prog
+  (unit, ('asm_op, 'extra_op) Arch_extra.extended_op_gen) prog ->
+  (unit, ('asm_op, 'extra_op) Arch_extra.extended_op_gen) prog
 
 val compile :
   (module Arch_full.Arch

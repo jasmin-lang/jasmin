@@ -49,14 +49,9 @@ let after_pass =
   let passes = Arg.enum alts in
   Arg.(value & opt passes Typing & info [ "compile"; "after" ] ~doc)
 
-let parse_and_compile (type reg regx xreg rflag cond asm_op extra_op)
+let parse_and_compile (type asm_op extra_op)
     (module Arch : Arch_full.Arch
-      with type reg = reg
-       and type regx = regx
-       and type xreg = xreg
-       and type rflag = rflag
-       and type cond = cond
-       and type asm_op = asm_op
+      with type asm_op = asm_op
        and type extra_op = extra_op) ~wi2i pass file idirs =
   let _env, pprog, _ast =
     try Compile.parse_file Arch.arch_info ~idirs file with

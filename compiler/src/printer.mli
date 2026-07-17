@@ -10,8 +10,8 @@ val pp_ptype : debug:bool -> Format.formatter -> pty -> unit
 val pp_eptype : debug:bool -> Format.formatter -> epty -> unit
 val pp_plval : debug:bool -> Format.formatter -> plval -> unit
 val pp_pexpr : debug:bool -> Format.formatter -> pexpr -> unit
-val pp_pprog : debug:bool -> Wsize.wsize -> Wsize.wsize -> ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
-               Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) pprog -> unit
+val pp_pprog : debug:bool -> Wsize.wsize -> Wsize.wsize -> ('asm_op, 'extra_op) Arch_extra.extended_op_gen Sopn.asmOp ->
+               Format.formatter -> ('info, ('asm_op, 'extra_op) Arch_extra.extended_op_gen) pprog -> unit
 
 val pp_var   : debug:bool -> Format.formatter -> var -> unit
 val pp_dvar  : debug:bool -> Format.formatter -> var -> unit
@@ -25,14 +25,14 @@ val pp_eassert : debug:bool -> Format.formatter -> eassert -> unit
 val pp_instr : debug:bool ->
                Wsize.wsize ->
                Wsize.wsize ->
-               ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
-               Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) instr -> unit
+               ('asm_op, 'extra_op) Arch_extra.extended_op_gen Sopn.asmOp ->
+               Format.formatter -> ('info, ('asm_op, 'extra_op) Arch_extra.extended_op_gen) instr -> unit
 
 val pp_stmt  : debug:bool ->
                Wsize.wsize ->
                Wsize.wsize ->
-               ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
-               Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) stmt  -> unit
+               ('asm_op, 'extra_op) Arch_extra.extended_op_gen Sopn.asmOp ->
+               Format.formatter -> ('info, ('asm_op, 'extra_op) Arch_extra.extended_op_gen) stmt  -> unit
 
 val pp_header : debug:bool -> Format.formatter -> ('info, 'asm) func -> unit
 
@@ -40,33 +40,33 @@ val pp_fun :
              debug:bool ->
              ?pp_locals:(Sv.t Utils.pp) ->
              ?pp_info:((Location.i_loc * 'info) Utils.pp) ->
-             (('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.sopn) Utils.pp ->
+             (('asm_op, 'extra_op) Arch_extra.extended_op_gen Sopn.sopn) Utils.pp ->
              var Utils.pp ->
-             (('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) func) Utils.pp
+             (('info, ('asm_op, 'extra_op) Arch_extra.extended_op_gen) func) Utils.pp
 
 val pp_ifunc : debug:bool -> (Location.i_loc * 'info) Utils.pp ->
                Wsize.wsize ->
                Wsize.wsize ->
-               ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
-               Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) func -> unit
+               ('asm_op, 'extra_op) Arch_extra.extended_op_gen Sopn.asmOp ->
+               Format.formatter -> ('info, ('asm_op, 'extra_op) Arch_extra.extended_op_gen) func -> unit
 
 val pp_func  : debug:bool ->
                Wsize.wsize ->
                Wsize.wsize ->
-               ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
-               Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) func -> unit
+               ('asm_op, 'extra_op) Arch_extra.extended_op_gen Sopn.asmOp ->
+               Format.formatter -> ('info, ('asm_op, 'extra_op) Arch_extra.extended_op_gen) func -> unit
 
 val pp_iprog : debug:bool -> (Location.i_loc * 'info) Utils.pp ->
                Wsize.wsize ->
                Wsize.wsize ->
-               ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
-               Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) prog -> unit
+               ('asm_op, 'extra_op) Arch_extra.extended_op_gen Sopn.asmOp ->
+               Format.formatter -> ('info, ('asm_op, 'extra_op) Arch_extra.extended_op_gen) prog -> unit
 
 val pp_prog  : debug:bool ->
                Wsize.wsize ->
                Wsize.wsize ->
-               ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
-               Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) prog -> unit
+               ('asm_op, 'extra_op) Arch_extra.extended_op_gen Sopn.asmOp ->
+               Format.formatter -> ('info, ('asm_op, 'extra_op) Arch_extra.extended_op_gen) prog -> unit
 
 val pp_to_save : debug:bool ->
                  Format.formatter -> Var0.Var.var * BinNums.coq_Z -> unit
@@ -80,6 +80,6 @@ val pp_return_address : debug:bool ->
 val pp_sprog : debug:bool ->
                Wsize.wsize ->
                Wsize.wsize ->
-               ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
-               Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) sprog -> unit
+               ('asm_op, 'extra_op) Arch_extra.extended_op_gen Sopn.asmOp ->
+               Format.formatter -> ('info, ('asm_op, 'extra_op) Arch_extra.extended_op_gen) sprog -> unit
 

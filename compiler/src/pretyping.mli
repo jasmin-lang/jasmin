@@ -41,31 +41,23 @@ module Env : sig
   end
 end
 
-val tt_prim : 'op Sopn.asmOp -> Annotations.symbol Location.located -> 'op
-
-type ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info = {
-  pd : Wsize.wsize;
-  asmOp :
-    ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Sopn.sopn Sopn.asmOp;
-  known_implicits : (CoreIdent.Name.t * string) list;
-  flagnames : CoreIdent.Name.t list;
-}
+val tt_prim : 'asm Sopn.asmOp -> Annotations.symbol Location.located -> 'asm
 
 val tt_item :
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info ->
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env ->
+  'asm Prog.arch_info ->
+  'asm Env.env ->
   Syntax.pitem Location.located ->
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env
+  'asm Env.env
 
 val tt_param :
   Wsize.wsize -> 'asm Env.env -> 'a -> Syntax.pparam -> 'asm Env.env
 
 val tt_fundef :
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info ->
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env ->
+  'asm Prog.arch_info ->
+  'asm Env.env ->
   Location.t ->
   Syntax.pfundef ->
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env
+  'asm Env.env
 
 val tt_global :
   Wsize.wsize -> 'asm Env.env -> 'a -> Syntax.pglobal -> 'asm Env.env
@@ -76,18 +68,18 @@ val tt_fun :
   (unit, 'asm) Prog.pfunc * fun_sig
 
 val tt_program :
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info ->
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env ->
+  'asm Prog.arch_info ->
+  'asm Env.env ->
   string ->
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env
-  * (unit, ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op) Prog.pmod_item
+  'asm Env.env
+  * (unit, 'asm) Prog.pmod_item
     list
   * Syntax.pprogram
 
 val tt_file :
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info ->
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env ->
+  'asm Prog.arch_info ->
+  'asm Env.env ->
   Annotations.pident option ->
   Location.t option ->
   string ->
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env * Syntax.pprogram
+  'asm Env.env * Syntax.pprogram
