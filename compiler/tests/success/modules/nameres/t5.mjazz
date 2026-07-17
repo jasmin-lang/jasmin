@@ -21,16 +21,19 @@ module M2
   fn i(u64) -> u64;
 {
   module B = M1(n*2);
+
+    inline fn nn(reg u64 n) -> reg u64 {
+    n += 2;
+    return n;
+  }
+
   fn ff(reg ptr u64[5] a) -> reg ptr u64[5] {
     a = B::f(a);
     a[0] = i(a[0]);
+    a[1] = nn(3);
     return a;
   }
 
-  fn nn(reg u64 n) -> reg u64 {
-    n = 2;
-    return n;
-  }
 
 }
 
