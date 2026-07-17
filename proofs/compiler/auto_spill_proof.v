@@ -81,12 +81,16 @@ Section SPILLMAP.
 
   Context (spillmap: spillmap) (ok_spillmap: valid_spillmap spillmap).
 
-  Definition uincl (exn: Sv.t) (vm vm': Vm.t) : Prop :=
-    vm_uincl vm vm' ∧
-      ∀ x r, Mvar.get spillmap.(slots) x = Some r →
-             ¬ Sv.In r exn →
-             (*vm.[x] = undef_addr (eval_atype (vtype x)) ∧*)
-               vm'.[x] = vm'.[r].
+  Record uincl (exn: Sv.t) (vm vm': Vm.t) : Prop :=
+    mkUincl {
+        uincl_vm: vm_uincl vm vm';
+        spill_eq:
+        ∀ x r, Mvar.get spillmap.(slots) x = Some r →
+               ¬ Sv.In r exn →
+               (*vm.[x] = undef_addr (eval_atype (vtype x)) ∧*)
+               vm'.[x] = vm'.[r];
+        safe_to_spill: ∀ r, Sv.In r exn → True;
+      }.
 
   Definition checked_exprs (exn: Sv.t) (es es': pexprs) (exn': Sv.t) : Prop :=
     all2 eq_expr es es' ∧ exn' = exn.
@@ -112,31 +116,32 @@ Section SPILLMAP.
   Proof using ok_spillmap autospill_fd auto_spill_ok LC.
     split.
     - move => wdb _ exn es es' exn' /wdb_ok_eq <- [] /eq_exprsP ok_es ?; subst exn'.
-      move => s [] _ _ vm' vs [] /= <- <- [] ok_vm ok_s ok_vs.
-      have [ vs' ok_vs' vs_vs' ]:= sem_pexprs_uincl ok_vm ok_vs.
+      move => s [] _ _ vm' vs [] /= <- <- ok_s ok_vs.
+      have [ vs' ok_vs' vs_vs' ]:= sem_pexprs_uincl ok_s.(uincl_vm) ok_vs.
       exists vs'; last exact: vs_vs'.
       by rewrite eq_globs -ok_vs' ok_es.
     move => wdb _ exn xs xs' exn' /wdb_ok_eq <- [] /[dup] /eq_lvals_vrvs xs_xs' /eq_lvalsP ok_xs /=.
-    case => hwritten hexn' vs vs' vs_vs' s [] _ _ vm' c [] /= <- <- [] ok_vm h.
-    rewrite ok_xs eq_globs => /(writes_uincl ok_vm vs_vs').
+    case => hwritten hexn' vs vs' vs_vs' s [] _ _ vm' c [] /= <- <- ok_s.
+    rewrite ok_xs eq_globs => /(writes_uincl ok_s.(uincl_vm) vs_vs').
    case => vmo ok_vmo le_vmo.
    eexists; first exact: ok_vmo.
    split.
    - by rewrite escs_with_vm.
    - by rewrite emem_with_vm.
    rewrite evm_with_vm; split; first exact: le_vmo.
-   move => x r hxr hr'.
-   have hr : ¬ Sv.In r exn.
-   - clear -hr' hexn'; SvD.fsetdec.
-   have hxr' := h x r hxr hr.
-   have := vrvsP ok_vmo.
-   rewrite !evm_with_vm => {}h.
-   rewrite -(h x) -?(h r) //.
-   - have := ok_spillmap hxr.
-     clear -xs_xs' hexn' hr'; SvD.fsetdec.
-   move => k.
-   have := hwritten x.
-   by rewrite xs_xs' hxr => /(_ k).
+   - move => x r hxr hr'.
+     have hr : ¬ Sv.In r exn.
+     - clear -hr' hexn'; SvD.fsetdec.
+     have hxr' := ok_s.(spill_eq) hxr hr.
+     have := vrvsP ok_vmo.
+     rewrite !evm_with_vm => {}h.
+     rewrite -(h x) -?(h r) //.
+     - have := ok_spillmap hxr.
+       clear -xs_xs' hexn' hr'; SvD.fsetdec.
+     move => k.
+     have := hwritten x.
+     by rewrite xs_xs' hxr => /(_ k).
+   done.
   Qed.
 
   Lemma check_write_exn ii written exn exn' x r :
@@ -168,8 +173,9 @@ Section SPILLMAP.
     st_rel uincl exn' s1 s2.
   Proof using.
     move => h; apply: st_rel_weaken => {}s1 {}s2 [] hvm K; split; first exact: hvm.
-    move => x r /K{}K h'; apply: K.
-    clear -h h'; SvD.fsetdec.
+    - move => x r /K{}K h'; apply: K.
+      clear -h h'; SvD.fsetdec.
+    done.
   Qed.
 
   Let Pi_r (i: instr_r) : Prop :=
@@ -323,13 +329,14 @@ Proof using auto_spill_ok.
   - case: hfsu => hscs hmem le_vm.
     split; [ exact: hscs | exact: hmem | ].
     split; first exact: le_vm.
-    move => x r ok_r r_not_exn.
-    have [ x_not_param r_not_param ] := check_write_exn hvalid ok_exn ok_r r_not_exn.
-    have h := initialize_funcall_undef ok_t.
-    rewrite !h.
-    + by case: (hvalid _ _ ok_r) => _ /convertible_eval_atype ->.
-    + by move: r_not_param; rewrite (sv_of_list_eq_var_is hparams).
-    by move: x_not_param; rewrite (sv_of_list_eq_var_is hparams).
+    + move => x r ok_r r_not_exn.
+      have [ x_not_param r_not_param ] := check_write_exn hvalid ok_exn ok_r r_not_exn.
+      have h := initialize_funcall_undef ok_t.
+      rewrite !h.
+      * by case: (hvalid _ _ ok_r) => _ /convertible_eval_atype ->.
+      * by move: r_not_param; rewrite (sv_of_list_eq_var_is hparams).
+      by move: x_not_param; rewrite (sv_of_list_eq_var_is hparams).
+    done.
   - exact: (check_cmdP hvalid ok_fd).
   move => s' t' r hfsu' ok_r.
   have hst' : st_uincl ev s' t'.

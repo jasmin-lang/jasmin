@@ -3,8 +3,6 @@ Require Import psem_defs compiler_util.
 
 Import Utf8 ssreflect ssrbool eqtype.
 
-(* TODO: generalize progT ? *)
-
 (*
 Spill-map: statique par fonction
 Exceptions à la spill-map: dynamique, construit par le checker
