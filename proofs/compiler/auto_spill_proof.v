@@ -228,8 +228,42 @@ Section SPILLMAP.
       + move => ??; apply: st_rel_uincl_subset; exact: SvP.MP.union_subset_2.
       + exact: ih1 hexn1.
       exact: ih2 hexn2.
-    -
-    -
+    - by move => ?????? [].
+    - move => al c1 e j c2 ih1 ih2 [] // al' c1' e' j' c2' exn exn' ii ii' /=; t_xrbindP.
+      move => he hexn'.
+      have : ∃ exni exn2,
+          [/\ check_cmd spillmap (check_instr spillmap) c1 c1' exni = ok exn'
+            , check_cmd spillmap (check_instr spillmap) c2 c2' exn' = ok exn2
+            & Sv.Subset (Sv.union exn exn2) exni ].
+      + move: hexn'; clear.
+        elim: loop_counter exn => // n ih; t_xrbindP => exn exn1 hexn1 exn2 hexn2.
+        case: ifP.
+        * move => /Sv.subset_spec h /ok_inj ?; subst exn'.
+          exists exn, exn2; split => //.
+          clear -h; SvD.fsetdec.
+        move => _ /ih[] exni [] exnf [] hi hf h.
+        exists exni, exnf; split => //.
+        clear -h; SvD.fsetdec.
+      case => exni [] exn2 [] {}hexn' hexn2 h.
+      apply wequiv_weaken with (st_rel uincl exni) (st_rel uincl exn'); only 2: by [].
+      + move => ??; apply: st_rel_uincl_subset.
+        clear -h; SvD.fsetdec.
+      apply wequiv_while_rel_uincl with checker exn'.
+      + exact: checkerP.
+      + by split; first rewrite /= he.
+        exact: ih1 hexn'.
+      apply wequiv_weaken with (st_rel uincl exn') (st_rel uincl exn2); first by [].
+      + move => ??; apply: st_rel_uincl_subset.
+        clear -h; SvD.fsetdec.
+      exact: ih2 hexn2.
+    move => xs fn es [] // xs' fn' es' exn exn' ii ii' /=; t_xrbindP.
+    case/and3P => hxs /eqP<-{fn'} hes hexn'.
+    apply wequiv_call_rel_uincl with checker exn.
+    + exact: checkerP.
+    + done.
+    + split; first exact: hxs.
+      exact: check_writeP hexn'.
+      move => ???; exact: wequiv_fun_rec.
   Admitted.
 
 End SPILLMAP.
@@ -274,6 +308,6 @@ Proof using auto_spill_ok.
   - by case: hfsu' => ?? [] ??; split.
   have := [elaborate fs_uincl_finalize htyout hextra hresults].
   case/(_ s' t' r hst' ok_r); eauto.
-Admitted.
+Qed.
 
 End WITH_PARAMS.
