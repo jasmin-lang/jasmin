@@ -14,6 +14,7 @@ open Format
 let config path =
   let default () =
     Glob_options.verbosity := 0;
+    Glob_options.continue_after_failed_register_allocation := false;
     Glob_options.introduce_export_renaming := true;
     set_warn_recoverable true;
     set_all_warnings ()

@@ -135,6 +135,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
        and type extra_op = extra_op)
     visit_prog_after_pass
     ?(callee_saved_strategy = !Glob_options.callee_saved_strategy)
+    ?(strict_register_allocation = not !Glob_options.continue_after_failed_register_allocation)
     prog cprog =
   if callee_saved_strategy <> CSS_Tight then
     warning Experimental L.i_dummy
@@ -217,7 +218,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       in fixup_to_save names slots
     in
 
-    let subst, killed, fds = RA.alloc_prog return_addresses fds in
+    let ok, subst, killed, fds = RA.alloc_prog return_addresses fds in
     let subst_sf_return_address fd : Expr.stk_fun_extra -> Expr.stk_fun_extra =
       let csubst x = x |> Conv.var_of_cvar |> subst |> Conv.cvar_of_var in
       let osubst = Option.map csubst in
@@ -240,6 +241,8 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     in
     let fds = List.map (fun (e, fd) -> subst_sf_return_address fd e, fd) fds in
     let fds = List.map Conv.csfdef_of_fdef fds in
+    if strict_register_allocation && not ok then
+      hierror ~kind:"compilation error" ~sub_kind:"register allocation" ~loc:Lnone "cannot solve the register allocation problem.";
     fds
   in
 

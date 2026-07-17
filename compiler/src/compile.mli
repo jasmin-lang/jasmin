@@ -83,6 +83,7 @@ val compile :
   prog ->
   unit) ->
   ?callee_saved_strategy:Utils.callee_saved_strategy ->
+  ?strict_register_allocation:bool ->
   _ prog ->
   ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op
   Expr._uprog ->

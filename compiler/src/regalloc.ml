@@ -662,7 +662,7 @@ module type Regalloc = sig
   val alloc_prog :
     retaddr Hf.t ->
     ('a * (unit, extended_op) func) list ->
-    (var -> var) * (funname -> Sv.t) * ('a * (unit, extended_op) func) list
+    bool * (var -> var) * (funname -> Sv.t) * ('a * (unit, extended_op) func) list
 end
 
 module Regalloc (Arch : Arch_full.Arch)
@@ -974,7 +974,7 @@ let two_phase_coloring
     (variables: (int, varset) Hashtbl.t)
     (cnf: conflicts)
     (fr: friend)
-    (a: A.allocation) : unit =
+    (a: A.allocation) : bool =
   let size = List.length registers in
   let schedule =
     if !Glob_options.lazy_regalloc then lazy_scheduling variables a
@@ -990,58 +990,43 @@ let two_phase_coloring
         (string_of_kind (kind_of_type Arch.reg_size x.v_kind x.v_ty))
   | _, _ -> ()
   end;
+  let counter = ref 0 in
+  let pool = ref registers in
   List.iter (fun i ->
       let has_no_conflict v = does_not_conflict i cnf a v in
-      match List.filter has_no_conflict registers with
-      | [] ->
-         if !Glob_options.verbosity > 0 then
-         let pv = Printer.pp_dvar ~debug:true in
-         let ppvl fmt = List.iter @@ Format.fprintf fmt "\n    %a" pv in
-         let pp_conflicts fmt c =
-           let unallocated =
-             IntSet.fold (fun i xs ->
-                 match A.find i a with
-                 | Some r ->
-                   Format.fprintf fmt " - register %a%a\n"
-                     (Printer.pp_var ~debug:false) r
-                     ppvl (fst (Hashtbl.find variables i));
-                   xs
-                 | None -> i :: xs)
-               c
-               []
+      let available = List.filter has_no_conflict !pool in
+      let regs =
+        if available == [] then begin
+            let some_register = List.hd registers in
+            incr counter;
+            let fresh = V.mk (Format.asprintf "register_%d" !counter) some_register.v_kind some_register.v_ty L._dummy [] in
+            pool := !pool @ [ fresh ];
+            [ fresh ]
+          end
+        else available
+      in
+      let names = snd (Hashtbl.find variables i) in
+      (* Any register in [regs] is valid: the choice made here is arbitrary. *)
+      let y =
+        match get_friend_registers fr a i regs with
+        | y -> y
+        | exception Not_found ->
+           let regs =
+             let is_callee_saved r = List.mem r Arch.callee_save_vars in
+             let calle_saved, volatile = List.partition is_callee_saved regs in
+             if volatile = [] then calle_saved else volatile
            in
-           if unallocated <> [] then begin
-             Format.fprintf fmt " - variables not allocated yet";
-             List.iter (fun i -> ppvl fmt (fst (Hashtbl.find variables i))) unallocated
-           end
-         in
-         let c = get_conflicts i cnf in
-         hierror_reg ~loc:Lnone "no more free register to allocate variable:%a\nConflicts with:\n%a"
-           ppvl (fst (Hashtbl.find variables i))
-           pp_conflicts c
-         else hierror_reg ~loc:Lnone "cannot solve the register allocation problem."
-      | regs ->
-        let names = snd (Hashtbl.find variables i) in
-        (* Any register in [regs] is valid: the choice made here is arbitrary. *)
-        let y =
-          match get_friend_registers fr a i regs with
-          | y -> y
-          | exception Not_found ->
-             let regs =
-               let is_callee_saved r = List.mem r Arch.callee_save_vars in
-               let calle_saved, volatile = List.partition is_callee_saved regs in
-               if volatile = [] then calle_saved else volatile
-             in
-             (* Pick a register that is currently allocated to a maximal number of variables with the same name. *)
-             let same_names r = A.rfind r a |> snd |> Ss.inter names in
-             let y, _ =
-               regs
-               |> List.map (fun r -> r, Ss.cardinal (same_names r))
-               |> List.max ~cmp:(fun (_, x) (_, y) -> Stdlib.Int.compare x y)
-             in y
-        in
-        A.set ~names i y a
-    ) schedule
+           (* Pick a register that is currently allocated to a maximal number of variables with the same name. *)
+           let same_names r = A.rfind r a |> snd |> Ss.inter names in
+           let y, _ =
+             regs
+             |> List.map (fun r -> r, Ss.cardinal (same_names r))
+             |> List.max ~cmp:(fun (_, x) (_, y) -> Stdlib.Int.compare x y)
+           in y
+      in
+      A.set ~names i y a
+    ) schedule;
+  0 == !counter
 
 let check_allocated
       (vars: (int, varset) Hashtbl.t)
@@ -1056,7 +1041,7 @@ let greedy_allocation
     (vars: int Hv.t)
     (nv: int) (cnf: conflicts)
     (fr: friend)
-    (a: A.allocation) : unit =
+    (a: A.allocation) : bool =
   let scalars : (int, varset) Hashtbl.t = Hashtbl.create nv in
   let extra_scalars : (int, varset) Hashtbl.t = Hashtbl.create nv in
   let vectors : (int, varset) Hashtbl.t = Hashtbl.create nv in
@@ -1076,11 +1061,11 @@ let greedy_allocation
           hierror_reg ~loc:Lnone "unable to allocate variable %a: no register bank for type %a"
             pp_var v PrintCommon.pp_ty ty
       ) vars;
-  two_phase_coloring Arch.allocatable_vars scalars cnf fr a;
-  two_phase_coloring Arch.extra_allocatable_vars extra_scalars cnf fr a;
-  two_phase_coloring Arch.xmm_allocatable_vars vectors cnf fr a;
+  let ok_vars = two_phase_coloring Arch.allocatable_vars scalars cnf fr a in
+  let ok_extra = two_phase_coloring Arch.extra_allocatable_vars extra_scalars cnf fr a in
+  let ok_vector = two_phase_coloring Arch.xmm_allocatable_vars vectors cnf fr a in
   check_allocated flags a;
-  ()
+  ok_vars && ok_extra && ok_vector
 
 let var_subst_of_allocation (vars: int Hv.t)
     (a: A.allocation) (v: var) : var =
@@ -1270,7 +1255,7 @@ let pp_liveness vars liveness_per_callsite liveness_table a =
     pp_recap Format.std_formatter fn intern extern)
 
 let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
-  (unit, 'asm) func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) =
+  bool * (unit, 'asm) func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) =
   (* Preprocessing of functions:
     - ensure all variables are named (no anonymous assign)
     - generate a fresh variable to hold the return address (if needed)
@@ -1472,9 +1457,10 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
 
   if !Glob_options.print_liveness then pp_liveness vars liveness_per_callsite liveness_table a;
 
-  greedy_allocation vars nv conflicts fr a;
+  let ok = greedy_allocation vars nv conflicts fr a in
   let subst = var_subst_of_allocation vars a in
 
+  ok,
   List.map (fun f -> f |> Subst.subst_func (subst_of_var_subst subst) |> Ssa.remove_phi_nodes) funcs,
   get_liveness,
   subst
@@ -1508,7 +1494,7 @@ let get_reg_oracle
   { ro_to_save ; ro_rsp }
 
 let alloc_prog return_addresses (dfuncs: ('a * ('info, 'asm) func) list)
-    : (var -> var) * _ * ('a * (unit, 'asm) func) list =
+    : bool * (var -> var) * _ * ('a * (unit, 'asm) func) list =
   (* Ensure that instruction locations are really unique,
      so that there is no confusion on the position of the “extra free register”. *)
   let dfuncs =
@@ -1516,11 +1502,12 @@ let alloc_prog return_addresses (dfuncs: ('a * ('info, 'asm) func) list)
 
   let extra : 'a Hf.t = Hf.create 17 in
 
-  let funcs, _get_liveness, subst, killed =
+  let ok, funcs, _get_liveness, subst, killed =
     dfuncs
     |> List.map (fun (a, f) -> Hf.add extra f.f_name a; f)
     |> global_allocation return_addresses
   in
+  ok,
   subst,
   killed,
   funcs |>

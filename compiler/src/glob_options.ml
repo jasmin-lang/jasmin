@@ -27,6 +27,8 @@ let introduce_export_renaming = ref true
 let print_dependencies = ref false
 let lazy_regalloc = ref false
 
+let continue_after_failed_register_allocation = ref true
+
 let verbosity = ref 1
 
 let linting_level = ref 1

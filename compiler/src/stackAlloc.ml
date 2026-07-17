@@ -318,7 +318,7 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
   let return_addresses = Regalloc.create_return_addresses get_internal_size fds in
   let ra_data =
     if callee_saved_strategy = CSS_Tight then
-      let subst, killed, _ = Regalloc.alloc_prog return_addresses fds in
+      let _ok, subst, killed, _ = Regalloc.alloc_prog return_addresses fds in
       Some (subst, killed)
     else None
   in

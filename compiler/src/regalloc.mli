@@ -37,7 +37,7 @@ module type Regalloc = sig
   val alloc_prog :
     retaddr Hf.t ->
     ('a * (unit, extended_op) func) list ->
-    (var -> var) * (funname -> Sv.t) * ('a * (unit, extended_op) func) list
+    bool * (var -> var) * (funname -> Sv.t) * ('a * (unit, extended_op) func) list
   (** Returns:
       - the global renaming function
       - the set of killed registers (see note below)
