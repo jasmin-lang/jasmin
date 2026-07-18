@@ -401,6 +401,7 @@ Record pp_asm_op := mk_pp_asm_op {
 
 (* -------------------------------------------------------------------- *)
 (* Instruction descriptions. *)
+
 Record instr_desc_t := {
   (* Info for architecture semantics. *)
   (* This field allows to ensure the validity of the instruction,
@@ -429,7 +430,7 @@ Record instr_desc_t := {
   id_safe       : seq safe_cond;
   (* Whether the instruction has data operand independent timing, i.e. belongs
      to the DOIT (Intel) / DIT (ARM) subsets of instructions. *)
-  id_doit       : bool;
+  id_doit       : doit_t;
   id_pp_asm     : asm_args -> pp_asm_op;
   (* Extra properties ensuring that previous information are consistent *)
   id_safe_wf    : all (fun sc => values.sc_needed_args sc <= size id_tin) id_safe;
@@ -439,27 +440,8 @@ Record instr_desc_t := {
   id_semi_safe  : id_valid -> interp_safe_cond_lty id_tin id_safe id_semi;
 }.
 
-(* Replace the [id_doit] field of an instruction descriptor. *)
-Definition set_id_doit (d : instr_desc_t) (b : bool) : instr_desc_t :=
-  {| id_valid      := d.(id_valid);
-     id_msb_flag   := d.(id_msb_flag);
-     id_tin        := d.(id_tin);
-     id_in         := d.(id_in);
-     id_tout       := d.(id_tout);
-     id_out        := d.(id_out);
-     id_semi       := d.(id_semi);
-     id_args_kinds := d.(id_args_kinds);
-     id_nargs      := d.(id_nargs);
-     id_eq_size    := d.(id_eq_size);
-     id_str_jas    := d.(id_str_jas);
-     id_check_dest := d.(id_check_dest);
-     id_safe       := d.(id_safe);
-     id_doit       := b;
-     id_pp_asm     := d.(id_pp_asm);
-     id_safe_wf    := d.(id_safe_wf);
-     id_semi_errty := d.(id_semi_errty);
-     id_semi_safe  := d.(id_semi_safe);
-  |}.
+Definition doit := DOIT.
+Definition not_doit := NOT_DOIT.
 
 (* -------------------------------------------------------------------- *)
 (* Architecture operand declaration. *)

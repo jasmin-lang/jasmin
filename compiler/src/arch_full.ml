@@ -220,7 +220,7 @@ module Arch_from_Core_arch (A : Core_arch) :
     }
 
   let is_ct_sopn ?(doit = false) (o : extended_op) =
-   if doit then (Sopn.asm_op_instr asmOp o).Sopn.i_doit
+   if doit then (Sopn.asm_op_instr asmOp o).Sopn.i_doit = Sopn.DOIT
    else
      match o with
      | BaseOp (_, o) -> is_ct_asm_op o

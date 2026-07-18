@@ -29,6 +29,12 @@ Variant arg_position :=
 | APout of nat
 | APin of nat.
 
+(* -------------------------------------------------------------------- *)
+(* Flag indicating if the instruction has data operand independent timing *)
+Variant doit_t := 
+  | DOIT
+  | NOT_DOIT.
+
 Record instruction_desc := mkInstruction {
   str      : unit -> string;
   tin      : list atype;
@@ -52,7 +58,7 @@ Record instruction_desc := mkInstruction {
      See field id_doit in arch/arch_decl.v.
      Pseudo operators and SLH operators are compiled to DOIT instructions
      only, but this needs to be checked manually. *)
-  i_doit   : bool;
+  i_doit   : doit_t;
   (* Extra properties ensuring that previous information are consistent *)
   i_safe_wf    : all (fun sc => ssrnat.leq (sc_needed_args sc) (size tin)) i_safe;
     (* id_semi does not generates type error *)
@@ -231,7 +237,7 @@ Definition Ocopy_instr ws p :=
      semi     := @WArray.copy ws p;
      semu     := @vuincl_copy ws p;
      i_valid  := true;
-     i_doit   := true;
+     i_doit   := DOIT;
      i_safe   := [:: AllInit ws p 0];
      i_safe_wf    := refl_equal;
      i_semi_errty := fun _ => (@array_copy_errty ws p);
@@ -265,7 +271,7 @@ Definition Odeclassify_instr ty :=
     semu     := @declassify_semu cty;
     i_safe   := [:: ];
     i_valid  := true;
-    i_doit   := true;
+    i_doit   := DOIT;
     i_safe_wf    := refl_equal;
     i_semi_errty := fun _ => (@sem_prod_ok_error _ [:: cty ] _ ErrType);
     i_semi_safe  := fun _ => (@sem_prod_ok_safe _ [:: cty ] _);
@@ -284,7 +290,7 @@ Definition Odeclassify_mem_instr len :=
     semu     := @declassify_semu cty;
     i_safe   := [:: ];
     i_valid  := true;
-    i_doit   := true;
+    i_doit   := DOIT;
     i_safe_wf    := refl_equal;
     i_semi_errty := fun _ => (@sem_prod_ok_error _ [:: cty ] _ ErrType);
     i_semi_safe  := fun _ => (@sem_prod_ok_safe _ [:: cty ] _);
@@ -295,7 +301,7 @@ Definition Onop_instr :=
            [::] [::]
            [::] [::]
            tt
-           true true.
+           true DOIT.
 
 Definition Omulu_instr sz :=
   mk_instr_desc_safe (pp_sz "mulu" sz)
@@ -303,7 +309,7 @@ Definition Omulu_instr sz :=
            [:: E 0; E 1] (* this info is irrelevant *)
            [:: aword sz; aword sz]
            [:: E 2; E 3] (* this info is irrelevant *)
-           (@wumul sz) true true.
+           (@wumul sz) true DOIT.
 
 Definition Oaddcarry_instr sz :=
   mk_instr_desc_safe (pp_sz "adc" sz)
@@ -312,7 +318,7 @@ Definition Oaddcarry_instr sz :=
            [:: abool; aword sz]
            [:: E 3; E 4]      (* this info is irrelevant *)
            (fun x y c => let p := @waddcarry sz x y c in (Some p.1, p.2))
-           true true.
+           true DOIT.
 
 Definition Osubcarry_instr sz :=
   mk_instr_desc_safe (pp_sz "sbb" sz)
@@ -321,7 +327,7 @@ Definition Osubcarry_instr sz :=
            [:: abool; aword sz]
            [:: E 3; E 4]      (* this info is irrelevant *)
            (fun x y c => let p := @wsubcarry sz x y c in (Some p.1, p.2))
-           true true.
+           true DOIT.
 
 Fixpoint spill_semi (tys: seq ctype) : sem_prod tys (sem_tuple [::]):=
   match tys as tys0 return sem_prod tys0 (sem_tuple [::]) with
@@ -355,7 +361,7 @@ Definition Ospill_instr o (tys:seq atype) :=
      semu     := @spill_semu ctys;
      i_safe   := [:: ];
      i_valid  := true;
-     i_doit   := true;
+     i_doit   := DOIT;
      i_safe_wf    := refl_equal;
      i_semi_errty := fun _ => (@sem_prod_ok_error _ ctys semi ErrType);
      i_semi_safe  := fun _ => (@sem_prod_ok_safe _ ctys semi);
@@ -375,7 +381,7 @@ Definition Oswap_instr ty :=
      semu   := @swap_semu cty;
      i_safe := [::];
      i_valid := true;
-     i_doit := true;
+     i_doit := DOIT;
      i_safe_wf    := refl_equal;
      i_semi_errty := fun _ => (@sem_prod_ok_error _ ctys semi ErrType);
      i_semi_safe  := fun _ => (@sem_prod_ok_safe _ ctys semi);
@@ -424,7 +430,7 @@ Definition SLHinit_instr :=
       [:: ty_msf ]
       [:: E 0 ]      (* this info is irrelevant *)
       se_init_sem
-      true true.
+      true DOIT.
 
 Definition SLHupdate_str := "update_msf"%string.
 Definition SLHupdate_instr :=
@@ -434,7 +440,7 @@ Definition SLHupdate_instr :=
       [:: ty_msf ]
       [:: E 2 ]      (* this info is irrelevant *)
       se_update_sem
-      true true.
+      true DOIT.
 
 Definition SLHmove_str := "mov_msf"%string.
 Definition SLHmove_instr :=
@@ -444,7 +450,7 @@ Definition SLHmove_instr :=
       [:: ty_msf ]
       [:: E 1 ]      (* this info is irrelevant *)
       se_move_sem
-      true true.
+      true DOIT.
 
 Definition SLHprotect_str := "protect"%string.
 Definition SLHprotect_instr ws :=
@@ -454,7 +460,7 @@ Definition SLHprotect_instr ws :=
       [:: aword ws ]
       [:: E 2 ]      (* this info is irrelevant *)
       (@se_protect_sem ws)
-      true true.
+      true DOIT.
 
 Lemma protect_ptr_semu n vs vs' v:
   values_uincl vs vs' ->
@@ -485,7 +491,7 @@ Definition SLHprotect_ptr_instr ws n :=
      semu     := @protect_ptr_semu (arr_size ws n);
      i_safe   := [::];
      i_valid  := true;
-     i_doit   := true;
+     i_doit   := DOIT;
      i_safe_wf    := refl_equal;
      i_semi_errty := fun _ => (@sem_prod_ok_error _ ctin semi ErrType);
      i_semi_safe  := fun _ => (@sem_prod_ok_safe _ ctin semi);
@@ -536,7 +542,7 @@ Definition SLHprotect_ptr_fail_instr ws n :=
      semu     := @protect_ptr_fail_semu len;
      i_safe   := [:: ScFalse]; (* See remark on protect_ptr_fail_safe *)
      i_valid  := true;
-     i_doit   := true;
+     i_doit   := DOIT;
      i_safe_wf    := refl_equal;
      i_semi_errty := fun _ => (@protect_ptr_fail_errty len);
      i_semi_safe  := fun _ => (@protect_ptr_fail_safe len);
