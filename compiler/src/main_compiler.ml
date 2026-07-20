@@ -1,5 +1,4 @@
 open Jasmin
-open Jasmin_checksafety
 open Utils
 open Prog
 open Glob_options
@@ -25,7 +24,7 @@ let parse () =
   if c then enable_colors ();
   match !infiles with
   | [] ->
-    if !help_intrinsics || !safety_makeconfigdoc <> None || !help_version
+    if !help_intrinsics || !help_version
     then ""
     else error()
   | [ infile ] ->
@@ -35,54 +34,18 @@ let parse () =
   | infile :: s :: _ -> raise CLI_errors.(CLIerror (RedundantInputFile (infile, s)))
 
 (* -------------------------------------------------------------------- *)
-let check_safety_p pd msf_size asmOp analyze s (p : (_, 'asm) Prog.prog) =
-  let () = if SafetyConfig.sc_print_program () then
-      let s1,s2 = Glob_options.print_strings s in
-      Format.eprintf "@[<v>At compilation pass: %s@;%s@;@;\
-                      %a@;@]@."
-        s1 s2
-        (Printer.pp_prog ~debug:true pd msf_size asmOp) p
-  in
-
-  let () = SafetyConfig.pp_current_config_diff () in
-
-  let is_safe =
-    List.fold_left (fun res f_decl ->
-        if FInfo.is_export f_decl.f_cc then
-          let () = Format.eprintf "@[<v>Analyzing function %s@]@."
-              f_decl.f_name.fn_name in
-
-          analyze ?fmt:None ~safety_param:!Glob_options.safety_param f_decl p && res
-        else res)
-      true
-      (List.rev (snd p)) in
-  if not is_safe then exit(2)
-
-(* -------------------------------------------------------------------- *)
 let main () =
 
   try
     let infile = parse() in
 
-    let (module P) = SafetyMain.get_arch_with_analyze !target_arch !call_conv in
-    let module Arch = P.A in
-
-    if !safety_makeconfigdoc <> None
-    then (
-      let dir = oget !safety_makeconfigdoc in
-      SafetyConfig.mk_config_doc dir;
-      exit 0);
+    let (module Arch) = CoreArchFactory.get_arch_module !target_arch !call_conv in
 
     if !help_intrinsics
     then (Help.show_intrinsics Arch.asmOp_sopn (); exit 0);
 
     if !help_version
     then (Format.printf "%s@." version_string; exit 0);
-
-    let () = if !check_safety then
-        match !safety_config with
-        | Some conf -> SafetyConfig.load_config conf
-        | None -> () in
 
     let env, pprog, _ast =
       try Compile.parse_file Arch.arch_info ~idirs:!Glob_options.idirs infile
@@ -140,21 +103,10 @@ let main () =
     end;
 
     (* This function is called after each compilation pass.
-        - Check program safety (and exit) if the time has come
         - Pretty-print the program
         - Add your own checker here!
     *)
     let visit_prog_after_pass ~debug s p =
-      if s = SafetyConfig.sc_comp_pass () && !check_safety then
-        check_safety_p
-          Arch.pointer_data
-          Arch.msf_size
-          Arch.asmOp
-          P.analyze
-          s
-          p
-        |> fun () -> exit 0
-      else
         eprint s (Printer.pp_prog ~debug Arch.pointer_data Arch.msf_size Arch.asmOp) p
     in
 
