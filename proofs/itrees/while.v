@@ -1,4 +1,4 @@
-Require Import Paco.paco.
+Require Import Coinduction.all.
 From Coq Require Import
      Program.Tactics
      Setoid
@@ -12,8 +12,6 @@ From ITree Require Import
      Core.ITreeDefinition
      Core.KTree
      Eq.Eqit
-     Eq.UpToTaus
-     Eq.Paco2
      Indexed.Sum
      Indexed.Function
      Indexed.Relation
@@ -49,22 +47,19 @@ Lemma split_while {E} {I} (cond1 cond2 : I -> bool) (step : I -> itree E I) i :
   (i' <- while (fun i => andb (cond1 i) (cond2 i)) step i;; while cond2 step i').
 Proof.
   symmetry.
-  generalize i; clear i; ginit.
-  gcofix SELF; intros i.
+  generalize i; clear i.
+  icoinduction c SELF; intros i.
   rewrite unfold_while.
-  case (cond1 i) => /=; last first.
-  + rewrite bind_ret_l.
-    apply gpaco2_mon with bot2 bot2 => //.
-    gfinal; right; rewrite -/(eqit eq false false); reflexivity.
+  case (cond1 i); bcbn; last first.
+  + rewrite bind_ret_l //.
   rewrite unfold_while.
   case: ifP => heq2.
-  + rewrite !bind_bind.
-    guclo eqit_clo_bind.
-    econstructor; first reflexivity.
+  + rewrite !bind_bind. 
+    ebind.
     intros u1 u2 heq; rewrite <- heq; clear heq.
     rewrite bind_tau.
-    gstep. constructor. gfinal. left. apply SELF.
-  by rewrite bind_ret_l unfold_while heq2; gstep; constructor.
+    etau.
+    by rewrite bind_ret_l unfold_while heq2; constructor.
 Qed.
 
 Lemma while_eq {E} {I} (cond1 cond2 : I -> bool) (step : I -> itree E I) i :
@@ -119,37 +114,27 @@ Proof.
   rewrite bind_ret_l; reflexivity.
 Qed.
 
-Lemma eqit_iter_n (E : Type -> Type) {I1 I2 R1 R2}
-      b1 b2
+(** NOTE: Hardcoded to [eutt], since some rewrities
+    for [unfold_iter] and [unfold_iter_n] did not work for
+    arbitrary [b1] and [b2]. *)
+Lemma eutt_iter_n (E : Type -> Type) {I1 I2 R1 R2}
       (RI : I1 -> I2 -> Prop)
       (RR : R1 -> R2 -> Prop)
       (body1 : I1 -> itree E (I1 + R1))
       (body2 : I2 -> itree E (I2 + R2)) :
   (forall j1 j2, RI j1 j2 ->
      exists n,
-       eqit (sum_rel RI RR) b1 b2 (body1 j1) (iter_n body2 n j2)) ->
+       body1 j1 ≈⟨sum_rel RI RR⟩ iter_n body2 n j2) ->
   forall (i1 : I1) (i2 : I2) (RI_i : RI i1 i2),
-    eqit RR b1 b2 (ITree.iter body1 i1) (ITree.iter body2 i2).
+    ITree.iter body1 i1 ≈⟨RR⟩ ITree.iter body2 i2.
 Proof.
-  ginit. gcofix CIH.
+  coinduction.
   intros.
   rewrite unfold_iter.
-  have [n hn] := H0 _ _ RI_i.
+  have [n hn] := H _ _ RI_i.
   rewrite (unfold_iter_n body2 n).
-  eapply gpaco2_uclo; [|eapply eqit_clo_bind|]; eauto with paco.
-  econstructor; eauto. intros. gfinal. right.
-  destruct u1; try discriminate.
-  destruct u2; try discriminate.
-  - pstep; red.
-    econstructor.
-    right.
-    eapply CIH; eauto.
-    inversion H; subst; auto.
-  - pstep; red.
-  inversion H; subst.
-  destruct u2; try discriminate.
-  inversion H; subst.
-  pstep; red.
-  econstructor.
-  inversion H; subst; auto.
+  ebind; [ apply (@gfp_chain _ _ (eqit_mon _ _)), hn |].
+  intros ? ? [ i1' i2' HRI | r1 r2 HRR ].
+  - etau.
+  - eret.
 Qed.

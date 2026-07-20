@@ -1,4 +1,4 @@
-Require Import Paco.paco.
+Require Import Coinduction.all.
 From Coq Require Import
      Program.Tactics
      Setoid
@@ -11,8 +11,6 @@ From ITree Require Import
      Core.ITreeDefinition
      Core.KTree
      Eq.Eqit
-     Eq.UpToTaus
-     Eq.Paco2
      Indexed.Sum
      Indexed.Function
      Indexed.Relation
@@ -88,24 +86,27 @@ Lemma ss_stk_sem_ss_sem (cond : lstate -> bool) :
 Proof.
   move=> hstep.
   rewrite /ss_stk_sem /ss_sem.
-  ginit; gcofix CIH => -[st conds] /= hwf.
+  coinduction ch CIH => -[st conds]; bcbn; intros hwf.
   elim: hwf st => {conds} [ | cond' conds hcond' hwf IH] st1.
-  + rewrite unfold_while unfold_iter {1}/stk_step /=.
+  + rewrite unfold_while unfold_iter {1}/stk_step. bcbn.
     case: (cond _); last first.
-    + rewrite bind_ret_l unfold_iter /stk_step /= bind_ret_l.
-      by setoid_rewrite tau_euttge; gstep; constructor.
+    + rewrite bind_ret_l unfold_iter /stk_step bind_ret_l.
+      by setoid_rewrite tau_euttge; bcbn; constructor.
     rewrite bind_bind; setoid_rewrite bind_ret_l.
-    guclo eqit_clo_bind; econstructor; first by apply hstep.
+    eapply eqit_bind_chain.
+    { eapply (@gfp_chain _ _ (eqit_mon _ _)), hstep. }
     move=> st2 _ [<-] hcall.
-    gstep; constructor; gfinal; left; apply CIH => /=.
+    icbn; constructor; apply CIH => /=.
     by case: is_call hcall; constructor => //; constructor.
-  rewrite unfold_iter {1}/stk_step /=.
+  rewrite unfold_iter {1}/stk_step. bcbn.
   case: ifP => hcond1; last first.
   + by rewrite bind_ret_l; setoid_rewrite tau_euttge; apply IH.
   rewrite unfold_while (hcond' _ hcond1) bind_bind.
-  guclo eqit_clo_bind; econstructor; first by apply hstep.
+  eapply eqit_bind_chain.
+  { eapply (@gfp_chain _ _ (eqit_mon _ _)), hstep. }
   move=> st2 _ [<-] hcall.
-  rewrite bind_ret_l; gstep; constructor; gfinal; left; apply CIH => /=.
+  (* rewrite bind_ret_l; gstep; constructor; gfinal; left; apply CIH => /=. *)
+  rewrite bind_ret_l; icbn; constructor; apply CIH => /=.
   by case: is_call hcall; constructor => //; constructor.
 Qed.
 
@@ -151,26 +152,24 @@ Lemma bind_mix_stk_steps ls cond conds :
   mix_stk_steps {| st := ls; stk := cond :: conds |}.
 Proof.
   move: ls cond conds.
-  ginit; gcofix SELF => ls cond conds.
-  rewrite /mix_stk_steps !unfold_iter {1 4}/mix_stk_step /=.
+  coinduction ch SELF => ls cond conds.
+  rewrite /mix_stk_steps !unfold_iter {1 4}/mix_stk_step. bcbn.
   rewrite bind_bind.
   case: ifP => hcond; last first.
-  + rewrite !bind_ret_l unfold_iter {1}/mix_stk_step /=.
-    rewrite bind_tau !bind_ret_l.
-    apply gpaco2_mon with bot2 bot2 => //.
-    gfinal. right.
-    rewrite -/(eqit eq false false).
+  + rewrite !bind_ret_l unfold_iter {1}/mix_stk_step. bcbn.
+    rewrite !bind_ret_l.
+    setoid_rewrite bind_ret_l.
     reflexivity.
   rewrite !bind_bind.
-  guclo eqit_clo_bind; econstructor; first reflexivity.
+  ebind.
   move=> ls' _ <-.
   case heq: is_call => [ fn | ].
   + rewrite !bind_bind !bind_trigger.
-    gstep; constructor => ls''.
-    rewrite {1}/Datatypes.id !bind_ret_l !bind_tau.
-    by gstep; constructor; gfinal; left; apply SELF.
+    step; constructor => ls''.
+    rewrite !bind_ret_l !bind_tau.
+    by icbn; constructor; apply SELF.
   rewrite !bind_ret_l !bind_tau.
-  by gstep; constructor; gfinal; left; apply SELF.
+  by icbn; constructor; apply SELF.
 Qed.
 
 Lemma interp_mrec_translate {D E1 : Type -> Type} (handle: forall T : Type, D T -> itree (D +' E1) T)
@@ -178,45 +177,40 @@ Lemma interp_mrec_translate {D E1 : Type -> Type} (handle: forall T : Type, D T 
   interp_mrec handle (translate inr1 it) ≈ it.
 Proof.
   move: it.
-  ginit. gcofix CIH => it.
+  coinduction => it.
   rewrite (itree_eta it).
-  case: (observe it) => [ res| t | X e k] /=.
-  + rewrite translate_ret unfold_interp_mrec /=.
-    by gstep; constructor.
-  + rewrite translate_tau unfold_interp_mrec /=.
-    by gstep; constructor; gfinal; left.
-  rewrite translate_vis unfold_interp_mrec /=.
-  setoid_rewrite tau_euttge.
-  by gstep; constructor => x; gfinal; left; apply CIH.
+  case: (observe it) => [ res| t | X e k] //=; to_mon.
+  + now constructor.
+  icbn; constructor => x.
+  rewrite bind_ret_l.
+  setoid_rewrite tau_euttge. eauto.
 Qed.
 
 Lemma mix_stk_steps_ss_stk_sem s :
   mix_stk_steps_sem s ≈ ss_stk_sem s.
 Proof.
   rewrite /mix_stk_steps_sem /ss_stk_sem /mix_stk_steps; move: s.
-  einit. ecofix SELF => s.
+  coinduction ch SELF => s.
   rewrite 2!unfold_iter {1}/mix_stk_step {1} /stk_step.
   case: (stk s).
   + by rewrite !bind_ret_l !unfold_interp_mrec /=; eret.
   move=> cond conds.
   case: ifP => hcond; last first.
-  + rewrite interp_mrec_bind unfold_interp_mrec /=.
-    rewrite !bind_ret_l unfold_interp_mrec /=.
+  + rewrite interp_mrec_bind unfold_interp_mrec. bcbn.
     by etau.
   rewrite !interp_mrec_bind !bind_bind; ebind.
-  apply pbc_intro_h with eq.
-  + apply interp_mrec_translate.
+  + eapply (@gfp_chain _ _ (eqit_mon _ _)), interp_mrec_translate.
   move=> ls _ <-.
   case: is_call; last first.
-  + by rewrite unfold_interp_mrec /= !bind_ret_l unfold_interp_mrec /=; etau.
+  + by rewrite unfold_interp_mrec; bcbn; etau.
   move=> fn.
-  rewrite bind_trigger unfold_interp_mrec /= bind_tau.
+  rewrite bind_trigger unfold_interp_mrec. bcbn. etau.
   rewrite interp_mrec_bind. setoid_rewrite (unfold_interp_mrec _ _ (Ret _)) => /=.
-  rewrite bind_bind bind_ret_l; setoid_rewrite bind_ret_l.
+  setoid_rewrite bind_bind; setoid_rewrite bind_ret_l.
   setoid_rewrite (unfold_interp_mrec _ _ (Tau _)) => /=.
-  setoid_rewrite tau_euttge at 2.
+  setoid_rewrite tau_euttge.
   rewrite -interp_mrec_bind -/mix_stk_steps bind_mix_stk_steps.
-  etau.
+  eauto.
 Qed.
 
 (***************************************************************************** *)
@@ -312,20 +306,21 @@ Definition mix_sem cond (s:lstate) :=
 Lemma mix_steps_mix_chk_stk_steps cond s :
   mix_steps cond s ≈ mix_chk_stk_steps {| st := s; stk := [:: cond] |}.
 Proof.
-  move: s; einit; ecofix CIH => s.
+  move: s; coinduction => s.
   rewrite /mix_chk_stk_steps /mix_steps unfold_iter unfold_while.
-  rewrite {1}/mix_chk_stk_step /= {1}/mix_step.
+  rewrite {1}/mix_chk_stk_step {1}/mix_step. bcbn.
   case: ifP => _; last first.
-  + rewrite bind_ret_l unfold_iter /mix_stk_step /= bind_ret_l.
+  + rewrite bind_ret_l unfold_iter /mix_stk_step. bcbn.
+    rewrite bind_ret_l.
     setoid_rewrite tau_euttge; eret.
   rewrite !bind_bind; ebind.
-  apply pbc_intro_h with eq; first reflexivity.
   move=> s' _ <-.
   case: is_call => [fn|].
   + rewrite !bind_bind !bind_trigger.
-    evis => s''.
+    evis.
     case: ifP => _.
-    + by setoid_rewrite bind_ret_l; etau.
+    + setoid_rewrite bind_ret_l.
+      step. constructor. eauto.
     rewrite !bind_throw; reflexivity.
   rewrite !bind_ret_l; etau.
 Qed.

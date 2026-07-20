@@ -3,7 +3,7 @@
 From Coq
 Require Import Setoid Morphisms Lia.
 
-Require Import Paco.paco.
+Require Import Coinduction.all.
 
 From ITree Require Import
   ITree
@@ -1934,7 +1934,6 @@ Proof.
   + by have := hc _ _ _ _ _ _ pc hfn'; rewrite size_cat => /(_ hpc'); apply.
   move=> ls'' _ [<- ? hpc''].
   rewrite mix_ilsteps_b0 => //; last by rewrite hpc''; simpl_size; lia.
-  by apply eqit_Ret.
 Qed.
 
 Lemma linear_c_end_cons : ∀ (i : instr) (c : cmd), Pi i → Pc c → Pc (i :: c).
@@ -2275,7 +2274,7 @@ Lemma mix_ilsteps_add_align P ii al lc Q ls :
         (setcpc ls fn (size P + size (add_align ii al [::]))).
 Proof.
   case: al => /= hfn hpc C; last first.
-  + by rewrite addn0 -hpc -hfn /setcpc; case: (ls) => /= >; reflexivity.
+  + rewrite addn0 -hpc -hfn /setcpc; case: (ls) => /= *; reflexivity.
   rewrite (step_mix_ilsteps C) //=; last by simpl_size;lia.
   rewrite /lnext_pc /setcpc addn1 hfn hpc; reflexivity.
 Qed.
@@ -2349,21 +2348,21 @@ Proof.
       (* Here the proof is done by coinduction *)
       have {}ih1 := ih1 _ _ _ _ _ pre1.
       have {}ih2 := ih2 _ _ _ _ _ pre2.
-      move=> {hfn hpc}; move: ls; ginit; gcofix SELF => s.
+      move=> {hfn hpc}; move: ls; coinduction ch SELF => s.
       rewrite unfold_iter bind_bind.
       rewrite (mix_ilsteps_split p' (pcs':=size P1) (pce':=size P1 + size lc1));[| rewrite /P1; simpl_size; lia..].
-      guclo eqit_clo_bind.
-      econstructor.
+      ebind.
       + have -> : lnext_pc (setcpc s fn (size P + size lialign)) = setcpc s fn (size P1).
         + rewrite /lnext_pc /setcpc /P1 /=; f_equal; simpl_size; lia.
+        apply (@gfp_bchain _ _ (eqit_mon _ _)).
         by apply ih1.
       move=> ls1 _ [<- hfn1 hpc1]; rewrite bind_bind.
       rewrite (mix_ilsteps_split p' (pcs':=size P2) (pce':=size P2 + size lc2));[| rewrite /P2; simpl_size; lia..].
-      guclo eqit_clo_bind.
-      econstructor.
+      ebind.
       + have -> : ls1 = (setcpc ls1 fn (size P2)).
         + rewrite /setcpc /P2 /P1 /=. case: ls1 hfn1 hpc1 => /= > -> ->.
           f_equal; simpl_size; lia.
+        apply (@gfp_bchain _ _ (eqit_mon _ _)).
         by apply ih2.
       move=> ls2 _ [<- hfn2 hpc2]; rewrite bind_ret_l.
       rewrite catA in C2.
@@ -2372,7 +2371,7 @@ Proof.
       rewrite find_label_cat_hd; last first.
       + apply: (disjoint_labels_cat D); rewrite /lialign; case: (al) => //; lia.
       rewrite find_labelE /lilabel /is_label /= eqxx /=.
-      gstep; constructor; gfinal; left.
+      etau.
       have -> : setcpc ls2 fn (size (P ++ lialign) + 0).+1 =
                 lnext_pc (setcpc ls2 fn (size P + size lialign)).
       + rewrite /setcpc /lnext_pc /=; f_equal; simpl_size; lia.
@@ -2441,36 +2440,35 @@ Proof.
     rewrite -/lialign (step_mix_ilsteps C) //=; [ | by rewrite /lialign; simpl_size;lia..].
     (* Here the proof is done by coinduction *)
     have {}ih1 := ih1 _ _ _ _ _ pre1.
-    move=> {hfn hpc}; move: ls; ginit; gcofix SELF => s.
+    move=> {hfn hpc}; move: ls; coinduction ch SELF => s.
     rewrite unfold_iter bind_bind.
     rewrite (mix_ilsteps_split p' (pcs':=size P1) (pce':=size P1 + size lc1));[| rewrite /P1; simpl_size; lia..].
-    guclo eqit_clo_bind.
-    econstructor.
+    ebind.
     + have -> : lnext_pc (setcpc s fn (size P + size lialign)) = setcpc s fn (size P1).
       + rewrite /lnext_pc /setcpc /P1 /=; f_equal; simpl_size; lia.
+      apply (@gfp_bchain _ _ (eqit_mon _ _)).
       by apply ih1.
     move=> ls1 _ [<- hfn1 hpc1].
     rewrite catA in C1.
-    rewrite (step_mix_ilsteps_eq_itree C1) //=; [|rewrite /P1 ?hpc1; simpl_size; lia..].
-    rewrite /eval_instr /=.
-    case: (Let v := sem_fexpr _ _ in to_bool v) => [b | err] /=; last first.
-    + rewrite bind_throw; apply gpaco2_mon with bot2 bot2 => //.
-      gfinal; right; rewrite -/(eqit eq true true); reflexivity.
+    rewrite (step_mix_ilsteps_eq_itree C1) //; try bcbn; [|rewrite /P1 ?hpc1; simpl_size; lia..].
+    rewrite /eval_instr. bcbn.
+    case: (Let v := sem_fexpr _ _ in to_bool v) => [b | err]; bcbn; last first.
+    + constructor; intros [].
     rewrite hfn1 (eval_jumpE C).
     rewrite find_label_cat_hd; last first.
     + apply: (disjoint_labels_cat D); rewrite /lialign; case: (al) => //; lia.
-    rewrite find_labelE /lilabel /is_label /= eqxx /=.
+    rewrite find_labelE /lilabel /is_label; bcbn. rewrite positive_eqb_refl. bcbn.
     case: b.
     + rewrite bind_bind (mix_ilsteps_b0 p' (size P2)) //; last first.
       + by rewrite /setcpc /=; simpl_size;lia.
-      rewrite !bind_ret_l; gstep; constructor; gfinal; left.
+      rewrite !bind_ret_l; etau.
       have -> : setcpc ls1 fn (size (P ++ lialign) + 0).+1 =
                 lnext_pc (setcpc (setcpc ls1 fn (size P2)) fn (size P + size lialign)).
       + rewrite /setcpc /lnext_pc /P2 /=; f_equal; simpl_size; lia.
       apply SELF.
     rewrite bind_ret_l mix_ilsteps_b0 //; last first.
     + by rewrite /lnext_pc hpc1 /P1 /=;simpl_size;lia.
-    setoid_rewrite tau_euttge; gstep; constructor.
+    setoid_rewrite tau_euttge. eret.
     by rewrite /lnext_pc /setcpc hpc1 /P1 /=; f_equal => //; simpl_size; lia.
 
   (* The general case *)
@@ -2521,43 +2519,43 @@ Proof.
   (* Here the proof is done by coinduction *)
   have {}ih1 := ih1 _ _ _ _ _ pre1.
   have {}ih2 := ih2 _ _ _ _ _ pre2.
-  rewrite hfn; move=> {hpc hfn}; move: ls; ginit; gcofix SELF => s.
+  rewrite hfn; move=> {hpc hfn}; move: ls; coinduction ch SELF => s.
   rewrite unfold_iter bind_bind.
   rewrite (mix_ilsteps_split p' (pcs':=size P1) (pce':=size P1 + size lc1));[| rewrite /P1; simpl_size; lia..].
-  guclo eqit_clo_bind; econstructor.
+  ebind.
   + have -> : setcpc s fn (size P + (size lialign + (size lc2 + 0).+1).+1).+1 =
               setcpc s fn (size P1).
     + rewrite /lnext_pc /setcpc /P1 /P2 /=; f_equal => //; simpl_size; lia.
+    eapply (@gfp_bchain _ _ (eqit_mon _ _)).
     by apply ih1.
   move=> ls1 _ [<- hfn1 hpc1].
   rewrite catA in C1.
-  rewrite (step_mix_ilsteps_eq_itree C1) //=; [|rewrite /P1 ?hpc1; simpl_size; lia..].
-  rewrite /eval_instr /=.
-  case: (Let v := sem_fexpr _ _ in to_bool v) => [b | err] /=; last first.
-  + rewrite bind_throw; apply gpaco2_mon with bot2 bot2 => //.
-    gfinal; right; rewrite -/(eqit eq true true); reflexivity.
+  rewrite (step_mix_ilsteps_eq_itree C1) //; try bcbn; [|rewrite /P1 ?hpc1; simpl_size; lia..].
+  rewrite /eval_instr. bcbn.
+  case: (Let v := sem_fexpr _ _ in to_bool v) => [b | err]; bcbn; last first.
+  + constructor; intros [].
   rewrite hfn1 (eval_jumpE C).
   rewrite find_label_cat_hd; last by apply: D; lia.
-  rewrite find_labelE /= -!catA find_label_cat_hd; last by rewrite /lialign; case: (al).
-  rewrite find_labelE /is_label /= eqxx /=.
+  rewrite find_labelE; bcbn; rewrite -!catA find_label_cat_hd; last by rewrite /lialign; case: (al).
+  rewrite find_labelE /is_label. bcbn. rewrite positive_eqb_refl. bcbn.
   case: b.
   + rewrite bind_bind; setoid_rewrite tau_euttge.
     rewrite (mix_ilsteps_split p' (pcs':=size P2) (pce':=size P2 + size lc2));[| rewrite /P2; simpl_size; lia..].
-    guclo eqit_clo_bind.
-    econstructor.
+    ebind.
     + have -> : setcpc ls1 fn (size P + (size lialign + 0).+1).+1 = setcpc ls1 fn (size P2).
       + rewrite /setcpc /P2 /=; f_equal; simpl_size; lia.
+      eapply (@gfp_bchain _ _ (eqit_mon _ _)).
       by apply ih2.
     move=> ls2 _ [<- hfn2 hpc2]; rewrite bind_ret_l.
     rewrite catA in C2; rewrite (step_mix_ilsteps_eq_itree C2) //=;[|rewrite ?hpc2 /P2 /Q2; simpl_size; lia..].
-    gstep; constructor; gfinal; left.
+    etau.
     have -> : lnext_pc ls2 = setcpc ls2 fn (size P + (size lialign + (size lc2 + 0).+1).+1).+1.
     + rewrite /lnext_pc /setcpc hpc2 /P2; f_equal => //; simpl_size; lia.
     by apply SELF.
   rewrite bind_ret_l; setoid_rewrite tau_euttge.
   rewrite mix_ilsteps_b0 //; last first.
   + by rewrite /lnext_pc hpc1 /P1 /=;simpl_size;lia.
-  gstep; constructor.
+  eret.
   by rewrite /lnext_pc /setcpc hpc1 /P1 /=; f_equal => //; simpl_size; lia.
 Qed.
 
@@ -3256,10 +3254,10 @@ End ILSTEPS_END.
     rewrite (sem_fexpr_bool hinv chk_e hb) /=; rewrite -(bind_ret_r (isem_cmd_ _ _ _ _)) => {hb}; case: b.
     + have {}ih1:= ih1 _ _ _ _ _ hpre1 (Sv.empty, s1) (setcpc ls1 fn (size P1)) (inv_c_setpc hinv erefl).
       apply (xrutt_facts.xrutt_bind ih1) => ks2 ls2 hpost.
-      by apply/xrutt.xrutt_Ret/post_c_post_ir/(post_c_setpc hpost); rewrite size_cat.
+      by apply xrutt.xrutt_Ret, post_c_post_ir, (post_c_setpc hpost); rewrite size_cat.
     have {}ih2:= ih2 _ _ _ _ _ hpre2 (Sv.empty, s1) (setcpc ls1 fn (size P2)) (inv_c_setpc hinv erefl).
     apply (xrutt_facts.xrutt_bind ih2) => ks2 ls2 hpost.
-    by apply/xrutt.xrutt_Ret/post_c_post_ir/(post_c_setpc hpost); rewrite size_cat.
+    by apply xrutt.xrutt_Ret, post_c_post_ir, (post_c_setpc hpost); rewrite size_cat.
   Qed.
 
   Lemma Hfor : ∀ (v : var_i) (dir : expr.dir) (lo hi : pexpr) (c : cmd), Pc c → Pi_r (Cfor v (dir, lo, hi) c).
@@ -3292,11 +3290,11 @@ End ILSTEPS_END.
       by rewrite (sem_fexpr_bool (post_c_inv_c hpost2) chk_e hb).
     have hpost2' := post_c_trans hpost1 hpost2.
     case: b hpre2 => hpre2; last first.
-    + apply/xrutt.xrutt_Ret;constructor.
-      by apply/post_c_post_ir /(post_c_setpc hpost2'); rewrite size_cat.
+    + apply xrutt.xrutt_Ret;constructor.
+      by apply post_c_post_ir, (post_c_setpc hpost2'); rewrite size_cat.
     have {}ih2:= ih2 _ _ _ _ _ (hpre2 erefl) ks2 (setcpc ls2 fn (size P2)) (post_c_inv_c (post_c_setpc hpost2 erefl)).
     apply (xrutt_facts.xrutt_bind ih2) => ks3 ls3 hpost3.
-    apply/xrutt.xrutt_Ret;constructor.
+    apply xrutt.xrutt_Ret;constructor.
     exists (P2 ++ lc2); apply: post_c_trans hpost2' hpost3.
   Qed.
 
@@ -4073,7 +4071,7 @@ End ILSTEPS_END.
 (* FIXME: move this *)
 Lemma mix_ilsteps_split_handle_call_cond P lc lbody fn ls :
   is_linear_of fn lbody ->
-  size P + size lc <= size lbody ->
+  (size P + size lc <= size lbody)%nat ->
   mix_ilsteps p' (handle_call_cond p' fn) ls ≅
   ITree.bind (mix_ilsteps p' (pc_between_c fn P lc) ls)
        (mix_ilsteps p' (handle_call_cond p' fn)).
@@ -4865,7 +4863,7 @@ Qed.
         + (* ra_call = None, easy case: mi = m1 *)
           exists (lmem t1); split=> //.
           rewrite mix_ilsteps_b0 // /P2 /=.
-          rewrite -hfn -hpc; case: (t1) => >; reflexivity.
+          rewrite -hfn -hpc; case: (t1) => *; reflexivity.
         (* ra_call = Some _ *)
         (* TODO this should be a lemma it is used elsewhere (above)*)
         have [m1s ok_m1s M']:

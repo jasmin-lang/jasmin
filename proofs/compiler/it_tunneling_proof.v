@@ -409,7 +409,7 @@ Lemma tunnel_cmd endpc s :
   eqit eq true true (ilsem p' (untilpc endpc) s) (ilsem p (untilpc endpc) s).
 Proof using pp'.
   move=> hend.
-  apply while.eqit_iter_n with eq => //.
+  apply while.eutt_iter_n with eq => //.
   move=> {}s _ <-.
   setoid_rewrite i_lsem_body_n; setoid_rewrite i_lsem_body.
   rewrite /lsem_body /untilpc; case: eqP.

@@ -466,7 +466,7 @@ Proof using spill_prog_ok.
     exists s.
     + by move: hinit; rewrite /initialize_funcall /= eq_p_extra.
     exists (st_eq tt), (st_eq tt); split => //.
-    + by apply/wequiv_rec_st_eq/eq_globs.
+    + by apply wequiv_rec_st_eq, eq_globs.
     by apply st_eq_finalize.
   case ok_m: init_map => [ m _count ].
   t_xrbindP => _.
@@ -555,7 +555,7 @@ Proof using spill_prog_ok.
   apply wequiv_call_rel_eq with (checker_st_ve S) env => //.
   + split => //; clear -hsub; SvD.fsetdec.
   + split => //; clear -hsub; SvD.fsetdec.
-  move=> fs fs' <-; exact/wequiv_fun_rec.
+  move=> fs fs' <-; by apply (wequiv_fun_rec (spec:=eq_spec)).
 Qed.
 
 End IT.

@@ -77,7 +77,7 @@ Section REMOVE_ASSERT.
       by apply wequiv_while_rel_eq with checker_ra_eq tt.
     move=> >.
     apply wequiv_call_rel_eq_wa with checker_ra_eq tt => //.
-    move=> ?? <-; exact/wequiv_fun_rec.
+    move=> ?? <-; by apply (wequiv_fun_rec (spec:=eq_spec)).
   Qed.
 
 End REMOVE_ASSERT.
