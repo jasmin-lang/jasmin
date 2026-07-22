@@ -219,7 +219,7 @@ libjade:
   stage: test
   parallel:
     matrix:
-      - PRIMITIVE: [ mldsa, mlkem, xmss ]
+      - PRIMITIVE: [ curve25519, mldsa, mlkem, xmss ]
   variables:
     EXTRA_NIX_ARGUMENTS: --arg ocamlDeps true
   extends: .common
