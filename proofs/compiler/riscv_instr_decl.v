@@ -45,7 +45,7 @@ Definition RTypeInstruction ws semi jazz_name asm_name: instr_desc_t :=
   let tin := [:: lreg; lword ws ] in
   {|
       id_valid := true;
-      id_doit := doit;
+      id_doit := DOIT;
       id_msb_flag := MSB_MERGE;
       id_tin := tin;
       id_in := [:: Ea 1; Ea 2 ];
@@ -68,7 +68,7 @@ Definition ITypeInstruction chk_imm ws semi jazz_name asm_name : instr_desc_t :=
   let tin := [:: lreg; lword ws ] in
   {|
       id_valid := true;
-      id_doit := doit;
+      id_doit := DOIT;
       id_msb_flag := MSB_MERGE;
       (* imm are coded on 12 bits, not 32 *)
       id_tin := tin;
@@ -270,7 +270,7 @@ Definition riscv_MV_instr : instr_desc_t :=
   let semi := riscv_MV_semi in
     {|
       id_valid := true;
-      id_doit := doit;
+      id_doit := DOIT;
       id_msb_flag := MSB_MERGE;
       id_tin := tin;
       id_in := [:: Ea 1 ];
@@ -300,7 +300,7 @@ Definition riscv_LA_instr : instr_desc_t :=
   let semi := riscv_LA_semi in
     {|
       id_valid := true;
-      id_doit := doit;
+      id_doit := DOIT;
       id_msb_flag := MSB_MERGE;
       id_tin := [:: lreg ];
       id_in := [:: Ec 1 ];
@@ -330,7 +330,7 @@ Definition riscv_LI_instr : instr_desc_t :=
   let semi := riscv_LI_semi in
     {|
       id_valid := true;
-      id_doit := doit;
+      id_doit := DOIT;
       id_msb_flag := MSB_MERGE;
       id_tin := tin;
       id_in := [:: Ea 1 ];
@@ -361,7 +361,7 @@ Definition riscv_NOT_instr : instr_desc_t :=
   let semi := riscv_NOT_semi in
     {|
       id_valid := true;
-      id_doit := doit;
+      id_doit := DOIT;
       id_msb_flag := MSB_MERGE;
       id_tin := tin;
       id_in := [:: Ea 1 ];
@@ -391,7 +391,7 @@ Definition riscv_NEG_instr : instr_desc_t :=
   let semi := riscv_NEG_semi in
     {|
       id_valid := true;
-      id_doit := doit;
+      id_doit := DOIT;
       id_msb_flag := MSB_MERGE;
       id_tin := tin;
       id_in := [:: Ea 1 ];
@@ -441,7 +441,7 @@ Definition riscv_LOAD_instr s ws : instr_desc_t :=
   let semi := @riscv_extend_semi s reg_size ws in
     {|
       id_valid := if s is Signed then (ws <= U32)%CMP else (ws <= U16)%CMP ;
-      id_doit := doit;
+      id_doit := DOIT;
       id_msb_flag := MSB_MERGE;
       id_tin := tin;
       id_in := [:: Eu 1 ];
@@ -475,7 +475,7 @@ Definition riscv_STORE_instr ws : instr_desc_t :=
   let semi := @riscv_extend_semi Unsigned ws ws in
     {|
       id_valid := (ws <= U32)%CMP;
-      id_doit := doit;
+      id_doit := DOIT;
       id_msb_flag := MSB_MERGE; (* ? *)
       id_tin := [:: lword ws ];
       id_in := [:: Ea 0 ];

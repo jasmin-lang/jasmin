@@ -440,9 +440,6 @@ Record instr_desc_t := {
   id_semi_safe  : id_valid -> interp_safe_cond_lty id_tin id_safe id_semi;
 }.
 
-Definition doit := DOIT.
-Definition not_doit := NOT_DOIT.
-
 (* -------------------------------------------------------------------- *)
 (* Architecture operand declaration. *)
 Class asm_op_decl (asm_op: Type) :=
