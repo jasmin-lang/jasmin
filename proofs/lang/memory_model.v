@@ -98,13 +98,26 @@ Fixpoint pos_is_aligned_to (p: positive) (n: nat) {struct n} : bool :=
     else false)%positive
   else true.
 
+Lemma mod_pow2S p n :
+  mod_pow2 p n.+1 =
+    match p with
+    | p~1 => Pos.Nsucc_double (mod_pow2 p n)
+    | p~0 => Pos.Ndouble (mod_pow2 p n)
+    | 1 => 1%N
+    end%positive.
+Proof.
+  rewrite mod_pow2E.
+  case: p => // p; rewrite !mod_pow2E /=; zify; rewrite Z.mod_mul_r => //; rewrite (Z.mul_comm 2 p).
+  2: by rewrite Z.quot_mul // Z.rem_mul.
+  rewrite Z.quot_add_l // Z.add_0_r (Z.add_comm (p * 2) 1) Z.rem_add //.
+  exact: Z.add_comm.
+Qed.
+
 Lemma pos_is_aligned_toE p n :
   pos_is_aligned_to p n = (mod_pow2 p n == 0)%N.
 Proof.
-  elim: n p => // n ih [] // p /=.
-  - by case: (_ p n).
-  rewrite ih.
-  by case: (_ p n).
+  elim: n p => // n ih [] // p; rewrite mod_pow2S /= ?ih;
+  by case: (mod_pow2 _ _).
 Qed.
 
 Definition is_aligned_to (z: Z) (n: nat) : bool :=
