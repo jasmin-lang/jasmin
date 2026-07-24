@@ -16,17 +16,17 @@ with {
     version = "main";
     rev = "????";
     src = builtins.fetchTarball "https://api.github.com/repos/easycrypt/easycrypt/tarball/main";
-    extraBuildInputs = [ ocamlPackages.bitwuzla-cxx ];
+    extraBuildInputs = [ ];
   };
 
   "release" = rec {
-    version = "2026.06";
+    version = "2026.07";
     rev = "r${version}";
     src = fetchFromGitHub {
       owner = "easycrypt";
       repo = "easycrypt";
       inherit rev;
-      hash = "sha256-+exP4UWfNGZauznLZTA/NkMOHJNstz4oaTqI0bSnkH8=";
+      hash = "sha256-ZJRvMdIv75BcU9r8kJdOF7XtTL5dFNycDMSnZjuSp3I=";
     };
     extraBuildInputs = [];
   };
@@ -47,6 +47,7 @@ stdenv.mkDerivation rec {
 
   buildInputs = with ocamlPackages; [
     batteries
+    bitwuzla-cxx
     dune-build-info
     dune-site
     markdown

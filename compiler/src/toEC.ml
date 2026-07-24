@@ -112,6 +112,7 @@ let ec_keyword =
  ; "last"
  ; "do"
  ; "expect"
+ ; "extens"
 
  (* Lambda tactics *)
  ; "beta"
@@ -212,6 +213,10 @@ let ec_keyword =
  ; "kill"
  ; "eager"
 
+ ; "array"
+ ; "bind"
+ ; "circuit"
+ ; "bitstring"
  ; "axiom"
  ; "axiomatized"
  ; "lemma"
