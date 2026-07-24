@@ -44,7 +44,6 @@ inline fn __addratebit_ref
 
 module Keccak1600ref_imem
  with fn KECCAK_F(keccak_state) -> keccak_state;
-      fn __addratebit_ref(u64[25], int) -> u64[25];
 {
 
 /*
@@ -238,7 +237,6 @@ inline fn __squeeze_imem_ref
 module Keccak1600ref_array
  with param int ASIZE;
       fn KECCAK_F(keccak_state) -> keccak_state;
-      fn __addratebit_ref(u64[25], int) -> u64[25];
 {
 
 module SRW = SRW_array(ASIZE);
@@ -446,30 +444,18 @@ inline fn __squeeze_array_ref
 
 
 module Keccak1600ref_imem_bmi1 =
- Keccak1600ref_imem(Keccakf1600_bmi1::_keccakf1600_ref,__addratebit_ref);
+ Keccak1600ref_imem(Keccakf1600_bmi1::_keccakf1600_ref);
 
 
 module Keccak1600ref_imem_nobmi1 =
- Keccak1600ref_imem(Keccakf1600_nobmi1::_keccakf1600_ref,__addratebit_ref);
+ Keccak1600ref_imem(Keccakf1600_nobmi1::_keccakf1600_ref);
 
 
 module Keccak1600ref_array_bmi1
  with param int ASIZE;
 {
-  inline fn __addratebit_ref
-( reg mut ptr u64[25] st
-, inline int RATE8
-) -> reg ptr u64[25]
-{
-  reg u64 t64;
-  t64 = 1;
-  t64 <<= (8*RATE8-1) % 64; // obs: should be 63 for all admissible rates!
-  t64 ^= st[(RATE8-1)/8];
-  st[(RATE8-1)/8] = t64;
-  return st;
-}
 
-module K1600ref_array = Keccak1600ref_array(ASIZE, Keccakf1600_bmi1::_keccakf1600_ref,__addratebit_ref);
+module K1600ref_array = Keccak1600ref_array(ASIZE, Keccakf1600_bmi1::_keccakf1600_ref);
 
 open K1600ref_array
 
@@ -479,20 +465,8 @@ open K1600ref_array
 module Keccak1600ref_array_nobmi1
  with param int ASIZE;
 {
-    inline fn __addratebit_ref
-( reg mut ptr u64[25] st
-, inline int RATE8
-) -> reg ptr u64[25]
-{
-  reg u64 t64;
-  t64 = 1;
-  t64 <<= (8*RATE8-1) % 64; // obs: should be 63 for all admissible rates!
-  t64 ^= st[(RATE8-1)/8];
-  st[(RATE8-1)/8] = t64;
-  return st;
-}
 
-module K1600ref_array = Keccak1600ref_array(ASIZE, Keccakf1600_nobmi1::_keccakf1600_ref,__addratebit_ref);
+module K1600ref_array = Keccak1600ref_array(ASIZE, Keccakf1600_nobmi1::_keccakf1600_ref);
 
 open K1600ref_array
 
