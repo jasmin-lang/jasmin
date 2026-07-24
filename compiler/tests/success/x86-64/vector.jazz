@@ -200,6 +200,8 @@ c = #VPSLL_4u32(b, 2);
 a = #VPSLL_2u64(c, 3);
 b = #VPSLLV_4u32(c, a);
 c = #VPSLLV_2u64(a, b);
+a = #VPSRLV_4u32(c, b);
+c = #VPSRLV_2u64(b, a);
 [:u128 p + 0] = c;
 
 x = [:u256 p + 32];
@@ -208,6 +210,8 @@ z = #VPSLL_8u32(y, 2);
 x = #VPSLL_4u64(z, 3);
 y = #VPSLLV_8u32(z, x);
 z = #VPSLLV_4u64(x, y);
+x = #VPSRLV_8u32(z, y);
+z = #VPSRLV_4u64(y, x);
 [:u256 p + 32] = z;
 
 }

@@ -352,6 +352,7 @@ Definition primV_8_32 := primV_range [seq PVv ve sz | ve <- [:: VE8; VE16; VE32 
 Definition primV_16 := primV_range [seq PVv VE16 sz | sz <- [:: U128; U256 ]].
 Definition primV_16_32 := primV_range [seq PVv ve sz | ve <- [:: VE16; VE32 ], sz <- [:: U128; U256 ]].
 Definition primV_16_64 := primV_range [seq PVv ve sz | ve <- [:: VE16; VE32; VE64 ], sz <- [:: U128; U256 ]].
+Definition primV_32_64 := primV_range [seq PVv ve sz | ve <- [:: VE32; VE64 ], sz <- [:: U128; U256 ]].
 Definition primV_128 := primV_range [seq PVv ve U128 | ve <- [:: VE8; VE16; VE32; VE64 ]].
 
 Definition primMMX := primV_range [seq PVv ve sz | ve <- [:: VE8; VE16; VE32; VE64 ], sz <- [:: U64; U128 ]].
@@ -1538,14 +1539,14 @@ Arguments x86_u128_shift_variable : clear implicits.
 Definition x86_VPSLLV ve sz := x86_u128_shift_variable ve sz (@wshl _).
 
 Definition Ox86_VPSLLV_instr :=
-  mk_ve_instr_w2_w_120 "VPSLLV" x86_VPSLLV check_xmm_xmm_xmmm (primV_16_64 VPSLLV)
-  (fun (ve:velem)  sz => size_16_64 ve && size_128_256 sz) (fun=> DOIT) (pp_viname "vpsllv").
+  mk_ve_instr_w2_w_120 "VPSLLV" x86_VPSLLV check_xmm_xmm_xmmm (primV_32_64 VPSLLV)
+  (fun (ve:velem) sz => size_32_64 ve && size_128_256 sz) (fun=> DOIT) (pp_viname "vpsllv").
 
 Definition x86_VPSRLV ve sz := x86_u128_shift_variable ve sz (@wshr _).
 
 Definition Ox86_VPSRLV_instr :=
-  mk_ve_instr_w2_w_120 "VPSRLV" x86_VPSRLV check_xmm_xmm_xmmm (primV_16_64 VPSRLV)
-  (fun (ve:velem) sz => size_16_64 ve && size_128_256 sz) (fun=> DOIT) (pp_viname "vpsrlv").
+  mk_ve_instr_w2_w_120 "VPSRLV" x86_VPSRLV check_xmm_xmm_xmmm (primV_32_64 VPSRLV)
+  (fun (ve:velem) sz => size_32_64 ve && size_128_256 sz) (fun=> DOIT) (pp_viname "vpsrlv").
 
 Definition x86_vpsxldq sz op (v1: word sz) (v2: u8) : tpl (w_ty sz) :=
   op v1 v2.
