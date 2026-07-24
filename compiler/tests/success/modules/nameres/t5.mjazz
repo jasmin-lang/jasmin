@@ -45,7 +45,7 @@ fn inc(reg u64 x) -> reg u64 {
 }
 
 fn inc2(reg u64 x) -> reg u64 {
-  x += 1;
+  x += 2;
   return x;
 }
 }

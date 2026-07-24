@@ -26,6 +26,4 @@ module M2
 }
 
 module A2 = M2(n);
-module B4 = M2(4);
-
 module A4 = M1(2*n);
