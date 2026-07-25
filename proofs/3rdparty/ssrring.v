@@ -89,58 +89,58 @@ Instance closed_cons T (x : T) (xs : seq T)
  := { }.
 
 (* -------------------------------------------------------------------- *)
-Class reify (R : ringType) (a : R) (t : PExpr Z) (e : seq R).
+Class reify (R : pzRingType) (a : R) (t : PExpr Z) (e : seq R).
 
 #[export]
-Instance reify_zero (R : ringType) e : @reify R 0 0%S e := { }.
+Instance reify_zero (R : pzRingType) e : @reify R 0 0%S e := { }.
 #[export]
-Instance reify_one  (R : ringType) e : @reify R 1 1%S e := { }.
+Instance reify_one  (R : pzRingType) e : @reify R 1 1%S e := { }.
 
 #[export]
-Instance reify_natconst (R : ringType) n e
+Instance reify_natconst (R : pzRingType) n e
   : @reify R n%:R ((n : Z)%:S)%S e
   := { }.
 
 #[export]
-Instance reify_add (R : ringType) a1 a2 t1 t2 e
+Instance reify_add (R : pzRingType) a1 a2 t1 t2 e
   {_: @reify R a1 t1 e}
   {_: @reify R a2 t2 e}
   : reify (a1 + a2) (t1 + t2)%S e
   := { }.
 
 #[export]
-Instance reify_opp (R : ringType) a t e
+Instance reify_opp (R : pzRingType) a t e
   {_: @reify R a t e}
   : reify (-a) (-t)%S e
   := { }.
 
 #[export]
-Instance reify_natmul (R : ringType) a n t e
+Instance reify_natmul (R : pzRingType) a n t e
   {_: @reify R a t e}
   : reify (a *+ n) (t * (n : Z)%:S)%S e
   := { }.
 
 #[export]
-Instance reify_mul (R : ringType) a1 a2 t1 t2 e
+Instance reify_mul (R : pzRingType) a1 a2 t1 t2 e
   {_: @reify R a1 t1 e}
   {_: @reify R a2 t2 e}
   : reify (a1 * a2) (t1 * t2)%S e
   := { }.
 
 #[export]
-Instance reify_exp (R : ringType) a n t e
+Instance reify_exp (R : pzRingType) a n t e
   {_: @reify R a t e}
   : reify (a ^+ n) (t ^+ n)%S e | 1
   := { }.
 
 #[export]
-Instance reify_var (R : ringType) a i e
+Instance reify_var (R : pzRingType) a i e
   `{find R a e i}
   : reify a ('X_i)%S e
   | 100
   := { }.
 
-Definition reifyl (R : ringType) a t e
+Definition reifyl (R : pzRingType) a t e
   {_: @reify R a t e}
   `{closed (T := R) e}
   := (t, e).
@@ -227,7 +227,7 @@ Ltac freify xt xe :=
   end.
 
 (* -------------------------------------------------------------------- *)
-Definition R_of_Z (R : ringType) (z : Z) : R :=
+Definition R_of_Z (R : pzRingType) (z : Z) : R :=
   match z with
   | Z0     => 0
   | Zpos n =>   (nat_of_P n)%:R
@@ -250,7 +250,7 @@ Proof. by []. Qed.
 
 Definition zE := (z0E, zaddE, zoppE).
 
-Lemma R_of_Z_is_additive (R : ringType): additive (R_of_Z (R := R)).
+Lemma R_of_Z_is_additive (R : pzRingType): additive (R_of_Z (R := R)).
 Proof.
   have oppm: {morph (R_of_Z (R := R)) : x / -x >-> -x}.
     by case=> [|n|n] //=; rewrite ?(oppr0, opprK).
@@ -275,37 +275,37 @@ Proof.
   by move=> z1 z2 /=; rewrite addm oppm.
 Qed.
 
-HB.instance Definition _ (R : ringType) :=
+HB.instance Definition _ (R : pzRingType) :=
   GRing.isAdditive.Build _ _ (R_of_Z (R:=R)) (R_of_Z_is_additive R).
 
-Lemma R_of_Z_is_multiplicative (R : ringType): multiplicative (R_of_Z (R := R)).
+Lemma R_of_Z_is_multiplicative (R : pzRingType): multiplicative (R_of_Z (R := R)).
 Proof.
   split=> //=; case=> [|z1|z1] [|z2|z2] //=;
     rewrite ?simpm // ?(mulNr, mulrN, opprK);
     by rewrite nat_of_P_mult_morphism natrM.
 Qed.
 
-HB.instance Definition _ (R : ringType) :=
+HB.instance Definition _ (R : pzRingType) :=
   GRing.isMultiplicative.Build _ _ (R_of_Z (R:=R)) (R_of_Z_is_multiplicative R).
 
 Local Notation REeval :=
   (@PEeval _ 0 +%R *%R (fun x y => x - y) -%R Z R_of_Z nat nat_of_N (@GRing.exp _)).
 
-Lemma RE (R : ringType): @ring_eq_ext R +%R *%R -%R (@eq R).
+Lemma RE (R : pzRingType): @ring_eq_ext R +%R *%R -%R (@eq R).
 Proof. by split; do! move=> ? _ <-. Qed.
 
 Local Notation "~%R"   := (fun x y => x - y).
 Local Notation "/%R"   := (fun x y => x / y).
 Local Notation "^-1%R" := (@GRing.inv _) (only parsing).
 
-Lemma RR (R : comRingType): @ring_theory R 0 1 +%R *%R ~%R -%R (@eq R).
+Lemma RR (R : comPzRingType): @ring_theory R 0 1 +%R *%R ~%R -%R (@eq R).
 Proof.
   split=> //=;
     [ exact: add0r | exact: addrC | exact: addrA  | exact: mul1r
     | exact: mulrC | exact: mulrA | exact: mulrDl | exact: subrr ].
 Qed.
 
-Lemma RZ (R : ringType):
+Lemma RZ (R : pzRingType):
   ring_morph (R := R) 0 1 +%R *%R ~%R -%R eq
     0%Z 1%Z Zplus Zmult Zminus Z.opp Z.eqb (@R_of_Z _).
 Proof.
@@ -317,7 +317,7 @@ Proof.
   + by move=> x y /Z.eqb_eq ->.
 Qed.
 
-Lemma PN (R : ringType):
+Lemma PN (R : pzRingType):
   @power_theory R 1 *%R eq nat nat_of_N (@GRing.exp R).
 Proof.
   split=> r [|n] //=; elim: n => //= p ih.
@@ -332,7 +332,7 @@ Proof.
   + by move=> x /eqP nz_z; rewrite mulVf.
 Qed.
 
-Definition Rcorrect (R : comRingType) :=
+Definition Rcorrect (R : comPzRingType) :=
   ring_correct (Eqsth R) (RE R)
     (Rth_ARth (Eqsth R) (RE R) (RR R))
     (RZ R) (PN R)
@@ -349,7 +349,7 @@ Definition Fcorrect (F : fieldType) :=
        (Rth_ARth (Eqsth F) (RE F) (RR F)) (RZ F)).
 
 (* -------------------------------------------------------------------- *)
-Fixpoint Reval (R : ringType) (l : seq R) (pe : PExpr Z) :=
+Fixpoint Reval (R : pzRingType) (l : seq R) (pe : PExpr Z) :=
   match pe with
   | 0%S           => 0
   | 1%S           => 1
@@ -369,7 +369,7 @@ Fixpoint Reval (R : ringType) (l : seq R) (pe : PExpr Z) :=
 Local Notation RevalC R :=
   (PEeval 0 1 +%R *%R ~%R -%R (R_of_Z (R := R)) nat_of_N (@GRing.exp R)).
 
-Lemma PEReval (R : ringType): RevalC _ =2 @Reval R.
+Lemma PEReval (R : pzRingType): RevalC _ =2 @Reval R.
 Proof.
   move=> l; elim => //=; try by do? move=> ?->.
   + move=> pe1 -> pe2 ->; case: pe2 => //=.

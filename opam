@@ -36,7 +36,7 @@ depends: [
   "coq-core" {>= "9.0" & < "9.3~"}
   "coq-stdlib"
   "coq-elpi" {>= "2.5.1"}
-  "coq-mathcomp-ssreflect" {>= "2.3" & < "2.6~"}
+  "coq-mathcomp-ssreflect" {>= "2.4" & < "2.7~"}
   "coq-mathcomp-algebra"
   "coq-mathcomp-word" {>= "3.4"}
   "coq-paco"

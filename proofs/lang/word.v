@@ -204,7 +204,7 @@ Coercion nat_of_pelem (pe: pelem) : nat :=
 
 Definition word sz : Type := (wsize_size_minus_1 sz).+1.-word.
 HB.instance Definition _ sz := Equality.on (word sz).
-HB.instance Definition _ sz := GRing.ComRing.on (word sz).
+HB.instance Definition _ sz := GRing.ComNzRing.on (word sz).
 Bind Scope ring_scope with word.
 
 Global Opaque word.
