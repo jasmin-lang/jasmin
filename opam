@@ -35,7 +35,7 @@ depends: [
   "ocamlfind" { build }
   "coq" {>= "8.20.0" & < "9.1~"}
   "coq-elpi" {>= "2.5.1"}
-  "coq-mathcomp-ssreflect" {>= "2.0" & < "2.6~"}
+  "coq-mathcomp-ssreflect" {>= "2.4" & < "2.7~"}
   "coq-mathcomp-algebra"
   "coq-mathcomp-word" {>= "3.5"}
   "coq-paco"
