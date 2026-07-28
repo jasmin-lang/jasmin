@@ -576,40 +576,6 @@ end
 (* -------------------------------------------------------------------- *)
 
 
-
-(*
-
-- "require" só são suportados no top-level
-- "visit_file" produz uma lista de top-level modules (reverse order)
-- 
-
-*)
-
-(* -------------------------------------------------------------------- *)
-
-
-
-(* let merge_top st modname bs =
-  match Env.bindings st with
-  | [], _ -> assert false
-  | (_,_,true)::_, _ -> assert false
-  | (m,top,false)::l, bot ->
-    let newtop = Env.merge_bindings (modname, bs) top
-    in (m, newtop,false)::l, bot *)
-
-(*
-1) verifica concordância de tipos dos argumentos
- 1.1) num novo contexto, adiciona args;
- 1.2) verificando em sequência se tipos (resolvidos) são compatíveis
-2) duplica [minfo] em [menv] com chave [mname] (fully_qualified)
-  - para possibilitar "open" do respectivo módulo
-3) se gound context:
-  3.1) regista ground instance em minfo
-       (obs: se minfo ground, serve apenas para associar mname ao módulo...)
-  3.2) senão, regista submódulo 
-4) adiciona bindings de [minfo] no contexto actual com chave [mname]
-*)
-
 let mt_margs pd menv mparams margs =
   if !Glob_options.debug
   then (Printf.eprintf "\nTypeCheck ModApp %d,%d \n%!" (List.length mparams) (List.length margs));
@@ -636,56 +602,30 @@ let mt_margs pd menv mparams margs =
       in let pty = P.gety_of_gty pi.v_ty
       in if pty <> et
       then rs_tyerror ~loc:(L.loc pe) (TypeMismatch (pty,et));
-      let st, _ = Env.Vars.push_param st (pi,et,e,e) in
-      st, M.MaParam e
+      M.MaParam e
     | M.Glob pg, S.PEVar pv ->
       let v,vt, _ = tt_var_global `AllVar st pv
       in let pgty = P.gety_of_gty pg.P.v_ty
       in if pgty <> vt
       then rs_tyerror ~loc:(L.loc pe) (TypeMismatch (pgty,vt));
-      let st, _ = Env.Vars.push_global st (pg, vt ,P.GEword (P.Pvar v))
-      in st, M.MaGlob v.gv
+      M.MaGlob v.gv
     | M.Glob _, _ ->
       rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Type error (param glob)")
     | M.Fun pf, S.PEVar v ->
       let func,_ = tt_fun st v
-      in let f = Option.get func.f_pfunc
-      in let tres, targs = f_sig func in
+      in let f = begin match func.f_pfunc with
+                | Some f -> f
+                | None -> rs_mjazzerror ~loc:(L.loc v) 
+                           (MJazzStringError ("Function"^func.f_name.fn_name^" not defined"))
+                end in
+      let tres, targs = f_sig func in
       tc_list (L.loc v) pf.fs_tyin targs;
       tc_list (L.loc v) pf.fs_tyout tres;
-      let name = func.f_name.fn_name
-      in let fs_tin = List.map P.gety_of_gty targs
-      in let fs_tout = List.map P.gety_of_gty tres in
-      begin match Env.Funs.find name st with
-        | None ->
-          let doit m =
-            { m with gb_funs = Map.add name (func, {fs_tin; fs_tout}) m.gb_funs }
-          in
-          let s_bindings =
-               match Env.bindings st with
-               | [], bot -> [], doit bot
-               | (_, _, true) :: _, _ -> assert false 	(* opened namespaces are readonly *)
-               | (ns, top, false) :: stack, bot ->
-                 (ns, doit top, false) :: stack, bot
-          in Env.update_bindings st s_bindings,
-             M.MaFun f
-        | Some _ ->
-          st, M.MaFun f
-          (* TODO - fix logic - Env.err_duplicate_fun name (func, ()) fd *)
-      end
+      M.MaFun f
     | M.Fun _, _ ->
       rs_mjazzerror ~loc:(L.loc pe)
         (MJazzStringError "Type error (param fn): not a fn name")
-  in let rec doit st mparams margs =
-       match mparams, margs with
-       | [], [] -> {menv with MEnv.me_store = st}, []
-       | p::ps, e::es ->
-         let st, a = mt_marg st p e
-         in let menv, al = doit st ps es
-         in menv, a::al
-       | _, _ -> 
-         rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Typing error: wrong number of module arguments")
-  in doit menv.MEnv.me_store mparams margs |> snd
+  in List.map2 (mt_marg menv.MEnv.me_store) mparams margs
 
 let equal_args arg1 arg2 =
   match arg1, arg2 with
@@ -883,7 +823,7 @@ let parse_mfile arch_info idirs fname =
   let menv = MEnv.empty idirs
   in mt_mprogram arch_info menv fname
 
-
+(* Maps an abstract module prefix to a concrete instance prefix *)
 let replace_with_instance (inst_subst:string*string) (name:string) =
   let original,instance = inst_subst in
   let (_, new_name) = String.replace ~str:name ~sub:original ~by:instance in
@@ -1078,6 +1018,8 @@ let add_instance_item new_vars new_funcs (inst_subst:string*string) item =
       let new_vars = Map.add new_name v' new_vars in
       new_vars, new_funcs, P.MIparam (v', e)
 
+(* Creates aliases for the variables/functions of a generated module instance
+   e.g., For `module A = M(y)`, this maps `A::x` to the concrete instance variable `M::0::x` *)
 let add_new_items (new_vars:(string,P.pvar) Utils.Map.t) new_funcs module_name instance_name (store:'asm global_bindings) =
   let new_vars = List.fold_left (fun new_vars (name,(v,_,_)) -> 
       let name_var_instance = module_name ^ "::" ^ name in
@@ -1140,7 +1082,6 @@ let rec init_instance menv inst_subst new_vars new_funcs args mname =
     let menv, new_vars, new_funcs, body = mprog_topprog menv new_vars new_funcs inst_subst (List.rev modinfo.mi_decls) in
     menv, new_vars, new_funcs, items' @ body
 
-
 and init_modapp menv new_vars new_funcs inst_subst ma_name ma_func =
   let _, modfunc = Env.Modules.get menv.MEnv.me_store (L.mk_loc (L._dummy) ma_func) in
   let modinfo =
@@ -1159,7 +1100,6 @@ and init_modapp menv new_vars new_funcs inst_subst ma_name ma_func =
       menv, new_vars, new_funcs, []
   | Some (args, _, iname, _),_ ->
     let inst_subst = (L.unloc modfunc, iname) in 
-    (* let menv, new_vars, new_funcs, items = find_init_modapps menv new_vars new_funcs (L.unloc modfunc,iname) modinfo.mi_decls in *)
     let menv, new_vars, new_funcs, items = init_instance menv inst_subst new_vars new_funcs args ma_func in
     let new_vars, new_funcs = add_new_items new_vars new_funcs mname (L.unloc modfunc,iname) modinfo.mi_store in
     let mi_instances = List.map (fun(a,ms,iname',g) -> if iname = iname' then (a,ms,iname',true) else (a,ms,iname',g)) modinfo.mi_instances in
@@ -1202,7 +1142,7 @@ let instantiate_pprog menv =
   let pprog =  List.rev pprog in
   pprog
 
-(** Parses (modular) program and resolves instantiation *)
+(* Parses (modular) program and resolves instantiation *)
 let parse_file arch_info idirs fname =
   let menv = parse_mfile arch_info idirs fname
   in let deps: Path.t list =
