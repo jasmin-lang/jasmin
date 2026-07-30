@@ -32,6 +32,11 @@ let parse_and_extract arch call_conv idirs =
   let module A = (val CoreArchFactory.get_arch_module arch call_conv) in
   let extract model amodel functions array_dir output pass file =
     let prog = parse_and_compile (module A) ~wi2i:true pass file idirs in
+    let prog =
+      Conv.cuprog_of_prog prog
+      |> ToEC_jazz.toEC_prog A.asmOp
+      |> Conv.prog_of_cuprog
+    in
     extract_to_file prog arch A.reg_size A.msf_size A.asmOp model amodel
       functions array_dir output
   in
