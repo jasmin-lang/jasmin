@@ -3,5 +3,11 @@ gcd.ec
 loops.ec
 sdiv.ec
 string.ec
+normalize_cond.ec
 Array2.ec
+Array4.ec
 BArray2.ec
+BArray16.ec
+BArray32.ec
+SBArray16_16.ec
+SBArray32_16.ec

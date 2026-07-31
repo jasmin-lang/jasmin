@@ -156,6 +156,8 @@ compiler/unrolling_proof.v
 compiler/wint_int.v
 compiler/wint_word.v
 compiler/wint_word_proof.v
+toEC/normalize_cond.v
+toEC/normalize_cond_proof.v
 toEC/toEC_jazz.v
 toEC/toEC_jazz_proof.v
 compiler/x86_decl.v

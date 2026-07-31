@@ -1,6 +1,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool.
 Require Import psem.
 Require Export toEC_jazz.
+Require Import normalize_cond_proof.
 Import Utf8.
 
 Section TOEC_PROOF.
@@ -29,7 +30,7 @@ Context
 Lemma it_toEC_progP fn :
   wiequiv_f p p' ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
 Proof using toEC_ok.
-by rewrite -toEC_ok; apply: wiequiv_f_eq.
+exact/normalize_cond_proof/toEC_ok.
 Qed.
 
 End TOEC_PROOF.
