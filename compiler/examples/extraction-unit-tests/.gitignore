@@ -4,6 +4,7 @@ loops.ec
 sdiv.ec
 string.ec
 normalize_cond.ec
+refresh_for.ec
 Array2.ec
 Array4.ec
 BArray2.ec
