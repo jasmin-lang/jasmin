@@ -1516,6 +1516,18 @@ fail/typing/x86-64/init_global.jazz:
 
 "fail/typing/x86-64/init_global.jazz", line 4 (12-13): global variables are not allowed here
 
+fail/typing/x86-64/is_arr_init.jazz:
+
+"fail/typing/x86-64/is_arr_init.jazz", line 2 (18-29): invalid number of arguments, 0 provided instead of 3
+
+fail/typing/x86-64/is_mem_init.jazz:
+
+"fail/typing/x86-64/is_mem_init.jazz", line 2 (18-29): invalid number of arguments, 0 provided instead of 2
+
+fail/typing/x86-64/is_var_init.jazz:
+
+"fail/typing/x86-64/is_var_init.jazz", line 2 (18-29): invalid number of arguments, 0 provided instead of 1
+
 fail/typing/x86-64/lval_mismatch.jazz:
 
 "fail/typing/x86-64/lval_mismatch.jazz", line 4 (2-26): the left value b has type bool while u64 is expected
@@ -1750,7 +1762,7 @@ Allowed args are:
 
 Statistics:
 	Annots:      4
-	Pretyping:  49
+	Pretyping:  52
 	Parsing:     4
 	Typing:      5
 	Compile:   218

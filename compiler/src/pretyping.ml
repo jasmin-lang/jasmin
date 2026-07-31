@@ -1960,7 +1960,7 @@ let create_is_mem_init pd loc args =
     let e2 = cast_int loc None e2 t2 in
     P.Pis_mem_init (e1,e2)
   else
-    rs_tyerror ~loc (InvalidArgCount(2, List.length args))
+    rs_tyerror ~loc (InvalidArgCount(List.length args, 2))
 
 let create_is_arr_init _pd loc args =
   if List.length args == 3 then
@@ -1974,7 +1974,7 @@ let create_is_arr_init _pd loc args =
     (* The size will be fixed later *)
     P.PappN_safety (Ois_arr_init (Conv.cz_of_int 1) , [ e1; e2; e3])
   else
-    rs_tyerror ~loc (InvalidArgCount(3, List.length args))
+    rs_tyerror ~loc (InvalidArgCount(List.length args, 3))
 
 let create_is_var_init _pd loc args =
   if List.length args == 1 then
@@ -1985,7 +1985,7 @@ let create_is_var_init _pd loc args =
     in
     P.Pis_var_init (var_e)
   else
-    rs_tyerror ~loc (InvalidArgCount(1, List.length args))
+    rs_tyerror ~loc (InvalidArgCount(List.length args, 1))
 
 let safety_map = Map.of_seq @@ List.to_seq [
   ("is_mem_init",create_is_mem_init);
