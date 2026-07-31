@@ -36,9 +36,14 @@ let parse_and_extract arch call_conv idirs =
       Conv.fresh_var_ident k ii (Uint63.of_int 0) n ty
     in
     let prog =
-      Conv.cuprog_of_prog prog
-      |> ToEC_jazz.toEC_prog A.asmOp fresh_var_ident
-      |> Conv.prog_of_cuprog
+      match
+        Conv.cuprog_of_prog prog
+        |> ToEC_jazz.toEC_prog A.asmOp fresh_var_ident (model = Normal)
+      with
+      | Utils0.Error e ->
+          let e = Conv.error_of_cerror (Printer.pp_err ~debug:false) e in
+          raise (HiError e)
+      | Utils0.Ok cp -> Conv.prog_of_cuprog cp
     in
     extract_to_file prog arch A.reg_size A.msf_size A.asmOp model amodel
       functions array_dir output

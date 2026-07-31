@@ -6,6 +6,8 @@ require Loops.
 require Sdiv.
 require Add_in_mem.
 require String.
+require Refresh_for.
+require For_to_while.
 
 lemma loops_forty_correct : hoare [ Loops.M.forty: true ==> res = W32.of_int 40 ].
 proof. by proc; unroll for ^while; auto. qed.
@@ -13,15 +15,74 @@ proof. by proc; unroll for ^while; auto. qed.
 lemma loops_for_nest_correct : hoare [ Loops.M.for_nest: true ==> res = W32.of_int 2000 ].
 proof.
   proc; wp.
-  while (0 <= i <= inc /\ k = 100 * i).
+  while (0 <= i_ftw <= for_bound_0 /\ k = 100 * i_ftw).
   - wp.
-    while (0 <= j <= inc_0 /\ k = 100 * i + j); auto => &m /> j_ge0 _ j_lt_inc0.
-    + rewrite addzA /= -ltzE j_lt_inc0 /=.
-      apply: (lez_trans _ _ _ j_ge0).
-      by rewrite lez_addl /=.
-    move => k ? _ ?.
-    have -> : k = 100; smt().
+    while (0 <= j_ftw <= for_bound /\ k = 100 * i_ftw + j_ftw); auto => />.
+    - smt().
+    smt().
   auto => /#.
+qed.
+
+hoare t_for_write_counter_correct :
+  Refresh_for.M.t_for_write_counter : true ==> res = W32.of_int 10.
+proof. by proc; unroll for ^while; auto. qed.
+
+hoare t_for_nested_write_outer_correct :
+  Refresh_for.M.t_for_nested_write_outer : true ==> res = W32.of_int 9.
+proof.
+  by proc; unroll for ^while; unroll for ^while; unroll for ^while;
+     unroll for ^while; auto.
+qed.
+
+hoare t_up_const_correct :
+  For_to_while.M.t_up_const : true ==> res = W32.of_int 10.
+proof. by proc; unroll for ^while; auto. qed.
+
+hoare t_counter_after_loop_correct :
+  For_to_while.M.t_counter_after_loop : true ==> res = W32.of_int 4.
+proof. by proc; unroll for ^while; auto. qed.
+
+hoare t_empty_range_counter_correct :
+  For_to_while.M.t_empty_range_counter : true ==> res = W32.of_int 42.
+proof. by proc; rcondf ^while; auto. qed.
+
+hoare t_while_pre_correct :
+  Flatten_while.M.t_while_pre : true ==> res = W32.of_int 6.
+proof.
+  proc; wp.
+  while (c = i + 1 /\ 0 <= i <= 5).
+  - by auto => /#.
+  by auto => /#.
+qed.
+
+hoare t_nested_while_pre_correct :
+  Flatten_while.M.t_nested_while_pre : true ==> res = W32.of_int 9.
+proof.
+  proc; wp.
+  while (0 <= i <= 3 /\ j = 0 /\ c = 3 * i).
+  - wp.
+    while (0 <= j <= 2 /\ c = 3 * i + 1 + j).
+    - by auto => /#.
+    by auto => /#.
+  by auto => /#.
+qed.
+
+hoare t_do_while_correct :
+  Flatten_while.M.t_do_while : true ==> res = W32.of_int 4.
+proof.
+  proc; wp.
+  while (c = i /\ 0 <= i <= 4).
+  - by auto => /#.
+  by auto => /#.
+qed.
+
+hoare t_plain_while_correct :
+  Flatten_while.M.t_plain_while : true ==> res = W32.of_int 5.
+proof.
+  proc; wp.
+  while (c = i /\ 0 <= i <= 5).
+  - by auto => /#.
+  by auto => /#.
 qed.
 
 lemma sdiv_correct : hoare [ Sdiv.M.main: true ==> res = (W64.of_int (-1), W64.of_int (-1)) ].

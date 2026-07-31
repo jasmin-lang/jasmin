@@ -5,6 +5,8 @@ sdiv.ec
 string.ec
 normalize_cond.ec
 refresh_for.ec
+for_to_while.ec
+flatten_while.ec
 Array2.ec
 Array4.ec
 BArray2.ec

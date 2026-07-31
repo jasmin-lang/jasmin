@@ -160,6 +160,10 @@ toEC/normalize_cond.v
 toEC/normalize_cond_proof.v
 toEC/refresh_for.v
 toEC/refresh_for_proof.v
+toEC/for_to_while.v
+toEC/for_to_while_proof.v
+toEC/flatten_while.v
+toEC/flatten_while_proof.v
 toEC/toEC_jazz.v
 toEC/toEC_jazz_proof.v
 compiler/x86_decl.v
