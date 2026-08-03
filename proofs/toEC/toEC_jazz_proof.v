@@ -1,10 +1,12 @@
-From mathcomp Require Import ssreflect ssrfun ssrbool.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import psem.
+Require Import arch_decl arch_extra sem_params_of_arch_extra.
 Require Export toEC_jazz.
 Require Import normalize_cond_proof.
 Require Import refresh_for_proof.
 Require Import for_to_while_proof.
 Require Import flatten_while_proof.
+Require Import remove_baseop_casts_proof.
 Import Utf8.
 
 Section TOEC_PROOF.
@@ -12,10 +14,12 @@ Section TOEC_PROOF.
 Context
   {wsw : WithSubWord}
   {dc : DirectCall}
-  {asm_op syscall_state : Type}
+  {reg regx xreg rflag cond asm_op extra_op : Type}
+  {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
+  {syscall_state : Type}
+  {scs : syscall_sem syscall_state}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
   {rE0 : EventRels E0}
@@ -24,6 +28,7 @@ Context
 
 #[local] Existing Instance progUnit.
 #[local] Existing Instance sCP_unit.
+#[local] Existing Instance sip_of_asm_e.
 
 Context
   (fresh_var_ident : v_kind -> instr_info -> string -> atype -> Ident.ident)
@@ -33,36 +38,47 @@ Context
   (toEC_ok : toEC_prog fresh_var_ident normal p = ok p')
 .
 
+(* [sip_of_asm_e] fully applied: with the [asm_extra] context fixing the
+   program's op type to [extended_op], relying on the ambient [sip_of_asm_e]
+   instance (rather than passing it fully explicit) makes ssreflect's [have]
+   generalize the still-implicit [reg]/.../[scs] arguments into the produced
+   term instead of resolving them, so every per-pass lemma call below spells
+   [sip] out fully applied. *)
+Notation the_sip :=
+  (@sip_of_asm_e reg regx xreg rflag cond asm_op extra_op asm_e
+     syscall_state scs) (only parsing).
+
 Lemma it_toEC_progP fn :
   wiequiv_f p p' ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
 Proof using toEC_ok rE0_trans.
-move: toEC_ok; rewrite /toEC_prog; t_xrbindP => p1 hrefresh p2 hp2eq hflatten.
+move: toEC_ok; rewrite /toEC_prog; t_xrbindP => p1 hrefresh p2 hp2eq hremove.
 have hp1 :=
   normalize_cond_proof
-    (wsw:=wsw) (dc:=dc) (asm_op:=asm_op) (syscall_state:=syscall_state)
-    (ep:=ep) (spp:=spp) (sip:=sip) (E:=E) (E0:=E0) (wE:=wE) (rE0:=rE0)
+    (wsw:=wsw) (dc:=dc) (syscall_state:=syscall_state)
+    (ep:=ep) (spp:=spp) (sip:=the_sip) (E:=E) (E0:=E0) (wE:=wE) (rE0:=rE0)
     (p := p) (fn := fn) ev erefl.
 have hp2 :=
   refresh_for_proof
-    (wsw:=wsw) (dc:=dc) (asm_op:=asm_op) (syscall_state:=syscall_state)
-    (ep:=ep) (spp:=spp) (sip:=sip) (E:=E) (E0:=E0) (wE:=wE) (rE0:=rE0)
+    (wsw:=wsw) (dc:=dc) (syscall_state:=syscall_state)
+    (ep:=ep) (spp:=spp) (sip:=the_sip) (E:=E) (E0:=E0) (wE:=wE) (rE0:=rE0)
     (fresh_var_ident := fresh_var_ident) (always := false)
     (p := normalize_cond_prog p) (fn := fn) ev hrefresh.
-have hp12 :
+assert (hp12 :
   wiequiv_f p (to_uprog p1) ev ev
-    (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
+    (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec))).
 - move: hp1 hp2; apply wiequiv_f_trans => //.
   + by move=> fs1 fs3 [_ <-]; exists fs1.
   by move=> fs1 fs2 fs3 r1 r3 _ _ [r2 -> ->].
-have hp123 :
+assert (hp123 :
   wiequiv_f p (to_uprog p2) ev ev
-    (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
+    (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec))).
 - move: hp2eq; case: normal => /=.
   + move=> hp3.
     have hp4 :=
       for_to_while_proof
-        (wsw:=wsw) (dc:=dc) (asm_op:=asm_op) (syscall_state:=syscall_state)
-        (ep:=ep) (spp:=spp) (sip:=sip) (E:=E) (E0:=E0) (wE:=wE) (rE0:=rE0)
+        (wsw:=wsw) (dc:=dc) (syscall_state:=syscall_state)
+        (ep:=ep) (spp:=spp) (sip:=the_sip) (E:=E) (E0:=E0) (wE:=wE)
+        (rE0:=rE0)
         (fresh_var_ident := fresh_var_ident) (p := p1) (fn := fn) ev hp3.
     move: hp12 hp4; apply wiequiv_f_trans => //.
     * by move=> fs1 fs3 [_ <-]; exists fs1.
@@ -70,10 +86,22 @@ have hp123 :
   by move=> /ok_inj <-; exact hp12.
 have hp5 :=
   flatten_while_proof
-    (wsw:=wsw) (dc:=dc) (asm_op:=asm_op) (syscall_state:=syscall_state)
-    (ep:=ep) (spp:=spp) (sip:=sip) (E:=E) (E0:=E0) (wE:=wE) (rE0:=rE0)
-    (p := p2) (fn := fn) ev hflatten.
-move: hp123 hp5; apply wiequiv_f_trans => //.
+    (wsw:=wsw) (dc:=dc) (syscall_state:=syscall_state)
+    (ep:=ep) (spp:=spp) (sip:=the_sip) (E:=E) (E0:=E0) (wE:=wE) (rE0:=rE0)
+    (p := p2) (fn := fn) ev (erefl (flatten_while_prog p2)).
+assert (hp1235 :
+  wiequiv_f p (flatten_while_prog p2) ev ev
+    (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec))).
+- move: hp123 hp5; apply wiequiv_f_trans => //.
+  + by move=> fs1 fs3 [_ <-]; exists fs1.
+  by move=> fs1 fs2 fs3 r1 r3 _ _ [r2 -> ->].
+have hp6 :=
+  remove_baseop_casts_proof
+    (wsw:=wsw) (dc:=dc) (syscall_state:=syscall_state) (scs:=scs)
+    (ep:=ep) (spp:=spp) (E:=E) (E0:=E0) (wE:=wE) (rE0:=rE0)
+    (fresh_var_ident := fresh_var_ident)
+    (p := flatten_while_prog p2) (fn := fn) ev hremove.
+move: hp1235 hp6; apply wiequiv_f_trans => //.
 - by move=> fs1 fs3 [_ <-]; exists fs1.
 by move=> fs1 fs2 fs3 r1 r3 _ _ [r2 -> ->].
 Qed.

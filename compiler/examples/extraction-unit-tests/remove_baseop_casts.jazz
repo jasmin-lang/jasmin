@@ -1,0 +1,29 @@
+export
+fn t_lea(reg u64 x) -> reg u64 {
+  reg u64 y;
+  y = (64u)#LEA_32(x +64u 1);
+  return y;
+}
+
+export
+fn t_add_flags(reg u32 a) -> reg u64 {
+  reg u64 r;
+  reg u32 b;
+  b = 0x80000000;
+  ?{}, r = (64u)#ADD_32(a, b);
+  return r;
+}
+
+export
+fn t_array_cell(reg u64 x) -> reg u64 {
+  stack u64[2] s;
+  reg ptr u64[2] t;
+  reg u64 res;
+  s[0] = 0;
+  s[1] = 0;
+  t = s[0:2];
+  t[0] = (64u)#LEA_32(x +64u 1);
+  s[0:2] = t[0:2];
+  res = s[0];
+  return res;
+}

@@ -38,7 +38,7 @@ let parse_and_extract arch call_conv idirs =
     let prog =
       match
         Conv.cuprog_of_prog prog
-        |> ToEC_jazz.toEC_prog A.asmOp fresh_var_ident (model = Normal)
+        |> ToEC_jazz.toEC_prog A.asm_e fresh_var_ident (model = Normal)
       with
       | Utils0.Error e ->
           let e = Conv.error_of_cerror (Printer.pp_err ~debug:false) e in

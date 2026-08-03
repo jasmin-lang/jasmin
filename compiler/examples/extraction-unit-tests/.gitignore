@@ -7,6 +7,7 @@ normalize_cond.ec
 refresh_for.ec
 for_to_while.ec
 flatten_while.ec
+remove_baseop_casts.ec
 Array2.ec
 Array4.ec
 BArray2.ec

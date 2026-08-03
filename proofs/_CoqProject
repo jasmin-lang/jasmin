@@ -164,6 +164,8 @@ toEC/for_to_while.v
 toEC/for_to_while_proof.v
 toEC/flatten_while.v
 toEC/flatten_while_proof.v
+toEC/remove_baseop_casts.v
+toEC/remove_baseop_casts_proof.v
 toEC/toEC_jazz.v
 toEC/toEC_jazz_proof.v
 compiler/x86_decl.v
