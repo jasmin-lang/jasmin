@@ -712,10 +712,10 @@ module Env: EnvT = struct
       aux 0
 
   let mkname env n =
-    n |> String.uncapitalize_ascii |> escape |> create_name env
+    n |> String.split_on_string ~by:"::"  |> List.last |> String.uncapitalize_ascii |> escape |> create_name env
   
   let mkname_mod n =
-    n |> String.capitalize_ascii |> escape
+    n |> String.split_on_string ~by:"::"  |> List.last |> String.capitalize_ascii |> escape 
 
   let set_var env x =
     let s = mkname env x.v_name in
@@ -1116,10 +1116,7 @@ let pp_ec_item fmt it =
       mt.name (pp_list "@ " pp_ec_fun_decl) mt.funs
   | ImoduleTypeEq (m, ty, funs) ->
     let pp_fun_eq fmt (f1,f2) = Format.fprintf fmt "proc %s = %s" f1 f2 in
-    let pp_mod_eq fmt () = 
-      Format.fprintf fmt "@[<v>@[module %s : %s = {@]@   @[<v>%a@]@ }@ @ " m ty (pp_list "@ " pp_fun_eq) funs;
-    in
-    Format.fprintf fmt "@[<v>%a@ .@]" pp_mod_eq ()
+    Format.fprintf fmt "@[<v>@[module %s : %s = {@]@   @[<v>%a@]@ }.@]" m ty (pp_list "@ " pp_fun_eq) funs;
   | ImoduleEq (m,ma) ->
      Format.fprintf fmt "@[<v>@[module %s = %s.@]" m ma;
   | Imodule m ->
@@ -2693,11 +2690,11 @@ struct
         let m_args = ma_name ^ "_args" in
         let ma_args = ma_func ^ "_args" in
         let env, init_funs = List.fold_left ( fun (env,init_funs) f ->
-          let f_modname = String.capitalize_ascii f.fn_name |> escape in
+          let f_modname = f.fn_name |> String.split_on_string ~by:"::"  |> List.last |> String.capitalize_ascii|>  escape in
           let fname = Env.get_funname env f in
           let fs_tyin,fs_tyout = Env.get_funtype env f in
           let f = { name = f; Mprog.fs_tyin; fs_tyout} in
-          let _,new_fmodname = String.replace ~str:f_modname ~sub:ma_func ~by:ma_name in
+          let new_fmodname = ma_name^"__"^f_modname in
           let _,new_fname = String.replace ~str:fname ~sub:ma_args ~by:m_args in
           let fname, new_fname = 
             match List.rev (String.split_on_char '.' new_fname) with
@@ -2844,7 +2841,7 @@ struct
             fs_tyout = f.f_tyout
           } in
           let fname = Env.get_funname env f.f_name in
-          let cfname = String.capitalize_ascii fname in
+          let cfname = "M__"^ fname in
           let mname = Env.get_module env m.name  |> snd in
           let modargs = if modf_args <> "" then [(mname^"_args",mname^"_args")] else []  in
           let f = [Imodule {
