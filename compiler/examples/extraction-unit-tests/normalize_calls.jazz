@@ -1,0 +1,70 @@
+fn pair(reg u64 a, reg u64 b) -> reg u64, reg u64 {
+  return a, b;
+}
+
+fn arr_id(reg ptr u64[2] t, reg u64 b) -> reg ptr u64[2], reg u64 {
+  return t, b;
+}
+
+export
+fn t_array_dest(reg u64 x y) -> reg u64 {
+  stack u64[2] s;
+  reg ptr u64[2] t;
+  reg u64 r;
+  s[0] = 0; s[1] = 0;
+  t = s[0:2];
+  t[0:2], r = arr_id(t, x);
+  s[0:2] = t[0:2];
+  r += s[0] + y;
+  return r;
+}
+
+export
+fn t_dup_dest(reg u64 x y) -> reg u64 {
+  reg u64 r;
+  r, r = pair(x, y);
+  return r;
+}
+
+export
+fn t_ignored_dest(reg u64 x y) -> reg u64 {
+  reg u64 r;
+  _, r = pair(x, y);
+  return r;
+}
+
+export
+fn t_opn_ignored_flags(reg u64 x y) -> reg u64 {
+  reg u64 r;
+  ?{}, r = #ADD_64(x, y);
+  return r;
+}
+
+export
+fn t_opn_mem_dest(reg u64 p, reg u64 x y) -> reg u64 {
+  reg u64 r;
+  [(64u)p] = 0;
+  ?{}, [(64u)p] = #ADD_64(x, y);
+  r = [(64u)p];
+  return r;
+}
+
+export
+fn t_copn_array_dest(reg u64 x y) -> reg u64 {
+  stack u64[2] a;
+  reg bool cf;
+  reg u64 r;
+  a[0] = 0; a[1] = 0;
+  cf, a[0] = x + y;
+  r = a[0];
+  return r;
+}
+
+export
+fn t_randombytes_slice() -> reg u32 {
+  stack u32[2] rr;
+  reg u32 x;
+  rr[1:1] = #randombytes(rr[1:1]);
+  x = rr[1];
+  return x;
+}

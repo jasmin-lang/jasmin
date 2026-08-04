@@ -116,6 +116,16 @@ Fixpoint widen_lvs (lvs : seq lval) (opts : seq (option var)) : seq lval :=
   | _, _ => [::]
   end.
 
+(* Whether a lvalue's OWN address ([Lmem]) or index ([Laset]/[Lasub])
+   expression reads memory ([use_mem], [expr.v]). See the fifth
+   correction below (at the [aliasing_error] assert): [read_rv]/[vrv],
+   being plain [Sv.t]s, cannot see this at all. *)
+Definition lv_use_mem (lv : lval) : bool :=
+  match lv with
+  | Lmem _ _ _ e | Laset _ _ _ _ e | Lasub _ _ _ _ e => use_mem e
+  | _ => false
+  end.
+
 Fixpoint remove_baseop_casts_dests
   (ii : instr_info) (t : assgn_tag)
   (lvs : seq lval) (touts touts' : seq atype) (opts : seq (option var))
@@ -173,11 +183,96 @@ Definition remove_baseop_casts_copn
      destination (e.g. a [Laset] reading its own array variable) is not a
      cross-position hazard, hence the split into [nonwiden_lvs]/
      [widen_lvs] before comparing reads against the other group's writes,
-     rather than comparing the whole [lvs] against itself. *)
+     rather than comparing the whole [lvs] against itself.
+
+     Third correction (found while proving the write-order fix above,
+     phase-4 of the proof): the two [Sv]-based checks above only protect
+     against a position's OWN LVALUE READING a variable written by the
+     other group -- [Lmem]'s write itself (the memory cell it stores to)
+     is invisible to [vrv]/[read_rv] ([vrv] of an [Lmem] is always
+     [Sv.empty], since a memory write touches no variable at all), so
+     they give NO protection against the write ORDER of two [Lmem] destinations
+     straddling the widened/non-widened split: the bare [Copn] (phase A)
+     applies every non-widened [Lmem] write, in original relative order,
+     strictly BEFORE any widened [Lmem]'s [Cassgn] catch-up (phase B),
+     whereas the original, single, sequential [write_lvals] may interleave
+     them in either relative order. If two such addresses alias at
+     runtime, the final memory content depends on which write is applied
+     last, and the split code's phase-A/phase-B batching can disagree with
+     the original's per-position order whenever a widened [Lmem] precedes
+     a non-widened one (or vice versa) in [lvs]. This can never happen for
+     any current instruction (no x86 instruction mixes widened/
+     non-widened positions at all, per the point above, so there is never
+     a widened AND a non-widened [Lmem] in the same instruction), but is
+     not derivable from the two [Sv]-based checks, so it is checked
+     directly here too.
+
+     Fourth correction (found while proving the write-order fix, phase-4
+     of the proof, same session as the third): the first two [Sv]-based
+     checks compare a position's [read_rv] (what that lvalue itself
+     READS -- an [Lmem] address, a [Laset]/[Lasub] index) against the
+     OTHER group's WRITES ([vrv]s). They give no protection at all
+     against two positions -- one widened, one non-widened -- that both
+     WRITE the *same* variable (e.g. two [Lvar]-destinations naming the
+     same [var]): [read_rv (Lvar x) = Sv.empty] ([expr.v]'s
+     [read_rv_rec]: an [Lvar] does not read the variable it overwrites),
+     so such a pair is invisible to both [Sv]-based conjuncts, yet it is
+     a genuine hazard distinct from the [Lmem]-write-order one above: if
+     the non-widened position comes AFTER the widened one in [lvs], the
+     original's single sequential [write_lvals] gives the NON-widened
+     write the last word on that variable, whereas the split code always
+     applies the widened position's [Cassgn] catch-up last (strictly
+     after the whole bare [Copn], which is where the non-widened write
+     lives), so the split code would incorrectly let the WIDENED value
+     win instead. Not excluded by any current check (verified: the
+     existing three conjuncts say nothing about [vrv] vs [vrv]), and not
+     derivable from the abstract [asm_op_decl] interface for the same
+     reason as the other three (it needs 2+ word outputs of differing
+     native width in one instruction -- the same precondition that makes
+     all four checks currently vacuous). Closed the same way: a fourth
+     checked conjunct, comparing [vrvs] against [vrvs] (equivalently,
+     since [widen_vars lvs opts] and [vrvs (widen_lvs lvs opts)] are the
+     same set by construction, [disjoint] is symmetric in its own
+     argument, so one direction suffices, matching the existing
+     one-directional style of the first two conjuncts).
+
+     Fifth correction (found while proving the write-order fix, phase-4
+     of the proof, same session as the third and fourth): all four
+     checks above reason about a lvalue's [read_rv]/[vrv] -- a SET OF
+     VARIABLES -- but [Lmem]'s address and [Laset]/[Lasub]'s index are
+     arbitrary [pexpr]s ([expr.v]'s [pexpr] has a [Pload] constructor),
+     so a destination's OWN address/index expression can itself read
+     MEMORY, a dependency [read_rv] cannot see at all (it only ever
+     returns variables). If [lvs] contains an actual memory WRITE
+     ([lv_write_mem], necessarily in only one of the two groups per the
+     third conjunct) and some OTHER position's address/index expression
+     [use_mem]s ([expr.v]), reordering the two groups (phase A applies
+     every non-widened write, in original order, strictly before phase
+     B's widened catch-up) can change what that memory-dependent
+     sub-expression observes, even though every [read_rv]/[vrv] set
+     stays exactly as before -- a hazard invisible to all four preceding
+     conjuncts. Not a hypothetical concern specific to this pass: the
+     project already has the identical concept, checked the identical
+     way, for the identical reason, at
+     [compiler/makeReferenceArguments.v]'s [wflv] (its [Lasub] case is
+     exactly [~~ use_mem e]) and at [compiler/slh_lowering.v]'s
+     [assert (~~ use_mem cond) ...] -- both existing precedents for
+     "moving/reordering code relative to a lvalue's own expression
+     requires that expression to not read memory". Harmless for any
+     current x86 instruction (a [BaseOp]'s destination address/index
+     expressions, as generated for the test corpus, never contain a
+     memory load), but -- like all the checks above -- not derivable
+     from the abstract interface, so checked directly: if any position
+     writes memory, no position's own address/index expression may read
+     memory. *)
   Let _ :=
     assert
       (disjoint (read_rvs (nonwiden_lvs lvs opts)) (widen_vars lvs opts) &&
-       disjoint (read_rvs (widen_lvs lvs opts)) (vrvs (nonwiden_lvs lvs opts)))
+       disjoint (read_rvs (widen_lvs lvs opts)) (vrvs (nonwiden_lvs lvs opts)) &&
+       ~~ (has lv_write_mem (nonwiden_lvs lvs opts) &&
+           has lv_write_mem (widen_lvs lvs opts)) &&
+       disjoint (vrvs (nonwiden_lvs lvs opts)) (widen_vars lvs opts) &&
+       (has lv_write_mem lvs ==> ~~ has lv_use_mem lvs))
       (E.aliasing_error ii)
   in
   let '(lvs', cmds') :=

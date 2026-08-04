@@ -7,13 +7,13 @@ Require Import refresh_for_proof.
 Require Import for_to_while_proof.
 Require Import flatten_while_proof.
 Require Import remove_baseop_casts_proof.
+Require Import normalize_calls_proof.
+Require Import make_coercions_explicit_proof.
 Import Utf8.
 
 Section TOEC_PROOF.
 
 Context
-  {wsw : WithSubWord}
-  {dc : DirectCall}
   {reg regx xreg rflag cond asm_op extra_op : Type}
   {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
   {syscall_state : Type}
@@ -29,6 +29,16 @@ Context
 #[local] Existing Instance progUnit.
 #[local] Existing Instance sCP_unit.
 #[local] Existing Instance sip_of_asm_e.
+#[local] Existing Instance indirect_c.
+(* [make_coercions_explicit_proof] (EJ-10) only holds under [nosubword]
+   (its type-soundness argument needs a variable's runtime value to have
+   exactly its declared [vtype]); pinning it here fixes the ambient
+   [WithSubWord] instance for the WHOLE composed pipeline lemma below, the
+   same way [indirect_c] is pinned for [dc] just above. Every other pass in
+   this file remains generic in its own `{wsw}` Context and is specialized
+   to [nosubword] only at its own call site below, mirroring how the other
+   five passes are specialized to [indirect_c] for `dc`. *)
+#[local] Existing Instance nosubword.
 
 Context
   (fresh_var_ident : v_kind -> instr_info -> string -> atype -> Ident.ident)
@@ -51,15 +61,16 @@ Notation the_sip :=
 Lemma it_toEC_progP fn :
   wiequiv_f p p' ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
 Proof using toEC_ok rE0_trans.
-move: toEC_ok; rewrite /toEC_prog; t_xrbindP => p1 hrefresh p2 hp2eq hremove.
+move: toEC_ok; rewrite /toEC_prog.
+t_xrbindP => p1 hrefresh p2 hp2eq p4 hremove p5 hnormalize hmce.
 have hp1 :=
   normalize_cond_proof
-    (wsw:=wsw) (dc:=dc) (syscall_state:=syscall_state)
+    (wsw:=nosubword) (dc:=indirect_c) (syscall_state:=syscall_state)
     (ep:=ep) (spp:=spp) (sip:=the_sip) (E:=E) (E0:=E0) (wE:=wE) (rE0:=rE0)
     (p := p) (fn := fn) ev erefl.
 have hp2 :=
   refresh_for_proof
-    (wsw:=wsw) (dc:=dc) (syscall_state:=syscall_state)
+    (wsw:=nosubword) (dc:=indirect_c) (syscall_state:=syscall_state)
     (ep:=ep) (spp:=spp) (sip:=the_sip) (E:=E) (E0:=E0) (wE:=wE) (rE0:=rE0)
     (fresh_var_ident := fresh_var_ident) (always := false)
     (p := normalize_cond_prog p) (fn := fn) ev hrefresh.
@@ -76,7 +87,7 @@ assert (hp123 :
   + move=> hp3.
     have hp4 :=
       for_to_while_proof
-        (wsw:=wsw) (dc:=dc) (syscall_state:=syscall_state)
+        (wsw:=nosubword) (dc:=indirect_c) (syscall_state:=syscall_state)
         (ep:=ep) (spp:=spp) (sip:=the_sip) (E:=E) (E0:=E0) (wE:=wE)
         (rE0:=rE0)
         (fresh_var_ident := fresh_var_ident) (p := p1) (fn := fn) ev hp3.
@@ -86,7 +97,7 @@ assert (hp123 :
   by move=> /ok_inj <-; exact hp12.
 have hp5 :=
   flatten_while_proof
-    (wsw:=wsw) (dc:=dc) (syscall_state:=syscall_state)
+    (wsw:=nosubword) (dc:=indirect_c) (syscall_state:=syscall_state)
     (ep:=ep) (spp:=spp) (sip:=the_sip) (E:=E) (E0:=E0) (wE:=wE) (rE0:=rE0)
     (p := p2) (fn := fn) ev (erefl (flatten_while_prog p2)).
 assert (hp1235 :
@@ -97,11 +108,35 @@ assert (hp1235 :
   by move=> fs1 fs2 fs3 r1 r3 _ _ [r2 -> ->].
 have hp6 :=
   remove_baseop_casts_proof
-    (wsw:=wsw) (dc:=dc) (syscall_state:=syscall_state) (scs:=scs)
+    (wsw:=nosubword) (dc:=indirect_c) (syscall_state:=syscall_state)
+    (scs:=scs)
     (ep:=ep) (spp:=spp) (E:=E) (E0:=E0) (wE:=wE) (rE0:=rE0)
     (fresh_var_ident := fresh_var_ident)
     (p := flatten_while_prog p2) (fn := fn) ev hremove.
-move: hp1235 hp6; apply wiequiv_f_trans => //.
+assert (hp12356 :
+  wiequiv_f p (to_uprog p4) ev ev
+    (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec))).
+- move: hp1235 hp6; apply wiequiv_f_trans => //.
+  + by move=> fs1 fs3 [_ <-]; exists fs1.
+  by move=> fs1 fs2 fs3 r1 r3 _ _ [r2 -> ->].
+have hp7 :=
+  normalize_calls_proof
+    (wsw:=nosubword) (syscall_state:=syscall_state) (scs:=scs)
+    (ep:=ep) (spp:=spp) (E:=E) (E0:=E0) (wE:=wE) (rE0:=rE0)
+    (fresh_var_ident := fresh_var_ident)
+    (p := p4) (fn := fn) ev hnormalize.
+assert (hp123567 :
+  wiequiv_f p p5 ev ev
+    (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec))).
+- move: hp12356 hp7; apply wiequiv_f_trans => //.
+  + by move=> fs1 fs3 [_ <-]; exists fs1.
+  by move=> fs1 fs2 fs3 r1 r3 _ _ [r2 -> ->].
+have hp8 :=
+  make_coercions_explicit_proof
+    (dc:=indirect_c) (syscall_state:=syscall_state) (scs:=scs)
+    (ep:=ep) (spp:=spp) (E:=E) (E0:=E0) (wE:=wE) (rE0:=rE0)
+    (p := p5) (fn := fn) ev hmce.
+move: hp123567 hp8; apply wiequiv_f_trans => //.
 - by move=> fs1 fs3 [_ <-]; exists fs1.
 by move=> fs1 fs2 fs3 r1 r3 _ _ [r2 -> ->].
 Qed.

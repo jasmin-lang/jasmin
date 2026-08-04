@@ -166,6 +166,10 @@ toEC/flatten_while.v
 toEC/flatten_while_proof.v
 toEC/remove_baseop_casts.v
 toEC/remove_baseop_casts_proof.v
+toEC/normalize_calls.v
+toEC/normalize_calls_proof.v
+toEC/make_coercions_explicit.v
+toEC/make_coercions_explicit_proof.v
 toEC/toEC_jazz.v
 toEC/toEC_jazz_proof.v
 compiler/x86_decl.v
