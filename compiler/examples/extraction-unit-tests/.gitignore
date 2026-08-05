@@ -5,14 +5,18 @@ sdiv.ec
 string.ec
 normalize_cond.ec
 refresh_for.ec
+init_local_arrays.ec
+legalize_names.ec
 for_to_while.ec
 flatten_while.ec
 remove_baseop_casts.ec
 normalize_calls.ec
 make_coercions_explicit.ec
+remove_nullary_opns.ec
 Array1.ec
 Array2.ec
 Array4.ec
+Array8.ec
 BArray2.ec
 BArray4.ec
 BArray8.ec
@@ -21,3 +25,4 @@ BArray32.ec
 SBArray8_4.ec
 SBArray16_16.ec
 SBArray32_16.ec
+SBArray32_32.ec

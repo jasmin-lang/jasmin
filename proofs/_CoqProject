@@ -160,6 +160,8 @@ toEC/normalize_cond.v
 toEC/normalize_cond_proof.v
 toEC/refresh_for.v
 toEC/refresh_for_proof.v
+toEC/init_local_arrays.v
+toEC/init_local_arrays_proof.v
 toEC/for_to_while.v
 toEC/for_to_while_proof.v
 toEC/flatten_while.v
@@ -170,6 +172,10 @@ toEC/normalize_calls.v
 toEC/normalize_calls_proof.v
 toEC/make_coercions_explicit.v
 toEC/make_coercions_explicit_proof.v
+toEC/remove_nullary_opns.v
+toEC/remove_nullary_opns_proof.v
+toEC/legalize_names.v
+toEC/legalize_names_proof.v
 toEC/toEC_jazz.v
 toEC/toEC_jazz_proof.v
 compiler/x86_decl.v

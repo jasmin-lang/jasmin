@@ -16,7 +16,7 @@ module Scmp = struct
   let compare = compare
 end
 
-module Ss = Set.Make(Scmp)
+module Ss = Utils.Ss
 module Ms = Map.Make(Scmp)
 
 (* ------------------------------------------------------------------- *)
