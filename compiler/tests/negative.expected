@@ -1558,6 +1558,10 @@ fail/typing/x86-64/vector_expr.jazz:
 
 "fail/typing/x86-64/vector_expr.jazz", line 8 (15-16): can not implicitly cast u128 into u256
 
+fail/typing/x86-64/vector_shift_sign_mismatch.jazz:
+
+"fail/typing/x86-64/vector_shift_sign_mismatch.jazz", line 6 (12-16): invalid operator >>s 4u32
+
 fail/typing/x86-64/write_constant_pointer_direct_array.jazz:
 
 "fail/typing/x86-64/write_constant_pointer_direct_array.jazz", line 6 (2-3):
@@ -1750,7 +1754,7 @@ Allowed args are:
 
 Statistics:
 	Annots:      4
-	Pretyping:  49
+	Pretyping:  50
 	Parsing:     4
 	Typing:      5
 	Compile:   218
