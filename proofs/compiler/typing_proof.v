@@ -10,7 +10,6 @@ Local Open Scope seq_scope.
 Section PROOF.
 
 Context `{asmop : asmOp}.
-Context {pd : wsize}.
 Context {syscall_state : Type}.
 Context {ep : EstateParams syscall_state}.
 Context {spp : SemPexprParams}.
@@ -44,7 +43,7 @@ Lemma is_defined_compat_val ty v :
 Proof. by rewrite /compat_val => ->. Qed.
 
 Lemma ty_expr_preserves (gd : glob_decls) (s : estate) e ty v :
-  ty_expr (pd := Uptr) e = ok ty ->
+  ty_expr e = ok ty ->
   sem_pexpr true gd s e = ok v ->
   type_of_val v = eval_atype ty.
 Proof.
@@ -130,7 +129,7 @@ Proof.
   move: Hmap. apply: mapM_errty => k. move=> h; exact: (get_noerrty h).
 Qed.
 
-Lemma sem_warray_get_noerrty len gd s e al aa sz t tye : ty_expr (pd := Uptr) e = ok tye ->
+Lemma sem_warray_get_noerrty len gd s e al aa sz t tye : ty_expr e = ok tye ->
                                       check_int tye = ok tt -> 
                                       sem_pexpr true gd s e <> Error ErrType ->
                                       (Let i := Let x := sem_pexpr true gd s e in to_int x in 
@@ -147,7 +146,7 @@ Proof.
       move => Herr. case: Herr => ?; subst. apply (Hne He).
 Qed.
 
-Lemma sem_warray_get_sub_noerrty lena len gd s e aa sz t tye : ty_expr (pd := Uptr) e = ok tye ->
+Lemma sem_warray_get_sub_noerrty lena len gd s e aa sz t tye : ty_expr e = ok tye ->
                                       check_int tye = ok tt -> 
                                       sem_pexpr true gd s e <> Error ErrType ->
                                       Let i := Let x := sem_pexpr true gd s e in to_int x in (Let t' := WArray.get_sub (lena:=lena) aa sz len t i in ok (Varr t')) <> Error ErrType.
@@ -164,7 +163,7 @@ Proof.
 Qed.
 
 Lemma check_ptrP t :
-  check_ptr (pd := Uptr) t = ok tt ->
+  check_ptr t = ok tt ->
   exists2 ws, t = aword ws & (Uptr <= ws)%CMP.
 Proof.
 rewrite /check_ptr /check_type /subatype.
@@ -172,8 +171,8 @@ by case: ifP => // /negbFE; case: t => // ws ? _; exists ws.
 Qed.
 
 Lemma sem_read_noerrty tye gd s e ws al :
-  ty_expr (pd := Uptr) e = ok tye ->
-  check_ptr (pd := Uptr) tye = ok tt ->
+  ty_expr e = ok tye ->
+  check_ptr tye = ok tt ->
   sem_pexpr true gd s e <> Error ErrType ->
   (Let w2 :=
      Let x := sem_pexpr true gd s e in to_pointer x
@@ -195,7 +194,7 @@ Qed.
 (* elim: eqP eqxx getP_subctype*)
 Lemma ty_expr_progress (gd : glob_decls) (s : estate) (e : pexpr) (ty : atype) :
     allM check_global_decl gd = ok tt ->
-    ty_expr (pd := Uptr) e = ok ty ->
+    ty_expr e = ok ty ->
     sem_pexpr true gd s e <> Error ErrType.
 Proof.
   move => /allMP Hgd. move: ty. induction e as [ | | | x | ??? x e IH | ??? x e IH | ? ws e IH | | | | ]; move => ty. 

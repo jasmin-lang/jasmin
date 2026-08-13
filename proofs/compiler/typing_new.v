@@ -33,8 +33,9 @@ End E.
 Section WITH_PARAMS.
 
 Context `{asmop : asmOp}.
-Context {pd : wsize}.
-Context {msfsz : wsize}.
+Context {pd : PointerData}.
+Context {msfsz : MSFsize}.
+
 
 Notation vp := (Mvar.t var).
 
@@ -58,10 +59,7 @@ Definition ty_var (x : var_i) : atype := x.(v_var).(vtype).
 Definition ty_gvar (x : gvar) : atype := ty_var x.(gv).
 
 Definition check_array (te : atype) : cexec unit :=
-  match te with
-  | aarr _ _ => ok tt
-  | _ => Error E.array_expected
-  end.
+  if te is aarr _ _ then ok tt else Error E.array_expected.
 
 (* Debug rendering of a type for error messages *)
 Definition pp_atype (t : atype) : pp_error :=
@@ -86,7 +84,7 @@ Definition check_type (te : atype (*actual type*)) (ty : atype (*expected type*)
 
 Definition check_int (te : atype) : cexec unit := check_type te (aint).
 
-Definition check_ptr (te : atype) : cexec unit := check_type te (aword pd).
+Definition check_ptr (te : atype) : cexec unit := check_type te (aword Uptr).
 
 Definition check_expr (ty_expr : pexpr -> cexec atype) (e' : pexpr) (ty : atype) : cexec unit := 
   Let te := ty_expr e' in
@@ -158,10 +156,11 @@ Definition check_lvals xs tys : cexec unit :=
 Fixpoint check_eassert (a : eassert) : cexec unit :=
   match a with
     | Pexpr e => check_expr ty_expr e abool
-    | PappN_safety op es => let (tins , _) := type_of_opN_safety op in 
-                            check_exprs ty_expr es tins
+    | PappN_safety op es => 
+      let (tins , _) := type_of_opN_safety op in 
+      check_exprs ty_expr es tins
     | Pis_var_init _ => ok tt
-    | Pis_mem_init e1 e2 => Let _ := check_expr ty_expr e1 (aword pd) in 
+    | Pis_mem_init e1 e2 => Let _ := check_expr ty_expr e1 (aword Uptr) in
                             check_expr ty_expr e2 aint
     | Pand a1 a2 => Let _ := check_eassert a1 in
                     check_eassert a2
@@ -171,10 +170,7 @@ Definition check_cmd (check_instr : ufun_decls -> instr -> cexec unit) p (c : li
   allM (check_instr p) c. 
 
 Definition get_fun (p:ufun_decls) (f : funname) :=
-  match get_fundef p f with
-    | Some fd => ok fd
-    | None => Error unknown_function (* unreachable, undefined function call error thrown in pretyping:94 *)
-  end.
+  o2r unknown_function (get_fundef p f). (* unreachable, undefined function call error thrown in pretyping:94 *)
 
 Fixpoint check_instr (p : ufun_decls) (i : instr) : cexec unit :=
   let 'MkI ii ir := i in
@@ -182,8 +178,9 @@ Fixpoint check_instr (p : ufun_decls) (i : instr) : cexec unit :=
     | Cassgn x _ ty e => Let _ := check_expr ty_expr e ty in
                           check_lval x ty
     | Copn xs _ sop es => let (tins , tout) :=
-                            (sopn_tin (pd := {| Uptr := pd |}) (msfsz := {| msf_size := msfsz |}) sop ,
-                             sopn_tout (pd := {| Uptr := pd |}) (msfsz := {| msf_size := msfsz |}) sop) in
+    (* TODO see if you can not pass it explicitely here too *)
+                            (sopn_tin (pd := pd) (msfsz := msfsz) sop ,
+                             sopn_tout (pd := pd) (msfsz := msfsz) sop) in
                           Let _ := check_exprs ty_expr es tins in
                           check_lvals xs tout
     | Csyscall xs o es => let s := syscall_sig_u o in
