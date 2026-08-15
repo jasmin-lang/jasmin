@@ -255,7 +255,7 @@ Class capMem (mem: Type) (BM: baseMem mem) : Type := CapMem {
 
 Class absMem (mem: Type) : Type := AbsMem {
       empty_mem : mem
-    ; fresh_loc (m: mem) (in_stk: bool) : Sz -> exec pointer
+    ; fresh_loc (m: mem) (in_stk: bool) : Sz -> pointer
     ; alloc_frame : mem -> pointer -> Sz -> exec mem
     ; free_frame : mem -> pointer -> Sz -> exec mem
     ; zeroize_pt : mem -> pointer -> exec mem                                     }.
@@ -299,70 +299,52 @@ Class memP (mem: Type) (BM: baseMem mem) (FM: finMem BM)
   (RM: coreMem FM) : Type := MemP { 
 
     fresh_loc_stackP (m: mem) (sz: Sz) :
-       forall p, (fresh_loc m true sz = ok p) ->                               
+       let p := fresh_loc m true sz in                                
           (*       chunk_inter_incl (p, sz) (stack_root m, stack_limit m) /\ *)
-                 forall fn, chunk_bpred_incl (p, sz)  
-                      (fun p0 => wk_invalid m p0 u8_size fn) 
+       forall fn, chunk_bpred_incl (p, sz)  
+          (fun p0 => wk_invalid m p0 u8_size fn) 
 
  ; alloc_frameP (m: mem) (p: pointer) (sz: Sz) :
-     let fn := exec_fun m in    
-     forall m',
-          p = stack_top m ->
+     let fn0 := exec_fun m in    
+     forall m',  
+       (*          p = stack_top m -> *)
+          let p := fresh_loc m true sz in        
           (alloc_frame m p sz = ok m') ->
-          let p' := stack_top m' in
+        (*  let p' := stack_top m' in
           (chunk_bpred_incl (p', sz)
-             (fun p0 => can_allocate (capability m p0 fn))) /\
+             (fun p0 => can_allocate (capability m p0 fn))) /\ *)
+          (chunk_inter_incl (p, sz) (stack_root m, stack_limit m)) /\ 
           (baseMem_eq BM m m') /\
-          (incr_stack_top_eq (stack_top m) (stack_top m') sz) /\
-          (chunk_set_cap_eq (capability m) (capability m')
-                            (p', sz) fn FWO)
+       (*   (incr_stack_top_eq p (stack_top m') sz) /\  *)
+          (chunk_bpred_incl (p, sz)  
+               (fun p0 => validW m p0 u8_size fn0)) 
+    (*      (chunk_set_cap_eq (capability m) (capability m')
+                            (p', sz) fn FWO) *)
 
  ; free_frameP (m: mem) (p: pointer) (sz: Sz) :
-     let fn := exec_fun m in    
+     let fn0 := exec_fun m in    
      forall m',
           p = stack_top m ->
           (free_frame m p sz = ok m') ->
           (chunk_bpred_incl (p, sz)
-             (fun p0 => can_free (capability m p0 fn))) /\
+             (fun p0 => validW m p0 sz fn0)) /\
           (baseMem_eq BM m m') /\
           (incr_stack_top_eq (stack_top m') (stack_top m) sz) /\
-          (chunk_set_cap_eq (capability m) (capability m')
-                            (p, sz) fn Bot)
+          forall fn, chunk_bpred_incl (p, sz)  
+              (fun p0 => wk_invalid m p0 u8_size fn) 
+        (*  (chunk_set_cap_eq (capability m) (capability m')
+                            (p, sz) fn Bot) *)
 
  ; zeroize_ptP (m: mem) (p: pointer) :
      let fn := exec_fun m in    
       forall m',  
         (zeroize_pt m p = ok m') ->
           (set m p u8_zero = ok m') /\
-          (capability m p fn = Some FWO) /\
-          (capability m' p fn = Some Top)
-
-   ; get_reflectP (m: mem) : forall p,
-       let fn := exec_fun m in     
-       reflect (exists w, get m p = ok w) (can_read (capability m p fn))
-
-   ; set_reflectP (m: mem) : forall p w,
-       let fn := exec_fun m in     
-       reflect (exists m', set m p w = ok m') (can_write (capability m p fn))
-
-   ; setP (m: mem) :
-       forall p w w0 w' p' m',
-         set m p w = ok m' ->
-         get m p' = ok w0 ->
-         get m' p' = ok w' ->
-         if p == p' then w' == w else w' == w0 
-
-   ; set_preserveP (m: mem) : forall p w,
-       let fn := exec_fun m in     
-       forall m', set m p w = ok m' ->
-            (can_read (capability m p fn) ->
-             can_read (capability m' p fn))  
-         /\ (can_free (capability m p fn) ->
-              can_free (capability m' p fn)) 
-         /\ (can_write (capability m' p fn))
-            
+          (validW m p u8_size fn) /\
+          (validR m' p u8_size fn)
 }.
- 
+
+
 
 Class progMod (* (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
   (CM: capMem BM) (AM: absMem mem) (RM: coreMem mem)
@@ -381,7 +363,7 @@ Class progMod (* (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
 }.                               
 
 Class progMemNew (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
-  (CM: capMem BM) (AM: absMem mem) (RM: coreMem mem)
+  (CM: capMem BM) (AM: absMem mem) (RM: coreMem FM)
   (PM: @memP mem BM FM CM AM RM) (PMM: progMod)           
   : Type := ProgMemNew {
      def_modules (pr: prog) : ModName -> bool
@@ -404,7 +386,7 @@ Class progMemNew (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
 }.
 
 
-
+(*******************************************************************)
 
 
 Class progMem (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
