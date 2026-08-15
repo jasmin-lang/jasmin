@@ -434,6 +434,11 @@ Definition bkchunk_set_pmap_eq (cf1 cf2: pointer -> PermMap)
                  then cf2 p0 fn0 = x 
                  else cf2 p0 fn0 = cf1 p0 fn0.   
 
+(* 1. remove local oracles, add weak oracle consistency with stack
+   size, add linking properties *)
+
+(* 2. switch from permission (pointer and fuction) maps to
+   capabilities (pointer maps) *)
 
 (*******************************************************************)
 (*******************************************************************)
