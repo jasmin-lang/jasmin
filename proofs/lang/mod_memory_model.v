@@ -139,9 +139,7 @@ Class PArith (pointer Sz: Type) := {
    ; null_size : Sz
    ; null_sizeP : sz2Z null_size = 0
    ; u8_zero : u8
-   ; u2sz: u8 -> Sz
-   ; sz2u: Sz -> u8
-   ;                 
+   ; u8_size : Sz
   }.                
 
 Context (Sz: Type) (I_PArith : PArith pointer Sz).
@@ -262,23 +260,23 @@ Class absMem (mem: Type) : Type := AbsMem {
     ; free_frame : mem -> pointer -> Sz -> exec mem
     ; zeroize_pt : mem -> pointer -> exec mem                                     }.
 
-Print u8.
-
 Class coreMem (mem: Type) (BM: baseMem mem) (FM: finMem BM) := CoreMem {
       get : mem -> pointer -> exec u8
     ; set : mem -> pointer -> u8 -> exec mem                    
     ; validR : mem -> pointer -> Sz -> FunName -> bool 
     ; validW : mem -> pointer -> Sz -> FunName -> bool
-    ; invalid (m: mem) (p: pointer) (fn: FunName) : bool :=
-        (~~ validR m p fn) && (~~ validW m p fn)
+    ; invalid (m: mem) (p: pointer) (sz: Sz) (fn: FunName) : bool :=
+        (~~ validR m p sz fn) && (~~ validW m p sz fn)
+    ; wk_invalid (m: mem) (p: pointer) (sz: Sz) (fn: FunName) : bool :=
+        (invalid m p sz fn) || (~~ is_align p U8)
 
    ; get_reflectP (m: mem) : forall p,
-       let fn := exec_fun m in     
-       reflect (exists w, get m p = ok w) (validR m p fn)
+       let fn := exec_fun m in
+       reflect (exists w, get m p = ok w) (validR m p u8_size fn)
 
    ; set_reflectP (m: mem) : forall p w,
        let fn := exec_fun m in     
-       reflect (exists m', set m p w = ok m') (validW m p fn)
+       reflect (exists m', set m p w = ok m') (validW m p u8_size fn)
 
    ; setP (m: mem) :
        forall p w w0 w' p' m',
@@ -289,24 +287,22 @@ Class coreMem (mem: Type) (BM: baseMem mem) (FM: finMem BM) := CoreMem {
 
    ; set_preserveP (m: mem) : forall p w,
        forall m', set m p w = ok m' ->
-            (forall fn, validR m p fn -> validR m' p fn)  
-            /\ (forall fn, validW m p fn -> validW m' p fn)
+            (forall fn sz, validR m p sz fn -> validR m' p sz fn)  
+            /\ (forall fn sz, validW m p sz fn -> validW m' p sz fn)
  
   }.
 
+Context (ModName: Type).
+
 Class memP (mem: Type) (BM: baseMem mem) (FM: finMem BM)
   (CM: capMem BM) (AM: absMem mem)
-  (RM: coreMem mem) : Type := MemP { 
+  (RM: coreMem FM) : Type := MemP { 
 
-    fresh_loc_stackP (sz: Sz) :
-       forall p, (fresh_loc m true sz = ok p) ->
-          forall m fn,                               
-          let fn := main_fun m in
-                                  
-          forall p, (fresh_loc m true sz = ok p) ->
-                 chunk_inter_incl (p, sz) (stack_root m, stack_limit m) /\
-                 chunk_bpred_incl (p, sz)  
-                      (fun p0 => invalid m p0 (EFN fn)) 
+    fresh_loc_stackP (m: mem) (sz: Sz) :
+       forall p, (fresh_loc m true sz = ok p) ->                               
+          (*       chunk_inter_incl (p, sz) (stack_root m, stack_limit m) /\ *)
+                 forall fn, chunk_bpred_incl (p, sz)  
+                      (fun p0 => wk_invalid m p0 u8_size fn) 
 
  ; alloc_frameP (m: mem) (p: pointer) (sz: Sz) :
      let fn := exec_fun m in    
@@ -367,7 +363,6 @@ Class memP (mem: Type) (BM: baseMem mem) (FM: finMem BM)
             
 }.
  
-Context (ModName: Type).
 
 Class progMod (* (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
   (CM: capMem BM) (AM: absMem mem) (RM: coreMem mem)
