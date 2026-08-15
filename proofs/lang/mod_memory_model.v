@@ -130,12 +130,18 @@ Definition can_free (p: option Permission) : bool :=
   | Some FO | Some FWO | Some FRO | Some Top => true
   | _ => false end.                            
 
+Print u8. Print word.
+Locate pos_is_aligned_to.
+
 Class PArith (pointer Sz: Type) := {
      sz2Z : Sz -> Z
    ; p2Z : pointer -> Z                
    ; null_size : Sz
    ; null_sizeP : sz2Z null_size = 0
-   ; u8_zero : u8                                  
+   ; u8_zero : u8
+   ; u2sz: u8 -> Sz
+   ; sz2u: Sz -> u8
+   ;                 
   }.                
 
 Context (Sz: Type) (I_PArith : PArith pointer Sz).
@@ -214,16 +220,17 @@ Class baseMem (mem: Type) : Type := BaseMem {
       stack_root : mem -> pointer
     ; stack_limit : mem -> pointer
     ; gblocks : mem -> seq (pointer * Sz)
-    ; main_fun : mem -> efunname
+(*    ; main_fun : mem -> efunname
     ; mod_local : mem -> FunName -> option bool
-    ; local_oracle : mem -> efunname -> option Sz                             
+    ; local_oracle : mem -> efunname -> option Sz  *)                           
   }.                                        
 
 Context (baseMem_eq : forall {mem: Type} {X: baseMem mem} (m1 m2: mem), Prop).
 
 Class finMem (mem: Type) (BM: baseMem mem) : Type := FinMem {
                                                      
-     exec_fun : mem -> FunName                                                   
+     exec_fun : mem -> FunName                       
+                                                       
    ; frames : mem -> seq (pointer * Sz)
                                                                             
    ; stack_head m : (pointer * Sz) :=
@@ -240,8 +247,8 @@ Class finMem (mem: Type) (BM: baseMem mem) : Type := FinMem {
 
    (* the local oracle is defined and only defined for the external
    functions which are known to the module *)  
-   ; local_oracle_prop (m: mem) :
-     forall fn, mod_local m (EFN fn) = None <-> local_oracle m fn = None                                                       
+ (*  ; local_oracle_prop (m: mem) :
+     forall fn, mod_local m (EFN fn) = None <-> local_oracle m fn = None   *)                                                    
 }.                                       
                                             
 Class capMem (mem: Type) (BM: baseMem mem) : Type := CapMem {
@@ -255,22 +262,51 @@ Class absMem (mem: Type) : Type := AbsMem {
     ; free_frame : mem -> pointer -> Sz -> exec mem
     ; zeroize_pt : mem -> pointer -> exec mem                                     }.
 
-Class coreMem (mem: Type) := CoreMem {
+Print u8.
+
+Class coreMem (mem: Type) (BM: baseMem mem) (FM: finMem BM) := CoreMem {
       get : mem -> pointer -> exec u8
-    ; set : mem -> pointer -> u8 -> exec mem
-(*    ; valid8 : mem -> pointer -> bool; *)
+    ; set : mem -> pointer -> u8 -> exec mem                    
+    ; validR : mem -> pointer -> Sz -> FunName -> bool 
+    ; validW : mem -> pointer -> Sz -> FunName -> bool
+    ; invalid (m: mem) (p: pointer) (fn: FunName) : bool :=
+        (~~ validR m p fn) && (~~ validW m p fn)
+
+   ; get_reflectP (m: mem) : forall p,
+       let fn := exec_fun m in     
+       reflect (exists w, get m p = ok w) (validR m p fn)
+
+   ; set_reflectP (m: mem) : forall p w,
+       let fn := exec_fun m in     
+       reflect (exists m', set m p w = ok m') (validW m p fn)
+
+   ; setP (m: mem) :
+       forall p w w0 w' p' m',
+         set m p w = ok m' ->
+         get m p' = ok w0 ->
+         get m' p' = ok w' ->
+         if p == p' then w' == w else w' == w0 
+
+   ; set_preserveP (m: mem) : forall p w,
+       forall m', set m p w = ok m' ->
+            (forall fn, validR m p fn -> validR m' p fn)  
+            /\ (forall fn, validW m p fn -> validW m' p fn)
+ 
   }.
 
 Class memP (mem: Type) (BM: baseMem mem) (FM: finMem BM)
   (CM: capMem BM) (AM: absMem mem)
   (RM: coreMem mem) : Type := MemP { 
 
-  fresh_loc_stackP (m: mem) (sz: Sz) :
-    let fn := main_fun m in                                              
+    fresh_loc_stackP (sz: Sz) :
+       forall p, (fresh_loc m true sz = ok p) ->
+          forall m fn,                               
+          let fn := main_fun m in
+                                  
           forall p, (fresh_loc m true sz = ok p) ->
                  chunk_inter_incl (p, sz) (stack_root m, stack_limit m) /\
                  chunk_bpred_incl (p, sz)  
-                      (fun p0 => can_allocate (capability m p0 (EFN fn))) 
+                      (fun p0 => invalid m p0 (EFN fn)) 
 
  ; alloc_frameP (m: mem) (p: pointer) (sz: Sz) :
      let fn := exec_fun m in    
@@ -331,34 +367,6 @@ Class memP (mem: Type) (BM: baseMem mem) (FM: finMem BM)
             
 }.
  
-Class progMem (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
-  (CM: capMem BM) (AM: absMem mem) (RM: coreMem mem)
-  (PM: @memP mem BM FM CM AM RM)            
-  : Type := ProgMem {
-     mod_main (pr: prog) : efunname -> bool
-                                                       
-   ; oracle (pr: prog) : efunname -> option Sz
-
-   ; mod_mem (pr: prog) : efunname -> option mem
-
-   ; oracleP (pr: prog) : forall fn,
-       (exists sz, oracle pr fn = sz) <-> mod_main pr fn
-
-   ; mod_memP (pr: prog) : forall fn,
-       (exists m, mod_mem pr fn = m) <-> mod_main pr fn
-                                                   
-   (* the oracle agrees with the stack size in each module *)                   
-   ; det_oracle (pr: prog) : forall fn m sz, mod_mem pr fn = Some m ->
-                                  oracle pr fn = Some sz ->
-                                  sz2Z sz = stack_max_size m
-
-   (* the oracle agrees with the local oracle in each module *)   
-   ; det_local_oracle (pr: prog) :
-     forall fn m sz, mod_mem pr fn = Some m ->
-                     local_oracle m fn = Some sz ->
-                                       oracle pr fn = Some sz      
-  }.
-
 Context (ModName: Type).
 
 Class progMod (* (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
@@ -400,15 +408,15 @@ Class progMemNew (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
        exists md, def_modules pr md /\ mod_defined md fn                                              
 }.
 
-                                         
-   (* the oracle agrees with the stack size in each module *)                   
-   ; det_oracle (pr: prog) : forall fn m sz, mod_mem pr fn = Some m ->
-                                  oracle pr fn = Some sz ->
-                                  sz2Z sz = stack_max_size m
-                
-     mod_fun (pr: prog)
-                
-     mod_export (pr: prog) : efunname -> bool
+
+
+
+
+Class progMem (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
+  (CM: capMem BM) (AM: absMem mem) (RM: coreMem mem)
+  (PM: @memP mem BM FM CM AM RM)            
+  : Type := ProgMem {
+     mod_main (pr: prog) : efunname -> bool
                                                        
    ; oracle (pr: prog) : efunname -> option Sz
 
@@ -431,6 +439,8 @@ Class progMemNew (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
                      local_oracle m fn = Some sz ->
                                        oracle pr fn = Some sz      
   }.
+
+
 
 
 End POINTER.
