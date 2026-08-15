@@ -111,27 +111,32 @@ HB.instance Definition _ := hasDecEq.Build FunName FunName_eqMixin.
 Variant Permission : Type :=
   Bot | FO | WO | RO | FWO | FRO | WRO | Top. 
 
-(* None signals partiality (the function name is out of the given
-   range). *)
-Definition Capability : Type := FunName -> option Permission. 
+Definition PermMap : Type := FunName -> Permission. 
 
-Definition can_write (p: option Permission) : bool :=
+Definition is_FWO (p: Permission) : bool :=
   match p with
-  | Some WO | Some FWO | Some WRO | Some Top => true
+  | FWO => true
   | _ => false end.                            
 
-Definition can_read (p: option Permission) : bool :=
+Definition is_Top (p: Permission) : bool :=
   match p with
-  | Some RO | Some FRO | Some WRO | Some Top => true
+  | Top => true
   | _ => false end.                            
 
-Definition can_free (p: option Permission) : bool :=
+Definition can_write (p: Permission) : bool :=
   match p with
-  | Some FO | Some FWO | Some FRO | Some Top => true
+  | WO | FWO | WRO | Top => true
   | _ => false end.                            
 
-Print u8. Print word.
-Locate pos_is_aligned_to.
+Definition can_read (p: Permission) : bool :=
+  match p with
+  | RO | FRO | WRO | Top => true
+  | _ => false end.                            
+
+Definition can_free (p: Permission) : bool :=
+  match p with
+  | FO | FWO | FRO | Top => true
+  | _ => false end.                            
 
 Class PArith (pointer Sz: Type) := {
      sz2Z : Sz -> Z
@@ -144,22 +149,22 @@ Class PArith (pointer Sz: Type) := {
 
 Context (Sz: Type) (I_PArith : PArith pointer Sz).
 
-Definition can_allocate (p: option Permission) : bool :=
+Definition can_allocate (p: Permission) : bool :=
   match p with
-  | Some Bot => true
+  | Bot => true
   | _ => false end.                            
 
 (**************************************************************************)
 
-Definition chunk_inter_eq (c: (pointer * Sz)) (i: (pointer * pointer)) :=
-  (fst c = fst i) /\ (sz2Z (snd c) = p2Z (fst i) - p2Z (snd i)).
+Definition chunk_inter_eq (c: (pointer * Sz)) (i: (pointer * pointer)) :
+  Prop := (fst c = fst i) /\ (sz2Z (snd c) = p2Z (fst i) - p2Z (snd i)).
 
-Definition in_chunk (c: (pointer * Sz)) (p: pointer) :=
+Definition in_chunk (c: (pointer * Sz)) (p: pointer) : Prop :=
   let z := p2Z (fst c) in
   let d := sz2Z (snd c) in
   let z0 := p2Z p in (z0 <= z) /\ (z0 > z - d).
 
-Definition in_rchunk (c: (pointer * Sz)) (p: pointer) :=
+Definition in_fchunk (c: (pointer * Sz)) (p: pointer) : Prop :=
   let z := p2Z (fst c) in
   let d := sz2Z (snd c) in
   let z0 := p2Z p in (z0 > z) /\ (z0 <= z + d).
@@ -169,46 +174,70 @@ Definition in_chunk_b (c: (pointer * Sz)) (p: pointer) : bool :=
   let d := sz2Z (snd c) in
   let z0 := p2Z p in (Z.leb z0 z) && (Z.ltb (z - d) z0).
 
-Definition in_rchunk_b (c: (pointer * Sz)) (p: pointer) : bool :=
+Definition in_fchunk_b (c: (pointer * Sz)) (p: pointer) : bool :=
   let z := p2Z (fst c) in
   let d := sz2Z (snd c) in
   let z0 := p2Z p in (Z.ltb z z0) && (Z.leb z0 (z + d)).
 
 Definition chunk_incl (c1 c2: (pointer * Sz)) :=
-  forall p, in_rchunk c1 p -> in_rchunk c2 p.
+  forall p, in_chunk c1 p -> in_chunk c2 p.
+
+Definition fchunk_incl (c1 c2: (pointer * Sz)) :=
+  forall p, in_fchunk c1 p -> in_fchunk c2 p.
 
 Definition chunk_inter_incl (c: (pointer * Sz)) (i: (pointer * pointer)) :=
   forall c0, chunk_inter_eq c0 i -> chunk_incl c c0.      
 
 Definition inter_chunk_incl (i: (pointer * pointer)) (c: (pointer * Sz)) :=
-  forall c0, chunk_inter_eq c0 i ->
-       chunk_incl c0 c.      
+  forall c0, chunk_inter_eq c0 i -> chunk_incl c0 c.      
+
+Definition fchunk_inter_incl (c: (pointer * Sz)) (i: (pointer * pointer)) :=
+  forall c0, chunk_inter_eq c0 i -> fchunk_incl c c0.      
+
+Definition inter_fchunk_incl (i: (pointer * pointer)) (c: (pointer * Sz)) :=
+  forall c0, chunk_inter_eq c0 i -> fchunk_incl c0 c.      
 
 Definition chunk_bpred_incl (c: (pointer * Sz)) (bp: pointer -> bool) :=
-  forall p, in_rchunk c p -> bp p.
+  forall p, in_chunk c p -> bp p.
+
+Definition fchunk_bpred_incl (c: (pointer * Sz)) (bp: pointer -> bool) :=
+  forall p, in_fchunk c p -> bp p.
 
 Definition chunk_pred_incl (c: (pointer * Sz)) (bp: pointer -> Prop) :=
-  forall p, in_rchunk c p -> bp p.
+  forall p, in_chunk c p -> bp p.
 
-Definition pw_set_cap (cf1: pointer -> Capability) (p: pointer) (fn: FunName)
-  (x: Permission) : pointer -> Capability :=
+Definition fchunk_pred_incl (c: (pointer * Sz)) (bp: pointer -> Prop) :=
+  forall p, in_fchunk c p -> bp p.
+
+Definition pw_set_pmap (cf1: pointer -> PermMap) (p: pointer) (fn: FunName)
+  (x: Permission) : pointer -> PermMap :=
   fun p0 => match p == p0 with
     | true => fun fn0 => match fn == fn0 with
-                         | true => Some x
+                         | true => x
                          | false => cf1 p0 fn0 end              
     | false => cf1 p0 end.               
 
-Definition chunk_cap_eq (cf1 cf2: pointer -> Capability)
+Definition chunk_pmap_eq (cf1 cf2: pointer -> PermMap)
   (c: (pointer * Sz)) : Prop :=
   chunk_pred_incl c (fun p => forall fn, cf1 p fn = cf2 p fn).
 
-Definition chunk_set_cap_eq (cf1 cf2: pointer -> Capability)
+Definition chunk_set_pmap_eq (cf1 cf2: pointer -> PermMap)
   (c: (pointer * Sz)) fn x : Prop :=
-  forall p0 fn0, if (in_rchunk_b c p0) && (fn0 == fn) 
-                 then cf2 p0 fn0 = Some x 
+  forall p0 fn0, if (in_chunk_b c p0) && (fn0 == fn) 
+                 then cf2 p0 fn0 = x 
                  else cf2 p0 fn0 = cf1 p0 fn0.   
-                                        
-Definition incr_stack_top_eq (p1 p2: pointer) (sz: Sz) :=
+
+Definition fchunk_pmap_eq (cf1 cf2: pointer -> PermMap)
+  (c: (pointer * Sz)) : Prop :=
+  fchunk_pred_incl c (fun p => forall fn, cf1 p fn = cf2 p fn).
+
+Definition fchunk_set_pmap_eq (cf1 cf2: pointer -> PermMap)
+  (c: (pointer * Sz)) fn x : Prop :=
+  forall p0 fn0, if (in_fchunk_b c p0) && (fn0 == fn) 
+                 then cf2 p0 fn0 = x 
+                 else cf2 p0 fn0 = cf1 p0 fn0.   
+
+Definition move_stack_top_eq (p1 p2: pointer) (sz: Sz) :=
   p2Z p2 == p2Z p1 + sz2Z sz.
 
 (**************************************************************************)
@@ -218,9 +247,6 @@ Class baseMem (mem: Type) : Type := BaseMem {
       stack_root : mem -> pointer
     ; stack_limit : mem -> pointer
     ; gblocks : mem -> seq (pointer * Sz)
-(*    ; main_fun : mem -> efunname
-    ; mod_local : mem -> FunName -> option bool
-    ; local_oracle : mem -> efunname -> option Sz  *)                           
   }.                                        
 
 Context (baseMem_eq : forall {mem: Type} {X: baseMem mem} (m1 m2: mem), Prop).
@@ -241,25 +267,9 @@ Class finMem (mem: Type) (BM: baseMem mem) : Type := FinMem {
                                     
    ; stack_max_size (m: mem) := p2Z (stack_root m) - p2Z (stack_limit m)
 
-   ; stack_current_size (m: mem) := p2Z (stack_root m) - p2Z (stack_top m)
-
-   (* the local oracle is defined and only defined for the external
-   functions which are known to the module *)  
- (*  ; local_oracle_prop (m: mem) :
-     forall fn, mod_local m (EFN fn) = None <-> local_oracle m fn = None   *)                                                    
+   ; stack_current_size (m: mem) := p2Z (stack_root m) - p2Z (stack_top m)                                                 
 }.                                       
                                             
-Class capMem (mem: Type) (BM: baseMem mem) : Type := CapMem {
-      capability : mem -> pointer -> Capability    
-  }.                                        
-
-Class absMem (mem: Type) : Type := AbsMem {
-      empty_mem : mem
-    ; fresh_loc (m: mem) (in_stk: bool) : Sz -> pointer
-    ; alloc_frame : mem -> pointer -> Sz -> exec mem
-    ; free_frame : mem -> pointer -> Sz -> exec mem
-    ; zeroize_pt : mem -> pointer -> exec mem                                     }.
-
 Class coreMem (mem: Type) (BM: baseMem mem) (FM: finMem BM) := CoreMem {
       get : mem -> pointer -> exec u8
     ; set : mem -> pointer -> u8 -> exec mem                    
@@ -292,48 +302,42 @@ Class coreMem (mem: Type) (BM: baseMem mem) (FM: finMem BM) := CoreMem {
  
   }.
 
-Context (ModName: Type).
+Class absMem (mem: Type) : Type := AbsMem {
+      empty_mem : mem
+    ; fresh_loc (m: mem) (in_stk: bool) : Sz -> pointer
+    ; alloc_frame : mem -> pointer -> Sz -> exec mem
+    ; free_frame : mem -> pointer -> Sz -> exec mem
+    ; zeroize_pt : mem -> pointer -> exec mem                                     }.
 
-Class memP (mem: Type) (BM: baseMem mem) (FM: finMem BM)
-  (CM: capMem BM) (AM: absMem mem)
-  (RM: coreMem FM) : Type := MemP { 
+Class memP (mem: Type) (BM: baseMem mem) (FM: finMem BM) (RM: coreMem FM)
+  (AM: absMem mem) : Type := MemP { 
 
     fresh_loc_stackP (m: mem) (sz: Sz) :
        let p := fresh_loc m true sz in                                
-          (*       chunk_inter_incl (p, sz) (stack_root m, stack_limit m) /\ *)
-       forall fn, chunk_bpred_incl (p, sz)  
-          (fun p0 => wk_invalid m p0 u8_size fn) 
+       forall fn, fchunk_bpred_incl (p, sz)
+                    (fun p0 => wk_invalid m p0 u8_size fn) 
 
  ; alloc_frameP (m: mem) (p: pointer) (sz: Sz) :
      let fn0 := exec_fun m in    
      forall m',  
-       (*          p = stack_top m -> *)
           let p := fresh_loc m true sz in        
           (alloc_frame m p sz = ok m') ->
-        (*  let p' := stack_top m' in
-          (chunk_bpred_incl (p', sz)
-             (fun p0 => can_allocate (capability m p0 fn))) /\ *)
-          (chunk_inter_incl (p, sz) (stack_root m, stack_limit m)) /\ 
+          (fchunk_inter_incl (p, sz) (stack_root m, stack_limit m)) /\ 
           (baseMem_eq BM m m') /\
-       (*   (incr_stack_top_eq p (stack_top m') sz) /\  *)
-          (chunk_bpred_incl (p, sz)  
+          (fchunk_bpred_incl (p, sz)  
                (fun p0 => validW m p0 u8_size fn0)) 
-    (*      (chunk_set_cap_eq (capability m) (capability m')
-                            (p', sz) fn FWO) *)
 
  ; free_frameP (m: mem) (p: pointer) (sz: Sz) :
      let fn0 := exec_fun m in    
      forall m',
           p = stack_top m ->
           (free_frame m p sz = ok m') ->
-          (chunk_bpred_incl (p, sz)
-             (fun p0 => validW m p0 sz fn0)) /\
+          (fchunk_bpred_incl (p, sz)
+                  (fun p0 => validW m p0 sz fn0)) /\
           (baseMem_eq BM m m') /\
-          (incr_stack_top_eq (stack_top m') (stack_top m) sz) /\
-          forall fn, chunk_bpred_incl (p, sz)  
-              (fun p0 => wk_invalid m p0 u8_size fn) 
-        (*  (chunk_set_cap_eq (capability m) (capability m')
-                            (p, sz) fn Bot) *)
+          (move_stack_top_eq (stack_top m') (stack_top m) sz) /\
+          forall fn, fchunk_bpred_incl (p, sz)  
+                     (fun p0 => wk_invalid m p0 u8_size fn) 
 
  ; zeroize_ptP (m: mem) (p: pointer) :
      let fn := exec_fun m in    
@@ -345,11 +349,9 @@ Class memP (mem: Type) (BM: baseMem mem) (FM: finMem BM)
 }.
 
 
+Context (ModName: Type).
 
-Class progMod (* (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
-  (CM: capMem BM) (AM: absMem mem) (RM: coreMem mem)
-  (PM: @memP mem BM FM CM AM RM)          *)  
-  : Type := ProgMod {
+Class progMod : Type := ProgMod {
     mod_defined (md: ModName) : FunName -> bool
                                            
   ; mod_import (md: ModName) : efunname -> bool
@@ -362,9 +364,39 @@ Class progMod (* (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
                                   
 }.                               
 
+Class capMem (mem: Type) (BM: baseMem mem) (FM: finMem BM)
+  (CM: coreMem FM) (AM: absMem mem): Type := CapMem {
+    capability : mem -> pointer -> PermMap
+                                                        
+  ; validwP (m: mem) (p: pointer) (sz: Sz) (fn: FunName) :
+       validW m p sz fn <-> 
+           fchunk_bpred_incl (p, sz)  
+             (fun p0 => is_FWO (capability m p0 fn))
+             
+  ; validrP (m: mem) (p: pointer) (sz: Sz) (fn: FunName) :
+       validR m p sz fn <-> 
+           fchunk_bpred_incl (p, sz)  
+             (fun p0 => is_Top (capability m p0 fn))
+
+ ; alloc_frameP2 (m: mem) (p: pointer) (sz: Sz) :
+     let fn := exec_fun m in    
+     forall m',
+          let p := fresh_loc m true sz in        
+          (alloc_frame m p sz = ok m') ->
+          (fchunk_set_pmap_eq (capability m) (capability m')
+                (p, sz) fn FWO)
+
+ ; free_frameP2 (m: mem) (p: pointer) (sz: Sz) :
+     forall m',
+          p = stack_top m ->
+          (free_frame m p sz = ok m') ->
+          forall fn, (fchunk_set_pmap_eq (capability m) (capability m')
+                            (p, sz) fn Bot)
+}.
+
 Class progMemNew (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
-  (CM: capMem BM) (AM: absMem mem) (RM: coreMem FM)
-  (PM: @memP mem BM FM CM AM RM) (PMM: progMod)           
+  (RM: coreMem FM) (AM: absMem mem) (CM: capMem RM AM) 
+  (PM: @memP mem BM FM RM AM) (PMM: progMod)           
   : Type := ProgMemNew {
      def_modules (pr: prog) : ModName -> bool
                                                        
@@ -372,7 +404,7 @@ Class progMemNew (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
 
    ; prog_oracle (pr: prog) : efunname -> option Sz
 
-   ; mod_memP2 (pr: prog) : forall md,
+   ; mod_memP (pr: prog) : forall md,
        (exists m, prog_mod_mem pr md = m) <-> def_modules pr md 
                                                    
    (* the oracle agrees with the local oracle in each module *)   
@@ -382,7 +414,8 @@ Class progMemNew (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
                      prog_oracle pr fn = Some sz
 
    ; prog_defined (pr: prog) : FunName -> Prop := fun fn =>
-       exists md, def_modules pr md /\ mod_defined md fn                                              
+       exists md, def_modules pr md /\ mod_defined md fn
+                
 }.
 
 
