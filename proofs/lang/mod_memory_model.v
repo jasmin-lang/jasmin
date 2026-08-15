@@ -192,7 +192,7 @@ Definition chunk_set_pmap_eq (cf1 cf2: pointer -> PermMap)
 
 (**************************************************************************)
 
-(* the fixed part of the module memory *)
+(* the fixed part of a module memory structure *)
 Class baseMem (mem: Type) : Type := BaseMem {  
       stack_root : mem -> pointer
     ; stack_limit : mem -> pointer
@@ -201,11 +201,11 @@ Class baseMem (mem: Type) : Type := BaseMem {
 
 Context (baseMem_eq : forall {mem: Type} {X: baseMem mem} (m1 m2: mem), Prop).
 
-(* dynamic part of the memory (frames, should add data) and basic
-   properties *) (* root >= top > limit >= 0 *)
+(* dynamic part of a module memory structure, with basic properties *)
+(* root >= top > limit >= 0 *)
 Class finMem (mem: Type) (BM: baseMem mem) : Type := FinMem {         
      frames : mem -> seq (pointer * Sz)
-                                                                            
+                                                                               
    ; stack_head m : (pointer * Sz) :=
        head (stack_root m, null_size) (frames m)
             
@@ -297,42 +297,37 @@ Class memP (mem: Type) (BM: baseMem mem) (FM: finMem BM) (RM: coreMem FM)
 Context (ModName: Type).
 
 (* program modules, with local oracles *)
-Class progMod : Type := ProgMod {
+Class progMod (mem: Type): Type := ProgMod {
     mod_defined (md: ModName) : FunName -> bool
                                            
   ; mod_import (md: ModName) : efunname -> bool
 
-  ; mod_oracle (md: ModName) : efunname -> option Sz
+  ; mod_mem (md: ModName) : efunname -> option mem
 
-  ; mod_oracleP (md: ModName) : forall fn,
-      (mod_defined md (EFN fn) \/ mod_import md fn) ->
-        (exists sz, mod_oracle md fn = Some sz)
-                                  
+  ; mod_memP (md: ModName) (fn: efunname) :
+    mod_defined md (EFN fn)  <-> exists m, mod_mem md fn = Some m
 }.                               
 
 (* multi-module programs *)
 Class progMem (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
   (RM: coreMem FM) (AM: absMem mem) (PM: @memP mem BM FM RM AM)
-  (PMM: progMod) : Type := ProgMem {
-     def_modules (pr: prog) : ModName -> bool
-                                                       
-   ; prog_mod_mem (pr: prog) : ModName -> option mem
+  (PMM: progMod mem) : Type := ProgMem {
+     def_module (pr: prog) : ModName -> bool
 
-   ; prog_oracle (pr: prog) : efunname -> option Sz
+   ; prog_oracle (pr: prog) : efunname -> Sz
 
-   ; mod_memP (pr: prog) : forall md,
-       (exists m, prog_mod_mem pr md = m) <-> def_modules pr md 
+   (* the oracle agrees with the stack size in each module *)                   
+   ; prog_oracleP (pr: prog) : forall md, def_module pr md ->
+       forall fn m, mod_mem md fn = Some m ->
+                    sz2Z (prog_oracle pr fn) <= stack_max_size m
+
+   (* linking consistency *)     
+   ; def_modulesP (pr: prog) :
+     forall md1 md2, def_module pr md1 /\ def_module pr md2 ->
+        (exists fn, mod_defined md1 fn /\ mod_defined md2 fn) ->
+        md1 = md2             
+}.                                                        
                                                    
-   (* the oracle agrees with the local oracle in each module *)   
-   ; det_mod_oracle (pr: prog) :
-     forall md fn sz, def_modules pr md ->
-                     mod_oracle md fn = Some sz ->
-                     prog_oracle pr fn = Some sz
-
-   ; prog_defined (pr: prog) : FunName -> Prop := fun fn =>
-       exists md, def_modules pr md /\ mod_defined md fn                
-}.
-
 (* adding permissions, with properties *)
 Class capMem (mem: Type) (BM: baseMem mem) (FM: finMem BM)
   (CM: coreMem FM) (AM: absMem mem): Type := CapMem {
@@ -371,7 +366,7 @@ Class capMem (mem: Type) (BM: baseMem mem) (FM: finMem BM)
 (* all together *)
 Class fullMem (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
   (RM: coreMem FM) (AM: absMem mem) 
-  (PM: @memP mem BM FM RM AM) (PMM: progMod)
+  (PM: @memP mem BM FM RM AM) (PMM: progMod mem)
   (PM2: @progMem prog mem BM FM RM AM PM PMM) (CM: capMem RM AM)          
   : Type := FullMem {}.
 
@@ -434,7 +429,7 @@ Definition bkchunk_set_pmap_eq (cf1 cf2: pointer -> PermMap)
                  then cf2 p0 fn0 = x 
                  else cf2 p0 fn0 = cf1 p0 fn0.   
 
-(* 1. remove local oracles, add weak oracle consistency with stack
+(* DONE 1. remove local oracles, add weak oracle consistency with stack
    size, add linking properties *)
 
 (* 2. switch from permission (pointer and fuction) maps to
