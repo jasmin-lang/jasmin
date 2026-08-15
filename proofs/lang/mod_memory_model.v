@@ -435,10 +435,13 @@ Definition bkchunk_set_pmap_eq (cf1 cf2: pointer -> PermMap)
 (* 2. switch from permission (pointer and fuction) maps to
    capabilities (pointer maps) *)
 
+End POINTER.
+
+
 (*******************************************************************)
 (*******************************************************************)
 
-
+(*
 Class progMem (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
   (CM: capMem BM) (AM: absMem mem) (RM: coreMem mem)
   (PM: @memP mem BM FM CM AM RM)            
@@ -468,11 +471,7 @@ Class progMem (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
   }.
 
 
-
-
-End POINTER.
-
-
+*)
 
 (***********************************************************
   **********************************************************)
