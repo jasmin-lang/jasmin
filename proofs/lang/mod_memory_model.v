@@ -6,7 +6,7 @@ From mathcomp Require Import ssralg word_ssrZ.
 Require Import strings wsize utils.
 Import Utf8 ZArith Lia.
 Require Import ssrring.
-Require Import word_core.
+Require Import word.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
@@ -55,7 +55,6 @@ Definition is_aligned_to (z: Z) (n: nat) : bool :=
 
 Definition is_align (p: pointer) (sz: wsize) : bool :=
   is_aligned_to (p_to_z p) (wsize_log2 sz).
-
 
 Lemma is_alignE p sz :
   is_align p sz = (p_to_z p mod wsize_size sz == 0)%Z.
@@ -148,15 +147,15 @@ Definition can_allocate (p: option Permission) : bool :=
 
 (**************************************************************************)
 
-Definition chunk_inter_eq (c: (pointer * Sz)) (i: (pointer * pointer)) :
-  Prop := (fst c = fst i) /\ (sz2Z (snd c) = p2Z (fst i) - p2Z (snd i)).
+Definition chunk_inter_eq (c: (pointer * Sz)) (i: (pointer * pointer)) :=
+  (fst c = fst i) /\ (sz2Z (snd c) = p2Z (fst i) - p2Z (snd i)).
 
-Definition in_chunk (c: (pointer * Sz)) (p: pointer) : Prop :=
+Definition in_chunk (c: (pointer * Sz)) (p: pointer) :=
   let z := p2Z (fst c) in
   let d := sz2Z (snd c) in
   let z0 := p2Z p in (z0 <= z) /\ (z0 > z - d).
 
-Definition in_rchunk (c: (pointer * Sz)) (p: pointer) : Prop :=
+Definition in_rchunk (c: (pointer * Sz)) (p: pointer) :=
   let z := p2Z (fst c) in
   let d := sz2Z (snd c) in
   let z0 := p2Z p in (z0 > z) /\ (z0 <= z + d).
@@ -225,7 +224,6 @@ Context (baseMem_eq : forall {mem: Type} {X: baseMem mem} (m1 m2: mem), Prop).
 Class finMem (mem: Type) (BM: baseMem mem) : Type := FinMem {
                                                      
      exec_fun : mem -> FunName                                                   
-
    ; frames : mem -> seq (pointer * Sz)
                                                                             
    ; stack_head m : (pointer * Sz) :=
@@ -360,6 +358,80 @@ Class progMem (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
                      local_oracle m fn = Some sz ->
                                        oracle pr fn = Some sz      
   }.
+
+Context (ModName: Type).
+
+Class progMod (* (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
+  (CM: capMem BM) (AM: absMem mem) (RM: coreMem mem)
+  (PM: @memP mem BM FM CM AM RM)          *)  
+  : Type := ProgMod {
+    mod_defined (md: ModName) : FunName -> bool
+                                           
+  ; mod_import (md: ModName) : efunname -> bool
+
+  ; mod_oracle (md: ModName) : efunname -> option Sz
+
+  ; mod_oracleP (md: ModName) : forall fn,
+      (mod_defined md (EFN fn) \/ mod_import md fn) ->
+        (exists sz, mod_oracle md fn = Some sz)
+                                  
+}.                               
+
+Class progMemNew (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
+  (CM: capMem BM) (AM: absMem mem) (RM: coreMem mem)
+  (PM: @memP mem BM FM CM AM RM) (PMM: progMod)           
+  : Type := ProgMemNew {
+     def_modules (pr: prog) : ModName -> bool
+                                                       
+   ; prog_mod_mem (pr: prog) : ModName -> option mem
+
+   ; prog_oracle (pr: prog) : efunname -> option Sz
+
+   ; mod_memP2 (pr: prog) : forall md,
+       (exists m, prog_mod_mem pr md = m) <-> def_modules pr md 
+                                                   
+   (* the oracle agrees with the local oracle in each module *)   
+   ; det_mod_oracle (pr: prog) :
+     forall md fn sz, def_modules pr md ->
+                     mod_oracle md fn = Some sz ->
+                     prog_oracle pr fn = Some sz
+
+   ; prog_defined (pr: prog) : FunName -> Prop := fun fn =>
+       exists md, def_modules pr md /\ mod_defined md fn                                              
+}.
+
+                                         
+   (* the oracle agrees with the stack size in each module *)                   
+   ; det_oracle (pr: prog) : forall fn m sz, mod_mem pr fn = Some m ->
+                                  oracle pr fn = Some sz ->
+                                  sz2Z sz = stack_max_size m
+                
+     mod_fun (pr: prog)
+                
+     mod_export (pr: prog) : efunname -> bool
+                                                       
+   ; oracle (pr: prog) : efunname -> option Sz
+
+   ; mod_mem (pr: prog) : efunname -> option mem
+
+   ; oracleP (pr: prog) : forall fn,
+       (exists sz, oracle pr fn = sz) <-> mod_main pr fn
+
+   ; mod_memP (pr: prog) : forall fn,
+       (exists m, mod_mem pr fn = m) <-> mod_main pr fn
+                                                   
+   (* the oracle agrees with the stack size in each module *)                   
+   ; det_oracle (pr: prog) : forall fn m sz, mod_mem pr fn = Some m ->
+                                  oracle pr fn = Some sz ->
+                                  sz2Z sz = stack_max_size m
+
+   (* the oracle agrees with the local oracle in each module *)   
+   ; det_local_oracle (pr: prog) :
+     forall fn m sz, mod_mem pr fn = Some m ->
+                     local_oracle m fn = Some sz ->
+                                       oracle pr fn = Some sz      
+  }.
+
 
 End POINTER.
 
