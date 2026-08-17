@@ -6,7 +6,8 @@ From mathcomp Require Import ssralg word_ssrZ.
 Require Import strings wsize utils.
 Import Utf8 ZArith Lia.
 Require Import ssrring.
-Require Import word_core.
+(* Require Import word_core. *)
+Require Import word.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 

@@ -109,10 +109,28 @@ HB.instance Definition _ := hasDecEq.Build FunName FunName_eqMixin.
 (*******************************************************************)
 
 Variant Permission : Type :=
-  Bot | FO | WO | RO | FWO | FRO | WRO | Top. 
+  Bot | FWO | Top. 
 
-Definition PermMap : Type := FunName -> Permission. 
+Definition le_POrd (p1 p2: Permission) : bool :=
+  match (p1, p2) with
+  | (_, Top) => true
+  | (FWO, FWO) => true
+  | (Bot, _) => true
+  | _ => false end.                
 
+Definition PermSel (p1 p2: Permission) : Permission :=
+  if le_POrd p1 p2 then p2 else p1.
+
+Definition PMap : Type := pointer -> Permission.
+
+Definition empty_pmap : PMap := fun _ => Bot.
+
+Definition max_pmap (m1 m2: PMap) : PMap :=
+  fun p => PermSel (m1 p) (m2 p).
+
+Definition le_pmap (m1 m2: PMap) : Prop :=
+  forall p, le_POrd (m1 p) (m2 p).
+  
 Definition is_FWO (p: Permission) : bool :=
   match p with
   | FWO => true
@@ -171,23 +189,19 @@ Definition chunk_bpred_incl (c: (pointer * Sz)) (bp: pointer -> bool) :=
 Definition chunk_pred_incl (c: (pointer * Sz)) (bp: pointer -> Prop) :=
   forall p, in_chunk c p -> bp p.
 
-Definition pw_set_pmap (cf1: pointer -> PermMap) (p: pointer) (fn: FunName)
-  (x: Permission) : pointer -> PermMap :=
-  fun p0 => match p == p0 with
-    | true => fun fn0 => match fn == fn0 with
-                         | true => x
-                         | false => cf1 p0 fn0 end              
+Definition pw_set_pmap (cf1: PMap) (p: pointer) (x: Permission) : PMap :=
+  fun p0 => match p0 == p with
+    | true => x              
     | false => cf1 p0 end.               
 
-Definition chunk_pmap_eq (cf1 cf2: pointer -> PermMap)
-  (c: (pointer * Sz)) : Prop :=
-  chunk_pred_incl c (fun p => forall fn, cf1 p fn = cf2 p fn).
+Definition chunk_pmap_eq (cf1 cf2: PMap) (c: (pointer * Sz)) : Prop :=
+  chunk_pred_incl c (fun p => cf1 p = cf2 p).
 
-Definition chunk_set_pmap_eq (cf1 cf2: pointer -> PermMap)
-  (c: (pointer * Sz)) fn x : Prop :=
-  forall p0 fn0, if (bIn_chunk c p0) && (fn0 == fn) 
-                 then cf2 p0 fn0 = x 
-                 else cf2 p0 fn0 = cf1 p0 fn0.   
+Definition chunk_set_pmap_eq (cf1 cf2: PMap)
+  (c: (pointer * Sz)) x : Prop :=
+  forall p0, if (bIn_chunk c p0) 
+             then cf2 p0 = x 
+             else cf2 p0 = cf1 p0.   
 
 
 (**************************************************************************)
@@ -225,10 +239,14 @@ Class coreMem (mem: Type) (BM: baseMem mem) (FM: finMem BM) := CoreMem {
     ; set : mem -> pointer -> u8 -> exec mem                    
     ; validR : mem -> pointer -> Sz -> bool 
     ; validW : mem -> pointer -> Sz -> bool
+    ; wk_validR (m: mem) (p: pointer) : bool :=
+        validR m p u8_size || (~~ is_align p U8)
+    ; wk_validW (m: mem) (p: pointer) : bool :=
+        validW m p u8_size || (~~ is_align p U8)           
     ; invalid (m: mem) (p: pointer) (sz: Sz) : bool :=
         (~~ validR m p sz) && (~~ validW m p sz)
-    ; wk_invalid (m: mem) (p: pointer) (sz: Sz) : bool :=
-        (invalid m p sz) || (~~ is_align p U8)
+    ; wk_invalid (m: mem) (p: pointer) : bool :=
+        (invalid m p u8_size) || (~~ is_align p U8)
 
    ; get_reflectP (m: mem) : forall p,
        reflect (exists w, get m p = ok w) (validR m p u8_size)
@@ -263,7 +281,7 @@ Class memP (mem: Type) (BM: baseMem mem) (FM: finMem BM) (RM: coreMem FM)
 
     fresh_loc_stackP (m: mem) (sz: Sz) :
        let p := fresh_loc m true sz in                                
-       chunk_bpred_incl (p, sz) (fun p0 => wk_invalid m p0 u8_size) 
+       chunk_bpred_incl (p, sz) (wk_invalid m) 
 
  ; alloc_frameP (m: mem) (p: pointer) (sz: Sz) :
      forall m',  
@@ -271,19 +289,16 @@ Class memP (mem: Type) (BM: baseMem mem) (FM: finMem BM) (RM: coreMem FM)
           (alloc_frame m p sz = ok m') ->
           (chunk_intv_incl (p, sz) (stack_root m, stack_limit m)) /\ 
           (baseMem_eq BM m m') /\
-          (chunk_bpred_incl (p, sz)  
-               (fun p0 => validW m p0 u8_size)) 
+          (chunk_bpred_incl (p, sz) (wk_validW m)) 
 
  ; free_frameP (m: mem) (p: pointer) (sz: Sz) :    
      forall m',
           p = stack_top m ->
           (free_frame m p sz = ok m') ->
-          (chunk_bpred_incl (p, sz)
-                  (fun p0 => validW m p0 sz)) /\
+          (chunk_bpred_incl (p, sz) (wk_validW m)) /\
           (baseMem_eq BM m m') /\
           (pointer_off_eq (stack_top m') (stack_top m) sz) /\
-          chunk_bpred_incl (p, sz)  
-                     (fun p0 => wk_invalid m p0 u8_size) 
+          chunk_bpred_incl (p, sz) (wk_invalid m) 
 
  ; zeroize_ptP (m: mem) (p: pointer) :
       forall m',  
@@ -327,7 +342,81 @@ Class progMem (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
         (exists fn, mod_defined md1 fn /\ mod_defined md2 fn) ->
         md1 = md2             
 }.                                                        
-                                                   
+
+(* adding permissions, with properties *)
+Class stackMem (mem: Type) (BM: baseMem mem) (FM: finMem BM)
+  (CM: coreMem FM) (AM: absMem mem): Type := StackMem {
+    abs_stack (m: mem) : list PMap
+
+  ; astack_hd (m: mem) : PMap := head empty_pmap (abs_stack m)
+
+  ; astack_hd2 (m: mem) : PMap := head empty_pmap (List.tail (abs_stack m))
+                                      
+  ; validWP (m: mem) (p: pointer) (sz: Sz) (fn: FunName) :
+       validW m p sz <-> 
+           chunk_bpred_incl (p, sz)  
+             (fun p0 => is_FWO (astack_hd m p0))
+             
+  ; validRP (m: mem) (p: pointer) (sz: Sz) :
+       validR m p sz <-> 
+           chunk_bpred_incl (p, sz)  
+             (fun p0 => is_Top (astack_hd m p0))
+
+ (* push to the stack *)            
+ ; alloc_frameP2 (m: mem) (p: pointer) (sz: Sz) :
+     forall m',
+          let p := fresh_loc m true sz in        
+          (alloc_frame m p sz = ok m') ->
+          (exists pm0 pm1, le_pmap pm0 (astack_hd m) /\
+            (chunk_set_pmap_eq pm0 pm1 (p, sz) FWO) /\
+            abs_stack m' = pm1 :: (abs_stack m))
+
+ (* pop the head of the stack, but also need to hoist the new head, to
+    account for possible callee zeroization on caller parameters *)  
+ ; free_frameP2 (m: mem) (p: pointer) (sz: Sz) :
+     forall m',
+          p = stack_top m ->
+          (free_frame m p sz = ok m') ->
+          exists pm0, 
+            (chunk_set_pmap_eq (astack_hd m) pm0 (p, sz) Bot) /\
+            abs_stack m' =
+              (max_pmap pm0 (astack_hd2 m)) ::
+                (List.tail (List.tail (abs_stack m))) 
+}.
+
+(* all together *)
+Class fullMem (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
+  (RM: coreMem FM) (AM: absMem mem) 
+  (PM: @memP mem BM FM RM AM) (PMM: progMod mem)
+  (PM2: @progMem prog mem BM FM RM AM PM PMM) (CM: stackMem RM AM)          
+  : Type := FullMem {}.
+
+
+
+
+(*** NOT USED ******************************************************)
+
+Definition PermMap : Type := FunName -> Permission. 
+
+Definition pw_set_pmap' (cf1: pointer -> PermMap) (p: pointer) (fn: FunName)
+  (x: Permission) : pointer -> PermMap :=
+  fun p0 => match p == p0 with
+    | true => fun fn0 => match fn == fn0 with
+                         | true => x
+                         | false => cf1 p0 fn0 end              
+    | false => cf1 p0 end.               
+
+Definition chunk_pmap_eq' (cf1 cf2: pointer -> PermMap)
+  (c: (pointer * Sz)) : Prop :=
+  chunk_pred_incl c (fun p => forall fn, cf1 p fn = cf2 p fn).
+
+Definition chunk_set_pmap_eq' (cf1 cf2: pointer -> PermMap)
+  (c: (pointer * Sz)) fn x : Prop :=
+  forall p0 fn0, if (bIn_chunk c p0) && (fn0 == fn) 
+                 then cf2 p0 fn0 = x 
+                 else cf2 p0 fn0 = cf1 p0 fn0.   
+
+
 (* adding permissions, with properties *)
 Class capMem (mem: Type) (BM: baseMem mem) (FM: finMem BM)
   (CM: coreMem FM) (AM: absMem mem): Type := CapMem {
@@ -335,62 +424,57 @@ Class capMem (mem: Type) (BM: baseMem mem) (FM: finMem BM)
 
   ; capability : mem -> pointer -> PermMap
                                                         
-  ; validWP (m: mem) (p: pointer) (sz: Sz) (fn: FunName) :
+  ; validWP' (m: mem) (p: pointer) (sz: Sz) (fn: FunName) :
        let fn := exec_fun m in 
        validW m p sz <-> 
            chunk_bpred_incl (p, sz)  
              (fun p0 => is_FWO (capability m p0 fn))
              
-  ; validRP (m: mem) (p: pointer) (sz: Sz) (fn: FunName) :
+  ; validRP' (m: mem) (p: pointer) (sz: Sz) (fn: FunName) :
        let fn := exec_fun m in 
        validR m p sz <-> 
            chunk_bpred_incl (p, sz)  
              (fun p0 => is_Top (capability m p0 fn))
 
- ; alloc_frameP2 (m: mem) (p: pointer) (sz: Sz) :
+ ; alloc_frameP2' (m: mem) (p: pointer) (sz: Sz) :
      let fn := exec_fun m in    
      forall m',
           let p := fresh_loc m true sz in        
           (alloc_frame m p sz = ok m') ->
-          (chunk_set_pmap_eq (capability m) (capability m')
+          (chunk_set_pmap_eq' (capability m) (capability m')
                 (p, sz) fn FWO)
 
- ; free_frameP2 (m: mem) (p: pointer) (sz: Sz) :
+ ; free_frameP2' (m: mem) (p: pointer) (sz: Sz) :
      forall m',
           p = stack_top m ->
           (free_frame m p sz = ok m') ->
-          forall fn, (chunk_set_pmap_eq (capability m) (capability m')
+          forall fn, (chunk_set_pmap_eq' (capability m) (capability m')
                             (p, sz) fn Bot)
 }.
 
-(* all together *)
-Class fullMem (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
-  (RM: coreMem FM) (AM: absMem mem) 
-  (PM: @memP mem BM FM RM AM) (PMM: progMod mem)
-  (PM2: @progMem prog mem BM FM RM AM PM PMM) (CM: capMem RM AM)          
-  : Type := FullMem {}.
 
 
-(*** NOT USED ******************************************************)
+Variant Permission1 : Type :=
+  Bot1 | FO1 | WO1 | RO1 | FWO1 | FRO1 | WRO1 | Top1. 
 
-Definition can_write (p: Permission) : bool :=
+Definition can_write (p: Permission1) : bool :=
   match p with
-  | WO | FWO | WRO | Top => true
+  | WO1 | FWO1 | WRO1 | Top1 => true
   | _ => false end.                            
 
-Definition can_read (p: Permission) : bool :=
+Definition can_read (p: Permission1) : bool :=
   match p with
-  | RO | FRO | WRO | Top => true
+  | RO1 | FRO1 | WRO1 | Top1 => true
   | _ => false end.                            
 
-Definition can_free (p: Permission) : bool :=
+Definition can_free (p: Permission1) : bool :=
   match p with
-  | FO | FWO | FRO | Top => true
+  | FO1 | FWO1 | FRO1 | Top1 => true
   | _ => false end.                            
 
-Definition can_allocate (p: Permission) : bool :=
+Definition can_allocate (p: Permission1) : bool :=
   match p with
-  | Bot => true
+  | Bot1 => true
   | _ => false end.                            
 
 (* chunks going backward *)
@@ -432,8 +516,10 @@ Definition bkchunk_set_pmap_eq (cf1 cf2: pointer -> PermMap)
 (* DONE 1. remove local oracles, add weak oracle consistency with stack
    size, add linking properties *)
 
-(* 2. switch from permission (pointer and fuction) maps to
+(* DONE 2. switch from permission (pointer and fuction) maps to
    capabilities (pointer maps) *)
+
+(* DONE 3. fix validity wrt alignment *)
 
 End POINTER.
 
