@@ -208,9 +208,10 @@ Lemma x86_lassign_correct s x ws e (w : word ws) s':
 Proof.
   move=> /=; t_xrbindP => v -> /= hv hwr.
   rewrite /exec_sopn /=.
-  case: ifP => /= h; rewrite hv /= /sopn_sem /sopn_sem_ /= /semi_to_atype computational_eq_refl.
-  + by rewrite /x86_MOV /= /size_8_64 h /= hwr.
-  by rewrite /x86_VMOVDQ (wsize_nle_u64_size_128_256 h) /= hwr.
+  case: ifP => /= h.
+  2: rewrite sopn_sem_VMOVDQ nle_u64_u128_le h /=; case: aligned_of_lexpr.
+  1: rewrite /sopn_sem /sopn_sem_ /= /size_8_64 h.
+  all: by rewrite /= hv /= /sopn_sem_ /= /semi_to_atype computational_eq_refl /= hwr.
 Qed.
 
 Lemma x86_lmove_correct : lmove_correct x86_liparams.

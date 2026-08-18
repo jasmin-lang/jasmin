@@ -18,6 +18,8 @@ Require Import
 Require Export arch_extra.
 Import sopn.
 
+Notation VMOVDQ al := (if al is Aligned then VMOVDQA else VMOVDQU).
+
 Module E.
 
 Definition pass_name := "asmgen"%string.
