@@ -5,7 +5,7 @@ stages:
 - test
 - deploy
 
-image: nixos/nix:2.24.15
+image: nixos/nix:2.34.8
 
 variables:
   EXTRA_SUBSTITUTERS: https://jasmin.cachix.org
