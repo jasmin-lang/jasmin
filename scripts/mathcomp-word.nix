@@ -2,7 +2,7 @@
 
 let inherit (coqPackages) coq; in
 
-let rev = "8a69be8d171dbc6479d0df6371428e2beac6a3cd"; in
+let rev = "3df23a6ea0bffdeaf9211368cf6d4b46e2d0ebd0"; in
 
 stdenv.mkDerivation rec {
   version = "3.5-git-${builtins.substring 0 8 rev}";
@@ -12,7 +12,7 @@ stdenv.mkDerivation rec {
     owner = "jasmin-lang";
     repo = "coqword";
     inherit rev;
-    hash = "sha256-Wyoa0rj38qxR9lLLC1MN+QCZZgKuXMtW9h5jA1AjoQE=";
+    hash = "sha256-tPrVwYn783LKzkbW0aDX3frpgW7uFOh/z0wOZQhZaao=";
   };
 
   buildInputs = [ coq ocaml dune ];
