@@ -1,0 +1,9 @@
+export
+fn toto () -> reg u64 {
+   reg u128 v;
+   reg u64 r;
+   v = 1;
+   v = v >>s4u32 1;
+   r = 0;
+   return r;
+}

@@ -829,8 +829,13 @@ let op_info exn op (s : W.signedness option) (castop:S.castop) ty ws_cmp vs_cmp 
       in
       check_op_w loc op ty s ws_cmp
 
-    | CVS(vs,s,ve) ->
-      let s = tt_sign s in
+    | CVS(vs,sg,ve) ->
+      let s1 = tt_sign sg in
+      let s =
+        Option.map_default
+          (fun s -> if s = s1 then s1 else rs_tyerror ~loc (InvalidOperator op))
+          s1 s
+      in
       let ve, ws = tt_vsize_op loc op vs ve in
       check_op_vec loc op vs_cmp (W.wsize_of_velem ve);
       OpKV(s, ve, ws)
