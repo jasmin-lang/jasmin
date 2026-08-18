@@ -62,10 +62,8 @@ let inherit (coqPackages.coq) ocamlPackages; in
 
 let oP =
   if enableFramePointers
-  then ocamlPackages.overrideScope' (self: super: {
-    ocaml = super.ocaml.overrideAttrs (o: {
-      configureFlags = o.configureFlags ++ [ "--enable-frame-pointers" ];
-    });
+  then ocamlPackages.overrideScope (self: super: {
+      ocaml = super.ocaml.override { framePointerSupport = true; };
   })
   else ocamlPackages
 ; in
@@ -86,12 +84,12 @@ stdenv.mkDerivation {
       coqPackages.ITree
     ]
     ++ optionals testDeps ([ curl.bin oP.apron.out llvmPackages.bintools-unwrapped ] ++ (with python3Packages; [ python pyyaml ]))
-    ++ optionals ocamlDeps ([ mpfr ppl ] ++ (with oP; [
-         ocaml findlib dune_3
+    ++ optionals ocamlDeps ([ dune ppl ] ++ (with oP; [
+         ocaml findlib
          cmdliner
          angstrom
          batteries
-         menhir (oP.menhirLib or null) zarith camlidl apron yojson ]))
+         menhir menhirLib zarith apron yojson ]))
     ++ optionals devTools (with oP; [ merlin ocaml-lsp ])
     ++ optionals ecDeps [ easycrypt z3.out ]
     ++ optionals opamDeps [ rsync git pkg-config perl ppl mpfr opam ]
