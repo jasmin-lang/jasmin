@@ -287,7 +287,6 @@ push-compiler-code:
   needs:
   - tarball
   before_script:
-  - nix-env -iA nixpkgs.git
   - nix-env -iA nixpkgs.openssh
   - eval $(ssh-agent -s)
   - mkdir -p ~/.ssh
