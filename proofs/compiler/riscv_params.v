@@ -125,12 +125,10 @@ Definition riscv_lmove (xd xs : var_i) :=
 
 Definition riscv_check_ws ws := ws == reg_size.
 
-Definition riscv_lstore (xd : var_i) (ofs : Z) (xs : var_i) :=
-  let ws := reg_size in
+Definition riscv_lstore (ws: wsize) (xd : var_i) (ofs : Z) (xs : var_i) :=
   ([:: Store Aligned ws (faddv Uptr xd (fconst ws ofs))], Oriscv (STORE ws), [:: Rexpr (Fvar xs)]).
 
-Definition riscv_lload (xd : var_i) (xs: var_i) (ofs : Z) :=
-  let ws := reg_size in
+Definition riscv_lload (ws: wsize) (xd : var_i) (xs: var_i) (ofs : Z) :=
   ([:: LLvar xd], Oriscv (LOAD Signed ws), [:: Load Aligned ws (faddv Uptr xs (fconst ws ofs))]).
 
 Definition riscv_liparams : linearization_params :=

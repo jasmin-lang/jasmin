@@ -224,8 +224,7 @@ Qed.
 
 Lemma x86_lstore_correct : lstore_correct_aux x86_check_ws x86_lstore.
 Proof.
-  move=> xd xs ofs ws w wp s m htxs _ hgetd hgets hwr.
-  rewrite /x86_lstore (wsize_of_atypeP (convertible_eval_atype htxs)).
+  move=> xd xs ofs ws w wp s m _ _ hgetd hgets hwr.
   apply: x86_lassign_correct => /=; first by apply hgets.
   move: hgetd; t_xrbindP => ? hgetd hto.
   by rewrite hgetd /= /sem_sop2 /= hto /= !truncate_word_u /= truncate_word_u /= hwr.
@@ -236,8 +235,7 @@ Proof. apply/lstores_dfl_correct/x86_lstore_correct. Qed.
 
 Lemma x86_lload_correct : lload_correct_aux (lip_check_ws x86_liparams) x86_lload.
 Proof.
-  move=> xd xs ofs ws top s w vm hc hcheck; t_xrbindP => ? hgets hto hread hset.
-  rewrite /x86_lload (wsize_of_atypeP (convertible_eval_atype hc)).
+  move=> xd xs ofs ws top s w vm _ hcheck; t_xrbindP => ? hgets hto hread hset.
   apply: x86_lassign_correct => /=.
   + rewrite hgets /= /sem_sop2 /= hto /=.
     by rewrite !truncate_word_u /= truncate_word_u /= hread /= truncate_word_u.

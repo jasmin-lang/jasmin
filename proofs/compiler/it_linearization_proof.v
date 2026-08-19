@@ -390,7 +390,7 @@ Definition lstore_correct_aux lip_check_ws lip_lstore :=
     (get_var true (evm s) xd >>= to_word Uptr) = ok wp ->
     (get_var true (evm s) xs >>= to_word ws) = ok w ->
     write (emem s) Aligned (wp + wrepr Uptr ofs)%R w = ok m ->
-    sem_fopn_args (lip_lstore xd ofs xs) s = ok (with_mem s m).
+    sem_fopn_args (lip_lstore ws xd ofs xs) s = ok (with_mem s m).
 
 Definition lstore_correct := lstore_correct_aux (lip_check_ws liparams) (lip_lstore liparams).
 
@@ -401,7 +401,7 @@ Definition lload_correct_aux lip_check_ws lip_lload :=
     (get_var true (evm s) xs >>= to_word Uptr) = ok wp ->
     read (emem s) Aligned (wp + wrepr Uptr ofs)%R ws = ok w ->
     set_var true (evm s) xd (Vword w) = ok vm ->
-    sem_fopn_args (lip_lload xd xs ofs) s = ok (with_vm s vm).
+    sem_fopn_args (lip_lload ws xd xs ofs) s = ok (with_vm s vm).
 
 Definition lload_correct := lload_correct_aux (lip_check_ws liparams) (lip_lload liparams).
 
@@ -490,8 +490,8 @@ Section DEFAULT.
 
 Context (lip_tmp2 : Ident.ident).
 Context (lip_check_ws : wsize -> bool)
-        (lip_lstore  : var_i -> Z -> var_i -> fopn_args)
-        (lip_lload   : var_i -> var_i -> Z -> fopn_args)
+        (lip_lstore  : wsize -> var_i -> Z -> var_i -> fopn_args)
+        (lip_lload   : wsize -> var_i -> var_i -> Z -> fopn_args)
         (lip_add_imm : var_i -> var_i -> Z -> seq fopn_args)
         (lip_imm_small : Z -> bool).
 
@@ -601,7 +601,7 @@ Proof using lload_correct.
   move=> vm2' hchk w hread hset ?; subst vm2'.
   have [+ hget2]:= lloads_aux_correct hnin hget hf.
   rewrite /lloads_aux map_cat sem_fopns_args_cat => -> /=.
-  rewrite
+  rewrite heqt
     (lload_correct
       (xd := VarI rspi dummy_var_info) (s:= with_vm s vm1)
       _ hchk hget2 hread hset);
@@ -678,7 +678,7 @@ Section HLIPARAMS.
     truncate_word Uptr wy = ok wy' ->
     get_var true (lvm ls) x >>= to_pointer = ok wx ->
     write (lmem ls) Aligned (wx + wrepr Uptr ofs)%R wy' = ok m ->
-    let: li := lstore liparams ii x ofs y in
+    let: li := lstore liparams ii Uptr x ofs y in
     eval_instr lp li ls = ok (lnext_pc (lset_mem ls m)).
   Proof using hliparams.
     move=> hty hgy htr hgx hw /=.
@@ -691,7 +691,7 @@ Section HLIPARAMS.
     convertible (vtype x) (aword Uptr) ->
     get_var true (lvm ls) y >>= to_pointer = ok wy ->
     read (lmem ls) Aligned (wy + wrepr Uptr ofs)%R Uptr = ok wx ->
-    let: li := lload liparams ii x y ofs in
+    let: li := lload liparams ii Uptr x y ofs in
     eval_instr lp li ls = ok (lnext_pc (lset_vm ls ls.(lvm).[x <- Vword wx])).
   Proof using hliparams.
     move=> hty hgy hread /=.
@@ -3303,8 +3303,8 @@ End ILSTEPS_END.
     find_label xH (lfd_body (linear_fd f fd).2) = ok 0.
   Proof. by rewrite /linear_fd /linear_body; case: sf_return_address. Qed.
 
-  Lemma is_label_lstore ii lbl x ofs y :
-    is_label lbl (lstore liparams ii x ofs y) = false.
+  Lemma is_label_lstore ii lbl ws x ofs y :
+    is_label lbl (lstore liparams ii ws x ofs y) = false.
   Proof. done. Qed.
 
   Lemma preserved_metadata_store_top_stack m1 ws sz ioff sz' m1' m2 (ptr : word Uptr) m2' :
