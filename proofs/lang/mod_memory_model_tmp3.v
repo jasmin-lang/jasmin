@@ -177,19 +177,30 @@ Definition chunk_set_pmap_eq (cf1 cf2: PMap)
 (**************************************************************************)
 
 (* the fixed part of a module memory structure *)
-Class baseMem (mem: Type) : Type := BaseMem {  
+Class baseMem (mem: Type) : Type := BaseMem {
       stack_root : mem -> pointer
     ; stack_limit : mem -> pointer
     ; gblocks : mem -> seq (pointer * Sz)
-  }.                                        
 
-Context (baseMem_eq : forall {mem: Type} {X: baseMem mem} (m1 m2: mem), Prop).
+    ; baseMem_eq (m1 m2: mem) : Prop
+    ; baseMem_eqP m1 m2 : baseMem_eq m1 m2 ->
+        stack_root m1 = stack_root m2 /\
+        stack_limit m1 = stack_limit m2 /\
+        gblocks m1 = gblocks m2  
+}.                                        
+
+(* Context (baseMem_eq : forall {mem: Type} {X: baseMem mem} (m1 m2: mem), Prop). *)
 
 (* dynamic part of a module memory structure, with basic properties *)
-(* root >= top > limit >= 0 *)
+(* gblocks > context root >= stack root >= stack top > stack limit >= 0 *)
 Class finMem (mem: Type) (BM: baseMem mem) : Type := FinMem {         
      frames : mem -> seq (pointer * Sz)
-                                                                               
+                                                                             
+   ; context_root : mem -> pointer
+
+   ; context : mem -> seq (pointer * Sz)                                                                                                      
+   ; stack_below_context (m: mem) :
+       p2Z (stack_root m) <= p2Z (context_root m)                                                                                            
    ; stack_head m : (pointer * Sz) :=
        head (stack_root m, null_size) (frames m)
             
@@ -201,6 +212,8 @@ Class finMem (mem: Type) (BM: baseMem mem) : Type := FinMem {
    ; stack_max_size (m: mem) := p2Z (stack_root m) - p2Z (stack_limit m)
 
    ; stack_current_size (m: mem) := p2Z (stack_root m) - p2Z (stack_top m)      
+
+   ; context_size (m: mem) := p2Z (context_root m) - p2Z (stack_root m)
 }.                                       
 
 (* memory data operations: get, set, valid, with basic properties *)
@@ -218,6 +231,11 @@ Class coreMem (mem: Type) (BM: baseMem mem) (FM: finMem BM) := CoreMem {
     ; wk_invalid (m: mem) (p: pointer) : bool :=
         (invalid m p u8_size) || (~~ is_align p U8)
 
+   ; coreMem_eq (m1 m2: mem) : Prop 
+
+   ; coreMem_eqP m1 m2 := baseMem_eq m1 m2 /\
+       forall p, get m1 p = get m2 p                           
+     
    ; get_reflectP (m: mem) : forall p,
        reflect (exists w, get m p = ok w) (validR m p u8_size)
 
@@ -258,7 +276,7 @@ Class memP (mem: Type) (BM: baseMem mem) (FM: finMem BM) (RM: coreMem FM)
           let p := fresh_loc m true sz in        
           (alloc_frame m p sz = ok m') ->
           (chunk_intv_incl (p, sz) (stack_root m, stack_limit m)) /\ 
-          (baseMem_eq BM m m') /\
+          (coreMem_eq m m') /\
           (chunk_bpred_incl (p, sz) (wk_validW m)) 
 
  ; free_frameP (m: mem) (p: pointer) (sz: Sz) :    
@@ -266,7 +284,7 @@ Class memP (mem: Type) (BM: baseMem mem) (FM: finMem BM) (RM: coreMem FM)
           p = stack_top m ->
           (free_frame m p sz = ok m') ->
           (chunk_bpred_incl (p, sz) (wk_validW m)) /\
-          (baseMem_eq BM m m') /\
+          (coreMem_eq m m') /\
           (pointer_off_eq (stack_top m') (stack_top m) sz) /\
           chunk_bpred_incl (p, sz) (wk_invalid m) 
 
@@ -314,9 +332,12 @@ Class stackMem (mem: Type) (BM: baseMem mem) (FM: finMem BM)
   (CM: coreMem FM) (AM: absMem mem): Type := StackMem {
     abs_stack (m: mem) : list PMap
 
-  ; astack_hd (m: mem) : PMap := head empty_pmap (abs_stack m)
+  ; context_pmap (m: mem) : PMap 
+                                                   
+  ; astack_hd (m: mem) : PMap := head (context_pmap m) (abs_stack m)
 
-  ; astack_hd2 (m: mem) : PMap := head empty_pmap (List.tail (abs_stack m))
+  ; astack_hd2 (m: mem) : PMap :=
+      head (context_pmap m) (List.tail (abs_stack m))
                                        
   ; validWP (m: mem) (p: pointer) (sz: Sz) :
        validW m p sz <-> 
@@ -350,17 +371,24 @@ Class stackMem (mem: Type) (BM: baseMem mem) (FM: finMem BM)
                 (List.tail (List.tail (abs_stack m))) 
 
   (* m0 and m1: input and output of the external call requiring sz in
-  the stack, pm0 required permissions, pm1 and pm2 lower and upper
-  bound of guarantted permissions *)                                     
+  the stack, pm0 required permissions (before callee allocation), pm1
+  and pm2 lower and upper bound of guaranteed permissions (after
+  callee deallocation) *)                                     
   ; ext_call_ok (m0 m1: mem) (pm0 pm1 pm2: PMap) (sz: Sz) : Prop :=
       sz2Z sz <= stack_current_size m0 /\
       le_pmap pm1 pm2 /\ 
       le_pmap pm0 (astack_hd m0) /\
       le_pmap pm1 (astack_hd m1) /\
-      le_pmap (astack_hd m1) pm2        
-}.
+      le_pmap (astack_hd m1) pm2
 
-(* NOTE: need to introduce notion of base frame for the context *)
+  (* linking callee to the caller m0; import context and frames of m0
+  as context into m1 *)                     
+  ; linking_callee (m0 m1: mem) : Prop :=
+      context_size m1 = stack_current_size m0 + context_size m0 /\
+      context m1 = frames m0 ++ context m0 /\
+      p2Z (stack_limit m1) <= p2Z (stack_limit m0) /\
+      le_pmap (context_pmap m1) (astack_hd m0)   
+}.
 
 (* all together *)
 Class fullMem (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
@@ -368,6 +396,34 @@ Class fullMem (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
   (PM: @memP mem BM FM RM AM) (PMM: progMod mem)
   (PM2: @progMem prog mem BM FM RM AM PM PMM) (CM: stackMem RM AM)          
   : Type := FullMem {}.
+
+End POINTER.
+
+
+
+(*              
+  (* from m0 to m1, merges the stack into the context *)            
+  ; stack2context (m0 m1: mem) : Prop :=
+      coreMem_eq m0 m1 /\
+      stack_root m1 = stack_top m0 /\
+      context m1 = frames m0 ++ context m0 /\
+      frames m1 = nil /\
+      abs_stack m1 = nil /\  
+      context_pmap m1 = astack_hd m0  
+
+  (* import context and frames of m0 as context into m1  *)                     
+  ; linking_callee (m0 m1: mem) : Prop :=
+      stack_top m0 = context_root m0 /\
+      stack_current_size m0 = context_size m1 /\
+      p2Z (stack_limit m1) <= p2Z (stack_limit m0) /\
+      context m1 = context m0 /\
+      le_pmap (context_pmap m1) (astack_hd m0)   
+}.
+*)
+
+(* NOTE: context and frames are both class attributes, but
+    instance-wise frames is going to be a record field, context is
+    going to be a parameter *)
 
 
 
@@ -408,7 +464,7 @@ HB.instance Definition _ := hasDecEq.Build FunName FunName_eqMixin.
 
 (*******************************************************************)
 
-
+(*
 Definition PermMap : Type := FunName -> Permission. 
 
 Definition pw_set_pmap' (cf1: pointer -> PermMap) (p: pointer) (fn: FunName)
@@ -534,7 +590,9 @@ Definition bkchunk_set_pmap_eq (cf1 cf2: pointer -> PermMap)
 
 (* DONE 3. fix validity wrt alignment *)
 
-End POINTER.
+(* DONE: need to introduce notion of base frame for the context *)
+*)
+
 
 
 (*******************************************************************)
