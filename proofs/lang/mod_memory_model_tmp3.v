@@ -144,6 +144,9 @@ Definition bIn_chunk (c: (pointer * Sz)) (p: pointer) : bool :=
   let d := sz2Z (snd c) in
   let z0 := p2Z p in (Z.ltb z z0) && (Z.leb z0 (z + d)).
 
+Definition bIn_chunks (cs: seq (pointer * Sz)) (p: pointer) : bool :=
+  foldr (fun c r => bIn_chunk c p || r) false cs.
+
 Definition chunk_incl (c1 c2: (pointer * Sz)) :=
   forall p, in_chunk c1 p -> in_chunk c2 p.
 
@@ -198,15 +201,18 @@ Class finMem (mem: Type) (BM: baseMem mem) : Type := FinMem {
                                                                              
    ; context_root : mem -> pointer
 
-   ; context : mem -> seq (pointer * Sz)                                                                                                      
+   ; context : mem -> seq (pointer * Sz)
+                          
    ; stack_below_context (m: mem) :
-       p2Z (stack_root m) <= p2Z (context_root m)                                                                                            
+     p2Z (stack_root m) <= p2Z (context_root m)
+                               
    ; stack_head m : (pointer * Sz) :=
        head (stack_root m, null_size) (frames m)
             
    ; stack_top m : pointer := fst (stack_head m)
                                    
-   ; stack_top_below_root (m: mem) : p2Z (stack_top m) <= p2Z (stack_root m)                                                                                 
+   ; stack_top_below_root (m: mem) : p2Z (stack_top m) <= p2Z (stack_root m)
+                                                              
    ; stack_limit_below_top (m: mem) : p2Z (stack_limit m) < p2Z (stack_top m) 
                                     
    ; stack_max_size (m: mem) := p2Z (stack_root m) - p2Z (stack_limit m)
@@ -231,25 +237,30 @@ Class coreMem (mem: Type) (BM: baseMem mem) (FM: finMem BM) := CoreMem {
     ; wk_invalid (m: mem) (p: pointer) : bool :=
         (invalid m p u8_size) || (~~ is_align p U8)
 
-   ; coreMem_eq (m1 m2: mem) : Prop 
+    ; coreMem_impl (m1 m2: mem) : Prop
 
-   ; coreMem_eqP m1 m2 := baseMem_eq m1 m2 /\
+    ; coreMem_implP m1 m2 := forall p w,
+        get m1 p = ok w -> get m2 p = ok w                                    
+                                 
+    ; coreMem_eq (m1 m2: mem) : Prop 
+
+    ; coreMem_eqP m1 m2 := baseMem_eq m1 m2 /\
        forall p, get m1 p = get m2 p                           
      
-   ; get_reflectP (m: mem) : forall p,
+    ; get_reflectP (m: mem) : forall p,
        reflect (exists w, get m p = ok w) (validR m p u8_size)
 
-   ; set_reflectP (m: mem) : forall p w,
+    ; set_reflectP (m: mem) : forall p w,
        reflect (exists m', set m p w = ok m') (validW m p u8_size)
 
-   ; setP (m: mem) :
+    ; setP (m: mem) :
        forall p w w0 w' p' m',
          set m p w = ok m' ->
          get m p' = ok w0 ->
          get m' p' = ok w' ->
          if p == p' then w' == w else w' == w0 
 
-   ; set_preserveP (m: mem) : forall p w,
+    ; set_preserveP (m: mem) : forall p w,
        forall m', set m p w = ok m' ->
             (forall sz, validR m p sz -> validR m' p sz)  
             /\ (forall sz, validW m p sz -> validW m' p sz)
@@ -371,23 +382,26 @@ Class stackMem (mem: Type) (BM: baseMem mem) (FM: finMem BM)
                 (List.tail (List.tail (abs_stack m))) 
 
   (* m0 and m1: input and output of the external call requiring sz in
-  the stack, pm0 required permissions (before callee allocation), pm1
-  and pm2 lower and upper bound of guaranteed permissions (after
+  the stack, pmR required permissions (before callee allocation), pmG1
+  and pmG2 lower and upper bound of guaranteed permissions (after
   callee deallocation) *)                                     
-  ; ext_call_ok (m0 m1: mem) (pm0 pm1 pm2: PMap) (sz: Sz) : Prop :=
+  ; ext_call_ok (m0 m1: mem) (pmR pmG1 pmG2: PMap) (sz: Sz) : Prop :=
       sz2Z sz <= stack_current_size m0 /\
-      le_pmap pm1 pm2 /\ 
-      le_pmap pm0 (astack_hd m0) /\
-      le_pmap pm1 (astack_hd m1) /\
-      le_pmap (astack_hd m1) pm2
+      le_pmap pmG1 pmG2 /\ 
+      le_pmap pmR (astack_hd m0) /\
+      le_pmap pmG1 (astack_hd m1) /\
+      le_pmap (astack_hd m1) pmG2
 
-  (* linking callee to the caller m0; import context and frames of m0
-  as context into m1 *)                     
-  ; linking_callee (m0 m1: mem) : Prop :=
+  (* m1 is the linking of the callee to the caller m0, given rely
+     permissions pmR; basically, it imports context and frames of m0
+     as context into m1 *)                     
+  ; input_callee (m0 m1: mem) (pmR: PMap) : Prop :=
       context_size m1 = stack_current_size m0 + context_size m0 /\
       context m1 = frames m0 ++ context m0 /\
+      frames m1 = nil /\  
       p2Z (stack_limit m1) <= p2Z (stack_limit m0) /\
-      le_pmap (context_pmap m1) (astack_hd m0)   
+      le_pmap (context_pmap m1) (astack_hd m0) /\
+      context_pmap m1 = pmR          
 }.
 
 (* all together *)
@@ -399,6 +413,11 @@ Class fullMem (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
 
 End POINTER.
 
+(* NOTE: make abs_stack part of frames, to avoid problems with passes
+that change the stack structure (e.g. linearization) *)
+
+(* NOTE: understand how to reinstate the caller context/stack
+   distinction when the callee returns *)
 
 
 (*              
