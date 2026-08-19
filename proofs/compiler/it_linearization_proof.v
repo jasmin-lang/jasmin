@@ -690,15 +690,14 @@ Section HLIPARAMS.
 
   Lemma spec_lload {lp ii ls ofs} {x y:var_i} {wx wy} :
     convertible (vtype x) (aword Uptr) ->
-    get_var true (lvm ls) y = ok (Vword wy) ->
+    get_var true (lvm ls) y >>= to_pointer = ok wy ->
     read (lmem ls) Aligned (wy + wrepr Uptr ofs)%R Uptr = ok wx ->
     let: li := lload liparams ii x y ofs in
     eval_instr lp li ls = ok (lnext_pc (lset_vm ls ls.(lvm).[x <- Vword wx])).
   Proof using hliparams.
     move=> hty hgy hread /=.
     apply sem_fopn_args_eval_instr => /=.
-    apply: (spec_lip_lload hliparams (s:= to_estate ls) hty (spec_lip_check_ws hliparams) _ hread).
-    + by rewrite hgy /= truncate_word_u.
+    apply: (spec_lip_lload hliparams (s:= to_estate ls) hty (spec_lip_check_ws hliparams) hgy hread).
     by apply set_var_eq_type => //; rewrite (convertible_eval_atype hty).
   Qed.
 
@@ -5027,7 +5026,7 @@ Qed.
             set x := (eval_instr _ _ _).
             have -> : x = ok (lnext_pc (lset_vm ls2 (lvm ls2).[(mk_var_i ra_return) <- Vword retptr])).
             + apply: (spec_lload hliparams) => //=.
-              * by rewrite /get_var ok_rsp2; reflexivity.
+              * by rewrite /get_var ok_rsp2 /= truncate_word_u; reflexivity.
               rewrite wrepr0 GRing.addr0 hreadf.
               exact: hreadi.
             move: ok_body; rewrite /Q -[[:: _; _]]cat1s catA => ok_body.
