@@ -667,17 +667,18 @@ Section HLIPARAMS.
     by rewrite (spec_lip_lmove hliparams (s:= to_estate ls) htx hty hget (truncate_word_u w)).
   Qed.
 
-  Lemma spec_lstore {lp ii ls m ofs} {x y:var_i} {wx ws' wy'} {wy : word ws'} :
+  Lemma spec_lstore {lp ii ls m ofs} {x y:var_i} {wx ws ws' wy'} {wy : word ws'} :
+    lip_check_ws liparams ws ->
     get_var true (lvm ls) y = ok (Vword wy) ->
-    truncate_word Uptr wy = ok wy' ->
+    truncate_word ws wy = ok wy' ->
     get_var true (lvm ls) x >>= to_pointer = ok wx ->
     write (lmem ls) Aligned (wx + wrepr Uptr ofs)%R wy' = ok m ->
-    let: li := lstore liparams ii Uptr x ofs y in
+    let: li := lstore liparams ii ws x ofs y in
     eval_instr lp li ls = ok (lnext_pc (lset_mem ls m)).
   Proof using hliparams.
-    move=> hgy htr hgx hw /=.
+    move=> hws hgy htr hgx hw /=.
     apply sem_fopn_args_eval_instr => /=.
-    apply: (spec_lip_lstore hliparams (s:= to_estate ls) (spec_lip_check_ws hliparams) hgx _ hw).
+    apply: (spec_lip_lstore hliparams (s:= to_estate ls) hws hgx _ hw).
     by rewrite hgy /= htr.
   Qed.
 
@@ -4880,7 +4881,8 @@ Qed.
         + rewrite (step_mix_ilsteps ok_body) //=.
           set x := eval_instr _ _ _.
           have -> : x = ok (lnext_pc (lset_mem t1 m1s)).
-          + apply: (spec_lstore hliparams) => //=.
+          + apply: (spec_lstore hliparams) => //.
+            * exact: spec_lip_check_ws.
             * by rewrite /get_var ok_ra.
             * by rewrite truncate_word_u.
             * by rewrite /get_var ok_rsp; exact: truncate_word_u.
