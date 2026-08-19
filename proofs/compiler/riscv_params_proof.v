@@ -272,7 +272,7 @@ Qed.
 
 Lemma riscv_lstore_correct : lstore_correct_aux riscv_check_ws riscv_lstore.
 Proof.
-  move=> xd xs ofs ws w wp s m htxs /eqP hchk; t_xrbindP; subst ws.
+  move=> xd xs ofs ws w wp s m /eqP hchk; t_xrbindP; subst ws.
   move=> vd hgetd htrd vs hgets htrs hwr.
   rewrite /riscv_lstore /= hgets hgetd /= /exec_sopn /= htrs /=.
   rewrite /sem_sop2 /= htrd /= !truncate_word_u /= truncate_word_u /=.
@@ -294,7 +294,7 @@ Qed.
 
 Lemma riscv_lload_correct : lload_correct_aux (lip_check_ws riscv_liparams) riscv_lload.
 Proof.
-  move=> xd xs ofs ws top s w vm heq hcheck.
+  move=> xd xs ofs ws top s w vm hcheck.
   t_xrbindP => ? hgets hto hread hset.
   move/eqP: hcheck => ?; subst ws.
   rewrite /riscv_lload /= hgets /= /sem_sop2 /= hto /=.

@@ -385,7 +385,6 @@ Definition lmove_correct :=
 
 Definition lstore_correct_aux lip_check_ws lip_lstore :=
   forall (xd xs : var_i) ofs ws (w: word ws) wp s m,
-    convertible (vtype xs) (aword ws) ->
     lip_check_ws ws ->
     (get_var true (evm s) xd >>= to_word Uptr) = ok wp ->
     (get_var true (evm s) xs >>= to_word ws) = ok w ->
@@ -396,7 +395,6 @@ Definition lstore_correct := lstore_correct_aux (lip_check_ws liparams) (lip_lst
 
 Definition lload_correct_aux lip_check_ws lip_lload :=
   forall (xd xs : var_i) ofs ws wp s w vm,
-    convertible (vtype xd) (aword ws) ->
     lip_check_ws ws ->
     (get_var true (evm s) xs >>= to_word Uptr) = ok wp ->
     read (emem s) Aligned (wp + wrepr Uptr ofs)%R ws = ok w ->
@@ -526,8 +524,7 @@ Proof using lstore_correct.
   elim: to_save s => /= [ | [x ofs] to_save ih] s hget.
   + by move=> [<-]; rewrite with_mem_same.
   t_xrbindP; case heq: vtype => [|||ws]// m' _ [<-] hchk w v hgetx htow hw hf.
-  have := lstore_correct (xd:= rspi) (xs:= VarI x dummy_var_info) _ hchk hget _ hw.
-  rewrite heq => /(_ (convertible_refl _)) ->.
+  have -> := lstore_correct (xd:= rspi) (xs:= VarI x dummy_var_info) hchk hget _ hw.
   + by have /= -> := ih (with_mem s m') hget hf.
   by rewrite hgetx /= htow.
 Qed.
@@ -584,8 +581,7 @@ Proof using lload_correct.
   move=> [x ofs] to_restore ih s /= hnin hget.
   case heqt: vtype => [|||ws] //=; t_xrbindP.
   move=> vm1 hchk w hread hset hf.
-  rewrite (lload_correct (xd := VarI x dummy_var_info) _ hchk hget hread hset);
-    last by rewrite heqt; apply convertible_refl.
+  rewrite (lload_correct (xd := VarI x dummy_var_info) hchk hget hread hset).
   apply: ih => //.
   + by move: hnin; rewrite in_cons negb_or => /andP [].
   rewrite -(get_var_eq_ex _ _ (set_var_eq_ex hset)) //.
@@ -604,8 +600,7 @@ Proof using lload_correct.
   rewrite heqt
     (lload_correct
       (xd := VarI rspi dummy_var_info) (s:= with_vm s vm1)
-      _ hchk hget2 hread hset);
-    last by rewrite heqt; apply convertible_refl.
+      hchk hget2 hread hset).
   by exists vm2.
 Qed.
 
@@ -673,7 +668,6 @@ Section HLIPARAMS.
   Qed.
 
   Lemma spec_lstore {lp ii ls m ofs} {x y:var_i} {wx ws' wy'} {wy : word ws'} :
-    convertible (vtype y) (aword Uptr) ->
     get_var true (lvm ls) y = ok (Vword wy) ->
     truncate_word Uptr wy = ok wy' ->
     get_var true (lvm ls) x >>= to_pointer = ok wx ->
@@ -681,9 +675,9 @@ Section HLIPARAMS.
     let: li := lstore liparams ii Uptr x ofs y in
     eval_instr lp li ls = ok (lnext_pc (lset_mem ls m)).
   Proof using hliparams.
-    move=> hty hgy htr hgx hw /=.
+    move=> hgy htr hgx hw /=.
     apply sem_fopn_args_eval_instr => /=.
-    apply: (spec_lip_lstore hliparams (s:= to_estate ls) hty (spec_lip_check_ws hliparams) hgx _ hw).
+    apply: (spec_lip_lstore hliparams (s:= to_estate ls) (spec_lip_check_ws hliparams) hgx _ hw).
     by rewrite hgy /= htr.
   Qed.
 
@@ -696,7 +690,7 @@ Section HLIPARAMS.
   Proof using hliparams.
     move=> hty hgy hread /=.
     apply sem_fopn_args_eval_instr => /=.
-    apply: (spec_lip_lload hliparams (s:= to_estate ls) hty (spec_lip_check_ws hliparams) hgy hread).
+    apply: (spec_lip_lload hliparams (s:= to_estate ls) (spec_lip_check_ws hliparams) hgy hread).
     by apply set_var_eq_type => //; rewrite (convertible_eval_atype hty).
   Qed.
 
