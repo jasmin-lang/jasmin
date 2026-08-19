@@ -676,15 +676,14 @@ Section HLIPARAMS.
     convertible (vtype y) (aword Uptr) ->
     get_var true (lvm ls) y = ok (Vword wy) ->
     truncate_word Uptr wy = ok wy' ->
-    get_var true (lvm ls) x = ok (Vword wx) ->
+    get_var true (lvm ls) x >>= to_pointer = ok wx ->
     write (lmem ls) Aligned (wx + wrepr Uptr ofs)%R wy' = ok m ->
     let: li := lstore liparams ii x ofs y in
     eval_instr lp li ls = ok (lnext_pc (lset_mem ls m)).
   Proof using hliparams.
     move=> hty hgy htr hgx hw /=.
     apply sem_fopn_args_eval_instr => /=.
-    apply: (spec_lip_lstore hliparams (s:= to_estate ls) hty (spec_lip_check_ws hliparams) _ _ hw).
-    + by rewrite hgx /= truncate_word_u.
+    apply: (spec_lip_lstore hliparams (s:= to_estate ls) hty (spec_lip_check_ws hliparams) hgx _ hw).
     by rewrite hgy /= htr.
   Qed.
 
@@ -4888,7 +4887,7 @@ Qed.
           + apply: (spec_lstore hliparams) => //=.
             * by rewrite /get_var ok_ra.
             * by rewrite truncate_word_u.
-            * by rewrite /get_var ok_rsp.
+            * by rewrite /get_var ok_rsp; exact: truncate_word_u.
             rewrite wrepr0 GRing.addr0.
             exact: ok_m1s.
           rewrite mix_ilsteps_b0 //=.
