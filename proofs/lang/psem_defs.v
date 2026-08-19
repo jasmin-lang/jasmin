@@ -100,7 +100,7 @@ Context
   {ep : EstateParams syscall_state}
   (env : env_t).
 
-Definition with_vm (s:estate env) (vm : Vm.t env) :=
+Definition with_vm env2 (s:estate env) (vm : Vm.t env2) :=
   {| escs := s.(escs); emem := s.(emem); evm := vm |}.
 
 Definition with_mem (s:estate env) m :=

@@ -20,10 +20,72 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {LC : LoopCounter}.
 
-Definition eq_alloc env (r:M.t) (vm1 vm2:Vm.t env) :=
-    [/\ (forall x, ~Sv.In x (M.mset r) -> vm1.[x] = undef_addr (eval_atype env x.(vtype))) &
+Definition eq_alloc env1 env2 (r:M.t) (vm1 : Vm.t env1) (vm2 : Vm.t env2) :=
+    [/\ env1 =1 env2,
+        (forall x, ~Sv.In x (M.mset r) -> vm1.[x] = undef_addr (eval_atype env1 x.(vtype))) &
         (forall x x', M.get r x = Some x' ->
                       value_uincl vm1.[x] vm2.[x'])].
+
+Lemma eval_ext env1 env2 :
+  env1 =1 env2 ->
+  eval env1 =1 eval env2.
+Proof.
+  move=> heq.
+  elim=> //=.
+  + by move=> ? <-.
+  + by move=> ? <- ? <-.
+  + by move=> ? <- ? <-.
+  + by move=> ? <- ? <-.
+  + by move=> ?? <- ? <-.
+  + by move=> ?? <- ? <-.
+  + by move=> ? <- ? <-.
+  by move=> ? <- ? <-.
+Qed.
+
+Lemma eval_atype_ext env1 env2 :
+  env1 =1 env2 ->
+  eval_atype env1 =1 eval_atype env2.
+Proof.
+  move=> heq.
+  case=> //= ws len.
+  by rewrite (eval_ext heq).
+Qed.
+
+Lemma sem_sop1_ext env1 env2 :
+  env1 =1 env2 ->
+  sem_sop1 env1 =2 sem_sop1 env2.
+Proof.
+  move=> heq o v.
+  case: o => //=.
+  + by case.
+  by move=> ?; case.
+Qed.
+
+Lemma sem_sop2_ext env1 env2 :
+  env1 =1 env2 ->
+  sem_sop2 env1 =3 sem_sop2 env2.
+Proof.
+  move=> heq o v1 v2.
+  case: o => //=.
+  4-5:move=> ?. 14:move=> ??.
+  all: by case.
+Qed.
+
+Lemma sem_opN_ext env1 env2 :
+  env1 =1 env2 ->
+  sem_opN env1 =2 sem_opN env2.
+Proof.
+  move=> heq o vs.
+  case: o => //=.
+  + move=> ws p.
+    rewrite /sem_opN /=.
+    move: (esym _) (esym _); rewrite !map_nseq /= => e1 e2.
+    by rewrite (Eqdep_dec.UIP_dec (List.list_eq_dec ctype_eqb_OK_sumbool) e1 e2).
+  move=> z.
+  rewrite /sem_opN /=.
+  move: (esym _) (esym _); rewrite !map_nseq /= => e1 e2.
+  by rewrite (Eqdep_dec.UIP_dec (List.list_eq_dec ctype_eqb_OK_sumbool) e1 e2).
+Qed.
 
 Lemma eq_alloc_empty env: eq_alloc M.empty (Vm.init env) (Vm.init env).
 Proof. by split => * //; rewrite Vm.initP. Qed.
@@ -33,7 +95,7 @@ Lemma eq_alloc_incl env r1 r2 (vm vm' : Vm.t env) :
   eq_alloc r1 vm vm' ->
   eq_alloc r2 vm vm'.
 Proof.
-  move=> /M.inclP [Hi Hsub] [ epa eqa];split=>//.
+  move=> /M.inclP [Hi Hsub] [_ epa eqa];split=>//.
   + by move=> x Hx;apply epa; clear -Hsub Hx; SvD.fsetdec.
   move=> x x'; case: (Sv_memP x (M.mset r1)) => [ /Hi H /H /eqa // | /epa -> hget].
   apply subctype_value_uincl_undef.
@@ -41,7 +103,7 @@ Proof.
   by apply subctype_undef_get.
 Qed.
 
-Lemma check_vP env wdb x1 x2 r re (vm1 vm2 : Vm.t env) :
+Lemma check_vP env1 env2 wdb x1 x2 r re (vm1 : Vm.t env1) (vm2 : Vm.t env2) :
   check_v x1 x2 r = ok re ->
   eq_alloc r vm1 vm2 ->
   eq_alloc re vm1 vm2 /\
@@ -52,27 +114,27 @@ Proof.
   rewrite /check_v;case: M.v_compat_typeP => // hsub.
   case Hget : M.get => [id | ].
   + t_xrbindP => /eqP ? <- Hea; subst id; split => //.
-    case: Hea => _ /(_ _ _ Hget) Hev v1 {Hget}.
+    case: Hea => _ _ /(_ _ _ Hget) Hev v1 {Hget}.
     rewrite /get_var; t_xrbindP => /(value_uincl_defined Hev) -> <- /=; eauto.
-  t_xrbindP => /Sv_memP Hnot <- [ Hset Huincl]; split; first split => //.
+  t_xrbindP => /Sv_memP Hnot <- [Henv Hset Huincl]; split; first split => //.
   + by move=> x;rewrite M.setP_mset => h; apply Hset; clear -h; SvD.fsetdec.
   + move=> x id;rewrite M.setP;case:eqP => [<- [<-]| Hne].
-    + rewrite (Hset _ Hnot) /=.
-      by apply value_uincl_undef; rewrite (compat_ctype_undef_t (compat_atype_ctype hsub env)) (compat_ctype_undef_t (Vm.getP vm2 x2)).
+    + rewrite (Hset _ Hnot) (eval_atype_ext Henv).
+      by apply value_uincl_undef; rewrite (compat_ctype_undef_t (compat_atype_ctype hsub env2)) (compat_ctype_undef_t (Vm.getP vm2 x2)).
     by case:ifP => // _;apply Huincl.
-  move=> v1;rewrite /get_var (Hset _ Hnot) //=.
+  move=> v1;rewrite /get_var (Hset _ Hnot) (eval_atype_ext Henv) //=.
   t_xrbindP; case: wdb => /=.
   + move=> /is_defined_undef_addr [len heq] <-.
     move: hsub (Vm.getP vm2 x2); rewrite /M.v_compat_type heq.
-    move=> /compat_atype_ctype /(_ env); rewrite heq.
+    move=> /compat_atype_ctype /(_ env2); rewrite heq.
     move=> /compat_ctypeEl <- /compat_ctypeE /type_of_valI [a] -> /=.
     by exists (Varr a); split => //; apply: WArray.uincl_empty.
   move=> _ <-; eexists; split; eauto.
   apply value_uincl_undef.
-  by rewrite (compat_ctype_undef_t (compat_atype_ctype hsub env)) (compat_ctype_undef_t (Vm.getP vm2 x2)).
+  by rewrite (compat_ctype_undef_t (compat_atype_ctype hsub env2)) (compat_ctype_undef_t (Vm.getP vm2 x2)).
 Qed.
 
-Lemma check_gvP env wdb x1 x2 r re gd (vm1 vm2 : Vm.t env) :
+Lemma check_gvP env1 env2 wdb x1 x2 r re gd (vm1 : Vm.t env1) (vm2 : Vm.t env2) :
   check_gv x1 x2 r = ok re ->
   eq_alloc r vm1 vm2 ->
   eq_alloc re vm1 vm2 /\
@@ -82,17 +144,19 @@ Lemma check_gvP env wdb x1 x2 r re gd (vm1 vm2 : Vm.t env) :
 Proof.
   rewrite /check_gv /get_gvar /is_lvar; case: x1 x2 => x1 k1 [x2 k2] /=.
   t_xrbindP => /eqP ->; case:eqP => _; first by apply check_vP.
-  t_xrbindP => /eqP -> <-; split; eauto.
+  t_xrbindP => /eqP -> <- h; split=> //.
+  have [Henv _ _] := h.
+  by rewrite /get_global (eval_atype_ext Henv); eauto.
 Qed.
 
 Lemma is_PvarP e ty x : is_Pvar e = Some (ty,x) -> e = Some (ty, Plvar x).
 Proof. by case: e => //= -[? []] //= [] v [] // [<- <-]. Qed.
 
 Section CHECK_EP.
-  Context env (wdb : bool) (gd : glob_decls) (vm2 : Vm.t env).
+  Context (env1 env2 : env_t) (wdb : bool) (gd : glob_decls) (vm2 : Vm.t env2).
 
   Let P e1 : Prop :=
-    ∀ e2 r re vm1, check_e e1 e2 r = ok re →
+    ∀ e2 r re (vm1 : Vm.t env1), check_e e1 e2 r = ok re →
     eq_alloc r vm1 vm2 →
     eq_alloc re vm1 vm2 ∧
     ∀ scs m v1,
@@ -101,7 +165,7 @@ Section CHECK_EP.
           value_uincl v1 v2.
 
   Let Q es1 : Prop :=
-    ∀ es2 r re vm1 err,
+    ∀ es2 r re (vm1 : Vm.t env1) err,
     fold2 err check_e es1 es2 r = ok re →
     eq_alloc r vm1 vm2 →
     eq_alloc re vm1 vm2 ∧
@@ -125,9 +189,11 @@ Section CHECK_EP.
     - by move => z1 [] // z2 r re vm1; t_xrbindP => /eqP <- -> ?; split=> // ??? [] <-; exists z1.
     - by move => b1 [] // b2 r re vm1; t_xrbindP => /eqP <- -> ?; split=> // ??? [] <-; exists b1.
     - move => ws1 n1 [] // ws2 n2 r re vm1;
-        t_xrbindP=> /convertible_eval_atype /(_ env) /= [] -> <- ?; split => //= ??? [<-]; eauto.
+        t_xrbindP=> /convertible_eval_atype /(_ env1) /= [] -> <- h; split => //= ??? [<-].
+      have [Henv _ _] := h.
+      by rewrite (eval_ext Henv); eauto.
     - move => x1 [] // x2 r re vm1.
-      by move=> /check_gvP Hv /(Hv env wdb gd) [Hea H].
+      by move=> /check_gvP Hv /(Hv _ _ wdb gd) [Hea H].
     - move => al1 aa1 sz1 x1 e1 He1 [] // al2 aa2 sz2 x2 e2 r re vm1.
       t_xrbindP => r' /andP[] /andP [/eqP ? /eqP ?] /eqP ? Hcv Hce Hea; subst al2 aa2 sz2.
       have [Hea' Hget]:= check_gvP wdb gd Hcv Hea.
@@ -142,6 +208,8 @@ Section CHECK_EP.
       have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= scs m v1.
       apply: on_arr_gvarP => n t Heqt /Hget [v2 []].
       rewrite /on_arr_var; case: v2 => //= n' t' -> /WArray.uincl_get_sub Ht.
+      have [Henv _ _] := Hea.
+      rewrite (eval_ext Henv).
       t_xrbindP => w ve /Hse1 [v2 [-> ]] /[swap] /to_intI -> /value_uinclE -> ? /= /Ht [? -> ?] <- /=.
       by eauto.
     - move => al1 sz1 e1 He1 [] // al2 sz2 e2 r re vm1.
@@ -154,12 +222,16 @@ Section CHECK_EP.
     - move => op1 e1 He1 [] // op2 e2 r re vm1.
       t_xrbindP => /eqP <- H /(He1 _ _ _ _ H) [Hea Hse1];split=>//= scs m v1.
       t_xrbindP => v /Hse1 [v1'] [-> U1].
+      have [Henv _ _] := Hea.
+      rewrite (sem_sop1_ext Henv).
       by move=> /(vuincl_sem_sop1 U1);exists v1.
     - move => op1 e11 He11 e12 He12 [] // op2 e21 e22 r re vm1.
       t_xrbindP => r' /eqP <- Hs1 Hs2 Hea.
       have [Hea' Hse1]:= He11 _ _ _ _ Hs1 Hea.
       have [? Hse2]:= He12 _ _ _ _ Hs2 Hea'; split => //= scs m v.
       t_xrbindP => v1 /Hse1 [v1' [-> U1]] v2 /Hse2 [v2' [-> U2]].
+      have [Henv _ _] := Hea.
+      rewrite (sem_sop2_ext Henv).
       by move=> /(vuincl_sem_sop2 U1 U2);exists v.
     - move => op1 es1 Hes1 [] // op2 es2 r re vm1.
       t_xrbindP => /eqP <- ok_re hr.
@@ -167,11 +239,15 @@ Section CHECK_EP.
       split => //= scs m v1; t_xrbindP => vs1 ok_vs1 ok_v1.
       rewrite -/(sem_pexprs _ _ _).
       move: h => /(_ _ _ _ ok_vs1) [] vs2 [] -> hs /=.
+      have [Henv _ _] := hr.
+      rewrite -(sem_opN_ext Henv).
       rewrite (vuincl_sem_opN hs ok_v1).
       by eexists; split; first by reflexivity.
     move => t e He e11 He11 e12 He12 [] // t' e2 e21 e22 r re vm1.
     t_xrbindP => r1 r' /convertible_eval_atype -> /He Hr' /He11 Hr1 /He12 Hr2 {He He11 He12}.
     move=> /Hr'{Hr'}[] /Hr1{Hr1}[] /Hr2{Hr2}[] Hre Hs2 Hs1 Hs;split=>// scs m v1.
+    have [Henv _ _] := Hre.
+    rewrite (eval_atype_ext Henv).
     t_xrbindP=> b > /Hs [_] /= [->] /= /[swap] /to_boolI -> /value_uinclE ->.
     move=> ?? /Hs1 [?[-> /=]] /value_uincl_truncate H/H{H} [? -> ?].
     move=> ?? /Hs2 [?[-> /=]] /value_uincl_truncate H/H{H} [? -> ?] <- /=.
@@ -182,15 +258,15 @@ Section CHECK_EP.
 End CHECK_EP.
 
 Definition check_eP env wdb gd e1 e2 r re (vm1 vm2 : Vm.t env) :=
-  (check_e_esP wdb gd vm2).1 e1 e2 r re vm1.
+  (check_e_esP env wdb gd vm2).1 e1 e2 r re vm1.
 
 Lemma eq_alloc_set env x1 v1 r x2 v2 (vm1 vm2 : Vm.t env) (h:M.v_compat_type x1 x2) :
   eq_alloc r vm1 vm2 ->
   value_uincl (vm_truncate_val (eval_atype env (vtype x1)) v1) (vm_truncate_val (eval_atype env (vtype x2)) v2) ->
   eq_alloc (M.set r x1 x2 h) vm1.[x1 <- v1] vm2.[x2 <- v2].
 Proof.
-  move=> [Hin Hget] Hu.
-  split.
+  move=> [_ Hin Hget] Hu.
+  split=> //.
   + move=> z;rewrite M.setP_mset => Hnin.
     by rewrite Vm.setP_neq;[apply Hin|apply /eqP];clear -Hnin; SvD.fsetdec.
   move=> x id;rewrite M.setP;case:eqP => [<-[<-] | /eqP Hne].
@@ -208,8 +284,8 @@ Lemma eq_alloc_add env x1 v1 r x2 (vm1 vm2 : Vm.t env) (h:M.v_compat_type x1 x2)
   eq_alloc (M.add r x1 x2 h) vm1.[x1 <- v1]
                              vm2.[x2 <- v2].
 Proof.
-  move=> [Hin Hget] v2 /= Hu.
-  split.
+  move=> [_ Hin Hget] v2 /= Hu.
+  split=> //.
   + move=> z; rewrite M.addP_mset => Hnin.
     by rewrite Vm.setP_neq; [apply Hin|apply /eqP]; clear -Hnin; SvD.fsetdec.
   move=> x id; rewrite M.addP; case:eqP => [<-[<-] | /eqP Hne].
@@ -219,7 +295,7 @@ Proof.
   by subst v2 => ->; rewrite vm_truncate_val_get.
 Qed.
 
-Lemma check_varP env wdb r1 r1' vm1 vm2 vm1' x1 x2 v1 v2 (h:M.v_compat_type x1 x2):
+Lemma check_varP env wdb r1 r1' (vm1 vm2 vm1' : Vm.t env) x1 x2 v1 v2 (h:M.v_compat_type x1 x2):
   eq_alloc r1 vm1 vm2 ->
   @check_var_aux _ x1 x2 r1 h = ok r1' ->
   set_var wdb vm1 x1 v1 = ok vm1' ->
@@ -233,7 +309,7 @@ Proof.
   by rewrite set_var_truncate //; eexists; eauto; apply eq_alloc_set.
 Qed.
 
-Lemma check_varcP env wdb r1 r1' vm1 vm2 vm1' x1 x2 v1 v2 :
+Lemma check_varcP env wdb r1 r1' (vm1 vm2 vm1' : Vm.t env) x1 x2 v1 v2 :
   eq_alloc r1 vm1 vm2 ->
   check_varc x1 x2 r1 = ok r1' ->
   set_var wdb vm1 x1 v1 = ok vm1' ->
@@ -242,20 +318,19 @@ Lemma check_varcP env wdb r1 r1' vm1 vm2 vm1' x1 x2 v1 v2 :
     set_var wdb vm2 x2 v2 = ok vm2' & eq_alloc r1' vm1' vm2'.
 Proof. by rewrite /check_varc; case: M.v_compat_typeP => // h; apply check_varP. Qed.
 
-Lemma eq_alloc_rm env r x s (vm : Vm.t env) z :
+Lemma eq_alloc_rm env r x (s : estate env) (vm : Vm.t env) z :
   value_uincl (undef_addr (eval_atype env (vtype x))) (vm_truncate_val (eval_atype env (vtype x)) z) ->
   eq_alloc r (evm s) vm ->
   eq_alloc (M.remove r x) (evm s) vm.[x <- z].
 Proof.
-  move=> Hz [Hinit Halloc];split.
-  + by move=> y /=;apply: Hinit.
+  move=> Hz [_ Hinit Halloc];split=> //.
   move=> x0 id; rewrite M.removeP.
   case: M.get (Halloc x0) => [id' | ] //.
   move=> /(_ _ (refl_equal _));case:ifPn => //= Hne He [?];subst id'.
   rewrite Vm.setP_neq //;by apply: contra Hne => /eqP ->.
 Qed.
 
-Lemma check_lvalP env wdb gd r1 r1' x1 x2 e2 s1 s1' (vm1 : Vm.t env) v1 v2 :
+Lemma check_lvalP env wdb gd r1 r1' x1 x2 e2 (s1 s1' : estate env) (vm1 : Vm.t env) v1 v2 :
   check_lval e2 x1 x2 r1 = ok r1' ->
   eq_alloc r1 s1.(evm) vm1 ->
   value_uincl v1 v2 ->
@@ -387,7 +462,7 @@ Section PROOF.
   Qed.
 
 
-  Lemma check_esP env wdb e1 e2 r re (s : estate env) vm:
+  Lemma check_esP env wdb e1 e2 r re (s : estate env) (vm : Vm.t env) :
     check_es e1 e2 r = ok re ->
     eq_alloc r s.(evm) vm ->
     eq_alloc re s.(evm) vm /\
@@ -396,11 +471,11 @@ Section PROOF.
                values_uincl v1 v2.
   Proof using eq_globs.
     case: s => scs mem vm1.
-    rewrite -eq_globs => h1 h2; case (check_e_esP wdb gd vm) => _ /(_ _ _ _ _ _ _ h1 h2) /= [h3 h4].
+    rewrite -eq_globs => h1 h2; case (check_e_esP env wdb gd vm) => _ /(_ _ _ _ _ _ _ h1 h2) /= [h3 h4].
     split => // v1; apply h4.
   Qed.
 
-  Lemma check_lvalsP env wdb gd xs1 xs2 vs1 vs2 r1 r2 (s1 s2 : estate env) vm1 :
+  Lemma check_lvalsP env wdb gd xs1 xs2 vs1 vs2 r1 r2 (s1 s2 : estate env) (vm1 : Vm.t env) :
     check_lvals xs1 xs2 r1 = ok r2 ->
     eq_alloc r1 s1.(evm) vm1 ->
     values_uincl vs1 vs2 ->
@@ -445,23 +520,22 @@ Section PROOF.
   Section IT.
 
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-  Context (env : env_t).
 
-  Definition st_eq_alloc (r : M.t) := st_rel (eq_alloc (env:=env)) r.
+  Definition st_eq_alloc := st_rel eq_alloc.
 
   Definition check_es_alloc (d : M.t) es1 es2 (d':M.t) := check_es es1 es2 d = ok d'.
   Definition check_lvals_alloc (d : M.t) xs1 xs2 (d':M.t) := check_lvals xs1 xs2 d = ok d'.
 
-  Lemma check_esP_R_alloc d es1 es2 d' :
+  Lemma check_esP_R_alloc env1 env2 d es1 es2 d' :
     check_es_alloc d es1 es2 d' →
-    ∀ s1 s2, st_rel (eq_alloc (env:=env)) d s1 s2 → st_rel (eq_alloc (env:=env)) d' s1 s2.
+    ∀ (s1 : estate env1) (s2 : estate env2), st_rel eq_alloc d s1 s2 → st_rel eq_alloc d' s1 s2.
   Proof using spp p1. (* FIXME: we could get rid of p1 *)
     move=> he; apply st_rel_weaken => vm1 vm2 hvm.
-    have [] := check_e_esP true gd vm2.
+    have [] := check_e_esP env1 true gd vm2.
     by move=> _ /(_ _ _ _ _ vm1 _ he hvm) [].
   Qed.
 
-  Definition checker_alloc : Checker_e (st_rel (eq_alloc (env:=env))) :=
+  Definition checker_alloc : Checker_e (st_rel eq_alloc) :=
     {| relational_logic.check_es := check_es_alloc
      ; relational_logic.check_lvals := check_lvals_alloc
      ; relational_logic.check_esP_rel := check_esP_R_alloc
@@ -470,38 +544,39 @@ Section PROOF.
   Lemma checker_allocP : Checker_uincl p1 p2 checker_alloc.
   Proof using eq_globs.
     constructor.
-    + move=> wdb _ d es1 es2 d' /wdb_ok_eq <- hes s t vs1 /st_relP [-> /= heqa].
+    + move=> env wdb _ d es1 es2 d' /wdb_ok_eq <- hes s t vs1 /st_relP [-> /= heqa].
       have [_ h]:= check_esP wdb hes heqa.
       by move=> /h [vs2 [??]]; exists vs2.
-    move=> wdb _ d xs1 xs2 d' /wdb_ok_eq <- hc vs1 vs2 hu s t s' /st_relP [-> /=] heqa hw.
+    move=> env wdb _ d xs1 xs2 d' /wdb_ok_eq <- hc vs1 vs2 hu s t s' /st_relP [-> /=] heqa hw.
     rewrite -eq_globs; have [vm2' -> ?] := check_lvalsP hc heqa hu hw.
     by eexists;eauto.
   Qed.
   #[local] Hint Resolve checker_allocP : core.
 
+  Section REC.
+
+  Context (env : env_t).
+
   Let Pi i1 :=
     forall dead_vars r1 r2 i2,
     check_I dead_vars i1 i2 r1 = ok r2 ->
-    wequiv_rec p1 p2 ev ev uincl_spec (st_eq_alloc r1) [::i1] [::i2] (st_eq_alloc r2).
+    wequiv_rec (env1:=env) (env2:=env) p1 p2 ev ev uincl_spec (st_eq_alloc r1) [::i1] [::i2] (st_eq_alloc r2).
 
   Let Pi_r i1 := forall ii1 dead_vars r1 r2 ii2 i2,
     check_i dead_vars i1 i2 r1 = ok r2 ->
-    wequiv_rec p1 p2 ev ev uincl_spec (st_eq_alloc r1) [::MkI ii1 i1] [::MkI ii2 i2] (st_eq_alloc r2).
+    wequiv_rec (env1:=env) (env2:=env) p1 p2 ev ev uincl_spec (st_eq_alloc r1) [::MkI ii1 i1] [::MkI ii2 i2] (st_eq_alloc r2).
 
   Let Pc c1 :=
     forall dead_vars r1 r2 c2,
     check_cmd dead_vars c1 c2 r1 = ok r2 ->
-    wequiv_rec p1 p2 ev ev uincl_spec (st_eq_alloc r1) c1 c2 (st_eq_alloc r2).
+    wequiv_rec (env1:=env) (env2:=env) p1 p2 ev ev uincl_spec (st_eq_alloc r1) c1 c2 (st_eq_alloc r2).
 
-  Lemma st_eq_alloc_incl r1 r2 s t : M.incl r2 r1 → st_eq_alloc r1 s t → st_eq_alloc r2 s t.
+  Lemma st_eq_alloc_incl r1 r2 (s t : estate env) : M.incl r2 r1 → st_eq_alloc r1 s t → st_eq_alloc r2 s t.
   Proof. by move=> hincl; apply st_rel_weaken => >; apply: eq_alloc_incl. Qed.
 
-  Lemma it_alloc_cP (f_body : cmd) (dead_vars_fd0 : instr_info → Sv.t) (r1 : M.t_) (r2 : M.t) (f_body0 : cmd) :
-    check_cmd dead_vars_fd0 f_body f_body0 r1 = ok r2 →
-    wequiv_rec p1 p2 ev ev uincl_spec (st_eq_alloc r1) f_body f_body0 (st_eq_alloc r2).
+  Lemma it_alloc_cP c : Pc c.
   Proof using eq_globs.
-    move: f_body dead_vars_fd0 r1 r2 f_body0.
-    apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //.
+    apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}.
     + move=> i1 ii1 hi1 dead_vars r1 r2 [ii2 i2] /=; t_xrbindP => r2' /hi1 -/(_ ii1 ii2) + <-.
       apply wequiv_weaken => // -[scs mem vm1] [_ _ vm2] [/= <- <- hvm]; split => //.
       apply: eq_alloc_incl hvm.
@@ -566,18 +641,21 @@ Section PROOF.
       + by move=> >; apply: st_eq_alloc_incl.
       by apply: hc' hcc'.
     (* Call *)
-    move=> xs f es ii dead_vars r1 r2 ii2 [] // xs2 f2 es2 /=.
-    t_xrbindP => re /eqP <- hces hcxs.
+    move=> xs f als es ii dead_vars r1 r2 ii2 [] // xs2 f2 als2 es2 /=.
+    t_xrbindP => re /eqP <- /eqP <- hces hcxs.
     apply wequiv_call_rel_uincl with checker_alloc re => //.
-    by move=> ???; apply: wequiv_fun_rec.
+    by move=> ?????; apply: wequiv_fun_rec.
   Qed.
 
+  End REC.
+
   Lemma it_alloc_callP fn :
-    wiequiv_f env p1 p2 ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
+    wiequiv_f p1 p2 ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
   Proof using init_allocP check_f_extraP Hcheck eq_globs.
-    apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
+    rewrite /wiequiv_f.
+    apply wequiv_fun_ind => {}fn _ vals _ fs ft [<- [<- hfsu]] fd hget.
     have [fd2 [Hget2 /=]]:= all_checked hget.
-    t_xrbindP => /and3P [] _ htyin htyout r0 Hcinit r1 /check_f_extraP[] Hcparams hinit hfinalize r2 Hcc r3 Hcres _.
+    t_xrbindP => /and4P [] _ /eqP hal htyin htyout r0 Hcinit r1 /check_f_extraP[] Hcparams hinit hfinalize r2 Hcc r3 Hcres _.
     exists fd2 => // s11 Hi.
     (* TODO : can we have a generic lemma for initialize_funcall based on check_es *)
     move: Hi; rewrite /initialize_funcall; t_xrbindP.
@@ -587,7 +665,7 @@ Section PROOF.
     have [vs2 htr hall2]:= mapM2_dc_truncate_val hvargs2 hu.
     move: hw;rewrite (write_vars_lvals _ gd)=> /(check_lvalsP Hcparams).
     move=> /(_ _ _ Hvm0 hall2) [vm3 /= Hw2 Hvm3].
-    rewrite -(all2_convertible_eval_atype htyin) htr /= /estate0 -heq1 -heq2 (hinit _ _ _ _ _ Hi0) /=.
+    rewrite -hal -(all2_convertible_eval_atype htyin) htr /= /estate0 -heq1 -heq2 (hinit _ _ _ _ _ Hi0) /=.
     rewrite (write_vars_lvals _ gd) Hw2.
     exists (with_vm s11 vm3)=> //; exists (st_eq_alloc r1), (st_eq_alloc r2).
     split => //; first exact: it_alloc_cP Hcc.
@@ -626,12 +704,11 @@ Qed.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-Context (env : env_t).
 
 Lemma it_alloc_call_uprogP dead_vars_fd ev gd ep1 p1 ep2 p2
   (H: check_prog init_alloc_uprog check_f_extra_u dead_vars_fd ep1 p1 ep2 p2 = ok tt) fn:
-    wiequiv_f env {|p_globs := gd; p_funcs := p1; p_extra := ep1; |}
-                  {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev ev
+    wiequiv_f {|p_globs := gd; p_funcs := p1; p_extra := ep1; |}
+              {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev ev
         (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
   have := it_alloc_callP init_alloc_uprogP.
@@ -684,12 +761,11 @@ Qed.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-Context (env : env_t).
 
 Lemma it_alloc_callP_sprogP dead_vars_fd ev gd ep1 p1 ep2 p2
   (H: check_prog init_alloc_sprog check_f_extra_s dead_vars_fd ep1 p1 ep2 p2 = ok tt) fn :
-    wiequiv_f env {|p_globs := gd; p_funcs := p1; p_extra := ep1; |}
-                  {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev ev
+    wiequiv_f {|p_globs := gd; p_funcs := p1; p_extra := ep1; |}
+              {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev ev
         (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
   have := it_alloc_callP init_alloc_sprogP.

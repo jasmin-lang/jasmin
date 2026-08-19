@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From Coq Require Import ZArith.
+From Coq Require Import ZArith Uint63.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import psem compiler_util.
 Require Export inline.
@@ -16,15 +16,16 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
+  (fresh_var_ident  : v_kind -> int -> string -> atype -> Ident.ident)
   (extend_iinfo : instr_info -> instr_info -> instr_info).
 
 Lemma get_funP p f fd :
   get_fun p f = ok fd -> get_fundef p f = Some fd.
 Proof. by rewrite /get_fun;case:get_fundef => // ? [->]. Qed.
 
-Notation inline_i' := (inline_i extend_iinfo).
-Notation inline_fd' := (inline_fd extend_iinfo).
-Notation inline_prog' := (inline_prog extend_iinfo).
+Notation inline_i' := (inline_i fresh_var_ident extend_iinfo).
+Notation inline_fd' := (inline_fd fresh_var_ident extend_iinfo).
+Notation inline_prog' := (inline_prog fresh_var_ident extend_iinfo).
 
 #[local] Existing Instance indirect_c.
 
@@ -58,10 +59,10 @@ Section INCL.
       by t_xrbindP => -[Xc c'] /Hc -> /= <- <-.
     + move=> a c e ei c' Hc Hc' ii X1 c0 X2 /=.
       by t_xrbindP => -[Xc1 c1] /Hc -> /= -[Xc1' c1'] /Hc' -> /= <- <-.
-    move=> xs f es ii X1 c' X2 /=.
+    move=> xs f als es ii X1 c' X2 /=.
     case: ii_is_inline => [|//].
-    t_xrbindP=> fd /get_funP -/Incl.
-    by rewrite /get_fun => -> h <- <- /=; rewrite h.
+    apply: rbindP => fd /add_iinfoP /get_funP /Incl.
+    by rewrite /get_fun => -> /=.
   Qed.
 
   Lemma inline_incl fd fd' :
@@ -133,11 +134,12 @@ Section SUBSET.
     by apply: rbindP=> Hc'' /Hc' ? [<-].
   Qed.
 
-  Local Lemma Scall : forall xs f es, Pr (Ccall xs f es).
+  Local Lemma Scall : forall xs f als es, Pr (Ccall xs f als es).
   Proof.
-    move=> xs f es ii X2 Xc /=.
+    move=> xs f als es ii X2 Xc /=.
     case: ii_is_inline => [|[<-] //].
-    by apply:rbindP => fd _;apply: rbindP => ?? [<-].
+    t_xrbindP=> fd _ [??] _.
+    by t_xrbindP=> _ <- /=.
   Qed.
 
   Lemma inline_c_subset c : Pc c.
@@ -213,7 +215,6 @@ Qed.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-Context (env : env_t).
 
 Section FD.
 
@@ -227,7 +228,7 @@ Let pfuncs := pfuncs1 ++ (fn, fd) :: pfuncs2.
 
 Hypothesis uniq_funname : uniq [seq x.1 | x <- pfuncs].
 
-Hypothesis (inline_fd_ok : inline_fd extend_iinfo pfuncs2 fd = ok fd').
+Hypothesis (inline_fd_ok : inline_fd fresh_var_ident extend_iinfo pfuncs2 fd = ok fd').
 
 Let p1 : uprog :=
   {|p_funcs := pfuncs; p_globs := p_globs p; p_extra := p_extra p |}.
@@ -238,126 +239,80 @@ Let p2 : uprog :=
 Definition do_inline caller iinfo (callee:funname) :=
   (caller == fn) && ii_is_inline iinfo.
 
-Notation wequiv_rec :=
- (wequiv (env:=env) (rE0:=relEvent_recCall uincl_spec)
-    (sem_F1 := sem_fun_inline do_inline fn) (sem_F2 := sem_fun_rec E) ).
-
-Let Pi i :=
-  forall X1 X2 c', inline_i' pfuncs2 i X2 = ok (X1, c') ->
-  wequiv_rec p1 p2 ev ev (st_uincl_on X1) [::i] c' (st_uincl_on X2).
-Let Pi_r i := forall ii, Pi (MkI ii i).
-Let Pc c :=
-  forall X1 X2 c', inline_c (inline_i' pfuncs2) c X2 = ok (X1, c') ->
-  wequiv_rec p1 p2 ev ev (st_uincl_on X1) c c' (st_uincl_on X2).
-
-Lemma checker_st_uincl_onP_ : Checker_uincl p1 p2 (checker_st_uincl_on env).
+Lemma checker_st_uincl_onP_ : Checker_uincl p1 p2 checker_st_uincl_on.
 Proof. by apply checker_st_uincl_onP. Qed.
 #[local] Hint Resolve checker_st_uincl_onP_ : core.
 
-Lemma it_inline_fd_aux fn' :
-  wiequiv_f env p1 p2 ev ev (rpreF (eS:=uincl_spec)) fn' fn' (rpostF (eS:=uincl_spec)).
-Proof using uniq_funname inline_fd_ok.
-  move=> fs1 fs2 hpre.
-  rewrite (isem_call_inline env p1 ev do_inline).
-  move: fs1 fs2 hpre.
-  apply wequiv_fun_ind => fn1 _ fs1 fs2 [<- hu] fd1 hfd1.
-  have : if fn1 == fn then fd1 = fd /\ get_fundef (p_funcs p2) fn1 = Some fd' else get_fundef (p_funcs p2) fn1 = Some fd1.
-  + move: hfd1; rewrite /p1 /p2 /get_fundef /= !assoc_cat.
-    move: (uniq_funname); rewrite /pfuncs map_cat cat_uniq => /and3P [_ hhas _].
-    case ha1 : assoc => [fd_ | ].
-    + move=> [?]; subst fd_; case: eqP => // ?; subst fn1.
-      by move: hhas => /=; rewrite (assoc_mem_dom' ha1).
-    by rewrite /=; case: eqP => // ? [->].
-  case: eqP; last first.
-  (* First we show that for fn1 <> fn the semantic does not change *)
-  + move=> hfn ->; exists fd1 => //.
-    move=> s1 hinit.
-    have [s1' hinit' hus1] :=
-      [elaborate fs_uincl_initialize (p:=p1) (p':=p2) (fs:= fs1) (fs':= fs2) erefl erefl erefl erefl hu hinit].
-    exists s1' => //.
-    exists (st_uincl ev), (st_uincl ev); split => //; last first.
-    + by apply fs_uincl_finalize.
-    move=> {fs1 fs2 hu s1 s1' hinit hinit' hus1} s t.
-    have h: forall ii fn fs,
-            Eqit.eutt eq (sem_fun (sem_Fun := sem_fun_inline do_inline fn1) env p1 ev ii fn fs)
-                         (sem_fun (sem_Fun := sem_fun_rec E) env p1 ev ii fn fs).
-    + move=> ii fn2 fs /=; rewrite /do_inline; case: eqP => //= ?; reflexivity.
-    rewrite (isem_cmd_ext h) => {h}.
-    by move: s t; apply it_sem_uincl_aux => // ?????; apply: wequiv_fun_rec.
-  (* Second it works for fn1 *)
-  move=> ? [? ->]; subst fn1 fd1; exists fd' => //.
-  have : exists2 Xc,
-          inline_c (inline_i' pfuncs2) (f_body fd) (read_es [seq Plvar i | i <- (f_res fd)]) = ok Xc &
-          fd' = with_body fd Xc.2.
-  + move: inline_fd_ok; rewrite /inline_fd; case: (fd) => >.
-    by t_xrbindP => Xc h <-; exists Xc.
-  move=> [[X1 c']].
-  set X2 := read_es _.
-  move=> hc' -> /= s1 hinit.
-  have [s1' hinit' hus1] :=
-      [elaborate fs_uincl_initialize (p:=p1) (p':=p2) (fd:=fd) (fd':= with_body fd c')
-                 (fs:= fs1) (fs':= fs2) erefl erefl erefl erefl hu hinit].
-  exists s1' => //.
-  exists (st_uincl_on X1), (st_uincl_on X2); split => //;
-    first (by case hus1 => ?? h; split); last first.
-  + have := [elaborate fs_uincl_on_finalize (env:=env) (fd:=fd) (fd':= with_body fd c') erefl erefl erefl].
-    by apply wrequiv_weaken => //; apply st_rel_weaken => ??; rewrite /X2 vars_l_read_es.
-  clear fs1 fs2 hu hfd1 hinit hinit' s1 s1' hus1 fn'.
-  move: (f_body fd) X1 X2 c' hc'.
+Section REC.
 
-  apply (cmd_rect (Pi:=Pi) (Pr:=Pi_r) (Pc:=Pc)) => //; subst Pi Pi_r Pc => //=.
-  + by move=> X1 X2 c' [] -> <-; apply wequiv_nil.
-  + move=> i c hi hc X1 X2 c_; t_xrbindP.
+Notation wequiv_rec :=
+ (wequiv (rE0:=relEvent_recCall uincl_spec)
+    (sem_F1 := sem_fun_inline do_inline fn) (sem_F2 := sem_fun_rec E) ).
+
+Let Pi i :=
+  forall env1 env2 X1 X2 c', inline_i' pfuncs2 i X2 = ok (X1, c') ->
+  wequiv_rec (env1:=env1) (env2:=env2) p1 p2 ev ev (st_uincl_on X1) [::i] c' (st_uincl_on X2).
+Let Pi_r i := forall ii, Pi (MkI ii i).
+Let Pc c :=
+  forall env1 env2 X1 X2 c', inline_c (inline_i' pfuncs2) c X2 = ok (X1, c') ->
+  wequiv_rec (env1:=env1) (env2:=env2) p1 p2 ev ev (st_uincl_on X1) c c' (st_uincl_on X2).
+
+Lemma it_inline_fd_aux_rec c : Pc c.
+Proof.
+  apply (cmd_rect (Pi:=Pi) (Pr:=Pi_r) (Pc:=Pc)) => // {c}; subst Pi Pi_r Pc => //=.
+  + by move=> env1 env2 X1 X2 c' [] -> <-; apply wequiv_nil.
+  + move=> i c hi hc env1 env2 X1 X2 c_; t_xrbindP.
     move=> [X c'] /hc{}hc [X' i'] /= /hi{}hi ? <-; subst X'.
     by rewrite -cat1s; apply wequiv_cat with (st_uincl_on X).
-  + move=> x tg ty e ii X1 X2 _ [? <-].
-    apply wequiv_assgn_rel_uincl with (checker_st_uincl_on env) X1 => //=; subst X1; split => //.
+  + move=> x tg ty e ii env1 env2 X1 X2 _ [? <-].
+    apply wequiv_assgn_rel_uincl with checker_st_uincl_on X1 => //=; subst X1; split => //.
     + by rewrite /read_es /= read_eE !read_writeE; clear; SvD.fsetdec.
     + by rewrite !read_writeE; clear; SvD.fsetdec.
     by rewrite /read_rvs !read_writeE /= read_rvE; clear; SvD.fsetdec.
-  + move=> xs tg o es ii X1 X2 _ [? <-].
-    by apply wequiv_opn_rel_uincl with (checker_st_uincl_on env) X1 => //=; subst X1; split => //;
+  + move=> xs tg o es ii env X1 X2 _ [? <-].
+    by apply wequiv_opn_rel_uincl with checker_st_uincl_on X1 => //=; subst X1; split => //;
       rewrite !read_writeE; clear; SvD.fsetdec.
-  + move=> xs o es ii X1 X2 _ [? <-].
-    by apply wequiv_syscall_rel_uincl with (checker_st_uincl_on env) X1 => //=; subst X1; split => //;
+  + move=> xs o es ii env X1 X2 _ [? <-].
+    by apply wequiv_syscall_rel_uincl with checker_st_uincl_on X1 => //=; subst X1; split => //;
       rewrite !read_writeE; clear; SvD.fsetdec.
-  + by move=> ? ii ??? _; apply wequiv_noassert.
-  + move=> e c1 c2 hc1 hc2 ii X1 X2 c_; t_xrbindP.
+  + by move=> ? ii env ??? _; apply wequiv_noassert.
+  + move=> e c1 c2 hc1 hc2 ii env X1 X2 c_; t_xrbindP.
     move=> [X11 c1'] /hc1{}hc1 [X12 c2'] /hc2{}hc2 ? <-.
-    apply wequiv_if_rel_uincl with (checker_st_uincl_on env) X1 X2 X2 => //=; subst X1.
+    apply wequiv_if_rel_uincl with checker_st_uincl_on X1 X2 X2 => //=; subst X1.
     + by split => //=; rewrite /read_es /= !read_eE; clear; SvD.fsetdec.
-    + apply: wequiv_weaken hc1 => //=; apply st_rel_weaken => ??; apply uincl_onI.
+    + apply: wequiv_weaken (hc1 env) => //=; apply st_rel_weaken => ??; apply uincl_onI.
       by rewrite read_eE; clear; SvD.fsetdec.
-    apply: wequiv_weaken hc2 => //=; apply st_rel_weaken => ??; apply uincl_onI.
+    apply: wequiv_weaken (hc2 env) => //=; apply st_rel_weaken => ??; apply uincl_onI.
     by rewrite read_eE; clear; SvD.fsetdec.
-  + move=> x dir lo hi c hc ii X1 X2 c_; t_xrbindP.
+  + move=> x dir lo hi c hc ii env X1 X2 c_; t_xrbindP.
     move=> [X' c'] /[dup] /inline_c_subset /= hX' /hc{}hc ? <- /=.
     apply wequiv_weaken with (st_uincl_on X1) (st_uincl_on X1) => //.
     + by subst X1; apply st_rel_weaken => ??; apply uincl_onI; clear; SvD.fsetdec.
-    apply wequiv_for_rel_uincl with (checker_st_uincl_on env) X1 X'; subst X1 => //=.
+    apply wequiv_for_rel_uincl with checker_st_uincl_on X1 X'; subst X1 => //=.
     + by split => //=; rewrite /read_es /= !read_eE !read_writeE; clear; clear; SvD.fsetdec.
     by split => //; rewrite ?hX' !read_writeE /read_rvs /=; clear; clear; SvD.fsetdec.
-  + move=> al c1 e ii' c2 hc1 hc2 ii X1 X2 c_; t_xrbindP.
+  + move=> al c1 e ii' c2 hc1 hc2 ii env X1 X2 c_; t_xrbindP.
     move=> [Xc1 c1'] /[dup] /inline_c_subset /= hXc1 /hc1{}hc1.
     move=> [Xc2 c2']  /[dup] /inline_c_subset /= hXc2 /hc2{}hc2 ? <-.
     apply wequiv_weaken with (st_uincl_on X1) (st_uincl_on X1) => //.
     + by subst X1; apply st_rel_weaken => ??; apply uincl_onI; clear; SvD.fsetdec.
-    apply wequiv_while_rel_uincl with (checker_st_uincl_on env) X1; subst X1 => //=.
+    apply wequiv_while_rel_uincl with checker_st_uincl_on X1; subst X1 => //=.
     + by split => //; rewrite /read_es /= read_eE !read_writeE; clear; SvD.fsetdec.
-    + apply: wequiv_weaken hc1 => //; apply st_rel_weaken => ??; apply uincl_onI.
+    + apply: wequiv_weaken (hc1 env) => //; apply st_rel_weaken => ??; apply uincl_onI.
       by rewrite hXc1 !read_writeE; clear; SvD.fsetdec.
-    apply: wequiv_weaken hc2 => //; apply st_rel_weaken => ??; apply uincl_onI.
+    apply: wequiv_weaken (hc2 env) => //; apply st_rel_weaken => ??; apply uincl_onI.
     by rewrite hXc2 !read_writeE; clear; SvD.fsetdec.
-  move=> xs f es ii X1 X2 c_.
+  move=> xs f als es ii env X1 X2 c_.
   case: ifP => hinline; last first.
   + move=> [? <-].
-    apply wequiv_call_rel_uincl with (checker_st_uincl_on env) X1; subst X1 => //=.
+    apply wequiv_call_rel_uincl with checker_st_uincl_on X1; subst X1 => //=.
     + by split => //; rewrite !read_writeE; clear; SvD.fsetdec.
     + by split => //; rewrite !read_writeE; clear; SvD.fsetdec.
-    move=> i1 i2 h; rewrite /= /do_inline eqxx hinline /=.
+    move=> vals1 vals2 i1 i2 h; rewrite /= /do_inline eqxx hinline /=.
     exact/(wequiv_fun_rec (p1 := p1) (p2 := p2)).
   rewrite /check_disjoint.
-  t_xrbindP => ffd /get_funP hffd.
+  t_xrbindP => ffd /get_funP hffd [sm ffd'] hsubst.
+  t_xrbindP.
   case: ifP => // hdisj _ ? <-.
   move=> s t hpre /=.
   rewrite /do_inline eqxx hinline /=.
@@ -384,7 +339,7 @@ Proof using uniq_funname inline_fd_ok.
   rewrite ITree.Eq.Eqit.bind_ret_l ITree.Eq.Eqit.bind_bind.
   move: hinit; rewrite /initialize_funcall /=; t_xrbindP => vs' htr hws.
   rewrite isem_cmd_cat.
-  have /(_ X1 es es X1 _ _ _ _ hpre hes) [|] := checker_st_uincl_onP_.(ucheck_esP) wdb_ok_true.
+  have /(_ _ X1 es es X1 _ _ _ _ hpre hes) [|] := checker_st_uincl_onP_.(ucheck_esP) wdb_ok_true.
   + by subst X1; split => //; rewrite !read_writeE; clear; SvD.fsetdec.
   move=> vst hes' huvs.
   have [vst' htr' huvs'] := mapM2_dc_truncate_val htr huvs.
@@ -447,6 +402,59 @@ Proof using uniq_funname inline_fd_ok.
   move=> /(_ p2 ev t1' hws1) /(esem_i_bodyP (sem_F := sem_fun_rec E)) -> /=.
   apply xrutt.xrutt_Ret.
   by apply: st_rel_weaken hpost; subst X1 => ??; apply: uincl_onI; clear; SvD.fsetdec.
+
+Lemma it_inline_fd_aux fn' :
+  wiequiv_f env p1 p2 ev ev (rpreF (eS:=uincl_spec)) fn' fn' (rpostF (eS:=uincl_spec)).
+Proof using uniq_funname inline_fd_ok.
+  move=> fs1 fs2 hpre.
+  rewrite (isem_call_inline env p1 ev do_inline).
+  move: fs1 fs2 hpre.
+  apply wequiv_fun_ind => fn1 _ fs1 fs2 [<- hu] fd1 hfd1.
+  have : if fn1 == fn then fd1 = fd /\ get_fundef (p_funcs p2) fn1 = Some fd' else get_fundef (p_funcs p2) fn1 = Some fd1.
+  + move: hfd1; rewrite /p1 /p2 /get_fundef /= !assoc_cat.
+    move: (uniq_funname); rewrite /pfuncs map_cat cat_uniq => /and3P [_ hhas _].
+    case ha1 : assoc => [fd_ | ].
+    + move=> [?]; subst fd_; case: eqP => // ?; subst fn1.
+      by move: hhas => /=; rewrite (assoc_mem_dom' ha1).
+    by rewrite /=; case: eqP => // ? [->].
+  case: eqP; last first.
+  (* First we show that for fn1 <> fn the semantic does not change *)
+  + move=> hfn ->; exists fd1 => //.
+    move=> s1 hinit.
+    have [s1' hinit' hus1] :=
+      [elaborate fs_uincl_initialize (p:=p1) (p':=p2) (fs:= fs1) (fs':= fs2) erefl erefl erefl erefl hu hinit].
+    exists s1' => //.
+    exists (st_uincl ev), (st_uincl ev); split => //; last first.
+    + by apply fs_uincl_finalize.
+    move=> {fs1 fs2 hu s1 s1' hinit hinit' hus1} s t.
+    have h: forall ii fn fs,
+            Eqit.eutt eq (sem_fun (sem_Fun := sem_fun_inline do_inline fn1) env p1 ev ii fn fs)
+                         (sem_fun (sem_Fun := sem_fun_rec E) env p1 ev ii fn fs).
+    + move=> ii fn2 fs /=; rewrite /do_inline; case: eqP => //= ?; reflexivity.
+    rewrite (isem_cmd_ext h) => {h}.
+    by move: s t; apply it_sem_uincl_aux => // ?????; apply: wequiv_fun_rec.
+  (* Second it works for fn1 *)
+  move=> ? [? ->]; subst fn1 fd1; exists fd' => //.
+  have : exists2 Xc,
+          inline_c (inline_i' pfuncs2) (f_body fd) (read_es [seq Plvar i | i <- (f_res fd)]) = ok Xc &
+          fd' = with_body fd Xc.2.
+  + move: inline_fd_ok; rewrite /inline_fd; case: (fd) => >.
+    by t_xrbindP => Xc h <-; exists Xc.
+  move=> [[X1 c']].
+  set X2 := read_es _.
+  move=> hc' -> /= s1 hinit.
+  have [s1' hinit' hus1] :=
+      [elaborate fs_uincl_initialize (p:=p1) (p':=p2) (fd:=fd) (fd':= with_body fd c')
+                 (fs:= fs1) (fs':= fs2) erefl erefl erefl erefl hu hinit].
+  exists s1' => //.
+  exists (st_uincl_on X1), (st_uincl_on X2); split => //;
+    first (by case hus1 => ?? h; split); last first.
+  + have := [elaborate fs_uincl_on_finalize (env:=env) (fd:=fd) (fd':= with_body fd c') erefl erefl erefl].
+    by apply wrequiv_weaken => //; apply st_rel_weaken => ??; rewrite /X2 vars_l_read_es.
+  clear fs1 fs2 hu hfd1 hinit hinit' s1 s1' hus1 fn'.
+  move: (f_body fd) X1 X2 c' hc'.
+
+  
 Qed.
 
 End FD.

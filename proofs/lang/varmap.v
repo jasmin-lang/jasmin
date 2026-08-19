@@ -773,9 +773,9 @@ Section REL_EQUIV.
   Lemma vm_rel_trans R P : Transitive R -> Transitive (vm_rel (env1:=env) (env2:=env) R P).
   Proof. move=> h x y z hxy hyz v hv; apply: h (hxy v hv) (hyz v hv). Qed.
 
-  Lemma vm_relI R (P1 P2 : var -> Prop) vm1 vm2 :
+  Lemma vm_relI env1 env2 R (P1 P2 : var -> Prop) vm1 vm2 :
     (forall x, P1 x -> P2 x) ->
-    vm_rel (env1:=env) (env2:=env) R P2 vm1 vm2 -> vm_rel (env1:=env) (env2:=env) R P1 vm1 vm2.
+    vm_rel (env1:=env1) (env2:=env2) R P2 vm1 vm2 -> vm_rel (env1:=env1) (env2:=env2) R P1 vm1 vm2.
   Proof. by move=> h hvm v /h hv; apply hvm. Qed.
 
   #[export]Instance equiv_vm_rel R P : Equivalence R -> Equivalence (vm_rel (env1:=env) (env2:=env) R P).
@@ -826,7 +826,7 @@ Section REL_EQUIV.
   Lemma eq_onS s (vm1 vm2 : Vm.t env) : vm1 =[s] vm2 -> vm2 =[s] vm1.
   Proof. by apply vm_rel_sym. Qed.
 
-  Lemma eq_onI s1 s2 (vm1 vm2 : Vm.t env) : Sv.Subset s1 s2 -> vm1 =[s2] vm2 -> vm1 =[s1] vm2.
+  Lemma eq_onI env1 env2 s1 s2 (vm1 : Vm.t env1) (vm2 : Vm.t env2) : Sv.Subset s1 s2 -> vm1 =[s2] vm2 -> vm1 =[s1] vm2.
   Proof. move=> h1; apply vm_relI; SvD.fsetdec. Qed.
 
   Lemma eq_ex_refl s (vm : Vm.t env) : vm =[\s] vm.
@@ -849,7 +849,7 @@ Section REL_EQUIV.
     vm1 <=[s] vm2 -> vm2 <=[s] vm3 -> vm1 <=[s] vm3.
   Proof. apply vm_rel_trans => ???; apply value_uincl_trans. Qed.
 
-  Lemma uincl_onI s1 s2 (vm1 vm2 : Vm.t env) : Sv.Subset s1 s2 -> vm1 <=[s2] vm2 -> vm1 <=[s1] vm2.
+  Lemma uincl_onI env1 env2 s1 s2 (vm1 : Vm.t env1) (vm2 : Vm.t env2) : Sv.Subset s1 s2 -> vm1 <=[s2] vm2 -> vm1 <=[s1] vm2.
   Proof. move=> h1; apply vm_relI; SvD.fsetdec. Qed.
 
   Lemma uincl_ex_refl s (vm : Vm.t env) : vm <=[\s] vm.

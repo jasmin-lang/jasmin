@@ -156,7 +156,7 @@ Proof. by case:s. Qed.
 Lemma with_vm_same env (s : estate env) : with_vm s (evm s) = s.
 Proof. by case: s. Qed.
 
-Lemma with_vm_idem env (s : estate env) vm1 vm2 : with_vm (with_vm s vm1) vm2 = with_vm s vm2.
+Lemma with_vm_idem env (s : estate env) (vm1 vm2 : Vm.t env) : with_vm (with_vm s vm1) vm2 = with_vm s vm2.
 Proof. by case: s. Qed.
 
 Lemma with_mem_same env (s : estate env) : with_mem s (emem s) = s.
@@ -171,13 +171,13 @@ Proof. by case: s. Qed.
 Lemma with_scs_idem env (s : estate env) scs1 scs2 : with_scs (with_scs s scs1) scs2 = with_scs s scs2.
 Proof. by case: s. Qed.
 
-Lemma evm_with_vm env (s : estate env) vm : evm (with_vm s vm) = vm.
+Lemma evm_with_vm env (s : estate env) (vm : Vm.t env) : evm (with_vm s vm) = vm.
 Proof. by case: s. Qed.
 
-Lemma emem_with_vm env (s : estate env) vm : emem (with_vm s vm) = emem s.
+Lemma emem_with_vm env (s : estate env) (vm : Vm.t env) : emem (with_vm s vm) = emem s.
 Proof. by case: s. Qed.
 
-Lemma escs_with_vm env (s : estate env) vm : escs (with_vm s vm) = escs s.
+Lemma escs_with_vm env (s : estate env) (vm : Vm.t env) : escs (with_vm s vm) = escs s.
 Proof. by case: s. Qed.
 
 End ESTATE_UTILS.
@@ -700,7 +700,7 @@ End READ_E_ES_EQ_ON.
 Definition read_e_eq_on env wdb gd s (vm' : Vm.t env) s1 e :=
   (read_e_es_eq_on wdb gd s1 vm').1 e s.
 
-Lemma read_e_eq_on_empty env wdb gd (vm : Vm.t env) s e :
+Lemma read_e_eq_on_empty env wdb gd (vm : Vm.t env) (s : estate env) e :
   evm s =[ read_e_rec Sv.empty e ]  vm
   -> sem_pexpr wdb gd s e = sem_pexpr wdb gd (with_vm s vm) e.
 Proof. exact: read_e_eq_on. Qed.
@@ -708,7 +708,7 @@ Proof. exact: read_e_eq_on. Qed.
 Definition read_es_eq_on env wdb gd es s s1 (vm' : Vm.t env) :=
   (read_e_es_eq_on wdb gd s1 vm').2 es s.
 
-Lemma read_es_eq_on_empty env wdb gd es s (vm : Vm.t env) :
+Lemma read_es_eq_on_empty env wdb gd es (s : estate env) (vm : Vm.t env) :
   evm s =[ read_es_rec Sv.empty es ] vm
   -> sem_pexprs wdb gd s es = sem_pexprs wdb gd (with_vm s vm) es.
 Proof. exact: read_es_eq_on. Qed.
@@ -807,7 +807,7 @@ Proof.
   apply: (eq_on_union hs h); [apply: vrvP_var hw1 | apply: vrvP_var hw2].
 Qed.
 
-Lemma write_lval_eq_on1 env wdb gd (s1 s2 : estate env) vm1 x v:
+Lemma write_lval_eq_on1 env wdb gd (s1 s2 : estate env) (vm1 : Vm.t env) x v:
   s1.(evm) =[read_rv x] vm1 ->
   write_lval wdb gd x v s1 = ok s2 ->
   exists2 vm2,
@@ -992,7 +992,7 @@ Proof.
 Qed.
 
 (* --------------------------------------------------------- *)
-Lemma sem_pexpr_uincl_on_pair env wdb gd (s1 : estate env) vm2 :
+Lemma sem_pexpr_uincl_on_pair env wdb gd (s1 : estate env) (vm2 : Vm.t env) :
   (∀ e v1,
       s1.(evm) <=[read_e e] vm2 →
       sem_pexpr wdb gd s1 e = ok v1 →
@@ -1047,26 +1047,26 @@ Proof.
   by case: b; eauto.
 Qed.
 
-Lemma sem_pexpr_uincl_on env wdb gd (s1 : estate env) vm2 e v1 :
+Lemma sem_pexpr_uincl_on env wdb gd (s1 : estate env) (vm2 : Vm.t env) e v1 :
   s1.(evm) <=[read_e e] vm2 →
   sem_pexpr wdb gd s1 e = ok v1 →
   exists2 v2, sem_pexpr wdb gd (with_vm s1 vm2) e = ok v2 & value_uincl v1 v2.
 Proof. exact: (proj1 (sem_pexpr_uincl_on_pair wdb gd s1 vm2)). Qed.
 
-Corollary sem_pexpr_uincl env wdb gd (s1 : estate env) vm2 e v1 :
+Corollary sem_pexpr_uincl env wdb gd (s1 : estate env) (vm2 : Vm.t env) e v1 :
   s1.(evm) <=1 vm2 →
   sem_pexpr wdb gd s1 e = ok v1 →
   exists2 v2, sem_pexpr wdb gd (with_vm s1 vm2) e = ok v2 & value_uincl v1 v2.
 Proof. move => /(vm_uincl_uincl_on (dom:=read_e e)); exact: sem_pexpr_uincl_on. Qed.
 
-Lemma sem_pexprs_uincl_on env wdb gd (s1 : estate env) vm2 es vs1 :
+Lemma sem_pexprs_uincl_on env wdb gd (s1 : estate env) (vm2 : Vm.t env) es vs1 :
   s1.(evm) <=[read_es es] vm2 →
   sem_pexprs wdb gd s1 es = ok vs1 →
   exists2 vs2, sem_pexprs wdb gd (with_vm s1 vm2) es = ok vs2 &
               values_uincl vs1 vs2.
 Proof. exact: (proj2 (sem_pexpr_uincl_on_pair wdb gd s1 vm2)). Qed.
 
-Corollary sem_pexprs_uincl env wdb gd (s1 : estate env) vm2 es vs1 :
+Corollary sem_pexprs_uincl env wdb gd (s1 : estate env) (vm2 : Vm.t env) es vs1 :
   s1.(evm) <=1 vm2 →
   sem_pexprs wdb gd s1 es = ok vs1 →
   exists2 vs2, sem_pexprs wdb gd (with_vm s1 vm2) es = ok vs2 &
@@ -1093,7 +1093,7 @@ Proof.
   by have /(_ _ h1) := sem_pexprs_uincl_on _ h2.
 Qed.
 
-Lemma write_var_uincl_on env wdb X (x : var_i) v1 v2 (s1 s2 : estate env) vm1 :
+Lemma write_var_uincl_on env wdb X (x : var_i) v1 v2 (s1 s2 : estate env) (vm1 : Vm.t env) :
   value_uincl v1 v2 ->
   write_var wdb x v1 s1 = ok s2 ->
   evm s1 <=[X]  vm1 ->
@@ -1154,7 +1154,7 @@ Proof.
   by apply: vm_truncate_val_subctype htr.
 Qed.
 
-Lemma write_uincl_on env wdb gd (s1 s2 : estate env) vm1 r v1 v2:
+Lemma write_uincl_on env wdb gd (s1 s2 : estate env) (vm1 : Vm.t env) r v1 v2:
   s1.(evm) <=[read_rv r] vm1 ->
   value_uincl v1 v2 ->
   write_lval wdb gd r v1 s1 = ok s2 ->
@@ -1193,7 +1193,7 @@ Proof.
   by rewrite WArray.castK /= => ? /hu -/(_ _ h){hu h} [? -> ?] /= /write_var_uincl_on; apply => //; rewrite Htx.
 Qed.
 
-Corollary write_uincl env wdb gd (s1 s2 : estate env) vm1 r v1 v2:
+Corollary write_uincl env wdb gd (s1 s2 : estate env) (vm1 : Vm.t env) r v1 v2:
   s1.(evm) <=1 vm1 ->
   value_uincl v1 v2 ->
   write_lval wdb gd r v1 s1 = ok s2 ->
@@ -1207,7 +1207,7 @@ Proof.
   apply: (uincl_on_vm_uincl hvm hvm2);[ apply: vrvP ok_s2 | apply: vrvP ok_vm2].
 Qed.
 
-Lemma writes_uincl_on env wdb gd (s1 s2 : estate env) vm1 r v1 v2:
+Lemma writes_uincl_on env wdb gd (s1 s2 : estate env) (vm1 : Vm.t env) r v1 v2:
   s1.(evm) <=[read_rvs r] vm1 ->
   values_uincl v1 v2 ->
   write_lvals wdb gd s1 r v1 = ok s2 ->
@@ -1235,7 +1235,7 @@ Proof.
   exact: Hvm2.
 Qed.
 
-Corollary writes_uincl env wdb gd (s1 s2 : estate env) vm1 r v1 v2:
+Corollary writes_uincl env wdb gd (s1 s2 : estate env) (vm1 : Vm.t env) r v1 v2:
   s1.(evm) <=1 vm1 ->
   values_uincl v1 v2 ->
   write_lvals wdb gd s1 r v1 = ok s2 ->
@@ -1394,22 +1394,22 @@ Proof. by case: sem_pexpr_wdb_and. Qed.
 Lemma sem_pexprs_wdb e : Q e.
 Proof. by case: sem_pexpr_wdb_and. Qed.
 
-Lemma sem_pexpr_ext_eq e vm :
+Lemma sem_pexpr_ext_eq e (vm : Vm.t env) :
   (evm s =1 vm)%vm ->
   sem_pexpr wdb gd s e = sem_pexpr wdb gd (with_vm s vm) e.
 Proof. by move=> heq; apply/read_e_eq_on_empty/vm_eq_eq_on. Qed.
 
-Lemma sem_pexprs_ext_eq es vm :
+Lemma sem_pexprs_ext_eq es (vm : Vm.t env) :
   (evm s =1 vm)%vm ->
   sem_pexprs wdb gd s es = sem_pexprs wdb gd (with_vm s vm) es.
 Proof. by move=> heq; apply/read_es_eq_on_empty/vm_eq_eq_on. Qed.
 
-Lemma sem_eassert_ext_eq e vm :
+Lemma sem_eassert_ext_eq e (vm : Vm.t env) :
   (evm s =1 vm)%vm ->
    sem_eassert gd s e = sem_eassert gd (with_vm s vm) e.
 Proof. by move=> heq; apply/eq_on_sem_eassert. Qed.
 
-Lemma write_lvar_ext_eq x v (s1 s2 : estate env) vm1 :
+Lemma write_lvar_ext_eq x v (s1 s2 : estate env) (vm1 : Vm.t env) :
   (evm s1 =1 vm1)%vm ->
   write_lval wdb gd x v s1 = ok s2 ->
   exists2 vm2, evm s2 =1 vm2 & write_lval wdb gd x v (with_vm s1 vm1) = ok (with_vm s2 vm2).
@@ -1425,7 +1425,7 @@ Proof.
   by apply: vrvP hw2.
 Qed.
 
-Lemma write_lvars_ext_eq xs vs (s1 s2 : estate env) vm1 :
+Lemma write_lvars_ext_eq xs vs (s1 s2 : estate env) (vm1 : Vm.t env) :
   (evm s1 =1 vm1)%vm ->
   write_lvals wdb gd s1 xs vs = ok s2 ->
   exists2 vm2, evm s2 =1 vm2 & write_lvals wdb gd (with_vm s1 vm1) xs vs = ok (with_vm s2 vm2).

@@ -64,7 +64,7 @@ Section PROOF.
       exists x, i1, op, i2.
   Qed.
 
-  Local Lemma Hassgn_esem_aux env ii x tag ty e O s1 s2 (vm1 : Vm.t env) v v' :
+  Local Lemma Hassgn_esem_aux env ii x tag ty e O (s1 s2 : estate env) (vm1 : Vm.t env) v v' :
     sem_pexpr true gd s1 e = ok v ->
     truncate_val (eval_atype env ty) v = ok v' ->
     write_lval true gd x v' s1 = ok s2 ->
@@ -112,7 +112,7 @@ Section PROOF.
     move=> ? H1 H2; split=> //; apply : eq_onT Hvm H1.
   Qed.
 
-  Local Lemma Hassgn_esem env ii x tag ty e I c O (s1 s2 : estate env) vm1 :
+  Local Lemma Hassgn_esem env ii x tag ty e I c O (s1 s2 : estate env) (vm1 : Vm.t env) :
     dead_code_i is_move_op do_nop onfun (MkI ii (Cassgn x tag ty e)) O = ok (I, c) →
     sem_assgn p x tag ty e s1 = ok s2 →
     (evm s1) <=[I] vm1 →
@@ -140,7 +140,7 @@ Section PROOF.
     by apply: uincl_onT=> //; apply: uincl_onT Hs hu.
   Qed.
 
-  Local Lemma Hopn_esem_aux env O ii xs t o es v vs (s1 s2 : estate env) vm1:
+  Local Lemma Hopn_esem_aux env O ii xs t o es v vs (s1 s2 : estate env) (vm1 : Vm.t env) :
     sem_pexprs true gd s1 es = ok vs ->
     exec_sopn env o vs = ok v ->
     write_lvals true gd s1 xs v = ok s2 ->
@@ -159,7 +159,7 @@ Section PROOF.
     by rewrite /sem_sopn /with_vm /= -eq_globs Hexpr' /= Hopn' /= Hw'.
   Qed.
 
-  Local Lemma Hopn_esem env ii xs t o es I c O (s1 s2 : estate env) vm1 :
+  Local Lemma Hopn_esem env ii xs t o es I c O (s1 s2 : estate env) (vm1 : Vm.t env) :
     dead_code_i is_move_op do_nop onfun (MkI ii (Copn xs t o es)) O = ok (I, c) →
     sem_sopn gd o s1 xs es = ok s2 →
     (evm s1) <=[I] vm1 →
@@ -217,7 +217,7 @@ Section PROOF.
     by exists sv2.
   Qed.
 
-  Lemma write_lvals_keep_only env wdb tokeep xs I O xs' (s1 s2 : estate env) vs vs' vm1:
+  Lemma write_lvals_keep_only env wdb tokeep xs I O xs' (s1 s2 : estate env) vs vs' (vm1 : Vm.t env) :
      check_keep_only xs tokeep O = ok (I, xs') ->
      values_uincl (keep_only vs tokeep) vs' ->
      write_lvals wdb gd s1 xs vs = ok s2 ->
@@ -253,42 +253,134 @@ Section PROOF.
 
   Section IT.
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-  Context (env : env_t).
 
-  #[local] Lemma checker_st_uincl_onP : Checker_uincl p p' (checker_st_uincl_on env).
+  #[local] Lemma checker_st_uincl_onP : Checker_uincl p p' checker_st_uincl_on.
   Proof using dead_code_ok. apply/checker_st_uincl_onP/eq_globs. Qed.
   #[local] Hint Resolve checker_st_uincl_onP : core.
 
   Definition dc_spec := {|
-    rpreF_ := fun fn1 fn2 fs1 fs2 => fn1 = fn2 /\ fs_uincl fs1 fs2;
-    rpostF_ := fun fn1 _ fs1 _ fr1 fr2 =>
+    rpreF_ := fun fn1 fn2 vals1 vals2 fs1 fs2 => fn1 = fn2 /\ vals1 = vals2 /\ fs_uincl fs1 fs2;
+    rpostF_ := fun fn1 _ _ _ _ _ fr1 fr2 =>
       fs_rel (fun vres vres' => values_uincl (fn_keep_only onfun fn1 vres) vres') fr1 fr2
    |}.
 
+  Section REC.
+
+  Context (env : env_t).
+
+  (* FIXME: we're forced to put the [forall env] inside Pi and Pc, because in the proof
+     it will be [create_env _ _]. If the proof was structured differently, we could
+     avoid that. *)
   Let Pi (i:instr) :=
     forall I c' O,
       dead_code_i is_move_op do_nop onfun i O = ok (I, c') ->
-      wequiv_rec (env:=env) p p' ev ev dc_spec (st_uincl_on I) [::i] c' (st_uincl_on O).
+      wequiv_rec (env1:=env) (env2:=env) p p' ev ev dc_spec (st_uincl_on I) [::i] c' (st_uincl_on O).
 
   Let Pi_r (i:instr_r) := forall ii, Pi (MkI ii i).
 
   Let Pc (c:cmd) :=
     forall I c' O,
       dead_code_c (dead_code_i is_move_op do_nop onfun) c O = ok (I, c') ->
-       wequiv_rec (env:=env) p p' ev ev dc_spec (st_uincl_on I) c c' (st_uincl_on O).
+       wequiv_rec (env1:=env) (env2:=env) p p' ev ev dc_spec (st_uincl_on I) c c' (st_uincl_on O).
+
+  (* TODO length: I restructured the proof, so that [env] is a section variable. *)
+  Lemma it_dead_code_callP_rec c : Pc c.
+  Proof using is_move_opP dead_code_ok.
+    apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //; rewrite /Pi_r /Pi /Pc; clear Pi_r Pi Pc c.
+    + by move=> _ _ O [<- <-]; apply wequiv_nil.
+    + move=> i c hi hc I c_ O /=; t_xrbindP.
+      move=> [R c'] /hc{}hc [I' i'] /hi{}hi /= ??; subst I' c_.
+      by rewrite -cat1s; apply wequiv_cat with (st_uincl_on R).
+    + move=> x tg ty e ii I c' O h.
+      apply wequiv_assgn_esem => s t s' /st_relP [-> /= ] hu hs.
+      by have [vm2 ??]:= Hassgn_esem h hs hu; exists (with_vm s' vm2).
+    + move=> x tg o es ii I c' O h.
+      apply wequiv_opn_esem => s t s' /st_relP [-> /= ] hu hs.
+      by have [vm2 ??]:= Hopn_esem h hs hu; exists (with_vm s' vm2).
+    + move=> /= xs o es ii I c' O [hI <-].
+      apply wequiv_syscall_rel_uincl with checker_st_uincl_on I => //=; subst I.
+      + by split => //; rewrite read_esE; clear; SvD.fsetdec.
+      by split => //; rewrite read_esE read_rvsE; clear; SvD.fsetdec.
+    + move=> /= a ii I c' O [hI <-].
+      by apply wequiv_noassert.
+    + move=> e c1 c2 hc1 hc2 ii I c' O /=; t_xrbindP.
+      move=> [I1 c1'] /hc1{}hc1 [I2 c2'] /hc2{}hc2 [??]; subst I c'.
+      apply wequiv_if_rel_uincl with checker_st_uincl_on (read_e_rec (Sv.union I1 I2) e) O O => //=.
+      + split => //; rewrite /read_es /= !read_eE; clear; SvD.fsetdec.
+      + apply wequiv_weaken with (st_uincl_on I1) (st_uincl_on O) => //.
+        by apply st_rel_weaken => ??; apply uincl_onI; rewrite read_eE; clear; SvD.fsetdec.
+      apply wequiv_weaken with (st_uincl_on I2) (st_uincl_on O) => //.
+      by apply st_rel_weaken => ??; apply uincl_onI; rewrite read_eE; clear; SvD.fsetdec.
+    + move=> x dir lo hi c hc ii I c_ O /=.
+      case Hloop: loop => [[sv1 sc1] /=|//] [??]; subst I c_.
+      move: (loopP Hloop) => [H1 [sv2 [/hc{}hc H2']]].
+      apply wequiv_weaken with (st_uincl_on (read_e_rec (read_e_rec sv1 hi) lo))
+             (st_uincl_on sv1) => //.
+      + by apply st_rel_weaken => ??; apply uincl_onI.
+      apply wequiv_for_rel_uincl with checker_st_uincl_on
+         (read_e_rec (read_e_rec sv1 hi) lo) sv2 => //.
+      + by split => //; rewrite /read_es /= !read_eE; clear; SvD.fsetdec.
+      + by move=> ??; apply uincl_onI; rewrite !read_eE; clear; SvD.fsetdec.
+      by split => //; rewrite /vrvs /read_rvs //=; clear -H2'; SvD.fsetdec.
+    + move=> a c1 e ii' c2 hc1 hc2 ii I c_ O /=.
+      set dobody := (X in wloop X).
+      case Hloop: wloop => [[sv1 [c1' c2']] /=|//] [??]; subst sv1 c_.
+      move: (wloopP Hloop) => [sv2 [sv2' [H1 [heq H2]]]].
+      move: (heq); rewrite /dobody; t_xrbindP.
+      move=> [Ic1 c1_] /hc1{}hc1.
+      case heq1 : dead_code_c => [[Ic2 c2_]/= | //] [????]; subst sv2' Ic1 c1_ c2_.
+      have {}hc2 := hc2 _ _ _ heq1. clear heq1.
+      apply wequiv_weaken with (st_uincl_on I) (st_uincl_on (read_e_rec sv2 e)) => //.
+      + by apply st_rel_weaken => ??; apply uincl_onI; rewrite read_eE; clear -H1; SvD.fsetdec.
+      apply wequiv_while_rel_uincl with checker_st_uincl_on (read_e_rec sv2 e) => //.
+      + split => //; rewrite /read_es /= !read_eE; clear; SvD.fsetdec.
+      apply wequiv_weaken with (st_uincl_on Ic2) (st_uincl_on I) => //.
+      by apply st_rel_weaken => ??; apply uincl_onI; rewrite read_eE; clear -H2; SvD.fsetdec.
+    move=> xs f als es ii I_ c_ O /=.
+    set sxs := (X in Let sxs := X in _).
+    case heq: sxs => [ [I xs'] | ] //= [??]; subst c_ I_.
+    apply wequiv_call with (Pf:=rpreF (eS:=dc_spec)) (Qf:= rpostF (eS:=dc_spec))
+      (Rvals:=eq) (Rv:=values_uincl) => //.
+    + by rewrite -eq_globs; apply read_es_st_uincl_on; rewrite read_esE; clear; SvD.fsetdec.
+    + by move=> > [].
+    + move=> >; exact: wequiv_fun_rec.
+    move=> _ _ _ _ fr1 fr2 _ /=; apply upd_st_rel.
+    move=> vs1 vs2 hall.
+    apply wrequiv_weaken with (st_uincl_on I) (st_uincl_on O) => //.
+    + by apply st_rel_weaken => ??; apply uincl_onI; rewrite read_esE; clear; SvD.fsetdec.
+    move=> s t s' /st_relP [-> /= hu] hw.
+    move: heq hall; rewrite /sxs /fn_keep_only -eq_globs; case: onfun => [tokeep | [??]].
+    + t_xrbindP=> hc Hv'.
+      have [vm2 [? ->]]:= write_lvals_keep_only hc Hv' hw hu.
+      by eexists; first reflexivity.
+    subst xs' I. have /= Hws := write_lvals_uincl_on _ _ hw hu.
+    have Hsub : Sv.Subset (read_rvs xs) (read_rvs_rec (Sv.diff O (vrvs xs)) xs).
+    + by rewrite read_rvsE; clear; SvD.fsetdec.
+    have Hv'' : values_uincl vs1 vs1 by done.
+    have [vm2 Hvm2 /= Hvm2'] := Hws _ Hsub Hv'' => Hv'.
+    have [vm3 Hws' /= Hvm'] := writes_uincl (vm_uincl_refl _) Hv' Hvm2'.
+    rewrite Hws' /=; eexists; first reflexivity; split => //.
+    apply : (@uincl_onT _ _ vm2).
+    + by apply: uincl_onI Hvm2; rewrite read_rvsE; clear; SvD.fsetdec.
+    by move=> z Hin; apply Hvm'.
+  Qed.
+
+  End REC.
 
   Lemma it_dead_code_callP fn :
-    wiequiv_f env p p' ev ev (rpreF (eS:= dc_spec)) fn fn (rpostF (eS:=dc_spec)).
+    wiequiv_f p p' ev ev (rpreF (eS:= dc_spec)) fn fn (rpostF (eS:=dc_spec)).
   Proof using is_move_opP dead_code_ok.
-    apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
+    rewrite /wiequiv_f.
+    apply wequiv_fun_ind => {}fn _ vals _ fs ft [<- [<- hfsu]] fd hget.
     have dcok : map_cfprog_name (dead_code_fd is_move_op apply_ret_annot do_nop onfun) (p_funcs p) = ok (p_funcs p').
     + by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? ? <-.
     have [fd' hfd' hget'] := get_map_cfprog_name_gen dcok hget.
     exists fd' => // {hget}.
-    case: fd hfd' => fi fc ftyin fp /= c ftyout res fextra.
+    case: fd hfd' => fi fc fal ftyin fp /= c ftyout res fextra.
     set fd := {| f_info := _ |}.
     rewrite /dead_code_fd /=; t_xrbindP; set O := read_es _; move=> [I c'] hc ?; subst fd'.
     set fd' := {| f_info := _ |}.
+    set env := create_env _ _.
     move=> s1 hinit.
     have [s1' hinit' hu1] := fs_uincl_initialize (fd':= fd') erefl erefl erefl eq_p_extra hfsu hinit.
     exists s1' => //.
@@ -315,85 +407,7 @@ Section PROOF.
         by rewrite hv' /= ih.
       have [vres2 -> /= ?] := mapM2_dc_truncate_val htr' Hvl.
       by eexists; eauto.
-    rewrite /=; move: (I) (c') (O) hc.
-    move => { hu1 hinit' s1' hinit s1 fd' fd hget' fextra res ftyout fp ftyin fi fc hfsu fs ft I O fn dcok c'}.
-    apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //; rewrite /Pi_r /Pi /Pc; clear Pi_r Pi Pc c.
-    + by move=> _ _ O [<- <-]; apply wequiv_nil.
-    + move=> i c hi hc I c_ O /=; t_xrbindP.
-      move=> [R c'] /hc{}hc [I' i'] /hi{}hi /= ??; subst I' c_.
-      by rewrite -cat1s; apply wequiv_cat with (st_uincl_on R).
-    + move=> x tg ty e ii I c' O h.
-      apply wequiv_assgn_esem => s t s' /st_relP [-> /= ] hu hs.
-      by have [vm2 ??]:= Hassgn_esem h hs hu; exists (with_vm s' vm2).
-    + move=> x tg o es ii I c' O h.
-      apply wequiv_opn_esem => s t s' /st_relP [-> /= ] hu hs.
-      by have [vm2 ??]:= Hopn_esem h hs hu; exists (with_vm s' vm2).
-    + move=> /= xs o es ii I c' O [hI <-].
-      apply wequiv_syscall_rel_uincl with (checker_st_uincl_on env) I => //=; subst I.
-      + by split => //; rewrite read_esE; clear; SvD.fsetdec.
-      by split => //; rewrite read_esE read_rvsE; clear; SvD.fsetdec.
-    + move=> /= a ii I c' O [hI <-].
-      by apply wequiv_noassert.
-    + move=> e c1 c2 hc1 hc2 ii I c' O /=; t_xrbindP.
-      move=> [I1 c1'] /hc1{}hc1 [I2 c2'] /hc2{}hc2 [??]; subst I c'.
-      apply wequiv_if_rel_uincl with (checker_st_uincl_on env) (read_e_rec (Sv.union I1 I2) e) O O => //=.
-      + split => //; rewrite /read_es /= !read_eE; clear; SvD.fsetdec.
-      + apply wequiv_weaken with (st_uincl_on I1) (st_uincl_on O) => //.
-        by apply st_rel_weaken => ??; apply uincl_onI; rewrite read_eE; clear; SvD.fsetdec.
-      apply wequiv_weaken with (st_uincl_on I2) (st_uincl_on O) => //.
-      by apply st_rel_weaken => ??; apply uincl_onI; rewrite read_eE; clear; SvD.fsetdec.
-    + move=> x dir lo hi c hc ii I c_ O /=.
-      case Hloop: loop => [[sv1 sc1] /=|//] [??]; subst I c_.
-      move: (loopP Hloop) => [H1 [sv2 [/hc{}hc H2']]].
-      apply wequiv_weaken with (st_uincl_on (read_e_rec (read_e_rec sv1 hi) lo))
-             (st_uincl_on sv1) => //.
-      + by apply st_rel_weaken => ??; apply uincl_onI.
-      apply wequiv_for_rel_uincl with (checker_st_uincl_on env)
-         (read_e_rec (read_e_rec sv1 hi) lo) sv2 => //.
-      + by split => //; rewrite /read_es /= !read_eE; clear; SvD.fsetdec.
-      + by move=> ??; apply uincl_onI; rewrite !read_eE; clear; SvD.fsetdec.
-      by split => //; rewrite /vrvs /read_rvs //=; clear -H2'; SvD.fsetdec.
-    + move=> a c1 e ii' c2 hc1 hc2 ii I c_ O /=.
-      set dobody := (X in wloop X).
-      case Hloop: wloop => [[sv1 [c1' c2']] /=|//] [??]; subst sv1 c_.
-      move: (wloopP Hloop) => [sv2 [sv2' [H1 [heq H2]]]].
-      move: (heq); rewrite /dobody; t_xrbindP.
-      move=> [Ic1 c1_] /hc1{}hc1.
-      case heq1 : dead_code_c => [[Ic2 c2_]/= | //] [????]; subst sv2' Ic1 c1_ c2_.
-      have {}hc2 := hc2 _ _ _ heq1. clear heq1.
-      apply wequiv_weaken with (st_uincl_on I) (st_uincl_on (read_e_rec sv2 e)) => //.
-      + by apply st_rel_weaken => ??; apply uincl_onI; rewrite read_eE; clear -H1; SvD.fsetdec.
-      apply wequiv_while_rel_uincl with (checker_st_uincl_on env) (read_e_rec sv2 e) => //.
-      + split => //; rewrite /read_es /= !read_eE; clear; SvD.fsetdec.
-      apply wequiv_weaken with (st_uincl_on Ic2) (st_uincl_on I) => //.
-      by apply st_rel_weaken => ??; apply uincl_onI; rewrite read_eE; clear -H2; SvD.fsetdec.
-    move=> xs f es ii I_ c_ O /=.
-    set sxs := (X in Let sxs := X in _).
-    case heq: sxs => [ [I xs'] | ] //= [??]; subst c_ I_.
-    apply wequiv_call with (Pf:=rpreF (eS:=dc_spec)) (Qf:= rpostF (eS:=dc_spec))
-      (Rv:=values_uincl) => //.
-    + by rewrite -eq_globs; apply read_es_st_uincl_on; rewrite read_esE; clear; SvD.fsetdec.
-    + by move=> > [].
-    + move=> >; exact: wequiv_fun_rec.
-    move=> _ _ fr1 fr2 _ /=; apply upd_st_rel.
-    move=> vs1 vs2 hall.
-    apply wrequiv_weaken with (st_uincl_on I) (st_uincl_on O) => //.
-    + by apply st_rel_weaken => ??; apply uincl_onI; rewrite read_esE; clear; SvD.fsetdec.
-    move=> s t s' /st_relP [-> /= hu] hw.
-    move: heq hall; rewrite /sxs /fn_keep_only -eq_globs; case: onfun => [tokeep | [??]].
-    + t_xrbindP=> hc Hv'.
-      have [vm2 [? ->]]:= write_lvals_keep_only hc Hv' hw hu.
-      by eexists; first reflexivity.
-    subst xs' I. have /= Hws := write_lvals_uincl_on _ _ hw hu.
-    have Hsub : Sv.Subset (read_rvs xs) (read_rvs_rec (Sv.diff O (vrvs xs)) xs).
-    + by rewrite read_rvsE; clear; SvD.fsetdec.
-    have Hv'' : values_uincl vs1 vs1 by done.
-    have [vm2 Hvm2 /= Hvm2'] := Hws _ Hsub Hv'' => Hv'.
-    have [vm3 Hws' /= Hvm'] := writes_uincl (vm_uincl_refl _) Hv' Hvm2'.
-    rewrite Hws' /=; eexists; first reflexivity; split => //.
-    apply: (@uincl_onT _ _ vm2).
-    + by apply: uincl_onI Hvm2; rewrite read_rvsE; clear; SvD.fsetdec.
-    by move=> z Hin; apply Hvm'.
+    by apply it_dead_code_callP_rec.
   Qed.
 
   End IT.
@@ -404,36 +418,37 @@ End Section.
 
 Section IT.
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-Context (env : env_t).
 
 Lemma it_dead_code_tokeep_callPu (p p': uprog) apply_ret_annot do_nop onfun fn ev:
   dead_code_prog_tokeep is_move_op apply_ret_annot do_nop onfun p = ok p' ->
-  wiequiv_f env p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=dc_spec onfun)).
+  wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=dc_spec onfun)).
 Proof using is_move_opP.
-  move=> hd; apply wkequiv_io_weaken with
-   (rpreF (eS:= dc_spec onfun) fn fn) (rpostF (eS:=dc_spec onfun) fn fn) => //=.
-  + by move=> ?? [_ <-]; split => //; split => //; apply List_Forall2_refl.
+  move=> hd vals1 vals2.
+  apply wkequiv_io_weaken with
+   (rpreF (eS:= dc_spec onfun) fn fn vals1 vals2) (rpostF (eS:=dc_spec onfun) fn fn vals1 vals2) => //=.
+  + by move=> ?? [_ [<- <-]]; split.
   apply (it_dead_code_callP ev hd).
 Qed.
 
 Lemma it_dead_code_tokeep_callPs (p p': sprog) apply_ret_annot do_nop onfun fn wrip:
   dead_code_prog_tokeep is_move_op apply_ret_annot do_nop onfun p = ok p' ->
-  wiequiv_f env p p' wrip wrip (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=dc_spec onfun)).
+  wiequiv_f p p' wrip wrip (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=dc_spec onfun)).
 Proof using is_move_opP.
-  move=> hd; apply wkequiv_io_weaken with
-   (rpreF (eS:= dc_spec onfun) fn fn) (rpostF (eS:=dc_spec onfun) fn fn) => //=.
-  + by move=> ?? [_ <-]; split => //; split => //; apply List_Forall2_refl.
+  move=> hd vals1 vals2.
+  apply wkequiv_io_weaken with
+   (rpreF (eS:= dc_spec onfun) fn fn vals1 vals2) (rpostF (eS:=dc_spec onfun) fn fn vals1 vals2) => //=.
+  + by move=> ?? [_ [<- <-]]; split.
   apply (it_dead_code_callP wrip hd).
 Qed.
 
 Lemma it_dead_code_callPu (p p': uprog) do_nop fn ev :
   dead_code_prog is_move_op p do_nop = ok p' ->
-  wiequiv_f env p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=uincl_spec)).
+  wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof using is_move_opP. apply it_dead_code_tokeep_callPu. Qed.
 
 Lemma it_dead_code_callPs (p p': sprog) do_nop fn wrip:
   dead_code_prog is_move_op p do_nop = ok p' ->
-  wiequiv_f env p p' wrip wrip (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=uincl_spec)).
+  wiequiv_f p p' wrip wrip (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof using is_move_opP. apply it_dead_code_tokeep_callPs. Qed.
 
 Lemma dead_code_prog_tokeep_meta (p p': sprog) apply_ret_annot do_nop onfun :

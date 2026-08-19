@@ -32,7 +32,7 @@ Record fstate := { fscs : syscall_state_t; fmem : mem; fvals : values }.
 
 (* Recursion events (curried version of Call in ITree) *)
 Variant recCall : Type -> Type :=
- | RecCall (ii:instr_info) (f:funname) (fs:fstate) : recCall fstate.
+ | RecCall (ii:instr_info) (f:funname) (vals : seq Z) (fs:fstate) : recCall fstate.
 
 (**** Auxiliary definitions ******************************************)
 Section CORE.
@@ -104,9 +104,15 @@ Definition isem_bound env (lo hi : pexpr) (s : estate env) : itree E (Z * Z) :=
 Definition isem_assert env (a: assertion) (s: estate env) : itree E unit :=
   iresult (sem_assert (p_globs p) s a).
 
-Definition sem_pre {dc: DirectCall} env (P : prog) (fn:funname) (fs: fstate) :=
+Definition create_env (als : seq (Uint63.int * Ident.ident)) (vals : seq Z) :=
+  let l := zip (map fst als) vals in
+  fun (i:Uint63.int) => odflt 0%Z (xseq.assoc l i).
+
+(* TODO: use estate0 ? *)
+Definition sem_pre {dc: DirectCall} (P : prog) (fn:funname) vals (fs: fstate) :=
   if ~~assert_allowed then ok tt
   else if get_fundef (p_funcs P) fn is Some f then
+    let env := create_env f.(f_al) vals in
     match f.(f_contract) with
     | Some ci =>
       Let vargs := mapM2 ErrType dc_truncate_val (map (eval_atype env) f.(f_tyin)) fs.(fvals) in
@@ -117,12 +123,13 @@ Definition sem_pre {dc: DirectCall} env (P : prog) (fn:funname) (fs: fstate) :=
     end
   else Error ErrType.
 
-Definition isem_pre {dc : DirectCall} env (fn : funname) (fs:fstate) : itree E unit :=
-  iresult (sem_pre env p fn fs).
+Definition isem_pre {dc : DirectCall} (fn : funname) vals (fs:fstate) : itree E unit :=
+  iresult (sem_pre p fn vals fs).
 
-Definition sem_post {dc: DirectCall} env (P : prog) (fn:funname) (vargs' : values) (fs: fstate) :=
+Definition sem_post {dc: DirectCall} (P : prog) (fn:funname) vals (vargs' : values) (fs: fstate) :=
   if ~~assert_allowed then ok tt
   else if get_fundef (p_funcs P) fn is Some f then
+    let env := create_env f.(f_al) vals in
     match f.(f_contract) with
     | Some ci =>
       Let vargs := mapM2 ErrType dc_truncate_val (map (eval_atype env) f.(f_tyin)) vargs' in
@@ -134,13 +141,13 @@ Definition sem_post {dc: DirectCall} env (P : prog) (fn:funname) (vargs' : value
     end
   else Error ErrType.
 
-Definition isem_post {dc : DirectCall} env (fn : funname) (vargs : values) (fr:fstate) : itree E unit :=
-  iresult (sem_post env p fn vargs fr).
+Definition isem_post {dc : DirectCall} (fn : funname) vals (vargs : values) (fr:fstate) : itree E unit :=
+  iresult (sem_post p fn vals vargs fr).
 
 (* recCall trigger *)
-Definition rec_call (ii:instr_info) (f : funname) (fs : fstate) :
+Definition rec_call (ii:instr_info) (f : funname) (vals : seq Z) (fs : fstate) :
    itree (recCall +' E) fstate :=
-  trigger_inl1 (RecCall ii f fs).
+  trigger_inl1 (RecCall ii f vals fs).
 
 End CORE.
 
@@ -188,11 +195,11 @@ Definition estate0 env (fs : fstate) :=
   Estate fs.(fscs) fs.(fmem) (Vm.init env).
 
 Class sem_Fun (E : Type -> Type) :=
-  { sem_fun : env_t -> prog -> extra_val_t -> instr_info -> funname -> fstate -> itree E fstate }.
+  { sem_fun : prog -> extra_val_t -> instr_info -> funname -> seq Z -> fstate -> itree E fstate }.
 
 #[global]
 Instance sem_fun_rec (E : Type -> Type) : sem_Fun (recCall +' E) | 0 :=
-  {| sem_fun := fun _ _ _ => rec_call (E:=E) |}.
+  {| sem_fun := fun _ _ => rec_call (E:=E) |}.
 
 Section SEM_I.
 
@@ -223,12 +230,13 @@ Fixpoint isem_i_body env (p : prog) (ev : extra_val_t) (i : instr) (s : estate e
     bounds <- isem_bound p lo hi s;;
     isem_for_loop (@isem_i_body _) p ev i c (wrange d bounds.1 bounds.2) s
 
-  | Ccall xs fn args =>
-    vargs <- isem_pexprs  (~~direct_call) (p_globs p) args s;;
+  | Ccall xs fn als args =>
+    vargs <- isem_pexprs (~~direct_call) (p_globs p) args s;;
     let fi := mk_fstate vargs s in
-    isem_pre p env fn fi;;
-    fs <- sem_fun env p ev ii fn fi ;;
-    isem_post p env fn vargs fs;;
+    let vals := map (eval env) als in
+    isem_pre p fn vals fi;;
+    fs <- sem_fun p ev ii fn vals fi ;;
+    isem_post p fn vals vargs fs;;
     iresult (upd_estate (~~direct_call) (p_globs p) xs fs s)
 
   end.
@@ -257,13 +265,13 @@ Proof.
   apply eutt_eq_bind => {}s /= ; rewrite bind_ret_l !bind_ret_r tau_eutt; reflexivity.
 Qed.
 
-Definition initialize_funcall env (p : prog) (ev : extra_val_t) (fd : fundef) (fs : fstate) : exec (estate env) :=
+Definition initialize_funcall (p : prog) (ev : extra_val_t) (fd : fundef) env (fs : fstate) : exec (estate env) :=
   let sinit := estate0 env fs in
   Let vargs' := mapM2 ErrType dc_truncate_val (map (eval_atype env) fd.(f_tyin)) fs.(fvals) in
   Let s0 := init_state fd.(f_extra) (p_extra p) ev sinit in
   write_vars (~~direct_call) fd.(f_params) vargs' s0.
 
-Definition finalize_funcall env (fd : fundef) (s:estate env) : exec fstate :=
+Definition finalize_funcall (fd : fundef) env (s:estate env) : exec fstate :=
   Let vres := get_var_is (~~ direct_call) s.(evm) fd.(f_res) in
   Let vres' := mapM2 ErrType dc_truncate_val (map (eval_atype env) fd.(f_tyout)) vres in
   let scs := s.(escs) in
@@ -274,15 +282,15 @@ Definition ifinalize_funcall env (fd : fundef) (s:estate env) : itree E fstate :
   iresult (finalize_funcall fd s).
 
 (* similar, for proper function calls *)
-Definition isem_fun_body env (p : prog) (ev : extra_val_t)
-   (fn : funname) (fs : fstate) :=
+Definition isem_fun_body (p : prog) (ev : extra_val_t)
+   (fn : funname) (vals : seq Z) (fs : fstate) :=
    fd <- kget_fundef (p_funcs p) fn fs;;
-   let sinit := estate0 env fs in
-   isem_pre p env fn fs;;
-   s1 <- iresult (initialize_funcall env p ev fd fs);;
+   let env := create_env fd.(f_al) vals in
+   isem_pre p fn vals fs;;
+   s1 <- iresult (initialize_funcall p ev fd env fs);;
    s2 <- isem_cmd_ p ev fd.(f_body) s1;;
    fr <- iresult (finalize_funcall fd s2);;
-   isem_post p env fn fs.(fvals) fr;;
+   isem_post p fn vals fs.(fvals) fr;;
    Ret fr.
 
 (* A variant of the semantic based on exec, usefull for the proofs *)
@@ -311,7 +319,7 @@ Fixpoint esem_i env (p : prog) (ev : extra_val_t) (i : instr) (s : estate env) :
       foldM (esem_i p ev) s c)
      s (wrange d bounds.1 bounds.2)
 
-  | Ccall xs fn args => Error ErrSemUndef
+  | Ccall xs fn als args => Error ErrSemUndef
   end.
 
 Definition esem env (p : prog) (ev : extra_val_t) (c : cmd) (s : estate env) :=
@@ -374,8 +382,8 @@ Context {E E0} {wE : with_Error E E0}.
 
 Section EXTEQ.
 Context (sem_F1 sem_F2: sem_Fun E) (env : env_t) (p:prog) (ev:extra_val_t) .
-Hypothesis sem_F_ext : forall ii fn fs,
-  sem_fun (sem_Fun := sem_F1) env p ev ii fn fs ≈ sem_fun (sem_Fun := sem_F2) env p ev ii fn fs.
+Hypothesis sem_F_ext : forall ii fn vals fs,
+  sem_fun (sem_Fun := sem_F1) p ev ii fn vals fs ≈ sem_fun (sem_Fun := sem_F2) p ev ii fn vals fs.
 
 Lemma isem_cmd_ext c (s : estate env) :
   isem_cmd_ (sem_F := sem_F1) p ev c s ≈ isem_cmd_ (sem_F := sem_F2) p ev c s.
@@ -409,7 +417,7 @@ Proof using sem_F_ext.
     move=> ?; apply eqit_bind; first reflexivity.
     move=> []; last by reflexivity.
     by apply eqit_bind; [apply hc' | reflexivity].
-  move=> xs f es ii s /=.
+  move=> xs f als es ii s /=.
   apply eqit_bind; first reflexivity.
   move=> ?; apply eqit_bind; first reflexivity.
   move=> ?; apply eqit_bind; first by apply sem_F_ext.
@@ -430,28 +438,28 @@ Definition isem_cmd_rec env (p : prog) (ev : extra_val_t) (c : cmd) (s : estate 
   isem_cmd_ (sem_F := sem_fun_rec E) p ev c s.
 
 (* similar, for function calls *)
-Definition isem_fun_rec env (p : prog) (ev : extra_val_t)
-   (fn : funname) (fs : fstate) : itree (recCall +' E) fstate :=
-  isem_fun_body (sem_F := sem_fun_rec E) env p ev fn fs.
+Definition isem_fun_rec (p : prog) (ev : extra_val_t)
+   (fn : funname) (vals : seq Z) (fs : fstate) : itree (recCall +' E) fstate :=
+  isem_fun_body (sem_F := sem_fun_rec E) p ev fn vals fs.
 
 (* handler of recCall events *)
-Definition handle_recCall {sem_F : funname -> sem_Fun (recCall +' E)} env (p : prog) (ev : extra_val_t) :
+Definition handle_recCall {sem_F : funname -> sem_Fun (recCall +' E)} (p : prog) (ev : extra_val_t) :
    recCall ~> itree (recCall +' E) :=
  fun T (rc : recCall T) =>
    match rc with
-   | RecCall _ fn fs => isem_fun_body (sem_F:=sem_F fn) env p ev fn fs
+   | RecCall _ fn vals fs => isem_fun_body (sem_F:=sem_F fn) p ev fn vals fs
    end.
 
 (* intepreter of recCall events for functions, giving us the recursive
    semantics of functions *)
-Definition isem_fun_def {sem_F : funname -> sem_Fun (recCall +' E)} env (p : prog) (ev : extra_val_t) (fn : funname) (fs : fstate) : itree E fstate :=
-  mrec (handle_recCall (sem_F := sem_F) env p ev) (RecCall dummy_instr_info fn fs).
+Definition isem_fun_def {sem_F : funname -> sem_Fun (recCall +' E)} (p : prog) (ev : extra_val_t) (fn : funname) vals (fs : fstate) : itree E fstate :=
+  mrec (handle_recCall (sem_F := sem_F) p ev) (RecCall dummy_instr_info fn vals fs).
 
 Definition isem_fun := isem_fun_def (sem_F := fun _ => sem_fun_rec E).
 
 #[global]
 Instance sem_fun_full : sem_Fun E | 100 :=
-  {| sem_fun := fun env p ev ii => isem_fun env p ev |}.
+  {| sem_fun := fun p ev ii => isem_fun p ev |}.
 
 (* recursive semantics of instructions *)
 Definition isem_i env (p : prog) (ev : extra_val_t) (i : instr) (s : estate env) : itree E (estate env) :=
@@ -467,9 +475,9 @@ Definition isem_cmd env (p : prog) (ev : extra_val_t) (c : cmd) (s : estate env)
 Definition sem_fun_inline
    (do_inline :  funname (* caller *) -> instr_info -> funname (* callee *) -> bool)
    (caller : funname) :=
- {| sem_fun := fun env (p : prog) (ev : extra_val_t) (ii:instr_info) (callee : funname) (fs : fstate) =>
-     if do_inline caller ii callee then isem_fun_rec env p ev callee fs (* Interprete the call but not the internal ones *)
-     else rec_call (E:=E) ii callee fs (* Do not interprete the call, simply emmit an event *)
+ {| sem_fun := fun (p : prog) (ev : extra_val_t) (ii:instr_info) (callee : funname) (vals : seq Z) (fs : fstate) =>
+     if do_inline caller ii callee then isem_fun_rec p ev callee vals fs (* Interprete the call but not the internal ones *)
+     else rec_call (E:=E) ii callee vals fs (* Do not interprete the call, simply emmit an event *)
  |}.
 
 Definition isem_fun_inline
@@ -480,17 +488,17 @@ End SEM_F.
 
 (* interpreter of error events, giving us the fully interpreted
    semantics of functions *)
-Definition err_sem_fun env (p : prog) (ev : extra_val_t) (fn : funname)
-    (fs : fstate) : execT (itree void1) fstate :=
-  interp_Err (isem_fun env p ev fn fs).
+Definition err_sem_fun (p : prog) (ev : extra_val_t) (fn : funname)
+    vals (fs : fstate) : execT (itree void1) fstate :=
+  interp_Err (isem_fun p ev fn vals fs).
 
 (*** Core lemmas about the definition ********************************)
 Section CoreLemmas.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0}.
-Context (env : env_t) (p : prog) (ev : extra_val_t).
+Context (p : prog) (ev : extra_val_t).
 
-Notation interp_rec := (interp (mrecursive (handle_recCall env p ev))).
+Notation interp_rec := (interp (mrecursive (handle_recCall p ev))).
 
 Lemma interp_throw T e : interp_rec (throw (X:=T) e) ≈ throw e.
 Proof. rewrite interp_vis bind_trigger; apply eqit_Vis => -[]. Qed.
@@ -504,14 +512,14 @@ Proof.
 Qed.
 
 Lemma interp_iresult T (r : exec T) :
-  eutt (E:=E) eq (interp (mrecursive (handle_recCall env p ev)) (iresult r)) (iresult r).
+  eutt (E:=E) eq (interp (mrecursive (handle_recCall p ev)) (iresult r)) (iresult r).
 Proof.
   case r => /= [? | ?].
   + rewrite interp_ret; reflexivity.
   apply interp_throw.
  Qed.
 
-Lemma interp_isem_cmd c (s : estate env) :
+Lemma interp_isem_cmd env c (s : estate env) :
   eutt (E:=E) eq (interp_rec (isem_foldr (@isem_i_rec _ _ _ _) p ev c s))
          (isem_foldr (@isem_i_body _ _ _ _ _) p ev c s).
 Proof.
@@ -555,7 +563,7 @@ Proof.
     + rewrite interp_bind; apply eqit_bind; first by apply hc2.
       move=> s2; rewrite interp_ret; reflexivity.
     rewrite interp_ret; reflexivity.
-  move=> xs f es ii s; rewrite /isem_i /isem_i_rec /=.
+  move=> xs f als es ii s; rewrite /isem_i /isem_i_rec /=.
   rewrite interp_bind; apply eqit_bind; first by apply interp_iresult.
   move=> vs; rewrite interp_bind; apply eqit_bind.
   + by apply interp_iresult.
@@ -566,8 +574,8 @@ Proof.
   move=> ?; exact: interp_iresult.
 Qed.
 
-Lemma isem_call_unfold (fn : funname) (fs : fstate) :
-  isem_fun env p ev fn fs ≈ isem_fun_body env p ev fn fs.
+Lemma isem_call_unfold (fn : funname) vals (fs : fstate) :
+  isem_fun p ev fn vals fs ≈ isem_fun_body p ev fn vals fs.
 Proof.
   rewrite {1}/isem_fun {1}/isem_fun_def.
   rewrite mrec_as_interp.
@@ -604,34 +612,35 @@ Proof.
   by apply interp_cond_throw.
 Qed.
 
-Lemma isem_call_inline do_inline (fn : funname) (fs : fstate) :
-  isem_fun env p ev fn fs ≈ isem_fun_inline do_inline env p ev fn fs.
+Lemma isem_call_inline do_inline (fn : funname) vals (fs : fstate) :
+  isem_fun p ev fn vals fs ≈ isem_fun_inline do_inline p ev fn vals fs.
 Proof.
   rewrite /isem_fun /isem_fun_inline /isem_fun_def /handle_recCall /=.
   rewrite /isem_fun_body.
   set cond := fun  T1 (d1: recCall T1) T2 (d2: recCall T2) =>
     match d1, d2 with
-    | RecCall _ caller _, RecCall ii callee _ => do_inline caller ii callee
+    | RecCall _ caller _ _, RecCall ii callee _ _ => do_inline caller ii callee
     end.
   rewrite (mrec_loop2 cond).
   rewrite /mrec.
   set F := (X in ctx2_cond _ X).
-  have haux : forall (ii1 : instr_info) (fn1 : funname) (fs1 : fstate),
-    ctx2_cond cond F (RecCall ii1 fn1 fs1)
+  have haux : forall (ii1 : instr_info) (fn1 : funname) vals1 (fs1 : fstate),
+    ctx2_cond cond F (RecCall ii1 fn1 vals1 fs1)
     ≈ fd <- kget_fundef (p_funcs p) fn1 fs1;;
-      _ <- isem_pre p env fn1 fs1;;
-      s1 <- iresult (initialize_funcall env p ev fd fs1);;
+      _ <- isem_pre p fn1 vals1 fs1;;
+      s1 <- iresult (initialize_funcall p ev fd (create_env fd.(f_al) vals1) fs1);;
       s2 <- isem_cmd_ (sem_F:= sem_fun_inline do_inline fn1) p ev (f_body fd) s1;;
       fr <- iresult (finalize_funcall fd s2) ;;
-      _ <- isem_post p env fn1 (fvals fs1) fr;;
+      _ <- isem_post p fn1 vals1 (fvals fs1) fr;;
       Ret fr.
-  + move=> ii1 fn1 fs1.
+  + move=> ii1 fn1 vals1 fs1.
     rewrite /ctx2_cond /Handler.cat interp_bind.
     apply eutt_eq_bind'.
     + rewrite /kget_fundef; case: get_fundef => [fd | ] /=.
       + rewrite interp_ret; reflexivity.
       by apply interp_cond_throw.
     move=> fd.
+    set env := create_env fd.(f_al) vals1.
     rewrite interp_bind.
     apply eutt_eq_bind'.
     + rewrite interp_cond_iresult; reflexivity.
@@ -648,13 +657,13 @@ Proof.
       move=> ?; rewrite interp_ret; reflexivity.
     set Pi := fun i =>
       forall (s : estate env),
-       interp (ctx_cond (cond fstate (RecCall dummy_instr_info fn1 fs1)) F)
+       interp (ctx_cond (cond fstate (RecCall dummy_instr_info fn1 vals1 fs1)) F)
           (isem_i_body (sem_F := sem_fun_rec E) p ev i s) ≈
        isem_i_body (sem_F:= sem_fun_inline do_inline fn1) p ev i s.
     set Pr := fun i => forall ii, Pi (MkI ii i).
     set Pc := fun c =>
       forall (s : estate env),
-        interp (ctx_cond (cond fstate (RecCall dummy_instr_info fn1 fs1)) F)
+        interp (ctx_cond (cond fstate (RecCall dummy_instr_info fn1 vals1 fs1)) F)
           (isem_cmd_rec p ev c s) ≈
         isem_cmd_ (sem_F:= sem_fun_inline do_inline fn1) p ev c s.
     move: (f_body fd) s.
@@ -688,7 +697,7 @@ Proof.
       rewrite interp_bind hc'.
       apply eutt_eq_bind => ?.
       rewrite interp_ret; reflexivity.
-    move=> xs f es ii s; rewrite interp_bind.
+    move=> xs f als es ii s; rewrite interp_bind.
     rewrite /isem_pexprs interp_cond_iresult; apply eutt_eq_bind => ?.
     rewrite interp_bind; apply eutt_eq_bind'.
     + by apply interp_cond_iresult.

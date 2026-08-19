@@ -126,7 +126,8 @@ Definition mk_info (x:var_i) (ty:atype) :=
 
 Definition get_sig ii fn :=
   if get_fundef p.(p_funcs) fn is Some fd then
-      ok (map2 mk_info fd.(f_params) fd.(f_tyin),
+      ok (fd.(f_al),
+           map2 mk_info fd.(f_params) fd.(f_tyin),
            map2 mk_info fd.(f_res) fd.(f_tyout))
   else Error (E.make_ref_error ii "unknown function").
 
@@ -137,6 +138,20 @@ Definition get_syscall_sig o :=
 
 Definition is_swap_op (op: sopn) : option atype :=
   if op is Opseudo_op (pseudo_operator.Oswap (aarr _ _ as ty)) then Some ty else None.
+
+Definition subst_sig ii (al : seq (Uint63.int * Ident.ident)) alargs '((params,returns) : seq (bool * string * atype) * seq (bool * string * atype)) :=
+  let f :=
+    let als := zip (map fst al) alargs in
+    assoc als
+  in
+  let subst :=
+    mapM (fun '(b, s, ty) =>
+      Let ty := o2r (make_ref_error ii "subst_sig") (subst_ty f ty) in
+      ok (b, s, ty))
+  in
+  Let params := subst params in
+  Let returns := subst returns in
+  ok (params, returns).
 
 Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
   let (ii,ir) := i in
@@ -163,13 +178,14 @@ Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
     Let c  := update_c (update_i X) c in
     Let c' := update_c (update_i X) c' in
     ok [::MkI ii (Cwhile a c e info c')]
-  | Ccall xs fn es =>
-    Let: (params,returns) := get_sig ii fn in
+  | Ccall xs fn als es =>
+    Let: (al, params,returns) := get_sig ii fn in
+    Let: (params, returns) := subst_sig ii al als (params, returns) in
     Let pres := make_prologue ii X 0 params es in
     let: (prologue, es) := pres in
     Let xsep := make_epilogue ii X returns xs in
     let: (xs, epilogue) := xsep in
-    ok (prologue ++ MkI ii (Ccall xs fn es) :: epilogue)
+    ok (prologue ++ MkI ii (Ccall xs fn als es) :: epilogue)
   | Csyscall xs o es =>
     let: (params,returns) := get_syscall_sig o in
     Let: (prologue, es) := make_prologue ii X 0 params es in

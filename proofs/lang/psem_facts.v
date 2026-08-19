@@ -234,7 +234,7 @@ Qed.
 Lemma mem_equiv_while a c e info c' : Pc c → Pc c' → Pr (Cwhile a c e info c').
 Proof. done. Qed.
 
-Lemma mem_equiv_call xs f es : Pr (Ccall xs f es).
+Lemma mem_equiv_call xs f als es : Pr (Ccall xs f als es).
 Proof. done. Qed.
 
 Lemma esem_i_mem_equiv env (s1 : estate env) c s2 :
@@ -334,7 +334,7 @@ Context
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}.
 
-Lemma write_var_eq_ex env wdb X (x:var_i) v (s1 s2 : estate env) vm1 :
+Lemma write_var_eq_ex env wdb X (x:var_i) v (s1 s2 : estate env) (vm1 : Vm.t env) :
   write_var wdb x v s1 = ok s2 ->
   evm s1 =[\X] vm1 ->
   exists2 vm2,
@@ -392,7 +392,7 @@ Proof.
   by apply eq_vm1.
 Qed.
 
-Lemma sem_sopn_eq_ex env X gd o xs es (s1 s2 : estate env) vm1 :
+Lemma sem_sopn_eq_ex env X gd o xs es (s1 s2 : estate env) (vm1 : Vm.t env) :
   disjoint X (Sv.union (read_rvs xs) (read_es es)) ->
   sem_sopn gd o s1 xs es = ok s2 ->
   evm s1 =[\X] vm1 ->

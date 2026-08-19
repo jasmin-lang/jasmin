@@ -949,7 +949,7 @@ Section PROPER.
     by case: is_bool => //= ?; case:ifP.
   Qed.
 
-  Local Lemma Wcall xs f es: Pr (Ccall xs f es).
+  Local Lemma Wcall xs f als es: Pr (Ccall xs f als es).
   Proof.
     move=> ii m1 m2 Heq /=;have := const_prop_rvs_m (erefl None) Heq (refl_equal xs).
     rewrite /const_prop_ir.
@@ -971,7 +971,6 @@ Qed.
 Section IT_PROOF.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-Context (env : env_t).
 
 Variable (p:prog) (ev:extra_val_t).
 Notation gd := (p_globs p).
@@ -987,82 +986,70 @@ Proof.
   by case: xs => // x' [] // [] -> -> ->.
 Qed.
 
-Lemma valid_without_globals : valid_globs gd env None.
+Lemma valid_without_globals env : valid_globs gd env None.
 Proof. by []. Qed.
 
-Definition valid_uincl env (m : cpm) (vm1 vm2 : Vm.t env) :=
+Definition valid_uincl env1 env2 (m : cpm) (vm1 : Vm.t env1) (vm2 : Vm.t env2) :=
   valid_cpm vm1 m /\ vm1 <=1 vm2.
 
-Definition cmpl_inv env (m : cpm) := st_rel (valid_uincl (env:=env)) m.
+Definition cmpl_inv := st_rel valid_uincl.
 
-Lemma const_prop_ePe m wdb e :
-  wrequiv (cmpl_inv (env:=env) m) ((sem_pexpr wdb gd)^~ e)
+Lemma const_prop_ePe env m wdb e :
+  wrequiv (cmpl_inv (env1:=env) (env2:=env) m) ((sem_pexpr wdb gd)^~ e)
     ((sem_pexpr wdb (p_globs p'))^~ (const_prop_e None m e)) value_uincl.
 Proof.
   move=> s t v /st_relP [-> /=] [hval hvm].
-  move=> /(const_prop_eP hval valid_without_globals) [v' [he' u1]].
+  move=> /(const_prop_eP hval (valid_without_globals env)) [v' [he' u1]].
   have [vs2 -> u2]:= sem_pexpr_uincl hvm he'.
   exists vs2 => //; apply: value_uincl_trans u1 u2.
 Qed.
 
-Lemma const_prop_esPe m wdb es :
-  wrequiv (cmpl_inv (env:=env) m) ((sem_pexprs wdb gd)^~ es)
+Lemma const_prop_esPe env m wdb es :
+  wrequiv (cmpl_inv (env1:=env) (env2:=env) m) ((sem_pexprs wdb gd)^~ es)
     ((sem_pexprs wdb (p_globs p'))^~ [seq const_prop_e None m i | i <- es]) values_uincl.
 Proof.
   move=> s t vs /st_relP [-> /=] [hval hvm].
-  move=> /(const_prop_esP hval valid_without_globals) [vs' hes' u1].
+  move=> /(const_prop_esP hval (valid_without_globals env)) [vs' hes' u1].
   have [vs2 -> u2]:= sem_pexprs_uincl hvm hes'.
   exists vs2 => //; apply: values_uincl_trans u1 u2.
 Qed.
 
-Lemma const_prop_rvsPe m wdb xs vs1 vs2 :
+Lemma const_prop_rvsPe env m wdb xs vs1 vs2 :
   values_uincl vs1 vs2 ->
-  wrequiv (cmpl_inv (env:=env) m) (fun s => write_lvals wdb (p_globs p) s xs vs1)
+  wrequiv (cmpl_inv (env1:=env) (env2:=env) m) (fun s => write_lvals wdb (p_globs p) s xs vs1)
                                   (fun s => write_lvals wdb (p_globs p') s (const_prop_rvs None m xs).2 vs2)
           (cmpl_inv (const_prop_rvs None m xs).1).
 Proof.
   move=> hu s t s' /st_relP [-> /=] [hval hvm] hw.
-  have [hval' hw'] := const_prop_rvsP hval valid_without_globals hw.
+  have [hval' hw'] := const_prop_rvsP hval (valid_without_globals env) hw.
   have [vm2 -> hvm2] := writes_uincl hvm hu hw'.
   eexists => //.
 Qed.
 
-Let Pi i :=
-  forall m,
-    let mi := const_prop_i gd m i in
-    wequiv_rec (env:=env) p p' ev ev uincl_spec (cmpl_inv m) [::i] mi.2 (cmpl_inv mi.1).
-
-Let Pi_r i := forall ii, Pi (MkI ii i).
-
-Let Pc c :=
-  forall m,
-    let mc := const_prop (const_prop_i gd) m c in
-    wequiv_rec (env:=env) p p' ev ev uincl_spec (cmpl_inv m) c mc.2 (cmpl_inv mc.1).
-
-Lemma const_prop_sem_cond m e b :
+Lemma const_prop_sem_cond env m e b :
   is_bool (const_prop_e None m e) = Some b ->
   ∀ (s1 s2 : estate env) (v : bool), cmpl_inv m s1 s2 → sem_cond gd e s1 = ok v → v = b.
 Proof.
   move=> heq s1 s2 b' /st_relP [-> /=] [hval hvm].
   rewrite /sem_cond; t_xrbindP => v he /to_boolI ?; subst v.
-  have := const_prop_eP hval valid_without_globals he.
+  have := const_prop_eP hval (valid_without_globals env) he.
   by move: heq; case: is_boolP => // _ [->] /= [_ [[<-]]].
 Qed.
 
-Lemma valid_uincl_remove m X (vm1 vm2 : Vm.t env) :
+Lemma valid_uincl_remove env m X (vm1 vm2 : Vm.t env) :
   valid_uincl m vm1 vm2 → valid_uincl (remove_cpm m X) vm1 vm2.
 Proof. by move=> [hval hu]; split => //; apply: valid_cpm_rm hval. Qed.
 
-Lemma cmpl_inv_remove m X (s1 s2 : estate env) :
+Lemma cmpl_inv_remove env m X (s1 s2 : estate env) :
   cmpl_inv m s1 s2 → cmpl_inv (remove_cpm m X) s1 s2.
 Proof. apply/st_rel_weaken/valid_uincl_remove. Qed.
 
-Lemma remove_cpm_write c c2 X m mc P P' :
+Lemma remove_cpm_write env c c2 X m mc P P' :
   let m' := remove_cpm m X in
   Sv.Subset (write_c c) X ->
   (forall s1 s2, P s1 s2 -> cmpl_inv m' s1 s2 /\ P' s1 s2) ->
   wequiv_rec p p' ev ev uincl_spec P' c c2 (cmpl_inv mc) ->
-  wequiv_rec (env:=env) p p' ev ev uincl_spec P c c2 (fun s1 s2 => cmpl_inv m' s1 s2 /\ cmpl_inv mc s1 s2).
+  wequiv_rec (env1:=env) (env2:=env) p p' ev ev uincl_spec P c c2 (fun s1 s2 => cmpl_inv m' s1 s2 /\ cmpl_inv mc s1 s2).
 Proof.
   move=> m' hsub hPP' /wequiv_write1 hc.
   apply wkequivP' => s1_ s2_.
@@ -1074,12 +1061,12 @@ Proof.
   rewrite -heq; auto.
 Qed.
 
-Lemma remove_cpm_write1 c c2 X m mc P P':
+Lemma remove_cpm_write1 env c c2 X m mc P P':
   let m' := remove_cpm m X in
   Sv.Subset (write_c c) X ->
   (forall s1 s2, P s1 s2 -> cmpl_inv m' s1 s2 /\ P' s1 s2) ->
   wequiv_rec p p' ev ev uincl_spec P' c c2 (cmpl_inv mc) ->
-  wequiv_rec (env:=env) p p' ev ev uincl_spec P c c2 (fun s1 s2 => cmpl_inv m' s1 s2).
+  wequiv_rec (env1:=env) (env2:=env) p p' ev ev uincl_spec P c c2 (fun s1 s2 => cmpl_inv m' s1 s2).
 Proof.
   move=> m' hsub hPP' hc.
   move: (remove_cpm_write hsub hPP' hc); apply wequiv_weaken => //; intuition.
@@ -1092,12 +1079,12 @@ Definition check_lvals_cp m xs1 xs2 m' :=
   m' = (const_prop_rvs None m xs1).1 /\
   xs2 = (const_prop_rvs None m xs1).2.
 
-Lemma check_esP_R_cp d es1 es2 d' :
+Lemma check_esP_R_cp env1 env2 d es1 es2 d' :
   check_es_cp d es1 es2 d' →
-  ∀ s1 s2, st_rel (valid_uincl (env:=env)) d s1 s2 → st_rel (valid_uincl (env:=env)) d' s1 s2.
+  ∀ (s1 : estate env1) (s2 : estate env2), st_rel valid_uincl d s1 s2 → st_rel valid_uincl d' s1 s2.
 Proof. by move=> [<- _]; apply st_rel_weaken. Qed.
 
-Definition checker_cp : Checker_e (st_rel (valid_uincl (env:=env))) :=
+Definition checker_cp : Checker_e (st_rel valid_uincl) :=
   {| check_es := check_es_cp
    ; check_lvals := check_lvals_cp
    ; check_esP_rel := check_esP_R_cp
@@ -1111,31 +1098,25 @@ Proof.
 Qed.
 #[local] Hint Resolve checker_cpP : core.
 
-Lemma it_const_prop_callP fn : wiequiv_f env p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
+Section REC.
+
+Context (env : env_t).
+
+Let Pi i :=
+  forall m,
+    let mi := const_prop_i gd m i in
+    wequiv_rec (env1:=env) (env2:=env) p p' ev ev uincl_spec (cmpl_inv m) [::i] mi.2 (cmpl_inv mi.1).
+
+Let Pi_r i := forall ii, Pi (MkI ii i).
+
+Let Pc c :=
+  forall m,
+    let mc := const_prop (const_prop_i gd) m c in
+    wequiv_rec (env1:=env) (env2:=env) p p' ev ev uincl_spec (cmpl_inv m) c mc.2 (cmpl_inv mc.1).
+
+Lemma it_const_prop_callP_rec c : Pc c.
 Proof.
-Local Opaque opp_word.
-  apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
-  exists (const_prop_fun (p_globs p) fd).
-  + by rewrite get_map_prog hget.
-  move=> {hget} s1 hinit.
-  have [hin hout hex hpar hres] :
-      [/\ f_tyin fd = f_tyin (const_prop_fun gd fd)
-        , f_tyout fd = f_tyout (const_prop_fun gd fd)
-        , f_extra fd = f_extra (const_prop_fun gd fd)
-        , f_params fd = f_params (const_prop_fun gd fd)
-        & f_res fd = f_res (const_prop_fun gd fd)
-       ] by done.
-  have : exists2 t1, initialize_funcall env p' ev (const_prop_fun gd fd) ft = ok t1 &
-                       cmpl_inv empty_cpm s1 t1.
-  + by have [t h1 []] := fs_uincl_initialize (p':=p') hin hex hpar erefl hfsu hinit; exists t.
-  move=> [t1 ht1 hinv]; exists t1 => //.
-  exists (cmpl_inv empty_cpm),
-         (cmpl_inv (const_prop (const_prop_i gd) empty_cpm (f_body fd)).1); split => //; last first.
-  + apply wrequiv_weaken with (st_uincl tt) fs_uincl => //.
-    + by move=> > [] ?? [??].
-    by apply fs_uincl_finalize.
-  have -> : f_body (const_prop_fun gd fd) = (const_prop (const_prop_i gd) empty_cpm (f_body fd)).2 by done.
-  apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {fd fn fs hfsu hinit hin hout hex hpar hres hinv ht1 t1 ft s1}.
+  apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}.
   + by move=> ?; apply wequiv_nil.
   + move=> i c hi hc m /=.
     have := hi m; case: const_prop_i => mi i' /= {}hi.
@@ -1171,9 +1152,9 @@ Local Opaque opp_word.
       (apply wkequiv_bind with Q; last by apply wkequiv_ret);
       apply wkequiv_iresult => s1 t1 s2 /st_relP [-> /= [hval hu]];
       rewrite /sem_sopn /sem_assgn; t_xrbindP => vs2_ vs1;
-      move=> /(const_prop_esP hval valid_without_globals);
+      move=> /(const_prop_esP hval (valid_without_globals env));
       rewrite hes ho ?hxs=> -[vs' Hes' Us] Ho;
-      move=> /(const_prop_rvsP hval valid_without_globals) [] hval' hw;
+      move=> /(const_prop_rvsP hval (valid_without_globals env)) [] hval' hw;
       have [vs2 hs u2]:= sem_pexprs_uincl hu Hes';
       have [ vs3 ho' vs_vs3 ] := vuincl_exec_opn (values_uincl_trans Us u2) Ho;
       have [vm2 {}hw U]:= writes_uincl hu vs_vs3 hw;
@@ -1227,7 +1208,7 @@ Local Opaque opp_word.
     have := hc m'; case: const_prop => mc c2 /= {}hc.
     have := hc' mc; case: const_prop => mc' c2' /= {}hc'.
     set C := (X in wequiv_rec p p' ev ev uincl_spec _ _ X _).
-    suff : [elaborate wequiv_rec (env:=env) p p' ev ev uincl_spec (cmpl_inv m') [:: MkI ii (Cwhile a c e ii' c')] C (cmpl_inv mc)].
+    suff : [elaborate wequiv_rec (env1:=env) (env2:=env) p p' ev ev uincl_spec (cmpl_inv m') [:: MkI ii (Cwhile a c e ii' c')] C (cmpl_inv mc)].
     + by apply wequiv_weaken => //; apply cmpl_inv_remove.
     have [[he ->]{C} | ->{C}] :
        (is_bool (const_prop_e None mc e) = Some false /\ C = c2) \/
@@ -1244,17 +1225,46 @@ Local Opaque opp_word.
      wequiv_rec p p' ev ev uincl_spec (λ s1 s2, cmpl_inv m' s1 s2)
        [:: MkI ii (Cwhile a c e ii' c')]
        [:: MkI ii (Cwhile a c2 (const_prop_e None mc e) ii' c2')]
-       (fun s1 s2 => cmpl_inv (env:=env) m' s1 s2 /\ cmpl_inv mc s1 s2)].
+       (fun s1 s2 => cmpl_inv (env1:=env) (env2:=env) m' s1 s2 /\ cmpl_inv mc s1 s2)].
     + by apply wkequiv_weaken => //; intuition.
     apply wequiv_while_uincl => //.
     + eapply wrequiv_weaken; last (by apply const_prop_ePe); intuition.
     + by apply: remove_cpm_write hc => //; rewrite write_i_while; clear; SvD.fsetdec.
     by apply: remove_cpm_write1 hc' => //; rewrite write_i_while; clear; SvD.fsetdec.
-  move=> xs f es ii m /=.
+  move=> xs f als es ii m /=.
   rewrite (surjective_pairing (const_prop_rvs _ _ _)) /=.
-  apply wequiv_call_rel_uincl with checker_cp m => // ???.
+  apply wequiv_call_rel_uincl with checker_cp m => // ?????.
   exact: wequiv_fun_rec.
-Local Transparent opp_word.
+Qed.
+
+End REC.
+
+Lemma it_const_prop_callP fn : wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
+Proof.
+  rewrite /wiequiv_f.
+  apply wequiv_fun_ind => {}fn _ vals _ fs ft [<- [<- hfsu]] fd hget.
+  exists (const_prop_fun (p_globs p) fd).
+  + by rewrite get_map_prog hget.
+  move=> {hget} env1 env2 s1 hinit; subst env1 env2. (* FIXME: playing with these local defs is painful, here /= is too aggressive *)
+  set env := create_env _ _.
+  have [hin hout hex hpar hres] :
+      [/\ f_tyin fd = f_tyin (const_prop_fun gd fd)
+        , f_tyout fd = f_tyout (const_prop_fun gd fd)
+        , f_extra fd = f_extra (const_prop_fun gd fd)
+        , f_params fd = f_params (const_prop_fun gd fd)
+        & f_res fd = f_res (const_prop_fun gd fd)
+       ] by done.
+  have : exists2 t1, initialize_funcall p' ev (const_prop_fun gd fd) env ft = ok t1 &
+                       cmpl_inv empty_cpm s1 t1.
+  + by have [t h1 []] := fs_uincl_initialize (p':=p') hin hex hpar erefl hfsu hinit; exists t.
+  move=> [t1 ht1 hinv]; exists t1 => //.
+  exists (cmpl_inv empty_cpm),
+         (cmpl_inv (const_prop (const_prop_i gd) empty_cpm (f_body fd)).1); split => //; last first.
+  + apply wrequiv_weaken with (st_uincl tt) fs_uincl => //.
+    + by move=> > [] ?? [??].
+    by apply fs_uincl_finalize.
+  have -> : f_body (const_prop_fun gd fd) = (const_prop (const_prop_i gd) empty_cpm (f_body fd)).2 by done.
+  exact: it_const_prop_callP_rec.
 Qed.
 
 End IT_PROOF.

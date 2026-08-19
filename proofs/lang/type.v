@@ -903,34 +903,52 @@ Section SUBST.
    If yes, does this mean that we ignore an error? Or does this mean that
    [x] is a variable that we do not want to substitute?
 *)
+(* now, we fail *)
 Context (f : Uint63.int -> option array_length).
 
 Fixpoint subst_al al :=
   match al with
-  | ALConst _ => al
-  | ALVar n _ => if f n is Some al' then al' else al
-  | ALNeg al => ALNeg (subst_al al)
+  | ALConst _ => Some al
+  | ALVar n _ => f n
+  | ALNeg al =>
+    let%opt al := subst_al al in
+    Some (ALNeg al)
   | ALAdd al1 al2 =>
-    ALAdd (subst_al al1) (subst_al al2)
+    let%opt al1 := subst_al al1 in
+    let%opt al2 := subst_al al2 in
+    Some (ALAdd al1 al2)
   | ALSub al1 al2 =>
-    ALSub (subst_al al1) (subst_al al2)
+    let%opt al1 := subst_al al1 in
+    let%opt al2 := subst_al al2 in
+    Some (ALSub al1 al2)
   | ALMul al1 al2 =>
-    ALMul (subst_al al1) (subst_al al2)
+    let%opt al1 := subst_al al1 in
+    let%opt al2 := subst_al al2 in
+    Some (ALMul al1 al2)
   | ALDiv sg al1 al2 =>
-    ALDiv sg (subst_al al1) (subst_al al2)
+    let%opt al1 := subst_al al1 in
+    let%opt al2 := subst_al al2 in
+    Some (ALDiv sg al1 al2)
   | ALMod sg al1 al2 =>
-    ALMod sg (subst_al al1) (subst_al al2)
+    let%opt al1 := subst_al al1 in
+    let%opt al2 := subst_al al2 in
+    Some (ALMod sg al1 al2)
   | ALShl al1 al2 =>
-    ALShl (subst_al al1) (subst_al al2)
+    let%opt al1 := subst_al al1 in
+    let%opt al2 := subst_al al2 in
+    Some (ALShl al1 al2)
   | ALShr al1 al2 =>
-    ALShr (subst_al al1) (subst_al al2)
+    let%opt al1 := subst_al al1 in
+    let%opt al2 := subst_al al2 in
+    Some (ALShr al1 al2)
   end.
 
 Definition subst_ty ty :=
   match ty with
   | aarr ws al =>
-    aarr ws (subst_al al)
-  | _ => ty
+    let%opt al := subst_al al in
+    Some (aarr ws al)
+  | _ => Some ty
   end.
 
 End SUBST.

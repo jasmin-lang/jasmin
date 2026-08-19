@@ -2550,7 +2550,7 @@ Proof.
   by clear -hsubset1 hsubset2; SvD.fsetdec.
 Qed.
 
-Local Lemma Wcall xs f es: Pi_r (Ccall xs f es).
+Local Lemma Wcall xs f als es: Pi_r (Ccall xs f als es).
 Proof.
   move=> table1 rmap1 table2 rmap2 ii c2 /=.
   t_xrbindP=> _ -[{}rmap2 i2] halloc <- <- _.
@@ -3606,10 +3606,10 @@ End SEM.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-Context (env : env_t).
 
-Definition sa_pre fn1 fn2 fs1 fs2 :=
+Definition sa_pre fn1 fn2 (vals1 vals2 : seq Z) fs1 fs2 :=
   [/\ fn1 = fn2
+    , vals1 = vals2
     , fscs fs1 = fscs fs2
     , extend_mem (fmem fs1) (fmem fs2) rip global_data
     , wf_args (fmem fs1) (fmem fs2) fn1 (fvals fs1) (fvals fs2)
@@ -3617,7 +3617,7 @@ Definition sa_pre fn1 fn2 fs1 fs2 :=
     & alloc_ok P' fn1 (fmem fs2)
     ].
 
-Definition sa_post (fn1 fn2 : funname) (fs1 fs2 fr1 fr2 : fstate) :=
+Definition sa_post (fn1 fn2 : funname) (_ _ : seq Z) (fs1 fs2 fr1 fr2 : fstate) :=
   [/\ fscs fr1 = fscs fr2
     , extend_mem (fmem fr1) (fmem fr2) rip global_data
     , wf_results (fvals fs1) (fvals fs2) fn1 (fvals fr1) (fvals fr2)
@@ -3633,6 +3633,7 @@ Definition sa_spec := {|
  |}.
 
 Section CMD.
+Context (env : env_t).
 Context (pmap : pos_map) (rsp : word Uptr) (Slots : Sv.t) (Addr : slot → word Uptr) (Writable : slot → bool)
               (Align : slot → wsize).
 
@@ -3866,7 +3867,7 @@ Proof using P'_globs hshparams hsaparams is_move_opP Halloc_fd hwf_pmap hwf_Slot
     apply; apply hwft2'.(wft_def).
 
   (* Call *)
-  move=> rs fn args ii1 table0 rmap0 table2 rmap2 vme c.
+  move=> rs fn als args ii1 table0 rmap0 table2 rmap2 vme c.
   case hfd1: get_fundef => [fd1|] //=.
   t_xrbindP=> -[{}rmap2 i2] halloc <- <- <- {c}.
   move: halloc; rewrite /alloc_call /assert_check.
@@ -3910,18 +3911,18 @@ Proof using P'_globs hshparams hsaparams is_move_opP Halloc_fd hwf_pmap hwf_Slot
     have /vs_top_stack -> := hvs.
     by apply is_align_m.
 
-  apply wequiv_call_core_wa with sa_pre sa_post Rv => //.
+  apply wequiv_call_core_wa with sa_pre sa_post eq Rv => //.
   + move => _ _ vargs1 [-> ->] hvargs1.
     have [vargs2 [*]]:= alloc_call_argsP hwf_Slots.(wfsl_no_overflow) hwf_Slots.(wfsl_disjoint)
       hwf_Slots.(wfsl_align) hwf_Slots.(wfsl_not_glob) hwf_pmap hvs hcargs hvargs1.
     by exists vargs2 => //; rewrite P'_globs.
-  + move=> _ _ vargs1 vargs2 [-> ->] [hargs heqinmems haddr hvarsz hclear] {Rv}.
+  + move=> _ _ vals _ vargs1 vargs2 [-> ->] <- [hargs heqinmems haddr hvarsz hclear] {Rv}.
     split => //; first by apply hvs.(vs_scs).
-  + by move=> ???; apply: wequiv_fun_rec.
+  + by move=> ??; apply: wequiv_fun_rec.
   (* after function call, we have [valid_state] for [rmap1] where all writable arguments
      have been cleared.
   *)
-  move=> fs1 fs2 [scs2 m1 vres1] [scs2' m2 vres2] [] _ _ {}hext _ heqinmems _ []
+  move=> _ _ fs1 fs2 [scs2 m1 vres1] [scs2' m2 vres2] [] _ _ _ {}hext _ heqinmems _ []
     /= hscs hext' hresults heqinmems' hunch hvalidws hvalidwt hstablet; subst scs2'.
   move=> _ _ s1' [[-> ->] _ _ hmem1 hmem2 [_ _ haddr hvarsz hclear]]; rewrite /upd_estate => /= hs1'.
   rewrite -hmem1 -hmem2 in hext, heqinmems, hunch, hvalidws,  hvalidwt, hstablet => {hmem1 hmem2 Rv}.
@@ -4034,9 +4035,9 @@ Qed.
 
 End CMD.
 
-Lemma it_check_cP fn : wiequiv_f env P P' tt rip (rpreF (eS:=sa_spec)) fn fn (rpostF (eS:=sa_spec)).
+Lemma it_check_cP fn : wiequiv_f P P' tt rip (rpreF (eS:=sa_spec)) fn fn (rpostF (eS:=sa_spec)).
 Proof using no_overflow_glob_size hmap P'_globs hshparams hsaparams is_move_opP Halloc_fd rip_rsp_neq.
-  apply wequiv_fun_ind => {}fn _ [scs1 m1 vargs1] [_ m2 vargs2] [<- /= <-] hext hargs heqinmem_args hok fd hfd.
+  apply: wequiv_fun_ind => {}fn _ vals _ [scs1 m1 vargs1] [_ m2 vargs2] [<- <- /= <-] hext hargs heqinmem_args hok fd hfd.
   have [fd2 halloc hfd2] := Halloc_fd hfd.
   exists fd2 => //.
 
@@ -4076,6 +4077,7 @@ Proof using no_overflow_glob_size hmap P'_globs hshparams hsaparams is_move_opP 
   set rsp := top_stack m2'.
   set vrsp' := {| vtype := spointer; vname := P'.(p_extra).(sp_rsp); |}.
   set vrip' := {| vtype := spointer; vname := P'.(p_extra).(sp_rip); |}.
+  set env := create_env _ _.
 
   have hinit:
     init_stk_state fex (p_extra P') rip {| escs := scs1; emem := m2; evm := Vm.init env |} =
@@ -4326,14 +4328,14 @@ Qed.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-Context (env : env_t).
 
 Theorem it_alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn :
   alloc_prog shparams saparams is_move_op fresh_var_ident pp_sr nrip nrsp data oracle_g oracle P = ok SP ->
   forall ev rip,
-  wiequiv_f env P SP ev rip
-    (fun fn1 fn2 fs1 fs2 =>
-      [/\ fscs fs1 = fscs fs2
+  wiequiv_f P SP ev rip
+    (fun fn1 fn2 vals1 vals2 fs1 fs2 =>
+      [/\ vals1 = vals2
+        , fscs fs1 = fscs fs2
         , extend_mem (fmem fs1) (fmem fs2) rip data
         , wf_args (Z.of_nat (size data)) rip (fmem fs1) (fmem fs2)
                   (map (omap pp_writable) (oracle fn).(sao_params))
@@ -4342,7 +4344,7 @@ Theorem it_alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn 
         , Forall3 (value_eq_or_in_mem (fmem fs2)) (oracle fn).(sao_params) (fvals fs1) (fvals fs2)
         & alloc_ok SP fn (fmem fs2) ])
      fn fn
-    (fun fn _ fs1 fs2 fr1 fr2 =>
+    (fun fn _ _ _ fs1 fs2 fr1 fr2 =>
         [/\ fscs fr1 = fscs fr2
           , extend_mem (fmem fr1) (fmem fr2) rip data
           , Forall3 (wf_result (fvals fs1) (fvals fs2)) (oracle fn).(sao_return) (fvals fr1) (fvals fr2)
@@ -4350,12 +4352,12 @@ Theorem it_alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn 
           & mem_unchanged_params (fmem fs1) (fmem fs2) (fmem fr2)
               (map (omap pp_writable) (oracle fn).(sao_params)) (fvals fs1) (fvals fs2)]).
 Proof using hshparams hsaparams is_move_opP.
-  move=> hprog ev rip fs1 fs2 [hscs hext hargs heqinmems halloc].
+  move=> hprog ev rip vals _ fs1 fs2 [<- hscs hext hargs heqinmems halloc].
   move: hprog; rewrite /alloc_prog.
   t_xrbindP=> mglob hmap /eqP hneq.
   t_xrbindP=> fds hfds.
   set P' := {| p_funcs := _ |} => ?; subst SP.
-  have hpre : sa_pre data rip P' oracle fn fn fs1 fs2 by done.
+  have hpre : sa_pre data rip P' oracle fn fn vals vals fs1 fs2 by done.
   have := [elaborate
    it_check_cP
       hext.(em_no_overflow)
@@ -4368,7 +4370,6 @@ Proof using hshparams hsaparams is_move_opP.
       (get_alloc_fd hfds)
       hneq
       (fn := fn)
-      env
       hpre].
   case: ev.
   by apply xrutt_facts.xrutt_weaken => // ?? [].
