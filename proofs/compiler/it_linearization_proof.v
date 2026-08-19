@@ -681,17 +681,19 @@ Section HLIPARAMS.
     by rewrite hgy /= htr.
   Qed.
 
-  Lemma spec_lload {lp ii ls ofs} {x y:var_i} {wx wy} :
-    convertible (vtype x) (aword Uptr) ->
+  Lemma spec_lload {lp ii ls ofs} {x y:var_i} {sx} {wx wy} :
+    subatype (aword sx) (vtype x) ->
+    lip_check_ws liparams sx ->
     get_var true (lvm ls) y >>= to_pointer = ok wy ->
-    read (lmem ls) Aligned (wy + wrepr Uptr ofs)%R Uptr = ok wx ->
-    let: li := lload liparams ii Uptr x y ofs in
+    read (lmem ls) Aligned (wy + wrepr Uptr ofs)%R sx = ok wx ->
+    let: li := lload liparams ii sx x y ofs in
     eval_instr lp li ls = ok (lnext_pc (lset_vm ls ls.(lvm).[x <- Vword wx])).
   Proof using hliparams.
-    move=> hty hgy hread /=.
+    move=> hty hsx hgy hread /=.
     apply sem_fopn_args_eval_instr => /=.
-    apply: (spec_lip_lload hliparams (s:= to_estate ls) (spec_lip_check_ws hliparams) hgy hread).
-    by apply set_var_eq_type => //; rewrite (convertible_eval_atype hty).
+    apply: (spec_lip_lload hliparams (s:= to_estate ls) hsx hgy hread).
+    apply: set_var_truncate; first by [].
+    by case: vtype hty.
   Qed.
 
   Lemma set_up_sp_register_ok {E E0: Type -> Type} {wE: with_Error E E0}
@@ -5018,7 +5020,9 @@ Qed.
             rewrite (step_mix_ilsteps ok_body) //=; last by simpl_size;lia.
             set x := (eval_instr _ _ _).
             have -> : x = ok (lnext_pc (lset_vm ls2 (lvm ls2).[(mk_var_i ra_return) <- Vword retptr])).
-            + apply: (spec_lload hliparams) => //=.
+            + apply: (spec_lload hliparams) => //.
+              * apply: convertible_subatype; apply: convertible_sym; exact: ra_return_ty.
+              * exact: spec_lip_check_ws.
               * by rewrite /get_var ok_rsp2 /= truncate_word_u; reflexivity.
               rewrite wrepr0 GRing.addr0 hreadf.
               exact: hreadi.
