@@ -33,7 +33,7 @@ let coqPackages =
       coq-elpi = super.coq-elpi.override { version = "master"; inherit elpi-version; };
       hierarchy-builder = super.hierarchy-builder.override { version = "master"; };
       ExtLib = super.ExtLib.override { version = "master"; };
-      paco = super.paco.override { version = "master"; };
+      rocq-coinduction = super.rocq-coinduction.override { version = "master"; };
       ITree = super.ITree.override { version = "master"; };
     })
   else coqPackages_9_0.overrideScope (self: super: {

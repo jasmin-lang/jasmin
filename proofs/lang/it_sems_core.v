@@ -528,7 +528,7 @@ Proof.
   + move=> s /=; rewrite interp_ret; reflexivity.
   + move=> i c hi hc s; rewrite interp_bind;apply eqit_bind; first by apply hi.
     by move=> s'; apply hc.
-  1-3: by move=> >; apply interp_iresult.
+  1-3: by move=> *; apply interp_iresult.
   + move => a ii s /=.
     rewrite interp_bind; apply eqit_bind.
     + by apply interp_iresult.
@@ -540,7 +540,7 @@ Proof.
   + move=> v dir lo hi c hc ii s; rewrite /isem_i /isem_i_rec /=.
     rewrite interp_bind; apply eqit_bind; first by apply interp_iresult.
     move=> bounds /=. elim: wrange s => {bounds ii} //=.
-    + move=> >; rewrite interp_ret; reflexivity.
+    + move=> *; rewrite interp_ret; reflexivity.
     move=> j js hrec s.
     rewrite interp_bind; apply eqit_bind; first by apply interp_iresult.
     move=> s'; rewrite interp_bind.
@@ -659,16 +659,16 @@ Proof.
     move: (f_body fd) s.
     apply (cmd_rect (Pr:=Pr) (Pi:=Pi) (Pc:=Pc)) => //=; subst Pi Pr Pc => /=.
     + move=> s; rewrite interp_ret; reflexivity.
-    + by move=> i c hi hc s; rewrite interp_bind hi; apply/eutt_eq_bind/hc.
-    + by move=> > ? >; apply interp_cond_iresult.
-    + by move=> > ? > ? > ; apply interp_cond_iresult.
-    + by move=> > ? >; apply interp_cond_iresult.
+    + by move=> i c hi hc s; rewrite interp_bind hi; apply eutt_eq_bind'; auto.
+    + by move=> > ? *; apply interp_cond_iresult.
+    + by move=> > ? > ? * ; apply interp_cond_iresult.
+    + by move=> > ? *; apply interp_cond_iresult.
     + move=> a ii s; rewrite interp_bind; apply eutt_eq_bind'.
       + by apply interp_cond_iresult.
       by move=> ?; rewrite interp_ret; reflexivity.
     + move=> e c1 c2 hc1 hc2 ii s; rewrite interp_bind.
       rewrite /isem_cond interp_cond_iresult.
-      by apply/eutt_eq_bind; case; [apply hc1 | apply hc2].
+      by apply eutt_eq_bind'; auto; case; [apply hc1 | apply hc2].
     + move=> x dir lo hi c hc ii s; rewrite interp_bind.
       rewrite /isem_bound interp_cond_iresult.
       apply eutt_eq_bind => ? /=.

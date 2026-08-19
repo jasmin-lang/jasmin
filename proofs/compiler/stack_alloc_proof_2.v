@@ -2907,9 +2907,8 @@ Proof.
   + move=> /andP [hincl1 hincl2] [<- <- <- <- <-].
     exists table, rmap, table2, rmap2; split=> //.
     + by apply incl_table_refl.
-    + by split.
     + by apply Incl_refl.
-    by left.
+    + eauto.
   have h : wf_table_vars table rmap /\ Sv.Subset (vars table) (vars table) by split.
   have [hwf hsub]:= wf_table_vars_merge h h2.
   move=> _ /hrec{} [] //.

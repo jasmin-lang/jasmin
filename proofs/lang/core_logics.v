@@ -4,14 +4,13 @@ From Coq Require Import
   Morphisms
   RelationClasses.
 
-From Paco Require Import paco.
+From Coinduction Require Import all.
 
 From ITree Require Import
   ITree
   ITreeFacts
   Basics.HeterogeneousRelations
   Interp.Recursion
-  Eq.Paco2
   Eq.Rutt
   Eq.RuttFacts.
 
@@ -312,17 +311,17 @@ Lemma safe_xrutt_rutt {R1 R2 : Type}
   xrutt errcutoff nocutoff REv RAns RR t1 t2 ->
   rutt REv RAns RR t1 t2.
 Proof.
-  move: t1 t2; pcofix CIH => t1 t2 hsafe hxrutt.
-  pstep. punfold hxrutt. red in hxrutt |- *.
+  move: t1 t2; coinduction => t1 t2 hsafe hxrutt.
+  rcbn. step in hxrutt.
   move: hsafe; rewrite {1}(itree_eta t1).
   elim: hxrutt => // {t1 t2}.
   + by move=> r1 r2 hRR _; constructor.
   + move=> t1 t2 hxrutt hsafe; constructor.
-    by pclearbot; right; apply CIH => //; apply safe_Tau.
+    by apply CIH => //; apply safe_Tau.
   + move=> T1 T2 e1 e2 k1 k2 _ _ hREv hAns hsafe.
     constructor => // r1 r2 /hAns hxrutt.
     have [hnerr /(_ r1){}hsafe]:= safe_inv_Vis hsafe.
-    by pclearbot; right; eauto.
+    eauto.
   + move=> T e1 k1 ot2 + hsafe.
     have [hnerr _]:= safe_inv_Vis hsafe.
     rewrite /errcutoff.
@@ -415,22 +414,22 @@ Lemma lutt_rutt_lutt t1 t2 :
   lutt PEv2 PAns2 P2 t2.
 Proof.
   move=> hREv_i hAns_err hRRP hlutt hrutt; exists t2.
-  move: t1 t2 hlutt hrutt. pcofix CIH.
+  move: t1 t2 hlutt hrutt. coinduction.
   move=> t1 t2 hlutt hrutt.
-  pstep. punfold hrutt. red in hrutt |- *.
+  rcbn. step in hrutt.
   move: hlutt; rewrite {1}(itree_eta t1).
   elim: hrutt => // {t1 t2}.
   + move=> r1 r2 hRR; rewrite -lutt_Ret => hP1.
     by constructor; split => //; eauto.
   + move=> t1 t2 hrutt hlutt; constructor.
-    by pclearbot; right; apply CIH with t1 => //; apply lutt_Tau.
+    by apply CIH with t1 => //; apply lutt_Tau.
   + move=> T1 T2 e1 e2 k1 k2 hREv hk hlutt.
     have [hPEv1 {}hlutt] := lutt_inv_Vis hlutt.
     constructor.
     + by split; eauto; exists erefl.
-    move=> r2 ? [] hAns2 /(_ erefl) -> /=; right.
+    move=> r2 ? [] hAns2 /(_ erefl) -> /=.
     have [r1 /hlutt ? /hk ?] := hAns_err _ _ _ _ r2 hREv hPEv1 hAns2.
-    by pclearbot; apply CIH with (k1 r1).
+    by apply CIH with (k1 r1).
   + move=> t1 ot2 _ hrec.
     by rewrite -lutt_Tau {1}(itree_eta t1).
   by move=> ot1 t2 _ hrec /hrec ?; apply Rutt.EqTauR; apply Rutt.EqTauL.
@@ -473,17 +472,17 @@ Lemma lutt_rutt_trans_l t1 t2 :
        (fun T1 T2 e1 t1 e2 t2 => PAns1 e1 t1 /\ RAns e1 t1 e2 t2)
        (fun r1 r2 => P1 r1 /\ RR r1 r2) t1 t2.
 Proof.
-  move: t1 t2; pcofix CIH => t1 t2 hlutt hrutt.
-  pstep. punfold hrutt. red in hrutt |- *.
+  move: t1 t2; coinduction => t1 t2 hlutt hrutt.
+  rcbn. step in hrutt.
   move: hlutt; rewrite {1}(itree_eta t1).
   elim: hrutt => // {t1 t2}.
   + by move=> r1 r2 hRR; rewrite -lutt_Ret => hP1; constructor.
   + move=> t1 t2 hrutt hlutt; constructor.
-    by pclearbot; right; apply CIH => //; apply lutt_Tau.
+    by apply CIH => //; apply lutt_Tau.
   + move=> T1 T2 e1 e2 k1 k2 hREv hk hlutt.
     have [hPEv {}hlutt]:= lutt_inv_Vis hlutt.
     constructor => // r1 r2 [/hlutt ? /hk ?].
-    by pclearbot; right; eauto.
+    by eauto.
   + move=> t1 ot2 _ hrec.
     by rewrite -lutt_Tau {1}(itree_eta t1) => /hrec; apply Rutt.EqTauL.
   by move=> ot1 t2 _ hrec /hrec; apply Rutt.EqTauR.
@@ -498,17 +497,17 @@ Lemma lutt_xrutt_trans_l t1 t2 :
        (fun T1 T2 e1 t1 e2 t2 => PAns1 e1 t1 /\ RAns e1 t1 e2 t2)
        (fun r1 r2 => P1 r1 /\ RR r1 r2) t1 t2.
 Proof.
-  move: t1 t2; pcofix CIH => t1 t2 hlutt hrutt.
-  pstep. punfold hrutt. red in hrutt |- *.
+  move: t1 t2; coinduction => t1 t2 hlutt hrutt.
+  xrcbn. step in hrutt.
   move: hlutt; rewrite {1}(itree_eta t1).
   elim: hrutt => // {t1 t2}.
   + by move=> r1 r2 hRR; rewrite -lutt_Ret => hP1; constructor.
   + move=> t1 t2 hrutt hlutt; constructor.
-    by pclearbot; right; apply CIH => //; apply lutt_Tau.
+    by apply CIH => //; apply lutt_Tau.
   + move=> T1 T2 e1 e2 k1 k2 ?? hREv hk hlutt.
     have [hPEv {}hlutt]:= lutt_inv_Vis hlutt.
     constructor => // r1 r2 [/hlutt ? /hk ?].
-    by pclearbot; right; eauto.
+    by eauto.
   + by move=> T1 e1 k1 ot2 ? _; apply EqCutL.
   + move=> t1 ot2 _ hrec.
     by rewrite -lutt_Tau {1}(itree_eta t1) => /hrec; apply EqTauL.
@@ -522,17 +521,17 @@ Lemma lutt_xrutt_trans_r t1 t2 :
        (fun T1 T2 e1 t1 e2 t2 => PAns2 e2 t2 /\ RAns e1 t1 e2 t2)
        (fun r1 r2 => P2 r2 /\ RR r1 r2) t1 t2.
 Proof.
-  move: t1 t2; pcofix CIH => t1 t2 hlutt hrutt.
-  pstep. punfold hrutt. red in hrutt |- *.
+  move: t1 t2; coinduction => t1 t2 hlutt hrutt.
+  xrcbn. step in hrutt.
   move: hlutt; rewrite {1}(itree_eta t2).
   elim: hrutt => // {t1 t2}.
   + by move=> r1 r2 hRR; rewrite -lutt_Ret => hP2; constructor.
   + move=> t1 t2 hrutt hlutt; constructor.
-    by pclearbot; right; apply CIH => //; apply lutt_Tau.
+    by apply CIH => //; apply lutt_Tau.
   + move=> T1 T2 e1 e2 k1 k2 ?? hREv hk hlutt.
     have [hPEv {}hlutt]:= lutt_inv_Vis hlutt.
     constructor => // r1 r2 [/hlutt ? /hk ?].
-    by pclearbot; right; eauto.
+    by eauto.
   + by move=> T1 e1 k1 ot2 ? _; apply EqCutL.
   + by move=> t1 ot2 _ hrec /hrec; apply EqTauL.
   move=> ot1 t2 _ hrec.

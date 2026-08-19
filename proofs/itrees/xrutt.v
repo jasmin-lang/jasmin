@@ -32,7 +32,7 @@ From ITree Require Import
      Eq
      Basics.
 
-From Paco Require Import paco.
+From Coinduction Require Import all.
 
 Import Monads.
 Import MonadNotation.
@@ -67,21 +67,24 @@ Notation WillCutoff_ EE A t :=
 Section XRuttF.
 
   Context {E1 E2: Type -> Type}.
-  Context {R1 R2 : Type}.
 
   Context (EE1: forall X, E1 X -> bool).
   Context (EE2: forall X, E2 X -> bool).
 
   Context (REv : forall (A B : Type), E1 A -> E2 B -> Prop).
   Context (RAns : forall (A B : Type), E1 A -> A -> E2 B -> B -> Prop).
-  Context (RR : R1 -> R2 -> Prop).
 
   Arguments EE1 {X}.
   Arguments EE2 {X}.
   Arguments REv {A} {B}.
   Arguments RAns {A} {B}.
 
+  (** NOTE: We make [R1] and [R2] universally
+      quantified under the simulation [sim] in [xrutt_] and [xrutt_mon].
+      This ensures we can perform [ITree.bind] reasoning in coinductive proofs. *)
   Inductive xruttF
+    {R1 R2 : Type}
+    (RR : R1 -> R2 -> Prop)
     (sim : itree E1 R1 -> itree E2 R2 -> Prop) :
     itree' E1 R1 -> itree' E2 R2 -> Prop :=
   | EqRet : forall (r1 : R1) (r2 : R2),
@@ -120,31 +123,53 @@ Section XRuttF.
   Hint Constructors xruttF : itree.
 
   Definition xrutt_
-    (sim : itree E1 R1 -> itree E2 R2 -> Prop)
-    (t1 : itree E1 R1) (t2 : itree E2 R2) :=
-    xruttF sim (observe t1) (observe t2).
+    (sim : forall R1 R2, (R1 -> R2 -> Prop) -> itree E1 R1 -> itree E2 R2 -> Prop)
+    (R1 R2 : Type) (RR : R1 -> R2 -> Prop) (t1 : itree E1 R1) (t2 : itree E2 R2) :=
+    xruttF RR (sim R1 R2 RR) (observe t1) (observe t2).
   Hint Unfold xrutt_ : itree.
 
-  Lemma xrutt_monot : monotone2 xrutt_.
-  Proof.
-    red. intros. red; induction IN; eauto with itree.
-  Qed.
+  Lemma xrutt_mono :
+    Proper (leq ==> leq) xrutt_.
+  Proof. monauto. Qed.
+
+  Definition xrutt_mon : mon (forall R1 R2, (R1 -> R2 -> Prop) -> itree E1 R1 -> itree E2 R2 -> Prop) :=
+    {| body := xrutt_; Hbody := xrutt_mono |}.
+End XRuttF.
+
+(** NOTE: Breaking up section to restore proper argument order for [xrutt] itself.
+    For [xrutt] the type arguments must be before [REv] and [RAns], but for [xruttF],
+    [xrutt_], and [xrutt_mon] we universally quantify [R1] and [R2] _under_ the
+    simulation argument [sim] to provide flexibility with [ITree.bind] in
+    coinductive proofs.
+
+    FIXME: How do use [Arguments] command without breaking up section? *)
+Section XRuttF.
+  Context {E1 E2: Type -> Type}.
+  Context {R1 R2 : Type}.
+
+  Context (EE1: forall X, E1 X -> bool).
+  Context (EE2: forall X, E2 X -> bool).
+
+  Context (REv : forall (A B : Type), E1 A -> E2 B -> Prop).
+  Context (RAns : forall (A B : Type), E1 A -> A -> E2 B -> B -> Prop).
+
+  Implicit Type RR : R1 -> R2 -> Prop.
 
   Definition xrutt :
-    itree E1 R1 -> itree E2 R2 -> Prop :=
-    paco2 xrutt_ bot2.
+    (R1 -> R2 -> Prop) -> itree E1 R1 -> itree E2 R2 -> Prop :=
+    gfp (xrutt_mon EE1 EE2 REv RAns) R1 R2.
   Hint Unfold xrutt : itree.
 
-  Lemma xruttF_inv_VisF_r {sim} t1 U2 (e2: E2 U2) (k2: U2 -> _)
-    (hh: IsNoCut EE2 e2) :
-    xruttF sim t1 (VisF e2 k2) ->
+  Lemma xruttF_inv_VisF_r {sim} RR t1 U2 (e2: E2 U2) (k2: U2 -> _)
+    (hh: IsNoCut_ EE2 _ e2) :
+    xruttF EE1 EE2 REv RAns RR sim t1 (VisF e2 k2) ->
     (exists U1 (e1: E1 U1) k1,
         t1 = VisF e1 k1 /\
           forall v1 v2, RAns e1 v1 e2 v2 -> sim (k1 v1) (k2 v2))
     \/
-    DoCutoffF EE1 t1
+    DoCutoffF_ EE1 _ t1
     \/
-    (exists t1', t1 = TauF t1' /\ xruttF sim (observe t1') (VisF e2 k2)).
+    (exists t1', t1 = TauF t1' /\ xruttF EE1 EE2 REv RAns RR sim (observe t1') (VisF e2 k2)).
   Proof.
     intros.
     remember t1 as t0.
@@ -158,43 +183,45 @@ Section XRuttF.
       + right; left; eauto.
   Qed.
 
-  Lemma xruttF_inv_VisF {sim} U1 U2
+  Lemma xruttF_inv_VisF {sim} RR U1 U2
     (e1 : E1 U1) (e2 : E2 U2)
     (k1 : U1 -> itree E1 R1) (k2 : U2 -> itree E2 R2) :
-      xruttF sim (VisF e1 k1) (VisF e2 k2) ->
+      xruttF EE1 EE2 REv RAns RR sim (VisF e1 k1) (VisF e2 k2) ->
       (forall v1 v2, RAns e1 v1 e2 v2 -> sim (k1 v1) (k2 v2))
       \/
-        IsCut EE1 e1
+        IsCut_ EE1 _ e1
       \/
-        IsCut EE2 e2.
+        IsCut_ EE2 _ e2.
   Proof.
     intros H. dependent destruction H; eauto.
   Qed.
 
   Lemma fold_xruttF:
-    forall (t1: itree E1 R1) (t2: itree E2 R2) ot1 ot2,
-    xruttF (upaco2 xrutt_ bot2) ot1 ot2 ->
+    forall RR (t1: itree E1 R1) (t2: itree E2 R2) ot1 ot2,
+    xruttF EE1 EE2 REv RAns RR (xrutt RR) ot1 ot2 ->
     ot1 = observe t1 ->
     ot2 = observe t2 ->
-    xrutt t1 t2.
+    xrutt RR t1 t2.
   Proof.
-    intros * eq -> ->; pfold; auto.
+    intros * eq -> ->. apply (pfp_gfp (xrutt_mon EE1 EE2 REv RAns)), eq.
   Qed.
 
 End XRuttF.
 
-
+(* FIXME: I believe this is broken like this. *)
 Ltac unfold_xrutt :=
     (match goal with [ |- xrutt_ _ _ _ _ _ _ _ _ ] => red end) ;
     (repeat match goal with [H: xrutt_ _ _ _ _ _ _ _ _ |- _ ] =>
                               red in H end).
 
+(* FIXME: I believe this is broken like this. *)
 Tactic Notation "fold_xruttF" hyp(H) :=
-  try punfold H;
+  try step in H;
   try red in H;
   match type of H with
   | xruttF ?_EE1 ?_EE2 ?_REV ?_RANS ?_RR
-      (upaco2 (xrutt_ ?_EE1 ?_EE2 ?_REV ?_RANS ?_RR) bot2)
+      (xrutt ?_EE1 ?_EE2 ?_REV ?_RANS ?_RR)
+      (* (upaco2 (xrutt_ ?_EE1 ?_EE2 ?_REV ?_RANS ?_RR) bot2) *)
       ?_OT1 ?_OT2 =>
       match _OT1 with
       | observe _ => idtac
@@ -207,7 +234,79 @@ Tactic Notation "fold_xruttF" hyp(H) :=
       eapply fold_xruttF in H; [| eauto | eauto]
   end.
 
-#[global] Hint Resolve xrutt_monot : paco.
+(** ** [X-rutt]-specific tactics.
+
+    Based upon the tactics in [Rutt.v]. *)
+
+#[local] Ltac xrunfold := unfold xrutt.
+#[local] Ltac xrunfold_in h := unfold xrutt in h.
+
+Ltac xrcbn := cbn[xrutt_mon body]; try unfold xrutt_.
+Ltac xrcbn_in H := cbn[xrutt_mon body] in H; try unfold xrutt_ in H.
+
+Tactic Notation "xrcbn" "in" ident(h) := xrcbn_in h.
+Tactic Notation "xrcbn" "in" "*" := cbn[xrutt_mon body] in *; try unfold xrutt_ in *.
+
+(** [xrstep] unfolds [xrutt] one step, exposing the [xruttF] functor. *)
+Tactic Notation "xrstep" := apply (pfp_gfp (xrutt_mon _ _ _ _)); xrcbn.
+Tactic Notation "xrstep" "in" ident(h) := xrunfold_in h; step in h; xrcbn in h.
+
+#[local] Ltac refold :=
+  repeat lazymatch goal with
+  | |- context[gfp (@xrutt_mon ?E1 ?E2 ?EE1 ?EE2 ?RE ?RA) ?R1 ?R2 ?RR] =>
+      fold (@xrutt E1 E2 EE1 EE2 RE RA R1 R2 RR)
+  end.
+
+Ltac fold_xrutt :=
+  lazymatch goal with
+  | |- context[@xruttF ?E1 ?E2 ?EE1 ?EE2 ?REv ?RAns ?R1 ?R2 ?RR] =>
+      change (@xruttF E1 E2 EE1 EE2 REv RAns R1 R2 RR) with
+      (body (@xrutt_mon E1 E2 EE1 EE2 REv RAns) R1 R2 RR)
+  end.
+Ltac fold_xrutt_in h :=
+  match type of h with
+  | context[@xruttF ?E1 ?E2 ?EE1 ?EE2 ?REv ?RAns ?R1 ?R2 ?RR] =>
+      change (@xruttF E1 E2 EE1 EE2 REv RAns R1 R2 RR) with
+      (body (@xrutt_mon E1 E2 EE1 EE2 REv RAns) R1 R2 RR) in h
+  end.
+Tactic Notation "xrunstep" := fold_xrutt; unstep.
+Tactic Notation "xrunstep" "in" ident(h) := fold_xrutt_in h; unstep in h.
+
+Ltac to_xrmon_core :=
+  lazymatch goal with
+  | |- context[@xruttF ?E1 ?E2 ?EE1 ?EE2 ?REv ?RAns ?R1 ?R2 ?RR (?f ?R1 ?R2 ?RR) (observe ?t1) (observe ?t2)] =>
+      change (@xruttF E1 E2 EE1 EE2 REv RAns R1 R2 RR (f R1 R2 RR) (observe t1) (observe t2))
+      with (body (@xrutt_mon E1 E2 EE1 EE2 REv RAns) f R1 R2 RR t1 t2)
+  | |- context[@xruttF ?E1 ?E2 ?EE1 ?EE2 ?REv ?RAns ?R1 ?R2 ?RR (?f ?R1 ?R2 ?RR) (?con1 ?a1) (?con2 ?a2)] =>
+      change (@xruttF E1 E2 EE1 EE2 REv RAns R1 R2 RR (f R1 R2 RR) (con1 a1) (con2 a2))
+      with (body (@xrutt_mon E1 E2 EE1 EE2 REv RAns) f R1 R2 RR (go (con1 a1)) (go (con2 a2)))
+  end.
+
+Ltac to_xrmon :=
+  let dummy := fresh "dummy" in
+  assert (dummy : True) by constructor;
+  intros;
+  to_xrmon_core;
+  Tactics.revert_until dummy;
+  clear dummy.
+
+Ltac to_xrmon_in h :=
+  lazymatch type of h with
+  | context[@xruttF ?E1 ?E2 ?EE1 ?EE2 ?REv ?RAns ?R1 ?R2 ?RR (?f ?R1 ?R2 ?RR) (observe ?t1) (observe ?t2)] =>
+      change (@xruttF E1 E2 EE1 EE2 REv RAns R1 R2 RR (f R1 R2 RR) (observe t1) (observe t2))
+      with (body (@xrutt_mon E1 E2 EE1 EE2 REv RAns) f R1 R2 RR t1 t2) in h
+  | context[@xruttF ?E1 ?E2 ?EE1 ?EE2 ?REv ?RAns ?R1 ?R2 ?RR (?f ?R1 ?R2 ?RR) (?con1 ?a1) (?con2 ?a2)] =>
+      change (@xruttF E1 E2 EE1 EE2 REv RAns R1 R2 RR (f R1 R2 RR) (con1 a1) (con2 a2))
+      with (body (@xrutt_mon E1 E2 EE1 EE2 REv RAns) f R1 R2 RR (go (con1 a1)) (go (con2 a2))) in h
+  | context[@xruttF ?E1 ?E2 ?EE1 ?EE2 ?REv ?RAns ?R1 ?R2 ?RR (?f ?R1 ?R2 ?RR) (?con1 ?a1) (observe ?t2)] =>
+      change (@xruttF E1 E2 EE1 EE2 REv RAns R1 R2 RR (f R1 R2 RR) (con1 a1) (observe t2))
+      with (body (@xrutt_mon E1 E2 EE1 EE2 REv RAns) f R1 R2 RR (go (con1 a1)) t2) in h
+  | context[@xruttF ?E1 ?E2 ?EE1 ?EE2 ?REv ?RAns ?R1 ?R2 ?RR (?f ?R1 ?R2 ?RR) (observe ?t1) (?con2 ?a2)] =>
+      change (@xruttF E1 E2 EE1 EE2 REv RAns R1 R2 RR (f R1 R2 RR) (observe t1) (con2 a2))
+      with (body (@xrutt_mon E1 E2 EE1 EE2 REv RAns) f R1 R2 RR t1 (go (con2 a2))) in h
+  end.
+
+Tactic Notation "to_xrmon" "in" ident(h) := to_xrmon_in h.
 
 
 Section ConstructionInversion.
@@ -225,25 +324,25 @@ Lemma xrutt_Ret r1 r2:
   RR r1 r2 ->
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR
     (Ret r1: itree E1 R1) (Ret r2: itree E2 R2).
-Proof. intros. pstep; constructor; auto. Qed.
+Proof. intros. xrstep; constructor; auto. Qed.
 
 Lemma xrutt_inv_Ret r1 r2:
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR (Ret r1) (Ret r2) ->
   RR r1 r2.
 Proof.
-  intros. punfold H. inv H. eauto.
+  intros. xrstep in H. inv H.
 Qed.
 
 Lemma xrutt_inv_Ret_l r1 t2:
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR (Ret r1) t2 ->
   (exists r2, t2 ≳ Ret r2 /\ RR r1 r2) \/ (WillCutoff_ EE2 _ t2).
 Proof.
-  intros Hrutt; punfold Hrutt; red in Hrutt; cbn in Hrutt.
+  intros Hrutt; xrstep in Hrutt; cbn in Hrutt.
   setoid_rewrite (itree_eta t2).
   remember (RetF r1) as ot1; revert Heqot1.
   induction Hrutt; intros; try discriminate.
   - left. inversion Heqot1; subst. exists r2. split; [reflexivity|auto].
-  - right. exists A, e2, k2. split; eauto. reflexivity.
+  - right. exists A, e2, k2. split; eauto.
   - destruct (IHHrutt Heqot1) as [[r2 [H1 H2]] | H1].
     + left; exists r2; split; auto.
       rewrite <- itree_eta in H1. now rewrite tau_euttge.
@@ -260,11 +359,11 @@ Lemma xrutt_inv_Ret_r t1 r2:
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR t1 (Ret r2) ->
   (exists r1, t1 ≳ Ret r1 /\ RR r1 r2) \/ (WillCutoff_ EE1 _ t1).
 Proof.
-  intros Hrutt; punfold Hrutt; red in Hrutt; cbn in Hrutt.
+  intros Hrutt; step in Hrutt; cbn in Hrutt.
   setoid_rewrite (itree_eta t1). remember (RetF r2) as ot2; revert Heqot2.
   induction Hrutt; intros; try discriminate.
   - left. inversion Heqot2; subst. exists r1. split; [reflexivity|auto].
-  - right. exists A, e1, k1. split; eauto. reflexivity.
+  - right. exists A, e1, k1. split; eauto.
   - destruct (IHHrutt Heqot2) as [[r1 [H1 H2]] | H].
     + left. exists r1; split; auto.
       rewrite <- itree_eta in H1. now rewrite tau_euttge.
@@ -282,8 +381,8 @@ Lemma break_inv_l t1 t2 :
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR t1 t2.
 Proof.
   intros [T [e0 [k0 [H1 H2]]]].
-  pcofix CIH.
-  pstep; red.
+  coinduction.
+  xrcbn.
   setoid_rewrite H2.
   econstructor; eauto.
 Qed.
@@ -293,8 +392,8 @@ Lemma break_inv_r t1 t2 :
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR t1 t2.
 Proof.
   intros [T [e0 [k0 [H1 H2]]]].
-  pcofix CIH.
-  pstep; red.
+  coinduction.
+  xrcbn.
   setoid_rewrite H2.
   econstructor; auto.
 Qed.
@@ -303,34 +402,35 @@ Lemma xrutt_inv_Tau_l t1 t2 :
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR (Tau t1) t2 ->
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR t1 t2.
 Proof.
-  intros. punfold H. red in H. simpl in *.
+  intros. step in H. simpl in *.
   remember (TauF t1) as tt1. genobs t2 ot2.
   hinduction H before t1; intros; try discriminate.
-  - inv Heqtt1. pclearbot. pstep. red. simpobs. econstructor; eauto.
-    pstep_reverse.
+  - inv Heqtt1. xrstep. simpobs. econstructor; eauto.
+    unstep. assumption.
   - assert (DoCutoff_ EE2 _ t2) as A1.
     { rewrite <- Heqot2; eauto. }
     eapply break_inv_r; auto.
-  - inv Heqtt1. punfold_reverse H.
-  - red in IHxruttF. pstep. red; simpobs. econstructor; eauto. pstep_reverse.
+  - inv Heqtt1. unstep in H. assumption.
+  - red in IHxruttF. xrstep; simpobs. econstructor; eauto.
+    unstep. eauto.
 Qed.
 
 Lemma xrutt_add_Tau_l t1 t2 :
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR t1 t2 ->
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR (Tau t1) t2.
 Proof.
-  intros. pfold. red. cbn. constructor. pstep_reverse.
+  intros. xrstep. constructor. unstep. assumption.
 Qed.
 
 Lemma xrutt_inv_Tau_r t1 t2 :
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR t1 (Tau t2) ->
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR t1 t2.
 Proof.
-  intros. punfold H. red in H. simpl in *.
-  pstep. red. remember (TauF t2) as tt2 eqn:Ett2 in H.
+  intros. step in H. simpl in *. xrstep.
+  remember (TauF t2) as tt2 eqn:Ett2 in H.
   revert t2 Ett2.
   induction H; try discriminate; intros; inversion Ett2; subst; auto.
-  - pclearbot. constructor. pstep_reverse.
+  - constructor. unstep. assumption.
   - constructor; auto.
   - constructor. eapply IHxruttF; eauto.
 Qed.
@@ -339,7 +439,7 @@ Lemma xrutt_add_Tau_r t1 t2 :
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR t1 t2 ->
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR t1 (Tau t2).
 Proof.
-  intros. pfold. red. cbn. constructor. pstep_reverse.
+  intros. xrstep. constructor. unstep. assumption.
 Qed.
 
 Lemma xrutt_inv_Tau t1 t2 :
@@ -354,7 +454,7 @@ Lemma xrutt_CutL {T1} (e1: E1 T1) (k1: T1 -> itree E1 R1)
   IsCut_ EE1 _ e1 ->
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR (Vis e1 k1) t.
 Proof.
-  intros; pstep; econstructor; auto.
+  intros; xrstep; econstructor; auto.
 Qed.
 
 Lemma xrutt_CutR {T2} (e2: E2 T2) (k2: T2 -> itree E2 R2)
@@ -362,7 +462,7 @@ Lemma xrutt_CutR {T2} (e2: E2 T2) (k2: T2 -> itree E2 R2)
   IsCut_ EE2 _ e2 ->
   @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR t (Vis e2 k2).
 Proof.
-  intros; pstep; econstructor; auto.
+  intros; xrstep; econstructor; auto.
 Qed.
 
 Lemma xrutt_Vis {T1 T2} (e1: E1 T1) (e2: E2 T2)
@@ -379,8 +479,7 @@ Proof.
   { eapply xrutt_CutL; eauto. }
   { eapply xrutt_CutL; eauto. }
   { eapply xrutt_CutR; eauto. }
-  { pstep; constructor; auto.
-    intros; left. apply Hk; auto. }
+  { xrstep; constructor; auto. }
 Qed.
 
 Lemma xrutt_inv_Vis_l {U1} (e1: E1 U1) k1 t2:
@@ -395,16 +494,15 @@ Lemma xrutt_inv_Vis_l {U1} (e1: E1 U1) k1 t2:
                        (k1 v1) (k2 v2)))
    \/ WillCutoff_ EE2 _ t2.
 Proof.
-  intros Hrutt; punfold Hrutt; red in Hrutt; cbn in Hrutt.
+  intros Hrutt; step in Hrutt; cbn in Hrutt.
   setoid_rewrite (itree_eta t2). remember (VisF e1 k1) as ot1; revert Heqot1.
   induction Hrutt; intros; try discriminate; subst.
   - inversion Heqot1; subst A. inversion_sigma; rewrite <- eq_rect_eq in *;
       subst; rename B into U2.
     repeat left.
     exists U2, e2, k2; split. reflexivity. split; auto.
-    intros v1 v2 HAns. specialize (H2 v1 v2 HAns). red in H2. now pclearbot.
   - left. dependent destruction Heqot1; try congruence.
-  - right. exists A, e2, k2; split; auto. reflexivity.
+  - right. exists A, e2, k2; split; auto.
   - destruct (IHHrutt eq_refl) as [[U2 [e2 [k2 [Ht0 HAns]]]] | H0]; auto.
     + left.
       rewrite <- itree_eta in Ht0.
@@ -428,15 +526,14 @@ Lemma xrutt_inv_Vis_r {U2} t1 (e2: E2 U2) k2:
                       (k1 v1) (k2 v2)))
    \/ WillCutoff_ EE1 _ t1.
 Proof.
-  intros Hrutt; punfold Hrutt; red in Hrutt; cbn in Hrutt.
+  intros Hrutt; step in Hrutt; cbn in Hrutt.
   setoid_rewrite (itree_eta t1). remember (VisF e2 k2) as ot2; revert Heqot2.
   induction Hrutt; intros; try discriminate; subst.
   - inversion Heqot2; subst B. inversion_sigma; rewrite <- eq_rect_eq in *;
       subst; rename A into U1.
     repeat left.
     exists U1, e1, k1; split. reflexivity. split; auto.
-    intros v1 v2 HAns. specialize (H2 v1 v2 HAns). red in H2. now pclearbot.
-  - right. exists A, e1, k1; split; auto. reflexivity.
+  - right. exists A, e1, k1; split; auto.
   - left. dependent destruction Heqot2; try congruence.
   - destruct (IHHrutt eq_refl) as [[U1 [e1 [k1 [Ht0 HAns]]]] | H0]; auto.
     + left.
@@ -458,185 +555,11 @@ Lemma xrutt_inv_Vis U1 U2 (e1: E1 U1) (e2: E2 U2)
   (forall u1 u2, RAns e1 u1 e2 u2 ->
      @xrutt E1 E2 R1 R2 EE1 EE2 REv RAns RR (k1 u1) (k2 u2)).
 Proof.
-  intros H H0 H1. punfold H. red in H.
+  intros H H0 H1. step in H.
   apply xruttF_inv_VisF in H.
   destruct H; auto.
   intros u1 u2 Hans.
-  eapply H in Hans.
-  pclearbot; auto.
   destruct H; try congruence.
 Qed.
 End ConstructionInversion.
-
-Section euttge_trans_clo.
-
-  Context {E1 E2: Type -> Type}.
-  Context {R1 R2 : Type}.
-
-  Context (EE1: forall {X}, E1 X -> bool).
-  Context (EE2: forall {X}, E2 X -> bool).
-
-  Context (RR : R1 -> R2 -> Prop).
-
-  (* Closing a relation over itrees under [euttge]. *)
-
-  (* A transitivity functor *)
-  Variant euttge_trans_clo (r : itree E1 R1 -> itree E2 R2 -> Prop) :
-    itree E1 R1 -> itree E2 R2 -> Prop :=
-   | eqit_trans_clo_intro t1 t2 t1' t2' RR1 RR2
-                     (EQVl: euttge RR1 t1 t1')
-                     (EQVr: euttge RR2 t2 t2')
-                     (REL: r t1' t2')
-                     (LERR1: forall x x' y, RR1 x x' -> RR x' y -> RR x y)
-                     (LERR2: forall x y y', RR2 y y' -> RR x y' -> RR x y) :
-      euttge_trans_clo t1 t2
-    | eqit_trans_clo_lcut_intro {T} (e: E1 T)  k (t1: itree E1 R1) t2
-        (CT: IsCut_ EE1 _ e) (OE: observe t1 = VisF e k) :
-      euttge_trans_clo t1 t2
-    | eqit_trans_clo_rcut_intro {T} (e: E2 T)  k t1 (t2: itree E2 R2)
-        (CT: IsCut_ EE2 _ e) (OE: observe t2 = VisF e k) :
-      euttge_trans_clo t1 t2.
-  Hint Constructors euttge_trans_clo : itree.
-
-  Lemma euttge_trans_clo_mon r1 r2 t1 t2
-        (IN : euttge_trans_clo r1 t1 t2)
-        (LE : r1 <2= r2) :
-    euttge_trans_clo r2 t1 t2.
-  Proof.
-    destruct IN. econstructor; eauto.
-    econstructor 2; eauto.
-    econstructor 3; eauto.
-  Qed.
-
-  Hint Resolve euttge_trans_clo_mon : paco.
-
-End euttge_trans_clo.
-
-(* Validity of the up-to [euttge] principle *)
-Lemma euttge_trans_clo_wcompat E1 E2 R1 R2
-  (EE1: forall X, E1 X -> bool)
-  (EE2: forall X, E2 X -> bool)
-  (REv : forall A B, E1 A -> E2 B -> Prop)
-  (RAns : forall A B, E1 A -> A -> E2 B -> B -> Prop )
-  (RR : R1 -> R2 -> Prop) :
-  wcompatible2 (xrutt_ EE1 EE2 REv RAns RR) (euttge_trans_clo EE1 EE2 RR).
-Proof.
-  constructor; eauto with paco.
-  { red. intros. eapply euttge_trans_clo_mon; eauto. }
-  intros.
-  destruct PR.
-  { punfold EQVl. punfold EQVr. unfold_eqit.
-    hinduction REL before r; intros; clear t1' t2'.
-    - remember (RetF r1) as x. red.
-      hinduction EQVl before r; intros; subst; try inv Heqx; eauto;
-        (try constructor; eauto).
-      remember (RetF r3) as x. hinduction EQVr before r; intros; subst;
-        try inv Heqx; (try constructor; eauto).
-    - red. remember (TauF m1) as x.
-      hinduction EQVl before r; intros; subst; try inv Heqx; try inv CHECK;
-        ( try (constructor; eauto; fail )).
-      remember (TauF m3) as y.
-      hinduction EQVr before r; intros; subst; try inv Heqy; try inv CHECK;
-        (try (constructor; eauto; fail)).
-      pclearbot. constructor. gclo. econstructor; eauto with paco.
-    - remember (VisF e1 k1) as x. red.
-      hinduction EQVl before r; intros; subst; try discriminate;
-        try (constructor; eauto; fail).
-      remember (VisF e2 k3) as y.
-      hinduction EQVr before r; intros; subst; try discriminate;
-        try (constructor; eauto; fail).
-      dependent destruction Heqx.
-      dependent destruction Heqy.
-      constructor; auto. intros. pclearbot.
-      apply gpaco2_clo.
-      econstructor; eauto with itree.
-    - remember (VisF e1 k1) as x. red.
-      hinduction EQVl before r; intros; subst; try discriminate;
-        try (constructor; eauto; fail).
-      dependent destruction Heqx.
-      constructor; eauto.
-    - remember (VisF e2 k2) as x. red.
-      hinduction EQVr before r; intros; subst; try discriminate;
-        try (constructor; eauto; fail).
-      dependent destruction Heqx.
-      constructor; eauto.
-    - remember (TauF t1) as x. red.
-      hinduction EQVl before r; intros; subst; try inv Heqx;
-        try inv CHECK; (try (constructor; eauto; fail)).
-      pclearbot. punfold REL. constructor. eapply IHREL; eauto.
-    - remember (TauF t2) as y. red.
-      hinduction EQVr before r; intros; subst; try inv Heqy;
-        try inv CHECK; (try (constructor; eauto; fail)).
-      pclearbot. punfold REL. constructor. eapply IHREL; eauto.
-  }
-  { red. rewrite OE. econstructor; auto. }
-  { red. rewrite OE. econstructor; auto. }
-Qed.
-
-
-#[global] Hint Resolve euttge_trans_clo_wcompat : paco.
-
-(* The validity of the up-to [euttge] entails we can rewrite under [euttge]
-   and hence also [eq_itree] during coinductive proofs of [xrutt]
- *)
-#[global] Instance gxrutt_cong_eqit {E1 E2 R1 R2}
-  (EE1: forall X, E1 X -> bool)
-  (EE2: forall X, E2 X -> bool)
-  (REv : forall A B, E1 A -> E2 B -> Prop)
-  (RAns : forall A B, E1 A -> A -> E2 B -> B -> Prop )
-  {RS : R1 -> R2 -> Prop}
-  {RR1 RR2} r rg
-  (LERR1: forall x x' y, (RR1 x x': Prop) -> (RS x' y: Prop) -> RS x y)
-  (LERR2: forall x y y', (RR2 y y': Prop) -> RS x y' -> RS x y) :
-  Proper (eq_itree RR1 ==> eq_itree RR2 ==> flip impl)
-         (gpaco2 (xrutt_ EE1 EE2 REv RAns RS)
-         (euttge_trans_clo EE1 EE2 RS) r rg).
-Proof.
-  repeat intro. gclo. econstructor; eauto;
-    try eapply eqit_mon; try apply H; try apply H0; auto.
-Qed.
-
-#[global] Instance gxrutt_cong_euttge {E1 E2 R1 R2}
-  (EE1: forall X, E1 X -> bool)
-  (EE2: forall X, E2 X -> bool)
-  (REv : forall A B, E1 A -> E2 B -> Prop)
-  (RAns : forall A B, E1 A -> A -> E2 B -> B -> Prop )
-  {RS : R1 -> R2 -> Prop}
-  {RR1 RR2} r rg
-  (LERR1: forall x x' y, (RR1 x x': Prop) -> (RS x' y: Prop) -> RS x y)
-  (LERR2: forall x y y', (RR2 y y': Prop) -> RS x y' -> RS x y) :
-  Proper (euttge RR1 ==> euttge RR2 ==> flip impl)
-         (gpaco2 (xrutt_ EE1 EE2 REv RAns RS)
-         (euttge_trans_clo EE1 EE2 RS) r rg).
-Proof.
-  repeat intro. gclo. econstructor; eauto.
-Qed.
-
-(* Provide these explicitly since typeclasses eauto cannot infer them *)
-#[global] Instance gxrutt_cong_eqit_eq {E1 E2 R1 R2}
-  (EE1: forall X, E1 X -> bool)
-  (EE2: forall X, E2 X -> bool)
-  (REv : forall A B, E1 A -> E2 B -> Prop)
-  (RAns : forall A B, E1 A -> A -> E2 B -> B -> Prop )
-  {RS : R1 -> R2 -> Prop} r rg :
-  Proper (eq_itree eq ==> eq_itree eq ==> flip impl)
-         (gpaco2 (xrutt_ EE1 EE2 REv RAns RS)
-         (euttge_trans_clo EE1 EE2 RS) r rg).
-Proof.
-  apply gxrutt_cong_eqit; now intros * ->.
-Qed.
-
-#[global] Instance gxrutt_cong_euttge_eq {E1 E2 R1 R2}
-  (EE1: forall X, E1 X -> bool)
-  (EE2: forall X, E2 X -> bool)
-  (REv : forall A B, E1 A -> E2 B -> Prop)
-  (RAns : forall A B, E1 A -> A -> E2 B -> B -> Prop )
-  {RS : R1 -> R2 -> Prop} r rg :
-  Proper (euttge eq ==> euttge eq ==> flip impl)
-         (gpaco2 (xrutt_ EE1 EE2 REv RAns RS)
-         (euttge_trans_clo EE1 EE2 RS) r rg).
-Proof.
-  apply gxrutt_cong_euttge; now intros * ->.
-Qed.
-
 

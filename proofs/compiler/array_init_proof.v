@@ -94,7 +94,9 @@ Proof.
   + by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
   + by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.
   move=> xs fn es ii; apply wequiv_call_rel_uincl with checker_st_uincl tt => //.
- move=> ???; exact/wequiv_fun_rec.
+  move=> fs1 fs2 ?.
+  change fs_uincl with (rpostF fn fn fs1 fs2).
+  by apply wequiv_fun_rec.
 Qed.
 
 End IT_REMOVE_INIT.
@@ -236,7 +238,7 @@ Proof.
    apply wequiv_cat with (cmpl_inv I').
    + by have /= := hi I; rewrite heqi.
    by have /= := hc I'; rewrite heqc.
- 1-4, 6-8: by move=> * ii I; apply/it_aux.
+ 1-4, 6-8: by move=> * ii I; apply it_aux.
  move=> e c1 c2 hc1 hc2 ii I /=.
  case heq1 : add_init_c => [c1' I1].
  case heq2 : add_init_c => [c2' I2] /=.

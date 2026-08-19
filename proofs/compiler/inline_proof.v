@@ -354,7 +354,9 @@ Proof using uniq_funname inline_fd_ok.
     + by split => //; rewrite !read_writeE; clear; SvD.fsetdec.
     + by split => //; rewrite !read_writeE; clear; SvD.fsetdec.
     move=> i1 i2 h; rewrite /= /do_inline eqxx hinline /=.
-    exact/(wequiv_fun_rec (p1 := p1) (p2 := p2)).
+    change fs_uincl with (rpostF f f i1 i2).
+    now eapply (wequiv_fun_rec (p1 := p1) (p2 := p2)
+                  (ev1:=p1.(p_extra)) (ev2:=p2.(p_extra))).
   rewrite /check_disjoint.
   t_xrbindP => ffd /get_funP hffd.
   case: ifP => // hdisj _ ? <-.

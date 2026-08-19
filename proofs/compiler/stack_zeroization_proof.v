@@ -1,5 +1,3 @@
-From Paco Require Import paco.
-
 From ITree Require Import
   ITree
   ITreeFacts

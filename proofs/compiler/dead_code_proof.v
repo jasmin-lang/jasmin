@@ -198,7 +198,7 @@ Section PROOF.
     apply: rbindP => // [[s' sci]] h.
     case: (boolP (Sv.subset _ _)) => //=.
     + move=> /Sv.subset_spec Hsub k; apply ok_inj in k; subst.
-      exists s, s'; split; auto. SvD.fsetdec.
+      exists s, s'; split; auto. (*SvD.fsetdec.*)
     move=> _ hloop; case: (ih _ hloop) => si [si'] [Hsub] [h' le].
     exists si, si'; split; auto. SvD.fsetdec.
   Qed.
