@@ -134,6 +134,21 @@ Definition vm_op_align
     .[to_var ZF <- ZF_of_word w]
     .[x <- Vword w].
 
+Lemma x86_lassign_correct s x ws e (w : word ws) s':
+  let lcmd := x86_lassign x ws e in
+  sem_rexpr (emem s) (evm s) e >>= to_word ws = ok w ->
+  write_lexpr x (Vword w) s = ok s' ->
+  sem_fopn_args lcmd s = ok s'.
+Proof.
+  move=> /=; t_xrbindP => v -> /= hv hwr.
+  rewrite /exec_sopn /=.
+  case: ifP => /= h; rewrite hv /= /sopn_sem /sopn_sem_ /= /semi_to_atype computational_eq_refl.
+  + by rewrite /x86_MOV /= /size_8_64 h /= hwr.
+  by rewrite /x86_VMOVDQ (wsize_nle_u64_size_128_256 h) /= hwr.
+Qed.
+
+Opaque x86_lassign.
+
 Context {call_conv : calling_convention}.
 
 Lemma x86_spec_lip_allocate_stack_frame :
@@ -163,7 +178,9 @@ Proof.
   move=> [ [? nrsp] vi1] [[tyr nr] vi2] tmp ts al sz s + /= ? hc _ _ +  _ /=; subst.
   set vrsp := {| vname := nrsp |}; set rsp := {| v_var := vrsp |}.
   set r := {| vname := nr |} => hget hne.
-  rewrite hget /= /exec_sopn /= truncate_word_u /= /set_var /= (convertible_eval_atype hc) /=.
+  erewrite x86_lassign_correct => /=; last first.
+  + by rewrite /set_var /= (convertible_eval_atype hc).
+  + by rewrite hget /= truncate_word_u.
   rewrite -cats1 sem_fopns_args_cat.
   set vm0 := (evm s).[r <- Vword ts].
   set vm2 := if sz != 0%Z then vm0.[vrsp <- Vword (ts - wrepr Uptr sz)] else vm0.
@@ -198,19 +215,6 @@ Proof.
   rewrite Vm.setP_neq //.
   case: f;
     by repeat (rewrite Vm.setP_neq; last by apply /eqP => h; have := inj_to_var h); rewrite Vm.setP_eq.
-Qed.
-
-Lemma x86_lassign_correct s x ws e (w : word ws) s':
-  let lcmd := x86_lassign x ws e in
-  sem_rexpr (emem s) (evm s) e >>= to_word ws = ok w ->
-  write_lexpr x (Vword w) s = ok s' ->
-  sem_fopn_args lcmd s = ok s'.
-Proof.
-  move=> /=; t_xrbindP => v -> /= hv hwr.
-  rewrite /exec_sopn /=.
-  case: ifP => /= h; rewrite hv /= /sopn_sem /sopn_sem_ /= /semi_to_atype computational_eq_refl.
-  + by rewrite /x86_MOV /= /size_8_64 h /= hwr.
-  by rewrite /x86_VMOVDQ (wsize_nle_u64_size_128_256 h) /= hwr.
 Qed.
 
 Lemma x86_lmove_correct : lmove_correct x86_liparams.
