@@ -81,10 +81,18 @@ Definition x86_free_stack_frame (rspi: var_i) (tmp: option var_i) (sz: Z) :=
   let p := Fapp2 (Oadd (Op_w Uptr)) (Fvar rspi) (fconst Uptr sz) in
   [:: ([:: LLvar rspi ], Ox86 (LEA Uptr), [:: Rexpr p ])].
 
+Definition is_regx_e (e: rexpr) :=
+  if e is Rexpr (Fvar x) then is_regx x
+  else false.
+
+Definition is_regx_l (x: lexpr) :=
+  if x is LLvar x then is_regx x
+  else false.
+
 (* TODO: consider using VMOVDQA when the address is known to be aligned *)
 Definition x86_lassign (x: lexpr) (ws: wsize) (e: rexpr) :=
   let op := if (ws <= U64)%CMP
-            then MOV ws
+            then (if (is_regx_e e || is_regx_l x) && (U32 ≤ ws)%CMP then MOVX else MOV) ws
             else VMOVDQU ws
   in ([:: x ], Ox86 op, [:: e ]).
 
