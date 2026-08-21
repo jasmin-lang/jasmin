@@ -264,10 +264,10 @@ Qed.
 
 Lemma riscv_lmove_correct : lmove_correct riscv_liparams.
 Proof.
-  move=> xd xs w ws w' s htxd htxs hget htr.
+  move=> xd xs ws w s /eqP hws htxd; t_xrbindP => z hget htr; subst.
   rewrite /riscv_liparams /lip_lmove /riscv_lmove /= hget /=.
-  rewrite /exec_sopn /= htr /=.
-  by rewrite set_var_eq_type ?htxd.
+  rewrite /exec_sopn /= htr /= /set_var /=.
+  by case: vtype htxd.
 Qed.
 
 Lemma riscv_lstore_correct : lstore_correct_aux riscv_check_ws riscv_lstore.

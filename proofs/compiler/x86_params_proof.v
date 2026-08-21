@@ -222,11 +222,12 @@ Qed.
 
 Lemma x86_lmove_correct : lmove_correct x86_liparams.
 Proof.
-  move=> xd xs w ws w' s htxd htxs hget htr.
+  move=> xd xs ws w s _ htxd hget.
   rewrite /x86_liparams /lip_lmove /x86_lmove.
-  rewrite htxd; apply: x86_lassign_correct => /=.
-  + by rewrite hget /= htr.
-  by rewrite set_var_eq_type ?htxd.
+  apply: x86_lassign_correct => /=.
+  + exact: hget.
+  rewrite /set_var /=.
+  by case: vtype htxd.
 Qed.
 
 Lemma x86_lstore_correct : lstore_correct_aux x86_check_ws x86_lstore.

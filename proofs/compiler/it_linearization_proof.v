@@ -377,11 +377,11 @@ Definition free_stack_frame_correct :=
   Eval hnf in sf_correct free_stack_frame (fun x y => x + y)%R.
 
 Definition lmove_correct :=
-  forall (xd xs : var_i) w ws (w':word ws) s,
-    vtype xd = aword Uptr -> convertible (vtype xs) (aword Uptr) ->
-    get_var true (evm s) xs = ok (Vword w') ->
-    truncate_word Uptr w' = ok w ->
-    sem_fopn_args (lip_lmove liparams xd xs) s = ok (with_vm s (evm s).[xd <- Vword w]).
+  forall (xd xs : var_i) ws w s,
+    lip_check_ws liparams ws ->
+    subatype (aword ws) (vtype xd) ->
+    get_var true (evm s) xs >>= to_word ws = ok w ->
+    sem_fopn_args (lip_lmove liparams ws xd xs) s = ok (with_vm s (evm s).[xd <- Vword w]).
 
 Definition lstore_correct_aux lip_check_ws lip_lstore :=
   forall (xd xs : var_i) ofs ws (w: word ws) wp s m,
@@ -654,17 +654,17 @@ Section HLIPARAMS.
   Context
     (hliparams : h_linearization_params).
 
-  Lemma spec_lmove {lp ii ls} {x y:var_i} (w : word Uptr) :
-    vtype x = aword Uptr ->
-    convertible (vtype y) (aword Uptr) ->
-    get_var true (lvm ls) (v_var y) = ok (Vword w) ->
-    let li := lmove liparams ii x y in
+  Lemma spec_lmove {lp ii ls} {x y:var_i} {ws} (w : word ws) :
+    lip_check_ws liparams ws ->
+    subatype (aword ws) (vtype x) ->
+    get_var true (lvm ls) (v_var y) >>= to_word ws = ok w ->
+    let li := lmove liparams ii ws x y in
     let s := to_estate ls in
     eval_instr lp li ls = ok (lnext_pc (lset_estate' ls (with_vm s (evm s).[x <- Vword w]))).
   Proof using hliparams.
-    move=> htx hty hget /=; rewrite -(lset_estate_same ls).
+    move=> hws htx hget /=; rewrite -(lset_estate_same ls).
     apply sem_fopn_args_eval_instr.
-    by rewrite (spec_lip_lmove hliparams (s:= to_estate ls) htx hty hget (truncate_word_u w)).
+    by rewrite (spec_lip_lmove hliparams (s:= to_estate ls) hws htx hget).
   Qed.
 
   Lemma spec_lstore {lp ii ls m ofs} {x y:var_i} {wx ws ws' wy'} {wy : word ws'} :
@@ -4302,11 +4302,11 @@ Qed.
         rewrite (mix_ilsteps_split_handle_call_cond (P:=P ++ lbody) (lc:=Q) _ ok_body); last by simpl_size; lia.
         rewrite catA in ok_body.
         rewrite (step_mix_ilsteps ok_body) //=; last by simpl_size;lia.
-        have hgetr2 : get_var true (lvm ls2) (mk_var_i {| vtype := stty; vname := saved_stack|}) = ok (Vword (top_stack (emem s1))).
-        + rewrite  -(get_var_eq_ex _ saved_stack_not_written K2); exact: hgetr.
+        have hgetr2 : get_var true (lvm ls2) (mk_var_i {| vtype := stty; vname := saved_stack|}) >>= to_word Uptr = ok (top_stack (emem s1)).
+        + by rewrite  -(get_var_eq_ex _ saved_stack_not_written K2) hgetr /= truncate_word_u.
         rewrite (@spec_lmove _ hliparams p' _ ls2
                   (vid (sp_rsp (p_extra p))) (mk_var_i {| vtype := stty; vname := saved_stack|}) _
-                  erefl hc hgetr2).
+                  _ (spec_lip_check_ws hliparams) (subatype_refl _) hgetr2).
         rewrite mix_ilsteps_b0 => //; last by rewrite /lnext_pc /= hpc2 addn1.
         rewrite bind_ret_l mix_ilsteps_0; last first.
         + by rewrite /handle_call_cond if_arg /in_fn /endpc /lnext_pc /= hfn2 eqxx ok_fd' /= hpc2 catA !size_cat /Q /= addn1 eqxx; case: ifP.

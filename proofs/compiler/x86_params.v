@@ -102,8 +102,8 @@ Definition x86_set_up_sp_register
   let i2 := x86_op_align rspi Uptr al in
   i0 :: rcons (if sf_sz != 0%Z then x86_allocate_stack_frame rspi None sf_sz else [::]) i2.
 
-Definition x86_lmove (xd xs: var_i) :=
-  x86_lassign (LLvar xd) (wsize_of_atype (vtype xd)) (Rexpr (Fvar xs)).
+Definition x86_lmove ws (xd xs: var_i) :=
+  x86_lassign (LLvar xd) ws (Rexpr (Fvar xs)).
 
 Definition x86_check_ws (_: wsize) := true.
 

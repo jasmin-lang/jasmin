@@ -120,7 +120,7 @@ Definition riscv_set_up_sp_register
 Definition riscv_tmp  : Ident.ident := vname (v_var vtmpi).
 Definition riscv_tmp2 : Ident.ident := vname (v_var vtmp2i).
 
-Definition riscv_lmove (xd xs : var_i) :=
+Definition riscv_lmove (_: wsize) (xd xs : var_i) :=
   ([:: LLvar xd], Oriscv MV, [:: Rexpr (Fvar xs)]).
 
 Definition riscv_check_ws ws := ws == reg_size.

@@ -113,13 +113,14 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
       -> seq fopn_args;
 
     (* Return the arguments for a linear instruction that corresponds to
-       a move between two registers.
-       In symbols, the linear instruction derived from [lip_lmove xd xs]
+       a move of the given size between two registers.
+       In symbols, the linear instruction derived from [lip_lmove ws xd xs]
        corresponds to:
-               xd := (Uptr)xs
+               xd := (ws)xs
      *)
     lip_lmove :
-      var_i       (* Destination variable. *)
+      wsize       (* Size of the moved value *)
+      -> var_i    (* Destination variable. *)
       -> var_i    (* Source variable. *)
       -> fopn_args;
 
@@ -295,10 +296,11 @@ Context
  *)
 Definition lmove
   (ii: instr_info)
+  (ws: wsize)
   (rd : var_i)      (* Destination register. *)
   (rs : var_i)       (* Source register. *)
   : linstr :=
-  li_of_fopn_args ii (lip_lmove liparams rd rs).
+  li_of_fopn_args ii (lip_lmove liparams ws rd rs).
 
 (* Return a linear instruction that corresponds to loading from memory.
    The linear instruction [lload rd rs ofs] corresponds to
@@ -802,7 +804,7 @@ Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) : label * l
           *       Setup stack.
           *)
          let r := mk_var_i x in
-         ( [:: lmove ret_ii rspi r ]
+         ( [:: lmove ret_ii Uptr rspi r ]
          , set_up_sp_register fentry_ii rspi sf_sz (sf_align e) r (mk_var_i var_tmp)
          , 1%positive
          )

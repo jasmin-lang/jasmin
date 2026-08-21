@@ -128,7 +128,7 @@ Definition arm_set_up_sp_register
 Definition arm_tmp  : Ident.ident := vname (v_var vtmpi).
 Definition arm_tmp2 : Ident.ident := vname (v_var vtmp2i).
 
-Definition arm_lmove (xd xs : var_i) :=
+Definition arm_lmove (_: wsize) (xd xs : var_i) :=
   ([:: LLvar xd], Oarm (ARM_op MOV default_opts), [:: Rexpr (Fvar xs)]).
 
 Definition arm_check_ws ws := ws == reg_size.

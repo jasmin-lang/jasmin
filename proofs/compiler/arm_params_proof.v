@@ -287,10 +287,10 @@ Qed.
 
 Lemma arm_lmove_correct : lmove_correct arm_liparams.
 Proof.
-  move=> xd xs w ws w' s htxd htxs hget htr.
+  move=> xd xs ws w s /eqP hws htxd; t_xrbindP => z hget htr; subst.
   rewrite /arm_liparams /lip_lmove /arm_lmove /= hget /=.
-  rewrite /exec_sopn /= htr /=.
-  by rewrite set_var_eq_type ?htxd.
+  rewrite /exec_sopn /= htr /= /set_var /=.
+  by case: vtype htxd.
 Qed.
 
 Lemma arm_lstore_correct : lstore_correct_aux arm_check_ws arm_lstore.
