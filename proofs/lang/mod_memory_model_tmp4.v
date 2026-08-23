@@ -238,6 +238,57 @@ Definition chunk_set_pmap_eq (cf1 cf2: PMap)
 
 Notation Sz := Z (only parsing).
 
+
+(*****************************************************************)
+
+Record stackChunk (mem: Type) (in_ctx: seq (pointer * Sz * Permission)) : Type :=
+  StackChunk {
+      stackC_root : pointer
+    ; stackC_limit :  pointer
+    ; out_ctx : seq (pointer * Sz * Permission)                          
+
+    ; stackC : mem -> seq (pointer * Sz)
+    ; permissionsC : mem -> PMap                       
+                    
+    ; stackC_max_size := p2Z stackC_root - p2Z stackC_limit
+    ; stackC_max_sizeP : 0 <= stackC_max_size  
+    ; stackC_memory : (pointer * Sz) := (stackC_root, stackC_max_size) 
+}.      
+
+(* program modules, with local oracles *)
+Class modProg (prog: Type): Type := ModProg {
+    gprog_local (pr: prog) : funname -> bool
+
+  ; gprog_export (pr: prog) : funname -> bool
+
+  ; gprog_oracle (pr: prog) : forall fn, funname -> gprog_export pr fn -> Sz
+}.
+                                         
+(* program modules, with local oracles *)
+Class modCProg (prog mem: Type) (M: modProg prog) : Type := ModCProg {                           
+   mod_map (pr: prog) :
+    forall (fn: funname), gprog_export pr fn ->
+                          forall (ctx: seq (pointer * Sz * Permission)),
+                            stackChunk mem ctx                                
+}.
+
+Class finGMem (mem: Type) : Type := FinGFMem {         
+
+      gstack_root : mem -> pointer
+    ; gstack_limit :  mem -> pointer          
+    ; global_memory : mem -> seq (pointer * Sz)
+
+    ; gstack : mem -> seq (pointer * Sz)
+
+   (* concrete stack chunk; size; expected return
+   permissions for the context passed to the call *)                     
+   ; gcontext : mem ->
+       seq (seq (pointer * Sz) * Sz * seq (pointer * Sz * Permission))
+}.
+
+(********************************************************************)           
+
+
 (* the fixed part of a module memory structure *)
 Class baseMem (mem: Type) : Type := BaseMem {
       stack_root : mem -> pointer
@@ -262,8 +313,7 @@ Class baseMem (mem: Type) : Type := BaseMem {
 Class finMem (mem: Type) (BM: baseMem mem) : Type := FinMem {         
      stack : mem -> seq (pointer * Sz)
 
-   (* concrete stack chunk; permissions at the end of the chunk (just
-   before the corresponding external call); expected return
+   (* concrete stack chunk; size; expected return
    permissions for the context passed to the call *)                     
    ; concrete_context : mem ->
        seq (seq (pointer * Sz) * Sz * seq (pointer * Sz * Permission))
@@ -504,7 +554,8 @@ Class stackMem (prog mem: Type) (BM: baseMem mem) (FM: finMem BM)
     (* get the context of fn; find the permissions for the context in
        m0; those should be higher than the context output permissions.
        make a mask from the output context permissions (we are after
-       deallocation). *)                                                           ; final_external_call md fn (m0 m1: mem) (args: seq (pointer * Sz)) :
+       deallocation). *)
+   ; final_external_call md fn (m0 m1: mem) (args: seq (pointer * Sz)) :
       Prop :=
       let ctx_imask := mod_context_input md fn in
       let ctx_omask := mod_context_output md fn in
