@@ -247,8 +247,8 @@ Record stackChunk (mem: Type) (in_ctx: seq (pointer * Sz * Permission)) : Type :
     ; stackC_limit :  pointer
     ; out_ctx : seq (pointer * Sz * Permission)                          
 
-    ; stackC : mem -> seq (pointer * Sz)
-    ; permissionsC : mem -> PMap                       
+(*    ; stackC : mem -> seq (pointer * Sz)
+    ; permissionsC : mem -> PMap                   *)    
                     
     ; stackC_max_size := p2Z stackC_root - p2Z stackC_limit
     ; stackC_max_sizeP : 0 <= stackC_max_size  
@@ -272,17 +272,22 @@ Class modCProg (prog mem: Type) (M: modProg prog) : Type := ModCProg {
                             stackChunk mem ctx                                
 }.
 
-Class finGMem (mem: Type) : Type := FinGFMem {         
+Class finGMem (prog mem: Type) : Type := FinGFMem {         
 
-      gstack_root : mem -> pointer
-    ; gstack_limit :  mem -> pointer          
+      gstack_root : prog -> pointer
+    ; gstack_limit : prog -> pointer          
     ; global_memory : mem -> seq (pointer * Sz)
 
     ; gstack : mem -> seq (pointer * Sz)
-
-   (* concrete stack chunk; size; expected return
-   permissions for the context passed to the call *)                     
-   ; gcontext : mem ->
+    ; gpermissions: mem -> PMap                       
+    ; gcontext_input : mem -> seq (Sz * Permission)
+    ; gcontext_output : mem -> seq (Sz * Permission)
+ 
+   (* concrete stack chunk; size; expected return permissions for the
+   context passed to the call. NOTE: return permissions should be same
+   as set by stackChunk (given the function name), and similarly the
+   size should be same as set by the oracle *)                     
+   ; concrete_gcontext : mem ->
        seq (seq (pointer * Sz) * Sz * seq (pointer * Sz * Permission))
 }.
 
