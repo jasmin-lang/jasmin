@@ -80,7 +80,7 @@ Section PROOF.
     have [v'' Hv'' Hveq] :=  sem_pexpr_uincl_on' h Hv.
     have Huincl := truncate_value_uincl Hv'.
     have [v''' Ht Hv''']:= value_uincl_truncate Hveq Hv'.
-    have [| vm2 Hvm2 Hw2]:= write_lval_uincl_on _ Hv''' Hw Hvm; first by clear; SvD.fsetdec.
+    have [| vm2 Hvm2 Hw2]:= write_lval_uincl_on (fun _ => erefl) _ Hv''' Hw Hvm; first by clear; SvD.fsetdec.
     exists vm2; first by apply: uincl_onI Hvm2; clear; SvD.fsetdec.
     by rewrite /= /sem_assgn -?eq_globs Hv'' /= Ht /= Hw2.
   Qed.
@@ -152,7 +152,7 @@ Section PROOF.
     have [ vs' Hexpr' vs_vs' ] := sem_pexprs_uincl_on' Hvm Hexpr.
     have [ v' Hopn' v_v' ] := vuincl_exec_opn vs_vs' Hopn.
     rewrite read_esE read_rvsE in Hvm.
-    have [ | vm2 Hvm2 Hw' ] := write_lvals_uincl_on _ v_v' Hw Hvm;
+    have [ | vm2 Hvm2 Hw' ] := write_lvals_uincl_on (fun _ => erefl) _ v_v' Hw Hvm;
       first by clear; SvD.fsetdec.
     exists vm2;
       first by apply: uincl_onI Hvm2; clear; SvD.fsetdec.
@@ -233,7 +233,7 @@ Section PROOF.
     t_xrbindP => -[I1 xs1] hc; case: b.
     + case/ok_inj => ?? /List_Forall2_inv_l[] v' [] l' [] ->{vs'} [] H1 H3 s1' hw hws heq; subst I xs'.
       have hv : value_uincl v v. auto.
-      have [] := write_lval_uincl_on _ hv hw heq.
+      have [] := write_lval_uincl_on  (fun _ => erefl) _ hv hw heq.
       + by rewrite read_rvE; clear; SvD.fsetdec.
       move=> vm1' heq' hw' /=.
       have [|vm2 [heqO hws']] := ih xs xs1 I1 s1' vs vm1' l' hc H3 hws.
@@ -241,7 +241,7 @@ Section PROOF.
       have Hvm : vm_uincl (evm (with_vm s1 vm1)) vm1. done.
       have [vm3 Hw' Hvm']:= write_uincl Hvm H1 hw'. rewrite Hw' /=. rewrite /with_vm /=.
       have Hv' : values_uincl l' l' by done.
-      have [vm4 Hws' /= Hvm'']:= writes_uincl Hvm' Hv' hws'.
+      have [vm4 Hws' /= Hvm'']:= writes_uincl  (fun _ => erefl) Hvm' Hv' hws'.
       exists vm4;rewrite /=; split=> //=.
       by apply: (uincl_onT heqO) => z hin; apply: Hvm''.
     case:andP => //= -[hd hnmem] [??] hv s1' hw hws heqI; subst I1 xs1.
@@ -292,10 +292,10 @@ Section PROOF.
       move=> [R c'] /hc{}hc [I' i'] /hi{}hi /= ??; subst I' c_.
       by rewrite -cat1s; apply wequiv_cat with (st_uincl_on R).
     + move=> x tg ty e ii I c' O h.
-      apply wequiv_assgn_esem => s t s' /st_relP [-> /= ] hu hs.
+      apply wequiv_assgn_esem => s t s' /st_relP [-> /= ] heq hu hs.
       by have [vm2 ??]:= Hassgn_esem h hs hu; exists (with_vm s' vm2).
     + move=> x tg o es ii I c' O h.
-      apply wequiv_opn_esem => s t s' /st_relP [-> /= ] hu hs.
+      apply wequiv_opn_esem => s t s' /st_relP [-> /= ] heq hu hs.
       by have [vm2 ??]:= Hopn_esem h hs hu; exists (with_vm s' vm2).
     + move=> /= xs o es ii I c' O [hI <-].
       apply wequiv_syscall_rel_uincl with checker_st_uincl_on I => //=; subst I.
@@ -348,17 +348,17 @@ Section PROOF.
     move=> vs1 vs2 hall.
     apply wrequiv_weaken with (st_uincl_on I) (st_uincl_on O) => //.
     + by apply st_rel_weaken => ??; apply uincl_onI; rewrite read_esE; clear; SvD.fsetdec.
-    move=> s t s' /st_relP [-> /= hu] hw.
+    move=> s t s' /st_relP [-> /= heq' hu] hw.
     move: heq hall; rewrite /sxs /fn_keep_only -eq_globs; case: onfun => [tokeep | [??]].
     + t_xrbindP=> hc Hv'.
       have [vm2 [? ->]]:= write_lvals_keep_only hc Hv' hw hu.
       by eexists; first reflexivity.
-    subst xs' I. have /= Hws := write_lvals_uincl_on _ _ hw hu.
+    subst xs' I. have /= Hws := write_lvals_uincl_on heq' _ _ hw hu.
     have Hsub : Sv.Subset (read_rvs xs) (read_rvs_rec (Sv.diff O (vrvs xs)) xs).
     + by rewrite read_rvsE; clear; SvD.fsetdec.
     have Hv'' : values_uincl vs1 vs1 by done.
     have [vm2 Hvm2 /= Hvm2'] := Hws _ Hsub Hv'' => Hv'.
-    have [vm3 Hws' /= Hvm'] := writes_uincl (vm_uincl_refl _) Hv' Hvm2'.
+    have [vm3 Hws' /= Hvm'] := writes_uincl heq' (vm_uincl_refl _) Hv' Hvm2'.
     rewrite Hws' /=; eexists; first reflexivity; split => //.
     apply : (@uincl_onT _ _ vm2).
     + by apply: uincl_onI Hvm2; rewrite read_rvsE; clear; SvD.fsetdec.
@@ -386,7 +386,7 @@ Section PROOF.
     exists s1' => //.
     exists (st_uincl_on I), (st_uincl_on O).
     split => //;first (by case: hu1 => *; split); last first.
-    + move=> s2 s2' fr /st_relP [-> /= hu2].
+    + move=> s2 s2' fr /st_relP [-> /= heq hu2].
       rewrite /finalize_funcall; t_xrbindP => vres.
       have /= <-:= @sem_pexprs_get_var _ _ _ _ _ _ gd s2 => hvres vrestr htr <-.
       have hvres' : sem_pexprs (~~direct_call) gd s2 [seq Plvar i | i <- fn_keep_only onfun fn res] =
@@ -396,7 +396,7 @@ Section PROOF.
         elim: tokeep res vres=> // b tokeep ih /= [ | v vres] //= vres' => [[<-]//|].
         t_xrbindP => v' hv' vres1 /ih{}ih <-; case:b => //=.
         by rewrite hv' /= ih.
-      have [vres1] := sem_pexprs_uincl_on hu2 hvres'.
+      have [vres1] := sem_pexprs_uincl_on heq hu2 hvres'.
       rewrite sem_pexprs_get_var /= => -> /= Hvl.
       have htr' : mapM2 ErrType dc_truncate_val (map (eval_atype env) (fn_keep_only onfun fn ftyout)) (fn_keep_only onfun fn vres) =
                       ok (fn_keep_only onfun fn vrestr).

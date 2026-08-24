@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 From Coq Require Import ZArith Uint63.
-From mathcomp Require Import ssreflect ssrfun ssrbool.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import expr compiler_util.
 
 Local Open Scope seq_scope.
@@ -95,13 +95,16 @@ Section SUBST.
 
 Record subst_map := {
   m : Mvar.t var;
+  vars : Sv.t; (* to check for freshness of variables *)
   counter : int;
 }.
 Definition empty_sm := {|
   m := Mvar.empty _;
+  vars := Sv.empty;
   counter := 0;
 |}.
 
+(*
 Definition mon A := subst_map -> cexec (subst_map * A).
 
 Definition ret {A} (x: A) : mon A := fun sm => ok (sm, x).
@@ -112,173 +115,219 @@ Definition bind {A B} (x : mon A) (f : A -> mon B) : mon B :=
 Notation "'let%m' x ':=' m 'in' body" := (bind m (fun x => body)) (x name, at level 25) : result_scope.
 Definition mapm {A B} (f : A -> mon B) (l : seq A) : mon (seq B) :=
   fun sm => fmapM (fun sm x => f x sm) sm l.
+*)
 
 Definition clone_with_ty (x:var) n ty :=
   let xn :=
     fresh_var_ident (Ident.id_kind x.(vname)) n (Ident.id_name x.(vname)) ty
   in
   {| vtype := ty; vname := xn |}.
-Definition subst_var f x : mon _ := fun sm =>
+
+Definition get_subst sm x :=
+  match Mvar.get sm.(m) x with
+  | Some y => ok y
+  | None => Error (inline_error (pp_s "get_subst: failed substitution"))
+  end.
+
+Definition subst_al_err f al :=
+  o2r (inline_error (pp_s "subst_al: failed substitution")) (subst_al f al).
+
+Definition subst_ty_err f ty :=
+  o2r (inline_error (pp_s "subst_ty: failed substitution")) (subst_ty f ty).
+
+Fixpoint no_var_al (al : array_length) :=
+  match al with
+  | ALConst _ => true
+  | ALVar _ _ => false
+  | ALNeg al => no_var_al al
+  | ALAdd al1 al2
+  | ALSub al1 al2
+  | ALMul al1 al2
+  | ALDiv _ al1 al2
+  | ALMod _ al1 al2
+  | ALShl al1 al2
+  | ALShr al1 al2 => no_var_al al1 && no_var_al al2
+  end.
+
+Definition no_var_ty ty :=
+  match ty with
+  | aarr _ al => no_var_al al
+  | _ => true
+  end.
+
+Definition subst_var f sm x :=
   match Mvar.get sm.(m) x with
   | Some y => ok (sm, y)
   | None =>
-    Let ty := o2r (inline_error (pp_s "failed substitution")) (subst_ty f x.(vtype)) in
-    let y := clone_with_ty x sm.(counter) ty in
-    let m := Mvar.set sm.(m) x y in
-    let sm := {| m := m; counter := Uint63.succ sm.(counter) |} in
-    ok (sm, y)
+    Let ty := subst_ty_err f x.(vtype) in
+    let: (y, counter) :=
+      if ty == x.(vtype) then
+        (* subst didn't do anything, we don't need to generate a fresh var *)
+        (* FIXME: we could check no_var instead? *)
+        (x, sm.(counter))
+      else
+        (clone_with_ty x sm.(counter) ty, Uint63.succ sm.(counter))
+   in
+   Let _ := assert (~~ Sv.mem y sm.(vars)) (inline_error (pp_s "subst_var: not fresh")) in
+   let sm := {| m := Mvar.set sm.(m) x y; vars := Sv.add y sm.(vars); counter := counter |} in
+   ok (sm, y)
   end.
-Definition subst_var_i f x :=
-  let%m v := subst_var f x.(v_var) in
-  ret {| v_var := v; v_info := x.(v_info) |}.
-Definition subst_gvar f x :=
-  if is_glob x then ret x
+Definition subst_var_i f sm x :=
+  Let: (sm, v) := subst_var f sm x.(v_var) in
+  ok (sm, {| v_var := v; v_info := x.(v_info) |}).
+Definition subst_gvar f sm x :=
+  if is_glob x then
+    Let _ := assert (no_var_ty x.(gv).(vtype)) (inline_error (pp_s "subst_gvar: global with non-const length")) in
+    ok (sm, x)
   else
-    let%m xv := subst_var_i f x.(gv) in
-    ret {| gv := xv; gs := x.(gs) |}.
+    Let: (sm, xv) := subst_var_i f sm x.(gv) in
+    ok (sm, {| gv := xv; gs := x.(gs) |}).
+Definition get_subst_i sm x :=
+  Let v := get_subst sm x.(v_var) in
+  ok {| v_var := v; v_info := x.(v_info) |}.
+Definition get_gsubst sm x :=
+  if is_glob x then
+    Let _ := assert (no_var_ty x.(gv).(vtype)) (inline_error (pp_s "get_gsubst: global with non-const length")) in
+    ok x
+  else
+    Let xv := get_subst_i sm x.(gv) in
+    ok {| gv := xv; gs := x.(gs) |}.
 
-Definition subst_al_err f al : mon _ := fun sm =>
-  Let al := o2r (inline_error (pp_s "failed substitution")) (subst_al f al) in
-  ok (sm, al).
-
-Definition subst_ty_err f ty : mon _ := fun sm =>
-  Let ty := o2r (inline_error (pp_s "failed substitution")) (subst_ty f ty) in
-  ok (sm, ty).
-
-Fixpoint subst_e f e :=
+Fixpoint subst_e f sm e :=
   match e with
-  | Pconst _ | Pbool _ => ret e
+  | Pconst _ | Pbool _ => ok e
   | Parr_init ws al =>
-    let%m al := subst_al_err f al in
-    ret (Parr_init ws al)
+    Let al := subst_al_err f al in
+    ok (Parr_init ws al)
   | Pvar x =>
-    let%m x := subst_gvar f x in
-    ret (Pvar x)
+    Let x := get_gsubst sm x in
+    ok (Pvar x)
   | Pget al aa ws x e =>
-    let%m x := subst_gvar f x in
-    let%m e := subst_e f e in
-    ret (Pget al aa ws x e)
+    Let x := get_gsubst sm x in
+    Let e := subst_e f sm e in
+    ok (Pget al aa ws x e)
   | Psub aa ws len x e =>
-    let%m len := subst_al_err f len in
-    let%m x := subst_gvar f x in
-    let%m e := subst_e f e in
-    ret (Psub aa ws len x e)
+    Let len := subst_al_err f len in
+    Let x := get_gsubst sm x in
+    Let e := subst_e f sm e in
+    ok (Psub aa ws len x e)
   | Pload al ws e =>
-    let%m e := subst_e f e in
-    ret (Pload al ws e)
+    Let e := subst_e f sm e in
+    ok (Pload al ws e)
   | Papp1 op e =>
-    let%m e := subst_e f e in
-    ret (Papp1 op e)
+    Let e := subst_e f sm e in
+    ok (Papp1 op e)
   | Papp2 op e1 e2 =>
-    let%m e1 := subst_e f e1 in
-    let%m e2 := subst_e f e2 in
-    ret (Papp2 op e1 e2)
+    Let e1 := subst_e f sm e1 in
+    Let e2 := subst_e f sm e2 in
+    ok (Papp2 op e1 e2)
   | PappN o es =>
-    let%m es := mapm (subst_e f) es in
-    ret (PappN o es)
+    Let es := mapM (subst_e f sm) es in
+    ok (PappN o es)
   | Pif t e e1 e2 =>
-    let%m t := subst_ty_err f t in
-    let%m e := subst_e f e in
-    let%m e1 := subst_e f e1 in
-    let%m e2 := subst_e f e2 in
-    ret (Pif t e e1 e2)
+    Let t := subst_ty_err f t in
+    Let e := subst_e f sm e in
+    Let e1 := subst_e f sm e1 in
+    Let e2 := subst_e f sm e2 in
+    ok (Pif t e e1 e2)
   end.
-Definition subst_es f := mapm (subst_e f).
+Definition subst_es f sm := mapM (subst_e f sm).
 
-Definition subst_lval f lv :=
+Definition subst_lval f sm lv : result _ (subst_map * _) :=
   match lv with
   | Lnone vi ty =>
-    let%m ty := subst_ty_err f ty in
-    ret (Lnone vi ty)
+    Let ty := subst_ty_err f ty in
+    ok (sm, Lnone vi ty)
   | Lvar x =>
-    let%m x := subst_var_i f x in
-    ret (Lvar x)
+    Let: (sm, x) := subst_var_i f sm x in
+    ok (sm, Lvar x)
   | Lmem al ws vi e =>
-    let%m e := subst_e f e in
-    ret (Lmem al ws vi e)
+    Let e := subst_e f sm e in
+    ok (sm, Lmem al ws vi e)
   | Laset al aa ws x e =>
-    let%m x := subst_var_i f x in
-    let%m e := subst_e f e in
-    ret (Laset al aa ws x e)
+    Let x := get_subst_i sm x in
+    Let e := subst_e f sm e in
+    ok (sm, Laset al aa ws x e)
   | Lasub aa ws len x e =>
-    let%m len := subst_al_err f len in
-    let%m x := subst_var_i f x in
-    let%m e := subst_e f e in
-    ret (Lasub aa ws len x e)
+    Let len := subst_al_err f len in
+    Let x := get_subst_i sm x in
+    Let e := subst_e f sm e in
+    ok (sm, Lasub aa ws len x e)
   end.
-Definition subst_lvals f := mapm (subst_lval f).
+Definition subst_lvals f := fmapM (subst_lval f).
 
-Fixpoint subst_a f (a : eassert) : mon eassert :=
+Fixpoint subst_a f sm (a : eassert) : result _ eassert :=
   match a with
   | Pexpr e =>
-    let%m e := subst_e f e in
-    ret (Pexpr e)
+    Let e := subst_e f sm e in
+    ok (Pexpr e)
   | PappN_safety o es =>
-    let%m es := subst_es f es in
-    ret (PappN_safety o es)
-  | Pis_var_init _ => ret a
+    Let es := subst_es f sm es in
+    ok (PappN_safety o es)
+  | Pis_var_init _ => ok a
   | Pis_mem_init e1 e2 =>
-    let%m e1 := subst_e f e1 in
-    let%m e2 := subst_e f e2 in
-    ret (Pis_mem_init e1 e2)
+    Let e1 := subst_e f sm e1 in
+    Let e2 := subst_e f sm e2 in
+    ok (Pis_mem_init e1 e2)
   | Pand a1 a2 =>
-    let%m a1 := subst_a f a1 in
-    let%m a2 := subst_a f a2 in
-    ret (Pand a1 a2)
+    Let a1 := subst_a f sm a1 in
+    Let a2 := subst_a f sm a2 in
+    ok (Pand a1 a2)
   end.
 
-Fixpoint subst_i f (i:instr) : mon instr :=
+Fixpoint subst_i f sm (i:instr) : result _ (subst_map * instr) :=
   let (ii,ir) := i in
   match ir with
   | Copn xs tg op es =>
     (* TODO: subst in op too *)
-    let%m xs := subst_lvals f xs in
-    let%m es := subst_es f es in
-    ret (MkI ii (Copn xs tg op es))
+    Let es := subst_es f sm es in
+    Let: (sm, xs) := subst_lvals f sm xs in
+    ok (sm, MkI ii (Copn xs tg op es))
   | Cassgn x tg ty e =>
-    let%m x := subst_lval f x in
-    let%m ty := subst_ty_err f ty in
-    let%m e := subst_e f e in
-    ret (MkI ii (Cassgn x tg ty e))
+    Let e := subst_e f sm e in
+    Let ty := subst_ty_err f ty in
+    Let: (sm, x) := subst_lval f sm x in
+    ok (sm, MkI ii (Cassgn x tg ty e))
   | Cif b c1 c2 =>
-    let%m b := subst_e f b in
-    let%m c1 := mapm (subst_i f) c1 in
-    let%m c2 := mapm (subst_i f) c2 in
-    ret (MkI ii (Cif b c1 c2))
+    Let b := subst_e f sm b in
+    Let: (sm, c1) := fmapM (subst_i f) sm c1 in
+    Let: (sm, c2) := fmapM (subst_i f) sm c2 in
+    ok (sm, MkI ii (Cif b c1 c2))
   | Cfor x r c =>
-    let%m x := subst_var_i f x in
-    let%m r12 := subst_e f r.1.2 in
-    let%m r2 := subst_e f r.2 in
+    Let: (sm, x) := subst_var_i f sm x in
+    Let r12 := subst_e f sm r.1.2 in
+    Let r2 := subst_e f sm r.2 in
     let r := (r.1.1, r12, r2) in
-    let%m c := mapm (subst_i f) c in
-    ret (MkI ii (Cfor x r c))
+    Let: (sm, c) := fmapM (subst_i f) sm c in
+    ok (sm, MkI ii (Cfor x r c))
   | Cwhile a c e info c' =>
-    let%m c := mapm (subst_i f) c in
-    let%m e := subst_e f e in
-    let%m c' := mapm (subst_i f) c' in
-    ret (MkI ii (Cwhile a c e info c'))
+    Let: (sm, c) := fmapM (subst_i f) sm c in
+    Let e := subst_e f sm e in
+    Let: (sm, c') := fmapM (subst_i f) sm c' in
+    ok (sm, MkI ii (Cwhile a c e info c'))
   | Ccall xs fn alargs es =>
-    let%m xs := subst_lvals f xs in
-    let%m alargs := mapm (subst_al_err f) alargs in
-    let%m es := subst_es f es in
-    ret (MkI ii (Ccall xs fn alargs es))
+    Let es := subst_es f sm es in
+    Let alargs := mapM (subst_al_err f) alargs in
+    Let: (sm, xs) := subst_lvals f sm xs in
+    ok (sm, MkI ii (Ccall xs fn alargs es))
   | Csyscall xs o es =>
-    let%m xs := subst_lvals f xs in
-    let%m es := subst_es f es in
-    ret (MkI ii (Csyscall xs o es))
+    Let es := subst_es f sm es in
+    Let: (sm, xs) := subst_lvals f sm xs in
+    ok (sm, MkI ii (Csyscall xs o es))
   | Cassert (lbl, a) =>
-    let%m e := subst_a f a in
-    ret (MkI ii (Cassert (lbl, e)))
+    Let a := subst_a f sm a in
+    ok (sm, MkI ii (Cassert (lbl, a)))
   end.
-Definition subst_c f := mapm (subst_i f).
+Definition subst_c f := fmapM (subst_i f).
 
 Definition subst_fd f (fd:ufundef) :=
-  let%m tyin := mapm (subst_ty_err f) fd.(f_tyin) in
-  let%m params := mapm (subst_var_i f) fd.(f_params) in
-  let%m body := subst_c f fd.(f_body) in
-  let%m tyout := mapm (subst_ty_err f) fd.(f_tyout) in
-  let%m res := mapm (subst_var_i f) fd.(f_res) in
-  ret
+  let sm := empty_sm in
+  Let tyin := mapM (subst_ty_err f) fd.(f_tyin) in
+  Let: (sm, params) := fmapM (subst_var_i f) sm fd.(f_params) in
+  Let: (sm, body) := subst_c f sm fd.(f_body) in
+  Let tyout := mapM (subst_ty_err f) fd.(f_tyout) in
+  Let res := mapM (get_subst_i sm) fd.(f_res) in
+  ok
     {| f_info := fd.(f_info);
        f_contract := fd.(f_contract); (* FIXME: is this correct? *)
        f_al := [::];
@@ -322,7 +371,7 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
         let als := zip (map fst fd.(f_al)) als in
         assoc als
       in
-      Let: (_, fd') := subst_fd f fd empty_sm in
+      Let fd' := subst_fd f fd in
       Let _ := add_iinfo iinfo (check_disjoint fd' (Sv.union (vrvs xs) X)) in
       let ii := ii_with_location iinfo in
       let rename_args :=

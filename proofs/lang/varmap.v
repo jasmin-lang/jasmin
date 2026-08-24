@@ -881,19 +881,21 @@ Section REL_EQUIV.
     x =[Sv.diff o e] z.
   Proof. move => he ho j hj; rewrite he ?ho; SvD.fsetdec. Qed.
 
-  Lemma vm_rel_set_var (wdb:bool) (P : var -> Prop) (vm1 vm1' vm2 : Vm.t env) x v1 v2 :
+  Lemma vm_rel_set_var env1 env2 (wdb:bool) (P : var -> Prop) (vm1 vm1' : Vm.t env1) (vm2 : Vm.t env2) x v1 v2 :
+    env1 =1 env2 ->
     value_uincl v1 v2 ->
     vm_rel value_uincl (fun z => x <> z /\ P z) vm1 vm2 ->
     set_var wdb vm1 x v1 = ok vm1' ->
     set_var wdb vm2 x v2 = ok vm2.[x<-v2] /\ vm_rel value_uincl P vm1' vm2.[x<-v2].
   Proof.
-    move=> hu hvm /set_varP [hdb htr1 ->].
+    move=> heq hu hvm /set_varP [hdb htr1 ->].
     split.
     rewrite (set_var_truncate (value_uincl_DB hu hdb)) //.
-    + apply: truncatable_subctype (htr1) (value_uincl_subctype hu).
+    + rewrite -(eval_atype_ext heq). apply: truncatable_subctype (htr1) (value_uincl_subctype hu).
       case: wdb hdb htr1 => //=; rewrite /DB /= => /orP [-> // | /eqP /type_of_valI].
       by move=> [-> /eqP <- | [b ->]].
     move=> z; rewrite !Vm.setP; case: eqP => // ??; last by apply hvm.
+    rewrite -(eval_atype_ext heq).
     by apply value_uincl_vm_truncate.
   Qed.
 
@@ -922,7 +924,7 @@ Section REL_EQUIV.
     set_var wdb vm2 x v2 = ok vm2.[x<-v2] /\ vm1' <=1 vm2.[x<-v2].
   Proof.
     move=> h1 /vm_uincl_vm_rel h2 h3.
-    have /(_ (fun _ => True) vm2) [|? /vm_uincl_vm_rel //]:= vm_rel_set_var h1 _ h3.
+    have /(_ (fun _ => True) vm2) [|? /vm_uincl_vm_rel //]:= vm_rel_set_var (fun _ => erefl) h1 _ h3.
     by apply: vm_relI h2.
   Qed.
 
@@ -944,12 +946,13 @@ Section REL_EQUIV.
     vm1 <=[X] vm2.[x <- v].
   Proof. by move=> hvu hu; apply vm_rel_set_r => //; apply: vm_relI hu; SvD.fsetdec. Qed.
 
-  Lemma uincl_on_set_var (wdb:bool) s (vm1 vm1' vm2 : Vm.t env) x v1 v2 :
+  Lemma uincl_on_set_var env1 env2 (wdb:bool) s (vm1 vm1' : Vm.t env1) (vm2 : Vm.t env2) x v1 v2 :
+    env1 =1 env2 ->
     value_uincl v1 v2 ->
     vm1 <=[Sv.remove x s] vm2 ->
     set_var wdb vm1 x v1 = ok vm1' ->
     set_var wdb vm2 x v2 = ok vm2.[x<-v2] /\ vm1' <=[s] vm2.[x<-v2].
-  Proof. move=> h1 h2; apply vm_rel_set_var => // z hz; apply h2; SvD.fsetdec. Qed.
+  Proof. move=> heq h1 h2; apply vm_rel_set_var => // z hz; apply h2; SvD.fsetdec. Qed.
 
   Lemma eq_ex_set s (vm1 vm2 : Vm.t env) x v1 v2 :
     (~Sv.In x s -> vm_truncate_val (eval_atype env (vtype x)) v1 = vm_truncate_val (eval_atype env (vtype x)) v2) ->
@@ -994,7 +997,7 @@ Section REL_EQUIV.
     set_var wdb vm2 x v2 = ok vm2.[x<-v2] /\ vm1' <=[\ Sv.remove x s] vm2.[x<-v2].
   Proof. move=> h1 h2; apply vm_rel_set_var => // ??; apply h2; SvD.fsetdec. Qed.
 
-  Lemma uincl_on_vm_uincl (vm1 vm2 vm1' vm2' : Vm.t env) d :
+  Lemma uincl_on_vm_uincl env1 env2 (vm1 vm1' : Vm.t env1) (vm2 vm2' : Vm.t env2) d :
     vm1  <=1   vm2 →
     vm1' <=[d] vm2' →
     vm1  =[\d] vm1'→
@@ -1006,7 +1009,7 @@ Section REL_EQUIV.
     by move => hx; rewrite -!(t1, t2) //; apply out.
   Qed.
 
-  Lemma eq_on_eq_vm (vm1 vm2 vm1' vm2' : Vm.t env) d :
+  Lemma eq_on_eq_vm env1 env2 (vm1 vm1' : Vm.t env1) (vm2 vm2' : Vm.t env2) d :
     (vm1  =1   vm2)%vm →
     vm1' =[d] vm2' →
     vm1  =[\d] vm1'→
@@ -1018,7 +1021,7 @@ Section REL_EQUIV.
     by move => hx; rewrite -!(t1, t2) //; apply out.
   Qed.
 
-  Lemma eq_on_union (vm1 vm2 vm1' vm2' : Vm.t env) X Y :
+  Lemma eq_on_union env1 env2 (vm1 vm1' : Vm.t env1) (vm2 vm2' : Vm.t env2) X Y :
     vm1  =[X]  vm2 →
     vm1' =[Y]  vm2' →
     vm1  =[\Y] vm1'→
@@ -1030,7 +1033,7 @@ Section REL_EQUIV.
     move => hxY; rewrite -!(t1, t2) //; apply out; SvD.fsetdec.
   Qed.
 
-  Lemma uincl_on_union (vm1 vm2 vm1' vm2' : Vm.t env) X Y :
+  Lemma uincl_on_union env1 env2 (vm1 vm1' : Vm.t env1) (vm2 vm2' : Vm.t env2) X Y :
     vm1  <=[X]  vm2 →
     vm1' <=[Y]  vm2' →
     vm1  =[\Y] vm1'→
@@ -1047,12 +1050,13 @@ Section REL_EQUIV.
     vm1 =[\ Sv.singleton x] vm2.
   Proof. move=> /set_varP [??->] z hz; rewrite Vm.setP_neq //; apply/eqP; SvD.fsetdec. Qed.
 
-  Lemma set_var_eq_on1 wdb x v (vm1 vm2 vm1' : Vm.t env) :
+  Lemma set_var_eq_on1 env1 env2 wdb x v (vm1 vm2 : Vm.t env1) (vm1' : Vm.t env2) :
+    env1 =1 env2 ->
     set_var wdb vm1  x v = ok vm2 ->
     set_var wdb vm1' x v = ok vm1'.[x <- v] /\ vm2 =[Sv.singleton x] vm1'.[x <- v].
   Proof.
-    move=> /set_varP [hdb htr ->]; split; first by rewrite set_var_truncate.
-    move=> z hz; rewrite !Vm.setP; case: eqP => // hne; SvD.fsetdec.
+    move=> heq /set_varP [hdb htr ->]; split. rewrite set_var_truncate //. rewrite -(eval_atype_ext heq). done.
+    move=> z hz; rewrite !Vm.setP; case: eqP => // hne. rewrite (eval_atype_ext heq) //. SvD.fsetdec.
   Qed.
 
   Lemma set_var_eq_on wdb s x v (vm1 vm2 vm1' : Vm.t env) :
@@ -1060,12 +1064,12 @@ Section REL_EQUIV.
     vm1 =[s] vm1' ->
     set_var wdb vm1' x v = ok vm1'.[x <- v] /\ vm2 =[Sv.add x s] vm1'.[x <- v].
   Proof.
-    move=> /[dup] /(set_var_eq_on1 vm1') [hw2 h] hw1 hs.
+    move=> /[dup] /(set_var_eq_on1 vm1' (fun _ => erefl)) [hw2 h] hw1 hs.
     split => //; rewrite SvP.MP.add_union_singleton.
     apply: (eq_on_union hs h); apply: set_var_eq_ex; eauto.
   Qed.
 
-  Lemma get_var_uincl_at wdb x (vm1 vm2 : Vm.t env) v1 :
+  Lemma get_var_uincl_at env1 env2 wdb x (vm1 : Vm.t env1) (vm2 : Vm.t env2) v1 :
     (value_uincl vm1.[x] vm2.[x]) ->
     get_var wdb vm1 x = ok v1 ->
     exists2 v2, get_var wdb vm2 x = ok v2 & value_uincl v1 v2.
@@ -1083,12 +1087,12 @@ Section REL_EQUIV.
   Lemma eq_ex_uincl_ex X (vm1 vm2 : Vm.t env) : vm1 =[\X] vm2 -> vm1 <=[\X] vm2.
   Proof. by move=> H ? /H ->. Qed.
 
-  Lemma vm_uincl_uincl_on dom (vm1 vm2 : Vm.t env) :
+  Lemma vm_uincl_uincl_on env1 env2 dom (vm1 : Vm.t env1) (vm2 : Vm.t env2) :
     vm1 <=1 vm2 →
     vm1 <=[dom] vm2.
   Proof. by move => h x _; exact: h. Qed.
 
-  Lemma vm_eq_eq_on dom (vm1 vm2 : Vm.t env) :
+  Lemma vm_eq_eq_on env1 env2 dom (vm1 : Vm.t env1) (vm2 : Vm.t env2) :
     (vm1 =1 vm2)%vm →
     vm1 =[dom] vm2.
   Proof. by move => h x _; exact: h. Qed.
@@ -1103,7 +1107,7 @@ Section REL_EQUIV.
 
   Hint Resolve eq_on_empty uincl_on_empty : core.
 
-  Lemma uincl_on_union_and dom dom' (vm1 vm2 : Vm.t env) :
+  Lemma uincl_on_union_and env1 env2 dom dom' (vm1 : Vm.t env1) (vm2 : Vm.t env2) :
    vm1 <=[Sv.union dom dom'] vm2 ↔
    vm1 <=[dom] vm2 ∧ vm1 <=[dom'] vm2.
   Proof.

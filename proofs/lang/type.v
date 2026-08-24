@@ -442,6 +442,35 @@ Definition eval_ltype ty :=
 
 End EVAL.
 
+Section EXT.
+
+Lemma eval_ext env1 env2 :
+  env1 =1 env2 ->
+  eval env1 =1 eval env2.
+Proof.
+  move=> heq.
+  elim=> //=.
+  + by move=> ? <-.
+  + by move=> ? <- ? <-.
+  + by move=> ? <- ? <-.
+  + by move=> ? <- ? <-.
+  + by move=> ?? <- ? <-.
+  + by move=> ?? <- ? <-.
+  + by move=> ? <- ? <-.
+  by move=> ? <- ? <-.
+Qed.
+
+Lemma eval_atype_ext env1 env2 :
+  env1 =1 env2 ->
+  eval_atype env1 =1 eval_atype env2.
+Proof.
+  move=> heq.
+  case=> //= ws len.
+  by rewrite (eval_ext heq).
+Qed.
+
+End EXT.
+
 (* We define a polynomial equality checker. This is what ring or lia know how to do.
    We could probably call functions coming from their implementations instead. *)
 
