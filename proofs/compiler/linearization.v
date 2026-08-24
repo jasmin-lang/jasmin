@@ -445,6 +445,33 @@ Fixpoint check_bool (e:fexpr) :=
   | Fif e0 e1 e2 => [&& check_bool e1 & check_bool e2]
   end.
 
+(* Recognize assignments that correspond to a “lmove”, “lload”, or “lstore” operation. *)
+Variant cassign_kind :=
+| Cassgn_invalid
+| Cassgn_move of wsize & var_i & var_i
+| Cassgn_load of wsize & var_i & var_i & Z
+| Cassgn_store of wsize & var_i & var_i & Z
+.
+
+Definition classify_cassgn (x: lval) (ty: atype) (e: pexpr) : cassign_kind :=
+  match x, e with
+  | Lvar rd, Pvar {| gs := Slocal ; gv := rs |} =>
+      if ty is aword ws then
+        if [&& subatype ty (vtype rd) & lip_check_ws liparams ws ]then
+          Cassgn_move ws rd rs
+        else Cassgn_invalid
+      else Cassgn_invalid
+  | Lvar rd, Pload Aligned ws (Papp2 (Oadd (Op_w _)) (Pvar {| gs := Slocal; gv := rs |}) (Papp1 (Oword_of_int _) (Pconst ofs))) =>
+      if [&& ty == aword ws, subatype ty (vtype rd) & lip_check_ws liparams ws ] then
+        Cassgn_load ws rd rs ofs
+      else Cassgn_invalid
+  | Lmem Aligned ws _ (Papp2 (Oadd (Op_w _)) (Pvar {| gs := Slocal; gv := rd |}) (Papp1 (Oword_of_int _) (Pconst ofs))), Pvar {| gs := Slocal ; gv := rs |} =>
+      if [&& ty == aword ws & lip_check_ws liparams ws ] then
+        Cassgn_store ws rd rs ofs
+      else Cassgn_invalid
+  | _, _ => Cassgn_invalid
+  end.
+
   Section CHECK_c.
 
     Context (check_i: instr -> cexec unit).
@@ -464,7 +491,11 @@ Fixpoint check_bool (e:fexpr) :=
   Fixpoint check_i (i:instr) : cexec unit :=
     let (ii,ir) := i in
     match ir with
-    | Cassgn lv _ _ e => Error (E.assign_remains ii lv e)
+    | Cassgn lv _ ty e =>
+        match classify_cassgn lv ty e with
+        | Cassgn_invalid => Error (E.assign_remains ii lv e)
+        | _ => ok tt
+        end
     | Copn xs tag o es =>
       allM (check_rexpr ii) es >> allM (check_lexpr ii) xs
     | Csyscall xs o es =>
@@ -677,7 +708,13 @@ Let Llabel := linear.Llabel InternalLabel.
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
   match ir with
-  | Cassgn _ _ _ _ => (lbl, lc) (* absurd case *)
+  | Cassgn lv _ ty e =>
+      match classify_cassgn lv ty e with
+      | Cassgn_move ws rd rs => (lbl, lmove ii ws rd rs :: lc)
+      | Cassgn_load ws rd rs ofs => (lbl, lload ii ws rd rs ofs :: lc)
+      | Cassgn_store ws rd rs ofs => (lbl, lstore ii ws rd ofs rs :: lc)
+      | Cassgn_invalid => (lbl, lc) (* absurd case *)
+      end
   | Copn xs _ o es =>
       match oseq.omap lexpr_of_lval xs, oseq.omap rexpr_of_pexpr es with
       | Some xs, Some es => (lbl, MkLI ii (Lopn xs o es) :: lc)

@@ -136,7 +136,7 @@ Section CAT.
 
   #[ local ]
   Lemma cat_assgn : forall x tg ty e, Pr (Cassgn x tg ty e).
-  Proof. by move => x tg [] // sz e ii lbl c /=; case: assert. Qed.
+  Proof. by move => x tg ty e ii fn lbl c /=; case: classify_cassgn. Qed.
 
   #[ local ]
   Lemma cat_opn : forall xs t o es, Pr (Copn xs t o es).
@@ -788,7 +788,7 @@ Section VALIDITY.
 
   #[ local ]
   Lemma valid_labels_assign (x : lval) (tg : assgn_tag) (ty : atype) (e : pexpr) : Pr (Cassgn x tg ty e).
-  Proof. move => ???; exact: default. Qed.
+  Proof. move => ??? /=; case: classify_cassgn => *; exact: default. Qed.
 
   #[ local ]
   Lemma valid_labels_opn (xs : lvals) (t : assgn_tag) (o : sopn) (es : pexprs) : Pr (Copn xs t o es).
@@ -950,7 +950,7 @@ Section NUMBER_OF_LABELS.
 
   #[ local ]
   Lemma nb_labels_assign (x : lval) (tg : assgn_tag) (ty : atype) (e : pexpr) : Pr (Cassgn x tg ty e).
-  Proof. move => ???; exact: Z.le_refl. Qed.
+  Proof. move => ??? /=; case: classify_cassgn => *; exact: Z.le_refl. Qed.
 
   #[ local ]
   Lemma nb_labels_opn (xs : lvals) (t : assgn_tag) (o : sopn) (es : pexprs) : Pr (Copn xs t o es).
@@ -1151,7 +1151,7 @@ Section PROOF.
   Hypothesis linear_ok : linear_prog liparams p = ok p'.
 
   Notation is_linear_of := (is_linear_of p').
-  Notation check_i := (check_i p).
+  Notation check_i := (check_i liparams p).
   Notation check_fd := (check_fd liparams p).
   Notation linear_i := (linear_i liparams p).
   Notation linear_c fn := (linear_c (linear_i fn)).
@@ -1944,7 +1944,17 @@ Proof.
 Qed.
 
 Lemma linear_c_end_assgn : ∀ (x : lval) (tg : assgn_tag) (ty : atype) (e : pexpr), Pi_r (Cassgn x tg ty e).
-Proof. by move=> > [] /checked_iE []. Qed.
+Proof.
+  move => x tg ty e ii lbl lbli li P Q ls [] /checked_iE [] fd ok_fd /=.
+  case: classify_cassgn => [ // | ws rd rs | ws rd rs ofs | ws rd rs ofs ] _ [] <-{lbli} <-{li} D C hfn hpc.
+  all: rewrite (step_mix_ilsteps C) //; last by simpl_size; lia.
+  all: rewrite /eval_instr /=.
+  all: case: sem_rexprs => [vs /= | ?]; last by apply eqit_Vis => -[].
+  all: case: exec_sopn => [vs' /= | ?]; last by apply eqit_Vis => -[].
+  all: case: write_lexprs => [s' /= | ?]; last by apply eqit_Vis => -[].
+  all: rewrite mix_ilsteps_b0 => //=; last by rewrite hpc addn1.
+  all: by apply eqit_Ret; split => //=; rewrite hpc addn1.
+Qed.
 
 Lemma linear_c_end_opn : ∀ (xs : lvals) (t : assgn_tag) (o : sopn) (es : pexprs), Pi_r (Copn xs t o es).
 Proof.
@@ -3023,8 +3033,142 @@ End ILSTEPS_END.
     apply: post_c_trans hinv2.
   Qed.
 
+  Lemma classify_cassgnP x ty e :
+    match classify_cassgn liparams x ty e with
+      | Cassgn_invalid => True
+      | Cassgn_move ws rd rs =>
+          [/\ x = Lvar rd,
+            ty = aword ws, subatype ty (vtype rd), lip_check_ws liparams ws &
+            e = Pvar {| gs := Slocal ; gv := rs |} ]
+      | Cassgn_load ws rd rs ofs =>
+          [/\ x = Lvar rd,
+            ty = aword ws, subatype ty (vtype rd), lip_check_ws liparams ws &
+            ∃ ws' ws'', e = Pload Aligned ws (Papp2 (Oadd (Op_w ws')) (Pvar {| gs := Slocal; gv := rs |}) (Papp1 (Oword_of_int ws'') (Pconst ofs))) ]
+      | Cassgn_store ws rd rs ofs =>
+          [/\ e = Pvar {| gs := Slocal ; gv := rs |},
+          ty = aword ws, lip_check_ws liparams ws &
+          ∃ vi ws' ws'', x = Lmem Aligned ws vi (Papp2 (Oadd (Op_w ws')) (Pvar {| gs := Slocal; gv := rd |}) (Papp1 (Oword_of_int ws'') (Pconst ofs))) ]
+      end.
+  Proof.
+    case: x e => // [ rd | [] // ws xi [] // [] // [] // ws' [] // [] x [] // [] // [] // ws'' [] // ofs ] [] //.
+    1, 3: case => rs [] // /=.
+    + by case: ty => // ws; case: andP => // - [] hty ok_ws; split.
+    + case: eqP => // hty /=; case: ifP => // ok_ws.
+      by split; eauto.
+    case => // ws' [] // [] // [] // ws'' [] // [] // rs [] // [] // [] // ws''' [] // ofs /=.
+    case: eqP => // hty /=; case: andP => // - [] htyrd ok_ws.
+    by split; eauto.
+  Qed.
+
   Lemma Hassgn : ∀ (x : lval) (tg : assgn_tag) (ty : atype) (e : pexpr), Pi_r (Cassgn x tg ty e).
-  Proof. by move=> > [/checked_iE[]]. Qed.
+  Proof using linear_ok hliparams enough_space.
+    move=> x tg ty e ii lbl lbli P li Q [] /checked_iE[] fd ok_fd /=.
+    case: classify_cassgn (classify_cassgnP x ty e) => [ // | ws rd rs | ws rd rs ofs | ws rd rs ofs ] [] ??; subst.
+    1, 2: move => tyrd ok_ws.
+    3: move => ok_ws [] vi.
+    2, 3: case => ws' [] ws''.
+    all: move => -> _ [] <-{lbli} <-{li} D C s1 ls1.
+    all: case => M1 SC1 X1 hpc hfn hsp1 S1 MAX1.
+    all: rewrite (step_mix_ilsteps C) // /=; last by simpl_size; lia.
+    all: rewrite -(bind_ret_r (iresult _)); apply xrutt_bind_iresult_left => /= ks2.
+    all: rewrite /sem_assgn /=; t_xrbindP.
+    - (* Move *)
+      move => ?? hget ?.
+      case/truncate_val_typeE => ? [] ws1 [] ? [] h ? hval hw <-{ks2}; subst.
+      case/truncate_wordP: h => hws1 ?; subst.
+      have [? {} hget] := get_gvar_uincl X1 hget.
+      case/value_uinclE => ws2 [] w2 [] ? /andP[] hws2 /eqP ?; subst.
+      have := spec_lmove hliparams ok_ws tyrd.
+      move => /(_ p' ii ls1 rs).
+      rewrite /get_gvar /= in hget; rewrite hget /= (truncate_word_le _ (cmp_le_trans hws1 hws2)).
+      move => /(_ _ erefl) ->.
+      rewrite mix_ilsteps_b0 => //=; last by rewrite hpc addn1.
+      apply xrutt.xrutt_Ret; split => //=.
+      + by rewrite -(write_var_memP hw).
+      + by rewrite -(write_var_scsP hw).
+      + move: hw; rewrite /write_var; t_xrbindP => vm.
+        rewrite /set_var; t_xrbindP => ?? <- <- /=.
+        apply: vm_uincl_set X1.
+        by rewrite (zero_extend_idem _ hws1).
+      + by rewrite size_cat hpc addn1.
+      + apply: eq_ex_set_r => //; clear; SvD.fsetdec.
+      by rewrite -(write_var_memP hw).
+    - (* Load *)
+      move => ? _ ??? hrs hop hptr ? hread <- ? hval hw <-{ks2}.
+      move: hop; rewrite /sem_sop2 /=; t_xrbindP => ? /to_wordI'[] ws1 [] w1 [] ??? wofs hwofs ?; subst.
+      have [? {} hrs] := get_gvar_uincl X1 hrs.
+      case/value_uinclE => ws2 [] w2 [] ? /andP[] ? /eqP ?; subst.
+      have ? : wofs = wrepr _ ofs.
+      + case/truncate_wordP: hwofs => ? ->.
+        by rewrite zero_extend_wrepr.
+      subst.
+      move: hrs; rewrite /get_gvar /= => hrs.
+      have := spec_lload hliparams.
+      move => /(_ _ _ ls1 _ rd rs _ _ _ _ ok_ws).
+      rewrite hrs /= => /(_ _ _ _ _ _ tyrd).
+      case/truncate_wordP: hptr => hws' ?; subst.
+      have hws1 : (Uptr ≤ ws1)%CMP.
+      + exact: (cmp_le_trans hws').
+      have hws2 : (Uptr ≤ ws2)%CMP.
+      + exact: (cmp_le_trans hws1).
+      move: hread.
+      rewrite (wadd_zero_extend _ _ hws') (zero_extend_idem _ hws') (zero_extend_wrepr _ hws') => /(mm_read_ok M1) hread.
+      move => /(_ _ _ _ _ _ _ hread) ->; last first.
+      + by rewrite truncate_word_le // zero_extend_idem.
+      rewrite mix_ilsteps_b0 => //=; last by rewrite hpc addn1.
+      apply xrutt.xrutt_Ret; split => //=.
+      + by rewrite -(write_var_memP hw).
+      + by rewrite -(write_var_scsP hw).
+      + move: hw; rewrite /write_var; t_xrbindP => vm.
+        rewrite /set_var; t_xrbindP => ?? <- <- /=.
+        apply: vm_uincl_set X1.
+        move: hval.
+        rewrite /truncate_val /= truncate_word_u => /ok_inj ?; subst.
+        by case: vtype tyrd.
+      + by rewrite size_cat hpc addn1.
+      + apply: eq_ex_set_r => //; clear; SvD.fsetdec.
+      by rewrite -(write_var_memP hw).
+    (* Store *)
+    move => ?? hrs ? /truncate_val_typeE[] ? [] ws1 [] w1 [].
+    case/truncate_wordP => hws1 ? ??; subst => ??? hrd.
+    rewrite /sem_sop2 /=; t_xrbindP => ? /to_wordI'[] ws3 [] w3 [] hws3 ?? wofs hwofs ?; subst.
+    have ? : wofs = wrepr _ ofs.
+    - case/truncate_wordP: hwofs => ? ->.
+      by rewrite zero_extend_wrepr.
+    subst.
+    case/truncate_wordP => hws' -> ?.
+    rewrite truncate_word_u => /ok_inj <- ?.
+    have [? {} hrd] := get_gvar_uincl X1 hrd.
+    case/value_uinclE => ws4 [] w4 [] ? /andP[] hws4 /eqP ?; subst.
+    have [? {} hrs] := get_gvar_uincl X1 hrs.
+    case/value_uinclE => ws2 [] w2 [] ? /andP[] hws2 /eqP ?; subst.
+    rewrite (wadd_zero_extend _ _ hws') (zero_extend_idem _ hws') (zero_extend_wrepr _ hws').
+    move => /[dup] hwrite /(mm_write M1) [] m1' hwrite' M1' ??; subst.
+    have := spec_lstore hliparams.
+    move => /(_ _ ii _ _ _ rd rs _ _ _ _ _ _ _ _ _ hwrite').
+    rewrite /get_gvar /= in hrd hrs.
+    rewrite hrd hrs => /(_ _ _ _ ok_ws erefl).
+    rewrite zero_extend_idem //.
+    move => /(_ _ (truncate_word_le _ (cmp_le_trans hws1 hws2))).
+    have ? : (Uptr ≤ ws3)%CMP by exact: cmp_le_trans hws3.
+    have ? : (Uptr ≤ ws4)%CMP by exact: cmp_le_trans hws4.
+    rewrite zero_extend_idem // /= truncate_word_le //.
+    move => /(_ _ erefl) ->.
+    rewrite mix_ilsteps_b0 => //=; last by rewrite hpc addn1.
+    apply xrutt.xrutt_Ret; split => //=.
+    - by rewrite size_cat hpc addn1.
+    - by move => ???; rewrite (write_validw_eq hwrite).
+    - by move => ??; exact: (write_mem_unchanged hwrite hwrite').
+    move => n nnv nnr; apply: (write_mem_unchanged hwrite hwrite').
+    apply /negP => /S1 /orP [//| nr ]; apply: nnr.
+    apply: pointer_range_incl_l nr.
+    rewrite wunsigned_sub.
+    - have /= := MAX1 _ ok_fd.
+      move: (checked_prog ok_fd) => /=; rewrite /check_fd.
+      t_xrbindP=> _ _ _ _ /and4P [_ _ _ /ZleP /= ?] _ _ _.
+      by lia.
+    have /= := wunsigned_range sp0; lia.
+  Qed.
 
   Lemma check_rexprsP ii es u :
     allM (check_rexpr ii) es = ok u →
