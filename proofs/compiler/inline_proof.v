@@ -109,8 +109,8 @@ Section SUBSET.
   Local Lemma Sasgn  : forall x tag t e, Pr (Cassgn x tag t e).
   Proof. by move=> ???? ii X2 Xc /= [<-]. Qed.
 
-  Local Lemma Sopn   : forall xs t o es, Pr (Copn xs t o es).
-  Proof. by move=> ???? ii X2 Xc /= [<-]. Qed.
+  Local Lemma Sopn   : forall xs t o als es, Pr (Copn xs t o als es).
+  Proof. by move=> ????? ii X2 Xc /= [<-]. Qed.
 
   Local Lemma Ssyscall   : forall xs o es, Pr (Csyscall xs o es).
   Proof. by move=> ??? ii X2 Xc /= [<-]. Qed.
@@ -736,6 +736,48 @@ Qed.
     forall sm1 sm2 c2, subst_c fresh_var_ident (assoc (zip [seq i.1 | i <- l] als)) sm1 c = ok (sm2, c2) ->
     wequiv_rec (env1:=create_env l [seq eval env i | i <- als]) (env2:=env) P1 P2 ev ev eq_spec (st_rel_subst sm1) c c2 (st_rel_subst sm2).
 
+  Lemma mergeP_left env1 env2 sm1 sm2 (vm1 : Vm.t env1) (vm2 : Vm.t env2) :
+    wf_sm sm1 vm1 vm2 ->
+    wf_sm (merge sm1 sm2) vm1 vm2.
+  Proof.
+    move=> hwf.
+    move=> x y /=.
+    rewrite Mvar.map2P //.
+    case hget1: Mvar.get => [y1|//].
+    case hget2: Mvar.get => [y2|//].
+    case: eqP => // ? [?]; subst.
+    have [h1 h2 h3 h4] := hwf _ _ hget1.
+    split=> //=.
+    + by apply Sv.union_spec; left.
+    move=> x' y'.
+    rewrite Mvar.map2P //.
+    case hget1': Mvar.get => [y1'|//].
+    case hget2': Mvar.get => [y2'|//].
+    case: eqP => // ? [?]; subst.
+    by eauto.
+  Qed.
+
+  Lemma mergeP_right env1 env2 sm1 sm2 (vm1 : Vm.t env1) (vm2 : Vm.t env2) :
+    wf_sm sm2 vm1 vm2 ->
+    wf_sm (merge sm1 sm2) vm1 vm2.
+  Proof.
+    move=> hwf.
+    move=> x y /=.
+    rewrite Mvar.map2P //.
+    case hget1: Mvar.get => [y1|//].
+    case hget2: Mvar.get => [y2|//].
+    case: eqP => // ? [?]; subst.
+    have [h1 h2 h3 h4] := hwf _ _ hget2.
+    split=> //=.
+    + by apply Sv.union_spec; right.
+    move=> x' y'.
+    rewrite Mvar.map2P //.
+    case hget1': Mvar.get => [y1'|//].
+    case hget2': Mvar.get => [y2'|//].
+    case: eqP => // ? [?]; subst.
+    by eauto.
+  Qed.
+
   Lemma toto c : Pc c.
   Proof.
     apply (cmd_rect (Pi:=Pi) (Pr:=Pi_r) (Pc:=Pc)) => // {c}; subst Pi Pi_r Pc => /=.
@@ -750,11 +792,31 @@ Qed.
       + split=> //=. rewrite he'. done.
         rewrite (subst_tyP _ hty). done.
       + by rewrite /check_lvals_subst /= hx /=.
-    + t_xrbindP=> xs tg o es ii sm1 sm2 ? es' hes [? xs'] hxs /= [<- <-].
-    (* the lemmas need to be ported env -> env1 env2 ! *)
-      apply wequiv_opn_rel_eq. wequiv_assert_rel_eq
-       have := subst_eP _ _ _ he'.
-      rewrite /check_es_st_eq_on.
+    + t_xrbindP=> xs tg o als' es ii sm1 sm2 ? es' hes als'' hals [? xs'] hxs /= [<- <-].
+      apply wequiv_opn_rel_eq with checker_subst sm1 => //=.
+      elim: als' als'' hals => [|al' als' ih] /=.
+      + by move=> _ [<-].
+      rewrite /subst_al_err.
+      t_xrbindP=> _ al'' hal als'' hals <- /=.
+      by rewrite (subst_alP _ hal) (ih _ hals).
+    + t_xrbindP=> xs o es ii sm1 sm2 ? es' hes [? xs'] hxs /= [<- <-].
+      apply wequiv_syscall_rel_eq_core_R with checker_subst sm1 sm1 => //=.
+      + by move=> sm s1 s2 [<- <- _ _].
+      + by move=> scs mem s1 s2 [h1 h2 h3 h4].
+      by apply wrequiv_eq.
+    + move=> a ii sm1 sm2 ??.
+      by apply wequiv_noassert.
+    + move=> e c1 c2 ihc1 ihc2 ii sm1 sm2.
+      t_xrbindP=> ? e' he -[sm1' c1'] hc1.
+      t_xrbindP=> -[sm1'' c2'] hc2 [<- <-].
+      apply wequiv_if_rel_eq_R with checker_subst sm1 sm1' sm1'' => /=.
+      + split=> //=. by rewrite he.
+      + move=> s1 s2 [h1 h2 h3 h4]. split=> //=.
+        move=> x y hget. split=> /=.
+        have := h4 hget.
+        have := ihc2 _ _ _ hc2 _ _ h. move=> H. have := xrutt.xrutt_inv_Ret H. hyp: xrutt.xrutt
+      + apply ihc1. done.
+      + apply ihc2. done.
 
 Notation wequiv_rec :=
  (wequiv (rE0:=relEvent_recCall uincl_spec)

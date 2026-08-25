@@ -251,13 +251,15 @@ Context
   {asmop : asmOp asm_op}
   (env : env_t).
 
-Definition exec_sopn (o:sopn) (vs:values) : exec values :=
+Definition exec_sopn (o:sopn) vals (vs:values) : exec values :=
   Let semi := sopn_sem o in
-  Let t := app_sopn _ (semi env) vs in
+  Let semi := app_dep semi vals in
+  Let t := app_sopn _ semi vs in
   ok (list_ltuple t).
 
-Definition sem_sopn gd o (m : estate env) lvs args :=
-  sem_pexprs true gd m args >>= exec_sopn o >>= write_lvals true gd m lvs.
+Definition sem_sopn gd o (m : estate env) lvs als args :=
+  let vals := map (eval env) als in
+  sem_pexprs true gd m args >>= exec_sopn o vals >>= write_lvals true gd m lvs.
 
 End EXEC_ASM.
 

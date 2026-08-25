@@ -161,8 +161,8 @@ Context
   {ep : EstateParams syscall_state}
   {asm_op}  {sip : SemInstrParams asm_op syscall_state}.
 
-Lemma wrequiv_exec_sopn env o :
-  wrequiv values_uincl (exec_sopn env o) (exec_sopn env o) values_uincl.
+Lemma wrequiv_exec_sopn o vals :
+  wrequiv values_uincl (exec_sopn o vals) (exec_sopn o vals) values_uincl.
 Proof. move=> vs1 vs2 vs1'; apply vuincl_exec_opn. Qed.
 
 End SOPN.
@@ -672,107 +672,58 @@ Proof.
   by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
 Qed.
 
-Lemma wequiv_opn env1 env2 (Rve Rvo : rel_vs) (P Q : rel_c env1 env2) ii1 xs1 at1 o1 es1 ii2 xs2 at2 o2 es2 :
+Lemma wequiv_opn env1 env2 Rvals (Rve Rvo : rel_vs) (P Q : rel_c env1 env2) ii1 xs1 at1 o1 als1 es1 ii2 xs2 at2 o2 als2 es2 :
   wrequiv P (fun s => sem_pexprs true (p_globs p1) s es1)
             (fun s => sem_pexprs true (p_globs p2) s es2) Rve ->
-  (forall s1 s2, P s1 s2 -> wrequiv Rve (exec_sopn env1 o1) (exec_sopn env2 o2) Rvo) ->
+  Rvals (map (eval env1) als1) (map (eval env2) als2) ->
+  (forall s1 s2 vals1 vals2, P s1 s2 -> Rvals vals1 vals2 ->
+    wrequiv Rve (exec_sopn o1 vals1) (exec_sopn o2 vals2) Rvo) ->
   (forall vs1 vs2,
     Rvo vs1 vs2 -> wrequiv P (fun s1 => write_lvals true (p_globs p1) s1 xs1 vs1)
                              (fun s2 => write_lvals true (p_globs p2) s2 xs2 vs2) Q) ->
-  wequiv P [:: MkI ii1 (Copn xs1 at1 o1 es1)] [:: MkI ii2 (Copn xs2 at2 o2 es2)] Q.
+  wequiv P [:: MkI ii1 (Copn xs1 at1 o1 als1 es1)] [:: MkI ii2 (Copn xs2 at2 o2 als2 es2)] Q.
 Proof.
-  move=> he ho hwr; rewrite /wequiv /isem_cmd_ /=.
+  move=> he hvals ho hwr; rewrite /wequiv /isem_cmd_ /=.
   apply wkequiv_bind with Q; last by apply wkequiv_ret.
   apply wkequiv_iresult; rewrite /sem_sopn.
   eapply wrequiv_read; last by apply hwr.
   eapply wrequiv_read; first apply he.
   move=> t1 t2 ht; eapply wrequiv_eval.
-  by move=> s1 s2 /ho; apply wrequiv_weaken => // > [-> ->].
+  by move=> s1 s2 /ho -/(_ _ _ hvals); apply wrequiv_weaken => // > [-> ->].
 Qed.
 
-Require Import Uint63.
-
-
-Lemma toto :
-~ forall env1 env2 vs tyin tyout (semi : ∀ env : env_t,
-                                              sem_prod [seq eval_atype env i | i <- tyin]
-                                                (exec (sem_tuple [seq eval_atype env i | i <- tyout]))),
-  [seq eval_atype env1 i | i <- tyin] = [seq eval_atype env2 i | i <- tyin]
-  → [seq eval_atype env1 i | i <- tyout] = [seq eval_atype env2 i | i <- tyout]
-    → Let t := app_sopn [seq eval_atype env1 i | i <- tyin] (semi env1) vs in ok (list_ltuple t) =
-      Let t := app_sopn [seq eval_atype env2 i | i <- tyin] (semi env2) vs in ok (list_ltuple t).
-Proof.
-  set env1 : env_t := fun _ => 1%Z.
-  set env2 : env_t := fun _ => 2%Z.
-  set vs : values := [::].
-  set tyin : seq atype := [::].
-  set tyout : seq atype := [::].
-  set semi : ∀ env : env_t, sem_prod [seq eval_atype env i | i <- tyin] (exec (sem_tuple [seq eval_atype env i | i <- tyout])) :=
-    fun env => if Z.eqb (env 0%uint63) 1 then ok tt else Error ErrArith.
-  move=> /(_ env1 env2 vs tyin tyout semi). simpl.
-  move=> /(_ erefl erefl). congruence. instruction_desc
-Qed.
-  
-
-Lemma test o env1 env2 :
-  [seq eval_atype env1 i | i <- tin (get_instr_desc o)] = [seq eval_atype env2 i | i <- tin (get_instr_desc o)] ->
-  [seq eval_atype env1 i | i <- tout (get_instr_desc o)] = [seq eval_atype env2 i | i <- tout (get_instr_desc o)] ->
-  exec_sopn env1 o =1 exec_sopn env2 o.
-Proof.
-  move=> h1 h2 vs. rewrite /exec_sopn.
-  case: o h1 h2 => /=.
-  + case=> //=.
-    + move=> [] /=.
-      + move=> tys. rewrite /sopn_sem_ /=. move=> ->. done.
-      move=> tys. rewrite /sopn_sem_ /=. move=> ->. done.
-    + move=> ty []. rewrite /sopn_sem_ /=. move=> ->. done.
-    move=> ty.
-    rewrite /sopn_sem_ /=. move=> [->] _ _. done.
-  + case=> //=.
-  rewrite /sopn_sem /= /sopn_sem_ /=.
-  move=> o. move: (semi (asm_op_instr o)). move: (asm_op_instr o). move=> ->.
-
-Lemma wequiv_opn_eq env1 env2 (P Q : rel_c env1 env2) ii1 xs1 at1 o es1 ii2 xs2 at2 es2 :
+Lemma wequiv_opn_eq env1 env2 (P Q : rel_c env1 env2) ii1 xs1 at1 o als1 es1 ii2 xs2 at2 als2 es2 :
   wrequiv P (fun s => sem_pexprs true (p_globs p1) s es1)
             (fun s => sem_pexprs true (p_globs p2) s es2) eq ->
-  [seq eval_atype env1 i | i <- tin (get_instr_desc o)] = [seq eval_atype env2 i | i <- tin (get_instr_desc o)] ->
-  [seq eval_atype env1 i | i <- tout (get_instr_desc o)] = [seq eval_atype env2 i | i <- tout (get_instr_desc o)] ->
+  map (eval env1) als1 = map (eval env2) als2 ->
   (forall vs,
     wrequiv P (fun s1 => write_lvals true (p_globs p1) s1 xs1 vs)
               (fun s2 => write_lvals true (p_globs p2) s2 xs2 vs) Q) ->
-  wequiv P [:: MkI ii1 (Copn xs1 at1 o es1)] [:: MkI ii2 (Copn xs2 at2 o es2)] Q.
+  wequiv P [:: MkI ii1 (Copn xs1 at1 o als1 es1)] [:: MkI ii2 (Copn xs2 at2 o als2 es2)] Q.
 Proof.
-  move=> he htyin htyout hx; apply wequiv_opn with eq eq => //.
-  + move=> s1 s2 h vs1 vs2 vs1' <-. rewrite /exec_sopn.
-    move: (sopn_sem o). case => //= semi.
-    have: forall 
-    move: (semi env1) (semi env2).
-    rewrite htyin htyout.
-    move: [seq eval_atype env1 i | i <- tin (get_instr_desc o)] [seq eval_atype env1 i | i <- tout (get_instr_desc o)].
-  
-  
-  
-   by move=> *; apply wrequiv_eq.
+  move=> he hvals hx; apply wequiv_opn with eq eq eq => //.
+  + move=> s1 s2 vals1 vals2 h <-.
+    by apply wrequiv_eq.
   by move=> > <-; apply hx.
 Qed.
 
-Lemma wequiv_opn_uincl env (P Q : rel_c env env) ii1 xs1 at1 o es1 ii2 xs2 at2 es2 :
+Lemma wequiv_opn_uincl env (P Q : rel_c env env) ii1 xs1 at1 o als es1 ii2 xs2 at2 es2 :
   wrequiv P (fun s => sem_pexprs true (p_globs p1) s es1)
             (fun s => sem_pexprs true (p_globs p2) s es2) values_uincl ->
   (forall vs1 vs2,
     values_uincl vs1 vs2 ->
     wrequiv P (fun s1 => write_lvals true (p_globs p1) s1 xs1 vs1)
              (fun s2 => write_lvals true (p_globs p2) s2 xs2 vs2) Q) ->
-  wequiv P [:: MkI ii1 (Copn xs1 at1 o es1)] [:: MkI ii2 (Copn xs2 at2 o es2)] Q.
+  wequiv P [:: MkI ii1 (Copn xs1 at1 o als es1)] [:: MkI ii2 (Copn xs2 at2 o als es2)] Q.
 Proof.
-  move=> he; apply wequiv_opn with values_uincl => //.
-  move=> *; apply wrequiv_exec_sopn.
+  move=> he; apply wequiv_opn with eq values_uincl => //.
+  by move=> s1 s2 vals1 vals2 ? <-; apply wrequiv_exec_sopn.
 Qed.
 
-Lemma wequiv_opn_esem env1 env2 (P Q : rel_c env1 env2) ii1 xs1 tg1 o1 es1 c2 :
-  wrequiv P (fun s => sem_sopn (p_globs p1) o1 s xs1 es1)
+Lemma wequiv_opn_esem env1 env2 (P Q : rel_c env1 env2) ii1 xs1 tg1 o1 als1 es1 c2 :
+  wrequiv P (fun s => sem_sopn (p_globs p1) o1 s xs1 als1 es1)
             (esem p2 ev2 c2) Q ->
-  wequiv P [:: MkI ii1 (Copn xs1 tg1 o1 es1)] c2 Q.
+  wequiv P [:: MkI ii1 (Copn xs1 tg1 o1 als1 es1)] c2 Q.
 Proof.
   move=> h s t hP /=.
   case heq: sem_sopn => [s' | e] /=.
@@ -1489,9 +1440,9 @@ Class Checker_eq :=
 
 Class Checker_a_eq :=
  { echeck_aP   :
-   forall env d a1 a2 d',
+   forall env1 env2 d a1 a2 d',
      check_a d a1 a2 d' ->
-     wrequiv (R d) ((sem_eassert (p_globs p1) (env:=env))^~ a1) ((sem_eassert (p_globs p2) (env:=env))^~ a2) eq
+     wrequiv (R d) ((sem_eassert (p_globs p1) (env:=env1))^~ a1) ((sem_eassert (p_globs p2) (env:=env2))^~ a2) eq
  }.
 
 Section UINCL.
@@ -1536,10 +1487,10 @@ Proof using cu.
   apply: ucheck_lvalP hxs v1 v2 hu.
 Qed.
 
-Lemma wequiv_opn_rel_uincl env d de d' ii1 xs1 tg1 o es1 ii2 xs2 tg2 es2 :
+Lemma wequiv_opn_rel_uincl env d de d' ii1 xs1 tg1 o als es1 ii2 xs2 tg2 es2 :
   check_es d es1 es2 de →
   check_lvals de xs1 xs2 d' →
-  wequiv (env1:=env) (env2:=env) (R d) [:: MkI ii1 (Copn xs1 tg1 o es1)] [:: MkI ii2 (Copn xs2 tg2 o es2)] (R d').
+  wequiv (env1:=env) (env2:=env) (R d) [:: MkI ii1 (Copn xs1 tg1 o als es1)] [:: MkI ii2 (Copn xs2 tg2 o als es2)] (R d').
 Proof using cu.
   move=> hes hxs.
   apply wequiv_opn_uincl.
@@ -1687,34 +1638,25 @@ Proof using cu.
   apply: echeck_lvalP hxs v.
 Qed.
 
-Lemma wequiv_opn_rel_eq env1 env2 d de d' ii1 xs1 tg1 o es1 ii2 xs2 tg2 es2 :
+Lemma wequiv_opn_rel_eq env1 env2 d de d' ii1 xs1 tg1 o als1 es1 ii2 xs2 tg2 als2 es2 :
   check_es d es1 es2 de →
-  [seq eval_atype env1 i | i <- tin (get_instr_desc o)] = [seq eval_atype env2 i | i <- tin (get_instr_desc o)] ->
-  [seq eval_atype env1 i | i <- tout (get_instr_desc o)] = [seq eval_atype env2 i | i <- tout (get_instr_desc o)] ->
+  map (eval env1) als1 = map (eval env2) als2 ->
   check_lvals de xs1 xs2 d' →
-  wequiv (env1:=env1) (env2:=env2) (R d) [:: MkI ii1 (Copn xs1 tg1 o es1)] [:: MkI ii2 (Copn xs2 tg2 o es2)] (R d').
+  wequiv (env1:=env1) (env2:=env2) (R d) [:: MkI ii1 (Copn xs1 tg1 o als1 es1)] [:: MkI ii2 (Copn xs2 tg2 o als2 es2)] (R d').
 Proof using cu.
-  move=> hes htyin htyout hxs.
-  apply wequiv_opn with (Rve := fun vs1 vs2 => vs1 = vs2) (Rvo:=fun vs1 vs2 => vs1 = vs2).
-  + apply: echeck_esP hes.
-    done.
-  + move=> s1 s2 h. rewrite /exec_sopn.
-    move=> vs1 vs2 vs3 heq. move: (sopn_sem o).
-    case => //= semi.
-    move: semi htyin htyout. rewrite /list_ltuple. app_sopn /= /sem_type.app_sopn /=. move: [seq eval_atype env2 i | i <- tin (get_instr_desc o)]. (tin (get_instr_desc o)). move: (tout (get_instr_desc o)).
-    move=> ?? h1 h2. rewrite <- h1.
-   rewrite hty. sopn_sem pseudo_operator
-  
+  move=> hes hvals hxs.
+  apply wequiv_opn_eq.
   + by apply: echeck_esP hes.
+  + done.
   move=> v; apply wrequiv_weaken with (R de) (R d') => //.
   + by apply: check_esP_rel hes.
   by apply: echeck_lvalsP hxs v.
 Qed.
 
-Lemma wequiv_assert_rel_eq env d de ii1 a1 ii2 a2 :
+Lemma wequiv_assert_rel_eq env1 env2 d de ii1 a1 ii2 a2 :
   (assert_allowed (WithAssert:=wa1) → assert_allowed (WithAssert:=wa2)) ->
   check_a d a1.2 a2.2 de ->
-  wequiv (env1:=env) (env2:=env) (R d) [:: MkI ii1 (Cassert a1)] [:: MkI ii2 (Cassert a2)] (R de).
+  wequiv (env1:=env1) (env2:=env2) (R d) [:: MkI ii1 (Cassert a1)] [:: MkI ii2 (Cassert a2)] (R de).
 Proof using caP.
   move=> hassert ha.
   apply wequiv_assert_eq.
@@ -1722,13 +1664,13 @@ Proof using caP.
   by move=> _ _ + + + _ _; apply: check_aP_rel ha.
 Qed.
 
-Lemma wequiv_if_rel_eq_R env d de d1 d2 d' ii e c1 c2 ii' e' c1' c2' :
+Lemma wequiv_if_rel_eq_R env1 env2 d de d1 d2 d' ii e c1 c2 ii' e' c1' c2' :
   check_es d [::e] [::e'] de ->
-  (forall (s1 : estate env) (s2 : estate env), R d1 s1 s2 -> R d' s1 s2) ->
-  (forall (s1 : estate env) (s2 : estate env), R d2 s1 s2 -> R d' s1 s2) ->
-  wequiv (env1:=env) (env2:=env) (R de) c1 c1' (R d1) ->
-  wequiv (env1:=env) (env2:=env) (R de) c2 c2' (R d2) ->
-  wequiv (env1:=env) (env2:=env) (R d) [:: MkI ii (Cif e c1 c2)] [:: MkI ii' (Cif e' c1' c2')] (R d').
+  (forall (s1 : estate env1) (s2 : estate env2), R d1 s1 s2 -> R d' s1 s2) ->
+  (forall (s1 : estate env1) (s2 : estate env2), R d2 s1 s2 -> R d' s1 s2) ->
+  wequiv (env1:=env1) (env2:=env2) (R de) c1 c1' (R d1) ->
+  wequiv (env1:=env1) (env2:=env2) (R de) c2 c2' (R d2) ->
+  wequiv (env1:=env1) (env2:=env2) (R d) [:: MkI ii (Cif e c1 c2)] [:: MkI ii' (Cif e' c1' c2')] (R d').
 Proof using cu.
   move=> hes hd1 hd2 hc1 hc2.
   apply wequiv_if_eq.
@@ -1738,12 +1680,12 @@ Proof using cu.
   by case: b; [apply: wequiv_weaken hc1 | apply: wequiv_weaken hc2].
 Qed.
 
-Lemma wequiv_for_rel_eq_R env d0 d dhi di ii i dir lo hi c ii' i' lo' hi' c':
+Lemma wequiv_for_rel_eq_R env1 env2 d0 d dhi di ii i dir lo hi c ii' i' lo' hi' c':
   check_es d0 [::lo; hi] [::lo'; hi'] dhi ->
-  (∀ (s1 : estate env) (s2 : estate env), R dhi s1 s2 → R d s1 s2) ->
+  (∀ (s1 : estate env1) (s2 : estate env2), R dhi s1 s2 → R d s1 s2) ->
   check_lvals d [::Lvar i] [::Lvar i'] di ->
-  wequiv (env1:=env) (env2:=env) (R di) c c' (R d) ->
-  wequiv (env1:=env) (env2:=env) (R d0) [:: MkI ii (Cfor i (dir, lo, hi) c)] [:: MkI ii' (Cfor i' (dir, lo', hi') c')] (R d).
+  wequiv (env1:=env1) (env2:=env2) (R di) c c' (R d) ->
+  wequiv (env1:=env1) (env2:=env2) (R d0) [:: MkI ii (Cfor i (dir, lo, hi) c)] [:: MkI ii' (Cfor i' (dir, lo', hi') c')] (R d).
 Proof using cu.
   move=> hes hdhi hx hc.
   apply wequiv_for_eq with (R di) => //.
@@ -1752,11 +1694,11 @@ Proof using cu.
   by move=> j; have /(_ _ _ j) := echeck_lvalP hx.
 Qed.
 
-Lemma wequiv_while_rel_eq env d d' de ii1 al1 c1 e1 inf1 c1' ii2 al2 c2 e2 inf2 c2' :
+Lemma wequiv_while_rel_eq env1 env2 d d' de ii1 al1 c1 e1 inf1 c1' ii2 al2 c2 e2 inf2 c2' :
   check_es d' [::e1] [::e2] de ->
-  wequiv (env1:=env) (env2:=env) (R d) c1 c2 (R d') →
-  wequiv (env1:=env) (env2:=env) (R de) c1' c2' (R d) →
-  wequiv (env1:=env) (env2:=env) (R d) [:: MkI ii1 (Cwhile al1 c1 e1 inf1 c1')] [:: MkI ii2 (Cwhile al2 c2 e2 inf2 c2')] (R de).
+  wequiv (env1:=env1) (env2:=env2) (R d) c1 c2 (R d') →
+  wequiv (env1:=env1) (env2:=env2) (R de) c1' c2' (R d) →
+  wequiv (env1:=env1) (env2:=env2) (R d) [:: MkI ii1 (Cwhile al1 c1 e1 inf1 c1')] [:: MkI ii2 (Cwhile al2 c2 e2 inf2 c2')] (R de).
 Proof using cu.
   move=> he hc hc'.
   apply wequiv_weaken with (R d) (R d') => //.
@@ -1767,14 +1709,14 @@ Proof using cu.
   by apply: check_esP_rel he.
 Qed.
 
-Lemma wequiv_syscall_rel_eq_core_R env d de de' d' ii1 xs1 sc1 es1 ii2 xs2 sc2 es2 :
-  (∀ d (s1 : estate env) (s2 : estate env), R d s1 s2 → escs s1 = escs s2 ∧ emem s1 = emem s2) →
-  (forall scs mem (s1 : estate env) (s2 : estate env), R de s1 s2 ->
+Lemma wequiv_syscall_rel_eq_core_R env1 env2 d de de' d' ii1 xs1 sc1 es1 ii2 xs2 sc2 es2 :
+  (∀ d (s1 : estate env1) (s2 : estate env2), R d s1 s2 → escs s1 = escs s2 ∧ emem s1 = emem s2) →
+  (forall scs mem (s1 : estate env1) (s2 : estate env2), R de s1 s2 ->
      R de' (with_scs (with_mem s1 mem) scs) (with_scs (with_mem s2 mem) scs)) →
   check_es d es1 es2 de →
   check_lvals de' xs1 xs2 d' →
   wrequiv eq (fexec_syscall (scP:=scP1) sc1) (fexec_syscall (scP:=scP2) sc2) eq →
-  wequiv (env1:=env) (env2:=env) (R d) [:: MkI ii1 (Csyscall xs1 sc1 es1)] [:: MkI ii2 (Csyscall xs2 sc2 es2)] (R d').
+  wequiv (env1:=env1) (env2:=env2) (R d) [:: MkI ii1 (Csyscall xs1 sc1 es1)] [:: MkI ii2 (Csyscall xs2 sc2 es2)] (R d').
 Proof using cu.
   move=> hsm hwith hes hxs hsc.
   apply wequiv_syscall_eq.
@@ -1891,35 +1833,35 @@ Section EQ.
 
 Context {cu:Checker_eq (R:=st_rel R)}.
 
-Lemma wequiv_if_rel_eq env d de d1 d2 d' ii e c1 c2 ii' e' c1' c2' :
+Lemma wequiv_if_rel_eq env1 env2 d de d1 d2 d' ii e c1 c2 ii' e' c1' c2' :
   check_es d [::e] [::e'] de ->
-  (forall (vm1 : vm1_t env) (vm2 : vm2_t env), R d1 vm1 vm2 -> R d' vm1 vm2) ->
-  (forall (vm1 : vm1_t env) (vm2 : vm2_t env), R d2 vm1 vm2 -> R d' vm1 vm2) ->
-  wequiv (env1:=env) (env2:=env) (st_rel R de) c1 c1' (st_rel R d1) ->
-  wequiv (env1:=env) (env2:=env) (st_rel R de) c2 c2' (st_rel R d2) ->
-  wequiv (env1:=env) (env2:=env) (st_rel R d) [:: MkI ii (Cif e c1 c2)] [:: MkI ii' (Cif e' c1' c2')] (st_rel R d').
+  (forall (vm1 : vm1_t env1) (vm2 : vm2_t env2), R d1 vm1 vm2 -> R d' vm1 vm2) ->
+  (forall (vm1 : vm1_t env1) (vm2 : vm2_t env2), R d2 vm1 vm2 -> R d' vm1 vm2) ->
+  wequiv (env1:=env1) (env2:=env2) (st_rel R de) c1 c1' (st_rel R d1) ->
+  wequiv (env1:=env1) (env2:=env2) (st_rel R de) c2 c2' (st_rel R d2) ->
+  wequiv (env1:=env1) (env2:=env2) (st_rel R d) [:: MkI ii (Cif e c1 c2)] [:: MkI ii' (Cif e' c1' c2')] (st_rel R d').
 Proof using cu.
   move=> hes hd1 hd2.
   by apply wequiv_if_rel_eq_R with ce => //; apply st_rel_weaken.
 Qed.
 
-Lemma wequiv_for_rel_eq env d0 d dhi di ii i dir lo hi c ii' i' lo' hi' c':
+Lemma wequiv_for_rel_eq env1 env2 d0 d dhi di ii i dir lo hi c ii' i' lo' hi' c':
   check_es d0 [::lo; hi] [::lo'; hi'] dhi ->
-  (∀ (vm1 : vm1_t env) (vm2 : vm2_t env), R dhi vm1 vm2 → R d vm1 vm2) ->
+  (∀ (vm1 : vm1_t env1) (vm2 : vm2_t env2), R dhi vm1 vm2 → R d vm1 vm2) ->
   check_lvals d [::Lvar i] [::Lvar i'] di ->
-  wequiv (env1:=env) (env2:=env) (st_rel R di) c c' (st_rel R d) ->
-  wequiv (env1:=env) (env2:=env) (st_rel R d0) [:: MkI ii (Cfor i (dir, lo, hi) c)] [:: MkI ii' (Cfor i' (dir, lo', hi') c')] (st_rel R d).
+  wequiv (env1:=env1) (env2:=env2) (st_rel R di) c c' (st_rel R d) ->
+  wequiv (env1:=env1) (env2:=env2) (st_rel R d0) [:: MkI ii (Cfor i (dir, lo, hi) c)] [:: MkI ii' (Cfor i' (dir, lo', hi') c')] (st_rel R d).
 Proof using cu.
   move=> hes hdhi hx hc.
   apply wequiv_for_rel_eq_R with ce dhi di => //.
   by apply st_rel_weaken.
 Qed.
 
-Lemma wequiv_syscall_rel_eq_core env d de d' ii1 xs1 sc1 es1 ii2 xs2 sc2 es2 :
+Lemma wequiv_syscall_rel_eq_core env1 env2 d de d' ii1 xs1 sc1 es1 ii2 xs2 sc2 es2 :
   check_es d es1 es2 de →
   check_lvals de xs1 xs2 d' →
   wrequiv eq (fexec_syscall (scP:=scP1) sc1) (fexec_syscall (scP:=scP2) sc2) eq →
-  wequiv (env1:=env) (env2:=env) (st_rel R d) [:: MkI ii1 (Csyscall xs1 sc1 es1)] [:: MkI ii2 (Csyscall xs2 sc2 es2)] (st_rel R d').
+  wequiv (env1:=env1) (env2:=env2) (st_rel R d) [:: MkI ii1 (Csyscall xs1 sc1 es1)] [:: MkI ii2 (Csyscall xs2 sc2 es2)] (st_rel R d').
 Proof using cu.
   apply wequiv_syscall_rel_eq_core_R => //.
   + by move=> > [-> ->].
@@ -2517,10 +2459,10 @@ Proof.
   apply fs_uincl_syscall.
 Qed.
 
-Lemma wequiv_syscall_rel_eq {cu: Checker_eq p1 p2 (ce:=ce)} env d de d' ii1 xs1 sc es1 ii2 xs2 es2 :
+Lemma wequiv_syscall_rel_eq {cu: Checker_eq p1 p2 (ce:=ce)} env1 env2 d de d' ii1 xs1 sc es1 ii2 xs2 es2 :
   check_es d es1 es2 de →
   check_lvals de xs1 xs2 d' →
-  wequiv (sem_F1:=sem_F1) (sem_F2:=sem_F2) (env1:=env) (env2:=env)
+  wequiv (sem_F1:=sem_F1) (sem_F2:=sem_F2) (env1:=env1) (env2:=env2)
     p1 p2 ev1 ev2 (st_rel R d) [:: MkI ii1 (Csyscall xs1 sc es1)] [:: MkI ii2 (Csyscall xs2 sc es2)] (st_rel R d').
 Proof.
   move=> hes hxs.

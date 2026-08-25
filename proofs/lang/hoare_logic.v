@@ -505,12 +505,12 @@ Proof.
   apply hwr.
 Qed.
 
-Lemma hoare_opn env (Rve Rvo : Pred_vs) (P Q : Pred_c env) Qerr ii xs tag o es :
+Lemma hoare_opn env (Rve Rvo : Pred_vs) (P Q : Pred_c env) Qerr ii xs tag o als es :
   (forall s e, P s -> Qerr e -> rInvErr s e) ->
   rhoare P (fun s => sem_pexprs true (p_globs p) s es) Rve Qerr ->
-  (forall s, P s -> rhoare Rve (exec_sopn env o) Rvo Qerr) ->
+  (forall s, P s -> rhoare Rve (exec_sopn o (map (eval env) als)) Rvo Qerr) ->
   (forall vs, Rvo vs -> rhoare P (fun s => write_lvals true (p_globs p) s xs vs) Q Qerr) ->
-  hoare P [:: MkI ii (Copn xs tag o es)] Q.
+  hoare P [:: MkI ii (Copn xs tag o als es)] Q.
 Proof.
   move=> herr he ho hwr; rewrite /hoare /isem_cmd_ /=.
   apply khoare_bind with Q; last by apply khoare_ret.
@@ -933,11 +933,11 @@ Lemma whoare_assgn (Rv Rtr: Pred_v) (P Q : Pred_c env) ii x tg ty e :
   whoare p ev P [:: MkI ii (Cassgn x tg ty e)] Q.
 Proof. by apply hoare_assgn. Qed.
 
-Lemma whoare_opn (Rve Rvo : Pred_vs) (P Q : Pred_c env) ii xs tag o es :
+Lemma whoare_opn (Rve Rvo : Pred_vs) (P Q : Pred_c env) ii xs tag o als es :
   rhoare P (fun s => sem_pexprs true (p_globs p) s es) Rve PredT ->
-  (forall s, P s -> rhoare Rve (exec_sopn env o) Rvo PredT) ->
+  (forall s, P s -> rhoare Rve (exec_sopn o (map (eval env) als)) Rvo PredT) ->
   (forall vs, Rvo vs -> rhoare P (fun s => write_lvals true (p_globs p) s xs vs) Q PredT) ->
-  whoare p ev P [:: MkI ii (Copn xs tag o es)] Q.
+  whoare p ev P [:: MkI ii (Copn xs tag o als es)] Q.
 Proof. by apply hoare_opn. Qed.
 
 Lemma whoare_syscall Rv Ro (P Q : Pred_c env) ii xs sc es :
@@ -1120,7 +1120,7 @@ Proof.
     apply whoare_assgn with PredT PredT; try auto using rhoare_true.
     move=> v _; apply wrhoareP => s s' <-.
     rewrite write_Ii write_i_assgn; apply vrvP.
-  + move=> xs tg o es ii s0.
+  + move=> xs tg o als es ii s0.
     apply whoare_opn with PredT PredT; try auto using rhoare_true.
     move=> v _; apply wrhoareP => s s' <-.
     rewrite write_Ii write_i_opn; apply vrvsP.

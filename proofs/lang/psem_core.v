@@ -305,20 +305,19 @@ Context
   {spp : SemPexprParams}
   {asmop : asmOp asm_op}.
 
-Lemma sopn_toutP env o vs vs' : exec_sopn env o vs = ok vs' ->
-  List.map type_of_val vs' = map (eval_atype env) (sopn_tout o).
+Lemma sopn_toutP o vals vs vs' : exec_sopn o vals vs = ok vs' ->
+  List.map type_of_val vs' = map (eval_atype (create_env (al (get_instr_desc o)) vals)) (sopn_tout o).
 Proof.
   rewrite /exec_sopn /sopn_tout /sopn_sem.
-  t_xrbindP => ? _ <- ? _ <-;apply type_of_val_ltuple.
+  by t_xrbindP => _ _ <- _ _ ? _ <-; apply type_of_val_ltuple.
 Qed.
 
-Lemma sopn_tinP env o vs vs' : exec_sopn env o vs = ok vs' ->
-  all2 subctype (map (eval_atype env) (sopn_tin o)) (List.map type_of_val vs).
+Lemma sopn_tinP o vals vs vs' : exec_sopn o vals vs = ok vs' ->
+  all2 subctype (map (eval_atype (create_env (al (get_instr_desc o)) vals)) (sopn_tin o)) (List.map type_of_val vs).
 Proof.
   rewrite /exec_sopn /sopn_tin /sopn_sem /sopn_sem_; t_xrbindP => _ _ <-.
-  case (get_instr_desc o) => /= _ tin _ tout _ _ semi _ _ _ _ _ _ _.
-  move: (semi env) => {}semi.
-  t_xrbindP => p hp _.
+  case (get_instr_desc o) => /= _ al tin _ tout _ _ semi _ _ _ _ _ _ _.
+  move=> {}semi _ p hp _.
   elim: tin vs semi hp => /= [ | t tin hrec] [ | v vs] // semi.
   by t_xrbindP => sv /= /of_val_subctype -> /hrec.
 Qed.
@@ -780,20 +779,30 @@ Proof.
   by case: s' eq_mem => /= > <-.
 Qed.
 
-Lemma eq_on_sem_eassert env (s' : estate env) gd (s : estate env) e :
+Lemma sem_opN_safety_ext env1 env2 :
+  env1 =1 env2 ->
+  sem_opN_safety env1 =1 sem_opN_safety env2.
+Proof.
+  move=> heq.
+  by case.
+Qed.
+
+Lemma eq_on_sem_eassert env1 env2 (s' : estate env1) gd (s : estate env2) e :
+  env1 =1 env2 ->
   emem s = emem s' →
   evm s =[read_eassert e] evm s' →
   sem_eassert gd s e = sem_eassert gd s' e.
 Proof.
-  move=> hmem; elim: e.
-  + by move=> e; rewrite read_eassert_Pexpr /= => /(eq_on_sem_pexpr true gd (fun _ => erefl) hmem) ->.
+  move=> heq hmem; elim: e.
+  + by move=> e; rewrite read_eassert_Pexpr /= => /(eq_on_sem_pexpr true gd heq hmem) ->.
   + move=> o es; rewrite read_eassert_PappN /= => hes.
-    have := eq_on_sem_pexprs true gd (fun _ => erefl) hmem hes.
-    by rewrite /sem_pexprs => ->.
+    have := eq_on_sem_pexprs true gd heq hmem hes.
+    rewrite /sem_pexprs => ->.
+    by rewrite (sem_opN_safety_ext heq).
   + move=> x; rewrite read_eassert_Pis_var_init /= => hx.
     by rewrite (hx x) //; clear; SvD.fsetdec.
   + move=> e1 e2; rewrite read_eassert_Pis_mem_init /= => h.
-    rewrite !(eq_on_sem_pexpr true gd (fun _ => erefl) hmem) ?hmem //;
+    rewrite !(eq_on_sem_pexpr true gd heq hmem) ?hmem //;
     by apply: eq_onI h; clear; SvD.fsetdec.
   move=> e1 he1 e2 he2.
   rewrite read_eassert_Pand /= => h.
@@ -1021,31 +1030,53 @@ Proof.
   by rewrite hvs'.
 Qed.
 
-Lemma vuincl_exec_opn {sip : SemInstrParams asm_op syscall_state} env o vs vs' v :
-  values_uincl vs vs' -> exec_sopn env o vs = ok v ->
-  exists2 v', exec_sopn env o vs' = ok v' & values_uincl v v'.
+Lemma app_dep_size (n : nat) (A : Type) (B : seq A → Type) (f : dep_type n B) l res :
+  app_dep f l = ok res -> size l = n.
 Proof.
-  rewrite /exec_sopn /sopn_sem => vs_vs'; apply rbindP => ?; apply: rbindP => ? /assertP -> /= [<-] ho.
-  exact: (get_instr_desc o).(semu) vs_vs' ho.
+  elim: n B f l res => [|n ih] B f [|a l] //= res.
+  move=> happ.
+  by have -> := ih _ _ _ _ happ.
 Qed.
 
-Lemma truncate_val_exec_sopn {sip : SemInstrParams asm_op syscall_state} env o vs vs' v :
-  mapM2 ErrType truncate_val (map (eval_atype env) (sopn_tin o)) vs = ok vs' ->
-  exec_sopn env o vs' = ok v ->
-  exec_sopn env o vs = ok v.
+Lemma app_dep_size_2 (n : nat) (A : Type) (B : seq A → Type) (f : dep_type n B) l :
+  size l = n -> exists res, app_dep f l = ok res.
+Proof.
+  elim: n B f l => [|n ih] B f [|a l] //=.
+  + by move=> _; exists f.
+  move=> [hsize].
+  by apply (ih _ (f a) _ hsize).
+Qed.
+
+Lemma vuincl_exec_opn {sip : SemInstrParams asm_op syscall_state} o vals vs vs' v :
+  values_uincl vs vs' -> exec_sopn o vals vs = ok v ->
+  exists2 v', exec_sopn o vals vs' = ok v' & values_uincl v v'.
+Proof.
+  rewrite /exec_sopn /sopn_sem => vs_vs'.
+  apply: rbindP => ?; apply: rbindP => ? /assertP -> /= [<-]; apply: rbindP => semi happ ho.
+  have hsize := app_dep_size (f:=sopn_sem_ o) happ.
+  have [hsemu _] := app_dep_size_2 (get_instr_desc o).(semu) hsize.
+  rewrite happ.
+  move: hsemu; rewrite happ => hsemu.
+  exact: hsemu vs_vs' ho.
+Qed.
+
+Lemma truncate_val_exec_sopn {sip : SemInstrParams asm_op syscall_state} o vals vs vs' v :
+  mapM2 ErrType truncate_val (map (eval_atype (create_env (get_instr_desc o).(al) vals)) (sopn_tin o)) vs = ok vs' ->
+  exec_sopn o vals vs' = ok v ->
+  exec_sopn o vals vs = ok v.
 Proof.
   move=> htr; rewrite /exec_sopn.
-  t_xrbindP => ? -> /=  w ok_w <-.
+  t_xrbindP => ? -> /= ? -> /= w ok_w <-.
   by rewrite (truncate_val_app_sopn htr ok_w).
 Qed.
 
-Lemma exec_sopn_truncate_val {sip : SemInstrParams asm_op syscall_state} env o vs v :
-  exec_sopn env o vs = ok v ->
+Lemma exec_sopn_truncate_val {sip : SemInstrParams asm_op syscall_state} o vals vs v :
+  exec_sopn o vals vs = ok v ->
   exists vs',
-    mapM2 ErrType truncate_val (map (eval_atype env) (sopn_tin o)) vs = ok vs' /\
-    exec_sopn env o vs' = ok v.
+    mapM2 ErrType truncate_val (map (eval_atype (create_env (get_instr_desc o).(al) vals)) (sopn_tin o)) vs = ok vs' /\
+    exec_sopn o vals vs' = ok v.
 Proof.
-  rewrite /exec_sopn; t_xrbindP=> ? -> /= w ok_w <-.
+  rewrite /exec_sopn; t_xrbindP=> ? -> /= ? -> /= w ok_w <-.
   have [? [-> {}ok_w]] := app_sopn_truncate_val ok_w.
   eexists; split; first by reflexivity.
   by rewrite ok_w.
@@ -1488,10 +1519,11 @@ Lemma sem_pexprs_ext_eq es (vm : Vm.t env') :
   sem_pexprs wdb gd s es = sem_pexprs wdb gd (with_vm s vm) es.
 Proof. move=> ? heq; apply/read_es_eq_on_empty. done. by apply /vm_eq_eq_on. Qed.
 
-Lemma sem_eassert_ext_eq e (vm : Vm.t env) :
+Lemma sem_eassert_ext_eq e (vm : Vm.t env') :
+  env =1 env' ->
   (evm s =1 vm)%vm ->
    sem_eassert gd s e = sem_eassert gd (with_vm s vm) e.
-Proof. by move=> heq; apply/eq_on_sem_eassert. Qed.
+Proof. by move=> ? heq; apply/eq_on_sem_eassert. Qed.
 
 Lemma write_lvar_ext_eq x v (s1 s2 : estate env) (vm1 : Vm.t env') :
   env =1 env' ->

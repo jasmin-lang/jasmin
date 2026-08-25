@@ -51,9 +51,9 @@ Definition sem_Ind_assgn : Prop :=
     Pi_r s1 (Cassgn x tag ty e) s2.
 
 Definition sem_Ind_opn : Prop :=
-  forall env (s1 s2 : estate env) t (o : sopn) (xs : lvals) (es : pexprs),
-    sem_sopn gd o s1 xs es = ok s2 →
-    Pi_r s1 (Copn xs t o es) s2.
+  forall env (s1 s2 : estate env) t (o : sopn) (xs : lvals) als (es : pexprs),
+    sem_sopn gd o s1 xs als es = ok s2 →
+    Pi_r s1 (Copn xs t o als es) s2.
 
 Definition sem_Ind_syscall : Prop :=
   forall env (s1:estate env) scs m s2 o xs es ves vs,
@@ -110,11 +110,11 @@ Proof using eq_globs.
   by have [vm2 h ->] := write_lvars_ext_eq heq h1 h2; eexists; eauto.
 Qed.
 
-Lemma st_eq_sem_eassert env d e :
-  wrequiv (st_eq d) ((sem_eassert (env:=env) (p_globs p))^~ e) ((sem_eassert (env:=env) (p_globs p'))^~ e) eq.
+Lemma st_eq_sem_eassert env1 env2 d e :
+  wrequiv (st_eq d) ((sem_eassert (env:=env1) (p_globs p))^~ e) ((sem_eassert (env:=env2) (p_globs p'))^~ e) eq.
 Proof using eq_globs.
   move=> s t v /st_relP [-> /=] heq hvm; rewrite eq_globs.
-  rewrite -sem_eassert_ext_eq //; eauto.
+  by rewrite -sem_eassert_ext_eq //; eauto.
 Qed.
 
 Lemma wdb_ok_eq wdb1 wdb2 : wdb_ok wdb1 wdb2 -> wdb1 = wdb2.
@@ -193,7 +193,7 @@ Proof using eq_globs.
     move=> v he v' htr hw heq.
     rewrite -(sem_pexpr_ext_eq true (p_globs p) _ (fun _ => erefl) heq) he /= htr /=.
     by have [vm2 ??] := write_lvar_ext_eq (fun _ => erefl) heq hw; exists vm2.
-  + move=> xs t o es ii s1 s2 vm1 /=; rewrite /sem_sopn -eq_globs; t_xrbindP.
+  + move=> xs t o als es ii s1 s2 vm1 /=; rewrite /sem_sopn -eq_globs; t_xrbindP.
     move=> vs' vs hes hop hw heq.
     rewrite -(sem_pexprs_ext_eq true (p_globs p) _ (fun _ => erefl) heq) hes /= hop /=.
     by have [vm2 ??] := write_lvars_ext_eq (fun _ => erefl) heq hw; exists vm2.
@@ -288,9 +288,9 @@ Proof.
   by apply: (eq_onI hsub).
 Qed.
 
-Lemma read_eassert_st_eq_on env gd e X :
+Lemma read_eassert_st_eq_on env1 env2 gd e X :
   Sv.Subset (read_eassert e) X ->
-  wrequiv (st_eq_on (env1:=env) (env2:=env) X) ((sem_eassert gd)^~ e) ((sem_eassert gd)^~ e) eq.
+  wrequiv (st_eq_on (env1:=env1) (env2:=env2) X) ((sem_eassert gd)^~ e) ((sem_eassert gd)^~ e) eq.
 Proof.
   move=> hsub s t b [????]. rewrite (eq_on_sem_eassert _ (s' := t)) //.
   + by move => ->; eauto.
@@ -403,7 +403,7 @@ Qed.
 Lemma checker_a_st_eq_onP : Checker_a_eq p p' checker_a_st_eq_on.
 Proof using eq_globs.
   constructor.
-  move=> env d es1 es2 d' [? <- ?]; rewrite eq_globs.
+  move=> env1 env2 d es1 es2 d' [? <- ?]; rewrite eq_globs.
   by apply read_eassert_st_eq_on.
 Qed.
 
@@ -452,7 +452,7 @@ Proof using eq_globs.
     + by split => //; rewrite /read_es /= read_eE; SvD.fsetdec.
     split => //; first by SvD.fsetdec.
     by rewrite /read_rvs /= read_rvE; SvD.fsetdec.
-  + move=> xs tg o es ii X. rewrite read_i_opn => hsub.
+  + move=> xs tg o als es ii X. rewrite read_i_opn => hsub.
     by apply wequiv_opn_rel_eq with checker_st_eq_on X => //=; split=> //; SvD.fsetdec.
   + move=> xs sc es ii X. rewrite read_i_syscall => hsub.
     by apply wequiv_syscall_rel_eq with checker_st_eq_on X => //=; split=> //; SvD.fsetdec.
@@ -622,7 +622,7 @@ Proof using eq_globs.
   + move=> i c hi hc.
     by apply wequiv_cons with (st_uincl tt).
   + by move=> x tg ty e ii; apply wequiv_assgn_rel_uincl with checker_st_uincl tt.
-  + by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with checker_st_uincl tt.
+  + by move=> xs tg o als es ii; apply wequiv_opn_rel_uincl with checker_st_uincl tt.
   + by move=> xs sc es ii; apply wequiv_syscall_rel_uincl with checker_st_uincl tt.
   + by move=> a ii; apply wequiv_noassert.
   + by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with checker_st_uincl tt tt tt.
@@ -801,7 +801,7 @@ Proof using eq_globs.
     apply wequiv_assgn_rel_uincl with checker_eq_cmd tt => //.
     + by rewrite /= /check_es_eq_cmd /= andbT.
     by rewrite /= /check_lvals_eq_cmd /= andbT.
-  + move=> xs tg o es [] //= xs' tg' o' es' /andP[] /andP[] /andP[] heq1 /eqP -> /eqP -> heq2 ??.
+  + move=> xs tg o als es [] //= xs' tg' o' als' es' /andP[] /andP[] /andP[] /andP[] heq1 /eqP -> /eqP -> /eqP -> heq2 ??.
     by apply wequiv_opn_rel_uincl with checker_eq_cmd tt.
   + move=> xs o es [] //= xs' o' es' /andP[] /andP[] heq1 /eqP -> heq2 ??.
     by apply wequiv_syscall_rel_uincl with checker_eq_cmd tt.

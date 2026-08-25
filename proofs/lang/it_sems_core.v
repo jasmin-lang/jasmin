@@ -213,7 +213,8 @@ Fixpoint isem_i_body env (p : prog) (ev : extra_val_t) (i : instr) (s : estate e
   match i with
   | Cassgn x tg ty e => iresult (sem_assgn p x tg ty e s)
 
-  | Copn xs tg o es => iresult (sem_sopn (p_globs p) o s xs es)
+  | Copn xs tg o als es =>
+    iresult (sem_sopn (p_globs p) o s xs als es)
 
   | Csyscall xs o es => iresult (sem_syscall p xs o es s)
 
@@ -300,7 +301,7 @@ Fixpoint esem_i env (p : prog) (ev : extra_val_t) (i : instr) (s : estate env) :
   match i with
   | Cassgn x tg ty e => sem_assgn p x tg ty e s
 
-  | Copn xs tg o es => sem_sopn (p_globs p) o s xs es
+  | Copn xs tg o als es => sem_sopn (p_globs p) o s xs als es
 
   | Csyscall xs o es => sem_syscall p xs o es s
 

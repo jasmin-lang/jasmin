@@ -74,7 +74,7 @@ Fixpoint extend_iinfo_i ii i : instr :=
   let ir :=
     match ir with
     | Cassgn _ _ _ _
-    | Copn _ _ _ _
+    | Copn _ _ _ _ _
     | Csyscall _ _ _
     | Cassert _
     | Ccall _ _ _ _ => ir
@@ -275,14 +275,27 @@ Fixpoint subst_a f sm (a : eassert) : result _ eassert :=
     ok (Pand a1 a2)
   end.
 
+Definition merge sm1 sm2 :=
+  let m :=
+    Mvar.map2 (fun _ oy1 oy2 =>
+      match oy1, oy2 with
+      | Some y1, Some y2 => if y1 == y2 then oy1 else None
+      | _, _ => None
+      end) sm1.(m) sm2.(m)
+  in
+  {| m := m;
+     vars := Sv.union sm1.(vars) sm2.(vars);
+     counter := Uint63.max sm1.(counter) sm2.(counter);
+  |}.
+
 Fixpoint subst_i f sm (i:instr) : result _ (subst_map * instr) :=
   let (ii,ir) := i in
   match ir with
-  | Copn xs tg op es =>
-    (* TODO: subst in op too *)
+  | Copn xs tg op als es =>
     Let es := subst_es f sm es in
+    Let als := mapM (subst_al_err f) als in
     Let: (sm, xs) := subst_lvals f sm xs in
-    ok (sm, MkI ii (Copn xs tg op es))
+    ok (sm, MkI ii (Copn xs tg op als es))
   | Cassgn x tg ty e =>
     Let e := subst_e f sm e in
     Let ty := subst_ty_err f ty in
@@ -290,8 +303,9 @@ Fixpoint subst_i f sm (i:instr) : result _ (subst_map * instr) :=
     ok (sm, MkI ii (Cassgn x tg ty e))
   | Cif b c1 c2 =>
     Let b := subst_e f sm b in
-    Let: (sm, c1) := fmapM (subst_i f) sm c1 in
-    Let: (sm, c2) := fmapM (subst_i f) sm c2 in
+    Let: (sm1, c1) := fmapM (subst_i f) sm c1 in
+    Let: (sm2, c2) := fmapM (subst_i f) sm c2 in
+    let sm := merge sm1 sm2 in
     ok (sm, MkI ii (Cif b c1 c2))
   | Cfor x r c =>
     Let: (sm, x) := subst_var_i f sm x in
@@ -344,7 +358,7 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
   let '(MkI iinfo ir) := i in
   match ir with
   | Cassgn _ _ _ _
-  | Copn _ _ _ _
+  | Copn _ _ _ _ _
   | Csyscall _ _ _
   | Cassert _
     => ok (Sv.union (read_i ir) X, [::i])
@@ -364,6 +378,7 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
   | Ccall xs fn als es =>
     let X := Sv.union (read_i ir) X in
     if ii_is_inline iinfo then
+      (* FIXME: update comment? *)
       (* we no longer rename the variables occurring in [fd], we rely on the
          compiler ensuring variable names are disjoint between functions *)
       Let fd := add_iinfo iinfo (get_fun p fn) in
