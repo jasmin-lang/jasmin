@@ -124,9 +124,16 @@ let i_loc l ls =
     stack_loc = ls
   }
 
-let i_loc0 l = i_loc l []
+let i_loc0 =
+  let memo = Hashtbl.create 137 in
+  fun loc ->
+  try Hashtbl.find memo loc with
+  | Not_found ->
+     let iloc = i_loc loc [] in
+     Hashtbl.add memo loc iloc;
+     iloc
 
-let of_loc a = i_loc0 (loc a)
+let of_loc a = i_loc (loc a) []
 
 let i_dummy = i_loc0 _dummy
 
