@@ -41,7 +41,7 @@ any pass, but the type system can be more precise after some step of compilation
   - `--doit`
 The usual leakage model for constant-time considers that only conditional instructions and load/store
 instructions leak. This option allows to consider a stronger model where non Data Independent Timing instructions
-leak. In this model, secret data can only be applied to Data Independent Timing instructions ([DOIT](https://www.intel.com/content/www/us/en/developer/articles/technical/software-security-guidance/best-practices/data-operand-independent-timing-isa-guidance.html) for Intel and [DIT](https://developer.arm.com/documentation/ddi0595/2020-12/AArch64-Registers/DIT--Data-Independent-Timing) for Arm).
+leak. In this model, secret data can only be applied to Data Independent Timing instructions ([DOIT](https://www.intel.com/content/www/us/en/developer/articles/technical/software-security-guidance/best-practices/data-operand-independent-timing-isa-guidance.html) for Intel, [DIT](https://developer.arm.com/documentation/ddi0595/2020-12/AArch64-Registers/DIT--Data-Independent-Timing) for Arm and [Zkt](https://github.com/riscv/riscv-crypto/blob/main/doc/scalar/riscv-crypto-scalar-zkt.adoc) for RISC-V).
   - `--infer`
 Infer security contracts. This can be used for development purpose but should not be used for production.
   - `--print`
@@ -287,6 +287,10 @@ Third-party references:
 
 - [List of DOIT instructions on Intel platforms](https://www.intel.com/content/www/us/en/developer/articles/technical/software-security-guidance/resources/data-operand-independent-timing-instructions.html)
 - [ARM documentation for DIT](https://developer.arm.com/documentation/ddi0601/2025-06/AArch64-Registers/DIT--Data-Independent-Timing)
+- [RISC-V Zkt extension, “Data-Independent Execution Latency Subset”](https://github.com/riscv/riscv-crypto/blob/main/doc/scalar/riscv-crypto-scalar-zkt.adoc)
+  (RISC-V has no run-time flag akin to Intel DOIT or ARM DIT: Zkt is an
+  attestation, by the hardware vendor, that the listed instructions have
+  data-independent latency)
 
 More details can be found in the following paper:
 

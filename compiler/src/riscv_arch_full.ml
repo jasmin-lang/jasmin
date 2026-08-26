@@ -24,11 +24,19 @@ module Riscv_core = struct
   let alloc_stack_need_extra sz =
     not (Riscv_params_core.is_arith_small (Conv.cz_of_z sz))
 
-  (* FIXME RISCV: check if everything is ct *)
+  (* Division and remainder have data-dependent latency on typical
+     implementations, and are explicitly excluded from the Zkt safe list of
+     the RISC-V specification ("Data-Independent Execution Latency Subset");
+     see the documentation in proofs/compiler/riscv_instr_decl.v.
+     Every other instruction is assumed to be constant-time, as on the other
+     architectures. *)
   let is_ct_asm_op (o : asm_op) =
     match o with
+    | Riscv_instr_decl.DIV | DIVU | REM | REMU -> false
     | _ -> true
 
+  (* All of the extra ops compile into CT instructions (no DIV/REM):
+     SWAP into xor, add_large_imm into lui/addi/add. *)
   let is_ct_asm_extra (_o : extra_op) = true
 
 end

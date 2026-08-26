@@ -41,11 +41,61 @@ Definition pp_name name args :=
   - J type: imm -> reg (e.g.: JAL, update PC)
   *)
 
-Definition RTypeInstruction ws semi jazz_name asm_name: instr_desc_t :=
+(* -------------------------------------------------------------------- *)
+(* Data operand independent timing (field [id_doit]).
+
+   Unlike x86 (Intel DOIT mode) and ARM (DIT bit), RISC-V has no
+   execution mode guaranteeing data operand independent timing.  The
+   reference is instead the ratified Zkt extension, "Data-Independent
+   Execution Latency Subset" (chapter Zkt of the RISC-V Cryptography
+   Extensions Volume I: Scalar & Entropy Source Instructions, also a
+   chapter of the unprivileged ISA manual;
+   https://github.com/riscv/riscv-crypto).  On a machine implementing
+   Zkt, the instructions of its safe list "do not leak information about
+   processed secret data through differences in execution latency".
+
+   We set [id_doit := DOIT] exactly for the instructions of the Zkt safe
+   list, restricted to the RV32IM subset modelled here:
+   - RVI: lui, auipc, addi, slti, sltiu, xori, ori, andi, slli, srli,
+     srai, add, sub, sll, slt, sltu, xor, srl, sra, or, and;
+   - RVM: mul, mulh, mulhu, mulhsu.
+   Division and remainder (div, divu, rem, remu) are deliberately
+   excluded from Zkt — the spec notes that "cryptographers typically
+   assume division to be variable-time" — hence [NOT_DOIT].  For the
+   same reason they are not constant-time either, see [is_ct_asm_op] in
+   compiler/src/riscv_arch_full.ml.
+
+   Assembler pseudo-instructions are classified according to their
+   canonical expansions, which only use Zkt-listed instructions:
+   MV -> addi, NOT -> xori, NEG -> sub, LI -> lui+addi,
+   LA -> auipc+addi.  (An assembler may substitute compressed forms;
+   those are either themselves Zkt-listed — c.mv, c.addi, c.lui, ... —
+   or, like c.li, only take immediate operands, i.e. program constants,
+   so they cannot leak secret data either way.)
+
+   Loads and stores are not in the Zkt list: their latency depends on
+   the address (state of the memory hierarchy).  Jasmin's leakage model
+   already leaks the address of every memory access, so checked programs
+   never index memory with secret data.  As on the other architectures
+   (Intel's DOIT list contains MOV, ARM's DIT covers LDR/STR), we
+   moreover assume that the latency of a memory access does not depend
+   on the transferred *values*, and mark LOAD and STORE as [DOIT].
+
+   Two caveats, both documented in the Zkt chapter:
+   - The latency requirement does not apply to HINT encodings of the
+     listed instructions (typically rd = x0).  Jasmin never emits such
+     encodings: x0 is not part of the declared register file
+     (cf. riscv_decl.v), so it is never the destination of an
+     instruction.
+   - Zkt only constrains machines that implement it; on other machines
+     no instruction carries any timing guarantee, and checking a program
+     under the DOIT policy is only meaningful for Zkt hardware. *)
+
+Definition RTypeInstruction ws semi jazz_name asm_name (doit : doit_t) : instr_desc_t :=
   let tin := [:: lreg; lword ws ] in
   {|
       id_valid := true;
-      id_doit := DOIT;
+      id_doit := doit;
       id_msb_flag := MSB_MERGE;
       id_tin := tin;
       id_in := [:: Ea 1; Ea 2 ];
@@ -64,11 +114,11 @@ Definition RTypeInstruction ws semi jazz_name asm_name: instr_desc_t :=
       id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
   |}.
 
-Definition ITypeInstruction chk_imm ws semi jazz_name asm_name : instr_desc_t :=
+Definition ITypeInstruction chk_imm ws semi jazz_name asm_name (doit : doit_t) : instr_desc_t :=
   let tin := [:: lreg; lword ws ] in
   {|
       id_valid := true;
-      id_doit := DOIT;
+      id_doit := doit;
       id_msb_flag := MSB_MERGE;
       (* imm are coded on 12 bits, not 32 *)
       id_tin := tin;
@@ -174,90 +224,90 @@ Notation ty_rr := (sem_ltuple [:: lreg; lreg ]) (only parsing).
 (* Arithmetic *)
 Definition riscv_add_semi (wn wm : ty_r) : ty_r := (wn + wm)%w.
 
-Definition riscv_ADD_instr : instr_desc_t := RTypeInstruction riscv_add_semi "ADD" "add".
+Definition riscv_ADD_instr : instr_desc_t := RTypeInstruction riscv_add_semi "ADD" "add" DOIT.
 Definition prim_ADD := ("ADD"%string, primM ADD).
 
-Definition riscv_ADDI_instr : instr_desc_t := ITypeInstruction_12s riscv_add_semi "ADDI" "addi".
+Definition riscv_ADDI_instr : instr_desc_t := ITypeInstruction_12s riscv_add_semi "ADDI" "addi" DOIT.
 Definition prim_ADDI := ("ADDI"%string, primM ADDI).
 
 
 Definition riscv_sub_semi (wn wm : ty_r) : ty_r := (wn - wm)%w.
 
-Definition riscv_SUB_instr : instr_desc_t := RTypeInstruction riscv_sub_semi "SUB" "sub".
+Definition riscv_SUB_instr : instr_desc_t := RTypeInstruction riscv_sub_semi "SUB" "sub" DOIT.
 Definition prim_SUB := ("SUB"%string, primM SUB).
 
 
 (* Set less *)
 Definition riscv_slt_semi (wn wm : ty_r) : ty_r := if (wlt Signed wn wm) then 1%w else 0%w.
 
-Definition riscv_SLT_instr : instr_desc_t := RTypeInstruction riscv_slt_semi "SLT" "slt".
+Definition riscv_SLT_instr : instr_desc_t := RTypeInstruction riscv_slt_semi "SLT" "slt" DOIT.
 Definition prim_SLT := ("SLT"%string, primM SLT).
 
-Definition riscv_SLTI_instr : instr_desc_t := ITypeInstruction_12s riscv_slt_semi "SLTI" "slti".
+Definition riscv_SLTI_instr : instr_desc_t := ITypeInstruction_12s riscv_slt_semi "SLTI" "slti" DOIT.
 Definition prim_SLTI := ("SLTI"%string, primM SLTI).
 
 
 Definition riscv_sltu_semi (wn wm : ty_r) : ty_r := if (wlt Unsigned wn wm) then 1%w else 0%w.
 
-Definition riscv_SLTU_instr : instr_desc_t := RTypeInstruction riscv_sltu_semi "SLTU" "sltu".
+Definition riscv_SLTU_instr : instr_desc_t := RTypeInstruction riscv_sltu_semi "SLTU" "sltu" DOIT.
 Definition prim_SLTU := ("SLTU"%string, primM SLTU).
 
-Definition riscv_SLTIU_instr : instr_desc_t := ITypeInstruction_12s riscv_sltu_semi "SLTIU" "sltiu".
+Definition riscv_SLTIU_instr : instr_desc_t := ITypeInstruction_12s riscv_sltu_semi "SLTIU" "sltiu" DOIT.
 Definition prim_SLTIU := ("SLTIU"%string, primM SLTIU).
 
 
 (* Logical *)
 Definition riscv_and_semi (wn wm : ty_r) : ty_r := wand wn wm.
 
-Definition riscv_AND_instr : instr_desc_t := RTypeInstruction riscv_and_semi "AND" "and".
+Definition riscv_AND_instr : instr_desc_t := RTypeInstruction riscv_and_semi "AND" "and" DOIT.
 Definition prim_AND := ("AND"%string, primM AND).
 
-Definition riscv_ANDI_instr : instr_desc_t := ITypeInstruction_12s riscv_and_semi "ANDI" "andi".
+Definition riscv_ANDI_instr : instr_desc_t := ITypeInstruction_12s riscv_and_semi "ANDI" "andi" DOIT.
 Definition prim_ANDI := ("ANDI"%string, primM ANDI).
 
 
 Definition riscv_or_semi (wn wm : ty_r) : ty_r := wor wn wm.
 
-Definition riscv_OR_instr : instr_desc_t := RTypeInstruction riscv_or_semi "OR" "or".
+Definition riscv_OR_instr : instr_desc_t := RTypeInstruction riscv_or_semi "OR" "or" DOIT.
 Definition prim_OR := ("OR"%string, primM OR).
 
-Definition riscv_ORI_instr : instr_desc_t := ITypeInstruction_12s riscv_or_semi "ORI" "ori".
+Definition riscv_ORI_instr : instr_desc_t := ITypeInstruction_12s riscv_or_semi "ORI" "ori" DOIT.
 Definition prim_ORI := ("ORI"%string, primM ORI).
 
 
 Definition riscv_xor_semi (wn wm : ty_r): ty_r := wxor wn wm.
 
-Definition riscv_XOR_instr : instr_desc_t := RTypeInstruction riscv_xor_semi "XOR" "xor".
+Definition riscv_XOR_instr : instr_desc_t := RTypeInstruction riscv_xor_semi "XOR" "xor" DOIT.
 Definition prim_XOR := ("XOR"%string, primM XOR).
 
-Definition riscv_XORI_instr : instr_desc_t := ITypeInstruction_12s riscv_xor_semi "XORI" "xori".
+Definition riscv_XORI_instr : instr_desc_t := ITypeInstruction_12s riscv_xor_semi "XORI" "xori" DOIT.
 Definition prim_XORI := ("XORI"%string, primM XORI).
 
 
 (* Shift *)
 Definition riscv_sll_semi (wn : ty_r) (wm : word U8) : ty_r := wshl wn (wunsigned (wand wm (wrepr U8 31))).
 
-Definition riscv_SLL_instr : instr_desc_t := RTypeInstruction riscv_sll_semi "SLL" "sll".
+Definition riscv_SLL_instr : instr_desc_t := RTypeInstruction riscv_sll_semi "SLL" "sll" DOIT.
 Definition prim_SLL := ("SLL"%string, primM SLL).
 
-Definition riscv_SLLI_instr : instr_desc_t := ITypeInstruction_5u riscv_sll_semi "SLLI" "slli".
+Definition riscv_SLLI_instr : instr_desc_t := ITypeInstruction_5u riscv_sll_semi "SLLI" "slli" DOIT.
 Definition prim_SLLI := ("SLLI"%string, primM SLLI).
 
 
 Definition riscv_srl_semi (wn : ty_r) (wm : word U8) : ty_r := wshr wn (wunsigned (wand wm (wrepr U8 31))).
 
-Definition riscv_SRL_instr : instr_desc_t := RTypeInstruction riscv_srl_semi "SRL" "srl".
+Definition riscv_SRL_instr : instr_desc_t := RTypeInstruction riscv_srl_semi "SRL" "srl" DOIT.
 Definition prim_SRL := ("SRL"%string, primM SRL).
 
-Definition riscv_SRLI_instr : instr_desc_t := ITypeInstruction_5u riscv_srl_semi "SRLI" "srli".
+Definition riscv_SRLI_instr : instr_desc_t := ITypeInstruction_5u riscv_srl_semi "SRLI" "srli" DOIT.
 Definition prim_SRLI := ("SRLI"%string, primM SRLI).
 
 Definition riscv_sra_semi (wn : ty_r) (wm : word U8) : ty_r := wsar wn (wunsigned (wand wm (wrepr U8 31))).
 
-Definition riscv_SRA_instr : instr_desc_t := RTypeInstruction riscv_sra_semi "SRA" "sra".
+Definition riscv_SRA_instr : instr_desc_t := RTypeInstruction riscv_sra_semi "SRA" "sra" DOIT.
 Definition prim_SRA := ("SRA"%string, primM SRA).
 
-Definition riscv_SRAI_instr : instr_desc_t := ITypeInstruction_5u riscv_sra_semi "SRAI" "srai".
+Definition riscv_SRAI_instr : instr_desc_t := ITypeInstruction_5u riscv_sra_semi "SRAI" "srai" DOIT.
 Definition prim_SRAI := ("SRAI"%string, primM SRAI).
 
 
@@ -270,7 +320,7 @@ Definition riscv_MV_instr : instr_desc_t :=
   let semi := riscv_MV_semi in
     {|
       id_valid := true;
-      id_doit := DOIT;
+      id_doit := DOIT; (* Expands to addi (Zkt-listed) *)
       id_msb_flag := MSB_MERGE;
       id_tin := tin;
       id_in := [:: Ea 1 ];
@@ -300,7 +350,7 @@ Definition riscv_LA_instr : instr_desc_t :=
   let semi := riscv_LA_semi in
     {|
       id_valid := true;
-      id_doit := DOIT;
+      id_doit := DOIT; (* Expands to auipc + addi (Zkt-listed) *)
       id_msb_flag := MSB_MERGE;
       id_tin := [:: lreg ];
       id_in := [:: Ec 1 ];
@@ -330,7 +380,7 @@ Definition riscv_LI_instr : instr_desc_t :=
   let semi := riscv_LI_semi in
     {|
       id_valid := true;
-      id_doit := DOIT;
+      id_doit := DOIT; (* Expands to lui + addi (Zkt-listed) *)
       id_msb_flag := MSB_MERGE;
       id_tin := tin;
       id_in := [:: Ea 1 ];
@@ -361,7 +411,7 @@ Definition riscv_NOT_instr : instr_desc_t :=
   let semi := riscv_NOT_semi in
     {|
       id_valid := true;
-      id_doit := DOIT;
+      id_doit := DOIT; (* Expands to xori (Zkt-listed) *)
       id_msb_flag := MSB_MERGE;
       id_tin := tin;
       id_in := [:: Ea 1 ];
@@ -391,7 +441,7 @@ Definition riscv_NEG_instr : instr_desc_t :=
   let semi := riscv_NEG_semi in
     {|
       id_valid := true;
-      id_doit := DOIT;
+      id_doit := DOIT; (* Expands to sub (Zkt-listed) *)
       id_msb_flag := MSB_MERGE;
       id_tin := tin;
       id_in := [:: Ea 1 ];
@@ -441,7 +491,7 @@ Definition riscv_LOAD_instr s ws : instr_desc_t :=
   let semi := @riscv_extend_semi s reg_size ws in
     {|
       id_valid := if s is Signed then (ws <= U32)%CMP else (ws <= U16)%CMP ;
-      id_doit := DOIT;
+      id_doit := DOIT; (* Assumed, not in Zkt: see the note above *)
       id_msb_flag := MSB_MERGE;
       id_tin := tin;
       id_in := [:: Eu 1 ];
@@ -475,7 +525,7 @@ Definition riscv_STORE_instr ws : instr_desc_t :=
   let semi := @riscv_extend_semi Unsigned ws ws in
     {|
       id_valid := (ws <= U32)%CMP;
-      id_doit := DOIT;
+      id_doit := DOIT; (* Assumed, not in Zkt: see the note above *)
       id_msb_flag := MSB_MERGE; (* ? *)
       id_tin := [:: lword ws ];
       id_in := [:: Ea 0 ];
@@ -499,19 +549,19 @@ Definition prim_STORE := ("STORE"%string, primP STORE).
 
 (* RISC-V 32M Multiply instructions (operators). *)
 Definition riscv_mul_semi (wn wm: ty_r) : ty_r := (wn * wm)%w.
-Definition riscv_MUL_instr : instr_desc_t := RTypeInstruction riscv_mul_semi "MUL" "mul".
+Definition riscv_MUL_instr : instr_desc_t := RTypeInstruction riscv_mul_semi "MUL" "mul" DOIT.
 Definition prim_MUL := ("MUL"%string, primM MUL).
 
 Definition riscv_mulh_semi (wn wm: ty_r) : ty_r := wmulhs wn wm.
-Definition riscv_MULH_instr : instr_desc_t := RTypeInstruction riscv_mulh_semi "MULH" "mulh".
+Definition riscv_MULH_instr : instr_desc_t := RTypeInstruction riscv_mulh_semi "MULH" "mulh" DOIT.
 Definition prim_MULH := ("MULH"%string, primM MULH).
 
 Definition riscv_mulhu_semi (wn wm: ty_r) : ty_r := wmulhu wn wm.
-Definition riscv_MULHU_instr : instr_desc_t := RTypeInstruction riscv_mulhu_semi "MULHU" "mulhu".
+Definition riscv_MULHU_instr : instr_desc_t := RTypeInstruction riscv_mulhu_semi "MULHU" "mulhu" DOIT.
 Definition prim_MULHU := ("MULHU"%string, primM MULHU).
 
 Definition riscv_mulhsu_semi (wn wm: ty_r) : ty_r := wmulhsu wn wm.
-Definition riscv_MULHSU_instr : instr_desc_t := RTypeInstruction riscv_mulhsu_semi "MULHSU" "mulhsu".
+Definition riscv_MULHSU_instr : instr_desc_t := RTypeInstruction riscv_mulhsu_semi "MULHSU" "mulhsu" DOIT.
 Definition prim_MULHSU := ("MULHSU"%string, primM MULHSU).
 
 
@@ -520,21 +570,21 @@ Definition prim_MULHSU := ("MULHSU"%string, primM MULHSU).
 (* Division by zero is specified, it must return all bits set *)
 Definition riscv_div_semi (wn wm: ty_r) : ty_r :=
   if wm == 0%w then (-1%w)%w else wdivi wn wm.
-Definition riscv_DIV_instr : instr_desc_t := RTypeInstruction riscv_div_semi "DIV" "div".
+Definition riscv_DIV_instr : instr_desc_t := RTypeInstruction riscv_div_semi "DIV" "div" NOT_DOIT. (* Not in Zkt *)
 Definition prim_DIV := ("DIV"%string, primM DIV).
 
 (* Division by zero is specified, it must return all bits set *)
 Definition riscv_divu_semi (wn wm: ty_r) : ty_r :=
   if wm == 0%w then (-1%w)%w else wdiv wn wm.
-Definition riscv_DIVU_instr : instr_desc_t := RTypeInstruction riscv_divu_semi "DIVU" "divu".
+Definition riscv_DIVU_instr : instr_desc_t := RTypeInstruction riscv_divu_semi "DIVU" "divu" NOT_DOIT. (* Not in Zkt *)
 Definition prim_DIVU := ("DIVU"%string, primM DIVU).
 
 Definition riscv_rem_semi (wn wm: ty_r) : ty_r := wmodi wn wm.
-Definition riscv_REM_instr : instr_desc_t := RTypeInstruction riscv_rem_semi "REM" "rem".
+Definition riscv_REM_instr : instr_desc_t := RTypeInstruction riscv_rem_semi "REM" "rem" NOT_DOIT. (* Not in Zkt *)
 Definition prim_REM := ("REM"%string, primM REM).
 
 Definition riscv_remu_semi (wn wm: ty_r) : ty_r := wmod wn wm.
-Definition riscv_REMU_instr : instr_desc_t := RTypeInstruction riscv_remu_semi "REMU" "remu".
+Definition riscv_REMU_instr : instr_desc_t := RTypeInstruction riscv_remu_semi "REMU" "remu" NOT_DOIT. (* Not in Zkt *)
 Definition prim_REMU := ("REMU"%string, primM REMU).
 
 
