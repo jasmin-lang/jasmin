@@ -1730,19 +1730,19 @@ Proof using cu.
   apply: check_esP_rel hes s1 s2 hR.
 Qed.
 
-Lemma wequiv_call_rel_eq_R_wa env d de de' d' ii1 xs1 fn1 als1 es1 ii2 xs2 fn2 als2 es2 :
-  (∀ d (s1 : estate env) (s2 : estate env), R d s1 s2 → escs s1 = escs s2 ∧ emem s1 = emem s2) →
-  (forall scs mem (s1 : estate env) (s2 : estate env), R de s1 s2 ->
+Lemma wequiv_call_rel_eq_R_wa env1 env2 d de de' d' ii1 xs1 fn1 als1 es1 ii2 xs2 fn2 als2 es2 :
+  (∀ d (s1 : estate env1) (s2 : estate env2), R d s1 s2 → escs s1 = escs s2 ∧ emem s1 = emem s2) →
+  (forall scs mem (s1 : estate env1) (s2 : estate env2), R de s1 s2 ->
      R de' (with_scs (with_mem s1 mem) scs) (with_scs (with_mem s2 mem) scs)) →
-  [seq eval env i | i <- als1] = [seq eval env i | i <- als2] ->
+  [seq eval env1 i | i <- als1] = [seq eval env2 i | i <- als2] ->
   check_es d es1 es2 de →
   check_lvals de' xs1 xs2 d' →
-  (∀ vals (s1 : estate env) (s2 : estate env) vs, R d s1 s2 →
+  (∀ vals (s1 : estate env1) (s2 : estate env2) vs, R d s1 s2 →
      sem_pre1 p1 fn1 vals (mk_fstate vs s1) = ok () → sem_pre2 p2 fn2 vals (mk_fstate vs s2) = ok ()) →
   wequiv_f_ii (fun _ _ vals1 vals2 fs1 fs2 => vals1 = vals2 /\ fs1 = fs2) ii1 ii2 fn1 fn2 (fun _ _ _ _ _ _ => eq) →
   (∀ vals vs fr,
     sem_post1 p1 fn1 vals vs fr = ok () → sem_post2 p2 fn2 vals vs fr = ok ()) →
-  wequiv (env1:=env) (env2:=env) (R d) [:: MkI ii1 (Ccall xs1 fn1 als1 es1)] [:: MkI ii2 (Ccall xs2 fn2 als2 es2)] (R d').
+  wequiv (env1:=env1) (env2:=env2) (R d) [:: MkI ii1 (Ccall xs1 fn1 als1 es1)] [:: MkI ii2 (Ccall xs2 fn2 als2 es2)] (R d').
 Proof using cu.
   move=> hsm hwith hvals hes hxs hpre hf hpost.
   apply wequiv_call_wa with (fun _ _ vals1 vals2 fs1 fs2 => vals1 = vals2 /\ fs1 = fs2) (fun _ _ _ _ _ _ => eq) eq eq.
@@ -2312,15 +2312,15 @@ Qed.
 
 Lemma wequiv_call_rel_eq_R
   {D : Type} [R : forall [env1 env2], D → estate1 env1 → estate2 env2 → Prop] {ce : Checker_e R} {cu : Checker_eq p1 p2 (R:=R)}
-  env d de de' d' ii1 xs1 fn1 als1 es1 ii2 xs2 fn2 als2 es2 :
-  (∀ d (s1 : estate1 env) (s2 : estate2 env), R d s1 s2 → escs s1 = escs s2 ∧ emem s1 = emem s2) →
-  (forall scs mem (s1 : estate1 env) (s2 : estate2 env), R de s1 s2 ->
+  env1 env2 d de de' d' ii1 xs1 fn1 als1 es1 ii2 xs2 fn2 als2 es2 :
+  (∀ d (s1 : estate1 env1) (s2 : estate2 env2), R d s1 s2 → escs s1 = escs s2 ∧ emem s1 = emem s2) →
+  (forall scs mem (s1 : estate1 env1) (s2 : estate2 env2), R de s1 s2 ->
      R de' (with_scs (with_mem s1 mem) scs) (with_scs (with_mem s2 mem) scs)) →
-  [seq eval env i | i <- als1] = [seq eval env i | i <- als2] ->
+  [seq eval env1 i | i <- als1] = [seq eval env2 i | i <- als2] ->
   check_es d es1 es2 de →
   check_lvals de' xs1 xs2 d' →
   wequiv_f_ii p1 p2 ev1 ev2 (fun _ _ vals1 vals2 fs1 fs2 => vals1 = vals2 /\ fs1 = fs2) ii1 ii2 fn1 fn2 (fun _ _ _ _ _ _ => eq) →
-  wequiv (env1:=env) (env2:=env) p1 p2 ev1 ev2 (R d) [:: MkI ii1 (Ccall xs1 fn1 als1 es1)] [:: MkI ii2 (Ccall xs2 fn2 als2 es2)] (R d').
+  wequiv (env1:=env1) (env2:=env2) p1 p2 ev1 ev2 (R d) [:: MkI ii1 (Ccall xs1 fn1 als1 es1)] [:: MkI ii2 (Ccall xs2 fn2 als2 es2)] (R d').
 Proof.
   move=> hscm hde' hvals hes hxs hf.
   by apply: (wequiv_call_rel_eq_R_wa (cu:=cu) hscm hde' hvals hes hxs _ hf).

@@ -349,42 +349,128 @@ Section TOTO.
     rewrite /get_global (no_var_tyP hnovar _ env2). done.
   Qed.
 
-  Lemma get_substP env1 env2 sm wdb x y (vm1 : Vm.t env1) (vm2 : Vm.t env2) :
-    (forall x y, Mvar.get sm.(m) x = Some y -> Vm.get vm1 x = Vm.get vm2 y) ->
-    get_subst sm x = ok y ->
-    get_var wdb vm1 x = get_var wdb vm2 y.
+  Record wf_sm_var f sm x y := {
+    wf_eval_atype : subst_ty f x.(vtype) = Some y.(vtype);
+    wf_vars : Sv.In y sm.(vars);
+    wf_neq : forall x' y', Mvar.get sm.(m) x' = Some y' -> x <> x' -> y <> y' }.
+
+  Definition wf_sm f sm :=
+    forall x y, Mvar.get sm.(m) x = Some y -> wf_sm_var f sm x y.
+
+  Record valid_sm env1 env2 X sm (vm1 : Vm.t env1) (vm2 : Vm.t env2) := {
+    valid_some : forall x y, Mvar.get sm.(m) x = Some y -> Vm.get vm1 x = Vm.get vm2 y;
+    valid_none : forall x, Mvar.get sm.(m) x = None -> Sv.In x X -> Vm.get vm1 x = Vm.get vm2 x }.
+
+  Definition has_no_var X sm :=
+    forall x, Sv.In x X -> Mvar.get sm.(m) x = None -> no_var_ty x.(vtype).
+
+  Lemma sm_add_varP f sm1 x sm2 X :
+    sm_add_var fresh_var_ident f sm1 x = ok sm2 ->
+    wf_sm f sm1 /\ has_no_var X sm1 ->
+    wf_sm f sm2 /\ has_no_var (Sv.add x X) sm2.
   Proof.
-    move=> H.
-    rewrite /get_subst.
-    case hget: Mvar.get => [{}y|//] [<-].
-    rewrite /get_var (H _ _ hget) //.
+    rewrite /sm_add_var.
+    case: ifP => hnovar.
+    + move=> [<-] [hwf hno].
+      split=> //=.
+      move=> x' /Sv.add_spec [].
+      + by move=> -> _.
+      by eauto.
+    rewrite /subst_ty_err.
+    t_xrbindP=> ty hty /Sv_memP hnin <- [hwf hno].
+    split=> /=; last first.
+    + move=> x' /=.
+      rewrite Mvar.setP.
+      case: eqP => // ?.
+      move=> /Sv.add_spec []; first by congruence.
+      by eauto.
+    move=> x' y' /=.
+    rewrite Mvar.setP.
+    case: eqP.
+    + move=> ? [?]; subst x' y'.
+      split=> //=.
+      + by apply Sv.add_spec; left.
+      move=> x' y'.
+      rewrite Mvar.setP.
+      case: eqP => // hneq hget' _.
+      have [_ h _] := hwf _ _ hget'.
+      congruence.
+    move=> hneq hget.
+    have [h1 h2 h3] := hwf _ _ hget.
+    split=> //=.
+    + by apply Sv.add_spec; right.
+    move=> x'' y''.
+    rewrite Mvar.setP.
+    case: eqP.
+    + move=> ? [?]; subst x'' y''.
+      congruence.
+    by eauto.
   Qed.
 
-  Lemma get_subst_iP env1 env2 sm wdb x y (vm1 : Vm.t env1) (vm2 : Vm.t env2) :
-    (forall x y, Mvar.get sm.(m) x = Some y -> Vm.get vm1 x = Vm.get vm2 y) ->
-    get_subst_i sm x = ok y ->
-    get_var wdb vm1 x = get_var wdb vm2 y.
+  Lemma create_smP f X sm :
+    create_sm fresh_var_ident f X = ok sm ->
+    wf_sm f sm /\ has_no_var X sm.
   Proof.
-    move=> H.
-    rewrite /get_subst_i.
-    t_xrbindP=> ? hsubst <- /=.
-    by apply (get_substP _ H hsubst).
+    rewrite /create_sm. t_xrbindP=> {}sm + <-.
+    move: sm.
+    apply SvP.MP.fold_rec_bis.
+    + move=> ??? heq h sm /h [h1 h2].
+      split=> //. move=> ?. rewrite -heq. by eauto.
+    + move=> _ [<-].
+      split=> //.
+      by move=> ? /Sv.empty_spec.
+    move=> x ???? h.
+    t_xrbindP=> _ sm /h{}h sm' hadd <-.
+    apply: sm_add_varP hadd h.
   Qed.
 
-  Lemma get_gsubstP env1 env2 sm wdb gd x y (vm1 : Vm.t env1) (vm2 : Vm.t env2) :
-    (forall x y, Mvar.get sm.(m) x = Some y -> Vm.get vm1 x = Vm.get vm2 y) ->
-    get_gsubst sm x = ok y ->
+  Section SM.
+
+  Context (l : seq (Uint63.int * Ident.ident)) (als : seq array_length).
+  Context (X : Sv.t) (sm : subst_map).
+  Hypothesis hwf : wf_sm (assoc (zip [seq i.1 | i <- l] als)) sm.
+  Hypothesis hno : has_no_var X sm.
+  Hypothesis hdisjoint : disjoint X sm.(vars).
+
+  Lemma subst_varP env1 env2 wdb x (vm1 : Vm.t env1) (vm2 : Vm.t env2) :
+    valid_sm X sm vm1 vm2 ->
+    Sv.In x X ->
+    get_var wdb vm1 x = get_var wdb vm2 (subst_var sm x).
+  Proof.
+    move=> hvalid hin.
+    rewrite /subst_var.
+    case hget: Mvar.get => [y|].
+    + by rewrite /get_var (hvalid.(valid_some) hget).
+    by rewrite /get_var hvalid.(valid_none).
+  Qed.
+
+  Lemma subst_var_iP env1 env2 wdb (x:var_i) (vm1 : Vm.t env1) (vm2 : Vm.t env2) :
+    valid_sm X sm vm1 vm2 ->
+    Sv.In x X ->
+    get_var wdb vm1 x = get_var wdb vm2 (subst_var_i sm x).
+  Proof.
+    move=> hvalid hin.
+    rewrite /subst_var_i /=.
+    by apply (subst_varP _ hvalid hin).
+  Qed.
+
+  Lemma subst_gvarP env1 env2 wdb gd x y (vm1 : Vm.t env1) (vm2 : Vm.t env2) :
+    valid_sm X sm vm1 vm2 ->
+    Sv.Subset (read_gvar x) X ->
+    subst_gvar sm x = ok y ->
     get_gvar wdb gd vm1 x = get_gvar wdb gd vm2 y.
   Proof.
-    move=> H.
-    rewrite /get_gsubst /get_gvar !is_lvar_is_glob.
+    move=> hvalid hsub.
+    rewrite /subst_gvar /get_gvar !is_lvar_is_glob.
     case hg: is_glob => /=.
     + t_xrbindP=> hnovar <-.
       rewrite hg /=.
       by apply no_var_ty_get_global.
-    t_xrbindP=> ? hsubst <- /=.
-    move: hg; rewrite /is_glob /= => -> /=.
-    by apply (get_subst_iP _ H hsubst).
+    t_xrbindP=> <- /=.
+    move: (hg); rewrite /is_glob /= => -> /=.
+    apply (subst_var_iP _ hvalid).
+    move: hsub; rewrite /read_gvar is_lvar_is_glob hg /=.
+    clear; SvD.fsetdec.
   Qed.
 
   (* copied from constant_prop_proof *)
@@ -412,292 +498,325 @@ Proof.
   by case => // [ ws pe | len ]; rewrite /sem_opN /=; rewrite -> !map_nseq.
 Qed.
 
-  Lemma subst_eP env l als e1 e2 sm wdb (s1 : estate (create_env l [seq eval env i | i <- als])) (vm2 : Vm.t env) gd :
-    (forall x y, Mvar.get sm.(m) x = Some y -> Vm.get s1.(evm) x = Vm.get vm2 y) ->
+  Lemma subst_eP env e1 e2 wdb (s1 : estate (create_env l [seq eval env i | i <- als])) (vm2 : Vm.t env) gd :
+    valid_sm X sm s1.(evm) vm2 ->
+    Sv.Subset (read_e e1) X ->
     subst_e (assoc (zip [seq i.1 | i <- l] als)) sm e1 = ok e2 ->
     sem_pexpr wdb gd s1 e1 = sem_pexpr wdb gd (with_vm s1 vm2) e2.
   Proof.
-    move=> H.
+    move=> hvalid.
     suff: [elaborate (forall e1,
+      Sv.Subset (read_e e1) X ->
       forall e2,
       subst_e (assoc (zip [seq i.1 | i <- l] als)) sm e1 = ok e2 ->
       sem_pexpr wdb gd s1 e1 = sem_pexpr wdb gd (with_vm s1 vm2) e2) /\
       (forall es1,
+      Sv.Subset (read_es es1) X ->
       forall es2,
       subst_es (assoc (zip [seq i.1 | i <- l] als)) sm es1 = ok es2 ->
       sem_pexprs wdb gd s1 es1 = sem_pexprs wdb gd (with_vm s1 vm2) es2)].
-    + move=> [+ _]. apply.
+    + move=> [+ _]. eauto.
     apply: pexprs_ind_pair => {e1 e2}; split.
-    + by move=> es2 /= [<-] /=.
-    + move=> e ihe es ihes es2 /=.
-      by t_xrbindP=> {}e /ihe{ihe} -> {}es /ihes{ihes} -> <- /=.
-    + by move=> z _ /= [<-] /=.
-    + by move=> b _ /= [<-] /=.
-    + move=> ws n ? /=. rewrite /subst_al_err.
-      t_xrbindP=> n' hn <- /=.
+    + by move=> _ es2 /= [<-] /=.
+    + move=> e ihe es ihes /=.
+      rewrite read_es_cons => hsub.
+      t_xrbindP=> _ e' he es' hes <- /=.
+      rewrite (ihe _ _ he); last first.
+      + clear -hsub; SvD.fsetdec.
+      rewrite (ihes _ _ hes) //.
+      clear -hsub; SvD.fsetdec.
+    + by move=> z _ _ /= [<-] /=.
+    + by move=> b _ _ /= [<-] /=.
+    + move=> ws n _ /=. rewrite /subst_al_err.
+      t_xrbindP=> _ n' hn <- /=.
       rewrite (subst_alP _ hn). done.
-    + move=> x ? /=.
-      t_xrbindP=> ? hsubst <- /=.
-      by apply (get_gsubstP _ _ H hsubst).
+    + move=> x /=. rewrite read_e_var => hsub.
+      t_xrbindP=> _ x' hsubst <- /=.
+      apply (subst_gvarP _ _ hvalid) => //.
     + move=> al aa ws x e ih /=.
-      t_xrbindP=> ?? hsubst e' /ih{}ih <- /=.
-      have -> := get_gsubstP _ _ H hsubst.
-      case: get_gvar => // -[] //= len a.
-      rewrite ih. done.
-    + move=> aa ws len x e ih /=. rewrite /subst_al_err.
+      rewrite read_e_Pget => hsub.
+      t_xrbindP=> _ x' hx e' he <- /=.
+      rewrite (subst_gvarP _ _ hvalid _ hx); last first.
+      + clear -hsub; SvD.fsetdec.
+      rewrite (ih _ _ he) //.
+      clear -hsub; SvD.fsetdec.
+    + move=> aa ws len x e ih /=.
+      rewrite read_e_Psub => hsub.
+      rewrite /subst_al_err.
       t_xrbindP=> _ len' hlen x' hx e' he <- /=.
-      by rewrite (get_gsubstP _ _ H hx) (ih _ he) (subst_alP _ hlen).
+      rewrite (subst_gvarP _ _ hvalid _ hx) ; last first.
+      + clear -hsub; SvD.fsetdec.
+      rewrite (ih _ _ he); last first.
+      + clear -hsub; SvD.fsetdec.
+      by rewrite (subst_alP _ hlen).
     + move=> al ws e ih /=.
+      rewrite read_e_Pload => hsub.
       t_xrbindP=> _ e' he <- /=.
-      by rewrite (ih _ he).
+      by rewrite (ih hsub _ he).
     + move=> o e ih /=.
+      rewrite read_e_Papp1 => hsub.
       t_xrbindP=> _ e' he <- /=.
-      by rewrite (ih _ he) (sem_sop1_any_env _ env).
+      by rewrite (ih hsub _ he) (sem_sop1_any_env _ env).
     + move=> o e1 ih1 e2 ih2 /=.
+      rewrite read_e_Papp2 => hsub.
       t_xrbindP=> _ e1' he1 e2' he2 <- /=.
-      by rewrite (ih1 _ he1) (ih2 _ he2) (sem_sop2_any_env _ env).
+      rewrite (ih1 _ _ he1); last first.
+      + clear -hsub; SvD.fsetdec.
+      rewrite (ih2 _ _ he2); last first.
+      + clear -hsub; SvD.fsetdec.
+      by rewrite (sem_sop2_any_env _ env).
     + move=> o es ih /=.
+      move=> hsub.
       t_xrbindP=> _ es' hes <- /=.
-      by rewrite -!/(sem_pexprs _ _ _) (ih _ hes) (sem_opN_any_env _ env).
+      by rewrite -!/(sem_pexprs _ _ _) (ih hsub _ hes) (sem_opN_any_env _ env).
     move=> t b ihb e1 ih1 e2 ih2 /=.
+    rewrite read_e_Pif => hsub.
     rewrite /subst_ty_err.
     t_xrbindP=> _ ty hty b' hb e1' he1 e2' he2 <- /=.
-    by rewrite (ihb _ hb) (ih1 _ he1) (ih2 _ he2) (subst_tyP _ hty).
+    rewrite (ihb _ _ hb); last first.
+    + clear -hsub; SvD.fsetdec.
+    rewrite (ih1 _ _ he1); last first.
+    + clear -hsub; SvD.fsetdec.
+    rewrite (ih2 _ _ he2); last first.
+    + clear -hsub; SvD.fsetdec.
+    by rewrite (subst_tyP _ hty).
   Qed.
 
-  Lemma subst_esP env l als es1 es2 sm wdb (s1 : estate (create_env l [seq eval env i | i <- als])) (vm2 : Vm.t env) gd :
-    (forall x y, Mvar.get sm.(m) x = Some y -> Vm.get s1.(evm) x = Vm.get vm2 y) ->
+  (* FIXME: factor out *)
+  Lemma subst_esP env es1 es2 wdb (s1 : estate (create_env l [seq eval env i | i <- als])) (vm2 : Vm.t env) gd :
+    valid_sm X sm s1.(evm) vm2 ->
+    Sv.Subset (read_es es1) X ->
     subst_es (assoc (zip [seq i.1 | i <- l] als)) sm es1 = ok es2 ->
     sem_pexprs wdb gd s1 es1 = sem_pexprs wdb gd (with_vm s1 vm2) es2.
   Proof.
-    move=> H.
+    move=> hvalid.
     suff: [elaborate (forall e1,
+      Sv.Subset (read_e e1) X ->
       forall e2,
       subst_e (assoc (zip [seq i.1 | i <- l] als)) sm e1 = ok e2 ->
       sem_pexpr wdb gd s1 e1 = sem_pexpr wdb gd (with_vm s1 vm2) e2) /\
       (forall es1,
+      Sv.Subset (read_es es1) X ->
       forall es2,
       subst_es (assoc (zip [seq i.1 | i <- l] als)) sm es1 = ok es2 ->
       sem_pexprs wdb gd s1 es1 = sem_pexprs wdb gd (with_vm s1 vm2) es2)].
-    + move=> [_ +]. apply.
+    + move=> [_ +]. eauto.
     apply: pexprs_ind_pair => {es1 es2}; split.
-    + by move=> es2 /= [<-] /=.
-    + move=> e ihe es ihes es2 /=.
-      by t_xrbindP=> {}e /ihe{ihe} -> {}es /ihes{ihes} -> <- /=.
-    + by move=> z _ /= [<-] /=.
-    + by move=> b _ /= [<-] /=.
-    + move=> ws n ? /=. rewrite /subst_al_err.
-      t_xrbindP=> n' hn <- /=.
+    + by move=> _ es2 /= [<-] /=.
+    + move=> e ihe es ihes /=.
+      rewrite read_es_cons => hsub.
+      t_xrbindP=> _ e' he es' hes <- /=.
+      rewrite (ihe _ _ he); last first.
+      + clear -hsub; SvD.fsetdec.
+      rewrite (ihes _ _ hes) //.
+      clear -hsub; SvD.fsetdec.
+    + by move=> z _ _ /= [<-] /=.
+    + by move=> b _ _ /= [<-] /=.
+    + move=> ws n _ /=. rewrite /subst_al_err.
+      t_xrbindP=> _ n' hn <- /=.
       rewrite (subst_alP _ hn). done.
-    + move=> x ? /=.
-      t_xrbindP=> ? hsubst <- /=.
-      by apply (get_gsubstP _ _ H hsubst).
+    + move=> x /=. rewrite read_e_var => hsub.
+      t_xrbindP=> _ x' hsubst <- /=.
+      apply (subst_gvarP _ _ hvalid) => //.
     + move=> al aa ws x e ih /=.
-      t_xrbindP=> ?? hsubst e' /ih{}ih <- /=.
-      have -> := get_gsubstP _ _ H hsubst.
-      case: get_gvar => // -[] //= len a.
-      rewrite ih. done.
-    + move=> aa ws len x e ih /=. rewrite /subst_al_err.
+      rewrite read_e_Pget => hsub.
+      t_xrbindP=> _ x' hx e' he <- /=.
+      rewrite (subst_gvarP _ _ hvalid _ hx); last first.
+      + clear -hsub; SvD.fsetdec.
+      rewrite (ih _ _ he) //.
+      clear -hsub; SvD.fsetdec.
+    + move=> aa ws len x e ih /=.
+      rewrite read_e_Psub => hsub.
+      rewrite /subst_al_err.
       t_xrbindP=> _ len' hlen x' hx e' he <- /=.
-      by rewrite (get_gsubstP _ _ H hx) (ih _ he) (subst_alP _ hlen).
+      rewrite (subst_gvarP _ _ hvalid _ hx) ; last first.
+      + clear -hsub; SvD.fsetdec.
+      rewrite (ih _ _ he); last first.
+      + clear -hsub; SvD.fsetdec.
+      by rewrite (subst_alP _ hlen).
     + move=> al ws e ih /=.
+      rewrite read_e_Pload => hsub.
       t_xrbindP=> _ e' he <- /=.
-      by rewrite (ih _ he).
+      by rewrite (ih hsub _ he).
     + move=> o e ih /=.
+      rewrite read_e_Papp1 => hsub.
       t_xrbindP=> _ e' he <- /=.
-      by rewrite (ih _ he) (sem_sop1_any_env _ env).
+      by rewrite (ih hsub _ he) (sem_sop1_any_env _ env).
     + move=> o e1 ih1 e2 ih2 /=.
+      rewrite read_e_Papp2 => hsub.
       t_xrbindP=> _ e1' he1 e2' he2 <- /=.
-      by rewrite (ih1 _ he1) (ih2 _ he2) (sem_sop2_any_env _ env).
+      rewrite (ih1 _ _ he1); last first.
+      + clear -hsub; SvD.fsetdec.
+      rewrite (ih2 _ _ he2); last first.
+      + clear -hsub; SvD.fsetdec.
+      by rewrite (sem_sop2_any_env _ env).
     + move=> o es ih /=.
+      move=> hsub.
       t_xrbindP=> _ es' hes <- /=.
-      by rewrite -!/(sem_pexprs _ _ _) (ih _ hes) (sem_opN_any_env _ env).
+      by rewrite -!/(sem_pexprs _ _ _) (ih hsub _ hes) (sem_opN_any_env _ env).
     move=> t b ihb e1 ih1 e2 ih2 /=.
+    rewrite read_e_Pif => hsub.
     rewrite /subst_ty_err.
     t_xrbindP=> _ ty hty b' hb e1' he1 e2' he2 <- /=.
-    by rewrite (ihb _ hb) (ih1 _ he1) (ih2 _ he2) (subst_tyP _ hty).
+    rewrite (ihb _ _ hb); last first.
+    + clear -hsub; SvD.fsetdec.
+    rewrite (ih1 _ _ he1); last first.
+    + clear -hsub; SvD.fsetdec.
+    rewrite (ih2 _ _ he2); last first.
+    + clear -hsub; SvD.fsetdec.
+    by rewrite (subst_tyP _ hty).
   Qed.
 
-  Record wf_sm_var sm env1 env2 (vm1 : Vm.t env1) (vm2 : Vm.t env2) x y := {
-    wf_get_var : Vm.get vm1 x = Vm.get vm2 y;
-    wf_eval_atype : eval_atype env1 x.(vtype) = eval_atype env2 y.(vtype);
-    wf_vars : Sv.In y sm.(vars);
-    wf_neq : forall x' y', Mvar.get sm.(m) x' = Some y' -> x <> x' -> y <> y' }.
-
-  Definition wf_sm env1 env2 sm (vm1 : Vm.t env1) (vm2 : Vm.t env2) :=
-    forall x y, Mvar.get sm.(m) x = Some y -> wf_sm_var sm vm1 vm2 x y.
-
-  (* FIXME: the check on the types is just a fast path, we'd like to reason just once *)
-  Lemma subst_var_iP env l als (x1 x2:var_i) sm1 sm2 wdb (s1 : estate (create_env l [seq eval env i | i <- als])) (vm2 : Vm.t env) v s1' :
-    wf_sm sm1 s1.(evm) vm2 ->
-    subst_var_i fresh_var_ident (assoc (zip [seq i.1 | i <- l] als)) sm1 x1 = ok (sm2, x2) ->
-    write_var wdb x1 v s1 = ok s1' ->
-    exists2 vm2', write_var wdb x2 v (with_vm s1 vm2) = ok (with_vm s1' vm2')
-      & wf_sm sm2 s1'.(evm) vm2'.
-  Proof.
-    move=> hwf.
+  Lemma subst_var_iP_w env (x:var_i) wdb (s1 : estate (create_env l [seq eval env i | i <- als])) (vm2 : Vm.t env) v s1' :
+    valid_sm X sm s1.(evm) vm2 ->
+    Sv.In x X ->
+    write_var wdb x v s1 = ok s1' ->
+    exists2 vm2', write_var wdb (subst_var_i sm x) v (with_vm s1 vm2) = ok (with_vm s1' vm2')
+      & valid_sm X sm s1'.(evm) vm2'.
+  Proof using hwf hno hdisjoint.
+    move=> hvalid hinx.
     rewrite /subst_var_i /subst_var.
-    case hget: Mvar.get => [y1|] /=.
-    + move=> [<- <-].
-      rewrite /write_var /set_var /=.
+    case hget: Mvar.get => [y|] /=.
+    + rewrite /write_var /set_var /=.
       t_xrbindP=> vm1' -> htr <- <- /=.
-      have [H1 H2 H3 H4] := hwf _ _ hget.
-      rewrite -H2 htr /=.
+      rewrite (subst_tyP _ (hwf hget).(wf_eval_atype)) htr /=.
       eexists; first by reflexivity.
-      move=> x y hget'.
-      split.
-      + move=> /=. rewrite Vm.setP.
+      have [h1 h2] := hvalid.
+      split=> /=.
+      + move=> x' y' hget'.
+        rewrite Vm.setP.
         case: eqP.
-        + move=> ?; subst x. have: y = y1 by congruence. move=> ?; subst y.
-          rewrite Vm.setP_eq. rewrite H2. done.
-        move=> hneq.
-        rewrite Vm.setP_neq. by apply (hwf _ _ hget').
-        apply /eqP. have := H4 _ _ hget'. eauto.
-      + by apply (hwf _ _ hget').
-      + by apply (hwf _ _ hget').
-      by apply (hwf _ _ hget').
-    + rewrite /subst_ty_err.
-      t_xrbindP=> -[sm' x1'] ty hty.
-      case: eqP.
-      + move=> ?; subst ty.
-        t_xrbindP=> hnmem <- <- <- <-.
-        rewrite /write_var /set_var.
-        t_xrbindP=> ? -> /=. have := subst_tyP _ hty. move=> <-. move=> -> <- <- /=.
-        eexists; first by reflexivity.
-        move=> x y /=.
-        rewrite Mvar.setP. case: eqP.
-        + move=> ? [?]; subst x y.
-          split=> /=.
-          + rewrite !Vm.setP_eq. rewrite (subst_tyP env hty). done.
-          + by rewrite (subst_tyP env hty).
-          + clear; SvD.fsetdec.
-          move=> x y. rewrite Mvar.setP. case: eqP.
-          + move=> ? [?]; subst x y. done.
-          move=> _ hget'.
-          have [_ _ ? _] := hwf _ _ hget'. move: hnmem => /Sv_memP. congruence.
-        move=> ? hget'. have [H1 H2 H3 H4] := hwf _ _ hget'.
-        split=> //=.
-        + rewrite !Vm.setP_neq //=.
-          + apply /eqP. move: hnmem => /Sv_memP. congruence.
-          apply /eqP. done.
-        + clear -H3; SvD.fsetdec.
-        move=> x' y'. rewrite Mvar.setP. case: eqP.
-        + move=> ? [?]; subst. move: hnmem => /Sv_memP. congruence.
-        eauto.
-      move=> _.
-      t_xrbindP=> /Sv_memP hnin <- <- <- <-.
-      rewrite /write_var /set_var. t_xrbindP=> ? ->.
-      rewrite (subst_tyP _ hty). move=> -> <- <- /=.
-      eexists; first by reflexivity.
-      move=> x y /=. rewrite Mvar.setP.
-      case: eqP.
-      + move=> ? [?]; subst. split=> /=.
-        + rewrite !Vm.setP_eq. rewrite (subst_tyP _ hty). done.
-        + rewrite (subst_tyP _ hty). done.
-        + clear; SvD.fsetdec.
-        + move=> x y. rewrite Mvar.setP. case: eqP.
-          + move=> ? [?]; subst x y. done.
-          move=> _ hget'.
-          have [_ _ ? _] := hwf _ _ hget'. congruence.
-        move=> ? hget'. have [H1 H2 H3 H4] := hwf _ _ hget'.
-        split=> //=.
-        + rewrite !Vm.setP_neq //=.
-          + apply /eqP. congruence.
-          apply /eqP. done.
-        + clear -H3; SvD.fsetdec.
-        move=> x' y'. rewrite Mvar.setP. case: eqP.
-        + move=> ? [?]; subst. congruence.
-        eauto.
+        + move=> ?; subst x'.
+          have ?: y = y' by congruence. subst y'.
+          rewrite Vm.setP_eq.
+          by rewrite (subst_tyP _ (hwf hget).(wf_eval_atype)).
+        move=> ?.
+        rewrite Vm.setP_neq. by eauto.
+        apply /eqP. have := (hwf hget).(wf_neq) hget'. eauto.
+      move=> z hnone hinz.
+      rewrite Vm.setP_neq; last first.
+      + apply /eqP. congruence.
+      rewrite Vm.setP_neq; last first.
+      + apply /eqP. have := (hwf hget).(wf_vars).
+        move: hdisjoint => /disjointP /(_ _ hinz). congruence.
+      by eauto.
+    rewrite /write_var /set_var.
+    t_xrbindP=> ? -> /=.
+    rewrite (no_var_tyP (hno hinx hget) _ env). move=> ->.
+    move=> <- <- /=.
+    eexists; first by reflexivity.
+    have [h1 h2] := hvalid.
+    split=> /=.
+    + move=> x' y' hget'.
+      rewrite Vm.setP_neq; last first.
+      + apply /eqP. congruence.
+      rewrite Vm.setP_neq; last first.
+      + apply /eqP. have := (hwf hget').(wf_vars).
+       move: hdisjoint => /disjointP /(_ _ hinx). congruence.
+      by eauto.
+    move=> x' hget' hinx'.
+    rewrite !Vm.setP.
+    case: eqP.
+    + move=> ?; subst x'.
+      rewrite (no_var_tyP (hno hinx' hget) _ env). done.
+    by eauto.
   Qed.
 
-  Lemma subst_lvalP env l als lv1 lv2 sm1 sm2 wdb (s1 : estate (create_env l [seq eval env i | i <- als])) (vm2 : Vm.t env) gd v s1' :
-    wf_sm sm1 s1.(evm) vm2 ->
-    subst_lval fresh_var_ident (assoc (zip [seq i.1 | i <- l] als)) sm1 lv1 = ok (sm2, lv2) ->
+  Lemma subst_lvalP env lv1 lv2 wdb (s1 : estate (create_env l [seq eval env i | i <- als])) (vm2 : Vm.t env) gd v s1' :
+    valid_sm X sm s1.(evm) vm2 ->
+    Sv.Subset (vars_lval lv1) X ->
+    subst_lval (assoc (zip [seq i.1 | i <- l] als)) sm lv1 = ok lv2 ->
     write_lval wdb gd lv1 v s1 = ok s1' ->
-    exists2 vm2', write_lval wdb gd lv2 v (with_vm s1 vm2) = ok (with_vm s1' vm2') & wf_sm sm2 s1'.(evm) vm2'.
-  Proof.
-    move=> hwf.
+    exists2 vm2',
+      write_lval wdb gd lv2 v (with_vm s1 vm2) = ok (with_vm s1' vm2')
+      & valid_sm X sm s1'.(evm) vm2'.
+  Proof using hwf hno hdisjoint.
+    move=> hvalid.
     case: lv1 => /=.
     + rewrite /subst_ty_err.
-      t_xrbindP=> ? ty ty' hty <- <- hw /=.
-      move: hw.
+      t_xrbindP=> ? ty _ ty' hty <- /=.
       rewrite /write_none (subst_tyP _ hty). t_xrbindP=> -> -> <-.
       exists vm2. done. done.
-    + t_xrbindP=> x [{}sm2 x'] hx [<- <-] /=.
-      by apply: subst_var_iP hwf hx.
-    + t_xrbindP=> al ws vi e e' he <- <- /=.
-      have h: forall x y, Mvar.get sm1.(m) x = Some y -> (evm s1).[x] = vm2.[y].
-      + move=> ?? /hwf [] //.
-      rewrite (subst_eP _ _ h he).
+    + move=> x hsub.
+      t_xrbindP=> <- /=.
+      apply: subst_var_iP_w => //.
+      move: hsub. rewrite vars_lval_Lvar. clear; SvD.fsetdec.
+    + t_xrbindP=> al ws vi e hsub e' he <- /=.
+      rewrite (subst_eP _ _ hvalid _ he); last first.
+      + move: hsub. rewrite /read_e /vars_lval /=. clear; SvD.fsetdec.
       move=> ?? -> /= -> ? -> ? /= -> <- /=.
       eexists; first by reflexivity.
       done.
-    + t_xrbindP=> al aa ws x e x' hx e' he <- <- /=.
+    + t_xrbindP=> al aa ws x e hsub e' he <- /=.
       apply: on_arr_varP.
       move=> len a hlen.
-      have h: forall x y, Mvar.get sm1.(m) x = Some y -> (evm s1).[x] = vm2.[y].
-      + move=> ?? /hwf [] //.
-      rewrite (get_subst_iP _ h hx) => ->.
-      have -> := subst_eP _ _ h he.
+      rewrite (subst_varP _ hvalid); last first.
+      + move: hsub.
+        rewrite /vars_lval /=. clear; SvD.fsetdec.
+      move=> ->.
+      have -> := subst_eP _ _ hvalid _ he; last first.
+      + move: hsub.
+        rewrite /vars_lval /= read_eE. clear; SvD.fsetdec.
       t_xrbindP=> ?? -> /= -> ? -> ? /= -> /= hw.
-      have : subst_var_i fresh_var_ident (assoc (zip [seq i.1 | i <- l] als)) sm1 x = ok (sm1, x').
-      + rewrite /subst_var_i /subst_var.
-        move: hx; rewrite /get_subst_i /get_subst.
-        case: Mvar.get => //= ? [<-]. done.
-      move=> h_.
-      have := subst_var_iP hwf h_ hw. done.
-    t_xrbindP=> aa ws len x e len' hlen x' hx e' he <- <- /=.
-    have h: forall x y, Mvar.get sm1.(m) x = Some y -> (evm s1).[x] = vm2.[y].
-      + move=> ?? /hwf [] //.
-    rewrite (get_subst_iP _ h hx) (subst_eP _ _ h he).
+      apply: subst_var_iP_w => //.
+      move: hsub.
+      rewrite /vars_lval /=. clear; SvD.fsetdec.
+    t_xrbindP=> aa ws len x e hsub len' hlen e' he <- /=.
+    rewrite (subst_varP _ hvalid); last first.
+    + move: hsub.
+      rewrite /vars_lval /=. clear; SvD.fsetdec.
+    rewrite (subst_eP _ _ hvalid _ he); last first.
+    + move: hsub.
+      rewrite /vars_lval /= read_eE. clear; SvD.fsetdec.
     apply: on_arr_varP => ??? ->.
     t_xrbindP=> ?? -> /= -> ?.
     move: hlen; rewrite /subst_al_err; t_xrbindP=> hlen.
     rewrite (subst_alP _ hlen). move=> -> ? /= ->.
-    have : subst_var_i fresh_var_ident (assoc (zip [seq i.1 | i <- l] als)) sm1 x = ok (sm1, x').
-      + rewrite /subst_var_i /subst_var.
-        move: hx; rewrite /get_subst_i /get_subst.
-        case: Mvar.get => //= ? [<-]. done.
-      move=> h_.
-      have := subst_var_iP hwf h_. apply.
+    apply: subst_var_iP_w => //.
+    move: hsub.
+    rewrite /vars_lval /=. clear; SvD.fsetdec.
   Qed.
 
 (* peut-être que ça peut être prouvé plus facilement en utilisant wrequiv et en utilisant les lemmes qu'on a dessus *)
-  Lemma subst_lvalsP env l als lvs1 lvs2 sm1 sm2 wdb (s1 : estate (create_env l [seq eval env i | i <- als])) (vm2 : Vm.t env) gd vs s1' :
-    wf_sm sm1 s1.(evm) vm2 ->
-    subst_lvals fresh_var_ident (assoc (zip [seq i.1 | i <- l] als)) sm1 lvs1 = ok (sm2, lvs2) ->
+  Lemma subst_lvalsP env lvs1 lvs2 wdb (s1 : estate (create_env l [seq eval env i | i <- als])) (vm2 : Vm.t env) gd vs s1' :
+    valid_sm X sm s1.(evm) vm2 ->
+    Sv.Subset (vars_lvals lvs1) X ->
+    subst_lvals (assoc (zip [seq i.1 | i <- l] als)) sm lvs1 = ok lvs2 ->
     write_lvals wdb gd s1 lvs1 vs = ok s1' ->
-    exists2 vm2', write_lvals wdb gd (with_vm s1 vm2) lvs2 vs = ok (with_vm s1' vm2') & wf_sm sm2 s1'.(evm) vm2'.
-  Proof.
-    move=> hwf. elim: lvs1 vs lvs2 sm1 sm2 s1 vm2 hwf => [|x1 lvs1 ih] [|v vs] //=.
-    + move=> ?????? [<- <-] [<-] /=.
+    exists2 vm2', write_lvals wdb gd (with_vm s1 vm2) lvs2 vs = ok (with_vm s1' vm2') & valid_sm X sm s1'.(evm) vm2'.
+  Proof using hwf hno hdisjoint.
+    move=> hvalid hsub. elim: lvs1 vs lvs2 s1 vm2 hvalid hsub => [|x1 lvs1 ih] [|v vs] //=.
+    + move=> ????? [<-] [<-] /=.
       eexists; first by reflexivity. done.
-    t_xrbindP=> ? sm1 ? s1 vm2 hwf -[sm1' x1'] hx1 -[{}sm2 lvs1'] hlvs1 /= <- <- s1_ ok_s1_ ok_s1'.
-    have [vm2' ok_s1_' hwf'] := subst_lvalP hwf hx1 ok_s1_.
-    have [vm2'' ok_s1'' hwf''] := ih _ _ _ _ _ _ hwf' hlvs1 ok_s1'.
+    t_xrbindP=> ? s1 vm2 hvalid hsub x1' hx1 lvs1' hlvs1 /= <- s1_ ok_s1_ ok_s1'.
+    have [|vm2' ok_s1_' hvalid'] := subst_lvalP hvalid _ hx1 ok_s1_.
+    + move: hsub. rewrite /vars_lvals /= /vars_lval /= read_rvs_cons vrvs_cons. clear; SvD.fsetdec.
+    have [|vm2'' ok_s1'' hvalid''] := ih _ _ _ _ hvalid' _ hlvs1 ok_s1'.
+    + move: hsub. rewrite /vars_lvals /= /vars_lval /= read_rvs_cons vrvs_cons. clear; SvD.fsetdec.
     rewrite /= ok_s1_' /= ok_s1''.
     eexists; first by reflexivity. done.
   Qed.
 
-  Context (als : seq array_length) (l : seq (int * Ident.ident)).
   Context (P1 P2 : uprog).
 
   Hypothesis (eq_globs : P1.(p_globs) = P2.(p_globs)).
 
-  Definition check_es_subst sm1 es1 es2 sm2 :=
-    sm1 = sm2 /\ subst_es (assoc (zip [seq i.1 | i <- l] als)) sm1 es1 = ok es2.
+  Definition check_es_subst (_:unit) es1 es2 (_:unit) :=
+    [/\ Sv.Subset (read_es es1) X &
+        subst_es (assoc (zip [seq i.1 | i <- l] als)) sm es1 = ok es2].
 
-  Definition check_lvals_subst sm1 xs1 xs2 sm2 :=
-    subst_lvals fresh_var_ident (assoc (zip [seq i.1 | i <- l] als)) sm1 xs1 = ok (sm2, xs2).
+  Definition check_lvals_subst (_:unit) xs1 xs2 (_:unit) :=
+    [/\ Sv.Subset (vars_lvals xs1) X &
+        subst_lvals (assoc (zip [seq i.1 | i <- l] als)) sm xs1 = ok xs2].
 
-  Definition st_rel_subst env1 env2 sm (s : estate env1) (t : estate env2) :=
-    [/\ escs s = escs t, emem s = emem t, env1 = (create_env l [seq eval env2 i | i <- als]) & wf_sm sm (evm s) (evm t)].
+  Definition st_rel_subst env1 env2 (_:unit) (s : estate env1) (t : estate env2) :=
+    [/\ escs s = escs t, emem s = emem t, env1 = (create_env l [seq eval env2 i | i <- als]) & valid_sm X sm (evm s) (evm t)].
 
-  Lemma check_esP_R_subst env1 env2 sm1 es1 es2 sm2 :
-    check_es_subst sm1 es1 es2 sm2 ->
-    forall (s1 : estate env1) (s2 : estate env2), st_rel_subst sm1 s1 s2 -> st_rel_subst sm2 s1 s2.
+  Lemma check_esP_R_subst env1 env2 d es1 es2 d' :
+    check_es_subst d es1 es2 d' ->
+    forall (s1 : estate env1) (s2 : estate env2), st_rel_subst d s1 s2 -> st_rel_subst d' s1 s2.
   Proof.
-    move=> [<- _]. done.
+    done.
   Qed.
 
   Definition checker_subst : Checker_e st_rel_subst :=
@@ -707,19 +826,19 @@ Qed.
     |}.
 
   Definition checker_substP : Checker_eq P1 P2 checker_subst.
-  Proof using eq_globs.
+  Proof using hwf hno hdisjoint eq_globs.
     constructor.
-    + move=> env1 env2 wdb1 wdb2 sm1 es1 es2 sm2 /wdb_ok_eq <- /=.
-      move=> [_ hes].
-      move=> [?? vm1] [?? vm2] vs1 [/= h1 h2 ? hwf]; subst => hes1.
-      have h: forall x y, Mvar.get sm1.(m) x = Some y -> Vm.get vm1 x = Vm.get vm2 y.
-      + move=> x y /hwf []. done.
-      have <- := subst_esP _ _ (s1:=Estate _ _ _) h hes. rewrite -eq_globs hes1.
+    + move=> env1 env2 wdb1 wdb2 d es1 es2 d' /wdb_ok_eq <- /=.
+      move=> [hsub hes].
+      move=> [?? vm1] [?? vm2] vs1 [/= ??? hvalid]; subst => hes1.
+      have <- := subst_esP _ _ (s1:=Estate _ _ _) hvalid hsub hes.
+      rewrite -eq_globs hes1.
       eexists; first by reflexivity. done.
     move=> env1 env2 wdb1 wdb2 sm1 xs1 xs2 sm2 /wdb_ok_eq <- /=.
-    rewrite /check_lvals_subst => h vs.
-    move=> [?? vm1] [?? vm2] vs1 [/= h1 h2 ? hwf]; subst => hxs1.
-    have := subst_lvalsP (s1:=Estate _ _ _) hwf h hxs1. rewrite -eq_globs. move=> [vm2' -> h2].
+    move=> [hsub hxs] vs.
+    move=> [?? vm1] [?? vm2] vs1 [/= ??? hvalid]; subst => hw.
+    rewrite -eq_globs.
+    have [vm2' -> h2] := subst_lvalsP (s1:=Estate _ _ _) hvalid hsub hxs hw.
     eexists; first by reflexivity. done.
   Qed.
   #[local] Hint Resolve checker_substP : core.
@@ -727,96 +846,129 @@ Qed.
   Context (env : env_t).
 
   Let Pi i :=
-    forall sm1 sm2 i2, subst_i fresh_var_ident (assoc (zip [seq i.1 | i <- l] als)) sm1 i = ok (sm2, i2) ->
-    wequiv_rec (env1:=create_env l [seq eval env i | i <- als]) (env2:=env) P1 P2 ev ev eq_spec (st_rel_subst sm1) [::i] [::i2] (st_rel_subst sm2).
+    Sv.Subset (vars_I i) X ->
+    forall i2,
+    subst_i (assoc (zip [seq i.1 | i <- l] als)) sm i = ok i2 ->
+    wequiv_rec (env1:=create_env l [seq eval env i | i <- als]) (env2:=env) P1 P2 ev ev eq_spec (st_rel_subst tt) [::i] [::i2] (st_rel_subst tt).
 
   Let Pi_r i := forall ii, Pi (MkI ii i).
 
   Let Pc c :=
-    forall sm1 sm2 c2, subst_c fresh_var_ident (assoc (zip [seq i.1 | i <- l] als)) sm1 c = ok (sm2, c2) ->
-    wequiv_rec (env1:=create_env l [seq eval env i | i <- als]) (env2:=env) P1 P2 ev ev eq_spec (st_rel_subst sm1) c c2 (st_rel_subst sm2).
-
-  Lemma mergeP_left env1 env2 sm1 sm2 (vm1 : Vm.t env1) (vm2 : Vm.t env2) :
-    wf_sm sm1 vm1 vm2 ->
-    wf_sm (merge sm1 sm2) vm1 vm2.
-  Proof.
-    move=> hwf.
-    move=> x y /=.
-    rewrite Mvar.map2P //.
-    case hget1: Mvar.get => [y1|//].
-    case hget2: Mvar.get => [y2|//].
-    case: eqP => // ? [?]; subst.
-    have [h1 h2 h3 h4] := hwf _ _ hget1.
-    split=> //=.
-    + by apply Sv.union_spec; left.
-    move=> x' y'.
-    rewrite Mvar.map2P //.
-    case hget1': Mvar.get => [y1'|//].
-    case hget2': Mvar.get => [y2'|//].
-    case: eqP => // ? [?]; subst.
-    by eauto.
-  Qed.
-
-  Lemma mergeP_right env1 env2 sm1 sm2 (vm1 : Vm.t env1) (vm2 : Vm.t env2) :
-    wf_sm sm2 vm1 vm2 ->
-    wf_sm (merge sm1 sm2) vm1 vm2.
-  Proof.
-    move=> hwf.
-    move=> x y /=.
-    rewrite Mvar.map2P //.
-    case hget1: Mvar.get => [y1|//].
-    case hget2: Mvar.get => [y2|//].
-    case: eqP => // ? [?]; subst.
-    have [h1 h2 h3 h4] := hwf _ _ hget2.
-    split=> //=.
-    + by apply Sv.union_spec; right.
-    move=> x' y'.
-    rewrite Mvar.map2P //.
-    case hget1': Mvar.get => [y1'|//].
-    case hget2': Mvar.get => [y2'|//].
-    case: eqP => // ? [?]; subst.
-    by eauto.
-  Qed.
+    Sv.Subset (vars_c c) X ->
+    forall c2, subst_c (assoc (zip [seq i.1 | i <- l] als)) sm c = ok c2 ->
+    wequiv_rec (env1:=create_env l [seq eval env i | i <- als]) (env2:=env) P1 P2 ev ev eq_spec (st_rel_subst tt) c c2 (st_rel_subst tt).
 
   Lemma toto c : Pc c.
-  Proof.
+  Proof using hwf hno hdisjoint eq_globs.
     apply (cmd_rect (Pi:=Pi) (Pr:=Pi_r) (Pc:=Pc)) => // {c}; subst Pi Pi_r Pc => /=.
-    + move=> sm ?? [<- <-]. by apply wequiv_nil.
-    + move=> i c hi hc sm1 sm2 c2; t_xrbindP.
-      move=> -[sm1' i'] /hi{}hi [sm1'' c'] /hc{}hc <- <-.
+    + move=> _ _ [<-]. by apply wequiv_nil.
+    + move=> i c hi hc hsub c2; t_xrbindP.
+      move=> i' /hi{}hi c' /hc{}hc <-.
       rewrite /= -(cat1s i) -(cat1s i').
-      apply wequiv_cat with (st_rel_subst sm1'); done.
-    + move=> x tg ty e ii sm1 sm2. rewrite /subst_ty_err.
-      t_xrbindP=> i2 e' he' ty' hty [sm1' x'] hx [<- <-].
-      apply wequiv_assgn_rel_eq with checker_subst sm1 => //=.
-      + split=> //=. rewrite he'. done.
-        rewrite (subst_tyP _ hty). done.
-      + by rewrite /check_lvals_subst /= hx /=.
-    + t_xrbindP=> xs tg o als' es ii sm1 sm2 ? es' hes als'' hals [? xs'] hxs /= [<- <-].
-      apply wequiv_opn_rel_eq with checker_subst sm1 => //=.
-      elim: als' als'' hals => [|al' als' ih] /=.
-      + by move=> _ [<-].
-      rewrite /subst_al_err.
-      t_xrbindP=> _ al'' hal als'' hals <- /=.
-      by rewrite (subst_alP _ hal) (ih _ hals).
-    + t_xrbindP=> xs o es ii sm1 sm2 ? es' hes [? xs'] hxs /= [<- <-].
-      apply wequiv_syscall_rel_eq_core_R with checker_subst sm1 sm1 => //=.
-      + by move=> sm s1 s2 [<- <- _ _].
+      apply wequiv_cat with (st_rel_subst tt).
+      + apply hi.
+        move: hsub. rewrite vars_c_cons. clear; SvD.fsetdec.
+      apply hc.
+      move: hsub. rewrite vars_c_cons. clear; SvD.fsetdec.
+    + move=> x tg ty e ii hsub. rewrite /subst_ty_err.
+      t_xrbindP=> _ e' he ty' hty x' hx <-.
+      apply wequiv_assgn_rel_eq with checker_subst tt => //=.
+      + split=> /=.
+        + move: hsub. rewrite vars_I_assgn read_es_cons.
+          clear; SvD.fsetdec.
+        rewrite he. done.
+      + rewrite (subst_tyP _ hty). done.
+      split.
+      + move: hsub. rewrite vars_I_assgn /vars_lvals /vars_lval read_rvs_cons vrvs_cons.
+        clear; SvD.fsetdec.
+      by rewrite /= hx /=.
+    + t_xrbindP=> xs tg o als' es ii hsub _ es' hes als'' hals xs' hxs <- /=.
+      apply wequiv_opn_rel_eq with checker_subst tt => //=.
+      + split=> //.
+        move: hsub. rewrite vars_I_opn. clear; SvD.fsetdec.
+      + elim: als' als'' hals {hsub} => [|al' als' ih] /=.
+        + by move=> _ [<-].
+        rewrite /subst_al_err.
+        t_xrbindP=> _ al'' hal als'' hals <- /=.
+        by rewrite (subst_alP _ hal) (ih _ hals).
+      split=> //=.
+      + move: hsub. rewrite vars_I_opn. clear; SvD.fsetdec.
+    + t_xrbindP=> xs o es ii hsub _ es' hes xs' hxs <- /=.
+      apply wequiv_syscall_rel_eq_core_R with checker_subst tt tt => //=.
+      + by move=> _ s1 s2 [<- <- _ _].
       + by move=> scs mem s1 s2 [h1 h2 h3 h4].
+      + split=> //=.
+        move: hsub.
+        rewrite vars_I_syscall. clear; SvD.fsetdec.
+      + split=> //=.
+        move: hsub.
+        rewrite vars_I_syscall. clear; SvD.fsetdec.
       by apply wrequiv_eq.
-    + move=> a ii sm1 sm2 ??.
+    + move=> a ii ????.
       by apply wequiv_noassert.
-    + move=> e c1 c2 ihc1 ihc2 ii sm1 sm2.
-      t_xrbindP=> ? e' he -[sm1' c1'] hc1.
-      t_xrbindP=> -[sm1'' c2'] hc2 [<- <-].
-      apply wequiv_if_rel_eq_R with checker_subst sm1 sm1' sm1'' => /=.
-      + split=> //=. by rewrite he.
-      + move=> s1 s2 [h1 h2 h3 h4]. split=> //=.
-        move=> x y hget. split=> /=.
-        have := h4 hget.
-        have := ihc2 _ _ _ hc2 _ _ h. move=> H. have := xrutt.xrutt_inv_Ret H. hyp: xrutt.xrutt
-      + apply ihc1. done.
-      + apply ihc2. done.
+    + move=> e c1 c2 ihc1 ihc2 ii hsub.
+      t_xrbindP=> _ e' he c1' hc1 c2' hc2 <-.
+      apply wequiv_if_rel_eq_R with checker_subst tt tt tt => //=.
+      + split=> /=.
+        + move: hsub.
+          rewrite vars_I_if read_es_cons. clear; SvD.fsetdec.
+        by rewrite he.
+      + apply ihc1 => //.
+        + move: hsub.
+          rewrite vars_I_if. clear; SvD.fsetdec.
+      apply ihc2 => //.
+      move: hsub.
+      rewrite vars_I_if. clear; SvD.fsetdec.
+    + move=> v dir lo hi c ihc ii hsub.
+      t_xrbindP=> ? lo' hlo hi' hhi c' hc <-.
+      apply wequiv_for_rel_eq_R with checker_subst tt tt => //=.
+      + split => /=.
+        + move: hsub.
+          rewrite vars_I_for !read_es_cons. clear; SvD.fsetdec.
+        by rewrite hlo hhi /=.
+      + split=> //=.
+        move: hsub.
+        rewrite vars_I_for /vars_lvals read_rvs_cons vrvs_cons.
+        rewrite /read_rvs /vrvs /=. clear; SvD.fsetdec.
+      apply ihc => //=.
+      move: hsub.
+      rewrite vars_I_for. clear; SvD.fsetdec.
+    + move=> a c1 e info c2 ihc1 ihc2 ii hsub.
+      t_xrbindP=> _ c1' hc1 e' he c2' hc2 <-.
+      apply wequiv_while_rel_eq with checker_subst tt => //=.
+      + split=> /=.
+        + move: hsub.
+          rewrite vars_I_while read_es_cons. clear; SvD.fsetdec.
+        by rewrite he /=.
+      + apply ihc1 => //.
+        move: hsub.
+        rewrite vars_I_while. clear; SvD.fsetdec.
+      apply ihc2 => //.
+      move: hsub.
+      rewrite vars_I_while. clear; SvD.fsetdec.
+    move=> xs fn' alargs es ii hsub.
+    t_xrbindP=> _ es' hes alargs' halargs xs' hxs <-.
+    apply wequiv_call_rel_eq_R with checker_subst tt tt => //=.
+    + by move=> _ s1 s2 [<- <- _ _].
+    + by move=> scs mem s1 s2 [????].
+    + elim: alargs alargs' halargs {hsub} => [|alarg alargs ih] /=.
+       + by move=> _ [<-].
+       rewrite /subst_al_err.
+       t_xrbindP=> _ alarg' halarg alargs' halargs <- /=.
+       by rewrite (subst_alP _ halarg) (ih _ halargs).
+    + split=> //=.
+      move: hsub.
+      rewrite vars_I_call. clear; SvD.fsetdec.
+    + split=> //=.
+      move: hsub.
+      rewrite vars_I_call. clear; SvD.fsetdec.
+    move=> > [??].
+    exact: wequiv_fun_rec.
+  Qed.
+
+  End SM.
+  End TOTO.
+  End REC.
 
 Notation wequiv_rec :=
  (wequiv (rE0:=relEvent_recCall uincl_spec)
@@ -829,6 +981,19 @@ Let Pi_r i := forall ii, Pi (MkI ii i).
 Let Pc c :=
   forall env X1 X2 c', inline_c (inline_i' pfuncs2) c X2 = ok (X1, c') ->
   wequiv_rec (env1:=env) (env2:=env) p1 p2 ev ev (st_uincl_on X1) c c' (st_uincl_on X2).
+
+Lemma test : forall f, Sv.Equal (vars_fd f) (locals_p f).
+Proof.
+  move=> f. rewrite /vars_fd /locals_p.
+  rewrite vrvs_recE.
+  rewrite read_cE. rewrite write_c_recE.
+  rewrite vars_l_read_es.
+  have: Sv.Equal (vrvs [seq Lvar i | i <- f_params f]) (vars_l (f_params f)).
+  + elim: f.(f_params) => //= ?? h.
+    rewrite vrvs_cons /=. rewrite h. clear; SvD.fsetdec.
+  move=> ->. rewrite /vars_c.
+  clear; SvD.fsetdec.
+Qed.
 
 Lemma it_inline_fd_aux_rec c : Pc c.
 Proof.
@@ -843,7 +1008,7 @@ Proof.
     split=> //.
     + by rewrite !read_writeE; clear; SvD.fsetdec.
     by rewrite /read_rvs !read_writeE /= read_rvE; clear; SvD.fsetdec.
-  + move=> xs tg o es ii env X1 X2 _ [? <-].
+  + move=> xs tg o als es ii env X1 X2 _ [? <-].
     by apply wequiv_opn_rel_uincl with checker_st_uincl_on X1 => //=; subst X1; split => //;
       rewrite !read_writeE; clear; SvD.fsetdec.
   + move=> xs o es ii env X1 X2 _ [? <-].
@@ -885,8 +1050,7 @@ Proof.
     move=> vals1 vals2 i1 i2 h; rewrite /= /do_inline eqxx hinline /=.
     exact/(wequiv_fun_rec (p1 := p1) (p2 := p2)).
   rewrite /check_disjoint.
-  t_xrbindP => ffd /get_funP hffd [sm ffd'] hsubst.
-  t_xrbindP.
+  t_xrbindP => ffd /get_funP hffd ffd' hsubst.
   case: ifP => // hdisj _ ? <-.
   move=> s t hpre /=.
   rewrite /do_inline eqxx hinline /=.
@@ -918,23 +1082,63 @@ Proof.
   move=> vst hes' huvs.
   have [vst' htr' huvs'] := mapM2_dc_truncate_val htr huvs.
   rewrite (write_vars_lvals _ (p_globs p1)) in hws.
-  have [|/= vm2 hws' huincl] := writes_uincl (vm1:=evm t) (fun _ => erefl) _ huvs' hws.
+  move: hsubst hdisj.
+  rewrite /subst_fd.
+  t_xrbindP=> sm hsm hdisj' tyin htyin c hc tyout htyout <- /=. move=> {ffd'}.
+  set ffd' := {| f_info := _ |} => hdisj.
+  have: exists2 vm2, write_lvals true p1.(p_globs) (estate0 env (mk_fstate vs s)) [seq Lvar i | i <- f_params ffd'] vs' = ok (with_vm s1 vm2)
+  & valid_sm (locals_p ffd) sm (evm s1) vm2.
+  + have [H1 H2] := create_smP hsm.
+    have hh: subst_lvals (assoc (zip [seq i.1 | i <- f_al ffd] als)) sm [seq Lvar i | i <- f_params ffd] = ok [seq Lvar (subst_var_i sm i) | i <- f_params ffd].
+    + elim: ffd.(f_params) => //= ?? ih. rewrite ih /=. done.
+    have hvalid: valid_sm (locals_p ffd) sm (Vm.init (create_env (f_al ffd) [seq eval env i | i <- als])) (Vm.init env).
+    + split=> /=.
+      + move=> ?? hget. rewrite !Vm.initP. rewrite (subst_tyP _ (H1 _ _ hget).(wf_eval_atype)). done.
+      move=> x hget hin. rewrite !Vm.initP.
+      rewrite (no_var_tyP (H2 _ hin hget) _ env). done.
+    have hsub: Sv.Subset (vars_lvals [seq Lvar i | i <- f_params ffd]) (locals_p ffd).
+    + rewrite /locals_p vrvs_recE read_cE write_c_recE. rewrite /vars_lvals.
+      elim: ffd.(f_params) => /=. clear; SvD.fsetdec.
+      move=> ??. rewrite read_rvs_cons /= vrvs_cons /=. clear; SvD.fsetdec.
+    have := subst_lvalsP (s1:=Estate _ _ _) H1 H2 hdisj' hvalid hsub hh hws.
+    move=> /= [vm2_ hws_ hvalid'].
+    rewrite /with_vm /= in hws_.
+    rewrite /estate0 /=. rewrite -map_comp hws_. eexists. reflexivity. done.
+  move=> [vm2_ hws_ hvalid_].
+  have [|/= vm2 hws' huincl] := writes_uincl (vm1:=evm t) (fun _ => erefl) _ huvs' hws_.
   + by apply vm_uincl_init.
   have heqt: (with_vm (estate0 env (mk_fstate vs s)) (evm t)) = t.
   + by move: hpre => /st_relP [-> /=].
   rewrite heqt in hws'.
-  have hdisje : disjoint (vrvs [seq Lvar i | i <- f_params ffd]) (read_es es).
+  have hdisje : disjoint (vrvs [seq Lvar i | i <- f_params ffd']) (read_es es).
   + apply /disjointP => z hz.
     move/disjointP: hdisj => /(_ z).
-    rewrite /locals_p !read_writeE vrvs_recE; move: hz; clear; SvD.fsetdec.
-  have /(esem_i_bodyP (sem_F := sem_fun_rec E)) h := assgn_tuple_Lvar ev (ii_with_location ii) AT_rename hdisje hes' htr' hws'.
+    rewrite /locals_p !read_writeE vrvs_recE; move: hz; clear. SvD.fsetdec.
+  have htr_: mapM2 ErrType dc_truncate_val [seq eval_atype env i | i <- f_tyin ffd'] vst =
+      ok vst'.
+  + move: htr'. rewrite /ffd' /=.
+    elim: ffd.(f_tyin) (vst) (tyin) (vst') htyin => /= [|ty tyin_ ih] [|v vst_] //=.
+    + move=> _ _ [<-] [<-]. done.
+    rewrite /subst_ty_err.
+    t_xrbindP=> ?? ty' hty tyin' htyin <- /=.
+    rewrite (subst_tyP _ hty).
+    t_xrbindP=> ? -> ? /(ih _ _ _ htyin) -> <-. done.
+  have /(esem_i_bodyP (sem_F := sem_fun_rec E)) h := assgn_tuple_Lvar ev (ii_with_location ii) AT_rename hdisje hes' htr_ hws'.
   rewrite {}h /=.
   rewrite ITree.Eq.Eqit.bind_ret_l isem_cmd_cat.
-  have := [elaborate it_eq_cmdP_rec (env:=env) (p:=p1) (p':=p2) ev ev erefl (extend_iinfo_cmd_eq_cmd ii ((f_body ffd)))].
+  have := [elaborate it_eq_cmdP_rec (env:=env) (p:=p1) (p':=p2) ev ev erefl (extend_iinfo_cmd_eq_cmd ii ((f_body ffd')))].
   move=> /wequiv_write2 -/(_ (with_vm s1 vm2)) h.
   apply xrutt_facts.xrutt_bind with
-    (fun s2 s3 : estate env => evm (with_vm s1 vm2) =[\write_c (extend_iinfo_cmd extend_iinfo ii (f_body ffd))] evm s3 /\ st_uincl tt s2 s3).
-  + by apply h.
+    (fun s2 s3 : estate _ => evm (with_vm s1 vm2) =[\write_c (extend_iinfo_cmd extend_iinfo ii (f_body ffd'))] evm s3 /\ st_uincl tt s2 s3).
+  + have [H1 H2] := create_smP hsm.
+    have hsub: Sv.Subset (vars_c (f_body ffd)) (locals_p ffd).
+    + rewrite /locals_p. rewrite vrvs_recE read_cE write_c_recE. rewrite /vars_c. clear; SvD.fsetdec.
+    have := toto H1 H2 hdisj' (P1:=p1) (P2:=p2) erefl hsub hc (env:=env).
+    move=> HH. replace eq_spec with uincl_spec in HH.
+    rewrite /relational_logic.wequiv_rec in HH. rewrite /wequiv in HH.
+    rewrite /wequiv in h.
+    have := wkequiv_io_trans _ _ HH h.
+    rewrite /st_rel_subst. "w" "equiv" "trans" vm2_
   move=> s' t' [heqex {}huincl].
   rewrite ITree.Eq.Eqit.bind_bind.
   case hfinal : finalize_funcall => [fr /= | ?]; last first.
