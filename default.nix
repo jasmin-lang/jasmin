@@ -29,6 +29,7 @@ let coqPackages =
       coq = super.coq.override { version = "master"; inherit rocqPackages; };
       inherit (rocqPackages) stdlib;
       mathcomp = super.mathcomp.override { version = "master"; };
+      mathcomp-word = super.mathcomp-word.override { version = "master"; };
       mathcomp-zify = super.mathcomp-zify.override { version = "master"; };
       coq-elpi = super.coq-elpi.override { version = "master"; inherit elpi-version; };
       hierarchy-builder = super.hierarchy-builder.override { version = "master"; };
@@ -43,10 +44,9 @@ let coqPackages =
       };
       hierarchy-builder = super.hierarchy-builder.override { version = "1.9.1"; };
       mathcomp = super.mathcomp.override { version = "2.4.0"; };
-  })
+      mathcomp-word = callPackage scripts/mathcomp-word.nix { inherit super; };
+    })
 ; in
-
-let mathcomp-word = callPackage scripts/mathcomp-word.nix { inherit coqPackages; }; in
 
 let easycrypt = callPackage scripts/easycrypt.nix {
   inherit ecRef;
@@ -80,7 +80,7 @@ stdenv.mkDerivation {
   buildInputs = []
     ++ optionals coqDeps [
       coqPackages.coq
-      mathcomp-word
+      coqPackages.mathcomp-word
       coqPackages.ITree
     ]
     ++ optionals testDeps ([ curl.bin oP.apron.out llvmPackages.bintools-unwrapped ] ++ (with python3Packages; [ python pyyaml ]))
