@@ -99,6 +99,7 @@ Fixpoint pos_is_aligned_to (p: positive) (n: nat) {struct n} : bool :=
 Lemma pos_is_aligned_toE p n :
   pos_is_aligned_to p n = (mod_pow2 p n == 0)%N.
 Proof.
+  rewrite mod_pow2_alt.
   elim: n p => // n ih [] // p /=.
   - by case: (_ p n).
   rewrite ih.
