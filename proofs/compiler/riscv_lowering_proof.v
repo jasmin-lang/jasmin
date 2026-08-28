@@ -616,7 +616,7 @@ Proof.
   apply (cmd_rect (Pr := Pi_r_) (Pi:=Pi_) (Pc:=Pc_)) => //; rewrite /Pi_r_ /Pi_ /Pc_.
   + by apply (wequiv_nil (sip:=sip)).
   + move=> i c hi hc.
-    rewrite /lowering.lower_cmd /= /conc_map /= -cat1s.
+    rewrite -cat1s.
     by apply (wequiv_cat (sip:=sip)) with (st_eq tt).
   (* Assgn *)
   + move=> x tg ty e ii.

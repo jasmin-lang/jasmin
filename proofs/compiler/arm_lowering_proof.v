@@ -1578,7 +1578,7 @@ Proof using fv_correct.
   apply (cmd_rect (Pr := Pi_r_) (Pi:=Pi_) (Pc:=Pc_)) => //; rewrite /Pi_r_ /Pi_ /Pc_.
   + by move=> _; apply (wequiv_nil (sip:=sip)).
   + move=> i c hi hc /disj_fvars_vars_c_cons [/hi{}hi /hc{}hc].
-    rewrite /lower_cmd /= /conc_map /= -cat1s.
+    rewrite -cat1s.
     by apply (wequiv_cat (sip:=sip)) with eq_fv.
   (* Assgn *)
   + move=> x tg ty e ii /disj_fvars_vars_I_Cassgn [hfvlv hfve].

@@ -467,18 +467,18 @@ Fixpoint lower_i (i : instr) : cmd :=
 
   | Cif e c1 c2  =>
       let '(pre, e') := lower_condition (var_info_of_ii ii) e in
-      let c1' := conc_map lower_i c1 in
-      let c2' := conc_map lower_i c2 in
+      let c1' := List.flat_map lower_i c1 in
+      let c2' := List.flat_map lower_i c2 in
       map (MkI ii) (pre ++ [:: Cif e' c1' c2' ])
 
   | Cfor v r c =>
-      let c' := conc_map lower_i c in
+      let c' := List.flat_map lower_i c in
       [:: MkI ii (Cfor v r c') ]
 
   | Cwhile a c0 e info c1 =>
       let '(pre, e') := lower_condition (var_info_of_ii info) e in
-      let c0' := conc_map lower_i c0 in
-      let c1' := conc_map lower_i c1 in
+      let c0' := List.flat_map lower_i c0 in
+      let c1' := List.flat_map lower_i c1 in
       [:: MkI ii (Cwhile a (c0' ++ map (MkI info) pre) e' info c1') ]
 
   | _ =>

@@ -244,7 +244,7 @@ Proof using ok_p'.
   apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //; subst Pi_r Pi Pc => /=.
   + by move=> hsub /=; apply (wequiv_nil (sip:=sip)).
   + move=> i c hi hc; rewrite read_writeE => hsub.
-    rewrite /lower_addressing_c /conc_map /= -cat1s.
+    rewrite -cat1s.
     apply (wequiv_cat (sip:=sip)) with (st_eq_on X).
     + by apply hi => //; clear -hsub; SvD.fsetdec.
     apply hc; last by clear -hsub; SvD.fsetdec.
