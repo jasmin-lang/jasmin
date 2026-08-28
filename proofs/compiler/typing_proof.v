@@ -16,28 +16,170 @@ Context {spp : SemPexprParams}.
 
 Existing Instance nosubword.
 
-Lemma canonical_value (v : value) :
-  is_defined v -> 
-  match type_of_val v with
-    | cbool => exists b : bool , v = Vbool b
-    | cint => exists z : Z, v = Vint z
-    | carr len => exists a : WArray.array len, v = Varr a
-    | cword ws => exists w : word ws, v = Vword w
-    end.
+(* Generic lemmas about the error monad *)
+
+Lemma rbind_noerrty eT aT bT (m : result eT aT) (f : aT -> result eT bT) (e : eT) :
+  m <> Error e ->
+  (forall a, m = ok a -> f a <> Error e) ->
+  (Let a := m in f a) <> Error e.
 Proof.
-   case : v => [b | z | len a | ws w | t H] //= _ ;
-     [exists b | exists z | exists a | exists w]; reflexivity.
+  case: m => [a|e'] /= hm hf //=.
+  - by apply hf.
+  - congruence.
 Qed.
 
-Lemma truncate_val_subctype (ty : atype) (v0 : value) (v : value) :
-  truncate_val (eval_atype ty) v0 = ok v ->
-  subctype (type_of_val v) (eval_atype ty).
+Lemma mapM_noerrty {aT bT} (f : aT -> result error bT) l :
+  (forall a, List.In a l -> f a <> Error ErrType) ->
+  mapM f l <> Error ErrType.
 Proof.
-  rewrite /truncate_val. t_xrbindP => vt Hof <-.
-  case: ty vt Hof => //=.
+  elim: l => [|a l' ih] Hnoerr //=.
+  apply rbind_noerrty => [|b _] //=.
+  - apply Hnoerr, List.in_eq.
+  - apply rbind_noerrty => [| _bs] //=.
+    apply ih => a' HIn. by apply/Hnoerr/(List.in_cons a).
 Qed.
 
-Lemma is_defined_compat_val ty v :
+Lemma fold2_Forall2 {aT bT eT : Type} (err : eT) (f : aT -> bT -> unit -> result eT unit) la lb :
+  fold2 err f la lb tt = ok tt ->
+  List.Forall2 (fun a b => f a b tt = ok tt) la lb.
+Proof.
+  elim: la lb => [|a la ih] [|b lb] //=.
+  t_xrbindP => Hab /ih Hlalb //=. by apply: List.Forall2_cons.
+Qed.
+
+Lemma fold2_In {aT bT eT : Type} (err : eT) (f : aT -> bT -> unit -> result eT unit) la lb a :
+  fold2 err f la lb tt = ok tt ->
+  List.In a la ->
+  exists2 b, List.In b lb & f a b tt = ok tt.
+Proof.
+  move=> Hforall.
+  apply fold2_Forall2 in Hforall.
+  elim: Hforall => [//| a' b' la' lb' Hfb' _ IH] /= -[<-|/IH [b HInb Hfb]].
+  - by exists b'; [left|].
+  - by exists b; [right|].
+Qed.
+
+(* Lemmas about values, conversions and primitive operations that never fail with ErrType *)
+
+Lemma of_val_noerrty t v :
+  subctype t (type_of_val v) ->
+  of_val t v <> Error ErrType.
+Proof.
+  case: v => [b|z|len a|ws w|[||n|ws] ht'] /=; case: t => //=.
+  - by move=> z /eqP [->]; rewrite WArray.castK.
+  - by move=> s HCMP; rewrite (truncate_word_le _ HCMP).
+Qed.
+
+Lemma truncate_val_noerrty t v :
+  subctype t (type_of_val v) ->
+  truncate_val t v <> Error ErrType.
+Proof.
+  rewrite /truncate_val. move=> Hsub.
+  apply: rbind_noerrty => //; by apply of_val_noerrty.
+Qed.
+
+Lemma read_noerrty {ptr : eqType} {P : pointer_op ptr} {cm : Type} {CM : coreMem ptr cm}
+    (m : cm) al p ws :
+  read m al p ws <> Error ErrType.
+Proof.
+  rewrite /read /assert.
+  case: ifP => _ //.
+  apply rbind_noerrty => [//| _ _].
+  apply rbind_noerrty => [|//].
+  apply: mapM_noerrty => k _ h; exact: (get_noerrty h).
+Qed.
+
+Lemma sem_sop1_typed_noerrty op (x : sem_t (eval_atype (type_of_op1 op).1)) :
+  sem_sop1_typed op x <> Error ErrType.
+Proof.
+  case: op x => [ | | | | | | [] | ? [?|?|?|?|?|?]] x //=;
+  rewrite /wint_of_int /in_wint_range /assert; by case: ifP.
+Qed.
+
+Lemma sem_sop1_noerrty op v :
+  subctype (eval_atype (type_of_op1 op).1) (type_of_val v) ->
+  sem_sop1 op v <> Error ErrType.
+Proof.
+  move=> Hsub; rewrite /sem_sop1.
+  apply: rbind_noerrty => [|x _]; first exact: of_val_noerrty Hsub.
+  apply: rbind_noerrty => [|_ _ //].
+  exact: sem_sop1_typed_noerrty.
+Qed.
+
+Lemma sem_sop2_typed_noerrty op
+    (x1 : sem_t (eval_atype (type_of_op2 op).1.1))
+    (x2 : sem_t (eval_atype (type_of_op2 op).1.2)) :
+  sem_sop2_typed op x1 x2 <> Error ErrType.
+Proof.
+  case: op x1 x2 =>
+    [ (* Obeq Oand Oor *)           | |
+    | (* Oadd Omul Osub *)          [] | [] | []
+    | (* Odiv Omod *)               ? [|?] | ? [|?]
+    | (* Oland Olor Olxor Olsr *)   | | |
+    | (* Olsl Oasr *)               [] | []
+    | (* Oror Orol *)               |
+    | (* Oeq Oneq *)                [] | []
+    | (* Olt Ole Ogt Oge *)         [] | [] | [] | []
+    | (* Ovadd..Ovasr *)            | | | | |
+    | (* Owi2 *)                    ?? [] ] x1 x2 //=;
+  rewrite /mk_sem_divmod /mk_sem_wiop2 /mk_sem_wishift /wint_of_int /in_wint_range /assert; by case: ifP.
+Qed.
+
+Lemma sem_sop2_noerrty op v1 v2 :
+  subctype (eval_atype (type_of_op2 op).1.1) (type_of_val v1) ->
+  subctype (eval_atype (type_of_op2 op).1.2) (type_of_val v2) ->
+  sem_sop2 op v1 v2 <> Error ErrType.
+Proof.
+  move=> hsub1 hsub2; rewrite /sem_sop2.
+  apply: rbind_noerrty => [|x1 _]; first exact: of_val_noerrty hsub1.
+  apply: rbind_noerrty => [|x2 _]; first exact: of_val_noerrty hsub2.
+  apply rbind_noerrty => [|_ _ //].
+  exact: sem_sop2_typed_noerrty.
+Qed.
+
+Lemma app_sopn_noerrty T ts (f : sem_prod ts (exec T)) vs :
+  sem_forall (fun r => r <> Error ErrType) ts f ->
+  List.Forall2 (fun t v => subctype t (type_of_val v)) ts vs ->
+  app_sopn ts f vs <> Error ErrType.
+Proof.
+  move=> Hsemf HF.
+  elim: HF f Hsemf => [| cty v ts' vs' Hsub HF' IH] f Hsemf //=.
+  apply rbind_noerrty => [| t Hofv]; first by apply of_val_noerrty.
+  by apply/IH.
+Qed.
+
+(* Inversion lemmas for the type checker *)
+
+Lemma check_typeP te ty : check_type te ty = ok tt -> subatype ty te.
+Proof. by rewrite /check_type; case: ifP => // /negbFE. Qed.
+
+Lemma check_ptrP t :
+  check_ptr t = ok tt ->
+  exists2 ws, t = aword ws & (Uptr <= ws)%CMP.
+Proof.
+  by rewrite /check_ptr => /check_typeP;
+  case: t => // ws ?; exists ws.
+Qed.
+
+Lemma check_arrayP t :
+  check_array t = ok tt ->
+  exists ws n, t = aarr ws n.
+Proof.
+  by rewrite /check_array;
+  case: t => // ws n _ ; exists ws, n.
+Qed.
+
+Lemma check_global_declP (gd : glob_decl) :
+  check_global_decl gd = ok tt ->
+  type_of_val (gv2val gd.2) = eval_atype (vtype gd.1).
+Proof.
+  rewrite /check_global_decl. case: gd => x [ws w | len a] /=;
+    by case: (vtype x) => //= >; case: ifP => // /eqP ->.
+Qed.
+
+(* Preservation *)
+
+Lemma compat_val_defined ty v :
   is_defined v ->
   compat_val ty v = (type_of_val v == ty).
 Proof. by rewrite /compat_val => ->. Qed.
@@ -47,192 +189,171 @@ Lemma ty_expr_preserves (gd : glob_decls) (s : estate) e ty v :
   sem_pexpr true gd s e = ok v ->
   type_of_val v = eval_atype ty.
 Proof.
-case: e =>
-  [ z
-  | b
-  | ws n
-  | x
-  | al aa sz x e
-  | al aa sz x e
-  | al sz e
-  | op e
-  | op e1 e2
-  | op es
-  | t e e1 e2 
-  ] /=.
-- by move=> [<-] [<-].
-- by move=> [<-] [<-].
-- by move=> [<-] [<-].
-- by move=> [<-] /get_gvar_compat [] /is_defined_compat_val -> /eqP.
-- rewrite /ty_get_set; t_xrbindP=> _ _ _ _ ?; subst ty.
-  rewrite /on_arr_var; t_xrbindP=> -[] // len a.
-  by t_xrbindP=> _ _ _ _ _ ? _ <-.
-- rewrite /ty_get_set_sub; t_xrbindP=> _ _ _ _ ?; subst ty.
-  rewrite /on_arr_var; t_xrbindP=> -[] // len a.
-  by t_xrbindP=> _ _ _ _ _ ? _ <-.
-- by rewrite /ty_load_store; t_xrbindP=> _ _ _ ? _ _ _ _ ? _ ?; subst ty v.
-- rewrite /= /type_of_op1 /sem_sop1.   
-  by case: op => [ | | | | | | [] | ? []] //=; t_xrbindP => *; subst.
-- rewrite /= /sem_sop2 /type_of_op2.
-    by case: op => 
-    [ | | | [] | [] | [] | ? [] | ? [] | | | | | [] | [] | | | [] | [] | | | 
-    | | | | | | | | ?? [] ] //=; t_xrbindP => *; subst.   
-- rewrite /= /sem_opN /type_of_opN. 
+  case: e =>
+    [ z
+    | b
+    | ws n
+    | x
+    | al aa sz x e
+    | al aa sz x e
+    | al sz e
+    | op e
+    | op e1 e2
+    | op es
+    | t e e1 e2
+    ] /=.
+  - by move=> [<-] [<-].
+  - by move=> [<-] [<-].
+  - by move=> [<-] [<-].
+  - by move=> [<-] /get_gvar_compat [] /compat_val_defined -> /eqP.
+  - rewrite /ty_get_set; t_xrbindP=> _ _ _ _ ?; subst ty.
+    rewrite /on_arr_var; t_xrbindP=> -[] // len a.
+    by t_xrbindP=> _ _ _ _ _ ? _ <-.
+  - rewrite /ty_get_set_sub; t_xrbindP=> _ _ _ _ ?; subst ty.
+    rewrite /on_arr_var; t_xrbindP=> -[] // len a.
+    by t_xrbindP=> _ _ _ _ _ ? _ <-.
+  - by rewrite /ty_load_store; t_xrbindP=> _ _ _ ? _ _ _ _ ? _ ?; subst ty v.
+  - rewrite /= /type_of_op1 /sem_sop1.
+    by case: op => [ | | | | | | [] | ? []] //=; t_xrbindP => *; subst.
+  - rewrite /= /sem_sop2 /type_of_op2.
+    by case: op =>
+      [ | | | [] | [] | [] | ? [] | ? [] | | | | | [] | [] | | | [] | [] | | |
+      | | | | | | | | ?? [] ] //=; t_xrbindP => *; subst.
+  - rewrite /= /sem_opN /type_of_opN.
     by case: op => //=; t_xrbindP => *; subst.
-- rewrite /= /check_expr.
-  t_xrbindP=> ? _ _ ? _ _ ? _ _ ? b ? _ _ ? ? _ hv1 ? ? _ hv2 ?; subst.
-  by case: b; [exact: truncate_val_has_type hv1 | exact: truncate_val_has_type hv2].
+  - rewrite /= /check_expr.
+    t_xrbindP=> ? _ _ ? _ _ ? _ _ ? b ? _ _ ? ? _ hv1 ? ? _ hv2 ?; subst.
+    by case: b; [exact: truncate_val_has_type hv1 | exact: truncate_val_has_type hv2].
 Qed.
 
-Lemma check_global_declP (gd: glob_decl) : check_global_decl gd = ok tt -> (type_of_val (gv2val gd.2)) = (eval_atype (vtype gd.1)). 
-Proof.
-  rewrite /check_global_decl. case: gd => x [ws w | len a] /=.
-- case: (vtype x) => [||| xw] //=. 
-    by case: ifP => //= /negbFE /eqP ->.
-  - case: (vtype x) => [|| ws xlen |] //=.
-  by case: ifP => // /eqP ->.
-Qed.
+(* Progress *)
 
-Lemma mapM_errty {aT bT} (f : aT -> result error bT) :
-  (forall a, f a <> Error ErrType) ->
-  forall l, mapM f l <> Error ErrType.
-Proof.
-  move => Hf. induction l.
-    - by [].
-    - simpl. case Hfa: (f a); case HmapM: (mapM f l) => //=; intros.
-      + rewrite <- HmapM. apply IHl.
-      + specialize Hf with a. rewrite Hfa in Hf. congruence.
-      + specialize Hf with a. rewrite Hfa in Hf. congruence.
-Qed.
-
-Lemma warray_get_noerrty len al aa ws a p : WArray.get (len:=len) al aa ws a p <> Error ErrType.
-Proof.
-  rewrite /WArray.get /read /assert. 
-  case: ifP => _ //. case Hmap: (mapM _ _) => [ | e] //=. 
-  move => heq.
-  case: heq => ?; subst.
-move: Hmap. apply: mapM_errty => k. move=> h; exact: (get_noerrty h).
-Qed.
-
-Lemma warray_get_sub_noerrty lena al aa ws a p : WArray.get_sub (lena:=lena) al aa ws a p <> Error ErrType.
-Proof.
-  rewrite /WArray.get_sub. 
-  case: ifP => _ //. 
-Qed.
-
-Lemma read_noerrty al ws i s : read (emem s) al i ws <> Error ErrType.
-Proof.
-  rewrite /read /assert. 
-  case: ifP => _ //. case Hmap: (mapM _ _) => [ | e] //=. 
-  move => heq.
-  case: heq => ?; subst.
-  move: Hmap. apply: mapM_errty => k. move=> h; exact: (get_noerrty h).
-Qed.
-
-Lemma sem_warray_get_noerrty len gd s e al aa sz t tye : ty_expr e = ok tye ->
-                                      check_int tye = ok tt -> 
-                                      sem_pexpr true gd s e <> Error ErrType ->
-                                      (Let i := Let x := sem_pexpr true gd s e in to_int x in 
-                                       Let w := WArray.get (len:=len) al aa sz t i in ok (Vword w)) <> Error ErrType. 
-Proof. 
-  intros Htye HtyeInt Hne.
-  case He: (sem_pexpr true gd s e) => [v | err] //=. case Hi: (to_int v) => [i | err] //=. case Hw: (WArray.get al aa sz t i) => [w | err] //=.  
-      { move => Herr. case: Herr => ?; subst. apply (warray_get_noerrty Hw). } 
-      { unfold to_int in Hi. rewrite /check_int /check_type in HtyeInt. simpl in HtyeInt. case Htye2: (aint != tye); rewrite Htye2 in HtyeInt. discriminate. simpl in Htye2. move: Htye2 => /negbFE /eqP ?; subst. 
-      pose proof (ty_expr_preserves Htye He) as Hv.
-      apply type_of_valI in Hv. destruct Hv as [Hvundef | Hvint].
-        - rewrite Hvundef in Hi. by move: Hi => -[<-].
-        - destruct Hvint as [i Hvint]. rewrite Hvint in Hi. discriminate. } 
-      move => Herr. case: Herr => ?; subst. apply (Hne He).
-Qed.
-
-Lemma sem_warray_get_sub_noerrty lena len gd s e aa sz t tye : ty_expr e = ok tye ->
-                                      check_int tye = ok tt -> 
-                                      sem_pexpr true gd s e <> Error ErrType ->
-                                      Let i := Let x := sem_pexpr true gd s e in to_int x in (Let t' := WArray.get_sub (lena:=lena) aa sz len t i in ok (Varr t')) <> Error ErrType.
-Proof. 
-  intros Htye HtyeInt Hne.
-  case He: (sem_pexpr true gd s e) => [v | err] //=. case Hi: (to_int v) => [i | err] //=. case Hw: (WArray.get_sub aa sz len t i) => [w | err] //=.  
-      { move => Herr. case: Herr => ?; subst. apply (warray_get_sub_noerrty Hw). } 
-      { unfold to_int in Hi. rewrite /check_int /check_type in HtyeInt. simpl in HtyeInt. case Htye2: (aint != tye); rewrite Htye2 in HtyeInt. discriminate. simpl in Htye2. move: Htye2 => /negbFE /eqP ?; subst. 
-      pose proof (ty_expr_preserves Htye He) as Hv.
-      apply type_of_valI in Hv. destruct Hv as [Hvundef | Hvint].
-        - rewrite Hvundef in Hi. by move: Hi => -[<-].
-        - destruct Hvint as [i Hvint]. rewrite Hvint in Hi. discriminate. } 
-      move => Herr. case: Herr => ?; subst. apply (Hne He).
-Qed.
-
-Lemma check_ptrP t :
-  check_ptr t = ok tt ->
-  exists2 ws, t = aword ws & (Uptr <= ws)%CMP.
-Proof.
-rewrite /check_ptr /check_type /subatype.
-by case: ifP => // /negbFE; case: t => // ws ? _; exists ws.
-Qed.
-
-Lemma sem_read_noerrty tye gd s e ws al :
+Lemma sem_to_int_noerrty gd s e tye :
   ty_expr e = ok tye ->
-  check_ptr tye = ok tt ->
+  check_int tye = ok tt ->
   sem_pexpr true gd s e <> Error ErrType ->
-  (Let w2 :=
-     Let x := sem_pexpr true gd s e in to_pointer x
-   in
-   Let w := read (emem s) al w2 ws in
-   ok (Vword w)) <> Error ErrType.
+  (Let x := sem_pexpr true gd s e in to_int x) <> Error ErrType.
 Proof.
-move=> hty /check_ptrP [ws' ? hws']; subst tye.
-case he: sem_pexpr => [v|//] _ /=.
-have /= {}he := ty_expr_preserves hty he.
-case hptr: to_pointer => [|err] /=.
-- by case hw: read => [//|err] [?]; subst err; apply: read_noerrty hw.
-case: v he hptr => [|||ws'' w|t ?] //=; last by move=> -> [<-].
-move=> [?]; subst ws''.
-move=> /truncate_word_errP [].
-by rewrite -cmp_nle_lt hws'.
+  move=> Hty /check_typeP/eqP Htyeint Hne.
+  apply: rbind_noerrty => // v /(ty_expr_preserves Hty) Htv.
+  by apply: (of_val_noerrty (t := cint)); rewrite Htv -Htyeint.
 Qed.
 
-(* elim: eqP eqxx getP_subctype*)
-Lemma ty_expr_progress (gd : glob_decls) (s : estate) (e : pexpr) (ty : atype) :
-    allM check_global_decl gd = ok tt ->
-    ty_expr e = ok ty ->
-    sem_pexpr true gd s e <> Error ErrType.
+Lemma sem_truncate_val_noerrty gd s e ty t :
+  sem_pexpr true gd s e <> Error ErrType ->
+  ty_expr e = ok ty ->
+  check_type ty t = ok tt ->
+  (Let v := sem_pexpr true gd s e in truncate_val (eval_atype t) v) <>
+    Error ErrType.
 Proof.
-  move => /allMP Hgd. move: ty. induction e as [ | | | x | ??? x e IH | ??? x e IH | ? ws e IH | | | | ]; move => ty. 
-  1-3: move => //=.
-  { rewrite /= /ty_gvar /ty_var /vtype /v_var /gv /get_gvar /get_var /get_global /get_global_value => _ /=.
+  move=> Hsem Hty /check_typeP Hsub.
+  apply rbind_noerrty => [//| v /(ty_expr_preserves Hty) Hvty].
+  apply/truncate_val_noerrty. rewrite Hvty. by apply subatype_subctype.
+Qed.
+
+Lemma check_exprs_subctype gd s es tins vs :
+  check_exprs ty_expr es tins = ok tt ->
+  mapM (sem_pexpr true gd s) es = ok vs ->
+  List.Forall2 (fun t v => subctype t (type_of_val v)) (map eval_atype tins) vs.
+Proof.
+  elim: es tins vs => [|e es IH] [|tin tins'] vs; rewrite /check_exprs //=.
+  - by move=> _ [<-].
+  - rewrite /check_expr. t_xrbindP => tye Htye /check_typeP Hsub Hc v Hs vs' Hmap <-.
+    apply List.Forall2_cons; last apply (IH _ _ Hc Hmap).
+    rewrite (ty_expr_preserves Htye Hs).
+    apply (subatype_subctype Hsub).
+Qed.
+
+Lemma on_arr_var_noerrty {T} gd vm x ws n (f : forall len, WArray.array len -> exec T) :
+  (forall g, List.In g gd -> check_global_decl g = ok tt) ->
+  ty_gvar x = aarr ws n ->
+  (forall len (t : WArray.array len), f len t <> Error ErrType) ->
+  on_arr_var (get_gvar true gd vm x) f <> Error ErrType.
+Proof.
+  rewrite /ty_gvar /ty_var /get_gvar /get_var /get_global /get_global_value => /=.
+  move=> Hgd Htyx Hf.
+  case Hassoc: (assoc gd (gv x)) => [p|].
+  - move: (check_global_declP (Hgd _ (assoc_mem' Hassoc))) => /= ->.
+    rewrite Htyx eqxx => //=.
+    case: (is_lvar x); case: (is_defined vm.[gv x]) => //=.
+    + move: (Vm.getP vm (v_var (gv x))) => //=.
+      by rewrite Htyx => /compat_valEl [t ->] /Hf.
+    1-2: by have := check_global_declP (Hgd _ (assoc_mem' Hassoc));
+         rewrite Htyx => /type_of_valI [a ->].
+  - case: (is_lvar x); case: (is_defined vm.[gv x]) => //=.
+    move: (Vm.getP vm (v_var (gv x))).
+    by rewrite Htyx => /compat_valEl [t ->].
+Qed.
+
+Lemma ty_expr_progress (gd : glob_decls) (s : estate) (e : pexpr) (ty : atype) :
+  allM check_global_decl gd = ok tt ->
+  ty_expr e = ok ty ->
+  sem_pexpr true gd s e <> Error ErrType.
+Proof.
+  move=> /allMP Hgd.
+  elim: e ty =>
+    [ | | | x | ??? x e IH | ??? x e IH | ? ws e IH
+    | op e IHe | op e1 IHe1 e2 IHe2 | op es H | t e1 IHe1 e2 IHe2 e3 IHe3 ] ty //=.
+  - rewrite /= /get_gvar /get_var /get_global /get_global_value => _ /=.
     case: (is_lvar x).
-      - by case: (is_defined (evm s).[gv x]).
-      - case E: (assoc gd (gv x)) => [p|] //.
-        by move: (check_global_declP (Hgd _ (assoc_mem' E))) => /= /eqP ->.
-  }
-  { move => //=. rewrite /ty_get_set. t_xrbindP => tye Htye Htyx HtyeInt HtyWord. pose proof (IH _ Htye) as Hne. rewrite /on_arr_var.
-    move: Htyx. rewrite /check_array /ty_gvar /get_gvar /ty_var /get_var /get_global /get_global_value => //=. 
-    case Etyv: (vtype (gv x)) => [ | | ws n | w ] //= _. case E: (assoc gd (gv x)) => [p|] //.
-      - move: (check_global_declP (Hgd _ (assoc_mem' E))) => /= ->. rewrite Etyv eqxx => //=. 
-        case: (is_lvar x); case: (is_defined (evm s).[gv x]) => //=.
-
-        { move: (Vm.getP (evm s) (v_var (gv x))) => //=. rewrite Etyv => //=. move=> Hcompat. apply compat_valEl in Hcompat. destruct Hcompat as [t Hcompat]. rewrite Hcompat. apply (sem_warray_get_noerrty Htye HtyeInt Hne). }
-
-        1-2: apply assoc_mem' in E; apply Hgd in E; apply check_global_declP in E; simpl in E; rewrite Etyv in E; simpl in E; apply type_of_valI in E; destruct E as [a E]; rewrite E; apply (sem_warray_get_noerrty Htye HtyeInt Hne). 
-
-      - case: (is_lvar x); case: (is_defined (evm s).[gv x]) => //=.  move: (Vm.getP (evm s) (v_var (gv x))) => //=. rewrite Etyv => //=. move=> Hcompat. apply compat_valEl in Hcompat. destruct Hcompat as [t Hcompat]. rewrite Hcompat. apply (sem_warray_get_noerrty Htye HtyeInt Hne). 
-  }
-  {
-    move => //=. rewrite /ty_get_set_sub. t_xrbindP => tye Htye Htyx HtyeInt HtyArr. pose proof (IH _ Htye) as Hne. rewrite /on_arr_var.
-    move: Htyx. rewrite /check_array /ty_gvar /get_gvar /ty_var /get_var /get_global /get_global_value => //=. 
-    case Etyv: (vtype (gv x)) => [ | | ws n | w ] //= _. case E: (assoc gd (gv x)) => [p|] //.
-      - move: (check_global_declP (Hgd _ (assoc_mem' E))) => /= ->. rewrite Etyv eqxx => //=. 
-        case: (is_lvar x); case: (is_defined (evm s).[gv x]) => //=.
-
-        { move: (Vm.getP (evm s) (v_var (gv x))) => //=. rewrite Etyv => //=. move=> Hcompat. apply compat_valEl in Hcompat. destruct Hcompat as [t Hcompat]. rewrite Hcompat. apply (sem_warray_get_sub_noerrty Htye HtyeInt Hne). }
-
-        1-2: apply assoc_mem' in E; apply Hgd in E; apply check_global_declP in E; simpl in E; rewrite Etyv in E; simpl in E; apply type_of_valI in E; destruct E as [a E]; rewrite E; apply (sem_warray_get_sub_noerrty Htye HtyeInt Hne). 
-
-      - case: (is_lvar x); case: (is_defined (evm s).[gv x]) => //=.  move: (Vm.getP (evm s) (v_var (gv x))) => //=. rewrite Etyv => //=. move=> Hcompat. apply compat_valEl in Hcompat. destruct Hcompat as [t Hcompat]. rewrite Hcompat. apply (sem_warray_get_sub_noerrty Htye HtyeInt Hne). 
-  }
-  {
-    move => //=. rewrite /ty_load_store. t_xrbindP => tye Htye HtyePtr HtyWord. pose proof (IH _ Htye) as Hne. apply (sem_read_noerrty Htye HtyePtr Hne). 
-  }
-Admitted.
+    - by case: (is_defined (evm s).[gv x]).
+    - case E: (assoc gd (gv x)) => [p|] //.
+      by move: (check_global_declP (Hgd _ (assoc_mem' E))) => /= /eqP ->.
+  - rewrite /ty_get_set.
+    t_xrbindP => tye Htye /check_arrayP [ws [n Htyx]] HtyeInt _.
+    apply (on_arr_var_noerrty Hgd Htyx) => len' t'.
+    apply: rbind_noerrty => [|i _]; first exact: sem_to_int_noerrty Htye HtyeInt (IH _ Htye).
+    apply: rbind_noerrty => [| _ _ //].
+    exact: read_noerrty.
+  - rewrite /ty_get_set_sub.
+    t_xrbindP => tye Htye /check_arrayP [ws [n Htyx]] HtyeInt _.
+    apply (on_arr_var_noerrty Hgd Htyx) => len' t'.
+    apply: rbind_noerrty => [|i _]; first exact: sem_to_int_noerrty Htye HtyeInt (IH _ Htye).
+    apply: rbind_noerrty => [| _ _ //].
+    rewrite /WArray.get_sub.
+    case: ifP => _ //.
+  - rewrite /ty_load_store.
+    t_xrbindP => tye Htye /check_ptrP [ws' Htyeword ?] _.
+    apply: rbind_noerrty => [|w2 _].
+    - apply: rbind_noerrty => [|v /(ty_expr_preserves Htye) Htv]; first exact: IH Htye.
+      by apply: (of_val_noerrty (t := cword Uptr)); rewrite Htv Htyeword.
+    apply: rbind_noerrty => [|_ _ //]; exact: read_noerrty.
+  - rewrite /check_expr.
+    case htop: (type_of_op1 op) => [tin tout].
+    t_xrbindP => te hte /check_typeP hsub _.
+    apply rbind_noerrty => [|v Hs]; first exact: IHe hte.
+    apply sem_sop1_noerrty.
+    rewrite htop /= (ty_expr_preserves hte Hs). apply: subatype_subctype hsub.
+  - rewrite /check_expr.
+    case htop: (type_of_op2 op) => [[tin1 tin2] tout].
+    t_xrbindP => te1 hte1 /check_typeP hsub1 te2 hte2 /check_typeP hsub2 _.
+    move: (IHe1 _ hte1) (IHe2 _ hte2) => Hs1 Hs2.
+    apply: rbind_noerrty => //= v1 he1.
+    apply: rbind_noerrty => //= v2 he2.
+    apply sem_sop2_noerrty.
+    - rewrite htop /= (ty_expr_preserves hte1 he1). apply (subatype_subctype hsub1).
+    - rewrite htop /= (ty_expr_preserves hte2 he2). apply (subatype_subctype hsub2).
+  - case htop: (type_of_opN op) => [tins touts].
+    t_xrbindP => Hc _.
+    apply: rbind_noerrty => [|vs Hmap].
+    - apply mapM_noerrty => e HIn.
+      have [tin _ Htyok] := fold2_In Hc HIn.
+      move: Htyok. rewrite /check_expr. t_xrbindP => te hte _.
+      apply (H e HIn te hte).
+    - clear H Hgd.
+      rewrite /sem_opN.
+      apply rbind_noerrty => [/=|//].
+      apply app_sopn_noerrty; first by apply/sem_forall_m/sem_opN_typed_ok => -[].
+      - rewrite htop /=.
+        exact: check_exprs_subctype Hc Hmap.
+  - rewrite /check_expr.
+    t_xrbindP => ty1 Hty1 /check_typeP/eqP Hbool ty2 Hty2 Hc2 ty3 Hty3 Hc3 _.
+    apply rbind_noerrty => [|b _].
+    - apply rbind_noerrty => [//|v1 /(ty_expr_preserves Hty1)]; first exact: IHe1 Hty1.
+      rewrite -Hbool /=. case v1 => [ | | | | []] //.
+    - apply rbind_noerrty => [|? _]; first by exact: sem_truncate_val_noerrty (IHe2 _ Hty2) Hty2 Hc2.
+      apply rbind_noerrty => [|//].
+      exact: sem_truncate_val_noerrty (IHe3 _ Hty3) Hty3 Hc3.
+Qed.
 
 End PROOF.
