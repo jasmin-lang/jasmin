@@ -202,17 +202,11 @@ Proof.
     | op es
     | t e e1 e2
     ] /=.
-  - by move=> [<-] [<-].
-  - by move=> [<-] [<-].
-  - by move=> [<-] [<-].
+  1-3: by move=> [<-] [<-].
+  2-3: by rewrite /ty_get_set /ty_get_set_sub; t_xrbindP=> _ _ _ _ <-;
+       rewrite /on_arr_var; t_xrbindP=> -[] // len a; t_xrbindP=> _ _ _ _ _ ? _ <-.
   - by move=> [<-] /get_gvar_compat [] /compat_val_defined -> /eqP.
-  - rewrite /ty_get_set; t_xrbindP=> _ _ _ _ ?; subst ty.
-    rewrite /on_arr_var; t_xrbindP=> -[] // len a.
-    by t_xrbindP=> _ _ _ _ _ ? _ <-.
-  - rewrite /ty_get_set_sub; t_xrbindP=> _ _ _ _ ?; subst ty.
-    rewrite /on_arr_var; t_xrbindP=> -[] // len a.
-    by t_xrbindP=> _ _ _ _ _ ? _ <-.
-  - by rewrite /ty_load_store; t_xrbindP=> _ _ _ ? _ _ _ _ ? _ ?; subst ty v.
+  - by rewrite /ty_load_store; t_xrbindP=> _ _ _ <- _ _ _ _ ? _ <-.
   - rewrite /= /type_of_op1 /sem_sop1.
     by case: op => [ | | | | | | [] | ? []] //=; t_xrbindP => *; subst.
   - rewrite /= /sem_sop2 /type_of_op2.
@@ -222,8 +216,9 @@ Proof.
   - rewrite /= /sem_opN /type_of_opN.
     by case: op => //=; t_xrbindP => *; subst.
   - rewrite /= /check_expr.
-    t_xrbindP=> ? _ _ ? _ _ ? _ _ ? b ? _ _ ? ? _ hv1 ? ? _ hv2 ?; subst.
-    by case: b; [exact: truncate_val_has_type hv1 | exact: truncate_val_has_type hv2].
+    t_xrbindP=> ? _ _ ? _ _ ? _ _ <- b ? _ _ ? ? _ 
+      /truncate_val_has_type hv1 ? ? _ /truncate_val_has_type hv2 <-.
+    by case: b.
 Qed.
 
 (* Progress *)
