@@ -55,7 +55,10 @@ val fdef_of_csfdef : Var0.funname * 'asm Expr._sfundef -> (unit, 'asm) sfundef
 
 val prog_of_csprog : 'asm Expr._sprog -> (unit, 'asm) sprog
 
-val to_array : 
+(* [signed] (true by default) tells whether the elements are returned as signed
+   integers (in [-2^(n-1), 2^(n-1))) or as unsigned ones (in [0, 2^n)). *)
+val to_array :
+  ?signed:bool ->
   Prog.ty -> BinNums.coq_Z -> Warray_.WArray.array -> wsize * Z.t array
 
 val error_of_cerror :

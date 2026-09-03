@@ -9,6 +9,78 @@ type amodel =
   | WArray
   | BArray
 
+(* How a Jasmin global variable is extracted: either as an EasyCrypt
+   abbreviation, or as an EasyCrypt operator declared with the given options
+   (the options are not interpreted, they are printed as such between brackets:
+   "op [opaque] x = e."). *)
+type gmodel =
+  | GlobAbbrev
+  | GlobOp of string
+
+let string_of_gmodel = function
+  | GlobAbbrev -> "abbrev"
+  | GlobOp "" -> "op"
+  | GlobOp opts when String.contains opts ' ' -> Format.asprintf "op=%S" opts
+  | GlobOp opts -> Format.asprintf "op=%s" opts
+
+(* How the machine words of global variables are printed: as signed integers
+   (in [-2^(n-1), 2^(n-1))) or as unsigned ones (in [0, 2^n)).  The two are
+   equal modulo 2^n, so this does not change the meaning of the extracted
+   model; unsigned values avoid the unary minus, which is convenient when the
+   tables are used by reduction. *)
+type gsign =
+  | GlobSigned
+  | GlobUnsigned
+
+let string_of_gsign = function
+  | GlobSigned -> "signed"
+  | GlobUnsigned -> "unsigned"
+
+(* How global variables are extracted, as given by the --global-model
+   command-line option of jasmin2ec. *)
+type global_options = {
+  gmodel : gmodel;
+  gsign : gsign;
+}
+
+let default_global_options = { gmodel = GlobAbbrev; gsign = GlobSigned }
+
+(* Extraction of a global variable can be selected by an annotation on its
+   declaration:
+     #[abbrev]                    u64 g = 1;   (* abbrev g = ... *)
+     #[op]                        u64 g = 1;   (* op g = ... *)
+     #[op=opaque]                 u64 g = 1;   (* op [opaque] g = ... *)
+     #[op="opaque smt_opaque"]    u64 g = 1;   (* op [opaque smt_opaque] g = ... *)
+   When no such annotation is given, the default given on the command line is
+   used. *)
+let gmodel_of_annot annot =
+  let op_options =
+    Annot.on_attribute
+      ~on_empty:(fun _loc _nid () -> "")
+      ~on_id:(fun _loc _nid s -> s)
+      ~on_string:(fun _loc _nid s -> s)
+      (fun loc nid ->
+        Annot.error ~loc
+          "attribute for “%s” should be the options of the operator, given as \
+           an identifier or a string" nid)
+  in
+  Annot.ensure_uniq
+    [ ("abbrev", fun a -> Annot.none a; GlobAbbrev);
+      ("op", fun a -> GlobOp (op_options a)) ]
+    annot
+
+(* The printing of the machine words of a global variable can be
+   selected by an annotation on its declaration:
+     #[sign=signed]      u64 g = -1;   (* W64.of_int (-1) *)
+     #[sign=unsigned]    u64 g = -1;   (* W64.of_int 18446744073709551615 *)
+   When no such annotation is given, the default given on the command line is
+   used. *)
+let gsign_of_annot annot =
+  Annot.ensure_uniq1 "sign"
+    (Annot.filter_string_list None
+       [ ("signed", GlobSigned); ("unsigned", GlobUnsigned) ])
+    annot
+
 let ws2bytes ws = (int_of_ws ws) / 8
 
 module Scmp = struct
@@ -361,6 +433,7 @@ type ec_item =
     | Iimport of string list
     | IfromRequireImport of string * (string list)
     | Iabbrev of string * ec_expr
+    | Iop of string * string * ec_expr
     | ImoduleType of ec_module_type
     | Imodule of ec_module
 
@@ -776,6 +849,12 @@ let pp_ec_item fmt it =
     Format.fprintf fmt "@[from %s require import@ @[%a@].@]" m (pp_list "@ " pp_string) is
   | Iabbrev (a, e) ->
     Format.fprintf fmt "@[abbrev %s =@ @[%a@].@]" a pp_ec_ast_expr e
+  | Iop (a, opts, e) ->
+    let pp_opts fmt = function
+      | "" -> ()
+      | opts -> Format.fprintf fmt " [%s]" opts
+    in
+    Format.fprintf fmt "@[op%a %s =@ @[%a@].@]" pp_opts opts a pp_ec_ast_expr e
   | ImoduleType mt ->
     Format.fprintf fmt "@[<v>@[module type %s = {@]@   @[<v>%a@]@ }.@]"
       mt.name (pp_list "@ " pp_ec_fun_decl) mt.funs
@@ -1980,15 +2059,24 @@ struct
     | ARMv8A -> "SLH64"
     | RISCV  -> "SLH32"
 
-  let ec_glob_decl env (x,d) =
+  let ec_glob_decl env global_options (x,d) =
+    let gsign = Option.default global_options.gsign (gsign_of_annot x.v_annot) in
+    let signed = gsign = GlobSigned in
     let w_of_z ws z = Eapp (Eident [fmt_Wsz ws; "of_int"], [Econst z]) in
-    let mk_abbrev e = Iabbrev (ec_vars env x, e) in
+    let gmodel = Option.default global_options.gmodel (gmodel_of_annot x.v_annot) in
+    let mk_decl e =
+      match gmodel with
+      | GlobAbbrev -> Iabbrev (ec_vars env x, e)
+      | GlobOp opts -> Iop (ec_vars env x, opts, e)
+    in
     match d with
-    | Global.Gword(ws, w) -> mk_abbrev (w_of_z ws (Conv.z_of_word ws w))
+    | Global.Gword(ws, w) ->
+      let z = if signed then Conv.z_of_word ws w else Conv.z_unsigned_of_word ws w in
+      mk_decl (w_of_z ws z)
     | Global.Garr(p,t) ->
-      let ws, t = Conv.to_array x.v_ty p t in
-      mk_abbrev (Eapp (EA.of_list env ws (Array.length t),
-                       [Elist (List.map (w_of_z ws) (Array.to_list t))]))
+      let ws, t = Conv.to_array ~signed x.v_ty p t in
+      mk_decl (Eapp (EA.of_list env ws (Array.length t),
+                     [Elist (List.map (w_of_z ws) (Array.to_list t))]))
 
   let ec_randombytes env =
       let randombytes_decl a n =
@@ -2024,7 +2112,7 @@ struct
           }
         ]
 
-  let toec_prog env asmOp globs funcs =
+  let toec_prog env asmOp global_options globs funcs =
       let add_glob_env env (x, d) =
         add_glob_arrsz env (x, d);
         Env.set_var env x
@@ -2067,12 +2155,12 @@ struct
       glob_imports @
       (leakage_imports env) @
       pp_array_theories (Env.array_theories env) @
-      (List.map (fun glob -> ec_glob_decl env glob) globs) @
+      (List.map (fun glob -> ec_glob_decl env global_options glob) globs) @
       (ec_randombytes env) @
       [top_mod]
 
-  let pp_prog env asmOp fmt globs funcs =
-    Format.fprintf fmt "%a@." pp_ec_prog (toec_prog env asmOp globs funcs)
+  let pp_prog env asmOp global_options fmt globs funcs =
+    Format.fprintf fmt "%a@." pp_ec_prog (toec_prog env asmOp global_options globs funcs)
 
 end
 
@@ -2093,7 +2181,7 @@ and used_func_i used i =
   | Cwhile(_, c1, _, _, c2) -> used_func_c (used_func_c used c1) c2
   | Ccall (_,f,_)   -> Ss.add f.fn_name used
 
-let extract ((globs,funcs):('info, 'asm) prog) arch pd msfsz asmOp (model: model) amodel fnames array_dir fmt =
+let extract ((globs,funcs):('info, 'asm) prog) arch pd msfsz asmOp (model: model) amodel (global_options: global_options) fnames array_dir fmt =
   let save_array_theories array_theories =
     match array_dir with
     | Some prefix ->
@@ -2131,6 +2219,6 @@ let extract ((globs,funcs):('info, 'asm) prog) arch pd msfsz asmOp (model: model
         (module EcLeakConstantTimeGlobal(EE): EcLeakage)
   ) in
   let module E = Extraction(EA)(EL) in
-  let prog = E.pp_prog env asmOp fmt globs funcs in
+  let prog = E.pp_prog env asmOp global_options fmt globs funcs in
   save_array_theories (Env.array_theories env);
   prog

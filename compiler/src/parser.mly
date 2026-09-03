@@ -502,8 +502,8 @@ pgexpr:
 | LBRACE es = rtuple(pexpr) RBRACE { GEarray es }
 
 pglobal:
-| pgd_type=ptype pgd_name=ident EQ pgd_val=pgexpr SEMICOLON
-  { { pgd_type ; pgd_name ; pgd_val  } }
+| pgd_annot=annotations pgd_type=ptype pgd_name=ident EQ pgd_val=pgexpr SEMICOLON
+  { { pgd_annot ; pgd_type ; pgd_name ; pgd_val  } }
 
 (* -------------------------------------------------------------------- *)
 pexec:

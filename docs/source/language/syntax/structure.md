@@ -160,6 +160,12 @@ only its type, name, and value. For instance:
 In this example, the value is a 128-bit machine-word, described as a vector
 of 16 8-bit machine-words.
 
+Global variable declarations can be prefixed by annotations, for instance to
+choose how they are extracted to EasyCrypt
+(see [EasyCrypt extraction](../../tools/jasmin2ec.md)):
+
+    #[op=smt_opaque] u64[2] table = { 0, 1 };
+
 ## Functions
 
 A function is introduced using the `fn` keyword, followed by the function name,

@@ -5,3 +5,7 @@ sdiv.ec
 string.ec
 Array2.ec
 BArray2.ec
+globals.ec
+globals_unsigned.ec
+BArray16.ec
+WArray16.ec
