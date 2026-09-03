@@ -13,8 +13,8 @@ Context `{asmop:asmOp}.
 Variant linstr_r :=
   | Lopn   : lexprs -> sopn -> rexprs -> linstr_r
   | Lsyscall : syscall_t -> linstr_r
-  | Lcall    : option var_i -> remote_label -> linstr_r 
-     (* Lcall ra lbl: 
+  | Lcall    : option var_i -> remote_label -> linstr_r
+     (* Lcall ra lbl:
         if ra = Some r the return adress is stored in r else on top of the stack *)
   | Lret     : linstr_r
   | Lalign : linstr_r
@@ -45,7 +45,9 @@ Record lfundef := LFundef {
  lfd_align : wsize;
  lfd_tyin : seq ltype;
  lfd_arg  : seq var_i;
- lfd_body : lcmd;
+//  lfd_lbl : lblfun
+ lfd_body : list lcmd ++ Label lblfun :: lcmd
+ lfd_extra : list lcmd;
  lfd_tyout : seq ltype;
  lfd_res  : seq var_i;  (* /!\ did we really want to have "seq var_i" here *)
  lfd_export: bool;

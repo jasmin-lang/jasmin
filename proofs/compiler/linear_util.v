@@ -17,6 +17,7 @@ Definition map_lfundef (f : lcmd -> lcmd) (lfd : lfundef) : lfundef :=
     lfd_tyin := lfd_tyin lfd;
     lfd_arg := lfd_arg lfd;
     lfd_body := f (lfd_body lfd);
+    lfd_extra := lfd_extra lfd;
     lfd_tyout := lfd_tyout lfd;
     lfd_res := lfd_res lfd;
     lfd_export := lfd_export lfd;

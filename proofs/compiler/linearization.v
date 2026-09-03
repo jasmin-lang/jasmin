@@ -558,21 +558,27 @@ Fixpoint fnot (e : fexpr) : fexpr :=
   | _ => Fapp1 Onot e
   end.
 
-Notation "c1 ';;' c2" :=  (let: (lbl,lc) := c2 in c1 lbl lc)
+Record lin_out := mk_lo
+  { lo_lbl : label
+  ; lo_cmd : lcmd
+  ; lo_ext : list lcmd  (* extra code of unlikely if branches *)
+  }.
+
+Notation "c1 ';;' c2" :=  (let: (mk_lo lbl lc xlcs) := c2 in c1 lbl lc xlcs)
    (at level 26, right associativity).
 
-Notation "c1 '>;' c2" :=  (let: (lbl,lc) := c2 in (lbl, c1::lc))
+Notation "c1 '>;' c2" :=  (let: (mk_lo lbl lc xlcs) := c2 in mk_lo lbl (c1::lc) xlcs)
    (at level 26, right associativity).
 
 Section LINEAR_C.
 
-  Variable linear_i : instr -> label -> lcmd -> label * lcmd.
+  Variable linear_i : instr -> label -> lcmd -> list lcmd -> lin_out.
 
-  Fixpoint linear_c (c:cmd) (lbl:label) (lc:lcmd) :=
+  Fixpoint linear_c (c:cmd) (lbl:label) (lc:lcmd) (xlcs: list lcmd) : lin_out :=
     match c with
-    | [::] => (lbl, lc)
+    | [::] => {| lo_lbl := lbl; lo_cmd := lc; lo_ext := xlcs |}
     | i::c =>
-      linear_i i ;; linear_c c lbl lc
+      linear_i i ;; linear_c c lbl lc xlcs
     end.
 
 End LINEAR_C.
@@ -583,8 +589,10 @@ Definition add_align ii a (lc:lcmd) :=
   | Align   =>  MkLI ii Lalign :: lc
   end.
 
-Definition align ii a (p:label * lcmd) : label * lcmd :=
-  (p.1, add_align ii a p.2).
+Definition align ii a (p:lin_out) : lin_out :=
+  {| lo_lbl := lo_lbl p
+   ; lo_cmd := add_align ii a (lo_cmd p)
+   ; lo_ext := lo_ext p |}.
 
 Section FUN.
 
@@ -674,39 +682,57 @@ Definition is_RAstack_None_return ra :=
 Let ReturnTarget := Llabel ExternalLabel.
 Let Llabel := linear.Llabel InternalLabel.
 
-Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
+Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) (xlcs: list lcmd) : lin_out :=
   let (ii, ir) := i in
   match ir with
-  | Cassgn _ _ _ _ => (lbl, lc) (* absurd case *)
+  | Cassgn _ _ _ _ => mk_lo lbl lc xlcs (* absurd case *)
   | Copn xs _ o es =>
       match oseq.omap lexpr_of_lval xs, oseq.omap rexpr_of_pexpr es with
-      | Some xs, Some es => (lbl, MkLI ii (Lopn xs o es) :: lc)
-      | _, _ => (lbl, lc) (* absurd case *)
+      | Some xs, Some es => mk_lo lbl (MkLI ii (Lopn xs o es) :: lc) xlcs
+      | _, _ => mk_lo lbl lc xlcs (* absurd case *)
       end
 
-  | Csyscall xs o es => (lbl, MkLI ii (Lsyscall o) :: lc)
+  | Csyscall xs o es => mk_lo lbl (MkLI ii (Lsyscall o) :: lc) xlcs
 
-  | Cassert _ => (lbl, lc) (* absurd case *)
-
-  | Cif e [::] c2 =>
-    let L1 := lbl in
-    let lbl := next_lbl L1 in
-    MkLI ii (Lcond (to_fexpr e) L1) >; linear_c linear_i c2 lbl (MkLI ii (Llabel L1) :: lc)
-
-  | Cif e c1 [::] =>
-    let L1 := lbl in
-    let lbl := next_lbl L1 in
-    MkLI ii (Lcond (fnot (to_fexpr e)) L1) >; linear_c linear_i c1 lbl (MkLI ii (Llabel L1) :: lc)
+  | Cassert _ => mk_lo lbl lc xlcs (* absurd case *)
 
   | Cif e c1 c2 =>
-    let L1 := lbl in
-    let L2 := next_lbl L1 in
-    let lbl := next_lbl L2 in
-                           MkLI ii (Lcond (to_fexpr e) L1) >;
-                           linear_c linear_i c2 ;;
-                           MkLI ii (Lgoto (fn, L2)) >;
-    MkLI ii (Llabel L1) >; linear_c linear_i c1 lbl
-   (MkLI ii (Llabel L2) :: lc)
+    match ii_is_unlikely ii, c1, c2 with
+    | Some b, _, _ =>
+      let L1 := lbl in
+      let L2 := next_lbl L1 in
+      let lbl := next_lbl L2 in
+      if b then (* The true branch is unlikely *)
+        let: (mk_lo lbl lc1 xlcs) := linear_c linear_i c1 lbl [::MkLI ii (Lgoto (fn, L2))] xlcs in
+        let xlcs := (MkLI ii (Llabel L1) :: lc1) :: xlcs in
+        MkLI ii (Lcond (to_fexpr e) L1) >;
+        linear_c linear_i c2 lbl (MkLI ii (Llabel L2) :: lc) xlcs
+      else (* The false branch is unlikely *)
+        let: (mk_lo lbl lc2 xlcs) := linear_c linear_i c2 lbl [::MkLI ii (Lgoto (fn, L2))] xlcs in
+        let xlcs := (MkLI ii (Llabel L1) :: lc2) :: xlcs in
+        MkLI ii (Lcond (fnot (to_fexpr e)) L1) >;
+        linear_c linear_i c1 lbl (MkLI ii (Llabel L2) :: lc) xlcs
+
+    | None, [::], c2 =>
+      let L1 := lbl in
+      let lbl := next_lbl L1 in
+      MkLI ii (Lcond (to_fexpr e) L1) >; linear_c linear_i c2 lbl (MkLI ii (Llabel L1) :: lc) xlcs
+
+    | None, c1, [::] =>
+      let L1 := lbl in
+      let lbl := next_lbl L1 in
+      MkLI ii (Lcond (fnot (to_fexpr e)) L1) >; linear_c linear_i c1 lbl (MkLI ii (Llabel L1) :: lc) xlcs
+
+    | None, c1, c2 =>
+      let L1 := lbl in
+      let L2 := next_lbl L1 in
+      let lbl := next_lbl L2 in
+      MkLI ii (Lcond (to_fexpr e) L1) >;
+             linear_c linear_i c2 ;;
+              MkLI ii (Lgoto (fn, L2)) >;
+      MkLI ii (Llabel L1) >; linear_c linear_i c1 lbl
+      (MkLI ii (Llabel L2) :: lc) xlcs
+    end
 
   | Cwhile a c e _ c' =>
     match is_bool e with
@@ -716,10 +742,10 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       align ii a (
       MkLI ii (Llabel L1) >; linear_c linear_i c ;;
                              linear_c linear_i c' lbl
-                             (MkLI ii (Lgoto (fn, L1)) :: lc))
+                             (MkLI ii (Lgoto (fn, L1)) :: lc) xlcs)
 
     | Some false =>
-      linear_c linear_i c lbl lc
+      linear_c linear_i c lbl lc xlcs
 
     | None =>
       match c' with
@@ -727,7 +753,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       let L1 := lbl in
       let lbl := next_lbl L1 in
       align ii a (MkLI ii (Llabel L1) >; linear_c linear_i c lbl
-                             (MkLI ii (Lcond (to_fexpr e) L1) :: lc))
+                             (MkLI ii (Lcond (to_fexpr e) L1) :: lc) xlcs)
       | _ =>
       let L1 := lbl in
       let L2 := next_lbl L1 in
@@ -735,7 +761,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
                              MkLI ii (Lgoto (fn, L1)) >;
       align ii a (MkLI ii (Llabel L2) >; linear_c linear_i c' ;;
       MkLI ii (Llabel L1) >; linear_c linear_i c lbl
-                             (MkLI ii (Lcond (to_fexpr e) L2) :: lc))
+                             (MkLI ii (Lcond (to_fexpr e) L2) :: lc) xlcs)
       end
     end
 
@@ -743,7 +769,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
     if get_fundef (p_funcs p) fn' is Some fd then
       let e := f_extra fd in
       let ra := sf_return_address e in
-      if is_RAnone ra then (lbl, lc)
+      if is_RAnone ra then mk_lo lbl lc xlcs
       else
         let sz := stack_frame_allocation_size e in
         let tmp := tmpi_of_ra ra in
@@ -762,17 +788,18 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
            * 4. Free stack frame.
            * 5. Continue.
            *)
-        (lbl,    before
+        mk_lo lbl
+              (before
               ++ MkLI ii (Lcall (ovari_of_ra ra) lcall)
               :: MkLI ii (ReturnTarget lret)
               :: after
-              ++ lc
-          )
-    else (lbl, lc )
-  | Cfor _ _ _ => (lbl, lc)
+              ++ lc) xlcs
+
+    else mk_lo lbl lc xlcs
+  | Cfor _ _ _ => mk_lo lbl lc xlcs
   end.
 
-Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) : label * lcmd :=
+Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) :=
   let fentry_ii := entry_info_of_fun_info fi in
   let ret_ii := ret_info_of_fun_info fi in
   let: (tail, head, lbl) :=
@@ -824,8 +851,8 @@ Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) : label * l
        end
      end
   in
-  let fd' := linear_c linear_i body lbl tail in
-  (fd'.1, head ++ fd'.2).
+  let fd' := linear_c linear_i body lbl tail [::] in
+  mk_lo (lo_lbl fd') (head ++ lo_cmd fd') (lo_ext fd').
 
 Definition linear_fd (fd: sfundef) :=
   let e := fd.(f_extra) in
@@ -834,12 +861,13 @@ Definition linear_fd (fd: sfundef) :=
   let tyout := odflt [::] (oseq.omap ltype_of_atype fd.(f_tyout)) in
   let res := if is_export then f_res fd else [::] in
   let body := linear_body fd.(f_info) e fd.(f_body) in
-  (body.1,
+  (lo_lbl body,
     {| lfd_info := f_info fd
     ; lfd_align := sf_align e
     ; lfd_tyin := tyin
     ; lfd_arg := f_params fd
-    ; lfd_body := body.2
+    ; lfd_body := lo_cmd body
+    ; lfd_extra := lo_ext body
     ; lfd_tyout := tyout
     ; lfd_res := res
     ; lfd_export := is_export

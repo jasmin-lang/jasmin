@@ -631,6 +631,7 @@ Definition typed_reg_of_vari xi :=
 
 Definition assemble_fd (rip rsp : var) (fd : lfundef) :=
   Let fd' := assemble_c rip (lfd_body fd) in
+  Let fd_extra := mapM (assemble_c rip) (lfd_extra fd) in
   Let _ := assert
     (rsp \notin map v_var fd.(lfd_arg))
     (E.gen_error true None None (pp_s "Stack pointer is an argument")) in
@@ -643,6 +644,7 @@ Definition assemble_fd (rip rsp : var) (fd : lfundef) :=
     {| asm_fd_align := lfd_align fd
      ; asm_fd_arg := arg
      ; asm_fd_body := fd'
+     ; asm_fd_extra := fd_extra
      ; asm_fd_res := res
      ; asm_fd_export := lfd_export fd
      ; asm_fd_total_stack := lfd_total_stack fd

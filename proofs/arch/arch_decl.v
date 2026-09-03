@@ -657,6 +657,7 @@ Record asm_fundef := XFundef
   { asm_fd_align : wsize
   ; asm_fd_arg   : asm_typed_regs
   ; asm_fd_body  : asm_code
+  ; asm_fd_extra : list asm_code
   ; asm_fd_res   : asm_typed_regs
   ; asm_fd_export: bool
   ; asm_fd_total_stack: Z

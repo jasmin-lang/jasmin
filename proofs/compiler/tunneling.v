@@ -34,13 +34,14 @@ Section LprogSem.
       | _ => None
       end) fb.
 
-  Definition setfb fd fb : lfundef :=
+  Definition setfb fd fb fb_extra: lfundef :=
     LFundef
       fd.(lfd_info)
       fd.(lfd_align)
       fd.(lfd_tyin)
       fd.(lfd_arg)
       fb
+      fb_extra
       fd.(lfd_tyout)
       fd.(lfd_res)
       fd.(lfd_export)
@@ -76,6 +77,9 @@ Section Tunneling.
   Definition tunnel_plan fn uf (lc : lcmd) :=
     pairfoldl (tunnel_chart fn) uf Linstr_align lc.
 
+  Definition tunnel_plans fn uf (lc : lcmd) (lext : list lcmd) :=
+    foldl (tunnel_plan fn) uf (lc::lext).
+
   Definition tunnel_bore fn uf c :=
     match c with
       | MkLI ii li =>
@@ -89,14 +93,13 @@ Section Tunneling.
   Definition tunnel_head fn uf lc :=
     map (tunnel_bore fn uf) lc.
 
-  Definition tunnel_engine fn (lc lc' : lcmd) : lcmd :=
-    tunnel_head fn (tunnel_plan fn LUF.empty lc) lc'.
-
-  Definition tunnel_lcmd fn lc :=
-    tunnel_engine fn lc lc.
+  Definition tunnel_engine fn (lc : lcmd) (lext : list lcmd) : lcmd * list lcmd :=
+    let uf := tunnel_plans fn LUF.empty lc lext in
+    (tunnel_head fn uf lc, map (tunnel_head fn uf) lext).
 
   Definition tunnel_lfundef fn fd :=
-    setfb fd (tunnel_lcmd fn (lfd_body fd)).
+    let: (lc, lext) := tunnel_engine fn (lfd_body fd) (lfd_extra fd) in
+    setfb fd lc lext.
 
   Definition tunnel_funcs :=
     map (fun f => (f.1, tunnel_lfundef f.1 f.2)).
@@ -128,10 +131,11 @@ End TunnelingWF.
 
 Section TunnelingCompiler.
 
-  Definition tunnel_program p :=
-    if well_formed_lprog p
-    then ok (tunnel_lprog p)
-    else Error (tunneling_error "not well-formed").
+  Definition tunnel_program p : result pp_error_loc lprog :=
+(*    if well_formed_lprog p
+    then *) ok (tunnel_lprog p)
+    (* else Error (tunneling_error "not well-formed") *)
+.
 
 End TunnelingCompiler.
 

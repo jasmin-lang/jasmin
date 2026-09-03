@@ -81,7 +81,8 @@ module Make(Target : AsmTarget) : S
         let headers = pp_function_header name decl in
         let body = pp_body name decl in
         let tail = pp_function_tail decl in
-        headers @ body @ tail
+        let extra = List.map (pp_instrs name) decl.asm_fd_extra in
+        List.flatten (headers :: body :: tail :: extra)
 
     let pp_functions funcs = List.concat_map pp_function funcs
 

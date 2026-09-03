@@ -356,6 +356,10 @@ Module Type InstrInfoT <: TAG.
   Include TAG.
   Parameter with_location : t -> t.
   Parameter is_inline : t -> bool.
+  Parameter is_unlikely : t -> option bool.
+     (* is_unlikely info = None : no hint;
+                         | Some true : the true branch is unlikely
+                         | Some false : the false branch is unlikely *)
   Parameter var_info_of_ii : t -> var_info.
 End InstrInfoT.
 
@@ -364,6 +368,7 @@ Module InstrInfo : InstrInfoT.
   Definition witness : t := 1%positive.
   Definition with_location (ii : t) := ii.
   Definition is_inline (_ : t) : bool := false.
+  Definition is_unlikely (_ : t) : option bool := None.
   Definition var_info_of_ii (_ : t) : var_info := dummy_var_info.
 End InstrInfo.
 
@@ -372,6 +377,7 @@ Definition dummy_instr_info : instr_info := InstrInfo.witness.
 Definition ii_with_location (ii : instr_info) : instr_info :=
   InstrInfo.with_location ii.
 Definition ii_is_inline (ii : instr_info) : bool := InstrInfo.is_inline ii.
+Definition ii_is_unlikely (ii : instr_info) : option bool := InstrInfo.is_unlikely ii.
 Definition var_info_of_ii (ii : instr_info) : var_info := InstrInfo.var_info_of_ii ii.
 
 #[only(eqbOK)] derive
