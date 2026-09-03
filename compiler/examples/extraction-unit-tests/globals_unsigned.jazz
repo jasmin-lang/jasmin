@@ -1,0 +1,19 @@
+/* Extraction of the words of global variables as unsigned integers:
+   this file is extracted with --global-model sign=unsigned (see the Makefile). */
+
+u64 g_neg = -1;
+
+u64[2] g_array = {-1, 2};
+
+/* … except for the variables carrying a #[sign] annotation. */
+#[sign=signed]
+u64 g_signed = -1;
+
+export fn main() -> reg u64 {
+  reg u64 r;
+  r = g_neg;
+  r += g_array[0];
+  r += g_array[1];
+  r += g_signed;
+  return r;
+}

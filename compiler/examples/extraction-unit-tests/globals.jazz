@@ -1,0 +1,41 @@
+/* Extraction of global variables: abbrev (the default) or op, with options. */
+
+u64 g_dflt = 37;
+
+#[abbrev]
+u64 g_abbrev = 38;
+
+#[op]
+u64 g_op = 39;
+
+#[op=opaque]
+u64 g_opaque = 40;
+
+#[op="opaque smt_opaque"]
+u64 g_both = 41;
+
+#[op=smt_opaque]
+u64[2] g_array = {42, 43};
+
+/* The #[sign] annotation overrides --global-model sign=... (here: signed). */
+u64 g_signed = -1;
+
+#[sign=unsigned]
+u64 g_unsigned = -1;
+
+#[op=opaque, sign=unsigned]
+u64[2] g_opaque_unsigned = {-1, 45};
+
+export fn main() -> reg u64 {
+  reg u64 r;
+  r = g_dflt;
+  r += g_abbrev;
+  r += g_op;
+  r += g_opaque;
+  r += g_both;
+  r += g_array[1];
+  r += g_signed;
+  r += g_unsigned;
+  r += g_opaque_unsigned[0];
+  return r;
+}

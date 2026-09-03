@@ -1,0 +1,28 @@
+/* Annotations selecting how global variables are extracted to EasyCrypt. */
+
+#[abbrev]
+u64 g_abbrev = 38;
+
+#[op]
+u64 g_op = 39;
+
+#[op=opaque]
+u64 g_opaque = 40;
+
+#[op="opaque smt_opaque"]
+u64 g_both = 41;
+
+#[op=smt_opaque]
+u64[2] g_array = {42, 43};
+
+export
+fn main(reg u64 x) -> reg u64 {
+  reg u64 r;
+  r = x;
+  r += g_abbrev;
+  r += g_op;
+  r += g_opaque;
+  r += g_both;
+  r += g_array[1];
+  return r;
+}
