@@ -32,6 +32,9 @@ elif [ $ARCH = "riscv" ]
 then
      # +m enables integer multiplication
      ASARGS="--triple=riscv32 --mcpu=generic-rv32 -mattr=+m"
+elif [ $ARCH = "armv8a" ]
+then
+    ASARGS="--triple=aarch64"
 else
     ASARGS="--triple=x86_64"
 fi

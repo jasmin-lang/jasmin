@@ -16,6 +16,15 @@ module Core_arch_RISCV : Arch_full.Core_arch
    and type asm_op = Riscv_instr_decl.riscv_op
    and type extra_op = Riscv_extra.riscv_extra_op
 
+module Core_arch_ARMV8A : Arch_full.Core_arch
+  with type reg = Armv8a_decl.register
+   and type regx = Arch_utils.empty
+   and type xreg = Arch_utils.empty
+   and type rflag = Arm_common.rflag
+   and type cond = Arm_common.condt
+   and type asm_op = Armv8a_instr_decl.armv8a_asm_op
+   and type extra_op = Armv8a_extra.armv8a_extra_op
+
 open X86_decl
 
 val core_arch_x86 :

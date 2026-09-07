@@ -40,6 +40,9 @@ module X86_core = struct
 
   let sp_min_align = Wsize.U8
 
+  (* One YMM store. *)
+  let max_store_size = U256
+
   let known_implicits = ["OF","_of_"; "CF", "_cf_"; "SF", "_sf_"; "ZF", "_zf_"]
 
   let alloc_stack_need_extra _ = false

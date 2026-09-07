@@ -1,0 +1,37 @@
+export
+fn intrinsics(reg u64 arg0, reg u64 arg1) -> reg u64 {
+    reg u64 x y;
+    reg bool nf zf cf vf;
+
+    x = #ADD(arg0, arg1);
+    x = #SUB(x, arg1);
+    x = #AND(x, arg1);
+    x = #ORR(x, arg1);
+    x = #EOR(x, arg1);
+    x = #MVN(x);
+    x = #NEG(x);
+    x = #MOV(arg0);
+    x = #MUL(x, arg1);
+    x = #UDIV(x, arg1);
+    x = #SDIV(x, arg1);
+    x = #LSL(x, 2);
+    x = #LSR(x, 3);
+    x = #ASR(x, 1);
+    y = #SXTB(x);
+    y = #SXTH(y);
+    y = #SXTW(y);
+    y = #UXTB(y);
+    y = #UXTH(y);
+    x = x + y;
+
+    nf, zf, cf, vf = #CMP(x, arg1);
+    y = arg1 if zf;
+    x = x + y;
+
+    nf, zf, cf, vf, x = #ADDS(x, arg1);
+    nf, zf, cf, vf, x = #SUBS(x, arg1);
+    x = #ADC(x, arg1, cf);
+    nf, zf, cf, vf, x = #ADCS(x, arg1, cf);
+    x = x + y;
+    return x;
+}

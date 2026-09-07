@@ -1,0 +1,15 @@
+/* The unaligned 16-bit access is taken into account when computing the
+ * alignment for the stack variable, but the frame alignment is floored at
+ * u128: AArch64 checks that SP-based accesses use a 16-byte aligned SP
+ * (Arm ARM DDI0487M.a, D1.4.10.2). */
+#[stackalign=u128, callee_saved = 0]
+export
+fn instack(reg u32 x) -> reg u32 {
+  reg u32 r;
+  stack u8[3] s;
+  r = 0;
+  s[0] = r;
+  s.[:u16 1] = (16u)x;
+  r = (32s)s[:u8 1];
+  return r;
+}

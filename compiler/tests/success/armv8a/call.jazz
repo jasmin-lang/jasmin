@@ -1,0 +1,20 @@
+fn double(reg u64 x) -> reg u64 {
+    x = x + x;
+    return x;
+}
+
+inline
+fn triple(reg u64 x) -> reg u64 {
+    reg u64 y;
+    y = x + x;
+    y = y + x;
+    return y;
+}
+
+export
+fn call(reg u64 arg0) -> reg u64 {
+    reg u64 x;
+    x = double(arg0);
+    x = triple(x);
+    return x;
+}

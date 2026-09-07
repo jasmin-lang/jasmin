@@ -1971,11 +1971,13 @@ struct
   let jmodel env = match Env.arch env with
     | X86_64 -> "JModel_x86"
     | ARM_M4 -> "JModel_m4"
+    | ARMv8A -> "JModel_armv8a"
     | RISCV  -> "JModel_riscv"
 
   let lib_slh env = match Env.arch env with
     | X86_64 -> "SLH64"
     | ARM_M4 -> "SLH32"
+    | ARMv8A -> "SLH64"
     | RISCV  -> "SLH32"
 
   let ec_glob_decl env (x,d) =

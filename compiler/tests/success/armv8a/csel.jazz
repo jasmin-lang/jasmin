@@ -1,0 +1,21 @@
+export
+fn csel(reg u64 arg0, reg u64 arg1) -> reg u64 {
+    reg u64 x;
+    reg bool b;
+
+    b = arg0 < arg1;         // Unsigned.
+    x = arg0;
+    x = arg1 if b;
+
+    b = arg0 <s arg1;        // Signed.
+    x = arg1 if b;
+
+    b = arg0 == arg1;
+    x = arg0 if b;
+
+    b = arg0 >= arg1;
+    x = arg1 if b;
+
+    x = #CSEL(arg0, arg1, b);
+    return x;
+}

@@ -63,5 +63,7 @@ module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch
      would be silently rounded by the hardware. *)
   let sp_min_align = Wsize.U32
 
+  let max_store_size = Wsize.U32
+
   let internal_call_conv = Arm_decl.arm_internal_call_conv
 end

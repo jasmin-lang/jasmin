@@ -713,7 +713,7 @@ let expr_equal a b =
     let open Glob_options in
     match !target_arch with
     | X86_64 -> X86_decl.x86_fcp
-    | ARM_M4 -> Arm_common.arm_fcp
+    | ARM_M4 | ARMv8A -> Arm_common.arm_fcp
     | RISCV  -> Riscv_decl.riscv_fcp
   in
   let normalize e =

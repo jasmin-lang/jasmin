@@ -1,0 +1,145 @@
+/* Operations on u32 values: on AArch64 these must use the W (32-bit)
+   register forms. This mirrors the u64 tests at the other width. */
+
+export
+fn arith32(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x y;
+
+    // MOV of immediates.
+    x = 1;
+    y = 0xffff;              // Largest MOVZ immediate.
+    x = x + y;
+    y = 0xdeadbeef;          // Needs a MOVZ/MOVK sequence.
+    x = x + y;
+    y = 0x0f0f0f0f;          // A 32-bit bitmask immediate.
+    x = x + y;
+
+    // Additions and subtractions: registers and immediates.
+    y = arg0 + arg1;
+    x = x + y;
+    x = x + 1;
+    x = x + 4095;            // Largest imm12.
+    x = x + 0x1000;          // imm12, LSL #12.
+    x = x + 0xfff000;        // Largest imm12, LSL #12.
+    x = x - arg1;
+    x = x - 4095;
+
+    // Shifted registers.
+    x = x + (arg1 << 2);
+    x = x + (arg1 >> 3);
+    x = x + (arg1 >>s 4);
+    x = x - (arg1 << 5);
+
+    // Multiplications: MUL, MADD, MSUB.
+    y = x * arg1;
+    x = x + y;
+    y = x + arg0 * arg1;
+    x = x + y;
+    y = x - arg0 * arg1;
+
+    // Divisions: UDIV, SDIV.
+    y = y / arg1;
+    x = x + y;
+    y = x /s arg1;
+
+    x = x + y;
+    return x;
+}
+
+export
+fn logic32(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+
+    // Registers and 32-bit bitmask immediates.
+    x = arg0 & arg1;
+    x = x & 0xff;
+    x = x | arg1;
+    x = x | 0xff00;
+    x = x ^ arg1;
+    x = x ^ 0x0f0f0f0f;
+
+    // Shifted registers.
+    x = x & (arg1 << 1);
+    x = x | (arg1 >> 2);
+    x = x ^ (arg1 >>s 3);
+
+    return x;
+}
+
+export
+fn shift32(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+
+    // Constant shifts, in [0, 32).
+    x = arg0 << 1;
+    x = x << 31;
+    x = x >> 2;
+    x = x >>s 3;
+
+    // Variable shifts: the amount must be masked to the operand size
+    // (the A64 register shifts reduce it modulo the operand size).
+    x = x << (arg1 & 31);
+    x = x >> (arg1 & 31);
+    x = x >>s (arg1 & 31);
+
+    // Rotations: constant, and by a register (rotation is periodic, so no
+    // mask is needed).
+    x = x >>r 7;
+    x = x >>r arg1;
+    x = x <<r 5;
+
+    return x;
+}
+
+export
+fn csel32(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+    reg bool b;
+
+    b = arg0 < arg1;         // Unsigned.
+    x = arg0;
+    x = arg1 if b;
+
+    b = arg0 <s arg1;        // Signed.
+    x = arg1 if b;
+
+    b = arg0 == arg1;
+    x = arg0 if b;
+
+    b = arg0 >= arg1;
+    x = arg1 if b;
+
+    return x;
+}
+
+export
+fn ldst32(reg u64 p) -> reg u32 {
+    reg u32 a b;
+    stack u32[2] s;
+
+    // 32-bit loads and stores.
+    a = [:u32 p];
+    b = [:u32 p + 4];
+    a = a + b;
+    [:u32 p] = a;
+    [:u32 p + 8] = b;
+
+    // Narrow stores and extending loads at the W width.
+    [:u8 p + 12] = a;
+    [:u16 p + 14] = a;
+    a = (32u)[:u8 p + 12];
+    b = (32s)[:u16 p + 14];
+    a = a + b;
+    b = (32u)[:u16 p + 14];
+    a = a + b;
+    b = (32s)[:u8 p + 12];
+    a = a + b;
+
+    // Stack slots.
+    s[0] = a;
+    s[1] = b;
+    a = s[0];
+    b = s[1];
+    a = a + b;
+    return a;
+}

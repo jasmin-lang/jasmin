@@ -1,0 +1,9 @@
+export
+fn swap(reg u64 arg0, reg u64 arg1) -> reg u64 {
+    reg u64 x y;
+
+    x = arg0; y = arg1;
+    x, y = #swap(x, y);
+    x = x - y;
+    return x;
+}

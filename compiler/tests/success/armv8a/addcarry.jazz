@@ -1,0 +1,9 @@
+export
+fn addcarry(reg u64 a, reg u64 b) -> reg u64 {
+    reg bool c;
+
+    c, a = a + b;       // ADDS
+    _, a += b + c;      // ADC
+    _, a += b + c;      // `c` is still available here
+    return a;
+}

@@ -1,0 +1,9 @@
+export
+fn and(reg u64 arg0, reg u64 arg1) -> reg u64 {
+    reg u64 x;
+
+    x = arg0 & arg1;
+    x = x & 0xff;            // Bitmask immediate.
+    x = x & (arg1 << 1);     // Shifted register.
+    return x;
+}

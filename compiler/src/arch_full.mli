@@ -40,6 +40,10 @@ module type Core_arch = sig
   (* Minimal alignment of every stack frame; see arch_full.ml. *)
   val sp_min_align : Wsize.wsize
 
+  (* Widest store the architecture can perform in one instruction; see
+     arch_full.ml. *)
+  val max_store_size : Wsize.wsize
+
   val known_implicits : (Name.t * string) list
 
   val is_ct_asm_op : asm_op -> bool

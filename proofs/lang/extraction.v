@@ -82,5 +82,9 @@ Separate Extraction
   riscv_instr_decl
   riscv_extra
   riscv_params
+  armv8a_decl
+  armv8a_instr_decl
+  armv8a_extra
+  armv8a_params
   compiler
   wint_int.

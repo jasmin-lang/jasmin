@@ -1,0 +1,12 @@
+export
+fn sub(reg u64 arg0, reg u64 arg1) -> reg u64 {
+    reg u64 x;
+
+    x = arg0 - arg1;
+    x = x - 1;
+    x = x - 4095;
+    x = x - 0xcafebabe;    // Needs a MOVZ/MOVK sequence.
+    x = x - (arg1 << 5);
+    x = -x;
+    return x;
+}

@@ -43,6 +43,11 @@ module type Core_arch = sig
      beyond the one of the stack slots themselves. *)
   val sp_min_align : Wsize.wsize
 
+  (* Widest store the architecture can perform in one instruction. Used to
+     cap the default stack-zeroization clear step when [sp_min_align]
+     raises the frame alignment beyond it. *)
+  val max_store_size : Wsize.wsize
+
   val known_implicits : (Name.t * string) list
 
   val is_ct_asm_op : asm_op -> bool
