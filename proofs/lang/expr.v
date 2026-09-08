@@ -878,6 +878,15 @@ Fixpoint use_mem (e : pexpr) :=
   | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2
   end.
 
+Fixpoint use_mem_eassert (e : eassert) :=
+  match e with
+  | Pexpr e => use_mem e
+  | PappN_safety _ es => has use_mem es
+  | Pis_var_init _ => false
+  | Pis_mem_init _ _ => true
+  | Pand e1 e2 => use_mem_eassert e1 || use_mem_eassert e2
+  end.
+
 (* ** Compute read variables
  * -------------------------------------------------------------------- *)
 
@@ -927,6 +936,8 @@ Fixpoint read_eassert_rec (s:Sv.t) (e:eassert) :=
   end.
 
 Definition read_eassert := read_eassert_rec Sv.empty.
+Definition read_easserts_rec := foldl read_eassert_rec.
+Definition read_easserts := read_easserts_rec Sv.empty.
 
 Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
   match i with

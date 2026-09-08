@@ -204,6 +204,7 @@ lang/pseudo_operator.v
 lang/psem_facts.v
 lang/relational_logic.v
 lang/safety_common.v
+lang/safety.v
 lang/sem_one_varmap.v
 lang/sem_op_typed.v
 lang/sem_one_varmap_facts.v

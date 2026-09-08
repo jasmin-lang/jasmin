@@ -175,14 +175,23 @@ Fixpoint get_var_contract (v: var_i) (vs: seq var_i) (vs': seq var_i) : option v
       | _, _ => None
     end.
 
-Fixpoint check_xs (okmem : bool) W xs scs :=
+(* [check_xs] is generic in the language the safety conditions are written in:
+   [wint_int] generates plain [pexpr]s, the safety pass generates [eassert]s.
+   [read_A] and [use_mem_A] are the corresponding [read_es] / [use_mem]. *)
+Section CHECK_XS.
+
+Context {A : Type} (read_A : seq A -> Sv.t) (use_mem_A : A -> bool).
+
+Fixpoint check_xs (okmem : bool) W xs (scs : seq (seq A)) :=
   match xs, scs with
   | [::], [::] => true
   | x :: xs, sc :: scs =>
-    [&& okmem || (~~has (fun e => use_mem e) sc)
-      , disjoint (read_es sc) W
+    [&& okmem || (~~has use_mem_A sc)
+      , disjoint (read_A sc) W
       & check_xs (okmem && ~~lv_write_mem x) (vrv_rec W x) xs scs]
   | _, _ => false (* Should never occurs *)
   end.
+
+End CHECK_XS.
 
 End DEFS.
