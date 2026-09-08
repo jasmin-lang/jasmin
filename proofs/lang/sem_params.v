@@ -89,3 +89,20 @@ Definition withcatch : WithCatch := {| with_catch := true |}.
    Unfolding is used rather than a rewriting lemma [catch = id] on purpose: the
    latter leaves the goal in a shape [t_xrbindP] handles differently. *)
 #[global] Existing Instances nocatch | 1000.
+
+(* [withcatch] does not preserve [value_uincl]: where [nocatch] fails, it returns
+   a default value, which is unrelated to anything.  So the relational rules whose
+   two sides must run the *same* semantic function — typically those about
+   [exec_sopn] — only hold when the two instances agree.  Stating it as a class
+   keeps the mono-instance case (every compiler pass) inferable in silence. *)
+Class SameCatch (wc1 wc2 : WithCatch) := { same_catch : wc1 = wc2 }.
+#[global] Instance same_catch_refl (wc : WithCatch) : SameCatch wc wc :=
+  {| same_catch := eq_refl |}.
+
+(* Stronger still: the monotonicity theory ([value_uincl]) is simply false under
+   [withcatch] — a failing operation returns a default value, which is unrelated
+   to the value the more defined side computes.  The rules that rely on it are
+   therefore available at [nocatch] only. *)
+Class IsNoCatch (wc : WithCatch) := { is_nocatch : wc = nocatch }.
+#[global] Instance is_nocatch_nocatch : IsNoCatch nocatch :=
+  {| is_nocatch := eq_refl |}.

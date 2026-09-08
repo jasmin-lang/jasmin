@@ -551,7 +551,7 @@ Lemma write_noneP wdb s s' ty v:
   [/\ s' = s, truncatable wdb ty v & DB wdb v].
 Proof. by rewrite /write_none; t_xrbindP. Qed.
 
-Lemma vrvP wdb gd (x:lval) v s1 s2 :
+Lemma vrvP {wc : WithCatch} wdb gd (x:lval) v s1 s2 :
   write_lval gd wdb x v s1 = ok s2 ->
   s1.(evm) =[\ vrv x] s2.(evm).
 Proof.
@@ -562,7 +562,7 @@ Proof.
   by apply: on_arr_varP; t_xrbindP => *; apply: vrvP_var; eauto.
 Qed.
 
-Lemma vrvsP wdb gd xs vs s1 s2 :
+Lemma vrvsP {wc : WithCatch} wdb gd xs vs s1 s2 :
   write_lvals wdb gd s1 xs vs = ok s2 ->
   s1.(evm) =[\ vrvs xs] s2.(evm).
 Proof.
