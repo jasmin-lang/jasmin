@@ -131,6 +131,23 @@ Definition type_of_val v :=
   | Vundef t _ => t
   end.
 
+(* [default_val ty] is the value returned by the defensive semantics (see
+   [WithCatch] in sem_params.v) when an operation of result type [ty] fails for
+   a safety reason. It is defined (never [Vundef]) and of type [ty]. *)
+Definition default_val (ty : atype) : value :=
+  match ty with
+  | abool => Vbool false
+  | aint => Vint 0
+  | aarr ws len => Varr (WArray.fill_elem (arr_size ws len) 0%R)
+  | aword ws => @Vword ws 0%R
+  end.
+
+Lemma is_defined_default_val ty : is_defined (default_val ty).
+Proof. by case: ty. Qed.
+
+Lemma type_of_default_val ty : type_of_val (default_val ty) = eval_atype ty.
+Proof. by case: ty. Qed.
+
 Lemma type_of_valI v t :
   type_of_val v = t ->
   match t with

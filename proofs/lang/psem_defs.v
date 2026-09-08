@@ -55,6 +55,11 @@ Definition get_global gd g : exec value :=
 
 Section WSW.
 Context {wsw:WithSubWord}.
+Context {wc : WithCatch}.
+
+(* [catch ev dflt] is [ev] under the standard semantics, and recovers from
+   safety errors under the defensive one. See [WithCatch] in sem_params.v. *)
+Notation catch ev dflt := (if with_catch then catch_core ev dflt else ev).
 
 (* ** State
  * ------------------------------------------------------------------------- *)
@@ -74,7 +79,7 @@ Arguments Estate {syscall_state}%_type_scope {ep} _ _ _%_vm_scope.
  * -------------------------------------------------------------------- *)
 
 Definition get_gvar (wdb : bool) (gd : glob_decls) (vm : Vm.t) (x : gvar) :=
-  if is_lvar x then get_var wdb vm x.(gv)
+  if is_lvar x then catch (get_var wdb vm x.(gv)) (default_val (vtype x.(gv)))
   else get_global gd x.(gv).
 
 Definition get_var_is wdb vm := mapM (fun x => get_var wdb vm (v_var x)).
@@ -129,27 +134,27 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | Pget al aa ws x e =>
       Let (n, t) := wdb, gd, s.[x] in
       Let i := sem_pexpr s e >>= to_int in
-      Let w := WArray.get al aa ws t i in
+      Let w := catch (WArray.get al aa ws t i) 0%R in
       ok (Vword w)
   | Psub aa ws len x e =>
     Let (n, t) := wdb, gd, s.[x] in
     Let i := sem_pexpr s e >>= to_int in
-    Let t' := WArray.get_sub aa ws len t i in
+    Let t' := catch (WArray.get_sub aa ws len t i) (WArray.fill_elem _ 0%R) in
     ok (Varr t')
   | Pload al sz e =>
     Let w2 := sem_pexpr s e >>= to_pointer in
-    Let w  := read s.(emem) al w2 sz in
+    Let w  := catch (read s.(emem) al w2 sz) 0%R in
     ok (@to_val (cword sz) w)
   | Papp1 o e1 =>
     Let v1 := sem_pexpr s e1 in
-    sem_sop1 o v1
+    catch (sem_sop1 o v1) (default_val (type_of_op1 o).2)
   | Papp2 o e1 e2 =>
     Let v1 := sem_pexpr s e1 in
     Let v2 := sem_pexpr s e2 in
-    sem_sop2 o v1 v2
+    catch (sem_sop2 o v1 v2) (default_val (type_of_op2 o).2)
   | PappN op es =>
     Let vs := mapM (sem_pexpr s) es in
-    sem_opN op vs
+    catch (sem_opN op vs) (default_val (type_of_opN op).2)
   | Pif t e e1 e2 =>
     let t := eval_atype t in
     Let b := sem_pexpr s e >>= to_bool in
@@ -179,19 +184,19 @@ Definition write_lval (l : lval) (v : value) (s : estate) : exec estate :=
   | Lmem al sz x e =>
     Let p := sem_pexpr s e >>= to_pointer in
     Let w := to_word sz v in
-    Let m := write s.(emem) al p w in
+    Let m := catch (write s.(emem) al p w) s.(emem) in
     ok (with_mem s m)
   | Laset al aa ws x i =>
     Let (n,t) := wdb, s.[x] in
     Let i := sem_pexpr s i >>= to_int in
     Let v := to_word ws v in
-    Let t := WArray.set t al aa i v in
+    Let t := catch (WArray.set t al aa i v) t in
     write_var x (@to_val (carr n) t) s
   | Lasub aa ws len x i =>
     Let (n,t) := wdb, s.[x] in
     Let i := sem_pexpr s i >>= to_int in
     Let t' := to_arr (arr_size ws len) v in
-    Let t := @WArray.set_sub n aa ws len t i t' in
+    Let t := catch (@WArray.set_sub n aa ws len t i t') t in
     write_var x (@to_val (carr n) t) s
   end.
 
@@ -245,9 +250,10 @@ Context
   {asmop : asmOp asm_op}.
 
 Definition exec_sopn (o:sopn) (vs:values) : exec values :=
-  Let semi := sopn_sem o in
-  Let t := app_sopn _ semi vs in
-  ok (list_ltuple t).
+  catch (Let semi := sopn_sem o in
+         Let t := app_sopn _ semi vs in
+         ok (list_ltuple t))
+        (map default_val (sopn_tout o)).
 
 Definition sem_sopn gd o m lvs args :=
   sem_pexprs true gd m args >>= exec_sopn o >>= write_lvals true gd m lvs.
@@ -258,6 +264,8 @@ End WSW.
 
 (* Just for extraction *)
 Definition syscall_sem__ := @syscall_sem.exec_syscall_u.
+
+Notation catch ev dflt := (if with_catch then catch_core ev dflt else ev).
 
 Notation "'Let' ( n , t ) ':=' wdb ',' s '.[' v ']' 'in' body" :=
   (@on_arr_var _ (get_var wdb s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0, right associativity).

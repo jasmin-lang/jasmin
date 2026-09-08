@@ -182,6 +182,30 @@ Proof. by case: s. Qed.
 
 End ESTATE_UTILS.
 
+Section WITHCATCH.
+Context {wc : WithCatch}.
+
+(* Reasoning principle for the defensive semantics: to establish [P] of the
+   result of a caught computation, one has to prove [P] of the default value as
+   well, but only when the catch is actually enabled. *)
+Lemma catchP {T : Type} (P : T -> Prop) (ev : exec T) (dflt t : T) :
+  (with_catch -> forall e, ev = Error e -> e <> ErrType -> P dflt) ->
+  (ev = ok t -> P t) ->
+  catch ev dflt = ok t -> P t.
+Proof. by case: with_catch => // /(_ erefl); apply catch_coreP. Qed.
+
+(* Destructive form of [catchP].  Use it on a named hypothesis
+   ([move=> h; case: (catchE h)]): as an ssreflect view ([move=> /catchE]) the
+   subject cannot be abstracted away from the conclusion. *)
+Lemma catchE {T : Type} (ev : exec T) (dflt t : T) :
+  catch ev dflt = ok t -> ev = ok t \/ t = dflt.
+Proof.
+  case: with_catch; first by apply catch_coreE.
+  by move=> h; left.
+Qed.
+
+End WITHCATCH.
+
 (* ** Starting lemmas
  * ------------------------------------------------------------------- *)
 Lemma type_of_get_global gd g v :
@@ -303,17 +327,23 @@ Context
   {spp : SemPexprParams}
   {asmop : asmOp asm_op}.
 
-Lemma sopn_toutP o vs vs' : exec_sopn o vs = ok vs' ->
+(* Holds under both semantics: this is precisely why the default value of a
+   caught [exec_sopn] is [map default_val (sopn_tout o)] and not [[::]]. *)
+Lemma sopn_toutP {wc : WithCatch} o vs vs' : exec_sopn o vs = ok vs' ->
   List.map type_of_val vs' = map eval_atype (sopn_tout o).
 Proof.
-  rewrite /exec_sopn /sopn_tout /sopn_sem.
-  t_xrbindP => ? _ <- ? _ <-;apply type_of_val_ltuple.
+  rewrite /exec_sopn => h; case: (catchE h).
+  + by rewrite /sopn_tout /sopn_sem; t_xrbindP => ? _ <- ? _ <-; apply type_of_val_ltuple.
+  by move=> ->; elim: (sopn_tout o) => //= ty l ->; rewrite type_of_default_val.
 Qed.
 
+(* Only under [nocatch] (the default instance): when the catch is enabled a
+   failing [exec_sopn] returns the default value, which says nothing about its
+   arguments. *)
 Lemma sopn_tinP o vs vs' : exec_sopn o vs = ok vs' ->
   all2 subctype (map eval_atype (sopn_tin o)) (List.map type_of_val vs).
 Proof.
-  rewrite /exec_sopn /sopn_tin /sopn_sem /sopn_sem_; t_xrbindP => _ _ <-.
+  rewrite /exec_sopn /with_catch /nocatch /sopn_tin /sopn_sem /sopn_sem_; t_xrbindP => _ _ <-.
   case (get_instr_desc o) => /= _ tin _ tout _ _ semi _ _ _ _ _ _ _.
   t_xrbindP => p hp _.
   elim: tin vs semi hp => /= [ | t tin hrec] [ | v vs] // semi.
@@ -971,7 +1001,7 @@ Lemma truncate_val_exec_sopn {sip : SemInstrParams asm_op syscall_state} o vs vs
   exec_sopn o vs' = ok v ->
   exec_sopn o vs = ok v.
 Proof.
-  move=> htr; rewrite /exec_sopn.
+  move=> htr; rewrite /exec_sopn /with_catch /nocatch.
   t_xrbindP => ? -> /=  w ok_w <-.
   by rewrite (truncate_val_app_sopn htr ok_w).
 Qed.
@@ -982,7 +1012,7 @@ Lemma exec_sopn_truncate_val {sip : SemInstrParams asm_op syscall_state} o vs v 
     mapM2 ErrType truncate_val (map eval_atype (sopn_tin o)) vs = ok vs' /\
     exec_sopn o vs' = ok v.
 Proof.
-  rewrite /exec_sopn; t_xrbindP=> ? -> /= w ok_w <-.
+  rewrite /exec_sopn /with_catch /nocatch; t_xrbindP=> ? -> /= w ok_w <-.
   have [? [-> {}ok_w]] := app_sopn_truncate_val ok_w.
   eexists; split; first by reflexivity.
   by rewrite ok_w.
