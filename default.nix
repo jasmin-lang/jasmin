@@ -90,7 +90,7 @@ stdenv.mkDerivation {
          angstrom
          batteries
          menhir menhirLib zarith apron yojson ]))
-    ++ optionals devTools (with oP; [ merlin ocaml-lsp ])
+    ++ optionals devTools ([ coqPackages.coq-lsp ] ++ (with oP; [ merlin ocaml-lsp ]))
     ++ optionals ecDeps [ easycrypt z3.out ]
     ++ optionals opamDeps [ rsync git pkg-config perl ppl mpfr opam ]
     ;
