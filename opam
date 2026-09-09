@@ -14,7 +14,7 @@ bug-reports: "https://github.com/jasmin-lang/jasmin/issues"
 dev-repo: "git+https://github.com/jasmin-lang/jasmin.git"
 
 build: [
-  make "build"
+  make "build" "-j%{jobs}%"
 ]
 install: [
   make "PREFIX=%{prefix}%" "install"
