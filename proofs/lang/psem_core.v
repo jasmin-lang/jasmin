@@ -194,9 +194,7 @@ Lemma catchP {T : Type} (P : T -> Prop) (ev : exec T) (dflt t : T) :
   catch ev dflt = ok t -> P t.
 Proof. by case: with_catch => // /(_ erefl); apply catch_coreP. Qed.
 
-(* Destructive form of [catchP].  Use it on a named hypothesis
-   ([move=> h; case: (catchE h)]): as an ssreflect view ([move=> /catchE]) the
-   subject cannot be abstracted away from the conclusion. *)
+(* Destructive form of [catchP]. *)
 Lemma catchE {T : Type} (ev : exec T) (dflt t : T) :
   catch ev dflt = ok t -> ev = ok t \/ t = dflt.
 Proof.
@@ -215,11 +213,15 @@ Proof. by move=> /get_globalI [?[]]. Qed.
 Lemma get_global_defined gd x v : get_global gd x = ok v -> is_defined v.
 Proof. by move=> /get_globalI [gv [_ -> _]]; case: gv. Qed.
 
-Lemma get_gvar_compat wdb gd vm x v : get_gvar wdb gd vm x = ok v ->
+(* Holds under both semantics: [default_val] is defined and of the right type,
+   which is exactly what makes the catch on [get_gvar] harmless here. *)
+Lemma get_gvar_compat {wc : WithCatch} wdb gd vm x v : get_gvar wdb gd vm x = ok v ->
    (~~wdb || is_defined v) /\ compat_val (eval_atype (vtype x.(gv))) v.
 Proof.
-  rewrite /get_gvar;case:ifP => ? heq.
-  + by apply: get_var_compat heq.
+  rewrite /get_gvar; case: ifP => ? heq.
+  + case: (catchE heq) => [{}heq | ->].
+    + by apply: get_var_compat heq.
+    by rewrite is_defined_default_val orbT compat_val_default_val.
   by rewrite /compat_val (type_of_get_global heq) (get_global_defined heq) orbT.
 Qed.
 
@@ -241,12 +243,12 @@ Lemma to_word_get_var wdb vm x ws (w:word ws) :
 Proof. by move=> -> /=; rewrite truncate_word_u. Qed.
 
 (* Remark compat_type b = if b then subtype else eq *)
-Lemma type_of_get_gvar x gd vm v :
+Lemma type_of_get_gvar {wc : WithCatch} x gd vm v :
   get_gvar true gd vm x = ok v ->
   compat_ctype sw_allowed (type_of_val v) (eval_atype (vtype x.(gv))).
 Proof. by move=> /get_gvar_compat [/=hd]; rewrite /compat_val hd orbF. Qed.
 
-Lemma type_of_get_gvar_sub x gd vm v :
+Lemma type_of_get_gvar_sub {wc : WithCatch} x gd vm v :
   get_gvar true gd vm x = ok v ->
   subctype (type_of_val v) (eval_atype (vtype x.(gv))).
 Proof. by move=> /type_of_get_gvar /compat_ctype_subctype. Qed.
@@ -273,7 +275,7 @@ Proof.
   by apply: H.
 Qed.
 
-Lemma on_arr_gvarP A (f : forall n, WArray.array n -> exec A) wdb v gd s x P:
+Lemma on_arr_gvarP {wc : WithCatch} A (f : forall n, WArray.array n -> exec A) wdb v gd s x P:
   (forall n t, eval_atype (vtype x.(gv)) = carr n ->
                get_gvar wdb gd s x = ok (@Varr n t) ->
                f n t = ok v -> P) ->
@@ -297,6 +299,7 @@ Section WITH_SCS.
     {asm_op syscall_state : Type}
     {ep : EstateParams syscall_state}
     {spp : SemPexprParams}
+    {wc : WithCatch}
     (wdb : bool)
     (gd : glob_decls)
     (s1 : estate)
@@ -645,11 +648,12 @@ Qed.
 Lemma get_var_eq_on wdb s vm' vm v: Sv.In v s -> vm =[s]  vm' -> get_var wdb vm v = get_var wdb vm' v.
 Proof. by move=> hin hvm;rewrite /get_var hvm. Qed.
 
-Lemma get_gvar_eq_on wdb s gd vm' vm v: Sv.Subset (read_gvar v) s -> vm =[s]  vm' ->
+Lemma get_gvar_eq_on {wc : WithCatch} wdb s gd vm' vm v: Sv.Subset (read_gvar v) s -> vm =[s]  vm' ->
   get_gvar wdb gd vm v = get_gvar wdb gd vm' v.
 Proof.
-  rewrite /read_gvar /get_gvar; case: ifP => // _ hin.
-  by apply: get_var_eq_on; clear -hin; SvD.fsetdec.
+  rewrite /read_gvar /get_gvar; case: ifP => // _ hsub hvm.
+  have -> // : get_var wdb vm (gv v) = get_var wdb vm' (gv v).
+  by apply: get_var_eq_on hvm; clear -hsub; SvD.fsetdec.
 Qed.
 
 Lemma on_arr_var_eq_on wdb s' X s A x (f: ∀ n, WArray.array n → exec A) :
@@ -659,12 +663,13 @@ Proof.
   by move=> Heq Hin;rewrite /on_arr_var;rewrite (get_var_eq_on _ Hin Heq).
 Qed.
 
-Lemma on_arr_gvar_eq_on wdb s' gd X s A x (f: ∀ n, WArray.array n → exec A) :
+Lemma on_arr_gvar_eq_on {wc : WithCatch} wdb s' gd X s A x (f: ∀ n, WArray.array n → exec A) :
    evm s =[X] evm s' -> Sv.Subset (read_gvar x) X ->
    on_arr_var (get_gvar wdb gd (evm s) x) f = on_arr_var (get_gvar wdb gd (evm s') x) f.
 Proof.
-  move=> Heq; rewrite /get_gvar /read_gvar;case:ifP => _ Hin //.
-  by apply: (on_arr_var_eq_on _ (X := X)) => //; clear -Hin; SvD.fsetdec.
+  move=> Heq; rewrite /get_gvar /read_gvar; case: ifP => _ Hin //.
+  have -> // : get_var wdb (evm s) (gv x) = get_var wdb (evm s') (gv x).
+  by apply: get_var_eq_on Heq; clear -Hin; SvD.fsetdec.
 Qed.
 
 Lemma get_var_eq_ex wdb vm1 vm2 X x:
@@ -684,6 +689,7 @@ Qed.
 
 Section READ_E_ES_EQ_ON.
 
+  Context {wc : WithCatch}.
   Context (wdb : bool) (gd : glob_decls) (s1 : estate) (vm' : Vm.t).
 
   Let P e : Prop :=
@@ -724,6 +730,8 @@ Section READ_E_ES_EQ_ON.
 
 End READ_E_ES_EQ_ON.
 
+Section WITHCATCH.
+Context {wc : WithCatch}.
 Definition read_e_eq_on wdb gd s vm' s1 e :=
   (read_e_es_eq_on wdb gd s1 vm').1 e s.
 
@@ -779,14 +787,19 @@ Proof.
   by apply: eq_onI h; clear; SvD.fsetdec.
 Qed.
 
+End WITHCATCH.
+
 Section UseMem.
 
-Context (wdb : bool) (s1 s2 : estate) (heq : evm s1 = evm s2).
+Context {wc : WithCatch}.
+Context (wdb : bool).
 
-Lemma use_memP gd e:
+Lemma use_memP gd s1 s2 e:
+  evm s1 = evm s2 ->
   ~~use_mem e ->
   sem_pexpr wdb gd s1 e = sem_pexpr wdb gd s2 e.
-Proof using heq.
+Proof.
+  move=> heq.
   apply (pexpr_mut_ind (P := fun e => ~~use_mem e -> sem_pexpr wdb gd s1 e = sem_pexpr wdb gd s2 e)
                       (Q := fun e => ~~has use_mem e -> sem_pexprs wdb gd s1 e = sem_pexprs wdb gd s2 e)).
   split => //= {e}.
@@ -800,14 +813,45 @@ Proof using heq.
   by move=> ty e he e1 he1 e2 he2; rewrite !negb_or=> /andP[]/andP[] /he-> /he1-> /he2->.
 Qed.
 
-End UseMem.
-
-Lemma use_memP_eq_on wdb gd s1 s2 e:
-  ~~use_mem e ->
+Lemma use_memP_eq_on gd s1 s2 e:
   evm s1 =[read_e e] evm s2 ->
+  ~~use_mem e ->
   sem_pexpr wdb gd s1 e = sem_pexpr wdb gd s2 e.
 Proof.
-  by move=> h1 h2; rewrite (use_memP wdb (s2:= with_vm s2 (evm s1)) _ gd h1) //; apply: eq_on_sem_pexpr.
+  move=> h1 h2.
+  by rewrite (use_memP (s1 := s1) (s2 := with_vm s2 (evm s1)) gd erefl h2);
+     apply: eq_on_sem_pexpr.
+Qed.
+
+End UseMem.
+
+(* [eassert] counterpart: an assertion that does not mention the memory only
+   depends on the variable map. *)
+Lemma use_mem_eassertP {wc : WithCatch} gd (s1 s2 : estate) a :
+  evm s1 = evm s2 ->
+  ~~ use_mem_eassert a -> sem_eassert gd s1 a = sem_eassert gd s2 a.
+Proof.
+  move=> heq.
+  have he : forall e, ~~ use_mem e -> sem_pexpr true gd s1 e = sem_pexpr true gd s2 e.
+  + by move=> e h; apply: (use_memP true gd heq h).
+  have hes : forall es, ~~ has use_mem es ->
+    mapM (sem_pexpr true gd s1) es = mapM (sem_pexpr true gd s2) es.
+  + by elim => //= e es hrec; rewrite negb_or => /andP [] /he -> /hrec ->.
+  elim: a => //=.
+  + by move=> e /he ->.
+  + by move=> o es /hes; rewrite /sem_pexprs => ->.
+  + by move=> x _; rewrite heq.
+  by move=> a1 h1 a2 h2; rewrite negb_or => /andP [] /h1 -> /h2 ->.
+Qed.
+
+Lemma use_mem_eassertP_eq_on {wc : WithCatch} gd s1 s2 a :
+  evm s1 =[read_eassert a] evm s2 ->
+  ~~ use_mem_eassert a ->
+  sem_eassert gd s1 a = sem_eassert gd s2 a.
+Proof.
+  move=> h1 h2.
+  by rewrite (use_mem_eassertP (s1 := s1) (s2 := with_vm s2 (evm s1)) gd erefl h2);
+     apply: eq_on_sem_eassert.
 Qed.
 
 (* FIXME this is close to write_var_spec but less specified *)
@@ -845,18 +889,18 @@ Proof.
   + by move=> _ /write_noneP [-> h1 h2]; rewrite /write_none h1 h2; exists vm1.
   + by move=> _ /(write_var_eq_on1 vm1).
   + rewrite read_eE => Hvm.
-    rewrite (@read_e_eq_on wdb gd Sv.empty vm1 s1);first last.
+    rewrite (@read_e_eq_on _ wdb gd Sv.empty vm1 s1);first last.
     + by apply: eq_onI Hvm;rewrite read_eE;SvD.fsetdec.
     by t_xrbindP => > -> /= -> > -> /= ? -> /= <- /=; exists vm1.
   + rewrite read_eE=> Hvm.
     rewrite (on_arr_var_eq_on _ (s' := with_vm s1 vm1) _ Hvm); last by SvD.fsetdec.
-    rewrite (@read_e_eq_on _ gd (Sv.add x Sv.empty) vm1) /=;first last.
+    rewrite (@read_e_eq_on _ _ gd (Sv.add x Sv.empty) vm1) /=;first last.
     + by apply: eq_onI Hvm;rewrite read_eE.
     apply: on_arr_varP => n t Htx; rewrite /on_arr_var => -> /=.
     by t_xrbindP => > -> /= -> ? -> ? /= -> /= /(write_var_eq_on1 vm1).
   rewrite read_eE=> Hvm.
   rewrite (on_arr_var_eq_on _ (s' := with_vm s1 vm1) _ Hvm); last by SvD.fsetdec.
-  rewrite (@read_e_eq_on _ gd (Sv.add x Sv.empty) vm1) /=;first last.
+  rewrite (@read_e_eq_on _ _ gd (Sv.add x Sv.empty) vm1) /=;first last.
   + by apply: eq_onI Hvm;rewrite read_eE.
   apply: on_arr_varP => n t Htx; rewrite /on_arr_var => -> /=.
   by t_xrbindP => > -> /= -> > -> ? /= -> /(write_var_eq_on1 vm1).

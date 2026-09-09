@@ -80,14 +80,7 @@ Definition nocatch : WithCatch := {| with_catch := false |}.
 Definition withcatch : WithCatch := {| with_catch := true |}.
 
 (* [nocatch] is the default instance, so every existing development keeps the
-   semantics it had.  A proof that needs to compute through a [catch] (typically
-   before a [t_xrbindP], which does not see through the [if]) has to reduce the
-   instance away with
-
-     rewrite /exec_sopn /with_catch /nocatch ...
-
-   Unfolding is used rather than a rewriting lemma [catch = id] on purpose: the
-   latter leaves the goal in a shape [t_xrbindP] handles differently. *)
+   semantics it had. *)
 #[global] Existing Instances nocatch | 1000.
 
 (* [withcatch] does not preserve [value_uincl]: where [nocatch] fails, it returns

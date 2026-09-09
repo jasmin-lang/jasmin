@@ -253,6 +253,10 @@ Lemma catch_coreE {T : Type} (ev : exec T) (dflt t : T) :
   catch_core ev dflt = ok t -> ev = ok t \/ t = dflt.
 Proof. by rewrite /catch_core; case: ev => [?|e] /=; [ left | case: is_ErrType => // -[<-]; right ]. Qed.
 
+Lemma catch_core_errty {T : Type} (ev : exec T) (dflt : T) e :
+  catch_core ev dflt = Error e -> e = ErrType.
+Proof. rewrite /catch_core; case: ev => //= e2; case: is_ErrTypeP => // -> [<-] //. Qed.
+
 Lemma bindW {T U} (v : exec T) (f : T -> exec U) r :
   v >>= f = ok r -> exists2 a, v = ok a & f a = ok r.
 Proof. by case E: v => [a|//] /= <-; exists a. Qed.
