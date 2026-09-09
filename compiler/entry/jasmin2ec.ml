@@ -32,6 +32,20 @@ let parse_and_extract arch call_conv idirs =
   let module A = (val CoreArchFactory.get_arch_module arch call_conv) in
   let extract model amodel functions array_dir output pass file =
     let prog = parse_and_compile (module A) ~wi2i:true pass file idirs in
+    let fresh_var_ident k ii n ty =
+      Conv.fresh_var_ident k ii (Uint63.of_int 0) n ty
+    in
+    let rename = LegalizeNames.build_rename prog in
+    let prog =
+      match
+        Conv.cuprog_of_prog prog
+        |> ToEC_jazz.toEC_prog A.asm_e fresh_var_ident rename (model = Normal)
+      with
+      | Utils0.Error e ->
+          let e = Conv.error_of_cerror (Printer.pp_err ~debug:false) e in
+          raise (HiError e)
+      | Utils0.Ok cp -> Conv.prog_of_cuprog cp
+    in
     extract_to_file prog arch A.reg_size A.msf_size A.asmOp model amodel
       functions array_dir output
   in

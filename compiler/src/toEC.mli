@@ -5,6 +5,7 @@ type amodel =
 
 val ty_expr : Prog.expr -> Prog.ty
 val ty_lval : Prog.lval -> Prog.ty
+val keywords : Utils.Ss.t
 val extract :
   ('info, ('asm_op, 'extra_op) Arch_extra.extended_op_gen) Prog.prog ->
   Utils.architecture ->

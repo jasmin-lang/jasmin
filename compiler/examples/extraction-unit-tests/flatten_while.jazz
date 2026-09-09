@@ -1,0 +1,59 @@
+export
+fn t_while_pre() -> reg u32 {
+  inline int i c;
+  i = 0;
+  c = 0;
+  while {
+    c = c + 1;
+  } (i < 5) {
+    i = i + 1;
+  }
+  reg u32 r = c;
+  return r;
+}
+
+export
+fn t_nested_while_pre() -> reg u32 {
+  inline int i j c;
+  i = 0;
+  c = 0;
+  while {
+    j = 0;
+  } (i < 3) {
+    while {
+      c = c + 1;
+    } (j < 2) {
+      j = j + 1;
+    }
+    i = i + 1;
+  }
+  reg u32 r = c;
+  return r;
+}
+
+export
+fn t_do_while() -> reg u32 {
+  inline int i c;
+  i = 0;
+  c = 0;
+  while {
+    c = c + 1;
+    i = i + 1;
+  } (i < 4) {
+  }
+  reg u32 r = c;
+  return r;
+}
+
+export
+fn t_plain_while() -> reg u32 {
+  inline int i c;
+  i = 0;
+  c = 0;
+  while (i < 5) {
+    c = c + 1;
+    i = i + 1;
+  }
+  reg u32 r = c;
+  return r;
+}

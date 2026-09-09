@@ -1,0 +1,28 @@
+export
+fn t_lfence() -> reg u64 {
+  reg u64 r;
+  r = 1;
+  #LFENCE();
+  r += 1;
+  return r;
+}
+
+export
+fn t_clflush(reg u64 p) -> reg u64 {
+  reg u64 r;
+  r = 2;
+  #CLFLUSH(p);
+  r += 3;
+  return r;
+}
+
+export
+fn t_multi_fence() -> reg u64 {
+  reg u64 r;
+  r = 0;
+  #MFENCE();
+  r += 1;
+  #SFENCE();
+  r += 1;
+  return r;
+}

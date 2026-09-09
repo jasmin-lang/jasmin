@@ -1,0 +1,43 @@
+fn callee32(reg u32 p) -> reg u32 {
+  return p;
+}
+
+export
+fn t_assign_narrow(reg u64 y) -> reg u32 {
+  reg u32 x;
+  x = y;
+  return x;
+}
+
+export
+fn t_operand_narrow(reg u32 a, reg u64 y) -> reg u32 {
+  a = a + y;
+  return a;
+}
+
+export
+fn t_shift_narrow(reg u32 a, reg u64 y) -> reg u32 {
+  a = a << y;
+  return a;
+}
+
+export
+fn t_ternary_narrow(reg u64 x, reg u32 z, reg u64 y) -> reg u32 {
+  z = y <u 0 ? x : z;
+  return z;
+}
+
+export
+fn t_call_narrow(reg u64 y) -> reg u32 {
+  reg u32 r;
+  r = callee32(y);
+  return r;
+}
+
+export
+fn t_opn_narrow(reg u64 a, reg u64 b) -> reg u32 {
+  reg bool cf;
+  reg u32 r;
+  ?{}, r = #ADD_32(a, b);
+  return r;
+}

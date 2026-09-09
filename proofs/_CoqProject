@@ -29,6 +29,7 @@
 -R lang Jasmin
 -R ssrmisc Jasmin
 -R itrees Jasmin
+-R toEC Jasmin
 
 ssrmisc/oseq.v
 ssrmisc/seq_extra.v
@@ -155,6 +156,28 @@ compiler/unrolling_proof.v
 compiler/wint_int.v
 compiler/wint_word.v
 compiler/wint_word_proof.v
+toEC/normalize_cond.v
+toEC/normalize_cond_proof.v
+toEC/refresh_for.v
+toEC/refresh_for_proof.v
+toEC/init_local_arrays.v
+toEC/init_local_arrays_proof.v
+toEC/for_to_while.v
+toEC/for_to_while_proof.v
+toEC/flatten_while.v
+toEC/flatten_while_proof.v
+toEC/remove_baseop_casts.v
+toEC/remove_baseop_casts_proof.v
+toEC/normalize_calls.v
+toEC/normalize_calls_proof.v
+toEC/make_coercions_explicit.v
+toEC/make_coercions_explicit_proof.v
+toEC/remove_nullary_opns.v
+toEC/remove_nullary_opns_proof.v
+toEC/legalize_names.v
+toEC/legalize_names_proof.v
+toEC/toEC_jazz.v
+toEC/toEC_jazz_proof.v
 compiler/x86_decl.v
 compiler/x86_extra.v
 compiler/x86_instr_decl.v

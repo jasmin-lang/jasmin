@@ -1,0 +1,52 @@
+/* Tests legalize_names: variables whose source name is an EasyCrypt
+   keyword, an EasyCrypt "internal" pseudo-keyword, an uppercase-initial
+   identifier, a classic `res` clash (as both a param and a local), and
+   two distinct variables sharing one source name via inner-block
+   shadowing. The assertion is simply that the extracted `.ec` typechecks
+   -- that is exactly what legalization is for. */
+
+/* Locals named like EasyCrypt keywords/pseudo-keywords. */
+export
+fn t_keywords(reg u64 var, reg u64 axiom) -> reg u64 {
+  inline int end;
+  reg u64 leakages;
+  end = 0;
+  leakages = var + axiom + (64u)end;
+  return leakages;
+}
+
+/* An uppercase-initial local: EasyCrypt module-scoped names must be
+   lowercase-initial, the printer already lowercases global var names but
+   legalize_names must not accidentally produce a collision for it. */
+export
+fn t_uppercase(reg u64 x) -> reg u64 {
+  reg u64 Foo;
+  Foo = x + 1;
+  return Foo;
+}
+
+/* A param named `res`, the classic EasyCrypt clash (EC's own `res`
+   refers to the procedure's return value inside Hoare/pHoare triples). */
+export
+fn t_param_res(reg u64 res) -> reg u64 {
+  reg u64 r;
+  r = res + 1;
+  return r;
+}
+
+/* Two distinct Jasmin variables sharing the source name `x`: the
+   parameter `x` and an inner-block-local `x` that shadows it. Jasmin
+   itself resolves this via ordinary (non-block-scoped) shadowing; the
+   extracted EasyCrypt module must give the two live ranges distinct
+   identifiers. */
+export
+fn t_shadow(reg u32 x) -> reg u32 {
+  reg u32 a;
+  a = x;
+  if x <s 0 {
+    reg u32 x = 0;
+    a += x;
+  }
+  a += x;
+  return a;
+}
