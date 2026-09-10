@@ -482,7 +482,7 @@ Class absMemP (FS: freshSpec) (mem: Type) (FM: fixedMem mem)
 (* specification of external calls (pre and post conditions) *)
 Class xCallSpec (FS: freshSpec) (mem: Type) (FM: fixedMem mem)
   (GM: globMem FM) (CM: @coreMem mem) (CP: @coreMemP mem CM)
-  (AM: @absMem mem) (P1: @absMemP FS mem FM GM CM CP AM)
+  (AM: @absMem mem) (AP: @absMemP FS mem FM GM CM CP AM)
   : Type := XCallSpec {
    (* if the continuation is empty, finalizing the external calls
    means the program returns *)           
@@ -496,11 +496,76 @@ Class xCallSpec (FS: freshSpec) (mem: Type) (FM: fixedMem mem)
        fresh_loc true ctx (fixed_blocks m) (stack_size (main_pars m)) 
            
   (* before allocation: clr = caller, cle = callee, cleP is determined
+     by the program signature (given the function name). ctx is the whole
+     program context, and args are the call arguments which may depend
+     on such context and go to define the callee context. *)
+   ; initialize_external_call 
+       (clr cle: mem) (cleP: expParams) 
+        (ctx args: Ctx) : Prop :=
+      let cle_size := stack_size cleP in
+      let cle_pre := ctx_pre cleP in
+      let cle_post := ctx_post cleP in
+      let cle_params :=
+        CStackParams cle_post cle_size
+          (fresh_loc true ctx (gsupport clr) cle_size) in
+      let cle_ctx := gstack_ctx cle in
+
+      (* callee precondition *)  
+      cle_pre (cle_ctx ctx) /\
+      args = cle_ctx ctx /\
+
+      gcstack cle = CStack nil cle_ctx cle_params /\
+      gcontinuation cle = gcstack clr :: gcontinuation clr /\
+      (* trivial, as we are before allocation and the callee stack is
+      empty *)  
+      in_chunk (fstack_chunk cle) (gstack_top cle)
+ 
+  (* after deallocation *)
+   ; finalize_external_call (cle clr: mem) (ctx: Ctx) : Prop :=
+      let cle_ctx := gstack_ctx cle in
+      let cle_post := cstack_post (cstack_params (gcstack cle)) in
+
+      (* callee postcondition *)          
+      cle_post (cle_ctx ctx) /\   
+      gstack cle = nil /\
+        
+      gcstack clr = continuation_head cle /\  
+      gcontinuation clr = List.tail (gcontinuation cle) /\    
+      (* should be trivial, as the caller stack chunk should be the
+      same as before call *)  
+      in_chunk (fstack_chunk clr) (gstack_top clr)
+}.
+
+(* global memory packed with context instance *)
+Record cMem (FS: freshSpec) (mem: Type) (FM: fixedMem mem)
+  (GM: globMem FM) : Type := CMem {         
+    cmem_ctx : seq (pointer * Sz)
+  ; cmem_emem (m: mem) : eMem mem := EMem cmem_ctx m 
+}.
+
+(* all together *)
+Class fullMem (FS: freshSpec) (prog mem: Type) (FM: fixedMem mem)
+  (GM: globMem FM) (CM: @coreMem mem) (CP: @coreMemP mem CM)
+  (AM: @absMem mem) (AP: @absMemP FS mem FM GM CM CP AM)
+  (XS: @xCallSpec FS mem FM GM CM CP AM AP) (MP: modProg prog) : Type :=
+  FullMem {}.
+
+(********************************************************************)
+
+(* stronger specification of external calls, with caller pre- and
+   post-conditions *)
+Class xCallSpecS (FS: freshSpec) (mem: Type) (FM: fixedMem mem)
+  (GM: globMem FM) (CM: @coreMem mem) (CP: @coreMemP mem CM)
+  (AM: @absMem mem) (P1: @absMemP FS mem FM GM CM CP AM)
+  (X: @xCallSpec FS mem FM GM CM CP AM P1)
+  : Type := XCallSpecS {
+
+  (* before allocation: clr = caller, cle = callee, cleP is determined
      by the program signature (given the function name), Pre is a
      precondition on the caller frame and context. ctx is the whole
      program context, and args are the call arguments which may depend
      on such context and go to define the callee context. *)
-   ; initialize_external_call 
+     initialize_external_callS 
        (clr cle: mem) (cleP: expParams) (Pre: CSeq -> CPred)
         (ctx args: Ctx) : Prop :=
       let cle_size := stack_size cleP in
@@ -524,7 +589,7 @@ Class xCallSpec (FS: freshSpec) (mem: Type) (FM: fixedMem mem)
 
   (* after deallocation: Post is the caller postcondition on the
      caller frame and context. *)
-   ; finalize_external_call (cle clr: mem) (Post: CSeq -> CPred)
+   ; finalize_external_callS (cle clr: mem) (Post: CSeq -> CPred)
        (ctx: Ctx) : Prop :=
       let clr_ctx := gstack_ctx clr in
       let cle_ctx := gstack_ctx cle in
@@ -540,20 +605,6 @@ Class xCallSpec (FS: freshSpec) (mem: Type) (FM: fixedMem mem)
       gcontinuation clr = List.tail (gcontinuation cle) /\    
       in_chunk (fstack_chunk clr) (gstack_top clr)
 }.
-
-(* global memory packed with context instance *)
-Record cMem (FS: freshSpec) (mem: Type) (FM: fixedMem mem)
-  (GM: globMem FM) : Type := CMem {         
-    cmem_ctx : seq (pointer * Sz)
-  ; cmem_emem (m: mem) : eMem mem := EMem cmem_ctx m 
-}.
-
-(* all together *)
-Class fullMem (FS: freshSpec) (prog mem: Type) (FM: fixedMem mem)
-  (GM: globMem FM) (CM: @coreMem mem) (CP: @coreMemP mem CM)
-  (AM: @absMem mem) (AP: @absMemP FS mem FM GM CM CP AM)
-  (XS: @xCallSpec FS mem FM GM CM CP AM AP) (MP: modProg prog) : Type :=
-  FullMem {}.
 
 End MODEL.
 
