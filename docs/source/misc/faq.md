@@ -14,6 +14,34 @@ Which function? With the command-line flag `-debug` on, the compiler will output
 There are two possible kinds of fix to this kind of issue: either spill some registers to ensure there is at least one register that is free at *all* call sites; or change the calling-convention of the function so that return address is passed on the stack
 (this can be achieved through the `#returnaddress=stack` annotation before the function declaration).
 
+---
+
+> register allocation: variables { b.222 } remain unallocated
+
+triggered by a program such as:
+
+~~~
+export fn constant_bool_eval(reg u64 y) -> reg u64 {
+  reg u64 x = 0;
+  inline int i = 5;
+  reg bool b;
+
+  b = i != 0;
+  x = y if b;
+  return x;
+}
+~~~
+
+`i` is an inline variable, so `i != 0` is a comparison between two compile-time constants. There is no machine instruction that compares an immediate against an immediate and writes the result into a flag register, so the compiler has nothing to allocate `b` to.
+
+A possible fix is to use an `if` statement and let the compiler evaluate at compile-time. Since `i` is inline, the condition is resolved during compilation and only the taken branch is emitted.
+
+Note: if this compile-time-resolved `if` triggers an error on the constant-time checker, mark it explicitly as compile-time with `#[inline]` so the checker doesn't flag it as a secret-dependent branch.
+
+~~~
+#[inline] if (i != 0) { x = y; }
+~~~
+
 ### Stack allocation
 
 > no region associated to variable p
