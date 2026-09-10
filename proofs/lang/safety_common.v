@@ -1,7 +1,51 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 From mathcomp Require Import word_ssrZ.
-Require Import expr.
+Require Import expr sopn_semi.
 Import Utf8.
+
+(* ------------------------------------------------------------------------- *)
+(* Translation of a condition on the arguments of an operator into an
+   expression (resp. an assertion) on the argument expressions. The coercion
+   from words to integers is a parameter: [wint_int] does not need it.
+
+   An out-of-range argument, or a condition that the defensive semantics of
+   expressions does not compute (an operator outside of the [sc_total] white
+   list, or an [IAppN_safety] under an operator), gives [false]: it is then
+   asserted false, which is sound. *)
+
+Section TO_E.
+
+Context (toint : signedness -> wsize -> pexpr -> pexpr).
+
+(* The word-to-integer coercion is used instead of [Papp1] when it is applied
+   to an argument: this is what [wint_int] needs. *)
+Definition sc_op1_to_e (o : sop1) (c : safe_cond) (e : pexpr) : pexpr :=
+  match o, c with
+  | Oint_of_word sg ws, IVar _ => toint sg ws e
+  | _, _ => Papp1 o e
+  end.
+
+Fixpoint sc_to_e (vs : pexprs) (c : safe_cond) : pexpr :=
+  match c with
+  | IBool b => Pbool b
+  | IConst z => Pconst z
+  | IVar k => nth (Pbool false) vs k
+  | IOp1 o c => sc_op1_to_e o c (sc_to_e vs c)
+  | IOp2 o c1 c2 => Papp2 o (sc_to_e vs c1) (sc_to_e vs c2)
+  | IAppN_safety _ _ => Pbool false
+  end.
+
+Definition sc_to_eassert (vs : pexprs) (c : safe_cond) : eassert :=
+  match c with
+  | IAppN_safety o cs =>
+    if all sc_expr cs && ssrnat.leq (sc_max_var c) (size vs)
+    then PappN_safety o (map (sc_to_e vs) cs)
+    else Pexpr (Pbool false)
+  | _ => Pexpr (if sc_expr c && ssrnat.leq (sc_max_var c) (size vs)
+                then sc_to_e vs c else Pbool false)
+  end.
+
+End TO_E.
 
 Section DEFS.
 Context `{asmop:asmOp}.

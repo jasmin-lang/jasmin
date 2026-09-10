@@ -3,7 +3,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 Require Import xseq.
-Require Export type expr gen_map low_memory warray_ sem_type sem_op_typed values varmap low_memory syscall_sem.
+Require Export type expr gen_map low_memory warray_ sem_type sem_op_typed sopn_semi values varmap low_memory syscall_sem.
 Require Export
   flag_combination
   sem_params.
@@ -16,16 +16,7 @@ Open Scope vm_scope.
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
-Definition sem_sop1 (o: sop1) (v: value) : exec value :=
-  Let x := of_val _ v in
-  Let r := sem_sop1_typed o x in
-  ok (to_val r).
-
-Definition sem_sop2 (o: sop2) (v1 v2: value) : exec value :=
-  Let x1 := of_val _ v1 in
-  Let x2 := of_val _ v2 in
-  Let r  := sem_sop2_typed o x1 x2 in
-  ok (to_val r).
+(* [sem_sop1] and [sem_sop2] are defined in sopn_semi.v, re-exported above. *)
 
 Definition sem_opN
   {cfcd : FlagCombinationParams} (op: opN) (vs: values) : exec value :=

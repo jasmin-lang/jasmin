@@ -1409,9 +1409,9 @@ let ty_expr = function
   | Pload (_, sz,_) -> tu sz
   | Pget  (_,_, sz,_,_) -> tu sz
   | Psub (_,ws, len, _, _) -> Arr(ws, len)
-  | Papp1 (op,_)   -> Conv.ty_of_cty (snd (E.type_of_op1 op))
-  | Papp2 (op,_,_) -> Conv.ty_of_cty (snd (E.type_of_op2 op))
-  | PappN (op, _)  -> Conv.ty_of_cty (snd (E.type_of_opN op))
+  | Papp1 (op,_)   -> Conv.ty_of_cty (snd (Operators.type_of_op1 op))
+  | Papp2 (op,_,_) -> Conv.ty_of_cty (snd (Operators.type_of_op2 op))
+  | PappN (op, _)  -> Conv.ty_of_cty (snd (Operators.type_of_opN op))
   | Pif (ty,_,_,_) -> ty
 
 let ty_sopn pd msfsz asmOp op es =
@@ -1533,9 +1533,9 @@ module EcExpression(EA: EcArray): EcExpression = struct
               glob_memi; toec_expr env (int_of_ptr (Env.pd env) e)
           ])
       | Papp1 (op1, e) ->
-            ec_op1 op1 (toec_cast env (Conv.ty_of_cty (fst (E.type_of_op1 op1)), e))
+            ec_op1 op1 (toec_cast env (Conv.ty_of_cty (fst (Operators.type_of_op1 op1)), e))
       | Papp2 (op2, e1, e2) ->
-          let t1, t2 = fst (E.type_of_op2 op2) in
+          let t1, t2 = fst (Operators.type_of_op2 op2) in
           let te1 = (Conv.ty_of_cty t1, e1) in
           let te2 = (Conv.ty_of_cty t2, e2) in
           let te1, te2 = match op2 with

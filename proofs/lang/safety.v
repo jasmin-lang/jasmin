@@ -8,7 +8,7 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 From Coq Require Import ZArith.
-Require Import expr compiler_util word.
+Require Import expr compiler_util word sopn_semi.
 Require Export safety_common.
 Import Utf8.
 
@@ -160,7 +160,7 @@ Fixpoint sc_pexpr (e : pexpr) : safety_cond :=
   | Papp2 op e1 e2 =>
     sc_pexpr e1 ++ sc_pexpr e2 ++ map Pexpr (sc_op2 op e1 e2)
 
-  | PappN op es => conc_map sc_pexpr es
+  | PappN op es => List.flat_map sc_pexpr es
 
   | Pif ty e e1 e2 =>
     sc_pexpr e ++ sc_pexpr e1 ++ sc_pexpr e2
@@ -169,7 +169,7 @@ Fixpoint sc_pexpr (e : pexpr) : safety_cond :=
 Fixpoint sc_eassert (a : eassert) : safety_cond :=
   match a with
   | Pexpr e => sc_pexpr e
-  | PappN_safety _ es => conc_map sc_pexpr es
+  | PappN_safety _ es => List.flat_map sc_pexpr es
   | Pis_var_init _ => [::]
   | Pis_mem_init e1 e2 => sc_pexpr e1 ++ sc_pexpr e2
   | Pand a1 a2 => sc_eassert a1 ++ sc_eassert a2
@@ -200,67 +200,11 @@ Definition sc_lvals (lvs:lvals) okmem : safety_cond :=
 (* ------------------------------------------------------------------------- *)
 (* Operators of instructions                                                  *)
 
-Definition safe_cond_to_e (vs: pexprs) (sc: safe_cond) : eassert :=
-  match sc with
-  | NotZero ws k =>
-      match List.nth_error vs k with
-      | Some x => Pexpr (eneqi (eint_of_word Unsigned ws x) (Pconst 0))
-      | None => Pexpr efalse
-      end
-  | InRangeMod32 ws i j k =>
-      match List.nth_error vs k with
-      | Some x =>
-        let e := emodi Unsigned (eint_of_word Unsigned ws x) (Pconst 32) in
-        Pexpr (eand (elei (Pconst i) e) (elei e (Pconst j)))
-      | None => Pexpr efalse
-      end
-  | ULt ws k z =>
-      match List.nth_error vs k with
-      | Some x => Pexpr (elti (eint_of_word Unsigned ws x) (Pconst z))
-      | None => Pexpr efalse
-      end
-  | UGe ws z k =>
-      match List.nth_error vs k with
-      | Some x => Pexpr (elei (Pconst z) (eint_of_word Unsigned ws x))
-      | None => Pexpr efalse
-      end
-  | UaddLe ws k1 k2 z =>
-      match List.nth_error vs k1, List.nth_error vs k2 with
-      | Some x, Some y =>
-        Pexpr (elei (eaddi (eint_of_word Unsigned ws x) (eint_of_word Unsigned ws y))
-                    (Pconst z))
-      | _, _ => Pexpr efalse
-      end
-  | AllInit ws p k =>
-      match List.nth_error vs k with
-      | Some e =>
-        let len := arr_size ws p in
-        PappN_safety (Ois_arr_init len) [:: e; Pconst 0; Pconst len]
-      | None => Pexpr efalse
-      end
-  | X86Division sz sign =>
-    match vs, sign with
-    | hi :: lo :: dv :: _, Signed =>
-      let hi := eint_of_word Signed sz hi in
-      let lo := eint_of_word Unsigned sz lo in
-      let dd := eaddi (emuli (Pconst (wbase sz)) hi) lo in
-      let dv := eint_of_word Signed sz dv in
-      let q  := edivi Signed dd dv in
-      let ov := eor (elti q (Pconst (wmin_signed sz)))
-                    (elti (Pconst (wmax_signed sz)) q) in
-      Pexpr (eand (eneqi dv ezero) (enot ov))
-    | hi :: lo :: dv :: _, Unsigned =>
-      let hi := eint_of_word Unsigned sz hi in
-      let lo := eint_of_word Unsigned sz lo in
-      let dd := eaddi (emuli (Pconst (wbase sz)) hi) lo in
-      let dv := eint_of_word Unsigned sz dv in
-      let q  := edivi Unsigned dd dv in
-      let ov := elti (Pconst (wmax_unsigned sz)) q in
-      Pexpr (eand (eneqi dv ezero) (enot ov))
-    | _, _ => Pexpr efalse
-    end
-  | ScFalse => Pexpr efalse
-  end.
+(* The safety conditions of an operator are asserted through the generic
+   translation of [safe_cond]s, with the word-to-integer coercion of the
+   source language. *)
+Definition safe_cond_to_e (vs : pexprs) (c : safe_cond) : eassert :=
+  sc_to_eassert eint_of_word vs c.
 
 Definition get_sopn_safe_conds (es: pexprs) (o: sopn) : safety_cond :=
   map (safe_cond_to_e es) (get_instr_desc o).(i_safe).
@@ -281,20 +225,20 @@ Fixpoint sc_instr_ir ii (ir : instr_r) : (safety_cond * instr_r) :=
     (sc_lval lv ++ sc_pexpr e, ir)
   | Copn lvs _ o es =>
     (get_sopn_wt es o :: sc_lvals lvs true ++ get_sopn_safe_conds es o ++
-       conc_map sc_pexpr es, ir)
+       List.flat_map sc_pexpr es, ir)
   | Csyscall lvs _ es =>
-    (sc_lvals lvs true ++ conc_map sc_pexpr es, ir)
+    (sc_lvals lvs true ++ List.flat_map sc_pexpr es, ir)
   | Ccall lvs _ es =>
-    (sc_lvals lvs false ++ conc_map sc_pexpr es, ir)
+    (sc_lvals lvs false ++ List.flat_map sc_pexpr es, ir)
   | Cif e c1 c2 =>
-    (sc_pexpr e, Cif e (conc_map sc_instr c1) (conc_map sc_instr c2))
+    (sc_pexpr e, Cif e (List.flat_map sc_instr c1) (List.flat_map sc_instr c2))
   | Cfor x (d,e1,e2) c =>
-    (sc_pexpr e1 ++ sc_pexpr e2, Cfor x (d,e1,e2) (conc_map sc_instr c))
+    (sc_pexpr e1 ++ sc_pexpr e2, Cfor x (d,e1,e2) (List.flat_map sc_instr c))
   | Cwhile a c1 e ii_w c2 =>
     (* the condition is evaluated at the end of [c1], so its safety conditions
        are asserted there and not in front of the loop *)
     let sc_e := safe_assert ii (sc_pexpr e) in
-    ([::], Cwhile a (conc_map sc_instr c1 ++ sc_e) e ii_w (conc_map sc_instr c2))
+    ([::], Cwhile a (List.flat_map sc_instr c1 ++ sc_e) e ii_w (List.flat_map sc_instr c2))
   | Cassert a =>
     (sc_eassert a.2, ir)
   end
@@ -318,9 +262,9 @@ Definition sc_ci ci :=
 Definition sc_fun (f: ufundef) : ufundef :=
   let 'MkFun ii ci tin p c tout r ev := f in
   let ci := omap sc_ci ci in
-  let c := conc_map sc_instr c in
+  let c := List.flat_map sc_instr c in
   (* the results must be initialised on exit *)
-  let c := c ++ safe_assert dummy_instr_info (conc_map sc_var r) in
+  let c := c ++ safe_assert dummy_instr_info (List.flat_map sc_var r) in
   MkFun ii ci tin p c tout r ev.
 
 Definition check_glob (gd : glob_decl) :=

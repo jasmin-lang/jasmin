@@ -682,8 +682,11 @@ Proof.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2; clear e1 e2.
   case: id Hargs Hdest => /= id_valid msb_flag id_tin
-   id_in id_tout id_out id_semi id_args_kinds id_nargs /andP[] /eqP hsin /eqP hsout
-   id_str_jas id_check_dest id_safe _ id_pp _ _ _ Hargs Hdest vt happ Hm'.
+   id_in id_tout id_out id_semi id_semi_total id_args_kinds id_nargs
+   /andP[] /eqP hsin /eqP hsout
+   id_str_jas id_check_dest id_safe id_err id_init _ id_pp _ _ _ id_semi_eq
+   Hargs Hdest vt happ Hm'.
+  clear id_semi_eq id_semi_total id_init.
   elim: id_in id_tin hsin id_semi args xs Hargs happ Hxs; rewrite /sem_prod.
   + move=> [] //= _ id_semi [|a1 args] [|v1 vs] //= _ -> _ /=.
     exact: (compile_lvals _ hsout Hm' Hlomeqv Hdest).
