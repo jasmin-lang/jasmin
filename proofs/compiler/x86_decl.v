@@ -318,7 +318,8 @@ Definition x86_linux_call_conv : calling_convention :=
    ; call_xreg_args := [:: XMM0; XMM1; XMM2; XMM3; XMM4; XMM5; XMM6; XMM7 ]
    ; call_reg_ret   := [:: RAX; RDX ]
    ; call_xreg_ret  := [:: XMM0; XMM1 ]
-   ; call_reg_ret_uniq := erefl true;
+   ; call_reg_ret_uniq := erefl true
+   ; call_reg_ra    := None
   |}.
 
 Definition x86_windows_call_conv : calling_convention :=
@@ -330,7 +331,8 @@ Definition x86_windows_call_conv : calling_convention :=
    ; call_xreg_args := [:: XMM0; XMM1; XMM2; XMM3 ]
    ; call_reg_ret   := [:: RAX ]
    ; call_xreg_ret  := [:: XMM0 ]
-   ; call_reg_ret_uniq := erefl true;
+   ; call_reg_ret_uniq := erefl true
+   ; call_reg_ra    := None
   |}.
 
 Definition x86_internal_call_conv : internal_calling_convention :=

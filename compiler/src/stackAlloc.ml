@@ -382,8 +382,17 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
     let csao = get_sao fn in 
 
     let to_save =
-      List.take num_callee_saved
-      (List.remove Arch.callee_save_vars Arch.rsp_var) in
+      (* Placeholders sized like the registers to save; only their number and
+         types matter, actual names are filled in after register allocation.
+         On architectures where the return address is passed in a register,
+         that register may need a slot too. *)
+      let pool = List.remove Arch.callee_save_vars Arch.rsp_var in
+      let pool =
+        match Arch.ra_to_save_var with
+        | Some ra -> ra :: pool
+        | None -> pool
+      in
+      List.take num_callee_saved pool in
     let has_stack = has_stack fd || to_save <> [] in
 
     let rsp = V.clone Arch.rsp_var in

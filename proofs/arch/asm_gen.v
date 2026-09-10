@@ -702,6 +702,7 @@ Definition all_vars :=
          scs_vout := map to_var (take (size sig.(scs_tout)) call_reg_ret) |};
   all_vars     := all_vars;
   callee_saved := sv_of_list var_of_asm_typed_reg callee_saved;
+  call_ra      := oapp (fun r => Sv.singleton (to_var r)) Sv.empty call_reg_ra;
   vflags       := vflags;
   vflagsP      := vflagsP;
 }.

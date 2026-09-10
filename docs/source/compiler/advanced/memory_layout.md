@@ -39,6 +39,15 @@ directly or through the function it (transitively) calls, the values of these
 registers are saved in its stack frame (in the “extra” part, as described above)
 at the beginning of the function and restored at the end.
 
+On architectures where the caller passes the return address in a register
+(ARM64, RISC-V), that register is treated in the same way: although it is not
+callee-saved, an export function that kills it (typically because it calls
+other functions or performs system calls) saves it in its stack frame and
+restores it before returning through it. On ARM (Cortex-M4), the LR register
+is used as a scratch register by the compiler itself, so it is instead saved
+around the function body (with `push {lr}`/`pop {pc}`), outside the stack
+frame described here.
+
 Since July 2026 (versions 2026.03.2 and 2026.07.0), the Jasmin compiler provides
 some *eperimental* facility to control how much memory is allocated in the stack
 frame of `export` functions to save the values of callee-saved registers. A
@@ -50,7 +59,9 @@ annotation.
 When an `export` function is annotated with `callee_saved = n` where `n` is some
 non-negative value, the compiler will trust this information and provide room in
 the stack frame for exactly n values. Do not forget to take into account the
-stack-pointer register which is also a callee-saved register.
+stack-pointer register which is also a callee-saved register, and, on ARM64
+and RISC-V, the return-address register when the function kills it (e.g. by
+making calls).
 
 If the value given in the annotation is too large (i.e., pessimistic), then some
 space is *wasted* in the frame but the spuriously reserved slots are not used.

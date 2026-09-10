@@ -263,6 +263,11 @@ Section CHECK.
                     (E.gen_error true None (pp_s "the function returns a callee-saved register")) in
         Let _ := assert (Sv.subset (Sv.inter callee_saved W') to_save)
                     (E.gen_error true None (pp_s "the function kills some callee-saved registers")) in
+        (* The return-address register is not callee-saved, but the return of
+           an export function jumps to the address it held at function entry,
+           so it must be saved and restored if the body kills it. *)
+        Let _ := assert (Sv.subset (Sv.inter call_ra W') to_save)
+                    (E.gen_error true None (pp_s "the function kills the return-address register")) in
         assert (all (λ x : var_i, if vtype x is aword _ then true else false ) (f_params fd))
             (E.gen_error true None (pp_s "the export function has non-word arguments"))
     end.

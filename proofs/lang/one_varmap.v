@@ -8,10 +8,15 @@ From mathcomp Require Import ssreflect ssrfun ssrbool.
 Record ovm_syscall_sig_t := 
   { scs_vin : seq var; scs_vout : seq var }.
 
-Class one_varmap_info := { 
+Class one_varmap_info := {
   syscall_sig  : syscall_t -> ovm_syscall_sig_t;
   all_vars     : Sv.t;
   callee_saved : Sv.t;
+  (* Register in which export functions receive the return address, if it is
+     not passed on the stack. It is not callee-saved, but export functions
+     must nonetheless preserve it so that the final (unmodelled) return jump
+     goes back to the caller. *)
+  call_ra      : Sv.t;
   vflags       : Sv.t;
   vflagsP      : forall x, Sv.In x vflags -> vtype x = abool
 }.

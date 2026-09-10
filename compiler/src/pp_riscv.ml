@@ -105,16 +105,13 @@ module RiscVTarget: AsmTarget
 
   let function_directives = []
 
-  let function_header =
-    [
-      Instr ("addi", [ pp_register SP; pp_register SP; "-4"]);
-      Instr ("sw", [ pp_register RA;  pp_reg_address_aux (pp_register SP) None None None])
-    ]
+  let function_header = []
 
+  (* The body of an export function preserves RA: when it is killed, it is
+     saved to and restored from the stack frame (sf_to_save), so returning is
+     a single indirect jump. *)
   let function_tail =
     [
-      Instr ("lw", [ pp_register RA;  pp_reg_address_aux (pp_register SP) None None None]);
-      Instr ("addi", [ pp_register SP; pp_register SP; "4"]);
       Instr ("ret", [ ])
     ]
 

@@ -82,6 +82,10 @@ module type Arch = sig
   val extra_allocatable_vars : var list
   val xmm_allocatable_vars : var list
   val callee_save_vars : var list
+  (* Register in which export functions receive the return address, when the
+     compiled body is in charge of preserving it (spilled to the stack frame
+     like a callee-saved register when the body kills it). *)
+  val ra_to_save_var : var option
   val not_saved_stack : var list
   val rsp_var : var
   val all_registers : var list
@@ -158,8 +162,16 @@ module Arch_from_Core_arch (A : Core_arch) :
 
   let allocatable =
     let good_order = mk_allocatable (Arch_decl.registers arch_decl) callee_save_reg in
-    (* be sure that rsp is not used *)
-    List.filter (fun r -> r <> rsp) good_order
+    (* be sure that rsp is not used; when the body of export functions is in
+       charge of preserving the return-address register (call_reg_ra), it is
+       not a general-purpose scratch register either (it would needlessly
+       consume a spill slot in the stack frame of export functions) *)
+    let reserved =
+      match call_conv.call_reg_ra with
+      | Some ra -> [rsp; ra]
+      | None -> [rsp]
+    in
+    List.filter (fun r -> not (List.mem r reserved)) good_order
 
   let extra_allocatable =
     mk_allocatable (Arch_decl.registerxs arch_decl) callee_save_regx
@@ -204,6 +216,8 @@ module Arch_from_Core_arch (A : Core_arch) :
       | AXReg r -> var_of_xreg r
       | ABReg r -> var_of_flag r in
     List.map var_of_typed callee_save
+
+  let ra_to_save_var = Option.map var_of_reg call_conv.call_reg_ra
 
   let rsp_var = var_of_reg rsp
 
