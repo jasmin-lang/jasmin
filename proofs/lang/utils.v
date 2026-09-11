@@ -226,37 +226,6 @@ Definition is_ErrType e := if e is ErrType then true else false.
 Lemma is_ErrTypeP e : reflect (e = ErrType) (is_ErrType e).
 Proof. by case: e => /=; constructor. Qed.
 
-(* [catch_core ev dflt] recovers from every error but [ErrType]: an [ErrType]
-   denotes an ill-typed program, whereas the other errors denote the violation
-   of a safety property. It is the building block of the defensive semantics
-   selected by the [WithCatch] class (see sem_params.v): under that semantics an
-   unsafe operation returns [dflt] instead of failing, which is what EasyCrypt
-   does on the extracted programs. *)
-Definition catch_core {T:Type} (ev : exec T) (dflt : T) : exec T :=
-  match ev with
-  | Ok _ => ev
-  | Error e => if is_ErrType e then ev else ok dflt
-  end.
-
-Lemma catch_coreP {T : Type} (P : T -> Prop) (ev : exec T) (dflt t : T) :
-  (forall e, ev = Error e -> e <> ErrType -> P dflt) ->
-  (ev = ok t -> P t) ->
-  catch_core ev dflt = ok t -> P t.
-Proof.
-  rewrite /catch_core; case: ev => // e + _.
-  by case: is_ErrTypeP => // h h1 [<-]; apply: h1 h.
-Qed.
-
-(* Destructive form of [catch_coreP]: easier to chain with [t_xrbindP], and it
-   applies where [catch_coreP] needs the goal to be in the shape [P t]. *)
-Lemma catch_coreE {T : Type} (ev : exec T) (dflt t : T) :
-  catch_core ev dflt = ok t -> ev = ok t \/ t = dflt.
-Proof. by rewrite /catch_core; case: ev => [?|e] /=; [ left | case: is_ErrType => // -[<-]; right ]. Qed.
-
-Lemma catch_core_errty {T : Type} (ev : exec T) (dflt : T) e :
-  catch_core ev dflt = Error e -> e = ErrType.
-Proof. rewrite /catch_core; case: ev => //= e2; case: is_ErrTypeP => // -> [<-] //. Qed.
-
 (* [eq_ok r1 r2]: the two computations succeed on the same values. They may
    raise different errors; this is the notion of equality used to relate an
    access to its "safety conditions + total function" form, where the order in

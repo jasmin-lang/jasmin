@@ -65,7 +65,8 @@ Qed.
 (* sem_stack_stable and sem_validw_stable both for uprog and sprog *)
 (* inspired by sem_one_varmap_facts *)
 
-(* Holds under both semantics: a caught memory write leaves the memory alone. *)
+(* Holds under both semantics: under [withcatch] the total memory write only
+   touches bytes that were already writable. *)
 Lemma write_lval_stack_stable {wc : WithCatch} wdb gd x v s s' :
   write_lval wdb gd x v s = ok s' →
   stack_stable (emem s) (emem s').
@@ -74,7 +75,8 @@ Proof.
   - by move=> /write_noneP [<-].
   - by move => /write_var_memP ->.
   - rewrite /=; t_xrbindP => ?????? m' ok_m' <- /=.
-    case: (catchE ok_m') => [{}ok_m' | -> //].
+    case: with_catch ok_m' => [[<-] | ok_m'].
+    + exact: write_total_stack_stable.
     exact: write_mem_stable ok_m'.
   all: by apply: on_arr_varP; rewrite /write_var; t_xrbindP => ?????????????? <-.
 Qed.
@@ -95,7 +97,8 @@ Proof.
   - by move => /write_noneP [] <-.
   - by move => /write_var_memP <-.
   - t_xrbindP => /= ?? ?? ?? ? h <- /=.
-    case: (catchE h) => [{}h | -> //].
+    case: with_catch h => [[<-] | h].
+    + by move=> ???; rewrite write_total_validw_eq.
     by move=> ???; rewrite (write_validw_eq h).
   all: by apply: on_arr_varP; rewrite /write_var; t_xrbindP => ?????????????? <-.
 Qed.

@@ -60,8 +60,13 @@ Context
 Lemma to_val_defined t (x : sem_t t) v : to_val x = v -> is_defined v.
 Proof. by move=> /to_valI; case: v. Qed.
 
-(* Under [withcatch] a failing operator returns [default_val], which is defined;
-   under [nocatch] the value comes from a successful [to_val]. *)
+(* [opN] has no safety condition, so both semantics of [PappN] agree. *)
+Lemma sem_opN_total_vE (o : opN) vs : sem_opN o vs = sem_opN_total_v o vs.
+Proof.
+by rewrite /sem_opN /sem_opN_total_v (sem_prod_eq_app_sopn vs (sem_opN_eq_ok o)).
+Qed.
+
+(* Every expression ends on a [to_val], under both semantics. *)
 Lemma sem_pexpr_defined {wc : WithCatch} s gd e v :
   sem_pexpr true gd s e = ok v -> is_defined v.
 Proof.
@@ -69,20 +74,12 @@ Proof.
   + by move=> > /get_gvar_compat /= [].
   + by move=> >; apply: on_arr_gvarP => ????; t_xrbindP => *; subst.
   + by move=> >; apply: on_arr_gvarP => ????; t_xrbindP => *; subst.
-  + move=> > _; rewrite /sem_sop1; case: wc => -[] /=; first last.
-    + by t_xrbindP => ????; apply to_val_defined.
-    case: of_val => ? /=; first case: sem_sop1_typed => ? /=.
-    + by move=> [] /to_val_defined.
-    1-2: by case: ifP => //= _ [] <-; apply /is_defined_default_val.
-  + move=> > _ > _ >; rewrite /sem_sop2; case: wc => -[] /=; first last.
-    + by t_xrbindP => ??????; apply to_val_defined.
-    case: of_val => ? /=; case: of_val => ? /=; first case: sem_sop2_typed => ? /=.
-    + by move=> [] /to_val_defined.
-    1-4: by case: ifP => //= _ [] <-; apply /is_defined_default_val.
-  + move=> > _; rewrite /sem_opN; case: wc => -[] /=; first last.
-    + by t_xrbindP => ??; apply to_val_defined.
-    case: app_sopn => ? /=; first by move=> [] /to_val_defined.
-    by case: ifP => //= _ [] <-; apply /is_defined_default_val.
+  + move=> > _; rewrite /sem_sop1 /sem_sop1_total_v; case: with_catch; t_xrbindP;
+      by move=> *; subst; exact: (to_val_defined erefl).
+  + move=> > _ > _; rewrite /sem_sop2 /sem_sop2_total_v; case: with_catch; t_xrbindP;
+      by move=> *; subst; exact: (to_val_defined erefl).
+  + move=> > _; rewrite /sem_opN /sem_opN_total_v; case: with_catch; t_xrbindP;
+      by move=> *; subst; exact: (to_val_defined erefl).
   by move=> > _ _ > _ /truncate_val_defined ? > _ /truncate_val_defined ? <-; case: ifP.
 Qed.
 
@@ -106,6 +103,18 @@ Proof.
   by move=> > _ /truncate_word_errP [].
 Qed.
 
+(* Applying a total function fails only on the coercion of an argument, hence
+   only for a typing reason. *)
+Lemma app_sopn_ok_errty {A ts} {f : sem_prod ts A} {vs er} :
+  all is_defined vs ->
+  app_sopn ts (sem_prod_ok ts f) vs = Error er -> er = ErrType.
+Proof.
+  elim: ts f vs => [ | t ts ih] f [ | v vs] //=.
+  1-2: by move=> _ [<-].
+  move=> /andP [hd hall]; case hof: of_val => [x | e1] /=; first by apply: ih hall.
+  by move=> [<-]; apply: isdef_errtype hd hof.
+Qed.
+
 (* ------------------------------------------------------------------------- *)
 (* Under [withcatch] the only remaining failure is a typing error             *)
 
@@ -117,7 +126,7 @@ Lemma get_gvar_errty gd vm x er :
   get_gvar (wc:=withcatch) true gd vm x = Error er -> er = ErrType.
 Proof.
   rewrite /get_gvar; case: ifP => _.
-  + by apply catch_core_errty.
+  + by [].
   rewrite /get_global; case: get_global_value => [ga|]; last by move=> [<-].
   by case: eqP => // _ [<-].
 Qed.
@@ -154,30 +163,35 @@ Proof.
     apply: on_arr_gvar_errty => n t.
     case heq: (sem_pexpr true gd s e) => [v|e1] /=; last by move=> [<-]; apply: he heq.
     case hi: (to_int v) => [i|e2] /=; last by move=> [<-]; apply: (sem_to_errty (t:=cint) heq hi).
-    case hw: catch_core => [w|e3] /=; last by move=> [<-]; apply: catch_core_errty hw.
     by [].
   - move=> aa sz len x e he er.
     apply: on_arr_gvar_errty => n t.
     case heq: (sem_pexpr true gd s e) => [v|e1] /=; last by move=> [<-]; apply: he heq.
     case hi: (to_int v) => [i|e2] /=; last by move=> [<-]; apply: (sem_to_errty (t:=cint) heq hi).
-    case hw: catch_core => [w|e3] /=; last by move=> [<-]; apply: catch_core_errty hw.
     by [].
   - move=> al sz e he er.
     case heq: (sem_pexpr true gd s e) => [v|e1] /=; last by move=> [<-]; apply: he heq.
     case hp: (to_pointer v) => [p|e2] /=;
       last by move=> [<-]; apply: (sem_to_errty (t:=cword Uptr) heq hp).
-    case hr: catch_core => [w|e3] /=; last by move=> [<-]; apply: catch_core_errty hr.
     by [].
   - move=> op e he er.
     case heq: (sem_pexpr true gd s e) => [v|e1] /=; last by move=> [<-]; apply: he heq.
-    by apply catch_core_errty.
+    rewrite /sem_sop1_total_v.
+    case hof: (of_val _ v) => [x|e2] /=; last by move=> [<-]; apply: (sem_to_errty heq hof).
+    by [].
   - move=> op e1 h1 e2 h2 er.
     case q1: (sem_pexpr true gd s e1) => [v1|er1] /=; last by move=> [<-]; apply: h1 q1.
     case q2: (sem_pexpr true gd s e2) => [v2|er2] /=; last by move=> [<-]; apply: h2 q2.
-    by apply catch_core_errty.
+    rewrite /sem_sop2_total_v.
+    case ho1: (of_val _ v1) => [x1|e3] /=; last by move=> [<-]; apply: (sem_to_errty q1 ho1).
+    case ho2: (of_val _ v2) => [x2|e4] /=; last by move=> [<-]; apply: (sem_to_errty q2 ho2).
+    by [].
   - move=> op es hes er.
     case q: (mapM (sem_pexpr true gd s) es) => [vs|er1] /=; last by move=> [<-]; apply: hes q.
-    by apply catch_core_errty.
+    rewrite /sem_opN_total_v.
+    case ha: (app_sopn _ _ vs) => [t|e2] /=;
+      last by move=> [<-]; apply: (app_sopn_ok_errty (sem_pexprs_defined q) ha).
+    by [].
   move=> ty e he e1 h1 e2 h2 er.
   case q: (sem_pexpr true gd s e) => [v|er0] /=; last by move=> [<-]; apply: he q.
   case qb: (to_bool v) => [b|er1] /=; last by move=> [<-]; apply: (sem_to_errty (t:=cbool) q qb).
@@ -205,38 +219,25 @@ Opaque of_val.
 Lemma enotE {wc : WithCatch} gd s e b :
   sem_cond gd (enot e) s = ok b <-> sem_cond gd e s = ok (~~b).
 Proof.
-  rewrite /sem_cond /= /sem_sop1 /=; split; t_xrbindP.
-  + rewrite /with_catch; case: wc => -[] >.
-    + move=> he; rewrite he /=.
-      have hdef := isdef_errtype (sem_pexpr_defined he).
-      case heq : of_val => /=.
-      + by move=> [<-] /to_boolI [<-]; rewrite Bool.negb_involutive.
-      by have -> := hdef cbool _ heq.
-    t_xrbindP => -> ? /to_boolI -> <- /to_boolI [<-] /=.
-    by rewrite Bool.negb_involutive.
-  move=> z -> /= /to_boolI ?; subst z.
-  rewrite /with_catch; case: wc => -[].
-  + case heq : of_val => //=.
-    by move: heq => /to_boolI [<-]; rewrite Bool.negb_involutive.
-  by rewrite of_val_to_val /= Bool.negb_involutive.
+  (* both semantics agree on [Onot]: [sem_sop1_total] is the typed one *)
+  rewrite /sem_cond /= /sem_sop1 /sem_sop1_total_v /=; split; t_xrbindP.
+  + move=> z z0 he; rewrite if_same he /=; t_xrbindP => x hx <- /to_boolI heq.
+    by move: heq => [] <-; rewrite Bool.negb_involutive; exact: hx.
+  move=> z he hb; rewrite he /= if_same.
+  by move/to_boolI: hb => ?; subst z; rewrite of_val_to_val /= Bool.negb_involutive.
 Qed.
 
 Lemma eandE {wc : WithCatch} gd s e1 e2 :
   sem_cond gd (eand e1 e2) s = ok true <->
     sem_cond gd e1 s = ok true /\ sem_cond gd e2 s = ok true.
 Proof.
-  rewrite /eand /sem_cond /= /sem_sop2 /=; split.
-  + t_xrbindP => z z1 he1 z2 he2; rewrite he1 he2 /=.
-    case: wc he1 he2 => -[] /= /sem_pexpr_defined he1 /sem_pexpr_defined he2.
-    + move=> + /to_boolI ?; subst z.
-      case h2: of_val => [?|e] /=; case h1: of_val => [?|e'] /=.
-      + by move: h1 h2 => /= /to_boolI -> /to_boolI -> [] /andP [-> ->].
-      1,3: by case: ifP => //; have := isdef_errtype (t:=cbool) he1 h1; move=> ->.
-      by case: ifP => //; have := isdef_errtype (t:=cbool) he2 h2; move=> ->.
-    by t_xrbindP => b1 /to_boolI -> b2 /to_boolI -> <-; case: b1 b2 => -[].
-  move=> []; t_xrbindP => z -> /to_boolI ?; subst z.
-  move=> z -> /to_boolI ?; subst z => /=.
-  by case: with_catch.
+  (* both semantics agree on [Oand]: [sem_sop2_total] is the typed one *)
+  rewrite /eand /sem_cond /= /sem_sop2 /sem_sop2_total_v /=; split.
+  + t_xrbindP => z z1 he1 z2 he2; rewrite if_same; t_xrbindP => x1 hx1 x2 hx2 <- /to_boolI [] hand.
+    move: hand; case: x1 hx1 => //= hx1; case: x2 hx2 => //= hx2 _.
+    by rewrite he1 he2 /=; split; [exact: hx1 | exact: hx2].
+  move=> []; t_xrbindP => z -> /to_boolI ?; subst z; move=> z -> /to_boolI ?; subst z.
+  by rewrite /= if_same (of_val_to_val (t:=cbool) true) /=.
 Qed.
 
 Transparent of_val.

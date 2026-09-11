@@ -834,6 +834,17 @@ Definition sopn_sem o : exec _ :=
   Let _ := assert (get_instr_desc o).(i_valid) ErrType in
   ok (sopn_sem_ o).
 
+(* The total semantics of an instruction: the total functions of the
+   descriptor, with the outputs whose [i_init] condition fails set to [None],
+   and no check of [i_safe]. This is the [withcatch] semantics of
+   [exec_sopn]. An invalid instruction still raises [ErrType]: that error
+   denotes an ill-formed program, not the violation of a safety property. *)
+Definition sopn_sem_total_ o :=
+  mk_semi_nocheck (i_init (get_instr_desc o)) (i_semi_total (get_instr_desc o)).
+Definition sopn_sem_total o : exec _ :=
+  Let _ := assert (get_instr_desc o).(i_valid) ErrType in
+  ok (sopn_sem_total_ o).
+
 Instance eqC_sopn : eqTypeC sopn :=
   { ceqP := sopn_eq_axiom }.
 

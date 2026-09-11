@@ -117,6 +117,22 @@ Definition allocatable_stack (m : mem) (z : Z) :=
 (* -------------------------------------------------------------- *)
 Local Open Scope Z_scope.
 
+(* The total write leaves the stack alone: a byte it can write is a successful
+   [write], a byte it cannot write leaves the memory unchanged. *)
+Lemma set_total_stack_stable (m : mem) p w : stack_stable m (set_total m p w).
+Proof.
+  rewrite /set_total (set_write8 m Aligned p w).
+  case hw: write => [m'|e]; last by apply: stack_stable_refl.
+  exact: Memory.write_mem_stable hw.
+Qed.
+
+Lemma write_total_stack_stable (m : mem) p ws (w : word ws) :
+  stack_stable m (write_total m p w).
+Proof.
+  rewrite /write_total; elim: ziota m => [ | k ks ih] m /=; first by apply: stack_stable_refl.
+  by apply: (stack_stable_trans (set_total_stack_stable _ _ _)); apply: ih.
+Qed.
+
 Definition fill_mem (m : mem) (p : pointer) (l : list u8) : exec mem := 
   Let pm :=
    foldM (fun w pm =>

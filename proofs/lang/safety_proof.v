@@ -55,7 +55,7 @@ Proof. by case: ty => // ws len [<-]; exists ws, len. Qed.
 
 
 (* ------------------------------------------------------------------------- *)
-(* The catch is transparent on array variables: they are always defined       *)
+(* Array variables are always defined, so both semantics read them alike      *)
 
 Lemma arr_isdef s x len :
   eval_atype (vtype (gv x)) = carr len -> is_defined (evm s).[gv x].
@@ -64,16 +64,25 @@ Proof.
   by rewrite hty => /compat_valEl [? ->].
 Qed.
 
-Lemma arr_catch_get_gvar {n} s x (t : WArray.array n) :
+Lemma arr_get_gvar_partial {n} s x (t : WArray.array n) :
   eval_atype (vtype (gv x)) = carr n ->
   get_gvar (wc:=withcatch) true gd (evm s) x = ok (Varr t) ->
   get_gvar (wc:=nocatch) true gd (evm s) x = ok (Varr t).
 Proof. by rewrite /get_gvar /get_var => /(arr_isdef s) ->. Qed.
 
-Lemma get_gvar_catch s x v :
+Lemma get_gvar_total s x v :
   get_gvar (wc:=nocatch) true gd (evm s) x = ok v ->
   get_gvar (wc:=withcatch) true gd (evm s) x = ok v.
-Proof. by rewrite /get_gvar /with_catch /nocatch /withcatch; case: ifP => // _ ->. Qed.
+Proof.
+  rewrite /get_gvar /=; case: ifP => // _; rewrite /get_var /=.
+  by case: is_defined => //= -[<-].
+Qed.
+
+(* Same, once [get_gvar] on a local variable has been computed away. *)
+Lemma get_var_total s (x : var_i) v :
+  get_var true (evm s) x = ok v ->
+  (if is_defined (evm s).[x] then (evm s).[x] else default_val (vtype x)) = v.
+Proof. by rewrite /get_var /=; case: is_defined => //= -[<-]. Qed.
 
 (* ------------------------------------------------------------------------- *)
 (* Global arrays: [sc_prog] checks that they are fully initialised            *)
@@ -116,9 +125,9 @@ Lemma sc_to_e_op1 o c e :
   sc_op1_to_e eint_of_word o c e = Papp1 o e.
 Proof. by case: o => //= sg ws; case: c. Qed.
 
-(* [sc_to_e] computes, under the defensive semantics, the interpretation of the
-   condition on the values of the arguments: the operators of the white list
-   [sc_expr] only fail for a typing reason, which is not caught. *)
+(* [sc_to_e] computes, under the total semantics, the interpretation of the
+   condition on the values of the arguments: [Papp1] and [Papp2] there are
+   literally the [IOp1] and [IOp2] cases of [interp_safe_cond]. *)
 Lemma sem_pexpr_sc_to_e gd0 s es vs c v :
   sem_pexprs (wc:=withcatch) true gd0 s es = ok vs ->
   sc_expr c -> ssrnat.leq (sc_max_var c) (size es) ->
@@ -132,24 +141,16 @@ Proof.
     have hsem := nth_sem_pexprs_nth hk hes.
     rewrite hsem => -[<-].
     by split => //; apply: sem_pexpr_defined hsem.
-  + move=> o c ih v /andP [hto htot] hk.
+  + move=> o c ih v /andP [_ htot] hk.
     rewrite sc_to_e_op1 /=.
     t_xrbindP => v1 /(ih _ htot hk) [hv1 hd1].
-    rewrite /sem_sop1 /=.
-    case hof: (of_val (eval_atype (type_of_op1 o).1) v1) => [x | er] /=; last first.
-    + by rewrite (isdef_errtype hd1 hof) /=.
-    rewrite (sem_sop1_typed_totalE hto) /= => -[<-].
+    rewrite /sem_sop1_total_v; t_xrbindP => x hof <-.
     rewrite hv1 /= hof /=.
     by split => //; apply: (to_val_defined (erefl _)).
-  move=> o c1 ih1 c2 ih2 v /and3P [hto ht1 ht2].
+  move=> o c1 ih1 c2 ih2 v /and3P [_ ht1 ht2].
   rewrite ssrnat.geq_max => /andP [hk1 hk2].
   t_xrbindP => v1 /(ih1 _ ht1 hk1) [hv1 hd1] v2 /(ih2 _ ht2 hk2) [hv2 hd2].
-  rewrite /sem_sop2 /=.
-  case hof1: (of_val (eval_atype (type_of_op2 o).1.1) v1) => [x1 | er] /=; last first.
-  + by rewrite (isdef_errtype hd1 hof1) /=.
-  case hof2: (of_val (eval_atype (type_of_op2 o).1.2) v2) => [x2 | er] /=; last first.
-  + by rewrite (isdef_errtype hd2 hof2) /=.
-  rewrite (sem_sop2_typed_totalE hto) /= => -[<-].
+  rewrite /sem_sop2_total_v; t_xrbindP => x1 hof1 x2 hof2 <-.
   rewrite hv1 /= hv2 /= hof1 /= hof2 /=.
   by split => //; apply: (to_val_defined (erefl _)).
 Qed.
@@ -232,7 +233,7 @@ Proof using get_global_arr_init.
 move=> /[dup] hty /eval_atype_carr [ws [len [htyx ?]]]; subst n.
 move=> hgv he.
 have hes : sem_pexprs_wc true gd s [:: Pvar x; e] = ok [:: Varr r; Vint i].
-+ by rewrite /sem_pexprs /= (get_gvar_catch hgv) /= he /=.
++ by rewrite /sem_pexprs /= (get_gvar_total hgv) /= he /=.
 rewrite /sc_arr_get htyx => hsc.
 suff h : all (safe_cond_b [:: Varr r; Vint i]) (unzip1 (sc_get (arr_size ws len) al aa sz)).
 + have hget := getE al aa r i (WArray.get_total aa sz r i).
@@ -262,7 +263,7 @@ Proof.
 move=> /[dup] hty /eval_atype_carr [ws [lenx [htyx ?]]]; subst n.
 move=> hgv he.
 have hes : sem_pexprs_wc true gd s [:: Pvar x; e] = ok [:: Varr r; Vint i].
-+ by rewrite /sem_pexprs /= (get_gvar_catch hgv) /= he /=.
++ by rewrite /sem_pexprs /= (get_gvar_total hgv) /= he /=.
 rewrite /sc_arr_get_sub htyx => /(sc_accessP hes) hchk.
 have hget := get_subE aa r i (WArray.get_sub_total aa sz len r i).
 by apply hget; rewrite hchk.
@@ -280,7 +281,7 @@ Proof.
 move=> /[dup] hty /eval_atype_carr [ws [len [htyx ?]]]; subst n.
 move=> hgv he.
 have hes : sem_pexprs_wc true gd s [:: Plvar x; e] = ok [:: Varr r; Vint i].
-+ by rewrite /sem_pexprs /= /get_gvar /= hgv /= he /=.
++ by rewrite /sem_pexprs /= (get_var_total hgv) he /=.
 rewrite /sc_arr_set htyx => /(sc_accessP hes) hchk.
 have hset := setE al aa r i w (WArray.set_total r aa i w).
 apply hset.
@@ -302,7 +303,7 @@ Proof.
 move=> /[dup] hty /eval_atype_carr [ws [lenx [htyx ?]]]; subst n.
 move=> hgv he.
 have hes : sem_pexprs_wc true gd s [:: Plvar x; e] = ok [:: Varr r; Vint i].
-+ by rewrite /sem_pexprs /= /get_gvar /= hgv /= he /=.
++ by rewrite /sem_pexprs /= (get_var_total hgv) he /=.
 rewrite /sc_arr_set_sub htyx => /(sc_accessP hes) hchk.
 have hset := set_subE aa r i b (WArray.set_sub_total aa r i b).
 apply hset.
@@ -391,62 +392,44 @@ apply: pexprs_ind_pair; subst Pe Qe; split => //=; t_xrbindP => //.
 + move=> x s v.
   rewrite /sc_gvar /get_gvar /=.
   case: (is_lvar x) => //.
-  rewrite /sc_var /get_var /with_catch /nocatch /withcatch /=.
-  case harr: is_aarr.
-  + move: harr => /is_aarrP [ws [len htx]].
-    have /(_ x (arr_size ws len)) -> // := arr_isdef s.
-    by rewrite htx.
-  by move=> /= [] hdef; rewrite hdef /=.
+  rewrite /sc_var /get_var /=; case harr: is_aarr.
+  + move: harr => /is_aarrP [ws [len htx]] _.
+    have -> : is_defined (evm s).[gv x].
+    + by apply: (arr_isdef s (len := arr_size ws len)); rewrite htx.
+    by move=> /= [<-].
+  by move=> /= [] hdef; rewrite hdef /= => -[<-].
 + move=> al aa sz x e he s v /aandsE_cat [/he{}he hsc].
   apply on_arr_gvarP => n r htx.
-  move=> /(arr_catch_get_gvar htx) hgvr /=.
-  t_xrbindP => zi z hewc /to_intI ? w wcatch <-; subst z.
+  move=> /(arr_get_gvar_partial htx) hgvr /=.
+  t_xrbindP => zi z hewc /to_intI ? <-; subst z.
   have {}he := he _ hewc; rewrite he hgvr /=.
-  have hget := sc_arr_getP htx hgvr hewc hsc.
-  by move: wcatch; rewrite hget /= => -[<-].
+  by rewrite (sc_arr_getP htx hgvr hewc hsc) /=.
 + move=> aa sz len x e he s v /aandsE_cat [/he {}he hsc].
   apply on_arr_gvarP => n r htx.
-  move=> /(arr_catch_get_gvar htx) hgvr /=.
-  t_xrbindP => zi z hewc /to_intI ? t' tcatch <-; subst z.
+  move=> /(arr_get_gvar_partial htx) hgvr /=.
+  t_xrbindP => zi z hewc /to_intI ? <-; subst z.
   have {}he := he _ hewc; rewrite he hgvr /=.
-  have hget := sc_arr_get_subP htx hgvr hewc hsc.
-  by move: tcatch; rewrite hget /= => -[<-].
-+ move=> al sz e he s v /aandsE_cat [/he{}he hsc] pt vpt hewc htop w wcatch <-.
+  by rewrite (sc_arr_get_subP htx hgvr hewc hsc) /=.
++ move=> al sz e he s v /aandsE_cat [/he{}he hsc] pt vpt hewc htop <-.
   have {}he := he _ hewc; rewrite he /= htop /=.
-  have hread := sc_mem_readP hewc htop hsc.
-  by move: wcatch; rewrite hread /= => -[<-].
+  by rewrite (sc_mem_readP hewc htop hsc) /=.
 + move=> op e he s v /aandsE_cat [/he{}he] hop v1 hewc.
-  have {}he := he _ hewc; rewrite he /= /sem_sop1.
-  have {}hdef := sem_pexpr_defined hewc.
-  case hval: of_val => [a|e0] /=; last first.
-  + by have -> := isdef_errtype hdef hval.
+  have {}he := he _ hewc; rewrite he /= /sem_sop1 /sem_sop1_total_v.
+  case hval: of_val => [a|e0] //=.
   have hes : sem_pexprs_wc true gd s [:: e] = ok [:: v1] by rewrite /= hewc.
-  by have [r ->] := sem_sop1_typed_safe hval (sem_cond_interp_safes hes hop).
+  by rewrite (sem_sop1_typed_safeE hval (sem_cond_interp_safes hes hop)).
 + move=> op e1 he1 e2 he2 s v /aandsE_cat [/he1{}he1].
   move=> /aandsE_cat [/he2{}he2] hop v2 he1wc v3 he2wc.
   have {}he1 := he1 _ he1wc; have {}he2 := he2 _ he2wc.
-  rewrite he1 he2 /sem_sop2 /=.
-  have hdef1 := sem_pexpr_defined he1wc.
-  have hdef2 := sem_pexpr_defined he2wc.
-  case hval1: (of_val (eval_atype (type_of_op2 op).1.1) v2) => [a1|er1] /=; last first.
-  + by rewrite (isdef_errtype hdef1 hval1).
-  case hval2: (of_val (eval_atype (type_of_op2 op).1.2) v3) => [a2|er2] /=; last first.
-  + by rewrite (isdef_errtype hdef2 hval2).
+  rewrite he1 he2 /sem_sop2 /sem_sop2_total_v /=.
+  case hval1: (of_val (eval_atype (type_of_op2 op).1.1) v2) => [a1|er1] //=.
+  case hval2: (of_val (eval_atype (type_of_op2 op).1.2) v3) => [a2|er2] //=.
   have hes : sem_pexprs_wc true gd s [:: e1; e2] = ok [:: v2; v3].
   + by rewrite /= he1wc /= he2wc.
-  by have [r ->] := sem_sop2_typed_safe hval1 hval2 (sem_cond_interp_safes hes hop).
+  by rewrite (sem_sop2_typed_safeE hval1 hval2 (sem_cond_interp_safes hes hop)).
 + move=> op es he s v.
   move=> /he{}he v2 {}/he.
-  rewrite /sem_pexprs /sem_opN => he; rewrite he /=.
-  have := [elaborate sem_opN_typed_ok op].
-  move: (type_of_opN op) (sem_opN_typed op) => [tin tout] /=.
-  elim: tin v2 es he => [| tin tins hrec] [|vp vsp] es he semop //=.
-  + by case/is_okP => semtout ->.
-  move: es he => [| e es] //= + hok.
-  t_xrbindP => z /sem_pexpr_defined vpdef zs hes ? ?; subst z zs.
-  case hval: (of_val _ vp) => [semtin|] //=;
-    last by rewrite (isdef_errtype vpdef hval).
-  exact: hrec _ _ hes _ (hok semtin).
+  by rewrite /sem_pexprs => he; rewrite he /= sem_opN_total_vE.
 move=> ty e he e1 he1 e2 he2 s v /aandsE_cat [/he{}he].
 move=> /aandsE_cat [/he1{}he1] /he2{}he2.
 by move=> v2 v3 {}/he -> /= -> v5 v6 {}/he1 -> /= -> v7 v8 {}/he2 -> /= -> <-.
@@ -478,11 +461,9 @@ Lemma sc_lvalP l v s s2 :
   write_lval (wc:=nocatch) true gd l v s = ok s2.
 Proof using Pe Qe asm_op ep get_global_arr_init p sip spp syscall_state.
   case: l => [vi tynone | x | al sz x e | al aa sz x e | aa sz pos x e ] //=.
-  + t_xrbindP => /aandsE_cat [] /sc_pexprP he hsc wpt vpt hewc htop w htow me hcatch ?.
-    subst s2.
+  + t_xrbindP => /aandsE_cat [] /sc_pexprP he hsc wpt vpt hewc htop w htow ?; subst s2.
     have {}he := he _ hewc; rewrite he /= htop /= htow /=.
-    have hw := sc_mem_writeP w hewc htop hsc.
-    by move: hcatch; rewrite hw /= => -[<-].
+    by rewrite (sc_mem_writeP w hewc htop hsc) /=.
   + move=> /aandsE_cat [] /sc_pexprP he hsc.
     rewrite /on_arr_var; t_xrbindP => v1 getx; rewrite getx /=.
     case: v1 getx => //= len r getx.
@@ -491,8 +472,7 @@ Proof using Pe Qe asm_op ep get_global_arr_init p sip spp syscall_state.
     have {}he := he _ hewc; rewrite he /=.
     have htx := get_varI getx.
     move=> w htow; rewrite htow /=.
-    have hset := sc_arr_setP w htx getx hewc hsc.
-    by move=> r2; rewrite hset /= => -[<-].
+    by rewrite (sc_arr_setP w htx getx hewc hsc) /=.
   move=> /aandsE_cat [] /sc_pexprP he hsc.
   rewrite /on_arr_var; t_xrbindP => v1 getx; rewrite getx /=.
   case: v1 getx => //= len r getx.
@@ -500,8 +480,7 @@ Proof using Pe Qe asm_op ep get_global_arr_init p sip spp syscall_state.
   have {}he := he _ hewc; rewrite he /=.
   have htx := get_varI getx.
   move=> b htoarr; rewrite htoarr /=.
-  have hset := sc_arr_set_subP b htx getx hewc hsc.
-  by move=> r2; rewrite hset /= => -[<-].
+  by rewrite (sc_arr_set_subP b htx getx hewc hsc) /=.
 Qed.
 
 
@@ -605,6 +584,17 @@ Proof.
   by move=> ?? [|[?]] -> // _ /=; rewrite truncate_word_u => -[->].
 Qed.
 
+(* On a defined value of exactly the right type, [truncate_val] is the
+   identity: this is what makes the arguments of an instruction their own
+   truncation. *)
+Lemma truncate_val_type_of v ty :
+  type_of_val v = ty -> is_defined v -> truncate_val ty v = ok v.
+Proof.
+  move=> <-; case: v => //= [len a|ws w] _.
+  + by rewrite /truncate_val /= WArray.castK.
+  by rewrite /truncate_val /= truncate_word_u.
+Qed.
+
 Lemma sem_pexpr_type_of gd0 s e v :
   sem_pexpr (wc:=nocatch) true gd0 s e = ok v ->
   type_of_val v = eval_atype (type_of_expr e).
@@ -701,11 +691,10 @@ Proof using E E0 Pe Qe asm_op ep ev get_global_arr_init p psc rE sip spp
                                   sem_pexprs (wc:=nocatch) true gd s es = ok vs2]) eq.
       + by move=> s1 s2 sf [] ??; subst s1 s2 => he; have -> := sc_pexprsP hsce he; exists sf.
       + move=> s1 s2 [] ??; subst s1 s2 => vs _ vf [] <- hewc he.
-        rewrite /exec_sopn /sopn_sem /=; case h: i_valid => //=.
-        have := i_semi_safe h.
-        have := sem_cond_interp_safes hewc hsco.
-        have := sem_pexprs_defined he.
-        have : List.Forall2 (fun ty vv => type_of_val vv = eval_atype ty)
+        rewrite /exec_sopn /sopn_sem /sopn_sem_total /=; case h: i_valid => //=.
+        (* the arguments are well typed and defined, so they are their own
+           truncation *)
+        have hty : List.Forall2 (fun ty vv => type_of_val vv = eval_atype ty)
                             (tin (get_instr_desc o)) vs.
         + move: hwt he => [] {hewc hsco hsce}.
           elim: (tin _) es vs => [ | ty tys ih] [ | e es] //=.
@@ -715,16 +704,17 @@ Proof using E E0 Pe Qe asm_op ep ev get_global_arr_init p psc rE sip spp
           + rewrite -(convertible_eval_atype hty).
             by apply: sem_pexpr_type_of hv.
           by apply: ih htys hes.
-        rewrite -{3}(cat0s vs) /sopn_sem_ /safe_cond_ty.
-        move=> {hewc he}.
-        elim: (tin (get_instr_desc o)) (semi (get_instr_desc o)) {1 2}[::] vs.
-        + move=> semi vs1 [] //=; rewrite cats0 => _ _ hall /(_ hall) [vr] -> /= [<-].
-          by exists (list_ltuple vr).
-        move=> ty tys ih semi vs1 [] //= v vs /List.Forall2_cons_iff [hty htys] /andP [hv hvs].
-        rewrite -cat_rcons => hall_safe hinterp.
-        case hof: of_val => [v2 /= | er]; last by rewrite (isdef_errtype hv hof).
-        apply: ih => //.
-        by rewrite (type_of_val_to_val hty hv hof).
+        have htr : mapM2 ErrType truncate_val
+                     [seq eval_atype i | i <- tin (get_instr_desc o)] vs = ok vs.
+        + move: hty (sem_pexprs_defined he) => {}hty hdef.
+          elim: hty hdef => //= ty v tys ws h1 _ ih /andP [hd hds].
+          by rewrite (truncate_val_type_of h1 hd) /= (ih hds).
+        (* the asserted conditions are [i_safe], so the guarded semantics of the
+           descriptor and its unguarded, filtered one agree *)
+        rewrite /sopn_sem_ /sopn_sem_total_ (sem_prod_eq_app_sopn vs (i_semi_eq h)).
+        rewrite (@mk_semi_nocheckE _ _ _ _ _ _ _ _ htr
+                   (sem_cond_interp_safes hewc hsco)).
+        by move=> ->; exists vf.
       move=> vs _ <- s1 s2 sf [] ??; subst s1 s2 => hws.
       by rewrite (sc_lvalsP hscx erefl (fun _ => erefl) hws); exists sf.
 

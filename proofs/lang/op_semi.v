@@ -364,6 +364,20 @@ Section OPN.
 
 Context {cfcd : FlagCombinationParams}.
 
+(* [opN] carries no safety condition: its typed semantics is already the total
+   one wrapped in [ok]. *)
+Lemma sem_opN_eq_ok (o : opN) :
+  let t := type_of_opN o in
+  sem_prod_eq (map eval_atype t.1)
+    (sem_opN_typed o)
+    (sem_prod_ok (map eval_atype t.1) (sem_opN_total o)).
+Proof.
+case: o => [ws pe | len | cf] /=; last by move=> ????.
+all: rewrite -> map_nseq.
++ exact: (@sem_prod_ok_curry cint (word ws) (fun vs => wpack ws pe vs) (div.divn ws pe)).
+exact: (fill_ok_eq len).
+Qed.
+
 Lemma sem_opN_eq (o : opN) :
   let t := type_of_opN o in
   sem_prod_eq (map eval_atype t.1)
@@ -371,12 +385,9 @@ Lemma sem_opN_eq (o : opN) :
     (@mk_sem_op (map eval_atype t.1) (eval_atype t.2) (opN_safe o) ErrArith
        (sem_opN_total o)).
 Proof.
-apply: (sem_prod_eq_trans (g := sem_prod_ok _ (sem_opN_total o))); last first.
-+ by apply/sem_prod_eq_sym/mk_sem_op_nil.
-case: o => [ws pe | len | cf] /=; last by move=> ????.
-all: rewrite -> map_nseq.
-+ exact: (@sem_prod_ok_curry cint (word ws) (fun vs => wpack ws pe vs) (div.divn ws pe)).
-exact: (fill_ok_eq len).
+apply: (sem_prod_eq_trans (g := sem_prod_ok _ (sem_opN_total o))).
++ exact: sem_opN_eq_ok.
+by apply/sem_prod_eq_sym/mk_sem_op_nil.
 Qed.
 
 End OPN.
@@ -427,4 +438,38 @@ have [r hr] := @mk_sem_op_safe
    [:: eval_atype (type_of_op2 o).1.1; eval_atype (type_of_op2 o).1.2]
    (eval_atype (type_of_op2 o).2) (op2_safe o) ErrArith (sem_sop2_total o) x1 x2 hall.
 by exists r; rewrite (@sem_sop2_eq o x1 x2).
+Qed.
+
+(* Sharper form, the one the safety proof needs: under the conditions the typed
+   semantics is exactly the total one. *)
+Lemma sem_sop1_typed_safeE (o : sop1) (v1 : value) x1 :
+  of_val (eval_atype (type_of_op1 o).1) v1 = ok x1 ->
+  all (safe_cond_b [:: v1]) (op1_safe o) ->
+  sem_sop1_typed o x1 = ok (sem_sop1_total o x1).
+Proof.
+move=> hof hall.
+have htr : mapM2 ErrType truncate_val [:: eval_atype (type_of_op1 o).1] [:: v1]
+             = ok [:: to_val x1].
++ by rewrite /= /truncate_val hof.
+have {}hall : all (safe_cond_b [:: to_val x1]) (op1_safe o).
++ by rewrite (all_safe_cond_b_truncate (op1_safe_ok o) htr).
+rewrite (@sem_sop1_eq o x1) /mk_sem_op /=.
+by rewrite (check_safe_ok ErrArith hall).
+Qed.
+
+Lemma sem_sop2_typed_safeE (o : sop2) (v1 v2 : value) x1 x2 :
+  of_val (eval_atype (type_of_op2 o).1.1) v1 = ok x1 ->
+  of_val (eval_atype (type_of_op2 o).1.2) v2 = ok x2 ->
+  all (safe_cond_b [:: v1; v2]) (op2_safe o) ->
+  sem_sop2_typed o x1 x2 = ok (sem_sop2_total o x1 x2).
+Proof.
+move=> hof1 hof2 hall.
+have htr : mapM2 ErrType truncate_val
+             [:: eval_atype (type_of_op2 o).1.1; eval_atype (type_of_op2 o).1.2]
+             [:: v1; v2] = ok [:: to_val x1; to_val x2].
++ by rewrite /= /truncate_val hof1 /= hof2.
+have {}hall : all (safe_cond_b [:: to_val x1; to_val x2]) (op2_safe o).
++ by rewrite (all_safe_cond_b_truncate (op2_safe_ok o) htr).
+rewrite (@sem_sop2_eq o x1 x2) /mk_sem_op /=.
+by rewrite (check_safe_ok ErrArith hall).
 Qed.

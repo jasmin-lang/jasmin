@@ -482,6 +482,23 @@ Section CoreMem.
     by move: hm; case: mapM => // e _.
   Qed.
 
+  (* The total write only changes bytes that were already writable. *)
+  Lemma set_total_valid8 m p w p' : valid8 (set_total m p w) p' = valid8 m p'.
+  Proof. by rewrite /set_total; case hs: set => [m''|e] //; apply: valid8_set hs. Qed.
+
+  Lemma write_total_valid8 m p sz (w : word sz) p' :
+    valid8 (write_total m p w) p' = valid8 m p'.
+  Proof.
+    rewrite /write_total; elim: ziota m => //= k ks ih m.
+    by rewrite ih set_total_valid8.
+  Qed.
+
+  Lemma write_total_validw_eq m p sz (w : word sz) al' p' sz' :
+    validw (write_total m p w) al' p' sz' = validw m al' p' sz'.
+  Proof.
+    by rewrite /validw; f_equal; apply all_ziota => ? _; apply write_total_valid8.
+  Qed.
+
   Lemma write_totalE m al p sz (w : word sz) m' :
     write m al p w = ok m' -> m' = write_total m p w.
   Proof.
@@ -1028,6 +1045,9 @@ Proof. by move=> [???] [???]; split; congruence. Qed.
 
 Lemma stack_stable_sym mem {CM : coreMem pointer mem} {M : memory CM} m1 m2 : stack_stable m1 m2 -> stack_stable m2 m1.
 Proof. by case; constructor. Qed.
+
+Lemma stack_stable_refl mem {CM : coreMem pointer mem} {M : memory CM} m : stack_stable m m.
+Proof. split; reflexivity. Qed.
 
 Lemma top_stack_after_aligned_alloc p ws sz :
   is_align p ws ->

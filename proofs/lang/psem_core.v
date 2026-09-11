@@ -182,28 +182,6 @@ Proof. by case: s. Qed.
 
 End ESTATE_UTILS.
 
-Section WITHCATCH.
-Context {wc : WithCatch}.
-
-(* Reasoning principle for the defensive semantics: to establish [P] of the
-   result of a caught computation, one has to prove [P] of the default value as
-   well, but only when the catch is actually enabled. *)
-Lemma catchP {T : Type} (P : T -> Prop) (ev : exec T) (dflt t : T) :
-  (with_catch -> forall e, ev = Error e -> e <> ErrType -> P dflt) ->
-  (ev = ok t -> P t) ->
-  catch ev dflt = ok t -> P t.
-Proof. by case: with_catch => // /(_ erefl); apply catch_coreP. Qed.
-
-(* Destructive form of [catchP]. *)
-Lemma catchE {T : Type} (ev : exec T) (dflt t : T) :
-  catch ev dflt = ok t -> ev = ok t \/ t = dflt.
-Proof.
-  case: with_catch; first by apply catch_coreE.
-  by move=> h; left.
-Qed.
-
-End WITHCATCH.
-
 (* ** Starting lemmas
  * ------------------------------------------------------------------- *)
 Lemma type_of_get_global gd g v :
@@ -213,16 +191,17 @@ Proof. by move=> /get_globalI [?[]]. Qed.
 Lemma get_global_defined gd x v : get_global gd x = ok v -> is_defined v.
 Proof. by move=> /get_globalI [gv [_ -> _]]; case: gv. Qed.
 
-(* Holds under both semantics: [default_val] is defined and of the right type,
-   which is exactly what makes the catch on [get_gvar] harmless here. *)
+(* Holds under both semantics: under [withcatch] an undefined variable reads as
+   [default_val], which is defined and of the right type. *)
 Lemma get_gvar_compat {wc : WithCatch} wdb gd vm x v : get_gvar wdb gd vm x = ok v ->
    (~~wdb || is_defined v) /\ compat_val (eval_atype (vtype x.(gv))) v.
 Proof.
-  rewrite /get_gvar; case: ifP => ? heq.
-  + case: (catchE heq) => [{}heq | ->].
-    + by apply: get_var_compat heq.
-    by rewrite is_defined_default_val orbT compat_val_default_val.
-  by rewrite /compat_val (type_of_get_global heq) (get_global_defined heq) orbT.
+  rewrite /get_gvar; case: ifP => ?; last first.
+  + by move=> heq; rewrite /compat_val (type_of_get_global heq) (get_global_defined heq) orbT.
+  case: with_catch; last by apply: get_var_compat.
+  case hdef: is_defined => [] [<-].
+  + by rewrite hdef orbT; have := Vm.getP vm (gv x).
+  by rewrite is_defined_default_val orbT compat_val_default_val.
 Qed.
 
 Lemma get_var_to_word wdb vm x ws w :
@@ -330,14 +309,12 @@ Context
   {spp : SemPexprParams}
   {asmop : asmOp asm_op}.
 
-(* Holds under both semantics: this is precisely why the default value of a
-   caught [exec_sopn] is [map default_val (sopn_tout o)] and not [[::]]. *)
+(* Holds under both semantics: the total semantics of an instruction builds the
+   same tuple of outputs as the partial one. *)
 Lemma sopn_toutP {wc : WithCatch} o vs vs' : exec_sopn o vs = ok vs' ->
   List.map type_of_val vs' = map eval_atype (sopn_tout o).
 Proof.
-  rewrite /exec_sopn => h; case: (catchE h).
-  + by rewrite /sopn_tout /sopn_sem; t_xrbindP => ? _ <- ? _ <-; apply type_of_val_ltuple.
-  by move=> ->; elim: (sopn_tout o) => //= ty l ->; rewrite type_of_default_val.
+  by rewrite /exec_sopn /sopn_tout; t_xrbindP => ? _ ? _ <-; apply type_of_val_ltuple.
 Qed.
 
 (* Only under [nocatch] (the default instance): when the catch is enabled a
@@ -652,8 +629,9 @@ Lemma get_gvar_eq_on {wc : WithCatch} wdb s gd vm' vm v: Sv.Subset (read_gvar v)
   get_gvar wdb gd vm v = get_gvar wdb gd vm' v.
 Proof.
   rewrite /read_gvar /get_gvar; case: ifP => // _ hsub hvm.
-  have -> // : get_var wdb vm (gv v) = get_var wdb vm' (gv v).
-  by apply: get_var_eq_on hvm; clear -hsub; SvD.fsetdec.
+  have hin : Sv.In (gv v) s by clear -hsub; SvD.fsetdec.
+  case: with_catch; first by rewrite (hvm _ hin).
+  by apply: get_var_eq_on hvm.
 Qed.
 
 Lemma on_arr_var_eq_on wdb s' X s A x (f: ∀ n, WArray.array n → exec A) :
@@ -668,8 +646,9 @@ Lemma on_arr_gvar_eq_on {wc : WithCatch} wdb s' gd X s A x (f: ∀ n, WArray.arr
    on_arr_var (get_gvar wdb gd (evm s) x) f = on_arr_var (get_gvar wdb gd (evm s') x) f.
 Proof.
   move=> Heq; rewrite /get_gvar /read_gvar; case: ifP => _ Hin //.
-  have -> // : get_var wdb (evm s) (gv x) = get_var wdb (evm s') (gv x).
-  by apply: get_var_eq_on Heq; clear -Hin; SvD.fsetdec.
+  have hin : Sv.In (gv x) X by clear -Hin; SvD.fsetdec.
+  case: with_catch; first by rewrite (Heq _ hin).
+  by rewrite (get_var_eq_on _ hin Heq).
 Qed.
 
 Lemma get_var_eq_ex wdb vm1 vm2 X x:

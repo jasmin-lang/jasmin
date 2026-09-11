@@ -56,6 +56,18 @@ Definition sem_sop2 (o: sop2) (v1 v2: value) : exec value :=
   Let r  := sem_sop2_typed o x1 x2 in
   ok (to_val r).
 
+(* Total counterparts: the coercion of the arguments may still fail (on an
+   undefined value, or on an ill-typed one), but the operator itself does
+   not. These are the [withcatch] semantics of [Papp1] and [Papp2]. *)
+Definition sem_sop1_total_v (o: sop1) (v: value) : exec value :=
+  Let x := of_val _ v in
+  ok (to_val (sem_sop1_total o x)).
+
+Definition sem_sop2_total_v (o: sop2) (v1 v2: value) : exec value :=
+  Let x1 := of_val _ v1 in
+  Let x2 := of_val _ v2 in
+  ok (to_val (sem_sop2_total o x1 x2)).
+
 (* -------------------------------------------------------------------- *)
 (* ** Conditions on the arguments of an operator                          *)
 
@@ -996,6 +1008,17 @@ Definition mk_semi (tin tout : seq ctype) (safe : seq safe_cond) (err : error)
     [::] tin f.
 Arguments mk_semi {tin tout} safe err init f : assert.
 
+(* [mk_semi] without the check of the safety conditions: this is the total
+   semantics of the instruction, with the outputs that [init] declares
+   undefined turned into [None]. It is the [withcatch] semantics of
+   [exec_sopn]. *)
+Definition mk_semi_nocheck (tin tout : seq ctype) (init : seq safe_cond)
+    (f : sem_prod tin (sem_tuple_t tout)) : sem_prod tin (exec (sem_tuple tout)) :=
+  mk_semi_aux
+    (fun vs t => ok (filter_tuple tout (map (safe_cond_b vs) init) t))
+    [::] tin f.
+Arguments mk_semi_nocheck {tin tout} init f : assert.
+
 (* An operator has exactly one output and no undefined result: [mk_semi]
    without [init] nor [filter_tuple]. *)
 Definition mk_sem_op (tin : seq ctype) (t : ctype) (safe : seq safe_cond) (err : error)
@@ -1139,6 +1162,32 @@ elim: tin f vs vs0 => /= [f [|//] vs0 h | t tin ih f [|v vs] // vs0].
 t_xrbindP => x hx /ih [vs' hvs' [t0 ht0 hP]].
 rewrite /truncate_val hx /= hvs' /= ht0.
 by exists (to_val x :: vs') => //; exists t0 => //; rewrite -cat_rcons.
+Qed.
+
+(* Two post-treatments that agree on the truncated arguments give the same
+   result on those arguments. *)
+Lemma app_sopn_mk_semi_aux_eq {T T'} (P Q : values -> T -> exec T') tin
+    (f : sem_prod tin T) vs vs0 vs' :
+  mapM2 ErrType truncate_val tin vs = ok vs' ->
+  (forall t, P (vs0 ++ vs') t = Q (vs0 ++ vs') t) ->
+  app_sopn tin (mk_semi_aux P vs0 tin f) vs = app_sopn tin (mk_semi_aux Q vs0 tin f) vs.
+Proof.
+elim: tin f vs vs0 vs' => /= [f [|//] vs0 vs' [<-] h | t tin ih f [|v vs] // vs0 vs'].
++ by have := h f; rewrite cats0.
+t_xrbindP => c; rewrite {1}/truncate_val; t_xrbindP => x hx <- lc hlc <- h.
+by rewrite hx /=; apply: (ih _ _ _ _ hlc) => t2; rewrite cat_rcons h.
+Qed.
+
+(* Under the safety conditions, [mk_semi] and [mk_semi_nocheck] agree. *)
+Lemma mk_semi_nocheckE tin tout safe err init f vs vs' :
+  mapM2 ErrType truncate_val tin vs = ok vs' ->
+  all (safe_cond_b vs') safe ->
+  app_sopn tin (@mk_semi tin tout safe err init f) vs
+  = app_sopn tin (@mk_semi_nocheck tin tout init f) vs.
+Proof.
+move=> htr hall; rewrite /mk_semi /mk_semi_nocheck.
+apply: (@app_sopn_mk_semi_aux_eq _ _ _ _ tin f vs [::] vs' htr) => t.
+by rewrite cat0s (check_safe_ok err hall).
 Qed.
 
 (* Complete description of a successful application of [mk_semi]. *)
