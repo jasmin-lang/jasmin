@@ -445,7 +445,7 @@ Proof.
   + case => // -[] // [] //=.
     + rewrite /sem_sop2 /=.
       t_xrbindP=> w1 ok_w1 w2 ok_w2.
-      rewrite /mk_sem_divmod /=.
+      rewrite sem_sop2_typed_divE /=.
       case w2_nzero: eq_op => //=.
       case: andb => //.
       move=> _ [<-] ?; subst v.
@@ -457,7 +457,7 @@ Proof.
       by rewrite hwrite.
     rewrite /sem_sop2 /=.
     t_xrbindP=> w1 ok_w1 w2 ok_w2.
-    rewrite /mk_sem_divmod orbF /=.
+    rewrite sem_sop2_typed_divE orbF /=.
     case w2_nzero: eq_op => //=.
     move=> _ /ok_inj <- ?; subst v.
     move=> [<- <- <-].
@@ -469,7 +469,7 @@ Proof.
   + case => // -[] // [] //=.
     + rewrite /sem_sop2 /=.
       t_xrbindP=> w1 ok_w1 w2 ok_w2.
-      rewrite /mk_sem_divmod /=.
+      rewrite sem_sop2_typed_modE /=.
       case: eq_op => //=.
       case: andb => //.
       move=> _ [<-] ?; subst v.
@@ -481,7 +481,7 @@ Proof.
       by rewrite hwrite.
     rewrite /sem_sop2 /=.
     t_xrbindP=> w1 ok_w1 w2 ok_w2.
-    rewrite /mk_sem_divmod orbF.
+    rewrite sem_sop2_typed_modE orbF.
     case: eq_op => //=.
     move=> _ /ok_inj <- ?; subst v.
     move=> [<- <- <-].

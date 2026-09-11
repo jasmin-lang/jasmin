@@ -265,7 +265,7 @@ Proof using atoI fv fv_correct p pT sc_sem syscall_state wsw.
     + by rewrite /= hseme0 hseme1 /=.
     rewrite /= /get_gvar /=; repeat t_get_var => //.
     case: op hcf hsemop {h} => //= -[] // => [||[]|[]|[]|[]] _ [<- ->] /(_ erefl);
-      rewrite /mk_sem_sop2 /sem_opN /= /sem_combine_flags /cf_xsem /NF_of_word /ZF_of_word /=
+      rewrite /sem_sop2_typed /mk_sem_op /sem_opN /= /sem_combine_flags /cf_xsem /NF_of_word /ZF_of_word /=
         1?wsub_wnot1
         1?nzcv_of_aluop_CF_sub
         1?wsigned_wsub_wnot1
@@ -315,7 +315,7 @@ Proof using atoI fv fv_correct p pT sc_sem syscall_state wsw.
   apply: rbindP => _ /to_wordI' [ws00 [w00 [hcmp00 ? ->]]]; subst v00.
   apply: rbindP => _ /to_wordI' [ws01 [w01 [hcmp01 ? ->]]]; subst v01.
   move=> /ok_inj /Vword_inj [??] /ok_inj /Vword_inj [??]; subst ws0' ws1' w0 w1.
-  move: hsemop; rewrite /mk_sem_sop2 /= wrepr0 zero_extend0 => -[<-].
+  move: hsemop; rewrite /sem_sop2_typed /mk_sem_op /= wrepr0 zero_extend0 => -[<-].
   exists ws00, ws01, w00, w01; split=> //.
   + by apply (cmp_le_trans hcmp0 hcmp00).
   + by apply (cmp_le_trans hcmp0 hcmp01).
@@ -744,14 +744,14 @@ Proof.
     by rewrite add_wordE wnot1_wopp.
 Qed.
 
-Lemma mk_sem_divmodP si ws op (w0 w1 : word ws) w :
-  mk_sem_divmod si op w0 w1 = ok w
+Lemma sem_sop2_divP si ws (w0 w1 : word ws) w :
+  sem_sop2_typed (Odiv si (Op_w ws)) w0 w1 = ok w
   -> [/\ (w1 <> 0%R)
        , si <> Signed \/ (wsigned w0 <> wmin_signed ws) \/ (w1 <> (-1)%R)
-       & w = op w0 w1
+       & w = signed wdiv wdivi si w0 w1
      ].
 Proof.
-  rewrite /mk_sem_divmod.
+  rewrite sem_sop2_typed_divE.
   case: ifPn => //; rewrite negb_or => /andP [] /eqP ? h [<-]; split => //.
   move: h; rewrite !negb_and => /or3P [] /eqP; auto.
 Qed.
@@ -1056,7 +1056,7 @@ Proof.
         move: hsemop => /sem_sop2I /= [w0' [w1' [w2 [hw0 hw1 hop hw]]]];
         move: hw0 => /to_wordI [ws0 [w0 [? /truncate_wordP [hws0 ?]]]]; subst v0 w0';
         move: hw1 => /to_wordI [ws1 [w1 [? /truncate_wordP [hws1 ?]]]]; subst v1 w1';
-        move: hop => [?]; subst w2;
+        move: hop; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst w2;
         move: hw => /Vword_inj [?]; subst ws'; move=> /= ?; subst w;
         (split;
           last (split; [ exact: (disj_fvars_read_es2 hfve0 hfve1) | by [] ]));
@@ -1082,7 +1082,7 @@ Proof.
         move: hsemop => /sem_sop2I /= [w0' [w1' [w2 [hw0 hw1 hop hw]]]];
         move: hw0 => /to_wordI [ws0 [w0 [? /truncate_wordP [hws0 ?]]]]; subst v0 w0';
         move: hw1 => /to_wordI [ws1 [w1 [? /truncate_wordP [hws1 ?]]]]; subst v1 w1';
-        move: hop => /mk_sem_divmodP [hdiv0 hdiv1 ?]; subst w2;
+        move: hop => /sem_sop2_divP [hdiv0 hdiv1 ?]; subst w2;
         move: hw => /Vword_inj [?]; subst ws'; move=> /= ?; subst w;
         (split;
           last (split; [ exact: (disj_fvars_read_es2 hfve0 hfve1) | by [] ]));
@@ -1116,7 +1116,7 @@ Proof.
         | [ |- context[ARMv8A_op ASR _] ] => idtac
         end;
         move: hsemop => /sem_sop2I /= [x0 [x1 [w2 [hx0 hx1 hop hw]]]];
-        move: hop => [?]; subst w2;
+        move: hop; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst w2;
         move: hw => /Vword_inj [?]; subst ws'; move=> /= ?; subst w;
         have [hsub [v1' [w1' [hsem1' hw1' heq]]]] :=
           check_shift_exprP hchk hwsx hseme1 hx1;
@@ -1137,7 +1137,7 @@ Proof.
         | [ |- context[ARMv8A_op MOV _] ] => idtac
         end;
         move: hsemop => /sem_sop2I /= [x0 [x1 [w2 [hx0 hx1 hop hw]]]];
-        move: hop => [?]; subst w2;
+        move: hop; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst w2;
         move: hw => /Vword_inj [?]; subst ws'; move=> /= ?; subst w;
         (* Pin the shift amount [x1] to zero. *)
         first
@@ -1164,7 +1164,7 @@ Proof.
             idtac
         end;
         move: hsemop => /sem_sop2I /= [x0 [x1 [w2 [hx0 hx1 hop hw]]]];
-        move: hop => [?]; subst w2;
+        move: hop; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst w2;
         move: hw => /Vword_inj [?]; subst ws'; move=> /= ?; subst w;
         (split;
           last (split;
@@ -1184,7 +1184,7 @@ Proof.
             idtac
         end;
         move: hsemop => /sem_sop2I /= [x0 [x1 [w2 [hx0 hx1 hop hw]]]];
-        move: hop => [?]; subst w2;
+        move: hop; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst w2;
         move: hw => /Vword_inj [?]; subst ws'; move=> /= ?; subst w;
         assert (hwc := is_wconstP true (p_globs p) s hconst);
         move: hwc; rewrite hseme1 /= hx1 => -[?]; subst c;
@@ -1219,7 +1219,7 @@ Proof.
             t_xrbindP=> wx hwx wy hwy ?; subst v1
         end;
         move: hsemop => /sem_sop2I /= [x0 [x1 [w2 [hx0 hx1 hop hw]]]];
-        move: hop => [?]; subst w2;
+        move: hop; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst w2;
         move: hw => /Vword_inj [?]; subst ws'; move=> /= ?; subst w;
         (* The product is at width [wsm >= ws] (from [is_mul]), the outer
            operation at [ws'' >= ws]: only the low [ws] bits are kept, so
@@ -1342,7 +1342,7 @@ Proof.
   all: move: he1' => [?]; subst e.
   all: move: himm; rewrite /= => ?; subst imm.
   all: move: hsemop => /sem_sop2I /= [x0 [x1 [w2 [hx0 hx1 hop2 hw]]]].
-  all: move: hop2 => [?]; subst w2.
+  all: move: hop2; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst w2.
   all: move: hw => /Vword_inj [?]; subst ws'; move=> /= ?; subst w.
   all: move: hx0 => /to_wordI [ws0 [w0 [? /truncate_wordP [hws0 ?]]]]; subst v0 x0.
   all: move: hx1 => /to_wordI [ws1 [w1 [? /truncate_wordP [hws1 ?]]]]; subst v1 x1.
