@@ -526,11 +526,15 @@ Definition sc_uadd_le ws k1 k2 z :=
 Definition sc_in_range_mod32 ws i j k :=
   sc_in_range i j (sc_modi Unsigned (sc_toint Unsigned ws k) (IConst 32)).
 
+(* [sc_is_arr_init len ka start size]: the [size] cells of the array argument
+   [ka] (of length [len]) starting at [start] are initialised. *)
+Definition sc_is_arr_init (len : Z) (ka : nat) (start : safe_cond) (size : Z) : safe_cond :=
+  IAppN_safety (Ois_arr_init len) [:: IVar ka; start; IConst size].
+
 (* This shape is recognised by safetylib/safetyInterpreter.ml;
    if it changes, its recognition there must change too. *)
 Definition sc_all_init ws len k :=
-  IAppN_safety (Ois_arr_init (arr_size ws len))
-               [:: IVar k; IConst 0; IConst (arr_size ws len)].
+  sc_is_arr_init (arr_size ws len) k (IConst 0) (arr_size ws len).
 
 (* This shape is recognised by safetylib/safetyInterpreter.ml;
    if it changes, its recognition there must change too. *)
@@ -574,6 +578,9 @@ Definition sc_divmod sg sz (k1 k2 : nat) : seq safe_cond :=
                        (sc_eqi (sc_toint sg sz k2) (IConst (-1)))) ] sg.
 
 (* ** Bridging lemmas: what the conditions above compute *)
+
+Lemma Z_eqbE (x y : Z) : (x =? y)%Z = (x == y).
+Proof. by apply/idP/idP => [/ZeqbP /eqP | /eqP /ZeqbP]. Qed.
 
 Lemma wunsigned_eqb0 ws (w : word ws) : (wunsigned w =? 0)%Z = (w == 0%w).
 Proof.
@@ -954,6 +961,22 @@ Proof. by rewrite /check_safe => ->. Qed.
 Lemma check_safe_okE vs safe err u : check_safe vs safe err = ok u -> all (safe_cond_b vs) safe.
 Proof. by rewrite /check_safe; case: ifP. Qed.
 
+(* Conditions checked in order, each with its own error: an array read raises
+   [ErrAddrInvalid], [ErrOob] or [ErrAddrUndef] depending on which guard fails,
+   so the single error of [check_safe] does not suffice for the accesses. *)
+Fixpoint check_safe_seq (vs : values) (scs : seq (safe_cond * error)) : exec unit :=
+  match scs with
+  | [::] => ok tt
+  | (c, e) :: scs => if safe_cond_b vs c then check_safe_seq vs scs else Error e
+  end.
+
+Lemma check_safeE vs safe err :
+  check_safe vs safe err = check_safe_seq vs (map (fun c => (c, err)) safe).
+Proof.
+rewrite /check_safe; elim: safe => //= c safe <-.
+by case: safe_cond_b.
+Qed.
+
 (* Same accumulation scheme as [interp_safe_cond_ty_aux]: the arguments are
    collected, as values, in [vs]. *)
 Fixpoint mk_semi_aux {T T'} (P : values -> T -> exec T') (vs : values) (tin : seq ctype) :
@@ -1292,3 +1315,169 @@ Lemma mk_sem_op_reduces_example :
     (@mk_sem_op [:: cint; cint] cint [::] ErrArith (fun v1 v2 => (v1 + v2)%Z))
     (sem_prod_ok [:: cint; cint] (fun v1 v2 => (v1 + v2)%Z)).
 Proof. by move=> v1 v2. Qed.
+
+(* -------------------------------------------------------------------- *)
+(* ** Safety conditions of the array and memory accesses                  *)
+
+(* Unlike the conditions of the operators above, the conditions of this section
+   are not matched by safetylib/safetyInterpreter.ml: the OCaml checker builds
+   its own conditions for the accesses ([AlignedExpr], [InBound], [Initai],
+   [Valid]). These are the conditions of the semantics itself. *)
+
+(* The scaled index of an array access: [i * mk_scale aa ws]. *)
+Definition sc_arr_scaled (aa : arr_access) ws (k : nat) : safe_cond :=
+  sc_muli (IVar k) (IConst (mk_scale aa ws)).
+
+(* [is_aligned_if al (i * mk_scale aa ws) ws]: a scaled access is always
+   aligned, and an unaligned access has nothing to check. *)
+Definition sc_arr_aligned (al : aligned) (aa : arr_access) ws (k : nat) : safe_cond :=
+  if (al == Unaligned) || (aa == AAscale) then IBool true
+  else sc_eqi (sc_modi Unsigned (sc_arr_scaled aa ws k) (IConst (wsize_size ws))) (IConst 0).
+
+(* The [size] bytes read or written at [i * mk_scale aa ws] are inside an array
+   of length [len]. *)
+Definition sc_arr_in_bound (len : Z) (aa : arr_access) ws (k : nat) (size : Z) : safe_cond :=
+  sc_and (sc_lei (IConst 0) (sc_arr_scaled aa ws k))
+         (sc_lei (sc_addi (sc_arr_scaled aa ws k) (IConst size)) (IConst len)).
+
+(* They are moreover initialised, in the array argument [ka]. *)
+Definition sc_arr_init (len : Z) (aa : arr_access) ws (ka k : nat) (size : Z) : safe_cond :=
+  sc_is_arr_init len ka (sc_arr_scaled aa ws k) size.
+
+(* The conditions of the four array accesses, on the arguments
+   [:: Varr a; Vint i] (plus the written value, which no condition mentions). *)
+Definition sc_get (len : Z) al aa ws : seq (safe_cond * error) :=
+  [:: (sc_arr_aligned al aa ws 1, ErrAddrInvalid);
+      (sc_arr_in_bound len aa ws 1 (wsize_size ws), ErrOob);
+      (sc_arr_init len aa ws 0 1 (wsize_size ws), ErrAddrUndef) ].
+
+Definition sc_set (len : Z) al aa ws : seq (safe_cond * error) :=
+  [:: (sc_arr_aligned al aa ws 1, ErrAddrInvalid);
+      (sc_arr_in_bound len aa ws 1 (wsize_size ws), ErrOob) ].
+
+Definition sc_get_sub (len : Z) aa ws n : seq (safe_cond * error) :=
+  [:: (sc_arr_in_bound len aa ws 1 (arr_size ws n), ErrOob) ].
+
+Definition sc_set_sub (len : Z) aa ws n : seq (safe_cond * error) :=
+  [:: (sc_arr_in_bound len aa ws 1 (arr_size ws n), ErrOob) ].
+
+(* ** What these conditions compute *)
+
+Lemma safe_cond_b_arr_aligned al aa ws k (vs : values) (i : Z) :
+  nth undef_b vs k = Vint i ->
+  safe_cond_b vs (sc_arr_aligned al aa ws k) = is_aligned_if al (i * mk_scale aa ws)%Z ws.
+Proof.
+move=> h; rewrite /sc_arr_aligned.
+case: ifPn => [ | ]; last first.
++ rewrite negb_or => /andP [hal haa].
+  case: al hal => [// | _]; case: aa haa => [_ | //].
+  rewrite /safe_cond_b /sc_eqi /sc_modi /sc_arr_scaled /sc_muli /= h /=.
+  by rewrite is_alignE WArray.p_to_zE Z_eqbE.
+case: al => [_ | ] /=; first by [].
+by move=> /eqP ->; rewrite WArray.is_align_scale.
+Qed.
+
+Lemma safe_cond_b_arr_in_bound len aa ws k size (vs : values) (i : Z) :
+  nth undef_b vs k = Vint i ->
+  safe_cond_b vs (sc_arr_in_bound len aa ws k size)
+  = ((0 <=? i * mk_scale aa ws) && (i * mk_scale aa ws + size <=? len))%Z.
+Proof.
+by move=> h;
+  rewrite /safe_cond_b /sc_arr_in_bound /sc_and /sc_lei /sc_addi /sc_arr_scaled
+          /sc_muli /= h.
+Qed.
+
+Lemma safe_cond_b_arr_init len aa ws ka k size (vs : values)
+    (a : WArray.array len) (i : Z) :
+  nth undef_b vs ka = Varr a ->
+  nth undef_b vs k = Vint i ->
+  safe_cond_b vs (sc_arr_init len aa ws ka k size)
+  = all (WArray.is_init a) (ziota (i * mk_scale aa ws)%Z size).
+Proof.
+move=> ha hi.
+by rewrite /safe_cond_b /sc_arr_init /sc_is_arr_init /sc_arr_scaled /sc_muli /=
+           ha hi /= arr_sizeE wsize8 Z.mul_1_l WArray.castK.
+Qed.
+
+(* ** The accesses as "conditions + total function" *)
+
+Lemma getE (len : Z) al aa ws (a : WArray.array len) (i : Z) :
+  eq_ok (WArray.get al aa ws a i)
+        (Let _ := check_safe_seq [:: Varr a; Vint i] (sc_get len al aa ws) in
+         ok (WArray.get_total aa ws a i)).
+Proof.
+rewrite /WArray.get /WArray.get_total.
+apply: (eq_ok_trans (@readE _ _ _ _ a al (i * mk_scale aa ws)%Z ws)).
+rewrite [X in eq_ok _ X]/=.
+rewrite WArray.validr_validw_init WArray.validw_in_range /WArray.in_range.
+rewrite (@safe_cond_b_arr_aligned al aa ws 1 [:: Varr a; Vint i] i erefl)
+        (@safe_cond_b_arr_in_bound len aa ws 1 (wsize_size ws) [:: Varr a; Vint i] i erefl)
+        (@safe_cond_b_arr_init len aa ws 0 1 (wsize_size ws) [:: Varr a; Vint i] a i erefl erefl).
+by case: is_aligned_if; case: (0 <=? i * mk_scale aa ws)%Z;
+   case: (i * mk_scale aa ws + wsize_size ws <=? len)%Z;
+   case: (all (WArray.is_init a) (ziota (i * mk_scale aa ws)%Z (wsize_size ws))).
+Qed.
+
+Lemma setE (len : Z) al aa ws (a : WArray.array len) (i : Z) (v : word ws) :
+  eq_ok (WArray.set a al aa i v)
+        (Let _ := check_safe_seq [:: Varr a; Vint i; Vword v] (sc_set len al aa ws) in
+         ok (WArray.set_total a aa i v)).
+Proof.
+rewrite /WArray.set /WArray.set_total.
+apply: (eq_ok_trans (@writeE _ _ _ _ a al (i * mk_scale aa ws)%Z ws v)).
+rewrite [X in eq_ok _ X]/=.
+rewrite WArray.validw_in_range /WArray.in_range.
+rewrite (@safe_cond_b_arr_aligned al aa ws 1 [:: Varr a; Vint i; Vword v] i erefl)
+        (@safe_cond_b_arr_in_bound len aa ws 1 (wsize_size ws)
+           [:: Varr a; Vint i; Vword v] i erefl).
+by case: is_aligned_if; case: (0 <=? i * mk_scale aa ws)%Z;
+   case: (i * mk_scale aa ws + wsize_size ws <=? len)%Z.
+Qed.
+
+Lemma get_subE (lena : Z) aa ws n (a : WArray.array lena) (i : Z) :
+  eq_ok (WArray.get_sub aa ws n a i)
+        (Let _ := check_safe_seq [:: Varr a; Vint i] (sc_get_sub lena aa ws n) in
+         ok (WArray.get_sub_total aa ws n a i)).
+Proof.
+rewrite /WArray.get_sub /WArray.get_sub_total /=.
+rewrite (@safe_cond_b_arr_in_bound lena aa ws 1 (arr_size ws n)
+           [:: Varr a; Vint i] i erefl).
+by case: (_ && _).
+Qed.
+
+Lemma set_subE (lena : Z) aa ws n (a : WArray.array lena) (i : Z)
+    (b : WArray.array (arr_size ws n)) :
+  eq_ok (WArray.set_sub aa a i b)
+        (Let _ := check_safe_seq [:: Varr a; Vint i; Varr b] (sc_set_sub lena aa ws n) in
+         ok (WArray.set_sub_total aa a i b)).
+Proof.
+rewrite /WArray.set_sub /WArray.set_sub_total /=.
+rewrite (@safe_cond_b_arr_in_bound lena aa ws 1 (arr_size ws n)
+           [:: Varr a; Vint i; Varr b] i erefl).
+by case: (_ && _).
+Qed.
+
+(* ** The alignment condition of a memory access *)
+
+Section MEM_COND.
+
+Context {pd : PointerData}.
+
+(* The validity of a memory access depends on the memory, not only on the
+   arguments: it stays an assertion ([Pis_mem_init]). Only the alignment of the
+   pointer is a condition on the value of an argument. *)
+Definition sc_mem_aligned (al : aligned) sz (k : nat) : safe_cond :=
+  if al == Unaligned then IBool true
+  else sc_eqi (sc_modi Unsigned (sc_toint Unsigned Uptr k) (IConst (wsize_size sz)))
+              (IConst 0).
+
+Lemma safe_cond_b_mem_aligned al sz k (vs : values) (p : pointer) :
+  nth undef_b vs k = Vword p ->
+  safe_cond_b vs (sc_mem_aligned al sz k) = is_aligned_if al p sz.
+Proof.
+move=> h; rewrite /sc_mem_aligned; case: al => //=.
+rewrite /safe_cond_b /sc_eqi /sc_modi /sc_toint /= h /= truncate_word_u /=.
+by rewrite is_alignE memory_model.p_to_zE Z_eqbE.
+Qed.
+
+End MEM_COND.

@@ -107,6 +107,9 @@ Module WArray.
     Lemma get_valid8 m i w : get8 m i = ok w -> in_bound m i.
     Proof. by rewrite /get8; t_xrbindP. Qed.
 
+    Lemma is_ok_get8 m i : is_ok (get8 m i) = in_bound m i && is_init m i.
+    Proof. by rewrite /get8; case: in_bound; case: is_init. Qed.
+
     Lemma valid8_set m i w m' i' : set8 m i w = ok m' -> in_bound m' i' = in_bound m i'.
     Proof. by rewrite /set8; t_xrbindP => _ <-. Qed.
 
@@ -142,6 +145,23 @@ Module WArray.
       by rewrite add_0 addE -!valid8_validw /array_CM /valid8 /in_bound !zify; lia.
     Qed.
 
+    (* An array cell can be written as soon as it is in bounds, but it can only
+       be read once it has been initialised: the guard of [CoreMem.read] is the
+       guard of [CoreMem.write] plus the initialisation of the bytes read. *)
+    Lemma validr_validw_init m al i ws :
+      validr m al i ws = validw m al i ws && all (is_init m) (ziota i (wsize_size ws)).
+    Proof.
+      have hsplit : forall (p q : Z -> bool) (l : seq Z),
+          all (fun k => p k && q k) l = all p l && all q l.
+      + move=> p q; elim => //= a l ih.
+        by case: (p a); case: (q a); rewrite /= ?andbF ?ih.
+      rewrite /validr /validw -andbA; congr (_ && _).
+      rewrite (eq_all (a2 := fun k => valid8 m (add i k) && is_init m (i + k)%Z)); last first.
+      + by move=> k; rewrite /= -is_ok_get8 addE.
+      rewrite hsplit; congr (_ && _).
+      by rewrite (ziota_shift i (wsize_size ws)) all_map.
+    Qed.
+
   End CM.
 
   Definition get len al (aa: arr_access) ws (a: array len) (i: Z) :=
@@ -149,6 +169,15 @@ Module WArray.
 
   Definition set {len ws} (a: array len) al aa i (v: word ws) : exec (array len) :=
     CoreMem.write a al (i * mk_scale aa ws)%Z v.
+
+  (* Total counterparts of [get] and [set]: a cell that cannot be read (out of
+     bounds or not initialised) reads as [0], and the bytes of a write that fall
+     outside the array are dropped. *)
+  Definition get_total len (aa: arr_access) ws (a: array len) (i: Z) : word ws :=
+    CoreMem.read_total a (i * mk_scale aa ws)%Z ws.
+
+  Definition set_total {len ws} (a: array len) aa (i: Z) (v: word ws) : array len :=
+    CoreMem.write_total a (i * mk_scale aa ws)%Z v.
 
   Definition fcopy ws len (a t: WArray.array len) i j :=
     foldM (fun i t =>
@@ -193,6 +222,9 @@ Module WArray.
        ok (Build_array size (get_sub_data aa ws len (arr_data a) i))
      else Error ErrOob.
 
+  Definition get_sub_total lena (aa:arr_access) ws len (a:array lena) i : array (arr_size ws len) :=
+     Build_array (arr_size ws len) (get_sub_data aa ws len (arr_data a) i).
+
   Definition set_sub_data (aa:arr_access) ws len (a:Mz.t u8) i (b:Mz.t u8) :=
     let size := arr_size ws len in
     let start := (i * mk_scale aa ws)%Z in
@@ -208,6 +240,9 @@ Module WArray.
     if (0 <=? start) && (start + size <=? lena) then
       ok (Build_array lena (set_sub_data aa ws len (arr_data a) i (arr_data b)))
     else Error ErrOob.
+
+  Definition set_sub_total lena (aa:arr_access) ws len (a:array lena) i (b:array (arr_size ws len)) : array lena :=
+    Build_array lena (set_sub_data aa ws len (arr_data a) i (arr_data b)).
 
   Definition cast len len' (a:array len) : result error (array len') :=
     if len' == len then ok {| arr_data := a.(arr_data) |}
@@ -588,7 +623,7 @@ Module WArray.
   Proof.
     move=> hget j.
     have ht':= set_sub_get8 hget.
-    rewrite /get !readE !is_aligned_if_is_align ?is_align_scale // /=.
+    rewrite /get !read_read8E !is_aligned_if_is_align ?is_align_scale // /=.
     case: ifPn.
     + move=> /andP[]/ZleP ? /ZltP ?.
       have -> // :
@@ -687,7 +722,7 @@ Module WArray.
     WArray.get al AAscale ws st j = WArray.get al AAscale ws t (i + j)%Z.
   Proof.
     move=> /WArray.get_sub_get8 => hr j hj.
-    rewrite /WArray.get !readE !is_aligned_if_is_align ?WArray.is_align_scale //.
+    rewrite /WArray.get !read_read8E !is_aligned_if_is_align ?WArray.is_align_scale //.
     have -> // :
       mapM (λ k : Z, read st al (add (j * mk_scale AAscale ws)%Z k) U8) (ziota 0 (wsize_size ws)) =
       mapM (λ k : Z, read t al (add ((i + j) * mk_scale AAscale ws)%Z k) U8) (ziota 0 (wsize_size ws)).

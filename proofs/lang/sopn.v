@@ -233,17 +233,6 @@ Qed.
 
 (* [WArray.get] succeeds exactly when all the bytes it reads are
    initialised. *)
-Lemma is_ok_mapM {A B} (f : A -> exec B) l :
-  is_ok (mapM f l) = all (fun a => is_ok (f a)) l.
-Proof.
-elim: l => //= a l ih; case: (f a) => //= b.
-by rewrite -ih; case: (mapM f l).
-Qed.
-
-Lemma is_ok_get8 len (t : WArray.array len) j :
-  is_ok (WArray.get8 t j) = WArray.in_bound t j && WArray.is_init t j.
-Proof. by rewrite /WArray.get8; case: WArray.in_bound; case: WArray.is_init. Qed.
-
 Lemma is_ok_get ws len (t : WArray.array len) i :
   is_ok (WArray.get Unaligned AAscale ws t i)
   = all (fun k => WArray.in_bound t (i * mk_scale AAscale ws + k)%Z &&
@@ -255,7 +244,7 @@ have -> : forall (M : exec (seq u8)),
     is_ok (assert true ErrAddrInvalid >> Let l := M in ok (LE.decode ws l)) = is_ok M.
 + by move=> M; case: M.
 rewrite is_ok_mapM; apply: eq_all => k.
-by rewrite -is_ok_get8 /get /= WArray.addE.
+by rewrite -WArray.is_ok_get8 /get /= WArray.addE.
 Qed.
 
 (* Reading every cell of the array succeeds exactly when every byte of the

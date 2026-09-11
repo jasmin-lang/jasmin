@@ -257,6 +257,31 @@ Lemma catch_core_errty {T : Type} (ev : exec T) (dflt : T) e :
   catch_core ev dflt = Error e -> e = ErrType.
 Proof. rewrite /catch_core; case: ev => //= e2; case: is_ErrTypeP => // -> [<-] //. Qed.
 
+(* [eq_ok r1 r2]: the two computations succeed on the same values. They may
+   raise different errors; this is the notion of equality used to relate an
+   access to its "safety conditions + total function" form, where the order in
+   which the conditions are checked may change which error is raised. *)
+Definition eq_ok {T} (r1 r2 : exec T) : Prop := forall v, r1 = ok v <-> r2 = ok v.
+
+Lemma eq_ok_refl {T} (r : exec T) : eq_ok r r.
+Proof. by []. Qed.
+
+Lemma eq_ok_sym {T} (r1 r2 : exec T) : eq_ok r1 r2 -> eq_ok r2 r1.
+Proof. by move=> h v; split => /h. Qed.
+
+Lemma eq_ok_trans {T} (r2 r1 r3 : exec T) : eq_ok r1 r2 -> eq_ok r2 r3 -> eq_ok r1 r3.
+Proof. by move=> h1 h2 v; split => [/h1/h2 | /h2/h1]. Qed.
+
+Lemma eq_ok_ok {T} (v : T) (r : exec T) : eq_ok (ok v) r <-> r = ok v.
+Proof. by split => [h | h v']; [apply/h | split => [[<-] // | ]; rewrite h => -[<-]]. Qed.
+
+Lemma is_ok_eq_ok {T} (r1 r2 : exec T) : eq_ok r1 r2 -> is_ok r1 = is_ok r2.
+Proof.
+move=> h; apply/idP/idP => /is_okP [v hv]; apply/is_okP; exists v.
++ by apply: (proj1 (h v)).
+by apply: (proj2 (h v)).
+Qed.
+
 Lemma bindW {T U} (v : exec T) (f : T -> exec U) r :
   v >>= f = ok r -> exists2 a, v = ok a & f a = ok r.
 Proof. by case E: v => [a|//] /= <-; exists a. Qed.
@@ -495,6 +520,19 @@ Lemma mapM_ok {eT} {A B:Type} (f: A -> B) (l:list A) :
   mapM (eT:=eT) (fun x => ok (f x)) l = ok (map f l).
 Proof. by elim l => //= ?? ->. Qed.
 
+Lemma is_ok_mapM {eT} {A B:Type} (f : A -> result eT B) l :
+  is_ok (mapM f l) = all (fun a => is_ok (f a)) l.
+Proof.
+elim: l => //= a l ih; case: (f a) => //= b.
+by rewrite -ih; case: (mapM f l).
+Qed.
+
+(* When every element can be mapped, [mapM] computes the pointwise default. *)
+Lemma mapM_is_ok {eT} {A B:Type} (f : A -> result eT B) (d : B) l :
+  all (fun a => is_ok (f a)) l ->
+  mapM f l = ok [seq (if f a is Ok b then b else d) | a <- l].
+Proof. by elim: l => //= a l ih /andP []; case: (f a) => //= b _ /ih ->. Qed.
+
 Section FOLDM.
 
   Context (eT aT bT:Type) (f:aT -> bT -> result eT bT).
@@ -510,6 +548,20 @@ Section FOLDM.
       Let acc1 := foldM acc l1 in
       foldM acc1 l2.
   Proof. by elim: l1 acc => //= x l hrec acc; case: f. Qed.
+
+  (* The total counterpart of [foldM]: each step keeps the accumulator when it
+     fails. Both agree as soon as [foldM] succeeds. *)
+  Definition foldl_total (acc : bT) (l : seq aT) :=
+    foldl (fun acc a => if f a acc is Ok acc' then acc' else acc) acc l.
+
+  Lemma foldM_foldl_total acc l acc' :
+    foldM acc l = ok acc' -> foldl_total acc l = acc'.
+  Proof.
+    rewrite /foldl_total; elim: l acc => [acc [<-] // | a l ih acc].
+    rewrite /= -/(foldM _ l).
+    case: (f a acc) => [acc1 | e] //=.
+    by apply: ih.
+  Qed.
 
 End FOLDM.
 
