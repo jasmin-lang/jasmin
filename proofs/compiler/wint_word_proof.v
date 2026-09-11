@@ -71,20 +71,25 @@ Section E.
         rewrite /= ?he /sem_sop1 /=; t_xrbindP;
         try by move=> > -> /= > [->] <-; (eexists; first reflexivity) => /=.
       case: o => /=; rewrite he /sem_sop1 /=.
-      + move=> > /to_intI -> > /wint_of_intP [-> h] <- /=.
+      + move=> > /to_intI -> >;
+          rewrite sem_sop1_typed_wi_of_intE => /wint_of_intP [-> h] <- /=.
         by (eexists; first reflexivity) => /=.
-      + move=> > /to_wordI [? [? [-> htr]]] > [<-] <- /=.
+      + move=> > /to_wordI [? [? [-> htr]]] >;
+          rewrite /sem_sop1_typed /mk_sem_op /= => -[<-] <- /=.
         by rewrite htr /=; eexists; first reflexivity.
-      + move=> > /to_wordI [sz' [w' [?]]] htr ? [<-] <-; subst v'.
+      + move=> > /to_wordI [sz' [w' [?]]] htr ?;
+          rewrite /sem_sop1_typed /mk_sem_op /= => -[<-] <-; subst v'.
         eexists; first reflexivity.
         by apply: truncate_word_uincl htr.
-      + move=> > /to_wordI [sz' [w' [?]]] htr ? [<-] <-; subst v'.
+      + move=> > /to_wordI [sz' [w' [?]]] htr ?;
+          rewrite /sem_sop1_typed /mk_sem_op /= => -[<-] <-; subst v'.
         eexists; first reflexivity.
         by apply: truncate_word_uincl htr.
-      + move=> > /to_wordI [sz' [w' [?]]] htr ? [] + <-; subst v'.
-        by case: sg => /=; rewrite htr /= => ->; (eexists; first reflexivity) => /=.
+      + move=> > /to_wordI [sz' [w' [?]]] htr ? + <-; subst v'.
+        by case: sg => /=; rewrite htr /= /sem_sop1_typed /mk_sem_op /= => -[->];
+           (eexists; first reflexivity) => /=.
       move=> > /to_wordI [sz' [w' [?]]] htr ? + <-; subst v'.
-      move=> /wint_of_intP [-> ?] /=; rewrite htr /=.
+      rewrite sem_sop1_typed_winegE => /wint_of_intP [-> ?] /=; rewrite htr /=.
       (eexists; first reflexivity) => /=.
       by rewrite wrepr_opp wrepr_int_of_word.
 
@@ -99,16 +104,24 @@ Section E.
       1-2: by rewrite /=; (case: k => /= > -> > -> >; first case) => /= -> <-;
              (eexists; first reflexivity).
       1-8: by case: k => /= > -> /= > -> /= > [->] <-; (eexists; first reflexivity).
-      case: o; rewrite /= /mk_sem_wiop2 /=.
-      1-3: by move=> > -> > -> /= > /wint_of_intP [-> _] <-; (eexists; first reflexivity);
+      case: o; rewrite /=.
+      1-3: by move=> > -> > -> /= >;
+           rewrite (sem_sop2_typed_wiaddE, sem_sop2_typed_wimulE,
+                    sem_sop2_typed_wisubE)
+             => /wint_of_intP [-> _] <-; (eexists; first reflexivity);
            rewrite (add_wordE, mul_wordE, sub_wordE);
            rewrite (wrepr_add, wrepr_mul, wrepr_sub) !wrepr_int_of_word.
-      1-2: by move=> > -> > -> /= > -> <- /=; (eexists; first reflexivity) => /=.
-      + move=> > -> w2 -> /= > /wint_of_intP /= [-> _] <-; (eexists; first reflexivity).
+      1-2: by move=> > -> > -> /=;
+           rewrite (sem_sop2_typed_divE, sem_sop2_typed_modE)
+                   (sem_sop2_typed_widivE, sem_sop2_typed_wimodE)
+             => > -> <- /=; (eexists; first reflexivity) => /=.
+      + move=> > -> w2 -> /= >; rewrite sem_sop2_typed_wishlE
+          => /wint_of_intP /= [-> _] <-; (eexists; first reflexivity).
         rewrite /zlsl /sem_shl /sem_shift; case: ifPn => /ZleP ?.
         + by rewrite wrepr_mul wrepr_int_of_word GRing.mulrC wshl_sem.
         by have := wunsigned_range w2; Lia.lia.
-      + rewrite /mk_sem_wishift; case: si => /= w1 -> w2 -> > /=;
+      + case: si => /= w1 -> w2 -> >;
+        rewrite sem_sop2_typed_wishrE;
         move=> /wint_of_intP [-> ?] <-;  (eexists; first reflexivity) => /=;
         rewrite /sem_sar /sem_shr /sem_shift ?wsar_alt /wsar_naive ?wshr_alt /wshr_naive /zasr /zlsl;
         have [h _ ] := wunsigned_range w2;
@@ -117,11 +130,14 @@ Section E.
           by move=> <- _ /=; rewrite Z.mul_1_r Z.shiftr_0_r
         | by move=> _; rewrite Z.opp_involutive Z.shiftr_div_pow2]).
 
-      1-2: by move=> > -> > -> > /= [<-] <-; (eexists; first reflexivity) => /=;
-          rewrite int_of_word_eqb.
+      1-2: by move=> > -> > -> >; rewrite /sem_sop2_typed /mk_sem_op /= => -[<-] <-;
+          (eexists; first reflexivity) => /=;
+          rewrite /mk_sem_wicmp_total int_of_word_eqb.
 
-      1-4: move=> > -> > -> > /= [<-] <-; (eexists; first reflexivity) => /=;
-           case: si => //=; rewrite ?(Z.gtb_ltb, Z.geb_leb) //.
+      1-4: move=> > -> > -> >; rewrite /sem_sop2_typed /mk_sem_op /= => -[<-] <-;
+           (eexists; first reflexivity) => /=;
+           rewrite /mk_sem_wicmp_total; case: si => //=;
+           rewrite ?(Z.gtb_ltb, Z.geb_leb) //.
     + move=> op es hes v vs /hes [vs']; rewrite /sem_pexprs => -> /= hus hs.
       by rewrite (vuincl_sem_opN hus hs); eexists; first reflexivity.
 
