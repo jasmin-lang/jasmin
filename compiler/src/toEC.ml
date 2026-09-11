@@ -461,7 +461,6 @@ module type EnvT = sig
   val add_SubArrayCast: t -> int -> int -> int -> int -> unit
   val add_ArrayAccessCast: t -> int -> int -> int -> unit
   val add_randombytes: t -> int -> unit
-  val add_ty: t -> ty -> unit
   val add_jarray: t -> Wsize.wsize -> int -> unit
   val empty: architecture -> Wsize.wsize -> Wsize.wsize -> Sarraytheory.t ref -> t
   val create_name: t -> string -> string
@@ -579,10 +578,6 @@ module Env: EnvT = struct
     { env with
       alls = ref (Ss.add s !(env.alls));
       vars = Mv.add x s env.vars }
-
-  let add_ty env = function
-      | Bty _ -> ()
-      | Arr (_ws, n) -> add_Array env n
 
   let empty arch pd msfsz array_theories =
     {
@@ -2024,8 +2019,6 @@ struct
           | [x] -> ESreturn x
           | xs -> ESreturn (Etuple xs)
       in
-      List.iter (Env.add_ty env) f.f_tyout;
-      List.iter (fun x -> Env.add_ty env x.v_ty) (f.f_args @ locals);
       {
           decl = {
               fname = (Env.get_funname env f.f_name);
@@ -2039,13 +2032,16 @@ struct
   (* ------------------------------------------------------------------- *)
   (* Program extraction *)
 
+  (* Register the array theory of a global array before the header is printed.
+     This must go through the array model: it decides which theories the
+     declaration of the global will name. *)
   let add_glob_arrsz env (x,d) =
     match d with
     | Global.Gword _ -> ()
     | Global.Garr(p,t) ->
       let ws, t = Conv.to_array x.v_ty p t in
       let n = Array.length t in
-      Env.add_jarray env ws n
+      EA.add_jarray env ws n
 
   let jmodel env = match Env.arch env with
     | X86_64 -> "JModel_x86"
