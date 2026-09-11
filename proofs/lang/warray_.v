@@ -10,6 +10,8 @@ Require Import xseq.
 Require Export utils gen_map type word memory_model.
 Import Utf8 ZArith Lia.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 #[only(eqbOK)] derive
 Variant arr_access :=
   | AAdirect

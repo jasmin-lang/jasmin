@@ -138,8 +138,8 @@ Definition default_val (ty : atype) : value :=
   match ty with
   | abool => Vbool false
   | aint => Vint 0
-  | aarr ws len => Varr (WArray.fill_elem (arr_size ws len) 0%R)
-  | aword ws => @Vword ws 0%R
+  | aarr ws len => Varr (WArray.fill_elem (arr_size ws len) 0%w)
+  | aword ws => @Vword ws 0%w
   end.
 
 Lemma is_defined_default_val ty : is_defined (default_val ty).

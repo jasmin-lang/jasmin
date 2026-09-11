@@ -284,7 +284,7 @@ Qed.
    source succeeds) both compute the same array. *)
 
 Definition copy_get ws {len} (a : WArray.array len) (i : Z) : word ws :=
-  if WArray.get Unaligned AAscale ws a i is Ok w then w else 0%R.
+  if WArray.get Unaligned AAscale ws a i is Ok w then w else 0%w.
 
 Definition copy_set {ws len} (t : WArray.array len) (i : Z) (w : word ws) :
     WArray.array len :=

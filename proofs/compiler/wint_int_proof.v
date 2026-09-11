@@ -3,6 +3,8 @@ Require Import op_semi compiler_util pseudo_operator psem psem_facts.
 Require Import wint_int safety_common_proof.
 Import Utf8.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Section PROOF.
 
 #[local] Existing Instance progUnit.
