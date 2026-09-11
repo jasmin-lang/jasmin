@@ -896,6 +896,7 @@ let fmt_arraywords_decl fmt (aw: arraywords) =
   in
   Format.fprintf fmt "@[<v>";
   pp_import_Int fmt ();
+  Format.fprintf fmt "from Jasmin require import JWord JWord_array.@ @ ";
   Format.fprintf fmt "require import %s %s.@ @ " arrayn warrayn;
   Format.fprintf fmt "clone export ArrayWords as %s  with @[%a@].@]@."
     (fmt_array_theory (ArrayWords aw))
