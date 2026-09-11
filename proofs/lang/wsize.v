@@ -185,25 +185,6 @@ Variant v_kind :=
 | Global           (* global (in memory) constant *)
 .
 
-(* -------------------------------------------------------------------- *)
-Variant safe_cond :=
-  (* the nth argument must be different from 0 *)
-  | NotZero of wsize & nat
-  (* this is a division instruction, two words by one word;
-    result must fit in an single word, divider should be <> 0 *)
-  | X86Division of wsize & signedness
-  (* the nth argument (unsigned interpretation, mod 32) must be in the given range *)
-  | InRangeMod32 of wsize & Z & Z & nat
-  (*  the nth argument (unsigned interpretation) must be in the < z *)
-  | ULt of wsize & nat & Z
-  (*  the nth argument (unsigned interpretation) must be in the >= z *)
-  | UGe of wsize & Z & nat
-  (*  the sum of the nth arguments (unsigned interpretation) must be in the <= z *)
-  | UaddLe of wsize & nat & nat & Z
-  (* the nth argument is an array ws[n] where all cells are initialized *)
-  | AllInit of wsize & Z & nat
-  (* Unsatisfiable safe_cond *)
-  | ScFalse.
 
 (* -------------------------------------------------------------------- *)
 Class PointerData := {

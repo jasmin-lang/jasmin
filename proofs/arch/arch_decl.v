@@ -21,6 +21,7 @@ Require Import
 
 Require Import
   sopn
+  sopn_semi
   flag_combination
   shift_kind
   arm_expand_imm.
@@ -96,9 +97,17 @@ Notation sem_lt t := (sem_t (eval_ltype t)).
 Notation sem_olt t := (sem_ot (eval_ltype t)).
 Notation sem_lprod ts tr := (sem_prod (map eval_ltype ts) tr).
 Notation sem_ltuple ts := (sem_tuple (map eval_ltype ts)).
+Notation sem_ltuple_t ts := (sem_tuple_t (map eval_ltype ts)).
+
+(* Value given by the total semantics ([id_semi_total]) to a flag that the
+   instruction leaves undefined. It is filtered out by [id_init], so its value
+   never reaches the semantics; it mirrors the abstract [undefined_flag] of the
+   EasyCrypt model (eclib/JWord.ec). *)
+Definition undefined_flag : bool := false.
+Global Opaque undefined_flag.
 Notation sem_lforall P tin := (sem_forall P (map eval_ltype tin)).
 Notation interp_safe_cond_lty tin id_safe id_semi :=
-  (values.interp_safe_cond_ty (tin := map eval_ltype tin) id_safe id_semi).
+  (sopn_semi.safe_cond_ty (tin := map eval_ltype tin) id_safe id_semi).
 
 Section DECL.
 
@@ -419,6 +428,9 @@ Record instr_desc_t := {
   id_out        : seq arg_desc;
   (* Semantics (only deals with values). *)
   id_semi       : sem_lprod id_tin (exec (sem_ltuple id_tout));
+  (* Total semantics: the same values as [id_semi], but the boolean outputs
+     are plain booleans (no [None]) and no error can be raised. *)
+  id_semi_total : sem_lprod id_tin (sem_ltuple_t id_tout);
   (* Possible signatures for an instruction. *)
   id_args_kinds : i_args_kinds;
   (* Number of explicit arguments in assembly syntax. *)
@@ -428,16 +440,31 @@ Record instr_desc_t := {
   id_str_jas    : unit -> string;
   id_check_dest : all2 check_arg_dest id_out id_tout;
   id_safe       : seq safe_cond;
+  (* The error raised when one of the safety conditions does not hold. *)
+  id_err        : error;
+  (* One initialisation condition per output: the output is defined exactly
+     when its condition holds on the arguments. *)
+  id_init       : seq safe_cond;
   (* Whether the instruction has data operand independent timing, i.e. belongs
      to the DOIT (Intel) / DIT (ARM) subsets of instructions. *)
   id_doit       : doit_t;
   id_pp_asm     : asm_args -> pp_asm_op;
   (* Extra properties ensuring that previous information are consistent *)
-  id_safe_wf    : all (fun sc => values.sc_needed_args sc <= size id_tin) id_safe;
+    (* the conditions are well typed and total, there is one initialisation
+       condition per output, and the error is not a type error *)
+  id_wf         : [&& all (sc_ok (map eval_ltype id_tin)) id_safe,
+                      all (sc_ok (map eval_ltype id_tin)) id_init,
+                      ssrnat.eqn (size id_init) (size id_tout)
+                    & ~~ is_ErrType id_err];
     (* id_semi does not generates type error *)
   id_semi_errty : id_valid -> sem_lforall (fun r => r <> Error ErrType) id_tin id_semi;
     (* safety condition are sufficient to ensure that no error are raised *)
   id_semi_safe  : id_valid -> interp_safe_cond_lty id_tin id_safe id_semi;
+    (* [id_semi] is the generic construction applied to [id_safe], [id_err],
+       [id_init] and [id_semi_total] *)
+  id_semi_eq    : id_valid ->
+                  sem_prod_eq (map eval_ltype id_tin) id_semi
+                    (mk_semi id_safe id_err id_init id_semi_total);
 }.
 
 (* -------------------------------------------------------------------- *)
@@ -492,6 +519,32 @@ Fixpoint extend_tuple (ws:wsize) (id_tout : list ltype) (t: sem_ltuple id_tout) 
    end (@extend_tuple ws ts)
  end t.
 
+(* Total counterparts of [wextend_size] and [extend_tuple]: the same
+   zero-extension, on tuples whose boolean components are plain booleans. *)
+Definition wextend_size_t (ws: wsize) (t:ltype) : sem_lt t -> sem_lt (extend_size ws t) :=
+  match t return sem_lt t -> sem_lt (extend_size ws t) with
+  | lword ws' =>
+    fun (w: word ws') =>
+    match (ws' <= ws)%CMP as b return sem_lt (if b then lword ws else lword ws') with
+    | true => zero_extend ws w
+    | false => w
+    end
+  | _ => fun x => x
+  end.
+
+Fixpoint extend_tuple_t (ws:wsize) (id_tout : list ltype) (t: sem_ltuple_t id_tout) :
+   sem_ltuple_t (map (extend_size ws) id_tout) :=
+ match id_tout return sem_ltuple_t id_tout -> sem_ltuple_t (map (extend_size ws) id_tout) with
+ | [::] => fun _ => tt
+ | t :: ts =>
+   match ts return
+     (sem_ltuple_t ts -> sem_ltuple_t (map (extend_size ws) ts)) ->
+     sem_ltuple_t (t::ts) -> sem_ltuple_t (map (extend_size ws) (t::ts)) with
+   | [::] => fun rec_ x => wextend_size_t ws x
+   | t'::ts'    => fun rec_ p => (wextend_size_t ws p.1, rec_ p.2)
+   end (@extend_tuple_t ws ts)
+ end t.
+
 Fixpoint apply_lprod (A B : Type) (f : A -> B) (ts:list Type) : lprod ts A -> lprod ts B :=
   match ts return lprod ts A -> lprod ts B with
   | [::] => fun a => f a
@@ -512,6 +565,15 @@ Proof.
   case: t => // ws'.
   by rewrite /extend_size /check_arg_dest; case: a => //; case: ifP.
 Qed.
+
+Lemma instr_desc_aux3 ws (id_tin id_tout : list ltype) (safe init : seq safe_cond) err :
+  [&& all (sc_ok (map eval_ltype id_tin)) safe,
+      all (sc_ok (map eval_ltype id_tin)) init,
+      ssrnat.eqn (size init) (size id_tout) & ~~ is_ErrType err] ->
+  [&& all (sc_ok (map eval_ltype id_tin)) safe,
+      all (sc_ok (map eval_ltype id_tin)) init,
+      ssrnat.eqn (size init) (size (map (extend_size ws) id_tout)) & ~~ is_ErrType err].
+Proof. by rewrite size_map. Qed.
 
 Definition is_not_CAmem (cond : arg_kind) :=
   match cond with
@@ -548,6 +610,56 @@ Definition extend_sem {tin tout : seq ltype} ws
   (semi : sem_lprod tin (exec (sem_ltuple tout))) : sem_lprod tin (exec (sem_ltuple (map (extend_size ws) tout))) :=
   apply_lprod (Result.map (@extend_tuple ws tout)) semi.
 
+Definition extend_sem_t {tin tout : seq ltype} ws
+  (f : sem_lprod tin (sem_ltuple_t tout)) :
+    sem_lprod tin (sem_ltuple_t (map (extend_size ws) tout)) :=
+  apply_lprod (@extend_tuple_t ws tout) f.
+
+(* Zero-extension commutes with the filtering of the undefined outputs:
+   [filter_ot] is the identity on the non-boolean components and
+   [wextend_size] is the identity on the boolean ones. *)
+Lemma extend_filter_tuple ws tout mask (t : sem_ltuple_t tout) :
+  extend_tuple ws (filter_tuple (map eval_ltype tout) mask t)
+  = filter_tuple (map eval_ltype (map (extend_size ws) tout)) mask (extend_tuple_t ws t).
+Proof.
+  elim: tout mask t => // t1 tout hrec mask t.
+  case: tout hrec t => [ | t2 tout] hrec t.
+  + by case: t1 t => //= ws1 w; case: (ws1 <= ws)%CMP.
+  case: t => x ts /=; congr pair.
+  + by case: t1 x => //= ws1 w; case: (ws1 <= ws)%CMP.
+  apply hrec.
+Qed.
+
+Lemma apply_lprod_eq {A B} (g : A -> B) tin (f1 f2 : sem_prod tin A) :
+  sem_prod_eq tin f1 f2 -> sem_prod_eq tin (apply_lprod g f1) (apply_lprod g f2).
+Proof. by elim: tin f1 f2 => /= [f1 f2 -> // | t tin hrec f1 f2 h v]; apply: hrec (h v). Qed.
+
+Lemma apply_lprod_mk_semi_aux {T T' T''} (P : values.values -> T -> exec T')
+    (g : exec T' -> exec T'') vs tin (f : sem_prod tin T) :
+  sem_prod_eq tin (apply_lprod g (mk_semi_aux P vs tin f))
+                  (mk_semi_aux (fun vs t => g (P vs t)) vs tin f).
+Proof. by elim: tin vs f => //= t tin hrec vs f v; apply hrec. Qed.
+
+Lemma mk_semi_aux_apply_lprod {T T' T''} (Q : values.values -> T'' -> exec T')
+    (h : T -> T'') vs tin (f : sem_prod tin T) :
+  sem_prod_eq tin (mk_semi_aux Q vs tin (apply_lprod h f))
+                  (mk_semi_aux (fun vs t => Q vs (h t)) vs tin f).
+Proof. by elim: tin vs f => //= t tin hrec vs f v; apply hrec. Qed.
+
+(* Extending the generic construction is the generic construction of the
+   extended total semantics. *)
+Lemma mk_semi_extend tin tout ws safe err init (f : sem_lprod tin (sem_ltuple_t tout)) :
+  sem_prod_eq (map eval_ltype tin)
+    (extend_sem ws (mk_semi safe err init f))
+    (mk_semi safe err init (extend_sem_t ws f)).
+Proof.
+  rewrite /extend_sem /extend_sem_t /mk_semi.
+  apply: sem_prod_eq_trans; first by apply: apply_lprod_mk_semi_aux.
+  apply: sem_prod_eq_trans; last by apply: sem_prod_eq_sym; apply: mk_semi_aux_apply_lprod.
+  apply: mk_semi_aux_eq => vs t.
+  by case: check_safe => //= _; rewrite extend_filter_tuple.
+Qed.
+
 Lemma extend_sem_errty tin tout ws (semi : sem_lprod tin (exec (sem_ltuple tout))) :
   sem_lforall (fun r => r <> Error ErrType) tin semi ->
   sem_lforall (fun r => r <> Error ErrType) tin (extend_sem ws semi).
@@ -558,17 +670,30 @@ Proof.
 Qed.
 
 Lemma extend_sem_safe tin tout ws sc (semi : sem_lprod tin (exec (sem_ltuple tout))) :
-  values.interp_safe_cond_ty sc semi ->
-  values.interp_safe_cond_ty sc (extend_sem ws semi).
+  safe_cond_ty sc semi ->
+  safe_cond_ty sc (extend_sem ws semi).
 Proof.
-  rewrite /values.interp_safe_cond_ty /extend_sem.
+  rewrite /safe_cond_ty /extend_sem.
   elim: tin semi (@nil values.value) => //= [ | t ts hrec] semi vs.
   + by move=> h /h [t] -> /=; eauto.
   move=> h v; apply/hrec/h.
 Qed.
 
+Lemma instr_desc_aux4 tin tout ws safe err init
+    (semi : sem_lprod tin (exec (sem_ltuple tout))) (f : sem_lprod tin (sem_ltuple_t tout)) :
+  sem_prod_eq (map eval_ltype tin) semi (mk_semi safe err init f) ->
+  sem_prod_eq (map eval_ltype tin) (extend_sem ws semi)
+    (mk_semi safe err init (extend_sem_t ws f)).
+Proof.
+  move=> h; apply: sem_prod_eq_trans; last by apply: mk_semi_extend.
+  by apply: apply_lprod_eq h.
+Qed.
+
 Definition can_zeroextend (d:instr_desc_t) :=
   (d.(id_msb_flag) == MSB_CLEAR).
+
+Lemma id_err_neq_ErrType (d : instr_desc_t) : id_err d <> ErrType.
+Proof. by have /and4P [_ _ _] := id_wf d; case: (id_err d). Qed.
 
 Lemma and_proj1 (a b : bool) : a && b -> a.
 Proof. by move=> /andP []. Qed.
@@ -589,17 +714,23 @@ Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
        id_tout       := tout;
        id_out        := d.(id_out);
        id_semi       := extend_sem ws d.(id_semi);
+       (* [extend_size] does not change the boolean outputs, hence the
+          initialisation conditions are unchanged *)
+       id_semi_total := extend_sem_t ws d.(id_semi_total);
        id_args_kinds := exclude_mem d.(id_args_kinds) d.(id_out) ;
        id_nargs      := d.(id_nargs);
        id_eq_size    := instr_desc_aux1 ws d.(id_eq_size);
        id_str_jas    := d.(id_str_jas);
        id_check_dest := instr_desc_aux2 ws d.(id_check_dest);
        id_safe       := d.(id_safe);
+       id_err        := d.(id_err);
+       id_init       := d.(id_init);
        id_doit       := d.(id_doit);
        id_pp_asm     := d.(id_pp_asm);
-       id_safe_wf    := d.(id_safe_wf);
+       id_wf         := instr_desc_aux3 ws d.(id_wf);
        id_semi_errty := fun h => extend_sem_errty ws (d.(id_semi_errty) (and_proj1 h));
        id_semi_safe  := fun h => extend_sem_safe ws (d.(id_semi_safe) (and_proj1 h));
+       id_semi_eq    := fun h => instr_desc_aux4 ws (d.(id_semi_eq) (and_proj1 h));
     |}
   else
     d.

@@ -14,6 +14,9 @@ Context {wsw: WithSubWord}.
 Definition compat_val ty v :=
   compat_ctype (sw_allowed || ~~is_defined v) (type_of_val v) ty.
 
+Lemma compat_val_default_val ty : compat_val (eval_atype ty) (default_val ty).
+Proof. by rewrite /compat_val type_of_default_val; case: ty => * /=; rewrite ?cmp_le_refl. Qed.
+
 Lemma compat_valE ty v: compat_val ty v ->
   match v with
   | Vbool _ => ty = cbool

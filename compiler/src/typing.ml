@@ -50,19 +50,19 @@ let check_ptr pd loc e te = check_type loc e te (tu pd)
 (* -------------------------------------------------------------------- *)
 
 let type_of_op1 op =
-  let tin,tout = E.type_of_op1 op in
+  let tin,tout = Operators.type_of_op1 op in
   Conv.ty_of_cty tin, Conv.ty_of_cty tout
 
 let type_of_op2 op =
-  let (tin1,tin2),tout = E.type_of_op2 op in
+  let (tin1,tin2),tout = Operators.type_of_op2 op in
   (Conv.ty_of_cty tin1, Conv.ty_of_cty tin2), Conv.ty_of_cty tout
 
 let type_of_opN op =
-  let tins, tout = E.type_of_opN op in
+  let tins, tout = Operators.type_of_opN op in
   List.map Conv.ty_of_cty tins, Conv.ty_of_cty tout
 
 let type_of_opN_safety op =
-  let tins, _tout = E.type_of_opN_safety op in
+  let tins, _tout = Operators.type_of_opN_safety op in
   List.map Conv.ty_of_cty tins
 
 let type_of_sopn loc pd msfsz asmOp op =

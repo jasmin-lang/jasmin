@@ -224,7 +224,7 @@ Context
       + by move=> z hz; have := vrvsP hw3; rewrite !evm_with_vm => -> //; clear -hwr hz; SvD.fsetdec.
       + by clear; SvD.fsetdec.
       rewrite hget /=.
-      rewrite -(use_memP_eq_on _ _ (s1:= s1) hnoload) ?he; last first.
+      rewrite -(use_memP_eq_on _ _ (s1:= s1) _ hnoload) ?he; last first.
       + rewrite evm_with_vm; rewrite /with_vm /= in hw3 => z hz.
         by have /= -> // := vrvsP hw3; move: hwr; rewrite read_eE; clear -hz; SvD.fsetdec.
       rewrite /= hvi /= hsub /=.

@@ -45,7 +45,7 @@ Definition sc_op1 := sc_op1 (fun _ _ e => e).
 
 Definition sc_op2 o e1 e2 :=
   match is_wi2 o with
-  | Some (sg, sz, o) => sc_wiop2 sg sz o e1 e2
+  | Some (sg, sz, o) => sc_wiop2 (fun _ _ e => e) sg sz o e1 e2
   | _ => [::]
   end.
 
@@ -247,7 +247,7 @@ Definition wi2i_lvs msg okmem xtys xs :=
   let scs := unzip1 scxs in
   let xs := unzip2 scxs in
   (* If this is raised maybe we should introduce extra assignments on single variables *)
-  Let _ := assert (check_xs okmem Sv.empty xs scs) err in
+  Let _ := assert (check_xs read_es use_mem okmem Sv.empty xs scs) err in
   ok (flatten scs, xs).
 
 Fixpoint wi2i_eassert (e:eassert) : cexec (safety_cond * eassert) :=

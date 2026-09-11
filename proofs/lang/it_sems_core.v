@@ -24,6 +24,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {wa: WithAssert}
+  {wc: WithCatch}
   {sip : SemInstrParams asm_op syscall_state}
   {pT : progT}
   {scP : semCallParams}.

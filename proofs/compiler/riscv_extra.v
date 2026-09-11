@@ -7,6 +7,7 @@ Require Import
   expr
   fexpr
   sopn
+  sopn_semi
   utils.
 Require Export
   arch_decl
@@ -44,13 +45,17 @@ Definition Oriscv_add_large_imm_instr : instruction_desc :=
    ; i_out  := [:: E 0]
    ; conflicts := [:: (APout 0, APin 0)]
    ; semi   := sem_prod_ok ctin semi
+   ; i_semi_total := semi
    ; semu   := @values.vuincl_app_sopn_v ctin [:: cty] (sem_prod_ok ctin semi) refl_equal
    ; i_safe := [::]
+   ; i_err := ErrArith
+   ; i_init := [:: IBool true ]
    ; i_valid := true
    ; i_doit := DOIT
-   ; i_safe_wf := refl_equal
+   ; i_wf := refl_equal
    ; i_semi_errty :=  fun _ => sem_prod_ok_error (tin:=ctin) semi _
-   ; i_semi_safe := fun _ => values.sem_prod_ok_safe (tin:=ctin) semi
+   ; i_semi_safe := fun _ => sopn_semi.sem_prod_ok_safe (tin:=ctin) semi
+   ; i_semi_eq := fun _ v1 v2 => erefl
  |}.
 
 Definition get_instr_desc (o: riscv_extra_op) : instruction_desc :=

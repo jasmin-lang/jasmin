@@ -107,6 +107,9 @@ Module WArray.
     Lemma get_valid8 m i w : get8 m i = ok w -> in_bound m i.
     Proof. by rewrite /get8; t_xrbindP. Qed.
 
+    Lemma is_ok_get8 m i : is_ok (get8 m i) = in_bound m i && is_init m i.
+    Proof. by rewrite /get8; case: in_bound; case: is_init. Qed.
+
     Lemma valid8_set m i w m' i' : set8 m i w = ok m' -> in_bound m' i' = in_bound m i'.
     Proof. by rewrite /set8; t_xrbindP => _ <-. Qed.
 
@@ -142,6 +145,23 @@ Module WArray.
       by rewrite add_0 addE -!valid8_validw /array_CM /valid8 /in_bound !zify; lia.
     Qed.
 
+    (* An array cell can be written as soon as it is in bounds, but it can only
+       be read once it has been initialised: the guard of [CoreMem.read] is the
+       guard of [CoreMem.write] plus the initialisation of the bytes read. *)
+    Lemma validr_validw_init m al i ws :
+      validr m al i ws = validw m al i ws && all (is_init m) (ziota i (wsize_size ws)).
+    Proof.
+      have hsplit : forall (p q : Z -> bool) (l : seq Z),
+          all (fun k => p k && q k) l = all p l && all q l.
+      + move=> p q; elim => //= a l ih.
+        by case: (p a); case: (q a); rewrite /= ?andbF ?ih.
+      rewrite /validr /validw -andbA; congr (_ && _).
+      rewrite (eq_all (a2 := fun k => valid8 m (add i k) && is_init m (i + k)%Z)); last first.
+      + by move=> k; rewrite /= -is_ok_get8 addE.
+      rewrite hsplit; congr (_ && _).
+      by rewrite (ziota_shift i (wsize_size ws)) all_map.
+    Qed.
+
   End CM.
 
   Definition get len al (aa: arr_access) ws (a: array len) (i: Z) :=
@@ -149,6 +169,15 @@ Module WArray.
 
   Definition set {len ws} (a: array len) al aa i (v: word ws) : exec (array len) :=
     CoreMem.write a al (i * mk_scale aa ws)%Z v.
+
+  (* Total counterparts of [get] and [set]: a cell that cannot be read (out of
+     bounds or not initialised) reads as [0], and the bytes of a write that fall
+     outside the array are dropped. *)
+  Definition get_total len (aa: arr_access) ws (a: array len) (i: Z) : word ws :=
+    CoreMem.read_total a (i * mk_scale aa ws)%Z ws.
+
+  Definition set_total {len ws} (a: array len) aa (i: Z) (v: word ws) : array len :=
+    CoreMem.write_total a (i * mk_scale aa ws)%Z v.
 
   Definition fcopy ws len (a t: WArray.array len) i j :=
     foldM (fun i t =>
@@ -169,6 +198,14 @@ Module WArray.
     Let it := fill_aux len bytes in
     ok it.2.
 
+  (* [fill_elem len x] is the array of length [len] whose cells are all
+     initialised to [x]. It is the array used as a default value by the
+     defensive semantics (see [WithCatch] in sem_params.v).
+     [fill] never fails on a list of the right length ([fill_elem_ok]), so the
+     [empty len] branch is unreachable; [fill_elemE] is the equation to use. *)
+  Definition fill_elem len (x:u8) : array len :=
+    if fill len (nseq (Z.to_nat len) x) is Ok t then t else empty len.
+
   Definition get_sub_data (aa:arr_access) ws len (a:Mz.t u8) i :=
      let size := arr_size ws len in
      let start := (i * mk_scale aa ws)%Z in
@@ -185,6 +222,9 @@ Module WArray.
        ok (Build_array size (get_sub_data aa ws len (arr_data a) i))
      else Error ErrOob.
 
+  Definition get_sub_total lena (aa:arr_access) ws len (a:array lena) i : array (arr_size ws len) :=
+     Build_array (arr_size ws len) (get_sub_data aa ws len (arr_data a) i).
+
   Definition set_sub_data (aa:arr_access) ws len (a:Mz.t u8) i (b:Mz.t u8) :=
     let size := arr_size ws len in
     let start := (i * mk_scale aa ws)%Z in
@@ -200,6 +240,9 @@ Module WArray.
     if (0 <=? start) && (start + size <=? lena) then
       ok (Build_array lena (set_sub_data aa ws len (arr_data a) i (arr_data b)))
     else Error ErrOob.
+
+  Definition set_sub_total lena (aa:arr_access) ws len (a:array lena) i (b:array (arr_size ws len)) : array lena :=
+    Build_array lena (set_sub_data aa ws len (arr_data a) i (arr_data b)).
 
   Definition cast len len' (a:array len) : result error (array len') :=
     if len' == len then ok {| arr_data := a.(arr_data) |}
@@ -493,6 +536,42 @@ Module WArray.
     by rewrite Z.sub_diag.
   Qed.
 
+  Lemma fill_elem_ok len x : is_ok (fill len (nseq (Z.to_nat len) x)).
+  Proof.
+    rewrite /fill size_nseq eqxx /=.
+    have /is_okP [it ->] // : is_ok (fill_aux len (nseq (Z.to_nat len) x)).
+    by apply: fill_aux_ok; rewrite size_nseq.
+  Qed.
+
+  Lemma fill_elemE len x : fill len (nseq (Z.to_nat len) x) = ok (fill_elem len x).
+  Proof. by rewrite /fill_elem; have /is_okP [t ->] := fill_elem_ok len x. Qed.
+
+  (* Every cell of [fill_elem] is initialised: this is what makes [default_val]
+     of an array type a genuinely defined value. *)
+  Lemma fill_elem_read8 len x al k :
+    (0 <= k < len)%Z -> read (fill_elem len x) al k U8 = ok x.
+  Proof.
+    move=> hk; rewrite (read8_alignment Aligned) (fill_get8 (fill_elemE len x)).
+    have -> /= : ((0 <=? k) && (k <? len))%Z by rewrite !zify; lia.
+    by rewrite nth_nseq ifT //; apply/ltP; lia.
+  Qed.
+
+  (* Converse of [get_bound] for [fill_elem 0]: any in-bound, well-aligned read
+     succeeds, and reads back zero. *)
+  Lemma fill_elem_get0 len al aa ws i :
+    (0 <= i * mk_scale aa ws)%Z ->
+    (i * mk_scale aa ws + wsize_size ws <= len)%Z ->
+    is_aligned_if al (i * mk_scale aa ws) ws ->
+    get al aa ws (fill_elem len 0%R) i = ok 0%R.
+  Proof.
+    move=> h0 hlen hal.
+    have h8 : forall al' j, (0 <= j < wsize_size ws)%Z ->
+      read (fill_elem len 0%R) al' (add (i * mk_scale aa ws)%Z j) U8
+        = ok (LE.wread8 (0%R : word ws) j).
+    + by move=> al' j hj; rewrite LE.read0 addE; apply: fill_elem_read8; lia.
+    by rewrite /get (read8_read _ h8) hal.
+  Qed.
+
   Lemma set_sub_data_get8 aa ws a len i t k:
     Mz.get (@set_sub_data aa ws len a i t) k =
       let j := (k - i * mk_scale aa ws)%Z in
@@ -544,7 +623,7 @@ Module WArray.
   Proof.
     move=> hget j.
     have ht':= set_sub_get8 hget.
-    rewrite /get !readE !is_aligned_if_is_align ?is_align_scale // /=.
+    rewrite /get !read_read8E !is_aligned_if_is_align ?is_align_scale // /=.
     case: ifPn.
     + move=> /andP[]/ZleP ? /ZltP ?.
       have -> // :
@@ -643,7 +722,7 @@ Module WArray.
     WArray.get al AAscale ws st j = WArray.get al AAscale ws t (i + j)%Z.
   Proof.
     move=> /WArray.get_sub_get8 => hr j hj.
-    rewrite /WArray.get !readE !is_aligned_if_is_align ?WArray.is_align_scale //.
+    rewrite /WArray.get !read_read8E !is_aligned_if_is_align ?WArray.is_align_scale //.
     have -> // :
       mapM (λ k : Z, read st al (add (j * mk_scale AAscale ws)%Z k) U8) (ziota 0 (wsize_size ws)) =
       mapM (λ k : Z, read t al (add ((i + j) * mk_scale AAscale ws)%Z k) U8) (ziota 0 (wsize_size ws)).

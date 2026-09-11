@@ -1,6 +1,7 @@
 (* ** Imports and settings *)
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
+From mathcomp Require Import word_ssrZ.
 
 Require Import
   pseudo_operator
@@ -8,6 +9,7 @@ Require Import
   shift_kind
   strings
   slh_ops
+  sopn_semi
   type
   values
   var.
@@ -43,6 +45,9 @@ Record instruction_desc := mkInstruction {
   i_out    : seq arg_desc;
   conflicts: seq (arg_position * arg_position);
   semi     : sem_prod (map eval_atype tin) (exec (sem_tuple (map eval_atype tout)));
+  (* Total semantics: the same values as [semi], but the boolean outputs are
+     plain booleans (no [None]) and no error can be raised. *)
+  i_semi_total : sem_prod (map eval_atype tin) (sem_tuple_t (map eval_atype tout));
   semu     : forall vs vs' v,
                 values_uincl vs vs' ->
                 app_sopn_v semi vs = ok v ->
@@ -53,6 +58,11 @@ Record instruction_desc := mkInstruction {
   *)
   i_valid  : bool;
   i_safe   : seq safe_cond;
+  (* The error raised when one of the safety conditions does not hold. *)
+  i_err    : error;
+  (* One initialisation condition per output: the output is defined exactly
+     when its condition holds on the arguments. *)
+  i_init   : seq safe_cond;
   (* Whether the operator has data operand independent timing, i.e. it is
      implemented using only DOIT (Intel) / DIT (ARM) instructions.
      See field id_doit in arch/arch_decl.v.
@@ -60,16 +70,26 @@ Record instruction_desc := mkInstruction {
      only, but this needs to be checked manually. *)
   i_doit   : doit_t;
   (* Extra properties ensuring that previous information are consistent *)
-  i_safe_wf    : all (fun sc => ssrnat.leq (sc_needed_args sc) (size tin)) i_safe;
+    (* the conditions are well typed and total, there is one initialisation
+       condition per output, and the error is not a type error *)
+  i_wf         : [&& all (sc_ok (map eval_atype tin)) i_safe,
+                     all (sc_ok (map eval_atype tin)) i_init,
+                     ssrnat.eqn (size i_init) (size tout) & ~~ is_ErrType i_err];
     (* id_semi does not generates type error *)
   i_semi_errty : i_valid -> sem_forall (fun r => r <> Error ErrType) (map eval_atype tin) semi;
     (* safety condition are sufficient to ensure that no error are raised *)
-  i_semi_safe  : i_valid -> interp_safe_cond_ty i_safe semi;
+  i_semi_safe  : i_valid -> safe_cond_ty i_safe semi;
+    (* [semi] is the generic construction applied to [i_safe], [i_err],
+       [i_init] and [i_semi_total] *)
+  i_semi_eq    : i_valid ->
+                 sem_prod_eq (map eval_atype tin) semi
+                   (mk_semi i_safe i_err i_init i_semi_total);
 }.
 
 Arguments semu _ [vs vs' v] _ _.
 
-Notation mk_instr_desc str tin i_in tout i_out semi safe valid doit semi_errty semi_safe :=
+Notation mk_instr_desc str tin i_in tout i_out semi semi_total safe err init valid doit
+    semi_errty semi_safe semi_eq :=
   {| str          := str;
      tin          := tin;
      i_in         := i_in;
@@ -77,19 +97,25 @@ Notation mk_instr_desc str tin i_in tout i_out semi safe valid doit semi_errty s
      i_out        := i_out;
      conflicts    := [::];
      semi         := semi;
+     i_semi_total := semi_total;
      semu         := @vuincl_app_sopn_v (map eval_atype tin) (map eval_atype tout) semi refl_equal;
      i_safe       := safe;
+     i_err        := err;
+     i_init       := init;
      i_valid      := valid;
      i_doit       := doit;
-     i_safe_wf    := refl_equal;
+     i_wf         := refl_equal;
      i_semi_errty := semi_errty;
      i_semi_safe  := semi_safe;
+     i_semi_eq    := semi_eq;
   |}.
 
-Notation mk_instr_desc_safe str tin i_in tout i_out semi valid doit :=
-  (mk_instr_desc str tin i_in tout i_out (sem_prod_ok (map eval_atype tin) semi) [::] valid doit
+Notation mk_instr_desc_safe str tin i_in tout i_out semi semi_total init semi_eq valid doit :=
+  (mk_instr_desc str tin i_in tout i_out (sem_prod_ok (map eval_atype tin) semi) semi_total
+     [::] ErrArith init valid doit
      (fun _ => (@sem_prod_ok_error _ (map eval_atype tin) semi ErrType))
-     (fun _ => (@sem_prod_ok_safe _ (map eval_atype tin) semi)))
+     (fun _ => (@sem_prod_ok_safe _ (map eval_atype tin) semi))
+     semi_eq)
   (only parsing).
 
 (* -------------------------------------------------------------------- *)
@@ -205,27 +231,173 @@ Proof.
   rewrite {2}/WArray.set8; case: WArray.in_bound => [ | [<-]] //=; apply: hrec'.
 Qed.
 
-Lemma array_copy_safe ws n:
-  let len := arr_size ws n in
-  let tin := [:: carr len] in
-  let semi := @WArray.copy ws n in
-  interp_safe_cond_ty (tin:=tin) [:: AllInit ws n 0] semi.
+(* [WArray.get] succeeds exactly when all the bytes it reads are
+   initialised. *)
+Lemma is_ok_get ws len (t : WArray.array len) i :
+  is_ok (WArray.get Unaligned AAscale ws t i)
+  = all (fun k => WArray.in_bound t (i * mk_scale AAscale ws + k)%Z &&
+                  WArray.is_init t (i * mk_scale AAscale ws + k)%Z)
+        (ziota 0 (wsize_size ws)).
 Proof.
-  move=> /= t /= h; have /= {h} := List.Forall_inv h.
-  rewrite WArray.castK => /(_ _ erefl) h.
-  rewrite /WArray.copy /WArray.fcopy; move: (WArray.empty _).
-  apply ziota_ind.
-  + by move=> /=; eauto.
-  move=> j js hj hrec t1 /=.
-  have [w -> /=] := h _ hj; rewrite /WArray.set.
-  have := [elaborate (writeV (CM:= WArray.array_CM (arr_size ws n)))].
-  move => /(_ _ w t1 Unaligned (j * mk_scale AAscale ws)%Z) wP.
-  assert (h1 : validw t1 Unaligned (j * mk_scale AAscale ws)%Z ws).
-  + rewrite /validw /is_aligned_if andTb.
-    apply ziota_ind => //= i ? hi ->; rewrite andbT; apply/WArray.in_boundP.
-    by rewrite WArray.addE arr_sizeE; Lia.nia.
-  move/wP: h1 => [t2 ->] /=; apply hrec.
+rewrite /WArray.get /CoreMem.read /is_aligned_if.
+have -> : forall (M : exec (seq u8)),
+    is_ok (assert true ErrAddrInvalid >> Let l := M in ok (LE.decode ws l)) = is_ok M.
++ by move=> M; case: M.
+rewrite is_ok_mapM; apply: eq_all => k.
+by rewrite -WArray.is_ok_get8 /get /= WArray.addE.
 Qed.
+
+(* Reading every cell of the array succeeds exactly when every byte of the
+   array is initialised: this is what relates the safety condition of [copy]
+   to the [Ois_arr_init] assertion. *)
+Lemma all_is_init_getE ws n (t : WArray.array (arr_size ws n)) :
+  all (WArray.is_init t) (ziota 0 (arr_size ws n))
+  = all (fun i => is_ok (WArray.get Unaligned AAscale ws t i)) (ziota 0 n).
+Proof.
+have hws := wsize_size_pos ws.
+apply/idP/idP.
++ move=> /allP hall; apply/allP => i; rewrite in_ziota Z.add_0_l => /andP [/ZleP h1 /ZltP h2].
+  rewrite is_ok_get; apply/allP => k; rewrite in_ziota Z.add_0_l => /andP [/ZleP k1 /ZltP k2].
+  have hb : (0 <= i * mk_scale AAscale ws + k < arr_size ws n)%Z.
+  + by rewrite /mk_scale arr_sizeE; Lia.nia.
+  apply/andP; split; first by apply/WArray.in_boundP.
+  by apply: hall; rewrite in_ziota Z.add_0_l; apply/andP; split; [apply/ZleP | apply/ZltP]; Lia.lia.
+move=> /allP hall; apply/allP => j; rewrite in_ziota Z.add_0_l => /andP [/ZleP h1 /ZltP h2'].
+have h2 : (j < wsize_size ws * n)%Z by rewrite -arr_sizeE.
+have hq : (0 <= j / wsize_size ws < n)%Z.
++ split; first by apply: Z.div_pos.
+  by apply: Z.div_lt_upper_bound => //; rewrite Z.mul_comm.
+have hr : (0 <= j mod wsize_size ws < wsize_size ws)%Z by apply: Z.mod_pos_bound.
+have hj : (j = (j / wsize_size ws) * mk_scale AAscale ws + j mod wsize_size ws)%Z.
++ by rewrite /mk_scale {1}(Z.div_mod j (wsize_size ws)); Lia.lia.
+have hin1 : ((j / wsize_size ws)%Z \in ziota 0 n).
++ by rewrite in_ziota Z.add_0_l; apply/andP; split; [apply/ZleP | apply/ZltP]; Lia.lia.
+have hin2 : ((j mod wsize_size ws)%Z \in ziota 0 (wsize_size ws)).
++ by rewrite in_ziota Z.add_0_l; apply/andP; split; [apply/ZleP | apply/ZltP]; Lia.lia.
+have := hall _ hin1; rewrite is_ok_get => /allP /(_ _ hin2).
+by rewrite -hj => /andP [].
+Qed.
+
+
+(* A total counterpart of [WArray.copy]: it performs exactly the same writes,
+   but reads an uninitialised cell as 0. On the safe domain (every read of the
+   source succeeds) both compute the same array. *)
+
+Definition copy_get ws {len} (a : WArray.array len) (i : Z) : word ws :=
+  if WArray.get Unaligned AAscale ws a i is Ok w then w else 0%w.
+
+Definition copy_set {ws len} (t : WArray.array len) (i : Z) (w : word ws) :
+    WArray.array len :=
+  if WArray.set t Unaligned AAscale i w is Ok t' then t' else t.
+
+Definition copy_total ws {n} (a : WArray.array (arr_size ws n)) :
+    WArray.array (arr_size ws n) :=
+  foldl (fun t i => copy_set t i (copy_get ws a i)) (WArray.empty (arr_size ws n))
+    (ziota 0 n).
+
+Arguments copy_get ws {len} a i.
+Arguments copy_set {ws len} t i w.
+Arguments copy_total ws {n} a.
+
+(* On a cell that is in bounds, the only possible failure of a read is an
+   uninitialised cell. *)
+Lemma get8_errE len (a : WArray.array len) i e :
+  WArray.in_bound a i -> WArray.get8 a i = Error e -> e = ErrAddrUndef.
+Proof. by rewrite /WArray.get8 => -> /=; case: WArray.is_init => //= -[<-]. Qed.
+
+Lemma mapM_get8_errE len (a : WArray.array len) (f : Z -> Z) l e :
+  all (fun k => WArray.in_bound a (f k)) l ->
+  mapM (fun k => WArray.get8 a (f k)) l = Error e -> e = ErrAddrUndef.
+Proof.
+elim: l e => //= k l ih e /andP [hk hl].
+case hg: WArray.get8 => [w|e'] /=; last by move=> [<-]; apply: get8_errE hg.
+by case hm: mapM => [?|e2] //= [?]; subst e2; apply: ih hl hm.
+Qed.
+
+Lemma get_errE ws len (a : WArray.array len) i e :
+  validw a Unaligned (i * mk_scale AAscale ws)%Z ws ->
+  WArray.get Unaligned AAscale ws a i = Error e -> e = ErrAddrUndef.
+Proof.
+rewrite /validw => /andP [] _ hv.
+rewrite /WArray.get /CoreMem.read /is_aligned_if.
+case hm: mapM => [l|e'] //= [<-].
+apply: mapM_get8_errE hm; exact: hv.
+Qed.
+
+Lemma copy_validw ws n (a : WArray.array (arr_size ws n)) i :
+  (0 <= i < n)%Z -> validw a Unaligned (i * mk_scale AAscale ws)%Z ws.
+Proof.
+move=> hi; rewrite /validw /is_aligned_if andTb.
+apply ziota_ind => //= k ? hk ->; rewrite andbT; apply/WArray.in_boundP.
+by rewrite WArray.addE arr_sizeE; Lia.nia.
+Qed.
+
+Lemma fcopy_eq ws n (a : WArray.array (arr_size ws n)) l
+    (t : WArray.array (arr_size ws n)) :
+  all (fun i => (0 <=? i)%Z && (i <? n)%Z) l ->
+  foldM (fun i t => Let w := WArray.get Unaligned AAscale ws a i in
+                    WArray.set t Unaligned AAscale i w) t l
+  = (if all (fun i => is_ok (WArray.get Unaligned AAscale ws a i)) l
+     then ok (foldl (fun t i => copy_set t i (copy_get ws a i)) t l)
+     else Error ErrAddrUndef).
+Proof.
+elim: l t => //= i l ih t /andP [] /andP [] /ZleP h1 /ZltP h2 hl.
+have hv := @copy_validw ws n t i (conj h1 h2).
+have hva := @copy_validw ws n a i (conj h1 h2).
+case hg : (WArray.get Unaligned AAscale ws a i) => [w | e] /=; last first.
++ by rewrite (@get_errE _ _ _ _ _ hva hg).
+have [t' ht'] : exists t', WArray.set t Unaligned AAscale i w = ok t'.
++ by apply: (writeV (CM:= WArray.array_CM (arr_size ws n))).
+rewrite ht' /= /copy_set /copy_get hg ht' /=.
+by apply ih.
+Qed.
+
+Lemma array_copy_eq ws n (a : WArray.array (arr_size ws n)) :
+  @WArray.copy ws n a =
+  (if all (fun i => is_ok (WArray.get Unaligned AAscale ws a i)) (ziota 0 n)
+   then ok (copy_total ws a) else Error ErrAddrUndef).
+Proof.
+rewrite /WArray.copy /WArray.fcopy /copy_total; apply fcopy_eq.
+apply ziota_ind => //= i l hi ->; rewrite andbT.
+by apply/andP; split; [apply/ZleP | apply/ZltP]; Lia.lia.
+Qed.
+
+(* The safety condition of [copy] on its (single) argument. *)
+Lemma copy_safe_condE ws p (t : WArray.array (arr_size ws p)) :
+  safe_cond_b [:: Varr t] (sc_all_init ws p 0)
+  = all (fun i => is_ok (WArray.get Unaligned AAscale ws t i)) (ziota 0 p).
+Proof. by rewrite (@safe_cond_b_all_init ws p 0 [:: Varr t] t erefl) all_is_init_getE. Qed.
+
+Lemma array_copy_safe ws n:
+  safe_cond_ty (tin:=[:: carr (arr_size ws n)]) [:: sc_all_init ws n 0] (@WArray.copy ws n).
+Proof.
+move=> t /andP [h _]; move: h; rewrite copy_safe_condE array_copy_eq => ->.
+by eexists; reflexivity.
+Qed.
+
+Lemma array_copy_semi_eq ws p :
+  sem_prod_eq [:: carr (arr_size ws p)] (@WArray.copy ws p)
+    (@mk_semi [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
+       [:: sc_all_init ws p 0] ErrAddrUndef [:: IBool true] (@copy_total ws p)).
+Proof.
+move=> t.
+have -> : @mk_semi [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
+            [:: sc_all_init ws p 0] ErrAddrUndef [:: IBool true] (@copy_total ws p) t
+        = (Let _ := check_safe [:: Varr t] [:: sc_all_init ws p 0] ErrAddrUndef in
+           ok (copy_total ws t)) by [].
+rewrite /check_safe.
+have -> : all (safe_cond_b [:: Varr t]) [:: sc_all_init ws p 0]
+        = safe_cond_b [:: Varr t] (sc_all_init ws p 0) by rewrite /= andbT.
+rewrite copy_safe_condE array_copy_eq.
+by case: all.
+Qed.
+
+Lemma Ocopy_wf ws p :
+  [&& all (sc_ok (map eval_atype [:: aarr ws p])) [:: sc_all_init ws p 0],
+      all (sc_ok (map eval_atype [:: aarr ws p])) [:: IBool true],
+      ssrnat.eqn (size [:: IBool true]) (size [:: aarr ws p])
+    & ~~ is_ErrType ErrAddrUndef].
+Proof. by rewrite /= andbT (@sc_ok_all_init [:: carr (arr_size ws p)] ws p 0). Qed.
 
 Definition Ocopy_instr ws p :=
   {| str      := pp_sz "copy" ws;
@@ -235,13 +407,17 @@ Definition Ocopy_instr ws p :=
      i_out    := [:: E 0];
      conflicts:= [::];
      semi     := @WArray.copy ws p;
+     i_semi_total := @copy_total ws p;
      semu     := @vuincl_copy ws p;
      i_valid  := true;
      i_doit   := DOIT;
-     i_safe   := [:: AllInit ws p 0];
-     i_safe_wf    := refl_equal;
+     i_safe   := [:: sc_all_init ws p 0];
+     i_err    := ErrAddrUndef;
+     i_init   := [:: IBool true];
+     i_wf         := Ocopy_wf ws p;
      i_semi_errty := fun _ => (@array_copy_errty ws p);
      i_semi_safe  := fun _ => (@array_copy_safe ws p);
+     i_semi_eq    := fun _ => (@array_copy_semi_eq ws p);
   |}.
 
 Definition declassify_semi ty : sem_prod [:: ty ] (exec (sem_tuple [::])) := fun=> ok tt.
@@ -268,13 +444,17 @@ Definition Odeclassify_instr ty :=
     i_out    := [:: ];
     conflicts:= [::];
     semi     := fun=> ok tt;
+    i_semi_total := fun=> tt;
     semu     := @declassify_semu cty;
     i_safe   := [:: ];
+    i_err   := ErrArith;
+    i_init   := [:: ];
     i_valid  := true;
     i_doit   := DOIT;
-    i_safe_wf    := refl_equal;
+    i_wf         := refl_equal;
     i_semi_errty := fun _ => (@sem_prod_ok_error _ [:: cty ] _ ErrType);
     i_semi_safe  := fun _ => (@sem_prod_ok_safe _ [:: cty ] _);
+    i_semi_eq    := fun _ _ => erefl;
   |}.
 
 Definition Odeclassify_mem_instr len :=
@@ -287,20 +467,25 @@ Definition Odeclassify_mem_instr len :=
     i_out    := [:: ];
     conflicts:= [::];
     semi     := fun=> ok tt;
+    i_semi_total := fun=> tt;
     semu     := @declassify_semu cty;
     i_safe   := [:: ];
+    i_err   := ErrArith;
+    i_init   := [:: ];
     i_valid  := true;
     i_doit   := DOIT;
-    i_safe_wf    := refl_equal;
+    i_wf         := refl_equal;
     i_semi_errty := fun _ => (@sem_prod_ok_error _ [:: cty ] _ ErrType);
     i_semi_safe  := fun _ => (@sem_prod_ok_safe _ [:: cty ] _);
+    i_semi_eq    := fun _ _ => erefl;
   |}.
 
 Definition Onop_instr :=
   mk_instr_desc_safe (pp_s "NOP")
            [::] [::]
            [::] [::]
-           tt
+           tt tt
+           [::] (fun _ => erefl)
            true DOIT.
 
 Definition Omulu_instr sz :=
@@ -309,7 +494,9 @@ Definition Omulu_instr sz :=
            [:: E 0; E 1] (* this info is irrelevant *)
            [:: aword sz; aword sz]
            [:: E 2; E 3] (* this info is irrelevant *)
-           (@wumul sz) true DOIT.
+           (@wumul sz) (@wumul sz)
+           [:: IBool true; IBool true] (fun _ _ _ => erefl)
+           true DOIT.
 
 Definition Oaddcarry_instr sz :=
   mk_instr_desc_safe (pp_sz "adc" sz)
@@ -318,6 +505,8 @@ Definition Oaddcarry_instr sz :=
            [:: abool; aword sz]
            [:: E 3; E 4]      (* this info is irrelevant *)
            (fun x y c => let p := @waddcarry sz x y c in (Some p.1, p.2))
+           (@waddcarry sz)
+           [:: IBool true; IBool true] (fun _ _ _ _ => erefl)
            true DOIT.
 
 Definition Osubcarry_instr sz :=
@@ -327,6 +516,8 @@ Definition Osubcarry_instr sz :=
            [:: abool; aword sz]
            [:: E 3; E 4]      (* this info is irrelevant *)
            (fun x y c => let p := @wsubcarry sz x y c in (Some p.1, p.2))
+           (@wsubcarry sz)
+           [:: IBool true; IBool true] (fun _ _ _ _ => erefl)
            true DOIT.
 
 Fixpoint spill_semi (tys: seq ctype) : sem_prod tys (sem_tuple [::]):=
@@ -348,6 +539,11 @@ Proof.
   by apply: hrec;[ apply hu | rewrite ha].
 Qed.
 
+Lemma spill_semi_eq tys :
+  sem_prod_eq tys (sem_prod_ok tys (spill_semi tys))
+    (@mk_semi tys [::] [::] ErrArith [::] (spill_semi tys)).
+Proof. rewrite /mk_semi; elim: tys (@nil value) => //= t tys ih vs v; apply ih. Qed.
+
 Definition Ospill_instr o (tys:seq atype) :=
   let ctys := map eval_atype tys in
   let semi := spill_semi ctys in
@@ -358,14 +554,24 @@ Definition Ospill_instr o (tys:seq atype) :=
      i_out    := [:: ];
      conflicts:= [::];
      semi     := sem_prod_ok ctys semi;
+     i_semi_total := semi;
      semu     := @spill_semu ctys;
      i_safe   := [:: ];
+     i_err   := ErrArith;
+     i_init   := [:: ];
      i_valid  := true;
      i_doit   := DOIT;
-     i_safe_wf    := refl_equal;
+     i_wf         := refl_equal;
      i_semi_errty := fun _ => (@sem_prod_ok_error _ ctys semi ErrType);
      i_semi_safe  := fun _ => (@sem_prod_ok_safe _ ctys semi);
+     i_semi_eq    := fun _ => (@spill_semi_eq ctys);
   |}.
+
+Lemma swap_semi_eq t :
+  sem_prod_eq [:: t; t] (sem_prod_ok [:: t; t] (@swap_semi t))
+    (@mk_semi [:: t; t] [:: t; t] [::] ErrArith [:: IBool true; IBool true]
+       (fun x y => (y, x))).
+Proof. by move=> x y; rewrite /mk_semi /= /swap_semi /= !filter_ot_true. Qed.
 
 Definition Oswap_instr ty :=
   let cty := eval_atype ty in
@@ -378,13 +584,17 @@ Definition Oswap_instr ty :=
      i_out  := [:: E 0; E 1]; (* this info is relevant *)
      conflicts:= [::];
      semi   := sem_prod_ok ctys semi;
+     i_semi_total := fun x y => (y, x);
      semu   := @swap_semu cty;
      i_safe := [::];
+     i_err := ErrArith;
+     i_init := [:: IBool true; IBool true];
      i_valid := true;
      i_doit := DOIT;
-     i_safe_wf    := refl_equal;
+     i_wf         := refl_equal;
      i_semi_errty := fun _ => (@sem_prod_ok_error _ ctys semi ErrType);
      i_semi_safe  := fun _ => (@sem_prod_ok_safe _ ctys semi);
+     i_semi_eq    := fun _ => (@swap_semi_eq cty);
   |}.
 
 Definition pseudo_op_get_instr_desc (o : pseudo_operator) : instruction_desc :=
@@ -429,7 +639,8 @@ Definition SLHinit_instr :=
       [::]           (* this info is irrelevant *)
       [:: ty_msf ]
       [:: E 0 ]      (* this info is irrelevant *)
-      se_init_sem
+      se_init_sem se_init_sem
+      [:: IBool true ] (fun _ => erefl)
       true DOIT.
 
 Definition SLHupdate_str := "update_msf"%string.
@@ -439,7 +650,8 @@ Definition SLHupdate_instr :=
       [:: E 0; E 1 ] (* this info is irrelevant *)
       [:: ty_msf ]
       [:: E 2 ]      (* this info is irrelevant *)
-      se_update_sem
+      se_update_sem se_update_sem
+      [:: IBool true ] (fun _ _ _ => erefl)
       true DOIT.
 
 Definition SLHmove_str := "mov_msf"%string.
@@ -449,7 +661,8 @@ Definition SLHmove_instr :=
       [:: E 0 ]      (* this info is irrelevant *)
       [:: ty_msf ]
       [:: E 1 ]      (* this info is irrelevant *)
-      se_move_sem
+      se_move_sem se_move_sem
+      [:: IBool true ] (fun _ _ => erefl)
       true DOIT.
 
 Definition SLHprotect_str := "protect"%string.
@@ -459,7 +672,8 @@ Definition SLHprotect_instr ws :=
       [:: E 0; E 1 ] (* this info is irrelevant *)
       [:: aword ws ]
       [:: E 2 ]      (* this info is irrelevant *)
-      (@se_protect_sem ws)
+      (@se_protect_sem ws) (@se_protect_sem ws)
+      [:: IBool true ] (fun _ _ _ => erefl)
       true DOIT.
 
 Lemma protect_ptr_semu n vs vs' v:
@@ -488,13 +702,17 @@ Definition SLHprotect_ptr_instr ws n :=
      i_out    := [:: E 2 ]; (* this info is irrelevant *)
      conflicts:=[::];
      semi     := sem_prod_ok ctin semi;
+     i_semi_total := semi;
      semu     := @protect_ptr_semu (arr_size ws n);
      i_safe   := [::];
+     i_err   := ErrArith;
+     i_init   := [:: IBool true ];
      i_valid  := true;
      i_doit   := DOIT;
-     i_safe_wf    := refl_equal;
+     i_wf         := refl_equal;
      i_semi_errty := fun _ => (@sem_prod_ok_error _ ctin semi ErrType);
      i_semi_safe  := fun _ => (@sem_prod_ok_safe _ ctin semi);
+     i_semi_eq    := fun _ _ _ => erefl;
   |}.
 
 Lemma protect_ptr_fail_semu n vs vs' v:
@@ -517,16 +735,51 @@ Lemma protect_ptr_fail_errty n:
   sem_forall (fun r : result error (sem_tuple [:: carr n]) => r <> Error ErrType) tin semi.
 Proof. by rewrite /= /se_protect_ptr_fail_sem => t msf; case: eqP. Qed.
 
-(* Remark the safety condition is stronger than needed but it
-   is not important because the instruction is not visible at Jasmin source level.
-   This instruction is only used internally.
-*)
-Lemma protect_ptr_fail_safe n:
-  let tin := [:: carr n; cty_msf ] in
-  let semi := @se_protect_ptr_fail_sem n in
-  interp_safe_cond_ty (tin:=tin) [:: ScFalse] semi.
+(* [protect_ptr_fail] succeeds exactly when its msf argument is zero. *)
+Lemma wmsf_unsigned_eq0 (msf : wmsf) : (wunsigned msf == 0%Z) = (msf == 0%w).
 Proof.
-  by rewrite /interp_safe_cond_ty /= => t msf h; have := List.Forall_inv h.
+  apply/idP/idP => [/eqP h | /eqP ->]; last by rewrite wunsigned0.
+  by apply/eqP/wunsigned_inj; rewrite h wunsigned0.
+Qed.
+
+Lemma protect_ptr_fail_safe_condE n (t : WArray.array n) (msf : wmsf) :
+  safe_cond_b [:: Varr t; Vword msf] (sc_is_zero msf_size 1) = (msf == 0%w).
+Proof. by apply: (@safe_cond_b_is_zero msf_size 1 [:: Varr t; Vword msf] msf erefl). Qed.
+
+Lemma protect_ptr_fail_safe n:
+  safe_cond_ty (tin:=[:: carr n; cty_msf ]) [:: sc_is_zero msf_size 1]
+    (@se_protect_ptr_fail_sem n).
+Proof.
+  move=> t msf /andP [h _].
+  move: h; rewrite protect_ptr_fail_safe_condE /se_protect_ptr_fail_sem => ->.
+  by eexists; reflexivity.
+Qed.
+
+Lemma protect_ptr_fail_eq n :
+  sem_prod_eq [:: carr n; cty_msf ] (@se_protect_ptr_fail_sem n)
+    (@mk_semi [:: carr n; cty_msf ] [:: carr n] [:: sc_is_zero msf_size 1] ErrSemUndef
+       [:: IBool true ] (fun (t : WArray.array n) (_ : wmsf) => t)).
+Proof.
+  move=> t msf.
+  have -> : @mk_semi [:: carr n; cty_msf ] [:: carr n] [:: sc_is_zero msf_size 1] ErrSemUndef
+              [:: IBool true ] (fun (t : WArray.array n) (_ : wmsf) => t) t msf
+          = (Let _ := check_safe [:: Varr t; Vword msf] [:: sc_is_zero msf_size 1] ErrSemUndef in
+             ok t) by [].
+  rewrite /check_safe.
+  have -> : all (safe_cond_b [:: Varr t; Vword msf]) [:: sc_is_zero msf_size 1]
+          = safe_cond_b [:: Varr t; Vword msf] (sc_is_zero msf_size 1) by rewrite /= andbT.
+  rewrite protect_ptr_fail_safe_condE /se_protect_ptr_fail_sem.
+  by case: eqP.
+Qed.
+
+Lemma protect_ptr_fail_wf ws n :
+  [&& all (sc_ok (map eval_atype [:: aarr ws n; ty_msf ])) [:: sc_is_zero msf_size 1],
+      all (sc_ok (map eval_atype [:: aarr ws n; ty_msf ])) [:: IBool true ],
+      ssrnat.eqn (size [:: IBool true ]) (size [:: aarr ws n ])
+    & ~~ is_ErrType ErrSemUndef].
+Proof.
+by rewrite /= andbT
+  (@sc_ok_is_zero [:: carr (arr_size ws n); cword msf_size ] msf_size 1).
 Qed.
 
 Definition SLHprotect_ptr_fail_str := "protect_ptr_fail"%string.
@@ -539,13 +792,17 @@ Definition SLHprotect_ptr_fail_instr ws n :=
      i_out    := [:: E 2 ]; (* this info is irrelevant *)
      conflicts:=[::];
      semi     := @se_protect_ptr_fail_sem len;
+     i_semi_total := fun (t : WArray.array len) (_ : wmsf) => t;
      semu     := @protect_ptr_fail_semu len;
-     i_safe   := [:: ScFalse]; (* See remark on protect_ptr_fail_safe *)
+     i_safe   := [:: sc_is_zero msf_size 1];
+     i_err    := ErrSemUndef;
+     i_init   := [:: IBool true ];
      i_valid  := true;
      i_doit   := DOIT;
-     i_safe_wf    := refl_equal;
+     i_wf         := protect_ptr_fail_wf ws n;
      i_semi_errty := fun _ => (@protect_ptr_fail_errty len);
      i_semi_safe  := fun _ => (@protect_ptr_fail_safe len);
+     i_semi_eq    := fun _ => (@protect_ptr_fail_eq len);
   |}.
 
 Definition slh_op_instruction_desc  (o : slh_op) : instruction_desc :=
@@ -576,6 +833,17 @@ Definition sopn_sem_ o := semi (get_instr_desc o).
 Definition sopn_sem o : exec _ :=
   Let _ := assert (get_instr_desc o).(i_valid) ErrType in
   ok (sopn_sem_ o).
+
+(* The total semantics of an instruction: the total functions of the
+   descriptor, with the outputs whose [i_init] condition fails set to [None],
+   and no check of [i_safe]. This is the [withcatch] semantics of
+   [exec_sopn]. An invalid instruction still raises [ErrType]: that error
+   denotes an ill-formed program, not the violation of a safety property. *)
+Definition sopn_sem_total_ o :=
+  mk_semi_nocheck (i_init (get_instr_desc o)) (i_semi_total (get_instr_desc o)).
+Definition sopn_sem_total o : exec _ :=
+  Let _ := assert (get_instr_desc o).(i_valid) ErrType in
+  ok (sopn_sem_total_ o).
 
 Instance eqC_sopn : eqTypeC sopn :=
   { ceqP := sopn_eq_axiom }.
