@@ -11,13 +11,6 @@ type amodel =
 
 let ws2bytes ws = (int_of_ws ws) / 8
 
-module Scmp = struct
-  type t = string
-  let compare = compare
-end
-
-module Ss = Set.Make(Scmp)
-module Ms = Map.Make(Scmp)
 
 (* ------------------------------------------------------------------- *)
 (* Array theories in eclib *)
