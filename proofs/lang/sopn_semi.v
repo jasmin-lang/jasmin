@@ -912,7 +912,7 @@ Definition dflt_t (t : ctype) : sem_t t :=
   | cbool => false
   | cint => 0%Z
   | carr n => WArray.empty n
-  | cword ws => 0%R
+  | cword ws => 0%w
   end.
 
 Fixpoint dflt_tuple (ts : seq ctype) : sem_tuple_t ts :=

@@ -211,7 +211,7 @@ Section CoreMem.
   (* Byte read without failure: [0] when [get] fails (out of bounds, not
      initialised, or not allocated). *)
   Definition get_total (m : core_mem) (p : pointer) : u8 :=
-    if get m p is Ok w then w else 0%R.
+    if get m p is Ok w then w else 0%w.
 
   (* Byte write without failure: the memory is unchanged when [set] fails. *)
   Definition set_total (m : core_mem) (p : pointer) (w : u8) : core_mem :=
@@ -221,7 +221,7 @@ Section CoreMem.
     LE.decode sz [seq get_total m (add p k) | k <- ziota 0 (wsize_size sz)].
 
   Definition write_total (m : core_mem) (p : pointer) (sz : wsize) (w : word sz) : core_mem :=
-    foldl (fun m k => set_total m (add p k) (nth 0%R (LE.encode w) (Z.to_nat k)))
+    foldl (fun m k => set_total m (add p k) (nth 0%w (LE.encode w) (Z.to_nat k)))
           m (ziota 0 (wsize_size sz)).
 
   (* The guard of [read]: the access is aligned and every byte it reads can be
