@@ -5,7 +5,7 @@
    the original program run under the standard semantics. *)
 
 From mathcomp Require Import ssreflect ssrfun ssrbool ssralg eqtype word_ssrZ.
-Require Import psem psem_facts compiler_util safety safety_common_proof.
+Require Import psem psem_facts op_semi compiler_util safety safety_common_proof.
 Import Utf8.
 
 Local Open Scope Z_scope.
@@ -166,14 +166,121 @@ Proof using get_global_arr_init.
 Qed.
 
 
-Lemma is_wi1P o :
-  match is_wi1 o with
-  | Some (s, oi) => o = Owi1 s oi
-  | None =>
-     let t := etype_of_op1 (len:=Z) o in
-     sign_of_etype t.1 = None /\ sign_of_etype t.2 = None
-  end.
-Proof. by case: o => // -[]. Qed.
+(* ------------------------------------------------------------------------- *)
+(* The [i_safe] conditions of the instruction operators                       *)
+
+Lemma nth_sem_pexprs gd0 s es pos e vs :
+  List.nth_error es pos = Some e ->
+  sem_pexprs (wc:=withcatch) true gd0 s es = ok vs ->
+  sem_pexpr (wc:=withcatch) true gd0 s e = ok (nth undef_b vs pos).
+Proof.
+  elim: pos es vs => [ | n hrec] [ | e0 es] //=; t_xrbindP.
+  + by move=> ? [->] ve -> ? _ <-.
+  by move=> ? hnth v0 he0 vs hes <- /=; apply: hrec hes.
+Qed.
+
+Lemma nth_sem_pexprs_nth gd0 s es pos vs :
+  ssrnat.leq (S pos) (size es) ->
+  sem_pexprs (wc:=withcatch) true gd0 s es = ok vs ->
+  sem_pexpr (wc:=withcatch) true gd0 s (nth (Pbool false) es pos) = ok (nth undef_b vs pos).
+Proof.
+  elim: pos es vs => [ | n hrec] [ | e0 es] vs //=.
+  + by t_xrbindP => _ ve -> l hl <-.
+  by t_xrbindP => hn v0 he0 l hl <- /=; apply: (hrec _ _ hn hl).
+Qed.
+
+(* On the source language the coercion of [sc_to_e] is exactly [Papp1], so the
+   special case for [Oint_of_word] is transparent. *)
+Lemma sc_to_e_op1 o c e :
+  sc_op1_to_e eint_of_word o c e = Papp1 o e.
+Proof. by case: o => //= sg ws; case: c. Qed.
+
+(* [sc_to_e] computes, under the defensive semantics, the interpretation of the
+   condition on the values of the arguments: the operators of the white list
+   [sc_expr] only fail for a typing reason, which is not caught. *)
+Lemma sem_pexpr_sc_to_e gd0 s es vs c v :
+  sem_pexprs (wc:=withcatch) true gd0 s es = ok vs ->
+  sc_expr c -> ssrnat.leq (sc_max_var c) (size es) ->
+  sem_pexpr (wc:=withcatch) true gd0 s (sc_to_e eint_of_word es c) = ok v ->
+  interp_safe_cond vs c = ok v /\ is_defined v.
+Proof.
+  move=> hes; elim/safe_cond_ind_s: c v => //=.
+  + by move=> b v _ _ [<-].
+  + by move=> z v _ _ [<-].
+  + move=> k v _ hk.
+    have hsem := nth_sem_pexprs_nth hk hes.
+    rewrite hsem => -[<-].
+    by split => //; apply: sem_pexpr_defined hsem.
+  + move=> o c ih v /andP [hto htot] hk.
+    rewrite sc_to_e_op1 /=.
+    t_xrbindP => v1 /(ih _ htot hk) [hv1 hd1].
+    rewrite /sem_sop1 /=.
+    case hof: (of_val (eval_atype (type_of_op1 o).1) v1) => [x | er] /=; last first.
+    + by rewrite (isdef_errtype hd1 hof) /=.
+    rewrite (sem_sop1_typed_totalE hto) /= => -[<-].
+    rewrite hv1 /= hof /=.
+    by split => //; apply: (to_val_defined (erefl _)).
+  move=> o c1 ih1 c2 ih2 v /and3P [hto ht1 ht2].
+  rewrite ssrnat.geq_max => /andP [hk1 hk2].
+  t_xrbindP => v1 /(ih1 _ ht1 hk1) [hv1 hd1] v2 /(ih2 _ ht2 hk2) [hv2 hd2].
+  rewrite /sem_sop2 /=.
+  case hof1: (of_val (eval_atype (type_of_op2 o).1.1) v1) => [x1 | er] /=; last first.
+  + by rewrite (isdef_errtype hd1 hof1) /=.
+  case hof2: (of_val (eval_atype (type_of_op2 o).1.2) v2) => [x2 | er] /=; last first.
+  + by rewrite (isdef_errtype hd2 hof2) /=.
+  rewrite (sem_sop2_typed_totalE hto) /= => -[<-].
+  rewrite hv1 /= hv2 /= hof1 /= hof2 /=.
+  by split => //; apply: (to_val_defined (erefl _)).
+Qed.
+
+Lemma sem_pexprs_sc_to_e gd0 s es vs cs l :
+  sem_pexprs (wc:=withcatch) true gd0 s es = ok vs ->
+  all sc_expr cs -> all (fun c => ssrnat.leq (sc_max_var c) (size es)) cs ->
+  mapM (sem_pexpr (wc:=withcatch) true gd0 s) (map (sc_to_e eint_of_word es) cs) = ok l ->
+  mapM (interp_safe_cond vs) cs = ok l.
+Proof.
+  move=> hes; elim: cs l => [ | c cs ih] l /=; first by move=> _ _ [<-].
+  move=> /andP [h1 h2] /andP [k1 k2].
+  t_xrbindP => v /(sem_pexpr_sc_to_e hes h1 k1) [hv _] l' /(ih _ h2 k2) hl' <-.
+  by rewrite hv /= hl'.
+Qed.
+
+(* The assertion generated for a safety condition implies the condition. *)
+Lemma sem_cond_interp_safe gd0 s es vs sc :
+  sem_pexprs (wc:=withcatch) true gd0 s es = ok vs ->
+  sem_eassert (wc:=withcatch) gd0 s (safe_cond_to_e es sc) = ok true ->
+  safe_cond_b vs sc.
+Proof.
+  move=> hes; rewrite /safe_cond_to_e /sc_to_eassert.
+  have hPexpr : forall c,
+      sem_eassert (wc:=withcatch) gd0 s
+        (Pexpr (if sc_expr c && ssrnat.leq (sc_max_var c) (size es)
+                then sc_to_e eint_of_word es c else Pbool false)) = ok true ->
+      safe_cond_b vs c.
+  + move=> c; case: ifP => [/andP [hexp hk] | _]; last by move=> [].
+    rewrite /=; t_xrbindP => v hv /to_boolI ?; subst v.
+    by have [hi _] := sem_pexpr_sc_to_e hes hexp hk hv; rewrite /safe_cond_b hi.
+  case: sc => [b | z | k | o c | o c1 c2 | o cs];
+    [ exact: (hPexpr (IBool b)) | exact: (hPexpr (IConst z))
+    | exact: (hPexpr (IVar k)) | exact: (hPexpr (IOp1 o c))
+    | exact: (hPexpr (IOp2 o c1 c2)) | ].
+  case: ifP => [/andP [hexp hk] | _]; last by move=> [].
+  have hall : all (fun c => ssrnat.leq (sc_max_var c) (size es)) cs
+    by rewrite -(sc_max_var_appN_le o).
+  rewrite /=; t_xrbindP => l hl hop.
+  move: hop; rewrite /sem_opN_safety => hop.
+  by rewrite /safe_cond_b /= (sem_pexprs_sc_to_e hes hexp hall hl) /= hop.
+Qed.
+
+Lemma sem_cond_interp_safes gd0 s es vs sc :
+  sem_pexprs (wc:=withcatch) true gd0 s es = ok vs ->
+  sem_eassert (wc:=withcatch) gd0 s (aands [seq safe_cond_to_e es i | i <- sc]) = ok true ->
+  all (safe_cond_b vs) sc.
+Proof.
+  move=> hes; elim: sc => [ | sc scs hrec] //=.
+  move=> /aandsE_cons [hsc hscs]; rewrite (hrec hscs) andbT.
+  by apply: sem_cond_interp_safe hsc.
+Qed.
 
 (* ------------------------------------------------------------------------- *)
 (* Main lemma on expressions: if the generated conditions hold, the defensive
@@ -252,65 +359,26 @@ apply: pexprs_ind_pair; subst Pe Qe; split => //=; t_xrbindP => //.
   have [l ->] : exists l, mapM (fun k0 : Z => get (emem s) (add w k0)) ks = ok l.
   + by apply: hrec => x hx; apply: hread; rewrite in_cons hx orbT.
   by exists (w8 :: l).
-+ move=> op e he s v /aandsE_cat [/he{}he].
-  move=> /aands_map_PexprE hop v1 hewc; have {}he := he _ hewc.
-  rewrite he /= /sem_sop1.
++ move=> op e he s v /aandsE_cat [/he{}he] hop v1 hewc.
+  have {}he := he _ hewc; rewrite he /= /sem_sop1.
   have {}hdef := sem_pexpr_defined hewc.
   case hval: of_val => [a|e0] /=; last first.
   + by have -> := isdef_errtype hdef hval.
-  move: hop; rewrite /sc_op1 /sc_wiop1.
-  case: is_wi1 (is_wi1P op); last first.
-  + case: op a hval => //=; first by case.
-    by move=> sg +++ []; case.
-  case => sg wop ?; subst op.
-  case: wop a hval => //=.
-  + move=> ws z /to_intI ?; subst v1.
-    by move=> /(sc_wi_range_of_int hewc) ->.
-  move=> ws w /to_wordI [ws2 [w2] [? htr]]; subst v1 => /=.
-  rewrite /signed /safety_common.sc_op1 /=.
-  case: sg; rewrite /sem_cond /=.
-  1-2: rewrite hewc /= /sem_sop1 /= htr /= /sem_sop2 /=.
-  + move=> [] /negbTE /Z.eqb_neq hne.
-    rewrite /wint_of_int /in_wint_range /in_sint_range /= (wsigned_opp hne) /=.
-    by have [/ZleP -> /ZleP ->] := wsigned_range (-w).
-  by move=> [] /Z.eqb_eq ->.
+  have hes : sem_pexprs_wc true gd s [:: e] = ok [:: v1] by rewrite /= hewc.
+  by have [r ->] := sem_sop1_typed_safe hval (sem_cond_interp_safes hes hop).
 + move=> op e1 he1 e2 he2 s v /aandsE_cat [/he1{}he1].
-  move=> /aandsE_cat [/he2{}he2] /aands_map_PexprE hop v2 he1wc v3 he2wc.
-  have {}he1 := he1 _ he1wc.
-  have {}he2 := he2 _ he2wc.
+  move=> /aandsE_cat [/he2{}he2] hop v2 he1wc v3 he2wc.
+  have {}he1 := he1 _ he1wc; have {}he2 := he2 _ he2wc.
   rewrite he1 he2 /sem_sop2 /=.
-  have {}hdef1 := sem_pexpr_defined he1wc.
-  have {}hdef2 := sem_pexpr_defined he2wc.
-  case hval2: of_val => [a2|er2];
-  case hval1: of_val => [a1|er1] //=; last first.
-  1,3: by have -> := isdef_errtype hdef1 hval1.
-  + by have -> := isdef_errtype hdef2 hval2.
-  move: hop; case: op a1 hval1 a2 hval2 => //=; try by case.
-  1-2: move=> sg; case => // ws w1p /to_wordI [ws1 [w1 [? tr1]]] w2p /to_wordI [ws2 [w2 [? tr2]]] hsc; subst v2 v3.
-  1-2: have hd1 : sem_pexpr (wc:=withcatch) true gd s (eint_of_word sg ws e1) = ok (Vint (int_of_word sg w1p)).
-  1: by rewrite /eint_of_word /= he1wc /= /sem_sop1 /= tr1.
-  2: by rewrite /eint_of_word /= he1wc /= /sem_sop1 /= tr1.
-  1-2: have hd2 : sem_pexpr (wc:=withcatch) true gd s (eint_of_word sg ws e2) = ok (Vint (int_of_word sg w2p)).
-  1: by rewrite /eint_of_word /= he2wc /= /sem_sop1 /= tr2.
-  2: by rewrite /eint_of_word /= he2wc /= /sem_sop1 /= tr2.
-  1-2: by rewrite /mk_sem_divmod (sem_sc_divmod hd1 hd2 hsc) /=.
-  move=> sg ws; case => //= w1p /to_wordI [ws1 [w1 [? tr1]]] w2p /to_wordI [ws2 [w2 [? tr2]]] hsc; subst v2 v3.
-  1-3: move: hsc; rewrite /mk_sem_wiop2 /sc_op2 /= /sc_wiop2 /sc_wi_range_op2 => hsc.
-  1-3: rewrite (sc_wi_range_of_int _ hsc) //=.
-  1-3: by rewrite he1wc he2wc /= /sem_sop1 /= tr1 /= tr2 /= /sem_sop2 /=.
-  1-2: have hw1 : sem_pexpr (wc:=withcatch) true gd s (toint sg ws e1) = ok (Vint (int_of_word sg w1p)).
-  1: by rewrite /toint /= he1wc /= /sem_sop1 /= tr1.
-  2: by rewrite /toint /= he1wc /= /sem_sop1 /= tr1.
-  1-2: have hw2 : sem_pexpr (wc:=withcatch) true gd s (toint sg ws e2) = ok (Vint (int_of_word sg w2p)).
-  1: by rewrite /toint /= he2wc /= /sem_sop1 /= tr2.
-  2: by rewrite /toint /= he2wc /= /sem_sop1 /= tr2.
-  1-2: by rewrite /mk_sem_divmod (sem_sc_divmod hw1 hw2 hsc) /=.
-  2: by rewrite /mk_sem_wishift /wint_of_int in_wint_range_zasr.
-  have hr : in_wint_range sg ws (zlsl (int_of_word sg w1p) (int_of_word Unsigned w2p)) = ok tt.
-  + apply: (sc_wi_rangeP (wc:=withcatch) (gd:=gd) (s:=s)
-             (e := elsli (toint sg ws e1) (toint Unsigned U8 e2))); last exact hsc.
-    by rewrite /elsli /toint /= he1wc he2wc /= /sem_sop1 /= tr1 /= tr2 /= /sem_sop2 /=.
-  by rewrite /mk_sem_wishift /wint_of_int hr /=.
+  have hdef1 := sem_pexpr_defined he1wc.
+  have hdef2 := sem_pexpr_defined he2wc.
+  case hval1: (of_val (eval_atype (type_of_op2 op).1.1) v2) => [a1|er1] /=; last first.
+  + by rewrite (isdef_errtype hdef1 hval1).
+  case hval2: (of_val (eval_atype (type_of_op2 op).1.2) v3) => [a2|er2] /=; last first.
+  + by rewrite (isdef_errtype hdef2 hval2).
+  have hes : sem_pexprs_wc true gd s [:: e1; e2] = ok [:: v2; v3].
+  + by rewrite /= he1wc /= he2wc.
+  by have [r ->] := sem_sop2_typed_safe hval1 hval2 (sem_cond_interp_safes hes hop).
 + move=> op es he s v.
   move=> /he{}he v2 {}/he.
   rewrite /sem_pexprs /sem_opN => he; rewrite he /=.
@@ -517,121 +585,6 @@ Proof using Pe Qe asm_op ep get_global_arr_init p psc sip spp syscall_state.
 Qed.
 
 
-(* ------------------------------------------------------------------------- *)
-(* The [i_safe] conditions of the instruction operators                       *)
-
-Lemma nth_sem_pexprs gd0 s es pos e vs :
-  List.nth_error es pos = Some e ->
-  sem_pexprs (wc:=withcatch) true gd0 s es = ok vs ->
-  sem_pexpr (wc:=withcatch) true gd0 s e = ok (nth undef_b vs pos).
-Proof.
-  elim: pos es vs => [ | n hrec] [ | e0 es] //=; t_xrbindP.
-  + by move=> ? [->] ve -> ? _ <-.
-  by move=> ? hnth v0 he0 vs hes <- /=; apply: hrec hes.
-Qed.
-
-Lemma nth_sem_pexprs_nth gd0 s es pos vs :
-  ssrnat.leq (S pos) (size es) ->
-  sem_pexprs (wc:=withcatch) true gd0 s es = ok vs ->
-  sem_pexpr (wc:=withcatch) true gd0 s (nth (Pbool false) es pos) = ok (nth undef_b vs pos).
-Proof.
-  elim: pos es vs => [ | n hrec] [ | e0 es] vs //=.
-  + by t_xrbindP => _ ve -> l hl <-.
-  by t_xrbindP => hn v0 he0 l hl <- /=; apply: (hrec _ _ hn hl).
-Qed.
-
-(* On the source language the coercion of [sc_to_e] is exactly [Papp1], so the
-   special case for [Oint_of_word] is transparent. *)
-Lemma sc_to_e_op1 o c e :
-  sc_op1_to_e eint_of_word o c e = Papp1 o e.
-Proof. by case: o => //= sg ws; case: c. Qed.
-
-(* [sc_to_e] computes, under the defensive semantics, the interpretation of the
-   condition on the values of the arguments: the operators of the white list
-   [sc_expr] only fail for a typing reason, which is not caught. *)
-Lemma sem_pexpr_sc_to_e gd0 s es vs c v :
-  sem_pexprs (wc:=withcatch) true gd0 s es = ok vs ->
-  sc_expr c -> ssrnat.leq (sc_max_var c) (size es) ->
-  sem_pexpr (wc:=withcatch) true gd0 s (sc_to_e eint_of_word es c) = ok v ->
-  interp_safe_cond vs c = ok v /\ is_defined v.
-Proof.
-  move=> hes; elim/safe_cond_ind_s: c v => //=.
-  + by move=> b v _ _ [<-].
-  + by move=> z v _ _ [<-].
-  + move=> k v _ hk.
-    have hsem := nth_sem_pexprs_nth hk hes.
-    rewrite hsem => -[<-].
-    by split => //; apply: sem_pexpr_defined hsem.
-  + move=> o c ih v /andP [hto htot] hk.
-    rewrite sc_to_e_op1 /=.
-    t_xrbindP => v1 /(ih _ htot hk) [hv1 hd1].
-    rewrite /sem_sop1 /=.
-    case hof: (of_val (eval_atype (type_of_op1 o).1) v1) => [x | er] /=; last first.
-    + by rewrite (isdef_errtype hd1 hof) /=.
-    rewrite (sem_sop1_typed_totalE hto) /= => -[<-].
-    rewrite hv1 /= hof /=.
-    by split => //; apply: (to_val_defined (erefl _)).
-  move=> o c1 ih1 c2 ih2 v /and3P [hto ht1 ht2].
-  rewrite ssrnat.geq_max => /andP [hk1 hk2].
-  t_xrbindP => v1 /(ih1 _ ht1 hk1) [hv1 hd1] v2 /(ih2 _ ht2 hk2) [hv2 hd2].
-  rewrite /sem_sop2 /=.
-  case hof1: (of_val (eval_atype (type_of_op2 o).1.1) v1) => [x1 | er] /=; last first.
-  + by rewrite (isdef_errtype hd1 hof1) /=.
-  case hof2: (of_val (eval_atype (type_of_op2 o).1.2) v2) => [x2 | er] /=; last first.
-  + by rewrite (isdef_errtype hd2 hof2) /=.
-  rewrite (sem_sop2_typed_totalE hto) /= => -[<-].
-  rewrite hv1 /= hv2 /= hof1 /= hof2 /=.
-  by split => //; apply: (to_val_defined (erefl _)).
-Qed.
-
-Lemma sem_pexprs_sc_to_e gd0 s es vs cs l :
-  sem_pexprs (wc:=withcatch) true gd0 s es = ok vs ->
-  all sc_expr cs -> all (fun c => ssrnat.leq (sc_max_var c) (size es)) cs ->
-  mapM (sem_pexpr (wc:=withcatch) true gd0 s) (map (sc_to_e eint_of_word es) cs) = ok l ->
-  mapM (interp_safe_cond vs) cs = ok l.
-Proof.
-  move=> hes; elim: cs l => [ | c cs ih] l /=; first by move=> _ _ [<-].
-  move=> /andP [h1 h2] /andP [k1 k2].
-  t_xrbindP => v /(sem_pexpr_sc_to_e hes h1 k1) [hv _] l' /(ih _ h2 k2) hl' <-.
-  by rewrite hv /= hl'.
-Qed.
-
-(* The assertion generated for a safety condition implies the condition. *)
-Lemma sem_cond_interp_safe gd0 s es vs sc :
-  sem_pexprs (wc:=withcatch) true gd0 s es = ok vs ->
-  sem_eassert (wc:=withcatch) gd0 s (safe_cond_to_e es sc) = ok true ->
-  safe_cond_b vs sc.
-Proof.
-  move=> hes; rewrite /safe_cond_to_e /sc_to_eassert.
-  have hPexpr : forall c,
-      sem_eassert (wc:=withcatch) gd0 s
-        (Pexpr (if sc_expr c && ssrnat.leq (sc_max_var c) (size es)
-                then sc_to_e eint_of_word es c else Pbool false)) = ok true ->
-      safe_cond_b vs c.
-  + move=> c; case: ifP => [/andP [hexp hk] | _]; last by move=> [].
-    rewrite /=; t_xrbindP => v hv /to_boolI ?; subst v.
-    by have [hi _] := sem_pexpr_sc_to_e hes hexp hk hv; rewrite /safe_cond_b hi.
-  case: sc => [b | z | k | o c | o c1 c2 | o cs];
-    [ exact: (hPexpr (IBool b)) | exact: (hPexpr (IConst z))
-    | exact: (hPexpr (IVar k)) | exact: (hPexpr (IOp1 o c))
-    | exact: (hPexpr (IOp2 o c1 c2)) | ].
-  case: ifP => [/andP [hexp hk] | _]; last by move=> [].
-  have hall : all (fun c => ssrnat.leq (sc_max_var c) (size es)) cs
-    by rewrite -(sc_max_var_appN_le o).
-  rewrite /=; t_xrbindP => l hl hop.
-  move: hop; rewrite /sem_opN_safety => hop.
-  by rewrite /safe_cond_b /= (sem_pexprs_sc_to_e hes hexp hall hl) /= hop.
-Qed.
-
-Lemma sem_cond_interp_safes gd0 s es vs sc :
-  sem_pexprs (wc:=withcatch) true gd0 s es = ok vs ->
-  sem_eassert (wc:=withcatch) gd0 s (aands [seq safe_cond_to_e es i | i <- sc]) = ok true ->
-  all (safe_cond_b vs) sc.
-Proof.
-  move=> hes; elim: sc => [ | sc scs hrec] //=.
-  move=> /aandsE_cons [hsc hscs]; rewrite (hrec hscs) andbT.
-  by apply: sem_cond_interp_safe hsc.
-Qed.
 
 Lemma type_of_val_to_val v ty v2 :
   type_of_val v = ty ->

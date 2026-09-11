@@ -8,7 +8,7 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 From Coq Require Import ZArith.
-Require Import expr compiler_util word sopn_semi.
+Require Import expr compiler_util word sopn_semi op_semi.
 Require Export safety_common.
 Import Utf8.
 
@@ -101,26 +101,17 @@ Definition sc_is_aligned_if_m al sz e : safety_cond :=
 (* ------------------------------------------------------------------------- *)
 (* Operators                                                                  *)
 
-Definition toint sg sz e := Papp1 (Owi1 sg (WIint_of_wint sz)) e.
+(* The safety conditions of an operator are asserted through the generic
+   translation of [safe_cond]s, with the word-to-integer coercion of the
+   source language. *)
+Definition safe_cond_to_e (vs : pexprs) (c : safe_cond) : eassert :=
+  sc_to_eassert eint_of_word vs c.
 
-Definition sc_op1 := sc_op1 toint.
+Definition sc_op1 (o : sop1) (e : pexpr) : safety_cond :=
+  map (safe_cond_to_e [:: e]) (op1_safe o).
 
-Definition sc_op2 o e1 e2 : seq pexpr :=
-  match is_wi2 o with
-  | Some (sg, sz, o) =>
-    let e1 := toint sg sz e1 in
-    let e2 := match o with
-              | WIshl | WIshr => toint Unsigned U8 e2
-              | _ => toint sg sz e2
-              end in
-    sc_wiop2 sg sz o e1 e2
-  | _ =>
-    match o with
-    | Odiv sg (Op_w sz) => sc_divmod sg sz (eint_of_word sg sz e1) (eint_of_word sg sz e2)
-    | Omod sg (Op_w sz) => sc_divmod sg sz (eint_of_word sg sz e1) (eint_of_word sg sz e2)
-    | _ => [::]
-    end
-  end.
+Definition sc_op2 (o : sop2) (e1 e2 : pexpr) : safety_cond :=
+  map (safe_cond_to_e [:: e1; e2]) (op2_safe o).
 
 (* ------------------------------------------------------------------------- *)
 (* Expressions                                                                *)
@@ -155,10 +146,10 @@ Fixpoint sc_pexpr (e : pexpr) : safety_cond :=
     sc_pexpr e ++ sc_is_aligned_if_m al ws e ++ sc_mem_valid e ws
 
   | Papp1 op e =>
-    sc_pexpr e ++ map Pexpr (sc_op1 op e)
+    sc_pexpr e ++ sc_op1 op e
 
   | Papp2 op e1 e2 =>
-    sc_pexpr e1 ++ sc_pexpr e2 ++ map Pexpr (sc_op2 op e1 e2)
+    sc_pexpr e1 ++ sc_pexpr e2 ++ sc_op2 op e1 e2
 
   | PappN op es => List.flat_map sc_pexpr es
 
@@ -199,12 +190,6 @@ Definition sc_lvals (lvs:lvals) okmem : safety_cond :=
 
 (* ------------------------------------------------------------------------- *)
 (* Operators of instructions                                                  *)
-
-(* The safety conditions of an operator are asserted through the generic
-   translation of [safe_cond]s, with the word-to-integer coercion of the
-   source language. *)
-Definition safe_cond_to_e (vs : pexprs) (c : safe_cond) : eassert :=
-  sc_to_eassert eint_of_word vs c.
 
 Definition get_sopn_safe_conds (es: pexprs) (o: sopn) : safety_cond :=
   map (safe_cond_to_e es) (get_instr_desc o).(i_safe).

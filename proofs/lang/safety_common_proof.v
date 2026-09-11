@@ -7,7 +7,7 @@
    one. *)
 
 From mathcomp Require Import ssreflect ssrfun ssrbool ssralg eqtype word_ssrZ.
-Require Import psem safety_common.
+Require Import op_semi psem safety_common.
 Import Utf8.
 
 Lemma read_etrue : read_e etrue = Sv.empty.
@@ -321,83 +321,6 @@ Proof.
   + by split => [h | []].
   by move=> a as1 hrec; rewrite !aandsE_cons hrec; tauto.
 Qed.
-
-(* ------------------------------------------------------------------------- *)
-(* Arithmetic side conditions                                                 *)
-
-Lemma half_modulus_pos ws : (0 < half_modulus ws)%Z.
-Proof. by case: ws. Qed.
-
-Lemma wmin_signed_neg ws : (wmin_signed ws < 0)%Z.
-Proof. rewrite /wmin_signed; have := half_modulus_pos ws; Lia.lia. Qed.
-
-Lemma wmax_signed_pos ws : (0 < wmax_signed ws)%Z.
-Proof. by case: ws. Qed.
-
-Lemma in_wint_range_zasr sg sz (w1 : word sz) (w2 : u8) :
-  in_wint_range sg sz (zasr (int_of_word sg w1) (int_of_word Unsigned w2)) = ok tt.
-Proof.
-  rewrite /in_wint_range /zasr /zlsl /assert; case: ifPn => // /negP.
-  have [h1 h2] := wunsigned_range w2.
-  rewrite /int_of_word /=; elim; case: ZleP => ?.
-  + have -> /= : wunsigned w2 = 0%Z by Lia.lia.
-    rewrite Z.mul_1_r; case: (sg) => /=;
-    [have [??] := wsigned_range w1 | have [??] := wunsigned_range w1];
-    apply/andP; split; apply /ZleP => //.
-    rewrite /wmax_unsigned; Lia.lia.
-  have ? : (0 < 2 ^ wunsigned w2)%Z by Lia.nia.
-  rewrite Z.opp_involutive; case: (sg) => /=.
-  + have ? := wmin_signed_neg sz; have ? := wmax_signed_pos sz.
-    have [??] := wsigned_range w1.
-    apply/andP; split; apply/ZleP.
-    + by apply Z.div_le_lower_bound => //; Lia.nia.
-    by apply Z.div_le_upper_bound => //; Lia.nia.
-  have ? : (1 <= wmax_unsigned sz)%Z by case sz.
-  have [??] := wunsigned_range w1.
-  have ? : (0 < 2 ^ wunsigned w1)%Z by Lia.nia.
-  apply/andP; split; apply/ZleP.
-  + apply Z.div_le_lower_bound => //; Lia.nia.
-  apply Z.div_le_upper_bound => //; rewrite /wmax_unsigned; Lia.nia.
-Qed.
-
-Lemma wsigned_opp sz (w:word sz) : wsigned w <> wmin_signed sz -> (- wsigned w)%Z = wsigned (- w).
-Proof.
-  rewrite !wsigned_alt !wunsigned_add_if wunsigned_opp_if.
-  have h1 := half_modulus_pos sz.
-  have h2 := wbase_twice_half sz.
-  have -> : wunsigned (wrepr sz (half_modulus sz)) = half_modulus sz.
-  + by apply wunsigned_repr_small; Lia.lia.
-  case: eqP => [-> | ?].
-  + rewrite Z.add_0_l; have -> : (half_modulus sz <? wbase sz)%Z.
-    + by apply /ZltP; Lia.lia.
-    by move=> _; ring.
-  rewrite /wmin_signed; case: ZltP => ?; case: ZltP => ?; Lia.lia.
-Qed.
-
-Lemma int_of_word_wrepr sg sz z :
-  in_wint_range sg sz z = ok tt ->
-  int_of_word sg (wrepr sz z) = z.
-Proof.
-  case: sg => /assertP /andP [] /ZleP ? /ZleP; rewrite /wmax_unsigned => ?.
-  + exact: wsigned_repr.
-  apply wunsigned_repr_small; Lia.lia.
-Qed.
-
-Lemma wint_of_int_of_word sg sz (w : word sz) :
-  wint_of_int sg sz (int_of_word sg w) = ok w.
-Proof.
-  rewrite /wint_of_int /int_of_word /in_wint_range /signed.
-  case: sg.
-  + rewrite wrepr_signed /in_sint_range.
-    by have [/ZleP -> /ZleP ->] := wsigned_range w.
-  rewrite wrepr_unsigned /in_uint_range.
-  have [/ZleP -> h] := wunsigned_range w.
-  have /ZleP -> // : (wunsigned w <= wmax_unsigned sz)%Z.
-  by rewrite /wmax_unsigned; Lia.lia.
-Qed.
-
-Lemma int_of_word0 sg sz : int_of_word (sz:=sz) sg 0 = 0%Z.
-Proof. by case: sg => /=; rewrite ?wsigned0 ?wunsigned0. Qed.
 
 (* ------------------------------------------------------------------------- *)
 (* The generated conditions, evaluated                                        *)

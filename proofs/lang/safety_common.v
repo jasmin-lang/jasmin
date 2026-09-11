@@ -1,6 +1,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 From mathcomp Require Import word_ssrZ.
-Require Import expr sopn_semi.
+Require Import expr sopn_semi op_semi.
 Import Utf8.
 
 (* ------------------------------------------------------------------------- *)
@@ -136,6 +136,7 @@ Definition elsli e1 e2 := Papp2 (Olsl Op_int) e1 e2.
 (* Op2: Arithmetics *)
 Definition eaddi e1 e2 := Papp2 (Oadd Op_int) e1 e2.
 Definition emuli e1 e2 := Papp2 (Omul Op_int) e1 e2.
+Definition esubi e1 e2 := Papp2 (Osub Op_int) e1 e2.
 Definition edivi sg e1 e2 := Papp2 (Odiv sg Op_int) e1 e2.
 Definition emodi sg e1 e2 := Papp2 (Omod sg Op_int) e1 e2.
 
@@ -170,47 +171,65 @@ Definition is_wi1 (o: sop1) :=
 Definition is_wi2 (o: sop2) :=
   if o is Owi2 s sw op then Some (s, sw, op) else None.
 
-Definition sc_wiop1 (toint : signedness -> wsize -> pexpr -> pexpr)
-  sg (o : wiop1) (e: pexpr) :=
-  match o with
-  | WIwint_of_int sz => [:: sc_wi_range sg sz e]
-  | WIint_of_wint sz => [::]
-  | WIword_of_wint sz => [::]
-  | WIwint_of_word sz => [::]
-  | WIwint_ext szo szi => [::]
-  | WIneg sz =>
-      signed  [::eeqi (toint sg sz e) ezero ]
-              [::eneqi (toint sg sz e) (emin_signed sz)] sg
-  end.
-
-(* [op : int -> int -> int] [e1 e2 : int] *)
-Definition sc_wi_range_op2 sg sz op e1 e2 :=
-  sc_wi_range sg sz (Papp2 op e1 e2).
-
-(* [e1 e2 : int] *)
+(* The conditions of a division, on integer expressions.  This is the shape
+   [sc_wiop2] produces for [WIdiv] and [WImod] when [toint] is the identity. *)
 Definition sc_divmod sg sz e1 e2 :=
  let sc := signed [::]
                   [:: enot (eand (eeqi e1 (emin_signed sz)) (eeqi e2 (Pconst (-1)))) ] sg in
  [:: eneqi e2 ezero & sc].
 
-Definition sc_wiop2 sg sz o e1 e2 :=
-  match o with
-  | WIadd => [:: sc_wi_range_op2 sg sz (Oadd Op_int) e1 e2]
-  | WImul => [:: sc_wi_range_op2 sg sz (Omul Op_int) e1 e2]
-  | WIsub => [:: sc_wi_range_op2 sg sz (Osub Op_int) e1 e2]
-  | WIdiv => sc_divmod sg sz e1 e2
-  | WImod => sc_divmod sg sz e1 e2
-  | WIshl => [:: sc_wi_range sg sz (elsli e1 e2) ]
-  | WIshr => [::]
-  | WIeq | WIneq | WIlt | WIle | WIgt | WIge  => [::]
-  end.
+(* The safety conditions of the [wint] operators, as expressions on the
+   argument expressions: the value-level conditions of [op_semi.v], translated
+   by [sc_to_e].  They are all expressions, so the [pexpr] translation is
+   enough; the way a word argument is read as an integer is the parameter
+   [toint] (the safety pass applies [Oint_of_word], [wint_int] takes the
+   identity). *)
 
-Definition sc_op1 (toint : signedness -> wsize -> pexpr -> pexpr)
-  (op1 : sop1) e :=
+Section OP_TO_E.
+
+Context (toint : signedness -> wsize -> pexpr -> pexpr).
+
+Definition sc_wiop1 sg (o : wiop1) (e : pexpr) : seq pexpr :=
+  map (sc_to_e toint [:: e]) (wiop1_safe sg o).
+
+Definition sc_wiop2 sg sz (o : wiop2) (e1 e2 : pexpr) : seq pexpr :=
+  map (sc_to_e toint [:: e1; e2]) (wiop2_safe sg sz o).
+
+Definition sc_op1 (op1 : sop1) e :=
   match is_wi1 op1 with
-  | Some (sg, o) => sc_wiop1 toint sg o e
+  | Some (sg, o) => sc_wiop1 sg o e
   | None => [::]
   end.
+
+(* Their explicit form: this is what the proofs work with. *)
+Lemma sc_wiop1E sg o e :
+  sc_wiop1 sg o e =
+  match o with
+  | WIwint_of_int sz => [:: sc_wi_range sg sz e]
+  | WIneg sz =>
+      signed [:: eeqi (toint sg sz e) ezero]
+             [:: eneqi (toint sg sz e) (emin_signed sz)] sg
+  | _ => [::]
+  end.
+Proof. by case: o => >; case: sg. Qed.
+
+Lemma sc_wiop2E sg sz o e1 e2 :
+  sc_wiop2 sg sz o e1 e2 =
+  match o with
+  | WIadd => [:: sc_wi_range sg sz (eaddi (toint sg sz e1) (toint sg sz e2))]
+  | WImul => [:: sc_wi_range sg sz (emuli (toint sg sz e1) (toint sg sz e2))]
+  | WIsub => [:: sc_wi_range sg sz (esubi (toint sg sz e1) (toint sg sz e2))]
+  | WIdiv | WImod =>
+      [:: eneqi (toint Unsigned sz e2) ezero
+        & signed [::]
+            [:: enot (eand (eeqi (toint sg sz e1) (emin_signed sz))
+                           (eeqi (toint sg sz e2) (Pconst (-1))))] sg]
+  | WIshl => [:: sc_wi_range sg sz (elsli (toint sg sz e1) (toint Unsigned U8 e2))]
+  | _ => [::]
+  end.
+Proof. by case: o; case: sg. Qed.
+
+End OP_TO_E.
 
 Fixpoint get_var_contract (v: var_i) (vs: seq var_i) (vs': seq var_i) : option var_i :=
     match vs, vs' with

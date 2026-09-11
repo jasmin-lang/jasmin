@@ -1,5 +1,5 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg word_ssrZ.
-Require Import compiler_util pseudo_operator psem psem_facts.
+Require Import op_semi compiler_util pseudo_operator psem psem_facts.
 Require Import wint_int safety_common_proof.
 Import Utf8.
 
@@ -398,12 +398,12 @@ Proof.
   case: is_wi2 (is_wi2P o) => [[[sg sz] wio] | ]; last first.
   + case: etype_of_op2 => -[t1' t2' tout] /= [-> -> ->] _.
     by rewrite !val_to_int_None => ->; exists v => //; rewrite val_to_int_None.
-  move=> ?; subst o; rewrite /sc_wiop2.
+  move=> ?; subst o; rewrite sc_wiop2E.
 Opaque esubtype.
   case: wio hsub1 hsub2 => /= /subtype_twint hsub1 /subtype_twint hsub2; subst t1 t2;
     move: hv1 hv2 he1 he2 => /= -[w1 ?] [w2 ?]; subst v1 v2 => /= he1 he2.
   1-3:
-    rewrite eandsE_1 /sem_sop2 /sc_wi_range_op2 /= => hsc [<-];
+    rewrite eandsE_1 /sem_sop2 /= => hsc [<-];
     rewrite !truncate_word_u /= /mk_sem_wiop2 (sc_wi_range_of_int _ hsc) /=;
     [ eexists; first reflexivity;
       by rewrite /= (sc_int_of_word_wrepr _ hsc) //= he1 he2
@@ -508,7 +508,12 @@ Proof using FV P Q asm_op ep hwf_m m p sip spp syscall_state.
       by exists v => //; rewrite val_to_int_None.
 
     move=> [sg [sz|sz|sz|sz|szo szi|sz]] ?; subst o => /=; rewrite /= in hse, hte.
-    + rewrite eandsE_1 => hsc hei2.
+    (* the condition of [WIwint_of_int], after [simpl] has expanded the
+       translation of the [safe_cond] it is made of *)
+    + have -> : sc_to_e (fun (_ : signedness) (_ : wsize) (e : pexpr) => e) [:: ei.2]
+                  (sopn_semi.sc_wi_range sg sz (IVar 0)) = sc_wi_range sg sz ei.2
+        by case: sg.
+      move=> hsc hei2.
       have [v' he heq] := hrec _ _ _ heqs hei1 hei2; subst v.
       move: hei2; rewrite he /= /sign_of_expr /= hse /sem_sop1 /= val_to_int_None.
       case: etype_of_expr hte (sem_pexpr_type_of he)=> //= _.
@@ -564,7 +569,7 @@ Proof using FV P Q asm_op ep hwf_m m p sip spp syscall_state.
     move: hei2; rewrite /sign_of_expr.
     case: etype_of_expr hse hte => //= -[] // ?? [->]/andP[_ /eqP<-] hei2 [w ?]; subst v' => /=.
     move=> _ [<-] <- /=; rewrite truncate_word_u /=.
-    case: sg hei2 hsc => /=; rewrite eandsE_1 => hei2.
+    case: sg hei2 hsc => /= hei2.
     + rewrite (eneqiP (i2:= wmin_signed sz) hei2) // => -[/eqP h].
       rewrite /wint_of_int /= /in_wint_range /=.
       have -> /= : in_sint_range sz (- wsigned w).

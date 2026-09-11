@@ -217,6 +217,7 @@ lang/sha256.v
 lang/shift_kind.v
 lang/sopn.v
 lang/sopn_semi.v
+lang/op_semi.v
 lang/slh_ops.v
 lang/stack_zero_strategy.v
 lang/strings.v

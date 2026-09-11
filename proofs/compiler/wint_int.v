@@ -45,7 +45,7 @@ Definition sc_op1 := sc_op1 (fun _ _ e => e).
 
 Definition sc_op2 o e1 e2 :=
   match is_wi2 o with
-  | Some (sg, sz, o) => sc_wiop2 sg sz o e1 e2
+  | Some (sg, sz, o) => sc_wiop2 (fun _ _ e => e) sg sz o e1 e2
   | _ => [::]
   end.
 
