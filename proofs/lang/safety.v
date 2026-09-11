@@ -37,8 +37,8 @@ Context `{asmop:asmOp} {pd: PointerData} {msfsz : MSFsize}.
 (* ------------------------------------------------------------------------- *)
 (* Variables                                                                  *)
 
-(* An array variable is always "defined" as a value, the initialisation of its
-   cells is checked at each access by [sc_arr_init]. *)
+(* An array variable is always "defined" as a value, the initialisation of the
+   cells an access reads is checked at that access, by [sc_arr_get]. *)
 Definition sc_var (x:var_i) : safety_cond :=
   if is_aarr (vtype x) then [::]
   else [:: Pis_var_init x].
@@ -48,64 +48,71 @@ Definition sc_gvar (x:gvar) : safety_cond :=
   else [::].
 
 (* ------------------------------------------------------------------------- *)
+(* Translation of the conditions of the semantics                             *)
+
+(* The safety conditions of an operator, and those of an array or memory
+   access, are asserted through the generic translation of [safe_cond]s, with
+   the word-to-integer coercion of the source language. *)
+Definition safe_cond_to_e (vs : pexprs) (c : safe_cond) : eassert :=
+  sc_to_eassert eint_of_word vs c.
+
+(* ------------------------------------------------------------------------- *)
 (* Arrays and memory                                                          *)
 
 Definition efalse := Pbool false.
 Definition sc_false : safety_cond := [:: Pexpr efalse].
 
-Definition sc_is_aligned_if al aa sz e : safety_cond :=
-  if (al == Unaligned) || (aa == AAscale) then [::]
-  else [:: Pexpr (eis_aligned e sz)].
+(* The conditions under which an access succeeds are the ones the semantics
+   itself checks ([sopn_semi.v]): they are written on the values of the
+   arguments of the access and asserted on the argument expressions.  The error
+   attached to each condition plays no role here. *)
+Definition sc_access (vs : pexprs) (scs : seq (safe_cond * error)) : safety_cond :=
+  map (safe_cond_to_e vs) (unzip1 scs).
 
-(* [e1] is the offset in bytes, [e2] the size in bytes of the access. *)
-Definition sc_in_bound' ty e1 e2 : safety_cond :=
-  match ty with
-  | aarr ws len =>
-    [:: Pexpr (eand (elei ezero e1) (elei (eaddi e1 e2) (Pconst (arr_size ws len))))]
-  | _ => sc_false
-  end.
+(* [sc_get] without its last condition, the initialisation of the cells read:
+   a global array is fully initialised, which [sc_prog] checks with
+   [check_glob], so the condition is not emitted for it. *)
+Definition sc_get_noinit len al aa ws : seq (safe_cond * error) :=
+  take 2 (sc_get len al aa ws).
 
-Definition sc_in_bound ty aa sz e elen : safety_cond :=
-  sc_in_bound' ty (emk_scale aa sz e) elen.
-
-Definition sc_arr_init ty (x:gvar) aa sz e : safety_cond :=
-  match ty with
-  | aarr ws len =>
-    if is_lvar x then
-      let lo := emk_scale aa sz e in
-      [:: PappN_safety (Ois_arr_init (arr_size ws len))
-            [:: Pvar x; lo; Pconst (wsize_size sz)]]
-    else
-      (* a global array is fully initialised, [sc_prog] checks it *)
-      [::]
-  | _ => sc_false
-  end.
-
+(* The arguments of an array access, in the order of [sc_get]: the array, then
+   the index. *)
 Definition sc_arr_get (x:gvar) al aa sz e : safety_cond :=
-  let ty := vtype (gv x) in
-  sc_is_aligned_if al aa sz e ++
-  sc_in_bound ty aa sz e (Pconst (wsize_size sz)) ++
-  sc_arr_init ty x aa sz e.
+  match vtype (gv x) with
+  | aarr ws len =>
+    let n := arr_size ws len in
+    sc_access [:: Pvar x; e]
+      (if is_lvar x then sc_get n al aa sz else sc_get_noinit n al aa sz)
+  | _ => sc_false
+  end.
 
 Definition sc_arr_set (x:var_i) al aa sz e : safety_cond :=
-  sc_is_aligned_if al aa sz e ++
-  sc_in_bound (vtype x) aa sz e (Pconst (wsize_size sz)).
+  match vtype x with
+  | aarr ws len => sc_access [:: Plvar x; e] (sc_set (arr_size ws len) al aa sz)
+  | _ => sc_false
+  end.
 
-Definition sc_mem_valid (e: pexpr) sz : safety_cond :=
-  [:: Pis_mem_init e (Pconst (wsize_size sz))].
+Definition sc_arr_get_sub (x:gvar) aa sz len e : safety_cond :=
+  match vtype (gv x) with
+  | aarr ws lenx => sc_access [:: Pvar x; e] (sc_get_sub (arr_size ws lenx) aa sz len)
+  | _ => sc_false
+  end.
 
-Definition sc_is_aligned_if_m al sz e : safety_cond :=
-  if al == Unaligned then [::]
-  else [:: Pexpr (eis_aligned (eint_of_word Unsigned Uptr e) sz)].
+Definition sc_arr_set_sub (x:var_i) aa sz len e : safety_cond :=
+  match vtype x with
+  | aarr ws lenx => sc_access [:: Plvar x; e] (sc_set_sub (arr_size ws lenx) aa sz len)
+  | _ => sc_false
+  end.
+
+(* The validity of a memory access depends on the memory, so it is not a
+   condition on the arguments: it stays the assertion [Pis_mem_init].  Only the
+   alignment of the pointer comes from the conditions of the semantics. *)
+Definition sc_mem al sz e : safety_cond :=
+  safe_cond_to_e [:: e] (sc_mem_aligned al sz 0)
+    :: [:: Pis_mem_init e (Pconst (wsize_size sz))].
 
 (* ------------------------------------------------------------------------- *)
 (* Operators                                                                  *)
-
-(* The safety conditions of an operator are asserted through the generic
-   translation of [safe_cond]s, with the word-to-integer coercion of the
-   source language. *)
-Definition safe_cond_to_e (vs : pexprs) (c : safe_cond) : eassert :=
-  sc_to_eassert eint_of_word vs c.
 
 Definition sc_op1 (o : sop1) (e : pexpr) : safety_cond :=
   map (safe_cond_to_e [:: e]) (op1_safe o).
@@ -140,10 +147,10 @@ Fixpoint sc_pexpr (e : pexpr) : safety_cond :=
     sc_pexpr e ++ sc_arr_get x al aa ws e
 
   | Psub aa ws len x e =>
-    sc_pexpr e ++ sc_in_bound (vtype (gv x)) aa ws e (Pconst (arr_size ws len))
+    sc_pexpr e ++ sc_arr_get_sub x aa ws len e
 
   | Pload al ws e =>
-    sc_pexpr e ++ sc_is_aligned_if_m al ws e ++ sc_mem_valid e ws
+    sc_pexpr e ++ sc_mem al ws e
 
   | Papp1 op e =>
     sc_pexpr e ++ sc_op1 op e
@@ -174,11 +181,11 @@ Definition sc_lval (lv : lval) : safety_cond :=
   | Lnone _ _ => [::]
   | Lvar x => [::]
   | Lmem al ws x e =>
-    sc_pexpr e ++ sc_is_aligned_if_m al ws e ++ sc_mem_valid e ws
+    sc_pexpr e ++ sc_mem al ws e
   | Laset al aa ws x e =>
     sc_pexpr e ++ sc_arr_set x al aa ws e
   | Lasub aa ws len x e =>
-    sc_pexpr e ++ sc_in_bound (vtype x) aa ws e (Pconst (arr_size ws len))
+    sc_pexpr e ++ sc_arr_set_sub x aa ws len e
   end.
 
 (* The conditions of the left values are asserted *before* the assignment, so

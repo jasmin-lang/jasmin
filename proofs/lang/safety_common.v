@@ -147,12 +147,6 @@ Definition emin_signed sz := Pconst (wmin_signed sz).
 Definition emax_signed sz := Pconst (wmax_signed sz).
 Definition emax_unsigned sz := Pconst (wmax_unsigned sz).
 
-Definition emk_scale aa sz e :=
-  if (aa == AAdirect) then e
-  else emuli e (Pconst (wsize_size sz)).
-
-Definition eis_aligned e sz := eeqi (emodi Unsigned e (ewsize sz)) (Pconst 0).
-
 Definition safety_lbl := "safety"%string.
 
 Definition safe_assert ii (sc:safety_cond) : cmd :=

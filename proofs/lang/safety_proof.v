@@ -47,67 +47,11 @@ Lemma gvar_init_arr s x ws len :
 Proof. by move=> h; rewrite /sc_gvar /sc_var h; case: ifP. Qed.
 
 (* ------------------------------------------------------------------------- *)
-(* Alignment and bounds                                                       *)
-
-Lemma sc_is_aligned_ifP s (i : sem_t cint) al aa sz e :
-  sem_pexpr_wc true gd s e = ok (to_val i) ->
-  sem_eassert_wc gd s (aands (sc_is_aligned_if al aa sz e)) = ok true ->
-  is_aligned_if (Pointer := WArray.PointerZ) al (i * mk_scale aa sz) sz.
-Proof.
-  rewrite /sc_is_aligned_if /is_aligned_if => hi.
-  case: al => //=.
-  case: aa => /=; last by move=> _; apply WArray.is_align_scale.
-  rewrite /eis_aligned /eeqi /emodi /ewsize /= hi /= /sem_sop2 /=.
-  move=> [] /Z.eqb_eq h.
-  rewrite is_alignE WArray.p_to_zE Z.mul_1_r; apply/eqP; exact h.
-Qed.
+(* Array types                                                                *)
 
 Lemma eval_atype_carr ty n :
   eval_atype ty = carr n -> exists ws len, ty = aarr ws len /\ n = arr_size ws len.
 Proof. by case: ty => // ws len [<-]; exists ws, len. Qed.
-
-Lemma sc_in_boundP s ty n (i ilen : sem_t cint) aa sz (e elen : pexpr) :
-  eval_atype ty = carr n ->
-  sem_pexpr_wc true gd s e = ok (to_val i) ->
-  sem_pexpr_wc true gd s elen = ok (to_val ilen) ->
-  sem_eassert_wc gd s (aands (sc_in_bound ty aa sz e elen)) = ok true ->
-  (0 <= i * mk_scale aa sz /\ i * mk_scale aa sz + ilen <= n)%Z.
-Proof.
-  rewrite /sc_in_bound /= /emk_scale /emuli.
-  move=> /eval_atype_carr [ws [len [-> ?]]] he helen; subst n.
-  case: aa; rewrite /= helen he /arr_size.
-  all: by move=> /= -[] /andP [] /ZleP h1 /ZleP h2; Lia.lia.
-Qed.
-
-Lemma sc_in_boundP_all s ty n (t : sem_t (carr n)) (i : sem_t cint) aa sz e :
-  eval_atype ty = carr n ->
-  sem_pexpr_wc true gd s e = ok (to_val i) ->
-  sem_eassert_wc gd s (aands (sc_in_bound ty aa sz e (Pconst (wsize_size sz)))) = ok true ->
-  all (fun j => WArray.in_bound t (i * mk_scale aa sz + j)) (ziota 0 (wsize_size sz)).
-Proof.
-  move=> /[dup] hty /eval_atype_carr [ws [len [? ?]]] he hscs; subst ty n.
-  have helen : sem_pexpr_wc true gd s (Pconst (wsize_size sz)) =
-                 ok (to_val (t:=cint) (wsize_size sz)) by done.
-  have [h1 h2] := sc_in_boundP hty he helen hscs.
-  apply /allP => j; rewrite in_ziota !zify => hj.
-  rewrite /WArray.in_bound; Lia.lia.
-Qed.
-
-Lemma sc_in_sub_boundP s ty n (t : sem_t (carr n)) a e1 e2 (ve1 ve2 : Z) :
-  eval_atype ty = carr n ->
-  sem_pexpr_wc true gd s e1 = ok (Vint ve1) ->
-  sem_pexpr_wc true gd s e2 = ok (Vint ve2) ->
-  0 <= a < ve2 ->
-  sem_eassert_wc gd s (aands (sc_in_bound' ty e1 e2)) = ok true ->
-  WArray.in_bound t (ve1 + a).
-Proof.
-  move=> /[dup] hty /eval_atype_carr [ws [len [? ?]]] he1 he2 hb; subst ty n.
-  have {}hb : ve1 <= ve1 + a < ve1 + ve2 by Lia.lia.
-  rewrite /= he1 he2 /=.
-  move=> [] /andP [] /Z.leb_le hlo /Z.leb_le hhi.
-  rewrite /WArray.in_bound /arr_size !zify.
-  rewrite /arr_size in hhi; Lia.lia.
-Qed.
 
 
 (* ------------------------------------------------------------------------- *)
@@ -132,7 +76,7 @@ Lemma get_gvar_catch s x v :
 Proof. by rewrite /get_gvar /with_catch /nocatch /withcatch; case: ifP => // _ ->. Qed.
 
 (* ------------------------------------------------------------------------- *)
-(* Initialisation of the array cells that an access reads                     *)
+(* Global arrays: [sc_prog] checks that they are fully initialised            *)
 
 Section GLOBALS.
 
@@ -142,29 +86,6 @@ Hypothesis get_global_arr_init :
   get_global gd x = ok (Varr t) -> all (WArray.is_init t) (ziota 0 len).
 
 Opaque wsize_size.
-
-Lemma sc_arr_initP s ty n (t : WArray.array n) (i : sem_t cint) x aa sz e :
-  eval_atype ty = carr n ->
-  sem_pexpr_wc true gd s e = ok (to_val i) ->
-  get_gvar (wc:=nocatch) true gd (evm s) x = ok (Varr t) ->
-  sem_eassert_wc gd s (aands (sc_arr_init ty x aa sz e)) = ok true ->
-  all (fun j => WArray.in_bound t (i * mk_scale aa sz + j)) (ziota 0 (wsize_size sz)) ->
-  all (fun j => WArray.is_init t (i * mk_scale aa sz + j)) (ziota 0 (wsize_size sz)).
-Proof using get_global_arr_init.
-  move=> /eval_atype_carr [ws [len [? ?]]]; subst ty n.
-  rewrite /sc_arr_init /emk_scale /emuli /= => hi hget.
-  move: (get_gvar_catch hget) => hgc.
-  case: ifP => /= hloc; last first.
-  + move: hget; rewrite /get_gvar hloc => /get_global_arr_init /allP hinit _ /allP hbound.
-    apply/allP => j hj; apply/hinit; move: (hbound j hj).
-    rewrite in_ziota /WArray.in_bound !zify => *; Lia.lia.
-  rewrite hgc /=.
-  case: aa; rewrite /= hi /= /sem_opN_safety /=.
-  all: rewrite arr_sizeE wsize8 Z.mul_1_l WArray.castK /=.
-  all: move=> [] /allP h _; apply/allP => j; rewrite in_ziota !zify => hj;
-    apply/h; rewrite in_ziota !zify; Lia.nia.
-Qed.
-
 
 (* ------------------------------------------------------------------------- *)
 (* The [i_safe] conditions of the instruction operators                       *)
@@ -283,6 +204,171 @@ Proof.
 Qed.
 
 (* ------------------------------------------------------------------------- *)
+(* Array and memory accesses: the assertions generated for an access imply the
+   conditions of the semantics, hence the access succeeds and returns the value
+   of its total counterpart.                                                  *)
+
+Lemma check_safe_seqP vs scs :
+  all (safe_cond_b vs) (unzip1 scs) -> check_safe_seq vs scs = ok tt.
+Proof. by elim: scs => [|[c er] scs ih] //= /andP [-> /ih]. Qed.
+
+Lemma sc_accessP gd0 s es vs scs :
+  sem_pexprs (wc:=withcatch) true gd0 s es = ok vs ->
+  sem_eassert (wc:=withcatch) gd0 s (aands (sc_access es scs)) = ok true ->
+  check_safe_seq vs scs = ok tt.
+Proof.
+by move=> hes hsc; apply/check_safe_seqP/(sem_cond_interp_safes hes hsc).
+Qed.
+
+(* The initialisation condition is not emitted for a global array: [check_glob]
+   gives it, on the whole array. *)
+Lemma sc_arr_getP s x al aa sz e n (r : WArray.array n) (i : Z) :
+  eval_atype (vtype (gv x)) = carr n ->
+  get_gvar (wc:=nocatch) true gd (evm s) x = ok (Varr r) ->
+  sem_pexpr_wc true gd s e = ok (Vint i) ->
+  sem_eassert_wc gd s (aands (sc_arr_get x al aa sz e)) = ok true ->
+  WArray.get al aa sz r i = ok (WArray.get_total aa sz r i).
+Proof using get_global_arr_init.
+move=> /[dup] hty /eval_atype_carr [ws [len [htyx ?]]]; subst n.
+move=> hgv he.
+have hes : sem_pexprs_wc true gd s [:: Pvar x; e] = ok [:: Varr r; Vint i].
++ by rewrite /sem_pexprs /= (get_gvar_catch hgv) /= he /=.
+rewrite /sc_arr_get htyx => hsc.
+suff h : all (safe_cond_b [:: Varr r; Vint i]) (unzip1 (sc_get (arr_size ws len) al aa sz)).
++ have hget := getE al aa r i (WArray.get_total aa sz r i).
+  by apply hget; rewrite (check_safe_seqP h).
+move: hsc; case: ifP => hlv hsc.
++ by apply: (sem_cond_interp_safes hes hsc).
+have {}hsc := sem_cond_interp_safes hes hsc.
+move: hsc; rewrite /sc_get_noinit /sc_get /unzip1 /= => /andP [hal /andP [hb _]].
+rewrite hal hb /= andbT.
+have h0 : nth undef_b [:: Varr r; Vint i] 0 = Varr r by [].
+have h1 : nth undef_b [:: Varr r; Vint i] 1 = Vint i by [].
+rewrite (safe_cond_b_arr_init aa sz (wsize_size sz) h0 h1).
+move: hb; rewrite (safe_cond_b_arr_in_bound (arr_size ws len) aa sz (wsize_size sz) h1).
+move=> /andP [/ZleP hlo /ZleP hhi].
+move: hgv; rewrite /get_gvar hlv => /get_global_arr_init /allP hinit.
+apply/allP => j; rewrite in_ziota !zify => hj.
+by apply/hinit; rewrite in_ziota !zify; Lia.lia.
+Qed.
+
+Lemma sc_arr_get_subP s x aa sz len e n (r : WArray.array n) (i : Z) :
+  eval_atype (vtype (gv x)) = carr n ->
+  get_gvar (wc:=nocatch) true gd (evm s) x = ok (Varr r) ->
+  sem_pexpr_wc true gd s e = ok (Vint i) ->
+  sem_eassert_wc gd s (aands (sc_arr_get_sub x aa sz len e)) = ok true ->
+  WArray.get_sub aa sz len r i = ok (WArray.get_sub_total aa sz len r i).
+Proof.
+move=> /[dup] hty /eval_atype_carr [ws [lenx [htyx ?]]]; subst n.
+move=> hgv he.
+have hes : sem_pexprs_wc true gd s [:: Pvar x; e] = ok [:: Varr r; Vint i].
++ by rewrite /sem_pexprs /= (get_gvar_catch hgv) /= he /=.
+rewrite /sc_arr_get_sub htyx => /(sc_accessP hes) hchk.
+have hget := get_subE aa r i (WArray.get_sub_total aa sz len r i).
+by apply hget; rewrite hchk.
+Qed.
+
+(* The conditions of a write mention only the index, so they do not depend on
+   the value written, which is the third argument of [sc_set]. *)
+Lemma sc_arr_setP s (x : var_i) al aa sz e n (r : WArray.array n) (i : Z) (w : word sz) :
+  eval_atype (vtype x) = carr n ->
+  get_var true (evm s) x = ok (Varr r) ->
+  sem_pexpr_wc true gd s e = ok (Vint i) ->
+  sem_eassert_wc gd s (aands (sc_arr_set x al aa sz e)) = ok true ->
+  WArray.set r al aa i w = ok (WArray.set_total r aa i w).
+Proof.
+move=> /[dup] hty /eval_atype_carr [ws [len [htyx ?]]]; subst n.
+move=> hgv he.
+have hes : sem_pexprs_wc true gd s [:: Plvar x; e] = ok [:: Varr r; Vint i].
++ by rewrite /sem_pexprs /= /get_gvar /= hgv /= he /=.
+rewrite /sc_arr_set htyx => /(sc_accessP hes) hchk.
+have hset := setE al aa r i w (WArray.set_total r aa i w).
+apply hset.
+have h1 : nth undef_b [:: Varr r; Vint i] 1 = Vint i by [].
+have h1' : nth undef_b [:: Varr r; Vint i; Vword w] 1 = Vint i by [].
+move: hchk; rewrite /sc_set /= (safe_cond_b_arr_aligned al aa sz h1) (safe_cond_b_arr_in_bound (arr_size ws len) aa sz (wsize_size sz) h1).
+rewrite (safe_cond_b_arr_aligned al aa sz h1') (safe_cond_b_arr_in_bound (arr_size ws len) aa sz (wsize_size sz) h1').
+by case: is_aligned_if => //; case: (_ && _).
+Qed.
+
+Lemma sc_arr_set_subP s (x : var_i) aa sz len e n (r : WArray.array n) (i : Z)
+    (b : WArray.array (arr_size sz len)) :
+  eval_atype (vtype x) = carr n ->
+  get_var true (evm s) x = ok (Varr r) ->
+  sem_pexpr_wc true gd s e = ok (Vint i) ->
+  sem_eassert_wc gd s (aands (sc_arr_set_sub x aa sz len e)) = ok true ->
+  WArray.set_sub aa r i b = ok (WArray.set_sub_total aa r i b).
+Proof.
+move=> /[dup] hty /eval_atype_carr [ws [lenx [htyx ?]]]; subst n.
+move=> hgv he.
+have hes : sem_pexprs_wc true gd s [:: Plvar x; e] = ok [:: Varr r; Vint i].
++ by rewrite /sem_pexprs /= /get_gvar /= hgv /= he /=.
+rewrite /sc_arr_set_sub htyx => /(sc_accessP hes) hchk.
+have hset := set_subE aa r i b (WArray.set_sub_total aa r i b).
+apply hset.
+have h1 : nth undef_b [:: Varr r; Vint i] 1 = Vint i by [].
+have h1' : nth undef_b [:: Varr r; Vint i; Varr b] 1 = Vint i by [].
+move: hchk; rewrite /sc_set_sub /= (safe_cond_b_arr_in_bound (arr_size ws lenx) aa sz (arr_size sz len) h1) (safe_cond_b_arr_in_bound (arr_size ws lenx) aa sz (arr_size sz len) h1').
+by case: (_ && _).
+Qed.
+
+(* The pointer of a memory access is read as a word of size [Uptr], which is
+   what [to_pointer] does: the condition does not see the coercion. *)
+Lemma safe_cond_b_to_pointer al sz (v : value) (pt : pointer) :
+  to_pointer v = ok pt ->
+  safe_cond_b [:: v] (sc_mem_aligned al sz 0) = is_aligned_if al pt sz.
+Proof.
+move=> h; rewrite /sc_mem_aligned; case: al => //=.
+rewrite /safe_cond_b /sc_eqi /sc_modi /sc_toint /= h /=.
+by rewrite is_alignE memory_model.p_to_zE Z_eqbE.
+Qed.
+
+Lemma all_get_read8 mem al wlo sz :
+  all (fun i : Z => is_ok (read mem al (wlo + wrepr Uptr i)%R U8)) (ziota 0 sz)
+  = all (fun i : Z => is_ok (get mem (wlo + wrepr Uptr i)%R)) (ziota 0 sz).
+Proof. by elim: ziota => [| k ks hrec] //=; rewrite -get_read8 hrec. Qed.
+
+(* [Pis_mem_init e sz] says that every byte of the access can be read, which is
+   what [validr] asks on top of the alignment condition. *)
+Lemma sc_memP s al sz e v (pt : pointer) :
+  sem_pexpr_wc true gd s e = ok v ->
+  to_pointer v = ok pt ->
+  sem_eassert_wc gd s (aands (sc_mem al sz e)) = ok true ->
+  validr (emem s) al pt sz.
+Proof.
+move=> he htop /aandsE_cons [h1 h2].
+have hes : sem_pexprs_wc true gd s [:: e] = ok [:: v].
++ by rewrite /sem_pexprs /= he.
+have hal := sem_cond_interp_safe hes h1.
+rewrite (safe_cond_b_to_pointer al sz htop) in hal.
+move: h2 => /=; rewrite he /= htop /= => -[] hall.
+rewrite /validr hal /=.
+move: hall; rewrite all_get_read8 => /allP hg; apply/allP => k hk; rewrite addE; apply: hg hk.
+Qed.
+
+Lemma sc_mem_readP s al sz e v (pt : pointer) :
+  sem_pexpr_wc true gd s e = ok v ->
+  to_pointer v = ok pt ->
+  sem_eassert_wc gd s (aands (sc_mem al sz e)) = ok true ->
+  read (emem s) al pt sz = ok (read_total (emem s) pt sz).
+Proof.
+move=> he htop hsc; have hv := sc_memP he htop hsc.
+have hr := readE (emem s) al pt (read_total (emem s) pt sz).
+by apply hr; rewrite hv.
+Qed.
+
+Lemma sc_mem_writeP s al sz e v (pt : pointer) (w : word sz) :
+  sem_pexpr_wc true gd s e = ok v ->
+  to_pointer v = ok pt ->
+  sem_eassert_wc gd s (aands (sc_mem al sz e)) = ok true ->
+  write (emem s) al pt w = ok (write_total (emem s) pt w).
+Proof.
+move=> he htop hsc; have hv := validr_validw (sc_memP he htop hsc).
+have hr := writeE (emem s) al pt w (write_total (emem s) pt w).
+by apply hr; rewrite hv.
+Qed.
+
+(* ------------------------------------------------------------------------- *)
 (* Main lemma on expressions: if the generated conditions hold, the defensive
    semantics agrees with the standard one.                                    *)
 
@@ -311,54 +397,24 @@ apply: pexprs_ind_pair; subst Pe Qe; split => //=; t_xrbindP => //.
     have /(_ x (arr_size ws len)) -> // := arr_isdef s.
     by rewrite htx.
   by move=> /= [] hdef; rewrite hdef /=.
-+ move=> al aa sz x e he s v /aandsE_cat [/he{}he].
-  rewrite /sc_arr_get => /aandsE_cat [+ /aandsE_cat []].
-  move=> hal hbound hinit; apply on_arr_gvarP => n r htx.
-  have xdef := arr_isdef s htx.
++ move=> al aa sz x e he s v /aandsE_cat [/he{}he hsc].
+  apply on_arr_gvarP => n r htx.
   move=> /(arr_catch_get_gvar htx) hgvr /=.
   t_xrbindP => zi z hewc /to_intI ? w wcatch <-; subst z.
   have {}he := he _ hewc; rewrite he hgvr /=.
-  move: wcatch; rewrite /WArray.get /read /=.
-  have -> /= := sc_is_aligned_ifP hewc hal.
-  move: hbound => /(sc_in_boundP_all r htx hewc) hbound.
-  have {}hinit := sc_arr_initP htx hewc hgvr hinit hbound.
-  have : exists l, mapM (fun k : Z => WArray.get8 r (add (zi * mk_scale aa sz) k)) (ziota 0 (wsize_size sz)) = ok l; last first.
-  + by move=> [l -> /=] [->].
-  elim: (ziota 0 (wsize_size sz)) hbound hinit => //=; eauto.
-  move=> j js hrec /andP [h1 h2] /andP [h3 h4].
-  rewrite {2}/WArray.get8 WArray.addE h1 /= h3 /=.
-  by have [l -> /=] := hrec h2 h4; eauto.
-+ move=> aa sz len x e he s v /aandsE_cat [/he {}he].
-  move=> hbound; apply on_arr_gvarP => n r htx.
-  have xdef := arr_isdef s htx.
+  have hget := sc_arr_getP htx hgvr hewc hsc.
+  by move: wcatch; rewrite hget /= => -[<-].
++ move=> aa sz len x e he s v /aandsE_cat [/he {}he hsc].
+  apply on_arr_gvarP => n r htx.
   move=> /(arr_catch_get_gvar htx) hgvr /=.
-  t_xrbindP => zi z hewc /to_intI ? w wcatch <-; subst z.
+  t_xrbindP => zi z hewc /to_intI ? t' tcatch <-; subst z.
   have {}he := he _ hewc; rewrite he hgvr /=.
-  move: wcatch.
-  have helen : sem_pexpr (wc:=withcatch) true gd s (Pconst (arr_size sz len)) =
-                 ok (to_val (t:=cint) (arr_size sz len)) by done.
-  move: hbound => /(sc_in_boundP htx hewc helen) [] /ZleP h1 /ZleP h2.
-  by rewrite /WArray.get_sub h1 h2 /= => [] [->].
-+ move=> al sz e he s v /aandsE_cat [/he{}he].
-  move=> /aandsE_cat [hal hmem] w wv hewc.
-  have {}he := he _ hewc; rewrite /read he => /= topow w2.
-  move: hmem => /=; rewrite hewc /=; rewrite topow /=.
-  move=> [] /allP hread.
-  have hali : is_aligned_if al w sz.
-  + move: hal; rewrite /sc_is_aligned_if_m; case: al => //=.
-    rewrite /eis_aligned /eeqi /emodi /ewsize /eint_of_word /= hewc /= /sem_sop1 /= topow /= /sem_sop2 /=.
-    by move=> [] /Z.eqb_eq h; rewrite is_alignE p_to_zE; apply/eqP.
-  rewrite hali /=.
-  have : exists l, mapM (fun k : Z => get (emem s) (add w k)) (ziota 0 (wsize_size sz)) = ok l; last first.
-  + by move=> [l -> /=] [->] <-.
-  move: hread; elim: (ziota 0 (wsize_size sz)) => [|k ks hrec] hread /=; first by eauto.
-  have hk : is_ok (read (emem s) Unaligned (w + wrepr Uptr k)%w U8).
-  + by apply: hread; rewrite in_cons eqxx.
-  case/is_okP: hk => w8 hw8.
-  rewrite (get_read8 _ Unaligned) addE hw8 /=.
-  have [l ->] : exists l, mapM (fun k0 : Z => get (emem s) (add w k0)) ks = ok l.
-  + by apply: hrec => x hx; apply: hread; rewrite in_cons hx orbT.
-  by exists (w8 :: l).
+  have hget := sc_arr_get_subP htx hgvr hewc hsc.
+  by move: tcatch; rewrite hget /= => -[<-].
++ move=> al sz e he s v /aandsE_cat [/he{}he hsc] pt vpt hewc htop w wcatch <-.
+  have {}he := he _ hewc; rewrite he /= htop /=.
+  have hread := sc_mem_readP hewc htop hsc.
+  by move: wcatch; rewrite hread /= => -[<-].
 + move=> op e he s v /aandsE_cat [/he{}he] hop v1 hewc.
   have {}he := he _ hewc; rewrite he /= /sem_sop1.
   have {}hdef := sem_pexpr_defined hewc.
@@ -416,84 +472,36 @@ Proof. by case: ty vv; rewrite /DB /= orbT. Qed.
 Lemma compat_val_to_val ty (vv : sem_t ty) : compat_val ty (to_val vv).
 Proof. by case: ty vv => *; rewrite /compat_val /= eq_refl. Qed.
 
-Lemma all_get_read8 mem al wlo sz :
-  all (fun i : Z => is_ok (read mem al (wlo + wrepr Uptr i)%R U8)) (ziota 0 sz)
-  = all (fun i : Z => is_ok (get mem (wlo + wrepr Uptr i)%R)) (ziota 0 sz).
-Proof. by elim: ziota => [| k ks hrec] //=; rewrite -get_read8 hrec. Qed.
-
-Lemma set_allgetok ks mem mem2 q w wlo :
-  all (fun i => is_ok (get mem (wlo + wrepr Uptr i)%R)) ks ->
-  set mem q w = ok mem2 ->
-  all (fun i => is_ok (get mem2 (wlo + wrepr Uptr i)%R)) ks.
-Proof.
-  move=> + hset; elim: ks => [// | k ks hind].
-  move=> /andP [h1 h2] /=.
-  rewrite hind //= (setP _ hset).
-  by case: eqP => //; rewrite h1.
-Qed.
-
-(* [memory_model] exposes [get_valid8] and [valid8P] but not their composition. *)
-Lemma getok_setok (m : mem) r q w :
-  get m q = ok r -> exists m2, set m q w = ok m2.
-Proof. move=> hg; apply/valid8P; exact: get_valid8 hg. Qed.
-
 Lemma sc_lvalP l v s s2 :
   sem_eassert_wc gd s (aands (sc_lval l)) = ok true ->
   write_lval (wc:=withcatch) true gd l v s = ok s2 ->
   write_lval (wc:=nocatch) true gd l v s = ok s2.
 Proof using Pe Qe asm_op ep get_global_arr_init p sip spp syscall_state.
   case: l => [vi tynone | x | al sz x e | al aa sz x e | aa sz pos x e ] //=.
-  + t_xrbindP => /aandsE_cat [] /sc_pexprP he /aandsE_cat [hal hmem] wpt vpt hewc.
-    have {}he := he _ hewc.
-    rewrite he => /to_wordI [sz2 [w2 [? htr2]]]; subst vpt.
-    move=> w /to_wordI [sz3 [w3 [? htr3]]] me + ?; subst v s2.
-    rewrite /= htr2 htr3 /= /write.
-    have hali : is_aligned_if al wpt sz.
-    + move: hal; rewrite /sc_is_aligned_if_m; case: al => //=.
-      rewrite /eis_aligned /eeqi /emodi /ewsize /eint_of_word /= hewc /= /sem_sop1 /=
-              htr2 /= /sem_sop2 /=.
-      by move=> [] /Z.eqb_eq h; rewrite is_alignE p_to_zE; apply/eqP.
-    rewrite hali /=.
-    suff : [elaborate exists l,
-      foldM (fun (k : Z) (m : mem) => set m (add wpt k) (LE.wread8 w k))
-            (emem s) (ziota 0 (wsize_size sz)) = ok l].
-    + by move=> [l -> /=] [->].
-    move: hmem => /=; rewrite hewc /= htr2 /= => -[].
-    rewrite all_get_read8.
-    elim: ziota (emem s) => [| k ks hrec m2] /=; first by eauto.
-    move=> /andP [] /is_okP [gv okg] okgs.
-    have [fmem hset] := getok_setok (LE.wread8 w k) okg.
-    have {}okgs := set_allgetok okgs hset.
-    have {}hrec := hrec fmem okgs.
-    by rewrite hset /=.
-  + rewrite /sc_arr_set => /aandsE_cat [] /sc_pexprP he /aandsE_cat [hal hbound].
+  + t_xrbindP => /aandsE_cat [] /sc_pexprP he hsc wpt vpt hewc htop w htow me hcatch ?.
+    subst s2.
+    have {}he := he _ hewc; rewrite he /= htop /= htow /=.
+    have hw := sc_mem_writeP w hewc htop hsc.
+    by move: hcatch; rewrite hw /= => -[<-].
+  + move=> /aandsE_cat [] /sc_pexprP he hsc.
     rewrite /on_arr_var; t_xrbindP => v1 getx; rewrite getx /=.
-    case: v1 getx => //= len r; t_xrbindP => /get_varI htx z v2 hewc.
-    have {}he := he _ hewc.
-    rewrite he => /= /to_intI ?; subst v2 => w -> r2 + <- /=.
-    rewrite /WArray.set /write /=.
-    have -> /= := sc_is_aligned_ifP hewc hal.
-    move: hbound => /(sc_in_boundP_all r htx hewc) hbound.
-    have : exists l, foldM (fun (k : Z) (m : WArray.array len) =>
-             WArray.set8 m (add (z * mk_scale aa sz) k) (LE.wread8 w k))
-             r (ziota 0 (wsize_size sz)) = ok l; last first.
-    + by move=> [rf ->] /= [->].
-    elim: (ziota 0 (wsize_size sz)) r hbound => //=; eauto.
-    move=> j js hrec r /andP [h1 h2].
-    rewrite {2}/WArray.set8 WArray.addE h1 /=.
-    have [l -> /=] := hrec {| WArray.arr_data :=
-      Mz.set (WArray.arr_data r) (z * mk_scale aa sz + j) (LE.wread8 w j) |} h2.
-    by eauto.
-  move=> /aandsE_cat [] /sc_pexprP he hbound.
+    case: v1 getx => //= len r getx.
+    t_xrbindP => z v2 hewc.
+    move=> /to_intI ?; subst v2.
+    have {}he := he _ hewc; rewrite he /=.
+    have htx := get_varI getx.
+    move=> w htow; rewrite htow /=.
+    have hset := sc_arr_setP w htx getx hewc hsc.
+    by move=> r2; rewrite hset /= => -[<-].
+  move=> /aandsE_cat [] /sc_pexprP he hsc.
   rewrite /on_arr_var; t_xrbindP => v1 getx; rewrite getx /=.
-  case: v1 getx => //= len r; t_xrbindP => /get_varI htx z v2 hewc.
-  have {}he := he _ hewc.
-  rewrite he => /= /to_intI ?; subst v2 => w -> r2 + <- /=.
-  rewrite /WArray.set_sub /=.
-  have [//|] := sc_in_boundP htx hewc _ hbound (aa:=aa) (ilen:=arr_size sz pos).
-  move=> /ZleP -> /ZleP -> /=.
-  rewrite /write_var /set_var /= htx eq_refl => -[<-] /=.
-  by eauto.
+  case: v1 getx => //= len r getx.
+  t_xrbindP => z v2 hewc /to_intI ?; subst v2.
+  have {}he := he _ hewc; rewrite he /=.
+  have htx := get_varI getx.
+  move=> b htoarr; rewrite htoarr /=.
+  have hset := sc_arr_set_subP b htx getx hewc hsc.
+  by move=> r2; rewrite hset /= => -[<-].
 Qed.
 
 
@@ -583,7 +591,6 @@ Proof using Pe Qe asm_op ep get_global_arr_init p psc sip spp syscall_state.
   rewrite (sc_eassertP hsce hewc) /=.
   by move: hrec; case: (mapM _ l) => //= ys _.
 Qed.
-
 
 
 Lemma type_of_val_to_val v ty v2 :
