@@ -2016,8 +2016,9 @@ struct
           |> List.map (fun x -> ESasgn ([LvIdent [ec_vars env x]], ec_ident "witness"))
       in
       let ret =
-          let ec_var x = ec_vari env (L.unloc x) in
-          match ec_leak_ret env (List.map ec_var f.f_ret) with
+          let ret = List.map (fun x -> Pvar (gkvar x)) f.f_ret in
+          let ret = List.map (toec_cast env) (List.combine f.f_tyout ret) in
+          match ec_leak_ret env ret with
           | [x] -> ESreturn x
           | xs -> ESreturn (Etuple xs)
       in
