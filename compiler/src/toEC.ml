@@ -83,6 +83,13 @@ let gsign_of_annot annot =
 
 let ws2bytes ws = (int_of_ws ws) / 8
 
+module Ws = struct
+  type t = wsize
+  let compare = compare
+end
+
+module WsInt = Set.Make2(Ws)(BatInt)
+module Swi = WsInt.Product
 
 (* ------------------------------------------------------------------- *)
 (* Array theories in eclib *)
@@ -442,7 +449,7 @@ module type EnvT = sig
   val pd: t -> Wsize.wsize
   val msfsz: t -> Wsize.wsize
   val arch: t -> architecture
-  val randombytes: t -> int list
+  val randombytes: t -> (wsize * int) list
   val set_fun: t -> ('a, 'b) func -> t
   val add_Array: t -> int -> unit
   val add_WArray: t -> int -> unit
@@ -453,7 +460,7 @@ module type EnvT = sig
   val add_SubArrayDirect: t -> int -> int -> int -> unit
   val add_SubArrayCast: t -> int -> int -> int -> int -> unit
   val add_ArrayAccessCast: t -> int -> int -> int -> unit
-  val add_randombytes: t -> int -> unit
+  val add_randombytes: t -> wsize -> int -> unit
   val add_jarray: t -> Wsize.wsize -> int -> unit
   val empty: architecture -> Wsize.wsize -> Wsize.wsize -> Sarraytheory.t ref -> t
   val create_name: t -> string -> string
@@ -495,7 +502,7 @@ module Env: EnvT = struct
         *)
       auxv: string BatVect.t Mpty.t ref;
       mutable count: int Mpty.t;
-      randombytes: Sint.t ref;
+      randombytes: Swi.t ref;
     }
 
   let vars env = env.vars
@@ -506,7 +513,7 @@ module Env: EnvT = struct
 
   let arch env = env.arch
 
-  let randombytes env = Sint.elements !(env.randombytes)
+  let randombytes env = Swi.elements !(env.randombytes)
 
   let array_theories env = !(env.array_theories)
 
@@ -548,7 +555,7 @@ module Env: EnvT = struct
     add_ArrayWords env sizewb sizeb;
     env.array_theories := Sarraytheory.add (ArrayAccessCast {sizews; sizewb; sizeb}) !(env.array_theories)
 
-  let add_randombytes env n = env.randombytes := Sint.add n !(env.randombytes)
+  let add_randombytes env ws n = env.randombytes := Swi.add (ws, n) !(env.randombytes)
 
   let add_jarray env ws n =
     let ats = Sarraytheory.add (Array n) !(env.array_theories) in
@@ -583,7 +590,7 @@ module Env: EnvT = struct
       array_theories;
       auxv  = ref Mpty.empty;
       count = Mpty.empty;
-      randombytes = ref Sint.empty;
+      randombytes = ref Swi.empty;
     }
 
   let set_fun env fd =
@@ -1071,7 +1078,7 @@ let of_list_dfl env _ws n =
 (* Extraction of array operations *)
 
 module type EcArray = sig
-  val ec_darray8: Env.t -> int -> ec_expr
+  val ec_darray8: Env.t -> wsize -> int -> ec_expr
   val ec_cast_array: Env.t -> wsize * int -> wsize * int -> ec_expr -> ec_expr
   val toec_pget: Env.t -> Memory_model.aligned * Warray_.arr_access * wsize * var * ec_expr -> ec_expr
   val toec_psub: Env.t -> Warray_.arr_access * wsize * int * int ggvar * ec_expr -> ec_expr
@@ -1102,14 +1109,15 @@ module EcArrayOld : EcArray = struct
 
   let ec_initi_var env (x, n, ws) = ec_initi env (ec_vari env x, n, ws)
 
-  let ec_darray8 env n =
-    let wa = ec_WArray env n in
+  let ec_darray8 env ws n =
+    let wa = ec_WArray env (arr_size ws n) in
+    let geti = Format.sprintf "get%i" (int_of_ws ws) in
     let eto = Efun1 ("a", Eapp (Eident [ec_Array env n; "init"], [
-      Efun1 ("i", Eapp (Eident [wa; "get8"], [ec_ident "a"; ec_ident "i"]))
+      Efun1 ("i", Eapp (Eident [wa; geti], [ec_ident "a"; ec_ident "i"]))
       ])) in
     Eapp (
             ec_ident "dmap",
-            [Eident [ec_WArray env n; "darray"]; eto]
+            [Eident [wa; "darray"]; eto]
           )
 
   let ec_cast_array env (ws, n) (wse, ne) e =
@@ -1209,13 +1217,13 @@ module EcArrayOld : EcArray = struct
 end
 
 module EcWArray: EcArray = struct
-  let ec_darray8 env n =
-    Env.add_ArrayWords env 1 n;
-    let aw = fmt_array_theory (ArrayWords { sizew=1; sizea=n }) in
+  let ec_darray8 env ws n =
+    Env.add_ArrayWords env (ws2bytes ws) n;
+    let aw = fmt_array_theory (ArrayWords { sizew=ws2bytes ws; sizea=n }) in
     let eto = Eident [aw; "to_word_array"] in
     Eapp (
             ec_ident "dmap",
-            [Eident [ec_WArray env n; "darray"]; eto]
+            [Eident [ec_WArray env (arr_size ws n); "darray"]; eto]
           )
 
   let ec_cast_array env (ws, n) (wse, ne) e =
@@ -1322,8 +1330,8 @@ module EcWArray: EcArray = struct
 end
 
 module EcBArray : EcArray = struct
-  let ec_darray8 (env: Env.t) (sz:int) =
-    Eident [ec_BArray env sz; "darray"]
+  let ec_darray8 (env: Env.t) ws (n:int) =
+    Eident [ec_BArray env (arr_size ws n); "darray"]
 
   let ec_cast_array (_env:Env.t) (ws1, sz1) (ws2, sz2) e =
     assert (Prog.arr_size ws1 sz1 = Prog.arr_size ws2 sz2);
@@ -1908,9 +1916,9 @@ struct
   let ec_syscall env o =
     match o with
     | Syscall_t.RandomBytes (ws, n) ->
-      let n = arr_size ws (Conv.int_of_cz n) in
-      Env.add_randombytes env n;
-      Format.asprintf "%s.randombytes_%a" syscall_mod_arg pp_length n
+      let n = Conv.int_of_cz n in
+      Env.add_randombytes env ws n;
+      Format.asprintf "%s.randombytes_%a%s" syscall_mod_arg pp_length n (fmt_Wsz ws)
 
   let ec_opn pd msfsz asmOp o =
     let s = Format.asprintf "%a" (pp_opn pd msfsz asmOp) o in
@@ -2069,17 +2077,17 @@ struct
                      [Elist (List.map (w_of_z ws) (Array.to_list t))]))
 
   let ec_randombytes env =
-      let randombytes_decl a n =
-          let arr_ty = toec_ty env (Arr (U8, n)) in
+      let randombytes_decl a (ws, n) =
+          let arr_ty = toec_ty env (Arr (ws, n)) in
           {
-              fname = Format.asprintf "randombytes_%a" pp_length n;
+              fname = Format.asprintf "randombytes_%a%s" pp_length n (fmt_Wsz ws);
               args = [(a, arr_ty)];
               rtys = [arr_ty];
           }
       in
-      let randombytes_f n =
-        let dmap = EA.ec_darray8 env n in
-        { decl = randombytes_decl "a" n
+      let randombytes_f (ws, n) =
+        let dmap = EA.ec_darray8 env ws n in
+        { decl = randombytes_decl "a" (ws, n)
         ; locals = []
         ; stmt = [ESsample ([LvIdent ["a"]], dmap); ESreturn (ec_ident "a")]
         }
