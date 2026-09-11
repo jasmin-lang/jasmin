@@ -19,9 +19,9 @@ Import Utf8.
 (* -------------------------------------------------------------------- *)
 (* ** Unary operators                                                    *)
 
-(* Total counterpart of [sem_wiop1_typed]. Where the typed semantics fails
-   ([WIwint_of_int] and [WIneg] on an out-of-range result) the value is the one
-   of the corresponding operation on words, i.e. modular arithmetic. *)
+(* Total semantics of the [wint] unary operators. Where the partial semantics
+   fails ([WIwint_of_int] and [WIneg] on an out-of-range result) the value is
+   the one of the corresponding operation on words, i.e. modular arithmetic. *)
 Definition sem_wiop1_total (sign : signedness) (o: wiop1) :
   let t := type_of_wiop1 o in
   let t := (eval_atype t.1, eval_atype t.2) in
@@ -104,10 +104,10 @@ Definition sem_vshl (ve:velem) {ws:wsize} (v : word ws) (i: u128) :=
 Definition mk_sem_wicmp_total sign sz (o:Z -> Z -> bool) (w1 w2 : word sz) : bool :=
   o (int_of_word sign w1) (int_of_word sign w2).
 
-(* Total counterpart of [sem_wiop2_typed]. The arithmetic operations are the
-   corresponding operations on words (modular arithmetic), the shifts are the
-   word shifts and the divisions are the unguarded ones (division by zero is
-   zero). *)
+(* Total semantics of the [wint] binary operators. The arithmetic operations
+   are the corresponding operations on words (modular arithmetic), the shifts
+   are the word shifts and the divisions are the unguarded ones (division by
+   zero is zero). *)
 Definition sem_wiop2_total (sign : signedness) (sz : wsize) ( o : wiop2) :
   let t := type_of_wiop2 sz o in
   let t := (eval_atype t.1.1, eval_atype t.1.2, eval_atype t.2) in

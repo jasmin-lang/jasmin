@@ -206,7 +206,6 @@ lang/relational_logic.v
 lang/safety_common.v
 lang/sem_one_varmap.v
 lang/sem_op_total.v
-lang/sem_op_typed.v
 lang/sem_one_varmap_facts.v
 lang/sem_params.v
 lang/sem_type.v
@@ -214,6 +213,7 @@ lang/sha256.v
 lang/shift_kind.v
 lang/sopn_semi.v
 lang/op_semi.v
+lang/sem_op_typed.v
 lang/sopn.v
 lang/slh_ops.v
 lang/stack_zero_strategy.v

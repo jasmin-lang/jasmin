@@ -256,7 +256,7 @@ Proof using fv_correct.
     + by rewrite /= hseme0 hseme1 /=.
     rewrite /= /get_gvar /=; repeat t_get_var => //.
     case: op hcf hsemop {h} => //= -[] // => [||[]|[]|[]|[]] _ [<- ->] /(_ erefl);
-      rewrite /mk_sem_sop2 /sem_opN /= /sem_combine_flags /cf_xsem /NF_of_word /ZF_of_word /=
+      rewrite /sem_sop2_typed /mk_sem_op /sem_opN /= /sem_combine_flags /cf_xsem /NF_of_word /ZF_of_word /=
         1?wsub_wnot1
         1?nzcv_of_aluop_CF_sub
         1?wsigned_wsub_wnot1
@@ -306,7 +306,7 @@ Proof using fv_correct.
   apply: rbindP => _ /to_wordI' [ws00 [w00 [hcmp00 ? ->]]]; subst v00.
   apply: rbindP => _ /to_wordI' [ws01 [w01 [hcmp01 ? ->]]]; subst v01.
   move=> /ok_inj /Vword_inj [??] /ok_inj /Vword_inj [??]; subst ws0' ws1' w0 w1.
-  move: hsemop; rewrite /mk_sem_sop2 /= wrepr0 zero_extend0 => -[<-].
+  move: hsemop; rewrite /sem_sop2_typed /mk_sem_op /= wrepr0 zero_extend0 => -[<-].
   exists ws00, ws01, w00, w01; split=> //.
   + by apply (cmp_le_trans hcmp0 hcmp00).
   + by apply (cmp_le_trans hcmp0 hcmp01).
@@ -670,14 +670,14 @@ Proof.
   by rewrite /exec_sopn /= /sopn_sem ok_w' truncate_word_u /= !add_wordE opp_wordE GRing.add0r wnot1_wopp zero_extend_u.
 Qed.
 
-Lemma mk_sem_divmodP si ws op (w0 w1 : word ws) w :
-  mk_sem_divmod si op w0 w1 = ok w
+Lemma sem_sop2_divP si ws (w0 w1 : word ws) w :
+  sem_sop2_typed (Odiv si (Op_w ws)) w0 w1 = ok w
   -> [/\ (w1 <> 0%R)
        , si <> Signed \/ (wsigned w0 <> wmin_signed ws) \/ (w1 <> (-1)%R)
-       & w = op w0 w1
+       & w = signed wdiv wdivi si w0 w1
      ].
 Proof.
-  rewrite /mk_sem_divmod.
+  rewrite sem_sop2_typed_divE.
   case: ifPn => //; rewrite negb_or => /andP [] /eqP ? h [<-]; split => //.
   move: h; rewrite !negb_and => /or3P [] /eqP; auto.
 Qed.
@@ -884,10 +884,10 @@ Proof.
     all: move: hw1 => /to_wordI [ws1 [w1 [? /truncate_wordP [hws1 ?]]]];
            subst v1 w1'.
     all: match goal with
-         | [ hop : mk_sem_divmod _ _ _ _ = _ |- _ ] =>
-             move: hop => /mk_sem_divmodP [hdiv0 hdiv1 ?]; subst w2
+         | [ hop : sem_sop2_typed (Odiv _ _) _ _ = _ |- _ ] =>
+             move: hop => /sem_sop2_divP [hdiv0 hdiv1 ?]; subst w2
          end
-         || (move: hop => [?]; subst w2).
+         || (move: hop; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst w2).
     all: move: hw => /Vword_inj [?]; subst ws'.
     all: move=> /= ?; subst w.
 

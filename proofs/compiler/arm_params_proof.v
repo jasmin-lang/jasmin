@@ -522,7 +522,7 @@ Proof.
 
   move=> /sem_sop2I /= [b0 [b1 [b [hb0 hb1 hb ?]]]]; subst v.
   move: hb.
-  rewrite /mk_sem_sop2 /=.
+  rewrite /sem_sop2_typed /mk_sem_op /=.
   move=> [?]; subst b.
 
   have hincl0 := xgetflag_ex eqf hr0 hv0.
@@ -555,7 +555,7 @@ Proof.
   move=> /sem_sop2I /= [b0 [b1 [b [hb0 hb1 hb ?]]]]; subst v.
 
   move: hb.
-  rewrite /mk_sem_sop2 /=.
+  rewrite /sem_sop2_typed /mk_sem_op /=.
   move=> [?]; subst b.
 
   have hc0 := value_uincl_to_bool_value_of_bool hincl0 hb0 hv0'.
@@ -580,7 +580,7 @@ Proof.
   move=> /sem_sop2I /= [b0 [b1 [b [hb0 hb1 hb ?]]]]; subst v.
 
   move: hb.
-  rewrite /mk_sem_sop2 /=.
+  rewrite /sem_sop2_typed /mk_sem_op /=.
   move=> [?]; subst b.
 
   have hc0 := value_uincl_to_bool_value_of_bool hincl0 hb0 hv0'.

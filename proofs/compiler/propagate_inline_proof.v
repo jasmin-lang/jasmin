@@ -173,7 +173,7 @@ Proof.
   t_xrbindP=> vs0 v0 hv0 vs1 v1 hv1 vs2 v2 hv2 vs3 v3 hv3 ? ? ? ?;
     subst.
 
-  rewrite /sem_opN /=.
+  rewrite /sem_opN /sem_opN_typed /mk_sem_op /=.
   t_xrbindP=> b ? /to_boolI ?? /to_boolI ?? /to_boolI ?? /to_boolI ? hb ?;
     subst.
 

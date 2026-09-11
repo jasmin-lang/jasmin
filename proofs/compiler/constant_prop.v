@@ -283,7 +283,7 @@ Definition s_op2 o e1 e2 :=
   | _       => ssem_sop2 o e1 e2
   end.
 
-Definition app_sopn := app_sopn of_expr.
+Definition app_sopn := sem_type.app_sopn of_expr.
 
 Arguments app_sopn {A} ts _ _.
 
