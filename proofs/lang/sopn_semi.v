@@ -803,6 +803,9 @@ Fixpoint sem_prod_tuple_t (lt : seq ctype) : sem_prod lt (sem_tuple_t lt) :=
 
 Definition is_ErrType (e : error) : bool := if e is ErrType then true else false.
 
+Lemma is_ErrTypeE (e : error) : ~~ is_ErrType e -> e <> ErrType.
+Proof. by case: e. Qed.
+
 (* The safety check of an instruction: its conditions are the old
    [wsize.safe_cond], decided by [values.check_safe_cond]; if one of them
    fails, the instruction raises the error it declares. *)

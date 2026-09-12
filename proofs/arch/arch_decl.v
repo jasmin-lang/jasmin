@@ -426,10 +426,9 @@ Record instr_desc_t := {
   id_tout       : seq ltype;
   (* Description of output arguments. *)
   id_out        : seq arg_desc;
-  (* Semantics (only deals with values). *)
-  id_semi       : sem_lprod id_tin (exec (sem_ltuple id_tout));
-  (* Total semantics: the same values as [id_semi], but the boolean outputs
-     are plain booleans (no [None]) and no error can be raised. *)
+  (* Total semantics: no error can be raised and the boolean outputs are plain
+     booleans (no [None]); the semantics of the instruction is obtained from it
+     by [mk_semi], see [id_semi] below. *)
   id_semi_total : sem_lprod id_tin (sem_ltuple_t id_tout);
   (* Possible signatures for an instruction. *)
   id_args_kinds : i_args_kinds;
@@ -455,16 +454,24 @@ Record instr_desc_t := {
        output, and the error is not a type error *)
   id_wf         : [&& all (ac_ok (map eval_ltype id_tin)) id_init,
                       ssrnat.eqn (size id_init) (size id_tout) & ~~ is_ErrType id_err];
-    (* id_semi does not generates type error *)
-  id_semi_errty : id_valid -> sem_lforall (fun r => r <> Error ErrType) id_tin id_semi;
-    (* safety condition are sufficient to ensure that no error are raised *)
-  id_semi_safe  : id_valid -> interp_safe_cond_lty id_tin id_safe id_semi;
-    (* [id_semi] is the generic construction applied to [id_safe], [id_err],
-       [id_init] and [id_semi_total] *)
-  id_semi_eq    : id_valid ->
-                  sem_prod_eq (map eval_ltype id_tin) id_semi
-                    (mk_semi id_safe id_err id_init id_semi_total);
 }.
+
+(* Semantics of an instruction (only deals with values): the safety conditions
+   are checked on the arguments, then the total semantics is filtered by the
+   initialisation conditions, one per output. *)
+Definition id_semi (d : instr_desc_t) :
+    sem_lprod d.(id_tin) (exec (sem_ltuple d.(id_tout))) :=
+  mk_semi d.(id_safe) d.(id_err) d.(id_init) d.(id_semi_total).
+
+(* The semantics does not generate a type error. *)
+Lemma id_semi_errty (d : instr_desc_t) :
+  d.(id_valid) -> sem_lforall (fun r => r <> Error ErrType) d.(id_tin) (id_semi d).
+Proof. by move=> _; apply/mk_semi_errty/is_ErrTypeE; case/and3P: (id_wf d). Qed.
+
+(* The safety conditions are sufficient to ensure that no error is raised. *)
+Lemma id_semi_safe (d : instr_desc_t) :
+  d.(id_valid) -> interp_safe_cond_lty d.(id_tin) d.(id_safe) (id_semi d).
+Proof. by move=> _; apply: mk_semi_safe. Qed.
 
 (* -------------------------------------------------------------------- *)
 (* Architecture operand declaration. *)
@@ -657,40 +664,8 @@ Proof.
   by case: check_safe_old => //= _; rewrite extend_filter_tuple.
 Qed.
 
-Lemma extend_sem_errty tin tout ws (semi : sem_lprod tin (exec (sem_ltuple tout))) :
-  sem_lforall (fun r => r <> Error ErrType) tin semi ->
-  sem_lforall (fun r => r <> Error ErrType) tin (extend_sem ws semi).
-Proof.
-  rewrite /extend_sem; elim: tin semi => //=.
-  + by move=> [] //= ? h [h1]; apply h; rewrite h1.
-  move=> t ts hrec semi hsemi v; apply/hrec/hsemi.
-Qed.
-
-Lemma extend_sem_safe tin tout ws sc (semi : sem_lprod tin (exec (sem_ltuple tout))) :
-  values.interp_safe_cond_ty sc semi ->
-  values.interp_safe_cond_ty sc (extend_sem ws semi).
-Proof.
-  rewrite /values.interp_safe_cond_ty /extend_sem.
-  elim: tin semi (@nil values.value) => //= [ | t ts hrec] semi vs.
-  + by move=> h /h [t] -> /=; eauto.
-  move=> h v; apply/hrec/h.
-Qed.
-
-Lemma instr_desc_aux4 tin tout ws safe err init
-    (semi : sem_lprod tin (exec (sem_ltuple tout))) (f : sem_lprod tin (sem_ltuple_t tout)) :
-  sem_prod_eq (map eval_ltype tin) semi (mk_semi safe err init f) ->
-  sem_prod_eq (map eval_ltype tin) (extend_sem ws semi)
-    (mk_semi safe err init (extend_sem_t ws f)).
-Proof.
-  move=> h; apply: sem_prod_eq_trans; last by apply: mk_semi_extend.
-  by apply: apply_lprod_eq h.
-Qed.
-
 Definition can_zeroextend (d:instr_desc_t) :=
   (d.(id_msb_flag) == MSB_CLEAR).
-
-Lemma and_proj1 (a b : bool) : a && b -> a.
-Proof. by move=> /andP []. Qed.
 
 Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
   let (ws, o) := o in
@@ -707,7 +682,6 @@ Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
        id_in         := d.(id_in);
        id_tout       := tout;
        id_out        := d.(id_out);
-       id_semi       := extend_sem ws d.(id_semi);
        (* [extend_size] does not change the boolean outputs, hence the
           initialisation conditions are unchanged *)
        id_semi_total := extend_sem_t ws d.(id_semi_total);
@@ -723,12 +697,17 @@ Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
        id_pp_asm     := d.(id_pp_asm);
        id_safe_wf    := d.(id_safe_wf);
        id_wf         := instr_desc_aux3 ws d.(id_wf);
-       id_semi_errty := fun h => extend_sem_errty ws (d.(id_semi_errty) (and_proj1 h));
-       id_semi_safe  := fun h => extend_sem_safe ws (d.(id_semi_safe) (and_proj1 h));
-       id_semi_eq    := fun h => instr_desc_aux4 ws (d.(id_semi_eq) (and_proj1 h));
     |}
   else
     d.
+
+(* The semantics of the extended instruction is the extension of the
+   semantics. *)
+Lemma instr_desc_semi ws o :
+  sem_prod_eq (map eval_ltype (instr_desc_op o).(id_tin))
+    (id_semi (instr_desc (Some ws, o)))
+    (extend_sem ws (id_semi (instr_desc_op o))).
+Proof. by apply/sem_prod_eq_sym/mk_semi_extend. Qed.
 
 (* -------------------------------------------------------------------- *)
 (* Assembly language. *)
