@@ -212,6 +212,8 @@ lang/sem_params.v
 lang/sem_type.v
 lang/sha256.v
 lang/shift_kind.v
+lang/sopn_semi.v
+lang/op_semi.v
 lang/sopn.v
 lang/slh_ops.v
 lang/stack_zero_strategy.v
