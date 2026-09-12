@@ -114,6 +114,10 @@ type safe_cond =
 
   | GeneralCond of eassert (* Without Pand *)
 
+  | Guarded of expr * safe_cond
+    (* [Guarded (g, c)]: [c] is required only in the states where the boolean
+       expression [g] holds (conditional execution). *)
+
 let notZero(ws, e) = NotEqual(Op_w ws, e, pcast ws (Pconst (Z.of_int 0)))
 
 let severe_violation =
@@ -146,7 +150,7 @@ let pp_arr_slice fmt slice =
     pp_arr_slice pp_var pp_expr pp_len fmt slice.as_access ws slice.as_arr
       slice.as_offset slice.as_len
 
-let pp_safety_cond fmt = function
+let rec pp_safety_cond fmt = function
   | Initv x -> Format.fprintf fmt "is_init %a" pp_var x
   | Initai (slice) ->
     Format.fprintf fmt "is_init %a"
@@ -169,6 +173,8 @@ let pp_safety_cond fmt = function
   | Termination b -> Format.fprintf fmt "termination%s" (if b then "" else " has not been checked")
 
   | GeneralCond e -> Format.fprintf fmt "%a" (Printer.pp_eassert ~debug:false) e
+
+  | Guarded (g, c) -> Format.fprintf fmt "%a ⇒ %a" pp_expr g pp_safety_cond c
 
 type violation_loc =
   | InProg of Prog.L.i_loc
@@ -406,7 +412,7 @@ let safe_opn pd asmOp safe opn es =
       asmOp
       opn
   in
-  List.flatten (List.map (fun c ->
+  let rec conds c =
       match c with
       | Wsize.X86Division(sz, sg) ->
          let n, d = split_div sg sz es in
@@ -459,8 +465,17 @@ let safe_opn pd asmOp safe opn es =
 
       | ScFalse ->
          [InRange(Pconst Z.zero, Pconst Z.zero, Pconst Z.one)] (* 1 ∈ [0; 0] *)
-    )
-     id.i_safe) @ safe
+
+      | IsZero (sz, n) ->
+        let n = List.nth es (Conv.int_of_nat n) in
+        let n = Papp1 (E.uint_of_word sz, n) in
+        [ InRange(Pconst Z.zero, Pconst Z.zero, n) ] (* n ∈ [0; 0] *)
+
+      | Wsize.Guarded (g, c) ->
+        let g = List.nth es (Conv.int_of_nat g) in
+        List.map (fun c -> Guarded (g, c)) (conds c)
+  in
+  List.flatten (List.map conds id.i_safe) @ safe
 
 let rec safe_eassert cs e =
     match e with
@@ -705,7 +720,7 @@ end = struct
 
   (*-------------------------------------------------------------------------*)
   (* Checks that all safety conditions hold, except for valid memory access. *)
-  let is_safe state = function
+  let rec is_safe state = function
     | Initv v -> begin match mvar_of_scoped_var Expr.Slocal v with
         | Mlocal at -> AbsDom.check_init state.abs at
         | _ -> assert false end
@@ -787,6 +802,16 @@ end = struct
          | Some nc ->
              AbsDom.is_bottom (AbsDom.meet_btcons state.abs nc)
        end
+
+    | Guarded (g, c) ->
+      (* [c] is checked in the states where the guard holds: the abstract
+         state is restricted by [g] as for the [then] branch of an [if]. *)
+      begin match AbsExpr.bexpr_to_btcons g state.abs with
+        | None -> is_safe state c
+        | Some gc ->
+          let abs = AbsDom.meet_btcons state.abs gc in
+          AbsDom.is_bottom abs || is_safe { state with abs } c
+      end
 
     (* These are checked elsewhere *)
     | AlignedPtr _ | AlignedExpr _ | Valid _ | Termination _ -> true
