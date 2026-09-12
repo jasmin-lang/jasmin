@@ -8,7 +8,13 @@
    [mk_sem_op] assembles them into the usual [sem_prod tin (exec (sem_t tout))].
 
    The conditions of the operators themselves are in [op_semi.v]; this file
-   only defines the language of conditions and the generic construction. *)
+   only defines the language of conditions and the generic construction.
+
+   An instruction is described the same way, by [mk_semi], with two
+   differences: it has several outputs, some of which may be left undefined
+   (one condition of [seq acond] per output says when an output is defined),
+   and its safety conditions are the ones of [wsize.safe_cond], decided by
+   [values.check_safe_cond]. *)
 
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
@@ -433,6 +439,7 @@ Qed.
 Definition sc_toint sg ws k    := IOp1 (Oint_of_word sg ws) (IVar k).
 Definition sc_not c            := IOp1 Onot c.
 Definition sc_and c1 c2        := IOp2 Oand c1 c2.
+Definition sc_or c1 c2         := IOp2 Oor c1 c2.
 Definition sc_eqi c1 c2        := IOp2 (Oeq Op_int) c1 c2.
 Definition sc_neqi c1 c2       := IOp2 (Oneq Op_int) c1 c2.
 Definition sc_lei c1 c2        := IOp2 (Ole Cmp_int) c1 c2.
@@ -707,3 +714,385 @@ Lemma mk_sem_op_reduces_example :
     (@mk_sem_op [:: cint; cint] cint [::] ErrArith (fun v1 v2 => (v1 + v2)%Z))
     (sem_prod_ok [:: cint; cint] (fun v1 v2 => (v1 + v2)%Z)).
 Proof. by move=> v1 v2. Qed.
+
+(* -------------------------------------------------------------------- *)
+(* ** Total tuples and filtering                                         *)
+
+(* Like [sem_tuple], but boolean components are [bool] instead of
+   [option bool]: the result of a total semantics. *)
+Definition sem_tuple_t (ts : seq ctype) := ltuple (map sem_t ts).
+
+(* A boolean component is kept when the mask says so, every other component is
+   left untouched. *)
+Definition filter_ot (b : bool) (t : ctype) : sem_t t -> sem_ot t :=
+  if t is cbool then (fun x => if b then Some x else None) else id.
+
+(* A component whose condition holds is the value itself. *)
+Lemma filter_ot_true t (x : sem_t t) : filter_ot true x = sem_prod_id x.
+Proof. by case: t x. Qed.
+
+Fixpoint filter_tuple (ts : seq ctype) (mask : seq bool) : sem_tuple_t ts -> sem_tuple ts :=
+  match ts return sem_tuple_t ts -> sem_tuple ts with
+  | [::] => fun _ => tt
+  | t :: ts =>
+    let rec := @filter_tuple ts (behead mask) in
+    match ts return (sem_tuple_t ts -> sem_tuple ts) ->
+                    sem_tuple_t (t :: ts) -> sem_tuple (t :: ts) with
+    | [::] => fun _ (x : sem_t t) => filter_ot (head false mask) x
+    | t1 :: ts' => fun rec (p : sem_t t * sem_tuple_t (t1 :: ts')) =>
+        (filter_ot (head false mask) p.1, rec p.2)
+    end rec
+  end.
+Arguments filter_tuple : clear implicits.
+
+(* A default total tuple, for the operators that have no semantics. *)
+Definition dflt_t (t : ctype) : sem_t t :=
+  match t return sem_t t with
+  | cbool => false
+  | cint => 0%Z
+  | carr n => WArray.empty n
+  | cword ws => 0%R
+  end.
+
+Fixpoint dflt_tuple (ts : seq ctype) : sem_tuple_t ts :=
+  match ts return sem_tuple_t ts with
+  | [::] => tt
+  | t :: ts =>
+    match ts return sem_tuple_t ts -> sem_tuple_t (t :: ts) with
+    | [::] => fun _ => dflt_t t
+    | t1 :: ts' => fun r => (dflt_t t, r)
+    end (dflt_tuple ts)
+  end.
+
+(* [defined_as b v] : [v] is defined exactly when [b] holds, for a boolean
+   component; a component of any other type is always defined. *)
+Definition defined_as (b : bool) (v : value) : Prop :=
+  if type_of_val v is cbool then is_defined v = b else is_defined v.
+
+Lemma defined_as_filter_ot b t (x : sem_t t) : defined_as b (oto_val (filter_ot b x)).
+Proof. by rewrite /defined_as; case: t x => //= x; case: b. Qed.
+
+Lemma filter_tuple_defined ts mask (t : sem_tuple_t ts) :
+  size mask = size ts ->
+  List.Forall2 defined_as mask (list_ltuple (filter_tuple ts mask t)).
+Proof.
+elim: ts mask t => /= [ | ty1 [ | ty2 ts] ih] mask t.
++ by case: mask => //= _; constructor.
++ by case: mask => [ | b [ | ??]] //= _; constructor => //; apply: defined_as_filter_ot.
+case: mask => [ | b mask] //= [] hsize; case: t => x xs /=.
+by constructor; [apply: defined_as_filter_ot | apply: ih].
+Qed.
+
+Lemma filter_add_tuple (t : ctype) (lt : seq ctype) (b : bool) (mask : seq bool)
+   (v : sem_t t) (xs : sem_tuple_t lt) :
+  filter_tuple (t :: lt) (b :: mask) (add_tuple v xs)
+  = add_tuple (filter_ot b v) (filter_tuple lt mask xs).
+Proof. by case: lt xs => [ | t1 lt] xs //=; case: xs. Qed.
+
+(* Total counterpart of [sem_prod_tuple]: the identity on a tuple of
+   arguments, without wrapping the booleans in [Some]. *)
+Fixpoint sem_prod_tuple_t (lt : seq ctype) : sem_prod lt (sem_tuple_t lt) :=
+  match lt return sem_prod lt (sem_tuple_t lt) with
+  | [::] => tt
+  | t :: lt' =>
+      fun v => sem_prod_app (sem_prod_tuple_t lt') (fun xs => add_tuple v xs)
+  end.
+
+(* -------------------------------------------------------------------- *)
+(* ** The construction for the instructions                              *)
+
+Definition is_ErrType (e : error) : bool := if e is ErrType then true else false.
+
+(* The safety check of an instruction: its conditions are the old
+   [wsize.safe_cond], decided by [values.check_safe_cond]; if one of them
+   fails, the instruction raises the error it declares. *)
+Definition check_safe_old (vs : values) (safe : seq safe_cond) (err : error) : exec unit :=
+  if all (check_safe_cond vs) safe then ok tt else Error err.
+
+Lemma check_safe_old_ok vs safe err :
+  all (check_safe_cond vs) safe -> check_safe_old vs safe err = ok tt.
+Proof. by rewrite /check_safe_old => ->. Qed.
+
+Lemma check_safe_old_okE vs safe err u :
+  check_safe_old vs safe err = ok u -> all (check_safe_cond vs) safe.
+Proof. by rewrite /check_safe_old; case: ifP. Qed.
+
+Lemma all_check_safe_cond vs safe :
+  List.Forall (interp_safe_cond vs) safe -> all (check_safe_cond vs) safe.
+Proof. by elim => //= sc l hsc _ ih; apply/andP; split => //; apply/check_safe_condP. Qed.
+
+(* The semantics of an instruction: the safety conditions are checked on the
+   arguments, then the total semantics is filtered by the initialisation
+   conditions, one per output. *)
+Definition mk_semi (tin tout : seq ctype) (safe : seq safe_cond) (err : error)
+    (init : seq acond)
+    (f : sem_prod tin (sem_tuple_t tout)) : sem_prod tin (exec (sem_tuple tout)) :=
+  mk_semi_aux
+    (fun vs t => Let _ := check_safe_old vs safe err in
+                 ok (filter_tuple tout (map (acond_b vs) init) t))
+    [::] tin f.
+Arguments mk_semi {tin tout} safe err init f : assert.
+
+(* -------------------------------------------------------------------- *)
+(* ** Generic properties of [mk_semi]                                    *)
+
+(* [mk_semi] never raises a type error, as long as the declared error is not
+   one. *)
+Lemma mk_semi_errty tin tout safe err init f :
+  err <> ErrType ->
+  sem_forall (fun r => r <> Error ErrType) tin (@mk_semi tin tout safe err init f).
+Proof.
+move=> herr; apply: mk_semi_aux_errty => vs t.
+by rewrite /check_safe_old; case: ifP => //= _ [].
+Qed.
+
+(* If the safety conditions hold, [mk_semi] succeeds. *)
+Lemma mk_semi_safe tin tout safe err init f :
+  values.interp_safe_cond_ty (tin := tin) safe (@mk_semi tin tout safe err init f).
+Proof.
+apply: mk_semi_aux_safe => vs t hall.
+rewrite (check_safe_old_ok err (all_check_safe_cond hall)) /=.
+by eexists; reflexivity.
+Qed.
+
+(* Complete description of a successful application of [mk_semi]. *)
+Lemma mk_semiP tin tout safe err init f vs r :
+  app_sopn tin (@mk_semi tin tout safe err init f) vs = ok r ->
+  exists2 vs', mapM2 ErrType truncate_val tin vs = ok vs' &
+    exists2 t, app_sopn tin (sem_prod_ok tin f) vs = ok t &
+      all (check_safe_cond vs') safe /\
+      r = filter_tuple tout (map (acond_b vs') init) t.
+Proof.
+rewrite /mk_semi => h; case: (mk_semi_auxP h) => vs' h1 [t h2]; rewrite cat0s.
+case hu: (check_safe_old vs' safe err) => [u|e] //= [<-].
+by exists vs' => //; exists t => //; split => //; apply: check_safe_old_okE hu.
+Qed.
+
+(* Conversely, success implies that the safety conditions hold on the
+   truncated arguments. *)
+Lemma mk_semi_safe_rev tin tout safe err init f vs r :
+  app_sopn tin (@mk_semi tin tout safe err init f) vs = ok r ->
+  exists2 vs', mapM2 ErrType truncate_val tin vs = ok vs' & all (check_safe_cond vs') safe.
+Proof. by move=> h; case: (mk_semiP h) => vs' h1 [t _ [h3 _]]; exists vs'. Qed.
+
+Lemma Forall2_map_l A B C (f : A -> B) (R : B -> C -> Prop) l1 l2 :
+  List.Forall2 R (map f l1) l2 -> List.Forall2 (fun a c => R (f a) c) l1 l2.
+Proof.
+elim: l1 l2 => /= [ | a l1 ih] l2 /List_Forall2_inv_l; first by move=> ->.
+by move=> [c [l2' [-> [hr /ih h]]]]; constructor.
+Qed.
+
+(* An output is defined exactly when its condition, evaluated on the truncated
+   arguments, holds. *)
+Lemma mk_semi_init tin tout safe err init f vs r :
+  size init = size tout ->
+  app_sopn tin (@mk_semi tin tout safe err init f) vs = ok r ->
+  exists2 vs', mapM2 ErrType truncate_val tin vs = ok vs' &
+    List.Forall2 (fun c v => defined_as (acond_b vs' c) v) init (list_ltuple r).
+Proof.
+move=> hsize h; case: (mk_semiP h) => vs' h1 [t _ [_ ->]].
+exists vs' => //; apply: Forall2_map_l.
+by apply: filter_tuple_defined; rewrite size_map.
+Qed.
+
+Lemma mk_semi_aux_ok {T T'} (P : values -> T -> exec T') (g : T -> T') vs tin
+    (f : sem_prod tin T) :
+  (forall vs t, P vs t = ok (g t)) ->
+  sem_prod_eq tin (mk_semi_aux P vs tin f) (sem_prod_ok tin (sem_prod_app f g)).
+Proof.
+move=> h; elim: tin vs f => /= [vs f | t tin ih vs f v].
++ by apply: h.
+by apply: ih.
+Qed.
+
+(* Same, when the post-treatment is only known on the arguments prefixed by
+   [vs1]. *)
+Lemma mk_semi_aux_ok_cat {T T'} (P : values -> T -> exec T') (g : T -> T') vs1
+    (tin : seq ctype) (f : sem_prod tin T) :
+  (forall vs2 t, P (vs1 ++ vs2) t = ok (g t)) ->
+  sem_prod_eq tin (mk_semi_aux P vs1 tin f) (sem_prod_ok tin (sem_prod_app f g)).
+Proof.
+elim: tin vs1 f => /= [vs1 f h | t tin ih vs1 f h v].
++ by have := h [::] f; rewrite cats0.
+by apply: ih => vs2 t2; rewrite cat_rcons h.
+Qed.
+
+(* Same, when the total semantics is a constant. *)
+Lemma mk_semi_aux_const {T T'} (P : values -> T -> exec T') vs1
+    (tin : seq ctype) (t0 : T) (r : exec T') :
+  (forall vs2, P (vs1 ++ vs2) t0 = r) ->
+  sem_prod_eq tin (mk_semi_aux P vs1 tin (sem_prod_const tin t0)) (sem_prod_const tin r).
+Proof.
+elim: tin vs1 => /= [vs1 h | t tin ih vs1 h v].
++ by have := h [::]; rewrite cats0.
+by apply: ih => vs2; rewrite cat_rcons h.
+Qed.
+
+Lemma sem_prod_ok_app {A} (lt : seq ctype) (X : sem_prod lt A) :
+  sem_prod_eq lt (sem_prod_ok lt X) (sem_prod_app X (fun a : A => ok a)).
+Proof. by elim: lt X => //= t lt ih X v. Qed.
+
+Lemma sem_prod_app_comp {A B C} (lt : seq ctype) (f : sem_prod lt A)
+    (g : A -> B) (h : B -> C) :
+  sem_prod_eq lt (sem_prod_app (sem_prod_app f g) h) (sem_prod_app f (fun x => h (g x))).
+Proof. by elim: lt f => //= t lt ih f v. Qed.
+
+Lemma sem_prod_const_app {A B} (lt : seq ctype) (r : A) (c : A -> B) :
+  sem_prod_eq lt (sem_prod_app (sem_prod_const lt r) c) (sem_prod_const lt (c r)).
+Proof. by elim: lt => //= t lt ih v. Qed.
+
+(* Building a tuple out of the arguments and filtering it with an all-true
+   mask is building the tuple of the semantics. *)
+Lemma sem_prod_tuple_filter {A} (lt : seq ctype) (mask : seq bool)
+      (K : sem_tuple lt -> A) (K' : sem_tuple_t lt -> A) :
+  all id mask -> size mask = size lt ->
+  (forall t, K' t = K (filter_tuple lt mask t)) ->
+  sem_prod_eq lt (sem_prod_app (sem_prod_tuple_t lt) K') (sem_prod_app (sem_prod_tuple lt) K).
+Proof.
+elim: lt mask K K'.
++ by move=> mask K K' _ _ h /=; rewrite h.
+move=> t lt ih [ | b mask] // K K' /andP [hb hall] [hsz] h v /=.
+apply: sem_prod_eq_trans; first by apply: sem_prod_app_comp.
+apply: sem_prod_eq_trans; last by apply: sem_prod_eq_sym; apply: sem_prod_app_comp.
+apply: (ih mask _ _ hall hsz) => t2.
+by rewrite h filter_add_tuple hb filter_ot_true.
+Qed.
+
+Lemma map_const_seq {A B : Type} (s : seq A) (c : B) :
+  map (fun _ => c) s = nseq (size s) c.
+Proof. by elim: s => //= x s ->. Qed.
+
+(* No safety condition and every output defined: [mk_semi] is the total
+   semantics, with [Some] added on the boolean components. *)
+Lemma mk_semi_all_true tin tout err f :
+  sem_prod_eq tin (@mk_semi tin tout [::] err (nseq (size tout) (IBool true)) f)
+                  (sem_prod_ok tin (sem_prod_app f (filter_tuple tout (nseq (size tout) true)))).
+Proof. by apply: mk_semi_aux_ok => vs t; rewrite /= map_nseq. Qed.
+
+(* [mk_semi] reduces on a concrete signature: this is what makes the
+   instruction-by-instruction equality proofs provable by [reflexivity]. *)
+Lemma mk_semi_reduces_example :
+  sem_prod_eq [:: cword U64; cword U8]
+    (sem_prod_ok [:: cword U64; cword U8]
+       (fun (v : word U64) (i : word U8) =>
+          ((Some (msb v), v) : sem_tuple [:: cbool; cword U64])))
+    (@mk_semi [:: cword U64; cword U8] [:: cbool; cword U64] [::] ErrArith
+       [:: IBool true; IBool true]
+       (fun (v : word U64) (i : word U8) => (msb v, v))).
+Proof. by move=> v i. Qed.
+
+(* -------------------------------------------------------------------- *)
+(* ** Guarded conditions                                                 *)
+
+(* The initialisation condition of a conditional instruction: the output keeps
+   its previous value when the guard (the argument [g]) is false, so it is
+   defined in that case too. *)
+Definition cond_init (g : nat) (c : acond) : acond := sc_or (sc_not (IVar g)) c.
+
+Lemma ac_wt_cond_init tin tin' c :
+  ac_wt tin c -> ac_wt (tin ++ cbool :: tin') (cond_init (size tin) c).
+Proof.
+rewrite /ac_wt /cond_init /sc_or /sc_not /= => /eqP /ac_type_cat -> /=.
+rewrite size_cat /= nth_cat ltnn subnn /=.
+by have -> : (size tin < size tin + (size tin').+1)%nat by rewrite -addn1 leq_add2l.
+Qed.
+
+Lemma ac_total_cond_init g c : ac_total c -> ac_total (cond_init g c).
+Proof. by move=> h; rewrite /cond_init /= h. Qed.
+
+Lemma ac_ok_cond_init tin tin' c :
+  ac_ok tin c -> ac_ok (tin ++ cbool :: tin') (cond_init (size tin) c).
+Proof. by move=> /andP [h1 h2]; rewrite /ac_ok ac_wt_cond_init // ac_total_cond_init. Qed.
+
+Lemma acond_b_cond_init (vs0 vs2 : values) (b : bool) (c : acond) (bb : bool) :
+  ac_below (size vs0) c ->
+  interp_acond vs0 c = ok (Vbool bb) ->
+  acond_b (vs0 ++ Vbool b :: vs2) (cond_init (size vs0) c) = (~~ b) || bb.
+Proof.
+move=> hb hev; rewrite /acond_b /cond_init /sc_or /sc_not /=.
+rewrite nth_cat ltnn subnn /=.
+by rewrite (interp_acond_cat (Vbool b :: vs2) hb) hev /=.
+Qed.
+
+Lemma cond_init_val (ts : seq ctype) (vs0 vs2 : values) (b : bool) (c : acond) :
+  List.Forall2 (fun t v => exists x : sem_t t, v = to_val x) ts vs0 ->
+  ac_total c -> ac_wt ts c ->
+  acond_b (vs0 ++ Vbool b :: vs2) (cond_init (size ts) c) = (~~ b) || acond_b vs0 c.
+Proof.
+move=> hall htot hwt.
+have hsz : size ts = size vs0 by apply: Forall2_size hall.
+have [x hx] := ac_type_ok hall htot (eqP hwt).
+have hbelow : ac_below (size vs0) c.
++ by rewrite -hsz; apply: (ac_type_below (eqP hwt)).
+have -> : acond_b vs0 c = x by rewrite /acond_b hx.
+by rewrite hsz; apply: (@acond_b_cond_init vs0 vs2 b c x hbelow hx).
+Qed.
+
+(* The mask seen by the generic construction under a guard: everything is
+   defined when the guard is false, and the original mask otherwise. *)
+Lemma cond_init_mask (ts : seq ctype) (vs0 : values) (init : seq acond) (b : bool)
+    (vs2 : values) (n : nat) :
+  List.Forall2 (fun t v => exists x : sem_t t, v = to_val x) ts vs0 ->
+  all ac_total init -> all (ac_wt ts) init ->
+  size init = n ->
+  map (acond_b (rcons vs0 (Vbool b) ++ vs2)) (map (cond_init (size ts)) init)
+  = (if b then map (acond_b vs0) init else nseq n true).
+Proof.
+move=> hall htot hwt hsz.
+rewrite cat_rcons -map_comp.
+have hpt : forall c, c \in init ->
+    (acond_b (vs0 ++ Vbool b :: vs2) \o cond_init (size ts)) c
+    = (~~ b) || acond_b vs0 c.
++ by move=> c hc; apply: (cond_init_val _ _ hall (allP htot _ hc) (allP hwt _ hc)).
+case: b hpt => hpt.
++ by apply/eq_in_map => c hc; rewrite hpt.
+by rewrite -hsz -map_const_seq; apply/eq_in_map => c hc; rewrite hpt.
+Qed.
+
+(* The safety conditions of a conditional instruction are the [Guarded] ones;
+   under a false guard they all hold. *)
+Lemma check_safe_cond_cat vs1 vs2 sc :
+  ssrnat.leq (sc_needed_args sc) (size vs1) ->
+  check_safe_cond (vs1 ++ vs2) sc = check_safe_cond vs1 sc.
+Proof.
+move=> h; apply/idP/idP => /check_safe_condP hc; apply/check_safe_condP.
++ by apply/(@interp_safe_cond_cat vs1 vs2 sc h).
+by apply/(@interp_safe_cond_cat vs1 vs2 sc h).
+Qed.
+
+Lemma check_safe_cond_guarded (vs0 vs2 : values) (b : bool) (sc : safe_cond) :
+  ssrnat.leq (sc_needed_args sc) (size vs0) ->
+  check_safe_cond (vs0 ++ Vbool b :: vs2) (Guarded (size vs0) sc)
+  = (~~ b) || check_safe_cond vs0 sc.
+Proof.
+move=> h; rewrite /= nth_cat ltnn subnn /=.
+by case: b => //=; rewrite check_safe_cond_cat.
+Qed.
+
+Lemma check_safe_cond_all_guarded (n : nat) (vs0 vs2 : values) (safe : seq safe_cond)
+    (b : bool) :
+  size vs0 = n ->
+  all (fun sc => ssrnat.leq (sc_needed_args sc) n) safe ->
+  all (check_safe_cond (rcons vs0 (Vbool b) ++ vs2)) (map (Guarded n) safe)
+  = (if b then all (check_safe_cond vs0) safe else true).
+Proof.
+move=> hsz; rewrite cat_rcons -hsz.
+elim: safe => [ | sc safe ih] /=.
++ by case: b.
+move=> /andP [h1 h2]; rewrite nth_cat ltnn subnn /= (ih h2).
+by case: b {ih} => //=; rewrite check_safe_cond_cat.
+Qed.
+
+Lemma sc_needed_args_guarded n sc :
+  ssrnat.leq (sc_needed_args sc) n ->
+  ssrnat.leq (sc_needed_args (Guarded n sc)) (S n).
+Proof.
+by move=> h; rewrite /= ssrnat.geq_max ssrnat.leqnn /=; apply: (ssrnat.leq_trans h).
+Qed.
+
+Lemma all_sc_needed_args_guarded n safe :
+  all (fun sc => ssrnat.leq (sc_needed_args sc) n) safe ->
+  all (fun sc => ssrnat.leq (sc_needed_args sc) (S n)) (map (Guarded n) safe).
+Proof.
+by move=> h; rewrite all_map; apply: sub_all h => sc; apply: sc_needed_args_guarded.
+Qed.
