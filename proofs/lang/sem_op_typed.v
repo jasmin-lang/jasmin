@@ -1,8 +1,8 @@
 (* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype div ssralg.
+From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype div ssralg.
 From mathcomp Require Import word_ssrZ.
-Require Export type expr sem_type.
-Require Export flag_combination.
+Require Export type operators sem_type.
+Require Export flag_combination sem_op_total.
 Import Utf8.
 
 Definition mk_sem_sop1 (t1 t2 : Type) (o:t1 -> t2) v1 : exec t2 :=
@@ -43,36 +43,6 @@ Definition sem_sop1_typed (o : sop1) :
   end.
 
 Arguments sem_sop1_typed : clear implicits.
-
-Definition zlsl (x i : Z) : Z :=
-  if (0 <=? i)%Z then (x * 2^i)%Z
-  else (x / 2^(-i))%Z.
-
-Definition zasr (x i : Z) : Z :=
-  zlsl x (-i).
-
-Definition sem_shift (shift:forall {s}, word s -> Z -> word s) s (v:word s) (i:u8) :=
-  let i :=  wunsigned i in
-  shift v i.
-
-Definition sem_shr {s} := @sem_shift (@wshr) s.
-Definition sem_sar {s} := @sem_shift (@wsar) s.
-Definition sem_shl {s} := @sem_shift (@wshl) s.
-Definition sem_ror {s} := @sem_shift (@wror) s.
-Definition sem_rol {s} := @sem_shift (@wrol) s.
-
-Definition sem_vadd (ve:velem) {ws:wsize} := (lift2_vec ve +%w ws).
-Definition sem_vsub (ve:velem) {ws:wsize} := (lift2_vec ve (fun x y => x - y)%w ws).
-Definition sem_vmul (ve:velem) {ws:wsize} := (lift2_vec ve *%w ws).
-
-Definition sem_vshr (ve:velem) {ws:wsize} (v : word ws) (i: u128) :=
-  lift1_vec ve (fun x => wshr x (wunsigned i)) ws v.
-
-Definition sem_vsar (ve:velem) {ws:wsize} (v : word ws) (i: u128) :=
-  lift1_vec ve (fun x => wsar x (wunsigned i)) ws v.
-
-Definition sem_vshl (ve:velem) {ws:wsize} (v : word ws) (i: u128) :=
-  lift1_vec ve (fun x => wshl x (wunsigned i)) ws v.
 
 Definition mk_sem_divmod (si: signedness) sz o (w1 w2: word sz) : exec (word sz) :=
   if ((w2 == 0) || [&& si == Signed, wsigned w1 == wmin_signed sz & w2 == -1%w])%w then Error ErrArith
@@ -177,9 +147,6 @@ Section WITH_PARAMS.
 
 Context {cfcd : FlagCombinationParams}.
 
-Definition sem_combine_flags (cf : combine_flags) (b0 b1 b2 b3 : bool) : bool :=
-  cf_xsem negb andb orb (fun x y => x == y) b0 b1 b2 b3 cf.
-
 Definition sem_opN_typed (o: opN) :
   let t := type_of_opN o in
   let t := (map eval_atype t.1, eval_atype t.2) in
@@ -207,17 +174,3 @@ Proof.
 Qed.
 
 End WITH_PARAMS.
-
-Definition sem_opN_safety_typed (o: opN_safety) :
-  let t := type_of_opN_safety o in
-  let t := (map eval_atype t.1, eval_atype t.2) in
-  sem_prod t.1 (exec (sem_t t.2)) :=
-  match o with
-  | Ois_arr_init alen =>
-      fun (a:WArray.array _) (lo:Z) (len:Z) =>
-        ok (all (WArray.is_init a) (ziota lo len))
-  | Ois_barr_init alen =>
-      fun (a:WArray.array _) (lo:Z) (len:Z) =>
-        ok (all (WArray.is_initb a) (ziota lo len))
-  end.
-
