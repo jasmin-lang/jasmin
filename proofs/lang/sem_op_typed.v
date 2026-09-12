@@ -1,175 +1,37 @@
+(* * The (partial) semantics of the operators [sop1], [sop2] and [opN].
+
+   Each operator is the total semantics of [sem_op_total.v] guarded by the
+   conditions of [op_semi.v]: [mk_sem_op] checks the conditions on the
+   arguments and, if they hold, returns the total result; otherwise it fails
+   with [ErrArith]. *)
+
 (* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype div ssralg.
+From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype div ssralg.
 From mathcomp Require Import word_ssrZ.
-Require Export type expr sem_type.
-Require Export flag_combination.
+Require Export op_semi.
 Import Utf8.
 
-Definition mk_sem_sop1 (t1 t2 : Type) (o:t1 -> t2) v1 : exec t2 :=
-  ok (o v1).
+Local Open Scope Z_scope.
+Local Open Scope seq_scope.
 
-Definition sem_wiop1_typed (sign : signedness) (o: wiop1) :
-  let t := type_of_wiop1 o in
-  let t := (eval_atype t.1, eval_atype t.2) in
-  sem_t t.1 → exec (sem_t t.2) :=
-  match o with
-  | WIwint_of_int sz => wint_of_int sign sz
-  | WIint_of_wint sz => mk_sem_sop1 (@int_of_word sign sz)
-
-  | WIword_of_wint sz => mk_sem_sop1 (fun (w:word sz) => w)
-  | WIwint_of_word sz => mk_sem_sop1 (fun (w:word sz) => w)
-
-  | WIwint_ext szo szi => mk_sem_sop1 (@sem_word_extend sign szo szi)
-
-  | WIneg sz => fun (w: word sz) => wint_of_int sign sz (- int_of_word sign w)
-  end.
-
-Arguments sem_wiop1_typed : clear implicits.
+(* -------------------------------------------------------------------- *)
+(* ** The definitions                                                    *)
 
 Definition sem_sop1_typed (o : sop1) :
   let t := type_of_op1 o in
   let t := (eval_atype t.1, eval_atype t.2) in
   sem_t t.1 → exec (sem_t t.2) :=
-  match o with
-  | Oword_of_int sz => mk_sem_sop1 (wrepr sz)
-  | Oint_of_word sign sz => mk_sem_sop1 (@int_of_word sign sz)
-  | Osignext szo szi => mk_sem_sop1 (@sign_extend szo szi)
-  | Ozeroext szo szi => mk_sem_sop1 (@zero_extend szo szi)
-  | Onot => mk_sem_sop1 negb
-  | Olnot sz => mk_sem_sop1 (@wnot sz)
-  | Oneg Op_int => mk_sem_sop1 Z.opp
-  | Oneg (Op_w sz) => mk_sem_sop1 -%w
-  | Owi1 sign o => sem_wiop1_typed sign o
-  end.
+  @mk_sem_op [:: eval_atype (type_of_op1 o).1] (eval_atype (type_of_op1 o).2)
+    (op1_safe o) ErrArith (sem_sop1_total o).
 
 Arguments sem_sop1_typed : clear implicits.
 
-Definition zlsl (x i : Z) : Z :=
-  if (0 <=? i)%Z then (x * 2^i)%Z
-  else (x / 2^(-i))%Z.
-
-Definition zasr (x i : Z) : Z :=
-  zlsl x (-i).
-
-Definition sem_shift (shift:forall {s}, word s -> Z -> word s) s (v:word s) (i:u8) :=
-  let i :=  wunsigned i in
-  shift v i.
-
-Definition sem_shr {s} := @sem_shift (@wshr) s.
-Definition sem_sar {s} := @sem_shift (@wsar) s.
-Definition sem_shl {s} := @sem_shift (@wshl) s.
-Definition sem_ror {s} := @sem_shift (@wror) s.
-Definition sem_rol {s} := @sem_shift (@wrol) s.
-
-Definition sem_vadd (ve:velem) {ws:wsize} := (lift2_vec ve +%w ws).
-Definition sem_vsub (ve:velem) {ws:wsize} := (lift2_vec ve (fun x y => x - y)%w ws).
-Definition sem_vmul (ve:velem) {ws:wsize} := (lift2_vec ve *%w ws).
-
-Definition sem_vshr (ve:velem) {ws:wsize} (v : word ws) (i: u128) :=
-  lift1_vec ve (fun x => wshr x (wunsigned i)) ws v.
-
-Definition sem_vsar (ve:velem) {ws:wsize} (v : word ws) (i: u128) :=
-  lift1_vec ve (fun x => wsar x (wunsigned i)) ws v.
-
-Definition sem_vshl (ve:velem) {ws:wsize} (v : word ws) (i: u128) :=
-  lift1_vec ve (fun x => wshl x (wunsigned i)) ws v.
-
-Definition mk_sem_divmod (si: signedness) sz o (w1 w2: word sz) : exec (word sz) :=
-  if ((w2 == 0) || [&& si == Signed, wsigned w1 == wmin_signed sz & w2 == -1%w])%w then Error ErrArith
-  else ok (o w1 w2).
-
-Definition mk_sem_sop2 (t1 t2 t3: Type) (o:t1 -> t2 -> t3) v1 v2 : exec t3 :=
-  ok (o v1 v2).
-
-Definition mk_sem_wiop2 sign sz (o:Z -> Z -> Z) (w1 w2 : word sz) : exec (word sz) :=
-  wint_of_int sign sz (o (int_of_word sign w1) (int_of_word sign w2)).
-
-Definition mk_sem_wishift sign sz (o:Z -> Z -> Z) (w1 : word sz) (w2 : word U8) : exec (word sz) :=
-  wint_of_int sign sz (o (int_of_word sign w1) (int_of_word Unsigned w2)).
-
-Definition mk_sem_wicmp sign sz (o:Z -> Z -> bool) (w1 w2 : word sz) : exec bool :=
-  ok (o (int_of_word sign w1) (int_of_word sign w2)).
-
-Definition sem_wiop2_typed (sign : signedness) (sz : wsize) ( o : wiop2) :
-  let t := type_of_wiop2 sz o in
-  let t := (eval_atype t.1.1, eval_atype t.1.2, eval_atype t.2) in
-  sem_t t.1.1 → sem_t t.1.2 → exec (sem_t t.2) :=
-  match o with
-
-  | WIadd => @mk_sem_wiop2 sign sz Z.add
-  | WImul => @mk_sem_wiop2 sign sz Z.mul
-  | WIsub => @mk_sem_wiop2 sign sz Z.sub
-  | WIdiv => @mk_sem_divmod sign sz (signed wdiv wdivi sign)
-  | WImod => @mk_sem_divmod sign sz (signed wmod wmodi sign)
-
-  | WIshl => @mk_sem_wishift sign sz zlsl
-  | WIshr => @mk_sem_wishift sign sz zasr
-
-  | WIeq  => @mk_sem_wicmp sign sz Z.eqb
-  | WIneq => @mk_sem_wicmp sign sz (fun z1 z2 => ~~ Z.eqb z1 z2)
-  | WIlt  => @mk_sem_wicmp sign sz Z.ltb
-  | WIle  => @mk_sem_wicmp sign sz Z.leb
-  | WIgt  => @mk_sem_wicmp sign sz Z.gtb
-  | WIge  => @mk_sem_wicmp sign sz Z.geb
-  end.
-
-Arguments sem_wiop2_typed : clear implicits.
-
-Definition sem_sop2_typed (o: sop2) :
+Definition sem_sop2_typed (o : sop2) :
   let t := type_of_op2 o in
   let t := (eval_atype t.1.1, eval_atype t.1.2, eval_atype t.2) in
   sem_t t.1.1 → sem_t t.1.2 → exec (sem_t t.2) :=
-  match o with
-  | Obeq => mk_sem_sop2 (@eq_op bool)
-  | Oand => mk_sem_sop2 andb
-  | Oor  => mk_sem_sop2 orb
-
-  | Oadd Op_int     => mk_sem_sop2 Z.add
-  | Oadd (Op_w s)   => mk_sem_sop2 +%w
-  | Omul Op_int     => mk_sem_sop2 Z.mul
-  | Omul (Op_w s)   => mk_sem_sop2 *%w
-  | Osub Op_int     => mk_sem_sop2 Z.sub
-  | Osub (Op_w s)   => mk_sem_sop2 (fun x y =>  x - y)%w
-  | Odiv u Op_int   => mk_sem_sop2 (signed Z.div Z.quot u)
-  | Odiv u (Op_w s) => @mk_sem_divmod u s (signed wdiv wdivi u)
-  | Omod u Op_int   => mk_sem_sop2 (signed Z.modulo Z.rem u)
-  | Omod u (Op_w s) => @mk_sem_divmod u s (signed wmod wmodi u)
-
-  | Oland s       => mk_sem_sop2 wand
-  | Olor  s       => mk_sem_sop2 wor
-  | Olxor s       => mk_sem_sop2 wxor
-  | Olsr s        => mk_sem_sop2 sem_shr
-  | Olsl Op_int   => mk_sem_sop2 zlsl
-  | Olsl (Op_w s) => mk_sem_sop2 sem_shl
-  | Oasr Op_int   => mk_sem_sop2 zasr
-  | Oasr (Op_w s) => mk_sem_sop2 sem_sar
-  | Oror s        => mk_sem_sop2 sem_ror
-  | Orol s        => mk_sem_sop2 sem_rol
-
-  | Oeq Op_int    => mk_sem_sop2 Z.eqb
-  | Oeq (Op_w s)  => mk_sem_sop2 eq_op
-  | Oneq Op_int   => mk_sem_sop2 (fun x y => negb (Z.eqb x y))
-  | Oneq (Op_w s) => mk_sem_sop2 (fun x y => (x != y))
-
-  (* Fixme use the "new" Z *)
-  | Olt Cmp_int   => mk_sem_sop2 Z.ltb
-  | Ole Cmp_int   => mk_sem_sop2 Z.leb
-  | Ogt Cmp_int   => mk_sem_sop2 Z.gtb
-  | Oge Cmp_int   => mk_sem_sop2 Z.geb
-
-  | Olt (Cmp_w u s) => mk_sem_sop2 (wlt u)
-  | Ole (Cmp_w u s) => mk_sem_sop2 (wle u)
-  | Ogt (Cmp_w u s) => mk_sem_sop2 (fun x y => wlt u y x)
-  | Oge (Cmp_w u s) => mk_sem_sop2 (fun x y => wle u y x)
-  | Ovadd ve ws     => mk_sem_sop2 (sem_vadd ve)
-  | Ovsub ve ws     => mk_sem_sop2 (sem_vsub ve)
-  | Ovmul ve ws     => mk_sem_sop2 (sem_vmul ve)
-  | Ovlsr ve ws     => mk_sem_sop2 (sem_vshr ve)
-  | Ovlsl ve ws     => mk_sem_sop2 (sem_vshl ve)
-  | Ovasr ve ws     => mk_sem_sop2 (sem_vsar ve)
-
-  | Owi2 s sz o => sem_wiop2_typed s sz o
-  end.
+  @mk_sem_op [:: eval_atype (type_of_op2 o).1.1; eval_atype (type_of_op2 o).1.2]
+    (eval_atype (type_of_op2 o).2) (op2_safe o) ErrArith (sem_sop2_total o).
 
 Arguments sem_sop2_typed : clear implicits.
 
@@ -177,47 +39,230 @@ Section WITH_PARAMS.
 
 Context {cfcd : FlagCombinationParams}.
 
-Definition sem_combine_flags (cf : combine_flags) (b0 b1 b2 b3 : bool) : bool :=
-  cf_xsem negb andb orb (fun x y => x == y) b0 b1 b2 b3 cf.
-
-Definition sem_opN_typed (o: opN) :
+Definition sem_opN_typed (o : opN) :
   let t := type_of_opN o in
   let t := (map eval_atype t.1, eval_atype t.2) in
   sem_prod t.1 (exec (sem_t t.2)) :=
-  match o with
-  | Opack sz pe =>
-      let ty := curry (A := cint) (sz %/ pe) (λ vs, ok (wpack sz pe vs)) in
-      ecast l (sem_prod l _) (esym (map_nseq _ _ _)) ty
-  | Oarray len =>
-      let ty := sem_prod_app (collect (Z.to_nat len) [::]) (λ vs : seq (sem_t (cword U8)), WArray.fill _ vs) in
-      ecast l (sem_prod l _) (esym (map_nseq _ _ _)) ty
-  | Ocombine_flags cf =>
-      fun b0 b1 b2 b3 => ok (sem_combine_flags cf b0 b1 b2 b3)
-  end.
+  @mk_sem_op (map eval_atype (type_of_opN o).1) (eval_atype (type_of_opN o).2)
+    (opN_safe o) ErrArith (sem_opN_total o).
 
-Lemma sem_opN_typed_ok (op: opN) :
+Arguments sem_opN_typed : clear implicits.
+
+(* [opN] carries no condition: it never fails. *)
+Lemma sem_opN_typed_ok (op : opN) :
   sem_forall (@is_ok _ _) _ (sem_opN_typed op).
 Proof.
-  case: op => // [ ws pe | len ] /=; rewrite -> map_nseq => /=.
-  + by case: ws pe => - [].
-  apply: sem_forall_prod_app (size_collect (Z.to_nat len) [::]) => bytes /=.
-  rewrite ssrnat.addn0 => hlen.
-  rewrite /WArray.fill hlen arr_sizeE wsize8 Z.mul_1_l eqxx /=.
-  by case/is_okP: (WArray.fill_aux_ok (Nat.eq_le_incl _ _ hlen)) => ? ->.
+apply: (sem_forall_eq (g := sem_prod_ok _ (sem_opN_total op)));
+  first exact: mk_sem_op_nil.
+apply: (sem_forall_m (P := fun r => exists t, r = ok t)); last exact: sem_prod_ok_ok.
+by move=> r [t ->].
 Qed.
 
 End WITH_PARAMS.
 
-Definition sem_opN_safety_typed (o: opN_safety) :
-  let t := type_of_opN_safety o in
-  let t := (map eval_atype t.1, eval_atype t.2) in
-  sem_prod t.1 (exec (sem_t t.2)) :=
-  match o with
-  | Ois_arr_init alen =>
-      fun (a:WArray.array _) (lo:Z) (len:Z) =>
-        ok (all (WArray.is_init a) (ziota lo len))
-  | Ois_barr_init alen =>
-      fun (a:WArray.array _) (lo:Z) (len:Z) =>
-        ok (all (WArray.is_initb a) (ziota lo len))
-  end.
+(* -------------------------------------------------------------------- *)
+(* ** The operators without conditions: the semantics is the total one   *)
 
+Lemma sem_sop1_typed_totalE o :
+  op1_total o -> forall x, sem_sop1_typed o x = ok (sem_sop1_total o x).
+Proof.
+move=> /op1_total_safe h x; rewrite /sem_sop1_typed h.
+exact: (mk_sem_op_nil (tin := [:: eval_atype (type_of_op1 o).1])
+          (t := eval_atype (type_of_op1 o).2) ErrArith (sem_sop1_total o) x).
+Qed.
+
+Lemma sem_sop2_typed_totalE o :
+  op2_total o -> forall x1 x2, sem_sop2_typed o x1 x2 = ok (sem_sop2_total o x1 x2).
+Proof.
+move=> /op2_total_safe h x1 x2; rewrite /sem_sop2_typed h.
+exact: (mk_sem_op_nil
+          (tin := [:: eval_atype (type_of_op2 o).1.1; eval_atype (type_of_op2 o).1.2])
+          (t := eval_atype (type_of_op2 o).2) ErrArith (sem_sop2_total o) x1 x2).
+Qed.
+
+Lemma sem_sop1_typed_total o :
+  op1_total o -> forall x, exists y, sem_sop1_typed o x = ok y.
+Proof. by move=> h x; exists (sem_sop1_total o x); apply: sem_sop1_typed_totalE. Qed.
+
+Lemma sem_sop2_typed_total o :
+  op2_total o -> forall x1 x2, exists y, sem_sop2_typed o x1 x2 = ok y.
+Proof.
+by move=> h x1 x2; exists (sem_sop2_total o x1 x2); apply: sem_sop2_typed_totalE.
+Qed.
+
+(* -------------------------------------------------------------------- *)
+(* ** Under the conditions, the semantics succeeds                        *)
+
+Lemma sem_sop1_typed_safe (o : sop1) (v1 : value) x1 :
+  of_val (eval_atype (type_of_op1 o).1) v1 = ok x1 ->
+  all (acond_b [:: v1]) (op1_safe o) ->
+  exists r, sem_sop1_typed o x1 = ok r.
+Proof.
+move=> hof hall.
+have htr : mapM2 ErrType truncate_val [:: eval_atype (type_of_op1 o).1] [:: v1]
+             = ok [:: to_val x1].
++ by rewrite /= /truncate_val hof.
+have {}hall : all (acond_b [:: to_val x1]) (op1_safe o).
++ by rewrite (all_acond_b_truncate (op1_safe_ok o) htr).
+exact: (@mk_sem_op_safe [:: eval_atype (type_of_op1 o).1]
+   (eval_atype (type_of_op1 o).2) (op1_safe o) ErrArith (sem_sop1_total o) x1 hall).
+Qed.
+
+Lemma sem_sop2_typed_safe (o : sop2) (v1 v2 : value) x1 x2 :
+  of_val (eval_atype (type_of_op2 o).1.1) v1 = ok x1 ->
+  of_val (eval_atype (type_of_op2 o).1.2) v2 = ok x2 ->
+  all (acond_b [:: v1; v2]) (op2_safe o) ->
+  exists r, sem_sop2_typed o x1 x2 = ok r.
+Proof.
+move=> hof1 hof2 hall.
+have htr : mapM2 ErrType truncate_val
+             [:: eval_atype (type_of_op2 o).1.1; eval_atype (type_of_op2 o).1.2]
+             [:: v1; v2] = ok [:: to_val x1; to_val x2].
++ by rewrite /= /truncate_val hof1 /= hof2.
+have {}hall : all (acond_b [:: to_val x1; to_val x2]) (op2_safe o).
++ by rewrite (all_acond_b_truncate (op2_safe_ok o) htr).
+exact: (@mk_sem_op_safe
+   [:: eval_atype (type_of_op2 o).1.1; eval_atype (type_of_op2 o).1.2]
+   (eval_atype (type_of_op2 o).2) (op2_safe o) ErrArith (sem_sop2_total o)
+   x1 x2 hall).
+Qed.
+
+(* Sharper form: under the conditions the semantics is exactly the total
+   one. *)
+Lemma sem_sop1_typed_safeE (o : sop1) (v1 : value) x1 :
+  of_val (eval_atype (type_of_op1 o).1) v1 = ok x1 ->
+  all (acond_b [:: v1]) (op1_safe o) ->
+  sem_sop1_typed o x1 = ok (sem_sop1_total o x1).
+Proof.
+move=> hof hall.
+have htr : mapM2 ErrType truncate_val [:: eval_atype (type_of_op1 o).1] [:: v1]
+             = ok [:: to_val x1].
++ by rewrite /= /truncate_val hof.
+have {}hall : all (acond_b [:: to_val x1]) (op1_safe o).
++ by rewrite (all_acond_b_truncate (op1_safe_ok o) htr).
+by rewrite /sem_sop1_typed mk_sem_op1E (check_safe_ok ErrArith hall).
+Qed.
+
+Lemma sem_sop2_typed_safeE (o : sop2) (v1 v2 : value) x1 x2 :
+  of_val (eval_atype (type_of_op2 o).1.1) v1 = ok x1 ->
+  of_val (eval_atype (type_of_op2 o).1.2) v2 = ok x2 ->
+  all (acond_b [:: v1; v2]) (op2_safe o) ->
+  sem_sop2_typed o x1 x2 = ok (sem_sop2_total o x1 x2).
+Proof.
+move=> hof1 hof2 hall.
+have htr : mapM2 ErrType truncate_val
+             [:: eval_atype (type_of_op2 o).1.1; eval_atype (type_of_op2 o).1.2]
+             [:: v1; v2] = ok [:: to_val x1; to_val x2].
++ by rewrite /= /truncate_val hof1 /= hof2.
+have {}hall : all (acond_b [:: to_val x1; to_val x2]) (op2_safe o).
++ by rewrite (all_acond_b_truncate (op2_safe_ok o) htr).
+by rewrite /sem_sop2_typed mk_sem_op2E (check_safe_ok ErrArith hall).
+Qed.
+
+(* -------------------------------------------------------------------- *)
+(* ** Computing the guarded operators                                    *)
+
+(* The divisions on words. *)
+Lemma sem_sop2_typed_divE sg sz (w1 w2 : word sz) :
+  sem_sop2_typed (Odiv sg (Op_w sz)) w1 w2 =
+  (if ((w2 == 0) || [&& sg == Signed, wsigned w1 == wmin_signed sz & w2 == -1%w])%w
+   then Error ErrArith else ok (signed wdiv wdivi sg w1 w2)).
+Proof. by rewrite /sem_sop2_typed mk_sem_op2E divmod_eq. Qed.
+
+Lemma sem_sop2_typed_modE sg sz (w1 w2 : word sz) :
+  sem_sop2_typed (Omod sg (Op_w sz)) w1 w2 =
+  (if ((w2 == 0) || [&& sg == Signed, wsigned w1 == wmin_signed sz & w2 == -1%w])%w
+   then Error ErrArith else ok (signed wmod wmodi sg w1 w2)).
+Proof. by rewrite /sem_sop2_typed mk_sem_op2E divmod_eq. Qed.
+
+Lemma sem_sop2_typed_widivE sg sz (w1 w2 : word sz) :
+  sem_sop2_typed (Owi2 sg sz WIdiv) w1 w2 =
+  (if ((w2 == 0) || [&& sg == Signed, wsigned w1 == wmin_signed sz & w2 == -1%w])%w
+   then Error ErrArith else ok (signed wdiv wdivi sg w1 w2)).
+Proof. by rewrite /sem_sop2_typed mk_sem_op2E divmod_eq. Qed.
+
+Lemma sem_sop2_typed_wimodE sg sz (w1 w2 : word sz) :
+  sem_sop2_typed (Owi2 sg sz WImod) w1 w2 =
+  (if ((w2 == 0) || [&& sg == Signed, wsigned w1 == wmin_signed sz & w2 == -1%w])%w
+   then Error ErrArith else ok (signed wmod wmodi sg w1 w2)).
+Proof. by rewrite /sem_sop2_typed mk_sem_op2E divmod_eq. Qed.
+
+(* The [wint] operators: the result is the word operation, provided the
+   integer result is in range; that is exactly [wint_of_int]. *)
+Lemma sem_sop1_typed_wi_of_intE sg sz (z : Z) :
+  sem_sop1_typed (Owi1 sg (WIwint_of_int sz)) z = wint_of_int sg sz z.
+Proof.
+rewrite /sem_sop1_typed mk_sem_op1E; apply/esym.
+exact: (@wint_range_eq [:: Vint z] sg sz (IVar 0) z).
+Qed.
+
+Lemma sem_sop1_typed_winegE sg sz (w : word sz) :
+  sem_sop1_typed (Owi1 sg (WIneg sz)) w = wint_of_int sg sz (- int_of_word sg w).
+Proof.
+rewrite /sem_sop1_typed mk_sem_op1E; apply/esym.
+rewrite /check_safe; case: sg => /=;
+  rewrite /acond_b /sc_eqi /sc_neqi /sc_toint /= truncate_word_u /= andbT.
++ case heq: (wsigned w =? wmin_signed sz)%Z => /=.
+  + move/Z.eqb_eq: heq => heq.
+    rewrite /wint_of_int /in_wint_range /in_sint_range /assert; case: ifP => //.
+    move=> /andP [] _ /ZleP; rewrite heq /wmin_signed /wmax_signed.
+    by have := half_modulus_pos sz; Lia.lia.
+  move/Z.eqb_neq: heq => heq.
+  by rewrite (wsigned_opp heq); apply: (wint_of_int_of_word Signed (- w)%R).
+case heq: (wunsigned w =? 0)%Z => /=;
+  rewrite /wint_of_int /in_wint_range /signed /in_uint_range /assert.
++ move/Z.eqb_eq: heq => heq; rewrite heq /= opp_wordE.
+  have -> : (- w)%R = wrepr sz (- wunsigned w) by rewrite wrepr_opp wrepr_unsigned.
+  by rewrite heq.
+have hne : wunsigned w <> 0%Z.
++ by move=> h0; move: heq; rewrite h0.
+case: ifP => //.
+move=> /andP [] /ZleP h _.
+by have := wunsigned_range w; Lia.lia.
+Qed.
+
+Lemma sem_sop2_typed_wiaddE sg sz (w1 w2 : word sz) :
+  sem_sop2_typed (Owi2 sg sz WIadd) w1 w2 =
+  wint_of_int sg sz (int_of_word sg w1 + int_of_word sg w2).
+Proof.
+rewrite /sem_sop2_typed mk_sem_op2E; apply/esym.
+apply: wint_range_eq; first by rewrite /= !truncate_word_u.
+by rewrite /= add_wordE wrepr_add !wrepr_int_of_word.
+Qed.
+
+Lemma sem_sop2_typed_wimulE sg sz (w1 w2 : word sz) :
+  sem_sop2_typed (Owi2 sg sz WImul) w1 w2 =
+  wint_of_int sg sz (int_of_word sg w1 * int_of_word sg w2).
+Proof.
+rewrite /sem_sop2_typed mk_sem_op2E; apply/esym.
+apply: wint_range_eq; first by rewrite /= !truncate_word_u.
+by rewrite /= mul_wordE wrepr_mul !wrepr_int_of_word.
+Qed.
+
+Lemma sem_sop2_typed_wisubE sg sz (w1 w2 : word sz) :
+  sem_sop2_typed (Owi2 sg sz WIsub) w1 w2 =
+  wint_of_int sg sz (int_of_word sg w1 - int_of_word sg w2).
+Proof.
+rewrite /sem_sop2_typed mk_sem_op2E; apply/esym.
+apply: wint_range_eq; first by rewrite /= !truncate_word_u.
+by rewrite /= sub_wordE wrepr_sub !wrepr_int_of_word.
+Qed.
+
+Lemma sem_sop2_typed_wishlE sg sz (w1 : word sz) (w2 : word U8) :
+  sem_sop2_typed (Owi2 sg sz WIshl) w1 w2 =
+  wint_of_int sg sz (zlsl (int_of_word sg w1) (int_of_word Unsigned w2)).
+Proof.
+rewrite /sem_sop2_typed mk_sem_op2E; apply/esym.
+apply: wint_range_eq; first by rewrite /= !truncate_word_u.
+have h2 : (0 <= int_of_word Unsigned w2)%Z.
++ by rewrite /int_of_word /signed; have := wunsigned_range w2; Lia.lia.
+rewrite /= /zlsl; case: ZleP => [_ | hlt];
+  last by have := wunsigned_range w2; Lia.lia.
+by rewrite /sem_shl /sem_shift wrepr_mul wrepr_int_of_word (wshl_sem _ h2)
+           GRing.mulrC.
+Qed.
+
+Lemma sem_sop2_typed_wishrE sg sz (w1 : word sz) (w2 : word U8) :
+  sem_sop2_typed (Owi2 sg sz WIshr) w1 w2 =
+  wint_of_int sg sz (zasr (int_of_word sg w1) (int_of_word Unsigned w2)).
+Proof. by rewrite wishr_eq /sem_sop2_typed mk_sem_op2E. Qed.
