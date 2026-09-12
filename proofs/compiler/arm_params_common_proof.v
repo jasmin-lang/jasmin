@@ -38,6 +38,14 @@ Ltac t_arm_op :=
   rewrite ?zero_extend_u ?addn1;
   t_simpl_rewrites.
 
+(* The semantics of an instruction is [mk_semi] applied to its total
+   semantics; these are plain definitions that [simpl] does not unfold. *)
+Ltac t_arm_semi :=
+  rewrite ?/sopn_sem_ ?/semi ?/mk_semi /=;
+  rewrite ?/semi_to_atype_t ?/arch_utils.semi_drop1_t
+          ?/arch_utils.semi_drop2_t ?/arch_utils.semi_drop3_t
+          ?/arch_utils.semi_drop4_t /=.
+
 Module ARMFopnP.
 
 Section WITH_PARAMS.
@@ -60,10 +68,10 @@ Lemma sem_fopn_equiv o s :
 Proof.
   case: o => -[xs o] es /=; case: sem_rexprs => //= >.
   rewrite /exec_sopn /= /sopn_sem /=; case: id_valid => //=.
-  rewrite /sopn_sem_ /= /semi_to_atype.
+  rewrite /sopn_sem_ /= /semi /semi_to_atype_t /=.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.
-  by case: app_sopn.
+  by rewrite -/(id_semi (arm_instr_desc o)); case: app_sopn.
 Qed.
 
 Lemma sem_fopns_equiv o s :
@@ -100,7 +108,7 @@ Lemma align_sem_fopn_args xname vi y al s (wy : word Uptr) :
   sem_fopn_args (ARMFopn.align xi y al) s = ok (with_vm s vm').
 Proof.
  Opaque wsize_size.
- rewrite /=; t_xrbindP => *; t_arm_op.
+ rewrite /=; t_xrbindP => *; t_arm_op; t_arm_semi.
  by rewrite /= wrepr_wnot ZlnotE Z.sub_1_r Z.add_1_r Z.succ_pred.
  Transparent wsize_size.
 Qed.
@@ -189,8 +197,8 @@ Lemma str_eval_instr {lp ls m' ii xname vi y off wx} {wy : word reg_size} :
   -> let: li := li_of_fopn_args ii (ARMFopn.str y xi off) in
      eval_instr lp li ls = ok (next_mem_ls ls m').
 Proof.
-  move=> ?? hw; t_arm_op.
-  by rewrite /sem_sop2 /= !truncate_word_u /= truncate_word_u /= hw.
+  move=> ?? hw; t_arm_op; t_arm_semi.
+  by rewrite /sem_sop2 /= !truncate_word_u /= truncate_word_u /= zero_extend_u hw.
 Qed.
 
 End ARM_OP.
@@ -311,7 +319,7 @@ Proof.
   case: ws w => w // [?]; subst mn.
   all: rewrite /exec_sopn /=.
   all: move=> -> /=.
-  all: by rewrite zero_extend_u.
+  all: by rewrite /semi_to_atype_t /arm_extend_semi /= ?zero_extend_u.
 Qed.
 
 End WITH_PARAMS.

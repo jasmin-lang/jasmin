@@ -515,30 +515,11 @@ Proof.
 by elim: tin f g h => /= [f g h -> // | t tin ih f g h h1 h2 v]; apply: ih (h1 v) (h2 v).
 Qed.
 
-Lemma sem_prod_eq_app {A B} tin (g : A -> B) (f1 f2 : sem_prod tin A) :
-  sem_prod_eq tin f1 f2 -> sem_prod_eq tin (sem_prod_app f1 g) (sem_prod_app f2 g).
-Proof. by elim: tin f1 f2 => /= [f1 f2 -> // | t tin ih f1 f2 h v]; apply: ih (h v). Qed.
-
 (* Two pointwise equal post-treatments give two equal semantics. *)
 Lemma mk_semi_aux_eq {T T'} (P Q : values -> T -> exec T') vs tin (f : sem_prod tin T) :
   (forall vs t, P vs t = Q vs t) ->
   sem_prod_eq tin (mk_semi_aux P vs tin f) (mk_semi_aux Q vs tin f).
 Proof. by move=> h; elim: tin vs f => /= [vs f | t tin ih vs f v]; [apply h | apply ih]. Qed.
-
-(* Post-composing the result is the same as post-composing the post-treatment. *)
-Lemma sem_prod_app_mk_semi_aux {T T' T''} (P : values -> T -> exec T')
-    (g : exec T' -> exec T'') vs tin (f : sem_prod tin T) :
-  sem_prod_eq tin (sem_prod_app (mk_semi_aux P vs tin f) g)
-                  (mk_semi_aux (fun vs t => g (P vs t)) vs tin f).
-Proof. by elim: tin vs f => //= t tin ih vs f v; apply ih. Qed.
-
-(* Pre-composing the total semantics is the same as pre-composing the
-   post-treatment. *)
-Lemma mk_semi_aux_sem_prod_app {T T' T''} (Q : values -> T'' -> exec T')
-    (h : T -> T'') vs tin (f : sem_prod tin T) :
-  sem_prod_eq tin (mk_semi_aux Q vs tin (sem_prod_app f h))
-                  (mk_semi_aux (fun vs t => Q vs (h t)) vs tin f).
-Proof. by elim: tin vs f => //= t tin ih vs f v; apply ih. Qed.
 
 (* Two extensionally equal semantics satisfy the same properties. *)
 Lemma sem_forall_eq {T} (P : T -> Prop) tin (f g : sem_prod tin T) :
@@ -701,14 +682,6 @@ Definition is_ErrType (e : error) : bool := if e is ErrType then true else false
 Definition check_safe_old (vs : values) (safe : seq safe_cond) (err : error) : exec unit :=
   if all (check_safe_cond vs) safe then ok tt else Error err.
 
-Lemma check_safe_old_ok vs safe err :
-  all (check_safe_cond vs) safe -> check_safe_old vs safe err = ok tt.
-Proof. by rewrite /check_safe_old => ->. Qed.
-
-Lemma all_check_safe_cond vs safe :
-  List.Forall (interp_safe_cond vs) safe -> all (check_safe_cond vs) safe.
-Proof. by elim => //= sc l hsc _ ih; apply/andP; split => //; apply/check_safe_condP. Qed.
-
 (* The semantics of an instruction: the safety conditions are checked on the
    arguments, then the total semantics is filtered by the initialisation
    conditions, one per output. *)
@@ -723,25 +696,6 @@ Arguments mk_semi {tin tout} safe err init f : assert.
 
 (* -------------------------------------------------------------------- *)
 (* ** Generic properties of [mk_semi]                                    *)
-
-(* [mk_semi] never raises a type error, as long as the declared error is not
-   one. *)
-Lemma mk_semi_errty tin tout safe err init f :
-  err <> ErrType ->
-  sem_forall (fun r => r <> Error ErrType) tin (@mk_semi tin tout safe err init f).
-Proof.
-move=> herr; apply: mk_semi_aux_errty => vs t.
-by rewrite /check_safe_old; case: ifP => //= _ [].
-Qed.
-
-(* If the safety conditions hold, [mk_semi] succeeds. *)
-Lemma mk_semi_safe tin tout safe err init f :
-  values.interp_safe_cond_ty (tin := tin) safe (@mk_semi tin tout safe err init f).
-Proof.
-apply: mk_semi_aux_safe => vs t hall.
-rewrite (check_safe_old_ok err (all_check_safe_cond hall)) /=.
-by eexists; reflexivity.
-Qed.
 
 (* Same, when the post-treatment is only known on the arguments prefixed by
    [vs1]. *)
