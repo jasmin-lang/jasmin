@@ -461,7 +461,6 @@ module type EnvT = sig
   val add_SubArrayCast: t -> int -> int -> int -> int -> unit
   val add_ArrayAccessCast: t -> int -> int -> int -> unit
   val add_randombytes: t -> int -> unit
-  val add_ty: t -> ty -> unit
   val add_jarray: t -> Wsize.wsize -> int -> unit
   val empty: architecture -> Wsize.wsize -> Wsize.wsize -> Sarraytheory.t ref -> t
   val create_name: t -> string -> string
@@ -579,10 +578,6 @@ module Env: EnvT = struct
     { env with
       alls = ref (Ss.add s !(env.alls));
       vars = Mv.add x s env.vars }
-
-  let add_ty env = function
-      | Bty _ -> ()
-      | Arr (_ws, n) -> add_Array env n
 
   let empty arch pd msfsz array_theories =
     {
@@ -1409,9 +1404,9 @@ let ty_expr = function
   | Pload (_, sz,_) -> tu sz
   | Pget  (_,_, sz,_,_) -> tu sz
   | Psub (_,ws, len, _, _) -> Arr(ws, len)
-  | Papp1 (op,_)   -> Conv.ty_of_cty (snd (E.type_of_op1 op))
-  | Papp2 (op,_,_) -> Conv.ty_of_cty (snd (E.type_of_op2 op))
-  | PappN (op, _)  -> Conv.ty_of_cty (snd (E.type_of_opN op))
+  | Papp1 (op,_)   -> Conv.ty_of_cty (snd (Operators.type_of_op1 op))
+  | Papp2 (op,_,_) -> Conv.ty_of_cty (snd (Operators.type_of_op2 op))
+  | PappN (op, _)  -> Conv.ty_of_cty (snd (Operators.type_of_opN op))
   | Pif (ty,_,_,_) -> ty
 
 let ty_sopn pd msfsz asmOp op es =
@@ -1533,9 +1528,9 @@ module EcExpression(EA: EcArray): EcExpression = struct
               glob_memi; toec_expr env (int_of_ptr (Env.pd env) e)
           ])
       | Papp1 (op1, e) ->
-            ec_op1 op1 (toec_cast env (Conv.ty_of_cty (fst (E.type_of_op1 op1)), e))
+            ec_op1 op1 (toec_cast env (Conv.ty_of_cty (fst (Operators.type_of_op1 op1)), e))
       | Papp2 (op2, e1, e2) ->
-          let t1, t2 = fst (E.type_of_op2 op2) in
+          let t1, t2 = fst (Operators.type_of_op2 op2) in
           let te1 = (Conv.ty_of_cty t1, e1) in
           let te2 = (Conv.ty_of_cty t2, e2) in
           let te1, te2 = match op2 with
@@ -2024,8 +2019,6 @@ struct
           | [x] -> ESreturn x
           | xs -> ESreturn (Etuple xs)
       in
-      List.iter (Env.add_ty env) f.f_tyout;
-      List.iter (fun x -> Env.add_ty env x.v_ty) (f.f_args @ locals);
       {
           decl = {
               fname = (Env.get_funname env f.f_name);
@@ -2039,13 +2032,16 @@ struct
   (* ------------------------------------------------------------------- *)
   (* Program extraction *)
 
+  (* Register the array theory of a global array before the header is printed.
+     This must go through the array model: it decides which theories the
+     declaration of the global will name. *)
   let add_glob_arrsz env (x,d) =
     match d with
     | Global.Gword _ -> ()
     | Global.Garr(p,t) ->
       let ws, t = Conv.to_array x.v_ty p t in
       let n = Array.length t in
-      Env.add_jarray env ws n
+      EA.add_jarray env ws n
 
   let jmodel env = match Env.arch env with
     | X86_64 -> "JModel_x86"
