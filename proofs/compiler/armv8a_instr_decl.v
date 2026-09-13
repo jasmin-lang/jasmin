@@ -417,13 +417,13 @@ Qed.
    safety and initialisation conditions, which only mention the earlier
    ones. *)
 Lemma shifted_wf (idt : instr_desc_t) :
-  [&& all (ac_ok (map eval_ltype (id_tin idt ++ [:: lword8 ]))) (id_safe idt),
-      all (ac_ok (map eval_ltype (id_tin idt ++ [:: lword8 ]))) (id_init idt),
+  [&& all (safety_cond_wf (map eval_ltype (id_tin idt ++ [:: lword8 ]))) (id_safe idt),
+      all (safety_cond_wf (map eval_ltype (id_tin idt ++ [:: lword8 ]))) (id_init idt),
       ssrnat.eqn (size (id_init idt)) (size (id_tout idt))
     & ~~ is_ErrType (id_err idt)].
 Proof.
   have /and4P [h0 h1 h2 h3] := id_wf idt.
-  by rewrite map_cat (all_ac_ok_cat _ h0) (all_ac_ok_cat _ h1) h2 h3.
+  by rewrite map_cat (all_safety_cond_wf_cat _ h0) (all_safety_cond_wf_cat _ h1) h2 h3.
 Qed.
 
 (* On A64 a shifted operand exists only in the register form of an

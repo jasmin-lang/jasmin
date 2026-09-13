@@ -371,11 +371,11 @@ Proof.
 Qed.
 
 Lemma semi_to_atype_wf (tin tout : seq ltype) safe init err :
-  [&& all (ac_ok (map eval_ltype tin)) safe,
-      all (ac_ok (map eval_ltype tin)) init,
+  [&& all (safety_cond_wf (map eval_ltype tin)) safe,
+      all (safety_cond_wf (map eval_ltype tin)) init,
       ssrnat.eqn (size init) (size tout) & ~~ is_ErrType err] ->
-  [&& all (ac_ok (map eval_atype (map atype_of_ltype tin))) safe,
-      all (ac_ok (map eval_atype (map atype_of_ltype tin))) init,
+  [&& all (safety_cond_wf (map eval_atype (map atype_of_ltype tin))) safe,
+      all (safety_cond_wf (map eval_atype (map atype_of_ltype tin))) init,
       ssrnat.eqn (size init) (size (map atype_of_ltype tout)) & ~~ is_ErrType err].
 Proof. by rewrite map_eval_atype_of_ltype size_map. Qed.
 

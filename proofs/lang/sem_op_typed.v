@@ -86,22 +86,22 @@ Qed.
 
 Lemma sem_sop1_typed_safeE (o : sop1) (v1 : value) x1 :
   of_val (eval_atype (type_of_op1 o).1) v1 = ok x1 ->
-  all (acond_b [:: v1]) (op1_safe o) ->
+  all (safety_cond_holds [:: v1]) (op1_safe o) ->
   sem_sop1_typed o x1 = ok (sem_sop1_total o x1).
 Proof.
 move=> hof hall.
 have htr : mapM2 ErrType truncate_val [:: eval_atype (type_of_op1 o).1] [:: v1]
              = ok [:: to_val x1].
 + by rewrite /= /truncate_val hof.
-have {}hall : all (acond_b [:: to_val x1]) (op1_safe o).
-+ by rewrite (all_acond_b_truncate htr (op1_safe_ok o)).
+have {}hall : all (safety_cond_holds [:: to_val x1]) (op1_safe o).
++ by rewrite (all_safety_cond_holds_truncate htr (op1_safe_ok o)).
 by rewrite /sem_sop1_typed mk_sem_op1E (check_safe_ok ErrArith hall).
 Qed.
 
 Lemma sem_sop2_typed_safeE (o : sop2) (v1 v2 : value) x1 x2 :
   of_val (eval_atype (type_of_op2 o).1.1) v1 = ok x1 ->
   of_val (eval_atype (type_of_op2 o).1.2) v2 = ok x2 ->
-  all (acond_b [:: v1; v2]) (op2_safe o) ->
+  all (safety_cond_holds [:: v1; v2]) (op2_safe o) ->
   sem_sop2_typed o x1 x2 = ok (sem_sop2_total o x1 x2).
 Proof.
 move=> hof1 hof2 hall.
@@ -109,8 +109,8 @@ have htr : mapM2 ErrType truncate_val
              [:: eval_atype (type_of_op2 o).1.1; eval_atype (type_of_op2 o).1.2]
              [:: v1; v2] = ok [:: to_val x1; to_val x2].
 + by rewrite /= /truncate_val hof1 /= hof2.
-have {}hall : all (acond_b [:: to_val x1; to_val x2]) (op2_safe o).
-+ by rewrite (all_acond_b_truncate htr (op2_safe_ok o)).
+have {}hall : all (safety_cond_holds [:: to_val x1; to_val x2]) (op2_safe o).
++ by rewrite (all_safety_cond_holds_truncate htr (op2_safe_ok o)).
 by rewrite /sem_sop2_typed mk_sem_op2E (check_safe_ok ErrArith hall).
 Qed.
 
