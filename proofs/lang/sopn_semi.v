@@ -1115,11 +1115,11 @@ Proof. by elim => //= sc l hsc _ ih; apply/andP; split => //; apply/check_safe_c
 (* The semantics of an instruction: the safety conditions are checked on the
    arguments, then the total semantics is filtered by the initialisation
    conditions, one per output. *)
-Definition mk_semi (tin tout : seq ctype) (safe : seq safe_cond) (err : error)
+Definition mk_semi (tin tout : seq ctype) (safe : seq acond) (err : error)
     (init : seq acond)
     (f : sem_prod tin (sem_tuple_t tout)) : sem_prod tin (exec (sem_tuple tout)) :=
   mk_semi_aux
-    (fun vs t => Let _ := check_safe_old vs safe err in
+    (fun vs t => Let _ := check_safe vs safe err in
                  ok (filter_tuple tout (map (acond_b vs) init) t))
     [::] tin f.
 Arguments mk_semi {tin tout} safe err init f : assert.
@@ -1134,16 +1134,15 @@ Lemma mk_semi_errty tin tout safe err init f :
   sem_forall (fun r => r <> Error ErrType) tin (@mk_semi tin tout safe err init f).
 Proof.
 move=> herr; apply: mk_semi_aux_errty => vs t.
-by rewrite /check_safe_old; case: ifP => //= _ [].
+by rewrite /check_safe; case: ifP => //= _ [].
 Qed.
 
 (* If the safety conditions hold, [mk_semi] succeeds. *)
 Lemma mk_semi_safe tin tout safe err init f :
-  values.interp_safe_cond_ty (tin := tin) safe (@mk_semi tin tout safe err init f).
+  acond_ty safe (@mk_semi tin tout safe err init f).
 Proof.
 apply: mk_semi_aux_safe => vs t hall.
-rewrite (check_safe_old_ok err (all_check_safe_cond hall)) /=.
-by eexists; reflexivity.
+by rewrite (check_safe_ok err hall) /=; eexists; reflexivity.
 Qed.
 
 (* Complete description of a successful application of [mk_semi]. *)
@@ -1151,19 +1150,19 @@ Lemma mk_semiP tin tout safe err init f vs r :
   app_sopn tin (@mk_semi tin tout safe err init f) vs = ok r ->
   exists2 vs', mapM2 ErrType truncate_val tin vs = ok vs' &
     exists2 t, app_sopn tin (sem_prod_ok tin f) vs = ok t &
-      all (check_safe_cond vs') safe /\
+      all (acond_b vs') safe /\
       r = filter_tuple tout (map (acond_b vs') init) t.
 Proof.
 rewrite /mk_semi => h; case: (mk_semi_auxP h) => vs' h1 [t h2]; rewrite cat0s.
-case hu: (check_safe_old vs' safe err) => [u|e] //= [<-].
-by exists vs' => //; exists t => //; split => //; apply: check_safe_old_okE hu.
+case hu: (check_safe vs' safe err) => [u|e] //= [<-].
+by exists vs' => //; exists t => //; split => //; apply: check_safe_okE hu.
 Qed.
 
 (* Conversely, success implies that the safety conditions hold on the
    truncated arguments. *)
 Lemma mk_semi_safe_rev tin tout safe err init f vs r :
   app_sopn tin (@mk_semi tin tout safe err init f) vs = ok r ->
-  exists2 vs', mapM2 ErrType truncate_val tin vs = ok vs' & all (check_safe_cond vs') safe.
+  exists2 vs', mapM2 ErrType truncate_val tin vs = ok vs' & all (acond_b vs') safe.
 Proof. by move=> h; case: (mk_semiP h) => vs' h1 [t _ [h3 _]]; exists vs'. Qed.
 
 Lemma Forall2_map_l A B C (f : A -> B) (R : B -> C -> Prop) l1 l2 :
@@ -1334,6 +1333,23 @@ have hpt : forall c, c \in init ->
 case: b hpt => hpt.
 + by apply/eq_in_map => c hc; rewrite hpt.
 by rewrite -hsz -map_const_seq; apply/eq_in_map => c hc; rewrite hpt.
+Qed.
+
+(* The safety conditions of a conditional instruction are the guarded ones:
+   under a false guard they all hold, under a true one they amount to the
+   conditions themselves. *)
+Lemma acond_b_all_guarded (ts : seq ctype) (vs0 : values) (safe : seq acond)
+    (b : bool) (vs2 : values) :
+  List.Forall2 (fun t v => exists x : sem_t t, v = to_val x) ts vs0 ->
+  all ac_total safe -> all (ac_wt ts) safe ->
+  all (acond_b (rcons vs0 (Vbool b) ++ vs2)) (map (sc_guarded (size ts)) safe)
+  = (if b then all (acond_b vs0) safe else true).
+Proof.
+move=> hall htot hwt; rewrite cat_rcons.
+elim: safe htot hwt => [ | c safe ih] /=; first by case: b.
+move=> /andP [] ht htot /andP [] hw hwt.
+have hc := cond_init_val vs2 b hall ht hw; rewrite /cond_init in hc.
+by rewrite hc (ih htot hwt); case: b {ih hc}.
 Qed.
 
 (* The safety conditions of a conditional instruction are the [Guarded] ones;

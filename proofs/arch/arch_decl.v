@@ -106,9 +106,6 @@ Notation sem_lforall P tin := (sem_forall P (map eval_ltype tin)).
    EasyCrypt model (eclib/JWord.ec). *)
 Definition undefined_flag : bool := false.
 Global Opaque undefined_flag.
-Notation interp_safe_cond_lty tin id_safe id_semi :=
-  (values.interp_safe_cond_ty (tin := map eval_ltype tin) id_safe id_semi).
-
 Section DECL.
 
 Context {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond}.
@@ -438,7 +435,7 @@ Record instr_desc_t := {
   id_eq_size    : (size id_in == size id_tin) && (size id_out == size id_tout);
   id_str_jas    : unit -> string;
   id_check_dest : all2 check_arg_dest id_out id_tout;
-  id_safe       : seq safe_cond;
+  id_safe       : seq acond;
   (* The error raised when one of the safety conditions does not hold. *)
   id_err        : error;
   (* One initialisation condition per output: the output is defined exactly
@@ -448,11 +445,11 @@ Record instr_desc_t := {
      to the DOIT (Intel) / DIT (ARM) subsets of instructions. *)
   id_doit       : doit_t;
   id_pp_asm     : asm_args -> pp_asm_op;
-  (* Extra properties ensuring that previous information are consistent *)
-  id_safe_wf    : all (fun sc => values.sc_needed_args sc <= size id_tin) id_safe;
-    (* the initialisation conditions are well formed, there is one of them per
-       output, and the error is not a type error *)
-  id_wf         : [&& all (ac_ok (map eval_ltype id_tin)) id_init,
+  (* Extra properties ensuring that previous information are consistent:
+     the safety and initialisation conditions are well formed, there is one
+     initialisation condition per output, and the error is not a type error *)
+  id_wf         : [&& all (ac_ok (map eval_ltype id_tin)) id_safe,
+                      all (ac_ok (map eval_ltype id_tin)) id_init,
                       ssrnat.eqn (size id_init) (size id_tout) & ~~ is_ErrType id_err];
 }.
 
@@ -466,11 +463,11 @@ Definition id_semi (d : instr_desc_t) :
 (* The semantics does not generate a type error. *)
 Lemma id_semi_errty (d : instr_desc_t) :
   d.(id_valid) -> sem_lforall (fun r => r <> Error ErrType) d.(id_tin) (id_semi d).
-Proof. by move=> _; apply/mk_semi_errty/is_ErrTypeE; case/and3P: (id_wf d). Qed.
+Proof. by move=> _; apply/mk_semi_errty/is_ErrTypeE; case/and4P: (id_wf d). Qed.
 
 (* The safety conditions are sufficient to ensure that no error is raised. *)
 Lemma id_semi_safe (d : instr_desc_t) :
-  d.(id_valid) -> interp_safe_cond_lty d.(id_tin) d.(id_safe) (id_semi d).
+  d.(id_valid) -> acond_ty d.(id_safe) (id_semi d).
 Proof. by move=> _; apply: mk_semi_safe. Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -572,10 +569,12 @@ Proof.
   by rewrite /extend_size /check_arg_dest; case: a => //; case: ifP.
 Qed.
 
-Lemma instr_desc_aux3 ws (id_tin id_tout : list ltype) (init : seq acond) err :
-  [&& all (ac_ok (map eval_ltype id_tin)) init,
+Lemma instr_desc_aux3 ws (id_tin id_tout : list ltype) (safe init : seq acond) err :
+  [&& all (ac_ok (map eval_ltype id_tin)) safe,
+      all (ac_ok (map eval_ltype id_tin)) init,
       ssrnat.eqn (size init) (size id_tout) & ~~ is_ErrType err] ->
-  [&& all (ac_ok (map eval_ltype id_tin)) init,
+  [&& all (ac_ok (map eval_ltype id_tin)) safe,
+      all (ac_ok (map eval_ltype id_tin)) init,
       ssrnat.eqn (size init) (size (map (extend_size ws) id_tout)) & ~~ is_ErrType err].
 Proof. by rewrite size_map. Qed.
 
@@ -661,7 +660,7 @@ Proof.
   apply: sem_prod_eq_trans; first by apply: apply_lprod_mk_semi_aux.
   apply: sem_prod_eq_trans; last by apply: sem_prod_eq_sym; apply: mk_semi_aux_apply_lprod.
   apply: mk_semi_aux_eq => vs t.
-  by case: check_safe_old => //= _; rewrite extend_filter_tuple.
+  by case: check_safe => //= _; rewrite extend_filter_tuple.
 Qed.
 
 Definition can_zeroextend (d:instr_desc_t) :=
@@ -695,7 +694,6 @@ Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
        id_init       := d.(id_init);
        id_doit       := d.(id_doit);
        id_pp_asm     := d.(id_pp_asm);
-       id_safe_wf    := d.(id_safe_wf);
        id_wf         := instr_desc_aux3 ws d.(id_wf);
     |}
   else

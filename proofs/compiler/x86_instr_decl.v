@@ -399,7 +399,7 @@ Definition reg_msb_flag (sz : wsize) :=
   if (sz <= U16)%CMP then MSB_MERGE
   else MSB_CLEAR.
 
-Notation mk_instr str_jas tin tout ain aout msb semi_total init args_kinds nargs safe_cond err valid doit pp_asm safe_wf wf :=
+Notation mk_instr str_jas tin tout ain aout msb semi_total init args_kinds nargs safe_cond err valid doit pp_asm wf :=
  {|
   id_valid      := valid;
   id_msb_flag   := msb;
@@ -418,7 +418,6 @@ Notation mk_instr str_jas tin tout ain aout msb semi_total init args_kinds nargs
   id_init       := init;
   id_doit       := doit;
   id_pp_asm     := pp_asm;
-  id_safe_wf    := safe_wf;
   id_wf         := wf;
 |}.
 
@@ -427,7 +426,7 @@ Notation mk_instr str_jas tin tout ain aout msb semi_total init args_kinds nargs
 Notation mk_instr_safe str_jas tin tout ain aout msb semi args_kinds nargs valid doit pp_asm :=
   (mk_instr str_jas tin tout ain aout msb semi
     (init_all_true (size (tout : seq ltype))) args_kinds nargs [::] ErrArith valid doit pp_asm
-    refl_equal refl_equal)
+    refl_equal)
   (only parsing).
 
 (* Same, for an instruction with flags: the initialisation conditions are
@@ -435,7 +434,7 @@ Notation mk_instr_safe str_jas tin tout ain aout msb semi args_kinds nargs valid
 Notation mk_instr_safe_b str_jas tin tout ain aout msb semi_total init args_kinds nargs valid doit pp_asm :=
   (mk_instr str_jas tin tout ain aout msb semi_total
     init args_kinds nargs [::] ErrArith valid doit pp_asm
-    refl_equal refl_equal)
+    refl_equal)
   (only parsing).
 
 (* Can only be use for safe instruction *)
@@ -492,7 +491,7 @@ Notation mk_instr_w2_b5w2 name semi_total init ain aout nargs check prc valid do
   mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b5w2_ty sz) ain (implicit_flags ++ aout) (reg_msb_flag sz) (semi_total sz) init (check sz) nargs (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_division sg name semi_total init check prc valid doit pp_asm wf := ((fun sz =>
-  mk_instr (pp_sz name sz) (w3_ty sz) (b5w2_ty sz) [:: R RDX; R RAX; Eu 0]  (implicit_flags ++ [:: R RAX; R RDX]) (reg_msb_flag sz) (semi_total sz) init (check sz) 1 [:: X86Division sz sg] ErrArith (valid sz) doit (pp_asm sz) refl_equal (wf sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (w3_ty sz) (b5w2_ty sz) [:: R RDX; R RAX; Eu 0]  (implicit_flags ++ [:: R RAX; R RDX]) (reg_msb_flag sz) (semi_total sz) init (check sz) 1 [:: sc_x86_division sz sg] ErrArith (valid sz) doit (pp_asm sz) (wf sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2_w_120 name semi check prc valid doit pp_asm := ((fun sz =>
   mk_instr_safe (pp_sz name sz) (w2_ty sz sz) (w_ty sz) [:: Eu 1 ; Eu 2] [:: Eu 0] MSB_CLEAR (semi sz) (check sz) 3 (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
@@ -509,8 +508,8 @@ Notation mk_instr_ww8b_b2w_0c0 name semi_total init check prc valid doit pp_asm 
 Notation mk_instr_ww8_b5w_0c0 name semi_total init check prc valid doit pp_asm := ((fun sz =>
   mk_instr_safe_b (pp_sz name sz) (ww8_ty sz) (b5w_ty sz) [:: Eu 0; Ef 1 RCX] (implicit_flags ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) (init sz) (check sz) 2 (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
 
-Notation mk_instr_w2w8_b5w_01c0 name semi_total init check safe_cond prc valid doit pp_asm safe_wf wf := ((fun sz =>
-  mk_instr (pp_sz name sz) (w2w8_ty sz) (b5w_ty sz) [:: Eu 0; Ea 1; Ef 2 RCX] (implicit_flags ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) (init sz) (check sz) 3 (safe_cond sz) ErrArith (valid sz) doit (pp_asm sz) (safe_wf sz) (wf sz)), (name%string,prc))  (only parsing).
+Notation mk_instr_w2w8_b5w_01c0 name semi_total init check safe_cond prc valid doit pp_asm wf := ((fun sz =>
+  mk_instr (pp_sz name sz) (w2w8_ty sz) (b5w_ty sz) [:: Eu 0; Ea 1; Ef 2 RCX] (implicit_flags ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) (init sz) (check sz) 3 (safe_cond sz) ErrArith (valid sz) doit (pp_asm sz) (wf sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2w8_w_1230 name semi check prc valid doit pp_asm := ((fun sz =>
   mk_instr_safe (pp_sz name sz) (w2w8_ty sz) (w_ty sz) [:: Ea 1 ; Eu 2 ; Ea 3] [:: Ea 0] (reg_msb_flag sz) (semi sz) (check sz) 4 (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
@@ -819,9 +818,20 @@ Definition init_div : seq acond :=
   [:: IBool false; IBool false; IBool false; IBool false; IBool false;
       IBool true; IBool true].
 
+(* The divisor must not be zero and the quotient must fit in a word. *)
+Lemma x86_division_wf sz sg :
+  [&& all (ac_ok (map eval_ltype (w3_ty sz))) [:: sc_x86_division sz sg],
+      all (ac_ok (map eval_ltype (w3_ty sz))) init_div,
+      ssrnat.eqn (size init_div) (size (b5w2_ty sz))
+    & ~~ is_ErrType ErrArith].
+Proof.
+  have h := @ac_ok_x86_division (map eval_ltype (w3_ty sz)) sz sg erefl erefl erefl erefl.
+  by rewrite /= andbT h.
+Qed.
+
 Definition Ox86_DIV_instr :=
   mk_instr_division Unsigned "DIV" x86_DIV_t init_div check_mul (prim_16_64 DIV) size_16_64 NOT_DOIT (pp_iname "div")
-    (fun _ => refl_equal).
+    (fun sz => x86_division_wf sz Unsigned).
 
 Definition x86_IDIV_t sz (hi lo dv: word sz) : sem_ltuple_t (b5w2_ty sz) :=
   let dd := wdwords hi lo in
@@ -832,7 +842,7 @@ Definition x86_IDIV_t sz (hi lo dv: word sz) : sem_ltuple_t (b5w2_ty sz) :=
 
 Definition Ox86_IDIV_instr :=
   mk_instr_division Signed "IDIV" x86_IDIV_t init_div check_mul (prim_16_64 IDIV) size_16_64 NOT_DOIT (pp_iname "idiv")
-    (fun _ => refl_equal).
+    (fun sz => x86_division_wf sz Signed).
 
 Definition x86_CQO sz (w:word sz) : word sz :=
   (if msb w then -1%w else 0)%w.
@@ -950,6 +960,14 @@ Definition x86_BSR_t sz (w: word sz) : sem_ltuple_t (b5w_ty sz) :=
 Definition init_bsr : seq acond :=
   [:: IBool false; IBool false; IBool false; IBool false; IBool true; IBool true].
 
+(* BSR is safe only on a non-zero argument. *)
+Lemma x86_BSR_wf sz :
+  [&& all (ac_ok (map eval_ltype [:: lword sz])) [:: sc_not_zero sz 0],
+      all (ac_ok (map eval_ltype [:: lword sz])) init_bsr,
+      ssrnat.eqn (size init_bsr) (size (b5w_ty sz))
+    & ~~ is_ErrType ErrArith].
+Proof. by rewrite /= ac_ok_not_zero. Qed.
+
 Lemma wunsigned_neq0 sz (w : word sz) : (wunsigned w != 0%Z) = (w != 0%w).
 Proof.
   apply/idP/idP => [/eqP h | /eqP h]; apply/eqP => heq; apply h.
@@ -965,8 +983,8 @@ Definition Ox86_BSR_instr :=
        (reg_msb_flag sz)
        (@x86_BSR_t sz) init_bsr
        [:: r_rm ] 2
-       [:: NotZero sz 0 ] ErrArith (size_16_64 sz) NOT_DOIT
-       (pp_iname "bsr" sz) erefl refl_equal
+       [:: sc_not_zero sz 0 ] ErrArith (size_16_64 sz) NOT_DOIT
+       (pp_iname "bsr" sz) (x86_BSR_wf sz)
 
   , ("BSR"%string, prim_16_64 BSR)).
 
@@ -1262,9 +1280,9 @@ Definition Ox86_SAR_instr :=
 
 Definition check_shld (_:wsize):= [::[::rm false; r; ri U8]].
 
-Definition safe_shxd sz : seq safe_cond :=
+Definition safe_shxd sz : seq acond :=
   match sz with
-  | U16 => [:: InRangeMod32 U8 0 16 2 ]
+  | U16 => [:: sc_in_range_mod32 U8 0 16 2 ]
   | _ => [::]
   end.
 
@@ -1275,13 +1293,13 @@ Proof. by case: ws. Qed.
 (* On the valid sizes, the safety condition of SHLD/SHRD says exactly that the
    guard of the semantics does not fire. *)
 Lemma safe_shxd_allE sz (v1 v2 : word sz) (i : u8) : size_16_64 sz ->
-  all (check_safe_cond [:: Vword v1; Vword v2; Vword i]) (safe_shxd sz) =
+  all (acond_b [:: Vword v1; Vword v2; Vword i]) (safe_shxd sz) =
   ~~ (wsize_bits sz - wunsigned (wand i (x86_shift_mask sz)) <? 0)%Z.
 Proof.
 Opaque Z.sub.
   move=> hsz; rewrite x86_shift_maskE wand_modulo.
   case: sz hsz v1 v2 => // _ v1 v2 /=.
-  + rewrite truncate_word_u andbT.
+  + rewrite (acond_b_in_range_mod32 0 16 (vs := [:: Vword v1; Vword v2; Vword i]) (k := 2) erefl) andbT.
     have -> : (Z.pow_pos 2 5 = 32)%Z by [].
     rewrite /wsize_bits /=; have := Z.mod_pos_bound (wunsigned i) 32 erefl.
     by case: ZleP => ?; case: ZleP => ?; case: ZltP => ? //; Lia.lia.
@@ -1295,37 +1313,18 @@ Transparent Z.sub.
 Qed.
 
 Lemma safe_shxd_eqE sz (v1 v2 : word sz) (i : u8) : size_16_64 sz ->
-  check_safe_old [:: Vword v1; Vword v2; Vword i] (safe_shxd sz) ErrArith =
+  check_safe [:: Vword v1; Vword v2; Vword i] (safe_shxd sz) ErrArith =
   (if (wsize_bits sz - wunsigned (wand i (x86_shift_mask sz)) <? 0)%Z
    then Error ErrArith else ok tt).
 Proof.
-  move=> hsz; rewrite /check_safe_old (safe_shxd_allE v1 v2 i hsz).
+  move=> hsz; rewrite /check_safe (safe_shxd_allE v1 v2 i hsz).
   by case: (_ <? _)%Z.
 Qed.
 
-Lemma safe_shxdP ws (v1 v2 : sem_t (cword ws)) (i : sem_t (cword U8)) :
-  size_16_64 ws ->
-  List.Forall (values.interp_safe_cond (values.list_ltuple (sem_prod_tuple (map eval_ltype (w2w8_ty ws)) v1 v2 i)))
-        (safe_shxd ws) ->
-  ~ (wsize_bits ws - wunsigned (wand i (x86_shift_mask ws)) < 0)%Z.
-Proof.
-Opaque Z.sub.
-  case: ws v1 v2 => v1 v2 // _ h; rewrite x86_shift_maskE wand_modulo.
-  + by have /= {h} := List.Forall_inv h; rewrite truncate_word_u => /(_ _ erefl) hi;
-        (have -> : (Z.pow_pos 2 5 = 32)%Z by done); rewrite /wsize_bits /= => h; Lia.lia.
-  + have -> : (2 ^ Z.of_nat 5 = 32)%Z by done.
-    rewrite /wsize_bits /=; have := Z.mod_pos_bound (wunsigned i) 32 erefl; Lia.nia.
-  + have -> : (2 ^ Z.of_nat 6 = 64)%Z by done.
-    rewrite /wsize_bits /=; have := Z.mod_pos_bound (wunsigned i) 64 erefl; Lia.nia.
-Transparent Z.sub.
-Qed.
-
-Lemma safe_wf_shxdP ws : all (λ sc : safe_cond, values.sc_needed_args sc <= size (w2w8_ty ws)) (safe_shxd ws).
-Proof. by case: ws. Qed.
-
-(* The initialisation conditions of SHLD/SHRD are well formed. *)
+(* The safety and initialisation conditions of SHLD/SHRD are well formed. *)
 Lemma x86_shxd_wf ws :
-  [&& all (ac_ok (map eval_ltype (w2w8_ty ws))) (init_shift 2 ws),
+  [&& all (ac_ok (map eval_ltype (w2w8_ty ws))) (safe_shxd ws),
+      all (ac_ok (map eval_ltype (w2w8_ty ws))) (init_shift 2 ws),
       ssrnat.eqn (size (init_shift 2 ws)) (size (b5w_ty ws))
     & ~~ is_ErrType ErrArith].
 Proof. by case: ws. Qed.
@@ -1344,7 +1343,7 @@ Definition x86_SHLD_t sz (v1 v2: word sz) (i: u8) : sem_ltuple_t (b5w_ty sz) :=
 
 Definition Ox86_SHLD_instr :=
   mk_instr_w2w8_b5w_01c0 "SHLD" x86_SHLD_t (init_shift 2) check_shld safe_shxd (prim_16_64 SHLD) size_16_64 DOIT (pp_iname_ww_8 "shld")
-   safe_wf_shxdP x86_shxd_wf.
+   x86_shxd_wf.
 
 Definition x86_SHRD_t sz (v1 v2: word sz) (i: u8) : sem_ltuple_t (b5w_ty sz) :=
   let i := wand i (x86_shift_mask sz) in
@@ -1360,7 +1359,7 @@ Definition x86_SHRD_t sz (v1 v2: word sz) (i: u8) : sem_ltuple_t (b5w_ty sz) :=
 
 Definition Ox86_SHRD_instr :=
   mk_instr_w2w8_b5w_01c0 "SHRD" x86_SHRD_t (init_shift 2) check_shld safe_shxd (prim_16_64 SHRD) size_16_64 DOIT (pp_iname_ww_8 "shrd")
-   safe_wf_shxdP x86_shxd_wf.
+   x86_shxd_wf.
 
 Definition check_rorx (_: wsize) := [::[::r ; rm true; i U8]].
 
@@ -2073,12 +2072,12 @@ Definition Ox86_RDTSC_instr :=
               (init_all_true 2)
               [:: [::]]
               0 (* nargs *)
-              [:: ScFalse]
+              [:: sc_false]
               ErrSemUndef
               (size_32_64 sz)
               NOT_DOIT
               (pp_name_ty "rdtsc" [:: sz; sz]) (* asm pretty-print*)
-              refl_equal refl_equal
+              refl_equal
    ,("RDTSC"%string, prim_32_64 RDTSC) (* jasmin concrete syntax *)
   ).
 
@@ -2094,12 +2093,12 @@ Definition Ox86_RDTSCP_instr :=
               (init_all_true 3)
               [:: [::]] (* arg checks *)
               0 (* nargs *)
-              [:: ScFalse]
+              [:: sc_false]
               ErrSemUndef
               (size_32_64 sz)
               NOT_DOIT
               (pp_name_ty "rdtscp" [:: sz; sz; sz]) (* asm pprinter *)
-              refl_equal refl_equal
+              refl_equal
    ,("RDTSCP"%string, prim_32_64 RDTSCP) (* jasmin concrete syntax *)
   ).
 

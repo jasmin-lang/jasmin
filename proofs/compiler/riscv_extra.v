@@ -50,7 +50,6 @@ Definition Oriscv_add_large_imm_instr : instruction_desc :=
    ; i_init := [:: IBool true ]
    ; i_valid := true
    ; i_doit := DOIT
-   ; i_safe_wf := refl_equal
    ; i_wf := refl_equal
    ; semu   := @values.vuincl_app_sopn_v ctin [:: cty]
                  (@mk_semi ctin [:: cty] [::] ErrArith [:: IBool true ] semi) refl_equal
