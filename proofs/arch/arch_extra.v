@@ -370,15 +370,12 @@ Proof.
   by case: ty.
 Qed.
 
-Lemma semi_to_atype_safe_wf tin safe :
-  all (fun sc : safe_cond => ssrnat.leq (sc_needed_args sc) (size tin)) safe ->
-  all (fun sc : safe_cond => ssrnat.leq (sc_needed_args sc) (size (map atype_of_ltype tin))) safe.
-Proof. by rewrite size_map. Qed.
-
-Lemma semi_to_atype_wf (tin tout : seq ltype) init err :
-  [&& all (ac_ok (map eval_ltype tin)) init,
+Lemma semi_to_atype_wf (tin tout : seq ltype) safe init err :
+  [&& all (ac_ok (map eval_ltype tin)) safe,
+      all (ac_ok (map eval_ltype tin)) init,
       ssrnat.eqn (size init) (size tout) & ~~ is_ErrType err] ->
-  [&& all (ac_ok (map eval_atype (map atype_of_ltype tin))) init,
+  [&& all (ac_ok (map eval_atype (map atype_of_ltype tin))) safe,
+      all (ac_ok (map eval_atype (map atype_of_ltype tin))) init,
       ssrnat.eqn (size init) (size (map atype_of_ltype tout)) & ~~ is_ErrType err].
 Proof. by rewrite map_eval_atype_of_ltype size_map. Qed.
 
@@ -398,7 +395,6 @@ Definition get_instr_desc (o: extended_op) : instruction_desc :=
     ; i_init   := id.(id_init)
     ; i_valid  := id.(id_valid)
     ; i_doit   := id.(id_doit)
-    ; i_safe_wf := semi_to_atype_safe_wf id.(id_safe_wf)
     ; i_wf     := semi_to_atype_wf id.(id_wf)
     ; semu     := @vuincl_app_sopn_v _ _ _ (is_not_carr_ltype _)
    |}

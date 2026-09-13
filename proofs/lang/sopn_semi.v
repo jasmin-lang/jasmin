@@ -925,11 +925,11 @@ Definition check_safe_old (vs : values) (safe : seq safe_cond) (err : error) : e
 (* The semantics of an instruction: the safety conditions are checked on the
    arguments, then the total semantics is filtered by the initialisation
    conditions, one per output. *)
-Definition mk_semi (tin tout : seq ctype) (safe : seq safe_cond) (err : error)
+Definition mk_semi (tin tout : seq ctype) (safe : seq acond) (err : error)
     (init : seq acond)
     (f : sem_prod tin (sem_tuple_t tout)) : sem_prod tin (exec (sem_tuple tout)) :=
   mk_semi_aux
-    (fun vs t => Let _ := check_safe_old vs safe err in
+    (fun vs t => Let _ := check_safe vs safe err in
                  ok (filter_tuple tout (map (acond_b vs) init) t))
     [::] tin f.
 Arguments mk_semi {tin tout} safe err init f : assert.
@@ -1052,6 +1052,23 @@ have hpt : forall c, c \in init ->
 case: b hpt => hpt.
 + by apply/eq_in_map => c hc; rewrite hpt.
 by rewrite -hsz -map_const_seq; apply/eq_in_map => c hc; rewrite hpt.
+Qed.
+
+(* The safety conditions of a conditional instruction are the guarded ones:
+   under a false guard they all hold, under a true one they amount to the
+   conditions themselves. *)
+Lemma acond_b_all_guarded (ts : seq ctype) (vs0 : values) (safe : seq acond)
+    (b : bool) (vs2 : values) :
+  List.Forall2 (fun t v => exists x : sem_t t, v = to_val x) ts vs0 ->
+  all ac_total safe -> all (ac_wt ts) safe ->
+  all (acond_b (rcons vs0 (Vbool b) ++ vs2)) (map (sc_guarded (size ts)) safe)
+  = (if b then all (acond_b vs0) safe else true).
+Proof.
+move=> hall htot hwt; rewrite cat_rcons.
+elim: safe htot hwt => [ | c safe ih] /=; first by case: b.
+move=> /andP [] ht htot /andP [] hw hwt.
+have hc := cond_init_val vs2 b hall ht hw; rewrite /cond_init in hc.
+by rewrite hc (ih htot hwt); case: b {ih hc}.
 Qed.
 
 (* The safety conditions of a conditional instruction are the [Guarded] ones;

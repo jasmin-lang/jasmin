@@ -217,11 +217,12 @@ Lemma all_beheadn {A} {p : A -> bool} {n : nat} {xs : seq A} :
 Proof. by move=> h; elim: n => //= n' hn; apply: all_behead hn. Qed.
 
 #[local]
-Lemma drop_id_wf {A B} {p} {b : bool} {n : nat} {xs : seq A} {ys : seq B} :
-  [&& all p xs, ssrnat.eqn (size xs) (size ys) & b] ->
-  [&& all p (beheadn n xs), ssrnat.eqn (size (beheadn n xs)) (size (beheadn n ys)) & b].
+Lemma drop_id_wf {A B C} {p} {q} {b : bool} {n : nat} {zs : seq C} {xs : seq A} {ys : seq B} :
+  [&& all q zs, all p xs, ssrnat.eqn (size xs) (size ys) & b] ->
+  [&& all q zs, all p (beheadn n xs),
+      ssrnat.eqn (size (beheadn n xs)) (size (beheadn n ys)) & b].
 Proof.
-  move=> /and3P [h1 h2 h3]; rewrite all_beheadn //= h3 andbT.
+  move=> /and4P [h0 h1 h2 h3]; rewrite h0 all_beheadn //= h3 andbT.
   by apply/eqnP/eqP; apply: (size_beheadn (n:=n)); apply/eqP; apply/eqnP.
 Qed.
 
@@ -251,7 +252,6 @@ Notation idt_dropn semi_dropn_t :=
        id_init := beheadn _ (id_init idt);
        id_doit := id_doit idt;
        id_pp_asm := id_pp_asm idt;
-       id_safe_wf := id_safe_wf idt;
        id_wf := drop_id_wf (id_wf idt);
      |}).
 

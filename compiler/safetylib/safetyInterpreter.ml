@@ -404,6 +404,12 @@ let safe_lval = function
 
 let safe_lvals = List.fold_left (fun safe x -> safe_lval x @ safe) []
 
+(* The safety conditions of an operator are [Sopn_semi.acond] terms, i.e.
+   boolean expressions on its arguments. The shapes below are the ones built
+   by the [sc_*] functions of lang/sopn_semi.v: recognising them keeps the
+   dedicated abstract conditions ([NotEqual], [InRange], [Initai]), which are
+   more precise than the generic [GeneralCond]. If those definitions change,
+   the patterns below must change too. *)
 let safe_opn pd asmOp safe opn es =
   let id =
     Sopn.get_instr_desc
@@ -412,9 +418,32 @@ let safe_opn pd asmOp safe opn es =
       asmOp
       opn
   in
+  let arg k = List.nth es (Conv.int_of_nat k) in
+  let toint sg ws e = Papp1 (Oint_of_word (sg, ws), e) in
+  (* Translation of a condition into an expression on the arguments; used for
+     the shapes that have no dedicated abstract condition. *)
+  let rec to_e c =
+    match c with
+    | Sopn_semi.IBool b -> Pbool b
+    | Sopn_semi.IConst z -> Pconst (Conv.z_of_cz z)
+    | Sopn_semi.IVar k ->
+       (match List.nth_opt es (Conv.int_of_nat k) with
+        | Some e -> e
+        | None -> Pbool false)
+    | Sopn_semi.IOp1 (o, c) -> Papp1 (o, to_e c)
+    | Sopn_semi.IOp2 (o, c1, c2) -> Papp2 (o, to_e c1, to_e c2)
+    | Sopn_semi.IAppN_safety (_, _) -> Pbool false
+  in
+  let is_zero z = Z.equal (Conv.z_of_cz z) Z.zero in
   let rec conds c =
       match c with
-      | Wsize.X86Division(sz, sg) ->
+      (* [sc_x86_division sz sg] *)
+      | Sopn_semi.IOp2 (Oand,
+            Sopn_semi.IOp2 (Oneq Op_int,
+              Sopn_semi.IOp1 (Oint_of_word (sg, sz), Sopn_semi.IVar k),
+              Sopn_semi.IConst z),
+            Sopn_semi.IOp1 (Onot, _))
+        when Conv.int_of_nat k = 2 && is_zero z ->
          let n, d = split_div sg sz es in
          [ notZero(sz, List.nth es 2)
          ; match sg with
@@ -423,57 +452,74 @@ let safe_opn pd asmOp safe opn es =
           | Signed ->
              InRange (Pconst (Z.neg (half_modulus sz)), Pconst (Z.pred (half_modulus sz)), Papp2 (Odiv(Unsigned, Op_int), n, d))
         ]
-      | Wsize.InRangeMod32(sz, lo, hi, n) ->
-         let n = List.nth es (Conv.int_of_nat n) in
-         let n = Papp1 (E.uint_of_word sz, n) in
-         let n = Papp2 (Omod (Unsigned, Op_int), n, Pconst (Z.of_int 32)) in
-         [ InRange(Pconst (Conv.z_of_cz lo), Pconst (Conv.z_of_cz hi), n) ]
-      | Wsize.AllInit(ws, n, i) ->
-         let array, aa, offset =
-           match List.nth es (Conv.int_of_nat i) with
-           | Pvar y -> y, Warray_.AAscale, icnst
-           | Psub (Warray_.AAdirect, _ws, _len, y, ofs) ->
-              y, Warray_.AAdirect, (fun i -> Papp2 (Oadd Op_int, ofs, icnst (size_of_ws ws * i)))
+
+      (* [sc_not_zero ws k] *)
+      | Sopn_semi.IOp2 (Oneq Op_int,
+            Sopn_semi.IOp1 (Oint_of_word (Unsigned, ws), Sopn_semi.IVar k),
+            Sopn_semi.IConst z)
+        when is_zero z ->
+        [ notZero(ws, arg k) ]
+
+      (* [sc_is_zero ws k]: n ∈ [0; 0] *)
+      | Sopn_semi.IOp2 (Oeq Op_int,
+            Sopn_semi.IOp1 (Oint_of_word (Unsigned, ws), Sopn_semi.IVar k),
+            Sopn_semi.IConst z)
+        when is_zero z ->
+        [ InRange(Pconst Z.zero, Pconst Z.zero, toint Unsigned ws (arg k)) ]
+
+      (* [sc_in_range lo hi e] (hence [sc_in_range_mod32]) *)
+      | Sopn_semi.IOp2 (Oand,
+            Sopn_semi.IOp2 (Ole Cmp_int, Sopn_semi.IConst lo, e1),
+            Sopn_semi.IOp2 (Ole Cmp_int, e2, Sopn_semi.IConst hi))
+        when e1 = e2 ->
+        [ InRange(Pconst (Conv.z_of_cz lo), Pconst (Conv.z_of_cz hi), to_e e1) ]
+
+      (* [sc_ult ws k z]: n ∈ [0; z-1] *)
+      | Sopn_semi.IOp2 (Olt Cmp_int,
+            Sopn_semi.IOp1 (Oint_of_word (Unsigned, ws), Sopn_semi.IVar k),
+            Sopn_semi.IConst z) ->
+        [ InRange(Pconst Z.zero, Pconst (Z.pred (Conv.z_of_cz z)), toint Unsigned ws (arg k)) ]
+
+      (* [sc_uge ws z k]: z ∈ [0; n] *)
+      | Sopn_semi.IOp2 (Ole Cmp_int, Sopn_semi.IConst z,
+            Sopn_semi.IOp1 (Oint_of_word (Unsigned, ws), Sopn_semi.IVar k)) ->
+        [ InRange(Pconst Z.zero, toint Unsigned ws (arg k), Pconst (Conv.z_of_cz z)) ]
+
+      (* [sc_uadd_le ws k1 k2 z]: n1 + n2 ∈ [0; z] *)
+      | Sopn_semi.IOp2 (Ole Cmp_int,
+            (Sopn_semi.IOp2 (Oadd Op_int,
+               Sopn_semi.IOp1 (Oint_of_word (Unsigned, _), Sopn_semi.IVar _),
+               Sopn_semi.IOp1 (Oint_of_word (Unsigned, _), Sopn_semi.IVar _)) as e),
+            Sopn_semi.IConst z) ->
+        [ InRange(Pconst Z.zero, Pconst (Conv.z_of_cz z), to_e e) ]
+
+      (* [sc_all_init ws len k]: every byte of the array is initialised *)
+      | Sopn_semi.IAppN_safety (Ois_arr_init _,
+            [ Sopn_semi.IVar k; Sopn_semi.IConst lo; Sopn_semi.IConst len ]) ->
+         let lo = Conv.z_of_cz lo and len = Conv.z_of_cz len in
+         let array, base =
+           match arg k with
+           | Pvar y -> y, Pconst Z.zero
+           | Psub (Warray_.AAdirect, _ws, _len, y, ofs) -> y, ofs
            | Psub (Warray_.AAscale, ws', _len, y, ofs) ->
-              y, Warray_.AAdirect, (fun i -> Papp2 (Oadd Op_int, Papp2 (Omul Op_int, ofs, icnst (size_of_ws ws')), icnst (size_of_ws ws * i)))
+              y, Papp2 (Omul Op_int, ofs, icnst (size_of_ws ws'))
            | _ -> assert false
          in
-           List.flatten
-             (List.init (max 0 (Conv.int_of_cz n)) (fun i -> init_get array aa ws (offset i) 1))
-      | NotZero (sz, n) ->
-        [ notZero(sz, List.nth es (Conv.int_of_nat n)) ]
+         let ofs =
+           if Z.equal lo Z.zero then base
+           else Papp2 (Oadd Op_int, base, Pconst lo) in
+         init_get array Warray_.AAdirect U8 ofs (Z.to_int len)
 
-      | ULt (sz, n, z) ->
-        let n = List.nth es (Conv.int_of_nat n) in
-        let n = Papp1 (E.uint_of_word sz, n) in
-        [ InRange(Pconst Z.zero, Pconst (Z.pred (Conv.z_of_cz z)), n)] (* n ∈ [0; z-1] *)
-
-      | UGe (sz, z, n) ->
-        let n = List.nth es (Conv.int_of_nat n) in
-        let n = Papp1 (E.uint_of_word sz, n) in
-        let z = Pconst (Conv.z_of_cz z) in
-        [ InRange(Pconst Z.zero, n, z) ] (* z ∈ [0; n] *)
-
-      | UaddLe(sz, n1, n2, z) ->
-        let n1 = List.nth es (Conv.int_of_nat n1) in
-        let n1 = Papp1 (E.uint_of_word sz, n1) in
-        let n2 = List.nth es (Conv.int_of_nat n2) in
-        let n2 = Papp1 (E.uint_of_word sz, n2) in
-        let n12 = Papp2 (Oadd Op_int, n1, n2) in
-        let z = Pconst (Conv.z_of_cz z) in
-        [ InRange(Pconst Z.zero, z, n12) ] (* n1 + n2 ∈ [0; z] *)
-
-      | ScFalse ->
+      (* [sc_false]: unsatisfiable *)
+      | Sopn_semi.IBool false ->
          [InRange(Pconst Z.zero, Pconst Z.zero, Pconst Z.one)] (* 1 ∈ [0; 0] *)
 
-      | IsZero (sz, n) ->
-        let n = List.nth es (Conv.int_of_nat n) in
-        let n = Papp1 (E.uint_of_word sz, n) in
-        [ InRange(Pconst Z.zero, Pconst Z.zero, n) ] (* n ∈ [0; 0] *)
-
-      | Wsize.Guarded (g, c) ->
-        let g = List.nth es (Conv.int_of_nat g) in
+      (* [sc_guarded g c]: [c] is required only when the guard holds *)
+      | Sopn_semi.IOp2 (Oor, Sopn_semi.IOp1 (Onot, Sopn_semi.IVar g), c) ->
+        let g = arg g in
         List.map (fun c -> Guarded (g, c)) (conds c)
+
+      | c -> [ GeneralCond (Pexpr (to_e c)) ]
   in
   List.flatten (List.map conds id.i_safe) @ safe
 

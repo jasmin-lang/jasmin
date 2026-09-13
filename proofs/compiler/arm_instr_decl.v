@@ -500,42 +500,39 @@ Definition mk_semi_cond_t tin tout (f : sem_lprod tin (sem_ltuple_t tout))
   in
   add_arguments f1.
 
-Lemma safe_wf_cat (tin tin' : seq ltype) sc :
-  all (fun sc => sc_needed_args sc <= size tin) sc ->
-  all (fun sc => sc_needed_args sc <= size (tin ++ tin')) sc.
-Proof. apply sub_all => c h; rewrite size_cat; apply: (leq_trans h); apply leq_addr. Qed.
 
 Lemma mk_cond_aux (tin tout : seq ltype) (ts : seq ctype) (vs0 : values)
-    (safe : seq safe_cond) (err : error) (init : seq acond)
+    (safe : seq acond) (err : error) (init : seq acond)
     (semi : sem_lprod tin (exec (sem_ltuple tout)))
     (f : sem_lprod tin (sem_ltuple_t tout)) :
   List.Forall2 (fun t v => exists x : sem_t t, v = to_val x) ts vs0 ->
   size init = size tout ->
   all ac_total init ->
   all (ac_wt (ts ++ map eval_ltype tin)) init ->
-  all (fun sc => sc_needed_args sc <= size ts + size tin) safe ->
+  all ac_total safe ->
+  all (ac_wt (ts ++ map eval_ltype tin)) safe ->
   sem_prod_eq (map eval_ltype tin) semi
-    (mk_semi_aux (fun vs t => Let _ := check_safe_old vs safe err in
+    (mk_semi_aux (fun vs t => Let _ := check_safe vs safe err in
         ok (filter_tuple (map eval_ltype tout) (map (acond_b vs) init) t))
        vs0 (map eval_ltype tin) f) ->
   sem_prod_eq (map eval_ltype (tin ++ lbool :: tout))
     (mk_semi_cond semi)
     (mk_semi_aux (fun vs t =>
-        Let _ := check_safe_old vs (map (Guarded (size ts + size tin)) safe) err in
+        Let _ := check_safe vs (map (sc_guarded (size ts + size tin)) safe) err in
         ok (filter_tuple (map eval_ltype tout)
               (map (acond_b vs) (map (cond_init (size ts + size tin)) init)) t))
        vs0 (map eval_ltype (tin ++ lbool :: tout)) (mk_semi_cond_t f)).
 Proof.
   elim: tin ts vs0 semi f.
-  + move=> ts vs0 semi f hall hsz htot hwt hswf heq.
-    move: hwt hswf; rewrite cats0 addn0 => hwt hswf.
+  + move=> ts vs0 semi f hall hsz htot hwt hstot hswt heq.
+    move: hwt hswt; rewrite cats0 addn0 => hwt hswt.
     have hszv : size vs0 = size ts := esym (Forall2_size hall).
-    have heq' : semi = (Let _ := check_safe_old vs0 safe err in
+    have heq' : semi = (Let _ := check_safe vs0 safe err in
                         ok (filter_tuple (map eval_ltype tout) (map (acond_b vs0) init) f)) := heq.
     have hchk : forall (b : bool) vs2,
-        check_safe_old (rcons vs0 (Vbool b) ++ vs2) (map (Guarded (size ts)) safe) err
-        = if b then check_safe_old vs0 safe err else ok tt.
-    + move=> b vs2; rewrite /check_safe_old (check_safe_cond_all_guarded vs2 b hszv hswf).
+        check_safe (rcons vs0 (Vbool b) ++ vs2) (map (sc_guarded (size ts)) safe) err
+        = if b then check_safe vs0 safe err else ok tt.
+    + move=> b vs2; rewrite /check_safe (acond_b_all_guarded b vs2 hall hstot hswt).
       by case: b.
     rewrite /mk_semi_cond /mk_semi_cond_t !add_arguments_nil.
     move=> b; simpl sem_prod_app; simpl mk_semi_aux.
@@ -556,7 +553,7 @@ Proof.
       + by rewrite size_nseq size_map.
       by [].
     by apply: sem_prod_eq_sym; apply: sem_prod_ok_app.
-  move=> t tin ih ts vs0 semi f hall hsz htot hwt hswf heq v.
+  move=> t tin ih ts vs0 semi f hall hsz htot hwt hstot hswt heq v.
   rewrite /mk_semi_cond /mk_semi_cond_t !add_arguments_app.
   simpl sem_prod_app; simpl mk_semi_aux.
   rewrite add_arguments_app.
@@ -567,36 +564,32 @@ Proof.
   + done.
   + done.
   + by rewrite cat_rcons.
-  + by rewrite size_rcons addSnnS.
+  + done.
+  + by rewrite cat_rcons.
   by apply: heq.
 Qed.
 
-(* Guarding a condition adds a dependency on the guard, which is the argument
+(* The safety and initialisation conditions of the conditional instruction are
+   those of the unconditional one, under the guard: the guard is the argument
    just after those of the unconditional instruction. *)
-Lemma mk_cond_safe_wf (idt : instr_desc_t) :
-  all (fun sc => sc_needed_args sc <= size (id_tin idt ++ lbool :: id_tout idt))
-      (map (Guarded (size (id_tin idt))) (id_safe idt)).
-Proof.
-  have h := all_sc_needed_args_guarded (id_safe_wf idt).
-  apply: sub_all h => sc hsc; apply: leq_trans hsc _.
-  by rewrite size_cat /= addnS ltnS leq_addr.
-Qed.
-
-(* The initialisation conditions of the conditional instruction are those of
-   the unconditional one, under the guard. *)
 Lemma mk_cond_wf (idt : instr_desc_t) :
   [&& all (ac_ok (map eval_ltype (id_tin idt ++ lbool :: id_tout idt)))
+        (map (sc_guarded (size (id_tin idt))) (id_safe idt)),
+      all (ac_ok (map eval_ltype (id_tin idt ++ lbool :: id_tout idt)))
         (map (cond_init (size (id_tin idt))) (id_init idt)),
       ssrnat.eqn (size (map (cond_init (size (id_tin idt))) (id_init idt)))
                  (size (id_tout idt))
     & ~~ is_ErrType (id_err idt)].
 Proof.
-  have /and3P [h1 h2 h3] := id_wf idt.
-  rewrite size_map h2 h3 !andbT.
-  apply/allP => c /mapP [c0 hc0 ->].
-  rewrite map_cat /=.
-  by have := ac_ok_cond_init (map eval_ltype (id_tout idt)) ((allP h1) _ hc0);
-     rewrite size_map.
+  have /and4P [h0 h1 h2 h3] := id_wf idt.
+  have hg : forall l, all (ac_ok (map eval_ltype (id_tin idt))) l ->
+    all (ac_ok (map eval_ltype (id_tin idt ++ lbool :: id_tout idt)))
+        (map (cond_init (size (id_tin idt))) l).
+  + move=> l hl; apply/allP => c /mapP [c0 hc0 ->].
+    rewrite map_cat /=.
+    by have := ac_ok_cond_init (map eval_ltype (id_tout idt)) ((allP hl) _ hc0);
+       rewrite size_map.
+  by rewrite size_map h2 h3 !andbT (hg _ h0) (hg _ h1).
 Qed.
 
 Definition mk_cond (idt : instr_desc_t) : instr_desc_t :=
@@ -614,13 +607,12 @@ Definition mk_cond (idt : instr_desc_t) : instr_desc_t :=
     id_str_jas := id_str_jas idt;
     (* [mk_semi_cond] does not run the guarded instruction when the guard is
        false, so its conditions are those of [idt] under the guard. *)
-    id_safe := map (Guarded (size (id_tin idt))) (id_safe idt);
+    id_safe := map (sc_guarded (size (id_tin idt))) (id_safe idt);
     id_err := id_err idt;
     id_init := map (cond_init (size (id_tin idt))) (id_init idt);
     id_pp_asm := id_pp_asm idt;
     id_valid := id_valid idt;
     id_doit := id_doit idt;
-    id_safe_wf := mk_cond_safe_wf idt;
     id_wf := mk_cond_wf idt;
   |}.
 Arguments mk_cond : clear implicits.
@@ -632,11 +624,12 @@ Lemma mk_cond_semi_eq (idt : instr_desc_t) :
     (mk_semi_cond (id_semi idt))
     (id_semi (mk_cond idt)).
 Proof.
-  have /and3P [hok /eqnP hsz _] := id_wf idt.
+  have /and4P [hsok hok /eqnP hsz _] := id_wf idt.
   apply: (mk_cond_aux (ts := [::]) (vs0 := [::])) => //.
   + by apply: (all_ac_ok_total hok).
   + by apply: (all_ac_ok_wt hok).
-  + by apply: id_safe_wf.
+  + by apply: (all_ac_ok_total hsok).
+  + by apply: (all_ac_ok_wt hsok).
   by apply: sem_prod_eq_refl.
 Qed.
 
@@ -693,12 +686,13 @@ Proof.
 Qed.
 
 Lemma shifted_wf (idt : instr_desc_t) :
-  [&& all (ac_ok (map eval_ltype (id_tin idt ++ [:: lword8 ]))) (id_init idt),
+  [&& all (ac_ok (map eval_ltype (id_tin idt ++ [:: lword8 ]))) (id_safe idt),
+      all (ac_ok (map eval_ltype (id_tin idt ++ [:: lword8 ]))) (id_init idt),
       ssrnat.eqn (size (id_init idt)) (size (id_tout idt))
     & ~~ is_ErrType (id_err idt)].
 Proof.
-  have /and3P [h1 h2 h3] := id_wf idt.
-  by rewrite map_cat (all_ac_ok_cat _ h1) h2 h3.
+  have /and4P [h0 h1 h2 h3] := id_wf idt.
+  by rewrite map_cat (all_ac_ok_cat _ h0) (all_ac_ok_cat _ h1) h2 h3.
 Qed.
 
 Definition mk_shifted
@@ -722,7 +716,6 @@ Definition mk_shifted
     id_pp_asm := id_pp_asm idt;
     id_valid := id_valid idt;
     id_doit := id_doit idt;
-    id_safe_wf := safe_wf_cat _ (id_safe_wf idt);
     id_wf := shifted_wf idt;
   |}.
 
@@ -829,7 +822,6 @@ Definition arm_ADD_instr : instr_desc_t :=
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_doit := DOIT;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -871,7 +863,6 @@ Definition arm_ADC_instr : instr_desc_t :=
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_doit := DOIT;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -919,7 +910,6 @@ Definition arm_MUL_instr : instr_desc_t :=
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_doit := DOIT;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -951,7 +941,6 @@ Definition arm_MLA_instr : instr_desc_t :=
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_doit := DOIT;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
   |}.
 
@@ -979,7 +968,6 @@ Definition arm_MLS_instr : instr_desc_t :=
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_doit := DOIT;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
   |}.
 
@@ -1009,7 +997,6 @@ Definition arm_SDIV_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := NOT_DOIT; (* Not DIT *)
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1042,7 +1029,6 @@ Definition arm_SUB_instr : instr_desc_t :=
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_doit := DOIT;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -1080,7 +1066,6 @@ Definition arm_SBC_instr : instr_desc_t :=
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_doit := DOIT;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -1118,7 +1103,6 @@ Definition arm_RSB_instr : instr_desc_t :=
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_doit := NOT_DOIT; (* Not DIT *)
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -1156,7 +1140,6 @@ Definition arm_UDIV_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := NOT_DOIT; (* Not DIT *)
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1185,7 +1168,6 @@ Definition arm_UMULL_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := DOIT;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1214,7 +1196,6 @@ Definition arm_UMAAL_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := NOT_DOIT; (* Not DIT *)
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1243,7 +1224,6 @@ Definition arm_UMLAL_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := DOIT;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1272,7 +1252,6 @@ Definition arm_SMULL_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := DOIT;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1301,7 +1280,6 @@ Definition arm_SMLAL_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := DOIT;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1329,7 +1307,6 @@ Definition arm_SMMUL_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := NOT_DOIT; (* Not DIT *)
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1357,7 +1334,6 @@ Definition arm_SMMULR_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := NOT_DOIT; (* Not DIT *)
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1394,7 +1370,6 @@ Definition arm_smul_hw_instr hwn hwm : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := NOT_DOIT; (* Not DIT *)
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1427,7 +1402,6 @@ Definition arm_smla_hw_instr hwn hwm : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := NOT_DOIT; (* Not DIT *)
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1459,7 +1433,6 @@ Definition arm_smulw_hw_instr hw : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := NOT_DOIT; (* Not DIT *)
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1496,7 +1469,6 @@ Definition arm_AND_instr : instr_desc_t :=
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_doit := DOIT;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -1520,7 +1492,8 @@ Definition arm_BFC_semi_t (x : wreg) (lsb width : word U8) : wreg :=
   in
   winit reg_size mk.
 
-Definition arm_BFC_semi_sc := [:: ULt U8 1 32%Z; UGe U8 1%Z 2; UaddLe U8 2 1 32%Z].
+Definition arm_BFC_semi_sc :=
+  [:: sc_ult U8 1 32%Z; sc_uge U8 1%Z 2; sc_uadd_le U8 2 1 32%Z].
 
 Definition arm_BFC_instr : instr_desc_t :=
   let mn := BFC in
@@ -1542,7 +1515,6 @@ Definition arm_BFC_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := DOIT;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1557,7 +1529,8 @@ Definition arm_BFI_semi_t (x y : wreg) (lsb width : word U8) : wreg :=
   in
   winit reg_size mk.
 
-Definition arm_BFI_semi_sc := [:: ULt U8 2 32%Z; UGe U8 1%Z 3; UaddLe U8 3 2 32%Z].
+Definition arm_BFI_semi_sc :=
+  [:: sc_ult U8 2 32%Z; sc_uge U8 1%Z 3; sc_uadd_le U8 3 2 32%Z].
 
 Definition arm_BFI_instr : instr_desc_t :=
   let mn := BFI in
@@ -1579,7 +1552,6 @@ Definition arm_BFI_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := DOIT;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1606,7 +1578,6 @@ Definition arm_BIC_instr : instr_desc_t :=
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_doit := DOIT;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -1642,7 +1613,6 @@ Definition arm_EOR_instr : instr_desc_t :=
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_doit := DOIT;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -1682,7 +1652,6 @@ Definition arm_MVN_instr : instr_desc_t :=
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_doit := DOIT;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -1718,7 +1687,6 @@ Definition arm_ORR_instr : instr_desc_t :=
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_doit := DOIT;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -1777,7 +1745,6 @@ Definition arm_ASR_instr : instr_desc_t :=
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_doit := DOIT;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -1815,7 +1782,6 @@ Definition arm_LSL_instr : instr_desc_t :=
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_doit := DOIT;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -1853,7 +1819,6 @@ Definition arm_LSR_instr : instr_desc_t :=
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_doit := DOIT;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -1891,7 +1856,6 @@ Definition arm_ROR_instr : instr_desc_t :=
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_doit := DOIT;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -1918,7 +1882,6 @@ Definition mk_rev_instr mn semi doit :=
    ; id_pp_asm := pp_arm_op mn opts
    ; id_valid := true
    ; id_doit := doit
-   ; id_safe_wf := refl_equal
    ; id_wf := refl_equal
   |}.
 
@@ -1960,7 +1923,6 @@ Definition arm_ADR_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := NOT_DOIT; (* Not DIT *)
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1990,7 +1952,6 @@ Definition arm_MOV_instr : instr_desc_t :=
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_doit := DOIT;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -2025,7 +1986,6 @@ Definition arm_MOVT_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := DOIT;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -2035,7 +1995,8 @@ Definition bit_field_extract_semi_t
   let width := wunsigned wwidth in
   shr (wshl wn (32 - width - idx)%Z) (32 - width)%Z.
 
-Definition bit_field_extract_semi_sc := [:: UGe U8 1%Z 2; UaddLe U8 2 1 32%Z].
+Definition bit_field_extract_semi_sc :=
+  [:: sc_uge U8 1%Z 2; sc_uadd_le U8 2 1 32%Z].
 
 Definition ak_reg_reg_imm_imm_extr :=
    [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAimm (Some (CAimmC_arm_shift_amout SLSL)) U8 ]; [:: CAimm_sz U8 ] ] ].
@@ -2061,7 +2022,6 @@ Definition arm_UBFX_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := DOIT;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -2097,7 +2057,6 @@ Definition arm_UXTB_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := DOIT;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -2124,7 +2083,6 @@ Definition arm_UXTH_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := DOIT;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -2153,7 +2111,6 @@ Definition arm_SBFX_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := DOIT;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -2184,7 +2141,6 @@ Definition arm_SXTB_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := DOIT;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -2211,7 +2167,6 @@ Definition arm_SXTH_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := DOIT;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -2245,7 +2200,6 @@ Definition arm_CMP_instr : instr_desc_t :=
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_doit := DOIT;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -2280,7 +2234,6 @@ Definition arm_TST_instr : instr_desc_t :=
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_doit := DOIT;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -2311,7 +2264,6 @@ Definition arm_CMN_instr : instr_desc_t :=
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
       id_doit := DOIT;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -2350,7 +2302,6 @@ Definition arm_load_instr mn : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := DOIT;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -2382,7 +2333,6 @@ Definition arm_store_instr mn : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := DOIT;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -2408,7 +2358,6 @@ Definition arm_CLZ_instr :=
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
     id_doit := DOIT;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
