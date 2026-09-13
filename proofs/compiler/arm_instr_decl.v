@@ -474,20 +474,6 @@ Proof.
   subst T => //.
 Qed.
 
-Lemma interp_safe_cond_ty_aux_cat {T} (P : values -> T -> Prop) vs tin1 tin2 (o : sem_lprod (tin1 ++ tin2) T) :
-  interp_safe_cond_ty_aux P vs o <->
-  interp_safe_cond_ty_aux (fun vs (o2: sem_lprod tin2 T) => interp_safe_cond_ty_aux P vs o2) vs
-     (eq_rect_r id o (Logic.eq_sym (sem_lprod_cat tin1 tin2 T))).
-Proof.
-  elim: tin1 vs o => //= t tin1 hrec vs.
-  setoid_rewrite hrec.
-  rewrite /eq_ind_r /= /eq_ind /=.
-  move: (sem_lprod_cat tin1 tin2 T); rewrite /sem_prod /=.
-  rewrite /Logic.eq_sym.
-  move: (lprod [seq sem_t i | i <- map eval_ltype (tin1 ++ tin2)] T).
-  move=> lprod h; subst => //=.
-Qed.
-
 Definition mk_semi_cond_t tin tout (f : sem_lprod tin (sem_ltuple_t tout))
   : sem_lprod (tin ++ lbool :: tout) (sem_ltuple_t tout) :=
   let f0 res cond : sem_lprod tout (sem_ltuple_t tout) :=
@@ -499,19 +485,6 @@ Definition mk_semi_cond_t tin tout (f : sem_lprod tin (sem_ltuple_t tout))
     sem_prod_app f f0
   in
   add_arguments f1.
-
-(* Extensionally equal semantics satisfy the same safety property. *)
-Lemma interp_safe_cond_ty_aux_eq {T} (P : values -> T -> Prop) vs tin (f g : sem_prod tin T) :
-  sem_prod_eq tin f g ->
-  interp_safe_cond_ty_aux P vs g -> interp_safe_cond_ty_aux P vs f.
-Proof.
-  elim: tin vs f g => /= [vs f g -> // | t tin ih vs f g heq hg v].
-  by apply: (ih _ _ _ (heq v) (hg v)).
-Qed.
-
-Lemma interp_safe_cond_ty_eq {T} tin sc (f g : sem_prod tin (exec T)) :
-  sem_prod_eq tin f g -> interp_safe_cond_ty sc g -> interp_safe_cond_ty sc f.
-Proof. by apply: interp_safe_cond_ty_aux_eq. Qed.
 
 Lemma mk_cond_aux (tin tout : seq ltype) (ts : seq ctype) (vs0 : values)
     (safe : seq acond) (err : error) (init : seq acond)

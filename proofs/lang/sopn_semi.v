@@ -10,11 +10,9 @@
    The conditions of the operators themselves are in [op_semi.v]; this file
    only defines the language of conditions and the generic construction.
 
-   An instruction is described the same way, by [mk_semi], with two
-   differences: it has several outputs, some of which may be left undefined
-   (one condition of [seq acond] per output says when an output is defined),
-   and its safety conditions are the ones of [wsize.safe_cond], decided by
-   [values.check_safe_cond]. *)
+   An instruction is described the same way, by [mk_semi], with one
+   difference: it has several outputs, some of which may be left undefined
+   (one condition of [seq acond] per output says when an output is defined). *)
 
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
@@ -1094,24 +1092,6 @@ Definition is_ErrType (e : error) : bool := if e is ErrType then true else false
 Lemma is_ErrTypeE (e : error) : ~~ is_ErrType e -> e <> ErrType.
 Proof. by case: e. Qed.
 
-(* The safety check of an instruction: its conditions are the old
-   [wsize.safe_cond], decided by [values.check_safe_cond]; if one of them
-   fails, the instruction raises the error it declares. *)
-Definition check_safe_old (vs : values) (safe : seq safe_cond) (err : error) : exec unit :=
-  if all (check_safe_cond vs) safe then ok tt else Error err.
-
-Lemma check_safe_old_ok vs safe err :
-  all (check_safe_cond vs) safe -> check_safe_old vs safe err = ok tt.
-Proof. by rewrite /check_safe_old => ->. Qed.
-
-Lemma check_safe_old_okE vs safe err u :
-  check_safe_old vs safe err = ok u -> all (check_safe_cond vs) safe.
-Proof. by rewrite /check_safe_old; case: ifP. Qed.
-
-Lemma all_check_safe_cond vs safe :
-  List.Forall (interp_safe_cond vs) safe -> all (check_safe_cond vs) safe.
-Proof. by elim => //= sc l hsc _ ih; apply/andP; split => //; apply/check_safe_condP. Qed.
-
 (* The semantics of an instruction: the safety conditions are checked on the
    arguments, then the total semantics is filtered by the initialisation
    conditions, one per output. *)
@@ -1350,52 +1330,4 @@ elim: safe htot hwt => [ | c safe ih] /=; first by case: b.
 move=> /andP [] ht htot /andP [] hw hwt.
 have hc := cond_init_val vs2 b hall ht hw; rewrite /cond_init in hc.
 by rewrite hc (ih htot hwt); case: b {ih hc}.
-Qed.
-
-(* The safety conditions of a conditional instruction are the [Guarded] ones;
-   under a false guard they all hold. *)
-Lemma check_safe_cond_cat vs1 vs2 sc :
-  ssrnat.leq (sc_needed_args sc) (size vs1) ->
-  check_safe_cond (vs1 ++ vs2) sc = check_safe_cond vs1 sc.
-Proof.
-move=> h; apply/idP/idP => /check_safe_condP hc; apply/check_safe_condP.
-+ by apply/(@interp_safe_cond_cat vs1 vs2 sc h).
-by apply/(@interp_safe_cond_cat vs1 vs2 sc h).
-Qed.
-
-Lemma check_safe_cond_guarded (vs0 vs2 : values) (b : bool) (sc : safe_cond) :
-  ssrnat.leq (sc_needed_args sc) (size vs0) ->
-  check_safe_cond (vs0 ++ Vbool b :: vs2) (Guarded (size vs0) sc)
-  = (~~ b) || check_safe_cond vs0 sc.
-Proof.
-move=> h; rewrite /= nth_cat ltnn subnn /=.
-by case: b => //=; rewrite check_safe_cond_cat.
-Qed.
-
-Lemma check_safe_cond_all_guarded (n : nat) (vs0 vs2 : values) (safe : seq safe_cond)
-    (b : bool) :
-  size vs0 = n ->
-  all (fun sc => ssrnat.leq (sc_needed_args sc) n) safe ->
-  all (check_safe_cond (rcons vs0 (Vbool b) ++ vs2)) (map (Guarded n) safe)
-  = (if b then all (check_safe_cond vs0) safe else true).
-Proof.
-move=> hsz; rewrite cat_rcons -hsz.
-elim: safe => [ | sc safe ih] /=.
-+ by case: b.
-move=> /andP [h1 h2]; rewrite nth_cat ltnn subnn /= (ih h2).
-by case: b {ih} => //=; rewrite check_safe_cond_cat.
-Qed.
-
-Lemma sc_needed_args_guarded n sc :
-  ssrnat.leq (sc_needed_args sc) n ->
-  ssrnat.leq (sc_needed_args (Guarded n sc)) (S n).
-Proof.
-by move=> h; rewrite /= ssrnat.geq_max ssrnat.leqnn /=; apply: (ssrnat.leq_trans h).
-Qed.
-
-Lemma all_sc_needed_args_guarded n safe :
-  all (fun sc => ssrnat.leq (sc_needed_args sc) n) safe ->
-  all (fun sc => ssrnat.leq (sc_needed_args sc) (S n)) (map (Guarded n) safe).
-Proof.
-by move=> h; rewrite all_map; apply: sub_all h => sc; apply: sc_needed_args_guarded.
 Qed.
