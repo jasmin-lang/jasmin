@@ -487,25 +487,25 @@ Definition mk_semi_cond_t tin tout (f : sem_lprod tin (sem_ltuple_t tout))
   add_arguments f1.
 
 Lemma mk_cond_aux (tin tout : seq ltype) (ts : seq ctype) (vs0 : values)
-    (safe : seq acond) (err : error) (init : seq acond)
+    (safe : seq safety_cond) (err : error) (init : seq safety_cond)
     (semi : sem_lprod tin (exec (sem_ltuple tout)))
     (f : sem_lprod tin (sem_ltuple_t tout)) :
   List.Forall2 (fun t v => exists x : sem_t t, v = to_val x) ts vs0 ->
   size init = size tout ->
-  all ac_total init ->
-  all (ac_wt (ts ++ map eval_ltype tin)) init ->
-  all ac_total safe ->
-  all (ac_wt (ts ++ map eval_ltype tin)) safe ->
+  all safety_cond_total init ->
+  all (safety_cond_wt (ts ++ map eval_ltype tin)) init ->
+  all safety_cond_total safe ->
+  all (safety_cond_wt (ts ++ map eval_ltype tin)) safe ->
   sem_prod_eq (map eval_ltype tin) semi
     (mk_semi_aux (fun vs t => Let _ := check_safe vs safe err in
-        ok (filter_tuple (map eval_ltype tout) (map (acond_b vs) init) t))
+        ok (filter_tuple (map eval_ltype tout) (map (safety_cond_holds vs) init) t))
        vs0 (map eval_ltype tin) f) ->
   sem_prod_eq (map eval_ltype (tin ++ lbool :: tout))
     (mk_semi_cond semi)
     (mk_semi_aux (fun vs t =>
         Let _ := check_safe vs (map (sc_guarded (size ts + size tin)) safe) err in
         ok (filter_tuple (map eval_ltype tout)
-              (map (acond_b vs) (map (cond_init (size ts + size tin)) init)) t))
+              (map (safety_cond_holds vs) (map (cond_init (size ts + size tin)) init)) t))
        vs0 (map eval_ltype (tin ++ lbool :: tout)) (mk_semi_cond_t f)).
 Proof.
   elim: tin ts vs0 semi f.
@@ -513,11 +513,11 @@ Proof.
     move: hwt hswt; rewrite cats0 addn0 => hwt hswt.
     have hszv : size vs0 = size ts := esym (Forall2_size hall).
     have heq' : semi = (Let _ := check_safe vs0 safe err in
-                        ok (filter_tuple (map eval_ltype tout) (map (acond_b vs0) init) f)) := heq.
+                        ok (filter_tuple (map eval_ltype tout) (map (safety_cond_holds vs0) init) f)) := heq.
     have hchk : forall (b : bool) vs2,
         check_safe (rcons vs0 (Vbool b) ++ vs2) (map (sc_guarded (size ts)) safe) err
         = if b then check_safe vs0 safe err else ok tt.
-    + move=> b vs2; rewrite /check_safe (acond_b_all_guarded b vs2 hall hstot hswt).
+    + move=> b vs2; rewrite /check_safe (safety_cond_holds_all_guarded b vs2 hall hstot hswt).
       by case: b.
     rewrite /mk_semi_cond /mk_semi_cond_t !add_arguments_nil.
     move=> b; simpl sem_prod_app; simpl mk_semi_aux.
@@ -558,21 +558,21 @@ Qed.
    those of the unconditional one, under the guard: the guard is the argument
    just after those of the unconditional instruction. *)
 Lemma mk_cond_wf (idt : instr_desc_t) :
-  [&& all (ac_ok (map eval_ltype (id_tin idt ++ lbool :: id_tout idt)))
+  [&& all (safety_cond_wf (map eval_ltype (id_tin idt ++ lbool :: id_tout idt)))
         (map (sc_guarded (size (id_tin idt))) (id_safe idt)),
-      all (ac_ok (map eval_ltype (id_tin idt ++ lbool :: id_tout idt)))
+      all (safety_cond_wf (map eval_ltype (id_tin idt ++ lbool :: id_tout idt)))
         (map (cond_init (size (id_tin idt))) (id_init idt)),
       ssrnat.eqn (size (map (cond_init (size (id_tin idt))) (id_init idt)))
                  (size (id_tout idt))
     & ~~ is_ErrType (id_err idt)].
 Proof.
   have /and4P [h0 h1 h2 h3] := id_wf idt.
-  have hg : forall l, all (ac_ok (map eval_ltype (id_tin idt))) l ->
-    all (ac_ok (map eval_ltype (id_tin idt ++ lbool :: id_tout idt)))
+  have hg : forall l, all (safety_cond_wf (map eval_ltype (id_tin idt))) l ->
+    all (safety_cond_wf (map eval_ltype (id_tin idt ++ lbool :: id_tout idt)))
         (map (cond_init (size (id_tin idt))) l).
   + move=> l hl; apply/allP => c /mapP [c0 hc0 ->].
     rewrite map_cat /=.
-    by have := ac_ok_cond_init (map eval_ltype (id_tout idt)) ((allP hl) _ hc0);
+    by have := safety_cond_wf_cond_init (map eval_ltype (id_tout idt)) ((allP hl) _ hc0);
        rewrite size_map.
   by rewrite size_map h2 h3 !andbT (hg _ h0) (hg _ h1).
 Qed.
@@ -611,10 +611,10 @@ Lemma mk_cond_semi_eq (idt : instr_desc_t) :
 Proof.
   have /and4P [hsok hok /eqnP hsz _] := id_wf idt.
   apply: (mk_cond_aux (ts := [::]) (vs0 := [::])) => //.
-  + by apply: (all_ac_ok_total hok).
-  + by apply: (all_ac_ok_wt hok).
-  + by apply: (all_ac_ok_total hsok).
-  + by apply: (all_ac_ok_wt hsok).
+  + by apply: (all_safety_cond_wf_total hok).
+  + by apply: (all_safety_cond_wf_wt hok).
+  + by apply: (all_safety_cond_wf_total hsok).
+  + by apply: (all_safety_cond_wf_wt hsok).
   by apply: sem_prod_eq_refl.
 Qed.
 
@@ -671,13 +671,13 @@ Proof.
 Qed.
 
 Lemma shifted_wf (idt : instr_desc_t) :
-  [&& all (ac_ok (map eval_ltype (id_tin idt ++ [:: lword8 ]))) (id_safe idt),
-      all (ac_ok (map eval_ltype (id_tin idt ++ [:: lword8 ]))) (id_init idt),
+  [&& all (safety_cond_wf (map eval_ltype (id_tin idt ++ [:: lword8 ]))) (id_safe idt),
+      all (safety_cond_wf (map eval_ltype (id_tin idt ++ [:: lword8 ]))) (id_init idt),
       ssrnat.eqn (size (id_init idt)) (size (id_tout idt))
     & ~~ is_ErrType (id_err idt)].
 Proof.
   have /and4P [h0 h1 h2 h3] := id_wf idt.
-  by rewrite map_cat (all_ac_ok_cat _ h0) (all_ac_ok_cat _ h1) h2 h3.
+  by rewrite map_cat (all_safety_cond_wf_cat _ h0) (all_safety_cond_wf_cat _ h1) h2 h3.
 Qed.
 
 Definition mk_shifted
@@ -1481,14 +1481,14 @@ Definition arm_BFC_semi_sc :=
   [:: sc_ult U8 1 32%Z; sc_uge U8 1%Z 2; sc_uadd_le U8 2 1 32%Z].
 
 Lemma arm_BFC_safe_condE (x : wreg) (lsb width : word U8) :
-  all (acond_b [:: Vword x; Vword lsb; Vword width]) arm_BFC_semi_sc
+  all (safety_cond_holds [:: Vword x; Vword lsb; Vword width]) arm_BFC_semi_sc
   = [&& (wunsigned lsb <? 32)%Z, (1 <=? wunsigned width)%Z
       & (wunsigned width + wunsigned lsb <=? 32)%Z].
 Proof.
   set vs := [:: Vword x; Vword lsb; Vword width].
-  rewrite /arm_BFC_semi_sc /= andbT (acond_b_ult 32%Z (vs := vs) (k := 1) erefl).
-  rewrite (acond_b_uge 1%Z (vs := vs) (k := 2) erefl).
-  by rewrite (acond_b_uadd_le 32%Z (vs := vs) (k1 := 2) (k2 := 1) erefl erefl).
+  rewrite /arm_BFC_semi_sc /= andbT (safety_cond_holds_ult 32%Z (vs := vs) (k := 1) erefl).
+  rewrite (safety_cond_holds_uge 1%Z (vs := vs) (k := 2) erefl).
+  by rewrite (safety_cond_holds_uadd_le 32%Z (vs := vs) (k1 := 2) (k2 := 1) erefl erefl).
 Qed.
 
 Definition arm_BFC_instr : instr_desc_t :=
@@ -1529,14 +1529,14 @@ Definition arm_BFI_semi_sc :=
   [:: sc_ult U8 2 32%Z; sc_uge U8 1%Z 3; sc_uadd_le U8 3 2 32%Z].
 
 Lemma arm_BFI_safe_condE (x y : wreg) (lsb width : word U8) :
-  all (acond_b [:: Vword x; Vword y; Vword lsb; Vword width]) arm_BFI_semi_sc
+  all (safety_cond_holds [:: Vword x; Vword y; Vword lsb; Vword width]) arm_BFI_semi_sc
   = [&& (wunsigned lsb <? 32)%Z, (1 <=? wunsigned width)%Z
       & (wunsigned width + wunsigned lsb <=? 32)%Z].
 Proof.
   set vs := [:: Vword x; Vword y; Vword lsb; Vword width].
-  rewrite /arm_BFI_semi_sc /= andbT (acond_b_ult 32%Z (vs := vs) (k := 2) erefl).
-  rewrite (acond_b_uge 1%Z (vs := vs) (k := 3) erefl).
-  by rewrite (acond_b_uadd_le 32%Z (vs := vs) (k1 := 3) (k2 := 2) erefl erefl).
+  rewrite /arm_BFI_semi_sc /= andbT (safety_cond_holds_ult 32%Z (vs := vs) (k := 2) erefl).
+  rewrite (safety_cond_holds_uge 1%Z (vs := vs) (k := 3) erefl).
+  by rewrite (safety_cond_holds_uadd_le 32%Z (vs := vs) (k1 := 3) (k2 := 2) erefl erefl).
 Qed.
 
 Definition arm_BFI_instr : instr_desc_t :=
@@ -1716,14 +1716,14 @@ Definition arm_shift_semi_t
   (:: NF_of_word res, ZF_of_word res, op_c wn sham & res).
 
 (* The shift amount is the second argument, of type [u8]. *)
-Definition arm_sham_ne0 : acond :=
+Definition arm_sham_ne0 : safety_cond :=
   IOp2 (Oneq (Op_w U8)) (IVar 1) (IOp1 (Oword_of_int U8) (IConst 0)).
 
-Definition arm_shift_init : seq acond :=
+Definition arm_shift_init : seq safety_cond :=
   [:: arm_sham_ne0; arm_sham_ne0; arm_sham_ne0; IBool true ].
 
 Lemma arm_shift_initE (wn : ty_r) (wsham : word U8) :
-  map (acond_b [:: Vword wn; Vword wsham]) arm_shift_init
+  map (safety_cond_holds [:: Vword wn; Vword wsham]) arm_shift_init
   = [:: (wunsigned wsham != 0%Z); (wunsigned wsham != 0%Z);
         (wunsigned wsham != 0%Z); true].
 Proof.
@@ -1731,7 +1731,7 @@ Proof.
   + rewrite wrepr0; apply/idP/idP; apply: contra => /eqP h; apply/eqP.
     + by apply: wunsigned_inj; rewrite h wunsigned0.
     by rewrite h wunsigned0.
-  by rewrite /arm_shift_init /arm_sham_ne0 /acond_b /= !truncate_word_u /= hb.
+  by rewrite /arm_shift_init /arm_sham_ne0 /safety_cond_holds /= !truncate_word_u /= hb.
 Qed.
 
 Definition arm_ASR_C (wn : ty_r) (shift : Z) :=
@@ -2018,12 +2018,12 @@ Definition bit_field_extract_semi_sc :=
   [:: sc_uge U8 1%Z 2; sc_uadd_le U8 2 1 32%Z].
 
 Lemma bit_field_extract_safe_condE (x : wreg) (idx width : word U8) :
-  all (acond_b [:: Vword x; Vword idx; Vword width]) bit_field_extract_semi_sc
+  all (safety_cond_holds [:: Vword x; Vword idx; Vword width]) bit_field_extract_semi_sc
   = ((1 <=? wunsigned width)%Z && (wunsigned width + wunsigned idx <=? 32)%Z).
 Proof.
   set vs := [:: Vword x; Vword idx; Vword width].
-  rewrite /bit_field_extract_semi_sc /= andbT (acond_b_uge 1%Z (vs := vs) (k := 2) erefl).
-  by rewrite (acond_b_uadd_le 32%Z (vs := vs) (k1 := 2) (k2 := 1) erefl erefl).
+  rewrite /bit_field_extract_semi_sc /= andbT (safety_cond_holds_uge 1%Z (vs := vs) (k := 2) erefl).
+  by rewrite (safety_cond_holds_uadd_le 32%Z (vs := vs) (k1 := 2) (k2 := 1) erefl erefl).
 Qed.
 
 Definition ak_reg_reg_imm_imm_extr :=

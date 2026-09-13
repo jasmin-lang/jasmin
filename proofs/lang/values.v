@@ -898,11 +898,11 @@ Section FORALL.
 
 End FORALL.
 
-Fixpoint interp_safe_cond_ty_aux
+Fixpoint sem_prod_forall_args
   {T} (P : values -> T -> Prop) (vs: values) (tin : seq ctype) : sem_prod tin T -> Prop :=
 match tin return sem_prod tin T -> Prop with
 | [::] => fun t => P vs t
-| t::tin => fun o => forall v, interp_safe_cond_ty_aux P (rcons vs (to_val v)) (o v)
+| t::tin => fun o => forall v, sem_prod_forall_args P (rcons vs (to_val v)) (o v)
 end.
 
 Definition value_eqb (v1 v2:value) :=

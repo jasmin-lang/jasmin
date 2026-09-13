@@ -52,12 +52,12 @@ Record instruction_desc := mkInstruction {
      See field id_valid in arch/arch_decl.v
   *)
   i_valid  : bool;
-  i_safe   : seq acond;
+  i_safe   : seq safety_cond;
   (* The error raised when one of the safety conditions does not hold. *)
   i_err    : error;
   (* One initialisation condition per output: the output is defined exactly
      when its condition holds on the arguments. *)
-  i_init   : seq acond;
+  i_init   : seq safety_cond;
   (* Whether the operator has data operand independent timing, i.e. it is
      implemented using only DOIT (Intel) / DIT (ARM) instructions.
      See field id_doit in arch/arch_decl.v.
@@ -67,8 +67,8 @@ Record instruction_desc := mkInstruction {
   (* Extra properties ensuring that previous information are consistent:
      the safety and initialisation conditions are well formed, there is one
      initialisation condition per output, and the error is not a type error *)
-  i_wf         : [&& all (ac_ok (map eval_atype tin)) i_safe,
-                     all (ac_ok (map eval_atype tin)) i_init,
+  i_wf         : [&& all (safety_cond_wf (map eval_atype tin)) i_safe,
+                     all (safety_cond_wf (map eval_atype tin)) i_init,
                      ssrnat.eqn (size i_init) (size tout) & ~~ is_ErrType i_err];
     (* the semantics is monotone with respect to [value_uincl] *)
   semu     : forall vs vs' v,
@@ -95,7 +95,7 @@ Proof. by move=> _; apply/mk_semi_errty/is_ErrTypeE; case/and4P: (i_wf i). Qed.
 
 (* The safety conditions are sufficient to ensure that no error is raised. *)
 Lemma i_semi_safe (i : instruction_desc) :
-  i.(i_valid) -> acond_ty i.(i_safe) (semi i).
+  i.(i_valid) -> safety_cond_sufficient i.(i_safe) (semi i).
 Proof. by move=> _; apply: mk_semi_safe. Qed.
 
 (* Transport of the monotony along an extensional equality of semantics. *)
@@ -320,18 +320,18 @@ have -> : @mk_semi [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
             [:: sc_all_init ws p 0] ErrAddrUndef [:: IBool true] (@copy_total ws p) t
         = (Let _ := check_safe [:: Varr t] [:: sc_all_init ws p 0] ErrAddrUndef in
            ok (copy_total ws t)) by [].
-rewrite /check_safe /= andbT (acond_b_all_init (t := t)) //= array_copy_eq.
+rewrite /check_safe /= andbT (safety_cond_holds_all_init (t := t)) //= array_copy_eq.
 by case: all.
 Qed.
 
 (* Reading the array is the only condition, and the output is always
    defined. *)
 Lemma copy_wf ws p :
-  [&& all (ac_ok (map eval_atype [:: aarr ws p])) [:: sc_all_init ws p 0],
-      all (ac_ok (map eval_atype [:: aarr ws p])) [:: IBool true],
+  [&& all (safety_cond_wf (map eval_atype [:: aarr ws p])) [:: sc_all_init ws p 0],
+      all (safety_cond_wf (map eval_atype [:: aarr ws p])) [:: IBool true],
       ssrnat.eqn (size [:: IBool true]) (size [:: aarr ws p])
     & ~~ is_ErrType ErrAddrUndef].
-Proof. by rewrite /= andbT ac_ok_all_init. Qed.
+Proof. by rewrite /= andbT safety_cond_wf_all_init. Qed.
 
 Definition Ocopy_instr ws p :=
   {| str      := pp_sz "copy" ws;
@@ -633,18 +633,18 @@ Lemma protect_ptr_fail_eq n :
 Proof.
   move=> t msf.
   rewrite /mk_semi /= /check_safe /= andbT.
-  rewrite (acond_b_is_zero (vs := [:: Varr t; Vword msf]) (k:=1) erefl).
+  rewrite (safety_cond_holds_is_zero (vs := [:: Varr t; Vword msf]) (k:=1) erefl).
   by rewrite /se_protect_ptr_fail_sem /assert; case: eqP.
 Qed.
 
 (* The only safety condition is that the MSF is zero, and the output is
    always defined. *)
 Lemma protect_ptr_fail_wf ws n :
-  [&& all (ac_ok (map eval_atype [:: aarr ws n; ty_msf])) [:: sc_is_zero msf_size 1],
-      all (ac_ok (map eval_atype [:: aarr ws n; ty_msf])) [:: IBool true],
+  [&& all (safety_cond_wf (map eval_atype [:: aarr ws n; ty_msf])) [:: sc_is_zero msf_size 1],
+      all (safety_cond_wf (map eval_atype [:: aarr ws n; ty_msf])) [:: IBool true],
       ssrnat.eqn (size [:: IBool true]) (size [:: aarr ws n])
     & ~~ is_ErrType ErrSemUndef].
-Proof. by rewrite /= !andbT ac_ok_is_zero. Qed.
+Proof. by rewrite /= !andbT safety_cond_wf_is_zero. Qed.
 
 Definition SLHprotect_ptr_fail_str := "protect_ptr_fail"%string.
 Definition SLHprotect_ptr_fail_instr ws n :=

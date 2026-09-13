@@ -2,7 +2,7 @@
 
    An operator is described by three independent pieces of data:
    - a total semantics, of type [sem_prod tin (sem_t tout)] ([sem_op_total.v]);
-   - a list of conditions on its arguments, [seq acond], under which the usual
+   - a list of conditions on its arguments, [seq safety_cond], under which the usual
      (partial) semantics does not fail;
    - the error it raises when one of them does not hold.
    [mk_sem_op] assembles them into the usual [sem_prod tin (exec (sem_t tout))].
@@ -12,7 +12,7 @@
 
    An instruction is described the same way, by [mk_semi], with one
    difference: it has several outputs, some of which may be left undefined
-   (one condition of [seq acond] per output says when an output is defined). *)
+   (one condition of [seq safety_cond] per output says when an output is defined). *)
 
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
@@ -54,20 +54,20 @@ Qed.
 (* A boolean expression on the arguments of an operator. [IVar n] refers to
    the n-th argument. *)
 #[only(eqbOK)] derive
-Inductive acond :=
+Inductive safety_cond :=
   | IBool of bool
   | IConst of Z
   | IVar of nat
-  | IOp1 of sop1 & acond
-  | IOp2 of sop2 & acond & acond
-  | IAppN_safety of opN_safety & seq acond.
+  | IOp1 of sop1 & safety_cond
+  | IOp2 of sop2 & safety_cond & safety_cond
+  | IAppN_safety of opN_safety & seq safety_cond.
 
-HB.instance Definition _ := hasDecEq.Build acond acond_eqb_OK.
+HB.instance Definition _ := hasDecEq.Build safety_cond safety_cond_eqb_OK.
 
 (* The generated scheme does not go under the list of [IAppN_safety]. *)
-Section ACOND_IND.
+Section SAFETY_COND_IND.
   Context
-    (P : acond -> Prop)
+    (P : safety_cond -> Prop)
     (Hbool : forall b, P (IBool b))
     (Hconst : forall z, P (IConst z))
     (Hvar : forall k, P (IVar k))
@@ -75,125 +75,125 @@ Section ACOND_IND.
     (Hop2 : forall o c1, P c1 -> forall c2, P c2 -> P (IOp2 o c1 c2))
     (HappN : forall o cs, List.Forall P cs -> P (IAppN_safety o cs)).
 
-  Fixpoint acond_ind_s (c : acond) : P c :=
+  Fixpoint safety_cond_ind_seq (c : safety_cond) : P c :=
     match c with
     | IBool b => Hbool b
     | IConst z => Hconst z
     | IVar k => Hvar k
-    | IOp1 o c => Hop1 o (acond_ind_s c)
-    | IOp2 o c1 c2 => Hop2 o (acond_ind_s c1) (acond_ind_s c2)
+    | IOp1 o c => Hop1 o (safety_cond_ind_seq c)
+    | IOp2 o c1 c2 => Hop2 o (safety_cond_ind_seq c1) (safety_cond_ind_seq c2)
     | IAppN_safety o cs =>
-      HappN o ((fix loop (l : seq acond) : List.Forall P l :=
+      HappN o ((fix loop (l : seq safety_cond) : List.Forall P l :=
                   match l with
                   | [::] => List.Forall_nil P
-                  | c :: l => List.Forall_cons c (acond_ind_s c) (loop l)
+                  | c :: l => List.Forall_cons c (safety_cond_ind_seq c) (loop l)
                   end) cs)
     end.
-End ACOND_IND.
+End SAFETY_COND_IND.
 
 (* The interpretation goes through the *total* semantics of the operators, so
    that it does not depend on [sem_sop1_typed]/[sem_sop2_typed] failing. *)
-Fixpoint interp_acond (vs : values) (c : acond) : exec value :=
+Fixpoint sem_safety_cond (vs : values) (c : safety_cond) : exec value :=
   match c with
   | IBool b => ok (Vbool b)
   | IConst z => ok (Vint z)
   | IVar n => ok (nth undef_b vs n)
   | IOp1 o c =>
-    Let v := interp_acond vs c in
+    Let v := sem_safety_cond vs c in
     Let x := of_val _ v in
     ok (to_val (sem_sop1_total o x))
   | IOp2 o c1 c2 =>
-    Let v1 := interp_acond vs c1 in
-    Let v2 := interp_acond vs c2 in
+    Let v1 := sem_safety_cond vs c1 in
+    Let v2 := sem_safety_cond vs c2 in
     Let x1 := of_val _ v1 in
     Let x2 := of_val _ v2 in
     ok (to_val (sem_sop2_total o x1 x2))
   | IAppN_safety o cs =>
-    Let l := mapM (interp_acond vs) cs in
+    Let l := mapM (sem_safety_cond vs) cs in
     Let b := app_sopn _ (sem_opN_safety_typed o) l in
     ok (Vbool b)
   end.
 
 (* A condition that is not a boolean (in particular an ill-typed one, whose
    interpretation is an error) counts as false. *)
-Definition acond_b (vs : values) (c : acond) : bool :=
-  if interp_acond vs c is Ok (Vbool b) then b else false.
+Definition safety_cond_holds (vs : values) (c : safety_cond) : bool :=
+  if sem_safety_cond vs c is Ok (Vbool b) then b else false.
 
 (* ** Typing *)
 
-(* [ac_type tin c] is the type of [c] when the arguments have types [tin].
+(* [safety_cond_type tin c] is the type of [c] when the arguments have types [tin].
    An operator expecting an argument of type [t] accepts a sub-condition of
    type [t'] as soon as [subctype t t'], which is exactly what [of_val]
    accepts (for words: a word of at least that size). *)
 Definition sub_octype (t : ctype) (ot : option ctype) : bool :=
   if ot is Some t' then subctype t t' else false.
 
-Fixpoint ac_type (tin : seq ctype) (c : acond) : option ctype :=
+Fixpoint safety_cond_type (tin : seq ctype) (c : safety_cond) : option ctype :=
   match c with
   | IBool _ => Some cbool
   | IConst _ => Some cint
   | IVar n => if (n < size tin)%nat then Some (nth cbool tin n) else None
   | IOp1 o c =>
     let t := type_of_op1 o in
-    if ac_type tin c is Some t1 then
+    if safety_cond_type tin c is Some t1 then
       if subctype (eval_atype t.1) t1 then Some (eval_atype t.2) else None
     else None
   | IOp2 o c1 c2 =>
     let t := type_of_op2 o in
-    if ac_type tin c1 is Some t1 then
-      if ac_type tin c2 is Some t2 then
+    if safety_cond_type tin c1 is Some t1 then
+      if safety_cond_type tin c2 is Some t2 then
         if subctype (eval_atype t.1.1) t1 && subctype (eval_atype t.1.2) t2
         then Some (eval_atype t.2) else None
       else None
     else None
   | IAppN_safety o cs =>
-    if all2 sub_octype (map eval_atype (type_of_opN_safety o).1) (map (ac_type tin) cs)
+    if all2 sub_octype (map eval_atype (type_of_opN_safety o).1) (map (safety_cond_type tin) cs)
     then Some cbool else None
   end.
 
-(* [ac_types tin ts cs]: the conditions [cs] have the types [ts], up to
+(* [safety_cond_types tin ts cs]: the conditions [cs] have the types [ts], up to
    [subctype]. *)
-Definition ac_types (tin ts : seq ctype) (cs : seq acond) : bool :=
-  all2 sub_octype ts (map (ac_type tin) cs).
+Definition safety_cond_types (tin ts : seq ctype) (cs : seq safety_cond) : bool :=
+  all2 sub_octype ts (map (safety_cond_type tin) cs).
 
-Lemma ac_type_appN tin o cs :
-  ac_type tin (IAppN_safety o cs) =
-  if ac_types tin (map eval_atype (type_of_opN_safety o).1) cs then Some cbool else None.
+Lemma safety_cond_type_appN tin o cs :
+  safety_cond_type tin (IAppN_safety o cs) =
+  if safety_cond_types tin (map eval_atype (type_of_opN_safety o).1) cs then Some cbool else None.
 Proof. by []. Qed.
 
 (* A well-typed condition is one that evaluates to a boolean. *)
-Definition ac_wt (tin : seq ctype) (c : acond) : bool :=
-  ac_type tin c == Some cbool.
+Definition safety_cond_wt (tin : seq ctype) (c : safety_cond) : bool :=
+  safety_cond_type tin c == Some cbool.
 
 (* The variables of a condition are among the first [n] arguments. *)
-Fixpoint ac_below (n : nat) (c : acond) : bool :=
+Fixpoint safety_cond_vars_below (n : nat) (c : safety_cond) : bool :=
   match c with
   | IBool _ | IConst _ => true
   | IVar k => (k < n)%nat
-  | IOp1 _ c => ac_below n c
-  | IOp2 _ c1 c2 => ac_below n c1 && ac_below n c2
-  | IAppN_safety _ cs => all (ac_below n) cs
+  | IOp1 _ c => safety_cond_vars_below n c
+  | IOp2 _ c1 c2 => safety_cond_vars_below n c1 && safety_cond_vars_below n c2
+  | IAppN_safety _ cs => all (safety_cond_vars_below n) cs
   end.
 
 (* The number of arguments a condition reads: one more than the largest [IVar]
    it mentions, [0] if it mentions none. *)
-Fixpoint ac_max_var (c : acond) : nat :=
+Fixpoint safety_cond_max_var (c : safety_cond) : nat :=
   match c with
   | IBool _ | IConst _ => 0
   | IVar k => S k
-  | IOp1 _ c => ac_max_var c
-  | IOp2 _ c1 c2 => ssrnat.maxn (ac_max_var c1) (ac_max_var c2)
-  | IAppN_safety _ cs => foldr (fun c n => ssrnat.maxn (ac_max_var c) n) 0 cs
+  | IOp1 _ c => safety_cond_max_var c
+  | IOp2 _ c1 c2 => ssrnat.maxn (safety_cond_max_var c1) (safety_cond_max_var c2)
+  | IAppN_safety _ cs => foldr (fun c n => ssrnat.maxn (safety_cond_max_var c) n) 0 cs
   end.
 
-Lemma ac_max_var_appN_le o cs n :
-  ssrnat.leq (ac_max_var (IAppN_safety o cs)) n
-  = all (fun c => ssrnat.leq (ac_max_var c) n) cs.
+Lemma safety_cond_max_var_appN_le o cs n :
+  ssrnat.leq (safety_cond_max_var (IAppN_safety o cs)) n
+  = all (fun c => ssrnat.leq (safety_cond_max_var c) n) cs.
 Proof. by elim: cs => //= c cs ih; rewrite ssrnat.geq_max ih. Qed.
 
-Lemma ac_max_var_below n c : ssrnat.leq (ac_max_var c) n = ac_below n c.
+Lemma safety_cond_max_var_below n c : ssrnat.leq (safety_cond_max_var c) n = safety_cond_vars_below n c.
 Proof.
-elim/acond_ind_s: c => //=.
+elim/safety_cond_ind_seq: c => //=.
 + by move=> o c1 ih1 c2 ih2; rewrite ssrnat.geq_max ih1 ih2.
 move=> o cs; elim => //= c l ih1 _ ih2.
 by rewrite ssrnat.geq_max ih1 ih2.
@@ -221,132 +221,132 @@ Proof. by case: o => len a lo l. Qed.
 
 (* Conditions built from operators whose typed semantics cannot fail: their
    interpretation on arguments of the announced types is always a value. *)
-Fixpoint ac_total (c : acond) : bool :=
+Fixpoint safety_cond_total (c : safety_cond) : bool :=
   match c with
   | IBool _ | IConst _ | IVar _ => true
-  | IOp1 o c => op1_total o && ac_total c
-  | IOp2 o c1 c2 => [&& op2_total o, ac_total c1 & ac_total c2]
-  | IAppN_safety _ cs => all ac_total cs
+  | IOp1 o c => op1_total o && safety_cond_total c
+  | IOp2 o c1 c2 => [&& op2_total o, safety_cond_total c1 & safety_cond_total c2]
+  | IAppN_safety _ cs => all safety_cond_total cs
   end.
 
 (* Well-formedness of a condition: well typed and total. *)
-Definition ac_ok (tin : seq ctype) (c : acond) : bool :=
-  ac_wt tin c && ac_total c.
+Definition safety_cond_wf (tin : seq ctype) (c : safety_cond) : bool :=
+  safety_cond_wt tin c && safety_cond_total c.
 
-Lemma ac_ok_wt tin c : ac_ok tin c -> ac_wt tin c.
+Lemma safety_cond_wf_wt tin c : safety_cond_wf tin c -> safety_cond_wt tin c.
 Proof. by move=> /andP []. Qed.
 
-Lemma ac_ok_total tin c : ac_ok tin c -> ac_total c.
+Lemma safety_cond_wf_total tin c : safety_cond_wf tin c -> safety_cond_total c.
 Proof. by move=> /andP []. Qed.
 
-Lemma all_ac_ok_wt tin l : all (ac_ok tin) l -> all (ac_wt tin) l.
-Proof. by apply: sub_all; apply: ac_ok_wt. Qed.
+Lemma all_safety_cond_wf_wt tin l : all (safety_cond_wf tin) l -> all (safety_cond_wt tin) l.
+Proof. by apply: sub_all; apply: safety_cond_wf_wt. Qed.
 
-Lemma all_ac_ok_total tin l : all (ac_ok tin) l -> all ac_total l.
-Proof. by apply: sub_all; apply: ac_ok_total. Qed.
+Lemma all_safety_cond_wf_total tin l : all (safety_cond_wf tin) l -> all safety_cond_total l.
+Proof. by apply: sub_all; apply: safety_cond_wf_total. Qed.
 
 (* ** Basic properties of the interpretation *)
 
-Lemma ac_type_below tin c t : ac_type tin c = Some t -> ac_below (size tin) c.
+Lemma safety_cond_type_below tin c t : safety_cond_type tin c = Some t -> safety_cond_vars_below (size tin) c.
 Proof.
-elim/acond_ind_s: c t => //=.
+elim/safety_cond_ind_seq: c t => //=.
 + by move=> k t; case: ifP.
-+ move=> o c ih t; case heq: (ac_type tin c) => [t1|] //=; case: ifP => // _ _.
++ move=> o c ih t; case heq: (safety_cond_type tin c) => [t1|] //=; case: ifP => // _ _.
   by apply: ih heq.
 + move=> o c1 ih1 c2 ih2 t.
-  case heq1: (ac_type tin c1) => [t1|] //=; case heq2: (ac_type tin c2) => [t2|] //=.
+  case heq1: (safety_cond_type tin c1) => [t1|] //=; case heq2: (safety_cond_type tin c2) => [t2|] //=.
   case: ifP => // _ _.
   by rewrite (ih1 _ heq1) (ih2 _ heq2).
 move=> o cs hall t; case: ifP => // + _.
 elim: cs hall (map eval_atype (type_of_opN_safety o).1) => [ | c cs ih] hall [ | t0 ts] //=.
 move=> /andP [h1 h2]; move/List_Forall_inv: hall => [hc hcs].
 rewrite (ih hcs ts h2) andbT.
-by move: h1; rewrite /sub_octype; case heq: (ac_type tin c) => [t1|] // _; apply: (hc _ heq).
+by move: h1; rewrite /sub_octype; case heq: (safety_cond_type tin c) => [t1|] // _; apply: (hc _ heq).
 Qed.
 
-Lemma ac_type_cat tin tin' c t :
-  ac_type tin c = Some t -> ac_type (tin ++ tin') c = Some t.
+Lemma safety_cond_type_cat tin tin' c t :
+  safety_cond_type tin c = Some t -> safety_cond_type (tin ++ tin') c = Some t.
 Proof.
-elim/acond_ind_s: c t => //=.
+elim/safety_cond_ind_seq: c t => //=.
 + move=> k t; case: ifP => // hk [<-].
   by rewrite nth_cat hk size_cat (ltn_addr _ hk).
-+ move=> o c ih t; case heq: (ac_type tin c) => [t1|] //=; case: ifP => // hsub [<-].
++ move=> o c ih t; case heq: (safety_cond_type tin c) => [t1|] //=; case: ifP => // hsub [<-].
   by rewrite (ih _ heq) /= hsub.
 + move=> o c1 ih1 c2 ih2 t.
-  case heq1: (ac_type tin c1) => [t1|] //=; case heq2: (ac_type tin c2) => [t2|] //=.
+  case heq1: (safety_cond_type tin c1) => [t1|] //=; case heq2: (safety_cond_type tin c2) => [t2|] //=.
   case: ifP => // hsub [<-].
   by rewrite (ih1 _ heq1) (ih2 _ heq2) /= hsub.
 move=> o cs hall t; case: ifP => // + [<-].
-have haux : forall ts, all2 sub_octype ts (map (ac_type tin) cs) ->
-                       all2 sub_octype ts (map (ac_type (tin ++ tin')) cs).
+have haux : forall ts, all2 sub_octype ts (map (safety_cond_type tin) cs) ->
+                       all2 sub_octype ts (map (safety_cond_type (tin ++ tin')) cs).
 + elim: cs hall => [ | c cs ih] hall [ | t0 ts] //=.
   move/List_Forall_inv: hall => [hc hcs] /andP [h1 h2]; rewrite (ih hcs ts h2) andbT.
-  by move: h1; rewrite /sub_octype; case heq: (ac_type tin c) => [t1|] // hsub; rewrite (hc _ heq).
+  by move: h1; rewrite /sub_octype; case heq: (safety_cond_type tin c) => [t1|] // hsub; rewrite (hc _ heq).
 by move=> /haux ->.
 Qed.
 
-Lemma ac_wt_cat tin tin' c : ac_wt tin c -> ac_wt (tin ++ tin') c.
-Proof. by rewrite /ac_wt => /eqP /ac_type_cat ->. Qed.
+Lemma safety_cond_wt_cat tin tin' c : safety_cond_wt tin c -> safety_cond_wt (tin ++ tin') c.
+Proof. by rewrite /safety_cond_wt => /eqP /safety_cond_type_cat ->. Qed.
 
-Lemma ac_ok_cat tin tin' c : ac_ok tin c -> ac_ok (tin ++ tin') c.
-Proof. by move=> /andP [h1 h2]; rewrite /ac_ok (ac_wt_cat tin' h1). Qed.
+Lemma safety_cond_wf_cat tin tin' c : safety_cond_wf tin c -> safety_cond_wf (tin ++ tin') c.
+Proof. by move=> /andP [h1 h2]; rewrite /safety_cond_wf (safety_cond_wt_cat tin' h1). Qed.
 
-Lemma all_ac_ok_cat tin tin' l : all (ac_ok tin) l -> all (ac_ok (tin ++ tin')) l.
-Proof. by apply: sub_all => c; apply: ac_ok_cat. Qed.
+Lemma all_safety_cond_wf_cat tin tin' l : all (safety_cond_wf tin) l -> all (safety_cond_wf (tin ++ tin')) l.
+Proof. by apply: sub_all => c; apply: safety_cond_wf_cat. Qed.
 
 (* The interpretation only depends on the arguments the condition reads. *)
-Lemma interp_acond_cat (vs vs' : values) c :
-  ac_below (size vs) c -> interp_acond (vs ++ vs') c = interp_acond vs c.
+Lemma sem_safety_cond_cat (vs vs' : values) c :
+  safety_cond_vars_below (size vs) c -> sem_safety_cond (vs ++ vs') c = sem_safety_cond vs c.
 Proof.
-elim/acond_ind_s: c => //=.
+elim/safety_cond_ind_seq: c => //=.
 + by move=> k hk; rewrite nth_cat hk.
 + by move=> o c ih h; rewrite ih.
 + by move=> o c1 ih1 c2 ih2 /andP [h1 h2]; rewrite ih1 // ih2.
 move=> o cs hall hb.
-suff -> : mapM (interp_acond (vs ++ vs')) cs = mapM (interp_acond vs) cs by [].
+suff -> : mapM (sem_safety_cond (vs ++ vs')) cs = mapM (sem_safety_cond vs) cs by [].
 elim: cs hall hb => //= c cs ih /List_Forall_inv [hc hcs] /andP [h1 h2].
 by rewrite hc // (ih hcs h2).
 Qed.
 
-Lemma acond_b_cat (vs vs' : values) c :
-  ssrnat.leq (ac_max_var c) (size vs) -> acond_b (vs ++ vs') c = acond_b vs c.
-Proof. by rewrite ac_max_var_below => h; rewrite /acond_b interp_acond_cat. Qed.
+Lemma safety_cond_holds_cat (vs vs' : values) c :
+  ssrnat.leq (safety_cond_max_var c) (size vs) -> safety_cond_holds (vs ++ vs') c = safety_cond_holds vs c.
+Proof. by rewrite safety_cond_max_var_below => h; rewrite /safety_cond_holds sem_safety_cond_cat. Qed.
 
 (* A well-typed total condition evaluates to a value on arguments of the
    announced types. *)
-Lemma ac_type_ok tin (vs : values) c t :
+Lemma safety_cond_type_ok tin (vs : values) c t :
   List.Forall2 (fun (t : ctype) v => exists x : sem_t t, v = to_val x) tin vs ->
-  ac_total c ->
-  ac_type tin c = Some t ->
-  exists x : sem_t t, interp_acond vs c = ok (to_val x).
+  safety_cond_total c ->
+  safety_cond_type tin c = Some t ->
+  exists x : sem_t t, sem_safety_cond vs c = ok (to_val x).
 Proof.
-move=> hall; elim/acond_ind_s: c t => /=.
+move=> hall; elim/safety_cond_ind_seq: c t => /=.
 1,2: by move=> x t _ [<-]; eexists.
 + move=> k t _; case: ifP => // hk [<-].
   by have [x hx] := Forall2_nth hall cbool undef_b hk; exists x; rewrite hx.
 + move=> o c ih t /andP [hto htot].
-  case heq: (ac_type tin c) => [t1|] //=; case: ifP => // hsub [<-].
+  case heq: (safety_cond_type tin c) => [t1|] //=; case: ifP => // hsub [<-].
   have [x1 ->] := ih _ htot heq.
   have [y hy] := of_val_subctype_ok x1 hsub.
   by rewrite /= hy /=; eexists.
 + move=> o c1 ih1 c2 ih2 t /and3P [hto ht1 ht2].
-  case heq1: (ac_type tin c1) => [t1|] //=; case heq2: (ac_type tin c2) => [t2|] //=.
+  case heq1: (safety_cond_type tin c1) => [t1|] //=; case heq2: (safety_cond_type tin c2) => [t2|] //=.
   case: ifP => // /andP [hsub1 hsub2] [<-].
   have [x1 ->] := ih1 _ ht1 heq1; have [x2 ->] := ih2 _ ht2 heq2.
   have [y1 hy1] := of_val_subctype_ok x1 hsub1.
   have [y2 hy2] := of_val_subctype_ok x2 hsub2.
   by rewrite /= hy1 /= hy2 /=; eexists.
 move=> o cs hall2 t htot; case: ifP => // hall3 [<-].
-have {}htot : all ac_total cs by move: htot.
+have {}htot : all safety_cond_total cs by move: htot.
 have haux : forall (ts : seq ctype) A (f : sem_prod ts (exec A)),
     sem_forall (fun r : exec A => is_ok r) ts f ->
-    all2 sub_octype ts (map (ac_type tin) cs) ->
-    exists2 l, mapM (interp_acond vs) cs = ok l & exists a, app_sopn ts f l = ok a.
+    all2 sub_octype ts (map (safety_cond_type tin) cs) ->
+    exists2 l, mapM (sem_safety_cond vs) cs = ok l & exists a, app_sopn ts f l = ok a.
 + move: hall3 => _; elim: cs hall2 htot => /= [ | c cs ih] hall2 htot [ | t0 ts] //= A f hf.
   + by move=> _; exists [::] => //; move/is_okP: hf.
   move/List_Forall_inv: hall2 => [hc hcs]; move: htot => /andP [htc htcs].
   move=> /andP [h1 h2].
-  move: h1; rewrite /sub_octype; case heq: (ac_type tin c) => [t1|] // hsub.
+  move: h1; rewrite /sub_octype; case heq: (safety_cond_type tin c) => [t1|] // hsub.
   have [x ->] := hc _ htc heq.
   have [y hy] := of_val_subctype_ok x hsub.
   have [l -> [a ha]] := ih hcs htcs ts _ (f y) (hf y) h2.
@@ -357,78 +357,78 @@ Qed.
 
 (* Interpreting a well-typed condition on the arguments or on their truncation
    at [tin] gives the same result (up to truncation of the result). *)
-Lemma interp_acond_truncate tin vs vs' :
+Lemma sem_safety_cond_truncate tin vs vs' :
   mapM2 ErrType truncate_val tin vs = ok vs' ->
-  forall c t, ac_type tin c = Some t ->
-  match interp_acond vs c with
-  | Ok v => exists2 v'', interp_acond vs' c = ok v'' & truncate_val t v = ok v''
-  | Error e => interp_acond vs' c = Error e
+  forall c t, safety_cond_type tin c = Some t ->
+  match sem_safety_cond vs c with
+  | Ok v => exists2 v'', sem_safety_cond vs' c = ok v'' & truncate_val t v = ok v''
+  | Error e => sem_safety_cond vs' c = Error e
   end.
 Proof.
 move=> /mapM2_Forall3 htr c.
-elim/acond_ind_s: c => /=.
+elim/safety_cond_ind_seq: c => /=.
 1,2: by move=> x t [<-]; eexists.
 + move=> n t; case: ifP => // hn [<-]; eexists; first reflexivity.
   by apply: (Forall3_nth htr).
-+ move=> o c ih t; case heq: (ac_type tin c) => [t1|] //; case: ifP => // hsub [<-].
-  have {ih} := ih _ heq; case: (interp_acond vs c) => [v | e] /=; last by move=> ->.
++ move=> o c ih t; case heq: (safety_cond_type tin c) => [t1|] //; case: ifP => // hsub [<-].
+  have {ih} := ih _ heq; case: (sem_safety_cond vs c) => [v | e] /=; last by move=> ->.
   move=> [v'' -> htr'] /=; rewrite (of_val_truncate_val hsub htr').
   by case: (of_val _ v) => //= x; eexists; first reflexivity; apply truncate_val_to_val.
 + move=> o c1 ih1 c2 ih2 t.
-  case heq1: (ac_type tin c1) => [t1|] //; case heq2: (ac_type tin c2) => [t2|] //.
+  case heq1: (safety_cond_type tin c1) => [t1|] //; case heq2: (safety_cond_type tin c2) => [t2|] //.
   case: ifP => // /andP [hsub1 hsub2] [<-].
-  have {ih1} := ih1 _ heq1; case: (interp_acond vs c1) => [v1 | e] /=; last by move=> ->.
+  have {ih1} := ih1 _ heq1; case: (sem_safety_cond vs c1) => [v1 | e] /=; last by move=> ->.
   move=> [v1'' -> htr1] /=.
-  have {ih2} := ih2 _ heq2; case: (interp_acond vs c2) => [v2 | e] /=; last by move=> ->.
+  have {ih2} := ih2 _ heq2; case: (sem_safety_cond vs c2) => [v2 | e] /=; last by move=> ->.
   move=> [v2'' -> htr2] /=.
   rewrite (of_val_truncate_val hsub1 htr1) (of_val_truncate_val hsub2 htr2).
   case: (of_val _ v1) => //= x1; case: (of_val _ v2) => //= x2.
   by eexists; first reflexivity; apply truncate_val_to_val.
 move=> o cs hall t; case: ifP => // hall2 [<-].
 have haux : forall (ts : seq ctype),
-    all2 sub_octype ts (map (ac_type tin) cs) ->
-    match mapM (interp_acond vs) cs with
-    | Ok l => exists2 l', mapM (interp_acond vs') cs = ok l' &
+    all2 sub_octype ts (map (safety_cond_type tin) cs) ->
+    match mapM (sem_safety_cond vs) cs with
+    | Ok l => exists2 l', mapM (sem_safety_cond vs') cs = ok l' &
               forall A (f : sem_prod ts (exec A)), app_sopn ts f l' = app_sopn ts f l
-    | Error e => mapM (interp_acond vs') cs = Error e
+    | Error e => mapM (sem_safety_cond vs') cs = Error e
     end.
 + move: hall2 => _; elim: cs hall => /= [ | c cs ih] hall [ | t0 ts] //=.
   + by move=> _; exists [::].
   move/List_Forall_inv: hall => [hc hcs] /andP [h1 h2].
-  move: h1; rewrite /sub_octype; case heq: (ac_type tin c) => [t1|] // hsub.
-  have {hc} := hc _ heq; case: (interp_acond vs c) => [v | e] /=; last by move=> ->.
+  move: h1; rewrite /sub_octype; case heq: (safety_cond_type tin c) => [t1|] // hsub.
+  have {hc} := hc _ heq; case: (sem_safety_cond vs c) => [v | e] /=; last by move=> ->.
   move=> [v'' -> htr'] /=.
   have {ih} := ih hcs ts h2.
-  case: (mapM (interp_acond vs) cs) => [l | e] /=; last by move=> ->.
+  case: (mapM (sem_safety_cond vs) cs) => [l | e] /=; last by move=> ->.
   move=> [l' -> hap]; exists (v'' :: l') => // A f /=.
   by rewrite (of_val_truncate_val hsub htr'); case: (of_val t0 v) => //= x; apply hap.
 have {haux} := haux _ hall2.
-case: (mapM (interp_acond vs) cs) => [l | e] /=; last by move=> ->.
+case: (mapM (sem_safety_cond vs) cs) => [l | e] /=; last by move=> ->.
 move=> [l' -> hap] /=; rewrite (hap _ (sem_opN_safety_typed o)).
 by case: (app_sopn _ _ l) => //= b; eexists.
 Qed.
 
-Lemma acond_truncate tin vs vs' c :
+Lemma safety_cond_truncate tin vs vs' c :
   mapM2 ErrType truncate_val tin vs = ok vs' ->
-  ac_wt tin c ->
-  interp_acond vs' c = interp_acond vs c.
+  safety_cond_wt tin c ->
+  sem_safety_cond vs' c = sem_safety_cond vs c.
 Proof.
-move=> htr /eqP hwt; have := interp_acond_truncate htr hwt.
-case: (interp_acond vs c) => [v | e] //=.
+move=> htr /eqP hwt; have := sem_safety_cond_truncate htr hwt.
+case: (sem_safety_cond vs c) => [v | e] //=.
 by move=> [v'' -> /truncate_val_typeE [b -> ->]].
 Qed.
 
-Lemma acond_b_truncate tin vs vs' c :
-  ac_ok tin c -> mapM2 ErrType truncate_val tin vs = ok vs' ->
-  acond_b vs' c = acond_b vs c.
-Proof. by move=> /ac_ok_wt h2 h1; rewrite /acond_b (acond_truncate h1 h2). Qed.
+Lemma safety_cond_holds_truncate tin vs vs' c :
+  safety_cond_wf tin c -> mapM2 ErrType truncate_val tin vs = ok vs' ->
+  safety_cond_holds vs' c = safety_cond_holds vs c.
+Proof. by move=> /safety_cond_wf_wt h2 h1; rewrite /safety_cond_holds (safety_cond_truncate h1 h2). Qed.
 
-Lemma all_acond_b_truncate tin vs vs' safe :
-  all (ac_ok tin) safe -> mapM2 ErrType truncate_val tin vs = ok vs' ->
-  all (acond_b vs') safe = all (acond_b vs) safe.
+Lemma all_safety_cond_holds_truncate tin vs vs' safe :
+  all (safety_cond_wf tin) safe -> mapM2 ErrType truncate_val tin vs = ok vs' ->
+  all (safety_cond_holds vs') safe = all (safety_cond_holds vs) safe.
 Proof.
 move=> hall htr; apply/eq_in_all => c hc.
-by apply: (acond_b_truncate (allP hall _ hc) htr).
+by apply: (safety_cond_holds_truncate (allP hall _ hc) htr).
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -448,7 +448,7 @@ Definition sc_divi sg c1 c2    := IOp2 (Odiv sg Op_int) c1 c2.
 Definition sc_modi sg c1 c2    := IOp2 (Omod sg Op_int) c1 c2.
 
 (* The condition that never holds. *)
-Definition sc_false : acond := IBool false.
+Definition sc_false : safety_cond := IBool false.
 
 Definition sc_in_range lo hi c := sc_and (sc_lei (IConst lo) c) (sc_lei c (IConst hi)).
 
@@ -481,12 +481,12 @@ Definition sc_all_init ws len k :=
 
 (* The condition [c] is required only when the [g]-th argument, a boolean,
    is true. *)
-Definition sc_guarded (g : nat) (c : acond) : acond := sc_or (sc_not (IVar g)) c.
+Definition sc_guarded (g : nat) (c : safety_cond) : safety_cond := sc_or (sc_not (IVar g)) c.
 
 (* The x86 division of the double word made of the arguments 0 (high part)
    and 1 (low part) by the argument 2: the divisor is not zero and the
    quotient fits in a word of size [sz]. *)
-Definition sc_x86_division (sz : wsize) (sg : signedness) : acond :=
+Definition sc_x86_division (sz : wsize) (sg : signedness) : safety_cond :=
   match sg with
   | Signed =>
     let hi := sc_toint Signed sz 0 in
@@ -508,13 +508,13 @@ Definition sc_x86_division (sz : wsize) (sg : signedness) : acond :=
   end.
 
 (* The result of a [wint] operation fits in its type. *)
-Definition sc_wi_range sg sz (c : acond) : acond :=
+Definition sc_wi_range sg sz (c : safety_cond) : safety_cond :=
   signed (sc_in_range 0 (wmax_unsigned sz) c)
          (sc_in_range (wmin_signed sz) (wmax_signed sz) c) sg.
 
 (* The divisor is not zero and, in the signed case, the division does not
    overflow. *)
-Definition sc_divmod sg sz (k1 k2 : nat) : seq acond :=
+Definition sc_divmod sg sz (k1 k2 : nat) : seq safety_cond :=
   sc_not_zero sz k2 ::
   signed [::]
     [:: sc_not (sc_and (sc_eqi (sc_toint sg sz k1) (IConst (wmin_signed sz)))
@@ -531,67 +531,67 @@ apply/idP/idP => [/ZeqbP h1 | /eqP ->]; last by rewrite wunsigned0; apply/ZeqbP.
 by apply/eqP/wunsigned_inj; rewrite h1 wunsigned0.
 Qed.
 
-Lemma acond_b_not_zero ws k (vs : values) (w : word ws) :
-  nth undef_b vs k = Vword w -> acond_b vs (sc_not_zero ws k) = (w != 0%w).
+Lemma safety_cond_holds_not_zero ws k (vs : values) (w : word ws) :
+  nth undef_b vs k = Vword w -> safety_cond_holds vs (sc_not_zero ws k) = (w != 0%w).
 Proof.
 by move=> h;
-  rewrite /acond_b /sc_not_zero /sc_neqi /sc_toint /= h /= truncate_word_u /=
+  rewrite /safety_cond_holds /sc_not_zero /sc_neqi /sc_toint /= h /= truncate_word_u /=
           wunsigned_eqb0.
 Qed.
 
-Lemma acond_b_in_range vs lo hi c z :
-  interp_acond vs c = ok (Vint z) ->
-  acond_b vs (sc_in_range lo hi c) = (lo <=? z)%Z && (z <=? hi)%Z.
-Proof. by rewrite /acond_b /sc_in_range /sc_and /sc_lei /= => ->. Qed.
+Lemma safety_cond_holds_in_range vs lo hi c z :
+  sem_safety_cond vs c = ok (Vint z) ->
+  safety_cond_holds vs (sc_in_range lo hi c) = (lo <=? z)%Z && (z <=? hi)%Z.
+Proof. by rewrite /safety_cond_holds /sc_in_range /sc_and /sc_lei /= => ->. Qed.
 
-Lemma acond_b_wi_range vs sg sz c z :
-  interp_acond vs c = ok (Vint z) ->
-  acond_b vs (sc_wi_range sg sz c) = signed in_uint_range in_sint_range sg sz z.
+Lemma safety_cond_holds_wi_range vs sg sz c z :
+  sem_safety_cond vs c = ok (Vint z) ->
+  safety_cond_holds vs (sc_wi_range sg sz c) = signed in_uint_range in_sint_range sg sz z.
 Proof.
-by rewrite /sc_wi_range; case: sg => /= h; rewrite (acond_b_in_range _ _ h).
+by rewrite /sc_wi_range; case: sg => /= h; rewrite (safety_cond_holds_in_range _ _ h).
 Qed.
 
-Lemma acond_b_false vs : acond_b vs sc_false = false.
+Lemma safety_cond_holds_false vs : safety_cond_holds vs sc_false = false.
 Proof. by []. Qed.
 
-Lemma acond_b_is_zero ws k (vs : values) (w : word ws) :
-  nth undef_b vs k = Vword w -> acond_b vs (sc_is_zero ws k) = (w == 0%w).
+Lemma safety_cond_holds_is_zero ws k (vs : values) (w : word ws) :
+  nth undef_b vs k = Vword w -> safety_cond_holds vs (sc_is_zero ws k) = (w == 0%w).
 Proof.
 by move=> h;
-  rewrite /acond_b /sc_is_zero /sc_eqi /sc_toint /= h /= truncate_word_u /=
+  rewrite /safety_cond_holds /sc_is_zero /sc_eqi /sc_toint /= h /= truncate_word_u /=
           wunsigned_eqb0.
 Qed.
 
-Lemma acond_b_ult ws k z (vs : values) (w : word ws) :
+Lemma safety_cond_holds_ult ws k z (vs : values) (w : word ws) :
   nth undef_b vs k = Vword w ->
-  acond_b vs (sc_ult ws k z) = (wunsigned w <? z)%Z.
+  safety_cond_holds vs (sc_ult ws k z) = (wunsigned w <? z)%Z.
 Proof.
-by move=> h; rewrite /acond_b /sc_ult /sc_lti /sc_toint /= h /= truncate_word_u.
+by move=> h; rewrite /safety_cond_holds /sc_ult /sc_lti /sc_toint /= h /= truncate_word_u.
 Qed.
 
-Lemma acond_b_uge ws z k (vs : values) (w : word ws) :
+Lemma safety_cond_holds_uge ws z k (vs : values) (w : word ws) :
   nth undef_b vs k = Vword w ->
-  acond_b vs (sc_uge ws z k) = (z <=? wunsigned w)%Z.
+  safety_cond_holds vs (sc_uge ws z k) = (z <=? wunsigned w)%Z.
 Proof.
-by move=> h; rewrite /acond_b /sc_uge /sc_lei /sc_toint /= h /= truncate_word_u.
+by move=> h; rewrite /safety_cond_holds /sc_uge /sc_lei /sc_toint /= h /= truncate_word_u.
 Qed.
 
-Lemma acond_b_uadd_le ws k1 k2 z (vs : values) (w1 w2 : word ws) :
+Lemma safety_cond_holds_uadd_le ws k1 k2 z (vs : values) (w1 w2 : word ws) :
   nth undef_b vs k1 = Vword w1 -> nth undef_b vs k2 = Vword w2 ->
-  acond_b vs (sc_uadd_le ws k1 k2 z)
+  safety_cond_holds vs (sc_uadd_le ws k1 k2 z)
   = (wunsigned w1 + wunsigned w2 <=? z)%Z.
 Proof.
-move=> h1 h2; rewrite /acond_b /sc_uadd_le /sc_lei /sc_addi /sc_toint /=.
+move=> h1 h2; rewrite /safety_cond_holds /sc_uadd_le /sc_lei /sc_addi /sc_toint /=.
 by rewrite h1 h2 /= !truncate_word_u.
 Qed.
 
-Lemma acond_b_in_range_mod32 ws i j k (vs : values) (w : word ws) :
+Lemma safety_cond_holds_in_range_mod32 ws i j k (vs : values) (w : word ws) :
   nth undef_b vs k = Vword w ->
-  acond_b vs (sc_in_range_mod32 ws i j k)
+  safety_cond_holds vs (sc_in_range_mod32 ws i j k)
   = (i <=? (wunsigned w) mod 32)%Z && ((wunsigned w) mod 32 <=? j)%Z.
 Proof.
 move=> h.
-by rewrite /acond_b /sc_in_range_mod32 /sc_in_range /sc_and /sc_lei /sc_modi
+by rewrite /safety_cond_holds /sc_in_range_mod32 /sc_in_range /sc_and /sc_lei /sc_modi
            /sc_toint /= h /= truncate_word_u.
 Qed.
 
@@ -654,22 +654,22 @@ rewrite Z.mul_comm -Z.div_mod.
 by Lia.lia.
 Qed.
 
-Lemma acond_b_all_init ws len k (vs : values) (t : WArray.array (arr_size ws len)) :
+Lemma safety_cond_holds_all_init ws len k (vs : values) (t : WArray.array (arr_size ws len)) :
   nth undef_b vs k = Varr t ->
-  acond_b vs (sc_all_init ws len k)
+  safety_cond_holds vs (sc_all_init ws len k)
   = all (fun i => is_ok (WArray.get Unaligned AAscale ws t i)) (ziota 0 len).
 Proof.
 move=> h.
-rewrite /acond_b /sc_all_init /= h /= arr_sizeE wsize8 Z.mul_1_l WArray.castK.
+rewrite /safety_cond_holds /sc_all_init /= h /= arr_sizeE wsize8 Z.mul_1_l WArray.castK.
 exact: all_init_getE.
 Qed.
 
 Local Opaque wbase.
-Lemma acond_b_x86_division sz sg (vs : values) (hi lo dv : word sz) :
+Lemma safety_cond_holds_x86_division sz sg (vs : values) (hi lo dv : word sz) :
   nth undef_b vs 0 = Vword hi ->
   nth undef_b vs 1 = Vword lo ->
   nth undef_b vs 2 = Vword dv ->
-  acond_b vs (sc_x86_division sz sg) =
+  safety_cond_holds vs (sc_x86_division sz sg) =
   ~~ match sg with
      | Signed =>
        let dd := wdwords hi lo in
@@ -683,7 +683,7 @@ Lemma acond_b_x86_division sz sg (vs : values) (hi lo dv : word sz) :
        ((d == 0)%Z || (q >? wmax_unsigned sz)%Z)
      end.
 Proof.
-move=> h0 h1 h2; rewrite /acond_b /sc_x86_division /wdwordu /wdwords.
+move=> h0 h1 h2; rewrite /safety_cond_holds /sc_x86_division /wdwordu /wdwords.
 case: sg => /=;
   rewrite /sc_and /sc_not /sc_or /sc_neqi /sc_lti /sc_addi /sc_muli /sc_divi /sc_toint /=
           h0 h1 h2 /= !truncate_word_u /=.
@@ -694,30 +694,30 @@ Local Transparent wbase.
 
 (* A guarded condition: when the guard is false the condition is not
    required, when it is true it amounts to the guarded condition. *)
-Lemma acond_b_guarded (vs0 vs2 : values) (b : bool) (c : acond) (bb : bool) :
-  ac_below (size vs0) c ->
-  interp_acond vs0 c = ok (Vbool bb) ->
-  acond_b (vs0 ++ Vbool b :: vs2) (sc_guarded (size vs0) c) = (~~ b) || bb.
+Lemma safety_cond_holds_guarded (vs0 vs2 : values) (b : bool) (c : safety_cond) (bb : bool) :
+  safety_cond_vars_below (size vs0) c ->
+  sem_safety_cond vs0 c = ok (Vbool bb) ->
+  safety_cond_holds (vs0 ++ Vbool b :: vs2) (sc_guarded (size vs0) c) = (~~ b) || bb.
 Proof.
-move=> hb hev; rewrite /acond_b /sc_guarded /sc_or /sc_not /=.
+move=> hb hev; rewrite /safety_cond_holds /sc_guarded /sc_or /sc_not /=.
 rewrite nth_cat ltnn subnn /=.
-by rewrite (interp_acond_cat (Vbool b :: vs2) hb) hev /=.
+by rewrite (sem_safety_cond_cat (Vbool b :: vs2) hb) hev /=.
 Qed.
 
 (* ** Well-formedness of the conditions above *)
 
-Lemma ac_type_op1E tin o c :
-  ac_type tin (IOp1 o c) =
-  if ac_type tin c is Some t1 then
+Lemma safety_cond_type_op1E tin o c :
+  safety_cond_type tin (IOp1 o c) =
+  if safety_cond_type tin c is Some t1 then
     if subctype (eval_atype (type_of_op1 o).1) t1 then Some (eval_atype (type_of_op1 o).2)
     else None
   else None.
 Proof. by []. Qed.
 
-Lemma ac_type_op2E tin o c1 c2 :
-  ac_type tin (IOp2 o c1 c2) =
-  if ac_type tin c1 is Some t1 then
-    if ac_type tin c2 is Some t2 then
+Lemma safety_cond_type_op2E tin o c1 c2 :
+  safety_cond_type tin (IOp2 o c1 c2) =
+  if safety_cond_type tin c1 is Some t1 then
+    if safety_cond_type tin c2 is Some t2 then
       if subctype (eval_atype (type_of_op2 o).1.1) t1
          && subctype (eval_atype (type_of_op2 o).1.2) t2
       then Some (eval_atype (type_of_op2 o).2) else None
@@ -725,93 +725,93 @@ Lemma ac_type_op2E tin o c1 c2 :
   else None.
 Proof. by []. Qed.
 
-Lemma ac_type_toint tin sg ws k :
+Lemma safety_cond_type_toint tin sg ws k :
   ssrnat.leq (S k) (size tin) -> nth cbool tin k = cword ws ->
-  ac_type tin (sc_toint sg ws k) = Some cint.
-Proof. by move=> h1 h2; rewrite /sc_toint ac_type_op1E /= h1 h2 /= cmp_le_refl. Qed.
+  safety_cond_type tin (sc_toint sg ws k) = Some cint.
+Proof. by move=> h1 h2; rewrite /sc_toint safety_cond_type_op1E /= h1 h2 /= cmp_le_refl. Qed.
 
-Lemma ac_ok_not_zero tin ws k :
+Lemma safety_cond_wf_not_zero tin ws k :
   ssrnat.leq (S k) (size tin) -> nth cbool tin k = cword ws ->
-  ac_ok tin (sc_not_zero ws k).
+  safety_cond_wf tin (sc_not_zero ws k).
 Proof.
-by move=> h1 h2; rewrite /ac_ok /ac_wt /sc_not_zero /sc_neqi ac_type_op2E
-  (ac_type_toint Unsigned h1 h2) /=.
+by move=> h1 h2; rewrite /safety_cond_wf /safety_cond_wt /sc_not_zero /sc_neqi safety_cond_type_op2E
+  (safety_cond_type_toint Unsigned h1 h2) /=.
 Qed.
 
-Lemma ac_ok_false tin : ac_ok tin sc_false.
+Lemma safety_cond_wf_false tin : safety_cond_wf tin sc_false.
 Proof. by []. Qed.
 
-Lemma ac_ok_is_zero tin ws k :
+Lemma safety_cond_wf_is_zero tin ws k :
   ssrnat.leq (S k) (size tin) -> nth cbool tin k = cword ws ->
-  ac_ok tin (sc_is_zero ws k).
+  safety_cond_wf tin (sc_is_zero ws k).
 Proof.
-by move=> h1 h2; rewrite /ac_ok /ac_wt /sc_is_zero /sc_eqi ac_type_op2E
-  (ac_type_toint Unsigned h1 h2) /=.
+by move=> h1 h2; rewrite /safety_cond_wf /safety_cond_wt /sc_is_zero /sc_eqi safety_cond_type_op2E
+  (safety_cond_type_toint Unsigned h1 h2) /=.
 Qed.
 
-Lemma ac_ok_ult tin ws k z :
+Lemma safety_cond_wf_ult tin ws k z :
   ssrnat.leq (S k) (size tin) -> nth cbool tin k = cword ws ->
-  ac_ok tin (sc_ult ws k z).
+  safety_cond_wf tin (sc_ult ws k z).
 Proof.
-by move=> h1 h2; rewrite /ac_ok /ac_wt /sc_ult /sc_lti ac_type_op2E
-  (ac_type_toint Unsigned h1 h2) /=.
+by move=> h1 h2; rewrite /safety_cond_wf /safety_cond_wt /sc_ult /sc_lti safety_cond_type_op2E
+  (safety_cond_type_toint Unsigned h1 h2) /=.
 Qed.
 
-Lemma ac_ok_uge tin ws z k :
+Lemma safety_cond_wf_uge tin ws z k :
   ssrnat.leq (S k) (size tin) -> nth cbool tin k = cword ws ->
-  ac_ok tin (sc_uge ws z k).
+  safety_cond_wf tin (sc_uge ws z k).
 Proof.
-by move=> h1 h2; rewrite /ac_ok /ac_wt /sc_uge /sc_lei ac_type_op2E
-  (ac_type_toint Unsigned h1 h2) /=.
+by move=> h1 h2; rewrite /safety_cond_wf /safety_cond_wt /sc_uge /sc_lei safety_cond_type_op2E
+  (safety_cond_type_toint Unsigned h1 h2) /=.
 Qed.
 
-Lemma ac_ok_uadd_le tin ws k1 k2 z :
+Lemma safety_cond_wf_uadd_le tin ws k1 k2 z :
   ssrnat.leq (S k1) (size tin) -> nth cbool tin k1 = cword ws ->
   ssrnat.leq (S k2) (size tin) -> nth cbool tin k2 = cword ws ->
-  ac_ok tin (sc_uadd_le ws k1 k2 z).
+  safety_cond_wf tin (sc_uadd_le ws k1 k2 z).
 Proof.
 move=> h1 h2 h3 h4.
-by rewrite /ac_ok /ac_wt /sc_uadd_le /sc_lei /sc_addi !ac_type_op2E
-  (ac_type_toint Unsigned h1 h2) (ac_type_toint Unsigned h3 h4) /=.
+by rewrite /safety_cond_wf /safety_cond_wt /sc_uadd_le /sc_lei /sc_addi !safety_cond_type_op2E
+  (safety_cond_type_toint Unsigned h1 h2) (safety_cond_type_toint Unsigned h3 h4) /=.
 Qed.
 
-Lemma ac_ok_in_range_mod32 tin ws i j k :
+Lemma safety_cond_wf_in_range_mod32 tin ws i j k :
   ssrnat.leq (S k) (size tin) -> nth cbool tin k = cword ws ->
-  ac_ok tin (sc_in_range_mod32 ws i j k).
+  safety_cond_wf tin (sc_in_range_mod32 ws i j k).
 Proof.
 move=> h1 h2.
-by rewrite /ac_ok /ac_wt /sc_in_range_mod32 /sc_in_range /sc_and /sc_lei /sc_modi
-  !ac_type_op2E (ac_type_toint Unsigned h1 h2) /=.
+by rewrite /safety_cond_wf /safety_cond_wt /sc_in_range_mod32 /sc_in_range /sc_and /sc_lei /sc_modi
+  !safety_cond_type_op2E (safety_cond_type_toint Unsigned h1 h2) /=.
 Qed.
 
-Lemma ac_ok_all_init tin ws len k :
+Lemma safety_cond_wf_all_init tin ws len k :
   ssrnat.leq (S k) (size tin) -> nth cbool tin k = carr (arr_size ws len) ->
-  ac_ok tin (sc_all_init ws len k).
+  safety_cond_wf tin (sc_all_init ws len k).
 Proof.
-move=> h1 h2; rewrite /ac_ok /ac_wt /sc_all_init /= h1 h2.
+move=> h1 h2; rewrite /safety_cond_wf /safety_cond_wt /sc_all_init /= h1 h2.
 have -> : arr_size U8 (arr_size ws len) = arr_size ws len.
 + by rewrite arr_sizeE wsize8 Z.mul_1_l.
 by rewrite /sub_octype /= !eqxx.
 Qed.
 
-Lemma ac_ok_x86_division tin sz sg :
+Lemma safety_cond_wf_x86_division tin sz sg :
   ssrnat.leq 3 (size tin) ->
   nth cbool tin 0 = cword sz -> nth cbool tin 1 = cword sz -> nth cbool tin 2 = cword sz ->
-  ac_ok tin (sc_x86_division sz sg).
+  safety_cond_wf tin (sc_x86_division sz sg).
 Proof.
 move=> hs h0 h1 h2.
 have l0 : ssrnat.leq 1 (size tin) by apply: ssrnat.leq_trans hs.
 have l1 : ssrnat.leq 2 (size tin) by apply: ssrnat.leq_trans hs.
-by rewrite /ac_ok /ac_wt /sc_x86_division; case: sg => /=;
+by rewrite /safety_cond_wf /safety_cond_wt /sc_x86_division; case: sg => /=;
   rewrite l0 l1 hs h0 h1 h2 /= !cmp_le_refl.
 Qed.
 
-Lemma ac_ok_guarded tin g c :
+Lemma safety_cond_wf_guarded tin g c :
   ssrnat.leq (S g) (size tin) -> nth cbool tin g = cbool ->
-  ac_ok tin c -> ac_ok tin (sc_guarded g c).
+  safety_cond_wf tin c -> safety_cond_wf tin (sc_guarded g c).
 Proof.
 move=> h1 h2 /andP [] /eqP hwt htot.
-by rewrite /ac_ok /ac_wt /sc_guarded /sc_or /sc_not /= h1 h2 hwt /= htot.
+by rewrite /safety_cond_wf /safety_cond_wt /sc_guarded /sc_or /sc_not /= h1 h2 hwt /= htot.
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -819,16 +819,16 @@ Qed.
 
 (* The safety check: if one of the conditions fails, the operator raises the
    error it declares. *)
-Definition check_safe (vs : values) (safe : seq acond) (err : error) : exec unit :=
-  if all (acond_b vs) safe then ok tt else Error err.
+Definition check_safe (vs : values) (safe : seq safety_cond) (err : error) : exec unit :=
+  if all (safety_cond_holds vs) safe then ok tt else Error err.
 
-Lemma check_safe_ok vs safe err : all (acond_b vs) safe -> check_safe vs safe err = ok tt.
+Lemma check_safe_ok vs safe err : all (safety_cond_holds vs) safe -> check_safe vs safe err = ok tt.
 Proof. by rewrite /check_safe => ->. Qed.
 
-Lemma check_safe_okE vs safe err u : check_safe vs safe err = ok u -> all (acond_b vs) safe.
+Lemma check_safe_okE vs safe err u : check_safe vs safe err = ok u -> all (safety_cond_holds vs) safe.
 Proof. by rewrite /check_safe; case: ifP. Qed.
 
-(* Computational analogue of [values.interp_safe_cond_ty_aux]: the arguments
+(* Computational analogue of [values.sem_prod_forall_args]: the arguments
    are collected, as values, in [vs] along the [sem_prod], and [P] is applied
    to them and to the result. *)
 Fixpoint mk_semi_aux {T T'} (P : values -> T -> exec T') (vs : values) (tin : seq ctype) :
@@ -841,7 +841,7 @@ Arguments mk_semi_aux {T T'} P vs tin _ : assert.
 
 (* An operator has exactly one output: the conditions are checked on the
    arguments, then the total semantics is returned. *)
-Definition mk_sem_op (tin : seq ctype) (t : ctype) (safe : seq acond) (err : error)
+Definition mk_sem_op (tin : seq ctype) (t : ctype) (safe : seq safety_cond) (err : error)
     (f : sem_prod tin (sem_t t)) : sem_prod tin (exec (sem_t t)) :=
   mk_semi_aux (fun vs r => Let _ := check_safe vs safe err in ok r) [::] tin f.
 Arguments mk_sem_op {tin t} safe err f : assert.
@@ -921,9 +921,9 @@ Proof. by move=> heq; rewrite /app_sopn_v (sem_prod_eq_app_sopn vs heq). Qed.
 
 (* The conditions of an operator are sufficient for its semantics to
    succeed. *)
-Definition acond_ty tin T (safe : seq acond) (semi : sem_prod tin (exec T)) :=
-  interp_safe_cond_ty_aux
-    (fun vs r => all (acond_b vs) safe -> exists t, r = ok t) [::] semi.
+Definition safety_cond_sufficient tin T (safe : seq safety_cond) (semi : sem_prod tin (exec T)) :=
+  sem_prod_forall_args
+    (fun vs r => all (safety_cond_holds vs) safe -> exists t, r = ok t) [::] semi.
 
 Lemma mk_semi_aux_errty {T T'} (P : values -> T -> exec T') e vs tin (f : sem_prod tin T) :
   (forall vs t, P vs t <> Error e) ->
@@ -933,7 +933,7 @@ Proof. by move=> h; elim: tin vs f => //= t tin ih vs f v; apply ih. Qed.
 Lemma mk_semi_aux_safe {T T'} (P : values -> T -> exec T') (Q : values -> Prop) vs tin
     (f : sem_prod tin T) :
   (forall vs t, Q vs -> exists t', P vs t = ok t') ->
-  interp_safe_cond_ty_aux (fun vs r => Q vs -> exists t, r = ok t) vs (mk_semi_aux P vs tin f).
+  sem_prod_forall_args (fun vs r => Q vs -> exists t, r = ok t) vs (mk_semi_aux P vs tin f).
 Proof. by move=> h; elim: tin vs f => //= t tin ih vs f v; apply ih. Qed.
 
 (* The values [mk_semi_aux] sees are the truncations of the arguments at
@@ -961,7 +961,7 @@ Qed.
 
 (* If the conditions hold, [mk_sem_op] succeeds. *)
 Lemma mk_sem_op_safe tin t safe err f :
-  acond_ty safe (@mk_sem_op tin t safe err f).
+  safety_cond_sufficient safe (@mk_sem_op tin t safe err f).
 Proof.
 apply: mk_semi_aux_safe => vs r hall.
 by rewrite (check_safe_ok err hall) /=; eexists; reflexivity.
@@ -971,7 +971,7 @@ Qed.
 Lemma mk_sem_opP tin t safe err f vs r :
   app_sopn tin (@mk_sem_op tin t safe err f) vs = ok r ->
   exists2 vs', mapM2 ErrType truncate_val tin vs = ok vs' &
-    all (acond_b vs') safe /\ app_sopn tin (sem_prod_ok tin f) vs = ok r.
+    all (safety_cond_holds vs') safe /\ app_sopn tin (sem_prod_ok tin f) vs = ok r.
 Proof.
 rewrite /mk_sem_op => h; case: (mk_semi_auxP h) => vs' h1 [r0 h2]; rewrite cat0s.
 case hu: (check_safe vs' safe err) => [u|e] //= [?]; subst r0.
@@ -980,7 +980,7 @@ Qed.
 
 Lemma mk_sem_op_safe_rev tin t safe err f vs r :
   app_sopn tin (@mk_sem_op tin t safe err f) vs = ok r ->
-  exists2 vs', mapM2 ErrType truncate_val tin vs = ok vs' & all (acond_b vs') safe.
+  exists2 vs', mapM2 ErrType truncate_val tin vs = ok vs' & all (safety_cond_holds vs') safe.
 Proof. by move=> h; case: (mk_sem_opP h) => vs' h1 [h2 _]; exists vs'. Qed.
 
 Lemma mk_semi_aux_id {T} (P : values -> T -> exec T) vs tin (f : sem_prod tin T) :
@@ -1095,12 +1095,12 @@ Proof. by case: e. Qed.
 (* The semantics of an instruction: the safety conditions are checked on the
    arguments, then the total semantics is filtered by the initialisation
    conditions, one per output. *)
-Definition mk_semi (tin tout : seq ctype) (safe : seq acond) (err : error)
-    (init : seq acond)
+Definition mk_semi (tin tout : seq ctype) (safe : seq safety_cond) (err : error)
+    (init : seq safety_cond)
     (f : sem_prod tin (sem_tuple_t tout)) : sem_prod tin (exec (sem_tuple tout)) :=
   mk_semi_aux
     (fun vs t => Let _ := check_safe vs safe err in
-                 ok (filter_tuple tout (map (acond_b vs) init) t))
+                 ok (filter_tuple tout (map (safety_cond_holds vs) init) t))
     [::] tin f.
 Arguments mk_semi {tin tout} safe err init f : assert.
 
@@ -1119,7 +1119,7 @@ Qed.
 
 (* If the safety conditions hold, [mk_semi] succeeds. *)
 Lemma mk_semi_safe tin tout safe err init f :
-  acond_ty safe (@mk_semi tin tout safe err init f).
+  safety_cond_sufficient safe (@mk_semi tin tout safe err init f).
 Proof.
 apply: mk_semi_aux_safe => vs t hall.
 by rewrite (check_safe_ok err hall) /=; eexists; reflexivity.
@@ -1130,8 +1130,8 @@ Lemma mk_semiP tin tout safe err init f vs r :
   app_sopn tin (@mk_semi tin tout safe err init f) vs = ok r ->
   exists2 vs', mapM2 ErrType truncate_val tin vs = ok vs' &
     exists2 t, app_sopn tin (sem_prod_ok tin f) vs = ok t &
-      all (acond_b vs') safe /\
-      r = filter_tuple tout (map (acond_b vs') init) t.
+      all (safety_cond_holds vs') safe /\
+      r = filter_tuple tout (map (safety_cond_holds vs') init) t.
 Proof.
 rewrite /mk_semi => h; case: (mk_semi_auxP h) => vs' h1 [t h2]; rewrite cat0s.
 case hu: (check_safe vs' safe err) => [u|e] //= [<-].
@@ -1142,7 +1142,7 @@ Qed.
    truncated arguments. *)
 Lemma mk_semi_safe_rev tin tout safe err init f vs r :
   app_sopn tin (@mk_semi tin tout safe err init f) vs = ok r ->
-  exists2 vs', mapM2 ErrType truncate_val tin vs = ok vs' & all (acond_b vs') safe.
+  exists2 vs', mapM2 ErrType truncate_val tin vs = ok vs' & all (safety_cond_holds vs') safe.
 Proof. by move=> h; case: (mk_semiP h) => vs' h1 [t _ [h3 _]]; exists vs'. Qed.
 
 Lemma Forall2_map_l A B C (f : A -> B) (R : B -> C -> Prop) l1 l2 :
@@ -1158,7 +1158,7 @@ Lemma mk_semi_init tin tout safe err init f vs r :
   size init = size tout ->
   app_sopn tin (@mk_semi tin tout safe err init f) vs = ok r ->
   exists2 vs', mapM2 ErrType truncate_val tin vs = ok vs' &
-    List.Forall2 (fun c v => defined_as (acond_b vs' c) v) init (list_ltuple r).
+    List.Forall2 (fun c v => defined_as (safety_cond_holds vs' c) v) init (list_ltuple r).
 Proof.
 move=> hsize h; case: (mk_semiP h) => vs' h1 [t _ [_ ->]].
 exists vs' => //; apply: Forall2_map_l.
@@ -1257,58 +1257,58 @@ Proof. by move=> v i. Qed.
 (* The initialisation condition of a conditional instruction: the output keeps
    its previous value when the guard (the argument [g]) is false, so it is
    defined in that case too. *)
-Definition cond_init (g : nat) (c : acond) : acond := sc_guarded g c.
+Definition cond_init (g : nat) (c : safety_cond) : safety_cond := sc_guarded g c.
 
-Lemma ac_wt_cond_init tin tin' c :
-  ac_wt tin c -> ac_wt (tin ++ cbool :: tin') (cond_init (size tin) c).
+Lemma safety_cond_wt_cond_init tin tin' c :
+  safety_cond_wt tin c -> safety_cond_wt (tin ++ cbool :: tin') (cond_init (size tin) c).
 Proof.
-rewrite /ac_wt /cond_init /sc_guarded /sc_or /sc_not /= => /eqP /ac_type_cat -> /=.
+rewrite /safety_cond_wt /cond_init /sc_guarded /sc_or /sc_not /= => /eqP /safety_cond_type_cat -> /=.
 rewrite size_cat /= nth_cat ltnn subnn /=.
 by have -> : (size tin < size tin + (size tin').+1)%nat by rewrite -addn1 leq_add2l.
 Qed.
 
-Lemma ac_total_cond_init g c : ac_total c -> ac_total (cond_init g c).
+Lemma safety_cond_total_cond_init g c : safety_cond_total c -> safety_cond_total (cond_init g c).
 Proof. by move=> h; rewrite /cond_init /sc_guarded /= h. Qed.
 
-Lemma ac_ok_cond_init tin tin' c :
-  ac_ok tin c -> ac_ok (tin ++ cbool :: tin') (cond_init (size tin) c).
-Proof. by move=> /andP [h1 h2]; rewrite /ac_ok ac_wt_cond_init // ac_total_cond_init. Qed.
+Lemma safety_cond_wf_cond_init tin tin' c :
+  safety_cond_wf tin c -> safety_cond_wf (tin ++ cbool :: tin') (cond_init (size tin) c).
+Proof. by move=> /andP [h1 h2]; rewrite /safety_cond_wf safety_cond_wt_cond_init // safety_cond_total_cond_init. Qed.
 
-Lemma acond_b_cond_init (vs0 vs2 : values) (b : bool) (c : acond) (bb : bool) :
-  ac_below (size vs0) c ->
-  interp_acond vs0 c = ok (Vbool bb) ->
-  acond_b (vs0 ++ Vbool b :: vs2) (cond_init (size vs0) c) = (~~ b) || bb.
-Proof. exact: acond_b_guarded. Qed.
+Lemma safety_cond_holds_cond_init (vs0 vs2 : values) (b : bool) (c : safety_cond) (bb : bool) :
+  safety_cond_vars_below (size vs0) c ->
+  sem_safety_cond vs0 c = ok (Vbool bb) ->
+  safety_cond_holds (vs0 ++ Vbool b :: vs2) (cond_init (size vs0) c) = (~~ b) || bb.
+Proof. exact: safety_cond_holds_guarded. Qed.
 
-Lemma cond_init_val (ts : seq ctype) (vs0 vs2 : values) (b : bool) (c : acond) :
+Lemma cond_init_val (ts : seq ctype) (vs0 vs2 : values) (b : bool) (c : safety_cond) :
   List.Forall2 (fun t v => exists x : sem_t t, v = to_val x) ts vs0 ->
-  ac_total c -> ac_wt ts c ->
-  acond_b (vs0 ++ Vbool b :: vs2) (cond_init (size ts) c) = (~~ b) || acond_b vs0 c.
+  safety_cond_total c -> safety_cond_wt ts c ->
+  safety_cond_holds (vs0 ++ Vbool b :: vs2) (cond_init (size ts) c) = (~~ b) || safety_cond_holds vs0 c.
 Proof.
 move=> hall htot hwt.
 have hsz : size ts = size vs0 by apply: Forall2_size hall.
-have [x hx] := ac_type_ok hall htot (eqP hwt).
-have hbelow : ac_below (size vs0) c.
-+ by rewrite -hsz; apply: (ac_type_below (eqP hwt)).
-have -> : acond_b vs0 c = x by rewrite /acond_b hx.
-by rewrite hsz; apply: (@acond_b_cond_init vs0 vs2 b c x hbelow hx).
+have [x hx] := safety_cond_type_ok hall htot (eqP hwt).
+have hbelow : safety_cond_vars_below (size vs0) c.
++ by rewrite -hsz; apply: (safety_cond_type_below (eqP hwt)).
+have -> : safety_cond_holds vs0 c = x by rewrite /safety_cond_holds hx.
+by rewrite hsz; apply: (@safety_cond_holds_cond_init vs0 vs2 b c x hbelow hx).
 Qed.
 
 (* The mask seen by the generic construction under a guard: everything is
    defined when the guard is false, and the original mask otherwise. *)
-Lemma cond_init_mask (ts : seq ctype) (vs0 : values) (init : seq acond) (b : bool)
+Lemma cond_init_mask (ts : seq ctype) (vs0 : values) (init : seq safety_cond) (b : bool)
     (vs2 : values) (n : nat) :
   List.Forall2 (fun t v => exists x : sem_t t, v = to_val x) ts vs0 ->
-  all ac_total init -> all (ac_wt ts) init ->
+  all safety_cond_total init -> all (safety_cond_wt ts) init ->
   size init = n ->
-  map (acond_b (rcons vs0 (Vbool b) ++ vs2)) (map (cond_init (size ts)) init)
-  = (if b then map (acond_b vs0) init else nseq n true).
+  map (safety_cond_holds (rcons vs0 (Vbool b) ++ vs2)) (map (cond_init (size ts)) init)
+  = (if b then map (safety_cond_holds vs0) init else nseq n true).
 Proof.
 move=> hall htot hwt hsz.
 rewrite cat_rcons -map_comp.
 have hpt : forall c, c \in init ->
-    (acond_b (vs0 ++ Vbool b :: vs2) \o cond_init (size ts)) c
-    = (~~ b) || acond_b vs0 c.
+    (safety_cond_holds (vs0 ++ Vbool b :: vs2) \o cond_init (size ts)) c
+    = (~~ b) || safety_cond_holds vs0 c.
 + by move=> c hc; apply: (cond_init_val _ _ hall (allP htot _ hc) (allP hwt _ hc)).
 case: b hpt => hpt.
 + by apply/eq_in_map => c hc; rewrite hpt.
@@ -1318,12 +1318,12 @@ Qed.
 (* The safety conditions of a conditional instruction are the guarded ones:
    under a false guard they all hold, under a true one they amount to the
    conditions themselves. *)
-Lemma acond_b_all_guarded (ts : seq ctype) (vs0 : values) (safe : seq acond)
+Lemma safety_cond_holds_all_guarded (ts : seq ctype) (vs0 : values) (safe : seq safety_cond)
     (b : bool) (vs2 : values) :
   List.Forall2 (fun t v => exists x : sem_t t, v = to_val x) ts vs0 ->
-  all ac_total safe -> all (ac_wt ts) safe ->
-  all (acond_b (rcons vs0 (Vbool b) ++ vs2)) (map (sc_guarded (size ts)) safe)
-  = (if b then all (acond_b vs0) safe else true).
+  all safety_cond_total safe -> all (safety_cond_wt ts) safe ->
+  all (safety_cond_holds (rcons vs0 (Vbool b) ++ vs2)) (map (sc_guarded (size ts)) safe)
+  = (if b then all (safety_cond_holds vs0) safe else true).
 Proof.
 move=> hall htot hwt; rewrite cat_rcons.
 elim: safe htot hwt => [ | c safe ih] /=; first by case: b.

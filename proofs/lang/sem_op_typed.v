@@ -95,15 +95,15 @@ Qed.
 
 Lemma sem_sop1_typed_safe (o : sop1) (v1 : value) x1 :
   of_val (eval_atype (type_of_op1 o).1) v1 = ok x1 ->
-  all (acond_b [:: v1]) (op1_safe o) ->
+  all (safety_cond_holds [:: v1]) (op1_safe o) ->
   exists r, sem_sop1_typed o x1 = ok r.
 Proof.
 move=> hof hall.
 have htr : mapM2 ErrType truncate_val [:: eval_atype (type_of_op1 o).1] [:: v1]
              = ok [:: to_val x1].
 + by rewrite /= /truncate_val hof.
-have {}hall : all (acond_b [:: to_val x1]) (op1_safe o).
-+ by rewrite (all_acond_b_truncate (op1_safe_ok o) htr).
+have {}hall : all (safety_cond_holds [:: to_val x1]) (op1_safe o).
++ by rewrite (all_safety_cond_holds_truncate (op1_safe_ok o) htr).
 exact: (@mk_sem_op_safe [:: eval_atype (type_of_op1 o).1]
    (eval_atype (type_of_op1 o).2) (op1_safe o) ErrArith (sem_sop1_total o) x1 hall).
 Qed.
@@ -111,7 +111,7 @@ Qed.
 Lemma sem_sop2_typed_safe (o : sop2) (v1 v2 : value) x1 x2 :
   of_val (eval_atype (type_of_op2 o).1.1) v1 = ok x1 ->
   of_val (eval_atype (type_of_op2 o).1.2) v2 = ok x2 ->
-  all (acond_b [:: v1; v2]) (op2_safe o) ->
+  all (safety_cond_holds [:: v1; v2]) (op2_safe o) ->
   exists r, sem_sop2_typed o x1 x2 = ok r.
 Proof.
 move=> hof1 hof2 hall.
@@ -119,8 +119,8 @@ have htr : mapM2 ErrType truncate_val
              [:: eval_atype (type_of_op2 o).1.1; eval_atype (type_of_op2 o).1.2]
              [:: v1; v2] = ok [:: to_val x1; to_val x2].
 + by rewrite /= /truncate_val hof1 /= hof2.
-have {}hall : all (acond_b [:: to_val x1; to_val x2]) (op2_safe o).
-+ by rewrite (all_acond_b_truncate (op2_safe_ok o) htr).
+have {}hall : all (safety_cond_holds [:: to_val x1; to_val x2]) (op2_safe o).
++ by rewrite (all_safety_cond_holds_truncate (op2_safe_ok o) htr).
 exact: (@mk_sem_op_safe
    [:: eval_atype (type_of_op2 o).1.1; eval_atype (type_of_op2 o).1.2]
    (eval_atype (type_of_op2 o).2) (op2_safe o) ErrArith (sem_sop2_total o)
@@ -131,22 +131,22 @@ Qed.
    one. *)
 Lemma sem_sop1_typed_safeE (o : sop1) (v1 : value) x1 :
   of_val (eval_atype (type_of_op1 o).1) v1 = ok x1 ->
-  all (acond_b [:: v1]) (op1_safe o) ->
+  all (safety_cond_holds [:: v1]) (op1_safe o) ->
   sem_sop1_typed o x1 = ok (sem_sop1_total o x1).
 Proof.
 move=> hof hall.
 have htr : mapM2 ErrType truncate_val [:: eval_atype (type_of_op1 o).1] [:: v1]
              = ok [:: to_val x1].
 + by rewrite /= /truncate_val hof.
-have {}hall : all (acond_b [:: to_val x1]) (op1_safe o).
-+ by rewrite (all_acond_b_truncate (op1_safe_ok o) htr).
+have {}hall : all (safety_cond_holds [:: to_val x1]) (op1_safe o).
++ by rewrite (all_safety_cond_holds_truncate (op1_safe_ok o) htr).
 by rewrite /sem_sop1_typed mk_sem_op1E (check_safe_ok ErrArith hall).
 Qed.
 
 Lemma sem_sop2_typed_safeE (o : sop2) (v1 v2 : value) x1 x2 :
   of_val (eval_atype (type_of_op2 o).1.1) v1 = ok x1 ->
   of_val (eval_atype (type_of_op2 o).1.2) v2 = ok x2 ->
-  all (acond_b [:: v1; v2]) (op2_safe o) ->
+  all (safety_cond_holds [:: v1; v2]) (op2_safe o) ->
   sem_sop2_typed o x1 x2 = ok (sem_sop2_total o x1 x2).
 Proof.
 move=> hof1 hof2 hall.
@@ -154,8 +154,8 @@ have htr : mapM2 ErrType truncate_val
              [:: eval_atype (type_of_op2 o).1.1; eval_atype (type_of_op2 o).1.2]
              [:: v1; v2] = ok [:: to_val x1; to_val x2].
 + by rewrite /= /truncate_val hof1 /= hof2.
-have {}hall : all (acond_b [:: to_val x1; to_val x2]) (op2_safe o).
-+ by rewrite (all_acond_b_truncate (op2_safe_ok o) htr).
+have {}hall : all (safety_cond_holds [:: to_val x1; to_val x2]) (op2_safe o).
++ by rewrite (all_safety_cond_holds_truncate (op2_safe_ok o) htr).
 by rewrite /sem_sop2_typed mk_sem_op2E (check_safe_ok ErrArith hall).
 Qed.
 
@@ -201,7 +201,7 @@ Lemma sem_sop1_typed_winegE sg sz (w : word sz) :
 Proof.
 rewrite /sem_sop1_typed mk_sem_op1E; apply/esym.
 rewrite /check_safe; case: sg => /=;
-  rewrite /acond_b /sc_eqi /sc_neqi /sc_toint /= truncate_word_u /= andbT.
+  rewrite /safety_cond_holds /sc_eqi /sc_neqi /sc_toint /= truncate_word_u /= andbT.
 + case heq: (wsigned w =? wmin_signed sz)%Z => /=.
   + move/Z.eqb_eq: heq => heq.
     rewrite /wint_of_int /in_wint_range /in_sint_range /assert; case: ifP => //.

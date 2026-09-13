@@ -59,7 +59,7 @@ Local Open Scope seq_scope.
 (* -------------------------------------------------------------------- *)
 (* ** The conditions of the operators                                    *)
 
-Definition wiop1_safe (sg : signedness) (o : wiop1) : seq acond :=
+Definition wiop1_safe (sg : signedness) (o : wiop1) : seq safety_cond :=
   match o with
   | WIwint_of_int sz => [:: sc_wi_range sg sz (IVar 0)]
   | WIneg sz =>
@@ -69,13 +69,13 @@ Definition wiop1_safe (sg : signedness) (o : wiop1) : seq acond :=
   | WIint_of_wint _ | WIword_of_wint _ | WIwint_of_word _ | WIwint_ext _ _ => [::]
   end.
 
-Definition op1_safe (o : sop1) : seq acond :=
+Definition op1_safe (o : sop1) : seq safety_cond :=
   match o with
   | Owi1 sg o => wiop1_safe sg o
   | _ => [::]
   end.
 
-Definition wiop2_safe (sg : signedness) (sz : wsize) (o : wiop2) : seq acond :=
+Definition wiop2_safe (sg : signedness) (sz : wsize) (o : wiop2) : seq safety_cond :=
   match o with
   | WIadd => [:: sc_wi_range sg sz (sc_addi (sc_toint sg sz 0) (sc_toint sg sz 1))]
   | WImul => [:: sc_wi_range sg sz (sc_muli (sc_toint sg sz 0) (sc_toint sg sz 1))]
@@ -90,40 +90,40 @@ Definition wiop2_safe (sg : signedness) (sz : wsize) (o : wiop2) : seq acond :=
   | WIeq | WIneq | WIlt | WIle | WIgt | WIge => [::]
   end.
 
-Definition op2_safe (o : sop2) : seq acond :=
+Definition op2_safe (o : sop2) : seq safety_cond :=
   match o with
   | Odiv sg (Op_w sz) | Omod sg (Op_w sz) => sc_divmod sg sz 0 1
   | Owi2 sg sz o => wiop2_safe sg sz o
   | _ => [::]
   end.
 
-Definition opN_safe (o : opN) : seq acond := [::].
+Definition opN_safe (o : opN) : seq safety_cond := [::].
 
 (* -------------------------------------------------------------------- *)
 (* ** Well-formedness of the conditions                                  *)
 
 Lemma op1_safe_ok (o : sop1) :
   let t := type_of_op1 o in
-  all (ac_ok [:: eval_atype t.1]) (op1_safe o).
+  all (safety_cond_wf [:: eval_atype t.1]) (op1_safe o).
 Proof.
 case: o => //= sg o; case: o => //= sz; case: sg => //=.
-all: by rewrite /ac_ok /ac_wt /sc_neqi /sc_eqi /sc_toint /= cmp_le_refl.
+all: by rewrite /safety_cond_wf /safety_cond_wt /sc_neqi /sc_eqi /sc_toint /= cmp_le_refl.
 Qed.
 
 Lemma op2_safe_ok (o : sop2) :
   let t := type_of_op2 o in
-  all (ac_ok [:: eval_atype t.1.1; eval_atype t.1.2]) (op2_safe o).
+  all (safety_cond_wf [:: eval_atype t.1.1; eval_atype t.1.2]) (op2_safe o).
 Proof.
 case: o => //= [sg [|sz] | sg [|sz] | sg sz o] //=.
 1-2: by case: sg => //=;
-  rewrite /ac_ok /ac_wt /sc_not_zero /sc_not /sc_and /sc_eqi /sc_neqi /sc_toint /=
+  rewrite /safety_cond_wf /safety_cond_wt /sc_not_zero /sc_not /sc_and /sc_eqi /sc_neqi /sc_toint /=
           !cmp_le_refl.
 case: o => //=; case: sg => //=.
-all: by rewrite /ac_ok /ac_wt /sc_in_range /sc_and /sc_lei /sc_addi /sc_muli
+all: by rewrite /safety_cond_wf /safety_cond_wt /sc_in_range /sc_and /sc_lei /sc_addi /sc_muli
                 /sc_not_zero /sc_not /sc_eqi /sc_neqi /sc_toint /= !cmp_le_refl.
 Qed.
 
-Lemma opN_safe_ok (o : opN) : all (ac_ok [::]) (opN_safe o).
+Lemma opN_safe_ok (o : opN) : all (safety_cond_wf [::]) (opN_safe o).
 Proof. by []. Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -140,11 +140,11 @@ Proof. by case: o => [|||[]|[]|[]|?[]|?[]|?|?|?|?|[]|[]|?|?|[]|[]|[]|[]|[]|[]|??
 
 (* [wint_of_int] is exactly the range condition followed by [wrepr]. *)
 Lemma wint_range_eq vs sg sz c z (r : word sz) :
-  interp_acond vs c = ok (Vint z) -> r = wrepr sz z ->
+  sem_safety_cond vs c = ok (Vint z) -> r = wrepr sz z ->
   wint_of_int sg sz z =
     (Let _ := check_safe vs [:: sc_wi_range sg sz c] ErrArith in ok r).
 Proof.
-move=> h ->; rewrite /check_safe /= andbT (acond_b_wi_range sg sz h).
+move=> h ->; rewrite /check_safe /= andbT (safety_cond_holds_wi_range sg sz h).
 rewrite /wint_of_int /in_wint_range /assert.
 by case: ifP.
 Qed.
@@ -157,9 +157,9 @@ Lemma divmod_eq sz sg T (r : T) (w1 w2 : word sz) :
    then Error ErrArith else ok r).
 Proof.
 rewrite /check_safe /sc_divmod /=.
-rewrite (acond_b_not_zero (vs := [:: Vword w1; Vword w2]) (k:=1) erefl).
+rewrite (safety_cond_holds_not_zero (vs := [:: Vword w1; Vword w2]) (k:=1) erefl).
 case: sg => /=; last by rewrite andbT; case: (w2 == 0%w).
-rewrite /acond_b /sc_not /sc_and /sc_eqi /sc_toint /= !truncate_word_u /= andbT.
+rewrite /safety_cond_holds /sc_not /sc_and /sc_eqi /sc_toint /= !truncate_word_u /= andbT.
 have -> : (wsigned w1 =? wmin_signed sz)%Z = (wsigned w1 == wmin_signed sz) by [].
 have -> : (wsigned w2 =? -1)%Z = (w2 == (-1)%R).
 + by rewrite -{1}(wsignedN1 sz) (int_of_word_eqb Signed w2 (-1)%R).

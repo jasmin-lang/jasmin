@@ -404,7 +404,7 @@ let safe_lval = function
 
 let safe_lvals = List.fold_left (fun safe x -> safe_lval x @ safe) []
 
-(* The safety conditions of an operator are [Sopn_semi.acond] terms, i.e.
+(* The safety conditions of an operator are [Sopn_semi.safety_cond] terms, i.e.
    boolean expressions on its arguments. The shapes below are the ones built
    by the [sc_*] functions of lang/sopn_semi.v: recognising them keeps the
    dedicated abstract conditions ([NotEqual], [InRange], [Initai]), which are
