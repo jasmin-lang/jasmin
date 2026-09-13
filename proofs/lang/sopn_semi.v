@@ -443,12 +443,71 @@ Definition sc_or c1 c2         := IOp2 Oor c1 c2.
 Definition sc_eqi c1 c2        := IOp2 (Oeq Op_int) c1 c2.
 Definition sc_neqi c1 c2       := IOp2 (Oneq Op_int) c1 c2.
 Definition sc_lei c1 c2        := IOp2 (Ole Cmp_int) c1 c2.
+Definition sc_lti c1 c2        := IOp2 (Olt Cmp_int) c1 c2.
 Definition sc_addi c1 c2       := IOp2 (Oadd Op_int) c1 c2.
 Definition sc_muli c1 c2       := IOp2 (Omul Op_int) c1 c2.
+Definition sc_divi sg c1 c2    := IOp2 (Odiv sg Op_int) c1 c2.
+Definition sc_modi sg c1 c2    := IOp2 (Omod sg Op_int) c1 c2.
+
+(* The condition that never holds. *)
+Definition sc_false : acond := IBool false.
 
 Definition sc_in_range lo hi c := sc_and (sc_lei (IConst lo) c) (sc_lei c (IConst hi)).
 
 Definition sc_not_zero ws k    := sc_neqi (sc_toint Unsigned ws k) (IConst 0).
+
+(* The [k]-th argument, a word of size [ws], is zero. *)
+Definition sc_is_zero ws k     := sc_eqi (sc_toint Unsigned ws k) (IConst 0).
+
+(* The [k]-th argument, read as an unsigned word of size [ws], is below [z]. *)
+Definition sc_ult ws k z       := sc_lti (sc_toint Unsigned ws k) (IConst z).
+
+(* The [k]-th argument, read as an unsigned word of size [ws], is at least [z]. *)
+Definition sc_uge ws z k       := sc_lei (IConst z) (sc_toint Unsigned ws k).
+
+(* The sum of the arguments [k1] and [k2], read as unsigned words of size
+   [ws], is at most [z]. *)
+Definition sc_uadd_le ws k1 k2 z :=
+  sc_lei (sc_addi (sc_toint Unsigned ws k1) (sc_toint Unsigned ws k2)) (IConst z).
+
+(* The [k]-th argument, read as an unsigned word of size [ws] modulo 32, is
+   between [i] and [j]. *)
+Definition sc_in_range_mod32 ws i j k :=
+  sc_in_range i j (sc_modi Unsigned (sc_toint Unsigned ws k) (IConst 32)).
+
+(* Every cell of the [k]-th argument, an array of [len] words of size [ws],
+   is initialised. *)
+Definition sc_all_init ws len k :=
+  IAppN_safety (Ois_arr_init (arr_size ws len))
+               [:: IVar k; IConst 0; IConst (arr_size ws len)].
+
+(* The condition [c] is required only when the [g]-th argument, a boolean,
+   is true. *)
+Definition sc_guarded (g : nat) (c : acond) : acond := sc_or (sc_not (IVar g)) c.
+
+(* The x86 division of the double word made of the arguments 0 (high part)
+   and 1 (low part) by the argument 2: the divisor is not zero and the
+   quotient fits in a word of size [sz]. *)
+Definition sc_x86_division (sz : wsize) (sg : signedness) : acond :=
+  match sg with
+  | Signed =>
+    let hi := sc_toint Signed sz 0 in
+    let lo := sc_toint Unsigned sz 1 in
+    let dd := sc_addi (sc_muli (IConst (wbase sz)) hi) lo in
+    let dv := sc_toint Signed sz 2 in
+    let q  := sc_divi Signed dd dv in
+    let ov := sc_or (sc_lti q (IConst (wmin_signed sz)))
+                    (sc_lti (IConst (wmax_signed sz)) q) in
+    sc_and (sc_neqi dv (IConst 0)) (sc_not ov)
+  | Unsigned =>
+    let hi := sc_toint Unsigned sz 0 in
+    let lo := sc_toint Unsigned sz 1 in
+    let dd := sc_addi (sc_muli (IConst (wbase sz)) hi) lo in
+    let dv := sc_toint Unsigned sz 2 in
+    let q  := sc_divi Unsigned dd dv in
+    let ov := sc_lti (IConst (wmax_unsigned sz)) q in
+    sc_and (sc_neqi dv (IConst 0)) (sc_not ov)
+  end.
 
 (* The result of a [wint] operation fits in its type. *)
 Definition sc_wi_range sg sz (c : acond) : acond :=
@@ -494,6 +553,159 @@ Proof.
 by rewrite /sc_wi_range; case: sg => /= h; rewrite (acond_b_in_range _ _ h).
 Qed.
 
+Lemma acond_b_false vs : acond_b vs sc_false = false.
+Proof. by []. Qed.
+
+Lemma acond_b_is_zero ws k (vs : values) (w : word ws) :
+  nth undef_b vs k = Vword w -> acond_b vs (sc_is_zero ws k) = (w == 0%w).
+Proof.
+by move=> h;
+  rewrite /acond_b /sc_is_zero /sc_eqi /sc_toint /= h /= truncate_word_u /=
+          wunsigned_eqb0.
+Qed.
+
+Lemma acond_b_ult ws k z (vs : values) (w : word ws) :
+  nth undef_b vs k = Vword w ->
+  acond_b vs (sc_ult ws k z) = (wunsigned w <? z)%Z.
+Proof.
+by move=> h; rewrite /acond_b /sc_ult /sc_lti /sc_toint /= h /= truncate_word_u.
+Qed.
+
+Lemma acond_b_uge ws z k (vs : values) (w : word ws) :
+  nth undef_b vs k = Vword w ->
+  acond_b vs (sc_uge ws z k) = (z <=? wunsigned w)%Z.
+Proof.
+by move=> h; rewrite /acond_b /sc_uge /sc_lei /sc_toint /= h /= truncate_word_u.
+Qed.
+
+Lemma acond_b_uadd_le ws k1 k2 z (vs : values) (w1 w2 : word ws) :
+  nth undef_b vs k1 = Vword w1 -> nth undef_b vs k2 = Vword w2 ->
+  acond_b vs (sc_uadd_le ws k1 k2 z)
+  = (wunsigned w1 + wunsigned w2 <=? z)%Z.
+Proof.
+move=> h1 h2; rewrite /acond_b /sc_uadd_le /sc_lei /sc_addi /sc_toint /=.
+by rewrite h1 h2 /= !truncate_word_u.
+Qed.
+
+Lemma acond_b_in_range_mod32 ws i j k (vs : values) (w : word ws) :
+  nth undef_b vs k = Vword w ->
+  acond_b vs (sc_in_range_mod32 ws i j k)
+  = (i <=? (wunsigned w) mod 32)%Z && ((wunsigned w) mod 32 <=? j)%Z.
+Proof.
+move=> h.
+by rewrite /acond_b /sc_in_range_mod32 /sc_in_range /sc_and /sc_lei /sc_modi
+           /sc_toint /= h /= truncate_word_u.
+Qed.
+
+Lemma is_ok_mapM (eT aT bT : Type) (f : aT -> result eT bT) l :
+  is_ok (mapM f l) = all (fun a => is_ok (f a)) l.
+Proof.
+elim: l => //= a l ih; case: (f a) => //= b.
+by rewrite -ih; case: mapM.
+Qed.
+
+Lemma is_ok_get8 len (t : WArray.array len) i :
+  is_ok (WArray.get8 t i) = WArray.in_bound t i && WArray.is_init t i.
+Proof. by rewrite /WArray.get8; case: WArray.in_bound; case: WArray.is_init. Qed.
+
+(* An array read succeeds exactly when all the cells it reads are in bounds
+   and initialised. *)
+Lemma is_ok_get ws len (t : WArray.array len) i :
+  is_ok (WArray.get Unaligned AAscale ws t i)
+  = all (fun k => WArray.in_bound t (i * wsize_size ws + k)%Z
+                  && WArray.is_init t (i * wsize_size ws + k)%Z)
+        (ziota 0 (wsize_size ws)).
+Proof.
+rewrite /WArray.get /CoreMem.read /assert /is_aligned_if /mk_scale.
+have heq : forall k,
+  get t (add (i * wsize_size ws)%Z k) = WArray.get8 t (i * wsize_size ws + k)%Z.
++ by move=> k; rewrite WArray.addE.
+have -> :
+  all (fun k => WArray.in_bound t (i * wsize_size ws + k)%Z
+                && WArray.is_init t (i * wsize_size ws + k)%Z)
+      (ziota 0 (wsize_size ws))
+  = is_ok (mapM (fun k => get t (add (i * wsize_size ws)%Z k))
+                (ziota 0 (wsize_size ws))).
++ by rewrite is_ok_mapM; apply: eq_all => k; rewrite heq is_ok_get8.
+by case: mapM.
+Qed.
+
+(* The cells of an array of [len] words of size [ws] are all initialised
+   exactly when each of the [len] words can be read. *)
+Lemma all_init_getE ws len (t : WArray.array (arr_size ws len)) :
+  all (WArray.is_init t) (ziota 0 (arr_size ws len))
+  = all (fun i => is_ok (WArray.get Unaligned AAscale ws t i)) (ziota 0 len).
+Proof.
+have hws := wsize_size_pos ws.
+apply/idP/idP => [/allP h | /allP h]; apply/allP.
++ move=> i; rewrite in_ziota !zify => hi.
+  rewrite is_ok_get; apply/allP => k; rewrite in_ziota !zify => hk.
+  split; first by rewrite arr_sizeE; Lia.nia.
+  by apply: h; rewrite in_ziota !zify arr_sizeE; Lia.nia.
+move=> j; rewrite in_ziota !zify => hj; rewrite arr_sizeE in hj.
+have hq : (0 <= j / wsize_size ws < len)%Z.
++ by split; [apply: Z.div_pos | apply: Z.div_lt_upper_bound]; Lia.lia.
+have hin : ((j / wsize_size ws)%Z \in ziota 0 len).
++ by rewrite in_ziota !zify; Lia.lia.
+have hr := Z.mod_pos_bound j _ hws.
+have hin2 : ((j mod wsize_size ws)%Z \in ziota 0 (wsize_size ws)).
++ by rewrite in_ziota !zify; Lia.lia.
+move: (h _ hin); rewrite is_ok_get => /allP /(_ _ hin2) /andP [] _.
+rewrite Z.mul_comm -Z.div_mod.
++ by [].
+by Lia.lia.
+Qed.
+
+Lemma acond_b_all_init ws len k (vs : values) (t : WArray.array (arr_size ws len)) :
+  nth undef_b vs k = Varr t ->
+  acond_b vs (sc_all_init ws len k)
+  = all (fun i => is_ok (WArray.get Unaligned AAscale ws t i)) (ziota 0 len).
+Proof.
+move=> h.
+rewrite /acond_b /sc_all_init /= h /= arr_sizeE wsize8 Z.mul_1_l WArray.castK.
+exact: all_init_getE.
+Qed.
+
+Local Opaque wbase.
+Lemma acond_b_x86_division sz sg (vs : values) (hi lo dv : word sz) :
+  nth undef_b vs 0 = Vword hi ->
+  nth undef_b vs 1 = Vword lo ->
+  nth undef_b vs 2 = Vword dv ->
+  acond_b vs (sc_x86_division sz sg) =
+  ~~ match sg with
+     | Signed =>
+       let dd := wdwords hi lo in
+       let d  := wsigned dv in
+       let q  := Z.quot dd d in
+       ((d == 0)%Z || ((q <? wmin_signed sz)%Z || (q >? wmax_signed sz)%Z))
+     | Unsigned =>
+       let dd := wdwordu hi lo in
+       let d  := wunsigned dv in
+       let q  := (dd / d)%Z in
+       ((d == 0)%Z || (q >? wmax_unsigned sz)%Z)
+     end.
+Proof.
+move=> h0 h1 h2; rewrite /acond_b /sc_x86_division /wdwordu /wdwords.
+case: sg => /=;
+  rewrite /sc_and /sc_not /sc_or /sc_neqi /sc_lti /sc_addi /sc_muli /sc_divi /sc_toint /=
+          h0 h1 h2 /= !truncate_word_u /=.
++ by rewrite !negb_or !Z.gtb_ltb.
+by rewrite !negb_or !Z.gtb_ltb.
+Qed.
+Local Transparent wbase.
+
+(* A guarded condition: when the guard is false the condition is not
+   required, when it is true it amounts to the guarded condition. *)
+Lemma acond_b_guarded (vs0 vs2 : values) (b : bool) (c : acond) (bb : bool) :
+  ac_below (size vs0) c ->
+  interp_acond vs0 c = ok (Vbool bb) ->
+  acond_b (vs0 ++ Vbool b :: vs2) (sc_guarded (size vs0) c) = (~~ b) || bb.
+Proof.
+move=> hb hev; rewrite /acond_b /sc_guarded /sc_or /sc_not /=.
+rewrite nth_cat ltnn subnn /=.
+by rewrite (interp_acond_cat (Vbool b :: vs2) hb) hev /=.
+Qed.
+
 (* ** Well-formedness of the conditions above *)
 
 Lemma ac_type_op1E tin o c :
@@ -526,6 +738,82 @@ Lemma ac_ok_not_zero tin ws k :
 Proof.
 by move=> h1 h2; rewrite /ac_ok /ac_wt /sc_not_zero /sc_neqi ac_type_op2E
   (ac_type_toint Unsigned h1 h2) /=.
+Qed.
+
+Lemma ac_ok_false tin : ac_ok tin sc_false.
+Proof. by []. Qed.
+
+Lemma ac_ok_is_zero tin ws k :
+  ssrnat.leq (S k) (size tin) -> nth cbool tin k = cword ws ->
+  ac_ok tin (sc_is_zero ws k).
+Proof.
+by move=> h1 h2; rewrite /ac_ok /ac_wt /sc_is_zero /sc_eqi ac_type_op2E
+  (ac_type_toint Unsigned h1 h2) /=.
+Qed.
+
+Lemma ac_ok_ult tin ws k z :
+  ssrnat.leq (S k) (size tin) -> nth cbool tin k = cword ws ->
+  ac_ok tin (sc_ult ws k z).
+Proof.
+by move=> h1 h2; rewrite /ac_ok /ac_wt /sc_ult /sc_lti ac_type_op2E
+  (ac_type_toint Unsigned h1 h2) /=.
+Qed.
+
+Lemma ac_ok_uge tin ws z k :
+  ssrnat.leq (S k) (size tin) -> nth cbool tin k = cword ws ->
+  ac_ok tin (sc_uge ws z k).
+Proof.
+by move=> h1 h2; rewrite /ac_ok /ac_wt /sc_uge /sc_lei ac_type_op2E
+  (ac_type_toint Unsigned h1 h2) /=.
+Qed.
+
+Lemma ac_ok_uadd_le tin ws k1 k2 z :
+  ssrnat.leq (S k1) (size tin) -> nth cbool tin k1 = cword ws ->
+  ssrnat.leq (S k2) (size tin) -> nth cbool tin k2 = cword ws ->
+  ac_ok tin (sc_uadd_le ws k1 k2 z).
+Proof.
+move=> h1 h2 h3 h4.
+by rewrite /ac_ok /ac_wt /sc_uadd_le /sc_lei /sc_addi !ac_type_op2E
+  (ac_type_toint Unsigned h1 h2) (ac_type_toint Unsigned h3 h4) /=.
+Qed.
+
+Lemma ac_ok_in_range_mod32 tin ws i j k :
+  ssrnat.leq (S k) (size tin) -> nth cbool tin k = cword ws ->
+  ac_ok tin (sc_in_range_mod32 ws i j k).
+Proof.
+move=> h1 h2.
+by rewrite /ac_ok /ac_wt /sc_in_range_mod32 /sc_in_range /sc_and /sc_lei /sc_modi
+  !ac_type_op2E (ac_type_toint Unsigned h1 h2) /=.
+Qed.
+
+Lemma ac_ok_all_init tin ws len k :
+  ssrnat.leq (S k) (size tin) -> nth cbool tin k = carr (arr_size ws len) ->
+  ac_ok tin (sc_all_init ws len k).
+Proof.
+move=> h1 h2; rewrite /ac_ok /ac_wt /sc_all_init /= h1 h2.
+have -> : arr_size U8 (arr_size ws len) = arr_size ws len.
++ by rewrite arr_sizeE wsize8 Z.mul_1_l.
+by rewrite /sub_octype /= !eqxx.
+Qed.
+
+Lemma ac_ok_x86_division tin sz sg :
+  ssrnat.leq 3 (size tin) ->
+  nth cbool tin 0 = cword sz -> nth cbool tin 1 = cword sz -> nth cbool tin 2 = cword sz ->
+  ac_ok tin (sc_x86_division sz sg).
+Proof.
+move=> hs h0 h1 h2.
+have l0 : ssrnat.leq 1 (size tin) by apply: ssrnat.leq_trans hs.
+have l1 : ssrnat.leq 2 (size tin) by apply: ssrnat.leq_trans hs.
+by rewrite /ac_ok /ac_wt /sc_x86_division; case: sg => /=;
+  rewrite l0 l1 hs h0 h1 h2 /= !cmp_le_refl.
+Qed.
+
+Lemma ac_ok_guarded tin g c :
+  ssrnat.leq (S g) (size tin) -> nth cbool tin g = cbool ->
+  ac_ok tin c -> ac_ok tin (sc_guarded g c).
+Proof.
+move=> h1 h2 /andP [] /eqP hwt htot.
+by rewrite /ac_ok /ac_wt /sc_guarded /sc_or /sc_not /= h1 h2 hwt /= htot.
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -990,18 +1278,18 @@ Proof. by move=> v i. Qed.
 (* The initialisation condition of a conditional instruction: the output keeps
    its previous value when the guard (the argument [g]) is false, so it is
    defined in that case too. *)
-Definition cond_init (g : nat) (c : acond) : acond := sc_or (sc_not (IVar g)) c.
+Definition cond_init (g : nat) (c : acond) : acond := sc_guarded g c.
 
 Lemma ac_wt_cond_init tin tin' c :
   ac_wt tin c -> ac_wt (tin ++ cbool :: tin') (cond_init (size tin) c).
 Proof.
-rewrite /ac_wt /cond_init /sc_or /sc_not /= => /eqP /ac_type_cat -> /=.
+rewrite /ac_wt /cond_init /sc_guarded /sc_or /sc_not /= => /eqP /ac_type_cat -> /=.
 rewrite size_cat /= nth_cat ltnn subnn /=.
 by have -> : (size tin < size tin + (size tin').+1)%nat by rewrite -addn1 leq_add2l.
 Qed.
 
 Lemma ac_total_cond_init g c : ac_total c -> ac_total (cond_init g c).
-Proof. by move=> h; rewrite /cond_init /= h. Qed.
+Proof. by move=> h; rewrite /cond_init /sc_guarded /= h. Qed.
 
 Lemma ac_ok_cond_init tin tin' c :
   ac_ok tin c -> ac_ok (tin ++ cbool :: tin') (cond_init (size tin) c).
@@ -1011,11 +1299,7 @@ Lemma acond_b_cond_init (vs0 vs2 : values) (b : bool) (c : acond) (bb : bool) :
   ac_below (size vs0) c ->
   interp_acond vs0 c = ok (Vbool bb) ->
   acond_b (vs0 ++ Vbool b :: vs2) (cond_init (size vs0) c) = (~~ b) || bb.
-Proof.
-move=> hb hev; rewrite /acond_b /cond_init /sc_or /sc_not /=.
-rewrite nth_cat ltnn subnn /=.
-by rewrite (interp_acond_cat (Vbool b :: vs2) hb) hev /=.
-Qed.
+Proof. exact: acond_b_guarded. Qed.
 
 Lemma cond_init_val (ts : seq ctype) (vs0 vs2 : values) (b : bool) (c : acond) :
   List.Forall2 (fun t v => exists x : sem_t t, v = to_val x) ts vs0 ->
