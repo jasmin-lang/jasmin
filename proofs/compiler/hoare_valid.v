@@ -26,6 +26,7 @@ Section IND_PPL.
 
 Context
   {wa : WithAssert}
+  {wc : WithCatch}
   {wsw:WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}
@@ -127,6 +128,7 @@ Section MEMEQ.
 
 Context
   {wa : WithAssert}
+  {wc : WithCatch}
   {wsw:WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}
@@ -292,6 +294,7 @@ Section INSTANCES.
 
 Context
   {wa : WithAssert}
+  {wc : WithCatch}
   {wsw:WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}

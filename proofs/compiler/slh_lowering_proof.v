@@ -930,7 +930,7 @@ Let Pc c : Prop :=
 Lemma it_lower_opn xs tg op es : Pi_r (Copn xs tg op es).
 Proof using hshparams hp.
 move=> ii env env' i' ii' /=; case: is_OslhP => [slho|?] /=; last first.
-- move=> [<-] [<- <-]; apply wequiv_opn_eq.
+- move=> [<-] [<- <-]; apply wequiv_opn_eq; try exact _.
   + rewrite hp_globs; move=> s _ vs [<- _] ->; by exists vs.
   rewrite hp_globs => vs s _ s' [<- hwf] hwrite.
   exists s' => //; split=> //; exact: wf_env_after_assign_vars hwf hwrite.

@@ -3,7 +3,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 Require Import xseq.
-Require Export type expr gen_map low_memory warray_ sem_type sem_op_typed values varmap low_memory syscall_sem.
+Require Export type expr gen_map low_memory warray_ sem_type sem_op_typed sopn_semi values varmap low_memory syscall_sem.
 Require Export
   flag_combination
   sem_params.
@@ -16,20 +16,17 @@ Open Scope vm_scope.
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
-Definition sem_sop1 (o: sop1) (v: value) : exec value :=
-  Let x := of_val _ v in
-  Let r := sem_sop1_typed o x in
-  ok (to_val r).
-
-Definition sem_sop2 (o: sop2) (v1 v2: value) : exec value :=
-  Let x1 := of_val _ v1 in
-  Let x2 := of_val _ v2 in
-  Let r  := sem_sop2_typed o x1 x2 in
-  ok (to_val r).
+(* [sem_sop1] and [sem_sop2] are defined in sopn_semi.v, re-exported above. *)
 
 Definition sem_opN
   {cfcd : FlagCombinationParams} (op: opN) (vs: values) : exec value :=
   Let w := app_sopn _ (sem_opN_typed op) vs in
+  ok (to_val w).
+
+(* Total counterpart: only the coercion of the arguments may still fail. *)
+Definition sem_opN_total_v
+  {cfcd : FlagCombinationParams} (op: opN) (vs: values) : exec value :=
+  Let w := app_sopn _ (sem_prod_ok _ (sem_opN_total op)) vs in
   ok (to_val w).
 
 Definition sem_opN_safety (op: opN_safety) (vs: values) : exec bool :=
@@ -55,6 +52,7 @@ Definition get_global gd g : exec value :=
 
 Section WSW.
 Context {wsw:WithSubWord}.
+Context {wc : WithCatch}.
 
 (* ** State
  * ------------------------------------------------------------------------- *)
@@ -74,7 +72,11 @@ Arguments Estate {syscall_state}%_type_scope {ep} _ _ _%_vm_scope.
  * -------------------------------------------------------------------- *)
 
 Definition get_gvar (wdb : bool) (gd : glob_decls) (vm : Vm.t) (x : gvar) :=
-  if is_lvar x then get_var wdb vm x.(gv)
+  if is_lvar x then
+    (if with_catch then
+       let v := vm.[x.(gv)] in
+       ok (if is_defined v then v else default_val (vtype x.(gv)))
+     else get_var wdb vm x.(gv))
   else get_global gd x.(gv).
 
 Definition get_var_is wdb vm := mapM (fun x => get_var wdb vm (v_var x)).
@@ -129,27 +131,30 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | Pget al aa ws x e =>
       Let (n, t) := wdb, gd, s.[x] in
       Let i := sem_pexpr s e >>= to_int in
-      Let w := WArray.get al aa ws t i in
+      Let w := if with_catch then ok (WArray.get_total aa ws t i)
+               else WArray.get al aa ws t i in
       ok (Vword w)
   | Psub aa ws len x e =>
     Let (n, t) := wdb, gd, s.[x] in
     Let i := sem_pexpr s e >>= to_int in
-    Let t' := WArray.get_sub aa ws len t i in
+    Let t' := if with_catch then ok (WArray.get_sub_total aa ws len t i)
+              else WArray.get_sub aa ws len t i in
     ok (Varr t')
   | Pload al sz e =>
     Let w2 := sem_pexpr s e >>= to_pointer in
-    Let w  := read s.(emem) al w2 sz in
+    Let w  := if with_catch then ok (read_total s.(emem) w2 sz)
+              else read s.(emem) al w2 sz in
     ok (@to_val (cword sz) w)
   | Papp1 o e1 =>
     Let v1 := sem_pexpr s e1 in
-    sem_sop1 o v1
+    if with_catch then sem_sop1_total_v o v1 else sem_sop1 o v1
   | Papp2 o e1 e2 =>
     Let v1 := sem_pexpr s e1 in
     Let v2 := sem_pexpr s e2 in
-    sem_sop2 o v1 v2
+    if with_catch then sem_sop2_total_v o v1 v2 else sem_sop2 o v1 v2
   | PappN op es =>
     Let vs := mapM (sem_pexpr s) es in
-    sem_opN op vs
+    if with_catch then sem_opN_total_v op vs else sem_opN op vs
   | Pif t e e1 e2 =>
     let t := eval_atype t in
     Let b := sem_pexpr s e >>= to_bool in
@@ -179,19 +184,22 @@ Definition write_lval (l : lval) (v : value) (s : estate) : exec estate :=
   | Lmem al sz x e =>
     Let p := sem_pexpr s e >>= to_pointer in
     Let w := to_word sz v in
-    Let m := write s.(emem) al p w in
+    Let m := if with_catch then ok (write_total s.(emem) p w)
+             else write s.(emem) al p w in
     ok (with_mem s m)
   | Laset al aa ws x i =>
     Let (n,t) := wdb, s.[x] in
     Let i := sem_pexpr s i >>= to_int in
     Let v := to_word ws v in
-    Let t := WArray.set t al aa i v in
+    Let t := if with_catch then ok (WArray.set_total t aa i v)
+             else WArray.set t al aa i v in
     write_var x (@to_val (carr n) t) s
   | Lasub aa ws len x i =>
     Let (n,t) := wdb, s.[x] in
     Let i := sem_pexpr s i >>= to_int in
     Let t' := to_arr (arr_size ws len) v in
-    Let t := @WArray.set_sub n aa ws len t i t' in
+    Let t := if with_catch then ok (@WArray.set_sub_total n aa ws len t i t')
+             else @WArray.set_sub n aa ws len t i t' in
     write_var x (@to_val (carr n) t) s
   end.
 
@@ -245,7 +253,7 @@ Context
   {asmop : asmOp asm_op}.
 
 Definition exec_sopn (o:sopn) (vs:values) : exec values :=
-  Let semi := sopn_sem o in
+  Let semi := if with_catch then sopn_sem_total o else sopn_sem o in
   Let t := app_sopn _ semi vs in
   ok (list_ltuple t).
 

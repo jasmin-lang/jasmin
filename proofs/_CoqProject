@@ -153,6 +153,7 @@ compiler/unionfind_proof.v
 compiler/unrolling.v
 compiler/unrolling_proof.v
 compiler/wint_int.v
+compiler/wint_int_proof.v
 compiler/wint_word.v
 compiler/wint_word_proof.v
 compiler/x86_decl.v
@@ -204,6 +205,9 @@ lang/pseudo_operator.v
 lang/psem_facts.v
 lang/relational_logic.v
 lang/safety_common.v
+lang/safety.v
+lang/safety_common_proof.v
+lang/safety_proof.v
 lang/sem_one_varmap.v
 lang/sem_op_typed.v
 lang/sem_one_varmap_facts.v
@@ -212,6 +216,8 @@ lang/sem_type.v
 lang/sha256.v
 lang/shift_kind.v
 lang/sopn.v
+lang/sopn_semi.v
+lang/op_semi.v
 lang/slh_ops.v
 lang/stack_zero_strategy.v
 lang/strings.v

@@ -1,7 +1,7 @@
 (* -------------------------------------------------------------------- *)
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-Require Import xseq strings utils var type values sopn expr fexpr arch_decl.
+Require Import xseq strings utils var type values sopn sopn_semi expr fexpr arch_decl.
 Require Import compiler_util.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
@@ -351,17 +351,24 @@ Definition semi_to_atype {tin tout} (semi: sem_prod (map eval_ltype tin) (exec (
   let eq l := computational_eq (etrans (eq_map atype_of_ltypeP _) (map_comp eval_atype atype_of_ltype l)) in
   ecast l (sem_prod l _) (eq tin) (ecast l (sem_prod _ (exec (sem_tuple l))) (eq tout) semi).
 
+(* The total semantics is transported exactly like [semi]. *)
+Definition semi_to_atype_t {tin tout}
+    (f : sem_prod (map eval_ltype tin) (sem_tuple_t (map eval_ltype tout))) :
+    sem_prod (map eval_atype (map atype_of_ltype tin))
+             (sem_tuple_t (map eval_atype (map atype_of_ltype tout))) :=
+  let eq l := computational_eq (etrans (eq_map atype_of_ltypeP _) (map_comp eval_atype atype_of_ltype l)) in
+  ecast l (sem_prod l _) (eq tin) (ecast l (sem_prod _ (sem_tuple_t l)) (eq tout) f).
+
+Lemma map_eval_atype_of_ltype (tin : seq ltype) :
+  map eval_atype (map atype_of_ltype tin) = map eval_ltype tin.
+Proof. by rewrite -map_comp; apply/esym/eq_map/atype_of_ltypeP. Qed.
+
 Lemma is_not_carr_ltype (tin : seq ltype) :
   all is_not_carr (map eval_atype (map atype_of_ltype tin)).
 Proof.
   elim: tin => [//|ty tys /= ->].
   by case: ty.
 Qed.
-
-Lemma semi_to_atype_safe_wf tin safe :
-  all (fun sc : safe_cond => ssrnat.leq (sc_needed_args sc) (size tin)) safe ->
-  all (fun sc : safe_cond => ssrnat.leq (sc_needed_args sc) (size (map atype_of_ltype tin))) safe.
-Proof. by rewrite size_map. Qed.
 
 Lemma semi_to_atype_errty tin tout (semi: sem_prod (map eval_ltype tin) (exec (sem_tuple (map eval_ltype tout)))) :
   sem_forall (fun r => r <> Error ErrType) (map eval_ltype tin) semi ->
@@ -373,12 +380,43 @@ Proof.
 Qed.
 
 Lemma semi_to_atype_safe tin tout (semi: sem_prod (map eval_ltype tin) (exec (sem_tuple (map eval_ltype tout))))safe :
-  interp_safe_cond_ty safe semi ->
-  interp_safe_cond_ty safe (semi_to_atype semi).
+  safe_cond_ty safe semi ->
+  safe_cond_ty safe (semi_to_atype semi).
 Proof.
   rewrite /semi_to_atype.
   move: (computational_eq _) (computational_eq _) semi => e1 e2.
   by rewrite -> e1, -> e2.
+Qed.
+
+Lemma semi_to_atype_wf (tin tout : seq ltype) safe init err :
+  [&& all (sc_ok (map eval_ltype tin)) safe, all (sc_ok (map eval_ltype tin)) init,
+      ssrnat.eqn (size init) (size tout) & ~~ is_ErrType err] ->
+  [&& all (sc_ok (map eval_atype (map atype_of_ltype tin))) safe,
+      all (sc_ok (map eval_atype (map atype_of_ltype tin))) init,
+      ssrnat.eqn (size init) (size (map atype_of_ltype tout)) & ~~ is_ErrType err].
+Proof. by rewrite map_eval_atype_of_ltype size_map. Qed.
+
+Lemma mk_semi_to_atype tin tout safe err init
+    (f : sem_prod (map eval_ltype tin) (sem_tuple_t (map eval_ltype tout))) :
+  sem_prod_eq (map eval_atype (map atype_of_ltype tin))
+    (semi_to_atype (mk_semi safe err init f))
+    (mk_semi safe err init (semi_to_atype_t f)).
+Proof.
+  rewrite /semi_to_atype /semi_to_atype_t.
+  move: (computational_eq _) (computational_eq _) f => e1 e2.
+  by rewrite -> e1, -> e2 => f; apply sem_prod_eq_refl.
+Qed.
+
+Lemma semi_to_atype_eq tin tout safe err init
+    (semi : sem_prod (map eval_ltype tin) (exec (sem_tuple (map eval_ltype tout))))
+    (f : sem_prod (map eval_ltype tin) (sem_tuple_t (map eval_ltype tout))) :
+  sem_prod_eq (map eval_ltype tin) semi (mk_semi safe err init f) ->
+  sem_prod_eq (map eval_atype (map atype_of_ltype tin)) (semi_to_atype semi)
+    (mk_semi safe err init (semi_to_atype_t f)).
+Proof.
+  rewrite /semi_to_atype /semi_to_atype_t.
+  move: (computational_eq _) (computational_eq _) semi f => e1 e2.
+  by rewrite -> e1, -> e2 => semi f.
 Qed.
 
 Definition get_instr_desc (o: extended_op) : instruction_desc :=
@@ -392,13 +430,17 @@ Definition get_instr_desc (o: extended_op) : instruction_desc :=
     ; conflicts:= [::]
     ; tout     := map atype_of_ltype id.(id_tout)
     ; semi     := semi_to_atype id.(id_semi)
+    ; i_semi_total := semi_to_atype_t id.(id_semi_total)
     ; semu     := @vuincl_app_sopn_v _ _ _ (is_not_carr_ltype _)
     ; i_safe   := id.(id_safe)
+    ; i_err    := id.(id_err)
+    ; i_init   := id.(id_init)
     ; i_valid  := id.(id_valid)
     ; i_doit   := id.(id_doit)
-    ; i_safe_wf := semi_to_atype_safe_wf id.(id_safe_wf)
+    ; i_wf     := semi_to_atype_wf id.(id_wf)
     ; i_semi_errty := fun h => semi_to_atype_errty (id.(id_semi_errty) h)
     ; i_semi_safe := fun h => semi_to_atype_safe (id.(id_semi_safe) h)
+    ; i_semi_eq := fun h => semi_to_atype_eq (id.(id_semi_eq) h)
    |}
  | ExtOp o => asm_op_instr o
  end.

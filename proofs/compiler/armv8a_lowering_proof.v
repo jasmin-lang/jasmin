@@ -544,7 +544,7 @@ Proof.
   all: rewrite /lower_pexpr_aux /lower_load.
   all: move=> /chk_ws_regP [hwsx [??]] hws hfve; subst aop es.
   all: have hwsx' : (ws' == U32) || (ws' == U64) by rewrite orbC.
-  all: rewrite /sem_pexpr -/(sem_pexpr _ _ s e).
+  all: rewrite /sem_pexpr -/(sem_pexpr (wc:=nocatch) _ _ s e).
 
   - apply: on_arr_gvarP => n t hty ok_t.
     apply: rbindP => idx.
@@ -586,7 +586,7 @@ Proof.
   move=> s ws ws' op' es w.
   move=> h hws hfve.
 
-  rewrite /sem_pexpr -/(sem_pexpr _ _ s e).
+  rewrite /sem_pexpr -/(sem_pexpr (wc:=nocatch) _ _ s e).
   t_xrbindP=> v hseme hw.
 
   move: h.
@@ -998,7 +998,7 @@ Proof.
   move=> h hws hfve hseme.
 
   move: hseme.
-  rewrite /sem_pexpr -!/(sem_pexpr _ _ s _).
+  rewrite /sem_pexpr -!/(sem_pexpr (wc:=nocatch) _ _ s _).
   t_xrbindP=> v0 hseme0 v1 hseme1 hsemop.
 
   move: hfve => /disj_fvars_read_e_Papp2 [hfve0 hfve1].

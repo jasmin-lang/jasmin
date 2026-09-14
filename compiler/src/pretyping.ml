@@ -1091,7 +1091,7 @@ let conv_cty : T.atype -> P.epty = function
     | T.Coq_aarr (ws, n) -> P.ETarr (ws, PE (P.cnst (Conv.z_of_cz n)))
 
 let type_of_op2 op =
-  let (ty1, ty2), tyo = E.etype_of_op2 op in
+  let (ty1, ty2), tyo = Operators.etype_of_op2 op in
   conv_ty ty1, conv_ty ty2, conv_ty tyo
 
 let tt_op2 (loc1, (e1, ety1)) (loc2, (e2, ety2))
@@ -1119,7 +1119,7 @@ let tt_op2 (loc1, (e1, ety1)) (loc2, (e2, ety2))
     P.Papp2(op, e1, e2), tyo
 
 let type_of_op1 op =
-  let ty, tyo = E.etype_of_op1 op in
+  let ty, tyo = Operators.etype_of_op1 op in
   conv_ty ty, conv_ty tyo
 
 let tt_op1 (loc1, (e1, ety1)) { L.pl_desc = pop; L.pl_loc = loc } =
@@ -1349,7 +1349,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
   | S.PECombF(id, args) ->
     begin match List.assoc (L.unloc id) combine_flags with
     | c ->
-      let nexp = List.length Expr.tin_combine_flags in
+      let nexp = List.length Operators.tin_combine_flags in
       let nargs = List.length args in
       if nargs <> nexp then
         rs_tyerror ~loc:(L.loc pe) (InvalidArgCount(nargs, nexp));

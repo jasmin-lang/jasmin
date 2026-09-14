@@ -94,6 +94,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {wa: WithAssert}
+  {wc: WithCatch}
   {asm_op: Type}
   {sip : SemInstrParams asm_op syscall_state}
   {pT : progT}
@@ -1074,6 +1075,7 @@ Context
   {spp : SemPexprParams}
   {asm_op: Type}
   {wa: WithAssert}
+  {wc: WithCatch}
   {sip : SemInstrParams asm_op syscall_state}
   {pT : progT}
   {wsw : WithSubWord}

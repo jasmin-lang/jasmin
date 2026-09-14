@@ -208,6 +208,29 @@ Section CoreMem.
   Definition validw (m:core_mem) (al: aligned) (ptr:pointer) (sz:wsize) :=
     is_aligned_if al ptr sz && all (fun k => valid8 m (add ptr k)) (ziota 0 (wsize_size sz)).
 
+  (* Byte read without failure: [0] when [get] fails (out of bounds, not
+     initialised, or not allocated). *)
+  Definition get_total (m : core_mem) (p : pointer) : u8 :=
+    if get m p is Ok w then w else 0%w.
+
+  (* Byte write without failure: the memory is unchanged when [set] fails. *)
+  Definition set_total (m : core_mem) (p : pointer) (w : u8) : core_mem :=
+    if set m p w is Ok m' then m' else m.
+
+  Definition read_total (m : core_mem) (p : pointer) (sz : wsize) : word sz :=
+    LE.decode sz [seq get_total m (add p k) | k <- ziota 0 (wsize_size sz)].
+
+  Definition write_total (m : core_mem) (p : pointer) (sz : wsize) (w : word sz) : core_mem :=
+    foldl (fun m k => set_total m (add p k) (nth 0%w (LE.encode w) (Z.to_nat k)))
+          m (ziota 0 (wsize_size sz)).
+
+  (* The guard of [read]: the access is aligned and every byte it reads can be
+     read. It is stronger than [validw], which only asks that every byte can be
+     written: a cell may be writable and still unreadable (an allocated but
+     uninitialised memory cell, an in-bound but uninitialised array cell). *)
+  Definition validr (m : core_mem) (al : aligned) (p : pointer) (sz : wsize) : bool :=
+    is_aligned_if al p sz && all (fun k => is_ok (get m (add p k))) (ziota 0 (wsize_size sz)).
+
   Lemma valid8_validw m al p : valid8 m p = validw m al p U8.
   Proof. by rewrite /validw is_aligned_if_is_align ?is_align8 // /= add_0 andbT. Qed.
 
@@ -241,7 +264,8 @@ Section CoreMem.
     by case: set.
   Qed.
 
-  Lemma readE m al p sz :
+  (* [read] as a read of its bytes. *)
+  Lemma read_read8E m al p sz :
     read m al p sz =
       Let _ := assert (is_aligned_if al p sz) ErrAddrInvalid in
       Let l := mapM (fun k => read m al (add p k) U8) (ziota 0 (wsize_size sz)) in
@@ -293,7 +317,7 @@ Section CoreMem.
     read m1 al p ws = read m2 al p ws.
   Proof.
     Opaque Z.to_nat.
-    move=> h8; rewrite !readE ziotaE; case: is_aligned_if => //=; f_equal.
+    move=> h8; rewrite !read_read8E ziotaE; case: is_aligned_if => //=; f_equal.
     apply eq_mapM => k /mapP[] n; rewrite mem_iota add0n => /andP[] /leP ? /ltP ? ?; subst.
     apply: h8.
     Lia.lia.
@@ -332,7 +356,7 @@ Section CoreMem.
     (forall al' i, 0 <= i < wsize_size s -> read m al' (add p i) U8 = ok (LE.wread8 v i)) ->
     read m al p s = if is_aligned_if al p s then ok v else Error ErrAddrInvalid.
   Proof.
-    rewrite readE => h8; case: is_aligned_if => //.
+    rewrite read_read8E => h8; case: is_aligned_if => //.
     have -> : mapM (λ k, read m al (add p k) U8) (ziota 0 (wsize_size s)) =
                    ok (map (λ k, LE.wread8 v k) (ziota 0 (wsize_size s))).
     + by apply ziota_ind => //= k l hk ->; rewrite h8.
@@ -343,7 +367,7 @@ Section CoreMem.
     read m al p s = ok v ->
     is_aligned_if al p s /\ (forall i, 0 <= i < wsize_size s -> read m al (add p i) U8 = ok (LE.wread8 v i)).
   Proof.
-    rewrite readE; t_xrbindP => ha l hl.
+    rewrite read_read8E; t_xrbindP => ha l hl.
     rewrite -{1}(LE.decodeK v) => /LE.decode_inj.
     rewrite -(size_mapM hl) size_ziota LE.size_encode => /(_ refl_equal refl_equal) ?; subst l.
     rewrite LE.encodeE in hl.
@@ -434,6 +458,66 @@ Section CoreMem.
 
  Definition disjoint_zrange_ovf p s p' s' : Prop :=
    ∀ i i' : Z, 0 <= i < s → 0 <= i' < s' → add p i ≠ add p' i'.
+
+  Lemma validr_validw m al p sz : validr m al p sz -> validw m al p sz.
+  Proof.
+    rewrite /validr /validw => /andP [-> /allP h].
+    rewrite andTb; apply/allP => k hk.
+    by have /is_okP [w] := h _ hk; apply: get_valid8.
+  Qed.
+
+  (* [read] is the alignment-and-readability guard followed by the total read;
+     the errors may differ (the guard raises [ErrAddrInvalid], [get] raises
+     whatever it raises), hence [eq_ok] and not equality. *)
+  Lemma readE m al p sz :
+    eq_ok (read m al p sz)
+      (if validr m al p sz then ok (read_total m p sz) else Error ErrAddrInvalid).
+  Proof.
+    rewrite /read /validr /read_total.
+    case: is_aligned_if; last by [].
+    rewrite andTb; case hall: all.
+    + rewrite (mapM_is_ok 0%R hall) /get_total; exact: eq_ok_refl.
+    have hm : is_ok (mapM (fun k => get m (add p k)) (ziota 0 (wsize_size sz))) = false.
+    + by rewrite is_ok_mapM.
+    by move: hm; case: mapM => // e _.
+  Qed.
+
+  (* The total write only changes bytes that were already writable. *)
+  Lemma set_total_valid8 m p w p' : valid8 (set_total m p w) p' = valid8 m p'.
+  Proof. by rewrite /set_total; case hs: set => [m''|e] //; apply: valid8_set hs. Qed.
+
+  Lemma write_total_valid8 m p sz (w : word sz) p' :
+    valid8 (write_total m p w) p' = valid8 m p'.
+  Proof.
+    rewrite /write_total; elim: ziota m => //= k ks ih m.
+    by rewrite ih set_total_valid8.
+  Qed.
+
+  Lemma write_total_validw_eq m p sz (w : word sz) al' p' sz' :
+    validw (write_total m p w) al' p' sz' = validw m al' p' sz'.
+  Proof.
+    by rewrite /validw; f_equal; apply all_ziota => ? _; apply write_total_valid8.
+  Qed.
+
+  Lemma write_totalE m al p sz (w : word sz) m' :
+    write m al p w = ok m' -> m' = write_total m p w.
+  Proof.
+    rewrite /write; t_xrbindP => _ h.
+    have := foldM_foldl_total h; move=> <-.
+    by rewrite /foldl_total /write_total /set_total.
+  Qed.
+
+  (* [write] is the alignment-and-validity guard followed by the total write. *)
+  Lemma writeE m al p sz (w : word sz) :
+    eq_ok (write m al p w)
+      (if validw m al p sz then ok (write_total m p w) else Error ErrAddrInvalid).
+  Proof.
+    case hv: validw; last first.
+    + move=> m'; split => // hw.
+      by move: hv; rewrite (introT (writeV w m al p) (ex_intro _ m' hw)).
+    have [m' hw] := elimT (writeV w m al p) hv.
+    by rewrite hw (write_totalE hw) => m''; split => -[<-].
+  Qed.
 
 End CoreMem.
 End CoreMem.
@@ -961,6 +1045,9 @@ Proof. by move=> [???] [???]; split; congruence. Qed.
 
 Lemma stack_stable_sym mem {CM : coreMem pointer mem} {M : memory CM} m1 m2 : stack_stable m1 m2 -> stack_stable m2 m1.
 Proof. by case; constructor. Qed.
+
+Lemma stack_stable_refl mem {CM : coreMem pointer mem} {M : memory CM} m : stack_stable m m.
+Proof. split; reflexivity. Qed.
 
 Lemma top_stack_after_aligned_alloc p ws sz :
   is_align p ws ->

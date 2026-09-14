@@ -1154,7 +1154,7 @@ Local Opaque opp_word.
       move=> z z0 h ? /= ?; subst vs3 z;
       move: hw; rewrite ?h /truncate_val /= ?truncate_word_u ?wrepr_unsigned hxs /=;
       t_xrbindP => ? -> -> /=; by eexists.
-    apply wequiv_opn_uincl.
+    apply wequiv_opn_uincl; try exact _.
     + by apply const_prop_esPe.
     by apply const_prop_rvsPe.
 
