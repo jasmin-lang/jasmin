@@ -90,37 +90,115 @@ Module WArray.
       | None   => false
       end.
 
-    Definition get8 (m:array s) (i:pointer) :=
-      Let _ := assert (in_bound m i) ErrOob in
-      Let _ := assert (is_init m i) ErrAddrUndef in
-      ok (odflt 0%w (Mz.get m.(arr_data) i)).
+    (* In the total mode a cell that is out of bounds or not initialised reads
+       as 0, and a write out of bounds is ignored. *)
+    Definition get8 (sm : SemMode) (m:array s) (i:pointer) :=
+      if is_total (SemMode := sm) then
+        ok (if in_bound m i then odflt 0%w (Mz.get m.(arr_data) i) else 0%w)
+      else
+        Let _ := assert (in_bound m i) ErrOob in
+        Let _ := assert (is_init m i) ErrAddrUndef in
+        ok (odflt 0%w (Mz.get m.(arr_data) i)).
 
-    Definition set8 (m:array s) (i:pointer) (v:u8) : result _ (array s):=
-      Let _ := assert (in_bound m i) ErrOob in
-      ok {| arr_data := Mz.set m.(arr_data) i v |}.
+    Definition set8 (sm : SemMode) (m:array s) (i:pointer) (v:u8) : result _ (array s):=
+      if is_total (SemMode := sm) then
+        ok (if in_bound m i then {| arr_data := Mz.set m.(arr_data) i v |} else m)
+      else
+        Let _ := assert (in_bound m i) ErrOob in
+        ok {| arr_data := Mz.set m.(arr_data) i v |}.
 
-    Lemma valid8P m i w : reflect (exists m', set8 m i w = ok m') (in_bound m i).
+    Lemma get8_partial m i :
+      get8 partial m i =
+        Let _ := assert (in_bound m i) ErrOob in
+        Let _ := assert (is_init m i) ErrAddrUndef in
+        ok (odflt 0%w (Mz.get m.(arr_data) i)).
+    Proof. by []. Qed.
+
+    Lemma get8_total m i :
+      get8 total m i = ok (if in_bound m i then odflt 0%w (Mz.get m.(arr_data) i) else 0%w).
+    Proof. by []. Qed.
+
+    Lemma set8_partial m i v :
+      set8 partial m i v =
+        Let _ := assert (in_bound m i) ErrOob in ok {| arr_data := Mz.set m.(arr_data) i v |}.
+    Proof. by []. Qed.
+
+    Lemma set8_total m i v :
+      set8 total m i v = ok (if in_bound m i then {| arr_data := Mz.set m.(arr_data) i v |} else m).
+    Proof. by []. Qed.
+
+    Lemma valid8P m i w : reflect (exists m', set8 partial m i w = ok m') (in_bound m i).
     Proof.
-      by (rewrite /set8; case: in_bound => /=; constructor); [eexists; eauto | move=> []].
+      by (rewrite set8_partial; case: in_bound => /=; constructor); [eexists; eauto | move=> []].
     Qed.
 
-    Lemma get_valid8 m i w : get8 m i = ok w -> in_bound m i.
-    Proof. by rewrite /get8; t_xrbindP. Qed.
+    Lemma get_valid8 m i w : get8 partial m i = ok w -> in_bound m i.
+    Proof. by rewrite get8_partial; t_xrbindP. Qed.
 
-    Lemma valid8_set m i w m' i' : set8 m i w = ok m' -> in_bound m' i' = in_bound m i'.
-    Proof. by rewrite /set8; t_xrbindP => _ <-. Qed.
+    (* [in_bound] depends on the length only, not on the contents. *)
+    Lemma valid8_set sm m i w m' i' : set8 sm m i w = ok m' -> in_bound m' i' = in_bound m i'.
+    Proof. by []. Qed.
 
     Lemma set8P m i w i' m' :
-      set8 m i w = ok m' ->
-      get8 m' i' = if i == i' then ok w else get8 m i'.
+      set8 partial m i w = ok m' ->
+      get8 partial m' i' = if i == i' then ok w else get8 partial m i'.
     Proof.
-      rewrite /get8 /set8 => /[dup] /valid8_set ->; t_xrbindP => hb <-.
+      rewrite !get8_partial => /[dup] /valid8_set ->.
+      rewrite set8_partial; t_xrbindP => hb <-.
       case heq: in_bound => //=; last by case: eqP => // h;move: heq; rewrite -h hb.
       by rewrite /is_init /= Mz.setP; case: eqP.
     Qed.
 
-    Global Instance array_CM : coreMem pointer (array s) :=
-      CoreMem set8P valid8P get_valid8 valid8_set.
+    Lemma get_total_ok m i : is_ok (get8 total m i).
+    Proof. by rewrite get8_total. Qed.
+
+    Lemma set_total_ok m i w : is_ok (set8 total m i w).
+    Proof. by rewrite set8_total. Qed.
+
+    Lemma get_totalE m i w : get8 partial m i = ok w -> get8 total m i = ok w.
+    Proof. by rewrite get8_partial get8_total; t_xrbindP => hb _ <-; rewrite hb. Qed.
+
+    Lemma set_totalE m i w m' : set8 partial m i w = ok m' -> set8 total m i w = ok m'.
+    Proof. by rewrite set8_partial set8_total; t_xrbindP => hb <-; rewrite hb. Qed.
+
+    Lemma setP_total m i w i' m' :
+      set8 total m i w = ok m' ->
+      get8 total m' i' = if (i == i') && in_bound m i then ok w else get8 total m i'.
+    Proof.
+      rewrite set8_total => -[<-].
+      case hb : (in_bound m i); last by rewrite andbF.
+      rewrite andbT !get8_total /= Mz.setP; case: eqP => [<- | _] //.
+      by move: hb; rewrite /in_bound => ->.
+    Qed.
+
+    Lemma valid8_set_dom m i : in_bound m i -> in_bound m i.
+    Proof. by []. Qed.
+
+    Lemma set_dom_set m i w m' i' : set8 total m i w = ok m' -> in_bound m' i' = in_bound m i'.
+    Proof. by []. Qed.
+
+    (* [set_dom] is [in_bound]: a write out of bounds has no effect. *)
+    Global Instance array_CM : coreMem pointer (array s) := {|
+      memory_model.get := get8;
+      memory_model.set := set8;
+      memory_model.valid8 := in_bound;
+      memory_model.set_dom := in_bound;
+      memory_model.setP := set8P;
+      memory_model.valid8P := valid8P;
+      memory_model.get_valid8 := get_valid8;
+      memory_model.valid8_set := @valid8_set partial;
+      memory_model.get_total_ok := get_total_ok;
+      memory_model.set_total_ok := set_total_ok;
+      memory_model.get_totalE := get_totalE;
+      memory_model.set_totalE := set_totalE;
+      memory_model.setP_total := setP_total;
+      memory_model.valid8_set_total := @valid8_set total;
+      memory_model.valid8_set_dom := valid8_set_dom;
+      memory_model.set_dom_set := set_dom_set;
+    |}.
+
+    Lemma is_ok_get8 m i : is_ok (get8 partial m i) = in_bound m i && is_init m i.
+    Proof. by rewrite get8_partial; case: in_bound; case: is_init. Qed.
 
     Definition in_range (i:pointer) (ws:wsize) :=
       ((0 <=? i) && (i + wsize_size ws <=? s))%Z.
@@ -142,7 +220,22 @@ Module WArray.
       by rewrite add_0 addE -!valid8_validw /array_CM /valid8 /in_bound !zify; lia.
     Qed.
 
+    (* A read succeeds exactly when the access is valid and every cell it
+       reads is initialised. *)
+    Lemma validr_validw_init m al i ws :
+      validr m al i ws = validw m al i ws && all (is_init m) (ziota i (wsize_size ws)).
+    Proof.
+      rewrite /validr /validw (ziota_shift i) all_map -andbA.
+      f_equal; rewrite -all_predI; apply eq_all => k /=.
+      by rewrite is_ok_get8 addE.
+    Qed.
+
   End CM.
+
+  (* The accesses below follow the mode of [get8]/[set8]. *)
+  Section MODE.
+
+  Context {sm : SemMode}.
 
   Definition get len al (aa: arr_access) ws (a: array len) (i: Z) :=
     CoreMem.read a al (i * mk_scale aa ws)%Z ws.
@@ -157,6 +250,8 @@ Module WArray.
 
   Definition copy ws n (a:array (arr_size ws n)) :=
     fcopy ws a (WArray.empty _) 0 n.
+
+  End MODE.
 
   Definition fill_aux len : seq u8 → exec (pointer * array len) :=
     foldM (λ w it,
@@ -178,13 +273,6 @@ Module WArray.
        | Some w => Mz.set data i w
        end) (Mz.empty _) (ziota 0 size).
 
-  Definition get_sub lena (aa:arr_access) ws len (a:array lena) i : exec (array (arr_size ws len)) :=
-     let size := arr_size ws len in
-     let start := (i * mk_scale aa ws)%Z in
-     if (0 <=? start) && (start + size <=? lena) then
-       ok (Build_array size (get_sub_data aa ws len (arr_data a) i))
-     else Error ErrOob.
-
   Definition set_sub_data (aa:arr_access) ws len (a:Mz.t u8) i (b:Mz.t u8) :=
     let size := arr_size ws len in
     let start := (i * mk_scale aa ws)%Z in
@@ -194,12 +282,25 @@ Module WArray.
       | Some w => Mz.set data (start + i) w
       end) a (ziota 0 size).
 
+  Section MODE_SUB.
+
+  Context {sm : SemMode}.
+
+  Definition get_sub lena (aa:arr_access) ws len (a:array lena) i : exec (array (arr_size ws len)) :=
+     let size := arr_size ws len in
+     let start := (i * mk_scale aa ws)%Z in
+     if is_total || ((0 <=? start) && (start + size <=? lena)) then
+       ok (Build_array size (get_sub_data aa ws len (arr_data a) i))
+     else Error ErrOob.
+
   Definition set_sub lena (aa:arr_access) ws len (a:array lena) i (b:array (arr_size ws len)) : exec (array lena) :=
     let size := arr_size ws len in
     let start := (i * mk_scale aa ws)%Z in
-    if (0 <=? start) && (start + size <=? lena) then
+    if is_total || ((0 <=? start) && (start + size <=? lena)) then
       ok (Build_array lena (set_sub_data aa ws len (arr_data a) i (arr_data b)))
     else Error ErrOob.
+
+  End MODE_SUB.
 
   Definition cast len len' (a:array len) : result error (array len') :=
     if len' == len then ok {| arr_data := a.(arr_data) |}
@@ -417,8 +518,8 @@ Module WArray.
 
   Lemma uincl_copy ws n a1 a2 a1' :
      uincl a1 a2 ->
-     @copy ws n a1 = ok a1' ->
-     @copy ws n a2 = ok a1'.
+     @copy partial ws n a1 = ok a1' ->
+     @copy partial ws n a2 = ok a1'.
   Proof.
     move=> hu; rewrite /copy /fcopy.
     elim: ziota (empty _) => [ | i il hrec] a //=.
@@ -517,22 +618,22 @@ Module WArray.
   Qed.
 
   Lemma set_sub_get8 aa ws lena a len i t a' :
-    @set_sub lena aa ws len a i t = ok a' ->
+    @set_sub partial lena aa ws len a i t = ok a' ->
     forall k,
       read a' Aligned k U8 =
         let j := (k - i * mk_scale aa ws)%Z in
         if (0 <=? j) && (j <? arr_size ws len) then read t Aligned j U8
         else read a Aligned k U8.
   Proof.
-    rewrite /set_sub; case: andP => // -[/ZleP h1 /ZleP h2] [<-] /= k.
+    rewrite /set_sub or_is_total_partial; case: andP => // -[/ZleP h1 /ZleP h2] [<-] /= k.
     rewrite -!get_read8 /memory_model.get /= /get8 /is_init /in_bound set_sub_data_get8 /=.
     case: andP; rewrite !zify //= => ?; case: andP; rewrite !zify //= => ?; lia.
   Qed.
 
   Lemma set_sub_bound aa ws lena a len i t a' :
-    @set_sub lena aa ws len a i t = ok a' ->
+    @set_sub partial lena aa ws len a i t = ok a' ->
     0 <= i * mk_scale aa ws /\ i * mk_scale aa ws + arr_size ws len <= lena.
-  Proof. by rewrite /set_sub; case: ifP => //; rewrite !zify. Qed.
+  Proof. by rewrite /set_sub or_is_total_partial; case: ifP => //; rewrite !zify. Qed.
 
   Transparent arr_size. Opaque Z.mul ziota.
   Lemma set_sub_get lena ws len (t: array lena) i (s: array (arr_size ws len)) t' al :
@@ -589,22 +690,22 @@ Module WArray.
   Qed.
 
   Lemma get_sub_get8 aa ws lena a len i a' :
-    @get_sub lena aa ws len a i = ok a' ->
+    @get_sub partial lena aa ws len a i = ok a' ->
     forall k,
       read a' Aligned k U8 =
         let start := (i * mk_scale aa ws)%Z in
         if (0 <=? k) && (k <? arr_size ws len) then read a Aligned (start + k) U8
         else Error ErrOob.
   Proof.
-    rewrite /get_sub; case: andP => // -[/ZleP h1 /ZleP h2] [<-] /= k.
+    rewrite /get_sub or_is_total_partial; case: andP => // -[/ZleP h1 /ZleP h2] [<-] /= k.
     rewrite -!get_read8 /memory_model.get /= /get8 /is_init /in_bound get_sub_data_get8 /=.
     case: andP; rewrite !zify //= => ?; case: andP; rewrite !zify //= => ?; lia.
   Qed.
 
   Lemma get_sub_bound aa ws lena a len i a' :
-    @get_sub lena aa ws len a i = ok a' ->
+    @get_sub partial lena aa ws len a i = ok a' ->
     0 <= i * mk_scale aa ws /\ i * mk_scale aa ws + arr_size ws len <= lena.
-  Proof. by rewrite /get_sub; case: ifP => //; rewrite !zify. Qed.
+  Proof. by rewrite /get_sub or_is_total_partial; case: ifP => //; rewrite !zify. Qed.
 
   Lemma uincl_get_sub {len1 len2} (a1 : array len1) (a2 : array len2)
       aa ws len i t1 :
@@ -615,7 +716,7 @@ Module WArray.
     move=> [hlen hu] hget.
     have := get_sub_get8 hget.
     have := @get_sub_get8 aa ws len2 a2 len i _.
-    move: hget; rewrite /get_sub; case: andP => // -[/ZleP h1 /ZleP h2] [_].
+    move: hget; rewrite /get_sub or_is_total_partial; case: andP => // -[/ZleP h1 /ZleP h2] [_].
     case: andP; rewrite !zify => h3; last by lia.
     move=> /(_ _ refl_equal) hr2 hr1; eexists => //; split; first by lia.
     by move=> k w; rewrite hr1 hr2; case: ifP => // ? /hu.
@@ -630,7 +731,7 @@ Module WArray.
     move=> [hlen1 hget1] [hlen2 hget2] hset.
     have := set_sub_get8 hset.
     have := @set_sub_get8 aa ws len2 a2 len i _.
-    move: hset; rewrite /set_sub; case: andP => // -[/ZleP h1 /ZleP h2] [_].
+    move: hset; rewrite /set_sub or_is_total_partial; case: andP => // -[/ZleP h1 /ZleP h2] [_].
     case: andP; rewrite !zify => h3; last by lia.
     move=> /(_ _ _ refl_equal) hr2 hr1; eexists => //; split; first by lia.
     by move=> k w; rewrite hr1 hr2; case: ifP => // [ ? /hget2| ? /hget1].

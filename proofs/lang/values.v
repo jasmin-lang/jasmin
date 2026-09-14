@@ -805,8 +805,8 @@ Lemma vuincl_copy_eq ws n :
   let len := arr_size ws n in
   forall vs vs' v,
   values_uincl vs vs' ->
-  @app_sopn_v [::carr len] [::carr len] (@WArray.copy ws n) vs = ok v ->
-  @app_sopn_v [::carr len] [::carr len] (@WArray.copy ws n) vs' = ok v.
+  @app_sopn_v [::carr len] [::carr len] (@WArray.copy partial ws n) vs = ok v ->
+  @app_sopn_v [::carr len] [::carr len] (@WArray.copy partial ws n) vs' = ok v.
 Proof.
   move=> sz _ _ v [// | v1 v2 [_ /value_uinclE hu /List_Forall2_inv_l -> |]];
     rewrite /app_sopn_v /=; t_xrbindP=> // ??.
@@ -828,8 +828,8 @@ Lemma vuincl_copy ws n :
   let len := arr_size ws n in
   forall vs vs' v,
   values_uincl vs vs' ->
-  @app_sopn_v [::carr len] [::carr len] (@WArray.copy ws n) vs = ok v ->
-  exists2 v' : values, @app_sopn_v [::carr len] [::carr len] (@WArray.copy ws n) vs' = ok v' & values_uincl v v'.
+  @app_sopn_v [::carr len] [::carr len] (@WArray.copy partial ws n) vs = ok v ->
+  exists2 v' : values, @app_sopn_v [::carr len] [::carr len] (@WArray.copy partial ws n) vs' = ok v' & values_uincl v v'.
 Proof.
   move=> ??? v /vuincl_copy_eq h/h{h}?.
   by exists v => //; exact: List_Forall2_refl.
