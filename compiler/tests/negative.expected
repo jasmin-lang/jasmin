@@ -872,6 +872,10 @@ fail/register_allocation/arm-m4/bug_201.jazz:
 compilation error in function main:
 register allocation: too many large parameters according to the ABI (only 0 available on this architecture)
 
+fail/register_allocation/arm-m4/force_regalloc_dup.jazz:
+
+"fail/register_allocation/arm-m4/force_regalloc_dup.jazz", line 2 (4-18): only one of the attribute force_regalloc, force_regalloc is expected
+
 fail/register_allocation/arm-m4/inplace.jazz:
 
 "fail/register_allocation/arm-m4/inplace.jazz", line 4 (19-29):
@@ -908,6 +912,10 @@ fail/register_allocation/arm-m4/too_many_ret.jazz:
 "fail/register_allocation/arm-m4/too_many_ret.jazz", line 1 (0) to line 11 (1):
 compilation error in function too_many_ret:
 register allocation: too many return values according to the ABI (only 2 available on this architecture)
+
+fail/register_allocation/risc-v/force_regalloc_dup.jazz:
+
+"fail/register_allocation/risc-v/force_regalloc_dup.jazz", line 2 (4-18): only one of the attribute force_regalloc, force_regalloc is expected
 
 fail/register_allocation/x86-64/already_allocated.jazz:
 
@@ -975,6 +983,15 @@ register allocation: conflicting variables “z” and “res” must be merged 
      _0,  _1,  _2,  _3,  _4, z = #ADD_64(z, res);
   at "fail/register_allocation/x86-64/conflicting_variables.jazz", line 11 (2-14):
     res = f(z);
+
+fail/register_allocation/x86-64/force_regalloc_dup.jazz:
+
+"fail/register_allocation/x86-64/force_regalloc_dup.jazz", line 2 (4-18): only one of the attribute force_regalloc, force_regalloc is expected
+
+fail/register_allocation/x86-64/force_regalloc_vs_arch.jazz:
+
+compilation error:
+register allocation: cannot allocate q into RCX, the variable is already allocated in RAX
 
 fail/register_allocation/x86-64/merge_across_banks.jazz:
 
@@ -1761,8 +1778,8 @@ Allowed args are:
   [[reg]; [reg; mem (glob allowed)]]
 
 Statistics:
-	Annots:      4
+	Annots:      7
 	Pretyping:  52
 	Parsing:     4
 	Typing:      5
-	Compile:   218
+	Compile:   219
