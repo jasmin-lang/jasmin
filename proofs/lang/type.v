@@ -8,6 +8,8 @@ Require Import gen_map utils strings ident.
 Require Export wsize.
 Import Utf8.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 (* ** Syntax
  * -------------------------------------------------------------------- *)
 

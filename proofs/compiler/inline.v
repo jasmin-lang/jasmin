@@ -372,6 +372,7 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
       in
       (* FIXME: optim: when fd.(f_al) = [::], no subst *)
       Let fd' := subst_fd f fd in
+      (* FIXME: why Sv.union (vrvs xs) while X already contains things about xs ? *)
       Let _ := add_iinfo iinfo (check_disjoint fd' (Sv.union (vrvs xs) X)) in
       let ii := ii_with_location iinfo in
       let rename_args :=
