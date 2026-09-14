@@ -4,7 +4,7 @@ to the paper "KEM-IND-CCA-Preserving Compilation of Jasmin's ML-KEM."
 
 # Download, installation, and sanity-testing instructions
 
-Detail instruction are available at
+Detailed instruction are available at
 [link](https://github.com/jasmin-lang/jasmin/wiki/Installation-instructions)
 
 ## Dependencies
@@ -25,7 +25,7 @@ available at [link](https://opam.ocaml.org/doc/Install.html). We require that a
 valid `opam` switch is configured with a compiler version >= 4.12.0 and is set
 as current switch.
 
-First add the Coq repository to the current opam switch
+First add the Rocq repository to the current opam switch
 ```
 opam repo add coq-released https://coq.inria.fr/opam/released
 ```
@@ -38,7 +38,7 @@ and install the dependencies listed in the opam file.
 
 ## Build
 
-To run Coq and check the validity of the proofs, run in the `proof` directory:
+To run Rocq and check the validity of the proofs, run in the `proof` directory:
 ```
 make
 ```
@@ -86,24 +86,16 @@ The general security preservation theorem is `compiler_preserves` in
 The implementation of the logic is in `proofs/lang/relational_logic.v`.
 Equivalence up-to-cutoff is defined as `xrutt` in `proofs/itrees/xrutt.v`.
 
- + rule SKIP in the paper corresponds to lemmas
- `wequiv_nil` in `/proof/lang/relational_logic.v`.
- + rule SEQ in the paper corresponds to lemmas
- `wequiv_cons` in `/proof/lang/relational_logic.v`.
- + rule ASSIGN in the paper corresponds to lemmas
- `wequiv_assgn` in `/proof/lang/relational_logic.v`.
- + rule COND in the paper corresponds to lemmas
- `wequiv_if` in `/proof/lang/relational_logic.v`.
- + rule LOOP in the paper corresponds to lemmas
- `wequiv_while` in `/proof/lang/relational_logic.v`.
- + rule RAND in the paper corresponds to lemmas
-  `wequiv_syscall` in `/proof/lang/relational_logic.v`.
- + rule CALL in the paper corresponds to lemmas
- `wequiv_call` in `/proof/lang/relational_logic.v`.
- + rule CONSEQ is inlined in each rule.
- + rule TRANS in the paper corresponds to lemmas
- `wequiv_trans` in `/proof/lang/relational_logic.v`.
- + rule REC is `wequiv_fun_ind`
+- rule SKIP is `wequiv_nil` in `/proof/lang/relational_logic.v`.
+- rule SEQ is `wequiv_cons` in `/proof/lang/relational_logic.v`.
+- rule ASSIGN is `wequiv_assgn` in `/proof/lang/relational_logic.v`.
+- rule COND is `wequiv_if` in `/proof/lang/relational_logic.v`.
+- rule LOOP is `wequiv_while` in `/proof/lang/relational_logic.v`.
+- rule RAND is `wequiv_syscall` in `/proof/lang/relational_logic.v`.
+- rule CALL is `wequiv_call` in `/proof/lang/relational_logic.v`.
+- rule CONSEQ is inlined in each rule.
+- rule TRANS is `wequiv_trans` in `/proof/lang/relational_logic.v`.
+- rule REC is `wequiv_fun_ind`
 
 ## Compiler Passes and Proofs
 
