@@ -214,27 +214,22 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
   in
 
   let fds, _ = Conv.prog_of_csprog sp' in
-  
+  let fds_noextra = List.map snd fds in
+
   if debug then
     Format.eprintf "After memory analysis@.%a@."
-      (Printer.pp_prog ~debug:true Arch.pointer_data Arch.msf_size Arch.asmOp) ([], (List.map snd fds));
-  
+      (Printer.pp_prog ~debug:true Arch.pointer_data Arch.msf_size Arch.asmOp) ([], fds_noextra);
+
   (* remove unused result *)
-  let tokeep = RemoveUnusedResults.analyse fds in
+  let tokeep = RemoveUnusedResults.analyse fds_noextra in
   (* TODO: the code is duplicated between here and compiler.v, we should factorize *)
-  let returned_params fn =
-    let sao = get_sao fn in
-    let _, fd = List.find (fun (_, fd) -> fd.f_name = fn) fds in
-    match fd.f_cc with
-    | Export -> Some sao.sao_return
-    | _ -> None
-  in
   let tokeep fn =
-    match returned_params fn with
-    | Some l ->
-        let l' = List.map ((=) None) l in
-        if List.for_all (fun x -> x) l' then None else Some l'
-    | None -> tokeep fn
+    let fd = List.find (fun fd -> fd.f_name = fn) fds_noextra in
+    match fd.f_cc with
+    | Export ->
+       let l = List.map ((=) None) (get_sao fn).sao_return in
+       if List.fold_left ( && ) true l then None else Some l
+    | Subroutine | Internal -> tokeep fn
   in
   let deadcode (extra, fd) =
     let (fn, cfd) = Conv.cufdef_of_fdef fd in
