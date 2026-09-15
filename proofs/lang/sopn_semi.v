@@ -153,11 +153,6 @@ Fixpoint ac_type (tin : seq ctype) (c : acond) : option ctype :=
 Definition ac_types (tin ts : seq ctype) (cs : seq acond) : bool :=
   all2 sub_octype ts (map (ac_type tin) cs).
 
-Lemma ac_type_appN tin o cs :
-  ac_type tin (IAppN_safety o cs) =
-  if ac_types tin (map eval_atype (type_of_opN_safety o).1) cs then Some cbool else None.
-Proof. by []. Qed.
-
 (* A well-typed condition is one that evaluates to a boolean. *)
 Definition ac_wt (tin : seq ctype) (c : acond) : bool :=
   ac_type tin c == Some cbool.
@@ -182,19 +177,6 @@ Fixpoint ac_max_var (c : acond) : nat :=
   | IOp2 _ c1 c2 => ssrnat.maxn (ac_max_var c1) (ac_max_var c2)
   | IAppN_safety _ cs => foldr (fun c n => ssrnat.maxn (ac_max_var c) n) 0 cs
   end.
-
-Lemma ac_max_var_appN_le o cs n :
-  ssrnat.leq (ac_max_var (IAppN_safety o cs)) n
-  = all (fun c => ssrnat.leq (ac_max_var c) n) cs.
-Proof. by elim: cs => //= c cs ih; rewrite ssrnat.geq_max ih. Qed.
-
-Lemma ac_max_var_below n c : ssrnat.leq (ac_max_var c) n = ac_below n c.
-Proof.
-elim/acond_ind_s: c => //=.
-+ by move=> o c1 ih1 c2 ih2; rewrite ssrnat.geq_max ih1 ih2.
-move=> o cs; elim => //= c l ih1 _ ih2.
-by rewrite ssrnat.geq_max ih1 ih2.
-Qed.
 
 (* ** Total conditions *)
 
@@ -290,24 +272,6 @@ Proof. by move=> /andP [h1 h2]; rewrite /ac_ok (ac_wt_cat tin' h1). Qed.
 
 Lemma all_ac_ok_cat tin tin' l : all (ac_ok tin) l -> all (ac_ok (tin ++ tin')) l.
 Proof. by apply: sub_all => c; apply: ac_ok_cat. Qed.
-
-(* The interpretation only depends on the arguments the condition reads. *)
-Lemma interp_acond_cat (vs vs' : values) c :
-  ac_below (size vs) c -> interp_acond (vs ++ vs') c = interp_acond vs c.
-Proof.
-elim/acond_ind_s: c => //=.
-+ by move=> k hk; rewrite nth_cat hk.
-+ by move=> o c ih h; rewrite ih.
-+ by move=> o c1 ih1 c2 ih2 /andP [h1 h2]; rewrite ih1 // ih2.
-move=> o cs hall hb.
-suff -> : mapM (interp_acond (vs ++ vs')) cs = mapM (interp_acond vs) cs by [].
-elim: cs hall hb => //= c cs ih /List_Forall_inv [hc hcs] /andP [h1 h2].
-by rewrite hc // (ih hcs h2).
-Qed.
-
-Lemma acond_b_cat (vs vs' : values) c :
-  ssrnat.leq (ac_max_var c) (size vs) -> acond_b (vs ++ vs') c = acond_b vs c.
-Proof. by rewrite ac_max_var_below => h; rewrite /acond_b interp_acond_cat. Qed.
 
 (* A well-typed total condition evaluates to a value on arguments of the
    announced types. *)
@@ -582,11 +546,6 @@ Lemma sem_prod_eq_app {A B} tin (g : A -> B) (f1 f2 : sem_prod tin A) :
   sem_prod_eq tin f1 f2 -> sem_prod_eq tin (sem_prod_app f1 g) (sem_prod_app f2 g).
 Proof. by elim: tin f1 f2 => /= [f1 f2 -> // | t tin ih f1 f2 h v]; apply: ih (h v). Qed.
 
-Lemma sem_prod_ok_app_g {A B} tin (x : sem_prod tin A) (g : A -> B) :
-  sem_prod_eq tin (sem_prod_ok tin (sem_prod_app x g))
-                  (sem_prod_app x (fun a => ok (g a))).
-Proof. by elim: tin x => //= t ts ih x v; apply: ih. Qed.
-
 (* Two pointwise equal post-treatments give two equal semantics. *)
 Lemma mk_semi_aux_eq {T T'} (P Q : values -> T -> exec T') vs tin (f : sem_prod tin T) :
   (forall vs t, P vs t = Q vs t) ->
@@ -660,15 +619,6 @@ rewrite /truncate_val hx /= hvs' /= ht0.
 by exists (to_val x :: vs') => //; exists t0 => //; rewrite -cat_rcons.
 Qed.
 
-(* [mk_sem_op] never raises a type error. *)
-Lemma mk_sem_op_errty tin t safe err f :
-  err <> ErrType ->
-  sem_forall (fun r => r <> Error ErrType) tin (@mk_sem_op tin t safe err f).
-Proof.
-move=> herr; apply: mk_semi_aux_errty => vs r.
-by rewrite /check_safe; case: ifP => //= _ [].
-Qed.
-
 (* If the conditions hold, [mk_sem_op] succeeds. *)
 Lemma mk_sem_op_safe tin t safe err f :
   acond_ty safe (@mk_sem_op tin t safe err f).
@@ -688,11 +638,6 @@ case hu: (check_safe vs' safe err) => [u|e] //= [?]; subst r0.
 by exists vs' => //; split => //; apply: check_safe_okE hu.
 Qed.
 
-Lemma mk_sem_op_safe_rev tin t safe err f vs r :
-  app_sopn tin (@mk_sem_op tin t safe err f) vs = ok r ->
-  exists2 vs', mapM2 ErrType truncate_val tin vs = ok vs' & all (acond_b vs') safe.
-Proof. by move=> h; case: (mk_sem_opP h) => vs' h1 [h2 _]; exists vs'. Qed.
-
 Lemma mk_semi_aux_id {T} (P : values -> T -> exec T) vs tin (f : sem_prod tin T) :
   (forall vs r, P vs r = ok r) ->
   sem_prod_eq tin (mk_semi_aux P vs tin f) (sem_prod_ok tin f).
@@ -702,11 +647,3 @@ Proof. by move=> h; elim: tin vs f => /= [vs f | t tin ih vs f v]; [apply h | ap
 Lemma mk_sem_op_nil tin t err f :
   sem_prod_eq tin (@mk_sem_op tin t [::] err f) (sem_prod_ok tin f).
 Proof. by apply: mk_semi_aux_id. Qed.
-
-(* [mk_sem_op] reduces on a concrete signature: this is what makes the
-   equality proofs provable by [reflexivity]. *)
-Lemma mk_sem_op_reduces_example :
-  sem_prod_eq [:: cint; cint]
-    (@mk_sem_op [:: cint; cint] cint [::] ErrArith (fun v1 v2 => (v1 + v2)%Z))
-    (sem_prod_ok [:: cint; cint] (fun v1 v2 => (v1 + v2)%Z)).
-Proof. by move=> v1 v2. Qed.

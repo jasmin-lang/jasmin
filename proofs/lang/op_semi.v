@@ -85,9 +85,6 @@ all: by rewrite /ac_ok /ac_wt /sc_in_range /sc_and /sc_lei /sc_addi /sc_muli
                 /sc_not_zero /sc_not /sc_eqi /sc_neqi /sc_toint /= !cmp_le_refl.
 Qed.
 
-Lemma opN_safe_ok (o : opN) : all (ac_ok [::]) (opN_safe o).
-Proof. by []. Qed.
-
 (* -------------------------------------------------------------------- *)
 (* ** The operators without conditions                                   *)
 
