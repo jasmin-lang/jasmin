@@ -1071,8 +1071,9 @@ let toec_ty onarray env ty = match ty with
 let onarray_ty_dfl env ws n =
   Format.sprintf "%s.t %s.t" (fmt_Wsz ws) (ec_Array env n)
 
-let of_list_dfl env _ws n =
-  Eapp (Eident [ec_Array env n; "of_list"], [ec_ident "witness"])
+let of_list_dfl env ws n =
+  let witness = Format.asprintf "witness<:%s.t>" (fmt_Wsz ws) in
+  Eapp (Eident [ec_Array env n; "of_list"], [ec_ident witness])
 
 let randombytes_suffix_dfl ws n =
   if ws = U8 then
