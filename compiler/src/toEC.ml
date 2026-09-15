@@ -1074,6 +1074,9 @@ let onarray_ty_dfl env ws n =
 let of_list_dfl env _ws n =
   Eapp (Eident [ec_Array env n; "of_list"], [ec_ident "witness"])
 
+let randombytes_suffix_dfl ws n =
+  Format.asprintf "%a%s" pp_length n (fmt_Wsz ws)
+
 (* ------------------------------------------------------------------- *)
 (* Extraction of array operations *)
 
@@ -1089,6 +1092,7 @@ module type EcArray = sig
   val add_arr: Env.t -> wsize -> int -> unit
   val add_jarray: Env.t -> wsize -> int -> unit
   val of_list:  Env.t -> wsize -> int -> ec_expr
+  val randombytes_suffix: wsize -> int -> string
 
 end
 
@@ -1214,6 +1218,8 @@ module EcArrayOld : EcArray = struct
   let add_jarray env ws n = Env.add_jarray env ws n
 
   let of_list =  of_list_dfl
+
+  let randombytes_suffix = randombytes_suffix_dfl
 end
 
 module EcWArray: EcArray = struct
@@ -1327,6 +1333,8 @@ module EcWArray: EcArray = struct
   let add_jarray env ws n = Env.add_jarray env ws n
 
   let of_list =  of_list_dfl
+
+  let randombytes_suffix = randombytes_suffix_dfl
 end
 
 module EcBArray : EcArray = struct
@@ -1389,6 +1397,8 @@ module EcBArray : EcArray = struct
   let of_list env ws n =
     Eident [ec_BArray env (arr_size ws n); Format.sprintf "of_list%i" (int_of_ws ws)]
 
+  let randombytes_suffix ws n =
+    Format.asprintf "%i" (arr_size ws n)
 end
 
 (* ------------------------------------------------------------------- *)
@@ -1918,7 +1928,7 @@ struct
     | Syscall_t.RandomBytes (ws, n) ->
       let n = Conv.int_of_cz n in
       Env.add_randombytes env ws n;
-      Format.asprintf "%s.randombytes_%a%s" syscall_mod_arg pp_length n (fmt_Wsz ws)
+      Format.asprintf "%s.randombytes_%s" syscall_mod_arg (EA.randombytes_suffix ws n)
 
   let ec_opn pd msfsz asmOp o =
     let s = Format.asprintf "%a" (pp_opn pd msfsz asmOp) o in
@@ -2081,7 +2091,7 @@ struct
       let randombytes_decl a (ws, n) =
           let arr_ty = toec_ty env (Arr (ws, n)) in
           {
-              fname = Format.asprintf "randombytes_%a%s" pp_length n (fmt_Wsz ws);
+              fname = Format.asprintf "randombytes_%s" (EA.randombytes_suffix ws n);
               args = [(a, arr_ty)];
               rtys = [arr_ty];
           }
@@ -2093,7 +2103,10 @@ struct
         ; stmt = [ESsample ([LvIdent ["a"]], dmap); ESreturn (ec_ident "a")]
         }
       in
-      let randombytes = Env.randombytes env in
+      let randombytes =
+        Env.randombytes env
+        |> List.sort_uniq (fun (ws1, n1) (ws2, n2) -> compare (EA.randombytes_suffix ws1 n1) (EA.randombytes_suffix ws2 n2))
+      in
       if List.is_empty randombytes then
         []
       else
