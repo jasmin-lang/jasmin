@@ -78,6 +78,10 @@ module type Arch = sig
   val extra_allocatable_vars : var list
   val xmm_allocatable_vars : var list
   val callee_save_vars : var list
+  (* Register in which export functions receive the return address, when the
+     compiled body is in charge of preserving it (spilled to the stack frame
+     like a callee-saved register when the body kills it). *)
+  val ra_to_save_var : var option
   val not_saved_stack : var list
   val rsp_var : var
   val all_registers : var list

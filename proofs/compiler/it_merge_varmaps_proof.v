@@ -1155,7 +1155,7 @@ Proof using ok_p.
   set results := sv_of_list v_var (f_res fd).
   set params := sv_of_list v_var (f_params fd).
   move => checked_body hdisj checked_params RSP_not_result preserved_magic checked_save_stack tmp_call_magic.
-  t_xrbindP => to_save_not_result ok_callee_saved ok_params.
+  t_xrbindP => to_save_not_result ok_callee_saved ok_call_ra ok_params.
   have /merge_varmaps_funP hsem : preF fn fn fs t.
   + rewrite /preF ok_fd; split => //.
     exists args'; split => //.

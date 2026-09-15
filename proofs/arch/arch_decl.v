@@ -687,6 +687,14 @@ Class calling_convention :=
   ; call_reg_ret   : seq reg_t
   ; call_xreg_ret  : seq xreg_t
   ; call_reg_ret_uniq : uniq (T:= @ceqT_eqType _ _) call_reg_ret
+    (* Register in which the caller passes the return address to export
+       functions, when the compiled body is in charge of preserving it (it is
+       spilled to the stack frame, together with the killed callee-saved
+       registers, when the body kills it; this is enforced by the one-varmap
+       checker). [None] when the return address is passed on the stack (x86)
+       or preserved outside of the model (arm-m4, where LR is also the
+       linearization scratch register). *)
+  ; call_reg_ra    : option reg_t
   }.
 
 Definition get_ARReg (a:asm_typed_reg) :=
