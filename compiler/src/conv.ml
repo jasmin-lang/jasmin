@@ -336,7 +336,7 @@ let to_array ?(signed = true) ty len t =
   let ws, n = array_kind ty in
   let of_word = if signed then z_of_word else z_unsigned_of_word in
   let get i =
-    match Warray_.WArray.get len Aligned Warray_.AAscale ws t (cz_of_int i) with
+    match Warray_.WArray.get Utils0.partial len Aligned Warray_.AAscale ws t (cz_of_int i) with
     | Utils0.Ok w -> of_word ws w
     | _    -> assert false in
   ws, Array.init n get

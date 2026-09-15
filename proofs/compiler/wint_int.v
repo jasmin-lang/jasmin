@@ -136,13 +136,13 @@ Definition wi2i_gvar (x: gvar) :=
 Definition wi2i_type (sg : option signedness) ty :=
   if sg == None then ty else aint.
 
-Definition safety_cond := seq pexpr.
+Definition safety_exprs := seq pexpr.
 
-Definition wi2i_es (wi2i_e : pexpr -> cexec (safety_cond * pexpr)) (es : pexprs) : cexec (safety_cond * pexprs) :=
+Definition wi2i_es (wi2i_e : pexpr -> cexec (safety_exprs * pexpr)) (es : pexprs) : cexec (safety_exprs * pexprs) :=
   Let es := mapM wi2i_e es in
   ok (flatten (unzip1 es), unzip2 es).
 
-Fixpoint wi2i_e (e0:pexpr) : cexec (safety_cond * pexpr) :=
+Fixpoint wi2i_e (e0:pexpr) : cexec (safety_exprs * pexpr) :=
   match e0 with
   | Pconst _ | Pbool _ | Parr_init _ _ => ok ([::], e0)
 
@@ -211,7 +211,7 @@ Definition wi2i_lvar (ety : extended_type Z) (x : var_i) : cexec var_i :=
                   (E.ierror_lv (Lvar x)) in
   wi2i_vari x.
 
-Definition wi2i_lv (ety : extended_type Z) (lv : lval) : cexec (safety_cond * lval) :=
+Definition wi2i_lv (ety : extended_type Z) (lv : lval) : cexec (safety_exprs * lval) :=
   let s := sign_of_etype ety in
   match lv with
   | Lnone vi ty =>
@@ -250,7 +250,7 @@ Definition wi2i_lvs msg okmem xtys xs :=
   Let _ := assert (check_xs okmem Sv.empty xs scs) err in
   ok (flatten scs, xs).
 
-Fixpoint wi2i_eassert (e:eassert) : cexec (safety_cond * eassert) :=
+Fixpoint wi2i_eassert (e:eassert) : cexec (safety_exprs * eassert) :=
   match e with
   | Pexpr e => Let ce := wi2i_e e in ok (ce.1, Pexpr ce.2)
   | PappN_safety o es =>
@@ -305,7 +305,7 @@ Definition is_polymorphic_op o :=
   | _ => IsOther
   end.
 
-Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_cond * instr_r) :=
+Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_exprs * instr_r) :=
   match ir with
   | Cassgn x tag ty e =>
     let ety := etype_of_expr m e in
