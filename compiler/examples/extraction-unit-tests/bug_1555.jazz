@@ -1,0 +1,7 @@
+export fn main() -> reg u64 {
+  stack u32[2] s;
+  s = #randombytes(s);
+  s[u64 0:1] = #randombytes(s[u64 0:1]);
+  reg u64 r = s[:u64 0];
+  return r;
+}
