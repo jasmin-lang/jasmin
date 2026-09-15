@@ -38,13 +38,6 @@ Qed.
 Lemma truncate_val_to_val t (x : sem_t t) : truncate_val t (to_val x) = ok (to_val x).
 Proof. by rewrite /truncate_val of_val_to_val. Qed.
 
-Lemma of_val_subctype_ok t t' (x : sem_t t) :
-  subctype t' t -> exists y : sem_t t', of_val t' (to_val x) = ok y.
-Proof.
-move=> hsub; have [v2] := subctype_truncate_val hsub (truncate_val_to_val x).
-by rewrite /truncate_val; case hof: (of_val t' (to_val x)) => [y|e] //= _; exists y.
-Qed.
-
 (* -------------------------------------------------------------------- *)
 (* ** Conditions on the arguments of an operator                          *)
 
@@ -157,27 +150,6 @@ Definition ac_types (tin ts : seq ctype) (cs : seq acond) : bool :=
 Definition ac_wt (tin : seq ctype) (c : acond) : bool :=
   ac_type tin c == Some cbool.
 
-(* The variables of a condition are among the first [n] arguments. *)
-Fixpoint ac_below (n : nat) (c : acond) : bool :=
-  match c with
-  | IBool _ | IConst _ => true
-  | IVar k => (k < n)%nat
-  | IOp1 _ c => ac_below n c
-  | IOp2 _ c1 c2 => ac_below n c1 && ac_below n c2
-  | IAppN_safety _ cs => all (ac_below n) cs
-  end.
-
-(* The number of arguments a condition reads: one more than the largest [IVar]
-   it mentions, [0] if it mentions none. *)
-Fixpoint ac_max_var (c : acond) : nat :=
-  match c with
-  | IBool _ | IConst _ => 0
-  | IVar k => S k
-  | IOp1 _ c => ac_max_var c
-  | IOp2 _ c1 c2 => ssrnat.maxn (ac_max_var c1) (ac_max_var c2)
-  | IAppN_safety _ cs => foldr (fun c n => ssrnat.maxn (ac_max_var c) n) 0 cs
-  end.
-
 (* ** Total conditions *)
 
 (* The unary operators whose typed semantics cannot fail. *)
@@ -191,12 +163,6 @@ Definition op2_total (o : sop2) : bool :=
   | Odiv _ (Op_w _) | Omod _ (Op_w _) | Owi2 _ _ _ => false
   | _ => true
   end.
-
-(* The safety operators are total. *)
-Lemma sem_opN_safety_typed_ok o :
-  sem_forall (fun r : exec bool => is_ok r)
-    (map eval_atype (type_of_opN_safety o).1) (sem_opN_safety_typed o).
-Proof. by case: o => len a lo l. Qed.
 
 (* Conditions built from operators whose typed semantics cannot fail: their
    interpretation on arguments of the announced types is always a value. *)
@@ -215,106 +181,7 @@ Definition ac_ok (tin : seq ctype) (c : acond) : bool :=
 Lemma ac_ok_wt tin c : ac_ok tin c -> ac_wt tin c.
 Proof. by move=> /andP []. Qed.
 
-Lemma ac_ok_total tin c : ac_ok tin c -> ac_total c.
-Proof. by move=> /andP []. Qed.
-
-Lemma all_ac_ok_wt tin l : all (ac_ok tin) l -> all (ac_wt tin) l.
-Proof. by apply: sub_all; apply: ac_ok_wt. Qed.
-
-Lemma all_ac_ok_total tin l : all (ac_ok tin) l -> all ac_total l.
-Proof. by apply: sub_all; apply: ac_ok_total. Qed.
-
 (* ** Basic properties of the interpretation *)
-
-Lemma ac_type_below tin c t : ac_type tin c = Some t -> ac_below (size tin) c.
-Proof.
-elim/acond_ind_s: c t => //=.
-+ by move=> k t; case: ifP.
-+ move=> o c ih t; case heq: (ac_type tin c) => [t1|] //=; case: ifP => // _ _.
-  by apply: ih heq.
-+ move=> o c1 ih1 c2 ih2 t.
-  case heq1: (ac_type tin c1) => [t1|] //=; case heq2: (ac_type tin c2) => [t2|] //=.
-  case: ifP => // _ _.
-  by rewrite (ih1 _ heq1) (ih2 _ heq2).
-move=> o cs hall t; case: ifP => // + _.
-elim: cs hall (map eval_atype (type_of_opN_safety o).1) => [ | c cs ih] hall [ | t0 ts] //=.
-move=> /andP [h1 h2]; move/List_Forall_inv: hall => [hc hcs].
-rewrite (ih hcs ts h2) andbT.
-by move: h1; rewrite /sub_octype; case heq: (ac_type tin c) => [t1|] // _; apply: (hc _ heq).
-Qed.
-
-Lemma ac_type_cat tin tin' c t :
-  ac_type tin c = Some t -> ac_type (tin ++ tin') c = Some t.
-Proof.
-elim/acond_ind_s: c t => //=.
-+ move=> k t; case: ifP => // hk [<-].
-  by rewrite nth_cat hk size_cat (ltn_addr _ hk).
-+ move=> o c ih t; case heq: (ac_type tin c) => [t1|] //=; case: ifP => // hsub [<-].
-  by rewrite (ih _ heq) /= hsub.
-+ move=> o c1 ih1 c2 ih2 t.
-  case heq1: (ac_type tin c1) => [t1|] //=; case heq2: (ac_type tin c2) => [t2|] //=.
-  case: ifP => // hsub [<-].
-  by rewrite (ih1 _ heq1) (ih2 _ heq2) /= hsub.
-move=> o cs hall t; case: ifP => // + [<-].
-have haux : forall ts, all2 sub_octype ts (map (ac_type tin) cs) ->
-                       all2 sub_octype ts (map (ac_type (tin ++ tin')) cs).
-+ elim: cs hall => [ | c cs ih] hall [ | t0 ts] //=.
-  move/List_Forall_inv: hall => [hc hcs] /andP [h1 h2]; rewrite (ih hcs ts h2) andbT.
-  by move: h1; rewrite /sub_octype; case heq: (ac_type tin c) => [t1|] // hsub; rewrite (hc _ heq).
-by move=> /haux ->.
-Qed.
-
-Lemma ac_wt_cat tin tin' c : ac_wt tin c -> ac_wt (tin ++ tin') c.
-Proof. by rewrite /ac_wt => /eqP /ac_type_cat ->. Qed.
-
-Lemma ac_ok_cat tin tin' c : ac_ok tin c -> ac_ok (tin ++ tin') c.
-Proof. by move=> /andP [h1 h2]; rewrite /ac_ok (ac_wt_cat tin' h1). Qed.
-
-Lemma all_ac_ok_cat tin tin' l : all (ac_ok tin) l -> all (ac_ok (tin ++ tin')) l.
-Proof. by apply: sub_all => c; apply: ac_ok_cat. Qed.
-
-(* A well-typed total condition evaluates to a value on arguments of the
-   announced types. *)
-Lemma ac_type_ok tin (vs : values) c t :
-  List.Forall2 (fun (t : ctype) v => exists x : sem_t t, v = to_val x) tin vs ->
-  ac_total c ->
-  ac_type tin c = Some t ->
-  exists x : sem_t t, interp_acond vs c = ok (to_val x).
-Proof.
-move=> hall; elim/acond_ind_s: c t => /=.
-1,2: by move=> x t _ [<-]; eexists.
-+ move=> k t _; case: ifP => // hk [<-].
-  by have [x hx] := Forall2_nth hall cbool undef_b hk; exists x; rewrite hx.
-+ move=> o c ih t /andP [hto htot].
-  case heq: (ac_type tin c) => [t1|] //=; case: ifP => // hsub [<-].
-  have [x1 ->] := ih _ htot heq.
-  have [y hy] := of_val_subctype_ok x1 hsub.
-  by rewrite /= hy /=; eexists.
-+ move=> o c1 ih1 c2 ih2 t /and3P [hto ht1 ht2].
-  case heq1: (ac_type tin c1) => [t1|] //=; case heq2: (ac_type tin c2) => [t2|] //=.
-  case: ifP => // /andP [hsub1 hsub2] [<-].
-  have [x1 ->] := ih1 _ ht1 heq1; have [x2 ->] := ih2 _ ht2 heq2.
-  have [y1 hy1] := of_val_subctype_ok x1 hsub1.
-  have [y2 hy2] := of_val_subctype_ok x2 hsub2.
-  by rewrite /= hy1 /= hy2 /=; eexists.
-move=> o cs hall2 t htot; case: ifP => // hall3 [<-].
-have {}htot : all ac_total cs by move: htot.
-have haux : forall (ts : seq ctype) A (f : sem_prod ts (exec A)),
-    sem_forall (fun r : exec A => is_ok r) ts f ->
-    all2 sub_octype ts (map (ac_type tin) cs) ->
-    exists2 l, mapM (interp_acond vs) cs = ok l & exists a, app_sopn ts f l = ok a.
-+ move: hall3 => _; elim: cs hall2 htot => /= [ | c cs ih] hall2 htot [ | t0 ts] //= A f hf.
-  + by move=> _; exists [::] => //; move/is_okP: hf.
-  move/List_Forall_inv: hall2 => [hc hcs]; move: htot => /andP [htc htcs].
-  move=> /andP [h1 h2].
-  move: h1; rewrite /sub_octype; case heq: (ac_type tin c) => [t1|] // hsub.
-  have [x ->] := hc _ htc heq.
-  have [y hy] := of_val_subctype_ok x hsub.
-  have [l -> [a ha]] := ih hcs htcs ts _ (f y) (hf y) h2.
-  by exists (to_val x :: l) => //=; exists a; rewrite hy /=.
-have [l -> [a ha]] := haux _ _ _ (sem_opN_safety_typed_ok o) hall3.
-by rewrite /= ha /=; exists a.
-Qed.
 
 (* Interpreting a well-typed condition on the arguments or on their truncation
    at [tin] gives the same result (up to truncation of the result). *)
@@ -425,9 +292,6 @@ Definition sc_divmod sg sz (k1 k2 : nat) : seq acond :=
 
 (* ** Bridging lemmas: what the conditions above compute *)
 
-Lemma Z_eqbE (x y : Z) : (x =? y)%Z = (x == y).
-Proof. by apply/idP/idP => [/ZeqbP /eqP | /eqP /ZeqbP]. Qed.
-
 Lemma wunsigned_eqb0 ws (w : word ws) : (wunsigned w =? 0)%Z = (w == 0%w).
 Proof.
 apply/idP/idP => [/ZeqbP h1 | /eqP ->]; last by rewrite wunsigned0; apply/ZeqbP.
@@ -452,40 +316,6 @@ Lemma acond_b_wi_range vs sg sz c z :
   acond_b vs (sc_wi_range sg sz c) = signed in_uint_range in_sint_range sg sz z.
 Proof.
 by rewrite /sc_wi_range; case: sg => /= h; rewrite (acond_b_in_range _ _ h).
-Qed.
-
-(* ** Well-formedness of the conditions above *)
-
-Lemma ac_type_op1E tin o c :
-  ac_type tin (IOp1 o c) =
-  if ac_type tin c is Some t1 then
-    if subctype (eval_atype (type_of_op1 o).1) t1 then Some (eval_atype (type_of_op1 o).2)
-    else None
-  else None.
-Proof. by []. Qed.
-
-Lemma ac_type_op2E tin o c1 c2 :
-  ac_type tin (IOp2 o c1 c2) =
-  if ac_type tin c1 is Some t1 then
-    if ac_type tin c2 is Some t2 then
-      if subctype (eval_atype (type_of_op2 o).1.1) t1
-         && subctype (eval_atype (type_of_op2 o).1.2) t2
-      then Some (eval_atype (type_of_op2 o).2) else None
-    else None
-  else None.
-Proof. by []. Qed.
-
-Lemma ac_type_toint tin sg ws k :
-  ssrnat.leq (S k) (size tin) -> nth cbool tin k = cword ws ->
-  ac_type tin (sc_toint sg ws k) = Some cint.
-Proof. by move=> h1 h2; rewrite /sc_toint ac_type_op1E /= h1 h2 /= cmp_le_refl. Qed.
-
-Lemma ac_ok_not_zero tin ws k :
-  ssrnat.leq (S k) (size tin) -> nth cbool tin k = cword ws ->
-  ac_ok tin (sc_not_zero ws k).
-Proof.
-by move=> h1 h2; rewrite /ac_ok /ac_wt /sc_not_zero /sc_neqi ac_type_op2E
-  (ac_type_toint Unsigned h1 h2) /=.
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -529,9 +359,6 @@ Fixpoint sem_prod_eq {T} (tin : seq ctype) : sem_prod tin T -> sem_prod tin T ->
   end.
 Arguments sem_prod_eq {T} tin f g : assert.
 
-Lemma sem_prod_eq_refl {T} tin (f : sem_prod tin T) : sem_prod_eq tin f f.
-Proof. by elim: tin f => //= t tin ih f v; apply ih. Qed.
-
 Lemma sem_prod_eq_sym {T} tin (f g : sem_prod tin T) :
   sem_prod_eq tin f g -> sem_prod_eq tin g f.
 Proof. by elim: tin f g => /= [f g -> // | t tin ih f g h v]; apply: ih (h v). Qed.
@@ -541,31 +368,6 @@ Lemma sem_prod_eq_trans {T} tin (f g h : sem_prod tin T) :
 Proof.
 by elim: tin f g h => /= [f g h -> // | t tin ih f g h h1 h2 v]; apply: ih (h1 v) (h2 v).
 Qed.
-
-Lemma sem_prod_eq_app {A B} tin (g : A -> B) (f1 f2 : sem_prod tin A) :
-  sem_prod_eq tin f1 f2 -> sem_prod_eq tin (sem_prod_app f1 g) (sem_prod_app f2 g).
-Proof. by elim: tin f1 f2 => /= [f1 f2 -> // | t tin ih f1 f2 h v]; apply: ih (h v). Qed.
-
-(* Two pointwise equal post-treatments give two equal semantics. *)
-Lemma mk_semi_aux_eq {T T'} (P Q : values -> T -> exec T') vs tin (f : sem_prod tin T) :
-  (forall vs t, P vs t = Q vs t) ->
-  sem_prod_eq tin (mk_semi_aux P vs tin f) (mk_semi_aux Q vs tin f).
-Proof. by move=> h; elim: tin vs f => /= [vs f | t tin ih vs f v]; [apply h | apply ih]. Qed.
-
-(* Post-composing the result is the same as post-composing the post-treatment. *)
-Lemma sem_prod_app_mk_semi_aux {T T' T''} (P : values -> T -> exec T')
-    (g : exec T' -> exec T'') vs tin (f : sem_prod tin T) :
-  sem_prod_eq tin (sem_prod_app (mk_semi_aux P vs tin f) g)
-                  (mk_semi_aux (fun vs t => g (P vs t)) vs tin f).
-Proof. by elim: tin vs f => //= t tin ih vs f v; apply ih. Qed.
-
-(* Pre-composing the total semantics is the same as pre-composing the
-   post-treatment. *)
-Lemma mk_semi_aux_sem_prod_app {T T' T''} (Q : values -> T'' -> exec T')
-    (h : T -> T'') vs tin (f : sem_prod tin T) :
-  sem_prod_eq tin (mk_semi_aux Q vs tin (sem_prod_app f h))
-                  (mk_semi_aux (fun vs t => Q vs (h t)) vs tin f).
-Proof. by elim: tin vs f => //= t tin ih vs f v; apply ih. Qed.
 
 (* Two extensionally equal semantics satisfy the same properties. *)
 Lemma sem_forall_eq {T} (P : T -> Prop) tin (f g : sem_prod tin T) :
@@ -580,10 +382,6 @@ Proof.
 elim: tin f g vs => /= [f g vs -> // | t tin ih f g [ | v vs] //= heq].
 by case: of_val => //= x; apply ih.
 Qed.
-
-Lemma sem_prod_eq_app_sopn_v tin tout (f g : sem_prod tin (exec (sem_tuple tout))) vs :
-  sem_prod_eq tin f g -> app_sopn_v f vs = app_sopn_v g vs.
-Proof. by move=> heq; rewrite /app_sopn_v (sem_prod_eq_app_sopn vs heq). Qed.
 
 (* -------------------------------------------------------------------- *)
 (* ** Generic properties of [mk_sem_op]                                  *)
