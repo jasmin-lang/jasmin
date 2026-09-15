@@ -307,9 +307,9 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
   let remove_phi_nodes_fd fd = Ssa.remove_phi_nodes fd in
 
   let removereturn sp =
-    let fds, _data = Conv.prog_of_csprog sp in
-    let tokeep = RemoveUnusedResults.analyse fds in
-    tokeep
+    sp.E.p_funcs
+    |> List.map (fun fd -> snd (Conv.fdef_of_csfdef fd))
+    |> RemoveUnusedResults.analyse
   in
 
   let remove_wint_annot fd =
