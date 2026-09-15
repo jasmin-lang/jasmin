@@ -5,8 +5,7 @@
    does not fail; that semantics is defined there as [mk_sem_op] of these
    conditions and of the total semantics.
 
-   This file also holds the two computation lemmas that describe the guards:
-   [wint_range_eq] for the [wint] range conditions and [divmod_eq] for the
+   This file also holds [divmod_eq], the computation lemma that describes the
    division guards. *)
 
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
@@ -15,44 +14,6 @@ From Coq Require Import ZArith.
 Require Export sopn_semi.
 Require Import values.
 Import Utf8.
-
-(* -------------------------------------------------------------------- *)
-(* ** Arithmetic facts about the integer shifts                          *)
-
-Lemma zasr_shiftr z n : (0 <= n)%Z -> zasr z n = Z.shiftr z n.
-Proof.
-move=> hn; rewrite /zasr /zlsl; case: ZleP => h.
-+ have -> : n = 0%Z by Lia.lia.
-  by rewrite Z.mul_1_r Z.shiftr_0_r.
-by rewrite Z.opp_involutive Z.shiftr_div_pow2.
-Qed.
-
-(* An arithmetic shift right never leaves the range of the wint. *)
-Lemma in_wint_range_zasr sg sz (w1 : word sz) (w2 : u8) :
-  in_wint_range sg sz (zasr (int_of_word sg w1) (int_of_word Unsigned w2)) = ok tt.
-Proof.
-  rewrite /in_wint_range /zasr /zlsl /assert; case: ifPn => // /negP.
-  have [h1 h2] := wunsigned_range w2.
-  rewrite /int_of_word /=; elim; case: ZleP => ?.
-  + have -> /= : wunsigned w2 = 0%Z by Lia.lia.
-    rewrite Z.mul_1_r; case: (sg) => /=;
-    [have [??] := wsigned_range w1 | have [??] := wunsigned_range w1];
-    apply/andP; split; apply /ZleP => //.
-    rewrite /wmax_unsigned; Lia.lia.
-  have ? : (0 < 2 ^ wunsigned w2)%Z by Lia.nia.
-  rewrite Z.opp_involutive; case: (sg) => /=.
-  + have ? := wmin_signed_neg sz; have ? := wmax_signed_pos sz.
-    have [??] := wsigned_range w1.
-    apply/andP; split; apply/ZleP.
-    + by apply Z.div_le_lower_bound => //; Lia.nia.
-    by apply Z.div_le_upper_bound => //; Lia.nia.
-  have ? : (1 <= wmax_unsigned sz)%Z by case sz.
-  have [??] := wunsigned_range w1.
-  have ? : (0 < 2 ^ wunsigned w1)%Z by Lia.nia.
-  apply/andP; split; apply/ZleP.
-  + apply Z.div_le_lower_bound => //; Lia.nia.
-  apply Z.div_le_upper_bound => //; rewrite /wmax_unsigned; Lia.nia.
-Qed.
 
 Local Open Scope Z_scope.
 Local Open Scope seq_scope.
@@ -139,17 +100,6 @@ Proof. by case: o => [|||[]|[]|[]|?[]|?[]|?|?|?|?|[]|[]|?|?|[]|[]|[]|[]|[]|[]|??
 (* -------------------------------------------------------------------- *)
 (* ** Evaluating the conditions                                          *)
 
-(* [wint_of_int] is exactly the range condition followed by [wrepr]. *)
-Lemma wint_range_eq vs sg sz c z (r : word sz) :
-  interp_acond vs c = ok (Vint z) -> r = wrepr sz z ->
-  wint_of_int sg sz z =
-    (Let _ := check_safe vs [:: sc_wi_range sg sz c] ErrArith in ok r).
-Proof.
-move=> h ->; rewrite /check_safe /= andbT (acond_b_wi_range sg sz h).
-rewrite /wint_of_int /in_wint_range /assert.
-by case: ifP.
-Qed.
-
 (* [sc_divmod] is the usual guard of the divisions. *)
 Lemma divmod_eq sz sg T (r : T) (w1 w2 : word sz) :
   (Let _ := check_safe [:: Vword w1; Vword w2] (sc_divmod sg sz 0 1) ErrArith
@@ -165,19 +115,6 @@ have -> : (wsigned w1 =? wmin_signed sz)%Z = (wsigned w1 == wmin_signed sz) by [
 have -> : (wsigned w2 =? -1)%Z = (w2 == (-1)%R).
 + by rewrite -{1}(wsignedN1 sz) (int_of_word_eqb Signed w2 (-1)%R).
 by case: (w2 == 0%w); case: ((wsigned w1 == wmin_signed sz) && (w2 == (-1)%R)).
-Qed.
-
-(* The arithmetic shift right is in range whatever its arguments. *)
-Lemma wishr_eq sg sz (v1 : word sz) (v2 : word U8) :
-  wint_of_int sg sz (zasr (int_of_word sg v1) (int_of_word Unsigned v2)) =
-  ok (signed (@sem_shr sz) (@sem_sar sz) sg v1 v2).
-Proof.
-have h2 : (0 <= int_of_word Unsigned v2)%Z.
-+ by rewrite /int_of_word /signed; have := wunsigned_range v2; Lia.lia.
-rewrite /wint_of_int in_wint_range_zasr /= (zasr_shiftr _ h2).
-case: sg => /=.
-+ by rewrite /sem_sar /sem_shift wsar_alt.
-by rewrite /sem_shr /sem_shift wshr_alt.
 Qed.
 
 (* -------------------------------------------------------------------- *)
