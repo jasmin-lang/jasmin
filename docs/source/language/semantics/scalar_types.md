@@ -78,10 +78,10 @@ Values of wint types can safely be converted to and from machine words using exp
 There is no operator to change the signedness of a wint value: it should explicitly be converted to a machine-word and back to a wint.
 
 These values can also be converted to and from (unbounded) `int` values.
-Conversion to int is safe and performed through the prefix `(int)` operator or
-its more specific variants `(sint)` and `(uint)`. Conversion from `int` is
-subject to safety conditions (the value must lie in the target range) and is
-performed through a prefix operator such as `(8si)`.
+Conversion to int is safe and performed through the one of the prefix operators
+`(sint)` and `(uint)`. Conversion from `int` is subject to safety conditions
+(the value must lie in the target range) and is performed through a prefix
+operator such as `(8si)`.
 
 ### Compilation
 
