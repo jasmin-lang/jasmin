@@ -7,9 +7,9 @@ From ITree Require Import
      MonadState.
 Import Basics.Monads.
 
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype seq.
 
-Require Import utils it_exec.
+Require Import utils it_exec values.
 Import MonadNotation.
 Local Open Scope monad_scope.
 
@@ -133,3 +133,39 @@ Proof.
   rewrite /Exception.throw /= bind_vis.
   apply eqit_Vis; case.
 Qed.
+
+Variant DeclassifyEvent : Type -> Type :=
+| Edeclassify : value -> DeclassifyEvent unit
+| Edeclassify_mem : seq u8 -> DeclassifyEvent unit.
+
+Notation with_Declassify E := (DeclassifyEvent -< E) (only parsing).
+
+Definition subevent_sum_l {E1 E2 E3} (sE : E1 -< E2) : E1 -< E3 +' E2 :=
+  fun T e => inr1 (sE _ e).
+
+Section UTILS.
+
+Context {E E0 E' : Type -> Type}.
+
+Definition subevent_withError
+  (wE : with_Error E E0) (sE : E' -< E0) : E' -< E :=
+  fun T e => mfun2 (subevent_sum_l sE e).
+
+Lemma subevent_withErrorP {wE sE} T (e : E' T) :
+  mfun1 (subevent_withError wE sE e) = inr1 (sE _ e).
+Proof. by rewrite /subevent_withError mid12. Qed.
+
+End UTILS.
+
+Section UTILS.
+
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {wD : with_Declassify E0}
+.
+
+#[export] Instance fromDeclassify : with_Declassify E :=
+  subevent_withError wE wD.
+
+End UTILS.

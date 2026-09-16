@@ -2,7 +2,7 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
-From ITree Require Import ITreeFacts.
+From ITree Require Import ITree ITreeFacts.
 
 Require Import xseq.
 Require Export type expr gen_map warray_ sem_type sem_op_typed values varmap expr_facts low_memory syscall_sem psem_defs.
@@ -20,7 +20,6 @@ Open Scope vm_scope.
 
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
-
 Section WSW.
 Context {wsw:WithSubWord}.
 
@@ -133,7 +132,14 @@ Proof using eq_globs. constructor; move=> > ->; apply st_eq_sem_eassert. Qed.
 
 Section FUN.
 
-Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {sem_F : sem_Fun E}
+  {wE : with_Error E E0}
+  {wD : with_Declassify E0}
+  {rE0 : EventRels E0}
+  {DEind : DeclassifyEvent_ind}
+.
 
 Let Pi i := wequiv p p' ev ev' (st_eq tt) [::i] [::i] (st_eq tt).
 
@@ -144,12 +150,13 @@ Let Pc c := wequiv p p' ev ev' (st_eq tt) c c (st_eq tt).
 Lemma wequiv_st_eq c :
   (forall ii f, wequiv_f_ii p p' ev ev' (λ (_ _ : funname), eq) ii ii f f (λ (_ _ : funname) (_ _ : fstate), eq)) ->
   Pc c.
-Proof using eq_globs.
+Proof using eq_globs DEind.
   move=> hf; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}.
   + by apply wequiv_nil.
   + by move=> *; apply wequiv_cons with (st_eq tt).
-  + by move=> >;apply wequiv_assgn_rel_eq with checker_st_eq tt.
-  + by move=> >; apply wequiv_opn_rel_eq with checker_st_eq tt.
+  + by move=> >;apply wequiv_assgn_rel_eq_R with checker_st_eq tt.
+  + move=> >; apply wequiv_opn_rel_eq with checker_st_eq tt => //.
+
   + by move=> >; apply wequiv_syscall_rel_eq with checker_st_eq tt.
   + by move=> a ii; apply wequiv_assert_rel_eq with checker_a_st_eq.
   + by move=> > hc1 hc2 ii; apply wequiv_if_rel_eq with checker_st_eq tt tt tt.
@@ -158,8 +165,12 @@ Proof using eq_globs.
   by move=> ????; apply wequiv_call_rel_eq with checker_st_eq tt => //; apply hinit.
 Qed.
 
+(* No problem here but... *)
+Check wequiv_st_eq.
 End FUN.
 
+(* ... causes OOM here *)
+(* Check wequiv_st_eq. *)
 Section ESEM.
 
 Let Pi i :=
@@ -190,9 +201,9 @@ Proof using eq_globs.
     move=> v he v' htr hw heq.
     rewrite -(sem_pexpr_ext_eq true (p_globs p) _ heq) he /= htr /=.
     by have [vm2 ??] := write_lvar_ext_eq heq hw; exists vm2.
-  + move=> xs t o es ii s1 s2 vm1 /=; rewrite /sem_sopn -eq_globs; t_xrbindP.
-    move=> vs' vs hes hop hw heq.
-    rewrite -(sem_pexprs_ext_eq true (p_globs p) _ heq) hes /= hop /=.
+  + move=> xs t o es ii s1 s2 vm1 /=; rewrite /sem_sopn -eq_globs.
+    t_xrbindP=> -> vs' vs hes hop hw heq /=.
+    rewrite -(sem_pexprs_ext_eq _ _ _ heq) hes /= hop /=.
     by have [vm2 ??] := write_lvars_ext_eq heq hw; exists vm2.
   + move=> xs o es ii s1 s2 vm1 /=; rewrite /sem_syscall -eq_globs /upd_estate; t_xrbindP.
     move=> vs hes fs ho hw heq.
@@ -219,10 +230,15 @@ End ESEM.
 
 Section REC.
 
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE: with_Error E E0}
+  {wD : with_Declassify E0}
+  {rE0 : EventRels E0}
+  {DEind : DeclassifyEvent_ind}.
 
 Lemma wequiv_rec_st_eq c : wequiv_rec p p' ev ev' eq_spec (st_eq tt) c c (st_eq tt).
-Proof using eq_globs.
+Proof using eq_globs DEind.
   apply wequiv_st_eq.
   by move=> ii f s t <-; apply xrutt_facts.xrutt_trigger.
 Qed.
@@ -233,8 +249,14 @@ End PROG.
 
 Section WIEQUIV_F.
 
-Context (p : prog) (ev: extra_val_t).
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  (p : prog)
+  (ev: extra_val_t)
+  {E E0 : Type -> Type}
+  {wE: with_Error E E0}
+  {wD : with_Declassify E0}
+  {rE0 : EventRels E0}
+  {DEind : DeclassifyEvent_ind}.
 
 Lemma st_eq_finalize fd fd' :
   f_tyout fd = f_tyout fd' ->
@@ -252,7 +274,7 @@ Qed.
 
 Lemma wiequiv_f_eq fn :
   wiequiv_f p p ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
-Proof.
+Proof using DEind.
 apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
 exists fd => // s1 ?; exists s1 => //; exists (st_eq tt), (st_eq tt).
 split=> //; first exact/wequiv_rec_st_eq.
@@ -260,7 +282,7 @@ exact/st_eq_finalize.
 Qed.
 
 Lemma wiequiv_st_eq c : wiequiv p p ev ev (st_eq tt) c c (st_eq tt).
-Proof. by apply wequiv_st_eq => // ii f ???; apply wiequiv_f_eq. Qed.
+Proof using DEind. by apply wequiv_st_eq => // ii f ???; apply wiequiv_f_eq. Qed.
 
 End WIEQUIV_F.
 
@@ -418,7 +440,13 @@ Qed.
 
 Section FUN.
 
-Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {sem_F : sem_Fun E}
+  {wE: with_Error E E0}
+  {wD : with_Declassify E0}
+  {rE0 : EventRels E0}
+  {DEind : DeclassifyEvent_ind}.
 
 Let Pi i :=
   forall X, Sv.Subset (read_I i) X ->
@@ -437,14 +465,14 @@ Lemma it_read_cP_aux c X :
      wequiv_f_ii p p' ev ev' (λ (_ _ : funname), eq) ii ii fn fn (λ _ _  _ _, eq)) ->
   Sv.Subset (read_c c) X ->
   wequiv p p' ev ev' (st_eq_on X) c c (st_eq_on X).
-Proof using eq_globs.
+Proof using eq_globs DEind.
   move=> hfn; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c X}.
   + by move=> i ii hi X; apply hi.
   + by move=> ii X; apply wequiv_nil.
   + move=> i c hi hc X; rewrite read_c_cons => hsub.
     by apply wequiv_cons with (st_eq_on X); [apply hi | apply hc]; SvD.fsetdec.
   + move=> x tg ty e ii X. rewrite read_i_assgn => hsub.
-    apply wequiv_assgn_rel_eq with checker_st_eq_on X => //=.
+    apply wequiv_assgn_rel_eq_R with checker_st_eq_on X => //=.
     + by split => //; rewrite /read_es /= read_eE; SvD.fsetdec.
     split => //; first by SvD.fsetdec.
     by rewrite /read_rvs /= read_rvE; SvD.fsetdec.
@@ -479,12 +507,17 @@ End FUN.
 
 Section REC.
 
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {wD : with_Declassify E0}
+  {rE0 : EventRels E0}
+  {DEind : DeclassifyEvent_ind}.
 
 Lemma it_read_cP_rec X c :
   Sv.Subset (read_c c) X ->
   wequiv_rec p p' ev ev' eq_spec (st_eq_on X) c c (st_eq_on X).
-Proof using eq_globs.
+Proof using eq_globs DEind.
   apply it_read_cP_aux.
   by move=> ii f s t <-; apply xrutt_facts.xrutt_trigger.
 Qed.
@@ -495,13 +528,19 @@ End PROG.
 
 Section REFL.
 
-Context (p : prog) (ev: extra_val_t).
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  (p : prog)
+  (ev: extra_val_t)
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {wD : with_Declassify E0}
+  {rE0 : EventRels E0}
+  {DEind : DeclassifyEvent_ind}.
 
 Lemma it_read_cP X c :
   Sv.Subset (read_c c) X ->
   wiequiv p p ev ev (st_eq_on X) c c (st_eq_on X).
-Proof.
+Proof using DEind.
   apply it_read_cP_aux => //= ii fn i1 i2 h.
   have /(_ i1 i2) := [elaborate wiequiv_f_eq p ev (fn:=fn)].
   by apply.
@@ -579,12 +618,19 @@ Qed.
 
 Section PROG.
 
-Context (p p':prog) (ev ev': extra_val_t).
+Context
+  (p p' : prog)
+  (ev ev' : extra_val_t)
+  (eq_globs : p_globs p = p_globs p')
+  {E E0 : Type -> Type}
+  {sem_F : sem_Fun E}
+  {wE: with_Error E E0}
+  {wD : with_Declassify E0}
+  {rE0 : EventRels E0}
+  {DEind : DeclassifyEvent_ind}.
 
 Local Notation gd := (p_globs p).
 Local Notation gd' := (p_globs p').
-
-Context (eq_globs : gd = gd').
 
 Lemma checker_st_uinclP : Checker_uincl p p' checker_st_uincl.
 Proof using eq_globs.
@@ -593,8 +639,6 @@ Proof using eq_globs.
   move=> wdb _ d xs1 xs2 d' /wdb_ok_eq <- <-; apply write_lvals_st_uincl.
 Qed.
 #[local] Hint Resolve checker_st_uinclP : core.
-
-Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
 Let Pi i := wequiv p p' ev ev' (st_uincl tt) [::i] [::i] (st_uincl tt).
 
@@ -608,7 +652,7 @@ Lemma it_sem_uincl_aux c :
   (forall ii fn,
      wequiv_f_ii p p' ev ev' (λ (_ _ : funname), fs_uincl) ii ii fn fn (λ _ _  _ _, fs_uincl)) ->
   wequiv p p' ev ev' (st_uincl tt) c c (st_uincl tt).
-Proof using eq_globs.
+Proof using eq_globs DEind.
   move=> hfn; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}.
   + by move=> i ii hi X; apply hi.
   + by move=> ii X; apply wequiv_nil.
@@ -628,8 +672,14 @@ End PROG.
 
 Section REFL.
 
-Context (p : prog) (ev: extra_val_t).
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  (p : prog)
+  (ev: extra_val_t)
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {wD : with_Declassify E0}
+  {rE0 : EventRels E0}
+  {DEind : DeclassifyEvent_ind}.
 
 Definition uincl_spec : EquivSpec :=
   {| rpreF_ := fun (fn1 fn2 : funname) (fs1 fs2 : fstate) => fn1 = fn2 /\ fs_uincl fs1 fs2
@@ -694,17 +744,18 @@ Qed.
 
 Lemma it_sem_uincl_f fn :
   wiequiv_f p p ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-Proof.
+Proof using DEind.
 apply wequiv_fun_ind => {}fn _ fs1 fs2 [<-] hu fd ->.
 exists fd => // s /(fs_uincl_initialize erefl erefl erefl erefl hu) [t] -> {}hu.
 exists t => //; exists (st_uincl tt), (st_uincl tt); split=> //.
-+ apply it_sem_uincl_aux => // ii fn' fs1' fs2' h; exact/wequiv_fun_rec.
++ apply it_sem_uincl_aux => //; first exact: declassifyEvent_ind_recCall.
+  move=> > h; exact/wequiv_fun_rec.
 exact/fs_uincl_finalize.
 Qed.
 
 Lemma it_sem_uincl c :
   wiequiv p p ev ev (st_uincl tt) c c (st_uincl tt).
-Proof.
+Proof using DEind.
   by apply it_sem_uincl_aux => // ? fn ?? h; apply it_sem_uincl_f.
 Qed.
 
@@ -716,12 +767,20 @@ Context (p p':prog) (ev ev': extra_val_t).
 
 Context (eq_globs: p_globs p = p_globs p').
 
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE: with_Error E E0}
+  {wD : with_Declassify E0}
+  {rE0 : EventRels E0}
+  {DEind : DeclassifyEvent_ind}
+.
 
 Lemma it_sem_uincl_rec c :
   wequiv_rec p p' ev ev' uincl_spec (st_uincl tt) c c (st_uincl tt).
-Proof using eq_globs.
-  apply it_sem_uincl_aux => //.
+Proof using eq_globs DEind.
+  (* FIXME #2: Why is the instance *_recCall required here but infered automatically
+     for the proof of [wequiv_rec_st_e]? *)
+  apply it_sem_uincl_aux => //; first exact: declassifyEvent_ind_recCall.
   by move=> ii f s t hu; apply xrutt_facts.xrutt_trigger.
 Qed.
 
@@ -761,7 +820,14 @@ Proof using eq_globs.
 Qed.
 #[local] Hint Resolve checker_eq_cmdP : core.
 
-Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {sem_F : sem_Fun E}
+  {wE : with_Error E E0}
+  {wD : with_Declassify E0}
+  {rE0 : EventRels E0}
+  {DEind : DeclassifyEvent_ind}
+.
 
 Let Pi i :=
   forall i', eq_instr i i' ->
@@ -780,7 +846,7 @@ Lemma it_eq_cmdP_aux c :
      wequiv_f_ii p p' ev ev' (λ (_ _ : funname), fs_uincl) ii ii' fn fn (λ _ _  _ _, fs_uincl)) ->
   forall c', eq_cmd c c' ->
   wequiv p p' ev ev' (st_uincl tt) c c' (st_uincl tt).
-Proof using eq_globs.
+Proof using eq_globs DEind.
   move=> hfn; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => {c}.
   + by move=> i ii hi [??] /= ?; apply hi.
   + by move=> [|//] _; apply wequiv_nil.
@@ -820,13 +886,20 @@ Context (p p':prog) (ev ev': extra_val_t).
 
 Context (eq_globs: p_globs p = p_globs p').
 
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {wD : with_Declassify E0}
+  {rE0 : EventRels E0}
+  {DEind : DeclassifyEvent_ind}
+.
 
 Lemma it_eq_cmdP_rec c c' :
   eq_cmd c c' ->
   wequiv_rec p p' ev ev' uincl_spec (st_uincl tt) c c' (st_uincl tt).
-Proof using eq_globs.
-  apply it_eq_cmdP_aux => //.
+Proof using eq_globs DEind.
+  (* Same remark as FIXME #2 *)
+  apply it_eq_cmdP_aux => //; first exact: declassifyEvent_ind_recCall.
   by move=> ii ii' f s t hu; apply xrutt_facts.xrutt_trigger.
 Qed.
 
@@ -841,7 +914,9 @@ Context
   {dc1 : DirectCall}
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
+  {wD : with_Declassify E0}
   {rE12 : EventRels E0}
+  {DEind : DeclassifyEvent_ind}
   {rE_trans : EventRels_trans rE12 rE12 rE12}
   {p1 : prog (pT := pT1)} {p2 : prog (pT := pT)}
   {ev1 : extra_val_t (progT := pT1)} {ev2 : extra_val_t (progT := pT)}
@@ -857,7 +932,7 @@ Notation wiequiv_f :=
 Lemma it_sem_refl_EU_UU :
   wiequiv_f (rpreF (eS := eq_spec)) fn1 fn2 (rpostF (eS := uincl_spec)) ->
   wiequiv_f (rpreF (eS := uincl_spec)) fn1 fn2 (rpostF (eS := uincl_spec)).
-Proof using rE_trans.
+Proof using rE_trans DEind.
 move=> h.
 apply: (
   wiequiv_f_trans
@@ -879,7 +954,7 @@ Qed.
 Lemma it_sem_refl_EE_UU :
   wiequiv_f (rpreF (eS := eq_spec)) fn1 fn2 (rpostF (eS := eq_spec)) ->
   wiequiv_f (rpreF (eS := uincl_spec)) fn1 fn2 (rpostF (eS := uincl_spec)).
-Proof using rE_trans.
+Proof using rE_trans DEind.
   move=> h; apply: it_sem_refl_EU_UU.
   apply: (
            wkequiv_io_weaken
@@ -1002,6 +1077,7 @@ Context
   {pT1 pT2 pT3 : progT}
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
+  {wD : with_Declassify E0}
   {wsw1 wsw2 wsw3 : WithSubWord}
   {wa1 wa2 wa3 : WithAssert}
   {scP1 : semCallParams (wsw := wsw1) (pT := pT1)}

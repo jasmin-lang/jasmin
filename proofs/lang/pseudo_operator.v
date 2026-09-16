@@ -23,7 +23,7 @@ Instance eqTC_spill_op : eqTypeC spill_op :=
 
 Canonical spill_op_eqType := @ceqT_eqType _ eqTC_spill_op.
 
-#[only(eqbOK)] derive
+#[module,only(eqbOK)] derive
 Variant pseudo_operator :=
 | Ospill    of spill_op & seq atype
 | Ocopy     of wsize & Z
@@ -38,7 +38,7 @@ Variant pseudo_operator :=
 
 #[export]
 Instance eqTC_pseudo_operator : eqTypeC pseudo_operator :=
-  { ceqP := pseudo_operator_eqb_OK }.
+  { ceqP := pseudo_operator.eqb_OK }.
 
 Canonical pseudo_operator_eqType := @ceqT_eqType _ eqTC_pseudo_operator.
 

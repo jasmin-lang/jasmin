@@ -1,5 +1,8 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
+
+From ITree Require ITree.
+
 Require Import psem compiler_util.
 Require Import pseudo_operator sopn lower_spill.
 Import Utf8 Uint63.
@@ -26,6 +29,14 @@ Context
   (spill_prog_ok : spill_prog fresh_var_ident spill_to_mmx p = ok p').
 
 Notation gd := (p_globs p).
+
+Lemma is_spill_opP o :
+  is_reflect (fun p => Opseudo_op (Ospill p.1 p.2)) o (is_spill_op o).
+Proof.
+case: o => [[]||]; try by constructor.
+move=> ?? /=; rewrite -[_ (Ospill _ _)]/((fun p => _ (Ospill p.1 p.2)) (_, _)).
+exact: Is_reflect_some.
+Qed.
 
 Lemma eq_globs : gd = p_globs p'.
 Proof using spill_prog_ok. by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? _ <-. Qed.
@@ -247,29 +258,28 @@ Proof.
 Qed.
 
 Lemma lower_sopnP s1 s2 ii tag o xs es S env env' c vm:
+  is_Odeclassify o = None ->
   sem_sopn gd o s1 xs es = ok s2 →
   spill_i (get_spill S) env (MkI ii (Copn xs tag o es)) = ok (env', c) →
   Sv.Subset (vars_I (MkI ii (Copn xs tag o es))) (X S) →
   valid_env S env (evm s1) vm →
   exists2 vm' : Vm.t, esem p' ev c (with_vm s1 vm) = ok (with_vm s2 vm') & valid_env S env' (evm s2) vm'.
-Proof using spill_prog_ok.
-  rewrite /sem_sopn; t_xrbindP.
-  move=> vs ves hes hex hws /=.
+Proof using dc spill_prog_ok.
+    rewrite /sem_sopn; t_xrbindP=> ho vs ves hes hex hws /=.
   rewrite vars_I_opn.
-  case hop: is_spill_op => [ [so tys] | ]; last first.
-  + case/ok_inj => <- <- hX hval.
-    rewrite (valid_env_es true gd hval) in hes; last by clear -hX; SvD.fsetdec.
-    case: (update_lvsP hval hws); first by clear -hX; SvD.fsetdec.
+  case: is_spill_opP ho hex => [[s tys]|{}o] ho hex; last first.
+  + move=> [<- <-] hX hval.
+    rewrite (valid_env_es true gd hval) in hes; last by SvD.fsetdec.
+    case: (update_lvsP hval hws); first by SvD.fsetdec.
     move=> vm' hws' hval'; exists vm' => //=.
-    by rewrite -eq_globs /sem_sopn hes /= hex /= hws'.
-  move/is_spill_opP: hop => ?; subst o.
+    by rewrite -eq_globs /sem_sopn hes /= hex /= hws' ho.
   move: hex; rewrite /exec_sopn /=; t_xrbindP => ? h ?; subst vs.
   have [vs' hvs' {h} ] := app_sopn_truncate_val h.
   have ? : s2 = s1; last subst s2.
   + by case: xs hws => // -[->].
-  case: so.
+  case: s ho => _.
   + move=> hspill hX hval.
-    by apply: (spill_esP hes hvs' _ hval hspill); clear -hX; SvD.fsetdec.
+    by apply: (spill_esP hes hvs' _ hval hspill); SvD.fsetdec.
   t_xrbindP => c' hunspill <- ? hX hval; subst c'.
   by apply: (unspill_esP hes hvs' hval hunspill).
 Qed.
@@ -422,7 +432,15 @@ Qed.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Import ITree.
+
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {wD : with_Declassify E0}
+  {rE : EventRels E0}
+  {DEind : DeclassifyEvent_ind}
+.
 
 Definition st_ve S env := st_rel (valid_env S) env.
 
@@ -453,9 +471,14 @@ Proof using spill_prog_ok.
 Qed.
 #[local] Hint Resolve checker_st_veP : core.
 
+(* FIXME: this is only used in the next lemma; should it be inlined? *)
+Local Lemma is_spill_op_is_Odeclassify o a :
+  is_Odeclassify o = Some a -> is_spill_op o = None.
+Proof. by case: o => [[]||]. Qed.
+
 Lemma it_lower_spill_fdP fn :
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-Proof using spill_prog_ok.
+Proof using spill_prog_ok DEind.
   apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
   have spillok : map_cfprog_name (spill_fd fresh_var_ident spill_to_mmx) (p_funcs p) = ok (p_funcs p').
   + by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? ? <-.
@@ -506,12 +529,20 @@ Proof using spill_prog_ok.
     + by apply hi => //; clear -hsub; SvD.fsetdec.
     by apply hc => //; clear -hsub; SvD.fsetdec.
   + move=> x tg ty e ii env env' c' [<- <-]; rewrite vars_I_assgn /vars_lval => hsub.
-    apply wequiv_assgn_rel_eq with (checker_st_ve S) env => //.
+    apply wequiv_assgn_rel_eq_R with (checker_st_ve S) env => //.
     + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
     by split => //; rewrite /vars_lvals /read_rvs /vrvs /= read_rvE vrv_recE; clear -hsub; SvD.fsetdec.
   + move=> xs tg o es ii env env' c' hspill hsub.
-    apply wequiv_opn_esem => s t s' /st_relP [-> /= hval] hop.
-    have [vm2 ??] := lower_sopnP hop hspill hsub hval.
+    case ho: (is_Odeclassify o) => [a|].
+    + move: ho hspill => /is_spill_op_is_Odeclassify /= -> [??]; subst env' c'.
+      rewrite /vars_I /read_I /= read_esE in hsub.
+      apply wequiv_opn_rel_eq with (checker_st_ve S) env => //.
+      + exact: declassifyEvent_ind_recCall. (* TODO why can't this be inferred? it is inferred properly in psem *)
+      + split=> //; SvD.fsetdec.
+      + split=> //; rewrite /vars_lvals; SvD.fsetdec.
+    apply wequiv_opn_esem; first by rewrite ho.
+    move=> s t s' /st_relP [-> /= hval] hop.
+    have [vm2 ??] := lower_sopnP ho hop hspill hsub hval.
     by exists (with_vm s' vm2).
   + move=> x sc es ii env env' c' [<- <-]; rewrite vars_I_syscall => hsub.
     apply wequiv_syscall_rel_eq with (checker_st_ve S) env => //.

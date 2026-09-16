@@ -202,7 +202,7 @@ Qed.
 Lemma mem_equiv_opn xs t o es : Pr (Copn xs t o es).
 Proof.
   move => ii s1 s2 /=; rewrite /sem_sopn.
-  by t_xrbindP => ???? /[dup] /write_lvals_validw ? /write_lvals_stack_stable.
+  by t_xrbindP => ????? /[dup] /write_lvals_validw ? /write_lvals_stack_stable.
 Qed.
 
 Lemma mem_equiv_syscall xs o es : Pr (Csyscall xs o es).

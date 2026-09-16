@@ -7,7 +7,7 @@ From ITree Require Import
      MonadState.
 Import Basics.Monads.
 
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 
 Require Import expr psem_defs psem_core it_exec rec_facts.
 Require Export it_sems_core_defs.
@@ -35,9 +35,13 @@ Variant recCall : Type -> Type :=
  | RecCall (ii:instr_info) (f:funname) (fs:fstate) : recCall fstate.
 
 (**** Auxiliary definitions ******************************************)
-Section CORE.
+Section CORE_EXPR.
 
-Context {E E0} {wE : with_Error E E0} (p : prog) (ev : extra_val_t).
+Context
+  {E E0}
+  {wE : with_Error E E0}
+  (p : prog)
+  (ev : extra_val_t).
 
 Definition kget_fundef (funcs: fun_decls) (fn: funname) :
     ktree E fstate fundef :=
@@ -59,11 +63,43 @@ Definition isem_pexprs (wdb : bool) (gd : glob_decls) (es: pexprs)
     (s : estate) : itree E values :=
   iresult (sem_pexprs wdb gd s es).
 
+End CORE_EXPR.
+
+Section CORE_CMD.
+
+Context
+  {E E0}
+  {wE : with_Error E E0}
+  {wD : with_Declassify E0}
+  (p : prog)
+  (ev : extra_val_t)
+.
+
 Definition sem_assgn  (x : lval) (tg : assgn_tag) (ty : atype) (e : pexpr)
     (s : estate) : exec estate :=
   Let v := sem_pexpr true (p_globs p) s e in
   Let v' := truncate_val (eval_atype ty) v in
   write_lval true (p_globs p) x v' s.
+
+Definition event_of_opn
+  (d : declassify_args) (m : mem) (vs : values) : exec (DeclassifyEvent unit) :=
+  let v := nth (Vbool true) vs 0 in
+  match d with
+  | inl ty =>
+      Let _ := assert (is_fully_defined v) ErrSemUndef in
+      Let v := truncate_val (eval_atype ty) v in
+      ok (Edeclassify v)
+  | inr len =>
+      Let p := to_word Uptr v in
+      Let b := read_bytes m p len in
+      ok (Edeclassify_mem b)
+  end.
+
+Definition trigger_opn
+  (s : estate) (d : declassify_args) (es : pexprs) : itree E unit :=
+  vs <- iresult (sem_pexprs true (p_globs p) s es);;
+  e <- iresult (event_of_opn d (emem s) vs);;
+  trigger (e : DeclassifyEvent _).
 
 Definition fexec_syscall (o : syscall_t) (fs:fstate) : exec fstate :=
   Let: (scs, m, vs) := exec_syscall fs.(fscs) fs.(fmem) o fs.(fvals) in
@@ -142,12 +178,15 @@ Definition rec_call (ii:instr_info) (f : funname) (fs : fstate) :
    itree (recCall +' E) fstate :=
   trigger_inl1 (RecCall ii f fs).
 
-End CORE.
+End CORE_CMD.
 
 (**** Abstract semantics **********************************************)
 Section SEM_C.
 
-Context {E E0} {wE : with_Error E E0}
+Context
+  {E E0}
+  {wE : with_Error E E0}
+  {wD : with_Declassify E0}
         (sem_i: prog -> extra_val_t -> instr -> estate -> itree E estate)
         (p : prog) (ev : extra_val_t).
 
@@ -195,7 +234,11 @@ Instance sem_fun_rec (E : Type -> Type) : sem_Fun (recCall +' E) | 0 :=
 
 Section SEM_I.
 
-Context {E E0} {wE : with_Error E E0} {sem_F : sem_Fun E }.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {wD : with_Declassify E0}
+  {sem_F : sem_Fun E}.
 
 (* semantics of instructions, abstracting on function calls (through
    sem_fun) *)
@@ -205,7 +248,10 @@ Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
   match i with
   | Cassgn x tg ty e => iresult (sem_assgn p x tg ty e s)
 
-  | Copn xs tg o es => iresult (sem_sopn (p_globs p) o s xs es)
+  | Copn xs tg o es =>
+      let res := iresult (sem_sopn (p_globs p) o s xs es) in
+      (if is_Odeclassify o is Some d then trigger_opn p s d es else Ret tt);;
+      res
 
   | Csyscall xs o es => iresult (sem_syscall p xs o es s)
 
@@ -291,7 +337,9 @@ Fixpoint esem_i (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
   match i with
   | Cassgn x tg ty e => sem_assgn p x tg ty e s
 
-  | Copn xs tg o es => sem_sopn (p_globs p) o s xs es
+  | Copn xs tg o es =>
+      Let _ := assert (~~ is_Odeclassify o) ErrSemUndef in
+      sem_sopn (p_globs p) o s xs es
 
   | Csyscall xs o es => sem_syscall p xs o es s
 
@@ -330,7 +378,9 @@ Proof.
   apply (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) => {s s' c} //.
   + move=> > /= [<-]; reflexivity.
   + by move=> i c hi hc s s' /=; t_xrbindP => s1 /hi ->; rewrite bind_ret_l; apply hc.
-  1-3: move=> > /= -> /=; reflexivity.
+  1,3: move=> > /= -> /=; reflexivity.
+  + move=> xs t o es ii s s' /=; t_xrbindP=> /isNoneP -> ->.
+    rewrite bind_ret_l; reflexivity.
   + move => a ii s s' /=; t_xrbindP; rewrite /isem_assert => -> <-; rewrite bind_ret_l; reflexivity.
   + move=> > hc1 hc2 ii s s' /=.
     rewrite /isem_cond; t_xrbindP => b -> /=.
@@ -369,7 +419,11 @@ End SEM_I.
 (*** error-aware interpreter with recursion ***************************)
 Section SEM_F.
 
-Context {E E0} {wE : with_Error E E0}.
+Context
+  {E E0}
+  {wE : with_Error E E0}
+  {wD : with_Declassify E0}
+.
 
 Section EXTEQ.
 Context (sem_F1 sem_F2: sem_Fun E) (p:prog) (ev:extra_val_t) .
@@ -477,22 +531,28 @@ Definition isem_fun_inline
 
 End SEM_F.
 
-(* interpreter of error events, giving us the fully interpreted
-   semantics of functions *)
-Definition err_sem_fun (p : prog) (ev : extra_val_t) (fn : funname)
-    (fs : fstate) : execT (itree void1) fstate :=
-  interp_Err (isem_fun p ev fn fs).
 
 (*** Core lemmas about the definition ********************************)
 Section CoreLemmas.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0}.
-Context (p : prog) (ev : extra_val_t).
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {wD : with_Declassify E0}
+  (p : prog)
+  (ev : extra_val_t).
 
 Notation interp_rec := (interp (mrecursive (handle_recCall p ev))).
 
 Lemma interp_throw T e : interp_rec (throw (X:=T) e) ≈ throw e.
 Proof. rewrite interp_vis bind_trigger; apply eqit_Vis => -[]. Qed.
+
+Lemma interp_rec_trigger T (e : E T) :
+  eutt eq (interp_rec (trigger e)) (trigger e).
+Proof.
+rewrite interp_vis bind_trigger; apply: eqit_Vis => ?.
+rewrite interp_ret; exact: tau_eutt.
+Qed.
 
 Lemma interp_ioget Err T (o : option T) :
   eutt (E:=E) eq (interp_rec (ioget Err o)) (ioget Err o).
@@ -505,10 +565,16 @@ Qed.
 Lemma interp_iresult T (r : exec T) :
   eutt (E:=E) eq (interp (mrecursive (handle_recCall p ev)) (iresult r)) (iresult r).
 Proof.
-  case r => /= [? | ?].
-  + rewrite interp_ret; reflexivity.
-  apply interp_throw.
- Qed.
+case r => ?; last exact: interp_throw. rewrite interp_ret; reflexivity.
+Qed.
+
+Lemma interp_rec_trigger_opn s d es :
+  eutt eq (interp_rec (trigger_opn p s d es)) (trigger_opn p s d es).
+Proof.
+rewrite /trigger_opn interp_bind interp_iresult; apply: eutt_eq_bind => vs.
+rewrite interp_bind interp_iresult; apply: eutt_eq_bind => e.
+exact: interp_rec_trigger.
+Qed.
 
 Lemma interp_isem_cmd c s :
   eutt (E:=E) eq (interp_rec (isem_foldr isem_i_rec p ev c s))
@@ -528,7 +594,11 @@ Proof.
   + move=> s /=; rewrite interp_ret; reflexivity.
   + move=> i c hi hc s; rewrite interp_bind;apply eqit_bind; first by apply hi.
     by move=> s'; apply hc.
-  1-3: by move=> >; apply interp_iresult.
+  1,3: by move=> >; apply interp_iresult.
+  + move=> xs t o es ii s => /=; rewrite interp_bind.
+    apply: eqit_bind => [|[]]; last exact: interp_iresult.
+    case: is_OdeclassifyP => [d|{}o]; first exact: interp_rec_trigger_opn.
+    rewrite interp_ret; reflexivity.
   + move => a ii s /=.
     rewrite interp_bind; apply eqit_bind.
     + by apply interp_iresult.
@@ -603,6 +673,29 @@ Proof.
   by apply interp_cond_throw.
 Qed.
 
+Lemma interp_cond_trigger
+  (cond : forall T, recCall T -> bool)
+  (ctx : forall T, recCall T -> itree (recCall +' E) T)
+  T (e : E T) :
+  eutt eq (interp (ctx_cond cond ctx) (trigger e)) (trigger e).
+Proof.
+rewrite interp_vis bind_trigger; apply: eqit_Vis => ?.
+rewrite tau_eutt interp_ret; reflexivity.
+Qed.
+
+Lemma interp_cond_trigger_opn
+  (cond : forall T, recCall T -> bool)
+  (ctx : forall T, recCall T -> itree (recCall +' E) T)
+  q s o es :
+  eutt eq
+    (interp (ctx_cond cond ctx) (trigger_opn q s o es))
+    (trigger_opn q s o es).
+Proof.
+rewrite interp_bind interp_cond_iresult; apply: eutt_eq_bind => vs.
+rewrite interp_bind interp_cond_iresult; apply: eutt_eq_bind => e.
+exact: interp_cond_trigger.
+Qed.
+
 Lemma isem_call_inline do_inline (fn : funname) (fs : fstate) :
   isem_fun p ev fn fs ≈ isem_fun_inline do_inline p ev fn fs.
 Proof.
@@ -661,7 +754,11 @@ Proof.
     + move=> s; rewrite interp_ret; reflexivity.
     + by move=> i c hi hc s; rewrite interp_bind hi; apply/eutt_eq_bind/hc.
     + by move=> > ? >; apply interp_cond_iresult.
-    + by move=> > ? > ? > ; apply interp_cond_iresult.
+    + move=> xs _ o es _ s.
+      rewrite interp_bind; apply: eqit_bind => [|[]];
+        last exact: interp_cond_iresult.
+      case: is_OdeclassifyP => [d|{}o]; first exact: interp_cond_trigger_opn.
+      rewrite interp_ret; reflexivity.
     + by move=> > ? >; apply interp_cond_iresult.
     + move=> a ii s; rewrite interp_bind; apply eutt_eq_bind'.
       + by apply interp_cond_iresult.

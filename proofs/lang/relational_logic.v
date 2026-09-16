@@ -24,6 +24,191 @@ Require Import expr psem_defs psem_core oseq compiler_util.
 Require Import it_sems_core core_logics hoare_logic.
 Import Utf8.
 
+(* TODO move *)
+
+Section ERROR.
+
+Import Exception.
+
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+.
+
+Lemma error_withErrorP {e} :
+  mfun1 (subevent void (Throw e)) = inl1 (Throw e).
+Proof. by rewrite /subevent_withError mid12. Qed.
+
+Lemma Is_Cut_error {e} :
+  IsCut_
+    (errcutoff (is_error wE))
+    void
+    (subevent void (Throw e)).
+Proof. by rewrite /errcutoff /is_error /= error_withErrorP. Qed.
+
+End ERROR.
+
+Lemma truncate_val_word ws w v :
+  truncate_val (cword ws) v = ok (Vword w) <-> to_word ws v = ok w.
+Proof.
+split.
+- by move=> /truncate_valI [ws' [w' [_ <- ->]]].
+by rewrite /truncate_val => /to_wordI [ws' [w' [-> /= ->]]].
+Qed.
+
+Lemma subctype_antisymm t1 t2 :
+  subctype t1 t2 -> subctype t2 t1 -> t1 = t2.
+Proof.
+case: t1 => [||p1 | ws1]; case: t2 => [||p2 | ws2] // /subctypeE //.
+move=> [_ [[<-] h1]] /subctypeE [_ [[<-] h2]].
+by rewrite (cmp_le_antisym h1 h2).
+Qed.
+
+(* better inference than get_read8 for some reason (specific to arrays) *)
+Lemma read_get8 {n i al} {a : WArray.array n} :
+  read a al i U8 = WArray.get8 a i.
+Proof. by rewrite -get_read8. Qed.
+
+Lemma read_errP n (a : WArray.array n) i :
+  reflect
+    (exists e, read a Aligned i U8 = Error e)
+    (~~ WArray.in_bound a i || ~~ WArray.is_init a i).
+Proof.
+rewrite read_get8 /= /WArray.get8.
+case: WArray.in_bound => /=; last by constructor; eexists.
+case: WArray.is_init => /=; last by constructor; eexists.
+by constructor=> -[].
+Qed.
+
+From mathcomp Require Import eqtype word_ssrZ ssralg.
+
+(* TODO result and error should have an eqType instance
+   Then WArray.uincl can be a bool and value_uincl as well.
+   Why is uincl implemented with read instead of get8? *)
+Definition array_eq
+  (n1 n2 : Z) (a1 : WArray.array n1) (a2 : WArray.array n2) : Prop :=
+  [/\ n1 == n2
+    & forall i, WArray.in_bound a1 i -> WArray.get8 a1 i = WArray.get8 a2 i
+  ].
+
+Lemma array_eqP n1 n2 (a1 : WArray.array n1) (a2 : WArray.array n2) :
+  array_eq a1 a2 <-> WArray.uincl a1 a2 /\ WArray.uincl a2 a1.
+Proof.
+split=> -[].
+- move=> /eqP ? h; subst n2.
+  split; split=> // i w; rewrite !read_get8 /= => hok.
+  + rewrite -h //; apply: WArray.get_valid8 hok.
+  rewrite h //; apply: WArray.get_valid8 hok.
+move=> [? h1] [_ h2]; subst n2; split=> // i hi.
+rewrite -!(read_get8 (al := Aligned)).
+case hok1: (read a1 Aligned i U8) => [w1|e1].
+- by rewrite (h1 _ _ hok1).
+have /read_errP: exists e, read a1 Aligned i U8 = Error e by exists e1.
+rewrite hi /= -hok1 => hin1.
+case hok2: (read a2 Aligned i U8) => [w2|e2].
+- by rewrite (h2 _ _ hok2).
+rewrite -hok2 !read_get8 /= /WArray.get8 hi /=.
+have /read_errP: exists e, read a2 Aligned i U8 = Error e by exists e2.
+move: hin1; rewrite -[WArray.in_bound a2 i]/(WArray.in_bound a1 i) hi.
+by move=> /negPf -> /negPf ->.
+Qed.
+
+Lemma uincl_arr_is_fully_defined_array_eq
+  n1 n2 (a1 : WArray.array n1) (a2 : WArray.array n2) :
+  WArray.uincl a1 a2 ->
+  arr_is_fully_defined a1 ->
+  array_eq a1 a2.
+Proof.
+move=> [? h] /allP def; subst n2; split=> // i hi.
+rewrite -!(read_get8 (al := Aligned)).
+suff : exists w, [elaborate read a1 Aligned i U8 ] = ok w.
+- by move=> [w /[dup] /h ->].
+apply/read_okP; by rewrite hi def // in_ziota.
+Qed.
+
+Definition value_eq (v1 v2 : value) : Prop :=
+  match v1, v2 with
+  | Vbool b1, Vbool b2 => b1 == b2
+  | Vint z1, Vint z2 => z1 == z2
+  | Varr n1 a1, Varr n2 a2 => array_eq a1 a2
+  | Vword sz1 w1, Vword sz2 w2 => [&& sz1 == sz2 & w1 == zero_extend sz1 w2 ]
+  | Vundef t1 _, Vundef t2 _ => t1 == t2
+  | _, _ => false
+  end.
+
+Lemma value_eqP v1 v2 :
+  value_eq v1 v2 <-> value_uincl v1 v2 /\ value_uincl v2 v1.
+Proof.
+case: v1 => [b1 | z1 | n1 a1 | sz1 w1 | t1 ?];
+  case: v2 => [b2 | z2 | n2 a2 | sz2 w2 | t2 ?];
+  split=> [|[]] //=;
+  try (by move=> /eqP -> || by move=> -> /[!eqxx]).
+- by move=> /array_eqP.
+- move=> h1 h2; exact/array_eqP.
+- move=> /andP [] /eqP ? /eqP ?; subst sz2 w1.
+  by rewrite zero_extend_u word_uincl_refl.
+- move=> /andP [h1 /eqP <-] /andP [h2 _].
+  have ? := cmp_le_antisym h1 h2; subst sz2.
+  by rewrite !eqxx.
+by move=> /subctype_antisymm /[apply] ->.
+Qed.
+
+Lemma is_fully_defined_is_defined v :
+  is_fully_defined v ->
+  is_defined v.
+Proof. by case: v. Qed.
+
+Lemma is_Varr_truncate_val t v v' :
+  truncate_val t v = ok v' ->
+  is_Varr v' = is_Varr v.
+Proof.
+case: v => [b | z | n a | ws w | ??] /truncate_valE //.
+1-3: by move=> [_ ->].
+by move=> [? [? [_ _ ->]]].
+Qed.
+
+Lemma is_fully_defined_truncate_val t v v' :
+  is_fully_defined v ->
+  truncate_val t v = ok v' ->
+  is_fully_defined v'.
+Proof.
+move=> + tr; rewrite /is_fully_defined (is_Varr_truncate_val tr).
+case: (is_Varr v) => [[n a]|] // _; exact: truncate_val_defined tr.
+Qed.
+
+Lemma value_uincl_fully_defined_value_eq t v1 v2 v1' :
+  is_fully_defined v1 ->
+  value_uincl v1 v2 ->
+  truncate_val t v1 = ok v1' ->
+  exists2 v2', value_eq v1' v2' & truncate_val t v2 = ok v2'.
+Proof.
+move=> def uincl tr1.
+have [v2' tr2 uincl'] := value_uincl_truncate uincl tr1.
+rewrite tr2; exists v2' => //.
+case: v1' tr1 uincl' => [b | z | n1 a1 | ws1 w1 |??] tr1.
+- by move=> /value_uinclE -> /=.
+- by move=> /value_uinclE -> /=.
+- move=> /value_uinclE [a2 ->] uincl'.
+  apply: (uincl_arr_is_fully_defined_array_eq uincl').
+  exact: is_fully_defined_truncate_val def tr1.
+- move=> uincl'.
+  have [_ [_ [? _ _]]] := truncate_valI tr1; subst t.
+  have [w2' [_ [_ [_ _ ?]]]] := truncate_val_typeE tr2; subst v2'.
+  by rewrite /= zero_extend_u (word_uincl_eq uincl') !eqxx.
+by have := is_fully_defined_truncate_val def tr1.
+Qed.
+
+From mathcomp Require Import ssrnat.
+
+Lemma Forall2_nth A B (R : A -> B -> Prop) a b la lb i :
+  List.Forall2 R la lb ->
+  (if i < size la then True else R a b)%N ->
+  R (nth a la i) (nth b lb i).
+Proof.
+case: (ltnP i (size la)) => hi h hR; first exact: (Forall2_nth h _ _ hi).
+by rewrite !nth_default // -(Forall2_size h).
+Qed.
+
 Definition rel (I1 I2 : Type) := I1 -> I2 -> Prop.
 
 Definition rel_io (I1 I2 O1 O2 : Type) := I1 -> I2 -> O1 -> O2 -> Prop.
@@ -193,6 +378,8 @@ Class EventRels2 (E0_l E0_r : Type -> Type) :=
   { EPreRel0_  : prerel E0_l E0_r
   ; EPostRel0_ : postrel E0_l E0_r }.
 
+Notation EventRels E0 := (EventRels2 E0 E0).
+
 Definition EPreRel0 {E0_l E0_r} {rE0 : EventRels2 E0_l E0_r} := EPreRel0_.
 Definition EPostRel0 {E0_l E0_r} {rE0 : EventRels2 E0_l E0_r} := EPostRel0_.
 
@@ -210,6 +397,8 @@ Definition EPostRel {E_l E0_l : Type -> Type} {wE_l : with_Error E_l E0_l}
   fun T1 T2 (e1 : E_l T1) (t1 : T1) (e2 : E_r T2) (t2 : T2) =>
     sum_postrelF (fun _ _ _ _ _ _ => True) EPostRel0
       (mfun1 e1) t1 (mfun1 e2) t2.
+
+
 
 Section WKEQUIV.
 
@@ -435,13 +624,85 @@ Definition rel_v := rel value value.
 Definition rel_vs := rel values values.
 Definition rel_c := rel estate1 estate2.
 
-Notation EventRels E0 := (EventRels2 E0 E0).
-
 Definition EqRels {E0} : EventRels E0 :=
   {|
     EPreRel0_  := rutt_extras.RPre_eq;
     EPostRel0_ := rutt_extras.RPost_eq;
   |}.
+
+Section DECLASSIFY.
+(* FIXME: how to keep E0 explicit for readability? *)  
+Class DeclassifyEvent_ind {E0} { rE0 : EventRels E0 } { wD : with_Declassify E0 } :=
+  {
+    DEind_pre_val :
+      forall v1 v2,
+        value_eq v1 v2 ->
+        EPreRel0_ (wD _ (Edeclassify v1)) (wD _ (Edeclassify v2));
+
+    DEind_pre_mem :
+      forall b1 b2,
+        EPreRel0_ (wD _ (Edeclassify_mem b1)) (wD _ (Edeclassify_mem b2));
+  }.
+ 
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {wD : with_Declassify E0}
+  {rE0 : EventRels E0}
+  {DEind : DeclassifyEvent_ind}
+.
+
+Definition preRelDeclassify (e1 e2 : DeclassifyEvent unit) : Prop :=
+  EPreRel (fromDeclassify e1) (fromDeclassify e2).
+
+Lemma wkequiv_preRelDeclassify :
+  wkequiv preRelDeclassify (fun e => trigger e) (fun e => trigger e) relT.
+Proof. move=> ?? h; exact: (xrutt_trigger _ _ h). Qed.
+
+(* FIXME: is this OK or should it be propagated down to the following 4 proofs? *)
+Local Set Default Proof Using "DEind".
+
+Lemma preRelDeclassifyP v1 v2 :
+  value_eq v1 v2 ->
+  preRelDeclassify (Edeclassify v1) (Edeclassify v2).
+Proof.
+rewrite /preRelDeclassify /EPreRel !subevent_withErrorP; exact: DEind_pre_val.
+Qed.
+
+Lemma preRelDeclassify_memP bs :
+  preRelDeclassify (Edeclassify_mem bs) (Edeclassify_mem bs).
+Proof.
+rewrite /preRelDeclassify /EPreRel subevent_withErrorP; exact: DEind_pre_mem.
+Qed.
+
+Lemma event_of_opn_uincl d m :
+  wrequiv values_uincl (event_of_opn d m) (event_of_opn d m) preRelDeclassify.
+Proof.
+move=> vs1 vs2 e uincl.
+have {}uincl : value_uincl (nth (Vbool true) vs1 0) (nth (Vbool true) vs2 0).
+- apply: (Forall2_nth uincl); by case: ifP.
+case: d => [ty | n] /=; t_xrbindP.
+- move=> def v tr <-.
+  have [v2' eqv ->] := value_uincl_fully_defined_value_eq def uincl tr.
+  rewrite (value_uincl_fully_defined uincl def).
+  eexists; first reflexivity. exact: preRelDeclassifyP.
+t_xrbindP=> /= p /truncate_val_word tr bs + <- /=.
+have [] := value_uincl_fully_defined_value_eq _ uincl tr.
++ by move: tr => /truncate_valI [? [? [_ _ ->]]].
+move=> [] // ws' w' /andP [] /eqP ? /eqP; subst ws'.
+rewrite zero_extend_u => <- /truncate_val_word -> /= ->.
+eexists; first reflexivity. exact: preRelDeclassify_memP.
+Qed.
+
+Lemma event_of_opn_eq d m :
+  wrequiv eq (event_of_opn d m) (event_of_opn d m) preRelDeclassify.
+Proof.
+apply/wrequiv_weaken/event_of_opn_uincl => // ?? ->; exact: values_uincl_refl.
+Qed.
+
+End DECLASSIFY.
+
+
 
 Section TR_MutualRec.
 
@@ -476,6 +737,17 @@ Instance relEvent_recCall {rE0 : EventRels E0} : EventRels (recCall +' E0) :=
   {| EPreRel0_  := sum_prerelF (@RPreD) EPreRel0
    ; EPostRel0_ := sum_postrelF (@RPostD) EPostRel0
   |}.
+
+#[global]
+Instance declassifyEvent_ind_recCall
+  {wD : with_Declassify E0}
+  {rE0 : EventRels E0}
+  {DEind : DeclassifyEvent_ind} :
+  DeclassifyEvent_ind (rE0 := relEvent_recCall).
+Proof using.
+constructor; rewrite /EPostRel0_ /= /resum;
+  [exact: DEind_pre_val|exact: DEind_pre_mem].
+Qed.
 
 End TR_MutualRec.
 
@@ -549,7 +821,7 @@ Notation isem_fun2 := (isem_fun (wsw:=wsw2) (dc:=dc2) (ep:=ep) (spp:=spp) (wa:=w
 Section WEQUIV_CORE.
 
 Context {E E0 : Type -> Type} {sem_F1 : sem_Fun1 E} {sem_F2 : sem_Fun2 E}
-    {wE: with_Error E E0} {rE0 : EventRels E0}.
+    {wE: with_Error E E0} {rE0 : EventRels E0} { wD : with_Declassify E0 }.
 
 Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2).
 
@@ -671,59 +943,86 @@ Qed.
 Lemma wequiv_opn (Rve Rvo : rel_vs) P Q ii1 xs1 at1 o1 es1 ii2 xs2 at2 o2 es2 :
   wrequiv P (fun s => sem_pexprs true (p_globs p1) s es1)
             (fun s => sem_pexprs true (p_globs p2) s es2) Rve ->
+  (match is_Odeclassify o1, is_Odeclassify o2 with
+   | Some d1, Some d2 => forall vs1 vs2,
+       Rve vs1 vs2 ->
+       wrequiv P
+         (fun s => event_of_opn d1 (emem s) vs1)
+         (fun s => event_of_opn d2 (emem s) vs2)
+         preRelDeclassify
+   | None, None => True
+   | _, _ => False
+   end) ->
   (forall s1 s2, P s1 s2 -> wrequiv Rve (exec_sopn o1) (exec_sopn o2) Rvo) ->
   (forall vs1 vs2,
     Rvo vs1 vs2 -> wrequiv P (fun s1 => write_lvals true (p_globs p1) s1 xs1 vs1)
                              (fun s2 => write_lvals true (p_globs p2) s2 xs2 vs2) Q) ->
   wequiv P [:: MkI ii1 (Copn xs1 at1 o1 es1)] [:: MkI ii2 (Copn xs2 at2 o2 es2)] Q.
 Proof.
-  move=> he ho hwr; rewrite /wequiv /isem_cmd_ /=.
-  apply wkequiv_bind with Q; last by apply wkequiv_ret.
-  apply wkequiv_iresult; rewrite /sem_sopn.
-  eapply wrequiv_read; last by apply hwr.
-  eapply wrequiv_read; first apply he.
-  move=> t1 t2 ht; eapply wrequiv_eval.
-  by move=> s1 s2 /ho; apply wrequiv_weaken => // > [-> ->].
+move=> he hev ho hwr; apply: (wkequiv_bind (R := Q)); last exact: wkequiv_ret.
+apply: (wkequiv_read (R := relT)) => [|_ _ _].
+- case: is_Odeclassify hev => [d1|]; case: is_Odeclassify => [d2|] // hev;
+    last exact: wkequiv_ret.
+  apply: wkequiv_read => [|?? hvs]; first exact: wkequiv_iresult he.
+  apply: wkequiv_read => [|?? h]; first exact: wkequiv_iresult (hev _ _ hvs).
+  move=> _ _ _; exact: wkequiv_preRelDeclassify h.
+apply/wkequiv_iresult/(wrequiv_read _ hwr)/(wrequiv_read he) => vs1 vs2 hvs.
+move=> s1 s2 rs hs; exact: ho hs _ _ _ hvs.
 Qed.
 
 Lemma wequiv_opn_eq P Q ii1 xs1 at1 o es1 ii2 xs2 at2 es2 :
   wrequiv P (fun s => sem_pexprs true (p_globs p1) s es1)
            (fun s => sem_pexprs true (p_globs p2) s es2) eq ->
+  (Rdeclassify o (fun d => forall vs,
+      wrequiv P
+        (fun s => event_of_opn d (emem s) vs)
+        (fun s => event_of_opn d (emem s) vs)
+        preRelDeclassify)) ->
   (forall vs,
     wrequiv P (fun s1 => write_lvals true (p_globs p1) s1 xs1 vs)
              (fun s2 => write_lvals true (p_globs p2) s2 xs2 vs) Q) ->
   wequiv P [:: MkI ii1 (Copn xs1 at1 o es1)] [:: MkI ii2 (Copn xs2 at2 o es2)] Q.
 Proof.
-  move=> he hx; apply wequiv_opn with eq eq => //.
-  + by move=> *; apply wrequiv_eq.
-  by move=> > <-; apply hx.
+move=> he hev hx; apply: (wequiv_opn (Rve := eq) (Rvo := eq)) => //.
+- case: is_OdeclassifyP hev => [d|//] hev vs _ <-; exact: hev.
+- move=> _ _ _; exact: wrequiv_eq.
+move=> vs _ <-; exact: hx.
 Qed.
 
-Lemma wequiv_opn_uincl P Q ii1 xs1 at1 o es1 ii2 xs2 at2 es2 :
+Lemma wequiv_opn_uincl {P Q ii1 xs1 at1 o es1 ii2 xs2 at2 es2} :
   wrequiv P (fun s => sem_pexprs true (p_globs p1) s es1)
            (fun s => sem_pexprs true (p_globs p2) s es2) values_uincl ->
+  (Rdeclassify o (fun d => forall vs1 vs2,
+      values_uincl vs1 vs2 ->
+      wrequiv P
+        (fun s => event_of_opn d (emem s) vs1)
+        (fun s => event_of_opn d (emem s) vs2)
+        preRelDeclassify)) ->
   (forall vs1 vs2,
     values_uincl vs1 vs2 ->
     wrequiv P (fun s1 => write_lvals true (p_globs p1) s1 xs1 vs1)
              (fun s2 => write_lvals true (p_globs p2) s2 xs2 vs2) Q) ->
   wequiv P [:: MkI ii1 (Copn xs1 at1 o es1)] [:: MkI ii2 (Copn xs2 at2 o es2)] Q.
 Proof.
-  move=> he; apply wequiv_opn with values_uincl => //.
-  move=> *; apply wrequiv_exec_sopn.
+move=> he hev; apply: (wequiv_opn (Rve := values_uincl)) => //.
+- case: is_OdeclassifyP hev => [d|//] hev vs1 vs2 hvs; exact: hev _ _ hvs.
+move=> _ _ _; exact: wrequiv_exec_sopn.
 Qed.
 
 Lemma wequiv_opn_esem (P Q : rel_c) ii1 xs1 tg1 o1 es1 c2 :
-  wrequiv P (fun s => sem_sopn (p_globs p1) o1 s xs1 es1)
-            (esem p2 ev2 c2) Q ->
+  ~~ is_Odeclassify o1 ->
+  wrequiv P
+    (fun s => sem_sopn (p_globs p1) o1 s xs1 es1)
+    (esem p2 ev2 c2) Q ->
   wequiv P [:: MkI ii1 (Copn xs1 tg1 o1 es1)] c2 Q.
 Proof.
-  move=> h s t hP /=.
-  case heq: sem_sopn => [s' | e] /=.
-  + rewrite bind_ret_r.
-    have [t' /esem_i_bodyP -> hQ /=] := h s t s' hP heq.
-    by apply xrutt.xrutt_Ret.
-  rewrite bind_ret_r; apply xrutt_CutL => //.
-  by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
+move=> /isNoneP ho h s t hP /=.
+rewrite ho bind_ret_l.
+case heq: sem_sopn => [s'|?] /=; last first.
+- rewrite bind_vis; exact: xrutt_CutL Is_Cut_error.
+rewrite bind_ret_l.
+have [t' /esem_i_bodyP -> hQ] := h _ _ _ hP heq.
+exact: xrutt_Ret.
 Qed.
 
 Lemma wequiv_syscall Rv Ro P Q ii1 xs1 sc1 es1 ii2 xs2 sc2 es2 :
@@ -1395,7 +1694,9 @@ Class Checker_uincl :=
    forall wdb1 wdb2 d es1 es2 d',
      wdb_ok wdb1 wdb2 ->
      check_es d es1 es2 d' ->
-     wrequiv (R d) ((sem_pexprs wdb1 (p_globs p1))^~ es1) ((sem_pexprs wdb2 (p_globs p2))^~ es2)
+     wrequiv (R d)
+       ((sem_pexprs wdb1 (p_globs p1))^~ es1)
+       ((sem_pexprs wdb2 (p_globs p2))^~ es2)
        values_uincl
  ; ucheck_lvalsP :
    forall wdb1 wdb2 d xs1 xs2 d',
@@ -1468,14 +1769,21 @@ Proof using cu.
   apply: ucheck_lvalP hxs v1 v2 hu.
 Qed.
 
-Lemma wequiv_opn_rel_uincl d de d' ii1 xs1 tg1 o es1  ii2 xs2 tg2 es2 :
+Lemma wequiv_opn_rel_uincl_R d de d' ii1 xs1 tg1 o es1  ii2 xs2 tg2 es2 :
   check_es d es1 es2 de →
+  (Rdeclassify o (fun d => forall vs1 vs2,
+    values_uincl vs1 vs2 ->
+    wrequiv
+      (R de)
+      (fun s => event_of_opn d (emem s) vs1)
+      (fun s => event_of_opn d (emem s) vs2)
+      preRelDeclassify)) ->
   check_lvals de xs1 xs2 d' →
   wequiv (R d) [:: MkI ii1 (Copn xs1 tg1 o es1)] [:: MkI ii2 (Copn xs2 tg2 o es2)] (R d').
 Proof using cu.
-  move=> hes hxs.
-  apply wequiv_opn_uincl.
-  + by apply: ucheck_esP hes.
+  move=> hes hev hxs; apply: wequiv_opn_uincl; first exact: ucheck_esP hes.
+  + case: is_Odeclassify hev => [a|//] hev vs1 vs2 hvs.
+    apply: wrequiv_weaken (hev _ _ hvs) => //; exact: check_esP_rel hes.
   move=> v1 v2 hu; apply wrequiv_weaken with (R de) (R d') => //.
   + by apply: check_esP_rel hes.
   by apply: ucheck_lvalsP hxs v1 v2 hu.
@@ -1603,7 +1911,7 @@ Proof using cu.
   t_xrbindP => t' _ -> -> ?; eexists; eauto.
 Qed.
 
-Lemma wequiv_assgn_rel_eq d de d' ii1 x1 tg1 ty e1 ii2 x2 tg2 e2 :
+Lemma wequiv_assgn_rel_eq_R d de d' ii1 x1 tg1 ty e1 ii2 x2 tg2 e2 :
   check_es d [::e1] [::e2] de ->
   check_lvals de [::x1] [::x2] d' ->
   wequiv (R d) [:: MkI ii1 (Cassgn x1 tg1 ty e1)] [:: MkI ii2 (Cassgn x2 tg2 ty e2)] (R d').
@@ -1616,14 +1924,21 @@ Proof using cu.
   apply: echeck_lvalP hxs v.
 Qed.
 
-Lemma wequiv_opn_rel_eq d de d' ii1 xs1 tg1 o es1 ii2 xs2 tg2 es2 :
+Lemma wequiv_opn_rel_eq_R {d de d' ii1 xs1 tg1 o es1 ii2 xs2 tg2 es2} :
   check_es d es1 es2 de →
+  (Rdeclassify o (fun a => forall vs,
+    wrequiv
+      (R de)
+      (fun s => event_of_opn a (emem s) vs)
+      (fun s => event_of_opn a (emem s) vs)
+      preRelDeclassify)) ->
   check_lvals de xs1 xs2 d' →
   wequiv (R d) [:: MkI ii1 (Copn xs1 tg1 o es1)] [:: MkI ii2 (Copn xs2 tg2 o es2)] (R d').
 Proof using cu.
-  move=> hes hxs.
-  apply wequiv_opn_eq.
-  + by apply: echeck_esP hes.
+  move=> hes hev hxs.
+  apply: wequiv_opn_eq; first exact: echeck_esP hes.
+  + case: is_Odeclassify hev => [a|//] hev vs.
+    apply: wrequiv_weaken (hev _) => //; exact: check_esP_rel hes.
   move=> v; apply wrequiv_weaken with (R de) (R d') => //.
   + by apply: check_esP_rel hes.
   by apply: echeck_lvalsP hxs v.
@@ -1739,14 +2054,29 @@ End REL.
 
 Section ST_REL.
 
-Context {D:Type}.
-Context (R : D -> vm1_t -> vm2_t -> Prop).
-
-Context {ce : Checker_e (st_rel R)}.
+Context
+  {DEind : DeclassifyEvent_ind}
+  {D:Type}
+  (R : D -> vm1_t -> vm2_t -> Prop)
+  {ce : Checker_e (st_rel R)}.
 
 Section UINCL.
 
 Context {cu:Checker_uincl (R:=st_rel R)}.
+
+Lemma wequiv_opn_rel_uincl d de d' ii1 xs1 tg1 o es1 ii2 xs2 tg2 es2 :
+  check_es d es1 es2 de ->
+  check_lvals de xs1 xs2 d' ->
+  wequiv
+    (st_rel R d)
+    [:: MkI ii1 (Copn xs1 tg1 o es1) ] [:: MkI ii2 (Copn xs2 tg2 o es2) ]
+    (st_rel R d').
+Proof using cu DEind.
+move=> hes hxs.
+eapply wequiv_opn_rel_uincl_R => //; [exact hes | | exact hxs].
+case: is_Odeclassify => [a|//] vs1 vs2 uincl s t e [_ <- _].
+exact: event_of_opn_uincl uincl.
+Qed.
 
 Lemma wequiv_if_rel_uincl d de d1 d2 d' ii e c1 c2 ii' e' c1' c2' :
   check_es d [::e] [::e'] de ->
@@ -1805,6 +2135,19 @@ End UINCL.
 Section EQ.
 
 Context {cu:Checker_eq (R:=st_rel R)}.
+
+Lemma wequiv_opn_rel_eq d de d' ii1 xs1 tg1 o es1 ii2 xs2 tg2 es2 :
+  check_es d es1 es2 de ->
+  check_lvals de xs1 xs2 d' ->
+  wequiv
+    (st_rel R d)
+    [:: MkI ii1 (Copn xs1 tg1 o es1) ]
+    [:: MkI ii2 (Copn xs2 tg2 o es2) ]
+    (st_rel R d').
+Proof using cu DEind.
+move=> hes hxs; apply: (wequiv_opn_rel_eq_R hes _ hxs).
+case: is_Odeclassify => [a|//] vs s t e [_ <- _]; exact: event_of_opn_eq.
+Qed.
 
 Lemma wequiv_if_rel_eq d de d1 d2 d' ii e c1 c2 ii' e' c1' c2' :
   check_es d [::e] [::e'] de ->
@@ -1903,8 +2246,14 @@ End WEQUIV_CORE.
 
 Section WEQUIV_WHOARE.
 
-Context {E E0 : Type -> Type} {sem_F1 : sem_Fun1 E} {sem_F2 : sem_Fun2 E}
-    {wE: with_Error E E0} {iE0 : InvEvent E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {sem_F1 : sem_Fun1 E}
+  {sem_F2 : sem_Fun2 E}
+  {wE: with_Error E E0}
+  {wD : with_Declassify E0}
+  {iE0 : InvEvent E0}
+  {rE0 : EventRels E0}.
 
 Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2).
 
@@ -1955,10 +2304,14 @@ Qed.
 End WEQUIV_WHOARE.
 
 Section WEQUIV_WRITE.
-Context {E E0 : Type -> Type} {sem_F1 : sem_Fun1 E} {sem_F2 : sem_Fun2 E}
-    {wE: with_Error E E0} {rE0 : EventRels E0}.
-
-Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2).
+Context
+  {E E0 : Type -> Type}
+  {sem_F1 : sem_Fun1 E} {sem_F2 : sem_Fun2 E}
+  {wE : with_Error E E0}
+  {wD : with_Declassify E0}
+  {rE0 : EventRels E0}
+  (p1 : prog1) (p2 : prog2)
+  (ev1 : extra_val_t1) (ev2 : extra_val_t2).
 
 Lemma wequiv_write1 (P Q : rel_c) c1 c2:
   wequiv p1 p2 ev1 ev2 P c1 c2 Q ->
@@ -2002,10 +2355,14 @@ Notation sem_fun_full1 := (sem_fun_full (wsw:=wsw1) (dc:=dc1) (ep:=ep) (spp:=spp
 Notation sem_fun_full2 := (sem_fun_full (wsw:=wsw2) (dc:=dc2) (ep:=ep) (spp:=spp) (wa:=wa2) (sip:=sip) (pT:=pT2) (scP:= scP2)).
 
 Section WEQUIV_FUN.
-
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
-
-Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2)  (spec : EquivSpec).
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {wD : with_Declassify E0}
+  {rE0 : EventRels E0}
+  (p1 : prog1) (p2 : prog2)
+  (ev1 : extra_val_t1) (ev2 : extra_val_t2)
+  (spec : EquivSpec).
 
 Definition wequiv_f_rec RPreF ii1 ii2 fn1 fn2 RPostF :=
   wequiv_f_ii (rE0:=relEvent_recCall spec) p1 p2 ev1 ev2 RPreF ii1 ii2 fn1 fn2 RPostF.
@@ -2183,10 +2540,17 @@ Section NOASSERT.
 
 Section WEQUIV_CORE.
 
-Context {E E0 : Type -> Type} {sem_F1 : sem_Fun1 E} {sem_F2 : sem_Fun2 E}
-    {wE: with_Error E E0} {rE0 : EventRels E0}.
-
-Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2).
+Context
+  {E E0 : Type -> Type}
+  {sem_F1 : sem_Fun1 E}
+  {sem_F2 : sem_Fun2 E}
+  {wE : with_Error E E0}
+  {wD : with_Declassify E0}
+  {rE0 : EventRels E0}
+  (p1 : prog1)
+  (p2 : prog2)
+  (ev1: extra_val_t1)
+  (ev2 : extra_val_t2).
 
 Lemma wequiv_noassert ii a c P Q :
   wequiv p1 p2 ev1 ev2 P [:: MkI ii (Cassert a)] c Q.
@@ -2278,8 +2642,12 @@ Qed.
 End WEQUIV_CORE.
 
 Section WEQUIV_FUN.
-
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {wD : with_Declassify E0}
+  {rE0 : EventRels E0}
+.
 
 Context
   (sem_F1 : funname → sem_Fun1 (recCall +' E))
@@ -2338,8 +2706,6 @@ Proof.
   by split => [ [/= <- <-] | [[<- <-] ?]].
 Qed.
 
-Notation EventRels E0 := (EventRels2 E0 E0).
-
 Section SYSCALL.
 
 Context
@@ -2361,13 +2727,17 @@ Proof.
   by move=> [<-] /=; eexists.
 Qed.
 
-Context {E E0 : Type -> Type} {sem_F1 sem_F2 : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}.
-
-Context (p1 p2 : prog) (ev1 ev2: extra_val_t).
-
-Context {D : Type}
-        {R : D -> Vm.t -> Vm.t -> Prop}
-        {ce : Checker_e (st_rel R)}.
+Context
+  {E E0 : Type -> Type}
+  {sem_F1 sem_F2 : sem_Fun E}
+  {wE : with_Error E E0}
+  {wD : with_Declassify E0}
+  {rE0 : EventRels E0}
+  (p1 p2 : prog)
+  (ev1 ev2 : extra_val_t)
+  {D : Type}
+  {R : D -> Vm.t -> Vm.t -> Prop}
+  {ce : Checker_e (st_rel R)}.
 
 Lemma wequiv_syscall_rel_uincl {cu: Checker_uincl p1 p2 (ce:=ce)} d de d' ii1 xs1 sc es1 ii2 xs2 es2 :
   check_es d es1 es2 de →
@@ -2493,6 +2863,7 @@ Context
   {pT1 pT2 pT3 : progT}
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
+  {wD : with_Declassify E0}
   {wsw1 wsw2 wsw3 : WithSubWord}
   {wa1 wa2 wa3 : WithAssert}
   {scP1 : semCallParams (wsw := wsw1) (pT := pT1)}

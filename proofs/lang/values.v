@@ -53,6 +53,9 @@ Variant value : Type :=
   | Vundef : forall (t:ctype), is_undef_t t -> value.
 Arguments Vundef _ _ : clear implicits.
 
+Definition is_Varr (v : value) : option { len & WArray.array len } :=
+  if v is Varr len a then Some (existT _ len a) else None.
+
 Lemma Varr_inj n n' t t' (e: @Varr n t = @Varr n' t') :
   exists en: n = n', eq_rect n (λ s, WArray.array s) t n' en = t'.
 Proof.
@@ -91,6 +94,13 @@ Definition undef_addr t :=
 Definition values := seq value.
 
 Definition is_defined v := if v is Vundef _ _ then false else true.
+
+Definition arr_is_fully_defined (n : Z) (a : WArray.array n) : bool :=
+  all (WArray.is_init a) (ziota 0 n).
+
+Definition is_fully_defined (v : value) : bool :=
+  if is_Varr v is Some (existT _ a) then arr_is_fully_defined a
+  else is_defined v.
 
 Lemma undef_x_vundef t h : Vundef t h =
   match t with
@@ -502,14 +512,47 @@ Proof.
   move=> /word_uincl_truncate h/h{h} ->; eauto.
 Qed.
 
+Lemma value_uincl_defined' v1 v2 :
+  value_uincl v1 v2 -> is_defined v1 -> is_defined v2.
+Proof.
+case: v1 => [b | z| len t| ws w | t i] /value_uinclE //; try by move=> ->.
++ by move=> [? ->].
+by move=> [? [? [-> _]]].
+Qed.
+
+(* TODO where should this go? *)
+Lemma read_okP n (a : WArray.array n) i :
+  reflect
+    (exists w, read a Aligned i U8 = ok w)
+    (WArray.in_bound a i && WArray.is_init a i).
+Proof. rewrite -get_read8; exact: WArray.get8_okP. Qed.
+
+Lemma array_uincl_init n1 n2 (a1 : WArray.array n1) (a2 : WArray.array n2) :
+  WArray.uincl a1 a2 ->
+  arr_is_fully_defined a1 ->
+  arr_is_fully_defined a2.
+Proof.
+move=> [? h]; subst n2; apply: subpred_in_all => i hi h1.
+suff /andP[] : WArray.in_bound a2 i && WArray.is_init a2 i by [].
+apply/read_okP.
+suff : WArray.in_bound a1 i && WArray.is_init a1 i.
+- move=> /read_okP [] w /h ->; by eexists.
+by rewrite h1 /WArray.in_bound -in_ziota hi.
+Qed.
+
+Lemma value_uincl_fully_defined v1 v2 :
+  value_uincl v1 v2 ->
+  is_fully_defined v1 ->
+  is_fully_defined v2.
+Proof.
+case: v1 => [b | z | len t | ws w | t i] /value_uinclE //; try by move=> ->.
+- move=> [? ->]; exact: array_uincl_init.
+move=> [? [? [-> ?]]]; exact: value_uincl_defined'.
+Qed.
+
 Lemma value_uincl_defined wdb v1 v2 :
   value_uincl v1 v2 -> wdb || is_defined v1 -> wdb || is_defined v2.
-Proof.
-  case: wdb => //=.
-  case: v1 => [b | z| len t| ws w | t i] /value_uinclE //; try by move=> ->.
-  + by move=> [? ->].
-  by move=> [? [? [-> _]]].
-Qed.
+Proof. case: wdb => //; exact: value_uincl_defined'. Qed.
 
 Lemma value_uincl_DB wdb v1 v2 :
   value_uincl v1 v2 -> DB wdb v1 -> DB wdb v2.

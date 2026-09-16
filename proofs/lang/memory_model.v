@@ -1039,3 +1039,18 @@ Parameter free_stackP : forall m,
 
 End WITH_POINTER_DATA.
 End MemoryT.
+
+Section UTILS.
+  Context
+    {mem : PointerData -> Type}
+    {pd : PointerData}
+    {CM : coreMem pointer (mem _)}
+    {M : memory CM}
+  .
+
+  Definition read8 (m : mem pd) (p : pointer) (i : Z) : exec u8 :=
+    CoreMem.read m Aligned (p + wrepr Uptr i)%R U8.
+
+  Definition read_bytes (m : mem pd) (p : pointer) (len : Z) : exec (seq u8) :=
+    mapM (read8 m p) (ziota 0 len).
+End UTILS.

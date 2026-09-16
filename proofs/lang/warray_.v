@@ -99,7 +99,15 @@ Module WArray.
       Let _ := assert (in_bound m i) ErrOob in
       ok {| arr_data := Mz.set m.(arr_data) i v |}.
 
-    Lemma valid8P m i w : reflect (exists m', set8 m i w = ok m') (in_bound m i).
+    Lemma get8_okP a i :
+      reflect (exists w, get8 a i = ok w) (in_bound a i && is_init a i).
+    Proof.
+    rewrite /get8; apply: (iffP andP).
+    - move=> [-> ->]; by eexists.
+    move=> [] ?; by t_xrbindP.
+    Qed.
+
+    Lemma valid8P m p w : reflect (exists m', set8 m p w = ok m') (in_bound m p).
     Proof.
       by (rewrite /set8; case: in_bound => /=; constructor); [eexists; eauto | move=> []].
     Qed.
