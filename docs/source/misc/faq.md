@@ -16,31 +16,39 @@ There are two possible kinds of fix to this kind of issue: either spill some reg
 
 ---
 
-> register allocation: variables { b.222 } remain unallocated
+> register allocation: variables `{ ... }` remain unallocated
 
-triggered by a program such as:
+Boolean variables are allocated using constraints imposed by the target architecture. Jasmin does not arbitrarily assign an unconstrained boolean to a machine flag register. If there are not enough constraints to determine an allocation, the variable remains unallocated and compilation fails with this error.
 
-~~~
-export fn constant_bool_eval(reg u64 y) -> reg u64 {
-  reg u64 x = 0;
-  inline int i = 5;
-  reg bool b;
+Two common programming errors can cause this.
 
-  b = i != 0;
-  x = y if b;
-  return x;
-}
-~~~
+1. Uninitialized boolean
 
-`i` is an inline variable, so `i != 0` is a comparison between two compile-time constants. There is no machine instruction that compares an immediate against an immediate and writes the result into a flag register, so the compiler has nothing to allocate `b` to.
+    A boolean that is only used in conditions and is never assigned may be unconstrained:
 
-A possible fix is to use an `if` statement and let the compiler evaluate at compile-time. Since `i` is inline, the condition is resolved during compilation and only the taken branch is emitted.
+    ~~~
+    export fn uninit(reg u32 x) -> reg u32 {
+      reg bool b; // ← Not initialized!
+      if b { x += 1; }
+      return x;
+    }
+    ~~~
 
-Note: if this compile-time-resolved `if` triggers an error on the constant-time checker, mark it explicitly as compile-time with `#[inline]` so the checker doesn't flag it as a secret-dependent branch.
+    Initialize the variable before using it.
 
-~~~
-#[inline] if (i != 0) { x = y; }
-~~~
+2. Constant boolean
+
+    The compiler does not generate code to compute boolean values that are already known at compile time. For example:
+
+    ~~~
+    export fn constant(reg u32 x) -> reg u32 {
+      reg bool b = true; // ← Constant value
+      if b { x += 1; }
+      return x;
+    }
+    ~~~
+
+    Tell the compiler how to calculate it (compare a value to itself, add zero to some value and extract the carry, use the #STC instruction on x86, etc.).
 
 ### Stack allocation
 
