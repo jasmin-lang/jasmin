@@ -189,7 +189,9 @@ castop:
 | c=loc(castop1)? { c }
 
 cast:
-| T_INT        { `ToInt (None) }
+| i=loc(T_INT) {
+    Utils.warning Deprecated (L.of_loc i) "Syntax (int)e is deprecated. Use (uint)e, (sint)e, or just e instead";
+    `ToInt (None) }
 | s=T_INT_CAST { `ToInt (Some s)}
 | s=swsize     { `ToWord s }
 
