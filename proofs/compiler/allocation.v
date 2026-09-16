@@ -573,8 +573,9 @@ Fixpoint check_i (i1 i2:instr_r) r :=
       Let _ := assert (convertible ty1 ty2) (alloc_error "bad type in assignment") in
       check_e e1 e2 r >>= check_lval (Some (ty2,e2)) x1 x2
 
-    | Copn xs1 _ o1 es1, Copn xs2 _ o2 es2 =>
+    | Copn xs1 _ o1 als1 es1, Copn xs2 _ o2 als2 es2 =>
       Let _ := assert (o1 == o2) (alloc_error "operators not equals") in
+      Let _ := assert (als1 == als2) (alloc_error "lengths not equal") in
       check_es es1 es2 r >>= check_lvals xs1 xs2
 
     | Csyscall xs1 o1 es1, Csyscall xs2 o2 es2 =>

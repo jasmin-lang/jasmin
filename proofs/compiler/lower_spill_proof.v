@@ -59,7 +59,7 @@ Lemma update_lvP env S wdb gd senv lv (s1 s1' : estate env) vm2 v :
     valid_env S (update_lv senv lv) (evm s1') vm2'.
 Proof.
   move=> [heqon hspill] hw hsub.
-  case: (write_lval_eq_on (X:=S.(X)) (vm1 := vm2) _ hw _) => //.
+  case: (write_lval_eq_on (X:=S.(X)) (vm1 := vm2) (fun _ => erefl) _ hw _) => //.
   + by move: hsub; rewrite /vars_lval; clear; SvD.fsetdec.
   move=> vm2' hw' heqon'; exists vm2' => //; split.
   + by apply: eq_onI heqon'; clear; SvD.fsetdec.
@@ -150,7 +150,7 @@ Lemma spill_xP env S ii x i senv senv' (s : estate env) vx vt vm :
   exists2 vm' : Vm.t env, esem_i p' ev i (with_vm s vm) = ok (with_vm s vm') & valid_env S senv' (evm s) vm'.
 Proof using spill_prog_ok.
   rewrite /spill_x; t_xrbindP => hx htr hX [heq hval] sx hsx <- <-.
-  assert (h := get_gvar_eq_on true gd hX heq).
+  assert (h := get_gvar_eq_on true gd hX (fun _ => erefl) heq).
   have [heqt hnin] := get_spillP hsx.
   exists vm.[sx <- vt].
   + rewrite /= /sem_assgn -eq_globs /= -h hx /= htr /=.
@@ -246,10 +246,10 @@ Proof.
   by exists vm' => //=; rewrite hs1 /= hs2.
 Qed.
 
-Lemma lower_sopnP env (s1 s2 : estate env) ii tag o xs es S senv senv' c vm:
-  sem_sopn gd o s1 xs es = ok s2 →
-  spill_i (get_spill S) senv (MkI ii (Copn xs tag o es)) = ok (senv', c) →
-  Sv.Subset (vars_I (MkI ii (Copn xs tag o es))) (X S) →
+Lemma lower_sopnP env (s1 s2 : estate env) ii tag o xs als es S senv senv' c vm:
+  sem_sopn gd o s1 xs als es = ok s2 →
+  spill_i (get_spill S) senv (MkI ii (Copn xs tag o als es)) = ok (senv', c) →
+  Sv.Subset (vars_I (MkI ii (Copn xs tag o als es))) (X S) →
   valid_env S senv (evm s1) vm →
   exists2 vm' : Vm.t env, esem p' ev c (with_vm s1 vm) = ok (with_vm s2 vm') & valid_env S senv' (evm s2) vm'.
 Proof using spill_prog_ok.
@@ -263,6 +263,7 @@ Proof using spill_prog_ok.
     move=> vm' hws' hval'; exists vm' => //=.
     by rewrite -eq_globs /sem_sopn hes /= hex /= hws'.
   move/is_spill_opP: hop => ?; subst o.
+  case: als hex => //= hex.
   move: hex; rewrite /exec_sopn /=; t_xrbindP => ? h ?; subst vs.
   have [vs' hvs' {h} ] := app_sopn_truncate_val h.
   have ? : s2 = s1; last subst s2.

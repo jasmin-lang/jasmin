@@ -41,7 +41,7 @@ Fixpoint to_spill_i (s : Sv.t * bool) (i : instr) :=
   let (ii,ir) := i in
   match ir with
   | Cassgn _ _ _ _ => s
-  | Copn _ _ o es =>
+  | Copn _ _ o _ es =>
     match is_spill_op o with
     | Some (Spill, _) => (foldl to_spill_e s.1 es, true)
     | Some (Unspill, _) => (s.1, true)
@@ -51,7 +51,7 @@ Fixpoint to_spill_i (s : Sv.t * bool) (i : instr) :=
   | Cif _ c1 c2 => foldl to_spill_i (foldl to_spill_i s c1) c2
   | Cfor _ _ c => foldl to_spill_i s c
   | Cwhile _ c1 _ _ c2 => foldl to_spill_i (foldl to_spill_i s c1) c2
-  | Ccall _ _ _ => s
+  | Ccall _ _ _ _ => s
   end.
 
 Definition spill_env := Sv.t.
@@ -158,7 +158,7 @@ Fixpoint spill_i (env : spill_env) (i : instr) : cexec (spill_env * cmd) :=
   let (ii, ir) := i in
   match ir with
   | Cassgn lv t ty e => ok (update_lv env lv, [:: i])
-  | Copn lvs t o es =>
+  | Copn lvs t o als es =>
     match is_spill_op o with
     | Some (Spill, tys)   => spill_es ii env tys es
     | Some (Unspill, tys) => Let c := unspill_es ii env tys es in ok (env, c)
@@ -176,7 +176,7 @@ Fixpoint spill_i (env : spill_env) (i : instr) : cexec (spill_env * cmd) :=
   | Cwhile a c1 e info c2 =>
     Let ec := wloop (spill_c spill_i) ii c1 c2 loop_counter env in
     ok (ec.1, [:: MkI ii (Cwhile a ec.2.1 e info ec.2.2)])
-  | Ccall lvs f es => ok (update_lvs env lvs, [::i])
+  | Ccall lvs f als es => ok (update_lvs env lvs, [::i])
   end.
 
 End GET.

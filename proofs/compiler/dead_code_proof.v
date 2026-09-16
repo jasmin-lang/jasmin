@@ -18,9 +18,9 @@ Context
   {LC : LoopCounter}
   (is_move_op : asm_op_t -> bool)
   (is_move_opP :
-    forall env op vx v,
+    forall op vals vx v,
       is_move_op op
-      -> exec_sopn env (Oasm op) [:: vx ] = ok v
+      -> exec_sopn (Oasm op) vals [:: vx ] = ok v
       -> values_uincl v [:: vx ]).
 
 Section Section.
@@ -140,13 +140,13 @@ Section PROOF.
     by apply: uincl_onT=> //; apply: uincl_onT Hs hu.
   Qed.
 
-  Local Lemma Hopn_esem_aux env O ii xs t o es v vs (s1 s2 : estate env) (vm1 : Vm.t env) :
+  Local Lemma Hopn_esem_aux env O ii xs t o als es v vs (s1 s2 : estate env) (vm1 : Vm.t env) :
     sem_pexprs true gd s1 es = ok vs ->
-    exec_sopn env o vs = ok v ->
+    exec_sopn o [seq eval env i | i <- als] vs = ok v ->
     write_lvals true gd s1 xs v = ok s2 ->
     evm s1 <=[read_es_rec (read_rvs_rec (Sv.diff O (vrvs xs)) xs) es]  vm1 →
     exists2 vm2, evm s2 <=[O]  vm2 &
-       esem p' ev [:: MkI ii (Copn xs t o es)] (with_vm s1 vm1) = ok (with_vm s2 vm2).
+       esem p' ev [:: MkI ii (Copn xs t o als es)] (with_vm s1 vm1) = ok (with_vm s2 vm2).
   Proof using dead_code_ok.
     case: s1 => scs1 m1 vm1_ /= Hexpr Hopn Hw Hvm.
     have [ vs' Hexpr' vs_vs' ] := sem_pexprs_uincl_on' Hvm Hexpr.
@@ -159,9 +159,9 @@ Section PROOF.
     by rewrite /sem_sopn /with_vm /= -eq_globs Hexpr' /= Hopn' /= Hw'.
   Qed.
 
-  Local Lemma Hopn_esem env ii xs t o es I c O (s1 s2 : estate env) (vm1 : Vm.t env) :
-    dead_code_i is_move_op do_nop onfun (MkI ii (Copn xs t o es)) O = ok (I, c) →
-    sem_sopn gd o s1 xs es = ok s2 →
+  Local Lemma Hopn_esem env ii xs t o als es I c O (s1 s2 : estate env) (vm1 : Vm.t env) :
+    dead_code_i is_move_op do_nop onfun (MkI ii (Copn xs t o als es)) O = ok (I, c) →
+    sem_sopn gd o s1 xs als es = ok s2 →
     (evm s1) <=[I] vm1 →
     exists2 vm2, evm s2 <=[O] vm2 &
       esem p' ev c (with_vm s1 vm1) = ok (with_vm s2 vm2).
@@ -294,7 +294,7 @@ Section PROOF.
     + move=> x tg ty e ii I c' O h.
       apply wequiv_assgn_esem => s t s' /st_relP [-> /= ] heq hu hs.
       by have [vm2 ??]:= Hassgn_esem h hs hu; exists (with_vm s' vm2).
-    + move=> x tg o es ii I c' O h.
+    + move=> x tg o als es ii I c' O h.
       apply wequiv_opn_esem => s t s' /st_relP [-> /= ] heq hu hs.
       by have [vm2 ??]:= Hopn_esem h hs hu; exists (with_vm s' vm2).
     + move=> /= xs o es ii I c' O [hI <-].

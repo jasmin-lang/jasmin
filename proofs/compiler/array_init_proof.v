@@ -63,7 +63,7 @@ Proof.
    case: ifP => // hx.
    apply wequiv_assign_left => s1 s1' s2 hu.
    rewrite /sem_assgn /=; t_xrbindP => v /truncate_valE [_ ?]; subst v => {h hx}.
-   case: hu => hscs hmem hsub.
+   case: hu => hscs hmem _ hsub.
    case: x => [vi t | [x xi] | al ws x e | al aa ws x e | aa ws len' [x xi] e] /=.
     + by move=> /write_noneP [->].
     + move=> /write_varP_arr [/=hty _ _ ->]; split => //.
@@ -81,7 +81,7 @@ Proof.
     move=> k w; rewrite (WArray.set_sub_get8 ht1) /=; case: ifP => ?.
     + by rewrite WArray.get_empty; case: ifP.
     by apply hu.
-  + by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with checker_st_uincl tt.
+  + by move=> xs tg o als es ii; apply wequiv_opn_rel_uincl with checker_st_uincl tt.
   + by move=> xs sc es ii; apply wequiv_syscall_rel_uincl with checker_st_uincl tt.
   + by move=> a ii; apply wequiv_noassert.
   + by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with checker_st_uincl tt tt tt.
@@ -153,8 +153,8 @@ Definition cmpl_inv env (I : Sv.t) := st_rel undef_vm_eq (env1:=env) (env2:=env)
 
 Lemma cmpl_inv_incl I1 I2 (s1 s2 : estate env) : Sv.Subset I1 I2 -> cmpl_inv I1 s1 s2 → cmpl_inv I2 s1 s2.
 Proof.
-  move=> hincl [h1 h2 [h3 h4]]; split => //; split => //.
-  move=> z hz; apply h3; clear -hincl hz; SvD.fsetdec.
+  move=> hincl [h1 h2 h3 [h4 h5]]; split => //; split => //.
+  move=> z hz; apply h4; clear -hincl hz; SvD.fsetdec.
 Qed.
 
 Let Pi i :=
@@ -188,9 +188,9 @@ Proof.
   rewrite /sem_assgn /=  /truncate_val /= WArray.castK /=.
   eexists.
   + by apply write_varP; split => //; rewrite heq /= eqxx.
-  case h => h1 h2 [h3 h4]; split => //; split => //.
-  move: h4; rewrite !vm_eq_vm_rel => hu1; apply vm_rel_set_r.
-  + move=> _ /=; rewrite h3.
+  case h => h1 h2 h3 [h4 h5]; split => //; split => //.
+  move: h5; rewrite !vm_eq_vm_rel => hu1; apply vm_rel_set_r.
+  + move=> _ /=; rewrite h4.
     + by rewrite heq /= eqxx.
     by apply/hdisj/mem_head.
   by apply: vm_relI hu1.
@@ -206,8 +206,8 @@ Proof.
   have h := [elaborate wequiv_rec_st_eq (env:=env) (p:=p) (p':=p') ev ev erefl [:: MkI ii i]].
   have /(_ s) {h} := wequiv_write1 h.
   apply wkequiv_weaken => //.
-  + by move=> s1 s2 [ [-> ->] [?? []]].
-  move=> ???? [[-> ->] [_ _ [hundef _]]] [h1] [?? heq2]; split => //; split => //.
+  + by move=> s1 s2 [ [-> ->] [??? []]].
+  move=> ???? [[-> ->] [_ _ _ [hundef _]]] [h1] [??? heq2]; split => //; split => //.
   move=> z hz; rewrite -h1.
   + by apply hundef; SvD.fsetdec.
   rewrite write_c_cons write_c_nil write_Ii; SvD.fsetdec.
@@ -232,7 +232,7 @@ Proof.
   + by apply/Sv.is_empty_spec; SvD.fsetdec.
   apply wequiv_if_eq.
   + apply wrequiv_weaken with (st_eq tt) eq => //.
-    + by move=> ?? [?? []].
+    + by move=> ?? [??? []].
     by apply st_eq_sem_pexpr.
   move=> [].
   + have := hc1 I; rewrite heq1; apply: wequiv_weaken => //=.
@@ -267,7 +267,7 @@ Proof.
    move=> s2 t2 fs2 h.
    rewrite /finalize_funcall; t_xrbindP => vs hget vs' hmap <-.
    eexists; last by eauto.
-   case: h => [<- <- [_ h]].
+   case: h => [<- <- _ [_ h]].
    have -> /= : get_var_is (~~ direct_call) (evm t2) (f_res fd') = ok vs.
    + by rewrite -hget; apply mapM_ext => // y; rewrite /get_var -h.
    by rewrite hmap.

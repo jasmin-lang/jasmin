@@ -885,7 +885,7 @@ Section PROPER.
     by split => //=; rewrite /RelationPairs.RelCompFun /= Heq.
   Qed.
 
-  Local Lemma Wopn xs t o es: Pr (Copn xs t o es).
+  Local Lemma Wopn xs t o als es: Pr (Copn xs t o als es).
   Proof.
     move=> ii m1 m2 Heq /=;have := const_prop_rvs_m (erefl None) Heq (refl_equal xs).
     rewrite /const_prop_ir.
@@ -998,31 +998,31 @@ Lemma const_prop_ePe env m wdb e :
   wrequiv (cmpl_inv (env1:=env) (env2:=env) m) ((sem_pexpr wdb gd)^~ e)
     ((sem_pexpr wdb (p_globs p'))^~ (const_prop_e None m e)) value_uincl.
 Proof.
-  move=> s t v /st_relP [-> /=] [hval hvm].
+  move=> s t v /st_relP [-> _ /=] [hval hvm].
   move=> /(const_prop_eP hval (valid_without_globals env)) [v' [he' u1]].
   have [vs2 -> u2]:= sem_pexpr_uincl hvm he'.
   exists vs2 => //; apply: value_uincl_trans u1 u2.
 Qed.
 
-Lemma const_prop_esPe env m wdb es :
-  wrequiv (cmpl_inv (env1:=env) (env2:=env) m) ((sem_pexprs wdb gd)^~ es)
+Lemma const_prop_esPe env1 env2 m wdb es :
+  wrequiv (cmpl_inv (env1:=env1) (env2:=env2) m) ((sem_pexprs wdb gd)^~ es)
     ((sem_pexprs wdb (p_globs p'))^~ [seq const_prop_e None m i | i <- es]) values_uincl.
 Proof.
-  move=> s t vs /st_relP [-> /=] [hval hvm].
-  move=> /(const_prop_esP hval (valid_without_globals env)) [vs' hes' u1].
-  have [vs2 -> u2]:= sem_pexprs_uincl hvm hes'.
+  move=> s t vs /st_relP [-> heq /=] [hval hvm].
+  move=> /(const_prop_esP hval (valid_without_globals env1)) [vs' hes' u1].
+  have [vs2 -> u2]:= sem_pexprs_uincl heq hvm hes'.
   exists vs2 => //; apply: values_uincl_trans u1 u2.
 Qed.
 
-Lemma const_prop_rvsPe env m wdb xs vs1 vs2 :
+Lemma const_prop_rvsPe env1 env2 m wdb xs vs1 vs2 :
   values_uincl vs1 vs2 ->
-  wrequiv (cmpl_inv (env1:=env) (env2:=env) m) (fun s => write_lvals wdb (p_globs p) s xs vs1)
+  wrequiv (cmpl_inv (env1:=env1) (env2:=env2) m) (fun s => write_lvals wdb (p_globs p) s xs vs1)
                                   (fun s => write_lvals wdb (p_globs p') s (const_prop_rvs None m xs).2 vs2)
           (cmpl_inv (const_prop_rvs None m xs).1).
 Proof.
-  move=> hu s t s' /st_relP [-> /=] [hval hvm] hw.
-  have [hval' hw'] := const_prop_rvsP hval (valid_without_globals env) hw.
-  have [vm2 -> hvm2] := writes_uincl hvm hu hw'.
+  move=> hu s t s' /st_relP [-> heq /=] [hval hvm] hw.
+  have [hval' hw'] := const_prop_rvsP hval (valid_without_globals env1) hw.
+  have [vm2 -> hvm2] := writes_uincl heq hvm hu hw'.
   eexists => //.
 Qed.
 
@@ -1030,7 +1030,7 @@ Lemma const_prop_sem_cond env m e b :
   is_bool (const_prop_e None m e) = Some b ->
   ∀ (s1 s2 : estate env) (v : bool), cmpl_inv m s1 s2 → sem_cond gd e s1 = ok v → v = b.
 Proof.
-  move=> heq s1 s2 b' /st_relP [-> /=] [hval hvm].
+  move=> heq s1 s2 b' /st_relP [-> _ /=] [hval hvm].
   rewrite /sem_cond; t_xrbindP => v he /to_boolI ?; subst v.
   have := const_prop_eP hval (valid_without_globals env) he.
   by move: heq; case: is_boolP => // _ [->] /= [_ [[<-]]].
@@ -1055,7 +1055,7 @@ Proof.
   apply wkequivP' => s1_ s2_.
   move: (hc s1_); apply wkequiv_weaken => //.
   + by move=> _ _ [[-> ->] /hPP' []].
-  move=> _ _ s1 s2 [[-> ->] /hPP'] [] [_ _ [h1 ?]] _ [heq [?? [h2 ?]]]; do 3! split => //.
+  move=> _ _ s1 s2 [[-> ->] /hPP'] [] [_ _ _ [h1 ?]] _ [heq [??? [h2 ?]]]; do 3! split => //.
   move=> x v h.
   have [_ hnin] := get_remove_cpm h.
   rewrite -heq; auto.
@@ -1131,7 +1131,7 @@ Proof.
     + subst globs; case tag => //.
       clear => x gv v; rewrite /get_global /get_global_value => ->.
       by case: ifP => // _ /ok_inj <-.
-    move/st_relP: hm => -[-> /= [Hm hvm1]].
+    move/st_relP: hm => -[-> /= _ [Hm hvm1]].
     have [v1 [H U]] := const_prop_eP Hm Gv he.
     have [] := const_prop_rvP Hm Gv hwr.
     rewrite hrv /= => Hm' Hw'.
@@ -1142,7 +1142,7 @@ Proof.
     eexists; first reflexivity.
     split => //; split => //.
     by apply: add_cpmP H U htr Hw' Hm'.
-  + move=> xs tag o es ii m /=.
+  + move=> xs tag o als es ii m /=.
     rewrite (surjective_pairing (const_prop_rvs _ _ _)) /=.
     case heq : is_update_imm => [[[x b] e] | ].
     + have [{heq}hxs ho hes]:= is_update_immP heq.
@@ -1150,15 +1150,16 @@ Proof.
       case: b hes => hes;
       rewrite /wequiv_rec /wequiv /=;
       (apply wkequiv_bind with Q; last by apply wkequiv_ret);
-      apply wkequiv_iresult => s1 t1 s2 /st_relP [-> /= [hval hu]];
+      apply wkequiv_iresult => s1 t1 s2 /st_relP [-> /= _ [hval hu]];
       rewrite /sem_sopn /sem_assgn; t_xrbindP => vs2_ vs1;
       move=> /(const_prop_esP hval (valid_without_globals env));
       rewrite hes ho ?hxs=> -[vs' Hes' Us] Ho;
       move=> /(const_prop_rvsP hval (valid_without_globals env)) [] hval' hw;
-      have [vs2 hs u2]:= sem_pexprs_uincl hu Hes';
+      have [vs2 hs u2]:= sem_pexprs_uincl (fun _ => erefl) hu Hes';
       have [ vs3 ho' vs_vs3 ] := vuincl_exec_opn (values_uincl_trans Us u2) Ho;
-      have [vm2 {}hw U]:= writes_uincl hu vs_vs3 hw;
+      have [vm2 {}hw U]:= writes_uincl (fun _ => erefl) hu vs_vs3 hw;
       move: hs => /=; t_xrbindP => _ ze he <- ?; subst vs2 => /=;
+      case: als Ho ho' => //= Ho ho';
       move: ho'; rewrite ?he /exec_sopn /= /sopn_sem_ /= /se_move_sem; t_xrbindP;
       move=> z z0 h ? /= ?; subst vs3 z;
       move: hw; rewrite ?h /truncate_val /= ?truncate_word_u ?wrepr_unsigned hxs /=;
@@ -1191,7 +1192,7 @@ Proof.
     apply wequiv_for_uincl with (cmpl_inv m').
     + by apply cmpl_inv_remove.
     + by apply const_prop_esPe.
-    + move => j s1 s2 s1' /st_relP [-> /= [hval hvm1]] Hw.
+    + move => j s1 s2 s1' /st_relP [-> /= _ [hval hvm1]] Hw.
       have Hm' : valid_cpm (evm s1') m'.
       + have Hmi : Mvar_eq m' (Mvar.remove m' i).
         + move=> z;rewrite Mvar.removeP;case:ifPn => [/eqP <- | Hneq //].
@@ -1261,7 +1262,7 @@ Proof.
   exists (cmpl_inv empty_cpm),
          (cmpl_inv (const_prop (const_prop_i gd) empty_cpm (f_body fd)).1); split => //; last first.
   + apply wrequiv_weaken with (st_uincl tt) fs_uincl => //.
-    + by move=> > [] ?? [??].
+    + by move=> > [] ??? [??].
     by apply fs_uincl_finalize.
   have -> : f_body (const_prop_fun gd fd) = (const_prop (const_prop_i gd) empty_cpm (f_body fd)).2 by done.
   exact: it_const_prop_callP_rec.

@@ -27,7 +27,7 @@ with i_Calls_r (i : instr_r) {struct i} : Sf.t :=
 
   match i with
   | Cassgn _ _ _ _
-  | Copn   _ _ _ _
+  | Copn   _ _ _ _ _
   | Csyscall _ _ _
   | Cassert _
     => Sf.empty
@@ -49,8 +49,8 @@ Lemma i_Calls_asgn lv tg ty e :
   i_Calls_r (Cassgn lv tg ty e) = Sf.empty.
 Proof. by []. Qed.
 
-Lemma i_Calls_opn lv t op es :
-  i_Calls_r (Copn lv t op es) = Sf.empty.
+Lemma i_Calls_opn lv t op als es :
+  i_Calls_r (Copn lv t op als es) = Sf.empty.
 Proof. by []. Qed.
 
 Lemma i_Calls_syscall lv op es :
@@ -98,7 +98,7 @@ Lemma c_callsE c i : Sf.Equal (c_calls c i) (Sf.union c (c_Calls i)).
 Proof.
 move: c.
 apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /=
-  [ i0 ii Hi | | i0 c0 Hi Hc | x t ty e | xs t o es | xs o es | a | e c1 c2 Hc1 Hc2
+  [ i0 ii Hi | | i0 c0 Hi Hc | x t ty e | xs t o als es | xs o es | a | e c1 c2 Hc1 Hc2
     | v dir lo hi c0 Hc | a c0 e ei c' Hc Hc' | ii xs f als es ] c /=.
 + by apply Hi.
 + rewrite CallsE; clear; SfD.fsetdec.

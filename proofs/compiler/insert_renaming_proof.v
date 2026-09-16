@@ -116,7 +116,6 @@ Section WITH_PARAMS.
       {E E0: Type → Type}
         {wE: with_Error E E0}
         {rE: EventRels E0}.
-    Context (env : env_t).
 
     Context (insert_renaming_p: fun_info → bool).
     Context (p: prog) (ev: extra_val_t).
@@ -124,54 +123,62 @@ Section WITH_PARAMS.
     #[local]
     Notation p' := (insert_renaming_prog insert_renaming_p p).
 
-    Let Pi (i: instr) := wequiv_rec (env:=env) p p' ev ev uincl_spec (st_uincl tt) [:: i ] [:: i ] (st_uincl tt).
+    #[local] Lemma checker_st_uinclP : Checker_uincl p p' checker_st_uincl.
+    Proof. by apply checker_st_uinclP. Qed.
+    #[local] Hint Resolve checker_st_uinclP : core.
+
+    Section REC.
+
+    Context (env : env_t).
+
+    Let Pi (i: instr) := wequiv_rec (env1:=env) (env2:=env) p p' ev ev uincl_spec (st_uincl tt) [:: i ] [:: i ] (st_uincl tt).
 
     Let Pi_r (i: instr_r) := ∀ ii, Pi (MkI ii i).
 
-    Let Pc (c: cmd) := wequiv_rec (env:=env) p p' ev ev uincl_spec (st_uincl tt) c c (st_uincl tt).
-
-    #[local] Lemma checker_st_uinclP : Checker_uincl p p' (checker_st_uincl env).
-    Proof. by apply checker_st_uinclP. Qed.
-
-    #[local] Hint Resolve checker_st_uinclP : core.
+    Let Pc (c: cmd) := wequiv_rec (env1:=env) (env2:=env) p p' ev ev uincl_spec (st_uincl tt) c c (st_uincl tt).
 
     Lemma it_insert_renaming_rec (fd: fundef) :
-      (∀ ii1 ii2 fn1 fn2, wequiv_f_rec env p p' ev ev uincl_spec pre_incl ii1 ii2 fn1 fn2 post_incl) →
-      wequiv (env:=env) (rE0 := relEvent_recCall uincl_spec) p p' ev ev (st_uincl tt) (f_body fd) (f_body fd) (st_uincl tt).
+      (∀ ii1 ii2 fn1 fn2, wequiv_f_rec p p' ev ev uincl_spec pre_incl ii1 ii2 fn1 fn2 post_incl) →
+      wequiv (env1:=env) (env2:=env) (rE0 := relEvent_recCall uincl_spec) p p' ev ev (st_uincl tt) (f_body fd) (f_body fd) (st_uincl tt).
     Proof.
       move => hrec.
       apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)).
       - done.
       - by apply wequiv_nil.
       - by move => i c; apply (wequiv_cons (R := st_uincl tt)).
-      - by move => x tg ty e ii; apply wequiv_assgn_rel_uincl with (checker_st_uincl env) tt.
-      - by move=> xs tg o es ii; apply wequiv_opn_rel_uincl with (checker_st_uincl env) tt.
-      - by move=> xs sc es ii; apply wequiv_syscall_rel_uincl with (checker_st_uincl env) tt.
+      - by move => x tg ty e ii; apply wequiv_assgn_rel_uincl with checker_st_uincl tt.
+      - by move=> xs tg o als es ii; apply wequiv_opn_rel_uincl with checker_st_uincl tt.
+      - by move=> xs sc es ii; apply wequiv_syscall_rel_uincl with checker_st_uincl tt.
       - by move=> a ii; apply wequiv_noassert.
-      - by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with (checker_st_uincl env) tt tt tt.
-      - by move=> > hc ii; apply wequiv_for_rel_uincl with (checker_st_uincl env) tt tt.
-      - by move=> > ?? ii; apply wequiv_while_rel_uincl with (checker_st_uincl env) tt.
-      move=> xs fn es ii; apply wequiv_call_rel_uincl with (checker_st_uincl env) tt => //.
-      by move=> ???; apply hrec.
+      - by move=> e c1 c2 hc1 hc2 ii; apply wequiv_if_rel_uincl with checker_st_uincl tt tt tt.
+      - by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
+      - by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.
+      move=> xs fn als es ii; apply wequiv_call_rel_uincl with checker_st_uincl tt => //.
+      by move=> ?????; apply hrec. (* FIXME: why not wequiv_fun_rec? *)
     Qed.
 
-    Definition st_uincl_at_init fd (s : estate env) t :=
-      st_uincl tt s t ∧ ∃ fs, initialize_funcall env p ev fd fs = ok s.
+    End REC.
+
+    Definition st_uincl_at_init fd vals (s t : estate (it_sems_core.create_env (f_al fd) vals)) :=
+      st_uincl tt s t ∧ ∃ fs, initialize_funcall p ev fd (it_sems_core.create_env (f_al fd) vals) fs = ok s.
 
     Theorem it_insert_renaming_callP fn :
-      wiequiv_f env p p' ev ev pre_incl fn fn post_incl.
+      wiequiv_f p p' ev ev pre_incl fn fn post_incl.
     Proof.
-      apply wequiv_fun_ind' => {} fn _ fs ft [] <- hfsu fd hget.
+      rewrite /wiequiv_f => vals1 vals2.
+      apply wequiv_fun_ind' => {} fn ? vals _ fs ft [] <- [] <- hfsu fd hget.
+      move=> {vals1 vals2}.
       exists (insert_renaming_fd insert_renaming_p fd).
       - by rewrite get_map_prog hget.
-      move => _; split => // s hinit.
+      move => _; split => //= s hinit.
       have htyin := insert_renaming_fd_tyin insert_renaming_p fd.
       have hextra := insert_renaming_fd_extra insert_renaming_p fd.
       have hparams := insert_renaming_fd_params insert_renaming_p fd.
       have := [elaborate fs_uincl_initialize (p' := p') (sym_eq htyin) (sym_eq hextra) (sym_eq hparams) erefl hfsu hinit].
+      rewrite {6}/insert_renaming_fd fun_if /= if_same.
       case => t -> hu.
       eexists; first reflexivity.
-      exists (st_uincl_at_init fd), (st_uincl tt).
+      exists (@st_uincl_at_init fd vals), (st_uincl tt).
       rewrite /insert_renaming_fd.
       set do_insert := should_insert_renaming _ fd.
       exists
@@ -188,7 +195,7 @@ Section WITH_PARAMS.
         + apply: (wequiv_weaken _ _ (it_insert_renaming_rec fd _)); [ by move => ?? [] | by [] | ].
           by move => ii1 ii2 fn1 fn2; apply @wequiv_fun_rec.
         rewrite -{1}(cat0s (f_body fd)).
-        apply (wequiv_cat (R := st_uincl_at_init fd)); last first.
+        apply (wequiv_cat (R := @st_uincl_at_init fd vals)); last first.
         + apply: (wequiv_weaken _ _ (it_insert_renaming_rec fd _)); [ by move => ?? [] | by [] | ].
           by move => ii1 ii2 fn1 fn2; apply @wequiv_fun_rec.
         move: (entry_info_of_fun_info _) => ii.
@@ -209,7 +216,7 @@ Section WITH_PARAMS.
         rewrite -hparams all_cat /= eqxx andbF => /(_ erefl).
         case => v [] v' [] ok_v get_x.
         have /(_ (evm t)) := get_var_uincl _ get_x.
-        case: (hu) => _ _ vms_vmt /(_ vms_vmt).
+        case: (hu) => _ _ _ vms_vmt /(_ vms_vmt).
         case => vt {} get_x v_vt.
         have := value_uincl_truncate_r v_vt ok_v.
         case => vt' ok_vt'.
@@ -239,7 +246,7 @@ Section WITH_PARAMS.
       rewrite -catA => /(_ hres).
       rewrite -{2}(cat0s [::]) -cat1s; apply wequiv_cat.
       apply wequiv_assign_right.
-      move => s t [] ? [] [] ?? hst [] fs.
+      move => s t [] ? [] [] ?? _ hst [] fs.
       case/and3P: (do_insert) => _  _ /eqP wt_res.
       rewrite /finalize_funcall; t_xrbindP => vr ok_vr vr'.
       rewrite wt_res => ok_vr' ?.

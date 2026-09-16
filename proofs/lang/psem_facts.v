@@ -199,7 +199,7 @@ Proof.
  by t_xrbindP => ???? /[dup] /write_lval_validw ? /write_lval_stack_stable.
 Qed.
 
-Lemma mem_equiv_opn xs t o es : Pr (Copn xs t o es).
+Lemma mem_equiv_opn xs t o als es : Pr (Copn xs t o als es).
 Proof.
   move => ii env s1 s2 /=; rewrite /sem_sopn.
   by t_xrbindP => ???? /[dup] /write_lvals_validw ? /write_lvals_stack_stable.
@@ -342,7 +342,7 @@ Lemma write_var_eq_ex env wdb X (x:var_i) v (s1 s2 : estate env) (vm1 : Vm.t env
     evm s2 =[\X] vm2.
 Proof.
   move=> hw eq_vm1.
-  have [vm2 hw2 eq_vm2] := write_var_eq_on1 vm1 hw.
+  have [vm2 hw2 eq_vm2] := write_var_eq_on1 vm1 (fun _ => erefl) hw.
   exists vm2 => //.
   move=> y y_in.
   case: (Sv_memP y (Sv.singleton x)) => y_in'.
@@ -362,7 +362,7 @@ Lemma write_lval_eq_ex env wdb gd X x v (s1 s2 : estate env) vm1 :
 Proof.
   move=> hdisj hw eq_vm1.
   have eq_vm1' := eq_ex_disjoint_eq_on eq_vm1 hdisj.
-  have [vm2 hw2 eq_vm2] := write_lval_eq_on1 eq_vm1' hw.
+  have [vm2 hw2 eq_vm2] := write_lval_eq_on1 (fun _ => erefl) eq_vm1' hw.
   exists vm2 => //.
   move=> y y_in.
   case: (Sv_memP y (vrv x)) => y_in'.
@@ -382,7 +382,7 @@ Lemma write_lvals_eq_ex env wdb gd X xs vs (s1 s2 : estate env) vm1 :
 Proof.
   move=> hdisj hw eq_vm1.
   have eq_vm1' := eq_ex_disjoint_eq_on eq_vm1 hdisj.
-  have [vm2 hw2 eq_vm2] := write_lvals_eq_on (@SvD.F.Subset_refl _) hw eq_vm1'.
+  have [vm2 hw2 eq_vm2] := write_lvals_eq_on (fun _ => erefl) (@SvD.F.Subset_refl _) hw eq_vm1'.
   exists vm2 => //.
   move=> y y_in.
   case: (Sv_memP y (Sv.union (vrvs xs) (read_rvs xs))) => y_in'.
@@ -392,12 +392,12 @@ Proof.
   by apply eq_vm1.
 Qed.
 
-Lemma sem_sopn_eq_ex env X gd o xs es (s1 s2 : estate env) (vm1 : Vm.t env) :
+Lemma sem_sopn_eq_ex env X gd o xs als es (s1 s2 : estate env) (vm1 : Vm.t env) :
   disjoint X (Sv.union (read_rvs xs) (read_es es)) ->
-  sem_sopn gd o s1 xs es = ok s2 ->
+  sem_sopn gd o s1 xs als es = ok s2 ->
   evm s1 =[\X] vm1 ->
   exists2 vm2,
-    sem_sopn gd o (with_vm s1 vm1) xs es = ok (with_vm s2 vm2) &
+    sem_sopn gd o (with_vm s1 vm1) xs als es = ok (with_vm s2 vm2) &
     evm s2 =[\X] vm2.
 Proof.
   move=> hdisj hsem eq_vm1.

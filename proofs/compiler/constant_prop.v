@@ -481,15 +481,15 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     let m := add_cpm m x tag ty e in
     (m, [:: MkI ii (Cassgn x tag ty e)])
 
-  | Copn xs t o es =>
+  | Copn xs t o als es =>
     (* TODO: Improve this *)
     let es := map (const_prop_e without_globals m) es in
     let (m,xs) := const_prop_rvs without_globals m xs in
     let ir :=
       if is_update_imm xs o es is Some (x, b, e) then
-        if b then Copn [:: x ] AT_none (Oslh SLHmove) [:: e ]
+        if b then Copn [:: x ] AT_none (Oslh SLHmove) [::] [:: e ]
         else Cassgn x AT_none ty_msf (wconst (sz := msf_size) (-1%w)%w)
-      else (Copn xs t o es)
+      else (Copn xs t o als es)
     in
     (m, [:: MkI ii ir ])
 

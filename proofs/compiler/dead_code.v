@@ -122,7 +122,7 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : cexec (Sv.t * cmd) :=
       else ok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i])
     else   ok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [::i])
 
-  | Copn xs tag o es =>
+  | Copn xs tag o als es =>
     let w := vrvs xs in
     if tag != AT_keep then
       if disjoint s w && negb (has lv_write_mem xs) then ok (s, [::])

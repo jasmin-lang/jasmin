@@ -819,12 +819,12 @@ Section REL_EQUIV.
   Lemma eq_on_refl s (vm : Vm.t env) : vm =[s] vm.
   Proof. by apply vm_rel_refl. Qed.
 
-  Lemma eq_onT (vm2 vm1 vm3 : Vm.t env) s:
+  Lemma eq_onT env2 env1 env3 (vm2 : Vm.t env2) (vm1 : Vm.t env1) (vm3 : Vm.t env3) s:
     vm1 =[s] vm2 -> vm2 =[s] vm3 -> vm1 =[s] vm3.
-  Proof. by apply vm_rel_trans => > -> ->. Qed.
+  Proof. by move=> heq12 heq23 x hin; rewrite heq12 // heq23 //. Qed.
 
-  Lemma eq_onS s (vm1 vm2 : Vm.t env) : vm1 =[s] vm2 -> vm2 =[s] vm1.
-  Proof. by apply vm_rel_sym. Qed.
+  Lemma eq_onS env1 env2 s (vm1 : Vm.t env1) (vm2 : Vm.t env2) : vm1 =[s] vm2 -> vm2 =[s] vm1.
+  Proof. by move=> heq12 x hin; rewrite heq12. Qed.
 
   Lemma eq_onI env1 env2 s1 s2 (vm1 : Vm.t env1) (vm2 : Vm.t env2) : Sv.Subset s1 s2 -> vm1 =[s2] vm2 -> vm1 =[s1] vm2.
   Proof. move=> h1; apply vm_relI; SvD.fsetdec. Qed.

@@ -129,7 +129,7 @@ Context
       t_xrbindP => vt ht vst hts <- {vst'}.
       rewrite read_rvs_cons vrvs_cons => leX /=.
       t_xrbindP => s1' hw hws eqvm.
-      have [|vm1' hw' eqvm']:= write_lval_eq_on _ hw eqvm; first by clear -leX; SvD.fsetdec.
+      have [|vm1' hw' eqvm']:= write_lval_eq_on (fun _ => erefl) _ hw eqvm; first by clear -leX; SvD.fsetdec.
       case: (ih _ vm1' _ _ hts _ hws _).
       - by clear -leX; SvD.fsetdec.
       - by apply: eq_onI eqvm'; clear; SvD.fsetdec.
@@ -156,7 +156,7 @@ Context
     set I := mk_ep_i ii lv (vtype y) y.
     have [vm1' semI eqvm1']:
      exists2 vm1', esem_i p' ev I (with_vm s1 vmy) = ok (with_vm s1' vm1') & evm s1' =[X]  vm1'.
-    + have [ | vm1' hwvm1 eqvm1' ]:= write_lval_eq_on (X:=X) _ hw eqvmy; first by clear -leX; SvD.fsetdec.
+    + have [ | vm1' hwvm1 eqvm1' ]:= write_lval_eq_on (X:=X) (fun _ => erefl) _ hw eqvmy; first by clear -leX; SvD.fsetdec.
       exists vm1'; last by apply: eq_onI eqvm1'; clear; SvD.fsetdec.
       rewrite /= /sem_assgn semy /= (truncate_val_idem ht) /=.
       by rewrite -eq_globs.
@@ -191,9 +191,9 @@ Context
     have nwm_pi : ~~ lv_write_mem lv by case: (lv) wflv.
     have heqm  := lv_write_memP nwm_pi H3.
     have heqs  := lv_write_scsP H3.
-    have [{nwm_pi} vm3 hw3 hvm3] := write_lvals_eq_on (@SvP.MP.subset_refl _) hws heqr.
+    have [{nwm_pi} vm3 hw3 hvm3] := write_lvals_eq_on (fun _ => erefl) (@SvP.MP.subset_refl _) hws heqr.
     have hy : sem_pexpr true (p_globs p') (with_vm s1' vm3) (Plvar y) = ok v.
-    + rewrite -H; rewrite /=; apply: (get_gvar_eq_on _ _ (@SvP.MP.subset_refl _)).
+    + rewrite -H; rewrite /=; apply: (get_gvar_eq_on _ _ (@SvP.MP.subset_refl _)) => //.
       rewrite /read_gvar /= => y' /SvD.F.singleton_iff ?; subst y'.
       have := (disjoint_eq_ons (s:= Sv.singleton y) _ hw3).
       rewrite !evm_with_vm => <- //; last by clear; SvD.fsetdec.
@@ -220,7 +220,7 @@ Context
       apply: on_arr_varP => sz t htyx hget.
       rewrite /write_var.
       t_xrbindP=>  zi vi he hvi t1 -> t1' hsub vms3 hset ?; subst s3; rewrite /on_arr_var.
-      rewrite (@get_var_eq_on _ _ _ (Sv.singleton x) (evm s1)); first last.
+      rewrite (@get_var_eq_on _ _ _ _ (Sv.singleton x) (evm s1)) => //; first last.
       + by move=> z hz; have := vrvsP hw3; rewrite !evm_with_vm => -> //; clear -hwr hz; SvD.fsetdec.
       + by clear; SvD.fsetdec.
       rewrite hget /=.
@@ -330,10 +330,10 @@ Context
     by rewrite /truncate_val /= WArray.castK.
   Qed.
 
-  Lemma sem_sopn_update_i env (s1 s2 : estate env) t o xs es ii X c' vm1 :
-    sem_sopn (p_globs p) o s1 xs es = ok s2 →
-    update_i fresh_reg_ptr p X (MkI ii (Copn xs t o es)) = ok c' →
-    Sv.Subset (Sv.union (read_I (MkI ii (Copn xs t o es))) (write_I (MkI ii (Copn xs t o es)))) X →
+  Lemma sem_sopn_update_i env (s1 s2 : estate env) t o xs als es ii X c' vm1 :
+    sem_sopn (p_globs p) o s1 xs als es = ok s2 →
+    update_i fresh_reg_ptr p X (MkI ii (Copn xs t o als es)) = ok c' →
+    Sv.Subset (Sv.union (read_I (MkI ii (Copn xs t o als es))) (write_I (MkI ii (Copn xs t o als es)))) X →
     evm s1 =[X] vm1 →
     exists2 vm2 : Vm.t env, evm s2 =[X] vm2 & esem p' ev c' (with_vm s1 vm1) = ok (with_vm s2 vm2).
   Proof using Hp.
@@ -348,6 +348,7 @@ Context
       move: He; rewrite /sem_sopn /=; t_xrbindP => rs vs ok_vs ok_rs ok_xs.
 
       have X_es : Sv.Subset (read_es es) X by clear - hsub; SvD.fsetdec.
+      case: als ok_rs => //= ok_rs.
       case: vs ok_rs ok_vs => // a'' vs.
       rewrite /exec_sopn /=; t_xrbindP => - [] /= a b a' /to_arrI -> {a''}.
       case: vs => //; t_xrbindP => _ [] // b' /to_arrI -> [] ???; subst a' b' rs => ok_vs.
@@ -356,7 +357,10 @@ Context
       move => vm' [] sem_pl ok_vs' hvm'.
       have X_xs : Sv.Subset (Sv.union (read_rvs xs) (vrvs xs)) X by clear -hsub; SvD.fsetdec.
       have := make_epilogueP ok_epilogue X_xs ok_xs (vres := [:: Varr a; Varr b]) _ (eq_onT hvm hvm').
-      case; first by rewrite /= /truncate_val /= !WArray.castK.
+      simpl.
+      case.
+      rewrite /truncate_val /=.
+       first by rewrite /= /truncate_val /= !WArray.castK.
       move => vm2 [] s2' [] ok_s2' sem_el hvm2.
       exists vm2; first by [].
       rewrite esem_cat sem_pl /=.

@@ -269,10 +269,10 @@ Fixpoint expand_i (m : t) (i : instr) : cexec instr :=
     Let e := add_iinfo ii (expand_e m e) in
     ok (MkI ii (Cassgn x tag ty e))
 
-  | Copn xs tag o es =>
+  | Copn xs tag o als es =>
     Let xs := add_iinfo ii (expand_lvs m xs) in
     Let es := add_iinfo ii (expand_es m es) in
-    ok (MkI ii (Copn xs tag o es))
+    ok (MkI ii (Copn xs tag o als es))
 
   | Csyscall xs o es =>
     Let xs := add_iinfo ii (expand_lvs m xs) in

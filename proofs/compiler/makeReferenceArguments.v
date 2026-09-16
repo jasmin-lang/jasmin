@@ -156,14 +156,14 @@ Definition subst_sig ii (al : seq (Uint63.int * Ident.ident)) alargs '((params,r
 Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
   let (ii,ir) := i in
   match ir with
-  | Copn xs tg op es =>
+  | Copn xs tg op als es =>
       if is_swap_op op is Some ty then
         let sig := (true, "__swap__"%string, ty) in
         let sig := [:: sig; sig ] in
         Let: (prologue, es) := make_prologue ii X 0 sig es in
         Let: (xs, epilogue) := make_epilogue ii X sig xs in
         let tg := if [&& size prologue == 2 & size epilogue == 2] then AT_inline else tg in
-        ok (prologue ++ MkI ii (Copn xs tg (Opseudo_op (pseudo_operator.Oswap ty)) es) :: epilogue)
+        ok (prologue ++ MkI ii (Copn xs tg (Opseudo_op (pseudo_operator.Oswap ty)) als es) :: epilogue)
       else ok [:: i ]
   | Cassgn _ _ _ _
   | Cassert _ => ok [:: i ]
