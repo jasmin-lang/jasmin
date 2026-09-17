@@ -88,9 +88,22 @@ Definition undef_addr t :=
   | t0 => undef_v t0 erefl
   end.
 
+(* The default value of a type: what an uninitialised variable reads as in
+   the [total] mode. *)
+Definition dfl_val (t : ctype) : value :=
+  match t with
+  | cbool => Vbool false
+  | cint => Vint 0
+  | cword ws => Vword (0%R : word ws)
+  | carr n => Varr (WArray.empty n)
+  end.
+
 Definition values := seq value.
 
 Definition is_defined v := if v is Vundef _ _ then false else true.
+
+Lemma is_defined_dfl_val t : is_defined (dfl_val t).
+Proof. by case: t. Qed.
 
 Lemma undef_x_vundef t h : Vundef t h =
   match t with
