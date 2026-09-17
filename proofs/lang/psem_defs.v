@@ -116,10 +116,13 @@ Arguments Estate {syscall_state}%_type_scope {ep} _ _ _%_vm_scope.
 (* ** Variable map
  * -------------------------------------------------------------------- *)
 
-Definition get_gvar (wdb : bool) (gd : glob_decls) (vm : Vm.t) (x : gvar) :=
+(* Reading a local variable follows the mode. *)
+Definition get_gvar {sm : SemMode} (wdb : bool) (gd : glob_decls) (vm : Vm.t) (x : gvar) :=
   if is_lvar x then get_var wdb vm x.(gv)
   else get_global gd x.(gv).
 
+(* The results of a function call are read in the partial mode in both modes:
+   a result that is not initialised is a failure of the call. *)
 Definition get_var_is wdb vm := mapM (fun x => get_var wdb vm (v_var x)).
 
 Definition on_arr_var A (v:exec value) (f:forall n, WArray.array n -> exec A) :=
@@ -285,12 +288,28 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {sm : SemMode}
   {asmop : asmOp asm_op}.
 
-Definition exec_sopn {sm : SemMode} (o:sopn) (vs:values) : exec values :=
+Definition exec_sopn (o:sopn) (vs:values) : exec values :=
   Let semi := sopn_sem o in
   Let t := app_sopn _ semi vs in
   ok (list_ltuple t).
+
+Definition sem_sopn gd o m lvs args :=
+  sem_pexprs true gd m args >>= exec_sopn o >>= write_lvals true gd m lvs.
+
+End EXEC_ASM.
+
+(* The two modes of [exec_sopn] are compared outside the section above, which
+   fixes one of them. *)
+Section EXEC_ASM_MODES.
+
+Context
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {asmop : asmOp asm_op}.
 
 (* The total mode of the instructions, as for the operators. *)
 Lemma exec_sopn_partialE o vs r :
@@ -308,10 +327,7 @@ rewrite /sopn_sem_ /semi; case h: (app_sopn _ _ vs) => [t|e'] //= [<-].
 exact: mk_semi_total_errty hvs h.
 Qed.
 
-Definition sem_sopn gd o m lvs args :=
-  sem_pexprs true gd m args >>= exec_sopn o >>= write_lvals true gd m lvs.
-
-End EXEC_ASM.
+End EXEC_ASM_MODES.
 
 End WSW.
 

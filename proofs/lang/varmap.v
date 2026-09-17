@@ -472,6 +472,12 @@ Module Type VM.
   Parameter get_totalE : forall {wsw:WithSubWord} vm x,
     is_defined (get vm x) -> get (sm := total) vm x = get vm x.
 
+  (* Every mode reads the same entry: two variable maps that agree on a
+     variable in the [partial] mode agree on it in every mode. *)
+  Parameter get_eq_mode : forall {wsw:WithSubWord} {sm : SemMode} vm1 vm2 x,
+    get (sm := partial) vm1 x = get (sm := partial) vm2 x ->
+    get (sm := sm) vm1 x = get (sm := sm) vm2 x.
+
   Parameter is_var_initE : forall {wsw:WithSubWord} vm x,
     is_var_init vm x = is_defined (get vm x).
 
@@ -551,6 +557,11 @@ Module Vm : VM.
   Proof. by rewrite /get /=; case: ifP => [_ | /negbFE //]; apply is_defined_dfl_val. Qed.
 
   Lemma get_totalE vm x : is_defined (get vm x) -> get (sm := total) vm x = get vm x.
+  Proof. by rewrite /get /= => ->. Qed.
+
+  Lemma get_eq_mode {sm : SemMode} vm1 vm2 x :
+    get (sm := partial) vm1 x = get (sm := partial) vm2 x ->
+    get (sm := sm) vm1 x = get (sm := sm) vm2 x.
   Proof. by rewrite /get /= => ->. Qed.
 
   Lemma is_var_initE vm x : is_var_init vm x = is_defined (get vm x).

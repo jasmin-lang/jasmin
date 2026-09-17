@@ -220,11 +220,11 @@ Context
       apply: on_arr_varP => sz t htyx hget.
       rewrite /write_var.
       t_xrbindP=>  zi vi he hvi t1 -> t1' hsub vms3 hset ?; subst s3; rewrite /on_arr_var.
-      rewrite (@get_var_eq_on _ _ (Sv.singleton x) (evm s1)); first last.
+      rewrite (@get_var_eq_on _ _ _ (Sv.singleton x) (evm s1)); first last.
       + by move=> z hz; have := vrvsP hw3; rewrite !evm_with_vm => -> //; clear -hwr hz; SvD.fsetdec.
       + by clear; SvD.fsetdec.
       rewrite hget /=.
-      rewrite -(use_memP_eq_on _ _ (s1:= s1) hnoload) ?he; last first.
+      rewrite -(use_memP_eq_on _ _ (s1:= s1) _ hnoload) ?he; last first.
       + rewrite evm_with_vm; rewrite /with_vm /= in hw3 => z hz.
         by have /= -> // := vrvsP hw3; move: hwr; rewrite read_eE; clear -hz; SvD.fsetdec.
       rewrite /= hvi /= hsub /=.

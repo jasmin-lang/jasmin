@@ -120,7 +120,7 @@ let small_step1 ep spp sip s =
       { s with s_cmd = c; s_estate = s2 }
 
     | Copn(xs,_,op,es) ->
-      let s2 = exn_exec ii (sem_sopn nosubword ep spp sip._asmop gd op s1 xs es) in
+      let s2 = exn_exec ii (sem_sopn nosubword ep spp Utils0.partial sip._asmop gd op s1 xs es) in
       { s with s_cmd = c; s_estate = s2 }
 
     | Csyscall(xs,o, es) ->
