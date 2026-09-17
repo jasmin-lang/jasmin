@@ -740,7 +740,7 @@ Proof.
     have := eq_on_sem_pexprs true gd hmem hes.
     by rewrite /sem_pexprs => ->.
   + move=> x; rewrite read_eassert_Pis_var_init /= => hx.
-    by rewrite (hx x) //; clear; SvD.fsetdec.
+    by rewrite !Vm.is_var_initE (hx x) //; clear; SvD.fsetdec.
   + move=> e1 e2; rewrite read_eassert_Pis_mem_init /= => h.
     rewrite !(eq_on_sem_pexpr true gd hmem) ?hmem //;
     by apply: eq_onI h; clear; SvD.fsetdec.

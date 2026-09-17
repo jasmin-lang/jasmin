@@ -523,6 +523,16 @@ Section CoreMem.
     by move: ht; rewrite (mapM_get_totalE hl) => -[<-]; rewrite hal.
   Qed.
 
+  (* The partial read succeeds exactly on [validr], the mode-independent
+     description of a readable range. *)
+  Lemma is_ok_read_partial m al p sz : is_ok (read (sm := partial) m al p sz) = validr m al p sz.
+  Proof.
+    case h: (read (sm := partial) m al p sz) => [w|e] /=; first by move: h => /read_partialE [].
+    apply/esym/negbTE/negP => hv.
+    have := read_total_ok m al p sz; case hr: (read (sm := total) m al p sz) => [w|e'] // _.
+    by have := (read_partialE m al p w).2 (conj hv hr); rewrite h.
+  Qed.
+
   Lemma write_totalE m al p sz (w : word sz) m' :
     write (sm := partial) m al p w = ok m' -> write (sm := total) m al p w = ok m'.
   Proof.
