@@ -18,36 +18,36 @@ Local Open Scope seq_scope.
 (* -------------------------------------------------------------------- *)
 (* ** The definitions                                                    *)
 
-Definition sem_sop1_typed (o : sop1) :
+Definition sem_sop1_typed {sm : SemMode} (o : sop1) :
   let t := type_of_op1 o in
   let t := (eval_atype t.1, eval_atype t.2) in
   sem_t t.1 → exec (sem_t t.2) :=
-  @mk_sem_op [:: eval_atype (type_of_op1 o).1] (eval_atype (type_of_op1 o).2)
+  @mk_sem_op sm [:: eval_atype (type_of_op1 o).1] (eval_atype (type_of_op1 o).2)
     (op1_safe o) ErrArith (sem_sop1_total o).
 
-Arguments sem_sop1_typed : clear implicits.
+Arguments sem_sop1_typed {sm} o.
 
-Definition sem_sop2_typed (o : sop2) :
+Definition sem_sop2_typed {sm : SemMode} (o : sop2) :
   let t := type_of_op2 o in
   let t := (eval_atype t.1.1, eval_atype t.1.2, eval_atype t.2) in
   sem_t t.1.1 → sem_t t.1.2 → exec (sem_t t.2) :=
-  @mk_sem_op [:: eval_atype (type_of_op2 o).1.1; eval_atype (type_of_op2 o).1.2]
+  @mk_sem_op sm [:: eval_atype (type_of_op2 o).1.1; eval_atype (type_of_op2 o).1.2]
     (eval_atype (type_of_op2 o).2) (op2_safe o) ErrArith (sem_sop2_total o).
 
-Arguments sem_sop2_typed : clear implicits.
+Arguments sem_sop2_typed {sm} o.
 
 Section WITH_PARAMS.
 
 Context {cfcd : FlagCombinationParams}.
 
-Definition sem_opN_typed (o : opN) :
+Definition sem_opN_typed {sm : SemMode} (o : opN) :
   let t := type_of_opN o in
   let t := (map eval_atype t.1, eval_atype t.2) in
   sem_prod t.1 (exec (sem_t t.2)) :=
-  @mk_sem_op (map eval_atype (type_of_opN o).1) (eval_atype (type_of_opN o).2)
+  @mk_sem_op sm (map eval_atype (type_of_opN o).1) (eval_atype (type_of_opN o).2)
     (opN_safe o) ErrArith (sem_opN_total o).
 
-Arguments sem_opN_typed : clear implicits.
+Arguments sem_opN_typed {sm} o.
 
 (* [opN] carries no condition: it never fails. *)
 Lemma sem_opN_typed_ok (op : opN) :
@@ -80,6 +80,25 @@ exact: (mk_sem_op_nil
           (tin := [:: eval_atype (type_of_op2 o).1.1; eval_atype (type_of_op2 o).1.2])
           (t := eval_atype (type_of_op2 o).2) ErrArith (sem_sop2_total o) x1 x2).
 Qed.
+
+(* -------------------------------------------------------------------- *)
+(* ** The total mode: the semantics is the total one                      *)
+
+Lemma sem_sop1_typed_total o x : sem_sop1_typed (sm := total) o x = ok (sem_sop1_total o x).
+Proof. by []. Qed.
+
+Lemma sem_sop2_typed_total o x1 x2 :
+  sem_sop2_typed (sm := total) o x1 x2 = ok (sem_sop2_total o x1 x2).
+Proof. by []. Qed.
+
+(* A success of the partial mode is a success of the total mode. *)
+Lemma sem_sop1_typed_partialE o x r :
+  sem_sop1_typed (sm := partial) o x = ok r -> sem_sop1_typed (sm := total) o x = ok r.
+Proof. by rewrite /sem_sop1_typed !mk_sem_op1E; t_xrbindP => _ <-. Qed.
+
+Lemma sem_sop2_typed_partialE o x1 x2 r :
+  sem_sop2_typed (sm := partial) o x1 x2 = ok r -> sem_sop2_typed (sm := total) o x1 x2 = ok r.
+Proof. by rewrite /sem_sop2_typed !mk_sem_op2E; t_xrbindP => _ <-. Qed.
 
 (* -------------------------------------------------------------------- *)
 (* ** Under the conditions, the semantics is the total one               *)

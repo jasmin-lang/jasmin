@@ -699,13 +699,17 @@ Qed.
 (* -------------------------------------------------------------------- *)
 (* ** The construction                                                   *)
 
-(* The safety check: if one of the conditions fails, the operator raises the
-   error it declares. *)
-Definition check_safe (vs : values) (safe : seq safety_cond) (err : error) : exec unit :=
-  if all (safety_cond_holds vs) safe then ok tt else Error err.
+(* The safety check: in the [partial] mode, if one of the conditions fails,
+   the operator raises the error it declares; in the [total] mode nothing is
+   checked. *)
+Definition check_safe {sm : SemMode} (vs : values) (safe : seq safety_cond) (err : error) :
+    exec unit :=
+  if is_total then ok tt
+  else if all (safety_cond_holds vs) safe then ok tt else Error err.
 
-Lemma check_safe_ok vs safe err : all (safety_cond_holds vs) safe -> check_safe vs safe err = ok tt.
-Proof. by rewrite /check_safe => ->. Qed.
+Lemma check_safe_ok {sm : SemMode} vs safe err :
+  all (safety_cond_holds vs) safe -> check_safe vs safe err = ok tt.
+Proof. by rewrite /check_safe => ->; case: is_total. Qed.
 
 Lemma check_safe_okE vs safe err u : check_safe vs safe err = ok u -> all (safety_cond_holds vs) safe.
 Proof. by rewrite /check_safe; case: ifP. Qed.
@@ -730,10 +734,10 @@ Arguments mk_semi_aux {T T'} P vs tin _ : assert.
 
 (* An operator has exactly one output: the conditions are checked on the
    arguments, then the total semantics is returned. *)
-Definition mk_sem_op (tin : seq ctype) (t : ctype) (safe : seq safety_cond) (err : error)
-    (f : sem_prod tin (sem_t t)) : sem_prod tin (exec (sem_t t)) :=
+Definition mk_sem_op {sm : SemMode} (tin : seq ctype) (t : ctype) (safe : seq safety_cond)
+    (err : error) (f : sem_prod tin (sem_t t)) : sem_prod tin (exec (sem_t t)) :=
   mk_semi_aux (fun vs r => Let _ := check_safe vs safe err in ok r) [::] tin f.
-Arguments mk_sem_op {tin t} safe err f : assert.
+Arguments mk_sem_op {sm tin t} safe err f : assert.
 
 (* Extensional equality on [sem_prod], by recursion on [tin]: no functional
    extensionality needed. *)
@@ -815,9 +819,24 @@ rewrite /truncate_val hx /= hvs' /= ht0.
 by exists (to_val x :: vs') => //; exists t0 => //; rewrite -cat_rcons.
 Qed.
 
+(* The same, as an exact equation: the arguments are truncated, the total
+   semantics is applied, then [P] sees the truncated arguments and the result. *)
+Lemma mk_semi_aux_app_sopnE {T T'} (P : values -> T -> exec T') vs0 tin (f : sem_prod tin T) vs :
+  app_sopn tin (mk_semi_aux P vs0 tin f) vs =
+  (Let vs' := mapM2 ErrType truncate_val tin vs in
+   Let t := app_sopn tin (sem_prod_ok tin f) vs in P (vs0 ++ vs') t).
+Proof.
+elim: tin f vs vs0 => /= [f [|v vs] vs0 | t tin ih f [|v vs] //= vs0].
++ by rewrite /= cats0.
++ by [].
+rewrite /truncate_val; case: (of_val t v) => //= x.
+rewrite ih; case: mapM2 => //= lc; case: app_sopn => //= t0.
+by rewrite cat_rcons.
+Qed.
+
 (* If the conditions hold, [mk_sem_op] succeeds. *)
 Lemma mk_sem_op_safe tin t safe err f :
-  safety_cond_sufficient safe (@mk_sem_op tin t safe err f).
+  safety_cond_sufficient safe (@mk_sem_op _ tin t safe err f).
 Proof.
 apply: mk_semi_aux_safe => vs r hall.
 by rewrite (check_safe_ok err hall) /=; eexists; reflexivity.
@@ -825,7 +844,7 @@ Qed.
 
 (* Complete description of a successful application of [mk_sem_op]. *)
 Lemma mk_sem_opP tin t safe err f vs r :
-  app_sopn tin (@mk_sem_op tin t safe err f) vs = ok r ->
+  app_sopn tin (@mk_sem_op _ tin t safe err f) vs = ok r ->
   exists2 vs', mapM2 ErrType truncate_val tin vs = ok vs' &
     all (safety_cond_holds vs') safe /\ app_sopn tin (sem_prod_ok tin f) vs = ok r.
 Proof.
@@ -841,8 +860,28 @@ Proof. by move=> h; elim: tin vs f => /= [vs f | t tin ih vs f v]; [apply h | ap
 
 (* Without condition, [mk_sem_op] is the total semantics. *)
 Lemma mk_sem_op_nil tin t err f :
-  sem_prod_eq tin (@mk_sem_op tin t [::] err f) (sem_prod_ok tin f).
+  sem_prod_eq tin (@mk_sem_op _ tin t [::] err f) (sem_prod_ok tin f).
 Proof. by apply: mk_semi_aux_id. Qed.
+
+(* In the total mode, [mk_sem_op] is the total semantics. *)
+Lemma mk_sem_op_total tin t safe err f :
+  sem_prod_eq tin (@mk_sem_op total tin t safe err f) (sem_prod_ok tin f).
+Proof. by apply: mk_semi_aux_id. Qed.
+
+(* A success of the partial mode is a success of the total mode. *)
+Lemma mk_sem_op_partialE tin t safe err f vs r :
+  app_sopn tin (@mk_sem_op partial tin t safe err f) vs = ok r ->
+  app_sopn tin (@mk_sem_op total tin t safe err f) vs = ok r.
+Proof.
+by move=> /mk_sem_opP [vs' _ [_ h]]; rewrite (sem_prod_eq_app_sopn vs (mk_sem_op_total safe err f)).
+Qed.
+
+(* On defined arguments, the total mode fails only with a type error. *)
+Lemma mk_sem_op_total_errty tin t safe err f vs e :
+  all is_defined vs -> app_sopn tin (@mk_sem_op total tin t safe err f) vs = Error e -> e = ErrType.
+Proof.
+by move=> hvs; rewrite (sem_prod_eq_app_sopn vs (mk_sem_op_total safe err f)); apply: app_sopn_ok_errty.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 (* ** Total tuples and filtering                                         *)
@@ -922,14 +961,14 @@ Definition is_ErrType (e : error) : bool := if e is ErrType then true else false
 (* The semantics of an instruction: the safety conditions are checked on the
    arguments, then the total semantics is filtered by the initialisation
    conditions, one per output. *)
-Definition mk_semi (tin tout : seq ctype) (safe : seq safety_cond) (err : error)
+Definition mk_semi {sm : SemMode} (tin tout : seq ctype) (safe : seq safety_cond) (err : error)
     (init : seq safety_cond)
     (f : sem_prod tin (sem_tuple_t tout)) : sem_prod tin (exec (sem_tuple tout)) :=
   mk_semi_aux
     (fun vs t => Let _ := check_safe vs safe err in
                  ok (filter_tuple tout (map (safety_cond_holds vs) init) t))
     [::] tin f.
-Arguments mk_semi {tin tout} safe err init f : assert.
+Arguments mk_semi {sm tin tout} safe err init f : assert.
 
 (* -------------------------------------------------------------------- *)
 (* ** Generic properties of [mk_semi]                                    *)
@@ -986,6 +1025,45 @@ Qed.
 Lemma map_const_seq {A B : Type} (s : seq A) (c : B) :
   map (fun _ => c) s = nseq (size s) c.
 Proof. by elim: s => //= x s ->. Qed.
+
+(* Complete description of a successful application of [mk_semi] in the
+   partial mode. *)
+Lemma mk_semiP tin tout safe err init f vs r :
+  app_sopn tin (@mk_semi partial tin tout safe err init f) vs = ok r ->
+  exists2 vs', mapM2 ErrType truncate_val tin vs = ok vs' &
+    exists2 t, app_sopn tin (sem_prod_ok tin f) vs = ok t &
+      all (safety_cond_holds vs') safe /\ r = filter_tuple tout (map (safety_cond_holds vs') init) t.
+Proof.
+rewrite /mk_semi => h; case: (mk_semi_auxP h) => vs' h1 [t h2]; rewrite cat0s.
+case hu: (check_safe vs' safe err) => [u|e] //= [<-].
+by exists vs' => //; exists t => //; split => //; apply: check_safe_okE hu.
+Qed.
+
+(* In the total mode, [mk_semi] is the total semantics filtered by the
+   initialisation conditions: nothing is checked, the outputs that [init]
+   declares undefined are still undefined. *)
+Lemma mk_semi_total tin tout safe err init f :
+  sem_prod_eq tin (@mk_semi total tin tout safe err init f)
+    (mk_semi_aux (fun vs t => ok (filter_tuple tout (map (safety_cond_holds vs) init) t)) [::] tin f).
+Proof. by rewrite /mk_semi; apply: mk_semi_aux_eq. Qed.
+
+(* A success of the partial mode is a success of the total mode. *)
+Lemma mk_semi_partialE tin tout safe err init f vs r :
+  app_sopn tin (@mk_semi partial tin tout safe err init f) vs = ok r ->
+  app_sopn tin (@mk_semi total tin tout safe err init f) vs = ok r.
+Proof.
+move=> /mk_semiP [vs' hvs' [t ht [_ ->]]].
+by rewrite (sem_prod_eq_app_sopn vs (mk_semi_total safe err init f)) mk_semi_aux_app_sopnE hvs' /= ht.
+Qed.
+
+(* On defined arguments, the total mode fails only with a type error. *)
+Lemma mk_semi_total_errty tin tout safe err init f vs e :
+  all is_defined vs -> app_sopn tin (@mk_semi total tin tout safe err init f) vs = Error e -> e = ErrType.
+Proof.
+move=> hvs; rewrite (sem_prod_eq_app_sopn vs (mk_semi_total safe err init f)) mk_semi_aux_app_sopnE.
+case hm: mapM2 => [vs'|e'] /=; last by move=> [<-]; apply: mapM2_truncate_val_errty hm.
+by case ha: (app_sopn tin (sem_prod_ok tin f) vs) => [t|e'] //= [<-]; apply: app_sopn_ok_errty ha.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 (* ** Guarded conditions                                                 *)

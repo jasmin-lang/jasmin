@@ -414,6 +414,15 @@ Proof.
   by move=> ws w; rewrite truncate_word_u.
 Qed.
 
+(* On a defined value, [of_val] fails only with a type error. *)
+Lemma of_val_defined_errty t v e : is_defined v -> of_val t v = Error e -> e = ErrType.
+Proof.
+case: t v => [||len|ws] [b|z|len' a|ws' w|t h] //= _.
+1-8, 10-13: by move=> [<-].
++ by rewrite /WArray.cast; case: ifP => // _ [<-].
+by move=> /truncate_word_errP [].
+Qed.
+
 Lemma to_valI t (x: sem_t t) v : to_val x = v ->
   match v with
   | Vbool b => exists h: t = cbool, eq_rect _ _ x _ h = b
@@ -791,6 +800,29 @@ Proof.
     try by simpl=> ??; subst; subst=> /(Hrec _ _ _ hts hvs).
   simpl=> ? [? [? [? /word_uincl_truncate h]]]; subst.
   by move: hv => [? [? [? /h]]]; subst => /= -> /(Hrec _ _ _ hts hvs).
+Qed.
+
+(* On defined values, the truncation of the arguments and the application of
+   a total semantics fail only with a type error. *)
+Lemma mapM2_truncate_val_errty tin vs e :
+  all is_defined vs -> mapM2 ErrType truncate_val tin vs = Error e -> e = ErrType.
+Proof.
+elim: tin vs e => [|t tin ih] [|v vs] e //=.
+1-2: by move=> _ [<-].
+move=> /andP [hv hvs]; case hof: (truncate_val t v) => [x|e'] /=.
++ by case hm: mapM2 => [lc|e''] //= [<-]; apply: (ih _ _ hvs hm).
+move=> [<-]; move: hof; rewrite /truncate_val; case hof: (of_val t v) => [y|e''] //= [<-].
+by apply: (of_val_defined_errty hv hof).
+Qed.
+
+Lemma app_sopn_ok_errty {T} tin (f : sem_prod tin T) vs e :
+  all is_defined vs -> app_sopn tin (sem_prod_ok tin f) vs = Error e -> e = ErrType.
+Proof.
+elim: tin f vs => /= [f [|v vs] | t tin ih f [|v vs]] //=.
+1-2: by rewrite /type_error => _ -[<-].
+move=> /andP [hv hvs]; case hof: (of_val t v) => [x | e'] /=.
++ by apply: ih.
+by move=> [<-]; apply: (of_val_defined_errty hv hof).
 Qed.
 
 Lemma vuincl_app_sopn_v_eq tin tout (semi: sem_prod tin (exec (sem_tuple tout))) :

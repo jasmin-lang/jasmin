@@ -81,7 +81,7 @@ Record instruction_desc := mkInstruction {
 (* The semantics of an instruction: the safety conditions are checked on the
    arguments, then the total semantics is filtered by the initialisation
    conditions. *)
-Definition semi (i : instruction_desc) :
+Definition semi {sm : SemMode} (i : instruction_desc) :
     sem_prod (map eval_atype i.(tin)) (exec (sem_tuple (map eval_atype i.(tout)))) :=
   mk_semi i.(i_safe) i.(i_err) i.(i_init) i.(i_semi_total).
 
@@ -114,7 +114,7 @@ Notation mk_instr_desc str tin i_in tout i_out semi_total safe err init valid do
      i_doit       := doit;
      i_wf         := refl_equal;
      semu         := @vuincl_app_sopn_v (map eval_atype tin) (map eval_atype tout)
-                       (@mk_semi (map eval_atype tin) (map eval_atype tout)
+                       (@mk_semi _ (map eval_atype tin) (map eval_atype tout)
                           safe err init semi_total) refl_equal;
   |}.
 
@@ -321,11 +321,11 @@ Qed.
 
 Lemma array_copy_semi_eq ws p :
   sem_prod_eq [:: carr (arr_size ws p)] (@WArray.copy partial ws p)
-    (@mk_semi [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
+    (@mk_semi _ [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
        [:: sc_all_init ws p 0] ErrAddrUndef [:: IBool true] (@copy_total ws p)).
 Proof.
 move=> t.
-have -> : @mk_semi [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
+have -> : @mk_semi _ [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
             [:: sc_all_init ws p 0] ErrAddrUndef [:: IBool true] (@copy_total ws p) t
         = (Let _ := check_safe [:: Varr t] [:: sc_all_init ws p 0] ErrAddrUndef in
            ok (copy_total ws t)) by [].
@@ -466,7 +466,7 @@ Qed.
 
 Lemma spill_semi_eq tys :
   sem_prod_eq tys (sem_prod_ok tys (spill_semi tys))
-    (@mk_semi tys [::] [::] ErrArith [::] (spill_semi tys)).
+    (@mk_semi _ tys [::] [::] ErrArith [::] (spill_semi tys)).
 Proof. rewrite /mk_semi; elim: tys (@nil value) => //= t tys ih vs v; apply ih. Qed.
 
 Definition Ospill_instr o (tys:seq atype) :=
@@ -490,7 +490,7 @@ Definition Ospill_instr o (tys:seq atype) :=
 
 Lemma swap_semi_eq t :
   sem_prod_eq [:: t; t] (sem_prod_ok [:: t; t] (@swap_semi t))
-    (@mk_semi [:: t; t] [:: t; t] [::] ErrArith [:: IBool true; IBool true]
+    (@mk_semi _ [:: t; t] [:: t; t] [::] ErrArith [:: IBool true; IBool true]
        (fun x y => (y, x))).
 Proof. by move=> x y; rewrite /mk_semi /= /swap_semi /= !filter_ot_true. Qed.
 
@@ -637,7 +637,7 @@ Qed.
 
 Lemma protect_ptr_fail_eq n :
   sem_prod_eq [:: carr n; cty_msf ] (@se_protect_ptr_fail_sem n)
-    (@mk_semi [:: carr n; cty_msf ] [:: carr n] [:: sc_is_zero msf_size 1] ErrSemUndef
+    (@mk_semi _ [:: carr n; cty_msf ] [:: carr n] [:: sc_is_zero msf_size 1] ErrSemUndef
        [:: IBool true ] (fun (t : WArray.array n) (_ : wmsf) => t)).
 Proof.
   move=> t msf.
@@ -698,8 +698,8 @@ Definition string_of_sopn o : string := str (get_instr_desc o) tt.
 Definition sopn_tin o : list atype := tin (get_instr_desc o).
 Definition sopn_tout o : list atype := tout (get_instr_desc o).
 
-Definition sopn_sem_ o := semi (get_instr_desc o).
-Definition sopn_sem o : exec _ :=
+Definition sopn_sem_ {sm : SemMode} o := semi (get_instr_desc o).
+Definition sopn_sem {sm : SemMode} o : exec _ :=
   Let _ := assert (get_instr_desc o).(i_valid) ErrType in
   ok (sopn_sem_ o).
 
