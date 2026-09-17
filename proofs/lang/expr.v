@@ -740,6 +740,9 @@ Fixpoint read_eassert_rec (s:Sv.t) (e:eassert) :=
 
 Definition read_eassert := read_eassert_rec Sv.empty.
 
+Definition read_easserts_rec := foldl read_eassert_rec.
+Definition read_easserts := read_easserts_rec Sv.empty.
+
 Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
   match i with
   | Cassgn x _ _ e => read_rv_rec (read_e_rec s e) x

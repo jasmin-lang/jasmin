@@ -201,6 +201,17 @@ Fixpoint safety_cond_total (c : safety_cond) : bool :=
   | IAppN_safety _ cs => all safety_cond_total cs
   end.
 
+(* The conditions that [sc_to_e] (safety_common.v) translates into a [pexpr]:
+   those built from the operators of the white list, with no [IAppN_safety],
+   which the expression language does not have. *)
+Fixpoint safety_cond_expr (c : safety_cond) : bool :=
+  match c with
+  | IBool _ | IConst _ | IVar _ => true
+  | IOp1 o c => op1_total o && safety_cond_expr c
+  | IOp2 o c1 c2 => [&& op2_total o, safety_cond_expr c1 & safety_cond_expr c2]
+  | IAppN_safety _ _ => false
+  end.
+
 (* Well-formedness of a condition: well typed and total. *)
 Definition safety_cond_wf (tin : seq ctype) (c : safety_cond) : bool :=
   safety_cond_wt tin c && safety_cond_total c.
