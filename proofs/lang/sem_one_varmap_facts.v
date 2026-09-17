@@ -43,7 +43,7 @@ Lemma Hassgn : sem_Ind_assgn p Pi_r.
 Proof. by move => ii s1 s2 x tg ty e v v' ok_v ok_v' /write_lval_stack_stable. Qed.
 
 Lemma Hopn : sem_Ind_opn p Pi_r.
-Proof. by move => ii s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => ???? /write_lvals_stack_stable. Qed.
+Proof. by move => ii s1 s2 tg op xs als es; rewrite /sem_sopn; t_xrbindP => ???? /write_lvals_stack_stable. Qed.
 
 Lemma Hsyscall : sem_Ind_syscall p Pi_r.
 Proof.
@@ -202,7 +202,7 @@ Lemma Hassgn_nw : sem_Ind_assgn p Pi_r.
 Proof. move => ii s1 s2 x tg ty e v v' ok_v ok_v'; exact: vrvP. Qed.
 
 Lemma Hopn_nw : sem_Ind_opn p Pi_r.
-Proof. move => ii s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => vs' vs ok_vs ok_vs'; exact: vrvsP. Qed.
+Proof. move => ii s1 s2 tg op xs als es; rewrite /sem_sopn; t_xrbindP => vs' vs ok_vs ok_vs'; exact: vrvsP. Qed.
 
 Lemma Hsyscall_nw : sem_Ind_syscall p Pi_r.
 Proof.
@@ -234,7 +234,7 @@ Proof. by []. Qed.
 
 Lemma Hcall_nw : sem_Ind_call p var_tmp Pi_r Pfun.
 Proof.
-  move=> ii k s1 s2 res fn args ?.
+  move=> ii k s1 s2 res fn als args ?.
   rewrite /Pfun /Pi_r /kill_tmp_call /= => h1 x hx.
   have /Sv_memP/negbTE hn : ¬ Sv.In x (fd_tmp_call p fn) by SvD.fsetdec.
   rewrite kill_varsE hn -h1 ?kill_varsE ?hn //; SvD.fsetdec.
@@ -507,7 +507,7 @@ Lemma validw_stable_assgn : sem_Ind_assgn p Pi_r.
 Proof. by move => ii s1 s2 x tg ty e v v' ok_v ok_v' /write_lval_validw. Qed.
 
 Lemma validw_stable_opn : sem_Ind_opn p Pi_r.
-Proof. by move => ii s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => ???? /write_lvals_validw. Qed.
+Proof. by move => ii s1 s2 tg op xs als es; rewrite /sem_sopn; t_xrbindP => ???? /write_lvals_validw. Qed.
 
 Lemma validw_stable_syscall : sem_Ind_syscall p Pi_r.
 Proof. by move => ii s1 s2 o xs es scs m ves vs _ h; have := exec_syscallS h; move=> [_ ho] /write_lvals_validw hw => ???; rewrite ho hw. Qed.

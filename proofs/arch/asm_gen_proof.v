@@ -665,7 +665,7 @@ Lemma compile_asm_opn_aux (condspec : assemble_cond_spec) rip ii (loargs : seq a
   let csa := check_sopn_args agparams rip ii loargs args in
   let csd := check_sopn_dests agparams rip ii loargs lvs in
   sem_rexprs m args = ok xs
-  -> exec_sopn empty_env (Oasm (BaseOp op)) xs = ok ys
+  -> exec_sopn (Oasm (BaseOp op)) [::] xs = ok ys
   -> write_lexprs lvs ys m = ok m'
   -> csa (zip (id_in id) (id_tin id))
   -> csd (zip (id_out id) (id_tout id))
@@ -673,7 +673,7 @@ Lemma compile_asm_opn_aux (condspec : assemble_cond_spec) rip ii (loargs : seq a
   -> lom_eqv rip m s
   -> exists2 s', exec_instr_op id loargs s = ok s' & lom_eqv rip m' s'.
 Proof.
-  move=> id ; rewrite /exec_sopn /sopn_sem.
+  move=> id ; rewrite /exec_sopn /sopn_sem /=.
   t_xrbindP => Hxs _ hval <- vt Hvt <-{ys} Hm' Hargs Hdest Hid Hlomeqv.
   rewrite /exec_instr_op /eval_instr_op Hid /=.
   move: hval => /=; rewrite -/id => -> /=.
@@ -702,7 +702,7 @@ Qed.
 Definition assemble_extra_correct op : Prop :=
   forall rip ii lvs args m xs ys m' s ops ops',
     sem_rexprs m args = ok xs
-    -> exec_sopn empty_env (Oasm (ExtOp op)) xs = ok ys
+    -> exec_sopn (Oasm (ExtOp op)) [::] xs = ok ys
     -> write_lexprs lvs ys m = ok m'
     -> to_asm ii op lvs args = ok ops
     -> mapM (assemble_asm_args agparams rip ii) ops = ok ops'
@@ -732,7 +732,7 @@ Lemma compile_asm_opn rip ii (loargs : seq asm_arg) op m s args lvs xs ys m' :
   let csa := check_sopn_args agparams rip ii loargs args in
   let csd := check_sopn_dests agparams rip ii loargs lvs in
   sem_rexprs m args = ok xs
-  -> exec_sopn empty_env (Oasm (BaseOp op)) xs = ok ys
+  -> exec_sopn (Oasm (BaseOp op)) [::] xs = ok ys
   -> write_lexprs lvs ys m = ok m'
   -> csa (zip (id_in id) (id_tin id))
   -> csd (zip (id_out id) (id_tout id))
@@ -1128,7 +1128,7 @@ Qed.
 
 Lemma assemble_asm_opP rip ii op lvs args op' asm_args s m xs ys m' :
   sem_rexprs m args = ok xs ->
-  exec_sopn empty_env (Oasm (BaseOp op)) xs = ok ys ->
+  exec_sopn (Oasm (BaseOp op)) [::] xs = ok ys ->
   write_lexprs lvs ys m = ok m' ->
   assemble_asm_op agparams rip ii op lvs args = ok (op', asm_args) ->
   lom_eqv rip m s ->
@@ -1142,7 +1142,7 @@ Qed.
 
 Lemma assemble_sopnP rip ii op lvs args ops m xs ys m' s:
   sem_rexprs m args = ok xs ->
-  exec_sopn empty_env op xs = ok ys ->
+  exec_sopn op [::] xs = ok ys ->
   write_lexprs lvs ys m = ok m' ->
   assemble_sopn agparams rip ii op lvs args = ok ops ->
   lom_eqv rip m s ->
@@ -2272,7 +2272,7 @@ Qed.
 
 Definition sem_sopn_t '(o, xs, es) (s:estate empty_env) :=
   Let args := sem_rexprs s es in
-  Let res := exec_sopn empty_env (Oasm (BaseOp o)) args in
+  Let res := exec_sopn (Oasm (BaseOp o)) [::] args in
   write_lexprs xs res s.
 
 Definition sem_sopns := foldM sem_sopn_t.

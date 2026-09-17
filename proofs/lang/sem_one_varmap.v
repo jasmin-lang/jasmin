@@ -140,9 +140,9 @@ with sem_i : instr_info → Sv.t → estate empty_env → instr_r → estate emp
     write_lval true gd x v' s1 = ok s2 →
     sem_i ii (vrv x) s1 (Cassgn x tag ty e) s2
 
-| Eopn ii s1 s2 t o xs es:
-    sem_sopn gd o s1 xs es = ok s2 →
-    sem_i ii (vrvs xs) s1 (Copn xs t o es) s2
+| Eopn ii s1 s2 t o xs als es:
+    sem_sopn gd o s1 xs als es = ok s2 →
+    sem_i ii (vrvs xs) s1 (Copn xs t o als es) s2
 
 | Esyscall ii s1 scs m s2 o xs es ves vs:
     get_vars true s1.(evm) (syscall_sig o).(scs_vin) = ok ves ->
@@ -259,7 +259,7 @@ Lemma sem_iE ii k s i s' :
   | Cassgn x tag ty e =>
     k = vrv x ∧
     exists2 v', sem_pexpr true gd s e >>= truncate_val (eval_atype empty_env ty) = ok v' & write_lval true gd x v' s = ok s'
-  | Copn xs t o es => k = vrvs xs ∧ sem_sopn gd o s xs es = ok s'
+  | Copn xs t o als es => k = vrvs xs ∧ sem_sopn gd o s xs als es = ok s'
   | Csyscall xs o es => 
     k = Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout))) /\  
     ∃ scs m ves vs,
@@ -354,9 +354,9 @@ Section SEM_IND.
       Pi_r ii (vrv x) s1 (Cassgn x tag ty e) s2.
 
   Definition sem_Ind_opn : Prop :=
-    ∀ (ii: instr_info) (s1 s2 : estate empty_env) t (o : sopn) (xs : lvals) (es : pexprs),
-      sem_sopn gd o s1 xs es = ok s2 →
-      Pi_r ii (vrvs xs) s1 (Copn xs t o es) s2.
+    ∀ (ii: instr_info) (s1 s2 : estate empty_env) t (o : sopn) (xs : lvals) als (es : pexprs),
+      sem_sopn gd o s1 xs als es = ok s2 →
+      Pi_r ii (vrvs xs) s1 (Copn xs t o als es) s2.
 
   Definition sem_Ind_syscall : Prop :=
     ∀ (ii: instr_info) (s1 s2 : estate empty_env) (o : syscall_t) (xs : lvals) (es : pexprs) scs m ves vs,
@@ -449,7 +449,7 @@ Section SEM_IND.
     Pi_r ii k e i e0 :=
     match s in sem_i ii k s1 i s2 return Pi_r ii k s1 i s2 with
     | @Eassgn ii s1 s2 x tag ty e1 v v' h1 h2 h3 => @Hasgn ii s1 s2 x tag ty e1 v v' h1 h2 h3
-    | @Eopn ii s1 s2 t o xs es e1 => @Hopn ii s1 s2 t o xs es e1
+    | @Eopn ii s1 s2 t o xs als es e1 => @Hopn ii s1 s2 t o xs als es e1
     | @Esyscall ii s1 scs m s2 o xs es ves vs h1 h2 h3 => @Hsyscall ii s1 s2 o xs es scs m ves vs h1 h2 h3
     | @Eif_true ii k s1 s2 e1 c1 c2 e2 s0 =>
       @Hif_true ii k s1 s2 e1 c1 c2 e2 s0 (@sem_Ind k s1 c1 s2 s0)

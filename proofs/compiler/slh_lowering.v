@@ -421,7 +421,7 @@ Notation chk_mem ii cond :=
 Record sh_params :=
   {
     (* Lower a speculative operator. *)
-    shp_lower : seq lval -> slh_op -> seq pexpr -> option copn_args;
+    shp_lower : seq lval -> slh_op -> seq array_length -> seq pexpr -> option copn_args;
   }.
 
 Context
@@ -438,7 +438,7 @@ Fixpoint check_i (i : instr) (env : Env.t) : cexec Env.t :=
   match ir with
   | Cassgn lv _ _ _ => ok (Env.after_assign_vars env (vrv lv))
 
-  | Copn lvs _ op es =>
+  | Copn lvs _ op _ es =>
       if is_Oslh op is Some slho
       then check_slho ii lvs slho es env
       else ok (Env.after_assign_vars env (vrvs lvs))
@@ -480,12 +480,13 @@ Definition lower_slho
   (lvs : seq lval)
   (tg : assgn_tag)
   (slho : slh_op)
+  als
   (es : seq pexpr) :
   cexec instr_r :=
   Let args :=
     if is_protect_ptr slho is Some (ws, p) then
-      ok (lvs, Oslh (SLHprotect_ptr_fail ws p), es)
-    else o2r (E.lowering_failed ii) (shp_lower shparams lvs slho es)
+      ok (lvs, Oslh (SLHprotect_ptr_fail ws p), als, es)
+    else o2r (E.lowering_failed ii) (shp_lower shparams lvs slho als es)
   in
   ok (instr_of_copn_args tg args).
 
@@ -499,9 +500,9 @@ Fixpoint lower_i (i : instr) : cexec instr :=
     | Cassgn _ _ _ _ =>
       ok ir
 
-    | Copn lvs tg op es =>
+    | Copn lvs tg op als es =>
       if is_Oslh op is Some slho
-      then lower_slho ii lvs tg slho es
+      then lower_slho ii lvs tg slho als es
       else ok ir
 
     | Csyscall _ _ _ =>

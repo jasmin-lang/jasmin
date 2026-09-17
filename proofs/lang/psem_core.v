@@ -171,7 +171,7 @@ Proof. by case: s. Qed.
 Lemma with_scs_idem env (s : estate env) scs1 scs2 : with_scs (with_scs s scs1) scs2 = with_scs s scs2.
 Proof. by case: s. Qed.
 
-Lemma evm_with_vm env (s : estate env) (vm : Vm.t env) : evm (with_vm s vm) = vm.
+Lemma evm_with_vm env1 env2 (s : estate env1) (vm : Vm.t env2) : evm (with_vm s vm) = vm.
 Proof. by case: s. Qed.
 
 Lemma emem_with_vm env (s : estate env) (vm : Vm.t env) : emem (with_vm s vm) = emem s.
@@ -1152,11 +1152,12 @@ Lemma sem_pexpr_uincl_on env1 env2 wdb gd (s1 : estate env1) (vm2 : Vm.t env2) e
   exists2 v2, sem_pexpr wdb gd (with_vm s1 vm2) e = ok v2 & value_uincl v1 v2.
 Proof. move=> heq. exact: (proj1 (sem_pexpr_uincl_on_pair wdb gd s1 vm2 heq)). Qed.
 
-Corollary sem_pexpr_uincl env wdb gd (s1 : estate env) (vm2 : Vm.t env) e v1 :
+Corollary sem_pexpr_uincl env1 env2 wdb gd (s1 : estate env1) (vm2 : Vm.t env2) e v1 :
+  env1 =1 env2 ->
   s1.(evm) <=1 vm2 →
   sem_pexpr wdb gd s1 e = ok v1 →
   exists2 v2, sem_pexpr wdb gd (with_vm s1 vm2) e = ok v2 & value_uincl v1 v2.
-Proof. move => /(vm_uincl_uincl_on (dom:=read_e e)); exact: sem_pexpr_uincl_on. Qed.
+Proof. move=> heq. move => /(vm_uincl_uincl_on (dom:=read_e e)); exact: sem_pexpr_uincl_on. Qed.
 
 Lemma sem_pexprs_uincl_on env1 env2 wdb gd (s1 : estate env1) (vm2 : Vm.t env2) es vs1 :
   env1 =1 env2 ->

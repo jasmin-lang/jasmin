@@ -419,19 +419,20 @@ Definition get_instr_desc (o: extended_op) : instruction_desc :=
  | BaseOp o =>
    let id := instr_desc o in
    {| str      := id.(id_str_jas)
+    ; al       := [::]
     ; tin      := map atype_of_ltype id.(id_tin)
     ; i_in     := map sopn_arg_desc id.(id_in)
     ; i_out    := map sopn_arg_desc id.(id_out)
     ; conflicts:= [::]
     ; tout     := map atype_of_ltype id.(id_tout)
-    ; semi     := semi_to_atype id.(id_semi)
-    ; semu     := fun env => @vuincl_app_sopn_v _ _ _ (is_not_carr_ltype _ env)
+    ; semi     := semi_to_atype id.(id_semi) _
+    ; semu     := @vuincl_app_sopn_v _ _ _ (is_not_carr_ltype _ _)
     ; i_safe   := map safe_cond_to_array_length id.(id_safe)
     ; i_valid  := id.(id_valid)
     ; i_doit   := id.(id_doit)
     ; i_safe_wf := semi_to_atype_safe_wf id.(id_safe_wf)
-    ; i_semi_errty := fun h env => semi_to_atype_errty env (id.(id_semi_errty) h)
-    ; i_semi_safe := fun h env => semi_to_atype_safe env (id.(id_semi_safe) h)
+    ; i_semi_errty := fun h => semi_to_atype_errty _ (id.(id_semi_errty) h)
+    ; i_semi_safe := fun h => semi_to_atype_safe _ (id.(id_semi_safe) h)
    |}
  | ExtOp o => asm_op_instr o
  end.

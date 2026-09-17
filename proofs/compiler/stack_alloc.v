@@ -1180,7 +1180,7 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:atype) :=
     ok (rmap, Lmem al ws vi e1)
   end.
 
-Definition nop := Copn [::] AT_none sopn_nop [::].
+Definition nop := Copn [::] AT_none sopn_nop [::] [::].
 
 (* If a stack pointer already contains the right pointer, there is no need to
    assign it again, and a nop is issued. *)
@@ -1379,7 +1379,7 @@ Definition alloc_protect_ptr rmap ii r t e msf :=
         Let msf := add_iinfo ii (alloc_e rmap msf ty_msf) in
         let rmap := set_move rmap x sry statusy in
         let dx := Lvar (with_var x p) in
-        Let ir := lower_protect_ptr_fail ii [::dx] t [:: ey; msf] in
+        Let ir := lower_protect_ptr_fail ii [::dx] t [::] [:: ey; msf] in
         ok (rmap, ir)
       | _ => Error (stk_error_no_var "only reg ptr can receive the result of protect_ptr")
       end
@@ -1796,7 +1796,7 @@ Definition alloc_declassify_array rmap es :=
         | _ => Error (stk_ierror_no_var "FIXME: temporary hack")
         end
       in
-      ok (Copn [::] AT_keep (Opseudo_op (pseudo_operator.Odeclassify_mem len)) [:: e ])
+      ok (Copn [::] AT_keep (Opseudo_op (pseudo_operator.Odeclassify_mem len)) [::] [:: e ])
     else Error (stk_ierror_basic xv "register array remains")
   else Error (stk_ierror_no_var "declassify: invalid args").
 
@@ -1823,7 +1823,7 @@ Fixpoint alloc_i sao (trmap:table*region_map) (i: instr) : cexec (table * region
       Let r := add_iinfo ii (alloc_lval rmap r ty) in
       ok (table, r.1, [:: MkI ii (Cassgn r.2 t ty e)])
 
-  | Copn rs t o e =>
+  | Copn rs t o als e =>
     if is_protect_ptr_fail rs o e is Some (r, e, msf) then
        let table := remove_binding_lval table r in
        Let rs := alloc_protect_ptr rmap ii r t e msf in
@@ -1857,7 +1857,7 @@ Fixpoint alloc_i sao (trmap:table*region_map) (i: instr) : cexec (table * region
     in
     Let e  := add_iinfo ii (alloc_es rmap e (sopn_tin o)) in
     Let rs := add_iinfo ii (alloc_lvals rmap rs (sopn_tout o)) in
-    ok (table, rs.1, [:: MkI ii (Copn rs.2 t o e)])
+    ok (table, rs.1, [:: MkI ii (Copn rs.2 t o als e)])
 
   | Csyscall rs o es =>
     let table := remove_binding_lvals table rs in

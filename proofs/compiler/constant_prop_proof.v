@@ -1000,7 +1000,7 @@ Lemma const_prop_ePe env m wdb e :
 Proof.
   move=> s t v /st_relP [-> _ /=] [hval hvm].
   move=> /(const_prop_eP hval (valid_without_globals env)) [v' [he' u1]].
-  have [vs2 -> u2]:= sem_pexpr_uincl hvm he'.
+  have [vs2 -> u2]:= sem_pexpr_uincl (fun _ => erefl) hvm he'.
   exists vs2 => //; apply: value_uincl_trans u1 u2.
 Qed.
 
@@ -1135,7 +1135,7 @@ Proof.
     have [v1 [H U]] := const_prop_eP Hm Gv he.
     have [] := const_prop_rvP Hm Gv hwr.
     rewrite hrv /= => Hm' Hw'.
-    have [v1' -> /= uv1']:= sem_pexpr_uincl hvm1 H.
+    have [v1' -> /= uv1']:= sem_pexpr_uincl (fun _ => erefl) hvm1 H.
     have [v2 htr2 hv']:= value_uincl_truncate U htr.
     have [v3 -> /= hv3]:= value_uincl_truncate uv1' htr2.
     have [vm2 -> hvm2]:= write_uincl hvm1 (value_uincl_trans hv' hv3) Hw'.

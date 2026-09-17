@@ -139,9 +139,9 @@ Section CAT.
   Proof. by move => x tg [] // sz e ii lbl c /=; case: assert. Qed.
 
   #[ local ]
-  Lemma cat_opn : forall xs t o es, Pr (Copn xs t o es).
+  Lemma cat_opn : forall xs t o als es, Pr (Copn xs t o als es).
   Proof.
-    move => xs tg op es ii fn lbl tl /=.
+    move => xs tg op als es ii fn lbl tl /=.
     by do 2 (case: oseq.omap => // ?).
   Qed.
 
@@ -189,9 +189,9 @@ Section CAT.
   Qed.
 
   #[ local ]
-  Lemma cat_call : forall xs f es, Pr (Ccall xs f es).
+  Lemma cat_call : forall xs f als es, Pr (Ccall xs f als es).
   Proof.
-    move=> xs fn es ii fn' lbl tail /=.
+    move=> xs fn als es ii fn' lbl tail /=.
     case: get_fundef => // fd; case: is_RAnoneP => //.
     by case: sf_return_address => // [ ra ? | ra_call ra_return ra_ofs ? ] _; rewrite cats0 -catA.
   Qed.
@@ -791,7 +791,7 @@ Section VALIDITY.
   Proof. move => ???; exact: default. Qed.
 
   #[ local ]
-  Lemma valid_labels_opn (xs : lvals) (t : assgn_tag) (o : sopn) (es : pexprs) : Pr (Copn xs t o es).
+  Lemma valid_labels_opn (xs : lvals) (t : assgn_tag) (o : sopn) als (es : pexprs) : Pr (Copn xs t o als es).
   Proof.
     move => ii fn lbl /=.
     case: oseq.omap => [ ls | ]; last exact: default.
@@ -885,7 +885,7 @@ Section VALIDITY.
   Proof. by rewrite /allocate_stack_frame; case: ifP => // _; apply: valid_li_of_fopn_args. Qed.
 
   #[ local ]
-  Lemma valid_labels_call (xs : lvals) (f : funname) (es : pexprs) : Pr (Ccall xs f es).
+  Lemma valid_labels_call (xs : lvals) (f : funname) als (es : pexprs) : Pr (Ccall xs f als es).
   Proof.
     move => ii fn lbl /=.
     case: get_fundef => [ fd | ]; last by split => //; lia.
@@ -953,7 +953,7 @@ Section NUMBER_OF_LABELS.
   Proof. move => ???; exact: Z.le_refl. Qed.
 
   #[ local ]
-  Lemma nb_labels_opn (xs : lvals) (t : assgn_tag) (o : sopn) (es : pexprs) : Pr (Copn xs t o es).
+  Lemma nb_labels_opn (xs : lvals) (t : assgn_tag) (o : sopn) als (es : pexprs) : Pr (Copn xs t o als es).
   Proof.
     move=> ii fn lbl /=.
     case: oseq.omap => [ ? | /= ].
@@ -1047,7 +1047,7 @@ Section NUMBER_OF_LABELS.
   Proof. apply label_in_lcmd_li_of_fopn_args. Qed.
 
   #[ local ]
-  Lemma nb_labels_call (xs : lvals) (f : funname) (es : pexprs) : Pr (Ccall xs f es).
+  Lemma nb_labels_call (xs : lvals) (f : funname) als (es : pexprs) : Pr (Ccall xs f als es).
   Proof.
     move => ii fn lbl /=.
     case: get_fundef => [ fd | ]; last by apply Z.le_refl.
@@ -1688,7 +1688,7 @@ Section PROOF.
       move: ok_s' => /=; t_xrbindP => ofs ev ok_ev ok_ofs w ok_w m' ok_m' _{s'}.
       move: ok_t' => /=.
       have /= ok_ev' := match_mem_gen_sem_pexpr M ok_ev.
-      have /(_ _ X) := sem_pexpr_uincl _ ok_ev'.
+      have /(_ _ X) := sem_pexpr_uincl (fun _ => erefl) _ ok_ev'.
       case => ev' -> /of_value_uincl_te h /=.
       have {h} /= -> /= := (h (cword _) _ ok_ofs).
       t_xrbindP => w' ok_w' tm' ok_tm' <-{t'} /=.
@@ -1946,9 +1946,9 @@ Qed.
 Lemma linear_c_end_assgn : ∀ (x : lval) (tg : assgn_tag) (ty : atype) (e : pexpr), Pi_r (Cassgn x tg ty e).
 Proof. by move=> > [] /checked_iE []. Qed.
 
-Lemma linear_c_end_opn : ∀ (xs : lvals) (t : assgn_tag) (o : sopn) (es : pexprs), Pi_r (Copn xs t o es).
+Lemma linear_c_end_opn : ∀ (xs : lvals) (t : assgn_tag) (o : sopn) als (es : pexprs), Pi_r (Copn xs t o als es).
 Proof.
-  move=> xs t o es ii lbl lbli li P Q ls [_] /=.
+  move=> xs t o als es ii lbl lbli li P Q ls [_] /=.
   case: oseq.omap; last by move=> [? <-] *; apply linear_c_end_dfl.
   move=> lxs; case: oseq.omap; last by move=> [? <-] *; apply linear_c_end_dfl.
   move=> les [<- <-] D C hfn hpc.
@@ -2587,8 +2587,8 @@ Lemma allocate_stack_frame_frame' free ii sz tmp rastack :
   map (li_of_fopn_args ii) (allocate_stack_frame' free sz tmp rastack).
 Proof. by rewrite /allocate_stack_frame /allocate_stack_frame'; case: eqP. Qed.
 
-Lemma pre_i_call xs f es ii lbl lbli li P Q ls :
- pre_i (MkI ii (Ccall xs f es)) lbl lbli P li Q →
+Lemma pre_i_call xs f als es ii lbl lbli li P Q ls :
+ pre_i (MkI ii (Ccall xs f als es)) lbl lbli P li Q →
  lfn ls = fn → lpc ls = size P →
  exists fd fd',
   [/\ f != fn
@@ -2665,9 +2665,9 @@ Proof.
   apply eqit_Ret; f_equal; simpl_size; lia.
 Qed.
 
-Lemma linear_c_end_call : ∀ (xs : lvals) (f : funname) (es : pexprs), Pi_r (Ccall xs f es).
+Lemma linear_c_end_call : ∀ (xs : lvals) (f : funname) als (es : pexprs), Pi_r (Ccall xs f als es).
 Proof.
-  move=> xs f es ii lbl lbli li P Q ls pre hfn hpc.
+  move=> xs f als es ii lbl lbli li P Q ls pre hfn hpc.
   have [fd [fd' [_ _ _ _ _ _ _ [_ ->] ]]] := pre_i_call pre hfn hpc.
   apply eqit_bind' with eq; first reflexivity.
   move=> ls1 _ <-.
@@ -3052,18 +3052,18 @@ End ILSTEPS_END.
     by move => s [] // v vs s'; t_xrbindP => ? /(lexpr_of_lvalP ok_d) /= -> /rec.
   Qed.
 
-  Lemma Hopn : ∀ (xs : lvals) (t : assgn_tag) (o : sopn) (es : pexprs), Pi_r (Copn xs t o es).
+  Lemma Hopn : ∀ (xs : lvals) (t : assgn_tag) (o : sopn) als (es : pexprs), Pi_r (Copn xs t o als es).
   Proof using linear_ok enough_space.
-    move=> xs tag o es ii lbl lbli P li Q [/checked_iE [fd ok_fd] /=].
-    t_xrbindP => /check_rexprsP [] qs -> chk_es /check_lexprsP[] ds -> chk_xs [??]; subst lbl li.
+    move=> xs tag o als es ii lbl lbli P li Q [/checked_iE [fd ok_fd] /=].
+    t_xrbindP => /eqP ? /check_rexprsP [] qs -> chk_es /check_lexprsP[] ds -> chk_xs [??]; subst als lbl li.
     move=> D C s1 ls1 [M1 SC1 X1 hpc hfn hsp1 S1 MAX1].
     rewrite (step_mix_ilsteps C) //; last by simpl_size; lia.
     rewrite -(bind_ret_r (iresult _)); apply xrutt_bind_iresult_left => /= ks2.
     rewrite /sem_sopn p_globs_nil; t_xrbindP => s2 vxs ves hes hex ok_s2 ?; subst ks2.
     rewrite /eval_instr /=.
-    have [ vs' /(match_mem_gen_sem_pexprs M1) /chk_es ok_vs' vs_vs' ] := sem_pexprs_uincl X1 hes.
+    have [ vs' /(match_mem_gen_sem_pexprs M1) /chk_es ok_vs' vs_vs' ] := sem_pexprs_uincl (fun _ => erefl) X1 hes.
     have [ rs' ok_rs' rs_rs' ] := vuincl_exec_opn vs_vs' hex.
-    have [ vm2 /(match_mem_gen_write_lvals M1) [ m2 ok_s2' M2 ] ok_vm2 ] := writes_uincl X1 rs_rs' ok_s2.
+    have [ vm2 /(match_mem_gen_write_lvals M1) [ m2 ok_s2' M2 ] ok_vm2 ] := writes_uincl (fun _ => erefl) X1 rs_rs' ok_s2.
     have {} ok_s2'' := chk_xs _ _ _ ok_s2'.
     rewrite SC1 in ok_vs', ok_s2', ok_s2''; rewrite ok_vs' /= ok_rs'/= ok_s2'' /=.
     rewrite mix_ilsteps_b0 => //=; last by rewrite hpc addn1.
@@ -3173,7 +3173,7 @@ End ILSTEPS_END.
     have [ves' hes' uves] := get_vars_uincl X1 hes.
     have [vs' /= ho' uvs]:= exec_syscallP hex uves.
     have [m' {}ho' mm]:= match_mem_gen_exec_syscall M1 ho'.
-    have /(_ _ (vm_after_syscall_uincl X1)) := writes_uincl _ uvs ok_s2.
+    have /(_ _ (vm_after_syscall_uincl X1)) := writes_uincl (fun _ => erefl) _ uvs ok_s2.
     move=> [] vm2 /= /(match_mem_gen_write_lvals mm) [ m2 /= ok_s2' M2 ] ok_vm2 .
     rewrite SC1 in ho'.
     rewrite hes' /= ho' /= ok_s2' /=.
@@ -3221,7 +3221,7 @@ End ILSTEPS_END.
   Proof using linear_ok.
     rewrite p_globs_nil => -[M _ U _ _ _ _ _] /check_fexprP [] f ok_f ok_e.
     rewrite /to_fexpr ok_f.
-    have [ ? /(match_mem_gen_sem_pexpr M) + /value_uinclE ?]:= sem_pexpr_uincl U ok_e; subst.
+    have [ ? /(match_mem_gen_sem_pexpr M) + /value_uinclE ?]:= sem_pexpr_uincl (fun _ => erefl) U ok_e; subst.
     apply: fexpr_of_pexprP ok_f.
   Qed.
 
@@ -3400,9 +3400,9 @@ End ILSTEPS_END.
     apply has_label_allocate_stack_frame.
   Qed.
 
-  Lemma Hcall : ∀ (xs : lvals) (f : funname) (es : pexprs), Pi_r (Ccall xs f es).
+  Lemma Hcall : ∀ (xs : lvals) (f : funname) als (es : pexprs), Pi_r (Ccall xs f als es).
   Proof using hliparams linear_ok sp0_le enough_space.
-    move=> xs f es ii lbl lbli P li Q hpre s1 ls1 hinv.
+    move=> xs f als es ii lbl lbli P li Q hpre s1 ls1 hinv.
     have := pre_i_call hpre (inv_c_lfn hinv) (inv_c_lpc hinv).
     move=> [fd] [fd'] [/negbTE fn'_neq_fn ok_fd ok_fd' ok_ra ok_align /ZleP ok_max D].
     set rastack_before := is_RAstack_None_call _.

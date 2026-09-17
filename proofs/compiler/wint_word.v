@@ -84,8 +84,8 @@ Fixpoint wi2w_ir (ir:instr_r) : instr_r :=
   | Cassgn x tag ty e =>
     Cassgn (wi2w_lv x) tag ty (wi2w_e e)
 
-  | Copn xs t o es =>
-    Copn (map wi2w_lv xs) t o (map wi2w_e es)
+  | Copn xs t o als es =>
+    Copn (map wi2w_lv xs) t o als (map wi2w_e es)
 
   | Csyscall xs o es =>
     Csyscall (map wi2w_lv xs) o (map wi2w_e es)
@@ -102,8 +102,8 @@ Fixpoint wi2w_ir (ir:instr_r) : instr_r :=
   | Cwhile a c e info c' =>
     Cwhile a (map wi2w_i c) (wi2w_e e) info (map wi2w_i c')
 
-  | Ccall xs f es =>
-    Ccall (map wi2w_lv xs) f (map wi2w_e es)
+  | Ccall xs f als es =>
+    Ccall (map wi2w_lv xs) f als (map wi2w_e es)
 
   end
 

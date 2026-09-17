@@ -465,7 +465,8 @@ Fixpoint check_bool (e:fexpr) :=
     let (ii,ir) := i in
     match ir with
     | Cassgn lv _ _ e => Error (E.assign_remains ii lv e)
-    | Copn xs tag o es =>
+    | Copn xs tag o als es =>
+      Let _ := assert (als == [::]) (E.ii_error ii "length variables still there") in
       allM (check_rexpr ii) es >> allM (check_lexpr ii) xs
     | Csyscall xs o es =>
       ok tt
@@ -483,7 +484,7 @@ Fixpoint check_bool (e:fexpr) :=
       | Some true => check_c check_i c >> check_c check_i c'
       | None => check_fexpr ii e >> (check_c check_i c >> check_c check_i c')
       end
-    | Ccall xs fn es =>
+    | Ccall xs fn als es =>
       Let _ := assert (fn != this) (E.ii_error ii "call to self") in
       if get_fundef (p_funcs p) fn is Some fd then
         let e := f_extra fd in
@@ -678,7 +679,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
   match ir with
   | Cassgn _ _ _ _ => (lbl, lc) (* absurd case *)
-  | Copn xs _ o es =>
+  | Copn xs _ o als es =>
       match oseq.omap lexpr_of_lval xs, oseq.omap rexpr_of_pexpr es with
       | Some xs, Some es => (lbl, MkLI ii (Lopn xs o es) :: lc)
       | _, _ => (lbl, lc) (* absurd case *)
@@ -739,7 +740,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       end
     end
 
-  | Ccall xs fn' es =>
+  | Ccall xs fn' als es =>
     if get_fundef (p_funcs p) fn' is Some fd then
       let e := f_extra fd in
       let ra := sf_return_address e in

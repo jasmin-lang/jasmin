@@ -72,8 +72,31 @@ Definition get_Pvar ii (e : pexpr) : cexec var_i :=
 Definition get_Pvars ii (es : pexprs) : cexec (seq var_i) :=
   mapM (get_Pvar ii) es.
 
+Fixpoint no_var_al (al : array_length) :=
+  match al with
+  | ALConst _ => true
+  | ALVar _ _ => false
+  | ALNeg al => no_var_al al
+  | ALAdd al1 al2
+  | ALSub al1 al2
+  | ALMul al1 al2
+  | ALDiv _ al1 al2
+  | ALMod _ al1 al2
+  | ALShl al1 al2
+  | ALShr al1 al2 => no_var_al al1 && no_var_al al2
+  end.
+
+Definition no_var_ty ty :=
+  match ty with
+  | aarr _ al => no_var_al al
+  | _ => true
+  end.
+
 Definition check_ty ii (xs : seq var_i) (tys : seq atype) :=
-  assert (all2 (fun (x : var_i) ty => convertible (vtype x) ty) xs tys)
+  Let _ := assert (all2 (fun (x : var_i) ty => convertible (vtype x) ty) xs tys)
+      (pp_internal_error_s_at E.pass ii "bad type for spill/unspill")
+  in
+  assert (all (fun ty => no_var_ty ty) tys)
       (pp_internal_error_s_at E.pass ii "bad type for spill/unspill").
 
 Section GET.

@@ -187,7 +187,7 @@ with isem_ir (p : sprog) (i : instr_r) (s : estate empty_env) : itree E (Sv.t * 
   match i with
   | Cassgn x tg ty e => iresult (add_fv (vrv x) (sem_assgn p x tg ty e s))
 
-  | Copn xs tg o es => iresult (add_fv (vrvs xs) (sem_sopn (p_globs p) o s xs es))
+  | Copn xs tg o als es => iresult (add_fv (vrvs xs) (sem_sopn (p_globs p) o s xs als es))
 
   | Csyscall xs o es =>
     let fv := Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout))) in
@@ -200,7 +200,7 @@ with isem_ir (p : sprog) (i : instr_r) (s : estate empty_env) : itree E (Sv.t * 
   | Cwhile a c1 e i c2 =>
     isem_while_loop isem_i p c1 e c2 (Sv.empty, s)
 
-  | Ccall xs fn args =>
+  | Ccall xs fn als args =>
     let fi := kill_tmp_call p fn s in
     iresult (is_disjoint_magic p fn);;
     fs <- sem_funK p fn fi;;

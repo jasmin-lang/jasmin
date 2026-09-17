@@ -33,7 +33,6 @@ Record h_lowering_params
         {E E0: Type -> Type}
         {wE : with_Error E E0}
         {rE : EventRels E0}
-        env
         {p : prog}
         {ev : extra_val_t}
         (warning : instr_info -> warning_msg -> instr_info)
@@ -43,7 +42,7 @@ Record h_lowering_params
           lowering.lower_prog (lop_lower_i loparams) warning fv p
         in
         lop_fvars_correct loparams fv (p_funcs p) ->
-        wiequiv_f env p p' ev ev pre_eq fn fn post_eq
+        wiequiv_f p p' ev ev pre_eq fn fn post_eq
   }.
 
 (* Lowering of complex addressing mode for RISC-V.
@@ -77,13 +76,12 @@ Record h_lower_addressing_params
         {E E0: Type -> Type}
         {wE : with_Error E E0}
         {rE : EventRels E0}
-        env
         {fresh_reg}
         {p p' : sprog}
         {ev fn},
         lap_lower_address laparams fresh_reg p = ok p' ->
         wiequiv_f (scP1 := sCP_stack) (scP2 := sCP_stack)
-          env p p' ev ev pre_eq fn fn post_eq;
+          p p' ev ev pre_eq fn fn post_eq;
   }.
 
 Record h_architecture_params
@@ -130,9 +128,9 @@ Record h_architecture_params
     (* Shared across multiple passes. *)
 
     hap_is_move_opP :
-      forall env op vx v,
+      forall op vals vx v,
         ap_is_move_op aparams op
-        -> exec_sopn env (Oasm op) [:: vx ] = ok v
+        -> exec_sopn (Oasm op) vals [:: vx ] = ok v
         -> values_uincl v [:: vx ];
   }.
 

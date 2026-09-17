@@ -44,13 +44,14 @@ Record spill_info := {
     forall ii ii' x x' sx, get_spill ii x = ok sx -> get_spill ii' x' = ok sx -> x = x'
 }.
 
-Definition valid_env env (S:spill_info) (senv : spill_env) (vm1 vm2 : Vm.t env) :=
+Definition valid_env env1 env2 (S:spill_info) (senv : spill_env) (vm1 : Vm.t env1) (vm2 : Vm.t env2) :=
   vm1 =[S.(X)] vm2 /\
   forall x, Sv.In x senv ->
   Sv.In x S.(X) /\
   exists2 sx, (forall ii, get_spill S ii x = ok sx) & vm2.[x] = vm2.[sx].
 
-Lemma update_lvP env S wdb gd senv lv (s1 s1' : estate env) vm2 v :
+Lemma update_lvP env1 env2 S wdb gd senv lv (s1 s1' : estate env1) (vm2 : Vm.t env2) v :
+  env1 =1 env2 ->
   valid_env S senv (evm s1) vm2 ->
   write_lval wdb gd lv v s1  = ok s1' ->
   Sv.Subset (vars_lval lv) S.(X) ->
@@ -58,8 +59,8 @@ Lemma update_lvP env S wdb gd senv lv (s1 s1' : estate env) vm2 v :
     write_lval wdb gd lv v (with_vm s1 vm2) = ok (with_vm s1' vm2') &
     valid_env S (update_lv senv lv) (evm s1') vm2'.
 Proof.
-  move=> [heqon hspill] hw hsub.
-  case: (write_lval_eq_on (X:=S.(X)) (vm1 := vm2) (fun _ => erefl) _ hw _) => //.
+  move=> heq [heqon hspill] hw hsub.
+  case: (write_lval_eq_on (X:=S.(X)) (vm1 := vm2) heq _ hw _) => //.
   + by move: hsub; rewrite /vars_lval; clear; SvD.fsetdec.
   move=> vm2' hw' heqon'; exists vm2' => //; split.
   + by apply: eq_onI heqon'; clear; SvD.fsetdec.
@@ -74,7 +75,8 @@ Proof.
   by move: hsub; rewrite /vars_lval; clear; SvD.fsetdec.
 Qed.
 
-Lemma update_lvsP env S wdb gd senv lvs (s1 s1' : estate env) vm2 vs :
+Lemma update_lvsP env1 env2 S wdb gd senv lvs (s1 s1' : estate env1) (vm2 : Vm.t env2) vs :
+  env1 =1 env2 ->
   valid_env S senv (evm s1) vm2 ->
   write_lvals wdb gd s1 lvs vs = ok s1' ->
   Sv.Subset (vars_lvals lvs) S.(X) ->
@@ -82,18 +84,19 @@ Lemma update_lvsP env S wdb gd senv lvs (s1 s1' : estate env) vm2 vs :
     write_lvals wdb gd (with_vm s1 vm2) lvs vs = ok (with_vm s1' vm2') &
     valid_env S (update_lvs senv lvs) (evm s1') vm2'.
 Proof.
+  move=> heq.
   elim: lvs vs senv s1 vm2.
   + by move=> [] //= senv s1 vm2 hval [<-] _; eauto.
   move=> lv lvs hrec [] //= v vs senv s1 vm2 hval.
   t_xrbindP => s1'' hw hws.
   rewrite /vars_lvals read_rvs_cons vrvs_cons => hsub.
-  case: (update_lvP hval hw); first by rewrite /vars_lval; clear -hsub; SvD.fsetdec.
+  case: (update_lvP heq hval hw); first by rewrite /vars_lval; clear -hsub; SvD.fsetdec.
   move=> vm2'' -> /= hval''.
   case: (hrec _ _ _ _ hval'' hws); first by rewrite /vars_lvals; clear -hsub; SvD.fsetdec.
   by move=> vm2' -> hval'; exists vm2'.
 Qed.
 
-Lemma valid_env_e env S wdb gd senv e (s1 : estate env) vm2 :
+Lemma valid_env_e env S wdb gd senv e (s1 : estate env) (vm2 : Vm.t env) :
   valid_env S senv (evm s1) vm2 ->
   Sv.Subset (read_e e) S.(X) ->
   sem_pexpr wdb gd s1 e = sem_pexpr wdb gd (with_vm s1 vm2) e.
@@ -102,12 +105,13 @@ Proof.
   move=> x hx; rewrite heq //; clear -hX hx; SvD.fsetdec.
 Qed.
 
-Lemma valid_env_es env S wdb gd senv es (s1 : estate env) vm2 :
+Lemma valid_env_es env1 env2 S wdb gd senv es (s1 : estate env1) (vm2 : Vm.t env2) :
+  env1 =1 env2 ->
   valid_env S senv (evm s1) vm2 ->
   Sv.Subset (read_es es) S.(X) ->
   sem_pexprs wdb gd s1 es = sem_pexprs wdb gd (with_vm s1 vm2) es.
 Proof.
-  move=> [heq hval] hX; apply: eq_on_sem_pexprs => //.
+  move=> heq_ [heq hval] hX; apply: eq_on_sem_pexprs => //.
   move=> x hx; rewrite heq //; clear -hX hx; SvD.fsetdec.
 Qed.
 
@@ -122,10 +126,13 @@ Proof.
 Qed.
 
 Lemma check_tyP ii xs tys :
-  check_ty ii xs tys = ok tt -> all2 convertible tys (map (fun (x:var_i) => vtype x) xs).
+  check_ty ii xs tys = ok tt ->
+  all2 convertible tys (map (fun (x:var_i) => vtype x) xs) /\
+  all no_var_ty tys.
 Proof.
   rewrite /check_ty; t_xrbindP.
-  elim: xs tys => [|x xs ih] [|ty tys] //= /andP [hc1 hc2].
+  move=> h1 h2; split=> //.
+  elim: xs tys h1 {h2} => [|x xs ih] [|ty tys] //= /andP [hc1 hc2].
   apply /andP; split.
   + by apply convertible_sym.
   by apply ih.
@@ -173,27 +180,48 @@ Proof using spill_prog_ok.
   rewrite !Vm.setP_neq //; apply /eqP => heqsx; last by clear -hnin hIn heqsx; SvD.fsetdec.
   by subst sx'; apply/heqx/(get_spill_inj hsx (hsx' ii)).
 Qed.
+  Lemma no_var_alP al : no_var_al al -> forall env1 env2, eval env1 al = eval env2 al.
+  Proof.
+    move=> hnovar env1 env2.
+    elim: al hnovar => //=.
+    + by move=> al ih /ih ->.
+    + by move=> al1 ih1 al2 ih2 /andP [/ih1 -> /ih2 ->].
+    + by move=> al1 ih1 al2 ih2 /andP [/ih1 -> /ih2 ->].
+    + by move=> al1 ih1 al2 ih2 /andP [/ih1 -> /ih2 ->].
+    + by move=> ? al1 ih1 al2 ih2 /andP [/ih1 -> /ih2 ->].
+    + by move=> ? al1 ih1 al2 ih2 /andP [/ih1 -> /ih2 ->].
+    + by move=> al1 ih1 al2 ih2 /andP [/ih1 -> /ih2 ->].
+    by move=> al1 ih1 al2 ih2 /andP [/ih1 -> /ih2 ->].
+  Qed.
+
+  Lemma no_var_tyP ty : no_var_ty ty -> forall env1 env2, eval_atype env1 ty = eval_atype env2 ty.
+  Proof.
+    case: ty => //= ws al hnovar env1 env2.
+    congr (fun al => carr (arr_size ws al)).
+    by apply no_var_alP.
+  Qed.
 
 Lemma spill_esP env S ii tys es c senv senv' (s : estate env) vs vs' vm :
   sem_pexprs true gd s es = ok vs ->
-  mapM2 ErrType truncate_val (map (eval_atype env) tys) vs = ok vs' ->
+  mapM2 ErrType truncate_val (map (eval_atype empty_env) tys) vs = ok vs' ->
   Sv.Subset (read_es es) S.(X) ->
   valid_env S senv (evm s) vm ->
   spill_es S.(get_spill) ii senv tys es = ok (senv', c) ->
   exists2 vm' : Vm.t env, esem p' ev c (with_vm s vm) = ok (with_vm s vm') & valid_env S senv' (evm s) vm'.
 Proof using spill_prog_ok.
   rewrite /spill_es; t_xrbindP.
-  move=> hse htr hX hval xs /get_PvarsP ? /check_tyP hc; subst es.
-  elim: xs tys vs vs' senv c s vm hc hse htr hX hval => [ | x xs hrec] [|ty tys] vs vs' senv c s vm //=.
-  + by move=> _ [<-] /= _ _ hval [<- <-]; exists vm.
-  t_xrbindP => /andP [hc1 hc2] vx hx vxs hvxs <-; t_xrbindP.
+  move=> hse htr hX hval xs /get_PvarsP ? /check_tyP [hc1 hc2]; subst es.
+  elim: xs tys vs vs' senv c s vm hc1 hc2 hse htr hX hval => [ | x xs hrec] [|ty tys] vs vs' senv c s vm //=.
+  + by move=> _ _ [<-] /= _ _ hval [<- <-]; exists vm.
+  t_xrbindP => /andP [hc1 hc2] /andP [hnv1 hnv2] vx hx vxs hvxs <-; t_xrbindP.
   move=> vt htr hts htrs _; rewrite read_es_cons read_e_var.
   move=> hX hval [senv1 ix] hix [senv2 ixs] hixs /= ??.
   subst senv2 c.
+  rewrite (no_var_tyP hnv1 _ env) in htr.
   rewrite (convertible_eval_atype hc1) in htr.
   case: (spill_xP hx htr _ hval hix); first by clear -hX; SvD.fsetdec.
   move=> mv1 hs1 hval1.
-  case: (hrec _ _ _ _ _ _ _ hc2 hvxs htrs _ hval1 hixs); first by clear -hX; SvD.fsetdec.
+  case: (hrec _ _ _ _ _ _ _ hc2 hnv2 hvxs htrs _ hval1 hixs); first by clear -hX; SvD.fsetdec.
   move=> vm' hs2 hval2; exists vm' => //=.
   by rewrite hs1 /= hs2.
 Qed.
@@ -229,22 +257,25 @@ Qed.
 
 Lemma unspill_esP env S ii tys es c senv (s : estate env) vs vs' vm :
   sem_pexprs true gd s es = ok vs ->
-  mapM2 ErrType truncate_val (map (eval_atype env) tys) vs = ok vs' ->
+  mapM2 ErrType truncate_val (map (eval_atype empty_env) tys) vs = ok vs' ->
   valid_env S senv (evm s) vm ->
   unspill_es S.(get_spill) ii senv tys es = ok c ->
   exists2 vm' : Vm.t env, esem p' ev c (with_vm s vm) = ok (with_vm s vm') & valid_env S senv (evm s) vm'.
 Proof.
   rewrite /unspill_es; t_xrbindP.
-  move=> hse htr hval xs /get_PvarsP ? /check_tyP hc; subst es.
-  elim: xs tys vs vs' c s vm hc hse htr hval => [ | x xs hrec] [|ty tys] vs vs' c s vm //=.
-  + by move=> _ [<-] /= _ hval [<-]; exists vm => //; constructor.
-  t_xrbindP => /andP [hc1 hc2] vx hx vxs hvxs <-; t_xrbindP.
+  move=> hse htr hval xs /get_PvarsP ? /check_tyP [hc1 hc2]; subst es.
+  elim: xs tys vs vs' c s vm hc1 hc2 hse htr hval => [ | x xs hrec] [|ty tys] vs vs' c s vm //=.
+  + by move=> _ _ [<-] /= _ hval [<-]; exists vm => //; constructor.
+  t_xrbindP => /andP [hc1 hc2] /andP [hnv1 hnv2] vx hx vxs hvxs <-; t_xrbindP.
   move=> vt htr hts htrs _ hval ix hix ixs hixs /= <-.
+  rewrite (no_var_tyP hnv1 _ env) in htr.
   rewrite (convertible_eval_atype hc1) in htr.
   have [mv1 hs1 hval1] := unspill_xP hx htr hval hix.
-  have [vm' hs2 hval2] := hrec _ _ _ _ _ _ hc2 hvxs htrs hval1 hixs.
+  have [vm' hs2 hval2] := hrec _ _ _ _ _ _ hc2 hnv2 hvxs htrs hval1 hixs.
   by exists vm' => //=; rewrite hs1 /= hs2.
 Qed.
+
+
 
 Lemma lower_sopnP env (s1 s2 : estate env) ii tag o xs als es S senv senv' c vm:
   sem_sopn gd o s1 xs als es = ok s2 →
@@ -258,12 +289,12 @@ Proof using spill_prog_ok.
   rewrite vars_I_opn.
   case hop: is_spill_op => [ [so tys] | ]; last first.
   + case/ok_inj => <- <- hX hval.
-    rewrite (valid_env_es true gd hval) in hes; last by clear -hX; SvD.fsetdec.
-    case: (update_lvsP hval hws); first by clear -hX; SvD.fsetdec.
+    rewrite (valid_env_es true gd (fun _ => erefl) hval) in hes; last by clear -hX; SvD.fsetdec.
+    case: (update_lvsP (fun _ => erefl) hval hws); first by clear -hX; SvD.fsetdec.
     move=> vm' hws' hval'; exists vm' => //=.
     by rewrite -eq_globs /sem_sopn hes /= hex /= hws'.
   move/is_spill_opP: hop => ?; subst o.
-  case: als hex => //= hex.
+  move: hex; case: als => //= hex.
   move: hex; rewrite /exec_sopn /=; t_xrbindP => ? h ?; subst vs.
   have [vs' hvs' {h} ] := app_sopn_truncate_val h.
   have ? : s2 = s1; last subst s2.
@@ -275,7 +306,7 @@ Proof using spill_prog_ok.
   by apply: (unspill_esP hes hvs' hval hunspill).
 Qed.
 
-Lemma valid_env_sub env S senv1 senv2 (vm vm' : Vm.t env) :
+Lemma valid_env_sub env1 env2 S senv1 senv2 (vm : Vm.t env1) (vm' : Vm.t env2) :
   Sv.Subset senv1 senv2 -> valid_env S senv2 vm vm' -> valid_env S senv1 vm vm'.
 Proof. move=> hsub [heq hval]; split => // x hx; apply hval; clear -hsub hx; SvD.fsetdec. Qed.
 
@@ -424,9 +455,8 @@ Qed.
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
-Context (env : env_t).
 
-Definition st_ve S senv := st_rel (env:=env) (valid_env S) senv.
+Definition st_ve S env1 env2 senv := st_rel (env1:=env1) (env2:=env2) (fun env1 env2 => @valid_env env1 env2 S) senv.
 
 Definition check_es_st_ve S (senv : spill_env) (es1 es2 : pexprs) senv' :=
   [/\ Sv.Subset senv' senv, es1 = es2 & Sv.Subset (read_es es1) (X S)].
@@ -434,31 +464,116 @@ Definition check_es_st_ve S (senv : spill_env) (es1 es2 : pexprs) senv' :=
 Definition check_lvals_st_ve S (senv : spill_env) (xs1 xs2 : lvals) senv' :=
   [/\ Sv.Subset senv' (update_lvs senv xs1), xs1 = xs2 & Sv.Subset (vars_lvals xs1) (X S)].
 
-Lemma check_esP_R_st_ve S senv es1 es2 senv' :
-  check_es_st_ve S senv es1 es2 senv' → ∀ (s1 s2 : estate env), st_rel (valid_env S) senv s1 s2 -> st_rel (valid_env S) senv' s1 s2.
+Lemma check_esP_R_st_ve S env1 env2 senv es1 es2 senv' :
+  check_es_st_ve S senv es1 es2 senv' → ∀ (s1 : estate env1) (s2 : estate env2), st_ve S senv s1 s2 -> st_ve S senv' s1 s2.
 Proof. by move=> [? _ _]; apply st_rel_weaken => ??; apply valid_env_sub. Qed.
 
-Definition checker_st_ve S : Checker_e (st_rel (valid_env S)) :=
+Section TOTO.
+
+Context (S : spill_info).
+
+Definition checker_st_ve : Checker_e (st_ve S) :=
   {| check_es := check_es_st_ve S;
      check_lvals := check_lvals_st_ve S;
      check_esP_rel := @check_esP_R_st_ve S|}.
 
-Lemma checker_st_veP S : Checker_eq p p' (checker_st_ve S).
+Lemma checker_st_veP : Checker_eq p p' checker_st_ve.
 Proof using spill_prog_ok.
   constructor.
-  + move=> wdb _ d es1 es2 d' /wdb_ok_eq <- [_ <- hsub] s t vs /st_relP [-> /= hval].
-    by rewrite (valid_env_es wdb gd hval hsub) eq_globs => ->; eexists; eauto.
-  move=> wdb _ d xs1 xs2 d' /wdb_ok_eq <- [ hsub1 <- hsub] vs s t s' /st_relP [-> /= hval] hw.
-  have [vm2 hw' hval'] := update_lvsP hval hw hsub.
+  + move=> env1 env2 wdb _ d es1 es2 d' /wdb_ok_eq <- [_ <- hsub] s t vs /st_relP [-> /= heq hval].
+    by rewrite (valid_env_es wdb gd heq hval hsub) eq_globs => ->; eexists; eauto.
+  move=> env1 env2 wdb _ d xs1 xs2 d' /wdb_ok_eq <- [ hsub1 <- hsub] vs s t s' /st_relP [-> /= heq hval] hw.
+  have [vm2 hw' hval'] := update_lvsP heq hval hw hsub.
   rewrite -eq_globs; exists (with_vm s' vm2) => //.
   split => //; apply: valid_env_sub hsub1 hval'.
 Qed.
 #[local] Hint Resolve checker_st_veP : core.
 
-Lemma it_lower_spill_fdP fn :
-  wiequiv_f env p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+Section REC.
+
+Context (env : env_t).
+
+Let Pi i := forall senv senv' c', spill_i (get_spill S) senv i = ok (senv', c') ->
+  Sv.Subset (vars_I i) (X S) →
+  wequiv_rec (env1:=env) (env2:=env) p p' ev ev eq_spec (st_ve S senv) [::i] c' (st_ve S senv').
+
+Let Pr i := forall ii, Pi (MkI ii i).
+
+Let Pc c := forall senv senv' c', spill_c (spill_i (get_spill S)) senv c = ok (senv', c') ->
+  Sv.Subset (vars_c c) (X S) →
+  wequiv_rec (env1:=env) (env2:=env) p p' ev ev eq_spec (st_ve S senv) c c' (st_ve S senv').
+
+Lemma it_lower_spill_fdP_rec c : Pc c.
 Proof using spill_prog_ok.
-  apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
+  apply (cmd_rect (Pr:=Pr) (Pi:=Pi) (Pc:=Pc)) => // {c}.
+  + by move=> ??? /= [<- <-] _; apply wequiv_nil.
+  + move=> > hi hc senv senv' c2 /=.
+    t_xrbindP => -[senvi i'] hi' [senvc c'] hc' /= <- <-; rewrite vars_c_cons => hsub.
+    rewrite -cat1s; apply wequiv_cat with (st_ve S senvi).
+    + by apply hi => //; clear -hsub; SvD.fsetdec.
+    by apply hc => //; clear -hsub; SvD.fsetdec.
+  + move=> x tg ty e ii senv senv' c' [<- <-]; rewrite vars_I_assgn /vars_lval => hsub.
+    apply wequiv_assgn_rel_eq with checker_st_ve senv => //.
+    + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
+    by split => //; rewrite /vars_lvals /read_rvs /vrvs /= read_rvE vrv_recE; clear -hsub; SvD.fsetdec.
+  + move=> xs tg o als es ii senv senv' c' hspill hsub.
+    apply wequiv_opn_esem => s t s' /st_relP [-> /= _ hval] hop.
+    have [vm2 ??] := lower_sopnP hop hspill hsub hval.
+    by exists (with_vm s' vm2).
+  + move=> x sc es ii senv senv' c' [<- <-]; rewrite vars_I_syscall => hsub.
+    apply wequiv_syscall_rel_eq with checker_st_ve senv => //.
+    + by split => //; clear -hsub; SvD.fsetdec.
+    split => //; clear -hsub; SvD.fsetdec.
+  + move=> a ii senv senv' c' [<- <-] hsub.
+    by apply wequiv_noassert.
+  + move=> e c1 c2 hc1 hc2 ii senv senv' c' /=; t_xrbindP.
+    move=> [senv1 c1'] hc1' [senv2 c2'] hc2' <- <-.
+    rewrite vars_I_if => hsub.
+    apply wequiv_if_rel_eq with checker_st_ve senv senv1 senv2 => //.
+    + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
+    + by move=> ??; apply/valid_env_sub/merge_env_sub_l.
+    + by move=> ??; apply/valid_env_sub/merge_env_sub_r.
+    + by apply hc1 => //; clear -hsub; SvD.fsetdec.
+    by apply hc2 => //; clear -hsub; SvD.fsetdec.
+  + move=> i d lo hi c hc ii senv senv' c2 /=; t_xrbindP.
+    move=> [senv1 c'] /loopP [senv2 [hsub1 hc' hsub2 _]] <- <-.
+    rewrite vars_I_for => hsub => /=.
+    apply wequiv_for_rel_eq with checker_st_ve senv1 senv1 => //=.
+    + split => //; first by clear -hsub1; SvD.fsetdec.
+      by rewrite /read_es /= !read_eE; clear -hsub; SvD.fsetdec.
+    + split => //.
+      + by rewrite /update_lvs /=; clear -hsub1; SvD.fsetdec.
+      rewrite /vars_lvals /read_rvs /vrvs /=; clear -hsub; SvD.fsetdec.
+    apply wequiv_weaken with (st_ve S senv1) (st_ve S senv2) => //.
+    + by apply st_rel_weaken => ??; apply valid_env_sub.
+    apply hc => //; clear -hsub; SvD.fsetdec.
+  + move=> a c e ii' c' hc hc' ii senv senv' c_ /=; t_xrbindP.
+    move=> [senv1 [c2 c2']] /wloopP [senv2] [senv3] [/= hsub2 hc2 hc2' hsub23 _ <- <-].
+    rewrite vars_I_while => hsub.
+    apply wequiv_weaken with (st_ve S senv2) (st_ve S senv1) => //.
+    + by apply st_rel_weaken => ??; apply valid_env_sub.
+    apply wequiv_while_rel_eq with checker_st_ve senv1 => //.
+    + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
+    + by apply hc => //; clear -hsub; SvD.fsetdec.
+    apply wequiv_weaken with (st_ve S senv1) (st_ve S senv3) => //.
+    + by apply st_rel_weaken => ??; apply valid_env_sub.
+    by apply hc' => //; clear -hsub; SvD.fsetdec.
+  move=> xs f als es ii senv senv' _ [<- <-]; rewrite vars_I_call => hsub.
+  apply wequiv_call_rel_eq with checker_st_ve senv => //.
+  + split => //; clear -hsub; SvD.fsetdec.
+  + split => //; clear -hsub; SvD.fsetdec.
+  by move=> ?? fs fs' [<- <-]; exact/wequiv_fun_rec.
+Qed.
+
+End REC.
+
+End TOTO.
+
+Lemma it_lower_spill_fdP fn :
+  wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+Proof using spill_prog_ok.
+  rewrite /wiequiv_f.
+  apply wequiv_fun_ind => {}fn _ vals _ fs _ [<- [<- <-]] fd hget.
   have spillok : map_cfprog_name (spill_fd fresh_var_ident spill_to_mmx) (p_funcs p) = ok (p_funcs p').
   + by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? ? <-.
   have [fd' hfd'1 hfd'2] := get_map_cfprog_name_gen spillok hget.
@@ -485,79 +600,13 @@ Proof using spill_prog_ok.
   + by split => //; split => // ? /Sv_memP.
   2: {
     apply wrequiv_weaken with (st_eq_on (vars_l (f_res fd))) eq => //.
-    move=> ?? [??[h ?]]; split => //.
+    move=> ?? [?? _ [h ?]]; split => //.
     + by apply: eq_onI h; rewrite /X /= /vars_fd /=; clear; SvD.fsetdec.
     by apply st_eq_on_finalize.
   }
   have : Sv.Subset (vars_c (f_body fd)) (X S).
   + by rewrite /X /= /vars_fd /=; clear; SvD.fsetdec.
-  move: Sv.empty senv c' hcc'.
-  change get_spill' with (get_spill S).
-  move: S => S.
-  clear hinit s ok_m hcm get_spill' m fd' spillok fs fn.
-  set Pi := fun i => forall senv senv' c', spill_i (get_spill S) senv i = ok (senv', c') ->
-        Sv.Subset (vars_I i) (X S) → wequiv_rec p p' ev ev eq_spec (st_ve S senv) [::i] c' (st_ve S senv').
-  set Pr := fun i => forall ii, Pi (MkI ii i).
-  set Pc := fun c => forall senv senv' c', spill_c (spill_i (get_spill S)) senv c = ok (senv', c') ->
-        Sv.Subset (vars_c c) (X S) → wequiv_rec p p' ev ev eq_spec (st_ve S senv) c c' (st_ve S senv').
-  move: (f_body fd) => {fd}; apply (cmd_rect (Pr:=Pr) (Pi:=Pi) (Pc:=Pc)) => //.
-  + by move=> ??? /= [<- <-] _; apply wequiv_nil.
-  + move=> > hi hc senv senv' c2 /=.
-    t_xrbindP => -[senvi i'] hi' [senvc c'] hc' /= <- <-; rewrite vars_c_cons => hsub.
-    rewrite -cat1s; apply wequiv_cat with (st_ve S senvi).
-    + by apply hi => //; clear -hsub; SvD.fsetdec.
-    by apply hc => //; clear -hsub; SvD.fsetdec.
-  + move=> x tg ty e ii senv senv' c' [<- <-]; rewrite vars_I_assgn /vars_lval => hsub.
-    apply wequiv_assgn_rel_eq with (checker_st_ve S) senv => //.
-    + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
-    by split => //; rewrite /vars_lvals /read_rvs /vrvs /= read_rvE vrv_recE; clear -hsub; SvD.fsetdec.
-  + move=> xs tg o es ii senv senv' c' hspill hsub.
-    apply wequiv_opn_esem => s t s' /st_relP [-> /= hval] hop.
-    have [vm2 ??] := lower_sopnP hop hspill hsub hval.
-    by exists (with_vm s' vm2).
-  + move=> x sc es ii senv senv' c' [<- <-]; rewrite vars_I_syscall => hsub.
-    apply wequiv_syscall_rel_eq with (checker_st_ve S) senv => //.
-    + by split => //; clear -hsub; SvD.fsetdec.
-    split => //; clear -hsub; SvD.fsetdec.
-  + move=> a ii senv senv' c' [<- <-] hsub.
-    by apply wequiv_noassert.
-  + move=> e c1 c2 hc1 hc2 ii senv senv' c' /=; t_xrbindP.
-    move=> [senv1 c1'] hc1' [senv2 c2'] hc2' <- <-.
-    rewrite vars_I_if => hsub.
-    apply wequiv_if_rel_eq with (checker_st_ve S) senv senv1 senv2 => //.
-    + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
-    + by move=> ??; apply/valid_env_sub/merge_env_sub_l.
-    + by move=> ??; apply/valid_env_sub/merge_env_sub_r.
-    + by apply hc1 => //; clear -hsub; SvD.fsetdec.
-    by apply hc2 => //; clear -hsub; SvD.fsetdec.
-  + move=> i d lo hi c hc ii senv senv' c2 /=; t_xrbindP.
-    move=> [senv1 c'] /loopP [senv2 [hsub1 hc' hsub2 _]] <- <-.
-    rewrite vars_I_for => hsub => /=.
-    apply wequiv_for_rel_eq with (checker_st_ve S) senv1 senv1 => //=.
-    + split => //; first by clear -hsub1; SvD.fsetdec.
-      by rewrite /read_es /= !read_eE; clear -hsub; SvD.fsetdec.
-    + split => //.
-      + by rewrite /update_lvs /=; clear -hsub1; SvD.fsetdec.
-      rewrite /vars_lvals /read_rvs /vrvs /=; clear -hsub; SvD.fsetdec.
-    apply wequiv_weaken with (st_ve S senv1) (st_ve S senv2) => //.
-    + by apply st_rel_weaken => ??; apply valid_env_sub.
-    apply hc => //; clear -hsub; SvD.fsetdec.
-  + move=> a c e ii' c' hc hc' ii senv senv' c_ /=; t_xrbindP.
-    move=> [senv1 [c2 c2']] /wloopP [senv2] [senv3] [/= hsub2 hc2 hc2' hsub23 _ <- <-].
-    rewrite vars_I_while => hsub.
-    apply wequiv_weaken with (st_ve S senv2) (st_ve S senv1) => //.
-    + by apply st_rel_weaken => ??; apply valid_env_sub.
-    apply wequiv_while_rel_eq with (checker_st_ve S) senv1 => //.
-    + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
-    + by apply hc => //; clear -hsub; SvD.fsetdec.
-    apply wequiv_weaken with (st_ve S senv1) (st_ve S senv3) => //.
-    + by apply st_rel_weaken => ??; apply valid_env_sub.
-    by apply hc' => //; clear -hsub; SvD.fsetdec.
-  move=> xs f es ii senv senv' _ [<- <-]; rewrite vars_I_call => hsub.
-  apply wequiv_call_rel_eq with (checker_st_ve S) senv => //.
-  + split => //; clear -hsub; SvD.fsetdec.
-  + split => //; clear -hsub; SvD.fsetdec.
-  move=> fs fs' <-; exact/wequiv_fun_rec.
+  exact: it_lower_spill_fdP_rec.
 Qed.
 
 End IT.

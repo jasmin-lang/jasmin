@@ -113,7 +113,7 @@ Definition get_label_after_pc (s:lstate) :=
 Definition sem_fopn_args (p : fopn_args) (s: estate empty_env) :=
   let: (xs,o,es) := p in
   Let args := sem_rexprs s es in
-  Let res := exec_sopn empty_env o args in
+  Let res := exec_sopn o [::] args in
   write_lexprs xs res s.
 
 Definition sem_fopns_args := foldM sem_fopn_args.
@@ -126,7 +126,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   | Lopn xs o es =>
     let s := to_estate s1 in
     Let args := sem_rexprs s es in
-    Let res := exec_sopn empty_env o args in
+    Let res := exec_sopn o [::] args in
     Let s' := write_lexprs xs res s in
     ok (lnext_pc (lset_estate' s1 s'))
   | Lsyscall o =>
