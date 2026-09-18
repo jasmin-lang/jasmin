@@ -43,6 +43,14 @@ Ltac t_armv8a_op :=
   rewrite ?zero_extend_u ?addn1;
   t_simpl_rewrites.
 
+(* The semantics of an instruction is [mk_semi] applied to its total
+   semantics; these are plain definitions that [simpl] does not unfold. *)
+Ltac t_armv8a_semi :=
+  rewrite ?/sopn_sem_ ?/semi ?/mk_semi /=;
+  rewrite ?/semi_to_atype_t ?/arch_utils.semi_drop1_t
+          ?/arch_utils.semi_drop2_t ?/arch_utils.semi_drop3_t
+          ?/arch_utils.semi_drop4_t ?/armv8a_extend_semi /=.
+
 Module ARMv8AFopnP.
 
 Section WITH_PARAMS.
@@ -65,10 +73,10 @@ Lemma sem_fopn_equiv o s :
 Proof.
   case: o => -[xs o] es /=; case: sem_rexprs => //= >.
   rewrite /exec_sopn /= /sopn_sem /=; case: id_valid => //=.
-  rewrite /sopn_sem_ /= /semi_to_atype.
+  rewrite /sopn_sem_ /= /semi /semi_to_atype_t /=.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.
-  by case: app_sopn.
+  by rewrite -/(id_semi (armv8a_instr_desc o)); case: app_sopn.
 Qed.
 
 Lemma sem_fopns_equiv o s :
