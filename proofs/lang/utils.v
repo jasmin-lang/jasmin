@@ -115,6 +115,28 @@ Instance and3_iff_morphism :
   Proper (iff ==> iff ==> iff ==> iff) and3.
 Proof. by move=> ?? h1 ?? h2 ?? h3; split => -[] /h1 ? /h2 ? /h3. Qed.
 
+(* ** The mode of the semantics
+ * --------------------------------------------------------------------
+ * In the [partial] mode an access that is out of bounds, not initialised or
+ * not aligned fails; in the [total] mode it succeeds and reads a default
+ * value.  The mode is a class, so that the existing development, which has no
+ * mode in context, uses the default instance [partial] and keeps its meaning.
+ *)
+
+Class SemMode := { is_total : bool }.
+Definition partial : SemMode := {| is_total := false |}.
+Definition total : SemMode := {| is_total := true |}.
+
+#[global] Existing Instances partial | 1000.
+
+(* An access is guarded by [is_total || c]: the check [c] is done in the
+   partial mode only. *)
+Lemma or_is_total_partial (b : bool) : (is_total (SemMode := partial) || b) = b.
+Proof. by []. Qed.
+
+Lemma or_is_total_total (b : bool) : (is_total (SemMode := total) || b) = true.
+Proof. by []. Qed.
+
 (* ** Result monad
  * -------------------------------------------------------------------- *)
 
@@ -274,6 +296,13 @@ Definition mapM eT aT bT (f : aT -> result eT bT)  : seq aT → result eT (seq b
       mapM xs >>= fun ys =>
       Ok eT [:: y & ys]
   end.
+
+Lemma is_ok_mapM (eT aT bT : Type) (f : aT -> result eT bT) l :
+  is_ok (mapM f l) = all (fun a => is_ok (f a)) l.
+Proof.
+elim: l => //= a l ih; case: (f a) => //= b.
+by rewrite -ih; case: mapM.
+Qed.
 
 Lemma mapM_cons aT eT bT x xs y ys (f : aT -> result eT bT):
   f x = ok y /\ mapM f xs = ok ys
