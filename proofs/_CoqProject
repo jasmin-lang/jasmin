@@ -195,6 +195,7 @@ lang/memory_example.v
 lang/memory_model.v
 lang/mix_to_small_steps.v
 lang/one_varmap.v
+lang/op_semi.v
 lang/operators.v
 lang/psem.v
 lang/psem_defs.v
@@ -203,8 +204,12 @@ lang/psem_of_sem_proof.v
 lang/pseudo_operator.v
 lang/psem_facts.v
 lang/relational_logic.v
+lang/safety.v
 lang/safety_common.v
+lang/safety_common_proof.v
+lang/safety_proof.v
 lang/sem_one_varmap.v
+lang/sem_op_total.v
 lang/sem_op_typed.v
 lang/sem_one_varmap_facts.v
 lang/sem_params.v
@@ -212,6 +217,7 @@ lang/sem_type.v
 lang/sha256.v
 lang/shift_kind.v
 lang/sopn.v
+lang/sopn_semi.v
 lang/slh_ops.v
 lang/stack_zero_strategy.v
 lang/strings.v

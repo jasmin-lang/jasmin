@@ -65,7 +65,8 @@ Qed.
 (* sem_stack_stable and sem_validw_stable both for uprog and sprog *)
 (* inspired by sem_one_varmap_facts *)
 
-Lemma write_lval_stack_stable wdb gd x v s s' :
+(* True in both modes: the total memory write does not move the stack either. *)
+Lemma write_lval_stack_stable {sm : SemMode} wdb gd x v s s' :
   write_lval wdb gd x v s = ok s' →
   stack_stable (emem s) (emem s').
 Proof.
@@ -77,7 +78,7 @@ Proof.
   all: by apply: on_arr_varP; rewrite /write_var; t_xrbindP => ?????????????? <-.
 Qed.
 
-Lemma write_lvals_stack_stable wdb gd xs vs s s' :
+Lemma write_lvals_stack_stable {sm : SemMode} wdb gd xs vs s s' :
   write_lvals wdb gd s xs vs = ok s' →
   stack_stable (emem s) (emem s').
 Proof.
@@ -85,7 +86,7 @@ Proof.
   by move => v vs s /=; t_xrbindP => ? /write_lval_stack_stable -> /ih.
 Qed.
 
-Lemma write_lval_validw wdb gd x v s s' :
+Lemma write_lval_validw {sm : SemMode} wdb gd x v s s' :
   write_lval wdb gd x v s = ok s' ->
   validw (emem s) =3 validw (emem s').
 Proof.
@@ -97,7 +98,7 @@ Proof.
   all: by apply: on_arr_varP; rewrite /write_var; t_xrbindP => ?????????????? <-.
 Qed.
 
-Lemma write_lvals_validw wdb gd xs vs s s' :
+Lemma write_lvals_validw {sm : SemMode} wdb gd xs vs s s' :
   write_lvals wdb gd s xs vs = ok s' ->
   validw (emem s) =3 validw (emem s').
 Proof.
