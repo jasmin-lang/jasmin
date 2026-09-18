@@ -78,11 +78,13 @@ Proof.
   + by rewrite /fflags /tflags; case: mn; case sf; case osk => [s | ]; split => //;
          exists erefl, erefl.
   move=> [-> [hin [hout hcast]]].
-  rewrite /semi_to_atype /=.
+  rewrite /semi /semi_to_atype_t /=.
   move: (computational_eq _) (computational_eq _) (computational_eq _) (computational_eq _) => e1 e2 e3 e4.
   rewrite <- e1, <- e2, <- e3, <- e4; clear e1 e2 e3 e4.
   rewrite /truncate_args -map_comp -(eq_map atype_of_ltypeP) /= /sopn_tout /=.
   move=> htr _ -> <- res hres <- /=.
+  rewrite -(sem_prod_eq_app_sopn _ (mk_cond_semi_eq (mn_desc tflags mn))).
+  rewrite -/(id_semi (mn_desc fflags mn)) in hres.
   move: (id_tin (mn_desc fflags mn)) (id_tin (mn_desc tflags mn))
         (id_tout (mn_desc fflags mn)) (id_tout (mn_desc tflags mn))
         (id_semi (mn_desc fflags mn)) (id_semi (mn_desc tflags mn))

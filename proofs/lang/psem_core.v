@@ -314,9 +314,10 @@ Lemma sopn_tinP o vs vs' : exec_sopn o vs = ok vs' ->
   all2 subctype (map eval_atype (sopn_tin o)) (List.map type_of_val vs).
 Proof.
   rewrite /exec_sopn /sopn_tin /sopn_sem /sopn_sem_; t_xrbindP => _ _ <-.
-  case (get_instr_desc o) => /= _ tin _ tout _ _ semi _ _ _ _ _ _ _.
-  t_xrbindP => p hp _.
-  elim: tin vs semi hp => /= [ | t tin hrec] [ | v vs] // semi.
+  move: (semi (get_instr_desc o)) => semi.
+  t_xrbindP => p hp _; move: hp; move: p; move: semi.
+  move: (tin (get_instr_desc o)) => ti.
+  elim: ti vs => /= [ | t ti hrec] [ | v vs] //= semi p.
   by t_xrbindP => sv /= /of_val_subctype -> /hrec.
 Qed.
 
@@ -739,7 +740,7 @@ Proof.
     have := eq_on_sem_pexprs true gd hmem hes.
     by rewrite /sem_pexprs => ->.
   + move=> x; rewrite read_eassert_Pis_var_init /= => hx.
-    by rewrite (hx x) //; clear; SvD.fsetdec.
+    by rewrite !Vm.is_var_initE (hx x) //; clear; SvD.fsetdec.
   + move=> e1 e2; rewrite read_eassert_Pis_mem_init /= => h.
     rewrite !(eq_on_sem_pexpr true gd hmem) ?hmem //;
     by apply: eq_onI h; clear; SvD.fsetdec.

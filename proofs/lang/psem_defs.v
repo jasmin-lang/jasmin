@@ -16,24 +16,67 @@ Open Scope vm_scope.
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
-Definition sem_sop1 (o: sop1) (v: value) : exec value :=
+Definition sem_sop1 {sm : SemMode} (o: sop1) (v: value) : exec value :=
   Let x := of_val _ v in
   Let r := sem_sop1_typed o x in
   ok (to_val r).
 
-Definition sem_sop2 (o: sop2) (v1 v2: value) : exec value :=
+Definition sem_sop2 {sm : SemMode} (o: sop2) (v1 v2: value) : exec value :=
   Let x1 := of_val _ v1 in
   Let x2 := of_val _ v2 in
   Let r  := sem_sop2_typed o x1 x2 in
   ok (to_val r).
 
 Definition sem_opN
-  {cfcd : FlagCombinationParams} (op: opN) (vs: values) : exec value :=
+  {cfcd : FlagCombinationParams} {sm : SemMode} (op: opN) (vs: values) : exec value :=
   Let w := app_sopn _ (sem_opN_typed op) vs in
   ok (to_val w).
 
 Definition sem_opN_safety (op: opN_safety) (vs: values) : exec bool :=
   app_sopn _ (sem_opN_safety_typed op) vs.
+
+(* The total mode of the operators: a success of the partial mode is a
+   success of the total mode, and on defined arguments the total mode fails
+   only with a type error. *)
+Lemma sem_sop1_partialE o v r : sem_sop1 (sm := partial) o v = ok r -> sem_sop1 (sm := total) o v = ok r.
+Proof.
+rewrite /sem_sop1; t_xrbindP => x hx y hy <-.
+have := sem_sop1_typed_partialE hy; rewrite sem_sop1_typed_total => -[<-].
+by rewrite hx.
+Qed.
+
+Lemma sem_sop2_partialE o v1 v2 r :
+  sem_sop2 (sm := partial) o v1 v2 = ok r -> sem_sop2 (sm := total) o v1 v2 = ok r.
+Proof.
+rewrite /sem_sop2; t_xrbindP => x1 hx1 x2 hx2 y hy <-.
+have := sem_sop2_typed_partialE hy; rewrite sem_sop2_typed_total => -[<-].
+by rewrite hx1 /= hx2.
+Qed.
+
+Lemma sem_opN_partialE {cfcd : FlagCombinationParams} op vs r :
+  sem_opN (sm := partial) op vs = ok r -> sem_opN (sm := total) op vs = ok r.
+Proof. by rewrite /sem_opN /sem_opN_typed; t_xrbindP => w /mk_sem_op_partialE -> <-. Qed.
+
+Lemma sem_sop1_total_errty o v e : is_defined v -> sem_sop1 (sm := total) o v = Error e -> e = ErrType.
+Proof.
+move=> hv; rewrite /sem_sop1; case hof: (of_val _ v) => [x|e'] //=.
+by move=> [<-]; apply: of_val_defined_errty hv hof.
+Qed.
+
+Lemma sem_sop2_total_errty o v1 v2 e :
+  is_defined v1 -> is_defined v2 -> sem_sop2 (sm := total) o v1 v2 = Error e -> e = ErrType.
+Proof.
+move=> hv1 hv2; rewrite /sem_sop2; case hof1: (of_val _ v1) => [x1|e'] //=;
+  last by move=> [<-]; apply: of_val_defined_errty hv1 hof1.
+by case hof2: (of_val _ v2) => [x2|e'] //= [<-]; apply: of_val_defined_errty hv2 hof2.
+Qed.
+
+Lemma sem_opN_total_errty {cfcd : FlagCombinationParams} op vs e :
+  all is_defined vs -> sem_opN (sm := total) op vs = Error e -> e = ErrType.
+Proof.
+move=> hvs; rewrite /sem_opN /sem_opN_typed.
+by case h: (app_sopn _ _ vs) => [w|e'] //= [<-]; exact: mk_sem_op_total_errty hvs h.
+Qed.
 
 (* ** Global access
  * -------------------------------------------------------------------- *)
@@ -115,6 +158,7 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {sm : SemMode}
   (wdb : bool)
   (gd : glob_decls).
 
@@ -191,7 +235,7 @@ Definition write_lval (l : lval) (v : value) (s : estate) : exec estate :=
     Let (n,t) := wdb, s.[x] in
     Let i := sem_pexpr s i >>= to_int in
     Let t' := to_arr (arr_size ws len) v in
-    Let t := @WArray.set_sub n aa ws len t i t' in
+    Let t := @WArray.set_sub sm n aa ws len t i t' in
     write_var x (@to_val (carr n) t) s
   end.
 
@@ -207,6 +251,7 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {sm : SemMode}
   (gd : glob_decls).
 
 Fixpoint sem_eassert (s : estate) (e : eassert) : exec bool :=
@@ -215,13 +260,11 @@ Fixpoint sem_eassert (s : estate) (e : eassert) : exec bool :=
   | PappN_safety op es =>
     Let vs := mapM (sem_pexpr true gd s) es in
     sem_opN_safety op vs
-  | Pis_var_init x =>
-    let v := (evm s).[x] in
-    ok (is_defined v)
+  | Pis_var_init x => ok (Vm.is_var_init (evm s) x)
   | Pis_mem_init e1 e2 =>
     Let lo := sem_pexpr true gd s e1 >>= to_pointer in
     Let sz := sem_pexpr true gd s e2 >>= to_int in
-    ok (all (fun i => is_ok (read s.(emem) Unaligned (lo + wrepr Uptr i)%w U8)) (ziota 0 sz))
+    ok (all (fun i => validr s.(emem) Unaligned (lo + wrepr Uptr i)%w U8) (ziota 0 sz))
   | Pand e1 e2 =>
     Let b1 := sem_eassert s e1 in
     Let b2 := sem_eassert s e2 in
@@ -244,10 +287,26 @@ Context
   {spp : SemPexprParams}
   {asmop : asmOp asm_op}.
 
-Definition exec_sopn (o:sopn) (vs:values) : exec values :=
+Definition exec_sopn {sm : SemMode} (o:sopn) (vs:values) : exec values :=
   Let semi := sopn_sem o in
   Let t := app_sopn _ semi vs in
   ok (list_ltuple t).
+
+(* The total mode of the instructions, as for the operators. *)
+Lemma exec_sopn_partialE o vs r :
+  exec_sopn (sm := partial) o vs = ok r -> exec_sopn (sm := total) o vs = ok r.
+Proof.
+rewrite /exec_sopn /sopn_sem; t_xrbindP => semi hv <- t ht <-.
+by rewrite hv /=; move: ht; rewrite /sopn_sem_ /semi => /mk_semi_partialE -> /=.
+Qed.
+
+Lemma exec_sopn_total_errty o vs e :
+  all is_defined vs -> exec_sopn (sm := total) o vs = Error e -> e = ErrType.
+Proof.
+move=> hvs; rewrite /exec_sopn /sopn_sem /assert; case: (i_valid _) => /=; last by move=> [<-].
+rewrite /sopn_sem_ /semi; case h: (app_sopn _ _ vs) => [t|e'] //= [<-].
+exact: mk_semi_total_errty hvs h.
+Qed.
 
 Definition sem_sopn gd o m lvs args :=
   sem_pexprs true gd m args >>= exec_sopn o >>= write_lvals true gd m lvs.

@@ -7,7 +7,7 @@ Section DEFS.
 Context `{asmop:asmOp}.
 Context (m: var -> option (signedness * var)).
 
-Definition safety_cond := seq eassert.
+Definition safety_asserts := seq eassert.
 
 Definition esubtype (ty1 ty2 : extended_type Z) :=
  match ty1, ty2 with
@@ -110,7 +110,7 @@ Definition eis_aligned e sz := eeq (emodi Unsigned e (ewsize sz)) (Pconst 0).
 
 Definition safety_lbl := "safety"%string.
 
-Definition safe_assert ii (sc:safety_cond) : cmd :=
+Definition safe_assert ii (sc:safety_asserts) : cmd :=
   map (fun e => MkI ii (Cassert (safety_lbl, e))) sc.
 
 (* ------ SC_OPS ------ *)

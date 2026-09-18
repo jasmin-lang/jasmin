@@ -147,17 +147,38 @@ Global Opaque is_align.
 Lemma is_align8 p : is_align p U8.
 Proof. by rewrite is_alignE Zmod_1_r. Qed.
 
+(* The accesses are parameterised by the mode of the semantics: in the
+   [partial] mode they may fail, in the [total] mode they always succeed.
+   [set_dom] describes where a write in the total mode is effective: a memory
+   is written everywhere, an array only inside its bounds. *)
 Class coreMem (core_mem: Type) := CoreMem {
-  get : core_mem -> pointer -> exec u8;
-  set : core_mem -> pointer -> u8 -> exec core_mem;
+  get : forall {sm : SemMode}, core_mem -> pointer -> exec u8;
+  set : forall {sm : SemMode}, core_mem -> pointer -> u8 -> exec core_mem;
   valid8 : core_mem -> pointer -> bool;
+  set_dom : core_mem -> pointer -> bool;
+
+  (* The partial mode *)
   setP :
     forall m p w p' m',
-      set m p w = ok m' ->
-      get m' p' = if p == p' then ok w else get m p';
-  valid8P : forall m p w, reflect (exists m', set m p w = ok m') (valid8 m p);
-  get_valid8 : forall m p w, get m p = ok w -> valid8 m p;
-  valid8_set : forall m p w m' p', set m p w = ok m' -> valid8 m' p' = valid8 m p';
+      set (sm := partial) m p w = ok m' ->
+      get (sm := partial) m' p' = if p == p' then ok w else get (sm := partial) m p';
+  valid8P : forall m p w, reflect (exists m', set (sm := partial) m p w = ok m') (valid8 m p);
+  get_valid8 : forall m p w, get (sm := partial) m p = ok w -> valid8 m p;
+  valid8_set : forall m p w m' p', set (sm := partial) m p w = ok m' -> valid8 m' p' = valid8 m p';
+
+  (* The total mode never fails and agrees with the partial mode on its
+     successes; a write is effective on [set_dom] only. *)
+  get_total_ok : forall m p, is_ok (get (sm := total) m p);
+  set_total_ok : forall m p w, is_ok (set (sm := total) m p w);
+  get_totalE : forall m p w, get (sm := partial) m p = ok w -> get (sm := total) m p = ok w;
+  set_totalE : forall m p w m', set (sm := partial) m p w = ok m' -> set (sm := total) m p w = ok m';
+  setP_total :
+    forall m p w p' m',
+      set (sm := total) m p w = ok m' ->
+      get (sm := total) m' p' = if (p == p') && set_dom m p then ok w else get (sm := total) m p';
+  valid8_set_total : forall m p w m' p', set (sm := total) m p w = ok m' -> valid8 m' p' = valid8 m p';
+  valid8_set_dom : forall m p, valid8 m p -> set_dom m p;
+  set_dom_set : forall m p w m' p', set (sm := total) m p w = ok m' -> set_dom m' p' = set_dom m p';
 }.
 
 End POINTER.
@@ -195,18 +216,33 @@ Section CoreMem.
     is_aligned_if al p sz.
   Proof. by case: al => // /eqP ->. Qed.
 
+  (* [read] and [write] are the only definitions that depend on the mode; in
+     the total mode the alignment is not checked either. Everything that
+     follows, and every use in the rest of the development, is in the partial
+     mode, which is the default instance. *)
+  Section MODE.
+
+  Context {sm : SemMode}.
+
   Definition read (m: core_mem) (al: aligned) (ptr: pointer) (sz: wsize) : exec (word sz) :=
-    Let _ := assert (is_aligned_if al ptr sz) ErrAddrInvalid in
+    Let _ := assert (is_total || is_aligned_if al ptr sz) ErrAddrInvalid in
     Let l := mapM (fun k => get m (add ptr k)) (ziota 0 (wsize_size sz)) in
     ok (LE.decode sz l).
 
   Definition write (m:core_mem) (al: aligned) (ptr:pointer) (sz:wsize) (w: word sz) : exec core_mem :=
-    Let _ := assert (is_aligned_if al ptr sz) ErrAddrInvalid in
+    Let _ := assert (is_total || is_aligned_if al ptr sz) ErrAddrInvalid in
     let bytes := LE.encode w in
     foldM (fun k m => set m (add ptr k) (nth 0%w bytes (Z.to_nat k))) m (ziota 0 (wsize_size sz)).
 
+  End MODE.
+
   Definition validw (m:core_mem) (al: aligned) (ptr:pointer) (sz:wsize) :=
     is_aligned_if al ptr sz && all (fun k => valid8 m (add ptr k)) (ziota 0 (wsize_size sz)).
+
+  (* The guard of [read] in the partial mode. *)
+  Definition validr (m:core_mem) (al: aligned) (ptr:pointer) (sz:wsize) :=
+    is_aligned_if al ptr sz &&
+    all (fun k => is_ok (get (sm := partial) m (add ptr k))) (ziota 0 (wsize_size sz)).
 
   Lemma valid8_validw m al p : valid8 m p = validw m al p U8.
   Proof. by rewrite /validw is_aligned_if_is_align ?is_align8 // /= add_0 andbT. Qed.
@@ -225,17 +261,17 @@ Section CoreMem.
 
   Lemma read8_alignment al' m al p :
     read m al p U8 = read m al' p U8.
-  Proof. by rewrite /read !is_aligned_if_is_align // is_align8. Qed.
+  Proof. by rewrite /read !or_is_total_partial !is_aligned_if_is_align // is_align8. Qed.
 
   Lemma get_read8 m al p: get m p = read m al p U8.
   Proof.
-    rewrite /read is_aligned_if_is_align /= ?is_align8 // /= add_0.
+    rewrite /read or_is_total_partial is_aligned_if_is_align /= ?is_align8 // /= add_0.
     by case: get => //= w; rewrite -LE.encode8E LE.decodeK.
   Qed.
 
   Lemma set_write8 m al p w: set m p w = write m al p w.
   Proof.
-    rewrite /write is_aligned_if_is_align; last by rewrite is_align8.
+    rewrite /write or_is_total_partial is_aligned_if_is_align; last by rewrite is_align8.
     have := LE.encode8E w; rewrite LE.encodeE /= => -[->].
     rewrite add_0.
     by case: set.
@@ -247,7 +283,8 @@ Section CoreMem.
       Let l := mapM (fun k => read m al (add p k) U8) (ziota 0 (wsize_size sz)) in
       ok (LE.decode sz l).
   Proof.
-    by rewrite {1}/read !ziotaE; case: is_aligned_if => //=; f_equal; apply eq_mapM => k _; apply get_read8.
+    by rewrite {1}/read or_is_total_partial !ziotaE; case: is_aligned_if => //=;
+       f_equal; apply eq_mapM => k _; apply get_read8.
   Qed.
 
   Lemma write_valid8_eq m m' al p s (v :word s) :
@@ -302,7 +339,7 @@ Section CoreMem.
   Lemma writeV s (v:word s) m al p:
     reflect (exists m', write m al p v = ok m') (validw m al p s).
   Proof.
-    rewrite /write /validw; case: is_aligned_if => //; last by constructor => -[].
+    rewrite /write /validw or_is_total_partial; case: is_aligned_if => //; last by constructor => -[].
     rewrite ziotaE /=.
     elim: iota m => /=; first by move=> ?; constructor; eauto.
     move=> k l hrec m.
@@ -319,7 +356,7 @@ Section CoreMem.
     read m al ptr sz = ok w ->
     validw m al ptr sz.
   Proof.
-    move=> h; apply /validwP; move: h; rewrite /read; t_xrbindP => -> l h _; split => //.
+    move=> h; apply /validwP; move: h; rewrite /read or_is_total_partial; t_xrbindP => -> l h _; split => //.
     move=> k hk; have {hk}: k \in ziota 0 (wsize_size sz).
     + by rewrite in_ziota !zify.
     rewrite -valid8_validw.
@@ -372,13 +409,13 @@ Section CoreMem.
     aligned_le al al' →
     read m al' p sz = ok v →
     read m al p sz = ok v.
-  Proof. by rewrite /read; t_xrbindP => h /(aligned_leP h) -> ? -> /= ->. Qed.
+  Proof. by rewrite /read !or_is_total_partial; t_xrbindP => h /(aligned_leP h) -> ? -> /= ->. Qed.
 
   Lemma aligned_le_write al al' m p sz (w: word sz) m' :
     aligned_le al al' →
     write m al' p w = ok m' →
     write m al p w = ok m'.
-  Proof. by rewrite /write; t_xrbindP => /aligned_leP h /h -> ->. Qed.
+  Proof. by rewrite /write !or_is_total_partial; t_xrbindP => /aligned_leP h /h -> ->. Qed.
 
   Definition disjoint_range p s p' s' :=
     forall i i', 0 <= i < wsize_size s -> 0 <= i' < wsize_size s' ->
@@ -431,6 +468,97 @@ Section CoreMem.
     move=> hr hw hw'.
     by rewrite (write_read8 hw) (write_read8 hw') /=; case: andP.
  Qed.
+
+  (* -------------------------------------------------------------------- *)
+  (* The total mode: no alignment check, no failure, and the partial mode is
+     the total one under its guard. *)
+
+  Lemma readE_total m al p sz :
+    read (sm := total) m al p sz =
+      Let l := mapM (fun k => get (sm := total) m (add p k)) (ziota 0 (wsize_size sz)) in
+      ok (LE.decode sz l).
+  Proof. by []. Qed.
+
+  Lemma writeE_total m al p sz (w : word sz) :
+    write (sm := total) m al p w =
+      foldM (fun k m => set (sm := total) m (add p k) (nth 0%w (LE.encode w) (Z.to_nat k)))
+        m (ziota 0 (wsize_size sz)).
+  Proof. by []. Qed.
+
+  Lemma read_total_ok m al p sz : is_ok (read (sm := total) m al p sz).
+  Proof.
+    rewrite readE_total.
+    have : is_ok (mapM (fun k => get (sm := total) m (add p k)) (ziota 0 (wsize_size sz))).
+    + by rewrite is_ok_mapM; apply/allP => k _; apply: get_total_ok.
+    by case: mapM.
+  Qed.
+
+  Lemma write_total_ok m al p sz (w : word sz) : is_ok (write (sm := total) m al p w).
+  Proof.
+    rewrite writeE_total; move: m; apply ziota_ind => //= i l _ hrec m.
+    have hok : is_ok (set (sm := total) m (add p i) (nth 0%w (LE.encode w) (Z.to_nat i))).
+    + by apply: set_total_ok.
+    by move: hok; case: set => //= m1 _; apply hrec.
+  Qed.
+
+  Lemma mapM_get_totalE m (f : Z -> pointer) l bs :
+    mapM (fun k => get (sm := partial) m (f k)) l = ok bs ->
+    mapM (fun k => get (sm := total) m (f k)) l = ok bs.
+  Proof.
+    elim: l bs => [ | k l ih] bs //=; t_xrbindP => b hb bs2 hbs2 <-.
+    by rewrite (get_totalE hb) (ih _ hbs2).
+  Qed.
+
+  Lemma read_partialE m al p sz w :
+    read (sm := partial) m al p sz = ok w <->
+    validr m al p sz /\ read (sm := total) m al p sz = ok w.
+  Proof.
+    rewrite readE_total /read or_is_total_partial /validr; split.
+    + t_xrbindP => hal l hl <-; split; last by rewrite (mapM_get_totalE hl).
+      by rewrite hal andTb -is_ok_mapM hl.
+    move=> [] /andP [hal hall] ht.
+    have : is_ok (mapM (fun k => get (sm := partial) m (add p k)) (ziota 0 (wsize_size sz))).
+    + by rewrite is_ok_mapM.
+    case hl : mapM => [l | //] _.
+    by move: ht; rewrite (mapM_get_totalE hl) => -[<-]; rewrite hal.
+  Qed.
+
+  (* The partial read succeeds exactly on [validr], the mode-independent
+     description of a readable range. *)
+  Lemma is_ok_read_partial m al p sz : is_ok (read (sm := partial) m al p sz) = validr m al p sz.
+  Proof.
+    case h: (read (sm := partial) m al p sz) => [w|e] /=; first by move: h => /read_partialE [].
+    apply/esym/negbTE/negP => hv.
+    have := read_total_ok m al p sz; case hr: (read (sm := total) m al p sz) => [w|e'] // _.
+    by have := (read_partialE m al p w).2 (conj hv hr); rewrite h.
+  Qed.
+
+  Lemma write_totalE m al p sz (w : word sz) m' :
+    write (sm := partial) m al p w = ok m' -> write (sm := total) m al p w = ok m'.
+  Proof.
+    rewrite writeE_total /write or_is_total_partial.
+    t_xrbindP => _; move: m; apply ziota_ind => /= [m [<-] // | i l _ hrec m].
+    t_xrbindP => m1 hs hf.
+    by rewrite (set_totalE hs) /=; apply: hrec.
+  Qed.
+
+  Lemma write_partialE m al p sz (w : word sz) m' :
+    write (sm := partial) m al p w = ok m' <->
+    validw m al p sz /\ write (sm := total) m al p w = ok m'.
+  Proof.
+    split.
+    + by move=> h; split; [apply/(writeV w); exists m' | apply: write_totalE].
+    move=> [] hv ht.
+    have [m1 hm1] : exists m1, write (sm := partial) m al p w = ok m1 by apply/(writeV w).
+    by move: ht; rewrite (write_totalE hm1) => -[<-].
+  Qed.
+
+  Lemma validr_validw m al p sz : validr m al p sz -> validw m al p sz.
+  Proof.
+    rewrite /validr /validw => /andP [-> /allP h]; rewrite andTb.
+    apply/allP => k hk.
+    by have := h k hk; case hg : get => // _; apply: get_valid8 hg.
+  Qed.
 
  Definition disjoint_zrange_ovf p s p' s' : Prop :=
    ∀ i i' : Z, 0 <= i < s → 0 <= i' < s' → add p i ≠ add p' i'.
@@ -803,9 +931,11 @@ Class memory (mem: Type) (CM: coreMem pointer mem) : Type :=
 
     ; stack_region_is_free : ∀ (m: mem) (p: pointer), wunsigned (stack_limit m) <= wunsigned p < wunsigned (head (stack_root m) (frames m)) → ~~ validw m Aligned p U8
     ; top_stack_below_root: ∀ (m: mem), wunsigned (head (stack_root m) (frames m)) <= wunsigned (stack_root m)
+      (* a write in the total mode is always effective on a memory *)
+    ; set_dom_mem : ∀ (m: mem) (p: pointer), set_dom m p
     }.
 
-#[ global ] Arguments Memory {mem CM} _ _ _ _ _ _ _.
+#[ global ] Arguments Memory {mem CM} _ _ _ _ _ _ _ _.
 #[ global ] Arguments top_stack_below_root {mem CM} _.
 
 Definition top_stack {mem: Type} {CM: coreMem pointer mem} {M: memory CM} (m: mem) : pointer :=
