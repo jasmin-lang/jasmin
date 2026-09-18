@@ -13,6 +13,7 @@ Require Import
 Require xseq.
 Require Import
   sopn
+  sopn_semi
   arch_decl
   arch_utils.
 Require Import riscv_decl.
@@ -101,17 +102,18 @@ Definition RTypeInstruction ws semi jazz_name asm_name (doit : doit_t) : instr_d
       id_in := [:: Ea 1; Ea 2 ];
       id_tout := [:: lreg];
       id_out := [:: Ea 0 ];
-      id_semi := sem_lprod_ok tin semi;
+      id_semi_total := semi;
       id_nargs := 3;
       id_args_kinds := ak_reg_reg_reg;
       id_eq_size := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s jazz_name; (* how to print it in Jasmin *)
       id_safe := [::];
+      id_err := ErrArith;
+      id_init := [:: IBool true ];
       id_pp_asm := pp_name asm_name; (* how to print it in asm *)
       id_safe_wf := refl_equal;
-      id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-      id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+      id_wf := refl_equal;
   |}.
 
 Definition ITypeInstruction chk_imm ws semi jazz_name asm_name (doit : doit_t) : instr_desc_t :=
@@ -125,17 +127,18 @@ Definition ITypeInstruction chk_imm ws semi jazz_name asm_name (doit : doit_t) :
       id_in := [:: Ea 1; Ea 2 ];
       id_tout := [:: lreg];
       id_out := [:: Ea 0 ];
-      id_semi := sem_lprod_ok tin semi;
+      id_semi_total := semi;
       id_nargs := 3;
       id_args_kinds :=  [:: [:: [:: CAreg]; [:: CAreg]; [:: CAimm (Some chk_imm) reg_size]]];
       id_eq_size := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s jazz_name; (* how to print it in Jasmin *)
       id_safe := [::];
+      id_err := ErrArith;
+      id_init := [:: IBool true ];
       id_pp_asm := pp_name asm_name; (* how to print it in asm *)
       id_safe_wf := refl_equal;
-      id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-      id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+      id_wf := refl_equal;
     |}.
 
 Definition ITypeInstruction_12s := ITypeInstruction CAimmC_riscv_12bits_signed.
@@ -326,17 +329,18 @@ Definition riscv_MV_instr : instr_desc_t :=
       id_in := [:: Ea 1 ];
       id_tout := [:: lreg ];
       id_out := [:: Ea 0 ];
-      id_semi := sem_lprod_ok tin semi;
+      id_semi_total := semi;
       id_nargs := 2;
       id_args_kinds := ak_reg_reg;
       id_eq_size := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s "MV";
       id_safe := [::];
+      id_err := ErrArith;
+      id_init := [:: IBool true ];
       id_pp_asm := pp_name "mv";
       id_safe_wf := refl_equal;
-      id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-      id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+      id_wf := refl_equal;
     |}.
 
 Definition prim_MV := ("MV"%string, primM MV).
@@ -356,17 +360,18 @@ Definition riscv_LA_instr : instr_desc_t :=
       id_in := [:: Ec 1 ];
       id_tout := [:: lreg ];
       id_out := [:: Ea 0 ];
-      id_semi := sem_lprod_ok tin semi;
+      id_semi_total := semi;
       id_nargs := 2;
       id_args_kinds := ak_reg_addr;
       id_eq_size := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s "LA";
       id_safe := [::];
+      id_err := ErrArith;
+      id_init := [:: IBool true ];
       id_pp_asm := pp_name "la";
       id_safe_wf := refl_equal;
-      id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-      id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+      id_wf := refl_equal;
     |}.
 
 Definition prim_LA := ("LA"%string, primM LA).
@@ -386,17 +391,18 @@ Definition riscv_LI_instr : instr_desc_t :=
       id_in := [:: Ea 1 ];
       id_tout := [:: lreg ];
       id_out := [:: Ea 0 ];
-      id_semi := sem_lprod_ok tin semi;
+      id_semi_total := semi;
       id_nargs := 2;
       id_args_kinds := ak_reg_imm; (* this instruction accepts 32 bits immediate word *)
       id_eq_size := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s "LI";
       id_safe := [::];
+      id_err := ErrArith;
+      id_init := [:: IBool true ];
       id_pp_asm := pp_name "li";
       id_safe_wf := refl_equal;
-      id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-      id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+      id_wf := refl_equal;
     |}.
 
 Definition prim_LI := ("LI"%string, primM LI).
@@ -417,17 +423,18 @@ Definition riscv_NOT_instr : instr_desc_t :=
       id_in := [:: Ea 1 ];
       id_tout := [:: lreg ];
       id_out := [:: Ea 0 ];
-      id_semi := sem_lprod_ok tin semi;
+      id_semi_total := semi;
       id_nargs := 2;
       id_args_kinds := ak_reg_reg;
       id_eq_size := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s "NOT";
       id_safe := [::];
+      id_err := ErrArith;
+      id_init := [:: IBool true ];
       id_pp_asm := pp_name "not";
       id_safe_wf := refl_equal;
-      id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-      id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+      id_wf := refl_equal;
     |}.
 
 Definition prim_NOT := ("NOT"%string, primM NOT).
@@ -447,17 +454,18 @@ Definition riscv_NEG_instr : instr_desc_t :=
       id_in := [:: Ea 1 ];
       id_tout := [:: lreg ];
       id_out := [:: Ea 0 ];
-      id_semi := sem_lprod_ok tin semi;
+      id_semi_total := semi;
       id_nargs := 2;
       id_args_kinds := ak_reg_reg;
       id_eq_size := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s "NEG";
       id_safe := [::];
+      id_err := ErrArith;
+      id_init := [:: IBool true ];
       id_pp_asm := pp_name "neg";
       id_safe_wf := refl_equal;
-      id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-      id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+      id_wf := refl_equal;
     |}.
 
 Definition prim_NEG := ("NEG"%string, primM NEG).
@@ -497,17 +505,18 @@ Definition riscv_LOAD_instr s ws : instr_desc_t :=
       id_in := [:: Eu 1 ];
       id_tout := [:: lreg ];
       id_out := [:: Ea 0 ];
-      id_semi := sem_lprod_ok tin semi;
+      id_semi_total := semi;
       id_nargs := 2;
       id_args_kinds := ak_reg_addr; (* TODO: are globs allowed? *)
       id_eq_size := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_sign_sz "LOAD" s ws;
       id_safe := [::];
+      id_err := ErrArith;
+      id_init := [:: IBool true ];
       id_pp_asm := pp_name ("l" ++ string_of_size ws ++ string_of_sign s);
       id_safe_wf := refl_equal;
-      id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-      id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+      id_wf := refl_equal;
     |}.
 
 Definition primS (f: signedness -> wsize -> riscv_op) :=
@@ -531,17 +540,18 @@ Definition riscv_STORE_instr ws : instr_desc_t :=
       id_in := [:: Ea 0 ];
       id_tout := [:: lword ws ];
       id_out := [:: Eu 1 ];
-      id_semi := sem_lprod_ok tin semi;
+      id_semi_total := semi;
       id_nargs := 2;
       id_args_kinds := ak_reg_addr; (* TODO: are globs allowed? *)
       id_eq_size := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_sz "STORE" ws;
       id_safe := [::];
+      id_err := ErrArith;
+      id_init := [:: IBool true ];
       id_pp_asm := pp_name ("s" ++ string_of_size ws);
       id_safe_wf := refl_equal;
-      id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-      id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+      id_wf := refl_equal;
     |}.
 
 Definition prim_STORE := ("STORE"%string, primP STORE).

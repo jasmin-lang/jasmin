@@ -73,7 +73,7 @@ Proof.
   rewrite /eval_instr /=.
   rewrite hvzero /=.
   rewrite /exec_sopn /= /sopn_sem /= ws_small /= (truncate_word_le _ ws_small) zero_extend0 /=.
-  rewrite /sopn_sem_ /= /semi_to_atype computational_eq_refl /=.
+  rewrite /sopn_sem_ /= /semi /mk_semi /semi_to_atype_t computational_eq_refl /=.
   rewrite hv /= /sem_sop2 /= (truncate_word_u w1) /= !truncate_word_u /= zero_extend0.
   by rewrite truncate_word_u /= hm' /=.
 Qed.

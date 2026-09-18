@@ -3445,8 +3445,9 @@ Proof using P'_globs hshparams hsaparams is_move_opP.
     t_xrbindP=> -[{}rmap2 i] hi /=
       <- <- <- {table2 c2} vme m0 s1' hvs hext hsao.
     move: hes => /=; t_xrbindP => ve hve _ vmsf hvmsf <- ?; subst va.
-    move: hop; rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /= /se_protect_ptr_fail_sem.
-    t_xrbindP => a1 a ha wmsf /to_wordI [sz' [w']] [? hwmsf] /eqP ???; subst wmsf a1 vs vmsf.
+    move: hop; rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /= /semi /mk_semi /= /check_safe_old /=.
+    t_xrbindP => a1 a ha wmsf /to_wordI [sz' [w']] [? hwmsf].
+    rewrite truncate_word_u andbT; case: eqP => [? | //] _ ??; subst wmsf a1 vs vmsf.
     move: hw => /=; t_xrbindP => s2' hwr ?; subst s2'.
     have := alloc_protect_ptrP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap P'_globs (ii:=ii1) hshparams hvs hve hvmsf _ _ hwr hi.
     move=> /(_ (arr_size ws len)); rewrite /truncate_val /= hwmsf /= ha => -[] // s2' [] hsem hvs2.
