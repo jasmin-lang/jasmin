@@ -256,6 +256,63 @@ Proof.
   apply eutt_eq_bind => {}s /= ; rewrite bind_ret_l !bind_ret_r tau_eutt; reflexivity.
 Qed.
 
+Lemma iter_rotate {A : Type}
+    (D : A -> itree E A) (C : A -> itree E (A + A)) (a : A) :
+  ITree.iter (fun a => D a >>= C) a
+  ≈ D a >>= ITree.iter (fun a => C a >>= fun x =>
+        match x with
+        | inl a' => ITree.map inl (D a')
+        | inr a' => Ret (inr a')
+        end).
+Proof.
+  have -> :
+    ITree.iter (fun a => D a >>= C) a
+      ≈ ITree.iter (fun x =>
+                      y <- ITree.map inl (D x) ;;
+                      match y with
+                      | inl a => C a
+                      | inr b => Ret (inr b)
+                      end) a.
+  { apply: eutt_iter' => [?? -> | //].
+    setoid_rewrite bind_map. reflexivity. }
+
+  pose proof (iter_dinatural (C := Kleisli (itree E))
+                (fun a => ITree.map inl (D a)) C a)
+    as H.
+  setoid_rewrite H.
+  setoid_rewrite bind_map.
+  reflexivity.
+Qed.
+
+Lemma isem_while_rotate  p ev cdo cwh e s :
+  isem_while_loop isem_i_body p ev cdo e cwh s
+  ≈ isem_foldr isem_i_body p ev cdo s >>= isem_while_loop isem_i_body p ev [::] e (cwh ++ cdo).
+Proof.
+  rewrite /isem_while_loop.
+  etransitivity.
+  + by apply iter_rotate.
+
+  apply eutt_eq_bind => s'.
+  apply: eutt_iter'; last reflexivity.
+  move=> x1 x2 <-.
+  rewrite /isem_while_round /= bind_ret_l bind_bind.
+
+  apply eutt_eq_bind => -[]; last by rewrite bind_ret_l; reflexivity.
+  rewrite -/isem_cmd_ isem_cmd_cat !bind_bind.
+  setoid_rewrite bind_ret_l.
+  reflexivity.
+Qed.
+
+Lemma isem_cmd_while_rotate p ev ii al c e inf c' s:
+  isem_cmd_ p ev [:: MkI ii (Cwhile al c e inf c')] s
+    ≈
+    isem_cmd_ p ev (c ++ [:: MkI ii (Cwhile al [::] e inf (c' ++ c))]) s.
+Proof.
+  rewrite isem_cmd_cat /= isem_while_rotate /= bind_bind.
+  apply eutt_eq_bind.
+  reflexivity.
+Qed.
+
 Definition initialize_funcall (p : prog) (ev : extra_val_t) (fd : fundef) (fs : fstate) : exec estate :=
   let sinit := estate0 fs in
   Let vargs' := mapM2 ErrType dc_truncate_val (map eval_atype fd.(f_tyin)) fs.(fvals) in

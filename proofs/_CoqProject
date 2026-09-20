@@ -94,6 +94,10 @@ compiler/dead_code.v
 compiler/dead_code_proof.v
 compiler/direct_call_proof.v
 compiler/hoare_valid.v
+compiler/toec_for.v
+compiler/toec_for_proof.v
+compiler/toec_while.v
+compiler/toec_while_proof.v
 compiler/inline.v
 compiler/inline_proof.v
 compiler/insert_renaming.v
