@@ -32,7 +32,9 @@ let extract_to_file prog arch pd msfsz asmOp model amodel global_options
 let parse_and_extract arch call_conv idirs =
   let module A = (val CoreArchFactory.get_arch_module arch call_conv) in
   let extract model amodel global_options functions array_dir output pass file =
-    let prog = parse_and_compile (module A) ~wi2i:true pass file idirs in
+    let prog = parse_and_compile (module A) ~wi2i:true pass file idirs
+      |> Compile.do_toec_while (module A)
+      |> Compile.do_toec_for (module A) in
     try
       extract_to_file prog arch A.reg_size A.msf_size A.asmOp model amodel
         global_options functions array_dir output

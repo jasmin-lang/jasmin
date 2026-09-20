@@ -1471,13 +1471,8 @@ let rec remove_for_i i =
     | Cwhile(a, c1, e, loc, c2) -> Cwhile(a, remove_for c1, e, loc, remove_for c2)
     | Cfor(j,r,c) ->
       let jd = j.pl_desc in
-      if not (is_write_c jd c) then Cfor(j, r, remove_for c)
-      else
-        let jd' = V.clone jd in
-        let j' = { j with pl_desc = jd' } in
-        let ii' = Cassgn (Lvar j, E.AT_inline, jd.v_ty, Pvar (gkvar j')) in
-        let ii' = { i with i_desc = ii' } in
-        Cfor (j', r, ii' :: remove_for c)
+      assert (not (is_write_c jd c)); (* toec_for removes and writes to index var *)
+      Cfor(j, r, remove_for c)
   in
   { i with i_desc }
 and remove_for c = List.map remove_for_i c
@@ -1600,6 +1595,7 @@ module type EcLeakage = sig
   val ec_leaks_es: Env.t -> exprs -> ec_instr list
   val ec_leaks_opn: Env.t -> exprs -> ec_instr list
   val ec_leaking_if: Env.t -> expr -> (Env.t -> ec_stmt) -> (Env.t -> ec_stmt) -> ec_stmt
+  (* TODO: adapt `ec_leaking_while` now that toec_while simplifies while loops *)
   val ec_leaking_while: Env.t -> (Env.t -> ec_stmt) -> expr -> (Env.t -> ec_stmt) -> ec_stmt
   val ec_leaking_for: Env.t -> (Env.t -> ec_stmt) -> expr -> expr -> ec_stmt -> ec_expr -> ec_stmt -> ec_stmt
   val ec_leaks_lvs: Env.t -> lvals -> ec_stmt
@@ -1983,6 +1979,7 @@ struct
           let c2 env = toec_cmd asmOp env c2 in
           ec_leaking_if env e c1 c2
       | Cwhile (_, c1, e, _, c2) ->
+          assert (List.is_empty c1);  (* c1 should be empty after ec_while. *)
           let c1 env = toec_cmd asmOp env c1 in
           let c2 env = toec_cmd asmOp env c2 in
           ec_leaking_while env c1 e c2
