@@ -10,7 +10,14 @@ let pp_syscall (o : _ Syscall_t.syscall_t) =
   match o with
   | Syscall_t.RandomBytes _ -> "__jasmin_syscall_randombytes__"
 
-let string_of_label name p = Format.asprintf "L%s$%a" (escape name) Z.pp_print (Conv.z_of_pos p)
+(* Labels internal to a function must not appear in the symbol table of the
+   object file. On ELF (and COFF) targets the assembler treats a symbol whose
+   name starts with ".L" as such an assembler-local label; on Mach-O the
+   convention is a bare "L" prefix. *)
+let local_label_prefix () = if is_target_system_macos () then "L" else ".L"
+
+let string_of_label name p =
+  Format.asprintf "%s%s$%a" (local_label_prefix ()) (escape name) Z.pp_print (Conv.z_of_pos p)
 
 let pp_remote_label (fn, lbl) =
   string_of_label fn.fn_name lbl
