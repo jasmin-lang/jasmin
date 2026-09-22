@@ -1,7 +1,40 @@
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype seq.
 From mathcomp Require Import word_ssrZ.
-Require Import expr.
+Require Import expr op_semi.
 Import Utf8.
+
+(* ------------------------------------------------------------------------- *)
+(* Translation of a condition on the argument values of an operator into an
+   expression, and into an assertion, on its argument expressions. The
+   coercion from words to integers is a parameter: [wint_int] takes the
+   identity, its arguments being already integers; the safety pass will apply
+   [Oint_of_word]. *)
+
+Section TO_E.
+
+Context (toint : signedness -> wsize -> pexpr -> pexpr).
+
+(* The word-to-integer coercion is used instead of [Papp1] when it is applied
+   to an argument: this is what [wint_int] needs. *)
+Definition sc_op1_to_e (o : sop1) (c : safety_cond) (e : pexpr) : pexpr :=
+  match o, c with
+  | Oint_of_word sg ws, IVar _ => toint sg ws e
+  | _, _ => Papp1 o e
+  end.
+
+Fixpoint sc_to_e (vs : pexprs) (c : safety_cond) : pexpr :=
+  match c with
+  | IBool b => Pbool b
+  | IConst z => Pconst z
+  | IVar k => nth (Pbool false) vs k
+  | IOp1 o c => sc_op1_to_e o c (sc_to_e vs c)
+  | IOp2 o c1 c2 => Papp2 o (sc_to_e vs c1) (sc_to_e vs c2)
+  end.
+
+Definition sc_to_eassert (vs : pexprs) (c : safety_cond) : eassert :=
+  Pexpr (sc_to_e vs c).
+
+End TO_E.
 
 Section DEFS.
 Context `{asmop:asmOp}.
