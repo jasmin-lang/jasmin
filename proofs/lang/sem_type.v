@@ -120,6 +120,15 @@ Definition sem_t (t : ctype) : Type :=
 
 Definition sem_prod ts tr := lprod (map sem_t ts) tr.
 
+(* Extensional equality on [sem_prod], by recursion on [tin]: no functional
+   extensionality needed. *)
+Fixpoint sem_prod_eq {T} (tin : seq ctype) : sem_prod tin T -> sem_prod tin T -> Prop :=
+  match tin return sem_prod tin T -> sem_prod tin T -> Prop with
+  | [::] => fun f g => f = g
+  | t :: tin => fun f g => forall v : sem_t t, @sem_prod_eq T tin (f v) (g v)
+  end.
+Arguments sem_prod_eq {T} tin f g : assert.
+
 Definition sem_ot (t:ctype) : Type :=
   if t is cbool then option bool
   else sem_t t.
