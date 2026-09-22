@@ -26,6 +26,17 @@ Require Import
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
+(* The semantics of an instruction is built from its total semantics by the
+   generic combinators below; they are plain definitions that [simpl] does not
+   unfold. *)
+#[local]
+Ltac simpl_semi :=
+  rewrite ?/semi_to_atype_t ?/mk_semi_cond_t ?/arch_utils.semi_drop1_t
+          ?/arch_utils.semi_drop2_t ?/arch_utils.semi_drop3_t
+          ?/arch_utils.semi_drop4_t ?/mk_semi1_shifted_t
+          ?/mk_semi2_2_shifted_t ?/mk_semi3_2_shifted_t /=;
+  rewrite ?add_arguments_app ?add_arguments_nil /=.
+
 Lemma chk_ws_regP {A ws a} {oa : option A} :
   (let%opt _ := chk_ws_reg ws in oa) = Some a
   -> ws = reg_size /\ oa = Some a.
@@ -521,7 +532,7 @@ Proof.
   all: eexists; first reflexivity.
   all: rewrite /exec_sopn /=.
   all: rewrite truncate_word_le // {hws} /=.
-  all: by rewrite ?zero_extend_u.
+  all: by rewrite /semi_to_atype_t /arm_extend_semi /= ?zero_extend_u.
 Qed.
 
 Lemma lower_loadP e :
@@ -540,7 +551,8 @@ Proof.
     split.
     + rewrite /= ok_t /= ok_idx /= ok_r /=.
       eexists; first reflexivity.
-      by rewrite /exec_sopn /= truncate_word_le // /= zero_extend_u.
+      by rewrite /exec_sopn /= truncate_word_le // /= /semi_to_atype_t
+        /arm_extend_semi /= ?zero_extend_u.
     done.
 
   t_xrbindP=> woff' voff hseme hoff wres hread ? hw;
@@ -561,7 +573,7 @@ Proof.
 
   rewrite /exec_sopn /=.
   rewrite truncate_word_le // {hws} /=.
-  by rewrite zero_extend_u.
+  by rewrite /semi_to_atype_t /arm_extend_semi /= ?zero_extend_u.
 Qed.
 
 Lemma lower_Papp1P op e:
@@ -607,7 +619,7 @@ Proof.
       all: eexists; first reflexivity.
       all: rewrite /exec_sopn /=.
       all: rewrite hw' {hw'} /=.
-      all: by rewrite !zero_extend_u.
+      all: by rewrite /semi_to_atype_t /arm_extend_semi /= !zero_extend_u.
     }
 
   (* Case: [Ozeroext]. *)
@@ -625,7 +637,7 @@ Proof.
       all: eexists; first reflexivity.
       all: rewrite /exec_sopn /=.
       all: rewrite hw' {hw'} /=.
-      all: by rewrite !zero_extend_u.
+      all: by rewrite /semi_to_atype_t /arm_extend_semi /= !zero_extend_u.
     }
 
   (* Case: [Olnot]. *)
@@ -651,6 +663,8 @@ Proof.
     eexists; first reflexivity.
     rewrite /exec_sopn /=.
     rewrite !truncate_word_le // {hws1} /=.
+    rewrite /semi_to_atype_t /arch_utils.semi_drop3_t /mk_semi1_shifted_t
+      /arm_MVN_semi_t /=.
     by rewrite !zero_extend_u hv.
 
   clear hshift.
@@ -668,7 +682,9 @@ Proof.
   split; last by [].
   exists [:: v; @Vword U32 0 ].
   - by rewrite /= hseme wrepr0.
-  by rewrite /exec_sopn /= /sopn_sem ok_w' truncate_word_u /= !add_wordE opp_wordE GRing.add0r wnot1_wopp zero_extend_u.
+  rewrite /exec_sopn /= /sopn_sem ok_w' truncate_word_u /=.
+  rewrite /semi_to_atype_t /arch_utils.semi_drop4_t /arm_SUB_semi_t /=.
+  by rewrite !add_wordE opp_wordE GRing.add0r wnot1_wopp zero_extend_u.
 Qed.
 
 Lemma sem_sop2_divP si ws (w0 w1 : word ws) w :
@@ -738,7 +754,8 @@ Ltac rewrite_exec :=
       case: b; mytac; last done
   end
   || mytac;
-  rewrite /= !zero_extend_u.
+  rewrite /= !zero_extend_u;
+  simpl_semi.
 
 Lemma with_shift_unop s eb ea ts (b: word ts) (a: u8) x vs sh opts r :
   (U32 ≤ ts)%CMP ->
@@ -923,6 +940,7 @@ Proof.
     all: try rewrite (cmp_le_trans hws hws1).
 
     all: rewrite /=.
+    all: simpl_semi.
     4: rewrite (wadd_zero_extend _ _ hws).
     5: rewrite (wmul_zero_extend _ _ hws).
     6,7: rewrite !add_wordE !sub_wordE (wsub_zero_extend _ _ hws) wsub_wnot1.
@@ -949,13 +967,10 @@ Proof.
     8: rewrite /sem_ror /sem_shift wror0.
     10, 11: have! := (is_wconstP true (p_globs p) s hconst); rewrite hseme1 => /truncate_wordP[] _.
     10: move => <-; rewrite /sem_rol /sem_shift wrol0.
-    all: rewrite /sopn_sem_ /= /semi_to_atype /= !zero_extend_u //.
-    all: rewrite /arm_LSR_semi /arm_LSL_semi /arm_ASR_semi /arm_ROR_semi /arm_shift_semi.
-    all: rewrite /arch_utils.semi_drop3 /=.
-    1-4: by case: ifP => //=.
+    all: rewrite /sopn_sem_ /= !zero_extend_u //.
     move=> ?; subst c.
     rewrite /sem_rol /sem_shift wrepr_unsigned -wror_opp.
-    case: eqP => /= _; do 3 f_equal; apply: wror_m;
+    do 3 f_equal; apply: wror_m;
       change (wsize_bits _) with (wsize_size U256);
       by rewrite sub_wordE wunsigned_sub_mod.
   }
@@ -1250,10 +1265,10 @@ Proof.
 
   all: case: ws hws hwrite hmn => // hws hwrite [?]; subst mn.
   all: rewrite /exec_sopn /=.
-  all: rewrite /sopn_sem /sopn_sem_ /= /semi_to_atype /=.
+  all: rewrite /sopn_sem /sopn_sem_ /semi /mk_semi /=.
   all: rewrite ?truncate_word_le //.
 
-  1-3: rewrite /= zero_extend_u.
+  1-3: rewrite /= /semi_to_atype_t /arm_extend_semi /= zero_extend_u.
   1-3: by rewrite hwrite {hwrite}.
 
   all: rewrite hseme0 hsemc hseme1 {hseme0 hsemc hseme1} /=.
@@ -1262,6 +1277,7 @@ Proof.
   all: rewrite truncate_word_le /=.
   2, 4, 6, 8, 10, 12: exact: cmp_le_trans hws hws0.
   all: rewrite (zero_extend_idem _ hws) {hws} /= in hwrite.
+  all: simpl_semi; rewrite /arm_extend_semi /=.
   1-3: rewrite zero_extend_u.
   all: by rewrite hwrite {hwrite}.
 Qed.

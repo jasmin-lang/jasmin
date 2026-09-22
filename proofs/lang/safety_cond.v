@@ -6,9 +6,9 @@
    *total* semantics of [sem_op_total.v], so that their meaning does not
    depend on the failures they are there to rule out.
 
-   This file holds the language, the check [check_safe] that an operation
-   performs on the values of its arguments, and the library of the conditions
-   the operators are made of ([sc_toint], [sc_in_range], ...).
+   This file holds the language, its typing, the check [check_safe] that an
+   operation performs on the values of its arguments, and the library of the
+   conditions the operators are made of ([sc_toint], [sc_in_range], ...).
    What is specific to the expression operators — which conditions each of
    them carries, and how the conditions guard the total semantics — is in
    [op_semi.v]. *)
@@ -128,9 +128,8 @@ Proof. by rewrite /safety_cond_wt => /eqP /safety_cond_type_cat ->. Qed.
 Definition check_safe (vs : values) (safe : seq safety_cond) (err : error) : exec unit :=
   if all (safety_cond_holds vs) safe then ok tt else Error err.
 
-(* Computational analogue of [values.interp_safe_cond_ty_aux]: the arguments
-   are collected, as values, in [vs] along the [sem_prod], and [P] is applied
-   to them and to the result. *)
+(* The arguments are collected, as values, in [vs] along the [sem_prod], and
+   [P] is applied to them and to the result. *)
 Fixpoint mk_semi_aux {T T'} (P : values -> T -> exec T') (vs : values) (tin : seq ctype) :
   sem_prod tin T -> sem_prod tin (exec T') :=
   match tin return sem_prod tin T -> sem_prod tin (exec T') with

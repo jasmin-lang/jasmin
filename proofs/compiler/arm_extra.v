@@ -50,9 +50,7 @@ Definition Oarm_add_large_imm_instr : instruction_desc :=
    ; tout   := [:: ty]
    ; i_out  := [:: E 0]
    ; conflicts := [:: (APout 0, APin 0)]
-   ; semi   := sem_prod_ok ctin semi
    ; i_semi_total := semi
-   ; semu   := @values.vuincl_app_sopn_v ctin [:: cty] (sem_prod_ok ctin semi) refl_equal
    ; i_safe := [::]
    ; i_err := ErrArith
    ; i_init := [:: IBool true ]
@@ -60,9 +58,8 @@ Definition Oarm_add_large_imm_instr : instruction_desc :=
    ; i_doit := DOIT
    ; i_safe_wf := refl_equal
    ; i_wf := refl_equal
-   ; i_semi_errty :=  fun _ => sem_prod_ok_error (tin:=ctin) semi _
-   ; i_semi_safe := fun _ => values.sem_prod_ok_safe (tin:=ctin) semi
-   ; i_semi_eq := fun _ v1 v2 => erefl
+   ; semu   := @values.vuincl_app_sopn_v ctin [:: cty]
+                 (@mk_semi ctin [:: cty] [::] ErrArith [:: IBool true ] semi) refl_equal
  |}.
 
 Definition smart_li_instr (ws : wsize) : instruction_desc :=
@@ -70,18 +67,16 @@ Definition smart_li_instr (ws : wsize) : instruction_desc :=
     (pp_sz "smart_li" ws)
     [:: aword ws ] [:: E 0 ]
     [:: aword ws ] [:: E 1 ]
-    (fun x => x) (fun x => x)
-    [:: IBool true ] (fun _ v1 => erefl)
-    true DOIT.
+    (fun x => x)
+    [:: IBool true ] true DOIT.
 
 Definition smart_li_instr_cc (ws : wsize) : instruction_desc :=
   mk_instr_desc_safe
     (pp_sz "smart_li_cc" ws)
     [:: aword ws; abool; aword ws ] [:: E 0; E 2; E 1 ]
     [:: aword ws ] [:: E 1 ]
-    (fun x b y => if b then x else y) (fun x b y => if b then x else y)
-    [:: IBool true ] (fun _ v1 v2 v3 => erefl)
-    true DOIT.
+    (fun x b y => if b then x else y)
+    [:: IBool true ] true DOIT.
 
 Definition get_instr_desc (o: arm_extra_op) : instruction_desc :=
   match o with
