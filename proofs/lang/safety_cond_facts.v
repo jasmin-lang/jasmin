@@ -16,53 +16,12 @@ Local Open Scope seq_scope.
 (* -------------------------------------------------------------------- *)
 (* ** Extensionally equal semantics                                      *)
 
-Lemma sem_prod_eq_sym {T} tin (f g : sem_prod tin T) :
-  sem_prod_eq tin f g -> sem_prod_eq tin g f.
-Proof. by elim: tin f g => /= [f g -> // | t tin ih f g h v]; apply: ih (h v). Qed.
-
-Lemma sem_prod_eq_trans {T} tin (f g h : sem_prod tin T) :
-  sem_prod_eq tin f g -> sem_prod_eq tin g h -> sem_prod_eq tin f h.
-Proof.
-by elim: tin f g h => /= [f g h -> // | t tin ih f g h h1 h2 v]; apply: ih (h1 v) (h2 v).
-Qed.
-
 (* Two extensionally equal semantics satisfy the same properties. *)
 Lemma sem_forall_eq {T} (P : T -> Prop) tin (f g : sem_prod tin T) :
   sem_prod_eq tin f g -> sem_forall P tin g -> sem_forall P tin f.
 Proof.
 by elim: tin f g => /= [f g -> // | t tin ih f g heq hg v]; apply: (ih _ _ (heq v) (hg v)).
 Qed.
-
-Lemma sem_prod_ok_app_g {A B} tin (x : sem_prod tin A) (g : A -> B) :
-  sem_prod_eq tin (sem_prod_ok tin (sem_prod_app x g))
-                  (sem_prod_app x (fun a => ok (g a))).
-Proof. by elim: tin x => //= t ts ih x v; apply: ih. Qed.
-
-(* Two post-treatments that agree on the results the semantics can produce
-   give two equal semantics. *)
-Lemma sem_prod_eq_prod_app_ext {A B} (f g : A -> B) (P : A -> Prop) tin x :
-  (forall a, P a -> f a = g a) ->
-  sem_forall P tin x ->
-  sem_prod_eq tin (sem_prod_app x f) (sem_prod_app x g).
-Proof. by move=> h; elim: tin x => /= [x /h -> | t ts ih x hx v] //; apply: ih. Qed.
-
-(* [curry] is written with an anonymous [fix]; the statement repeats it so that
-   the accumulator can be generalised. *)
-Lemma sem_prod_ok_curry_gen (A : ctype) B (f : seq (sem_t A) -> B) n acc :
-  sem_prod_eq (nseq n A)
-    ((fix loop n := match n return seq (sem_t A) -> sem_prod (nseq n A) (exec B) with
-                    | O => fun acc => ok (f acc)
-                    | S n' => fun acc a => loop n' (a :: acc) end) n acc)
-    (sem_prod_ok (nseq n A)
-      ((fix loop n := match n return seq (sem_t A) -> sem_prod (nseq n A) B with
-                      | O => f
-                      | S n' => fun acc a => loop n' (a :: acc) end) n acc)).
-Proof. by elim: n acc => //= n ih acc a; apply: ih. Qed.
-
-Lemma sem_prod_ok_curry (A : ctype) B (f : seq (sem_t A) -> B) n :
-  sem_prod_eq (nseq n A) (@curry A (exec B) n (fun vs => ok (f vs)))
-              (sem_prod_ok (nseq n A) (@curry A B n f)).
-Proof. exact: (sem_prod_ok_curry_gen f n [::]). Qed.
 
 (* -------------------------------------------------------------------- *)
 (* ** An operation without condition                                     *)
@@ -92,16 +51,4 @@ Proof.
 by move=> h;
   rewrite /safety_cond_holds /sc_not_zero /sc_neqi /sc_toint /= h /= truncate_word_u /=
           wunsigned_eqb0.
-Qed.
-
-Lemma safety_cond_holds_in_range vs lo hi c z :
-  sem_safety_cond vs c = ok (Vint z) ->
-  safety_cond_holds vs (sc_in_range lo hi c) = (lo <=? z)%Z && (z <=? hi)%Z.
-Proof. by rewrite /safety_cond_holds /sc_in_range /sc_and /sc_lei /= => ->. Qed.
-
-Lemma safety_cond_holds_wi_range vs sg sz c z :
-  sem_safety_cond vs c = ok (Vint z) ->
-  safety_cond_holds vs (sc_wi_range sg sz c) = signed in_uint_range in_sint_range sg sz z.
-Proof.
-by rewrite /sc_wi_range; case: sg => /= h; rewrite (safety_cond_holds_in_range _ _ h).
 Qed.
