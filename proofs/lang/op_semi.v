@@ -3,7 +3,11 @@
    For each operator, [op1_safe] / [op2_safe] / [opN_safe] give the conditions
    on its arguments under which the (partial) semantics of [sem_op_typed.v]
    does not fail; that semantics is defined there as [mk_sem_op] of these
-   conditions and of the total semantics of [sem_op_total.v]. *)
+   conditions and of the total semantics of [sem_op_total.v].
+
+   Which operators carry a condition also says which conditions of
+   [safety_cond.v] are total, hence well formed ([safety_cond_wf]): that is
+   what a descriptor requires of the conditions it declares. *)
 
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.

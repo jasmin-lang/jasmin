@@ -58,9 +58,7 @@ Definition Oarmv8a_add_large_imm_instr : instruction_desc :=
    ; tout   := [:: ty]
    ; i_out  := [:: E 0]
    ; conflicts := [:: (APout 0, APin 0)]
-   ; semi   := sem_prod_ok ctin semi
    ; i_semi_total := semi
-   ; semu   := @values.vuincl_app_sopn_v ctin [:: cty] (sem_prod_ok ctin semi) refl_equal
    ; i_safe := [::]
    ; i_err := ErrArith
    ; i_init := [:: IBool true ]
@@ -68,9 +66,8 @@ Definition Oarmv8a_add_large_imm_instr : instruction_desc :=
    ; i_doit := DOIT
    ; i_safe_wf := refl_equal
    ; i_wf := refl_equal
-   ; i_semi_errty :=  fun _ => sem_prod_ok_error (tin:=ctin) semi _
-   ; i_semi_safe := fun _ => values.sem_prod_ok_safe (tin:=ctin) semi
-   ; i_semi_eq := fun _ v1 v2 => erefl
+   ; semu   := @values.vuincl_app_sopn_v ctin [:: cty]
+                 (@mk_semi ctin [:: cty] [::] ErrArith [:: IBool true ] semi) refl_equal
  |}.
 
 Definition smart_li_instr (ws : wsize) : instruction_desc :=
@@ -78,9 +75,8 @@ Definition smart_li_instr (ws : wsize) : instruction_desc :=
     (pp_sz "smart_li" ws)
     [:: aword ws ] [:: E 0 ]
     [:: aword ws ] [:: E 1 ]
-    (fun x => x) (fun x => x)
-    [:: IBool true ] (fun _ v1 => erefl)
-    true DOIT.
+    (fun x => x)
+    [:: IBool true ] true DOIT.
 
 (* Speculative execution operators, expanded at assembly generation
    ([assemble_slh_*] below). The misspeculation flag is 0 when not
@@ -92,9 +88,8 @@ Definition Oarmv8a_SLHinit_instr : instruction_desc :=
   mk_instr_desc_safe (pp_s (append "Oarmv8a_" SLHinit_str))
     [::] [::]
     [:: ty_msf ] [:: E 0 ]
-    se_init_sem se_init_sem
-    [:: IBool true ] (fun _ => erefl)
-    true NOT_DOIT.
+    se_init_sem
+    [:: IBool true ] true NOT_DOIT.
 
 Definition armv8a_se_update_sem (b : bool) (msf : wmsf) : wmsf * wmsf :=
   let aux := wrepr msf_size (-1) in
@@ -111,11 +106,7 @@ Definition Oarmv8a_SLHupdate_instr : instruction_desc :=
    ; tout   := [:: ty_msf; ty_msf ]
    ; i_out  := [:: E 2; E 0 ]
    ; conflicts := [:: (APout 0, APin 1) ]
-   ; semi   := sem_prod_ok ctin armv8a_se_update_sem
    ; i_semi_total := armv8a_se_update_sem
-   ; semu   :=
-       @values.vuincl_app_sopn_v ctin ctout
-         (sem_prod_ok ctin armv8a_se_update_sem) refl_equal
    ; i_safe := [::]
    ; i_err := ErrArith
    ; i_init := [:: IBool true; IBool true ]
@@ -123,18 +114,19 @@ Definition Oarmv8a_SLHupdate_instr : instruction_desc :=
    ; i_doit := DOIT
    ; i_safe_wf := refl_equal
    ; i_wf := refl_equal
-   ; i_semi_errty :=  fun _ => sem_prod_ok_error (tin:=ctin) armv8a_se_update_sem _
-   ; i_semi_safe := fun _ => values.sem_prod_ok_safe (tin:=ctin) armv8a_se_update_sem
-   ; i_semi_eq := fun _ v1 v2 => erefl
+   ; semu   :=
+       @values.vuincl_app_sopn_v ctin ctout
+         (@mk_semi ctin ctout [::] ErrArith [:: IBool true; IBool true ]
+            armv8a_se_update_sem)
+         refl_equal
  |}.
 
 Definition Oarmv8a_SLHmove_instr : instruction_desc :=
   mk_instr_desc_safe (pp_s (append "Oarmv8a_" SLHmove_str))
     [:: ty_msf ] [:: E 1 ]
     [:: ty_msf ] [:: E 0 ]
-    se_move_sem se_move_sem
-    [:: IBool true ] (fun _ v1 => erefl)
-    true DOIT.
+    se_move_sem
+    [:: IBool true ] true DOIT.
 
 Definition armv8a_se_protect_sem (ws : wsize) (x msf : word ws) : word ws :=
   wor x msf.
@@ -143,9 +135,8 @@ Definition Oarmv8a_SLHprotect_instr (ws : wsize) : instruction_desc :=
   mk_instr_desc_safe (pp_sz (append "Oarmv8a_" SLHprotect_str) ws)
     [:: aword ws; aword ws ] [:: E 1; E 2 ]
     [:: aword ws ] [:: E 0 ]
-    (@armv8a_se_protect_sem ws) (@armv8a_se_protect_sem ws)
-    [:: IBool true ] (fun _ v1 v2 => erefl)
-    ((ws == U32) || (ws == U64)) NOT_DOIT.
+    (@armv8a_se_protect_sem ws)
+    [:: IBool true ] ((ws == U32) || (ws == U64)) NOT_DOIT.
 
 Definition get_instr_desc (o: armv8a_extra_op) : instruction_desc :=
   match o with
