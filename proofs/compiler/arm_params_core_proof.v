@@ -28,10 +28,9 @@ Module ARMFopn_coreP.
 Section Section.
 
 Context
+  {wsw: WithSubWord}
   {syscall_state : Type}
   {ep : EstateParams syscall_state}.
-
-#[local] Existing Instance withsubword.
 
 Definition sem_fopn_args (p : seq lexpr * arm_op * seq rexpr) (s : estate) :=
   let: (xs,o,es) := p in
@@ -62,7 +61,7 @@ Lemma add_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr}
 Proof.
   move=> hc.
   rewrite /=; t_xrbindP => *; t_arm_op.
-  by rewrite /= set_var_truncate // (convertible_eval_atype hc).
+  by rewrite /= set_var_truncate // (convertible_eval_atype hc) truncatable_cword.
 Qed.
 
 Lemma addi_sem_fopn_args {s} {xi:var_i} {y imm wy} :
@@ -74,7 +73,7 @@ Lemma addi_sem_fopn_args {s} {xi:var_i} {y imm wy} :
 Proof.
   move=> hc.
   rewrite /=; t_xrbindP => *; t_arm_op.
-  by rewrite /= set_var_truncate // (convertible_eval_atype hc).
+  by rewrite /= set_var_truncate // (convertible_eval_atype hc) truncatable_cword.
 Qed.
 
 Lemma sub_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr} :
@@ -87,7 +86,7 @@ Lemma sub_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr}
 Proof.
   move=> hc.
   rewrite /=; t_xrbindP => *; t_arm_op.
-  by rewrite /= !add_wordE wsub_wnot1 set_var_truncate // (convertible_eval_atype hc).
+  by rewrite /= !add_wordE wsub_wnot1 set_var_truncate // (convertible_eval_atype hc) truncatable_cword.
 Qed.
 
 Lemma subi_sem_fopn_args {s} {xi:var_i} {y imm wy} :
@@ -99,7 +98,7 @@ Lemma subi_sem_fopn_args {s} {xi:var_i} {y imm wy} :
 Proof.
   move=> hc.
   rewrite /=; t_xrbindP => *; t_arm_op.
-  by rewrite /= !add_wordE wsub_wnot1 set_var_truncate // (convertible_eval_atype hc).
+  by rewrite /= !add_wordE wsub_wnot1 set_var_truncate // (convertible_eval_atype hc) truncatable_cword.
 Qed.
 
 Lemma mov_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} :
@@ -110,7 +109,7 @@ Lemma mov_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} :
 Proof.
   move=> hc.
   rewrite /=; t_xrbindP => *; t_arm_op.
-  by rewrite /= set_var_truncate // (convertible_eval_atype hc).
+  by rewrite /= set_var_truncate // (convertible_eval_atype hc) truncatable_cword.
 Qed.
 
 Lemma movi_sem_fopn_args {s imm} {xi:var_i} :
@@ -121,7 +120,7 @@ Lemma movi_sem_fopn_args {s imm} {xi:var_i} :
 Proof.
   move=> hc.
   t_arm_op.
-  by rewrite set_var_truncate // (convertible_eval_atype hc).
+  by rewrite set_var_truncate // (convertible_eval_atype hc) truncatable_cword.
 Qed.
 
 Lemma mvni_sem_fopn_args {s imm} {xi:var_i} :
@@ -132,7 +131,7 @@ Lemma mvni_sem_fopn_args {s imm} {xi:var_i} :
 Proof.
   move=> hc.
   t_arm_op.
-  by rewrite set_var_truncate // (convertible_eval_atype hc).
+  by rewrite set_var_truncate // (convertible_eval_atype hc) truncatable_cword.
 Qed.
 
 Opaque ARMFopn_core.add.
@@ -293,7 +292,7 @@ Proof.
 
   (* Case: small immediate. *)
   + rewrite (movi_sem_fopn_args hc himm') /with_vm /=.
-    eexists; split; first reflexivity; last by t_get_var; rewrite (convertible_eval_atype hc).
+    eexists; split; first reflexivity; last by t_get_var; rewrite (convertible_eval_atype hc) //= orbT.
     move=> v /Sv.singleton_spec ?.
     by t_vm_get.
 
@@ -304,7 +303,7 @@ Proof.
     eexists; split; first reflexivity.
     * move=> v /Sv.singleton_spec ?.
       by t_vm_get.
-    by rewrite wrepr_mod -wrepr_wnot /= wnot_wnot wrepr_mod get_var_eq (convertible_eval_atype hc).
+    by rewrite wrepr_mod -wrepr_wnot /= wnot_wnot wrepr_mod get_var_eq (convertible_eval_atype hc) //= orbT.
 
   (* Case: large immediate. *)
   case hdivmod: Z.div_eucl => [hbs lbs] /=.
@@ -316,11 +315,11 @@ Proof.
     right.
     by apply/ZltP.
   t_arm_op.
-  t_get_var; rewrite (convertible_eval_atype hc) //=.
-  t_arm_op; rewrite set_var_truncate //; last by rewrite (convertible_eval_atype hc).
+  t_get_var; rewrite (convertible_eval_atype hc) //= orbT //.
+  t_arm_op; rewrite set_var_truncate //; last by rewrite (convertible_eval_atype hc) truncatable_cword.
   eexists; split; first reflexivity.
   + by move=> v /Sv.singleton_spec ?; t_vm_get.
-  t_get_var; rewrite (convertible_eval_atype hc) //=.
+  t_get_var; rewrite (convertible_eval_atype hc) /= orbT //.
   by rewrite /arm_MOVT_semi (mov_movt hdivmod).
 Qed.
 Opaque ARMFopn_core.movt.
@@ -343,7 +342,7 @@ Proof.
   rewrite (mov_sem_fopn_args _ hgety) //=.
   eexists; split; first reflexivity. 
   + by move=> z /Sv.singleton_spec hz; t_vm_get.
-  by rewrite get_var_eq /= (convertible_eval_atype hc) //= truncate_word_u.
+  by rewrite get_var_eq /= (convertible_eval_atype hc) /= orbT //= truncate_word_u.
 Qed.
 
 Lemma gen_smart_opi_sem_fopn_args
@@ -391,7 +390,7 @@ Proof.
   + by case: (neutral) hne => // n; case: ZeqbP => [->|].
   case: ifP hcond => [_ _ | _ [_|hxy]] //=.
   - rewrite (opi_sem_fopn_args _ _ _ _ _ hc2 hgety) /=.
-    eexists; split; first reflexivity; last by t_get_var; rewrite (convertible_eval_atype hc2).
+    eexists; split; first reflexivity; last by t_get_var; rewrite (convertible_eval_atype hc2) //= orbT.
     by move=> z hin; rewrite Vm.setP_neq //; apply/eqP; clear -hin; SvD.fsetdec.
   have [vm [hsem hvm hgett]] := li_lsem_1 s (xi:=tmp) imm hc1.
   rewrite /sem_fopns_args -cats1 foldM_cat -!/sem_fopns_args hsem /=.
@@ -399,7 +398,7 @@ Proof.
   rewrite
     (op_sem_fopn_args (with_vm s vm) _ _ _ _ (wrepr reg_size imm) hc2 hgety) /with_vm /=;
     last by rewrite hgett /= truncate_word_u.
-  eexists; split; first reflexivity; last by t_get_var; rewrite (convertible_eval_atype hc2).
+  eexists; split; first reflexivity; last by t_get_var; rewrite (convertible_eval_atype hc2) //= orbT.
   move=> z hin.
   rewrite Vm.setP_neq; last by apply/eqP; SvD.fsetdec.
   by rewrite hvm //; clear -hin; SvD.fsetdec.
