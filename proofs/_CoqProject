@@ -195,6 +195,7 @@ lang/memory_example.v
 lang/memory_model.v
 lang/mix_to_small_steps.v
 lang/one_varmap.v
+lang/op_semi.v
 lang/operators.v
 lang/psem.v
 lang/psem_defs.v
@@ -204,6 +205,7 @@ lang/pseudo_operator.v
 lang/psem_facts.v
 lang/relational_logic.v
 lang/safety_common.v
+lang/safety_cond.v
 lang/sem_one_varmap.v
 lang/sem_op_total.v
 lang/sem_op_typed.v
