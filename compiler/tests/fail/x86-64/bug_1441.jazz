@@ -1,0 +1,5 @@
+// Inconsistent signedness between >>s and 4u32
+export fn main (reg u128 x) -> reg u128 {
+  x = x >>s4u32 16;
+  return x;
+}

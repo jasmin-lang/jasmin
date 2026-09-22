@@ -634,6 +634,18 @@ fail/common/overlay_live.jazz:
 compilation error in function overlay_live:
 stack allocation: the region associated to variable t1 is partial
 
+fail/common/shift_sign.jazz:
+
+"fail/common/shift_sign.jazz", line 2 (8-11): invalid operator >>s 32u
+
+fail/common/shift_sign.jazz:
+
+"fail/common/shift_sign.jazz", line 2 (8-11): invalid operator >>s 32u
+
+fail/common/shift_sign.jazz:
+
+"fail/common/shift_sign.jazz", line 2 (8-11): invalid operator >>s 32u
+
 fail/common/storage_signature_mismatch.jazz:
 
 "fail/common/storage_signature_mismatch.jazz", line 1 (0) to line 4 (1): In function “sum”, return statement variable “r” has storage type “reg”, which differs from declared return storage type “stack”
@@ -1609,6 +1621,10 @@ fail/x86-64/bug_1366.jazz:
 
 "fail/x86-64/bug_1366.jazz", line 2 (2-21): invalid number of lvalues, 1 provided instead of 2
 
+fail/x86-64/bug_1441.jazz:
+
+"fail/x86-64/bug_1441.jazz", line 3 (11-15): invalid operator >>s 4u32
+
 fail/x86-64/cast_msb_merge.jazz:
 
 "fail/x86-64/cast_msb_merge.jazz", line 3 (2-30): primitive operator ADD_16 does not support zero-extension to 32
@@ -1762,7 +1778,7 @@ Allowed args are:
 
 Statistics:
 	Annots:      4
-	Pretyping:  52
+	Pretyping:  56
 	Parsing:     4
 	Typing:      5
 	Compile:   218
