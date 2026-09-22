@@ -1,0 +1,4 @@
+export fn bad_shift(reg u32 a) -> reg u32 {
+  a >>s 32u = 1;
+  return a;
+}
