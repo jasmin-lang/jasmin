@@ -41,13 +41,16 @@ Section WITH_PARAMS.
 
 Context `{asmop:asmOp} {pd: PointerData} {msfsz : MSFsize}.
 
-Definition sc_op1 := sc_op1 (fun _ _ e => e).
+(* The safety conditions of the operators, as assertions on the arguments,
+   which this pass has already translated to integers: no coercion. *)
+Definition sc_op1 (o : sop1) (e : pexpr) : safety_asserts :=
+  map (sc_to_eassert (fun _ _ e => e) [:: e]) (op1_safe o).
 
-Definition sc_op2 o e1 e2 :=
-  match is_wi2 o with
-  | Some (sg, sz, o) => sc_wiop2 sg sz o e1 e2
-  | _ => [::]
-  end.
+(* [op2_safe] also carries the guards of the divisions on words, which are
+   not the business of this pass. *)
+Definition sc_op2 (o : sop2) (e1 e2 : pexpr) : safety_asserts :=
+  if o is Owi2 _ _ _ then map (sc_to_eassert (fun _ _ e => e) [:: e1; e2]) (op2_safe o)
+  else [::].
 
 #[local]
 Existing Instance progUnit.
@@ -123,7 +126,7 @@ Definition wint_contract_condition (x:var_i) :=
   Let xi := wi2i_vari x in
   match m x.(v_var) , x.(v_var).(vtype) with
   | Some (s,_) , aword sz  =>
-    ok [::(safety_lbl, Pexpr (e_wi_range s sz (Plvar xi)))]
+    ok [::(safety_lbl, sc_to_eassert (fun _ _ e => e) [:: Plvar xi] (sc_wi_range s sz (IVar 0)))]
   | _ , _ => ok [::]
   end.
 
@@ -136,13 +139,11 @@ Definition wi2i_gvar (x: gvar) :=
 Definition wi2i_type (sg : option signedness) ty :=
   if sg == None then ty else aint.
 
-Definition safety_exprs := seq pexpr.
-
-Definition wi2i_es (wi2i_e : pexpr -> cexec (safety_exprs * pexpr)) (es : pexprs) : cexec (safety_exprs * pexprs) :=
+Definition wi2i_es (wi2i_e : pexpr -> cexec (safety_asserts * pexpr)) (es : pexprs) : cexec (safety_asserts * pexprs) :=
   Let es := mapM wi2i_e es in
   ok (flatten (unzip1 es), unzip2 es).
 
-Fixpoint wi2i_e (e0:pexpr) : cexec (safety_exprs * pexpr) :=
+Fixpoint wi2i_e (e0:pexpr) : cexec (safety_asserts * pexpr) :=
   match e0 with
   | Pconst _ | Pbool _ | Parr_init _ _ => ok ([::], e0)
 
@@ -211,7 +212,7 @@ Definition wi2i_lvar (ety : extended_type Z) (x : var_i) : cexec var_i :=
                   (E.ierror_lv (Lvar x)) in
   wi2i_vari x.
 
-Definition wi2i_lv (ety : extended_type Z) (lv : lval) : cexec (safety_exprs * lval) :=
+Definition wi2i_lv (ety : extended_type Z) (lv : lval) : cexec (safety_asserts * lval) :=
   let s := sign_of_etype ety in
   match lv with
   | Lnone vi ty =>
@@ -250,7 +251,7 @@ Definition wi2i_lvs msg okmem xtys xs :=
   Let _ := assert (check_xs okmem Sv.empty xs scs) err in
   ok (flatten scs, xs).
 
-Fixpoint wi2i_eassert (e:eassert) : cexec (safety_exprs * eassert) :=
+Fixpoint wi2i_eassert (e:eassert) : cexec (safety_asserts * eassert) :=
   match e with
   | Pexpr e => Let ce := wi2i_e e in ok (ce.1, Pexpr ce.2)
   | PappN_safety o es =>
@@ -277,7 +278,7 @@ Fixpoint wi2i_eassert (e:eassert) : cexec (safety_exprs * eassert) :=
 
 Definition wi2i_a_and (a : assertion) :=
   Let e := wi2i_eassert a.2 in
-  ok (a.1, aands (rcons (map Pexpr e.1) e.2)).
+  ok (a.1, aands (rcons e.1 e.2)).
 
 Context (sigs : funname -> option (list (extended_type Z) * list (extended_type Z))).
 
@@ -305,7 +306,7 @@ Definition is_polymorphic_op o :=
   | _ => IsOther
   end.
 
-Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_exprs * instr_r) :=
+Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_asserts * instr_r) :=
   match ir with
   | Cassgn x tag ty e =>
     let ety := etype_of_expr m e in
@@ -388,7 +389,7 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_exprs * instr_r) :=
     Let e := wi2i_e e in
     Let c := wi2i_c wi2i_i c in
     Let c' := wi2i_c wi2i_i c' in
-    ok ([::], Cwhile a (c ++ safe_assert ii' (map Pexpr e.1)) e.2 ii' c')
+    ok ([::], Cwhile a (c ++ safe_assert ii' e.1) e.2 ii' c')
 
   | Ccall xs f es =>
     Let sig := get_sig f in
@@ -402,7 +403,7 @@ Fixpoint wi2i_ir (ir:instr_r) : cexec (safety_exprs * instr_r) :=
 with wi2i_i (i:instr) : cexec cmd :=
   let (ii,ir) := i in
   Let ir := add_iinfo ii (wi2i_ir ir) in
-  ok (rcons (safe_assert ii (map Pexpr ir.1)) (MkI ii ir.2)).
+  ok (rcons (safe_assert ii ir.1) (MkI ii ir.2)).
 
 Definition wi2i_ci ci sig :=
   Let ci_pre := mapM wi2i_a_and ci.(f_pre) in

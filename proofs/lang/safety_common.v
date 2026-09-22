@@ -54,13 +54,6 @@ Definition esubtype (ty1 ty2 : extended_type Z) :=
 
 Definition etrue := Pbool true.
 
-Fixpoint eands es :=
-  match es with
-  | [::] => etrue
-  | [::e] => e
-  | e::es => eand e (eands es)
-  end.
-
 Fixpoint aands es :=
   match es with
   | [::] => Pexpr etrue
@@ -111,47 +104,10 @@ Fixpoint etype_of_expr (e:pexpr) : extended_type Z :=
 Definition sign_of_expr (e:pexpr) : option signedness :=
   sign_of_etype (etype_of_expr e).
 
-(* Op1: Casts*)
-
-Definition eint_of_word (sg:signedness) sz e := Papp1 (Oint_of_word sg sz) e.
-
-(* Op2: Logics *)
-Definition elti e1 e2 := Papp2 (Olt Cmp_int) e1 e2.
-Definition elei e1 e2 := Papp2 (Ole Cmp_int) e1 e2.
-Definition eeqi e1 e2 := Papp2 (Oeq Op_int) e1 e2.
-Definition eneqi e1 e2 := Papp2 (Oneq Op_int) e1 e2.
-Definition elsli e1 e2 := Papp2 (Olsl Op_int) e1 e2.
-
-(* Op2: Arithmetics *)
-Definition eaddi e1 e2 := Papp2 (Oadd Op_int) e1 e2.
-Definition emuli e1 e2 := Papp2 (Omul Op_int) e1 e2.
-Definition edivi sg e1 e2 := Papp2 (Odiv sg Op_int) e1 e2.
-Definition emodi sg e1 e2 := Papp2 (Omod sg Op_int) e1 e2.
-
-(* Consts *)
-Definition ezero := Pconst 0.
-Definition ewsize sz := Pconst (wsize_size sz).
-Definition emin_signed sz := Pconst (wmin_signed sz).
-Definition emax_signed sz := Pconst (wmax_signed sz).
-Definition emax_unsigned sz := Pconst (wmax_unsigned sz).
-
-Definition emk_scale aa sz e :=
-  if (aa == AAdirect) then e
-  else emuli e (Pconst (wsize_size sz)).
-
-Definition eis_aligned e sz := eeq (emodi Unsigned e (ewsize sz)) (Pconst 0).
-
 Definition safety_lbl := "safety"%string.
 
 Definition safe_assert ii (sc:safety_asserts) : cmd :=
   map (fun e => MkI ii (Cassert (safety_lbl, e))) sc.
-
-(* ------ SC_OPS ------ *)
-
-Definition e_in_range lo hi e := eand (elei lo e) (elei e hi).
-Definition e_uint_range sz e := e_in_range ezero (emax_unsigned sz) e.
-Definition e_sint_range sz e := e_in_range (emin_signed sz) (emax_signed sz) e.
-Definition e_wi_range sg sz e := signed (e_uint_range sz) (e_sint_range sz) sg e.
 
 Definition is_wi1 (o: sop1) :=
   if o is Owi1 s op then Some (s, op) else None.
@@ -159,61 +115,14 @@ Definition is_wi1 (o: sop1) :=
 Definition is_wi2 (o: sop2) :=
   if o is Owi2 s sw op then Some (s, sw, op) else None.
 
-Definition sc_wiop1 (toint : signedness -> wsize -> pexpr -> pexpr)
-  sg (o : wiop1) (e: pexpr) :=
-  match o with
-  | WIwint_of_int sz => [:: e_wi_range sg sz e]
-  | WIint_of_wint sz => [::]
-  | WIword_of_wint sz => [::]
-  | WIwint_of_word sz => [::]
-  | WIwint_ext szo szi => [::]
-  | WIneg sz =>
-      signed  [::eeqi (toint sg sz e) ezero ]
-              [::eneqi (toint sg sz e) (emin_signed sz)] sg
-  end.
-
-(* [op : int -> int -> int] [e1 e2 : int] *)
-Definition sc_wi_range_op2 sg sz op e1 e2 :=
-  e_wi_range sg sz (Papp2 op e1 e2).
-
-(* [e1 e2 : int] *)
-Definition e_divmod sg sz e1 e2 :=
- let sc := signed [::]
-                  [:: enot (eand (eeqi e1 (emin_signed sz)) (eeqi e2 (Pconst (-1)))) ] sg in
- [:: eneqi e2 ezero & sc].
-
-Definition sc_wiop2 sg sz o e1 e2 :=
-  match o with
-  | WIadd => [:: sc_wi_range_op2 sg sz (Oadd Op_int) e1 e2]
-  | WImul => [:: sc_wi_range_op2 sg sz (Omul Op_int) e1 e2]
-  | WIsub => [:: sc_wi_range_op2 sg sz (Osub Op_int) e1 e2]
-  | WIdiv => e_divmod sg sz e1 e2
-  | WImod => e_divmod sg sz e1 e2
-  | WIshl => [:: e_wi_range sg sz (elsli e1 e2) ]
-  | WIshr => [::]
-  | WIeq | WIneq | WIlt | WIle | WIgt | WIge  => [::]
-  end.
-
-Definition sc_op1 (toint : signedness -> wsize -> pexpr -> pexpr)
-  (op1 : sop1) e :=
-  match is_wi1 op1 with
-  | Some (sg, o) => sc_wiop1 toint sg o e
-  | None => [::]
-  end.
-
-Fixpoint get_var_contract (v: var_i) (vs: seq var_i) (vs': seq var_i) : option var_i :=
-    match vs, vs' with
-      | x::vs, x'::vs' =>
-        if var_beq v x then Some x' else get_var_contract v vs vs'
-      | _, _ => None
-    end.
-
-Fixpoint check_xs (okmem : bool) W xs scs :=
+(* The assertions attached to an assignment are checked before it, so they
+   must not read what it writes. *)
+Fixpoint check_xs (okmem : bool) W xs (scs : seq safety_asserts) :=
   match xs, scs with
   | [::], [::] => true
   | x :: xs, sc :: scs =>
-    [&& okmem || (~~has (fun e => use_mem e) sc)
-      , disjoint (read_es sc) W
+    [&& okmem || (~~has use_mem_eassert sc)
+      , disjoint (read_easserts sc) W
       & check_xs (okmem && ~~lv_write_mem x) (vrv_rec W x) xs scs]
   | _, _ => false (* Should never occurs *)
   end.
