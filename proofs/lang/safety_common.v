@@ -7,7 +7,7 @@ Section DEFS.
 Context `{asmop:asmOp}.
 Context (m: var -> option (signedness * var)).
 
-Definition safety_cond := seq eassert.
+Definition safety_asserts := seq eassert.
 
 Definition esubtype (ty1 ty2 : extended_type Z) :=
  match ty1, ty2 with
@@ -110,15 +110,15 @@ Definition eis_aligned e sz := eeq (emodi Unsigned e (ewsize sz)) (Pconst 0).
 
 Definition safety_lbl := "safety"%string.
 
-Definition safe_assert ii (sc:safety_cond) : cmd :=
+Definition safe_assert ii (sc:safety_asserts) : cmd :=
   map (fun e => MkI ii (Cassert (safety_lbl, e))) sc.
 
 (* ------ SC_OPS ------ *)
 
-Definition sc_in_range lo hi e := eand (elei lo e) (elei e hi).
-Definition sc_uint_range sz e := sc_in_range ezero (emax_unsigned sz) e.
-Definition sc_sint_range sz e := sc_in_range (emin_signed sz) (emax_signed sz) e.
-Definition sc_wi_range sg sz e := signed (sc_uint_range sz) (sc_sint_range sz) sg e.
+Definition e_in_range lo hi e := eand (elei lo e) (elei e hi).
+Definition e_uint_range sz e := e_in_range ezero (emax_unsigned sz) e.
+Definition e_sint_range sz e := e_in_range (emin_signed sz) (emax_signed sz) e.
+Definition e_wi_range sg sz e := signed (e_uint_range sz) (e_sint_range sz) sg e.
 
 Definition is_wi1 (o: sop1) :=
   if o is Owi1 s op then Some (s, op) else None.
@@ -129,7 +129,7 @@ Definition is_wi2 (o: sop2) :=
 Definition sc_wiop1 (toint : signedness -> wsize -> pexpr -> pexpr)
   sg (o : wiop1) (e: pexpr) :=
   match o with
-  | WIwint_of_int sz => [:: sc_wi_range sg sz e]
+  | WIwint_of_int sz => [:: e_wi_range sg sz e]
   | WIint_of_wint sz => [::]
   | WIword_of_wint sz => [::]
   | WIwint_of_word sz => [::]
@@ -141,10 +141,10 @@ Definition sc_wiop1 (toint : signedness -> wsize -> pexpr -> pexpr)
 
 (* [op : int -> int -> int] [e1 e2 : int] *)
 Definition sc_wi_range_op2 sg sz op e1 e2 :=
-  sc_wi_range sg sz (Papp2 op e1 e2).
+  e_wi_range sg sz (Papp2 op e1 e2).
 
 (* [e1 e2 : int] *)
-Definition sc_divmod sg sz e1 e2 :=
+Definition e_divmod sg sz e1 e2 :=
  let sc := signed [::]
                   [:: enot (eand (eeqi e1 (emin_signed sz)) (eeqi e2 (Pconst (-1)))) ] sg in
  [:: eneqi e2 ezero & sc].
@@ -154,9 +154,9 @@ Definition sc_wiop2 sg sz o e1 e2 :=
   | WIadd => [:: sc_wi_range_op2 sg sz (Oadd Op_int) e1 e2]
   | WImul => [:: sc_wi_range_op2 sg sz (Omul Op_int) e1 e2]
   | WIsub => [:: sc_wi_range_op2 sg sz (Osub Op_int) e1 e2]
-  | WIdiv => sc_divmod sg sz e1 e2
-  | WImod => sc_divmod sg sz e1 e2
-  | WIshl => [:: sc_wi_range sg sz (elsli e1 e2) ]
+  | WIdiv => e_divmod sg sz e1 e2
+  | WImod => e_divmod sg sz e1 e2
+  | WIshl => [:: e_wi_range sg sz (elsli e1 e2) ]
   | WIshr => [::]
   | WIeq | WIneq | WIlt | WIle | WIgt | WIge  => [::]
   end.
