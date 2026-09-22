@@ -7,9 +7,9 @@ Section PROOF.
 
 #[local] Existing Instance progUnit.
 #[local] Existing Instance indirect_c.
-#[local] Existing Instance withsubword.
 
 Context
+  {wsw: WithSubWord}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
