@@ -898,50 +898,6 @@ Section FORALL.
 
 End FORALL.
 
-Fixpoint interp_safe_cond (vs : values) (sc : safe_cond) : Prop :=
-  match sc with
-  | NotZero ws k =>
-    forall w, to_word ws (nth undef_b vs k) = ok w -> wunsigned w <> 0%Z
-  | InRangeMod32 ws i j k =>
-    forall w, to_word ws (nth undef_b vs k) = ok w -> (i <= (wunsigned w) mod 32 <= j)%Z
-  | ULt ws k z =>
-    forall w, to_word ws (nth undef_b vs k) = ok w -> (wunsigned w < z)%Z
-  | UGe ws z k =>
-    forall w, to_word ws (nth undef_b vs k) = ok w -> (z <= wunsigned w)%Z
-  | UaddLe ws k1 k2 z =>
-    forall w1 w2, to_word ws (nth undef_b vs k1) = ok w1 ->
-                  to_word ws (nth undef_b vs k2) = ok w2 ->
-                  (wunsigned w1 + wunsigned w2 <= z)%Z
-  | AllInit ws n k =>
-    forall t, to_arr (arr_size ws n) (nth undef_b vs k) = ok t ->
-    forall i, (0 <= i < n)%Z ->
-     exists w, WArray.get Unaligned AAscale ws t i = ok w
-  | X86Division sz sign =>
-    forall hi lo dv,
-      mapM (to_word sz) (take 3 vs) = ok [:: hi; lo; dv] ->
-      match sign with
-      | Signed =>
-        let dd := wdwords hi lo in
-        let dv := wsigned dv in
-        let q  := (Z.quot dd dv)%Z in
-        let r  := (Z.rem  dd dv)%Z in
-        let ov := (q <? wmin_signed sz)%Z || (q >? wmax_signed sz)%Z in
-        ~((dv == 0)%Z || ov)
-      | Unsigned =>
-        let dd := wdwordu hi lo in
-        let dv := wunsigned dv in
-        let q  := (dd  /  dv)%Z in
-        let r  := (dd mod dv)%Z in
-        let ov := (q >? wmax_unsigned sz)%Z in
-        ~( (dv == 0)%Z || ov)
-      end
-  | ScFalse => False
-  | IsZero ws k =>
-    forall w, to_word ws (nth undef_b vs k) = ok w -> w = 0%R
-  | Guarded g sc =>
-    to_bool (nth undef_b vs g) = ok true -> interp_safe_cond vs sc
-  end.
-
 Fixpoint sc_needed_args (sc : safe_cond) : nat :=
   match sc with
   | NotZero _ k | InRangeMod32 _ _ _ k | AllInit _ _ k | ULt _ k _ | UGe _ _ k
@@ -952,32 +908,9 @@ Fixpoint sc_needed_args (sc : safe_cond) : nat :=
   | Guarded g sc => ssrnat.maxn (S g) (sc_needed_args sc)
   end.
 
-Lemma interp_safe_cond_cat vs1 vs2 sc :
-  ssrnat.leq (sc_needed_args sc) (size vs1) ->
-  interp_safe_cond vs1 sc <-> interp_safe_cond (vs1 ++ vs2) sc.
-Proof.
-  elim: sc => //=.
-  + by move=> ws k hsz; rewrite nth_cat hsz.
-  + by move=> ws s hsz; rewrite takel_cat //; apply/ssrnat.leP.
-  + by move=> ws i j k hsz; rewrite nth_cat hsz.
-  + by move=> ws k z hsz; rewrite nth_cat hsz.
-  + by move=> ws z k hsz; rewrite nth_cat hsz.
-  + move=> ws k1 k2 z hsz.
-    have [hsz1 hsz2]: ssrnat.leq (S k1) (size vs1) /\ ssrnat.leq (S k2) (size vs1).
-    + move: hsz.
-      case: ifP => h1 h2; split; apply: ssrnat.leq_trans h2 => //.
-      have /(@Logic.eq_sym bool) := ssrnat.leqNgt k1 k2.
-      by rewrite h1 => /negbFE h2; apply: (ssrnat.leq_trans h2).
-    by rewrite !nth_cat hsz1 hsz2.
-  + by move=> ws p k hsz; rewrite nth_cat hsz.
-  + by move=> ws k hsz; rewrite nth_cat hsz.
-  move=> g sc ih; rewrite ssrnat.geq_max => /andP[] hg hsc.
-  rewrite nth_cat hg.
-  by split => h /h /(ih hsc).
-Qed.
-
-(* Boolean counterpart of [interp_safe_cond]: like the proposition, it is
-   vacuously true when the argument cannot be read at the expected type. *)
+(* The conditions of an instruction, decided on the values of its arguments:
+   a condition is vacuously true when the argument it speaks about cannot be
+   read at the expected type. *)
 Fixpoint check_safe_cond (vs : values) (sc : safe_cond) : bool :=
   match sc with
   | NotZero ws k =>
@@ -1022,72 +955,6 @@ Fixpoint check_safe_cond (vs : values) (sc : safe_cond) : bool :=
   | Guarded g sc =>
     if to_bool (nth undef_b vs g) is Ok true then check_safe_cond vs sc else true
   end.
-
-Lemma reflect_of_ok {A} (r : exec A) (P : A -> Prop) (b : A -> bool) :
-  (forall a, reflect (P a) (b a)) ->
-  reflect (forall a, r = ok a -> P a) (if r is Ok a then b a else true).
-Proof.
-move=> h; case: r => [a | e] /=; last by constructor.
-by apply: (iffP (h a)) => [ha ? [<-] // | ha]; apply: ha.
-Qed.
-
-Lemma reflect_of_ok3 {A} (r : exec (seq A)) (P : A -> A -> A -> Prop)
-    (b : A -> A -> A -> bool) :
-  (forall x y z, reflect (P x y z) (b x y z)) ->
-  reflect (forall x y z, r = ok [:: x; y; z] -> P x y z)
-          (if r is Ok [:: x; y; z] then b x y z else true).
-Proof.
-move=> h; case: r => [l | e] /=; last by constructor.
-case: l => [|x [|y [|z [|??]]]]; try by constructor => ??? [].
-by apply: (iffP (h x y z)) => [hp ??? [<- <- <-] // | hp]; apply: hp.
-Qed.
-
-Lemma check_safe_condP vs sc : reflect (interp_safe_cond vs sc) (check_safe_cond vs sc).
-Proof.
-elim: sc => /=.
-+ by move=> ws k; apply: reflect_of_ok => w; apply: (iffP idP) => [/eqP | /eqP].
-+ by move=> ws s; apply: reflect_of_ok3 => hi lo dv; case: s; apply: negP.
-+ by move=> ws i j k; apply: reflect_of_ok => w; apply: (iffP andP) => -[/ZleP ? /ZleP ?].
-+ by move=> ws k z; apply: reflect_of_ok => w; apply: ZltP.
-+ by move=> ws z k; apply: reflect_of_ok => w; apply: ZleP.
-+ move=> ws k1 k2 z.
-  case h1: (to_word ws (nth undef_b vs k1)) => [w1|e1]; last by constructor.
-  case h2: (to_word ws (nth undef_b vs k2)) => [w2|e2]; last by constructor.
-  by apply: (iffP idP) => [/ZleP h ?? [<-] [<-] // | h]; apply/ZleP; apply: h.
-+ move=> ws n k; apply: reflect_of_ok => t; apply: (iffP allP) => h i.
-  + by move=> hi; apply/is_okP; apply: h;
-      rewrite in_ziota Z.add_0_l; apply/andP; move: hi => [] /ZleP ? /ZltP ?.
-  by rewrite in_ziota Z.add_0_l => /andP[] /ZleP ? /ZltP ?; apply/is_okP; apply: h.
-+ by constructor.
-+ by move=> ws k; apply: reflect_of_ok => w; apply: (iffP eqP).
-move=> g sc ih.
-case hb: (to_bool (nth undef_b vs g)) => [[] | e] /=.
-+ by apply: (iffP ih) => [h _ | h]; last apply: h.
-+ by constructor => [].
-by constructor => [].
-Qed.
-
-Fixpoint interp_safe_cond_ty_aux
-  {T} (P : values -> T -> Prop) (vs: values) (tin : seq ctype) : sem_prod tin T -> Prop :=
-match tin return sem_prod tin T -> Prop with
-| [::] => fun t => P vs t
-| t::tin => fun o => forall v, interp_safe_cond_ty_aux P (rcons vs (to_val v)) (o v)
-end.
-
-Definition interp_safe_cond_ty tin T sc (semi : sem_prod tin (exec T)) :=
-  interp_safe_cond_ty_aux
-    (fun vs r => List.Forall (interp_safe_cond vs) sc -> exists t, r = ok t) [::] semi.
-
-Lemma sem_prod_ok_safe_aux {T:Type} (tin : seq ctype) (o: sem_prod tin T) sc vs :
-   interp_safe_cond_ty_aux
-     (fun (vs : values) (r : result error T) =>
-        List.Forall (interp_safe_cond vs) sc -> exists t : T, r = ok t) vs
-      (sem_prod_ok tin o).
-Proof. elim: tin vs o => //=; eauto. Qed.
-
-Lemma sem_prod_ok_safe {T:Type} (tin : seq ctype) (o: sem_prod tin T) :
-   interp_safe_cond_ty [::] (sem_prod_ok tin o).
-Proof. apply sem_prod_ok_safe_aux. Qed.
 
 Definition value_eqb (v1 v2:value) :=
   match v1, v2 with
