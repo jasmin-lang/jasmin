@@ -1484,9 +1484,18 @@ let allocatable_vars = Sv.of_list Arch.allocatable_vars
 let callee_save_vars = Sv.of_list Arch.callee_save_vars
 let not_saved_stack = Sv.of_list (Arch.not_saved_stack @ Arch.callee_save_vars)
 
+(* The register in which export functions receive the return address, if any:
+   it is not callee-saved, but must be spilled like one when the body kills it
+   so that the final return jump can use it. *)
+let to_save_vars =
+  match Arch.ra_to_save_var with
+  | Some ra -> Sv.add ra callee_save_vars
+  | None -> callee_save_vars
+
 (** Computes all callee-saved registers overwritten by this function (including
-    rsp) and, if the function has a stack but no register to save, picks a free
-    register to hold the stack pointer of the caller (aka environment). *)
+    rsp and the return-address register), and, if the function has a stack but
+    no register to save, picks a free register to hold the stack pointer of the
+    caller (aka environment). *)
 let get_reg_oracle
       (has_stack: ('info, 'asm) func -> bool)
       subst
@@ -1495,7 +1504,7 @@ let get_reg_oracle
   assert (FInfo.is_export f.f_cc);
   let killed_in_f = killed f.f_name |> Sv.map subst in
   let ro_to_save =
-    Sv.elements (Sv.inter callee_save_vars killed_in_f)
+    Sv.elements (Sv.inter to_save_vars killed_in_f)
   in
   let ro_rsp =
     if has_stack f && ro_to_save = []

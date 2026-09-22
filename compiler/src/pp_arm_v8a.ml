@@ -139,16 +139,13 @@ module Armv8aTarget : AsmTargetBuilder.AsmTarget with
   (* A64 instructions must be 4-byte aligned. *)
   let function_directives = [ Instr (".p2align", ["2"]) ]
 
-  (* The return address (X30) is saved on the stack around the body of
-     export functions; SP must stay 16-byte aligned. *)
-  let function_header =
-    [
-      Instr ("str", [ "x30"; "[sp, #-16]!" ])
-    ]
+  let function_header = []
 
+  (* The body of an export function preserves X30: when it is killed, it is
+     saved to and restored from the stack frame (sf_to_save), so returning is
+     a single indirect jump. *)
   let function_tail =
     [
-      Instr ("ldr", [ "x30"; "[sp], #16" ]);
       Instr ("ret", [])
     ]
 

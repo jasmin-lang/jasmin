@@ -342,6 +342,7 @@ Definition armv8a_call_conv : calling_convention :=
    ; call_reg_ret   := [:: R0; R1; R2; R3; R4; R5; R6; R7 ]
    ; call_xreg_ret  := [::]
    ; call_reg_ret_uniq := erefl true
+   ; call_reg_ra    := Some R30
    |}.
 
 Definition armv8a_internal_call_conv : internal_calling_convention :=

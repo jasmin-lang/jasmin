@@ -193,7 +193,8 @@ Definition riscv_linux_call_conv : calling_convention :=
  ; call_xreg_args := [::]
  ; call_reg_ret   := [:: X10; X11]
  ; call_xreg_ret  := [::]
- ; call_reg_ret_uniq := erefl true;
+ ; call_reg_ret_uniq := erefl true
+ ; call_reg_ra    := Some RA
 |}.
 
 

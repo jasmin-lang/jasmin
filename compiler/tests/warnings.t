@@ -2,7 +2,7 @@
   warning: support of the RISC-V architecture is experimental
   "warning/risc-v/load_constant_warning.jazz", line 3 (9-15)
   warning: extra assignment introduced:
-             ra = #LI((32u) 10); /* :r */
+             x5 = #LI((32u) 10); /* :r */
 
   $ ../jasminc -wea warning/x86-64/extra_assignment.jazz
   "warning/x86-64/extra_assignment.jazz", line 9 (2-12)
