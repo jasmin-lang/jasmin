@@ -829,11 +829,17 @@ let op_info exn op (s : W.signedness option) (castop:S.castop) ty ws_cmp vs_cmp 
       in
       check_op_w loc op ty s ws_cmp
 
-    | CVS(vs,s,ve) ->
-      let s = tt_sign s in
+    | CVS(vs, sg, ve) ->
+      let sg = tt_sign sg in
+      (* Check the consistency between the sign annotation [s] of the operator
+      and the sign [sg] of the vector elements *)
+      Option.may (fun s ->
+          if s <> sg then
+            rs_tyerror ~loc (InvalidOperator op)
+        ) s;
       let ve, ws = tt_vsize_op loc op vs ve in
       check_op_vec loc op vs_cmp (W.wsize_of_velem ve);
-      OpKV(s, ve, ws)
+      OpKV(sg, ve, ws)
 
 
 
