@@ -67,6 +67,7 @@ Proof.
   all: rewrite hrsp /= /sem_sop2 /= (truncate_word_u w1) /= he /= hto /=.
   all: rewrite truncate_word_u /= ?truncate_word_u ?h0 //= ?zero_extend0 /=.
   all: rewrite ?add_wordE ?(h0 U8 erefl) ?(h0 U16 erefl) ?(h0 U32 erefl) /=.
+  all: rewrite /semi_to_atype_t /armv8a_extend_semi /= ?zero_extend0.
   all: by rewrite hm' /=.
 Qed.
 
