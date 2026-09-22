@@ -26,19 +26,13 @@ Require Import
 
 Require Export riscv_params_common.
 
-(* Most RISCV instructions with default options are executed as follows:
-   1. Unfold instruction execution definitions, e.g. [eval_instr].
-   2. Rewrite argument hypotheses, i.e. [sem_pexpr].
-   3. Unfold casting definitions in result, e.g. [zero_extend] and
-      [pword_of_word].
-   4. Rewrite result hypotheses, i.e. [write_lval]. *)
-Ltac t_riscv_op :=
-  rewrite /eval_instr /= /sem_sopn /= /exec_sopn /get_gvar /=;
-  t_simpl_rewrites;
-  rewrite /of_estate /= /with_vm /=;
-  repeat rewrite truncate_word_u /=;
-  rewrite ?zero_extend_u ?addn1;
-  t_simpl_rewrites.
+(* The semantics of an instruction is [mk_semi] applied to its total
+   semantics; these are plain definitions that [simpl] does not unfold. *)
+Ltac t_riscv_semi :=
+  rewrite ?/sopn_sem_ ?/semi ?/mk_semi /=;
+  rewrite ?/semi_to_atype_t ?/arch_utils.semi_drop1_t
+          ?/arch_utils.semi_drop2_t ?/arch_utils.semi_drop3_t
+          ?/arch_utils.semi_drop4_t ?/riscv_extend_semi /=.
 
 Module RISCVFopnP.
 
@@ -62,6 +56,7 @@ Lemma sem_fopn_equiv o s :
 Proof.
   case: o => -[xs o] es /=; case: sem_rexprs => //= >.
   rewrite /exec_sopn /=; case: id_valid => //=.
+  rewrite /semi /semi_to_atype_t /=.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.
   by case: app_sopn.

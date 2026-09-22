@@ -23,6 +23,20 @@ Require Import
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
+(* Most ARM instructions with default options are executed as follows:
+   1. Unfold instruction execution definitions, e.g. [eval_instr].
+   2. Rewrite argument hypotheses, i.e. [sem_pexpr].
+   3. Unfold casting definitions in result, e.g. [zero_extend] and
+      [pword_of_word].
+   4. Rewrite result hypotheses, i.e. [write_lval]. *)
+Ltac t_arm_op :=
+  rewrite /linear_sem.eval_instr /= /sem_sopn /= /exec_sopn /get_gvar /=;
+  t_simpl_rewrites;
+  rewrite /of_estate /= /with_vm /=;
+  repeat rewrite truncate_word_u /=;
+  rewrite ?zero_extend_u ?addn1;
+  t_simpl_rewrites.
+
 Module ARMFopn_coreP.
 
 Section Section.
@@ -43,13 +57,12 @@ Definition sem_fopn_args (p : seq lexpr * arm_op * seq rexpr) (s : estate) :=
 
 Definition sem_fopns_args := foldM sem_fopn_args.
 
-Ltac t_arm_op :=
-  rewrite /sem_fopn_args /get_gvar /=;
-  t_simpl_rewrites;
-  rewrite /= /with_vm /=;
-  repeat rewrite truncate_word_u /=;
-  rewrite ?zero_extend_u ?addn1;
-  t_simpl_rewrites.
+(* The semantics of an instruction is [mk_semi] applied to its total
+   semantics; these are plain definitions that [simpl] does not unfold. *)
+Ltac t_arm_semi :=
+  rewrite ?/id_semi ?/mk_semi /=;
+  rewrite ?/arch_utils.semi_drop1_t ?/arch_utils.semi_drop2_t
+          ?/arch_utils.semi_drop3_t ?/arch_utils.semi_drop4_t /=.
 
 Lemma add_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr} :
   convertible xi.(vtype) (aword arm_reg_size) ->
@@ -85,8 +98,8 @@ Lemma sub_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr}
   sem_fopn_args (ARMFopn_core.sub xi y z) s = ok (with_vm s vm').
 Proof.
   move=> hc.
-  rewrite /=; t_xrbindP => *; t_arm_op.
-  by rewrite /= !add_wordE wsub_wnot1 set_var_truncate // (convertible_eval_atype hc) truncatable_cword.
+  rewrite /=; t_xrbindP => *; t_arm_op; t_arm_semi.
+  by rewrite !add_wordE wsub_wnot1 set_var_truncate // (convertible_eval_atype hc) truncatable_cword.
 Qed.
 
 Lemma subi_sem_fopn_args {s} {xi:var_i} {y imm wy} :
@@ -97,8 +110,8 @@ Lemma subi_sem_fopn_args {s} {xi:var_i} {y imm wy} :
   sem_fopn_args (ARMFopn_core.subi xi y imm) s = ok (with_vm s vm').
 Proof.
   move=> hc.
-  rewrite /=; t_xrbindP => *; t_arm_op.
-  by rewrite /= !add_wordE wsub_wnot1 set_var_truncate // (convertible_eval_atype hc) truncatable_cword.
+  rewrite /=; t_xrbindP => *; t_arm_op; t_arm_semi.
+  by rewrite !add_wordE wsub_wnot1 set_var_truncate // (convertible_eval_atype hc) truncatable_cword.
 Qed.
 
 Lemma mov_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} :

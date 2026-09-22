@@ -35,13 +35,13 @@ Require Import
   armv8a_params_core_proof
   armv8a_params.
 
-Ltac t_armv8a_op :=
-  rewrite /eval_instr /= /sem_sopn /= /exec_sopn /get_gvar /=;
-  t_simpl_rewrites;
-  rewrite /of_estate /= /with_vm /=;
-  repeat rewrite truncate_word_u /=;
-  rewrite ?zero_extend_u ?addn1;
-  t_simpl_rewrites.
+(* The semantics of an instruction is [mk_semi] applied to its total
+   semantics; these are plain definitions that [simpl] does not unfold. *)
+Ltac t_armv8a_semi :=
+  rewrite ?/sopn_sem_ ?/semi ?/mk_semi /=;
+  rewrite ?/semi_to_atype_t ?/arch_utils.semi_drop1_t
+          ?/arch_utils.semi_drop2_t ?/arch_utils.semi_drop3_t
+          ?/arch_utils.semi_drop4_t ?/armv8a_extend_semi /=.
 
 Module ARMv8AFopnP.
 
@@ -65,6 +65,7 @@ Lemma sem_fopn_equiv o s :
 Proof.
   case: o => -[xs o] es /=; case: sem_rexprs => //= >.
   rewrite /exec_sopn /=; case: id_valid => //=.
+  rewrite /semi /semi_to_atype_t /=.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.
   by case: app_sopn.

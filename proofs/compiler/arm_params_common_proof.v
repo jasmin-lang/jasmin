@@ -24,19 +24,13 @@ Require Import
 
 Require Export arm_params_common.
 
-(* Most ARM instructions with default options are executed as follows:
-   1. Unfold instruction execution definitions, e.g. [eval_instr].
-   2. Rewrite argument hypotheses, i.e. [sem_pexpr].
-   3. Unfold casting definitions in result, e.g. [zero_extend] and
-      [pword_of_word].
-   4. Rewrite result hypotheses, i.e. [write_lval]. *)
-Ltac t_arm_op :=
-  rewrite /eval_instr /= /sem_sopn /= /exec_sopn /get_gvar /=;
-  t_simpl_rewrites;
-  rewrite /of_estate /= /with_vm /=;
-  repeat rewrite truncate_word_u /=;
-  rewrite ?zero_extend_u ?addn1;
-  t_simpl_rewrites.
+(* The semantics of an instruction is [mk_semi] applied to its total
+   semantics; these are plain definitions that [simpl] does not unfold. *)
+Ltac t_arm_semi :=
+  rewrite ?/sopn_sem_ ?/semi ?/mk_semi /=;
+  rewrite ?/semi_to_atype_t ?/arch_utils.semi_drop1_t
+          ?/arch_utils.semi_drop2_t ?/arch_utils.semi_drop3_t
+          ?/arch_utils.semi_drop4_t /=.
 
 Module ARMFopnP.
 
@@ -60,6 +54,7 @@ Lemma sem_fopn_equiv o s :
 Proof.
   case: o => -[xs o] es /=; case: sem_rexprs => //= >.
   rewrite /exec_sopn /=; case: id_valid => //=.
+  rewrite /semi /semi_to_atype_t /=.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.
   by case: app_sopn.
@@ -99,7 +94,7 @@ Lemma align_sem_fopn_args xname vi y al s (wy : word Uptr) :
   sem_fopn_args (ARMFopn.align xi y al) s = ok (with_vm s vm').
 Proof.
  Opaque wsize_size.
- rewrite /=; t_xrbindP => *; t_arm_op.
+ rewrite /=; t_xrbindP => *; t_arm_op; t_arm_semi.
  by rewrite /= wrepr_wnot ZlnotE Z.sub_1_r Z.add_1_r Z.succ_pred.
  Transparent wsize_size.
 Qed.
@@ -188,8 +183,8 @@ Lemma str_eval_instr {lp ls m' ii xname vi y off wx} {wy : word reg_size} :
   -> let: li := li_of_fopn_args ii (ARMFopn.str y xi off) in
      eval_instr lp li ls = ok (next_mem_ls ls m').
 Proof.
-  move=> ?? hw; t_arm_op.
-  by rewrite /sem_sop2 /= !truncate_word_u /= truncate_word_u /= hw.
+  move=> ?? hw; t_arm_op; t_arm_semi.
+  by rewrite /sem_sop2 /= !truncate_word_u /= truncate_word_u /= zero_extend_u hw.
 Qed.
 
 End ARM_OP.
@@ -310,7 +305,7 @@ Proof.
   case: ws w => w // [?]; subst mn.
   all: rewrite /exec_sopn /=.
   all: move=> -> /=.
-  all: by rewrite zero_extend_u.
+  all: by rewrite /semi_to_atype_t /arm_extend_semi /= ?zero_extend_u.
 Qed.
 
 End WITH_PARAMS.

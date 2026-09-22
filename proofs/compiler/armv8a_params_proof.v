@@ -55,6 +55,15 @@ Require Export armv8a_params.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
+(* The semantics of an instruction is [mk_semi] applied to its total
+   semantics; these are plain definitions that [simpl] does not unfold. *)
+Ltac t_armv8a_semi :=
+  rewrite ?/sopn_sem_ ?/semi ?/mk_semi /=;
+  rewrite ?/semi_to_atype_t ?/arch_utils.semi_drop1_t
+          ?/arch_utils.semi_drop2_t ?/arch_utils.semi_drop3_t
+          ?/arch_utils.semi_drop4_t ?/mk_semi1_shifted_t
+          ?/mk_semi2_2_shifted_t ?/armv8a_extend_semi /=.
+
 Section Section.
 
 #[local] Existing Instance withsubword.
@@ -102,7 +111,8 @@ Proof.
     case: ifP => _.
     + case: is_zeroP => // hofs [<-] hw; exists (evm s2) => //.
       rewrite with_vm_same.
-      rewrite /sem_sopn /= P'_globs /exec_sopn ok_ve /= ok_w /= zero_extend_u.
+      rewrite /sem_sopn /= P'_globs /exec_sopn ok_ve /= ok_w /=; t_armv8a_semi.
+      rewrite zero_extend_u.
       move: hofs ok_vofs ok_pofs hw => -> /=.
       rewrite /sem_sop1 /= => -[<-] /=.
       rewrite truncate_word_u wrepr0 => -[<-].
@@ -129,13 +139,13 @@ Proof.
           /exec_sopn /= ok_wb ok_wo /=.
         have := shift_of_scaleP wo hshift.
         rewrite heq wrepr0 wunsigned0 wshl_sem //= wrepr1 GRing.mul1r => ->.
-        rewrite /armv8a_ADD_semi ?add_wordE.
+        t_armv8a_semi; rewrite /armv8a_ADD_semi ?add_wordE.
         move: lea_sem; rewrite wrepr0 GRing.addr0 => ->.
         by rewrite hw /= with_vm_same.
       move=> [<-] hw.
       exists (evm s2) => //.
       rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb ok_vo /=
-        /exec_sopn /= ok_wb ok_wo truncate_word_u /=.
+        /exec_sopn /= ok_wb ok_wo truncate_word_u /=; t_armv8a_semi.
       rewrite (shift_of_scaleP wo hshift).
       rewrite /armv8a_ADD_semi ?add_wordE.
       move: lea_sem; rewrite wrepr0 GRing.addr0 => ->.
@@ -154,20 +164,21 @@ Proof.
       exists s2.(evm) => //.
       rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb /=
         /exec_sopn /= ok_wb truncate_word_u /=.
-        rewrite /armv8a_ADD_semi ?add_wordE.
+        t_armv8a_semi; rewrite /armv8a_ADD_semi ?add_wordE.
       move: lea_sem; rewrite GRing.mulr0 GRing.addr0 => ->.
       by rewrite hw /= with_vm_same.
     move=> [<-] hw.
     exists s2.(evm) => //.
     rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb /=
       /exec_sopn /= ok_wb truncate_word_u /=.
-    rewrite /armv8a_ADD_semi ?add_wordE.
+    t_armv8a_semi; rewrite /armv8a_ADD_semi ?add_wordE.
     move: lea_sem; rewrite GRing.mulr0 GRing.addr0 => ->.
     by rewrite hw /= with_vm_same.
   move=> al ws_ x_ e_; move: (Lmem al ws_ x_ e_) => {al ws_ x_ e_} x.
   case: is_zeroP => // hofs [<-] hw; exists (evm s2) => //.
   rewrite with_vm_same.
-  rewrite /sem_sopn /= P'_globs /exec_sopn ok_ve /= ok_w /= zero_extend_u.
+  rewrite /sem_sopn /= P'_globs /exec_sopn ok_ve /= ok_w /=; t_armv8a_semi.
+  rewrite zero_extend_u.
   move: hofs ok_vofs ok_pofs hw => -> /=.
   rewrite /sem_sop1 /= => -[<-] /=.
   rewrite truncate_word_u wrepr0 => -[<-].
@@ -320,7 +331,7 @@ Proof.
   move=> xd xs ofs ws w wp s m /eqP hchk; t_xrbindP; subst ws.
   move=> vd hgetd htrd vs hgets htrs hwr.
   rewrite /armv8a_lstore /= hgets hgetd /= /exec_sopn /= htrs /=.
-  rewrite /sem_sop2 /= htrd /= !truncate_word_u /= truncate_word_u /=.
+  rewrite /sem_sop2 /= htrd /= !truncate_word_u /= truncate_word_u /=; t_armv8a_semi.
   by rewrite zero_extend_u hwr.
 Qed.
 
@@ -345,7 +356,8 @@ Proof.
   move/eqP: hcheck => ?; subst ws.
   rewrite /armv8a_lload /= hgets /= /sem_sop2 /= hto /= !truncate_word_u /=
     truncate_word_u /= hread /=.
-  by rewrite /exec_sopn /= truncate_word_u /= zero_extend_u hset.
+  rewrite /exec_sopn /= truncate_word_u /=; t_armv8a_semi.
+  by rewrite zero_extend_u hset.
 Qed.
 
 Lemma armv8a_tmp_correct : lip_tmp armv8a_liparams <> lip_tmp2 armv8a_liparams.
@@ -863,7 +875,7 @@ Proof.
   case: lvs => // -[] // x [] // -[] // y [] //.
   case: args => // -[] // [] // z [] // [] // [] // w [] //=.
   t_xrbindP => vz hz _ vw hw <- <-.
-  rewrite /exec_sopn /= /swap_semi.
+  rewrite /exec_sopn /= /semi /Oswap_instr /mk_semi /= /swap_semi.
   t_xrbindP => /= _ wz hvz ww hvw <- <- /=.
   t_xrbindP => _ vm1 /set_varP [_ htrx ->] <- _ vm2 /set_varP [_ htry ->] <- <-
     /eqP hxw /eqP hyx /and4P [hxt hyt hzt hwt] <-.
@@ -895,8 +907,8 @@ Proof.
   set xi := {| v_var := _ |}.
   case: args => // -[] // [] // y [] // [] // [] // [] // w [] // imm [] //=.
   t_xrbindP => vy hvy <-.
-  rewrite /exec_sopn /=; t_xrbindP
-    => /= n w1 hw1 w2 hw2 ? <- /=; subst n.
+  rewrite /exec_sopn /= /semi /mk_semi /=; t_xrbindP
+    => /= n w1 hw1 w2 hw2 <- <- /=.
   t_xrbindP => ? vm1 hsetx <- <- /= /eqP hne.
   move=> /andP [] hxtty /andP [] hyty _ <- hmap hlom.
   move/to_wordI: hw1 => [ws [w' [?]]] /truncate_wordP [hle1 ?]; subst vy w1.
@@ -1035,11 +1047,11 @@ Proof.
   t_xrbindP=> /and3P [] hb hmsf hty <- hmap.
   apply: (assemble_opsP armv8a_eval_assemble_cond hmap) => //.
   move: hargs => /=; t_xrbindP=> vb hvb _ vmsf hvmsf <- ?; subst xs.
-  move: hexec; rewrite /exec_sopn /=; t_xrbindP=> t bb hbb w hw ? ?; subst t ys.
+  move: hexec; rewrite /exec_sopn /= /semi /mk_semi /=; t_xrbindP=> t bb hbb w hw ? ?; subst t ys.
   move: hwrite => /=; t_xrbindP.
   change armv8a_reg_size with U64 in *.
   move=> _ vm hset <- m1 hm1 ?; subst m1.
-  rewrite !truncate_word_u /=.
+  rewrite !truncate_word_u /= /semi_to_atype_t /=.
   have -> : armv8a_MOVN_semi (ws := U64) (wrepr U16 0) (wrepr U8 0) = wrepr U64 (-1)
     by apply/eqP.
   rewrite hset /=.
@@ -1058,7 +1070,7 @@ Proof.
   move=> rip ii lvs args m xs ys m' s ops ops' hargs hexec hwrite /= [<-] hmap.
   apply: (assemble_opsP armv8a_eval_assemble_cond hmap) => //.
   rewrite /sem_sopns /= /sem_sopn_t /= hargs /=.
-  move: hexec; rewrite /exec_sopn /=.
+  move: hexec; rewrite /exec_sopn /= /semi /mk_semi /semi_to_atype_t /=.
   case: xs {hargs} => // v [|??] /=; last by t_xrbindP.
   t_xrbindP=> t w hw ? ?; subst t ys.
   by rewrite /= in hw; rewrite hw /= /armv8a_MOV_semi hwrite.
@@ -1072,7 +1084,7 @@ Proof.
   apply: (assemble_opsP armv8a_eval_assemble_cond hmap) => //.
   rewrite /sem_sopns /= /sem_sopn_t /= hargs /=.
   case/orP: hws => /eqP ?; subst ws.
-  all: move: hexec; rewrite /exec_sopn /= ?computational_eq_refl.
+  all: move: hexec; rewrite /exec_sopn /= /semi /mk_semi /semi_to_atype_t /= ?computational_eq_refl.
   all: case: xs {hargs} => // v [|v' [|??]] /=; try by t_xrbindP.
   all: t_xrbindP=> t w hw w' hw' ? ?; subst t ys.
   all: by rewrite hw hw' /=; move: hwrite;
@@ -1149,7 +1161,7 @@ Proof.
   + case: all => //= -[<- <- <-] hargs hes hexec hw.
     rewrite /sem_sopn hes /=.
     move: hargs hexec; case: args {hes} => // vb [|vmsf [|??]] /= [->];
-      rewrite /exec_sopn /=; t_xrbindP=> //.
+      rewrite /exec_sopn /= /semi /mk_semi /=; t_xrbindP=> //.
     move=> t w hw' ? ?; subst t res.
     by rewrite hw' /= hw.
   (* SLHmove *)
@@ -1164,7 +1176,7 @@ Proof.
   2: by rewrite /exec_sopn /=; t_xrbindP.
   move=> [_ [<-] hv].
   case/orP: hws => /eqP ?; subst ws.
-  all: rewrite /exec_sopn /=; t_xrbindP=> t w hw' wm hwm ? ?; subst t res.
+  all: rewrite /exec_sopn /= /semi /mk_semi /=; t_xrbindP=> t w hw' wm hwm ? ?; subst t res.
   all: move/to_wordI: hv => [sz [w0] [? /truncate_wordP [hle hze]]]; subst vmsf.
   all: rewrite hw' /= truncate_word_le ?(cmp_le_trans _ hle) //.
   all: rewrite -(zero_extend_idem (s2 := U64)) // -hze zero_extend0 /=.
@@ -1197,15 +1209,15 @@ Definition armv8a_is_move_opP op vx v :
   -> values_uincl v [:: vx ].
 Proof.
   case: op => [[[] // [mn opt]] | [] //] /=; last first.
-  + move=> _; rewrite /exec_sopn /=.
+  + move=> _; rewrite /exec_sopn /= /semi /mk_semi /=.
     t_xrbindP=> t w /to_wordI' [ws [wx [hle ??]]] ? ?; subst.
     constructor; last by constructor.
     exact: word_uincl_zero_ext.
   case: ifP => // hmn /negPf hs.
   case: opt hmn hs => sho sz hmn /= hs.
   case: sho hs => [sk | ] hs; first by [].
-  rewrite /exec_sopn /=.
-  rewrite /semi_to_atype.
+  rewrite /exec_sopn /sopn_sem /sopn_sem_ /=.
+  rewrite /semi /semi_to_atype_t /=.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.
   clear e1 e2.
