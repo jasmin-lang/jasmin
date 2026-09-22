@@ -30,11 +30,10 @@ Module RISCVFopn_coreP.
 Section Section.
 
 Context
+  {wsw: WithSubWord}
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
   {atoI : arch_toIdent}.
-
-#[local] Existing Instance withsubword.
 
 Definition sem_fopn_args (p : seq lexpr * riscv_op * seq rexpr) (s : estate) :=
   let: (xs,o,es) := p in
@@ -65,7 +64,7 @@ Lemma add_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr}
 Proof.
   move=> hc.
   rewrite /=; t_xrbindP => *; t_riscv_op.
-  by rewrite /= set_var_truncate // (convertible_eval_atype hc).
+  by rewrite /= set_var_truncate // (convertible_eval_atype hc) truncatable_cword.
 Qed.
 
 Lemma addi_sem_fopn_args {s} {xi:var_i} {y imm wy} :
@@ -77,7 +76,7 @@ Lemma addi_sem_fopn_args {s} {xi:var_i} {y imm wy} :
 Proof.
   move=> hc.
   rewrite /=; t_xrbindP => *; t_riscv_op.
-  by rewrite /= set_var_truncate // (convertible_eval_atype hc).
+  by rewrite /= set_var_truncate // (convertible_eval_atype hc) truncatable_cword.
 Qed.
 
 Lemma sub_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr} :
@@ -91,7 +90,7 @@ Proof.
   move=> hc.
   rewrite /=; t_xrbindP => *; t_riscv_op.
   rewrite /= /riscv_sub_semi sub_wordE.
-  by rewrite /= set_var_truncate // (convertible_eval_atype hc).
+  by rewrite /= set_var_truncate // (convertible_eval_atype hc) truncatable_cword.
 Qed.
 
 Lemma subi_sem_fopn_args {s} {xi:var_i} {y imm wy} :
@@ -109,7 +108,7 @@ Proof.
   t_riscv_op.
   rewrite /riscv_add_semi.
   rewrite wrepr_opp.
-  by rewrite /= set_var_truncate // (convertible_eval_atype hc).
+  by rewrite /= set_var_truncate // (convertible_eval_atype hc) truncatable_cword.
   Qed.
 
 Lemma mov_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} :
@@ -120,7 +119,7 @@ Lemma mov_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} :
 Proof.
   move=> hc.
   rewrite /=; t_xrbindP => *; t_riscv_op.
-  by rewrite /= set_var_truncate // (convertible_eval_atype hc).
+  by rewrite /= set_var_truncate // (convertible_eval_atype hc) truncatable_cword.
 Qed.
 
 Lemma movi_sem_fopn_args {s imm} {xi:var_i} :
@@ -131,7 +130,7 @@ Lemma movi_sem_fopn_args {s imm} {xi:var_i} :
 Proof.
   move=> hc.
   t_riscv_op.
-  by rewrite set_var_truncate // (convertible_eval_atype hc).
+  by rewrite set_var_truncate // (convertible_eval_atype hc) truncatable_cword.
 Qed.
 
 Opaque RISCVFopn_core.add.
@@ -295,7 +294,7 @@ Proof.
   rewrite (mov_sem_fopn_args _ hgety) //=.
   eexists; split; first reflexivity. 
   + by move=> z /Sv.singleton_spec hz; t_vm_get.
-  by rewrite get_var_eq /= (convertible_eval_atype hc) //= truncate_word_u.
+  by rewrite get_var_eq /= (convertible_eval_atype hc) //= orbT //= truncate_word_u.
 Qed.
 
 Lemma gen_smart_opi_sem_fopn_args
@@ -343,14 +342,14 @@ Proof.
   + by case: (neutral) hne => // n; case: ZeqbP => [->|].
   case: ifP hcond => [_ _ | _ [_|hxy]] //=.
   - rewrite (opi_sem_fopn_args _ _ _ _ _ hc2 hgety) /=.
-    eexists; split; first reflexivity; last by t_get_var; rewrite (convertible_eval_atype hc2).
+    eexists; split; first reflexivity; last by t_get_var; rewrite (convertible_eval_atype hc2) //= orbT.
     by move=> z hin; rewrite Vm.setP_neq //; apply/eqP; clear -hin; SvD.fsetdec.
   rewrite movi_sem_fopn_args //=.
   rewrite -(@get_var_neq _ _ tmp _ _ (Vword (wrepr U32 imm))) // in hgety.
   rewrite
     (op_sem_fopn_args (with_vm _ _) _ _ _ _ (wrepr reg_size imm) hc2 hgety) /with_vm /=;
-    last by rewrite get_var_eq /= (convertible_eval_atype hc1) //= truncate_word_u.
-  eexists; split; first reflexivity; last by t_get_var; rewrite (convertible_eval_atype hc2).
+    last by rewrite get_var_eq /= (convertible_eval_atype hc1) //= orbT //= truncate_word_u.
+  eexists; split; first reflexivity; last by t_get_var; rewrite (convertible_eval_atype hc2) //= orbT.
   move=> z hin.
   rewrite Vm.setP_neq; last by apply/eqP; SvD.fsetdec.
   by rewrite Vm.setP_neq; last by apply/eqP; SvD.fsetdec.
