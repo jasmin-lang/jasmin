@@ -45,7 +45,7 @@ Lemma mk_cond_aux (tin tout : seq ltype) (ts : seq ctype) (vs0 : values)
     (mk_semi_aux (fun vs t =>
         Let _ := check_safe_conds vs (map (Guarded (size ts + size tin)) safe) err in
         ok (filter_tuple (map eval_ltype tout)
-              (map (safety_cond_holds vs) (map (cond_init (size ts + size tin)) init)) t))
+              (map (safety_cond_holds vs) (map (sc_guarded (size ts + size tin)) init)) t))
        vs0 (map eval_ltype (tin ++ lbool :: tout)) (mk_semi_cond_t f)).
 Proof.
   elim: tin ts vs0 semi f.
@@ -64,12 +64,12 @@ Proof.
     case: b.
     + apply: sem_prod_eq_sym.
       apply: mk_semi_aux_const => vs2.
-      by rewrite (cond_init_mask true vs2 hall hwt hsz) hchk -heq'.
+      by rewrite (safety_cond_holds_guarded_map true vs2 hall hwt hsz) hchk -heq'.
     apply: sem_prod_eq_sym.
     apply: sem_prod_eq_trans;
       first by apply: (mk_semi_aux_ok_cat
                 (g := filter_tuple (map eval_ltype tout) (nseq (size tout) true))) => vs2 t;
-               rewrite (cond_init_mask false vs2 hall hwt hsz) hchk.
+               rewrite (safety_cond_holds_guarded_map false vs2 hall hwt hsz) hchk.
     apply: sem_prod_eq_trans; first by apply: sem_prod_ok_app.
     apply: sem_prod_eq_trans; first by apply: sem_prod_app_comp.
     apply: sem_prod_eq_trans.

@@ -123,6 +123,17 @@ Variant opN :=
 | Ocombine_flags of combine_flags
 .
 
+(* The predicates of the safety conditions. Both take an array of [len] bytes,
+   the index of a first cell and a number of cells, and hold when these cells
+   are all initialised.
+   [Ois_arr_init len] reads the array itself: its cells carry whether they are
+   initialised.
+   [Ois_barr_init len] reads an initialisation mask instead: an array of the
+   same length, whose cells hold the byte 0xFF where the array it stands for
+   is initialised ([WArray.is_initb]). The extraction to EasyCrypt turns
+   [Ois_arr_init] on an array into [Ois_barr_init] on its mask, which it
+   maintains along the writes to the array, so that EasyCrypt reasons about
+   initialisation with ordinary arrays. *)
 #[only(eqbOK)] derive
 Variant opN_safety :=
 | Ois_arr_init of Z
@@ -308,3 +319,9 @@ Definition type_of_opN (op: opN) : seq atype * atype :=
   | Oarray len => (nseq (Z.to_nat len) (aword U8), aarr U8 len)
   | Ocombine_flags c => (tin_combine_flags, abool)
   end.
+
+(* Type of the predicates of the safety conditions: inputs, output *)
+Definition type_of_opN_safety (op: opN_safety) : seq atype * atype :=
+  (match op with
+   | Ois_arr_init len | Ois_barr_init len => [:: aarr U8 len; aint; aint]
+   end, abool).

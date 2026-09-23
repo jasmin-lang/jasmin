@@ -493,15 +493,15 @@ Qed.
    the unconditional one, under the guard. *)
 Lemma mk_cond_wf (idt : instr_desc_t) :
   [&& all (safety_cond_wt (map eval_ltype (id_tin idt ++ lbool :: id_tout idt)))
-        (map (cond_init (size (id_tin idt))) (id_init idt)),
-      ssrnat.eqn (size (map (cond_init (size (id_tin idt))) (id_init idt)))
+        (map (sc_guarded (size (id_tin idt))) (id_init idt)),
+      ssrnat.eqn (size (map (sc_guarded (size (id_tin idt))) (id_init idt)))
                  (size (id_tout idt))
     & ~~ is_ErrType (id_err idt)].
 Proof.
   have /and3P [h1 h2 h3] := id_wf idt.
   rewrite size_map h2 h3 !andbT map_cat /= all_map.
   apply: sub_all h1 => c hc.
-  by have := safety_cond_wt_cond_init (map eval_ltype (id_tout idt)) hc; rewrite size_map.
+  by have := safety_cond_wt_guarded (map eval_ltype (id_tout idt)) hc; rewrite size_map.
 Qed.
 
 Definition mk_cond (single_cycle : bool) (idt : instr_desc_t) : instr_desc_t :=
@@ -518,10 +518,11 @@ Definition mk_cond (single_cycle : bool) (idt : instr_desc_t) : instr_desc_t :=
     id_check_dest := id_check_dest idt;
     id_str_jas := id_str_jas idt;
     (* [mk_semi_cond] does not run the guarded instruction when the guard is
-       false, so its conditions are those of [idt] under the guard. *)
+       false, so its conditions are those of [idt] under the guard; the outputs
+       then keep their previous values, so they are defined in that case too. *)
     id_safe := map (Guarded (size (id_tin idt))) (id_safe idt);
     id_err := id_err idt;
-    id_init := map (cond_init (size (id_tin idt))) (id_init idt);
+    id_init := map (sc_guarded (size (id_tin idt))) (id_init idt);
     id_pp_asm := id_pp_asm idt;
     id_valid := id_valid idt;
     id_doit := if single_cycle then id_doit idt else NOT_DOIT;

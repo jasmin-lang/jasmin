@@ -147,6 +147,32 @@ Module WArray.
   Definition get len al (aa: arr_access) ws (a: array len) (i: Z) :=
     CoreMem.read a al (i * mk_scale aa ws)%Z ws.
 
+  Lemma is_ok_get8 len (t : array len) i :
+    is_ok (get8 t i) = in_bound t i && is_init t i.
+  Proof. by rewrite /get8; case: in_bound; case: is_init. Qed.
+
+  (* An array read succeeds exactly when all the cells it reads are in bounds
+     and initialised. *)
+  Lemma is_ok_get ws len (t : array len) i :
+    is_ok (get Unaligned AAscale ws t i)
+    = all (fun k => in_bound t (i * wsize_size ws + k)%Z
+                    && is_init t (i * wsize_size ws + k)%Z)
+          (ziota 0 (wsize_size ws)).
+  Proof.
+  rewrite /get /CoreMem.read /assert /is_aligned_if /mk_scale.
+  have heq : forall k,
+    memory_model.get t (add (i * wsize_size ws)%Z k) = get8 t (i * wsize_size ws + k)%Z.
+  + by move=> k; rewrite addE.
+  have -> :
+    all (fun k => in_bound t (i * wsize_size ws + k)%Z
+                  && is_init t (i * wsize_size ws + k)%Z)
+        (ziota 0 (wsize_size ws))
+    = is_ok (mapM (fun k => memory_model.get t (add (i * wsize_size ws)%Z k))
+                  (ziota 0 (wsize_size ws))).
+  + by rewrite is_ok_mapM; apply: eq_all => k; rewrite heq is_ok_get8.
+  by case: mapM.
+  Qed.
+
   Definition set {len ws} (a: array len) al aa i (v: word ws) : exec (array len) :=
     CoreMem.write a al (i * mk_scale aa ws)%Z v.
 

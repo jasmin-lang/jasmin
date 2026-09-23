@@ -105,16 +105,13 @@ Arguments mk_semi {!tin tout} safe err init f / : assert.
 (* -------------------------------------------------------------------- *)
 (* ** Guarded conditions                                                 *)
 
-(* The initialisation condition of a conditional instruction: the output keeps
-   its previous value when the guard (the argument [g]) is false, so it is
-   defined in that case too. *)
-Definition cond_init (g : nat) (c : safety_cond) : safety_cond :=
-  sc_or (sc_not (IVar g)) c.
-
-Lemma safety_cond_wt_cond_init tin tin' c :
-  safety_cond_wt tin c -> safety_cond_wt (tin ++ cbool :: tin') (cond_init (size tin) c).
+(* A condition guarded by the boolean argument that follows the arguments it
+   reads is well typed. *)
+Lemma safety_cond_wt_guarded tin tin' c :
+  safety_cond_wt tin c -> safety_cond_wt (tin ++ cbool :: tin') (sc_guarded (size tin) c).
 Proof.
-rewrite /safety_cond_wt /cond_init /sc_or /sc_not /= => /eqP /safety_cond_type_cat -> /=.
+rewrite /safety_cond_wt /sc_guarded /sc_or /sc_not /=
+  => /eqP /safety_cond_type_cat -> /=.
 rewrite size_cat /= nth_cat ltnn subnn /=.
 by have -> : (size tin < size tin + (size tin').+1)%nat by rewrite -addn1 leq_add2l.
 Qed.

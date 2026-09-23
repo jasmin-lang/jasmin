@@ -81,20 +81,10 @@ Qed.
 (* -------------------------------------------------------------------- *)
 (* ** Guarded conditions                                                 *)
 
-Lemma safety_cond_holds_cond_init (vs0 vs2 : values) (b : bool) (c : safety_cond) (bb : bool) :
-  safety_cond_below (size vs0) c ->
-  sem_safety_cond vs0 c = ok (Vbool bb) ->
-  safety_cond_holds (vs0 ++ Vbool b :: vs2) (cond_init (size vs0) c) = (~~ b) || bb.
-Proof.
-move=> hb hev; rewrite /safety_cond_holds /cond_init /sc_or /sc_not /=.
-rewrite nth_cat ltnn subnn /=.
-by rewrite (sem_safety_cond_cat (Vbool b :: vs2) hb) hev /=.
-Qed.
-
-Lemma cond_init_val (ts : seq ctype) (vs0 vs2 : values) (b : bool) (c : safety_cond) :
+Lemma safety_cond_holds_guarded_wt (ts : seq ctype) (vs0 vs2 : values) (b : bool) (c : safety_cond) :
   List.Forall2 (fun t v => exists x : sem_t t, v = to_val x) ts vs0 ->
   safety_cond_wt ts c ->
-  safety_cond_holds (vs0 ++ Vbool b :: vs2) (cond_init (size ts) c)
+  safety_cond_holds (vs0 ++ Vbool b :: vs2) (sc_guarded (size ts) c)
   = (~~ b) || safety_cond_holds vs0 c.
 Proof.
 move=> hall hwt.
@@ -103,23 +93,23 @@ have [x hx] := safety_cond_type_ok hall (eqP hwt).
 have hbelow : safety_cond_below (size vs0) c.
 + by rewrite -hsz; apply: (safety_cond_type_below (eqP hwt)).
 have -> : safety_cond_holds vs0 c = x by rewrite /safety_cond_holds hx.
-by rewrite hsz; apply: (@safety_cond_holds_cond_init vs0 vs2 b c x hbelow hx).
+by rewrite hsz; apply: (@safety_cond_holds_guarded vs0 vs2 b c x hbelow hx).
 Qed.
 
 (* The mask seen by the generic construction under a guard: everything is
    defined when the guard is false, and the original mask otherwise. *)
-Lemma cond_init_mask (ts : seq ctype) (vs0 : values) (init : seq safety_cond) (b : bool)
+Lemma safety_cond_holds_guarded_map (ts : seq ctype) (vs0 : values) (init : seq safety_cond) (b : bool)
     (vs2 : values) (n : nat) :
   List.Forall2 (fun t v => exists x : sem_t t, v = to_val x) ts vs0 ->
   all (safety_cond_wt ts) init ->
   size init = n ->
-  map (safety_cond_holds (rcons vs0 (Vbool b) ++ vs2)) (map (cond_init (size ts)) init)
+  map (safety_cond_holds (rcons vs0 (Vbool b) ++ vs2)) (map (sc_guarded (size ts)) init)
   = (if b then map (safety_cond_holds vs0) init else nseq n true).
 Proof.
 move=> hall hwt <-; rewrite cat_rcons.
 elim: init hwt => [ | c init ih] /=; first by case: b.
 move=> /andP [hwc hwt].
-rewrite (cond_init_val vs2 b hall hwc) (ih hwt) => {ih}.
+rewrite (safety_cond_holds_guarded_wt vs2 b hall hwc) (ih hwt) => {ih}.
 by case: b.
 Qed.
 
