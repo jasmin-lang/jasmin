@@ -7,6 +7,7 @@ Require Import
   expr
   fexpr
   sopn
+  sopn_semi
   utils.
 Require Export
   arch_decl
@@ -49,14 +50,15 @@ Definition Oarm_add_large_imm_instr : instruction_desc :=
    ; tout   := [:: ty]
    ; i_out  := [:: E 0]
    ; conflicts := [:: (APout 0, APin 0)]
-   ; semi   := sem_prod_ok ctin semi
-   ; semu   := @values.vuincl_app_sopn_v ctin [:: cty] (sem_prod_ok ctin semi) refl_equal
+   ; i_semi_total := semi
    ; i_safe := [::]
+   ; i_err := ErrArith
+   ; i_init := [:: IBool true ]
    ; i_valid := true
    ; i_doit := DOIT
-   ; i_safe_wf := refl_equal
-   ; i_semi_errty :=  fun _ => sem_prod_ok_error (tin:=ctin) semi _
-   ; i_semi_safe := fun _ => values.sem_prod_ok_safe (tin:=ctin) semi
+   ; i_wf := refl_equal
+   ; semu   := @values.vuincl_app_sopn_v ctin [:: cty]
+                 (@mk_semi ctin [:: cty] [::] ErrArith [:: IBool true ] semi) refl_equal
  |}.
 
 Definition smart_li_instr (ws : wsize) : instruction_desc :=
@@ -65,7 +67,7 @@ Definition smart_li_instr (ws : wsize) : instruction_desc :=
     [:: aword ws ] [:: E 0 ]
     [:: aword ws ] [:: E 1 ]
     (fun x => x)
-    true DOIT.
+    [:: IBool true ] true DOIT.
 
 Definition smart_li_instr_cc (ws : wsize) : instruction_desc :=
   mk_instr_desc_safe
@@ -73,7 +75,7 @@ Definition smart_li_instr_cc (ws : wsize) : instruction_desc :=
     [:: aword ws; abool; aword ws ] [:: E 0; E 2; E 1 ]
     [:: aword ws ] [:: E 1 ]
     (fun x b y => if b then x else y)
-    true DOIT.
+    [:: IBool true ] true DOIT.
 
 Definition get_instr_desc (o: arm_extra_op) : instruction_desc :=
   match o with

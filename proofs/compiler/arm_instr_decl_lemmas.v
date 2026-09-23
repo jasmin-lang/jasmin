@@ -1,4 +1,4 @@
-From mathcomp Require Import ssreflect ssrfun ssrbool.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq.
 From mathcomp Require Import word_ssrZ.
 
 Require Import
@@ -6,11 +6,110 @@ Require Import
   shift_kind.
 Require Import
   arch_utils
-  sem_params_of_arch_extra.
+  safety_cond_facts
+  sem_params_of_arch_extra
+  sopn_semi_facts.
 Require Import
   arm_decl
   arm_extra
   arm_instr_decl.
+
+(* [add_arguments] adds the arguments of the guarded instruction one by one. *)
+Lemma add_arguments_nil A lt f: @add_arguments A [::] lt f = f.
+Proof. by rewrite /add_arguments /eq_rect_r /=. Qed.
+
+Lemma add_arguments_app t lt0 lt1 A (f : sem_lprod (t::lt0) (sem_lprod lt1 A)) v :
+  add_arguments f v = add_arguments (f v).
+Proof.
+  move: f; rewrite /add_arguments /sem_prod /=.
+  rewrite /eq_ind_r /eq_ind /=.
+  move: (sem_lprod_cat lt0 lt1 A); rewrite /sem_prod.
+  move: (lprod [seq sem_t i | i <- map eval_ltype lt0] (lprod [seq sem_t i | i <- map eval_ltype lt1] A)) => T hT.
+  subst T => //.
+Qed.
+
+Lemma mk_cond_aux (tin tout : seq ltype) (ts : seq ctype) (vs0 : values)
+    (safe : seq safety_cond) (err : error) (init : seq safety_cond)
+    (semi : sem_lprod tin (exec (sem_ltuple tout)))
+    (f : sem_lprod tin (sem_ltuple_t tout)) :
+  List.Forall2 (fun t v => exists x : sem_t t, v = to_val x) ts vs0 ->
+  size init = size tout ->
+  all safety_cond_total init ->
+  all (safety_cond_wt (ts ++ map eval_ltype tin)) init ->
+  all safety_cond_total safe ->
+  all (safety_cond_wt (ts ++ map eval_ltype tin)) safe ->
+  sem_prod_eq (map eval_ltype tin) semi
+    (mk_semi_aux (fun vs t => Let _ := check_safe vs safe err in
+        ok (filter_tuple (map eval_ltype tout) (map (safety_cond_holds vs) init) t))
+       vs0 (map eval_ltype tin) f) ->
+  sem_prod_eq (map eval_ltype (tin ++ lbool :: tout))
+    (mk_semi_cond semi)
+    (mk_semi_aux (fun vs t =>
+        Let _ := check_safe vs (map (sc_guarded (size ts + size tin)) safe) err in
+        ok (filter_tuple (map eval_ltype tout)
+              (map (safety_cond_holds vs) (map (cond_init (size ts + size tin)) init)) t))
+       vs0 (map eval_ltype (tin ++ lbool :: tout)) (mk_semi_cond_t f)).
+Proof.
+  elim: tin ts vs0 semi f.
+  + move=> ts vs0 semi f hall hsz htot hwt hstot hswt heq.
+    move: hwt hswt; rewrite cats0 addn0 => hwt hswt.
+    have heq' : semi = (Let _ := check_safe vs0 safe err in
+                        ok (filter_tuple (map eval_ltype tout) (map (safety_cond_holds vs0) init) f)) := heq.
+    have hchk : forall (b : bool) vs2,
+        check_safe (rcons vs0 (Vbool b) ++ vs2) (map (sc_guarded (size ts)) safe) err
+        = if b then check_safe vs0 safe err else ok tt.
+    + move=> b vs2; rewrite /check_safe (safety_cond_holds_all_guarded b vs2 hall hstot hswt).
+      by case: b.
+    rewrite /mk_semi_cond /mk_semi_cond_t !add_arguments_nil.
+    move=> b; simpl sem_prod_app; simpl mk_semi_aux.
+    case: b.
+    + apply: sem_prod_eq_sym.
+      apply: mk_semi_aux_const => vs2.
+      by rewrite (cond_init_mask true vs2 hall htot hwt hsz) hchk -heq'.
+    apply: sem_prod_eq_sym.
+    apply: sem_prod_eq_trans;
+      first by apply: (mk_semi_aux_ok_cat
+                (g := filter_tuple (map eval_ltype tout) (nseq (size tout) true))) => vs2 t;
+               rewrite (cond_init_mask false vs2 hall htot hwt hsz) hchk.
+    apply: sem_prod_eq_trans; first by apply: sem_prod_ok_app.
+    apply: sem_prod_eq_trans; first by apply: sem_prod_app_comp.
+    apply: sem_prod_eq_trans.
+    + apply: (sem_prod_tuple_filter (mask := nseq (size tout) true) (K := fun a => ok a)).
+      + by rewrite all_nseq /= orbT.
+      + by rewrite size_nseq size_map.
+      by [].
+    by apply: sem_prod_eq_sym; apply: sem_prod_ok_app.
+  move=> t tin ih ts vs0 semi f hall hsz htot hwt hstot hswt heq v.
+  rewrite /mk_semi_cond /mk_semi_cond_t !add_arguments_app.
+  simpl sem_prod_app; simpl mk_semi_aux.
+  rewrite add_arguments_app.
+  have -> : size ts + (size tin).+1 = size (rcons ts (eval_ltype t)) + size tin.
+  + by rewrite size_rcons addSnnS.
+  apply: (ih (rcons ts (eval_ltype t)) (rcons vs0 (to_val v))).
+  + by rewrite -!cats1; apply: List.Forall2_app => //; constructor => //; exists v.
+  + done.
+  + done.
+  + by rewrite cat_rcons.
+  + done.
+  + by rewrite cat_rcons.
+  by apply: heq.
+Qed.
+
+(* Guarding the semantics of an instruction is the semantics of the guarded
+   instruction. *)
+Lemma mk_cond_semi_eq (idt : instr_desc_t) :
+  sem_prod_eq (map eval_ltype (id_tin idt ++ lbool :: id_tout idt))
+    (mk_semi_cond (id_semi idt))
+    (id_semi (mk_cond idt)).
+Proof.
+  have /and4P [hsok hok /eqnP hsz _] := id_wf idt.
+  apply: (mk_cond_aux (ts := [::]) (vs0 := [::])) => //.
+  + by apply: (all_safety_cond_wf_total hok).
+  + by apply: (all_safety_cond_wf_wt hok).
+  + by apply: (all_safety_cond_wf_total hsok).
+  + by apply: (all_safety_cond_wf_wt hsok).
+  by apply: sem_prod_eq_refl.
+Qed.
 
 Lemma ignore_has_shift mn sf ic hs hs' :
   mn \notin has_shift_mnemonics
@@ -78,11 +177,13 @@ Proof.
   + by rewrite /fflags /tflags; case: mn; case sf; case osk => [s | ]; split => //;
          exists erefl, erefl.
   move=> [-> [hin [hout hcast]]].
-  rewrite /semi_to_atype /=.
+  rewrite /semi /semi_to_atype_t /=.
   move: (computational_eq _) (computational_eq _) (computational_eq _) (computational_eq _) => e1 e2 e3 e4.
   rewrite <- e1, <- e2, <- e3, <- e4; clear e1 e2 e3 e4.
   rewrite /truncate_args -map_comp -(eq_map atype_of_ltypeP) /= /sopn_tout /=.
   move=> htr _ -> <- res hres <- /=.
+  rewrite -(sem_prod_eq_app_sopn _ (mk_cond_semi_eq (mn_desc tflags mn))).
+  rewrite -/(id_semi (mn_desc fflags mn)) in hres.
   move: (id_tin (mn_desc fflags mn)) (id_tin (mn_desc tflags mn))
         (id_tout (mn_desc fflags mn)) (id_tout (mn_desc tflags mn))
         (id_semi (mn_desc fflags mn)) (id_semi (mn_desc tflags mn))
