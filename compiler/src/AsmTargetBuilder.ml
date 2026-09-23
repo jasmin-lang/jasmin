@@ -61,26 +61,40 @@ module Make(Target : AsmTarget) : S
 
     let pp_body name decl =pp_instrs name decl.asm_fd_body
 
+    (* Mach-O has no ".size" directive; only ELF (and COFF) targets get one. *)
+    let elf_target () = not (is_target_system_macos ())
+
+    (* The symbol under which a function is emitted. An exported function is
+       mangled and declared global; a function that is not exported gets a
+       symbol of its own too, but an object-local one. Its entry point is its
+       first instruction, i.e. the internal label 1 (see [linear_body] in
+       linearization.v), so that symbol and the label the calls to it target
+       denote the same address. *)
+    let function_symbol name decl =
+        if decl.asm_fd_export then mangle name else name
+
     let pp_function_header (name:string) decl =
-        if decl.asm_fd_export then
-          let name  = mangle name in
+        let name = function_symbol name decl in
+        if elf_target () || decl.asm_fd_export then
           Target.function_directives
           @ (if is_target_system_macos () then []
             else [ Header (".type", [name; "%function"]) ])
           @ Label name
-          :: Target.function_header
+          :: (if decl.asm_fd_export then Target.function_header else [])
         else []
 
-    let pp_function_tail decl =
-        if decl.asm_fd_export then
-            Target.function_tail
-        else []
+    let pp_function_tail name decl =
+        let name = function_symbol name decl in
+        (if decl.asm_fd_export then Target.function_tail else [])
+        @ (if elf_target ()
+           then [ Header (".size", [name; Format.asprintf ".-%s" name]) ]
+           else [])
 
     let pp_function (fname,decl) =
         let name = escape fname.fn_name in
         let headers = pp_function_header name decl in
         let body = pp_body name decl in
-        let tail = pp_function_tail decl in
+        let tail = pp_function_tail name decl in
         headers @ body @ tail
 
     let pp_functions funcs = List.concat_map pp_function funcs
