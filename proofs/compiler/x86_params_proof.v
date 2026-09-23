@@ -40,7 +40,6 @@ Require Export x86_params.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
-#[local] Existing Instance withsubword.
 #[local] Existing Instance direct_c.
 
 Section Section.
@@ -51,6 +50,8 @@ Context {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem sysca
 (* Stack alloc hypotheses. *)
 
 Section STACK_ALLOC.
+
+Context {wsw: WithSubWord}.
 
 Lemma lea_ptrP P' s1 ii e i x tag ofs w s2 pofs :
   P'.(p_globs) = [::]
@@ -97,7 +98,8 @@ Lemma x86_immediateP : immediate_correct x86_saparams.(sap_immediate).
 Proof.
   move=> P' ev s ii x z.
   case: x => - [] [] // [] // x xi _ /=.
-  apply: (mov_wsP (pT := progStack) (p1:= P') dummy_instr_info AT_none _ (cmp_le_refl _)); last reflexivity.
+  apply: (mov_wsP (pT := progStack) (p1:= P') dummy_instr_info AT_none _ (cmp_le_refl _));
+    last by rewrite /= /write_var /set_var /= orbT.
   by rewrite /= truncate_word_u.
 Qed.
 
@@ -107,12 +109,12 @@ Proof.
   move=> hxty hyty hzty hwty hz hw.
   rewrite /= /sem_sopn /= /get_gvar /= /get_var /= hz hw /=.
   rewrite /exec_sopn /= !truncate_word_u /= /write_var /set_var /=.
-  rewrite (convertible_eval_atype hxty) (convertible_eval_atype hyty) //=.
+  by rewrite (convertible_eval_atype hxty) (convertible_eval_atype hyty) /= orbT.
 Qed.
 
 End STACK_ALLOC.
 
-Definition x86_hsaparams : h_stack_alloc_params (ap_sap x86_params) :=
+Definition x86_hsaparams {wsw: WithSubWord} : h_stack_alloc_params (ap_sap x86_params) :=
   {|
     mov_ofsP := x86_mov_ofsP;
     sap_immediateP := x86_immediateP;
@@ -121,6 +123,8 @@ Definition x86_hsaparams : h_stack_alloc_params (ap_sap x86_params) :=
 
 (* ------------------------------------------------------------------------ *)
 (* Linearization hypotheses. *)
+
+#[local] Existing Instance withsubword.
 
 Section LINEARIZATION.
 
