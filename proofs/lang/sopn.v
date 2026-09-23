@@ -80,7 +80,7 @@ Record instruction_desc := mkInstruction {
 (* The semantics of an instruction: the safety conditions are checked on the
    arguments, then the total semantics is filtered by the initialisation
    conditions. *)
-Definition semi (i : instruction_desc) :
+Definition semi {sm : SemMode} (i : instruction_desc) :
     sem_prod (map eval_atype i.(tin)) (exec (sem_tuple (map eval_atype i.(tout)))) :=
   mk_semi i.(i_safe) i.(i_err) i.(i_init) i.(i_semi_total).
 
@@ -101,7 +101,7 @@ Notation mk_instr_desc str tin i_in tout i_out semi_total safe err init valid do
      i_doit       := doit;
      i_wf         := refl_equal;
      semu         := @vuincl_app_sopn_v (map eval_atype tin) (map eval_atype tout)
-                       (@mk_semi (map eval_atype tin) (map eval_atype tout)
+                       (@mk_semi _ (map eval_atype tin) (map eval_atype tout)
                           safe err init semi_total) refl_equal;
   |}.
 
@@ -244,11 +244,11 @@ Qed.
 
 Lemma copy_semu ws p vs vs' v :
   values_uincl vs vs' ->
-  app_sopn_v (@mk_semi [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
+  app_sopn_v (@mk_semi _ [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
                 [:: sc_all_init ws p 0] ErrAddrUndef [:: IBool true] (@copy_total ws p)) vs
     = ok v ->
   exists2 v' : values,
-    app_sopn_v (@mk_semi [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
+    app_sopn_v (@mk_semi _ [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
                   [:: sc_all_init ws p 0] ErrAddrUndef [:: IBool true] (@copy_total ws p)) vs'
       = ok v'
     & values_uincl v v'.
@@ -314,9 +314,9 @@ Qed.
    and declassify instructions. *)
 Lemma spill_semu tys (vs vs' : seq value) (v : values) :
   values_uincl vs vs' ->
-  app_sopn_v (@mk_semi tys [::] [::] ErrArith [::] (sem_prod_const tys tt)) vs = ok v ->
+  app_sopn_v (@mk_semi _ tys [::] [::] ErrArith [::] (sem_prod_const tys tt)) vs = ok v ->
   exists2 v' : values,
-    app_sopn_v (@mk_semi tys [::] [::] ErrArith [::] (sem_prod_const tys tt)) vs' = ok v'
+    app_sopn_v (@mk_semi _ tys [::] [::] ErrArith [::] (sem_prod_const tys tt)) vs' = ok v'
     & values_uincl v v'.
 Proof.
 move=> huv; rewrite /app_sopn_v /mk_semi; t_xrbindP => u hu <-.
@@ -420,10 +420,10 @@ Proof. by case: ty z z'. Qed.
 
 Lemma swap_semu ty (vs vs' : seq value) (v : values) :
   values_uincl vs vs' ->
-  app_sopn_v (@mk_semi [:: ty; ty] [:: ty; ty] [::] ErrArith
+  app_sopn_v (@mk_semi _ [:: ty; ty] [:: ty; ty] [::] ErrArith
                 [:: IBool true; IBool true] (fun x y => (y, x))) vs = ok v ->
   exists2 v' : values,
-    app_sopn_v (@mk_semi [:: ty; ty] [:: ty; ty] [::] ErrArith
+    app_sopn_v (@mk_semi _ [:: ty; ty] [:: ty; ty] [::] ErrArith
                   [:: IBool true; IBool true] (fun x y => (y, x))) vs' = ok v'
     & values_uincl v v'.
 Proof.
@@ -527,10 +527,10 @@ Definition SLHprotect_instr ws :=
 
 Lemma protect_ptr_semu n vs vs' v:
   values_uincl vs vs' ->
-  app_sopn_v (@mk_semi [:: carr n; cty_msf ] [:: carr n] [::] ErrArith [:: IBool true ]
+  app_sopn_v (@mk_semi _ [:: carr n; cty_msf ] [:: carr n] [::] ErrArith [:: IBool true ]
                 (@se_protect_ptr_sem n)) vs = ok v ->
   exists2 v' : values,
-    app_sopn_v (@mk_semi [:: carr n; cty_msf ] [:: carr n] [::] ErrArith [:: IBool true ]
+    app_sopn_v (@mk_semi _ [:: carr n; cty_msf ] [:: carr n] [::] ErrArith [:: IBool true ]
                   (@se_protect_ptr_sem n)) vs' = ok v'
     & values_uincl v v'.
 Proof.
@@ -564,10 +564,10 @@ Definition SLHprotect_ptr_instr ws n :=
 
 Lemma protect_ptr_fail_semu n vs vs' v:
   values_uincl vs vs' ->
-  app_sopn_v (@mk_semi [:: carr n; cty_msf ] [:: carr n] [:: sc_is_zero msf_size 1] ErrSemUndef
+  app_sopn_v (@mk_semi _ [:: carr n; cty_msf ] [:: carr n] [:: sc_is_zero msf_size 1] ErrSemUndef
                 [:: IBool true ] (fun (t : WArray.array n) (_ : wmsf) => t)) vs = ok v ->
   exists2 v' : values,
-    app_sopn_v (@mk_semi [:: carr n; cty_msf ] [:: carr n] [:: sc_is_zero msf_size 1] ErrSemUndef
+    app_sopn_v (@mk_semi _ [:: carr n; cty_msf ] [:: carr n] [:: sc_is_zero msf_size 1] ErrSemUndef
                   [:: IBool true ] (fun (t : WArray.array n) (_ : wmsf) => t)) vs' = ok v'
     & values_uincl v v'.
 Proof.
@@ -632,8 +632,8 @@ Definition string_of_sopn o : string := str (get_instr_desc o) tt.
 Definition sopn_tin o : list atype := tin (get_instr_desc o).
 Definition sopn_tout o : list atype := tout (get_instr_desc o).
 
-Definition sopn_sem_ o := semi (get_instr_desc o).
-Definition sopn_sem o : exec _ :=
+Definition sopn_sem_ {sm : SemMode} o := semi (get_instr_desc o).
+Definition sopn_sem {sm : SemMode} o : exec _ :=
   Let _ := assert (get_instr_desc o).(i_valid) ErrType in
   ok (sopn_sem_ o).
 

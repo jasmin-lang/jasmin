@@ -141,7 +141,7 @@ Qed.
 
 (* An operator has exactly one output: the conditions are checked on the
    arguments, then the total semantics is returned. *)
-Definition mk_sem_op (tin : seq ctype) (t : ctype) (safe : seq safety_cond) (err : error)
-    (f : sem_prod tin (sem_t t)) : sem_prod tin (exec (sem_t t)) :=
+Definition mk_sem_op {sm : SemMode} (tin : seq ctype) (t : ctype) (safe : seq safety_cond)
+    (err : error) (f : sem_prod tin (sem_t t)) : sem_prod tin (exec (sem_t t)) :=
   mk_semi_aux (fun vs r => Let _ := check_safe vs safe err in ok r) [::] tin f.
-Arguments mk_sem_op {tin t} safe err f : assert.
+Arguments mk_sem_op {sm tin t} safe err f : assert.

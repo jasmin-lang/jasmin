@@ -87,11 +87,11 @@ Qed.
 
 Lemma array_copy_semi_eq ws p :
   sem_prod_eq [:: carr (arr_size ws p)] (@WArray.copy partial ws p)
-    (@mk_semi [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
+    (@mk_semi _ [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
        [:: sc_all_init ws p 0] ErrAddrUndef [:: IBool true] (@copy_total ws p)).
 Proof.
 move=> t.
-have -> : @mk_semi [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
+have -> : @mk_semi _ [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
             [:: sc_all_init ws p 0] ErrAddrUndef [:: IBool true] (@copy_total ws p) t
         = (Let _ := check_safe [:: Varr t] [:: sc_all_init ws p 0] ErrAddrUndef in
            ok (@copy_total ws _ t)) by [].
@@ -112,7 +112,7 @@ Definition se_protect_ptr_fail_sem {len:Z} (t: WArray.array len) (msf : wmsf) : 
 
 Lemma protect_ptr_fail_eq n :
   sem_prod_eq [:: carr n; cty_msf ] (@se_protect_ptr_fail_sem n)
-    (@mk_semi [:: carr n; cty_msf ] [:: carr n] [:: sc_is_zero msf_size 1] ErrSemUndef
+    (@mk_semi _ [:: carr n; cty_msf ] [:: carr n] [:: sc_is_zero msf_size 1] ErrSemUndef
        [:: IBool true ] (fun (t : WArray.array n) (_ : wmsf) => t)).
 Proof.
   move=> t msf.

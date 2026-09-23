@@ -148,10 +148,13 @@ Proof. by rewrite /safety_cond_wt => /eqP /safety_cond_type_cat ->. Qed.
 (* -------------------------------------------------------------------- *)
 (* ** Checking the conditions                                            *)
 
-(* The safety check: if one of the conditions fails, the operation raises the
-   error it declares. *)
-Definition check_safe (vs : values) (safe : seq safety_cond) (err : error) : exec unit :=
-  if all (safety_cond_holds vs) safe then ok tt else Error err.
+(* The safety check: in the [partial] mode, if one of the conditions fails,
+   the operation raises the error it declares; in the [total] mode nothing is
+   checked. *)
+Definition check_safe {sm : SemMode} (vs : values) (safe : seq safety_cond) (err : error) :
+    exec unit :=
+  if is_total then ok tt
+  else if all (safety_cond_holds vs) safe then ok tt else Error err.
 
 (* The arguments are collected, as values, in [vs] along the [sem_prod], and
    [P] is applied to them and to the result. *)
