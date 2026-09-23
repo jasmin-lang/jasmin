@@ -224,9 +224,7 @@ Proof.
   unfold Z_mod_lnot.
   rewrite zmod_pow2E.
   set (n := (2 ^ Z.of_nat ws)%Z).
-  assert (Hwbase: wbase ws = n).
-  + destruct ws; compute; reflexivity.
-  rewrite Hwbase.
+  rewrite wbaseE.
   unfold Z.lnot.
   unfold Z.pred.
   assert (Haux: ((-(z mod n)) mod n = (-z) mod n)%Z).
