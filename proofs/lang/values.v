@@ -801,19 +801,6 @@ Proof.
   by rewrite (vuincl_sopn hall hu h1) /= h2.
 Qed.
 
-Lemma vuincl_copy_eq ws n :
-  let len := arr_size ws n in
-  forall vs vs' v,
-  values_uincl vs vs' ->
-  @app_sopn_v [::carr len] [::carr len] (@WArray.copy ws n) vs = ok v ->
-  @app_sopn_v [::carr len] [::carr len] (@WArray.copy ws n) vs' = ok v.
-Proof.
-  move=> sz _ _ v [// | v1 v2 [_ /value_uinclE hu /List_Forall2_inv_l -> |]];
-    rewrite /app_sopn_v /=; t_xrbindP=> // ??.
-  move: hu => + /to_arrI ? /WArray.uincl_copy H ?; subst.
-  by move=> /=[? -> /H h] /=; rewrite WArray.castK /= h.
-Qed.
-
 Lemma vuincl_app_sopn_v tin tout (semi: sem_prod tin (exec (sem_tuple tout))) :
   all is_not_carr tin ->
   forall vs vs' v, values_uincl vs vs' ->
@@ -822,39 +809,6 @@ Lemma vuincl_app_sopn_v tin tout (semi: sem_prod tin (exec (sem_tuple tout))) :
 Proof.
   move=> /vuincl_app_sopn_v_eq h ?? v /h{}h/h{}h.
   by exists v => //; exact: List_Forall2_refl.
-Qed.
-
-Lemma vuincl_copy ws n :
-  let len := arr_size ws n in
-  forall vs vs' v,
-  values_uincl vs vs' ->
-  @app_sopn_v [::carr len] [::carr len] (@WArray.copy ws n) vs = ok v ->
-  exists2 v' : values, @app_sopn_v [::carr len] [::carr len] (@WArray.copy ws n) vs' = ok v' & values_uincl v v'.
-Proof.
-  move=> ??? v /vuincl_copy_eq h/h{h}?.
-  by exists v => //; exact: List_Forall2_refl.
-Qed.
-
-Lemma value_uincl_oto_val ty (z z' : sem_t ty) :
-  val_uincl z z' ->
-  value_uincl (oto_val (sem_prod_id z)) (oto_val (sem_prod_id z')).
-Proof. by case: ty z z'. Qed.
-
-Definition swap_semi ty (x y: sem_t ty) : (sem_tuple [:: ty; ty]):= (sem_prod_id y, sem_prod_id x).
-
-Lemma swap_semu ty (vs vs' : seq value) (v : values):
-  values_uincl vs vs' ->
-  @app_sopn_v [::ty; ty] [::ty; ty] (sem_prod_ok [::ty; ty] (@swap_semi ty)) vs = ok v ->
-  exists2 v' : values, @app_sopn_v [::ty; ty] [::ty; ty] (sem_prod_ok [::ty; ty] (@swap_semi ty)) vs' = ok v' & values_uincl v v'.
-Proof.
-  rewrite /app_sopn_v.
-  case => //= v1 v1' ?? hu1; t_xrbindP.
-  case => //= v2 v2' ?? hu2; t_xrbindP.
-  case => // _ z1 hv1 z2 hv2 [] <- <- /=.
-  have [z1' -> hu1']:= val_uincl_of_val hu1 hv1.
-  have [z2' -> hu2' /=]:= val_uincl_of_val hu2 hv2.
-  eexists; first by eauto.
-  by repeat constructor; apply: value_uincl_oto_val.
 Qed.
 
 Section FORALL.
