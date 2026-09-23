@@ -663,7 +663,7 @@ Proof.
   case: lvs => // -[] // x [] // -[] // y [] //.
   case: args => // -[] // [] // z [] // [] // [] // w [] //=.
   t_xrbindP => vz hz _ vw hw <- <-.
-  rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /semi /Oswap_instr /mk_semi /= /swap_semi.
+  rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /semi /Oswap_instr /mk_semi /=.
   t_xrbindP => /= _ wz hvz ww hvw <- <- /=.
   t_xrbindP => _ vm1 /set_varP [_ htrx ->] <- _ vm2 /set_varP [_ htry ->] <- <- /eqP hxw /eqP hyx
     /and4P [hxt hyt hzt hwt] <-.

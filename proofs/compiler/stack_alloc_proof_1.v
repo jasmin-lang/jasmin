@@ -4986,7 +4986,7 @@ Proof using wf_pmap0 hsaparams.
   case: xs => // -[] // x [] // [] // y [] //.
   case: es => // -[] // z [] // [] // w [] //=.
   t_xrbindP => vz hz _ vw hw <- <-.
-  rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /= /semi /Oswap_instr /mk_semi /= /swap_semi; t_xrbindP.
+  rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /= /semi /Oswap_instr /mk_semi /=; t_xrbindP.
   move=> _ tz /to_arrI hvz tw /to_arrI hvw <- <- /=; t_xrbindP; subst vz vw.
   move=> _ /write_varP [-> _ /[dup] hxtr /vm_truncate_valE [hxty hxtr']].
   move=> _ /write_varP [-> _ /[dup] hytr /vm_truncate_valE [hyty hytr']].

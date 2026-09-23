@@ -7,6 +7,7 @@ Require Import
   compiler_util
   slh_lowering.
 Require Import psem_facts.
+Require Import sopn_facts.
 Require
   expr_facts
   constant_prop_proof.
