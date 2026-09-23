@@ -102,17 +102,6 @@ Definition mk_semi (tin tout : seq ctype) (safe : seq safe_cond) (err : error)
     [::] tin f.
 Arguments mk_semi {tin tout} safe err init f : assert.
 
-(* Extensionally equal semantics agree on every list of arguments; this is how
-   the [semu] field of a descriptor is transported from one to the other. *)
-Lemma sem_prod_eq_app_sopn_v tin tout (f g : sem_prod tin (exec (sem_tuple tout))) vs :
-  sem_prod_eq tin f g -> app_sopn_v f vs = app_sopn_v g vs.
-Proof.
-move=> heq; rewrite /app_sopn_v.
-suff h : app_sopn tin f vs = app_sopn tin g vs by rewrite h.
-elim: tin f g vs heq => /= [f g vs -> // | t tin ih f g [ | v vs] //= heq].
-by case: of_val => //= x; apply ih.
-Qed.
-
 (* -------------------------------------------------------------------- *)
 (* ** Guarded conditions                                                 *)
 
