@@ -210,6 +210,7 @@ lang/safety_common.v
 lang/safety_common_proof.v
 lang/safety_cond.v
 lang/safety_cond_facts.v
+lang/safety_proof.v
 lang/sem_one_varmap.v
 lang/sem_op_total.v
 lang/sem_op_typed.v

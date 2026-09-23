@@ -16,6 +16,11 @@ Local Open Scope seq_scope.
 (* -------------------------------------------------------------------- *)
 (* ** [mk_sem_op] on the signature of a binary operator                  *)
 
+Lemma mk_sem_op1E {sm : SemMode} t1 t safe err (f : sem_t t1 -> sem_t t) v1 :
+  @mk_sem_op sm [:: t1] t safe err f v1 =
+  (Let _ := check_safe [:: to_val v1] safe err in ok (f v1)).
+Proof. by []. Qed.
+
 Lemma mk_sem_op2E {sm : SemMode} t1 t2 t safe err (f : sem_t t1 -> sem_t t2 -> sem_t t) v1 v2 :
   @mk_sem_op sm [:: t1; t2] t safe err f v1 v2 =
   (Let _ := check_safe [:: to_val v1; to_val v2] safe err in ok (f v1 v2)).
@@ -30,6 +35,63 @@ Proof. by []. Qed.
 Lemma sem_sop2_typed_total o x1 x2 :
   sem_sop2_typed (sm := total) o x1 x2 = ok (sem_sop2_total o x1 x2).
 Proof. by []. Qed.
+
+(* -------------------------------------------------------------------- *)
+(* ** Well-formedness of the conditions of the operators                 *)
+
+Lemma op1_safe_ok (o : sop1) :
+  let t := type_of_op1 o in
+  all (safety_cond_wf [:: eval_atype t.1]) (op1_safe o).
+Proof.
+case: o => //= sg o; case: o => //= sz; case: sg => //=.
+all: by rewrite /safety_cond_wf /safety_cond_wt /sc_neqi /sc_eqi /sc_toint /= cmp_le_refl.
+Qed.
+
+Lemma op2_safe_ok (o : sop2) :
+  let t := type_of_op2 o in
+  all (safety_cond_wf [:: eval_atype t.1.1; eval_atype t.1.2]) (op2_safe o).
+Proof.
+case: o => //= [sg [|sz] | sg [|sz] | sg sz o] //=.
+1-2: by case: sg => //=;
+  rewrite /safety_cond_wf /safety_cond_wt /sc_not_zero /sc_not /sc_and /sc_eqi /sc_neqi /sc_toint /=
+          !cmp_le_refl.
+case: o => //=; case: sg => //=.
+all: by rewrite /safety_cond_wf /safety_cond_wt /sc_in_range /sc_and /sc_lei /sc_addi /sc_muli
+                /sc_not_zero /sc_not /sc_eqi /sc_neqi /sc_toint /= !cmp_le_refl.
+Qed.
+
+(* -------------------------------------------------------------------- *)
+(* ** Under the conditions, the semantics is the total one               *)
+
+Lemma sem_sop1_typed_safeE (o : sop1) (v1 : value) x1 :
+  of_val (eval_atype (type_of_op1 o).1) v1 = ok x1 ->
+  all (safety_cond_holds [:: v1]) (op1_safe o) ->
+  sem_sop1_typed o x1 = ok (sem_sop1_total o x1).
+Proof.
+move=> hof hall.
+have htr : mapM2 ErrType truncate_val [:: eval_atype (type_of_op1 o).1] [:: v1]
+             = ok [:: to_val x1].
++ by rewrite /= /truncate_val hof.
+have {}hall : all (safety_cond_holds [:: to_val x1]) (op1_safe o).
++ by rewrite (all_safety_cond_holds_truncate htr (op1_safe_ok o)).
+by rewrite /sem_sop1_typed mk_sem_op1E (check_safe_ok ErrArith hall).
+Qed.
+
+Lemma sem_sop2_typed_safeE (o : sop2) (v1 v2 : value) x1 x2 :
+  of_val (eval_atype (type_of_op2 o).1.1) v1 = ok x1 ->
+  of_val (eval_atype (type_of_op2 o).1.2) v2 = ok x2 ->
+  all (safety_cond_holds [:: v1; v2]) (op2_safe o) ->
+  sem_sop2_typed o x1 x2 = ok (sem_sop2_total o x1 x2).
+Proof.
+move=> hof1 hof2 hall.
+have htr : mapM2 ErrType truncate_val
+             [:: eval_atype (type_of_op2 o).1.1; eval_atype (type_of_op2 o).1.2]
+             [:: v1; v2] = ok [:: to_val x1; to_val x2].
++ by rewrite /= /truncate_val hof1 /= hof2.
+have {}hall : all (safety_cond_holds [:: to_val x1; to_val x2]) (op2_safe o).
++ by rewrite (all_safety_cond_holds_truncate htr (op2_safe_ok o)).
+by rewrite /sem_sop2_typed mk_sem_op2E (check_safe_ok ErrArith hall).
+Qed.
 
 (* -------------------------------------------------------------------- *)
 (* ** Computing the operators that can fail                              *)

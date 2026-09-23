@@ -30,6 +30,21 @@ Lemma mk_semi_aux_eq {T T'} (P Q : values -> T -> exec T') vs tin (f : sem_prod 
   sem_prod_eq tin (mk_semi_aux P vs tin f) (mk_semi_aux Q vs tin f).
 Proof. by move=> h; elim: tin vs f => /= [vs f | t tin ih vs f v]; [apply h | apply ih]. Qed.
 
+(* An application of the construction: the arguments are truncated, the total
+   semantics is applied, then [P] sees the truncated arguments and the result. *)
+Lemma mk_semi_aux_app_sopnE {T T'} (P : values -> T -> exec T') vs0 tin (f : sem_prod tin T) vs :
+  app_sopn tin (mk_semi_aux P vs0 tin f) vs =
+  (Let vs' := mapM2 ErrType truncate_val tin vs in
+   Let t := app_sopn tin (sem_prod_ok tin f) vs in P (vs0 ++ vs') t).
+Proof.
+elim: tin f vs vs0 => /= [f [|v vs] vs0 | t tin ih f [|v vs] //= vs0].
++ by rewrite /= cats0.
++ by [].
+rewrite /truncate_val; case: (of_val t v) => //= x.
+rewrite ih; case: mapM2 => //= lc; case: app_sopn => //= t0.
+by rewrite cat_rcons.
+Qed.
+
 (* Post-composing the result is the same as post-composing the post-treatment. *)
 
 Lemma mk_semi_aux_ok_cat {T T'} (P : values -> T -> exec T') (g : T -> T') vs1

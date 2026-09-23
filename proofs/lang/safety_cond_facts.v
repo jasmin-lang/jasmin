@@ -161,6 +161,90 @@ all: move=> /and3P [/eqP <- /eqP <- /eqP <-] x1 x2 x3 -> -> ->.
 all: by rewrite /= WArray.castK /=; eexists.
 Qed.
 
+(* -------------------------------------------------------------------- *)
+(* ** Checking the conditions                                            *)
+
+Lemma check_safe_ok {sm : SemMode} vs safe err :
+  all (safety_cond_holds vs) safe -> check_safe vs safe err = ok tt.
+Proof. by rewrite /check_safe => ->; case: is_total. Qed.
+
+(* -------------------------------------------------------------------- *)
+(* ** Conditions on truncated arguments                                  *)
+
+Lemma of_val_truncate_val t t' v v' :
+  subctype t' t -> truncate_val t v = ok v' -> of_val t' v' = of_val t' v.
+Proof.
+case: t t' => [||len|ws] [||len'|ws'] //= hsub.
+1,2: by move=> /truncate_val_typeE [x -> ->].
++ by move: hsub => /eqP [->] /truncate_val_typeE [a -> ->].
+move=> /truncate_val_typeE [w [ws1 [w1 [/truncate_wordP [hle ->] -> ->]]]] /=.
+by rewrite !truncate_word_le ?zero_extend_idem // (cmp_le_trans hsub hle).
+Qed.
+
+(* Interpreting a well-typed condition on the arguments or on their truncation
+   at [tin] gives the same result (up to truncation of the result). *)
+Lemma sem_safety_cond_truncate tin vs vs' :
+  mapM2 ErrType truncate_val tin vs = ok vs' ->
+  forall c t, safety_cond_type tin c = Some t ->
+  match sem_safety_cond vs c with
+  | Ok v => exists2 v'', sem_safety_cond vs' c = ok v'' & truncate_val t v = ok v''
+  | Error e => sem_safety_cond vs' c = Error e
+  end.
+Proof.
+move=> /mapM2_Forall3 htr c.
+elim: c => /=.
+1,2: by move=> x t [<-]; eexists.
++ move=> n t; case: ifP => // hn [<-]; eexists; first reflexivity.
+  by apply: (Forall3_nth htr).
++ move=> o c ih t; case heq: (safety_cond_type tin c) => [t1|] //; case: ifP => // hsub [<-].
+  have {ih} := ih _ heq; case: (sem_safety_cond vs c) => [v | e] /=; last by move=> ->.
+  move=> [v'' -> htr'] /=; rewrite (of_val_truncate_val hsub htr').
+  by case: (of_val _ v) => //= x; eexists; first reflexivity; apply truncate_val_to_val.
++ move=> o c1 ih1 c2 ih2 t.
+  case heq1: (safety_cond_type tin c1) => [t1|] //; case heq2: (safety_cond_type tin c2) => [t2|] //.
+  case: ifP => // /andP [hsub1 hsub2] [<-].
+  have {ih1} := ih1 _ heq1; case: (sem_safety_cond vs c1) => [v1 | e] /=; last by move=> ->.
+  move=> [v1'' -> htr1] /=.
+  have {ih2} := ih2 _ heq2; case: (sem_safety_cond vs c2) => [v2 | e] /=; last by move=> ->.
+  move=> [v2'' -> htr2] /=.
+  rewrite (of_val_truncate_val hsub1 htr1) (of_val_truncate_val hsub2 htr2).
+  case: (of_val _ v1) => //= x1; case: (of_val _ v2) => //= x2.
+  by eexists; first reflexivity; apply truncate_val_to_val.
+move=> o c1 ih1 c2 ih2 c3 ih3 t.
+case heq1: (safety_cond_type tin c1) => [t1|] //; case heq2: (safety_cond_type tin c2) => [t2|] //.
+case heq3: (safety_cond_type tin c3) => [t3|] //.
+case: ifP => // hsub [<-].
+have {ih1} := ih1 _ heq1; case: (sem_safety_cond vs c1) => [v1 | e] /=; last by move=> ->.
+move=> [v1'' -> htr1] /=.
+have {ih2} := ih2 _ heq2; case: (sem_safety_cond vs c2) => [v2 | e] /=; last by move=> ->.
+move=> [v2'' -> htr2] /=.
+have {ih3} := ih3 _ heq3; case: (sem_safety_cond vs c3) => [v3 | e] /=; last by move=> ->.
+move=> [v3'' -> htr3] /=.
+move: hsub; case: o => len /=; rewrite andbT => /and3P [/eqP ? /eqP ? /eqP ?]; subst t1 t2 t3.
+all: move: htr1 htr2 htr3 => /truncate_val_typeE [a -> ->] /truncate_val_typeE [i2 -> ->]
+       /truncate_val_typeE [i3 -> ->] /=.
+all: by rewrite WArray.castK /=; eexists.
+Qed.
+
+Lemma safety_cond_holds_truncate tin vs vs' c :
+  mapM2 ErrType truncate_val tin vs = ok vs' ->
+  safety_cond_wt tin c ->
+  safety_cond_holds vs' c = safety_cond_holds vs c.
+Proof.
+move=> htr /eqP hwt; have := sem_safety_cond_truncate htr hwt.
+rewrite /safety_cond_holds; case: (sem_safety_cond vs c) => [v | e] //=; last by move=> ->.
+by move=> [v'' -> /truncate_val_typeE [b -> ->]].
+Qed.
+
+Lemma all_safety_cond_holds_truncate tin vs vs' safe :
+  mapM2 ErrType truncate_val tin vs = ok vs' ->
+  all (safety_cond_wf tin) safe ->
+  all (safety_cond_holds vs') safe = all (safety_cond_holds vs) safe.
+Proof.
+move=> htr; elim: safe => //= c safe ih /andP [hc hall].
+by rewrite (safety_cond_holds_truncate htr (safety_cond_wf_wt hc)) ih.
+Qed.
+
 Local Opaque wbase.
 (* What the x86 division condition computes: the divisor is not zero and the
    quotient fits in a word. *)
