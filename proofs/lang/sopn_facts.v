@@ -84,14 +84,14 @@ Qed.
 Lemma array_copy_semi_eq ws p :
   sem_prod_eq [:: carr (arr_size ws p)] (@WArray.copy ws p)
     (@mk_semi [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
-       [:: AllInit ws p 0] ErrAddrUndef [:: IBool true] (@copy_total ws p)).
+       (map sc_of_safe_cond [:: AllInit ws p 0]) ErrAddrUndef [:: IBool true] (@copy_total ws p)).
 Proof.
 move=> t.
 have -> : @mk_semi [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
-            [:: AllInit ws p 0] ErrAddrUndef [:: IBool true] (@copy_total ws p) t
-        = (Let _ := check_safe_conds [:: Varr t] [:: AllInit ws p 0] ErrAddrUndef in
+            (map sc_of_safe_cond [:: AllInit ws p 0]) ErrAddrUndef [:: IBool true] (@copy_total ws p) t
+        = (Let _ := check_safe [:: Varr t] (map sc_of_safe_cond [:: AllInit ws p 0]) ErrAddrUndef in
            ok (@copy_total ws _ t)) by [].
-rewrite /check_safe_conds /= andbT to_arrK array_copy_eq.
+rewrite /check_safe /= andbT (safety_cond_holds_all_init (t := t)) // array_copy_eq.
 by case: all.
 Qed.
 

@@ -113,6 +113,23 @@ rewrite (cond_init_val vs2 b hall hwc) (ih hwt) => {ih}.
 by case: b.
 Qed.
 
+(* The safety conditions of a conditional instruction are the guarded ones:
+   under a false guard they all hold, under a true one they amount to the
+   conditions themselves. *)
+Lemma safety_cond_holds_all_guarded (ts : seq ctype) (vs0 : values) (safe : seq safety_cond)
+    (b : bool) (vs2 : values) :
+  List.Forall2 (fun t v => exists x : sem_t t, v = to_val x) ts vs0 ->
+  all (safety_cond_wt ts) safe ->
+  all (safety_cond_holds (rcons vs0 (Vbool b) ++ vs2)) (map (sc_guarded (size ts)) safe)
+  = (if b then all (safety_cond_holds vs0) safe else true).
+Proof.
+move=> hall hwt; rewrite cat_rcons.
+elim: safe hwt => [ | c safe ih] /=; first by case: b.
+move=> /andP [] hw hwt.
+have hc := cond_init_val vs2 b hall hw; rewrite /cond_init in hc.
+by rewrite hc (ih hwt); case: b {ih hc}.
+Qed.
+
 (* The safety conditions of a conditional instruction are the [Guarded] ones;
    under a false guard they all hold. *)
 Lemma check_safe_cond_cat vs1 vs2 sc :
@@ -152,3 +169,45 @@ elim: safe => [ | sc safe ih] /=.
 move=> /andP [h1 h2]; rewrite nth_cat ltnn subnn /= (ih h2).
 by case: b {ih} => //=; rewrite check_safe_cond_cat.
 Qed.
+
+(* -------------------------------------------------------------------- *)
+(* The semantics of an instruction is unchanged by the translation of its
+   safety conditions: [mk_semi_old] is [mk_semi] as it was, with the check of
+   [wsize.safe_cond]. *)
+
+Definition check_safe_conds (vs : values) (safe : seq safe_cond) (err : error) : exec unit :=
+  if all (check_safe_cond vs) safe then ok tt else Error err.
+
+Definition mk_semi_old (tin tout : seq ctype) (safe : seq safe_cond) (err : error)
+    (init : seq safety_cond)
+    (f : sem_prod tin (sem_tuple_t tout)) : sem_prod tin (exec (sem_tuple tout)) :=
+  mk_semi_aux
+    (fun vs t => Let _ := check_safe_conds vs safe err in
+                 ok (filter_tuple tout (map (safety_cond_holds vs) init) t))
+    [::] tin f.
+
+(* Two post-treatments that agree on typed arguments give the same semantics. *)
+Lemma mk_semi_aux_eq_typed {T T'} (P Q : values -> T -> exec T') vs1
+    (tin : seq ctype) (f : sem_prod tin T) :
+  (forall vs2 t,
+     List.Forall2 (fun t v => exists x : sem_t t, v = to_val x) tin vs2 ->
+     P (vs1 ++ vs2) t = Q (vs1 ++ vs2) t) ->
+  sem_prod_eq tin (mk_semi_aux P vs1 tin f) (mk_semi_aux Q vs1 tin f).
+Proof.
+elim: tin vs1 f => /= [vs1 f h | t tin ih vs1 f h v].
++ by have := h [::] f (List.Forall2_nil _); rewrite cats0.
+apply: ih => vs2 t2 hall; rewrite cat_rcons; apply: h.
+by constructor => //; exists v.
+Qed.
+
+Lemma mk_semi_oldE (tin tout : seq ctype) (safe : seq safe_cond) (err : error)
+    (init : seq safety_cond) (f : sem_prod tin (sem_tuple_t tout)) :
+  all (safety_cond_wt tin) (map sc_of_safe_cond safe) ->
+  sem_prod_eq tin
+    (mk_semi (map sc_of_safe_cond safe) err init f)
+    (mk_semi_old safe err init f).
+Proof.
+move=> hwt; apply: mk_semi_aux_eq_typed => vs2 t hall /=.
+by rewrite (check_safeE err hall hwt).
+Qed.
+
