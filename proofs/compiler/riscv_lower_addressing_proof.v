@@ -113,7 +113,8 @@ Proof.
     rewrite /exec_sopn /= ok_wo /=.
     Local Opaque riscv_sll_semi.
     rewrite truncate_word_le //= zero_extend_wrepr //.
-    rewrite /sopn_sem /= (shift_of_scaleP _ hshift) /=.
+    rewrite /sopn_sem /= /sopn_sem_ /semi /mk_semi /semi_to_atype_t /=
+      (shift_of_scaleP _ hshift) /=.
     Local Transparent riscv_sll_semi.
     rewrite write_var_eq_type //=; last by rewrite tmp_ty.
     rewrite /get_gvar /= get_var_eq tmp_ty /= cmp_le_refl orbT //.
