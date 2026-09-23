@@ -62,3 +62,15 @@ move: hsub x1 x2 x3 hx1 hx2 hx3; case: o => len /=; rewrite !andbT.
 all: move=> /and3P [/eqP <- /eqP <- /eqP <-] x1 x2 x3 -> -> ->.
 all: by rewrite /= WArray.castK /=; eexists.
 Qed.
+
+(* -------------------------------------------------------------------- *)
+(* ** Well-formed conditions on truncated arguments                      *)
+
+Lemma all_safety_cond_holds_truncate tin vs vs' safe :
+  mapM2 ErrType truncate_val tin vs = ok vs' ->
+  all (safety_cond_wf tin) safe ->
+  all (safety_cond_holds vs') safe = all (safety_cond_holds vs) safe.
+Proof.
+move=> htr; elim: safe => //= c safe ih /andP [hc hall].
+by rewrite (safety_cond_holds_truncate htr (safety_cond_wf_wt hc)) ih.
+Qed.
