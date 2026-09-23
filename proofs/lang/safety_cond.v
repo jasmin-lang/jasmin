@@ -7,8 +7,9 @@
    depend on the failures they are there to rule out.
 
    This file holds the language, its typing, the check [check_safe] that an
-   operation performs on the values of its arguments, and the library of the
-   conditions the operators are made of ([sc_toint], [sc_in_range], ...).
+   operation performs on the values of its arguments, the library of the
+   conditions the operators are made of ([sc_toint], [sc_in_range], ...), and
+   the conditions of the array and memory accesses ([sc_get], [sc_set], ...).
    What is specific to the expression operators — which conditions each of
    them carries, and how the conditions guard the total semantics — is in
    [op_semi.v]. *)
@@ -258,6 +259,68 @@ Definition sc_x86_division (sz : wsize) (sg : signedness) : safety_cond :=
     let ov := sc_lti (IConst (wmax_unsigned sz)) q in
     sc_and (sc_neqi dv (IConst 0)) (sc_not ov)
   end.
+
+(* -------------------------------------------------------------------- *)
+(* ** The conditions of the array and memory accesses                    *)
+
+(* The conditions checked in order, each with its own error: an array read
+   raises [ErrAddrInvalid], [ErrOob] or [ErrAddrUndef] depending on which guard
+   fails, so the single error of [check_safe] does not suffice for the
+   accesses. *)
+Definition check_safe_seq (vs : values) (scs : seq (safety_cond * error)) : exec unit :=
+  foldM (fun ce _ => assert (safety_cond_holds vs ce.1) ce.2) tt scs.
+
+(* The scaled index of an array access: [i * mk_scale aa ws], where [i] is the
+   [k]-th argument. *)
+Definition sc_arr_scaled (aa : arr_access) ws (k : nat) : safety_cond :=
+  sc_muli (IVar k) (IConst (mk_scale aa ws)).
+
+(* [is_aligned_if al (i * mk_scale aa ws) ws]: a scaled access is always
+   aligned, and an unaligned access has nothing to check. *)
+Definition sc_arr_aligned (al : aligned) (aa : arr_access) ws (k : nat) : safety_cond :=
+  if (al == Unaligned) || (aa == AAscale) then IBool true
+  else sc_eqi (sc_modi Unsigned (sc_arr_scaled aa ws k) (IConst (wsize_size ws))) (IConst 0).
+
+(* The [size] bytes read or written at [i * mk_scale aa ws] are inside an array
+   of length [len]. *)
+Definition sc_arr_in_bound (len : Z) (aa : arr_access) ws (k : nat) (size : Z) : safety_cond :=
+  sc_and (sc_lei (IConst 0) (sc_arr_scaled aa ws k))
+         (sc_lei (sc_addi (sc_arr_scaled aa ws k) (IConst size)) (IConst len)).
+
+(* They are moreover initialised, in the array argument [ka]. *)
+Definition sc_arr_init (len : Z) (aa : arr_access) ws (ka k : nat) (size : Z) : safety_cond :=
+  sc_is_arr_init len ka (sc_arr_scaled aa ws k) size.
+
+(* The conditions of the four array accesses, on the arguments
+   [:: Varr a; Vint i] (plus the written value, which no condition mentions). *)
+Definition sc_get (len : Z) al aa ws : seq (safety_cond * error) :=
+  [:: (sc_arr_aligned al aa ws 1, ErrAddrInvalid);
+      (sc_arr_in_bound len aa ws 1 (wsize_size ws), ErrOob);
+      (sc_arr_init len aa ws 0 1 (wsize_size ws), ErrAddrUndef) ].
+
+Definition sc_set (len : Z) al aa ws : seq (safety_cond * error) :=
+  [:: (sc_arr_aligned al aa ws 1, ErrAddrInvalid);
+      (sc_arr_in_bound len aa ws 1 (wsize_size ws), ErrOob) ].
+
+Definition sc_get_sub (len : Z) aa ws n : seq (safety_cond * error) :=
+  [:: (sc_arr_in_bound len aa ws 1 (arr_size ws n), ErrOob) ].
+
+Definition sc_set_sub (len : Z) aa ws n : seq (safety_cond * error) :=
+  [:: (sc_arr_in_bound len aa ws 1 (arr_size ws n), ErrOob) ].
+
+Section MEM_COND.
+
+Context {pd : PointerData}.
+
+(* The validity of a memory access depends on the memory, not only on the
+   arguments: it is not a condition. Only the alignment of the pointer is a
+   condition on the value of an argument. *)
+Definition sc_mem_aligned (al : aligned) sz (k : nat) : safety_cond :=
+  if al == Unaligned then IBool true
+  else sc_eqi (sc_modi Unsigned (sc_toint Unsigned Uptr k) (IConst (wsize_size sz)))
+              (IConst 0).
+
+End MEM_COND.
 
 (* -------------------------------------------------------------------- *)
 (* ** What the conditions of the library compute                         *)

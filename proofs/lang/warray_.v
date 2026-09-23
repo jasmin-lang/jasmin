@@ -220,6 +220,16 @@ Module WArray.
       by rewrite add_0 addE -!valid8_validw /array_CM /valid8 /in_bound !zify; lia.
     Qed.
 
+    (* A read succeeds exactly when the access is valid and every cell it
+       reads is initialised. *)
+    Lemma validr_validw_init m al i ws :
+      validr m al i ws = validw m al i ws && all (is_init m) (ziota i (wsize_size ws)).
+    Proof.
+      rewrite /validr /validw (ziota_shift i) all_map -andbA.
+      f_equal; rewrite -all_predI; apply eq_all => k /=.
+      by rewrite is_ok_get8 addE.
+    Qed.
+
   End CM.
 
   (* The accesses below follow the mode of [get8]/[set8]. *)

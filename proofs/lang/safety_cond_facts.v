@@ -202,3 +202,110 @@ move=> hb hev; rewrite /safety_cond_holds /sc_guarded /sc_or /sc_not /=.
 rewrite nth_cat ltnn subnn /=.
 by rewrite (sem_safety_cond_cat (Vbool b :: vs2) hb) hev /=.
 Qed.
+
+(* -------------------------------------------------------------------- *)
+(* ** The conditions of the array accesses                               *)
+
+Lemma Z_eqbE (x y : Z) : (x =? y)%Z = (x == y).
+Proof. by apply/idP/idP => [/ZeqbP /eqP | /eqP /ZeqbP]. Qed.
+
+Lemma safety_cond_holds_arr_aligned al aa ws k (vs : values) (i : Z) :
+  nth undef_b vs k = Vint i ->
+  safety_cond_holds vs (sc_arr_aligned al aa ws k) = is_aligned_if al (i * mk_scale aa ws)%Z ws.
+Proof.
+move=> h; rewrite /sc_arr_aligned.
+case: ifPn => [ | ]; last first.
++ rewrite negb_or => /andP [hal haa].
+  case: al hal => [// | _]; case: aa haa => [_ | //].
+  rewrite /safety_cond_holds /sc_eqi /sc_modi /sc_arr_scaled /sc_muli /= h /=.
+  by rewrite is_alignE WArray.p_to_zE Z_eqbE.
+case: al => [_ | ] /=; first by [].
+by move=> /eqP ->; rewrite WArray.is_align_scale.
+Qed.
+
+Lemma safety_cond_holds_arr_in_bound len aa ws k size (vs : values) (i : Z) :
+  nth undef_b vs k = Vint i ->
+  safety_cond_holds vs (sc_arr_in_bound len aa ws k size)
+  = ((0 <=? i * mk_scale aa ws) && (i * mk_scale aa ws + size <=? len))%Z.
+Proof.
+by move=> h;
+  rewrite /safety_cond_holds /sc_arr_in_bound /sc_and /sc_lei /sc_addi /sc_arr_scaled
+          /sc_muli /= h.
+Qed.
+
+Lemma safety_cond_holds_arr_init len aa ws ka k size (vs : values)
+    (a : WArray.array len) (i : Z) :
+  nth undef_b vs ka = Varr a ->
+  nth undef_b vs k = Vint i ->
+  safety_cond_holds vs (sc_arr_init len aa ws ka k size)
+  = all (WArray.is_init a) (ziota (i * mk_scale aa ws)%Z size).
+Proof.
+move=> ha hi.
+by rewrite /safety_cond_holds /sc_arr_init /sc_is_arr_init /sc_arr_scaled /sc_muli /=
+           ha hi /= arr_sizeE wsize8 Z.mul_1_l WArray.castK.
+Qed.
+
+(* A partial access succeeds exactly when its conditions hold, and it then
+   returns what the total access returns. *)
+Lemma getE (len : Z) al aa ws (a : WArray.array len) (i : Z) w :
+  WArray.get (sm := partial) al aa ws a i = ok w
+  <-> check_safe_seq [:: Varr a; Vint i] (sc_get len al aa ws) = ok tt
+      /\ WArray.get (sm := total) al aa ws a i = ok w.
+Proof.
+rewrite /WArray.get.
+have hvc : (check_safe_seq [:: Varr a; Vint i] (sc_get len al aa ws) = ok tt)
+           <-> validr a al (i * mk_scale aa ws)%Z ws.
++ rewrite /check_safe_seq /sc_get /= /assert
+          (@safety_cond_holds_arr_aligned al aa ws 1 [:: Varr a; Vint i] i erefl)
+          (@safety_cond_holds_arr_in_bound len aa ws 1 (wsize_size ws) [:: Varr a; Vint i] i erefl)
+          (@safety_cond_holds_arr_init len aa ws 0 1 (wsize_size ws) [:: Varr a; Vint i] a i
+             erefl erefl)
+          WArray.validr_validw_init WArray.validw_in_range /WArray.in_range.
+  by case: is_aligned_if; case: (0 <=? i * mk_scale aa ws)%Z;
+     case: (i * mk_scale aa ws + wsize_size ws <=? len)%Z; case: all.
+split.
++ by move=> /read_partialE [] /hvc hch ->.
+by move=> [] /hvc hval hr; apply/read_partialE.
+Qed.
+
+Lemma setE (len : Z) al aa ws (a : WArray.array len) (i : Z) (v : word ws) a' :
+  WArray.set (sm := partial) a al aa i v = ok a'
+  <-> check_safe_seq [:: Varr a; Vint i; Vword v] (sc_set len al aa ws) = ok tt
+      /\ WArray.set (sm := total) a al aa i v = ok a'.
+Proof.
+rewrite /WArray.set.
+have hvc : (check_safe_seq [:: Varr a; Vint i; Vword v] (sc_set len al aa ws) = ok tt)
+           <-> validw a al (i * mk_scale aa ws)%Z ws.
++ rewrite /check_safe_seq /sc_set /= /assert
+          (@safety_cond_holds_arr_aligned al aa ws 1 [:: Varr a; Vint i; Vword v] i erefl)
+          (@safety_cond_holds_arr_in_bound len aa ws 1 (wsize_size ws)
+             [:: Varr a; Vint i; Vword v] i erefl)
+          WArray.validw_in_range /WArray.in_range.
+  by case: is_aligned_if; case: (0 <=? i * mk_scale aa ws)%Z;
+     case: (i * mk_scale aa ws + wsize_size ws <=? len)%Z.
+split.
++ by move=> /write_partialE [] /hvc hch ->.
+by move=> [] /hvc hval hr; apply/write_partialE.
+Qed.
+
+Lemma get_subE (lena : Z) aa ws n (a : WArray.array lena) (i : Z) b :
+  WArray.get_sub (sm := partial) aa ws n a i = ok b
+  <-> check_safe_seq [:: Varr a; Vint i] (sc_get_sub lena aa ws n) = ok tt
+      /\ WArray.get_sub (sm := total) aa ws n a i = ok b.
+Proof.
+rewrite /WArray.get_sub /check_safe_seq /sc_get_sub /= /assert
+        (@safety_cond_holds_arr_in_bound lena aa ws 1 (arr_size ws n) [:: Varr a; Vint i] i erefl).
+by case: (_ && _); split => // -[].
+Qed.
+
+Lemma set_subE (lena : Z) aa ws n (a : WArray.array lena) (i : Z)
+    (b : WArray.array (arr_size ws n)) a' :
+  WArray.set_sub (sm := partial) aa a i b = ok a'
+  <-> check_safe_seq [:: Varr a; Vint i; Varr b] (sc_set_sub lena aa ws n) = ok tt
+      /\ WArray.set_sub (sm := total) aa a i b = ok a'.
+Proof.
+rewrite /WArray.set_sub /check_safe_seq /sc_set_sub /= /assert
+        (@safety_cond_holds_arr_in_bound lena aa ws 1 (arr_size ws n)
+           [:: Varr a; Vint i; Varr b] i erefl).
+by case: (_ && _); split => // -[].
+Qed.
