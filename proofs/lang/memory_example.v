@@ -128,12 +128,14 @@ Module MemoryI : MemoryT.
   Definition is_init (m:mem) (p:pointer) :=
     is_zalloc m.(data) (wunsigned p).
 
-  Definition get (m:mem) (p:pointer) := 
-    Let _ := assert (is_alloc m p && is_init m p) ErrAddrInvalid in
+  (* In the total mode a read is the byte stored at the address (or 0) and a
+     write is always performed: the allocation is not consulted. *)
+  Definition get (sm : SemMode) (m:mem) (p:pointer) :=
+    Let _ := assert (is_total (SemMode := sm) || (is_alloc m p && is_init m p)) ErrAddrInvalid in
     ok (odflt 0%w (Mz.get m.(data) (wunsigned p))).
 
-  Definition set (m:mem) (p:pointer) (w:u8) :=
-    Let _ := assert (is_alloc m p) ErrAddrInvalid in
+  Definition set (sm : SemMode) (m:mem) (p:pointer) (w:u8) :=
+    Let _ := assert (is_total (SemMode := sm) || is_alloc m p) ErrAddrInvalid in
     ok {| data      := Mz.set m.(data) (wunsigned p) w ;
           alloc     := m.(alloc);
           stk_root  := m.(stk_root);
@@ -144,33 +146,87 @@ Module MemoryI : MemoryT.
           stk_freeP   := m.(stk_freeP);
        |}.
 
-  Lemma is_allocP m p w : reflect (exists m', set m p w = ok m') (is_alloc m p).
+  (* A write in the total mode is effective everywhere. *)
+  Definition set_dom (_:mem) (_:pointer) := true.
+
+  Lemma is_allocP m p w : reflect (exists m', set partial m p w = ok m') (is_alloc m p).
   Proof.
-    by (rewrite /set; case:is_alloc => /=; constructor) => [ | []//]; eexists;eauto.
+    by (rewrite /set or_is_total_partial; case:is_alloc => /=; constructor) => [ | []//];
+       eexists;eauto.
   Qed.
 
-  Lemma is_alloc_set m p w m' p' : set m p w = ok m' -> is_alloc m' p' = is_alloc m p'.
+  Lemma is_alloc_set sm m p w m' p' : set sm m p w = ok m' -> is_alloc m' p' = is_alloc m p'.
   Proof. by rewrite /set; t_xrbindP => _ <-. Qed.
 
-  Lemma setP m p w p' m' :
-    set m p w = ok m' ->
-    get m' p' = if p == p' then ok w else get m p'.
+  (* The byte read at [p'] after a write at [p] of [w], in either mode: in the
+     partial mode the write and the read have succeeded, in the total mode
+     nothing is checked. *)
+  Lemma setP_gen sm m p w p' m' :
+    set sm m p w = ok m' ->
+    get sm m' p' = if p == p' then ok w else
+                   Let _ := assert (is_total (SemMode := sm) || (is_alloc m p' && is_init m p'))
+                              ErrAddrInvalid in
+                   ok (odflt 0%w (Mz.get m.(data) (wunsigned p'))).
   Proof.
     rewrite /set /get; t_xrbindP => ha <- /=.
-    rewrite /is_init /is_alloc /=.
-    case heq: is_zalloc => //=; last by move: ha heq; rewrite /is_alloc; case:eqP => // <- ->.
-    rewrite /is_zalloc Mz.setP.
-    have -> : (wunsigned p == wunsigned p') = (p == p'); last by case: eqP.
-    apply: sameP; first by apply eqP.
-    by apply (iffP eqP) => [-> | /wunsigned_inj].
+    rewrite /is_init /is_alloc /is_zalloc /= !Mz.setP.
+    have -> : (wunsigned p == wunsigned p') = (p == p').
+    + apply: sameP; first by apply eqP.
+      by apply (iffP eqP) => [-> | /wunsigned_inj].
+    case: eqP => [<- | _] //=.
+    by move: ha; rewrite /is_alloc /is_zalloc andbT => ->.
   Qed.
 
-  Lemma get_valid8 m p w : get m p = ok w -> is_alloc m p.
-  Proof. by rewrite /get; t_xrbindP => /andP []. Qed.
+  Lemma setP m p w p' m' :
+    set partial m p w = ok m' ->
+    get partial m' p' = if p == p' then ok w else get partial m p'.
+  Proof. by move=> /setP_gen ->. Qed.
+
+  Lemma get_valid8 m p w : get partial m p = ok w -> is_alloc m p.
+  Proof. by rewrite /get or_is_total_partial; t_xrbindP => /andP []. Qed.
+
+  Lemma get_total_ok m p : is_ok (get total m p).
+  Proof. by rewrite /get or_is_total_total. Qed.
+
+  Lemma set_total_ok m p w : is_ok (set total m p w).
+  Proof. by rewrite /set or_is_total_total. Qed.
+
+  Lemma get_totalE m p w : get partial m p = ok w -> get total m p = ok w.
+  Proof. by rewrite /get or_is_total_partial or_is_total_total; t_xrbindP => _ ->. Qed.
+
+  Lemma set_totalE m p w m' : set partial m p w = ok m' -> set total m p w = ok m'.
+  Proof. by rewrite /set or_is_total_partial or_is_total_total; t_xrbindP => _ ->. Qed.
+
+  Lemma setP_total m p w p' m' :
+    set total m p w = ok m' ->
+    get total m' p' = if (p == p') && set_dom m p then ok w else get total m p'.
+  Proof. by move=> /setP_gen ->; rewrite andbT. Qed.
+
+  Lemma set_dom_set m p w m' p' : set total m p w = ok m' -> set_dom m' p' = set_dom m p'.
+  Proof. by []. Qed.
+
+  Lemma valid8_set_dom m p : is_alloc m p -> set_dom m p.
+  Proof. by []. Qed.
 
   #[ global ]
-  Instance CM : coreMem pointer mem :=
-    CoreMem setP is_allocP get_valid8 is_alloc_set.
+  Instance CM : coreMem pointer mem := {|
+    memory_model.get := get;
+    memory_model.set := set;
+    memory_model.valid8 := is_alloc;
+    memory_model.set_dom := set_dom;
+    memory_model.setP := setP;
+    memory_model.valid8P := is_allocP;
+    memory_model.get_valid8 := get_valid8;
+    memory_model.valid8_set := @is_alloc_set partial;
+    memory_model.get_total_ok := get_total_ok;
+    memory_model.set_total_ok := set_total_ok;
+    memory_model.get_totalE := get_totalE;
+    memory_model.set_totalE := set_totalE;
+    memory_model.setP_total := setP_total;
+    memory_model.valid8_set_total := @is_alloc_set total;
+    memory_model.valid8_set_dom := valid8_set_dom;
+    memory_model.set_dom_set := set_dom_set;
+  |}.
 
   Lemma is_align_wunsigned_add ptr ws i :
     is_align ptr ws →
@@ -503,17 +559,23 @@ Module MemoryI : MemoryT.
       all: Lia.lia.
     Qed.
 
+  Lemma set_dom_mem (m:mem) (p:pointer) : set_dom m p.
+  Proof. by []. Qed.
+
   #[ global ]
   Instance M : memory CM  :=
-    Memory stk_root stk_limit stack_frames alloc_stack free_stack init_mem stack_region_is_free top_stack_below_root.
+    Memory stk_root stk_limit stack_frames alloc_stack free_stack init_mem stack_region_is_free
+      top_stack_below_root set_dom_mem.
 
   Lemma top_stackE (m: mem) :
     memory_model.top_stack m = top_stack m.
   Proof. exact: _top_stackE. Qed.
 
-  Lemma write_mem_invariant T (P: mem → T) :
+  (* The fields a write leaves alone do not depend on the mode: a write only
+     changes [data]. *)
+  Lemma write_mem_invariant {sm : SemMode} T (P: mem → T) :
     (∀ m p v,
-      is_alloc m p →
+      is_total || is_alloc m p →
       P {| data := Mz.set (data m) (wunsigned p) v;
            alloc := alloc m;
            stk_root := stk_root m;
@@ -536,7 +598,7 @@ Module MemoryI : MemoryT.
     top_stack m = top_stack m'.
   Proof. by apply write_mem_invariant. Qed.
 
-  Lemma write_mem_stable m m' al p s (v:word s) :
+  Lemma write_mem_stable {sm : SemMode} m m' al p s (v:word s) :
     write m al p v = ok m' -> stack_stable m m'.
   Proof. by move => ok_m'; split => /=; exact: write_mem_invariant ok_m'. Qed.
 
