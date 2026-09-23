@@ -250,3 +250,4 @@ lang/word.v
 lang/wsize.v
 toEC/safety.v
 toEC/safety_proof.v
+toEC/wint_int_proof.v
