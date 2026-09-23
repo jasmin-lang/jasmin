@@ -246,9 +246,10 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {sm : SemMode}
   {asmop : asmOp asm_op}.
 
-Definition exec_sopn {sm : SemMode} (o:sopn) (vs:values) : exec values :=
+Definition exec_sopn (o:sopn) (vs:values) : exec values :=
   Let semi := sopn_sem o in
   Let t := app_sopn _ semi vs in
   ok (list_ltuple t).
