@@ -38,6 +38,7 @@ Require Import
   asm_gen
   asm_gen_proof
   sem_params_of_arch_extra.
+Require Import lower_glob_load_proof.
 Require Import
   armv8a_decl
   armv8a_extra
@@ -568,15 +569,25 @@ Definition armv8a_hloparams : h_lowering_params (ap_lop armv8a_params).
 Proof. constructor => *; exact: it_lower_callP. Qed.
 
 (* ------------------------------------------------------------------------ *)
-(* Lowering of complex addressing mode for RISC-V.
-   It is the identity on armv8a, so the proof is trivial. *)
+(* Lowering of the loads from a global. *)
+
+Lemma armv8a_glob_addrP gd s (y : var_i) e pa :
+  sem_pexpr true gd s e >>= to_pointer = ok pa ->
+  vtype y = aword Uptr ->
+  sem_sopn gd (Oarmv8a (ARMv8A_op ADR default_opts)) s [:: Lvar y] [:: e]
+  = ok (with_vm s (evm s).[y <- Vword pa]).
+Proof.
+  t_xrbindP=> ve ok_ve ok_pa hty.
+  rewrite /sem_sopn /= ok_ve /= /exec_sopn /= ok_pa /=.
+  by rewrite write_var_eq_type //= hty.
+Qed.
 
 Lemma armv8a_hlaparams : h_lower_addressing_params (ap_lap armv8a_params).
 Proof.
   split=> /=.
-  + by move=> _ ? _ [<-].
-  + move=> _ ? _ [<-] _ fd ->; by exists fd.
-  move=> ???? _ ? _ ?? [<-]; exact: (wiequiv_f_eq (scP := sCP_stack)).
+  + exact: (lower_glob_load_prog_invariants (sip := sip_of_asm_e)).
+  + exact: (lower_glob_load_fd_invariants (sip := sip_of_asm_e)).
+  by move=> > /(it_lower_glob_load_progP (sip := sip_of_asm_e) armv8a_glob_addrP).
 Qed.
 
 (* ------------------------------------------------------------------------ *)

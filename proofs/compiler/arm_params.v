@@ -11,6 +11,7 @@ Require Import
 Require Import
   lea
   linearization
+  lower_glob_load
   lowering
   stack_alloc_params
   stack_zeroization
@@ -40,7 +41,9 @@ Definition arm_mov_ofs
     let: (op, args) := oa in
      Some (Copn [:: x ] tag (Oarm (ARM_op op default_opts)) args) in
   match movk with
-  | MK_LEA => mk (ADR, [:: if is_zero Uptr ofs then y else add y ofs ])
+  | MK_LEA =>
+    let e := if is_zero Uptr ofs then y else add y ofs in
+    Some (Copn [:: x ] tag (Oasm (ExtOp Oarm_glob_addr)) [:: e ])
   | MK_MOV =>
     match x with
     | Lvar x_ =>
@@ -297,6 +300,18 @@ Definition arm_szparams : stack_zeroization_params :=
   |}.
 
 (* ------------------------------------------------------------------------ *)
+(* Lowering of the loads from a global. *)
+
+Definition arm_is_load (o : asm_op_t) : bool :=
+  if o is BaseOp (None, ARM_op mn _) then mn \in [:: LDR; LDRB; LDRH; LDRSB; LDRSH ]
+  else false.
+
+Definition arm_laparams : lower_addressing_params :=
+  {|
+    lap_lower_address := lower_glob_load_prog arm_is_load (ExtOp Oarm_glob_addr);
+  |}.
+
+(* ------------------------------------------------------------------------ *)
 (* Shared parameters. *)
 
 Definition arm_is_move_op (o : asm_op_t) : bool :=
@@ -319,7 +334,7 @@ Definition arm_params : architecture_params :=
     ap_lip := arm_liparams;
     ap_plp := false;
     ap_lop := arm_loparams;
-    ap_lap := {| lap_lower_address := fun _ p => ok p |};
+    ap_lap := arm_laparams;
     ap_agp := arm_agparams;
     ap_szp := arm_szparams;
     ap_shp := arm_shparams;

@@ -32,8 +32,8 @@ Record lowering_params
            -> bool;
   }.
 
-(* Lowering of complex addressing mode for RISC-V.
-   It is the identity for the other architectures. *)
+(* Lowering of addressing modes: complex addressing on RISC-V, loads from a
+   global on ARM and ARMv8-A. It is the identity on x86-64. *)
 Record lower_addressing_params
   `{asm_e : asm_extra} :=
   {
@@ -59,7 +59,7 @@ Record architecture_params
        slh_lowering.v. *)
     ap_shp : slh_lowering.sh_params;
 
-    (* Lowering of complex addressing mode for RISC-V *)
+    (* Lowering of addressing modes *)
     ap_lap : lower_addressing_params;
 
     (* Assembly generation parameters. See asm_gen.v. *)
