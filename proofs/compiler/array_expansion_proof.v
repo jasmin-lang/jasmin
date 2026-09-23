@@ -660,7 +660,13 @@ Qed.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE0 : EventRels E0}
+  {rndE : with_RndEvent syscall_state E0}
+  {rndE_refl : RndRels_refl rE0}
+.
 
 Definition vs_expand_flat expd vs1 vs2 :=
   exists2 vs1', expand_vs expd vs1 = ok vs1' & vs2 = flatten vs1'.
@@ -728,7 +734,7 @@ Qed.
 #[local] Hint Resolve checker_exp_eqP : core.
 
 Lemma expand_cP c1 : Pc_ c1.
-Proof using Hcomp hwf.
+Proof using Hcomp hwf rndE_refl.
   apply (cmd_rect (Pr := Pi_r_) (Pi:=Pi_) (Pc:=Pc_)) => // {c1}; rewrite /Pi_r_ /Pi_ /Pc_.
   + by move=> _ [<-]; apply wequiv_nil.
   + move=> i1 c1 hi hc c2_ /=; t_xrbindP => i2 /hi{}hi c2 /hc{}hc <-.
@@ -774,7 +780,7 @@ End CMD.
 
 Lemma it_expand_callP_aux fn :
   wiequiv_f p1 p2 ev ev (rpreF (eS:=exp_spec)) fn fn (rpostF (eS:=exp_spec)).
-Proof using Hcomp Hstep1.
+Proof using Hcomp Hstep1 rndE_refl.
   apply wequiv_fun_ind => {}fn _ fs1 fs2 [<-] [hscs hmem] [[expdin expdout]
     hexpd [vs /= hexpv hflat]] fd hget1.
   have [fd1 [fd2 [m [inout [hget2 hsigs /=]]]]]:= all_checked hget1.
@@ -841,13 +847,19 @@ End Step1.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE0 : EventRels E0}
+  {rndE : with_RndEvent syscall_state E0}
+  {rndE_refl : RndRels_refl rE0}
+.
 
 Lemma it_expand_callP f :
   f \in entries ->
   wiequiv_f p1 p2 ev ev (rpreF (eS:=eq_spec)) f f (rpostF (eS:=eq_spec)).
-Proof using Hcomp.
-  apply: (rbindP _ Hcomp) => s1 /[dup]Hs1 /it_expand_callP_aux /(_ E E0 wE rE0 f) h _ hin.
+Proof using Hcomp rndE rndE_refl.
+  apply: (rbindP _ Hcomp) => s1 /[dup]Hs1 /it_expand_callP_aux /(_ E E0 wE rE0 rndE rndE_refl f) h _ hin.
   apply wequiv_fun_get => fd hget.
   have hgets : Mf.get (fsigs s1) f =
     Some (map (fun=> None) (f_tyin fd), map (fun=> None) (f_tyout fd)).

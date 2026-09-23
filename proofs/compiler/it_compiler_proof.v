@@ -414,6 +414,90 @@ Qed.
 
 End PROOF.
 
+(* TODO: move to hoare_logic.v and relational_logic.v *)
+Section MOVE.
+
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE0 : EventRels E0}
+.
+
+Lemma postInv_trivial T (e : E T) (t : T) :
+  postInv (iE0 := trivial_invEvent E0) e t.
+Proof.
+rewrite /postInv; case: (mfun1 e) t => // -[] ? [].
+Qed.
+
+(* lutt_xrutt_trans_r ignoring event rels *)
+(* TODO use weakened form instead of /\ *)
+Lemma xrutt_lutt_l {O1 O2} (PEv : prepred E) (PAns : postpred E)
+  (P1 : O1 -> Prop) (RR : O1 -> O2 -> Prop)
+  (t1 : itree E O1) (t2 : itree E O2) :
+  (forall T (e : E T) t, PAns T e t) ->
+  lutt PEv PAns P1 t1 ->
+  lxrutt EPreRel EPostRel RR t1 t2 ->
+  lxrutt EPreRel EPostRel (fun o1 o2 => P1 o1 /\ RR o1 o2) t1 t2.
+Proof.
+move=> hPAns hlutt hxrutt.
+have := lutt_xrutt_trans_l hlutt hxrutt.
+apply: (xrutt_weaken_v2 (EE1 := errcutoff (is_error wE)) (EE2 := nocutoff)
+  _ _ _ _ _) => //.
+by move=> ???? [].
+Qed.
+
+(* TODO use weakened form instead of /\ *)
+Lemma xrutt_lutt_r {O1 O2} (PEv : prepred E) (PAns : postpred E)
+  (P2 : O2 -> Prop) (RR : O1 -> O2 -> Prop)
+  (t1 : itree E O1) (t2 : itree E O2) :
+  (forall T (e : E T) t, PAns T e t) ->
+  lutt PEv PAns P2 t2 ->
+  lxrutt EPreRel EPostRel RR t1 t2 ->
+  lxrutt EPreRel EPostRel (fun o1 o2 => P2 o2 /\ RR o1 o2) t1 t2.
+Proof.
+move=> hPAns hlutt hxrutt.
+have := lutt_xrutt_trans_r hlutt hxrutt.
+apply: (xrutt_weaken_v2 (EE1 := errcutoff (is_error wE)) (EE2 := nocutoff)
+  _ _ _ _ _) => //.
+by move=> ???? [].
+Qed.
+
+End MOVE.
+
+Section MOVE.
+
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE12 rE23 rE13 : EventRels E0}
+  {rE_trans : EventRels_trans rE12 rE23 rE13}
+.
+
+Lemma xrutt_EPreRel_trans {O1 O2 O3}
+  (RR12 : O1 -> O2 -> Prop) (RR23 : O2 -> O3 -> Prop) (RR13 : O1 -> O3 -> Prop)
+  (t1 : itree E O1) (t2 : itree E O2) (t3 : itree E O3) :
+  (forall o1 o2 o3, RR12 o1 o2 -> RR23 o2 o3 -> RR13 o1 o3) ->
+  lxrutt (EPreRel (rE0 := rE12)) (EPostRel (rE0 := rE12)) RR12 t1 t2 ->
+  lxrutt (EPreRel (rE0 := rE23)) (EPostRel (rE0 := rE23)) RR23 t2 t3 ->
+  lxrutt (EPreRel (rE0 := rE13)) (EPostRel (rE0 := rE13)) RR13 t1 t3.
+Proof using rE_trans.
+move=> hRR h12 h23.
+have h13 :
+  wkequiv_io (rE0 := rE13)
+    (fun _ _ : unit => True) (fun _ => t1) (fun _ => t3) (fun _ _ => RR13).
+- apply: (wkequiv_io_trans
+    (P12 := fun _ _ => True) (P23 := fun _ _ => True)
+    (Q12 := fun _ _ => RR12) (Q23 := fun _ _ => RR23)
+    (F2 := fun _ => t2)).
+  + by move=> ???; exists tt.
+  + by move=> ????? _ _ [o2]; apply: hRR.
+  + by move=> ???.
+  by move=> ???.
+exact: (h13 tt tt I).
+Qed.
+
+End MOVE.
+
 Section IT.
 
 Context
@@ -430,40 +514,29 @@ Context
   (print_linearP : forall s p, cparams.(print_linear) s p = p)
 .
 
-Definition of_void1 {A T} (e : void1 A) : T := match e with end.
-Definition of_void_sum {E} : E +' void1 ~> E :=
-  fun _ x => match x with inl1 a => a | inr1 e => of_void1 e end.
+Notation E0 := (RndEvent syscall_state) (only parsing).
+Notation E := (ErrEvent +' E0) (only parsing).
 
 #[local]
-Instance with_Error0 : with_Error ErrEvent void1 :=
-  {|
-    mfun1 := inl1;
-    mfun2 := of_void_sum;
-    mid12 := fun _ e =>
-      match e with inl1 e => refl_equal | inr1 a => of_void1 a end;
-    mid21 := fun _ _ => refl_equal;
-  |}.
+Instance wE : with_Error E E0 := FIsoId E.
 
 #[local]
-Instance HandlerContract : EventRels void1 :=
-  {|
-    EPreRel0_ := fun _ _ _ _ => False;
-    EPostRel0_ := fun _ _ _ _ _ _ => True;
-  |}.
+Instance rndE : with_RndEvent syscall_state E0 := fun _ e => e.
 
 #[local]
-Instance HandlerContract_trans {rE23 rE13} :
-  EventRels_trans HandlerContract rE23 rE13 :=
-  {|
-    ERpre_trans := fun _ _ _ e => of_void1 e;
-    ERpost_trans := fun _ _ _ e => of_void1 e;
-  |}.
+Instance rE0 : EventRels E0 := EqRels.
+
+#[local]
+Instance rndE_refl : RndRels_refl rE0 := RndRels_refl_EqRels.
+
+#[local]
+Instance rE_trans : EventRels_trans rE0 rE0 rE0 := EventRels_trans_eq_r.
 
 Definition isem_unit
   (p : uprog)
   (fn : funname)
   (fs : fstate) :
-  itree ErrEvent fstate :=
+  itree E fstate :=
   it_sems_core.isem_fun
     (asm_op := extended_op)
     (ep := ep_of_asm_e)
@@ -471,7 +544,8 @@ Definition isem_unit
     (wa := withassert)
     (sip := sip_of_asm_e)
     (scP := sCP_unit)
-    (wE := with_Error0)
+    (wE := wE)
+    (rE := rndE)
     (wsw := nosubword)
     (dc := indirect_c)
     (pT := progUnit)
@@ -482,7 +556,7 @@ Definition isem_stack
   (rip : pointer)
   (fn : funname)
   (fs : fstate) :
-  itree ErrEvent fstate :=
+  itree E fstate :=
   it_sems_core.isem_fun
     (asm_op := extended_op)
     (ep := ep_of_asm_e)
@@ -490,21 +564,23 @@ Definition isem_stack
     (wa := noassert)
     (sip := sip_of_asm_e)
     (scP := sCP_stack)
-    (wE := with_Error0)
+    (wE := wE)
+    (rE := rndE)
     (wsw := withsubword)
     (dc := direct_c)
     (pT := progStack)
     sp rip fn fs.
 
 Definition isem_linear (lp : lprog) :=
-  ilsem_exportcall lp (wE := with_Error0).
+  ilsem_exportcall lp (wE := wE) (rE := rndE).
 
 Definition isem_asm (xp : asm_prog) :=
   iasmsem_exportcall
     (asm_d := _asm)
     (call_conv := call_conv)
     (asm_scsem := asm_scsem)
-    (wE := with_Error0)
+    (wE := wE)
+    (rE := rndE)
     xp.
 
 Section FIRST_PART.
@@ -1361,23 +1437,12 @@ have {}wovm : [elaborate
     (isem_exportcall_check var_tmps sp rip fn)
     (ovm_post' fn) ].
 - move=> i1 i2 pre.
-  have valid :
-    lutt
-      (preInv (iE0 := trivial_invEvent _) (iEr := trivial_invErr))
-      (postInv (iE0 := trivial_invEvent _))
-      (fun o1 => validw i1.(fmem) =3 validw o1.(fmem))
-      (it_sems_core.isem_fun sp rip fn i1).
-  - have := [elaborate
-      sem_fun_mem_equiv_sprog sp rip (fn := fn) dummy_instr_info (i := i1) I
-    ].
-    by apply: lutt_weaken => // ? [].
-  have := lutt_xrutt_trans_l valid (wovm _ _ pre).
-  apply:
-    (xrutt_weaken_v2
-       (EE1 := errcutoff (is_error with_Error0)) (EE2 := nocutoff) _ _ _ _ _) => //.
+  have valid := [elaborate
+    sem_fun_mem_equiv_sprog sp rip (fn := fn) dummy_instr_info (i := i1) I ].
+  apply: xrutt_weaken_v3 (xrutt_lutt_l postInv_trivial valid (wovm _ _ pre)).
   move=> o1 o2 [{}valid post].
   split; first exact: post.
-  by move: pre post => [_ <- _] [_ <- _]; apply: valid.
+  by move: pre post => [_ <- _] [_ <- _]; case: valid.
 
 (* Linearization *)
 have cs_not_arr :
@@ -1396,9 +1461,10 @@ have [rip_lp_zp rsp_lp_zp _] := [elaborate
 have [_ al_zfd _ arg_zfd _ res_zfd exp_zfd cs_zfd stkmax_zfd _] :=
   [elaborate stack_zeroization_lfd_invariants ok_zfd].
 
-have := istack_zeroization_lprogP
-  (wE := with_Error0) (hap_hszp haparams) _ ok_zp get_lfd.
-rewrite ([elaborate lp_rspE ok_lp]) -/szi => /(_ _ rsp_in_callee_saved) wsz.
+have rsp_lp : Sv.In (vid lp.(lp_rsp)) one_varmap.callee_saved.
+- by rewrite ([elaborate lp_rspE ok_lp]).
+have wsz := [elaborate
+  istack_zeroization_lprogP (hap_hszp haparams) rsp_lp ok_zp get_lfd ].
 
 (* Tunneling *)
 have get_tfd := [elaborate get_fundef_tunnel_program ok_tp get_zfd].
@@ -1828,8 +1894,10 @@ have hvalidw_u :=
     (sip := sip_of_asm_e)
     (wsw := nosubword)
     (dc := indirect_c)
+    (wE := wE)
+    (rndE := rndE)
     up tt (fn := fn)] dummy_instr_info fs I.
-have {}h_fe := lutt_xrutt_trans_l hvalidw_u h_fe.
+have {}h_fe := xrutt_lutt_l postInv_trivial hvalidw_u h_fe.
 clear hvalidw_u.
 
 have hvalidw :=
@@ -1840,8 +1908,10 @@ have hvalidw :=
     (sip := sip_of_asm_e)
     (wsw := withsubword)
     (dc := direct_c)
+    (wE := wE)
+    (rndE := rndE)
     sp (asm_rip xm) (fn := fn)] dummy_instr_info fs_sp I.
-have {}h_fe := lutt_xrutt_trans_r hvalidw h_fe.
+have {}h_fe := xrutt_lutt_r postInv_trivial hvalidw h_fe.
 clear hvalidw.
 
 have /BE h_be : back_end_to_asm_pre (asm_rip xm) xfd fs_sp xm.
@@ -1863,72 +1933,65 @@ have hinv := [elaborate
   iasmsem_exportcall_invariantP
     (call_conv := call_conv)
     (asm_scsem := asm_scsem)
-    (wE := with_Error0)
+    (wE := wE)
+    (rE := rndE)
     xp fn xm].
-have {}h_be := lutt_xrutt_trans_r hinv h_be.
+have {}h_be := xrutt_lutt_r (fun _ _ _ => I) hinv h_be.
 clear hinv.
 
-apply: xrutt_weaken_v1;
-  last apply: (xrutt_trans _ h_fe h_be).
-- done.
-- done.
-- by move=> T1 T2 e1 e2 [T3 e3] [_ [_ []]].
-- move=> T1 T2 e1 t1 e2 t2 hpost T3 e3 [hpre3 hpre13] hpre32.
-  by case: e1 t1 hpost hpre13 => //.
-- move=> fs' xm' [] fs_sp' h_fe_post h_be_post; split.
-  + have [hmem_s [hmem_u [_ _ hext _ _]]] := h_fe_post.
-    have [[hrip_eq hss_xm] [_ hmm _ _]] := h_be_post.
-    have hglobs := compiler_back_end_to_asm_meta print_linearP ok_xp.
-    exists (fmem fs_sp'); split.
-    - rewrite -hrip_eq hglobs; exact: hext.
-    - exact hmm.
-    - apply: stack_stable_trans; last exact: proj1 hmem_s.
-      apply: stack_stable_trans; last exact: hmga.(ma_stack_stable).
-      by symmetry; exact: (proj1 hmem_u).
-    - rewrite -(ss_limit (proj1 hmem_s)) -(ss_top_stack hss_xm).
-      exact: hmga.(ma_stack_range).
-  + by have [_ [_ _ <- _]] := h_be_post; have [_ [_ [_ _ _ _ <-]]] := h_fe_post.
-  + move=> hszs pr hdisj /negP hnvalid.
-    have [[_ hvw] [_ [_ _ _ U _]]] := h_fe_post.
-    have [_ [_ m2 _ hzsp]] := h_be_post.
-    have [_ mi2 _ _] := hmga.
-    have hpr := hzsp hszs pr.
-    case: (boolP (validw (fmem fs_sp) Aligned pr U8)) => [hvalid | /hpr //].
-    left.
-    rewrite
-      -(match_mem_read_incl_mem mi2 hvalid) -(match_mem_read_incl_mem m2).
-    - rewrite (U _ hvalid hnvalid) //.
-      have [hsz1 _] := Forall3_size hsp_ptr_eq.
-      have [hsz1' _] := Forall3_size hdisj.
-      apply: (nth_Forall3 None (Vbool true) (Vbool true) hsz1' hsz1) => i hi.
-      have := Forall3_nth hdisj None (Vbool true) (Vbool true) hi.
-      have := Forall3_nth hsp_ptr_eq None (Vbool true) (Vbool true) hi.
-      case: (nth None (get_wptrs up fn) i) => [writable|] /=;
-        last by move=> _.
-      by move=> /(_ isT) ->.
-    rewrite -hvw; exact: hvalid.
-  + have [_ [_ [hfe1 hfe2 hfe3 hfe4 hfe5]]] := h_fe_post.
-    case: h_be_post => [_ [hbe1 hbe2 hbe3 hbe4]].
-    have [hsz1 hsz2] := Forall3_size hsp_ptr_eq.
-    have heq_take : take (get_nb_wptr up fn) (fvals fs_sp) =
-                    take (get_nb_wptr up fn)
-                         (get_typed_reg_values xm (asm_fd_arg xfd)).
-    { apply: (@eq_from_nth _ (Vbool true)).
-      - by rewrite !size_take -hsz1 hsz2.
-      - move=> i; rewrite size_take ltn_min => /andP [hlt_n hlt_wptr].
-        rewrite -hsz1 in hlt_wptr.
-        rewrite nth_take // nth_take //.
-        apply: (Forall3_nth hsp_ptr_eq None (Vbool true) (Vbool true)
-                            hlt_wptr).
-        have hbf := before_find None hlt_n.
-        by case: (nth None (get_wptrs up fn) i) hbf. }
-    rewrite -heq_take.
-    apply: Forall2_impl hfe1 => v1 v2 [pr [-> hread]].
-    exists pr; split; first by reflexivity.
-    move=> off w /hread; exact: mm_read_ok hbe2.
-  move: h_fe_post h_be_post => [_ [_ [_ hfe_uincl _ _ _]]] [_ [hbe_uincl _ _ _]].
-  exact: values_uincl_trans hfe_uincl hbe_uincl.
-by move=> T1 T2 //.
+apply: (xrutt_EPreRel_trans _ h_fe h_be).
+move=> fs' fs_sp' xm' h_fe_post h_be_post; split.
+- have [hmem_s [hmem_u [_ _ hext _ _]]] := h_fe_post.
+  have [[hrip_eq hss_xm] [_ hmm _ _]] := h_be_post.
+  have hglobs := compiler_back_end_to_asm_meta print_linearP ok_xp.
+  exists (fmem fs_sp'); split.
+  + rewrite -hrip_eq hglobs; exact: hext.
+  + exact hmm.
+  + apply: stack_stable_trans; last exact: proj1 hmem_s.
+    apply: stack_stable_trans; last exact: hmga.(ma_stack_stable).
+    by symmetry; exact: (proj1 hmem_u).
+  rewrite -(ss_limit (proj1 hmem_s)) -(ss_top_stack hss_xm).
+  exact: hmga.(ma_stack_range).
+- by have [_ [_ _ <- _]] := h_be_post; have [_ [_ [_ _ _ _ <-]]] := h_fe_post.
+- move=> hszs pr hdisj /negP hnvalid.
+  have [[_ hvw] [_ [_ _ _ U _]]] := h_fe_post.
+  have [_ [_ m2 _ hzsp]] := h_be_post.
+  have [_ mi2 _ _] := hmga.
+  have hpr := hzsp hszs pr.
+  case: (boolP (validw (fmem fs_sp) Aligned pr U8)) => [hvalid | /hpr //].
+  left.
+  rewrite
+    -(match_mem_read_incl_mem mi2 hvalid) -(match_mem_read_incl_mem m2).
+  + rewrite (U _ hvalid hnvalid) //.
+    have [hsz1 _] := Forall3_size hsp_ptr_eq.
+    have [hsz1' _] := Forall3_size hdisj.
+    apply: (nth_Forall3 None (Vbool true) (Vbool true) hsz1' hsz1) => i hi.
+    have := Forall3_nth hdisj None (Vbool true) (Vbool true) hi.
+    have := Forall3_nth hsp_ptr_eq None (Vbool true) (Vbool true) hi.
+    case: (nth None (get_wptrs up fn) i) => [writable|] /=;
+      last by move=> _.
+    by move=> /(_ isT) ->.
+  rewrite -hvw; exact: hvalid.
+- have [_ [_ [hfe1 hfe2 hfe3 hfe4 hfe5]]] := h_fe_post.
+  case: h_be_post => [_ [hbe1 hbe2 hbe3 hbe4]].
+  have [hsz1 hsz2] := Forall3_size hsp_ptr_eq.
+  have heq_take : take (get_nb_wptr up fn) (fvals fs_sp) =
+                  take (get_nb_wptr up fn)
+                       (get_typed_reg_values xm (asm_fd_arg xfd)).
+  + apply: (@eq_from_nth _ (Vbool true)).
+    * by rewrite !size_take -hsz1 hsz2.
+    move=> i; rewrite size_take ltn_min => /andP [hlt_n hlt_wptr].
+    rewrite -hsz1 in hlt_wptr.
+    rewrite nth_take // nth_take //.
+    apply: (Forall3_nth hsp_ptr_eq None (Vbool true) (Vbool true) hlt_wptr).
+    have hbf := before_find None hlt_n.
+    by case: (nth None (get_wptrs up fn) i) hbf.
+  rewrite -heq_take.
+  apply: Forall2_impl hfe1 => v1 v2 [pr [-> hread]].
+  exists pr; split; first by reflexivity.
+  move=> off w /hread; exact: mm_read_ok hbe2.
+move: h_fe_post h_be_post => [_ [_ [_ hfe_uincl _ _ _]]] [_ [hbe_uincl _ _ _]].
+exact: values_uincl_trans hfe_uincl hbe_uincl.
 Qed.
 
 End FULL.

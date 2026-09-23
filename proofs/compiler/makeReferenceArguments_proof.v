@@ -1,8 +1,11 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 From Coq Require Import Uint63.
-Require Import psem compiler_util.
+From ITree Require Import ITreeFacts.
+
+Require Import psem compiler_util core_logics.
 Require Export makeReferenceArguments.
+Require Import xrutt xrutt_facts rutt_extras.
 Import Utf8.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
@@ -321,15 +324,6 @@ Context
 
   Opaque make_prologue.
 
-  Lemma exec_syscall_truncate scs m o ves scs' m' vs:
-    exec_syscall (pT := progUnit) scs m o ves = ok (scs', m', vs) ->
-    mapM2 ErrType truncate_val (map eval_atype [seq i.2 | i <- (get_syscall_sig o).2]) vs = ok vs.
-  Proof.
-    case: o => ws len /=; t_xrbindP; rewrite /exec_getrandom_u => -[scs1 vs1] hex _ _ <- /=.
-    case: ves hex => // v [] //=; t_xrbindP => t ht t' hfill ??; subst scs1 vs1.
-    by rewrite /truncate_val /= WArray.castK.
-  Qed.
-
   Lemma sem_sopn_update_i s1 s2 t o xs es ii X c' vm1 :
     sem_sopn (p_globs p) o s1 xs es = ok s2 →
     update_i fresh_reg_ptr p X (MkI ii (Copn xs t o es)) = ok c' →
@@ -378,32 +372,15 @@ Context
     by rewrite Hsem_pexprs /= Hexec_sopn /= hw'.
   Qed.
 
-  Lemma sem_syscall_update_i s1 scs m s2 o xs es ves vs ii X c' vm1 :
-    sem_pexprs true (p_globs p) s1 es = ok ves →
-    exec_syscall (pT:=progUnit) (escs s1) (emem s1) o ves = ok (scs, m, vs) →
-    write_lvals true (p_globs p) (with_scs (with_mem s1 m) scs) xs vs = ok s2 →
-    update_i fresh_reg_ptr p X (MkI ii (Csyscall xs o es)) = ok c' →
-    Sv.Subset (Sv.union (read_I (MkI ii (Csyscall xs o es))) (write_I (MkI ii (Csyscall xs o es)))) X →
-    evm s1 =[X] vm1 →
-    exists2 vm2 : Vm.t, evm s2 =[X] vm2 & esem p' ev c' (with_vm s1 vm1) = ok (with_vm s2 vm2).
-  Proof using Hp.
-    move=> hes /= ho hw.
-    t_xrbindP => -[pl es'] plE; apply: rbindP => -[xs' el] elE [<-].
-    rewrite read_Ii read_i_syscall write_Ii write_i_syscall => hsub hvm1.
-    have := exec_syscall_truncate ho.
-    rewrite /get_syscall_sig /= => htvs.
-    have []:= make_prologueP plE (@SvP.MP.subset_refl X) _ hes hvm1; first by clear -hsub; SvD.fsetdec.
-    move=> vmx [hpl hes' vm1_vmx].
-    have [] := make_epilogueP elE _ hw htvs (eq_onT hvm1 vm1_vmx); first by clear -hsub; SvD.fsetdec.
-    move=> vm2 [s2' [hw' hel s2_svm2]]; exists vm2 => //.
-    rewrite esem_cat hpl /=.
-    have -> // : sem_syscall p' xs' o es' (with_vm s1 vmx) = ok s2'.
-    by rewrite /sem_syscall /fexec_syscall hes' /= ho.
-  Qed.
-
   Section IT.
 
-  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context
+    {E E0 : Type -> Type}
+    {wE : with_Error E E0}
+    {rndE : with_RndEvent syscall_state E0}
+    {rE : EventRels E0}
+    {rndE_refl : RndRels_refl rE}
+  .
 
   #[local] Lemma checker_st_eq_onP : Checker_eq p p' checker_st_eq_on.
   Proof using Hp. apply/checker_st_eq_onP/eq_globs. Qed.
@@ -431,7 +408,7 @@ Context
 
   Lemma it_makeReferenceArguments_callP fn :
     wiequiv_f p p' ev ev (rpreF (eS:= mra_spec)) fn fn (rpostF (eS:=mra_spec)).
-  Proof using Hp.
+  Proof using Hp rndE_refl.
     apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
     move: Hp; rewrite /makereference_prog; t_xrbindP.
     move=> pfuncs' hmap heq.
@@ -478,12 +455,29 @@ Context
       apply wequiv_opn_esem => s1 s2 t /st_relP [-> /= heq] ho.
       have [vm2 ??] := sem_sopn_update_i ho hup hsub heq.
       by exists (with_vm t vm2).
-    + move=> xs sc es ii X c' hup hsub.
-      apply wequiv_syscall_esem => s1 s2 t /st_relP [-> /= heq].
-      rewrite /sem_syscall /fexec_syscall /mk_fstate / upd_estate; t_xrbindP.
-      move=> ? hes ? [[??]?] /= ho [<-] /= hw.
-      have [vm2 ??] := sem_syscall_update_i hes ho hw hup hsub heq.
-      by exists (with_vm t vm2).
+    + move=> xs sc es ii X c' /=.
+      t_xrbindP=> -[pl es'] plE; t_xrbindP=> -[xs' el] elE [<-].
+      rewrite read_Ii read_i_syscall write_Ii write_i_syscall => hsub.
+      move=> s1 [_ _ vm1] [/= <- <- hvm1].
+      rewrite /= isem_cmd_cat /= /sem_syscall !bind_bind.
+      apply: lxrutt_bind_iresult => ves hes.
+      have [// | | vmx [hpl hes' vm1_vmx]] := make_prologueP plE _ _ hes hvm1.
+      * by clear -hsub; SvD.fsetdec.
+      move: I.
+      rewrite (esem_i_bodyP hpl) bind_ret_l hes' bind_ret_l !bind_bind /= => _.
+      apply: xrutt_lutt_true_bind_l.
+      * rewrite /exec_syscall; apply/lxeutt_lrutt_RndRels_refl/xrutt_refl.
+        - by move=> T e _ _; apply: RPre_eq_refl.
+        by move=> T e t1 t2 _ _ h; apply/RPost_eqI/h.
+      * exact: exec_syscall_typed_res.
+      move=> [[scs' m'] vs] _ htvs <-; rewrite !bind_ret_l /upd_estate /=.
+      apply: lxrutt_bind_iresult => s1' hw.
+      have [|||] := make_epilogueP (vres := vs) (vm1 := vmx) elE _ hw.
+      * by clear -hsub; SvD.fsetdec.
+      * by rewrite -!map_comp /= -htvs.
+      exact: eq_onT hvm1 vm1_vmx.
+      move=> /= vm2 [s2' [-> hel s2_svm2]].
+      by rewrite bind_ret_l (esem_i_bodyP hel); apply: xrutt_Ret.
     + move=> a ii X c' /= [<-] hsub.
       by apply wequiv_noassert.
     + move=> e c1 c2 hc1 hc2 ii X c' /=; t_xrbindP.

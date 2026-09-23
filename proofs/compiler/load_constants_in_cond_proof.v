@@ -137,7 +137,13 @@ End BODY.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE0 : EventRels E0}
+  {rndE : with_RndEvent syscall_state E0}
+  {rndE_refl : RndRels_refl rE0}
+.
 
 Lemma checker_st_eq_onP_ : Checker_eq p p' checker_st_eq_on.
 Proof using Hp. by apply checker_st_eq_onP; rewrite eq_globs. Qed.
@@ -145,7 +151,7 @@ Proof using Hp. by apply checker_st_eq_onP; rewrite eq_globs. Qed.
 
 Lemma it_load_constants_progP_aux fn:
   wiequiv_f p p' ev ev (rpreF (eS:=eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-Proof using Hp.
+Proof using Hp rndE_refl.
   apply wequiv_fun_ind => {}fn _ fs _ [<-] <- fd hget.
   move: Hp; rewrite /load_constants_prog; t_xrbindP => funcs Hmap hp'.
   case: (get_map_cfprog_gen Hmap hget) => fd' Hupdate hget'.
@@ -225,13 +231,19 @@ End DOIT.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE0 : EventRels E0}
+  {rndE : with_RndEvent syscall_state E0}
+  {rndE_refl : RndRels_refl rE0}
+.
 
 Lemma it_load_constants_progP p p' doit:
   load_constants_prog fresh_reg doit p = ok p' →
   ∀ (ev : extra_val_t) (fn : funname),
   wiequiv_f p p' ev ev (rpreF (eS:=eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-Proof.
+Proof using rndE_refl.
 case: doit; last by move=> [<-] ??; apply wiequiv_f_eq.
 by move=> ???; apply it_load_constants_progP_aux.
 Qed.

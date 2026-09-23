@@ -215,6 +215,14 @@ Definition RPre_eq {E : Type -> Type} T1 T2 (e1 : E T1) (e2 : E T2) :=
 Definition RPost_eq {E : Type -> Type} T1 T2 (e1 : E T1) (t1 : T1) (e2 : E T2) (t2 : T2) :=
    forall (h : T1 = T2), t2 = eq_rect T1 id t1 T2 h.
 
+Lemma RPre_eq_refl {E : Type -> Type} T (e : E T) : RPre_eq e e.
+Proof. by exists erefl. Qed.
+
+Lemma RPost_eqI {E : Type -> Type} T (e : E T) t1 t2 :
+  RPost_eq e t1 e t2 ->
+  t1 = t2.
+Proof. by move=> /(_ erefl) ->. Qed.
+
 Lemma gen_rutt_eutt {E : Type -> Type} {R1 R2 : Type}
   (RR : R1 -> R2 -> Prop)
   t1 t2 :
@@ -235,5 +243,57 @@ Proof.
     specialize (H0 v v H1); pclearbot; auto.
   - econstructor; eauto.
   - econstructor; eauto.
+Qed.
+
+Lemma rutt_xrutt {E1 E2 : Type -> Type} {R1 R2 : Type}
+  (EE1 : forall X, E1 X -> bool) (EE2 : forall X, E2 X -> bool)
+  (REv : prerel E1 E2)
+  (RAns : postrel E1 E2)
+  (RR : R1 -> R2 -> Prop) t1 t2 :
+  rutt REv RAns RR t1 t2 ->
+  xrutt EE1 EE2 REv RAns RR t1 t2.
+Proof.
+move: t1 t2; pcofix CIH => t1 t2 h.
+pstep; punfold h; red in h |- *.
+elim: h => {t1 t2}.
+- by move=> r1 r2 hr; constructor.
+- by move=> m1 m2 h; constructor; pclearbot; right; apply: CIH.
+- move=> A B e1 e2 k1 k2 hREv hrec.
+  case hee1: (EE1 _ e1); first by apply: EqCutL.
+  case hee2: (EE2 _ e2); first by apply: EqCutR.
+  econstructor; eauto.
+  move=> a b hab; right; have h := hrec a b hab; by pclearbot; apply: CIH.
+- by move=> ?? _; apply: EqTauL.
+by move=> ?? _; apply: EqTauR.
+Qed.
+
+Lemma rutt_translate {E1 E2 F1 F2 : Type -> Type} {R1 R2 : Type}
+  (h1 : forall T, E1 T -> F1 T) (h2 : forall T, E2 T -> F2 T)
+  (REv : prerel E1 E2) (RAns : postrel E1 E2)
+  (FEv : prerel F1 F2) (FAns : postrel F1 F2)
+  (RR : R1 -> R2 -> Prop)
+  (t1 : itree E1 R1) (t2 : itree E2 R2) :
+  (forall A B (e1 : E1 A) (e2 : E2 B),
+     REv A B e1 e2 -> FEv A B (h1 A e1) (h2 B e2)) ->
+  (forall A B (e1 : E1 A) (a : A) (e2 : E2 B) (b : B),
+     REv A B e1 e2 -> FAns A B (h1 A e1) a (h2 B e2) b -> RAns A B e1 a e2 b) ->
+  rutt REv RAns RR t1 t2 ->
+  rutt FEv FAns RR (translate h1 t1) (translate h2 t2).
+Proof.
+  intros hREv hRAns.
+  revert t1 t2; pcofix CIH; intros t1 t2 Hrutt.
+  punfold Hrutt; red in Hrutt. pstep; red.
+  change (observe (translate h1 t1)) with
+    (observe (translateF h1 (fun t => translate h1 t) (observe t1))).
+  change (observe (translate h2 t2)) with
+    (observe (translateF h2 (fun t => translate h2 t) (observe t2))).
+  hinduction Hrutt before CIH; intros; cbn.
+  - now apply Rutt.EqRet.
+  - apply Rutt.EqTau; right; apply CIH; now pclearbot.
+  - apply Rutt.EqVis; auto.
+    intros a b HAns; right; apply CIH.
+    specialize (H0 a b (hRAns _ _ _ _ _ _ H HAns)); now pclearbot.
+  - apply Rutt.EqTauL; exact IHHrutt.
+  - apply Rutt.EqTauR; exact IHHrutt.
 Qed.
 

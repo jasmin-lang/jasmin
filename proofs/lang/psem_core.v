@@ -2,8 +2,12 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
+From ITree Require Import Basics ITree ITreeFacts Exception.
+
 Require Import xseq.
 Require Export type expr gen_map warray_ sem_type sem_op_typed values varmap expr_facts low_memory syscall_sem psem_defs.
+Require Import it_sems_core_defs core_logics.
+Require Import xrutt xrutt_facts rutt_extras.
 Require Export
   flag_combination
   sem_params.
@@ -18,24 +22,88 @@ Open Scope vm_scope.
 Section WSW.
 Context {wsw:WithSubWord}.
 
-Class semCallParams
+Section SCP.
+
+Context
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
-  {scs : syscall_sem syscall_state}
+  {sc_sem : syscall_sem syscall_state}
   {pT : progT}
-  := SemCallParams
+.
+
+(* The core versions are defined exactly on [ErrEvent +' RndEvent] instead of on
+   an arbitrary event.
+   In this way, when we instantiate for different event families (e.g., when
+   interpreting recursive calls we instantiate once with [E := E] and once with
+   [E := Call +' E]) we can still prove that [exec_syscall] behaves the same by
+   construction. *)
+
+Class semCallParams := SemCallParams
   {
   init_state : extra_fun_t -> extra_prog_t -> extra_val_t -> estate -> exec estate;
+
   finalize   : extra_fun_t -> mem -> mem;
-  exec_syscall : syscall_state_t -> mem -> syscall_t -> values -> exec (syscall_state_t * mem * values);
-  exec_syscallP: forall scs m o vargs vargs' rscs rm vres,
-     exec_syscall scs m o vargs = ok (rscs, rm, vres) ->
-     values_uincl vargs vargs' ->
-     exists2 vres', exec_syscall scs m o vargs' = ok (rscs, rm, vres') & values_uincl vres vres';
-  exec_syscallS: forall scs m o vargs rscs rm vres,
-     exec_syscall scs m o vargs = ok (rscs, rm, vres) ->
-     mem_equiv m rm;
+
+  exec_syscall_core :
+      syscall_state ->
+      mem ->
+      syscall_t ->
+      values ->
+      itree (ErrEvent +' RndEvent syscall_state) (syscall_state * mem * values);
+
+  exec_syscall_coreP : forall scs m o vargs vargs',
+      values_uincl vargs vargs' ->
+      lxeutt sc_res_uincl
+        (exec_syscall_core scs m o vargs)
+        (exec_syscall_core scs m o vargs');
+
+  exec_syscall_coreS : forall scs m o vargs,
+      lutt_eT
+        (fun '(_, m', _) => mem_equiv m m')
+        (exec_syscall_core scs m o vargs);
 }.
+
+Context
+  {sCP : semCallParams}
+  {E0 E : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
+.
+
+Definition exec_syscall
+  (scs : syscall_state) (m : mem) (o : syscall_t) (vs : values) :
+  itree E (syscall_state * mem * values) :=
+  translate subevent (exec_syscall_core scs m o vs).
+
+Lemma exec_syscallP scs m o vargs vargs' :
+  values_uincl vargs vargs' ->
+  lxeutt sc_res_uincl
+    (exec_syscall scs m o vargs)
+    (exec_syscall scs m o vargs').
+Proof.
+move=> /exec_syscall_coreP; rewrite /exec_syscall.
+move=> h; apply: xrutt_translate (h scs m o).
+- by move=> X [e|e] //= _; rewrite /errcutoff /is_error /= mid12.
+- done.
+- move=> A B e1 e2 [heq heqe]; move: e2 heqe.
+  case: B / heq => e2 /= ->; exact: RPre_eq_refl.
+by move=> A B e1 a e2 b _ hpost; exact: hpost.
+Qed.
+
+Lemma exec_syscallS scs m o vargs :
+  lutt_eT
+    (fun '(_, m', _) => mem_equiv m m')
+    (exec_syscall scs m o vargs).
+Proof.
+(* TODO the following should be a lemma about lutt and translate *)
+have [t' /rutt_eq_trans_refl h] := exec_syscall_coreS scs m o vargs.
+eexists; apply/eutt_rutt/eutt_translate_gen/gen_rutt_eutt.
+apply: rutt_weaken h => //.
+by move=> T1 T2 e1 e2 [].
+Qed.
+
+End SCP.
+
 
 (** Switch for the semantics of function calls:
   - when false, arguments and returned values are truncated to the declared type of the called function;
@@ -59,7 +127,10 @@ Definition dc_truncate_val {dc:DirectCall} t v :=
 Section SEM_CALL_PARAMS.
 
 Context
+  {E0 E : Type -> Type}
   {asm_op syscall_state : Type}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
   {ep : EstateParams syscall_state}
   {sip : SemInstrParams asm_op syscall_state}.
 
@@ -70,10 +141,16 @@ Context
 Instance sCP_unit : semCallParams (pT := progUnit) :=
   { init_state := fun _ _ _ s => ok s;
     finalize   := fun _ m => m;
-    exec_syscall  := exec_syscall_u;
-    exec_syscallP := exec_syscallPu;
-    exec_syscallS := exec_syscallSu;
+    exec_syscall_core  := @exec_syscall_u _ _;
+    exec_syscall_coreP := @exec_syscallPu _ _;
+    exec_syscall_coreS := @exec_syscallSu _ _;
 }.
+
+Lemma exec_syscall_typed_res (scs : syscall_state) m o vs :
+  lutt_eT
+    (fun '(_, _, vs') => truncate_vals (sc_out_u o) vs' = ok vs')
+    (exec_syscall (pT := progUnit) scs m o vs).
+Proof. exact: lutt_translate (exec_syscall_u_typed_res _ _ _ _). Qed.
 
 (* ** Semantic with stack
  * -------------------------------------------------------------------- *)
@@ -93,9 +170,9 @@ Definition finalize_stk_mem (sf : stk_fun_extra) (m:mem) :=
 Instance sCP_stack : semCallParams (pT := progStack) :=
   { init_state := init_stk_state;
     finalize   := finalize_stk_mem;
-    exec_syscall  := exec_syscall_s;
-    exec_syscallP := exec_syscallPs;
-    exec_syscallS := exec_syscallSs;
+    exec_syscall_core  := @exec_syscall_s _ _;
+    exec_syscall_coreP := @exec_syscallPs _ _;
+    exec_syscall_coreS := @exec_syscallSs _ _;
 }.
 
 End SEM_CALL_PARAMS.
@@ -1513,3 +1590,73 @@ Ltac t_get_var :=
     || (rewrite get_var_neq; last by [|apply/nesym])
   ).
 
+Section PRES.
+
+Definition preservesE
+  E1 E2 E3 {S12 : E1 -< E2} {S23 : E1 -< E3} (F : Handler E2 E3) :=
+  forall T (e : E1 T),
+    eutt eq (F T (subevent T e)) (trigger e).
+
+#[global] Arguments preservesE _ {_ _ _ _} _.
+
+Context
+  {asm_op : Type}
+  {wsw : WithSubWord}
+  {dc : DirectCall}
+  {syscall_state : Type}
+  {E0 E E' : Type -> Type}
+  {wE : with_Error E E0}
+  {wE' : with_Error E' E0}
+  {rE : with_RndEvent syscall_state E0}
+  {ep : EstateParams syscall_state}
+  {pT : progT}
+  {scP : semCallParams}
+.
+
+Lemma interp_preserves_throw (F : Handler E E') T e :
+  preservesE ErrEvent F ->
+  eutt eq (interp F (throw (X := T) e)) (throw e).
+Proof. by move=> h; rewrite interp_vis h bind_vis; apply: eqit_Vis. Qed.
+
+Lemma interp_preserves_iresult (F : Handler E E') T (r : exec T) :
+  preservesE ErrEvent F ->
+  eutt eq (interp F (iresult r)) (iresult r).
+Proof.
+move=> h; case: r => [r|e]; first by rewrite interp_ret; reflexivity.
+rewrite (interp_preserves_throw _ _ h); reflexivity.
+Qed.
+
+Lemma interp_preserves_exec_syscall (F : Handler E E') scs m o vs :
+  preservesE ErrEvent F ->
+  preservesE (RndEvent syscall_state) F ->
+  eutt eq
+    (interp F (exec_syscall scs m o vs))
+    (exec_syscall scs m o vs).
+Proof.
+move=> err rnd; rewrite /exec_syscall interp_translate translate_to_interp /=.
+apply: eutt_interp; last reflexivity.
+move=> T [e|r]; first exact: err.
+exact: rnd.
+Qed.
+
+Lemma preservesE_case_inr {E1 E2 E1'} (F : Handler E1 (E1' +' E2)) :
+  preservesE E2 (case_ F inr_).
+Proof. move=> T e; apply: eqit_Vis; reflexivity. Qed.
+
+Lemma preservesE_sub
+  {E1 E1' E2 E3}
+  {S12 : E1 -< E2}
+  {S13 : E1 -< E3}
+  {S12' : E1' -< E2}
+  {S13' : E1' -< E3}
+  {S : E1' -< E1}
+  {F : Handler E2 E3} :
+  preservesE E1 F ->
+  (forall T (e : E1' T),
+    subevent (H := S12') T e = subevent (H := S12) T (subevent (H := S) T e)) ->
+  (forall T (e : E1' T),
+    subevent (H := S13') T e = subevent (H := S13) T (subevent (H := S) T e)) ->
+  preservesE E1' F.
+Proof. move=> h hsub12 hsub13 T e; rewrite hsub12 hsub13; exact: h. Qed.
+
+End PRES.

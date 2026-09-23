@@ -943,7 +943,13 @@ Qed.
 
 Section IT_PROOF.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rndE : with_RndEvent syscall_state E0}
+  {rE : EventRels E0}
+  {rndE_refl : RndRels_refl rE}
+.
 
 Variable (p:prog) (ev:extra_val_t).
 Notation gd := (p_globs p).
@@ -1084,7 +1090,7 @@ Qed.
 #[local] Hint Resolve checker_cpP : core.
 
 Lemma it_const_prop_callP fn : wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-Proof.
+Proof using rndE_refl.
 Local Opaque opp_word.
   apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
   exists (const_prop_fun (p_globs p) fd).

@@ -1,4 +1,3 @@
-
 (* ** Imports and settings *)
 From Coq
 Require Import Setoid Morphisms Lia.
@@ -25,6 +24,8 @@ Require Import seq_extra psem_facts.
 Require Import fexpr fexpr_sem fexpr_facts.
 Require Export linearization linear_sem linear_facts core_logics relational_logic.
 Import Memory.
+
+Require xrutt_facts.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
@@ -697,7 +698,8 @@ Section HLIPARAMS.
     by case: vtype hty.
   Qed.
 
-  Lemma set_up_sp_register_ok {E E0: Type -> Type} {wE: with_Error E E0}
+  Lemma set_up_sp_register_ok {E E0 : Type -> Type} {wE : with_Error E E0}
+    {rndE : with_RndEvent syscall_state E0}
     ii lp sp_rsp ls r tmp ts al sz P Q :
     let: vrspi := vid sp_rsp in
     let: vrsp := v_var vrspi in
@@ -1839,8 +1841,11 @@ Section PROOF.
     by rewrite xy; first exact: yz.
   Qed.
 
-
-Context {E E0: Type -> Type} {wE: with_Error E E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rndE : with_RndEvent syscall_state E0}
+.
 
 Section ILSTEPS_END.
 
@@ -1971,16 +1976,31 @@ Proof.
   by apply eqit_Ret; split => //=; rewrite hpc addn1.
 Qed.
 
+Lemma eq_lsyscall o ls :
+  eutt
+    (fun ls1' ls2' =>
+       [/\ ls1' = ls2', ls1'.(lfn) = ls.(lfn) & ls1'.(lpc) = ls.(lpc).+1 ])
+    (lexec_syscall (E := mix_to_small_steps.CallE funname lstate +' E) o ls)
+    (lexec_syscall (E := mix_to_small_steps.CallE funname lstate +' E) o ls).
+Proof.
+rewrite /lexec_syscall; apply: eutt_eq_bind => ves.
+apply: eutt_eq_bind => fs'; rewrite /lset_fstate.
+case: upd_estate => [e' | err] /=.
++ by rewrite bind_ret_l; apply eutt_Ret; split => //=.
+by rewrite bind_throw; apply eqit_Vis; case.
+Qed.
+
 Lemma linear_c_end_syscall : ∀ (xs : lvals) (o : syscall_t) (es : pexprs), Pi_r (Csyscall xs o es).
 Proof.
   move=> xs o es ii lbl lbli li P Q ls [_] /= [<- <-] D C hfn hpc.
-  rewrite (step_mix_ilsteps C) //; last by simpl_size; lia.
-  rewrite /eval_instr /=.
-  case: get_vars => [vs /= | ?]; last by apply eqit_Vis => -[].
-  case: exec_syscall_s => [[[svs m] vs'] /= | ?]; last by apply eqit_Vis => -[].
-  case: write_lvals => [s' /= | ?]; last by apply eqit_Vis => -[].
-  rewrite mix_ilsteps_b0 => //=; last by rewrite hpc addn1.
-  by apply eqit_Ret; split => //=; rewrite hpc addn1.
+  rewrite (step_mix_ilsteps C) //=; last by simpl_size; lia.
+  apply: eutt_clo_bind; first exact: eq_lsyscall.
+  move=> ls' _ [<- hfn' hpc'].
+  rewrite -{}hfn' in hfn.
+  rewrite {}hpc in hpc'.
+  rewrite tau_eutt.
+  rewrite mix_ilsteps_b0 //; last by rewrite hpc' addn1.
+  by apply eqit_Ret; split => //; rewrite hpc' addn1.
 Qed.
 
 Lemma linear_c_end_assert : ∀ a : assertion, Pi_r (Cassert a).
@@ -2772,7 +2792,10 @@ End ILSTEPS_END.
 
   (* ----------------------------------------------------------------------- *)
 
-  Context {rE0 : EventRels E0}.
+  Context
+    {rE0 :EventRels E0}
+    {rndE_refl : RndRels_refl rE0}
+  .
 
   (* Assuming [fn] takes [(scs1, m1, vm1)] to [(scs2, m2, vm2)],
      we need to prove that its compilation has the same behavior, and
@@ -2877,7 +2900,25 @@ End ILSTEPS_END.
      ; EPostRel0_ := sum_postrelF (@PostF) EPostRel0
     |}.
 
+  #[local] Instance rndRel_recCall :
+    RndRels2
+      (E_l := recCallK +' E) (E0_l := recCallK +' E0)
+      (E_r := CallE +' E) (E0_r := CallE +' E0)
+      (rE0 := relEvent_recCall).
+  Proof using rndE_refl.
+  split=> T e; first exact: (RndPreRel (RndRels2 := rndE_refl)).
+  by move=> t1 t2; apply: (RndPostRel (RndRels2 := rndE_refl)).
+  Qed.
+
   Section LINEAR_CMD.
+
+  Import xrutt xrutt_facts.
+
+  (* TODO ITreeNotations clashes with varmap notations. What should we do? *)
+  #[local] Notation "'let*' p ':=' c1 'in' c2" :=
+    (@ITree.bind _ _ _ c1 (fun p => c2))
+      (at level 61, p as pattern, c1 at next level, right associativity)
+      : itree_scope.
 
   Context (fn : funname).
 
@@ -3248,18 +3289,6 @@ End ILSTEPS_END.
     by t_xrbindP => _ m3  /(mm_write mm) [m3' -> mm3 /=] <- /ih -/(_ _ mm3).
   Qed.
 
-  Lemma match_mem_gen_exec_syscall o scs1 m1 m1' scs2 m2 ves vs:
-    match_mem_gen (top_stack m0) m1 m1' → exec_syscall_s scs1 m1 o ves = ok (scs2, m2, vs) →
-    exists2 m2', exec_syscall_s scs1 m1' o ves = ok (scs2, m2', vs) & match_mem_gen (top_stack m0) m2 m2'.
-  Proof.
-    move=> mm; rewrite /exec_syscall_s; t_xrbindP => -[[scs' m'] t] happ [<- <- <-].
-    have h: mk_forall_ex (fun e1 e2 => [/\ e1.1.1 = e2.1.1, e1.2 = e2.2 &  match_mem_gen (top_stack m0) e1.1.2 e2.1.2])
-                             (syscall_sem.sem_syscall o scs1 m1) (syscall_sem.sem_syscall o scs1 m1').
-    + case: (o) => _ _ /= wp len [[scs_ rm] t_].
-      rewrite /exec_getrandom_s_core; t_xrbindP => ? /(match_mem_gen_fill_mem mm) [] rm' -> ? -> <- <- /=; by eexists.
-    have [[[ _ rm' ] _ ] -> /= [] <- <-]:= mk_forall_exP h happ; by eexists.
-  Qed.
-
   Lemma syscall_killP vm : vm =[\syscall_kill] vm_after_syscall vm.
   Proof. by move=> x /Sv_memP /negPf; rewrite /vm_after_syscall kill_varsE => ->. Qed.
 
@@ -3268,7 +3297,6 @@ End ILSTEPS_END.
     fill_mem m2 ptr bytes = ok m2' ->
     forall p, ~~ validw m1 Aligned p U8 -> read m2 Aligned p U8 = read m2' Aligned p U8.
   Proof.
-    rewrite /fill_mem; t_xrbindP.
     rewrite /fill_mem; t_xrbindP => -[z m1''] /= hf ? -[z' m2''] /= hf' ?; subst m1'' m2''.
     elim: bytes 0%Z m1 m2 hf hf' => [ | b bytes ih] z1 m1 m2 /=.
     + by move=> _ [_ <-].
@@ -3278,66 +3306,172 @@ End ILSTEPS_END.
     by rewrite (write_validw_eq hw1).
   Qed.
 
-  Lemma exec_syscall_mem_unchanged m1 m2 m1' m2' scs scs' o ves ves' vs vs' :
-    values_uincl ves ves' ->
-    exec_syscall_s scs m1 o ves = ok (scs', m1', vs) ->
-    exec_syscall_s scs m2 o ves' = ok (scs', m2', vs') ->
-    forall p, ~~ validw m1 Aligned p U8 -> read m2 Aligned p U8 = read m2' Aligned p U8.
-  Proof.
-    move=> hall hex; have {}:= exec_syscallPs_eq hex hall.
-    rewrite /exec_syscall_s; t_xrbindP => -[[scs0 m1''] t0] happ1 [???] -[[scs1 m2''] t1] happ2 [???].
-    subst scs1 scs0 m1'' m2'' vs vs'.
-    have h : mk_forall2 (fun o1 o2 => forall p, ~~ validw m1 Aligned p U8 -> read m2 Aligned p U8 = read o2.1.2 Aligned p U8)
-               (syscall_sem.sem_syscall o scs m1) (syscall_sem.sem_syscall o scs m2).
-    + case: (o) => _ _ /= ptr bytes ??.
-      rewrite /exec_getrandom_s_core; t_xrbindP => ? hf1 ? ? hf2 <- /=.
-      by apply: fill_mem_mem_unchanged hf1 hf2.
-    by apply: mk_forall2P h happ1 happ2.
+  Lemma match_mem_gen_sem_syscall_store
+    {o m1 m1'} {args : sem_tuple (sc_in_s o)} {ans : syscall_state * seq u8}
+    {scs' m2 t} :
+    match_mem_gen (top_stack m0) m1 m1' ->
+    sem_syscall_store o m1 args ans = ok (scs', m2, t) ->
+    exists2 m2',
+      sem_syscall_store o m1' args ans = ok (scs', m2', t)
+      & match_mem_gen (top_stack m0) m2 m2'.
+  Proof using.
+    move=> mm; case: o args t => [ws n] args t /=.
+    rewrite /exec_getrandom_s_store; t_xrbindP => m2'' hfill [<- <- <-].
+    by have [m2' -> mm'] := match_mem_gen_fill_mem mm hfill; exists m2'.
   Qed.
 
-  Lemma preserved_metadata_syscall m1 m2 m1' m2' scs scs' o ves ves' vs vs' :
-    values_uincl ves ves' ->
-    exec_syscall_s scs m1 o ves = ok (scs', m1', vs) ->
-    exec_syscall_s scs m2 o ves' = ok (scs', m2', vs') ->
-    preserved_metadata m1 m2 m2'.
-  Proof.
-    move=> huincl hsys1 hsys2 pr hpr hnv.
-    by apply (exec_syscall_mem_unchanged huincl hsys1 hsys2 hnv).
+  Lemma sem_syscall_store_mem_unchanged
+    {o m1 m2} {args : sem_tuple (sc_in_s o)} {ans : syscall_state * seq u8} {r1 r2} :
+    sem_syscall_store o m1 args ans = ok r1 ->
+    sem_syscall_store o m2 args ans = ok r2 ->
+    forall p, ~~ validw m1 Aligned p U8 -> read m2 Aligned p U8 = read r2.1.2 Aligned p U8.
+  Proof using.
+    case: o args r1 r2 => [ws n] args r1 r2 /=.
+    rewrite /exec_getrandom_s_store; t_xrbindP => m1'' hfill1 e1 m2'' hfill2 e2.
+    subst r1 r2 => /=.
+    exact: fill_mem_mem_unchanged hfill1 hfill2.
   Qed.
 
-  Lemma Hsyscall : ∀ (xs : lvals) (o : syscall_t) (es : pexprs), Pi_r (Csyscall xs o es).
-  Proof using hliparams linear_ok enough_space.
-    move=> xs o es ii lbl lbli P li Q [/checked_iE [fd ok_fd] /= _] [??]; subst lbli li.
-    move=> D C s1 ls1 [M1 SC1 X1 hpc hfn hsp1 S1 MAX1].
-    rewrite (step_mix_ilsteps C) //; last by simpl_size; lia.
-    rewrite -(bind_ret_r (iresult _)); apply xrutt_bind_iresult_left => /= ks2.
-    rewrite /sem_syscall p_globs_nil; t_xrbindP => s2 ves hes.
-    rewrite /eval_instr /= /fexec_syscall /upd_estate; t_xrbindP.
-    move=> _ [[]] scs1 m1 vs1 hex /= [<-] /= ok_s2 <- /=.
-    have [ves' hes' uves] := get_vars_uincl X1 hes.
-    have [vs' /= ho' uvs]:= exec_syscallP hex uves.
-    have [m' {}ho' mm]:= match_mem_gen_exec_syscall M1 ho'.
-    have /(_ _ (vm_after_syscall_uincl X1)) := writes_uincl _ uvs ok_s2.
-    move=> [] vm2 /= /(match_mem_gen_write_lvals mm) [ m2 /= ok_s2' M2 ] ok_vm2 .
-    rewrite SC1 in ho'.
-    rewrite hes' /= ho' /= ok_s2' /=.
-    rewrite mix_ilsteps_b0 => //=; last by rewrite hpc addn1.
-    apply xrutt.xrutt_Ret; split => //=.
-    + rewrite /lnext_pc /lset_estate' /= hpc; simpl_size; lia.
-    + apply: (eq_exT (vm2 := vm_after_syscall (lvm ls1))).
-      + by apply: eq_exI (syscall_killP (lvm ls1)); SvD.fsetdec.
-      by apply: eq_exI; last apply: vrvsP ok_s2'; SvD.fsetdec.
-    + have [_ ho] := exec_syscallS hex.
-      have hw := write_lvals_validw ok_s2.
-      by move=>???; rewrite ho hw.
-    + rewrite /= SC1 in hex.
-      transitivity m'; first by apply (preserved_metadata_syscall uves hex ho').
-      have [hss hveq] := exec_syscallSs hex.
-      apply (preserved_metadataE hss hveq).
-      by apply (preserved_metadata_write_lvals uvs ok_s2 ok_s2' erefl (vm_after_syscall_uincl X1) mm).
+  Lemma preserved_metadata_sem_syscall_store
+    o m1 m2 args r1 r2 (ans : syscall_state * _) :
+    sem_syscall_store o m1 args ans = ok r1 ->
+    sem_syscall_store o m2 args ans = ok r2 ->
+    preserved_metadata m1 m2 r2.1.2.
+  Proof using.
+    move=> h1 h2 pr _ hnv.
+    exact: (sem_syscall_store_mem_unchanged h1 h2 (p := pr) hnv).
+  Qed.
+
+  Lemma exec_syscall_s_match_mem {scs m1 m2 o vs1 vs2} :
+    match_mem_gen (top_stack m0) m1 m2 ->
+    values_uincl vs1 vs2 ->
+    lxeutt
+      (fun r1 r2 =>
+         exists args (ans : syscall_state * _) t,
+           [/\ sem_syscall_store o m1 args ans = ok (r1.1.1, r1.1.2, t)
+             , sem_syscall_store o m2 args ans = ok (r2.1.1, r2.1.2, t)
+             , r1.1.1 = r2.1.1
+             , match_mem_gen (top_stack m0) r1.1.2 r2.1.2
+             & r1.2 = r2.2 ])
+      (exec_syscall_s scs m1 o vs1) (exec_syscall_s scs m2 o vs2).
+  Proof using.
+    move=> mm hu; rewrite /exec_syscall_s.
+    apply: (xrutt_bind (RR := eq)).
+    - apply: lxrutt_iresult => args h.
+      by exists args => //; exact: sem_syscall_castP hu h.
+    move=> args _ <-.
+    apply: xrutt_bind; first by apply: eutt_lxeutt; reflexivity.
+    move=> ans _ <-.
+    apply: (xrutt_bind (RR := fun r1 r2 =>
+      [/\ sem_syscall_store o m1 args ans = ok r1
+        , sem_syscall_store o m2 args ans = ok r2
+        , r1.1.1 = r2.1.1
+        , match_mem_gen (top_stack m0) r1.1.2 r2.1.2
+        & r1.2 = r2.2 ])).
+    - apply: lxrutt_iresult => -[[scs1' m1''] t1] h1.
+      have [m2' hm2 mm2] := match_mem_gen_sem_syscall_store mm h1.
+      by exists (scs1', m2', t1) => //; split.
+    move=> [[scs1' m1''] t1] [[scs2' m2''] t2] [h1 h2 /= hscs mm2 ht] /=.
+    apply: xrutt_Ret.
+    by exists args, ans, t1; split=> //; rewrite ht.
+  Qed.
+
+  Lemma fexec_syscall_match_mem o :
+    wkequiv_io
+      (E0_l := recCallK +' E0)
+      (E0_r := CallE +' E0)
+      (rE0 := relEvent_recCall)
+      (fun fs1 fs2 =>
+         [/\ fscs fs1 = fscs fs2
+           , match_mem_gen (top_stack m0) (fmem fs1) (fmem fs2)
+           & values_uincl (fvals fs1) (fvals fs2) ])
+      (fexec_syscall (E := recCallK +' E) (scP := sCP_stack) o)
+      (fexec_syscall (E := CallE +' E) (scP := sCP_stack) o)
+      (fun fs1 fs2 fs1' fs2' =>
+         exists args ans t,
+           [/\ sem_syscall_store o (fmem fs1) args ans
+                 = ok (fscs fs1', fmem fs1', t)
+             , sem_syscall_store o (fmem fs2) args ans
+                 = ok (fscs fs2', fmem fs2', t)
+             , fscs fs1' = fscs fs2'
+             , match_mem_gen (top_stack m0) (fmem fs1') (fmem fs2')
+             & fvals fs1' = fvals fs2' ]).
+  Proof using rndE_refl.
+    move=> fs1 fs2 [hscs mm uvs]; rewrite /fexec_syscall hscs.
+    apply: xrutt_bind.
+    - rewrite /exec_syscall /=.
+      apply: lxeutt_lrutt_RndRels_refl.
+      exact: exec_syscall_s_match_mem mm uvs.
+    move=> [[scs1' m1'] vs1'] [[scs2' m2'] vs2']
+      [args [ans [t [/= h1 h2 hscs' mm' hvs]]]].
+    subst scs2' vs2'.
+    by apply: xrutt_Ret; exists args, ans, t.
+  Qed.
+
+  Lemma sem_syscall_lexec_syscall o fd :
+    get_fundef (p_funcs p) fn = Some fd ->
+    wkequiv_io
+      (E0_l := recCallK +' E0)
+      (E0_r := CallE +' E0)
+      (rE0 := relEvent_recCall)
+      (fun s1 ls1 =>
+         [/\ match_mem_gen (top_stack m0) (emem s1) (lmem ls1)
+           , evm s1 <=1 lvm ls1
+           , escs s1 = lscs ls1
+           , source_mem_split s1.(emem) (top_stack s1.(emem))
+           & max_bound_sub fn (top_stack s1.(emem)) ])
+      (sem_syscall (E := recCallK +' E) p o)
+      (lexec_syscall (E := CallE +' E) o)
+      (fun s1 ls1 s2 ls2 =>
+         let: xs := vrvs (to_lvals (syscall_sig o).(scs_vout)) in
+         let: xs := Sv.union syscall_kill xs in
+         [/\ match_mem_gen (top_stack m0) (emem s2) (lmem ls2)
+           , vm_uincl (evm s2) (lvm ls2)
+           , escs s2 = lscs ls2
+           , lfn ls2 = lfn ls1
+           , lpc ls2 = (lpc ls1).+1
+           , lvm ls1 =[\xs] lvm ls2
+           , validw (emem s1) =3 validw s2.(emem)
+           , preserved_metadata (emem s1) (lmem ls1) ls2.(lmem)
+           & target_mem_unchanged (lmem ls1) ls2.(lmem) ]).
+  Proof using E E0 Pc Pi Pi_r asm_op enough_space ep fn hliparams linear_ok
+    liparams m0 max0 ovm_i p p' rE0 rndE rndE_refl sip sp0 spp syscall_state
+    var_tmp var_tmp2 var_tmps vgd vrsp vrspg vrspi wE.
+    move=> ok_fd s1 ls1 [mm hvm hscs S1 MAX1].
+    rewrite /sem_syscall /lexec_syscall.
+    apply: (xrutt_bind (RR := values_uincl)).
+    - apply: xrutt_iresult => vs1 h1.
+      exact: get_vars_uincl hvm h1.
+    move=> vs1 vs2 uvs /=.
+    apply: xrutt_bind; first by apply: fexec_syscall_match_mem; split.
+    move=> [scs1 m1' vs1'] [scs2 m2' vs2'] [args [ans [t [/= hst1 hst2 ? mm1 ?]]]].
+    subst scs2 vs2'.
+    apply: lxrutt_iresult_left => s2 ok_s2.
+    move: ok_s2; rewrite /upd_estate p_globs_nil /= => ok_s2.
+    have hvm' : evm (with_scs (with_mem (with_vm s1 (vm_after_syscall s1)) m1') scs1)
+                  <=1 vm_after_syscall (lvm ls1) := vm_after_syscall_uincl hvm.
+    have [vm2 hw hvm2] := writes_uincl hvm' values_uincl_refl ok_s2.
+    move: hw; rewrite /with_vm /= => hw.
+    have [m2'' ok_s2' mm2] := match_mem_gen_write_lvals mm1 hw.
+    rewrite /lset_fstate /upd_estate /= ok_s2' /= bind_ret_l.
+    apply: xrutt_Ret; split => //=.
+    - apply: (eq_exT (vm2 := vm_after_syscall (lvm ls1))).
+      + apply: (eq_exI (s2 := syscall_kill)); first by SvD.fsetdec.
+        exact: syscall_killP.
+      apply: (eq_exI (s2 := vrvs (to_lvals (scs_vout (syscall_sig o))))).
+      + by SvD.fsetdec.
+      exact: vrvsP ok_s2'.
+    - move=> al pr ws.
+      by rewrite (proj2 (sem_syscall_storeS hst1)) (write_lvals_validw ok_s2).
+    - have h1 := preserved_metadata_sem_syscall_store hst1 hst2.
+      have h2 := preserved_metadata_write_lvals values_uincl_refl ok_s2 ok_s2' erefl
+                   (vm_after_syscall_uincl hvm) mm1.
+      have [ss ve] := sem_syscall_storeS hst1.
+      transitivity m2'; first exact: h1.
+      exact: preserved_metadataE ss ve h2.
     move=> pr hnv hnpr.
-    have hnv1: ~~ validw (emem s1) Aligned pr U8.
-    + apply /negP; move=> /S1 /orP [//|].
+    have hnv1 : ~~ validw (emem s1) Aligned pr U8.
+    - apply /negP => /S1 /orP [//|].
       move=> hpr; apply hnpr.
       apply: pointer_range_incl_l hpr.
       have h: (wunsigned sp0 - max0 <= wunsigned (top_stack (emem s1)))%Z.
@@ -3347,11 +3481,25 @@ End ILSTEPS_END.
         by lia.
       rewrite wunsigned_sub; first by lia.
       move: (top_stack (emem s1)) h => sp.
-      by have := wunsigned_range sp; lia.
-    rewrite /= SC1 in hex.
-    rewrite (exec_syscall_mem_unchanged uves hex ho' hnv1) .
-    apply (write_lvals_mem_unchanged uvs ok_s2 ok_s2' erefl (vm_after_syscall_uincl X1) mm).
-    by rewrite /= -(proj2 (exec_syscallSs hex)).
+      have /= := wunsigned_range sp; lia.
+    rewrite (sem_syscall_store_mem_unchanged hst1 hst2 (p := pr) hnv1) /=.
+    apply: (write_lvals_mem_unchanged values_uincl_refl ok_s2 ok_s2' erefl
+              (vm_after_syscall_uincl hvm) mm1).
+    by rewrite -(proj2 (sem_syscall_storeS hst1)).
+  Qed.
+
+  Lemma Hsyscall xs o es : Pi_r (Csyscall xs o es).
+  Proof using hliparams linear_ok enough_space rndE_refl.
+  move=> ii lbl lbli P li Q [/checked_iE [fd ok_fd] /= _] [??]; subst lbli li.
+  move=> D C s1 ls1 [M1 SC1 X1 hpc hfn hsp1 S1 MAX1].
+  rewrite (step_mix_ilsteps C) //; last by simpl_size; clear; lia.
+  apply: xrutt_bind; first exact: (sem_syscall_lexec_syscall _ ok_fd).
+  move=> [scs2 m2 vm2] ls2 [/= mm2 hvm2 hscs2 hfn2 hpc2 heqex hvw hmd hmu].
+  case: o C heqex => [ws n] C /= heqex.
+  rewrite addn1 -hpc -hpc2 -hfn -hfn2 mix_ilsteps_b0 //= tau_eutt.
+  apply: xrutt_Ret.
+  split=> //=; last by rewrite hfn2.
+  by rewrite hpc2 hpc size_cat /=  addn1.
   Qed.
 
   Lemma Hassert : ∀ a : assertion, Pi_r (Cassert a).
@@ -3829,7 +3977,7 @@ End ILSTEPS_END.
   Qed.
 
   Lemma linear_cP c : Pc c.
-  Proof using hliparams linear_ok sp0_le enough_space.
+  Proof using hliparams linear_ok sp0_le enough_space rndE_refl.
     by apply (cmd_rect (Pr:=Pi_r) (Pi:=Pi) (Pc:=Pc)
       HMkI Hnil Hcons Hassgn Hopn Hsyscall Hassert
       Hif Hfor Hwhile Hcall).
@@ -4230,7 +4378,8 @@ Qed.
       (isem_fun_check var_tmps p fn1)
       (mix_ilsem_fun p' fn2)
       (postF fn1 fn2).
-  Proof using hliparams var_tmps_not_magic linear_ok sp0_le enough_space.
+  Proof using hliparams var_tmps_not_magic linear_ok sp0_le enough_space
+    rndE_refl.
     move=> s1 ls1 hpre /=.
     rewrite /isem_fun /isem_fun_def /mix_ilsem_fun.
     have {}hpre: PreF (RecCallK fn1 s1) (mix_to_small_steps.Call fn2 ls1) by done.
@@ -5307,7 +5456,13 @@ Qed.
     | _, _ => false
     end.
 
-  Context {E E0: Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+  Context
+    {E E0 : Type -> Type}
+    {wE : with_Error E E0}
+    {rndE : with_RndEvent syscall_state E0}
+    {rE0 : EventRels E0}
+    {rndE_refl : RndRels_refl rE0}
+  .
 
   Context (callee_saved_not_arr : forall x, Sv.In x callee_saved -> ~is_aarr (vtype x)).
 
@@ -5317,7 +5472,7 @@ Qed.
       (isem_exportcall_check var_tmps p gd fn)
       (mix_ilsem_exportcall p' fn)
       (lin_post fn).
-  Proof using hliparams var_tmps_not_magic linear_ok callee_saved_not_arr.
+  Proof using hliparams var_tmps_not_magic linear_ok callee_saved_not_arr rndE_refl.
     move=> s ls; rewrite /lin_pre /lin_post.
     rewrite /isem_exportcall_check /mix_ilsem_exportcall.
     case ok_fd: get_fundef => [fd | ] /=; last first.
@@ -5455,7 +5610,7 @@ Qed.
       (isem_exportcall_check var_tmps p gd fn)
       (ilsem_exportcall p' fn)
       (lin_post fn).
-  Proof using hliparams var_tmps_not_magic linear_ok callee_saved_not_arr.
+  Proof using hliparams var_tmps_not_magic linear_ok callee_saved_not_arr rndE_refl.
   have wlin := [elaborate linear_exportcall_mixP] gd fn.
   have wmix := [elaborate mix_ilsem_exportcall_ilsem_exportcall p' fn ].
   apply: (wkequiv_io_trans

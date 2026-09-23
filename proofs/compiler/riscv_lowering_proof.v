@@ -581,7 +581,13 @@ Qed.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE0 : EventRels E0}
+  {rndE : with_RndEvent syscall_state E0}
+  {rndE_refl : RndRels_refl rE0}
+.
 
 #[ local ]
 Definition Pi_ (i : instr) :=
@@ -602,7 +608,7 @@ Proof. apply checker_st_eqP => //. Qed.
 (* Remark: excepted the case of Cassgn and Copn, the proof if the same than the arm one *)
 Lemma it_lower_callP fn :
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-Proof.
+Proof using rndE_refl.
   apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
   rewrite get_map_prog hget /= /lower_fd.
   eexists; first reflexivity.

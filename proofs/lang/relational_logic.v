@@ -19,7 +19,7 @@ Import Monads.
 Import MonadNotation.
 Local Open Scope monad_scope.
 
-Require Import xrutt xrutt_facts.
+Require Import xrutt xrutt_facts rutt_extras.
 Require Import expr psem_defs psem_core oseq compiler_util.
 Require Import it_sems_core core_logics hoare_logic.
 Import Utf8.
@@ -210,6 +210,28 @@ Definition EPostRel {E_l E0_l : Type -> Type} {wE_l : with_Error E_l E0_l}
   fun T1 T2 (e1 : E_l T1) (t1 : T1) (e2 : E_r T2) (t2 : T2) =>
     sum_postrelF (fun _ _ _ _ _ _ => True) EPostRel0
       (mfun1 e1) t1 (mfun1 e2) t2.
+
+(* The logic accepts any pre/post condition for events that allows preserving
+   [RndEvent]s exactly (i.e., the pre is reflexive and the post ensures
+   equality). *)
+Class RndRels2
+  {syscall_state : Type}
+  {E_l E0_l : Type -> Type}
+  {wE_l : with_Error E_l E0_l}
+  {rE_l : with_RndEvent syscall_state E0_l}
+  {E_r E0_r : Type -> Type}
+  {wE_r : with_Error E_r E0_r}
+  {rE_r : with_RndEvent syscall_state E0_r}
+  {rE0 : EventRels2 E0_l E0_r} :=
+  {
+    RndPreRel :
+      forall T (e : RndEvent syscall_state T),
+        EPreRel0_ (rE_l T e) (rE_r T e);
+    RndPostRel :
+      forall T (e : RndEvent syscall_state T) (t1 t2 : T),
+        EPostRel0_ (rE_l T e) t1 (rE_r T e) t2 ->
+        t1 = t2
+  }.
 
 Section WKEQUIV.
 
@@ -439,8 +461,8 @@ Notation EventRels E0 := (EventRels2 E0 E0).
 
 Definition EqRels {E0} : EventRels E0 :=
   {|
-    EPreRel0_  := rutt_extras.RPre_eq;
-    EPostRel0_ := rutt_extras.RPost_eq;
+    EPreRel0_  := RPre_eq;
+    EPostRel0_ := RPost_eq;
   |}.
 
 Section TR_MutualRec.
@@ -488,11 +510,8 @@ Lemma xrutt_iresult (T1 T2:Type) (x1 : exec T1) (x2 : exec T2) (R : T1 -> T2 -> 
   (forall v1, x1 = ok v1 -> exists2 v2, x2 = ok v2 & R v1 v2) ->
   xrutt (errcutoff (is_error wE_l)) nocutoff EPreRel EPostRel R (iresult x1) (iresult x2).
 Proof.
-  case: x1 => [ v1 | e1] hok.
-  + have [v2 -> /=] := hok _ erefl.
-    by apply: xrutt_Ret.
-  apply xrutt_CutL => //.
-  by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
+  case: x1 => [ v1 | e1] hok; last exact: lxrutt_throw_l.
+  by have [v2 -> /=] := hok _ erefl; apply: xrutt_Ret.
 Qed.
 
 Lemma xrutt_iresult_left (T1 T2:Type) (x1 : exec T1) (v2 : T2) (R : T1 -> T2 -> Prop) :
@@ -500,10 +519,8 @@ Lemma xrutt_iresult_left (T1 T2:Type) (x1 : exec T1) (v2 : T2) (R : T1 -> T2 -> 
   xrutt (errcutoff (is_error wE_l)) nocutoff EPreRel EPostRel R (iresult x1) (Ret v2).
 Proof.
   rewrite /iresult => h.
-  case heq: x1 => [v1 | e] /=.
-  + by apply/xrutt_Ret/h.
-  apply xrutt_CutL.
-  by rewrite /errcutoff /is_error /subevent /= /resum /fromErr mid12.
+  case heq: x1 => [v1 | e] /=; last exact: lxrutt_throw_l.
+  by apply/xrutt_Ret/h.
 Qed.
 
 Lemma xrutt_bind_iresult_left (T T1 T2:Type) (x1 : exec T) (F1 : T -> itree E_l T1) (F2 : itree E_r T2)
@@ -515,8 +532,7 @@ Proof.
   rewrite /iresult => h.
   case heq: x1 => [v1 | e] /=.
   + by rewrite bind_ret_l; apply: h heq.
-  rewrite bind_throw; apply xrutt_CutL.
-  by rewrite /errcutoff /is_error /subevent /= /resum /fromErr mid12.
+  by rewrite bind_throw; apply lxrutt_throw_l.
 Qed.
 
 Lemma wkequiv_iresult {I1 I2 O1 O2} (P : rel I1 I2) (Q : rel O1 O2) F1 F2 :
@@ -549,7 +565,9 @@ Notation isem_fun2 := (isem_fun (wsw:=wsw2) (dc:=dc2) (ep:=ep) (spp:=spp) (wa:=w
 Section WEQUIV_CORE.
 
 Context {E E0 : Type -> Type} {sem_F1 : sem_Fun1 E} {sem_F2 : sem_Fun2 E}
-    {wE: with_Error E E0} {rE0 : EventRels E0}.
+    {wE: with_Error E E0}
+    {rE : with_RndEvent syscall_state E0}
+    {rE0 : EventRels E0}.
 
 Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2).
 
@@ -664,8 +682,7 @@ Proof.
   + rewrite bind_ret_r.
     have [t' /esem_i_bodyP -> hQ /=] := h s t s' hP heq.
     by apply xrutt.xrutt_Ret.
-  rewrite bind_ret_r; apply xrutt_CutL => //.
-  by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
+  by rewrite bind_ret_r; apply lxrutt_throw_l.
 Qed.
 
 Lemma wequiv_opn (Rve Rvo : rel_vs) P Q ii1 xs1 at1 o1 es1 ii2 xs2 at2 o2 es2 :
@@ -722,15 +739,14 @@ Proof.
   + rewrite bind_ret_r.
     have [t' /esem_i_bodyP -> hQ /=] := h s t s' hP heq.
     by apply xrutt.xrutt_Ret.
-  rewrite bind_ret_r; apply xrutt_CutL => //.
-  by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
+  by rewrite bind_ret_r; apply lxrutt_throw_l.
 Qed.
 
 Lemma wequiv_syscall Rv Ro P Q ii1 xs1 sc1 es1 ii2 xs2 sc2 es2 :
   wrequiv P (fun s => sem_pexprs true (p_globs p1) s es1)
             (fun s => sem_pexprs true (p_globs p2) s es2) Rv ->
   (forall s1 s2, P s1 s2 ->
-     wrequiv Rv (fun vs1 => fexec_syscall (scP:=scP1) sc1 (mk_fstate vs1 s1))
+     wkequiv Rv (fun vs1 => fexec_syscall (scP:=scP1) sc1 (mk_fstate vs1 s1))
                 (fun vs2 => fexec_syscall sc2 (mk_fstate vs2 s2)) Ro)->
   (forall fs1 fs2,
     Ro fs1 fs2 ->
@@ -738,19 +754,19 @@ Lemma wequiv_syscall Rv Ro P Q ii1 xs1 sc1 es1 ii2 xs2 sc2 es2 :
               (upd_estate true (p_globs p2) xs2 fs2) Q) ->
   wequiv P [:: MkI ii1 (Csyscall xs1 sc1 es1)] [:: MkI ii2 (Csyscall xs2 sc2 es2)] Q.
 Proof.
-  move=> he ho hwr; rewrite /equiv /isem_cmd_ /=.
+  move=> he ho hwr; rewrite /wequiv /isem_cmd_ /=.
   apply wkequiv_bind with Q; last by apply wkequiv_ret.
-  apply wkequiv_iresult.
-  apply (wrequiv_read he).
-  move=> vs1 vs2 hvs; eapply wrequiv_read; last by apply hwr.
-  by move=> s1 s2 fr1 hP; apply (ho s1 s2 hP).
+  apply wkequiv_read with Rv; first by apply wkequiv_iresult.
+  move=> vs1 vs2 hvs; apply wkequiv_read with Ro.
+  - by move=> s1 s2 hP; apply: ho s1 s2 hP vs1 vs2 hvs.
+  by move=> fs1 fs2 hRo; apply/wkequiv_iresult/hwr.
 Qed.
 
 Lemma wequiv_syscall_eq P Q ii1 xs1 sc1 es1 ii2 sc2 xs2 es2 :
   (forall s1 s2, P s1 s2 -> escs s1 = escs s2 /\ emem s1 = emem s2) ->
   wrequiv P (fun s => sem_pexprs true (p_globs p1) s es1)
             (fun s => sem_pexprs true (p_globs p2) s es2) eq ->
-  wrequiv eq (fexec_syscall (scP:=scP1) sc1)
+  wkequiv eq (fexec_syscall (scP:=scP1) sc1)
              (fexec_syscall (scP:=scP2) sc2) eq ->
   (forall fs,
     wrequiv P (upd_estate true (p_globs p1) xs1 fs)
@@ -759,22 +775,9 @@ Lemma wequiv_syscall_eq P Q ii1 xs1 sc1 es1 ii2 sc2 xs2 es2 :
 Proof.
   move=> heq he hsc hx.
   apply wequiv_syscall with eq eq => //.
-  + by rewrite /mk_fstate => s1 s2 /heq [<- <-] ?? fs1 <-; apply hsc.
+  + move=> s1 s2 /heq [hscs hmem] vs _ <-; apply hsc.
+    by rewrite /mk_fstate hscs hmem.
   move=> > <-; apply hx.
-Qed.
-
-Lemma wequiv_syscall_esem (P Q : rel_c) ii1 xs1 sc1 es1 c2 :
-  wrequiv P (sem_syscall p1 xs1 sc1 es1)
-            (esem p2 ev2 c2) Q ->
-  wequiv P [:: MkI ii1 (Csyscall xs1 sc1 es1)] c2 Q.
-Proof.
-  move=> h s t hP /=.
-  case heq: sem_syscall => [s' | e] /=.
-  + rewrite bind_ret_r.
-    have [t' /esem_i_bodyP -> hQ /=] := h s t s' hP heq.
-    by apply xrutt.xrutt_Ret.
-  rewrite bind_ret_r; apply xrutt_CutL => //.
-  by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
 Qed.
 
 Lemma wequiv_assert_esem (P Q : rel_c) ii1 a1 c2 :
@@ -788,8 +791,7 @@ Proof.
     have [|t' /esem_i_bodyP -> hQ /=] := h s t s hP.
     + by rewrite heq.
     by rewrite bind_ret_l; apply xrutt.xrutt_Ret.
-  rewrite bind_ret_r bind_vis; apply xrutt_CutL => //.
-  by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
+  by rewrite !bind_throw; apply: lxrutt_throw_l.
 Qed.
 
 Lemma wequiv_assert (P Q : rel_c) ii1 a1 ii2 a2 :
@@ -891,8 +893,8 @@ Lemma wequiv_syscall_uincl P Q ii1 xs1 sc1 es1 ii2 sc2 xs2 es2 :
   (forall s1 s2, P s1 s2 -> escs s1 = escs s2 /\ emem s1 = emem s2) ->
   wrequiv P (fun s => sem_pexprs true (p_globs p1) s es1)
            (fun s => sem_pexprs true (p_globs p2) s es2) values_uincl ->
-  wrequiv fs_uincl (fexec_syscall (scP:=scP1) sc1)
-                  (fexec_syscall (scP:=scP2) sc2) fs_uincl ->
+  wkequiv fs_uincl (fexec_syscall (scP:=scP1) sc1)
+                   (fexec_syscall (scP:=scP2) sc2) fs_uincl ->
   (forall fs1 fs2,
     fs_uincl fs1 fs2 ->
     wrequiv P (upd_estate true (p_globs p1) xs1 fs1)
@@ -901,7 +903,8 @@ Lemma wequiv_syscall_uincl P Q ii1 xs1 sc1 es1 ii2 sc2 xs2 es2 :
 Proof.
   move=> heq he hsc.
   apply wequiv_syscall with values_uincl => //.
-  by rewrite /mk_fstate => s1 s2 /heq [<- <-] vs1 vs2 fr1 huincl;apply hsc.
+  move=> s1 s2 /heq [hscs hmem] vs1 vs2 huincl; apply hsc.
+  by rewrite /mk_fstate /fs_uincl /fs_rel /= hscs hmem.
 Qed.
 
 Lemma wequiv_if_full P Q ii1 e1 c1 c1' ii2 e2 c2 c2' :
@@ -943,8 +946,7 @@ Proof.
   rewrite isem_cmd_cat !bind_ret_r/=.
   rewrite /isem_cond.
   case heq: sem_cond => [b | e] /=; last first.
-  + rewrite bind_vis; apply xrutt_CutL.
-    by rewrite /errcutoff /is_error /subevent /= /resum /fromErr mid12.
+  + by rewrite !bind_throw; apply: lxrutt_throw_l.
   move: heq; rewrite /sem_cond; t_xrbindP => v hse1 hto.
   have [t' [hsemc hP' hse2]] := he s t v hP hse1.
   rewrite bind_ret_l (esem_i_bodyP hsemc) /= bind_ret_l hse2 /= hto /= bind_ret_l bind_ret_r.
@@ -1096,7 +1098,7 @@ Proof.
       s0 <- isem_foldr isem_i_body p2 ev2 c s0';;
       b <- isem_cond p2 e2 s0;; (if b then s1 <- isem_foldr isem_i_body p2 ev2 c2' s0;; ret (inl s1) else ret (inr s0)))).
   + move=> > _. rewrite -/(isem_cmd_ p2 ev2 (c2 ++ c)) isem_cmd_cat.
-    rewrite -> Monad.bind_bind; reflexivity.
+    rewrite bind_bind; reflexivity.
   apply (wkequiv_bind hc).
   move=> s t hI1 /=.
   rewrite /isem_cond.
@@ -1532,7 +1534,7 @@ Lemma wequiv_syscall_rel_uincl_core_R d de de' d' ii1 xs1 sc1 es1 ii2 xs2 sc2 es
      R de' (with_scs (with_mem s1 mem) scs) (with_scs (with_mem s2 mem) scs)) →
   check_es d es1 es2 de →
   check_lvals de' xs1 xs2 d' →
-  wrequiv fs_uincl (fexec_syscall (scP:=scP1) sc1) (fexec_syscall (scP:=scP2) sc2) fs_uincl →
+  wkequiv fs_uincl (fexec_syscall (scP:=scP1) sc1) (fexec_syscall (scP:=scP2) sc2) fs_uincl →
   wequiv (R d) [:: MkI ii1 (Csyscall xs1 sc1 es1)] [:: MkI ii2 (Csyscall xs2 sc2 es2)] (R d').
 Proof using cu.
   move=> hsm hwith hes hxs hsc.
@@ -1691,7 +1693,7 @@ Lemma wequiv_syscall_rel_eq_core_R d de de' d' ii1 xs1 sc1 es1 ii2 xs2 sc2 es2 :
      R de' (with_scs (with_mem s1 mem) scs) (with_scs (with_mem s2 mem) scs)) →
   check_es d es1 es2 de →
   check_lvals de' xs1 xs2 d' →
-  wrequiv eq (fexec_syscall (scP:=scP1) sc1) (fexec_syscall (scP:=scP2) sc2) eq →
+  wkequiv eq (fexec_syscall (scP:=scP1) sc1) (fexec_syscall (scP:=scP2) sc2) eq →
   wequiv (R d) [:: MkI ii1 (Csyscall xs1 sc1 es1)] [:: MkI ii2 (Csyscall xs2 sc2 es2)] (R d').
 Proof using cu.
   move=> hsm hwith hes hxs hsc.
@@ -1775,7 +1777,7 @@ Qed.
 Lemma wequiv_syscall_rel_uincl_core d de d' ii1 xs1 sc1 es1 ii2 xs2 sc2 es2 :
   check_es d es1 es2 de →
   check_lvals de xs1 xs2 d' →
-  wrequiv fs_uincl (fexec_syscall (scP:=scP1) sc1) (fexec_syscall (scP:=scP2) sc2) fs_uincl →
+  wkequiv fs_uincl (fexec_syscall (scP:=scP1) sc1) (fexec_syscall (scP:=scP2) sc2) fs_uincl →
   wequiv (st_rel R d) [:: MkI ii1 (Csyscall xs1 sc1 es1)] [:: MkI ii2 (Csyscall xs2 sc2 es2)] (st_rel R d').
 Proof using cu.
   apply wequiv_syscall_rel_uincl_core_R => //.
@@ -1833,7 +1835,7 @@ Qed.
 Lemma wequiv_syscall_rel_eq_core d de d' ii1 xs1 sc1 es1 ii2 xs2 sc2 es2 :
   check_es d es1 es2 de →
   check_lvals de xs1 xs2 d' →
-  wrequiv eq (fexec_syscall (scP:=scP1) sc1) (fexec_syscall (scP:=scP2) sc2) eq →
+  wkequiv eq (fexec_syscall (scP:=scP1) sc1) (fexec_syscall (scP:=scP2) sc2) eq →
   wequiv (st_rel R d) [:: MkI ii1 (Csyscall xs1 sc1 es1)] [:: MkI ii2 (Csyscall xs2 sc2 es2)] (st_rel R d').
 Proof using cu.
   apply wequiv_syscall_rel_eq_core_R => //.
@@ -1904,7 +1906,11 @@ End WEQUIV_CORE.
 Section WEQUIV_WHOARE.
 
 Context {E E0 : Type -> Type} {sem_F1 : sem_Fun1 E} {sem_F2 : sem_Fun2 E}
-    {wE: with_Error E E0} {iE0 : InvEvent E0} {rE0 : EventRels E0}.
+    {wE: with_Error E E0}
+    {rE : with_RndEvent syscall_state E0}
+    {iE0 : InvEvent E0}
+    {rE0 : EventRels E0}
+.
 
 Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2).
 
@@ -1956,7 +1962,10 @@ End WEQUIV_WHOARE.
 
 Section WEQUIV_WRITE.
 Context {E E0 : Type -> Type} {sem_F1 : sem_Fun1 E} {sem_F2 : sem_Fun2 E}
-    {wE: with_Error E E0} {rE0 : EventRels E0}.
+    {wE: with_Error E E0}
+    {rE : with_RndEvent syscall_state E0}
+    {rE0 : EventRels E0}
+.
 
 Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2).
 
@@ -2003,7 +2012,10 @@ Notation sem_fun_full2 := (sem_fun_full (wsw:=wsw2) (dc:=dc2) (ep:=ep) (spp:=spp
 
 Section WEQUIV_FUN.
 
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context {E E0 : Type -> Type} {wE: with_Error E E0}
+    {rE : with_RndEvent syscall_state E0}
+    {rE0 : EventRels E0}
+.
 
 Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2)  (spec : EquivSpec).
 
@@ -2184,7 +2196,10 @@ Section NOASSERT.
 Section WEQUIV_CORE.
 
 Context {E E0 : Type -> Type} {sem_F1 : sem_Fun1 E} {sem_F2 : sem_Fun2 E}
-    {wE: with_Error E E0} {rE0 : EventRels E0}.
+    {wE: with_Error E E0}
+    {rE : with_RndEvent syscall_state E0}
+    {rE0 : EventRels E0}
+.
 
 Context (p1 : prog1) (p2 : prog2) (ev1: extra_val_t1) (ev2 : extra_val_t2).
 
@@ -2279,7 +2294,10 @@ End WEQUIV_CORE.
 
 Section WEQUIV_FUN.
 
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context {E E0 : Type -> Type} {wE: with_Error E E0}
+    {rE : with_RndEvent syscall_state E0}
+    {rE0 : EventRels E0}
+.
 
 Context
   (sem_F1 : funname → sem_Fun1 (recCall +' E))
@@ -2339,6 +2357,7 @@ Proof.
 Qed.
 
 Notation EventRels E0 := (EventRels2 E0 E0).
+Notation RndRels_refl rE0 := (RndRels2 (rE0 := rE0)).
 
 Section SYSCALL.
 
@@ -2353,15 +2372,76 @@ Context
   {scP : semCallParams (wsw:= wsw) (pT := pT)}
   {dc: DirectCall}.
 
-Lemma fs_uincl_syscall o : wrequiv fs_uincl (fexec_syscall o) (fexec_syscall o) fs_uincl.
-Proof.
-  rewrite /fexec_syscall => fs1 fs2 fr1 [<- <- hu1].
-  t_xrbindP => -[[rscs m] vs1] hex.
-  have [vs2 -> hu2] := exec_syscallP hex hu1.
-  by move=> [<-] /=; eexists.
+Section SYSCALL_ERR.
+
+Context
+  {E_l E0_l : Type -> Type}
+  {wE_l : with_Error E_l E0_l}
+  {rE_l : with_RndEvent syscall_state E0_l}
+  {E_r E0_r : Type -> Type}
+  {wE_r : with_Error E_r E0_r}
+  {rE_r : with_RndEvent syscall_state E0_r}
+  {rE0 : EventRels2 E0_l E0_r}
+  {rndE : RndRels2 (rE0 := rE0)}
+.
+
+(* TODO where does this go? *)
+Lemma lxeutt_lrutt_RndRels_refl {R1 R2} (RR : R1 -> R2 -> Prop)
+  (t1 : itree (ErrEvent +' RndEvent syscall_state) R1)
+  (t2 : itree (ErrEvent +' RndEvent syscall_state) R2) :
+  lxeutt RR t1 t2 ->
+  lxrutt EPreRel EPostRel RR
+    (translate subevent t1 : itree E_l R1) (translate subevent t2 : itree E_r R2).
+Proof using rndE.
+case: rndE => RndPreRel RndPostRel.
+move=> h; apply: xrutt_translate h.
+- by move=> X [e|e] //= _; rewrite /errcutoff /is_error /= mid12.
+- done.
+- move=> A B e1 e2 [heq heqe]; move: e2 heqe.
+  case: B / heq => e2 /= ->.
+  case: e1 => [err | rnd].
+  + by rewrite /EPreRel /= !mid12.
+  by rewrite /EPreRel /= !mid12; apply: RndPreRel.
+move=> A B e1 a e2 b [heq heqe]; move: b e2 heqe.
+case: B / heq => b e2 /= ->.
+case: e1 => [err | rnd].
+- by move=> _; clear e2; move: a b; case: A / err.
+move=> hpost h; rewrite (UIP_refl _ _ h) /=.
+move: hpost; rewrite /EPostRel /= !mid12 /= => hpost.
+exact: (esym (RndPostRel _ _ _ _ hpost)).
 Qed.
 
-Context {E E0 : Type -> Type} {sem_F1 sem_F2 : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Lemma fs_uincl_syscall o :
+  wkequiv fs_uincl (fexec_syscall (E:=E_l) o) (fexec_syscall (E:=E_r) o) fs_uincl.
+Proof using rndE.
+move=> fs1 fs2 [hscs hmem hu]; rewrite /fexec_syscall hscs hmem.
+apply xrutt_bind with sc_res_uincl.
+- rewrite /exec_syscall.
+  exact/lxeutt_lrutt_RndRels_refl/exec_syscall_coreP/hu.
+by move=> [[scs m] vs] [[scs' m'] vs'] [/= h1 h2 h3]; apply: xrutt_Ret.
+Qed.
+
+Lemma fs_eq_syscall o :
+  wkequiv eq (fexec_syscall (E:=E_l) o) (fexec_syscall (E:=E_r) o) eq.
+Proof using rndE.
+move=> fs _ <-; rewrite /fexec_syscall.
+apply xrutt_bind with eq; last by move=> [[scs m] vs] _ <-; apply: xrutt_Ret.
+rewrite /exec_syscall; apply/lxeutt_lrutt_RndRels_refl/xrutt_refl.
+- by move=> T ev _ _; apply: RPre_eq_refl.
+by move=> T ev t1 t2 _ _ h; apply/RPost_eqI/h.
+Qed.
+
+End SYSCALL_ERR.
+
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
+  {rE0 : EventRels E0}
+  {rndE : RndRels_refl rE0}
+.
+
+Context {sem_F1 sem_F2 : sem_Fun E}.
 
 Context (p1 p2 : prog) (ev1 ev2: extra_val_t).
 
@@ -2374,7 +2454,7 @@ Lemma wequiv_syscall_rel_uincl {cu: Checker_uincl p1 p2 (ce:=ce)} d de d' ii1 xs
   check_lvals de xs1 xs2 d' →
   wequiv (sem_F1:=sem_F1) (sem_F2:=sem_F2)
     p1 p2 ev1 ev2 (st_rel R d) [:: MkI ii1 (Csyscall xs1 sc es1)] [:: MkI ii2 (Csyscall xs2 sc es2)] (st_rel R d').
-Proof.
+Proof using rndE.
   move=> hes hxs.
   eapply wequiv_syscall_rel_uincl_core; eauto.
   apply fs_uincl_syscall.
@@ -2385,13 +2465,51 @@ Lemma wequiv_syscall_rel_eq {cu: Checker_eq p1 p2 (ce:=ce)} d de d' ii1 xs1 sc e
   check_lvals de xs1 xs2 d' →
   wequiv (sem_F1:=sem_F1) (sem_F2:=sem_F2)
     p1 p2 ev1 ev2 (st_rel R d) [:: MkI ii1 (Csyscall xs1 sc es1)] [:: MkI ii2 (Csyscall xs2 sc es2)] (st_rel R d').
-Proof.
+Proof using rndE.
   move=> hes hxs.
   eapply wequiv_syscall_rel_eq_core; eauto.
-  apply wrequiv_eq.
+  apply fs_eq_syscall.
 Qed.
 
 End SYSCALL.
+
+Section RND_RELS_INSTANCES.
+
+Context
+  {syscall_state : Type}
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
+.
+
+#[export]
+Instance RndRels_refl_EqRels : RndRels_refl EqRels.
+Proof.
+constructor; first by move=> T e; apply: RPre_eq_refl.
+by move=> T e t1 t2 h; apply/(RPost_eqI (e := e))/h.
+Qed.
+
+Context
+  {rE0 : EventRels E0}
+  {rndE : RndRels_refl rE0}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {asm_op : Type}
+  {sip : SemInstrParams asm_op syscall_state}
+.
+
+#[export]
+Instance RndRels2_recCall (spec : EquivSpec) :
+  RndRels2 (E_l := recCall +' E) (E_r := recCall +' E)
+    (E0_l := recCall +' E0) (E0_r := recCall +' E0)
+    (rE0 := relEvent_recCall spec (rE0 := rE0)).
+Proof using rndE.
+constructor.
+- by move=> T e; apply: (RndPreRel (RndRels2 := rndE)).
+by move=> T e t1 t2; apply: (RndPostRel (RndRels2 := rndE)).
+Qed.
+
+End RND_RELS_INSTANCES.
 
 Arguments Checker_eq {syscall_state} {ep spp} {asm_op} {sip pT1 pT2 wsw1 wsw2 dc1 dc2}
   _ _ {D} [R] ce.
@@ -2493,6 +2611,7 @@ Context
   {pT1 pT2 pT3 : progT}
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
   {wsw1 wsw2 wsw3 : WithSubWord}
   {wa1 wa2 wa3 : WithAssert}
   {scP1 : semCallParams (wsw := wsw1) (pT := pT1)}
@@ -2522,18 +2641,21 @@ Notation wiequiv_f12 :=
      (scP1 := scP1) (scP2 := scP2)
      (wa1 := wa1) (wa2 := wa2)
      (dc1 := dc1) (dc2 := dc2)
+     (wE := wE) (rE := rE)
      (rE0 := rE12)).
 Notation wiequiv_f23 :=
   (wiequiv_f
      (scP1 := scP2) (scP2 := scP3)
      (wa1 := wa2) (wa2 := wa3)
      (dc1 := dc2) (dc2 := dc3)
+     (wE := wE) (rE := rE)
      (rE0 := rE23)).
 Notation wiequiv_f13 :=
   (wiequiv_f
      (scP1 := scP1) (scP2 := scP3)
      (wa1 := wa1) (wa2 := wa3)
      (dc1 := dc1) (dc2 := dc3)
+     (wE := wE) (rE := rE)
      (rE0 := rE13)).
 
 Lemma wiequiv_f_trans p1 p2 p3 ev1 ev2 ev3 fn1 fn2 fn3 rpreF12 rpreF23 rpreF13
@@ -2572,8 +2694,6 @@ Qed.
 End WKEQUIV_EUTT.
 
 Section FACTS.
-
-Import rutt_extras.
 
 Lemma xrutt_EqRels
   {E E0 : Type -> Type} {wE : with_Error E E0}

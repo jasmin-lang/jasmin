@@ -771,7 +771,7 @@ Qed.
 Lemma armv8a_stack_zero_cmdP szs rspn lbl ws_align ws stk_max cmd vars :
   stack_zeroization_cmd szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
   stack_zeroization_proof.sz_cmd_spec rspn lbl ws_align ws stk_max cmd vars.
-Proof.
+Proof using atoI call_conv sc_sem syscall_state.
    move=> hcmd rsp_nin lt_0_stk_max halign le_ws_ws_align lp fn lc
     /negP hlabel hbody ls ptr hfn hpc hstack hrsp top hvalid.
   have [s2 [hsem hsr]]: [elaborate

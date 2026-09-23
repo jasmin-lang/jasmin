@@ -206,15 +206,7 @@ Proof.
 Qed.
 
 Lemma mem_equiv_syscall xs o es : Pr (Csyscall xs o es).
-Proof.
-  move=> ii s1 s2 /=; rewrite /sem_syscall /fexec_syscall; t_xrbindP.
-  move=> ??? [[??]?] /= h [<-].
-  have [ho1 ho2]:= exec_syscallS h.
-  move=> /[dup] /write_lvals_validw /= ho3 /write_lvals_stack_stable /= ?.
-  split; first by rewrite ho1.
-  move=> ???; rewrite ho2 //.
-  exact: ho3.
-Qed.
+Proof. by []. Qed.
 
 Lemma mem_equiv_assert a : Pr (Cassert a).
 Proof. done. Qed.

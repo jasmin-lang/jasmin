@@ -11,6 +11,7 @@ From ITree Require Import
 
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 Require Import sem_one_varmap it_sems_one_varmap merge_varmaps psem_facts core_logics relational_logic.
+Require Import xrutt xrutt_facts.
 Require sem_one_varmap_facts.
 Require Import seq_extra.
 Import Utf8.
@@ -20,8 +21,8 @@ Import merge_varmaps.
 Import compiler_util.
 
 Import Monads.
-Import MonadNotation.
-Local Open Scope monad_scope.
+Import ITreeNotations.
+#[local] Open Scope itree_scope.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
@@ -319,17 +320,36 @@ Definition PostF {T1 T2} (d1 : recCall T1) (t1: T1) (d2 : recCallK T2) (t2: T2) 
     end
   end t1 t2.
 
-#[local] Instance relEvent_recCall {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0} :
-    EventRels2 (Sum.sum1 recCall E0) (Sum.sum1 recCallK E0) :=
+#[local] Instance relEvent_recCall {E0 : Type -> Type} {rE0 : EventRels E0} :
+    EventRels2 (recCall +' E0) (recCallK +' E0) :=
   {| EPreRel0_  := sum_prerelF (@PreF) EPreRel0
    ; EPostRel0_ := sum_postrelF (@PostF) EPostRel0
   |}.
+
+#[local] Instance rndRel_recCall
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
+  {rE0 : EventRels E0}
+  {rndE : RndRels_refl rE0} :
+  RndRels2
+    (E_l := recCall +' E) (E0_l := recCall +' E0)
+    (E_r := recCallK +' E) (E0_r := recCallK +' E0)
+    (rE0 := relEvent_recCall).
+Proof.
+split=> T e; first exact: (RndPreRel (RndRels2 := rndE)).
+by move=> t1 t2; apply: (RndPostRel (RndRels2 := rndE)).
+Qed.
 
 Section CMD.
 
 Context {E_l E0_l : Type -> Type} {wE_l: with_Error E_l E0_l}
         {E_r E0_r : Type -> Type} {wE_r: with_Error E_r E0_r}
-        {rE0 : EventRels2 E0_l E0_r}.
+        {rE0 : EventRels2 E0_l E0_r}
+        {rE_l : with_RndEvent syscall_state E0_l}
+        {rE_r : with_RndEvent syscall_state E0_r}
+        {rndE : RndRels_refl rE0}
+.
 
 Context (sem_F1 : sem_Fun (pT:= progStack) E_l)
         (sem_F2 : sem_FunK E_r).
@@ -589,7 +609,7 @@ Lemma SvSubset_and s1 s2 s : Sv.Subset (Sv.union s1 s2) s -> Sv.Subset s1 s /\ S
 Proof. move=> h; split; clear -h; SvD.fsetdec. Qed.
 
 Lemma merge_varmaps_cmdP c : Pc c.
-Proof using ok_p hcall mvp_not_written.
+Proof using ok_p hcall mvp_not_written rndE.
   apply (cmd_rect (Pr:=Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}.
   (* instr_r -> instr *)
   + move=> i ii hi I O hsub /= hck s1 t1 hinv1.
@@ -646,20 +666,24 @@ Proof using ok_p hcall mvp_not_written.
   (* syscall *)
   + move=> xs o es ii I O.
     rewrite /write_i /= => hsub; t_xrbindP => he halles hallxs <- s1 t1 hinv1.
-    apply xrutt_iresult => s2; rewrite /sem_syscall /upd_estate.
-    t_xrbindP => vs ok_v fs ok_fs ok_s2.
-    rewrite /it_sems_one_varmap.sem_syscall.
-    have [ves' hves' uves]:= check_esP he (mvi_match hinv1) ok_v.
-    have -> /= := sem_pexprs_get_vars (all2_get_pvar halles) hves'.
-    have hfsu : fs_uincl (mk_fstate vs s1) (mk_fstate ves' t1).
-    + split => //.
-      + by apply (mvm_scs (mvi_match hinv1)).
-      by apply (mvm_mem (mvi_match hinv1)).
-    have [fs' h hu]:= fs_uincl_syscall hfsu ok_fs.
-    rewrite h /=; move: h; rewrite /fexec_syscall /exec_syscall /=; t_xrbindP.
-    move=> [[scs' mem'] vs'] h [?]; subst fs'.
-    have [hstable _ {h}]:= exec_syscallSs h; rewrite /upd_estate /=.
-    case: hu => /= ?? hu; subst scs' mem'.
+    rewrite /it_sems_one_varmap.sem_syscall !bind_bind.
+    apply: (xrutt_bind (RR := values_uincl)).
+    - apply xrutt_iresult => vs ok_v.
+      have [ves' hves' uves] := check_esP he (mvi_match hinv1) ok_v.
+      rewrite (sem_pexprs_get_vars (all2_get_pvar halles) hves').
+      by exists ves'.
+    move=> vs ves' uves; rewrite bind_bind.
+    apply: (xrutt_bind (RR := fun fs fs' =>
+      stack_stable (emem t1) (fmem fs) /\ fs_uincl fs fs')).
+    - apply: (lutt_xrutt_trans_rQ
+        (P2 := fun fs => stack_stable t1.(emem) fs.(fmem))
+        (RR := fs_uincl)); last first.
+      + by apply: fs_uincl_syscall; move: hinv1 => [] [].
+      + by apply/lutt_weakenQ/fexec_syscallS => fs [].
+      + by move=> [???] [???] ? [/= ???]; subst.
+      by [].
+    move=> fs [_ _ vs'] [ss [/= <- <- hu]].
+    apply: lxrutt_iresult_left => s ok_s2.
     move: hsub; rewrite {1}vrvs_recE {1}Sv_union_empty => hsub.
     have [hkill {}hsub] := SvSubset_and hsub.
     have hinv' : merged_vmap_inv (Sv.union I syscall_kill)
@@ -677,8 +701,8 @@ Proof using ok_p hcall mvp_not_written.
     have {}ok_s2:= get_lvar_write_lvals (all2_get_lvar hallxs) ok_s2.
     have [X' hch heq]:= [elaborate get_lvar_check_lvs ii (Sv.union I syscall_kill) (all2_get_lvar hallxs)].
     have [t2 hw /= hinv''] := check_lvsP hsub hch hinv' ok_s2 hu.
-    rewrite hw; eexists; first reflexivity.
-    split => //=.
+    rewrite /upd_estate hw bind_ret_l.
+    apply: xrutt_Ret; split=> //=.
     + by apply: subset_merged_vmap_inv hinv''; rewrite heq.
     + rewrite vrvs_recE Sv_union_empty.
       have /= h1 := vrvsP hw.
@@ -838,7 +862,13 @@ Qed.
 
 End CMD.
 
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
+  {rE0 : EventRels E0}
+  {rndE : RndRels_refl rE0}
+.
 
 Lemma merge_varmaps_funP fn1 fn2 :
   wkequiv_io
@@ -846,7 +876,7 @@ Lemma merge_varmaps_funP fn1 fn2 :
     (sem_fun (sem_Fun := sem_fun_full) p global_data dummy_instr_info fn1)
     (it_sems_one_varmap.isem_fun var_tmps p fn2)
     (postF fn1 fn2).
-Proof using ok_p.
+Proof using ok_p rndE.
   move=> fs1 t1 hpre /=.
   rewrite /isem_fun /isem_fun_def /it_sems_one_varmap.isem_fun /it_sems_one_varmap.isem_fun_def.
   have {}hpre : PreF (RecCall dummy_instr_info fn1 fs1) (RecCallK fn2 t1) by done.
@@ -999,8 +1029,10 @@ Proof using ok_p.
       by case: Sv_memP => // h [[] ]; clear -h; SvD.fsetdec.
     rewrite (alloc_stack_top_stack ok_m').
     exact: do_align_is_align.
-  have := merge_varmaps_cmdP hfun (m0:=emem s0') (sz:=sf_align (f_extra fd)) hdisj_w hsub checked_body.
-  move=> /(_ s1 (Sv.empty, t1') hpre).
+  have/(_ s1 (Sv.empty, t1') hpre) := [elaborate
+    merge_varmaps_cmdP
+      (m0 := emem s0') (sz := sf_align (f_extra fd))
+      hfun hdisj_w hsub checked_body].
   set post := (post in xrutt.xrutt _ _ _ _ post _ _) => hbody.
   apply (xrutt_facts.xrutt_bind (RR:=post)).
   + apply: xrutt_facts.xrutt_weaken hbody => //.
@@ -1144,7 +1176,7 @@ Lemma merge_varmaps_export_callP fn:
               values_uincl res res'
           | None => false
           end]).
-Proof using ok_p.
+Proof using ok_p rndE.
   case => fd ok_fd Export fs t; rewrite ok_fd /= => -[] hscs hmem /= [args'] [ hrsp hvgd hargs huargs].
   rewrite /isem_exportcall.
   case: (checkP ok_p ok_fd)=> _ok_wrf.
@@ -1214,7 +1246,7 @@ Lemma merge_varmaps_export_call_checkP fn:
     (isem_fun p global_data fn)
     (it_sems_one_varmap.isem_exportcall_check var_tmps p global_data fn)
     (ovm_post fn).
-Proof using ok_p.
+Proof using ok_p rndE.
   move=> /merge_varmaps_export_callP => h fs s /h.
   have -> // : isem_exportcall var_tmps p global_data fn s ≈ isem_exportcall_check var_tmps p global_data fn s.
   rewrite /isem_exportcall /isem_exportcall_check.

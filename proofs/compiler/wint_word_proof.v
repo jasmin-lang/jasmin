@@ -200,7 +200,13 @@ Let p' := wi2w_prog_internal p.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rndE : with_RndEvent syscall_state E0}
+  {rE : EventRels E0}
+  {rndE_refl : RndRels_refl rE}
+.
 
 Definition check_es_wi2w (d : unit) es1 es2 (d' : unit) :=
   es2 = [seq wi2w_e i | i <- es1].
@@ -240,7 +246,7 @@ Let Pc c :=
 
 Lemma it_wi2w_call_internalP fn :
   wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-Proof.
+Proof using rndE_refl.
   apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
   exists (wi2w_fun fd).
   + by rewrite get_map_prog hget.
@@ -270,12 +276,19 @@ End Internal.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} (rE0_trans : EventRels_trans rE0 rE0 rE0).
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rndE : with_RndEvent syscall_state E0}
+  {rE0 : EventRels E0}
+  {rndE_refl : RndRels_refl rE0}
+  (rE0_trans : EventRels_trans rE0 rE0 rE0)
+.
 
 Lemma it_wi2w_progP (p' : uprog) fn :
   wi2w_prog remove_wint_annot dead_vars_fd p = ok p' →
   wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-Proof using rE0_trans.
+Proof using rE0_trans rndE_refl.
   rewrite /wi2w_prog; t_xrbindP => ok_pv <-.
   have := [elaborate it_alloc_call_uprogP ev (p_globs p) ok_pv (fn:= fn)].
   have := [elaborate it_wi2w_call_internalP (fn:=fn)].

@@ -817,6 +817,8 @@ Context
   {E E0: Type -> Type}
   {wE : with_Error E E0}
   {rE : EventRels E0}
+  {rndE : with_RndEvent syscall_state E0}
+  {rndE_refl : RndRels_refl rE}
   (shparams : sh_params)
   (hshparams : h_sh_params shparams)
   (fun_info : funname -> seq slh_t * seq slh_t)
@@ -1033,7 +1035,7 @@ Lemma it_lower_code c c' env env' :
   check_cmd fun_info env c = ok env' ->
   lower_cmd c = ok c' ->
   wequiv_rec p p' ev ev slh_spec (st_eq env) c c' (st_eq env').
-Proof using hshparams hp.
+Proof using hshparams hp rndE_refl.
 apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) c env env' c' => //;
   [ | | |
   | exact: it_lower_opn
@@ -1070,14 +1072,14 @@ apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) c env env' c' => //;
   - by move=> > [-> _].
   - by move=> > [-> _].
   - split=> //. exact: EnvP.le_refl.
-  exact: wrequiv_eq.
+  exact: fs_eq_syscall.
 
 (* Assert *)
 by move=> > /= [<-] [<- <-]; apply wequiv_assert => //.
 Qed.
 
 Lemma it_lower_call {fn} : wiequiv_f p p' ev ev rpreF fn fn rpostF.
-Proof using hshparams hp.
+Proof using hshparams hp rndE_refl.
 apply: wequiv_fun_ind => {}fn _ fs _ [<- <- htin] fd
   /(get_map_cfprog_name_gen hp_body) [] fd' /lower_fdP [].
 rewrite /check_fd /= (surjective_pairing (fun_info _)).
@@ -1110,7 +1112,7 @@ Qed.
 Lemma it_lower_call_export {fn} :
   fn \in entries ->
   wiequiv_f p p' ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
-Proof using hshparams hp.
+Proof using hshparams hp rndE_refl.
 move: hp; rewrite /lower_slh_prog; t_xrbindP=> /allP h _ _ _ /h {}h.
 apply: wkequiv_io_weaken it_lower_call => //.
 - by move=> s _ [_ <-]; split=> // /all_is_slh_none /(_ h).

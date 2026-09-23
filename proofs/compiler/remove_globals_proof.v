@@ -93,7 +93,13 @@ Module INCL. Section INCL.
 
   Section IT.
 
-  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context
+    {E E0 : Type -> Type}
+    {wE : with_Error E E0}
+    {rE : EventRels E0}
+    {rndE : with_RndEvent syscall_state E0}
+    {rndE_refl : RndRels_refl rE}
+  .
 
   Notation st_equal := (st_rel (fun _ : unit => eq)).
 
@@ -136,7 +142,7 @@ Module INCL. Section INCL.
     wequiv_rec P1 P2 ev ev eq_spec (st_equal tt) c c (st_equal tt).
 
   Lemma it_gd_incl_fun fn : wiequiv_f P1 P2 ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-  Proof using hincl.
+  Proof using hincl rndE_refl.
     apply wequiv_fun_ind => {}fn _ fs ft [<- <-] fd ->.
     exists fd => // s1 hinit; exists s1 => //.
     exists (st_equal tt), (st_equal tt); split => //; last by move=> s t vs /st_equalP <- ->; eexists; eauto.
@@ -728,7 +734,13 @@ Module RGP. Section PROOFS.
 
   Section IT.
 
-  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context
+    {E E0 : Type -> Type}
+    {wE : with_Error E E0}
+    {rE : EventRels E0}
+    {rndE : with_RndEvent syscall_state E0}
+    {rndE_refl : RndRels_refl rE}
+  .
 
   Definition check_es_valid ii (d:venv) (es1 es2 : pexprs) (d':venv) :=
     d = d' /\ mapM (remove_glob_e ii d) es1 = ok es2.
@@ -772,7 +784,7 @@ Module RGP. Section PROOFS.
     wequiv_rec P P' ev ev uincl_spec (valid d) c dc.2 (valid dc.1).
 
   Lemma it_remove_glob_call fn : wiequiv_f P P' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-  Proof using fds_ok uniq_gd.
+  Proof using fds_ok uniq_gd rndE_refl.
     apply wequiv_fun_ind => {}fn _ fs fs' [<-] hfs fd hget.
     have [fd' [hget' hfd']]:= get_fundefP hget.
     have fsi := fs_uincl_initialize (fd := fd) (fd' := fd').
@@ -846,17 +858,24 @@ Module RGP. Section PROOFS.
 
   Section IT.
 
-  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} {rE0_trans : EventRels_trans rE0 rE0 rE0}.
+  Context
+    {E E0 : Type -> Type}
+    {wE : with_Error E E0}
+    {rE0 : EventRels E0}
+    {rE0_trans : EventRels_trans rE0 rE0 rE0}
+    {rndE : with_RndEvent syscall_state E0}
+    {rndE_refl : RndRels_refl rE0}.
 
   Lemma it_remove_globP P P' ev fn:
     remove_glob_prog P = ok P' ->
     wiequiv_f P P' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:= uincl_spec)).
-  Proof using rE0_trans.
+  Proof using rE0_trans rndE rndE_refl.
     rewrite /remove_glob_prog; t_xrbindP => gd' /extend_glob_progP hgd.
     case: ifP => // huniq; t_xrbindP => fds hfds <-.
     have h1 := [elaborate it_gd_incl_fun ev hgd (fn := fn)].
     set P1 := {| p_funcs := p_funcs P; p_globs := gd'; p_extra := p_extra P |}.
-    have h2 := it_remove_glob_call (P:=P1) ev hfds huniq (wE:=wE) (rE:=rE0) (fn:=fn).
+    have h2 := it_remove_glob_call (P:=P1) ev hfds huniq (wE:=wE) (rE:=rE0)
+      (rndE:=rndE) (rndE_refl:=rndE_refl) (fn:=fn).
     move: h1 h2.
     apply wiequiv_f_trans => //.
     + by move=> fs1 fs2 [] _ <-; exists fs1 => //; split => //; exact: fs_uinclR.

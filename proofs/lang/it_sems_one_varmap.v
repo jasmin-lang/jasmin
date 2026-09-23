@@ -24,7 +24,7 @@ Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then
 
 Local Unset Elimination Schemes.
 
-Import MonadNotation.
+Import MonadNotation ITreeNotations.
 Local Open Scope monad_scope.
 
 (** Semantics of programs in which there is a single scope for local variables.
@@ -90,12 +90,6 @@ Definition isem_while_loop (c1 : cmd) (e:pexpr) (c2: cmd) (s : Sv.t * estate) :
 
 End SEM_C.
 
-Definition sem_syscall (p : prog) (o : syscall_t) (s : estate) :=
-  Let ves := get_vars true s.(evm) (syscall_sig o).(scs_vin) in
-  Let fs := fexec_syscall (scP:= sCP_stack) o (mk_fstate ves s) in
-  let s:= with_vm s (vm_after_syscall s.(evm)) in
-  upd_estate true (p_globs p) (to_lvals (syscall_sig o).(scs_vout)) fs s.
-
 Notation add_fv fv :=
   (Result.map (aT:=estate) (rT:=Sv.t * estate) (fun (s:estate) => (fv, s))).
 
@@ -121,7 +115,11 @@ Context (var_tmp : Sv.t).
 
 Section SEM_I.
 
-Context {E E0} {wE : with_Error E E0} {sem_F : sem_FunK E}.
+Context
+  {E E0}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
+  {sem_F : sem_FunK E}.
 
 Let vrsp (p:sprog) : var := vid p.(p_extra).(sp_rsp).
 Let vgd (p:sprog) : var := vid p.(p_extra).(sp_rip).
@@ -174,6 +172,16 @@ Definition writefun_RA (p:sprog) (fn: funname) :=
   | Some fd => Sv.union (ra_undef fd var_tmp) (ra_vm_return fd.(f_extra))
   end.
 
+Definition sem_syscall (p : prog) (o : syscall_t) (s : estate) : itree E estate :=
+  let sig := syscall_sig o in
+  let vin := sig.(scs_vin) in
+  let vm := s.(evm) in
+  ves <- iresult (get_vars true vm vin) ;;
+  fs <- fexec_syscall (scP := sCP_stack) o (mk_fstate ves s) ;;
+  let vout := sig.(scs_vout) in
+  let s' := with_vm s (vm_after_syscall vm) in
+  iresult (upd_estate true p.(p_globs) (to_lvals vout) fs s').
+
 Fixpoint isem_i(p : sprog) (i : instr) (s : estate) :
     itree E (Sv.t * estate) :=
   let: (MkI ii i) := i in
@@ -191,7 +199,7 @@ with isem_ir (p : sprog) (i : instr_r) (s : estate) : itree E (Sv.t * estate) :=
 
   | Csyscall xs o es =>
     let fv := Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout))) in
-    iresult (add_fv fv (sem_syscall p o s))
+    s' <- sem_syscall p o s;; Ret (fv, s')
 
   | Cif e c1 c2 =>
     b <- isem_cond p e s;;
@@ -240,7 +248,10 @@ End SEM_I.
 (* semantics of instructions parametrized by recCall events *)
 
 Section REC.
-Context {E E0} {wE : with_Error E E0}.
+Context
+  {E E0}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}.
 
 Definition isem_ir_rec (p : sprog) (i : instr_r) (s : estate)
   : itree (recCallK +' E) (Sv.t * estate) :=
@@ -284,6 +295,51 @@ Instance sem_funK_rec_check  {E E0} {wE : with_Error E E0} : sem_FunK (recCallK 
 
 Definition isem_fun_check := isem_fun_def (sem_F := fun _ => sem_funK_rec_check).
 
+#[local] Lemma F_throw
+  {E1} (F : forall T, E1 T -> itree (E1 +' E) T) T (e : error) :
+  eutt eq
+  (interp (case_ F inr_)
+    (throw (H := fromErr (E0 := E1 +' E0)) (X := T) e))
+    (throw e).
+Proof.
+rewrite interp_preserves_throw; first reflexivity.
+by apply: preservesE_sub; first exact: preservesE_case_inr.
+Qed.
+
+#[local] Lemma F_iresult
+  {E1} (F : forall T, E1 T -> itree (E1 +' E) T) T (r : exec T) :
+  eutt eq
+    (interp (case_ F inr_) (iresult r))
+    (iresult r).
+Proof.
+rewrite interp_preserves_iresult; first reflexivity.
+by apply: preservesE_sub; first exact: preservesE_case_inr.
+Qed.
+
+#[local] Lemma F_fexec
+  {E1} (F : forall T, E1 T -> itree (E1 +' E) T) o fs :
+  eutt eq
+    (interp (case_ F inr_) (fexec_syscall (scP := sCP_stack) o fs))
+    (fexec_syscall (scP := sCP_stack) o fs).
+Proof.
+rewrite /fexec_syscall interp_bind; apply: eqit_bind; last first.
+- move=> [[??] ?]; rewrite interp_ret; reflexivity.
+rewrite interp_preserves_exec_syscall; first reflexivity.
+- by apply: preservesE_sub; first exact: preservesE_case_inr.
+by apply: preservesE_sub; first exact: preservesE_case_inr.
+Qed.
+
+#[local] Lemma F_sem_syscall
+  {E1} (F : forall T, E1 T -> itree (E1 +' E) T) (p : prog) o s :
+  eutt eq
+    (interp (case_ F inr_) (sem_syscall p o s))
+    (sem_syscall p o s).
+Proof.
+rewrite /sem_syscall !interp_bind; apply: eqit_bind; first exact: F_iresult.
+move=> ves; rewrite interp_bind; apply: eqit_bind; first exact: F_fexec.
+move=> fs; exact: F_iresult.
+Qed.
+
 (* Equivalence between the two semantic, it is mostly the proof of rec_facts.CHECK.mrec_check,
    and some administrative stuff *)
 Lemma isem_fun_isem_fun_check (p:sprog) fn s :
@@ -307,11 +363,6 @@ Proof.
     rewrite /rec_facts.CHECK.ctx' /= /rec_facts.CHECK.ctx1 /=.
     set (F := case_ _ _).
     rewrite /isem_fun_body.
-    have F_throw : forall e, interp F (throw e) ≈ throw e.
-    + by move=> ??; rewrite interp_vis bind_vis; apply eqit_Vis => -[].
-    have F_iresult : forall T (r : exec T), interp F (iresult r) ≈ iresult r.
-    + move=> T1 [v | err] /=; first by rewrite interp_ret; reflexivity.
-      rewrite F_throw; reflexivity.
     case: get_fundef => [fd | ] /=; last by rewrite !bind_throw F_throw; reflexivity.
     rewrite !bind_ret_l !interp_bind !F_iresult; apply eqit_bind; first reflexivity.
     move=> []; rewrite !interp_bind !F_iresult; apply eqit_bind; first reflexivity.
@@ -334,7 +385,10 @@ Proof.
       move=> ?; rewrite interp_ret; reflexivity.
     + move=> ?; rewrite interp_ret; reflexivity.
     + move=> i c hi hc s; rewrite !interp_bind hi; setoid_rewrite hc; reflexivity.
-    1-3: by move=> *; apply F_iresult.
+    1-2: by move=> *; apply F_iresult.
+    + move=> xs o es s; rewrite interp_bind; apply: eqit_bind; last first.
+      * move=> s'; rewrite interp_ret; reflexivity.
+      exact: F_sem_syscall.
     + by move=> *; apply F_throw.
     + move=> e c1 c2 hc1 hc2 s; rewrite interp_bind F_iresult; apply eqit_bind; first reflexivity.
       by move=> []; [apply hc1 | apply hc2].
@@ -360,11 +414,6 @@ Proof.
   rewrite /rec_facts.CHECK.ctx' /= /rec_facts.CHECK.ctx1 /=.
   set (F := case_ _ _).
   rewrite /isem_fun_body.
-  have F_throw : forall e, interp F (throw e) ≈ throw e.
-  + by move=> ??; rewrite interp_vis bind_vis; apply eqit_Vis => -[].
-  have F_iresult : forall T (r : exec T), interp F (iresult r) ≈ iresult r.
-  + move=> T1 [v | err] /=; first by rewrite interp_ret; reflexivity.
-    rewrite F_throw; reflexivity.
   case: get_fundef => [fd | ] /=; last by rewrite !bind_throw F_throw; reflexivity.
   rewrite !bind_ret_l !interp_bind !F_iresult; apply eqit_bind; first reflexivity.
   move=> []; rewrite !interp_bind !F_iresult; apply eqit_bind; first reflexivity.
@@ -387,7 +436,10 @@ Proof.
     move=> ?; rewrite interp_ret; reflexivity.
   + move=> ?; rewrite interp_ret; reflexivity.
   + move=> i c hi hc s; rewrite !interp_bind hi; setoid_rewrite hc; reflexivity.
-  1-3: by move=> *; apply F_iresult.
+  1-2: by move=> *; apply F_iresult.
+  + move=> xs o es s; rewrite interp_bind; apply: eqit_bind; last first.
+    * move=> s'; rewrite interp_ret; reflexivity.
+    exact: F_sem_syscall.
   + by move=> *; apply F_throw.
   + move=> e c1 c2 hc1 hc2 s; rewrite interp_bind F_iresult; apply eqit_bind; first reflexivity.
     by move=> []; [apply hc1 | apply hc2].

@@ -113,7 +113,13 @@ Qed.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE0 : EventRels E0}
+  {rndE : with_RndEvent syscall_state E0}
+  {rndE_refl : RndRels_refl rE0}
+.
 
 Let Pi i :=
   wequiv_rec (dc1:=indirect_c) (dc2:=direct_c) p p ev ev uincl_spec (st_uincl tt) [::i] [::i] (st_uincl tt).
@@ -138,7 +144,7 @@ Qed.
 Lemma it_indirect_to_direct fn :
   wiequiv_f (dc1:=indirect_c) (dc2:=direct_c)
     p p ev ev (rpreF (eS:=uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-Proof.
+Proof using rndE_refl.
   apply wequiv_fun_ind => {}fn _ fs1 fs2 [<-] [hscs hmem hu] fd hget.
   exists fd => // s.
   rewrite /initialize_funcall; t_xrbindP => vs htra s0 hinit hw.

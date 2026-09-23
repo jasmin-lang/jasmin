@@ -198,7 +198,13 @@ Section PROOF.
 
   Section IT.
 
-  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : EventRels E0}
+  {rndE : with_RndEvent syscall_state E0}
+  {rndE_refl : RndRels_refl rE}
+.
 
   Definition dc_spec :=
    {|
@@ -223,7 +229,7 @@ Section PROOF.
 
   Lemma it_dead_calls_callP fn :
     wiequiv_f p p' ev ev (rpreF (eS:= dc_spec)) fn fn (rpostF (eS:=dc_spec)).
-  Proof using pfxp.
+  Proof using pfxp rndE_refl.
     apply wequiv_fun_ind => {}fn _ fs _ [<- <- hin] fd hfd; exists fd => //.
     + by apply get_dead_calls.
     move=> s hinit.
@@ -281,13 +287,19 @@ Qed.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : EventRels E0}
+  {rndE : with_RndEvent syscall_state E0}
+  {rndE_refl : RndRels_refl rE}
+.
 
 Lemma it_dead_calls_errP (s : Sf.t) (p p': prog) :
   dead_calls_err s p = ok p' →
   ∀ f ev, Sf.In f s →
   wiequiv_f p p' ev ev (rpreF (eS := eq_spec)) f f (rpostF (eS := eq_spec)).
-Proof.
+Proof using rndE_refl.
 rewrite /dead_calls_err.
 case: ifP => // /SfD.F.subset_2 pfx [] <- f ev hin fs _ [_ <-].
 apply: it_dead_calls_callP => //; split => //.
@@ -298,7 +310,7 @@ Theorem it_dead_calls_err_seqP (s : seq funname) (p p': prog) :
   dead_calls_err_seq s p = ok p' →
   ∀ f ev, f \in s →
   wiequiv_f p p' ev ev (rpreF (eS := eq_spec)) f f (rpostF (eS := eq_spec)).
-Proof.
+Proof using rndE_refl.
   rewrite /dead_calls_err_seq.
   move=> h f ev fins; apply: (it_dead_calls_errP h).
   elim: {h} s fins=> // a l IH Hin.

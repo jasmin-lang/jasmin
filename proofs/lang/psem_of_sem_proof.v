@@ -1,6 +1,10 @@
 Require Import psem psem_facts it_sems_core relational_logic.
 Import Utf8.
 From mathcomp Require Import ssreflect ssrfun ssrbool.
+From ITree Require Import Basics ITree ITreeFacts.
+
+Require Import xrutt xrutt_facts rutt_extras.
+Require Import core_logics.
 
 #[local] Existing Instance indirect_c.
 Section PROOF.
@@ -187,7 +191,15 @@ Qed.
 
 Section IT_SEM.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Import ITreeNotations.
+#[local] Open Scope itree_scope.
+
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
+  {rE0 : EventRels E0}
+  {rndE : RndRels2 (rE_l := rE) (rE_r := rE) (rE0 := rE0)}.
 
 Lemma wdb_ok_eq_true wdb1 wdb2: wdb_ok wdb1 wdb2 -> wdb1 /\ wdb2.
 Proof. by case => -[-> ->]. Qed.
@@ -203,9 +215,10 @@ Qed.
 #[local] Hint Resolve checker_st_uinclP : core.
 
 Lemma it_psem_call :
-  (forall scs1 scs2 mem1 mem2 o ves vs,
-    exec_syscall (wsw:= nosubword)   scs1 mem1 o ves = ok (scs2, mem2, vs) ->
-    exec_syscall (wsw:= withsubword) scs1 mem1 o ves = ok (scs2, mem2, vs)) ->
+  (forall scs mem o ves,
+    lxeutt eq
+      (exec_syscall_core (wsw := nosubword) scs mem o ves)
+      (exec_syscall_core (wsw := withsubword) scs mem o ves)) ->
 
   (forall fd scs mem s,
     init_state (f_extra fd) (p_extra p) ev {| escs := scs; emem := mem; evm := Vm.init |} = ok s ->
@@ -217,7 +230,7 @@ Lemma it_psem_call :
 
   forall fn,
     wiequiv_f (wsw1:=nosubword) (wsw2:=withsubword) p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-Proof.
+Proof using rndE.
   move=> hsyscall hinitstate hfinal fn.
   apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd ->; exists fd => // s1 hinit.
   have : exists2 s2 : estate_s, initialize_funcall p ev fd fs = ok s2 & estate_sim s1 s2.
@@ -241,9 +254,11 @@ Proof.
   + by move=> i c; apply wequiv_cons.
   + by move=> >;apply wequiv_assgn_rel_eq with checker_st_eq tt.
   + by move=> >; apply wequiv_opn_rel_eq with checker_st_eq tt.
-  + move=> ????; apply wequiv_syscall_rel_eq_core with checker_st_eq tt => //.
-    move=> [???] [???] ? [<- <- <-]; rewrite /fexec_syscall /=.
-    by t_xrbindP => -[[??]?] /= /hsyscall -> [<-] /=; eauto.
+  + move=> xs sc es ii.
+    apply wequiv_syscall_rel_eq_core with checker_st_eq tt => // fs _ <-.
+    apply: (xrutt_bind (RR := eq)).
+    + exact/lxeutt_lrutt_RndRels_refl/hsyscall.
+    by move=> [[scs m] vs] _ <-; apply: xrutt_Ret.
   + by move=> a ii; apply wequiv_noassert.
   + by move=> > hc1 hc2 ii; apply wequiv_if_rel_eq with checker_st_eq tt tt tt.
   + by move=> > hc ii; apply wequiv_for_rel_eq with checker_st_eq tt tt.
@@ -264,20 +279,29 @@ Context
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
+  {rE0 : EventRels E0}
+  {rndE : RndRels2 (rE_l := rE) (rE_r := rE) (rE0 := rE0)}.
 
 Lemma it_psem_call_u (p:uprog) ev fn :
   wiequiv_f (wsw1:=nosubword) (wsw2:=withsubword) p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-Proof.
+Proof using rndE.
   apply (it_psem_call (sCP := fun wsw => sCP_unit (wsw := wsw))) => //=.
+  + move=> scs m o vs; apply: xrutt_refl; first by move=> T e; exists erefl.
+    by move=> T e t1 t2 _ _ h; apply/RPost_eqI/h.
   move=> _ ??? [<-]; eexists; eauto.
   by split => //= x; rewrite !Vm.initP.
 Qed.
 
 Lemma it_psem_call_s (p:sprog) ev fn :
   wiequiv_f (wsw1:=nosubword) (wsw2:=withsubword) p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-Proof.
+Proof using rndE.
   apply (it_psem_call (sCP := fun wsw => sCP_stack (wsw := wsw))) => //=.
+  + move=> scs m o vs; apply: xrutt_refl; first by move=> T e; exists erefl.
+    by move=> T e t1 t2 _ _ h; apply/RPost_eqI/h.
   clear.
   move=> fd scs mem s.
   rewrite /init_stk_state; t_xrbindP => mem' -> hw.

@@ -30,6 +30,17 @@ let exn_exec (ii:instr_info) (r: 't exec) =
   | Ok r -> r
   | Error e -> raise (Eval_error(ii, e))
 
+let rec run_syscall_itree ii t =
+  let open ITreeDefinition in
+  let open Sum in
+  match observe t with
+  | RetF r -> r
+  | TauF t -> run_syscall_itree ii t
+  | VisF (Coq_inl1(err), _) -> raise (Eval_error (ii, err))
+  | VisF (Coq_inr1(Syscall.Rnd(scs, len)), k) ->
+    let ans = Syscall_ocaml.get_random scs len in
+    run_syscall_itree ii (k (Obj.magic ans))
+
 let of_val_z ii v : coq_Z =
   Obj.magic (exn_exec ii (of_val Coq_cint v))
 
@@ -120,13 +131,18 @@ let small_step1 ep spp sip s =
       { s with s_cmd = c; s_estate = s2 }
 
     | Copn(xs,_,op,es) ->
-      let s2 = exn_exec ii (sem_sopn nosubword ep spp sip._asmop gd op s1 xs es) in
+      let s2 =
+        sem_sopn nosubword ep spp (_asmop sip) gd op s1 xs es
+        |> exn_exec ii
+      in
       { s with s_cmd = c; s_estate = s2 }
 
     | Csyscall(xs,o, es) ->
       let ves = exn_exec ii (sem_pexprs nosubword ep spp true gd s1 es) in
       let ((scs, m), vs) =
-        exn_exec ii (syscall_sem__ sip._sc_sem ep._pd s1.escs s1.emem o ves) in
+        syscall_sem__ ep._pd s1.escs s1.emem o ves
+        |> run_syscall_itree ii
+      in
       let s2 = exn_exec ii (write_lvals nosubword ep spp true gd {escs = scs; emem = m; evm = s1.evm} xs vs) in
       { s with s_cmd = c; s_estate = s2 }
 
@@ -186,11 +202,9 @@ let run (type asm_op extra_op)
                and type extra_op = extra_op)
       (p : (asm_op, extra_op) Arch_extra.extended_op_gen Expr.uprog)
       ii fn args m =
-  let ep = Sem_params_of_arch_extra.ep_of_asm_e A.asm_e Syscall_ocaml.sc_sem in
+  let ep = Sem_params_of_arch_extra.ep_of_asm_e A.asm_e in
   let spp = Sem_params_of_arch_extra.spp_of_asm_e A.asm_e in
-  let sip =
-    Sem_params_of_arch_extra.sip_of_asm_e A.asm_e Syscall_ocaml.sc_sem
-  in
+  let sip = Sem_params_of_arch_extra.sip_of_asm_e A.asm_e in
   let scs0 = Syscall_ocaml.initial_state () in
   exec ep spp sip scs0 p ii fn args m
 

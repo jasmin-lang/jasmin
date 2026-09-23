@@ -201,7 +201,12 @@ Qed.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE0 : EventRels E0}
+  {rndE : with_RndEvent syscall_state E0}
+  {rndE_refl : RndRels_refl rE0}.
 
 #[ local ]
 Lemma checker_st_eq_onP_ : Checker_eq p p' checker_st_eq_on.
@@ -210,7 +215,7 @@ Proof using ok_p'. apply checker_st_eq_onP; apply eq_globs. Qed.
 
 Lemma it_lower_addressing_progP fn:
   wiequiv_f p p' ev ev (rpreF (eS:=eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-Proof using ok_p'.
+Proof using ok_p' rndE_refl.
   apply wequiv_fun_ind => {}fn _ fs _ [<-] <- fd hget.
   move: ok_p'; rewrite /lower_addressing_prog.
   set tmp := {| v_var := _; v_info := _ |}.

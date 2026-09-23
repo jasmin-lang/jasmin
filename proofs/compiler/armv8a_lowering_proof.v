@@ -1775,7 +1775,13 @@ Qed.
 (* -------------------------------------------------------------------- *)
 
 Section IT.
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE0 : EventRels E0}
+  {rndE : with_RndEvent syscall_state E0}
+  {rndE_refl : RndRels_refl rE0}
+.
 
 #[ local ]
 Definition Pi_ (i : instr) :=
@@ -1796,7 +1802,7 @@ Proof. apply checker_st_eq_exP => //. Qed.
 
 Lemma it_lower_callP fn :
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-Proof using E E0 atoI dc ev fv fv_correct p pT rE0 sCP sc_sem syscall_state wE warning wsw.
+Proof using fv_correct rndE_refl.
   apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
   have [_ hfvres hfvc] := disj_fvars_get_fundef hget.
   rewrite get_map_prog hget /= /lower_fd.

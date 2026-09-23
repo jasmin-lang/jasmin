@@ -11,6 +11,7 @@ From Coq Require Import ZArith.
 From Coq Require Import Utf8.
 
 Require Import expr_facts compiler_util label linear linear_sem linear_facts it_sems_core_defs relational_logic.
+Require Import while.
 Require Import sem_params.
 Import word_ssrZ.
 
@@ -20,6 +21,8 @@ Require Import oseq seq_extra unionfind tunneling unionfind_proof.
 Require Import linear_sem.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
+Import ITreeNotations.
 
 Section WITH_PARAMS.
 
@@ -285,7 +288,12 @@ Proof using pp'.
   rewrite heq /=; apply => // l; rewrite LUF.find_empty /path_to0; auto.
 Qed.
 
-Context {E E0: Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0: Type -> Type}
+  {wE: with_Error E E0}
+  {rE0 : EventRels E0}
+  {rndE : with_RndEvent syscall_state E0}
+.
 
 Import Monads.
 Import MonadNotation.
@@ -406,66 +414,59 @@ Qed.
 
 Lemma tunnel_cmd endpc s :
   wfend endpc ->
-  eqit eq true true (ilsem p' (untilpc endpc) s) (ilsem p (untilpc endpc) s).
+  eutt eq (ilsem p' (untilpc endpc) s) (ilsem p (untilpc endpc) s).
 Proof using pp'.
-  move=> hend.
-  apply while.eqit_iter_n with eq => //.
-  move=> {}s _ <-.
-  setoid_rewrite i_lsem_body_n; setoid_rewrite i_lsem_body.
-  rewrite /lsem_body /untilpc; case: eqP.
-  + move=> ->; exists 0; rewrite /= /lsem_body eqxx /=.
-    by apply eqit_Ret; constructor.
-  move=> /eqP/negPf hne; rewrite /step.
-  have := find_instrE s.
-  case hi : find_instr => [[ii i] | /=]; last first.
-  + move=> ->; exists 0.
-    rewrite /= /lsem_body /untilpc hne /step /= hi /=; reflexivity.
-  move=> [fd hget] ->.
-  have huf := tunnel_plan_wf hend p_wf hget.
-  rewrite /= in huf; move: (tunnel_plan _ _ _) huf => uf huf.
+  move=> hend; apply while.eqit_iter_n with eq => // {}s _ <-.
+  rewrite /= {1}/while_body /untilpc; case: eqP => [|/eqP/negPf] hpc /=.
+  + exists 2; rewrite /while_body /= hpc eqxx bind_ret_l.
+    by apply eutt_Ret; constructor.
+  rewrite /istep /next_is_Lsyscall /step /while_body.
+  case hi: find_instr (find_instrE s) => [[ii i] | /=]; last first.
+  + move=> hi'; exists 0; rewrite /= hpc /= hi hi' !bind_throw; reflexivity.
+  move=> [fd hget].
+  have /= := tunnel_plan_wf hend p_wf hget.
+  move: (tunnel_plan _ _ _) => uf huf.
   move/andP: p_wf => -[_ /allInP] /= /(_ _ (get_fundef_in' hget)) /= /andP [_ hall].
-  case: i hi;
-   try by move=> > hi; exists 0; rewrite /= /lsem_body hne /step /= hi /=;
-          rewrite ?eval_instr_eq ?Let_Let /=; reflexivity.
-  + move=> [fn' r] /=; case: eqP; last first.
-    + move=> _; exists 0; rewrite /= /lsem_body hne /step /= hi /=.
-      rewrite eval_instr_eq Let_Let /=; reflexivity.
+  case: i hi => /=.
+  1-6,8-9: move=> > hi hi'; exists 0; rewrite /= hpc /= hi hi' ?eval_instr_eq;
+    reflexivity.
+  + move=> [fn' r] /= hi; case: eqP => +; last first.
+    + move=> _ hi'; exists 0; rewrite /= hi hi' hpc eval_instr_eq; reflexivity.
     have := huf r; rewrite /path_to0.
     case: (r =P LUF.find uf r).
-    + move=> <-; exists 0; rewrite /= /lsem_body hne /step /= hi /=.
-      rewrite eval_instr_eq Let_Let /=; reflexivity.
-    move=> hr [ // | hp] ? hfindi; subst fn'.
-    rewrite eval_instr_eq.
+    + move=> <- _ _ hi'; exists 0; rewrite /= hi hi' hpc eval_instr_eq.
+      reflexivity.
+    move=> hr [// | hp] ? hi'; subst fn'.
+    rewrite hi' eval_instr_eq /=.
     have [pc heval]: exists pc, eval_jump p (lfn s, r) s = ok (setcpc s (lfn s) pc).
     + rewrite /eval_jump hget /=.
-      have := find_instr_goto_targets hget hall hfindi.
+      have := find_instr_goto_targets hget hall hi.
       rewrite /= eqxx andbT /= => /labels_of_find [pc ->] /=; by eauto.
-    have [n [s3 hsem hev]]:= hp _ _ heval.
-    exists n.+1 => /=.
-    rewrite {2}/lsem_body hne /= /step hfindi.
-    rewrite /eval_instr /li_i heval hev /=.
-    rewrite /= in hsem; rewrite hsem /=; reflexivity.
-  move=> f r hfindi /=.
+    have [n [s3 hsem hev]] := hp _ _ heval.
+    exists n.+1; rewrite /= hpc hi /= bind_bind.
+    rewrite {1 2}/eval_instr /li_i heval hev !bind_ret_l tau_eutt.
+    rewrite (i_lsem_body_n hsem); reflexivity.
+  move=> f r hi /=.
   have := huf r; rewrite /path_to0.
   case: (r =P LUF.find uf r).
-  + move=> <-; exists 0; rewrite /= /lsem_body hne /step /= hfindi /=.
-    rewrite eval_instr_eq Let_Let /=; reflexivity.
-  move=> hr [ // | hp].
-  rewrite eval_instr_eq.
+  + move=> <- _ hi'; exists 0; rewrite /= hi hi' hpc eval_instr_eq.
+    reflexivity.
+  move=> hr [// | hp] hi'.
+  rewrite hi' eval_instr_eq /=.
   have [pc heval]: exists pc, eval_jump p (lfn s, r) s = ok (setcpc s (lfn s) pc).
   + rewrite /eval_jump hget /=.
-    have := find_instr_goto_targets hget hall hfindi.
+    have := find_instr_goto_targets hget hall hi.
     rewrite /= eqxx andbT /= => /labels_of_find [pc ->] /=; by eauto.
   have [n [s3 hsem hev]]:= hp _ _ heval.
-  rewrite /eval_instr /li_i.
-  case heq: (Let x := _ in values.to_bool x) => [ [] | e /=]; last first.
-  + exists 0; rewrite /= /lsem_body hne /step /= hfindi /eval_instr /li_i.
+  case heq: (Let x := fexpr_sem.sem_fexpr (lvm s) f in values.to_bool x) => [ [] | e /=]; last first.
+  + exists 0; rewrite /= /lsem_body hpc /step /= hi /eval_instr /li_i.
     rewrite heq /=; reflexivity.
-  + exists 0; rewrite /= /lsem_body hne /step /= hfindi /eval_instr /li_i.
+  + exists 0; rewrite /= /lsem_body hpc /step /= hi /eval_instr /li_i.
     rewrite heq /=; reflexivity.
-  exists n.+1.
-  rewrite hev /= {2}/lsem_body hne /step /= hfindi /eval_instr /li_i heval heq /=.
-  rewrite /= in hsem; rewrite hsem /=; reflexivity.
+  exists n.+1; rewrite /= hpc hi /= bind_bind.
+  rewrite {1 2}/eval_instr /li_i heq heval !bind_ret_l tau_eutt.
+  move: hev; rewrite /eval_jump hget /= => ->.
+  rewrite bind_ret_l (i_lsem_body_n hsem); reflexivity.
 Qed.
 
 Lemma tunnel_funcs fn s :

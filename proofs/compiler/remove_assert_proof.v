@@ -21,7 +21,13 @@ Section REMOVE_ASSERT.
   Lemma eq_p_extra : p_extra p' = p_extra p.
   Proof using remove_assert_ok. by rewrite -remove_assert_ok. Qed.
 
-  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context
+    {E E0 : Type -> Type}
+    {wE : with_Error E E0}
+    {rE : EventRels E0}
+    {rndE : with_RndEvent syscall_state E0}
+    {rndE_refl : RndRels_refl rE}
+  .
 
   #[local] Notation st_eq := (st_rel (λ _ : unit, eq) tt).
 
@@ -50,7 +56,7 @@ Section REMOVE_ASSERT.
 
   Lemma it_remove_assert_progP fn :
     wiequiv_f (wa1 := withassert) (wa2 := noassert) p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-  Proof using remove_assert_ok.
+  Proof using remove_assert_ok rndE_refl.
     apply wequiv_fun_ind_wa => {fn}.
     move=> fn _ fs ft [<- <-] fd hget.
     rewrite -{1 2}remove_assert_ok get_map_prog hget /=.
@@ -67,7 +73,7 @@ Section REMOVE_ASSERT.
     + by move => >; apply wequiv_assgn_rel_eq with checker_ra_eq tt.
     + by move => >; apply wequiv_opn_rel_eq with checker_ra_eq tt.
     + move => >; apply wequiv_syscall_rel_eq_core with checker_ra_eq tt => //.
-      by move => > <- ->; eauto.
+      by apply fs_eq_syscall.
     + by move => >; apply wequiv_assert_left.
     + move=> > hc1 hc2 ii.
       by apply wequiv_if_rel_eq with checker_ra_eq tt tt tt.

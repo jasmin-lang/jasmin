@@ -45,12 +45,6 @@ Proof. by move => ii s1 s2 x tg ty e v v' ok_v ok_v' /write_lval_stack_stable. Q
 Lemma Hopn : sem_Ind_opn p Pi_r.
 Proof. by move => ii s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => ???? /write_lvals_stack_stable. Qed.
 
-Lemma Hsyscall : sem_Ind_syscall p Pi_r.
-Proof.
-  move => ii s1 s2 o xs es scs m ves vs hes h; have {h} := exec_syscallS h; move=> [ho _] /write_lvals_stack_stable hw.
-  by rewrite /Pi_r ho.
-Qed.
-
 Lemma Hif_true : sem_Ind_if_true p var_tmp Pc Pi_r.
 Proof. by []. Qed.
 
@@ -93,7 +87,6 @@ Proof.
        HmkI
        Hassgn
        Hopn
-       Hsyscall
        Hif_true
        Hif_false
        Hwhile_true
@@ -112,7 +105,6 @@ Proof.
        HmkI
        Hassgn
        Hopn
-       Hsyscall
        Hif_true
        Hif_false
        Hwhile_true
@@ -131,7 +123,6 @@ Proof.
        HmkI
        Hassgn
        Hopn
-       Hsyscall
        Hif_true
        Hif_false
        Hwhile_true
@@ -150,7 +141,6 @@ Proof.
        HmkI
        Hassgn
        Hopn
-       Hsyscall
        Hif_true
        Hif_false
        Hwhile_true
@@ -203,15 +193,6 @@ Proof. move => ii s1 s2 x tg ty e v v' ok_v ok_v'; exact: vrvP. Qed.
 
 Lemma Hopn_nw : sem_Ind_opn p Pi_r.
 Proof. move => ii s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => vs' vs ok_vs ok_vs'; exact: vrvsP. Qed.
-
-Lemma Hsyscall_nw : sem_Ind_syscall p Pi_r.
-Proof.
-  move => ii s1 s2 o xs es scs m ves vs hes ho hw.
-  have h1 := vrvsP hw; rewrite /Pi_r.
-  apply: eq_exT; last by apply: eq_exI h1; SvD.fsetdec.
-  apply: (eq_exI (s2:= syscall_kill)); first by SvD.fsetdec.
-  by move=> y /= /Sv_memP /negPf; rewrite /vm_after_syscall kill_varsE => ->.
-Qed.
 
 Lemma Hif_true_nw : sem_Ind_if_true p var_tmp Pc Pi_r.
 Proof. by []. Qed.
@@ -271,7 +252,6 @@ Proof.
        HmkI_nw
        Hassgn_nw
        Hopn_nw
-       Hsyscall_nw
        Hif_true_nw
        Hif_false_nw
        Hwhile_true_nw
@@ -291,7 +271,6 @@ Proof.
        HmkI_nw
        Hassgn_nw
        Hopn_nw
-       Hsyscall_nw
        Hif_true_nw
        Hif_false_nw
        Hwhile_true_nw
@@ -311,7 +290,6 @@ Proof.
        HmkI_nw
        Hassgn_nw
        Hopn_nw
-       Hsyscall_nw
        Hif_true_nw
        Hif_false_nw
        Hwhile_true_nw
@@ -361,9 +339,6 @@ Lemma Hassgn_pm : sem_Ind_assgn p Pi_r.
 Proof. by []. Qed.
 
 Lemma Hopn_pm : sem_Ind_opn p Pi_r.
-Proof. by []. Qed.
-
-Lemma Hsyscall_pm : sem_Ind_syscall p Pi_r.
 Proof. by []. Qed.
 
 Lemma Hif_true_pm : sem_Ind_if_true p var_tmp Pc Pi_r.
@@ -433,7 +408,6 @@ Proof using var_tmp_not_magic.
        HmkI_pm
        Hassgn_pm
        Hopn_pm
-       Hsyscall_pm
        Hif_true_pm
        Hif_false_pm
        Hwhile_true_pm
@@ -453,7 +427,6 @@ Proof using var_tmp_not_magic.
        HmkI_pm
        Hassgn_pm
        Hopn_pm
-       Hsyscall_pm
        Hif_true_pm
        Hif_false_pm
        Hwhile_true_pm
@@ -509,9 +482,6 @@ Proof. by move => ii s1 s2 x tg ty e v v' ok_v ok_v' /write_lval_validw. Qed.
 Lemma validw_stable_opn : sem_Ind_opn p Pi_r.
 Proof. by move => ii s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => ???? /write_lvals_validw. Qed.
 
-Lemma validw_stable_syscall : sem_Ind_syscall p Pi_r.
-Proof. by move => ii s1 s2 o xs es scs m ves vs _ h; have := exec_syscallS h; move=> [_ ho] /write_lvals_validw hw => ???; rewrite ho hw. Qed.
-
 Lemma validw_stable_if_true : sem_Ind_if_true p var_tmp Pc Pi_r.
 Proof. by []. Qed.
 
@@ -551,7 +521,6 @@ Proof.
        validw_stable_mkI
        validw_stable_assgn
        validw_stable_opn
-       validw_stable_syscall
        validw_stable_if_true
        validw_stable_if_false
        validw_stable_while_true
@@ -570,7 +539,6 @@ Proof.
        validw_stable_mkI
        validw_stable_assgn
        validw_stable_opn
-       validw_stable_syscall
        validw_stable_if_true
        validw_stable_if_false
        validw_stable_while_true
@@ -589,7 +557,6 @@ Proof.
        validw_stable_mkI
        validw_stable_assgn
        validw_stable_opn
-       validw_stable_syscall
        validw_stable_if_true
        validw_stable_if_false
        validw_stable_while_true
@@ -608,7 +575,6 @@ Proof.
        validw_stable_mkI
        validw_stable_assgn
        validw_stable_opn
-       validw_stable_syscall
        validw_stable_if_true
        validw_stable_if_false
        validw_stable_while_true
