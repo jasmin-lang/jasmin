@@ -57,6 +57,11 @@ module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch
 
   let callstyle = Arch_full.ByReg { call = Some LR; return = false }
 
+  (* R12 is the AAPCS intra-procedure-call scratch register (ip), which is
+     exactly what the long-branch veneers the linker synthesises use to hold
+     the destination address. *)
+  let veneer_registers = [ R12 ]
+
   (* Armv7-M guarantees that stack pointer values are at least 4-byte
      aligned: writes to SP force bits [1:0] to zero (Arm v7-M Architecture
      Reference Manual, B1.5.7), so a frame moving SP by a non-multiple of 4

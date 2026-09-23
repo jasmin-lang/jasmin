@@ -44,6 +44,10 @@ Module RISCVFopnP.
 
 Section WITH_PARAMS.
 
+(* The registers a linker veneer may clobber; threaded implicitly through
+   the linear semantics.  See one_varmap.veneer_info. *)
+Context {vinfo : one_varmap.veneer_info}.
+
 Context
   {atoI  : arch_toIdent}
   {syscall_state : Type}
@@ -272,6 +276,10 @@ End WITH_PARAMS.
 End RISCVFopnP.
 
 Section WITH_PARAMS.
+
+(* The registers a linker veneer may clobber; threaded implicitly through
+   the linear semantics.  See one_varmap.veneer_info. *)
+Context {vinfo : one_varmap.veneer_info}.
 
 Context
   {atoI  : arch_toIdent}

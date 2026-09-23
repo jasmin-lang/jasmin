@@ -15,6 +15,7 @@ module type AsmTarget = sig
     type asm_op
 
     val headers             : asm_element list
+    val text_alignment      : asm_element list
     val data_segment_header : asm_element list
     val function_directives : asm_element list
     val function_header     : asm_element list
@@ -61,8 +62,11 @@ module Make(Target : AsmTarget) : S
 
     let pp_body name decl =pp_instrs name decl.asm_fd_body
 
-    (* Mach-O has no ".size" directive; only ELF (and COFF) targets get one. *)
+    (* Mach-O has neither the ".size" directive nor the sections used below;
+       only ELF (and COFF) targets get them. *)
     let elf_target () = not (is_target_system_macos ())
+
+    let use_function_sections () = Glob_options.use_function_sections ()
 
     (* The symbol under which a function is emitted. An exported function is
        mangled and declared global; a function that is not exported gets a
@@ -76,7 +80,10 @@ module Make(Target : AsmTarget) : S
     let pp_function_header (name:string) decl =
         let name = function_symbol name decl in
         if elf_target () || decl.asm_fd_export then
-          Target.function_directives
+          (if use_function_sections ()
+           then text_section name :: Target.text_alignment
+           else [])
+          @ Target.function_directives
           @ (if is_target_system_macos () then []
             else [ Header (".type", [name; "%function"]) ])
           @ Label name
@@ -128,6 +135,16 @@ module Make(Target : AsmTarget) : S
         []
 
     let asm_of_prog (asm: (reg,regx,xreg,rflag,cond,asm_op) asm_prog) : asm_element list =
+        (* When the functions are separated into sections, a call to a
+           function that is not exported leaves its caller's section and is
+           printed against the callee's symbol; see [pp_remote_label]. *)
+        set_local_functions
+          (if use_function_sections () then
+             List.filter_map
+               (fun (fn, decl) ->
+                  if decl.asm_fd_export then None else Some fn.fn_name)
+               asm.asm_funcs
+           else []);
         let headers = Target.headers in
         let functions_head = pp_functions_decl asm.asm_funcs in
         let functions_body = pp_functions asm.asm_funcs in

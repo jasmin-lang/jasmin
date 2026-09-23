@@ -754,6 +754,27 @@ Class internal_calling_convention :=
   ; icall_rflag : seq rflag_t
   }.
 
+(* Registers that a linker-inserted veneer (a long-branch thunk) may destroy
+   between a call and its callee.  A veneer is synthesised when the caller and
+   the callee may end up far apart, which under -function-sections is the case
+   for every call internal to a compilation unit; it runs after the call
+   instruction has recorded the return address and before the first
+   instruction of the callee.  These are the ABI's intra-procedure-call
+   scratch registers: r12 on ARM, x16/x17 on AArch64; on x86-64 and RISC-V no
+   veneer is synthesised and the list is empty.
+
+   This is the ONE source of truth for the veneer: the assembly semantics
+   havocs exactly these registers at a call (arch_sem.veneer_kill) and the
+   middle end's [one_varmap.call_kill] is this list mapped through [to_var]
+   (asm_gen.veneer_i).  It is deliberately NOT a field of
+   [calling_convention], because it is gated by an option: the driver passes
+   the empty list unless the functions are laid out in sections of their own.
+   It lives here and not next to the semantics in arch_sem.v, because
+   asm_gen.v -- where the [one_varmap] instance is built, next to [ovm_i] --
+   must see it and does not (and should not) depend on the machine
+   semantics. *)
+Class veneer_regs_info := { veneer_regs : seq reg_t }.
+
 End DECL.
 
 Section ENUM.

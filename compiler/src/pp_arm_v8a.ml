@@ -134,6 +134,8 @@ module Armv8aTarget : AsmTargetBuilder.AsmTarget with
 
   let headers = []
 
+  let text_alignment = []
+
   let data_segment_header =
     [
       Instr (".p2align", ["5"]);

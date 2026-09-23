@@ -87,6 +87,7 @@ Record h_lower_addressing_params
 Record h_architecture_params
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra} {call_conv:calling_convention}
+  {vinfo : one_varmap.veneer_info}
   (aparams : architecture_params) :=
   {
     (* Stack alloc hypotheses. See [stack_alloc_params_proof.v]. *)

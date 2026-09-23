@@ -1288,6 +1288,8 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
   let killed fn = Hf.find killed_map fn in
   let fn_vars_map : Sv.t Hf.t = Hf.create 17 in
   let fn_vars fn = Hf.find fn_vars_map fn in
+  let is_subroutine f =
+    match f.f_cc with Subroutine -> true | Export | Internal -> false in
   let preprocess f =
     let f = f |> fill_in_missing_names |> Ssa.split_live_ranges false in
     Hf.add liveness_table f.f_name (Liveness.live_fd true f);
@@ -1318,6 +1320,14 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
     let killed_by_syscalls = if has_syscall f.f_body then Arch.syscall_kill else Sv.empty in
     let written = Sv.union (Sv.union written killed_by_calls) killed_by_syscalls in
 
+    (* Under -function-sections a subroutine and its callers may be placed in
+       different sections, so the linker is free to route the call through a
+       veneer, which destroys [Arch.veneer_kill] before the callee is
+       entered. Counting those registers as written by the subroutine makes
+       them conflict, below, with everything live across a call to it. *)
+    let written =
+      if Glob_options.use_function_sections () && is_subroutine f
+      then Sv.union Arch.veneer_kill written else written in
     Hf.add killed_map f.f_name written;
     Hf.add fn_vars_map f.f_name all_vars;
     f
@@ -1433,6 +1443,27 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
             doit tmp a (List.map L.unloc f.f_ret)
           | None -> a)
       conflicts funcs in
+  (* The veneer the linker may insert in front of a subroutine (see above)
+     runs before the callee, so it destroys an argument passed in one of
+     [Arch.veneer_kill]: those registers are forbidden for the arguments of a
+     subroutine.  The results need no such restriction: a subroutine returns
+     with an indirect branch, which the linker never routes through a veneer.
+     Both facts are part of the verified model (see [one_varmap.ra_vm] and
+     [merge_varmaps.check_fd]), which rejects an allocation that breaks them;
+     this restriction keeps the allocator from producing one. *)
+  let conflicts =
+    if not (Glob_options.use_function_sections ()) then conflicts
+    else
+      let doit ip =
+        List.fold_left (fun cnf x ->
+            conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp vars tr Lnone ip x cnf) in
+      List.fold_left (fun cnf f ->
+          if is_subroutine f then
+            Sv.fold (fun ip cnf -> doit ip cnf f.f_args) Arch.veneer_kill cnf
+          else cnf)
+        conflicts funcs
+  in
+
   (* Inter-procedural conflicts *)
   let conflicts =
     let add_conflicts s x = Sv.fold (conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp vars tr Lnone x) s in

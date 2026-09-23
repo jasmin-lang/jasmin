@@ -6,7 +6,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 From Coq Require Import ZArith Utf8.
 Import Relations.
 
-Require Import expr fexpr compiler_util label constant_prop.
+Require Import expr fexpr compiler_util label constant_prop one_varmap.
 Require Export linear linear_util.
 Import word_ssrZ.
 
@@ -382,6 +382,7 @@ Definition tmpi_of_ra (ra : return_address_location) : option var_i :=
 Section PROG.
 
 Context
+  {vinfo : veneer_info}
   (p : sprog).
 (*  (extra_free_registers : instr_info -> option var) *)
 
@@ -650,6 +651,18 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
                         & check_stack_ofs_internal_call e ofs Uptr]
                   end
                   (E.error "bad return-address") in
+  (* A veneer clobbers [call_kill] between the call and the callee, after the
+     return address has been recorded, so the register holding it must not be
+     one of them, or the return address would be lost.  (The register holding
+     the address to *return* to is not concerned: a return is an indirect
+     branch, which the linker never routes through a veneer.) *)
+  Let _ := assert match sf_return_address e with
+                  | RAnone => true
+                  | RAreg ra _ => ~~ Sv.mem ra call_kill
+                  | RAstack ra_call _ _ _ =>
+                      if ra_call is Some r then ~~ Sv.mem r call_kill else true
+                  end
+                  (E.error "the return address is held in a register a linker veneer may clobber") in
   let ok_save_stack :=
     let sf_sz := (sf_stk_sz e + sf_stk_extra_sz e)%Z in
     match sf_save_stack e with
