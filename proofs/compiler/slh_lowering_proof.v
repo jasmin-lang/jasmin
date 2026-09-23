@@ -7,6 +7,7 @@ Require Import
   compiler_util
   slh_lowering.
 Require Import psem_facts.
+Require Import sopn_facts.
 Require
   expr_facts
   constant_prop_proof.
@@ -607,7 +608,7 @@ Section LOWER_SLHO.
     move=> e2 [] /=; t_xrbindP; last by move=> *; subst.
     move=> v1' he1 _ v2' he2 _ <- <- ? [?]; subst v1' v2'.
     move=> t1 t2 hv1 msf hmsf.
-    rewrite /sopn_sem /= /semi /= -protect_ptr_fail_eq /se_protect_ptr_fail_sem;
+    rewrite /sopn_sem /= /semi /= -protect_ptr_fail_eq;
       t_xrbindP => /eqP ???;
       subst t2 msf res env'.
     case: lvs => //= lv; t_xrbindP => -[] //= s'' hw [?]; subst s''.
@@ -943,7 +944,7 @@ case: is_protect_ptrP hargs hchk hexec => {slho} [[ws sz]|slho] /=; t_xrbindP.
 - move=> ???; subst xs' op' es'.
   rewrite /sem_sopn; t_xrbindP=> /(check_e_msfP true hwf) + <-.
   move: args hsemes; rewrite /exec_sopn /=; destruct_opn_args=> /= hsemes.
-  rewrite hp_globs /= /se_protect_ptr_fail_sem /se_protect_ptr_sem
+  rewrite hp_globs /= /se_protect_ptr_sem
     hsemes (mapM_nth (Pconst 0%Z) (Vint 0) (n := 1) hsemes);
     last by rewrite (size_mapM hsemes).
   move=> [->] ?? /= -> /= ?.
