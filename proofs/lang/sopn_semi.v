@@ -6,8 +6,7 @@
    when one of them fails; [mk_semi] assembles them.  Two things are specific
    to the instructions: an instruction has several outputs, some of which may
    be left undefined (one condition of [seq safety_cond] per output says when
-   an output is defined), and its safety conditions are the ones of
-   [wsize.safe_cond], decided by [values.check_safe_cond].
+   an output is defined).
 
    Only the definitions and the lemmas the descriptors require are here; what
    else is proved about them is in [sopn_semi_facts.v]. *)
@@ -84,20 +83,14 @@ Fixpoint sem_prod_tuple_t (lt : seq ctype) : sem_prod lt (sem_tuple_t lt) :=
 
 Definition is_ErrType (e : error) : bool := if e is ErrType then true else false.
 
-(* The safety check of an instruction: its conditions are the old
-   [wsize.safe_cond], decided by [values.check_safe_cond]; if one of them
-   fails, the instruction raises the error it declares. *)
-Definition check_safe_old (vs : values) (safe : seq safe_cond) (err : error) : exec unit :=
-  if all (check_safe_cond vs) safe then ok tt else Error err.
-
 (* The semantics of an instruction: the safety conditions are checked on the
    arguments, then the total semantics is filtered by the initialisation
    conditions, one per output. *)
-Definition mk_semi (tin tout : seq ctype) (safe : seq safe_cond) (err : error)
+Definition mk_semi (tin tout : seq ctype) (safe : seq safety_cond) (err : error)
     (init : seq safety_cond)
     (f : sem_prod tin (sem_tuple_t tout)) : sem_prod tin (exec (sem_tuple tout)) :=
   mk_semi_aux
-    (fun vs t => Let _ := check_safe_old vs safe err in
+    (fun vs t => Let _ := check_safe vs safe err in
                  ok (filter_tuple tout (map (safety_cond_holds vs) init) t))
     [::] tin f.
 Arguments mk_semi {tin tout} safe err init f : assert.

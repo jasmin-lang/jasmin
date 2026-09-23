@@ -53,7 +53,7 @@ Proof.
   apply: sem_prod_eq_trans; first by apply: apply_lprod_mk_semi_aux.
   apply: sem_prod_eq_trans; last by apply: sem_prod_eq_sym; apply: mk_semi_aux_apply_lprod.
   apply: mk_semi_aux_eq => vs t.
-  by case: check_safe_old => //= _; rewrite extend_filter_tuple.
+  by case: check_safe => //= _; rewrite extend_filter_tuple.
 Qed.
 
 End DECL.

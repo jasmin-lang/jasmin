@@ -413,20 +413,17 @@ Proof.
   by apply/andP.
 Qed.
 
-Lemma safe_wf_cat (tin tin' : seq ltype) sc :
-  all (fun sc => sc_needed_args sc <= size tin) sc ->
-  all (fun sc => sc_needed_args sc <= size (tin ++ tin')) sc.
-Proof. apply sub_all => c h; rewrite size_cat; apply: (leq_trans h); apply leq_addr. Qed.
-
 (* Adding the shift amount at the end of the arguments does not change the
-   initialisation conditions, which only mention the earlier ones. *)
+   safety and initialisation conditions, which only mention the earlier
+   ones. *)
 Lemma shifted_wf (idt : instr_desc_t) :
-  [&& all (safety_cond_wf (map eval_ltype (id_tin idt ++ [:: lword8 ]))) (id_init idt),
+  [&& all (safety_cond_wf (map eval_ltype (id_tin idt ++ [:: lword8 ]))) (id_safe idt),
+      all (safety_cond_wf (map eval_ltype (id_tin idt ++ [:: lword8 ]))) (id_init idt),
       ssrnat.eqn (size (id_init idt)) (size (id_tout idt))
     & ~~ is_ErrType (id_err idt)].
 Proof.
-  have /and3P [h1 h2 h3] := id_wf idt.
-  by rewrite map_cat (all_safety_cond_wf_cat _ h1) h2 h3.
+  have /and4P [h0 h1 h2 h3] := id_wf idt.
+  by rewrite map_cat (all_safety_cond_wf_cat _ h0) (all_safety_cond_wf_cat _ h1) h2 h3.
 Qed.
 
 (* On A64 a shifted operand exists only in the register form of an
@@ -466,7 +463,6 @@ Definition mk_shifted
     (* The descriptor itself rejects a shift kind that the instruction
        does not admit (ROR on the arithmetic class). *)
     id_valid := id_valid idt && shift_allowed mn sk;
-    id_safe_wf := safe_wf_cat _ (id_safe_wf idt);
     id_wf := shifted_wf idt;
 |}.
 
@@ -610,7 +606,6 @@ Definition mk_arith_instr mn (ick : option armv8a_caimm_cond)
       id_doit := DOIT;
       id_pp_asm := pp_armv8a_op mn opts;
       id_valid := osz_valid;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -642,7 +637,6 @@ Definition mk_ariths_instr mn (ick : option armv8a_caimm_cond)
       id_doit := DOIT;
       id_pp_asm := pp_armv8a_op mn opts;
       id_valid := osz_valid;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -764,7 +758,6 @@ Definition mk_carry_instr mn (semi : word osz -> word osz -> bool -> ty_w osz)
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -790,7 +783,6 @@ Definition mk_carrys_instr mn
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -881,7 +873,6 @@ Definition armv8a_NEG_instr : instr_desc_t :=
       id_doit := DOIT;
       id_pp_asm := pp_armv8a_op mn opts;
       id_valid := osz_valid;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -912,7 +903,6 @@ Definition mk_rrr_instr mn (doit_v : doit_t)
     id_doit := doit_v;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1003,7 +993,6 @@ Definition mk_madd_instr mn (semi : word osz -> word osz -> word osz -> ty_w osz
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1130,7 +1119,6 @@ Definition armv8a_MVN_instr : instr_desc_t :=
       id_doit := DOIT;
       id_pp_asm := pp_armv8a_op mn opts;
       id_valid := osz_valid;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -1176,7 +1164,6 @@ Definition mk_shift_instr mn (op : forall sz, word sz -> Z -> word sz)
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1274,7 +1261,6 @@ Definition armv8a_MOV_instr : instr_desc_t :=
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1299,7 +1285,6 @@ Definition mk_movw_instr mn (semi : word U16 -> word U8 -> ty_w osz)
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1371,7 +1356,6 @@ Definition armv8a_MOVK_instr : instr_desc_t :=
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1410,7 +1394,6 @@ Definition mk_extend_instr mn (in_ws : wsize) (sign : bool) (valid : bool)
        register, and so is the destination of the zero-extensions. *)
     id_pp_asm := pp_armv8a_op_szs mn [:: (if sign then osz else U32); U32 ];
     id_valid := valid;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1447,7 +1430,6 @@ Definition armv8a_ADR_instr : instr_desc_t :=
     id_doit := NOT_DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz == U64;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1557,7 +1539,6 @@ Definition mk_cmp_instr mn (ick : option armv8a_caimm_cond)
       id_doit := DOIT;
       id_pp_asm := pp_armv8a_op mn opts;
       id_valid := osz_valid;
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}
   in
@@ -1637,7 +1618,6 @@ Definition mk_csel_instr mn (semi : word osz -> word osz -> bool -> ty_w osz)
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1722,7 +1702,6 @@ Definition armv8a_load_instr mn : instr_desc_t :=
       pp_armv8a_op_szs mn
         [:: (match mn with LDRB | LDRH => U32 | _ => osz end); osz ];
     id_valid := osz_valid && (if mn is LDRSW then osz == U64 else true);
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1898,7 +1877,6 @@ Definition armv8a_store_instr mn : instr_desc_t :=
       pp_armv8a_op_szs mn
         [:: (match mn with STRB | STRH => U32 | _ => osz end); osz ];
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 

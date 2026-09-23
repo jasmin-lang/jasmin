@@ -948,7 +948,8 @@ case: is_protect_ptrP hargs hchk hexec => {slho} [[ws sz]|slho] /=; t_xrbindP.
     hsemes (mapM_nth (Pconst 0%Z) (Vint 0) (n := 1) hsemes);
     last by rewrite (size_mapM hsemes).
   move=> [->] ?? /= -> /= ?.
-  rewrite /semi /= /mk_semi /= truncate_word_u /= /check_safe_old /= truncate_word_u /=.
+  rewrite /semi /= /mk_semi /= truncate_word_u /= /check_safe /=.
+  rewrite (safety_cond_holds_is_zero (vs := [:: _; Vword _]) (k := 1) erefl) eqxx /=.
   rewrite /se_protect_ptr_sem => - _ [->] ?; subst res.
   move: xs hwrite; rewrite /write_lvals; destruct_opn_args=> {}s' hwrite [<-].
   rewrite hwrite; exists s' => //; split=> //.

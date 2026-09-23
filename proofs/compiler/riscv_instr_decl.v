@@ -112,7 +112,6 @@ Definition RTypeInstruction ws semi jazz_name asm_name (doit : doit_t) : instr_d
       id_err := ErrArith;
       id_init := [:: IBool true ];
       id_pp_asm := pp_name asm_name; (* how to print it in asm *)
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
   |}.
 
@@ -137,7 +136,6 @@ Definition ITypeInstruction chk_imm ws semi jazz_name asm_name (doit : doit_t) :
       id_err := ErrArith;
       id_init := [:: IBool true ];
       id_pp_asm := pp_name asm_name; (* how to print it in asm *)
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}.
 
@@ -339,7 +337,6 @@ Definition riscv_MV_instr : instr_desc_t :=
       id_err := ErrArith;
       id_init := [:: IBool true ];
       id_pp_asm := pp_name "mv";
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}.
 
@@ -370,7 +367,6 @@ Definition riscv_LA_instr : instr_desc_t :=
       id_err := ErrArith;
       id_init := [:: IBool true ];
       id_pp_asm := pp_name "la";
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}.
 
@@ -401,7 +397,6 @@ Definition riscv_LI_instr : instr_desc_t :=
       id_err := ErrArith;
       id_init := [:: IBool true ];
       id_pp_asm := pp_name "li";
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}.
 
@@ -433,7 +428,6 @@ Definition riscv_NOT_instr : instr_desc_t :=
       id_err := ErrArith;
       id_init := [:: IBool true ];
       id_pp_asm := pp_name "not";
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}.
 
@@ -464,7 +458,6 @@ Definition riscv_NEG_instr : instr_desc_t :=
       id_err := ErrArith;
       id_init := [:: IBool true ];
       id_pp_asm := pp_name "neg";
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}.
 
@@ -515,7 +508,6 @@ Definition riscv_LOAD_instr s ws : instr_desc_t :=
       id_err := ErrArith;
       id_init := [:: IBool true ];
       id_pp_asm := pp_name ("l" ++ string_of_size ws ++ string_of_sign s);
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}.
 
@@ -550,7 +542,6 @@ Definition riscv_STORE_instr ws : instr_desc_t :=
       id_err := ErrArith;
       id_init := [:: IBool true ];
       id_pp_asm := pp_name ("s" ++ string_of_size ws);
-      id_safe_wf := refl_equal;
       id_wf := refl_equal;
     |}.
 

@@ -9,6 +9,7 @@ Require Import psem compiler_util lea_proof x86_instr_decl x86_extra.
 Require Import
   lowering
   lowering_lemmas
+  safety_cond_facts
   sem_op_typed_facts.
 Require Import
   arch_extra
@@ -802,10 +803,12 @@ Section PROOF.
         case: u => hdiv /= ?; subst w3;
           rewrite /= /exec_sopn /sopn_sem /sopn_sem_ /= /semi_to_atype_t !computational_eq_refl
             !truncate_word_u /size_16_64 /= hsz1 hsz2 /= hw2 /=;
-          rewrite /semi /mk_semi /= hw1 /= /check_safe_old /= !truncate_word_u /=.
-        + rewrite wdwords0 (wsigned_quot_bound neq hdiv) /=.
+          rewrite /semi /mk_semi /= hw1 /= /check_safe /=.
+        + rewrite (safety_cond_holds_x86_division Signed (sz := sz) (vs := [:: Vword _; Vword _; Vword _]) erefl erefl erefl) /=.
+          rewrite wdwords0 (wsigned_quot_bound neq hdiv) /=.
           move: Hw; rewrite /wdivi => /(eeq_exc_write_lval hl hs1) [s1' -> ?].
           by exists s1'; split => //=; rewrite /write_none /= cmp_le_refl orbT.
+        rewrite (safety_cond_holds_x86_division Unsigned (sz := sz) (vs := [:: Vword _; Vword _; Vword _]) erefl erefl erefl) /=.
         have hw2' : (wunsigned w2 == 0%Z) = false.
         + by apply /negbTE; apply /eqP => h; apply neq, wunsigned_inj.
         rewrite hw2' wdwordu0.
@@ -834,11 +837,13 @@ Section PROOF.
         case: u => hdiv /= ?; subst w3;
           rewrite /= /exec_sopn /sopn_sem /sopn_sem_ /= /semi_to_atype_t !computational_eq_refl
             !truncate_word_u /size_16_64 /= hsz1 hsz2 /= hw2 /=;
-          rewrite /semi /mk_semi /= hw1 /= /check_safe_old /= !truncate_word_u /=.
-        + rewrite wdwords0 (wsigned_quot_bound neq hdiv) /=.
+          rewrite /semi /mk_semi /= hw1 /= /check_safe /=.
+        + rewrite (safety_cond_holds_x86_division Signed (sz := sz) (vs := [:: Vword _; Vword _; Vword _]) erefl erefl erefl) /=.
+          rewrite wdwords0 (wsigned_quot_bound neq hdiv) /=.
           rewrite /write_none /= cmp_le_refl orbT /=.
           move: Hw;rewrite /wdivi => /(eeq_exc_write_lval hl hs1) [s1' -> ?].
           by exists s1'.
+        rewrite (safety_cond_holds_x86_division Unsigned (sz := sz) (vs := [:: Vword _; Vword _; Vword _]) erefl erefl erefl) /=.
         have hw2' : (wunsigned w2 == 0%Z) = false.
         + by apply /negbTE; apply /eqP => h; apply neq, wunsigned_inj.
         rewrite hw2' wdwordu0.

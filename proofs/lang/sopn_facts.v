@@ -84,14 +84,14 @@ Qed.
 Lemma array_copy_semi_eq ws p :
   sem_prod_eq [:: carr (arr_size ws p)] (@WArray.copy ws p)
     (@mk_semi [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
-       [:: AllInit ws p 0] ErrAddrUndef [:: IBool true] (@copy_total ws p)).
+       [:: sc_all_init ws p 0] ErrAddrUndef [:: IBool true] (@copy_total ws p)).
 Proof.
 move=> t.
 have -> : @mk_semi [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
-            [:: AllInit ws p 0] ErrAddrUndef [:: IBool true] (@copy_total ws p) t
-        = (Let _ := check_safe_old [:: Varr t] [:: AllInit ws p 0] ErrAddrUndef in
+            [:: sc_all_init ws p 0] ErrAddrUndef [:: IBool true] (@copy_total ws p) t
+        = (Let _ := check_safe [:: Varr t] [:: sc_all_init ws p 0] ErrAddrUndef in
            ok (@copy_total ws _ t)) by [].
-rewrite /check_safe_old /= andbT WArray.castK array_copy_eq.
+rewrite /check_safe /= andbT (safety_cond_holds_all_init (t := t)) // array_copy_eq.
 by case: all.
 Qed.
 
@@ -108,12 +108,13 @@ Definition se_protect_ptr_fail_sem {len:Z} (t: WArray.array len) (msf : wmsf) : 
 
 Lemma protect_ptr_fail_eq n :
   sem_prod_eq [:: carr n; cty_msf ] (@se_protect_ptr_fail_sem n)
-    (@mk_semi [:: carr n; cty_msf ] [:: carr n] [:: IsZero msf_size 1] ErrSemUndef
+    (@mk_semi [:: carr n; cty_msf ] [:: carr n] [:: sc_is_zero msf_size 1] ErrSemUndef
        [:: IBool true ] (fun (t : WArray.array n) (_ : wmsf) => t)).
 Proof.
   move=> t msf.
-  rewrite /mk_semi /= /check_safe_old /= andbT truncate_word_u /se_protect_ptr_fail_sem.
-  by rewrite /assert; case: eqP.
+  rewrite /mk_semi /= /check_safe /= andbT.
+  rewrite (safety_cond_holds_is_zero (vs := [:: Varr t; Vword msf]) (k := 1) erefl).
+  by rewrite /se_protect_ptr_fail_sem /assert; case: eqP.
 Qed.
 
 End WITH_PARAMS.
