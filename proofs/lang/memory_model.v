@@ -287,6 +287,15 @@ Section CoreMem.
        f_equal; apply eq_mapM => k _; apply get_read8.
   Qed.
 
+  Section WRITE_MODE.
+
+  Context {sm : SemMode}.
+
+  (* A write does not change the writable bytes, in either mode. *)
+  Lemma valid8_set_mode m p w m' p' :
+    set m p w = ok m' -> valid8 m' p' = valid8 m p'.
+  Proof. by case: sm => -[]; [apply: valid8_set_total | apply: valid8_set]. Qed.
+
   Lemma write_valid8_eq m m' al p s (v :word s) :
     write m al p v = ok m' ->
     forall p',
@@ -294,7 +303,7 @@ Section CoreMem.
   Proof.
     rewrite /write; t_xrbindP => ? hfold p'; move: m hfold.
     apply ziota_ind => /= [ m [->]//| i l _ hrec m]; t_xrbindP => ? h /hrec ->.
-    by apply (valid8_set _ h).
+    exact: valid8_set_mode h.
   Qed.
 
   Lemma write_validw_eq m m' al p s (v :word s) :
@@ -304,6 +313,8 @@ Section CoreMem.
   Proof.
     by move=> hw al' p' s'; rewrite /validw; f_equal; apply all_ziota => ? _; apply (write_valid8_eq hw).
   Qed.
+
+  End WRITE_MODE.
 
   Lemma write_read8 m m' al p ws (v: word ws) :
     write m al p v = ok m' ->
@@ -1132,7 +1143,8 @@ Parameter alloc_stack_complete : forall m ws sz ioff sz',
   ] →
   ∃ m', alloc_stack m ws sz ioff sz' = ok m'.
 
-Parameter write_mem_stable : forall m m' al p s (v:word s),
+(* True in both modes: a write changes bytes, never the stack. *)
+Parameter write_mem_stable : forall {sm : SemMode} m m' al p s (v:word s),
   write m al p v = ok m' -> stack_stable m m'.
 
 Parameter free_stackP : forall m,

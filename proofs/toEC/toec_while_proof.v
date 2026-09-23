@@ -12,7 +12,8 @@ Context
   {wa : WithAssert}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}.
+  {sip : SemInstrParams asm_op syscall_state}
+  {sm : SemMode}.
 
 #[local] Existing Instance sCP_unit.
 #[local] Existing Instance nosubword.
