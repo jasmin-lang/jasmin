@@ -9,15 +9,12 @@ Require Import
 Require Import
   arch_decl.
 Require Import
+  arm_common
   arm_decl
   arm_instr_decl.
 
 Definition is_arith_small (imm : Z) : bool :=
   is_expandable_or_shift imm || is_w12_encoding imm.
-
-Definition Z_mod_lnot (z : Z) (ws : wsize) : Z :=
-  let m := wbase ws in
-  (Z.lnot (z mod m) mod m)%Z.
 
 Module ARMFopn_core.
 
