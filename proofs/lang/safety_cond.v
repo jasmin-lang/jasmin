@@ -269,10 +269,6 @@ by move=> h;
   rewrite /safety_cond_holds /sc_is_zero /sc_eqi /sc_toint /= h /= truncate_word_u /=.
 Qed.
 
-Lemma is_ok_get8 len (t : WArray.array len) i :
-  is_ok (WArray.get8 t i) = WArray.in_bound t i && WArray.is_init t i.
-Proof. by rewrite /WArray.get8; case: WArray.in_bound; case: WArray.is_init. Qed.
-
 (* An array read succeeds exactly when all the cells it reads are in bounds
    and initialised. *)
 Lemma is_ok_get ws len (t : WArray.array len) i :
@@ -283,7 +279,7 @@ Lemma is_ok_get ws len (t : WArray.array len) i :
 Proof.
 rewrite /WArray.get /CoreMem.read /assert /is_aligned_if /mk_scale.
 have heq : forall k,
-  get t (add (i * wsize_size ws)%Z k) = WArray.get8 t (i * wsize_size ws + k)%Z.
+  get t (add (i * wsize_size ws)%Z k) = WArray.get8 partial t (i * wsize_size ws + k)%Z.
 + by move=> k; rewrite WArray.addE.
 have -> :
   all (fun k => WArray.in_bound t (i * wsize_size ws + k)%Z
@@ -291,7 +287,7 @@ have -> :
       (ziota 0 (wsize_size ws))
   = is_ok (mapM (fun k => get t (add (i * wsize_size ws)%Z k))
                 (ziota 0 (wsize_size ws))).
-+ by rewrite is_ok_mapM; apply: eq_all => k; rewrite heq is_ok_get8.
++ by rewrite is_ok_mapM; apply: eq_all => k; rewrite heq WArray.is_ok_get8.
 by case: mapM.
 Qed.
 

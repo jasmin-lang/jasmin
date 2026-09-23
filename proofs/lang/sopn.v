@@ -206,11 +206,11 @@ Local Notation E n := (ADExplicit n ACR_any).
    source succeeds) both compute the same array. *)
 
 Definition copy_get ws {len} (a : WArray.array len) (i : Z) : word ws :=
-  if WArray.get Unaligned AAscale ws a i is Ok w then w else 0%R.
+  if WArray.get (sm := total) Unaligned AAscale ws a i is Ok w then w else 0%R.
 
 Definition copy_set {ws len} (t : WArray.array len) (i : Z) (w : word ws) :
     WArray.array len :=
-  if WArray.set t Unaligned AAscale i w is Ok t' then t' else t.
+  if WArray.set (sm := total) t Unaligned AAscale i w is Ok t' then t' else t.
 
 Definition copy_total ws {n} (a : WArray.array (arr_size ws n)) :
     WArray.array (arr_size ws n) :=
@@ -232,9 +232,13 @@ Proof.
 move=> hu; rewrite /copy_total; move: (WArray.empty (arr_size ws n)).
 elim: (ziota 0 n) => //= i l ih t /andP [hi hl].
 have -> : copy_set t i (copy_get ws a i) = copy_set t i (copy_get ws a' i).
-+ rewrite /copy_get; case hg : (WArray.get Unaligned AAscale ws a i) => [w | e].
-  + by rewrite (WArray.uincl_get hu hg).
-  by rewrite hg in hi.
++ case hg : (WArray.get (sm := partial) Unaligned AAscale ws a i) => [w | e];
+    last by rewrite hg in hi.
+  have hgt : WArray.get (sm := total) Unaligned AAscale ws a i = ok w.
+  + by case/read_partialE: hg.
+  have hgt' : WArray.get (sm := total) Unaligned AAscale ws a' i = ok w.
+  + by case/read_partialE: (WArray.uincl_get hu hg).
+  by rewrite /copy_get hgt hgt'.
 by apply: ih.
 Qed.
 
