@@ -7,8 +7,12 @@ Import Utf8.
 (* Translation of a condition on the argument values of an operator into an
    expression, and into an assertion, on its argument expressions. The
    coercion from words to integers is a parameter: [wint_int] takes the
-   identity, its arguments being already integers; the safety pass will apply
-   [Oint_of_word]. *)
+   identity, its arguments being already integers; the safety pass applies
+   [Oint_of_word].
+
+   A variable beyond the arguments, or a predicate [IOpN_safety] below an
+   operator, which the expression language cannot express, gives the assertion
+   [false]: asserting it is sound. *)
 
 Section TO_E.
 
@@ -34,8 +38,27 @@ Fixpoint sc_to_e (vs : pexprs) (c : safety_cond) : pexpr :=
   | IOpN_safety _ _ _ _ => Pbool false
   end.
 
+(* The conditions [sc_to_e] translates into an expression: those without the
+   predicates [IOpN_safety]. *)
+Fixpoint safety_cond_expr (c : safety_cond) : bool :=
+  match c with
+  | IBool _ | IConst _ | IVar _ => true
+  | IOp1 _ c => safety_cond_expr c
+  | IOp2 _ c1 c2 => safety_cond_expr c1 && safety_cond_expr c2
+  | IOpN_safety _ _ _ _ => false
+  end.
+
+(* A predicate [IOpN_safety] at the top is the assertion [PappN_safety]. *)
 Definition sc_to_eassert (vs : pexprs) (c : safety_cond) : eassert :=
-  Pexpr (sc_to_e vs c).
+  if safety_cond_below (size vs) c then
+    match c with
+    | IOpN_safety o c1 c2 c3 =>
+      if [&& safety_cond_expr c1, safety_cond_expr c2 & safety_cond_expr c3]
+      then PappN_safety o [:: sc_to_e vs c1; sc_to_e vs c2; sc_to_e vs c3]
+      else Pexpr (Pbool false)
+    | _ => Pexpr (if safety_cond_expr c then sc_to_e vs c else Pbool false)
+    end
+  else Pexpr (Pbool false).
 
 End TO_E.
 
