@@ -14,6 +14,7 @@ Require Import
 Require Import
   lea
   linearization
+  lower_glob_load
   lowering
   stack_alloc_params
   stack_zeroization
@@ -387,6 +388,20 @@ Definition armv8a_szparams : stack_zeroization_params :=
   |}.
 
 (* ------------------------------------------------------------------------ *)
+(* Lowering of the loads from a global. *)
+
+Definition armv8a_is_load (o : asm_op_t) : bool :=
+  if o is BaseOp (None, ARMv8A_op mn _) then
+    mn \in [:: LDR; LDRB; LDRH; LDRSB; LDRSH; LDRSW ]
+  else false.
+
+Definition armv8a_laparams : lower_addressing_params :=
+  {|
+    lap_lower_address :=
+      lower_glob_load_prog armv8a_is_load (BaseOp (None, ARMv8A_op ADR default_opts));
+  |}.
+
+(* ------------------------------------------------------------------------ *)
 (* Shared parameters. *)
 
 Definition armv8a_is_move_op (o : asm_op_t) : bool :=
@@ -406,7 +421,7 @@ Definition armv8a_params : architecture_params :=
     ap_lip := armv8a_liparams;
     ap_plp := false;
     ap_lop := armv8a_loparams;
-    ap_lap := {| lap_lower_address := fun _ p => ok p |};
+    ap_lap := armv8a_laparams;
     ap_agp := armv8a_agparams;
     ap_szp := armv8a_szparams;
     ap_shp := armv8a_shparams;

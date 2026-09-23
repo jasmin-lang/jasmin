@@ -24,6 +24,7 @@ Variant arm_extra_op : Type :=
   | Oarm_add_large_imm
   | Osmart_li of wsize    (* Load an immediate to a register. *)
   | Osmart_li_cc of wsize (* Conditional [Osmart_li]. *)
+  | Oarm_glob_addr        (* Load the address of a global to a register. *)
 .
 
 HB.instance Definition _ := hasDecEq.Build arm_extra_op arm_extra_op_eqb_OK.
@@ -75,12 +76,21 @@ Definition smart_li_instr_cc (ws : wsize) : instruction_desc :=
     (fun x b y => if b then x else y)
     true DOIT.
 
+Definition glob_addr_instr : instruction_desc :=
+  mk_instr_desc_safe
+    (fun _ => "glob_addr"%string)
+    [:: aword Uptr ] [:: E 0 ]
+    [:: aword Uptr ] [:: E 1 ]
+    (fun x => x)
+    true DOIT.
+
 Definition get_instr_desc (o: arm_extra_op) : instruction_desc :=
   match o with
   | Oarm_swap sz => Oswap_instr (aword sz)
   | Oarm_add_large_imm => Oarm_add_large_imm_instr
   | Osmart_li ws => smart_li_instr ws
   | Osmart_li_cc ws => smart_li_instr_cc ws
+  | Oarm_glob_addr => glob_addr_instr
   end.
 
 (* Without priority 1, this instance is selected when looking for an [asmOp],
@@ -187,6 +197,29 @@ Definition assemble_smart_li_cc
   in
   mapM mk (ARMFopn_core.li x imm).
 
+(* The address of a global, [x = e], is computed by [MOVW x, lo16 e] and
+   [MOVT x, hi16 e]; [e] is a global address, assembled into immediates. *)
+Definition glob_addr_args ii les res :=
+  Let: (x, les) := uncons_LLvar ii les in
+  Let _ :=
+    assert (convertible (vtype (v_var x)) (aword reg_size)) (E.internal_error ii "invalid type")
+  in
+  Let _ := assert (nilp les) (E.internal_error ii "invalid lvals") in
+  Let f := if res is [:: Rexpr f] then ok f else Error (E.internal_error ii "invalid arguments") in
+  Let _ :=
+    assert (~~ Sv.mem (v_var x) (free_vars f)) (E.internal_error ii "invalid global address")
+  in
+  ok (x, f).
+
+Definition glob_addr_ops (x : var_i) f : seq ARMFopn_core.opn_args :=
+  [:: ([:: LLvar x ], ARM_op MOV default_opts, [:: Rexpr (flo16 reg_size f) ])
+    ; ([:: LLvar x ], ARM_op MOVT default_opts, [:: rvar x; Rexpr (fhi16 reg_size f) ])
+  ].
+
+Definition assemble_glob_addr ii les res :=
+  Let: (x, f) := glob_addr_args ii les res in
+  ok (asm_args_of_opn_args (glob_addr_ops x f)).
+
 Definition assemble_extra
            (ii: instr_info)
            (o: arm_extra_op)
@@ -229,6 +262,7 @@ Definition assemble_extra
     end
   | Osmart_li ws => assemble_smart_li ii ws outx inx
   | Osmart_li_cc ws => assemble_smart_li_cc ii ws outx inx
+  | Oarm_glob_addr => assemble_glob_addr ii outx inx
   end.
 
 #[ export ]

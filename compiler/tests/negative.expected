@@ -166,6 +166,7 @@ Allowed args compatible with the input (except on immediate sizes) are:
 All allowed args (regardless of the input) are:
   [[reg]; [reg]]
   [[reg]; [imm 32 (shift = W16, none = W16)]]
+  [[reg]; [glob addr (lo16)]]
 
 fail/arm-m4/mov_imm_too_large.jazz:
 
@@ -177,6 +178,7 @@ Allowed args compatible with the input (except on immediate sizes) are:
 All allowed args (regardless of the input) are:
   [[reg]; [reg]]
   [[reg]; [imm 32 (shift = W16, none = W16)]]
+  [[reg]; [glob addr (lo16)]]
 
 fail/arm-m4/mov_shiftedw_set_flags.jazz:
 

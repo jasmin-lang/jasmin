@@ -71,7 +71,14 @@ let pp_asm_arg ?(wform = false) (arg : (register, Arch_utils.empty, Arch_utils.e
   | Reg r -> if wform then pp_wregister r else pp_register r
   | Regx _ -> .
   | Addr (Areg ra) -> pp_reg_address ra
-  | Addr (Arip r) -> pp_rip_address r
+  | Addr (Arip _) ->
+      (* A global is read through its address, see [lower_glob_load]. *)
+      hierror
+        ~loc:Lnone
+        ~kind:"assembly printing"
+        ~internal:true
+        "memory operand relative to the instruction pointer"
+  | ImmRip _ -> assert false (* Only on ARMv7-M. *)
   | XReg _ -> .
 
 (* -------------------------------------------------------------------- *)
@@ -105,12 +112,9 @@ let pp_mnemonic (ARMv8A_op (mn, _) as op) =
 
 (* Split an [ADR] instruction to a global symbol into an [ADRP]/[ADD]
    pair using :lo12: relocations. *)
-let pp_ADR args =
-  match args with
-  | dst :: addr :: _ ->
-      [ Instr ("adrp", [ dst; addr ]);
-        Instr ("add", [ dst; dst; ":lo12:" ^ addr ]) ]
-  | _ -> assert false
+let pp_ADR dst addr =
+  [ Instr ("adrp", [ dst; addr ]);
+    Instr ("add", [ dst; dst; ":lo12:" ^ addr ]) ]
 
 module Armv8aTarget : AsmTargetBuilder.AsmTarget with
   type reg = Armv8a_decl.register
@@ -204,9 +208,8 @@ module Armv8aTarget : AsmTargetBuilder.AsmTarget with
         let id = instr_desc Armv8a_decl.armv8a_decl Armv8a_instr_decl.armv8a_op_decl (None, op) in
         let pp = id.id_pp_asm args in
         match op, args with
-        | ARMv8A_op (ADR, _), _ :: Addr (Arip _) :: _ ->
-            let args = List.map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args in
-            pp_ADR args
+        | ARMv8A_op (ADR, _), [ dst; Addr (Arip r) ] ->
+            pp_ADR (pp_asm_arg dst) (pp_rip_address r)
         | _, _ ->
             let name = pp_mnemonic op in
             (* Registers are printed in the W form when the instruction
