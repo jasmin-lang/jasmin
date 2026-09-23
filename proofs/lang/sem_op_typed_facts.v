@@ -22,6 +22,16 @@ Lemma mk_sem_op2E {sm : SemMode} t1 t2 t safe err (f : sem_t t1 -> sem_t t2 -> s
 Proof. by []. Qed.
 
 (* -------------------------------------------------------------------- *)
+(* ** The total mode: the semantics is the total one                      *)
+
+Lemma sem_sop1_typed_total o x : sem_sop1_typed (sm := total) o x = ok (sem_sop1_total o x).
+Proof. by []. Qed.
+
+Lemma sem_sop2_typed_total o x1 x2 :
+  sem_sop2_typed (sm := total) o x1 x2 = ok (sem_sop2_total o x1 x2).
+Proof. by []. Qed.
+
+(* -------------------------------------------------------------------- *)
 (* ** Computing the operators that can fail                              *)
 
 (* [sc_divmod] is the usual guard of the divisions. *)

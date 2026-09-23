@@ -200,7 +200,7 @@ Section PROOF.
 
 Context
   {asm_op syscall_state : Type} {wa : WithAssert} {ep : EstateParams syscall_state}
-  {spp : SemPexprParams} {sip : SemInstrParams asm_op syscall_state}
+  {spp : SemPexprParams} {sip : SemInstrParams asm_op syscall_state} {sm : SemMode}
   {LC : LoopCounter} {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
 Context (fresh_var_ident : v_kind -> instr_info -> string -> atype -> Ident.ident).
@@ -224,7 +224,7 @@ Lemma wequiv_while_for (R : seq Z -> rel_c) (Rj : Z -> seq Z -> rel_c) (P Q : re
   wequiv_ftw P [:: MkI ii (Cwhile a [::] cond inf body)] [:: MkI ii' (Cfor x (d, lo, hi) c)] Q.
 Proof.
 move=> hP hR hw hbody t s hts.
-case hc: (sem_cond (spp := spp) (p_globs p') cond t) => [b | err]; last first.
+case hc: (sem_cond (spp := spp) (sm := sm) (p_globs p') cond t) => [b | err]; last first.
 + rewrite isem_cmd_while /= /isem_cond hc /= bind_throw bind_throw.
   apply xrutt.xrutt_CutL.
   by rewrite /core_logics.errcutoff /is_error /= mid12.
@@ -232,7 +232,7 @@ have [bnds hb hR0] := hP _ _ _ hts hc.
 rewrite /isem_cmd_ /= /isem_bound hb /= bind_ret_l !bind_ret_r.
 move: (wrange _ _ _) t s hR0 {hts hc hb} => js; elim: js => [ | j js ih] t s hjs.
 all: rewrite /isem_while_loop unfold_iter /isem_while_round /= bind_ret_l /isem_cond.
-all: case hc: (sem_cond (spp := spp) (p_globs p') cond t) => [bc | err] /=; last first.
+all: case hc: (sem_cond (spp := spp) (sm := sm) (p_globs p') cond t) => [bc | err] /=; last first.
 1,3: rewrite bind_throw bind_throw; apply xrutt.xrutt_CutL.
 1,2: by rewrite /core_logics.errcutoff /is_error /= mid12.
 + have [-> hQ] := hR _ _ _ _ hjs hc.
@@ -249,9 +249,10 @@ Lemma eltiI gd s e1 e2 bc :
   exists z1 z2, [/\ sem_pexpr true gd s e1 >>= to_int = ok z1,
     sem_pexpr true gd s e2 >>= to_int = ok z2 & bc = (z1 <? z2)%Z].
 Proof.
-rewrite /sem_cond /=; t_xrbindP => v v1 h1 v2 h2 /sem_sop2I [w1 [w2 [w3 [hw1 hw2 + ->]]]].
-move=> /= -[<-] /= [<-].
-by exists w1, w2; rewrite h1 h2.
+rewrite /sem_cond /=; t_xrbindP => v v1 h1 v2 h2.
+rewrite /sem_sop2 /=; t_xrbindP => z1 hz1 z2 hz2 r.
+cbn; rewrite /check_safe orbT => -[<-] <- /= [<-].
+by exists z1, z2; rewrite h1 h2 /= hz1 hz2.
 Qed.
 
 Lemma sem_assgn_intP (pp : prog) t t' (x : var_i) e :
@@ -267,7 +268,7 @@ Qed.
 
 Lemma get_var_set_int (vm : Vm.t) (y : var) z :
   eval_atype (vtype y) = cint -> get_var true vm.[y <- Vint z] y = ok (Vint z).
-Proof. by move=> hty; rewrite /get_var Vm.setP_eq hty. Qed.
+Proof. by move=> hty; rewrite /get_var Vm.get_modeE Vm.setP_eq hty /= andbF. Qed.
 
 Lemma ftw_globs : p_globs p' = p_globs p.
 Proof using Hp. by move: Hp; rewrite /for_to_while_prog; t_xrbindP => ? _ <-. Qed.
@@ -320,7 +321,7 @@ Lemma eaddiP gd s e1 e2 z1 z2 :
   sem_pexpr true gd s (eaddi e1 e2) >>= to_int = ok (z1 + z2)%Z.
 Proof.
 t_xrbindP => v1 h1 /to_intI ? v2 h2 /to_intI ?; subst v1 v2.
-by rewrite /= h1 h2.
+by rewrite /= h1 h2 /= /sem_sop2 /=; cbn; rewrite /check_safe orbT.
 Qed.
 
 Lemma esubiP gd s e1 e2 z1 z2 :
@@ -329,7 +330,7 @@ Lemma esubiP gd s e1 e2 z1 z2 :
   sem_pexpr true gd s (esubi e1 e2) >>= to_int = ok (z1 - z2)%Z.
 Proof.
 t_xrbindP => v1 h1 /to_intI ? v2 h2 /to_intI ?; subst v1 v2.
-by rewrite /= h1 h2.
+by rewrite /= h1 h2 /= /sem_sop2 /=; cbn; rewrite /check_safe orbT.
 Qed.
 
 Definition cond_of d (x : var_i) b :=
@@ -369,13 +370,15 @@ move=> /(sem_lvar_int gd) hx.
 by case: d; [apply: eaddiP hx _ | apply: esubiP hx _].
 Qed.
 
-Lemma get_var_int vm (y : var) k :
-  vm.[y] = Vint k -> get_var true vm y = ok (Vint k).
+Notation pget vm x := (Vm.get (sm := partial) vm x).
+
+Lemma get_var_pget vm (y : var) k :
+  pget vm y = Vint k -> get_var true vm y = ok (Vint k).
 Proof.
-by move=> h; rewrite /get_var h.
+by move=> h; rewrite /get_var Vm.get_modeE h /= andbF.
 Qed.
 
-Lemma vm_get_int vm (y : var) k : vm.[y] = Vint k -> eval_atype (vtype y) = cint.
+Lemma pget_int vm (y : var) k : pget vm y = Vint k -> eval_atype (vtype y) = cint.
 Proof.
 by move=> h; have := Vm.getP vm y; rewrite h => /compat_valE.
 Qed.
@@ -409,14 +412,14 @@ Lemma wequiv_while_of_for (g : bool) ii ii' (x : var_i) d lo hi b c c1 s1 s2 :
     [:: MkI ii' (Cfor x (d, lo, hi) c)]
     (fun t s => exists k vb, [/\ st_eq_on (Sv.remove x s1) t s,
         sem_pexpr true (p_globs p') t b >>= to_int = ok vb,
-        (evm t).[x] = Vint k, ~~ in_rng d k vb
-      & g -> k = vb /\ (evm s).[x] = Vint (prev_idx d vb)]).
+        pget (evm t) x = Vint k, ~~ in_rng d k vb
+      & g -> k = vb /\ pget (evm s) x = Vint (prev_idx d vb)]).
 Proof using Hp.
 move=> eo eb hsb hxb hbw hxc1 hxc hs2 hbody.
 rewrite while_of_forE -[[:: MkI ii' _]]cat0s.
 rewrite -[[:: assign_int _ _ _; _]]cat1s.
 apply wequiv_cat with (fun t s => exists kst, [/\ st_eq_on (Sv.remove x s1) t s,
-    (evm t).[x] = Vint kst,
+    pget (evm t) x = Vint kst,
     sem_pexpr true (p_globs p) s eo >>= to_int = ok kst,
     sem_pexpr true (p_globs p') t b >>= to_int = sem_pexpr true (p_globs p) s eb >>= to_int
   & g -> exists vb, sem_pexpr true (p_globs p') t b >>= to_int = ok vb /\ in_rng d kst vb]).
@@ -436,13 +439,13 @@ apply wequiv_cat with (fun t s => exists kst, [/\ st_eq_on (Sv.remove x s1) t s,
   by move: hk; rewrite hzs => -[->].
 apply (wequiv_while_for
   (R := fun js t s => exists k vb kst, [/\ st_eq_on (Sv.remove x s1) t s,
-      sem_pexpr true (p_globs p') t b >>= to_int = ok vb, (evm t).[x] = Vint k,
+      sem_pexpr true (p_globs p') t b >>= to_int = ok vb, pget (evm t) x = Vint k,
       js = rng d k vb
     & g -> in_rng d kst vb /\
-           (k = kst \/ (evm s).[x] = Vint (prev_idx d k) /\ in_rng d (prev_idx d k) vb)])
+           (k = kst \/ pget (evm s) x = Vint (prev_idx d k) /\ in_rng d (prev_idx d k) vb)])
   (Rj := fun j js t s => exists vb kst, [/\ st_eq_on (Sv.add x (Sv.remove x s1)) t s,
-      sem_pexpr true (p_globs p') t b >>= to_int = ok vb, (evm t).[x] = Vint j,
-      (evm s).[x] = Vint j, js = rng d (next_idx d j) vb, in_rng d j vb
+      sem_pexpr true (p_globs p') t b >>= to_int = ok vb, pget (evm t) x = Vint j,
+      pget (evm s) x = Vint j, js = rng d (next_idx d j) vb, in_rng d j vb
     & g -> in_rng d kst vb])).
 + move=> t s bc [kst [heq hx hk hbeq hg]] hc.
   have [vb hvb] : exists vb, sem_pexpr true (p_globs p') t b >>= to_int = ok vb.
@@ -452,13 +455,13 @@ apply (wequiv_while_for
   + by move: hk hbeq; rewrite /eo /eb /sem_bound; case: (d) => /= -> <-.
   exists kst, vb, kst; split => //; first by case: (d).
   by move=> /hg [vb' []]; rewrite hvb => -[<-] hin; split => //; left.
-+ move=> js t s bc [k [vb [kst [heq hvb hx -> hg]]]] /(cond_ofP (get_var_int hx) hvb) ->.
++ move=> js t s bc [k [vb [kst [heq hvb hx -> hg]]]] /(cond_ofP (get_var_pget hx) hvb) ->.
   rewrite rngE; case: ifP => hin //; split => //; exists k, vb; split => //; first by rewrite hin.
   move=> /hg [hkst [? | [hpx hprev]]]; first by subst k; rewrite hkst in hin.
   by have ? := in_rng_last hprev (negbT hin); subst k.
 + move=> j js t s [k [vb [kst [[hscs hmem hvm] hvb hx hjs hg]]]].
   move: hjs; rewrite rngE; case: ifP => // hin [? ?]; subst j js.
-  have hty := vm_get_int hx.
+  have hty := pget_int hx.
   exists (with_vm s (evm s).[x <- Vint k]).
   + by apply: write_var_eq_type => //; rewrite hty.
   exists vb, kst; split => //; last by move=> /hg [].
@@ -468,8 +471,8 @@ apply (wequiv_while_for
   by rewrite /= Vm.setP_eq hty.
 move=> j js; rewrite -[c]cats0.
 apply wequiv_cat with (fun t s => exists vb kst, [/\ st_eq_on (Sv.remove x s1) t s,
-    sem_pexpr true (p_globs p') t b >>= to_int = ok vb, (evm t).[x] = Vint j,
-    (evm s).[x] = Vint j, js = rng d (next_idx d j) vb, in_rng d j vb
+    sem_pexpr true (p_globs p') t b >>= to_int = ok vb, pget (evm t) x = Vint j,
+    pget (evm s) x = Vint j, js = rng d (next_idx d j) vb, in_rng d j vb
   & g -> in_rng d kst vb]).
 + match goal with |- wequiv _ _ _ _ ?P _ _ _ => have hf := wequiv_frame (F := P) hbody end.
   apply: (wequiv_weaken _ _ hf).
@@ -484,7 +487,7 @@ apply wequiv_cat with (fun t s => exists vb kst, [/\ st_eq_on (Sv.remove x s1) t
   by rewrite -hs.
 apply wequiv_assign_left => t t' s [vb [kst [heq hvb hxt hxs hjs hin hg]]].
 move=> /sem_assgn_intP [z [hz hty ->]].
-move: hz; rewrite (step_ofP _ _ (get_var_int hxt)) => -[?]; subst z.
+move: hz; rewrite (step_ofP _ _ (get_var_pget hxt)) => -[?]; subst z.
 have hprev : prev_idx d (next_idx d j) = j by case: (d); rewrite /prev_idx /next_idx; lia.
 exists (next_idx d j), vb, kst; split => //.
 + case: heq => hscs hmem hvm; split => //= y hy; rewrite Vm.setP_neq; first exact: hvm.
@@ -760,15 +763,15 @@ End PROOF.
    the same arguments and results. *)
 Lemma for_to_while_l :
   forall {asm_op syscall_state : Type} {wa : WithAssert} {ep : EstateParams syscall_state}
-    {spp : SemPexprParams} {sip : SemInstrParams asm_op syscall_state}
+    {spp : SemPexprParams} {sip : SemInstrParams asm_op syscall_state} {sm : SemMode}
     {LC : LoopCounter} {E E0 : Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}
     (fresh_var_ident : v_kind -> instr_info -> string -> atype -> Ident.ident)
     (p p' : uprog) (ev : extra_val_t),
   for_to_while_prog (pT := progUnit) fresh_var_ident p = ok p' ->
   forall fn,
-  wiequiv_f (wa1 := wa) (wa2 := wa)
+  wiequiv_f (wa1 := wa) (wa2 := wa) (sm1 := sm) (sm2 := sm)
     p' p ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
 Proof.
-move=> asm_op syscall_state wa ep spp sip LC E E0 wE rE fresh_var_ident p p' ev hp fn.
+move=> asm_op syscall_state wa ep spp sip sm LC E E0 wE rE fresh_var_ident p p' ev hp fn.
 exact: (ftw_callP (rE := rE) ev hp).
 Qed.

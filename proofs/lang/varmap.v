@@ -3,6 +3,8 @@ From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith Setoid Morphisms.
 Require Export var type values.
 Import Utf8 ssrbool.
+(* [Import ssrbool] hides [total]; the mode of the semantics is the one of [utils]. *)
+Import utils.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
@@ -163,6 +165,9 @@ Qed.
 Lemma compat_val_undef_addr t : compat_val t (undef_addr t).
 Proof. by rewrite /compat_val; case: t => //= w; rewrite orbT /= wsize_le_U8. Qed.
 Hint Resolve compat_val_undef_addr : core.
+
+Lemma compat_val_dfl_val t : compat_val t (dfl_val t).
+Proof. by rewrite /compat_val; case: t. Qed.
 
 Lemma vm_truncate_val_compat v ty : compat_val ty (vm_truncate_val ty v).
 Proof.
@@ -452,6 +457,27 @@ Module Type VM.
   Parameter getP : forall {wsw:WithSubWord} vm x,
     compat_val (eval_atype (vtype x)) (get vm x).
 
+  (* The same in any mode; [getP] is the instance the development uses. *)
+  Parameter getP_mode : forall {wsw:WithSubWord} {sm : SemMode} vm x,
+    compat_val (eval_atype (vtype x)) (get vm x).
+
+  Parameter get_totalE : forall {wsw:WithSubWord} vm x,
+    is_defined (get vm x) -> get (sm := total) vm x = get vm x.
+
+  (* What a mode reads: the entry, or its default value when the entry is
+     undefined and the mode is total. *)
+  Parameter get_modeE : forall {wsw:WithSubWord} {sm : SemMode} vm x,
+    get (sm := sm) vm x =
+    if is_total (SemMode := sm) && ~~ is_defined (get (sm := partial) vm x)
+    then dfl_val (eval_atype (vtype x)) else get (sm := partial) vm x.
+
+  (* Every mode reads the same entry: two variables of the same type that
+     agree in the [partial] mode agree in every mode. *)
+  Parameter get_eq_mode : forall {wsw:WithSubWord} {sm : SemMode} vm1 vm2 x y,
+    vtype x = vtype y ->
+    get (sm := partial) vm1 x = get (sm := partial) vm2 y ->
+    get (sm := sm) vm1 x = get (sm := sm) vm2 y.
+
   Parameter setP : forall {wsw:WithSubWord} vm x v y,
     get (set vm x v) y = if x == y then vm_truncate_val (eval_atype (vtype x)) v else get vm y.
 
@@ -498,11 +524,41 @@ Module Vm : VM.
   Lemma initP x : get init x = undef_addr (eval_atype (vtype x)).
   Proof. done. Qed.
 
-  Lemma getP vm x : compat_val (eval_atype (vtype x)) (get vm x).
+  Section MODE.
+
+  Context {sm : SemMode}.
+
+  Lemma getP_mode vm x : compat_val (eval_atype (vtype x)) (get vm x).
   Proof.
-    rewrite /get /= /get_raw.
-    case h : Mvar.get => [ v | ] /=;[apply: prop h | apply compat_val_undef_addr].
+    rewrite /get; case: ifP => _; first by apply compat_val_dfl_val.
+    rewrite /get_raw; case h : Mvar.get => [ v | ] /=;[apply: prop h | apply compat_val_undef_addr].
   Qed.
+
+  End MODE.
+
+  Lemma getP vm x : compat_val (eval_atype (vtype x)) (get vm x).
+  Proof. apply getP_mode. Qed.
+
+  Lemma get_totalE vm x : is_defined (get vm x) -> get (sm := total) vm x = get vm x.
+  Proof. by rewrite /get /= => ->. Qed.
+
+  Section MODE.
+
+  Context {sm : SemMode}.
+
+  Lemma get_modeE vm x :
+    get (sm := sm) vm x =
+    if is_total (SemMode := sm) && ~~ is_defined (get (sm := partial) vm x)
+    then dfl_val (eval_atype (vtype x)) else get (sm := partial) vm x.
+  Proof. by rewrite /get /=. Qed.
+
+  Lemma get_eq_mode vm1 vm2 x y :
+    vtype x = vtype y ->
+    get (sm := partial) vm1 x = get (sm := partial) vm2 y ->
+    get (sm := sm) vm1 x = get (sm := sm) vm2 y.
+  Proof. by rewrite /get /= => -> ->. Qed.
+
+  End MODE.
 
   Lemma setP vm x v y :
     get (set vm x v) y = if x == y then vm_truncate_val (eval_atype (vtype x)) v else get vm y.
@@ -581,13 +637,26 @@ Proof. move => h1 h2; apply set_var_truncate => //; rewrite -h2; apply truncatab
 Lemma set_varDB wdb vm x v vm' : set_var wdb vm x v = ok vm' -> DB wdb v.
 Proof. by move=> /set_varP []. Qed.
 
+Section GET_VAR_MODE.
+
+Context {sm : SemMode}.
+
 Lemma get_varP wdb vm x v : get_var wdb vm x = ok v ->
   [/\ v = vm.[x], ~~wdb || is_defined v & compat_val (eval_atype (vtype x)) v].
-Proof. rewrite/get_var;t_xrbindP => ? <-; split => //; apply Vm.getP. Qed.
+Proof. rewrite/get_var;t_xrbindP => ? <-; split => //; apply Vm.getP_mode. Qed.
 
 Lemma get_var_compat wdb vm x v : get_var wdb vm x = ok v ->
    (~~wdb || is_defined v) /\ compat_val (eval_atype (vtype x)) v.
 Proof. by move=>/get_varP []. Qed.
+
+Lemma type_of_get_var wdb x vm v :
+  get_var wdb vm x = ok v ->
+  subctype (type_of_val v) (eval_atype x.(vtype)).
+Proof.
+  by move=> /get_var_compat [] _; rewrite /compat_val /compat_ctype; case: ifP => // _ /eqP <-.
+Qed.
+
+End GET_VAR_MODE.
 
 Lemma get_var_undef vm x v ty h :
   get_var true vm x = ok v -> v <> Vundef ty h.
@@ -616,13 +685,6 @@ Lemma get_varE vm x v : get_var true vm x = ok v ->
   end.
 Proof.
   by move=> /get_var_compat [] h1 /compat_valEl h2; case:vtype h2 h1 => [ | | len | ws] // [->|].
-Qed.
-
-Lemma type_of_get_var wdb x vm v :
-  get_var wdb vm x = ok v ->
-  subctype (type_of_val v) (eval_atype x.(vtype)).
-Proof.
-  by move=> /get_var_compat [] _; rewrite /compat_val /compat_ctype; case: ifP => // _ /eqP <-.
 Qed.
 
 (* We have a more precise result in the non-word cases. *)
