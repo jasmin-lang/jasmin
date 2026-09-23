@@ -270,24 +270,6 @@ Definition sc_x86_division (sz : wsize) (sg : signedness) : safety_cond :=
     sc_and (sc_neqi dv (IConst 0)) (sc_not ov)
   end.
 
-(* The conditions of [wsize.safe_cond], the previous language of the
-   descriptors, as terms: each constructor is one of the shapes above. The
-   descriptors are converted through this function, which
-   [safety_cond_facts.check_safe_condE] shows to preserve their check. *)
-Fixpoint sc_of_safe_cond (c : safe_cond) : safety_cond :=
-  match c with
-  | NotZero ws k => sc_not_zero ws k
-  | X86Division sz sg => sc_x86_division sz sg
-  | InRangeMod32 ws i j k => sc_in_range_mod32 ws i j k
-  | ULt ws k z => sc_ult ws k z
-  | UGe ws z k => sc_uge ws z k
-  | UaddLe ws k1 k2 z => sc_uadd_le ws k1 k2 z
-  | AllInit ws len k => sc_all_init ws len k
-  | ScFalse => sc_false
-  | IsZero ws k => sc_is_zero ws k
-  | Guarded k c => sc_guarded k (sc_of_safe_cond c)
-  end.
-
 (* -------------------------------------------------------------------- *)
 (* ** What the conditions of the library compute                         *)
 
