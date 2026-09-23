@@ -13,13 +13,6 @@ Local Unset Elimination Schemes.
 Definition uint_of_word ws := Oint_of_word Unsigned ws.
 Definition sint_of_word ws := Oint_of_word Signed ws.
 
-(* Type of the predicates of the safety conditions: inputs, output *)
-Definition type_of_opN_safety (op: opN_safety) : seq atype * atype :=
-  (match op with
-   | Ois_arr_init len | Ois_barr_init len => [:: aarr U8 len; aint; aint]
-   end, abool).
-
-
 (* ** Expressions
  * -------------------------------------------------------------------- *)
 (* Used only by the ocaml compiler *)

@@ -62,7 +62,7 @@ let type_of_opN op =
   List.map Conv.ty_of_cty tins, Conv.ty_of_cty tout
 
 let type_of_opN_safety op =
-  let tins, _tout = E.type_of_opN_safety op in
+  let tins, _tout = Operators.type_of_opN_safety op in
   List.map Conv.ty_of_cty tins
 
 let type_of_sopn loc pd msfsz asmOp op =
