@@ -1557,10 +1557,11 @@ Lemma get_var_is_allow_undefined vm xs :
 Proof. by elim: xs => //= ?? ->. Qed.
 
 (* ------------------------------------------------------------------------- *)
-(* The total mode: an expression never evaluates to an undefined value. *)
+(* An expression read with [wdb = true] never evaluates to an undefined value,
+   in either mode. *)
 
-Lemma sem_pexpr_defined s gd e v :
-  sem_pexpr (sm := total) true gd s e = ok v -> is_defined v.
+Lemma sem_pexpr_defined {sm : SemMode} s gd e v :
+  sem_pexpr true gd s e = ok v -> is_defined v.
 Proof.
   have hto : forall t (x : sem_t t), is_defined (to_val x).
   + by move=> t x; case: t x.
@@ -1574,12 +1575,27 @@ Proof.
   by move=> > _ _ > _ /truncate_val_defined ? > _ /truncate_val_defined ? <-; case: ifP.
 Qed.
 
-Lemma sem_pexprs_defined s gd es vs :
-  sem_pexprs (sm := total) true gd s es = ok vs -> all is_defined vs.
+Lemma sem_pexprs_defined {sm : SemMode} s gd es vs :
+  sem_pexprs true gd s es = ok vs -> all is_defined vs.
 Proof.
   elim: es vs => /= [ | e es hrec] vs; t_xrbindP.
   + by move=> <-.
   by move=> ? /sem_pexpr_defined he ? /hrec hes <- /=; rewrite he hes.
+Qed.
+
+(* So the type of the value determines its shape. *)
+Lemma sem_pexpr_tovI {sm : SemMode} s gd e v t :
+  sem_pexpr true gd s e = ok v ->
+  type_of_val v = t ->
+  match t with
+  | cbool => exists b : bool, v = b
+  | cint => exists i : Z, v = i
+  | carr len => exists a : WArray.array len, v = Varr a
+  | cword ws => exists w : word ws, v = Vword w
+  end.
+Proof.
+  move=> /sem_pexpr_defined hd /type_of_valI h.
+  by case: t h hd => // [||ws] [-> | ].
 Qed.
 
 End WITH_PARAMS.
