@@ -252,3 +252,4 @@ toEC/toec_prog.v
 toEC/toec_proof.v
 toEC/toec_while.v
 toEC/toec_while_proof.v
+toEC/wint_int_proof.v
