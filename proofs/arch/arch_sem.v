@@ -238,6 +238,11 @@ Definition eval_asm_arg k (s: asmmem) (a: asm_arg) (ty: ltype) : exec value :=
     | lword sz => ok (Vword (sign_extend sz w))  (* FIXME should we use sign of zero *)
     | _        => type_error
     end
+  | ImmRip k ofs =>
+    match ty with
+    | lword sz => ok (Vword (zero_extend sz (rip_imm k (s.(asm_rip) + ofs))))
+    | _        => type_error
+    end
   | Reg r     => ok (Vword (s.(asm_reg) r))
   | Regx r    => ok (Vword (s.(asm_regx) r))
   | Addr addr =>

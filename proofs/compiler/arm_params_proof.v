@@ -37,6 +37,7 @@ Require Import
   arm_params_common
   arm_params_common_proof
   arm_params_core_proof
+  arm_lower_addressing_proof
   arm_lowering
   arm_lowering_proof
   arm_stack_zeroization_proof.
@@ -368,15 +369,14 @@ Definition arm_hloparams : h_lowering_params (ap_lop arm_params).
 Proof. constructor => *; exact: it_lower_callP. Qed.
 
 (* ------------------------------------------------------------------------ *)
-(* Lowering of complex addressing mode for RISC-V.
-   It is the identity on arm, so the proof is trivial. *)
+(* Lowering of the loads from a global. *)
 
 Lemma arm_hlaparams : h_lower_addressing_params (ap_lap arm_params).
 Proof.
   split=> /=.
-  + by move=> _ ? _ [<-].
-  + move=> _ ? _ [<-] _ fd ->; by exists fd.
-  move=> ???? _ ? _ ?? [<-]; exact: (wiequiv_f_eq (scP := sCP_stack)).
+  + exact: lower_addressing_prog_invariants.
+  + exact: lower_addressing_fd_invariants.
+  by move=> > /it_lower_addressing_progP.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -902,13 +902,64 @@ Proof.
   by rewrite Vm.setP_eq.
 Qed.
 
+Lemma movw_movt_glob (w : word U32) :
+  arm_MOVT_semi (zero_extend U32 (zero_extend U16 w)) (zero_extend U16 (wshr w 16)) = w.
+Proof.
+  set n := wunsigned w.
+  have hdiv : Z.div_eucl n (wbase U16) = (n / wbase U16, n mod wbase U16)%Z.
+  + by rewrite /Z.div /Z.modulo; case: Z.div_eucl.
+  rewrite /arm_MOVT_semi.
+  have -> : zero_extend U16 (wshr w 16) = wrepr U16 (n / wbase U16).
+  + by rewrite /zero_extend (wunsigned_wshr w 16).
+  have -> : zero_extend U32 (zero_extend U16 w) = wrepr U32 (n mod wbase U16).
+  + by rewrite /zero_extend wunsigned_repr.
+  by rewrite (ARMFopn_coreP.mov_movt hdiv) wrepr_unsigned.
+Qed.
+
+Lemma assemble_glob_addr_correct : assemble_extra_correct Oarm_glob_addr.
+Proof.
+  move=> rip ii lvs args m xs ys m' s ops ops' hsemargs hexec hwrite.
+  rewrite /= /assemble_glob_addr /glob_addr_args.
+  case: lvs hwrite => // -[] // x [ | ??] hwrite /=; last by t_xrbindP.
+  case: args hsemargs => [ | [ ??? | f] [ | ??]] hsemargs; try by t_xrbindP.
+  t_xrbindP => _ hty _ <- /Sv_memP hfv <- [<-] hops hlom.
+  move: hsemargs; rewrite /sem_rexprs /=; t_xrbindP => v hv ?; subst xs.
+  move: hexec; rewrite /exec_sopn /sopn_sem /=; t_xrbindP => z w hw hz ?; subst ys.
+  move: hz; rewrite /sopn_sem_ /= => -[?]; subst z.
+  move: hwrite; rewrite /write_lexprs /=.
+  apply: rbindP => r; apply: rbindP => vm hset [<-] [<-].
+  move/set_varP: hset => [_ _ ->].
+  have [|| s' -> hlo] :=
+    assemble_opsP
+      (m' := with_vm m ((evm m).[x <- Vword (zero_extend U32 (zero_extend U16 w))]).[x <- Vword w])
+      arm_eval_assemble_cond hops _ _ hlom.
+  + by [].
+  + have hxt := convertible_eval_atype hty.
+    rewrite /sem_sopns /= /sem_sopn_t /= hv /=.
+    rewrite /sem_sop1 /= hw /= truncate_word_u /=.
+    rewrite /exec_sopn /sopn_sem /= truncate_word_u /=.
+    rewrite set_var_truncate //=; last by rewrite hxt.
+    rewrite get_var_eq /=; last by rewrite hxt.
+    rewrite -(fexpr_facts.free_varsP (vm1 := evm m)); last first.
+    + by move=> z hz; rewrite Vm.setP_neq //; apply/eqP => ?; subst z; exact: hfv.
+    rewrite hv /sem_sop2 /= hw /= !truncate_word_u /=.
+    rewrite /exec_sopn /sopn_sem /= !truncate_word_u /=.
+    rewrite hxt /= !truncate_word_u /=.
+    rewrite truncate_word_u truncate_word_le //= (zero_extend_idem (s1:=U16)) //.
+    rewrite /sopn_sem_ /= /sem_shr /sem_shift /= zero_extend_u movw_movt_glob.
+    by rewrite set_var_truncate //=; last by rewrite hxt.
+  exists s' => //; apply: (lom_eqv_ext _ hlo) => z /=.
+  by rewrite !Vm.setP; case: eqP.
+Qed.
+
 Lemma arm_assemble_extra_op op : assemble_extra_correct op.
 Proof.
   case: op.
   + exact: assemble_swap_correct.
   + exact: assemble_add_large_imm_correct.
   + exact: assemble_smart_li_correct.
-  exact: assemble_smart_li_cc_correct.
+  + exact: assemble_smart_li_cc_correct.
+  exact: assemble_glob_addr_correct.
 Qed.
 
 Lemma arm_assemble_extra_sz ii op lvs args ops :
@@ -943,6 +994,7 @@ Proof.
   case: ifP => _ //=.
   + by move=> [<-].
   by case: ifP => _ [<-].
+  by rewrite /assemble_glob_addr; t_xrbindP => -[??] _ [<-].
 Qed.
 
 Definition arm_hagparams : h_asm_gen_params (ap_agp arm_params) :=

@@ -24,6 +24,7 @@ Require Import
   arm_extra
   arm_instr_decl
   arm_params_common
+  arm_lower_addressing
   arm_lowering
   arm_stack_zeroization.
 
@@ -40,7 +41,9 @@ Definition arm_mov_ofs
     let: (op, args) := oa in
      Some (Copn [:: x ] tag (Oarm (ARM_op op default_opts)) args) in
   match movk with
-  | MK_LEA => mk (ADR, [:: if is_zero Uptr ofs then y else add y ofs ])
+  | MK_LEA =>
+    let e := if is_zero Uptr ofs then y else add y ofs in
+    Some (Copn [:: x ] tag (Oasm (ExtOp Oarm_glob_addr)) [:: e ])
   | MK_MOV =>
     match x with
     | Lvar x_ =>
@@ -319,7 +322,7 @@ Definition arm_params : architecture_params :=
     ap_lip := arm_liparams;
     ap_plp := false;
     ap_lop := arm_loparams;
-    ap_lap := {| lap_lower_address := fun _ p => ok p |};
+    ap_lap := {| lap_lower_address := arm_lower_addressing_prog |};
     ap_agp := arm_agparams;
     ap_szp := arm_szparams;
     ap_shp := arm_shparams;
