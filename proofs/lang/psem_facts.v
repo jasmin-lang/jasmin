@@ -415,3 +415,30 @@ Proof.
 Qed.
 
 End EQ_EX.
+
+Section SYSCALL_U.
+
+Context
+  {wsw : WithSubWord}
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {sip : SemInstrParams asm_op syscall_state}.
+
+#[local] Existing Instance progUnit.
+#[local] Existing Instance sCP_unit.
+
+(* The unit syscall semantics does not touch the memory and returns values of
+   the declared output types. *)
+Lemma syscall_u_toutP o fs fs2 :
+  fexec_syscall o fs = ok fs2 ->
+  fmem fs = fmem fs2 /\
+  List.map type_of_val fs2.(fvals) = map eval_atype (scs_tout (syscall_sig_u o)).
+Proof.
+  rewrite /fexec_syscall.
+  t_xrbindP => -[[scs m_] vs_] + [<-] /=.
+  case: o => ws len /=; rewrite /exec_getrandom_u.
+  t_xrbindP => a ha t ht heq.
+  by move=> <- /= _ <- <-.
+Qed.
+
+End SYSCALL_U.
