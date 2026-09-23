@@ -78,6 +78,8 @@ Definition get_gvar {sm : SemMode} (wdb : bool) (gd : glob_decls) (vm : Vm.t) (x
   if is_lvar x then get_var wdb vm x.(gv)
   else get_global gd x.(gv).
 
+(* The results of a function call are read in the partial mode in both modes:
+   a result that is not initialised is a failure of the call. *)
 Definition get_var_is wdb vm := mapM (fun x => get_var wdb vm (v_var x)).
 
 Definition on_arr_var A (v:exec value) (f:forall n, WArray.array n -> exec A) :=
@@ -243,9 +245,10 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {sm : SemMode}
   {asmop : asmOp asm_op}.
 
-Definition exec_sopn {sm : SemMode} (o:sopn) (vs:values) : exec values :=
+Definition exec_sopn (o:sopn) (vs:values) : exec values :=
   Let semi := sopn_sem o in
   Let t := app_sopn _ semi vs in
   ok (list_ltuple t).
