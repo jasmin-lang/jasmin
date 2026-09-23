@@ -14,6 +14,7 @@ Require Import
   sopn
   type
   syscall
+  utils
   wsize.
 
 
@@ -62,3 +63,21 @@ Definition noassert : WithAssert := {| assert_allowed := false |}.
 Definition withassert : WithAssert := {| assert_allowed := true |}.
 
 #[global] Existing Instances noassert | 1000.
+
+(* The relational rules whose two sides must run the *same* semantic function,
+   typically those about [exec_sopn], only hold when the two modes agree: in the
+   total mode a failing operation returns the result of its total version, which
+   is unrelated to what the other mode computes.  Stating the agreement as a
+   class keeps it inferable in silence in the mono-mode case, which is every
+   compiler pass. *)
+Class SameMode (sm1 sm2 : SemMode) := { same_mode : sm1 = sm2 }.
+#[global] Instance same_mode_refl (sm : SemMode) : SameMode sm sm :=
+  {| same_mode := eq_refl |}.
+
+(* Stronger still: the monotonicity theory ([value_uincl]) is false in the total
+   mode, where an operation that fails in the partial mode returns a value
+   unrelated to the one the more defined side computes.  The rules that rely on
+   it are therefore available in the partial mode only. *)
+Class IsPartial (sm : SemMode) := { is_partial : sm = partial }.
+#[global] Instance is_partial_partial : IsPartial partial :=
+  {| is_partial := eq_refl |}.
