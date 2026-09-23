@@ -490,6 +490,22 @@ Section CoreMem.
         m (ziota 0 (wsize_size sz)).
   Proof. by []. Qed.
 
+  Lemma read_total_ok m al p sz : is_ok (read (sm := total) m al p sz).
+  Proof.
+    rewrite readE_total.
+    have : is_ok (mapM (fun k => get (sm := total) m (add p k)) (ziota 0 (wsize_size sz))).
+    + by rewrite is_ok_mapM; apply/allP => k _; apply: get_total_ok.
+    by case: mapM.
+  Qed.
+
+  Lemma write_total_ok m al p sz (w : word sz) : is_ok (write (sm := total) m al p w).
+  Proof.
+    rewrite writeE_total; move: m; apply ziota_ind => //= i l _ hrec m.
+    have hok : is_ok (set (sm := total) m (add p i) (nth 0%w (LE.encode w) (Z.to_nat i))).
+    + by apply: set_total_ok.
+    by move: hok; case: set => //= m1 _; apply hrec.
+  Qed.
+
   Lemma read_totalE m al p sz w :
     read (sm := partial) m al p sz = ok w -> read (sm := total) m al p sz = ok w.
   Proof.
@@ -516,6 +532,14 @@ Section CoreMem.
     by move: ht; rewrite (read_totalE hw1) => -[<-].
   Qed.
 
+  (* The partial read succeeds exactly on [validr], the mode-independent
+     description of a readable range. *)
+  Lemma is_ok_read_partial m al p sz : is_ok (read (sm := partial) m al p sz) = validr m al p sz.
+  Proof.
+    apply/idP/idP => [ | /readV [w ->] //].
+    by case h: (read (sm := partial) m al p sz) => [w | //] _; apply/readV; exists w.
+  Qed.
+
   Lemma write_totalE m al p sz (w : word sz) m' :
     write (sm := partial) m al p w = ok m' -> write (sm := total) m al p w = ok m'.
   Proof.
@@ -534,6 +558,13 @@ Section CoreMem.
     move=> [] hv ht.
     have [m1 hm1] : exists m1, write (sm := partial) m al p w = ok m1 by apply/(writeV w).
     by move: ht; rewrite (write_totalE hm1) => -[<-].
+  Qed.
+
+  Lemma validr_validw m al p sz : validr m al p sz -> validw m al p sz.
+  Proof.
+    rewrite /validr /validw => /andP [-> /allP h]; rewrite andTb.
+    apply/allP => k hk.
+    by have := h k hk; case hg : get => // _; apply: get_valid8 hg.
   Qed.
 
  Definition disjoint_zrange_ovf p s p' s' : Prop :=
