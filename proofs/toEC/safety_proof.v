@@ -62,15 +62,6 @@ Proof.
   by rewrite /get_var /= (Vm.get_totalE hdef) hdef.
 Qed.
 
-(* A success of the partial mode is a success of the total mode. *)
-Lemma get_gvar_partialE s x v :
-  get_gvar (sm := partial) true gd (evm s) x = ok v ->
-  get_gvar (sm := total) true gd (evm s) x = ok v.
-Proof.
-  rewrite /get_gvar; case: ifP => // _; rewrite /get_var /=.
-  by case heq: is_defined => //= -[<-]; rewrite (Vm.get_totalE heq) heq.
-Qed.
-
 (* ------------------------------------------------------------------------- *)
 (* Global arrays: [sc_prog] checks that they are fully initialised            *)
 
