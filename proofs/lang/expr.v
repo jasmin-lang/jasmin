@@ -86,6 +86,7 @@ Inductive eassert : Type :=
 Definition Plvar x : pexpr := Pvar (mk_lvar x).
 
 Definition enot e : pexpr := Papp1 Onot e.
+Definition eint_of_word sg ws e : pexpr := Papp1 (Oint_of_word sg ws) e.
 Definition eor e1 e2 : pexpr := Papp2 Oor e1 e2.
 Definition eand e1 e2 : pexpr := Papp2 Oand e1 e2.
 Definition eeq e1 e2 : pexpr := Papp2 Obeq e1 e2.
