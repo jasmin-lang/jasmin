@@ -3,6 +3,8 @@ From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith Setoid Morphisms.
 Require Export var type values.
 Import Utf8 ssrbool.
+(* [Import ssrbool] hides [total]; the mode of the semantics is the one of [utils]. *)
+Import utils.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
@@ -159,6 +161,9 @@ Qed.
 Lemma compat_val_undef_addr t : compat_val t (undef_addr t).
 Proof. by rewrite /compat_val; case: t => //= w; rewrite orbT /= wsize_le_U8. Qed.
 Hint Resolve compat_val_undef_addr : core.
+
+Lemma compat_val_dfl_val t : compat_val t (dfl_val t).
+Proof. by rewrite /compat_val; case: t. Qed.
 
 Lemma vm_truncate_val_compat v ty : compat_val ty (vm_truncate_val ty v).
 Proof.
@@ -454,6 +459,19 @@ Module Type VM.
   Parameter getP : forall {wsw:WithSubWord} vm x,
     compat_val (eval_atype (vtype x)) (get vm x).
 
+  (* The same in any mode; [getP] is the instance the development uses. *)
+  Parameter getP_mode : forall {wsw:WithSubWord} {sm : SemMode} vm x,
+    compat_val (eval_atype (vtype x)) (get vm x).
+
+  Parameter get_totalE : forall {wsw:WithSubWord} vm x,
+    is_defined (get vm x) -> get (sm := total) vm x = get vm x.
+
+  (* Every mode reads the same entry: two variable maps that agree on a
+     variable in the [partial] mode agree on it in every mode. *)
+  Parameter get_eq_mode : forall {wsw:WithSubWord} {sm : SemMode} vm1 vm2 x,
+    get (sm := partial) vm1 x = get (sm := partial) vm2 x ->
+    get (sm := sm) vm1 x = get (sm := sm) vm2 x.
+
   Parameter is_var_initE : forall {wsw:WithSubWord} vm x,
     is_var_init vm x = is_defined (get vm x).
 
@@ -505,11 +523,22 @@ Module Vm : VM.
   Lemma initP x : get init x = undef_addr (eval_atype (vtype x)).
   Proof. done. Qed.
 
-  Lemma getP vm x : compat_val (eval_atype (vtype x)) (get vm x).
+  Lemma getP_mode {sm : SemMode} vm x : compat_val (eval_atype (vtype x)) (get vm x).
   Proof.
-    rewrite /get /= /get_raw.
-    case h : Mvar.get => [ v | ] /=;[apply: prop h | apply compat_val_undef_addr].
+    rewrite /get; case: ifP => _; first by apply compat_val_dfl_val.
+    rewrite /get_raw; case h : Mvar.get => [ v | ] /=;[apply: prop h | apply compat_val_undef_addr].
   Qed.
+
+  Lemma getP vm x : compat_val (eval_atype (vtype x)) (get vm x).
+  Proof. apply getP_mode. Qed.
+
+  Lemma get_totalE vm x : is_defined (get vm x) -> get (sm := total) vm x = get vm x.
+  Proof. by rewrite /get /= => ->. Qed.
+
+  Lemma get_eq_mode {sm : SemMode} vm1 vm2 x :
+    get (sm := partial) vm1 x = get (sm := partial) vm2 x ->
+    get (sm := sm) vm1 x = get (sm := sm) vm2 x.
+  Proof. by rewrite /get /= => ->. Qed.
 
   Lemma is_var_initE vm x : is_var_init vm x = is_defined (get vm x).
   Proof. by []. Qed.
