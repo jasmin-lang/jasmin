@@ -276,20 +276,15 @@ Context
 
 Definition st_eq_on X := st_rel eq_on X.
 
+Section MODE.
+
+Context {sm : SemMode}.
+
 Lemma read_es_st_eq_on gd wdb es X :
   Sv.Subset (read_es es) X ->
   wrequiv (st_eq_on X) ((sem_pexprs wdb gd)^~ es) ((sem_pexprs wdb gd)^~ es) eq.
 Proof.
   move=> hsub s t v [???];rewrite (eq_on_sem_pexprs _ (s' := t)) //.
-  + by move => ->; eauto.
-  by apply: (eq_onI hsub).
-Qed.
-
-Lemma read_eassert_st_eq_on gd e X :
-  Sv.Subset (read_eassert e) X ->
-  wrequiv (st_eq_on X) ((sem_eassert gd)^~ e) ((sem_eassert gd)^~ e) eq.
-Proof.
-  move=> hsub s t b [???]. rewrite (eq_on_sem_eassert _ (s' := t)) //.
   + by move => ->; eauto.
   by apply: (eq_onI hsub).
 Qed.
@@ -303,6 +298,17 @@ Lemma write_lvals_st_eq_on gd wdb xs vs X :
 Proof.
   move=> hsub s [?? vm] s' [/= <- <- hvm] hw.
   by have [vm' -> ? ] := write_lvals_eq_on hsub hw hvm; eexists; eauto.
+Qed.
+
+End MODE.
+
+Lemma read_eassert_st_eq_on gd e X :
+  Sv.Subset (read_eassert e) X ->
+  wrequiv (st_eq_on X) ((sem_eassert gd)^~ e) ((sem_eassert gd)^~ e) eq.
+Proof.
+  move=> hsub s t b [???]. rewrite (eq_on_sem_eassert _ (s' := t)) //.
+  + by move => ->; eauto.
+  by apply: (eq_onI hsub).
 Qed.
 
 Definition check_es_st_eq_on (X:Sv.t) (es1 es2 : pexprs) (X':Sv.t) :=
@@ -387,15 +393,21 @@ Local Notation gd' := (p_globs p').
 
 Context (eq_globs : gd = gd').
 
+Section MODE.
+
+Context {sm : SemMode}.
+
 Lemma checker_st_eq_onP : Checker_eq p p' checker_st_eq_on.
 Proof using eq_globs.
   constructor; rewrite -eq_globs.
   + by move=> wdb _ d es1 es2 d' /wdb_ok_eq <- [? <- ?]; apply read_es_st_eq_on.
   move=> wdb ? d xs1 xs2 d' /wdb_ok_eq <- [hsub <- ?] vs.
-  apply wrequiv_weaken with (st_rel eq_on d) (st_rel eq_on (Sv.union (vrvs xs1) d)) => //.
+  apply wrequiv_weaken with (st_eq_on d) (st_eq_on (Sv.union (vrvs xs1) d)) => //.
   + by apply st_rel_weaken => ??; apply eq_onI.
   by apply write_lvals_st_eq_on.
 Qed.
+
+End MODE.
 
 Lemma checker_a_st_eq_onP : Checker_a_eq p p' checker_a_st_eq_on.
 Proof using eq_globs.

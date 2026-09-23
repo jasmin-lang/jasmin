@@ -224,7 +224,7 @@ Lemma wequiv_while_for (R : seq Z -> rel_c) (Rj : Z -> seq Z -> rel_c) (P Q : re
   wequiv_ftw P [:: MkI ii (Cwhile a [::] cond inf body)] [:: MkI ii' (Cfor x (d, lo, hi) c)] Q.
 Proof.
 move=> hP hR hw hbody t s hts.
-case hc: (sem_cond (spp := spp) (p_globs p') cond t) => [b | err]; last first.
+case hc: (sem_cond (spp := spp) (sm := partial) (p_globs p') cond t) => [b | err]; last first.
 + rewrite isem_cmd_while /= /isem_cond hc /= bind_throw bind_throw.
   apply xrutt.xrutt_CutL.
   by rewrite /core_logics.errcutoff /is_error /= mid12.
@@ -232,7 +232,7 @@ have [bnds hb hR0] := hP _ _ _ hts hc.
 rewrite /isem_cmd_ /= /isem_bound hb /= bind_ret_l !bind_ret_r.
 move: (wrange _ _ _) t s hR0 {hts hc hb} => js; elim: js => [ | j js ih] t s hjs.
 all: rewrite /isem_while_loop unfold_iter /isem_while_round /= bind_ret_l /isem_cond.
-all: case hc: (sem_cond (spp := spp) (p_globs p') cond t) => [bc | err] /=; last first.
+all: case hc: (sem_cond (spp := spp) (sm := partial) (p_globs p') cond t) => [bc | err] /=; last first.
 1,3: rewrite bind_throw bind_throw; apply xrutt.xrutt_CutL.
 1,2: by rewrite /core_logics.errcutoff /is_error /= mid12.
 + have [-> hQ] := hR _ _ _ _ hjs hc.
