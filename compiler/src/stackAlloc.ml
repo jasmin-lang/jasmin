@@ -357,10 +357,17 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
     | Internal -> assert false
     | Export ->
 
-    let num_callee_saved, no_room_for_rsp =
+    (* The callee-saved registers that get a slot, each of the size of its
+       register (callee-saved registers may have different sizes, e.g.
+       general-purpose and vector registers). With the tight strategy, they
+       are the registers the function overwrites; otherwise, the first ones
+       of the calling convention. *)
+    let to_save, no_room_for_rsp =
+      let callee_saved = List.remove Arch.callee_save_vars Arch.rsp_var in
       let key = "callee_saved" in
       match Annotations.get key fd.f_annot.f_user_annot with
-      | Some (Some { pl_desc = Aint n }) -> max 0 (Z.to_int n - 1), not (Z.equal Z.zero n)
+      | Some (Some { pl_desc = Aint n }) ->
+         List.take (max 0 (Z.to_int n - 1)) callee_saved, not (Z.equal Z.zero n)
       | a ->
       if Option.is_some a then
         warning Always (L.i_loc0 fd.f_loc) "ignored ill-formed %s annotation" key;
@@ -368,17 +375,14 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
       | CSS_Tight ->
          let subst, killed = Option.get ra_data in
          let ro = Regalloc.get_reg_oracle has_stack subst killed fd in
-         List.length ro.ro_to_save, ro.ro_rsp = None
-      | CSS_Optimistic -> 0, has_stack fd
-      | CSS_Pessimistic -> Stdlib.Int.max_int, true
+         ro.ro_to_save, ro.ro_rsp = None
+      | CSS_Optimistic -> [], has_stack fd
+      | CSS_Pessimistic -> callee_saved, true
     in
 
     let sao = Hf.find sao fn in
     let csao = get_sao fn in 
 
-    let to_save =
-      List.take num_callee_saved
-      (List.remove Arch.callee_save_vars Arch.rsp_var) in
     let has_stack = has_stack fd || to_save <> [] in
 
     let rsp = V.clone Arch.rsp_var in
