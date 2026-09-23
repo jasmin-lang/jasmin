@@ -12,6 +12,7 @@ Require Import
   lowering
   lowering_lemmas
   psem
+  sem_op_typed_facts
   utils.
 Require Import
   arch_extra
@@ -265,7 +266,7 @@ Proof using atoI fv fv_correct p pT sc_sem syscall_state wsw.
     + by rewrite /= hseme0 hseme1 /=.
     rewrite /= /get_gvar /=; repeat t_get_var => //.
     case: op hcf hsemop {h} => //= -[] // => [||[]|[]|[]|[]] _ [<- ->] /(_ erefl);
-      rewrite /mk_sem_sop2 /sem_opN /= /sem_combine_flags /cf_xsem /NF_of_word /ZF_of_word /=
+      rewrite /sem_sop2_typed /mk_sem_op /sem_opN /= /sem_combine_flags /cf_xsem /NF_of_word /ZF_of_word /=
         1?wsub_wnot1
         1?nzcv_of_aluop_CF_sub
         1?wsigned_wsub_wnot1
@@ -315,7 +316,7 @@ Proof using atoI fv fv_correct p pT sc_sem syscall_state wsw.
   apply: rbindP => _ /to_wordI' [ws00 [w00 [hcmp00 ? ->]]]; subst v00.
   apply: rbindP => _ /to_wordI' [ws01 [w01 [hcmp01 ? ->]]]; subst v01.
   move=> /ok_inj /Vword_inj [??] /ok_inj /Vword_inj [??]; subst ws0' ws1' w0 w1.
-  move: hsemop; rewrite /mk_sem_sop2 /= wrepr0 zero_extend0 => -[<-].
+  move: hsemop; rewrite /sem_sop2_typed /mk_sem_op /= wrepr0 zero_extend0 => -[<-].
   exists ws00, ws01, w00, w01; split=> //.
   + by apply (cmp_le_trans hcmp0 hcmp00).
   + by apply (cmp_le_trans hcmp0 hcmp01).
@@ -533,7 +534,7 @@ Proof.
   all: eexists; first reflexivity.
   all: rewrite /exec_sopn /=.
   all: rewrite truncate_word_le // {hws} /=.
-  all: by rewrite ?zero_extend_u.
+  all: by rewrite /semi_to_atype_t /armv8a_extend_semi /= ?zero_extend_u.
 Qed.
 
 Lemma lower_loadP e :
@@ -554,7 +555,7 @@ Proof.
     + rewrite /= ok_t /= ok_idx /= ok_r /=.
       eexists; first reflexivity.
       rewrite /exec_sopn /sopn_sem /sopn_sem_ /= hwsx' /=.
-      rewrite /semi_to_atype !computational_eq_refl /=.
+      rewrite /semi /mk_semi /semi_to_atype_t !computational_eq_refl /=.
       by rewrite truncate_word_le // /= zero_extend_u.
     done.
 
@@ -575,7 +576,7 @@ Proof.
   eexists; first reflexivity.
 
   rewrite /exec_sopn /sopn_sem /sopn_sem_ /= hwsx' /=.
-  rewrite /semi_to_atype !computational_eq_refl /=.
+  rewrite /semi /mk_semi /semi_to_atype_t !computational_eq_refl /=.
   rewrite truncate_word_le // {hws} /=.
   by rewrite zero_extend_u.
 Qed.
@@ -606,7 +607,7 @@ Proof.
       all: split; last by split.
       all: eexists; first by rewrite /= hseme /= /sem_sop1 /= hw'.
       all: rewrite /exec_sopn /sopn_sem /sopn_sem_ /= ?hwsx' /=.
-      all: rewrite /semi_to_atype ?computational_eq_refl /=.
+      all: rewrite /semi /mk_semi /semi_to_atype_t ?computational_eq_refl /=.
       all: by rewrite truncate_word_u zero_extend_wrepr.
     }
 
@@ -669,9 +670,10 @@ Proof.
       rewrite hbase hsham {hbase hsham} /=.
       eexists; first reflexivity.
       rewrite /exec_sopn /sopn_sem /sopn_sem_ /= ?hwsx' /=.
-      rewrite /semi_to_atype ?computational_eq_refl /=.
+      rewrite /semi /mk_semi /semi_to_atype_t ?computational_eq_refl /=.
       rewrite !truncate_word_le // {hws1} /=.
       rewrite hallowed /=.
+      rewrite /mk_semi1_shifted_t /armv8a_MVN_semi /=.
       by rewrite !zero_extend_u hv.
 
     (* Shift kind not allowed for this mnemonic: not fused. *)
@@ -680,7 +682,7 @@ Proof.
       rewrite /= hseme /=;
       (eexists; first reflexivity);
       rewrite /exec_sopn /sopn_sem /sopn_sem_ /= ?hwsx' /=;
-      rewrite /semi_to_atype ?computational_eq_refl /=;
+      rewrite /semi /mk_semi /semi_to_atype_t ?computational_eq_refl /=;
       by rewrite hw' /= zero_extend_u.
 
     (* No recognized shift: not fused. *)
@@ -689,7 +691,7 @@ Proof.
       rewrite /= hseme /=;
       (eexists; first reflexivity);
       rewrite /exec_sopn /sopn_sem /sopn_sem_ /= ?hwsx' /=;
-      rewrite /semi_to_atype ?computational_eq_refl /=;
+      rewrite /semi /mk_semi /semi_to_atype_t ?computational_eq_refl /=;
       by rewrite hw' /= zero_extend_u.
 
   (* Case: [Oneg]. *)
@@ -717,10 +719,10 @@ Proof.
     rewrite hbase hsham {hbase hsham} /=.
     eexists; first reflexivity.
     rewrite /exec_sopn /sopn_sem /sopn_sem_ /= ?hwsx' /=.
-    rewrite /semi_to_atype ?computational_eq_refl /=.
+    rewrite /semi /mk_semi /semi_to_atype_t ?computational_eq_refl /=.
     rewrite !truncate_word_le // {hws1} /=.
     rewrite hallowed /=.
-    rewrite /armv8a_NEG_semi.
+    rewrite /armv8a_NEG_semi /mk_semi1_shifted_t /=.
     by rewrite !zero_extend_u hv add_wordE wnot1_wopp.
 
   (* Shift kind not allowed for this mnemonic: not fused. *)
@@ -729,7 +731,7 @@ Proof.
     rewrite /= hseme /=;
     (eexists; first reflexivity);
     rewrite /exec_sopn /sopn_sem /sopn_sem_ /= ?hwsx' /=;
-    rewrite /semi_to_atype ?computational_eq_refl /=;
+    rewrite /semi /mk_semi /semi_to_atype_t ?computational_eq_refl /=;
     rewrite hw' /= zero_extend_u /armv8a_NEG_semi;
     by rewrite add_wordE wnot1_wopp.
 
@@ -739,19 +741,19 @@ Proof.
     rewrite /= hseme /=;
     (eexists; first reflexivity);
     rewrite /exec_sopn /sopn_sem /sopn_sem_ /= ?hwsx' /=;
-    rewrite /semi_to_atype ?computational_eq_refl /=;
+    rewrite /semi /mk_semi /semi_to_atype_t ?computational_eq_refl /=;
     rewrite hw' /= zero_extend_u /armv8a_NEG_semi;
     by rewrite add_wordE wnot1_wopp.
 Qed.
 
-Lemma mk_sem_divmodP si ws op (w0 w1 : word ws) w :
-  mk_sem_divmod si op w0 w1 = ok w
+Lemma sem_sop2_divP si ws (w0 w1 : word ws) w :
+  sem_sop2_typed (Odiv si (Op_w ws)) w0 w1 = ok w
   -> [/\ (w1 <> 0%R)
        , si <> Signed \/ (wsigned w0 <> wmin_signed ws) \/ (w1 <> (-1)%R)
-       & w = op w0 w1
+       & w = signed wdiv wdivi si w0 w1
      ].
 Proof.
-  rewrite /mk_sem_divmod.
+  rewrite sem_sop2_typed_divE.
   case: ifPn => //; rewrite negb_or => /andP [] /eqP ? h [<-]; split => //.
   move: h; rewrite !negb_and => /or3P [] /eqP; auto.
 Qed.
@@ -843,7 +845,7 @@ Proof.
   all: move: hz1; rewrite hx => -[?]; subst z1.
   all: move: hmatch; case: vs => //= hmatch.
   all: move: hmatch;
-    rewrite /semi_to_atype !computational_eq_refl /= => -[?]; subst z0.
+    rewrite /semi /mk_semi /semi_to_atype_t !computational_eq_refl /= => -[?]; subst z0.
   all: rewrite hvalid hallow /=.
   all: rewrite (truncate_word_le _ hts) truncate_word_u /= /mk_semi1_shifted /=.
   all: by rewrite -heq.
@@ -871,7 +873,7 @@ Proof.
   all: subst ha.
   all: move: hzy; rewrite hy => -[?]; subst z2.
   all: move: hmatch; case: vs => //=.
-  all: rewrite /semi_to_atype !computational_eq_refl /= => -[?]; subst z0.
+  all: rewrite /semi /mk_semi /semi_to_atype_t !computational_eq_refl /= => -[?]; subst z0.
   all: rewrite hvalid hallow /=.
   all: rewrite hzx (truncate_word_le _ hts) truncate_word_u /= /mk_semi2_2_shifted /=.
   all: by rewrite heq.
@@ -1056,7 +1058,7 @@ Proof.
         move: hsemop => /sem_sop2I /= [w0' [w1' [w2 [hw0 hw1 hop hw]]]];
         move: hw0 => /to_wordI [ws0 [w0 [? /truncate_wordP [hws0 ?]]]]; subst v0 w0';
         move: hw1 => /to_wordI [ws1 [w1 [? /truncate_wordP [hws1 ?]]]]; subst v1 w1';
-        move: hop => [?]; subst w2;
+        move: hop; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst w2;
         move: hw => /Vword_inj [?]; subst ws'; move=> /= ?; subst w;
         (split;
           last (split; [ exact: (disj_fvars_read_es2 hfve0 hfve1) | by [] ]));
@@ -1065,7 +1067,7 @@ Proof.
         move: (hwsx); rewrite orbC => hval;
         rewrite /exec_sopn /sopn_sem /sopn_sem_ /= hval /=;
         rewrite !(truncate_word_le _ (cmp_le_trans hws _)) //;
-        rewrite /semi_to_atype !computational_eq_refl /=;
+        rewrite /semi /mk_semi /semi_to_atype_t !computational_eq_refl /=;
         rewrite /armv8a_ADD_semi /armv8a_SUB_semi /armv8a_MUL_semi /armv8a_bitwise_semi /=;
         rewrite ?add_wordE ?sub_wordE;
         rewrite ?(wadd_zero_extend _ _ hws) ?(wsub_zero_extend _ _ hws)
@@ -1082,7 +1084,7 @@ Proof.
         move: hsemop => /sem_sop2I /= [w0' [w1' [w2 [hw0 hw1 hop hw]]]];
         move: hw0 => /to_wordI [ws0 [w0 [? /truncate_wordP [hws0 ?]]]]; subst v0 w0';
         move: hw1 => /to_wordI [ws1 [w1 [? /truncate_wordP [hws1 ?]]]]; subst v1 w1';
-        move: hop => /mk_sem_divmodP [hdiv0 hdiv1 ?]; subst w2;
+        move: hop => /sem_sop2_divP [hdiv0 hdiv1 ?]; subst w2;
         move: hw => /Vword_inj [?]; subst ws'; move=> /= ?; subst w;
         (split;
           last (split; [ exact: (disj_fvars_read_es2 hfve0 hfve1) | by [] ]));
@@ -1091,7 +1093,7 @@ Proof.
         move: (hwsx); rewrite orbC => hval;
         rewrite /exec_sopn /sopn_sem /sopn_sem_ /= hval /=;
         rewrite !(truncate_word_le _ (cmp_le_trans hws _)) //;
-        rewrite /semi_to_atype !computational_eq_refl /=;
+        rewrite /semi /mk_semi /semi_to_atype_t !computational_eq_refl /=;
         rewrite /armv8a_SDIV_semi /armv8a_UDIV_semi;
         by rewrite zero_extend_u
       | (* TODO(armv8a): remaining hdflt classes.
@@ -1116,7 +1118,7 @@ Proof.
         | [ |- context[ARMv8A_op ASR _] ] => idtac
         end;
         move: hsemop => /sem_sop2I /= [x0 [x1 [w2 [hx0 hx1 hop hw]]]];
-        move: hop => [?]; subst w2;
+        move: hop; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst w2;
         move: hw => /Vword_inj [?]; subst ws'; move=> /= ?; subst w;
         have [hsub [v1' [w1' [hsem1' hw1' heq]]]] :=
           check_shift_exprP hchk hwsx hseme1 hx1;
@@ -1129,7 +1131,7 @@ Proof.
           first by rewrite /sem_pexprs /= hseme0 hsem1' /=);
         move: (hwsx); rewrite orbC => hval;
         rewrite /exec_sopn /sopn_sem /sopn_sem_ /= hval /= hx0 hw1' /=;
-        rewrite /semi_to_atype !computational_eq_refl /=;
+        rewrite /semi /mk_semi /semi_to_atype_t !computational_eq_refl /=;
         rewrite /armv8a_shift_semi -heq;
         by rewrite /sem_shr /sem_shl /sem_sar /sem_shift zero_extend_u
       | (* MOV: a shift or rotate by zero, i.e. the identity. *)
@@ -1137,7 +1139,7 @@ Proof.
         | [ |- context[ARMv8A_op MOV _] ] => idtac
         end;
         move: hsemop => /sem_sop2I /= [x0 [x1 [w2 [hx0 hx1 hop hw]]]];
-        move: hop => [?]; subst w2;
+        move: hop; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst w2;
         move: hw => /Vword_inj [?]; subst ws'; move=> /= ?; subst w;
         (* Pin the shift amount [x1] to zero. *)
         first
@@ -1152,7 +1154,7 @@ Proof.
         (exists [:: v0 ]; first by rewrite /sem_pexprs /= hseme0 /=);
         move: (hwsx); rewrite orbC => hval;
         rewrite /exec_sopn /sopn_sem /sopn_sem_ /= hval /= hx0 /=;
-        rewrite /semi_to_atype !computational_eq_refl /=;
+        rewrite /semi /mk_semi /semi_to_atype_t !computational_eq_refl /=;
         rewrite /armv8a_MOV_semi
           /sem_shr /sem_shl /sem_sar /sem_ror /sem_rol /sem_shift
           ?wrepr0 wunsigned0 ?wshr0 ?wshl0 ?wsar0 ?wror0 ?wrol0;
@@ -1164,7 +1166,7 @@ Proof.
             idtac
         end;
         move: hsemop => /sem_sop2I /= [x0 [x1 [w2 [hx0 hx1 hop hw]]]];
-        move: hop => [?]; subst w2;
+        move: hop; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst w2;
         move: hw => /Vword_inj [?]; subst ws'; move=> /= ?; subst w;
         (split;
           last (split;
@@ -1173,7 +1175,7 @@ Proof.
           first by rewrite /sem_pexprs /= hseme0 hseme1 /=);
         move: (hwsx); rewrite orbC => hval;
         rewrite /exec_sopn /sopn_sem /sopn_sem_ /= hval /= hx0 hx1 /=;
-        rewrite /semi_to_atype !computational_eq_refl /=;
+        rewrite /semi /mk_semi /semi_to_atype_t !computational_eq_refl /=;
         rewrite /armv8a_shift_semi /sem_ror /sem_shift zero_extend_u;
         do 3 f_equal; apply: wror_m;
         by rewrite Zmod_mod
@@ -1184,7 +1186,7 @@ Proof.
             idtac
         end;
         move: hsemop => /sem_sop2I /= [x0 [x1 [w2 [hx0 hx1 hop hw]]]];
-        move: hop => [?]; subst w2;
+        move: hop; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst w2;
         move: hw => /Vword_inj [?]; subst ws'; move=> /= ?; subst w;
         assert (hwc := is_wconstP true (p_globs p) s hconst);
         move: hwc; rewrite hseme1 /= hx1 => -[?]; subst c;
@@ -1193,7 +1195,7 @@ Proof.
         move: (hwsx); rewrite orbC => hval;
         rewrite /exec_sopn /sopn_sem /sopn_sem_ /= hval /= hx0 /=;
         rewrite truncate_word_u /=;
-        rewrite /semi_to_atype !computational_eq_refl /=;
+        rewrite /semi /mk_semi /semi_to_atype_t !computational_eq_refl /=;
         rewrite /armv8a_shift_semi wrepr_unsigned /sem_rol /sem_shift
           zero_extend_u -wror_opp;
         do 3 f_equal; apply: wror_m;
@@ -1219,7 +1221,7 @@ Proof.
             t_xrbindP=> wx hwx wy hwy ?; subst v1
         end;
         move: hsemop => /sem_sop2I /= [x0 [x1 [w2 [hx0 hx1 hop hw]]]];
-        move: hop => [?]; subst w2;
+        move: hop; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst w2;
         move: hw => /Vword_inj [?]; subst ws'; move=> /= ?; subst w;
         (* The product is at width [wsm >= ws] (from [is_mul]), the outer
            operation at [ws'' >= ws]: only the low [ws] bits are kept, so
@@ -1241,7 +1243,7 @@ Proof.
         move: (hwsx); rewrite orbC => hval;
         rewrite /exec_sopn /sopn_sem /sopn_sem_ /= hval /=
           (to_word_m hwx hlem) (to_word_m hwy hlem) (to_word_m haddend hws) /=;
-        rewrite /semi_to_atype !computational_eq_refl /=;
+        rewrite /semi /mk_semi /semi_to_atype_t !computational_eq_refl /=;
         rewrite /armv8a_MADD_semi /armv8a_MSUB_semi
           ?add_wordE ?sub_wordE ?mul_wordE
           ?(wadd_zero_extend _ _ hws) ?(wsub_zero_extend _ _ hws)
@@ -1342,7 +1344,7 @@ Proof.
   all: move: he1' => [?]; subst e.
   all: move: himm; rewrite /= => ?; subst imm.
   all: move: hsemop => /sem_sop2I /= [x0 [x1 [w2 [hx0 hx1 hop2 hw]]]].
-  all: move: hop2 => [?]; subst w2.
+  all: move: hop2; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst w2.
   all: move: hw => /Vword_inj [?]; subst ws'; move=> /= ?; subst w.
   all: move: hx0 => /to_wordI [ws0 [w0 [? /truncate_wordP [hws0 ?]]]]; subst v0 x0.
   all: move: hx1 => /to_wordI [ws1 [w1 [? /truncate_wordP [hws1 ?]]]]; subst v1 x1.
@@ -1494,7 +1496,7 @@ Transparent esem esem_i.
   rewrite /exec_sopn /sopn_sem /sopn_sem_ /=.
   move: (hwsx); rewrite orbC => hval; rewrite hval /=.
   rewrite (truncate_word_le _ hws0) (truncate_word_le _ hws1) /=.
-  rewrite /semi_to_atype !computational_eq_refl /=.
+  rewrite /semi /mk_semi /semi_to_atype_t !computational_eq_refl /=.
   rewrite /armv8a_CSEL_semi.
   by rewrite hwrite12'.
 Qed.
@@ -1521,7 +1523,7 @@ Proof.
   rewrite /exec_sopn /sopn_sem /sopn_sem_ /=.
   case: ws hws hwrite hmn => // hws hwrite [?]; subst mn.
   all: rewrite /= (truncate_word_le _ hws) /=.
-  all: rewrite /semi_to_atype ?computational_eq_refl /=.
+  all: rewrite /semi /mk_semi /semi_to_atype_t ?computational_eq_refl /=.
   all: rewrite /armv8a_extend_semi ?zero_extend_u /=.
   all: by rewrite hwrite.
 Qed.
