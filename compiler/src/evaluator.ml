@@ -74,7 +74,7 @@ let init_estate ep spp p ii fn scs0 m vargs =
 
 let finalize_estate ep spp p ii f vargs (s: _ estate) =
   let gd = p.p_globs in
-  let vres = exn_exec ii (mapM (fun (x:var_i) -> get_var nosubword true s.evm x.v_var) f.f_res) in
+  let vres = exn_exec ii (mapM (fun (x:var_i) -> get_var nosubword Utils0.partial true s.evm x.v_var) f.f_res) in
   let vres = exn_exec ii (mapM2 ErrType truncate_val (List.map Type.eval_atype f.f_tyout) vres) in
   BatOption.may (fun fc -> exec_post ep spp ii fc gd s.escs s.emem vargs vres) f.f_contract;
   s.escs, s.emem, vres
