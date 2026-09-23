@@ -120,6 +120,23 @@ rewrite (cond_init_val vs2 b hall htc hwc) (ih htot hwt) => {ih}.
 by case: b.
 Qed.
 
+(* The safety conditions of a conditional instruction are the guarded ones:
+   under a false guard they all hold, under a true one they amount to the
+   conditions themselves. *)
+Lemma safety_cond_holds_all_guarded (ts : seq ctype) (vs0 : values) (safe : seq safety_cond)
+    (b : bool) (vs2 : values) :
+  List.Forall2 (fun t v => exists x : sem_t t, v = to_val x) ts vs0 ->
+  all safety_cond_total safe -> all (safety_cond_wt ts) safe ->
+  all (safety_cond_holds (rcons vs0 (Vbool b) ++ vs2)) (map (sc_guarded (size ts)) safe)
+  = (if b then all (safety_cond_holds vs0) safe else true).
+Proof.
+move=> hall htot hwt; rewrite cat_rcons.
+elim: safe htot hwt => [ | c safe ih] /=; first by case: b.
+move=> /andP [] ht htot /andP [] hw hwt.
+have hc := cond_init_val vs2 b hall ht hw; rewrite /cond_init in hc.
+by rewrite hc (ih htot hwt); case: b {ih hc}.
+Qed.
+
 (* The safety conditions of a conditional instruction are the [Guarded] ones;
    under a false guard they all hold. *)
 Lemma check_safe_cond_cat vs1 vs2 sc :
