@@ -8,7 +8,8 @@ From Coq Require Import ZArith.
 Require Import psem compiler_util lea_proof x86_instr_decl x86_extra.
 Require Import
   lowering
-  lowering_lemmas.
+  lowering_lemmas
+  sem_op_typed_facts.
 Require Import
   arch_extra
   sem_params_of_arch_extra.
@@ -676,7 +677,6 @@ Section PROOF.
       (* Oneg *)
       + rewrite /= /sem_sop1 /= => - [] // sz; t_xrbindP => w Hv z' /to_wordI' [sz' [z [Hsz ? ->]]] ?; subst.
         case: andP => // - [hsz] hc.
-        move=> [?] ?; subst.
         split. reflexivity.
         rewrite -(convertible_eval_atype hc) /= /truncate_val /= truncate_word_u in Hv'.
         case: Hv' => ?; subst v'.
@@ -784,7 +784,8 @@ Section PROOF.
       (* Odiv u (Op_w sz) *)
       + case: ifP => // /andP [] /andP [] hsz1 hsz2 hc.
         rewrite /sem_pexprs /=; t_xrbindP => v1 hv1 v2 hv2.
-        rewrite /sem_sop2 /= /mk_sem_divmod;t_xrbindP => /= w1 hw1 w2 hw2 w3 hw3 ?; subst v.
+        rewrite /sem_sop2 /=;t_xrbindP => /= w1 hw1 w2 hw2 w3 hw3 ?; subst v.
+        rewrite sem_sop2_typed_divE in hw3.
         move: Hv'; rewrite -(convertible_eval_atype hc) /truncate_val /= truncate_word_u =>/ok_inj ?; subst v'.
         split => //.
         exists v1, w1;split => //.
@@ -814,7 +815,8 @@ Section PROOF.
       (* Omod (Cmp_w u sz) *)
       + case: ifP => // /andP [] /andP [] hsz1 hsz2 hc.
         rewrite /sem_pexprs /=; t_xrbindP => v1 hv1 v2 hv2.
-        rewrite /sem_sop2 /= /mk_sem_divmod;t_xrbindP => /= w1 hw1 w2 hw2 w3 hw3 ?; subst v.
+        rewrite /sem_sop2 /=;t_xrbindP => /= w1 hw1 w2 hw2 w3 hw3 ?; subst v.
+        rewrite sem_sop2_typed_modE in hw3.
         move: Hv'; rewrite -(convertible_eval_atype hc) /truncate_val /= truncate_word_u => /ok_inj ?; subst v'.
         split => //.
         exists v1, w1;split => //.
@@ -1116,10 +1118,11 @@ Section PROOF.
       case: ty Hv' => // - [] //= ok_v'.
       rewrite /= /sem_opN /exec_sopn /sem_sop1 /=.
       rewrite convertible_refl.
+      rewrite /sem_opN_typed /mk_sem_op /=.
       rewrite (Eqdep_dec.UIP_dec (List.list_eq_dec ctype_eqb_OK_sumbool) (esym _)) /=.
       t_xrbindP => ??? -> _ /to_wordI'[] szhi [] whi [] szhi_ge -> -> <- ??? ->.
       move => ? /to_wordI'[] szlo [] wlo [] szlo_ge -> -> <- <- <- ?.
-      t_xrbindP => _ /to_intI[] <- _ /to_intI[] <- [] <- ?; subst => /=.
+      t_xrbindP => _ /to_intI[] <- _ /to_intI[] <- <- ?; subst => /=.
       case: ok_v' => <-{Hw v'}.
       rewrite /truncate_val /= !truncate_word_le // {szlo_ge} /= !zero_extend_u.
       congr (ok [:: (Vword (wrepr _ (word.wcat_r _))) ]).
