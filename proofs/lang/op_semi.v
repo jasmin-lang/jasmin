@@ -73,6 +73,8 @@ Fixpoint safety_cond_total (c : safety_cond) : bool :=
   | IBool _ | IConst _ | IVar _ => true
   | IOp1 o c => nilp (op1_safe o) && safety_cond_total c
   | IOp2 o c1 c2 => [&& nilp (op2_safe o), safety_cond_total c1 & safety_cond_total c2]
+  | IOpN_safety _ c1 c2 c3 =>
+    [&& safety_cond_total c1, safety_cond_total c2 & safety_cond_total c3]
   end.
 
 (* Well-formedness of a condition: well typed on the arguments of the
@@ -87,6 +89,52 @@ Proof. by move=> /andP [h1 h2]; rewrite /safety_cond_wf (safety_cond_wt_cat tin'
 Lemma all_safety_cond_wf_cat tin tin' l :
   all (safety_cond_wf tin) l -> all (safety_cond_wf (tin ++ tin')) l.
 Proof. by apply: sub_all => c; apply: safety_cond_wf_cat. Qed.
+
+(* -------------------------------------------------------------------- *)
+(* ** Well-formedness of the conditions of the library                   *)
+
+(* Only the lemmas that a descriptor needs for its [id_wf] field are here;
+   the others are in [safety_cond_facts.v]. *)
+
+Lemma safety_cond_wf_not_zero tin ws k :
+  ssrnat.leq (S k) (size tin) -> nth cbool tin k = cword ws ->
+  safety_cond_wf tin (sc_not_zero ws k).
+Proof.
+by move=> h1 h2;
+  rewrite /safety_cond_wf /safety_cond_wt /sc_not_zero /sc_neqi safety_cond_type_op2E
+    (safety_cond_type_toint Unsigned h1 h2) /=.
+Qed.
+
+Lemma safety_cond_wf_is_zero tin ws k :
+  ssrnat.leq (S k) (size tin) -> nth cbool tin k = cword ws ->
+  safety_cond_wf tin (sc_is_zero ws k).
+Proof.
+by move=> h1 h2;
+  rewrite /safety_cond_wf /safety_cond_wt /sc_is_zero /sc_eqi safety_cond_type_op2E
+    (safety_cond_type_toint Unsigned h1 h2) /=.
+Qed.
+
+Lemma safety_cond_wf_all_init tin ws len k :
+  ssrnat.leq (S k) (size tin) -> nth cbool tin k = carr (arr_size ws len) ->
+  safety_cond_wf tin (sc_all_init ws len k).
+Proof.
+move=> h1 h2; rewrite /safety_cond_wf /safety_cond_wt /sc_all_init /sc_is_arr_init /= h1 h2.
+have -> : arr_size U8 (arr_size ws len) = arr_size ws len.
++ by rewrite arr_sizeE wsize8 Z.mul_1_l.
+by rewrite /= !eqxx.
+Qed.
+
+Lemma safety_cond_wf_x86_division tin sz sg :
+  ssrnat.leq 3 (size tin) ->
+  nth cbool tin 0 = cword sz -> nth cbool tin 1 = cword sz -> nth cbool tin 2 = cword sz ->
+  safety_cond_wf tin (sc_x86_division sz sg).
+Proof.
+move=> hs h0 h1 h2.
+have l0 : ssrnat.leq 1 (size tin) by apply: ssrnat.leq_trans hs.
+have l1 : ssrnat.leq 2 (size tin) by apply: ssrnat.leq_trans hs.
+by rewrite /safety_cond_wf /safety_cond_wt /sc_x86_division; case: sg => /=;
+  rewrite l0 l1 hs h0 h1 h2 /= !cmp_le_refl.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 (* ** The semantics of an operator from its conditions                   *)

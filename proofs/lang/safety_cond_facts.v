@@ -61,18 +61,11 @@ Proof. by apply: mk_semi_aux_id. Qed.
 (* -------------------------------------------------------------------- *)
 (* ** What the conditions of the library compute                         *)
 
-Lemma wunsigned_eqb0 ws (w : word ws) : (wunsigned w =? 0)%Z = (w == 0%w).
-Proof.
-apply/idP/idP => [/ZeqbP h1 | /eqP ->]; last by rewrite wunsigned0; apply/ZeqbP.
-by apply/eqP/wunsigned_inj; rewrite h1 wunsigned0.
-Qed.
-
 Lemma safety_cond_holds_not_zero ws k (vs : values) (w : word ws) :
   nth undef_b vs k = Vword w -> safety_cond_holds vs (sc_not_zero ws k) = (w != 0%w).
 Proof.
 by move=> h;
-  rewrite /safety_cond_holds /sc_not_zero /sc_neqi /sc_toint /= h /= truncate_word_u /=
-          wunsigned_eqb0.
+  rewrite /safety_cond_holds /sc_not_zero /sc_neqi /sc_toint /= h /= truncate_word_u /=.
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -111,10 +104,15 @@ elim: c t => //=.
 + by move=> k t; case: ifP.
 + move=> o c ih t; case heq: (safety_cond_type tin c) => [t1|] //=; case: ifP => // _ _.
   by apply: ih heq.
-move=> o c1 ih1 c2 ih2 t.
++ move=> o c1 ih1 c2 ih2 t.
+  case heq1: (safety_cond_type tin c1) => [t1|] //=; case heq2: (safety_cond_type tin c2) => [t2|] //=.
+  case: ifP => // _ _.
+  by rewrite (ih1 _ heq1) (ih2 _ heq2).
+move=> o c1 ih1 c2 ih2 c3 ih3 t.
 case heq1: (safety_cond_type tin c1) => [t1|] //=; case heq2: (safety_cond_type tin c2) => [t2|] //=.
+case heq3: (safety_cond_type tin c3) => [t3|] //=.
 case: ifP => // _ _.
-by rewrite (ih1 _ heq1) (ih2 _ heq2).
+by rewrite (ih1 _ heq1) (ih2 _ heq2) (ih3 _ heq3).
 Qed.
 
 (* The interpretation only depends on the arguments the condition reads. *)
@@ -124,7 +122,8 @@ Proof.
 elim: c => //=.
 + by move=> k hk; rewrite nth_cat hk.
 + by move=> o c ih h; rewrite ih.
-by move=> o c1 ih1 c2 ih2 /andP [h1 h2]; rewrite ih1 // ih2.
++ by move=> o c1 ih1 c2 ih2 /andP [h1 h2]; rewrite ih1 // ih2.
+by move=> o c1 ih1 c2 ih2 c3 ih3 /and3P [h1 h2 h3]; rewrite ih1 // ih2 // ih3.
 Qed.
 
 (* A well-typed total condition evaluates to a value on arguments of the
@@ -144,12 +143,62 @@ move=> hall; elim: c t => /=.
   have [x1 ->] := ih _ htot heq.
   have [y hy] := of_val_subctype_ok x1 hsub.
   by rewrite /= hy /=; eexists.
-move=> o c1 ih1 c2 ih2 t /and3P [hto ht1 ht2].
++ move=> o c1 ih1 c2 ih2 t /and3P [hto ht1 ht2].
+  case heq1: (safety_cond_type tin c1) => [t1|] //=; case heq2: (safety_cond_type tin c2) => [t2|] //=.
+  case: ifP => // /andP [hsub1 hsub2] [<-].
+  have [x1 ->] := ih1 _ ht1 heq1; have [x2 ->] := ih2 _ ht2 heq2.
+  have [y1 hy1] := of_val_subctype_ok x1 hsub1.
+  have [y2 hy2] := of_val_subctype_ok x2 hsub2.
+  by rewrite /= hy1 /= hy2 /=; eexists.
+move=> o c1 ih1 c2 ih2 c3 ih3 t /and3P [ht1 ht2 ht3].
 case heq1: (safety_cond_type tin c1) => [t1|] //=; case heq2: (safety_cond_type tin c2) => [t2|] //=.
-case: ifP => // /andP [hsub1 hsub2] [<-].
-have [x1 ->] := ih1 _ ht1 heq1; have [x2 ->] := ih2 _ ht2 heq2.
-have [y1 hy1] := of_val_subctype_ok x1 hsub1.
-have [y2 hy2] := of_val_subctype_ok x2 hsub2.
-by rewrite /= hy1 /= hy2 /=; eexists.
+case heq3: (safety_cond_type tin c3) => [t3|] //=.
+case: ifP => // hsub [<-].
+have [x1 hx1] := ih1 _ ht1 heq1; have [x2 hx2] := ih2 _ ht2 heq2.
+have [x3 hx3] := ih3 _ ht3 heq3.
+move: hsub x1 x2 x3 hx1 hx2 hx3; case: o => len /=; rewrite !andbT.
+all: move=> /and3P [/eqP <- /eqP <- /eqP <-] x1 x2 x3 -> -> ->.
+all: by rewrite /= WArray.castK /=; eexists.
 Qed.
 
+Local Opaque wbase.
+(* What the x86 division condition computes: the divisor is not zero and the
+   quotient fits in a word. *)
+Lemma safety_cond_holds_x86_division sz sg (vs : values) (hi lo dv : word sz) :
+  nth undef_b vs 0 = Vword hi ->
+  nth undef_b vs 1 = Vword lo ->
+  nth undef_b vs 2 = Vword dv ->
+  safety_cond_holds vs (sc_x86_division sz sg) =
+  ~~ match sg with
+     | Signed =>
+       let dd := wdwords hi lo in
+       let d  := wsigned dv in
+       let q  := Z.quot dd d in
+       ((d == 0)%Z || ((q <? wmin_signed sz)%Z || (q >? wmax_signed sz)%Z))
+     | Unsigned =>
+       let dd := wdwordu hi lo in
+       let d  := wunsigned dv in
+       let q  := (dd / d)%Z in
+       ((d == 0)%Z || (q >? wmax_unsigned sz)%Z)
+     end.
+Proof.
+move=> h0 h1 h2; rewrite /safety_cond_holds /sc_x86_division /wdwordu /wdwords.
+case: sg => /=;
+  rewrite /sc_and /sc_not /sc_or /sc_neqi /sc_lti /sc_addi /sc_muli /sc_divi /sc_toint /=
+          h0 h1 h2 /= !truncate_word_u /=.
++ by rewrite !negb_or !Z.gtb_ltb.
+by rewrite !negb_or !Z.gtb_ltb.
+Qed.
+Local Transparent wbase.
+
+(* A guarded condition: when the guard is false the condition is not
+   required, when it is true it amounts to the guarded condition. *)
+Lemma safety_cond_holds_guarded (vs0 vs2 : values) (b : bool) (c : safety_cond) (bb : bool) :
+  safety_cond_below (size vs0) c ->
+  sem_safety_cond vs0 c = ok (Vbool bb) ->
+  safety_cond_holds (vs0 ++ Vbool b :: vs2) (sc_guarded (size vs0) c) = (~~ b) || bb.
+Proof.
+move=> hb hev; rewrite /safety_cond_holds /sc_guarded /sc_or /sc_not /=.
+rewrite nth_cat ltnn subnn /=.
+by rewrite (sem_safety_cond_cat (Vbool b :: vs2) hb) hev /=.
+Qed.

@@ -86,11 +86,7 @@ Lemma safety_cond_holds_cond_init (vs0 vs2 : values) (b : bool) (c : safety_cond
   safety_cond_below (size vs0) c ->
   sem_safety_cond vs0 c = ok (Vbool bb) ->
   safety_cond_holds (vs0 ++ Vbool b :: vs2) (cond_init (size vs0) c) = (~~ b) || bb.
-Proof.
-move=> hb hev; rewrite /safety_cond_holds /cond_init /sc_or /sc_not /=.
-rewrite nth_cat ltnn subnn /=.
-by rewrite (sem_safety_cond_cat (Vbool b :: vs2) hb) hev /=.
-Qed.
+Proof. exact: safety_cond_holds_guarded. Qed.
 
 Lemma cond_init_val (ts : seq ctype) (vs0 vs2 : values) (b : bool) (c : safety_cond) :
   List.Forall2 (fun t v => exists x : sem_t t, v = to_val x) ts vs0 ->
