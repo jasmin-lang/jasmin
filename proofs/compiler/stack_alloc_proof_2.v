@@ -3859,8 +3859,8 @@ Proof using P'_globs hshparams hsaparams is_move_opP Halloc_fd hwf_pmap hwf_Slot
   (* Syscall *)
   + move=> xs o es ii table1 rmap1 table2 rmap2 vme c2 h _.
     move: h; rewrite /=; t_xrbindP=> -[{}rmap2 {}c2] hsyscall [<- <- <-] {table2}.
-    apply wequiv_weaken with (st_sa_pre table1 rmap1 vme)
-      (st_sa_pre (remove_binding_lvals table1 xs) rmap2 vme) => //.
+    apply: (wequiv_weaken (P2 := st_sa_pre table1 rmap1 vme)
+      (Q2 := st_sa_pre (remove_binding_lvals table1 xs) rmap2 vme)) => //.
     + by move=> s1 s2 hpre; exists vme.
     exact: alloc_syscallP hsyscall.
   (* If *)

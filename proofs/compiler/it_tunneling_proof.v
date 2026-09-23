@@ -416,7 +416,7 @@ Lemma tunnel_cmd endpc s :
   wfend endpc ->
   eutt eq (ilsem p' (untilpc endpc) s) (ilsem p (untilpc endpc) s).
 Proof using pp'.
-  move=> hend; apply while.eqit_iter_n with eq => // {}s _ <-.
+  move=> hend; apply: (while.eqit_iter_n (RI := eq)) => // {}s _ <-.
   rewrite /= {1}/while_body /untilpc; case: eqP => [|/eqP/negPf] hpc /=.
   + exists 2; rewrite /while_body /= hpc eqxx bind_ret_l.
     by apply eutt_Ret; constructor.

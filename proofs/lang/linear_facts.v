@@ -341,13 +341,13 @@ Lemma eq_lsyscall o :
        [/\ s1' = s2', s1'.(lfn) = s1.(lfn) & s1'.(lpc) = s1.(lpc).+1 ]).
 Proof using rndE.
   move=> ls _ <-; rewrite /lexec_syscall.
-  apply xrutt_bind with eq.
+  apply: (xrutt_bind (RR := eq)).
   + apply: xrutt_iresult => v1 ->; by exists v1.
   move=> ves _ <-.
-  apply xrutt_bind with eq.
+  apply: (xrutt_bind (RR := eq)).
   + exact: fs_eq_syscall _ _ erefl.
   move=> fs' _ <-.
-  apply xrutt_bind with (fun s1' s2' => [/\ s1' = s2', lfn s1' = lfn ls & lpc s1' = lpc ls]).
+  apply: (xrutt_bind (RR := fun s1' s2' => [/\ s1' = s2', lfn s1' = lfn ls & lpc s1' = lpc ls])).
   + apply: xrutt_iresult => v1 h; exists v1 => //.
     move: h; rewrite /lset_fstate; t_xrbindP => e' _ <- /=.
     by [].

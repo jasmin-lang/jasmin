@@ -756,8 +756,8 @@ Lemma wequiv_syscall Rv Ro P Q ii1 xs1 sc1 es1 ii2 xs2 sc2 es2 :
 Proof.
   move=> he ho hwr; rewrite /wequiv /isem_cmd_ /=.
   apply wkequiv_bind with Q; last by apply wkequiv_ret.
-  apply wkequiv_read with Rv; first by apply wkequiv_iresult.
-  move=> vs1 vs2 hvs; apply wkequiv_read with Ro.
+  apply: (wkequiv_read (R := Rv)); first by apply wkequiv_iresult.
+  move=> vs1 vs2 hvs; apply: (wkequiv_read (R := Ro)).
   - by move=> s1 s2 hP; apply: ho s1 s2 hP vs1 vs2 hvs.
   by move=> fs1 fs2 hRo; apply/wkequiv_iresult/hwr.
 Qed.
@@ -2415,7 +2415,7 @@ Lemma fs_uincl_syscall o :
   wkequiv fs_uincl (fexec_syscall (E:=E_l) o) (fexec_syscall (E:=E_r) o) fs_uincl.
 Proof using rndE.
 move=> fs1 fs2 [hscs hmem hu]; rewrite /fexec_syscall hscs hmem.
-apply xrutt_bind with sc_res_uincl.
+apply: (xrutt_bind (RR := sc_res_uincl)).
 - rewrite /exec_syscall.
   exact/lxeutt_lrutt_RndRels_refl/exec_syscall_coreP/hu.
 by move=> [[scs m] vs] [[scs' m'] vs'] [/= h1 h2 h3]; apply: xrutt_Ret.
@@ -2425,7 +2425,7 @@ Lemma fs_eq_syscall o :
   wkequiv eq (fexec_syscall (E:=E_l) o) (fexec_syscall (E:=E_r) o) eq.
 Proof using rndE.
 move=> fs _ <-; rewrite /fexec_syscall.
-apply xrutt_bind with eq; last by move=> [[scs m] vs] _ <-; apply: xrutt_Ret.
+apply: (xrutt_bind (RR := eq)); last by move=> [[scs m] vs] _ <-; apply: xrutt_Ret.
 rewrite /exec_syscall; apply/lxeutt_lrutt_RndRels_refl/xrutt_refl.
 - by move=> T ev _ _; apply: RPre_eq_refl.
 by move=> T ev t1 t2 _ _ h; apply/RPost_eqI/h.

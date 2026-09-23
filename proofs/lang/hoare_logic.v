@@ -1151,7 +1151,7 @@ Proof.
     move=> v _; apply wrhoareP => s s' <-.
     rewrite write_Ii write_i_opn; apply vrvsP.
   + move=> xs o es ii s0.
-    apply whoare_syscall with PredT PredT; first exact: rhoare_true.
+    apply: (whoare_syscall _ (Rv := PredT) (Ro := PredT)); first exact: rhoare_true.
     * by move=> s _; apply: khoare_io_true.
     move=> v _; apply wrhoareP => s s' <-.
     by rewrite write_Ii write_i_syscall => /vrvsP /=.
