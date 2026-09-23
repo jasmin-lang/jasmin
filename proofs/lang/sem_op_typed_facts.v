@@ -16,8 +16,8 @@ Local Open Scope seq_scope.
 (* -------------------------------------------------------------------- *)
 (* ** [mk_sem_op] on the signature of a binary operator                  *)
 
-Lemma mk_sem_op2E t1 t2 t safe err (f : sem_t t1 -> sem_t t2 -> sem_t t) v1 v2 :
-  @mk_sem_op [:: t1; t2] t safe err f v1 v2 =
+Lemma mk_sem_op2E {sm : SemMode} t1 t2 t safe err (f : sem_t t1 -> sem_t t2 -> sem_t t) v1 v2 :
+  @mk_sem_op sm [:: t1; t2] t safe err f v1 v2 =
   (Let _ := check_safe [:: to_val v1; to_val v2] safe err in ok (f v1 v2)).
 Proof. by []. Qed.
 

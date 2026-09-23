@@ -16,19 +16,19 @@ Open Scope vm_scope.
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
-Definition sem_sop1 (o: sop1) (v: value) : exec value :=
+Definition sem_sop1 {sm : SemMode} (o: sop1) (v: value) : exec value :=
   Let x := of_val _ v in
   Let r := sem_sop1_typed o x in
   ok (to_val r).
 
-Definition sem_sop2 (o: sop2) (v1 v2: value) : exec value :=
+Definition sem_sop2 {sm : SemMode} (o: sop2) (v1 v2: value) : exec value :=
   Let x1 := of_val _ v1 in
   Let x2 := of_val _ v2 in
   Let r  := sem_sop2_typed o x1 x2 in
   ok (to_val r).
 
 Definition sem_opN
-  {cfcd : FlagCombinationParams} (op: opN) (vs: values) : exec value :=
+  {cfcd : FlagCombinationParams} {sm : SemMode} (op: opN) (vs: values) : exec value :=
   Let w := app_sopn _ (sem_opN_typed op) vs in
   ok (to_val w).
 
@@ -244,7 +244,7 @@ Context
   {spp : SemPexprParams}
   {asmop : asmOp asm_op}.
 
-Definition exec_sopn (o:sopn) (vs:values) : exec values :=
+Definition exec_sopn {sm : SemMode} (o:sopn) (vs:values) : exec values :=
   Let semi := sopn_sem o in
   Let t := app_sopn _ semi vs in
   ok (list_ltuple t).
