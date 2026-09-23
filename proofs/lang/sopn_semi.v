@@ -108,18 +108,3 @@ rewrite /safety_cond_wt /sc_guarded /sc_or /sc_not /=
 rewrite size_cat /= nth_cat ltnn subnn /=.
 by have -> : (size tin < size tin + (size tin').+1)%nat by rewrite -addn1 leq_add2l.
 Qed.
-
-(* Guarding a condition adds a dependency on the guard. *)
-Lemma sc_needed_args_guarded n sc :
-  ssrnat.leq (sc_needed_args sc) n ->
-  ssrnat.leq (sc_needed_args (Guarded n sc)) (S n).
-Proof.
-by move=> h; rewrite /= ssrnat.geq_max ssrnat.leqnn /=; apply: (ssrnat.leq_trans h).
-Qed.
-
-Lemma all_sc_needed_args_guarded n safe :
-  all (fun sc => ssrnat.leq (sc_needed_args sc) n) safe ->
-  all (fun sc => ssrnat.leq (sc_needed_args sc) (S n)) (map (Guarded n) safe).
-Proof.
-by move=> h; rewrite all_map; apply: sub_all h => sc; apply: sc_needed_args_guarded.
-Qed.
