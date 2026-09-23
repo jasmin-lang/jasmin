@@ -33,7 +33,7 @@ Definition sem_opN
   ok (to_val w).
 
 Definition sem_opN_safety (op: opN_safety) (vs: values) : exec bool :=
-  app_sopn _ (sem_opN_safety_typed op) vs.
+  app_sopn _ (sem_prod_ok _ (sem_opN_safety_total op)) vs.
 
 (* ** Global access
  * -------------------------------------------------------------------- *)
