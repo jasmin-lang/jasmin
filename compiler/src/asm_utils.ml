@@ -22,6 +22,34 @@ let string_of_label name p =
 let pp_remote_label (fn, lbl) =
   string_of_label fn.fn_name lbl
 
+(* The target of a call on the ARM targets. A call only ever targets the
+   entry point of a function that is not exported (the linearization pass
+   refuses calls to exported ones, and a call targets the label heading the
+   callee's body), and such a function is emitted under its bare name, which
+   heads its body: the symbol and the label denote the same address.
+
+   When the functions are laid out in sections of their own, the call is
+   printed against the symbol: it then crosses a section boundary, so the
+   assembler emits a relocation for it, and a relocation taken against an
+   assembler-local label says nothing about the instruction set of its
+   destination (ARM or Thumb), which the GNU linker refuses ("Unknown
+   destination type"). The symbol is quoted: a bare symbol in operand
+   position is misread by the assembler whenever it spells a register ("bl
+   x0" on AArch64), whereas a quoted name is always a symbol (GNU as since
+   binutils 2.26, and LLVM). Otherwise the assembler-local label is kept, as
+   on x86-64 and RISC-V, whose calls never need a relocation of that kind. *)
+let pp_call_target ((fn, lbl) : Label.remote_label) =
+  if Glob_options.use_function_sections ()
+  then Format.asprintf "\"%s\"" (escape fn.fn_name)
+  else string_of_label fn.fn_name lbl
+
+(* The ELF section holding the code of one function. The section type is
+   spelled "%progbits" and not "@progbits" because "@" introduces a comment in
+   the ARM flavour of the GNU assembler; "%progbits" is accepted by GNU as and
+   by LLVM on every ELF target. *)
+let text_section name =
+  Header (".section", [ ".text." ^ name; "\"ax\""; "%progbits" ])
+
 let mangle x =
   if is_target_system_macos () then
     Format.asprintf "_%s" x

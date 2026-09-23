@@ -5,4 +5,5 @@
   stack and size tooling. On ELF targets each function, exported or not, is
   closed by `.size <f>, .-<f>`, so that its symbol has the length of its
   body. Mach-O has neither directive, so the output on that system carries
-  neither ([PR #1610](https://github.com/jasmin-lang/jasmin/pull/1610)).
+  the symbols only
+  ([PR #1610](https://github.com/jasmin-lang/jasmin/pull/1610)).

@@ -31,6 +31,7 @@ Context
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
   {ovm_i : one_varmap_info}
+  {vinfo : veneer_info}
   (P : lprog).
 
 Definition get_label (i : linstr) : option label :=
@@ -153,13 +154,17 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     Let lbl := get_label_after_pc s1 in
     Let p := rencode_label labels (lfn s1, lbl) in
     Let m := write s1.(lmem) Aligned nsp p in
-    eval_jump d (lset_mem_vm s1 m vm)
+    (* The callee is entered through a veneer that destroys [call_kill]; the
+       return address has already been recorded (here, in memory), so it
+       survives.  See [one_varmap.veneer_info]. *)
+    eval_jump d (lset_mem_vm s1 m (kill_vars call_kill vm))
   | Lcall (Some r) d =>
     Let _ := assert (~~ fn_is_export d.1) ErrSemUndef in
     Let lbl := get_label_after_pc s1 in
     Let p := rencode_label labels (lfn s1, lbl) in
     Let vm := set_var true s1.(lvm) r (Vword p) in
-    eval_jump d (lset_vm s1 vm)
+    (* Same as above; [r] is not in [call_kill], which merge_varmaps checks. *)
+    eval_jump d (lset_vm s1 (kill_vars call_kill vm))
   | Lret =>
     let vrsp := v_var (vid (lp_rsp P)) in
     Let sp := get_var true s1.(lvm) vrsp >>= to_pointer in

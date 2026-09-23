@@ -28,6 +28,8 @@ Module ARMFopnP.
 
 Section WITH_PARAMS.
 
+Context {vinfo : one_varmap.veneer_info}.
+
 Context
   {atoI  : arch_toIdent}
   {syscall_state : Type}
@@ -278,6 +280,8 @@ End WITH_PARAMS.
 End ARMFopnP.
 
 Section WITH_PARAMS.
+
+Context {vinfo : one_varmap.veneer_info}.
 
 Context
   {atoI  : arch_toIdent}

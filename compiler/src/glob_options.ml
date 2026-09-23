@@ -22,6 +22,14 @@ let print_export_info_json = ref false
 let introduce_export_renaming = ref true
 let print_dependencies = ref false
 let lazy_regalloc = ref false
+let function_sections = ref false
+
+(* Whether every function is laid out in a section of its own. Mach-O has no
+   ELF sections, and the directives that go with them do not exist there, so
+   the option is silently ignored on that system: the output of a macOS
+   target never depends on it. *)
+let use_function_sections () =
+  !function_sections && not (is_target_system_macos ())
 
 let verbosity = ref 1
 
@@ -221,6 +229,7 @@ let options = [
     "-call-conv", Arg.Symbol (["windows"; "linux"], set_cc), " Select calling convention (default depends on host architecture)";
     "-arch", Arg.Symbol (["x86-64"; "arm-m4"; "armv8a"; "riscv"], set_target_arch), " Select target arch (default is x86-64)";
     "-system", Arg.Symbol (["macosx"; "linux"], set_target_system), " Select target system (default is "^ Config.target_system^")";
+    "-function-sections", Arg.Set function_sections, " Place each function in its own section (ELF only)";
     "-stack-zero",
       Arg.Symbol (List.map fst stack_zero_strategies, set_stack_zero_strategy),
       " Select stack zeroization strategy for export functions";

@@ -35,7 +35,7 @@ Context
   {reg regx xreg rflag cond asm_op extra_op : Type}
   {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
   {call_conv : calling_convention}
-  {asm_scsem : asm_syscall_sem}
+  {asm_scsem : asm_syscall_sem} {vregs : veneer_regs_info} {avs : asm_veneer_sem}
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
 .

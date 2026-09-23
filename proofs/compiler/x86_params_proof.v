@@ -156,7 +156,7 @@ Qed.
 
 Opaque x86_lassign.
 
-Context {call_conv : calling_convention}.
+Context {call_conv : calling_convention} {vinfo : one_varmap.veneer_info}.
 
 Lemma x86_spec_lip_allocate_stack_frame :
   allocate_stack_frame_correct x86_liparams.
@@ -961,7 +961,7 @@ Definition x86_hshparams : h_sh_params (ap_shp x86_params) :=
 
 Section STACK_ZEROIZATION.
 
-Context {call_conv : calling_convention}.
+Context {call_conv : calling_convention} {vinfo : one_varmap.veneer_info}.
 
 Lemma x86_hszparams : h_stack_zeroization_params (ap_szp x86_params).
 Proof.
@@ -1000,7 +1000,7 @@ Qed.
 
 (* ------------------------------------------------------------------------ *)
 
-Definition x86_h_params {call_conv : calling_convention} : h_architecture_params x86_params :=
+Definition x86_h_params {call_conv : calling_convention} {vinfo : one_varmap.veneer_info} : h_architecture_params x86_params :=
   {|
     hap_hsap        := x86_hsaparams;
     hap_hlip        := x86_hliparams;

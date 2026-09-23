@@ -205,6 +205,8 @@ and type asm_op = arm_op
 
   let headers = [ Instr (".thumb", []); Instr (".syntax unified", []) ]
 
+  let text_alignment = [ Header (".p2align", ["1"]) ]
+
   let data_segment_header =
     [
       Instr (".p2align", ["5"]) ;
@@ -253,7 +255,7 @@ and type asm_op = arm_op
         [ Instr (iname, [ string_of_label fn lbl ]) ]
 
     | JAL (LR, lbl) ->
-        [ Instr ("bl", [ pp_remote_label lbl ]) ]
+        [ Instr ("bl", [ pp_call_target lbl ]) ]
 
     | CALL _
     | JAL _ -> assert false

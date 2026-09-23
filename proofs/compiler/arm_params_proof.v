@@ -54,7 +54,8 @@ Context
   {atoI  : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
-  {call_conv : calling_convention}.
+  {call_conv : calling_convention}
+  {vinfo : one_varmap.veneer_info}.
 
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc hypotheses. *)

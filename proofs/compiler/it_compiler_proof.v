@@ -69,6 +69,7 @@ Section SHARED.
 Context
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra} {call_conv : calling_convention} {asm_scsem : asm_syscall_sem}
+  {vregs : veneer_regs_info} {avs : asm_veneer_sem}
   (aparams : architecture_params)
   (haparams : h_architecture_params aparams)
   (cparams : compiler_params).
@@ -209,6 +210,7 @@ Section PROOF.
 Context
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra} {call_conv : calling_convention} {asm_scsem : asm_syscall_sem}
+  {vregs : veneer_regs_info} {avs : asm_veneer_sem}
   (aparams : architecture_params)
   (haparams : h_architecture_params aparams)
   (cparams : compiler_params).
@@ -422,6 +424,14 @@ Context
   {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
   {call_conv : calling_convention}
   {asm_scsem : asm_syscall_sem}
+  (* The registers a linker-inserted veneer may destroy in front of a call
+     internal to the compilation unit, and the values it leaves in them.  The
+     theorem is universally quantified over both, so it covers every veneer
+     behaviour; nothing relates them to the middle end's [call_kill], which
+     IS [veneer_regs] mapped through [to_var] (asm_gen.veneer_i).  With
+     -function-sections off the list is empty and no register is havoced at a
+     call. *)
+  {vregs : veneer_regs_info} {avs : asm_veneer_sem}
   (aparams : architecture_params)
   (haparams : h_architecture_params aparams)
   (cparams : compiler_params)

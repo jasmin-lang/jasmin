@@ -67,7 +67,7 @@ Definition is_export (p: sprog) (fn: funname) : Prop :=
 Section PROG.
 
 Context
-  {ovm_i : one_varmap_info}
+  {ovm_i : one_varmap_info} {vinfo : veneer_info}
   (p : sprog)
   (id_tmp id_tmp2: Ident.ident)
   (global_data : pointer)
@@ -94,7 +94,7 @@ Lemma checkP u (fn: funname) (fd: sfundef) :
   get_fundef (p_funcs p) fn = Some fd →
   valid_writefun wrf (fn, fd) ∧ check_fd p var_tmps wrf fn fd = ok tt.
 Proof.
-  rewrite /check; t_xrbindP => ok_wmap _ _ ? ok_prog _ ok_fd; split.
+  rewrite /check; t_xrbindP => ok_wmap _ _ _ ? ok_prog _ ok_fd; split.
   - exact: check_wmapP ok_fd ok_wmap.
   by have [ [] ] := get_map_cfprog_name_gen ok_prog ok_fd.
 Qed.
@@ -118,6 +118,12 @@ Lemma var_tmp_not_magic :
   disjoint var_tmps (magic_variables p).
 Proof using ok_p. by move: ok_p; rewrite /check; t_xrbindP. Qed.
 
+(* A register a linker veneer may clobber is a scratch register, never RSP or
+   the global-data pointer. *)
+Lemma call_kill_not_magic :
+  disjoint call_kill (magic_variables p).
+Proof using ok_p. by move: ok_p; rewrite /check; t_xrbindP. Qed.
+
 Lemma not_written_magic W :
   disjoint W (magic_variables p) →
   ¬ Sv.In vgd W ∧ ¬ Sv.In vrsp W.
@@ -126,7 +132,7 @@ Proof. rewrite /disjoint /magic_variables /is_true Sv.is_empty_spec; clear; SvD.
 Lemma disjoint_tmp_call_magic f :
   disjoint (fd_tmp_call p f) (magic_variables p).
 Proof using ok_p.
-  move: ok_p; rewrite /fd_tmp_call /check; t_xrbindP => _ _ _ ? ok_prog.
+  move: ok_p; rewrite /fd_tmp_call /check; t_xrbindP => _ _ _ _ ? ok_prog.
   have /(_ f) := get_map_cfprog_name_gen ok_prog.
   case: get_fundef => // fd /(_ _ erefl) [? ].
   by rewrite /check_fd /=; t_xrbindP => ? _ _ _ _ _ _ /disjoint_sym.
