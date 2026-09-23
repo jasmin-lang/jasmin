@@ -199,17 +199,26 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
         (n + 1)
     in
 
+    (* A register takes the slot planned for it, if any: that slot has the
+       size of the register. The other registers take the remaining slots in
+       order. *)
     let fixup_to_save fd names slots =
-      let rec fixup_to_save n s =
-        match n, s with
-        | [], [] -> []
-        | x :: n, (_, ofs) :: s -> (Conv.cvar_of_var x, ofs) :: fixup_to_save n s
-        | [], _ ->
-           warning CalleeSavedNotTight (L.i_loc0 fd.f_loc) "unused slots: %a"
-             (pp_list ", " (fun fmt (_, ofs) -> Format.fprintf fmt "%a" Z.pp_print (Conv.z_of_cz ofs))) slots;
-           []
-        | _, [] -> callee_saved_error fd (List.length names)
-      in fixup_to_save names slots
+      let mem x = List.exists (V.equal x) in
+      let planned = List.map (fun (x, _) -> Conv.var_of_cvar x) slots in
+      let others = List.filter (fun x -> not (mem x planned)) names in
+      let fixup others (x, ofs) =
+        if mem (Conv.var_of_cvar x) names then others, Either.Left (x, ofs)
+        else match others with
+          | y :: others -> others, Either.Left (Conv.cvar_of_var y, ofs)
+          | [] -> [], Either.Right ofs
+      in
+      let others, slots = List.fold_left_map fixup others slots in
+      if others <> [] then callee_saved_error fd (List.length names);
+      let to_save, unused = List.partition_map Fun.id slots in
+      if unused <> [] then
+        warning CalleeSavedNotTight (L.i_loc0 fd.f_loc) "unused slots: %a"
+          (pp_list ", " (fun fmt ofs -> Format.fprintf fmt "%a" Z.pp_print (Conv.z_of_cz ofs))) unused;
+      to_save
     in
 
     let subst, killed, fds = RA.alloc_prog return_addresses fds in
