@@ -45,11 +45,20 @@ move=> hall; elim: c t => /=.
   have [x1 ->] := ih _ htot heq.
   have [y hy] := of_val_subctype_ok x1 hsub.
   by rewrite /= hy /=; eexists.
-move=> o c1 ih1 c2 ih2 t /and3P [hto ht1 ht2].
++ move=> o c1 ih1 c2 ih2 t /and3P [hto ht1 ht2].
+  case heq1: (safety_cond_type tin c1) => [t1|] //=; case heq2: (safety_cond_type tin c2) => [t2|] //=.
+  case: ifP => // /andP [hsub1 hsub2] [<-].
+  have [x1 ->] := ih1 _ ht1 heq1; have [x2 ->] := ih2 _ ht2 heq2.
+  have [y1 hy1] := of_val_subctype_ok x1 hsub1.
+  have [y2 hy2] := of_val_subctype_ok x2 hsub2.
+  by rewrite /= hy1 /= hy2 /=; eexists.
+move=> o c1 ih1 c2 ih2 c3 ih3 t /and3P [ht1 ht2 ht3].
 case heq1: (safety_cond_type tin c1) => [t1|] //=; case heq2: (safety_cond_type tin c2) => [t2|] //=.
-case: ifP => // /andP [hsub1 hsub2] [<-].
-have [x1 ->] := ih1 _ ht1 heq1; have [x2 ->] := ih2 _ ht2 heq2.
-have [y1 hy1] := of_val_subctype_ok x1 hsub1.
-have [y2 hy2] := of_val_subctype_ok x2 hsub2.
-by rewrite /= hy1 /= hy2 /=; eexists.
+case heq3: (safety_cond_type tin c3) => [t3|] //=.
+case: ifP => // hsub [<-].
+have [x1 hx1] := ih1 _ ht1 heq1; have [x2 hx2] := ih2 _ ht2 heq2.
+have [x3 hx3] := ih3 _ ht3 heq3.
+move: hsub x1 x2 x3 hx1 hx2 hx3; case: o => len /=; rewrite !andbT.
+all: move=> /and3P [/eqP <- /eqP <- /eqP <-] x1 x2 x3 -> -> ->.
+all: by rewrite /= WArray.castK /=; eexists.
 Qed.
