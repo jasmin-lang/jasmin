@@ -73,11 +73,15 @@ Arguments Estate {syscall_state}%_type_scope {ep} _ _ _%_vm_scope.
 (* ** Variable map
  * -------------------------------------------------------------------- *)
 
-Definition get_gvar (wdb : bool) (gd : glob_decls) (vm : Vm.t) (x : gvar) :=
+(* Reading a local variable follows the mode. *)
+Definition get_gvar {sm : SemMode} (wdb : bool) (gd : glob_decls) (vm : Vm.t) (x : gvar) :=
   if is_lvar x then get_var wdb vm x.(gv)
   else get_global gd x.(gv).
 
-Definition get_var_is wdb vm := mapM (fun x => get_var wdb vm (v_var x)).
+(* The results of a function call are read in the mode of the semantics: in
+   the partial mode a result that is not initialised is a failure of the call,
+   in a total mode it is the default value of its type. *)
+Definition get_var_is {sm : SemMode} wdb vm := mapM (fun x => get_var wdb vm (v_var x)).
 
 Definition on_arr_var A (v:exec value) (f:forall n, WArray.array n -> exec A) :=
   Let v := v  in
@@ -115,6 +119,7 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {sm : SemMode}
   (wdb : bool)
   (gd : glob_decls).
 
@@ -191,7 +196,7 @@ Definition write_lval (l : lval) (v : value) (s : estate) : exec estate :=
     Let (n,t) := wdb, s.[x] in
     Let i := sem_pexpr s i >>= to_int in
     Let t' := to_arr (arr_size ws len) v in
-    Let t := @WArray.set_sub partial n aa ws len t i t' in
+    Let t := @WArray.set_sub sm n aa ws len t i t' in
     write_var x (@to_val (carr n) t) s
   end.
 
@@ -207,6 +212,7 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {sm : SemMode}
   (gd : glob_decls).
 
 Fixpoint sem_eassert (s : estate) (e : eassert) : exec bool :=
@@ -215,13 +221,11 @@ Fixpoint sem_eassert (s : estate) (e : eassert) : exec bool :=
   | PappN_safety op es =>
     Let vs := mapM (sem_pexpr true gd s) es in
     sem_opN_safety op vs
-  | Pis_var_init x =>
-    let v := (evm s).[x] in
-    ok (is_defined v)
+  | Pis_var_init x => ok (is_var_init (evm s) x)
   | Pis_mem_init e1 e2 =>
     Let lo := sem_pexpr true gd s e1 >>= to_pointer in
     Let sz := sem_pexpr true gd s e2 >>= to_int in
-    ok (all (fun i => is_ok (read s.(emem) Unaligned (lo + wrepr Uptr i)%w U8)) (ziota 0 sz))
+    ok (all (fun i => validr s.(emem) Unaligned (lo + wrepr Uptr i)%w U8) (ziota 0 sz))
   | Pand e1 e2 =>
     Let b1 := sem_eassert s e1 in
     Let b2 := sem_eassert s e2 in
