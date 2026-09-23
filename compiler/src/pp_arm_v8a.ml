@@ -72,6 +72,7 @@ let pp_asm_arg ?(wform = false) (arg : (register, Arch_utils.empty, Arch_utils.e
   | Regx _ -> .
   | Addr (Areg ra) -> pp_reg_address ra
   | Addr (Arip r) -> pp_rip_address r
+  | ImmRip _ -> assert false (* Only on ARMv7-M. *)
   | XReg _ -> .
 
 (* -------------------------------------------------------------------- *)
