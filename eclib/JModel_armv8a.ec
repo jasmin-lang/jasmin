@@ -558,3 +558,106 @@ op VSRI_2u32 (d w: W64.t) (n: W8.t) : W64.t =
     (fun (x y: W32.t) =>
        orw (andw x (invw (W32.onew `>>>` W8.to_uint n))) (y `>>>` W8.to_uint n))
     d w.
+
+(* Shifts by register, on 128-bit (16u8, 8u16, 4u32, 2u64) and 64-bit (8u8,
+   4u16, 2u32) vectors: each lane of the first argument is shifted by the
+   signed low byte of the same lane of the second one, to the left if it is
+   nonnegative, to the right otherwise (logical for USHL, arithmetic for
+   SSHL). *)
+op VUSHL_16u8 (w n: W128.t) : W128.t =
+  W16u8.map2
+    (fun (x y: W8.t) =>
+       let s = W8.to_sint y in
+       if 0 <= s then x `<<<` s else x `>>>` (-s))
+    w n.
+
+op VUSHL_8u16 (w n: W128.t) : W128.t =
+  W8u16.map2
+    (fun (x y: W16.t) =>
+       let s = W8.to_sint (truncateu8 y) in
+       if 0 <= s then x `<<<` s else x `>>>` (-s))
+    w n.
+
+op VUSHL_4u32 (w n: W128.t) : W128.t =
+  W4u32.map2
+    (fun (x y: W32.t) =>
+       let s = W8.to_sint (truncateu8 y) in
+       if 0 <= s then x `<<<` s else x `>>>` (-s))
+    w n.
+
+op VUSHL_2u64 (w n: W128.t) : W128.t =
+  W2u64.map2
+    (fun (x y: W64.t) =>
+       let s = W8.to_sint (truncateu8 y) in
+       if 0 <= s then x `<<<` s else x `>>>` (-s))
+    w n.
+
+op VUSHL_8u8 (w n: W64.t) : W64.t =
+  W8u8.map2
+    (fun (x y: W8.t) =>
+       let s = W8.to_sint y in
+       if 0 <= s then x `<<<` s else x `>>>` (-s))
+    w n.
+
+op VUSHL_4u16 (w n: W64.t) : W64.t =
+  W4u16.map2
+    (fun (x y: W16.t) =>
+       let s = W8.to_sint (truncateu8 y) in
+       if 0 <= s then x `<<<` s else x `>>>` (-s))
+    w n.
+
+op VUSHL_2u32 (w n: W64.t) : W64.t =
+  W2u32.map2
+    (fun (x y: W32.t) =>
+       let s = W8.to_sint (truncateu8 y) in
+       if 0 <= s then x `<<<` s else x `>>>` (-s))
+    w n.
+
+op VSSHL_16u8 (w n: W128.t) : W128.t =
+  W16u8.map2
+    (fun (x y: W8.t) =>
+       let s = W8.to_sint y in
+       if 0 <= s then x `<<<` s else x `|>>>` (-s))
+    w n.
+
+op VSSHL_8u16 (w n: W128.t) : W128.t =
+  W8u16.map2
+    (fun (x y: W16.t) =>
+       let s = W8.to_sint (truncateu8 y) in
+       if 0 <= s then x `<<<` s else x `|>>>` (-s))
+    w n.
+
+op VSSHL_4u32 (w n: W128.t) : W128.t =
+  W4u32.map2
+    (fun (x y: W32.t) =>
+       let s = W8.to_sint (truncateu8 y) in
+       if 0 <= s then x `<<<` s else x `|>>>` (-s))
+    w n.
+
+op VSSHL_2u64 (w n: W128.t) : W128.t =
+  W2u64.map2
+    (fun (x y: W64.t) =>
+       let s = W8.to_sint (truncateu8 y) in
+       if 0 <= s then x `<<<` s else x `|>>>` (-s))
+    w n.
+
+op VSSHL_8u8 (w n: W64.t) : W64.t =
+  W8u8.map2
+    (fun (x y: W8.t) =>
+       let s = W8.to_sint y in
+       if 0 <= s then x `<<<` s else x `|>>>` (-s))
+    w n.
+
+op VSSHL_4u16 (w n: W64.t) : W64.t =
+  W4u16.map2
+    (fun (x y: W16.t) =>
+       let s = W8.to_sint (truncateu8 y) in
+       if 0 <= s then x `<<<` s else x `|>>>` (-s))
+    w n.
+
+op VSSHL_2u32 (w n: W64.t) : W64.t =
+  W2u32.map2
+    (fun (x y: W32.t) =>
+       let s = W8.to_sint (truncateu8 y) in
+       if 0 <= s then x `<<<` s else x `|>>>` (-s))
+    w n.
