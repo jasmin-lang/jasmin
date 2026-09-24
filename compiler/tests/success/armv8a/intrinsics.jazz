@@ -38,6 +38,21 @@ fn intrinsics(reg u64 arg0, reg u64 arg1) -> reg u64 {
     nf, zf, cf, vf, x = #SUBS(x, arg1);
     x = #ADC(x, arg1, cf);
     nf, zf, cf, vf, x = #ADCS(x, arg1, cf);
+    x = #SBC(x, arg1, cf);
+    nf, zf, cf, vf, x = #SBCS(x, arg1, cf);
+    y = arg1 if nf;
     x = x + y;
+    return x;
+}
+
+export
+fn intrinsics32(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+    reg bool nf zf cf vf;
+
+    nf, zf, cf, vf = #CMP_32(arg0, arg1);
+    x = #SBC_32(arg0, arg1, cf);
+    nf, zf, cf, vf, x = #SBCS_32(x, arg1, cf);
+    x = #ADC_32(x, arg1, cf);
     return x;
 }
