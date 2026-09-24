@@ -90,6 +90,9 @@ Variant armv8a_mnemonic : Type :=
 
 (* Logical *)
 | AND                            (* Bitwise AND *)
+| ANDS                           (* Bitwise AND, setting flags *)
+| BIC                            (* Bitwise AND with bitwise NOT *)
+| BICS                           (* Bitwise AND with bitwise NOT, setting flags *)
 | ORR                            (* Bitwise OR *)
 | EOR                            (* Bitwise XOR *)
 | MVN                            (* Bitwise NOT *)
@@ -121,6 +124,7 @@ Variant armv8a_mnemonic : Type :=
 
 (* Comparisons *)
 | CMP                            (* Compare *)
+| CMN                            (* Compare negative *)
 | TST                            (* Test *)
 
 (* Conditional selection *)
@@ -148,12 +152,12 @@ Canonical armv8a_mnemonic_eqType := @ceqT_eqType _ eqTC_armv8a_mnemonic.
 Definition armv8a_mnemonics : seq armv8a_mnemonic :=
   [:: ADD; ADDS; ADC; ADCS; SUB; SUBS; NEG
     ; MUL; MADD; MSUB; SDIV; UDIV; UMULH; SMULH
-    ; AND; ORR; EOR; MVN
+    ; AND; ANDS; BIC; BICS; ORR; EOR; MVN
     ; ASR; LSL; LSR; ROR
     ; RBIT; CLZ
     ; MOV; MOVN; MOVZ; MOVK; ADR
     ; SXTB; SXTH; SXTW; UXTB; UXTH; UXTW
-    ; CMP; TST
+    ; CMP; CMN; TST
     ; CSEL
     ; LDR; LDRB; LDRH; LDRSB; LDRSH; LDRSW
     ; STR; STRB; STRH
@@ -174,16 +178,16 @@ Canonical armv8a_mnemonic_finType := @cfinT_finType _ finTC_armv8a_mnemonic.
 (* Mnemonics whose last register operand can be optionally shifted. *)
 Definition has_shift_mnemonics : seq armv8a_mnemonic :=
   [:: ADD; ADDS; SUB; SUBS; NEG
-    ; AND; ORR; EOR; MVN
-    ; CMP; TST
+    ; AND; ANDS; BIC; BICS; ORR; EOR; MVN
+    ; CMP; CMN; TST
   ].
 
-(* The arithmetic instructions (ADD/ADDS/SUB/SUBS/NEG/CMP) only admit
+(* The arithmetic instructions (ADD/ADDS/SUB/SUBS/NEG/CMP/CMN) only admit
    LSL, LSR and ASR on their shifted-register operand; ROR is reserved
    (C6.2.5 "ADD (shifted register)"). The logical instructions admit all
    four shifts (C6.2.14 "AND (shifted register)"). *)
 Definition ror_shift_mnemonics : seq armv8a_mnemonic :=
-  [:: AND; ORR; EOR; MVN; TST ].
+  [:: AND; ANDS; BIC; BICS; ORR; EOR; MVN; TST ].
 
 Definition shift_allowed (mn : armv8a_mnemonic) (sk : shift_kind) : bool :=
   if sk is SROR then mn \in ror_shift_mnemonics else true.
@@ -193,12 +197,12 @@ Definition shift_allowed (mn : armv8a_mnemonic) (sk : shift_kind) : bool :=
 Definition sized_mnemonics : seq armv8a_mnemonic :=
   [:: ADD; ADDS; ADC; ADCS; SUB; SUBS; NEG
     ; MUL; MADD; MSUB; SDIV; UDIV
-    ; AND; ORR; EOR; MVN
+    ; AND; ANDS; BIC; BICS; ORR; EOR; MVN
     ; ASR; LSL; LSR; ROR
     ; RBIT; CLZ
     ; MOV; MOVN; MOVZ; MOVK
     ; SXTB; SXTH; UXTB; UXTH
-    ; CMP; TST
+    ; CMP; CMN; TST
     ; CSEL
     ; LDR; LDRB; LDRH; LDRSB; LDRSH
     ; STR; STRB; STRH
@@ -259,6 +263,9 @@ Definition string_of_armv8a_mnemonic (mn : armv8a_mnemonic) : string :=
   | UMULH => "UMULH"
   | SMULH => "SMULH"
   | AND => "AND"
+  | ANDS => "ANDS"
+  | BIC => "BIC"
+  | BICS => "BICS"
   | ORR => "ORR"
   | EOR => "EOR"
   | MVN => "MVN"
@@ -280,6 +287,7 @@ Definition string_of_armv8a_mnemonic (mn : armv8a_mnemonic) : string :=
   | UXTH => "UXTH"
   | UXTW => "UXTW"
   | CMP => "CMP"
+  | CMN => "CMN"
   | TST => "TST"
   | CSEL => "CSEL"
   | LDR => "LDR"
@@ -1089,6 +1097,60 @@ Definition armv8a_bitwise_semi
 Definition armv8a_AND_instr : instr_desc_t :=
   mk_arith_instr AND bitmask_imm (armv8a_bitwise_semi id id wand).
 
+(* [C6.2.17 ANDS (shifted register)] ARM DDI 0487 M.a, p. 1817
+   Bitwise AND (shifted register), setting flags  This instruction performs a
+   bitwise AND of a register value and an optionally-shifted register value,
+   and writes the result to the destination register. It updates the condition
+   flags based on the result.  This instruction is used by the alias TST
+   (shifted register).
+   Syntax: ANDS <Xd>, <Xn>, <Xm>{, <shift> #<amount>}
+   Operation (ASL):
+     constant bits(datasize) operand1 = X[n, datasize];
+     constant bits(datasize) operand2 = ShiftReg(m, shift_type, shift_amount, datasize);
+     constant bits(datasize) result = operand1 AND operand2;
+     X[d, datasize] = result;
+     PSTATE.<N,Z,C,V> = result<datasize-1>:IsZeroBit(result):'00';
+*)
+Definition armv8a_ANDS_semi {ws : wsize} (wn wm : word ws) : ty_nzcv_w ws :=
+  nzcv_w_of_logop (wand wn wm).
+
+Definition armv8a_ANDS_instr : instr_desc_t :=
+  mk_ariths_instr ANDS bitmask_imm armv8a_ANDS_semi.
+
+(* [C6.2.41 BIC (shifted register)] ARM DDI 0487 M.a, p. 1856
+   Bitwise bit clear (shifted register)  This instruction performs a bitwise
+   AND of a register value and the complement of an optionally-shifted register
+   value, and writes the result to the destination register.
+   Syntax: BIC <Xd>, <Xn>, <Xm>{, <shift> #<amount>}
+   Operation (ASL):
+     constant bits(datasize) operand1 = X[n, datasize];
+     constant bits(datasize) operand2 = ShiftReg(m, shift_type, shift_amount, datasize);
+     X[d, datasize] = operand1 AND NOT(operand2);
+*)
+(* BIC and BICS have no immediate form in A64 (an inverted bitmask
+   immediate is an AND or ANDS immediate). *)
+Definition armv8a_BIC_instr : instr_desc_t :=
+  mk_arith_instr BIC no_imm (armv8a_bitwise_semi id wnot wand).
+
+(* [C6.2.42 BICS (shifted register)] ARM DDI 0487 M.a, p. 1858
+   Bitwise bit clear (shifted register), setting flags  This instruction
+   performs a bitwise AND of a register value and the complement of an
+   optionally-shifted register value, and writes the result to the destination
+   register. It updates the condition flags based on the result.
+   Syntax: BICS <Xd>, <Xn>, <Xm>{, <shift> #<amount>}
+   Operation (ASL):
+     constant bits(datasize) operand1 = X[n, datasize];
+     constant bits(datasize) operand2 = ShiftReg(m, shift_type, shift_amount, datasize);
+     constant bits(datasize) result = operand1 AND NOT(operand2);
+     X[d, datasize] = result;
+     PSTATE.<N,Z,C,V> = result<datasize-1>:IsZeroBit(result):'00';
+*)
+Definition armv8a_BICS_semi {ws : wsize} (wn wm : word ws) : ty_nzcv_w ws :=
+  nzcv_w_of_logop (wand wn (wnot wm)).
+
+Definition armv8a_BICS_instr : instr_desc_t :=
+  mk_ariths_instr BICS no_imm armv8a_BICS_semi.
+
 (* [C6.2.301 ORR (shifted register)] ARM DDI 0487 M.a, p. 2453
    Bitwise OR (shifted register)  This instruction performs a bitwise
    (inclusive) OR of a register value and an optionally-shifted register value,
@@ -1667,6 +1729,35 @@ Definition armv8a_CMP_semi {ws : wsize} (wn wm : word ws) : ty_nzcv :=
 
 Definition armv8a_CMP_instr : instr_desc_t :=
   mk_cmp_instr CMP arith_imm armv8a_CMP_semi.
+(* [C6.2.94 CMN (shifted register)] ARM DDI 0487 M.a, p. 1946
+   Compare negative (shifted register)  This instruction adds a register value
+   and an optionally-shifted register value. It updates the condition flags
+   based on the result, and discards the result.  This is an alias of ADDS
+   (shifted register). This means:  • The encodings in this description are
+   named to match the encodings of ADDS (shifted register). • The description
+   of ADDS (shifted register) gives the operational pseudocode, any CONSTRAINED
+   UNPREDICTABLE behavior, and any operational information for this
+   instruction.
+   Syntax: CMN <Wn>, <Wm>{, <shift> #<amount>}  ==  CMN <Xn>, <Xm>{, <shift> #<amount>}
+   Operation (ASL):
+     The description of ADDS (shifted register) gives the operational pseudocode for this instruction.
+   Base instruction [C6.2.11 ADDS (shifted register)] p. 1807, Operation (ASL):
+     constant bits(datasize) operand1 = X[n, datasize];
+     constant bits(datasize) operand2 = ShiftReg(m, shift_type, shift_amount, datasize);
+     bits(datasize) result;
+     bits(4) nzcv;
+     (result, nzcv) = AddWithCarry(operand1, operand2, '0');
+     X[d, datasize] = result;
+     PSTATE.<N,Z,C,V> = nzcv;
+*)
+Definition armv8a_CMN_semi {ws : wsize} (wn wm : word ws) : ty_nzcv :=
+  nzcv_of_aluop
+    (wn + wm)%w
+    (wunsigned wn + wunsigned wm)%Z
+    (wsigned wn + wsigned wm)%Z.
+
+Definition armv8a_CMN_instr : instr_desc_t :=
+  mk_cmp_instr CMN arith_imm armv8a_CMN_semi.
 (* [C6.2.484 TST (shifted register)] ARM DDI 0487 M.a, p. 2837
    Test (shifted register)  This instruction performs a bitwise AND operation
    on a register value and an optionally-shifted register value. It updates the
@@ -2044,6 +2135,9 @@ Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
   | UMULH => armv8a_UMULH_instr
   | SMULH => armv8a_SMULH_instr
   | AND => armv8a_AND_instr
+  | ANDS => armv8a_ANDS_instr
+  | BIC => armv8a_BIC_instr
+  | BICS => armv8a_BICS_instr
   | ORR => armv8a_ORR_instr
   | EOR => armv8a_EOR_instr
   | MVN => armv8a_MVN_instr
@@ -2065,6 +2159,7 @@ Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
   | UXTH => armv8a_UXTH_instr
   | UXTW => armv8a_UXTW_instr
   | CMP => armv8a_CMP_instr
+  | CMN => armv8a_CMN_instr
   | TST => armv8a_TST_instr
   | CSEL => armv8a_CSEL_instr
   | LDR => armv8a_load_instr LDR

@@ -1,9 +1,44 @@
 export
 fn and(reg u64 arg0, reg u64 arg1) -> reg u64 {
-    reg u64 x;
+    reg u64 x y;
+    reg bool nf zf cf vf;
 
     x = arg0 & arg1;
     x = x & 0xff;            // Bitmask immediate.
     x = x & (arg1 << 1);     // Shifted register.
+    x = #BIC(x, arg1);
+    nf, zf, cf, vf, x = #ANDS(x, arg1);
+    nf, zf, cf, vf, y = #ANDS(x, 0xff00);   // Bitmask immediate.
+    x = x + y;
+    nf, zf, cf, vf, x = #BICS(x, arg1);
+    y = arg1 if zf;
+    x = x + y;
+    nf, zf, cf, vf = #CMN(x, arg1);
+    y = arg1 if cf;
+    x = x + y;
+    nf, zf, cf, vf = #CMN(x, 42);           // Arithmetic immediate.
+    y = arg1 if vf;
+    x = x + y;
+    return x;
+}
+
+export
+fn and32(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x y;
+    reg bool nf zf cf vf;
+
+    x = #BIC_32(arg0, arg1);
+    nf, zf, cf, vf, x = #ANDS_32(x, arg1);
+    nf, zf, cf, vf, y = #ANDS_32(x, 0xff00);
+    x = x + y;
+    nf, zf, cf, vf, x = #BICS_32(x, arg1);
+    y = arg1 if nf;
+    x = x + y;
+    nf, zf, cf, vf = #CMN_32(x, arg1);
+    y = arg1 if cf;
+    x = x + y;
+    nf, zf, cf, vf = #CMN_32(x, 42);
+    y = arg1 if vf;
+    x = x + y;
     return x;
 }
