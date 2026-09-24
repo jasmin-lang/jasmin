@@ -210,6 +210,16 @@ Definition shift_kinds :=
 Definition check_shift_amount (ws : wsize) (z : Z) : bool :=
   (0 <=? z)%Z && (z <? wsize_bits ws)%Z.
 
+(* Advanced SIMD shifts by immediate (SHL, USHR, SSHR, SLI, SRI, USRA, SSRA,
+   vector forms, C7.2) encode the amount in immh:immb, relative to the lane
+   size [esize]: a left shift by [UInt(immh:immb) - esize], in 0..esize-1,
+   a right shift by [2 * esize - UInt(immh:immb)], in 1..esize. [rshift]
+   selects the direction. *)
+Definition check_vshift_amount (esize : wsize) (rshift : bool) (z : Z) : bool :=
+  if rshift
+  then (1 <=? z)%Z && (z <=? wsize_bits esize)%Z
+  else check_shift_amount esize z.
+
 Definition shift_op (sk : shift_kind) :
   forall (sz : wsize), word sz -> Z -> word sz :=
   match sk with
@@ -308,6 +318,9 @@ Notation register_ext := empty.
    - [CAimmC_armv8a_halfword_shift] carries a [wsize]: the MOVZ/MOVN/MOVK
      halfword shift (hw field, C6.2.192-C6.2.194) is a multiple of 16 below
      the operand width, so 32 and 48 only exist in the X form.
+   - [CAimmC_armv8a_vshift_amount] carries the lane size and the direction
+     (true for a right shift) of an Advanced SIMD shift by immediate: see
+     [check_vshift_amount] above.
    The immediate-encoding conditions take the operand width from the
    [wsize] of the immediate itself (the [CAimm] argument kind carries it),
    so they need no payload:
@@ -323,6 +336,7 @@ Notation register_ext := empty.
 Variant armv8a_caimm_cond :=
   | CAimmC_armv8a_shift_amount of wsize
   | CAimmC_armv8a_halfword_shift of wsize
+  | CAimmC_armv8a_vshift_amount of wsize & bool
   | CAimmC_armv8a_arith_imm
   | CAimmC_armv8a_bitmask_imm
   | CAimmC_armv8a_mov_imm.
@@ -336,6 +350,8 @@ Definition armv8a_check_CAimm (checker : armv8a_caimm_cond) ws (w : word ws) : b
   | CAimmC_armv8a_shift_amount ws' => check_shift_amount ws' (wunsigned w)
   | CAimmC_armv8a_halfword_shift ws' =>
     let x := wunsigned w in (x \in [:: 0; 16; 32; 48 ]%Z) && (x <? wsize_bits ws')%Z
+  | CAimmC_armv8a_vshift_amount esize rshift =>
+    check_vshift_amount esize rshift (wunsigned w)
   | CAimmC_armv8a_arith_imm => is_arith_imm (wunsigned w)
   | CAimmC_armv8a_bitmask_imm => is_bitmask_imm ws (wunsigned w)
   | CAimmC_armv8a_mov_imm => is_mov_imm ws (wunsigned w)
@@ -346,6 +362,17 @@ Definition armv8a_caimm_cond_pp (checker : armv8a_caimm_cond) : string :=
   | CAimmC_armv8a_shift_amount ws => if ws == U64 then "[0, 63]" else "[0, 31]"
   | CAimmC_armv8a_halfword_shift ws =>
       if ws == U64 then "[0; 16; 32; 48]" else "[0; 16]"
+  | CAimmC_armv8a_vshift_amount esize rshift =>
+      match esize, rshift with
+      | U8, false => "[0, 7]"
+      | U8, true => "[1, 8]"
+      | U16, false => "[0, 15]"
+      | U16, true => "[1, 16]"
+      | U32, false => "[0, 31]"
+      | U32, true => "[1, 32]"
+      | _, false => "[0, 63]"
+      | _, true => "[1, 64]"
+      end
   | CAimmC_armv8a_arith_imm => "(arith imm12, optionally << 12)"
   | CAimmC_armv8a_bitmask_imm => "(logical bitmask immediate)"
   | CAimmC_armv8a_mov_imm => "(wide, inverted wide or bitmask immediate)"

@@ -400,7 +400,16 @@ Variant armv8a_vmnemonic : Type :=
 | VSMAX                          (* Signed maximum *)
 | VSMIN                          (* Signed minimum *)
 | VUMAX                          (* Unsigned maximum *)
-| VUMIN.                         (* Unsigned minimum *)
+| VUMIN                          (* Unsigned minimum *)
+
+(* Shifts by immediate *)
+| VSHL                           (* Shift left *)
+| VUSHR                          (* Unsigned shift right *)
+| VSSHR                          (* Signed shift right *)
+| VSLI                           (* Shift left and insert *)
+| VSRI                           (* Shift right and insert *)
+| VUSRA                          (* Unsigned shift right and accumulate *)
+| VSSRA.                         (* Signed shift right and accumulate *)
 
 #[ export ]
 Instance eqTC_armv8a_vmnemonic : eqTypeC armv8a_vmnemonic :=
@@ -412,6 +421,7 @@ Definition armv8a_vmnemonics : seq armv8a_vmnemonic :=
   [:: VMOV; VLDR; VSTR
     ; VAND; VBIC; VORR; VORN; VEOR; VNOT; VBSL; VBIT; VBIF
     ; VADD; VSUB; VMUL; VNEG; VABS; VSMAX; VSMIN; VUMAX; VUMIN
+    ; VSHL; VUSHR; VSSHR; VSLI; VSRI; VUSRA; VSSRA
   ].
 
 Lemma armv8a_vmnemonic_fin_axiom : Finite.axiom armv8a_vmnemonics.
@@ -447,6 +457,13 @@ Definition string_of_armv8a_vmnemonic (vmn : armv8a_vmnemonic) : string :=
   | VSMIN => "SMIN"
   | VUMAX => "UMAX"
   | VUMIN => "UMIN"
+  | VSHL => "SHL"
+  | VUSHR => "USHR"
+  | VSSHR => "SSHR"
+  | VSLI => "SLI"
+  | VSRI => "SRI"
+  | VUSRA => "USRA"
+  | VSSRA => "SSRA"
   end%string.
 
 (* The Jasmin name of a vector mnemonic: the architectural one prefixed
@@ -3262,7 +3279,8 @@ Definition armv8a_vmn_shapes (vmn : armv8a_vmnemonic) : seq (velem * wsize) :=
   | VMOV | VLDR | VSTR => [:: (VE8, U128) ]
   | VAND | VBIC | VORR | VORN | VEOR | VNOT | VBSL | VBIT | VBIF =>
       [:: (VE8, U128); (VE8, U64) ]
-  | VADD | VSUB | VNEG | VABS =>
+  | VADD | VSUB | VNEG | VABS
+  | VSHL | VUSHR | VSSHR | VSLI | VSRI | VUSRA | VSSRA =>
       [:: (VE8, U128); (VE16, U128); (VE32, U128); (VE64, U128)
         ; (VE8, U64); (VE16, U64); (VE32, U64) ]
   | VMUL | VSMAX | VSMIN | VUMAX | VUMIN =>
@@ -3281,7 +3299,8 @@ Definition armv8a_vop_valid
 (* The operations whose result depends on the lane size. *)
 Definition armv8a_vmn_lanewise (vmn : armv8a_vmnemonic) : bool :=
   match vmn with
-  | VADD | VSUB | VMUL | VNEG | VABS | VSMAX | VSMIN | VUMAX | VUMIN => true
+  | VADD | VSUB | VMUL | VNEG | VABS | VSMAX | VSMIN | VUMAX | VUMIN
+  | VSHL | VUSHR | VSSHR | VSLI | VSRI | VUSRA | VSSRA => true
   | VMOV | VLDR | VSTR
   | VAND | VBIC | VORR | VORN | VEOR | VNOT | VBSL | VBIT | VBIF => false
   end.
@@ -3375,6 +3394,63 @@ Definition mk_vbinop_acc_instr vmn (ve : velem) {sz} (doit_v : doit_t)
     id_init := [:: IBool true ];
     id_doit := doit_v;
     id_pp_asm := pp_armv8a_vop vmn [:: pp_vec ve sz; pp_vec ve sz; pp_vec ve sz ];
+    id_valid := armv8a_vop_valid vmn ve sz;
+    id_wf := refl_equal;
+  |}.
+
+(* A vector shift by immediate [vmn Vd, Vn, #shift]. The amount is an 8-bit
+   immediate whose range depends on the lane size and on the direction
+   ([rshift]): see [check_vshift_amount]. *)
+Definition ak_vshift (ve : velem) (rshift : bool) : arg_kinds :=
+  [:: CAimm (Some (CAimmC_armv8a_vshift_amount ve rshift)) U8 ].
+
+Definition mk_vshift_instr vmn (ve : velem) (rshift : bool) {sz}
+  (doit_v : doit_t) (semi : word sz -> word U8 -> ty_w sz) : instr_desc_t :=
+  let tin := [:: lword sz; lword8 ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2 ];
+    id_tout := [:: lword sz ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds := [:: [:: ak_v; ak_v; ak_vshift ve rshift ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_vmn_str vmn ve sz;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := doit_v;
+    id_pp_asm := pp_armv8a_vop vmn [:: pp_vec ve sz; pp_vec ve sz; pp_full U8 ];
+    id_valid := armv8a_vop_valid vmn ve sz;
+    id_wf := refl_equal;
+  |}.
+
+(* A vector shift by immediate [vmn Vd, Vn, #shift] that also reads its
+   destination register: the first source is [Vd] itself. *)
+Definition mk_vshift_acc_instr vmn (ve : velem) (rshift : bool) {sz}
+  (doit_v : doit_t) (semi : word sz -> word sz -> word U8 -> ty_w sz)
+  : instr_desc_t :=
+  let tin := [:: lword sz; lword sz; lword8 ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 0; Ea 1; Ea 2 ];
+    id_tout := [:: lword sz ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds := [:: [:: ak_v; ak_v; ak_vshift ve rshift ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_vmn_str vmn ve sz;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := doit_v;
+    id_pp_asm := pp_armv8a_vop vmn [:: pp_vec ve sz; pp_vec ve sz; pp_full U8 ];
     id_valid := armv8a_vop_valid vmn ve sz;
     id_wf := refl_equal;
   |}.
@@ -3759,6 +3835,154 @@ Definition armv8a_VUMIN_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
 Definition armv8a_VUMIN_instr (ve : velem) sz : instr_desc_t :=
   mk_vbinop_instr VUMIN ve DOIT (@armv8a_VUMIN_semi ve sz).
 
+(* The shifts by immediate below have every arrangement of the lane-wise
+   operations (1D is reserved). The amount [shift] of a left shift (SHL,
+   SLI) is in 0..esize-1, that of a right shift (USHR, SSHR, SRI, USRA,
+   SSRA) in 1..esize; [CAimmC_armv8a_vshift_amount] checks it. A right
+   shift by [esize] gives zero (USHR) or the sign of the lane (SSHR), which
+   [wshr] and [wsar] also give.
+
+   [SHL] ARM DDI 0487 M.a, C7.2
+   Shift left (immediate).
+   Syntax: SHL <Vd>.<T>, <Vn>.<T>, #<shift>
+   Decode: integer shift = UInt(immh:immb) - esize;
+   Operation:
+     CheckFPAdvSIMDEnabled64();
+     bits(datasize) operand  = V[n, datasize];
+     bits(datasize) result;
+
+     for e = 0 to elements-1
+         Elem[result, e, esize] = LSL(Elem[operand, e, esize], shift);
+
+     V[d, datasize] = result;
+*)
+Definition armv8a_VSHL_semi (ve : velem) sz (wn : word sz) (shift : word U8)
+  : ty_w sz :=
+  lift1_vec ve (fun x => wshl x (wunsigned shift)) sz wn.
+
+Definition armv8a_VSHL_instr (ve : velem) sz : instr_desc_t :=
+  mk_vshift_instr VSHL ve false DOIT (@armv8a_VSHL_semi ve sz).
+
+(* [USHR] ARM DDI 0487 M.a, C7.2
+   Unsigned shift right (immediate).
+   Syntax: USHR <Vd>.<T>, <Vn>.<T>, #<shift>
+
+   [SSHR] ARM DDI 0487 M.a, C7.2
+   Signed shift right (immediate).
+   Syntax: SSHR <Vd>.<T>, <Vn>.<T>, #<shift>
+
+   [USRA] ARM DDI 0487 M.a, C7.2
+   Unsigned shift right and accumulate (immediate).
+   Syntax: USRA <Vd>.<T>, <Vn>.<T>, #<shift>
+
+   [SSRA] ARM DDI 0487 M.a, C7.2
+   Signed shift right and accumulate (immediate).
+   Syntax: SSRA <Vd>.<T>, <Vn>.<T>, #<shift>
+
+   Decode: integer shift = (esize * 2) - UInt(immh:immb);
+           boolean unsigned = (U == '1');
+           boolean round = (o1 == '1');
+           boolean accumulate = (o0 == '1');
+   where [unsigned] is TRUE for USHR and USRA, [round] is FALSE (TRUE is
+   URSHR, SRSHR, URSRA and SRSRA), and [accumulate] is TRUE for USRA and
+   SSRA.
+   Operation:
+     CheckFPAdvSIMDEnabled64();
+     bits(datasize) operand  = V[n, datasize];
+     bits(datasize) operand2;
+     bits(datasize) result;
+     integer round_const = if round then (1 << (shift - 1)) else 0;
+     integer element;
+
+     operand2 = if accumulate then V[d, datasize] else Zeros(datasize);
+     for e = 0 to elements-1
+         element = (Int(Elem[operand, e, esize], unsigned) + round_const) >> shift;
+         Elem[result, e, esize] = Elem[operand2, e, esize] + element<esize-1:0>;
+
+     V[d, datasize] = result;
+*)
+Definition armv8a_VUSHR_semi (ve : velem) sz (wn : word sz) (shift : word U8)
+  : ty_w sz :=
+  lift1_vec ve (fun x => wshr x (wunsigned shift)) sz wn.
+
+Definition armv8a_VUSHR_instr (ve : velem) sz : instr_desc_t :=
+  mk_vshift_instr VUSHR ve true DOIT (@armv8a_VUSHR_semi ve sz).
+
+Definition armv8a_VSSHR_semi (ve : velem) sz (wn : word sz) (shift : word U8)
+  : ty_w sz :=
+  lift1_vec ve (fun x => wsar x (wunsigned shift)) sz wn.
+
+Definition armv8a_VSSHR_instr (ve : velem) sz : instr_desc_t :=
+  mk_vshift_instr VSSHR ve true DOIT (@armv8a_VSSHR_semi ve sz).
+
+Definition armv8a_VUSRA_semi
+  (ve : velem) sz (wd wn : word sz) (shift : word U8) : ty_w sz :=
+  lift2_vec ve (fun d x => d + wshr x (wunsigned shift))%w sz wd wn.
+
+Definition armv8a_VUSRA_instr (ve : velem) sz : instr_desc_t :=
+  mk_vshift_acc_instr VUSRA ve true DOIT (@armv8a_VUSRA_semi ve sz).
+
+Definition armv8a_VSSRA_semi
+  (ve : velem) sz (wd wn : word sz) (shift : word U8) : ty_w sz :=
+  lift2_vec ve (fun d x => d + wsar x (wunsigned shift))%w sz wd wn.
+
+Definition armv8a_VSSRA_instr (ve : velem) sz : instr_desc_t :=
+  mk_vshift_acc_instr VSSRA ve true DOIT (@armv8a_VSSRA_semi ve sz).
+
+(* SLI and SRI keep the bits of each lane of the destination that the
+   shifted lane does not cover: the [shift] low bits for SLI, the [shift]
+   high bits for SRI (the whole lane for SRI #esize).
+
+   [SLI] ARM DDI 0487 M.a, C7.2
+   Shift left and insert (immediate).
+   Syntax: SLI <Vd>.<T>, <Vn>.<T>, #<shift>
+   Decode: integer shift = UInt(immh:immb) - esize;
+   Operation:
+     CheckFPAdvSIMDEnabled64();
+     bits(datasize) operand  = V[n, datasize];
+     bits(datasize) operand2 = V[d, datasize];
+     bits(datasize) result;
+     bits(esize) mask = LSL(Ones(esize), shift);
+     bits(esize) shifted;
+
+     for e = 0 to elements-1
+         shifted = LSL(Elem[operand, e, esize], shift);
+         Elem[result, e, esize] = (Elem[operand2, e, esize] AND NOT(mask)) OR shifted;
+     V[d, datasize] = result;
+
+   [SRI] ARM DDI 0487 M.a, C7.2
+   Shift right and insert (immediate).
+   Syntax: SRI <Vd>.<T>, <Vn>.<T>, #<shift>
+   Decode: integer shift = (esize * 2) - UInt(immh:immb);
+   Operation:
+     CheckFPAdvSIMDEnabled64();
+     bits(datasize) operand  = V[n, datasize];
+     bits(datasize) operand2 = V[d, datasize];
+     bits(datasize) result;
+     bits(esize) mask = LSR(Ones(esize), shift);
+     bits(esize) shifted;
+
+     for e = 0 to elements-1
+         shifted = LSR(Elem[operand, e, esize], shift);
+         Elem[result, e, esize] = (Elem[operand2, e, esize] AND NOT(mask)) OR shifted;
+     V[d, datasize] = result;
+*)
+Definition armv8a_VSLI_semi
+  (ve : velem) sz (wd wn : word sz) (shift : word U8) : ty_w sz :=
+  let sh := wunsigned shift in
+  lift2_vec ve (fun d x => wor (wandn (wshl (wrepr _ (-1)) sh) d) (wshl x sh)) sz wd wn.
+
+Definition armv8a_VSLI_instr (ve : velem) sz : instr_desc_t :=
+  mk_vshift_acc_instr VSLI ve false DOIT (@armv8a_VSLI_semi ve sz).
+
+Definition armv8a_VSRI_semi
+  (ve : velem) sz (wd wn : word sz) (shift : word U8) : ty_w sz :=
+  let sh := wunsigned shift in
+  lift2_vec ve (fun d x => wor (wandn (wshr (wrepr _ (-1)) sh) d) (wshr x sh)) sz wd wn.
+
+Definition armv8a_VSRI_instr (ve : velem) sz : instr_desc_t :=
+  mk_vshift_acc_instr VSRI ve true DOIT (@armv8a_VSRI_semi ve sz).
+
 Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   : instr_desc_t :=
   match vmn with
@@ -3783,6 +4007,13 @@ Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   | VSMIN => armv8a_VSMIN_instr ve sz
   | VUMAX => armv8a_VUMAX_instr ve sz
   | VUMIN => armv8a_VUMIN_instr ve sz
+  | VSHL => armv8a_VSHL_instr ve sz
+  | VUSHR => armv8a_VUSHR_instr ve sz
+  | VSSHR => armv8a_VSSHR_instr ve sz
+  | VSLI => armv8a_VSLI_instr ve sz
+  | VSRI => armv8a_VSRI_instr ve sz
+  | VUSRA => armv8a_VUSRA_instr ve sz
+  | VSSRA => armv8a_VSSRA_instr ve sz
   end.
 
 

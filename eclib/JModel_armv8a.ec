@@ -427,3 +427,134 @@ abbrev [-printing] VUMIN_4u32 = VPMINU_4u32.
 abbrev [-printing] VUMIN_8u8 = VPMINU_8u8.
 abbrev [-printing] VUMIN_4u16 = VPMINU_4u16.
 abbrev [-printing] VUMIN_2u32 = VPMINU_2u32.
+
+(* Shifts by immediate, on 128-bit (16u8, 8u16, 4u32, 2u64) and 64-bit
+   (8u8, 4u16, 2u32) vectors. The amount is an 8-bit immediate. SHL, USHR
+   and SSHR are the lane-wise shifts of JWord (VPSLL, VPSRL, VPSRA), with the
+   amount zero-extended; USRA and SSRA add the shifted lanes to the
+   destination (first argument). SLI and SRI insert the shifted lanes into
+   the destination, whose bits that the shifted lane does not cover are
+   kept. *)
+abbrev [-printing] VSHL_16u8 (w: W128.t) (n: W8.t) = VPSLL_16u8 w (zeroextu128 n).
+abbrev [-printing] VSHL_8u16 (w: W128.t) (n: W8.t) = VPSLL_8u16 w (zeroextu128 n).
+abbrev [-printing] VSHL_4u32 (w: W128.t) (n: W8.t) = VPSLL_4u32 w (zeroextu128 n).
+abbrev [-printing] VSHL_2u64 (w: W128.t) (n: W8.t) = VPSLL_2u64 w (zeroextu128 n).
+abbrev [-printing] VSHL_8u8 (w: W64.t) (n: W8.t) = VPSLL_8u8 w (zeroextu128 n).
+abbrev [-printing] VSHL_4u16 (w: W64.t) (n: W8.t) = VPSLL_4u16 w (zeroextu128 n).
+abbrev [-printing] VSHL_2u32 (w: W64.t) (n: W8.t) = VPSLL_2u32 w (zeroextu128 n).
+
+abbrev [-printing] VUSHR_16u8 (w: W128.t) (n: W8.t) = VPSRL_16u8 w (zeroextu128 n).
+abbrev [-printing] VUSHR_8u16 (w: W128.t) (n: W8.t) = VPSRL_8u16 w (zeroextu128 n).
+abbrev [-printing] VUSHR_4u32 (w: W128.t) (n: W8.t) = VPSRL_4u32 w (zeroextu128 n).
+abbrev [-printing] VUSHR_2u64 (w: W128.t) (n: W8.t) = VPSRL_2u64 w (zeroextu128 n).
+abbrev [-printing] VUSHR_8u8 (w: W64.t) (n: W8.t) = VPSRL_8u8 w (zeroextu128 n).
+abbrev [-printing] VUSHR_4u16 (w: W64.t) (n: W8.t) = VPSRL_4u16 w (zeroextu128 n).
+abbrev [-printing] VUSHR_2u32 (w: W64.t) (n: W8.t) = VPSRL_2u32 w (zeroextu128 n).
+
+abbrev [-printing] VSSHR_16u8 (w: W128.t) (n: W8.t) = VPSRA_16u8 w (zeroextu128 n).
+abbrev [-printing] VSSHR_8u16 (w: W128.t) (n: W8.t) = VPSRA_8u16 w (zeroextu128 n).
+abbrev [-printing] VSSHR_4u32 (w: W128.t) (n: W8.t) = VPSRA_4u32 w (zeroextu128 n).
+abbrev [-printing] VSSHR_2u64 (w: W128.t) (n: W8.t) = VPSRA_2u64 w (zeroextu128 n).
+abbrev [-printing] VSSHR_8u8 (w: W64.t) (n: W8.t) = VPSRA_8u8 w (zeroextu128 n).
+abbrev [-printing] VSSHR_4u16 (w: W64.t) (n: W8.t) = VPSRA_4u16 w (zeroextu128 n).
+abbrev [-printing] VSSHR_2u32 (w: W64.t) (n: W8.t) = VPSRA_2u32 w (zeroextu128 n).
+
+abbrev [-printing] VUSRA_16u8 (d w: W128.t) (n: W8.t) = VPADD_16u8 d (VUSHR_16u8 w n).
+abbrev [-printing] VUSRA_8u16 (d w: W128.t) (n: W8.t) = VPADD_8u16 d (VUSHR_8u16 w n).
+abbrev [-printing] VUSRA_4u32 (d w: W128.t) (n: W8.t) = VPADD_4u32 d (VUSHR_4u32 w n).
+abbrev [-printing] VUSRA_2u64 (d w: W128.t) (n: W8.t) = VPADD_2u64 d (VUSHR_2u64 w n).
+abbrev [-printing] VUSRA_8u8 (d w: W64.t) (n: W8.t) = VPADD_8u8 d (VUSHR_8u8 w n).
+abbrev [-printing] VUSRA_4u16 (d w: W64.t) (n: W8.t) = VPADD_4u16 d (VUSHR_4u16 w n).
+abbrev [-printing] VUSRA_2u32 (d w: W64.t) (n: W8.t) = VPADD_2u32 d (VUSHR_2u32 w n).
+
+abbrev [-printing] VSSRA_16u8 (d w: W128.t) (n: W8.t) = VPADD_16u8 d (VSSHR_16u8 w n).
+abbrev [-printing] VSSRA_8u16 (d w: W128.t) (n: W8.t) = VPADD_8u16 d (VSSHR_8u16 w n).
+abbrev [-printing] VSSRA_4u32 (d w: W128.t) (n: W8.t) = VPADD_4u32 d (VSSHR_4u32 w n).
+abbrev [-printing] VSSRA_2u64 (d w: W128.t) (n: W8.t) = VPADD_2u64 d (VSSHR_2u64 w n).
+abbrev [-printing] VSSRA_8u8 (d w: W64.t) (n: W8.t) = VPADD_8u8 d (VSSHR_8u8 w n).
+abbrev [-printing] VSSRA_4u16 (d w: W64.t) (n: W8.t) = VPADD_4u16 d (VSSHR_4u16 w n).
+abbrev [-printing] VSSRA_2u32 (d w: W64.t) (n: W8.t) = VPADD_2u32 d (VSSHR_2u32 w n).
+
+op VSLI_16u8 (d w: W128.t) (n: W8.t) : W128.t =
+  W16u8.map2
+    (fun (x y: W8.t) =>
+       orw (andw x (invw (W8.onew `<<<` W8.to_uint n))) (y `<<<` W8.to_uint n))
+    d w.
+
+op VSLI_8u16 (d w: W128.t) (n: W8.t) : W128.t =
+  W8u16.map2
+    (fun (x y: W16.t) =>
+       orw (andw x (invw (W16.onew `<<<` W8.to_uint n))) (y `<<<` W8.to_uint n))
+    d w.
+
+op VSLI_4u32 (d w: W128.t) (n: W8.t) : W128.t =
+  W4u32.map2
+    (fun (x y: W32.t) =>
+       orw (andw x (invw (W32.onew `<<<` W8.to_uint n))) (y `<<<` W8.to_uint n))
+    d w.
+
+op VSLI_2u64 (d w: W128.t) (n: W8.t) : W128.t =
+  W2u64.map2
+    (fun (x y: W64.t) =>
+       orw (andw x (invw (W64.onew `<<<` W8.to_uint n))) (y `<<<` W8.to_uint n))
+    d w.
+
+op VSLI_8u8 (d w: W64.t) (n: W8.t) : W64.t =
+  W8u8.map2
+    (fun (x y: W8.t) =>
+       orw (andw x (invw (W8.onew `<<<` W8.to_uint n))) (y `<<<` W8.to_uint n))
+    d w.
+
+op VSLI_4u16 (d w: W64.t) (n: W8.t) : W64.t =
+  W4u16.map2
+    (fun (x y: W16.t) =>
+       orw (andw x (invw (W16.onew `<<<` W8.to_uint n))) (y `<<<` W8.to_uint n))
+    d w.
+
+op VSLI_2u32 (d w: W64.t) (n: W8.t) : W64.t =
+  W2u32.map2
+    (fun (x y: W32.t) =>
+       orw (andw x (invw (W32.onew `<<<` W8.to_uint n))) (y `<<<` W8.to_uint n))
+    d w.
+
+op VSRI_16u8 (d w: W128.t) (n: W8.t) : W128.t =
+  W16u8.map2
+    (fun (x y: W8.t) =>
+       orw (andw x (invw (W8.onew `>>>` W8.to_uint n))) (y `>>>` W8.to_uint n))
+    d w.
+
+op VSRI_8u16 (d w: W128.t) (n: W8.t) : W128.t =
+  W8u16.map2
+    (fun (x y: W16.t) =>
+       orw (andw x (invw (W16.onew `>>>` W8.to_uint n))) (y `>>>` W8.to_uint n))
+    d w.
+
+op VSRI_4u32 (d w: W128.t) (n: W8.t) : W128.t =
+  W4u32.map2
+    (fun (x y: W32.t) =>
+       orw (andw x (invw (W32.onew `>>>` W8.to_uint n))) (y `>>>` W8.to_uint n))
+    d w.
+
+op VSRI_2u64 (d w: W128.t) (n: W8.t) : W128.t =
+  W2u64.map2
+    (fun (x y: W64.t) =>
+       orw (andw x (invw (W64.onew `>>>` W8.to_uint n))) (y `>>>` W8.to_uint n))
+    d w.
+
+op VSRI_8u8 (d w: W64.t) (n: W8.t) : W64.t =
+  W8u8.map2
+    (fun (x y: W8.t) =>
+       orw (andw x (invw (W8.onew `>>>` W8.to_uint n))) (y `>>>` W8.to_uint n))
+    d w.
+
+op VSRI_4u16 (d w: W64.t) (n: W8.t) : W64.t =
+  W4u16.map2
+    (fun (x y: W16.t) =>
+       orw (andw x (invw (W16.onew `>>>` W8.to_uint n))) (y `>>>` W8.to_uint n))
+    d w.
+
+op VSRI_2u32 (d w: W64.t) (n: W8.t) : W64.t =
+  W2u32.map2
+    (fun (x y: W32.t) =>
+       orw (andw x (invw (W32.onew `>>>` W8.to_uint n))) (y `>>>` W8.to_uint n))
+    d w.
