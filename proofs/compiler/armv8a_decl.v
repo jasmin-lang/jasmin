@@ -220,6 +220,12 @@ Definition check_vshift_amount (esize : wsize) (rshift : bool) (z : Z) : bool :=
   then (1 <=? z)%Z && (z <=? wsize_bits esize)%Z
   else check_shift_amount esize z.
 
+(* Advanced SIMD EXT (C7.2) extracts a vector from a pair of vectors of [sz]
+   bits, from the byte of index imm4: 0..15 for a 128-bit vector, 0..7 for
+   a 64-bit one (imm4<3> = 1 is reserved when Q = 0). *)
+Definition check_vext_index (sz : wsize) (z : Z) : bool :=
+  (0 <=? z)%Z && (z <? wsize_size sz)%Z.
+
 Definition shift_op (sk : shift_kind) :
   forall (sz : wsize), word sz -> Z -> word sz :=
   match sk with
@@ -321,6 +327,8 @@ Notation register_ext := empty.
    - [CAimmC_armv8a_vshift_amount] carries the lane size and the direction
      (true for a right shift) of an Advanced SIMD shift by immediate: see
      [check_vshift_amount] above.
+   - [CAimmC_armv8a_vext_index] carries the vector size of an Advanced SIMD
+     EXT: see [check_vext_index] above.
    The immediate-encoding conditions take the operand width from the
    [wsize] of the immediate itself (the [CAimm] argument kind carries it),
    so they need no payload:
@@ -337,6 +345,7 @@ Variant armv8a_caimm_cond :=
   | CAimmC_armv8a_shift_amount of wsize
   | CAimmC_armv8a_halfword_shift of wsize
   | CAimmC_armv8a_vshift_amount of wsize & bool
+  | CAimmC_armv8a_vext_index of wsize
   | CAimmC_armv8a_arith_imm
   | CAimmC_armv8a_bitmask_imm
   | CAimmC_armv8a_mov_imm.
@@ -352,6 +361,7 @@ Definition armv8a_check_CAimm (checker : armv8a_caimm_cond) ws (w : word ws) : b
     let x := wunsigned w in (x \in [:: 0; 16; 32; 48 ]%Z) && (x <? wsize_bits ws')%Z
   | CAimmC_armv8a_vshift_amount esize rshift =>
     check_vshift_amount esize rshift (wunsigned w)
+  | CAimmC_armv8a_vext_index sz => check_vext_index sz (wunsigned w)
   | CAimmC_armv8a_arith_imm => is_arith_imm (wunsigned w)
   | CAimmC_armv8a_bitmask_imm => is_bitmask_imm ws (wunsigned w)
   | CAimmC_armv8a_mov_imm => is_mov_imm ws (wunsigned w)
@@ -373,6 +383,7 @@ Definition armv8a_caimm_cond_pp (checker : armv8a_caimm_cond) : string :=
       | _, false => "[0, 63]"
       | _, true => "[1, 64]"
       end
+  | CAimmC_armv8a_vext_index sz => if sz == U64 then "[0, 7]" else "[0, 15]"
   | CAimmC_armv8a_arith_imm => "(arith imm12, optionally << 12)"
   | CAimmC_armv8a_bitmask_imm => "(logical bitmask immediate)"
   | CAimmC_armv8a_mov_imm => "(wide, inverted wide or bitmask immediate)"

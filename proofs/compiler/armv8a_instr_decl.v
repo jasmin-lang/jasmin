@@ -413,7 +413,20 @@ Variant armv8a_vmnemonic : Type :=
 
 (* Shifts by register *)
 | VUSHL                          (* Unsigned shift left (register) *)
-| VSSHL.                         (* Signed shift left (register) *)
+| VSSHL                          (* Signed shift left (register) *)
+
+(* Permutations *)
+| VEXT                           (* Extract vector from pair of vectors *)
+| VZIP1                          (* Zip vectors (primary) *)
+| VZIP2                          (* Zip vectors (secondary) *)
+| VUZP1                          (* Unzip vectors (primary) *)
+| VUZP2                          (* Unzip vectors (secondary) *)
+| VTRN1                          (* Transpose vectors (primary) *)
+| VTRN2                          (* Transpose vectors (secondary) *)
+| VREV16                         (* Reverse elements in 16-bit halfwords *)
+| VREV32                         (* Reverse elements in 32-bit words *)
+| VREV64                         (* Reverse elements in 64-bit doublewords *)
+| VTBL.                          (* Table vector lookup *)
 
 #[ export ]
 Instance eqTC_armv8a_vmnemonic : eqTypeC armv8a_vmnemonic :=
@@ -427,6 +440,8 @@ Definition armv8a_vmnemonics : seq armv8a_vmnemonic :=
     ; VADD; VSUB; VMUL; VNEG; VABS; VSMAX; VSMIN; VUMAX; VUMIN
     ; VSHL; VUSHR; VSSHR; VSLI; VSRI; VUSRA; VSSRA
     ; VUSHL; VSSHL
+    ; VEXT; VZIP1; VZIP2; VUZP1; VUZP2; VTRN1; VTRN2
+    ; VREV16; VREV32; VREV64; VTBL
   ].
 
 Lemma armv8a_vmnemonic_fin_axiom : Finite.axiom armv8a_vmnemonics.
@@ -471,6 +486,17 @@ Definition string_of_armv8a_vmnemonic (vmn : armv8a_vmnemonic) : string :=
   | VSSRA => "SSRA"
   | VUSHL => "USHL"
   | VSSHL => "SSHL"
+  | VEXT => "EXT"
+  | VZIP1 => "ZIP1"
+  | VZIP2 => "ZIP2"
+  | VUZP1 => "UZP1"
+  | VUZP2 => "UZP2"
+  | VTRN1 => "TRN1"
+  | VTRN2 => "TRN2"
+  | VREV16 => "REV16"
+  | VREV32 => "REV32"
+  | VREV64 => "REV64"
+  | VTBL => "TBL"
   end%string.
 
 (* The Jasmin name of a vector mnemonic: the architectural one prefixed
@@ -3263,27 +3289,31 @@ Arguments armv8a_extend_semi {ws} sign ws' wn /.
    through its 128-bit scalar view ([q0]), which [pp_full] requests.
    The operations of the moves, loads, stores and bitwise instructions below
    are written after the pseudocode of the ARM Architecture Reference
-   Manual; those of the lane-wise instructions are quoted from its
+   Manual; those of the other instructions are quoted from its
    machine-readable version (the A64 ISA XML). *)
 
 (* The valid arrangements of a mnemonic, as pairs of a lane size and a
    vector size; the first one is the default of its intrinsic. The
    lane-wise operations have every arrangement that the architecture allows:
-   1D is reserved, and MUL, SMAX, SMIN, UMAX and UMIN have no 64-bit
-   lanes. *)
+   1D is reserved, MUL, SMAX, SMIN, UMAX, UMIN and REV64 have no 64-bit
+   lanes, REV32 has 8- and 16-bit lanes and REV16 8-bit lanes only. EXT and
+   TBL operate on bytes. *)
 Definition armv8a_vmn_shapes (vmn : armv8a_vmnemonic) : seq (velem * wsize) :=
   match vmn with
   | VMOV | VLDR | VSTR => [:: (VE8, U128) ]
-  | VAND | VBIC | VORR | VORN | VEOR | VNOT | VBSL | VBIT | VBIF =>
+  | VAND | VBIC | VORR | VORN | VEOR | VNOT | VBSL | VBIT | VBIF
+  | VEXT | VTBL | VREV16 =>
       [:: (VE8, U128); (VE8, U64) ]
   | VADD | VSUB | VNEG | VABS
   | VSHL | VUSHR | VSSHR | VSLI | VSRI | VUSRA | VSSRA
-  | VUSHL | VSSHL =>
+  | VUSHL | VSSHL
+  | VZIP1 | VZIP2 | VUZP1 | VUZP2 | VTRN1 | VTRN2 =>
       [:: (VE8, U128); (VE16, U128); (VE32, U128); (VE64, U128)
         ; (VE8, U64); (VE16, U64); (VE32, U64) ]
-  | VMUL | VSMAX | VSMIN | VUMAX | VUMIN =>
+  | VMUL | VSMAX | VSMIN | VUMAX | VUMIN | VREV64 =>
       [:: (VE8, U128); (VE16, U128); (VE32, U128)
         ; (VE8, U64); (VE16, U64); (VE32, U64) ]
+  | VREV32 => [:: (VE8, U128); (VE16, U128); (VE8, U64); (VE16, U64) ]
   end.
 
 (* Whether [ve] lanes in a vector of [sz] bits is a valid arrangement of
@@ -3299,9 +3329,12 @@ Definition armv8a_vmn_lanewise (vmn : armv8a_vmnemonic) : bool :=
   match vmn with
   | VADD | VSUB | VMUL | VNEG | VABS | VSMAX | VSMIN | VUMAX | VUMIN
   | VSHL | VUSHR | VSSHR | VSLI | VSRI | VUSRA | VSSRA
-  | VUSHL | VSSHL => true
+  | VUSHL | VSSHL
+  | VZIP1 | VZIP2 | VUZP1 | VUZP2 | VTRN1 | VTRN2
+  | VREV16 | VREV32 | VREV64 => true
   | VMOV | VLDR | VSTR
-  | VAND | VBIC | VORR | VORN | VEOR | VNOT | VBSL | VBIT | VBIF => false
+  | VAND | VBIC | VORR | VORN | VEOR | VNOT | VBSL | VBIT | VBIF
+  | VEXT | VTBL => false
   end.
 
 (* A vector instruction whose operands are printed with the given shapes. *)
@@ -4044,6 +4077,325 @@ Definition armv8a_VSSHL_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
 Definition armv8a_VSSHL_instr (ve : velem) sz : instr_desc_t :=
   mk_vbinop_instr VSSHL ve DOIT (@armv8a_VSSHL_semi ve sz).
 
+(* [EXT] ARM DDI 0487 M.a, C7.2
+   Extract vector from pair of vectors.
+   Syntax: EXT <Vd>.<T>, <Vn>.<T>, <Vm>.<T>, #<index>
+   <T> is 8B or 16B; <index> is 0..7 for 8B and 0..15 for 16B, which
+   [CAimmC_armv8a_vext_index] checks.
+   Decode: integer position = UInt(imm4) << 3;
+   Operation:
+     CheckFPAdvSIMDEnabled64();
+     bits(datasize) hi = V[m, datasize];
+     bits(datasize) lo = V[n, datasize];
+     bits(datasize*2) concat = hi : lo;
+
+     V[d, datasize] = concat<(position+datasize)-1:position>;
+
+   The bytes of [concat] from [index] on, of which [make_vec] keeps the
+   [datasize] low bits. *)
+Definition armv8a_VEXT_semi sz (wn wm : word sz) (index : word U8) : ty_w sz :=
+  make_vec sz
+    (drop (Z.to_nat (wunsigned index)) (split_vec U8 wn ++ split_vec U8 wm)).
+
+Definition armv8a_VEXT_instr (ve : velem) sz : instr_desc_t :=
+  let tin := [:: lword sz; lword sz; lword8 ] in
+  let semi := @armv8a_VEXT_semi sz in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lword sz ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 4;
+    id_args_kinds :=
+      [:: [:: ak_v; ak_v; ak_v
+            ; [:: CAimm (Some (CAimmC_armv8a_vext_index sz)) U8 ] ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_vmn_str VEXT ve sz;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VEXT [:: pp_vec ve sz; pp_vec ve sz; pp_vec ve sz; pp_full U8 ];
+    id_valid := armv8a_vop_valid VEXT ve sz;
+    id_wf := refl_equal;
+  |}.
+
+(* ZIP, UZP and TRN pick lanes from the two halves of a list of lanes
+   [s] ([armv8a_vlanes_half]), or from its even or odd positions
+   ([armv8a_vlanes_parity]): the first ones if [part] is false, the second
+   ones if it is true. *)
+Definition armv8a_vlanes_half (part : bool) {ve : wsize} (s : seq (word ve))
+  : seq (word ve) :=
+  let pairs := (size s)./2 in
+  if part then drop pairs s else take pairs s.
+
+Definition armv8a_vlanes_parity (part : bool) {ve : wsize} (s : seq (word ve))
+  : seq (word ve) :=
+  [seq nth 0%w s (2 * p + part) | p <- iota 0 (size s)./2 ].
+
+(* [ZIP1] ARM DDI 0487 M.a, C7.2
+   Zip vectors (primary).
+   Syntax: ZIP1 <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   [ZIP2] ARM DDI 0487 M.a, C7.2
+   Zip vectors (secondary).
+   Syntax: ZIP2 <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   <T> is 8B, 16B, 4H, 8H, 2S, 4S or 2D (1D is reserved).
+   Decode: integer part = UInt(op);
+           integer pairs = elements DIV 2;
+   where [part] is 0 for ZIP1 and 1 for ZIP2.
+   Operation:
+     CheckFPAdvSIMDEnabled64();
+     bits(datasize) operand1 = V[n, datasize];
+     bits(datasize) operand2 = V[m, datasize];
+     bits(datasize) result;
+
+     integer base = part * pairs;
+
+     for p = 0 to pairs-1
+         Elem[result, 2*p+0, esize] = Elem[operand1, base+p, esize];
+         Elem[result, 2*p+1, esize] = Elem[operand2, base+p, esize];
+
+     V[d, datasize] = result;
+
+   The lanes of the low (ZIP1) or high (ZIP2) halves of the sources,
+   interleaved. *)
+Definition armv8a_vzip (part : bool) (ve : velem) sz (wn wm : word sz)
+  : word sz :=
+  make_vec sz
+    (interleave
+       (armv8a_vlanes_half part (split_vec ve wn))
+       (armv8a_vlanes_half part (split_vec ve wm))).
+
+Definition armv8a_VZIP1_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  armv8a_vzip false ve wn wm.
+
+Definition armv8a_VZIP1_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VZIP1 ve DOIT (@armv8a_VZIP1_semi ve sz).
+
+Definition armv8a_VZIP2_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  armv8a_vzip true ve wn wm.
+
+Definition armv8a_VZIP2_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VZIP2 ve DOIT (@armv8a_VZIP2_semi ve sz).
+
+(* [UZP1] ARM DDI 0487 M.a, C7.2
+   Unzip vectors (primary).
+   Syntax: UZP1 <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   [UZP2] ARM DDI 0487 M.a, C7.2
+   Unzip vectors (secondary).
+   Syntax: UZP2 <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   <T> is 8B, 16B, 4H, 8H, 2S, 4S or 2D (1D is reserved).
+   Decode: integer part = UInt(op);
+   where [part] is 0 for UZP1 and 1 for UZP2.
+   Operation:
+     CheckFPAdvSIMDEnabled64();
+     bits(datasize) operandl = V[n, datasize];
+     bits(datasize) operandh = V[m, datasize];
+     bits(datasize) result;
+
+     bits(datasize*2) zipped = operandh:operandl;
+     for e = 0 to elements-1
+         Elem[result, e, esize] = Elem[zipped, 2*e+part, esize];
+
+     V[d, datasize] = result;
+
+   The even (UZP1) or odd (UZP2) lanes of the concatenation of the
+   sources. *)
+Definition armv8a_vuzp (part : bool) (ve : velem) sz (wn wm : word sz)
+  : word sz :=
+  make_vec sz (armv8a_vlanes_parity part (split_vec ve wn ++ split_vec ve wm)).
+
+Definition armv8a_VUZP1_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  armv8a_vuzp false ve wn wm.
+
+Definition armv8a_VUZP1_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VUZP1 ve DOIT (@armv8a_VUZP1_semi ve sz).
+
+Definition armv8a_VUZP2_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  armv8a_vuzp true ve wn wm.
+
+Definition armv8a_VUZP2_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VUZP2 ve DOIT (@armv8a_VUZP2_semi ve sz).
+
+(* [TRN1] ARM DDI 0487 M.a, C7.2
+   Transpose vectors (primary).
+   Syntax: TRN1 <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   [TRN2] ARM DDI 0487 M.a, C7.2
+   Transpose vectors (secondary).
+   Syntax: TRN2 <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   <T> is 8B, 16B, 4H, 8H, 2S, 4S or 2D (1D is reserved).
+   Decode: integer part = UInt(op);
+           integer pairs = elements DIV 2;
+   where [part] is 0 for TRN1 and 1 for TRN2.
+   Operation:
+     CheckFPAdvSIMDEnabled64();
+     bits(datasize) operand1 = V[n, datasize];
+     bits(datasize) operand2 = V[m, datasize];
+     bits(datasize) result;
+
+     for p = 0 to pairs-1
+         Elem[result, 2*p+0, esize] = Elem[operand1, 2*p+part, esize];
+         Elem[result, 2*p+1, esize] = Elem[operand2, 2*p+part, esize];
+
+     V[d, datasize] = result;
+
+   The even (TRN1) or odd (TRN2) lanes of the sources, interleaved. *)
+Definition armv8a_vtrn (part : bool) (ve : velem) sz (wn wm : word sz)
+  : word sz :=
+  make_vec sz
+    (interleave
+       (armv8a_vlanes_parity part (split_vec ve wn))
+       (armv8a_vlanes_parity part (split_vec ve wm))).
+
+Definition armv8a_VTRN1_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  armv8a_vtrn false ve wn wm.
+
+Definition armv8a_VTRN1_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VTRN1 ve DOIT (@armv8a_VTRN1_semi ve sz).
+
+Definition armv8a_VTRN2_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  armv8a_vtrn true ve wn wm.
+
+Definition armv8a_VTRN2_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VTRN2 ve DOIT (@armv8a_VTRN2_semi ve sz).
+
+(* [REV16 (vector)] ARM DDI 0487 M.a, C7.2
+   Reverse elements in 16-bit halfwords (vector).
+   Syntax: REV16 <Vd>.<T>, <Vn>.<T>
+   <T> is 8B or 16B.
+
+   [REV32 (vector)] ARM DDI 0487 M.a, C7.2
+   Reverse elements in 32-bit words (vector).
+   Syntax: REV32 <Vd>.<T>, <Vn>.<T>
+   <T> is 8B, 16B, 4H or 8H.
+
+   [REV64] ARM DDI 0487 M.a, C7.2
+   Reverse elements in 64-bit doublewords (vector).
+   Syntax: REV64 <Vd>.<T>, <Vn>.<T>
+   <T> is 8B, 16B, 4H, 8H, 2S or 4S.
+
+   Decode: integer container_size;
+           case op of
+               when '10' container_size = 16;
+               when '01' container_size = 32;
+               when '00' container_size = 64;
+
+           integer containers = datasize DIV container_size;
+           integer elements_per_container = container_size DIV esize;
+   where [container_size] is 16 for REV16, 32 for REV32 and 64 for REV64.
+   Operation:
+     CheckFPAdvSIMDEnabled64();
+     bits(datasize) operand = V[n, datasize];
+     bits(datasize) result;
+     integer element = 0;
+     integer rev_element;
+     for c = 0 to containers-1
+         rev_element = (element + elements_per_container) - 1;
+         for e = 0 to elements_per_container-1
+             Elem[result, rev_element, esize] = Elem[operand, element, esize];
+             element = element + 1;
+             rev_element = rev_element - 1;
+
+     V[d, datasize] = result;
+
+   The lanes of each container, in reverse order (for byte lanes, [wbswap]
+   on each container). *)
+Definition armv8a_vrev (container : wsize) (ve : velem) sz (wn : word sz)
+  : word sz :=
+  lift1_vec container (fun c => make_vec container (rev (split_vec ve c))) sz wn.
+
+Definition armv8a_VREV16_semi (ve : velem) sz (wn : word sz) : ty_w sz :=
+  armv8a_vrev U16 ve wn.
+
+Definition armv8a_VREV16_instr (ve : velem) sz : instr_desc_t :=
+  mk_vunop_instr VREV16 ve DOIT (@armv8a_VREV16_semi ve sz).
+
+Definition armv8a_VREV32_semi (ve : velem) sz (wn : word sz) : ty_w sz :=
+  armv8a_vrev U32 ve wn.
+
+Definition armv8a_VREV32_instr (ve : velem) sz : instr_desc_t :=
+  mk_vunop_instr VREV32 ve DOIT (@armv8a_VREV32_semi ve sz).
+
+Definition armv8a_VREV64_semi (ve : velem) sz (wn : word sz) : ty_w sz :=
+  armv8a_vrev U64 ve wn.
+
+Definition armv8a_VREV64_instr (ve : velem) sz : instr_desc_t :=
+  mk_vunop_instr VREV64 ve DOIT (@armv8a_VREV64_semi ve sz).
+
+(* [TBL] ARM DDI 0487 M.a, C7.2
+   Table vector lookup, single register table variant: the table is the
+   128-bit register [Vn], the indices and the result have <Ta>.
+   Syntax: TBL <Vd>.<Ta>, { <Vn>.16B }, <Vm>.<Ta>
+   <Ta> is 8B or 16B.
+   Decode: integer elements = datasize DIV 8;
+           integer regs = UInt(len) + 1;
+           boolean is_tbl = (op == '0');
+   where [regs] is 1 (2, 3 and 4 are the multiple register table variants)
+   and [is_tbl] is TRUE (FALSE is TBX).
+   Operation:
+     CheckFPAdvSIMDEnabled64();
+     bits(datasize) indices = V[m, datasize];
+     bits(128*regs) table = Zeros(128*regs);
+     bits(datasize) result;
+     integer index;
+
+     // Create table from registers
+     for i = 0 to regs - 1
+         table<128*i+127:128*i> = V[n, 128];
+         n = (n + 1) MOD 32;
+
+     result = if is_tbl then Zeros(datasize) else V[d, datasize];
+     for i = 0 to elements - 1
+         index = UInt(Elem[indices, i, 8]);
+         if index < 16 * regs then
+             Elem[result, i, 8] = Elem[table, index, 8];
+
+     V[d, datasize] = result;
+
+   An index out of the table (16 or more) gives a zero byte. *)
+Definition armv8a_vtbl1 (table : seq u8) (index : u8) : u8 :=
+  let i := wunsigned index in
+  if (i <? 16)%Z then nth 0%w table (Z.to_nat i) else 0%w.
+
+Definition armv8a_VTBL_semi sz (table : word U128) (indices : word sz)
+  : ty_w sz :=
+  make_vec sz (map (armv8a_vtbl1 (split_vec U8 table)) (split_vec U8 indices)).
+
+(* The table register is printed as a list, with its 128-bit arrangement,
+   [{ v1.16b }], whatever the size of the indices. *)
+Definition armv8a_VTBL_instr (ve : velem) sz : instr_desc_t :=
+  let tin := [:: lword U128; lword sz ] in
+  let semi := @armv8a_VTBL_semi sz in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2 ];
+    id_tout := [:: lword sz ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds := [:: [:: ak_v; ak_v; ak_v ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_vmn_str VTBL ve sz;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VTBL [:: pp_vec ve sz; pp_reglist U8 U128; pp_vec ve sz ];
+    id_valid := armv8a_vop_valid VTBL ve sz;
+    id_wf := refl_equal;
+  |}.
+
 Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   : instr_desc_t :=
   match vmn with
@@ -4077,6 +4429,17 @@ Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   | VSSRA => armv8a_VSSRA_instr ve sz
   | VUSHL => armv8a_VUSHL_instr ve sz
   | VSSHL => armv8a_VSSHL_instr ve sz
+  | VEXT => armv8a_VEXT_instr ve sz
+  | VZIP1 => armv8a_VZIP1_instr ve sz
+  | VZIP2 => armv8a_VZIP2_instr ve sz
+  | VUZP1 => armv8a_VUZP1_instr ve sz
+  | VUZP2 => armv8a_VUZP2_instr ve sz
+  | VTRN1 => armv8a_VTRN1_instr ve sz
+  | VTRN2 => armv8a_VTRN2_instr ve sz
+  | VREV16 => armv8a_VREV16_instr ve sz
+  | VREV32 => armv8a_VREV32_instr ve sz
+  | VREV64 => armv8a_VREV64_instr ve sz
+  | VTBL => armv8a_VTBL_instr ve sz
   end.
 
 

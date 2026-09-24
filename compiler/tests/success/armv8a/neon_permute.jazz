@@ -1,0 +1,107 @@
+// NEON permutations, through their intrinsics, in every arrangement that
+// the architecture allows: ZIP1, ZIP2, UZP1, UZP2, TRN1 and TRN2 on 8-,
+// 16-, 32- and 64-bit lanes (but no 1D), REV64 on 8-, 16- and 32-bit
+// lanes, REV32 on 8- and 16-bit lanes, REV16 on bytes. EXT and TBL operate
+// on bytes and take the vector size as suffix: EXT with the bounds of the
+// range of its byte index (0 to 15, 0 to 7 for a 64-bit vector), TBL with a
+// 128-bit table whatever the size of its indices.
+
+// 128-bit vectors: .16b, .8h, .4s, .2d.
+export
+fn neon_permute(reg u64 p) {
+    reg u128 a c t;
+
+    a = [:u128 p];
+    c = [:u128 p + 16];
+    t = [:u128 p + 32];
+
+    c = #VEXT_128(c, a, 0);
+    c = #VEXT_128(c, a, 15);
+    c = #VZIP1_16u8(c, a);
+    c = #VZIP1_8u16(c, a);
+    c = #VZIP1_4u32(c, a);
+    c = #VZIP1_2u64(c, a);
+    c = #VZIP2_16u8(c, a);
+    c = #VZIP2_8u16(c, a);
+    c = #VZIP2_4u32(c, a);
+    c = #VZIP2_2u64(c, a);
+    c = #VUZP1_16u8(c, a);
+    c = #VUZP1_8u16(c, a);
+    c = #VUZP1_4u32(c, a);
+    c = #VUZP1_2u64(c, a);
+    c = #VUZP2_16u8(c, a);
+    c = #VUZP2_8u16(c, a);
+    c = #VUZP2_4u32(c, a);
+    c = #VUZP2_2u64(c, a);
+    c = #VTRN1_16u8(c, a);
+    c = #VTRN1_8u16(c, a);
+    c = #VTRN1_4u32(c, a);
+    c = #VTRN1_2u64(c, a);
+    c = #VTRN2_16u8(c, a);
+    c = #VTRN2_8u16(c, a);
+    c = #VTRN2_4u32(c, a);
+    c = #VTRN2_2u64(c, a);
+    c = #VREV16_16u8(c);
+    c = #VREV32_16u8(c);
+    c = #VREV32_8u16(c);
+    c = #VREV64_16u8(c);
+    c = #VREV64_8u16(c);
+    c = #VREV64_4u32(c);
+    c = #VTBL_128(t, c);
+
+    [:u128 p + 48] = c;
+}
+
+// 64-bit vectors: .8b, .4h, .2s. They operate on the low halves of the
+// vector registers and zero the upper halves: the result, cast to u128, is
+// the whole register. The table of TBL is a whole register.
+export
+fn neon_permute64(reg u64 p) {
+    reg u128 a c t;
+
+    a = [:u128 p];
+    c = [:u128 p + 16];
+    t = [:u128 p + 32];
+
+    c = (128u)#VEXT_64(c, a, 0);
+    c = (128u)#VEXT_64(c, a, 7);
+    c = (128u)#VZIP1_8u8(c, a);
+    c = (128u)#VZIP1_4u16(c, a);
+    c = (128u)#VZIP1_2u32(c, a);
+    c = (128u)#VZIP2_8u8(c, a);
+    c = (128u)#VZIP2_4u16(c, a);
+    c = (128u)#VZIP2_2u32(c, a);
+    c = (128u)#VUZP1_8u8(c, a);
+    c = (128u)#VUZP1_4u16(c, a);
+    c = (128u)#VUZP1_2u32(c, a);
+    c = (128u)#VUZP2_8u8(c, a);
+    c = (128u)#VUZP2_4u16(c, a);
+    c = (128u)#VUZP2_2u32(c, a);
+    c = (128u)#VTRN1_8u8(c, a);
+    c = (128u)#VTRN1_4u16(c, a);
+    c = (128u)#VTRN1_2u32(c, a);
+    c = (128u)#VTRN2_8u8(c, a);
+    c = (128u)#VTRN2_4u16(c, a);
+    c = (128u)#VTRN2_2u32(c, a);
+    c = (128u)#VREV16_8u8(c);
+    c = (128u)#VREV32_8u8(c);
+    c = (128u)#VREV32_4u16(c);
+    c = (128u)#VREV64_8u8(c);
+    c = (128u)#VREV64_4u16(c);
+    c = (128u)#VREV64_2u32(c);
+    c = (128u)#VTBL_64(t, c);
+
+    [:u128 p + 48] = c;
+}
+
+// Operations on vector arguments, results in V registers: a byte rotation
+// by EXT, and a lookup whose indices are computed at run time.
+export
+fn neon_permute_args(reg u128 x y) -> reg u128, reg u128 {
+    reg u128 z w;
+    z = #VEXT_128(x, x, 3);
+    w = #VZIP1_4u32(x, y);
+    w = #VTBL_128(z, w);
+    z = #VUZP2_8u16(z, w);
+    return z, w;
+}

@@ -4,8 +4,9 @@
    description requests it ([pp_arg]): a general-purpose register in its
    32-bit W form or its 64-bit X form, by the size it is paired with; a
    SIMD&FP register as a vector with its arrangement, the number and size
-   of its lanes ([v0.16b], [v0.4s], [v0.2s], ...), or in its 128-bit
-   scalar form ([q0]); a shift amount with the name of the shift
+   of its lanes ([v0.16b], [v0.4s], [v0.2s], ...), as a list of vectors
+   ([{ v1.16b }]), or in its 128-bit scalar form ([q0]); a shift amount
+   with the name of the shift
    ([lsl #3]), omitted when it is zero. Immediate values are printed as
    nonnegative integers. *)
 
@@ -123,6 +124,11 @@ let pp_arg (a : (register, Arch_utils.empty, xregister, rflag, condt) pp_arg) =
       if Z.equal n Z.zero then None
       else Some (Format.asprintf "%s %s" sk (pp_imm n))
   | PPa_shift _ -> assert false
+  | PPa_list (ve, ws, rs) ->
+      let arrangement = vector_arrangement ve ws in
+      Some
+        (Format.asprintf "{ %s }"
+           (String.concat ", " (List.map (pp_asm_arg ~arrangement) rs)))
 
 let pp_mnemonic op =
   let id = instr_desc Armv8a_decl.armv8a_decl Armv8a_instr_decl.armv8a_op_decl (None, op) in

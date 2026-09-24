@@ -457,8 +457,10 @@ Variant pp_arg :=
   | PPa_vec   of wsize & wsize & asm_arg
     (* a vector register with its arrangement, the size of its lanes and
        the size of the vector: v0.4s, v0.8b, v0.1q *)
-  | PPa_shift of string & asm_arg.
+  | PPa_shift of string & asm_arg
     (* an immediate shift amount with the shift name: lsl #3 *)
+  | PPa_list  of wsize & wsize & seq asm_arg.
+    (* a list of vector registers with their arrangement: { v1.16b } *)
 
 (* Operands printed in the forms of the given sizes. *)
 Definition pp_fulls (szs : seq wsize) (args : asm_args) : seq pp_arg :=
@@ -486,6 +488,10 @@ Definition pp_shift (sk : shift_kind) : pp_shape := fun args =>
   if args is a :: args
   then Some (PPa_shift (string_of_shift_kind sk) a, args)
   else None.
+
+(* A single vector register, printed as a list. *)
+Definition pp_reglist (ve : wsize) (sz : wsize) : pp_shape := fun args =>
+  if args is a :: args then Some (PPa_list ve sz [:: a ], args) else None.
 
 Fixpoint pp_shapes (shapes : seq pp_shape) (args : asm_args) : seq pp_arg :=
   if shapes is s :: shapes then
