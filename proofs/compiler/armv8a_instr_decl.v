@@ -85,6 +85,10 @@ Variant armv8a_mnemonic : Type :=
 | MSUB                           (* Multiply and subtract *)
 | SDIV                           (* Signed division *)
 | UDIV                           (* Unsigned division *)
+| UMULL                          (* Unsigned multiply long *)
+| SMULL                          (* Signed multiply long *)
+| UMADDL                         (* Unsigned multiply-add long *)
+| SMADDL                         (* Signed multiply-add long *)
 | UMULH                          (* Unsigned multiply high *)
 | SMULH                          (* Signed multiply high *)
 
@@ -151,7 +155,8 @@ Canonical armv8a_mnemonic_eqType := @ceqT_eqType _ eqTC_armv8a_mnemonic.
 
 Definition armv8a_mnemonics : seq armv8a_mnemonic :=
   [:: ADD; ADDS; ADC; ADCS; SUB; SUBS; NEG
-    ; MUL; MADD; MSUB; SDIV; UDIV; UMULH; SMULH
+    ; MUL; MADD; MSUB; SDIV; UDIV
+    ; UMULL; SMULL; UMADDL; SMADDL; UMULH; SMULH
     ; AND; ORR; EOR; MVN
     ; ASR; LSL; LSR; ROR
     ; RBIT; REV; REV16; REV32; CLZ; CLS
@@ -260,6 +265,10 @@ Definition string_of_armv8a_mnemonic (mn : armv8a_mnemonic) : string :=
   | MSUB => "MSUB"
   | SDIV => "SDIV"
   | UDIV => "UDIV"
+  | UMULL => "UMULL"
+  | SMULL => "SMULL"
+  | UMADDL => "UMADDL"
+  | SMADDL => "SMADDL"
   | UMULH => "UMULH"
   | SMULH => "SMULH"
   | AND => "AND"
@@ -1072,6 +1081,138 @@ Definition armv8a_MSUB_semi {ws : wsize} (wn wm wa : word ws) : ty_w ws :=
   (wa - wn * wm)%w.
 
 Definition armv8a_MSUB_instr : instr_desc_t := mk_madd_instr MSUB armv8a_MSUB_semi.
+
+(* Long multiplies: the product of two 32-bit (W) registers is a 64-bit (X)
+   register. These instructions only exist with an X destination. *)
+Definition mk_mull_instr mn (semi : word U32 -> word U32 -> ty_r)
+  : instr_desc_t :=
+  let tin := [:: lword U32; lword U32 ] in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2 ];
+    id_tout := [:: lreg ];
+    id_out := [:: Ea 0 ];
+    id_semi := sem_lprod_ok tin semi;
+    id_nargs := 3;
+    id_args_kinds := ak_rrr;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_doit := DOIT;
+    (* [UMULL <Xd>, <Wn>, <Wm>] *)
+    id_pp_asm := pp_armv8a_op_szs mn [:: U64; U32; U32 ];
+    id_valid := osz == U64;
+    id_safe_wf := refl_equal;
+    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
+    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+  |}.
+
+(* [C6.2.498 UMULL] ARM DDI 0487 M.a, p. 2862
+   Unsigned multiply long  This instruction multiplies two 32-bit register
+   values, and writes the result to the 64-bit destination register.  This is
+   an alias of UMADDL. This means:  • The encodings in this description are
+   named to match the encodings of UMADDL. • The description of UMADDL gives
+   the operational pseudocode, any CONSTRAINED UNPREDICTABLE behavior, and any
+   operational information for this instruction.
+   Syntax: UMULL <Xd>, <Wn>, <Wm>  ==  UMADDL <Xd>, <Wn>, <Wm>, XZR
+   Operation (ASL):
+     The description of UMADDL gives the operational pseudocode for this instruction.
+   Base instruction [C6.2.490 UMADDL] p. 2848, Operation (ASL):
+     constant bits(32) operand1 = X[n, 32];
+     constant bits(32) operand2 = X[m, 32];
+     constant bits(64) operand3 = X[a, 64];
+     constant integer result = UInt(operand3) + (UInt(operand1) * UInt(operand2));
+     X[d, 64] = result<63:0>;
+*)
+Definition armv8a_UMULL_semi (wn wm : word U32) : ty_r :=
+  (zero_extend U64 wn * zero_extend U64 wm)%w.
+
+Definition armv8a_UMULL_instr : instr_desc_t := mk_mull_instr UMULL armv8a_UMULL_semi.
+(* [C6.2.379 SMULL] ARM DDI 0487 M.a, p. 2616
+   Signed multiply long  This instruction multiplies two 32-bit register
+   values, and writes the result to the 64-bit destination register.  This is
+   an alias of SMADDL. This means:  • The encodings in this description are
+   named to match the encodings of SMADDL. • The description of SMADDL gives
+   the operational pseudocode, any CONSTRAINED UNPREDICTABLE behavior, and any
+   operational information for this instruction.
+   Syntax: SMULL <Xd>, <Wn>, <Wm>  ==  SMADDL <Xd>, <Wn>, <Wm>, XZR
+   Operation (ASL):
+     The description of SMADDL gives the operational pseudocode for this instruction.
+   Base instruction [C6.2.368 SMADDL] p. 2599, Operation (ASL):
+     constant bits(32) operand1 = X[n, 32];
+     constant bits(32) operand2 = X[m, 32];
+     constant bits(64) operand3 = X[a, 64];
+     constant integer result = SInt(operand3) + (SInt(operand1) * SInt(operand2));
+     X[d, 64] = result<63:0>;
+*)
+Definition armv8a_SMULL_semi (wn wm : word U32) : ty_r :=
+  (sign_extend U64 wn * sign_extend U64 wm)%w.
+
+Definition armv8a_SMULL_instr : instr_desc_t := mk_mull_instr SMULL armv8a_SMULL_semi.
+
+(* Long multiply-adds: the product of two 32-bit (W) registers is added to a
+   64-bit (X) register. *)
+Definition mk_maddl_instr mn (semi : word U32 -> word U32 -> word U64 -> ty_r)
+  : instr_desc_t :=
+  let tin := [:: lword U32; lword U32; lreg ] in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lreg ];
+    id_out := [:: Ea 0 ];
+    id_semi := sem_lprod_ok tin semi;
+    id_nargs := 4;
+    id_args_kinds := ak_rrrr;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_doit := DOIT;
+    (* [UMADDL <Xd>, <Wn>, <Wm>, <Xa>] *)
+    id_pp_asm := pp_armv8a_op_szs mn [:: U64; U32; U32; U64 ];
+    id_valid := osz == U64;
+    id_safe_wf := refl_equal;
+    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
+    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+  |}.
+
+(* [C6.2.490 UMADDL] ARM DDI 0487 M.a, p. 2848
+   Unsigned multiply-add long  This instruction multiplies two 32-bit register
+   values, adds a 64-bit register value, and writes the result to the 64-bit
+   destination register.  This instruction is used by the alias UMULL.
+   Syntax: UMADDL <Xd>, <Wn>, <Wm>, <Xa>
+   Operation (ASL):
+     constant bits(32) operand1 = X[n, 32];
+     constant bits(32) operand2 = X[m, 32];
+     constant bits(64) operand3 = X[a, 64];
+     constant integer result = UInt(operand3) + (UInt(operand1) * UInt(operand2));
+     X[d, 64] = result<63:0>;
+*)
+Definition armv8a_UMADDL_semi (wn wm : word U32) (wa : word U64) : ty_r :=
+  (wa + zero_extend U64 wn * zero_extend U64 wm)%w.
+
+Definition armv8a_UMADDL_instr : instr_desc_t := mk_maddl_instr UMADDL armv8a_UMADDL_semi.
+(* [C6.2.368 SMADDL] ARM DDI 0487 M.a, p. 2599
+   Signed multiply-add long  This instruction multiplies two 32-bit register
+   values, adds a 64-bit register value, and writes the result to the 64-bit
+   destination register.  This instruction is used by the alias SMULL.
+   Syntax: SMADDL <Xd>, <Wn>, <Wm>, <Xa>
+   Operation (ASL):
+     constant bits(32) operand1 = X[n, 32];
+     constant bits(32) operand2 = X[m, 32];
+     constant bits(64) operand3 = X[a, 64];
+     constant integer result = SInt(operand3) + (SInt(operand1) * SInt(operand2));
+     X[d, 64] = result<63:0>;
+*)
+(* Adding modulo 2^64 the unsigned or the signed interpretation of the
+   64-bit operand gives the same low 64 bits. *)
+Definition armv8a_SMADDL_semi (wn wm : word U32) (wa : word U64) : ty_r :=
+  (wa + sign_extend U64 wn * sign_extend U64 wm)%w.
+
+Definition armv8a_SMADDL_instr : instr_desc_t := mk_maddl_instr SMADDL armv8a_SMADDL_semi.
 
 (* -------------------------------------------------------------------- *)
 (* Bitwise instructions. *)
@@ -2133,6 +2274,10 @@ Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
   | MSUB => armv8a_MSUB_instr
   | SDIV => armv8a_SDIV_instr
   | UDIV => armv8a_UDIV_instr
+  | UMULL => armv8a_UMULL_instr
+  | SMULL => armv8a_SMULL_instr
+  | UMADDL => armv8a_UMADDL_instr
+  | SMADDL => armv8a_SMADDL_instr
   | UMULH => armv8a_UMULH_instr
   | SMULH => armv8a_SMULH_instr
   | AND => armv8a_AND_instr
