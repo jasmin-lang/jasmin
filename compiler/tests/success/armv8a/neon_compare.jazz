@@ -1,0 +1,84 @@
+// NEON comparisons (register forms), through their intrinsics, in every
+// arrangement that the architecture allows (8-, 16-, 32- and 64-bit lanes,
+// but no 1D): CMEQ, CMGT, CMGE (signed), CMHI, CMHS (unsigned) and CMTST.
+// Each lane of the result is all ones if the comparison of the lanes of
+// the arguments holds, zero otherwise.
+
+// 128-bit vectors: .16b, .8h, .4s, .2d.
+export
+fn neon_compare(reg u64 p) {
+    reg u128 a c;
+
+    a = [:u128 p];
+    c = [:u128 p + 16];
+
+    c = #VCMEQ_16u8(c, a);
+    c = #VCMEQ_8u16(c, a);
+    c = #VCMEQ_4u32(c, a);
+    c = #VCMEQ_2u64(c, a);
+    c = #VCMGT_16u8(c, a);
+    c = #VCMGT_8u16(c, a);
+    c = #VCMGT_4u32(c, a);
+    c = #VCMGT_2u64(c, a);
+    c = #VCMGE_16u8(c, a);
+    c = #VCMGE_8u16(c, a);
+    c = #VCMGE_4u32(c, a);
+    c = #VCMGE_2u64(c, a);
+    c = #VCMHI_16u8(c, a);
+    c = #VCMHI_8u16(c, a);
+    c = #VCMHI_4u32(c, a);
+    c = #VCMHI_2u64(c, a);
+    c = #VCMHS_16u8(c, a);
+    c = #VCMHS_8u16(c, a);
+    c = #VCMHS_4u32(c, a);
+    c = #VCMHS_2u64(c, a);
+    c = #VCMTST_16u8(c, a);
+    c = #VCMTST_8u16(c, a);
+    c = #VCMTST_4u32(c, a);
+    c = #VCMTST_2u64(c, a);
+
+    [:u128 p + 32] = c;
+}
+
+// 64-bit vectors: .8b, .4h, .2s. They operate on the low halves of the
+// vector registers and zero the upper halves: the result, cast to u128, is
+// the whole register.
+export
+fn neon_compare64(reg u64 p) {
+    reg u128 a c;
+
+    a = [:u128 p];
+    c = [:u128 p + 16];
+
+    c = (128u)#VCMEQ_8u8(c, a);
+    c = (128u)#VCMEQ_4u16(c, a);
+    c = (128u)#VCMEQ_2u32(c, a);
+    c = (128u)#VCMGT_8u8(c, a);
+    c = (128u)#VCMGT_4u16(c, a);
+    c = (128u)#VCMGT_2u32(c, a);
+    c = (128u)#VCMGE_8u8(c, a);
+    c = (128u)#VCMGE_4u16(c, a);
+    c = (128u)#VCMGE_2u32(c, a);
+    c = (128u)#VCMHI_8u8(c, a);
+    c = (128u)#VCMHI_4u16(c, a);
+    c = (128u)#VCMHI_2u32(c, a);
+    c = (128u)#VCMHS_8u8(c, a);
+    c = (128u)#VCMHS_4u16(c, a);
+    c = (128u)#VCMHS_2u32(c, a);
+    c = (128u)#VCMTST_8u8(c, a);
+    c = (128u)#VCMTST_4u16(c, a);
+    c = (128u)#VCMTST_2u32(c, a);
+
+    [:u128 p + 32] = c;
+}
+
+// A lane-wise select: the lanes of the signed maximum of the arguments,
+// chosen by the mask of CMGT.
+export
+fn neon_compare_args(reg u128 x y) -> reg u128 {
+    reg u128 m z;
+    m = #VCMGT_4u32(x, y);
+    z = y;
+    z = #VBIT_128(z, x, m);
+    return z;
+}
