@@ -409,7 +409,11 @@ Variant armv8a_vmnemonic : Type :=
 | VSLI                           (* Shift left and insert *)
 | VSRI                           (* Shift right and insert *)
 | VUSRA                          (* Unsigned shift right and accumulate *)
-| VSSRA.                         (* Signed shift right and accumulate *)
+| VSSRA                          (* Signed shift right and accumulate *)
+
+(* Shifts by register *)
+| VUSHL                          (* Unsigned shift left (register) *)
+| VSSHL.                         (* Signed shift left (register) *)
 
 #[ export ]
 Instance eqTC_armv8a_vmnemonic : eqTypeC armv8a_vmnemonic :=
@@ -422,6 +426,7 @@ Definition armv8a_vmnemonics : seq armv8a_vmnemonic :=
     ; VAND; VBIC; VORR; VORN; VEOR; VNOT; VBSL; VBIT; VBIF
     ; VADD; VSUB; VMUL; VNEG; VABS; VSMAX; VSMIN; VUMAX; VUMIN
     ; VSHL; VUSHR; VSSHR; VSLI; VSRI; VUSRA; VSSRA
+    ; VUSHL; VSSHL
   ].
 
 Lemma armv8a_vmnemonic_fin_axiom : Finite.axiom armv8a_vmnemonics.
@@ -464,6 +469,8 @@ Definition string_of_armv8a_vmnemonic (vmn : armv8a_vmnemonic) : string :=
   | VSRI => "SRI"
   | VUSRA => "USRA"
   | VSSRA => "SSRA"
+  | VUSHL => "USHL"
+  | VSSHL => "SSHL"
   end%string.
 
 (* The Jasmin name of a vector mnemonic: the architectural one prefixed
@@ -3280,7 +3287,8 @@ Definition armv8a_vmn_shapes (vmn : armv8a_vmnemonic) : seq (velem * wsize) :=
   | VAND | VBIC | VORR | VORN | VEOR | VNOT | VBSL | VBIT | VBIF =>
       [:: (VE8, U128); (VE8, U64) ]
   | VADD | VSUB | VNEG | VABS
-  | VSHL | VUSHR | VSSHR | VSLI | VSRI | VUSRA | VSSRA =>
+  | VSHL | VUSHR | VSSHR | VSLI | VSRI | VUSRA | VSSRA
+  | VUSHL | VSSHL =>
       [:: (VE8, U128); (VE16, U128); (VE32, U128); (VE64, U128)
         ; (VE8, U64); (VE16, U64); (VE32, U64) ]
   | VMUL | VSMAX | VSMIN | VUMAX | VUMIN =>
@@ -3300,7 +3308,8 @@ Definition armv8a_vop_valid
 Definition armv8a_vmn_lanewise (vmn : armv8a_vmnemonic) : bool :=
   match vmn with
   | VADD | VSUB | VMUL | VNEG | VABS | VSMAX | VSMIN | VUMAX | VUMIN
-  | VSHL | VUSHR | VSSHR | VSLI | VSRI | VUSRA | VSSRA => true
+  | VSHL | VUSHR | VSSHR | VSLI | VSRI | VUSRA | VSSRA
+  | VUSHL | VSSHL => true
   | VMOV | VLDR | VSTR
   | VAND | VBIC | VORR | VORN | VEOR | VNOT | VBSL | VBIT | VBIF => false
   end.
@@ -3983,6 +3992,72 @@ Definition armv8a_VSRI_semi
 Definition armv8a_VSRI_instr (ve : velem) sz : instr_desc_t :=
   mk_vshift_acc_instr VSRI ve true DOIT (@armv8a_VSRI_semi ve sz).
 
+(* [USHL] ARM DDI 0487 M.a, C7.2
+   Unsigned shift left (register).
+   Syntax: USHL <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   [SSHL] ARM DDI 0487 M.a, C7.2
+   Signed shift left (register).
+   Syntax: SSHL <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   <T> is 8B, 16B, 4H, 8H, 2S, 4S or 2D (1D is reserved).
+   Decode: boolean unsigned = (U == '1');
+           boolean rounding = (R == '1');
+           boolean saturating = (S == '1');
+   where [unsigned] is TRUE for USHL, and [rounding] and [saturating] are
+   FALSE (TRUE is URSHL, SRSHL, UQSHL, SQSHL, UQRSHL and SQRSHL).
+   Operation:
+     CheckFPAdvSIMDEnabled64();
+     bits(datasize) operand1 = V[n, datasize];
+     bits(datasize) operand2 = V[m, datasize];
+     bits(datasize) result;
+
+     boolean sat;
+
+     for e = 0 to elements-1
+         integer element = Int(Elem[operand1, e, esize], unsigned);
+         integer shift = SInt(Elem[operand2, e, esize]<7:0>);
+         if shift >= 0 then // left shift
+             element = element << shift;
+         else               // right shift
+             shift = -shift;
+             if rounding then
+                 element = (element + (1 << (shift - 1))) >> shift;
+             else
+                 element = element >> shift;
+
+         if saturating then
+             (Elem[result, e, esize], sat) = SatQ(element, esize, unsigned);
+             if sat then FPSR.QC = '1';
+         else
+             Elem[result, e, esize] = element<esize-1:0>;
+
+     V[d, datasize] = result;
+
+   Each lane of [Vn] is shifted by the signed low byte of the same lane of
+   [Vm], in -128..127: to the left if it is nonnegative, to the right
+   otherwise. The low [esize] bits of a left shift do not depend on the
+   signedness of the element, and are zero for a shift by [esize] or more,
+   as [wshl] gives. A right shift by [esize] or more gives zero (USHL) or
+   the sign of the lane (SSHL), as [wshr] and [wsar] give. *)
+Definition armv8a_vshl_reg
+  (shr : forall ws, word ws -> Z -> word ws) {ve : velem} (x y : word ve)
+  : word ve :=
+  let shift := wsigned (zero_extend U8 y) in
+  if (0 <=? shift)%Z then wshl x shift else shr ve x (- shift)%Z.
+
+Definition armv8a_VUSHL_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  lift2_vec ve (armv8a_vshl_reg (@wshr)) sz wn wm.
+
+Definition armv8a_VUSHL_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VUSHL ve DOIT (@armv8a_VUSHL_semi ve sz).
+
+Definition armv8a_VSSHL_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  lift2_vec ve (armv8a_vshl_reg (@wsar)) sz wn wm.
+
+Definition armv8a_VSSHL_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VSSHL ve DOIT (@armv8a_VSSHL_semi ve sz).
+
 Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   : instr_desc_t :=
   match vmn with
@@ -4014,6 +4089,8 @@ Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   | VSRI => armv8a_VSRI_instr ve sz
   | VUSRA => armv8a_VUSRA_instr ve sz
   | VSSRA => armv8a_VSSRA_instr ve sz
+  | VUSHL => armv8a_VUSHL_instr ve sz
+  | VSSHL => armv8a_VSSHL_instr ve sz
   end.
 
 
