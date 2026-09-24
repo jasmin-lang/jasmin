@@ -41,5 +41,7 @@ fi
 
 llvm-mc $ASARGS --filetype=obj -o ${OBJ} ${ASM}
 
+(echo $@ | grep -q -- -align-32) && $(dirname $0)/check-align-32 ${OBJ}
+
 # Compile as a shared library, except for ARMv7 for which it is known not to work
 [ $ARCH = "arm-m4" ] || ld.lld -shared -o ${DLL} ${OBJ}

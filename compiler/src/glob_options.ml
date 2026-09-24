@@ -26,6 +26,7 @@ let print_export_info_json = ref false
 let introduce_export_renaming = ref true
 let print_dependencies = ref false
 let lazy_regalloc = ref false
+let align_32 = ref false
 
 let verbosity = ref 1
 
@@ -247,6 +248,7 @@ let options = [
     "-stack-zero-size",
       Arg.Symbol (List.map fst Annot.ws_strings, set_stack_zero_size),
       " Select stack zeroization size for export functions";
+    "-align-32", Arg.Set align_32, " ARM: keep every 32-bit instruction 4-byte aligned, by choosing instruction widths explicitly and widening one 16-bit instruction per odd-length run where one exists; for cores that fetch instructions 32 bits at a time from flash";
     "-pliveness", Arg.Set print_liveness, " Print liveness information during register allocation"
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 

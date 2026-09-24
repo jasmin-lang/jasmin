@@ -10,6 +10,7 @@ CHECKCATS ?= \
 	x86-64-Intel \
 	x86-64-nolea \
 	arm-m4 \
+	arm-m4-align-32 \
 	armv8a \
 	risc-v \
 	x86-64-stack-zero-loop \
