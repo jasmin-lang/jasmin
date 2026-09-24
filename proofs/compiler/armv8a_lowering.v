@@ -3,9 +3,9 @@
 
    Ported from the ARMv7-M lowering pass. The main differences follow from
    A64 having no conditional execution: word-sized conditional expressions
-   are lowered to CSEL, and there are no conditional stores or conditional
-   immediate loads. Word operations are lowered at both register sizes:
-   64-bit (X form) and 32-bit (W form). *)
+   are lowered to the conditional select instructions, and there are no
+   conditional stores or conditional immediate loads. Word operations are
+   lowered at both register sizes: 64-bit (X form) and 32-bit (W form). *)
 
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
@@ -400,25 +400,80 @@ Definition lower_pexpr_aux (ws : wsize) (e : pexpr) : low_expr :=
   end.
 
 (* A64 has no conditional execution: conditional expressions are lowered
-   to CSEL, whose operands must be registers. *)
+   to the conditional select instructions, whose operands must be
+   registers. *)
 Definition is_csel_arg (e : pexpr) : bool :=
   if e is Pvar v then ~~ is_var_in_memory (gv v) else false.
+
+(* Recognize an operand transformed by a conditional select instruction:
+   [b + 1] or [1 + b] (CSINC), [!b] (CSINV) and [-b] (CSNEG), where [b] is
+   a register. *)
+Definition csel_op_arg
+  (ws : wsize) (e : pexpr) : option (armv8a_mnemonic * pexpr) :=
+  match e with
+  | Papp2 (Oadd (Op_w ws')) e0 e1 =>
+      let%opt _ := oassert (ws' == ws) in
+      if is_csel_arg e0 && (is_wconst ws e1 == Some 1%R)
+      then Some (CSINC, e0)
+      else if is_csel_arg e1 && (is_wconst ws e0 == Some 1%R)
+      then Some (CSINC, e1)
+      else None
+  | Papp1 (Olnot ws') e0 =>
+      let%opt _ := oassert ((ws' == ws) && is_csel_arg e0) in
+      Some (CSINV, e0)
+  | Papp1 (Oneg (Op_w ws')) e0 =>
+      let%opt _ := oassert ((ws' == ws) && is_csel_arg e0) in
+      Some (CSNEG, e0)
+  | _ => None
+  end.
+
+(* Recognize [c ? 1 : 0] (CSET) and [c ? -1 : 0] (CSETM). *)
+Definition cset_mn (ws : wsize) (e0 e1 : pexpr) : option armv8a_mnemonic :=
+  let%opt _ := oassert (is_wconst ws e1 == Some 0%R) in
+  let%opt w := is_wconst ws e0 in
+  if w == 1%R then Some CSET
+  else if w == wrepr ws (-1) then Some CSETM
+  else None.
+
+(* Instruction and arguments computing [c ? e0 : e1], where [c] is a lowered
+   condition. When the special operand is the first one, the operands are
+   swapped and the condition is negated; [assemble_cond] turns the negation
+   into the inverse condition code. *)
+Definition lower_Pif_args
+  (ws : wsize) (c e0 e1 : pexpr) : option (armv8a_mnemonic * seq pexpr) :=
+  if is_csel_arg e0 && is_csel_arg e1 then Some (CSEL, [:: e0; e1; c ])
+  else if cset_mn ws e0 e1 is Some mn then Some (mn, [:: c ])
+  else if cset_mn ws e1 e0 is Some mn then Some (mn, [:: enot c ])
+  else if is_csel_arg e0 then
+    let%opt (mn, b) := csel_op_arg ws e1 in
+    Some (mn, [:: e0; b; c ])
+  else if is_csel_arg e1 then
+    let%opt (mn, a) := csel_op_arg ws e0 in
+    Some (mn, [:: e1; a; enot c ])
+  else None.
 
 Definition lower_Pif
   (vi : var_info) (ws : wsize) (c e0 e1 : pexpr) :
   option (seq instr_r * sopn * seq pexpr) :=
   let%opt _ := chk_ws_reg ws in
-  let%opt _ := oassert (is_csel_arg e0 && is_csel_arg e1) in
   let '(pre, c') := lower_condition vi c in
-  Some (pre, Oarmv8a (ARMv8A_op CSEL (opts_at ws)), [:: e0; e1; c' ]).
+  let%opt (mn, es) := lower_Pif_args ws c' e0 e1 in
+  Some (pre, Oarmv8a (ARMv8A_op mn (opts_at ws)), es).
 
 Definition lower_pexpr (vi : var_info) (ws : wsize) (e : pexpr) :
   option (seq instr_r * sopn * seq pexpr) :=
-  if e is Pif (aword ws') c e0 e1 then
-    let%opt _ := oassert (ws == ws')%CMP in
-    lower_Pif vi ws c e0 e1
-  else
-    no_pre (lower_pexpr_aux ws e).
+  match e with
+  | Pif (aword ws') c e0 e1 =>
+      let%opt _ := oassert (ws == ws')%CMP in
+      lower_Pif vi ws c e0 e1
+  (* The front-end types [c ? 1 : 0] at a word type as [(ws')(c ? 1 : 0)]. *)
+  | Papp1 (Oword_of_int ws') (Pif aint c e0 e1) =>
+      let%opt _ := oassert (ws <= ws')%CMP in
+      let of_int e := Papp1 (Oword_of_int ws') e in
+      lower_Pif vi ws c (of_int e0) (of_int e1)
+  | _ =>
+      no_pre (lower_pexpr_aux ws e)
+  end.
 
 (* Lower an assignment to memory.
    Precondition:
