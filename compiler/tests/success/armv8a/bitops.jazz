@@ -1,4 +1,5 @@
-/* Bit reversal and leading-zero count. RBIT and CLZ exist in both forms. */
+/* Bit and byte reversals, leading-zero and leading-sign counts. REV32 only
+   exists in the X form; RBIT, REV, REV16, CLZ and CLS exist in both forms. */
 
 export
 fn bitops64(reg u64 arg0) -> reg u64 {
@@ -6,6 +7,14 @@ fn bitops64(reg u64 arg0) -> reg u64 {
 
     x = #RBIT(arg0);
     y = #CLZ(x);
+    x = x + y;
+    y = #CLS(x);
+    x = x + y;
+    y = #REV(x);
+    x = x + y;
+    y = #REV16(x);
+    x = x + y;
+    y = #REV32(x);
     x = x + y;
     return x;
 }
@@ -16,6 +25,12 @@ fn bitops32(reg u32 arg0) -> reg u32 {
 
     x = #RBIT_32(arg0);
     y = #CLZ_32(x);
+    x = x + y;
+    y = #CLS_32(x);
+    x = x + y;
+    y = #REV_32(x);
+    x = x + y;
+    y = #REV16_32(x);
     x = x + y;
     return x;
 }
