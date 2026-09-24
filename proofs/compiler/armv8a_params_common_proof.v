@@ -108,7 +108,7 @@ Proof. by move=> hc h; rewrite -sem_fopn_equiv; apply: ARMv8AFopn_coreP.subi_sem
 Lemma armv8a_align_mask (ws : wsize) al :
   wrepr ws (Z_mod_lnot (wsize_size al - 1) ws) = wrepr ws (- wsize_size al).
 Proof.
-  rewrite Z_lnot_mod_pow2_to_mod /Z_mod_lnot wrepr_mod -wrepr_wnot wrepr_mod wrepr_wnot ZlnotE.
+  rewrite Z_lnot_mod_pow2_to_mod wrepr_mod -wrepr_wnot wrepr_mod wrepr_wnot ZlnotE.
   by f_equal; ring.
 Qed.
 

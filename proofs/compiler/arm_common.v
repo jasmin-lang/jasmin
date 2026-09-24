@@ -221,12 +221,8 @@ Lemma Z_lnot_mod_pow2_to_mod (z:Z) (ws:wsize) :
   let m := wbase ws in
   Z_mod_lnot z ws = (Z.lnot (z mod m) mod m)%Z.
 Proof.
-  unfold Z_mod_lnot.
-  rewrite zmod_pow2E.
+  rewrite /Z_mod_lnot zmod_pow2E wbaseE /Z.lnot /Z.pred.
   set (n := (2 ^ Z.of_nat ws)%Z).
-  rewrite wbaseE.
-  unfold Z.lnot.
-  unfold Z.pred.
   assert (Haux: ((-(z mod n)) mod n = (-z) mod n)%Z).
   {
     replace (- (z mod n))%Z with ((-1) * (z mod n))%Z by ring.
@@ -234,6 +230,5 @@ Proof.
     apply Zmult_mod_idemp_r.
   }
   symmetry.
-  rewrite Zplus_mod (Zplus_mod (-z)%Z (-1)%Z) Haux.
-  reflexivity.
+  by rewrite Zplus_mod (Zplus_mod (-z)%Z (-1)%Z) Haux.
 Qed.
