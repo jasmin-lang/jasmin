@@ -426,7 +426,15 @@ Variant armv8a_vmnemonic : Type :=
 | VREV16                         (* Reverse elements in 16-bit halfwords *)
 | VREV32                         (* Reverse elements in 32-bit words *)
 | VREV64                         (* Reverse elements in 64-bit doublewords *)
-| VTBL.                          (* Table vector lookup *)
+| VTBL                           (* Table vector lookup *)
+
+(* Comparisons *)
+| VCMEQ                          (* Compare bitwise equal *)
+| VCMGT                          (* Compare signed greater than *)
+| VCMGE                          (* Compare signed greater than or equal *)
+| VCMHI                          (* Compare unsigned higher *)
+| VCMHS                          (* Compare unsigned higher or same *)
+| VCMTST.                        (* Compare bitwise test bits nonzero *)
 
 #[ export ]
 Instance eqTC_armv8a_vmnemonic : eqTypeC armv8a_vmnemonic :=
@@ -442,6 +450,7 @@ Definition armv8a_vmnemonics : seq armv8a_vmnemonic :=
     ; VUSHL; VSSHL
     ; VEXT; VZIP1; VZIP2; VUZP1; VUZP2; VTRN1; VTRN2
     ; VREV16; VREV32; VREV64; VTBL
+    ; VCMEQ; VCMGT; VCMGE; VCMHI; VCMHS; VCMTST
   ].
 
 Lemma armv8a_vmnemonic_fin_axiom : Finite.axiom armv8a_vmnemonics.
@@ -497,6 +506,12 @@ Definition string_of_armv8a_vmnemonic (vmn : armv8a_vmnemonic) : string :=
   | VREV32 => "REV32"
   | VREV64 => "REV64"
   | VTBL => "TBL"
+  | VCMEQ => "CMEQ"
+  | VCMGT => "CMGT"
+  | VCMGE => "CMGE"
+  | VCMHI => "CMHI"
+  | VCMHS => "CMHS"
+  | VCMTST => "CMTST"
   end%string.
 
 (* The Jasmin name of a vector mnemonic: the architectural one prefixed
@@ -3307,7 +3322,8 @@ Definition armv8a_vmn_shapes (vmn : armv8a_vmnemonic) : seq (velem * wsize) :=
   | VADD | VSUB | VNEG | VABS
   | VSHL | VUSHR | VSSHR | VSLI | VSRI | VUSRA | VSSRA
   | VUSHL | VSSHL
-  | VZIP1 | VZIP2 | VUZP1 | VUZP2 | VTRN1 | VTRN2 =>
+  | VZIP1 | VZIP2 | VUZP1 | VUZP2 | VTRN1 | VTRN2
+  | VCMEQ | VCMGT | VCMGE | VCMHI | VCMHS | VCMTST =>
       [:: (VE8, U128); (VE16, U128); (VE32, U128); (VE64, U128)
         ; (VE8, U64); (VE16, U64); (VE32, U64) ]
   | VMUL | VSMAX | VSMIN | VUMAX | VUMIN | VREV64 =>
@@ -3331,7 +3347,8 @@ Definition armv8a_vmn_lanewise (vmn : armv8a_vmnemonic) : bool :=
   | VSHL | VUSHR | VSSHR | VSLI | VSRI | VUSRA | VSSRA
   | VUSHL | VSSHL
   | VZIP1 | VZIP2 | VUZP1 | VUZP2 | VTRN1 | VTRN2
-  | VREV16 | VREV32 | VREV64 => true
+  | VREV16 | VREV32 | VREV64
+  | VCMEQ | VCMGT | VCMGE | VCMHI | VCMHS | VCMTST => true
   | VMOV | VLDR | VSTR
   | VAND | VBIC | VORR | VORN | VEOR | VNOT | VBSL | VBIT | VBIF
   | VEXT | VTBL => false
@@ -4396,6 +4413,121 @@ Definition armv8a_VTBL_instr (ve : velem) sz : instr_desc_t :=
     id_wf := refl_equal;
   |}.
 
+(* The comparisons below set each lane of the result to all ones if the
+   test on the lanes of the sources passes, to zero otherwise, as [wpcmps1]
+   (signed) and [armv8a_vcmpu1] (unsigned).
+
+   [CMEQ (register)] ARM DDI 0487 M.a, C7.2
+   Compare bitwise equal (vector).
+   Syntax: CMEQ <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   [CMTST] ARM DDI 0487 M.a, C7.2
+   Compare bitwise test bits nonzero (vector).
+   Syntax: CMTST <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   <T> is 8B, 16B, 4H, 8H, 2S, 4S or 2D (1D is reserved).
+   Decode: boolean and_test = (U == '0');
+   where [and_test] is FALSE for CMEQ and TRUE for CMTST.
+   Operation:
+     CheckFPAdvSIMDEnabled64();
+     bits(datasize) operand1 = V[n, datasize];
+     bits(datasize) operand2 = V[m, datasize];
+     bits(datasize) result;
+     bits(esize) element1;
+     bits(esize) element2;
+     boolean test_passed;
+
+     for e = 0 to elements-1
+         element1 = Elem[operand1, e, esize];
+         element2 = Elem[operand2, e, esize];
+         if and_test then
+             test_passed = !IsZero(element1 AND element2);
+         else
+             test_passed = (element1 == element2);
+         Elem[result, e, esize] = if test_passed then Ones(esize) else Zeros(esize);
+
+     V[d, datasize] = result;
+
+   CMTST is the complement of the lane-wise comparison with zero of the
+   bitwise AND of the sources. *)
+Definition armv8a_VCMEQ_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  wpcmpeq ve wn wm.
+
+Definition armv8a_VCMEQ_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VCMEQ ve DOIT (@armv8a_VCMEQ_semi ve sz).
+
+Definition armv8a_VCMTST_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  wnot (wpcmpeq ve (wand wn wm) 0%w).
+
+Definition armv8a_VCMTST_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VCMTST ve DOIT (@armv8a_VCMTST_semi ve sz).
+
+(* [CMGT (register)] ARM DDI 0487 M.a, C7.2
+   Compare signed greater than (vector).
+   Syntax: CMGT <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   [CMGE (register)] ARM DDI 0487 M.a, C7.2
+   Compare signed greater than or equal (vector).
+   Syntax: CMGE <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   [CMHI (register)] ARM DDI 0487 M.a, C7.2
+   Compare unsigned higher (vector).
+   Syntax: CMHI <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   [CMHS (register)] ARM DDI 0487 M.a, C7.2
+   Compare unsigned higher or same (vector).
+   Syntax: CMHS <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   <T> is 8B, 16B, 4H, 8H, 2S, 4S or 2D (1D is reserved).
+   Decode: boolean unsigned = (U == '1');
+           boolean cmp_eq = (eq == '1');
+   where [unsigned] is TRUE for CMHI and CMHS, and [cmp_eq] is TRUE for
+   CMGE and CMHS.
+   Operation:
+     CheckFPAdvSIMDEnabled64();
+     bits(datasize) operand1 = V[n, datasize];
+     bits(datasize) operand2 = V[m, datasize];
+     bits(datasize) result;
+     integer element1;
+     integer element2;
+     boolean test_passed;
+
+     for e = 0 to elements-1
+         element1 = Int(Elem[operand1, e, esize], unsigned);
+         element2 = Int(Elem[operand2, e, esize], unsigned);
+         test_passed = if cmp_eq then element1 >= element2 else element1 > element2;
+         Elem[result, e, esize] = if test_passed then Ones(esize) else Zeros(esize);
+
+     V[d, datasize] = result;
+*)
+Definition armv8a_vcmpu1 (cmp : Z -> Z -> bool) {ve : wsize} (x y : word ve)
+  : word ve :=
+  if cmp (wunsigned x) (wunsigned y) then wrepr ve (-1) else 0%w.
+
+Definition armv8a_VCMGT_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  wpcmpgt ve wn wm.
+
+Definition armv8a_VCMGT_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VCMGT ve DOIT (@armv8a_VCMGT_semi ve sz).
+
+Definition armv8a_VCMGE_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  lift2_vec ve (wpcmps1 Z.geb) sz wn wm.
+
+Definition armv8a_VCMGE_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VCMGE ve DOIT (@armv8a_VCMGE_semi ve sz).
+
+Definition armv8a_VCMHI_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  lift2_vec ve (armv8a_vcmpu1 Z.gtb) sz wn wm.
+
+Definition armv8a_VCMHI_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VCMHI ve DOIT (@armv8a_VCMHI_semi ve sz).
+
+Definition armv8a_VCMHS_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  lift2_vec ve (armv8a_vcmpu1 Z.geb) sz wn wm.
+
+Definition armv8a_VCMHS_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VCMHS ve DOIT (@armv8a_VCMHS_semi ve sz).
+
 Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   : instr_desc_t :=
   match vmn with
@@ -4440,6 +4572,12 @@ Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   | VREV32 => armv8a_VREV32_instr ve sz
   | VREV64 => armv8a_VREV64_instr ve sz
   | VTBL => armv8a_VTBL_instr ve sz
+  | VCMEQ => armv8a_VCMEQ_instr ve sz
+  | VCMGT => armv8a_VCMGT_instr ve sz
+  | VCMGE => armv8a_VCMGE_instr ve sz
+  | VCMHI => armv8a_VCMHI_instr ve sz
+  | VCMHS => armv8a_VCMHS_instr ve sz
+  | VCMTST => armv8a_VCMTST_instr ve sz
   end.
 
 

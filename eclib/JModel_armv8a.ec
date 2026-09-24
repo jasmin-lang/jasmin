@@ -870,3 +870,107 @@ op VTBL_64 (t: W128.t) (i: W64.t) : W64.t =
   W8u8.map
     (fun (x: W8.t) => if W8.to_uint x < 16 then t \bits8 W8.to_uint x else W8.zero)
     i.
+(* Comparisons, on 128-bit (16u8, 8u16, 4u32, 2u64) and 64-bit (8u8, 4u16,
+   2u32) vectors: each lane of the result is all ones if the test on the
+   lanes of the sources passes, zero otherwise. CMEQ and CMGT are the
+   lane-wise comparisons of JWord (VPCMPEQ, VPCMPGT); CMGE (signed), CMHI
+   and CMHS (unsigned) and CMTST (AND nonzero) are defined lane by lane. *)
+abbrev [-printing] VCMEQ_16u8 = VPCMPEQ_16u8.
+abbrev [-printing] VCMEQ_8u16 = VPCMPEQ_8u16.
+abbrev [-printing] VCMEQ_4u32 = VPCMPEQ_4u32.
+abbrev [-printing] VCMEQ_2u64 = VPCMPEQ_2u64.
+abbrev [-printing] VCMEQ_8u8 = VPCMPEQ_8u8.
+abbrev [-printing] VCMEQ_4u16 = VPCMPEQ_4u16.
+abbrev [-printing] VCMEQ_2u32 = VPCMPEQ_2u32.
+
+abbrev [-printing] VCMGT_16u8 = VPCMPGT_16u8.
+abbrev [-printing] VCMGT_8u16 = VPCMPGT_8u16.
+abbrev [-printing] VCMGT_4u32 = VPCMPGT_4u32.
+abbrev [-printing] VCMGT_2u64 = VPCMPGT_2u64.
+abbrev [-printing] VCMGT_8u8 = VPCMPGT_8u8.
+abbrev [-printing] VCMGT_4u16 = VPCMPGT_4u16.
+abbrev [-printing] VCMGT_2u32 = VPCMPGT_2u32.
+
+op VCMGE_16u8 (n m: W128.t) : W128.t =
+  W16u8.map2 (fun (x y: W8.t) => if W8.to_sint y <= W8.to_sint x then W8.onew else W8.zero) n m.
+
+op VCMGE_8u16 (n m: W128.t) : W128.t =
+  W8u16.map2 (fun (x y: W16.t) => if W16.to_sint y <= W16.to_sint x then W16.onew else W16.zero) n m.
+
+op VCMGE_4u32 (n m: W128.t) : W128.t =
+  W4u32.map2 (fun (x y: W32.t) => if W32.to_sint y <= W32.to_sint x then W32.onew else W32.zero) n m.
+
+op VCMGE_2u64 (n m: W128.t) : W128.t =
+  W2u64.map2 (fun (x y: W64.t) => if W64.to_sint y <= W64.to_sint x then W64.onew else W64.zero) n m.
+
+op VCMGE_8u8 (n m: W64.t) : W64.t =
+  W8u8.map2 (fun (x y: W8.t) => if W8.to_sint y <= W8.to_sint x then W8.onew else W8.zero) n m.
+
+op VCMGE_4u16 (n m: W64.t) : W64.t =
+  W4u16.map2 (fun (x y: W16.t) => if W16.to_sint y <= W16.to_sint x then W16.onew else W16.zero) n m.
+
+op VCMGE_2u32 (n m: W64.t) : W64.t =
+  W2u32.map2 (fun (x y: W32.t) => if W32.to_sint y <= W32.to_sint x then W32.onew else W32.zero) n m.
+
+op VCMHI_16u8 (n m: W128.t) : W128.t =
+  W16u8.map2 (fun (x y: W8.t) => if W8.to_uint y < W8.to_uint x then W8.onew else W8.zero) n m.
+
+op VCMHI_8u16 (n m: W128.t) : W128.t =
+  W8u16.map2 (fun (x y: W16.t) => if W16.to_uint y < W16.to_uint x then W16.onew else W16.zero) n m.
+
+op VCMHI_4u32 (n m: W128.t) : W128.t =
+  W4u32.map2 (fun (x y: W32.t) => if W32.to_uint y < W32.to_uint x then W32.onew else W32.zero) n m.
+
+op VCMHI_2u64 (n m: W128.t) : W128.t =
+  W2u64.map2 (fun (x y: W64.t) => if W64.to_uint y < W64.to_uint x then W64.onew else W64.zero) n m.
+
+op VCMHI_8u8 (n m: W64.t) : W64.t =
+  W8u8.map2 (fun (x y: W8.t) => if W8.to_uint y < W8.to_uint x then W8.onew else W8.zero) n m.
+
+op VCMHI_4u16 (n m: W64.t) : W64.t =
+  W4u16.map2 (fun (x y: W16.t) => if W16.to_uint y < W16.to_uint x then W16.onew else W16.zero) n m.
+
+op VCMHI_2u32 (n m: W64.t) : W64.t =
+  W2u32.map2 (fun (x y: W32.t) => if W32.to_uint y < W32.to_uint x then W32.onew else W32.zero) n m.
+
+op VCMHS_16u8 (n m: W128.t) : W128.t =
+  W16u8.map2 (fun (x y: W8.t) => if W8.to_uint y <= W8.to_uint x then W8.onew else W8.zero) n m.
+
+op VCMHS_8u16 (n m: W128.t) : W128.t =
+  W8u16.map2 (fun (x y: W16.t) => if W16.to_uint y <= W16.to_uint x then W16.onew else W16.zero) n m.
+
+op VCMHS_4u32 (n m: W128.t) : W128.t =
+  W4u32.map2 (fun (x y: W32.t) => if W32.to_uint y <= W32.to_uint x then W32.onew else W32.zero) n m.
+
+op VCMHS_2u64 (n m: W128.t) : W128.t =
+  W2u64.map2 (fun (x y: W64.t) => if W64.to_uint y <= W64.to_uint x then W64.onew else W64.zero) n m.
+
+op VCMHS_8u8 (n m: W64.t) : W64.t =
+  W8u8.map2 (fun (x y: W8.t) => if W8.to_uint y <= W8.to_uint x then W8.onew else W8.zero) n m.
+
+op VCMHS_4u16 (n m: W64.t) : W64.t =
+  W4u16.map2 (fun (x y: W16.t) => if W16.to_uint y <= W16.to_uint x then W16.onew else W16.zero) n m.
+
+op VCMHS_2u32 (n m: W64.t) : W64.t =
+  W2u32.map2 (fun (x y: W32.t) => if W32.to_uint y <= W32.to_uint x then W32.onew else W32.zero) n m.
+
+op VCMTST_16u8 (n m: W128.t) : W128.t =
+  W16u8.map2 (fun (x y: W8.t) => if andw x y = W8.zero then W8.zero else W8.onew) n m.
+
+op VCMTST_8u16 (n m: W128.t) : W128.t =
+  W8u16.map2 (fun (x y: W16.t) => if andw x y = W16.zero then W16.zero else W16.onew) n m.
+
+op VCMTST_4u32 (n m: W128.t) : W128.t =
+  W4u32.map2 (fun (x y: W32.t) => if andw x y = W32.zero then W32.zero else W32.onew) n m.
+
+op VCMTST_2u64 (n m: W128.t) : W128.t =
+  W2u64.map2 (fun (x y: W64.t) => if andw x y = W64.zero then W64.zero else W64.onew) n m.
+
+op VCMTST_8u8 (n m: W64.t) : W64.t =
+  W8u8.map2 (fun (x y: W8.t) => if andw x y = W8.zero then W8.zero else W8.onew) n m.
+
+op VCMTST_4u16 (n m: W64.t) : W64.t =
+  W4u16.map2 (fun (x y: W16.t) => if andw x y = W16.zero then W16.zero else W16.onew) n m.
+
+op VCMTST_2u32 (n m: W64.t) : W64.t =
+  W2u32.map2 (fun (x y: W32.t) => if andw x y = W32.zero then W32.zero else W32.onew) n m.
