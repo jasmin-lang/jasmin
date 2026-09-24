@@ -109,6 +109,7 @@ Variant armv8a_mnemonic : Type :=
 | CLS                            (* Count leading sign bits *)
 
 (* Bit field operations *)
+| EXTR                           (* Extract register from a register pair *)
 
 (* Other data processing instructions *)
 | MOV                            (* Copy operand to destination *)
@@ -155,6 +156,7 @@ Definition armv8a_mnemonics : seq armv8a_mnemonic :=
     ; AND; ORR; EOR; MVN
     ; ASR; LSL; LSR; ROR
     ; RBIT; REV; REV16; REV32; CLZ; CLS
+    ; EXTR
     ; MOV; MOVN; MOVZ; MOVK; ADR
     ; SXTB; SXTH; SXTW; UXTB; UXTH; UXTW
     ; CMP; TST
@@ -200,6 +202,7 @@ Definition sized_mnemonics : seq armv8a_mnemonic :=
     ; AND; ORR; EOR; MVN
     ; ASR; LSL; LSR; ROR
     ; RBIT; REV; REV16; CLZ; CLS
+    ; EXTR
     ; MOV; MOVN; MOVZ; MOVK
     ; SXTB; SXTH; UXTB; UXTH
     ; CMP; TST
@@ -276,6 +279,7 @@ Definition string_of_armv8a_mnemonic (mn : armv8a_mnemonic) : string :=
   | REV32 => "REV32"
   | CLZ => "CLZ"
   | CLS => "CLS"
+  | EXTR => "EXTR"
   | MOV => "MOV"
   | MOVN => "MOVN"
   | MOVZ => "MOVZ"
@@ -1268,6 +1272,52 @@ Definition armv8a_ROR_instr : instr_desc_t := mk_shift_instr ROR (@wror).
 (* -------------------------------------------------------------------- *)
 (* Bit field instructions. *)
 
+(* [C6.2.160 EXTR] ARM DDI 0487 M.a, p. 2174
+   Extract register  This instruction extracts a register from a pair of
+   registers.  This instruction is used by the alias ROR (immediate).
+   Syntax: EXTR <Xd>, <Xn>, <Xm>, #<lsb>
+   Operation (ASL):
+     bits(datasize) result;
+     constant bits(datasize) operand1 = X[n, datasize];
+     constant bits(datasize) operand2 = X[m, datasize];
+     constant bits(2*datasize) concat = operand1:operand2;
+     result = concat<(lsb+datasize)-1:lsb>;
+     X[d, datasize] = result;
+*)
+(* The argument checker bounds [lsb] by the operand size; the low [lsb]
+   bits of [operand1] form the top of the result. *)
+Definition armv8a_EXTR_semi {ws : wsize} (wn wm : word ws) (wlsb : word U8) : ty_w ws :=
+  let bits := wsize_bits ws in
+  let l := (wunsigned wlsb mod bits)%Z in
+  if (l =? 0)%Z
+  then wm
+  else wor (wshr wm l) (wshl wn (bits - l)).
+
+Definition armv8a_EXTR_instr : instr_desc_t :=
+  let mn := EXTR in
+  let tin := [:: lword osz; lword osz; lword U8 ] in
+  let semi := armv8a_EXTR_semi (ws := osz) in
+  {|
+    id_msb_flag := msbf;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lword osz ];
+    id_out := [:: Ea 0 ];
+    id_semi := sem_lprod_ok tin semi;
+    id_nargs := 4;
+    id_args_kinds := ak_rrr_imm_shift;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_op mn opts;
+    id_valid := osz_valid;
+    id_safe_wf := refl_equal;
+    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
+    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+  |}.
+
 
 (* -------------------------------------------------------------------- *)
 (* Moves. *)
@@ -2149,6 +2199,7 @@ Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
   | REV32 => armv8a_REV32_instr
   | CLZ => armv8a_CLZ_instr
   | CLS => armv8a_CLS_instr
+  | EXTR => armv8a_EXTR_instr
   | MOV => armv8a_MOV_instr
   | MOVN => armv8a_MOVN_instr
   | MOVZ => armv8a_MOVZ_instr
