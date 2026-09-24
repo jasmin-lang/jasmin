@@ -851,7 +851,7 @@ Proof.
 Qed.
 
 Lemma with_shift_binop mn s eb ea ts (b: word ts) (a: u8) x y vs sh opts r :
-  mn \in [:: ADD; ADDS; SUB; SUBS; AND; EOR; ORR; CMP; TST] ->
+  mn \in [:: ADD; ADDS; SUB; SUBS; AND; ANDS; BIC; BICS; EOR; ORR; CMP; CMN; TST] ->
   shift_allowed mn sh ->
   (opts_size opts ≤ ts)%CMP ->
   has_shift opts = None ->
@@ -1262,7 +1262,7 @@ Proof.
     move=> [<- <-].
     (* we want to use with_shift_binop, so we have to prove this *)
     have hshift_binop:
-      mn' \in [:: ADD; ADDS; SUB; SUBS; AND; EOR; ORR; CMP; TST].
+      mn' \in [:: ADD; ADDS; SUB; SUBS; AND; ANDS; BIC; BICS; EOR; ORR; CMP; CMN; TST].
     {
       case: op hop hhas_shift hsemop => //;
         rewrite /lower_Papp2_op /=.
