@@ -1227,8 +1227,41 @@ Proof.
       all: by rewrite /= zero_extend_u.
     }
 
+    (* A shift by a constant that the instruction encodes: the shift by
+       immediate with the same lanes computes the same function. *)
+    case hsh: lower_vshift => [[[vmn ve] rsh] | ].
+    {
+      apply: obindP => c hc /oassertP [hchk [<- <-]].
+      have hn : wunsigned (wrepr U8 (wunsigned c)) = wunsigned c.
+      {
+        apply: wunsigned_repr_small; move: hchk.
+        rewrite /check_vshift_amount /check_shift_amount.
+        have := wunsigned_range c.
+        have : (wsize_bits ve <= 64)%Z by case: (ve).
+        move=> h64 hr; case: (rsh) => /andP [_].
+        1: move=> /Z.leb_le.
+        2: move=> /Z.ltb_lt.
+        all: have -> : wbase U8 = 256%Z by []; lia.
+      }
+      assert (hwc := is_wconstP true (p_globs p) s hc).
+      move: hwc; rewrite hseme1 /= => hc1.
+      move: hsh hsemop; case: op {hvar hchk} => // ve0 [] // [? ? ?].
+      all: subst vmn ve0 rsh.
+      all: move=> /sem_sop2I /= [w0 [w1 [w2 [hw0 hw1 hw2 /Vword_inj [?]]]]].
+      all: subst ws'; move: hw2 => /= -[<-] ?; subst w.
+      all: move: hc1; rewrite hw1 => -[?]; subst w1.
+      all: split; last by split; [ exact: hfve0 | ].
+      all: eexists; first by rewrite /sem_pexprs /= hseme0 /=.
+      all: rewrite hn /exec_sopn /= hw0 /sopn_sem /sopn_sem_ /=.
+      all: rewrite /= truncate_word_u /= /semi_to_atype_t /=.
+      all: rewrite /= zero_extend_u.
+      all: case: ve => /=.
+      all: by rewrite /armv8a_VUSHR_semi /armv8a_VSHL_semi /armv8a_VSSHR_semi
+             /sem_vshr /sem_vshl /sem_vsar hn.
+    }
+
     (* A bitwise operation. *)
-    clear hvar.
+    clear hvar hsh.
     apply: obindP => -[vmn es0] hlow [<- <-].
     have hfve : disj_fvars (read_e (Papp2 op e0 e1))
       by exact: disj_fvars_read_es2.

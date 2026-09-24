@@ -466,13 +466,34 @@ Definition lower_varith (op : sop2) : option (armv8a_vmnemonic * velem) :=
   | _ => None
   end.
 
+(* The lane-wise shifts of 128-bit vectors are the shifts by immediate with
+   the same lanes, when the amount is a constant: SHL for a left shift,
+   USHR and SSHR for the right shifts ([true] for a right shift). *)
+Definition lower_vshift (op : sop2) : option (armv8a_vmnemonic * velem * bool) :=
+  match op with
+  | Ovlsl ve U128 => Some (VSHL, ve, false)
+  | Ovlsr ve U128 => Some (VUSHR, ve, true)
+  | Ovasr ve U128 => Some (VSSHR, ve, true)
+  | _ => None
+  end.
+
 (* A 128-bit arithmetic operation is lowered when its arrangement exists:
-   there is no MUL on 64-bit lanes. *)
+   there is no MUL on 64-bit lanes. A shift is lowered when its amount is a
+   constant that the instruction encodes, where it computes the same lanes:
+   0 to esize-1 for a left shift, 1 to esize for a right shift. The other
+   amounts are left unlowered: a left shift by esize or more, which gives
+   zero, and a right shift by 0, which is the identity, have no encoding. *)
 Definition lower_Papp2_128 (op : sop2) (e0 e1 : pexpr) : low_expr :=
   if lower_varith op is Some (vmn, ve)
   then
     let%opt _ := oassert (armv8a_vop_valid vmn ve U128) in
     le_issue_aop (ARMv8A_vop vmn ve U128) [:: e0; e1 ]
+  else if lower_vshift op is Some (vmn, ve, rshift)
+  then
+    let%opt c := is_wconst U128 e1 in
+    let n := wunsigned c in
+    let%opt _ := oassert (check_vshift_amount ve rshift n) in
+    le_issue_aop (ARMv8A_vop vmn ve U128) [:: e0; wconst (wrepr U8 n) ]
   else
     let%opt (vmn, es) := lower_vbitwise U128 (Papp2 op e0 e1) in
     le_issue_aop (ARMv8A_vop vmn VE8 U128) es.

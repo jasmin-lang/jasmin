@@ -1,0 +1,52 @@
+// The lane-wise shifts of u128 values by a constant compile to the NEON
+// shifts by immediate with the same lanes: << to SHL, >> (unsigned) to
+// USHR and >>s (signed) to SSHR, for every lane size, at both bounds of the
+// range of the amount (0 to esize-1 for SHL, 1 to esize for USHR and
+// SSHR).
+
+export
+fn neon_shift_ops(reg u64 p) {
+    reg u128 a c;
+
+    a = [:u128 p];
+    c = [:u128 p + 16];
+
+    c = c <<16u8 0;      // SHL .16b
+    c = c <<16u8 7;
+    c = c <<8u16 0;      // SHL .8h
+    c = c <<8u16 15;
+    c = c <<4u32 0;      // SHL .4s
+    c = c <<4u32 31;
+    c = c <<2u64 0;      // SHL .2d
+    c = c <<2u64 63;
+    c = c >>16u8 1;      // USHR .16b
+    c = c >>16u8 8;
+    c = c >>8u16 1;      // USHR .8h
+    c = c >>8u16 16;
+    c = c >>4u32 1;      // USHR .4s
+    c = c >>4u32 32;
+    c = c >>2u64 1;      // USHR .2d
+    c = c >>2u64 64;
+    c = c >>16s8 1;      // SSHR .16b
+    c = c >>16s8 8;
+    c = c >>8s16 1;      // SSHR .8h
+    c = c >>8s16 16;
+    c = c >>4s32 1;      // SSHR .4s
+    c = c >>4s32 32;
+    c = c >>2s64 1;      // SSHR .2d
+    c = c >>2s64 64;
+    c = c ^ a;
+
+    [:u128 p + 32] = c;
+}
+
+// Shifts of vector arguments, results in V registers.
+export
+fn neon_shift_ops_args(reg u128 x y) -> reg u128, reg u128 {
+    reg u128 z w;
+    z = x <<4u32 3;
+    w = y >>8u16 5;
+    z = z ^ w;
+    w = x >>2s64 63;
+    return z, w;
+}
