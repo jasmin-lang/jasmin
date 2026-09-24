@@ -78,6 +78,8 @@ Variant armv8a_mnemonic : Type :=
 | ADCS                           (* Add with carry, setting flags *)
 | SUB                            (* Subtract without carry *)
 | SUBS                           (* Subtract without carry, setting flags *)
+| SBC                            (* Subtract with carry *)
+| SBCS                           (* Subtract with carry, setting flags *)
 | NEG                            (* Negate *)
 | MUL                            (* Multiply and write the least significant
                                     bits of the result *)
@@ -150,7 +152,7 @@ Instance eqTC_armv8a_mnemonic : eqTypeC armv8a_mnemonic :=
 Canonical armv8a_mnemonic_eqType := @ceqT_eqType _ eqTC_armv8a_mnemonic.
 
 Definition armv8a_mnemonics : seq armv8a_mnemonic :=
-  [:: ADD; ADDS; ADC; ADCS; SUB; SUBS; NEG
+  [:: ADD; ADDS; ADC; ADCS; SUB; SUBS; SBC; SBCS; NEG
     ; MUL; MADD; MSUB; SDIV; UDIV; UMULH; SMULH
     ; AND; ANDS; BIC; BICS; ORR; EOR; MVN
     ; ASR; LSL; LSR; ROR
@@ -195,7 +197,7 @@ Definition shift_allowed (mn : armv8a_mnemonic) (sk : shift_kind) : bool :=
 (* Mnemonics available in both the 32-bit (W) and 64-bit (X) forms; the
    remaining mnemonics are only valid with [opts_size = U64]. *)
 Definition sized_mnemonics : seq armv8a_mnemonic :=
-  [:: ADD; ADDS; ADC; ADCS; SUB; SUBS; NEG
+  [:: ADD; ADDS; ADC; ADCS; SUB; SUBS; SBC; SBCS; NEG
     ; MUL; MADD; MSUB; SDIV; UDIV
     ; AND; ANDS; BIC; BICS; ORR; EOR; MVN
     ; ASR; LSL; LSR; ROR
@@ -254,6 +256,8 @@ Definition string_of_armv8a_mnemonic (mn : armv8a_mnemonic) : string :=
   | ADCS => "ADCS"
   | SUB => "SUB"
   | SUBS => "SUBS"
+  | SBC => "SBC"
+  | SBCS => "SBCS"
   | NEG => "NEG"
   | MUL => "MUL"
   | MADD => "MADD"
@@ -833,6 +837,41 @@ Definition armv8a_ADCS_semi {ws : wsize} (wn wm : word ws) (cf : bool) : ty_nzcv
     (wsigned wn + wsigned wm + c)%Z.
 
 Definition armv8a_ADCS_instr : instr_desc_t := mk_carrys_instr ADCS armv8a_ADCS_semi.
+(* [C6.2.351 SBC] ARM DDI 0487 M.a, p. 2548
+   Subtract with carry  This instruction subtracts a register value and the
+   value of NOT (Carry flag) from a register value, and writes the result to
+   the destination register.  This instruction is used by the alias NGC.
+   Syntax: SBC <Xd>, <Xn>, <Xm>
+   Operation (ASL):
+     constant bits(datasize) operand1 = X[n, datasize];
+     constant bits(datasize) operand2 = NOT(X[m, datasize]);
+     bits(datasize) result;
+     (result, -) = AddWithCarry(operand1, operand2, PSTATE.C);
+     X[d, datasize] = result;
+*)
+Definition armv8a_SBC_semi {ws : wsize} (wn wm : word ws) (cf : bool) : ty_w ws :=
+  armv8a_ADC_semi wn (wnot wm) cf.
+
+Definition armv8a_SBC_instr : instr_desc_t := mk_carry_instr SBC armv8a_SBC_semi.
+(* [C6.2.352 SBCS] ARM DDI 0487 M.a, p. 2550
+   Subtract with carry, setting flags  This instruction subtracts a register
+   value and the value of NOT (Carry flag) from a register value, and writes
+   the result to the destination register. It updates the condition flags based
+   on the result.  This instruction is used by the alias NGCS.
+   Syntax: SBCS <Xd>, <Xn>, <Xm>
+   Operation (ASL):
+     constant bits(datasize) operand1 = X[n, datasize];
+     constant bits(datasize) operand2 = NOT(X[m, datasize]);
+     bits(datasize) result;
+     bits(4) nzcv;
+     (result, nzcv) = AddWithCarry(operand1, operand2, PSTATE.C);
+     X[d, datasize] = result;
+     PSTATE.<N,Z,C,V> = nzcv;
+*)
+Definition armv8a_SBCS_semi {ws : wsize} (wn wm : word ws) (cf : bool) : ty_nzcv_w ws :=
+  armv8a_ADCS_semi wn (wnot wm) cf.
+
+Definition armv8a_SBCS_instr : instr_desc_t := mk_carrys_instr SBCS armv8a_SBCS_semi.
 (* [C6.2.294 NEG (shifted register)] ARM DDI 0487 M.a, p. 2440
    Negate (shifted register)  This instruction negates an optionally-shifted
    register value, and writes the result to the destination register.  This is
@@ -2126,6 +2165,8 @@ Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
   | ADCS => armv8a_ADCS_instr
   | SUB => armv8a_SUB_instr
   | SUBS => armv8a_SUBS_instr
+  | SBC => armv8a_SBC_instr
+  | SBCS => armv8a_SBCS_instr
   | NEG => armv8a_NEG_instr
   | MUL => armv8a_MUL_instr
   | MADD => armv8a_MADD_instr
