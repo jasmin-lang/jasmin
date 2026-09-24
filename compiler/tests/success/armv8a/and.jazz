@@ -19,6 +19,13 @@ fn and(reg u64 arg0, reg u64 arg1) -> reg u64 {
     nf, zf, cf, vf = #CMN(x, 42);           // Arithmetic immediate.
     y = arg1 if vf;
     x = x + y;
+    // Shifted registers.
+    x = #BIC(x, arg1 >> 3);
+    nf, zf, cf, vf, x = #ANDS(x, arg1 >>r 5);
+    nf, zf, cf, vf, x = #BICS(x, arg1 << 2);
+    nf, zf, cf, vf = #CMN(x, arg1 >>s 4);
+    y = arg1 if zf;
+    x = x + y;
     return x;
 }
 
@@ -39,6 +46,13 @@ fn and32(reg u32 arg0, reg u32 arg1) -> reg u32 {
     x = x + y;
     nf, zf, cf, vf = #CMN_32(x, 42);
     y = arg1 if vf;
+    x = x + y;
+    // Shifted registers.
+    x = #BIC_32(x, arg1 >> 3);
+    nf, zf, cf, vf, x = #ANDS_32(x, arg1 >>r 5);
+    nf, zf, cf, vf, x = #BICS_32(x, arg1 << 2);
+    nf, zf, cf, vf = #CMN_32(x, arg1 >>s 4);
+    y = arg1 if zf;
     x = x + y;
     return x;
 }
