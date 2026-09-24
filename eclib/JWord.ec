@@ -1482,6 +1482,10 @@ qed.
 op wmulhs (v1 v2: t) =
   of_int (to_sint v1 * to_sint v2 %/ modulus).
 
+(* The integer value of a double word, unsigned and signed. *)
+op wdwordu hi lo = to_uint hi * modulus + to_uint lo.
+op wdwords hi lo = to_sint hi * modulus + to_uint lo.
+
 theory ALU.
 
 op SF_of (w : t) = w.[size - 1].
@@ -1558,9 +1562,6 @@ op SUB_XX (v1 v2 : t) =
 
 op CMOVcc_XX (b:bool) (w2 w3: t) =
   if b then w2 else w3.
-
-op wdwordu hi lo = to_uint hi * modulus + to_uint lo.
-op wdwords hi lo = to_sint hi * modulus + to_uint lo.
 
 op MUL_XX (v1 v2: t) =
   let (hi,lo) = mulu v1 v2 in
@@ -1882,7 +1883,7 @@ theory W8.
       rflags_OF i r rc false.
 
 end SHIFT.
-end W8. export W8 W8.ALU W8.SHIFT.
+end W8. export W8.
 
 abstract theory WT.
   type t.
@@ -2142,7 +2143,7 @@ theory W16.
   proof gt0_size by done,
         size_le_256 by done.
 
-end W16. export W16 W16.ALU W16.SHIFT.
+end W16. export W16.
 
 theory W32.
   abbrev [-printing] size = 32.
@@ -2150,7 +2151,7 @@ theory W32.
   rename "_XX" as "_32"
   proof gt0_size by done,
         size_le_256 by done.
-end W32. export W32 W32.ALU W32.SHIFT.
+end W32. export W32.
 
 theory W64.
   abbrev [-printing] size = 64.
@@ -2158,7 +2159,7 @@ theory W64.
   rename "_XX" as "_64"
   proof gt0_size by done,
         size_le_256 by done.
-end W64. export W64 W64.ALU W64.SHIFT.
+end W64. export W64.
 
 theory W128.
   abbrev [-printing] size = 128.
@@ -2166,7 +2167,7 @@ theory W128.
   rename "_XX" as "_128"
   proof gt0_size by done,
         size_le_256 by done.
-end W128. export W128 W128.ALU W128.SHIFT.
+end W128. export W128.
 
 theory W256.
   abbrev [-printing] size = 256.
@@ -2174,7 +2175,7 @@ theory W256.
   rename "_XX" as "_256"
   proof gt0_size by done,
         size_le_256 by done.
-end W256. export W256 W256.ALU W256.SHIFT.
+end W256. export W256.
 
 abstract theory W_WS.
 

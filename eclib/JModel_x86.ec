@@ -3,6 +3,10 @@ require import AllCore IntDiv List.
 require export JModel_common JArray JWord_array Jslh JMemory AES.
 require SHA.
 
+(* The x86 instructions with their flags (theories ALU and SHIFT of JWord)
+   are visible only in the x86 model. *)
+export W8.ALU W8.SHIFT W16.ALU W16.SHIFT W32.ALU W32.SHIFT.
+export W64.ALU W64.SHIFT W128.ALU W128.SHIFT W256.ALU W256.SHIFT.
 
 abbrev ptr_modulus = 2^64.
 
