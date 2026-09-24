@@ -31,7 +31,7 @@ fn intrinsics(reg u64 arg0, reg u64 arg1) -> reg u64 {
     x = x + y;
 
     nf, zf, cf, vf = #CMP(x, arg1);
-    y = arg1 if zf;
+    y = #CSET(zf);
     x = x + y;
 
     nf, zf, cf, vf, x = #ADDS(x, arg1);
