@@ -661,3 +661,212 @@ op VSSHL_2u32 (w n: W64.t) : W64.t =
        let s = W8.to_sint (truncateu8 y) in
        if 0 <= s then x `<<<` s else x `|>>>` (-s))
     w n.
+
+(* Permutations, on 128-bit (16u8, 8u16, 4u32, 2u64) and 64-bit (8u8, 4u16,
+   2u32) vectors. ZIP, UZP, TRN and REV are defined on the lists of lanes:
+   [part] is 0 for ZIP1, UZP1 and TRN1, 1 for ZIP2, UZP2 and TRN2. *)
+
+(* ZIP: the lanes of the low (part 0) or high (part 1) halves of the
+   sources, interleaved. *)
+op neon_zip ['a] (part: int) (l1 l2: 'a list) : 'a list =
+  let h = size l1 %/ 2 in
+  flatten
+    (map (fun p => [nth witness l1 (part * h + p); nth witness l2 (part * h + p)])
+       (iota_ 0 h)).
+
+(* UZP: the even (part 0) or odd (part 1) lanes of the concatenation of the
+   sources. *)
+op neon_uzp ['a] (part: int) (l1 l2: 'a list) : 'a list =
+  map (fun e => nth witness (l1 ++ l2) (2 * e + part)) (iota_ 0 (size l1)).
+
+(* TRN: the even (part 0) or odd (part 1) lanes of the sources,
+   interleaved. *)
+op neon_trn ['a] (part: int) (l1 l2: 'a list) : 'a list =
+  flatten
+    (map (fun p => [nth witness l1 (2 * p + part); nth witness l2 (2 * p + part)])
+       (iota_ 0 (size l1 %/ 2))).
+
+(* REV: the lanes of each container of [k] lanes, in reverse order. *)
+op neon_rev ['a] (k: int) (l: 'a list) : 'a list =
+  map (fun e => nth witness l (e - e %% k + (k - 1 - e %% k))) (iota_ 0 (size l)).
+
+(* EXT: the bytes of the concatenation m:n from the byte of index i. *)
+op VEXT_128 (n m: W128.t) (i: W8.t) : W128.t =
+  (W2u128.pack2 [n; m] `>>>` (W8.to_uint i * 8)) \bits128 0.
+
+op VEXT_64 (n m: W64.t) (i: W8.t) : W64.t =
+  (W2u64.pack2 [n; m] `>>>` (W8.to_uint i * 8)) \bits64 0.
+
+op VZIP1_16u8 (n m: W128.t) : W128.t =
+  W16u8.pack16 (neon_zip 0 (W16u8.to_list n) (W16u8.to_list m)).
+
+op VZIP1_8u16 (n m: W128.t) : W128.t =
+  W8u16.pack8 (neon_zip 0 (W8u16.to_list n) (W8u16.to_list m)).
+
+op VZIP1_4u32 (n m: W128.t) : W128.t =
+  W4u32.pack4 (neon_zip 0 (W4u32.to_list n) (W4u32.to_list m)).
+
+op VZIP1_2u64 (n m: W128.t) : W128.t =
+  W2u64.pack2 (neon_zip 0 (W2u64.to_list n) (W2u64.to_list m)).
+
+op VZIP1_8u8 (n m: W64.t) : W64.t =
+  W8u8.pack8 (neon_zip 0 (W8u8.to_list n) (W8u8.to_list m)).
+
+op VZIP1_4u16 (n m: W64.t) : W64.t =
+  W4u16.pack4 (neon_zip 0 (W4u16.to_list n) (W4u16.to_list m)).
+
+op VZIP1_2u32 (n m: W64.t) : W64.t =
+  W2u32.pack2 (neon_zip 0 (W2u32.to_list n) (W2u32.to_list m)).
+
+op VZIP2_16u8 (n m: W128.t) : W128.t =
+  W16u8.pack16 (neon_zip 1 (W16u8.to_list n) (W16u8.to_list m)).
+
+op VZIP2_8u16 (n m: W128.t) : W128.t =
+  W8u16.pack8 (neon_zip 1 (W8u16.to_list n) (W8u16.to_list m)).
+
+op VZIP2_4u32 (n m: W128.t) : W128.t =
+  W4u32.pack4 (neon_zip 1 (W4u32.to_list n) (W4u32.to_list m)).
+
+op VZIP2_2u64 (n m: W128.t) : W128.t =
+  W2u64.pack2 (neon_zip 1 (W2u64.to_list n) (W2u64.to_list m)).
+
+op VZIP2_8u8 (n m: W64.t) : W64.t =
+  W8u8.pack8 (neon_zip 1 (W8u8.to_list n) (W8u8.to_list m)).
+
+op VZIP2_4u16 (n m: W64.t) : W64.t =
+  W4u16.pack4 (neon_zip 1 (W4u16.to_list n) (W4u16.to_list m)).
+
+op VZIP2_2u32 (n m: W64.t) : W64.t =
+  W2u32.pack2 (neon_zip 1 (W2u32.to_list n) (W2u32.to_list m)).
+
+op VUZP1_16u8 (n m: W128.t) : W128.t =
+  W16u8.pack16 (neon_uzp 0 (W16u8.to_list n) (W16u8.to_list m)).
+
+op VUZP1_8u16 (n m: W128.t) : W128.t =
+  W8u16.pack8 (neon_uzp 0 (W8u16.to_list n) (W8u16.to_list m)).
+
+op VUZP1_4u32 (n m: W128.t) : W128.t =
+  W4u32.pack4 (neon_uzp 0 (W4u32.to_list n) (W4u32.to_list m)).
+
+op VUZP1_2u64 (n m: W128.t) : W128.t =
+  W2u64.pack2 (neon_uzp 0 (W2u64.to_list n) (W2u64.to_list m)).
+
+op VUZP1_8u8 (n m: W64.t) : W64.t =
+  W8u8.pack8 (neon_uzp 0 (W8u8.to_list n) (W8u8.to_list m)).
+
+op VUZP1_4u16 (n m: W64.t) : W64.t =
+  W4u16.pack4 (neon_uzp 0 (W4u16.to_list n) (W4u16.to_list m)).
+
+op VUZP1_2u32 (n m: W64.t) : W64.t =
+  W2u32.pack2 (neon_uzp 0 (W2u32.to_list n) (W2u32.to_list m)).
+
+op VUZP2_16u8 (n m: W128.t) : W128.t =
+  W16u8.pack16 (neon_uzp 1 (W16u8.to_list n) (W16u8.to_list m)).
+
+op VUZP2_8u16 (n m: W128.t) : W128.t =
+  W8u16.pack8 (neon_uzp 1 (W8u16.to_list n) (W8u16.to_list m)).
+
+op VUZP2_4u32 (n m: W128.t) : W128.t =
+  W4u32.pack4 (neon_uzp 1 (W4u32.to_list n) (W4u32.to_list m)).
+
+op VUZP2_2u64 (n m: W128.t) : W128.t =
+  W2u64.pack2 (neon_uzp 1 (W2u64.to_list n) (W2u64.to_list m)).
+
+op VUZP2_8u8 (n m: W64.t) : W64.t =
+  W8u8.pack8 (neon_uzp 1 (W8u8.to_list n) (W8u8.to_list m)).
+
+op VUZP2_4u16 (n m: W64.t) : W64.t =
+  W4u16.pack4 (neon_uzp 1 (W4u16.to_list n) (W4u16.to_list m)).
+
+op VUZP2_2u32 (n m: W64.t) : W64.t =
+  W2u32.pack2 (neon_uzp 1 (W2u32.to_list n) (W2u32.to_list m)).
+
+op VTRN1_16u8 (n m: W128.t) : W128.t =
+  W16u8.pack16 (neon_trn 0 (W16u8.to_list n) (W16u8.to_list m)).
+
+op VTRN1_8u16 (n m: W128.t) : W128.t =
+  W8u16.pack8 (neon_trn 0 (W8u16.to_list n) (W8u16.to_list m)).
+
+op VTRN1_4u32 (n m: W128.t) : W128.t =
+  W4u32.pack4 (neon_trn 0 (W4u32.to_list n) (W4u32.to_list m)).
+
+op VTRN1_2u64 (n m: W128.t) : W128.t =
+  W2u64.pack2 (neon_trn 0 (W2u64.to_list n) (W2u64.to_list m)).
+
+op VTRN1_8u8 (n m: W64.t) : W64.t =
+  W8u8.pack8 (neon_trn 0 (W8u8.to_list n) (W8u8.to_list m)).
+
+op VTRN1_4u16 (n m: W64.t) : W64.t =
+  W4u16.pack4 (neon_trn 0 (W4u16.to_list n) (W4u16.to_list m)).
+
+op VTRN1_2u32 (n m: W64.t) : W64.t =
+  W2u32.pack2 (neon_trn 0 (W2u32.to_list n) (W2u32.to_list m)).
+
+op VTRN2_16u8 (n m: W128.t) : W128.t =
+  W16u8.pack16 (neon_trn 1 (W16u8.to_list n) (W16u8.to_list m)).
+
+op VTRN2_8u16 (n m: W128.t) : W128.t =
+  W8u16.pack8 (neon_trn 1 (W8u16.to_list n) (W8u16.to_list m)).
+
+op VTRN2_4u32 (n m: W128.t) : W128.t =
+  W4u32.pack4 (neon_trn 1 (W4u32.to_list n) (W4u32.to_list m)).
+
+op VTRN2_2u64 (n m: W128.t) : W128.t =
+  W2u64.pack2 (neon_trn 1 (W2u64.to_list n) (W2u64.to_list m)).
+
+op VTRN2_8u8 (n m: W64.t) : W64.t =
+  W8u8.pack8 (neon_trn 1 (W8u8.to_list n) (W8u8.to_list m)).
+
+op VTRN2_4u16 (n m: W64.t) : W64.t =
+  W4u16.pack4 (neon_trn 1 (W4u16.to_list n) (W4u16.to_list m)).
+
+op VTRN2_2u32 (n m: W64.t) : W64.t =
+  W2u32.pack2 (neon_trn 1 (W2u32.to_list n) (W2u32.to_list m)).
+
+op VREV16_16u8 (w: W128.t) : W128.t =
+  W16u8.pack16 (neon_rev 2 (W16u8.to_list w)).
+
+op VREV16_8u8 (w: W64.t) : W64.t =
+  W8u8.pack8 (neon_rev 2 (W8u8.to_list w)).
+
+op VREV32_16u8 (w: W128.t) : W128.t =
+  W16u8.pack16 (neon_rev 4 (W16u8.to_list w)).
+
+op VREV32_8u16 (w: W128.t) : W128.t =
+  W8u16.pack8 (neon_rev 2 (W8u16.to_list w)).
+
+op VREV32_8u8 (w: W64.t) : W64.t =
+  W8u8.pack8 (neon_rev 4 (W8u8.to_list w)).
+
+op VREV32_4u16 (w: W64.t) : W64.t =
+  W4u16.pack4 (neon_rev 2 (W4u16.to_list w)).
+
+op VREV64_16u8 (w: W128.t) : W128.t =
+  W16u8.pack16 (neon_rev 8 (W16u8.to_list w)).
+
+op VREV64_8u16 (w: W128.t) : W128.t =
+  W8u16.pack8 (neon_rev 4 (W8u16.to_list w)).
+
+op VREV64_4u32 (w: W128.t) : W128.t =
+  W4u32.pack4 (neon_rev 2 (W4u32.to_list w)).
+
+op VREV64_8u8 (w: W64.t) : W64.t =
+  W8u8.pack8 (neon_rev 8 (W8u8.to_list w)).
+
+op VREV64_4u16 (w: W64.t) : W64.t =
+  W4u16.pack4 (neon_rev 4 (W4u16.to_list w)).
+
+op VREV64_2u32 (w: W64.t) : W64.t =
+  W2u32.pack2 (neon_rev 2 (W2u32.to_list w)).
+
+(* TBL, single register table: an index out of the table (16 or more)
+   gives a zero byte. *)
+op VTBL_128 (t i: W128.t) : W128.t =
+  W16u8.map
+    (fun (x: W8.t) => if W8.to_uint x < 16 then t \bits8 W8.to_uint x else W8.zero)
+    i.
+
+op VTBL_64 (t: W128.t) (i: W64.t) : W64.t =
+  W8u8.map
+    (fun (x: W8.t) => if W8.to_uint x < 16 then t \bits8 W8.to_uint x else W8.zero)
+    i.

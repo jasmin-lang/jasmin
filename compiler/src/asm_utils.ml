@@ -97,7 +97,7 @@ let pp_full_args (pp : _ pp_asm_op) =
   List.map
     (function
       | PPa_full (ws, a) -> (ws, a)
-      | PPa_vec _ | PPa_shift _ -> assert false)
+      | PPa_vec _ | PPa_shift _ | PPa_list _ -> assert false)
     pp.pp_aop_args
 
 let pp_imm imm_pre imm = Format.asprintf "%s%s" imm_pre (Z.to_string imm)
