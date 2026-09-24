@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+# Report every 32-bit instruction of an ARM object that starts at an address
+# 2 modulo 4, and fail if there is one, unless no 16-bit instruction since the
+# previous 32-bit one (or the last symbol) could have been widened to fix it:
+# those have no 32-bit form (it*, bx, mul*, nop) or are followed by an odd
+# number of 16-bit instructions (widened, they would be misaligned). With no
+# 16-bit instruction at all, the previous 32-bit one must be tolerated too.
+# The width of an instruction is the number of halfwords llvm-objdump prints
+# for its encoding.
+
+set -e -o pipefail
+
+llvm-objdump -d --mcpu=cortex-m4 "$1" | awk '
+/^[0-9a-f]+ <.*>:$/ { fn = $2; sub(/:$/, "", fn); n16 = 0 }
+/^ *[0-9a-f]+:/ {
+  split($0, f, "\t")
+  if (split(f[1], w, " ") == 2) {
+    widenable[++n16] = f[2] !~ /^(it[te]*|bx|mul.*|nop)$/
+    next
+  }
+  mis = w[1] ~ /[26ae]:$/
+  if (mis) {
+    ok = n16 > 0 || lastmis
+    for (i = 1; i <= n16; i++) if (widenable[i] && (n16 - i) % 2 == 0) ok = 0
+    if (ok) tolerated++
+    else { print "misaligned 32-bit instruction in " fn ": " $0; bad++ }
+  }
+  lastmis = mis; n16 = 0
+}
+END {
+  if (tolerated) print tolerated " tolerated"
+  exit bad > 0
+}
+'
