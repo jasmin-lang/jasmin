@@ -3,6 +3,8 @@ From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith Setoid Morphisms.
 Require Export var type values.
 Import Utf8 ssrbool.
+(* [Import ssrbool] hides [total]; the mode of the semantics is the one of [utils]. *)
+Import utils.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
@@ -159,6 +161,9 @@ Qed.
 Lemma compat_val_undef_addr t : compat_val t (undef_addr t).
 Proof. by rewrite /compat_val; case: t => //= w; rewrite orbT /= wsize_le_U8. Qed.
 Hint Resolve compat_val_undef_addr : core.
+
+Lemma compat_val_dfl_val t : compat_val t (dfl_val t).
+Proof. by rewrite /compat_val; case: t. Qed.
 
 Lemma vm_truncate_val_compat v ty : compat_val ty (vm_truncate_val ty v).
 Proof.
@@ -438,7 +443,13 @@ Module Type VM.
 
   Parameter init : forall {wsw:WithSubWord}, t.
 
-  Parameter get : forall {wsw:WithSubWord}, t -> var -> value.
+  (* The entry of the table, as it has been written. *)
+  Parameter get_raw : forall {wsw:WithSubWord}, t -> var -> value.
+
+  Parameter get : forall {wsw:WithSubWord} {sm : SemMode}, t -> var -> value.
+
+  (* Whether the variable holds a defined value, whatever the mode. *)
+  Parameter is_var_init : forall {wsw:WithSubWord}, t -> var -> bool.
 
   Parameter set : forall {wsw:WithSubWord}, t -> var -> value -> t.
 
@@ -447,6 +458,22 @@ Module Type VM.
 
   Parameter getP : forall {wsw:WithSubWord} vm x,
     compat_val (eval_atype (vtype x)) (get vm x).
+
+  (* The same in any mode; [getP] is the instance the development uses. *)
+  Parameter getP_mode : forall {wsw:WithSubWord} {sm : SemMode} vm x,
+    compat_val (eval_atype (vtype x)) (get vm x).
+
+  Parameter get_totalE : forall {wsw:WithSubWord} vm x,
+    is_defined (get vm x) -> get (sm := total) vm x = get vm x.
+
+  (* Every mode reads the same entry: two variable maps that agree on a
+     variable in the [partial] mode agree on it in every mode. *)
+  Parameter get_eq_mode : forall {wsw:WithSubWord} {sm : SemMode} vm1 vm2 x,
+    get (sm := partial) vm1 x = get (sm := partial) vm2 x ->
+    get (sm := sm) vm1 x = get (sm := sm) vm2 x.
+
+  Parameter is_var_initE : forall {wsw:WithSubWord} vm x,
+    is_var_init vm x = is_defined (get vm x).
 
   Parameter setP : forall {wsw:WithSubWord} vm x v y,
     get (set vm x v) y = if x == y then vm_truncate_val (eval_atype (vtype x)) v else get vm y.
@@ -473,7 +500,16 @@ Module Vm : VM.
 
   Definition init := {| prop := init_prop |}.
 
-  Definition get (vm:t) (x:var) := odflt (undef_addr (eval_atype (vtype x))) (Mvar.get vm x).
+  Definition get_raw (vm : t) (x : var) : value :=
+    odflt (undef_addr (eval_atype (vtype x))) (Mvar.get vm x).
+
+  (* In the [total] mode an uninitialised scalar reads as the default value
+     of its type; the [partial] mode, the default instance, is unchanged. *)
+  Definition get {sm : SemMode} (vm : t) (x : var) : value :=
+    let v := get_raw vm x in
+    if is_total && ~~ is_defined v then dfl_val (eval_atype (vtype x)) else v.
+
+  Definition is_var_init (vm : t) (x : var) : bool := is_defined (get_raw vm x).
 
   Lemma set_prop (vm:t) x v : wf (Mvar.set vm x (vm_truncate_val (eval_atype (vtype x)) v)).
   Proof.
@@ -487,12 +523,29 @@ Module Vm : VM.
   Lemma initP x : get init x = undef_addr (eval_atype (vtype x)).
   Proof. done. Qed.
 
+  Lemma getP_mode {sm : SemMode} vm x : compat_val (eval_atype (vtype x)) (get vm x).
+  Proof.
+    rewrite /get; case: ifP => _; first by apply compat_val_dfl_val.
+    rewrite /get_raw; case h : Mvar.get => [ v | ] /=;[apply: prop h | apply compat_val_undef_addr].
+  Qed.
+
   Lemma getP vm x : compat_val (eval_atype (vtype x)) (get vm x).
-  Proof. rewrite /get; case h : Mvar.get => [ v | ] /=;[apply: prop h | apply compat_val_undef_addr]. Qed.
+  Proof. apply getP_mode. Qed.
+
+  Lemma get_totalE vm x : is_defined (get vm x) -> get (sm := total) vm x = get vm x.
+  Proof. by rewrite /get /= => ->. Qed.
+
+  Lemma get_eq_mode {sm : SemMode} vm1 vm2 x :
+    get (sm := partial) vm1 x = get (sm := partial) vm2 x ->
+    get (sm := sm) vm1 x = get (sm := sm) vm2 x.
+  Proof. by rewrite /get /= => ->. Qed.
+
+  Lemma is_var_initE vm x : is_var_init vm x = is_defined (get vm x).
+  Proof. by []. Qed.
 
   Lemma setP vm x v y :
     get (set vm x v) y = if x == y then vm_truncate_val (eval_atype (vtype x)) v else get vm y.
-  Proof. by rewrite /get /set Mvar.setP; case: eqP => [<- | hne]. Qed.
+  Proof. by rewrite /get /= /get_raw /set Mvar.setP; case: eqP => [<- | hne]. Qed.
 
   Lemma setP_eq vm x v : get (set vm x v) x = vm_truncate_val (eval_atype (vtype x)) v.
   Proof. by rewrite setP eqxx. Qed.
@@ -506,7 +559,7 @@ End Vm.
 
 Declare Scope vm_scope.
 Delimit Scope vm_scope with vm.
-Notation "vm .[ x ]" := (@Vm.get _ vm x) : vm_scope.
+Notation "vm .[ x ]" := (@Vm.get _ _ vm x) : vm_scope.
 Notation "vm .[ x <- v ]" := (@Vm.set _ vm x v) : vm_scope.
 Open Scope vm_scope.
 
@@ -535,7 +588,7 @@ Definition set_var wdb vm x v :=
   ok vm.[x <- v].
 
 (* Ensure that the variable is defined *)
-Definition get_var wdb vm x :=
+Definition get_var {sm : SemMode} wdb vm x :=
   let v := vm.[x]%vm in
   Let _ := assert (~~wdb || is_defined v) ErrAddrUndef in
   ok v.
@@ -1174,6 +1227,6 @@ End REL_EQUIV.
 #[export] Existing Instance po_uincl_ex.
 #[export] Existing Instance uincl_ex_trans.
 
-#[ global ]Arguments get_var {wsw} wdb vm%_vm_scope x.
+#[ global ]Arguments get_var {wsw sm} wdb vm%_vm_scope x.
 #[ global ]Arguments set_var {wsw} wdb vm%_vm_scope x v.
 

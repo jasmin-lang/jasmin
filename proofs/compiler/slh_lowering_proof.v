@@ -7,6 +7,7 @@ Require Import
   compiler_util
   slh_lowering.
 Require Import psem_facts.
+Require Import sopn_facts.
 Require
   expr_facts
   constant_prop_proof.
@@ -607,7 +608,8 @@ Section LOWER_SLHO.
     move=> e2 [] /=; t_xrbindP; last by move=> *; subst.
     move=> v1' he1 _ v2' he2 _ <- <- ? [?]; subst v1' v2'.
     move=> t1 t2 hv1 msf hmsf.
-    rewrite /sopn_sem /sopn_sem_ /= /se_protect_ptr_fail_sem; t_xrbindP => /eqP ???;
+    rewrite /sopn_sem /sopn_sem_ /= /semi /= -protect_ptr_fail_eq /se_protect_ptr_fail_sem;
+      t_xrbindP => /eqP ???;
       subst t2 msf res env'.
     case: lvs => //= lv; t_xrbindP => -[] //= s'' hw [?]; subst s''.
     split => //; apply: wf_env_after_assign_vars1; eauto.
@@ -930,7 +932,7 @@ Let Pc c : Prop :=
 Lemma it_lower_opn xs tg op es : Pi_r (Copn xs tg op es).
 Proof using hshparams hp.
 move=> ii env env' i' ii' /=; case: is_OslhP => [slho|?] /=; last first.
-- move=> [<-] [<- <-]; apply wequiv_opn_eq.
+- move=> [<-] [<- <-]; apply wequiv_opn_eq; try exact _.
   + rewrite hp_globs; move=> s _ vs [<- _] ->; by exists vs.
   rewrite hp_globs => vs s _ s' [<- hwf] hwrite.
   exists s' => //; split=> //; exact: wf_env_after_assign_vars hwf hwrite.
@@ -946,7 +948,9 @@ case: is_protect_ptrP hargs hchk hexec => {slho} [[ws sz]|slho] /=; t_xrbindP.
     hsemes (mapM_nth (Pconst 0%Z) (Vint 0) (n := 1) hsemes);
     last by rewrite (size_mapM hsemes).
   move=> [->] ?? /= -> /= ?.
-  rewrite truncate_word_u /= => - _ [->] ?; subst res.
+  rewrite /semi /= /mk_semi /= truncate_word_u /= /check_safe /=.
+  rewrite (safety_cond_holds_is_zero (vs := [:: _; Vword _]) (k := 1) erefl) eqxx /=.
+  rewrite /se_protect_ptr_sem => - _ [->] ?; subst res.
   move: xs hwrite; rewrite /write_lvals; destruct_opn_args=> {}s' hwrite [<-].
   rewrite hwrite; exists s' => //; split=> //.
   exact: wf_env_after_assign_vars1 hwf hwrite.
