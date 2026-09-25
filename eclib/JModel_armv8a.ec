@@ -1111,3 +1111,69 @@ abbrev [-printing] VMLS_4u32 (d n m: W128.t) = VPSUB_4u32 d (VPMULL_4u32 n m).
 abbrev [-printing] VMLS_8u8 (d n m: W64.t) = VPSUB_8u8 d (VPMULL_8u8 n m).
 abbrev [-printing] VMLS_4u16 (d n m: W64.t) = VPSUB_4u16 d (VPMULL_4u16 n m).
 abbrev [-printing] VMLS_2u32 (d n m: W64.t) = VPSUB_2u32 d (VPMULL_2u32 n m).
+
+(* Saturating multiplications, on 128-bit (8u16, 4u32) and 64-bit (4u16,
+   2u32) vectors. They compute on the signed values of the lanes, as
+   integers, and saturate their result to the signed range of the lane
+   (sat_s16, sat_s32); the saturation flag FPSR.QC is not modelled. The
+   arithmetic shift right by the lane size of an integer is its division by
+   2^esize, rounding towards minus infinity. SQRDMLAH and SQRDMLSH
+   accumulate into the destination (first argument). *)
+op sat_s16 (x: int) : W16.t = W16.of_int (max W16.min_sint (min W16.max_sint x)).
+op sat_s32 (x: int) : W32.t = W32.of_int (max W32.min_sint (min W32.max_sint x)).
+
+op sqdmulh_16 (x y: W16.t) : W16.t =
+  sat_s16 ((2 * to_sint x * to_sint y) %/ 2^16).
+op sqdmulh_32 (x y: W32.t) : W32.t =
+  sat_s32 ((2 * to_sint x * to_sint y) %/ 2^32).
+
+op sqrdmulh_16 (x y: W16.t) : W16.t =
+  sat_s16 ((2 * to_sint x * to_sint y + 2^15) %/ 2^16).
+op sqrdmulh_32 (x y: W32.t) : W32.t =
+  sat_s32 ((2 * to_sint x * to_sint y + 2^31) %/ 2^32).
+
+op sqrdmlah_16 (d x y: W16.t) : W16.t =
+  sat_s16 ((to_sint d * 2^16 + 2 * (to_sint x * to_sint y) + 2^15) %/ 2^16).
+op sqrdmlah_32 (d x y: W32.t) : W32.t =
+  sat_s32 ((to_sint d * 2^32 + 2 * (to_sint x * to_sint y) + 2^31) %/ 2^32).
+
+op sqrdmlsh_16 (d x y: W16.t) : W16.t =
+  sat_s16 ((to_sint d * 2^16 - 2 * (to_sint x * to_sint y) + 2^15) %/ 2^16).
+op sqrdmlsh_32 (d x y: W32.t) : W32.t =
+  sat_s32 ((to_sint d * 2^32 - 2 * (to_sint x * to_sint y) + 2^31) %/ 2^32).
+
+op VSQDMULH_8u16 (n m: W128.t) : W128.t = W8u16.map2 sqdmulh_16 n m.
+op VSQDMULH_4u32 (n m: W128.t) : W128.t = W4u32.map2 sqdmulh_32 n m.
+op VSQDMULH_4u16 (n m: W64.t) : W64.t = W4u16.map2 sqdmulh_16 n m.
+op VSQDMULH_2u32 (n m: W64.t) : W64.t = W2u32.map2 sqdmulh_32 n m.
+
+op VSQRDMULH_8u16 (n m: W128.t) : W128.t = W8u16.map2 sqrdmulh_16 n m.
+op VSQRDMULH_4u32 (n m: W128.t) : W128.t = W4u32.map2 sqrdmulh_32 n m.
+op VSQRDMULH_4u16 (n m: W64.t) : W64.t = W4u16.map2 sqrdmulh_16 n m.
+op VSQRDMULH_2u32 (n m: W64.t) : W64.t = W2u32.map2 sqrdmulh_32 n m.
+
+op VSQRDMLAH_8u16 (d n m: W128.t) : W128.t =
+  W8u16.pack8_t (W8u16.Pack.init (fun i =>
+    sqrdmlah_16 (d \bits16 i) (n \bits16 i) (m \bits16 i))).
+op VSQRDMLAH_4u32 (d n m: W128.t) : W128.t =
+  W4u32.pack4_t (W4u32.Pack.init (fun i =>
+    sqrdmlah_32 (d \bits32 i) (n \bits32 i) (m \bits32 i))).
+op VSQRDMLAH_4u16 (d n m: W64.t) : W64.t =
+  W4u16.pack4_t (W4u16.Pack.init (fun i =>
+    sqrdmlah_16 (d \bits16 i) (n \bits16 i) (m \bits16 i))).
+op VSQRDMLAH_2u32 (d n m: W64.t) : W64.t =
+  W2u32.pack2_t (W2u32.Pack.init (fun i =>
+    sqrdmlah_32 (d \bits32 i) (n \bits32 i) (m \bits32 i))).
+
+op VSQRDMLSH_8u16 (d n m: W128.t) : W128.t =
+  W8u16.pack8_t (W8u16.Pack.init (fun i =>
+    sqrdmlsh_16 (d \bits16 i) (n \bits16 i) (m \bits16 i))).
+op VSQRDMLSH_4u32 (d n m: W128.t) : W128.t =
+  W4u32.pack4_t (W4u32.Pack.init (fun i =>
+    sqrdmlsh_32 (d \bits32 i) (n \bits32 i) (m \bits32 i))).
+op VSQRDMLSH_4u16 (d n m: W64.t) : W64.t =
+  W4u16.pack4_t (W4u16.Pack.init (fun i =>
+    sqrdmlsh_16 (d \bits16 i) (n \bits16 i) (m \bits16 i))).
+op VSQRDMLSH_2u32 (d n m: W64.t) : W64.t =
+  W2u32.pack2_t (W2u32.Pack.init (fun i =>
+    sqrdmlsh_32 (d \bits32 i) (n \bits32 i) (m \bits32 i))).

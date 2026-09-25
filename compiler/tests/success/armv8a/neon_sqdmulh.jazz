@@ -1,0 +1,58 @@
+// Saturating multiplication NEON instructions, through their intrinsics,
+// in every arrangement that the architecture allows (16- and 32-bit
+// lanes): SQDMULH, SQRDMULH, and SQRDMLAH and SQRDMLSH, which read their
+// destination, their first argument. SQRDMLAH and SQRDMLSH require the rdm
+// extension, which the assembly file enables.
+
+// 128-bit vectors: .8h, .4s.
+export
+fn neon_sqdmulh(reg u64 p) {
+    reg u128 a b c;
+
+    a = [:u128 p];
+    b = [:u128 p + 16];
+    c = [:u128 p + 32];
+
+    c = #VSQDMULH_8u16(c, a);
+    c = #VSQDMULH_4u32(c, a);
+    c = #VSQRDMULH_8u16(c, b);
+    c = #VSQRDMULH_4u32(c, b);
+    c = #VSQRDMLAH_8u16(c, a, b);
+    c = #VSQRDMLAH_4u32(c, a, b);
+    c = #VSQRDMLSH_8u16(c, a, b);
+    c = #VSQRDMLSH_4u32(c, a, b);
+
+    [:u128 p + 48] = c;
+}
+
+// 64-bit vectors: .4h, .2s. They operate on the low halves of the vector
+// registers and zero the upper halves: the result, cast to u128, is the
+// whole register.
+export
+fn neon_sqdmulh64(reg u64 p) {
+    reg u128 a b c;
+
+    a = [:u128 p];
+    b = [:u128 p + 16];
+    c = [:u128 p + 32];
+
+    c = (128u)#VSQDMULH_4u16(c, a);
+    c = (128u)#VSQDMULH_2u32(c, a);
+    c = (128u)#VSQRDMULH_4u16(c, b);
+    c = (128u)#VSQRDMULH_2u32(c, b);
+    c = (128u)#VSQRDMLAH_4u16(c, a, b);
+    c = (128u)#VSQRDMLAH_2u32(c, a, b);
+    c = (128u)#VSQRDMLSH_4u16(c, a, b);
+    c = (128u)#VSQRDMLSH_2u32(c, a, b);
+
+    [:u128 p + 48] = c;
+}
+
+// On vector arguments, results in V registers: a fixed-point product and
+// a rounding multiply-accumulate whose accumulator is also a source.
+export
+fn neon_sqdmulh_args(reg u128 x y z) -> reg u128, reg u128 {
+    z = #VSQRDMULH_8u16(x, y);
+    x = #VSQRDMLAH_4u32(x, y, x);
+    return x, z;
+}
