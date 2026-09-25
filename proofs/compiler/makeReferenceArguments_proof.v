@@ -16,10 +16,10 @@ Section WITH_PARAMS.
 
 Context
   {wsw : WithSubWord}
-  {asm_op syscall_state : Type}
-  {eparams : EstateParams syscall_state}
+  {asm_op : Type}
+  {eparams : EstateParams}
   {spparams : SemPexprParams}
-  {siparams : SemInstrParams asm_op syscall_state}
+  {siparams : SemInstrParams asm_op}
   (fresh_reg_ptr : instr_info → int → string → atype → Ident.ident).
 
   #[local] Existing Instance indirect_c.
@@ -193,7 +193,6 @@ Context
     have heqr := eq_onS (disjoint_eq_on hrw H3).
     have nwm_pi : ~~ lv_write_mem lv by case: (lv) wflv.
     have heqm  := lv_write_memP nwm_pi H3.
-    have heqs  := lv_write_scsP H3.
     have [{nwm_pi} vm3 hw3 hvm3] := write_lvals_eq_on (@SvP.MP.subset_refl _) hws heqr.
     have hy : sem_pexpr true (p_globs p') (with_vm s1' vm3) (Plvar y) = ok v.
     + rewrite -H; rewrite /=; apply: (get_gvar_eq_on _ _ (@SvP.MP.subset_refl _)).
@@ -242,7 +241,7 @@ Context
     have [vm4 ]:= esem_vm_eq (erefl _) hsem heqv.
     rewrite with_vm_idem => {}hsem heqvm4.
     exists (with_vm s1' vm3), vm4; split.
-    + by have -> // : s1 = (with_vm s3 (evm s1)); rewrite /with_vm -heqm -heqs; case: (s1).
+    + by have -> // : s1 = (with_vm s3 (evm s1)); rewrite /with_vm -heqm; case: (s1).
     + by rewrite hsemI.
     by move=> x; rewrite (heqvm x) // (heqvm4 x).
   Qed.
@@ -377,7 +376,7 @@ Context
   Context
     {E E0 : Type -> Type}
     {wE : with_Error E E0}
-    {rndE : with_RndEvent syscall_state E0}
+    {rndE : with_RndEvent E0}
     {rE : EventRels E0}
     {rndE_refl : RndRels_refl rE}
   .
@@ -425,12 +424,12 @@ Context
       rewrite /finalize_funcall => s1 s2 o1 heqon.
       t_xrbindP => vres.
       rewrite -(sem_pexprs_get_var _ [::]) => hres.
-      case: heqon => hscs hmem hvm.
+      case: heqon => hmem hvm.
       rewrite (eq_on_sem_pexprs (~~ direct_call) [::] hmem (eq_onI _ hvm)) in hres.
       2: by rewrite /X /= /Plvar; clear; SvD.fsetdec.
       rewrite sem_pexprs_get_var in hres.
       rewrite hres /= => vres' hvres <-.
-      rewrite hvres /= -hscs -hmem.
+      rewrite hvres /= -hmem.
       eexists; split; eauto.
       exists fd => //. exists vres.
       have -> // : [seq i.2 | i <- map2 mk_info (f_res fd) (f_tyout fd)] = f_tyout fd.
@@ -458,7 +457,7 @@ Context
     + move=> xs sc es ii X c' /=.
       t_xrbindP=> -[pl es'] plE; t_xrbindP=> -[xs' el] elE [<-].
       rewrite read_Ii read_i_syscall write_Ii write_i_syscall => hsub.
-      move=> s1 [_ _ vm1] [/= <- <- hvm1].
+      move=> s1 [_ vm1] [/= <- hvm1].
       rewrite /= isem_cmd_cat /= /sem_syscall !bind_bind.
       apply: lxrutt_bind_iresult => ves hes.
       have [// | | vmx [hpl hes' vm1_vmx]] := make_prologueP plE _ _ hes hvm1.
@@ -470,7 +469,7 @@ Context
         - by move=> T e _ _; apply: RPre_eq_refl.
         by move=> T e t1 t2 _ _ h; apply/RPost_eqI/h.
       * exact: exec_syscall_typed_res.
-      move=> [[scs' m'] vs] _ htvs <-; rewrite !bind_ret_l /upd_estate /=.
+      move=> [m' vs] _ htvs <-; rewrite !bind_ret_l /upd_estate /=.
       apply: lxrutt_bind_iresult => s1' hw.
       have [|||] := make_epilogueP (vres := vs) (vm1 := vmx) elE _ hw.
       * by clear -hsub; SvD.fsetdec.

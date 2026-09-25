@@ -8,10 +8,10 @@ Section WITH_PARAMS.
 Context
   {wsw : WithSubWord}
   {dc:DirectCall}
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}.
+  {sip : SemInstrParams asm_op}.
 
 (* -------------------------------------------------------------------- *)
 
@@ -202,7 +202,7 @@ Section PROOF.
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
   {rE : EventRels E0}
-  {rndE : with_RndEvent syscall_state E0}
+  {rndE : with_RndEvent E0}
   {rndE_refl : RndRels_refl rE}
 .
 
@@ -291,7 +291,7 @@ Context
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
   {rE : EventRels E0}
-  {rndE : with_RndEvent syscall_state E0}
+  {rndE : with_RndEvent E0}
   {rndE_refl : RndRels_refl rE}
 .
 

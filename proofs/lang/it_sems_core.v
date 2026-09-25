@@ -20,18 +20,17 @@ Context
   {asm_op: Type}
   {wsw: WithSubWord}
   {dc: DirectCall}
-  {syscall_state : Type}
   {E0 E : Type -> Type}
   {wE : with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}
-  {ep : EstateParams syscall_state}
+  {rE : with_RndEvent E0}
+  {ep : EstateParams}
   {spp : SemPexprParams}
   {wa: WithAssert}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {pT : progT}
   {scP : semCallParams}.
 
-Record fstate := { fscs : syscall_state_t; fmem : mem; fvals : values }.
+Record fstate := { fmem : mem; fvals : values }.
 
 (* Recursion events (curried version of Call in ITree) *)
 Variant recCall : Type -> Type :=
@@ -69,15 +68,15 @@ Definition sem_assgn  (x : lval) (tg : assgn_tag) (ty : atype) (e : pexpr)
   write_lval true (p_globs p) x v' s.
 
 Definition fexec_syscall (o : syscall_t) (fs : fstate) : itree E fstate :=
-  '(scs, m, vs) <- exec_syscall fs.(fscs) fs.(fmem) o fs.(fvals);;
-  Ret {| fscs := scs; fmem := m; fvals := vs; |}.
+  '(m, vs) <- exec_syscall fs.(fmem) o fs.(fvals);;
+  Ret {| fmem := m; fvals := vs; |}.
 
 Definition mk_fstate (vs:values) (s:estate) :=
-  {| fscs := escs s; fmem:= emem s; fvals := vs |}.
+  {| fmem:= emem s; fvals := vs |}.
 
 Definition upd_estate wdb (gd : glob_decls) (xs:lvals) (fs : fstate)
     (s:estate) :=
-  write_lvals wdb gd (with_scs (with_mem s fs.(fmem)) fs.(fscs)) xs fs.(fvals).
+  write_lvals wdb gd (with_mem s fs.(fmem)) xs fs.(fvals).
 
 Definition sem_syscall (xs : lvals) (o : syscall_t) (es : pexprs)
     (s : estate) : itree E estate :=
@@ -113,7 +112,7 @@ Definition sem_pre {dc: DirectCall} (P : prog) (fn:funname) (fs: fstate) :=
     match f.(f_contract) with
     | Some ci =>
       Let vargs := mapM2 ErrType dc_truncate_val (map eval_atype f.(f_tyin)) fs.(fvals) in
-      Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate fs.(fscs) fs.(fmem) Vm.init) in
+      Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate fs.(fmem) Vm.init) in
       Let _ := mapM (sem_assert (p_globs P) s) ci.(f_pre) in
       ok tt
     | None => ok tt
@@ -129,7 +128,7 @@ Definition sem_post {dc: DirectCall} (P : prog) (fn:funname) (vargs' : values) (
     match f.(f_contract) with
     | Some ci =>
       Let vargs := mapM2 ErrType dc_truncate_val (map eval_atype f.(f_tyin)) vargs' in
-      Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate fs.(fscs) fs.(fmem) Vm.init) in
+      Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate fs.(fmem) Vm.init) in
       Let s :=  write_vars (~~direct_call) ci.(f_ires) fs.(fvals) s in
       Let _ := mapM (sem_assert (p_globs P) s) ci.(f_post) in
       ok tt
@@ -155,14 +154,13 @@ Context
   {asm_op : Type}
   {wsw : WithSubWord}
   {dc : DirectCall}
-  {syscall_state : Type}
   {E0 E : Type -> Type}
   {wE : with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}
-  {ep : EstateParams syscall_state}
+  {rE : with_RndEvent E0}
+  {ep : EstateParams}
   {spp : SemPexprParams}
   {wa: WithAssert}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {pT : progT}
   {scP : semCallParams}.
 
@@ -212,14 +210,13 @@ Section WSW.
 Context
   {asm_op : Type}
   {wsw : WithSubWord}
-  {syscall_state : Type}
-  {ep : EstateParams syscall_state}
-  {sip : SemInstrParams asm_op syscall_state}
+  {ep : EstateParams}
+  {sip : SemInstrParams asm_op}
   {pT : progT}
 .
 
 Definition estate0 (fs : fstate) :=
-  Estate fs.(fscs) fs.(fmem) Vm.init.
+  Estate fs.(fmem) Vm.init.
 
 Class sem_Fun (E : Type -> Type) :=
   { sem_fun : prog -> extra_val_t -> instr_info -> funname -> fstate -> itree E fstate }.
@@ -236,14 +233,13 @@ Context
   {asm_op : Type}
   {wsw : WithSubWord}
   {dc : DirectCall}
-  {syscall_state : Type}
   {E0 E : Type -> Type}
   {wE : with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}
-  {ep : EstateParams syscall_state}
+  {rE : with_RndEvent E0}
+  {ep : EstateParams}
   {spp : SemPexprParams}
   {wa: WithAssert}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {pT : progT}
   {scP : semCallParams}.
 
@@ -319,9 +315,8 @@ Definition initialize_funcall (p : prog) (ev : extra_val_t) (fd : fundef) (fs : 
 Definition finalize_funcall (fd : fundef) (s:estate) : exec fstate :=
   Let vres := get_var_is (~~ direct_call) s.(evm) fd.(f_res) in
   Let vres' := mapM2 ErrType dc_truncate_val (map eval_atype fd.(f_tyout)) vres in
-  let scs := s.(escs) in
   let m := finalize fd.(f_extra) s.(emem) in
-  ok {| fscs := scs; fmem := m; fvals := vres' |}.
+  ok {| fmem := m; fvals := vres' |}.
 
 Definition ifinalize_funcall (fd : fundef) (s:estate) : itree E fstate :=
   iresult (finalize_funcall fd s).
@@ -480,14 +475,13 @@ Context
   {asm_op : Type}
   {wsw : WithSubWord}
   {dc : DirectCall}
-  {syscall_state : Type}
   {E0 E : Type -> Type}
   {wE : with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}
-  {ep : EstateParams syscall_state}
+  {rE : with_RndEvent E0}
+  {ep : EstateParams}
   {spp : SemPexprParams}
   {wa: WithAssert}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {pT : progT}
   {scP : semCallParams}.
 
@@ -556,21 +550,20 @@ Context
   {asm_op : Type}
   {wsw : WithSubWord}
   {dc : DirectCall}
-  {syscall_state : Type}
   {E0 E : Type -> Type}
   {wE : with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}
-  {ep : EstateParams syscall_state}
+  {rE : with_RndEvent E0}
+  {ep : EstateParams}
   {spp : SemPexprParams}
   {wa: WithAssert}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {pT : progT}
   {scP : semCallParams}.
 
 (* interpreter of error events, giving us the fully interpreted
    semantics of functions *)
 Definition err_sem_fun (p : prog) (ev : extra_val_t) (fn : funname)
-    (fs : fstate) : execT (itree (RndEvent syscall_state)) fstate :=
+    (fs : fstate) : execT (itree RndEvent) fstate :=
   interp_Err (isem_fun p ev fn fs).
 
 (*** Core lemmas about the definition ********************************)
@@ -623,7 +616,7 @@ Proof.
     move=> bs; rewrite interp_bind; apply: eqit_bind; last first.
     * move=> fs; rewrite interp_iresult; reflexivity.
     rewrite /fexec_syscall interp_bind; apply: eqit_bind; last first.
-    * move=> [[scs m] vs]; rewrite interp_ret; reflexivity.
+    * move=> [m vs]; rewrite interp_ret; reflexivity.
     rewrite /exec_syscall interp_translate translate_to_interp /=.
     apply: eutt_interp; last reflexivity.
     move=> T [e|e] /=; reflexivity.
@@ -766,7 +759,7 @@ Proof.
       move=> vs; rewrite interp_bind; apply: eutt_eq_bind'; last first.
       + by move=> ?; apply: interp_cond_iresult.
       rewrite /fexec_syscall interp_bind; apply: eutt_eq_bind'; last first.
-      + move=> [[scs m] vs']; rewrite interp_ret; reflexivity.
+      + move=> [m vs']; rewrite interp_ret; reflexivity.
       rewrite /exec_syscall interp_translate translate_to_interp.
       apply: eutt_interp; last reflexivity.
       move=> T [e|e] /=; reflexivity.
@@ -817,7 +810,7 @@ Lemma translate_inr_fexec_syscall E' o fs :
 Proof.
 rewrite /fexec_syscall translate_bind.
 apply: eutt_eq_bind'; last first.
-- by move=> [[??] ?]; rewrite translate_ret; reflexivity.
+- by move=> [??]; rewrite translate_ret; reflexivity.
 rewrite /exec_syscall -translate_cmpE.
 apply: eutt_translate; first by move=> ? [] ?; reflexivity.
 reflexivity.
@@ -829,7 +822,7 @@ Lemma fexec_syscallS o fs :
     (fexec_syscall o fs).
 Proof.
 apply: lutt_bind; first exact: exec_syscallS.
-by move=> [[scs m] vs] h; apply/lutt_Ret'/h.
+by move=> [m vs] h; apply/lutt_Ret'/h.
 Qed.
 
 End WSW.

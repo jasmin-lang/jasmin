@@ -52,10 +52,10 @@ The semantic predicates are indexed by a set of variables which is *precisely* t
 Section SEM.
 
 Context
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {ovm_i : one_varmap_info}.
 
 Section SEM_C.
@@ -118,7 +118,7 @@ Section SEM_I.
 Context
   {E E0}
   {wE : with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}
+  {rE : with_RndEvent E0}
   {sem_F : sem_FunK E}.
 
 Let vrsp (p:sprog) : var := vid p.(p_extra).(sp_rsp).
@@ -150,7 +150,7 @@ Definition initialize_funcall (p:sprog) f (fs:estate) :=
       f.(f_extra).(sf_stk_ioff)
       f.(f_extra).(sf_stk_extra_sz)) in
  let vm1 := ra_undef_vm f fs.(evm) var_tmp in
- ok {| escs := fs.(escs); emem := m1; evm := set_RSP p m1 vm1; |}.
+ ok {| emem := m1; evm := set_RSP p m1 vm1; |}.
 
 Definition is_disjoint_magic (p:sprog) fn :=
   match get_fundef (p_funcs p) fn with
@@ -229,7 +229,7 @@ Definition finalize_funcall p f ks2 :=
                     & valid_RSP p s2'.(emem) s2'.(evm)] ErrSemUndef in
   let m2 := free_stack s2'.(emem) in
   let vm2 := kill_vars (ra_vm_return f.(f_extra)) s2'.(evm) in
-  let s2 := {| escs := s2'.(escs); emem := m2 ; evm := set_RSP p m2 vm2 |} in
+  let s2 := {| emem := m2 ; evm := set_RSP p m2 vm2 |} in
   let k' := Sv.union (ra_undef f var_tmp) (ra_vm_return f.(f_extra)) in
   ok (Sv.union k k', s2).
 
@@ -251,7 +251,7 @@ Section REC.
 Context
   {E E0}
   {wE : with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}.
+  {rE : with_RndEvent E0}.
 
 Definition isem_ir_rec (p : sprog) (i : instr_r) (s : estate)
   : itree (recCallK +' E) (Sv.t * estate) :=
@@ -323,7 +323,7 @@ Qed.
     (fexec_syscall (scP := sCP_stack) o fs).
 Proof.
 rewrite /fexec_syscall interp_bind; apply: eqit_bind; last first.
-- move=> [[??] ?]; rewrite interp_ret; reflexivity.
+- move=> [??]; rewrite interp_ret; reflexivity.
 rewrite interp_preserves_exec_syscall; first reflexivity.
 - by apply: preservesE_sub; first exact: preservesE_case_inr.
 by apply: preservesE_sub; first exact: preservesE_case_inr.

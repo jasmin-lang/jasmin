@@ -56,10 +56,10 @@ Qed.
 Section SEM.
 
 Context
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {ovm_i : one_varmap_info}
   (p : sprog)
   (var_tmp : Sv.t).
@@ -184,28 +184,28 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
       f.(f_extra).(sf_stk_extra_sz)
       = ok m1 →
     let vm1 := ra_undef_vm f s1.(evm) var_tmp in
-    sem k {| escs := s1.(escs); emem := m1; evm := set_RSP m1 vm1; |} f.(f_body) s2' →
+    sem k {| emem := m1; evm := set_RSP m1 vm1; |} f.(f_body) s2' →
     valid_RSP s2'.(emem) s2'.(evm) →
     let m2 := free_stack s2'.(emem) in
     let vm2 := kill_vars (ra_vm_return f.(f_extra)) s2'.(evm) in
-    s2 = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 vm2 |} →
+    s2 = {| emem := m2 ; evm := set_RSP m2 vm2 |} →
     let k' := Sv.union (ra_undef f var_tmp) (ra_vm_return f.(f_extra)) in
     sem_call ii (Sv.union k k') s1 fn s2.
 
-Variant sem_export_call_conclusion (scs: syscall_state_t) (m: mem) (fd: sfundef) (args: values) (vm: Vm.t) (scs': syscall_state_t) (m': mem) (res: values) : Prop :=
+Variant sem_export_call_conclusion (m: mem) (fd: sfundef) (args: values) (vm: Vm.t) (m': mem) (res: values) : Prop :=
   | SemExportCallConclusion (m1: mem) (k: Sv.t) (m2: mem) (vm2: Vm.t) (res':values) of
     saved_stack_valid fd k &
     Sv.Subset (Sv.inter callee_saved (Sv.union k (ra_undef fd var_tmp))) (sv_of_list fst fd.(f_extra).(sf_to_save)) &
     alloc_stack m fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_ioff) fd.(f_extra).(sf_stk_extra_sz) = ok m1 &
 (*    all2 check_ty_val fd.(f_tyin) args & *)
-    sem k {| escs := scs; emem := m1 ; evm := set_RSP m1 (ra_undef_vm_none fd.(f_extra).(sf_save_stack) var_tmp vm) |} fd.(f_body) {| escs:= scs'; emem := m2 ; evm := vm2 |} &
+    sem k {| emem := m1 ; evm := set_RSP m1 (ra_undef_vm_none fd.(f_extra).(sf_save_stack) var_tmp vm) |} fd.(f_body) {| emem := m2 ; evm := vm2 |} &
     get_var_is false vm2 fd.(f_res) = ok res' &
     values_uincl res res' &
  (*   all2 check_ty_val fd.(f_tyout) res' & *)
     valid_RSP m2 vm2 &
     m' = free_stack m2.
 
-Variant sem_export_call (gd: @extra_val_t progStack)  (scs: syscall_state_t) (m: mem) (fn: funname) (args: values)  (scs': syscall_state_t) (m': mem) (res: values) : Prop :=
+Variant sem_export_call (gd: @extra_val_t progStack) (m: mem) (fn: funname) (args: values) (m': mem) (res: values) : Prop :=
   | SemExportCall (fd: sfundef) of
                   get_fundef p.(p_funcs) fn = Some fd &
       is_RAnone fd.(f_extra).(sf_return_address) &
@@ -216,7 +216,7 @@ Variant sem_export_call (gd: @extra_val_t progStack)  (scs: syscall_state_t) (m:
       values_uincl args args' →
       valid_RSP m vm →
       vm.[vgd] = Vword gd →
-      sem_export_call_conclusion scs m fd args' vm scs' m' res.
+      sem_export_call_conclusion m fd args' vm m' res.
 
 (*---------------------------------------------------*)
 Variant ex3_3 (A B C : Type) (P1 P2 P3: A → B → C → Prop) : Prop :=
@@ -285,12 +285,12 @@ Lemma sem_callE ii k s fn s' :
     (λ f m1 _ _, alloc_stack s.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_ioff) f.(f_extra).(sf_stk_extra_sz) = ok m1)
     (λ f m1 s2' k',
      let vm := ra_undef_vm f s.(evm) var_tmp in
-     sem k' {| escs := s.(escs); emem := m1 ; evm := set_RSP m1 vm; |} f.(f_body) s2')
+     sem k' {| emem := m1 ; evm := set_RSP m1 vm; |} f.(f_body) s2')
     (λ _ _ s2' _, valid_RSP s2'.(emem) s2'.(evm))
     (λ f _ s2' _,
       let vm2 := kill_vars (ra_vm_return f.(f_extra)) s2'.(evm) in
       let m2 := free_stack s2'.(emem) in
-      s' = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 vm2 |})
+      s' = {| emem := m2 ; evm := set_RSP m2 vm2 |})
     (λ f _ _ k',
      k = Sv.union k' (Sv.union (ra_undef f var_tmp) (ra_vm_return f.(f_extra)))).
 Proof.
@@ -392,12 +392,12 @@ Section SEM_IND.
       valid_RSP s1.(emem) s1.(evm) →
       alloc_stack s1.(emem) fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_ioff) fd.(f_extra).(sf_stk_extra_sz) = ok m1 →
       let vm1 := ra_undef_vm fd s1.(evm) var_tmp in
-      sem k {| escs := s1.(escs); emem := m1; evm := set_RSP m1 vm1; |} fd.(f_body) s2' →
-      Pc  k {| escs := s1.(escs); emem := m1; evm := set_RSP m1 vm1; |} fd.(f_body) s2' →
+      sem k {| emem := m1; evm := set_RSP m1 vm1; |} fd.(f_body) s2' →
+      Pc  k {| emem := m1; evm := set_RSP m1 vm1; |} fd.(f_body) s2' →
       valid_RSP s2'.(emem) s2'.(evm) →
       let vm2 := kill_vars (ra_vm_return fd.(f_extra)) s2'.(evm) in
       let m2 := free_stack s2'.(emem) in
-      s2 = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 vm2 |} →
+      s2 = {| emem := m2 ; evm := set_RSP m2 vm2 |} →
       let k' := Sv.union (ra_undef fd var_tmp) (ra_vm_return fd.(f_extra)) in
       Pfun ii (Sv.union k k') s1 fn s2.
 

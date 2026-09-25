@@ -12,8 +12,8 @@ Section ESTATE_EQ_EXCEPT.
 
 Context
   {wsw : WithSubWord}
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}.
 
 (* State equality up to a set of variables. *)
@@ -34,13 +34,13 @@ Proof. done. Qed.
 Lemma eeq_excS xs s0 s1 :
   st_eq_ex xs s0 s1
   -> st_eq_ex xs s1 s0.
-Proof. by rewrite /st_eq_ex /st_rel => -[-> -> ->]. Qed.
+Proof. by rewrite /st_eq_ex /st_rel => -[-> ->]. Qed.
 
 Lemma eeq_excT xs s0 s1 s2 :
   st_eq_ex xs s0 s1
   -> st_eq_ex xs s1 s2
   -> st_eq_ex xs s0 s2.
-Proof. by rewrite /st_eq_ex /st_rel => -[-> -> ->]. Qed.
+Proof. by rewrite /st_eq_ex /st_rel => -[-> ->]. Qed.
 
 Lemma eeq_exc_disjoint xs ys s0 s1 :
   disjoint xs ys
@@ -48,7 +48,7 @@ Lemma eeq_exc_disjoint xs ys s0 s1 :
   -> st_eq_on xs s0 s1.
 Proof.
   rewrite /st_eq_ex /st_eq_on /st_rel.
-  move=> /Sv.is_empty_spec hdisj [-> -> hvm].
+  move=> /Sv.is_empty_spec hdisj [-> hvm].
   split=> // x hxxs.
   apply: hvm.
   clear -hdisj hxxs; SvD.fsetdec.
@@ -61,10 +61,10 @@ Lemma eeq_exc_sem_pexprs wdb gd xs es v s0 s1 :
   -> sem_pexprs wdb gd s1 es = ok v.
 Proof.
   move=> hdisj heq.
-  have [hscs hmem hvm] := eeq_exc_disjoint hdisj heq.
+  have [hmem hvm] := eeq_exc_disjoint hdisj heq.
   rewrite (read_es_eq_on wdb gd hvm).
   rewrite /with_vm.
-  rewrite hscs hmem.
+  rewrite hmem.
   by rewrite -(surj_estate s1).
 Qed.
 
@@ -95,9 +95,9 @@ Lemma eeq_exc_write_lvals wdb gd xs s0 s1 s0' ls vs :
        write_lvals wdb gd s0' ls vs = ok s1' & st_eq_ex xs s1 s1'.
 Proof.
   move=> hdisj.
-  move: s0 s0' => [scs0 mem0 vm0] [scs0' mem0' vm0'].
-  move=> [/= hscs hmem hvm] hwrite.
-  subst scs0 mem0.
+  move: s0 s0' => [mem0 vm0] [mem0' vm0'].
+  move=> [/= hmem hvm] hwrite.
+  subst mem0.
 
   have hsub : Sv.Subset (read_rvs ls) (Sv.diff (read_rvs ls) xs).
   - rewrite /vars_lvals in hdisj.
@@ -151,7 +151,7 @@ Lemma eeq_exc_get_gvar wdb gd s0 s1 (x : gvar) vs :
   -> st_eq_ex vs s0 s1
   -> get_gvar wdb gd (evm s0) x = get_gvar wdb gd (evm s1) x.
 Proof.
-  move=> /Sv_memP hx [hscs hmem hvm].
+  move=> /Sv_memP hx [hmem hvm].
   rewrite /get_gvar /=.
   case: is_lvar; last done.
   rewrite /get_var /=.
@@ -193,7 +193,7 @@ Definition checker_st_eq_ex : Checker_e st_eq_ex :=
 Section CALL.
 Context
   {dc:DirectCall}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {pT : progT}
   {scP : semCallParams}.
 
@@ -206,8 +206,8 @@ Lemma st_eq_ex_finalize fd fd' X:
 Proof using spp.
   move=> ??? hdisj.
   apply wrequiv_weaken with (st_eq_on (vars_l (f_res fd))) eq => //.
-  + move=> s t [h1 h2 h3]; split => //.
-    by apply: (eq_ex_disjoint_eq_on h3); apply disjoint_sym.
+  + move=> s t [h1 h2]; split => //.
+    by apply: (eq_ex_disjoint_eq_on h2); apply disjoint_sym.
   by apply st_eq_on_finalize.
 Qed.
 

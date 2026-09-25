@@ -15,10 +15,10 @@ Section WITH_PARAMS.
 Context
   {wsw : WithSubWord}
   {dc:DirectCall}
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {pT : progT}
   {sCP : semCallParams}
   {LC : LoopCounter}
@@ -437,12 +437,6 @@ Section PROOF.
     by move=> ->; left; exists x0.
   Qed.
 
-  Lemma valid_pi_with_scs s pi scs : valid_pi gd s pi -> valid_pi gd (with_scs s scs) pi.
-  Proof.
-    move=> [] h; constructor => m c h1.
-    by have := h _ _ h1; rewrite -sem_pexpr_with_scs.
-  Qed.
-
   Lemma valid_pi_incl s pi1 pi2 : incl pi1 pi2 -> valid_pi gd s pi2 -> valid_pi gd s pi1.
   Proof.
     move=> hincl hv; constructor => x c hg.
@@ -542,7 +536,7 @@ Section PROOF.
   Context
     {E E0 : Type -> Type}
     {wE : with_Error E E0}
-    {rndE : with_RndEvent syscall_state E0}
+    {rndE : with_RndEvent E0}
     {rE : EventRels E0}
     {rndE_refl : RndRels_refl rE}
   .
@@ -570,7 +564,7 @@ Section PROOF.
 
   Lemma st_piP d s t : st_pi d s t ↔ [/\ t = with_vm s (evm t), evm s <=1 evm t & valid_pi gd s d].
   Proof.
-    by case: s t => scs1 mem1 vm1 [scs2 mem2 vm2] /=; split => -[[/= -> ->]].
+    by case: s t => mem1 vm1 [mem2 vm2] /=; split=> -[[/= <- hu] hval]; split=>//.
   Qed.
 
   Lemma pi_esPe d wdb es :
@@ -653,9 +647,8 @@ Section PROOF.
     + move=> xs o es ii d di /=.
       case heq: pi_lvs => [d' xs'] [<-] /=.
       apply wequiv_syscall_rel_uincl_core_R with checker_pi d (remove_m d) => //.
-      + by move=> > /st_piP [-> /=].
-      + move=> > [] [h1 h2 h3] hval; split => //.
-        by apply/valid_pi_with_scs/valid_pi_remove_m.
+      + by move=> > [[]].
+      + by move=> > [[??] ?]; split=> //; apply/valid_pi_remove_m.
       + by rewrite /check_lvals /= /check_lvals_pi heq.
       by apply fs_uincl_syscall.
     + case => msg e ii d _ /ok_inj<-.
@@ -678,9 +671,8 @@ Section PROOF.
     move=> xs fn es ii d di /=.
     case heq: pi_lvs => [d' xs'] [<-] /=.
     apply wequiv_call_rel_uincl_R with checker_pi d (remove_m d) => //.
-    + by move=> > /st_piP [-> /=].
-    + move=> > [] [h1 h2 h3] hval; split => //.
-      by apply/valid_pi_with_scs/valid_pi_remove_m.
+    + by move=> > [[]].
+    + by move=> > [[??] ?]; split=> //; apply/valid_pi_remove_m.
     + by rewrite /check_lvals /= /check_lvals_pi heq.
     by move=> ???; apply: wequiv_fun_rec.
   Qed.

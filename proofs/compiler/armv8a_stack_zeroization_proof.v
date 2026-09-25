@@ -32,7 +32,7 @@ Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then
 
 Section STACK_ZEROIZATION.
 
-Context {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
+Context {atoI : arch_toIdent}.
 Context {call_conv : calling_convention}.
 
 Section RSP.
@@ -134,7 +134,6 @@ Proof using halign le_ws_ws_align ptr stk_max top ws ws_align.
 Qed.
 
 Record state_rel_unrolled vars s1 s2 n (p:word Uptr) := {
-  sr_scs : s1.(escs) = s2.(escs);
   sr_mem : mem_equiv s1.(emem) s2.(emem);
   sr_mem_valid : forall p, between top stk_max p U8 -> validw s2.(emem) Aligned p U8;
   sr_disjoint :
@@ -161,7 +160,7 @@ Lemma state_rel_unrolledI vars1 vars2 s1 s2 n p :
   state_rel_unrolled vars2 s1 s2 n p.
 Proof.
   move=> hsubset hsr.
-  case: hsr => hscs hmem hvalid hdisj hzero hvm hsaved hrsp hvzero haligned hbound.
+  case: hsr => hmem hvalid hdisj hzero hvm hsaved hrsp hvzero haligned hbound.
   split=> //.
   apply: eq_exI hvm.
   by apply (SvD.F.add_s_m erefl hsubset).
@@ -193,7 +192,7 @@ Lemma sz_initP (s1 : estate) :
   exists s2,
     lsem_n lp (endpc lp fn) (of_estate s1 fn (size pre)) (of_estate s2 fn (size pre + size (sz_init rspi ws_align stk_max))) /\
     state_rel_loop sz_init_vars s1 s2 stk_max top.
-Proof using atoI call_conv fn halign hbody leflags lp lt_0_stk_max pos pre ptr rsp_nin rspi rspn sc_sem stk_max syscall_state top vflags voff vsaved_sp vzero vzf ws ws_align.
+Proof using atoI call_conv fn halign hbody leflags lp lt_0_stk_max pos pre ptr rsp_nin rspi rspn stk_max top vflags voff vsaved_sp vzero vzf ws ws_align.
   move=> hvalid hrsp.
   move: hbody => /=.
   set isave_sp := li_of_fopn_args _ (fopn_mov _ _).
@@ -204,7 +203,7 @@ Proof using atoI call_conv fn halign hbody leflags lp lt_0_stk_max pos pre ptr r
   set izero := li_of_fopn_args _ (fopn_movi _ _).
   move=> hbody'.
 
-  eexists (Estate _ _ _); split=> /=.
+  eexists (Estate _ _); split=> /=.
   apply: (lsem_n_eval_lin (n:=0) hbody') => //=.
   + by rewrite addn0.
   + apply: ARMv8AFopnP.mov_eval_instr.
@@ -289,7 +288,7 @@ Lemma loop_bodyP vars s1 s2 n :
                 (of_estate s3 fn (size pre + 3)),
         s3.(evm).[vzf] = Vbool (ZF_of_word (wrepr U64 n - wrepr U64 (wsize_size ws)))
       & state_rel_loop vars s1 s3 (n - wsize_size ws) top].
-Proof using atoI call_conv fn halign hbody hsmall hstack lbl le_ws_ws_align leflags lp lt_0_stk_max pos pre ptr rsp_nin rspi rspn sc_sem stk_max syscall_state top vflags voff vsaved_sp vzero vzf ws ws_align.
+Proof using atoI call_conv fn halign hbody hsmall hstack lbl le_ws_ws_align leflags lp lt_0_stk_max pos pre ptr rsp_nin rspi rspn stk_max top vflags voff vsaved_sp vzero vzf ws ws_align.
   move=> hsubset hsr hlt.
   have hn: (0 < wsize_size ws <= n)%Z.
   + split=> //.
@@ -313,7 +312,7 @@ Proof using atoI call_conv fn halign hbody hsmall hstack lbl le_ws_ws_align lefl
     have ? := [elaborate (wunsigned_range (align_word ws_align ptr))].
     by rewrite [_ (_ + _ + _)%R]wunsigned_add; last rewrite wunsigned_sub; lia.
   move=> /(writeV 0) [m' hm'].
-  eexists (Estate _ _ _); split=> /=.
+  eexists (Estate _ _); split=> /=.
   + apply: (lsem_n_eval_lin (n:=1) hbody) => //=.
     + rewrite /eval_instr /=
         /get_var hsr.(srl_off) /= /exec_sopn /= !truncate_word_u /= add_wordE wsub_wnot1
@@ -334,7 +333,7 @@ Proof using atoI call_conv fn halign hbody hsmall hstack lbl le_ws_ws_align lefl
   + do 3 (rewrite Vm.setP_neq;
       last by [|apply /eqP => /(@inj_to_var _ _ _ _ _ _)]).
     by rewrite Vm.setP_eq.
-  case: hsr => hoff [hscs hmem hvalid hdisj hzero hvm hsaved hrsp hvzero haligned hbound].
+  case: hsr => hoff [hmem hvalid hdisj hzero hvm hsaved hrsp hvzero haligned hbound].
   split=> /=.
   + rewrite Vm.setP_eq /=.
     by rewrite wrepr_sub.
@@ -392,7 +391,7 @@ Lemma loopP vars s1 s2 n :
     [/\ lsem_n lp (endpc lp fn) (of_estate s2 fn (size pre + 1))
                 (of_estate s3 fn (size pre + 4))
       & state_rel_loop vars s1 s3 0 top].
-Proof using atoI call_conv fn halign hbody hlabel hsmall hstack lbl le_ws_ws_align leflags lp lt_0_stk_max pos pre ptr rsp_nin rspi rspn sc_sem stk_max syscall_state top vflags voff vsaved_sp vzero vzf ws ws_align.
+Proof using atoI call_conv fn halign hbody hlabel hsmall hstack lbl le_ws_ws_align leflags lp lt_0_stk_max pos pre ptr rsp_nin rspi rspn stk_max top vflags voff vsaved_sp vzero vzf ws ws_align.
   move=> hsubset hsr hlt.
   have [k hn]: (exists k, n = Z.of_nat k * wsize_size ws)%Z.
   + have := hsr.(sr_aligned).
@@ -448,7 +447,7 @@ Lemma sz_loopP vars s1 s2 n :
     [/\ lsem_n lp (endpc lp fn) (of_estate s2 fn (size pre))
                 (of_estate s3 fn (size pre + size (sz_loop rspi lbl ws)))
       & state_rel_loop vars s1 s3 0 top].
-Proof using atoI call_conv fn halign hbody hlabel hsmall hstack lbl le_ws_ws_align leflags lp lt_0_stk_max pos pre ptr rsp_nin rspi rspn sc_sem stk_max syscall_state top vflags voff vsaved_sp vzero vzf ws ws_align.
+Proof using atoI call_conv fn halign hbody hlabel hsmall hstack lbl le_ws_ws_align leflags lp lt_0_stk_max pos pre ptr rsp_nin rspi rspn stk_max top vflags voff vsaved_sp vzero vzf ws ws_align.
   move=> hsubset hsr hlt.
   have [s3 [hsem3 hsr3]] := loopP hsubset hsr hlt.
   exists s3; split=> //.
@@ -477,13 +476,13 @@ Lemma restore_spP vars (s1 s2 : estate) :
       (of_estate s2 fn (size pre))
       (of_estate s3 fn (size pre + size (restore_sp rspi))) /\
     state_rel_unrolled vars s1 s3 0 ptr.
-Proof using atoI call_conv fn hbody leflags lp pos pre ptr rsp_nin rspi rspn sc_sem stk_max syscall_state top vflags voff vsaved_sp vzero vzf ws ws_align.
+Proof using atoI call_conv fn hbody leflags lp pos pre ptr rsp_nin rspi rspn stk_max top vflags voff vsaved_sp vzero vzf ws ws_align.
   move=> hsr.
-  eexists (Estate _ _ _); split=> /=.
+  eexists (Estate _ _); split=> /=.
   + apply: (lsem_n_eval_lin1 (n:=0) hbody) => //=; first by rewrite addn0.
     rewrite addn1; apply: ARMv8AFopnP.mov_eval_instr.
     by rewrite /get_var /= hsr.(sr_vsaved) /=; reflexivity.
-  case: hsr => hscs hmem hvalid hdisj hzero hvm hsaved hrsp hvzero haligned hbound.
+  case: hsr => hmem hvalid hdisj hzero hvm hsaved hrsp hvzero haligned hbound.
   split=> //=.
   + by rewrite (eq_ex_set_l _ (eq_ex_refl _));
       last by case; apply Sv.add_spec; left; reflexivity.
@@ -510,7 +509,7 @@ Lemma unrolled_bodyP vars s1 s2 n :
     [/\ lsem_n lp (endpc lp fn) (of_estate s2 fn (size pre + n))
                 (of_estate s3 fn (size pre + n.+1))
       & state_rel_unrolled vars s1 s3 (stk_max - Z.of_nat n.+1 * wsize_size ws) top].
-Proof using atoI call_conv fn halign hbody hsmall hstack le_ws_ws_align leflags lp lt_0_stk_max pos pre ptr rspi rspn sc_sem stk_max syscall_state top vflags voff vsaved_sp vzero vzf ws ws_align.
+Proof using atoI call_conv fn halign hbody hsmall hstack le_ws_ws_align leflags lp lt_0_stk_max pos pre ptr rspi rspn stk_max top vflags voff vsaved_sp vzero vzf ws ws_align.
 Local Opaque wsize_size Z.of_nat.
   move=> hsr hlt.
   have hlt': (0 < Z.of_nat n.+1 * wsize_size ws <= stk_max)%Z.
@@ -533,7 +532,7 @@ Local Opaque wsize_size Z.of_nat.
     have ? := [elaborate (wunsigned_range (align_word ws_align ptr))].
     by rewrite [_ (_ + _ + _)%R]wunsigned_add; last rewrite wunsigned_sub; lia.
   move=> /(writeV 0) [m' hm'].
-  eexists (Estate _ _ _); split.
+  eexists (Estate _ _); split.
   + apply: (lsem_n_eval_lin1 (n:= n) hbody) => //.
     + rewrite oseq.onth_cat !size_map size_rev size_ziota.
       have hlt'': n < Z.to_nat (stk_max / wsize_size ws) by apply /ltP; lia.
@@ -558,7 +557,7 @@ Local Opaque wsize_size Z.of_nat.
     + by rewrite /get_var hsr.(sr_rsp); reflexivity.
     + by rewrite truncate_word_u; reflexivity.
     by apply hm'.
-  case: hsr => hscs hmem hvalid hdisj hzero hvm hsaved hrsp hvzero haligned hbound.
+  case: hsr => hmem hvalid hdisj hzero hvm hsaved hrsp hvzero haligned hbound.
   split=> //=.
   + apply (mem_equiv_trans hmem).
     split.
@@ -601,7 +600,7 @@ Lemma sz_unrolledP vars s1 s2 :
     [/\ lsem_n lp (endpc lp fn) (of_estate s2 fn (size pre))
                 (of_estate s3 fn (size pre + size (sz_unrolled rspi ws stk_max)))
       & state_rel_unrolled vars s1 s3 0 top].
-Proof using atoI call_conv fn halign hbody hsmall hstack le_ws_ws_align leflags lp lt_0_stk_max pos pre ptr rspi rspn sc_sem stk_max syscall_state top vflags voff vsaved_sp vzero vzf ws ws_align.
+Proof using atoI call_conv fn halign hbody hsmall hstack le_ws_ws_align leflags lp lt_0_stk_max pos pre ptr rspi rspn stk_max top vflags voff vsaved_sp vzero vzf ws ws_align.
   move=> hsr.
   rewrite /sz_unrolled size_map size_rev size_ziota.
   have [k [hmax hbound]]:
@@ -649,7 +648,7 @@ Lemma stack_zero_loopP (s1 : estate) :
     [/\ lsem_n lp (endpc lp fn) (of_estate s1 fn (size pre))
                 (of_estate s2 fn (size pre + size (stack_zero_loop rspi lbl ws_align ws stk_max)))
       & state_rel_unrolled stack_zero_loop_vars s1 s2 0 ptr].
-Proof using atoI call_conv fn halign hbody hlabel hsmall hstack lbl le_ws_ws_align leflags lp lt_0_stk_max pos pre ptr rsp_nin rspi rspn sc_sem stk_max syscall_state top vflags voff vsaved_sp vzero vzf ws ws_align.
+Proof using atoI call_conv fn halign hbody hlabel hsmall hstack lbl le_ws_ws_align leflags lp lt_0_stk_max pos pre ptr rsp_nin rspi rspn stk_max top vflags voff vsaved_sp vzero vzf ws ws_align.
   move=> hvalid hrsp.
   move: hbody; rewrite /stack_zero_loop -!catA => hbody'.
   have hsubset_init: Sv.Subset sz_init_vars stack_zero_loop_vars.
@@ -707,7 +706,7 @@ Lemma stack_zero_unrolledP (s1 : estate) :
     [/\ lsem_n lp (endpc lp fn) (of_estate s1 fn (size pre))
                 (of_estate s2 fn (size pre + size (stack_zero_unrolled rspi ws_align ws stk_max)))
       & state_rel_unrolled stack_zero_unrolled_vars s1 s2 0 ptr].
-Proof using atoI call_conv fn halign hbody hsmall hstack le_ws_ws_align leflags lp lt_0_stk_max pos pre ptr rsp_nin rspi rspn sc_sem stk_max syscall_state top vflags voff vsaved_sp vzero vzf ws ws_align.
+Proof using atoI call_conv fn halign hbody hsmall hstack le_ws_ws_align leflags lp lt_0_stk_max pos pre ptr rsp_nin rspi rspn stk_max top vflags voff vsaved_sp vzero vzf ws ws_align.
   move=> hvalid hrsp.
   move: hbody; rewrite /stack_zero_loop -!catA => hbody'.
   have hsubset_init: Sv.Subset sz_init_vars stack_zero_unrolled_vars.
@@ -771,7 +770,7 @@ Qed.
 Lemma armv8a_stack_zero_cmdP szs rspn lbl ws_align ws stk_max cmd vars :
   stack_zeroization_cmd szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
   stack_zeroization_proof.sz_cmd_spec rspn lbl ws_align ws stk_max cmd vars.
-Proof using atoI call_conv sc_sem syscall_state.
+Proof using atoI call_conv.
    move=> hcmd rsp_nin lt_0_stk_max halign le_ws_ws_align lp fn lc
     /negP hlabel hbody ls ptr hfn hpc hstack hrsp top hvalid.
   have [s2 [hsem hsr]]: [elaborate
@@ -796,7 +795,7 @@ Proof using atoI call_conv sc_sem syscall_state.
     by rewrite -hfn -hpc of_estate_to_estate.
 
   exists (emem s2), (evm s2); split=> //.
-  + by rewrite -{2}hfn /of_estate -hsr.(sr_scs) in hsem.
+  + by rewrite -{2}hfn /of_estate in hsem.
   + move=> x hin.
     case: (x =P vid rspn) => [->|hneq].
     + by rewrite hsr.(sr_rsp).

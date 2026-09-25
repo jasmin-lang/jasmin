@@ -10,10 +10,10 @@ Section PROOF.
 
 Context
   {wsw: WithSubWord}
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {LC : LoopCounter}.
 
 Context
@@ -203,7 +203,7 @@ Section IT.
 Context
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
-  {rndE : with_RndEvent syscall_state E0}
+  {rndE : with_RndEvent E0}
   {rE : EventRels E0}
   {rndE_refl : RndRels_refl rE}
 .
@@ -279,7 +279,7 @@ Section IT.
 Context
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
-  {rndE : with_RndEvent syscall_state E0}
+  {rndE : with_RndEvent E0}
   {rE0 : EventRels E0}
   {rndE_refl : RndRels_refl rE0}
   (rE0_trans : EventRels_trans rE0 rE0 rE0)
@@ -294,8 +294,8 @@ Proof using rE0_trans rndE_refl.
   have := [elaborate it_wi2w_call_internalP (fn:=fn)].
   apply wiequiv_f_trans => //.
   + by move=> fs1 fs2 hpre; exists fs1 => //; split => //; split => //; apply List_Forall2_refl.
-  move=> ??? fr1 fr3 _ _ [fr2] [heq1 heq2 hu1] [heq3 heq4 hu2]; split.
-  + by rewrite heq1. + by rewrite heq2.
+  move=> ??? fr1 fr3 _ _ [fr2] [heq1 hu1] [heq3 hu2]; split.
+  + by rewrite heq1 heq3.
   by apply: values_uincl_trans hu1 hu2.
 Qed.
 

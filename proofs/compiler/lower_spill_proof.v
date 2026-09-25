@@ -13,10 +13,10 @@ Section WITH_PARAMS.
 Context
   {wsw : WithSubWord}
   {dc  : DirectCall}
-  {asm_op syscall_state : Type}
-  {ep  : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep  : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {LC  : LoopCounter}
   {pT  : progT}
   {sCP : semCallParams}
@@ -426,7 +426,7 @@ Context
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
   {rE : EventRels E0}
-  {rndE : with_RndEvent syscall_state E0}
+  {rndE : with_RndEvent E0}
   {rndE_refl : RndRels_refl rE}
 .
 
@@ -489,7 +489,7 @@ Proof using spill_prog_ok rndE_refl.
   + by split => //; split => // ? /Sv_memP.
   2: {
     apply wrequiv_weaken with (st_eq_on (vars_l (f_res fd))) eq => //.
-    move=> ?? [??[h ?]]; split => //.
+    move=> ?? [? [h ?]]; split => //.
     + by apply: eq_onI h; rewrite /X /= /vars_fd /=; clear; SvD.fsetdec.
     by apply st_eq_on_finalize.
   }

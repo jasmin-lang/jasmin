@@ -13,10 +13,10 @@ Section WITH_PARAMS.
 Context
   {wsw : WithSubWord}
   {dc:DirectCall}
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}.
+  {sip : SemInstrParams asm_op}.
 
 Section Section.
 
@@ -28,7 +28,7 @@ Context
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
   {rE : EventRels E0}
-  {rndE : with_RndEvent syscall_state E0}
+  {rndE : with_RndEvent E0}
   {rndE_refl : RndRels_refl rE}
 .
 
@@ -75,7 +75,7 @@ Proof using rndE_refl.
    case: ifP => // hx.
    apply wequiv_assign_left => s1 s1' s2 hu.
    rewrite /sem_assgn /=; t_xrbindP => v /truncate_valE [_ ?]; subst v => {h hx}.
-   case: hu => hscs hmem hsub.
+   case: hu => hmem hsub.
    case: x => [vi t | [x xi] | al ws x e | al aa ws x e | aa ws len' [x xi] e] /=.
     + by move=> /write_noneP [->].
     + move=> /write_varP_arr [/=hty _ _ ->]; split => //.
@@ -112,7 +112,7 @@ Context
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
   {rE : EventRels E0}
-  {rndE : with_RndEvent syscall_state E0}
+  {rndE : with_RndEvent E0}
   {rndE_refl : RndRels_refl rE}
 .
 
@@ -136,7 +136,7 @@ Context
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
   {rE : EventRels E0}
-  {rndE : with_RndEvent syscall_state E0}
+  {rndE : with_RndEvent E0}
   {rndE_refl : RndRels_refl rE}
 .
 
@@ -155,7 +155,7 @@ Definition cmpl_inv (I : Sv.t) := st_rel undef_vm_eq I.
 
 Lemma cmpl_inv_incl I1 I2 s1 s2 : Sv.Subset I1 I2 -> cmpl_inv I1 s1 s2 → cmpl_inv I2 s1 s2.
 Proof.
-  move=> hincl [h1 h2 [h3 h4]]; split => //; split => //.
+  move=> hincl [h1 [h3 h4]]; split => //; split => //.
   move=> z hz; apply h3; clear -hincl hz; SvD.fsetdec.
 Qed.
 
@@ -190,7 +190,7 @@ Proof using rndE_refl.
   rewrite /sem_assgn /=  /truncate_val /= WArray.castK /=.
   eexists.
   + by apply write_varP; split => //; rewrite heq /= eqxx.
-  case h => h1 h2 [h3 h4]; split => //; split => //.
+  case h => h1 [h3 h4]; split => //; split => //.
   move: h4; rewrite !vm_eq_vm_rel => hu1; apply vm_rel_set_r.
   + move=> _ /=; rewrite h3.
     + by rewrite heq /= eqxx.
@@ -208,8 +208,8 @@ Proof using rndE_refl.
   have h := [elaborate wequiv_rec_st_eq (p:=p) (p':=p') ev ev erefl [:: MkI ii i]].
   have /(_ s) {h} := wequiv_write1 h.
   apply wkequiv_weaken => //.
-  + by move=> s1 s2 [ [-> ->] [?? []]].
-  move=> ???? [[-> ->] [_ _ [hundef _]]] [h1] [?? heq2]; split => //; split => //.
+  + by move=> s1 s2 [ [-> ->] [? []]].
+  move=> ???? [[-> ->] [_ [hundef _]]] [h1] [? heq2]; split => //; split => //.
   move=> z hz; rewrite -h1.
   + by apply hundef; SvD.fsetdec.
   rewrite write_c_cons write_c_nil write_Ii; SvD.fsetdec.
@@ -239,7 +239,7 @@ Proof using rndE_refl.
    move=> s2 t2 fs2 h.
    rewrite /finalize_funcall; t_xrbindP => vs hget vs' hmap <-.
    eexists; last by eauto.
-   case: h => [<- <- [_ h]].
+   case: h => [<- [_ h]].
    have -> /= : get_var_is (~~ direct_call) (evm t2) (f_res fd') = ok vs.
    + by rewrite -hget; apply mapM_ext => // y; rewrite /get_var -h.
    by rewrite hmap.
@@ -262,7 +262,7 @@ Proof using rndE_refl.
  + by apply/Sv.is_empty_spec; SvD.fsetdec.
  apply wequiv_if_eq.
  + apply wrequiv_weaken with (st_eq tt) eq => //.
-   + by move=> ?? [?? []].
+   + by move=> ?? [? []].
    by apply st_eq_sem_pexpr.
  move=> [].
  + have := hc1 I; rewrite heq1; apply: wequiv_weaken => //=.

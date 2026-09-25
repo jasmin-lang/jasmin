@@ -90,12 +90,11 @@ End TRIVIAL.
 Section Section.
 
 Context
-  {syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {ep : EstateParams}
   {spp : SemPexprParams}
   {wa: WithAssert}
   {asm_op: Type}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {pT : progT}
   {wsw : WithSubWord}
   {scP : semCallParams}
@@ -437,7 +436,7 @@ Context
   {E E0: Type -> Type}
   {sem_F : sem_Fun E}
   {wE: with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}
+  {rE : with_RndEvent E0}
   {iE0 : InvEvent E0}
   {iEr : InvErr}.
 
@@ -832,7 +831,7 @@ Context
   {E E0: Type -> Type}
   {sem_F : sem_Fun E}
   {wE: with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}.
+  {rE : with_RndEvent E0}.
 
 Context (p : prog) (ev: extra_val_t).
 
@@ -860,7 +859,7 @@ Section HOARE_FUN.
 Context
   {E E0: Type -> Type}
   {wE: with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}
+  {rE : with_RndEvent E0}
   {iE0 : InvEvent E0}
   {iEr : InvErr}.
 
@@ -939,7 +938,7 @@ Context
   {E E0: Type -> Type}
   {sem_F : sem_Fun E}
   {wE: with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}
+  {rE : with_RndEvent E0}
   {iE0 : InvEvent E0}.
 
 Context (p : prog) (ev: extra_val_t).
@@ -1043,7 +1042,7 @@ Section WHOARE_FUN.
 Context
   {E E0: Type -> Type}
   {wE: with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}
+  {rE : with_RndEvent E0}
   {iE0 : InvEvent E0}.
 
 Context (p : prog) (ev: extra_val_t) (spec : HoareSpec).
@@ -1094,12 +1093,11 @@ Hint Immediate rhoare_true rhoare_false : core.
 
 Section Test.
 Context
-  {syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {ep : EstateParams}
   {spp : SemPexprParams}
   {asm_op: Type}
   {wa: WithAssert}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {pT : progT}
   {wsw : WithSubWord}
   {scP : semCallParams}
@@ -1109,7 +1107,7 @@ Context
   {E E0: Type -> Type}
   {sem_F : sem_Fun E}
   {wE: with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}.
+  {rE : with_RndEvent E0}.
 
 Context (p : prog) (ev : extra_val_t).
 

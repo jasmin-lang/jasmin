@@ -37,8 +37,8 @@ let rec run_syscall_itree ii t =
   | RetF r -> r
   | TauF t -> run_syscall_itree ii t
   | VisF (Coq_inl1(err), _) -> raise (Eval_error (ii, err))
-  | VisF (Coq_inr1(Syscall.Rnd(scs, len)), k) ->
-    let ans = Syscall_ocaml.get_random scs len in
+  | VisF (Coq_inr1(len), k) ->
+    let ans = Syscall_ocaml.get_random len in
     run_syscall_itree ii (k (Obj.magic ans))
 
 let of_val_z ii v : coq_Z =
@@ -54,10 +54,10 @@ type 'asm stack =
       instr_info * 'asm fundef * value list * lval list * Vm.t * 'asm instr list * 'asm stack
   | Sfor of instr_info * var_i * coq_Z list * 'asm instr list * 'asm instr list * 'asm stack
 
-type ('syscall_state, 'asm) state =
+type 'asm state =
   { s_prog : 'asm prog;
     s_cmd  : 'asm instr list;
-    s_estate : 'syscall_state estate;
+    s_estate : estate;
     s_stk  : 'asm stack;
   }
 
@@ -65,42 +65,42 @@ exception Final of Memory.mem * values
 
 let withassert = Sem_params.withassert
 
-let exec_pre ep spp ii fc gd escs emem (vargs:value list) =
-  let s1 = exn_exec ii (write_vars nosubword ep true fc.f_iparams vargs {escs; emem; evm = Vm.init nosubword}) in
+let exec_pre ep spp ii fc gd emem (vargs:value list) =
+  let s1 = exn_exec ii (write_vars nosubword ep true fc.f_iparams vargs {emem; evm = Vm.init nosubword}) in
   List.iter (fun pa -> exn_exec ii (sem_assert nosubword withassert ep spp gd s1 pa)) fc.f_pre
 
-let exec_post ep spp ii fc gd escs emem (vargs:value list) (vres: value list) =
-  let s1 = exn_exec ii (write_vars nosubword ep true fc.f_iparams vargs {escs; emem; evm = Vm.init nosubword}) in
+let exec_post ep spp ii fc gd emem (vargs:value list) (vres: value list) =
+  let s1 = exn_exec ii (write_vars nosubword ep true fc.f_iparams vargs {emem; evm = Vm.init nosubword}) in
   let s1 = exn_exec ii (write_vars nosubword ep true fc.f_ires vres s1) in
   List.iter (fun pa -> exn_exec ii (sem_assert nosubword withassert ep spp gd s1 pa)) fc.f_post
 
-let init_estate ep spp p ii fn scs0 m vargs =
+let init_estate ep spp p ii fn m vargs =
   let f = BatOption.get (get_fundef p.p_funcs fn) in
   let gd = p.p_globs in
   let vargs = exn_exec ii (mapM2 ErrType truncate_val (List.map eval_atype f.f_tyin) vargs) in
-  BatOption.may (fun fc -> exec_pre ep spp ii fc gd scs0 m vargs) f.f_contract;
-  let s_estate = { escs = scs0; emem = m; evm = Vm.init nosubword} in
+  BatOption.may (fun fc -> exec_pre ep spp ii fc gd m vargs) f.f_contract;
+  let s_estate = { emem = m; evm = Vm.init nosubword} in
   let s_estate = exn_exec ii (write_vars nosubword ep true f.f_params vargs s_estate) in
   f, vargs, s_estate
 
-let finalize_estate ep spp p ii f vargs (s: _ estate) =
+let finalize_estate ep spp p ii f vargs (s: estate) =
   let gd = p.p_globs in
   let vres = exn_exec ii (mapM (fun (x:var_i) -> get_var nosubword true s.evm x.v_var) f.f_res) in
   let vres = exn_exec ii (mapM2 ErrType truncate_val (List.map Type.eval_atype f.f_tyout) vres) in
-  BatOption.may (fun fc -> exec_post ep spp ii fc gd s.escs s.emem vargs vres) f.f_contract;
-  s.escs, s.emem, vres
+  BatOption.may (fun fc -> exec_post ep spp ii fc gd s.emem vargs vres) f.f_contract;
+  s.emem, vres
 
 let return ep spp s =
   assert (s.s_cmd = []);
   match s.s_stk with
   | Sempty(ii, f, vargs) ->
-    let _, m, vres = finalize_estate ep spp s.s_prog ii f vargs s.s_estate in
+    let m, vres = finalize_estate ep spp s.s_prog ii f vargs s.s_estate in
     raise (Final(m, vres))
 
   | Scall(ii,f, vargs, xs,vm1,c,stk) ->
-    let escs, emem, vres = finalize_estate ep spp s.s_prog ii f vargs s.s_estate in
+    let emem, vres = finalize_estate ep spp s.s_prog ii f vargs s.s_estate in
     let gd = s.s_prog.p_globs in
-    let s1 = exn_exec ii (write_lvals nosubword ep spp true gd {escs; emem; evm = vm1 } xs vres) in
+    let s1 = exn_exec ii (write_lvals nosubword ep spp true gd {emem; evm = vm1 } xs vres) in
     { s with
       s_cmd = c;
       s_estate = s1;
@@ -139,11 +139,11 @@ let small_step1 ep spp sip s =
 
     | Csyscall(xs,o, es) ->
       let ves = exn_exec ii (sem_pexprs nosubword ep spp true gd s1 es) in
-      let ((scs, m), vs) =
-        syscall_sem__ ep._pd s1.escs s1.emem o ves
+      let (m, vs) =
+        syscall_sem__ ep._pd s1.emem o ves
         |> run_syscall_itree ii
       in
-      let s2 = exn_exec ii (write_lvals nosubword ep spp true gd {escs = scs; emem = m; evm = s1.evm} xs vs) in
+      let s2 = exn_exec ii (write_lvals nosubword ep spp true gd {emem = m; evm = s1.evm} xs vs) in
       { s with s_cmd = c; s_estate = s2 }
 
     | Cassert (p,a) ->
@@ -168,7 +168,7 @@ let small_step1 ep spp sip s =
 
     | Ccall(xs,fn,es) ->
       let vargs = exn_exec ii (sem_pexprs nosubword ep spp true gd s1 es) in
-      let f, vargs, s_estate = init_estate ep spp s.s_prog ii fn s1.escs s1.emem  vargs in
+      let f, vargs, s_estate = init_estate ep spp s.s_prog ii fn s1.emem  vargs in
       let stk = Scall(ii,f, vargs, xs, s1.evm, c, s.s_stk) in
       {s with s_cmd = f.f_body;
               s_estate;
@@ -178,13 +178,13 @@ let small_step1 ep spp sip s =
 let rec small_step ep spp sip s =
   small_step ep spp sip (small_step1 ep spp sip s)
 
-let init_state ep spp p ii fn scs0 m vargs =
-  let f, vargs, s_estate = init_estate ep spp p ii fn scs0 m vargs in
+let init_state ep spp p ii fn m vargs =
+  let f, vargs, s_estate = init_estate ep spp p ii fn m vargs in
   { s_prog = p; s_cmd = f.f_body; s_estate; s_stk = Sempty (ii, f, vargs) }
 
 
-let exec ep spp sip scs0 p ii fn vargs m =
-  let s = init_state ep spp p ii fn scs0 m vargs in
+let exec ep spp sip p ii fn vargs m =
+  let s = init_state ep spp p ii fn m vargs in
   try small_step ep spp sip s
   with Final(m,vs) -> m, vs
 
@@ -205,8 +205,7 @@ let run (type asm_op extra_op)
   let ep = Sem_params_of_arch_extra.ep_of_asm_e A.asm_e in
   let spp = Sem_params_of_arch_extra.spp_of_asm_e A.asm_e in
   let sip = Sem_params_of_arch_extra.sip_of_asm_e A.asm_e in
-  let scs0 = Syscall_ocaml.initial_state () in
-  exec ep spp sip scs0 p ii fn args m
+  exec ep spp sip p ii fn args m
 
 (* ----------------------------------------------------------- *)
 let pp_undef fmt cty =

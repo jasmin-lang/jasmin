@@ -28,10 +28,10 @@ Section WITH_PARAMS.
 
 Context
   {wsw : WithSubWord}
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {ovm_i : one_varmap.one_varmap_info}.
 
 Context (p:lprog).
@@ -66,7 +66,7 @@ Lemma to_estate_eq_eval_jump s1 s2 l :
 Proof.
   case: l => /= fn l; case: get_fundef => //= fd.
   case: find_label => //= l'.
-  by rewrite -(of_estate_to_estate s1) -(of_estate_to_estate s2) /to_estate /of_estate /= => -[-> -> ->].
+  by rewrite -(of_estate_to_estate s1) -(of_estate_to_estate s2) /to_estate /of_estate /= => -[-> ->].
 Qed.
 
 Lemma eval_jump_to_estate l s1 s2 :
@@ -292,7 +292,7 @@ Context
   {E E0: Type -> Type}
   {wE: with_Error E E0}
   {rE0 : EventRels E0}
-  {rndE : with_RndEvent syscall_state E0}
+  {rndE : with_RndEvent E0}
 .
 
 Import Monads.

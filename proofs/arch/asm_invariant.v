@@ -30,15 +30,13 @@ Require Import it_sems_core.
 Section WITH_PARAMS.
 
 Context
-  {syscall_state : Type}
-  {sc_sem : syscall_sem syscall_state}
   {reg regx xreg rflag cond asm_op extra_op : Type}
   {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
   {call_conv : calling_convention}
   {asm_scsem : asm_syscall_sem}
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}
+  {rE : with_RndEvent E0}
 .
 
 #[local] Existing Instance asmsem_invariant_Equiv.

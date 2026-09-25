@@ -8,10 +8,10 @@ Section REMOVE_ASSERT.
   Context
     {wsw:WithSubWord}
     {dc:DirectCall}
-    {asm_op syscall_state : Type}
-    {ep : EstateParams syscall_state}
+    {asm_op : Type}
+    {ep : EstateParams}
     {spp : SemPexprParams}
-    {sip : SemInstrParams asm_op syscall_state}
+    {sip : SemInstrParams asm_op}
     {pT:progT} {sCP: semCallParams}.
 
   Context (p p' : prog) (ev: extra_val_t).
@@ -25,14 +25,14 @@ Section REMOVE_ASSERT.
     {E E0 : Type -> Type}
     {wE : with_Error E E0}
     {rE : EventRels E0}
-    {rndE : with_RndEvent syscall_state E0}
+    {rndE : with_RndEvent E0}
     {rndE_refl : RndRels_refl rE}
   .
 
   #[local] Notation st_eq := (st_rel (λ _ : unit, eq) tt).
 
   Lemma st_rel_eq d s1 s2 : st_rel (λ _ : unit, eq) d s1 s2 → s1 = s2.
-  Proof. by case: s1 s2 => ??? [] ??? [] /= <- <- <-. Qed.
+  Proof. by case: s1 s2 => ?? [] ?? [] /= <- <-. Qed.
 
   Program Instance checker_ra_eq : Checker_e (st_rel (λ _ : unit, eq)) :=
     {| check_es _ x y _ := x = y; check_lvals _ x y _ := x = y; |}.

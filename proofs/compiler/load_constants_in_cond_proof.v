@@ -13,11 +13,11 @@ Section WITH_PARAMS.
 
 Context
   {wsw : WithSubWord}
-  {asm_op syscall_state : Type}
+  {asm_op : Type}
   {dc:DirectCall}
-  {eparams : EstateParams syscall_state}
+  {eparams : EstateParams}
   {spparams : SemPexprParams}
-  {siparams : SemInstrParams asm_op syscall_state}
+  {siparams : SemInstrParams asm_op}
   {pT : progT}
   {sCP : semCallParams}
   (fresh_reg : instr_info → int → string → atype → Ident.ident).
@@ -141,7 +141,7 @@ Context
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
   {rE0 : EventRels E0}
-  {rndE : with_RndEvent syscall_state E0}
+  {rndE : with_RndEvent E0}
   {rndE_refl : RndRels_refl rE0}
 .
 
@@ -235,7 +235,7 @@ Context
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
   {rE0 : EventRels E0}
-  {rndE : with_RndEvent syscall_state E0}
+  {rndE : with_RndEvent E0}
   {rndE_refl : RndRels_refl rE0}
 .
 

@@ -18,42 +18,38 @@ Import MonadNotation ITreeNotations.
 Local Open Scope monad_scope.
 
 #[global] Instance with_RndEventE
-  {scs : Type}
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
-  {rE : with_RndEvent scs E0}
-  : with_RndEvent scs E :=
+  {rE : with_RndEvent E0}
+  : with_RndEvent E :=
   fun T e => mfun2 (inr1 (rE T e)).
 
 Section SourceSysCall.
 
 Context
   {pd: PointerData}
-  {syscall_state : Type}
-  {sc_sem : syscall_sem syscall_state}
 .
 
-Notation E := (ErrEvent +' RndEvent syscall_state).
+Notation E := (ErrEvent +' RndEvent).
 
 Implicit Types
-  (scs : syscall_state)
   (len : Z)
   (vs : values)
 .
 
-Definition exec_getrandom_u scs len vs : itree E (syscall_state * values) :=
+Definition exec_getrandom_u len vs : itree E values :=
   iassert (if vs is [:: v] then is_ok (to_arr len v) else false) ErrType;;
-  '(scs', bs) <- trigger (Rnd scs len);;
+  bs <- trigger (Rnd len);;
   a <- iresult (WArray.fill len bs);;
-  Ret (scs', [:: Varr a]).
+  Ret [:: Varr a].
 
 Definition exec_syscall_u
-  scs (m : mem) (o : syscall_t) vs : itree E (syscall_state * mem * values) :=
+  (m : mem) (o : syscall_t) vs : itree E (mem * values) :=
   match o with
   | RandomBytes ws n =>
       let len := arr_size ws n in
-      '(scs', vs') <- exec_getrandom_u scs len vs;;
-      Ret (scs', m, vs')
+      vs' <- exec_getrandom_u len vs;;
+      Ret (m, vs')
   end.
 
 Definition sc_in_u o :=
@@ -61,16 +57,16 @@ Definition sc_in_u o :=
 Definition sc_out_u o :=
   [seq eval_atype t | t <- (syscall_sig_u o).(scs_tout)].
 
-Definition sc_res_uincl (r1 r2 : syscall_state * mem * values) : Prop :=
-  let '(scs1, m1, vres1) := r1 in
-  let '(scs2, m2, vres2) := r2 in
-  [/\ scs1 = scs2, m1 = m2 & values_uincl vres1 vres2].
+Definition sc_res_uincl (r1 r2 : mem * values) : Prop :=
+  let '(m1, vres1) := r1 in
+  let '(m2, vres2) := r2 in
+  m1 = m2 /\ values_uincl vres1 vres2.
 
-Lemma exec_syscallPu_eutt scs m o vargs vargs' :
+Lemma exec_syscallPu_eutt m o vargs vargs' :
   values_uincl vargs vargs' ->
   eutt sc_res_uincl
-    (exec_syscall_u scs m o vargs)
-    (exec_syscall_u scs m o vargs').
+    (exec_syscall_u m o vargs)
+    (exec_syscall_u m o vargs').
 Proof.
 rewrite /exec_syscall_u /exec_getrandom_u; case: o => [ws p].
 case: vargs vargs' => [|va [|? vargs]] [|va' [|? vargs']] /List_Forall2_inv //=.
@@ -80,7 +76,7 @@ case: vargs vargs' => [|va [|? vargs]] [|va' [|? vargs']] /List_Forall2_inv //=.
   + move=> /value_uincl_to_arr_err /(_ ha) ->.
     by rewrite !bind_throw; apply: eqit_throw.
   move=> /val_uincl_of_val /(_ ha) [/= a' -> {}ha].
-  rewrite !bind_ret_l !bind_bind; apply: eutt_eq_bind => -[scs' bs].
+  rewrite !bind_ret_l !bind_bind; apply: eutt_eq_bind => bs.
   rewrite !bind_bind; apply: eutt_eq_bind => b.
   by rewrite !bind_ret_l; apply eutt_Ret.
 - by move=> [_ /List_Forall2_inv].
@@ -88,29 +84,29 @@ case: vargs vargs' => [|va [|? vargs]] [|va' [|? vargs']] /List_Forall2_inv //=.
 by move=> _; rewrite !bind_throw; apply: eqit_throw.
 Qed.
 
-Lemma exec_syscallPu scs m o vargs vargs' :
+Lemma exec_syscallPu m o vargs vargs' :
   values_uincl vargs vargs' ->
   lxeutt sc_res_uincl
-    (exec_syscall_u scs m o vargs)
-    (exec_syscall_u scs m o vargs').
+    (exec_syscall_u m o vargs)
+    (exec_syscall_u m o vargs').
 Proof using. move=> h; apply: eutt_lxeutt; exact: exec_syscallPu_eutt. Qed.
 
 Definition mem_equiv m1 m2 := stack_stable m1 m2 /\ validw m1 =3 validw m2.
 
-Lemma exec_syscallSu scs m o vargs :
+Lemma exec_syscallSu m o vargs :
   lutt_eT
-    (fun '(_, m', _) => mem_equiv m m')
-    (exec_syscall_u scs m o vargs).
+    (fun '(m', _) => mem_equiv m m')
+    (exec_syscall_u m o vargs).
 Proof.
 case: o => [ws p].
 apply: lutt_bind; first exact: lutt_true.
-by move=> [??] _; apply/lutt_Ret'.
+by move=> ? _; apply/lutt_Ret'.
 Qed.
 
-Lemma exec_syscall_u_typed_res (scs : syscall_state) m o vs :
+Lemma exec_syscall_u_typed_res m o vs :
   lutt_eT
-    (fun '(_, _, vs') => truncate_vals (sc_out_u o) vs' = ok vs')
-    (exec_syscall_u scs m o vs).
+    (fun '(_, vs') => truncate_vals (sc_out_u o) vs' = ok vs')
+    (exec_syscall_u m o vs).
 Proof.
 move: o => [ws len] /=.
 case: vs => [|v vs].
@@ -122,7 +118,7 @@ case: (to_arr (arr_size ws len) v) => [a|e]; last first.
 - by rewrite !bind_throw; apply: lutt_throw.
 rewrite !bind_bind bind_ret_l !bind_bind.
 apply: (lutt_bind (R := fun _ => True)); first exact: lutt_trigger.
-move=> [scs' bs] _.
+move=> bs _.
 rewrite !bind_bind.
 case: WArray.fill => [a'|e]; last first.
 - by rewrite !bind_throw; apply: lutt_throw.
@@ -136,16 +132,13 @@ Section StackSyscall.
 
 Context
   {pd : PointerData}
-  {syscall_state : Type}
-  {sc_sem : syscall_sem syscall_state}
 .
 
-Notation E := (ErrEvent +' RndEvent syscall_state).
+Notation E := (ErrEvent +' RndEvent).
 
 Implicit Types
   (o : syscall_t)
   (vs : values)
-  (scs : syscall_state)
   (m : mem)
   (p : pointer)
   (len : pointer)
@@ -166,13 +159,12 @@ Definition sem_syscall_cast o : values -> exec (sem_tuple (sc_in_s o)) :=
 (* TODO For now, syscalls always return bytes. We should generalize the
    writeback to return other stuff. *)
 Definition exec_getrandom_s_core
-  scs (args : pointer * pointer) : itree E (syscall_state * seq u8) :=
-  trigger (Rnd scs (wunsigned args.2)).
+  (args : pointer * pointer) : itree E (seq u8) :=
+  trigger (Rnd (wunsigned args.2)).
 
 Definition sem_syscall o :
-  syscall_state ->
   sem_tuple (sc_in_s o) ->
-  itree E (syscall_state * seq u8) :=
+  itree E (seq u8) :=
   match o with
   | RandomBytes _ _ => exec_getrandom_s_core
   end.
@@ -182,26 +174,26 @@ Arguments sem_syscall : clear implicits.
 Definition exec_getrandom_s_store
   (m : mem)
   (args : pointer * pointer)
-  (ans : syscall_state * seq u8) :
-  exec (syscall_state * mem * pointer) :=
-  Let m' := fill_mem m args.1 ans.2 in
-  ok (ans.1, m', args.1).
+  (bytes : seq u8) :
+  exec (mem * pointer) :=
+  Let m' := fill_mem m args.1 bytes in
+  ok (m', args.1).
 
 Definition sem_syscall_store o :
   mem ->
   sem_tuple (sc_in_s o) ->
-  syscall_state * seq u8 ->
-  exec (syscall_state * mem * sem_tuple (sc_out_s o)) :=
+  seq u8 ->
+  exec (mem * sem_tuple (sc_out_s o)) :=
   match o with
   | RandomBytes _ _ => exec_getrandom_s_store
   end.
 Arguments sem_syscall_store : clear implicits.
 
-Definition exec_syscall_s scs m o vs : itree E (syscall_state * mem * values) :=
+Definition exec_syscall_s m o vs : itree E (mem * values) :=
   args <- iresult (sem_syscall_cast o vs);;
-  ans <- sem_syscall o scs args;;
-  '(scs', m', t) <- iresult (sem_syscall_store o m args ans);;
-  Ret (scs', m', list_ltuple t).
+  bytes <- sem_syscall o args;;
+  '(m', t) <- iresult (sem_syscall_store o m args bytes);;
+  Ret (m', list_ltuple t).
 
 Lemma sem_syscall_castP o vargs vargs' t :
   values_uincl vargs vargs' ->
@@ -223,7 +215,7 @@ Qed.
 
 Lemma sem_syscall_storeS o m args ans r :
   sem_syscall_store o m args ans = ok r ->
-  mem_equiv m r.1.2.
+  mem_equiv m r.1.
 Proof.
 case: o args r => ws n args r /=.
 rewrite /exec_getrandom_s_store; t_xrbindP => m' hfill <- /=.
@@ -231,9 +223,9 @@ split; first exact: fill_mem_stack_stable hfill.
 exact: fill_mem_validw_eq hfill.
 Qed.
 
-Lemma exec_syscallPs_eq scs m o vargs vargs' :
+Lemma exec_syscallPs_eq m o vargs vargs' :
   values_uincl vargs vargs' ->
-  lxeutt eq (exec_syscall_s scs m o vargs) (exec_syscall_s scs m o vargs').
+  lxeutt eq (exec_syscall_s m o vargs) (exec_syscall_s m o vargs').
 Proof.
 move=> hu; rewrite /exec_syscall_s.
 apply: (xrutt_bind (RR := eq)).
@@ -244,66 +236,64 @@ apply: xrutt_bind; first by apply: eutt_lxeutt; reflexivity.
 move=> ans _ <-.
 apply: (xrutt_bind (RR := eq)).
 - by apply: lxrutt_iresult => r h; exists r.
-by move=> [[scs1 m1] t] _ <-; apply: xrutt_Ret.
+by move=> [m1 t] _ <-; apply: xrutt_Ret.
 Qed.
 
-Lemma exec_syscallPs scs m o vargs vargs' :
+Lemma exec_syscallPs m o vargs vargs' :
   values_uincl vargs vargs' ->
   lxeutt sc_res_uincl
-    (exec_syscall_s scs m o vargs)
-    (exec_syscall_s scs m o vargs').
+    (exec_syscall_s m o vargs)
+    (exec_syscall_s m o vargs').
 Proof.
 move=> u.
 apply: xrutt_weaken_v3; last exact: exec_syscallPs_eq u.
-by move=> [[??] ?] _ <-.
+by move=> [??] _ <-.
 Qed.
 
-Lemma exec_syscallSs scs m o vargs :
+Lemma exec_syscallSs m o vargs :
   lutt_eT
-    (fun '(_, m', _) => mem_equiv m m')
-    (exec_syscall_s scs m o vargs).
+    (fun '(m', _) => mem_equiv m m')
+    (exec_syscall_s m o vargs).
 Proof.
 rewrite /exec_syscall_s.
 apply: lutt_bind; first exact: lutt_true.
 move=> args _.
 apply: lutt_bind; first exact: lutt_true.
 move=> ans _.
-apply: (lutt_bind (R := fun r => mem_equiv m r.1.2)).
+apply: (lutt_bind (R := fun r => mem_equiv m r.1)).
 - by apply: lutt_iresult => // r /sem_syscall_storeS.
-by move=> [[scs1 m1] t] h; apply/lutt_Ret'/h.
+by move=> [m1 t] h; apply/lutt_Ret'/h.
 Qed.
 
 End StackSyscall.
 
-Arguments sem_syscall {pd} {syscall_state} o _ _.
-Arguments sem_syscall_store {pd} {syscall_state} o _ _ _.
+Arguments sem_syscall {pd} o _.
+Arguments sem_syscall_store {pd} o _ _ _.
 
 Section StackSyscallU.
 
 Context
   {pd : PointerData}
-  {syscall_state : Type}
-  {sc_sem : syscall_sem syscall_state}
 .
 
-Notation E := (ErrEvent +' RndEvent syscall_state).
+Notation E := (ErrEvent +' RndEvent).
 
-Lemma exec_getrandom_u_s scs m1 m2 ws n v p :
+Lemma exec_getrandom_u_s m1 m2 ws n v p :
   0 <= arr_size ws n < wbase Uptr ->
   (forall ag bs a,
      to_arr (arr_size ws n) v = ok ag ->
      WArray.fill (arr_size ws n) bs = ok a ->
      exists m2', fill_mem m2 p bs = ok m2') ->
   lxeutt
-    (fun (r1 r2 : syscall_state * mem * values) =>
+    (fun (r1 r2 : mem * values) =>
        exists ag bs a,
          [/\ to_arr (arr_size ws n) v = ok ag
            , WArray.fill (arr_size ws n) bs = ok a
-           , r1 = (r2.1.1, m1, [:: Varr a])
-           , fill_mem m2 p bs = ok r2.1.2
+           , r1 = (m1, [:: Varr a])
+           , fill_mem m2 p bs = ok r2.1
            & r2.2 = [:: Vword p] ])
-    (exec_syscall_u scs m1 (RandomBytes ws n) [:: v])
-    (exec_syscall_s scs m2 (RandomBytes ws n)
+    (exec_syscall_u m1 (RandomBytes ws n) [:: v])
+    (exec_syscall_s m2 (RandomBytes ws n)
        [:: Vword p; Vword (wrepr Uptr (arr_size ws n))]).
 Proof.
 move=> hlen hfillm.
@@ -317,7 +307,7 @@ rewrite !bind_bind.
 apply: (xrutt_bind (RR := eq)).
 + apply: xrutt_trigger; first exact: RPre_eq_refl.
   by move=> t1 t2 h; apply: RPost_eqI h.
-move=> [scs' bs] r2 <-; rewrite !bind_bind.
+move=> bs r2 <-; rewrite !bind_bind.
 case hfill: (WArray.fill _ _) => [a|e] /=; last first.
 + by rewrite bind_throw; apply: lxrutt_throw_l.
 have [m2' hm2'] := hfillm _ _ _ hto hfill.

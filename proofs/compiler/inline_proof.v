@@ -12,10 +12,10 @@ Section INLINE.
 
 Context
   {wsw : WithSubWord}
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   (extend_iinfo : instr_info -> instr_info -> instr_info).
 
 Lemma get_funP p f fd :
@@ -216,7 +216,7 @@ Context
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
   {rE : EventRels E0}
-  {rndE : with_RndEvent syscall_state E0}
+  {rndE : with_RndEvent E0}
   {rndE_refl : RndRels_refl rE}
 .
 
@@ -304,7 +304,7 @@ Proof using uniq_funname inline_fd_ok rndE_refl.
                  (fs:= fs1) (fs':= fs2) erefl erefl erefl erefl hu hinit].
   exists s1' => //.
   exists (st_uincl_on X1), (st_uincl_on X2); split => //;
-    first (by case hus1 => ?? h; split); last first.
+    first (by case hus1 => ? h; split); last first.
   + have := [elaborate fs_uincl_on_finalize (fd:=fd) (fd':= with_body fd c') erefl erefl erefl].
     by apply wrequiv_weaken => //; apply st_rel_weaken => ??; rewrite /X2 vars_l_read_es.
   clear fs1 fs2 hu hfd1 hinit hinit' s1 s1' hus1 fn'.
@@ -441,7 +441,7 @@ Proof using uniq_funname inline_fd_ok rndE_refl.
     + move/disjointP: hdisj => /(_ z).
       rewrite /locals_p vrvs_recE read_cE write_c_recE vars_l_read_es.
       by move: hz; clear; SvD.fsetdec.
-    by case: hpre => _ _; apply.
+    by case: hpre => _ /(_ z hz).
   move=> t1' hws1 hpost.
   have hdisjr : disjoint (vrvs xs) (read_es [seq Plvar i | i <- f_res ffd]).
   + apply/disjointP => z; rewrite vars_l_read_es => hz.
@@ -485,7 +485,7 @@ Proof using rE_trans rndE_refl.
   apply wiequiv_f_trans => //.
   + by move=> fs1 fs2 [_ ?]; exists fs1.
   move=> _ _ _ fr1 fr3 _ _ [fr2].
-  rewrite /fs_uincl /fs_rel => -[-> -> h1] [-> -> h2]; split => //.
+  rewrite /fs_uincl /fs_rel => -[-> h1] [-> h2]; split => //.
   apply: values_uincl_trans h1 h2.
 Qed.
 

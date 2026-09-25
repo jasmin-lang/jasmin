@@ -28,10 +28,10 @@ Require Export stack_zeroization.
 Section WITH_PARAMS.
 
 Context
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {ovm_i : one_varmap_info}.
 
 Definition sz_cmd_spec rspn lbl ws_align ws stk_max cmd vars : Prop :=
@@ -50,7 +50,7 @@ Definition sz_cmd_spec rspn lbl ws_align ws stk_max cmd vars : Prop :=
   let top := (align_word ws_align ptr - wrepr Uptr stk_max)%R in
   valid_between (lmem ls) top stk_max ->
   exists m' vm',
-    [/\ let: ls' := setpc (lset_mem_vm ls m' vm') (size lc + size cmd) in
+    [/\ let: ls' := setpc (lset_estate ls m' vm') (size lc + size cmd) in
         lsem_n lp (endpc lp fn) ls ls'
       , lvm ls =[\ vars ] vm'
       , validw (lmem ls) =3 validw m'
@@ -353,7 +353,7 @@ Context
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
   {rE0 : EventRels E0}
-  {rndE : with_RndEvent syscall_state E0}
+  {rndE : with_RndEvent E0}
   {rndE_refl : RndRels_refl rE0}
 .
 
@@ -420,15 +420,14 @@ Lemma istack_zeroization_lprogP_aux lp lp' fn lfd ptr :
     (ilsem_exportcall lp fn)
     (ilsem_exportcall lp' fn)
     (fun s1 s2 =>
-      [/\ escs s1 = escs s2
-        , (evm s1) =[sv_of_list v_var lfd.(lfd_res)] (evm s2)
-        & match_mem_zero_export (emem s1) (emem s2) bottom lfd.(lfd_stk_max) (szs_of_fn fn)]).
+      (evm s1) =[sv_of_list v_var lfd.(lfd_res)] (evm s2)
+      /\ match_mem_zero_export (emem s1) (emem s2) bottom lfd.(lfd_stk_max) (szs_of_fn fn)).
 Proof using hszparams rndE_refl.
   move=> hin hzerolp hlfd enough_stk bottom s _ [<-] hvalid hrsp.
   rewrite /ilsem_exportcall hlfd /=.
   have [lfd' hzero hlfd'] := stack_zeroization_lprog_get_fundef hzerolp hlfd.
   rewrite hlfd' /= 2!bind_ret_l.
-  set s1 := (ls_export_initial (escs s) (emem s) (evm s) fn).
+  set s1 := (ls_export_initial (emem s) (evm s) fn).
   have hpre1: s1 = s1 /\ (lfn s1 = fn -> lpc s1 <= size (lfd_body lfd)) by split.
   have []: (lfd = lfd' /\ if szs_of_fn fn is Some _ then ~(lfd_export lfd /\ (0 <? lfd_stk_max lfd)%Z) else True) \/
          exists szs ws,
@@ -531,7 +530,6 @@ Definition sz_post lp fn lfd (s1 s2 s1' s2' : estate) :=
   exists ptr,
     let: bottom := (align_word lfd.(lfd_align) ptr - wrepr _ lfd.(lfd_stk_max))%R in
     [/\ (evm s1).[vid (lp_rsp lp)] = @Vword Uptr ptr
-      , escs s1' = escs s2'
       , (evm s1') =[sv_of_list v_var lfd.(lfd_res)] (evm s2')
       & match_mem_zero_export (emem s1') (emem s2') bottom lfd.(lfd_stk_max) (szs_of_fn fn)
     ].
@@ -548,7 +546,7 @@ Lemma istack_zeroization_lprogP lp lp' fn lfd :
 Proof using hszparams rndE_refl.
   move=> hin hzerolp hlfd s1 _ [ptr [hrsp <- enough_stk hvalid]].
   have := istack_zeroization_lprogP_aux hin hzerolp hlfd enough_stk (And3 erefl hvalid hrsp).
-  apply: xrutt_facts.xrutt_weaken => // o1 o2 [hscs hvm hmatch]; exists ptr; split => //.
+  apply: xrutt_facts.xrutt_weaken => // o1 o2 [hvm hmatch]; exists ptr; split => //.
 Qed.
 
 End ITREE.

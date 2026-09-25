@@ -13,10 +13,10 @@ Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then
 Section PROG.
 
 Context
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {ovm_i : one_varmap_info}
   (p : sprog)
   (var_tmp : Sv.t).

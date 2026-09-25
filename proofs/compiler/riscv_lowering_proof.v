@@ -30,8 +30,6 @@ Context
   {wsw : WithSubWord}
   {dc : DirectCall}
   {atoI : arch_toIdent}
-  {syscall_state : Type}
-  {sc_sem : syscall_sem syscall_state}
   {pT : progT}
   {sCP : semCallParams}
   (p : prog)
@@ -585,7 +583,7 @@ Context
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
   {rE0 : EventRels E0}
-  {rndE : with_RndEvent syscall_state E0}
+  {rndE : with_RndEvent E0}
   {rndE_refl : RndRels_refl rE0}
 .
 

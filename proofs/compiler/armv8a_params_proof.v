@@ -60,8 +60,6 @@ Section Section.
 
 Context
   {atoI  : arch_toIdent}
-  {syscall_state : Type}
-  {sc_sem : syscall_sem syscall_state}
   {call_conv : calling_convention}.
 
 (* ------------------------------------------------------------------------ *)
@@ -1058,7 +1056,7 @@ Proof. by constructor; move=> ???? []. Qed.
 Section STACK_ZEROIZATION.
 
 Lemma armv8a_hszparams : h_stack_zeroization_params (ap_szp armv8a_params).
-Proof using atoI call_conv sc_sem syscall_state.
+Proof using atoI call_conv.
   split.
   + exact: armv8a_stack_zero_cmd_not_ext_lbl.
   exact: armv8a_stack_zero_cmdP.

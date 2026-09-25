@@ -42,10 +42,10 @@ Section WITH_PARAMS.
 #[local] Existing Instance withsubword.
 
 Context
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {ovm_i : one_varmap_info}
 .
 
@@ -53,9 +53,9 @@ Lemma setpc_id ls :
   setpc ls (lpc ls) = ls.
 Proof. by case: ls. Qed.
 
-Lemma setpc_lset_estate ls pc scs m vm :
-  lset_estate (setpc ls pc) scs m vm
-  = setpc (lset_estate ls scs m vm) pc.
+Lemma setpc_lset_estate ls pc m vm :
+  lset_estate (setpc ls pc) m vm
+  = setpc (lset_estate ls m vm) pc.
 Proof. done. Qed.
 
 Lemma lnext_pc_setpc ls n :
@@ -66,8 +66,8 @@ Lemma setcpc_setpc ls fn n n' :
   setcpc (setpc ls n') fn n = setcpc ls fn n.
 Proof. done. Qed.
 
-Lemma lfn_lset_estate ls scs m vm :
-  lfn (lset_estate ls scs m vm) = lfn ls.
+Lemma lfn_lset_estate ls m vm :
+  lfn (lset_estate ls m vm) = lfn ls.
 Proof. done. Qed.
 
 Lemma label_in_lcmd_cat lc1 lc2 :
@@ -270,7 +270,7 @@ Section ITREE.
 Context
   {E E0: Type -> Type}
   {wE: with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}.
+  {rE : with_RndEvent E0}.
 
 Lemma lexec_syscall_mem_equiv m o :
   khoare (iE0 := trivial_invEvent E0) (iEr := invErrT)
@@ -283,11 +283,11 @@ Proof.
   + apply: lutt_iresult => // e _; exact: preInv_trivial.
   move=> ves _.
   apply (lutt_bind (R := fun fs' => mem_equiv m fs'.(fmem))).
-  + apply: (lutt_bind (R := fun '(_, m', _) => mem_equiv m m')).
-    + apply: lutt_weaken (exec_syscallS s.(lscs) s.(lmem) o ves) => //.
+  + apply: (lutt_bind (R := fun '(m', _) => mem_equiv m m')).
+    + apply: lutt_weaken (exec_syscallS s.(lmem) o ves) => //.
       - by move=> *; exact: preInv_trivial.
-      by move=> [[scs' m'] vs'] /=; exact: mem_equiv_trans hmem.
-    by move=> [[scs' m'] vs] /= hm; apply/lutt_Ret'.
+      by move=> [m' vs'] /=; exact: mem_equiv_trans hmem.
+    by move=> [m' vs] /= hm; apply/lutt_Ret'.
   move=> fs' hfs'.
   apply: (lutt_bind (R := fun s' => mem_equiv m s'.(lmem)));
     last by move=> *; apply/lutt_Ret'.
@@ -328,7 +328,7 @@ Section EQ_LSYSCALL.
 Context
   {E E0: Type -> Type}
   {wE: with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}
+  {rE : with_RndEvent E0}
   {rE0 : EventRels E0}
   {rndE : RndRels2 (rE_l := rE) (rE_r := rE) (rE0 := rE0)}.
 
@@ -405,7 +405,7 @@ Qed.
 Context
   {E E0: Type -> Type}
   {wE: with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}.
+  {rE : with_RndEvent E0}.
 Context (lp : lprog).
 
 Lemma mix_ilsteps_0 p1 cond ls : ~~cond ls -> mix_ilsteps p1 cond ls ≅ Ret ls.

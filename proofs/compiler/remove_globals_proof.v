@@ -19,10 +19,10 @@ Module INCL. Section INCL.
   Context
     {wsw : WithSubWord}
     {dc:DirectCall}
-    {asm_op syscall_state : Type}
-    {ep : EstateParams syscall_state}
+    {asm_op : Type}
+    {ep : EstateParams}
     {spp : SemPexprParams}
-    {sip : SemInstrParams asm_op syscall_state}.
+    {sip : SemInstrParams asm_op}.
 
   Section INCL_E.
     Context (wdb : bool) (gd1 gd2 : glob_decls) (s : estate) (hincl : gd_incl gd1 gd2).
@@ -97,7 +97,7 @@ Module INCL. Section INCL.
     {E E0 : Type -> Type}
     {wE : with_Error E E0}
     {rE : EventRels E0}
-    {rndE : with_RndEvent syscall_state E0}
+    {rndE : with_RndEvent E0}
     {rndE_refl : RndRels_refl rE}
   .
 
@@ -285,10 +285,10 @@ Module RGP. Section PROOFS.
   Context
     {wsw : WithSubWord}
     {dc:DirectCall}
-    {asm_op syscall_state : Type}
-    {ep : EstateParams syscall_state}
+    {asm_op : Type}
+    {ep : EstateParams}
     {spp : SemPexprParams}
-    {sip : SemInstrParams asm_op syscall_state}
+    {sip : SemInstrParams asm_op}
     {LC : LoopCounter}
   .
 
@@ -306,7 +306,7 @@ Module RGP. Section PROOFS.
   Notation P' := {|p_globs := gd; p_funcs := fds; p_extra := p_extra P |}.
 
   Definition valid (m:venv) (s1 s2:estate) :=
-    [/\ s1.(escs) = s2.(escs), s1.(emem) = s2.(emem),
+    [/\ s1.(emem) = s2.(emem),
         (forall x, ~~is_glob_var x -> value_uincl (evm s1).[x] (evm s2).[x]),
         (forall x g, Mvar.get m x = Some g -> is_glob_var x) &
         (forall x g,
@@ -319,7 +319,7 @@ Module RGP. Section PROOFS.
     evm s <=1 vm →
     valid m s s'.
   Proof.
-    case => ?? hlocal ? hglobal le_vm; split => //.
+    case => ? hlocal ? hglobal le_vm; split => //.
     + move => ? /hlocal; exact: (value_uincl_trans (le_vm _)).
     by move => ?? /hglobal[] gv -> ?; exists gv; last apply: (value_uincl_trans (le_vm _)).
   Qed.
@@ -329,7 +329,7 @@ Module RGP. Section PROOFS.
     evm s' <=1 vm →
     valid m s (with_vm s' vm).
   Proof.
-    case => ?? hlocal ?? le_vm; split => // ? /hlocal ?.
+    case => ? hlocal ?? le_vm; split => // ? /hlocal ?.
     exact: value_uincl_trans (le_vm _).
   Qed.
 
@@ -350,7 +350,7 @@ Module RGP. Section PROOFS.
 
     Lemma remove_glob_e_esP : (∀ e, Pe e) ∧ (∀ es, Pes es).
     Proof using hvalid.
-      case: hvalid => hscs hmem hm1 hm2 hm3.
+      case: hvalid => hmem hm1 hm2 hm3.
       apply: pexprs_ind_pair; subst Pe Pes; split => //=.
       - by move => _ _ [<-] [<-]; exists [::].
       - move => e he es hes q qs.
@@ -457,7 +457,7 @@ Module RGP. Section PROOFS.
     move=> hglob hval /write_varP [-> hdb htr] hv'.
     case: (compat_truncate_uincl (compat_ctype_refl _ _) htr hv' hdb) => htr' hvv' hdb'.
     rewrite (write_var_truncate hdb' htr'); eexists; split; eauto.
-    case: hval => hsc hmem h1 h2 h3; split => //= z hz.
+    case: hval => hmem h1 h2 h3; split => //= z hz.
     + by rewrite !Vm.setP; case: eqP; last by auto.
     move=> hv1; rewrite Vm.setP_neq; first by apply h3.
     by apply/eqP => ?; subst z; rewrite (h2 _ _ hv1) in hglob.
@@ -477,7 +477,7 @@ Module RGP. Section PROOFS.
     exists s2',
       valid m s1' s2' /\ write_lval wdb gd lv' v s2 = ok s2'.
   Proof.
-    move=> hval; case:(hval) => hscs hmem hm1 hm2 hm3; case:lv => [vi ty|x|al ws vi e|al aa ws x e|aa ws len x e] /=.
+    move=> hval; case:(hval) => hmem hm1 hm2 hm3; case:lv => [vi ty|x|al ws vi e|al aa ws x e|aa ws len x e] /=.
     + by move=> [<-] /write_noneP; rewrite /= /write_none => -[-> -> ->]; eauto.
     + by case: ifPn => // hg [<-] /=; apply write_var_remove.
     + t_xrbindP => ? /(remove_glob_eP hval) h <- ??.
@@ -573,7 +573,7 @@ Module RGP. Section PROOFS.
     valid m2 s s' ->
     valid m1 s s'.
   Proof.
-    move=> hincl [hscs hmem hm1 hm2 hm3];split => //.
+    move=> hincl [hmem hm1 hm2 hm3];split => //.
     + by move=> x g /(MinclP hincl) -/hm2.
     by move=> x g /(MinclP hincl); apply hm3.
   Qed.
@@ -669,7 +669,7 @@ Module RGP. Section PROOFS.
     valid m s s' →
     valid (Mvar.set m x g) (with_vm s (evm s).[x <- v]) s'.
   Proof using uniq_gd.
-    move => hglob hfind htr [] hscs hm hm1 hm2 hm3; split => //=.
+    move => hglob hfind htr [] hm hm1 hm2 hm3; split => //=.
     * move=> y hy; rewrite Vm.setP_neq; first by apply hm1.
       by apply/eqP => ?;subst y;move: hy;rewrite hglob.
     * by move=> y gy;rewrite Mvar.setP; case:eqP => [<- // | ?]; apply hm2.
@@ -738,7 +738,7 @@ Module RGP. Section PROOFS.
     {E E0 : Type -> Type}
     {wE : with_Error E E0}
     {rE : EventRels E0}
-    {rndE : with_RndEvent syscall_state E0}
+    {rndE : with_RndEvent E0}
     {rndE_refl : RndRels_refl rE}
   .
 
@@ -793,7 +793,7 @@ Module RGP. Section PROOFS.
     move=> s1 /fsi /= /(_ _ _ erefl erefl erefl erefl hfs)[] s1' hinit hs1.
     exists s1'; first exact: hinit.
     exists (valid (Mvar.empty var)), (valid m'); split => // {hfs fsi hget hinit}; cycle -1.
-    + move=> {hs1} s1 s2 {} fs [/= hscse hmem hm _ _]; rewrite /finalize_funcall /=; t_xrbindP.
+    + move=> {hs1} s1 s2 {} fs [/= hmem hm _ _]; rewrite /finalize_funcall /=; t_xrbindP.
       move=> vs hget vs' htr <-.
       have : exists2 vres', get_var_is (~~ direct_call) (evm s2) (f_res fd) = ok vres' & values_uincl vs vres'.
       - elim: (f_res fd) (vs) res1 hres1 hget.
@@ -806,7 +806,7 @@ Module RGP. Section PROOFS.
       have := mapM2_dc_truncate_val htr vs_vres'.
       case => vs'' -> vs'_vs'' /=.
       by eexists; first reflexivity.
-    + by case: hs1 => ?? le_vm.
+    + by case: hs1 => ? le_vm; split => //.
     move: hrm; set dc_ := (m', c'); have [-> ->] : m' = dc_.1 /\ c' = dc_.2 by done.
     move: (f_body fd) (Mvar.empty var) dc_ => {fn fd m' c' hget' _tt hparams res1 hres1}.
     apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //.
@@ -820,7 +820,8 @@ Module RGP. Section PROOFS.
       by apply wequiv_opn_rel_uincl with (checker_valid ii) d.
     + move=> xs o es ii d dc_ /=; t_xrbindP => xs' hxs' es' hes' <- /=.
       apply wequiv_syscall_rel_uincl_core_R with (checker_valid ii) d d => //.
-      + by move=> > []. + by move=> > [?????].
+      + by move=> > [].
+      + by move=> > [].
       exact: fs_uincl_syscall.
     + move=> e c1 c2 hc1 hc2 ii d dc_ /=; t_xrbindP.
       move=> e' he' dc1 /hc1{}hc1 dc2 /hc2{}hc2 <- /=.
@@ -848,7 +849,8 @@ Module RGP. Section PROOFS.
       by move=> >; apply valid_Mincl.
     move=> xs fn es ii d dc_ /=; t_xrbindP => xs' hxs' es' hes' <- /=.
     apply wequiv_call_rel_uincl_R with (checker_valid ii) d d => //.
-    + by move=> > []. + by move=> > [?????].
+    + by move=> > [].
+    + by move=> > [].
     by move => ???; apply: wequiv_fun_rec.
   Qed.
 
@@ -863,7 +865,7 @@ Module RGP. Section PROOFS.
     {wE : with_Error E E0}
     {rE0 : EventRels E0}
     {rE0_trans : EventRels_trans rE0 rE0 rE0}
-    {rndE : with_RndEvent syscall_state E0}
+    {rndE : with_RndEvent E0}
     {rndE_refl : RndRels_refl rE0}.
 
   Lemma it_remove_globP P P' ev fn:

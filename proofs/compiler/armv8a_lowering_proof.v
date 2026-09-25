@@ -61,8 +61,6 @@ Context
   {wsw : WithSubWord}
   {dc : DirectCall}
   {atoI : arch_toIdent}
-  {syscall_state : Type}
-  {sc_sem : syscall_sem syscall_state}
   {pT : progT}
   {sCP : semCallParams}
   (p : prog)
@@ -232,7 +230,7 @@ Lemma lower_condition_Papp2P vi s op e0 e1 mn ws e es v0 v1 v :
         , sem_pexprs true (p_globs p) s es = ok [:: Vword w0; Vword w1 ]
         & sem_pexpr true (p_globs p) (estate_of_condition_mn mn s w0' w1') e = ok v
       ].
-Proof using atoI fv fv_correct p pT sc_sem syscall_state wsw.
+Proof using atoI fv fv_correct p pT wsw.
   move=> h hseme0 hseme1 hsemop.
   move: h; rewrite /lower_condition_Papp2.
   apply: obindP => -[cf ws'] hcf /chk_ws_regP [hws h].
@@ -334,7 +332,7 @@ Lemma sem_lower_condition_pexpr vi tag s0 s0' ii e v lvs aop es c :
          , eq_fv s0 s1'
          & sem_pexpr true (p_globs p) s1' c = ok v
        ].
-Proof using atoI ev fv fv_correct p pT sCP sc_sem syscall_state warning wsw.
+Proof using atoI ev fv fv_correct p pT sCP warning wsw.
   apply: obindP => -[[op e0] e1] /is_Papp2P ?; subst.
   apply: obindP => -[[[mn ws] e] es'] h [????]; subst.
 
@@ -370,7 +368,7 @@ Lemma sem_lower_condition vi s0 s0' ii e v pre e' :
          , eq_fv s0 s1'
          & sem_pexpr true (p_globs p) s1' e' = ok v
        ].
-Proof using atoI ev fv fv_correct p pT sCP sc_sem syscall_state warning wsw.
+Proof using atoI ev fv fv_correct p pT sCP warning wsw.
   move=> h hs00 hfv hseme.
 
   move: h.
@@ -1423,7 +1421,7 @@ Lemma sem_lower_pexpr
   -> exists2 s1',
        let cmd := map (MkI ii) (pre ++ [:: Copn [:: lv ] tag op es ]) in
        esem p' ev cmd s0' = ok s1' & eq_fv s1 s1'.
-Proof using atoI ev fv fv_correct p pT sCP sc_sem syscall_state warning wsw.
+Proof using atoI ev fv fv_correct p pT sCP warning wsw.
   move=> h hs00 hws hfve hfvlv hseme hwrite.
 
   move: s0 ws' pre op es w h hs00 hws hfve hfvlv hseme hwrite.
@@ -1538,7 +1536,7 @@ Lemma lower_cassgn_wordP ii s0 lv tag ws e v v' s0' s1' pre lvs op es :
   -> exists2 s2',
        esem p' ev (map (MkI ii) (pre ++ [:: Copn lvs tag op es ])) s0' = ok s2'
        & eq_fv s1' s2'.
-Proof using atoI ev fv fv_correct p pT sCP sc_sem syscall_state warning wsw.
+Proof using atoI ev fv fv_correct p pT sCP warning wsw.
   rewrite /lower_cassgn_word.
   move=> h hseme htrunc hwrite01' hs00 hfve hfvlv hsem01'.
 
@@ -1579,7 +1577,7 @@ Lemma lower_cassgn_boolP ii s0 lv tag e v v' s0' s1' irs :
   -> exists2 s2',
        esem p' ev (map (MkI ii) irs) s0' = ok s2'
        & eq_fv s1' s2'.
-Proof using atoI ev fv fv_correct p pT sCP sc_sem syscall_state warning wsw.
+Proof using atoI ev fv fv_correct p pT sCP warning wsw.
   rewrite /lower_cassgn_bool => h ok_v ok_v' ok_s1' hs00 hfve hfvlv hsem01'.
   case h: lower_condition_pexpr h => [ [] [] [] lvs op es c | // ] /Some_inj <-{irs}.
   have [ si [] hsem0i hs0i {} ok_v ] := sem_lower_condition_pexpr tag ii h hs00 hfve ok_v.
@@ -1779,7 +1777,7 @@ Context
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
   {rE0 : EventRels E0}
-  {rndE : with_RndEvent syscall_state E0}
+  {rndE : with_RndEvent E0}
   {rndE_refl : RndRels_refl rE0}
 .
 
@@ -1856,7 +1854,7 @@ Opaque esem.
       by rewrite esem1.
     have [vm hsem1 heq]:= lower_copnP hfve hcopn h.
     exists (with_vm s1' vm); first by rewrite esem1.
-    case: hs11=> ?? hvm; split => //=.
+    case: hs11=> ? hvm; split => //=.
     by move=> z hz; rewrite heq; apply hvm.
   (* Syscall *)
   + move=> xs o es ii.

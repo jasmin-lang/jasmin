@@ -10,10 +10,10 @@ Section WITH_PARAMS.
 Context
   {wsw:WithSubWord}
   {dc:DirectCall}
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}.
+  {sip : SemInstrParams asm_op}.
 
 Lemma write_lvals_write_lval wdb gd lv v s :
   write_lval wdb gd lv v s = write_lvals wdb gd s [:: lv ] [:: v ].
@@ -52,14 +52,6 @@ Proof.
   elim: xs ys vs s; first by move => _ [] // ? _ [] ->.
   move => x xs ih /=; t_xrbindP => _ [] // ???? X ? /ih{}ih _; t_xrbindP => ? Y {}/ih ->.
   by case: x X Y => // x _; rewrite /= /write_var; t_xrbindP => ?? <-.
-Qed.
-
-Lemma write_lvals_escs wdb gd xs s vs s' :
-  write_lvals wdb gd s xs vs = ok s' →
-  escs s' = escs s.
-Proof.
-  elim: xs vs s => [ | x xs ih] /= [] // => [ _ [->] //| v vs s].
-  by t_xrbindP => ? /lv_write_scsP -> /ih.
 Qed.
 
 (* sem_stack_stable and sem_validw_stable both for uprog and sprog *)
@@ -321,10 +313,10 @@ Section EQ_EX.
 
 Context
   {wsw:WithSubWord}
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}.
+  {sip : SemInstrParams asm_op}.
 
 Lemma write_var_eq_ex wdb X (x:var_i) v s1 s2 vm1 :
   write_var wdb x v s1 = ok s2 ->
