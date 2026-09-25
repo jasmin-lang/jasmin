@@ -19,6 +19,13 @@ Definition fadd (ws : wsize) :=
 
 Definition faddv ws x := fadd ws (Fvar x).
 
+(* The 16-bit halves of a [ws]-sized expression, zero-extended back to [ws]. *)
+Definition flo16 (ws : wsize) (e : fexpr) : fexpr :=
+  Fapp1 (Ozeroext ws U16) (Fapp1 (Ozeroext U16 ws) e).
+
+Definition fhi16 (ws : wsize) (e : fexpr) : fexpr :=
+  flo16 ws (Fapp2 (Olsr ws) e (fconst U8 16)).
+
 (* --------------------------------------------------------------------------- *)
 (* Right-expressions *)
 Variant rexpr :=

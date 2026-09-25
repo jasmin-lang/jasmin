@@ -123,7 +123,6 @@ Variant arm_mnemonic : Type :=
 | REVSH                          (* Byte-Reverse Signed Halfword reverses the byte order in the lower 16-bit halfword of a 32-bit register, and sign extends the result to 32 bits. *)
 
 (* Other data processing instructions *)
-| ADR                            (* Adds immediate to PC *)
 | MOV                            (* Copy operand to destination *)
 | MOVT                           (* Write the top halfword of a register *)
 | UBFX                           (* Extract a sub-word and zero extend *)
@@ -164,7 +163,7 @@ Definition arm_mnemonics : seq arm_mnemonic :=
     ; SMULW_hw HWB; SMULW_hw HWT
     ; AND; BFC; BFI; BIC; EOR; MVN; ORR
     ; ASR; LSL; LSR; ROR; REV; REV16; REVSH
-    ; ADR; MOV; MOVT; UBFX; UXTB; UXTH; SBFX; SXTB; SXTH; CLZ
+    ; MOV; MOVT; UBFX; UXTB; UXTH; SBFX; SXTB; SXTH; CLZ
     ; CMP; TST; CMN
     ; LDR; LDRB; LDRH; LDRSB; LDRSH
     ; STR; STRB; STRH
@@ -276,7 +275,6 @@ Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
   | REV => "REV"
   | REV16 => "REV16"
   | REVSH => "REVSH"
-  | ADR => "ADR"
   | MOV => "MOV"
   | MOVT => "MOVT"
   | UBFX => "UBFX"
@@ -649,6 +647,9 @@ Definition ak_reg_reg_reg_or_imm opts ew :=
 
 Definition ak_reg_imm_ ew :=
 [:: [:: [:: CAreg]; [:: CAimm (Some (CAimmC_arm_wencoding ew)) reg_size]]].
+
+(* A register and a half of a global address. *)
+Definition ak_reg_imm_rip k := [:: [:: [:: CAreg]; [:: CAimmRip k]]].
 
 Definition ak_reg_reg_or_imm_ ew :=
   ak_reg_reg ++ ak_reg_imm_ ew.
@@ -1892,34 +1893,6 @@ Definition arm_REV_instr   := mk_rev_instr REV   arm_REV_semi   DOIT.
 Definition arm_REV16_instr := mk_rev_instr REV16 arm_REV16_semi DOIT.
 Definition arm_REVSH_instr := mk_rev_instr REVSH arm_REVSH_semi NOT_DOIT. (* Not DIT *)
 
-Definition arm_ADR_semi (wn: ty_r) : ty_r :=
-  wn.
-
-Definition arm_ADR_instr : instr_desc_t :=
-  let mn := ADR in
-  let tin := [:: lreg ] in
-  let semi := arm_ADR_semi in
-  {|
-    id_msb_flag := MSB_MERGE;
-    id_tin := tin;
-    id_in := [:: Ec 1 ];
-    id_tout := [:: lreg ];
-    id_out := [:: Ea 0 ];
-    id_semi := sem_lprod_ok tin semi;
-    id_nargs := 2;
-    id_args_kinds := ak_reg_addr;
-    id_eq_size := refl_equal;
-    id_check_dest := refl_equal;
-    id_str_jas := pp_s (string_of_arm_mnemonic mn);
-    id_safe := [::];
-    id_pp_asm := pp_arm_op mn opts;
-    id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
-    id_safe_wf := refl_equal;
-    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
-  |}.
-
 Definition arm_MOV_semi (wn : ty_r) : ty_nzc_r :=
   (:: Some (NF_of_word wn), Some (ZF_of_word wn), None (* TODO_ARM: Complete *) & wn).
 
@@ -1936,7 +1909,9 @@ Definition arm_MOV_instr : instr_desc_t :=
       id_out := ad_nzc ++ [:: Ea 0 ];
       id_semi := sem_lprod_ok tin semi;
       id_nargs := 2;
-      id_args_kinds := ak_reg_reg ++ ak_reg_imm_ (chk_imm_w16_encoding opts.(set_flags));
+      id_args_kinds :=
+        ak_reg_reg ++ ak_reg_imm_ (chk_imm_w16_encoding opts.(set_flags))
+        ++ (if set_flags opts then [::] else ak_reg_imm_rip RipLo16);
       id_eq_size := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
@@ -1970,7 +1945,8 @@ Definition arm_MOVT_instr : instr_desc_t :=
     id_out := [:: Ea 0 ];
     id_semi := sem_lprod_ok tin semi;
     id_nargs := 2;
-    id_args_kinds := [:: [:: [:: CAreg ]; [:: CAimm_sz U16 ] ] ];
+    id_args_kinds :=
+      [:: [:: [:: CAreg ]; [:: CAimm_sz U16 ] ] ] ++ ak_reg_imm_rip RipHi16;
     id_eq_size := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
@@ -2418,7 +2394,6 @@ Definition mn_desc (mn : arm_mnemonic) : instr_desc_t :=
   | REV => arm_REV_instr
   | REV16 => arm_REV16_instr
   | REVSH => arm_REVSH_instr
-  | ADR => arm_ADR_instr
   | MOV => arm_MOV_instr
   | MOVT => arm_MOVT_instr
   | UBFX => arm_UBFX_instr

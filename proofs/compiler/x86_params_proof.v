@@ -456,7 +456,9 @@ Proof.
   rewrite /check_arg_kinds /= orbF.
   move: H1; rewrite /compat_imm /= => {heqa H2}.
   case: a => // r /orP [/eqP ? _ | ]; last by case a'.
-  subst a'; case: nth H0 => /=; first by t_xrbindP.
+  subst a'; have hnr := arg_of_rexpr_mem_norip H0 isT.
+  move: H0; rewrite /= /assemble_word_load hnr => {hnr} H0.
+  case: nth H0 => /=; first by t_xrbindP.
   case => //; last by case=> // ? -[] //=; t_xrbindP.
   move=> [v vi] h;
     assert (h1 := xreg_of_varI h);
@@ -490,7 +492,7 @@ Proof.
   case heq : assemble_word_load => [ a' | //]; rewrite andbT.
   rewrite /check_arg_kinds /= orbF => ha /eqP ?; subst a' => {heqa}.
   case: a heq ha => // r heq _; exists r.
-  case: e heq => /=; t_xrbindP => //.
+  case: e heq => /=; rewrite /assemble_word_load /=; t_xrbindP => //.
   move=> [v vi] h;
     assert (h1 := xreg_of_varI h);
     move: (of_varI h1) => /= <-;
@@ -570,7 +572,7 @@ Proof.
         t_xrbindP => -[op' asm_args] hass <- hlo /=.
         assert (h := assemble_asm_opI hass); case: h=> hca hcd hidc -> /= {hass}.
         move: hca; rewrite /check_sopn_args /= => /and3P [].
-        rewrite /check_sopn_arg /=.
+        rewrite /check_sopn_arg /= /assemble_word_load /=.
         case: asm_args hidc hcd => //= a0 [ // | ] a1 [] //= hidc hcd;
           last by rewrite /check_args_kinds /= !andbF.
         case ok_y: xreg_of_var => [y|//].
@@ -591,7 +593,7 @@ Proof.
       t_xrbindP => -[op' asm_args] hass <- hlo /=.
       assert (h := assemble_asm_opI hass); case: h=> hca hcd hidc -> /= {hass}.
       move: hca; rewrite /check_sopn_args /= => /and3P [].
-      rewrite /check_sopn_arg /=.
+      rewrite /check_sopn_arg /= /assemble_word_load /=.
       case: asm_args hidc hcd => //= a0 [ // | ] a1 [] //= hidc hcd;
        last by rewrite /check_args_kinds /= !andbF.
       case ok_y: xreg_of_var => [y|//].
@@ -612,7 +614,7 @@ Proof.
     t_xrbindP => -[op' asm_args] hass <- hlo /=.
     assert (h := assemble_asm_opI hass); case: h=> hca hcd hidc -> /= {hass}.
     move: hca; rewrite /check_sopn_args /= => /and3P [].
-    rewrite /check_sopn_arg /=.
+    rewrite /check_sopn_arg /= /assemble_word_load /=.
     case: asm_args hidc hcd => //= a0 [// | ] a1 [] //= a2 [] //=;
       last by rewrite /check_args_kinds /= !andbF.
     rewrite orbF => hidc hcd.
@@ -650,7 +652,7 @@ Proof.
     rewrite /= in hidc;rewrite hidc.
     have [v' /= -> /= -> /=] :=
       check_sopn_arg_sem_eval eval_assemble_cond hlow hca1 hva htwa.
-    move: hcd; rewrite /check_sopn_dests /= /check_sopn_dest /= => /andP -[].
+    move: hcd; rewrite /check_sopn_dests /= /check_sopn_dest /= /assemble_word_load /= => /andP -[].
     case ok_y: xreg_of_var => [y|//].
     assert (h := xreg_of_varI ok_y); move: h => {}ok_y.
     rewrite andbT => /eqP ? _; subst a0.

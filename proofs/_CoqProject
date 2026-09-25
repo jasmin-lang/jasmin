@@ -54,6 +54,8 @@ compiler/arm_extra.v
 compiler/arm_facts.v
 compiler/arm_instr_decl.v
 compiler/arm_instr_decl_lemmas.v
+compiler/arm_lower_addressing.v
+compiler/arm_lower_addressing_proof.v
 compiler/arm_lowering.v
 compiler/arm_lowering_proof.v
 compiler/arm_params.v

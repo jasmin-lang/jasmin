@@ -97,12 +97,17 @@ module Make(Target : AsmTarget) : S
 
     let pp_data_segment_body globs names = Asm_utils.format_glob_data globs names
 
+    let data_segment_section () =
+      if is_target_system_macos () then
+        [ Header (".section", [ "__TEXT"; "__const" ]) ]
+      else [ Header (".section", [ ".rodata"; "\"a\""; "%progbits" ]) ]
+
     let pp_data_segment globs names =
       (* If there are only global slots of length 0, [globs] is empty,
          but we still need to print the global label.
          We check [names] rather than [globs] to solve the issue. *)
       if not (List.is_empty names) then
-        let headers = Target.data_segment_header in
+        let headers = data_segment_section () @ Target.data_segment_header in
         let data = pp_data_segment_body globs names in
         headers @ data
       else

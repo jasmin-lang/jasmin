@@ -170,10 +170,28 @@ Qed.
 HB.instance Definition _ := hasDecEq.Build address address_eq_axiom.
 
 (* -------------------------------------------------------------------- *)
+(* Which 16-bit half of a global address an immediate denotes. *)
+#[only(eqbOK)] derive
+Variant rip_imm_kind : Type :=
+| RipLo16
+| RipHi16.
+
+HB.instance Definition _ := hasDecEq.Build rip_imm_kind rip_imm_kind_eqb_OK.
+
+(* The 16-bit halves of an address, as pointer-sized words. *)
+Definition lo16 (p : pointer) : pointer := zero_extend Uptr (zero_extend U16 p).
+Definition hi16 (p : pointer) : pointer := lo16 (wshr p 16).
+
+Definition rip_imm (k : rip_imm_kind) (p : pointer) : pointer :=
+  if k is RipLo16 then lo16 p else hi16 p.
+
+(* -------------------------------------------------------------------- *)
 (* Arguments to assembly instructions. *)
 Variant asm_arg : Type :=
 | Condt  of cond_t
 | Imm ws of word ws
+| ImmRip of rip_imm_kind & pointer (* Half of an address relative to the
+                                      instruction pointer. *)
 | Reg    of reg_t
 | Regx   of regx_t
 | Addr   of address
@@ -188,6 +206,7 @@ Definition asm_arg_beq (a1 a2:asm_arg) :=
   match a1, a2 with
   | Condt t1, Condt t2 => t1 == t2 ::>
   | Imm sz1 w1, Imm sz2 w2 => (sz1 == sz2) && (wunsigned w1 == wunsigned w2)
+  | ImmRip k1 p1, ImmRip k2 p2 => (k1 == k2) && (p1 == p2)
   | Reg r1, Reg r2     => r1 == r2 ::>
   | Regx r1, Regx r2   => r1 == r2 ::>
   | Addr a1, Addr a2   => a1 == a2
@@ -201,11 +220,15 @@ Definition Imm_inj sz sz' w w' (e: @Imm sz w = @Imm sz' w') :
 
 Lemma asm_arg_eq_axiom : Equality.axiom asm_arg_beq.
 Proof.
-  case => [t1 | sz1 w1 | r1 | r1 | a1 | xr1] [t2 | sz2 w2 | r2 | r2 | a2 | xr2] /=;
+  case => [t1 | sz1 w1 | k1 p1 | r1 | r1 | a1 | xr1]
+          [t2 | sz2 w2 | k2 p2 | r2 | r2 | a2 | xr2] /=;
     try by (constructor || apply: reflect_inj eqP => ?? []).
+  + apply: (iffP idP) => //=.
+    + by move=> /andP [] /eqP ? /eqP; subst => /wunsigned_inj ->.
+    by move=> /Imm_inj [? ];subst => /= ->;rewrite !eqxx.
   apply: (iffP idP) => //=.
-  + by move=> /andP [] /eqP ? /eqP; subst => /wunsigned_inj ->.
-  by move=> /Imm_inj [? ];subst => /= ->;rewrite !eqxx.
+  + by move=> /andP [] /eqP -> /eqP ->.
+  by move=> [] -> ->; rewrite !eqxx.
 Qed.
 
 HB.instance Definition _ := hasDecEq.Build asm_arg asm_arg_eq_axiom.
@@ -288,6 +311,7 @@ Definition check_oreg or ai :=
   match or, ai with
   | ACR_exact r, Reg r'  => r == r' ::>
   | ACR_exact _, Imm _ _ => true
+  | ACR_exact _, ImmRip _ _ => true
   | ACR_exact _, _       => false
   | ACR_vector x, XReg r => x == r ::>
   | ACR_vector _, _      => false
@@ -306,7 +330,8 @@ Variant arg_kind :=
 | CAregx
 | CAxmm
 | CAmem of bool (* true if Global is allowed *)
-| CAimm of option caimm_cond & wsize.
+| CAimm of option caimm_cond & wsize
+| CAimmRip of rip_imm_kind.
 
 (* [caimm_cond] is an abstract type equipped with an [eqTypeC], so the
    decidable equality is written by hand instead of derived. *)
@@ -319,15 +344,17 @@ Definition arg_kind_eqb (a1 a2 : arg_kind) : bool :=
   | CAmem b1, CAmem b2 => b1 == b2
   | CAimm c1 ws1, CAimm c2 ws2 =>
       ((c1 : option ceqT_eqType) == c2) && (ws1 == ws2)
+  | CAimmRip k1, CAimmRip k2 => k1 == k2
   | _, _ => false
   end.
 
 Lemma arg_kind_eqb_OK : forall a1 a2, reflect (a1 = a2) (arg_kind_eqb a1 a2).
 Proof.
   move=> a1 a2; apply: (iffP idP).
-  - case: a1 a2 => [||||b1|c1 ws1] [||||b2|c2 ws2] //=.
+  - case: a1 a2 => [||||b1|c1 ws1|k1] [||||b2|c2 ws2|k2] //=.
     + by move=> /eqP ->.
-    by move=> /andP [/eqP -> /eqP ->].
+    + by move=> /andP [/eqP -> /eqP ->].
+    by move=> /eqP ->.
   move=> <-; case: a1 => //= *; by rewrite !eqxx.
 Qed.
 
@@ -361,6 +388,7 @@ Definition check_arg_kind (a:asm_arg) (cond: arg_kind) :=
   | Condt _, CAcond => true
   | Imm sz z, CAimm checker sz' =>
       (sz == sz') && oapp (fun c => check_CAimm c z) true checker
+  | ImmRip k _, CAimmRip k' => k == k'
   | Reg _ , CAreg => true
   | Regx _, CAregx => true
   | Addr _, CAmem _ => true

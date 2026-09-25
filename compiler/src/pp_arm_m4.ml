@@ -61,9 +61,17 @@ let pp_asm_arg (arg : (register, Arch_utils.empty, Arch_utils.empty, rflag, cond
   | Imm (ws, w) -> Some (pp_imm (Conv.z_unsigned_of_word ws w))
   | Reg r -> Some (pp_register r)
   | Regx _ -> .
+  | ImmRip (RipLo16, r) -> Some ("#:lower16:" ^ pp_rip_address r)
+  | ImmRip (RipHi16, r) -> Some ("#:upper16:" ^ pp_rip_address r)
   | Addr (Areg ra) ->
       Some (pp_reg_address ra)
-  | Addr  (Arip r) -> Some (pp_rip_address r)
+  | Addr (Arip _) ->
+      (* A global is read through its address, see [arm_lower_addressing]. *)
+      hierror
+        ~loc:Lnone
+        ~kind:"assembly printing"
+        ~internal:true
+        "memory operand relative to the instruction pointer"
   | XReg _ -> .
 
 (* -------------------------------------------------------------------- *)
@@ -135,6 +143,8 @@ end = struct
         | EI_shift -> on_shift n
         | EI_none -> on_none n
         | _ -> "")
+    (* A half of a global address needs the 16-bit W-encoding. *)
+    | _, ImmRip _ -> "w"
     | _ -> ""
 
   let chk_w12_encoding opts n =
@@ -172,27 +182,10 @@ end = struct
     | MVN | TST -> chk_imm_reject_shift args 1
     | MUL | MLA | MLS | SDIV | UDIV | UMULL | UMAAL | UMLAL | SMULL | SMLAL
     | SMMUL | SMMULR | SMUL_hw _ | SMLA_hw _ | SMULW_hw _ | BFC | BFI | ASR
-    | LSL | LSR | ROR | REV | REV16 | REVSH | ADR | MOVT | UBFX | UXTB | UXTH
+    | LSL | LSR | ROR | REV | REV16 | REVSH | MOVT | UBFX | UXTB | UXTH
     | SBFX | SXTB | SXTH | CLZ | LDR | LDRB | LDRH | LDRSB | LDRSH | STR | STRB | STRH
       -> ""
 end
-
-(* Split an [ADR] instruction to a global symbol into a [MOVW]/[MOVT] pair. *)
-let pp_ADR pp opts args =
-  let name_lo = pp_mnemonic_ext (ARM_op(MOV, opts)) "w" args in
-  let name_hi = pp_mnemonic_ext (ARM_op(MOVT, opts)) "" args in
-  let args =
-    List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args
-  in
-  let args_lo, args_hi =
-    match args with
-    | dst :: addr :: rest ->
-        let lo = "#:lower16:" ^ addr in
-        let hi = "#:upper16:" ^ addr in
-        (dst :: lo :: rest, dst :: hi :: rest)
-    | _ -> assert false
-  in
-  [ Instr(name_lo, args_lo); Instr(name_hi, args_hi) ]
 
 module ArmTarget : AsmTargetBuilder.AsmTarget with
 type reg = Arm_decl.register
@@ -272,7 +265,12 @@ and type asm_op = arm_op
         [Instr ("bl", [ pp_syscall op ])]
 
     | Declassify_val (lty, a) ->
-        declassify_val (fun _lty a -> Option.default "" (pp_asm_arg a)) lty a
+        let pp_arg _lty a =
+          match a with
+          | Addr (Arip r) -> pp_rip_address r
+          | _ -> Option.default "" (pp_asm_arg a)
+        in
+        declassify_val pp_arg lty a
 
     | Declassify_mem (len, a) ->
         declassify_mem arch len a
@@ -283,15 +281,12 @@ and type asm_op = arm_op
         (* We need to perform the check even if we don't use the suffix, for
            instance for [LDR] or [STR]. *)
         let suff = ArgChecker.check_args op pp.pp_aop_args in
-        match op, args with
-        | ARM_op(ADR, opts), _ :: Addr (Arip _) :: _ -> pp_ADR pp opts args
-        | _, _ ->
-            let name = pp_mnemonic_ext op suff args in
-            let args =
-              List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args
-            in
-            let args = pp_shift op args in
-            get_IT i @ [ Instr (name, args) ]
+        let name = pp_mnemonic_ext op suff args in
+        let args =
+          List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args
+        in
+        let args = pp_shift op args in
+        get_IT i @ [ Instr (name, args) ]
 
 
 end

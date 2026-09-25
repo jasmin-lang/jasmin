@@ -243,7 +243,39 @@ Definition xreg_of_var ii (x: var_i) : cexec asm_arg :=
   else if to_regx x is Some r then ok (Regx r)
   else Error (E.verror false "Not a (x)register" ii x).
 
+(* Recognize the halves of a global address built by [flo16] and [fhi16]. *)
+Definition is_zeroext16 (e : fexpr) : option fexpr :=
+  match e with
+  | Fapp1 (Ozeroext ws U16) (Fapp1 (Ozeroext U16 ws') f) =>
+      if [&& ws == Uptr & ws' == Uptr ] then Some f else None
+  | _ => None
+  end.
+
+Definition is_shr16 (e : fexpr) : option fexpr :=
+  match e with
+  | Fapp2 (Olsr ws) f (Fapp1 (Oword_of_int U8) (Fconst n)) =>
+      if [&& ws == Uptr & (n =? 16)%Z ] then Some f else None
+  | _ => None
+  end.
+
+Definition is_rip_slice (e : rexpr) : option (rip_imm_kind * fexpr) :=
+  match e with
+  | Rexpr g =>
+      match is_zeroext16 g with
+      | Some g' =>
+          if is_shr16 g' is Some f then Some (RipHi16, f) else Some (RipLo16, g')
+      | None => None
+      end
+  | Load _ _ _ => None
+  end.
+
+Definition assemble_rip_imm rip ii k (f : fexpr) : cexec asm_arg :=
+  Let a := addr_of_fexpr rip ii Uptr f in
+  if a is Arip ofs then ok (ImmRip k ofs)
+  else Error (E.error ii (pp_box [:: pp_s "not a global address:"; pp_fe f])).
+
 Definition assemble_word_load (is_input: bool) rip ii al (sz: wsize) (e: rexpr) :=
+  if is_rip_slice e is Some (k, f) then assemble_rip_imm rip ii k f else
   match e with
   | Rexpr (Fapp1 (Oword_of_int sz') (Fconst z)) =>
     let w := wrepr sz' z in
@@ -402,6 +434,7 @@ Definition check_arg_kind_no_imm (a:asm_arg) (cond: arg_kind) :=
   match a, cond with
   | Condt _, CAcond => true
   | Imm _ _, CAimm _ _ => true
+  | ImmRip k _, CAimmRip k' => k == k'
   | Reg _ , CAreg => true
   | Regx _, CAregx => true
   | Addr _, CAmem _ => true
@@ -440,6 +473,7 @@ Definition enforce_imm_arg_kind (a:asm_arg) (cond: arg_kind) : option asm_arg :=
     (* this check is not used (yet?) in the correctness proof *)
     if (w == w2) && oapp (fun c => check_CAimm c w1) true checker
     then Some (Imm w1) else None
+  | ImmRip k _, CAimmRip k' => if k == k' then Some a else None
   | Reg _, CAreg => Some a
   | Regx _, CAregx => Some a
   | Addr _, CAmem _ => Some a
@@ -468,6 +502,9 @@ Definition pp_arg_kind c :=
       pp_nobox
         ([:: pp_s "imm "; pp_s (string_of_wsize ws)]
          ++ oapp (fun c => [:: pp_s " "; pp_s (caimm_cond_pp c)]) [::] checker)
+  | CAimmRip k =>
+      pp_s (if k is RipLo16 then "low half of a global address"
+            else "high half of a global address")%string
   | CAcond => pp_s "cond"
   | CAreg => pp_s "reg"
   | CAregx => pp_s "regx"

@@ -295,6 +295,82 @@ Proof.
   by rewrite !zero_extend_u.
 Qed.
 
+Definition rip_slice_fexpr (k : rip_imm_kind) (f : fexpr) : fexpr :=
+  if k is RipLo16 then flo16 Uptr f else fhi16 Uptr f.
+
+Lemma is_zeroext16E e f : is_zeroext16 e = Some f -> e = flo16 Uptr f.
+Proof.
+  rewrite /is_zeroext16 /flo16.
+  case: e => // o1 e1; case: o1 => // ws1 ws2; case: ws2 => //.
+  case: e1 => // o2 g; case: o2 => // ws3 ws4; case: ws3 => //.
+  by case: ifP => // /andP [] /eqP -> /eqP -> [<-].
+Qed.
+
+Lemma is_shr16E e f :
+  is_shr16 e = Some f -> e = Fapp2 (Olsr Uptr) f (fconst U8 16).
+Proof.
+  rewrite /is_shr16 /fconst.
+  case: e => // o1 g1 g2; case: o1 => // ws1.
+  case: g2 => // o2 g3; case: o2 => // ws2; case: ws2 => //.
+  case: g3 => // z.
+  by case: ifP => // /andP [] /eqP -> /Z.eqb_eq -> [<-].
+Qed.
+
+Lemma is_rip_sliceE e k f :
+  is_rip_slice e = Some (k, f) -> e = Rexpr (rip_slice_fexpr k f).
+Proof.
+  rewrite /is_rip_slice /rip_slice_fexpr /fhi16.
+  case: e => // g; case h1: is_zeroext16 => [g' | //].
+  case h2: is_shr16 => [h | ] [<- <-].
+  + by rewrite (is_zeroext16E h1) (is_shr16E h2).
+  by rewrite (is_zeroext16E h1).
+Qed.
+
+Lemma rip_slice_semP vm k f v :
+  sem_fexpr vm (rip_slice_fexpr k f) = ok v ->
+  exists sz (w : word sz),
+    [/\ (Uptr <= sz)%CMP, sem_fexpr vm f = ok (Vword w)
+      & v = Vword (rip_imm k (zero_extend Uptr w)) ].
+Proof.
+  rewrite /rip_slice_fexpr /flo16 /fhi16 /fconst /rip_imm /hi16 /lo16 /=.
+  case: k => /=.
+  + t_xrbindP => v1 v2 hf; rewrite /sem_sop1 /=.
+    t_xrbindP => w hw <- w1 [<-] <-.
+    have [sz [w' [hle ? ?]]] := to_wordI' hw; subst v2 w.
+    by exists sz, w'; split=> //; rewrite truncate_word_u.
+  rewrite /sem_sop2 /sem_sop1 /=; t_xrbindP => v1 v2 v3 hf w hw.
+  move=> ?; rewrite truncate_word_u => /ok_inj ? ?; subst.
+  move=> ?; rewrite /= truncate_word_u => /ok_inj ? ?; subst.
+  move=> ?; rewrite /= truncate_word_u => /ok_inj ? ?; subst.
+  have [sz [w' [hle ? ?]]] := to_wordI' hw; subst v3 w.
+  by exists sz, w'.
+Qed.
+
+Lemma is_rip_sliceP rip ii m s e k f a v :
+  lom_eqv rip m s ->
+  is_rip_slice e = Some (k, f) ->
+  sem_rexpr m.(emem) m.(evm) e = ok v ->
+  assemble_rip_imm agparams rip ii k f = ok a ->
+  exists2 ofs, a = ImmRip k ofs & v = Vword (rip_imm k (s.(asm_rip) + ofs)).
+Proof.
+  move=> lom /is_rip_sliceE -> /= /rip_slice_semP [sz [w [hle hf ->]]].
+  rewrite /assemble_rip_imm; t_xrbindP => adr hadr.
+  case: adr hadr => // ofs hadr [<-].
+  exists ofs => //.
+  have := addr_of_fexprP hle lom hf hadr.
+  by rewrite /decode_addr zero_extend_u => ->.
+Qed.
+
+Lemma arg_of_rexpr_mem_norip is_input al rip ii ws e a :
+  arg_of_rexpr agparams is_input (AK_mem al) rip ii (lword ws) e = ok a ->
+  (if a is ImmRip _ _ then false else true) ->
+  is_rip_slice e = None.
+Proof.
+  rewrite /= /assemble_word_load; case: is_rip_slice => [[k f] | //].
+  rewrite /assemble_rip_imm; t_xrbindP => adr _.
+  by case: adr => // ? [<-].
+Qed.
+
 Variant check_sopn_argI rip ii args e : arg_desc -> ltype -> Prop :=
 | CSA_Implicit i ty :
        is_implicit i e
@@ -409,14 +485,23 @@ Proof using eval_assemble_cond.
     move: hcomp; rewrite /compat_imm orbF => /eqP ?; subst a => /=.
     rewrite (addr_of_fexprP hws eqm he hadr); eexists; first reflexivity.
     by rewrite /= truncate_word_u.
-  case: e => //=.
-  + move=> al sz p al'; t_xrbindP => /eqP <- ok_al' r hr ?; subst a'.
+  move=> al'; rewrite /assemble_word_load.
+  case hsl: is_rip_slice => [[rk g] | ].
+  + (* [e] denotes a half of a global address. *)
+    move=> haw vt hv.
+    have [ofs ? ?] := is_rip_sliceP eqm hsl hv haw; subst a' v.
+    move: hcomp; rewrite /compat_imm orbF => /eqP ?; subst a.
+    move=> /truncate_wordP [hle ->].
+    eexists; first reflexivity.
+    by rewrite /= truncate_word_u.
+  clear hsl; case: e => //=.
+  + move=> al sz p; t_xrbindP => /eqP <- ok_al' r hr ?; subst a'.
     move: hcomp; rewrite /compat_imm orbF => /eqP <-.
     move=> w1 wp' vp' hp hp' wr hwr <- /= htr.
     have -> := addr_of_xpexprP eqm hr hp hp'.
     by case: eqm => ? <- ??????; rewrite (aligned_le_read ok_al' hwr) /=; eauto.
   case => //.
-  + move=> x al.
+  + move=> x.
     move=> /xreg_of_varI; case: a' hcomp => // r;
       rewrite /compat_imm orbF => /eqP <- {a} h; have /= <- := of_varI h =>
       w ok_v /to_wordI[? [? [? ok_w]]];
@@ -424,7 +509,7 @@ Proof using eval_assemble_cond.
     + exact: getreg eqm ok_v.
     + exact: getregx eqm ok_v.
     exact: getxreg eqm ok_v.
-  case => //= w' [] //= z al.
+  case => //= w' [] //= z.
   t_xrbindP => /eqP _ h; move: hcomp; rewrite -h /compat_imm /eval_asm_arg => -/orP [/eqP <- | ].
   + move=> w [] <- /truncate_wordP [hsz ->].
     eexists; first reflexivity.
@@ -622,7 +707,7 @@ Proof.
   move=> al' sz /= e; t_xrbindP.
   move=> ?? he hofs w hw m1 hm1 ??; subst m' e1.
   case: ty hty vt hw => //= sz' _ vt hw.
-  t_xrbindP => /eqP ? hal; subst sz'.
+  rewrite /assemble_word_load /=; t_xrbindP => /eqP ? hal; subst sz'.
   move: hw; rewrite truncate_word_u => -[?]; subst vt.
   move => adr hadr ?; subst a => /=.
   rewrite /= heq1 hc /= /mem_write_mem -h1.
@@ -1043,9 +1128,10 @@ Lemma enforce_imm_arg_kind_correct a c a' :
   enforce_imm_arg_kind a c = Some a' ->
   check_arg_kind a' c.
 Proof.
-  case: a; case: c => [|||| b |] //=; try by move=> ? [<-].
-  move=> checker ws1 ws2 w.
-  by case: ifP => // /andP [] /eqP -> /= h [<-] /=; rewrite h eqxx.
+  case: a; case: c => [|||| b | | k'] //=; try by move=> ? [<-].
+  + move=> checker ws1 ws2 w.
+    by case: ifP => // /andP [] /eqP -> /= h [<-] /=; rewrite h eqxx.
+  by move=> k ofs; case: eqP => // -> [<-] /=.
 Qed.
 
 Lemma enforce_imm_arg_kinds_correct a cond' a' :
@@ -1290,7 +1376,7 @@ Lemma eval_assemble_word is_input ii al sz e a s xs v :
        eval_asm_arg (AK_mem al) xs a (lword sz) = ok v'
        & value_uincl v v'.
 Proof.
-  rewrite /assemble_word /eval_asm_arg => eqm.
+  rewrite /assemble_word_load /eval_asm_arg => eqm.
   case: e => //; last case => //=; t_xrbindP; last first.
   - move => x _ /xreg_of_varI h ok_v.
     case: a h => // r ok_r; (eexists; first reflexivity).
