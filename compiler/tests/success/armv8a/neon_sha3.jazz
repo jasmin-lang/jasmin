@@ -1,0 +1,39 @@
+// SHA-3 NEON instructions, through their intrinsics: EOR3 and BCAX on
+// bytes, RAX1 and XAR on 64-bit lanes; the rotation amount of XAR is an
+// immediate from 0 to 63, used at both bounds. They require the sha3
+// extension, which the assembly file enables.
+
+// Steps of a Keccak-f round on two lanes of each of five columns: theta
+// (EOR3, RAX1), rho (XAR) and chi (BCAX).
+export
+fn neon_sha3(reg u64 p) {
+    reg u128 a0 a1 a2 a3 a4 c d e;
+
+    a0 = [:u128 p];
+    a1 = [:u128 p + 16];
+    a2 = [:u128 p + 32];
+    a3 = [:u128 p + 48];
+    a4 = [:u128 p + 64];
+
+    c = #VEOR3_128(a0, a1, a2);
+    c = #VEOR3_128(c, a3, a4);
+    d = #VRAX1_2u64(c, a1);
+    e = #VXAR_2u64(a0, d, 0);
+    a1 = #VXAR_2u64(a1, d, 63);
+    a2 = #VXAR_2u64(a2, d, 44);
+    a0 = #VBCAX_128(e, a2, a1);
+    [:u128 p] = a0;
+    [:u128 p + 16] = a1;
+    [:u128 p + 32] = a2;
+}
+
+// On vector arguments, results in V registers.
+export
+fn neon_sha3_args(reg u128 x y z) -> reg u128, reg u128 {
+    reg u128 t;
+    t = #VBCAX_128(x, y, z);
+    x = #VEOR3_128(x, y, z);
+    x = #VRAX1_2u64(x, t);
+    t = #VXAR_2u64(t, x, 1);
+    return x, t;
+}

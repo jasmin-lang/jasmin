@@ -1081,3 +1081,15 @@ op VPMULL_128 (x y: W64.t) : W128.t =
 
 op VPMULL2_128 (x y: W128.t) : W128.t =
   VPMULL_128 (x \bits64 1) (y \bits64 1).
+
+(* SHA-3, on 128-bit registers: EOR3 and BCAX as bytes, RAX1 and XAR on
+   64-bit lanes. XAR rotates by its 8-bit immediate modulo 64, as ROR. *)
+op VEOR3_128 (n m a: W128.t) : W128.t = n +^ m +^ a.
+
+op VBCAX_128 (n m a: W128.t) : W128.t = n +^ andw m (invw a).
+
+op VRAX1_2u64 (n m: W128.t) : W128.t =
+  n +^ W2u64.map (fun (x: W64.t) => x `|<<<|` 1) m.
+
+op VXAR_2u64 (n m: W128.t) (i: W8.t) : W128.t =
+  W2u64.map (fun (x: W64.t) => x `|>>>|` (W8.to_uint i %% 64)) (n +^ m).

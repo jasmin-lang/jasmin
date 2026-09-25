@@ -453,7 +453,13 @@ Variant armv8a_vmnemonic : Type :=
 
 (* Polynomial multiplication *)
 | VPMULL                         (* Polynomial multiply long, low halves *)
-| VPMULL2.                       (* Polynomial multiply long, high halves *)
+| VPMULL2                        (* Polynomial multiply long, high halves *)
+
+(* SHA-3 *)
+| VEOR3                          (* Three-way exclusive OR *)
+| VRAX1                          (* Rotate and exclusive OR *)
+| VXAR                           (* Exclusive OR and rotate *)
+| VBCAX.                         (* Bit clear and exclusive OR *)
 
 #[ export ]
 Instance eqTC_armv8a_vmnemonic : eqTypeC armv8a_vmnemonic :=
@@ -473,6 +479,7 @@ Definition armv8a_vmnemonics : seq armv8a_vmnemonic :=
     ; VDUP; VDUPLANE; VINS; VINSLANE; VUMOV; VSMOV
     ; VAESE; VAESD; VAESMC; VAESIMC
     ; VPMULL; VPMULL2
+    ; VEOR3; VRAX1; VXAR; VBCAX
   ].
 
 Lemma armv8a_vmnemonic_fin_axiom : Finite.axiom armv8a_vmnemonics.
@@ -544,6 +551,10 @@ Definition string_of_armv8a_vmnemonic (vmn : armv8a_vmnemonic) : string :=
   | VAESIMC => "AESIMC"
   | VPMULL => "PMULL"
   | VPMULL2 => "PMULL2"
+  | VEOR3 => "EOR3"
+  | VRAX1 => "RAX1"
+  | VXAR => "XAR"
+  | VBCAX => "BCAX"
   end%string.
 
 (* The Jasmin name of a vector mnemonic: the architectural one prefixed
@@ -563,12 +574,14 @@ Definition armv8a_vmn_name (vmn : armv8a_vmnemonic) : string :=
    as the assembler knows them: the base ARMv8-A instruction set does not
    include the cryptographic instructions. *)
 Variant armv8a_extension :=
-| EXT_aes.                       (* AESE, AESD, AESMC, AESIMC, and PMULL
+| EXT_aes                        (* AESE, AESD, AESMC, AESIMC, and PMULL
                                     and PMULL2 on 64-bit lanes *)
+| EXT_sha3.                      (* EOR3, RAX1, XAR, BCAX *)
 
 Definition string_of_armv8a_extension (ext : armv8a_extension) : string :=
   match ext with
   | EXT_aes => "aes"
+  | EXT_sha3 => "sha3"
   end%string.
 
 (* The extension that a vector mnemonic requires, if any. *)
@@ -577,6 +590,7 @@ Definition armv8a_vmn_extension (vmn : armv8a_vmnemonic)
   match vmn with
   | VAESE | VAESD | VAESMC | VAESIMC
   | VPMULL | VPMULL2 => Some EXT_aes
+  | VEOR3 | VRAX1 | VXAR | VBCAX => Some EXT_sha3
   | _ => None
   end.
 
@@ -3380,7 +3394,8 @@ Arguments armv8a_extend_semi {ws} sign ws' wn /.
    AESE, AESD, AESMC and AESIMC operate on a whole register, as bytes.
    PMULL and PMULL2 are taken in their 64-bit polynomial form only, which
    multiplies a lane of 64 bits of each source into the whole destination
-   register. *)
+   register. EOR3 and BCAX operate on a whole register, as bytes, RAX1 and
+   XAR on 64-bit lanes of a whole register. *)
 Definition armv8a_vmn_shapes (vmn : armv8a_vmnemonic) : seq (velem * wsize) :=
   match vmn with
   | VMOV | VLDR | VSTR => [:: (VE8, U128) ]
@@ -3399,7 +3414,9 @@ Definition armv8a_vmn_shapes (vmn : armv8a_vmnemonic) : seq (velem * wsize) :=
       [:: (VE8, U128); (VE16, U128); (VE32, U128); (VE64, U128) ]
   | VSMOV => [:: (VE8, U128); (VE16, U128); (VE32, U128) ]
   | VAESE | VAESD | VAESMC | VAESIMC
-  | VPMULL | VPMULL2 => [:: (VE8, U128) ]
+  | VPMULL | VPMULL2
+  | VEOR3 | VBCAX => [:: (VE8, U128) ]
+  | VRAX1 | VXAR => [:: (VE64, U128) ]
   | VMUL | VSMAX | VSMIN | VUMAX | VUMIN | VREV64 =>
       [:: (VE8, U128); (VE16, U128); (VE32, U128)
         ; (VE8, U64); (VE16, U64); (VE32, U64) ]
@@ -3423,12 +3440,14 @@ Definition armv8a_vmn_lanewise (vmn : armv8a_vmnemonic) : bool :=
   | VZIP1 | VZIP2 | VUZP1 | VUZP2 | VTRN1 | VTRN2
   | VREV16 | VREV32 | VREV64
   | VCMEQ | VCMGT | VCMGE | VCMHI | VCMHS | VCMTST
-  | VDUP | VDUPLANE | VINS | VINSLANE | VUMOV | VSMOV => true
+  | VDUP | VDUPLANE | VINS | VINSLANE | VUMOV | VSMOV
+  | VRAX1 | VXAR => true
   | VMOV | VLDR | VSTR
   | VAND | VBIC | VORR | VORN | VEOR | VNOT | VBSL | VBIT | VBIF
   | VEXT | VTBL
   | VAESE | VAESD | VAESMC | VAESIMC
-  | VPMULL | VPMULL2 => false
+  | VPMULL | VPMULL2
+  | VEOR3 | VBCAX => false
   end.
 
 (* A vector instruction whose operands are printed with the given shapes. *)
@@ -5102,6 +5121,135 @@ Definition armv8a_VPMULL_instr : instr_desc_t :=
 Definition armv8a_VPMULL2_instr : instr_desc_t :=
   mk_vpmull_instr VPMULL2 armv8a_VPMULL2_semi.
 
+(* EOR3, RAX1, XAR and BCAX compute the steps of the Keccak-f permutation
+   of SHA-3 on 128-bit registers, as bytes (EOR3, BCAX) or as two 64-bit
+   lanes (RAX1, XAR). They have a single arrangement, and their
+   descriptions are those of 128-bit vectors. *)
+
+(* A vector instruction [vmn Vd, Vn, Vm, Va] computing a function of its
+   three 128-bit source registers. *)
+Definition mk_vternop_instr vmn (semi : u128 -> u128 -> u128 -> ty_w U128)
+  : instr_desc_t :=
+  let tin := [:: lword U128; lword U128; lword U128 ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lword U128 ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 4;
+    id_args_kinds := [:: [:: ak_v; ak_v; ak_v; ak_v ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_vmn_str vmn VE8 U128;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm :=
+      pp_armv8a_vop vmn
+        [:: pp_vec VE8 U128; pp_vec VE8 U128; pp_vec VE8 U128; pp_vec VE8 U128 ];
+    id_valid := armv8a_vop_valid vmn VE8 U128;
+    id_wf := refl_equal;
+  |}.
+
+(* [EOR3] ARM DDI 0487 M.a, C7.2
+   Three-way exclusive-OR.
+   Syntax: EOR3 <Vd>.16B, <Vn>.16B, <Vm>.16B, <Va>.16B
+   Operation:
+     AArch64.CheckFPAdvSIMDEnabled();
+
+     bits(128) Vm = V[m, 128];
+     bits(128) Vn = V[n, 128];
+     bits(128) Va = V[a, 128];
+     V[d, 128] = Vn EOR Vm EOR Va;
+
+   [BCAX] ARM DDI 0487 M.a, C7.2
+   Bit clear and exclusive-OR.
+   Syntax: BCAX <Vd>.16B, <Vn>.16B, <Vm>.16B, <Va>.16B
+   Operation:
+     AArch64.CheckFPAdvSIMDEnabled();
+
+     bits(128) Vm = V[m, 128];
+     bits(128) Vn = V[n, 128];
+     bits(128) Va = V[a, 128];
+     V[d, 128] = Vn EOR (Vm AND NOT(Va));
+*)
+Definition armv8a_VEOR3_semi (wn wm wa : u128) : ty_w U128 :=
+  wxor (wxor wn wm) wa.
+
+Definition armv8a_VEOR3_instr : instr_desc_t :=
+  mk_vternop_instr VEOR3 armv8a_VEOR3_semi.
+
+Definition armv8a_VBCAX_semi (wn wm wa : u128) : ty_w U128 :=
+  wxor wn (wand wm (wnot wa)).
+
+Definition armv8a_VBCAX_instr : instr_desc_t :=
+  mk_vternop_instr VBCAX armv8a_VBCAX_semi.
+
+(* [RAX1] ARM DDI 0487 M.a, C7.2
+   Rotate and exclusive-OR.
+   Syntax: RAX1 <Vd>.2D, <Vn>.2D, <Vm>.2D
+   Operation:
+     AArch64.CheckFPAdvSIMDEnabled();
+
+     bits(128) Vm = V[m, 128];
+     bits(128) Vn = V[n, 128];
+     V[d, 128] = Vn EOR (ROL(Vm<127:64>,1):ROL(Vm<63:0>, 1));
+*)
+Definition armv8a_VRAX1_semi (wn wm : u128) : ty_w U128 :=
+  wxor wn (lift1_vec U64 (fun x => wrol x 1) U128 wm).
+
+Definition armv8a_VRAX1_instr : instr_desc_t :=
+  mk_vbinop_instr VRAX1 VE64 DOIT armv8a_VRAX1_semi.
+
+(* [XAR] ARM DDI 0487 M.a, C7.2
+   Exclusive-OR and rotate.
+   Syntax: XAR <Vd>.2D, <Vn>.2D, <Vm>.2D, #<imm6>
+   <imm6> is the rotation amount, 0..63.
+   Operation:
+     AArch64.CheckFPAdvSIMDEnabled();
+
+     bits(128) Vm = V[m, 128];
+     bits(128) Vn = V[n, 128];
+     bits(128) tmp;
+     tmp = Vn EOR Vm;
+     V[d, 128] = ROR(tmp<127:64>, UInt(imm6)):ROR(tmp<63:0>, UInt(imm6));
+
+   The amount is an 8-bit immediate in 0..63, as that of a 64-bit scalar
+   shift: see [check_shift_amount]. *)
+Definition armv8a_VXAR_semi (wn wm : u128) (imm : u8) : ty_w U128 :=
+  lift1_vec U64 (fun x => wror x (wunsigned imm)) U128 (wxor wn wm).
+
+Definition armv8a_VXAR_instr : instr_desc_t :=
+  let tin := [:: lword U128; lword U128; lword8 ] in
+  let semi := armv8a_VXAR_semi in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lword U128 ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 4;
+    id_args_kinds :=
+      [:: [:: ak_v; ak_v; ak_v
+            ; [:: CAimm (Some (CAimmC_armv8a_shift_amount U64)) U8 ] ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_vmn_str VXAR VE64 U128;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm :=
+      pp_armv8a_vop VXAR
+        [:: pp_vec VE64 U128; pp_vec VE64 U128; pp_vec VE64 U128; pp_full U8 ];
+    id_valid := armv8a_vop_valid VXAR VE64 U128;
+    id_wf := refl_equal;
+  |}.
+
 Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   : instr_desc_t :=
   match vmn with
@@ -5164,6 +5312,10 @@ Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   | VAESIMC => armv8a_VAESIMC_instr
   | VPMULL => armv8a_VPMULL_instr
   | VPMULL2 => armv8a_VPMULL2_instr
+  | VEOR3 => armv8a_VEOR3_instr
+  | VRAX1 => armv8a_VRAX1_instr
+  | VXAR => armv8a_VXAR_instr
+  | VBCAX => armv8a_VBCAX_instr
   end.
 
 
