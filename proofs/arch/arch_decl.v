@@ -494,7 +494,8 @@ Definition pp_full (sz : wsize) : pp_shape := fun args =>
   if args is a :: args then Some (PPa_full sz a, args) else None.
 
 (* A vector register with its arrangement, lanes of [ve] bits in a vector
-   of [sz] bits ([v0.4s]). *)
+   of [sz] bits: the lanes of a [velem] ([v0.4s]), or the whole register
+   for the 128-bit result of the polynomial multiplication ([v0.1q]). *)
 Definition pp_vec (ve : wsize) (sz : wsize) : pp_shape := fun args =>
   if args is a :: args then Some (PPa_vec ve sz a, args) else None.
 

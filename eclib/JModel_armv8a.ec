@@ -1070,3 +1070,14 @@ op VAESD_128 (d n: W128.t) : W128.t = InvSubBytes (InvShiftRows (d +^ n)).
 op VAESMC_128 (x: W128.t) : W128.t = MixColumns x.
 
 op VAESIMC_128 (x: W128.t) : W128.t = InvMixColumns x.
+
+(* Polynomial multiplication of 64-bit lanes: the carry-less product of two
+   polynomials over GF(2), after PolynomialMult of the A64 ISA. PMULL
+   multiplies the low halves of the registers (u64 values), PMULL2 their
+   high halves. *)
+op VPMULL_128 (x y: W64.t) : W128.t =
+  foldl (fun (r: W128.t) i => if x.[i] then r +^ (zeroextu128 y `<<<` i) else r)
+        W128.zero (iota_ 0 64).
+
+op VPMULL2_128 (x y: W128.t) : W128.t =
+  VPMULL_128 (x \bits64 1) (y \bits64 1).

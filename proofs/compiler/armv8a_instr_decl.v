@@ -449,7 +449,11 @@ Variant armv8a_vmnemonic : Type :=
 | VAESE                          (* AES single round encryption *)
 | VAESD                          (* AES single round decryption *)
 | VAESMC                         (* AES mix columns *)
-| VAESIMC.                       (* AES inverse mix columns *)
+| VAESIMC                        (* AES inverse mix columns *)
+
+(* Polynomial multiplication *)
+| VPMULL                         (* Polynomial multiply long, low halves *)
+| VPMULL2.                       (* Polynomial multiply long, high halves *)
 
 #[ export ]
 Instance eqTC_armv8a_vmnemonic : eqTypeC armv8a_vmnemonic :=
@@ -468,6 +472,7 @@ Definition armv8a_vmnemonics : seq armv8a_vmnemonic :=
     ; VCMEQ; VCMGT; VCMGE; VCMHI; VCMHS; VCMTST
     ; VDUP; VDUPLANE; VINS; VINSLANE; VUMOV; VSMOV
     ; VAESE; VAESD; VAESMC; VAESIMC
+    ; VPMULL; VPMULL2
   ].
 
 Lemma armv8a_vmnemonic_fin_axiom : Finite.axiom armv8a_vmnemonics.
@@ -537,6 +542,8 @@ Definition string_of_armv8a_vmnemonic (vmn : armv8a_vmnemonic) : string :=
   | VAESD => "AESD"
   | VAESMC => "AESMC"
   | VAESIMC => "AESIMC"
+  | VPMULL => "PMULL"
+  | VPMULL2 => "PMULL2"
   end%string.
 
 (* The Jasmin name of a vector mnemonic: the architectural one prefixed
@@ -556,7 +563,8 @@ Definition armv8a_vmn_name (vmn : armv8a_vmnemonic) : string :=
    as the assembler knows them: the base ARMv8-A instruction set does not
    include the cryptographic instructions. *)
 Variant armv8a_extension :=
-| EXT_aes.                       (* AESE, AESD, AESMC, AESIMC *)
+| EXT_aes.                       (* AESE, AESD, AESMC, AESIMC, and PMULL
+                                    and PMULL2 on 64-bit lanes *)
 
 Definition string_of_armv8a_extension (ext : armv8a_extension) : string :=
   match ext with
@@ -567,7 +575,8 @@ Definition string_of_armv8a_extension (ext : armv8a_extension) : string :=
 Definition armv8a_vmn_extension (vmn : armv8a_vmnemonic)
   : option armv8a_extension :=
   match vmn with
-  | VAESE | VAESD | VAESMC | VAESIMC => Some EXT_aes
+  | VAESE | VAESD | VAESMC | VAESIMC
+  | VPMULL | VPMULL2 => Some EXT_aes
   | _ => None
   end.
 
@@ -3378,7 +3387,10 @@ Arguments armv8a_extend_semi {ws} sign ws' wn /.
    register, hence have 128-bit vectors only; UMOV and SMOV move a lane to
    a general register, W for 8-, 16- and 32-bit lanes and X for 64-bit
    ones, and SMOV, which is taken in its X form only, has no 64-bit lanes.
-   AESE, AESD, AESMC and AESIMC operate on a whole register, as bytes. *)
+   AESE, AESD, AESMC and AESIMC operate on a whole register, as bytes.
+   PMULL and PMULL2 are taken in their 64-bit polynomial form only, which
+   multiplies a lane of 64 bits of each source into the whole destination
+   register. *)
 Definition armv8a_vmn_shapes (vmn : armv8a_vmnemonic) : seq (velem * wsize) :=
   match vmn with
   | VMOV | VLDR | VSTR => [:: (VE8, U128) ]
@@ -3396,7 +3408,8 @@ Definition armv8a_vmn_shapes (vmn : armv8a_vmnemonic) : seq (velem * wsize) :=
   | VINS | VINSLANE | VUMOV =>
       [:: (VE8, U128); (VE16, U128); (VE32, U128); (VE64, U128) ]
   | VSMOV => [:: (VE8, U128); (VE16, U128); (VE32, U128) ]
-  | VAESE | VAESD | VAESMC | VAESIMC => [:: (VE8, U128) ]
+  | VAESE | VAESD | VAESMC | VAESIMC
+  | VPMULL | VPMULL2 => [:: (VE8, U128) ]
   | VMUL | VSMAX | VSMIN | VUMAX | VUMIN | VREV64 =>
       [:: (VE8, U128); (VE16, U128); (VE32, U128)
         ; (VE8, U64); (VE16, U64); (VE32, U64) ]
@@ -3424,7 +3437,8 @@ Definition armv8a_vmn_lanewise (vmn : armv8a_vmnemonic) : bool :=
   | VMOV | VLDR | VSTR
   | VAND | VBIC | VORR | VORN | VEOR | VNOT | VBSL | VBIT | VBIF
   | VEXT | VTBL
-  | VAESE | VAESD | VAESMC | VAESIMC => false
+  | VAESE | VAESD | VAESMC | VAESIMC
+  | VPMULL | VPMULL2 => false
   end.
 
 (* A vector instruction whose operands are printed with the given shapes. *)
@@ -5003,6 +5017,105 @@ Definition armv8a_VAESIMC_semi (wn : word U128) : ty_w U128 :=
 Definition armv8a_VAESIMC_instr : instr_desc_t :=
   mk_vunop_instr VAESIMC VE8 DOIT armv8a_VAESIMC_semi.
 
+(* [PMULL, PMULL2] ARM DDI 0487 M.a, C7.2
+   Polynomial multiply long.
+   Syntax: PMULL{2} <Vd>.<Ta>, <Vn>.<Tb>, <Vm>.<Tb>
+   <Ta> is 8H or 1Q, <Tb> is 8B or 1D (PMULL), 16B or 2D (PMULL2); only the
+   1Q form, with 1D or 2D sources, is described here.
+   Decode:
+     if size == '01' || size == '10' then UNDEFINED;
+     if size == '11' && !HaveBit128PMULLExt() then UNDEFINED;
+     integer esize = 8 << UInt(size);
+     integer datasize = 64;
+     integer part = UInt(Q);
+     integer elements = datasize DIV esize;
+   where size is '11', hence a single element of 64 bits, and Q is '0' for
+   PMULL, '1' for PMULL2.
+   Operation:
+     CheckFPAdvSIMDEnabled64();
+     bits(datasize)   operand1 = Vpart[n, part, datasize];
+     bits(datasize)   operand2 = Vpart[m, part, datasize];
+     bits(2*datasize) result;
+     bits(esize) element1;
+     bits(esize) element2;
+
+     for e = 0 to elements-1
+         element1 = Elem[operand1, e, esize];
+         element2 = Elem[operand2, e, esize];
+         Elem[result, e, 2*esize] = PolynomialMult(element1, element2);
+
+     V[d, 2*datasize] = result;
+
+   [Vpart[n, part, 64]] is the low (part 0) or high (part 1) half of the
+   register. The sources of PMULL are the low halves, [u64] values in V
+   registers, printed [v1.1d], and those of PMULL2 are whole registers,
+   printed [v1.2d]; the destination is printed [v0.1q].
+
+   [PolynomialMult(op1, op2)] (shared pseudocode), the carry-less product
+   of two polynomials over GF(2):
+     func PolynomialMult{M, N}(op1 : bits(M), op2 : bits(N)) => bits(M+N)
+     begin
+         var result : bits(N + M) = Zeros{M+N};
+         let extended_op2 : bits(N + M) = ZeroExtend{M+N}(op2);
+         for i=0 to M-1 do
+             if op1[i] == '1' then
+                 result = result XOR LSL(extended_op2, i);
+             end;
+         end;
+         return result;
+     end;
+*)
+Definition armv8a_polynomial_mult (op1 op2 : u64) : u128 :=
+  let extended_op2 := zero_extend U128 op2 in
+  foldl
+    (fun result i =>
+       if wbit_n op1 i then wxor result (wshl extended_op2 (Z.of_nat i))
+       else result)
+    0%w (iota 0 64).
+
+Definition armv8a_VPMULL_semi (wn wm : word U64) : ty_w U128 :=
+  armv8a_polynomial_mult wn wm.
+
+(* [Vpart[n, 1, 64]], the high half of a register. *)
+Definition armv8a_vpart_high (w : u128) : u64 :=
+  nth (0%w : u64) (split_vec U64 w) 1.
+
+Definition armv8a_VPMULL2_semi (wn wm : word U128) : ty_w U128 :=
+  armv8a_polynomial_mult (armv8a_vpart_high wn) (armv8a_vpart_high wm).
+
+(* A polynomial multiplication [vmn Vd.1Q, Vn.<Tb>, Vm.<Tb>] of 64-bit lanes
+   of sources of [sz] bits. *)
+Definition mk_vpmull_instr vmn {sz} (semi : word sz -> word sz -> ty_w U128)
+  : instr_desc_t :=
+  let tin := [:: lword sz; lword sz ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2 ];
+    id_tout := [:: lword U128 ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds := [:: [:: ak_v; ak_v; ak_v ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_vmn_str vmn VE8 U128;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm :=
+      pp_armv8a_vop vmn [:: pp_vec U128 U128; pp_vec U64 sz; pp_vec U64 sz ];
+    id_valid := armv8a_vop_valid vmn VE8 U128;
+    id_wf := refl_equal;
+  |}.
+
+Definition armv8a_VPMULL_instr : instr_desc_t :=
+  mk_vpmull_instr VPMULL armv8a_VPMULL_semi.
+
+Definition armv8a_VPMULL2_instr : instr_desc_t :=
+  mk_vpmull_instr VPMULL2 armv8a_VPMULL2_semi.
+
 Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   : instr_desc_t :=
   match vmn with
@@ -5063,6 +5176,8 @@ Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   | VAESD => armv8a_VAESD_instr
   | VAESMC => armv8a_VAESMC_instr
   | VAESIMC => armv8a_VAESIMC_instr
+  | VPMULL => armv8a_VPMULL_instr
+  | VPMULL2 => armv8a_VPMULL2_instr
   end.
 
 
