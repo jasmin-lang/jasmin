@@ -459,7 +459,11 @@ Variant armv8a_vmnemonic : Type :=
 | VEOR3                          (* Three-way exclusive OR *)
 | VRAX1                          (* Rotate and exclusive OR *)
 | VXAR                           (* Exclusive OR and rotate *)
-| VBCAX.                         (* Bit clear and exclusive OR *)
+| VBCAX                          (* Bit clear and exclusive OR *)
+
+(* Multiply-accumulate *)
+| VMLA                           (* Multiply-add to accumulator *)
+| VMLS.                          (* Multiply-subtract from accumulator *)
 
 #[ export ]
 Instance eqTC_armv8a_vmnemonic : eqTypeC armv8a_vmnemonic :=
@@ -480,6 +484,7 @@ Definition armv8a_vmnemonics : seq armv8a_vmnemonic :=
     ; VAESE; VAESD; VAESMC; VAESIMC
     ; VPMULL; VPMULL2
     ; VEOR3; VRAX1; VXAR; VBCAX
+    ; VMLA; VMLS
   ].
 
 Lemma armv8a_vmnemonic_fin_axiom : Finite.axiom armv8a_vmnemonics.
@@ -555,6 +560,8 @@ Definition string_of_armv8a_vmnemonic (vmn : armv8a_vmnemonic) : string :=
   | VRAX1 => "RAX1"
   | VXAR => "XAR"
   | VBCAX => "BCAX"
+  | VMLA => "MLA"
+  | VMLS => "MLS"
   end%string.
 
 (* The Jasmin name of a vector mnemonic: the architectural one prefixed
@@ -3395,9 +3402,9 @@ Arguments armv8a_extend_semi {ws} sign ws' wn /.
 (* The valid arrangements of a mnemonic, as pairs of a lane size and a
    vector size; the first one is the default of its intrinsic. The
    lane-wise operations have every arrangement that the architecture allows:
-   1D is reserved, MUL, SMAX, SMIN, UMAX, UMIN and REV64 have no 64-bit
-   lanes, REV32 has 8- and 16-bit lanes and REV16 8-bit lanes only. EXT and
-   TBL operate on bytes. INS, UMOV and SMOV address a lane of a whole
+   1D is reserved, MUL, SMAX, SMIN, UMAX, UMIN, REV64, MLA and MLS have no
+   64-bit lanes, REV32 has 8- and 16-bit lanes and REV16 8-bit lanes only.
+   EXT and TBL operate on bytes. INS, UMOV and SMOV address a lane of a whole
    register, hence have 128-bit vectors only; UMOV and SMOV move a lane to
    a general register, W for 8-, 16- and 32-bit lanes and X for 64-bit
    ones, and SMOV, which is taken in its X form only, has no 64-bit lanes.
@@ -3427,7 +3434,7 @@ Definition armv8a_vmn_shapes (vmn : armv8a_vmnemonic) : seq (velem * wsize) :=
   | VPMULL | VPMULL2
   | VEOR3 | VBCAX => [:: (VE8, U128) ]
   | VRAX1 | VXAR => [:: (VE64, U128) ]
-  | VMUL | VSMAX | VSMIN | VUMAX | VUMIN | VREV64 =>
+  | VMUL | VSMAX | VSMIN | VUMAX | VUMIN | VREV64 | VMLA | VMLS =>
       [:: (VE8, U128); (VE16, U128); (VE32, U128)
         ; (VE8, U64); (VE16, U64); (VE32, U64) ]
   | VREV32 => [:: (VE8, U128); (VE16, U128); (VE8, U64); (VE16, U64) ]
@@ -3451,7 +3458,8 @@ Definition armv8a_vmn_lanewise (vmn : armv8a_vmnemonic) : bool :=
   | VREV16 | VREV32 | VREV64
   | VCMEQ | VCMGT | VCMGE | VCMHI | VCMHS | VCMTST
   | VDUP | VDUPLANE | VINS | VINSLANE | VUMOV | VSMOV
-  | VRAX1 | VXAR => true
+  | VRAX1 | VXAR
+  | VMLA | VMLS => true
   | VMOV | VLDR | VSTR
   | VAND | VBIC | VORR | VORN | VEOR | VNOT | VBSL | VBIT | VBIF
   | VEXT | VTBL
@@ -5264,6 +5272,50 @@ Definition armv8a_VXAR_instr : instr_desc_t :=
     id_wf := refl_equal;
   |}.
 
+(* [MLA (vector)] ARM DDI 0487 M.a, C7.2
+   Multiply-add to accumulator (vector).
+   Syntax: MLA <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   [MLS (vector)] ARM DDI 0487 M.a, C7.2
+   Multiply-subtract from accumulator (vector).
+   Syntax: MLS <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   <T> is 8B, 16B, 4H, 8H, 2S or 4S (64-bit lanes are reserved).
+   Operation, where [sub_op] is FALSE for MLA and TRUE for MLS:
+     CheckFPAdvSIMDEnabled64();
+     bits(datasize) operand1 = V[n, datasize];
+     bits(datasize) operand2 = V[m, datasize];
+     bits(datasize) operand3 = V[d, datasize];
+     bits(datasize) result;
+     bits(esize) element1;
+     bits(esize) element2;
+     bits(esize) product;
+
+     for e = 0 to elements-1
+         element1 = Elem[operand1, e, esize];
+         element2 = Elem[operand2, e, esize];
+         product = (UInt(element1) * UInt(element2))<esize-1:0>;
+         if sub_op then
+             Elem[result, e, esize] = Elem[operand3, e, esize] - product;
+         else
+             Elem[result, e, esize] = Elem[operand3, e, esize] + product;
+
+     V[d, datasize] = result;
+
+   The product is that of MUL, which the destination, the first argument,
+   accumulates as ADD or SUB would. *)
+Definition armv8a_VMLA_semi (ve : velem) sz (wd wn wm : word sz) : ty_w sz :=
+  armv8a_VADD_semi ve wd (armv8a_VMUL_semi ve wn wm).
+
+Definition armv8a_VMLA_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_acc_instr VMLA ve DOIT (@armv8a_VMLA_semi ve sz).
+
+Definition armv8a_VMLS_semi (ve : velem) sz (wd wn wm : word sz) : ty_w sz :=
+  armv8a_VSUB_semi ve wd (armv8a_VMUL_semi ve wn wm).
+
+Definition armv8a_VMLS_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_acc_instr VMLS ve DOIT (@armv8a_VMLS_semi ve sz).
+
 Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   : instr_desc_t :=
   match vmn with
@@ -5330,6 +5382,8 @@ Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   | VRAX1 => armv8a_VRAX1_instr
   | VXAR => armv8a_VXAR_instr
   | VBCAX => armv8a_VBCAX_instr
+  | VMLA => armv8a_VMLA_instr ve sz
+  | VMLS => armv8a_VMLS_instr ve sz
   end.
 
 

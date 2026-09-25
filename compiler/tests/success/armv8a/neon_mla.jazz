@@ -1,0 +1,54 @@
+// Multiply-accumulate NEON instructions, through their intrinsics, in
+// every arrangement that the architecture allows (8-, 16- and 32-bit
+// lanes): MLA and MLS add the lane-wise products of their sources to their
+// destination, or subtract them from it. They read their destination, their
+// first argument.
+
+// 128-bit vectors: .16b, .8h, .4s.
+export
+fn neon_mla(reg u64 p) {
+    reg u128 a b c;
+
+    a = [:u128 p];
+    b = [:u128 p + 16];
+    c = [:u128 p + 32];
+
+    c = #VMLA_16u8(c, a, b);
+    c = #VMLA_8u16(c, a, b);
+    c = #VMLA_4u32(c, a, b);
+    c = #VMLS_16u8(c, a, b);
+    c = #VMLS_8u16(c, a, b);
+    c = #VMLS_4u32(c, a, b);
+
+    [:u128 p + 48] = c;
+}
+
+// 64-bit vectors: .8b, .4h, .2s. They operate on the low halves of the
+// vector registers and zero the upper halves: the result, cast to u128, is
+// the whole register.
+export
+fn neon_mla64(reg u64 p) {
+    reg u128 a b c;
+
+    a = [:u128 p];
+    b = [:u128 p + 16];
+    c = [:u128 p + 32];
+
+    c = (128u)#VMLA_8u8(c, a, b);
+    c = (128u)#VMLA_4u16(c, a, b);
+    c = (128u)#VMLA_2u32(c, a, b);
+    c = (128u)#VMLS_8u8(c, a, b);
+    c = (128u)#VMLS_4u16(c, a, b);
+    c = (128u)#VMLS_2u32(c, a, b);
+
+    [:u128 p + 48] = c;
+}
+
+// On vector arguments, results in V registers: a multiply-accumulate whose
+// accumulator is also a source.
+export
+fn neon_mla_args(reg u128 x y z) -> reg u128, reg u128 {
+    x = #VMLA_4u32(x, y, z);
+    y = #VMLS_8u16(y, x, y);
+    return x, y;
+}
