@@ -463,7 +463,19 @@ Variant armv8a_vmnemonic : Type :=
 
 (* Multiply-accumulate *)
 | VMLA                           (* Multiply-add to accumulator *)
-| VMLS.                          (* Multiply-subtract from accumulator *)
+| VMLS                           (* Multiply-subtract from accumulator *)
+
+(* Saturating multiplications *)
+| VSQDMULH                       (* Signed saturating doubling multiply
+                                    returning high half *)
+| VSQRDMULH                      (* Signed saturating rounding doubling
+                                    multiply returning high half *)
+| VSQRDMLAH                      (* Signed saturating rounding doubling
+                                    multiply accumulate returning high
+                                    half *)
+| VSQRDMLSH.                     (* Signed saturating rounding doubling
+                                    multiply subtract returning high
+                                    half *)
 
 #[ export ]
 Instance eqTC_armv8a_vmnemonic : eqTypeC armv8a_vmnemonic :=
@@ -485,6 +497,7 @@ Definition armv8a_vmnemonics : seq armv8a_vmnemonic :=
     ; VPMULL; VPMULL2
     ; VEOR3; VRAX1; VXAR; VBCAX
     ; VMLA; VMLS
+    ; VSQDMULH; VSQRDMULH; VSQRDMLAH; VSQRDMLSH
   ].
 
 Lemma armv8a_vmnemonic_fin_axiom : Finite.axiom armv8a_vmnemonics.
@@ -562,6 +575,10 @@ Definition string_of_armv8a_vmnemonic (vmn : armv8a_vmnemonic) : string :=
   | VBCAX => "BCAX"
   | VMLA => "MLA"
   | VMLS => "MLS"
+  | VSQDMULH => "SQDMULH"
+  | VSQRDMULH => "SQRDMULH"
+  | VSQRDMLAH => "SQRDMLAH"
+  | VSQRDMLSH => "SQRDMLSH"
   end%string.
 
 (* The Jasmin name of a vector mnemonic: the architectural one prefixed
@@ -579,16 +596,19 @@ Definition armv8a_vmn_name (vmn : armv8a_vmnemonic) : string :=
 (* The architecture extensions that the assembler must be told of for some
    Advanced SIMD instructions (with the directive [.arch_extension]), named
    as the assembler knows them: the base ARMv8-A instruction set does not
-   include the cryptographic instructions. *)
+   include the cryptographic instructions, nor the rounding doubling
+   multiply-accumulate instructions of ARMv8.1-A (FEAT_RDM). *)
 Variant armv8a_extension :=
 | EXT_aes                        (* AESE, AESD, AESMC, AESIMC, and PMULL
                                     and PMULL2 on 64-bit lanes *)
-| EXT_sha3.                      (* EOR3, RAX1, XAR, BCAX *)
+| EXT_sha3                       (* EOR3, RAX1, XAR, BCAX *)
+| EXT_rdm.                       (* SQRDMLAH, SQRDMLSH *)
 
 Definition string_of_armv8a_extension (ext : armv8a_extension) : string :=
   match ext with
   | EXT_aes => "aes"
   | EXT_sha3 => "sha3"
+  | EXT_rdm => "rdm"
   end%string.
 
 (* The extension that a vector mnemonic requires, if any. *)
@@ -598,6 +618,7 @@ Definition armv8a_vmn_extension (vmn : armv8a_vmnemonic)
   | VAESE | VAESD | VAESMC | VAESIMC
   | VPMULL | VPMULL2 => Some EXT_aes
   | VEOR3 | VRAX1 | VXAR | VBCAX => Some EXT_sha3
+  | VSQRDMLAH | VSQRDMLSH => Some EXT_rdm
   | _ => None
   end.
 
@@ -3412,7 +3433,8 @@ Arguments armv8a_extend_semi {ws} sign ws' wn /.
    PMULL and PMULL2 are taken in their 64-bit polynomial form only, which
    multiplies a lane of 64 bits of each source into the whole destination
    register. EOR3 and BCAX operate on a whole register, as bytes, RAX1 and
-   XAR on 64-bit lanes of a whole register. *)
+   XAR on 64-bit lanes of a whole register. SQDMULH, SQRDMULH, SQRDMLAH and
+   SQRDMLSH have 16- and 32-bit lanes only. *)
 Definition armv8a_vmn_shapes (vmn : armv8a_vmnemonic) : seq (velem * wsize) :=
   match vmn with
   | VMOV | VLDR | VSTR => [:: (VE8, U128) ]
@@ -3438,6 +3460,8 @@ Definition armv8a_vmn_shapes (vmn : armv8a_vmnemonic) : seq (velem * wsize) :=
       [:: (VE8, U128); (VE16, U128); (VE32, U128)
         ; (VE8, U64); (VE16, U64); (VE32, U64) ]
   | VREV32 => [:: (VE8, U128); (VE16, U128); (VE8, U64); (VE16, U64) ]
+  | VSQDMULH | VSQRDMULH | VSQRDMLAH | VSQRDMLSH =>
+      [:: (VE16, U128); (VE32, U128); (VE16, U64); (VE32, U64) ]
   end.
 
 (* Whether [ve] lanes in a vector of [sz] bits is a valid arrangement of
@@ -3459,7 +3483,8 @@ Definition armv8a_vmn_lanewise (vmn : armv8a_vmnemonic) : bool :=
   | VCMEQ | VCMGT | VCMGE | VCMHI | VCMHS | VCMTST
   | VDUP | VDUPLANE | VINS | VINSLANE | VUMOV | VSMOV
   | VRAX1 | VXAR
-  | VMLA | VMLS => true
+  | VMLA | VMLS
+  | VSQDMULH | VSQRDMULH | VSQRDMLAH | VSQRDMLSH => true
   | VMOV | VLDR | VSTR
   | VAND | VBIC | VORR | VORN | VEOR | VNOT | VBSL | VBIT | VBIF
   | VEXT | VTBL
@@ -5316,6 +5341,143 @@ Definition armv8a_VMLS_semi (ve : velem) sz (wd wn wm : word sz) : ty_w sz :=
 Definition armv8a_VMLS_instr (ve : velem) sz : instr_desc_t :=
   mk_vbinop_acc_instr VMLS ve DOIT (@armv8a_VMLS_semi ve sz).
 
+(* The saturating multiplications below compute on the signed values of the
+   lanes, as integers, and saturate their result to the signed range of the
+   lane: SignedSatQ(i, esize) of the pseudocode is
+   [wrepr_saturated_signed esize i]. Its second result, which records a
+   saturation in the flag FPSR.QC, is not modelled: FPSR is not part of the
+   Jasmin state. [>>] is an arithmetic shift of an integer, rounding towards
+   minus infinity, as [Z.shiftr].
+
+   [SQDMULH (vector)] ARM DDI 0487 M.a, C7.2
+   Signed saturating doubling multiply returning high half.
+   Syntax: SQDMULH <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   [SQRDMULH (vector)] ARM DDI 0487 M.a, C7.2
+   Signed saturating rounding doubling multiply returning high half.
+   Syntax: SQRDMULH <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   <T> is 4H, 8H, 2S or 4S (8- and 64-bit lanes are reserved).
+   Operation, where [rounding] is FALSE for SQDMULH and TRUE for SQRDMULH:
+     CheckFPAdvSIMDEnabled64();
+     bits(datasize) operand1 = V[n, datasize];
+     bits(datasize) operand2 = V[m, datasize];
+     bits(datasize) result;
+     integer round_const = if rounding then 1 << (esize - 1) else 0;
+     integer element1;
+     integer element2;
+     integer product;
+     boolean sat;
+
+     for e = 0 to elements-1
+         element1 = SInt(Elem[operand1, e, esize]);
+         element2 = SInt(Elem[operand2, e, esize]);
+         product = (2 * element1 * element2) + round_const;
+         (Elem[result, e, esize], sat) = SignedSatQ(product >> esize, esize);
+         if sat then FPSR.QC = '1';
+
+     V[d, datasize] = result;
+
+   Only the product of two lanes that are both the least signed value,
+   [-2^(esize-1)], saturates. *)
+Definition armv8a_sqdmulh (esize : wsize) (rounding : bool) (x y : word esize)
+  : word esize :=
+  (let esz := wsize_bits esize in
+   let round_const := if rounding then Z.shiftl 1 (esz - 1) else 0 in
+   let product := 2 * wsigned x * wsigned y + round_const in
+   wrepr_saturated_signed esize (Z.shiftr product esz))%Z.
+
+Definition armv8a_VSQDMULH_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  lift2_vec ve (@armv8a_sqdmulh ve false) sz wn wm.
+
+Definition armv8a_VSQDMULH_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VSQDMULH ve DOIT (@armv8a_VSQDMULH_semi ve sz).
+
+Definition armv8a_VSQRDMULH_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  lift2_vec ve (@armv8a_sqdmulh ve true) sz wn wm.
+
+Definition armv8a_VSQRDMULH_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VSQRDMULH ve DOIT (@armv8a_VSQRDMULH_semi ve sz).
+
+(* [SQRDMLAH (vector)] ARM DDI 0487 M.a, C7.2
+   Signed saturating rounding doubling multiply accumulate returning high
+   half.
+   Syntax: SQRDMLAH <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   [SQRDMLSH (vector)] ARM DDI 0487 M.a, C7.2
+   Signed saturating rounding doubling multiply subtract returning high
+   half.
+   Syntax: SQRDMLSH <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   <T> is 4H, 8H, 2S or 4S (8- and 64-bit lanes are reserved).
+   Decode: if !HaveQRDMLAHExt() then UNDEFINED;
+           boolean rounding = TRUE;
+           boolean sub_op = (S == '1');
+   where [sub_op] is FALSE for SQRDMLAH and TRUE for SQRDMLSH.
+   Operation:
+     CheckFPAdvSIMDEnabled64();
+     bits(datasize) operand1 = V[n, datasize];
+     bits(datasize) operand2 = V[m, datasize];
+     bits(datasize) operand3 = V[d, datasize];
+     bits(datasize) result;
+     integer rounding_const = if rounding then 1 << (esize - 1) else 0;
+     integer element1;
+     integer element2;
+     integer element3;
+     integer product;
+     integer accum;
+     boolean sat;
+
+     for e = 0 to elements-1
+         element1 = SInt(Elem[operand1, e, esize]);
+         element2 = SInt(Elem[operand2, e, esize]);
+         element3 = SInt(Elem[operand3, e, esize]);
+         if sub_op then
+             accum = ((element3 << esize) - 2 * (element1 * element2) + rounding_const);
+         else
+             accum = ((element3 << esize) + 2 * (element1 * element2) + rounding_const);
+         (Elem[result, e, esize], sat) = SignedSatQ(accum >> esize, esize);
+         if sat then FPSR.QC = '1';
+
+     V[d, datasize] = result;
+
+   The accumulation is done on the whole product, before the rounding and
+   the saturation: SQRDMLAH is not SQRDMULH followed by a saturating
+   addition. HaveQRDMLAHExt() is FEAT_RDM, which the assembler must be told
+   of ([EXT_rdm]). *)
+Definition armv8a_sqrdmlah (esize : wsize) (sub_op : bool) (d x y : word esize)
+  : word esize :=
+  (let esz := wsize_bits esize in
+   let rounding_const := Z.shiftl 1 (esz - 1) in
+   let element3 := wsigned d in
+   let product := 2 * (wsigned x * wsigned y) in
+   let accum :=
+     if sub_op
+     then Z.shiftl element3 esz - product + rounding_const
+     else Z.shiftl element3 esz + product + rounding_const
+   in
+   wrepr_saturated_signed esize (Z.shiftr accum esz))%Z.
+
+Definition armv8a_VSQRDMLAH_semi (ve : velem) sz (wd wn wm : word sz)
+  : ty_w sz :=
+  make_vec sz
+    (map3 (@armv8a_sqrdmlah ve false)
+       (split_vec ve wd) (split_vec ve wn) (split_vec ve wm)).
+
+Definition armv8a_VSQRDMLAH_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_acc_instr VSQRDMLAH ve DOIT (@armv8a_VSQRDMLAH_semi ve sz).
+
+Definition armv8a_VSQRDMLSH_semi (ve : velem) sz (wd wn wm : word sz)
+  : ty_w sz :=
+  make_vec sz
+    (map3 (@armv8a_sqrdmlah ve true)
+       (split_vec ve wd) (split_vec ve wn) (split_vec ve wm)).
+
+(* SQRDMLSH is not in the list of data-independent-timing instructions
+   (ARM DDI 0487, DIT), which has SQRDMLAH only. *)
+Definition armv8a_VSQRDMLSH_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_acc_instr VSQRDMLSH ve NOT_DOIT (@armv8a_VSQRDMLSH_semi ve sz).
+
 Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   : instr_desc_t :=
   match vmn with
@@ -5384,6 +5546,10 @@ Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   | VBCAX => armv8a_VBCAX_instr
   | VMLA => armv8a_VMLA_instr ve sz
   | VMLS => armv8a_VMLS_instr ve sz
+  | VSQDMULH => armv8a_VSQDMULH_instr ve sz
+  | VSQRDMULH => armv8a_VSQRDMULH_instr ve sz
+  | VSQRDMLAH => armv8a_VSQRDMLAH_instr ve sz
+  | VSQRDMLSH => armv8a_VSQRDMLSH_instr ve sz
   end.
 
 
