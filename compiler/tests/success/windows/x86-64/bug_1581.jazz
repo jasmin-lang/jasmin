@@ -1,0 +1,15 @@
+/* Using the windows ABI, this requires to spill at least one XMM register. */
+param int N = 7;
+
+export fn f(reg ptr u256[N] p) -> reg ptr u256[N] {
+  inline int i;
+  reg u256[8] a;
+  for i = 0 to N {
+    a[i] = p[i];
+  }
+  for i = 1 to N {
+    a[0] ^= a[i];
+  }
+  p[0] = a[0];
+  return p;
+}

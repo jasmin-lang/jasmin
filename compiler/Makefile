@@ -9,6 +9,7 @@ CHECKCATS ?= \
 	x86-64-ATT \
 	x86-64-Intel \
 	x86-64-nolea \
+	x86-64-windows \
 	arm-m4 \
 	armv8a \
 	risc-v \
