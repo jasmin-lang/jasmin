@@ -1,0 +1,35 @@
+// Polynomial multiplication NEON instructions, through their intrinsics,
+// in their 64-bit form: PMULL multiplies the low halves of its sources,
+// u64 values that live in vector registers (a u128 is truncated to its
+// low half), PMULL2 the high halves of its sources; the 128-bit product is
+// the whole destination register. They require the aes extension, which
+// the assembly file enables.
+
+// The four partial products of a 128 x 128-bit carry-less multiplication,
+// as in GHASH: low x low, high x high, and the two cross products.
+export
+fn neon_pmull(reg u64 p) {
+    reg u128 a b c lo hi mid;
+
+    a = [:u128 p];
+    b = [:u128 p + 16];
+
+    lo = #VPMULL_128(a, b);
+    hi = #VPMULL2_128(a, b);
+    c = #VEXT_128(b, b, 8);
+    mid = #VPMULL2_128(a, c);
+    c = #VPMULL_128(a, c);
+    mid = #VEOR_128(mid, c);
+    [:u128 p + 32] = lo;
+    [:u128 p + 48] = mid;
+    [:u128 p + 64] = hi;
+}
+
+// On vector arguments, results in V registers.
+export
+fn neon_pmull_args(reg u128 x y) -> reg u128, reg u128 {
+    reg u128 l h;
+    l = #VPMULL_128(x, y);
+    h = #VPMULL2_128(x, y);
+    return l, h;
+}

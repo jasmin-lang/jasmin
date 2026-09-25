@@ -4,8 +4,8 @@
    description requests it ([pp_arg]): a general-purpose register in its
    32-bit W form or its 64-bit X form, by the size it is paired with; a
    SIMD&FP register as a vector with its arrangement, the number and size
-   of its lanes ([v0.16b], [v0.4s], [v0.2s], ...), as an element and the
-   index of one of its lanes ([v1.s[2]]), as a list of vectors
+   of its lanes ([v0.16b], [v0.4s], [v0.2s], [v0.1q], ...), as an element
+   and the index of one of its lanes ([v1.s[2]]), as a list of vectors
    ([{ v1.16b }]), or in its 128-bit scalar form ([q0]); a shift amount
    with the name of the shift
    ([lsl #3]), omitted when it is zero. Immediate values are printed as
