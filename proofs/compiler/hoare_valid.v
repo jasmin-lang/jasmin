@@ -28,12 +28,13 @@ Context
   {wa : WithAssert}
   {wsw:WithSubWord}
   {dc:DirectCall}
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {E E0: Type -> Type}
   {wE: with_Error E E0}
+  {rndE : with_RndEvent E0}
   {iEr : InvErr}
   {iE0 : InvEvent E0}
   {pT : progT}
@@ -129,12 +130,13 @@ Context
   {wa : WithAssert}
   {wsw:WithSubWord}
   {dc:DirectCall}
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {E E0: Type -> Type}
   {wE: with_Error E E0}
+  {rndE : with_RndEvent E0}
 .
 
 Context
@@ -199,8 +201,11 @@ apply: (cmd_rect (Pr:=Pi_r) (Pi:=Pi) (Pc:=Pc)) => {c} //; subst Pc Pi.
   - exact: rhoare_true.
   - move=> s' <-; rewrite /khoare => vs _.
     rewrite /fexec_syscall.
-    case heq: exec_syscall => [ [[scs' m'] ?] | e] //=.
-    by apply: exec_syscallS heq.
+    apply: (lutt_bind (R := fun '(m, _) => mem_equiv (emem s') m)).
+    + apply: lutt_weaken (exec_syscallS (fmem (mk_fstate vs s')) o (fvals (mk_fstate vs s'))) => //.
+      move=> T e _; rewrite /preInv; case: (mfun1 e) => [e0|s0] //=.
+      by case: s0 => [d|e0'] //=; case: d.
+    by move=> [m' vals'] /= hm; apply/lutt_Ret'/hm.
   - move=> fs hRo s0 ->.
     rewrite /upd_estate.
     case h: write_lvals => [s''|e] /=.
@@ -294,12 +299,13 @@ Context
   {wa : WithAssert}
   {wsw:WithSubWord}
   {dc:DirectCall}
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {E E0: Type -> Type}
   {wE: with_Error E E0}
+  {rndE : with_RndEvent E0}
 .
 
 #[local] Existing Instance trivial_invErr.

@@ -31,15 +31,15 @@ Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then
 Section FIXME.
 
 Context
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
-  {sip : SemInstrParams asm_op syscall_state}.
+  {asm_op : Type}
+  {ep : EstateParams}
+  {sip : SemInstrParams asm_op}.
 
 #[local]
 Lemma find_instr_skip p fn P Q :
   is_linear_of p fn (P ++ Q) ->
-  forall scs m vm n,
-  find_instr p (Lstate scs m vm fn (size P + n)) = oseq.onth Q n.
+  forall m vm n,
+  find_instr p (Lstate m vm fn (size P + n)) = oseq.onth Q n.
 Proof. by eauto using find_instr_skip'. Qed.
 
 End FIXME.
@@ -48,7 +48,7 @@ End FIXME.
 
 Section STACK_ZEROIZATION.
 
-Context {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
+Context {atoI : arch_toIdent}.
 Context {call_conv : calling_convention}.
 
 Section RSP.
@@ -105,7 +105,6 @@ Proof using halign le_ws_ws_align.
 Qed.
 
 Record state_rel_unrolled vars s1 s2 n (p:word Uptr) := {
-  sr_scs : s1.(escs) = s2.(escs);
   sr_mem : mem_equiv s1.(emem) s2.(emem);
   sr_mem_valid : forall p, between top stk_max p U8 -> validw s2.(emem) Aligned p U8;
   sr_disjoint :
@@ -132,7 +131,7 @@ Lemma state_rel_unrolledI vars1 vars2 s1 s2 n p :
   state_rel_unrolled vars2 s1 s2 n p.
 Proof.
   move=> hsubset hsr.
-  case: hsr => hscs hmem hvalid hdisj hzero hvm hsaved hrsp hvzero haligned hbound.
+  case: hsr => hmem hvalid hdisj hzero hvm hsaved hrsp hvzero haligned hbound.
   split=> //.
   apply: eq_exI hvm.
   by apply (SvD.F.add_s_m erefl hsubset).
@@ -175,7 +174,7 @@ Proof using lt_0_stk_max halign hbody rsp_nin.
   set izero := li_of_fopn_args _ (ARMFopn.movi _ _).
   move=> hbody'.
 
-  eexists (Estate _ _ _); split=> /=.
+  eexists (Estate _ _); split=> /=.
   apply: (lsem_n_eval_lin (n:=0) hbody') => //=.
   + by rewrite addn0.
   + apply: ARMFopnP.mov_eval_instr.
@@ -283,7 +282,7 @@ Proof using halign le_ws_ws_align hstack hsmall hbody rsp_nin.
     have h := [elaborate (wunsigned_range (align_word ws_align ptr))].
     by rewrite [_ (_ + _ + _)%R]wunsigned_add; last rewrite wunsigned_sub; clear -hstack hn hk hbound h; lia.
   move=> /(writeV 0) [m' hm'].
-  eexists (Estate _ _ _); split=> /=.
+  eexists (Estate _ _); split=> /=.
   + apply: (lsem_n_eval_lin (n:=1) hbody) => //=.
     + rewrite /eval_instr /=
         /get_var hsr.(srl_off) /= /exec_sopn /= !truncate_word_u /= add_wordE wsub_wnot1
@@ -304,7 +303,7 @@ Proof using halign le_ws_ws_align hstack hsmall hbody rsp_nin.
   + do 3 (rewrite Vm.setP_neq;
       last by [|apply /eqP => /(@inj_to_var _ _ _ _ _ _)]).
     by rewrite Vm.setP_eq.
-  case: hsr => hoff [hscs hmem hvalid hdisj hzero hvm hsaved hrsp hvzero haligned hbound].
+  case: hsr => hoff [hmem hvalid hdisj hzero hvm hsaved hrsp hvzero haligned hbound].
   split=> /=.
   + rewrite Vm.setP_eq /=.
     by rewrite wrepr_sub.
@@ -449,11 +448,11 @@ Lemma restore_spP vars (s1 s2 : estate) :
     state_rel_unrolled vars s1 s3 0 ptr.
 Proof using hbody rsp_nin.
   move=> hsr.
-  eexists (Estate _ _ _); split=> /=.
+  eexists (Estate _ _); split=> /=.
   + apply: (lsem_n_eval_lin1 (n:=0) hbody) => //=; first by rewrite addn0.
     rewrite addn1; apply: ARMFopnP.mov_eval_instr.
     by rewrite /get_var /= hsr.(sr_vsaved) /=; reflexivity.
-  case: hsr => hscs hmem hvalid hdisj hzero hvm hsaved hrsp hvzero haligned hbound.
+  case: hsr => hmem hvalid hdisj hzero hvm hsaved hrsp hvzero haligned hbound.
   split=> //=.
   + by rewrite (eq_ex_set_l _ (eq_ex_refl _));
       last by case; apply Sv.add_spec; left; reflexivity.
@@ -503,7 +502,7 @@ Local Opaque wsize_size Z.of_nat.
     have h := [elaborate (wunsigned_range (align_word ws_align ptr))].
     by rewrite [_ (_ + _ + _)%R]wunsigned_add; last rewrite wunsigned_sub; clear -hstack hlt' hk hbound h; lia.
   move=> /(writeV 0) [m' hm'].
-  eexists (Estate _ _ _); split.
+  eexists (Estate _ _); split.
   + apply: (lsem_n_eval_lin1 (n:= n) hbody) => //.
     + rewrite oseq.onth_cat !size_map size_rev size_ziota.
       have hlt'': n < Z.to_nat (stk_max / wsize_size ws) by apply /ltP; clear -hlt; lia.
@@ -528,7 +527,7 @@ Local Opaque wsize_size Z.of_nat.
     + by rewrite /get_var hsr.(sr_rsp); reflexivity.
     + by rewrite truncate_word_u; reflexivity.
     by apply hm'.
-  case: hsr => hscs hmem hvalid hdisj hzero hvm hsaved hrsp hvzero haligned hbound.
+  case: hsr => hmem hvalid hdisj hzero hvm hsaved hrsp hvzero haligned hbound.
   split=> //=.
   + apply (mem_equiv_trans hmem).
     split.
@@ -766,7 +765,7 @@ Proof.
     by rewrite -hfn -hpc of_estate_to_estate.
 
   exists (emem s2), (evm s2); split=> //.
-  + by rewrite -{2}hfn /of_estate -hsr.(sr_scs) in hsem.
+  + by rewrite -{2}hfn /of_estate in hsem.
   + move=> x hin.
     case: (x =P vid rspn) => [->|hneq].
     + by rewrite hsr.(sr_rsp).

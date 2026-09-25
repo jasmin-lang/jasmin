@@ -60,8 +60,6 @@ Context
   {wsw : WithSubWord}
   {dc : DirectCall}
   {atoI : arch_toIdent}
-  {syscall_state : Type}
-  {sc_sem : syscall_sem syscall_state}
   {pT : progT}
   {sCP : semCallParams}
   (p : prog)
@@ -1544,7 +1542,13 @@ Qed.
 (* -------------------------------------------------------------------- *)
 
 Section IT.
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE0 : EventRels E0}
+  {rndE : with_RndEvent E0}
+  {rndE_refl : RndRels_refl rE0}
+.
 
 #[ local ]
 Definition Pi_ (i : instr) :=
@@ -1565,7 +1569,7 @@ Proof. apply checker_st_eq_exP => //. Qed.
 
 Lemma it_lower_callP fn :
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-Proof using fv_correct.
+Proof using fv_correct rndE_refl.
   apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
   have [_ hfvres hfvc] := disj_fvars_get_fundef hget.
   rewrite get_map_prog hget /= /lower_fd.
@@ -1619,7 +1623,7 @@ Opaque esem.
       by rewrite esem1.
     have [vm hsem1 heq]:= lower_copnP hfve hcopn h.
     exists (with_vm s1' vm); first by rewrite esem1.
-    case: hs11=> ?? hvm; split => //=.
+    case: hs11=> ? hvm; split => //=.
     by move=> z hz; rewrite heq; apply hvm.
   (* Syscall *)
   + move=> xs o es ii.

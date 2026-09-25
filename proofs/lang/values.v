@@ -394,6 +394,18 @@ Proof.
   exact: word_uincl_truncate.
 Qed.
 
+Lemma value_uincl_to_arr_err va va' len e :
+  value_uincl va va' ->
+  to_arr len va = Error e ->
+  to_arr len va' = Error e.
+Proof.
+move=> /value_uinclE.
+case: va => [? -> | ? -> | n a | ?? [? [? [-> _]]] |] //.
+- by move=> [a' ->]; rewrite /= /WArray.cast; case: ifP.
+by move=> [||//|ws] ?; case: va'.
+Qed.
+
+
 (* ----------------------------------------------------------------------- *)
 
 Definition to_val t : sem_t t -> value :=
@@ -525,6 +537,9 @@ Qed.
 
 Definition truncate_val (ty: ctype) (v: value) : exec value :=
   of_val ty v >>= λ x, ok (to_val x).
+
+Definition truncate_vals (ty : seq ctype) (vs : values) : exec values :=
+  mapM2 ErrType truncate_val ty vs.
 
 Lemma truncate_val_typeE ty v vt :
   truncate_val ty v = ok vt ->
@@ -1023,4 +1038,6 @@ Proof.
   by case: v => //= sz w _; rewrite eqxx truncate_word_u.
 Qed.
 
-
+Definition sem_tuple_of_values
+  (ts : seq ctype) (vs : values) : exec (sem_tuple ts) :=
+  app_sopn ts (sem_prod_ok ts (sem_prod_tuple ts)) vs.

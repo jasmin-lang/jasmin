@@ -36,8 +36,7 @@ Section Section.
 
 Context
   {wsw : WithSubWord}
-  {syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {ep : EstateParams}
   {spp : SemPexprParams}
   (wdb : bool)
   (gd : glob_decls).

@@ -48,11 +48,11 @@ Section WITH_PARAMS.
   #[local] Existing Instance indirect_c.
 
   Context
-    {asm_op syscall_state: Type}
+    {asm_op: Type}
       {wsw: WithSubWord}
-      {ep: EstateParams syscall_state}
+      {ep: EstateParams}
       {spp: SemPexprParams}
-      {sip: SemInstrParams asm_op syscall_state}
+      {sip: SemInstrParams asm_op}
       {pT: progT}
       {sCP: semCallParams}.
 
@@ -114,8 +114,11 @@ Section WITH_PARAMS.
 
     Context
       {E E0: Type → Type}
-        {wE: with_Error E E0}
-        {rE: EventRels E0}.
+      {wE: with_Error E E0}
+      {rE: EventRels E0}
+      {rndE : with_RndEvent E0}
+      {rndE_refl : RndRels_refl rE}
+    .
 
     Context (insert_renaming_p: fun_info → bool).
     Context (p: prog) (ev: extra_val_t).
@@ -137,7 +140,7 @@ Section WITH_PARAMS.
     Lemma it_insert_renaming_rec (fd: fundef) :
       (∀ ii1 ii2 fn1 fn2, wequiv_f_rec p p' ev ev uincl_spec pre_incl ii1 ii2 fn1 fn2 post_incl) →
       wequiv (rE0 := relEvent_recCall uincl_spec) p p' ev ev (st_uincl tt) (f_body fd) (f_body fd) (st_uincl tt).
-    Proof.
+    Proof using rndE_refl.
       move => hrec.
       apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)).
       - done.
@@ -159,7 +162,7 @@ Section WITH_PARAMS.
 
     Theorem it_insert_renaming_callP fn :
       wiequiv_f p p' ev ev pre_incl fn fn post_incl.
-    Proof.
+    Proof using rndE_refl.
       apply wequiv_fun_ind' => {} fn _ fs ft [] <- hfsu fd hget.
       exists (insert_renaming_fd insert_renaming_p fd).
       - by rewrite get_map_prog hget.
@@ -208,7 +211,7 @@ Section WITH_PARAMS.
         rewrite -hparams all_cat /= eqxx andbF => /(_ erefl).
         case => v [] v' [] ok_v get_x.
         have /(_ (evm t)) := get_var_uincl _ get_x.
-        case: (hu) => _ _ vms_vmt /(_ vms_vmt).
+        case: (hu) => _ vms_vmt /(_ vms_vmt).
         case => vt {} get_x v_vt.
         have := value_uincl_truncate_r v_vt ok_v.
         case => vt' ok_vt'.
@@ -238,7 +241,7 @@ Section WITH_PARAMS.
       rewrite -catA => /(_ hres).
       rewrite -{2}(cat0s [::]) -cat1s; apply wequiv_cat.
       apply wequiv_assign_right.
-      move => s t [] ? [] [] ?? hst [] fs.
+      move => s t [] ? [] [] ? hst [] fs.
       case/and3P: (do_insert) => _  _ /eqP wt_res.
       rewrite /finalize_funcall; t_xrbindP => vr ok_vr vr'.
       rewrite wt_res => ok_vr' ?.

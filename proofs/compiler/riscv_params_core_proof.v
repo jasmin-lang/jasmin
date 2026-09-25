@@ -31,8 +31,7 @@ Section Section.
 
 Context
   {wsw: WithSubWord}
-  {syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {ep : EstateParams}
   {atoI : arch_toIdent}.
 
 Definition sem_fopn_args (p : seq lexpr * riscv_op * seq rexpr) (s : estate) :=

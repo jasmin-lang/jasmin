@@ -1,10 +1,9 @@
 exception Eval_error of Expr.instr_info * Utils0.error
 
 val exec :
-  'syscall_state Sem_params.coq_EstateParams ->
+  Sem_params.coq_EstateParams ->
   Sem_params.coq_SemPexprParams ->
-  ('asm_op, 'syscall_state) Sem_params.coq_SemInstrParams ->
-  'syscall_state ->
+  'asm_op Sem_params.coq_SemInstrParams ->
   'asm_op Expr.prog ->
   Expr.instr_info ->
   Prog.funname ->

@@ -43,7 +43,7 @@ Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then
 #[local] Existing Instance direct_c.
 
 Section Section.
-Context {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
+Context {atoI : arch_toIdent}.
 
 
 (* ------------------------------------------------------------------------ *)
@@ -83,7 +83,7 @@ Proof.
   move: hofs ok_pofs => -> /=.
   rewrite truncate_word_u wrepr0 => -[<-].
   rewrite GRing.addr0 -P'_globs in he |- * => hw.
-  by apply: (mov_wsP (sCP := sCP_stack) (p1:=P') dummy_instr_info tag w (cmp_le_refl U64) he hw).
+  exact: mov_wsP (cmp_le_refl U64) he hw.
 Qed.
 
 Lemma x86_mov_ofsP : mov_ofs_correct x86_saparams.(sap_mov_ofs).
@@ -307,7 +307,7 @@ Proof.
   split=> /=.
   + by move=> _ ? _ [<-].
   + move=> _ ? _ [<-] _ fd ->; by exists fd.
-  move=> ???? _ ? _ ?? [<-]; exact: (wiequiv_f_eq (scP := sCP_stack)).
+  move=> ?????? _ ? _ ?? [<-]; exact: (wiequiv_f_eq (scP := sCP_stack)).
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -425,7 +425,7 @@ Lemma lom_eqv_set_xreg rip (xr : xreg_t) m s :
   lom_eqv rip m s ->
   lom_eqv rip (with_vm m (evm m).[to_var xr <- Vword (asm_xreg s xr)]) s.
 Proof.
-  case => h1 h2 h3 h4 h5 h6 h7 h9; split => //; rewrite /eqflags /get_var /=.
+  case => h2 h3 h4 h5 h6 h7 h9; split => //; rewrite /eqflags /get_var /=.
   + by rewrite Vm.setP_neq //; apply/eqP; case: h4; auto.
   1,2,4: by move=> x; rewrite Vm.setP_neq; auto.
   move=> x; case: (to_var xr =P to_var x) => [h | /eqP hne].
@@ -531,7 +531,7 @@ Proof.
   move: hwm; rewrite /mem_write_vals /= /mem_write_val /= !truncate_word_u /= truncate_word_u /= => <-; do 2!f_equal.
   rewrite /x86_VINSERTI128 /winserti128 /split_vec /=; f_equal.
   congr (fun x => [::x; wh]).
-  case: hlow => _ _ _ _ _ _ hu _.
+  case: hlow => _ _ _ _ _ hu _.
   move /get_varP: hvl => -[]/= ? hd _; subst vl.
   have := hu lr.
   case: (evm m).[to_var lr] hd hwl => //= ws wl' _ /truncate_wordP [] hle ? /andP[] _ /eqP ?; subst.
@@ -583,7 +583,7 @@ Proof.
         rewrite zero_extend0.
         set id := instr_desc_op (XOR U64).
         rewrite /SF_of_word msb0.
-        by have [s' -> /= ?]:= (@compile_lvals _ _ _ _ _ _ _ _ _ _ _
+        by have [s' -> /= ?]:= (@compile_lvals _ _ _ _ _ _ _ _ _
              rip ii m lvs m' s [:: Reg r; Reg r]
              id.(id_out) id.(id_tout)
              (let vf := Some false in let: vt := Some true in (::vf, vf, vf, vt, vt & (0%R: word U64)))
@@ -602,7 +602,7 @@ Proof.
       rewrite truncate_word_le // /x86_XOR /size_8_64 hsz64 /= wxor_xx.
       set id := instr_desc_op (XOR sz).
       rewrite /SF_of_word msb0.
-      by have [s' -> /= ?]:= (@compile_lvals _ _ _ _ _ _ _ _ _ _ _
+      by have [s' -> /= ?]:= (@compile_lvals _ _ _ _ _ _ _ _ _
              rip ii m lvs m' s [:: Reg r; Reg r]
              id.(id_out) id.(id_tout)
              (let vf := Some false in let: vt := Some true in (::vf, vf, vf, vt, vt & (0%R: word sz)))
@@ -626,7 +626,7 @@ Proof.
     rewrite /x86_VPXOR hidc /= /size_128_256 wsize_ge_U256.
     have -> /= : (U128 ≤ sz)%CMP by case: (sz) hsz64.
     rewrite wxor_xx; set id := instr_desc_op (VPXOR sz).
-    by have [s' -> /= ?] := (@compile_lvals _ _ _ _ _ _ _ _ _ _ _
+    by have [s' -> /= ?] := (@compile_lvals _ _ _ _ _ _ _ _ _
                rip ii m lvs m' s [:: a0; XReg r; XReg r]
                id.(id_out) id.(id_tout)
                (0%R: word sz)

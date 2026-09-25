@@ -64,7 +64,7 @@ Definition incl (pi1 pi2:pimap) :=
 Section WITH_PARAMS.
 
 Context
-  {asm_op syscall_state : Type}
+  {asm_op : Type}
   {asmop:asmOp asm_op}
   {fcp : FlagCombinationParams}
   {LC : LoopCounter}.

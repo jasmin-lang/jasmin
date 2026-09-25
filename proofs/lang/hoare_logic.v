@@ -90,12 +90,11 @@ End TRIVIAL.
 Section Section.
 
 Context
-  {syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {ep : EstateParams}
   {spp : SemPexprParams}
   {wa: WithAssert}
   {asm_op: Type}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {pT : progT}
   {wsw : WithSubWord}
   {scP : semCallParams}
@@ -433,7 +432,13 @@ End KHOARE_WEAKEN.
 
 Section HOARE_CORE.
 
-Context {E E0: Type -> Type}  {sem_F : sem_Fun E} {wE: with_Error E E0} {iE0 : InvEvent E0} {iEr : InvErr}.
+Context
+  {E E0: Type -> Type}
+  {sem_F : sem_Fun E}
+  {wE: with_Error E E0}
+  {rE : with_RndEvent E0}
+  {iE0 : InvEvent E0}
+  {iEr : InvErr}.
 
 Context (p : prog) (ev: extra_val_t).
 
@@ -528,17 +533,17 @@ Lemma hoare_syscall Rv Ro P Q Qerr ii xs sc es :
   (forall s e, P s -> Qerr e -> rInvErr s e) ->
   rhoare P (fun s => sem_pexprs true (p_globs p) s es) Rv Qerr ->
   (forall s, P s ->
-     rhoare Rv (fun vs => fexec_syscall sc (mk_fstate vs s)) Ro Qerr) ->
+     khoare Rv (fun vs => fexec_syscall sc (mk_fstate vs s)) Ro) ->
   (forall fs, Ro fs ->
      rhoare P (upd_estate true (p_globs p) xs fs) Q Qerr) ->
   hoare P [:: MkI ii (Csyscall xs sc es)] Q.
 Proof.
   move=> herr he ho hwr; rewrite /hoare /isem_cmd_ /=.
   apply khoare_bind with Q; last by apply khoare_ret.
-  apply: (khoare_iresult herr); rewrite /sem_syscall.
-  apply (rhoare_read he).
-  move=> t ht; eapply rhoare_read; last by apply hwr.
-  move=> s hP; apply (ho s hP _ ht).
+  apply: (khoare_read (R := Rv)); first exact: (khoare_iresult herr).
+  move=> vs hvs; apply: (khoare_read (R := Ro)).
+  + by move=> s hP; apply: (ho s hP _ hvs).
+  by move=> fs hfs; apply/(khoare_iresult herr)/hwr/hfs.
 Qed.
 
 Lemma hoare_assert (P Q : Pred_c) Qerr ii a :
@@ -822,7 +827,11 @@ End HOARE_CORE.
 
 Section TRIVIAL.
 
-Context {E E0: Type -> Type}  {sem_F : sem_Fun E} {wE: with_Error E E0}.
+Context
+  {E E0: Type -> Type}
+  {sem_F : sem_Fun E}
+  {wE: with_Error E E0}
+  {rE : with_RndEvent E0}.
 
 Context (p : prog) (ev: extra_val_t).
 
@@ -847,7 +856,12 @@ Notation ihoare   := (hoare (sem_F := sem_fun_full)).
 
 Section HOARE_FUN.
 
-Context {E E0: Type -> Type} {wE: with_Error E E0} {iE0 : InvEvent E0} {iEr : InvErr}.
+Context
+  {E E0: Type -> Type}
+  {wE: with_Error E E0}
+  {rE : with_RndEvent E0}
+  {iE0 : InvEvent E0}
+  {iEr : InvErr}.
 
 Context (p : prog) (ev: extra_val_t) (spec : HoareSpec).
 
@@ -920,7 +934,12 @@ Notation whoare_f := (hoare_f_ii (iEr := invErrT)).
 
 Section WHOARE_CORE.
 
-Context {E E0: Type -> Type}  {sem_F : sem_Fun E} {wE: with_Error E E0} {iE0 : InvEvent E0}.
+Context
+  {E E0: Type -> Type}
+  {sem_F : sem_Fun E}
+  {wE: with_Error E E0}
+  {rE : with_RndEvent E0}
+  {iE0 : InvEvent E0}.
 
 Context (p : prog) (ev: extra_val_t).
 
@@ -941,7 +960,8 @@ Proof. by apply hoare_opn. Qed.
 Lemma whoare_syscall Rv Ro P Q ii xs sc es :
   rhoare P (fun s => sem_pexprs true (p_globs p) s es) Rv PredT ->
   (forall s, P s ->
-     rhoare Rv (fun vs => fexec_syscall sc (mk_fstate vs s)) Ro PredT) ->
+     khoare (iEr := invErrT) Rv
+       (fun vs => fexec_syscall sc (mk_fstate vs s)) Ro) ->
   (forall fs, Ro fs ->
      rhoare P (upd_estate true (p_globs p) xs fs) Q PredT) ->
   whoare p ev P [:: MkI ii (Csyscall xs sc es)] Q.
@@ -1019,7 +1039,11 @@ Notation iwhoare   := (hoare (sem_F := sem_fun_full) (iEr := invErrT)).
 
 Section WHOARE_FUN.
 
-Context {E E0: Type -> Type} {wE: with_Error E E0} {iE0 : InvEvent E0}.
+Context
+  {E E0: Type -> Type}
+  {wE: with_Error E E0}
+  {rE : with_RndEvent E0}
+  {iE0 : InvEvent E0}.
 
 Context (p : prog) (ev: extra_val_t) (spec : HoareSpec).
 
@@ -1069,18 +1093,21 @@ Hint Immediate rhoare_true rhoare_false : core.
 
 Section Test.
 Context
-  {syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {ep : EstateParams}
   {spp : SemPexprParams}
   {asm_op: Type}
   {wa: WithAssert}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {pT : progT}
   {wsw : WithSubWord}
   {scP : semCallParams}
   {dc : DirectCall}.
 
-Context {E E0: Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0}.
+Context
+  {E E0: Type -> Type}
+  {sem_F : sem_Fun E}
+  {wE: with_Error E E0}
+  {rE : with_RndEvent E0}.
 
 Context (p : prog) (ev : extra_val_t).
 
@@ -1122,7 +1149,8 @@ Proof.
     move=> v _; apply wrhoareP => s s' <-.
     rewrite write_Ii write_i_opn; apply vrvsP.
   + move=> xs o es ii s0.
-    apply whoare_syscall with PredT PredT; try auto using rhoare_true.
+    apply: (whoare_syscall _ (Rv := PredT) (Ro := PredT)); first exact: rhoare_true.
+    * by move=> s _; apply: khoare_io_true.
     move=> v _; apply wrhoareP => s s' <-.
     by rewrite write_Ii write_i_syscall => /vrvsP /=.
   + move => a ii s0.

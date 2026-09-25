@@ -13,10 +13,10 @@ Section WITH_PARAMS.
 Context
   {wsw : WithSubWord}
   {dc:DirectCall}
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}.
+  {sip : SemInstrParams asm_op}.
 
 Section Section.
 
@@ -24,7 +24,13 @@ Context {pT: progT} {sCP: semCallParams}.
 
 Section IT_REMOVE_INIT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : EventRels E0}
+  {rndE : with_RndEvent E0}
+  {rndE_refl : RndRels_refl rE}
+.
 
 Context (is_reg_array: var -> bool) (p : prog) (ev: extra_val_t).
 Notation gd := (p_globs p).
@@ -47,7 +53,7 @@ Proof. by apply checker_st_uinclP. Qed.
 #[local] Hint Resolve checker_st_uinclP : core.
 
 Lemma it_remove_init_fdP fn : wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-Proof.
+Proof using rndE_refl.
  apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
  exists (remove_init_fd is_reg_array fd).
  + by rewrite get_map_prog hget.
@@ -69,7 +75,7 @@ Proof.
    case: ifP => // hx.
    apply wequiv_assign_left => s1 s1' s2 hu.
    rewrite /sem_assgn /=; t_xrbindP => v /truncate_valE [_ ?]; subst v => {h hx}.
-   case: hu => hscs hmem hsub.
+   case: hu => hmem hsub.
    case: x => [vi t | [x xi] | al ws x e | al aa ws x e | aa ws len' [x xi] e] /=.
     + by move=> /write_noneP [->].
     + move=> /write_varP_arr [/=hty _ _ ->]; split => //.
@@ -102,16 +108,22 @@ End IT_REMOVE_INIT.
 End Section.
 
 Section IT.
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : EventRels E0}
+  {rndE : with_RndEvent E0}
+  {rndE_refl : RndRels_refl rE}
+.
 
 (* TODO : do we really need the instances ? *)
 Lemma it_remove_init_fdPu is_reg_array (p : uprog) ev fn :
   wiequiv_f p (remove_init_prog is_reg_array p) ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-Proof. apply it_remove_init_fdP. Qed.
+Proof using rndE_refl. apply it_remove_init_fdP. Qed.
 
 Lemma it_remove_init_fdPs is_reg_array (p : sprog) ev fn :
   wiequiv_f p (remove_init_prog is_reg_array p) ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-Proof. apply it_remove_init_fdP. Qed.
+Proof using rndE_refl. apply it_remove_init_fdP. Qed.
 
 End IT.
 
@@ -120,7 +132,13 @@ Definition undef_except (X:Sv.t) vm :=
 
 Section IT_ADD_INIT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : EventRels E0}
+  {rndE : with_RndEvent E0}
+  {rndE_refl : RndRels_refl rE}
+.
 
 Context (p : uprog) (ev:unit).
 
@@ -137,7 +155,7 @@ Definition cmpl_inv (I : Sv.t) := st_rel undef_vm_eq I.
 
 Lemma cmpl_inv_incl I1 I2 s1 s2 : Sv.Subset I1 I2 -> cmpl_inv I1 s1 s2 → cmpl_inv I2 s1 s2.
 Proof.
-  move=> hincl [h1 h2 [h3 h4]]; split => //; split => //.
+  move=> hincl [h1 [h3 h4]]; split => //; split => //.
   move=> z hz; apply h3; clear -hincl hz; SvD.fsetdec.
 Qed.
 
@@ -157,7 +175,7 @@ Lemma add_init_auxP ii c c' I I' X :
  disjoint I X ->
  wequiv_rec p p' ev ev eq_spec (cmpl_inv I) c c' (cmpl_inv I') ->
  wequiv_rec p p' ev ev eq_spec (cmpl_inv I) c (Sv.fold (add_init_aux ii) X c') (cmpl_inv I').
-Proof.
+Proof using rndE_refl.
   move=> hdisj hs; rewrite Sv.fold_spec.
   have h : forall x, x \in Sv.elements X -> ~Sv.In x I.
   + by move: hdisj; rewrite /disjoint => /Sv.is_empty_spec hdisj x /Sv_elemsP; SvD.fsetdec.
@@ -172,7 +190,7 @@ Proof.
   rewrite /sem_assgn /=  /truncate_val /= WArray.castK /=.
   eexists.
   + by apply write_varP; split => //; rewrite heq /= eqxx.
-  case h => h1 h2 [h3 h4]; split => //; split => //.
+  case h => h1 [h3 h4]; split => //; split => //.
   move: h4; rewrite !vm_eq_vm_rel => hu1; apply vm_rel_set_r.
   + move=> _ /=; rewrite h3.
     + by rewrite heq /= eqxx.
@@ -184,21 +202,21 @@ Lemma it_aux I ii1 ii i :
   wequiv_rec p p' ev ev eq_spec (cmpl_inv I)
      [:: MkI ii i]
      (add_init ii1 I (Sv.union (write_i i) (read_i i)) (MkI ii i)) (cmpl_inv (Sv.union I (write_i i))).
-Proof.
+Proof using rndE_refl.
   apply add_init_auxP; first by apply/Sv.is_empty_spec; SvD.fsetdec.
   apply wkequivP' => s t.
   have h := [elaborate wequiv_rec_st_eq (p:=p) (p':=p') ev ev erefl [:: MkI ii i]].
   have /(_ s) {h} := wequiv_write1 h.
   apply wkequiv_weaken => //.
-  + by move=> s1 s2 [ [-> ->] [?? []]].
-  move=> ???? [[-> ->] [_ _ [hundef _]]] [h1] [?? heq2]; split => //; split => //.
+  + by move=> s1 s2 [ [-> ->] [? []]].
+  move=> ???? [[-> ->] [_ [hundef _]]] [h1] [? heq2]; split => //; split => //.
   move=> z hz; rewrite -h1.
   + by apply hundef; SvD.fsetdec.
   rewrite write_c_cons write_c_nil write_Ii; SvD.fsetdec.
 Qed.
 
 Lemma it_add_init_callP fn : wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-Proof.
+Proof using rndE_refl.
  apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
  exists (add_init_fd fd).
  + by rewrite get_map_prog hget.
@@ -221,7 +239,7 @@ Proof.
    move=> s2 t2 fs2 h.
    rewrite /finalize_funcall; t_xrbindP => vs hget vs' hmap <-.
    eexists; last by eauto.
-   case: h => [<- <- [_ h]].
+   case: h => [<- [_ h]].
    have -> /= : get_var_is (~~ direct_call) (evm t2) (f_res fd') = ok vs.
    + by rewrite -hget; apply mapM_ext => // y; rewrite /get_var -h.
    by rewrite hmap.
@@ -244,7 +262,7 @@ Proof.
  + by apply/Sv.is_empty_spec; SvD.fsetdec.
  apply wequiv_if_eq.
  + apply wrequiv_weaken with (st_eq tt) eq => //.
-   + by move=> ?? [?? []].
+   + by move=> ?? [? []].
    by apply st_eq_sem_pexpr.
  move=> [].
  + have := hc1 I; rewrite heq1; apply: wequiv_weaken => //=.
