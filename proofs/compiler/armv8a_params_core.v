@@ -14,6 +14,7 @@ Require Import
 Require Import
   arch_decl.
 Require Import
+  arm_common
   armv8a_decl
   armv8a_instr_decl.
 
@@ -23,10 +24,6 @@ Require Import
    the [CAimmC_armv8a_arith_imm] argument checker enforces at assembly
    generation. *)
 Definition is_arith_small (imm : Z) : bool := is_arith_imm imm.
-
-Definition Z_mod_lnot (z : Z) (ws : wsize) : Z :=
-  let m := wbase ws in
-  (Z.lnot (z mod m) mod m)%Z.
 
 Module ARMv8AFopn_core.
 

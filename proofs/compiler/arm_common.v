@@ -7,8 +7,10 @@
  *)
 From elpi.apps Require Import derive.std.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype seq fintype.
+From mathcomp Require Import word_ssrZ.
 
 Require Import
+  expr
   flag_combination
   strings
   type
@@ -206,3 +208,27 @@ Instance arm_fcp : FlagCombinationParams :=
   {
     fc_of_cfc := arm_fc_of_cfc;
   }.
+
+(* -------------------------------------------------------------------- *)
+
+Definition Z_mod_lnot (z:Z) (ws:wsize) : Z :=
+  (zmod_pow2 (Z.lnot z) (nat_of_wsize ws))%Z.
+
+(* Equality between the "new" definition of Z_mod_lnot (using zmod_pow2)
+   and an older definition (using mod)
+ *)
+Lemma Z_lnot_mod_pow2_to_mod (z:Z) (ws:wsize) :
+  let m := wbase ws in
+  Z_mod_lnot z ws = (Z.lnot (z mod m) mod m)%Z.
+Proof.
+  rewrite /Z_mod_lnot zmod_pow2E wbaseE /Z.lnot /Z.pred.
+  set (n := (2 ^ Z.of_nat ws)%Z).
+  assert (Haux: ((-(z mod n)) mod n = (-z) mod n)%Z).
+  {
+    replace (- (z mod n))%Z with ((-1) * (z mod n))%Z by ring.
+    replace (-z)%Z with (-1 * z)%Z by ring.
+    apply Zmult_mod_idemp_r.
+  }
+  symmetry.
+  by rewrite Zplus_mod (Zplus_mod (-z)%Z (-1)%Z) Haux.
+Qed.

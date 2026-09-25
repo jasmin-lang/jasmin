@@ -303,7 +303,7 @@ Proof.
     eexists; split; first reflexivity.
     * move=> v /Sv.singleton_spec ?.
       by t_vm_get.
-    by rewrite wrepr_mod -wrepr_wnot /= wnot_wnot wrepr_mod get_var_eq (convertible_eval_atype hc) //= orbT.
+    by rewrite Z_lnot_mod_pow2_to_mod wrepr_mod -wrepr_wnot /= wnot_wnot wrepr_mod get_var_eq (convertible_eval_atype hc) //= orbT.
 
   (* Case: large immediate. *)
   case hdivmod: Z.div_eucl => [hbs lbs] /=.

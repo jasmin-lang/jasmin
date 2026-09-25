@@ -420,7 +420,7 @@ Proof.
       rewrite Z_mod_plus_full.
       apply: Zmod_small; lia.
     have hlnot : Z_mod_lnot n U64 = (wbase U64 - 1 - n)%Z.
-    + by rewrite /Z_mod_lnot (Zmod_small _ _ hn) hlnotmod.
+    + by rewrite Z_lnot_mod_pow2_to_mod (Zmod_small _ _ hn) hlnotmod.
     rewrite (movn_sem_fopn_args hc) /=.
     rewrite armv8a_MOVN_semiE //; last first.
     + rewrite hlnot.
@@ -590,7 +590,7 @@ Proof.
       rewrite Z_mod_plus_full.
       apply: Zmod_small; lia.
     have hlnot : Z_mod_lnot n U32 = (wbase U32 - 1 - n)%Z.
-    + by rewrite /Z_mod_lnot (Zmod_small _ _ hn) hlnotmod.
+    + by rewrite Z_lnot_mod_pow2_to_mod (Zmod_small _ _ hn) hlnotmod.
     rewrite (movn_sem_fopn_args_w32 hc) /=.
     rewrite armv8a_MOVN_semiE //; last first.
     + rewrite hlnot; lia.
