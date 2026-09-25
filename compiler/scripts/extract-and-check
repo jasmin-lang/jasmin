@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# Expects two arguments:
+# 1. a target architecture
+# 2. a jasmin source file name
+
 set -e
 
 ROOT_DIR=tests/results/extraction
@@ -12,15 +16,7 @@ CTG=${DIR}/jasmin_ctg.ec
 if [ -d "${DIR}" ]; then rm -r ${DIR}; fi
 mkdir -p $DIR
 
-if [ "$1" = "arm" ]; then
-	ARCH="--arch=arm-m4"
-elif [ "$1" = "riscv" ]; then
-	ARCH="--arch=riscv"
-elif [ "$1" = "armv8a" ]; then
-	ARCH="--arch=armv8a"
-else
-	ARCH="--arch=x86-64"
-fi
+ARCH="--arch=$1"
 
 set -x
 set -o xtrace
