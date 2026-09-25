@@ -1093,3 +1093,21 @@ op VRAX1_2u64 (n m: W128.t) : W128.t =
 
 op VXAR_2u64 (n m: W128.t) (i: W8.t) : W128.t =
   W2u64.map (fun (x: W64.t) => x `|>>>|` (W8.to_uint i %% 64)) (n +^ m).
+
+(* Multiply-accumulate, on 128-bit (16u8, 8u16, 4u32) and 64-bit (8u8,
+   4u16, 2u32) vectors: MLA and MLS add the lane-wise products of their
+   sources (VPMULL) to the destination (first argument), or subtract them
+   from it. *)
+abbrev [-printing] VMLA_16u8 (d n m: W128.t) = VPADD_16u8 d (VPMULL_16u8 n m).
+abbrev [-printing] VMLA_8u16 (d n m: W128.t) = VPADD_8u16 d (VPMULL_8u16 n m).
+abbrev [-printing] VMLA_4u32 (d n m: W128.t) = VPADD_4u32 d (VPMULL_4u32 n m).
+abbrev [-printing] VMLA_8u8 (d n m: W64.t) = VPADD_8u8 d (VPMULL_8u8 n m).
+abbrev [-printing] VMLA_4u16 (d n m: W64.t) = VPADD_4u16 d (VPMULL_4u16 n m).
+abbrev [-printing] VMLA_2u32 (d n m: W64.t) = VPADD_2u32 d (VPMULL_2u32 n m).
+
+abbrev [-printing] VMLS_16u8 (d n m: W128.t) = VPSUB_16u8 d (VPMULL_16u8 n m).
+abbrev [-printing] VMLS_8u16 (d n m: W128.t) = VPSUB_8u16 d (VPMULL_8u16 n m).
+abbrev [-printing] VMLS_4u32 (d n m: W128.t) = VPSUB_4u32 d (VPMULL_4u32 n m).
+abbrev [-printing] VMLS_8u8 (d n m: W64.t) = VPSUB_8u8 d (VPMULL_8u8 n m).
+abbrev [-printing] VMLS_4u16 (d n m: W64.t) = VPSUB_4u16 d (VPMULL_4u16 n m).
+abbrev [-printing] VMLS_2u32 (d n m: W64.t) = VPSUB_2u32 d (VPMULL_2u32 n m).
