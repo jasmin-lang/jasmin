@@ -1,1 +1,0 @@
-- `VPSLLV` and `VPSRLV` no longer accept 16 bits as a size.
