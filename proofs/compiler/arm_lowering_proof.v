@@ -140,7 +140,7 @@ Definition estate_of_TST s (w0 w1 : wreg) : estate :=
     (evm s)
       .[fvNF fv <- NF_of_word res]
       .[fvZF fv <- ZF_of_word res]
-      .[fvCF fv <- false]
+      .[fvCF fv <- undef_b]
   in
   with_vm s vm'.
 

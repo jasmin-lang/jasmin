@@ -2222,7 +2222,7 @@ Definition arm_TST_semi (wn wm : ty_r) : ty_nzc :=
   let res := wand wn wm in
   (:: Some (NF_of_word res)
       , Some (ZF_of_word res)
-      & Some false             (* TODO_ARM: C depends on shift or immediate. *)
+      & None
     ).
 
 Definition arm_TST_instr : instr_desc_t :=
