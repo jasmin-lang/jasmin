@@ -1,0 +1,26 @@
+// With the current register allocation, f uses x0-x15 and the call kills x30,
+// leaving x16 and x17 free in save_stack. Its stack pointer must not be saved
+// in x16, the scratch register of the linearization.
+
+fn f(reg u64 x) -> reg u64 {
+    inline int i;
+    reg u64[15] t;
+    for i = 0 to 15 {
+        t[i] = x + (i + 1);
+    }
+    for i = 0 to 15 {
+        x += t[i];
+    }
+    return x;
+}
+
+export
+fn save_stack(reg u64 x) -> reg u64 {
+    stack u64 s;
+    reg u64 y;
+    s = x;
+    x = f(x);
+    y = s;
+    x += y;
+    return x;
+}
