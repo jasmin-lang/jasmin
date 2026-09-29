@@ -1200,7 +1200,7 @@ Proof.
           by case: Mvar.get => // a []; rewrite write_i_for;clear; SvD.fsetdec.
         have -> := valid_cpm_m (refl_equal (evm s1')) Hmi.
         by apply: remove_cpm1P Hw hval.
-      have /(_ _ (value_uincl_refl _)) [vm1' -> hvm1'] := write_var_uincl hvm1 _ Hw.
+      have /(_ _ (value_uincl_refl _)) [vm1' -> hvm1'] := write_var_uincl (fun _ => erefl) hvm1 _ Hw.
       by eexists.
     apply: remove_cpm_write1 hc => //.
     by rewrite write_i_for; clear; SvD.fsetdec.

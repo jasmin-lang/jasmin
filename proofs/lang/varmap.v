@@ -1075,7 +1075,7 @@ Section REL_EQUIV.
     exists2 v2, get_var wdb vm2 x = ok v2 & value_uincl v1 v2.
   Proof. rewrite /get_var; t_xrbindP => hu /(value_uincl_defined hu) -> <- /=; eauto. Qed.
 
-  Lemma get_var_uincl wdb x (vm1 vm2 : Vm.t env) v1:
+  Lemma get_var_uincl env1 env2 wdb x (vm1 : Vm.t env1) (vm2 : Vm.t env2) v1:
     vm1 <=1 vm2 ->
     get_var wdb vm1 x = ok v1 ->
     exists2 v2, get_var wdb vm2 x = ok v2 & value_uincl v1 v2.

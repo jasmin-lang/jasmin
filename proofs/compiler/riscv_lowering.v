@@ -151,7 +151,7 @@ Definition lower_cassgn
     then 
       if (ws <= U32)%CMP
         then
-          Some ([:: lv], Oriscv (STORE ws), [:: e])
+          Some ([:: lv], Oriscv (STORE ws), [::], [:: e])
         else
           None
   else
@@ -164,16 +164,16 @@ Definition lower_cassgn
     | Papp2 op a b => lower_Papp2 ws op a b
     | _ => None
     end
-    in Some ([:: lv], Oasm op, e).
+    in Some ([:: lv], Oasm op, [::], e).
 
-Definition lower_swap ty lvs es : option (seq copn_args) := 
+Definition lower_swap ty lvs als es : option (seq copn_args) := 
   match ty with
   | aword sz => 
     if (sz <= U32)%CMP then 
-      Some([:: (lvs, Oasm (ExtOp (SWAP sz)), es)])
+      Some([:: (lvs, Oasm (ExtOp (SWAP sz)), [::], es)])
     else None
   | aarr _ _ => 
-      Some([:: (lvs, Opseudo_op (Oswap ty), es)])
+      Some([:: (lvs, Opseudo_op (Oswap ty), als, es)])
   | _ => None
   end.
 
@@ -185,23 +185,23 @@ Definition lower_mulu (lvs : seq lval) (es : seq pexpr) : option (seq copn_args)
     else
     (* Arbitrary choice : r1 computed before r2*)  
     Some [::
-      ([:: Lvar r1], Oasm(BaseOp (None, MULHU)), es);
-      ([:: Lvar r2], Oasm(BaseOp (None, MUL)), es)]
+      ([:: Lvar r1], Oasm(BaseOp (None, MULHU)), [::], es);
+      ([:: Lvar r2], Oasm(BaseOp (None, MUL)), [::], es)]
   | _, _ => None
   end.
 
 Definition lower_pseudo_operator
-  (lvs : seq lval) (op : pseudo_operator) (es : seq pexpr) : option (seq copn_args) :=
+  (lvs : seq lval) (op : pseudo_operator) als (es : seq pexpr) : option (seq copn_args) :=
   match op with
-  | Oswap ty => lower_swap ty lvs es
+  | Oswap ty => lower_swap ty lvs als es
   | Omulu U32 => lower_mulu lvs es
   | _ => None
   end.
 
 Definition lower_copn
-  (lvs : seq lval) (op : sopn) (es : seq pexpr) : option (seq copn_args) :=
+  (lvs : seq lval) (op : sopn) als (es : seq pexpr) : option (seq copn_args) :=
   match op with
-  | Opseudo_op pop => lower_pseudo_operator lvs pop es
+  | Opseudo_op pop => lower_pseudo_operator lvs pop als es
   | _ => None
   end.
 
@@ -217,8 +217,8 @@ Fixpoint lower_i (i : instr) : cmd :=
       let oirs :=
         match ty with
         | aword ws =>
-            let%opt (lvs, op, es) := lower_cassgn lv ws e in
-            Some ([:: Copn lvs tg op es ])
+            let%opt (lvs, op, als, es) := lower_cassgn lv ws e in
+            Some ([:: Copn lvs tg op als es ])
         | _ => None
         end
       in
@@ -227,10 +227,10 @@ Fixpoint lower_i (i : instr) : cmd :=
       map (MkI ii) irs
 
  (* Copn : "assembly" instruction pattern matching, required for pseudo instructions or extra instructions *)
-  | Copn lvs tag op es =>
+  | Copn lvs tag op als es =>
       let seq_ir :=
-        if lower_copn lvs op es is Some l
-        then map (fun '(lvs', op', es') => Copn lvs' tag op' es') l
+        if lower_copn lvs op als es is Some l
+        then map (fun '(lvs', op', als', es') => Copn lvs' tag op' als' es') l
         else [:: ir]
       in map (MkI ii) seq_ir
       

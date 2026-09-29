@@ -38,7 +38,7 @@ Definition arm_mov_ofs
   option instr_r :=
   let mk oa :=
     let: (op, args) := oa in
-     Some (Copn [:: x ] tag (Oarm (ARM_op op default_opts)) args) in
+     Some (Copn [:: x ] tag (Oarm (ARM_op op default_opts)) [::] args) in
   match movk with
   | MK_LEA => mk (ADR, [:: if is_zero Uptr ofs then y else add y ofs ])
   | MK_MOV =>
@@ -58,7 +58,7 @@ Definition arm_mov_ofs
               (* This allows to remove constraint in register allocation *)
               if is_arith_small lea.(lea_disp) then mk (ADD, [:: Plvar base; cast_const lea.(lea_disp) ])
               else
-                Some (Copn [:: x ] tag (Oasm (ExtOp Oarm_add_large_imm)) [:: Plvar base; cast_const lea.(lea_disp) ])
+                Some (Copn [:: x ] tag (Oasm (ExtOp Oarm_add_large_imm)) [::] [:: Plvar base; cast_const lea.(lea_disp) ])
           | Some base, Some off =>
             if lea.(lea_disp) == 0%Z then
               let%opt scale := Option.map Z.of_nat (shift_of_scale lea.(lea_scale)) in
@@ -69,7 +69,7 @@ Definition arm_mov_ofs
                 let opts :=
                   {| set_flags := false; is_conditional := false; has_shift := Some SLSL |}
                 in
-                Some (Copn [:: x ] tag (Oarm (ARM_op ADD opts)) [:: Plvar base; Plvar off; eword_of_int U8 scale ])
+                Some (Copn [:: x ] tag (Oarm (ARM_op ADD opts)) [::] [:: Plvar base; Plvar off; eword_of_int U8 scale ])
             else None
           end
         end
@@ -80,10 +80,10 @@ Definition arm_mov_ofs
   end.
 
 Definition arm_immediate (x: var_i) z :=
-  Copn [:: Lvar x ] AT_none (Oarm (ARM_op MOV default_opts)) [:: cast_const z ].
+  Copn [:: Lvar x ] AT_none (Oarm (ARM_op MOV default_opts)) [::] [:: cast_const z ].
 
 Definition arm_swap t (x y z w : var_i) :=
-  Copn [:: Lvar x; Lvar y] t (Oasm (ExtOp (Oarm_swap reg_size))) [:: Plvar z; Plvar w].
+  Copn [:: Lvar x; Lvar y] t (Oasm (ExtOp (Oarm_swap reg_size))) [::] [:: Plvar z; Plvar w].
 
 Definition arm_saparams : stack_alloc_params :=
   {|
@@ -183,7 +183,7 @@ Definition arm_loparams : lowering_params :=
 
 Definition arm_shparams : sh_params :=
   {|
-    shp_lower := fun _ _ _ => None;
+    shp_lower := fun _ _ _ _ => None;
   |}.
 
 (* ------------------------------------------------------------------------ *)

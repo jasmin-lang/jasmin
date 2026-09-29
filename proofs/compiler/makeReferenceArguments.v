@@ -153,17 +153,40 @@ Definition subst_sig ii (al : seq (Uint63.int * Ident.ident)) alargs '((params,r
   Let returns := subst returns in
   ok (params, returns).
 
+
+Fixpoint no_var_al (al : array_length) :=
+  match al with
+  | ALConst _ => true
+  | ALVar _ _ => false
+  | ALNeg al => no_var_al al
+  | ALAdd al1 al2
+  | ALSub al1 al2
+  | ALMul al1 al2
+  | ALDiv _ al1 al2
+  | ALMod _ al1 al2
+  | ALShl al1 al2
+  | ALShr al1 al2 => no_var_al al1 && no_var_al al2
+  end.
+
+Definition no_var_ty ty :=
+  match ty with
+  | aarr _ al => no_var_al al
+  | _ => true
+  end.
+
 Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
   let (ii,ir) := i in
   match ir with
   | Copn xs tg op als es =>
       if is_swap_op op is Some ty then
-        let sig := (true, "__swap__"%string, ty) in
-        let sig := [:: sig; sig ] in
-        Let: (prologue, es) := make_prologue ii X 0 sig es in
-        Let: (xs, epilogue) := make_epilogue ii X sig xs in
-        let tg := if [&& size prologue == 2 & size epilogue == 2] then AT_inline else tg in
-        ok (prologue ++ MkI ii (Copn xs tg (Opseudo_op (pseudo_operator.Oswap ty)) als es) :: epilogue)
+        if no_var_ty ty then
+          let sig := (true, "__swap__"%string, ty) in
+          let sig := [:: sig; sig ] in
+          Let: (prologue, es) := make_prologue ii X 0 sig es in
+          Let: (xs, epilogue) := make_epilogue ii X sig xs in
+          let tg := if [&& size prologue == 2 & size epilogue == 2] then AT_inline else tg in
+          ok (prologue ++ MkI ii (Copn xs tg (Opseudo_op (pseudo_operator.Oswap ty)) als es) :: epilogue)
+        else ok [:: i ]
       else ok [:: i ]
   | Cassgn _ _ _ _
   | Cassert _ => ok [:: i ]

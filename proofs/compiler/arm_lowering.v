@@ -120,7 +120,7 @@ Definition lower_condition_pexpr
 
 Definition lower_condition (vi: var_info) (e : pexpr) : seq instr_r * pexpr :=
   if lower_condition_pexpr vi e is Some (lvs, op, es, c)
-  then ([:: Copn lvs AT_none op es ], c)
+  then ([:: Copn lvs AT_none op [::] es ], c)
   else ([::], e).
 
 
@@ -331,12 +331,12 @@ Definition lower_cassgn_word
       no_pre (le_issue_aop aop es)
     else lower_pexpr vi ws e
   in
-  Some (pre, ([:: lv ], op, es)).
+  Some (pre, ([:: lv ], op, [::], es)).
 
 Definition lower_cassgn_bool (lv : lval) (tag: assgn_tag) (e : pexpr) : option (seq instr_r) :=
   let vi := var_info_of_lval lv in
   let%opt (lvs, op, es, c) := lower_condition_pexpr vi e in
-  Some [:: Copn lvs tag op es; Cassgn lv AT_inline abool c ].
+  Some [:: Copn lvs tag op [::] es; Cassgn lv AT_inline abool c ].
 
 (* -------------------------------------------------------------------- *)
 (* Lowering of architecture-specific operations. *)
@@ -360,7 +360,7 @@ Definition lower_add_carry
       in
       let lnoneb := Lnone dummy_var_info abool in
       let lvs' := if cf_not_none then [:: lnoneb; lnoneb; cf; lnoneb; r ] else [:: r ] in
-      Some (lvs', Oasm (BaseOp (None, ARM_op mn opts)), es')
+      Some (lvs', Oasm (BaseOp (None, ARM_op mn opts)), [::], es')
   | _, _ =>
       None
   end.
@@ -369,7 +369,7 @@ Definition lower_mulu (lvs : seq lval) (es : seq pexpr) : option copn_args :=
   match lvs with
   | [:: Lvar hi; Lvar lo] =>
     if v_var hi != v_var lo then
-      Some ([::Lvar lo; Lvar hi], Oasm (BaseOp (None, ARM_op UMULL default_opts)), es)
+      Some ([::Lvar lo; Lvar hi], Oasm (BaseOp (None, ARM_op UMULL default_opts)), [::], es)
     else None
   | _ => None
   end.
@@ -383,58 +383,58 @@ Definition lower_base_op
   if has_shift opts != None
   then
     let%opt _ := oassert (mn \in has_shift_mnemonics) in
-    Some (lvs, Oasm (BaseOp (None, ARM_op mn opts)), es)
+    Some (lvs, Oasm (BaseOp (None, ARM_op mn opts)), [::], es)
   else
     if MVN == mn
     then
       match es with
       | x :: rest =>
           if get_arg_shift U32 [:: x ] is Some (ebase, sh, esham)
-          then Some (lvs, Oasm (BaseOp (None, ARM_op mn (with_shift opts sh))), ebase :: esham :: rest)
-          else Some (lvs, Oasm (BaseOp (None, ARM_op mn opts)), es)
+          then Some (lvs, Oasm (BaseOp (None, ARM_op mn (with_shift opts sh))), [::], ebase :: esham :: rest)
+          else Some (lvs, Oasm (BaseOp (None, ARM_op mn opts)), [::], es)
       | _ => None end
     else if mn \in [:: ADD; SUB; RSB; AND; BIC; EOR; ORR; CMP; TST ]
     then
       match es with
       | x :: y :: rest =>
           if get_arg_shift U32 [:: y ] is Some (ebase, sh, esham)
-          then Some (lvs, Oasm (BaseOp (None, ARM_op mn (with_shift opts sh))), x :: ebase :: esham :: rest)
-          else Some (lvs, Oasm (BaseOp (None, ARM_op mn opts)), es)
+          then Some (lvs, Oasm (BaseOp (None, ARM_op mn (with_shift opts sh))), [::], x :: ebase :: esham :: rest)
+          else Some (lvs, Oasm (BaseOp (None, ARM_op mn opts)), [::], es)
       | _ => None end
     else if mn \in [:: ADC; SBC ]
     then
       match es with
       | x :: y :: z :: rest =>
           if get_arg_shift U32 [:: y ] is Some (ebase, sh, esham)
-          then Some (lvs, Oasm (BaseOp (None, ARM_op mn (with_shift opts sh))), x :: ebase :: z :: esham :: rest)
-          else Some (lvs, Oasm (BaseOp (None, ARM_op mn opts)), es)
+          then Some (lvs, Oasm (BaseOp (None, ARM_op mn (with_shift opts sh))), [::], x :: ebase :: z :: esham :: rest)
+          else Some (lvs, Oasm (BaseOp (None, ARM_op mn opts)), [::], es)
       | _ => None end
     else None.
 
-Definition lower_swap ty lvs es : option copn_args :=
+Definition lower_swap ty lvs als es : option copn_args :=
   match ty with
   | aword sz =>
     if (sz <= U32)%CMP then
-      Some (lvs, Oasm (ExtOp (Oarm_swap sz)), es)
+      Some (lvs, Oasm (ExtOp (Oarm_swap sz)), [::], es)
     else None
   | aarr _ _ =>
-      Some (lvs, Opseudo_op (Oswap ty), es)
+      Some (lvs, Opseudo_op (Oswap ty), als, es)
   | _ => None
   end.
 
 Definition lower_pseudo_operator
-  (lvs : seq lval) (op : pseudo_operator) (es : seq pexpr) : option copn_args :=
+  (lvs : seq lval) (op : pseudo_operator) als (es : seq pexpr) : option copn_args :=
   match op with
   | Oaddcarry U32 => lower_add_carry lvs es
   | Omulu U32 => lower_mulu lvs es
-  | Oswap ty => lower_swap ty lvs es
+  | Oswap ty => lower_swap ty lvs als es
   | _ => None
   end.
 
 Definition lower_copn
-  (lvs : seq lval) (op : sopn) (es : seq pexpr) : option copn_args :=
+  (lvs : seq lval) (op : sopn) als (es : seq pexpr) : option copn_args :=
   match op with
-  | Opseudo_op pop => lower_pseudo_operator lvs pop es
+  | Opseudo_op pop => lower_pseudo_operator lvs pop als es
   | Oasm (BaseOp (None, aop)) => lower_base_op lvs aop es
   | _ => None
   end.
@@ -448,8 +448,8 @@ Fixpoint lower_i (i : instr) : cmd :=
       let oirs :=
         match ty with
         | aword ws =>
-            let%opt (pre, (lvs, op, es)) := lower_cassgn_word lv ws e in
-            Some (pre ++ [:: Copn lvs tag op es ])
+            let%opt (pre, (lvs, op, als, es)) := lower_cassgn_word lv ws e in
+            Some (pre ++ [:: Copn lvs tag op als es ])
         | abool => lower_cassgn_bool lv tag e
         | _ => None
         end
@@ -457,10 +457,10 @@ Fixpoint lower_i (i : instr) : cmd :=
       let irs := if oirs is Some irs then irs else [:: ir ] in
       map (MkI ii) irs
 
-  | Copn lvs tag op es =>
+  | Copn lvs tag op als es =>
       let ir' :=
-        if lower_copn lvs op es is Some (lvs', op', es')
-        then Copn lvs' tag op' es'
+        if lower_copn lvs op als es is Some (lvs', op', als', es')
+        then Copn lvs' tag op' als' es'
         else ir
       in
       [:: MkI ii ir' ]

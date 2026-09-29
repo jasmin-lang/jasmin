@@ -1800,6 +1800,9 @@ Definition alloc_declassify_array rmap es :=
     else Error (stk_ierror_basic xv "register array remains")
   else Error (stk_ierror_no_var "declassify: invalid args").
 
+Definition subst_ty_err f ty :=
+  o2r (stk_error_no_var "subst_ty: failed substitution") (subst_ty f ty).
+
 Fixpoint alloc_i sao (trmap:table*region_map) (i: instr) : cexec (table * region_map * cmd) :=
   let (table, rmap) := trmap in
   let (ii, ir) := i in
@@ -1855,8 +1858,10 @@ Fixpoint alloc_i sao (trmap:table*region_map) (i: instr) : cexec (table * region
       | _, _, _ => ok (remove_binding_lvals table rs)
       end
     in
-    Let e  := add_iinfo ii (alloc_es rmap e (sopn_tin o)) in
-    Let rs := add_iinfo ii (alloc_lvals rmap rs (sopn_tout o)) in
+    Let tin := mapM (subst_ty_err (assoc (zip [seq i.1 | i <- (get_instr_desc o).(al)] als))) (sopn_tin o) in
+    Let tout := mapM (subst_ty_err (assoc (zip [seq i.1 | i <- (get_instr_desc o).(al)] als))) (sopn_tout o) in
+    Let e  := add_iinfo ii (alloc_es rmap e tin) in
+    Let rs := add_iinfo ii (alloc_lvals rmap rs tout) in
     ok (table, rs.1, [:: MkI ii (Copn rs.2 t o als e)])
 
   | Csyscall rs o es =>

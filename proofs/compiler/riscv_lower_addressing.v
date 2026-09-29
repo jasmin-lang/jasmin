@@ -58,27 +58,27 @@ Definition compute_addr e :=
   else
     let%opt shift := Option.map Z.of_nat (shift_of_scale lea.(lea_scale)) in
     Some ([::
-      Copn [:: Lvar tmp] AT_none (Oriscv SLLI) [:: Pvar (mk_lvar off); wconst (wrepr Uptr shift)];
-      Copn [:: Lvar tmp] AT_none (Oriscv ADD) [:: Pvar (mk_lvar base); Pvar (mk_lvar tmp)]],
+      Copn [:: Lvar tmp] AT_none (Oriscv SLLI) [::] [:: Pvar (mk_lvar off); wconst (wrepr Uptr shift)];
+      Copn [:: Lvar tmp] AT_none (Oriscv ADD) [::] [:: Pvar (mk_lvar base); Pvar (mk_lvar tmp)]],
       eaddw Uptr (Plvar tmp) (wconst (wrepr Uptr lea.(lea_disp)))).
 
 Fixpoint lower_addressing_i (i: instr) :=
   let (ii,ir) := i in
   match ir with
-  | Copn xs t o es =>
+  | Copn xs t o als es =>
     if is_one_Lmem xs is Some (al, ws, vi, e) then
       if compute_addr e is Some (prelude, p) then
-        map (MkI ii) (prelude ++ [:: Copn [:: Lmem al ws vi p] t o es])
+        map (MkI ii) (prelude ++ [:: Copn [:: Lmem al ws vi p] t o als es])
       else [:: i]
     else if is_one_Pload es is Some (al, ws, e) then
       if compute_addr e is Some (prelude, p) then
-        map (MkI ii) (prelude ++ [:: Copn xs t o [:: Pload al ws p]])
+        map (MkI ii) (prelude ++ [:: Copn xs t o als [:: Pload al ws p]])
       else [:: i]
     else [:: i]
   | Cassgn _ _ _ _
   | Csyscall _ _ _
   | Cassert _
-  | Ccall _ _ _ => [:: i]
+  | Ccall _ _ _ _ => [:: i]
   | Cif b c1 c2 =>
     let c1 := conc_map lower_addressing_i c1 in
     let c2 := conc_map lower_addressing_i c2 in

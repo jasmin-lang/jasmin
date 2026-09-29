@@ -945,11 +945,12 @@ Proof.
   by move=> ? ->;exists v1.
 Qed.
 
-Corollary get_gvar_uincl env wdb x gd (vm1 vm2 : Vm.t env) v1:
+Corollary get_gvar_uincl env1 env2 wdb x gd (vm1 : Vm.t env1) (vm2 : Vm.t env2) v1:
+  env1 =1 env2 ->
   vm_uincl vm1 vm2 ->
   get_gvar wdb gd vm1 x = ok v1 ->
   exists2 v2, get_gvar wdb gd vm2 x = ok v2 & value_uincl v1 v2.
-Proof. by move => /(_ x.(gv)) h; apply: get_gvar_uincl_at => //; case: ifP. Qed.
+Proof. by move => heq /(_ x.(gv)) h; apply: get_gvar_uincl_at => //; case: ifP. Qed.
 
 Lemma vuincl_sem_sop1 env o ve1 ve1' v1 :
   value_uincl ve1 ve1' -> sem_sop1 env o ve1 = ok v1 ->
@@ -1219,15 +1220,16 @@ Lemma write_var_uincl_on1 env1 env2 wdb (s1 s2 : estate env1) vm1 v1 v2 (x : var
     s2.(evm) <=[Sv.singleton x] vm2.
 Proof. move=> heq hv /(write_var_uincl_on heq hv) -/(_ Sv.empty vm1); apply. move=> ++. clear; SvD.fsetdec. Qed.
 
-Corollary write_var_uincl env wdb (s1 s2 : estate env) vm1 v1 v2 (x : var_i) :
+Corollary write_var_uincl env1 env2 wdb (s1 s2 : estate env1) (vm1 : Vm.t env2) v1 v2 (x : var_i) :
+  env1 =1 env2 ->
   s1.(evm) <=1 vm1 ->
   value_uincl v1 v2 ->
   write_var wdb x v1 s1 = ok s2 ->
-  exists2 vm2 : Vm.t env,
+  exists2 vm2 : Vm.t env2,
     write_var wdb x v2 (with_vm s1 vm1) = ok (with_vm s2 vm2) &
     s2.(evm) <=1 vm2.
 Proof.
-  move => Hvm hv /[dup] hw1 /(write_var_uincl_on1 vm1 (fun _ => erefl) hv) {hv} [] vm2 hw2 le.
+  move => heq Hvm hv /[dup] hw1 /(write_var_uincl_on1 vm1 heq hv) {hv} [] vm2 hw2 le.
   exists vm2 => //; apply: (uincl_on_vm_uincl Hvm le); [apply: vrvP_var hw1 | apply: vrvP_var hw2].
 Qed.
 
@@ -1242,7 +1244,7 @@ Proof.
   elim: xs s1 vm1 vs1 vs2 => /= [ | x xs Hrec] s1 vm1 vs1 vs2 Hvm [] //=.
   + by move=> [] <-;eauto.
   move=> {vs1 vs2} v1 v2 vs1 vs2 Hv Hvs;apply: rbindP => s1'.
-  by move=> /(write_var_uincl Hvm Hv) []vm2 -> Hvm2 /(Hrec _ _ _ _ Hvm2 Hvs).
+  by move=> /(write_var_uincl (fun _ => erefl) Hvm Hv) []vm2 -> Hvm2 /(Hrec _ _ _ _ Hvm2 Hvs).
 Qed.
 
 Lemma uincl_write_none env1 env2 wdb (s2 : estate env1) v1 v2 (s s' : estate env2) t:

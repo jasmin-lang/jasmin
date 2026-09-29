@@ -215,7 +215,7 @@ Section WITH_PARAMS.
         have /(_ x) := write_vars_defined ok_va ok_s.
         rewrite -hparams all_cat /= eqxx andbF => /(_ erefl).
         case => v [] v' [] ok_v get_x.
-        have /(_ (evm t)) := get_var_uincl _ get_x.
+        have /(_ _ (evm t)) := get_var_uincl _ get_x.
         case: (hu) => _ _ _ vms_vmt /(_ vms_vmt).
         case => vt {} get_x v_vt.
         have := value_uincl_truncate_r v_vt ok_v.

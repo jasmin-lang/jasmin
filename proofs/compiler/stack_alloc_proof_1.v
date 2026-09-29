@@ -5094,7 +5094,7 @@ Proof using addr_no_overflow slot_align wf_pmap0 P'_globs hshparams.
   exists (with_vm s2 s2.(evm).[p <- Vword wey]); split; last first.
   + by apply (valid_state_set_move_regptr hvs hwfy haddry hwfsy hvarszy hvarssy hlx h heqvaly).
   move: hi; rewrite /lower_protect_ptr_fail /slh_lowering.lower_slho /=.
-  case heq: slh_lowering.shp_lower => [ [[xs o] es] | //] [<-].
+  case heq: slh_lowering.shp_lower => [ [[[xs o] als] es] | //] [<-].
 
   move: ok_wey; t_xrbindP=> vey ok_vey ok_wey.
   have [vmsf' [ok_vmsf' htr']] := alloc_eP hvs hmsf' hmsf htr.
@@ -5152,10 +5152,10 @@ Proof.
   by apply wfr_VARS_STATUS_set_move_status.
 Qed.
 
-Lemma alloc_array_swapP table m0 (vme : Vm.t env) s1 s2 s1' rmap1 rmap2 ws len ii xs tag es va vs i2:
+Lemma alloc_array_swapP table m0 (vme : Vm.t env) s1 s2 s1' rmap1 rmap2 ws len ii xs tag es va vs i2 vals:
   valid_state table rmap1 vme m0 s1 s2 ->
   sem_pexprs true gd s1 es = ok va ->
-  exec_sopn env (Opseudo_op (pseudo_operator.Oswap (aarr ws len))) va = ok vs ->
+  exec_sopn (Opseudo_op (pseudo_operator.Oswap (aarr ws len))) vals va = ok vs ->
   write_lvals true gd s1 xs vs = ok s1' ->
   alloc_array_swap saparams pmap rmap1 xs tag es = ok (rmap2, i2) ->
   ∃ s2' : estate env, esem_i P' rip (MkI ii i2) s2 = ok s2' ∧ valid_state (foldl remove_binding_lval table xs) rmap2 vme m0 s1' s2'.
@@ -5165,6 +5165,7 @@ Proof using wf_pmap0 hsaparams.
   case: xs => // -[] // x [] // [] // y [] //.
   case: es => // -[] // z [] // [] // w [] //=.
   t_xrbindP => vz hz _ vw hw <- <-.
+  case: vals => //=.
   rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /= /swap_semi; t_xrbindP.
   move=> _ tz /to_arrI hvz tw /to_arrI hvw <- <- /=; t_xrbindP; subst vz vw.
   move=> _ /write_varP [-> _ /[dup] hxtr /vm_truncate_valE [hxty hxtr']].

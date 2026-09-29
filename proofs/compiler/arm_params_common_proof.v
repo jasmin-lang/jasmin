@@ -302,10 +302,10 @@ Context
 
 #[local] Existing Instance withsubword.
 
-Lemma store_mn_of_wsizeP env ws ws' mn (w : word ws) (w' : word ws') :
+Lemma store_mn_of_wsizeP ws ws' mn (w : word ws) (w' : word ws') :
   store_mn_of_wsize ws = Some mn
   -> truncate_word ws w' = ok w
-  -> exec_sopn env (Oarm (ARM_op mn default_opts)) [:: Vword w' ]
+  -> exec_sopn (Oarm (ARM_op mn default_opts)) [::] [:: Vword w' ]
      = ok [:: Vword w ].
 Proof.
   case: ws w => w // [?]; subst mn.

@@ -34,23 +34,24 @@ Instance eqTC_riscv_extra_op : eqTypeC riscv_extra_op :=
    argument. *)
 Definition Oriscv_add_large_imm_instr : instruction_desc :=
   let ty := aword riscv_reg_size in
-  let cty env := eval_atype env ty in
-  let ctin env := [:: cty env; cty env] in
+  let cty := eval_atype empty_env ty in
+  let ctin := [:: cty; cty] in
   let semi := fun (x y : word riscv_reg_size) => (x + y)%w in
   {| str    := (fun _ => "add_large_imm"%string)
+   ; al     := [::]
    ; tin    := [:: ty; ty]
    ; i_in   := [:: E 1; E 2]
    ; tout   := [:: ty]
    ; i_out  := [:: E 0]
    ; conflicts := [:: (APout 0, APin 0)]
-   ; semi   := fun env => sem_prod_ok (ctin env) semi
-   ; semu   := fun env => @values.vuincl_app_sopn_v (ctin env) [:: cty env] (sem_prod_ok (ctin env) semi) refl_equal
+   ; semi   := sem_prod_ok ctin semi
+   ; semu   := @values.vuincl_app_sopn_v ctin [:: cty] (sem_prod_ok ctin semi) refl_equal
    ; i_safe := [::]
    ; i_valid := true
    ; i_doit := DOIT
    ; i_safe_wf := refl_equal
-   ; i_semi_errty :=  fun _ env => sem_prod_ok_error (tin:=ctin env) semi _
-   ; i_semi_safe := fun _ env => values.sem_prod_ok_safe (tin:=ctin env) semi
+   ; i_semi_errty :=  fun _ => sem_prod_ok_error (tin:=ctin) semi _
+   ; i_semi_safe := fun _ => values.sem_prod_ok_safe (tin:=ctin) semi
  |}.
 
 Definition get_instr_desc (o: riscv_extra_op) : instruction_desc :=

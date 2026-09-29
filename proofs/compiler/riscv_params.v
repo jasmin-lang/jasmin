@@ -40,7 +40,7 @@ Definition riscv_mov_ofs
   option instr_r :=
   let mk oa :=
     let: (op, args) := oa in
-     Some (Copn [:: x ] tag (Oriscv op) args) in
+     Some (Copn [:: x ] tag (Oriscv op) [::] args) in
   match movk with
   | MK_LEA => mk (LA, [:: if is_zero Uptr ofs then y else add y ofs ])
   | MK_MOV =>
@@ -60,7 +60,7 @@ Definition riscv_mov_ofs
               (* This allows to remove constraint in register allocation *)
               if is_arith_small lea.(lea_disp) then mk (ADDI, [:: Plvar base; cast_const lea.(lea_disp) ])
               else
-                Some (Copn [:: x ] tag (Oasm (ExtOp Oriscv_add_large_imm)) [:: Plvar base; cast_const lea.(lea_disp) ])
+                Some (Copn [:: x ] tag (Oasm (ExtOp Oriscv_add_large_imm))  [::][:: Plvar base; cast_const lea.(lea_disp) ])
           | Some base, Some off =>
             if (lea.(lea_disp) == 0%Z) && (lea.(lea_scale) == 1%Z) then
               mk (ADD, [:: Plvar base; Plvar off ])
@@ -74,10 +74,10 @@ Definition riscv_mov_ofs
   end.
 
 Definition riscv_immediate (x: var_i) z :=
-  Copn [:: Lvar x ] AT_none (Oriscv LI) [:: cast_const z ].
+  Copn [:: Lvar x ] AT_none (Oriscv LI) [::] [:: cast_const z ].
 
 Definition riscv_swap t (x y z w : var_i) :=
-  Copn [:: Lvar x; Lvar y] t (Oasm (ExtOp (SWAP reg_size))) [:: Plvar z; Plvar w].
+  Copn [:: Lvar x; Lvar y] t (Oasm (ExtOp (SWAP reg_size))) [::] [:: Plvar z; Plvar w].
 
 Definition riscv_saparams : stack_alloc_params :=
   {|
@@ -164,7 +164,7 @@ Definition riscv_loparams : lowering_params :=
 
 Definition riscv_shparams : sh_params :=
   {|
-    shp_lower := fun _ _ _ => None;
+    shp_lower := fun _ _ _ _ => None;
   |}.
 
 (* ------------------------------------------------------------------------ *)

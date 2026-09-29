@@ -275,10 +275,10 @@ Proof.
 Qed.
 
 (* TODO: unused, to be removed? *)
-Lemma uload_mn_of_wsizeP env ws ws' mn (w : word ws) (w' : word ws') :
+Lemma uload_mn_of_wsizeP ws ws' mn (w : word ws) (w' : word ws') :
   uload_mn_of_wsize ws = Some mn
   -> truncate_word ws w' = ok w
-  -> exec_sopn env (Oarm (ARM_op mn default_opts)) [:: Vword w' ]
+  -> exec_sopn (Oarm (ARM_op mn default_opts)) [::] [:: Vword w' ]
      = ok [:: Vword (zero_extend reg_size w) ].
 Proof.
   case: ws w => w // [?]; subst mn.
@@ -377,7 +377,7 @@ Proof.
   split=> /=.
   + by move=> _ ? _ [<-].
   + move=> _ ? _ [<-] _ fd ->; by exists fd.
-  move=> ???? env _ ? _ ?? [<-]; exact: (wiequiv_f_eq (scP := sCP_stack)).
+  move=> ???? _ ? _ ?? [<-]; exact: (wiequiv_f_eq (scP := sCP_stack)).
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -981,9 +981,9 @@ End STACK_ZEROIZATION.
 (* ------------------------------------------------------------------------ *)
 (* Shared hypotheses. *)
 
-Definition arm_is_move_opP env op vx v :
+Definition arm_is_move_opP op vals vx v :
   ap_is_move_op arm_params op
-  -> exec_sopn env (Oasm op) [:: vx ] = ok v
+  -> exec_sopn (Oasm op) vals [:: vx ] = ok v
   -> values_uincl v [:: vx ].
 Proof.
   case: op => // -[[] // [mn opt]] /=.
@@ -991,6 +991,7 @@ Proof.
   rewrite /exec_sopn /sopn_sem /sopn_sem_ /= hc.
   apply: rbindP => semi.
   apply: rbindP => _ _ [<-] {semi}.
+  case: vals => //=.
   rewrite /semi_to_atype.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.

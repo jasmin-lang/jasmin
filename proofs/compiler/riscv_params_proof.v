@@ -618,14 +618,15 @@ End STACK_ZEROIZATION.
 (* ------------------------------------------------------------------------ *)
 (* Shared hypotheses. *)
 
-Definition riscv_is_move_opP env op vx v :
+Definition riscv_is_move_opP op vals vx v :
   ap_is_move_op riscv_params op
-  -> exec_sopn env (Oasm op) [:: vx ] = ok v
+  -> exec_sopn (Oasm op) vals [:: vx ] = ok v
   -> values_uincl  v [:: vx ].
 Proof.
   case: op => // -[[] // op] /= hop.
   rewrite /exec_sopn /sopn_sem /sopn_sem_ /=.
   apply: rbindP => semi.
+  case: vals => //=.
   apply: rbindP => _ _ [<-] {semi}.
   rewrite /semi_to_atype.
   move: (computational_eq _) (computational_eq _) => e1 e2.

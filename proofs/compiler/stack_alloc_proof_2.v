@@ -2059,9 +2059,9 @@ Context
 
 Context
   (is_move_opP :
-    forall env op vx v,
+    forall op vals vx v,
       is_move_op op ->
-      exec_sopn env (Oasm op) [:: vx ] = ok v ->
+      exec_sopn (Oasm op) vals [:: vx ] = ok v ->
       values_uincl v [:: vx ]).
 
 Local Lemma clone_ty : forall x n, vtype (clone fresh_var_ident x n) = vtype x.
@@ -2342,7 +2342,7 @@ Proof.
   by apply (wft_VARS_remove_binding_lval hvars1').
 Qed.
 
-Local Lemma Wopn xs t o es: Pi_r (Copn xs t o es).
+Local Lemma Wopn xs t o als es: Pi_r (Copn xs t o als es).
 Proof.
   move=> table1 rmap1 table2 rmap2 ii c2 /=.
   case: is_protect_ptr_fail => [[[r ?]?]|].
@@ -2362,7 +2362,7 @@ Proof.
     by apply (wfr_VARS_STATUS_alloc_array_swap halloc).
   case: is_declassify_array.
   + by t_xrbindP => i ok_i <- <- _ ?; split; first by [].
-  t_xrbindP=> {}table2 htable2 _ _ [{}rmap2 xs2] hallocs <- <- _.
+  t_xrbindP=> {}table2 htable2 tin htin tout htout _ _ [{}rmap2 xs2] hallocs <- <- _.
   move=> [hvars1 hvarsz1 hvarss1].
   have hvarsz2 := wfr_VARS_ZONE_alloc_lvals hallocs hvarsz1.
   have hvarss2 := wfr_VARS_STATUS_alloc_lvals hallocs hvarsz1 hvarss1.
@@ -2374,7 +2374,7 @@ Proof.
     do 2!split=> //.
     by apply wft_VARS_remove_binding_lvals.
   case: xs hdefault hallocs htable2 => [//|r [|//]] hdefault hallocs.
-  case: o hallocs => // o hallocs.
+  case: o htin htout hallocs => // o htin htout hallocs.
   case: es => [//|e [|//]].
   case: ifP => // _.
   t_xrbindP=> ote hsym.
@@ -3513,9 +3513,96 @@ Proof using P'_globs hsaparams.
   by apply: (valid_state_eq_on _ _ hwft1'' hvs'); rewrite remove_binding_lval_vars.
 Qed.
 
+  Lemma assoc_zip_None (A:eqType) B1 B2 (l1 : seq A) (l2 : seq B1) (l2' : seq B2) x :
+    size l2 = size l2' ->
+    assoc (zip l1 l2) x = None ->
+    assoc (zip l1 l2') x = None.
+  Proof.
+    elim: l1 l2 l2' => [|a1 l1 ih1] /=.
+    + by move=> ? [].
+    move=> [|a2 l2] [|a2' l2'] //= [heq].
+    case: eqP => // _.
+    by apply ih1.
+  Qed.
+
+  Lemma assoc_zip_Some (A:eqType) B1 B2 (l1 : seq A) (l2 : seq B1) (l2' : seq B2) x y :
+    size l2 = size l2' ->
+    assoc (zip l1 l2) x = Some y ->
+    exists k, [/\
+        oseq.onth l1 k = Some x
+      , oseq.onth l2 k = Some y
+      & assoc (zip l1 l2') x = oseq.onth l2' k].
+  Proof.
+    elim: l1 l2 l2' => [|a1 l1 ih1] /=.
+    + by move=> [].
+    move=> [|a2 l2] [|a2' l2'] //= [heq].
+    case: eqP => [<-|_].
+    + move=> [<-].
+      by exists 0%nat.
+    move=> /(ih1 _ _ heq) [k [h1 h2 h3]].
+    by exists (S k).
+  Qed.
+
+
+  Lemma subst_alP env l als al al' :
+    subst_al (assoc (zip [seq i.1 | i <- l] als)) al = Some al' ->
+    eval env al' = eval (create_env l [seq eval env i | i <- als]) al.
+  Proof.
+    elim: al al' => /=.
+    + by move=> z _ [<-] /=.
+    + move=> i _ al' hassoc.
+      rewrite /create_env.
+      have hsize := size_map (eval env) als.
+      have [k [_ hnth ->]] := assoc_zip_Some (esym hsize) hassoc.
+      by rewrite seq_extra.onth_map hnth /=.
+    + move=> al ih al'.
+      by apply: obindP => ? /ih <- [<-] /=.
+    + move=> al1 ih1 al2 ih2 al'.
+      apply: obindP => ? /ih1 <-.
+      apply: obindP => ? /ih2 <-.
+      by move=> [<-] /=.
+    + move=> al1 ih1 al2 ih2 al'.
+      apply: obindP => ? /ih1 <-.
+      apply: obindP => ? /ih2 <-.
+      by move=> [<-] /=.
+    + move=> al1 ih1 al2 ih2 al'.
+      apply: obindP => ? /ih1 <-.
+      apply: obindP => ? /ih2 <-.
+      by move=> [<-] /=.
+    + move=> sg1 al1 ih1 al2 ih2 al'.
+      apply: obindP => ? /ih1 <-.
+      apply: obindP => ? /ih2 <-.
+      by move=> [<-] /=.
+    + move=> sg1 al1 ih1 al2 ih2 al'.
+      apply: obindP => ? /ih1 <-.
+      apply: obindP => ? /ih2 <-.
+      by move=> [<-] /=.
+    + move=> al1 ih1 al2 ih2 al'.
+      apply: obindP => ? /ih1 <-.
+      apply: obindP => ? /ih2 <-.
+      by move=> [<-] /=.
+    move=> al1 ih1 al2 ih2 al'.
+    apply: obindP => ? /ih1 <-.
+    apply: obindP => ? /ih2 <-.
+    by move=> [<-] /=.
+  Qed.
+
+  Lemma subst_tyP env l als ty ty' :
+    subst_ty (assoc (zip [seq i.1 | i <- l] als)) ty = Some ty' ->
+    eval_atype env ty' = eval_atype (create_env l [seq eval env i | i <- als]) ty.
+  Proof.
+    case: ty => /=.
+    + by move=> [<-] /=.
+    + by move=> [<-] /=.
+    + move=> ws al.
+      apply: obindP => al' hal [<-] /=.
+      by rewrite (subst_alP _ hal).
+    by move=> ? [<-] /=.
+  Qed.
+
 Local Lemma Hopn_aux : sem_Ind_opn P ePi_r.
 Proof using P'_globs hshparams hsaparams is_move_opP.
-  move=> env s1 s2 t o xs es.
+  move=> env s1 s2 t o xs als es.
   rewrite /sem_sopn; t_xrbindP=> vs va hes hop hw pmap rsp Slots Addr Writable Align table1 rmap1 table2 rmap2 ii1 c2 hpmap hwf sao /=.
   case heq : is_protect_ptr_fail => [[[r e] msf] | ].
   + have [[ws [len ?]]?? {heq}]:= is_protect_ptr_failP heq; subst o xs es.
@@ -3523,6 +3610,7 @@ Proof using P'_globs hshparams hsaparams is_move_opP.
       <- <- <- {table2 c2} vme m0 s1' hvs hext hsao.
     move: hes => /=; t_xrbindP => ve hve _ vmsf hvmsf <- ?; subst va.
     move: hop; rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /= /se_protect_ptr_fail_sem.
+    case: als => //=.
     t_xrbindP => a1 a ha wmsf /to_wordI [sz' [w']] [? hwmsf] /eqP ???; subst wmsf a1 vs vmsf.
     move: hw => /=; t_xrbindP => s2' hwr ?; subst s2'.
     have := alloc_protect_ptrP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap P'_globs (ii:=ii1) hshparams hvs hve hvmsf _ _ hwr hi.
@@ -3546,25 +3634,40 @@ Proof using P'_globs hshparams hsaparams is_move_opP.
     move: ok_addr => /(_ true _ _ (hpmap.(wf_locals) ok_pk) hpk (ok_rmap1.(wfr_wf) ok_sr)).
     case => addr; t_xrbindP => vaddr ok_vaddr ok_addr ok_sub_region.
     rewrite /sem_sopn /= /get_gvar /= ok_vaddr /= /sem_sop2 /= ok_addr /= truncate_word_u /=.
+    case: als hop => //= hop.
     move: hop hw; rewrite /exec_sopn /= truncate_word_u /=; t_xrbindP => - [] arr' ok_arr' _ <-{vs}.
     case: xs => // /ok_inj<-.
     by eexists _, _; split; first reflexivity; last reflexivity.
   clear hdeclassify.
-  t_xrbindP=> {}table2 ok_table2 es' he [{}rmap2 xs'] ha /=
+  t_xrbindP=> {}table2 ok_table2 tin htin tout htout es' he [{}rmap2 xs'] ha /=
     <- <- <- {c2} vme m0 s1' hvs hext hsao.
-  have [s2' /= hw' hvs2] := alloc_lvalsP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hwf.(wfsl_align) hpmap ha hvs (sopn_toutP hop) hw.
-  have hsem': esem P' rip [:: MkI ii1 (Copn xs' t o es')] s1' = ok s2'.
+  have [|s2' /= hw' hvs2] := alloc_lvalsP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hwf.(wfsl_align) hpmap ha hvs _ hw.
+  + have := sopn_toutP hop. change ListDef.map with @map. move=> ->.
+    elim: (sopn_tout o) (tout) htout => [|ty tys ih] /=.
+    + by move=> _ [<-].
+    rewrite {2}/subst_ty_err.
+    t_xrbindP=> _ ty' hty' tys' htys <- /=. rewrite (ih _ htys).
+    rewrite -(subst_tyP _ hty'). done.
+  have hsem': esem P' rip [:: MkI ii1 (Copn xs' t o als es')] s1' = ok s2'.
   + rewrite esem1 /=.
     rewrite /sem_sopn P'_globs.
     have [va' [ok_va' hop']] := exec_sopn_truncate_val hop.
+    have htyin: [seq eval_atype env i | i <- tin] = [seq eval_atype (sopn.create_env (al (get_instr_desc o)) (map (eval env) als)) i | i <- sopn_tin o].
+    + elim: (sopn_tin o) (tin) htin => [|ty tys ih] /=.
+      + by move=> _ [<-].
+      rewrite {2}/subst_ty_err.
+      t_xrbindP=> _ ty' hty' tys' htys' <- /=.
+      by rewrite (subst_tyP _ hty') (ih _ htys').
+    rewrite -htyin in ok_va'.
     have [vs3 [ok_vs3 htr']] := alloc_esP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hvs he hes ok_va'.
+    rewrite htyin in htr'.
     by rewrite ok_vs3 /= (truncate_val_exec_sopn htr' hop').
   have: table2 = remove_binding_lvals table1 xs \/
     exists r e op, [/\ xs = [:: r], es = [:: e], o = Oasm op & is_move_op op].
   + move=> {he ha hes hop hw hsem' hvs2}.
     case: xs ok_table2 => [|r xs]; first by move=> [<-]; left.
     case: xs => [|??]; last by move=> [<-]; left.
-    case: o => [?|?|op]; [by move=> [<-]; left..|].
+    case: o {htin htout} => [?|?|op]; [by move=> [<-]; left..|].
     case: es => [|e es]; first by move=> [<-]; left.
     case: es => [|??]; last by move=> [<-]; left.
     case: ifP => hmove; last by move=> [<-]; left.
@@ -3759,11 +3862,11 @@ Proof using P'_globs hshparams hsaparams is_move_opP Halloc_fd hwf_pmap hwf_Slot
     apply: it_check_cP_concl => //.
     by apply: write_lval_validw hw.
   (* Opn *)
-  + move=> xs t o es ii table1 rmap1 table2 rmap2 vm2 c2 h [hwf_vars hwf_varsz hwf_status].
+  + move=> xs t o als es ii table1 rmap1 table2 rmap2 vm2 c2 h [hwf_vars hwf_varsz hwf_status].
     apply wequiv_opn_esem => s1 s2 s1' [hvalid hstable hext hvalw hvalw'] hopn.
     have := Hopn_aux hopn hwf_pmap hwf_Slots h hvalid hext (stack_stable_wf_sao hstable hwf_sao).
     apply: it_check_cP_concl => //.
-    apply: (esem_i_validw_stable_uprog (p:=P) (ev:= tt) (c:= (MkI ii (Copn xs t o es)))).
+    apply: (esem_i_validw_stable_uprog (p:=P) (ev:= tt) (c:= (MkI ii (Copn xs t o als es)))).
     by rewrite /= hopn.
   (* Syscall *)
   + move=> xs o es ii table1 rmap1 table2 rmap2 vme c2 h [hwf_vars hwf_varsz hwf_status].
@@ -4281,9 +4384,9 @@ Context
 
 Context
   (is_move_opP :
-    forall env op vx v,
+    forall op vals vx v,
       is_move_op op ->
-      exec_sopn env (Oasm op) [:: vx ] = ok v ->
+      exec_sopn (Oasm op) vals [:: vx ] = ok v ->
       values_uincl v [:: vx ]).
 
 Lemma get_alloc_fd p p_extra mglob oracle fds1 fds2 :

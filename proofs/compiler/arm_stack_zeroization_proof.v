@@ -78,7 +78,7 @@ Proof.
   have [mn hstore]: exists mn, store_mn_of_wsize ws = Some mn.
   + by case: ws ws_small {hm'} => //= _; eexists; reflexivity.
   rewrite hstore /= hvzero /=.
-  rewrite (store_mn_of_wsizeP _ (w:=0%R) hstore) /=;
+  rewrite (store_mn_of_wsizeP (w:=0%R) hstore) /=;
     last by rewrite (truncate_word_le _ ws_small) zero_extend0.
   rewrite hrsp /= /sem_sop2 /= (truncate_word_u w1) /= he /= hto /=.
   by rewrite truncate_word_u /= truncate_word_u /= hm' /=.

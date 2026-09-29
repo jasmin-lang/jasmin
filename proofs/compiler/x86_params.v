@@ -38,7 +38,7 @@ Definition x86_op_align (x : var_i) (ws : wsize) (al : wsize) : fopn_args :=
 (* Stack alloc parameters. *)
 
 Definition lea_ptr x y tag ofs : instr_r :=
-  Copn [:: x] tag (Ox86 (LEA Uptr)) [:: add y ofs].
+  Copn [:: x] tag (Ox86 (LEA Uptr)) [::] [:: add y ofs].
 
 Definition x86_mov_ofs x tag movk y ofs :=
   let addr :=
@@ -56,7 +56,7 @@ Definition x86_immediate x z :=
   mov_ws Uptr (Lvar x) (cast_const z) AT_none.
 
 Definition x86_swap t (x y z w : var_i) :=
-  Copn [:: Lvar x; Lvar y] t (Ox86 (XCHG reg_size)) [:: Plvar z; Plvar w].
+  Copn [:: Lvar x; Lvar y] t (Ox86 (XCHG reg_size)) [::] [:: Plvar z; Plvar w].
 
 Definition x86_saparams : stack_alloc_params :=
   {|
@@ -157,15 +157,16 @@ Definition is_mmx_protect (ws : wsize) (lvs : seq lval) : bool :=
 Definition x86_sh_lower
   (lvs : seq lval)
   (slho : slh_op)
+  als
   (es : seq pexpr) :
   option copn_args :=
   let O x := Oasm (ExtOp x) in
   match slho with
-  | SLHinit   => Some (lvs, O Ox86SLHinit, es)
+  | SLHinit   => Some (lvs, O Ox86SLHinit, als, es)
 
-  | SLHupdate => Some (Lnone dummy_var_info ty_msf :: lvs, O Ox86SLHupdate, es)
+  | SLHupdate => Some (Lnone dummy_var_info ty_msf :: lvs, O Ox86SLHupdate, als, es)
 
-  | SLHmove   => Some (lvs, O (Ox86SLHmove), es)
+  | SLHmove   => Some (lvs, O (Ox86SLHmove), als, es)
 
   | SLHprotect ws =>
     let: (rk, extra) :=
@@ -173,7 +174,7 @@ Definition x86_sh_lower
       then if is_mmx_protect ws lvs then (Extra, [::]) else (Normal, lflags)
       else (Normal, [:: Lnone dummy_var_info (aword ws) ])
     in
-    Some (extra ++ lvs, O (Ox86SLHprotect rk ws), es)
+    Some (extra ++ lvs, O (Ox86SLHprotect rk ws), als, es)
 
   | SLHprotect_ptr _ _ | SLHprotect_ptr_fail _ _ => None (* Taken into account by stack alloc *)
   end.

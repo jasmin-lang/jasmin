@@ -176,7 +176,7 @@ Proof using lt_0_stk_max halign le_ws_ws_align hstack hsmall hbody rsp_nin.
     apply: (lsem_n_eval_lin1 (n:=6) hbody) => //=.
     rewrite /eval_instr /=.
     rewrite wrepr0.
-    have -> /=: exec_sopn empty_env (Ox86 (MOV ws)) [:: @Vword ws 0] = ok [:: @Vword ws 0].
+    have -> /=: exec_sopn (Ox86 (MOV ws)) [::] [:: @Vword ws 0] = ok [:: @Vword ws 0].
     + rewrite /exec_sopn /= truncate_word_u /sopn_sem /sopn_sem_ /=.
       rewrite /size_8_64 hsmall /=.
       rewrite /semi_to_atype computational_eq_refl.
@@ -599,7 +599,7 @@ Local Opaque wsize_size.
       by rewrite /of_estate /= /lnext_pc /= -addn1.
     apply: (lsem_n_eval_lin (n:=1) hbody) => //=.
     * rewrite /eval_instr /=.
-      have -> /=: exec_sopn empty_env (Oasm (ExtOp (Oset0 ws))) [::] = ok [:: @Vword ws 0].
+      have -> /=: exec_sopn (Oasm (ExtOp (Oset0 ws))) [::] [::] = ok [:: @Vword ws 0].
       + rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /=.
         rewrite /Oset0_instr.
         by move /negP/negPf : hlarge => -> /=.
@@ -787,7 +787,7 @@ Local Opaque wsize_size Z.of_nat.
       by move: halign; rewrite is_alignE WArray.p_to_zE => /eqP.
     rewrite /eval_instr /=.
     rewrite wrepr0.
-    have -> /=: exec_sopn empty_env (Ox86 (MOV ws)) [:: @Vword ws 0] = ok [:: @Vword ws 0].
+    have -> /=: exec_sopn (Ox86 (MOV ws)) [::] [:: @Vword ws 0] = ok [:: @Vword ws 0].
     + rewrite /exec_sopn /= truncate_word_u /sopn_sem /sopn_sem_ /=.
       rewrite /size_8_64 hsmall /=.
       rewrite /semi_to_atype computational_eq_refl.
@@ -1119,7 +1119,7 @@ Local Opaque wsize_size.
       by rewrite /of_estate /= /lnext_pc /= -addn1.
     apply: (lsem_n_eval_lin (n:=1) hbody) => //=.
     * rewrite /eval_instr /=.
-      have -> /=: exec_sopn empty_env (Oasm (ExtOp (Oset0 ws))) [::] = ok [:: @Vword ws 0].
+      have -> /=: exec_sopn (Oasm (ExtOp (Oset0 ws))) [::] [::] = ok [:: @Vword ws 0].
       + rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /=.
         rewrite /Oset0_instr.
         by move /negP/negPf : hlarge => -> /=.
