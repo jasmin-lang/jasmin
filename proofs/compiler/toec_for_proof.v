@@ -10,13 +10,14 @@ Section PROOF.
 
 Context
   {asm_op syscall_state : Type}
+  {wa : WithAssert}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}.
+  {sip : SemInstrParams asm_op syscall_state}
+  .
 
 #[local] Existing Instance nosubword.
 #[local] Existing Instance indirect_c.
-#[local] Existing Instance withassert.
 
 Lemma escs_emem_with_vm :
   forall s t,
@@ -29,7 +30,7 @@ Lemma st_eq_on_pexprs gs:
   forall wdb V es,
     Sv.Subset (read_es es) V ->
     wrequiv (st_eq_on V) ((sem_pexprs wdb gs)^~ es) ((sem_pexprs wdb gs)^~ es) eq.
-Proof using sip.
+Proof using sip wa.
   move=> ? V e HV s t v [] H1 H2 H3 H.
   exists v; last done.
   rewrite -H (escs_emem_with_vm H1 H2).
@@ -39,27 +40,12 @@ Proof using sip.
   apply H3, HV. SvD.fsetdec.
 Qed.
 
-Lemma st_eq_on_pexpr gs:
-  forall wdb V e,
-    Sv.Subset (read_e e) V ->
-    wrequiv (st_eq_on V) ((sem_pexpr wdb gs)^~ e) ((sem_pexpr wdb gs)^~ e) eq.
-Proof using sip.
-  move=> wdb V e H s t v Heq Hsem.
-  change (read_e e) with (read_es [:: e]) in H.
-  have Hsems : sem_pexprs wdb gs s [:: e] = ok [:: v] by rewrite /= Hsem.
-  case: (st_eq_on_pexprs H Heq Hsems) => vs.
-  apply: rbindP => z Hsem' /= [= <-] [= ->]. by exists z.
-Qed.
-
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
 Context (fresh_var_ident : v_kind -> instr_info -> string -> atype -> Ident.ident).
 
 Context (p p' : prog) (ev : extra_val_t).
 Hypothesis Hp : toec_for_prog fresh_var_ident p = ok p'.
-
-Lemma eq_globs : p_globs p' = p_globs p.
-Proof using sip fresh_var_ident Hp. by apply: rbindP Hp => ?? [= <-]. Qed.
 
 Lemma toec_for_fun_inv f f'
   : toec_for_fun fresh_var_ident f = ok f'
@@ -72,83 +58,43 @@ Lemma toec_for_fun_inv f f'
       & f_extra f = f_extra f' ].
 Proof. rewrite /toec_for_fun. t_xrbindP=>??. by elim. Qed.
 
-Lemma toec_for_get_fundef fn fd :
-  get_fundef (p_funcs p) fn = Some fd ->
-  exists2 fd',
-    get_fundef (p_funcs p') fn = Some fd'
-    & toec_for_fun fresh_var_ident fd = ok fd'.
+Lemma toec_for_prog_inv :
+  [/\ map_cfprog (toec_for_fun fresh_var_ident) (p_funcs p) = ok (p_funcs p')
+  , p_globs p' = p_globs p
+  & p_extra p' = p_extra p].
+Proof using Hp. by apply: rbindP Hp => ?? [= <-]. Qed.
+Lemma eq_globs : p_globs p' = p_globs p. Proof using Hp. by case toec_for_prog_inv. Qed.
+
+Lemma toec_for_get_fundef fn :
+  if get_fundef (p_funcs p) fn is Some fd then
+     exists2 fd',
+       toec_for_fun fresh_var_ident fd = ok fd'
+       & get_fundef (p_funcs p') fn = Some fd'
+  else
+    get_fundef (p_funcs p') fn = None.
 Proof using Hp.
-  move: Hp.
-  rewrite /toec_for_prog.
-  t_xrbindP => p'_funcs Hp'_funcs <- /=.
-  move: p'_funcs Hp'_funcs.
+  apply: get_map_cfprog_name_gen_aux.
+  case: toec_for_prog_inv => H _ _. exact H.
+Defined.
 
-  elim: (p_funcs p) => [[]//|].
-  move=> [p_fun_name p_fun_def] p_funcs IH p'_funcs /=.
-  destruct p'_funcs; first by t_xrbindP.
-
-  rewrite Let_Let /=.
-  t_xrbindP => p'fdef Hp'fdef p'fdefs Hp'fdefs.
-  move=>??; subst.
-  move: Hp'fdef.
-  rewrite /add_finfo /add_funname /=.
-  case Hp'_fundef: toec_for_fun; last done.
-  move=> [=] ?. subst.
-  case Hfn: (fn == p_fun_name).
-  - move=>[] <-. by eexists.
-  - by apply IH.
-Qed.
-
-Lemma toec_for_get_fundef_none fn :
-  get_fundef (p_funcs p) fn = None
-  -> get_fundef (p_funcs p') fn = None.
-Proof using Hp.
-  move: Hp.
-  rewrite /toec_for_prog.
-  t_xrbindP => p'_funcs Hp'_funcs <- /=.
-  move: p'_funcs Hp'_funcs.
-
-  elim: (p_funcs p) => [[]//|].
-  move=> [p_fun_name p_fun_def] p_funcs IH p'_funcs /=.
-  destruct p'_funcs; first by t_xrbindP.
-
-  rewrite Let_Let /=.
-  t_xrbindP => p'fdef Hp'fdef p'fdefs Hp'fdefs.
-  move=>??; subst.
-  move: Hp'fdef.
-  rewrite /add_finfo /add_funname /=.
-  case Hp'_fundef: toec_for_fun; last done.
-  move=> [=] ?. subst.
-  case Hfn: (fn == p_fun_name). done. by apply IH.
-Qed.
-
-Lemma toec_for_sem_pre fn fsi fs :
-  fsi = fs->
-  sem_pre p' fn fsi = ok tt ->
+Lemma toec_for_sem_pre fn fs :
+  sem_pre p' fn fs = ok tt ->
   sem_pre p fn fs = ok tt.
 Proof using Hp.
-  move=> <- <-.
-  rewrite /sem_pre /=.
-  case H: (get_fundef (p_funcs p) fn).
-  - move: (toec_for_get_fundef H) => [? -> H'].
-    move: (toec_for_fun_inv H') => []; do 7 elim.
-    by rewrite eq_globs.
-  - by move: (toec_for_get_fundef_none H) ->.
+  rewrite /sem_pre eq_globs.
+  move: (toec_for_get_fundef fn).
+  case: get_fundef => [fd [fd' H1 ->]| -> //].
+  by case: (toec_for_fun_inv H1) => _ -> ->.
 Qed.
 
-Lemma toec_for_sem_post fr1 fr2 fs fsi fn :
-  fr1 = fr2 ->
-  fvals fsi = fvals fs ->
-  sem_post p' fn (fvals fsi) fr1 = ok tt ->
-  sem_post p fn (fvals fs) fr2 = ok tt.
+Lemma toec_for_sem_post fr vs fn :
+  sem_post p' fn vs fr = ok tt ->
+  sem_post p fn vs fr = ok tt.
 Proof using Hp.
-  move=> <- <-.
-  rewrite /sem_post /=.
-  case H: (get_fundef (p_funcs p) fn).
-  - move: (toec_for_get_fundef H) => [? -> H'].
-    move: (toec_for_fun_inv H') => []; do 7 elim.
-    rewrite eq_globs. done.
-  - by move: (toec_for_get_fundef_none H) ->.
+  rewrite /sem_post eq_globs.
+  move: (toec_for_get_fundef fn).
+  case: get_fundef => [fd [fd' H1 ->]| -> //].
+  by case: (toec_for_fun_inv H1) => _ -> ->.
 Qed.
 
 Let Pi (i : instr) :=
@@ -190,10 +136,8 @@ Proof using Hp.
   }
   { move=> i s1 s2 s3 [] Hscs Hmem Hvm Hwrite.
     exists (with_vm s2 (evm s2).[x <- i]).
-
     rewrite write_varP; split; try done.
     case: (write_getP_eq Hwrite). by rewrite Hty.
-
     do 2? split; simpl.
     - rewrite -Hscs. symmetry. exact (write_var_scsP Hwrite).
     - rewrite -Hmem. symmetry. exact (write_var_memP Hwrite).
@@ -239,192 +183,93 @@ Proof using Hp.
   }
 Qed.
 
-Lemma subset_vars_c_cons i c V
-  : Sv.Subset (vars_c (i :: c)) V
-    -> Sv.Subset (vars_I i) V /\ Sv.Subset (vars_c c) V.
-Proof.
-  clear.
-  rewrite vars_c_cons => H.
-  split.
-  - move=> x Hi.
-    apply (SvP.MP.in_subset Hi).
-    move=> el Hel. apply H.
-    apply Sv.union_spec. by left.
-  - move=> x Hi.
-    apply H.
-    apply Sv.union_spec. by right.
-Qed.
-
 #[local] Lemma checker_st_eq_onP' : Checker_eq p' p checker_st_eq_on.
 Proof using Hp. by apply checker_st_eq_onP; rewrite eq_globs. Qed.
+#[local] Lemma checker_a_st_eq_onP' : Checker_a_eq p' p checker_a_st_eq_on.
+Proof using Hp. by apply checker_a_st_eq_onP; rewrite eq_globs. Qed.
+
 #[local] Hint Resolve checker_st_eq_onP' : core.
-
-Lemma wrequiv_write_lval_write_lvals gs b x v V :
-  wrequiv
-    (st_eq_on V)
-    (fun s => write_lvals b gs s [:: x] [:: v])
-    (fun s => write_lvals b gs s [:: x] [:: v])
-    (st_eq_on V)
-  <->
-  wrequiv
-    (st_eq_on V)
-    (write_lval b gs x v)
-    (write_lval b gs x v)
-    (st_eq_on V).
-Proof.
-  split.
-  { move=> H s t s' Heqon Hs'.
-    move: (H s t s' Heqon) => {H}.
-    rewrite /= LetK => H.
-    move: (H Hs').
-    rewrite LetK => - [sa Hsa Heqonsa].
-    by exists sa.
-  }
-  { move=> H s t s' Heqon.
-    rewrite /= LetK => Hs'.
-    move: (H s t s' Heqon Hs') => - [sa Hsa Heqonsa].
-    exists sa. by rewrite LetK. done.
-  }
-Qed.
-
-Lemma wrequiv_write_lvals gs b V xs vs :
-  Sv.Subset (read_rvs xs) V ->
-  wrequiv
-    (st_eq_on V)
-    (fun s : estate => write_lvals b gs s xs vs)
-    (fun s : estate => write_lvals b gs s xs vs)
-    (st_eq_on V).
-Proof.
-  intro HV.
-  eapply (wrequiv_weaken (Q := st_eq_on (Sv.union (vrvs xs) V)))
-  ; first by move => ??; exact id.
-  move=> s t [] H1 H2 H3. split; try done.
-  move=> el Hel. apply H3. SvD.fsetdec.
-  by apply write_lvals_st_eq_on.
-Qed.
+#[local] Hint Resolve checker_a_st_eq_onP' : core.
 
 Lemma toec_for_body : forall c, Pc c.
 Proof using Hp.
   apply (cmd_rect (Pr := Pi_r) (Pi := Pi)).
   { done. }
-  { rewrite /Pc /toec_for_c /= => V HV c [<-]. by apply wequiv_nil. }
+  { move=> V HV c [<-]. by apply wequiv_nil. }
   { move=> i c Hi Hc V HV c'.
+    rewrite vars_c_cons in HV.
     apply rbindP => y Hy.
     apply rbindP => ys Hys [= <-].
-    eapply wequiv_cons ; [ apply Hi
-                         | apply Hc ]
-    ; by case (subset_vars_c_cons HV).
+    eapply wequiv_cons with (st_eq_on V).
+    - by apply Hi; first SvD.fsetdec.
+    - by apply Hc; first SvD.fsetdec.
   }
   { move=> x tg ty e ii V HV i [= <-].
-    rewrite vars_I_assgn in HV.
-    eapply wequiv_assgn.
-    - rewrite eq_globs; apply st_eq_on_pexpr; clear -HV; SvD.fsetdec.
-    - eexists; subst; [ eassumption | reflexivity ].
-    - move=> v ? <-.
-      rewrite eq_globs -wrequiv_write_lval_write_lvals.
-      apply wrequiv_write_lvals.
-      move: HV.
-      clear; rewrite read_rvs_cons read_rvs_nil /vars_lval; SvD.fsetdec.
+    rewrite vars_I_assgn /vars_lval  in HV.
+    apply wequiv_assgn_rel_eq with checker_st_eq_on V => //.
+    all: by split; try done; SvD.fsetdec.
   }
   { move=> xs t o es ii V HV i [= <-].
-    rewrite vars_I_opn in HV.
-    eapply wequiv_opn.
-    - rewrite eq_globs; apply st_eq_on_pexprs; clear -HV; SvD.fsetdec.
-    - eexists; subst; [ eassumption | reflexivity ].
-    - move=> v ? <-.
-      rewrite eq_globs; apply wrequiv_write_lvals.
-      move: HV.
-      clear; rewrite /vars_lvals; SvD.fsetdec.
+    rewrite vars_I_opn /vars_lvals in HV.
+    apply wequiv_opn_rel_eq with checker_st_eq_on V => //.
+    all: by split; try done; SvD.fsetdec.
   }
   { move=> xs o es ii V HV i [= <-].
-    rewrite vars_I_syscall in HV.
-    eapply wequiv_syscall.
-    - rewrite eq_globs; apply st_eq_on_pexprs; clear -HV; SvD.fsetdec.
-    - move=>s t [] H1 H2 H3 vs ? s' <-.
-      rewrite /fexec_syscall /=.
-      t_xrbindP => -[] [scs m vs0].
-      rewrite H1 H2 => Hsc [=<-].
-      eexists; last exact erefl.
-      by rewrite Hsc.
-    - move=> s ? <-.
-      apply upd_st_eq => vs.
-      rewrite eq_globs; apply wrequiv_write_lvals.
-      move: HV; clear; rewrite /vars_lvals. SvD.fsetdec.
+    rewrite vars_I_syscall /vars_lvals in HV.
+    eapply wequiv_syscall_rel_eq_core with checker_st_eq_on V => //.
+    1-2: split; try done; SvD.fsetdec.
+    move=> > -> H. by eexists; [exact H|].
   }
   { move=> a ii V HV i [= <-].
-    apply wequiv_assert.
-    split=>// s1 s2 [Hon1 Hon2 Hon3].
-    rewrite eq_globs => <-.
-    split; last done.
-    apply eq_on_sem_eassert => // el Hel.
-    symmetry; apply Hon3.
     rewrite vars_I_assert in HV.
-    SvD.fsetdec.
+    eapply wequiv_assert_rel_eq with checker_a_st_eq_on => //.
+    split; try done; SvD.fsetdec.
   }
   { move=>e c1 c2 Hc1 Hc2 ii V HV i /=.
-    t_xrbindP => ir c1' Hc1' c2' Hc2' <- <-.
     rewrite vars_I_if in HV.
-    apply wequiv_if.
-    - rewrite eq_globs.
-      apply sem_cond_uincl.
-      apply (wrequiv_weaken (P := st_eq_on V) (Q := eq)) => [//|??->//|].
-      by apply st_eq_on_pexpr; clear -HV; SvD.fsetdec.
-    - case; [apply Hc1 | apply Hc2]
-      ; try done; clear -HV; SvD.fsetdec.
+    t_xrbindP => ir c1' Hc1' c2' Hc2' <- <-.
+    apply wequiv_if_rel_eq with checker_st_eq_on V V V => //.
+    - split; try done; SvD.fsetdec.
+    - apply Hc1. SvD.fsetdec. done.
+    - apply Hc2. SvD.fsetdec. done.
   }
   (* Cfor *)
-  { move=> v dir lo hi c Hc ii X.
-    rewrite vars_I_for => hsub i' /=.
+  { move=> v dir lo hi c Hc ii V HV i /=.
+    rewrite vars_I_for in HV.
     t_xrbindP => ir'.
     case: ifPn => hwr.
-    - t_xrbindP => c' hc'.
-      move=> <- <-.
-      apply (wequiv_for_rel_eq (sip:=sip)) with checker_st_eq_on X X => //.
-      + split=>//. rewrite /read_es /= read_eE.
-        rewrite /read_es /= !read_eE; SvD.fsetdec.
-        split. SvD.fsetdec. done. SvD.fsetdec.
-      + apply Hc => //.
-        by clear -hsub; SvD.fsetdec.
+    - t_xrbindP => c' hc' <- <-.
+      apply wequiv_for_rel_eq with checker_st_eq_on V V => //.
+      + split; [done| done|].
+        rewrite /read_es /= read_eE.
+        SvD.fsetdec.
+      + split; try done; SvD.fsetdec.
+      + by apply Hc => //; SvD.fsetdec.
     - t_xrbindP => c' hc'.
       t_xrbindP => Hassert /= <- <-.
-      set v' := fresh_loop_counter fresh_var_ident v ii.
-      have Hvtype : vtype v = vtype v' by done.
       apply wequiv_for_rename => //.
-      + by clear -hsub; SvD.fsetdec.
-      + by clear -hsub; SvD.fsetdec.
-      + apply Hc => //.
-        SvD.fsetdec.
+      1-2: SvD.fsetdec.
+      apply Hc => //; SvD.fsetdec.
   }
   { move=> a c1 e ii' c2 Hc1 Hc2 ii V HV i /=.
     t_xrbindP => ir' c1' Hc1' c2' Hc2' <- <-.
     rewrite vars_I_while in HV.
-    apply wequiv_while.
-    - rewrite eq_globs.
-      apply sem_cond_uincl.
-      apply (wrequiv_weaken (P := st_eq_on V) (Q := eq)) => [//|??->//|].
-      by apply st_eq_on_pexpr; clear -HV; SvD.fsetdec.
-    - apply Hc1. clear -HV. SvD.fsetdec. done.
-    - apply Hc2. clear -HV. SvD.fsetdec. done.
+    apply wequiv_while_rel_eq with checker_st_eq_on V => //.
+    - split; try done; SvD.fsetdec.
+    - apply Hc1; try done; SvD.fsetdec.
+    - apply Hc2; try done; SvD.fsetdec.
   }
   { move=> xs f es ii V HV i' [= <-] /=.
-    rewrite vars_I_call in HV.
-    eapply wequiv_call_wa
-      with (Pf:=rpreF (eS:=eq_spec))
-           (Qf:= rpostF (eS:=eq_spec))
-           (Rv := eq).
-    - rewrite eq_globs; apply st_eq_on_pexprs; clear -HV; SvD.fsetdec.
-    - move=> s1 s2 v1 v2 [] H1 H2 H3 <- Hsem.
-      eapply (toec_for_sem_pre); last eassumption.
-      rewrite /mk_fstate. by rewrite H1 H2.
-    - move=>???? [].
-      by rewrite /mk_fstate => -> -> _ ->.
-    - move=> fs1 fs2 fr1 fr2 [_ ->] ->.
-      exact (toec_for_sem_post erefl erefl).
-    - move=>???. by apply wequiv_fun_rec.
-    - move=>fs1 fs2 fr1 fr2 [_ ->] ->.
-      apply upd_st_eq => ?.
-      rewrite eq_globs; apply wrequiv_write_lvals.
-      move: HV; clear; rewrite /vars_lvals. SvD.fsetdec.
+    rewrite vars_I_call /vars_lvals in HV.
+    apply wequiv_call_rel_eq_wa with checker_st_eq_on V => //.
+    1-2: split; try done; SvD.fsetdec.
+    - move=> s1 s2 vs [] H1 H2 H3.
+      rewrite /mk_fstate H1 H2.
+      by apply toec_for_sem_pre.
+    - move=> ?? ->.
+      exact: wequiv_fun_rec.
+    - move=> vs fr.
+      by apply toec_for_sem_post.
   }
 Qed.
 
@@ -432,50 +277,35 @@ Lemma toec_for_l fn :
   wiequiv_f p' p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof using Hp.
   apply wequiv_fun_ind_wa =>{} fn fn' fsi fs.
-  move=> [<- <-] fd1.
-  case Hfd': get_fundef => [fd | //] [= hcomp].
-  case Hfd: (get_fundef (p_funcs p) fn); first last.
-  { exfalso.
-    move: (toec_for_get_fundef_none Hfd).
-    by rewrite Hfd'.
-  }
-  eexists; first reflexivity.
-  move: (toec_for_get_fundef Hfd) => [?].
-  rewrite Hfd' => [= Hsub] Hc. subst.
-  move=> hsempre.
-  split. { by apply: toec_for_sem_pre. }
-
+  move=> [<- <-] fd' H.
+  move: (toec_for_get_fundef fn).
+  case: get_fundef; last by rewrite H.
+  move=> fd [fd'_ Hfd Hfn].
+  move: Hfn; rewrite H => -[?]; subst fd'_.
+  exists fd; first done.
+  move => Hsem.
+  split; first by apply: toec_for_sem_pre.
   move=> si hinit.
   exists si.
   { move: hinit.
-    move: (toec_for_fun_inv Hc). case; do 7 intro.
-    apply eq_initialize; try done.
-    move: Hp. rewrite /toec_for_prog.
-    t_xrbindP=>??. by elim.
+    apply eq_initialize; try by case: (toec_for_fun_inv Hfd).
+    case: toec_for_prog_inv => _ _ -> //.
   }
-  eexists _, _; split.
-  2: {
-    apply toec_for_body; first last.
-    - move: Hc.
-      rewrite /toec_for_fun.
-      t_xrbindP => ? ? ?.
-      subst. simpl. eassumption.
-    - rewrite /vars_fd. clear; SvD.fsetdec.
-  }
-  { done. }
-  { eapply wrequiv_weaken; first last.
-    - apply st_eq_on_finalize;
-        by case: (toec_for_fun_inv Hc).
-    - by move=> ?? ->.
-    - move=> ?? [] H1 H2 H3.
+  exists (st_eq_on (vars_fd fd)), (st_eq_on (vars_fd fd)); split.
+  - done.
+  - apply toec_for_body.
+    + rewrite /vars_fd. SvD.fsetdec.
+    + move: Hfd. rewrite /toec_for_fun. by t_xrbindP => c Hc <-.
+  - eapply wrequiv_weaken.
+    3: apply st_eq_on_finalize; by case: (toec_for_fun_inv Hfd).
+    + move=> ?? [] H1 H2 H3.
       split; try done.
       eapply eq_onI; last exact H3.
-      clear -Hc. case: (toec_for_fun_inv Hc). do? elim.
+      clear -Hfd. case: (toec_for_fun_inv Hfd). do? elim.
       rewrite /vars_fd. SvD.fsetdec.
-  }
-  { move=> fs1 fs2 ->.
+    + by move=> ?? ->.
+  - move=> fs1 fs2 ->.
     by apply toec_for_sem_post.
-  }
 Qed.
 
 End PROOF.
