@@ -412,6 +412,7 @@ Qed.
 
 End PROOF.
 
+(*
 (* TODO: move to hoare_logic.v and relational_logic.v *)
 Section MOVE.
 
@@ -495,6 +496,7 @@ exact: (h13 tt tt I).
 Qed.
 
 End MOVE.
+*)
 
 Section IT.
 

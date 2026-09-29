@@ -227,3 +227,16 @@ lang/waes.v
 lang/warray_.v
 lang/word.v
 lang/wsize.v
+
+itrees/lutt_extras.v
+itrees/safety_extras.v
+itrees/exec_extras.v
+itrees/eutt_extras.v
+itrees/equiv_extras.v
+itrees/axiom_extras.v
+itrees/eqit_facts.v
+lang/distr_extra.v
+lang/dinterp.v
+lang/itree_safety_facts.v
+lang/wseq.v
+compiler/end_to_end.v
