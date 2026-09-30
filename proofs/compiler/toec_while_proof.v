@@ -56,7 +56,7 @@ Qed.
 
 #[local] Hint Resolve wrequiv_eq : core.
 
-Lemma ec_while_l fn : wiequiv_f p' p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+Lemma toec_while_l fn : wiequiv_f p' p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
   apply wequiv_fun_ind_wa =>{} fn fn' fsi fs.
   move => [<- hrel] fdi.
