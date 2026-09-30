@@ -109,6 +109,16 @@ Let Pc (c : cmd) :=
   forall c', toec_for_c fresh_var_ident X c = ok c' ->
   wequiv_rec p' p ev ev eq_spec (st_eq_on X) c' c (st_eq_on X).
 
+
+#[local] Lemma checker_st_eq_onP' : Checker_eq p' p checker_st_eq_on.
+Proof using Hp. by apply checker_st_eq_onP; rewrite eq_globs. Qed.
+#[local] Lemma checker_a_st_eq_onP' : Checker_a_eq p' p checker_a_st_eq_on.
+Proof using Hp. by apply checker_a_st_eq_onP; rewrite eq_globs. Qed.
+
+#[local] Hint Resolve checker_st_eq_onP' : core.
+#[local] Hint Resolve checker_a_st_eq_onP' : core.
+
+
 Lemma wequiv_for_rename X ii dir lo hi c c' x x' :
   Sv.Subset (Sv.union (read_e lo) (Sv.union (read_e hi) (vars_c c))) X ->
   Sv.In (v_var x) X ->
@@ -121,75 +131,61 @@ Lemma wequiv_for_rename X ii dir lo hi c c' x x' :
     [:: MkI ii (Cfor x (dir, lo, hi) c) ]
     (st_eq_on X).
 Proof using Hp.
-  move=> HX Hx Hx' Hty Hc.
+  move=> HX Hx /Sv_memP Hx' Hty Hc.
   apply wequiv_for
     with (Pi := fun s t => st_eq_on (Sv.remove x X) s t
                            /\ (evm s).[x'] = (evm t).[x]).
   { done. }
   { rewrite eq_globs.
     apply wrequiv_sem_bound.
-    apply (wrequiv_weaken (P := st_eq_on X) (Q := eq))
-    ; [done | by move=>??->; apply values_uincl_refl |].
-    apply st_eq_on_pexprs.
-    rewrite 2!read_es_cons.
-    clear -HX; SvD.fsetdec.
+    apply wrequiv_weaken with (P := st_eq_on X) (Q := eq).
+    - done.
+    - by move=>?? ->.
+    - apply st_eq_on_pexprs.
+      rewrite 2!read_es_cons.
+      clear -HX; SvD.fsetdec.
   }
-  { move=> i s1 s2 s3 [] Hscs Hmem Hvm Hwrite.
-    exists (with_vm s2 (evm s2).[x <- i]).
-    rewrite write_varP; split; try done.
-    case: (write_getP_eq Hwrite). by rewrite Hty.
-    do 2? split; simpl.
-    - rewrite -Hscs. symmetry. exact (write_var_scsP Hwrite).
-    - rewrite -Hmem. symmetry. exact (write_var_memP Hwrite).
-    - move=> el Hel /=.
-      have Hvm' := vrvP_var Hwrite.
-      rewrite Vm.setP_neq
-      ; last by apply/negP => /eqP h; subst; clear -Hel; SvD.fsetdec.
-      rewrite -Hvm; last by clear -Hel; SvD.fsetdec.
-      rewrite Hvm' //.
-      apply: Sv_neq_not_in_singleton.
-      intro. subst. move/Sv_memP : Hx'.
-      clear -Hel. SvD.fsetdec.
-    - rewrite Vm.setP_eq.
-      have [Hdb Hatype ->] := write_getP_eq Hwrite.
-      by rewrite Hty.
+  { move=> i si1 si2 so1 [Hscs Hmem Hvm] Hwrite.
+    exists (with_vm si2 (evm si2).[x <- i]).
+    - rewrite write_varP.
+      refine (And3 erefl erefl _).
+      rewrite Hty.
+      by case: (write_getP_eq Hwrite).
+    - split; first split.
+      + by rewrite -Hscs (write_var_scsP Hwrite).
+      + by rewrite -Hmem (write_var_memP Hwrite).
+      + move=> el Hel.
+        rewrite (write_getP_neq _ Hwrite) ?Vm.setP_neq ?Hvm //.
+        2,3: apply/negP=>/eqP Heq; subst.
+        1-3: clear -Hx' Hel; SvD.fsetdec.
+      + case: (write_getP_eq Hwrite).
+        by rewrite Vm.setP_eq Hty.
   }
   { rewrite -[c]@cat0s -cat1s.
     apply wequiv_cat with (R := st_eq_on X); last assumption.
     apply wequiv_assign_left.
-    move=>s s' t [] [] Hscs Hmem Hvm Hvm_index.
-    apply rbindP => v Hexpr.
+    move=> si1 si2 so1 [[Hscs Hmem Hvm] Hvm_index].
+    apply rbindP => v.
+    apply: rbindP => - [] _ [=Hv]; subst v.
     apply rbindP => v' Hval Hwrite.
     split.
-    - rewrite -Hscs. symmetry. exact (lv_write_scsP Hwrite).
-    - rewrite -Hmem. symmetry. unshelve eapply (lv_write_memP _ Hwrite); first done.
-      move=> el Hel.
+    - by rewrite -Hscs (lv_write_scsP Hwrite).
+    - by rewrite -Hmem (lv_write_memP _ Hwrite).
+    - move=> el Hel.
       case h: (el == x).
-      + move/eqP: h => ?; subst el.
-        rewrite -Hvm_index.
-        apply: rbindP Hexpr=> -[] _ [= Hv]; subst v.
-        apply truncate_val_subctype_eq in Hval;
-          last by rewrite Hvm_index; apply getP_subctype.
-        subst v'.
-        apply: rbindP Hwrite => s'vm Hset [=].
-        apply: rbindP Hset=> -[] _.
-        apply: rbindP=> -[] _ [= <-] <- /=.
-        rewrite Vm.setP_eq Hty.
-        by apply vm_truncate_val_get.
+      + move/eqP : h => ->.
+        apply: rbindP Hwrite => s'vm.
+        apply: rbindP => -[] _.
+        apply: rbindP => -[] _ [= <-] [= <-].
+        rewrite -Hvm_index Vm.setP_eq Hty -(truncate_val_subctype_eq Hval).
+        * exact (vm_truncate_val_get _ _).
+        * by rewrite Hvm_index getP_subctype.
       + move/eqP: h => h.
         rewrite -(vrvP Hwrite).
         apply Hvm. clear -h Hel; SvD.fsetdec.
-        rewrite vrv_var. clear -h; SvD.fsetdec.
+        rewrite vrv_var. clear -h Hel; SvD.fsetdec.
   }
 Qed.
-
-#[local] Lemma checker_st_eq_onP' : Checker_eq p' p checker_st_eq_on.
-Proof using Hp. by apply checker_st_eq_onP; rewrite eq_globs. Qed.
-#[local] Lemma checker_a_st_eq_onP' : Checker_a_eq p' p checker_a_st_eq_on.
-Proof using Hp. by apply checker_a_st_eq_onP; rewrite eq_globs. Qed.
-
-#[local] Hint Resolve checker_st_eq_onP' : core.
-#[local] Hint Resolve checker_a_st_eq_onP' : core.
 
 Lemma toec_for_body : forall c, Pc c.
 Proof using Hp.
