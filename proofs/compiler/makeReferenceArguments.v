@@ -188,7 +188,7 @@ Definition update_fd (fd: ufundef) :=
 
 Definition makereference_prog : cexec uprog :=
   Let funcs := map_cfprog update_fd p.(p_funcs) in
-  ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
+  ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs; p_xfuncs := p_xfuncs p |}.
 
 End Section.
 

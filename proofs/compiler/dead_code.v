@@ -193,7 +193,8 @@ Definition dead_code_fd {eft} fn (fd: _fundef eft) : cexec (_fundef eft) :=
 
 Definition dead_code_prog_tokeep (p: prog) : cexec prog :=
   Let funcs := map_cfprog_name dead_code_fd (p_funcs p) in
-  ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
+      ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs;
+            p_xfuncs := p_xfuncs p |}.
 
 End Section.
 

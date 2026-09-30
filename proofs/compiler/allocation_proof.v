@@ -626,10 +626,12 @@ Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
-Lemma it_alloc_call_uprogP dead_vars_fd ev gd ep1 p1 ep2 p2
+Lemma it_alloc_call_uprogP dead_vars_fd ev gd ep1 p1 xp1 ep2 p2 xp2
   (H: check_prog init_alloc_uprog check_f_extra_u dead_vars_fd ep1 p1 ep2 p2 = ok tt) fn:
-    wiequiv_f {|p_globs := gd; p_funcs := p1; p_extra := ep1; |}
-              {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev ev
+  wiequiv_f {|p_globs := gd; p_funcs := p1; p_extra := ep1;
+                                            p_xfuncs := xp1 |}
+            {|p_globs := gd; p_funcs := p2; p_extra := ep2;
+                                            p_xfuncs := xp2 |} ev ev
         (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
   have := it_alloc_callP init_alloc_uprogP.
@@ -683,10 +685,12 @@ Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
-Lemma it_alloc_callP_sprogP dead_vars_fd ev gd ep1 p1 ep2 p2
+Lemma it_alloc_callP_sprogP dead_vars_fd ev gd ep1 p1 xp1 ep2 p2 xp2
   (H: check_prog init_alloc_sprog check_f_extra_s dead_vars_fd ep1 p1 ep2 p2 = ok tt) fn :
-    wiequiv_f {|p_globs := gd; p_funcs := p1; p_extra := ep1; |}
-              {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev ev
+  wiequiv_f {|p_globs := gd; p_funcs := p1; p_extra := ep1;
+                                            p_xfuncs := xp1 |}
+            {|p_globs := gd; p_funcs := p2; p_extra := ep2;
+                                            p_xfuncs := xp2 |} ev ev
         (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
   have := it_alloc_callP init_alloc_sprogP.

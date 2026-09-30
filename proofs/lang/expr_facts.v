@@ -111,7 +111,8 @@ Context `{asmop:asmOp}.
 Context {pT: progT}.
 
 Lemma surj_prog (p:prog) :
-  {| p_globs := p_globs p; p_funcs := p_funcs p; p_extra := p_extra p |} = p.
+  {| p_globs := p_globs p; p_funcs := p_funcs p;
+                           p_extra := p_extra p; p_xfuncs := p_xfuncs p |} = p.
 Proof. by case: p. Qed.
 
 (* ----------------------------------------------------------------------------- *)

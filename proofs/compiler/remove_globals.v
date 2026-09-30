@@ -357,7 +357,7 @@ Section REMOVE.
     Let gd := extend_glob_prog p in
     if uniq (map fst gd) then
       Let fs := map_cfprog (remove_glob_fundef gd) (p_funcs p) in
-      ok {| p_extra := p_extra p; p_globs := gd; p_funcs := fs |}
+      ok {| p_extra := p_extra p; p_globs := gd; p_funcs := fs; p_xfuncs := p_xfuncs p |}
     else Error (rm_glob_ierror "Two global declarations have the same name").
 
 End REMOVE.

@@ -320,7 +320,10 @@ Definition expand_tyv m b s ty v :=
     (reg_ierror v "there should be an invariant ensuring this never happens in array_expansion_proof") in
     ok ([:: ty], [:: v], None).
 
-Definition expand_fsig fi (entries : seq funname) (fname: funname) (fd: ufundef) :=
+Definition expand_fsig fi (entries : seq funname) (fname: funname)
+  (fd: ufundef) : result pp_error_loc
+                 (_fundef extra_fun_t * t *
+                  (seq (option (wsize * Z)) * seq (option (wsize * Z)))) :=
   Let x := init_map (fi fname fd) in
   match fd with
   | MkFun _ ci tyin params c tyout res ef =>
@@ -334,11 +337,12 @@ Definition expand_fsig fi (entries : seq funname) (fname: funname) (fd: ufundef)
     let tyout  := map (fun x => fst (fst x)) outs in
     let res    := map (fun x => snd (fst x)) outs in
     let outs   := map snd outs in
-    ok (MkFun fi ci (flatten tyin) (flatten params) c (flatten tyout) (flatten res) ef,
-        m, (ins, outs))
+    ok (MkFun fi ci (flatten tyin) (flatten params) c
+          (flatten tyout) (flatten res) ef, m, (ins, outs))
   end.
 
-Definition expand_fbody (fname: funname) (fs: ufundef * t) :=
+Definition expand_fbody (fname: funname) (fs: ufundef * t)
+  : result pp_error_loc (_fundef extra_fun_t) :=
   let (fd, m) := fs in
   match fd with
   | MkFun fi ci tyin params c tyout res ef =>
@@ -346,14 +350,46 @@ Definition expand_fbody (fname: funname) (fs: ufundef * t) :=
     ok (MkFun fi ci tyin params c tyout res ef)
   end.
 
+Definition expand_xfsig fi (entries : seq funname) (fname: funname) (fd: uxfundef) :=
+  Let x := init_map (fi fname fd) in
+  match fd with
+  | MkXFun _ sz ci tyin params tyout res ef =>
+    let '(m, fi) := x in
+    let exp := ~~(fname \in entries) in
+    Let ins  := mapM2 length_mismatch (expand_tyv m exp "the parameters") tyin params in
+    let tyin   := map (fun x => fst (fst x)) ins in
+    let params := map (fun x => snd (fst x)) ins in
+    let ins    := map snd ins in
+    Let outs := mapM2 length_mismatch (expand_tyv m exp "the return type") tyout res in
+    let tyout  := map (fun x => fst (fst x)) outs in
+    let res    := map (fun x => snd (fst x)) outs in
+    let outs   := map snd outs in
+    ok (MkXFun fi sz ci (flatten tyin) (flatten params) (flatten tyout) (flatten res) ef,
+        m, (ins, outs))
+  end.
+
+Definition expand_xf (fname: funname) (fs: uxfundef * t)
+  : result pp_error_loc (_xfundef extra_fun_t) :=
+  let (fd, m) := fs in ok fd.
+   
+
 End FSIGS.
 
-Notation map_cfprog_name_cdata := (map_cfprog_name_gen (fun x => @f_info _ _ _ (fst (fst x)))).
 
-Definition expand_prog (fi : funname -> ufundef -> expand_info) (entries : seq funname) (p: uprog) : cexec uprog :=
+Notation map_cfprog_name_cdata := (map_cfprog_name_gen (fun x => @f_info _ _ _ (fst (fst x)))).
+Notation map_xcfprog_name_cdata := (map_cfprog_name_gen (fun x => @xf_info _ (fst (fst x)))).
+
+Definition expand_prog (fi : funname -> ufundef -> expand_info)
+  (xfi : funname -> uxfundef -> expand_info)
+  (entries : seq funname) (p: uprog) : cexec uprog :=
   Let step1 := map_cfprog_name (expand_fsig fi entries) (p_funcs p) in
   let fsigs := foldr (fun x y => Mf.set y x.1 x.2.2) (Mf.empty _) step1 in
   Let funcs := map_cfprog_name_cdata (fun fn x => expand_fbody fsigs fn (fst x)) step1 in
-  ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
+  Let xstep1 := map_xcfprog_name (expand_xfsig xfi entries) (p_xfuncs p) in
+  let xfsigs := foldr (fun x y => Mf.set y x.1 x.2.2) (Mf.empty _) xstep1 in
+  Let xfuncs := map_xcfprog_name_cdata (fun fn x => expand_xf fn (fst x)) xstep1 in
+        
+        ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs;
+              p_xfuncs := xfuncs |}.
 
 End ASM_OP.

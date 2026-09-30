@@ -55,7 +55,7 @@ Context {pT: progT}.
 Definition remove_init_fd (fd:fundef) :=
   with_body fd (remove_init_c fd.(f_body)).
 
-Definition remove_init_prog (p:prog) := map_prog remove_init_fd p.
+Definition remove_init_prog (p:prog) := map_prog remove_init_fd id p.
 
 End Section.
 
@@ -113,6 +113,6 @@ Definition add_init_fd (fd:fundef) :=
   let f_body  := (add_init_c add_init_i I fd.(f_body)).1 in
   with_body fd f_body.
 
-Definition add_init_prog (p:prog) := map_prog add_init_fd p.
+Definition add_init_prog (p:prog) := map_prog add_init_fd id p.
 
 End ASM_OP.

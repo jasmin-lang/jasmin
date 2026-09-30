@@ -89,7 +89,7 @@ Module INCL. Section INCL.
 
   Hypothesis hincl : gd_incl gd gd2.
 
-  Let P2 := {| p_globs := gd2; p_funcs := P1.(p_funcs); p_extra := P1.(p_extra) |}.
+  Let P2 := {| p_globs := gd2; p_funcs := P1.(p_funcs); p_extra := P1.(p_extra);  p_xfuncs := p_xfuncs P1 |}.
 
   Section IT.
 
@@ -297,7 +297,8 @@ Module RGP. Section PROOFS.
 
   Hypothesis fds_ok : map_cfprog (remove_glob_fundef gd) (p_funcs P) = ok fds.
   Hypothesis uniq_gd : uniq (map fst gd).
-  Notation P' := {|p_globs := gd; p_funcs := fds; p_extra := p_extra P |}.
+  Notation P' := {|p_globs := gd; p_funcs := fds; p_extra := p_extra P;
+                    p_xfuncs := p_xfuncs P |}.
 
   Definition valid (m:venv) (s1 s2:estate) :=
     [/\ s1.(escs) = s2.(escs), s1.(emem) = s2.(emem),
@@ -326,7 +327,7 @@ Module RGP. Section PROOFS.
     case => ?? hlocal ?? le_vm; split => // ? /hlocal ?.
     exact: value_uincl_trans (le_vm _).
   Qed.
-
+  
   Section REMOVE_GLOB_E.
     Context (wdb : bool) (m: venv) (ii: instr_info) (s1 s2: estate) (hvalid: valid m s1 s2).
 
@@ -434,7 +435,7 @@ Module RGP. Section PROOFS.
     Qed.
 
   End REMOVE_GLOB_E.
-
+  
   Definition remove_glob_eP wdb m ii s1 s2 e e' v h :=
     (@remove_glob_e_esP wdb m ii s1 s2 h).1 e e' v.
 
@@ -622,7 +623,7 @@ Module RGP. Section PROOFS.
     move=> /hrec [m2 [m3 [h1 h2]]] hm3; exists m2, m3; split=>//.
     apply: (MinclT hm3); apply merge_incl_l.
   Qed.
-
+ 
   Local Lemma get_fundefP fn f:
     get_fundef (p_funcs P) fn = Some f ->
     exists f',
@@ -855,7 +856,8 @@ Module RGP. Section PROOFS.
     rewrite /remove_glob_prog; t_xrbindP => gd' /extend_glob_progP hgd.
     case: ifP => // huniq; t_xrbindP => fds hfds <-.
     have h1 := [elaborate it_gd_incl_fun ev hgd (fn := fn)].
-    set P1 := {| p_funcs := p_funcs P; p_globs := gd'; p_extra := p_extra P |}.
+    set P1 := {| p_funcs := p_funcs P; p_globs := gd'; p_extra := p_extra P;
+               p_xfuncs := p_xfuncs P |}.
     have h2 := it_remove_glob_call (P:=P1) ev hfds huniq (wE:=wE) (rE:=rE0) (fn:=fn).
     move: h1 h2.
     apply wiequiv_f_trans => //.

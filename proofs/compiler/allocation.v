@@ -644,10 +644,27 @@ Definition check_fundef (ep1 ep2 : extra_prog_t) (f1 f2: funname * fundef) (_:Da
     Let _r := check_es es1 es2 r in
     ok tt)).
 
+Definition check_xfundef (ep1 ep2 : extra_prog_t) (f1 f2: funname * xfundef) (_:Datatypes.unit) :=
+  let (fn1,fd1) := f1 in
+  let (fn2,fd2) := f2 in
+  add_funname fn1 (add_finfo fd1.(xf_info) (
+    Let _ := assert [&& fn1 == fn2, all2 convertible fd1.(xf_tyin) fd2.(xf_tyin) & all2 convertible fd1.(xf_tyout) fd2.(xf_tyout) ]
+                        (E.error "xfunctions not equal") in
+    Let r := init_alloc fd1.(xf_extra) ep1 ep2 in
+    Let r := check_f_extra r fd1.(xf_extra) fd2.(xf_extra) fd1.(xf_params) fd2.(xf_params) in
+ (*   Let r := check_cmd (dead_vars_fd f2) fd1.(f_body) fd2.(f_body) r in *)
+    let es1 := map Plvar fd1.(xf_res) in
+    let es2 := map Plvar fd2.(xf_res) in
+    Let _r := check_es es1 es2 r in
+    ok tt)).
+
 Definition check_prog_error := alloc_error "check_fundef (fold2)".
 
 Definition check_prog ep1 p_funcs1 ep2 p_funcs2 := 
   fold2 check_prog_error (check_fundef ep1 ep2) p_funcs1 p_funcs2 tt.
+
+Definition check_xprog ep1 p_xfuncs1 ep2 p_xfuncs2 := 
+  fold2 check_prog_error (check_xfundef ep1 ep2) p_xfuncs1 p_xfuncs2 tt.
 
 End PROG.
 

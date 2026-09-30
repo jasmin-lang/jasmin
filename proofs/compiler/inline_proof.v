@@ -229,10 +229,11 @@ Hypothesis uniq_funname : uniq [seq x.1 | x <- pfuncs].
 Hypothesis (inline_fd_ok : inline_fd extend_iinfo pfuncs2 fd = ok fd').
 
 Let p1 : uprog :=
-  {|p_funcs := pfuncs; p_globs := p_globs p; p_extra := p_extra p |}.
+      {|p_funcs := pfuncs; p_globs := p_globs p; p_extra := p_extra p;
+                                                 p_xfuncs := p_xfuncs p |}.
 
 Let p2 : uprog :=
-  {|p_funcs := pfuncs1 ++ (fn, fd') :: pfuncs2; p_globs := p_globs p; p_extra := p_extra p |}.
+  {|p_funcs := pfuncs1 ++ (fn, fd') :: pfuncs2; p_globs := p_globs p; p_extra := p_extra p;  p_xfuncs := p_xfuncs p |}.
 
 Definition do_inline caller iinfo (callee:funname) :=
   (caller == fn) && ii_is_inline iinfo.
@@ -458,8 +459,8 @@ Context
 
 Lemma inline_fd_consP (pfuncs1 pfuncs0 pfuncs2 pfuncs: ufun_decls) :
   foldr (inline_fd_cons extend_iinfo) (ok pfuncs2) pfuncs1 = ok pfuncs ->
-  let p1 := {|p_funcs := pfuncs0 ++ pfuncs1 ++ pfuncs2; p_globs := p_globs p; p_extra := p_extra p |} in
-  let p2 := {|p_funcs := pfuncs0 ++ pfuncs; p_globs := p_globs p; p_extra := p_extra p |} in
+  let p1 := {|p_funcs := pfuncs0 ++ pfuncs1 ++ pfuncs2; p_globs := p_globs p; p_extra := p_extra p;  p_xfuncs := p_xfuncs p |} in
+  let p2 := {|p_funcs := pfuncs0 ++ pfuncs; p_globs := p_globs p; p_extra := p_extra p;  p_xfuncs := p_xfuncs p |} in
   uniq [seq x.1 | x <- p_funcs p1] ->
   uniq [seq x.1 | x <- p_funcs p2] /\
   ((forall fn, wiequiv_f p p1 ev ev (rpreF (eS:=uincl_spec)) fn fn (rpostF (eS:=uincl_spec))) ->

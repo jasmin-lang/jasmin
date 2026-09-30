@@ -126,6 +126,7 @@ Context
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
   (fi : funname -> ufundef -> expand_info)
+  (xfi : funname -> uxfundef -> expand_info)
   (entries : seq funname)
   (p1 p2 : uprog).
 
@@ -521,7 +522,8 @@ Qed.
 
 End Expr.
 
-Hypothesis Hcomp : expand_prog fi entries p1 = ok p2.
+
+Hypothesis Hcomp : expand_prog fi xfi entries p1 = ok p2.
 
 Context {ev : extra_val_t (progT := progUnit)}.
 
@@ -529,12 +531,22 @@ Section Step1.
 
 Context step1
   (Hstep1 : map_cfprog_name (expand_fsig fi entries) (p_funcs p1) = ok step1).
+Context xstep1
+  (Hxstep1 : map_xcfprog_name (expand_xfsig xfi entries) (p_xfuncs p1) = ok xstep1).
 
 Definition fsigs :=
   foldr (fun x y => Mf.set y x.1 x.2.2) (Mf.empty _) step1.
 
+Definition xfsigs :=
+  foldr (fun x y => Mf.set y x.1 x.2.2) (Mf.empty _) xstep1.
+
+
 Lemma eq_globs : p_globs p2 = gd.
-Proof using Hcomp. by move: Hcomp; rewrite /expand_prog; t_xrbindP=> z ??? <-. Qed.
+Proof using Hcomp.
+  move: Hcomp; rewrite /expand_prog.
+  t_xrbindP. move=> z _ ? _ _ _ ? _ h3.
+  destruct h3; eauto.
+Qed.  
 
 Lemma all_checked fn fd1 :
   get_fundef (p_funcs p1) fn = Some fd1 ->
@@ -545,13 +557,63 @@ Lemma all_checked fn fd1 :
 Proof using Hcomp Hstep1.
   move=> /(get_map_cfprog_name_gen Hstep1)[[[fd2' m'] fex'] hex' hfd'].
   move: Hcomp; rewrite /expand_prog Hstep1 /=.
+  t_xrbindP=> pf2 hpf2 xx1 me0 me1 me2 he; subst.
+
+  have [f' /= hf' hgf'] := get_map_cfprog_name_gen hpf2 hfd'.
+  eexists _, _, _, _; split; eauto.
+  rewrite /fsigs.
+  elim: step1 hfd' => //= -[]; move => a b l hrec /=.
+  by case: ifP => [+[?]|+/hrec]; rewrite eq_sym Mf.setP => ->; subst.
+Qed.  
+
+Lemma all_xchecked fn fd1 :
+  get_fundef (p_xfuncs p1) fn = Some fd1 ->
+  exists fd2 fd2' m g, [/\ get_fundef (p_xfuncs p2) fn = Some fd2,
+    Mf.get xfsigs fn = Some g,
+    expand_xfsig xfi entries fn fd1 = ok (fd2', m, g) &
+    expand_xf fn (fd2', m) = ok fd2].
+Proof using Hcomp Hxstep1.
+  move=> /(get_map_cfprog_name_gen Hxstep1) [[[fd2' m'] fex'] hex' hfd'].
+  move: Hcomp; rewrite /expand_prog Hxstep1 /=.
+  eapply rbindP.
+  intros xx1 xxe1. 
+  eapply rbindP.
+  intros yy1 yye1. 
+  eapply rbindP.
+  intros pf2 hpf2 he; subst.
+  have [f' /= hf' hgf'] := get_map_cfprog_name_gen hpf2 hfd'.
+  rewrite /xfsigs; simpl.
+  inversion hf'; subst.
+  inversion he; subst; simpl in *; auto. clear he.  
+  eexists _, _, _, _; split; eauto.
+  elim: xstep1 hfd' => //= -[]. move => a b l hrec /=.
+  by case: ifP => [+[?]|+/hrec]; rewrite eq_sym Mf.setP => ->; subst.
+Qed.  
+
+(*
+Lemma all_checked fn fd1 xfd1 :
+  get_fundef (p_funcs p1) fn = Some fd1 ->
+  get_fundef (p_xfuncs p1) fn = Some xfd1 ->
+  exists fd2 fd2' xfd2 m g, [/\ get_fundef (p_funcs p2) fn = Some fd2,
+    get_fundef (p_xfuncs p2) fn = Some xfd2,  
+    Mf.get fsigs fn = Some g,
+    expand_fsig fi entries fn fd1 = ok (fd2', m, g) &
+    expand_fsig fi entries fn xfd1 = ok (xfd2', m, g) &
+    expand_fbody fsigs fn (fd2', m) = ok fd2].
+Proof using Hcomp Hstep1.
+  move=> /(get_map_cfprog_name_gen Hstep1)[[[fd2' m'] fex'] hex' hfd'].
+  move: Hcomp; rewrite /expand_prog Hstep1 /=.
   t_xrbindP=> pf2 hpf2 ?; subst.
   have [f' /= hf' hgf'] := get_map_cfprog_name_gen hpf2 hfd'.
+
+Locate get_map_cfprog_name_gen.
+  
   eexists _, _, _, _; split; eauto.
   rewrite /fsigs.
   elim: step1 hfd' => //= -[] > hrec /=.
   by case: ifP => [+[?]|+/hrec]; rewrite eq_sym Mf.setP => ->; subst.
 Qed.
+*)
 
 Lemma wf_init_map ffi m finf : init_map ffi = ok (m, finf) -> wf_t m.
 Proof.

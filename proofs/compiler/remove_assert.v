@@ -45,6 +45,6 @@ Definition remove_assert_fd (fd: fundef) :=
   |}.
 
 Definition remove_assert_prog (p: prog) : prog :=
-  map_prog remove_assert_fd p.
+  map_prog remove_assert_fd id p.
 
 End ASM_OP.

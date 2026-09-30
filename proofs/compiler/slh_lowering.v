@@ -546,6 +546,7 @@ Definition lower_slh_prog (entries : seq funname) (p : prog) : cexec prog :=
    ok  {| p_funcs  := p_funcs;
           p_globs := p_globs p;
           p_extra := p_extra p;
+          p_xfuncs := p_xfuncs p
         |}.
 
 End CHECK.

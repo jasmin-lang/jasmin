@@ -211,7 +211,7 @@ Definition pi_fun  (f:fundef) :=
 
 Definition pi_prog (p:prog) :=
   Let funcs := map_cfprog pi_fun (p_funcs p) in
-  ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
+  ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs; p_xfuncs := p_xfuncs p |}.
 
 End Section.
 

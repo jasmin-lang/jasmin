@@ -2056,7 +2056,7 @@ Definition alloc_fd_aux P p_extra mglob (local_alloc: funname -> stk_alloc_oracl
     f_res := res;
     f_extra := f_extra fd |}.
 
-Definition alloc_fd P p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) fn fd :=
+Definition alloc_fd P p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) fn fd : result pp_error_loc sfundef :=
   let: sao := local_alloc fn in
   Let fd := alloc_fd_aux P p_extra mglob local_alloc sao fd in
   let f_extra := {|
@@ -2072,6 +2072,24 @@ Definition alloc_fd P p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t)
         sf_align_args := map (oapp pp_align U8) sao.(sao_params)
       |} in
   ok (swith_extra fd f_extra).
+
+Definition alloc_xfd (local_alloc: funname -> stk_alloc_oracle_t) fn
+  (fd: uxfundef) :
+  result pp_error_loc sxfundef :=
+  let: sao := local_alloc fn in
+  let f_extra := {|
+        sf_align  := sao.(sao_align);
+        sf_stk_sz := sao.(sao_size);
+        sf_stk_ioff := sao.(sao_ioff);
+        sf_stk_extra_sz := sao.(sao_extra_size);
+        sf_stk_max := sao.(sao_max_size);
+        sf_max_call_depth := sao.(sao_max_call_depth);
+        sf_to_save := sao.(sao_to_save);
+        sf_save_stack := sao.(sao_rsp);
+        sf_return_address := sao.(sao_return_address);
+        sf_align_args := map (oapp pp_align U8) sao.(sao_params)
+      |} in
+  ok (sxwith_extra fd f_extra).
 
 Fixpoint ptake (A:Type) p (r l:list A) :=
   match p, l with
@@ -2150,7 +2168,7 @@ Definition init_map (l:list (var * wsize * Z)) data (gd:glob_decls) : cexec (Mva
   Let _ := assert (Sv.subset (sv_of_list fst gd) (sv_of_list (fun x => x.1.1) l))
                   (stk_ierror_no_var "missing globals") in
   ok mvar.
-
+ 
 Definition alloc_prog rip rsp global_data global_alloc local_alloc (P:_uprog) : cexec _sprog :=
   Let mglob := init_map  global_alloc global_data P.(p_globs) in
   let p_extra :=  {|
@@ -2161,9 +2179,11 @@ Definition alloc_prog rip rsp global_data global_alloc local_alloc (P:_uprog) : 
   |} in
   Let _ := assert (rip != rsp) (stk_ierror_no_var "rip and rsp clash") in
   Let p_funs := map_cfprog_name (alloc_fd P p_extra mglob local_alloc) P.(p_funcs) in
+  Let p_xfuns := map_xcfprog_name (alloc_xfd local_alloc) P.(p_xfuncs) in
   ok  {| p_funcs  := p_funs;
          p_globs := [::];
          p_extra := p_extra;
+         p_xfuncs := p_xfuns
       |}.
 
 End WITH_PARAMS.

@@ -474,6 +474,6 @@ Definition wi2i_prog (p:_uprog) : cexec _uprog :=
   Let _ := assert (Sv.subset (vars_p (p_funcs p)) FV) (E.ierror_s "vars_p is not included in FV") in
   let sigs := map (build_sig info) (p_funcs p) in
   Let funcs := map_cfprog_name (wi2i_fun m FV (get_fundef sigs)) (p_funcs p) in
-  ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
+  ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs; p_xfuncs := p_xfuncs p |}.
 
 End WITH_PARAMS.

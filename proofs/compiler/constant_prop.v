@@ -554,7 +554,7 @@ Definition const_prop_fun (gd: glob_decls) (f: fundef) :=
   let c := const_prop (const_prop_i gd) empty_cpm f.(f_body) in
   with_body f c.2.
 
-Definition const_prop_prog (p:prog) : prog := map_prog (const_prop_fun p.(p_globs)) p.
+Definition const_prop_prog (p:prog) : prog := map_prog (const_prop_fun p.(p_globs)) id p.
 
 End Section.
 

@@ -89,7 +89,7 @@ Definition unroll_fun (f: fun_decl) :=
 
 Definition unroll_prog (p: prog) : prog * bool :=
   let: (fds, b) := map_repeat unroll_fun (p_funcs p) in
-  ({| p_funcs := fds ; p_globs := p_globs p ; p_extra := p_extra p |}, b).
+  ({| p_funcs := fds ; p_globs := p_globs p ; p_extra := p_extra p; p_xfuncs := p_xfuncs p |}, b).
 
 End Section.
 

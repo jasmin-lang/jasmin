@@ -520,12 +520,31 @@ Record _fundef (extra_fun_t: Type) := MkFun {
   f_extra  : extra_fun_t;
 }.
 
-Definition _fun_decl (extra_fun_t: Type) := (funname * _fundef extra_fun_t)%type.
+Definition _fun_decl (extra_fun_t: Type) :=
+  (funname * _fundef extra_fun_t)%type.
+
+
+Record _xfundef (extra_fun_t: Type) := MkXFun {
+  xf_info   : fun_info;
+  xf_size   : Z;                                         
+  xf_contract : option fun_contract;
+  xf_tyin   : seq atype;
+  xf_params : seq var_i;
+  xf_tyout  : seq atype;
+  xf_res    : seq var_i;
+  xf_extra  : extra_fun_t;
+}.
+
+Definition _xfun_decl (extra_fun_t: Type) :=
+  (funname * _xfundef extra_fun_t)%type.
+(*  (syscall_t * _xfundef extra_fun_t)%type. *)
+
 
 Record _prog (extra_fun_t: Type) (extra_prog_t: Type):= {
   p_funcs : seq (_fun_decl extra_fun_t);
   p_globs : glob_decls;
   p_extra : extra_prog_t;
+  p_xfuncs : seq (_xfun_decl extra_fun_t);
 }.
 
 Section PROG.
@@ -542,15 +561,26 @@ Definition signature_of_fundef (fd: fundef) : function_signature :=
 
 Definition fun_decl := (funname * fundef)%type.
 
+Definition xfundef := _xfundef extra_fun_t.
+
+Definition signature_of_xfundef (fd: xfundef) : function_signature :=
+  (xf_tyin fd, xf_tyout fd).
+
+Definition xfun_decl := (funname * xfundef)%type.
+
+
 Definition prog := _prog extra_fun_t extra_prog_t.
 
-Definition Build_prog p_funcs p_globs p_extra : prog := Build__prog p_funcs p_globs p_extra.
+Definition Build_prog p_funcs p_globs p_extra p_xfuncs : prog :=
+  Build__prog p_funcs p_globs p_extra p_xfuncs.
 
 End PROG.
 
 End ASM_OP.
 
 Notation fun_decls  := (seq fun_decl).
+Notation xfun_decls  := (seq xfun_decl).
+
 
 Section ASM_OP.
 
@@ -569,12 +599,19 @@ Definition progUnit : progT :=
 Definition ufundef     := @fundef _ _ progUnit.
 Definition ufun_decl   := @fun_decl _ _ progUnit.
 Definition ufun_decls  := seq (@fun_decl _ _ progUnit).
+Definition uxfundef     := @xfundef progUnit.
+Definition uxfun_decl   := @xfun_decl progUnit.
+Definition uxfun_decls  := seq (@xfun_decl progUnit).
 Definition uprog       := @prog _ _ progUnit.
+
 
 (* For extraction *)
 Definition _ufundef    := _fundef unit.
 Definition _ufun_decl  := _fun_decl unit.
 Definition _ufun_decls :=  seq (_fun_decl unit).
+Definition _uxfundef    := _xfundef unit.
+Definition _uxfun_decl  := _xfun_decl unit.
+Definition _uxfun_decls :=  seq (_xfun_decl unit).
 Definition _uprog      := _prog unit unit.
 Definition to_uprog (p:_uprog) : uprog := p.
 
@@ -682,6 +719,10 @@ Definition progStack : progT :=
 Definition sfundef     := @fundef _ _ progStack.
 Definition sfun_decl   := @fun_decl _ _ progStack.
 Definition sfun_decls  := seq (@fun_decl _ _ progStack).
+Definition sxfundef     := @xfundef progStack.
+Definition sxfun_decl   := @xfun_decl progStack.
+Definition sxfun_decls  := seq (@xfun_decl progStack).
+
 Definition sprog       := @prog _ _ progStack.
 
 (* For extraction *)
@@ -689,6 +730,10 @@ Definition sprog       := @prog _ _ progStack.
 Definition _sfundef    := _fundef stk_fun_extra.
 Definition _sfun_decl  := _fun_decl stk_fun_extra.
 Definition _sfun_decls := seq (_fun_decl stk_fun_extra).
+Definition _sxfundef    := _xfundef stk_fun_extra.
+Definition _sxfun_decl  := _xfun_decl stk_fun_extra.
+Definition _sxfun_decls := seq (_xfun_decl stk_fun_extra).
+
 Definition _sprog      := _prog stk_fun_extra sprog_extra.
 Definition to_sprog (p:_sprog) : sprog := p.
 
@@ -714,6 +759,18 @@ Definition swith_extra {_: PointerData} (fd:ufundef) f_extra : sfundef := {|
   f_res      := fd.(f_res);
   f_extra    := f_extra;
 |}.
+
+Definition sxwith_extra {_: PointerData} (fd:uxfundef) xf_extra : sxfundef := {|
+  xf_info     := fd.(xf_info);
+  xf_contract := fd.(xf_contract);
+  xf_tyin     := fd.(xf_tyin);
+  xf_params   := fd.(xf_params);
+  xf_size     := fd.(xf_size);
+  xf_tyout    := fd.(xf_tyout);
+  xf_res      := fd.(xf_res);
+  xf_extra    := xf_extra;
+|}.
+
 
 End ASM_OP.
 

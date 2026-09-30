@@ -223,7 +223,7 @@ Definition spill_fd (fn:funname) (fd: fundef) : cexec fundef :=
 
 Definition spill_prog (p: prog) : cexec prog :=
   Let funcs := map_cfprog_name spill_fd (p_funcs p) in
-  ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
+  ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs; p_xfuncs := p_xfuncs p |}.
 
 End PROGT.
 

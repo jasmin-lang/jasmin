@@ -18,6 +18,7 @@ Context
 
 Context
   (remove_wint_annot: funname -> fundef -> fundef)
+  (remove_wint_xannot: funname -> xfundef -> xfundef)
   (dead_vars_fd : fun_decl → instr_info → Sv.t).
 
 Variable (p:prog) (ev:extra_val_t).
@@ -273,14 +274,19 @@ Section IT.
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} (rE0_trans : EventRels_trans rE0 rE0 rE0).
 
 Lemma it_wi2w_progP (p' : uprog) fn :
-  wi2w_prog remove_wint_annot dead_vars_fd p = ok p' →
+  wi2w_prog remove_wint_annot remove_wint_xannot dead_vars_fd p = ok p' →
   wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof using rE0_trans.
   rewrite /wi2w_prog; t_xrbindP => ok_pv <-.
-  have := [elaborate it_alloc_call_uprogP ev (p_globs p) ok_pv (fn:= fn)].
+  have := [elaborate it_alloc_call_uprogP ev (p_globs p)
+           (p_xfuncs (map_prog wi2w_fun id p))          
+            [seq (f.1, remove_wint_xannot f.1 f.2)
+           | f <- p_xfuncs (map_prog wi2w_fun id p)]
+             ok_pv (fn:= fn)].
   have := [elaborate it_wi2w_call_internalP (fn:=fn)].
-  apply wiequiv_f_trans => //.
-  + by move=> fs1 fs2 hpre; exists fs1 => //; split => //; split => //; apply List_Forall2_refl.
+  apply wiequiv_f_trans => //. 
+  + by move=> fs1 fs2 hpre; exists fs1 => //; split => //; split => //;
+       apply List_Forall2_refl.
   move=> ??? fr1 fr3 _ _ [fr2] [heq1 heq2 hu1] [heq3 heq4 hu2]; split.
   + by rewrite heq1. + by rewrite heq2.
   by apply: values_uincl_trans hu1 hu2.

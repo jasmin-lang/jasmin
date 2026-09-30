@@ -209,6 +209,13 @@ Record compiler_params
     (* Same as dead_vars_ufd, but for _sfun_decl instead of _ufun_decl. *)
   pp_sr            : sub_region -> pp_error;
   apply_ret_annot  : seq bool -> fun_info -> fun_info;
+
+  expand_xfd        : funname -> _uxfundef -> expand_info;
+  split_live_ranges_xfd : funname -> _uxfundef -> _uxfundef;
+  renaming_xfd      : funname -> _uxfundef -> _uxfundef;
+  remove_phi_nodes_xfd : funname -> _uxfundef -> _uxfundef;
+  xregalloc         : seq _sxfun_decl -> seq _sxfun_decl;
+  remove_wint_xannot: funname -> _uxfundef -> _uxfundef;
 }.
 
 Context
@@ -231,11 +238,12 @@ Notation agparams := (ap_agp aparams).
 Existing Instance progUnit.
 
 Definition split_live_ranges_prog (p: _uprog) : _uprog :=
-  map_prog_name cparams.(split_live_ranges_fd) p.
+  map_prog_name cparams.(split_live_ranges_fd)
+                          cparams.(split_live_ranges_xfd) p.
 Definition renaming_prog (p: _uprog) : _uprog :=
-  map_prog_name cparams.(renaming_fd) p.
+  map_prog_name cparams.(renaming_fd) cparams.(renaming_xfd) p.
 Definition remove_phi_nodes_prog (p: _uprog) : _uprog :=
-  map_prog_name cparams.(remove_phi_nodes_fd) p.
+  map_prog_name cparams.(remove_phi_nodes_fd) cparams.(remove_phi_nodes_xfd) p.
 
 Definition var_tmp : var :=
   {| vname := lip_tmp liparams; vtype := aword Uptr; |}.
@@ -250,7 +258,7 @@ Definition live_range_splitting (p: uprog) : cexec uprog :=
   let pv := cparams.(print_uprog) Renaming pv in
   let pv := remove_phi_nodes_prog pv in
   let pv := cparams.(print_uprog) RemovePhiNodes pv in
-  let pv := map_prog_name (refresh_instr_info cparams) pv in
+  let pv := map_prog_name (refresh_instr_info cparams) cparams.(remove_wint_xannot) pv in
   Let _ := check_uprog (wsw:= withsubword) cparams.(dead_vars_ufd) p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
   Let pv := dead_code_prog (ap_is_move_op aparams) pv false in
   let p := cparams.(print_uprog) DeadCode_Renaming pv in
@@ -259,17 +267,17 @@ Definition live_range_splitting (p: uprog) : cexec uprog :=
 Definition inlining (to_keep: seq funname) (p: uprog) : cexec uprog :=
   Let p := inline_prog_err cparams.(extend_iinfo) p in
   let p := cparams.(print_uprog) Inlining p in
-
   Let p := dead_calls_err_seq to_keep p in
   let p := cparams.(print_uprog) RemoveUnusedFunction p in
   ok p.
 
-Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :=
 
+Definition compiler_first_part (to_keep: seq funname) (p: uprog) :
+  cexec uprog :=
   let p := remove_assert_prog p in
   let p := cparams.(print_uprog) RemoveAssertion p in
 
-  Let p := wi2w_prog (wsw:=withsubword) cparams.(remove_wint_annot) cparams.(dead_vars_ufd) p in
+  Let p := wi2w_prog (wsw:=withsubword) cparams.(remove_wint_annot) cparams.(remove_wint_xannot) cparams.(dead_vars_ufd) p in
   let p := cparams.(print_uprog) WintWord p in
 
   let p := insert_renaming_prog cparams.(insert_renaming) p in
@@ -306,7 +314,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :
   Let pa := makereference_prog (fresh_var_ident cparams (Reg (Normal, Pointer Writable))) pr in
   let pa := cparams.(print_uprog) MakeRefArguments pa in
 
-  Let pe := expand_prog cparams.(expand_fd) to_keep pa in
+  Let pe := expand_prog cparams.(expand_fd) cparams.(expand_xfd) to_keep pa in
   let pe := cparams.(print_uprog) RegArrayExpansion pe in
 
   Let pe := live_range_splitting pe in
@@ -340,8 +348,8 @@ Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :
 
   ok p.
 
-Definition compiler_third_part (returned_params: funname -> option (seq (option nat))) (ps: sprog) : cexec sprog :=
 
+Definition compiler_third_part (returned_params: funname -> option (seq (option nat))) (ps: sprog) : cexec sprog :=
   let rminfo := cparams.(removereturn) ps in
   let rminfo fn :=
     match returned_params fn with
@@ -351,16 +359,17 @@ Definition compiler_third_part (returned_params: funname -> option (seq (option 
     | None => rminfo fn
     end
   in
+  
   Let pr := dead_code_prog_tokeep (ap_is_move_op aparams) cparams.(apply_ret_annot) false rminfo ps in
   let pr := cparams.(print_sprog) RemoveReturn pr in
 
-  let pa := {| p_funcs := cparams.(regalloc) pr.(p_funcs) ; p_globs := pr.(p_globs) ; p_extra := pr.(p_extra) |} in
+  let pa := {| p_funcs := cparams.(regalloc) pr.(p_funcs) ; p_globs := pr.(p_globs) ; p_extra := pr.(p_extra); p_xfuncs := p_xfuncs ps |} in
   let pa : sprog := cparams.(print_sprog) RegAllocation pa in
   Let _ := check_sprog (wsw:= withsubword) cparams.(dead_vars_sfd) pr.(p_extra) pr.(p_funcs) pa.(p_extra) pa.(p_funcs) in
 
   Let pd := dead_code_prog (ap_is_move_op aparams) pa true in
   let pd := cparams.(print_sprog) DeadCode_RegAllocation pd in
-
+  
   ok pd.
 
 (* returns None if not reg ptr, Some false if reg const ptr, Some true if reg mut ptr *)

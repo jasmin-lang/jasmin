@@ -4270,7 +4270,7 @@ Proof using hshparams hsaparams is_move_opP.
   move=> hprog ev rip fs1 fs2 [hscs hext hargs heqinmems halloc].
   move: hprog; rewrite /alloc_prog.
   t_xrbindP=> mglob hmap /eqP hneq.
-  t_xrbindP=> fds hfds.
+  t_xrbindP=> fds hfds xfds xhxds.
   set P' := {| p_funcs := _ |} => ?; subst SP.
   have hpre : sa_pre data rip P' oracle fn fn fs1 fs2 by done.
   have := [elaborate
@@ -4303,8 +4303,8 @@ Lemma alloc_prog_get_fundef nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog
         {| sp_rsp := nrsp ; sp_rip := nrip ; sp_globs := data ; sp_glob_names := oracle_g |} mglob oracle fn fd = ok fd' &
       get_fundef (p_funcs SP) fn = Some fd'.
 Proof.
-  rewrite /alloc_prog; t_xrbindP => mglob -> _ fds ok_fds <- {SP} /=.
-  exists mglob; first reflexivity.
+  rewrite /alloc_prog. t_xrbindP => mglob H H0 fds ok_fds xfds ok_xfds <- {SP} /=.
+  exists mglob; auto. 
   exact: get_alloc_fd.
 Qed.
 
@@ -4312,7 +4312,8 @@ Remark alloc_prog_sp_globs nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog)
   alloc_prog shparams saparams is_move_op fresh_var_ident pp_sr nrip nrsp data oracle_g oracle P = ok SP →
   sp_globs (p_extra SP) = data.
 Proof.
-  by rewrite /alloc_prog; t_xrbindP => ???? _ <-.
+  rewrite /alloc_prog. t_xrbindP; simpl; intros.
+  inversion h2; subst; simpl; auto.
 Qed.
 
 End HSAPARAMS.

@@ -25,8 +25,10 @@ Context
     makereference_prog fresh_reg_ptr p = ok p' ->
       p.(p_globs) = p'.(p_globs).
   Proof.
-    case: p p' => [???] [???]; t_xrbindP.
-    by rewrite /makereference_prog; t_xrbindP.
+    destruct p; destruct p'; simpl; t_xrbindP.
+    rewrite /makereference_prog; simpl.
+    t_xrbindP.
+    intros; subst; auto.
   Qed.
 
   Section MakeEpilogueInd.
@@ -98,7 +100,7 @@ Context
 
   Lemma eq_globs : p_globs p = p_globs p'.
   Proof using Hp.
-   case : p Hp => /= p_funcs p_globs extra.
+   case : p Hp => /= p_funcs p_globs extra p_xfuncs.
    rewrite /makereference_prog.
    t_xrbindP => /=.
    by move => y _ <-.

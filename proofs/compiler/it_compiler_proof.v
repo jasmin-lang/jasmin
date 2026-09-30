@@ -107,7 +107,7 @@ Proof using sc_sem print_sprogP.
   rewrite /check_sprog in check_pa.
   have [fda' [get_fda' check_fda']] := [elaborate
     allocation_proof.all_checked (pT:=progStack)
-      (p2:={| p_funcs := regalloc cparams (p_funcs pa); p_globs := p_globs pa; p_extra := p_extra pa |})
+      (p2:={| p_funcs := regalloc cparams (p_funcs pa); p_globs := p_globs pa; p_extra := p_extra pa; p_xfuncs := p_xfuncs pa |})
       check_pa get_fda].
   have [fdb ok_fdb get_fdb] := [elaborate
     dead_code_prog_tokeep_get_fundef hpb get_fda'].
@@ -558,8 +558,33 @@ Lemma it_live_range_splittingP {dc : DirectCall} (p p': uprog) fn ev :
 Proof using haparams print_uprogP.
 rewrite /live_range_splitting; t_xrbindP.
 rewrite !print_uprogP => ok_p' pa ok_pa; rewrite print_uprogP => ?; subst pa.
-move: p ok_p' ok_pa => [fs gd ep] /= ok_p' ok_pa.
-apply: wiequiv_f_trans_UU_EU; first exact: (it_alloc_call_uprogP _ _ ok_p').
+move: p ok_p' ok_pa => [fs gd ep fs'] /= ok_p' ok_pa.
+
+
+set fs'' := [seq (f.1, remove_wint_xannot cparams f.1 f.2)
+             | f <- [seq (f.1, remove_phi_nodes_xfd cparams f.1 f.2)
+                       | f <- [seq (f.1, renaming_xfd cparams f.1 f.2)
+                                 | f <- [seq (f.1,
+                                              split_live_ranges_xfd cparams
+                                                f.1 f.2)
+                                           | f <- fs']]]].
+
+apply: wiequiv_f_trans_UU_EU; first exact: (it_alloc_call_uprogP _ _ fs' fs'' ok_p').
+apply: (
+  wkequiv_io_weaken
+    (P := pre_incl fn fn)
+    (Q := post_incl fn fn)
+) => //.
+- move=> ? _ [_ <-]; split=> //; split=> //; exact: values_uincl_refl.
+  apply: it_sem_refl_EU_UU; simpl.
+  apply: (it_dead_code_callPu (sip:=sip_of_asm_e) (hap_is_move_opP haparams) ev _ (fn := fn)). simpl.
+  unfold map_prog_name in ok_pa. simpl in *.
+  subst fs''.
+  eapply ok_pa.
+Qed.
+
+(*
+first eexact (it_alloc_call_uprogP _ _ ok_p').
 apply: (
   wkequiv_io_weaken
     (P := pre_incl fn fn)
@@ -569,6 +594,7 @@ apply: (
 apply: it_sem_refl_EU_UU.
 exact: (it_dead_code_callPu (sip:=sip_of_asm_e) (hap_is_move_opP haparams) ev ok_pa (fn := fn)).
 Qed.
+*)
 
 Lemma it_compiler_first_part {entries p p' ev fn} :
   compiler_first_part aparams cparams entries p = ok p' ->
@@ -692,14 +718,14 @@ apply: (
 - move=> s1 s2 _ r1 r3 _ [_ <-] [r2 [?? hvals2] [?? hvals3]].
   split; only 1,2: congruence.
   exact: values_uincl_trans hvals2 hvals3.
-rewrite -{1}(surj_prog (pT := progStack) pa).
-apply: (
+  rewrite -{1}(surj_prog (pT := progStack) pa).
+  apply: (
   wiequiv_f_trans
     (scP1 := sCP_stack) (scP2 := sCP_stack) (scP3 := sCP_stack)
     (rpreF23 := pre_eq) (rpostF23 := post_incl)
     _ _
-    (it_alloc_callP_sprogP _ _ ok_pb (fn:= fn))
-).
+    (it_alloc_callP_sprogP _ _ _ _ ok_pb (fn:= fn))
+  ).
 - exact: rpreF_trans_eq_uincl_eq.
 - exact: rpostF_trans_uincl_eq_uincl_uincl.
 apply: (

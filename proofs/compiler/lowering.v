@@ -42,6 +42,6 @@ Definition lower_fd (fd : fundef) : fundef :=
   with_body fd (lower_cmd (f_body fd)).
 
 Definition lower_prog (p : prog) :=
-  map_prog lower_fd p.
+  map_prog lower_fd id p.
 
 End LOWERING.

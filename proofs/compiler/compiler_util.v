@@ -175,24 +175,35 @@ Section ASM_OP.
 Context `{asmop:asmOp}.
 Context {pT: progT}.
 
-Definition map_prog_name (F: funname -> fundef -> fundef) (p:prog) : prog :=
+Definition map_prog_name (F: funname -> fundef -> fundef)
+  (XF: funname -> xfundef -> xfundef) (p:prog) : prog :=
   {| p_funcs := map (fun f => (f.1, F f.1 f.2)) (p_funcs p);
      p_globs := p_globs p;
-     p_extra := p_extra p|}.
+     p_extra := p_extra p;
+     p_xfuncs :=  map (fun f => (f.1, XF f.1 f.2)) (p_xfuncs p);
+  |}.
 
-Definition map_prog (F: fundef -> fundef) (p:prog) :=
-  map_prog_name (fun _ => F) p.
+Definition map_prog (F: fundef -> fundef) (XF: xfundef -> xfundef) (p:prog) :=
+  map_prog_name (fun _ => F) (fun _ => XF) p.
 
-Lemma get_map_prog_name F p fn :
-  get_fundef (p_funcs (map_prog_name F p)) fn =
+Lemma get_map_prog_name F XF p fn :
+  get_fundef (p_funcs (map_prog_name F XF p)) fn =
   ssrfun.omap (F fn) (get_fundef (p_funcs p) fn).
 Proof.
   rewrite /get_fundef /map_prog_name /=.
   by elim: p_funcs => // -[fn' fd] pfuns /= ->;case:eqP => [-> | ].
 Qed.
 
-Lemma get_map_prog F p fn :
-  get_fundef (p_funcs (map_prog F p)) fn = ssrfun.omap F (get_fundef (p_funcs p) fn).
+Lemma get_map_prog_xname F XF p fn :
+  get_fundef (p_xfuncs (map_prog_name F XF p)) fn =
+  ssrfun.omap (XF fn) (get_fundef (p_xfuncs p) fn).
+Proof.
+  rewrite /get_fundef /map_prog_name /=.
+  by elim: p_xfuncs => // -[fn' fd] pfuns /= ->;case:eqP => [-> | ].
+Qed.
+
+Lemma get_map_prog F XF p fn :
+  get_fundef (p_funcs (map_prog F XF p)) fn = ssrfun.omap F (get_fundef (p_funcs p) fn).
 Proof. apply: get_map_prog_name. Qed.
 
 End ASM_OP.
@@ -215,6 +226,9 @@ Definition map_cfprog_gen {T1 T2} (info : T1 -> fun_info) (F: T1 -> cexec T2) :=
 (* Some notations to use in the common case where we manipulate [_fundef ?eft]. *)
 Notation map_cfprog_name := (map_cfprog_name_gen (@f_info _ _ _)).
 Notation map_cfprog := (map_cfprog_gen (@f_info _ _ _)).
+Notation map_xcfprog_name := (map_cfprog_name_gen (@xf_info _)).
+Notation map_xcfprog := (map_cfprog_gen (@xf_info _)).
+
 
 Section PROOF.
 

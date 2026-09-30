@@ -34,6 +34,6 @@ Section WITH_PARAMS.
     else fd.
 
   Definition insert_renaming_prog (p: prog) : prog :=
-    map_prog insert_renaming_fd p.
+    map_prog insert_renaming_fd id p.
 
 End WITH_PARAMS.
