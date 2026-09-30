@@ -332,8 +332,8 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
   let return_addresses = Regalloc.create_return_addresses get_internal_size fds in
   let ra_data =
     if callee_saved_strategy = CSS_Tight then
-      let subst, killed, _ = Regalloc.alloc_prog return_addresses fds in
-      Some (subst, killed)
+      let _, killed, _ = Regalloc.alloc_prog return_addresses fds in
+      Some killed
     else None
   in
 
@@ -373,8 +373,8 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
         warning Always (L.i_loc0 fd.f_loc) "ignored ill-formed %s annotation" key;
       match callee_saved_strategy with
       | CSS_Tight ->
-         let subst, killed = Option.get ra_data in
-         let ro = Regalloc.get_reg_oracle has_stack subst killed fd in
+         let killed = Option.get ra_data in
+         let ro = Regalloc.get_reg_oracle has_stack killed fd in
          ro.ro_to_save, ro.ro_rsp = None
       | CSS_Optimistic -> [], has_stack fd
       | CSS_Pessimistic -> callee_saved, true
