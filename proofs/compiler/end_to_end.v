@@ -78,6 +78,7 @@ Require Import
  (* cil *)
   dinterp
 .
+From Stdlib Require Import Program.Equality.
 
 Import Order.TTheory.
 
@@ -94,10 +95,6 @@ Import Order.TTheory.
 #[local] Notation "x |> f" := (f x) (only parsing, at level 25).
 
 Section MOVE.
-
-Locate syscall_sem.
-Locate Jasmin.syscall_sem.
-Check @architecture_params.
 
 Context
   {reg regx xreg rflag cond asm_op extra_op : Type}
@@ -141,15 +138,6 @@ Lemma all_take X p (s : seq X) n :
   all p s ->
   all p (take n s).
 Proof. by rewrite -[in all p _](cat_take_drop n s) all_cat => /andP []. Qed.
-
-Check @to_arr.
-Check carr.
-Check @wseq_of_arr.
-Print to_arr.
-Locate to_arr.
-Print WArray.array.
-Locate wseq_of_arr.
-Locate positive.
 
 Definition wseq_of_val (t : ctype) (v : value) : wseq :=
   let v' :=
@@ -202,10 +190,6 @@ Definition cast_vals tys vs := [seq wseq_of_val x.1 x.2 | x <- zip tys vs ].
 
 Definition cast_vals_self vs := cast_vals (map type_of_val vs) vs.
 
-
-Locate fill_fill_mem.
-Locate fill_mem.
-
 Lemma values_uincl_is_def s s' :
   let: ty := map type_of_val s in
   all val_is_def s ->
@@ -236,10 +220,6 @@ Definition values_match p fn xfd t s' t' :=
   List.Forall2 (value_in_mem mt') (take n ress) (take n argt)
   /\ cast_vals tys (drop n ress) = cast_vals tys rest.
 
-Check @mem_agreement.
-Check EstateParams.
-Print fstate.
-
 Definition aux_post p q fn xfd s t s' t' :=
   let: args := s.(fvals) in
   let: ms := s.(fmem) in
@@ -269,7 +249,7 @@ Lemma correct_comp entries p q fn fd :
         eutt
           (aux_post p q fn xfd s t)
           (isem_unit p fn s) (isem_asm q fn t).
-Proof.
+Proof using print_uprogP print_sprogP print_linearP haparams.
 move=> hcomp hfn hfd.
 have [xfd [hxfd _ heq]] := [elaborate
   it_compile_prog_to_asmP
@@ -290,17 +270,23 @@ apply: (lutt_xrutt_trans_l'
 - apply: lutt_xrutt_trans_l'; cycle -2.
   + exact: hdef.
   + exact: heq hpre.
-  + move=> T1 T2 [|[scs1 n1]]; first by left.
-    move=> [|[scs2 n2]]; first by left.
-    by move=> _ [??]; subst scs2 n2; right; exists erefl.
-  + move=> T1 T2 [//|[scs1 n1]] r1 [//|[scs2 n2]] r2 _ _ _ [??]; subst scs2 n2.
-    by move=> /(JMeq_eq (x := r1)) <-.
+  + move=> T1 T2 [|[n1]]; first by left. 
+    move=> [|[n2]]; first by left.
+    move=> _ [p1 p2] //; rewrite p2; right; exists erefl.
+    simpl; f_equal.
+    dependent destruction p1; auto.    
+  + move=> T1 T2. move => [//|[n1]] r1 [//|[n2]] r2 _ _ _ [p1 p2].
+    dependent destruction p1.
+    dependent destruction p2; simpl.
+    move=> /(JMeq_eq (x := r1)) <-.
+    split; auto.
+    move => h1; dependent destruction h1; auto.
   done.
 - done.
 - done.
-move=> s' t' hfin [{}hdef [hm hscs hz hptr hres]]; split=> //; split=> //.
-apply: values_uincl_is_def hres.
-by rewrite all_drop // hdef.
+- move=> s' t' hfin [{}hdef [hm hz hptr hres]]; split=> //; split=> //.
+  apply: values_uincl_is_def hres. 
+  by rewrite all_drop // hdef.
 Qed.
 
 End MOVE.
@@ -345,7 +331,12 @@ have {}hdef :
 - move=> i hi.
   have [|w hw] := elimT (valid_getP a i).
   + apply/andP; split; last by move: hdef => /allP /(_ _ hi).
-    apply/WArray.in_boundP; rewrite in_ziota in hi; lia.
+    apply/WArray.in_boundP; rewrite in_ziota in hi.
+    simpl in hi.
+    move : hi; move => /andP [hx hy].
+    apply Z.leb_le in hx.
+    apply Z.ltb_lt in hy.
+    lia.
   exists w => //; apply: h.
   by rewrite /read /= is_align8 /= add_0 hw /= decode_u8.
 f_equal; elim: ziota hdef => //= x xs hind hdef.
@@ -377,20 +368,27 @@ Lemma write_wseq_it_wf_args {gsz rip ms mt p bytes wptrs vs vt ws} :
   wf_args gsz rip ms (write_wseq mt p bytes) wptrs ws vs vt.
 Proof. move=> h i; exact: write_wseq_wf_arg (h i). Qed.
 
+Locate fill_mem_disjoint.
+Check @fill_mem_disjoint.
+
 Lemma write_wseq_extend_mem ms mt rip gd p a :
   let: n := Z.of_nat (size a) in
+  (0 < n)%Z -> 
   n <= wbase Uptr ->
-  disjoint_zrange p n rip (Z.of_nat (size gd)) ->
-  (forall w, validw ms Aligned w U8 -> disjoint_zrange p n w 1) ->
+  memory_model.disjoint_zrange p n rip (Z.of_nat (size gd)) ->
+  (forall w, validw ms Aligned w U8 ->
+             memory_model.disjoint_zrange p n w 1) ->
   extend_mem ms mt rip gd ->
   extend_mem ms (write_wseq mt p a) rip gd.
 Proof.
-move=> hsz hrip hdisj; rewrite /write_wseq; case hm': fill_mem => [m'|//] /=.
-move=> [?? hold ? hv hgd]; split=> //.
-- move=> x hx; rewrite (hold _ hx) (fill_mem_disjoint hm') //; exact: hdisj hx.
-- move=> x /hv; by rewrite (fill_mem_validw_eq hm').
-move=> x hx; rewrite -(hgd _ hx); apply: (fill_mem_disjoint hm').
-exact: disjoint_zrange_byte hrip hx.
+  move=> hgz hsz hrip hdisj; rewrite /write_wseq;
+         case hm': fill_mem => [m'|//] /=.
+  move=> [?? hold ? hv hgd]; split=> //.
+  - move=> x hx; rewrite (hold _ hx) (fill_mem_disjoint hm') //.
+    apply hdisj; auto; lia. 
+  - move=> x /hv; by rewrite (fill_mem_validw_eq hm').
+    move=> x hx; rewrite -(hgd _ hx); apply: (fill_mem_disjoint hm').
+    apply (disjoint_zrange_byte hrip hx).
 Qed.
 
 End WSEQ_EP.
@@ -402,32 +400,96 @@ Context {R : realType}.
 Notation distr := (distr R).
 Notation Rnd := (Rnd (R := R)).
 
+Class OracleSystemInterface :=
+  {
+    No : choiceType; (* Oracle names. *)
+    In : No -> choiceType; (* Oracle input types. *)
+    Out : No -> choiceType; (* Oracle output types. *)
+  }.
+
+Section CIL.
+
+Context {I : OracleSystemInterface}.
+
+(* An oracle system is an implementation for each oracle in the interface. *)
+Class OracleSystem :=
+  {
+    Mo : choiceType; (* Oracle memories. *)
+    mi : Mo; (* Initial oracle memory. *)
+    Oo : forall (o : No), In o -> Mo -> itree Rnd (Out o * Mo);
+  }.
+
+End CIL.
+
+Section SIM.
+
+Context
+  {I : OracleSystemInterface}
+  (O1 O2 : @OracleSystem I)
+.
+
+#[global] Arguments Mo {_ O} : rename.
+#[global] Arguments mi {_ O} : rename.
+
+
+(* Notations for clarity. *)
+Notation Mo1 := (Mo (O := O1)).
+Notation Mo2 := (Mo (O := O2)).
+
+(*
+Notation trace1 := (trace (O := O1)).
+Notation trace2 := (trace (O := O2)).
+Notation E1 := (stateE trace1 +' Rnd).
+Notation E2 := (stateE trace2 +' Rnd).
+Notation WinCond1 := (WinningCondition (O := O1)).
+Notation WinCond2 := (WinningCondition (O := O2)).
+*)
+
+Definition eqR {X A B} (R : A -> B -> Prop) (a : X * A) (b : X * B) : Prop :=
+  a.1 = b.1 /\ R a.2 b.2.
+
+Class is_sim (sim : Mo1 -> Mo2 -> Prop) :=
+  {
+    sim_mi : sim O1.(mi) O2.(mi);
+    sim_Oo :
+      forall o i m1 m2,
+        sim m1 m2 ->
+        eutt (eqR sim) (@Oo I O1 o i m1) (@Oo I O2 o i m2)
+  }.
+
+Definition simulating : Prop := exists sim, is_sim sim.
+
+End SIM.
+
+(*
 Instance sc_sem : syscall.syscall_sem unit :=
   {| syscall.get_random := fun _ _ => (tt, [::]); |}.
+*)
 
-Notation E := (ErrEvent +' RndEvent unit).
+Notation E := (ErrEvent +' RndEvent).
 
 #[local] Existing Instance wE.
-#[local] Existing Instance RndE00.
+#[local] Existing Instance rndE.
 
-Definition handleE : Handler (RndEvent unit) Rnd :=
-  fun _ '(it_sems_core.Rnd _ len) =>
+Definition handleE : Handler RndEvent Rnd :=
+  fun _ '(syscall.Rnd len) =>
     let* bs := unif_rV (Z.to_nat len) in
-    Ret (tt, wseq_of_wvec bs).
+    Ret (wseq_of_wvec bs).
 
-Definition to_Rnd : itree (RndEvent unit) ~> itree Rnd :=
+Definition to_Rnd : itree RndEvent ~> itree Rnd :=
   fun _ t => interp handleE t.
+
 
 Context
   {reg regx xreg rflag cond asm_op extra_op : Type}
   {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
   {call_conv : calling_convention}
-  {asm_scsem : asm_syscall_sem}
-  {it_asm_scsem : it_asm_syscall_sem}
+(*  {asm_scsem : asm_syscall_sem} *)
+  {it_asm_scsem : asm_syscall_sem}
 .
 
 Definition mkfs (m : mem) (vs : values) : fstate :=
-  {| fscs := tt; fmem := m; fvals := vs; |}.
+  {| fmem := m; fvals := vs; |}.
 
 Definition safe_on p fn m vs :=
   forall m',
@@ -442,7 +504,6 @@ Definition res_defined_on p fn m vs :=
 Definition xm_with_mem (mem : mem) (m : asmmem) : asmmem :=
   {|
     asm_rip := m.(asm_rip);
-    asm_scs := m.(asm_scs);
     asm_mem := mem;
     asm_reg := m.(asm_reg);
     asm_regx := m.(asm_regx);
@@ -503,7 +564,6 @@ Context
 Definition xmT : asmmem :=
   {|
     asm_rip := ripT;
-    asm_scs := tt;
     asm_mem := mT;
     asm_reg := rmT;
     asm_regx := rxmT;
@@ -552,6 +612,7 @@ Definition JIn (o : JNo) : choiceType := {choice valid_input o}.
 
 Definition JOut (o : JNo) : choiceType := seq wseq.
 
+
 Instance JazzI : OracleSystemInterface :=
   {|
     No := JNo;
@@ -568,6 +629,8 @@ Definition MoS : choiceType := {choice mem}.
 Definition unmkfs (fs : fstate) : seq wseq * mem :=
   let: tys := [seq type_of_val v | v <- fs.(fvals) ] in
   (cast_vals tys fs.(fvals), fs.(fmem)).
+
+Locate E.
 
 Definition isem_unit_res
   (o : JNo) (i : JIn o) (m : MoS) : itree E (JOut o * MoS) :=
@@ -587,10 +650,10 @@ Definition isem_unit_res
    - Allows nontermination *)
 Definition OoS (o : JNo) (i : JIn o) (m : MoS) : itree Rnd (JOut o * MoS) :=
   let* ores := to_Rnd (isem_unit_res o i m |> interp_Err) in
-  if ores is ESok (rs, _) then Ret (rs, mS)
+  if ores is utils.Ok (rs, _) then Ret (rs, mS)
   else Ret ([::], mS). (* absurd *)
 
-Instance Source : OracleSystem JazzI :=
+Instance Source : @OracleSystem JazzI :=
   {|
     Mo := MoS;
     Oo := OoS;
@@ -631,10 +694,10 @@ Arguments isem_asm_res : clear implicits.
    - Allows nontermination *)
 Definition OoT (o : JNo) (i : JIn o) (m : MoT) : itree Rnd (JOut o * MoT) :=
   let* ores := to_Rnd (isem_asm_res o i m |> interp_Err) in
-  if ores is ESok res then Ret res
+  if ores is utils.Ok res then Ret res
   else Ret ([::], xmT). (* absurd *)
 
-Instance Target : OracleSystem JazzI :=
+Instance Target : @OracleSystem JazzI :=
   {|
     Mo := MoT;
     Oo := OoT;
@@ -644,11 +707,13 @@ Instance Target : OracleSystem JazzI :=
 (* -------------------------------------------------------------------------- *)
 (* Proof. *)
 
+Locate architecture_params.
+
 Context
   {lowering_options : Type}
-  (aparams : architecture_params lowering_options)
+  (aparams : architecture_params) (* lowering_options) *)
   (haparams : h_architecture_params aparams)
-  (cparams : compiler_params lowering_options)
+  (cparams : compiler_params) (* lowering_options) *)
   (print_uprogP : forall s p, cparams.(print_uprog) s p = p)
   (print_sprogP : forall s p, cparams.(print_sprog) s p = p)
   (print_linearP : forall s p, cparams.(print_linear) s p = p)
@@ -707,26 +772,28 @@ Lemma eutt_isem_post fn fd ms mt (i : valid_input fn) :
   eutt (post_isem fn i (vi_ptrs i) ms mt)
     (isem_unit p fn (mkfs ms i))
     (isem_asm q fn (mkxm fn mt i (vi_ptrs i))).
-Proof.
+Proof using print_uprogP print_sprogP print_linearP hcomp haparams
+aparams.
 move=> hfn hfd hsafe hdef [??]; subst ms mt.
 have [xfd hxfd heq] :=
   correct_comp haparams print_uprogP print_sprogP print_linearP hcomp hfn hfd.
 have hpre := i.(vi_ptrs_ok) hxfd.
 have := heq _ _ hsafe hdef hpre.
 apply: eutt_subrel.
-by move=> fs xm [??? [? h]]; exists xfd; split=> //.
+move=> fs xm [X1 X2 X3]; exists xfd; split=> //.
 Qed.
 
 Lemma eutt_isem_res o i ms mt :
   sim ms mt ->
   eutt eq_sim (isem_unit_res o i ms) (isem_asm_res o i mt).
-Proof.
+Proof using xget_resP print_uprogP print_sprogP print_linearP hcomp
+  haparams cparams aparams.
 move=> hm.
 have hsafe : safe_uprog p o (mkfs ms i) by apply/vi_safe/sim_mem_equiv_mi/hm.
 have hdef : res_defined p o (mkfs ms i) by apply/vi_def/sim_mem_equiv_mi/hm.
 apply: eutt_clo_bind; first exact: eutt_isem_post hsafe hdef hm.
 case: hm => ??; subst ms mt.
-move=> fs xm [xfd [hxfd hpre [hma hscs hz hargs]]]; apply eutt_Ret.
+move=> fs xm [xfd [hxfd hpre [hma hz hargs]]]; apply eutt_Ret.
 split=> //=; exact: xget_resP hxfd hargs.
 Qed.
 
