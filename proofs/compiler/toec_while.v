@@ -20,10 +20,6 @@ Section TOEC_WHILE.
 
 Context `{asmop:asmOp} {pd: PointerData} {msfsz : MSFsize}.
 
-Section PROGT.
-
-Context {pT : progT}.
-
 Definition toec_while_c (ec_while_i : instr -> cmd) (c : cmd) : cmd :=
   flatten (map ec_while_i c).
 
@@ -46,16 +42,15 @@ Fixpoint toec_while_i (i : instr) : cmd :=
       c1 ++ [:: MkI ii tl]
   end.
 
+
+Section PROGT.
+Context {pT : progT}.
+
 Definition toec_while_fun (f : fundef) : fundef :=
   with_body f (toec_while_c toec_while_i (f_body f)).
 
-Definition toec_while_prog : prog -> prog :=
-  map_prog toec_while_fun.
+Definition toec_while_prog : prog -> prog := map_prog toec_while_fun.
 
 End PROGT.
-
-Definition toec_while_uprog (p : _uprog) : _uprog :=
-  toec_while_prog (p : @prog _ _ progUnit).
-
 End TOEC_WHILE.
 

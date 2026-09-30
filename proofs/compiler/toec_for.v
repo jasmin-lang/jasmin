@@ -70,10 +70,4 @@ Definition toec_for_prog (p : prog) : cexec prog :=
   ok {| p_funcs := fds; p_globs := p_globs p; p_extra := p_extra p |}.
 
 End PROGT.
-
-
-Definition toec_for_uprog (p : _uprog) : cexec _uprog :=
-  toec_for_prog (p : @prog _ _ progUnit).
-
 End TOEC_FOR.
-
