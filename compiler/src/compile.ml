@@ -230,7 +230,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       | RAreg (ret, tmp) -> { fe with Expr.sf_return_address = RAreg (csubst ret, osubst tmp) }
       | RAstack (c, r, n, t) -> { fe with Expr.sf_return_address = RAstack (osubst c, osubst r, n, osubst t) }
       | RAnone ->
-         let ro = RA.get_reg_oracle (fun _ -> true) subst killed fd in
+         let ro = RA.get_reg_oracle (fun _ -> true) killed fd in
          { fe with
            Expr.sf_save_stack =
              (match fe.Expr.sf_save_stack with

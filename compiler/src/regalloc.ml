@@ -656,7 +656,6 @@ module type Regalloc = sig
 
   val get_reg_oracle :
     (('info, 'asm) func -> bool) ->
-    (var -> var) ->
     (funname -> Sv.t) -> ('info, 'asm) func -> reg_oracle_t
 
   val alloc_prog :
@@ -1489,18 +1488,17 @@ let not_saved_stack = Sv.of_list (Arch.not_saved_stack @ Arch.callee_save_vars)
     register to hold the stack pointer of the caller (aka environment). *)
 let get_reg_oracle
       (has_stack: ('info, 'asm) func -> bool)
-      subst
       killed
       f : reg_oracle_t =
   assert (FInfo.is_export f.f_cc);
-  let killed_in_f = killed f.f_name |> Sv.map subst in
+  let killed_in_f = killed f.f_name in
   let ro_to_save =
     Sv.elements (Sv.inter callee_save_vars killed_in_f)
   in
   let ro_rsp =
     if has_stack f && ro_to_save = []
     then
-      let used_in_f = List.fold_left (fun s x -> Sv.add (subst x) s) killed_in_f f.f_args in
+      let used_in_f = List.fold_left (Fun.flip Sv.add) killed_in_f f.f_args in
       let free_regs = Sv.diff allocatable_vars used_in_f in
       Sv.Exceptionless.any (Sv.diff free_regs not_saved_stack)
     else None
@@ -1522,7 +1520,7 @@ let alloc_prog return_addresses (dfuncs: ('a * ('info, 'asm) func) list)
     |> global_allocation return_addresses
   in
   subst,
-  killed,
+  (fun f -> Sv.map subst (killed f)),
   funcs |>
   List.map (fun f ->
       let e = Hf.find extra f.f_name in
