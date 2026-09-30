@@ -89,11 +89,10 @@ Definition is_regx_l (x: lexpr) :=
   if x is LLvar x then is_regx x
   else false.
 
-(* TODO: consider using VMOVDQA when the address is known to be aligned *)
 Definition x86_lassign (x: lexpr) (ws: wsize) (e: rexpr) :=
   let op := if (ws <= U64)%CMP
             then (if (is_regx_e e || is_regx_l x) && (U32 ≤ ws)%CMP then MOVX else MOV) ws
-            else VMOVDQU ws
+            else VMOVDQ (aligned_of_lexpr x) ws
   in ([:: x ], Ox86 op, [:: e ]).
 
 Definition x86_set_up_sp_register
