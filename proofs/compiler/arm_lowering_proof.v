@@ -140,7 +140,7 @@ Definition estate_of_TST s (w0 w1 : wreg) : estate :=
     (evm s)
       .[fvNF fv <- NF_of_word res]
       .[fvZF fv <- ZF_of_word res]
-      .[fvCF fv <- false]
+      .[fvCF fv <- undef_b]
   in
   with_vm s vm'.
 
@@ -1169,7 +1169,8 @@ Opaque esem esem_i.
   - move: opts => [sf ic osh].
     set opts := {| set_flags := _; |}.
     move=> /= /andP [/negPf ? /negPf ?] h [?] hexeces htout; subst op' sf ic.
-    apply: (sem_i_conditional (p := p') ev ii tag _ hsemc' _ _ hexeces hwrite12').
+    apply: (sem_i_conditional (p := p') ev ii tag _ _ hsemc' _ _ hexeces hwrite12').
+    - by case: (mn); case: (osh).
     - exact: (eeq_exc_sem_pexprs hfves hs10 hsemes).
     - by rewrite /= (eeq_exc_sem_pexpr hfve1 hs10 hseme1).
     rewrite /truncate_args /truncate_val /=.
