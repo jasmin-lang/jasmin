@@ -26,14 +26,6 @@ Require Import
 
 Require Export riscv_params_common.
 
-(* The semantics of an instruction is [mk_semi] applied to its total
-   semantics; these are plain definitions that [simpl] does not unfold. *)
-Ltac t_riscv_semi :=
-  rewrite ?/sopn_sem_ ?/semi ?/mk_semi /=;
-  rewrite ?/semi_to_atype_t ?/arch_utils.semi_drop1_t
-          ?/arch_utils.semi_drop2_t ?/arch_utils.semi_drop3_t
-          ?/arch_utils.semi_drop4_t ?/riscv_extend_semi /=.
-
 Module RISCVFopnP.
 
 Section WITH_PARAMS.

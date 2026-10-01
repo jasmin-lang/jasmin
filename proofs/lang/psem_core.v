@@ -313,8 +313,9 @@ Qed.
 Lemma sopn_tinP o vs vs' : exec_sopn o vs = ok vs' ->
   all2 subctype (map eval_atype (sopn_tin o)) (List.map type_of_val vs).
 Proof.
-  rewrite /exec_sopn /sopn_tin /sopn_sem /sopn_sem_; t_xrbindP => _ _ <- + + _.
-  elim: (tin (get_instr_desc o)) vs (semi (get_instr_desc o)) => /= [ | t ti hrec] [ | v vs] //= semi p.
+  rewrite /exec_sopn /sopn_tin /sopn_sem /sopn_sem_.
+  move: (semi (get_instr_desc o)) => f; t_xrbindP => _ _ <- + + _.
+  elim: (tin (get_instr_desc o)) vs f => /= [ | t ti hrec] [ | v vs] //= semi p.
   by t_xrbindP => sv /= /of_val_subctype -> /hrec.
 Qed.
 

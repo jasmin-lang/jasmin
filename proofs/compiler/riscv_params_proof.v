@@ -43,14 +43,6 @@ Require Export riscv_params.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
-(* The semantics of an instruction is [mk_semi] applied to its total
-   semantics; these are plain definitions that [simpl] does not unfold. *)
-Ltac t_riscv_semi :=
-  rewrite ?/sopn_sem_ ?/semi ?/mk_semi /=;
-  rewrite ?/semi_to_atype_t ?/arch_utils.semi_drop1_t
-          ?/arch_utils.semi_drop2_t ?/arch_utils.semi_drop3_t
-          ?/arch_utils.semi_drop4_t ?/riscv_extend_semi /=.
-
 Section Section.
 
 Context
@@ -91,8 +83,7 @@ Proof.
     case: ifP => _.
     + case: is_zeroP => // hofs [<-] hw; exists (evm s2) => //.
       rewrite with_vm_same.
-      rewrite /sem_sopn /= P'_globs /exec_sopn ok_ve /= ok_w /=; t_riscv_semi.
-      rewrite sign_extend_u.
+      rewrite /sem_sopn /= P'_globs /exec_sopn ok_ve /= ok_w /= sign_extend_u.
       move: hofs ok_vofs ok_pofs hw => -> /=.
       rewrite /sem_sop1 /= => -[<-] /=.
       rewrite truncate_word_u wrepr0 => -[<-].
@@ -115,7 +106,7 @@ Proof.
       move=> [<-] hw.
       exists (evm s2) => //.
       rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb ok_vo /=
-        /exec_sopn /= ok_wb ok_wo /= /riscv_add_semi; t_riscv_semi.
+        /exec_sopn /= ok_wb ok_wo /= /riscv_add_semi.
       rewrite add_wordE.
       move: lea_sem; rewrite wrepr1 GRing.mul1r wrepr0 GRing.addr0 => ->.
       by rewrite hw /= with_vm_same.
@@ -125,29 +116,28 @@ Proof.
       move=> [<-] hw.
       exists s2.(evm) => //.
       rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb /=
-        /exec_sopn /= ok_wb /=; t_riscv_semi.
+        /exec_sopn /= ok_wb /=.
       move: lea_sem; rewrite wrepr0 GRing.mulr0 !GRing.addr0 => ->.
       by rewrite hw /= with_vm_same.
     case: ifP => _.
     + move=> [<-] hw.
       exists s2.(evm) => //.
       rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb /=
-        /exec_sopn /= ok_wb truncate_word_u /= /riscv_add_semi; t_riscv_semi.
+        /exec_sopn /= ok_wb truncate_word_u /= /riscv_add_semi.
       rewrite add_wordE.
       move: lea_sem; rewrite GRing.mulr0 GRing.addr0 => ->.
       by rewrite hw /= with_vm_same.
     move=> [<-] hw.
     exists s2.(evm) => //.
     rewrite /sem_sopn P'_globs /= /get_gvar /= ok_vb /=
-      /exec_sopn /= ok_wb truncate_word_u /=; t_riscv_semi.
+      /exec_sopn /= ok_wb truncate_word_u /=.
     rewrite add_wordE.
     move: lea_sem; rewrite GRing.mulr0 GRing.addr0 => ->.
     by rewrite hw /= with_vm_same.
   move=> al ws_ x_ e_; move: (Lmem al ws_ x_ e_) => {al ws_ x_ e_} x.
   case: is_zeroP => // hofs [<-] hw; exists (evm s2) => //.
   rewrite with_vm_same.
-  rewrite /sem_sopn /= P'_globs /exec_sopn ok_ve /= ok_w /=; t_riscv_semi.
-  rewrite zero_extend_u.
+  rewrite /sem_sopn /= P'_globs /exec_sopn ok_ve /= ok_w /= zero_extend_u.
   move: hofs ok_vofs ok_pofs hw => -> /=.
   rewrite /sem_sop1 /= => -[<-] /=.
   rewrite truncate_word_u wrepr0 => -[<-].
@@ -286,7 +276,7 @@ Proof.
   move=> xd xs ofs ws w wp s m /eqP hchk; t_xrbindP; subst ws.
   move=> vd hgetd htrd vs hgets htrs hwr.
   rewrite /riscv_lstore /= hgets hgetd /= /exec_sopn /= htrs /=.
-  rewrite /sem_sop2 /= htrd /= !truncate_word_u /= truncate_word_u /=; t_riscv_semi.
+  rewrite /sem_sop2 /= htrd /= !truncate_word_u /= truncate_word_u /=.
   by rewrite zero_extend_u hwr.
 Qed.
 
@@ -310,8 +300,7 @@ Proof.
   move/eqP: hcheck => ?; subst ws.
   rewrite /riscv_lload /= hgets /= /sem_sop2 /= hto /=.
   rewrite !truncate_word_u /= truncate_word_u /= hread /=.
-  rewrite /exec_sopn /= truncate_word_u /=; t_riscv_semi.
-  by rewrite sign_extend_u hset.
+  by rewrite /exec_sopn /= truncate_word_u /= sign_extend_u hset.
 Qed.
 
 Lemma riscv_lloads_correct : lloads_correct riscv_liparams.
@@ -517,7 +506,7 @@ Proof.
   case: lvs => // -[] // x [] // -[] // y [] //.
   case: args => // -[] // [] // z [] // [] // [] // w [] //=.
   t_xrbindP => vz hz _ vw hw <- <-.
-  rewrite /exec_sopn /= /semi /Oswap_instr /mk_semi /=.
+  rewrite /exec_sopn /= /Oswap_instr /=.
   t_xrbindP => /= _ wz hvz ww hvw <- <- /=.
   t_xrbindP.
   t_xrbindP => _ vm1 /set_varP [_ htrx ->] <- _ vm2 /set_varP [_ htry ->] <- <- /eqP hxw /eqP hyx
@@ -547,8 +536,7 @@ Proof.
   set xi := {| v_var := _ |}.
   case: args => // -[] // [] // y [] // [] // [] // [] // w [] // imm [] //=.
   t_xrbindP => vy hvy <-.
-  rewrite /exec_sopn /= /semi /mk_semi /=.
-  t_xrbindP => /= n w1 hw1 w2 hw2 <- <- /=.
+  rewrite /exec_sopn /=; t_xrbindP => /= n w1 hw1 w2 hw2 ? <- /=; subst n.
   t_xrbindP => ? vm1 hsetx <- <- /= /eqP hne.
   move=> /andP [] hxtty /andP [] hyty _ <- hmap hlom.
   move/to_wordI: hw1 => [ws [w' [?]]] /truncate_wordP [hle1 ?]; subst vy w1.
@@ -637,8 +625,7 @@ Definition riscv_is_move_opP op vx v :
   -> values_uincl v [:: vx ].
 Proof.
   case: op => // -[[] // op] /= hop.
-  rewrite /exec_sopn /sopn_sem /sopn_sem_ /=.
-  rewrite /semi /mk_semi /semi_to_atype_t /=.
+  rewrite /exec_sopn /=.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.
   clear e1 e2.

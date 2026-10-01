@@ -35,14 +35,6 @@ Require Import
   armv8a_params_core_proof
   armv8a_params.
 
-(* The semantics of an instruction is [mk_semi] applied to its total
-   semantics; these are plain definitions that [simpl] does not unfold. *)
-Ltac t_armv8a_semi :=
-  rewrite ?/sopn_sem_ ?/semi ?/mk_semi /=;
-  rewrite ?/semi_to_atype_t ?/arch_utils.semi_drop1_t
-          ?/arch_utils.semi_drop2_t ?/arch_utils.semi_drop3_t
-          ?/arch_utils.semi_drop4_t ?/armv8a_extend_semi /=.
-
 Module ARMv8AFopnP.
 
 Section WITH_PARAMS.

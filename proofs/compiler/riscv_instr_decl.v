@@ -492,6 +492,7 @@ Definition pp_sign_sz (s: string) (sign:signedness) (sz : wsize) (_: unit) : str
 Definition riscv_extend_semi s ws' ws (w : word ws) : word ws' :=
   let extend := if s is Signed then sign_extend else zero_extend in
   extend ws' ws w.
+Arguments riscv_extend_semi s ws' ws w /.
 
 (* TODO: unaligned access are ok but very discouraged on RISC-V, should we allow them? *)
 Definition riscv_LOAD_instr s ws : instr_desc_t :=

@@ -425,6 +425,7 @@ Definition mk_semi1_shifted_t
   fun wn shift_amount =>
     let sham := wunsigned shift_amount in
     semi (shift_op sk wn sham).
+Arguments mk_semi1_shifted_t {A ws} sk semi /.
 
 Definition mk_semi2_2_shifted_t
   {A} {o : ltype} {ws : wsize} (sk : shift_kind) (semi : sem_lprod [:: o; lword ws ] A) :
@@ -432,6 +433,7 @@ Definition mk_semi2_2_shifted_t
   fun x wm shift_amount =>
     let sham := wunsigned shift_amount in
     semi x (shift_op sk wm sham).
+Arguments mk_semi2_2_shifted_t {A o ws} sk semi /.
 
 #[ local ]
 Lemma mk_shifted_eq_size {A B} {x y} {xs0 : seq A} {ys0 : seq B} {p} :
@@ -2283,6 +2285,8 @@ Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
   end.
 
 End ARMV8A_INSTR.
+
+Arguments armv8a_extend_semi {ws} sign ws' wn /.
 
 Definition armv8a_instr_desc (o : armv8a_asm_op) : instr_desc_t :=
   let '(ARMv8A_op mn opts) := o in
