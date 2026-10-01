@@ -182,7 +182,8 @@ case: x y => [b1|z1|len1 a1|ws1 w1|t1 ?] [b2|z2|len2 a2|ws2 w2|t2 ?] //=.
       by rewrite (word_uincl_truncate (w := w1) hu) // truncate_word_u.
 Qed.
 
-Definition cast_vals tys vs := [seq wseq_of_val x.1 x.2 | x <- zip tys vs ].
+Definition cast_vals tys vs : seq wseq :=
+  [seq wseq_of_val x.1 x.2 | x <- zip tys vs ].
 
 Definition cast_vals_self vs := cast_vals (map type_of_val vs) vs.
 
@@ -293,6 +294,8 @@ Section CHOICEOF.
 
   Definition choiceof : Type := T.
 
+  (** We require 'choiceof T' to be classical, i.e. to satisfy the
+      excluded middle *)  
   Lemma choiceof_comparable : comparable choiceof.
   Proof. by move=> ??; apply/boolp.pselect. Qed.
 
@@ -304,8 +307,8 @@ Section CHOICEOF.
 
 End CHOICEOF.
 
-Notation "{ 'choice' T }" := (choiceof T)
-  (format "{ 'choice'  T }").
+Notation "{ 'choiceof' T }" := (choiceof T)
+  (format "{ 'choiceof'  T }").
 
 Section WSEQ_EP.
 
@@ -391,7 +394,7 @@ Section MAIN.
 Context {R : realType}.
 
 Notation distr := (distr R).
-Notation Rnd := (Rnd (R := R)).
+Notation RndE := (dinterp.RndE (R := R)).
 
 Class OracleSystemInterface :=
   {
@@ -409,7 +412,7 @@ Class OracleSystem :=
   {
     Mo : choiceType; (* Oracle memories. *)
     mi : Mo; (* Initial oracle memory. *)
-    Oo : forall (o : No), In o -> Mo -> itree Rnd (Out o * Mo);
+    Oo : forall (o : No), In o -> Mo -> itree RndE (Out o * Mo);
   }.
 
 End CIL.
@@ -445,18 +448,18 @@ Definition simulating : Prop := exists sim, is_sim sim.
 
 End SIM.
 
-Notation E := (ErrEvent +' RndEvent).
+Notation ER := (ErrEvent +' RndEvent).
 
 #[local] Existing Instance wE.
 #[local] Existing Instance rndE.
 
-Definition handleE : Handler RndEvent Rnd :=
+Definition handleRE : Handler RndEvent RndE :=
   fun _ '(syscall.Rnd len) =>
     let* bs := unif_rV (Z.to_nat len) in
     Ret (wseq_of_wvec bs).
 
-Definition to_Rnd : itree RndEvent ~> itree Rnd :=
-  fun _ t => interp handleE t.
+Definition interp_Rnd : itree RndEvent ~> itree RndE :=
+  fun _ t => interp handleRE t.
 
 
 Context
@@ -566,10 +569,10 @@ Record export_fn :=
     efn_fd_ok : get_fundef (p_funcs p) _fn = Some efn_fd;
   }.
 
-Definition JNo : choiceType := {choice export_fn}.
+Definition JNo : choiceType := {choiceof export_fn}.
 
 (* Oracle inputs *)
-Record valid_input o :=
+Record valid_input (o: funname) :=
   {
     _args :> values; (* inputs *)
     vi_safe : safe_on p o mS _args; (* inputs are safe *)
@@ -586,7 +589,7 @@ Record valid_input o :=
         full_pre p q o xfd (mkfs mS _args) (mkxm o xmT _args vi_ptrs);
   }.
 
-Definition JIn (o : JNo) : choiceType := {choice valid_input o}.
+Definition JIn (o : JNo) : choiceType := {choiceof valid_input o}.
 
 Definition JOut (o : JNo) : choiceType := seq wseq.
 
@@ -601,7 +604,7 @@ Instance JazzI : OracleSystemInterface :=
 (* -------------------------------------------------------------------------- *)
 (* Source oracle system *)
 
-Definition MoS : choiceType := {choice mem}.
+Definition MoS : choiceType := {choiceof mem}.
 
 (* Source programs take inputs as lists of values *)
 Definition unmkfs (fs : fstate) : seq wseq * mem :=
@@ -609,7 +612,7 @@ Definition unmkfs (fs : fstate) : seq wseq * mem :=
   (cast_vals tys fs.(fvals), fs.(fmem)).
 
 Definition isem_unit_res
-  (o : JNo) (i : JIn o) (m : MoS) : itree E (JOut o * MoS) :=
+  (o : JNo) (i : JIn o) (m : MoS) : itree ER (JOut o * MoS) :=
   let fs := mkfs m i in
   let* fs' := isem_unit p o fs in
   let (r, _) := unmkfs fs' in
@@ -624,8 +627,8 @@ Definition isem_unit_res
    - Every function call sets a fresh environment with arguments
    - Can sample randomness
    - Allows nontermination *)
-Definition OoS (o : JNo) (i : JIn o) (m : MoS) : itree Rnd (JOut o * MoS) :=
-  let* ores := to_Rnd (isem_unit_res o i m |> interp_Err) in
+Definition OoS (o : JNo) (i : JIn o) (m : MoS) : itree RndE (JOut o * MoS) :=
+  let* ores := interp_Rnd (isem_unit_res o i m |> interp_Err) in
   if ores is utils.Ok (rs, _) then Ret (rs, mS)
   else Ret ([::], mS). (* absurd *)
 
@@ -639,7 +642,7 @@ Instance Source : @OracleSystem JazzI :=
 (* -------------------------------------------------------------------------- *)
 (* Target oracle system *)
 
-Definition MoT : choiceType := {choice asmmem}.
+Definition MoT : choiceType := {choiceof asmmem}.
 
 (* We assume a function to read from target states.
    This function models what information reaches the adversary as an oracle
@@ -652,10 +655,11 @@ Context
     forall xfd o (i : valid_input o) fs xm,
       get_fundef q.(asm_funcs) o = Some xfd ->
       values_match p o xfd (mkxm o xmT i (vi_ptrs i)) fs xm ->
-      cast_vals [seq type_of_val v | v <- fvals fs] (fvals fs) = xget_res o xm (vi_ptrs i)).
+      cast_vals [seq type_of_val v | v <- fvals fs] (fvals fs)
+      = xget_res o xm (vi_ptrs i)).
 
 Definition isem_asm_res
-  (o : JNo) (i : JIn o) (m : MoT) : itree E (JOut o * MoT) :=
+  (o : JNo) (i : JIn o) (m : MoT) : itree ER (JOut o * MoT) :=
   let xm := mkxm o m i (vi_ptrs i) in
   let* xm' := isem_asm q o xm in
   Ret (xget_res o xm' (vi_ptrs i), xmT).
@@ -668,8 +672,8 @@ Arguments isem_asm_res : clear implicits.
    - Function calls are merely changes to the program counter
    - Can sample randomness
    - Allows nontermination *)
-Definition OoT (o : JNo) (i : JIn o) (m : MoT) : itree Rnd (JOut o * MoT) :=
-  let* ores := to_Rnd (isem_asm_res o i m |> interp_Err) in
+Definition OoT (o : JNo) (i : JIn o) (m : MoT) : itree RndE (JOut o * MoT) :=
+  let* ores := interp_Rnd (isem_asm_res o i m |> interp_Err) in
   if ores is utils.Ok res then Ret res
   else Ret ([::], xmT). (* absurd *)
 
@@ -781,7 +785,6 @@ move=> o i m1 m2 hm.
 have [xfd [hgetq _ heq]] := [elaborate
   it_compile_prog_to_asmP haparams print_uprogP print_sprogP print_linearP
   hcomp (efn_export o)].
-unfold Oo; simpl; unfold OoS, OoT; simpl.
 apply eutt_clo_bind with (UU := exec_rel eq_sim). 
 - apply/eutt_interp_RR/interp_exec_eutt_gen/eutt_isem_res/hm.
 move=> /= [[rs ms]|?] [[rt mt]|?] //=; last first.

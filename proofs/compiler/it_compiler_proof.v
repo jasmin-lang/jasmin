@@ -1757,7 +1757,8 @@ Definition full_post fn xfd (s : fstate) (t : asmmem) (s' : fstate) (t' : asmmem
     , List.Forall2 (value_in_mem mt') (take n ress) (take n argt)
     & values_uincl (drop n ress) rest ].
 
-Lemma it_compile_prog_to_asmP {fn} :
+(* Correctness of the full compiler *)
+Theorem it_compile_prog_to_asmP {fn} :
   compile_prog_to_asm aparams cparams entries up = ok xp ->
   fn \in entries ->
   exists xfd,

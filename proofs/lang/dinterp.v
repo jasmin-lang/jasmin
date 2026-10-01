@@ -35,10 +35,10 @@ Import ITree.
 
 Context {R : realType}.
 
-Variant Rnd : Type -> Type :=
-| GetRnd : forall {A : finType}, distr R A -> Rnd A.
+Variant RndE : Type -> Type :=
+| GetRnd : forall {A : finType}, distr R A -> RndE A.
 
-Definition unif_rV {T : finType} (n : nat) : itree Rnd 'rV[T]_n :=
+Definition unif_rV {T : finType} (n : nat) : itree RndE 'rV[T]_n :=
   trigger (GetRnd (dunif 'rV[T]_n)).
 
 End RND.
@@ -56,20 +56,20 @@ Section INTERP.
 
   Context {T : choiceType}.
 
-  Fixpoint dinterp' (t : itree' Rnd T) (n : nat) : distr R T :=
+  Fixpoint dinterp' (t : itree' RndE T) (n : nat) : distr R T :=
     if n is n.+1 then
       match t with
       | RetF r => dunit r
       | TauF t => dinterp' (observe t) n
       | VisF _ e k =>
-          match e in Rnd A return (A -> itree Rnd T) -> distr R T with
+          match e in RndE A return (A -> itree RndE T) -> distr R T with
           | GetRnd _ mu =>
               fun k0 => \dlet_(t <- mu) (dinterp' (observe (k0 t)) n)
           end k
       end
     else dnull.
 
-  Definition dinterp (t : itree Rnd T) : distr R T :=
+  Definition dinterp (t : itree RndE T) : distr R T :=
     dlim (dinterp' (observe t)).
 
   Lemma dinterp'_step t n : dle (dinterp' t n) (dinterp' t n.+1).
@@ -94,9 +94,9 @@ Section ONE.
 
 Context {T T' : choiceType} (RR : T -> T' -> Prop).
 
-Notation eqit_ind := (eqit_ind (E := Rnd (R := R)) (R := T) (R' := T')).
+Notation eqit_ind := (eqit_ind (E := RndE (R := R)) (R := T) (R' := T')).
 
-Lemma one_way (t : itree Rnd T) (t' : itree Rnd T') :
+Lemma one_way (t : itree RndE T) (t' : itree RndE T') :
   eutt RR t t' ->
   forall n, exists m,
     dleX RR (dinterp' (observe t) n) (dinterp' (observe t') m).
@@ -128,7 +128,7 @@ Qed.
 
 End ONE.
 
-Lemma eutt_deqX {T T' : choiceType} RR (t : itree Rnd T) (t' : itree Rnd T') :
+Lemma eutt_deqX {T T' : choiceType} RR (t : itree RndE T) (t' : itree RndE T') :
   eutt RR t t' ->
   deqX RR (dinterp t) (dinterp t').
 Proof.
@@ -139,7 +139,7 @@ move=> h; apply: dle_anti.
 apply (leX_dlim hmonot' hmonot), one_way; exact: eutt_flip h.
 Qed.
 
-Theorem dinterp_eutt {T : choiceType} (t t' : itree Rnd T) :
+Theorem dinterp_eutt {T : choiceType} (t t' : itree RndE T) :
   eutt eq t t' ->
   dinterp t =1 dinterp t'.
 Proof. move=> h; exact/deqX_eq/eutt_deqX. Qed.
