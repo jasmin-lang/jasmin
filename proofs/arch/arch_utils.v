@@ -134,21 +134,25 @@ Definition semi_drop1_t
   {tin tout} (f : sem_lprod tin (sem_ltuple_t tout)) :
   sem_lprod tin (sem_ltuple_t (behead1 tout)) :=
   behead_tuple_t f.
+Arguments semi_drop1_t {tin tout} f /.
 
 Definition semi_drop2_t
   {tin tout} (f : sem_lprod tin (sem_ltuple_t tout)) :
   sem_lprod tin (sem_ltuple_t (behead2 tout)) :=
   behead_tuple_t (behead_tuple_t f).
+Arguments semi_drop2_t {tin tout} f /.
 
 Definition semi_drop3_t
   {tin tout} (f : sem_lprod tin (sem_ltuple_t tout)) :
   sem_lprod tin (sem_ltuple_t (behead3 tout)) :=
   behead_tuple_t (behead_tuple_t (behead_tuple_t f)).
+Arguments semi_drop3_t {tin tout} f /.
 
 Definition semi_drop4_t
   {tin tout} (f : sem_lprod tin (sem_ltuple_t tout)) :
   sem_lprod tin (sem_ltuple_t (behead4 tout)) :=
   behead_tuple_t (behead_tuple_t (behead_tuple_t (behead_tuple_t f))).
+Arguments semi_drop4_t {tin tout} f /.
 
 #[local]
 Lemma drop_eq_size {A B} {p} {n : nat} {xs : seq A} {ys : seq B} :
