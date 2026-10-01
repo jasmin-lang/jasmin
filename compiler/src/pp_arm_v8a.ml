@@ -1,10 +1,12 @@
 (* Assembly printer for ARMv8-A (AArch64).
 
-   GNU assembler (ELF) syntax. Each operand is printed as the instruction
-   description requests it ([pp_arg]): a general-purpose register in its
-   32-bit W form or its 64-bit X form, by the size it is paired with; a
-   shift amount with the name of the shift ([lsl #3]), omitted when it is
-   zero. Immediate values are printed as nonnegative integers. *)
+   GNU assembler syntax, with Mach-O relocation operators when the target
+   system is macOS (see [pp_ADR]). Each operand is printed as the
+   instruction description requests it ([pp_arg]): a general-purpose
+   register in its 32-bit W form or its 64-bit X form, by the size it is
+   paired with; a shift amount with the name of the shift ([lsl #3]),
+   omitted when it is zero. Immediate values are printed as nonnegative
+   integers. *)
 
 open Arch_decl
 open Utils
@@ -102,10 +104,22 @@ let pp_mnemonic (ARMv8A_op (mn, _) as op) =
   | _ -> String.lowercase_ascii pp.pp_aop_name
 
 (* Split an [ADR] instruction to a global symbol into an [ADRP]/[ADD]
-   pair using :lo12: relocations. *)
-let pp_ADR dst addr =
-  [ Instr ("adrp", [ dst; addr ]);
-    Instr ("add", [ dst; dst; ":lo12:" ^ addr ]) ]
+   pair: [ADRP] computes the 4 KiB page of the address and [ADD] adds the
+   offset within that page. ELF assemblers write these operands [sym] and
+   [:lo12:sym]; Mach-O ones [sym@PAGE] and [sym@PAGEOFF]. *)
+let pp_ADR dst p =
+  let page, pageoff =
+    if is_target_system_macos () then
+      let pp_reloc r =
+        Format.asprintf "%s@@%s+%a" global_datas_label r Z.pp_print (Conv.z_of_int32 p)
+      in
+      (pp_reloc "PAGE", pp_reloc "PAGEOFF")
+    else
+      let addr = pp_rip_address p in
+      (addr, ":lo12:" ^ addr)
+  in
+  [ Instr ("adrp", [ dst; page ]);
+    Instr ("add", [ dst; dst; pageoff ]) ]
 
 module Armv8aTarget : AsmTargetBuilder.AsmTarget with
   type reg = Armv8a_decl.register
@@ -201,7 +215,7 @@ module Armv8aTarget : AsmTargetBuilder.AsmTarget with
         let pp = id.id_pp_asm args in
         match op, args with
         | ARMv8A_op (ADR, _), [ dst; Addr (Arip r) ] ->
-            pp_ADR (pp_asm_arg dst) (pp_rip_address r)
+            pp_ADR (pp_asm_arg dst) r
         | _, _ ->
             [ Instr (pp_mnemonic op, List.filter_map pp_arg pp.pp_aop_args) ]
 
