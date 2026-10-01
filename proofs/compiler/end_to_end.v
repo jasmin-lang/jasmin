@@ -68,14 +68,12 @@ Require Import
   arch_params_proof
   stack_alloc_proof_1
   stack_alloc_proof_2
- (* compiler_proof *)
   it_compiler_proof
   asm_gen_proof
 .
 Require allocation.
 
 Require Import
- (* cil *)
   dinterp
 .
 From Stdlib Require Import Program.Equality.
@@ -98,15 +96,13 @@ Section MOVE.
 
 Context
   {reg regx xreg rflag cond asm_op extra_op : Type}
-(*  {sc_sem : syscall.syscall_sem syscall_state} *)
   {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
   {call_conv : calling_convention}
   {asm_scsem : asm_syscall_sem}
-(*  {it_asm_scsem : it_asm_syscall_sem} *)
   {lowering_options : Type}
-  (aparams : architecture_params) (* lowering_options) *)
+  (aparams : architecture_params) 
   (haparams : h_architecture_params aparams)
-  (cparams : compiler_params) (* lowering_options) *)
+  (cparams : compiler_params) 
   (print_uprogP : forall s p, cparams.(print_uprog) s p = p)
   (print_sprogP : forall s p, cparams.(print_sprog) s p = p)
   (print_linearP : forall s p, cparams.(print_linear) s p = p)
@@ -368,9 +364,6 @@ Lemma write_wseq_it_wf_args {gsz rip ms mt p bytes wptrs vs vt ws} :
   wf_args gsz rip ms (write_wseq mt p bytes) wptrs ws vs vt.
 Proof. move=> h i; exact: write_wseq_wf_arg (h i). Qed.
 
-Locate fill_mem_disjoint.
-Check @fill_mem_disjoint.
-
 Lemma write_wseq_extend_mem ms mt rip gd p a :
   let: n := Z.of_nat (size a) in
   (0 < n)%Z -> 
@@ -436,15 +429,6 @@ Context
 Notation Mo1 := (Mo (O := O1)).
 Notation Mo2 := (Mo (O := O2)).
 
-(*
-Notation trace1 := (trace (O := O1)).
-Notation trace2 := (trace (O := O2)).
-Notation E1 := (stateE trace1 +' Rnd).
-Notation E2 := (stateE trace2 +' Rnd).
-Notation WinCond1 := (WinningCondition (O := O1)).
-Notation WinCond2 := (WinningCondition (O := O2)).
-*)
-
 Definition eqR {X A B} (R : A -> B -> Prop) (a : X * A) (b : X * B) : Prop :=
   a.1 = b.1 /\ R a.2 b.2.
 
@@ -460,11 +444,6 @@ Class is_sim (sim : Mo1 -> Mo2 -> Prop) :=
 Definition simulating : Prop := exists sim, is_sim sim.
 
 End SIM.
-
-(*
-Instance sc_sem : syscall.syscall_sem unit :=
-  {| syscall.get_random := fun _ _ => (tt, [::]); |}.
-*)
 
 Notation E := (ErrEvent +' RndEvent).
 
@@ -484,7 +463,6 @@ Context
   {reg regx xreg rflag cond asm_op extra_op : Type}
   {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
   {call_conv : calling_convention}
-(*  {asm_scsem : asm_syscall_sem} *)
   {it_asm_scsem : asm_syscall_sem}
 .
 
@@ -630,8 +608,6 @@ Definition unmkfs (fs : fstate) : seq wseq * mem :=
   let: tys := [seq type_of_val v | v <- fs.(fvals) ] in
   (cast_vals tys fs.(fvals), fs.(fmem)).
 
-Locate E.
-
 Definition isem_unit_res
   (o : JNo) (i : JIn o) (m : MoS) : itree E (JOut o * MoS) :=
   let fs := mkfs m i in
@@ -707,13 +683,11 @@ Instance Target : @OracleSystem JazzI :=
 (* -------------------------------------------------------------------------- *)
 (* Proof. *)
 
-Locate architecture_params.
-
 Context
   {lowering_options : Type}
-  (aparams : architecture_params) (* lowering_options) *)
+  (aparams : architecture_params) 
   (haparams : h_architecture_params aparams)
-  (cparams : compiler_params) (* lowering_options) *)
+  (cparams : compiler_params) 
   (print_uprogP : forall s p, cparams.(print_uprog) s p = p)
   (print_sprogP : forall s p, cparams.(print_sprog) s p = p)
   (print_linearP : forall s p, cparams.(print_linear) s p = p)
@@ -800,13 +774,15 @@ Qed.
 (* Security preservation: the source and target oracle systems are in
    simulation *)
 Theorem compiler_preserves : simulating Source Target.
-Proof.
+Proof using xget_resP print_uprogP print_sprogP print_linearP hcomp haparams
+  cparams aparams.
 exists sim; split; first exact: sim_mS_xmT.
 move=> o i m1 m2 hm.
 have [xfd [hgetq _ heq]] := [elaborate
   it_compile_prog_to_asmP haparams print_uprogP print_sprogP print_linearP
-    hcomp (efn_export o)].
-apply (eutt_clo_bind _ (UU := exec_rel eq_sim)).
+  hcomp (efn_export o)].
+unfold Oo; simpl; unfold OoS, OoT; simpl.
+apply eutt_clo_bind with (UU := exec_rel eq_sim). 
 - apply/eutt_interp_RR/interp_exec_eutt_gen/eutt_isem_res/hm.
 move=> /= [[rs ms]|?] [[rt mt]|?] //=; last first.
 - move=> _; apply eutt_Ret; split=> //=; exact/sim_mS_xmT.
@@ -815,6 +791,8 @@ by case: hm' => _ ->.
 Qed.
 
 End DEFS.
+
+End MAIN.
 
 
 
