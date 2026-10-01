@@ -1287,7 +1287,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
 
     begin match op with
     | `Cast (`ToInt s) ->
-      let e = cast_int (L.loc pe) s e ety in
+      let e = cast_int (L.loc pe) (Some s) e ety in
       e, P.etint
 
     | `Cast (`ToWord (sz, sg)) ->
