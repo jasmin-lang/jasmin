@@ -57,13 +57,6 @@ Definition sem_fopn_args (p : seq lexpr * arm_op * seq rexpr) (s : estate) :=
 
 Definition sem_fopns_args := foldM sem_fopn_args.
 
-(* The semantics of an instruction is [mk_semi] applied to its total
-   semantics; these are plain definitions that [simpl] does not unfold. *)
-Ltac t_arm_semi :=
-  rewrite ?/id_semi ?/mk_semi /=;
-  rewrite ?/arch_utils.semi_drop1_t ?/arch_utils.semi_drop2_t
-          ?/arch_utils.semi_drop3_t ?/arch_utils.semi_drop4_t /=.
-
 Lemma add_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr} :
   convertible xi.(vtype) (aword arm_reg_size) ->
   get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
@@ -98,8 +91,8 @@ Lemma sub_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr}
   sem_fopn_args (ARMFopn_core.sub xi y z) s = ok (with_vm s vm').
 Proof.
   move=> hc.
-  rewrite /=; t_xrbindP => *; t_arm_op; t_arm_semi.
-  by rewrite !add_wordE wsub_wnot1 set_var_truncate // (convertible_eval_atype hc) truncatable_cword.
+  rewrite /=; t_xrbindP => *; t_arm_op.
+  by rewrite /= !add_wordE wsub_wnot1 set_var_truncate // (convertible_eval_atype hc) truncatable_cword.
 Qed.
 
 Lemma subi_sem_fopn_args {s} {xi:var_i} {y imm wy} :
@@ -110,8 +103,8 @@ Lemma subi_sem_fopn_args {s} {xi:var_i} {y imm wy} :
   sem_fopn_args (ARMFopn_core.subi xi y imm) s = ok (with_vm s vm').
 Proof.
   move=> hc.
-  rewrite /=; t_xrbindP => *; t_arm_op; t_arm_semi.
-  by rewrite !add_wordE wsub_wnot1 set_var_truncate // (convertible_eval_atype hc) truncatable_cword.
+  rewrite /=; t_xrbindP => *; t_arm_op.
+  by rewrite /= !add_wordE wsub_wnot1 set_var_truncate // (convertible_eval_atype hc) truncatable_cword.
 Qed.
 
 Lemma mov_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} :

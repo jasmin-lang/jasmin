@@ -467,6 +467,7 @@ Definition mk_semi_cond_t tin tout (f : sem_lprod tin (sem_ltuple_t tout))
     sem_prod_app f f0
   in
   add_arguments f1.
+Arguments mk_semi_cond_t tin tout f /.
 
 Lemma safe_wf_cat (tin tin' : seq ltype) sc :
   all (fun sc => sc_needed_args sc <= size tin) sc ->
@@ -552,6 +553,7 @@ Definition mk_semi1_shifted_t
   fun wn shift_amount =>
     let sham := wunsigned shift_amount in
     semi (shift_op sk wn sham).
+Arguments mk_semi1_shifted_t {A} sk semi /.
 
 Definition mk_semi2_2_shifted_t
   {A} {o : ltype} (sk : shift_kind) (semi : sem_lprod [:: o; lreg ] A) :
@@ -559,6 +561,7 @@ Definition mk_semi2_2_shifted_t
   fun x wm shift_amount =>
     let sham := wunsigned shift_amount in
     semi x (shift_op sk wm sham).
+Arguments mk_semi2_2_shifted_t {A o} sk semi /.
 
 Definition mk_semi3_2_shifted_t
   {A} {o0 o1 : ltype} (sk : shift_kind) (semi : sem_lprod [:: o0; lreg; o1 ] A) :
@@ -566,6 +569,7 @@ Definition mk_semi3_2_shifted_t
   fun x wm y shift_amount =>
     let sham := wunsigned shift_amount in
     semi x (shift_op sk wm sham) y.
+Arguments mk_semi3_2_shifted_t {A o0 o1} sk semi /.
 
 #[ local ]
 Lemma mk_shifted_eq_size {A B} {x y} {xs0 : seq A} {ys0 : seq B} {p} :
@@ -2362,6 +2366,8 @@ Definition mn_desc (mn : arm_mnemonic) : instr_desc_t :=
   end.
 
 End ARM_INSTR.
+
+Arguments arm_extend_semi {ws} sign ws' wn /.
 
 Definition arm_instr_desc (o : arm_op) : instr_desc_t :=
   let '(ARM_op mn opts) := o in

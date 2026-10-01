@@ -25,14 +25,6 @@ Require Import
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
-(* The semantics of an instruction is [mk_semi] applied to its total
-   semantics; these are plain definitions that [simpl] does not unfold. *)
-Ltac t_riscv_semi :=
-  rewrite ?/sopn_sem_ ?/semi ?/mk_semi /=;
-  rewrite ?/semi_to_atype_t ?/arch_utils.semi_drop1_t
-          ?/arch_utils.semi_drop2_t ?/arch_utils.semi_drop3_t
-          ?/arch_utils.semi_drop4_t ?/riscv_extend_semi /=.
-
 Section PROOF.
 
 Context
@@ -274,7 +266,7 @@ Proof.
     move: htrunc.
     move => /truncate_val_typeE [w [ws' [w']]] [] h_trunc  ??; subst => /=.
     rewrite h_trunc /= h_cmp /=.
-    rewrite /= /semi /mk_semi /semi_to_atype_t computational_eq_refl /=.
+    rewrite computational_eq_refl /=.
     rewrite zero_extend_u.
     by rewrite hwrite.
   case: e hseme => //=.
@@ -287,7 +279,6 @@ Proof.
       move: htrunc.
       move => /truncate_val_typeE [w [ws' [w']]] [] h_trunc  ??; subst => /=.
       rewrite h_trunc /=.
-      t_riscv_semi.
       rewrite sign_extend_u.
       by rewrite hwrite.
     rewrite /sem_sopn /= hseme /= /exec_sopn /=.
@@ -308,7 +299,6 @@ Proof.
       rewrite /truncate_val /=.
       t_xrbindP.
       move=> z3 -> ?; subst => /=.
-      t_riscv_semi.
       rewrite sign_extend_u.
       by rewrite hwrite.
   + move => a w p0.
@@ -323,7 +313,6 @@ Proof.
       rewrite /truncate_val /=.
       t_xrbindP.
       move=> z4 -> ?; subst => /=.
-      t_riscv_semi.
       rewrite sign_extend_u.
       by rewrite hwrite.
   + move => s p0 hseme.
@@ -357,7 +346,7 @@ Proof.
       move: htrunc.
       rewrite /truncate_val /= truncate_word_u /= => -[] ?; subst.
       rewrite truncate_word_le //= hle /=.
-      rewrite /= /semi /mk_semi /semi_to_atype_t computational_eq_refl /=.
+      rewrite computational_eq_refl /=.
       by rewrite hwrite.
     + move => w w0 hseme /=.
       case: w hseme => // hseme.
@@ -375,7 +364,7 @@ Proof.
       move: htrunc.
       rewrite /truncate_val /= truncate_word_u /= => -[] ?; subst.
       rewrite truncate_word_le //= hle /=.
-      rewrite /= /semi /mk_semi /semi_to_atype_t computational_eq_refl /=.
+      rewrite computational_eq_refl /=.
       by rewrite hwrite.
     + move => ws hseme.
       case: ws hseme => //= hseme.
@@ -453,7 +442,7 @@ Proof.
     set op2' := Oasm _.
     have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
       Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
-    by rewrite sem_correct //= /semi /mk_semi /semi_to_atype_t /= /riscv_sub_semi !sub_wordE wsub_zero_extend.
+    by rewrite sem_correct //= /riscv_sub_semi !sub_wordE wsub_zero_extend.
   + case => // -[] // [] //=.
     + rewrite /sem_sop2 /=.
       t_xrbindP=> w1 ok_w1 w2 ok_w2.
@@ -464,7 +453,6 @@ Proof.
       move=> [<- <- <-].
       rewrite /sem_sopn /= ok_v1 ok_v2 /=.
       rewrite /exec_sopn /= ok_w1 ok_w2 /=.
-      t_riscv_semi.
       rewrite /riscv_div_semi w2_nzero. simpl.
       rewrite (truncate_val_subctype_eq htrunc) //.
       by rewrite hwrite.
@@ -476,7 +464,6 @@ Proof.
     move=> [<- <- <-].
     rewrite /sem_sopn /= ok_v1 ok_v2 /=.
     rewrite /exec_sopn /= ok_w1 ok_w2 /=.
-    t_riscv_semi.
     rewrite /riscv_divu_semi w2_nzero.
     rewrite (truncate_val_subctype_eq htrunc) //.
     by rewrite hwrite.
@@ -490,7 +477,6 @@ Proof.
       move=> [<- <- <-].
       rewrite /sem_sopn /= ok_v1 ok_v2 /=.
       rewrite /exec_sopn /= ok_w1 ok_w2 /=.
-      t_riscv_semi.
       rewrite /riscv_rem_semi.
       rewrite (truncate_val_subctype_eq htrunc) //.
       by rewrite hwrite.
@@ -502,7 +488,6 @@ Proof.
     move=> [<- <- <-].
     rewrite /sem_sopn /= ok_v1 ok_v2 /=.
     rewrite /exec_sopn /= ok_w1 ok_w2 /=.
-    t_riscv_semi.
     rewrite /riscv_div_semi.
     rewrite (truncate_val_subctype_eq htrunc) //.
     by rewrite hwrite.
@@ -576,7 +561,7 @@ Proof.
     rewrite /sem_sopn /=.
     t_xrbindP.
     move => vs _ v1 ok_v1 _ v2 ok_v2 <- <-.
-    rewrite /exec_sopn /= /semi /mk_semi /=.
+    rewrite /exec_sopn /=.
     t_xrbindP => _ w0 ok_w0 w1 ok_w1 <- <- /=.
     t_xrbindP => s2 ok_s2 {}s1 ok_s1 <-.
     rewrite /sem_sopn /= ok_v1 /= ok_v2 /= /exec_sopn /= ok_w0 /= ok_w1 /= ok_s2 /=.

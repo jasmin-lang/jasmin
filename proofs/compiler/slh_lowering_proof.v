@@ -551,7 +551,7 @@ Section LOWER_SLHO.
     move=> b /to_boolI ?; subst v1.
     move: h => /value_uinclE [?]; subst b => r hr hsem <- hwrite.
     split=> //.
-    exact: lower_SLHmove_exec_sopn_aux hwf hx hr hsem hwrite.
+    by apply: (lower_SLHmove_exec_sopn_aux hwf hx hr _ hwrite); rewrite /= -hsem.
   Qed.
 
   (* [wf_env_cond]: we either drop or leave the condition as is.
@@ -565,7 +565,7 @@ Section LOWER_SLHO.
     case: es => //= e1; t_xrbindP => es /(check_e_msfP _ hwf) ->.
     case: es => /=; t_xrbindP; last by move=> *; subst.
     move=> ox hx <- _ <- _ _ <- _ t w hw hsem <- hwrite; split=> //.
-    exact: lower_SLHmove_exec_sopn_aux hwf hx hw hsem hwrite.
+    by apply: (lower_SLHmove_exec_sopn_aux hwf hx hw _ hwrite); rewrite /= -hsem.
   Qed.
 
   (* [wf_env_cond]: we either drop or leave the condition as is.
@@ -608,8 +608,7 @@ Section LOWER_SLHO.
     move=> e2 [] /=; t_xrbindP; last by move=> *; subst.
     move=> v1' he1 _ v2' he2 _ <- <- ? [?]; subst v1' v2'.
     move=> t1 t2 hv1 msf hmsf.
-    rewrite /sopn_sem /= /semi /= -protect_ptr_fail_eq;
-      t_xrbindP => /eqP ???;
+    rewrite /check_safe_conds /= truncate_word_u andbT; case: eqP => // ? _ ??;
       subst t2 msf res env'.
     case: lvs => //= lv; t_xrbindP => -[] //= s'' hw [?]; subst s''.
     split => //; apply: wf_env_after_assign_vars1; eauto.
@@ -948,7 +947,7 @@ case: is_protect_ptrP hargs hchk hexec => {slho} [[ws sz]|slho] /=; t_xrbindP.
     hsemes (mapM_nth (Pconst 0%Z) (Vint 0) (n := 1) hsemes);
     last by rewrite (size_mapM hsemes).
   move=> [->] ?? /= -> /= ?.
-  rewrite /semi /= /mk_semi /= truncate_word_u /= /check_safe_conds /= truncate_word_u /=.
+  rewrite /= truncate_word_u /= /check_safe_conds /= truncate_word_u /=.
   rewrite /se_protect_ptr_sem => - _ [->] ?; subst res.
   move: xs hwrite; rewrite /write_lvals; destruct_opn_args=> {}s' hwrite [<-].
   rewrite hwrite; exists s' => //; split=> //.
