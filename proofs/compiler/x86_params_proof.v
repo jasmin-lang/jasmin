@@ -148,7 +148,7 @@ Proof.
   rewrite /exec_sopn /=.
   case: ifP => /= h.
   1: case: andP => [ [] hregx hws32 | hmov ] /=.
-  all: rewrite hv /= /semi_to_atype_t computational_eq_refl.
+  all: rewrite hv /= computational_eq_refl.
   + by rewrite /x86_MOVX /size_32_64 hws32 h /= hwr.
   + by rewrite /x86_MOV /= /size_8_64 h /= hwr.
   by rewrite /x86_VMOVDQ (wsize_nle_u64_size_128_256 h) /= hwr.
@@ -512,7 +512,6 @@ Proof.
   case: args => // h [] // [] // [] // [l li] [] //=.
   rewrite /exec_sopn /=.
   t_xrbindP => vh hvh _ vl hvl <- <-{xs}.
-  rewrite /semi /mk_semi /=.
   t_xrbindP => _ wh hwh wl hwl <- <-{ys} /=.
   case: lvs => // y [] /=; t_xrbindP => // z hw ? hops hmap hlow; subst z.
   have hwr : write_lexprs [::y] [::Vword (make_vec U256 [:: wl; wh])] m = ok m' by rewrite /= hw.
@@ -554,7 +553,6 @@ Proof.
   clear hes.
 
   case: xs => //.
-  rewrite /semi /mk_semi /=.
   t_xrbindP=> vx [|//] w w' hw; rewrite /se_move_sem => -[?] ?; subst w' ys.
   case: ifP => _; by rewrite /= hw /= hwrite.
 Qed.
@@ -676,7 +674,7 @@ Proof.
     t_xrbindP => -[op' asm_args] hass <- hlow /=.
     assert (h1 := assemble_asm_opI hass); case: h1 => hca hcd hidc -> /= {hass}.
     have hex: exec_sopn (Oasm (BaseOp (None, MULX_lo_hi sz))) xs = ok [:: Vword whilo.2; Vword whilo.1].
-    + rewrite /exec_sopn /sopn_sem /= /semi_to_atype_t computational_eq_refl.
+    + rewrite /exec_sopn /= computational_eq_refl.
       case: (xs) hwhilo => // v1; t_xrbindP => -[] // v2; t_xrbindP => -[] // w1 -> w2 ->.
       by rewrite /x86_MULX /x86_MULX_lo_hi hsz32_64 /= => -[<-].
     have hw' :
@@ -697,9 +695,9 @@ Proof.
     t_xrbindP => -[op' asm_args] hass <- hlow /=.
     assert (h1 := assemble_asm_opI hass); case: h1 => hca hcd hidc -> /= {hass}.
     case: xs hargs hwhi => // v1; t_xrbindP => -[] // v2; t_xrbindP => -[] // hargs w1 hv1 w2 hv2.
-    rewrite /semi /mk_semi /= /x86_MULX_hi; t_xrbindP => hwhi; pose wlo := (wumul w1 w2).2.
+    rewrite /x86_MULX_hi; t_xrbindP => hwhi; pose wlo := (wumul w1 w2).2.
     have hex: exec_sopn (Oasm (BaseOp (None, MULX_lo_hi sz))) [:: v1; v2] = ok [:: Vword wlo; Vword whi].
-    + by rewrite /exec_sopn /sopn_sem /= /semi_to_atype_t computational_eq_refl
+    + by rewrite /exec_sopn /= computational_eq_refl
         hval hv1 hv2 /= /x86_MULX_lo_hi /= -hwhi /wlo /wmulhu /wumul /=.
     have hw' :
        write_lexprs [:: LLvar hi; LLvar hi] [:: Vword wlo; Vword whi] m =
@@ -757,15 +755,14 @@ Opaque cat.
   (* ws <= U64 *)
   - case: rk => /=; t_xrbindP.
     + case: xs => // vw; t_xrbindP => -[] // vmsf; t_xrbindP => // -[] // hes _ _ <- tr w hw wmsf hmsf.
-      rewrite /semi /mk_semi /= /se_protect_small_sem_t /x86_OR_t => -[?] ? hws ? hmap hlo;
-        subst tr ys ops.
+      rewrite /= /se_protect_small_sem_t /x86_OR_t => -[?] ? hws ? hmap hlo; subst tr ys ops.
       apply: (assemble_opsP eval_assemble_cond hmap erefl _ hlo).
-      by rewrite /= hes /exec_sopn /= hw hmsf /= /semi_to_atype_t !computational_eq_refl
+      by rewrite /= hes /exec_sopn /= hw hmsf /= !computational_eq_refl
         /size_8_64 Hws /= hws.
     (* MMX *)
     case: xs => // vw.
     t_xrbindP => -[] // vmsf; t_xrbindP => // -[] // hes _ /eqP ? <- tr w hw wmsf hmsf.
-    rewrite /semi /mk_semi /= /se_protect_mmx_sem /x86_POR.
+    rewrite /se_protect_mmx_sem /x86_POR.
     t_xrbindP => ?? hws ? hmap hlo; subst ws tr ys ops.
     apply: (assemble_opsP eval_assemble_cond hmap erefl _ hlo).
     by rewrite /= hes /exec_sopn /= hw hmsf /= /x86_POR /= hws.
@@ -776,12 +773,12 @@ Opaque cat.
     case: xs => // vw.
     t_xrbindP=> -[] // vmsf.
     t_xrbindP=> // -[] // _ ? /eqP ? <- ?????; subst ws.
-    by rewrite /semi /mk_semi /se_protect_mmx_sem /= => -[<-].
+    by rewrite /se_protect_mmx_sem /= => -[<-].
 
   have {}Hws : (U64 < ws)%CMP by rewrite -cmp_nle_lt Hws.
   have Hws' : (U128 <= ws)%CMP by case: (ws) Hws.
   case: xs => // vw; t_xrbindP => -[] // vmsf; t_xrbindP => // -[] // hes _ hval <- tr w hw wmsf hmsf.
-  rewrite /semi /mk_semi /se_protect_large_sem /= => -[?]?; subst tr ys.
+  rewrite /se_protect_large_sem /= => -[?]?; subst tr ys.
   case: lvs => // -[] // [aux iaux] [] // y [] // hws.
   case: args hes => // ew [] // emsf [] // hes1.
   t_xrbindP; rewrite negb_or => /andP [] haux1 haux2 hops /[dup] + hmap hlo.
@@ -822,8 +819,7 @@ Opaque cat.
     + by rewrite /get_var /vm0 Vm.setP_eq /=.
     have -> /= : sem_rexpr (emem m) vm0 emsf = ok vmsf.
     + by rewrite -hemsf; apply: free_vars_rP.
-    rewrite /exec_sopn /= hmsf /= !truncate_word_le // /= /semi /mk_semi /= /x86_VPINSR /=
-      /semi_to_atype_t !computational_eq_refl /= !zero_extend_u.
+    rewrite /exec_sopn /= hmsf /= !truncate_word_le // /= /x86_VPINSR /=.
     have -> : wand (wrepr U8 0) (x86_nelem_mask U64 U128) = wrepr U8 0.
     + by apply/wunsigned_inj/(wand_modulo _ 1).
     have -> /=: get_var true vm1 (to_var xr) = ok (Vword v1).
@@ -832,7 +828,7 @@ Opaque cat.
     + rewrite -hemsf; apply: free_vars_rP.
       apply/(eq_onT (vm2:= vm0)) => //.
       by apply/eq_onS/(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v1)).
-    rewrite /exec_sopn /= hmsf /= !truncate_word_u /= /semi /mk_semi /= /x86_VPINSR /=.
+    rewrite /exec_sopn /= hmsf /= !truncate_word_u /= /x86_VPINSR /=.
     have -> : wand (wrepr U8 1) (x86_nelem_mask U64 U128) = wrepr U8 1.
     + by apply/wunsigned_inj/(wand_modulo _ 1).
     rewrite /m2 /= /vm2 /v2 /with_vm /=.
@@ -882,7 +878,7 @@ Transparent cat.
       + by apply(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v1)).
       + by apply(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v2)).
       apply/(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v3)) => //.
-    by rewrite /exec_sopn /= truncate_word_u hw /= /semi_to_atype_t !computational_eq_refl
+    by rewrite /exec_sopn /= truncate_word_u hw /= !computational_eq_refl
       /x86_VPOR /size_128_256 Hws' /= (wsize_ge_U256 ws) /=.
   exists s' => //; apply: lom_eqv_ext hlo4 => z /=.
   rewrite /vm4; case: (to_var yr =P z) => [ | /eqP] ?;first by subst z; rewrite !Vm.setP_eq.
@@ -992,10 +988,8 @@ Proof.
   all: t_xrbindP => w w0 /to_wordI' [ws' [wx [hle ??]]];
          subst vx w0.
 
-  all: rewrite /sopn_sem /sopn_sem_ /=.
-  1-3: rewrite /semi_to_atype_t computational_eq_refl.
+  1-3: rewrite computational_eq_refl.
   all: rewrite /x86_MOV /x86_VMOVDQ /se_move_sem.
-  all: rewrite /semi /mk_semi /=.
   all: t_xrbindP=> *.
   all: t_simpl_rewrites; subst.
 

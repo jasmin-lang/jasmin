@@ -83,6 +83,7 @@ Record instruction_desc := mkInstruction {
 Definition semi (i : instruction_desc) :
     sem_prod (map eval_atype i.(tin)) (exec (sem_tuple (map eval_atype i.(tout)))) :=
   mk_semi i.(i_safe) i.(i_err) i.(i_init) i.(i_semi_total).
+Arguments semi !i /.
 
 Arguments semu _ [vs vs' v] _ _.
 
@@ -252,7 +253,7 @@ Lemma copy_semu ws p vs vs' v :
 Proof.
 rewrite /app_sopn_v /= => -[] {vs vs'} // v1 v2 + +
   /of_value_uincl_te -/(_ (carr (arr_size ws p))) /= hu.
-move=> l l'; case => //=; rewrite /mk_semi /= /safety_cond_holds /= /check_safe_conds /=.
+move=> l l'; case => //=; rewrite /= /safety_cond_holds /= /check_safe_conds /=.
 + t_xrbindP => t a /hu [a' -> ha].
   rewrite !WArray.castK /= !andbT WArray.castK /=.
   case: ifP => // hall _ <- <-.
@@ -426,7 +427,7 @@ case => // _ z1 hv1 z2 hv2 [] <- /=.
 rewrite /safety_cond_holds /= => <-.
 have [z1' -> hu1'] := val_uincl_of_val hu1 hv1.
 have [z2' -> hu2' /=] := val_uincl_of_val hu2 hv2.
-rewrite /mk_semi /= /safety_cond_holds /=.
+rewrite /= /safety_cond_holds /=.
 eexists; first by eauto.
 rewrite !filter_ot_true.
 by repeat constructor; apply: value_uincl_oto_val.
@@ -530,7 +531,7 @@ Proof.
   rewrite /app_sopn_v /= => -[] {vs vs'} // v1 v2 + + /of_value_uincl_te -/(_ (carr n)) /= hu.
   move=> [ | v1' [ | ]]; [ by t_xrbindP | | by t_xrbindP].
   move=> _ /List_Forall2_inv_l -[v2' [_ [-> [/of_value_uincl_te -/(_ cty_msf) /= hu' /List_Forall2_inv_l ->]]]].
-  rewrite /mk_semi /= /safety_cond_holds /=.
+  rewrite /= /safety_cond_holds /=.
   t_xrbindP => /= t a /hu [t' -> ha] w' /hu' -> <- <- /=.
   by exists [::Varr t'] => //; constructor.
 Qed.
@@ -568,7 +569,7 @@ Proof.
   rewrite /app_sopn_v /= => -[] {vs vs'} // v1 v2 + + /of_value_uincl_te -/(_ (carr n)) /= hu.
   move=> [ | v1' [ | ]]; [ by t_xrbindP | | by t_xrbindP].
   move=> _ /List_Forall2_inv_l -[v2' [_ [-> [/of_value_uincl_te -/(_ cty_msf) /= hu' /List_Forall2_inv_l ->]]]].
-  rewrite /mk_semi /= /safety_cond_holds /= /check_safe_conds /=.
+  rewrite /= /safety_cond_holds /= /check_safe_conds /=.
   t_xrbindP => /= t a /hu [t' -> ha] w' /hu' ->.
   rewrite /= !truncate_word_u !andbT.
   by case: eqP => //= _ _ <- <-; exists [:: Varr t'] => //; constructor.

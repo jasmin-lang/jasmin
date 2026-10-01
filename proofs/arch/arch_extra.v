@@ -419,3 +419,4 @@ Global Instance asm_opI : asmOp extended_op :=
 
 End AsmOpI.
 
+Arguments semi_to_atype_t {tin tout} f /.
