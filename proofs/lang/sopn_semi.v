@@ -100,7 +100,7 @@ Definition mk_semi (tin tout : seq ctype) (safe : seq safe_cond) (err : error)
     (fun vs t => Let _ := check_safe_conds vs safe err in
                  ok (filter_tuple tout (map (safety_cond_holds vs) init) t))
     [::] tin f.
-Arguments mk_semi {tin tout} safe err init f : assert.
+Arguments mk_semi {!tin tout} safe err init f / : assert.
 
 (* -------------------------------------------------------------------- *)
 (* ** Guarded conditions                                                 *)
