@@ -422,32 +422,24 @@ let get_annot ensure_annot f =
   let sig_annot = get_signature f.f_annot.f_user_annot in
   check_sig_annot f sig_annot;
 
-  let parse ~single loc a =
-    let lvl = Lvl.parse ~single a in
-    let msg = "Constant time security annotations are deprecated. Annotate the function with a ct attribute (see documentation on “Constant-time programming”" in
-    Option.may (fun _ -> Utils.warning Deprecated (L.i_loc0 loc) "%s" msg ) lvl;
-    lvl in
-
   let process_argument i x =
     let lvl =
-      let lvl1 = parse ~single:true x.v_dloc x.v_annot in
       let lvl2 = Option.bind sig_annot (get_nth_argument i) in
-      match lvl1, lvl2 with
-      | Some _, _ | _, None | _, Some [] -> lvl1
-      | None, Some t -> Some (lvl_of_typ t)
+      match lvl2 with
+      | None | Some [] -> None
+      | Some t -> Some (lvl_of_typ t)
     in
     x.v_name, lvl
   in
-  let process_result loc i a =
-    let lvl1 = parse ~single:false loc a in
+  let process_result i _ =
     let lvl2 = Option.bind sig_annot (get_nth_result i) in
-    match lvl1, lvl2 with
-    | Some _, _ | _, None | _, Some [] -> lvl1
-    | None, Some t -> Some (lvl_of_typ t)
+    match lvl2 with
+    | None | Some [] -> None
+    | Some t -> Some (lvl_of_typ t)
   in
   let ain  = List.mapi process_argument f.f_args in
   let ainlevels = List.map (fun (_, x) -> x) ain in
-  let aout = List.mapi (process_result f.f_loc) f.f_ret_info.ret_annot in
+  let aout = List.mapi process_result f.f_ret_info.ret_annot in
 
   let check_defined msg l =
     if List.exists (fun a -> a = None) l then
