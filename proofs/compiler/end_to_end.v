@@ -794,10 +794,96 @@ Qed.
 
 End DEFS.
 
+
+Section PROBSEM.
+
+Context
+  {asm_scsem : asm_syscall_sem}
+  {lowering_options : Type}
+  (aparams : architecture_params) 
+  (haparams : h_architecture_params aparams)
+  (cparams : compiler_params) 
+  (print_uprogP : forall s p, cparams.(print_uprog) s p = p)
+  (print_sprogP : forall s p, cparams.(print_sprog) s p = p)
+  (print_linearP : forall s p, cparams.(print_linear) s p = p)
+.
+  
+Definition flattenER (V : choiceType) (t: itree ER V) : itree RndE V.
+Admitted. 
+
+Definition prob_sim (V1 V2 : choiceType) (Rel: V1 -> V2 -> Prop)
+  (t1: itree ER V1) (t2: itree ER V2) :=
+  deqX Rel (dinterp (flattenER t1)) (dinterp (flattenER t2)).
+
+Lemma probabilistic_correctness (V1 V2 : choiceType) (Rel: V1 -> V2 -> Prop)
+          (t1: itree ER V1) (t2: itree ER V2) :
+  eutt Rel t1 t2 -> prob_sim Rel t1 t2.
+Admitted. 
+
+Definition ccRel p q fn xfd s t : fstate -> asmmem -> Prop :=
+  aux_post cparams p q fn xfd s t.
+
+Definition choice_rel (V1 V2: Type) (r: V1 -> V2 -> Prop) :
+  choiceof V1 -> choiceof V2 -> Prop.
+Admitted.                                  
+
+Lemma prob_correct_comp entries p q fn fd :
+  compile_prog_to_asm aparams cparams entries p = ok q ->
+  fn \in entries ->
+  get_fundef p.(p_funcs) fn = Some fd ->
+  exists2 xfd,
+    get_fundef q.(asm_funcs) fn = Some xfd
+    & forall s t,
+        safe_uprog p fn s ->
+        res_defined p fn s ->
+        full_pre p q fn xfd s t ->
+        prob_sim (choice_rel (ccRel p q fn xfd s t))
+          (isem_unit p fn s) (isem_asm q fn t).
+Admitted. 
+ 
+End PROBSEM.
+  
 End MAIN.
 
 
+(*
+Lemma prob_correct_comp entries p q fn fd :
+  compile_prog_to_asm aparams cparams entries p = ok q ->
+  fn \in entries ->
+  get_fundef p.(p_funcs) fn = Some fd ->
+  exists2 xfd,
+    get_fundef q.(asm_funcs) fn = Some xfd
+    & forall s t,
+        safe_uprog p fn s ->
+        res_defined p fn s ->
+        full_pre p q fn xfd s t ->
+        eutt
+          (aux_post p q fn xfd s t)
+          (isem_unit p fn s) (isem_asm q fn t).
+*)
 
+(*
+  
+Lemma xxx (Rel: V1 -> V2 -> Prop) (t1: itree ER V1) (t2: itree ER V2) 
+          
+
+    forall (up : uprog) (xp : asm_prog) (entries : seq funname)
+           (HCmp: compile_prog_to_asm aparams cparams entries up = ok xp)
+           (fn : funname_eqType) (Hfn: fn \in entries)
+           (xfd : asm_fundef),  
+      get_fundef (asm_funcs xp) fn = Some xfd ->
+      asm_fd_export xfd -> 
+      forall (i1 : fstate) (i2 : asmmem),
+        full_pre fn xfd i1 i2 ->
+        xrutt nocutoff nocutoff EPreRel EPostRel
+        
+          -> paco2.paco2
+              (xrutt_ (errcutoff (is_error wE)) nocutoff EPreRel EPostRel
+                 (full_post fn xfd i1 i2))
+              paconotation.bot2 (isem_unit up fn i1) 
+              (isem_asm xp fn i2)]
+*)
+          
 (* -------------------------------------------------------------------------- *)
 (* Instantiation to KEMs and IND-CCA. *)
 
