@@ -55,7 +55,7 @@ Proof. by move=> h; elim: tin vs f => /= [vs f | t tin ih vs f v]; [apply h | ap
 
 (* Without condition, [mk_sem_op] is the total semantics. *)
 Lemma mk_sem_op_nil tin t err f :
-  sem_prod_eq tin (@mk_sem_op tin t [::] err f) (sem_prod_ok tin f).
+  sem_prod_eq tin (@mk_sem_op _ tin t [::] err f) (sem_prod_ok tin f).
 Proof. by apply: mk_semi_aux_id. Qed.
 
 (* -------------------------------------------------------------------- *)

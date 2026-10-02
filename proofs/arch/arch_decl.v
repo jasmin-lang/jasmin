@@ -456,7 +456,7 @@ Record instr_desc_t := {
 (* Semantics of an instruction (only deals with values): the safety conditions
    are checked on the arguments, then the total semantics is filtered by the
    initialisation conditions, one per output. *)
-Definition id_semi (d : instr_desc_t) :
+Definition id_semi {sm : SemMode} (d : instr_desc_t) :
     sem_lprod d.(id_tin) (exec (sem_ltuple d.(id_tout))) :=
   mk_semi d.(id_safe) d.(id_err) d.(id_init) d.(id_semi_total).
 

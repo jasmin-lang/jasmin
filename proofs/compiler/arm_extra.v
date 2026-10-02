@@ -58,7 +58,7 @@ Definition Oarm_add_large_imm_instr : instruction_desc :=
    ; i_doit := DOIT
    ; i_wf := refl_equal
    ; semu   := @values.vuincl_app_sopn_v ctin [:: cty]
-                 (@mk_semi ctin [:: cty] [::] ErrArith [:: IBool true ] semi) refl_equal
+                 (@mk_semi _ ctin [:: cty] [::] ErrArith [:: IBool true ] semi) refl_equal
  |}.
 
 Definition smart_li_instr (ws : wsize) : instruction_desc :=
