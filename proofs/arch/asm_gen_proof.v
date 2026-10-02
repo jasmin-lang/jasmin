@@ -24,8 +24,10 @@ Require Import
   fexpr_sem.
 Require Import
   arch_decl
+  arch_decl_facts
   arch_extra
   arch_sem
+  safety_cond_facts
   sem_params_of_arch_extra.
 Require Export asm_gen.
 Require Import relational_logic.
@@ -678,12 +680,18 @@ Proof.
   rewrite /exec_instr_op /eval_instr_op Hid /=.
   move: hval => /=; rewrite -/id => -> /=.
   move: vt Hvt Hm'; rewrite /sopn_sem /sopn_sem_ /get_instr_desc /= -/id => {Hid}.
-  rewrite /semi_to_atype.
+  rewrite /semi /= /semi_to_atype_t.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2; clear e1 e2.
   case: id Hargs Hdest => /= id_valid msb_flag id_tin
-   id_in id_tout id_out id_semi id_args_kinds id_nargs /andP[] /eqP hsin /eqP hsout
-   id_str_jas id_check_dest id_safe _ id_pp _ _ _ Hargs Hdest vt happ Hm'.
+   id_in id_tout id_out id_semi_total id_args_kinds id_nargs heqsz
+   id_str_jas id_check_dest id_safe id_err id_init id_doit id_pp
+   id_safe_wf id_wf
+   Hargs Hdest vt happ Hm'.
+  rewrite /id_semi /=.
+  case/andP: heqsz => /eqP hsin /eqP hsout.
+  move: happ; move: (mk_semi id_safe id_err id_init id_semi_total) => id_semi happ.
+  clear id_semi_total id_safe_wf id_wf id_init.
   elim: id_in id_tin hsin id_semi args xs Hargs happ Hxs; rewrite /sem_prod.
   + move=> [] //= _ id_semi [|a1 args] [|v1 vs] //= _ -> _ /=.
     exact: (compile_lvals _ hsout Hm' Hlomeqv Hdest).
@@ -1031,6 +1039,7 @@ Proof.
   case: id_valid => //=.
   case: andP => // -[ /eqP -> _] /=.
   case heq : eval_args_in => [vargs | ] //=.
+  rewrite /id_semi /= -(sem_prod_eq_app_sopn vargs (mk_semi_extend ws _ _ _ _)).
   rewrite app_sopn_apply_lprod.
   case: app_sopn => //= t.
   move=> <-; symmetry.

@@ -35,6 +35,7 @@ ssrmisc/seq_extra.v
 3rdparty/ssrring.v
 3rdparty/xseq.v
 arch/arch_decl.v
+arch/arch_decl_facts.v
 arch/arch_extra.v
 arch/arch_sem.v
 arch/arch_utils.v
@@ -202,6 +203,7 @@ lang/memory_model.v
 lang/mix_to_small_steps.v
 lang/one_varmap.v
 lang/op_semi.v
+lang/op_semi_facts.v
 lang/operators.v
 lang/psem.v
 lang/psem_defs.v
@@ -223,6 +225,9 @@ lang/sem_type.v
 lang/sha256.v
 lang/shift_kind.v
 lang/sopn.v
+lang/sopn_facts.v
+lang/sopn_semi.v
+lang/sopn_semi_facts.v
 lang/slh_ops.v
 lang/stack_zero_strategy.v
 lang/strings.v

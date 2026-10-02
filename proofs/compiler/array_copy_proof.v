@@ -3,6 +3,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith Lia.
 Require Import array_copy psem.
+Require Import sopn_facts.
 Require Import compiler_util.
 Import Utf8.
 
@@ -320,7 +321,10 @@ Proof using Hp freshX.
   have hesX : Sv.Subset (read_es es) X by clear -hsub; SvD.fsetdec.
   have [ hdis [] v ? [] vm1 [] exec_pfx hvm1 [] vy hy ] := get_sourceP hgets hes hesX hu; subst vs.
   move: hcopy.
-  rewrite /exec_sopn /=; t_xrbindP => t' t /to_arrI ? ok_t' ?; subst v vs'.
+  rewrite /exec_sopn /= /Ocopy_instr /=.
+  t_xrbindP => t' t /to_arrI ? hsafe <- ?; subst v vs'.
+  have heq := @array_copy_semi_eq ws n; rewrite /= in heq.
+  have ok_t' : WArray.copy t = ok (copy_total t) by rewrite heq hsafe.
   case/value_uinclE => t2 ? htt2; subst vy.
   have ok_t2' := WArray.uincl_copy htt2 ok_t'.
   have [ vm2 [] hvm2 [] t'' ok_dst t't'' exec_array_copy ] := array_copyP ii htx hdis hvm1 hy ok_t2'.

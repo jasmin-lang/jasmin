@@ -851,7 +851,7 @@ Proof.
   case: lvs => // -[] // x [] // -[] // y [] //.
   case: args => // -[] // [] // z [] // [] // [] // w [] //=.
   t_xrbindP => vz hz _ vw hw <- <-.
-  rewrite /exec_sopn /= /swap_semi.
+  rewrite /exec_sopn /= /Oswap_instr /=.
   t_xrbindP => /= _ wz hvz ww hvw <- <- /=.
   t_xrbindP => _ vm1 /set_varP [_ htrx ->] <- _ vm2 /set_varP [_ htry ->] <- <-
     /eqP hxw /eqP hyx /and4P [hxt hyt hzt hwt] <-.
@@ -1079,7 +1079,6 @@ Proof.
   case: opt hmn hs => sho sz hmn /= hs.
   case: sho hs => [sk | ] hs; first by [].
   rewrite /exec_sopn /=.
-  rewrite /semi_to_atype.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.
   clear e1 e2.

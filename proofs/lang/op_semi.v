@@ -3,7 +3,11 @@
    For each operator, [op1_safe] / [op2_safe] / [opN_safe] give the conditions
    on its arguments under which the (partial) semantics of [sem_op_typed.v]
    does not fail; that semantics is defined there as [mk_sem_op] of these
-   conditions and of the total semantics of [sem_op_total.v]. *)
+   conditions and of the total semantics of [sem_op_total.v].
+
+   Which operators carry a condition also says which conditions of
+   [safety_cond.v] are total, hence well formed ([safety_cond_wf]): that is
+   what a descriptor requires of the conditions it declares. *)
 
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
@@ -58,3 +62,28 @@ Definition op2_safe (o : sop2) : seq safety_cond :=
   end.
 
 Definition opN_safe (o : opN) : seq safety_cond := [::].
+
+(* -------------------------------------------------------------------- *)
+(* ** Well-formed conditions                                             *)
+
+(* A condition built from operators that carry no condition of their own: its
+   interpretation on arguments of the announced types is always a value. *)
+Fixpoint safety_cond_total (c : safety_cond) : bool :=
+  match c with
+  | IBool _ | IConst _ | IVar _ => true
+  | IOp1 o c => nilp (op1_safe o) && safety_cond_total c
+  | IOp2 o c1 c2 => [&& nilp (op2_safe o), safety_cond_total c1 & safety_cond_total c2]
+  end.
+
+(* Well-formedness of a condition: well typed on the arguments of the
+   operation, and total. *)
+Definition safety_cond_wf (tin : seq ctype) (c : safety_cond) : bool :=
+  safety_cond_wt tin c && safety_cond_total c.
+
+Lemma safety_cond_wf_cat tin tin' c :
+  safety_cond_wf tin c -> safety_cond_wf (tin ++ tin') c.
+Proof. by move=> /andP [h1 h2]; rewrite /safety_cond_wf (safety_cond_wt_cat tin' h1). Qed.
+
+Lemma all_safety_cond_wf_cat tin tin' l :
+  all (safety_cond_wf tin) l -> all (safety_cond_wf (tin ++ tin')) l.
+Proof. by apply: sub_all => c; apply: safety_cond_wf_cat. Qed.
