@@ -264,8 +264,8 @@ Proof.
     rewrite /exec_sopn /=.
     move: htrunc.
     move => /truncate_val_typeE [w [ws' [w']]] [] h_trunc  ??; subst => /=.
-    rewrite h_trunc /= /sopn_sem /= h_cmp /=.
-    rewrite /sopn_sem_ /= /semi_to_atype computational_eq_refl /=.
+    rewrite h_trunc /= h_cmp /=.
+    rewrite computational_eq_refl /=.
     rewrite zero_extend_u.
     by rewrite hwrite.
   case: e hseme => //=.
@@ -344,8 +344,8 @@ Proof.
       rewrite /exec_sopn /=.
       move: htrunc.
       rewrite /truncate_val /= truncate_word_u /= => -[] ?; subst.
-      rewrite truncate_word_le //= /sopn_sem /= hle /=.
-      rewrite /sopn_sem_ /= /semi_to_atype computational_eq_refl /=.
+      rewrite truncate_word_le //= /= hle /=.
+      rewrite computational_eq_refl /=.
       by rewrite hwrite.
     + move => w w0 hseme /=.
       case: w hseme => // hseme.
@@ -362,8 +362,8 @@ Proof.
       rewrite /exec_sopn /=.
       move: htrunc.
       rewrite /truncate_val /= truncate_word_u /= => -[] ?; subst.
-      rewrite truncate_word_le //= /sopn_sem /= hle /=.
-      rewrite /sopn_sem_ /= /semi_to_atype computational_eq_refl /=.
+      rewrite truncate_word_le //= /= hle /=.
+      rewrite computational_eq_refl /=.
       by rewrite hwrite.
     + move => ws hseme.
       case: ws hseme => //= hseme.
@@ -441,7 +441,7 @@ Proof.
     set op2' := Oasm _.
     have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
       Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
-    by rewrite sem_correct //= /semi_to_atype /= /riscv_sub_semi !sub_wordE wsub_zero_extend.
+    by rewrite sem_correct //= /riscv_sub_semi !sub_wordE wsub_zero_extend.
   + case => // -[] // [] //=.
     + rewrite /sem_sop2 /=.
       t_xrbindP=> w1 ok_w1 w2 ok_w2.
@@ -560,13 +560,13 @@ Proof.
     rewrite /sem_sopn /=.
     t_xrbindP.
     move => vs _ v1 ok_v1 _ v2 ok_v2 <- <-.
-    rewrite /exec_sopn /= /sopn_sem /= /sopn_sem_ /=.
+    rewrite /exec_sopn /=.
     t_xrbindP => _ w0 ok_w0 w1 ok_w1 <- <- /=.
     t_xrbindP => s2 ok_s2 {}s1 ok_s1 <-.
     rewrite /sem_sopn /= ok_v1 /= ok_v2 /= /exec_sopn /= ok_w0 /= ok_w1 /= ok_s2 /=.
     do 2 rewrite (write_get_gvarP_neq _ _ ok_s2) //.
     rewrite ok_v1 ok_v2 /=.
-    rewrite ok_w0 ok_w1 /sopn_sem /=.
+    rewrite ok_w0 ok_w1 /=.
     move: ok_s1.
     by rewrite wrepr_mul !wrepr_unsigned => ->.
 

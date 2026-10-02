@@ -667,7 +667,7 @@ Proof.
   split; last by [].
   exists [:: v; @Vword U32 0 ].
   - by rewrite /= hseme wrepr0.
-  by rewrite /exec_sopn /= /sopn_sem ok_w' truncate_word_u /= !add_wordE opp_wordE GRing.add0r wnot1_wopp zero_extend_u.
+  by rewrite /exec_sopn /= ok_w' truncate_word_u /= !add_wordE opp_wordE GRing.add0r wnot1_wopp zero_extend_u.
 Qed.
 
 Lemma mk_sem_divmodP si ws op (w0 w1 : word ws) w :
@@ -733,7 +733,7 @@ Ltac rewrite_exec :=
   move: h;
   let mytac := move=> /ok_inj; (move=> <- || move=> [] *; subst) in
   match goal with
-  | [ b : bool |- context [{| is_conditional := true |}] ] =>
+  | [ b : bool |- context [mk_semi_cond] ] =>
       case: b; mytac; last done
   end
   || mytac;
@@ -948,7 +948,7 @@ Proof.
     8: rewrite /sem_ror /sem_shift wror0.
     10, 11: have! := (is_wconstP true (p_globs p) s hconst); rewrite hseme1 => /truncate_wordP[] _.
     10: move => <-; rewrite /sem_rol /sem_shift wrol0.
-    all: rewrite /sopn_sem_ /= /semi_to_atype /= !zero_extend_u //.
+    all: rewrite /= !zero_extend_u //.
     all: rewrite /arm_LSR_semi /arm_LSL_semi /arm_ASR_semi /arm_ROR_semi /arm_shift_semi.
     all: rewrite /arch_utils.semi_drop3 /=.
     1-4: by case: ifP => //=.
@@ -1186,12 +1186,12 @@ Transparent esem esem_i.
   case: b hw hwrite12' => hw hwrite12'.
   - move: hexeces.
     rewrite /exec_sopn /=.
-    case: ves => [// | ? []]; t_xrbindP=> //= v _ -> /= [->] ?; subst ws''.
+    case: ves => [// | ? []]; t_xrbindP=> //= v _ -> /= -> ?; subst ws''.
     move=> [?]; subst v.
     by rewrite truncate_word_le.
   move: hexeces.
   rewrite /exec_sopn /=.
-  case: ves => [// | ? []]; t_xrbindP=> //= v _ -> /= [->] ?; subst ws''.
+  case: ves => [// | ? []]; t_xrbindP=> //= v _ -> /= _ ?; subst ws''.
   move=> [?]; subst v.
   by rewrite truncate_word_le.
 Qed.
@@ -1250,7 +1250,6 @@ Proof.
 
   all: case: ws hws hwrite hmn => // hws hwrite [?]; subst mn.
   all: rewrite /exec_sopn /=.
-  all: rewrite /sopn_sem /sopn_sem_ /= /semi_to_atype /=.
   all: rewrite ?truncate_word_le //.
 
   1-3: rewrite /= zero_extend_u.
@@ -1404,7 +1403,7 @@ Proof.
   move: hw1 => /to_wordI [ws' [w' [? hw1]]]; subst v1.
   move: hw1 => /truncate_wordP [hws' ?]; subst w1.
   move: hb => /to_boolI ?; subst v2.
-  move: hsopn => [?]; subst res'.
+  move: hsopn => ?; subst res'.
   move: hwrite => /=.
   t_xrbindP=> s00 hwrite00 s01 hwrite1 ?; subst s01.
 
@@ -1507,7 +1506,7 @@ Proof.
   rewrite /lower_mulu.
   case: lvs => [// | [] hi // [//| [] // lo [] //]].
   case: eqP => // hne /= + /Some_inj[] <- <- <- {lvs' op' es'}.
-  rewrite /sem_sopn /= /exec_sopn /= /sopn_sem /=.
+  rewrite /sem_sopn /= /exec_sopn /=.
   t_xrbindP => ? [] // x; t_xrbindP => - [] // y; t_xrbindP => - [] // ok_vs.
   move => ? a ok_a b ok_b /ok_inj <- <- /=.
   t_xrbindP => _ /write_varP [-> hdbh htrh].

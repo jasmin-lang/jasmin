@@ -642,7 +642,7 @@ Lemma sem_sopns_fopns_args s lc :
 Proof.
   elim: lc s => //= -[[xs o] es ] lc ih s.
   rewrite /sem_fopn_args /sem_sopn_t /=; case: sem_rexprs => //= >.
-  by rewrite /exec_sopn /= /sopn_sem /Oarm; case: i_valid => //=; case : app_sopn => //= >; case write_lexprs.
+  by rewrite /exec_sopn /=; case: id_valid => //=; case : app_sopn => //= >; case write_lexprs.
 Qed.
 
 Lemma assemble_swap_correct ws : assemble_extra_correct (Oarm_swap ws).
@@ -652,7 +652,7 @@ Proof.
   case: lvs => // -[] // x [] // -[] // y [] //.
   case: args => // -[] // [] // z [] // [] // [] // w [] //=.
   t_xrbindP => vz hz _ vw hw <- <-.
-  rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /= /swap_semi.
+  rewrite /exec_sopn /= /swap_semi.
   t_xrbindP => /= _ wz hvz ww hvw <- <- /=.
   t_xrbindP => _ vm1 /set_varP [_ htrx ->] <- _ vm2 /set_varP [_ htry ->] <- <- /eqP hxw /eqP hyx
     /and4P [hxt hyt hzt hwt] <-.
@@ -681,7 +681,7 @@ Proof.
   set xi := {| v_var := _ |}.
   case: args => // -[] // [] // y [] // [] // [] // [] // w [] // imm [] //=.
   t_xrbindP => vy hvy <-.
-  rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /=; t_xrbindP => /= n w1 hw1 w2 hw2 ? <- /=; subst n.
+  rewrite /exec_sopn /=; t_xrbindP => /= n w1 hw1 w2 hw2 ? <- /=; subst n.
   t_xrbindP => ? vm1 hsetx <- <- /= /eqP hne.
   move=> /andP [] hxtty /andP [] hyty _ <- hmap hlom.
   move/to_wordI: hw1 => [ws [w' [?]]] /truncate_wordP [hle1 ?]; subst vy w1.
@@ -761,7 +761,7 @@ Proof.
   exists s' => //.
   move: hsemargs hexec hwrite => /=.
   t_xrbindP => vs _ ?; subst xs.
-  rewrite /exec_sopn /= /sopn_sem /=.
+  rewrite /exec_sopn /=.
   t_xrbindP=> w w' /truncate_wordP [hws' ?]; subst w'.
   case: vs => // -[?] ?; subst w ys.
   t_xrbindP=> m0 vm0 hsetx ??; subst m0 m'.
@@ -793,7 +793,7 @@ Proof.
     ARMFopn_coreP.li_lsem_1 m imm hty.
   move=> hsem hvm hgetx.
   move: hsemargs hexec hwrite.
-  rewrite  /exec_sopn /sopn_sem /sopn_sem_ /=.
+  rewrite  /exec_sopn /=.
   t_xrbindP=> _ vcond hsemcond _ vy hgety vrest hsemrest <- <- <-.
   t_xrbindP=>  w w' hw' bcond /to_boolI ? wy hwy; subst vcond.
   move: hw' => /to_wordI [ws [w0 []]] /Vword_inj [] ?; subst ws.
@@ -844,7 +844,7 @@ Proof.
 
     (* Case: small immediate. *)
     + move=> [<-] /=.
-      rewrite /exec_sopn /= /sopn_sem /= truncate_word_u /=.
+      rewrite /exec_sopn /= truncate_word_u /=.
       t_xrbindP=> ?? vm0 hvm' <- <- [?]; subst vm0.
       rewrite {}hsemcond {}hgety /= truncate_word_u {}hwy /=.
       case: bcond hsetx => /= [|-> //].
@@ -853,17 +853,17 @@ Proof.
     case: ifP => _ [<-] /=.
 
     (* Case: negated immediate. *)
-    + rewrite /exec_sopn /= /sopn_sem /= truncate_word_u /=.
+    + rewrite /exec_sopn /= truncate_word_u /=.
       t_xrbindP=> ?? vm0 hvm' <- <- [?]; subst vm0.
       rewrite {}hsemcond {}hgety /= truncate_word_u {}hwy /=.
       case: bcond hsetx => /= [|-> //].
       by rewrite hvm'.
 
     (* Case: large immediate. *)
-    rewrite /exec_sopn /= /sopn_sem /= truncate_word_u /=.
+    rewrite /exec_sopn /= truncate_word_u /=.
     t_xrbindP=> ?? vm0 hvm0 <- <- s0 _ vx hgetx0 <- vrest.
     rewrite /= truncate_word_u /=.
-    t_xrbindP=> _ wx hwx [<-] <-.
+    t_xrbindP=> _ wx hwx <- <-.
     t_xrbindP=> ? vm1 hvm' <- <- [?]; subst vm1.
     rewrite hsemcond hgety /= truncate_word_u hwy /=.
     case: bcond hsetx hsemcond => /= hsetx hsemcond.
@@ -987,7 +987,7 @@ Definition arm_is_move_opP op vx v :
 Proof.
   case: op => // -[[] // [mn opt]] /=.
   case: ifP => // hmn /and3P [/negPf hf /negPf hc /negPf hs].
-  rewrite /exec_sopn /sopn_sem  /sopn_sem_ /= hc.
+  rewrite /exec_sopn /= hc.
   rewrite /semi_to_atype.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.
