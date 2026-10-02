@@ -68,7 +68,7 @@ Lemma exec_sopn_conditional mn sf osk b vargs vprev vres0 vres1 :
        (vargs ++ Vbool b :: vprev)
        = ok (if b then vres0 else vres1).
 Proof.
-  rewrite /= /exec_sopn /= /set_is_conditional /= /sem_sopn /= /sopn_sem /= /sopn_sem_ /=.
+  rewrite /= /exec_sopn /= /set_is_conditional /= /sem_sopn /=.
   move=> hvalid.
   t_xrbindP.
   set fflags := {| set_flags := sf; is_conditional := false; has_shift := osk |}.
@@ -81,7 +81,6 @@ Proof.
     by case: mn; case sf; case osk => [s | ] //; split => //;
          exists erefl, erefl.
   move=> [-> [hin [hout hcast]]].
-  rewrite /semi_to_atype /=.
   move: (computational_eq _) (computational_eq _) (computational_eq _) (computational_eq _) => e1 e2 e3 e4.
   rewrite <- e1, <- e2, <- e3, <- e4; clear e1 e2 e3 e4.
   rewrite /truncate_args -map_comp -(eq_map atype_of_ltypeP) /= /sopn_tout /=.

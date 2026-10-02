@@ -169,7 +169,7 @@ Proof.
   rewrite -(cat0s c) -cat1s.
   apply wequiv_cat with (cmpl_inv I) => //.
   apply wequiv_assign_right => s t h.
-  rewrite /sem_assgn /=  /truncate_val /= WArray.castK /=.
+  rewrite /=  /truncate_val /= WArray.castK /=.
   eexists.
   + by apply write_varP; split => //; rewrite heq /= eqxx.
   case h => h1 h2 [h3 h4]; split => //; split => //.
