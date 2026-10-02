@@ -6,8 +6,7 @@
    when one of them fails; [mk_semi] assembles them.  Two things are specific
    to the instructions: an instruction has several outputs, some of which may
    be left undefined (one condition of [seq safety_cond] per output says when
-   an output is defined), and its safety conditions are the ones of
-   [wsize.safe_cond], decided by [values.check_safe_cond].
+   an output is defined).
 
    Only the definitions and the lemmas the descriptors require are here; what
    else is proved about them is in [sopn_semi_facts.v]. *)
@@ -84,20 +83,14 @@ Fixpoint sem_prod_tuple_t (lt : seq ctype) : sem_prod lt (sem_tuple_t lt) :=
 
 Definition is_ErrType (e : error) : bool := if e is ErrType then true else false.
 
-(* The safety check of an instruction: its conditions are the old
-   [wsize.safe_cond], decided by [values.check_safe_cond]; if one of them
-   fails, the instruction raises the error it declares. *)
-Definition check_safe_conds (vs : values) (safe : seq safe_cond) (err : error) : exec unit :=
-  if all (check_safe_cond vs) safe then ok tt else Error err.
-
 (* The semantics of an instruction: the safety conditions are checked on the
    arguments, then the total semantics is filtered by the initialisation
    conditions, one per output. *)
-Definition mk_semi (tin tout : seq ctype) (safe : seq safe_cond) (err : error)
+Definition mk_semi (tin tout : seq ctype) (safe : seq safety_cond) (err : error)
     (init : seq safety_cond)
     (f : sem_prod tin (sem_tuple_t tout)) : sem_prod tin (exec (sem_tuple tout)) :=
   mk_semi_aux
-    (fun vs t => Let _ := check_safe_conds vs safe err in
+    (fun vs t => Let _ := check_safe vs safe err in
                  ok (filter_tuple tout (map (safety_cond_holds vs) init) t))
     [::] tin f.
 Arguments mk_semi {!tin tout} safe err init f / : assert.
@@ -108,39 +101,24 @@ Arguments mk_semi {!tin tout} safe err init f / : assert.
 (* The initialisation condition of a conditional instruction: the output keeps
    its previous value when the guard (the argument [g]) is false, so it is
    defined in that case too. *)
-Definition cond_init (g : nat) (c : safety_cond) : safety_cond :=
-  sc_or (sc_not (IVar g)) c.
+Definition cond_init (g : nat) (c : safety_cond) : safety_cond := sc_guarded g c.
 
 Lemma safety_cond_wt_cond_init tin tin' c :
   safety_cond_wt tin c -> safety_cond_wt (tin ++ cbool :: tin') (cond_init (size tin) c).
 Proof.
-rewrite /safety_cond_wt /cond_init /sc_or /sc_not /= => /eqP /safety_cond_type_cat -> /=.
+rewrite /safety_cond_wt /cond_init /sc_guarded /sc_or /sc_not /=
+  => /eqP /safety_cond_type_cat -> /=.
 rewrite size_cat /= nth_cat ltnn subnn /=.
 by have -> : (size tin < size tin + (size tin').+1)%nat by rewrite -addn1 leq_add2l.
 Qed.
 
 Lemma safety_cond_total_cond_init g c :
   safety_cond_total c -> safety_cond_total (cond_init g c).
-Proof. by move=> h; rewrite /cond_init /= h. Qed.
+Proof. by move=> h; rewrite /cond_init /sc_guarded /= h. Qed.
 
 Lemma safety_cond_wf_cond_init tin tin' c :
   safety_cond_wf tin c -> safety_cond_wf (tin ++ cbool :: tin') (cond_init (size tin) c).
 Proof.
 by move=> /andP [h1 h2];
   rewrite /safety_cond_wf safety_cond_wt_cond_init // safety_cond_total_cond_init.
-Qed.
-
-(* Guarding a condition adds a dependency on the guard. *)
-Lemma sc_needed_args_guarded n sc :
-  ssrnat.leq (sc_needed_args sc) n ->
-  ssrnat.leq (sc_needed_args (Guarded n sc)) (S n).
-Proof.
-by move=> h; rewrite /= ssrnat.geq_max ssrnat.leqnn /=; apply: (ssrnat.leq_trans h).
-Qed.
-
-Lemma all_sc_needed_args_guarded n safe :
-  all (fun sc => ssrnat.leq (sc_needed_args sc) n) safe ->
-  all (fun sc => ssrnat.leq (sc_needed_args sc) (S n)) (map (Guarded n) safe).
-Proof.
-by move=> h; rewrite all_map; apply: sub_all h => sc; apply: sc_needed_args_guarded.
 Qed.
