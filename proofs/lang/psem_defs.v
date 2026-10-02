@@ -191,7 +191,7 @@ Definition write_lval (l : lval) (v : value) (s : estate) : exec estate :=
     Let (n,t) := wdb, s.[x] in
     Let i := sem_pexpr s i >>= to_int in
     Let t' := to_arr (arr_size ws len) v in
-    Let t := @WArray.set_sub n aa ws len t i t' in
+    Let t := @WArray.set_sub partial n aa ws len t i t' in
     write_var x (@to_val (carr n) t) s
   end.
 
