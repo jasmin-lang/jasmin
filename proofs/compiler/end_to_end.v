@@ -233,6 +233,7 @@ Definition aux_post p q fn xfd s t s' t' :=
     & values_match p fn xfd t s' t'
   ].
 
+(* specializes compiler correctness to safe source programs *)
 Lemma correct_comp entries p q fn fd :
   compile_prog_to_asm aparams cparams entries p = ok q ->
   fn \in entries ->
@@ -427,8 +428,6 @@ Context
 #[global] Arguments Mo {_ O} : rename.
 #[global] Arguments mi {_ O} : rename.
 
-
-(* Notations for clarity. *)
 Notation Mo1 := (Mo (O := O1)).
 Notation Mo2 := (Mo (O := O2)).
 
@@ -741,6 +740,7 @@ Definition post_isem
         , full_pre p q fn xfd fs xm
         & aux_post cparams p q fn xfd fs xm fs' xm' ].
 
+(* lifts compiler correctness for safe programs to oracle systems *)
 Lemma eutt_isem_post fn fd ms mt (i : valid_input fn) :
   fn \in entries ->
   get_fundef p.(p_funcs) fn = Some fd ->
@@ -761,6 +761,8 @@ apply: eutt_subrel.
 move=> fs xm [X1 X2 X3]; exists xfd; split=> //.
 Qed.
 
+(* lifts compiler correctness for safe programs to oracle systems and
+   flattens the result *)
 Lemma eutt_isem_res o i ms mt :
   sim ms mt ->
   eutt eq_sim (isem_unit_res o i ms) (isem_asm_res o i mt).
@@ -782,9 +784,6 @@ Proof using xget_resP print_uprogP print_sprogP print_linearP hcomp haparams
   cparams aparams.
 exists sim; split; first exact: sim_mS_xmT.
 move=> o i m1 m2 hm.
-have [xfd [hgetq _ heq]] := [elaborate
-  it_compile_prog_to_asmP haparams print_uprogP print_sprogP print_linearP
-  hcomp (efn_export o)].
 apply eutt_clo_bind with (UU := exec_rel eq_sim). 
 - apply/eutt_interp_RR/interp_exec_eutt_gen/eutt_isem_res/hm.
 move=> /= [[rs ms]|?] [[rt mt]|?] //=; last first.
