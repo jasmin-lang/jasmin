@@ -20,7 +20,7 @@ mkdir -p $DIR
 
 set -x
 
-$(dirname $0)/../jasminc -g -o ${ASM} "$@"
+$(dirname $0)/../jasminc -g -system linux -o ${ASM} "$@"
 # Negative test cases should have failed by now
 # Succeed early if it’s not the case (i.e., do not try to assemble the result)
 (echo $@ | grep -q fail) && exit 0
