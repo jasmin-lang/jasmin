@@ -761,3 +761,5 @@ Qed.
 End CoreLemmas.
 
 End WSW.
+
+Arguments sem_assgn {asm_op wsw syscall_state ep spp sip pT} p !x tg ty e s /.
