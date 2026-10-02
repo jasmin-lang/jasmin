@@ -10,10 +10,10 @@ Section PROOF.
 
 Context
   {wsw: WithSubWord}
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {LC : LoopCounter}.
 
 Context
@@ -71,25 +71,22 @@ Section E.
         rewrite /= ?he /sem_sop1 /=; t_xrbindP;
         try by move=> > -> /= > [->] <-; (eexists; first reflexivity) => /=.
       case: o => /=; rewrite he /sem_sop1 /=.
-      + by move=> > /to_intI -> >; rewrite /sem_sop1_typed /mk_sem_op /=;
-          case: (check_safe _ _ _) => //= _ [<-] <- /=; (eexists; first reflexivity) => /=.
-      + move=> > /to_wordI [? [? [-> htr]]] >;
-          rewrite /sem_sop1_typed /mk_sem_op /= => -[<-] <- /=.
+      + move=> > /to_intI -> > /wint_of_intP [-> h] <- /=.
+        by (eexists; first reflexivity) => /=.
+      + move=> > /to_wordI [? [? [-> htr]]] > [<-] <- /=.
         by rewrite htr /=; eexists; first reflexivity.
-      + move=> > /to_wordI [sz' [w' [?]]] htr ?;
-          rewrite /sem_sop1_typed /mk_sem_op /= => -[<-] <-; subst v'.
+      + move=> > /to_wordI [sz' [w' [?]]] htr ? [<-] <-; subst v'.
         eexists; first reflexivity.
         by apply: truncate_word_uincl htr.
-      + move=> > /to_wordI [sz' [w' [?]]] htr ?;
-          rewrite /sem_sop1_typed /mk_sem_op /= => -[<-] <-; subst v'.
+      + move=> > /to_wordI [sz' [w' [?]]] htr ? [<-] <-; subst v'.
         eexists; first reflexivity.
         by apply: truncate_word_uincl htr.
-      + move=> > /to_wordI [sz' [w' [?]]] htr ? + <-; subst v'.
-        by case: sg => /=; rewrite htr /= /sem_sop1_typed /mk_sem_op /= => -[->];
-           (eexists; first reflexivity) => /=.
+      + move=> > /to_wordI [sz' [w' [?]]] htr ? [] + <-; subst v'.
+        by case: sg => /=; rewrite htr /= => ->; (eexists; first reflexivity) => /=.
       move=> > /to_wordI [sz' [w' [?]]] htr ? + <-; subst v'.
-      rewrite /sem_sop1_typed /mk_sem_op /=; case: (check_safe _ _ _) => //= _ [<-] /=.
-      by rewrite htr /=; (eexists; first reflexivity) => /=.
+      move=> /wint_of_intP [-> ?] /=; rewrite htr /=.
+      (eexists; first reflexivity) => /=.
+      by rewrite wrepr_opp wrepr_int_of_word.
 
     + move=> o e he1 e2 he2 v v1 /he1{he1} [v1' -> hu1] v2 /he2{he2} [v2' -> hu2] /=.
       rewrite /sem_sop2 /=; t_xrbindP.
@@ -102,24 +99,29 @@ Section E.
       1-2: by rewrite /=; (case: k => /= > -> > -> >; first case) => /= -> <-;
              (eexists; first reflexivity).
       1-8: by case: k => /= > -> /= > -> /= > [->] <-; (eexists; first reflexivity).
-      case: o; rewrite /=.
-      1-3: by move=> > -> > -> /= >; rewrite /sem_sop2_typed /mk_sem_op /=;
-           case: (check_safe _ _ _) => //= _ [<-] <-; (eexists; first reflexivity) => /=.
-      1-2: by move=> > -> > -> /= >; rewrite /sem_sop2_typed /mk_sem_op /= => -> <-;
-           (eexists; first reflexivity) => /=.
-      + by move=> > -> > -> /= >; rewrite /sem_sop2_typed /mk_sem_op /=;
-          case: (check_safe _ _ _) => //= _ [<-] <-; (eexists; first reflexivity) => /=.
-      + by case: si => /= w1 -> w2 -> >; rewrite /sem_sop2_typed /mk_sem_op /= => -[<-] <-;
-          (eexists; first reflexivity).
+      case: o; rewrite /= /mk_sem_wiop2 /=.
+      1-3: by move=> > -> > -> /= > /wint_of_intP [-> _] <-; (eexists; first reflexivity);
+           rewrite (add_wordE, mul_wordE, sub_wordE);
+           rewrite (wrepr_add, wrepr_mul, wrepr_sub) !wrepr_int_of_word.
+      1-2: by move=> > -> > -> /= > -> <- /=; (eexists; first reflexivity) => /=.
+      + move=> > -> w2 -> /= > /wint_of_intP /= [-> _] <-; (eexists; first reflexivity).
+        rewrite /zlsl /sem_shl /sem_shift; case: ifPn => /ZleP ?.
+        + by rewrite wrepr_mul wrepr_int_of_word GRing.mulrC wshl_sem.
+        by have := wunsigned_range w2; Lia.lia.
+      + rewrite /mk_sem_wishift; case: si => /= w1 -> w2 -> > /=;
+        move=> /wint_of_intP [-> ?] <-;  (eexists; first reflexivity) => /=;
+        rewrite /sem_sar /sem_shr /sem_shift ?wsar_alt /wsar_naive ?wshr_alt /wshr_naive /zasr /zlsl;
+        have [h _ ] := wunsigned_range w2;
+        (case: ZleP;
+        [ case/Zle_lt_or_eq: h; first Lia.lia;
+          by move=> <- _ /=; rewrite Z.mul_1_r Z.shiftr_0_r
+        | by move=> _; rewrite Z.opp_involutive Z.shiftr_div_pow2]).
 
-      1-2: by move=> > -> > -> >; rewrite /sem_sop2_typed /mk_sem_op /= => -[<-] <-;
-          (eexists; first reflexivity) => /=;
-          rewrite /mk_sem_wicmp_total int_of_word_eqb.
+      1-2: by move=> > -> > -> > /= [<-] <-; (eexists; first reflexivity) => /=;
+          rewrite int_of_word_eqb.
 
-      1-4: move=> > -> > -> >; rewrite /sem_sop2_typed /mk_sem_op /= => -[<-] <-;
-           (eexists; first reflexivity) => /=;
-           rewrite /mk_sem_wicmp_total; case: si => //=;
-           rewrite ?(Z.gtb_ltb, Z.geb_leb) //.
+      1-4: move=> > -> > -> > /= [<-] <-; (eexists; first reflexivity) => /=;
+           case: si => //=; rewrite ?(Z.gtb_ltb, Z.geb_leb) //.
     + move=> op es hes v vs /hes [vs']; rewrite /sem_pexprs => -> /= hus hs.
       by rewrite (vuincl_sem_opN hus hs); eexists; first reflexivity.
 
@@ -198,7 +200,13 @@ Let p' := wi2w_prog_internal p.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rndE : with_RndEvent E0}
+  {rE : EventRels E0}
+  {rndE_refl : RndRels_refl rE}
+.
 
 Definition check_es_wi2w (d : unit) es1 es2 (d' : unit) :=
   es2 = [seq wi2w_e i | i <- es1].
@@ -238,7 +246,7 @@ Let Pc c :=
 
 Lemma it_wi2w_call_internalP fn :
   wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-Proof.
+Proof using rndE_refl.
   apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
   exists (wi2w_fun fd).
   + by rewrite get_map_prog hget.
@@ -268,19 +276,26 @@ End Internal.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0} (rE0_trans : EventRels_trans rE0 rE0 rE0).
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rndE : with_RndEvent E0}
+  {rE0 : EventRels E0}
+  {rndE_refl : RndRels_refl rE0}
+  (rE0_trans : EventRels_trans rE0 rE0 rE0)
+.
 
 Lemma it_wi2w_progP (p' : uprog) fn :
   wi2w_prog remove_wint_annot dead_vars_fd p = ok p' →
   wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-Proof using rE0_trans.
+Proof using rE0_trans rndE_refl.
   rewrite /wi2w_prog; t_xrbindP => ok_pv <-.
   have := [elaborate it_alloc_call_uprogP ev (p_globs p) ok_pv (fn:= fn)].
   have := [elaborate it_wi2w_call_internalP (fn:=fn)].
   apply wiequiv_f_trans => //.
   + by move=> fs1 fs2 hpre; exists fs1 => //; split => //; split => //; apply List_Forall2_refl.
-  move=> ??? fr1 fr3 _ _ [fr2] [heq1 heq2 hu1] [heq3 heq4 hu2]; split.
-  + by rewrite heq1. + by rewrite heq2.
+  move=> ??? fr1 fr3 _ _ [fr2] [heq1 hu1] [heq3 hu2]; split.
+  + by rewrite heq1 heq3.
   by apply: values_uincl_trans hu1 hu2.
 Qed.
 

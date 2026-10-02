@@ -421,5 +421,3 @@ Global Instance asm_opI : asmOp extended_op :=
     sopn.prim_string := get_prime_op }.
 
 End AsmOpI.
-
-Arguments semi_to_atype {tin tout} semi /.

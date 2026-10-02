@@ -17,10 +17,8 @@ Require Import
   wsize.
 
 
-(* Parameters needed to build states.
-   This gets extracted and used in OCaml (in the evaluator), so we have
-   [syscall_state] as a parameter instead of a record field. *)
-Class EstateParams (syscall_state : Type) := mk_ep
+(* Parameters needed to build states. *)
+Class EstateParams := mk_ep
   {
     _pd : PointerData;
     _msf_size : MSFsize;
@@ -29,7 +27,7 @@ Class EstateParams (syscall_state : Type) := mk_ep
 #[global]
 Existing Instances _pd _msf_size | 1000.
 
-Arguments mk_ep {_ _}.
+Arguments mk_ep {_}.
 
 (* Parameters needed to evaluate expressions. *)
 Class SemPexprParams := mk_spp
@@ -44,18 +42,17 @@ Arguments mk_spp {_}.
 
 
 (* Parameters needed to execute programs.
-   This gets extracted and used in OCaml (in the evaluator), so [asm_op] and
-   [syscall_state] are parameters instead of record fields. *)
-Class SemInstrParams (asm_op syscall_state : Type) := mk_sip
+   This gets extracted and used in OCaml (in the evaluator), so [asm_op] is a
+   parameter instead of a record field. *)
+Class SemInstrParams (asm_op : Type) := mk_sip
   {
     _asmop : asmOp asm_op;
-    _sc_sem : syscall_sem syscall_state;
   }.
 
 #[global]
-Existing Instances _asmop _sc_sem | 1000.
+Existing Instances _asmop | 1000.
 
-Arguments mk_sip {_ _ _ _}.
+Arguments mk_sip {_ _}.
 
 Class WithAssert := { assert_allowed : bool }.
 Definition noassert : WithAssert := {| assert_allowed := false |}.

@@ -1,7 +1,0 @@
-export
-fn main(reg u32 x y) -> reg u32 {
-    reg bool n z;
-    n, z, x = #MULS(x, y);
-    n, z, x = #MULScc(x, y, z, n, z, x);
-    return x;
-}

@@ -46,8 +46,6 @@ Section Section.
 
 Context
   {atoI  : arch_toIdent}
-  {syscall_state : Type}
-  {sc_sem : syscall_sem syscall_state}
   {call_conv : calling_convention}.
 
 #[local] Existing Instance withsubword.
@@ -354,7 +352,7 @@ Proof.
   split=> /=.
   + exact: (lower_addressing_prog_invariants (pT:=progStack)).
   + exact: (lower_addressing_fd_invariants (pT:=progStack)).
-  by move=> > /(it_lower_addressing_progP (pT := progStack)).
+  move=> > /(it_lower_addressing_progP (pT := progStack)) h; exact: h.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -495,7 +493,7 @@ Lemma sem_sopns_fopns_args s lc :
 Proof.
   elim: lc s => //= -[[xs o] es ] lc ih s.
   rewrite /sem_fopn_args /sem_sopn_t /=; case: sem_rexprs => //= >.
-  by rewrite /exec_sopn /=; case: id_valid => //=; case : app_sopn => //= >; case write_lexprs.
+  by rewrite /exec_sopn /= /sopn_sem /Oriscv; case: i_valid => //=; case : app_sopn => //= >; case write_lexprs.
 Qed.
 
 Lemma assemble_swap_correct ws : assemble_extra_correct (SWAP ws).
@@ -505,7 +503,7 @@ Proof.
   case: lvs => // -[] // x [] // -[] // y [] //.
   case: args => // -[] // [] // z [] // [] // [] // w [] //=.
   t_xrbindP => vz hz _ vw hw <- <-.
-  rewrite /exec_sopn /= /swap_semi.
+  rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /= /swap_semi.
   t_xrbindP => /= _ wz hvz ww hvw <- <- /=.
   t_xrbindP.
   t_xrbindP => _ vm1 /set_varP [_ htrx ->] <- _ vm2 /set_varP [_ htry ->] <- <- /eqP hxw /eqP hyx
@@ -535,7 +533,7 @@ Proof.
   set xi := {| v_var := _ |}.
   case: args => // -[] // [] // y [] // [] // [] // [] // w [] // imm [] //=.
   t_xrbindP => vy hvy <-.
-  rewrite /exec_sopn /=; t_xrbindP => /= n w1 hw1 w2 hw2 ? <- /=; subst n.
+  rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /=; t_xrbindP => /= n w1 hw1 w2 hw2 ? <- /=; subst n.
   t_xrbindP => ? vm1 hsetx <- <- /= /eqP hne.
   move=> /andP [] hxtty /andP [] hyty _ <- hmap hlom.
   move/to_wordI: hw1 => [ws [w' [?]]] /truncate_wordP [hle1 ?]; subst vy w1.
@@ -624,7 +622,7 @@ Definition riscv_is_move_opP op vx v :
   -> values_uincl v [:: vx ].
 Proof.
   case: op => // -[[] // op] /= hop.
-  rewrite /exec_sopn /=.
+  rewrite /exec_sopn /sopn_sem /sopn_sem_ /=.
   rewrite /semi_to_atype.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.

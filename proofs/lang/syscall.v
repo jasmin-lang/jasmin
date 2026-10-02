@@ -2,6 +2,7 @@ From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
 From Coq Require Import PArith ZArith.
+From ITree Require Import ITree.
 Require Import
   word
   type
@@ -12,6 +13,11 @@ Variant syscall_t : Type :=
   | RandomBytes of wsize & Z.
 
 HB.instance Definition _ := hasDecEq.Build syscall_t syscall_t_eqb_OK.
+
+Variant RndEvent : Type -> Type :=
+| Rnd : Z -> RndEvent (seq u8).
+
+Notation with_RndEvent E := (RndEvent -< E).
 
 (* -------------------------------------------------------------------- *)
 (* For typing                                                           *)
@@ -34,12 +40,3 @@ Definition syscall_sig_s {pd:PointerData} (o:syscall_t) : syscall_sig_t :=
   | RandomBytes _ _ => {| scs_tin := [::aword Uptr; aword Uptr]; scs_tout := [::aword Uptr] |}
   end.
 
-
-(* -------------------------------------------------------------------- *)
-(* For the semantic                                                     *)
-Class syscall_sem (syscall_state : Type) := {
-  get_random : syscall_state -> Z -> syscall_state * seq u8
-}.
-
-
-Definition syscall_state_t {syscall_state : Type} {sc_sem: syscall_sem syscall_state} := syscall_state.

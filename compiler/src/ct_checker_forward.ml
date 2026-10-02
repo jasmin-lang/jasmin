@@ -422,24 +422,32 @@ let get_annot ensure_annot f =
   let sig_annot = get_signature f.f_annot.f_user_annot in
   check_sig_annot f sig_annot;
 
+  let parse ~single loc a =
+    let lvl = Lvl.parse ~single a in
+    let msg = "Constant time security annotations are deprecated. Annotate the function with a ct attribute (see documentation on “Constant-time programming”" in
+    Option.may (fun _ -> Utils.warning Deprecated (L.i_loc0 loc) "%s" msg ) lvl;
+    lvl in
+
   let process_argument i x =
     let lvl =
+      let lvl1 = parse ~single:true x.v_dloc x.v_annot in
       let lvl2 = Option.bind sig_annot (get_nth_argument i) in
-      match lvl2 with
-      | None | Some [] -> None
-      | Some t -> Some (lvl_of_typ t)
+      match lvl1, lvl2 with
+      | Some _, _ | _, None | _, Some [] -> lvl1
+      | None, Some t -> Some (lvl_of_typ t)
     in
     x.v_name, lvl
   in
-  let process_result i _ =
+  let process_result loc i a =
+    let lvl1 = parse ~single:false loc a in
     let lvl2 = Option.bind sig_annot (get_nth_result i) in
-    match lvl2 with
-    | None | Some [] -> None
-    | Some t -> Some (lvl_of_typ t)
+    match lvl1, lvl2 with
+    | Some _, _ | _, None | _, Some [] -> lvl1
+    | None, Some t -> Some (lvl_of_typ t)
   in
   let ain  = List.mapi process_argument f.f_args in
   let ainlevels = List.map (fun (_, x) -> x) ain in
-  let aout = List.mapi process_result f.f_ret_info.ret_annot in
+  let aout = List.mapi (process_result f.f_loc) f.f_ret_info.ret_annot in
 
   let check_defined msg l =
     if List.exists (fun a -> a = None) l then
@@ -509,6 +517,21 @@ let get_annot ensure_annot f =
   ain, aout, ldecls
 
 (* -----------------------------------------------------------*)
+let sdeclassify = "declassify"
+
+let is_declassify ~loc annot =
+  Annot.ensure_uniq1 sdeclassify Annot.none annot <> None
+  && (warning Always loc "#[declassify] annotations are deprecated: use the #declassify() operator instead"; true)
+
+
+let declassify_lvl ~loc annot lvl =
+  if is_declassify ~loc annot then Public
+  else lvl
+
+let declassify_lvls ~loc annot lvls =
+  if is_declassify ~loc annot then List.map (fun _ -> Public) lvls
+  else lvls
+
 let declassify_expr ~loc env =
   function
   | Pvar { gs = Slocal ; gv } -> Env.set env gv Public
@@ -524,7 +547,7 @@ let rec ty_instr is_ct_asm fenv env i =
   match i.i_desc with
   | Cassgn(x, _, _, e) ->
     let env, lvl = ty_expr ~public:false env e in
-    ty_lval env x lvl
+    ty_lval env x (declassify_lvl ~loc i.i_annot lvl)
 
   | Copn (_, _, Sopn.Opseudo_op (Odeclassify _), [ e ]) ->
      declassify_expr ~loc env e
@@ -532,11 +555,11 @@ let rec ty_instr is_ct_asm fenv env i =
   | Copn(xs, _, o, es) ->
     let public = not (is_ct_sopn is_ct_asm o) in
     let env, lvl = ty_exprs_max ~public env es in
-    ty_lvals1 env xs lvl
+    ty_lvals1 env xs (declassify_lvl ~loc i.i_annot lvl)
 
   | Csyscall(xs, RandomBytes _, es) ->
     let env, _ = ty_exprs_max ~public:true env es in
-    ty_lvals1 env xs Secret
+    ty_lvals1 env xs (declassify_lvl ~loc i.i_annot Secret)
 
   (* We ignore the contents of assertion *)
   | Cassert _ -> env
@@ -577,7 +600,7 @@ let rec ty_instr is_ct_asm fenv env i =
     let do_e env e lvl = ty_expr ~public:(lvl=Public) env e in
     let env, elvls = List.map_fold2 do_e env es fty.tyin in
     let olvls = instanciate_fty fty elvls in
-    ty_lvals env xs olvls
+    ty_lvals env xs (declassify_lvls ~loc i.i_annot olvls)
   in
   if !Glob_options.debug then
     Format.eprintf "%a: @[<v>before %a@ after %a@]@." L.pp_loc (i.i_loc.base_loc) Env.pp env Env.pp env1;

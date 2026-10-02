@@ -49,8 +49,6 @@ Section WITH_PARAMS.
 
 Context
   {atoI  : arch_toIdent}
-  {syscall_state : Type}
-  {sc_sem : syscall_sem syscall_state}
   {call_conv : calling_convention}.
 
 #[local] Existing Instance withsubword.
@@ -64,7 +62,8 @@ Lemma sem_fopn_equiv o s :
   ARMv8AFopn_coreP.sem_fopn_args o s = sem_fopn_args (to_opn o) s.
 Proof.
   case: o => -[xs o] es /=; case: sem_rexprs => //= >.
-  rewrite /exec_sopn /=; case: id_valid => //=.
+  rewrite /exec_sopn /= /sopn_sem /=; case: id_valid => //=.
+  rewrite /sopn_sem_ /= /semi_to_atype.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.
   by case: app_sopn.
@@ -190,8 +189,8 @@ Proof.
   have := [elaborate
     ARMv8AFopn_coreP.gen_smart_opi_sem_fopn_args
       (is_small := is_arith_small) (neutral := Some 0%Z)
-      (@ARMv8AFopn_coreP.add_sem_fopn_args _ _)
-      (@ARMv8AFopn_coreP.addi_sem_fopn_args _ _)].
+      (@ARMv8AFopn_coreP.add_sem_fopn_args _)
+      (@ARMv8AFopn_coreP.addi_sem_fopn_args _)].
   move=> /(_ _ xi xi y imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.addr0.
   move=> vm' [hsem heq heqx]; exists vm'; split => //=.
@@ -212,8 +211,8 @@ Proof.
   have := [elaborate
     ARMv8AFopn_coreP.gen_smart_opi_sem_fopn_args
       (is_small := is_arith_small) (neutral := Some 0%Z)
-      (@ARMv8AFopn_coreP.sub_sem_fopn_args _ _)
-      (@ARMv8AFopn_coreP.subi_sem_fopn_args _ _)].
+      (@ARMv8AFopn_coreP.sub_sem_fopn_args _)
+      (@ARMv8AFopn_coreP.subi_sem_fopn_args _)].
   move=> /(_ _ xi xi y imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.subr0.
   move=> vm' [hsem heq heqx]; exists vm'; split => //=.
@@ -235,8 +234,8 @@ Proof.
   have := [elaborate
     ARMv8AFopn_coreP.gen_smart_opi_sem_fopn_args
       (is_small := is_arith_small) (neutral := Some 0%Z)
-      (@ARMv8AFopn_coreP.add_sem_fopn_args _ _)
-      (@ARMv8AFopn_coreP.addi_sem_fopn_args _ _)].
+      (@ARMv8AFopn_coreP.add_sem_fopn_args _)
+      (@ARMv8AFopn_coreP.addi_sem_fopn_args _)].
   move=> /(_ _ tmp xi xi imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.addr0.
   + by right => h; rewrite h in hne.
@@ -259,8 +258,8 @@ Proof.
   have := [elaborate
     ARMv8AFopn_coreP.gen_smart_opi_sem_fopn_args
       (is_small := is_arith_small) (neutral := Some 0%Z)
-      (@ARMv8AFopn_coreP.sub_sem_fopn_args _ _)
-      (@ARMv8AFopn_coreP.subi_sem_fopn_args _ _)].
+      (@ARMv8AFopn_coreP.sub_sem_fopn_args _)
+      (@ARMv8AFopn_coreP.subi_sem_fopn_args _)].
   move=> /(_ _ tmp xi xi imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.subr0.
   + by right => h; rewrite h in hne.

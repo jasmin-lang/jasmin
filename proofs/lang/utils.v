@@ -2028,3 +2028,43 @@ Lemma is_reflect_some_inv {A B : Type} {P : A -> B} {e a} :
   is_reflect P e (Some a) ->
   e = P a.
 Proof. by rewrite -/(if Some a is Some a' then e = P a' else True) => -[]. Qed.
+
+Lemma lt_succ_r x y : x <? Z.succ y = (x <=? y).
+Proof. by case: ZleP => /Z.lt_succ_r /ltzP // /negPf. Qed.
+
+Lemma uniq_ziota n m : uniq (ziota n m).
+Proof.
+rewrite ziotaE map_inj_uniq; first exact: iota_uniq.
+by move=> ?? /Z.add_reg_l /Nat2Z.inj.
+Qed.
+
+Lemma count_ziota n m x :
+  count (pred1 x) (ziota n m) = [&& n <=? x & x <? n + m ].
+Proof. rewrite count_uniq_mem; by [rewrite in_ziota | exact: uniq_ziota ]. Qed.
+
+(* foldl (fun s x => if p x then x :: s else s) [::] s *)
+Fixpoint take_while T (p : pred T) (s : seq T) : seq T :=
+  if s is x :: s then
+    if p x then x :: take_while p s else [::]
+  else s.
+
+Fixpoint drop_while T (p : pred T) (s : seq T) : seq T :=
+  if s is x :: s then
+    if p x then drop_while p s else x :: s
+  else s.
+
+Fixpoint split_after T (p : pred T) (s : seq T) : seq T * seq T :=
+  if s is x :: s then
+    if p x then
+      let: (s1, s2) := split_after p s in
+      (x :: s1, s2)
+    else ([::], x :: s)
+  else ([::], [::]).
+
+Lemma split_after_take_drop T p (s : seq T) :
+  split_after p s = (take_while p s, drop_while p s).
+Proof. elim: s => [|x s hi] //=; case: ifP => _ //; by rewrite hi. Qed.
+
+Definition uncons T (s : seq T) : option (T * seq T) :=
+  if s is x :: s then Some (x, s) else None.
+

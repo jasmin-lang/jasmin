@@ -15,10 +15,10 @@ Section WITH_PARAMS.
 Context
   {wsw : WithSubWord}
   {dc:DirectCall}
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}.
+  {sip : SemInstrParams asm_op}.
 
 Definition mov_ofs_correct (mov_ofs : lval → assgn_tag → mov_kind → pexpr → pexpr → option instr_r) :=
   forall (P' : sprog) ev s1 e w ofs pofs x tag mk ii ins s2,

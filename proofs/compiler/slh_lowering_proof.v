@@ -180,9 +180,9 @@ Definition not_misspeculating_args {msfsize : MSFsize}
 Section H_SH_PARAMS.
 
   Context
-    {asm_op syscall_state : Type}
+    {asm_op : Type}
     {wsw: WithSubWord}
-    {ep : EstateParams syscall_state}
+    {ep : EstateParams}
     {spp : SemPexprParams}
     {asmop : asmOp asm_op}.
 
@@ -259,11 +259,11 @@ End EnvP.
 Section WITH_PARAMS.
 
 Context
-  {asm_op syscall_state : Type}
+  {asm_op : Type}
   {wsw: WithSubWord}
-  {ep : EstateParams syscall_state}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {LC : LoopCounter}
 .
 
@@ -523,12 +523,12 @@ Section LOWER_SLHO.
     wf_env env (p_globs p') s ->
     check_lv_msf ii (nth (Lnone dummy_var_info aint) lvs 0) = ok ox ->
     to_word msf_size (@Vword msf_size 0) = ok w ->
-    se_move_sem w = t ->
+    sopn_sem_ (Oslh SLHmove) w = ok t ->
     write_lvals true (p_globs p') s lvs [:: Vword t ] = ok s' ->
     wf_env (Env.after_SLHmove env ox) (p_globs p') s'.
   Proof.
     move=> hwf hx.
-    rewrite /to_word truncate_word_u => -[?] ?; subst w t.
+    rewrite /to_word truncate_word_u => -[?] [?]; subst w t.
     case: lvs hx => //= lv.
     t_xrbindP=> -[] //= hchk s'' hwrite [?]; subst s''.
     exact: (wf_env_after_SLHmove hwf hchk hwrite).
@@ -576,7 +576,7 @@ Section LOWER_SLHO.
     case: args => //=; t_xrbindP => v1 [] //=; t_xrbindP => v2 [] //=.
     case: es => //=; t_xrbindP => e1 [] //= e2; t_xrbindP.
     move=> es /(check_e_msfP _ hwf) -> <- v1' he1 ? _ [<-] vs _ <- ? [] <- ?; subst v1' vs.
-    move=> t w /to_wordI [ws'[ w' [? hw']]] _ /truncate_wordP [_ ->] <- <-.
+    move=> t w /to_wordI [ws'[ w' [? hw']]] _ /truncate_wordP [_ ->] [<-] <-.
     case: lvs => //= lv; t_xrbindP => -[] //= s'' hw [?]; subst s''.
     split => //.
     + by eexists; [reflexivity | rewrite /to_word truncate_word_u].
@@ -590,7 +590,7 @@ Section LOWER_SLHO.
     case: args => //=; t_xrbindP => v1 [] //=; t_xrbindP => v2 [] //=.
     case: es => //=; t_xrbindP => e1 [] //= e2; t_xrbindP.
     move=> es /(check_e_msfP _ hwf) -> <- v1' he1 ? _ [<-] vs _ <- ? [] <- ?; subst v1' vs.
-    move=> t1 t2 ht _ /truncate_wordP [_ ->] <- <-.
+    move=> t1 t2 ht _ /truncate_wordP [_ ->] [<-] <-.
     case: lvs => //= lv; t_xrbindP => -[] //= s'' hw [?]; subst s''.
     split; last by apply: wf_env_after_assign_vars1; eauto.
     by eexists; [reflexivity | rewrite /to_word truncate_word_u].
@@ -607,7 +607,7 @@ Section LOWER_SLHO.
     move=> e2 [] /=; t_xrbindP; last by move=> *; subst.
     move=> v1' he1 _ v2' he2 _ <- <- ? [?]; subst v1' v2'.
     move=> t1 t2 hv1 msf hmsf.
-    rewrite /= /se_protect_ptr_fail_sem; t_xrbindP => /eqP ???;
+    rewrite /sopn_sem /sopn_sem_ /= /se_protect_ptr_fail_sem; t_xrbindP => /eqP ???;
       subst t2 msf res env'.
     case: lvs => //= lv; t_xrbindP => -[] //= s'' hw [?]; subst s''.
     split => //; apply: wf_env_after_assign_vars1; eauto.
@@ -817,6 +817,8 @@ Context
   {E E0: Type -> Type}
   {wE : with_Error E E0}
   {rE : EventRels E0}
+  {rndE : with_RndEvent E0}
+  {rndE_refl : RndRels_refl rE}
   (shparams : sh_params)
   (hshparams : h_sh_params shparams)
   (fun_info : funname -> seq slh_t * seq slh_t)
@@ -942,7 +944,7 @@ case: is_protect_ptrP hargs hchk hexec => {slho} [[ws sz]|slho] /=; t_xrbindP.
 - move=> ???; subst xs' op' es'.
   rewrite /sem_sopn; t_xrbindP=> /(check_e_msfP true hwf) + <-.
   move: args hsemes; rewrite /exec_sopn /=; destruct_opn_args=> /= hsemes.
-  rewrite hp_globs /= /se_protect_ptr_fail_sem /se_protect_ptr_sem
+  rewrite hp_globs /sopn_sem_ /= /se_protect_ptr_fail_sem /se_protect_ptr_sem
     hsemes (mapM_nth (Pconst 0%Z) (Vint 0) (n := 1) hsemes);
     last by rewrite (size_mapM hsemes).
   move=> [->] ?? /= -> /= ?.
@@ -1033,7 +1035,7 @@ Lemma it_lower_code c c' env env' :
   check_cmd fun_info env c = ok env' ->
   lower_cmd c = ok c' ->
   wequiv_rec p p' ev ev slh_spec (st_eq env) c c' (st_eq env').
-Proof using hshparams hp.
+Proof using hshparams hp rndE_refl.
 apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) c env env' c' => //;
   [ | | |
   | exact: it_lower_opn
@@ -1070,14 +1072,14 @@ apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) c env env' c' => //;
   - by move=> > [-> _].
   - by move=> > [-> _].
   - split=> //. exact: EnvP.le_refl.
-  exact: wrequiv_eq.
+  exact: fs_eq_syscall.
 
 (* Assert *)
 by move=> > /= [<-] [<- <-]; apply wequiv_assert => //.
 Qed.
 
 Lemma it_lower_call {fn} : wiequiv_f p p' ev ev rpreF fn fn rpostF.
-Proof using hshparams hp.
+Proof using hshparams hp rndE_refl.
 apply: wequiv_fun_ind => {}fn _ fs _ [<- <- htin] fd
   /(get_map_cfprog_name_gen hp_body) [] fd' /lower_fdP [].
 rewrite /check_fd /= (surjective_pairing (fun_info _)).
@@ -1110,7 +1112,7 @@ Qed.
 Lemma it_lower_call_export {fn} :
   fn \in entries ->
   wiequiv_f p p' ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
-Proof using hshparams hp.
+Proof using hshparams hp rndE_refl.
 move: hp; rewrite /lower_slh_prog; t_xrbindP=> /allP h _ _ _ /h {}h.
 apply: wkequiv_io_weaken it_lower_call => //.
 - by move=> s _ [_ <-]; split=> // /all_is_slh_none /(_ h).

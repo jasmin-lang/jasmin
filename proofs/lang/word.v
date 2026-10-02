@@ -290,6 +290,12 @@ Definition wrepr s (z: Z) : word s :=
 Lemma wunsigned_inj sz : injective (@wunsigned sz).
 Proof. by move => x y /eqP /val_eqP. Qed.
 
+Lemma wunsigned_inj' ws (x y : word ws) :
+  (wunsigned x == wunsigned y) = (x == y).
+Proof.
+case: (x =P y) => [<-|h]; by [rewrite eqxx | apply/eqP => /wunsigned_inj ].
+Qed.
+
 Lemma wunsigned1 ws :
   @wunsigned ws 1 = 1%Z.
 Proof. by case: ws. Qed.
@@ -357,12 +363,6 @@ Qed.
 
 Lemma wunsigned0 ws : @wunsigned ws 0 = 0.
 Proof. by rewrite -wrepr0 wunsigned_repr Zmod_0_l. Qed.
-
-Lemma wunsigned_eqb0 ws (w : word ws) : (wunsigned w =? 0) = (w == 0%R).
-Proof.
-apply/idP/idP => [/ZeqbP h1 | /eqP ->]; last by rewrite wunsigned0; apply/ZeqbP.
-by apply/eqP/wunsigned_inj; rewrite h1 wunsigned0.
-Qed.
 
 Lemma wunsigned_add sz (p: word sz) (n: Z) :
   0 <= wunsigned p + n < wbase sz →
@@ -1490,11 +1490,6 @@ Definition wbswap sz (w: word sz) : word sz :=
   make_vec sz (rev (split_vec U8 w)).
 
 (* -------------------------------------------------------------------*)
-(* Bit [i] of the operand is bit [wsize_bits sz - 1 - i] of the result. *)
-Definition wbitrev sz (w: word sz) : word sz :=
-  winit sz (fun i => wbit_n w (wsize_size_minus_1 sz - i)).
-
-(* -------------------------------------------------------------------*)
 Definition popcnt sz (w: word sz) :=
  wrepr sz (Z.of_nat (count id (w2t w))).
 
@@ -2395,3 +2390,21 @@ Proof.
   apply Z.quot_le_lower_bound; Lia.nia.
 Qed.
 
+Section WORD_ENUM.
+
+Context {ws : wsize}.
+
+Definition enum_word := [seq wrepr ws x | x <- ziota 0 (wbase ws) ].
+
+Lemma word_enumP : Finite.axiom enum_word.
+Proof.
+move=> b; rewrite count_map (eq_in_count (a2 := pred1 (wunsigned b))).
+- rewrite count_ziota; by have [/ZleP -> /ZltP /= ->] := wunsigned_range b.
+move=> /= x; rewrite in_ziota => /andP [/ZleP ? /ZltP ?].
+by rewrite -wunsigned_inj' wunsigned_repr_small.
+Qed.
+
+HB.instance Definition _ := [Countable of (word ws) by <: ].
+HB.instance Definition _ := isFinite.Build (word ws) word_enumP.
+
+End WORD_ENUM.

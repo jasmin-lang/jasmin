@@ -13,10 +13,10 @@ Section PROOF.
   Context
     {wsw : WithSubWord}
     {dc:DirectCall}
-    {asm_op syscall_state : Type}
-    {ep : EstateParams syscall_state}
+    {asm_op : Type}
+    {ep : EstateParams}
     {spp : SemPexprParams}
-    {sip : SemInstrParams asm_op syscall_state}
+    {sip : SemInstrParams asm_op}
     {pT : progT}
     {sCP : semCallParams}.
 
@@ -50,7 +50,13 @@ Section PROOF.
 
   Section IT.
 
-  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context
+    {E E0 : Type -> Type}
+    {wE : with_Error E E0}
+    {rndE : with_RndEvent E0}
+    {rE : EventRels E0}
+    {rndE_refl : RndRels_refl rE}
+  .
 
   Let Pi (i:instr) :=
     wequiv_rec p p' ev ev eq_spec (st_eq tt) [::i] (unroll_i i).1 (st_eq tt).
@@ -71,7 +77,7 @@ Section PROOF.
 
   Lemma it_unroll_callP fn :
     wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-  Proof.
+  Proof using rndE_refl.
     apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hfd.
     exists (unroll_fun (fn, fd)).1.2.
     + by apply: p'_get_fundef hfd.
@@ -103,7 +109,7 @@ Section PROOF.
       apply wkequiv_bind with (st_eq tt).
       + apply wkequiv_iresult.
         move=> s t s' /st_relP [-> /= heq] hw.
-        rewrite /= (write_var_Z hw) /=.
+        rewrite /sem_assgn /= (write_var_Z hw) /=.
         have [vm2 /= ??] := [elaborate write_lvar_ext_eq (gd := [::]) (x:= Lvar i) heq hw].
         by exists (with_vm s' vm2).
       apply (wkequiv_eutt_r

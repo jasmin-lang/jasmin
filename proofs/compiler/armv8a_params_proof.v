@@ -60,8 +60,6 @@ Section Section.
 
 Context
   {atoI  : arch_toIdent}
-  {syscall_state : Type}
-  {sc_sem : syscall_sem syscall_state}
   {call_conv : calling_convention}.
 
 (* ------------------------------------------------------------------------ *)
@@ -576,7 +574,7 @@ Proof.
   split=> /=.
   + by move=> _ ? _ [<-].
   + move=> _ ? _ [<-] _ fd ->; by exists fd.
-  move=> ???? _ ? _ ?? [<-]; exact: (wiequiv_f_eq (scP := sCP_stack)).
+  move=> ?????? _ ? _ ?? [<-]; exact: (wiequiv_f_eq (scP := sCP_stack)).
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -719,7 +717,7 @@ Proof.
 
   move=> /sem_sop2I /= [b0 [b1 [b [hb0 hb1 hb ?]]]]; subst v.
   move: hb.
-  rewrite /sem_sop2_typed /mk_sem_op /=.
+  rewrite /mk_sem_sop2 /=.
   move=> [?]; subst b.
 
   have hincl0 := xgetflag_ex eqf hr0 hv0.
@@ -753,7 +751,7 @@ Proof.
   move=> /sem_sop2I /= [b0 [b1 [b [hb0 hb1 hb ?]]]]; subst v.
 
   move: hb.
-  rewrite /sem_sop2_typed /mk_sem_op /=.
+  rewrite /mk_sem_sop2 /=.
   move=> [?]; subst b.
 
   have hc0 := value_uincl_to_bool_value_of_bool hincl0 hb0 hv0'.
@@ -779,7 +777,7 @@ Proof.
   move=> /sem_sop2I /= [b0 [b1 [b [hb0 hb1 hb ?]]]]; subst v.
 
   move: hb.
-  rewrite /sem_sop2_typed /mk_sem_op /=.
+  rewrite /mk_sem_sop2 /=.
   move=> [?]; subst b.
 
   have hc0 := value_uincl_to_bool_value_of_bool hincl0 hb0 hv0'.
@@ -840,7 +838,7 @@ Lemma sem_sopns_fopns_args s lc :
 Proof.
   elim: lc s => //= -[[xs o] es ] lc ih s.
   rewrite /sem_fopn_args /sem_sopn_t /=; case: sem_rexprs => //= >.
-  by rewrite /exec_sopn /=; case: id_valid => //=;
+  by rewrite /exec_sopn /= /sopn_sem /Oarmv8a; case: i_valid => //=;
     case : app_sopn => //= >; case write_lexprs.
 Qed.
 
@@ -851,7 +849,7 @@ Proof.
   case: lvs => // -[] // x [] // -[] // y [] //.
   case: args => // -[] // [] // z [] // [] // [] // w [] //=.
   t_xrbindP => vz hz _ vw hw <- <-.
-  rewrite /exec_sopn /= /swap_semi.
+  rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /= /swap_semi.
   t_xrbindP => /= _ wz hvz ww hvw <- <- /=.
   t_xrbindP => _ vm1 /set_varP [_ htrx ->] <- _ vm2 /set_varP [_ htry ->] <- <-
     /eqP hxw /eqP hyx /and4P [hxt hyt hzt hwt] <-.
@@ -883,7 +881,7 @@ Proof.
   set xi := {| v_var := _ |}.
   case: args => // -[] // [] // y [] // [] // [] // [] // w [] // imm [] //=.
   t_xrbindP => vy hvy <-.
-  rewrite /exec_sopn /=; t_xrbindP
+  rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /=; t_xrbindP
     => /= n w1 hw1 w2 hw2 ? <- /=; subst n.
   t_xrbindP => ? vm1 hsetx <- <- /= /eqP hne.
   move=> /andP [] hxtty /andP [] hyty _ <- hmap hlom.
@@ -958,7 +956,7 @@ Proof.
     exists s' => //.
     move: hsemargs hexec hwrite => /=.
     t_xrbindP => vs _ ?; subst xs.
-    rewrite /exec_sopn /=.
+    rewrite /exec_sopn /= /sopn_sem /=.
     t_xrbindP=> w w' /truncate_wordP [hws' ?]; subst w'.
     case: vs => // -[?] ?; subst w ys.
     t_xrbindP=> m0 vm0 hsetx ??; subst m0 m'.
@@ -988,7 +986,7 @@ Proof.
   exists s' => //.
   move: hsemargs hexec hwrite => /=.
   t_xrbindP => vs _ ?; subst xs.
-  rewrite /exec_sopn /=.
+  rewrite /exec_sopn /= /sopn_sem /=.
   t_xrbindP=> w w' /truncate_wordP [hws' ?]; subst w'.
   case: vs => // -[?] ?; subst w ys.
   t_xrbindP=> m0 vm0 hsetx ??; subst m0 m'.
@@ -1058,7 +1056,7 @@ Proof. by constructor; move=> ???? []. Qed.
 Section STACK_ZEROIZATION.
 
 Lemma armv8a_hszparams : h_stack_zeroization_params (ap_szp armv8a_params).
-Proof.
+Proof using atoI call_conv.
   split.
   + exact: armv8a_stack_zero_cmd_not_ext_lbl.
   exact: armv8a_stack_zero_cmdP.
@@ -1078,7 +1076,7 @@ Proof.
   case: ifP => // hmn /negPf hs.
   case: opt hmn hs => sho sz hmn /= hs.
   case: sho hs => [sk | ] hs; first by [].
-  rewrite /exec_sopn /=.
+  rewrite /exec_sopn /sopn_sem /sopn_sem_ /=.
   rewrite /semi_to_atype.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.

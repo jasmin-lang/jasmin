@@ -12,7 +12,6 @@ Require Import
   lowering
   lowering_lemmas
   psem
-  sem_op_typed_facts
   utils.
 Require Import
   arch_extra
@@ -31,8 +30,6 @@ Context
   {wsw : WithSubWord}
   {dc : DirectCall}
   {atoI : arch_toIdent}
-  {syscall_state : Type}
-  {sc_sem : syscall_sem syscall_state}
   {pT : progT}
   {sCP : semCallParams}
   (p : prog)
@@ -265,8 +262,8 @@ Proof.
     rewrite /exec_sopn /=.
     move: htrunc.
     move => /truncate_val_typeE [w [ws' [w']]] [] h_trunc  ??; subst => /=.
-    rewrite h_trunc /= h_cmp /=.
-    rewrite computational_eq_refl /=.
+    rewrite h_trunc /= /sopn_sem /= h_cmp /=.
+    rewrite /sopn_sem_ /= /semi_to_atype computational_eq_refl /=.
     rewrite zero_extend_u.
     by rewrite hwrite.
   case: e hseme => //=.
@@ -345,8 +342,8 @@ Proof.
       rewrite /exec_sopn /=.
       move: htrunc.
       rewrite /truncate_val /= truncate_word_u /= => -[] ?; subst.
-      rewrite truncate_word_le //= /= hle /=.
-      rewrite computational_eq_refl /=.
+      rewrite truncate_word_le //= /sopn_sem /= hle /=.
+      rewrite /sopn_sem_ /= /semi_to_atype computational_eq_refl /=.
       by rewrite hwrite.
     + move => w w0 hseme /=.
       case: w hseme => // hseme.
@@ -363,8 +360,8 @@ Proof.
       rewrite /exec_sopn /=.
       move: htrunc.
       rewrite /truncate_val /= truncate_word_u /= => -[] ?; subst.
-      rewrite truncate_word_le //= /= hle /=.
-      rewrite computational_eq_refl /=.
+      rewrite truncate_word_le //= /sopn_sem /= hle /=.
+      rewrite /sopn_sem_ /= /semi_to_atype computational_eq_refl /=.
       by rewrite hwrite.
     + move => ws hseme.
       case: ws hseme => //= hseme.
@@ -442,11 +439,11 @@ Proof.
     set op2' := Oasm _.
     have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
       Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
-    by rewrite sem_correct //= /riscv_sub_semi !sub_wordE wsub_zero_extend.
+    by rewrite sem_correct //= /semi_to_atype /= /riscv_sub_semi !sub_wordE wsub_zero_extend.
   + case => // -[] // [] //=.
     + rewrite /sem_sop2 /=.
       t_xrbindP=> w1 ok_w1 w2 ok_w2.
-      rewrite sem_sop2_typed_divE /=.
+      rewrite /mk_sem_divmod /=.
       case w2_nzero: eq_op => //=.
       case: andb => //.
       move=> _ [<-] ?; subst v.
@@ -458,7 +455,7 @@ Proof.
       by rewrite hwrite.
     rewrite /sem_sop2 /=.
     t_xrbindP=> w1 ok_w1 w2 ok_w2.
-    rewrite sem_sop2_typed_divE orbF /=.
+    rewrite /mk_sem_divmod orbF /=.
     case w2_nzero: eq_op => //=.
     move=> _ /ok_inj <- ?; subst v.
     move=> [<- <- <-].
@@ -470,7 +467,7 @@ Proof.
   + case => // -[] // [] //=.
     + rewrite /sem_sop2 /=.
       t_xrbindP=> w1 ok_w1 w2 ok_w2.
-      rewrite sem_sop2_typed_modE /=.
+      rewrite /mk_sem_divmod /=.
       case: eq_op => //=.
       case: andb => //.
       move=> _ [<-] ?; subst v.
@@ -482,7 +479,7 @@ Proof.
       by rewrite hwrite.
     rewrite /sem_sop2 /=.
     t_xrbindP=> w1 ok_w1 w2 ok_w2.
-    rewrite sem_sop2_typed_modE orbF.
+    rewrite /mk_sem_divmod orbF.
     case: eq_op => //=.
     move=> _ /ok_inj <- ?; subst v.
     move=> [<- <- <-].
@@ -561,13 +558,13 @@ Proof.
     rewrite /sem_sopn /=.
     t_xrbindP.
     move => vs _ v1 ok_v1 _ v2 ok_v2 <- <-.
-    rewrite /exec_sopn /=.
+    rewrite /exec_sopn /= /sopn_sem /= /sopn_sem_ /=.
     t_xrbindP => _ w0 ok_w0 w1 ok_w1 <- <- /=.
     t_xrbindP => s2 ok_s2 {}s1 ok_s1 <-.
     rewrite /sem_sopn /= ok_v1 /= ok_v2 /= /exec_sopn /= ok_w0 /= ok_w1 /= ok_s2 /=.
     do 2 rewrite (write_get_gvarP_neq _ _ ok_s2) //.
     rewrite ok_v1 ok_v2 /=.
-    rewrite ok_w0 ok_w1 /=.
+    rewrite ok_w0 ok_w1 /sopn_sem /=.
     move: ok_s1.
     by rewrite wrepr_mul !wrepr_unsigned => ->.
 
@@ -582,7 +579,13 @@ Qed.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE0 : EventRels E0}
+  {rndE : with_RndEvent E0}
+  {rndE_refl : RndRels_refl rE0}
+.
 
 #[ local ]
 Definition Pi_ (i : instr) :=
@@ -603,7 +606,7 @@ Proof. apply checker_st_eqP => //. Qed.
 (* Remark: excepted the case of Cassgn and Copn, the proof if the same than the arm one *)
 Lemma it_lower_callP fn :
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-Proof.
+Proof using rndE_refl.
   apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
   rewrite get_map_prog hget /= /lower_fd.
   eexists; first reflexivity.

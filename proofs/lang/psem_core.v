@@ -2,8 +2,12 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
+From ITree Require Import Basics ITree ITreeFacts Exception.
+
 Require Import xseq.
 Require Export type expr gen_map warray_ sem_type sem_op_typed values varmap expr_facts low_memory syscall_sem psem_defs.
+Require Import it_sems_core_defs core_logics.
+Require Import xrutt xrutt_facts rutt_extras.
 Require Export
   flag_combination
   sem_params.
@@ -18,24 +22,85 @@ Open Scope vm_scope.
 Section WSW.
 Context {wsw:WithSubWord}.
 
-Class semCallParams
-  {syscall_state : Type}
-  {ep : EstateParams syscall_state}
-  {scs : syscall_sem syscall_state}
+Section SCP.
+
+Context
+  {ep : EstateParams}
   {pT : progT}
-  := SemCallParams
+.
+
+(* The core versions are defined exactly on [ErrEvent +' RndEvent] instead of on
+   an arbitrary event.
+   In this way, when we instantiate for different event families (e.g., when
+   interpreting recursive calls we instantiate once with [E := E] and once with
+   [E := Call +' E]) we can still prove that [exec_syscall] behaves the same by
+   construction. *)
+
+Class semCallParams := SemCallParams
   {
   init_state : extra_fun_t -> extra_prog_t -> extra_val_t -> estate -> exec estate;
+
   finalize   : extra_fun_t -> mem -> mem;
-  exec_syscall : syscall_state_t -> mem -> syscall_t -> values -> exec (syscall_state_t * mem * values);
-  exec_syscallP: forall scs m o vargs vargs' rscs rm vres,
-     exec_syscall scs m o vargs = ok (rscs, rm, vres) ->
-     values_uincl vargs vargs' ->
-     exists2 vres', exec_syscall scs m o vargs' = ok (rscs, rm, vres') & values_uincl vres vres';
-  exec_syscallS: forall scs m o vargs rscs rm vres,
-     exec_syscall scs m o vargs = ok (rscs, rm, vres) ->
-     mem_equiv m rm;
+
+  exec_syscall_core :
+      mem ->
+      syscall_t ->
+      values ->
+      itree (ErrEvent +' RndEvent) (mem * values);
+
+  exec_syscall_coreP : forall m o vargs vargs',
+      values_uincl vargs vargs' ->
+      lxeutt sc_res_uincl
+        (exec_syscall_core m o vargs)
+        (exec_syscall_core m o vargs');
+
+  exec_syscall_coreS : forall m o vargs,
+      lutt_eT
+        (fun '(m', _) => mem_equiv m m')
+        (exec_syscall_core m o vargs);
 }.
+
+Context
+  {sCP : semCallParams}
+  {E0 E : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent E0}
+.
+
+Definition exec_syscall
+  (m : mem) (o : syscall_t) (vs : values) :
+  itree E (mem * values) :=
+  translate subevent (exec_syscall_core m o vs).
+
+Lemma exec_syscallP m o vargs vargs' :
+  values_uincl vargs vargs' ->
+  lxeutt sc_res_uincl
+    (exec_syscall m o vargs)
+    (exec_syscall m o vargs').
+Proof.
+move=> /exec_syscall_coreP; rewrite /exec_syscall.
+move=> h; apply: xrutt_translate (h m o).
+- by move=> X [e|e] //= _; rewrite /errcutoff /is_error /= mid12.
+- done.
+- move=> A B e1 e2 [heq heqe]; move: e2 heqe.
+  case: B / heq => e2 /= ->; exact: RPre_eq_refl.
+by move=> A B e1 a e2 b _ hpost; exact: hpost.
+Qed.
+
+Lemma exec_syscallS m o vargs :
+  lutt_eT
+    (fun '(m', _) => mem_equiv m m')
+    (exec_syscall m o vargs).
+Proof.
+(* TODO the following should be a lemma about lutt and translate *)
+have [t' /rutt_eq_trans_refl h] := exec_syscall_coreS m o vargs.
+eexists; apply/eutt_rutt/eutt_translate_gen/gen_rutt_eutt.
+apply: rutt_weaken h => //.
+by move=> T1 T2 e1 e2 [].
+Qed.
+
+End SCP.
+
 
 (** Switch for the semantics of function calls:
   - when false, arguments and returned values are truncated to the declared type of the called function;
@@ -59,9 +124,12 @@ Definition dc_truncate_val {dc:DirectCall} t v :=
 Section SEM_CALL_PARAMS.
 
 Context
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
-  {sip : SemInstrParams asm_op syscall_state}.
+  {E0 E : Type -> Type}
+  {asm_op : Type}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent E0}
+  {ep : EstateParams}
+  {sip : SemInstrParams asm_op}.
 
 (* ** Semantic without stack
  * -------------------------------------------------------------------- *)
@@ -70,21 +138,26 @@ Context
 Instance sCP_unit : semCallParams (pT := progUnit) :=
   { init_state := fun _ _ _ s => ok s;
     finalize   := fun _ m => m;
-    exec_syscall  := exec_syscall_u;
-    exec_syscallP := exec_syscallPu;
-    exec_syscallS := exec_syscallSu;
+    exec_syscall_core  := @exec_syscall_u _;
+    exec_syscall_coreP := @exec_syscallPu _;
+    exec_syscall_coreS := @exec_syscallSu _;
 }.
+
+Lemma exec_syscall_typed_res m o vs :
+  lutt_eT
+    (fun '(_, vs') => truncate_vals (sc_out_u o) vs' = ok vs')
+    (exec_syscall (pT := progUnit) m o vs).
+Proof. exact: lutt_translate (exec_syscall_u_typed_res _ _ _). Qed.
 
 (* ** Semantic with stack
  * -------------------------------------------------------------------- *)
 
 Definition init_stk_state (sf : stk_fun_extra) (pe:sprog_extra) (wrip:pointer) (s:estate) :=
-  let scs1 := s.(escs) in
   let m1   := s.(emem) in
   let vm1  := s.(evm) in
   Let m1' := alloc_stack m1 sf.(sf_align) sf.(sf_stk_sz) sf.(sf_stk_ioff) sf.(sf_stk_extra_sz) in
   write_vars true [:: vid pe.(sp_rsp) ; vid pe.(sp_rip)]
-             [:: Vword (top_stack m1'); Vword wrip] (Estate scs1 m1' Vm.init).
+             [:: Vword (top_stack m1'); Vword wrip] (Estate m1' Vm.init).
 
 Definition finalize_stk_mem (sf : stk_fun_extra) (m:mem) :=
   free_stack m.
@@ -93,9 +166,9 @@ Definition finalize_stk_mem (sf : stk_fun_extra) (m:mem) :=
 Instance sCP_stack : semCallParams (pT := progStack) :=
   { init_state := init_stk_state;
     finalize   := finalize_stk_mem;
-    exec_syscall  := exec_syscall_s;
-    exec_syscallP := exec_syscallPs;
-    exec_syscallS := exec_syscallSs;
+    exec_syscall_core  := @exec_syscall_s _;
+    exec_syscall_coreP := @exec_syscallPs _;
+    exec_syscall_coreS := @exec_syscallSs _;
 }.
 
 End SEM_CALL_PARAMS.
@@ -147,10 +220,9 @@ Context {wsw:WithSubWord}.
 Section ESTATE_UTILS.
 
 Context
-  {syscall_state : Type}
-  {ep : EstateParams syscall_state}.
+  {ep : EstateParams}.
 
-Lemma surj_estate s : s = {| escs := escs s; emem := emem s; evm := evm s |}.
+Lemma surj_estate s : s = {| emem := emem s; evm := evm s |}.
 Proof. by case:s. Qed.
 
 Lemma with_vm_same s : with_vm s (evm s) = s.
@@ -165,19 +237,10 @@ Proof. by case: s. Qed.
 Lemma with_mem_idem s m1 m2 : with_mem (with_mem s m1) m2 = with_mem s m2.
 Proof. by case: s. Qed.
 
-Lemma with_scs_same s : with_scs s (escs s) = s.
-Proof. by case: s. Qed.
-
-Lemma with_scs_idem s scs1 scs2 : with_scs (with_scs s scs1) scs2 = with_scs s scs2.
-Proof. by case: s. Qed.
-
 Lemma evm_with_vm s vm : evm (with_vm s vm) = vm.
 Proof. by case: s. Qed.
 
 Lemma emem_with_vm s vm : emem (with_vm s vm) = emem s.
-Proof. by case: s. Qed.
-
-Lemma escs_with_vm s vm : escs (with_vm s vm) = escs s.
 Proof. by case: s. Qed.
 
 End ESTATE_UTILS.
@@ -267,39 +330,11 @@ Proof. by rewrite /get_gvar /is_lvar /is_glob => /eqP ->. Qed.
 Lemma get_gvar_nglob wdb gd x vm : ~~is_glob x -> get_gvar wdb gd vm x = get_var wdb vm (gv x).
 Proof. by rewrite /get_gvar is_lvar_is_glob => ->. Qed.
 
-Section WITH_SCS.
-
-  Context
-    {asm_op syscall_state : Type}
-    {ep : EstateParams syscall_state}
-    {spp : SemPexprParams}
-    (wdb : bool)
-    (gd : glob_decls)
-    (s1 : estate)
-    (scs : syscall_state).
-
-  Let P e : Prop :=
-    sem_pexpr wdb gd s1 e = sem_pexpr wdb gd (with_scs s1 scs) e.
-
-  Let Q es : Prop :=
-    sem_pexprs wdb gd s1 es = sem_pexprs wdb gd (with_scs s1 scs) es.
-
-  Lemma sem_pexpr_es_with_scs : (∀ e, P e) * (∀ es, Q es).
-  Proof.
-    apply: pexprs_ind_pair; split; subst P Q => //=; rewrite /sem_pexprs => *;
-    repeat match goal with H: _ = _ |- _ => rewrite H // end.
-  Qed.
-
-  Definition sem_pexpr_with_scs := fst sem_pexpr_es_with_scs.
-  Definition sem_pexprs_with_scs := snd sem_pexpr_es_with_scs.
-
-End WITH_SCS.
-
 Section EXEC_ASM.
 
 Context
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
   {asmop : asmOp asm_op}.
 
@@ -325,8 +360,8 @@ End EXEC_ASM.
 Section WITH_PARAMS.
 
 Context
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}.
 
 Definition write_var_Spec (wdb : bool) (x : var) (v : value) (s : estate) (s' : estate) : Prop :=
@@ -569,22 +604,6 @@ Proof.
   by apply on_arr_varP; t_xrbindP => *; apply: write_var_memP; eauto.
 Qed.
 
-Lemma write_var_scsP wdb x v s1 s2 :
-  write_var wdb x v s1 = ok s2 → escs s1 = escs s2.
-Proof. by apply: rbindP=> ?? [] <-. Qed.
-
-Lemma lv_write_scsP wdb gd (x:lval) v s1 s2:
-  write_lval gd wdb x v s1 = ok s2 ->
-  escs s1 = escs s2.
-Proof.
-  case: x=> /= [v0 t|v0|ws x e|al aa ws v0 p|aa ws len v0 p].
-  + by move => /write_noneP [-> _].
-  + by apply: write_var_scsP.
-  + by t_xrbindP => *; subst s2.
-  + by apply: on_arr_varP; t_xrbindP=> *; apply: write_var_scsP; eauto.
-  by apply on_arr_varP; t_xrbindP => *; apply: write_var_scsP; eauto.
-Qed.
-
 Lemma set_var_disjoint_eq_on wdb x s v vm vm' :
   ~~ Sv.mem x s ->
   set_var wdb vm x v = ok vm' ->
@@ -715,7 +734,7 @@ Corollary eq_on_sem_pexpr wdb s' gd s e :
   evm s =[read_e e] evm s' →
   sem_pexpr wdb gd s e = sem_pexpr wdb gd s' e.
 Proof.
-  move=> eq_mem /read_e_eq_on ->; rewrite (sem_pexpr_with_scs _ gd _ (escs s')).
+  move=> eq_mem /read_e_eq_on ->.
   by case: s' eq_mem => /= > <-.
 Qed.
 
@@ -724,7 +743,7 @@ Corollary eq_on_sem_pexprs wdb s' gd s es :
   evm s =[read_es es] evm s' →
   sem_pexprs wdb gd s es = sem_pexprs wdb gd s' es.
 Proof.
-  move=> eq_mem /read_es_eq_on ->; rewrite (sem_pexprs_with_scs _ gd _ (escs s')).
+  move=> eq_mem /read_es_eq_on ->.
   by case: s' eq_mem => /= > <-.
 Qed.
 
@@ -958,7 +977,7 @@ Proof.
   by rewrite hvs'.
 Qed.
 
-Lemma vuincl_exec_opn {sip : SemInstrParams asm_op syscall_state} o vs vs' v :
+Lemma vuincl_exec_opn {sip : SemInstrParams asm_op} o vs vs' v :
   values_uincl vs vs' -> exec_sopn o vs = ok v ->
   exists2 v', exec_sopn o vs' = ok v' & List.Forall2  value_uincl v v'.
 Proof.
@@ -966,7 +985,7 @@ Proof.
   exact: (get_instr_desc o).(semu) vs_vs' ho.
 Qed.
 
-Lemma truncate_val_exec_sopn {sip : SemInstrParams asm_op syscall_state} o vs vs' v :
+Lemma truncate_val_exec_sopn {sip : SemInstrParams asm_op} o vs vs' v :
   mapM2 ErrType truncate_val (map eval_atype (sopn_tin o)) vs = ok vs' ->
   exec_sopn o vs' = ok v ->
   exec_sopn o vs = ok v.
@@ -976,7 +995,7 @@ Proof.
   by rewrite (truncate_val_app_sopn htr ok_w).
 Qed.
 
-Lemma exec_sopn_truncate_val {sip : SemInstrParams asm_op syscall_state} o vs v :
+Lemma exec_sopn_truncate_val {sip : SemInstrParams asm_op} o vs v :
   exec_sopn o vs = ok v ->
   exists vs',
     mapM2 ErrType truncate_val (map eval_atype (sopn_tin o)) vs = ok vs' /\
@@ -1070,20 +1089,20 @@ Corollary sem_pexprs_uincl wdb gd s1 vm2 es vs1 :
               values_uincl vs1 vs2.
 Proof. move => /(vm_uincl_uincl_on (dom:=read_es es)); exact: sem_pexprs_uincl_on. Qed.
 
-Lemma sem_pexpr_uincl_on' wdb gd s vm' vm scs m e v1 :
+Lemma sem_pexpr_uincl_on' wdb gd s vm' vm m e v1 :
   vm <=[read_e_rec s e] vm' ->
-  sem_pexpr wdb gd {| escs := scs; emem := m; evm := vm |} e = ok v1 ->
+  sem_pexpr wdb gd {| emem := m; evm := vm |} e = ok v1 ->
   exists2 v2 : value,
-               sem_pexpr wdb gd {| escs := scs; emem := m; evm := vm' |} e = ok v2 & value_uincl v1 v2.
+               sem_pexpr wdb gd {| emem := m; evm := vm' |} e = ok v2 & value_uincl v1 v2.
 Proof.
   rewrite read_eE => /(uincl_onI (SvP.MP.union_subset_1 _)) h1 h2.
   by have /(_ _ h1) := sem_pexpr_uincl_on _ h2.
 Qed.
 
-Lemma sem_pexprs_uincl_on' wdb gd es s scs m vm vm' vs1 :
+Lemma sem_pexprs_uincl_on' wdb gd es s m vm vm' vs1 :
   vm <=[read_es_rec s es] vm'->
-  sem_pexprs wdb gd (Estate scs m vm) es = ok vs1 ->
-  exists2 vs2,sem_pexprs wdb gd (Estate scs m vm') es = ok vs2 &
+  sem_pexprs wdb gd (Estate m vm) es = ok vs1 ->
+  exists2 vs2,sem_pexprs wdb gd (Estate m vm') es = ok vs2 &
               values_uincl vs1 vs2.
 Proof.
   rewrite read_esE => /(uincl_onI (SvP.MP.union_subset_1 _)) h1 h2.
@@ -1513,3 +1532,72 @@ Ltac t_get_var :=
     || (rewrite get_var_neq; last by [|apply/nesym])
   ).
 
+Section PRES.
+
+Definition preservesE
+  E1 E2 E3 {S12 : E1 -< E2} {S23 : E1 -< E3} (F : Handler E2 E3) :=
+  forall T (e : E1 T),
+    eutt eq (F T (subevent T e)) (trigger e).
+
+#[global] Arguments preservesE _ {_ _ _ _} _.
+
+Context
+  {asm_op : Type}
+  {wsw : WithSubWord}
+  {dc : DirectCall}
+  {E0 E E' : Type -> Type}
+  {wE : with_Error E E0}
+  {wE' : with_Error E' E0}
+  {rE : with_RndEvent E0}
+  {ep : EstateParams}
+  {pT : progT}
+  {scP : semCallParams}
+.
+
+Lemma interp_preserves_throw (F : Handler E E') T e :
+  preservesE ErrEvent F ->
+  eutt eq (interp F (throw (X := T) e)) (throw e).
+Proof. by move=> h; rewrite interp_vis h bind_vis; apply: eqit_Vis. Qed.
+
+Lemma interp_preserves_iresult (F : Handler E E') T (r : exec T) :
+  preservesE ErrEvent F ->
+  eutt eq (interp F (iresult r)) (iresult r).
+Proof.
+move=> h; case: r => [r|e]; first by rewrite interp_ret; reflexivity.
+rewrite (interp_preserves_throw _ _ h); reflexivity.
+Qed.
+
+Lemma interp_preserves_exec_syscall (F : Handler E E') m o vs :
+  preservesE ErrEvent F ->
+  preservesE RndEvent F ->
+  eutt eq
+    (interp F (exec_syscall m o vs))
+    (exec_syscall m o vs).
+Proof.
+move=> err rnd; rewrite /exec_syscall interp_translate translate_to_interp /=.
+apply: eutt_interp; last reflexivity.
+move=> T [e|r]; first exact: err.
+exact: rnd.
+Qed.
+
+Lemma preservesE_case_inr {E1 E2 E1'} (F : Handler E1 (E1' +' E2)) :
+  preservesE E2 (case_ F inr_).
+Proof. move=> T e; apply: eqit_Vis; reflexivity. Qed.
+
+Lemma preservesE_sub
+  {E1 E1' E2 E3}
+  {S12 : E1 -< E2}
+  {S13 : E1 -< E3}
+  {S12' : E1' -< E2}
+  {S13' : E1' -< E3}
+  {S : E1' -< E1}
+  {F : Handler E2 E3} :
+  preservesE E1 F ->
+  (forall T (e : E1' T),
+    subevent (H := S12') T e = subevent (H := S12) T (subevent (H := S) T e)) ->
+  (forall T (e : E1' T),
+    subevent (H := S13') T e = subevent (H := S13) T (subevent (H := S) T e)) ->
+  preservesE E1' F.
+Proof. move=> h hsub12 hsub13 T e; rewrite hsub12 hsub13; exact: h. Qed.
+
+End PRES.

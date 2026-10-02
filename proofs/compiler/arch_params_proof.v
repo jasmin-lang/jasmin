@@ -22,7 +22,6 @@ Require Export arch_params.
 #[local] Existing Instance direct_c.
 
 Record h_lowering_params
-  {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra}
   (loparams : lowering_params) :=
   {
@@ -32,7 +31,9 @@ Record h_lowering_params
         {sCP : semCallParams}
         {E E0: Type -> Type}
         {wE : with_Error E E0}
+        {rndE : with_RndEvent E0}
         {rE : EventRels E0}
+        {rndE_refl : RndRels_refl rE}
         {p : prog}
         {ev : extra_val_t}
         (warning : instr_info -> warning_msg -> instr_info)
@@ -48,7 +49,6 @@ Record h_lowering_params
 (* Lowering of complex addressing mode for RISC-V.
    It is the identity for the other architectures. *)
 Record h_lower_addressing_params
-  {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra}
   (laparams : lower_addressing_params) :=
   {
@@ -75,7 +75,9 @@ Record h_lower_addressing_params
       forall
         {E E0: Type -> Type}
         {wE : with_Error E E0}
+        {rndE : with_RndEvent E0}
         {rE : EventRels E0}
+        {rndE_refl : RndRels_refl rE}
         {fresh_reg}
         {p p' : sprog}
         {ev fn},
@@ -85,7 +87,6 @@ Record h_lower_addressing_params
   }.
 
 Record h_architecture_params
-  {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra} {call_conv:calling_convention}
   (aparams : architecture_params) :=
   {
