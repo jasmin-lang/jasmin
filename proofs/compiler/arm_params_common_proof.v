@@ -57,7 +57,8 @@ Lemma sem_fopn_equiv o s :
   ARMFopn_coreP.sem_fopn_args o s = sem_fopn_args (ARMFopn.to_opn o) s.
 Proof.
   case: o => -[xs o] es /=; case: sem_rexprs => //= >.
-  rewrite /exec_sopn /=; case: id_valid => //=.
+  rewrite /exec_sopn /= /sopn_sem /=; case: id_valid => //=.
+  rewrite /sopn_sem_ /= /semi_to_atype.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.
   by case: app_sopn.

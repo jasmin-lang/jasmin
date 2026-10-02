@@ -119,7 +119,8 @@ Proof using Hp freshX.
   have : evm s <=[read_e ofs] vm by apply: uincl_onI hvm; clear -hX; SvD.fsetdec.
   move => /sem_pexpr_uincl_on /(_ ok_vofs) [] vofs' ok_vofs' /value_uinclE ?; subst vofs'.
   eexists; split.
-  -  rewrite /= -eq_globs ok_t' /= ok_vofs' /= ok_sub' /=.
+  - rewrite /= /sem_assgn.
+     rewrite /= -eq_globs ok_t' /= ok_vofs' /= ok_sub' /=.
      rewrite /truncate_val /= WArray.castK /=.
      rewrite /= /write_var /= /set_var /= eqxx /= with_vm_idem; reflexivity.
   - apply: uincl_on_set_r; first by [].
@@ -163,7 +164,7 @@ Opaque esem.
       move=> z hz; rewrite Vm.setP_neq //; apply /eqP => heq; subst z.
       have : Sv.In x (read_gvar src) by clear -hz; SvD.fsetdec.
       by case/norP: hxy; rewrite /eq_gvar /= /read_gvar; case: (src) => /= vy [/= /eqP | /=]; clear; SvD.fsetdec.
-    by rewrite /= /truncate_val /= WArray.castK /= write_var_eq_type.
+    by rewrite /= /sem_assgn /= /truncate_val /= WArray.castK /= write_var_eq_type.
   move: hcopy; rewrite /WArray.copy -/len => /(WArray.fcopy_uincl (WArray.uincl_empty tx0 erefl))
     => -[tx'] hcopy hutx.
   have :
@@ -219,7 +220,8 @@ Opaque esem.
     move=> _v hv /value_uinclE [yv ? hty']; subst _v.
     subst c; case: {hrec} cond.
 Transparent esem.
-    { rewrite /= get_gvar_neq // -eq_globs.
+    { rewrite /= /sem_assgn /=.
+      rewrite /= get_gvar_neq // -eq_globs.
       move: hv => /= => -> /=.
       rewrite (@get_gvar_eq _ _ _ (mk_lvar i)) //= (WArray.uincl_get hty' hget) /=.
       rewrite /truncate_val /= truncate_word_u /= write_var_eq_type //.
@@ -231,7 +233,7 @@ Transparent esem.
       rewrite get_var_eq //= /get_var hx /=.
       rewrite truncate_word_u /= hset /=.
       by rewrite write_var_eq_type. }
-    rewrite /= -eq_globs.
+    rewrite /= /sem_assgn /= -eq_globs.
     rewrite (get_gvar_eq gd (x:= mk_lvar i)) //=.
     rewrite /= !get_gvar_neq //.
     move: hv => /= -> /=.
@@ -298,7 +300,7 @@ Proof using Hp.
   case => vm2 hw' hvm2.
   exists vm2.
   + by apply: uincl_onI hvm2; clear -dstX; SvD.fsetdec.
-  rewrite /= /get_gvar /= ok_b /get_var /= ok_dst /=.
+  rewrite /sem_assgn /= /get_gvar /= ok_b /get_var /= ok_dst /=.
   rewrite /truncate_val /= hcast' /=.
   by rewrite -eq_globs ok_ofs' /= WArray.castK /= hset' /= hw'.
 Qed.
@@ -320,7 +322,7 @@ Proof using Hp freshX.
   have hesX : Sv.Subset (read_es es) X by clear -hsub; SvD.fsetdec.
   have [ hdis [] v ? [] vm1 [] exec_pfx hvm1 [] vy hy ] := get_sourceP hgets hes hesX hu; subst vs.
   move: hcopy.
-  rewrite /exec_sopn /=; t_xrbindP => t' t /to_arrI ? ok_t' ?; subst v vs'.
+  rewrite /exec_sopn /sopn_sem /=; t_xrbindP => t' t /to_arrI ? ok_t' ?; subst v vs'.
   case/value_uinclE => t2 ? htt2; subst vy.
   have ok_t2' := WArray.uincl_copy htt2 ok_t'.
   have [ vm2 [] hvm2 [] t'' ok_dst t't'' exec_array_copy ] := array_copyP ii htx hdis hvm1 hy ok_t2'.

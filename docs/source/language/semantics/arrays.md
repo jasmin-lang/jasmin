@@ -75,13 +75,13 @@ The type chosen at declaration time gives the default view:
 an expression `a[i]` means: “access to the *element* at position `i` in array `a`, according to its declared type”.
 
 But on every access, one may use a different view.
-For instance, the expression `a[:u128 0]` represents an access to the first element of array `a` seen as an array of 128-bit values.
+For instance, the expression `a[u128 0]` represents an access to the first element of array `a` seen as an array of 128-bit values.
 
 The type written after the left bracket tells the type of the elements of the array for this access.
 It is also the type of the value being read or written through said access.
 
-This facility may be used with run-time indices (`a[:u16 i]`)
-and with explicit scaling (`a.[:u128 i]`).
+This facility may be used with run-time indices (`a[u16 i]`)
+and with explicit scaling (`a.[u128 i]`).
 
 ## Intuition about `reg ptr` and `stack ptr`
 

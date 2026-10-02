@@ -523,12 +523,12 @@ Section LOWER_SLHO.
     wf_env env (p_globs p') s ->
     check_lv_msf ii (nth (Lnone dummy_var_info aint) lvs 0) = ok ox ->
     to_word msf_size (@Vword msf_size 0) = ok w ->
-    se_move_sem w = t ->
+    sopn_sem_ (Oslh SLHmove) w = ok t ->
     write_lvals true (p_globs p') s lvs [:: Vword t ] = ok s' ->
     wf_env (Env.after_SLHmove env ox) (p_globs p') s'.
   Proof.
     move=> hwf hx.
-    rewrite /to_word truncate_word_u => -[?] ?; subst w t.
+    rewrite /to_word truncate_word_u => -[?] [?]; subst w t.
     case: lvs hx => //= lv.
     t_xrbindP=> -[] //= hchk s'' hwrite [?]; subst s''.
     exact: (wf_env_after_SLHmove hwf hchk hwrite).
@@ -576,7 +576,7 @@ Section LOWER_SLHO.
     case: args => //=; t_xrbindP => v1 [] //=; t_xrbindP => v2 [] //=.
     case: es => //=; t_xrbindP => e1 [] //= e2; t_xrbindP.
     move=> es /(check_e_msfP _ hwf) -> <- v1' he1 ? _ [<-] vs _ <- ? [] <- ?; subst v1' vs.
-    move=> t w /to_wordI [ws'[ w' [? hw']]] _ /truncate_wordP [_ ->] <- <-.
+    move=> t w /to_wordI [ws'[ w' [? hw']]] _ /truncate_wordP [_ ->] [<-] <-.
     case: lvs => //= lv; t_xrbindP => -[] //= s'' hw [?]; subst s''.
     split => //.
     + by eexists; [reflexivity | rewrite /to_word truncate_word_u].
@@ -590,7 +590,7 @@ Section LOWER_SLHO.
     case: args => //=; t_xrbindP => v1 [] //=; t_xrbindP => v2 [] //=.
     case: es => //=; t_xrbindP => e1 [] //= e2; t_xrbindP.
     move=> es /(check_e_msfP _ hwf) -> <- v1' he1 ? _ [<-] vs _ <- ? [] <- ?; subst v1' vs.
-    move=> t1 t2 ht _ /truncate_wordP [_ ->] <- <-.
+    move=> t1 t2 ht _ /truncate_wordP [_ ->] [<-] <-.
     case: lvs => //= lv; t_xrbindP => -[] //= s'' hw [?]; subst s''.
     split; last by apply: wf_env_after_assign_vars1; eauto.
     by eexists; [reflexivity | rewrite /to_word truncate_word_u].
@@ -607,7 +607,7 @@ Section LOWER_SLHO.
     move=> e2 [] /=; t_xrbindP; last by move=> *; subst.
     move=> v1' he1 _ v2' he2 _ <- <- ? [?]; subst v1' v2'.
     move=> t1 t2 hv1 msf hmsf.
-    rewrite /= /se_protect_ptr_fail_sem; t_xrbindP => /eqP ???;
+    rewrite /sopn_sem /sopn_sem_ /= /se_protect_ptr_fail_sem; t_xrbindP => /eqP ???;
       subst t2 msf res env'.
     case: lvs => //= lv; t_xrbindP => -[] //= s'' hw [?]; subst s''.
     split => //; apply: wf_env_after_assign_vars1; eauto.
@@ -944,7 +944,7 @@ case: is_protect_ptrP hargs hchk hexec => {slho} [[ws sz]|slho] /=; t_xrbindP.
 - move=> ???; subst xs' op' es'.
   rewrite /sem_sopn; t_xrbindP=> /(check_e_msfP true hwf) + <-.
   move: args hsemes; rewrite /exec_sopn /=; destruct_opn_args=> /= hsemes.
-  rewrite hp_globs /= /se_protect_ptr_fail_sem /se_protect_ptr_sem
+  rewrite hp_globs /sopn_sem_ /= /se_protect_ptr_fail_sem /se_protect_ptr_sem
     hsemes (mapM_nth (Pconst 0%Z) (Vint 0) (n := 1) hsemes);
     last by rewrite (size_mapM hsemes).
   move=> [->] ?? /= -> /= ?.

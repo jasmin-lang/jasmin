@@ -57,7 +57,7 @@ Proof using Hp.
   move=> [<- <- <-] /= [<-]; rewrite /fresh_word /=.
   set x := {| vtype := _ |}.
   exists ((evm s).[x <- Vword (wrepr ws z)]); split => //.
-  + rewrite /= /truncate_val /= truncate_word_u /= LetK.
+  + rewrite /sem_assgn /= /truncate_val /= truncate_word_u /= LetK.
     by apply write_var_eq_type.
   + by move=> y hy /=; rewrite Vm.setP_neq //; apply/eqP; clear -hy; SvD.fsetdec.
   by rewrite /get_gvar /= get_var_set /= ?cmp_le_refl !orbT //= eqxx.

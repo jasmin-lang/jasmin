@@ -189,7 +189,10 @@ castop:
 | c=loc(castop1)? { c }
 
 cast:
-| s=T_INT_CAST { `ToInt s}
+| i=loc(T_INT) {
+    Utils.warning Deprecated (L.of_loc i) "Syntax (int)e is deprecated. Use (uint)e, (sint)e, or just e instead";
+    `ToInt (None) }
+| s=T_INT_CAST { `ToInt (Some s)}
 | s=swsize     { `ToWord s }
 
 (* ** Index expressions
@@ -228,11 +231,18 @@ prim:
 | UNALIGNED { `Unaligned }
 
 %inline access_type:
- | COLON ct=loc(utype) { ct }
+ | c=COLON? ct=loc(utype) { c, ct }
 
 %inline mem_access:
 | LBRACKET al=unaligned? ct=access_type? e=pexpr RBRACKET
-  { al, ct, e }
+  {
+    let ct =
+      match ct with
+      | Some (c, ct) ->
+        if c = None then Syntax.parse_error ~msg:"`:` expected" (L.loc ct);
+        Some ct
+      | None -> None in
+    al, ct, e }
 
 arr_access_len:
 | COLON e=pexpr { e }
@@ -242,6 +252,20 @@ arr_access_i:
 
 arr_access:
  | s=DOT?  i=brackets(arr_access_i) {
+
+   let (ws, e, len, al) = i in
+   let ws =
+      match ws with
+      | Some (c, ct) ->
+        if c = None then begin
+          let sw = string_of_swsize_ty (L.unloc ct) in
+          let sd = if s = None then "" else "." in
+          Utils.warning Deprecated (Location.of_loc ct)
+             "Syntax t%s[%s e] is deprecated. Use t%s[:%s e] instead" sd sw sd sw
+        end;
+        Some ct
+      | None -> None in
+   let i = ws, e, len, al in
    let s = if s = None then Warray_.AAscale else Warray_.AAdirect in
    s, i }
 

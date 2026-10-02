@@ -148,7 +148,7 @@ Proof.
   rewrite /exec_sopn /=.
   case: ifP => /= h.
   1: case: andP => [ [] hregx hws32 | hmov ] /=.
-  all: rewrite hv /= computational_eq_refl.
+  all: rewrite hv /= /sopn_sem /sopn_sem_ /= /semi_to_atype computational_eq_refl.
   + by rewrite /x86_MOVX /size_32_64 hws32 h /= hwr.
   + by rewrite /x86_MOV /= /size_8_64 h /= hwr.
   by rewrite /x86_VMOVDQ (wsize_nle_u64_size_128_256 h) /= hwr.
@@ -508,7 +508,7 @@ Lemma assemble_extra_concat128 rip ii lvs args m xs ys m' s ops ops' :
     foldM (fun '(op'', asm_args) => [eta eval_op op'' asm_args]) s ops' = ok s' & lom_eqv rip m' s'.
 Proof.
   case: args => // h [] // [] // [] // [l li] [] //=.
-  rewrite /exec_sopn /=.
+  rewrite /exec_sopn /sopn_sem /sopn_sem_ /=.
   t_xrbindP => vh hvh _ vl hvl <- <-{xs}.
   t_xrbindP => _ wh hwh wl hwl <- <-{ys} /=.
   case: lvs => // y [] /=; t_xrbindP => // z hw ? hops hmap hlow; subst z.
@@ -547,7 +547,7 @@ Proof.
   clear hmap hlo.
 
   move: hexec.
-  rewrite /= hes /exec_sopn /=.
+  rewrite /= hes /exec_sopn /= /sopn_sem /sopn_sem_ /=.
   clear hes.
 
   case: xs => //.
@@ -560,7 +560,7 @@ Proof.
   move=> rip ii lvs args m xs ys m' s ops ops'.
   case: op => //.
   (* Oset0 *)
-  + move=> sz; rewrite /exec_sopn /=.
+  + move=> sz; rewrite /exec_sopn /sopn_sem /sopn_sem_ /=.
     rewrite /Oset0_instr; case: ifP => /= hsz64.
     + case: args => /=; t_xrbindP; last by move => *; subst.
       move => <-{xs} _ /ok_inj <- /= <-{ys} hw x.
@@ -636,7 +636,7 @@ Proof.
 
   (* Ox86MOVZX32 *)
   + case: lvs => // -[] // x [] //.
-    rewrite /exec_sopn /=.
+    rewrite /exec_sopn /sopn_sem /sopn_sem_ /=.
     case: xs => //; t_xrbindP => vs1 [] // hva _ va htwa /ok_inj <- <-{ys}.
     t_xrbindP => _ m1 hwx <- <-{m'} <-{ops} /=.
     t_xrbindP => -[op' asm_args] hass <- hlow /=.
@@ -665,14 +665,14 @@ Proof.
     by right.
 
   (* Ox86MULX *)
-  + move=> sz. rewrite /exec_sopn /=.
+  + move=> sz. rewrite /exec_sopn /sopn_sem /sopn_sem_ /=.
     case lvs => // -[] // hi [] // [] // lo [] //.
     t_xrbindP => hargs _ hsz32_64 <- whilo hwhilo <- /=.
     t_xrbindP => _ _ /set_varP [hdb1 htr1 ->] <- _ _ /set_varP [hdb2 htr2 ->] <- <- _ hne <- <- /=.
     t_xrbindP => -[op' asm_args] hass <- hlow /=.
     assert (h1 := assemble_asm_opI hass); case: h1 => hca hcd hidc -> /= {hass}.
     have hex: exec_sopn (Oasm (BaseOp (None, MULX_lo_hi sz))) xs = ok [:: Vword whilo.2; Vword whilo.1].
-    + rewrite /exec_sopn /= computational_eq_refl.
+    + rewrite /exec_sopn /sopn_sem /sopn_sem_ /= /semi_to_atype computational_eq_refl.
       case: (xs) hwhilo => // v1; t_xrbindP => -[] // v2; t_xrbindP => -[] // w1 -> w2 ->.
       by rewrite /x86_MULX /x86_MULX_lo_hi hsz32_64 /= => -[<-].
     have hw' :
@@ -686,7 +686,7 @@ Proof.
     by rewrite !Vm.setP; case eqP => [<- | //]; rewrite (negbTE hne).
 
   (* Ox86MULX_hi *)
-  + move=> sz. rewrite /exec_sopn /=.
+  + move=> sz. rewrite /exec_sopn /sopn_sem /sopn_sem_ /=.
     case lvs => // -[] // hi [] //.
     t_xrbindP => hargs _ hval <- whi hwhi <- /=.
     t_xrbindP => _ _ /set_varP [hdb1 htr1 ->] <- <- _ <- <- /=.
@@ -695,7 +695,7 @@ Proof.
     case: xs hargs hwhi => // v1; t_xrbindP => -[] // v2; t_xrbindP => -[] // hargs w1 hv1 w2 hv2.
     rewrite /x86_MULX_hi; t_xrbindP => hwhi; pose wlo := (wumul w1 w2).2.
     have hex: exec_sopn (Oasm (BaseOp (None, MULX_lo_hi sz))) [:: v1; v2] = ok [:: Vword wlo; Vword whi].
-    + by rewrite /exec_sopn /= computational_eq_refl
+    + by rewrite /exec_sopn /sopn_sem /sopn_sem_ /= /semi_to_atype computational_eq_refl
         hval hv1 hv2 /= /x86_MULX_lo_hi /= -hwhi /wlo /wmulhu /wumul /=.
     have hw' :
        write_lexprs [:: LLvar hi; LLvar hi] [:: Vword wlo; Vword whi] m =
@@ -708,14 +708,14 @@ Proof.
     by rewrite !Vm.setP; case eqP.
 
   (* SLHinit *)
-  + rewrite /exec_sopn /= /assemble_slh_init /=; t_xrbindP.
+  + rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /assemble_slh_init /=; t_xrbindP.
     case: xs => // hargs _ [<-] <-; rewrite /se_init_sem.
     case: lvs => // x [] /=; t_xrbindP => // m1 hw ? <- /=; subst m1.
     t_xrbindP => z [op oargs] hass <- <- hlo /=.
     by rewrite word0E -(wrepr0 U64) in hw; apply (assemble_mov hlo hw hass).
 
   (* SLHupdate *)
-  + rewrite /exec_sopn /= /x86_se_update_sem /=; t_xrbindP.
+  + rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /= /x86_se_update_sem /=; t_xrbindP.
     case: xs => // vb; t_xrbindP => -[] // vw; t_xrbindP => -[] // hargs.
     move=> _ b hb w hw [<-] <- /=.
     case: lvs => //= aux; t_xrbindP => -[] //= x []; t_xrbindP => //=.
@@ -740,14 +740,14 @@ Proof.
     have hws : write_lexprs [:: x] [:: Vword (if ~~ b then wrepr U64 (-1) else w)] (with_vm m vm) = ok m2.
     + by rewrite /= hw2.
     have []:= compile_asm_opn_aux eval_assemble_cond hes _ hws hca hcd hidc hlo.
-    + by rewrite /exec_sopn /= hw /= /x86_CMOVcc /= truncate_word_u; case: ifP.
+    + by rewrite /exec_sopn /= hw /sopn_sem /sopn_sem_ /= /x86_CMOVcc /= truncate_word_u; case: ifP.
     by rewrite /eval_op => s' -> ?; exists s'.
 
   - exact: assemble_slh_move_correct.
 
   (* SLHprotect *)
 Opaque cat.
-  rewrite /exec_sopn /= /Ox86SLHprotect_instr /Uptr /assemble_slh_protect /= => rk ws.
+  rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /= /Ox86SLHprotect_instr /Uptr /assemble_slh_protect /= => rk ws.
   case: (boolP (ws <= U64)%CMP) => /= Hws; t_xrbindP.
 
   (* ws <= U64 *)
@@ -755,7 +755,7 @@ Opaque cat.
     + case: xs => // vw; t_xrbindP => -[] // vmsf; t_xrbindP => // -[] // hes _ _ <- tr w hw wmsf hmsf.
       rewrite /se_protect_small_sem /x86_OR => -[?] ? hws ? hmap hlo; subst tr ys ops.
       apply: (assemble_opsP eval_assemble_cond hmap erefl _ hlo).
-      by rewrite /= hes /exec_sopn /= hw hmsf /= !computational_eq_refl
+      by rewrite /= hes /exec_sopn /= hw hmsf /= /sopn_sem /sopn_sem_ /= /semi_to_atype !computational_eq_refl
         /x86_OR /size_8_64 Hws /= hws.
     (* MMX *)
     case: xs => // vw.
@@ -763,7 +763,7 @@ Opaque cat.
     rewrite /se_protect_mmx_sem /x86_POR.
     t_xrbindP => ?? hws ? hmap hlo; subst ws tr ys ops.
     apply: (assemble_opsP eval_assemble_cond hmap erefl _ hlo).
-    by rewrite /= hes /exec_sopn /= hw hmsf /= /x86_POR /= hws.
+    by rewrite /= hes /exec_sopn /= hw hmsf /= /sopn_sem /sopn_sem_ /= /x86_POR /= hws.
 
   (* ws > U64 *)
   case: rk => /=; t_xrbindP; first last.
@@ -876,7 +876,7 @@ Transparent cat.
       + by apply(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v1)).
       + by apply(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v2)).
       apply/(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v3)) => //.
-    by rewrite /exec_sopn /= truncate_word_u hw /= !computational_eq_refl
+    by rewrite /exec_sopn /= truncate_word_u hw /= /sopn_sem /sopn_sem_ /= /semi_to_atype !computational_eq_refl
       /x86_VPOR /size_128_256 Hws' /= (wsize_ge_U256 ws) /=.
   exists s' => //; apply: lom_eqv_ext hlo4 => z /=.
   rewrite /vm4; case: (to_var yr =P z) => [ | /eqP] ?;first by subst z; rewrite !Vm.setP_eq.
@@ -934,14 +934,14 @@ Proof.
   - by move=> _ ?? -> [<-] <-.
   - case: ws hws hmmx => //= _ _ [_ [<-] ->] ?? -> ? [<-] [<-] <-.
     by rewrite /= /se_protect_mmx_sem worC wor0.
-  - rewrite /app_sopn /= hws /=.
+  - rewrite /app_sopn /= /sopn_sem /sopn_sem_ /= hws /=.
     move=> [v [] ? hv]; subst v; rewrite hv.
     move=> _ ? -> _ [<-] [<-] <- /=.
     move/to_wordI: hv => [sz [w] [? /truncate_wordP [hle hze]]]; subst=> /=.
     rewrite truncate_word_le ?(cmp_le_trans _ hle) //
       -(zero_extend_idem (s2 := U64)) // -hze zero_extend0 /=.
     by rewrite /se_protect_small_sem /x86_OR /= worC wor0.
-  rewrite /app_sopn /= (negbTE hws) /=.
+  rewrite /app_sopn /= /sopn_sem /sopn_sem_ /= (negbTE hws) /=.
   move=> [v [] ? hv]; subst v; rewrite hv.
   move=> _ ? -> _ [<-] [<-] <- /=.
   move/to_wordI: hv => [sz [w] [? /truncate_wordP [hle hze]]]; subst=> /=.
@@ -981,11 +981,12 @@ Definition x86_is_move_opP op vx v :
 Proof.
   case: op => [[[|] [] ws] | []] // _.
 
-  all: rewrite /exec_sopn /=.
+  all: rewrite /exec_sopn /sopn_sem /=.
   1-3: t_xrbindP => ? hsz <-.
   all: t_xrbindP => w w0 /to_wordI' [ws' [wx [hle ??]]];
          subst vx w0.
 
+  all: rewrite /sopn_sem /sopn_sem_ /=.
   1-3: rewrite /semi_to_atype computational_eq_refl.
   all: rewrite /x86_MOV /x86_VMOVDQ /se_move_sem.
   all: t_xrbindP=> *.

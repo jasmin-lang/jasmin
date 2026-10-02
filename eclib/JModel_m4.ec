@@ -150,6 +150,7 @@ op MLScc m n a g o = if g then MLS m n a else o.
 op MULS (x y: W32.t) : bool * bool * W32.t =
   with_nz (x * y).
 abbrev [-printing] MUL = JModel_arm.MUL_32.
+op MULScc x y g n z o = if g then MULS x y else (n, z, o).
 op MULcc x y g o = if g then MUL x y else o.
 
 op MVNS (x: W32.t) : bool * bool * bool * W32.t =

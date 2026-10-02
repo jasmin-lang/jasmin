@@ -1421,9 +1421,9 @@ let ty_expr = function
   | Pload (_, sz,_) -> tu sz
   | Pget  (_,_, sz,_,_) -> tu sz
   | Psub (_,ws, len, _, _) -> Arr(ws, len)
-  | Papp1 (op,_)   -> Conv.ty_of_cty (snd (Operators.type_of_op1 op))
-  | Papp2 (op,_,_) -> Conv.ty_of_cty (snd (Operators.type_of_op2 op))
-  | PappN (op, _)  -> Conv.ty_of_cty (snd (Operators.type_of_opN op))
+  | Papp1 (op,_)   -> Conv.ty_of_cty (snd (E.type_of_op1 op))
+  | Papp2 (op,_,_) -> Conv.ty_of_cty (snd (E.type_of_op2 op))
+  | PappN (op, _)  -> Conv.ty_of_cty (snd (E.type_of_opN op))
   | Pif (ty,_,_,_) -> ty
 
 let ty_sopn pd msfsz asmOp op es =
@@ -1471,8 +1471,13 @@ let rec remove_for_i i =
     | Cwhile(a, c1, e, loc, c2) -> Cwhile(a, remove_for c1, e, loc, remove_for c2)
     | Cfor(j,r,c) ->
       let jd = j.pl_desc in
-      assert (not (is_write_c jd c)); (* toec_for removes writes to index var *)
-      Cfor(j, r, remove_for c)
+      if not (is_write_c jd c) then Cfor(j, r, remove_for c)
+      else
+        let jd' = V.clone jd in
+        let j' = { j with pl_desc = jd' } in
+        let ii' = Cassgn (Lvar j, E.AT_inline, jd.v_ty, Pvar (gkvar j')) in
+        let ii' = { i with i_desc = ii' } in
+        Cfor (j', r, ii' :: remove_for c)
   in
   { i with i_desc }
 and remove_for c = List.map remove_for_i c
@@ -1540,9 +1545,9 @@ module EcExpression(EA: EcArray): EcExpression = struct
               glob_memi; toec_expr env (int_of_ptr (Env.pd env) e)
           ])
       | Papp1 (op1, e) ->
-            ec_op1 op1 (toec_cast env (Conv.ty_of_cty (fst (Operators.type_of_op1 op1)), e))
+            ec_op1 op1 (toec_cast env (Conv.ty_of_cty (fst (E.type_of_op1 op1)), e))
       | Papp2 (op2, e1, e2) ->
-          let t1, t2 = fst (Operators.type_of_op2 op2) in
+          let t1, t2 = fst (E.type_of_op2 op2) in
           let te1 = (Conv.ty_of_cty t1, e1) in
           let te2 = (Conv.ty_of_cty t2, e2) in
           let te1, te2 = match op2 with
@@ -1595,7 +1600,7 @@ module type EcLeakage = sig
   val ec_leaks_es: Env.t -> exprs -> ec_instr list
   val ec_leaks_opn: Env.t -> exprs -> ec_instr list
   val ec_leaking_if: Env.t -> expr -> (Env.t -> ec_stmt) -> (Env.t -> ec_stmt) -> ec_stmt
-  val ec_leaking_while: Env.t -> expr -> (Env.t -> ec_stmt) -> ec_stmt
+  val ec_leaking_while: Env.t -> (Env.t -> ec_stmt) -> expr -> (Env.t -> ec_stmt) -> ec_stmt
   val ec_leaking_for: Env.t -> (Env.t -> ec_stmt) -> expr -> expr -> ec_stmt -> ec_expr -> ec_stmt -> ec_stmt
   val ec_leaks_lvs: Env.t -> lvals -> ec_stmt
   val global_leakage_vars: Env.t -> (ec_modty * ec_modty) list
@@ -1611,8 +1616,8 @@ module EcLeakNormal(EE: EcExpression): EcLeakage = struct
   let ec_leaks_es _env _es = []
   let ec_leaks_opn _env _es = []
   let ec_leaking_if env e c1 c2 = [ESif (EE.toec_expr env e, c1 env, c2 env)]
-  let ec_leaking_while env e c =
-    [ESwhile (EE.toec_expr env e, c env)]
+  let ec_leaking_while env c1 e c2 =
+    c1 env @ [ESwhile (EE.toec_expr env e, (c2 env @ c1 env))]
   let ec_leaking_for env c _e1 _e2 init cond i_upd = init @ [ESwhile (cond, c env @ i_upd)]
   let ec_leaks_lvs _env _lvs = []
   let global_leakage_vars _env = []
@@ -1665,9 +1670,9 @@ module EcLeakConstantTimeGlobal(EE: EcExpression): EcLeakage = struct
   let ec_leaking_if env e c1 c2 =
     leak_cond env e @ [ESif (EE.toec_expr env e, c1 env, c2 env)]
 
-  let ec_leaking_while env e c =
+  let ec_leaking_while env c1 e c2 =
     let le = leak_cond env e in
-    le @ [ESwhile (EE.toec_expr env e, (c env @ le))]
+    c1 env @ le @ [ESwhile (EE.toec_expr env e, (c2 env @ c1 env @ le))]
 
   let ec_leaking_for env c e1 e2 init cond i_upd =
     let leaks = List.map (toec_expr env) (leaks_es (Env.pd env) [e1;e2]) in
@@ -1785,19 +1790,34 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
     ec_addleaks env (leak_cond env e) @
     [ESif (toec_expr env e, leak_block env c1 acc, leak_block env c2 acc)]
 
-  let ec_leaking_while env e c =
+  let ec_leaking_while env c1 e c2 =
     let env = Env.new_aux_range env in
     let vleak_cond = Env.create_aux env "leak_cond" leakv_ty in
-    let leak_c = Env.create_aux env "_b" leakv_ty in
-    let leaking_c = leak_block env c leak_c in
-    let reset_c_leak = reset_leak leak_c in
-    reset_leak vleak_cond @ reset_c_leak @
+    (* We don't use leak_block since we need to check if c1 is empty. *)
+    let env_c1 = Env.new_aux_range env in
+    let c1 = c1 env_c1 in
+    let (leaking_c1, reset_c1_leak, c1_leaklist) = if c1 = [] then
+      ([], [], [])
+    else
+      let leak_c1 = Env.create_aux env "leak_b1" leakv_ty in
+      let leak_start_c1 = start_leakacc env_c1 in
+      (
+        leak_start_c1 @ c1 @ push_leak leak_c1 (leaklistv (leakacc env_c1)),
+        reset_leak leak_c1,
+        [leaklistv leak_c1]
+      )
+    in
+    let leak_c2 = Env.create_aux env (if c1 = [] then "_b" else "_b2") leakv_ty in
+    let leaking_c2 = leak_block env c2 leak_c2 in
+    let reset_c2_leak = reset_leak leak_c2 in
+    reset_leak vleak_cond @ reset_c1_leak @ reset_c2_leak @
+    leaking_c1 @
     push_leak vleak_cond (leaklist (leak_cond env e)) @
     [ESwhile (
       toec_expr env e,
-      leaking_c @ push_leak vleak_cond (leaklist (leak_cond env e))
+      leaking_c2 @ leaking_c1 @ push_leak vleak_cond (leaklist (leak_cond env e))
     )] @
-    push_leak (leakacc env) (leaklist ([leaklistv vleak_cond; leaklistv leak_c]))
+    push_leak (leakacc env) (leaklist (c1_leaklist @ [leaklistv vleak_cond; leaklistv leak_c2]))
 
   let leak_for_bounds env e1 e2 =
     leaks_es env [e1; e2] @ leak_val env e1 @ leak_val env e2
@@ -1962,10 +1982,10 @@ struct
           let c1 env = toec_cmd asmOp env c1 in
           let c2 env = toec_cmd asmOp env c2 in
           ec_leaking_if env e c1 c2
-      | Cwhile (_, c1, e, _, c) ->
-          assert (List.is_empty c1); (* c1 is empty after toec_while. *)
-          let c env = toec_cmd asmOp env c in
-          ec_leaking_while env e c
+      | Cwhile (_, c1, e, _, c2) ->
+          let c1 env = toec_cmd asmOp env c1 in
+          let c2 env = toec_cmd asmOp env c2 in
+          ec_leaking_while env c1 e c2
       | Cfor (i, (d,e1,e2), c) ->
           let env = Env.new_aux_range env in
           (* decreasing for loops have bounds swaped *)

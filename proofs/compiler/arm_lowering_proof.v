@@ -12,7 +12,6 @@ Require Import
   lowering
   lowering_lemmas
   psem
-  sem_op_typed_facts
   utils.
 Require Import
   arch_extra
@@ -139,7 +138,7 @@ Definition estate_of_TST s (w0 w1 : wreg) : estate :=
     (evm s)
       .[fvNF fv <- NF_of_word res]
       .[fvZF fv <- ZF_of_word res]
-      .[fvCF fv <- undef_b]
+      .[fvCF fv <- false]
   in
   with_vm s vm'.
 
@@ -255,7 +254,7 @@ Proof using fv_correct.
     + by rewrite /= hseme0 hseme1 /=.
     rewrite /= /get_gvar /=; repeat t_get_var => //.
     case: op hcf hsemop {h} => //= -[] // => [||[]|[]|[]|[]] _ [<- ->] /(_ erefl);
-      rewrite /sem_sop2_typed /mk_sem_op /sem_opN /= /sem_combine_flags /cf_xsem /NF_of_word /ZF_of_word /=
+      rewrite /mk_sem_sop2 /sem_opN /= /sem_combine_flags /cf_xsem /NF_of_word /ZF_of_word /=
         1?wsub_wnot1
         1?nzcv_of_aluop_CF_sub
         1?wsigned_wsub_wnot1
@@ -305,7 +304,7 @@ Proof using fv_correct.
   apply: rbindP => _ /to_wordI' [ws00 [w00 [hcmp00 ? ->]]]; subst v00.
   apply: rbindP => _ /to_wordI' [ws01 [w01 [hcmp01 ? ->]]]; subst v01.
   move=> /ok_inj /Vword_inj [??] /ok_inj /Vword_inj [??]; subst ws0' ws1' w0 w1.
-  move: hsemop; rewrite /sem_sop2_typed /mk_sem_op /= wrepr0 zero_extend0 => -[<-].
+  move: hsemop; rewrite /mk_sem_sop2 /= wrepr0 zero_extend0 => -[<-].
   exists ws00, ws01, w00, w01; split=> //.
   + by apply (cmp_le_trans hcmp0 hcmp00).
   + by apply (cmp_le_trans hcmp0 hcmp01).
@@ -666,17 +665,17 @@ Proof.
   split; last by [].
   exists [:: v; @Vword U32 0 ].
   - by rewrite /= hseme wrepr0.
-  by rewrite /exec_sopn /= ok_w' truncate_word_u /= !add_wordE opp_wordE GRing.add0r wnot1_wopp zero_extend_u.
+  by rewrite /exec_sopn /= /sopn_sem ok_w' truncate_word_u /= !add_wordE opp_wordE GRing.add0r wnot1_wopp zero_extend_u.
 Qed.
 
-Lemma sem_sop2_divP si ws (w0 w1 : word ws) w :
-  sem_sop2_typed (Odiv si (Op_w ws)) w0 w1 = ok w
+Lemma mk_sem_divmodP si ws op (w0 w1 : word ws) w :
+  mk_sem_divmod si op w0 w1 = ok w
   -> [/\ (w1 <> 0%R)
        , si <> Signed \/ (wsigned w0 <> wmin_signed ws) \/ (w1 <> (-1)%R)
-       & w = signed wdiv wdivi si w0 w1
+       & w = op w0 w1
      ].
 Proof.
-  rewrite sem_sop2_typed_divE.
+  rewrite /mk_sem_divmod.
   case: ifPn => //; rewrite negb_or => /andP [] /eqP ? h [<-]; split => //.
   move: h; rewrite !negb_and => /or3P [] /eqP; auto.
 Qed.
@@ -732,7 +731,7 @@ Ltac rewrite_exec :=
   move: h;
   let mytac := move=> /ok_inj; (move=> <- || move=> [] *; subst) in
   match goal with
-  | [ b : bool |- context [mk_semi_cond] ] =>
+  | [ b : bool |- context [{| is_conditional := true |}] ] =>
       case: b; mytac; last done
   end
   || mytac;
@@ -883,10 +882,10 @@ Proof.
     all: move: hw1 => /to_wordI [ws1 [w1 [? /truncate_wordP [hws1 ?]]]];
            subst v1 w1'.
     all: match goal with
-         | [ hop : sem_sop2_typed (Odiv _ _) _ _ = _ |- _ ] =>
-             move: hop => /sem_sop2_divP [hdiv0 hdiv1 ?]; subst w2
+         | [ hop : mk_sem_divmod _ _ _ _ = _ |- _ ] =>
+             move: hop => /mk_sem_divmodP [hdiv0 hdiv1 ?]; subst w2
          end
-         || (move: hop; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst w2).
+         || (move: hop => [?]; subst w2).
     all: move: hw => /Vword_inj [?]; subst ws'.
     all: move=> /= ?; subst w.
 
@@ -947,7 +946,7 @@ Proof.
     8: rewrite /sem_ror /sem_shift wror0.
     10, 11: have! := (is_wconstP true (p_globs p) s hconst); rewrite hseme1 => /truncate_wordP[] _.
     10: move => <-; rewrite /sem_rol /sem_shift wrol0.
-    all: rewrite /= !zero_extend_u //.
+    all: rewrite /sopn_sem_ /= /semi_to_atype /= !zero_extend_u //.
     all: rewrite /arm_LSR_semi /arm_LSL_semi /arm_ASR_semi /arm_ROR_semi /arm_shift_semi.
     all: rewrite /arch_utils.semi_drop3 /=.
     1-4: by case: ifP => //=.
@@ -1168,8 +1167,7 @@ Opaque esem esem_i.
   - move: opts => [sf ic osh].
     set opts := {| set_flags := _; |}.
     move=> /= /andP [/negPf ? /negPf ?] h [?] hexeces htout; subst op' sf ic.
-    apply: (sem_i_conditional (p := p') ev ii tag _ _ hsemc' _ _ hexeces hwrite12').
-    - by case: (mn); case: (osh).
+    apply: (sem_i_conditional (p := p') ev ii tag _ hsemc' _ _ hexeces hwrite12').
     - exact: (eeq_exc_sem_pexprs hfves hs10 hsemes).
     - by rewrite /= (eeq_exc_sem_pexpr hfve1 hs10 hseme1).
     rewrite /truncate_args /truncate_val /=.
@@ -1185,12 +1183,12 @@ Transparent esem esem_i.
   case: b hw hwrite12' => hw hwrite12'.
   - move: hexeces.
     rewrite /exec_sopn /=.
-    case: ves => [// | ? []]; t_xrbindP=> //= v _ -> /= -> ?; subst ws''.
+    case: ves => [// | ? []]; t_xrbindP=> //= v _ -> /= [->] ?; subst ws''.
     move=> [?]; subst v.
     by rewrite truncate_word_le.
   move: hexeces.
   rewrite /exec_sopn /=.
-  case: ves => [// | ? []]; t_xrbindP=> //= v _ -> /= _ ?; subst ws''.
+  case: ves => [// | ? []]; t_xrbindP=> //= v _ -> /= [->] ?; subst ws''.
   move=> [?]; subst v.
   by rewrite truncate_word_le.
 Qed.
@@ -1249,6 +1247,7 @@ Proof.
 
   all: case: ws hws hwrite hmn => // hws hwrite [?]; subst mn.
   all: rewrite /exec_sopn /=.
+  all: rewrite /sopn_sem /sopn_sem_ /= /semi_to_atype /=.
   all: rewrite ?truncate_word_le //.
 
   1-3: rewrite /= zero_extend_u.
@@ -1402,7 +1401,7 @@ Proof.
   move: hw1 => /to_wordI [ws' [w' [? hw1]]]; subst v1.
   move: hw1 => /truncate_wordP [hws' ?]; subst w1.
   move: hb => /to_boolI ?; subst v2.
-  move: hsopn => ?; subst res'.
+  move: hsopn => [?]; subst res'.
   move: hwrite => /=.
   t_xrbindP=> s00 hwrite00 s01 hwrite1 ?; subst s01.
 
@@ -1505,7 +1504,7 @@ Proof.
   rewrite /lower_mulu.
   case: lvs => [// | [] hi // [//| [] // lo [] //]].
   case: eqP => // hne /= + /Some_inj[] <- <- <- {lvs' op' es'}.
-  rewrite /sem_sopn /= /exec_sopn /=.
+  rewrite /sem_sopn /= /exec_sopn /= /sopn_sem /=.
   t_xrbindP => ? [] // x; t_xrbindP => - [] // y; t_xrbindP => - [] // ok_vs.
   move => ? a ok_a b ok_b /ok_inj <- <- /=.
   t_xrbindP => _ /write_varP [-> hdbh htrh].

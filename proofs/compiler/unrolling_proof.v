@@ -109,7 +109,7 @@ Section PROOF.
       apply wkequiv_bind with (st_eq tt).
       + apply wkequiv_iresult.
         move=> s t s' /st_relP [-> /= heq] hw.
-        rewrite /= (write_var_Z hw) /=.
+        rewrite /sem_assgn /= (write_var_Z hw) /=.
         have [vm2 /= ??] := [elaborate write_lvar_ext_eq (gd := [::]) (x:= Lvar i) heq hw].
         by exists (with_vm s' vm2).
       apply (wkequiv_eutt_r

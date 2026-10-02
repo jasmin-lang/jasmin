@@ -133,12 +133,12 @@ stack u64[10] x;
 Other indexing syntaxes are available, since Jasmin arrays of any type are
 fundamentally byte arrays.
 Therefore, accesses with a different type than the declared type of the array
-are possible, such as `x[:u16 i]` which views `x` as a length 40 array of `u16`
+are possible, such as `x[u16 i]` which views `x` as a length 40 array of `u16`
 and accesses the i-th element.
 
 Further, non-scaled array accesses are also possible:
-`x.[:u16 1]` returns the `u16` composed of the second and third bytes of the array.
-The explicit type can also be left out `x.[i]` is equivalent to `x.[:u64 i]`.
+`x.[u16 1]` returns the `u16` composed of the second and third bytes of the array.
+The explicit type can also be left out `x.[i]` is equivalent to `x.[u64 i]`.
 
 > Note: Jasmin semantics specifies the conversion between bytes and words as little-endian.
 
@@ -168,7 +168,7 @@ Subarrays consists on two elements:
 - length: amount of elements to access (must be a constant `int`).
 
 Similarly to array indexing, non-scaled subarrays and subarrays with
-type-casting are supported: `a.[i:N]`, `a[:u16 i:N]`, `a.[:u16 i:N]`.
+type-casting are supported: `a.[i:N]`, `a[u16 i:N]`, `a.[u16 i:N]`.
 
 ## Memory accesses
 

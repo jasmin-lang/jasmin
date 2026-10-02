@@ -614,5 +614,3 @@ Instance asmOp_sopn : asmOp sopn :=
 
 End WITH_PARAMS.
 
-Arguments sopn_sem_ {asm_op pd msfsz asmop} !o /.
-Arguments sopn_sem {asm_op pd msfsz asmop} !o /.
