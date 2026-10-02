@@ -130,7 +130,7 @@ let do_toec
        and type extra_op = extra_op) prog =
   let freshvar = (fun vk ii -> Conv.fresh_var_ident vk ii (Uint63.of_int 0)) in
   let cp = Conv.cuprog_of_prog prog in
-  let cp = Toec.toec_uprog Arch.asmOp freshvar cp in
+  let cp = Toec_prog.toec_uprog Arch.asmOp freshvar cp in
   let cp = catch_error cp in
   Conv.prog_of_cuprog cp
 

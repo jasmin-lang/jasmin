@@ -94,7 +94,7 @@ compiler/dead_code.v
 compiler/dead_code_proof.v
 compiler/direct_call_proof.v
 compiler/hoare_valid.v
-compiler/toec.v
+compiler/toec_prog.v
 compiler/toec_proof.v
 compiler/toec_for.v
 compiler/toec_for_proof.v

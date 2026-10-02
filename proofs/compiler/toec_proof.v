@@ -1,6 +1,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import compiler_util psem psem_facts.
-Require Import toec toec_for_proof toec_while_proof.
+Require Import toec_prog toec_for_proof toec_while_proof.
 
 Section PROOF.
 

@@ -7,4 +7,4 @@ Require riscv_params.
 Require armv8a_params.
 Require sem_params_of_arch_extra.
 Require wint_int.
-Require toec.
+Require toec_prog.
