@@ -1,1 +1,0 @@
-- The options `-lea`, `-nolea`, `-set0`, `-noset0` have been remove from the compiler `jasminc` ([PR 1510](https://github.com/jasmin-lang/jasmin/pull/1510)).

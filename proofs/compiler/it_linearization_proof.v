@@ -3104,7 +3104,7 @@ End ILSTEPS_END.
     all: case => M1 X1 hpc hfn hsp1 S1 MAX1.
     all: rewrite (step_mix_ilsteps C) // /=; last by simpl_size; lia.
     all: rewrite -(bind_ret_r (iresult _)); apply xrutt_bind_iresult_left => /= ks2.
-    all: rewrite /sem_assgn /=; t_xrbindP.
+    all: rewrite /=; t_xrbindP.
     - (* Move *)
       move => ?? hget ?.
       case/truncate_val_typeE => ? [] ws1 [] ? [] h ? hval hw <-{ks2}; subst.

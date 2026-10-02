@@ -1156,7 +1156,7 @@ Local Opaque opp_word.
       have [ vs3 ho' vs_vs3 ] := vuincl_exec_opn (values_uincl_trans Us u2) Ho;
       have [vm2 {}hw U]:= writes_uincl hu vs_vs3 hw;
       move: hs => /=; t_xrbindP => _ ze he <- ?; subst vs2 => /=;
-      move: ho'; rewrite ?he /exec_sopn /= /sopn_sem_ /= /se_move_sem; t_xrbindP;
+      move: ho'; rewrite ?he /exec_sopn /= /se_move_sem; t_xrbindP;
       move=> z z0 h ? /= ?; subst vs3 z;
       move: hw; rewrite ?h /truncate_val /= ?truncate_word_u ?wrepr_unsigned hxs /=;
       t_xrbindP => ? -> -> /=; by eexists.

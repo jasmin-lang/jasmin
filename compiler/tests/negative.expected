@@ -200,6 +200,10 @@ All allowed args (regardless of the input) are:
   [[reg]; [reg]]
   [[reg]; [imm 32 (shift = not allowed, none = not allowed)]]
 
+fail/arm-m4/muls_conditional.jazz:
+
+"fail/arm-m4/muls_conditional.jazz", line 5 (15-21): unknown primitive: "MULScc" (this mnemonic cannot both set flags and be conditional)
+
 fail/arm-m4/mvn_imm_shifted.jazz:
 
 "fail/arm-m4/mvn_imm_shifted.jazz", line 3 (4-25):
@@ -633,6 +637,18 @@ fail/common/overlay_live.jazz:
 "fail/common/overlay_live.jazz", line 10 (6-8):
 compilation error in function overlay_live:
 stack allocation: the region associated to variable t1 is partial
+
+fail/common/shift_sign.jazz:
+
+"fail/common/shift_sign.jazz", line 2 (8-11): invalid operator >>s 32u
+
+fail/common/shift_sign.jazz:
+
+"fail/common/shift_sign.jazz", line 2 (8-11): invalid operator >>s 32u
+
+fail/common/shift_sign.jazz:
+
+"fail/common/shift_sign.jazz", line 2 (8-11): invalid operator >>s 32u
 
 fail/common/storage_signature_mismatch.jazz:
 
@@ -1609,6 +1625,10 @@ fail/x86-64/bug_1366.jazz:
 
 "fail/x86-64/bug_1366.jazz", line 2 (2-21): invalid number of lvalues, 1 provided instead of 2
 
+fail/x86-64/bug_1441.jazz:
+
+"fail/x86-64/bug_1441.jazz", line 3 (11-15): invalid operator >>s 4u32
+
 fail/x86-64/cast_msb_merge.jazz:
 
 "fail/x86-64/cast_msb_merge.jazz", line 3 (2-30): primitive operator ADD_16 does not support zero-extension to 32
@@ -1762,7 +1782,7 @@ Allowed args are:
 
 Statistics:
 	Annots:      4
-	Pretyping:  52
+	Pretyping:  57
 	Parsing:     4
 	Typing:      5
 	Compile:   218

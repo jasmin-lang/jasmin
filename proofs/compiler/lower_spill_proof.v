@@ -153,7 +153,7 @@ Proof using spill_prog_ok.
   assert (h := get_gvar_eq_on true gd hX heq).
   have [heqt hnin] := get_spillP hsx.
   exists vm.[sx <- vt].
-  + rewrite /= /sem_assgn -eq_globs /= -h hx /= htr /=.
+  + rewrite /= -eq_globs /= -h hx /= htr /=.
     apply: write_var_eq_type; last by apply: truncate_val_DB htr.
     by rewrite heqt in htr; apply: truncate_val_has_type htr.
   split.
@@ -218,7 +218,7 @@ Proof.
     rewrite  vm_truncate_val_eq; first by apply heq.
     by apply: truncate_val_has_type htr.
   exists vm.[x <- (evm s).[x]].
-  + rewrite /sem_assgn /= /get_gvar /= /get_var /= -heqx -(heq _ hxin) hd /= htr /=.
+  + rewrite /= /get_gvar /= /get_var /= -heqx -(heq _ hxin) hd /= htr /=.
     apply: write_var_eq_type; first by apply: truncate_val_has_type htr.
     by apply: truncate_val_DB htr.
   split.

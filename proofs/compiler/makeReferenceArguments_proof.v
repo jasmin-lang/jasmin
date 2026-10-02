@@ -273,7 +273,8 @@ Context
       + by apply (eq_onT (vm2:= vm1));[apply: eq_onI heqvm => //| apply: eq_onI h3; clear -hXY hX; SvD.fsetdec ].
       by rewrite h2 -(make_referenceprog_globs Hp) hva.
     move=> /Sv_memP hnin [c args'] hmk [<- <-]{_pl _args'}.
-    pose vm1' := vm1.[y <- va]; rewrite esem_cons /=.
+    pose vm1' := vm1.[y <- va].
+    rewrite esem_cons /= -/(sem_assgn p' y AT_rename ty a (with_vm s vm1)).
     have [-> /= htva hdef] : [/\ sem_assgn p' y AT_rename ty a (with_vm s vm1) = ok (with_vm s vm1'),
                                  eval_atype (vtype y) = type_of_val va & is_defined va].
     + rewrite /sem_assgn -(eq_on_sem_pexpr _ _ (s:= s)) //=; last first.

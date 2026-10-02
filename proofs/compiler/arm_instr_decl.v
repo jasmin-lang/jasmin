@@ -831,7 +831,8 @@ Definition arm_MUL_instr : instr_desc_t :=
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::];
       id_pp_asm := pp_arm_op mn opts;
-      id_valid := true;
+      (* The encoding that sets the flags does so outside of IT blocks only. *)
+      id_valid := ~~ (set_flags opts && is_conditional opts);
       id_doit := DOIT;
       id_safe_wf := refl_equal;
       id_semi_errty := fun _ => sem_lprod_ok_error tin arm_MUL_semi;
@@ -2222,7 +2223,7 @@ Definition arm_TST_semi (wn wm : ty_r) : ty_nzc :=
   let res := wand wn wm in
   (:: Some (NF_of_word res)
       , Some (ZF_of_word res)
-      & Some false             (* TODO_ARM: C depends on shift or immediate. *)
+      & None
     ).
 
 Definition arm_TST_instr : instr_desc_t :=
@@ -2459,6 +2460,11 @@ Definition arm_prim_string : seq (string * prim_constructor arm_op) :=
       assert
         [|| ~~ sf | mn \in set_flags_mnemonics ]
         "this mnemonic cannot set flags"%string
+    in
+    Let _ :=
+      assert
+        (~~ [&& sf, ic & mn == MUL ])
+        "this mnemonic cannot both set flags and be conditional"%string
     in
     ok (ARM_op mn opts)
   in

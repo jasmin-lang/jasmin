@@ -216,7 +216,7 @@ Section WITH_PARAMS.
         have := value_uincl_truncate_r v_vt ok_v.
         case => vt' ok_vt'.
         eexists.
-        - rewrite /sem_assgn /= /get_gvar /= get_x /= ok_vt' /=.
+        - rewrite /= /get_gvar /= get_x /= ok_vt' /=.
           rewrite /write_var /set_var (truncate_val_DB _ ok_vt') (truncate_val_truncatable ok_vt') /=.
           reflexivity.
         split; last by exists fs.
