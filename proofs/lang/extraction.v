@@ -88,4 +88,4 @@ Separate Extraction
   armv8a_params
   compiler
   wint_int
-  toec.
+  toec_prog.
