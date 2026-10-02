@@ -1490,6 +1490,11 @@ Definition wbswap sz (w: word sz) : word sz :=
   make_vec sz (rev (split_vec U8 w)).
 
 (* -------------------------------------------------------------------*)
+(* Bit [i] of the operand is bit [wsize_bits sz - 1 - i] of the result. *)
+Definition wbitrev sz (w: word sz) : word sz :=
+  winit sz (fun i => wbit_n w (wsize_size_minus_1 sz - i)).
+
+(* -------------------------------------------------------------------*)
 Definition popcnt sz (w: word sz) :=
  wrepr sz (Z.of_nat (count id (w2t w))).
 
