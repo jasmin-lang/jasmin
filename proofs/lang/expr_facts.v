@@ -412,6 +412,22 @@ Lemma read_eassert_Pand e1 e2 :
   Sv.Equal (read_eassert (Pand e1 e2)) (Sv.union (read_eassert e1) (read_eassert e2)).
 Proof. by rewrite /read_eassert /= read_eassertE -!/(read_eassert _). Qed.
 
+Lemma read_easserts_rec_E as_ s :
+  Sv.Equal (read_easserts_rec s as_) (Sv.union (read_easserts as_) s).
+Proof.
+  rewrite /read_easserts; elim: as_ s => [ | a as_ hrec] s /=.
+  + clear; SvD.fsetdec.
+  do 2!(rewrite hrec -/read_easserts read_eassertE).
+  clear; SvD.fsetdec.
+Qed.
+
+Lemma read_easserts_cons a as_ :
+  Sv.Equal (read_easserts (a :: as_)) (Sv.union (read_eassert a) (read_easserts as_)).
+Proof.
+  rewrite {1}/read_easserts /= read_easserts_rec_E (read_eassertE a Sv.empty).
+  clear; SvD.fsetdec.
+Qed.
+
 Let Pr i := forall s, Sv.Equal (read_i_rec s i) (Sv.union s (read_i i)).
 Let Pi i := forall s, Sv.Equal (read_I_rec s i) (Sv.union s (read_I i)).
 Let Pc c := forall s, Sv.Equal (foldl read_I_rec s c) (Sv.union s (read_c c)).
