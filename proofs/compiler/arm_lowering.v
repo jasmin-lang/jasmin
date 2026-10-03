@@ -293,14 +293,27 @@ Definition sopn_set_is_conditional (op : sopn) : option sopn :=
   | _ => None
   end.
 
+(* On ARMv8.1-M, a conditional assignment between registers is a conditional
+   select: a single instruction, with data independent timing, whereas a
+   conditional instruction has not. *)
+Definition arm_lower_csel : bool := arm_mnemonic_available CSEL.
+
+Definition is_csel_arg (e : pexpr) : bool :=
+  if e is Pvar v then ~~ is_var_in_memory (gv v) else false.
+
 Definition lower_pexpr (vi: var_info) (ws : wsize) (e : pexpr):
   option (seq instr_r * sopn * seq pexpr) :=
   if e is Pif (aword ws') c e0 e1 then
     let%opt _ := oassert (ws == ws')%CMP in
-    let%opt (op, es) := lower_pexpr_aux ws e0 in
-    let%opt op := sopn_set_is_conditional op in
-    let '(pre, c') := lower_condition vi c in
-    Some (pre, op, es ++ [:: c'; e1 ])
+    if [&& arm_lower_csel, ws == reg_size, is_csel_arg e0 & is_csel_arg e1 ]
+    then
+      let '(pre, c') := lower_condition vi c in
+      Some (pre, Oarm (ARM_op CSEL default_opts), [:: e0; e1; c' ])
+    else
+      let%opt (op, es) := lower_pexpr_aux ws e0 in
+      let%opt op := sopn_set_is_conditional op in
+      let '(pre, c') := lower_condition vi c in
+      Some (pre, op, es ++ [:: c'; e1 ])
   else
     no_pre (lower_pexpr_aux ws e).
 

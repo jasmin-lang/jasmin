@@ -1121,6 +1121,58 @@ Proof using dc fv_correct.
 
   rewrite /lower_pexpr.
   move=> /oassertP [] /eqP ?; subst ws0.
+  case: ifP => [/and4P [hcsel /eqP ? _ _] | _].
+
+  - (* ARMv8.1-M: conditional select. *)
+    subst ws.
+    case hc: lower_condition => [pre' c'] [? ? ?]; subst pre aop es.
+    rename pre' into pre.
+
+    move: hseme.
+    rewrite /=.
+    rewrite /truncate_val /=.
+    t_xrbindP=> b vb hsemc hb v0' v0 hseme0 w0' hw0 ? v1' v1 hseme1 w1' hw1 ? hw;
+      subst v0' v1'.
+    move: hb => /to_boolI ?; subst vb.
+    move: hw0 => /to_wordI [ws0 [w0 [? /truncate_wordP [hws0 ?]]]]; subst v0 w0'.
+    move: hw1 => /to_wordI [ws1 [w1 [? /truncate_wordP [hws1 ?]]]]; subst v1 w1'.
+
+    move: hfve => /disj_fvars_read_e_Pif [hfvc hfve0 hfve1].
+
+    have [s1' [hsem01' hs10 hsemc']] := sem_lower_condition ii hc hs00 hfvc hsemc.
+    clear hc hs00 hfvc hsemc.
+
+    have [s2' hwrite12' hs21] :
+      exists2 s2',
+        write_lval true (p_globs p) lv
+          (Vword (if b then zero_extend reg_size w0 else zero_extend reg_size w1)) s1'
+          = ok s2'
+        & eq_fv s1 s2'.
+    {
+      case: b hw hsemc' => hw _.
+      all: move: hw => /Vword_inj [?]; subst ws'.
+      all: move=> /= ?; subst w.
+      all: rewrite zero_extend_u in hwrite.
+      all: have [s2' hwrite12' hs21] := eeq_exc_write_lval hfvlv hs10 hwrite.
+      all: exists s2'; last exact: hs21.
+      all: exact: hwrite12'.
+    }
+
+    exists s2'; last exact: hs21.
+    Opaque esem esem_i.
+    rewrite map_cat esem_cat hsem01' /= esem1.
+    Transparent esem esem_i.
+    clear hsem01'.
+    rewrite /= /sem_sopn /=.
+    rewrite (eeq_exc_sem_pexpr hfve0 hs10 hseme0) /=
+            (eeq_exc_sem_pexpr hfve1 hs10 hseme1) /=
+            hsemc' /=.
+    rewrite /exec_sopn /sopn_sem /sopn_sem_ /=.
+    move: hcsel; rewrite /arm_lower_csel => hcsel; rewrite hcsel /=.
+    rewrite (truncate_word_le _ hws0) (truncate_word_le _ hws1) /=.
+    rewrite /arm_csel_semi.
+    by have := hwrite12'; case: (b) => /= ->.
+
   case h: lower_pexpr_aux => [[op es']|] //.
   case hcond: sopn_set_is_conditional => [op' | //].
   case hc: lower_condition => [pre' c'] [? ? ?]; subst pre aop es.
