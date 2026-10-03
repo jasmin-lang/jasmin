@@ -1,0 +1,9 @@
+/* A conditional move takes one cycle whether or not its condition holds: its
+   execution time does not depend on the condition. */
+#[ct="secret * secret -> secret"]
+export fn conditional_move(reg u32 x y) -> reg u32 {
+  reg bool zf;
+  ?{ "==" = zf } = #CMP(x, y);
+  x = #MOVcc(y, zf, x);
+  return x;
+}
