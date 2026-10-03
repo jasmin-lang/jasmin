@@ -219,6 +219,7 @@ module Armv8aTarget : AsmTargetBuilder.AsmTarget with
             let pargs =
               match mn with
               | MOVZ | MOVN | MOVK -> pp_mov_wide_shift pargs
+              | DSB -> [ "sy" ] (* [DSB] is the full system barrier. *)
               | _ -> pp_shift op pargs
             in
             [ Instr (name, pargs) ]

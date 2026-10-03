@@ -271,9 +271,37 @@ Definition armv8a_loparams : lowering_params :=
 (* ------------------------------------------------------------------------ *)
 (* Speculative execution operator lowering parameters. *)
 
+(* The expansions of the speculative execution operators (armv8a_extra.v)
+   only have register operands. *)
+Definition armv8a_sh_lower
+  (lvs : seq lval)
+  (slho : slh_op)
+  (es : seq pexpr) :
+  option copn_args :=
+  let O x := Oasm (ExtOp x) in
+  let%opt _ := oassert (all (fun lv => ~~ is_lval_in_memory lv) lvs) in
+  match slho with
+  | SLHinit => Some (lvs, O Oarmv8a_SLHinit, es)
+
+  | SLHupdate =>
+    let%opt _ := oassert (all is_csel_arg (behead es)) in
+    Some (Lnone dummy_var_info ty_msf :: lvs, O Oarmv8a_SLHupdate, es)
+
+  | SLHmove =>
+    let%opt _ := oassert (all is_csel_arg es) in
+    Some (lvs, O Oarmv8a_SLHmove, es)
+
+  | SLHprotect ws =>
+    let%opt _ := oassert ((ws == U32) || (ws == U64)) in
+    let%opt _ := oassert (all is_csel_arg es) in
+    Some (lvs, O (Oarmv8a_SLHprotect ws), es)
+
+  | SLHprotect_ptr _ _ | SLHprotect_ptr_fail _ _ => None (* Taken into account by stack alloc *)
+  end.
+
 Definition armv8a_shparams : sh_params :=
   {|
-    shp_lower := fun _ _ _ => None;
+    shp_lower := armv8a_sh_lower;
   |}.
 
 (* ------------------------------------------------------------------------ *)
@@ -395,6 +423,8 @@ Definition armv8a_is_move_op (o : asm_op_t) : bool :=
     if o \in [:: MOV; LDR; STR; STRH; STRB ] then
       ~~ has_shift opts
     else false
+
+  | ExtOp Oarmv8a_SLHmove => true
 
   | _ =>
       false

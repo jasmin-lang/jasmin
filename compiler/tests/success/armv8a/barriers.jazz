@@ -1,0 +1,13 @@
+/* Barriers. They take no operand; DSB is the full system barrier. */
+
+export
+fn barriers(reg u64 arg0) -> reg u64 {
+    reg u64 x;
+
+    x = arg0;
+    #CSDB();
+    #DSB();
+    #ISB();
+    x += 1;
+    return x;
+}

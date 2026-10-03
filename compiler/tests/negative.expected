@@ -1057,6 +1057,27 @@ x11 = x10
 Is there an instruction in the target architecture that can implement it?
 More information may be found online: https://jasmin-lang.readthedocs.io/en/stable/misc/faq.html#linearization
 
+fail/slh/armv8a/protect_16.jazz:
+
+"fail/slh/armv8a/protect_16.jazz", line 9 (4-28):
+compilation error in function foo:
+speculative execution lowering: The architecture does not provides protection for selective speculative load hardening
+                                Did you run the speculative constant time checker first?
+
+fail/slh/armv8a/protect_8.jazz:
+
+"fail/slh/armv8a/protect_8.jazz", line 9 (4-27):
+compilation error in function foo:
+speculative execution lowering: The architecture does not provides protection for selective speculative load hardening
+                                Did you run the speculative constant time checker first?
+
+fail/slh/armv8a/protect_memory.jazz:
+
+"fail/slh/armv8a/protect_memory.jazz", line 15 (4-31):
+compilation error in function foo:
+speculative execution lowering: The architecture does not provides protection for selective speculative load hardening
+                                Did you run the speculative constant time checker first?
+
 fail/slh/x86-64/assign_kills_msf.jazz:
 
 "fail/slh/x86-64/assign_kills_msf.jazz", line 6 (4-7):
@@ -1785,4 +1806,4 @@ Statistics:
 	Pretyping:  57
 	Parsing:     4
 	Typing:      5
-	Compile:   218
+	Compile:   221
