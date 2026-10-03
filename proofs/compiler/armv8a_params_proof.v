@@ -19,6 +19,7 @@ Require Import
   compiler_util
   expr
   fexpr
+  fexpr_facts
   fexpr_sem
   psem
   psem_facts
@@ -1004,12 +1005,79 @@ Proof.
   by apply/Sv.singleton_spec/nesym.
 Qed.
 
+Lemma assemble_slh_init_correct : assemble_extra_correct Oarmv8a_SLHinit.
+Proof.
+  move=> rip ii lvs args m xs ys m' s ops ops' hargs hexec hwrite /= [<-] hmap.
+  apply: (assemble_opsP armv8a_eval_assemble_cond hmap) => //.
+  case: xs hargs hexec => // _.
+  rewrite /exec_sopn /= => -[?]; subst ys.
+  rewrite /exec_sopn /= truncate_word_u /= /armv8a_MOV_semi wrepr0.
+  by move: hwrite; rewrite /se_init_sem => ->.
+Qed.
+
+Lemma assemble_slh_update_correct : assemble_extra_correct Oarmv8a_SLHupdate.
+Proof.
+  move=> rip ii lvs args m xs ys m' s ops ops' hargs hexec hwrite /=.
+  rewrite /assemble_slh_update.
+  case: lvs hwrite => // -[] // aux [] // msf' [] // hwrite.
+  case: args hargs => // -[] // b [] // msf [] // hargs.
+  t_xrbindP=> /and3P [] hb hmsf hty <- hmap.
+  apply: (assemble_opsP armv8a_eval_assemble_cond hmap) => //.
+  move: hargs => /=; t_xrbindP=> vb hvb _ vmsf hvmsf <- ?; subst xs.
+  move: hexec; rewrite /exec_sopn /=; t_xrbindP=> t bb hbb w hw ? ?; subst t ys.
+  move: hwrite => /=; t_xrbindP.
+  change armv8a_reg_size with U64 in *.
+  move=> _ vm hset <- m1 hm1 ?; subst m1.
+  rewrite !truncate_word_u /=.
+  have -> : armv8a_MOVN_semi (ws := U64) (wrepr U16 0) (wrepr U8 0) = wrepr U64 (-1)
+    by apply/eqP.
+  rewrite hset /=.
+  rewrite -(free_vars_rP (vm2 := vm) (vm1 := evm m) (r := msf) (emem m));
+    last by apply: set_var_disjoint_eq_on hmsf hset.
+  rewrite -(free_varsP (vm2 := vm) (vm1 := evm m));
+    last by apply: set_var_disjoint_eq_on hb hset.
+  rewrite hvmsf hvb.
+  move/set_varP: hset => -[_ _ ?]; subst vm.
+  rewrite /get_var /= Vm.setP_eq (convertible_eval_atype hty) /=.
+  by rewrite hw /= truncate_word_u /= hbb /= /armv8a_CSEL_semi hm1.
+Qed.
+
+Lemma assemble_slh_move_correct : assemble_extra_correct Oarmv8a_SLHmove.
+Proof.
+  move=> rip ii lvs args m xs ys m' s ops ops' hargs hexec hwrite /= [<-] hmap.
+  apply: (assemble_opsP armv8a_eval_assemble_cond hmap) => //.
+  rewrite /sem_sopns /= /sem_sopn_t /= hargs /=.
+  move: hexec; rewrite /exec_sopn /=.
+  case: xs {hargs} => // v [|??] /=; last by t_xrbindP.
+  t_xrbindP=> t w hw ? ?; subst t ys.
+  by rewrite /= in hw; rewrite hw /= /armv8a_MOV_semi hwrite.
+Qed.
+
+Lemma assemble_slh_protect_correct ws :
+  assemble_extra_correct (Oarmv8a_SLHprotect ws).
+Proof.
+  move=> rip ii lvs args m xs ys m' s ops ops' hargs hexec hwrite /=.
+  rewrite /assemble_slh_protect; case: ifP => // hws [<-] hmap.
+  apply: (assemble_opsP armv8a_eval_assemble_cond hmap) => //.
+  rewrite /sem_sopns /= /sem_sopn_t /= hargs /=.
+  case/orP: hws => /eqP ?; subst ws.
+  all: move: hexec; rewrite /exec_sopn /= ?computational_eq_refl.
+  all: case: xs {hargs} => // v [|v' [|??]] /=; try by t_xrbindP.
+  all: t_xrbindP=> t w hw w' hw' ? ?; subst t ys.
+  all: by rewrite hw hw' /=; move: hwrite;
+    rewrite /armv8a_se_protect_sem /armv8a_bitwise_semi => ->.
+Qed.
+
 Lemma armv8a_assemble_extra_op op : assemble_extra_correct op.
 Proof.
   case: op.
   + exact: assemble_swap_correct.
   + exact: assemble_add_large_imm_correct.
-  exact: assemble_smart_li_correct.
+  + exact: assemble_smart_li_correct.
+  + exact: assemble_slh_init_correct.
+  + exact: assemble_slh_update_correct.
+  + exact: assemble_slh_move_correct.
+  exact: assemble_slh_protect_correct.
 Qed.
 
 Lemma armv8a_assemble_extra_sz ii op lvs args ops :
@@ -1030,11 +1098,18 @@ Proof.
     + by rewrite hne.
     case: ifP => //.
     by rewrite size_map size_rcons.
-  move=> w. rewrite /assemble_smart_li /= /smart_li_args.
-  t_xrbindP => ?? -[] ???.
-  t_xrbindP => ?? -[] ??? [<-] [<-].
-  rewrite /asm_args_of_opn_args /= /ARMv8AFopn_core.li.
-  case: ifP => //; case: ifP => //.
+  + move=> w. rewrite /assemble_smart_li /= /smart_li_args.
+    t_xrbindP => ?? -[] ???.
+    t_xrbindP => ?? -[] ??? [<-] [<-].
+    rewrite /asm_args_of_opn_args /= /ARMv8AFopn_core.li.
+    case: ifP => //; case: ifP => //.
+  + by move=> [<-].
+  + rewrite /assemble_slh_update.
+    case: lvs => // -[] // ? [] // ? [] //.
+    case: args => // -[] // ? [] // ? [] //.
+    by t_xrbindP=> _ <-.
+  + by move=> [<-].
+  by move=> ws; rewrite /assemble_slh_protect; case: ifP => // _ [<-].
 Qed.
 
 Definition armv8a_hagparams : h_asm_gen_params (ap_agp armv8a_params) :=
@@ -1049,8 +1124,44 @@ End ASM_GEN.
 (* ------------------------------------------------------------------------ *)
 (* Speculative execution. *)
 
+Lemma armv8a_spec_shp_lower :
+  slh_lowering_proof.spec_shp_lower (slh_lowering.shp_lower armv8a_shparams).
+Proof.
+  move=> s s' gd lvs slho es args res lvs' op' es'.
+  rewrite /= /armv8a_sh_lower; case: all => //=.
+  case: slho => [||| ws ||] //=.
+  (* SLHinit *)
+  + move=> [<- <- <-] _ hes hexec hw.
+    rewrite /sem_sopn hes /=.
+    by move: hexec; rewrite /exec_sopn /= => ->.
+  (* SLHupdate *)
+  + case: all => //= -[<- <- <-] hargs hes hexec hw.
+    rewrite /sem_sopn hes /=.
+    move: hargs hexec; case: args {hes} => // vb [|vmsf [|??]] /= [->];
+      rewrite /exec_sopn /=; t_xrbindP=> //.
+    move=> t w hw' ? ?; subst t res.
+    by rewrite hw' /= hw.
+  (* SLHmove *)
+  + case: all => //= -[<- <- <-] _ hes hexec hw.
+    rewrite /sem_sopn hes /=.
+    by move: hexec; rewrite /exec_sopn /= => ->.
+  (* SLHprotect *)
+  case hws: ((ws == U32) || (ws == U64)) => //=.
+  case: all => //= -[<- <- <-] hargs hes hexec hw.
+  rewrite /sem_sopn hes /=.
+  case: args hargs hexec {hes} => // vx [|vmsf [|??]] /=; first by case.
+  2: by rewrite /exec_sopn /=; t_xrbindP.
+  move=> [_ [<-] hv].
+  case/orP: hws => /eqP ?; subst ws.
+  all: rewrite /exec_sopn /=; t_xrbindP=> t w hw' wm hwm ? ?; subst t res.
+  all: move/to_wordI: hv => [sz [w0] [? /truncate_wordP [hle hze]]]; subst vmsf.
+  all: rewrite hw' /= truncate_word_le ?(cmp_le_trans _ hle) //.
+  all: rewrite -(zero_extend_idem (s2 := U64)) // -hze zero_extend0 /=.
+  all: by rewrite /armv8a_se_protect_sem worC wor0.
+Qed.
+
 Lemma armv8a_hshp : slh_lowering_proof.h_sh_params (ap_shp armv8a_params).
-Proof. by constructor; move=> ???? []. Qed.
+Proof. by constructor; exact: armv8a_spec_shp_lower. Qed.
 
 (* ------------------------------------------------------------------------ *)
 (* Stack zeroization. *)
@@ -1074,7 +1185,11 @@ Definition armv8a_is_move_opP op vx v :
   -> exec_sopn (Oasm op) [:: vx ] = ok v
   -> values_uincl v [:: vx ].
 Proof.
-  case: op => // -[[] // [mn opt]] /=.
+  case: op => [[[] // [mn opt]] | [] //] /=; last first.
+  + move=> _; rewrite /exec_sopn /=.
+    t_xrbindP=> t w /to_wordI' [ws [wx [hle ??]]] ? ?; subst.
+    constructor; last by constructor.
+    exact: word_uincl_zero_ext.
   case: ifP => // hmn /negPf hs.
   case: opt hmn hs => sho sz hmn /= hs.
   case: sho hs => [sk | ] hs; first by [].
