@@ -18,4 +18,12 @@ let cortex_m4 =
     core = Arm_decl.cortex_m4;
   }
 
-let all = [ cortex_m3; cortex_m4 ]
+(* ARMv8.1-M with the Main and DSP extensions: Cortex-M55 and M85. *)
+let armv8_1m =
+  {
+    names = [ "armv8.1m"; "cortex-m55"; "cortex-m85" ];
+    deprecated_names = [];
+    core = Arm_decl.armv8_1m;
+  }
+
+let all = [ cortex_m3; cortex_m4; armv8_1m ]
