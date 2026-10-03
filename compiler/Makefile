@@ -12,6 +12,7 @@ CHECKCATS ?= \
 	x86-64-windows \
 	cortex-m3-dsp \
 	arm-m4 \
+	armv8.1m \
 	armv8a \
 	risc-v \
 	x86-64-stack-zero-loop \
@@ -22,7 +23,7 @@ CHECKCATS ?= \
 	armv8a-stack-zero-unrolled \
 	risc-v-stack-zero-loop \
 	risc-v-stack-zero-unrolled \
-	CCT CCT-riscv CCT-cortex-m3 CCT-DOIT CCT-DOIT-riscv CCT-DOIT-cortex-m3 CCT-DOIT-arm-m4 SCT
+	CCT CCT-riscv CCT-cortex-m3 CCT-DOIT CCT-DOIT-riscv CCT-DOIT-cortex-m3 CCT-DOIT-arm-m4 CCT-DOIT-armv8.1m SCT
 
 # --------------------------------------------------------------------
 DESTDIR  ?=

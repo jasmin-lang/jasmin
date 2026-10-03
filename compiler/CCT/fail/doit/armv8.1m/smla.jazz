@@ -1,0 +1,7 @@
+/* The Armv8-M manual does not state that the halfword multiply-accumulates
+   SMLA<x><y> have data independent timing. */
+#[ct="secret * secret * secret -> secret"]
+export fn smla(reg u32 x y acc) -> reg u32 {
+  acc = #SMLABB(x, y, acc);
+  return acc;
+}
