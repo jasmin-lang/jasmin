@@ -1,0 +1,236 @@
+/* Every comparison as the condition of update_msf after an if, and some after
+   a while. The condition reaches CSEL as a condition code. */
+
+export
+fn if_eq(reg u64 x y) -> reg u64 {
+    reg u64 msf r;
+    reg bool b;
+    msf = #init_msf();
+    b = x == y;
+    if (b) {
+        msf = #update_msf(b, msf);
+        r = 1;
+    } else {
+        msf = #update_msf(!b, msf);
+        r = 2;
+    }
+    r = #protect(r, msf);
+    return r;
+}
+
+export
+fn if_ne(reg u64 x y) -> reg u64 {
+    reg u64 msf r;
+    reg bool b;
+    msf = #init_msf();
+    b = x != y;
+    if (b) {
+        msf = #update_msf(b, msf);
+        r = 1;
+    } else {
+        msf = #update_msf(!b, msf);
+        r = 2;
+    }
+    r = #protect(r, msf);
+    return r;
+}
+
+export
+fn if_ltu(reg u64 x y) -> reg u64 {
+    reg u64 msf r;
+    reg bool b;
+    msf = #init_msf();
+    b = x <u y;
+    if (b) {
+        msf = #update_msf(b, msf);
+        r = 1;
+    } else {
+        msf = #update_msf(!b, msf);
+        r = 2;
+    }
+    r = #protect(r, msf);
+    return r;
+}
+
+export
+fn if_leu(reg u64 x y) -> reg u64 {
+    reg u64 msf r;
+    reg bool b;
+    msf = #init_msf();
+    b = x <=u y;
+    if (b) {
+        msf = #update_msf(b, msf);
+        r = 1;
+    } else {
+        msf = #update_msf(!b, msf);
+        r = 2;
+    }
+    r = #protect(r, msf);
+    return r;
+}
+
+export
+fn if_gtu(reg u64 x y) -> reg u64 {
+    reg u64 msf r;
+    reg bool b;
+    msf = #init_msf();
+    b = x >u y;
+    if (b) {
+        msf = #update_msf(b, msf);
+        r = 1;
+    } else {
+        msf = #update_msf(!b, msf);
+        r = 2;
+    }
+    r = #protect(r, msf);
+    return r;
+}
+
+export
+fn if_geu(reg u64 x y) -> reg u64 {
+    reg u64 msf r;
+    reg bool b;
+    msf = #init_msf();
+    b = x >=u y;
+    if (b) {
+        msf = #update_msf(b, msf);
+        r = 1;
+    } else {
+        msf = #update_msf(!b, msf);
+        r = 2;
+    }
+    r = #protect(r, msf);
+    return r;
+}
+
+export
+fn if_lts(reg u64 x y) -> reg u64 {
+    reg u64 msf r;
+    reg bool b;
+    msf = #init_msf();
+    b = x <s y;
+    if (b) {
+        msf = #update_msf(b, msf);
+        r = 1;
+    } else {
+        msf = #update_msf(!b, msf);
+        r = 2;
+    }
+    r = #protect(r, msf);
+    return r;
+}
+
+export
+fn if_les(reg u64 x y) -> reg u64 {
+    reg u64 msf r;
+    reg bool b;
+    msf = #init_msf();
+    b = x <=s y;
+    if (b) {
+        msf = #update_msf(b, msf);
+        r = 1;
+    } else {
+        msf = #update_msf(!b, msf);
+        r = 2;
+    }
+    r = #protect(r, msf);
+    return r;
+}
+
+export
+fn if_gts(reg u64 x y) -> reg u64 {
+    reg u64 msf r;
+    reg bool b;
+    msf = #init_msf();
+    b = x >s y;
+    if (b) {
+        msf = #update_msf(b, msf);
+        r = 1;
+    } else {
+        msf = #update_msf(!b, msf);
+        r = 2;
+    }
+    r = #protect(r, msf);
+    return r;
+}
+
+export
+fn if_ges(reg u64 x y) -> reg u64 {
+    reg u64 msf r;
+    reg bool b;
+    msf = #init_msf();
+    b = x >=s y;
+    if (b) {
+        msf = #update_msf(b, msf);
+        r = 1;
+    } else {
+        msf = #update_msf(!b, msf);
+        r = 2;
+    }
+    r = #protect(r, msf);
+    return r;
+}
+
+export
+fn while_ltu(reg u64 x y) -> reg u64 {
+    reg u64 msf r;
+    reg bool b;
+    msf = #init_msf();
+    r = 0;
+    while { b = x <u y; } (b) {
+        msf = #update_msf(b, msf);
+        x += 1;
+        r += 1;
+    }
+    msf = #update_msf(!b, msf);
+    r = #protect(r, msf);
+    return r;
+}
+
+export
+fn while_leu(reg u64 x y) -> reg u64 {
+    reg u64 msf r;
+    reg bool b;
+    msf = #init_msf();
+    r = 0;
+    while { b = x <=u y; } (b) {
+        msf = #update_msf(b, msf);
+        x += 1;
+        r += 1;
+    }
+    msf = #update_msf(!b, msf);
+    r = #protect(r, msf);
+    return r;
+}
+
+export
+fn while_lts(reg u64 x y) -> reg u64 {
+    reg u64 msf r;
+    reg bool b;
+    msf = #init_msf();
+    r = 0;
+    while { b = x <s y; } (b) {
+        msf = #update_msf(b, msf);
+        x += 1;
+        r += 1;
+    }
+    msf = #update_msf(!b, msf);
+    r = #protect(r, msf);
+    return r;
+}
+
+export
+fn while_les(reg u64 x y) -> reg u64 {
+    reg u64 msf r;
+    reg bool b;
+    msf = #init_msf();
+    r = 0;
+    while { b = x <=s y; } (b) {
+        msf = #update_msf(b, msf);
+        x += 1;
+        r += 1;
+    }
+    msf = #update_msf(!b, msf);
+    r = #protect(r, msf);
+    return r;
+}

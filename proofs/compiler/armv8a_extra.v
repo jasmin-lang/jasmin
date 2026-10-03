@@ -26,6 +26,12 @@ Variant armv8a_extra_op : Type :=
   | Oarmv8a_swap of wsize
   | Oarmv8a_add_large_imm
   | Oarmv8a_smart_li of wsize (* Load an immediate to a register. *)
+
+  (* Speculative execution operators. *)
+  | Oarmv8a_SLHinit
+  | Oarmv8a_SLHupdate
+  | Oarmv8a_SLHmove
+  | Oarmv8a_SLHprotect of wsize
 .
 
 HB.instance Definition _ := hasDecEq.Build armv8a_extra_op armv8a_extra_op_eqb_OK.
@@ -69,11 +75,72 @@ Definition smart_li_instr (ws : wsize) : instruction_desc :=
     (fun x => x)
     true DOIT.
 
+(* Speculative execution operators, expanded at assembly generation
+   ([assemble_slh_*] below). The misspeculation flag is 0 when not
+   misspeculating and -1 otherwise.
+   An operator is DOIT when its expansion only uses DOIT instructions: [init]
+   and [protect] contain barriers, which are not. *)
+
+Definition Oarmv8a_SLHinit_instr : instruction_desc :=
+  mk_instr_desc_safe (pp_s (append "Oarmv8a_" SLHinit_str))
+    [::] [::]
+    [:: ty_msf ] [:: E 0 ]
+    se_init_sem
+    true NOT_DOIT.
+
+Definition armv8a_se_update_sem (b : bool) (msf : wmsf) : wmsf * wmsf :=
+  let aux := wrepr msf_size (-1) in
+  (aux, if b then msf else aux).
+
+(* The temporary [aux] is written before [msf] is read: [conflicts] ensures
+   that they are distinct registers. *)
+Definition Oarmv8a_SLHupdate_instr : instruction_desc :=
+  let ctin := [:: cbool; cty_msf ] in
+  let ctout := [:: cty_msf; cty_msf ] in
+  {| str    := pp_s (append "Oarmv8a_" SLHupdate_str)
+   ; tin    := [:: abool; ty_msf ]
+   ; i_in   := [:: E 3; E 1 ]
+   ; tout   := [:: ty_msf; ty_msf ]
+   ; i_out  := [:: E 2; E 0 ]
+   ; conflicts := [:: (APout 0, APin 1) ]
+   ; semi   := sem_prod_ok ctin armv8a_se_update_sem
+   ; semu   :=
+       @values.vuincl_app_sopn_v ctin ctout
+         (sem_prod_ok ctin armv8a_se_update_sem) refl_equal
+   ; i_safe := [::]
+   ; i_valid := true
+   ; i_doit := DOIT
+   ; i_safe_wf := refl_equal
+   ; i_semi_errty :=  fun _ => sem_prod_ok_error (tin:=ctin) armv8a_se_update_sem _
+   ; i_semi_safe := fun _ => values.sem_prod_ok_safe (tin:=ctin) armv8a_se_update_sem
+ |}.
+
+Definition Oarmv8a_SLHmove_instr : instruction_desc :=
+  mk_instr_desc_safe (pp_s (append "Oarmv8a_" SLHmove_str))
+    [:: ty_msf ] [:: E 1 ]
+    [:: ty_msf ] [:: E 0 ]
+    se_move_sem
+    true DOIT.
+
+Definition armv8a_se_protect_sem (ws : wsize) (x msf : word ws) : word ws :=
+  wor x msf.
+
+Definition Oarmv8a_SLHprotect_instr (ws : wsize) : instruction_desc :=
+  mk_instr_desc_safe (pp_sz (append "Oarmv8a_" SLHprotect_str) ws)
+    [:: aword ws; aword ws ] [:: E 1; E 2 ]
+    [:: aword ws ] [:: E 0 ]
+    (@armv8a_se_protect_sem ws)
+    ((ws == U32) || (ws == U64)) NOT_DOIT.
+
 Definition get_instr_desc (o: armv8a_extra_op) : instruction_desc :=
   match o with
   | Oarmv8a_swap sz => Oswap_instr (aword sz)
   | Oarmv8a_add_large_imm => Oarmv8a_add_large_imm_instr
   | Oarmv8a_smart_li ws => smart_li_instr ws
+  | Oarmv8a_SLHinit => Oarmv8a_SLHinit_instr
+  | Oarmv8a_SLHupdate => Oarmv8a_SLHupdate_instr
+  | Oarmv8a_SLHmove => Oarmv8a_SLHmove_instr
+  | Oarmv8a_SLHprotect ws => Oarmv8a_SLHprotect_instr ws
   end.
 
 (* Without priority 1, this instance is selected when looking for an [asmOp],
@@ -154,6 +221,41 @@ Definition assemble_smart_li ii ws les res :=
   Let: (x, imm, _) := smart_li_args ii ws les res in
   ok (asm_args_of_opn_args (ARMv8AFopn_core.li ws x imm)).
 
+Definition barrier mn : asm_op_msb_t * lexprs * rexprs :=
+  ((None, ARMv8A_op mn default_opts), [::], [::]).
+
+Definition assemble_slh_init (les : seq lexpr) :=
+  [:: barrier DSB;
+      barrier ISB;
+      ((None, ARMv8A_op MOV default_opts), les, [:: rconst U64 0 ]) ].
+
+Definition assemble_slh_update ii les res :=
+  if (les, res) is ([:: LLvar aux; msf' ], [:: Rexpr b; msf ])
+  then
+    Let _ :=
+      assert
+        [&& ~~ Sv.mem aux (free_vars b), ~~ Sv.mem aux (free_vars_r msf)
+          & convertible (vtype aux) (aword U64) ]
+        (E.internal_error ii "invalid update_msf arguments")
+    in
+    ok
+      (asm_args_of_opn_args [:: ARMv8AFopn_core.movn U64 aux 0 0 ] ++
+       [:: ((None, ARMv8A_op CSEL default_opts), [:: msf' ],
+            [:: msf; rvar aux; Rexpr b ]) ])
+  else Error (E.internal_error ii "invalid update_msf arguments").
+
+(* The CSDB prevents the protected value from being used with predicted
+   condition flags or data values of earlier instructions, among which the
+   CSEL of [update_msf] and the load that produced it. It does not constrain
+   branches (ARM DDI 0487, CSDB): a protected value must not be tested by a
+   branch that reads a register (CBZ, TBZ), which the compiler does not
+   emit. *)
+Definition assemble_slh_protect ii ws les res :=
+  if (ws == U32) || (ws == U64)
+  then
+    ok [:: ((None, ARMv8A_op ORR (opts_at ws)), les, res); barrier CSDB ]
+  else Error (E.internal_error ii "invalid protect size").
+
 Definition assemble_extra
            (ii: instr_info)
            (o: armv8a_extra_op)
@@ -195,6 +297,11 @@ Definition assemble_extra
       Error (E.internal_error ii "bad armv8a_add_large_imm: invalid args or dests")
     end
   | Oarmv8a_smart_li ws => assemble_smart_li ii ws outx inx
+  | Oarmv8a_SLHinit => ok (assemble_slh_init outx)
+  | Oarmv8a_SLHupdate => assemble_slh_update ii outx inx
+  | Oarmv8a_SLHmove =>
+      ok [:: ((None, ARMv8A_op MOV default_opts), outx, inx) ]
+  | Oarmv8a_SLHprotect ws => assemble_slh_protect ii ws outx inx
   end.
 
 #[ export ]
