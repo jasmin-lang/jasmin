@@ -11,6 +11,7 @@ CHECKCATS ?= \
 	x86-64-nolea \
 	x86-64-windows \
 	arm-m4 \
+	armv8m \
 	armv8a \
 	risc-v \
 	x86-64-stack-zero-loop \
