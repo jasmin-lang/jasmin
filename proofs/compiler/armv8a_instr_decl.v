@@ -141,7 +141,12 @@ Variant armv8a_mnemonic : Type :=
 (* Stores *)
 | STR                            (* Store a word or doubleword *)
 | STRB                           (* Store a byte *)
-| STRH.                          (* Store a halfword *)
+| STRH                           (* Store a halfword *)
+
+(* Barriers *)
+| CSDB                           (* Consumption of speculative data barrier *)
+| DSB                            (* Data synchronization barrier, full system *)
+| ISB.                           (* Instruction synchronization barrier *)
 
 #[ export ]
 Instance eqTC_armv8a_mnemonic : eqTypeC armv8a_mnemonic :=
@@ -161,6 +166,7 @@ Definition armv8a_mnemonics : seq armv8a_mnemonic :=
     ; CSEL
     ; LDR; LDRB; LDRH; LDRSB; LDRSH; LDRSW
     ; STR; STRB; STRH
+    ; CSDB; DSB; ISB
   ].
 
 Lemma armv8a_mnemonic_fin_axiom : Finite.axiom armv8a_mnemonics.
@@ -299,6 +305,9 @@ Definition string_of_armv8a_mnemonic (mn : armv8a_mnemonic) : string :=
   | STR => "STR"
   | STRB => "STRB"
   | STRH => "STRH"
+  | CSDB => "CSDB"
+  | DSB => "DSB"
+  | ISB => "ISB"
   end%string.
 
 
@@ -2117,6 +2126,61 @@ Definition armv8a_store_instr mn : instr_desc_t :=
 *)
 
 (* -------------------------------------------------------------------- *)
+(* Barriers.
+   They only constrain speculative execution and the order in which memory
+   accesses are observed, which the semantics does not model: in the
+   sequential semantics they have no effect, like the x86 fences. *)
+
+Definition mk_barrier_instr mn : instr_desc_t :=
+  let semi : sem_ltuple [::] := tt in
+  {|
+    id_msb_flag := msbf;
+    id_tin := [::];
+    id_in := [::];
+    id_tout := [::];
+    id_out := [::];
+    id_semi := sem_lprod_ok [::] semi;
+    id_nargs := 0;
+    id_args_kinds := [:: [::] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_doit := NOT_DOIT; (* Not DIT *)
+    id_pp_asm := pp_armv8a_op mn opts;
+    id_valid := (osz == U64) && (has_shift opts == None);
+    id_safe_wf := refl_equal;
+    id_semi_errty := fun _ => sem_lprod_ok_error [::] semi;
+    id_semi_safe := fun _ => sem_lprod_ok_safe [::] semi;
+  |}.
+
+(* [CSDB] ARM DDI 0487 M.a
+   Consumption of speculative data barrier  Instructions after the barrier,
+   other than branches, are not speculatively executed using the results of
+   data value predictions, or of condition flag predictions of instructions
+   other than conditional branches, of earlier instructions that are not
+   architecturally resolved. Control flow speculation is still allowed.
+   Syntax: CSDB
+*)
+Definition armv8a_CSDB_instr : instr_desc_t := mk_barrier_instr CSDB.
+
+(* [DSB] ARM DDI 0487 M.a
+   Data synchronization barrier  The memory accesses before the barrier
+   complete before it completes, and the instructions after it do not alter
+   any state of the system until then. Only the full system form is
+   provided.
+   Syntax: DSB SY
+*)
+Definition armv8a_DSB_instr : instr_desc_t := mk_barrier_instr DSB.
+
+(* [ISB] ARM DDI 0487 M.a
+   Instruction synchronization barrier  The instructions after the barrier
+   are fetched after it completes.
+   Syntax: ISB
+*)
+Definition armv8a_ISB_instr : instr_desc_t := mk_barrier_instr ISB.
+
+(* -------------------------------------------------------------------- *)
 (* Description of instructions. *)
 
 Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
@@ -2172,6 +2236,9 @@ Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
   | STR => armv8a_store_instr STR
   | STRB => armv8a_store_instr STRB
   | STRH => armv8a_store_instr STRH
+  | CSDB => armv8a_CSDB_instr
+  | DSB => armv8a_DSB_instr
+  | ISB => armv8a_ISB_instr
   end.
 
 End ARMV8A_INSTR.
