@@ -12,7 +12,7 @@ Require Import
   arm_extra
   arm_instr_decl.
 
-Lemma ignore_has_shift mn sf ic hs hs' :
+Lemma ignore_has_shift {armv : arm_version} mn sf ic hs hs' :
   mn \notin has_shift_mnemonics
   -> let opts :=
        {| set_flags := sf; is_conditional := ic; has_shift := hs; |}

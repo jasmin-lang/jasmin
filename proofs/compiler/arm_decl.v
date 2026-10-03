@@ -25,10 +25,17 @@ Require Export arm_expand_imm.
  *)
 
 (* -------------------------------------------------------------------- *)
-(* Versions of the architecture. *)
+(* Versions of the architecture.
+
+ * ARMv8.1-M with the Main and DSP extensions (as implemented by the ARM
+ * Cortex-M55 processor) has the instructions of ARMv7-M that are described in
+ * arm_instr_decl.v, and others; the reference is the Armv8-M Architecture
+ * Reference Manual (DDI0553B.r).
+ *)
 
 Variant arm_version : Type :=
-| ARMv7M.
+| ARMv7M
+| ARMv8_1M.
 
 Existing Class arm_version.
 

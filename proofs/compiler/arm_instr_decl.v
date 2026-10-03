@@ -1,7 +1,9 @@
 (* ARM Cortex-M4 instruction set
 
    These are the THUMB instructions of ARMv7-M, the instruction set of the M4
-   processor. *)
+   processor.
+   They are also instructions of ARMv8.1-M (e.g., the M55 processor), which
+   has others: see [arm_version] in arm_decl.v. *)
 
 From elpi.apps Require Import derive.std.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
@@ -708,7 +710,30 @@ Definition pp_arm_op
 Section ARM_INSTR.
 
 Context
+  {armv : arm_version}
   (opts : arm_options).
+
+(* Data independent timing.
+   The descriptions below carry the classification for ARMv7-M; for the
+   instructions whose classification differs, [doit_by_version] gives both.
+
+   ARMv8.1-M defines data independent timing in the DIT extension (Armv8-M
+   Architecture Reference Manual, DDI0553B.r, B3.34): when AIRCR.DIT is 1,
+   the execution time of the instructions whose description has a "Data
+   Independent Timing behavior" paragraph does not depend on the values of
+   their operands. For every form of the mnemonic (immediate, register,
+   shifted register, flag setting):
+   - RSB, UMAAL, SMMUL, SMMULR, SMULBB, SMULBT, SMULTB, SMULTT, SMULWB,
+     SMULWT and REVSH have such a paragraph;
+   - MVN has none (C2.4.128, C2.4.129), nor have SDIV, UDIV, ADR and the
+     SMLA halfword multiplies;
+   - for the loads and the stores, the execution time is independent of the
+     value that is loaded or stored, not of the address. *)
+Definition doit_by_version (v7m v8_1m : doit_t) : doit_t :=
+  match armv with
+  | ARMv7M => v7m
+  | ARMv8_1M => v8_1m
+  end.
 
 Let string_of_arm_mnemonic mn :=
       (string_of_arm_mnemonic mn
@@ -1039,7 +1064,7 @@ Definition arm_RSB_instr : instr_desc_t :=
       id_safe := [::];
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
-      id_doit := NOT_DOIT; (* Not DIT *)
+      id_doit := doit_by_version NOT_DOIT DOIT;
       id_safe_wf := refl_equal;
       id_semi_errty := fun _ => sem_lprod_ok_error tin arm_RSB_semi;
       id_semi_safe := fun _ => sem_lprod_ok_safe tin arm_RSB_semi;
@@ -1134,7 +1159,7 @@ Definition arm_UMAAL_instr : instr_desc_t :=
     id_safe := [::];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
+    id_doit := doit_by_version NOT_DOIT DOIT;
     id_safe_wf := refl_equal;
     id_semi_errty := fun _ => sem_lprod_ok_error tin arm_UMAAL_semi;
     id_semi_safe := fun _ => sem_lprod_ok_safe tin arm_UMAAL_semi;
@@ -1245,7 +1270,7 @@ Definition arm_SMMUL_instr : instr_desc_t :=
     id_safe := [::];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
+    id_doit := doit_by_version NOT_DOIT DOIT;
     id_safe_wf := refl_equal;
     id_semi_errty := fun _ => sem_lprod_ok_error tin arm_SMMUL_semi;
     id_semi_safe := fun _ => sem_lprod_ok_safe tin arm_SMMUL_semi;
@@ -1272,7 +1297,7 @@ Definition arm_SMMULR_instr : instr_desc_t :=
     id_safe := [::];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
+    id_doit := doit_by_version NOT_DOIT DOIT;
     id_safe_wf := refl_equal;
     id_semi_errty := fun _ => sem_lprod_ok_error tin arm_SMMULR_semi;
     id_semi_safe := fun _ => sem_lprod_ok_safe tin arm_SMMULR_semi;
@@ -1308,7 +1333,7 @@ Definition arm_smul_hw_instr hwn hwm : instr_desc_t :=
     id_safe := [::];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
+    id_doit := doit_by_version NOT_DOIT DOIT;
     id_safe_wf := refl_equal;
     id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
     id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
@@ -1371,7 +1396,7 @@ Definition arm_smulw_hw_instr hw : instr_desc_t :=
     id_safe := [::];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
+    id_doit := doit_by_version NOT_DOIT DOIT;
     id_safe_wf := refl_equal;
     id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
     id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
@@ -1643,7 +1668,7 @@ Definition arm_MVN_instr : instr_desc_t :=
       id_safe := [::];
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
-      id_doit := DOIT;
+      id_doit := doit_by_version DOIT NOT_DOIT;
       id_safe_wf := refl_equal;
       id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
       id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
@@ -1897,7 +1922,8 @@ Definition arm_REVSH_semi (w : ty_r) : ty_r :=
 
 Definition arm_REV_instr   := mk_rev_instr REV   arm_REV_semi   DOIT.
 Definition arm_REV16_instr := mk_rev_instr REV16 arm_REV16_semi DOIT.
-Definition arm_REVSH_instr := mk_rev_instr REVSH arm_REVSH_semi NOT_DOIT. (* Not DIT *)
+Definition arm_REVSH_instr :=
+  mk_rev_instr REVSH arm_REVSH_semi (doit_by_version NOT_DOIT DOIT).
 
 Definition arm_ADR_semi (wn: ty_r) : ty_r :=
   wn.
@@ -2472,11 +2498,20 @@ Definition arm_single_cycle (mn : arm_mnemonic) : bool :=
     => false
   end.
 
+(* On ARMv8.1-M, data independent timing "only applies if the instruction
+   passes its Condition code check" (DDI0553B.r, B3.34, rule R_DNPM): the
+   execution time of a conditional instruction depends on its condition. *)
+Definition arm_cond_doit {armv : arm_version} (mn : arm_mnemonic) : bool :=
+  match armv with
+  | ARMv7M => arm_single_cycle mn
+  | ARMv8_1M => false
+  end.
+
 Definition arm_instr_desc {armv : arm_version} (o : arm_op) : instr_desc_t :=
   let '(ARM_op mn opts) := o in
   let x := mn_desc opts mn in
   if is_conditional opts
-  then mk_cond (arm_single_cycle mn) x
+  then mk_cond (arm_cond_doit mn) x
   else x.
 
 Definition arm_prim_string : seq (string * prim_constructor arm_op) :=
