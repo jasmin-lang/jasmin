@@ -1700,7 +1700,7 @@ op TZCNT_XX (w:t) =
 
 op BSR_XX (w: t) =
   (undefined_flag, undefined_flag, undefined_flag, undefined_flag, false,
-   of_int (size - 1 - lzcnt (w2bits w))).
+   of_int (size - 1 - lzcnt (rev (w2bits w)))).
 
 lemma DEC_XX_counter n (c:t) :
   c <> zero =>
