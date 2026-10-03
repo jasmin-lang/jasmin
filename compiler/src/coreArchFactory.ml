@@ -7,6 +7,11 @@ module Core_arch_ARM = Arm_arch_full.Arm (struct
   let call_conv = Arm_decl.arm_linux_call_conv
 end)
 
+module Core_arch_ARMv8_1M = Arm_arch_full.Arm (struct
+  let version = Arm_decl.ARMv8_1M
+  let call_conv = Arm_decl.arm_linux_call_conv
+end)
+
 module Core_arch_RISCV = Riscv_arch_full.Riscv (struct
   let call_conv = Riscv_decl.riscv_linux_call_conv
 end)
@@ -40,5 +45,6 @@ let get_arch_module arch call_conv : (module Arch_full.Arch) =
                       (module (val core_arch_x86 call_conv)
                       : Arch_full.Core_arch)
                   | ARM_M4 -> (module Core_arch_ARM : Arch_full.Core_arch)
+                  | ARMv8_1M -> (module Core_arch_ARMv8_1M : Arch_full.Core_arch)
                   | ARMv8A -> (module Core_arch_ARMV8A : Arch_full.Core_arch)
                   | RISCV -> (module Core_arch_RISCV : Arch_full.Core_arch))))

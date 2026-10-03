@@ -52,6 +52,14 @@ let get_arch_with_analyze arch call_conv : (module ArchWithAnalyze) =
 
         let analyze = Safety.analyze
       end)
+  | ARMv8_1M ->
+      (module struct
+        module C = CoreArchFactory.Core_arch_ARMv8_1M
+        module A = Arch_full.Arch_from_Core_arch (C)
+        module Safety = Make (Arm_safety.Arm_safety (A))
+
+        let analyze = Safety.analyze
+      end)
   | RISCV ->
       (module struct
         module C = CoreArchFactory.Core_arch_RISCV

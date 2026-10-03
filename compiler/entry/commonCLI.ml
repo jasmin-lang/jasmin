@@ -6,7 +6,8 @@ let arch =
   let alts =
     [
       ("x86-64", Utils.X86_64); ("arm-m4", Utils.ARM_M4);
-      ("armv8a", Utils.ARMv8A); ("riscv", Utils.RISCV);
+      ("armv8.1m", Utils.ARMv8_1M); ("armv8a", Utils.ARMv8A);
+      ("riscv", Utils.RISCV);
     ]
   in
   let doc =

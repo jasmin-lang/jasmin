@@ -176,6 +176,7 @@ let pp_string fmt s =
 type architecture =
   | X86_64
   | ARM_M4
+  | ARMv8_1M
   | ARMv8A
   | RISCV
 
@@ -183,6 +184,7 @@ let architecture_to_string arch =
   match arch with
   | X86_64 -> "x86-64"
   | ARM_M4 -> "arm-m4"
+  | ARMv8_1M -> "armv8.1m"
   | ARMv8A -> "armv8a"
   | RISCV -> "riscv"
 

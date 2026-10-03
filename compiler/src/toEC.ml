@@ -2064,12 +2064,13 @@ struct
   let jmodel env = match Env.arch env with
     | X86_64 -> "JModel_x86"
     | ARM_M4 -> "JModel_m4"
+    | ARMv8_1M -> "JModel_armv8_1m"
     | ARMv8A -> "JModel_armv8a"
     | RISCV  -> "JModel_riscv"
 
   let lib_slh env = match Env.arch env with
     | X86_64 -> "SLH64"
-    | ARM_M4 -> "SLH32"
+    | ARM_M4 | ARMv8_1M -> "SLH32"
     | ARMv8A -> "SLH64"
     | RISCV  -> "SLH32"
 

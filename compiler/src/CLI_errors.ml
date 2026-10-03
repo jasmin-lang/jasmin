@@ -58,6 +58,10 @@ let check_options () =
     then warning Experimental Location.i_dummy
       "support of the ARMv7 architecture is experimental";
 
+  if !target_arch = ARMv8_1M
+    then warning Experimental Location.i_dummy
+      "support of the ARMv8.1-M architecture is experimental";
+
   if !target_arch = RISCV
     then warning Experimental Location.i_dummy
       "support of the RISC-V architecture is experimental";
