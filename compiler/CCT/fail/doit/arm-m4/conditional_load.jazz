@@ -1,0 +1,9 @@
+/* A load takes two cycles when it is executed and one when its condition
+   fails: a conditional load leaks its condition. */
+#[ct="secret * public -> secret"]
+export fn conditional_load(reg u32 x, reg u32 p) -> reg u32 {
+  reg bool zf;
+  ?{ "==" = zf } = #CMP(x, 0);
+  x = #LDRcc([p], zf, x);
+  return x;
+}

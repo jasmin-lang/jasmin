@@ -394,7 +394,13 @@ Definition drop_nzcv : instr_desc_t -> instr_desc_t := idt_drop4.
    - A boolean. It is used to determine if the instruction is executed
    - The output type. It is used to return the unchanged values if the
      instruction is not exectuted
-   The semantics and the rest of the fields are updated accordingly. *)
+   The semantics and the rest of the fields are updated accordingly.
+
+   Data independent timing: a conditional instruction whose condition fails
+   is not executed, and costs the single cycle of a NOP. Its execution time
+   is then independent of the condition only if the instruction takes one
+   cycle when it is executed ([single_cycle]); otherwise, the condition is
+   leaked, and the instruction is NOT_DOIT. *)
 
 #[ local ]
 Lemma mk_cond_eq_size
@@ -512,7 +518,7 @@ Lemma safe_wf_cat (tin tin' : seq ltype) sc :
   all (fun sc => sc_needed_args sc <= size (tin ++ tin')) sc.
 Proof. apply sub_all => c h; rewrite size_cat; apply: (leq_trans h); apply leq_addr. Qed.
 
-Definition mk_cond (idt : instr_desc_t) : instr_desc_t :=
+Definition mk_cond (single_cycle : bool) (idt : instr_desc_t) : instr_desc_t :=
   {|
     id_msb_flag := MSB_MERGE;
     id_tin := (id_tin idt) ++ lbool :: (id_tout idt);
@@ -528,7 +534,7 @@ Definition mk_cond (idt : instr_desc_t) : instr_desc_t :=
     id_safe := id_safe idt;
     id_pp_asm := id_pp_asm idt;
     id_valid := id_valid idt;
-    id_doit := id_doit idt;
+    id_doit := if single_cycle then id_doit idt else NOT_DOIT;
     id_safe_wf := safe_wf_cat _ (id_safe_wf idt);
     id_semi_errty := fun h => mk_semi_cond_errty (idt.(id_semi_errty) h);
     id_semi_safe := fun h => mk_semi_cond_safe (id_safe_wf idt) (idt.(id_semi_safe) h);
@@ -2444,11 +2450,33 @@ Definition mn_desc (mn : arm_mnemonic) : instr_desc_t :=
 
 End ARM_INSTR.
 
+(* The instructions that take one cycle on the Cortex-M4, from the Cortex-M4
+   Technical Reference Manual (Arm DDI 0439B), Table 3-1 "Cortex-M4
+   instruction set summary" and Table 3-2 "Cortex-M4 DSP instruction set
+   summary", in a system with zero wait states.
+   Not single-cycle: MLA and MLS (2 cycles), the loads and the stores (2
+   cycles; neighboring ones can pipeline their address and data phases), and
+   the divisions (2 to 12 cycles). *)
+Definition arm_single_cycle (mn : arm_mnemonic) : bool :=
+  match mn with
+  | ADD | ADC | MUL | SUB | SBC | RSB | UMULL | UMAAL | UMLAL | SMULL | SMLAL
+  | SMMUL | SMMULR | SMUL_hw _ _ | SMLA_hw _ _ | SMULW_hw _
+  | AND | BFC | BFI | BIC | EOR | MVN | ORR
+  | ASR | LSL | LSR | ROR | REV | REV16 | REVSH
+  | ADR | MOV | MOVT | UBFX | UXTB | UXTH | SBFX | SXTB | SXTH | CLZ
+  | CMP | TST | CMN
+    => true
+  | MLA | MLS | SDIV | UDIV
+  | LDR | LDRB | LDRH | LDRSB | LDRSH
+  | STR | STRB | STRH
+    => false
+  end.
+
 Definition arm_instr_desc (o : arm_op) : instr_desc_t :=
   let '(ARM_op mn opts) := o in
   let x := mn_desc opts mn in
   if is_conditional opts
-  then mk_cond x
+  then mk_cond (arm_single_cycle mn) x
   else x.
 
 Definition arm_prim_string : seq (string * prim_constructor arm_op) :=
