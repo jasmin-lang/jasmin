@@ -1624,7 +1624,7 @@ Proof.
     rewrite /= truncate_word_u => -[<-].
     rewrite /exec_sopn /= orbC hws hwa hw0 /=.
     rewrite !computational_eq_refl /=.
-    by rewrite /armv8a_CSNEG_semi add_wordE word1E opp_wordE wnot1_wopp.
+    by rewrite /arm_CSNEG_semi add_wordE word1E opp_wordE wnot1_wopp.
   }
   case=> // -[] // ws1 e0 e1 /oassertP [] /eqP ?; subst ws1.
   case: andP => [[_ /eqP h1] [<- <-] | _];
@@ -1636,12 +1636,12 @@ Proof.
     rewrite /= truncate_word_u => -[<-]; exists v0 => //.
     rewrite /exec_sopn /= orbC hws hwa hw0 /=.
     rewrite !computational_eq_refl /=.
-    by rewrite /armv8a_CSINC_semi word1E.
+    by rewrite /arm_CSINC_semi word1E.
   move: hc; rewrite hw0 => -[?]; subst w0.
   rewrite /= truncate_word_u => -[<-]; exists v1 => //.
   rewrite /exec_sopn /= orbC hws hwa hw1 /=.
   rewrite !computational_eq_refl /=.
-  by rewrite /armv8a_CSINC_semi word1E add_wordE GRing.addrC.
+  by rewrite /arm_CSINC_semi word1E add_wordE GRing.addrC.
 Qed.
 
 Lemma cset_mnP s ws e0 e1 mn w0 w1 b :

@@ -211,6 +211,25 @@ Instance arm_fcp : FlagCombinationParams :=
 
 (* -------------------------------------------------------------------- *)
 
+(* -------------------------------------------------------------------- *)
+(* Conditional selects. AArch64 and ARMv8.1-M have the same four: the
+   destination gets the first source when the condition holds, and the
+   second one, respectively unchanged (CSEL), incremented (CSINC), inverted
+   (CSINV) and negated (CSNEG), otherwise. *)
+
+Definition arm_CSEL_semi {ws : wsize} (wn wm : word ws) (b : bool) : word ws :=
+  if b then wn else wm.
+
+Definition arm_CSINC_semi {ws : wsize} (wn wm : word ws) (b : bool) : word ws :=
+  if b then wn else (wm + 1)%w.
+
+Definition arm_CSINV_semi {ws : wsize} (wn wm : word ws) (b : bool) : word ws :=
+  if b then wn else wnot wm.
+
+Definition arm_CSNEG_semi {ws : wsize} (wn wm : word ws) (b : bool) : word ws :=
+  if b then wn else (wnot wm + 1)%w.
+
+(* -------------------------------------------------------------------- *)
 Definition Z_mod_lnot (z:Z) (ws:wsize) : Z :=
   (zmod_pow2 (Z.lnot z) (nat_of_wsize ws))%Z.
 

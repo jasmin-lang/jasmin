@@ -137,6 +137,12 @@ Variant arm_mnemonic : Type :=
 | SXTH                           (* Extract a halfword and sign extend *)
 | CLZ                            (* Count leading zeros. *)
 
+(* Conditional selects (ARMv8.1-M only) *)
+| CSEL                           (* Conditional select *)
+| CSINC                          (* Conditional select increment *)
+| CSINV                          (* Conditional select invert *)
+| CSNEG                          (* Conditional select negate *)
+
 (* Comparison *)
 | CMP                            (* Compare *)
 | TST                            (* Test *)
@@ -168,6 +174,7 @@ Definition arm_mnemonics : seq arm_mnemonic :=
     ; AND; BFC; BFI; BIC; EOR; MVN; ORR
     ; ASR; LSL; LSR; ROR; REV; REV16; REVSH
     ; MOV; MOVT; UBFX; UXTB; UXTH; SBFX; SXTB; SXTH; CLZ
+    ; CSEL; CSINC; CSINV; CSNEG
     ; CMP; TST; CMN
     ; LDR; LDRB; LDRH; LDRSB; LDRSH
     ; STR; STRB; STRH
@@ -200,6 +207,10 @@ Definition has_shift_mnemonics : seq arm_mnemonic :=
 
 Definition condition_mnemonics : seq arm_mnemonic :=
   [:: CMP; TST ].
+
+(* The mnemonics that ARMv7-M does not have. *)
+Definition armv8_1m_mnemonics : seq arm_mnemonic :=
+  [:: CSEL; CSINC; CSINV; CSNEG ].
 
 Definition always_has_shift_mnemonics : seq (arm_mnemonic * shift_kind) :=
   [:: (UXTB, SROR); (UXTH, SROR); (SXTB, SROR); (SXTH, SROR) ].
@@ -288,6 +299,10 @@ Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
   | SXTB => "SXTB"
   | SXTH => "SXTH"
   | CLZ => "CLZ"
+  | CSEL => "CSEL"
+  | CSINC => "CSINC"
+  | CSINV => "CSINV"
+  | CSNEG => "CSNEG"
   | CMP => "CMP"
   | TST => "TST"
   | LDR => "LDR"
@@ -614,6 +629,9 @@ Definition mk_shifted
 
 Arguments mk_shifted : clear implicits.
 
+Definition ak_reg_reg_reg_cond : i_args_kinds :=
+  [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAreg ]; [:: CAcond ] ] ].
+
 Definition ak_reg_reg_imm_ ew :=
   [:: [:: [:: CAreg]; [:: CAreg]; [:: CAimm (Some (CAimmC_arm_wencoding ew)) reg_size]]].
 
@@ -698,9 +716,14 @@ Definition is_dsp_mnemonic (mn : arm_mnemonic) : bool :=
   | _ => false
   end.
 
-(* The mnemonics the core has. *)
+(* The mnemonics the core has: those of its version, and those of the DSP
+   extension when it implements it. *)
 Definition arm_mnemonic_available {core : arm_core} (mn : arm_mnemonic) : bool :=
-  ~~ is_dsp_mnemonic mn || core_dsp.
+  (~~ is_dsp_mnemonic mn || core_dsp)
+  && match core_version with
+     | ARMv7M => mn \notin armv8_1m_mnemonics
+     | ARMv8_1M => true
+     end.
 
 Section ARM_INSTR.
 
@@ -2087,6 +2110,43 @@ Definition arm_CMP_semi_t (wn wm : ty_r) : ty_nzcv_t :=
       (wunsigned wn + wunsigned wmnot + 1)%Z
       (wsigned wn + wsigned wmnot + 1)%Z.
 
+(* Conditional selects, ARMv8.1-M only (Armv8-M Architecture Reference Manual,
+   DDI0553B.r, C2.4.45 CSEL, C2.4.48 CSINC, C2.4.49 CSINV, C2.4.50 CSNEG):
+   the destination gets the first source when the condition holds, and the
+   second one, respectively unchanged, incremented, inverted and negated,
+   otherwise. They are not permitted in IT blocks, do not set the flags, and
+   have data independent timing. In the manual, register 15 as a source
+   denotes the zero register; it is not described here. *)
+Definition mk_csel_instr (mn : arm_mnemonic) (semi : wreg -> wreg -> bool -> ty_r)
+  : instr_desc_t :=
+  let tin := [:: lreg; lreg; lbool ] in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lreg ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 4;
+    id_args_kinds := ak_reg_reg_reg_cond;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_pp_asm := pp_arm_op mn opts;
+    id_valid :=
+      [&& arm_mnemonic_available mn, ~~ set_flags opts & ~~ is_conditional opts ];
+    id_doit := DOIT;
+    id_wf := refl_equal;
+  |}.
+
+Definition arm_CSEL_instr := mk_csel_instr CSEL arm_CSEL_semi.
+Definition arm_CSINC_instr := mk_csel_instr CSINC arm_CSINC_semi.
+Definition arm_CSINV_instr := mk_csel_instr CSINV arm_CSINV_semi.
+Definition arm_CSNEG_instr := mk_csel_instr CSNEG arm_CSNEG_semi.
+
 Definition arm_CMP_instr : instr_desc_t :=
   let mn := CMP in
   let tin := [:: lreg; lreg ] in
@@ -2325,6 +2385,10 @@ Definition mn_desc (mn : arm_mnemonic) : instr_desc_t :=
   | SXTB => arm_SXTB_instr
   | SXTH => arm_SXTH_instr
   | CLZ => arm_CLZ_instr
+  | CSEL => arm_CSEL_instr
+  | CSINC => arm_CSINC_instr
+  | CSINV => arm_CSINV_instr
+  | CSNEG => arm_CSNEG_instr
   | CMP => arm_CMP_instr
   | TST => arm_TST_instr
   | LDR => arm_load_instr LDR
@@ -2356,6 +2420,7 @@ Definition arm_single_cycle (mn : arm_mnemonic) : bool :=
   | AND | BFC | BFI | BIC | EOR | MVN | ORR
   | ASR | LSL | LSR | ROR | REV | REV16 | REVSH
   | MOV | MOVT | UBFX | UXTB | UXTH | SBFX | SXTB | SXTH | CLZ
+  | CSEL | CSINC | CSINV | CSNEG
   | CMP | TST | CMN
     => true
   | MLA | MLS | SDIV | UDIV
@@ -2394,6 +2459,11 @@ Definition arm_prim_string {core : arm_core}
       assert
         (~~ [&& sf, ic & mn == MUL ])
         "this mnemonic cannot both set flags and be conditional"%string
+    in
+    Let _ :=
+      assert
+        [|| ~~ ic | mn \notin armv8_1m_mnemonics ]
+        "this mnemonic cannot be conditional"%string
     in
     let op := ARM_op mn opts in
     Let _ :=

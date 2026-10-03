@@ -126,3 +126,18 @@ op LDRSH_32 (x: W16.t) : W32.t = W32.of_int (W16.to_sint x).
 op STR_32 (x: W32.t) : W32.t = x.
 op STRB_32 (x: W8.t) : W8.t = x.
 op STRH_32 (x: W16.t) : W16.t = x.
+
+(* -------------------------------------------------------------------- *)
+(* Conditional selection, of AArch64 and ARMv8.1-M. *)
+
+op CSEL_64  (x y: W64.t) (b: bool) : W64.t = if b then x else y.
+op CSEL_32  (x y: W32.t) (b: bool) : W32.t = if b then x else y.
+
+op CSINC_64 (x y: W64.t) (b: bool) : W64.t = if b then x else y + W64.one.
+op CSINC_32 (x y: W32.t) (b: bool) : W32.t = if b then x else y + W32.one.
+
+op CSINV_64 (x y: W64.t) (b: bool) : W64.t = if b then x else invw y.
+op CSINV_32 (x y: W32.t) (b: bool) : W32.t = if b then x else invw y.
+
+op CSNEG_64 (x y: W64.t) (b: bool) : W64.t = if b then x else invw y + W64.one.
+op CSNEG_32 (x y: W32.t) (b: bool) : W32.t = if b then x else invw y + W32.one.
