@@ -1,0 +1,10 @@
+/* Data independent timing only applies to the instructions that pass their
+   condition code check (Armv8-M manual, B3.34, rule R_DNPM): the execution
+   time of a conditional instruction depends on its condition. */
+#[ct="secret * secret -> secret"]
+export fn conditional(reg u32 x y) -> reg u32 {
+  reg bool zf;
+  ?{ "==" = zf } = #CMP(x, y);
+  x = #ADDcc(x, y, zf, x);
+  return x;
+}

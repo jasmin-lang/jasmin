@@ -134,6 +134,10 @@ All allowed args (regardless of the input) are:
   [[reg]; [reg]]
   [[reg]; [imm 32 (shift = allowed, none = not allowed)]]
 
+fail/arm-m4/csel_v7m.jazz:
+
+"fail/arm-m4/csel_v7m.jazz", line 5 (9-13): unknown primitive: "CSEL" (this mnemonic needs ARMv8.1-M)
+
 fail/arm-m4/eor_imm_shifted.jazz:
 
 "fail/arm-m4/eor_imm_shifted.jazz", line 3 (4-28):
@@ -288,6 +292,10 @@ fail/arm-m4/tst_imm_shifted.jazz:
 fail/arm-m4/tst_imm_too_large.jazz:
 
 "fail/arm-m4/tst_imm_too_large.jazz", line 4 (4-37): invalid number of lvalues, 4 provided instead of 3
+
+fail/armv8.1m/csel_conditional.jazz:
+
+"fail/armv8.1m/csel_conditional.jazz", line 5 (9-15): unknown primitive: "CSELcc" (this mnemonic cannot be conditional)
 
 fail/array_expansion/x86-64/array_param_not_reg.jazz:
 
@@ -1782,7 +1790,7 @@ Allowed args are:
 
 Statistics:
 	Annots:      4
-	Pretyping:  57
+	Pretyping:  59
 	Parsing:     4
 	Typing:      5
 	Compile:   218

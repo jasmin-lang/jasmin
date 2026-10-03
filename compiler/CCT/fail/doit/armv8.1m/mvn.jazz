@@ -1,0 +1,6 @@
+/* The Armv8-M manual does not state that MVN has data independent timing. */
+#[ct="secret -> secret"]
+export fn mvn(reg u32 x) -> reg u32 {
+  x = #MVN(x);
+  return x;
+}
