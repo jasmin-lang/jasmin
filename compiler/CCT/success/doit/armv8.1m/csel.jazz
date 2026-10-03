@@ -1,0 +1,20 @@
+/* A conditional select has data independent timing, whatever its
+   condition. */
+#[ct="secret * secret -> secret"]
+export fn csel(reg u32 x y) -> reg u32 {
+  reg bool b;
+  b = x == y;
+  x = y if b;
+  x = #CSINC(x, y, b);
+  return x;
+}
+
+/* These instructions have data independent timing in ARMv8.1-M. */
+#[ct="secret * secret -> secret"]
+export fn arith(reg u32 a, reg u32 b) -> reg u32 {
+  reg u32 t;
+  t = #RSB(a, b);
+  t = #REVSH(t);
+  t = #SMULBT(t, a);
+  return t;
+}
