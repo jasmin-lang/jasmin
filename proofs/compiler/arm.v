@@ -10,7 +10,8 @@ Require Import
    other Arm architectures: see arm_common.v. *)
 
 #[ export ]
-Instance arm : asm register register_ext xregister rflag condt arm_op :=
+Instance arm {armv : arm_version} :
+  asm register register_ext xregister rflag condt arm_op :=
   {
     eval_cond := fun _ => arm_eval_cond;
   }.

@@ -24,6 +24,14 @@ Require Export arm_expand_imm.
  * This is a description of the base architecture (no extensions).
  *)
 
+(* -------------------------------------------------------------------- *)
+(* Versions of the architecture. *)
+
+Variant arm_version : Type :=
+| ARMv7M.
+
+Existing Class arm_version.
+
 (* --------------------------------------------- *)
 Definition arm_reg_size  := U32.
 Definition arm_xreg_size := U64.

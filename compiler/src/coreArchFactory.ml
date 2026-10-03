@@ -3,6 +3,7 @@ open Utils
 open X86_decl
 
 module Core_arch_ARM = Arm_arch_full.Arm (struct
+  let version = Arm_decl.ARMv7M
   let call_conv = Arm_decl.arm_linux_call_conv
 end)
 

@@ -31,6 +31,7 @@ Section WITH_PARAMS.
 
 Context
   {wsw : WithSubWord}
+  {armv : arm_version}
   {atoI : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}

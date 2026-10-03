@@ -3,12 +3,17 @@ open Arm_common
 open Arm_decl
 
 
+module type Arm_version = sig
+  val version : arm_version
+end
+
 module type Arm_input = sig
+  include Arm_version
   val call_conv : (register, Arch_utils.empty, Arch_utils.empty, rflag, condt) calling_convention
 
 end
 
-module Arm_core = struct
+module Arm_core (V : Arm_version) = struct
   type reg = register
   type regx = Arch_utils.empty
   type xreg = Arch_utils.empty
@@ -19,8 +24,8 @@ module Arm_core = struct
 
   let atoI = X86_arch_full.atoI arm_decl
 
-  let asm_e = Arm_extra.arm_extra atoI
-  let aparams = Arm_params.arm_params atoI
+  let asm_e = Arm_extra.arm_extra V.version atoI
+  let aparams = Arm_params.arm_params V.version atoI
 
   let known_implicits = ["NF", "_nf_"; "ZF", "_zf_"; "CF", "_cf_"; "VF", "_vf_"]
 
@@ -45,15 +50,16 @@ module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch
    and type cond = condt
    and type asm_op = Arm_instr_decl.arm_op
    and type extra_op = Arm_extra.arm_extra_op = struct
-  include Arm_core
+  include Arm_core (Lowering_params)
   include Lowering_params
 
   (* TODO_ARM: r9 is a platform register. (cf. arch_decl)
      Here we assume it's just a variable register. *)
 
-  let not_saved_stack = (Arm_params.arm_liparams atoI).lip_not_saved_stack
+  let not_saved_stack =
+    (Arm_params.arm_liparams version atoI).lip_not_saved_stack
 
-  let pp_asm = Pp_arm_m4.print_prog
+  let pp_asm = Pp_arm_m4.print_prog version
 
   let callstyle = Arch_full.ByReg { call = Some LR; return = false }
 

@@ -28,6 +28,7 @@ Module ARMFopn_coreP.
 Section Section.
 
 Context
+  {armv : arm_version}
   {wsw: WithSubWord}
   {syscall_state : Type}
   {ep : EstateParams syscall_state}.

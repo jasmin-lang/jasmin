@@ -2472,7 +2472,7 @@ Definition arm_single_cycle (mn : arm_mnemonic) : bool :=
     => false
   end.
 
-Definition arm_instr_desc (o : arm_op) : instr_desc_t :=
+Definition arm_instr_desc {armv : arm_version} (o : arm_op) : instr_desc_t :=
   let '(ARM_op mn opts) := o in
   let x := mn_desc opts mn in
   if is_conditional opts
@@ -2499,10 +2499,11 @@ Definition arm_prim_string : seq (string * prim_constructor arm_op) :=
   map (fun mn => (string_of_arm_mnemonic mn, PrimARM (mk_prim mn))) cenum.
 
 #[ export ]
-Instance arm_op_decl : asm_op_decl arm_op :=
+Instance arm_op_decl {armv : arm_version} : asm_op_decl arm_op :=
   {|
     instr_desc_op := arm_instr_desc;
     prim_string := arm_prim_string;
   |}.
 
-Definition arm_prog := @asm_prog _ _ _ _ _ _ _ arm_op_decl.
+Definition arm_prog {armv : arm_version} :=
+  @asm_prog _ _ _ _ _ _ _ arm_op_decl.

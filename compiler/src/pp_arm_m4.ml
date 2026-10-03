@@ -87,8 +87,10 @@ let pp_shift (ARM_op (_, opts)) args =
       let sh = pp_shift_kind sk in
       List.modify_last (Format.asprintf "%s %s" sh) args
 
-let pp_mnemonic_ext (ARM_op (_, opts) as op) suff args =
-  let id = instr_desc Arm_decl.arm_decl Arm_instr_decl.arm_op_decl (None, op) in
+let pp_mnemonic_ext version (ARM_op (_, opts) as op) suff args =
+  let id =
+    instr_desc Arm_decl.arm_decl (Arm_instr_decl.arm_op_decl version) (None, op)
+  in
   let pp = id.id_pp_asm args in
   Format.asprintf "%s%s%s%s" pp.pp_aop_name suff (pp_set_flags opts) (pp_conditional args)
 
@@ -178,9 +180,9 @@ end = struct
 end
 
 (* Split an [ADR] instruction to a global symbol into a [MOVW]/[MOVT] pair. *)
-let pp_ADR pp opts args =
-  let name_lo = pp_mnemonic_ext (ARM_op(MOV, opts)) "w" args in
-  let name_hi = pp_mnemonic_ext (ARM_op(MOVT, opts)) "" args in
+let pp_ADR version pp opts args =
+  let name_lo = pp_mnemonic_ext version (ARM_op(MOV, opts)) "w" args in
+  let name_hi = pp_mnemonic_ext version (ARM_op(MOVT, opts)) "" args in
   let args =
     List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args
   in
@@ -194,7 +196,8 @@ let pp_ADR pp opts args =
   in
   [ Instr(name_lo, args_lo); Instr(name_hi, args_hi) ]
 
-module ArmTarget : AsmTargetBuilder.AsmTarget with
+module ArmTarget (V : sig val version : arm_version end) :
+AsmTargetBuilder.AsmTarget with
 type reg = Arm_decl.register
 and type regx = Arch_utils.empty
 and type xreg = Arch_utils.empty
@@ -202,6 +205,8 @@ and type rflag = Arm_common.rflag
 and type cond = Arm_common.condt
 and type asm_op = arm_op
 = struct
+
+  open V
 
   type reg = Arm_decl.register
   type regx = Arch_utils.empty
@@ -278,15 +283,16 @@ and type asm_op = arm_op
         declassify_mem arch len a
 
     | AsmOp (op, args) ->
-        let id = instr_desc arm_decl arm_op_decl (None, op) in
+        let id = instr_desc arm_decl (arm_op_decl version) (None, op) in
         let pp = id.id_pp_asm args in
         (* We need to perform the check even if we don't use the suffix, for
            instance for [LDR] or [STR]. *)
         let suff = ArgChecker.check_args op pp.pp_aop_args in
         match op, args with
-        | ARM_op(ADR, opts), _ :: Addr (Arip _) :: _ -> pp_ADR pp opts args
+        | ARM_op(ADR, opts), _ :: Addr (Arip _) :: _ ->
+            pp_ADR version pp opts args
         | _, _ ->
-            let name = pp_mnemonic_ext op suff args in
+            let name = pp_mnemonic_ext version op suff args in
             let args =
               List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args
             in
@@ -296,6 +302,7 @@ and type asm_op = arm_op
 
 end
 
-module ArmBuilder = AsmTargetBuilder.Make(ArmTarget)
-
-let print_prog fmt prog = PrintASM.pp_asm fmt (ArmBuilder.asm_of_prog prog)
+let print_prog version fmt prog =
+  let module V = struct let version = version end in
+  let module ArmBuilder = AsmTargetBuilder.Make (ArmTarget (V)) in
+  PrintASM.pp_asm fmt (ArmBuilder.asm_of_prog prog)
