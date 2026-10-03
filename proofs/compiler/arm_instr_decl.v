@@ -1,7 +1,10 @@
 (* ARM Cortex-M4 instruction set
 
-   These are the THUMB instructions of ARMv7-M, the instruction set of the M4
-   processor. *)
+   These are the THUMB instructions of ARMv7-M, the instruction set of the M3
+   processor, and of its DSP extension (ARMv7E-M), implemented by the M4
+   processor.
+   They are also instructions of ARMv8.1-M (e.g., the M55 processor), which
+   has others: see [arm_version] in arm_decl.v. *)
 
 From elpi.apps Require Import derive.std.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
@@ -705,6 +708,21 @@ Context
   {core : arm_core}
   (opts : arm_options).
 
+(* Data independent timing.
+   The descriptions below carry the classification of the Cortex-M4; the
+   instructions whose classification differs on ARMv8.1-M, MVN and the SMLA
+   halfword multiplies, carry both.
+
+   ARMv8.1-M defines data independent timing in the DIT extension (Armv8-M
+   Architecture Reference Manual, DDI0553B.r, B3.34): when AIRCR.DIT is 1,
+   the execution time of the instructions whose description has a "Data
+   Independent Timing behavior" paragraph does not depend on the values of
+   their operands. Every instruction described here has such a paragraph,
+   for every form of the mnemonic (immediate, register, shifted register,
+   flag setting), except:
+   - MVN (C2.4.128, C2.4.129), SDIV, UDIV and the SMLA halfword multiplies;
+   - for the loads and the stores, the execution time is independent of the
+     value that is loaded or stored, not of the address. *)
 Let string_of_arm_mnemonic mn :=
       (string_of_arm_mnemonic mn
         ++ (if set_flags opts then "S" else "")
@@ -1318,7 +1336,7 @@ Definition arm_smla_hw_instr hwn hwm : instr_desc_t :=
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := arm_mnemonic_available mn;
-    id_doit := DOIT;
+    id_doit := match core_version with ARMv7M => DOIT | ARMv8_1M => NOT_DOIT end;
     id_wf := refl_equal;
   |}.
 
@@ -1568,7 +1586,7 @@ Definition arm_MVN_instr : instr_desc_t :=
       id_init := [:: IBool true; IBool true; IBool false; IBool true ];
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
-      id_doit := DOIT;
+      id_doit := match core_version with ARMv7M => DOIT | ARMv8_1M => NOT_DOIT end;
       id_wf := refl_equal;
     |}
   in
@@ -2346,11 +2364,20 @@ Definition arm_single_cycle (mn : arm_mnemonic) : bool :=
     => false
   end.
 
+(* On ARMv8.1-M, data independent timing "only applies if the instruction
+   passes its Condition code check" (DDI0553B.r, B3.34, rule R_DNPM): the
+   execution time of a conditional instruction depends on its condition. *)
+Definition arm_cond_doit {core : arm_core} (mn : arm_mnemonic) : bool :=
+  match core_version with
+  | ARMv7M => arm_single_cycle mn
+  | ARMv8_1M => false
+  end.
+
 Definition arm_instr_desc {core : arm_core} (o : arm_op) : instr_desc_t :=
   let '(ARM_op mn opts) := o in
   let x := mn_desc opts mn in
   if is_conditional opts
-  then mk_cond (arm_single_cycle mn) x
+  then mk_cond (arm_cond_doit mn) x
   else x.
 
 Definition arm_prim_string {core : arm_core}
