@@ -1170,9 +1170,10 @@ Opaque esem esem_i.
   case: op hopts h hcond hexeces htout => //= -[[[//|] [mn opts]] | [] // ws''].
   - move: opts => [sf ic osh].
     set opts := {| set_flags := _; |}.
-    move=> /= /andP [/negPf ? /negPf ?] h [?] hexeces htout; subst op' sf ic.
+    move=> /= /andP [/negPf ? /negPf ?] h.
+    case: ifP => // hmn [?] hexeces htout; subst op' sf ic.
     apply: (sem_i_conditional (p := p') ev ii tag _ _ hsemc' _ _ hexeces hwrite12').
-    - by case: (mn); case: (osh).
+    - by move: hmn; case: (mn) => //; case: (osh).
     - exact: (eeq_exc_sem_pexprs hfves hs10 hsemes).
     - by rewrite /= (eeq_exc_sem_pexpr hfve1 hs10 hseme1).
     rewrite /truncate_args /truncate_val /=.

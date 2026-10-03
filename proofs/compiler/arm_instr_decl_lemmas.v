@@ -79,7 +79,7 @@ Proof.
                 (h2 : id_tout (mn_desc fflags mn) = id_tout (mn_desc tflags mn)),
          cast_op h1 h2 (id_semi (mn_desc fflags mn)) = id_semi (mn_desc tflags mn).
   + move: hvalid; rewrite /fflags /tflags.
-    by case: mn; case sf; case osk => [s | ] //; split => //;
+    by case: mn; case sf; case osk => [s | ] //=; rewrite ?andbF //; split => //;
          exists erefl, erefl.
   move=> [-> [hin [hout hcast]]].
   rewrite /semi_to_atype /=.

@@ -176,6 +176,7 @@ end = struct
     | SMMUL | SMMULR | SMUL_hw _ | SMLA_hw _ | SMULW_hw _ | BFC | BFI | ASR
     | LSL | LSR | ROR | REV | REV16 | REVSH | ADR | MOVT | UBFX | UXTB | UXTH
     | SBFX | SXTB | SXTH | CLZ | LDR | LDRB | LDRH | LDRSB | LDRSH | STR | STRB | STRH
+    | CSEL | CSINC | CSINV | CSNEG
       -> ""
 end
 
@@ -291,6 +292,15 @@ and type asm_op = arm_op
         match op, args with
         | ARM_op(ADR, opts), _ :: Addr (Arip _) :: _ ->
             pp_ADR version pp opts args
+        | ARM_op((CSEL | CSINC | CSINV | CSNEG), _), _ ->
+            (* The condition is an operand, not a suffix: no IT instruction. *)
+            let args =
+              List.filter_map
+                (fun (_, a) ->
+                  match a with Condt c -> Some (pp_condt c) | a -> pp_asm_arg a)
+                pp.pp_aop_args
+            in
+            [ Instr (pp.pp_aop_name, args) ]
         | _, _ ->
             let name = pp_mnemonic_ext version op suff args in
             let args =

@@ -282,10 +282,13 @@ Definition lower_pexpr_aux (ws : wsize) (e : pexpr) : low_expr :=
   | _ => le_skip
   end.
 
+(* The conditional selects cannot be conditional. *)
 Definition sopn_set_is_conditional (op : sopn) : option sopn :=
   match op with
   | Oasm (BaseOp (None, ARM_op mn opts)) =>
-      Some (Oarm (ARM_op mn (set_is_conditional opts)))
+      if mn \in armv8_1m_mnemonics
+      then None
+      else Some (Oarm (ARM_op mn (set_is_conditional opts)))
   | Oasm (ExtOp (Osmart_li ws)) => Some (Oasm (ExtOp (Osmart_li_cc ws)))
   | _ => None
   end.
