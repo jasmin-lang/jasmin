@@ -1,3 +1,13 @@
+# Unreleased
+
+## Bug fixes
+
+- The EasyCrypt model of `BSR` (`BSR_XX` in `eclib/JWord.ec`) counted the
+  trailing zeros instead of the leading ones (`lzcnt (w2bits w)` without the
+  `rev` that `LZCNT_XX` has), so `BSR_64 1` was 63 in the model where the
+  processor gives 0
+  ([PR 1608](https://github.com/jasmin-lang/jasmin/pull/1608)).
+
 # Jasmin 2026.09.0 — 2026-09-30
 
 ## New features
