@@ -1,4 +1,4 @@
-(* Assembly printer for ARM Cortex M4 (ARMv7-M).
+(* Assembly printer for ARMv7-M (Cortex-M3 and Cortex-M4).
 
 We always use the Unified Assembly Language (UAL).
 Immediate values (denoted <imm>) are always nonnegative integers.

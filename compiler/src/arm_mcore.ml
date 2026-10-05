@@ -7,6 +7,8 @@ type t = {
   core : Arm_decl.arm_core;  (* the core, for the verified back-end *)
 }
 
+let cortex_m3 = { name = "arm-m3"; core = Arm_decl.cortex_m3 }
+
 let cortex_m4 = { name = "arm-m4"; core = Arm_decl.cortex_m4 }
 
-let all = [ cortex_m4 ]
+let all = [ cortex_m3; cortex_m4 ]
