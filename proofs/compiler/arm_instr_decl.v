@@ -1091,7 +1091,7 @@ Definition arm_UMULL_instr : instr_desc_t :=
     id_init := [:: IBool true; IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := DOIT;
+    id_doit := if core_long_mul_dit then DOIT else NOT_DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1147,7 +1147,7 @@ Definition arm_UMLAL_instr : instr_desc_t :=
     id_init := [:: IBool true; IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := DOIT;
+    id_doit := if core_long_mul_dit then DOIT else NOT_DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1175,7 +1175,7 @@ Definition arm_SMULL_instr : instr_desc_t :=
     id_init := [:: IBool true; IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := DOIT;
+    id_doit := if core_long_mul_dit then DOIT else NOT_DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1203,7 +1203,7 @@ Definition arm_SMLAL_instr : instr_desc_t :=
     id_init := [:: IBool true; IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := DOIT;
+    id_doit := if core_long_mul_dit then DOIT else NOT_DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -2345,7 +2345,10 @@ Arguments arm_extend_semi {ws} sign ws' wn /.
    summary", in a system with zero wait states.
    Not single-cycle: MLA and MLS (2 cycles), the loads and the stores (2
    cycles; neighboring ones can pipeline their address and data phases), and
-   the divisions (2 to 12 cycles). *)
+   the divisions (2 to 12 cycles).
+   The table also holds for the Cortex-M3 (Technical Reference Manual, Arm
+   DDI 0337), except the long multiplications UMULL, SMULL, UMLAL and SMLAL,
+   which are not DIT there. *)
 Definition arm_single_cycle (mn : arm_mnemonic) : bool :=
   match mn with
   | ADD | ADC | MUL | SUB | SBC | RSB | UMULL | UMAAL | UMLAL | SMULL | SMLAL
