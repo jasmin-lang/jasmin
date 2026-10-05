@@ -52,7 +52,7 @@ Section STACK_ZEROIZATION.
 
 Context {vinfo : one_varmap.veneer_info}.
 
-Context {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
+Context {atoI : arch_toIdent} {prof : armv7m_profile} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
 Context {call_conv : calling_convention}.
 
 Section RSP.

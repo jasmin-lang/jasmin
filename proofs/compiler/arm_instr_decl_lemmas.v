@@ -105,7 +105,7 @@ Proof.
   by apply: sem_prod_eq_refl.
 Qed.
 
-Lemma ignore_has_shift mn sf ic hs hs' :
+Lemma ignore_has_shift {prof : armv7m_profile} mn sf ic hs hs' :
   mn \notin has_shift_mnemonics
   -> let opts :=
        {| set_flags := sf; is_conditional := ic; has_shift := hs; |}
@@ -125,6 +125,7 @@ Section WITH_PARAMS.
 Context
   {wsw : WithSubWord}
   {atoI : arch_toIdent}
+  {prof : armv7m_profile}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
   {pT : progT}

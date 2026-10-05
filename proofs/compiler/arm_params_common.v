@@ -22,7 +22,7 @@ Module ARMFopn.
 
   Section WITH_PARAMS.
 
-  Context {atoI : arch_toIdent}.
+  Context {atoI : arch_toIdent} {prof : armv7m_profile}.
 
   Definition to_opn '(d, o, e) : fopn_args := (d, Oarm o, e).
 

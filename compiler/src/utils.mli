@@ -103,6 +103,7 @@ val pp_string : string pp
 (* -------------------------------------------------------------------- *)
 type architecture =
   | X86_64
+  | ARM_M3
   | ARM_M4
   | ARMv8A
   | RISCV

@@ -16,7 +16,7 @@ Require Import
   arm_instr_decl.
 
 Section Section.
-Context {atoI : arch_toIdent}.
+Context {atoI : arch_toIdent} {prof : armv7m_profile}.
 
 (* -------------------------------------------------------------------- *)
 (* Fresh variables. *)

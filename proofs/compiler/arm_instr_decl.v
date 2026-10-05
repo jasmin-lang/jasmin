@@ -1,6 +1,7 @@
-(* ARM Cortex-M4 instruction set
+(* ARM Cortex-M3 and Cortex-M4 instruction set
 
-   These are the THUMB instructions of ARMv7-M, the instruction set of the M4
+   These are the THUMB instructions of ARMv7-M, the instruction set of the M3
+   processor, and of its DSP extension (ARMv7E-M), implemented by the M4
    processor. *)
 
 From elpi.apps Require Import derive.std.
@@ -28,6 +29,22 @@ Module E.
      the [id_safe] conditions describing exactly these cases fails. *)
   Definition no_semantics : error := ErrSemUndef.
 End E.
+
+(* -------------------------------------------------------------------- *)
+(* ARMv7-M profiles: what distinguishes the supported cores. *)
+
+Class armv7m_profile :=
+  {
+    (* The DSP extension (ARMv7E-M) is implemented. *)
+    p_dsp : bool;
+  }.
+
+(* Cortex-M3: ARMv7-M. *)
+Definition cortex_m3 : armv7m_profile := {| p_dsp := false; |}.
+
+(* Cortex-M4: ARMv7E-M. *)
+Definition cortex_m4 : armv7m_profile := {| p_dsp := true; |}.
+
 
 (* -------------------------------------------------------------------- *)
 (* ARM instruction options. *)
@@ -690,6 +707,7 @@ Definition pp_arm_op
 Section ARM_INSTR.
 
 Context
+  {prof : armv7m_profile}
   (opts : arm_options).
 
 Let string_of_arm_mnemonic mn :=
@@ -1109,7 +1127,7 @@ Definition arm_UMAAL_instr : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true; IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := true;
+    id_valid := p_dsp;
     id_doit := NOT_DOIT; (* Not DIT *)
     id_safe_wf := refl_equal;
     id_wf := refl_equal;
@@ -1224,7 +1242,7 @@ Definition arm_SMMUL_instr : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := true;
+    id_valid := p_dsp;
     id_doit := NOT_DOIT; (* Not DIT *)
     id_safe_wf := refl_equal;
     id_wf := refl_equal;
@@ -1252,7 +1270,7 @@ Definition arm_SMMULR_instr : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := true;
+    id_valid := p_dsp;
     id_doit := NOT_DOIT; (* Not DIT *)
     id_safe_wf := refl_equal;
     id_wf := refl_equal;
@@ -1289,7 +1307,7 @@ Definition arm_smul_hw_instr hwn hwm : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := true;
+    id_valid := p_dsp;
     id_doit := NOT_DOIT; (* Not DIT *)
     id_safe_wf := refl_equal;
     id_wf := refl_equal;
@@ -1322,7 +1340,7 @@ Definition arm_smla_hw_instr hwn hwm : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := true;
+    id_valid := p_dsp;
     id_doit := NOT_DOIT; (* Not DIT *)
     id_safe_wf := refl_equal;
     id_wf := refl_equal;
@@ -1354,7 +1372,7 @@ Definition arm_smulw_hw_instr hw : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := true;
+    id_valid := p_dsp;
     id_doit := NOT_DOIT; (* Not DIT *)
     id_safe_wf := refl_equal;
     id_wf := refl_equal;
@@ -2371,15 +2389,15 @@ Definition arm_single_cycle (mn : arm_mnemonic) : bool :=
     => false
   end.
 
-Definition arm_instr_desc (o : arm_op) : instr_desc_t :=
+Definition arm_instr_desc {prof : armv7m_profile} (o : arm_op) : instr_desc_t :=
   let '(ARM_op mn opts) := o in
   let x := mn_desc opts mn in
   if is_conditional opts
   then mk_cond (arm_single_cycle mn) x
   else x.
 
-Definition arm_prim_string : seq (string * prim_constructor arm_op) :=
-  Eval compute in
+Definition arm_prim_string {prof : armv7m_profile}
+  : seq (string * prim_constructor arm_op) :=
   let mk_prim mn sf ic :=
     let hs := xseq.assoc always_has_shift_mnemonics mn in
     let opts := {| set_flags := sf; is_conditional := ic; has_shift := hs; |} in
@@ -2393,15 +2411,21 @@ Definition arm_prim_string : seq (string * prim_constructor arm_op) :=
         (~~ [&& sf, ic & mn == MUL ])
         "this mnemonic cannot both set flags and be conditional"%string
     in
-    ok (ARM_op mn opts)
+    let op := ARM_op mn opts in
+    Let _ :=
+      assert
+        (id_valid (arm_instr_desc op))
+        "this instruction is not available on this core"%string
+    in
+    ok op
   in
   map (fun mn => (string_of_arm_mnemonic mn, PrimARM (mk_prim mn))) cenum.
 
 #[ export ]
-Instance arm_op_decl : asm_op_decl arm_op :=
+Instance arm_op_decl {prof : armv7m_profile} : asm_op_decl arm_op :=
   {|
     instr_desc_op := arm_instr_desc;
     prim_string := arm_prim_string;
   |}.
 
-Definition arm_prog := @asm_prog _ _ _ _ _ _ _ arm_op_decl.
+Definition arm_prog {prof : armv7m_profile} := @asm_prog _ _ _ _ _ _ _ arm_op_decl.

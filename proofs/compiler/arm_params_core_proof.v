@@ -43,6 +43,7 @@ Section Section.
 
 Context
   {wsw: WithSubWord}
+  {prof : armv7m_profile}
   {syscall_state : Type}
   {ep : EstateParams syscall_state}.
 

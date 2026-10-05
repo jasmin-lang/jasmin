@@ -29,7 +29,7 @@ Require Import
   arm_stack_zeroization.
 
 Section Section.
-Context {atoI : arch_toIdent}.
+Context {atoI : arch_toIdent} {prof : armv7m_profile}.
 
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc parameters. *)
