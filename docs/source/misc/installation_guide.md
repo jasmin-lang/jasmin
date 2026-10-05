@@ -35,22 +35,34 @@ and security proofs).
 
 Up-to-date packages are available for a few platforms.
 
-#### On Debian and related linux distributions
+#### On Debian, Ubuntu, and related linux distributions
 
-The packages are distributed through a custom repository. The `apt` package
-manager must be configured to trust and use this repository. To this end run the
-following commands as root (for Debian Trixie; if you are using Bookworm,
-replace “trixie” with “bookworm” in the second command):
+Pre-built packages are provided for Debian stable (`trixie`), Debian oldstable
+(`bookworm`), Ubuntu 24.04 LTS (`noble`) and Ubuntu 26.04 LTS (`resolute`).
+These packages might also work on related distributions (for instance LMDE 7 is
+built on top of Debian Trixie). These packages are distributed through a custom
+repository. The `apt` package manager must be configured to trust and use this
+repository. To this end the Formosa public key must be downloaded (run the
+following command as root):
 
 ~~~
-wget -qO- https://formosa-crypto.org/formosa-archive-keyring.pgp | gpg --dearmor > /etc/apt/trusted.gpg.d/formosa-crypto.gpg
+wget -qO- https://formosa-crypto.org/formosa-archive-keyring.pgp | \
+  gpg --dearmor > /etc/apt/trusted.gpg.d/formosa-crypto.gpg
+~~~
+
+Then select the “codename” that matches your distribution: `trixie`, `resolute`,
+`bookworm`, or `noble` and run the following command as root (here for Debian
+Trixie; replace “trixie” with the appropriate codename):
+
+~~~
 echo 'deb [signed-by=/etc/apt/trusted.gpg.d/formosa-crypto.gpg] https://repo.formosa-crypto.org/debian trixie main' > /etc/apt/sources.list.d/formosa-crypto.list
 ~~~
 
-Then update the list of available packages (`sudo apt update`) and install the package that you need:
+Then update the list of available packages (`sudo apt update`) and install the
+package that you need:
 
 - **jasmin-compiler** has the command-line tools
-- **easycrypt** (Trixie only) has the proof assistant
+- **easycrypt** (Trixie and Resolute only) has the proof assistant
 - **libjasmin-easycrypt** has the EasyCrypt libraries used for verifying Jasmin implementations
 
 #### On Arch Linux
