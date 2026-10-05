@@ -2131,6 +2131,15 @@ Definition armv8a_store_instr mn : instr_desc_t :=
    accesses are observed, which the semantics does not model: in the
    sequential semantics they have no effect, like the x86 fences. *)
 
+(* [DSB] is printed in its full system form [DSB SY]. Its mnemonic string
+   stays [DSB], as it is also the intrinsic and EasyCrypt name. *)
+Definition pp_barrier (mn : armv8a_mnemonic) (_ : seq asm_arg) : pp_asm_op :=
+  {|
+    pp_aop_name := if mn is DSB then "DSB SY" else string_of_armv8a_mnemonic mn;
+    pp_aop_ext := PP_name;
+    pp_aop_args := [::];
+  |}.
+
 Definition mk_barrier_instr mn : instr_desc_t :=
   let semi : sem_ltuple [::] := tt in
   {|
@@ -2147,7 +2156,7 @@ Definition mk_barrier_instr mn : instr_desc_t :=
     id_str_jas := armv8a_mn_str mn;
     id_safe := [::];
     id_doit := NOT_DOIT; (* Not DIT *)
-    id_pp_asm := pp_armv8a_op mn opts;
+    id_pp_asm := pp_barrier mn;
     id_valid := (osz == U64) && (has_shift opts == None);
     id_safe_wf := refl_equal;
     id_semi_errty := fun _ => sem_lprod_ok_error [::] semi;
