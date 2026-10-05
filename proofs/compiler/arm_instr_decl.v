@@ -37,13 +37,20 @@ Class armv7m_profile :=
   {
     (* The DSP extension (ARMv7E-M) is implemented. *)
     p_dsp : bool;
+    (* The long multiplications (UMULL, SMULL, UMLAL, SMLAL) have
+       data-independent timing. *)
+    p_long_mul_dit : bool;
   }.
 
-(* Cortex-M3: ARMv7-M. *)
-Definition cortex_m3 : armv7m_profile := {| p_dsp := false; |}.
+(* Cortex-M3: ARMv7-M; the long multiplications terminate early, depending on
+   the magnitude of the operands (Cortex-M3 Technical Reference Manual,
+   DDI 0337, instruction timings). *)
+Definition cortex_m3 : armv7m_profile :=
+  {| p_dsp := false; p_long_mul_dit := false; |}.
 
-(* Cortex-M4: ARMv7E-M. *)
-Definition cortex_m4 : armv7m_profile := {| p_dsp := true; |}.
+(* Cortex-M4: ARMv7E-M; every multiplication takes one cycle. *)
+Definition cortex_m4 : armv7m_profile :=
+  {| p_dsp := true; p_long_mul_dit := true; |}.
 
 
 (* -------------------------------------------------------------------- *)
@@ -1099,7 +1106,7 @@ Definition arm_UMULL_instr : instr_desc_t :=
     id_init := [:: IBool true; IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := DOIT;
+    id_doit := if p_long_mul_dit then DOIT else NOT_DOIT;
     id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
@@ -1157,7 +1164,7 @@ Definition arm_UMLAL_instr : instr_desc_t :=
     id_init := [:: IBool true; IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := DOIT;
+    id_doit := if p_long_mul_dit then DOIT else NOT_DOIT;
     id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
@@ -1186,7 +1193,7 @@ Definition arm_SMULL_instr : instr_desc_t :=
     id_init := [:: IBool true; IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := DOIT;
+    id_doit := if p_long_mul_dit then DOIT else NOT_DOIT;
     id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
@@ -1215,7 +1222,7 @@ Definition arm_SMLAL_instr : instr_desc_t :=
     id_init := [:: IBool true; IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := DOIT;
+    id_doit := if p_long_mul_dit then DOIT else NOT_DOIT;
     id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
