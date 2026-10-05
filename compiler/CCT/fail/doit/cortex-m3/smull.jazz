@@ -1,0 +1,8 @@
+/* SMULL is not DIT on the Cortex-M3. */
+#[ct="secret * secret -> secret"]
+export fn smull(reg u32 x y) -> reg u32 {
+  reg u32 hi lo;
+  lo, hi = #SMULL(x, y);
+  lo ^= hi;
+  return lo;
+}
