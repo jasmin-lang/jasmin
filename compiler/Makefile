@@ -10,6 +10,7 @@ CHECKCATS ?= \
 	x86-64-Intel \
 	x86-64-nolea \
 	x86-64-windows \
+	cortex-m3-dsp \
 	arm-m4 \
 	armv8a \
 	risc-v \
