@@ -1,4 +1,4 @@
-(* Assembly printer for ARM Cortex M4 (ARMv7-M).
+(* Assembly printer for ARMv7-M (Cortex-M3 and Cortex-M4).
 
 We always use the Unified Assembly Language (UAL).
 Immediate values (denoted <imm>) are always nonnegative integers.
@@ -95,8 +95,10 @@ let pp_shift (ARM_op (_, opts)) args =
       let sh = pp_shift_kind sk in
       List.modify_last (Format.asprintf "%s %s" sh) args
 
-let pp_mnemonic_ext (ARM_op (_, opts) as op) suff args =
-  let id = instr_desc Arm_decl.arm_decl Arm_instr_decl.arm_op_decl (None, op) in
+let pp_mnemonic_ext profile (ARM_op (_, opts) as op) suff args =
+  let id =
+    instr_desc Arm_decl.arm_decl (Arm_instr_decl.arm_op_decl profile) (None, op)
+  in
   let pp = id.id_pp_asm args in
   Format.asprintf "%s%s%s%s" pp.pp_aop_name suff (pp_set_flags opts) (pp_conditional args)
 
@@ -187,7 +189,7 @@ end = struct
       -> ""
 end
 
-module ArmTarget : AsmTargetBuilder.AsmTarget with
+module ArmTarget (P : Armv7m_profile.S) : AsmTargetBuilder.AsmTarget with
 type reg = Arm_decl.register
 and type regx = Arch_utils.empty
 and type xreg = Arch_utils.empty
@@ -203,7 +205,9 @@ and type asm_op = arm_op
   type cond = Arm_common.condt
   type asm_op = arm_op
 
-  let headers = [ Instr (".thumb", []); Instr (".syntax unified", []) ]
+  let headers =
+    [ Instr (".thumb", []); Instr (".syntax unified", []) ]
+    @ match P.cpu with None -> [] | Some cpu -> [ Instr (".cpu", [ cpu ]) ]
 
   let data_segment_header =
     [
@@ -276,12 +280,12 @@ and type asm_op = arm_op
         declassify_mem arch len a
 
     | AsmOp (op, args) ->
-        let id = instr_desc arm_decl arm_op_decl (None, op) in
+        let id = instr_desc arm_decl (arm_op_decl P.profile) (None, op) in
         let pp = id.id_pp_asm args in
         (* We need to perform the check even if we don't use the suffix, for
            instance for [LDR] or [STR]. *)
         let suff = ArgChecker.check_args op pp.pp_aop_args in
-        let name = pp_mnemonic_ext op suff args in
+        let name = pp_mnemonic_ext P.profile op suff args in
         let args =
           List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args
         in
@@ -291,6 +295,6 @@ and type asm_op = arm_op
 
 end
 
-module ArmBuilder = AsmTargetBuilder.Make(ArmTarget)
-
-let print_prog fmt prog = PrintASM.pp_asm fmt (ArmBuilder.asm_of_prog prog)
+let print_prog (module P : Armv7m_profile.S) fmt prog =
+  let module ArmBuilder = AsmTargetBuilder.Make (ArmTarget (P)) in
+  PrintASM.pp_asm fmt (ArmBuilder.asm_of_prog prog)

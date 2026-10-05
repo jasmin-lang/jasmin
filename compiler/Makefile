@@ -10,11 +10,15 @@ CHECKCATS ?= \
 	x86-64-Intel \
 	x86-64-nolea \
 	x86-64-windows \
+	arm-m3 \
+	arm-m3-dsp \
 	arm-m4 \
 	armv8a \
 	risc-v \
 	x86-64-stack-zero-loop \
 	x86-64-stack-zero-unrolled \
+	arm-m3-stack-zero-loop \
+	arm-m3-stack-zero-unrolled \
 	arm-m4-stack-zero-loop \
 	arm-m4-stack-zero-unrolled \
 	armv8a-stack-zero-loop \

@@ -61,6 +61,7 @@ Context
   {wsw : WithSubWord}
   {dc : DirectCall}
   {atoI : arch_toIdent}
+  {prof : armv7m_profile}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
   {pT : progT}
@@ -1171,7 +1172,10 @@ Opaque esem esem_i.
     set opts := {| set_flags := _; |}.
     move=> /= /andP [/negPf ? /negPf ?] h [?] hexeces htout; subst op' sf ic.
     apply: (sem_i_conditional (p := p') ev ii tag _ _ hsemc' _ _ hexeces hwrite12').
-    - by case: (mn); case: (osh).
+    - move: hexeces; rewrite /exec_sopn /sopn_sem /=.
+      have -> : id_valid (mn_desc (set_is_conditional opts) mn) = id_valid (mn_desc opts mn).
+      + by subst opts; case: (mn); case: (osh).
+      by case: id_valid.
     - exact: (eeq_exc_sem_pexprs hfves hs10 hsemes).
     - by rewrite /= (eeq_exc_sem_pexpr hfve1 hs10 hseme1).
     rewrite /truncate_args /truncate_val /=.
