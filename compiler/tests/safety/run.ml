@@ -58,6 +58,11 @@ let load_and_analyze ~fmt ~safety_param expect path arch =
         end)
     fds
 
+let load_and_analyze ~fmt ~safety_param expect path =
+  function
+  | ARMv8A -> () (* TODO: enable when the safety checker is implemented for ARMv8-A *)
+  | arch -> load_and_analyze ~fmt ~safety_param expect path arch
+
 let doit ~fmt expect archs path () =
   let safety_param = config path in
   List.iter (load_and_analyze ~fmt ~safety_param expect path) archs
