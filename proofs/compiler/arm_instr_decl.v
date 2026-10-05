@@ -1084,7 +1084,7 @@ Definition arm_UMULL_instr : instr_desc_t :=
     id_init := [:: IBool true; IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := DOIT;
+    id_doit := if core_long_mul_dit then DOIT else NOT_DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1140,7 +1140,7 @@ Definition arm_UMLAL_instr : instr_desc_t :=
     id_init := [:: IBool true; IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := DOIT;
+    id_doit := if core_long_mul_dit then DOIT else NOT_DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1168,7 +1168,7 @@ Definition arm_SMULL_instr : instr_desc_t :=
     id_init := [:: IBool true; IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := DOIT;
+    id_doit := if core_long_mul_dit then DOIT else NOT_DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1196,7 +1196,7 @@ Definition arm_SMLAL_instr : instr_desc_t :=
     id_init := [:: IBool true; IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := DOIT;
+    id_doit := if core_long_mul_dit then DOIT else NOT_DOIT;
     id_wf := refl_equal;
   |}.
 
