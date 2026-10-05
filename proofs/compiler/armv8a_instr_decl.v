@@ -195,7 +195,8 @@ Definition shift_allowed (mn : armv8a_mnemonic) (sk : shift_kind) : bool :=
   if sk is SROR then mn \in ror_shift_mnemonics else true.
 
 (* Mnemonics available in both the 32-bit (W) and 64-bit (X) forms; the
-   remaining mnemonics are only valid with [opts_size = U64]. *)
+   remaining mnemonics are only valid with [opts_size = U64], except the
+   barriers, which have no operand. *)
 Definition sized_mnemonics : seq armv8a_mnemonic :=
   [:: ADD; ADDS; ADC; ADCS; SUB; SUBS; NEG
     ; MUL; MADD; MSUB; SDIV; UDIV
@@ -2051,7 +2052,7 @@ Definition pp_barrier (mn : armv8a_mnemonic) (_ : seq asm_arg) : pp_asm_op :=
 Definition mk_barrier_instr mn : instr_desc_t :=
   let semi : sem_ltuple [::] := tt in
   {|
-    id_msb_flag := msbf;
+    id_msb_flag := MSB_MERGE;
     id_tin := [::];
     id_in := [::];
     id_tout := [::];
@@ -2065,7 +2066,7 @@ Definition mk_barrier_instr mn : instr_desc_t :=
     id_safe := [::];
     id_doit := NOT_DOIT; (* Not DIT *)
     id_pp_asm := pp_barrier mn;
-    id_valid := (osz == U64) && (has_shift opts == None);
+    id_valid := true;
     id_safe_wf := refl_equal;
     id_semi_errty := fun _ => sem_lprod_ok_error [::] semi;
     id_semi_safe := fun _ => sem_lprod_ok_safe [::] semi;
