@@ -38,6 +38,9 @@ Class arm_core :=
 (* Cortex-M4: ARMv7E-M. *)
 Definition cortex_m4 : arm_core := {| core_dsp := true; |}.
 
+(* Cortex-M3: ARMv7-M, without the DSP extension. *)
+Definition cortex_m3 : arm_core := {| core_dsp := false; |}.
+
 (* --------------------------------------------- *)
 Definition arm_reg_size  := U32.
 Definition arm_xreg_size := U64.
