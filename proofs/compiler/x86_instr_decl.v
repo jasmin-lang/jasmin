@@ -575,12 +575,12 @@ Definition pp_cqo sz (args: asm_args) :=
 Definition c := [::CAcond].
 Definition r := [:: CAreg].
 Definition rx := [:: CAregx].
-Definition m b := [:: CAmem b].
+Definition m b := [:: CAmem b None].
 Definition i sz := [:: CAimm None sz].
-Definition rm b := [:: CAreg; CAmem b].
-Definition rxm b := [:: CAregx; CAmem b].
+Definition rm b := [:: CAreg; CAmem b None].
+Definition rxm b := [:: CAregx; CAmem b None].
 
-Definition rmi sz := [:: CAreg; CAmem true; CAimm None sz].
+Definition rmi sz := [:: CAreg; CAmem true None; CAimm None sz].
 Definition ri  sz := [:: CAreg; CAimm None sz].
 
 Definition m_r := [:: m false; r].
@@ -591,8 +591,8 @@ Definition r_rmi sz := [:: r; rmi sz].
 Definition m_ri sz := [:: m false; ri sz].
 
 Definition xmm := [:: CAxmm ].
-Definition xmmm b := [:: CAxmm; CAmem b].
-Definition xmmmi sz := [:: CAxmm; CAmem true; CAimm None sz].
+Definition xmmm b := [:: CAxmm; CAmem b None].
+Definition xmmmi sz := [:: CAxmm; CAmem true None; CAimm None sz].
 
 Definition xmm_xmmm := [::xmm; xmmm true].
 Definition xmmm_xmm := [::xmmm false; xmm].

@@ -50,7 +50,14 @@ Definition rtype {t T} `{ToString t T} := t.
    condition and [caimm_cond_pp] to render the condition in assembly
    generation error messages. Architectures with no special immediate
    conditions (e.g. x86) use [empty]. This keeps each architecture's
-   conditions in its own files. *)
+   conditions in its own files.
+
+   Memory-argument conditions work the same way: [camem_cond] and
+   [check_CAmem] restrict the shape of the address of a memory operand
+   (given by the fields of a [reg_address]), for
+   instructions whose encoding accepts fewer addressing modes than the
+   architecture's other loads and stores. Addresses relative to the
+   instruction pointer never satisfy a condition. *)
 
 (* -------------------------------------------------------------------- *)
 (* Basic architecture declaration.
@@ -71,10 +78,17 @@ Class arch_decl (reg regx xreg rflag cond : Type) :=
   ; caimm_cond_eqC : eqTypeC caimm_cond
   ; caimm_cond_pp : caimm_cond -> string  (* for error messages *)
   ; check_CAimm : caimm_cond -> forall ws, word ws -> bool
+  ; camem_cond : Type  (* architecture-specific memory-argument conditions *)
+  ; camem_cond_eqC : eqTypeC camem_cond
+  ; camem_cond_pp : camem_cond -> string  (* for error messages *)
+  ; check_CAmem :
+      camem_cond -> word reg_size (* displacement *) -> option reg (* base *) ->
+      nat (* scale *) -> option reg (* offset *) -> bool
   }.
 
 #[global]
-Existing Instances cond_eqC toS_r toS_rx toS_x toS_f ad_fcp caimm_cond_eqC.
+Existing Instances cond_eqC toS_r toS_rx toS_x toS_f ad_fcp caimm_cond_eqC
+  camem_cond_eqC.
 
 #[export]
 Instance arch_pd `{arch_decl} : PointerData := { Uptr := reg_size }.
@@ -134,6 +148,11 @@ Record reg_address : Type := mkAddress
 Variant address :=
 | Areg of reg_address (* Absolute address. *)
 | Arip of pointer.    (* Address relative to instruction pointer. *)
+
+Definition check_CAmem_address (c : camem_cond) (a : address) : bool :=
+  if a is Areg ra
+  then check_CAmem c ra.(ad_disp) ra.(ad_base) ra.(ad_scale) ra.(ad_offset)
+  else false.
 
 Definition oeq_reg (x y:option reg_t) :=
   @eq_op (option ceqT_eqType) x y.
@@ -329,19 +348,21 @@ Variant arg_kind :=
 | CAreg
 | CAregx
 | CAxmm
-| CAmem of bool (* true if Global is allowed *)
+| CAmem of bool & option camem_cond (* true if Global is allowed *)
 | CAimm of option caimm_cond & wsize
 | CAimmRip of rip_imm_kind.
 
-(* [caimm_cond] is an abstract type equipped with an [eqTypeC], so the
-   decidable equality is written by hand instead of derived. *)
+(* [caimm_cond] and [camem_cond] are abstract types equipped with an
+   [eqTypeC], so the decidable equality is written by hand instead of
+   derived. *)
 Definition arg_kind_eqb (a1 a2 : arg_kind) : bool :=
   match a1, a2 with
   | CAcond, CAcond
   | CAreg, CAreg
   | CAregx, CAregx
   | CAxmm, CAxmm => true
-  | CAmem b1, CAmem b2 => b1 == b2
+  | CAmem b1 c1, CAmem b2 c2 =>
+      (b1 == b2) && ((c1 : option ceqT_eqType) == c2)
   | CAimm c1 ws1, CAimm c2 ws2 =>
       ((c1 : option ceqT_eqType) == c2) && (ws1 == ws2)
   | CAimmRip k1, CAimmRip k2 => k1 == k2
@@ -351,8 +372,8 @@ Definition arg_kind_eqb (a1 a2 : arg_kind) : bool :=
 Lemma arg_kind_eqb_OK : forall a1 a2, reflect (a1 = a2) (arg_kind_eqb a1 a2).
 Proof.
   move=> a1 a2; apply: (iffP idP).
-  - case: a1 a2 => [||||b1|c1 ws1|k1] [||||b2|c2 ws2|k2] //=.
-    + by move=> /eqP ->.
+  - case: a1 a2 => [||||b1 c1|c1 ws1|k1] [||||b2 c2|c2 ws2|k2] //=.
+    + by move=> /andP [/eqP -> /eqP ->].
     + by move=> /andP [/eqP -> /eqP ->].
     by move=> /eqP ->.
   move=> <-; case: a1 => //= *; by rewrite !eqxx.
@@ -391,7 +412,8 @@ Definition check_arg_kind (a:asm_arg) (cond: arg_kind) :=
   | ImmRip k _, CAimmRip k' => k == k'
   | Reg _ , CAreg => true
   | Regx _, CAregx => true
-  | Addr _, CAmem _ => true
+  | Addr a, CAmem _ checker =>
+      oapp (fun c => check_CAmem_address c a) true checker
   | XReg _, CAxmm   => true
   | _, _ => false
   end.
@@ -543,7 +565,7 @@ Qed.
 
 Definition is_not_CAmem (cond : arg_kind) :=
   match cond with
-  | CAmem _ => false
+  | CAmem _ _ => false
   | _ => true
   end.
 
