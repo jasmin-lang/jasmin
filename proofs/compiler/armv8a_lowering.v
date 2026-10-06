@@ -265,6 +265,28 @@ Definition is_mul (ws : wsize) (e : pexpr) : option (pexpr * pexpr) :=
   then if (ws <= ws')%CMP then Some (x, y) else None
   else None.
 
+(* Recognize the operands of a long product at width 64: two 32-bit operands
+   both zero-extended (UMULL) or both sign-extended (SMULL). *)
+Definition is_mull_args
+  (ws ws' : wsize) (e0 e1 : pexpr) : option (signedness * pexpr * pexpr) :=
+  let%opt _ := oassert ((ws == U64) && (ws' == U64)) in
+  match e0, e1 with
+  | Papp1 (Ozeroext U64 U32) x, Papp1 (Ozeroext U64 U32) y =>
+      Some (Unsigned, x, y)
+  | Papp1 (Osignext U64 U32) x, Papp1 (Osignext U64 U32) y =>
+      Some (Signed, x, y)
+  | _, _ => None
+  end.
+
+Definition is_mull (ws : wsize) (e : pexpr) : option (signedness * pexpr * pexpr) :=
+  if e is Papp2 (Omul (Op_w ws')) e0 e1 then is_mull_args ws ws' e0 e1 else None.
+
+Definition mull_mn (s : signedness) : armv8a_mnemonic :=
+  if s is Signed then SMULL else UMULL.
+
+Definition maddl_mn (s : signedness) : armv8a_mnemonic :=
+  if s is Signed then SMADDL else UMADDL.
+
 (* Accept a shift amount that is either a compile-time constant already in
    [0, wsize) or an expression explicitly masked to the operand size
    ([a & (wsize_bits - 1)]), as on x86 and RISC-V. In the masked case the
@@ -289,14 +311,20 @@ Definition lower_Papp2_op
   let%opt _ := chk_ws_reg ws in
   match op with
   | Oadd (Op_w _) =>
-      if is_mul ws e0 is Some (x, y)
+      if is_mull ws e0 is Some (s, x, y)
+      then Some (maddl_mn s, x, [:: y; e1 ])
+      else if is_mull ws e1 is Some (s, x, y)
+      then Some (maddl_mn s, x, [:: y; e0 ])
+      else if is_mul ws e0 is Some (x, y)
       then Some (MADD, x, [:: y; e1 ])
       else if is_mul ws e1 is Some (x, y)
       then Some (MADD, x, [:: y; e0 ])
       else
       Some (ADD, e0, [:: e1 ])
-  | Omul (Op_w _) =>
-      Some (MUL, e0, [:: e1 ])
+  | Omul (Op_w ws') =>
+      if is_mull_args ws ws' e0 e1 is Some (s, x, y)
+      then Some (mull_mn s, x, [:: y ])
+      else Some (MUL, e0, [:: e1 ])
   | Osub (Op_w _) =>
       if is_mul ws e1 is Some (x, y)
       then Some (MSUB, x, [:: y; e0 ])
