@@ -2438,7 +2438,7 @@ Definition arm_single_cycle (mn : arm_mnemonic) : bool :=
   | SMMUL | SMMULR | SMUL_hw _ _ | SMLA_hw _ _ | SMULW_hw _
   | AND | BFC | BFI | BIC | EOR | MVN | ORR
   | ASR | LSL | LSR | ROR | REV | REV16 | REVSH
-  | ADR | MOV | MOVT | UBFX | UXTB | UXTH | SBFX | SXTB | SXTH | CLZ
+  | MOV | MOVT | UBFX | UXTB | UXTH | SBFX | SXTB | SXTH | CLZ
   | CMP | TST | CMN
     => true
   | MLA | MLS | SDIV | UDIV
