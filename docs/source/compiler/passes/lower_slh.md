@@ -33,5 +33,21 @@ ARMv8-A, neither are the predictions of values that do not go through
 `#protect` (for instance values reloaded from the stack), nor the prediction of
 load addresses.
 
+On both architectures, the generated assembly contains no indirect call: every
+call and every jump names its target, and only returns branch through a
+register. The linked program may differ. When a callee lies out of the range of
+a direct branch, the linker routes the call through a veneer, a sequence it
+synthesises that loads the address of the callee into a register and branches
+through it (`BR x16` on ARMv8-A). The
+[`-function-sections`](../../tools/jasminc) option makes this possible for
+every call internal to a compilation unit, since the linker is then free to
+place the functions at any distance from each other. Such a call is an indirect
+branch, whose target is predicted. This misprediction (branch target injection,
+Spectre v2) is not taken into account either, and the compiler does not see the
+veneer. On x86-64, a direct call reaches any address of the program and the
+linker inserts no veneer. The veneers a linker inserts appear in its map file
+and carry a symbol named after the callee (`__<f>_veneer` with GNU ld,
+`__AArch64ADRPThunk_<f>` or `__AArch64AbsLongThunk_<f>` with LLD).
+
 The compilation of these operators is proved to preserve the functional
 semantics. Their speculative behaviour is not formally verified.

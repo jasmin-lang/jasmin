@@ -16,3 +16,20 @@ This allows debuggers such as `gdb` to map assembly instructions back to their c
 making it easier to understand and debug the program.
 
 Declassification instructions are emitted as comments in the assembly output.
+
+When the `-function-sections` option is given, each function is emitted in a
+section of its own, named `.text.<name>`, so that a linker invoked with
+`--gc-sections` drops the functions that are not reached. The option applies to
+ELF targets only and is ignored when the target system is macOS.
+
+The linker is then free to place a function and its callers at any distance,
+and when a callee is out of the range of a direct branch, it routes the call
+through a *veneer* (also called a thunk): a short sequence of its own that
+loads the address of the callee into a register and branches through that
+register. The compiler keeps those registers (`r12` on ARM, `x16` and `x17` on
+ARMv8-A) free across every call internal to a compilation unit, which the
+verified compiler enforces. The register allocation can therefore differ with
+and without the option. A veneer makes the call an indirect branch, which the
+generated assembly does not show. The consequences for speculative
+constant-time are described in
+[Lowering of SLH instructions](../compiler/passes/lower_slh).
