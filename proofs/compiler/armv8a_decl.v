@@ -319,6 +319,10 @@ Instance armv8a_decl : arch_decl register register_ext xregister rflag condt :=
   ; caimm_cond_eqC := eqTC_armv8a_caimm_cond
   ; caimm_cond_pp := armv8a_caimm_cond_pp
   ; check_CAimm := armv8a_check_CAimm
+  ; camem_cond := empty
+  ; camem_cond_eqC := eqTC_empty
+  ; camem_cond_pp := of_empty _
+  ; check_CAmem := fun c _ _ _ _ => of_empty _ c
   }.
 
 (* -------------------------------------------------------------------- *)
