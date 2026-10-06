@@ -35,7 +35,8 @@ module Armv8a (Lowering_params : Armv8a_input) = struct
 
   let known_implicits = ["NF", "_nf_"; "ZF", "_zf_"; "CF", "_cf_"; "VF", "_vf_"]
 
-  let alloc_stack_need_extra _ = false
+  let alloc_stack_need_extra sz =
+    not (Armv8a_params_core.is_arith_small (Conv.cz_of_z sz))
 
   let is_ct_asm_op (o : asm_op) =
     match o with

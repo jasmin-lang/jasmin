@@ -1,0 +1,28 @@
+// This checks that we properly deal with large stack frames
+// when the return address is passed on the stack
+
+fn g () -> reg u64 {
+  reg u64 res = 0;
+  return res;
+}
+
+fn f () -> reg u64 {
+  // with the return address, the frame takes 4112 bytes, which is not an
+  // ADD/SUB immediate (4096 would be)
+  stack u8[4096] s;
+  reg u64 res;
+
+  // we make a call to be sure the return address is on the stack
+  res = g();
+
+  s[:u64 0] = res;
+  res = s[:u64 0];
+
+  return res;
+}
+
+export fn main () -> reg u64 {
+  reg u64 res;
+  res = f ();
+  return res;
+}
