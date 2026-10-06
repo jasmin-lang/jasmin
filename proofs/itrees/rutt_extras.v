@@ -757,3 +757,34 @@ Proof.
   - exact INR.  
 Qed.  
 
+Lemma rutt_refl_gen {E} {R: Type}
+  (REv : prerel E E)
+  (RAns: postrel E E) 
+  (RR : R -> R -> Prop) :
+  (forall T (ev:E T), REv T T ev ev) ->
+  (forall T (ev:E T) (t1 t2:T), RAns T T ev t1 ev t2 -> t1 = t2) ->
+  Reflexive RR ->
+  forall (t: itree E R), rutt REv RAns RR t t.
+Proof.
+  intros hpre hans rfl.
+  ginit. gcofix CIH. intros t.
+  rewrite (itree_eta t).
+  destruct (observe t); gstep.
+  + constructor; trivial.
+  + eapply Rutt.EqTau; constructor; constructor; right; apply CIH.
+  apply Rutt.EqVis; trivial.
+  intros t1 t2 hpost.
+  rewrite (hans _ _ _ _ hpost).
+  constructor; constructor; right; apply CIH.
+Qed.
+
+Lemma rutt_refl {E} {R: Type}
+  (REv : prerel E E)
+  (RAns: postrel E E) :
+  (forall T (ev:E T), REv T T ev ev) ->
+  (forall T (ev:E T) (t1 t2:T), RAns T T ev t1 ev t2 -> t1 = t2 ) ->
+  forall (t: itree E R), rutt REv RAns eq t t.
+Proof.
+  intros; eapply rutt_refl_gen; eauto.
+Qed.  
+

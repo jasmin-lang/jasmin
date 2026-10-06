@@ -29,9 +29,9 @@ Import MonadNotation.
 Local Open Scope monad_scope.
 
 
-Lemma gpaco2_tau_left E0 V1 b (RR : V1 -> V1 -> Prop)
-  (r : itree E0 V1 -> itree E0 V1 -> Prop)
-  (t1 t2: itree E0 V1) :
+Lemma gpaco2_tau_left E0 V1 V2 b (RR : V1 -> V2 -> Prop)
+  (r : itree E0 V1 -> itree E0 V2 -> Prop)
+  (t1: itree E0 V1) (t2: itree E0 V2) :
   gpaco2 (eqit_ RR true b Datatypes.id)
          (eqitC RR true b) bot2 r t1 t2 ->
   gpaco2 (eqit_ RR true b Datatypes.id)
@@ -49,9 +49,9 @@ Proof.
   { simpl; intros x y y' H. inv H; auto. }  
 Qed.
 
-Lemma gpaco2_tau_right E0 V1 b (RR : V1 -> V1 -> Prop)
-  (r : itree E0 V1 -> itree E0 V1 -> Prop)
-  (t1 t2: itree E0 V1) :
+Lemma gpaco2_tau_right E0 V1 V2 b (RR : V1 -> V2 -> Prop)
+  (r : itree E0 V1 -> itree E0 V2 -> Prop)
+  (t1: itree E0 V1) (t2: itree E0 V2) :
   gpaco2 (eqit_ RR b true Datatypes.id)
          (eqitC RR b true) bot2 r t1 t2 ->
   gpaco2 (eqit_ RR b true Datatypes.id)
@@ -69,9 +69,9 @@ Proof.
   { simpl; intros x y y' H. inv H; auto. }  
 Qed.
 
-Lemma gpaco2_tau E0 V1 b1 b2 (RR : V1 -> V1 -> Prop)
-  (r : itree E0 V1 -> itree E0 V1 -> Prop)
-  (t1 t2: itree E0 V1) :
+Lemma gpaco2_tau E0 V1 V2 b1 b2 (RR : V1 -> V2 -> Prop)
+  (r : itree E0 V1 -> itree E0 V2 -> Prop)
+  (t1: itree E0 V1) (t2: itree E0 V2) :
   gpaco2 (eqit_ RR b1 b2 Datatypes.id)
          (eqitC RR b1 b2) r r t1 t2 ->
   gpaco2 (eqit_ RR b1 b2 Datatypes.id)
@@ -94,8 +94,8 @@ Let ret_dflt {E X} (d : X) (t : itree (ErrEvent +' E) X) : itree E X :=
   ITree.bind (interp_Err t) (fun x => Ret (esdflt d x)).
 
 (* basic monotonicity, with hyp about RR *)
-Lemma safe_default_basic V1 d1 d2 
-  (t1: itree (ErrEvent +' E) V1) (t2: itree (ErrEvent +' E) V1) RR :
+Lemma safe_default_basic V1 V2 d1 d2 
+  (t1: itree (ErrEvent +' E) V1) (t2: itree (ErrEvent +' E) V2) RR :
   RR d1 d2 ->
   simple_rutt RR t1 t2 ->
   simple_rutt RR (ret_dflt d1 t1) (ret_dflt d2 t2).
@@ -106,7 +106,7 @@ Proof.
   eapply eqit_bind'.
   - instantiate (1 := exec_rel RR).
     unfold interp_Err.
-    eapply interp_exec_eutt; auto.
+    eapply interp_exec_eutt_gen; auto.
   - intros r1 r2 H3.
     setoid_rewrite <- eqit_Ret.
     destruct r1 eqn:was_r1; eauto; try (intuition auto with * ).
@@ -122,9 +122,9 @@ Definition ok_ret_rel {T1 T2} (RR: T1 -> T2 -> Prop) :
              | _ => False end.
  
 (* safety lemma with void, using eqit in H1 *)
-Lemma aux_eqit_lemma (V1 : Type)
-  (t1 t2 : itree (ErrEvent +' void1) V1)
-  (RR : V1 -> V1 -> Prop)
+Lemma aux_eqit_lemma (V1 V2 : Type)
+  (t1 : itree (ErrEvent +' void1) V1) (t2 : itree (ErrEvent +' void1) V2)
+  (RR : V1 -> V2 -> Prop)
   (H0 : eutt RR t1 t2)
   (H1 : eqit (fun x : V1 => [eta eq (utils.Ok utils.error x)]) true true t1
           (translate inr1 (interp_exec
@@ -479,12 +479,13 @@ Qed.
 Lemma aux_gen_rutt_lemma2 
   (PreR: prerel E E)
   (PostR: postrel E E)
-  (V1 : Type)
-  (RRel: execS V1 -> execS V1 -> Prop)
+  (V1 V2 : Type)
+  (RRel: execS V1 -> execS V2 -> Prop)
   (RRel_hyp: forall e0, RRel (utils.Error e0) (utils.Error e0) -> False)
   (PostR_hyp: forall T e1 v1, PostR T T e1 v1 e1 v1)
-  (t1 t2 : itree (ErrEvent +' E) V1)
-  (RR : V1 -> V1 -> Prop)
+  (t1 : itree (ErrEvent +' E) V1)
+  (t2 : itree (ErrEvent +' E) V2)
+  (RR : V1 -> V2 -> Prop)
   (H0 : eutt RR t1 t2)
   (H1 : rutt PreR PostR RRel (interp_exec ext_handle_Err t1)
                              (interp_exec ext_handle_Err t2)) :
@@ -579,7 +580,6 @@ Proof.
   }
 Qed.
 
-
 (* kind of good, but admit will go through with void *)
 Lemma test2_rev (VV : E = void1) V1 d1 d2 
   (t1: itree (ErrEvent +' E) V1) (t2: itree (ErrEvent +' E) V1) RR :
@@ -656,8 +656,8 @@ Qed.
 (* safe_default lemma expressed with 'ok_rutt t1 t2'
    (preservation). here we have no restriction on E; based on
    aux_gen_rutt_lemma2 *)
-Lemma test2_gen_ok2 V1 d1 d2 
-  (t1: itree (ErrEvent +' E) V1) (t2: itree (ErrEvent +' E) V1) RR :
+Lemma test2_gen_ok2 V1 V2 d1 d2 
+  (t1: itree (ErrEvent +' E) V1) (t2: itree (ErrEvent +' E) V2) RR :
   ok_rutt RR t1 t2 ->
   simple_rutt RR t1 t2 ->
   simple_rutt RR (ret_dflt d1 t1) (ret_dflt d2 t2).
@@ -679,11 +679,18 @@ Qed.
 
 (* rutt with event restriction (similar to rutt_img) implies ok_rutt
 *)
+Lemma rutt2ok_rutt V1 V2 (t1: itree (ErrEvent +' E) V1)
+  (t2: itree (ErrEvent +' E) V2) RR :
+  rutt (REv_eq (fun (T : Type) (e : (ErrEvent +' E) T) => ~~ is_inlB e))
+       (RAns_eq (fun T : Type => fun=> TrueP)) RR t1 t2 ->
+  ok_rutt RR t1 t2.
+(*
 Lemma rutt2ok_rutt V1 (t1 t2: itree (ErrEvent +' E) V1) RR :
   rutt (REv_eq (fun (T : Type) (e : (ErrEvent +' E) T) => ~~ is_inlB e))
        (RAns_eq (fun T : Type => fun=> TrueP)) RR t1 t2 ->
   ok_rutt RR t1 t2.
 Proof.
+*)
   revert t1 t2.
   ginit. gcofix CIH.
   intros t1 t2 H.
@@ -896,6 +903,16 @@ Qed.
 
 (* simple_rutt implies that the existential variable in the first hyp
    (safe) can be instantiated with t2 *)
+Lemma lutt2rutt V1 V2 (t1: itree (ErrEvent +' E) V1)
+  (t2: itree (ErrEvent +' E) V2) RR :
+  (*  @safe _ is_inlB V1 t1 -> *)
+  (exists t1', rutt
+       (REv_eq (fun (T : Type) (e : (ErrEvent +' E) T) => ~~ is_inlB e))
+       (RAns_eq (fun T : Type => fun=> TrueP)) (R_eq TrueP) t1 t1') ->
+  simple_rutt RR t1 t2 ->
+  rutt (REv_eq (fun (T : Type) (e : (ErrEvent +' E) T) => ~~ is_inlB e))
+       (RAns_eq (fun T : Type => fun=> TrueP)) RR t1 t2.            
+(*
 Lemma lutt2rutt V1 (t1 t2: itree (ErrEvent +' E) V1) RR :
   (*  @safe _ is_inlB V1 t1 -> *)
   (exists t1', rutt
@@ -904,6 +921,7 @@ Lemma lutt2rutt V1 (t1 t2: itree (ErrEvent +' E) V1) RR :
   simple_rutt RR t1 t2 ->
   rutt (REv_eq (fun (T : Type) (e : (ErrEvent +' E) T) => ~~ is_inlB e))
        (RAns_eq (fun T : Type => fun=> TrueP)) RR t1 t2.            
+*)
 Proof.
   revert t1 t2.
   ginit. gcofix CIH.
@@ -976,8 +994,8 @@ Proof.
 Qed.
 
 (* the final lemma *)
-Lemma safe_default_ok V1 d1 d2 
-  (t1: itree (ErrEvent +' E) V1) (t2: itree (ErrEvent +' E) V1) RR :
+Lemma safe_default_ok V1 V2 d1 d2 
+  (t1: itree (ErrEvent +' E) V1) (t2: itree (ErrEvent +' E) V2) RR :
   @safe _ is_inlB V1 t1 -> 
   simple_rutt RR t1 t2 ->
   simple_rutt RR (ret_dflt d1 t1) (ret_dflt d2 t2).
@@ -990,5 +1008,6 @@ Proof.
 Qed.  
  
 End Safe.
+
 
 

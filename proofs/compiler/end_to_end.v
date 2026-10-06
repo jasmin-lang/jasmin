@@ -71,12 +71,12 @@ Require Import
   it_compiler_proof
   asm_gen_proof
 .
-Require allocation.
-
 Require Import
-  dinterp
+  dinterp safety_extras lutt_extras
 .
 From Stdlib Require Import Program.Equality.
+
+Require allocation.
 
 Import Order.TTheory.
 
@@ -460,7 +460,6 @@ Definition handleRE : Handler RndEvent RndE :=
 Definition interp_Rnd : itree RndEvent ~> itree RndE :=
   fun _ t => interp handleRE t.
 
-
 Context
   {reg regx xreg rflag cond asm_op extra_op : Type}
   {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
@@ -795,7 +794,7 @@ Qed.
 End DEFS.
 
 
-Section PROBSEM.
+Section RND_CORRECT.
 
 Context
   {asm_scsem : asm_syscall_sem}
@@ -807,27 +806,39 @@ Context
   (print_sprogP : forall s p, cparams.(print_sprog) s p = p)
   (print_linearP : forall s p, cparams.(print_linear) s p = p)
 .
-  
-Definition flattenER (V : choiceType) (t: itree ER V) : itree RndE V.
-Admitted. 
 
+Definition flattenER (V : choiceType) (e: V) (t: itree ER V) :
+  itree RndE V :=
+  interp_Rnd (let* x := interp_Err t in Ret (esdflt e x)).
+  
 Definition prob_sim (V1 V2 : choiceType) (Rel: V1 -> V2 -> Prop)
   (t1: itree ER V1) (t2: itree ER V2) :=
-  deqX Rel (dinterp (flattenER t1)) (dinterp (flattenER t2)).
+  forall  (v1: V1) (v2: V2),
+    deqX Rel (dinterp (flattenER v1 t1)) (dinterp (flattenER v2 t2)).
 
+(* probabilistc correctness in general *)
 Lemma probabilistic_correctness (V1 V2 : choiceType) (Rel: V1 -> V2 -> Prop)
-          (t1: itree ER V1) (t2: itree ER V2) :
+  (t1: itree ER V1) (t2: itree ER V2) :
+  safe lutt_extras.is_inlB t1 ->
   eutt Rel t1 t2 -> prob_sim Rel t1 t2.
-Admitted. 
+Proof.
+  intros H H0 v1 v2.
+  eapply eutt_deqX.
+  eapply eutt_interp_RR.  
+  eapply rutt2eutt.
+  eapply simple_rutt_eutt in H0.
+  eapply safe_default_ok; auto.
+Qed.  
 
 Definition ccRel p q fn xfd s t : fstate -> asmmem -> Prop :=
   aux_post cparams p q fn xfd s t.
 
 Definition choice_rel (V1 V2: Type) (r: V1 -> V2 -> Prop) :
-  choiceof V1 -> choiceof V2 -> Prop.
-Admitted.                                  
+  choiceof V1 -> choiceof V2 -> Prop := fun x y => r x y.
 
-Lemma prob_correct_comp entries p q fn fd :
+(* compilation of programs with random events preserves probabilities
+*)
+Lemma rnd_correct_comp entries p q fn fd :
   compile_prog_to_asm aparams cparams entries p = ok q ->
   fn \in entries ->
   get_fundef p.(p_funcs) fn = Some fd ->
@@ -839,225 +850,18 @@ Lemma prob_correct_comp entries p q fn fd :
         full_pre p q fn xfd s t ->
         prob_sim (choice_rel (ccRel p q fn xfd s t))
           (isem_unit p fn s) (isem_asm q fn t).
-Admitted. 
+Proof using R aparams asm_e asm_op asm_scsem call_conv cond cparams extra_op
+haparams print_linearP print_sprogP print_uprogP reg regx rflag xreg.
+  intros H H0 H1.
+  have [xfd H2 H3] := [elaborate correct_comp haparams
+               print_uprogP print_sprogP print_linearP H H0 H1]. 
+  exists xfd; auto.
+  intros s t X1 X2 X3.
+  specialize (H3 s t X1 X2 X3).
+  eapply probabilistic_correctness; auto.
+Qed.
  
-End PROBSEM.
+End RND_CORRECT.
   
 End MAIN.
 
-
-(*
-Lemma prob_correct_comp entries p q fn fd :
-  compile_prog_to_asm aparams cparams entries p = ok q ->
-  fn \in entries ->
-  get_fundef p.(p_funcs) fn = Some fd ->
-  exists2 xfd,
-    get_fundef q.(asm_funcs) fn = Some xfd
-    & forall s t,
-        safe_uprog p fn s ->
-        res_defined p fn s ->
-        full_pre p q fn xfd s t ->
-        eutt
-          (aux_post p q fn xfd s t)
-          (isem_unit p fn s) (isem_asm q fn t).
-*)
-
-(*
-  
-Lemma xxx (Rel: V1 -> V2 -> Prop) (t1: itree ER V1) (t2: itree ER V2) 
-          
-
-    forall (up : uprog) (xp : asm_prog) (entries : seq funname)
-           (HCmp: compile_prog_to_asm aparams cparams entries up = ok xp)
-           (fn : funname_eqType) (Hfn: fn \in entries)
-           (xfd : asm_fundef),  
-      get_fundef (asm_funcs xp) fn = Some xfd ->
-      asm_fd_export xfd -> 
-      forall (i1 : fstate) (i2 : asmmem),
-        full_pre fn xfd i1 i2 ->
-        xrutt nocutoff nocutoff EPreRel EPostRel
-        
-          -> paco2.paco2
-              (xrutt_ (errcutoff (is_error wE)) nocutoff EPreRel EPostRel
-                 (full_post fn xfd i1 i2))
-              paconotation.bot2 (isem_unit up fn i1) 
-              (isem_asm xp fn i2)]
-*)
-          
-(* -------------------------------------------------------------------------- *)
-(* Instantiation to KEMs and IND-CCA. *)
-
-(*
-
-Section INSTANTIATION.
-
-Context
-  {JP : JazzIParams}
-  (pkbytes skbytes ctbytes msgbytes : positive)
-  (fn_genkey fn_encap fn_decap : funname)
-  (fd_genkey fd_encap fd_decap : ufundef)
-  (export_genkey : fn_genkey \in entries)
-  (export_encap : fn_encap \in entries)
-  (export_decap : fn_decap \in entries)
-  (p : uprog)
-  (q : asm_prog)
-.
-
-Definition pk0 := mkwvec pkbytes [::].
-Definition sk0 := mkwvec skbytes [::].
-Definition ct0 := mkwvec ctbytes [::].
-Definition msg0 := mkwvec msgbytes [::].
-
-Definition dummyp := WArray.empty pkbytes.
-Definition dummys := WArray.empty skbytes.
-Definition dummyc := WArray.empty ctbytes.
-Definition dummym := WArray.empty msgbytes.
-
-(* ML-KEM's implementation involves the three algorithms.
-   The signatures take arrays (readable and writable) and return the writable
-   ones.
-   As usual, we ask that the source program is safe on valid inputs. *)
-Context
-  (fd_genkey_ok : get_fundef (p_funcs p) fn_genkey = Some fd_genkey)
-  (fd_encap_ok : get_fundef (p_funcs p) fn_encap = Some fd_encap)
-  (fd_decap_ok : get_fundef (p_funcs p) fn_decap = Some fd_decap)
-  (ppk psk pct pmsg : pointer)
-  (genkey_ok :
-    let: args := [:: Varr dummyp; Varr dummys ] in
-    safe_on p fn_genkey mS args /\ res_defined_on p fn_genkey mS args)
-  (encap_ok :
-    forall (pk : WArray.array pkbytes),
-      let: args := [:: Varr dummyc; Varr dummym; Varr pk ] in
-      arr_is_def pk ->
-      safe_on p fn_encap mS args /\ res_defined_on p fn_encap mS args)
-  (decap_ok :
-    forall (ct : WArray.array ctbytes) (sk : WArray.array skbytes),
-      let: args := [:: Varr dummym; Varr sk; Varr ct ] in
-      arr_is_def ct ->
-      arr_is_def sk ->
-      safe_on p fn_decap mS args /\ res_defined_on p fn_decap mS args)
-.
-
-Notation OracleSystem := (OracleSystem (R := R)) (only parsing).
-
-#[local] Instance KEMP_of_JP : KEMParams :=
-  {|
-    pkey := wvec pkbytes;
-    skey := wvec skbytes;
-    ctxt := wvec ctbytes;
-    msg := wvec msgbytes;
-    dummy_ct := ct0;
-    dummy_msg := msg0;
-  |}.
-
-Definition efn_kg : export_fn p :=
-  {| efn_export := export_genkey; efn_fd_ok := fd_genkey_ok; |}.
-Definition efn_encap : export_fn p :=
-  {| efn_export := export_encap; efn_fd_ok := fd_encap_ok; |}.
-Definition efn_decap : export_fn p :=
-  {| efn_export := export_decap; efn_fd_ok := fd_decap_ok; |}.
-
-Section JKEM.
-  (* The KEM induced by a Jasmin program. *)
-
-  Context (J : OracleSystem (JazzI p q)).
-
-  Notation InK := (In (I := KEM)).
-  Notation OutK := (Out (I := KEM)).
-
-  (* We parameterize over how the inputs are written to memory, requiring, e.g.,
-     that writing with a public key succeeds (i.e., the pointer points to
-     allocated memory) *)
-  Context
-    (mkiGenKey : valid_input p q efn_kg)
-    (mkiEncap : InK OEncap -> valid_input p q efn_encap)
-    (mkiDecap : InK ODecap -> valid_input p q efn_decap)
-  .
-
-  Let Oo_JKEM_GenKey
-    (i : InK OGenKey) (m : Mo) : itree Rnd (OutK OGenKey * Mo) :=
-    let* (rs, m') := J.(Oo) efn_kg mkiGenKey m in
-    if rs is [:: pk; sk ] then Ret ((mkwvec _ pk, mkwvec _ sk), m')
-    else Ret ((pk0, sk0), m). (* absurd *)
-
-  Let Oo_JKEM_Encap
-    (i : InK OEncap) (m : Mo) : itree Rnd (OutK OEncap * Mo) :=
-    let* (rs, m') := J.(Oo) efn_encap (mkiEncap i) m in
-    if rs is [:: ct; msg ] then Ret ((mkwvec _ ct, mkwvec _ msg), m')
-    else Ret ((ct0, msg0), m). (* absurd *)
-
-  Let Oo_JKEM_Decap
-    (i : InK ODecap) (m : Mo) : itree Rnd (OutK ODecap * Mo) :=
-    let* (rs, m') := J.(Oo) efn_decap (mkiDecap i) m in
-    if rs is [:: msg ] then Ret (mkwvec _ msg, m')
-    else Ret (msg0, m). (* absurd *)
-
-  Definition _Oo_KEM
-    (o : kem_oracle_name) : InK o -> Mo -> itree Rnd (OutK o * Mo) :=
-    match o with
-    | OGenKey => Oo_JKEM_GenKey
-    | OEncap => Oo_JKEM_Encap
-    | ODecap => Oo_JKEM_Decap
-    end.
-
-  Instance KEM_of_Jazz : OracleSystem KEM :=
-    {|
-      Mo := Mo;
-      Oo := fun _ i => _Oo_KEM i; (* needs lambda to typecheck *)
-      mi := mi;
-    |}.
-
-End JKEM.
-
-(* Two programs in simulation induce KEMs in simulation. *)
-Lemma simulating_JKEM P Q mkigk mkienc mkidec :
-  simulating P Q ->
-  simulating
-    (KEM_of_Jazz P mkigk mkienc mkidec)
-    (KEM_of_Jazz Q mkigk mkienc mkidec).
-Proof.
-move=> [sim hsim]; exists sim; split; first exact/hsim.(sim_mi).
-move=> [[] | pk | [sk ct]] m1 m2 hm.
-- apply: eutt_clo_bind; first exact: hsim.(sim_Oo) hm.
-  move=> [r m1'] [_ m2'] [/= <-] hm'.
-  by case: r => [| pk [| sk [|??]]]; apply eutt_Ret.
-- apply: eutt_clo_bind; first exact: hsim.(sim_Oo) hm.
-  move=> [r m1'] [_ m2'] [/= <-] hm'.
-  by case: r => [| ct [| msg [|??]]]; apply eutt_Ret.
-apply: eutt_clo_bind; first exact: hsim.(sim_Oo) hm.
-move=> [r m1'] [_ m2'] [/= <-] hm'.
-by case: r => [| msg [|??]]; apply eutt_Ret.
-Qed.
-
-Context
-  {lowering_options : Type}
-  (aparams : architecture_params lowering_options)
-  (haparams : h_architecture_params aparams)
-  (cparams : compiler_params lowering_options)
-  (print_uprogP : forall s p, cparams.(print_uprog) s p = p)
-  (print_sprogP : forall s p, cparams.(print_sprog) s p = p)
-  (print_linearP : forall s p, cparams.(print_linear) s p = p)
-  (hcomp : compile_prog_to_asm aparams cparams entries p = ok q)
-  (xget_res : funname -> asmmem -> seq pointer -> seq wseq)
-  (xget_resP :
-    forall xfd o (i : valid_input p q o) fs xm,
-      get_fundef q.(asm_funcs) o = Some xfd ->
-      values_match p o xfd (mkxm q o xmT i (vi_ptrs i)) fs xm ->
-      cast_vals [seq type_of_val v | v <- fvals fs] (fvals fs) = xget_res o xm (vi_ptrs i))
-.
-
-(* The main result for ML-KEM. *)
-Theorem mlkem_end_to_end mkigk mkienc mkidec :
-  indcca_reduction
-    (KEM_of_Jazz (Source p q) mkigk mkienc mkidec)
-    (KEM_of_Jazz (Target p q xget_res) mkigk mkienc mkidec).
-Proof.
-apply/sim_indcca_adv/simulating_JKEM.
-exact: (compiler_preserves
-          xget_resP haparams print_uprogP print_sprogP print_linearP hcomp).
-Qed.
-
-End INSTANTIATION.
-
-End MAIN.
-*)
