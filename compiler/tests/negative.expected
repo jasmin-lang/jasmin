@@ -505,6 +505,86 @@ asmgen: the address computation is too complex
           r0 +32u ((32u) 4 *32u (r1 +32u (32u) 2) +32u (32u) 0)
         an intermediate variable might be needed
 
+fail/asmgen/armv8a/ldp_32_offset_unaligned.jazz:
+
+"fail/asmgen/armv8a/ldp_32_offset_unaligned.jazz", line 5 (4-33):
+compilation error in function ldp_32_offset_unaligned:
+asmgen: instruction LDP_32 is given at least one too large immediate or unencodable address as an argument.
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 4 in [-256, 252]]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 4 in [-256, 252]]]
+
+fail/asmgen/armv8a/ldp_offset_range.jazz:
+
+"fail/asmgen/armv8a/ldp_offset_range.jazz", line 5 (4-33):
+compilation error in function ldp_offset_range:
+asmgen: instruction LDP_64 is given at least one too large immediate or unencodable address as an argument.
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+
+fail/asmgen/armv8a/ldp_offset_range_neg.jazz:
+
+"fail/asmgen/armv8a/ldp_offset_range_neg.jazz", line 5 (4-33):
+compilation error in function ldp_offset_range_neg:
+asmgen: instruction LDP_64 is given at least one too large immediate or unencodable address as an argument.
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+
+fail/asmgen/armv8a/ldp_offset_unaligned.jazz:
+
+"fail/asmgen/armv8a/ldp_offset_unaligned.jazz", line 5 (4-32):
+compilation error in function ldp_offset_unaligned:
+asmgen: instruction LDP_64 is given at least one too large immediate or unencodable address as an argument.
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+
+fail/asmgen/armv8a/ldp_register_offset.jazz:
+
+"fail/asmgen/armv8a/ldp_register_offset.jazz", line 5 (4-35):
+compilation error in function ldp_register_offset:
+asmgen: instruction LDP_64 is given at least one too large immediate or unencodable address as an argument.
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+
+fail/asmgen/armv8a/ldp_stack_offset.jazz:
+
+"fail/asmgen/armv8a/ldp_stack_offset.jazz", line 8 (4-34):
+compilation error in function ldp_stack_offset:
+asmgen: instruction LDP_64 is given at least one too large immediate or unencodable address as an argument.
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+
+fail/asmgen/armv8a/stp_32_offset_range.jazz:
+
+"fail/asmgen/armv8a/stp_32_offset_range.jazz", line 4 (4-35):
+compilation error in function stp_32_offset_range:
+asmgen: instruction STP_32 is given at least one too large immediate or unencodable address as an argument.
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 4 in [-256, 252]]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 4 in [-256, 252]]]
+
+fail/asmgen/armv8a/stp_offset_range.jazz:
+
+"fail/asmgen/armv8a/stp_offset_range.jazz", line 4 (4-33):
+compilation error in function stp_offset_range:
+asmgen: instruction STP_64 is given at least one too large immediate or unencodable address as an argument.
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+All allowed args (regardless of the input) are:
+  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+
 fail/asmgen/x86-64/incompatible_args.jazz:
 
 "fail/asmgen/x86-64/incompatible_args.jazz", line 4 (2-14):
@@ -1886,4 +1966,4 @@ Statistics:
 	Pretyping:  65
 	Parsing:     5
 	Typing:      5
-	Compile:   227
+	Compile:   235

@@ -210,6 +210,11 @@ module Armv8aTarget : AsmTargetBuilder.AsmTarget with
         match op, args with
         | ARMv8A_op (ADR, _), [ dst; Addr (Arip r) ] ->
             pp_ADR (pp_asm_arg dst) (pp_rip_address r)
+        | ARMv8A_op (LDP, _), Reg r1 :: Reg r2 :: _ when r1 = r2 ->
+            (* CONSTRAINED UNPREDICTABLE (Arm ARM K1.2.17.7); register
+               allocation never produces it. *)
+            hierror ~loc:Lnone ~kind:"assembly printing" ~internal:true
+              "LDP with two equal destination registers"
         | _, _ ->
             let name = pp_mnemonic op in
             (* Registers are printed in the W form when the instruction

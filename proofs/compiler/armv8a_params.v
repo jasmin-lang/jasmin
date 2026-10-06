@@ -420,7 +420,7 @@ Definition armv8a_szparams : stack_zeroization_params :=
 
 Definition armv8a_is_load (o : asm_op_t) : bool :=
   if o is BaseOp (None, ARMv8A_op mn _) then
-    mn \in [:: LDR; LDRB; LDRH; LDRSB; LDRSH; LDRSW ]
+    mn \in [:: LDR; LDRB; LDRH; LDRSB; LDRSH; LDRSW; LDP ]
   else false.
 
 Definition armv8a_laparams : lower_addressing_params :=
