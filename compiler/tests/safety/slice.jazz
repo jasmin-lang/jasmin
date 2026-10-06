@@ -1,0 +1,13 @@
+u64[4] t = { 1, 2, 3, 4 };
+
+export fn lookup(reg u64 i) -> reg u64 {
+  reg u64 r;
+  i &= 3;
+  r = t[i];
+  return r;
+}
+
+export fn incr(reg u64 x) -> reg u64 {
+  x += 1;
+  return x;
+}
