@@ -18,7 +18,8 @@ Definition lower_glob_load_error msg := {|
 
 (* A load from a global, [x = [rip + n]], is split into the computation of
    the address, [x = rip + n] (the instruction [glob_addr_op]), and the load
-   [x = [x]]. When [x] is not a pointer-sized variable, or when the load has
+   [x = [x]]. When [x] is not a pointer-sized variable, when the load has
+   several destinations (a load pair, [x, y = [rip + n]]), or when it has
    other arguments (a conditional load, [x = c ? [rip + n] : y]), the address
    is computed into [tmp]: the load is evaluated whatever [c] is. *)
 

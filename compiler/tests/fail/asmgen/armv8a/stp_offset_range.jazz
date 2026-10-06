@@ -1,0 +1,5 @@
+/* The STP offset is outside the signed 7-bit range scaled by 8. */
+export
+fn stp_offset_range(reg u64 p a b) {
+    [:u128 p + 512] = #STP(a, b);
+}

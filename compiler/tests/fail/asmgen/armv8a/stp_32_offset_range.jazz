@@ -1,0 +1,5 @@
+/* The STP (W form) offset is outside the signed 7-bit range scaled by 4. */
+export
+fn stp_32_offset_range(reg u64 p, reg u32 a b) {
+    [:u64 p - 260] = #STP_32(a, b);
+}
