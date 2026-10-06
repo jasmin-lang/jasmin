@@ -12,5 +12,18 @@ fn shift(reg u64 arg0, reg u64 arg1) -> reg u64 {
     x = x >> (arg1 & 63);
     x = x >>s (arg1 & 63);
     x = #ROR(x, 7);
+    x = #EXTR(x, arg0, 13);
+    x = #EXTR(x, arg0, 0);
+    x = #EXTR(x, arg0, 63);
+    return x;
+}
+
+export
+fn extr32(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+
+    x = #EXTR_32(arg0, arg1, 13);
+    x = #EXTR_32(x, arg1, 0);
+    x = #EXTR_32(x, arg0, 31);
     return x;
 }

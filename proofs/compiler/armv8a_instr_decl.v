@@ -109,6 +109,12 @@ Variant armv8a_mnemonic : Type :=
 | CLS                            (* Count leading sign bits *)
 
 (* Bit field operations *)
+| BFC                            (* Bitfield clear *)
+| BFI                            (* Bitfield insert *)
+| BFXIL                          (* Bitfield extract and insert at low end *)
+| SBFX                           (* Signed bitfield extract *)
+| UBFX                           (* Unsigned bitfield extract *)
+| EXTR                           (* Extract register from a register pair *)
 
 (* Other data processing instructions *)
 | MOV                            (* Copy operand to destination *)
@@ -160,6 +166,7 @@ Definition armv8a_mnemonics : seq armv8a_mnemonic :=
     ; AND; ORR; EOR; MVN
     ; ASR; LSL; LSR; ROR
     ; RBIT; REV; REV16; REV32; CLZ; CLS
+    ; BFC; BFI; BFXIL; SBFX; UBFX; EXTR
     ; MOV; MOVN; MOVZ; MOVK; ADR
     ; SXTB; SXTH; SXTW; UXTB; UXTH; UXTW
     ; CMP; TST
@@ -207,6 +214,7 @@ Definition sized_mnemonics : seq armv8a_mnemonic :=
     ; AND; ORR; EOR; MVN
     ; ASR; LSL; LSR; ROR
     ; RBIT; REV; REV16; CLZ; CLS
+    ; BFC; BFI; BFXIL; SBFX; UBFX; EXTR
     ; MOV; MOVN; MOVZ; MOVK
     ; SXTB; SXTH; UXTB; UXTH
     ; CMP; TST
@@ -283,6 +291,12 @@ Definition string_of_armv8a_mnemonic (mn : armv8a_mnemonic) : string :=
   | REV32 => "REV32"
   | CLZ => "CLZ"
   | CLS => "CLS"
+  | BFC => "BFC"
+  | BFI => "BFI"
+  | BFXIL => "BFXIL"
+  | SBFX => "SBFX"
+  | UBFX => "UBFX"
+  | EXTR => "EXTR"
   | MOV => "MOV"
   | MOVN => "MOVN"
   | MOVZ => "MOVZ"
@@ -1278,6 +1292,388 @@ Definition armv8a_ROR_instr : instr_desc_t := mk_shift_instr ROR (@wror).
 (* -------------------------------------------------------------------- *)
 (* Bit field instructions. *)
 
+(* [C6.2.160 EXTR] ARM DDI 0487 M.a, p. 2174
+   Extract register  This instruction extracts a register from a pair of
+   registers.  This instruction is used by the alias ROR (immediate).
+   Syntax: EXTR <Xd>, <Xn>, <Xm>, #<lsb>
+   Operation (ASL):
+     bits(datasize) result;
+     constant bits(datasize) operand1 = X[n, datasize];
+     constant bits(datasize) operand2 = X[m, datasize];
+     constant bits(2*datasize) concat = operand1:operand2;
+     result = concat<(lsb+datasize)-1:lsb>;
+     X[d, datasize] = result;
+*)
+(* The argument checker bounds [lsb] by the operand size; the low [lsb]
+   bits of [operand1] form the top of the result. *)
+Definition armv8a_EXTR_semi {ws : wsize} (wn wm : word ws) (wlsb : word U8) : ty_w ws :=
+  let bits := wsize_bits ws in
+  let l := (wunsigned wlsb mod bits)%Z in
+  if (l =? 0)%Z
+  then wm
+  else wor (wshr wm l) (wshl wn (bits - l)).
+
+Definition armv8a_EXTR_instr : instr_desc_t :=
+  let mn := EXTR in
+  let tin := [:: lword osz; lword osz; lword U8 ] in
+  let semi := armv8a_EXTR_semi (ws := osz) in
+  {|
+    id_msb_flag := msbf;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lword osz ];
+    id_out := [:: Ea 0 ];
+    id_semi := sem_lprod_ok tin semi;
+    id_nargs := 4;
+    id_args_kinds := ak_rrr_imm_shift;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_op mn opts;
+    id_valid := osz_valid;
+    id_safe_wf := refl_equal;
+    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
+    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+  |}.
+
+(* The bitfield aliases take the bit position [lsb] and the width of the
+   field as 8-bit immediates. The field must lie within the register:
+   [lsb < datasize], [1 <= width] and [lsb + width <= datasize]; the
+   semantics is undefined otherwise, and the safety conditions [id_safe]
+   state these bounds. *)
+
+(* [C6.2.37 BFC] ARM DDI 0487 M.a, p. 1848
+   Bitfield clear  This instruction sets a bitfield of <width> bits at bit
+   position <lsb> of the destination register to zero, leaving the other
+   destination bits unchanged.  This is an alias of BFM. This means:  • The
+   encodings in this description are named to match the encodings of BFM. • The
+   description of BFM gives the operational pseudocode, any CONSTRAINED
+   UNPREDICTABLE behavior, and any operational information for this
+   instruction.
+   Syntax: BFC <Xd>, #<lsb>, #<width>  ==  BFM <Xd>, XZR, #(-<lsb> MOD 64), #(<width>-1)
+   Operation (ASL):
+     The description of BFM gives the operational pseudocode for this instruction.
+   Base instruction [C6.2.39 BFM] p. 1852, Operation (ASL):
+     constant bits(datasize) dst = X[d, datasize];
+     constant bits(datasize) src = X[n, datasize];
+     // Perform bitfield move on low bits
+     constant bits(datasize) bot = (dst AND NOT(wmask)) OR (ROR(src, r) AND wmask);
+     // Combine extension bits and result bits
+     X[d, datasize] = (dst AND NOT(tmask)) OR (bot AND tmask);
+*)
+Definition armv8a_BFC_semi (x : word osz) (lsb width : word U8) : exec (ty_w osz) :=
+  let bits := wsize_bits osz in
+  let lsbit := wunsigned lsb in
+  let nbits := wunsigned width in
+  Let _ := assert (lsbit <? bits)%Z E.no_semantics in
+  Let _ := assert (1 <=? nbits)%Z E.no_semantics in
+  Let _ := assert (nbits <=? bits - lsbit)%Z E.no_semantics in
+  let msbit := (lsbit + nbits - 1)%Z in
+  let mk i :=
+    if [&& Z.to_nat lsbit <=? i & i <=? Z.to_nat msbit ]
+    then false
+    else wbit_n x i
+  in
+  ok (winit osz mk).
+
+Definition armv8a_BFC_semi_sc :=
+  [:: ULt U8 1 (wsize_bits osz); UGe U8 1%Z 2; UaddLe U8 2 1 (wsize_bits osz) ].
+
+Lemma armv8a_BFC_semi_errty :
+  sem_lforall (fun r : result error (sem_ltuple [:: lword osz ]) => r <> Error ErrType)
+   [:: lword osz; lword8; lword8 ] armv8a_BFC_semi.
+Proof.
+  rewrite /armv8a_BFC_semi => x lsb width.
+  by case: (_ <? _)%Z => //; case: (1 <=? _)%Z => //; case: (_ <=? _)%Z.
+Qed.
+
+Lemma armv8a_BFC_semi_safe :
+  interp_safe_cond_lty [:: lword osz; lword8; lword8 ] armv8a_BFC_semi_sc armv8a_BFC_semi.
+Proof.
+  rewrite /interp_safe_cond_ty /= => x lsb width.
+  move=> /List.Forall_cons_iff /= [] /[swap] /List.Forall_cons_iff /= [] /[swap] /List.Forall_cons_iff /= [].
+  rewrite !truncate_word_u => /(_ _ _ erefl erefl) h3 _ /(_ _ erefl) /ZleP h2 /(_ _ erefl) /ZltP h1.
+  have /ZleP {}h3 : (wunsigned width <= wsize_bits osz - wunsigned lsb)%Z by Lia.lia.
+  rewrite /armv8a_BFC_semi h1 h2 h3 /=; eauto.
+Qed.
+
+Definition armv8a_BFC_instr : instr_desc_t :=
+  let mn := BFC in
+  {|
+    id_msb_flag := msbf;
+    id_tin := [:: lword osz; lword8; lword8 ];
+    id_in := [:: Ea 0; Ea 1; Ea 2 ];
+    id_tout := [:: lword osz ];
+    id_out := [:: Ea 0 ];
+    id_semi := armv8a_BFC_semi;
+    id_nargs := 3;
+    id_args_kinds := ak_r_imm8_imm8;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := armv8a_BFC_semi_sc;
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_op mn opts;
+    id_valid := osz_valid;
+    id_safe_wf := refl_equal;
+    id_semi_errty := fun _ => armv8a_BFC_semi_errty;
+    id_semi_safe := fun _ => armv8a_BFC_semi_safe;
+  |}.
+
+(* [C6.2.38 BFI] ARM DDI 0487 M.a, p. 1850
+   Bitfield insert  This instruction copies a bitfield of <width> bits from the
+   least significant bits of the source register to bit position <lsb> of the
+   destination register, leaving the other destination bits unchanged.  This is
+   an alias of BFM. This means:  • The encodings in this description are named
+   to match the encodings of BFM. • The description of BFM gives the
+   operational pseudocode, any CONSTRAINED UNPREDICTABLE behavior, and any
+   operational information for this instruction.
+   Syntax: BFI <Xd>, <Xn>, #<lsb>, #<width>  ==  BFM <Xd>, <Xn>, #(-<lsb> MOD 64), #(<width>-1)
+   Operation (ASL):
+     The description of BFM gives the operational pseudocode for this instruction.
+   Base instruction [C6.2.39 BFM] p. 1852, Operation (ASL):
+     constant bits(datasize) dst = X[d, datasize];
+     constant bits(datasize) src = X[n, datasize];
+     // Perform bitfield move on low bits
+     constant bits(datasize) bot = (dst AND NOT(wmask)) OR (ROR(src, r) AND wmask);
+     // Combine extension bits and result bits
+     X[d, datasize] = (dst AND NOT(tmask)) OR (bot AND tmask);
+*)
+Definition armv8a_BFI_semi (x y : word osz) (lsb width : word U8) : exec (ty_w osz) :=
+  let bits := wsize_bits osz in
+  let lsbit := wunsigned lsb in
+  let nbits := wunsigned width in
+  Let _ := assert (lsbit <? bits)%Z E.no_semantics in
+  Let _ := assert (1 <=? nbits)%Z E.no_semantics in
+  Let _ := assert (nbits <=? bits - lsbit)%Z E.no_semantics in
+  let msbit := (lsbit + nbits - 1)%Z in
+  let mk i :=
+    if [&& Z.to_nat lsbit <=? i & i <=? Z.to_nat msbit ]
+    then wbit_n y (i - Z.to_nat lsbit)
+    else wbit_n x i
+  in
+  ok (winit osz mk).
+
+Definition armv8a_BFI_semi_sc :=
+  [:: ULt U8 2 (wsize_bits osz); UGe U8 1%Z 3; UaddLe U8 3 2 (wsize_bits osz) ].
+
+Lemma armv8a_BFI_semi_errty :
+  sem_lforall (fun r : result error (sem_ltuple [:: lword osz ]) => r <> Error ErrType)
+   [:: lword osz; lword osz; lword8; lword8 ] armv8a_BFI_semi.
+Proof.
+  rewrite /armv8a_BFI_semi => x y lsb width.
+  by case: (_ <? _)%Z => //; case: (1 <=? _)%Z => //; case: (_ <=? _)%Z.
+Qed.
+
+Lemma armv8a_BFI_semi_safe :
+  interp_safe_cond_lty [:: lword osz; lword osz; lword8; lword8 ] armv8a_BFI_semi_sc armv8a_BFI_semi.
+Proof.
+  rewrite /interp_safe_cond_ty /= => x y lsb width.
+  move=> /List.Forall_cons_iff /= [] /[swap] /List.Forall_cons_iff /= [] /[swap] /List.Forall_cons_iff /= [].
+  rewrite !truncate_word_u => /(_ _ _ erefl erefl) h3 _ /(_ _ erefl) /ZleP h2 /(_ _ erefl) /ZltP h1.
+  have /ZleP {}h3 : (wunsigned width <= wsize_bits osz - wunsigned lsb)%Z by Lia.lia.
+  rewrite /armv8a_BFI_semi h1 h2 h3 /=; eauto.
+Qed.
+
+Definition armv8a_BFI_instr : instr_desc_t :=
+  let mn := BFI in
+  {|
+    id_msb_flag := msbf;
+    id_tin := [:: lword osz; lword osz; lword8; lword8 ];
+    id_in := [:: Ea 0; Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lword osz ];
+    id_out := [:: Ea 0 ];
+    id_semi := armv8a_BFI_semi;
+    id_nargs := 4;
+    id_args_kinds := ak_rr_imm8_imm8;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := armv8a_BFI_semi_sc;
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_op mn opts;
+    id_valid := osz_valid;
+    id_safe_wf := refl_equal;
+    id_semi_errty := fun _ => armv8a_BFI_semi_errty;
+    id_semi_safe := fun _ => armv8a_BFI_semi_safe;
+  |}.
+
+(* [C6.2.40 BFXIL] ARM DDI 0487 M.a, p. 1854
+   Bitfield extract and insert at low end  This instruction copies a bitfield
+   of <width> bits starting from bit position <lsb> in the source register to
+   the least significant bits of the destination register, leaving the other
+   destination bits unchanged.  This is an alias of BFM. This means:  • The
+   encodings in this description are named to match the encodings of BFM. • The
+   description of BFM gives the operational pseudocode, any CONSTRAINED
+   UNPREDICTABLE behavior, and any operational information for this
+   instruction.
+   Syntax: BFXIL <Xd>, <Xn>, #<lsb>, #<width>  ==  BFM <Xd>, <Xn>, #<lsb>, #(<lsb>+<width>-1)
+   Operation (ASL):
+     The description of BFM gives the operational pseudocode for this instruction.
+   Base instruction [C6.2.39 BFM] p. 1852, Operation (ASL):
+     constant bits(datasize) dst = X[d, datasize];
+     constant bits(datasize) src = X[n, datasize];
+     // Perform bitfield move on low bits
+     constant bits(datasize) bot = (dst AND NOT(wmask)) OR (ROR(src, r) AND wmask);
+     // Combine extension bits and result bits
+     X[d, datasize] = (dst AND NOT(tmask)) OR (bot AND tmask);
+*)
+Definition armv8a_BFXIL_semi (x y : word osz) (lsb width : word U8) : exec (ty_w osz) :=
+  let bits := wsize_bits osz in
+  let lsbit := wunsigned lsb in
+  let nbits := wunsigned width in
+  Let _ := assert (lsbit <? bits)%Z E.no_semantics in
+  Let _ := assert (1 <=? nbits)%Z E.no_semantics in
+  Let _ := assert (nbits <=? bits - lsbit)%Z E.no_semantics in
+  let mk i :=
+    if (i <? Z.to_nat nbits)%nat
+    then wbit_n y (i + Z.to_nat lsbit)
+    else wbit_n x i
+  in
+  ok (winit osz mk).
+
+(* The same bounds as BFI. *)
+Definition armv8a_BFXIL_semi_sc := armv8a_BFI_semi_sc.
+
+Lemma armv8a_BFXIL_semi_errty :
+  sem_lforall (fun r : result error (sem_ltuple [:: lword osz ]) => r <> Error ErrType)
+   [:: lword osz; lword osz; lword8; lword8 ] armv8a_BFXIL_semi.
+Proof.
+  rewrite /armv8a_BFXIL_semi => x y lsb width.
+  by case: (_ <? _)%Z => //; case: (1 <=? _)%Z => //; case: (_ <=? _)%Z.
+Qed.
+
+Lemma armv8a_BFXIL_semi_safe :
+  interp_safe_cond_lty [:: lword osz; lword osz; lword8; lword8 ] armv8a_BFXIL_semi_sc armv8a_BFXIL_semi.
+Proof.
+  rewrite /interp_safe_cond_ty /= => x y lsb width.
+  move=> /List.Forall_cons_iff /= [] /[swap] /List.Forall_cons_iff /= [] /[swap] /List.Forall_cons_iff /= [].
+  rewrite !truncate_word_u => /(_ _ _ erefl erefl) h3 _ /(_ _ erefl) /ZleP h2 /(_ _ erefl) /ZltP h1.
+  have /ZleP {}h3 : (wunsigned width <= wsize_bits osz - wunsigned lsb)%Z by Lia.lia.
+  rewrite /armv8a_BFXIL_semi h1 h2 h3 /=; eauto.
+Qed.
+
+Definition armv8a_BFXIL_instr : instr_desc_t :=
+  let mn := BFXIL in
+  {|
+    id_msb_flag := msbf;
+    id_tin := [:: lword osz; lword osz; lword8; lword8 ];
+    id_in := [:: Ea 0; Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lword osz ];
+    id_out := [:: Ea 0 ];
+    id_semi := armv8a_BFXIL_semi;
+    id_nargs := 4;
+    id_args_kinds := ak_rr_imm8_imm8;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := armv8a_BFXIL_semi_sc;
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_op mn opts;
+    id_valid := osz_valid;
+    id_safe_wf := refl_equal;
+    id_semi_errty := fun _ => armv8a_BFXIL_semi_errty;
+    id_semi_safe := fun _ => armv8a_BFXIL_semi_safe;
+  |}.
+
+(* Bitfield extraction (SBFX, UBFX): the field is moved to the top of the
+   register by a left shift, then to the bottom by a right shift, which is
+   arithmetic for SBFX (sign extension) and logical for UBFX (zero
+   extension). The argument checker bounds [lsb] by the operand size. *)
+Definition armv8a_bitfield_extract_semi
+  (shr : word osz -> Z -> word osz) (wn : word osz) (wlsb wwidth : word U8)
+  : exec (ty_w osz) :=
+  let bits := wsize_bits osz in
+  let lsb := wunsigned wlsb in
+  let width := wunsigned wwidth in
+  Let _ := assert [&& 1 <=? width & width <? bits + 1 - lsb ]%Z E.no_semantics in
+  ok (shr (wshl wn (bits - width - lsb)%Z) (bits - width)%Z).
+
+Definition armv8a_bitfield_extract_semi_sc :=
+  [:: UGe U8 1%Z 2; UaddLe U8 2 1 (wsize_bits osz) ].
+
+Lemma armv8a_bitfield_extract_semi_errty shr :
+  sem_lforall (fun r : result error (sem_ltuple [:: lword osz ]) => r <> Error ErrType)
+   [:: lword osz; lword8; lword8 ] (armv8a_bitfield_extract_semi shr).
+Proof. by rewrite /armv8a_bitfield_extract_semi => x lsb width; case: andP. Qed.
+
+Lemma armv8a_bitfield_extract_semi_safe shr :
+  interp_safe_cond_lty [:: lword osz; lword8; lword8 ]
+    armv8a_bitfield_extract_semi_sc (armv8a_bitfield_extract_semi shr).
+Proof.
+  rewrite /interp_safe_cond_ty /= => x lsb width.
+  move=> /List.Forall_cons_iff /= [] /[swap] /List.Forall_cons_iff /= [].
+  rewrite !truncate_word_u => /(_ _ _ erefl erefl) h2 _ /(_ _ erefl) /ZleP h1.
+  have /ZltP {}h2 : (wunsigned width < wsize_bits osz + 1 - wunsigned lsb)%Z by Lia.lia.
+  rewrite /armv8a_bitfield_extract_semi h1 h2 /=; eauto.
+Qed.
+
+Definition mk_bfx_instr mn (shr : word osz -> Z -> word osz) : instr_desc_t :=
+  {|
+    id_msb_flag := msbf;
+    id_tin := [:: lword osz; lword8; lword8 ];
+    id_in := [:: Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lword osz ];
+    id_out := [:: Ea 0 ];
+    id_semi := armv8a_bitfield_extract_semi shr;
+    id_nargs := 4;
+    id_args_kinds := ak_rr_imm_imm_extr;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := armv8a_bitfield_extract_semi_sc;
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_op mn opts;
+    id_valid := osz_valid;
+    id_safe_wf := refl_equal;
+    id_semi_errty := fun _ => @armv8a_bitfield_extract_semi_errty shr;
+    id_semi_safe := fun _ => @armv8a_bitfield_extract_semi_safe shr;
+  |}.
+
+(* [C6.2.355 SBFX] ARM DDI 0487 M.a, p. 2556
+   Signed bitfield extract  This instruction copies a bitfield of <width> bits
+   starting from bit position <lsb> in the source register to the least
+   significant bits of the destination register, and sets destination bits
+   above the bitfield to a copy of the most significant bit of the bitfield.
+   This is an alias of SBFM. This means:  • The encodings in this description
+   are named to match the encodings of SBFM. • The description of SBFM gives
+   the operational pseudocode, any CONSTRAINED UNPREDICTABLE behavior, and any
+   operational information for this instruction.
+   Syntax: SBFX <Xd>, <Xn>, #<lsb>, #<width>  ==  SBFM <Xd>, <Xn>, #<lsb>, #(<lsb>+<width>-1)
+   Operation (ASL):
+     The description of SBFM gives the operational pseudocode for this instruction.
+   Base instruction [C6.2.354 SBFM] p. 2554, Operation (ASL):
+     constant bits(datasize) src = X[n, datasize];
+     // Perform bitfield move on low bits
+     constant bits(datasize) bot = ROR(src, r) AND wmask;
+     constant bits(datasize) top = Replicate(src<s>, datasize);
+     // Combine extension bits and result bits
+     X[d, datasize] = (top AND NOT(tmask)) OR (bot AND tmask);
+*)
+Definition armv8a_SBFX_instr : instr_desc_t := mk_bfx_instr SBFX (wsar (sz := osz)).
+(* [C6.2.487 UBFX] ARM DDI 0487 M.a, p. 2843
+   Unsigned bitfield extract  This instruction copies a bitfield of <width>
+   bits starting from bit position <lsb> in the source register to the least
+   significant bits of the destination register, and sets destination bits
+   above the bitfield to zero.  This is an alias of UBFM. This means:  • The
+   encodings in this description are named to match the encodings of UBFM. •
+   The description of UBFM gives the operational pseudocode, any CONSTRAINED
+   UNPREDICTABLE behavior, and any operational information for this
+   instruction.
+   Syntax: UBFX <Xd>, <Xn>, #<lsb>, #<width>  ==  UBFM <Xd>, <Xn>, #<lsb>, #(<lsb>+<width>-1)
+   Operation (ASL):
+     The description of UBFM gives the operational pseudocode for this instruction.
+   Base instruction [C6.2.486 UBFM] p. 2841, Operation (ASL):
+     constant bits(datasize) src = X[n, datasize];
+     // Perform bitfield move on low bits
+     constant bits(datasize) bot = ROR(src, r) AND wmask;
+     // Combine extension bits and result bits
+     X[d, datasize] = bot AND tmask;
+*)
+Definition armv8a_UBFX_instr : instr_desc_t := mk_bfx_instr UBFX (wshr (sz := osz)).
+
 
 (* -------------------------------------------------------------------- *)
 (* Moves. *)
@@ -2223,6 +2619,12 @@ Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
   | REV32 => armv8a_REV32_instr
   | CLZ => armv8a_CLZ_instr
   | CLS => armv8a_CLS_instr
+  | BFC => armv8a_BFC_instr
+  | BFI => armv8a_BFI_instr
+  | BFXIL => armv8a_BFXIL_instr
+  | SBFX => armv8a_SBFX_instr
+  | UBFX => armv8a_UBFX_instr
+  | EXTR => armv8a_EXTR_instr
   | MOV => armv8a_MOV_instr
   | MOVN => armv8a_MOVN_instr
   | MOVZ => armv8a_MOVZ_instr
