@@ -106,6 +106,19 @@ module StackAlloc (Arch: Arch_full.Arch) = struct
 
 module Regalloc = Regalloc (Arch)
 
+(* Keep the stack pointer [Arch.sp_min_align]-aligned across calls: frame
+   sizes are rounded up to the frame alignment
+   ([stack_frame_allocation_size]), so raise the alignment of every function
+   that actually uses the stack. Functions with no stack footprint at all
+   keep their alignment (an export function may only use SavedStackNone when
+   its alignment is U8). *)
+let enforce_sp_min_align ~stack_size ~extra_size ~max_stk align =
+  if Z.equal max_stk Z.zero
+     && Z.equal stack_size Z.zero
+     && extra_size = 0
+  then align
+  else Utils0.cmp_max wsize_cmp align Arch.sp_min_align
+
 let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
   if debug then Format.eprintf "START memory analysis@.";
   let p = Conv.prog_of_cuprog up in
@@ -215,27 +228,22 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
   in
 
   let fds, _ = Conv.prog_of_csprog sp' in
-  
+  let fds_noextra = List.map snd fds in
+
   if debug then
     Format.eprintf "After memory analysis@.%a@."
-      (Printer.pp_prog ~debug:true Arch.pointer_data Arch.msf_size Arch.asmOp) ([], (List.map snd fds));
-  
+      (Printer.pp_prog ~debug:true Arch.pointer_data Arch.msf_size Arch.asmOp) ([], fds_noextra);
+
   (* remove unused result *)
-  let tokeep = RemoveUnusedResults.analyse fds in
+  let tokeep = RemoveUnusedResults.analyse fds_noextra in
   (* TODO: the code is duplicated between here and compiler.v, we should factorize *)
-  let returned_params fn =
-    let sao = get_sao fn in
-    let _, fd = List.find (fun (_, fd) -> fd.f_name = fn) fds in
-    match fd.f_cc with
-    | Export -> Some sao.sao_return
-    | _ -> None
-  in
   let tokeep fn =
-    match returned_params fn with
-    | Some l ->
-        let l' = List.map ((=) None) l in
-        if List.for_all (fun x -> x) l' then None else Some l'
-    | None -> tokeep fn
+    let fd = List.find (fun fd -> fd.f_name = fn) fds_noextra in
+    match fd.f_cc with
+    | Export ->
+       let l = List.map ((=) None) (get_sao fn).sao_return in
+       if List.fold_left ( && ) true l then None else Some l
+    | Subroutine | Internal -> tokeep fn
   in
   let deadcode (extra, fd) =
     let (fn, cfd) = Conv.cufdef_of_fdef fd in
@@ -286,6 +294,12 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
           align, max_stk, max_call_depth
         ) sao.sao_calls (align, Z.zero, Z.zero) in
 
+    let align =
+      enforce_sp_min_align
+        ~stack_size:(Conv.z_of_cz csao.Stack_alloc.sao_size)
+        ~extra_size ~max_stk align
+    in
+
     (* if we zeroize the stack, we ensure that the max size is a multiple of the
        size of the clear step. We use [fd.f_annot.stack_zero_strategy] and not
        [align], this is on purpose! We know that the first one divides the
@@ -318,8 +332,8 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
   let return_addresses = Regalloc.create_return_addresses get_internal_size fds in
   let ra_data =
     if callee_saved_strategy = CSS_Tight then
-      let subst, killed, _ = Regalloc.alloc_prog return_addresses fds in
-      Some (subst, killed)
+      let _, killed, _ = Regalloc.alloc_prog return_addresses fds in
+      Some killed
     else None
   in
 
@@ -343,28 +357,32 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
     | Internal -> assert false
     | Export ->
 
-    let num_callee_saved, no_room_for_rsp =
+    (* The callee-saved registers that get a slot, each of the size of its
+       register (callee-saved registers may have different sizes, e.g.
+       general-purpose and vector registers). With the tight strategy, they
+       are the registers the function overwrites; otherwise, the first ones
+       of the calling convention. *)
+    let to_save, no_room_for_rsp =
+      let callee_saved = List.remove Arch.callee_save_vars Arch.rsp_var in
       let key = "callee_saved" in
       match Annotations.get key fd.f_annot.f_user_annot with
-      | Some (Some { pl_desc = Aint n }) -> max 0 (Z.to_int n - 1), not (Z.equal Z.zero n)
+      | Some (Some { pl_desc = Aint n }) ->
+         List.take (max 0 (Z.to_int n - 1)) callee_saved, not (Z.equal Z.zero n)
       | a ->
       if Option.is_some a then
         warning Always (L.i_loc0 fd.f_loc) "ignored ill-formed %s annotation" key;
       match callee_saved_strategy with
       | CSS_Tight ->
-         let subst, killed = Option.get ra_data in
-         let ro = Regalloc.get_reg_oracle has_stack subst killed fd in
-         List.length ro.ro_to_save, ro.ro_rsp = None
-      | CSS_Optimistic -> 0, has_stack fd
-      | CSS_Pessimistic -> Stdlib.Int.max_int, true
+         let killed = Option.get ra_data in
+         let ro = Regalloc.get_reg_oracle has_stack killed fd in
+         ro.ro_to_save, ro.ro_rsp = None
+      | CSS_Optimistic -> [], has_stack fd
+      | CSS_Pessimistic -> callee_saved, true
     in
 
     let sao = Hf.find sao fn in
     let csao = get_sao fn in 
 
-    let to_save =
-      List.take num_callee_saved
-      (List.remove Arch.callee_save_vars Arch.rsp_var) in
     let has_stack = has_stack fd || to_save <> [] in
 
     let rsp = V.clone Arch.rsp_var in
@@ -387,6 +405,12 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
           let max_call_depth = Z.max max_call_depth fn_max_call_depth in
           align, max_stk, max_call_depth
         ) sao.sao_calls (align, Z.zero, Z.zero) in
+
+    let align =
+      enforce_sp_min_align
+        ~stack_size:(Conv.z_of_cz csao.Stack_alloc.sao_size)
+        ~extra_size ~max_stk align
+    in
     (* if we zeroize the stack, we may have to increase the alignment *)
     let align =
       match fd.f_cc, fd.f_annot.stack_zero_strategy with

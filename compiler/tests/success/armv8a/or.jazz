@@ -1,0 +1,12 @@
+export
+fn or(reg u64 arg0, reg u64 arg1) -> reg u64 {
+    reg u64 x;
+
+    x = arg0 | arg1;
+    x = x | 0xff00;          // Bitmask immediate.
+    x = x | (arg1 >> 2);     // Shifted register.
+    x = x ^ arg0;
+    x = x ^ (arg1 << 3);
+    x = !x;
+    return x;
+}

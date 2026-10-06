@@ -35,6 +35,19 @@ module type Core_arch = sig
 
   val callstyle : reg callstyle
 
+  (* Minimal alignment of every stack frame. Frame sizes are rounded up to
+     the frame's alignment (see [stack_frame_allocation_size]), so this
+     bounds the alignment the stack pointer keeps across calls. Armv7-M
+     forces stack-pointer writes to 4-byte alignment (Arm v7-M Architecture
+     Reference Manual, B1.5.7); the other architectures have no requirement
+     beyond the one of the stack slots themselves. *)
+  val sp_min_align : Wsize.wsize
+
+  (* Widest store the architecture can perform in one instruction. Used to
+     cap the default stack-zeroization clear step when [sp_min_align]
+     raises the frame alignment beyond it. *)
+  val max_store_size : Wsize.wsize
+
   val known_implicits : (Name.t * string) list
 
   val is_ct_asm_op : asm_op -> bool

@@ -1,0 +1,18 @@
+export
+fn loop(reg u64 n) -> reg u64 {
+    reg u64 acc i;
+
+    acc = 0;
+    i = 0;
+    while (i < n) {
+        acc = acc + i;
+        i = i + 1;
+    }
+
+    if (acc > n) {
+        acc = acc - n;
+    } else {
+        acc = n - acc;
+    }
+    return acc;
+}

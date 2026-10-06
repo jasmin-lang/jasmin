@@ -117,6 +117,23 @@ let do_wint_int
   (gd, fds)
 
 
+(* -------------------------------------------------------------------- *)
+let do_toec
+   (type reg regx xreg rflag cond asm_op extra_op)
+    (module Arch : Arch_full.Arch
+      with type reg = reg
+       and type regx = regx
+       and type xreg = xreg
+       and type rflag = rflag
+       and type cond = cond
+       and type asm_op = asm_op
+       and type extra_op = extra_op) prog =
+  let freshvar = (fun vk ii -> Conv.fresh_var_ident vk ii (Uint63.of_int 0)) in
+  let cp = Conv.cuprog_of_prog prog in
+  let cp = Toec_prog.toec_uprog Arch.asmOp freshvar cp in
+  let cp = catch_error cp in
+  Conv.prog_of_cuprog cp
+
 (*--------------------------------------------------------------------- *)
 
 let compile (type reg regx xreg rflag cond asm_op extra_op)
@@ -199,17 +216,26 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
         (n + 1)
     in
 
+    (* A register takes the slot planned for it, if any: that slot has the
+       size of the register. The other registers take the remaining slots in
+       order. *)
     let fixup_to_save fd names slots =
-      let rec fixup_to_save n s =
-        match n, s with
-        | [], [] -> []
-        | x :: n, (_, ofs) :: s -> (Conv.cvar_of_var x, ofs) :: fixup_to_save n s
-        | [], _ ->
-           warning CalleeSavedNotTight (L.i_loc0 fd.f_loc) "unused slots: %a"
-             (pp_list ", " (fun fmt (_, ofs) -> Format.fprintf fmt "%a" Z.pp_print (Conv.z_of_cz ofs))) slots;
-           []
-        | _, [] -> callee_saved_error fd (List.length names)
-      in fixup_to_save names slots
+      let mem x = List.exists (V.equal x) in
+      let planned = List.map (fun (x, _) -> Conv.var_of_cvar x) slots in
+      let others = List.filter (fun x -> not (mem x planned)) names in
+      let fixup others (x, ofs) =
+        if mem (Conv.var_of_cvar x) names then others, Either.Left (x, ofs)
+        else match others with
+          | y :: others -> others, Either.Left (Conv.cvar_of_var y, ofs)
+          | [] -> [], Either.Right ofs
+      in
+      let others, slots = List.fold_left_map fixup others slots in
+      if others <> [] then callee_saved_error fd (List.length names);
+      let to_save, unused = List.partition_map Fun.id slots in
+      if unused <> [] then
+        warning CalleeSavedNotTight (L.i_loc0 fd.f_loc) "unused slots: %a"
+          (pp_list ", " (fun fmt ofs -> Format.fprintf fmt "%a" Z.pp_print (Conv.z_of_cz ofs))) unused;
+      to_save
     in
 
     let subst, killed, fds = RA.alloc_prog return_addresses fds in
@@ -221,7 +247,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       | RAreg (ret, tmp) -> { fe with Expr.sf_return_address = RAreg (csubst ret, osubst tmp) }
       | RAstack (c, r, n, t) -> { fe with Expr.sf_return_address = RAstack (osubst c, osubst r, n, osubst t) }
       | RAnone ->
-         let ro = RA.get_reg_oracle (fun _ -> true) subst killed fd in
+         let ro = RA.get_reg_oracle (fun _ -> true) killed fd in
          { fe with
            Expr.sf_save_stack =
              (match fe.Expr.sf_save_stack with
@@ -307,9 +333,9 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
   let remove_phi_nodes_fd fd = Ssa.remove_phi_nodes fd in
 
   let removereturn sp =
-    let fds, _data = Conv.prog_of_csprog sp in
-    let tokeep = RemoveUnusedResults.analyse fds in
-    tokeep
+    sp.E.p_funcs
+    |> List.map (fun fd -> snd (Conv.fdef_of_csfdef fd))
+    |> RemoveUnusedResults.analyse
   in
 
   let remove_wint_annot fd =
@@ -360,7 +386,14 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
   in
 
   let szs_of_fn fn =
-    (get_annot fn).stack_zero_strategy
+    match (get_annot fn).stack_zero_strategy with
+    | Some (szs, None) when wsize_lt Arch.max_store_size Arch.sp_min_align ->
+        (* The default clear step is the frame alignment, which
+           [sp_min_align] may raise beyond the widest store the
+           architecture can perform in one instruction (u128 vs u64 on
+           armv8a): cap the default at that width. *)
+        Some (szs, Some Arch.max_store_size)
+    | szs -> szs
   in
 
   (* This implements an analysis returning the set of variables becoming dead

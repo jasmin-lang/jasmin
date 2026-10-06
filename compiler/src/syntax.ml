@@ -70,12 +70,8 @@ let string_of_svsize (sv,sg,ve) =
   Format.sprintf "%d%s%d"
     (int_of_vsize sv) (string_of_sign sg) (bits_of_vesize ve)
 
-let string_of_osign = function
-  | None -> ""
-  | Some s -> string_of_sign s
-
 (* -------------------------------------------------------------------- *)
-type cast = [ `ToWord  of swsize | `ToInt of sign option]
+type cast = [ `ToWord  of swsize | `ToInt of sign ]
 
 type peop1 = [
   | `Cast of cast
@@ -120,7 +116,7 @@ let string_of_castop : castop -> string =
 let string_of_cast s =
   match s with
   | `ToWord s -> string_of_swsize_op s
-  | `ToInt s   -> Format.sprintf "%sint" (string_of_osign s)
+  | `ToInt s   -> Format.asprintf "%sint" (string_of_sign s)
 
 let string_of_peop1 : peop1 -> string =
   let f s p = Format.sprintf "%s%s" p (string_of_castop s) in
@@ -455,7 +451,12 @@ type gpexpr =
   | GEexpr  of pexpr
   | GEarray of pexpr list
 
-type pglobal = { pgd_type: ptype; pgd_name: pident ; pgd_val: gpexpr }
+type pglobal = {
+  pgd_annot: pannotations;
+  pgd_type: ptype;
+  pgd_name: pident ;
+  pgd_val: gpexpr
+}
 
 (* -------------------------------------------------------------------- *)
 type pexec = {

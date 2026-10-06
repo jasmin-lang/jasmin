@@ -340,7 +340,8 @@ let pp_pitem ~debug pp_len pp_opn pp_var =
         (pp_var_decl pp_var pp_len) x
         (pp_ge ~debug pp_len pp_var) e
    | MIglobal (x, e) ->
-      F.fprintf fmt "%a %a = %a;"
+      F.fprintf fmt "%a%a %a = %a;"
+        pp_annotations x.v_annot
         (pp_gtype pp_len) x.v_ty
         pp_var x
         (pp_gexpr ~debug pp_len pp_var) e
@@ -452,7 +453,8 @@ let pp_glob pp_var fmt (x, gd) =
       Format.fprintf fmt "@[{%a}@]"
         (pp_list ",@ " pp_print_X)
         (Array.to_list t)  in
-  Format.fprintf fmt "@[%a %a =@ %a;@]"
+  Format.fprintf fmt "@[%a%a %a =@ %a;@]"
+    pp_annotations x.v_annot
     (pp_gtype pp_len) x.v_ty
     pp_var x pp_gd gd
 

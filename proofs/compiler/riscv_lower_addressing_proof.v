@@ -113,7 +113,7 @@ Proof.
     rewrite /exec_sopn /= ok_wo /=.
     Local Opaque riscv_sll_semi.
     rewrite truncate_word_le //= zero_extend_wrepr //.
-    rewrite /sopn_sem /= (shift_of_scaleP _ hshift) /=.
+    rewrite /= (shift_of_scaleP _ hshift) /=.
     Local Transparent riscv_sll_semi.
     rewrite write_var_eq_type //=; last by rewrite tmp_ty.
     rewrite /get_gvar /= get_var_eq tmp_ty /= cmp_le_refl orbT //.
@@ -244,7 +244,7 @@ Proof using ok_p'.
   apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //; subst Pi_r Pi Pc => /=.
   + by move=> hsub /=; apply (wequiv_nil (sip:=sip)).
   + move=> i c hi hc; rewrite read_writeE => hsub.
-    rewrite /lower_addressing_c /conc_map /= -cat1s.
+    rewrite -cat1s.
     apply (wequiv_cat (sip:=sip)) with (st_eq_on X).
     + by apply hi => //; clear -hsub; SvD.fsetdec.
     apply hc; last by clear -hsub; SvD.fsetdec.

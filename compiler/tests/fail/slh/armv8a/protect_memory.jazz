@@ -1,0 +1,18 @@
+/* The operands of protect must be registers. */
+export
+fn foo(reg u64 i x) -> reg u64 {
+    stack u64[4] s;
+    reg ptr u64[4] p;
+    reg u64 msf r;
+
+    msf = #init_msf();
+    s[0] = x;
+    s[1] = x;
+    s[2] = x;
+    s[3] = x;
+    p = s;
+    i &= 3;
+    p[i] = #protect(p[i], msf);
+    r = p[0];
+    return r;
+}

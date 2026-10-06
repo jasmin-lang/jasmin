@@ -60,14 +60,16 @@ Lemma exec_sopn_conditional mn sf osk b vargs vprev vres0 vres1 :
     {| set_flags := sf; is_conditional := false; has_shift := osk; |}
   in
   let op := Oarm (ARM_op mn opts) in
-  truncate_args op vprev = ok vres1
+  id_valid (mn_desc (set_is_conditional opts) mn)
+  -> truncate_args op vprev = ok vres1
   -> exec_sopn op vargs = ok vres0
   -> exec_sopn
        (Oarm (ARM_op mn (set_is_conditional opts)))
        (vargs ++ Vbool b :: vprev)
        = ok (if b then vres0 else vres1).
 Proof.
-  rewrite /= /exec_sopn /= /set_is_conditional /= /sem_sopn /= /sopn_sem /= /sopn_sem_ /=.
+  rewrite /= /exec_sopn /= /set_is_conditional /= /sem_sopn /=.
+  move=> hvalid.
   t_xrbindP.
   set fflags := {| set_flags := sf; is_conditional := false; has_shift := osk |}.
   set tflags := {| set_flags := sf; is_conditional := true; has_shift := osk |}.
@@ -75,10 +77,10 @@ Proof.
          exists (h1 : id_tin (mn_desc fflags mn) = id_tin (mn_desc tflags mn))
                 (h2 : id_tout (mn_desc fflags mn) = id_tout (mn_desc tflags mn)),
          cast_op h1 h2 (id_semi (mn_desc fflags mn)) = id_semi (mn_desc tflags mn).
-  + by rewrite /fflags /tflags; case: mn; case sf; case osk => [s | ]; split => //;
+  + move: hvalid; rewrite /fflags /tflags.
+    by case: mn; case sf; case osk => [s | ] //; split => //;
          exists erefl, erefl.
   move=> [-> [hin [hout hcast]]].
-  rewrite /semi_to_atype /=.
   move: (computational_eq _) (computational_eq _) (computational_eq _) (computational_eq _) => e1 e2 e3 e4.
   rewrite <- e1, <- e2, <- e3, <- e4; clear e1 e2 e3 e4.
   rewrite /truncate_args -map_comp -(eq_map atype_of_ltypeP) /= /sopn_tout /=.
@@ -119,7 +121,8 @@ Lemma sem_i_conditional
     {| set_flags := sf; is_conditional := false; has_shift := osk; |}
   in
   let aop := Oarm (ARM_op mn opts) in
-  sem_pexprs true (p_globs p) s0 args = ok vargs
+  id_valid (mn_desc (set_is_conditional opts) mn)
+  -> sem_pexprs true (p_globs p) s0 args = ok vargs
   -> sem_pexpr true (p_globs p) s0 c = ok (Vbool b)
   -> sem_pexprs true (p_globs p) s0 prev = ok vprev
   -> truncate_args aop vprev = ok vprev'
@@ -131,14 +134,14 @@ Lemma sem_i_conditional
      let ir := Copn lvs tag aop' (args ++ c :: prev) in
      esem_i p ev (MkI ii ir) s0 = ok s1.
 Proof.
-  move=> opts aop hsemargs hsemc hsemprev htruncprev hexec hwrite.
+  move=> opts aop hvalid hsemargs hsemc hsemprev htruncprev hexec hwrite.
 
   rewrite /= /sem_sopn /=.
   rewrite /sem_pexprs mapM_cat /= -2![mapM _ _]/(sem_pexprs _ _ _ _).
   rewrite hsemargs hsemc hsemprev {hsemargs hsemc hsemprev} /=.
 
   case: b hwrite => hwrite.
-  all: rewrite (exec_sopn_conditional _ htruncprev hexec) {htruncprev hexec} /=.
+  all: rewrite (exec_sopn_conditional _ hvalid htruncprev hexec) {htruncprev hexec} /=.
   all: exact: hwrite.
 Qed.
 

@@ -80,19 +80,19 @@ Fixpoint lower_addressing_i (i: instr) :=
   | Cassert _
   | Ccall _ _ _ => [:: i]
   | Cif b c1 c2 =>
-    let c1 := conc_map lower_addressing_i c1 in
-    let c2 := conc_map lower_addressing_i c2 in
+    let c1 := List.flat_map lower_addressing_i c1 in
+    let c2 := List.flat_map lower_addressing_i c2 in
     [:: MkI ii (Cif b c1 c2)]
   | Cfor x (dir, e1, e2) c =>
-    let c := conc_map lower_addressing_i c in
+    let c := List.flat_map lower_addressing_i c in
     [:: MkI ii (Cfor x (dir, e1, e2) c) ]
   | Cwhile a c e info c' =>
-    let c := conc_map lower_addressing_i c in
-    let c' := conc_map lower_addressing_i c' in
+    let c := List.flat_map lower_addressing_i c in
+    let c' := List.flat_map lower_addressing_i c' in
     [:: MkI ii (Cwhile a c e info c')]
   end.
 
-Definition lower_addressing_c := conc_map lower_addressing_i.
+Definition lower_addressing_c := List.flat_map lower_addressing_i.
 
 Definition lower_addressing_fd (f: fundef) :=
   let body := f.(f_body) in

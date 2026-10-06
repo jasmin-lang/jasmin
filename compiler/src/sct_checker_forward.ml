@@ -713,7 +713,7 @@ let expr_equal a b =
     let open Glob_options in
     match !target_arch with
     | X86_64 -> X86_decl.x86_fcp
-    | ARM_M4 -> Arm_decl.arm_fcp
+    | ARM_M4 | ARMv8A -> Arm_common.arm_fcp
     | RISCV  -> Riscv_decl.riscv_fcp
   in
   let normalize e =
@@ -919,10 +919,6 @@ let declassify env = function
   | Direct le          -> Direct (declassify_lvl env le)
   | Indirect (lp, le)  -> Indirect (lp, declassify_lvl env le)
 
-let declassify_ty ~loc env annot ty = if CT.is_declassify ~loc annot
-  then declassify env ty
-  else ty
-
 let declassify_expr ~loc env ((msf, venv) as msf_e) =
   function
   | Pvar { gs = Slocal ; gv } ->
@@ -970,7 +966,7 @@ and ty_instr_r is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
 
   | Cassgn(x, _, _, e) ->
     let ety = ty_expr env venv loc e in
-    ty_lval env msf_e x (declassify_ty ~loc:i.i_loc env i.i_annot ety)
+    ty_lval env msf_e x ety
 
   | Copn (_, _, Sopn.Opseudo_op (Odeclassify _), [ e ]) ->
      declassify_expr ~loc:i.i_loc env msf_e e
@@ -1015,7 +1011,7 @@ and ty_instr_r is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
     | Other, _, _  ->
       let public = not (CT.is_ct_sopn is_ct_asm o) in
       let ety = ty_exprs_max ~public env venv loc es in
-      ty_lvals1 env msf_e xs (declassify_ty ~loc:i.i_loc env i.i_annot ety)
+      ty_lvals1 env msf_e xs ety
     end
 
   | Cassert _ -> msf_e
@@ -1107,7 +1103,7 @@ and ty_instr_r is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
       let ty =
         match vfty with
         | IsMsf -> Env.dpublic env
-        | IsNormal ty -> declassify_ty ~loc:i.i_loc env i.i_annot ty in
+        | IsNormal ty -> ty in
       let (msf, venv) = ty_lval env msf_e x ty in
       let msf = if vfty = IsMsf then MSF.add (reg_lval ~direct:true loc x) msf else msf in
       (msf, venv) in

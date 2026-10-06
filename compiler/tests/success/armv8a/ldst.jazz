@@ -1,0 +1,28 @@
+export
+fn ldst(reg u64 p) -> reg u64 {
+    reg u64 a b;
+    stack u64[2] s;
+
+    a = [p];
+    b = [p + 8];
+    a = a + b;
+    [p] = a;
+    [p + 16] = b;
+
+    [:u8 p + 24] = a;
+    [:u16 p + 26] = a;
+    a = (64u)[:u8 p + 24];
+    b = (64s)[:u16 p + 26];
+    a = a + b;
+    b = (64u)[:u16 p + 26];
+    a = a + b;
+    b = (64s)[:u8 p + 24];
+    a = a + b;
+
+    s[0] = a;
+    s[1] = b;
+    a = s[0];
+    b = s[1];
+    a = a + b;
+    return a;
+}

@@ -25,6 +25,6 @@ export fn safe_uint_to_sint() -> reg si32 {
 fn conv_with_int() -> reg int {
   reg int i = 127;
   reg si8 s = (8si)i;
-  i = (int)s;
+  i = s;
   return i;
 }

@@ -15,6 +15,7 @@ Require Import
   arch_decl
   arch_utils.
 
+Require Export arm_common.
 Require Export arm_expand_imm.
 
 (* ARM Cortex-M4 architecture
@@ -84,111 +85,8 @@ Instance reg_toS : ToString (lword arm_reg_size) register :=
    ; to_string := register_to_string
   |}.
 
-(* -------------------------------------------------------------------- *)
-(* Flags. *)
-
-#[only(eqbOK)] derive
-Variant rflag : Type :=
-| NF    (* Negative condition flag. *)
-| ZF    (* Zero confition flag. *)
-| CF    (* Carry condition flag. *)
-| VF.   (* Overflow condition flag. *)
-
-#[ export ]
-Instance eqTC_rflag : eqTypeC rflag :=
-  { ceqP := rflag_eqb_OK }.
-
-Canonical rflag_eqType := @ceqT_eqType _ eqTC_rflag.
-
-Definition rflags := [:: NF; ZF; CF; VF ].
-
-Lemma rflag_fin_axiom : Finite.axiom rflags.
-Proof. by case. Qed.
-
-#[ export ]
-Instance finTC_rflag : finTypeC rflag :=
-  {
-    cenum  := rflags;
-    cenumP := rflag_fin_axiom;
-  }.
-
-Canonical rflag_finType := @cfinT_finType _ finTC_rflag.
-
-Definition flag_to_string (f : rflag) : string :=
-  match f with
-  | NF => "NF"
-  | ZF => "ZF"
-  | CF => "CF"
-  | VF => "VF"
-  end.
-
-#[ export ]
-Instance rflag_toS : ToString lbool rflag :=
-  { category  := "rflag"
-  ; to_string := flag_to_string
-  }.
-
-(* -------------------------------------------------------------------- *)
-(* Conditions. *)
-
-#[only(eqbOK)] derive
-Variant condt : Type :=
-| EQ_ct    (* Equal. *)
-| NE_ct    (* Not equal. *)
-| CS_ct    (* Carry set. *)
-| CC_ct    (* Carry clear. *)
-| MI_ct    (* Minus, negative. *)
-| PL_ct    (* Plus, positive or zero. *)
-| VS_ct    (* Overflow. *)
-| VC_ct    (* No overflow. *)
-| HI_ct    (* Unsigned higher. *)
-| LS_ct    (* Unsigned lower or same. *)
-| GE_ct    (* Signed greater than or equal. *)
-| LT_ct    (* Signed less than. *)
-| GT_ct    (* Signed greater than. *)
-| LE_ct.   (* Signed less than or equal. *)
-
-#[ export ]
-Instance eqTC_condt : eqTypeC condt :=
-  { ceqP := condt_eqb_OK }.
-
-Canonical condt_eqType := @ceqT_eqType _ eqTC_condt.
-
-Definition condts : seq condt :=
-  [:: EQ_ct; NE_ct; CS_ct; CC_ct; MI_ct; PL_ct; VS_ct; VC_ct; HI_ct; LS_ct
-    ; GE_ct; LT_ct; GT_ct; LE_ct
-  ].
-
-Lemma condt_fin_axiom : Finite.axiom condts.
-Proof. by case. Qed.
-
-#[ export ]
-Instance finTC_condt : finTypeC condt :=
-  {
-    cenum := condts;
-    cenumP := condt_fin_axiom;
-  }.
-
-Canonical condt_finType := @cfinT_finType _ finTC_condt.
-
-Definition string_of_condt (c : condt) : string :=
-  match c with
-  | EQ_ct => "eq"
-  | NE_ct => "ne"
-  | CS_ct => "cs"
-  | CC_ct => "cc"
-  | MI_ct => "mi"
-  | PL_ct => "pl"
-  | VS_ct => "vs"
-  | VC_ct => "vc"
-  | HI_ct => "hi"
-  | LS_ct => "ls"
-  | GE_ct => "ge"
-  | LT_ct => "lt"
-  | GT_ct => "gt"
-  | LE_ct => "le"
-  end.
-
+(* The flags ([rflag]) and conditions ([condt]) are shared with the other
+   Arm architectures: see arm_common.v. *)
 
 (* -------------------------------------------------------------------- *)
 (* Register shifts.
@@ -235,35 +133,8 @@ Definition shift_of_sop2 (ws : wsize) (op : sop2) : option shift_kind :=
   | _ => None
   end.
 
-(* -------------------------------------------------------------------- *)
-(* Flag combinations.
-   The ARM terminology is different from Intel's (chapter A7.3 from the
-   ARMv7-M reference manual).
-   - [CFC_B] is Carry clear (unsigned lower).
-   - [CFC_E] is Equal.
-   - [CFC_L] is Signed less than.
-   - [CFC_BE] is Unsigned lower or same.
-   - [CFC_LE] is Signed less than or equal. *)
-
-Definition arm_fc_of_cfc (cfc : combine_flags_core) : flag_combination :=
-  let vnf := FCVar0 in
-  let vzf := FCVar1 in
-  let vcf := FCVar2 in
-  let vvf := FCVar3 in
-  match cfc with
-  | CFC_B => FCNot vcf
-  | CFC_E => vzf
-  | CFC_L => FCNot (FCEq vnf vvf)
-  | CFC_BE => FCOr (FCNot vcf) vzf
-  | CFC_LE => FCOr vzf (FCNot (FCEq vnf vvf))
-  end.
-
-#[global]
-Instance arm_fcp : FlagCombinationParams :=
-  {
-    fc_of_cfc := arm_fc_of_cfc;
-  }.
-
+(* The flag combinations ([arm_fcp]) are shared with the other Arm
+   architectures: see arm_common.v. *)
 
 (* -------------------------------------------------------------------- *)
 (* Architecture declaration. *)

@@ -14,6 +14,42 @@ Which function? With the command-line flag `-debug` on, the compiler will output
 There are two possible kinds of fix to this kind of issue: either spill some registers to ensure there is at least one register that is free at *all* call sites; or change the calling-convention of the function so that return address is passed on the stack
 (this can be achieved through the `#returnaddress=stack` annotation before the function declaration).
 
+---
+
+> register allocation: variables `{ ... }` remain unallocated
+
+Boolean variables are allocated using constraints imposed by the target architecture. Jasmin does not arbitrarily assign an unconstrained boolean to a machine flag register. If there are not enough constraints to determine an allocation, the variable remains unallocated and compilation fails with this error.
+
+Two common programming errors can cause this.
+
+1. Uninitialized boolean
+
+    A boolean that is only used in conditions and is never assigned may be unconstrained:
+
+    ~~~
+    export fn uninit(reg u32 x) -> reg u32 {
+      reg bool b; // ← Not initialized!
+      if b { x += 1; }
+      return x;
+    }
+    ~~~
+
+    Initialize the variable before using it.
+
+2. Constant boolean
+
+    The compiler does not generate code to compute boolean values that are already known at compile time. For example:
+
+    ~~~
+    export fn constant(reg u32 x) -> reg u32 {
+      reg bool b = true; // ← Constant value
+      if b { x += 1; }
+      return x;
+    }
+    ~~~
+
+    Tell the compiler how to calculate it (compare a value to itself, add zero to some value and extract the carry, use the #STC instruction on x86, etc.).
+
 ### Stack allocation
 
 > no region associated to variable p

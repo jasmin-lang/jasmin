@@ -45,8 +45,8 @@ Record h_lowering_params
         wiequiv_f p p' ev ev pre_eq fn fn post_eq
   }.
 
-(* Lowering of complex addressing mode for RISC-V.
-   It is the identity for the other architectures. *)
+(* Lowering of addressing modes: complex addressing on RISC-V, loads from a
+   global on ARM and ARMv8-A. It is the identity on x86-64. *)
 Record h_lower_addressing_params
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra}
@@ -111,7 +111,7 @@ Record h_architecture_params
     (* Lowering hypotheses. Defined above. *)
     hap_hlop : h_lowering_params (ap_lop aparams);
 
-    (* Lowering of complex addressing mode for RISC-V. Defined above. *)
+    (* Lowering of addressing modes. Defined above. *)
     hap_hlap : h_lower_addressing_params (ap_lap aparams);
 
     (* Assembly generation hypotheses. See [asm_gen_proof.v]. *)

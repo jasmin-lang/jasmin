@@ -1,3 +1,157 @@
+# Unreleased
+
+## Bug fixes
+
+- The EasyCrypt model of `BSR` (`BSR_XX` in `eclib/JWord.ec`) counted the
+  trailing zeros instead of the leading ones (`lzcnt (w2bits w)` without the
+  `rev` that `LZCNT_XX` has), so `BSR_64 1` was 63 in the model where the
+  processor gives 0
+  ([PR 1608](https://github.com/jasmin-lang/jasmin/pull/1608)).
+
+# Jasmin 2026.09.0 — 2026-09-30
+
+## New features
+
+- New experimental `stable_call_conv` annotation for internal functions and
+  improved documentation of difficulties related to register allocation
+  ([PR 1361](https://github.com/jasmin-lang/jasmin/pull/1361)).
+
+- Arrays of length 0 are now supported. This is for the sake of uniformity and
+  is a preparatory stage for larger changes to arrays.
+  ([PR 1388](https://github.com/jasmin-lang/jasmin/pull/1388)).
+
+- Add support for pre- and post-conditions of functions
+  ([PR 1392](https://github.com/jasmin-lang/jasmin/pull/1392)).
+
+- Add `min` and `max` operators in expressions (as syntactic sugar for
+  conditional expressions): they are binary and apply to values of type `int`
+  ([PR 1417](https://github.com/jasmin-lang/jasmin/pull/1417)).
+
+- Add support for safety expressions: syntax of assertions is extended with new
+  constructions and function definitions can be annotated with pre- and
+  post-conditions
+  ([PR 1417](https://github.com/jasmin-lang/jasmin/pull/1417)).
+
+- Add support for declassify instruction at assembly level. Declassify
+  instructions are printed as comments in the assembly code.
+  ([PR 1423](https://github.com/jasmin-lang/jasmin/pull/1423)).
+
+- The safety checker, when called after some compilation steps, no longer looks
+  at the source prior to any compilation to guess assumed ranges for inputs
+  (i.e., arguments to export functions); this behavior can be achieved using
+  the `input_range` entry in the configuration file
+  ([PR 1465](https://github.com/jasmin-lang/jasmin/pull/1465)).
+
+- A new command line interface to the safety checker is available through the
+  `jasmin-checksafety` program; the legacy command-line interface (`jasminc`)
+  is deprecated
+  ([PR 1470](https://github.com/jasmin-lang/jasmin/pull/1470),
+  [PR 1494](https://github.com/jasmin-lang/jasmin/pull/1494),
+  [PR 1499](https://github.com/jasmin-lang/jasmin/pull/1499)).
+
+- Extraction as EasyCrypt code targets version 2026.07
+  ([PR 1528](https://github.com/jasmin-lang/jasmin/pull/1528)).
+
+- Add an ARMv8-A (AArch64) backend: new target architecture `-arch armv8a`,
+  modeled at the full 64-bit register width, with lowering and correctness
+  proofs
+  ([PR 1541](https://github.com/jasmin-lang/jasmin/pull/1541)).
+
+- Global variables can now be extracted to EasyCrypt as operators instead of
+  abbreviations, and their machine words can be printed as signed or unsigned
+  integers. The default is selected by the `--global-model` command line
+  argument of `jasmin2ec` and can be overridden for each global variable by the
+  `#[abbrev]`, `#[op]`, and `#[sign=...]` annotations; see the
+  [documentation](https://jasmin-lang.readthedocs.io/en/latest/tools/jasmin2ec.html#extraction-of-global-variables)
+  ([PR 1549](https://github.com/jasmin-lang/jasmin/pull/1549)).
+
+- The formal semantics of Jasmin is now based on interaction trees instead of a
+  big step semantics. For the user the only difference is that:
+    - The compiler provides strong garanties on non-terminating program
+    - The safety checker does not need to ensure loop termination
+
+  ([PR 1489](https://github.com/jasmin-lang/jasmin/pull/1489),
+  [PR 1444](https://github.com/jasmin-lang/jasmin/pull/1444)).
+
+## Bug fixes
+
+- `BT`, `BTS`, and `BTR` set `OF`, `SF`, and `PF` to undefined; this means that
+  these instructions now return three more results.
+  ([PR 1519](https://github.com/jasmin-lang/jasmin/pull/1519)).
+
+- Fix the DOIT classification of AVX instructions `VPMINS` and `VPMAXS` (not
+  doit for 32-bit elements)
+  ([PR 1520](https://github.com/jasmin-lang/jasmin/pull/1520/)).
+
+- Legacy SSE instructions require aligned pointers
+  ([PR 1521](https://github.com/jasmin-lang/jasmin/pull/1521)).
+
+- `VPSLLV` and `VPSRLV` no longer accept 16 bits as a size
+  ([PR 1529](https://github.com/jasmin-lang/jasmin/pull/1529/)).
+
+- On RISC-V, the `DIV`, `DIVU`, `REM` and `REMU` instructions are no longer
+  considered constant-time nor DOIT: they have data-dependent latency on
+  typical implementations and are excluded from the Zkt ("Data-Independent
+  Execution Latency") safe list of the RISC-V specification; every other
+  instruction keeps its classification, now documented against the Zkt list
+  ([PR 1544](https://github.com/jasmin-lang/jasmin/pull/1544);
+  fixes [#1013](https://github.com/jasmin-lang/jasmin/issues/1013)).
+
+- Various fixes to the EasyCrypt extraction. In particular, the extraction of
+  `#randombytes` was changed for models `old` and `warray` (no change for model
+  `barray`), there is now one version per cell size and per length (the case
+  where the cell size is `u8` was not changed for backward compatibility).
+  ([PR 1563](https://github.com/jasmin-lang/jasmin/pull/1563);
+  fixes [#1555](https://github.com/jasmin-lang/jasmin/issues/1555),
+  [#1557](https://github.com/jasmin-lang/jasmin/issues/1557)).
+
+- The cast operator `(int)` has been deprecated. Use `(sint)`, `(uint)`, or
+  nothing instead. Signed word-sized integers can be used as array indices.
+  ([PR 1569](https://github.com/jasmin-lang/jasmin/pull/1569);
+  fixes [#1568](https://github.com/jasmin-lang/jasmin/issues/1568)).
+
+- Labels internal to a function are now printed with the prefix the target’s
+  assembler recognises as assembler-local: `.L` on ELF and COFF systems, and
+  `L` (unchanged) on macOS. They therefore no longer end up in the symbol table
+  of the produced object files on ELF targets
+  ([PR 1576](https://github.com/jasmin-lang/jasmin/pull/1576)).
+
+- With the Windows calling convention, export functions that use callee-saved
+  vector registers (`xmm6`–`xmm15`) compile: each callee-saved register is
+  saved in a stack slot of its own size and alignment
+  ([PR 1583](https://github.com/jasmin-lang/jasmin/pull/1583);
+  fixes [#1581](https://github.com/jasmin-lang/jasmin/issues/1581)).
+
+- The EasyCrypt extraction of armv8a programs type-checks: the x86 instructions
+  of `JWord` (theories `ALU` and `SHIFT`) are exported by `JModel_x86` only, so
+  that their names do not clash with the armv8a ones
+  ([PR 1585](https://github.com/jasmin-lang/jasmin/pull/1585);
+  fixes [#1584](https://github.com/jasmin-lang/jasmin/issues/1584)).
+
+- The pre-typing pass rejects vector shifts with two inconsistent signedness
+  annotations (e.g., `>>s 4u32`), as is currently done with the scalar form
+  (e.g., `>>s 32u`)
+  ([PR 1532](https://github.com/jasmin-lang/jasmin/pull/1532);
+  fixes [#1441](https://github.com/jasmin-lang/jasmin/issues/1441)).
+
+## Other changes
+
+- The options `-lea`, `-nolea`, `-set0`, `-noset0` have been removed from the
+  compiler `jasminc`
+  ([PR 1510](https://github.com/jasmin-lang/jasmin/pull/1510)).
+
+- `jasminc` no longer supports the `-noinsertarraycopy` command-line flag;
+  warning `IntroduceArrayCopy` is on by default
+  ([PR 1511](https://github.com/jasmin-lang/jasmin/pull/1511)).
+
+- The EasyCrypt theory `JModel` has been removed after being deprecated since
+  version 2023.06.0
+  ([PR 1543](https://github.com/jasmin-lang/jasmin/pull/1543)).
+
+- Refactoring of `Z_lnot_mod` for arm* architectures. `Z_lnot_mod` is now
+  defined only once and uses `zmod_pow2` instead of `mod`.
+  ([PR 1577](https://github.com/jasmin-lang/jasmin/pull/1577)).
+
 # Jasmin 2026.03.2 — 2026-07-16
 
 ## New features

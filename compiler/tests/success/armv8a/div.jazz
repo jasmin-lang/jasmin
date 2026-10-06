@@ -1,0 +1,8 @@
+export
+fn div(reg u64 arg0, reg u64 arg1) -> reg u64 {
+    reg u64 x;
+
+    x = arg0 / arg1;         // UDIV.
+    x = x /s arg1;           // SDIV.
+    return x;
+}

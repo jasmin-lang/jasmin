@@ -1,0 +1,15 @@
+/* MUL, ADD, XOR and SLLI are in the Zkt safe list; loads and stores of
+   secret data are also accepted (see the documentation of [id_doit] in
+   proofs/compiler/riscv_instr_decl.v). */
+#[ct="secret * secret -> secret"]
+export fn arith(reg u32 a, reg u32 b) -> reg u32 {
+  stack u32 s;
+  reg u32 t;
+  t = a * b;
+  t += b;
+  t ^= a;
+  t <<= 2;
+  s = t;
+  t = s;
+  return t;
+}

@@ -166,6 +166,7 @@ Allowed args compatible with the input (except on immediate sizes) are:
 All allowed args (regardless of the input) are:
   [[reg]; [reg]]
   [[reg]; [imm 32 (shift = W16, none = W16)]]
+  [[reg]; [glob addr (lo16)]]
 
 fail/arm-m4/mov_imm_too_large.jazz:
 
@@ -177,6 +178,7 @@ Allowed args compatible with the input (except on immediate sizes) are:
 All allowed args (regardless of the input) are:
   [[reg]; [reg]]
   [[reg]; [imm 32 (shift = W16, none = W16)]]
+  [[reg]; [glob addr (lo16)]]
 
 fail/arm-m4/mov_shiftedw_set_flags.jazz:
 
@@ -199,6 +201,10 @@ Allowed args compatible with the input (except on immediate sizes) are:
 All allowed args (regardless of the input) are:
   [[reg]; [reg]]
   [[reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+
+fail/arm-m4/muls_conditional.jazz:
+
+"fail/arm-m4/muls_conditional.jazz", line 5 (15-21): unknown primitive: "MULScc" (this mnemonic cannot both set flags and be conditional)
 
 fail/arm-m4/mvn_imm_shifted.jazz:
 
@@ -541,6 +547,20 @@ compilation error in function assumes_alignment:
 stack allocation: argument a is used with 32-bit alignment at:
 "fail/common/alignment.jazz", line 2 (2-32)
 
+fail/common/alignment.jazz:
+
+"fail/common/alignment.jazz", line 1 (42-43):
+compilation error in function assumes_alignment:
+stack allocation: argument a is used with 32-bit alignment at:
+"fail/common/alignment.jazz", line 2 (2-32)
+
+fail/common/alignment_internal.jazz:
+
+"fail/common/alignment_internal.jazz", line 8 (29-30):
+compilation error in function main:
+stack allocation: argument a is used with 32-bit alignment at:
+"fail/common/alignment_internal.jazz", line 10 (2-23)
+
 fail/common/alignment_internal.jazz:
 
 "fail/common/alignment_internal.jazz", line 8 (29-30):
@@ -580,6 +600,12 @@ fail/common/bug_1214.jazz:
 compilation error in function main:
 stack allocation: the region associated to variable x is partial
 
+fail/common/bug_1214.jazz:
+
+"fail/common/bug_1214.jazz", line 13 (6-7):
+compilation error in function main:
+stack allocation: the region associated to variable x is partial
+
 fail/common/inline-remains.jazz:
 
 "fail/common/inline-remains.jazz", line 4 (2) to line 8 (3):
@@ -597,6 +623,18 @@ fail/common/inline-remains.jazz:
 "fail/common/inline-remains.jazz", line 4 (2) to line 8 (3):
 compilation error in function main:
 loop unrolling: “inline”-annotated instructions remain
+
+fail/common/inline-remains.jazz:
+
+"fail/common/inline-remains.jazz", line 4 (2) to line 8 (3):
+compilation error in function main:
+loop unrolling: “inline”-annotated instructions remain
+
+fail/common/not-unrollable-for-loop.jazz:
+
+"fail/common/not-unrollable-for-loop.jazz", line 6 (4) to line 8 (5):
+compilation error in function main:
+loop unrolling: for loops remain
 
 fail/common/not-unrollable-for-loop.jazz:
 
@@ -634,6 +672,28 @@ fail/common/overlay_live.jazz:
 compilation error in function overlay_live:
 stack allocation: the region associated to variable t1 is partial
 
+fail/common/overlay_live.jazz:
+
+"fail/common/overlay_live.jazz", line 10 (6-8):
+compilation error in function overlay_live:
+stack allocation: the region associated to variable t1 is partial
+
+fail/common/shift_sign.jazz:
+
+"fail/common/shift_sign.jazz", line 2 (8-11): invalid operator >>s 32u
+
+fail/common/shift_sign.jazz:
+
+"fail/common/shift_sign.jazz", line 2 (8-11): invalid operator >>s 32u
+
+fail/common/shift_sign.jazz:
+
+"fail/common/shift_sign.jazz", line 2 (8-11): invalid operator >>s 32u
+
+fail/common/shift_sign.jazz:
+
+"fail/common/shift_sign.jazz", line 2 (8-11): invalid operator >>s 32u
+
 fail/common/storage_signature_mismatch.jazz:
 
 "fail/common/storage_signature_mismatch.jazz", line 1 (0) to line 4 (1): In function “sum”, return statement variable “r” has storage type “reg”, which differs from declared return storage type “stack”
@@ -645,6 +705,14 @@ fail/common/storage_signature_mismatch.jazz:
 fail/common/storage_signature_mismatch.jazz:
 
 "fail/common/storage_signature_mismatch.jazz", line 1 (0) to line 4 (1): In function “sum”, return statement variable “r” has storage type “reg”, which differs from declared return storage type “stack”
+
+fail/common/storage_signature_mismatch.jazz:
+
+"fail/common/storage_signature_mismatch.jazz", line 1 (0) to line 4 (1): In function “sum”, return statement variable “r” has storage type “reg”, which differs from declared return storage type “stack”
+
+fail/common/typealias_annotation_param.jazz:
+
+"fail/common/typealias_annotation_param.jazz", line 4 (32-41): attribute for “stackzerosize” should be a word size
 
 fail/common/typealias_annotation_param.jazz:
 
@@ -670,6 +738,14 @@ fail/common/typealias_arrayelement.jazz:
 
 "fail/common/typealias_arrayelement.jazz", line 7 (8-9): Type 'x' (ie: 'u64[3]'), defined at "fail/common/typealias_arrayelement.jazz", line 3 (5-6), is not allowed as array element. Only machine words (w8, w16 ...) allowed
 
+fail/common/typealias_arrayelement.jazz:
+
+"fail/common/typealias_arrayelement.jazz", line 7 (8-9): Type 'x' (ie: 'u64[3]'), defined at "fail/common/typealias_arrayelement.jazz", line 3 (5-6), is not allowed as array element. Only machine words (w8, w16 ...) allowed
+
+fail/common/typealias_arrayelement_integer.jazz:
+
+"fail/common/typealias_arrayelement_integer.jazz", line 6 (8-9): Type 'x' (ie: 'int'), defined at "fail/common/typealias_arrayelement_integer.jazz", line 2 (5-6), is not allowed as array element. Only machine words (w8, w16 ...) allowed
+
 fail/common/typealias_arrayelement_integer.jazz:
 
 "fail/common/typealias_arrayelement_integer.jazz", line 6 (8-9): Type 'x' (ie: 'int'), defined at "fail/common/typealias_arrayelement_integer.jazz", line 2 (5-6), is not allowed as array element. Only machine words (w8, w16 ...) allowed
@@ -681,6 +757,10 @@ fail/common/typealias_arrayelement_integer.jazz:
 fail/common/typealias_arrayelement_integer.jazz:
 
 "fail/common/typealias_arrayelement_integer.jazz", line 6 (8-9): Type 'x' (ie: 'int'), defined at "fail/common/typealias_arrayelement_integer.jazz", line 2 (5-6), is not allowed as array element. Only machine words (w8, w16 ...) allowed
+
+fail/common/typealias_duplicate.jazz:
+
+"fail/common/typealias_duplicate.jazz", line 3 (5-6): Type 'x' (ie: 'u64') is already declared at "fail/common/typealias_duplicate.jazz", line 2 (5-6) (with type : 'u64')
 
 fail/common/typealias_duplicate.jazz:
 
@@ -706,6 +786,14 @@ fail/common/typealias_notfound.jazz:
 
 "fail/common/typealias_notfound.jazz", line 2 (8-15): Type 'regtype' not found
 
+fail/common/typealias_notfound.jazz:
+
+"fail/common/typealias_notfound.jazz", line 2 (8-15): Type 'regtype' not found
+
+fail/common/var_initialize_if.jazz:
+
+"fail/common/var_initialize_if.jazz", line 2 (18-20): parse error
+
 fail/common/var_initialize_if.jazz:
 
 "fail/common/var_initialize_if.jazz", line 2 (18-20): parse error
@@ -717,6 +805,10 @@ fail/common/var_initialize_if.jazz:
 fail/common/var_initialize_if.jazz:
 
 "fail/common/var_initialize_if.jazz", line 2 (18-20): parse error
+
+fail/common/var_initialize_undecl.jazz:
+
+"fail/common/var_initialize_undecl.jazz", line 2 (14-15): unknown variable: `x'
 
 fail/common/var_initialize_undecl.jazz:
 
@@ -743,6 +835,10 @@ fail/dead_code/x86-64/while_loop_iterator.jazz:
 internal compilation error in function main:
   dead code: loop iterator too small
 Please report at https://github.com/jasmin-lang/jasmin/issues
+
+fail/namespaces/common/duplicate.jazz:
+
+"fail/namespaces/common/duplicate.jazz", line 2 (13-23): The function A::f is already declared at "fail/namespaces/common/duplicate.jazz", line 1 (13-23)
 
 fail/namespaces/common/duplicate.jazz:
 
@@ -1040,6 +1136,27 @@ linearization: The following assignment remains:
 x11 = x10
 Is there an instruction in the target architecture that can implement it?
 More information may be found online: https://jasmin-lang.readthedocs.io/en/stable/misc/faq.html#linearization
+
+fail/slh/armv8a/protect_16.jazz:
+
+"fail/slh/armv8a/protect_16.jazz", line 9 (4-28):
+compilation error in function foo:
+speculative execution lowering: The architecture does not provides protection for selective speculative load hardening
+                                Did you run the speculative constant time checker first?
+
+fail/slh/armv8a/protect_8.jazz:
+
+"fail/slh/armv8a/protect_8.jazz", line 9 (4-27):
+compilation error in function foo:
+speculative execution lowering: The architecture does not provides protection for selective speculative load hardening
+                                Did you run the speculative constant time checker first?
+
+fail/slh/armv8a/protect_memory.jazz:
+
+"fail/slh/armv8a/protect_memory.jazz", line 15 (4-31):
+compilation error in function foo:
+speculative execution lowering: The architecture does not provides protection for selective speculative load hardening
+                                Did you run the speculative constant time checker first?
 
 fail/slh/x86-64/assign_kills_msf.jazz:
 
@@ -1609,6 +1726,10 @@ fail/x86-64/bug_1366.jazz:
 
 "fail/x86-64/bug_1366.jazz", line 2 (2-21): invalid number of lvalues, 1 provided instead of 2
 
+fail/x86-64/bug_1441.jazz:
+
+"fail/x86-64/bug_1441.jazz", line 3 (11-15): invalid operator >>s 4u32
+
 fail/x86-64/cast_msb_merge.jazz:
 
 "fail/x86-64/cast_msb_merge.jazz", line 3 (2-30): primitive operator ADD_16 does not support zero-extension to 32
@@ -1761,8 +1882,8 @@ Allowed args are:
   [[reg]; [reg; mem (glob allowed)]]
 
 Statistics:
-	Annots:      4
-	Pretyping:  52
-	Parsing:     4
+	Annots:      5
+	Pretyping:  65
+	Parsing:     5
 	Typing:      5
-	Compile:   218
+	Compile:   227

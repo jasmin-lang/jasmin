@@ -62,6 +62,10 @@ Definition truncatable wdb ty v :=
 Lemma truncatable_arr wdb len a : truncatable wdb (carr len) (@Varr len a).
 Proof. by rewrite /truncatable /= eqxx. Qed.
 
+Lemma truncatable_cword ws (v: word ws) :
+  truncatable true (cword ws) (Vword v).
+Proof. by rewrite /= cmp_le_refl orbT. Qed.
+
 Definition vm_truncate_val ty v :=
  match v, ty with
  | Vbool _, cbool => v

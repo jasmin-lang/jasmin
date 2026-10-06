@@ -1127,10 +1127,6 @@ Lemma isSome_omap aT bT (f : aT -> bT) (o : option aT) :
   isSome (Option.map f o) = isSome o.
 Proof. by case: o. Qed.
 
-(* is it not just List.flat_map? *)
-Definition conc_map aT bT (f : aT -> seq bT) (l : seq aT) :=
-  flatten (map f l).
-
 (* -------------------------------------------------------------------------- *)
 (* Operators to build comparison                                              *)
 (* ---------------------------------------------------------------------------*)

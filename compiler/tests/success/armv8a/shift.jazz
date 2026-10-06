@@ -1,0 +1,16 @@
+export
+fn shift(reg u64 arg0, reg u64 arg1) -> reg u64 {
+    reg u64 x;
+
+    x = arg0 << 1;
+    x = x << 63;
+    x = x >> 2;
+    x = x >>s 3;
+    // Variable shifts: the amount must be masked to the operand size
+    // (the A64 register shifts reduce it modulo the operand size).
+    x = x << (arg1 & 63);
+    x = x >> (arg1 & 63);
+    x = x >>s (arg1 & 63);
+    x = #ROR(x, 7);
+    return x;
+}

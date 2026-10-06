@@ -233,19 +233,19 @@ Fixpoint lower_i (i : instr) : cmd :=
         then map (fun '(lvs', op', es') => Copn lvs' tag op' es') l
         else [:: ir]
       in map (MkI ii) seq_ir
-      
+
   | Cif e c1 c2  =>
-      let c1' := conc_map lower_i c1 in
-      let c2' := conc_map lower_i c2 in
+      let c1' := List.flat_map lower_i c1 in
+      let c2' := List.flat_map lower_i c2 in
         [:: MkI ii (Cif e c1' c2')]
 
   | Cfor v r c =>
-      let c' := conc_map lower_i c in
+      let c' := List.flat_map lower_i c in
       [:: MkI ii (Cfor v r c') ]
 
   | Cwhile a c0 e info c1 =>
-      let c0' := conc_map lower_i c0 in
-      let c1' := conc_map lower_i c1 in
+      let c0' := List.flat_map lower_i c0 in
+      let c1' := List.flat_map lower_i c1 in
       [:: MkI ii (Cwhile a c0' e info c1')]
 
   | _ =>

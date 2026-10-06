@@ -1,0 +1,12 @@
+export
+fn mul(reg u64 arg0, reg u64 arg1) -> reg u64 {
+    reg u64 x y;
+
+    x = arg0 * arg1;
+    y = x + arg0 * arg1;     // MADD.
+    y = y - arg0 * arg1;     // MSUB.
+    x = #MADD(arg0, arg1, y);
+    x = #MSUB(arg0, arg1, x);
+    x = x + y;
+    return x;
+}

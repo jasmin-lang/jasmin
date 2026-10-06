@@ -829,11 +829,17 @@ let op_info exn op (s : W.signedness option) (castop:S.castop) ty ws_cmp vs_cmp 
       in
       check_op_w loc op ty s ws_cmp
 
-    | CVS(vs,s,ve) ->
-      let s = tt_sign s in
+    | CVS(vs, sg, ve) ->
+      let sg = tt_sign sg in
+      (* Check the consistency between the sign annotation [s] of the operator
+      and the sign [sg] of the vector elements *)
+      Option.may (fun s ->
+          if s <> sg then
+            rs_tyerror ~loc (InvalidOperator op)
+        ) s;
       let ve, ws = tt_vsize_op loc op vs ve in
       check_op_vec loc op vs_cmp (W.wsize_of_velem ve);
-      OpKV(s, ve, ws)
+      OpKV(sg, ve, ws)
 
 
 
@@ -1011,17 +1017,17 @@ let peop2_of_eqop (eqop : S.peqop) =
 
 (* -------------------------------------------------------------------- *)
 
-let wk_s_ws (s: W.signedness option) (ws: W.wsize) =
+let wk_s_ws (s: W.signedness option) =
   let wk = if s = None then Word else WInt in
   let s = Option.default W.Unsigned s in
-  (wk, s, ws)
+  (wk, s)
 
-let op_word_of_int (wk, s, ws) =
+let op_word_of_int (wk, s) ws =
   match wk with
   | Word -> Oword_of_int ws
   | WInt -> Owi1(s, WIwint_of_int ws)
 
-let op_int_of_word (wk, s, ws) =
+let op_int_of_word (wk, s) ws =
   match wk with
   | Word -> Oint_of_word (s, ws)
   | WInt -> Owi1(s, WIint_of_wint ws)
@@ -1029,13 +1035,13 @@ let op_int_of_word (wk, s, ws) =
 let cast loc e ety ty =
   match ety, ty with
   | P.ETint, P.ETword(s,ws) ->
-    let op = op_word_of_int (wk_s_ws s ws) in
+    let op = op_word_of_int (wk_s_ws s) ws in
     P.Papp1(op, e)
 
   | P.ETword(s, ws), P.ETint ->
     (* FIXME do we really want to keep this cast word -> int implicit?
        Since we can use to_uint or to_sint ... *)
-    let op = op_int_of_word (wk_s_ws s ws) in
+    let op = op_int_of_word (wk_s_ws s) ws in
     P.Papp1(op, e)
 
   | P.ETword(None, w1), P.ETword(None, w2) when W.wsize_cmp w1 w2 <> Datatypes.Lt -> e
@@ -1045,34 +1051,22 @@ let cast loc e ety ty =
   | P.ETarr _, P.ETarr _ -> e (* we delay typechecking until we know the lengths *)
   | _  ->  rs_tyerror ~loc (InvalidCast(ety,ty))
 
-(*
-let cast_word loc ws e ety =
-  match ety with
-  | P.Bty P.Int   -> P.Papp1 (Oword_of_int ws, e), ws
-  | P.Bty (P.U ws1) -> e, ws1
-  | _             ->  rs_tyerror ~loc (InvalidCast(ety,P.Bty (P.U ws)))
-*)
-
+(** Builds an expression of type int from expression e whose type is ety. The
+optional signedness information os tells which conversion to use. *)
 let cast_int loc os e ety =
   match ety with
   | P.ETint -> e
   | P.ETword (s, ws) ->
-    let wk, s, ws = wk_s_ws s ws in
+    let wk, s = wk_s_ws s in
     let s =
       match wk, os with
-      | _, None ->
-       if wk = Word then
-          Utils.warning Deprecated (L.i_loc0 loc)
-            "Syntax (int)e when e has type %a is deprecated. Use (uint)e of (sint)e instead"
-            (fun fmt -> PrintCommon.pp_btype fmt) (P.U ws);
-        s
+      | _, None -> s
       | Word, Some s -> tt_sign s
       | WInt, Some s' ->
-        (* FIXME: Should we do a better error message ? *)
-        if tt_sign s' <> s then rs_tyerror ~loc (InvalidCast(ety,P.etint));
+        if tt_sign s' <> s then rs_tyerror ~loc (InvalidCast(ety, P.etw ws));
         s
     in
-    let op = op_int_of_word(wk, s, ws) in
+    let op = op_int_of_word(wk, s) ws in
     P.Papp1(op, e)
   | _ -> rs_tyerror ~loc (InvalidCast(ety,P.etint))
 
@@ -1091,7 +1085,7 @@ let conv_cty : T.atype -> P.epty = function
     | T.Coq_aarr (ws, n) -> P.ETarr (ws, PE (P.cnst (Conv.z_of_cz n)))
 
 let type_of_op2 op =
-  let (ty1, ty2), tyo = E.etype_of_op2 op in
+  let (ty1, ty2), tyo = Operators.etype_of_op2 op in
   conv_ty ty1, conv_ty ty2, conv_ty tyo
 
 let tt_op2 (loc1, (e1, ety1)) (loc2, (e2, ety2))
@@ -1119,7 +1113,7 @@ let tt_op2 (loc1, (e1, ety1)) (loc2, (e2, ety2))
     P.Papp2(op, e1, e2), tyo
 
 let type_of_op1 op =
-  let ty, tyo = E.etype_of_op1 op in
+  let ty, tyo = Operators.etype_of_op1 op in
   conv_ty ty, conv_ty tyo
 
 let tt_op1 (loc1, (e1, ety1)) { L.pl_desc = pop; L.pl_loc = loc } =
@@ -1221,7 +1215,7 @@ let word_of_wint wint_of_word ws (cast : W.signedness option) e =
 let array_of_string s =
   s |> String.to_list |> List.map @@ fun c ->
   c |> Char.code |> Z.of_int |> fun z ->
-  P.(Papp1 (op_word_of_int(Word, W.Unsigned, W.U8), Pconst z))
+  P.(Papp1 (op_word_of_int (Word, W.Unsigned) W.U8, Pconst z))
 
 (* -------------------------------------------------------------------- *)
 let create_min_e _pd loc args =
@@ -1275,7 +1269,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     let ws = tt_mem_wsize (P.ws_of_ety ty) ws in
     let ty = P.etw ws in
     let i,ity  = tt_expr ~mode pd env pi in
-    let i = cast_int (L.loc pi) (Some `Unsigned) i ity in
+    let i = cast_int (L.loc pi) None i ity in
     begin match olen with
     | None ->
        let al = tt_al al in
@@ -1293,7 +1287,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
 
     begin match op with
     | `Cast (`ToInt s) ->
-      let e = cast_int (L.loc pe) s e ety in
+      let e = cast_int (L.loc pe) (Some s) e ety in
       e, P.etint
 
     | `Cast (`ToWord (sz, sg)) ->
@@ -1349,7 +1343,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
   | S.PECombF(id, args) ->
     begin match List.assoc (L.unloc id) combine_flags with
     | c ->
-      let nexp = List.length Expr.tin_combine_flags in
+      let nexp = List.length Operators.tin_combine_flags in
       let nargs = List.length args in
       if nargs <> nexp then
         rs_tyerror ~loc:(L.loc pe) (InvalidArgCount(nargs, nexp));
@@ -1509,7 +1503,7 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
     let ws = tt_mem_wsize (P.ws_of_ety ty) ws in
     let ty = P.etw ws in
     let i,ity  = tt_expr ~mode:`AllVar pd env pi in
-    let i = cast_int (L.loc pi) (Some `Unsigned) i ity in
+    let i = cast_int (L.loc pi) None i ity in
     begin match olen with
     | None ->
       let al = tt_al al in
@@ -2562,7 +2556,7 @@ let tt_global pd (env : 'asm Env.env) _loc (gd: S.pglobal) : 'asm Env.env =
     match ety with
     | P.ETword(wk, ews) when wk = None && Utils0.cmp_le Wsize.wsize_cmp ws ews ->
       L.unloc pe
-    | P.ETint -> Papp1 (op_word_of_int(Word, W.Unsigned, ws), L.unloc pe)
+    | P.ETint -> Papp1 (op_word_of_int (Word, W.Unsigned) ws, L.unloc pe)
     | _ -> rs_tyerror ~loc:(L.loc pe) (TypeMismatch (ety, P.etw ws))
     in
 
@@ -2581,7 +2575,8 @@ let tt_global pd (env : 'asm Env.env) _loc (gd: S.pglobal) : 'asm Env.env =
     | ty,_ -> rs_tyerror ~loc:(L.loc gd.S.pgd_type) (InvalidTypeForGlobal ty)
   in
 
-  let x = mk_var (L.unloc gd.S.pgd_name) W.Global ty (L.loc gd.S.pgd_name) [] in
+  let annot = pannot_to_annotations gd.S.pgd_annot in
+  let x = mk_var (L.unloc gd.S.pgd_name) W.Global ty (L.loc gd.S.pgd_name) annot in
 
   Env.Vars.push_global env (x,ty,d)
 

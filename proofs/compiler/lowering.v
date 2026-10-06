@@ -36,7 +36,7 @@ Notation lower_i :=
   (lower_i0 warning fv).
 
 Definition lower_cmd  (c : cmd) : cmd :=
-  conc_map lower_i c.
+  List.flat_map lower_i c.
 
 Definition lower_fd (fd : fundef) : fundef :=
   with_body fd (lower_cmd (f_body fd)).

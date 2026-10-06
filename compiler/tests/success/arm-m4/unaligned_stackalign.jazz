@@ -1,0 +1,15 @@
+/* The unaligned 16-bit access is taken into account when computing the
+ * alignment for the stack variable, but the frame alignment is floored at
+ * u32: Armv7-M forces stack-pointer writes to 4-byte alignment (Arm v7-M
+ * Architecture Reference Manual, B1.5.7). */
+#[stackalign=u32, callee_saved = 0]
+export
+fn instack(reg u32 x) -> reg u32 {
+  reg u32 r;
+  stack u8[3] s;
+  r = 0;
+  s[0] = r;
+  s.[:u16 1] = (16u)x;
+  r = (32s)s[:u8 1];
+  return r;
+}

@@ -345,8 +345,9 @@ let pp_pgexpr fmt = function
       (pp_list ",@ " pp_expr) es
       closebrace ()
 
-let pp_global fmt { pgd_type ; pgd_name ; pgd_val } =
-  F.fprintf fmt "%a %a = %a;"
+let pp_global fmt { pgd_annot ; pgd_type ; pgd_name ; pgd_val } =
+  F.fprintf fmt "%a%a %a = %a;"
+    pp_annotations pgd_annot
     pp_type pgd_type
     dname (L.unloc pgd_name)
     pp_pgexpr pgd_val

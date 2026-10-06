@@ -4,6 +4,9 @@
 , coqDeps ? !inCI
 , coqMaster ? false
 , ocamlDeps ? !inCI
+, pyDeps ? testDeps
+, runDeps ? testDeps
+, safetyDeps ? !inCI
 , testDeps ? !inCI
 , devTools ? !inCI
 , ecRef ? ""
@@ -17,7 +20,7 @@ let inherit (lib) optionals; in
 
 let coqPackages =
   if coqMaster then
-    let elpi-version = "3.7.1"; in
+    let elpi-version = "3.8.0"; in
     let rocqPackages = pkgs.rocqPackages.overrideScope (self: super: {
       rocq-core = super.rocq-core.override { version = "master"; };
       rocq-elpi = super.rocq-elpi.override { version = "master"; inherit elpi-version; };
@@ -29,6 +32,7 @@ let coqPackages =
       coq = super.coq.override { version = "master"; inherit rocqPackages; };
       inherit (rocqPackages) stdlib;
       mathcomp = super.mathcomp.override { version = "master"; };
+      mathcomp-word = super.mathcomp-word.override { version = "master"; };
       mathcomp-zify = super.mathcomp-zify.override { version = "master"; };
       coq-elpi = super.coq-elpi.override { version = "master"; inherit elpi-version; };
       hierarchy-builder = super.hierarchy-builder.override { version = "master"; };
@@ -43,10 +47,9 @@ let coqPackages =
       };
       hierarchy-builder = super.hierarchy-builder.override { version = "1.9.1"; };
       mathcomp = super.mathcomp.override { version = "2.4.0"; };
-  })
+      mathcomp-word = callPackage scripts/mathcomp-word.nix { inherit super; };
+    })
 ; in
-
-let mathcomp-word = callPackage scripts/mathcomp-word.nix { inherit coqPackages; }; in
 
 let easycrypt = callPackage scripts/easycrypt.nix {
   inherit ecRef;
@@ -80,17 +83,21 @@ stdenv.mkDerivation {
   buildInputs = []
     ++ optionals coqDeps [
       coqPackages.coq
-      mathcomp-word
+      coqPackages.mathcomp-word
       coqPackages.ITree
     ]
-    ++ optionals testDeps ([ curl.bin oP.apron.out llvmPackages.bintools-unwrapped ] ++ (with python3Packages; [ python pyyaml ]))
-    ++ optionals ocamlDeps ([ dune ppl ] ++ (with oP; [
+    ++ optionals runDeps [ curl.bin gmp ]
+    ++ optionals pyDeps (with python3Packages; [ python pyyaml ])
+    ++ optionals testDeps [ llvmPackages.bintools-unwrapped ]
+    ++ optionals safetyDeps [ oP.apron.out ]
+    ++ optionals ocamlDeps ([ dune ] ++ (with oP; [
          ocaml findlib
          cmdliner
          angstrom
          batteries
-         menhir menhirLib zarith apron yojson ]))
-    ++ optionals devTools (with oP; [ merlin ocaml-lsp ])
+         menhir menhirLib zarith yojson ]))
+    ++ optionals (ocamlDeps && safetyDeps) [ ppl oP.apron ]
+    ++ optionals devTools ([ coqPackages.coq-lsp ] ++ (with oP; [ merlin ocaml-lsp ]))
     ++ optionals ecDeps [ easycrypt z3.out ]
     ++ optionals opamDeps [ rsync git pkg-config perl ppl mpfr opam ]
     ;

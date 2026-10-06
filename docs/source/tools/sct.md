@@ -100,14 +100,15 @@ primitive to optimize code by moving misspeculation flag.
     "Exact" state.
     ```
     #msf reg u64 msf;
-    msf = #init_msf();  // Lowered to "lfence; msf = 0"
+    msf = #init_msf();  // Lowered to "lfence; msf = 0" on x86-64
                         // at this point msf is in Exact state
     ```
 2. Updating the misspeculation flag:
 
     `update_msf` is used to update the misspeculation flag using the
-    branch condition and branchless CMOVxx instruction. This will move
-    the msf from "Conditioned on b" to "Exact" state.
+    branch condition and a branchless conditional move (CMOVcc on x86-64,
+    CSEL on ARMv8-A). This will move the msf from "Conditioned on b" to
+    "Exact" state.
 
     ```
     reg bool b;
@@ -134,9 +135,10 @@ primitive to optimize code by moving misspeculation flag.
     it is misspeculating. If not misspeculating, the msf will be 0.
     else, it will be -1. There are other variants like `protect_8`,
     `protect_16`, `protect_32` etc.. to protect different sizes of
-    register variable.
+    register variable; the sizes available depend on the architecture.
     ```
     x = #protect(x, msf);       // Lowered to "x = x | msf;"
+                                // (followed by CSDB on ARMv8-A)
     ```
 4. Moving misspeculation flag:
 
@@ -239,7 +241,11 @@ jasminc -checkSCTon encrypt <filename.jazz>
 ### Additional examples and test cases
 For more examples please have a look at success
 `compiler/tests/success/slh/x86-64` and failure
-`compiler/tests/fail/slh/x86-64` test cases in the source code.
+`compiler/tests/fail/slh/x86-64` test cases in the source code, and at
+`compiler/tests/success/slh/armv8a` and `compiler/tests/fail/slh/armv8a`
+for ARMv8-A. The lowering of these primitives on each architecture, and the
+speculative behaviours that it does not take into account, are described in
+[Lowering of SLH instructions](../compiler/passes/lower_slh).
 [Libjade](https://github.com/formosa-crypto/libjade) a formally
 verified cryptographic library uses this framework to protect its
 implementations from Spectre v1 attack.

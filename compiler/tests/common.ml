@@ -15,8 +15,9 @@ and check_path check_file archs prefix errors filename =
           [
             ("x86-64", X86_64 :: archs);
             ("arm-m4", ARM_M4 :: archs);
+            ("armv8a", ARMv8A :: archs);
             ("risc-v", RISCV :: archs);
-            ("common", [ X86_64; ARM_M4; RISCV ]);
+            ("common", [ X86_64; ARM_M4; ARMv8A; RISCV ]);
           ]
       with Not_found -> archs
     in

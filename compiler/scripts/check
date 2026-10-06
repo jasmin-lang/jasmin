@@ -20,7 +20,7 @@ mkdir -p $DIR
 
 set -x
 
-$(dirname $0)/../jasminc -g -o ${ASM} "$@"
+$(dirname $0)/../jasminc -g -system linux -o ${ASM} "$@"
 # Negative test cases should have failed by now
 # Succeed early if it’s not the case (i.e., do not try to assemble the result)
 (echo $@ | grep -q fail) && exit 0
@@ -32,6 +32,9 @@ elif [ $ARCH = "riscv" ]
 then
      # +m enables integer multiplication
      ASARGS="--triple=riscv32 --mcpu=generic-rv32 -mattr=+m"
+elif [ $ARCH = "armv8a" ]
+then
+    ASARGS="--triple=aarch64"
 else
     ASARGS="--triple=x86_64"
 fi

@@ -19,6 +19,6 @@ export fn load_from_mem(reg ptr u8[N] out, reg u64 in) -> reg ptr u8[N] {
   }
 ]
 export fn load_byte(reg si64 ofs, reg ptr u8[8] t) -> reg u8 {
-  reg u8 r = t[(int)ofs];
+  reg u8 r = t[ofs];
   return r;
 }

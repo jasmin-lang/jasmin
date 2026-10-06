@@ -1,20 +1,13 @@
 (* -------------------------------------------------------------------- *)
 require import AllCore List Bool.
 require export JModel_common JArray JWord_array JMemory JLeakage Jslh.
+require export JModel_arm.
 
 
 abbrev ptr_modulus = 2^32.
 
 (* -------------------------------------------------------------------- *)
-op nzcv (r: W32.t) (u s: int) : bool * bool * bool * bool =
-  (W32.msb r,
-   r = W32.zero,
-   to_uint r <> u,
-   to_sint r <> s).
-
-abbrev with_nzcv r u s =
-  let (n, z, c, v) = nzcv r u s in
-  (n, z, c, v, r).
+(* [nzcv] and [with_nzcv] come from JModel_arm. *)
 
 op nzc (r: W32.t) : bool * bool * bool =
   (W32.msb r,
@@ -44,78 +37,63 @@ op with_nzc_shift
    r).
 
 (* -------------------------------------------------------------------- *)
-op ADDS (x y: W32.t) : bool * bool * bool * bool * W32.t =
-  let r = x + y in
-  with_nzcv r (to_uint x + to_uint y) (to_sint x + to_sint y).
-op ADD x y = let (_n, _z, _c, _v, r) = ADDS x y in r.
+abbrev [-printing] ADDS = ADDS_32.
+abbrev [-printing] ADD = JModel_arm.ADD_32.
 op ADDScc x y g n z c v o = if g then ADDS x y else (n, z, c, v, o).
 op ADDcc x y g o = if g then ADD x y else o.
 
-op ADCS (x y: W32.t) (c: bool) : bool * bool * bool * bool * W32.t =
-  let r = x + y + if c then W32.one else W32.zero in
-  with_nzcv r (to_uint x + to_uint y + b2i c) (to_sint x + to_sint y + b2i c).
-op ADC x y c = let (_n, _z, _c, _v, r) = ADCS x y c in r.
+abbrev [-printing] ADCS = ADCS_32.
+abbrev [-printing] ADC = JModel_arm.ADC_32.
 op ADCScc x y b g n z c v o = if g then ADCS x y b else (n, z, c, v, o).
 op ADCcc x y c g o = if g then ADC x y c else o.
 
 op ANDS (x y: W32.t) : bool * bool * bool * W32.t =
   with_nzc (andw x y).
-op AND x y = let (_n, _z, _c, r) = ANDS x y in r.
+abbrev [-printing] AND = JModel_arm.AND_32.
 op ANDScc x y g n z c o = if g then ANDS x y else (n, z, c, o).
 op ANDcc x y g o = if g then AND x y else o.
 
-op BFC (x: W32.t) (lsb width: W8.t) : W32.t =
-  let lsbit = to_uint lsb in
-  let msbit = lsbit + to_uint width - 1 in
-  W32.init (fun i => if lsbit <= i <= msbit then false else x.[i]).
+abbrev [-printing] BFC = BFC_32.
 op BFCcc x lsb width g o = if g then BFC x lsb width else o.
 
-op BFI (x y: W32.t) (lsb width: W8.t) : W32.t =
-  let lsbit = to_uint lsb in
-  let msbit = lsbit + to_uint width - 1 in
-  W32.init (fun i => if lsbit <= i <= msbit then y.[i - lsbit] else x.[i]).
+abbrev [-printing] BFI = BFI_32.
 op BFIcc x y lsb width g o = if g then BFI x y lsb width else o.
 
 op BICS (x y: W32.t) : bool * bool * bool * W32.t =
   with_nzc (andw x (invw y)).
-op BIC x y = let (_n, _z, _c, r) = BICS x y in r.
+abbrev [-printing] BIC = BIC_32.
 op BICScc x y g n z c o = if g then BICS x y else (n, z, c, o).
 op BICcc x y g o = if g then BIC x y else o.
 
 
-op CLZ (x: W32.t) : W32.t =
-  W32.of_int (lzcnt (rev (w2bits x))).
+abbrev [-printing] CLZ = CLZ_32.
 op CLZcc x g o = if g then CLZ x else o.
 
-op CMN (x y: W32.t) : bool * bool * bool * bool =
-let r = x + y in
-  nzcv r (to_uint x + to_uint y) (to_sint x + to_sint y).
+abbrev [-printing] CMN = CMN_32.
 op CMNcc x y g n z c v = if g then CMN x y else (n, z, c, v).
 
-op CMP (x y: W32.t) : bool * bool * bool * bool =
-  let r = x - y in
-  nzcv r (to_uint x - to_uint y) (to_sint x - to_sint y).
+abbrev [-printing] CMP = JModel_arm.CMP_32.
 op CMPcc x y g n z c v = if g then CMP x y else (n, z, c, v).
 
 op EORS (x y: W32.t) : bool * bool * bool * W32.t =
   with_nzc (x +^ y).
-op EOR x y = let (_n, _z, _c, r) = EORS x y in r.
+abbrev [-printing] EOR = EOR_32.
 op EORScc x y g n z c o = if g then EORS x y else (n, z, c, o).
 op EORcc x y g o = if g then EOR x y else o.
 
-op LDR (x: W32.t) : W32.t = x.
+abbrev [-printing] LDR = LDR_32.
 op LDRcc x g o = if g then LDR x else o.
 
-op LDRB (x: W8.t) : W32.t = W32.of_int (W8.to_uint x).
+abbrev [-printing] LDRB = LDRB_32.
 op LDRBcc x g o = if g then LDRB x else o.
 
-op LDRH (x: W16.t) : W32.t = W32.of_int (W16.to_uint x).
+abbrev [-printing] LDRH = LDRH_32.
 op LDRHcc x g o = if g then LDRH x else o.
 
-op LDRSB (x: W8.t) : W32.t = W32.of_int (W8.to_sint x).
+abbrev [-printing] LDRSB = LDRSB_32.
 op LDRSBcc x g o = if g then LDRSB x else o.
 
-op LDRSH (x: W16.t) : W32.t = W32.of_int (W16.to_sint x).
+abbrev [-printing] LDRSH = LDRSH_32.
 op LDRSHcc x g o = if g then LDRSH x else o.
 
 op ASR_C (wn : W32.t) (shift : int) =
@@ -153,7 +131,7 @@ op LSRcc x y g o = if g then LSR x y else o.
 
 op MOVS (x: W32.t) : bool * bool * bool * W32.t =
   with_nzc x.
-op MOV x = let (_n, _z, _c, r) = MOVS x in r.
+abbrev [-printing] MOV = MOV_32.
 op MOVScc x g n z c o = if g then MOVS x else (n, z, c, o).
 op MOVcc x g o = if g then MOV x else o.
 
@@ -171,19 +149,18 @@ op MLScc m n a g o = if g then MLS m n a else o.
 
 op MULS (x y: W32.t) : bool * bool * W32.t =
   with_nz (x * y).
-op MUL x y = let (_n, _z, r) = MULS x y in r.
-op MULScc x y g n z o = if g then MULS x y else (n, z, o).
+abbrev [-printing] MUL = JModel_arm.MUL_32.
 op MULcc x y g o = if g then MUL x y else o.
 
 op MVNS (x: W32.t) : bool * bool * bool * W32.t =
   with_nzc (invw x).
-op MVN x = let (_n, _z, _c, r) = MVNS x in r.
+abbrev [-printing] MVN = MVN_32.
 op MVNScc x g n z c o = if g then MVNS x else (n, z, c, o).
 op MVNcc x g o = if g then MVN x else o.
 
 op ORRS (x y: W32.t) : bool * bool * bool * W32.t =
   with_nzc (orw x y).
-op ORR x y = let (_n, _z, _c, r) = ORRS x y in r.
+abbrev [-printing] ORR = ORR_32.
 op ORRScc x y g n z c o = if g then ORRS x y else (n, z, c, o).
 op ORRcc x y g o = if g then ORR x y else o.
 
@@ -193,11 +170,10 @@ op ROR x i = let (_n, _z, _c, r) = RORS x i in r.
 op RORScc x i g n z c o = if g then RORS x i else (n, z, c, o).
 op RORcc x i g o = if g then ROR x i else o.
 
-op REV (x : W32.t) : W32.t = W4u8.pack4 (rev (W4u8.to_list x)).
+abbrev [-printing] REV = REV_32.
 op REVcc (x:W32.t) g o = if g then REV x else o.
 
-op REV_16 (x:W16.t) : W16.t = W2u8.pack2 (rev (W2u8.to_list x)).
-op REV16 (x : W32.t) : W32.t = W2u16.map REV_16 x.
+abbrev [-printing] REV16 = REV16_32.
 op REV16cc (x:W32.t) g o = if g then REV16 x else o.
 
 op REVSH (x: W32.t) = sigextu32 (REV_16 (x \bits16 0)).
@@ -209,33 +185,28 @@ op RSB x y = let (_n, _z, _c, _v, r) = RSBS x y in r.
 op RSBScc x y g n z c v o = if g then RSBS x y else (n, z, c, v, o).
 op RSBcc x y g o = if g then RSB x y else o.
 
-op SBFX (x: W32.t) (i j: W8.t) : W32.t =
-  let k = 32 - to_uint j in
-  (x `<<<` (k - to_uint i)) `|>>>` k.
+abbrev [-printing] SBFX = SBFX_32.
 op SBFXcc x i j g o = if g then SBFX x i j else o.
 
-op SDIV (x y: W32.t) : W32.t =
-  x \sdiv y.
+abbrev [-printing] SDIV = SDIV_32.
 op SDIVcc x y g o = if g then SDIV x y else o.
 
-op STR (x: W32.t) : W32.t = x.
+abbrev [-printing] STR = STR_32.
 op STRcc x g o = if g then STR x else o.
 
-op STRB (x: W8.t) : W8.t = x.
+abbrev [-printing] STRB = STRB_32.
 op STRBcc x g o = if g then STRB x else o.
 
-op STRH (x: W16.t) : W16.t = x.
+abbrev [-printing] STRH = STRH_32.
 op STRHcc x g o = if g then STRH x else o.
 
-op SUBS (x y: W32.t) : bool * bool * bool * bool * W32.t =
-  ADCS x (invw y) true.
-op SUB x y = let (_n, _z, _c, _v, r) = SUBS x y in r.
+abbrev [-printing] SUBS = SUBS_32.
+abbrev [-printing] SUB = JModel_arm.SUB_32.
 op SUBScc x y g n z c v o = if g then SUBS x y else (n, z, c, v, o).
 op SUBcc x y g o = if g then SUB x y else o.
 
-op SBCS (x y: W32.t) (c: bool) : bool * bool * bool * bool * W32.t =
-  ADCS x (invw y) c.
-op SBC x y c = let (_n, _z, _c, _v, r) = SBCS x y c in r.
+abbrev [-printing] SBCS = SBCS_32.
+abbrev [-printing] SBC = SBC_32.
 op SBCScc x y b g n z c v o = if g then SBCS x y b else (n, z, c, v, o).
 op SBCcc x y c g o = if g then SBC x y c else o.
 
@@ -243,13 +214,10 @@ op TST (x y: W32.t) : bool * bool * bool =
   nzc (andw x y).
 op TSTcc x y g n z c = if g then TST x y else (n, z, c).
 
-op UBFX (x: W32.t) (i j: W8.t) : W32.t =
-  let k = 32 - to_uint j in
-  (x `<<<` (k - to_uint i)) `>>>` k.
+abbrev [-printing] UBFX = UBFX_32.
 op UBFXcc x i j g o = if g then UBFX x i j else o.
 
-op UDIV (x y: W32.t) : W32.t =
-  x \udiv y.
+abbrev [-printing] UDIV = UDIV_32.
 op UDIVcc x y g o = if g then UDIV x y else o.
 
 op UMULL (x y: W32.t) : W32.t * W32.t =

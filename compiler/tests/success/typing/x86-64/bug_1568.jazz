@@ -1,0 +1,9 @@
+export fn with_si() -> reg u32 {
+  stack u32[2] data;
+  reg u32 zero = 0;
+  data[0] = zero;
+  reg si64 idx = 1;
+  data[idx] = zero;
+  reg u32 res = data[idx];
+  return res;
+}

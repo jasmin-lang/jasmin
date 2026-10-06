@@ -13,7 +13,9 @@ all: proofs.ec $(EXTRACTED)
 clean:
 	$(RM) $(EXTRACTED)
 
+globals_unsigned.ec: JASMIN2ECFLAGS = --global-model sign=unsigned
+
 %.ec: %.jazz $(JASMIN2EC)
-	$(JASMIN2EC) -o $@ $<
+	$(JASMIN2EC) $(JASMIN2ECFLAGS) -o $@ $<
 
 .PHONY: all
