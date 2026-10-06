@@ -2,23 +2,23 @@ open Jasmin
 open SafetyArch
 
 (** ARMv7-M architecture implementation *)
-module Arm_safety
+module Armv7m_safety
   (A: Arch_full.Arch
-      with type reg = Arm_decl.register
+      with type reg = Armv7m_decl.register
        and type regx = Arch_utils.empty
        and type xreg = Arch_utils.empty
        and type rflag = Arm_common.rflag
        and type cond = Arm_common.condt
-       and type asm_op = Arm_instr_decl.arm_op
-       and type extra_op = Arm_extra.arm_extra_op)
+       and type asm_op = Armv7m_instr_decl.arm_op
+       and type extra_op = Armv7m_extra.arm_extra_op)
   : SafetyArch
-    with type reg = Arm_decl.register
+    with type reg = Armv7m_decl.register
      and type regx = Arch_utils.empty
      and type xreg = Arch_utils.empty
      and type rflag = Arm_common.rflag
      and type cond = Arm_common.condt
-     and type asm_op = Arm_instr_decl.arm_op
-     and type extra_op = Arm_extra.arm_extra_op
+     and type asm_op = Armv7m_instr_decl.arm_op
+     and type extra_op = Armv7m_extra.arm_extra_op
   = struct
 
   include A

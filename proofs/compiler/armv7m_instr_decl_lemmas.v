@@ -10,9 +10,9 @@ Require Import
   sem_params_of_arch_extra
   sopn_semi_facts.
 Require Import
-  arm_decl
-  arm_extra
-  arm_instr_decl.
+  armv7m_decl
+  armv7m_extra
+  armv7m_instr_decl.
 
 (* [add_arguments] adds the arguments of the guarded instruction one by one. *)
 Lemma add_arguments_nil A lt f: @add_arguments A [::] lt f = f.

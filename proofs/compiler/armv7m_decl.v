@@ -16,7 +16,7 @@ Require Import
   arch_utils.
 
 Require Export arm_common.
-Require Export arm_expand_imm.
+Require Export armv7m_expand_imm.
 
 (* ARM Cortex-M4 architecture
 

@@ -24,7 +24,7 @@ Require Import
   sopn_semi
   flag_combination
   shift_kind
-  arm_expand_imm.
+  armv7m_expand_imm.
 
 (* -------------------------------------------------------------------- *)
 (* String representation of architecture components.

@@ -17,9 +17,9 @@ Require Import
   arch_sem.
 
 Require Import
-  arm_decl
-  arm_instr_decl
-  arm_params_core.
+  armv7m_decl
+  armv7m_instr_decl
+  armv7m_params_core.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 

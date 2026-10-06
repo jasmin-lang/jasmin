@@ -1668,7 +1668,7 @@ let tt_prim asmOp id =
     end
     | PrimARM _ | exception Not_found ->
        let err msg = tyerror ~loc (UnknownPrim(s, msg)) in
-       Tt_arm_m4.tt_prim err asmOp.Sopn.prim_string name sz
+       Tt_armv7m.tt_prim err asmOp.Sopn.prim_string name sz
   in c
 
 let prim_of_op exn loc o =

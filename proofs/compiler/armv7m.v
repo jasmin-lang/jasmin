@@ -3,8 +3,8 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import utils.
 Require Import arch_decl.
 Require Import
-  arm_decl
-  arm_instr_decl.
+  armv7m_decl
+  armv7m_instr_decl.
 
 (* The evaluation of condition codes ([arm_eval_cond]) is shared with the
    other Arm architectures: see arm_common.v. *)

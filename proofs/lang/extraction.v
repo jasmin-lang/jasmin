@@ -74,10 +74,10 @@ Separate Extraction
   x86_extra
   x86_params
   arm_common
-  arm_decl
-  arm_instr_decl
-  arm_extra
-  arm_params
+  armv7m_decl
+  armv7m_instr_decl
+  armv7m_extra
+  armv7m_params
   riscv_decl
   riscv_instr_decl
   riscv_extra

@@ -1,7 +1,7 @@
 (** This module is meant as the minimal dependency of extracted code. *)
 Require compiler.
 Require psem_defs.
-Require arm_params.
+Require armv7m_params.
 Require x86_params.
 Require riscv_params.
 Require armv8a_params.

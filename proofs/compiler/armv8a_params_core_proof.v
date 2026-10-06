@@ -1,6 +1,6 @@
 (* Semantic correctness of the ARMv8-A core operation builders
    ([ARMv8AFopn_core], armv8a_params_core.v), mirroring
-   [arm_params_core_proof.v].
+   [armv7m_params_core_proof.v].
 
    Proven here: the [sem_fopn_args] lemmas for the single-instruction builders
    used by the compiler's stack handling and immediate materialization —
@@ -171,7 +171,7 @@ Proof. by case: ws. Qed.
 
 (* Splitting an [n]-aligned sum bit by bit: below [n] the bits come from
    [lbs], from [n] up they come from [hbs]. The ARMv7-M analog
-   [arm_params_core_proof.wbit_n_add] requires [2 ^ n * 2 ^ n <= wbase ws],
+   [armv7m_params_core_proof.wbit_n_add] requires [2 ^ n * 2 ^ n <= wbase ws],
    which fails for the high chunks of a 64-bit word; here the sum is only
    required to fit the word. *)
 Lemma wbit_n_add ws (n lbs hbs : Z) (i : nat) :

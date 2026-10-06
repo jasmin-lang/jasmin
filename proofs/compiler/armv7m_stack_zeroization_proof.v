@@ -18,11 +18,11 @@ Require Import
   arch_extra
   sem_params_of_arch_extra.
 Require Import
-  arm_decl
-  arm_extra
-  arm_instr_decl
-  arm_params_common_proof.
-Require Export arm_stack_zeroization.
+  armv7m_decl
+  armv7m_extra
+  armv7m_instr_decl
+  armv7m_params_common_proof.
+Require Export armv7m_stack_zeroization.
 Import seq_extra.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)

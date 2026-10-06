@@ -4,7 +4,7 @@ From Coq Require Import ZArith.
 Require Import
   utils
   word.
-Require Import arm_decl.
+Require Import armv7m_decl.
 
 Open Scope Z.
 

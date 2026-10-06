@@ -8,10 +8,10 @@ Require Import
   stack_zero_strategy
   arch_decl
   arch_extra
-  arm_decl
-  arm_extra
-  arm_instr_decl
-  arm_params_common.
+  armv7m_decl
+  armv7m_extra
+  armv7m_instr_decl
+  armv7m_params_common.
 Require Import compiler_util.
 
 Section STACK_ZEROIZATION.

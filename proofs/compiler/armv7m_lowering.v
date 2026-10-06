@@ -11,9 +11,9 @@ Require Import
   arch_decl
   arch_extra.
 Require Import
-  arm_decl
-  arm_extra
-  arm_instr_decl.
+  armv7m_decl
+  armv7m_extra
+  armv7m_instr_decl.
 
 Section Section.
 Context {atoI : arch_toIdent} {prof : armv7m_profile}.

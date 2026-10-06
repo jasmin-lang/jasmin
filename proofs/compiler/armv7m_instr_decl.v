@@ -21,7 +21,7 @@ Require Import
   sopn_semi
   arch_decl
   arch_utils.
-Require Import arm_decl.
+Require Import armv7m_decl.
 
 Module E.
   (* Error of the instructions whose arguments are out of range (BFC, BFI,
