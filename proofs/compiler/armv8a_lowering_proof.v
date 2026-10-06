@@ -780,6 +780,59 @@ Proof.
   exact: (IsMulSome hle erefl).
 Qed.
 
+(* The extension of a 32-bit operand of a long product. *)
+Definition ext_op (sg : signedness) : sop1 :=
+  if sg is Signed then Osignext U64 U32 else Ozeroext U64 U32.
+
+Variant is_mull_args_spec (ws ws' : wsize) (e0 e1 : pexpr) :
+  option (signedness * pexpr * pexpr) -> Type :=
+  | IsMullArgsSome sg x y :
+      ws = U64
+      -> ws' = U64
+      -> e0 = Papp1 (ext_op sg) x
+      -> e1 = Papp1 (ext_op sg) y
+      -> is_mull_args_spec (Some (sg, x, y))
+  | IsMullArgsNone : is_mull_args_spec None.
+
+Lemma is_mull_argsP ws ws' e0 e1 :
+  is_mull_args_spec ws ws' e0 e1 (is_mull_args ws ws' e0 e1).
+Proof.
+  rewrite /is_mull_args /oassert.
+  case: andP => [[/eqP ? /eqP ?] | _] /=; last exact: IsMullArgsNone.
+  subst ws ws'.
+  case: e0; try (move=> *; exact: IsMullArgsNone).
+  move=> o x.
+  case: o; try (move=> *; exact: IsMullArgsNone).
+  all: move=> szo szi; case: szo; try (move=> *; exact: IsMullArgsNone).
+  all: case: szi; try (move=> *; exact: IsMullArgsNone).
+  all: case: e1; try (move=> *; exact: IsMullArgsNone).
+  all: move=> o y; case: o; try (move=> *; exact: IsMullArgsNone).
+  all: move=> szo szi; case: szo; try (move=> *; exact: IsMullArgsNone).
+  all: case: szi; try (move=> *; exact: IsMullArgsNone).
+  all: by apply: (IsMullArgsSome (sg := _)).
+Qed.
+
+Variant is_mull_spec (ws : wsize) (e : pexpr) :
+  option (signedness * pexpr * pexpr) -> Type :=
+  | IsMullSome sg x y :
+      ws = U64
+      -> e = Papp2 (Omul (Op_w U64)) (Papp1 (ext_op sg) x) (Papp1 (ext_op sg) y)
+      -> is_mull_spec (Some (sg, x, y))
+  | IsMullNone : is_mull_spec None.
+
+Lemma is_mullP ws e : is_mull_spec ws e (is_mull ws e).
+Proof.
+  rewrite /is_mull.
+  case: e; try (move=> *; exact: IsMullNone).
+  move=> op e0 e1.
+  case: op; try (move=> *; exact: IsMullNone).
+  move=> c; case: c; try (move=> *; exact: IsMullNone).
+  move=> ws'.
+  case: is_mull_argsP => [sg x y ? ? -> -> | ]; last exact: IsMullNone.
+  subst ws ws'.
+  exact: (IsMullSome (sg := sg)).
+Qed.
+
 End IS_MUL.
 
 (* The main consequence of the lemmas in this section is lemma [lower_base_op].
@@ -1030,6 +1083,14 @@ Proof.
     all: repeat first
       [ move=> /oassertP [/eqP ?]; subst ws''
       | match goal with
+        | [ |- context[ is_mull ] ] =>
+            case: is_mullP => [[] ? ? ? ?|]; subst
+        end
+      | match goal with
+        | [ |- context[ is_mull_args ] ] =>
+            case: is_mull_argsP => [[] ? ? ? ? ? ?|]; subst
+        end
+      | match goal with
         | [ |- context[ is_mul ] ] =>
             case: is_mulP => [wsm ? ? hlem ?|]; subst
         end
@@ -1248,7 +1309,74 @@ Proof.
           ?(wadd_zero_extend _ _ hws) ?(wsub_zero_extend _ _ hws)
           ?(wopp_zero_extend _ hws) ?(zero_extend_idem _ hws)
           ?(wmul_zero_extend _ _ hlem) ?zero_extend_u;
-        first [ by [] | by rewrite GRing.addrC ] ].
+        first [ by [] | by rewrite GRing.addrC ]
+      | (* UMADDL/SMADDL: a long product (from [is_mull]) added to a 64-bit
+           operand, in either order. *)
+        lazymatch goal with
+        | [ |- context[ARMv8A_op UMADDL _] ] => idtac
+        | [ |- context[ARMv8A_op SMADDL _] ] => idtac
+        end;
+        (* Evaluate the long product: two extended 32-bit operands. *)
+        (let t0 := type of hseme0 in
+         lazymatch t0 with
+         | sem_pexpr _ _ _ (Papp2 (Omul _) _ _) = _ =>
+             move: hseme0; rewrite /ext_op /=;
+             t_xrbindP=> vx' vx hsemx hvx vy' vy hsemy hvy hmul;
+             move: hvx; rewrite /sem_sop1 /=; t_xrbindP=> wx hwx ?; subst vx';
+             move: hvy; rewrite /sem_sop1 /=; t_xrbindP=> wy hwy ?; subst vy';
+             move: hmul => /sem_sop2I /= [px [py [wp [hpx hpy hop hw]]]];
+             move: hpx hpy; rewrite /= !truncate_word_u => -[?] [?]; subst px py;
+             move: hop; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst wp;
+             move: hw => /= ?; subst v0
+         | _ =>
+             move: hseme1; rewrite /ext_op /=;
+             t_xrbindP=> vx' vx hsemx hvx vy' vy hsemy hvy hmul;
+             move: hvx; rewrite /sem_sop1 /=; t_xrbindP=> wx hwx ?; subst vx';
+             move: hvy; rewrite /sem_sop1 /=; t_xrbindP=> wy hwy ?; subst vy';
+             move: hmul => /sem_sop2I /= [px [py [wp [hpx hpy hop hw]]]];
+             move: hpx hpy; rewrite /= !truncate_word_u => -[?] [?]; subst px py;
+             move: hop; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst wp;
+             move: hw => /= ?; subst v1
+         end);
+        move: hsemop => /sem_sop2I /= [x0 [x1 [w2 [hx0 hx1 hop hw]]]];
+        move: hop; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst w2;
+        move: hw => /Vword_inj [?]; subst ws'; move=> /= ?; subst w;
+        (* The product is at width 64, the addition at [ws'' >= 64]: only the
+           low 64 bits are kept. *)
+        (first
+          [ move: hx0; rewrite /= => /truncate_wordP [hle ?]; subst x0;
+            rename hx1 into haddend
+          | move: hx1; rewrite /= => /truncate_wordP [hle ?]; subst x1;
+            rename hx0 into haddend ]);
+        (split;
+          last (split;
+            [ first
+                [ exact: (disj_fvars_read_es2_app2 (op := Omul (Op_w U64)) hfve1 hfve0)
+                | exact: (disj_fvars_read_es2_app2 (op := Omul (Op_w U64)) hfve0 hfve1) ]
+            | by [] ]));
+        (eexists;
+          first by rewrite /sem_pexprs /= hsemx hsemy ?hseme0 ?hseme1 /=);
+        rewrite /exec_sopn /= hwx hwy (to_word_m haddend hws) /=;
+        rewrite /armv8a_UMADDL_semi /armv8a_SMADDL_semi
+          (wadd_zero_extend _ _ hws) (zero_extend_idem _ hws) zero_extend_u;
+        first [ by [] | by rewrite GRing.addrC ]
+      | (* UMULL/SMULL: the long product of two extended 32-bit operands. *)
+        lazymatch goal with
+        | [ |- context[ARMv8A_op UMULL _] ] => idtac
+        | [ |- context[ARMv8A_op SMULL _] ] => idtac
+        end;
+        move: hseme0; rewrite /ext_op /=; t_xrbindP=> vx hsemx;
+          rewrite /sem_sop1 /=; t_xrbindP=> wx hwx ?; subst v0;
+        move: hseme1; rewrite /ext_op /=; t_xrbindP=> vy hsemy;
+          rewrite /sem_sop1 /=; t_xrbindP=> wy hwy ?; subst v1;
+        move: hsemop => /sem_sop2I /= [x0 [x1 [w2 [hx0 hx1 hop hw]]]];
+        move: hx0 hx1; rewrite /= !truncate_word_u => -[?] [?]; subst x0 x1;
+        move: hop; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst w2;
+        move: hw => /Vword_inj [?]; subst ws'; move=> /= ?; subst w;
+        (split; last (split; [ exact: (disj_fvars_read_es2 hfve0 hfve1) | by [] ]));
+        (eexists; first by rewrite /sem_pexprs /= hsemx hsemy /=);
+        rewrite /exec_sopn /= hwx hwy /=;
+        by rewrite /armv8a_UMULL_semi /armv8a_SMULL_semi zero_extend_u ].
   }
 
   case hlarge: (large_arith_imm ws mn' e1') => [imm|]; last first.
@@ -1275,6 +1403,13 @@ Proof.
         end.
       all: repeat first
         [ move=> /oassertP [/eqP ?]; subst ws''
+        | match goal with
+          | [ |- context[ is_mull ] ] => case: is_mullP => [[] ? ? ? ?|]; subst
+          end
+        | match goal with
+          | [ |- context[ is_mull_args ] ] =>
+              case: is_mull_argsP => [[] ? ? ? ? ? ?|]; subst
+          end
         | match goal with
           | [ |- context[ is_mul ] ] => case: is_mulP => [? ? ? ? ?|]; subst
           end
@@ -1324,6 +1459,13 @@ Proof.
     end.
   all: repeat first
     [ move=> /oassertP [/eqP ?]; subst ws''
+    | match goal with
+      | [ |- context[ is_mull ] ] => case: is_mullP => [[] ? ? ? ?|]; subst
+      end
+    | match goal with
+      | [ |- context[ is_mull_args ] ] =>
+          case: is_mull_argsP => [[] ? ? ? ? ? ?|]; subst
+      end
     | match goal with
       | [ |- context[ is_mul ] ] => case: is_mulP => [? ? ? ? ?|]; subst
       end

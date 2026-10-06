@@ -7,6 +7,38 @@ fn mul(reg u64 arg0, reg u64 arg1) -> reg u64 {
     y = y - arg0 * arg1;     // MSUB.
     x = #MADD(arg0, arg1, y);
     x = #MSUB(arg0, arg1, x);
+    y = #UMULH(x, arg1);
+    x = #SMULH(y, arg0);
+    x = #UMULL(x, arg1);
+    y = #SMULL(x, arg0);
     x = x + y;
+    return x;
+}
+
+/* Long multiplies: 32-bit (W) factors, 64-bit (X) product and addend. */
+export
+fn mull(reg u32 arg0, reg u32 arg1, reg u64 arg2) -> reg u64 {
+    reg u64 x y;
+
+    x = #UMULL(arg0, arg1);
+    y = #SMULL(arg0, arg1);
+    x = x + y;
+    y = #UMADDL(arg0, arg1, x);
+    x = #SMADDL(arg0, arg1, y);
+    x = x + arg2;
+    return x;
+}
+
+/* Lowering of the long multiplications. */
+export
+fn mull_lowering(reg u32 arg0, reg u32 arg1, reg u64 arg2) -> reg u64 {
+    reg u64 x y;
+
+    x = (64u)arg0 * (64u)arg1;           // UMULL.
+    y = (64s)arg0 * (64s)arg1;           // SMULL.
+    x = x + (64u)arg0 * (64u)arg1;       // UMADDL.
+    y = (64s)arg0 * (64s)arg1 + y;       // SMADDL.
+    x = x + y;
+    x = x + arg2;
     return x;
 }
