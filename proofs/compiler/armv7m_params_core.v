@@ -10,8 +10,8 @@ Require Import
   arch_decl.
 Require Import
   arm_common
-  arm_decl
-  arm_instr_decl.
+  armv7m_decl
+  armv7m_instr_decl.
 
 Definition is_arith_small (imm : Z) : bool :=
   is_expandable_or_shift imm || is_w12_encoding imm.

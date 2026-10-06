@@ -1,13 +1,13 @@
-module Core_arch_ARM : Arch_full.Core_arch
-  with type reg = Arm_decl.register
+module Core_arch_ARM_M4 : Arch_full.Core_arch
+  with type reg = Armv7m_decl.register
    and type regx = Arch_utils.empty
    and type xreg = Arch_utils.empty
    and type rflag = Arm_common.rflag
    and type cond = Arm_common.condt
-   and type asm_op = Arm_instr_decl.arm_op
-   and type extra_op = Arm_extra.arm_extra_op
+   and type asm_op = Armv7m_instr_decl.arm_op
+   and type extra_op = Armv7m_extra.arm_extra_op
 
-module Core_arch_ARM_M3 : module type of Core_arch_ARM
+module Core_arch_ARM_M3 : module type of Core_arch_ARM_M4
 
 module Core_arch_RISCV : Arch_full.Core_arch
   with type reg = Riscv_decl.register

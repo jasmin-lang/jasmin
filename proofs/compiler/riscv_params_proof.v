@@ -383,7 +383,7 @@ Proof.
   by rewrite -negb_wlt negbK.
 Qed.
 
-(* copied from arm_params_proof *)
+(* copied from armv7m_params_proof *)
 Lemma eval_assemble_cond_Onot get c v v0 v1 :
   value_of_bool (riscv_eval_cond (get) c) = ok v1
   -> value_uincl v0 v1

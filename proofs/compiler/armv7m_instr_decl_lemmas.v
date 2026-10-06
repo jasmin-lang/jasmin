@@ -8,9 +8,9 @@ Require Import
   arch_utils
   sem_params_of_arch_extra.
 Require Import
-  arm_decl
-  arm_extra
-  arm_instr_decl.
+  armv7m_decl
+  armv7m_extra
+  armv7m_instr_decl.
 
 Lemma ignore_has_shift {prof : armv7m_profile} mn sf ic hs hs' :
   mn \notin has_shift_mnemonics

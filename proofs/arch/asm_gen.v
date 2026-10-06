@@ -7,7 +7,7 @@ Require Import
   linear
   lea.
 Require Import
-  arm_expand_imm
+  armv7m_expand_imm
   arch_decl
   arch_extra.
 Import Utf8 String.

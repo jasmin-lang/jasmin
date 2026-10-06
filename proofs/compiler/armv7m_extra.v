@@ -11,11 +11,11 @@ Require Import
 Require Export
   arch_decl
   arch_extra
-  arm_params_core.
+  armv7m_params_core.
 Require Import
-  arm_decl
-  arm_instr_decl
-  arm.
+  armv7m_decl
+  armv7m_instr_decl
+  armv7m.
 
 
 #[only(eqbOK)] derive

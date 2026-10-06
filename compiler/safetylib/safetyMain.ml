@@ -48,15 +48,15 @@ let get_arch_with_analyze arch call_conv : (module ArchWithAnalyze) =
       (module struct
         module C = CoreArchFactory.Core_arch_ARM_M3
         module A = Arch_full.Arch_from_Core_arch (C)
-        module Safety = Make (Arm_safety.Arm_safety (A))
+        module Safety = Make (Armv7m_safety.Armv7m_safety (A))
 
         let analyze = Safety.analyze
       end)
   | ARM_M4 ->
       (module struct
-        module C = CoreArchFactory.Core_arch_ARM
+        module C = CoreArchFactory.Core_arch_ARM_M4
         module A = Arch_full.Arch_from_Core_arch (C)
-        module Safety = Make (Arm_safety.Arm_safety (A))
+        module Safety = Make (Armv7m_safety.Armv7m_safety (A))
 
         let analyze = Safety.analyze
       end)

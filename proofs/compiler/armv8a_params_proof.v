@@ -1,5 +1,5 @@
 (* Correctness of the ARMv8-A architecture parameters, mirroring
-   [arm_params_proof.v].
+   [armv7m_params_proof.v].
 
    Proven so far: the stack-alloc hypotheses ([armv8a_hsaparams]) and the
    complete linearization hypotheses ([armv8a_hliparams], including
