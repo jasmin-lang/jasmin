@@ -499,7 +499,7 @@ Definition lower_base_op
             else Some (lvs, Oasm (BaseOp (None, ARMv8A_op mn opts)), es)
           else Some (lvs, Oasm (BaseOp (None, ARMv8A_op mn opts)), es)
       | _ => None end
-    else if mn \in [:: ADD; ADDS; SUB; SUBS; AND; EOR; ORR; CMP; TST ]
+    else if mn \in [:: ADD; ADDS; SUB; SUBS; AND; ANDS; BIC; BICS; EOR; ORR; CMP; CMN; TST ]
     then
       match es with
       | x :: y :: rest =>
