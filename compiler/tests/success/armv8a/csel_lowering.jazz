@@ -1,0 +1,69 @@
+// Conditional expressions lowered to the conditional select instructions.
+
+export
+fn csel_lowering(reg u64 a b) -> reg u64 {
+    reg u64 x y;
+    reg bool c;
+
+    c = a < b;
+    x = c ? a : b;              // CSEL
+    y = c ? a : b + 1;          // CSINC
+    x ^= y;
+    y = c ? a : 1 + b;          // CSINC
+    x ^= y;
+    y = c ? a : !b;             // CSINV
+    x ^= y;
+    y = c ? a : -b;             // CSNEG
+    x ^= y;
+    y = c ? a + 1 : b;          // CSINC, inverted condition
+    x ^= y;
+    y = c ? !a : b;             // CSINV, inverted condition
+    x ^= y;
+    y = c ? -a : b;             // CSNEG, inverted condition
+    x ^= y;
+    y = c ? 1 : 0;              // CSET
+    x ^= y;
+    y = c ? -1 : 0;             // CSETM
+    x ^= y;
+    y = c ? 0 : 1;              // CSET, inverted condition
+    x ^= y;
+    y = c ? 0 : -1;             // CSETM, inverted condition
+    x ^= y;
+    y = (a & b) == 0 ? (64u)0 : (64u)1; // CSET, inverted TST condition
+    x ^= y;
+    return x;
+}
+
+export
+fn csel_lowering32(reg u32 a b) -> reg u32 {
+    reg u32 x y;
+    reg bool c;
+
+    c = a <s b;
+    x = c ? a : b;              // CSEL
+    y = c ? a : b + 1;          // CSINC
+    x ^= y;
+    y = c ? a : 1 + b;          // CSINC
+    x ^= y;
+    y = c ? a : !b;             // CSINV
+    x ^= y;
+    y = c ? a : -b;             // CSNEG
+    x ^= y;
+    y = c ? a + 1 : b;          // CSINC, inverted condition
+    x ^= y;
+    y = c ? !a : b;             // CSINV, inverted condition
+    x ^= y;
+    y = c ? -a : b;             // CSNEG, inverted condition
+    x ^= y;
+    y = c ? 1 : 0;              // CSET
+    x ^= y;
+    y = c ? -1 : 0;             // CSETM
+    x ^= y;
+    y = c ? 0 : 1;              // CSET, inverted condition
+    x ^= y;
+    y = c ? 0 : -1;             // CSETM, inverted condition
+    x ^= y;
+    y = c ? (32u)-1 : (32u)0;   // CSETM, word constants
+    x ^= y;
+    return x;
+}

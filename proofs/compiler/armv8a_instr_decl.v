@@ -129,6 +129,11 @@ Variant armv8a_mnemonic : Type :=
 
 (* Conditional selection *)
 | CSEL                           (* Conditional select *)
+| CSINC                          (* Conditional select increment *)
+| CSINV                          (* Conditional select invert *)
+| CSNEG                          (* Conditional select negate *)
+| CSET                           (* Conditional set *)
+| CSETM                          (* Conditional set mask *)
 
 (* Loads *)
 | LDR                            (* Load a word or doubleword *)
@@ -163,7 +168,7 @@ Definition armv8a_mnemonics : seq armv8a_mnemonic :=
     ; MOV; MOVN; MOVZ; MOVK; ADR
     ; SXTB; SXTH; SXTW; UXTB; UXTH; UXTW
     ; CMP; TST
-    ; CSEL
+    ; CSEL; CSINC; CSINV; CSNEG; CSET; CSETM
     ; LDR; LDRB; LDRH; LDRSB; LDRSH; LDRSW
     ; STR; STRB; STRH
     ; CSDB; DSB; ISB
@@ -210,7 +215,7 @@ Definition sized_mnemonics : seq armv8a_mnemonic :=
     ; MOV; MOVN; MOVZ; MOVK
     ; SXTB; SXTH; UXTB; UXTH
     ; CMP; TST
-    ; CSEL
+    ; CSEL; CSINC; CSINV; CSNEG; CSET; CSETM
     ; LDR; LDRB; LDRH; LDRSB; LDRSH
     ; STR; STRB; STRH
   ].
@@ -297,6 +302,11 @@ Definition string_of_armv8a_mnemonic (mn : armv8a_mnemonic) : string :=
   | CMP => "CMP"
   | TST => "TST"
   | CSEL => "CSEL"
+  | CSINC => "CSINC"
+  | CSINV => "CSINV"
+  | CSNEG => "CSNEG"
+  | CSET => "CSET"
+  | CSETM => "CSETM"
   | LDR => "LDR"
   | LDRB => "LDRB"
   | LDRH => "LDRH"
@@ -1837,6 +1847,136 @@ Definition armv8a_CSEL_semi {ws : wsize} (wn wm : word ws) (b : bool) : ty_w ws 
 
 Definition armv8a_CSEL_instr := mk_csel_instr CSEL (armv8a_CSEL_semi (ws := osz)).
 
+(* [C6.2.141 CSINC] ARM DDI 0487 M.a, p. 2144
+   Conditional select increment  This instruction returns, in the destination
+   register, the value of the first source register if the condition is TRUE,
+   and otherwise returns the value of the second source register incremented by
+   1.  This instruction is used by the aliases CINC and CSET.
+   Syntax: CSINC <Xd>, <Xn>, <Xm>, <cond>
+   Operation (ASL):
+     bits(datasize) result;
+     if ConditionHolds(condition) then
+         result = X[n, datasize];
+     else
+         result = X[m, datasize] + 1;
+     X[d, datasize] = result;
+*)
+Definition armv8a_CSINC_semi {ws : wsize} (wn wm : word ws) (b : bool) : ty_w ws :=
+  if b then wn else (wm + 1)%w.
+
+Definition armv8a_CSINC_instr := mk_csel_instr CSINC (armv8a_CSINC_semi (ws := osz)).
+
+(* [C6.2.142 CSINV] ARM DDI 0487 M.a, p. 2146
+   Conditional select invert  This instruction returns, in the destination
+   register, the value of the first source register if the condition is TRUE,
+   and otherwise returns the bitwise inversion value of the second source
+   register.  This instruction is used by the aliases CINV and CSETM.
+   Syntax: CSINV <Xd>, <Xn>, <Xm>, <cond>
+   Operation (ASL):
+     bits(datasize) result;
+     if ConditionHolds(condition) then
+         result = X[n, datasize];
+     else
+         result = NOT(X[m, datasize]);
+     X[d, datasize] = result;
+*)
+Definition armv8a_CSINV_semi {ws : wsize} (wn wm : word ws) (b : bool) : ty_w ws :=
+  if b then wn else wnot wm.
+
+Definition armv8a_CSINV_instr := mk_csel_instr CSINV (armv8a_CSINV_semi (ws := osz)).
+
+(* [C6.2.143 CSNEG] ARM DDI 0487 M.a, p. 2148
+   Conditional select negation  This instruction returns, in the destination
+   register, the value of the first source register if the condition is TRUE,
+   and otherwise returns the negated value of the second source register.  This
+   instruction is used by the alias CNEG.
+   Syntax: CSNEG <Xd>, <Xn>, <Xm>, <cond>
+   Operation (ASL):
+     bits(datasize) result;
+     if ConditionHolds(condition) then
+         result = X[n, datasize];
+     else
+         result = NOT(X[m, datasize]) + 1;
+     X[d, datasize] = result;
+*)
+Definition armv8a_CSNEG_semi {ws : wsize} (wn wm : word ws) (b : bool) : ty_w ws :=
+  if b then wn else (wnot wm + 1)%w.
+
+Definition armv8a_CSNEG_instr := mk_csel_instr CSNEG (armv8a_CSNEG_semi (ws := osz)).
+
+(* The conditional set aliases take only a destination and a condition.
+   The condition operand is the one written in the alias: the assembler
+   encodes its inverse in the base instruction, whose source registers are
+   the zero register. *)
+Definition mk_cset_instr mn (semi : bool -> ty_w osz) : instr_desc_t :=
+  let tin := [:: lbool ] in
+  {|
+    id_msb_flag := msbf;
+    id_tin := tin;
+    id_in := [:: Ea 1 ];
+    id_tout := [:: lword osz ];
+    id_out := [:: Ea 0 ];
+    id_semi := sem_lprod_ok tin semi;
+    id_nargs := 2;
+    id_args_kinds := ak_r_cond;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_op mn opts;
+    id_valid := osz_valid;
+    id_safe_wf := refl_equal;
+    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
+    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+  |}.
+
+(* [C6.2.139 CSET] ARM DDI 0487 M.a, p. 2140
+   Conditional set  This instruction sets the destination register to 1 if the
+   condition is TRUE, and otherwise sets it to 0.  This is an alias of CSINC.
+   This means:  • The encodings in this description are named to match the
+   encodings of CSINC. • The description of CSINC gives the operational
+   pseudocode, any CONSTRAINED UNPREDICTABLE behavior, and any operational
+   information for this instruction.
+   Syntax: CSET <Xd>, <invcond>  ==  CSINC <Xd>, XZR, XZR, <cond>
+   Operation (ASL):
+     The description of CSINC gives the operational pseudocode for this instruction.
+   Base instruction [C6.2.141 CSINC] p. 2144, Operation (ASL):
+     bits(datasize) result;
+     if ConditionHolds(condition) then
+         result = X[n, datasize];
+     else
+         result = X[m, datasize] + 1;
+     X[d, datasize] = result;
+*)
+Definition armv8a_CSET_semi {ws : wsize} (b : bool) : ty_w ws :=
+  if b then 1%w else 0%w.
+
+Definition armv8a_CSET_instr := mk_cset_instr CSET (armv8a_CSET_semi (ws := osz)).
+
+(* [C6.2.140 CSETM] ARM DDI 0487 M.a, p. 2142
+   Conditional set mask  This instruction sets all bits of the destination
+   register to 1 if the condition is TRUE, and otherwise sets all bits to 0.
+   This is an alias of CSINV. This means:  • The encodings in this description
+   are named to match the encodings of CSINV. • The description of CSINV gives
+   the operational pseudocode, any CONSTRAINED UNPREDICTABLE behavior, and any
+   operational information for this instruction.
+   Syntax: CSETM <Xd>, <invcond>  ==  CSINV <Xd>, XZR, XZR, <cond>
+   Operation (ASL):
+     The description of CSINV gives the operational pseudocode for this instruction.
+   Base instruction [C6.2.142 CSINV] p. 2146, Operation (ASL):
+     bits(datasize) result;
+     if ConditionHolds(condition) then
+         result = X[n, datasize];
+     else
+         result = NOT(X[m, datasize]);
+     X[d, datasize] = result;
+*)
+Definition armv8a_CSETM_semi {ws : wsize} (b : bool) : ty_w ws :=
+  if b then wrepr ws (-1) else 0%w.
+
+Definition armv8a_CSETM_instr := mk_cset_instr CSETM (armv8a_CSETM_semi (ws := osz)).
+
 (* -------------------------------------------------------------------- *)
 (* Loads and stores.
    The memory access itself is performed by the framework ([eval_asm_arg]
@@ -2237,6 +2377,11 @@ Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
   | CMP => armv8a_CMP_instr
   | TST => armv8a_TST_instr
   | CSEL => armv8a_CSEL_instr
+  | CSINC => armv8a_CSINC_instr
+  | CSINV => armv8a_CSINV_instr
+  | CSNEG => armv8a_CSNEG_instr
+  | CSET => armv8a_CSET_instr
+  | CSETM => armv8a_CSETM_instr
   | LDR => armv8a_load_instr LDR
   | LDRB => armv8a_load_instr LDRB
   | LDRH => armv8a_load_instr LDRH
