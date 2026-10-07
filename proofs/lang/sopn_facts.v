@@ -19,12 +19,12 @@ Local Open Scope seq_scope.
 (* On a cell that is in bounds, the only possible failure of a read is an
    uninitialised cell. *)
 Lemma get8_errE len (a : WArray.array len) i e :
-  WArray.in_bound a i -> WArray.get8 a i = Error e -> e = ErrAddrUndef.
-Proof. by rewrite /WArray.get8 => -> /=; case: WArray.is_init => //= -[<-]. Qed.
+  WArray.in_bound a i -> WArray.get8 partial a i = Error e -> e = ErrAddrUndef.
+Proof. by rewrite WArray.get8_partial => -> /=; case: WArray.is_init => //= -[<-]. Qed.
 
 Lemma mapM_get8_errE len (a : WArray.array len) (f : Z -> Z) l e :
   all (fun k => WArray.in_bound a (f k)) l ->
-  mapM (fun k => WArray.get8 a (f k)) l = Error e -> e = ErrAddrUndef.
+  mapM (fun k => WArray.get8 partial a (f k)) l = Error e -> e = ErrAddrUndef.
 Proof.
 elim: l e => //= k l ih e /andP [hk hl].
 case hg: WArray.get8 => [w|e'] /=; last by move=> [<-]; apply: get8_errE hg.
@@ -65,14 +65,18 @@ case hg : (WArray.get Unaligned AAscale ws a i) => [w | e] /=; last first.
 + by rewrite (@get_errE _ _ _ _ _ hva hg).
 have [t' ht'] : exists t', WArray.set t Unaligned AAscale i w = ok t'.
 + by apply: (writeV (CM:= WArray.array_CM (arr_size ws n))).
-rewrite ht' /= /copy_set /copy_get hg ht' /=.
+have hgt : WArray.get (sm := total) Unaligned AAscale ws a i = ok w.
++ by case/read_partialE: hg.
+have ht't : WArray.set (sm := total) t Unaligned AAscale i w = ok t'.
++ by case/write_partialE: ht'.
+rewrite ht' /= /copy_set /copy_get hgt ht't /=.
 by apply ih.
 Qed.
 
 (* [copy] fails exactly when one of the cells it reads is uninitialised, that
    is, exactly when its safety condition does not hold. *)
 Lemma array_copy_eq ws n (a : WArray.array (arr_size ws n)) :
-  @WArray.copy ws n a =
+  @WArray.copy partial ws n a =
   (if all (fun i => is_ok (WArray.get Unaligned AAscale ws a i)) (ziota 0 n)
    then ok (@copy_total ws _ a) else Error ErrAddrUndef).
 Proof.
@@ -82,7 +86,7 @@ by apply/andP; split; [apply/ZleP | apply/ZltP]; Lia.lia.
 Qed.
 
 Lemma array_copy_semi_eq ws p :
-  sem_prod_eq [:: carr (arr_size ws p)] (@WArray.copy ws p)
+  sem_prod_eq [:: carr (arr_size ws p)] (@WArray.copy partial ws p)
     (@mk_semi [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
        [:: sc_all_init ws p 0] ErrAddrUndef [:: IBool true] (@copy_total ws p)).
 Proof.
