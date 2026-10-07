@@ -320,7 +320,8 @@ Instance eqTC_armv8a_camem_cond : eqTypeC armv8a_camem_cond :=
 
 Definition is_pair_offset (ws : wsize) (d : Z) : bool :=
   let n := wsize_size ws in
-  ((d mod n =? 0) && (-64 * n <=? d) && (d <=? 63 * n))%Z.
+  let q := (d / n)%Z in
+  ((d mod n =? 0) && (-64 <=? q) && (q <=? 63))%Z.
 
 Definition armv8a_check_CAmem
   (checker : armv8a_camem_cond) (disp : word armv8a_reg_size)
