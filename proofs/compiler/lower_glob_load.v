@@ -18,10 +18,11 @@ Definition lower_glob_load_error msg := {|
 
 (* A load from a global, [x = [rip + n]], is split into the computation of
    the address, [x = rip + n] (the instruction [glob_addr_op]), and the load
-   [x = [x]]. When [x] is not a pointer-sized variable, when the load has
-   several destinations (a load pair, [x, y = [rip + n]]), or when it has
-   other arguments (a conditional load, [x = c ? [rip + n] : y]), the address
-   is computed into [tmp]: the load is evaluated whatever [c] is. *)
+   [x = [x]]. A load with several destinations (a load pair) uses its first
+   one: [x, y = [rip + n]] becomes [x = rip + n; x, y = [x]]. When [x] is not
+   a pointer-sized variable, or when the load has other arguments (a
+   conditional load, [x = c ? [rip + n] : y]), the address is computed into
+   [tmp]: the load is evaluated whatever [c] is. *)
 
 Section Section.
 Context {pd : PointerData} {asm_op : Type} {asmop : asmOp asm_op}.
@@ -42,7 +43,7 @@ Definition glob_addr (x : var_i) (e : pexpr) : instr_r :=
 
 (* The variable that receives the address. *)
 Definition glob_load_dst (xs : lvals) (es' : pexprs) : var_i :=
-  if (xs, es') is ([:: Lvar x ], [::]) then
+  if (xs, es') is (Lvar x :: _, [::]) then
     if vtype x == aword Uptr then x else tmp
   else tmp.
 
