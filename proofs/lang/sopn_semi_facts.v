@@ -86,11 +86,7 @@ Lemma safety_cond_holds_cond_init (vs0 vs2 : values) (b : bool) (c : safety_cond
   safety_cond_below (size vs0) c ->
   sem_safety_cond vs0 c = ok (Vbool bb) ->
   safety_cond_holds (vs0 ++ Vbool b :: vs2) (cond_init (size vs0) c) = (~~ b) || bb.
-Proof.
-move=> hb hev; rewrite /safety_cond_holds /cond_init /sc_or /sc_not /=.
-rewrite nth_cat ltnn subnn /=.
-by rewrite (sem_safety_cond_cat (Vbool b :: vs2) hb) hev /=.
-Qed.
+Proof. exact: safety_cond_holds_guarded. Qed.
 
 Lemma cond_init_val (ts : seq ctype) (vs0 vs2 : values) (b : bool) (c : safety_cond) :
   List.Forall2 (fun t v => exists x : sem_t t, v = to_val x) ts vs0 ->
@@ -124,42 +120,19 @@ rewrite (cond_init_val vs2 b hall htc hwc) (ih htot hwt) => {ih}.
 by case: b.
 Qed.
 
-(* The safety conditions of a conditional instruction are the [Guarded] ones;
-   under a false guard they all hold. *)
-Lemma check_safe_cond_cat vs1 vs2 sc :
-  ssrnat.leq (sc_needed_args sc) (size vs1) ->
-  check_safe_cond (vs1 ++ vs2) sc = check_safe_cond vs1 sc.
+(* The safety conditions of a conditional instruction are the guarded ones:
+   under a false guard they all hold, under a true one they amount to the
+   conditions themselves. *)
+Lemma safety_cond_holds_all_guarded (ts : seq ctype) (vs0 : values) (safe : seq safety_cond)
+    (b : bool) (vs2 : values) :
+  List.Forall2 (fun t v => exists x : sem_t t, v = to_val x) ts vs0 ->
+  all safety_cond_total safe -> all (safety_cond_wt ts) safe ->
+  all (safety_cond_holds (rcons vs0 (Vbool b) ++ vs2)) (map (sc_guarded (size ts)) safe)
+  = (if b then all (safety_cond_holds vs0) safe else true).
 Proof.
-elim: sc => //=.
-+ by move=> ws k hsz; rewrite nth_cat hsz.
-+ by move=> ws s hsz; rewrite takel_cat //; apply/ssrnat.leP.
-+ by move=> ws i j k hsz; rewrite nth_cat hsz.
-+ by move=> ws k z hsz; rewrite nth_cat hsz.
-+ by move=> ws z k hsz; rewrite nth_cat hsz.
-+ move=> ws k1 k2 z hsz.
-  have [hsz1 hsz2]: ssrnat.leq (S k1) (size vs1) /\ ssrnat.leq (S k2) (size vs1).
-  + move: hsz.
-    case: ifP => h1 h2; split; apply: ssrnat.leq_trans h2 => //.
-    have /(@Logic.eq_sym bool) := ssrnat.leqNgt k1 k2.
-    by rewrite h1 => /negbFE h2; apply: (ssrnat.leq_trans h2).
-  by rewrite !nth_cat hsz1 hsz2.
-+ by move=> ws p k hsz; rewrite nth_cat hsz.
-+ by move=> ws k hsz; rewrite nth_cat hsz.
-move=> g sc ih; rewrite ssrnat.geq_max => /andP[] hg hsc.
-rewrite nth_cat hg.
-by case: (to_bool (nth undef_b vs1 g)) => [[] | ] //=; apply: ih.
-Qed.
-
-Lemma check_safe_cond_all_guarded (n : nat) (vs0 vs2 : values) (safe : seq safe_cond)
-    (b : bool) :
-  size vs0 = n ->
-  all (fun sc => ssrnat.leq (sc_needed_args sc) n) safe ->
-  all (check_safe_cond (rcons vs0 (Vbool b) ++ vs2)) (map (Guarded n) safe)
-  = (if b then all (check_safe_cond vs0) safe else true).
-Proof.
-move=> hsz; rewrite cat_rcons -hsz.
-elim: safe => [ | sc safe ih] /=.
-+ by case: b.
-move=> /andP [h1 h2]; rewrite nth_cat ltnn subnn /= (ih h2).
-by case: b {ih} => //=; rewrite check_safe_cond_cat.
+move=> hall htot hwt; rewrite cat_rcons.
+elim: safe htot hwt => [ | c safe ih] /=; first by case: b.
+move=> /andP [] ht htot /andP [] hw hwt.
+have hc := cond_init_val vs2 b hall ht hw; rewrite /cond_init in hc.
+by rewrite hc (ih htot hwt); case: b {ih hc}.
 Qed.
