@@ -1,0 +1,8 @@
+// The offset of p is lost: it is added to a multiple of the loop counter.
+export fn g(reg u64 pkp) -> reg u64 {
+  inline int i;
+  reg u64 p v;
+  v = 1;
+  for i = 0 to 4 { p = 32 * i; p += pkp; [p + 8] = v; }
+  return v;
+}
