@@ -1,0 +1,14 @@
+// The callee may divide by zero.
+fn f(reg u64 x) -> reg u64 {
+  reg u64 y;
+  y = 1000;
+  y = y / x;
+  return y;
+}
+
+export fn g(reg u64 p) -> reg u64 {
+  reg u64 a;
+  a = [p + 0];
+  a = f(a);
+  return a;
+}

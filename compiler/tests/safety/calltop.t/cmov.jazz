@@ -1,0 +1,15 @@
+// A callee without memory access with a conditional move.
+fn f(reg u64 x) -> reg u64 {
+  reg u64 one two;
+  one = 1;
+  two = 2;
+  x = x < 3 ? one : two;
+  return x;
+}
+
+export fn g(reg u64 p) -> reg u64 {
+  reg u64 a;
+  a = [p + 0];
+  a = f(a);
+  return a;
+}

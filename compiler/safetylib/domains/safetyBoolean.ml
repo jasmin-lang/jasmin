@@ -758,7 +758,10 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
       num       = top;
       points_to = Pt.make [];      
       sym       = Sym.make ();
-      alignment = assert false; } (* TODO *)
+      (* No alignment requirement: the callee has no memory access (see
+         [check_valid_call_top]), and [return_call] joins its requirements
+         with the caller's. *)
+      alignment = Mml.empty; }
 
   let to_shape t shp =
     { t with num = AbsNum.R.to_shape t.num shp.num }

@@ -657,7 +657,9 @@ module LiftToDisj (A : AbsNumType) : AbsDisjType = struct
   let set_rel t _ = t
   let set_unrel t _ = t
       
-  let top_no_disj t = t
+  (* Top, as for [AbsDisj]: [t] would keep the facts of the calling context
+     in which the CallTop abstraction of a callee was computed. *)
+  let top_no_disj t = A.top t
   let to_shape t _ = t
   let remove_disj t = t
   let new_cnstr_blck t _ = t

@@ -1851,9 +1851,11 @@ end = struct
         let st_out_ndisj = { st_out_ndisj with
                              it = ItMap.add itk fabs st_out_ndisj.it } in
 
-        (* It remains to add the disjunctions of the call_site to st_out *)
+        (* It remains to add the disjunctions of the call_site to st_out.
+           The disjunctions created in the callee are joined first, as in
+           [fabs]. *)
         { st_out_ndisj with
-          abs = AbsDom.to_shape st_out_ndisj.abs st_in.abs }
+          abs = AbsDom.to_shape (AbsDom.remove_disj st_out_ndisj.abs) st_in.abs }
 
   and aeval_if ginstr e c1 c2 state =
     let eval_cond state = function
