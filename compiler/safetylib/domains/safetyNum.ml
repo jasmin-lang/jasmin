@@ -486,23 +486,30 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
       bound_texpr t (Mtexpr.var v)
     | _ -> Abstract1.bound_variable man t (avar_of_mvar v)
 
-  let env_add_mvar env v =
-    let add_single v env =
-      let av = avar_of_mvar v in
-      if Environment.mem_var env av then env
-      else
-        Environment.add env
-          (Array.of_list [av])
-          (Array.make 0 (Var.of_string "")) in
+  (* Add the variables [vs] missing from [env] (array slices are blasted
+     into bytes). They are added at once: [Environment.add] sorts the whole
+     environment. *)
+  let env_add_mvars env vs =
+    let blast v = match v with
+      | Mglobal (AarraySlice _ )
+      | Mlocal  (AarraySlice _ ) -> u8_blast_var ~blast_arrays:true v
+      | _ -> [v] in
+    let avs =
+      List.concat_map blast vs
+      |> List.rev_map avar_of_mvar
+      |> List.filter (fun av -> not (Environment.mem_var env av))
+      |> List.sort_uniq Var.compare in
+    if avs = [] then env
+    else Environment.add env (Array.of_list avs) (Array.make 0 (Var.of_string ""))
 
-    match v with
-    | Mglobal (AarraySlice _ )
-    | Mlocal  (AarraySlice _ ) ->
-      List.fold_left
-        (fun x y -> add_single y x) env
-        (u8_blast_var ~blast_arrays:true v)
-
-    | _ -> add_single v env
+  (* [prepare_env] for a list of expressions, with a single [lce]. *)
+  let prepare_env_list env mexprs =
+    let vars =
+      List.concat_map Mtexpr.get_var mexprs
+      |> List.rev_map avar_of_mvar
+      |> List.sort_uniq Var.compare
+      |> Array.of_list in
+    Environment.lce env (Environment.make vars (Array.make 0 (Var.of_string "")))
 
   let e_complex e =
     (is_relational ()) && (Mtexpr.contains_mod e)
@@ -532,14 +539,10 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
     let v_weaks = List.rev v_weaks in
     
     (* If v_copies are not in the environment, we add them *)
-    let env = List.fold_left (fun env v_cp ->
-        env_add_mvar env v_cp
-      ) (Abstract1.env a) v_copies in 
+    let env = env_add_mvars (Abstract1.env a) v_copies in
 
     (* We add the variables in the expressions to the environment *)
-    let env = List.fold_left (fun env e ->
-        prepare_env env e
-      ) env es in
+    let env = prepare_env_list env es in
     let a = Abstract1.change_environment man a env false in
 
     (* If the domain is relational, and if e contains a modulo, then we just

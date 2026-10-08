@@ -289,8 +289,11 @@ module AbsNumCongr : AbsNumType = struct
   let unify _ _ = assert false
 
   let change_environment t l =
-    (* Remove values not in [l] *)
-    let t = Mm.filter (fun k _ -> List.mem k l) t in
+    (* Remove values not in [l] (a hash table, as [l] can hold every byte
+       of the global arrays) *)
+    let h = Hashtbl.create (List.length l) in
+    List.iter (fun x -> Hashtbl.replace h x ()) l;
+    let t = Mm.filter (fun k _ -> Hashtbl.mem h k) t in
     List.fold_left (fun t v ->
         if not (Mm.mem v t)
         then Mm.add v Congr.top t
