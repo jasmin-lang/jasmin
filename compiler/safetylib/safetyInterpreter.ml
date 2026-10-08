@@ -1790,6 +1790,8 @@ end = struct
                 let abs =
                   AbsDom.assign_sexpr
                     state.abs (Some ginstr.i_info) [mvari, expr_ci] in
+                (* As a constant, i points to no memory region. *)
+                let abs = AbsDom.assign_ptr_expr abs mvari (PtVars []) in
 
                 let state =
                   { state with
