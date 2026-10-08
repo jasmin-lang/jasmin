@@ -28,3 +28,14 @@ The safety conditions of the callee and of the caller are still checked.
   *** Possible Safety Violation(s):
     "index.jazz", line 15 (2-11): in_bound: t[a] (length 32 U8)
   Program is not safe!
+
+A callee with a pointer argument is analyzed in its calling context.
+
+  $ ../../../jasmin-checksafety --config calltop.json pointer.jazz 2>&1 | grep -e Violation -e line -e safe -e "mem_p:"
+  *** No Safety Violation
+    mem_p: [0; 16]
+
+  $ ../../../jasmin-checksafety --config calltop.json pointer_offset.jazz 2>&1 | grep -e Violation -e line -e safe
+  *** Possible Safety Violation(s):
+    "pointer_offset.jazz", line 11 (2-14): is_valid p +64u (64u) 0 u64
+  Program is not safe!

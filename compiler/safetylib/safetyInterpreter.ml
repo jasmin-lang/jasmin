@@ -1352,8 +1352,9 @@ end = struct
 
 
   (* The function must not use memory loads/stores, array accesses must be
-     fixed, and arrays in arguments must be fully initialized
-     (i.e. cells must be initialized). *)
+     fixed, arrays in arguments must be fully initialized
+     (i.e. cells must be initialized), and arguments must not point to
+     memory (the points-to information is lost when evaluating from top). *)
   let check_valid_call_top st f_decl =
     let cells_init =
       List.for_all (fun v -> match mvar_of_scoped_var Expr.Slocal v with
@@ -1368,7 +1369,14 @@ end = struct
           | _ -> true
         ) f_decl.f_args in
 
-    cells_init && check_memory_access f_decl
+    let no_pointer =
+      List.for_all (fun v ->
+          match AbsDom.var_points_to st.abs (mvar_of_scoped_var Expr.Slocal v) with
+          | Ptrs (_ :: _) -> false
+          | Ptrs [] | TopPtr -> true
+        ) f_decl.f_args in
+
+    cells_init && no_pointer && check_memory_access f_decl
 
 
   (* -------------------------------------------------------------------- *)
@@ -1808,8 +1816,9 @@ end = struct
 
     (* Precond: [check_valid_call_top st_in] must hold:
        the function must not use memory loads/stores, array accesses must be
-       fixed, and arrays in arguments must be fully initialized
-       (i.e. cells must be initialized). *)
+       fixed, arrays in arguments must be fully initialized
+       (i.e. cells must be initialized), and arguments must not point to
+       memory. *)
     | Config.Call_TopByCallSite ->
       (* f has been abstractly evaluated at this callsite before *)
       if ItMap.mem itk st_in.it then
