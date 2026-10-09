@@ -227,6 +227,7 @@ lang/sem_op_typed_facts.v
 lang/sem_one_varmap_facts.v
 lang/sem_params.v
 lang/sem_type.v
+lang/sem_type_facts.v
 lang/sha256.v
 lang/shift_kind.v
 lang/slh_ops_facts.v
