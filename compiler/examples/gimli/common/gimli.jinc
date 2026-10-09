@@ -33,16 +33,16 @@ fn gimli(reg ptr u32[12] state) -> reg ptr u32[12] {
     z = state[8 + column];
 
     a = xor_shift(x, z, 1);
-    b = y & z;
+    b = and32(y, z);
     a = xor_shift(a, b, 2);
     state[8 + column] = a;
 
-    a = y ^ x;
-    b = x | z;
+    a = xor32(y, x);
+    b = or32(x, z);
     a = xor_shift(a, b, 1);
     state[4 + column] = a;
 
-    a = z ^ y;
+    a = xor32(z, y);
     b = x & y;
     a = xor_shift(a, b, 3);
     state[0 + column] = a;
@@ -59,10 +59,7 @@ fn gimli(reg ptr u32[12] state) -> reg ptr u32[12] {
     }
 
     if (round % 4 == 0) {
-    a = state[0];
-    b = rc + round;
-    a ^= b;
-    state[0] = a;
+      state = xor_round_constant(state, rc, round);
     }
     }
     return state;
