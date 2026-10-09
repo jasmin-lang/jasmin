@@ -31,7 +31,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
-  {ovm_i : one_varmap_info}.
+  {ovm_i : one_varmap_info} {vinfo : veneer_info}.
 
 Definition sz_cmd_spec rspn lbl ws_align ws stk_max cmd vars : Prop :=
   ~ Sv.In (vid rspn) vars ->

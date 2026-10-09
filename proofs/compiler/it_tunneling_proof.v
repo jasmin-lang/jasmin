@@ -29,7 +29,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
-  {ovm_i : one_varmap.one_varmap_info}.
+  {ovm_i : one_varmap.one_varmap_info} {vinfo : one_varmap.veneer_info}.
 
 Context (p:lprog).
 Context (p' : lprog).

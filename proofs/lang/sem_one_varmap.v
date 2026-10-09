@@ -34,7 +34,7 @@ Definition kill_var (x: var) (vm: Vm.t) : Vm.t :=
 
 Notation kill_vars := (Sv.fold kill_var).
 
-Definition vm_after_syscall {ovm_i : one_varmap_info} (vm:Vm.t) :=
+Definition vm_after_syscall {ovm_i : one_varmap_info} {vinfo : veneer_info} (vm:Vm.t) :=
   kill_vars syscall_kill vm.
 
 Lemma kill_varE vm y x :
@@ -60,7 +60,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
-  {ovm_i : one_varmap_info}
+  {ovm_i : one_varmap_info} {vinfo : veneer_info}
   (p : sprog)
   (var_tmp : Sv.t).
 

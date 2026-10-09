@@ -19,8 +19,38 @@ let local_label_prefix () = if is_target_system_macos () then "L" else ".L"
 let string_of_label name p =
   Format.asprintf "%s%s$%a" (local_label_prefix ()) (escape name) Z.pp_print (Conv.z_of_pos p)
 
+(* Functions of the unit being printed that are not exported, and whose calls
+   must therefore be printed against their own symbol and not against the
+   assembler-local label that heads them: under -function-sections such a call
+   crosses a section boundary, so the assembler has to emit a relocation for
+   it, and a relocation taken against an assembler-local label says nothing
+   about the instruction set of its destination (ARM or Thumb), which the GNU
+   linker refuses ("Unknown destination type"). Both denote the same address:
+   the entry point of a function that is not exported is its first
+   instruction, i.e. its internal label 1 (see [linear_body] in
+   linearization.v). The table is filled by the generic printer and is empty
+   unless the functions are laid out in sections of their own. *)
+let local_functions : (string, unit) Hashtbl.t = Hashtbl.create 17
+
+let set_local_functions names =
+  Hashtbl.reset local_functions;
+  List.iter (fun n -> Hashtbl.replace local_functions n ()) names
+
+(* The label heading the body of a function that is not exported. *)
+let function_entry_label = Z.one
+
 let pp_remote_label (fn, lbl) =
-  string_of_label fn.fn_name lbl
+  if Hashtbl.mem local_functions fn.fn_name
+     && Z.equal (Conv.z_of_pos lbl) function_entry_label
+  then escape fn.fn_name
+  else string_of_label fn.fn_name lbl
+
+(* The ELF section holding the code of one function. The section type is
+   spelled "%progbits" and not "@progbits" because "@" introduces a comment in
+   the ARM flavour of the GNU assembler; "%progbits" is accepted by GNU as and
+   by LLVM on every ELF target. *)
+let text_section name =
+  Header (".section", [ ".text." ^ name; "\"ax\""; "%progbits" ])
 
 let mangle x =
   if is_target_system_macos () then

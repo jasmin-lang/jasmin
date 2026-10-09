@@ -58,6 +58,10 @@ module Riscv (Lowering_params : Riscv_input) : Arch_full.Core_arch
 
   let callstyle = Arch_full.ByReg { call = Some RA; return = true }
 
+  (* GNU ld does not synthesise trampolines for RISC-V: a "call" out of range
+     is a link error, not a veneer. *)
+  let veneer_registers = []
+
   let sp_min_align = Wsize.U8
 
   let max_store_size = Wsize.U32

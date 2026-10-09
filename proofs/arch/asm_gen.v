@@ -717,7 +717,8 @@ End ASM_EXTRA.
 
 Section OVM_I.
 
-Context {reg regx xreg rflag cond} {ad : arch_decl reg regx xreg rflag cond} {atoI : arch_toIdent} {call_conv: calling_convention}.
+Context {reg regx xreg rflag cond} {ad : arch_decl reg regx xreg rflag cond} {atoI : arch_toIdent} {call_conv: calling_convention}
+  {vregs : veneer_regs_info}.
 
 Definition vflags := sv_of_list to_var rflags.
 
@@ -741,6 +742,18 @@ Definition all_vars :=
   vflags       := vflags;
   vflagsP      := vflagsP;
 }.
+
+(* The registers a linker-inserted veneer may destroy in front of a call
+   internal to the unit, as seen by the middle end: exactly the machine
+   registers of [veneer_regs] (arch_decl.veneer_regs_info), mapped through
+   [to_var].  Being a definition and not a parameter, it needs no side
+   condition relating the two sides of the translation to assembly (see
+   asm_gen_proof.call_kill_regs_only and asm_gen_proof.veneer_kill_outside).
+   The list is empty unless the functions are laid out in sections of their
+   own, and an empty set constrains nothing. *)
+#[global] Instance veneer_i : one_varmap.veneer_info := {|
+  call_kill := sv_of_list to_var veneer_regs;
+|}.
 
 End OVM_I.
 

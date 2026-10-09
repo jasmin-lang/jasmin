@@ -29,6 +29,10 @@ Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then
 (* FIXME: We should use the higher-level [eval_lsem] lemmas. *)
 Section FIXME.
 
+(* The registers a linker veneer may clobber; threaded implicitly through
+   the linear semantics.  See one_varmap.veneer_info. *)
+Context {vinfo : one_varmap.veneer_info}.
+
 Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
@@ -47,6 +51,10 @@ End FIXME.
 #[local] Existing Instance withsubword.
 
 Section STACK_ZEROIZATION.
+
+(* The registers a linker veneer may clobber; threaded implicitly through
+   the linear semantics.  See one_varmap.veneer_info. *)
+Context {vinfo : one_varmap.veneer_info}.
 
 Context {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
 Context {call_conv : calling_convention}.

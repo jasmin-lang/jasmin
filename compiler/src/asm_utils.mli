@@ -4,6 +4,16 @@ val string_of_label : string -> Label.label -> string
 val pp_remote_label : Label.remote_label -> string
 val mangle : string -> string
 
+(** Declares the functions of the unit being printed that are not exported.
+    Calls to those are printed against their own symbol and not against the
+    assembler-local label heading them, which is what a cross-section call
+    needs. Called with the empty list when the functions are not separated
+    into sections. *)
+val set_local_functions : string list -> unit
+
+(** ".text.<name>" section holding the code of one function. *)
+val text_section : string -> PrintASM.asm_element
+
 val format_glob_data :
   Word0.word list ->
   ((Var0.Var.var * Wsize.wsize) * BinNums.coq_Z) list ->
