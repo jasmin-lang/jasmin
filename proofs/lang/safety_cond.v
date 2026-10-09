@@ -6,10 +6,11 @@
    *total* semantics of [sem_op_total.v], so that their meaning does not
    depend on the failures they are there to rule out.
 
-   This file holds the language, the check [check_safe] that an operation
-   performs on the values of its arguments, the construction [mk_sem_op] of a
-   partial semantics from a total one guarded by conditions, and the library
-   of the conditions the operators are made of ([sc_toint], [sc_in_range], ...).
+   This file holds the language, its typing, the check [check_safe] that an
+   operation performs on the values of its arguments, the construction
+   [mk_sem_op] of a partial semantics from a total one guarded by conditions,
+   and the library of the conditions the operators are made of ([sc_toint],
+   [sc_in_range], ...).
    Which conditions each expression operator carries is in [op_semi.v]. *)
 
 (* ** Imports and settings *)
@@ -59,6 +60,71 @@ Definition safety_cond_holds (vs : values) (c : safety_cond) : bool :=
   if sem_safety_cond vs c is Ok (Vbool b) then b else false.
 
 (* -------------------------------------------------------------------- *)
+(* ** Typing                                                             *)
+
+(* [safety_cond_type tin c] is the type of [c] when the arguments have types
+   [tin]. An operator expecting an argument of type [t] accepts a
+   sub-condition of type [t'] as soon as [subctype t t'], which is exactly
+   what [of_val] accepts (for words: a word of at least that size). *)
+Fixpoint safety_cond_type (tin : seq ctype) (c : safety_cond) : option ctype :=
+  match c with
+  | IBool _ => Some cbool
+  | IConst _ => Some cint
+  | IVar n => if (n < size tin)%nat then Some (nth cbool tin n) else None
+  | IOp1 o c =>
+    let t := type_of_op1 o in
+    if safety_cond_type tin c is Some t1 then
+      if subctype (eval_atype t.1) t1 then Some (eval_atype t.2) else None
+    else None
+  | IOp2 o c1 c2 =>
+    let t := type_of_op2 o in
+    if safety_cond_type tin c1 is Some t1 then
+      if safety_cond_type tin c2 is Some t2 then
+        if subctype (eval_atype t.1.1) t1 && subctype (eval_atype t.1.2) t2
+        then Some (eval_atype t.2) else None
+      else None
+    else None
+  end.
+
+(* A well-typed condition is one that evaluates to a boolean. *)
+Definition safety_cond_wt (tin : seq ctype) (c : safety_cond) : bool :=
+  safety_cond_type tin c == Some cbool.
+
+(* The variables of a condition are among the first [n] arguments. *)
+Fixpoint safety_cond_below (n : nat) (c : safety_cond) : bool :=
+  match c with
+  | IBool _ | IConst _ => true
+  | IVar k => (k < n)%nat
+  | IOp1 _ c => safety_cond_below n c
+  | IOp2 _ c1 c2 => safety_cond_below n c1 && safety_cond_below n c2
+  end.
+
+(* Extra arguments do not change the type of a condition: the descriptors that
+   extend the arguments of an instruction ([mk_cond], the shifted variants)
+   need this to keep their conditions well typed. *)
+Lemma safety_cond_type_cat tin tin' c t :
+  safety_cond_type tin c = Some t -> safety_cond_type (tin ++ tin') c = Some t.
+Proof.
+elim: c t => //=.
++ move=> k t; case: ifP => // hk [<-].
+  by rewrite nth_cat hk size_cat (ltn_addr _ hk).
++ move=> o c ih t; case heq: (safety_cond_type tin c) => [t1|] //=; case: ifP => // hsub [<-].
+  by rewrite (ih _ heq) /= hsub.
+move=> o c1 ih1 c2 ih2 t.
+case heq1: (safety_cond_type tin c1) => [t1|] //=; case heq2: (safety_cond_type tin c2) => [t2|] //=.
+case: ifP => // hsub [<-].
+by rewrite (ih1 _ heq1) (ih2 _ heq2) /= hsub.
+Qed.
+
+Lemma safety_cond_wt_cat tin tin' c :
+  safety_cond_wt tin c -> safety_cond_wt (tin ++ tin') c.
+Proof. by rewrite /safety_cond_wt => /eqP /safety_cond_type_cat ->. Qed.
+
+Lemma all_safety_cond_wt_cat tin tin' l :
+  all (safety_cond_wt tin) l -> all (safety_cond_wt (tin ++ tin')) l.
+Proof. by apply: sub_all => c; apply: safety_cond_wt_cat. Qed.
+
+(* -------------------------------------------------------------------- *)
 (* ** Checking the conditions                                            *)
 
 (* The safety check: if one of the conditions fails, the operation raises the
@@ -66,9 +132,8 @@ Definition safety_cond_holds (vs : values) (c : safety_cond) : bool :=
 Definition check_safe (vs : values) (safe : seq safety_cond) (err : error) : exec unit :=
   if all (safety_cond_holds vs) safe then ok tt else Error err.
 
-(* Computational analogue of [values.interp_safe_cond_ty_aux]: the arguments
-   are collected, as values, in [vs] along the [sem_prod], and [P] is applied
-   to them and to the result. *)
+(* The arguments are collected, as values, in [vs] along the [sem_prod], and
+   [P] is applied to them and to the result. *)
 Fixpoint mk_semi_aux {T T'} (P : values -> T -> exec T') (vs : values) (tin : seq ctype) :
   sem_prod tin T -> sem_prod tin (exec T') :=
   match tin return sem_prod tin T -> sem_prod tin (exec T') with
@@ -93,6 +158,7 @@ Arguments mk_sem_op {tin t} safe err f : assert.
 Definition sc_toint sg ws k    := IOp1 (Oint_of_word sg ws) (IVar k).
 Definition sc_not c            := IOp1 Onot c.
 Definition sc_and c1 c2        := IOp2 Oand c1 c2.
+Definition sc_or c1 c2         := IOp2 Oor c1 c2.
 Definition sc_eqi c1 c2        := IOp2 (Oeq Op_int) c1 c2.
 Definition sc_neqi c1 c2       := IOp2 (Oneq Op_int) c1 c2.
 Definition sc_lei c1 c2        := IOp2 (Ole Cmp_int) c1 c2.

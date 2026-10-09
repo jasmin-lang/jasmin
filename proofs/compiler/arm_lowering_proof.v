@@ -738,7 +738,7 @@ Ltac rewrite_exec :=
       case: b; mytac; last done
   end
   || mytac;
-  rewrite /= !zero_extend_u.
+  rewrite /= !zero_extend_u ?add_arguments_app ?add_arguments_nil /=.
 
 Lemma with_shift_unop s eb ea ts (b: word ts) (a: u8) x vs sh opts r :
   (U32 ≤ ts)%CMP ->
@@ -950,12 +950,9 @@ Proof.
     10, 11: have! := (is_wconstP true (p_globs p) s hconst); rewrite hseme1 => /truncate_wordP[] _.
     10: move => <-; rewrite /sem_rol /sem_shift wrol0.
     all: rewrite /= !zero_extend_u //.
-    all: rewrite /arm_LSR_semi /arm_LSL_semi /arm_ASR_semi /arm_ROR_semi /arm_shift_semi.
-    all: rewrite /arch_utils.semi_drop3 /=.
-    1-4: by case: ifP => //=.
     move=> ?; subst c.
     rewrite /sem_rol /sem_shift wrepr_unsigned -wror_opp.
-    case: eqP => /= _; do 3 f_equal; apply: wror_m;
+    do 3 f_equal; apply: wror_m;
       change (wsize_bits _) with (wsize_size U256);
       by rewrite sub_wordE wunsigned_sub_mod.
   }
@@ -1262,6 +1259,7 @@ Proof.
   all: rewrite truncate_word_le /=.
   2, 4, 6, 8, 10, 12: exact: cmp_le_trans hws hws0.
   all: rewrite (zero_extend_idem _ hws) {hws} /= in hwrite.
+  all: rewrite ?add_arguments_app ?add_arguments_nil /=.
   1-3: rewrite zero_extend_u.
   all: by rewrite hwrite {hwrite}.
 Qed.

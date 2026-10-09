@@ -9,6 +9,7 @@ Require Import
   arch_decl
   expr
   fexpr
+  sopn_semi
   wsize
   asm_gen.
 Require Import
@@ -70,21 +71,24 @@ Definition Oset0_instr sz  :=
     mk_instr_desc_safe (pp_sz "set0" sz)
              [::] [::]
              (map atype_of_ltype (b5w_ty sz)) (map sopn_arg_desc implicit_flags ++ [:: E 0])
-             (let vf := Some false in
-              let vt := Some true in
+             (let vf := false in
+              let vt := true in
               (::vf, vf, vf, vt, vt & (0%w: word sz)))
+             (nseq 6 (IBool true))
               true DOIT
   else
     mk_instr_desc_safe (pp_sz "set0" sz)
              [::] [::]
              (map atype_of_ltype (w_ty sz)) [::E 0]
-             (0%w: word sz) true DOIT.
+             (0%w: word sz)
+             [:: IBool true] true DOIT.
 
 Definition Oconcat128_instr :=
   mk_instr_desc_safe (pp_s "concat_2u128")
            [:: aword U128; aword U128 ] [:: E 1; E 2]
            [:: aword U256] [:: E 0]
            (λ h l : u128, make_vec U256 [::l;h])
+           [:: IBool true]
            true DOIT.
 
 Definition Ox86MOVZX32_instr :=
@@ -92,6 +96,7 @@ Definition Ox86MOVZX32_instr :=
            [:: aword U32] [:: E 1]
            [:: aword U64] [:: E 0]
            (λ x : u32, zero_extend U64 x)
+           [:: IBool true]
            true DOIT.
 
 Definition x86_MULX sz (v1 v2: word sz) : tpl (w2_ty sz sz) :=
@@ -102,7 +107,9 @@ Definition Ox86MULX_instr sz :=
    mk_instr_desc_safe (pp_sz name sz)
         [:: aword sz; aword sz] [::ADImplicit (to_var RDX); E 2]
         [:: aword sz; aword sz] [:: E 0; E 1] (* hi, lo *)
-        (@x86_MULX sz) (size_32_64 sz) DOIT.
+        (@x86_MULX sz)
+        [:: IBool true; IBool true]
+        (size_32_64 sz) DOIT.
 
 Definition x86_MULX_hi sz (v1 v2: word sz) : tpl (w_ty sz) :=
   wmulhu v1 v2.
@@ -112,7 +119,9 @@ Definition Ox86MULX_hi_instr sz :=
    mk_instr_desc_safe (pp_sz name sz)
         [:: aword sz; aword sz] [::ADImplicit (to_var RDX); E 1]
         [:: aword sz] [:: E 0]
-        (@x86_MULX_hi sz) (size_32_64 sz) DOIT.
+        (@x86_MULX_hi sz)
+        [:: IBool true]
+        (size_32_64 sz) DOIT.
 
 
 Definition Ox86SLHinit_str := append "Ox86_" SLHinit_str.
@@ -123,6 +132,7 @@ Definition Ox86SLHinit_instr :=
       [:: ty_msf ]
       [:: E 0 ]
       se_init_sem
+      [:: IBool true]
       true NOT_DOIT.
 
 Definition x86_se_update_sem (b:bool) (w: wmsf) : wmsf * wmsf :=
@@ -138,6 +148,7 @@ Definition Ox86SLHupdate_instr :=
                 [:: ty_msf; ty_msf]
                 [:: E 2; E 1]
                 x86_se_update_sem
+                [:: IBool true; IBool true]
                 true DOIT.
 
 Definition Ox86SLHmove_str := append "Ox86_" SLHmove_str.
@@ -148,11 +159,12 @@ Definition Ox86SLHmove_instr :=
       [:: ty_msf ]
       [:: E 0 ]
       se_move_sem
+      [:: IBool true]
       true DOIT.
 
-Definition se_protect_small_sem
-  (ws:wsize) (w:word ws) (msf:word ws) : (sem_ltuple (b5w_ty ws)) :=
-   x86_OR w msf.
+Definition se_protect_small_sem_t
+  (ws:wsize) (w:word ws) (msf:word ws) : (sem_ltuple_t (b5w_ty ws)) :=
+   x86_OR_t w msf.
 
 Definition se_protect_mmx_sem
   (ws:wsize) (w:word ws) (msf:word ws) : (word ws) :=
@@ -174,6 +186,7 @@ Definition Ox86SLHprotect_instr rk :=
       [:: aword ws ]
       [:: E 0 ]
       (@se_protect_mmx_sem ws)
+      [:: IBool true]
       (ws == reg_size) DOIT
   else if (ws <= Uptr)%CMP then
     mk_instr_desc_safe (pp_sz Ox86SLHprotect_str ws)
@@ -181,7 +194,8 @@ Definition Ox86SLHprotect_instr rk :=
                   [:: E 0; E 1]
                   [:: abool; abool; abool; abool; abool; aword ws]
                   out
-                  (@se_protect_small_sem ws)
+                  (@se_protect_small_sem_t ws)
+                  (nseq 6 (IBool true))
                   true DOIT
   else
     mk_instr_desc_safe (pp_sz Ox86SLHprotect_str ws)
@@ -190,6 +204,7 @@ Definition Ox86SLHprotect_instr rk :=
                   [:: aword ws; aword ws]
                   [:: E 2; E 0]
                   (@se_protect_large_sem ws)
+                  [:: IBool true; IBool true]
                   (Uptr < ws)%CMP DOIT.
 
 Definition get_instr_desc o :=
