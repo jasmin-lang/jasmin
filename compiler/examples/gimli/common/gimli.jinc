@@ -1,0 +1,66 @@
+param int N_ROUND = 24;
+param int N_COLUMN = 4;
+param int ROUND_CONSTANT = 0x9e377900;
+
+inline
+fn swap(reg ptr u32[12] state, inline int i j) -> reg ptr u32[12] {
+    reg u32 x y;
+
+    x = state[i];
+    y = state[j];
+    state[i] = y;
+    state[j] = x;
+
+    return state;
+}
+
+#[ct = "state -> state"]
+export
+fn gimli(reg ptr u32[12] state) -> reg ptr u32[12] {
+    inline int round, column;
+    reg u32 x, y, z;
+    reg u32 a, b;
+    reg u32 rc;
+
+    rc = ROUND_CONSTANT;
+
+    for round = N_ROUND downto 0 {
+    for column = 0 to N_COLUMN {
+    x = state[0 + column];
+    x = rol32(x, 24);
+    y = state[4 + column];
+    y = rol32(y, 9);
+    z = state[8 + column];
+
+    a = xor_shift(x, z, 1);
+    b = and32(y, z);
+    a = xor_shift(a, b, 2);
+    state[8 + column] = a;
+
+    a = xor32(y, x);
+    b = or32(x, z);
+    a = xor_shift(a, b, 1);
+    state[4 + column] = a;
+
+    a = xor32(z, y);
+    b = x & y;
+    a = xor_shift(a, b, 3);
+    state[0 + column] = a;
+    }
+
+    if (round % 4 == 0) {
+    state = swap(state, 0, 1);
+    state = swap(state, 2, 3);
+    }
+
+    if (round % 4 == 2) {
+    state = swap(state, 0, 2);
+    state = swap(state, 1, 3);
+    }
+
+    if (round % 4 == 0) {
+      state = xor_round_constant(state, rc, round);
+    }
+    }
+    return state;
+}

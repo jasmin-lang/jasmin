@@ -2,8 +2,10 @@ Array12.ec
 BArray48.ec
 WArray48.ec
 gimli_arm.ec
+gimli_armv8a.ec
 gimli_avx.ec
 gimli_x86.ec
 gimli_arm_ct.ec
+gimli_armv8a_ct.ec
 gimli_avx_ct.ec
 gimli_x86_ct.ec
