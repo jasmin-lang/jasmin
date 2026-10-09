@@ -236,6 +236,7 @@ lang/utils.v
 lang/values.v
 lang/var.v
 lang/varmap.v
+lang/varmap_facts.v
 lang/waes.v
 lang/warray_.v
 lang/word.v
