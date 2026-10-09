@@ -3,7 +3,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 Require Import xseq.
-Require Export type expr gen_map warray_ sem_type sem_type_facts sem_op_typed values values_facts varmap varmap_facts expr_facts low_memory syscall_sem syscall_sem_facts psem_defs.
+Require Export type type_facts expr gen_map warray_ sem_type sem_type_facts sem_op_typed values values_facts varmap varmap_facts expr_facts low_memory syscall_sem syscall_sem_facts psem_defs.
 Require Export
   flag_combination
   sem_params.

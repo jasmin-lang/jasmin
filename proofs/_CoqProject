@@ -242,6 +242,7 @@ lang/syscall_sem.v
 lang/syscall_sem_facts.v
 lang/tagged.v
 lang/type.v
+lang/type_facts.v
 lang/utils.v
 lang/values.v
 lang/values_facts.v
