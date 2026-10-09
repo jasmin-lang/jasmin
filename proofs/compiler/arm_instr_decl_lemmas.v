@@ -27,6 +27,9 @@ Proof. by case: mn. Qed.
    but the variable number of arguments makes it very cumbersome.
    This gets multiplied if they set flags or have shifts. *)
 
+Lemma add_arguments_nil A lt f: @add_arguments A [::] lt f = f.
+Proof. by rewrite /add_arguments /eq_rect_r /=. Qed.
+
 Section WITH_PARAMS.
 
 Context

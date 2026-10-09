@@ -429,9 +429,6 @@ Proof.
   by apply: f.
 Defined.
 
-Lemma add_arguments_nil A lt f: @add_arguments A [::] lt f = f.
-Proof. by rewrite /add_arguments /eq_rect_r /=. Qed.
-
 Definition mk_semi_cond tin tout (semi : sem_lprod tin (exec (sem_ltuple tout)))
   : sem_lprod (tin ++ lbool :: tout) (exec (sem_ltuple tout)) :=
   let f0 res cond : sem_lprod tout (exec (sem_ltuple tout)) :=
