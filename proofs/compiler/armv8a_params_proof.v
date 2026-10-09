@@ -35,7 +35,7 @@ Require
   arch_sem.
 Require Import
   arch_decl
-  arch_extra
+  arch_extra arch_extra_lemmas
   asm_gen
   asm_gen_proof
   sem_params_of_arch_extra.

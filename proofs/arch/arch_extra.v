@@ -221,18 +221,6 @@ Section ARCH.
 
 Context `{arch : arch_decl} {atoI : arch_toIdent}.
 
-Lemma to_var_reg_neq_regx (r : reg_t) (x : regx_t) :
-  to_var r <> to_var x.
-Proof. rewrite /to_var => -[]; apply: inj_toI_reg_regx. Qed.
-
-Lemma to_var_reg_neq_xreg (r : reg_t) (x : xreg_t) :
-  to_var r <> to_var x.
-Proof. move=> [] hsize _; apply/eqP/reg_size_neq_xreg_size:hsize. Qed.
-
-Lemma to_var_regx_neq_xreg (r : regx_t) (x : xreg_t) :
-  to_var r <> to_var x.
-Proof. move=> [] hsize _; apply/eqP/reg_size_neq_xreg_size:hsize. Qed.
-
 Definition var_of_implicit_arg (i : implicit_arg) : var :=
   match i with
   | IArflag r => to_var r
@@ -341,10 +329,6 @@ Definition computational_eq {m n} (opaque_eq: m = n) : m = n :=
 
 (* When it does not evaluate directly to [erefl], e.g. when the arguments are
    not fully concrete, we rely on this rewrite lemma to unblock computation. *)
-Lemma computational_eq_refl n (e : n = n) : computational_eq e = erefl.
-Proof.
-  by apply (Eqdep_dec.UIP_dec (List.list_eq_dec ctype_eqb_OK_sumbool)).
-Qed.
 
 Definition semi_to_atype {tin tout} (semi: sem_prod (map eval_ltype tin) (exec (sem_tuple (map eval_ltype tout)))) :
     sem_prod (map eval_atype (map atype_of_ltype tin)) (exec (sem_tuple (map eval_atype (map atype_of_ltype tout)))) :=

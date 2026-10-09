@@ -11,7 +11,7 @@ Require Import
   lowering_lemmas
   sem_op_typed_facts.
 Require Import
-  arch_extra
+  arch_extra arch_extra_lemmas
   sem_params_of_arch_extra.
 Require Export x86_lowering.
 Import Utf8 Lia.

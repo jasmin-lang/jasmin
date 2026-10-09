@@ -24,7 +24,7 @@ Require Import
   fexpr_sem.
 Require Import
   arch_decl
-  arch_extra
+  arch_extra arch_extra_lemmas
   arch_sem
   sem_params_of_arch_extra.
 Require Export asm_gen.
