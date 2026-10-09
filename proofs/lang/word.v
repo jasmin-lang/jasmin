@@ -102,6 +102,9 @@ Proof. done. Qed.
 Definition wbase (s: wsize) : Z :=
   modulus (wsize_size_minus_1 s).+1.
 
+Definition Z_mod_lnot (z:Z) (ws:wsize) : Z :=
+  (zmod_pow2 (Z.lnot z) (nat_of_wsize ws))%Z.
+
 Lemma wbaseE ws :
   wbase ws = 2 ^ Z.of_nat (wsize_size_minus_1 ws).+1.
 Proof. by rewrite /wbase /word.modulus two_power_nat_equiv. Qed.

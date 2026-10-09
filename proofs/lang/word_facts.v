@@ -825,6 +825,25 @@ Lemma truncate_word_uincl sz1 sz2 w1 (w2: word sz2) :
   truncate_word sz1 w2 = ok w1 → word_uincl w1 w2.
 Proof. by move=> /truncate_wordP[? ->]; exact: word_uincl_zero_ext. Qed.
 
+(* Equality between the "new" definition of Z_mod_lnot (using zmod_pow2)
+   and an older definition (using mod)
+ *)
+Lemma Z_lnot_mod_pow2_to_mod (z:Z) (ws:wsize) :
+  let m := wbase ws in
+  Z_mod_lnot z ws = (Z.lnot (z mod m) mod m)%Z.
+Proof.
+  rewrite /Z_mod_lnot zmod_pow2E wbaseE /Z.lnot /Z.pred.
+  set (n := (2 ^ Z.of_nat ws)%Z).
+  assert (Haux: ((-(z mod n)) mod n = (-z) mod n)%Z).
+  {
+    replace (- (z mod n))%Z with ((-1) * (z mod n))%Z by ring.
+    replace (-z)%Z with (-1 * z)%Z by ring.
+    apply Zmult_mod_idemp_r.
+  }
+  symmetry.
+  by rewrite Zplus_mod (Zplus_mod (-z)%Z (-1)%Z) Haux.
+Qed.
+
 Lemma ZlnotE (x : Z) :
   Z.lnot x = (- (x + 1))%Z.
 Proof. have := Z.add_lnot_diag x. lia. Qed.
