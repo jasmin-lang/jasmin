@@ -1,0 +1,8 @@
+/* The LDP offset is outside the signed 7-bit range scaled by 8. */
+export
+fn ldp_offset_range(reg u64 p) -> reg u64 {
+    reg u64 a b;
+    a, b = #LDP([:u128 p + 512]);
+    a += b;
+    return a;
+}

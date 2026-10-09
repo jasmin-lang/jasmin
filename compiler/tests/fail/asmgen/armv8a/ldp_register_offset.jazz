@@ -1,0 +1,8 @@
+/* LDP has no register-offset form. */
+export
+fn ldp_register_offset(reg u64 p i) -> reg u64 {
+    reg u64 a b;
+    a, b = #LDP([:u128 p + 8 * i]);
+    a += b;
+    return a;
+}

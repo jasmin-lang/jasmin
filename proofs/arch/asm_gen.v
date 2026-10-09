@@ -429,7 +429,8 @@ Definition check_sopn_dests rip ii (loargs : seq asm_arg) (outx : lexprs) (adt :
   let eoutx := map rexpr_of_lexpr outx in
   all2 (check_sopn_dest rip ii loargs) eoutx adt.
 
-(* [check_arg_kind] but ignore constraints on immediate sizes *)
+(* [check_arg_kind] but ignore constraints on immediate sizes and on the
+   shape of memory addresses *)
 Definition check_arg_kind_no_imm (a:asm_arg) (cond: arg_kind) :=
   match a, cond with
   | Condt _, CAcond => true
@@ -437,7 +438,7 @@ Definition check_arg_kind_no_imm (a:asm_arg) (cond: arg_kind) :=
   | ImmRip k _, CAimmRip k' => k == k'
   | Reg _ , CAreg => true
   | Regx _, CAregx => true
-  | Addr _, CAmem _ => true
+  | Addr _, CAmem _ _ => true
   | XReg _, CAxmm   => true
   | _, _ => false
   end.
@@ -463,7 +464,8 @@ Definition filter_args_kinds_no_imm (args:asm_args) (cond:args_kinds) : option a
 Definition filter_i_args_kinds_no_imm (cond:i_args_kinds) (a:asm_args) : i_args_kinds :=
   pmap (filter_args_kinds_no_imm a) cond.
 
-(* Enforce size constraints on immediates. *)
+(* Enforce size constraints on immediates and shape constraints on memory
+   addresses. *)
 Definition enforce_imm_arg_kind (a:asm_arg) (cond: arg_kind) : option asm_arg :=
   match a, cond with
   | Condt _, CAcond => Some a
@@ -476,7 +478,9 @@ Definition enforce_imm_arg_kind (a:asm_arg) (cond: arg_kind) : option asm_arg :=
   | ImmRip k _, CAimmRip k' => if k == k' then Some a else None
   | Reg _, CAreg => Some a
   | Regx _, CAregx => Some a
-  | Addr _, CAmem _ => Some a
+  | Addr addr, CAmem _ checker =>
+    if oapp (fun c => check_CAmem_address c addr) true checker
+    then Some a else None
   | XReg _, CAxmm   => Some a
   | _, _ => None
   end.
@@ -497,7 +501,10 @@ Definition enforce_imm_i_args_kinds (cond:i_args_kinds) (a:asm_args) :=
 
 Definition pp_arg_kind c :=
   match c with
-  | CAmem b => pp_nobox [:: pp_s "mem (glob "; pp_s (if b then "" else "not ")%string; pp_s "allowed)"]
+  | CAmem b checker =>
+      pp_nobox
+        ([:: pp_s "mem (glob "; pp_s (if b then "" else "not ")%string; pp_s "allowed)"]
+         ++ oapp (fun c => [:: pp_s " "; pp_s (camem_cond_pp c)]) [::] checker)
   | CAimm checker ws =>
       pp_nobox
         ([:: pp_s "imm "; pp_s (string_of_wsize ws)]
@@ -519,6 +526,11 @@ Definition pp_args_kinds cond :=
 Definition pp_i_args_kinds cond :=
   pp_vbox [:: pp_list PPEbreak pp_args_kinds cond].
 
+(* Whether some argument kind in [cond] restricts the shape of an address;
+   used to word the error message of [assemble_asm_op]. *)
+Definition has_CAmem_cond (cond : i_args_kinds) : bool :=
+  has (has (has (fun c => if c is CAmem _ (Some _) then true else false))) cond.
+
 Definition assemble_asm_op rip ii op (outx : lexprs) (inx : rexprs) :=
   let id := instr_desc op in
   Let asm_args := assemble_asm_op_aux rip ii op outx inx in
@@ -534,10 +546,19 @@ Definition assemble_asm_op rip ii op (outx : lexprs) (inx : rexprs) :=
     if enforce_imm_i_args_kinds args_kinds asm_args is Some asm_args then
       ok asm_args
     else
+      let mem := has_CAmem_cond args_kinds in
       Error (E.error ii (pp_nobox [::
-        pp_box [:: pp_s "instruction"; pp_s s; pp_s "is given at least one too large immediate as an argument."]; PPEbreak;
+        pp_box [:: pp_s "instruction"; pp_s s;
+          pp_s (if mem
+                then "is given at least one too large immediate or unencodable"
+                     ++ " address as an argument."
+                else "is given at least one too large immediate as an argument.")%string];
+        PPEbreak;
         pp_vbox [::
-        pp_s "Allowed args compatible with the input (except on immediate sizes) are:";
+        pp_s (if mem
+              then "Allowed args compatible with the input (except on immediate sizes"
+                   ++ " and address shapes) are:"
+              else "Allowed args compatible with the input (except on immediate sizes) are:")%string;
         pp_nobox [::pp_s "  "; pp_vbox [::
         pp_i_args_kinds args_kinds]];
         pp_s "All allowed args (regardless of the input) are:";

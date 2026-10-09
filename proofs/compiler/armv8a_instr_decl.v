@@ -143,11 +143,13 @@ Variant armv8a_mnemonic : Type :=
 | LDRSB                          (* Load a sign extended byte *)
 | LDRSH                          (* Load a sign extended halfword *)
 | LDRSW                          (* Load a sign extended word *)
+| LDP                            (* Load a pair of words or doublewords *)
 
 (* Stores *)
 | STR                            (* Store a word or doubleword *)
 | STRB                           (* Store a byte *)
 | STRH                           (* Store a halfword *)
+| STP                            (* Store a pair of words or doublewords *)
 
 (* Barriers *)
 | CSDB                           (* Consumption of speculative data barrier *)
@@ -170,8 +172,8 @@ Definition armv8a_mnemonics : seq armv8a_mnemonic :=
     ; SXTB; SXTH; SXTW; UXTB; UXTH; UXTW
     ; CMP; CMN; TST
     ; CSEL
-    ; LDR; LDRB; LDRH; LDRSB; LDRSH; LDRSW
-    ; STR; STRB; STRH
+    ; LDR; LDRB; LDRH; LDRSB; LDRSH; LDRSW; LDP
+    ; STR; STRB; STRH; STP
     ; CSDB; DSB; ISB
   ].
 
@@ -217,8 +219,8 @@ Definition sized_mnemonics : seq armv8a_mnemonic :=
     ; SXTB; SXTH; UXTB; UXTH
     ; CMP; CMN; TST
     ; CSEL
-    ; LDR; LDRB; LDRH; LDRSB; LDRSH
-    ; STR; STRB; STRH
+    ; LDR; LDRB; LDRH; LDRSB; LDRSH; LDP
+    ; STR; STRB; STRH; STP
   ].
 
 Definition wsize_uload_mn : seq (wsize * armv8a_mnemonic) :=
@@ -315,9 +317,11 @@ Definition string_of_armv8a_mnemonic (mn : armv8a_mnemonic) : string :=
   | LDRSB => "LDRSB"
   | LDRSH => "LDRSH"
   | LDRSW => "LDRSW"
+  | LDP => "LDP"
   | STR => "STR"
   | STRB => "STRB"
   | STRH => "STRH"
+  | STP => "STP"
   | CSDB => "CSDB"
   | DSB => "DSB"
   | ISB => "ISB"
@@ -2257,6 +2261,111 @@ Definition armv8a_store_instr mn : instr_desc_t :=
 *)
 
 (* -------------------------------------------------------------------- *)
+(* Load and store pair, signed offset form.
+   The two registers are transferred through a single memory argument of
+   twice the register size ([wsize_pair]). Jasmin memory is little endian,
+   so the low half of that argument is the word at the lower address, which
+   the first register receives (or provides). The address must satisfy
+   [CAmemC_armv8a_pair]: a base register and a scaled 7-bit displacement.
+   The pre-index and post-index (writeback) forms are not modelled. *)
+
+Definition wsize_pair (ws : wsize) : wsize := if ws == U32 then U64 else U128.
+
+(* Global addresses are not allowed: [lower_glob_load] first computes the
+   address of a global into a register ([armv8a_is_load]). *)
+Let ak_reg_reg_pair :=
+  [:: [:: [:: CAreg ]; [:: CAreg ];
+          [:: CAmem false (Some (CAmemC_armv8a_pair osz)) ] ] ].
+
+(* [C6.2.214 LDP] ARM DDI 0487 M.d
+   Load pair of registers. Signed offset form:
+   Syntax: LDP <Wt1>, <Wt2>, [<Xn|SP>{, #<imm>}]
+   Syntax: LDP <Xt1>, <Xt2>, [<Xn|SP>{, #<imm>}]
+   <imm> is "a multiple of 4 in the range -256 to 252" (W) or "a multiple
+   of 8 in the range -512 to 504" (X), "encoded in the "imm7" field".
+   Operation (ASL, excerpt):
+     let data : bits(2*datasize) = Mem{2*datasize}(address, accdesc);
+     ...
+     else
+         data1 = data[(datasize-1):0];
+         data2 = data[(2*datasize-1):datasize];
+     end;
+     X{datasize}(t) = data1;
+     X{datasize}(t2) = data2;
+   If t == t2, the behavior is CONSTRAINED UNPREDICTABLE (K1.2.17.7). The
+   two destinations are written by the same instruction, so register
+   allocation gives them distinct registers; the assembly printer rejects
+   an LDP whose destinations are equal.
+*)
+Definition armv8a_LDP_semi {ws : wsize} (w : word (wsize_pair ws))
+  : sem_ltuple [:: lword ws; lword ws ] :=
+  (zero_extend ws w, zero_extend ws (wshr w (wsize_bits ws))).
+
+Definition armv8a_LDP_instr : instr_desc_t :=
+  let tin := [:: lword (wsize_pair osz) ] in
+  let semi := armv8a_LDP_semi (ws := osz) in
+  {|
+    id_msb_flag := msbf;
+    id_tin := tin;
+    id_in := [:: Eu 2 ];
+    id_tout := [:: lword osz; lword osz ];
+    id_out := [:: Ea 0; Ea 1 ];
+    id_semi := sem_lprod_ok tin semi;
+    id_nargs := 3;
+    id_args_kinds := ak_reg_reg_pair;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str LDP;
+    id_safe := [::];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_op_szs LDP [:: osz; osz; osz ];
+    id_valid := osz_valid;
+    id_safe_wf := refl_equal;
+    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
+    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+  |}.
+
+(* [C6.2.414 STP] ARM DDI 0487 M.d
+   Store pair of registers. Signed offset form:
+   Syntax: STP <Wt1>, <Wt2>, [<Xn|SP>{, #<imm>}]
+   Syntax: STP <Xt1>, <Xt2>, [<Xn|SP>{, #<imm>}]
+   <imm> has the same range as for LDP.
+   Operation (ASL, excerpt, without the writeback cases):
+     data1 = X{datasize}(t);
+     data2 = X{datasize}(t2);
+     let data : bits(2*datasize) = (if BigEndian(accdesc.acctype) then data1::data2
+                                                                 else data2::data1);
+     Mem{2 * datasize}(address, accdesc) = data;
+*)
+Definition armv8a_STP_semi {ws : wsize} (w1 w2 : word ws)
+  : sem_ltuple [:: lword (wsize_pair ws) ] :=
+  make_vec (wsize_pair ws) [:: w1; w2 ].
+
+Definition armv8a_STP_instr : instr_desc_t :=
+  let tin := [:: lword osz; lword osz ] in
+  let semi := armv8a_STP_semi (ws := osz) in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := tin;
+    id_in := [:: Ea 0; Ea 1 ];
+    id_tout := [:: lword (wsize_pair osz) ];
+    id_out := [:: Eu 2 ];
+    id_semi := sem_lprod_ok tin semi;
+    id_nargs := 3;
+    id_args_kinds := ak_reg_reg_pair;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str STP;
+    id_safe := [::];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_op_szs STP [:: osz; osz; osz ];
+    id_valid := osz_valid;
+    id_safe_wf := refl_equal;
+    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
+    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+  |}.
+
+(* -------------------------------------------------------------------- *)
 (* Barriers.
    They only constrain speculative execution and the order in which memory
    accesses are observed, which the semantics does not model: in the
@@ -2379,9 +2488,11 @@ Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
   | LDRSB => armv8a_load_instr LDRSB
   | LDRSH => armv8a_load_instr LDRSH
   | LDRSW => armv8a_load_instr LDRSW
+  | LDP => armv8a_LDP_instr
   | STR => armv8a_store_instr STR
   | STRB => armv8a_store_instr STRB
   | STRH => armv8a_store_instr STRH
+  | STP => armv8a_STP_instr
   | CSDB => armv8a_CSDB_instr
   | DSB => armv8a_DSB_instr
   | ISB => armv8a_ISB_instr

@@ -1,0 +1,42 @@
+/* LDP and STP, signed offset form, in the X and W forms. */
+
+u64[4] g = { 1, 2, 3, 4 };
+
+export
+fn ldp_stp(reg u64 p) -> reg u64 {
+    reg u64 a b c d;
+    reg u32 e f;
+    stack u64[4] s;
+
+    a, b = #LDP([:u128 p]);
+    c, d = #LDP([:u128 p - 512]);
+    [:u128 p + 504] = #STP(a, b);
+    [:u128 p + 8] = #STP(c, c);
+
+    e, f = #LDP_32([:u64 p - 256]);
+    [:u64 p + 252] = #STP_32(f, e);
+    e, f = #LDP_32([:u64 p + 4]);
+    a = (64u)e;
+    b = (64u)f;
+
+    s.[:u128 0] = #STP(a, b);
+    s.[:u128 16] = #STP(c, d);
+    c, d = #LDP(s.[:u128 8]);
+    a += c;
+    b += d;
+
+    c, d = #LDP(g.[:u128 16]);
+    a += c;
+    b += d;
+
+    a += b;
+    return a;
+}
+
+export
+fn ldp_stp_reg_ptr(reg ptr u64[4] t) -> reg ptr u64[4] {
+    reg u64 a b;
+    a, b = #LDP(t.[:u128 16]);
+    t.[:u128 0] = #STP(b, a);
+    return t;
+}
