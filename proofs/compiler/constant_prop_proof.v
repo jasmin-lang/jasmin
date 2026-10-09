@@ -363,7 +363,7 @@ Lemma is_cmp_constP s ty e z :
 Proof.
   case: ty => /=.
   - by case: is_constP => // ? /Some_inj <-.
-  move => sg sz /oseq.obindI [] w [] /(is_wconstP wdb gd s).
+  move => sg sz /oseq_facts.obindI [] w [] /(is_wconstP wdb gd s).
   t_xrbindP => v -> ok_w [<-{z}].
   exists v => //.
   exists w => //.

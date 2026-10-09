@@ -30,12 +30,13 @@ Require Import
 Require Export asm_gen.
 Require Import relational_logic.
 Import Utf8.
-Import oseq.
+Require oseq_facts.
+Import oseq oseq_facts.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
 Import Utf8 String.
-Import compiler_util oseq.
+Import compiler_util oseq oseq_facts.
 
 Section TOIDENT.
 Context `{tI : ToIdent}.

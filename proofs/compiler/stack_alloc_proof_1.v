@@ -6422,8 +6422,8 @@ Proof using addr_no_overflow disjoint_writable.
   move=> i hwi j vai vaj pi pj neq_ij /isSomeP [wj hwj] hvai hvaj hpi hpj.
   have := nth_not_default hwi ltac:(discriminate); rewrite size_map => hi.
   have := nth_not_default hwj ltac:(discriminate); rewrite size_map => hj.
-  move: hwi; rewrite (nth_map None) // => /oseq.obindI [pii [hpii [hwi]]].
-  move: hwj; rewrite (nth_map None) // => /oseq.obindI [pij [hpij _]].
+  move: hwi; rewrite (nth_map None) // => /oseq_facts.obindI [pii [hpii [hwi]]].
+  move: hwj; rewrite (nth_map None) // => /oseq_facts.obindI [pij [hpij _]].
   have := Forall2_nth hnnone None None.
   move=> /[dup].
   move=> /(_ _ hi _ hpii); rewrite hwi => -[sri hsri].

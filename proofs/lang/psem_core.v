@@ -8,6 +8,7 @@ Require Export
   flag_combination
   sem_params.
 Require Import utils_facts.
+Require oseq_facts.
 Import Utf8.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
@@ -495,7 +496,7 @@ Lemma is_wconstP wdb gd s sz e w:
   is_wconst sz e = Some w →
   sem_pexpr wdb gd s e >>= to_word sz = ok w.
 Proof.
-  case: e => // - [] // sz' e /=; case: ifP => // hle /oseq.obindI [z] [h] [<-].
+  case: e => // - [] // sz' e /=; case: ifP => // hle /oseq_facts.obindI [z] [h] [<-].
   have := is_constP e.
   rewrite h => {h} /is_reflect_some_inv -> {e}.
   by rewrite /= truncate_word_le // zero_extend_wrepr.

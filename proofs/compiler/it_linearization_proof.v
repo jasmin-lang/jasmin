@@ -3651,7 +3651,7 @@ End ILSTEPS_END.
       have -> /= : find_instr p' (lnext_pc ls1_) = Some {| li_ii := ii; li_i := linear.Llabel ExternalLabel lbl |}.
       + rewrite /lnext_pc; assert (h := find_instr_skip C).
         have h1 := h ls1_ (size before + 1) erefl.
-        by rewrite -addn1 -addnA -/before h1 -catA oseq.onth_cat ltnNge addn1 leqnSn /= subSnn.
+        by rewrite -addn1 -addnA -/before h1 -catA oseq_facts.onth_cat ltnNge addn1 leqnSn /= subSnn.
       rewrite /rencode_label ok_ptr /= (eval_jumpP ok_lfd' (find_entry_label _ _)); last by apply/eqP.
       have hfind : find_label lbl P' = ok (size P + size before).+1.
       + rewrite /P' find_label_cat_hd; last by apply: D; rewrite /next_lbl; lia.

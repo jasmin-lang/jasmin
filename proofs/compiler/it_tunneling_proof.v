@@ -16,7 +16,7 @@ Import word_ssrZ.
 
 Local Open Scope seq_scope.
 
-Require Import oseq seq_extra seq_extra_facts unionfind tunneling unionfind_proof.
+Require Import oseq oseq_facts seq_extra seq_extra_facts unionfind tunneling unionfind_proof.
 Require Import linear_sem.
 Require Import utils_facts.
 
