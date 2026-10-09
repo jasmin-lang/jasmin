@@ -4,7 +4,7 @@ JASMIN2EC := ../../../jasmin2ec
 
 .SUFFIXES: .jazz .ec
 
-all: gimli_arm.ec gimli_arm_ct.ec gimli_x86.ec gimli_x86_ct.ec gimli_avx.ec gimli_avx_ct.ec
+all: gimli_arm.ec gimli_arm_ct.ec gimli_armv8a.ec gimli_armv8a_ct.ec gimli_x86.ec gimli_x86_ct.ec gimli_avx.ec gimli_avx_ct.ec
 	easycrypt runtest $(ECARGS) ec.config $@
 
 gimli_arm.ec: ../arm-m4/gimli.jazz
@@ -12,6 +12,12 @@ gimli_arm.ec: ../arm-m4/gimli.jazz
 
 gimli_arm_ct.ec: ../arm-m4/gimli.jazz
 	$(JASMIN2EC) --arch=arm-m4 --model=CT -o $@ $^
+
+gimli_armv8a.ec: ../armv8a/gimli.jazz
+	$(JASMIN2EC) --arch=armv8a -o $@ $^
+
+gimli_armv8a_ct.ec: ../armv8a/gimli.jazz
+	$(JASMIN2EC) --arch=armv8a --model=CT -o $@ $^
 
 gimli_x86.ec: ../x86-64/gimli.jazz
 	$(JASMIN2EC) --arch=x86-64 -o $@ $^
