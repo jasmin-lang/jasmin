@@ -34,6 +34,44 @@ Import oseq.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
+Import Utf8 String.
+Import compiler_util oseq.
+
+Section TOIDENT.
+Context `{tI : ToIdent}.
+
+Lemma of_var_eP {ii v r} :
+  of_var_e ii v = ok r -> of_var v = Some r.
+Proof.
+  rewrite /of_var_e; case: of_var; last by case: eqP.
+  by move=> _ [->].
+Qed.
+
+Lemma of_var_eI {ii v r} : of_var_e ii v = ok r -> to_var r = v.
+Proof. by move => /of_var_eP; apply/of_varI. Qed.
+
+End TOIDENT.
+
+Section OF_TO.
+Context {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond} {atoI : arch_toIdent}.
+
+Lemma asm_typed_reg_of_varI x r :
+  asm_typed_reg_of_var x = ok r
+  -> x = var_of_asm_typed_reg r:> var.
+Proof.
+  move=> h;apply/sym_eq; move:h;rewrite /asm_typed_reg_of_var.
+  case heqr: (to_reg x) => [ ? | ].
+  + by move=> [<-]; apply:of_varI.
+  case heqrx: (to_regx x) => [ ? | ].
+  + by move=> [<-]; apply: of_varI.
+  case heqx: (to_xreg x) => [ ? | ].
+  + by move=> [<-]; apply: of_varI.
+  case heqf: (to_rflag x) => [ ? | //].
+  by move=> [<-]; apply: of_varI.
+Qed.
+
+End OF_TO.
+
 Section ASM_EXTRA.
 
 #[local] Existing Instance withsubword.
