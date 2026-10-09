@@ -79,9 +79,6 @@ Notation vname := Var.vname.
 Notation Var   := Var.Var.
 Notation vbool i := {| vtype := abool; vname := i; |}.
 
-Lemma vtype_diff x x': vtype x != vtype x' -> x != x'.
-Proof. by apply: contra => /eqP ->. Qed.
-
 (* ------------------------------------------------------------------------- *)
 Definition is_glob_var (x: var) : bool :=
   if Ident.id_kind x.(vname) is Global then true else false.
