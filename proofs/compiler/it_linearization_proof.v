@@ -20,12 +20,14 @@ Import Relations.
 Require it_sems_one_varmap label.
 Import word_ssrZ.
 Import ssrring.
-Import psem it_sems_one_varmap compiler_util label low_memory.
+Require low_memory_facts.
+Import psem it_sems_one_varmap compiler_util label low_memory low_memory_facts.
 Require Import seq_extra psem_facts.
 Require Import fexpr fexpr_sem fexpr_facts.
 Require Export linearization linear_sem linear_facts core_logics relational_logic.
 Require Import varmap_facts.
 Require Import syscall_sem_facts.
+Require Import low_memory_facts.
 Import Memory.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
@@ -42,7 +44,7 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {ovm_i : one_varmap_info}.
 
-(* TODO: move and also move low_memory.wunsigned_sub_small *)
+(* TODO: move and also move low_memory_facts.wunsigned_sub_small *)
 Lemma wunsigned_sub_small (p: pointer) (n: Z) :
   (0 <= n < wbase Uptr →
    wunsigned (p - wrepr Uptr n) <= wunsigned p →

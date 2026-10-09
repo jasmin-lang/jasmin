@@ -198,6 +198,7 @@ lang/linear.v
 lang/linear_facts.v
 lang/linear_sem.v
 lang/low_memory.v
+lang/low_memory_facts.v
 lang/lowering_lemmas.v
 lang/memory_example.v
 lang/memory_model.v

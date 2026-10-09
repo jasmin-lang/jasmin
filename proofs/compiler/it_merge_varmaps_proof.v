@@ -15,6 +15,7 @@ Require sem_one_varmap_facts.
 Require Import seq_extra.
 Require Import varmap_facts.
 Require Import syscall_sem_facts.
+Require Import low_memory_facts.
 Import Utf8.
 Import word_ssrZ.
 Import psem.

@@ -1,7 +1,8 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 Require Import psem.
 Import Utf8 Lia.
-Import Memory low_memory.
+Require low_memory_facts.
+Import Memory low_memory low_memory_facts.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
