@@ -1,7 +1,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith Setoid Morphisms.
-Require Import var type values.
+Require Import var type values values_facts.
 Require Import varmap.
 Import Utf8 ssrbool.
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
