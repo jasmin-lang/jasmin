@@ -228,6 +228,7 @@ lang/shift_kind.v
 lang/sopn.v
 lang/slh_ops.v
 lang/stack_zero_strategy.v
+lang/stack_zero_strategy_facts.v
 lang/strings.v
 lang/syscall.v
 lang/syscall_sem.v
