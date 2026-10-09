@@ -1,0 +1,13 @@
+// The callee adds an unknown value to its pointer argument.
+inline fn next(reg u64 p, reg u64 x) -> reg u64 {
+  p += x;
+  return p;
+}
+
+export fn g(reg u64 p) -> reg u64 {
+  reg u64 a x;
+  x = [p + 0];
+  p = next(p, x);
+  a = [p + 0];
+  return a;
+}

@@ -1,0 +1,20 @@
+// e is initialized, then points to a slice at an unknown offset of s, whose
+// last cell is not initialized: e[3] may be undefined.
+export fn g(reg u64 p) -> reg u64 {
+  stack u64[16] s;
+  stack u64[4] f;
+  reg ptr u64[4] e;
+  reg u64 off x;
+  inline int i;
+  for i = 0 to 15 { s[i] = i; }
+  for i = 0 to 4 { f[i] = i; }
+  e = f;
+  x = e[0];
+  off = [p + 0];
+  off &= 3;
+  off <<= 2;
+  e = s[off : 4];
+  x += e[3];
+  [p + 0] = x;
+  return x;
+}

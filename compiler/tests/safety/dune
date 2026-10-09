@@ -7,3 +7,5 @@
   (names
     run))
 
+(cram
+  (deps ../../jasmin-checksafety))

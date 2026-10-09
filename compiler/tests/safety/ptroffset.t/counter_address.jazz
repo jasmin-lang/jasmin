@@ -1,0 +1,9 @@
+// The loop counter is not an address.
+export fn g(reg u64 p) -> reg u64 {
+  inline int i;
+  reg u64 q v;
+  v = 1;
+  for i = 0 to 2 { q = i; [q + 0] = v; }
+  [p + 0] = v;
+  return v;
+}

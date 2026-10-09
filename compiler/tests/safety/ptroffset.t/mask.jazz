@@ -1,0 +1,15 @@
+// Every access is within [0; 64] of p.
+export fn g(reg u64 p) -> reg u64 {
+  reg u64 v o;
+  stack u8[1] c;
+  v = 1;
+  o = 0;
+  while {
+    c = #randombytes(c);
+  } (c[0] != 0) {
+    [p + 8 * o] = v;
+    o += 1;
+    o &= 7;
+  }
+  return v;
+}

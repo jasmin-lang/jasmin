@@ -1203,6 +1203,22 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
     | MLvars(_, mvs) -> List.fold_left remove_array_contents_mv abs mvs
     | MLasub(_, _ms) -> failwith "Not implemented (explicit array init of a slice)"
 
+  (* The byte cells of the slice of [x] of [len] bytes at offset [off] *)
+  let slice_cells x off len =
+    List.init (max 0 len) (fun i -> AarraySlice (x, U8, off + i))
+
+  (* Are all the cells that a copy from [ms] may read initialized?
+     These are the cells of the slice, or of the whole array if the offset
+     is unknown. Global arrays are fully initialized. *)
+  let slice_init abs (ms : int option gmsub) =
+    match ms.ms_sc with
+    | Expr.Sglob -> true
+    | Expr.Slocal ->
+      let cells = match ms.ms_offset with
+        | Some off -> slice_cells ms.ms_v off (ms.ms_len * size_of_ws ms.ms_ws)
+        | None -> arr_full_range ms.ms_v in
+      List.for_all (AbsDom.check_init abs) cells
+
   (* Array slice assignment. Does the numerical assignments.
      Remark: array elements do not need to be tracked in the point-to
      abstraction. *)
@@ -1213,16 +1229,28 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
       and rhs = { rhs with ms_offset = roff } in
       assign_slice_aux abs lhs rhs
 
-    (* If any offset is unknown, we need to forget the array content. *)
-    | _, _ -> array_contents lhs.ms_v |> AbsDom.forget_list abs
+    (* If any offset is unknown, we need to forget the array content.
+       Moreover, if the copied cells may be uninitialized, so may be the
+       cells that are written. If the written cells are known and all the
+       cells that may be copied are initialized, the written cells are. *)
+    | Some loff, None ->
+      let abs = array_contents lhs.ms_v |> AbsDom.forget_list abs in
+      let cells = slice_cells lhs.ms_v loff (lhs.ms_len * size_of_ws lhs.ms_ws) in
+      if slice_init abs rhs then List.fold_left AbsDom.is_init abs cells
+      else List.map (fun at -> Mlocal at) cells |> AbsDom.remove_vars abs
+
+    | None, _ ->
+      if slice_init abs rhs
+      then array_contents lhs.ms_v |> AbsDom.forget_list abs
+      else array_contents lhs.ms_v |> AbsDom.remove_vars abs
 
   let init_slice abs lhs es =
     match lhs.ms_offset with
     | None -> array_contents lhs.ms_v |> AbsDom.forget_list abs
     | Some loff ->
-       List.fold_lefti (fun abs i e ->
-           AbsDom.is_init abs (AarraySlice (lhs.ms_v, U8, i))
-         ) abs es
+       let cells = slice_cells lhs.ms_v loff (List.length es) in
+       let abs = List.map (fun at -> Mlocal at) cells |> AbsDom.forget_list abs in
+       List.fold_left AbsDom.is_init abs cells
 
   let omvar_is_offset = function
     | MLvar (_, MvarOffset _) -> true
