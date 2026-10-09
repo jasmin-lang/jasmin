@@ -178,6 +178,7 @@ Variant x86_op : Type :=
 (* Monitoring *)
 | RDTSC   of wsize
 | RDTSCP  of wsize
+| RDPMC
 
 (* AES instructions *)
 | AESDEC
@@ -2013,6 +2014,27 @@ Definition Ox86_RDTSCP_instr :=
    ,("RDTSCP"%string, prim_32_64 RDTSCP) (* jasmin concrete syntax *)
   ).
 
+Definition Ox86_RDPMC_instr :=
+  (mk_instr
+     (fun=> "RDPMC"%string) (* Jasmin name *)
+     (w_ty U32) (* args type *)
+     (w2_ty U32 U32) (* result type *)
+     [:: R RCX ] (* args *)
+     [:: R RDX; R RAX ] (* results *)
+     MSB_CLEAR (* clear MostSignificantBits *)
+     (fun _ => dflt_tuple (map eval_ltype (w2_ty U32 U32))) (* No semantics *)
+     (init_all_true 2)
+     [:: [::] ]
+     0 (* nargs *)
+     [:: ScFalse ]
+     ErrSemUndef
+     true
+     NOT_DOIT
+     (pp_name_ty "rdpmc" [:: U32 ]) (* asm pretty-print *)
+     refl_equal refl_equal
+   , ("RDPMC"%string, primM RDPMC) (* jasmin concrete syntax *)
+  ).
+
 (* Fences & cache-related instructions *)
 Definition Ox86_CLFLUSH_instr :=
   mk_instr_pp "CLFLUSH" [:: lword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 NOT_DOIT (primM CLFLUSH) (pp_name "clflush" U8).
@@ -2299,6 +2321,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | SFENCE             => Ox86_SFENCE_instr.1
   | RDTSC sz           => Ox86_RDTSC_instr.1 sz
   | RDTSCP sz          => Ox86_RDTSCP_instr.1 sz
+  | RDPMC              => Ox86_RDPMC_instr.1
   | AESDEC             => Ox86_AESDEC_instr.1
   | VAESDEC sz         => Ox86_VAESDEC_instr.1 sz
   | AESDECLAST         => Ox86_AESDECLAST_instr.1
@@ -2456,6 +2479,7 @@ Definition x86_prim_string :=
    Ox86_SFENCE_instr.2;
    Ox86_RDTSC_instr.2;
    Ox86_RDTSCP_instr.2;
+   Ox86_RDPMC_instr.2;
    Ox86_AESDEC_instr.2;
    Ox86_VAESDEC_instr.2;
    Ox86_AESDECLAST_instr.2;
