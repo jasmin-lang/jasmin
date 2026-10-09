@@ -10,4 +10,5 @@ fn xor_shift(reg u32 x y, inline int cnt) -> reg u32 {
   return x;
 }
 
+require "../common/lib.jinc"
 require "../common/gimli.jinc"
