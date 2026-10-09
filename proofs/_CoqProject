@@ -36,6 +36,7 @@ ssrmisc/seq_extra.v
 ssrmisc/seq_extra_facts.v
 3rdparty/ssrring.v
 3rdparty/xseq.v
+3rdparty/xseq_facts.v
 arch/arch_decl.v
 arch/arch_extra.v
 arch/arch_extra_lemmas.v
