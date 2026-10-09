@@ -1,0 +1,22 @@
+inline
+fn cpucycles() -> reg u64 {
+  reg u64 hi, lo;
+  reg u32 counter = 0x4000_0001;
+  hi, lo = (64u)#RDPMC(counter);
+  reg u64 cycles = hi << 32;
+  cycles |= lo;
+  return cycles;
+}
+
+export fn test(reg ui64 p) -> reg u64 {
+  reg u64 start = cpucycles();
+  start = start;
+
+  while (p > 0) {
+    p -= 1;
+  }
+
+  reg u64 cycles = cpucycles();
+  cycles -= start;
+  return cycles;
+}
