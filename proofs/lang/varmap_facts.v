@@ -4,6 +4,7 @@ From Coq Require Import ZArith Setoid Morphisms.
 Require Import var type type_facts values values_facts.
 Require Import varmap.
 Require Import sem_type_facts.
+Require Import word_facts.
 Import Utf8 ssrbool.
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 

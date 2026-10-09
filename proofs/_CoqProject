@@ -253,4 +253,5 @@ lang/varmap_facts.v
 lang/waes.v
 lang/warray_.v
 lang/word.v
+lang/word_facts.v
 lang/wsize.v
