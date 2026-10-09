@@ -12,7 +12,7 @@ From ITree Require Import
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 Require Import sem_one_varmap it_sems_one_varmap merge_varmaps psem_facts core_logics relational_logic.
 Require sem_one_varmap_facts.
-Require Import seq_extra.
+Require Import seq_extra seq_extra_facts.
 Require Import varmap_facts.
 Require Import syscall_sem_facts.
 Require Import low_memory_facts.

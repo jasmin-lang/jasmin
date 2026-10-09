@@ -23,7 +23,8 @@ Require Import
   riscv_instr_decl
   riscv_params_common_proof.
 Require Export riscv_stack_zeroization.
-Import seq_extra.
+Require seq_extra_facts.
+Import seq_extra seq_extra_facts.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
