@@ -135,6 +135,7 @@ build-from-tarball:
   - tar xvf compiler/$TARBALL.tgz
   - nix-build -o out $TARBALL/compiler
   - ./out/bin/jasminc -version
+  - nix-shell -p hello --run 'make JASMINC=../../../../out/bin/jasminc -C compiler/examples/gimli/x86-64'
 
 opam-from-tarball:
   stage: test
