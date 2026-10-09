@@ -31,11 +31,15 @@
 -R itrees Jasmin
 
 ssrmisc/oseq.v
+ssrmisc/oseq_facts.v
 ssrmisc/seq_extra.v
+ssrmisc/seq_extra_facts.v
 3rdparty/ssrring.v
 3rdparty/xseq.v
+3rdparty/xseq_facts.v
 arch/arch_decl.v
 arch/arch_extra.v
+arch/arch_extra_lemmas.v
 arch/arch_sem.v
 arch/arch_utils.v
 arch/arm_expand_imm.v
@@ -43,6 +47,7 @@ arch/asm_invariant.v
 arch/asm_gen.v
 arch/asm_gen_proof.v
 arch/label.v
+arch/label_lemmas.v
 arch/sem_params_of_arch_extra.v
 compiler/allocation.v
 compiler/allocation_proof.v
@@ -86,6 +91,7 @@ compiler/array_init.v
 compiler/array_init_proof.v
 compiler/compiler_util.v
 compiler/compiler.v
+compiler/compiler_util_lemmas.v
 compiler/constant_prop.v
 compiler/constant_prop_proof.v
 compiler/dead_calls.v
@@ -94,6 +100,7 @@ compiler/dead_code.v
 compiler/dead_code_proof.v
 compiler/direct_call_proof.v
 compiler/hoare_valid.v
+compiler/linear_util_lemmas.v
 compiler/toec_prog.v
 compiler/toec_proof.v
 compiler/toec_for.v
@@ -198,6 +205,7 @@ lang/linear.v
 lang/linear_facts.v
 lang/linear_sem.v
 lang/low_memory.v
+lang/low_memory_facts.v
 lang/lowering_lemmas.v
 lang/memory_example.v
 lang/memory_model.v
@@ -222,21 +230,32 @@ lang/sem_op_typed_facts.v
 lang/sem_one_varmap_facts.v
 lang/sem_params.v
 lang/sem_type.v
+lang/sem_type_facts.v
 lang/sha256.v
 lang/shift_kind.v
+lang/slh_ops_facts.v
 lang/sopn.v
 lang/slh_ops.v
 lang/stack_zero_strategy.v
+lang/stack_zero_strategy_facts.v
 lang/strings.v
 lang/syscall.v
 lang/syscall_sem.v
+lang/syscall_sem_facts.v
 lang/tagged.v
 lang/type.v
+lang/type_facts.v
 lang/utils.v
+lang/utils_facts.v
 lang/values.v
+lang/values_facts.v
 lang/var.v
+lang/var_facts.v
 lang/varmap.v
+lang/varmap_facts.v
 lang/waes.v
 lang/warray_.v
 lang/word.v
+lang/word_facts.v
 lang/wsize.v
+lang/wsize_facts.v

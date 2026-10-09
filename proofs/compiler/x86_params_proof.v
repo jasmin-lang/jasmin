@@ -24,7 +24,7 @@ Require
   arch_sem.
 Require Import
   arch_decl
-  arch_extra
+  arch_extra arch_extra_lemmas
   asm_gen
   asm_gen_proof
   sem_params_of_arch_extra.
@@ -449,7 +449,7 @@ Proof.
   rewrite hn => /(_ erefl) ha.
   assert (hcIaux := check_sopn_argP ha).
   move: hcIaux; rewrite hE => h; inversion_clear h.
-  rewrite H; move: H => /(oseq.onthP (Imm (wrepr U8 0))) /andP [hk] /eqP heqa.
+  rewrite H; move: H => /(oseq_facts.onthP (Imm (wrepr U8 0))) /andP [hk] /eqP heqa.
   have : check_arg_kinds (nth (Imm (wrepr U8 0)) oargs k) (nth xmm cond k).
   + by have /(_ k) := all2_nth (Imm (wrepr U8 0)) xmm _ hc; rewrite hk; apply.
   rewrite heqa hxmm.
@@ -485,7 +485,7 @@ Proof.
   set e := nth (LLvar _) _ _.
   rewrite /check_sopn_dest hE /=.
   case H : oseq.onth => [a | //].
-  move: H => /(oseq.onthP (Imm (wrepr U8 0))) /andP [hk] /eqP heqa.
+  move: H => /(oseq_facts.onthP (Imm (wrepr U8 0))) /andP [hk] /eqP heqa.
   have : check_arg_kinds (nth (Imm (wrepr U8 0)) oargs k) (nth xmm cond k).
   + by have /(_ k) := all2_nth (Imm (wrepr U8 0)) xmm _ hc; rewrite hk; apply.
   rewrite heqa hxmm.

@@ -24,7 +24,8 @@ Require Import
   armv8a_params_core_proof
   armv8a_params_common_proof.
 Require Export armv8a_stack_zeroization.
-Import seq_extra.
+Require seq_extra_facts.
+Import seq_extra seq_extra_facts.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
@@ -535,7 +536,7 @@ Local Opaque wsize_size Z.of_nat.
   move=> /(writeV 0) [m' hm'].
   eexists (Estate _ _ _); split.
   + apply: (lsem_n_eval_lin1 (n:= n) hbody) => //.
-    + rewrite oseq.onth_cat !size_map size_rev size_ziota.
+    + rewrite oseq_facts.onth_cat !size_map size_rev size_ziota.
       have hlt'': n < Z.to_nat (stk_max / wsize_size ws) by apply /ltP; lia.
       rewrite hlt''.
       rewrite onth_map.

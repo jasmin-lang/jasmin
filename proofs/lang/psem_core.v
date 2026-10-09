@@ -3,10 +3,12 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 Require Import xseq.
-Require Export type expr gen_map warray_ sem_type sem_op_typed values varmap expr_facts low_memory syscall_sem psem_defs.
+Require Export type type_facts expr gen_map warray_ sem_type sem_type_facts sem_op_typed values values_facts varmap varmap_facts expr_facts low_memory syscall_sem syscall_sem_facts psem_defs.
 Require Export
   flag_combination
   sem_params.
+Require Import utils_facts.
+Require oseq_facts.
 Import Utf8.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
@@ -494,7 +496,7 @@ Lemma is_wconstP wdb gd s sz e w:
   is_wconst sz e = Some w →
   sem_pexpr wdb gd s e >>= to_word sz = ok w.
 Proof.
-  case: e => // - [] // sz' e /=; case: ifP => // hle /oseq.obindI [z] [h] [<-].
+  case: e => // - [] // sz' e /=; case: ifP => // hle /oseq_facts.obindI [z] [h] [<-].
   have := is_constP e.
   rewrite h => {h} /is_reflect_some_inv -> {e}.
   by rewrite /= truncate_word_le // zero_extend_wrepr.

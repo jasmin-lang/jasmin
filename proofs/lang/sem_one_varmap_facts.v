@@ -3,6 +3,7 @@
 Require psem_facts sem_one_varmap.
 Import Utf8.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
+Require Import varmap_facts.
 Import low_memory.
 Import psem psem_facts sem_one_varmap.
 

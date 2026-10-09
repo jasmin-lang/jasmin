@@ -17,13 +17,23 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
 From Coq Require Import ZArith Utf8.
 Import Relations.
 
-Require it_sems_one_varmap label.
+Require it_sems_one_varmap label label_lemmas.
 Import word_ssrZ.
 Import ssrring.
-Import psem it_sems_one_varmap compiler_util label low_memory.
-Require Import seq_extra psem_facts.
+Require low_memory_facts.
+Import psem it_sems_one_varmap compiler_util label label_lemmas low_memory low_memory_facts.
+Require Import seq_extra seq_extra_facts psem_facts.
 Require Import fexpr fexpr_sem fexpr_facts.
 Require Export linearization linear_sem linear_facts core_logics relational_logic.
+Require Import varmap_facts.
+Require Import syscall_sem_facts.
+Require Import low_memory_facts.
+Require Import values_facts.
+Require Import sem_type_facts.
+Require Import label_lemmas.
+Require Import type_facts.
+Require Import word_facts.
+Require Import utils_facts.
 Import Memory.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
@@ -40,7 +50,7 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {ovm_i : one_varmap_info}.
 
-(* TODO: move and also move low_memory.wunsigned_sub_small *)
+(* TODO: move and also move low_memory_facts.wunsigned_sub_small *)
 Lemma wunsigned_sub_small (p: pointer) (n: Z) :
   (0 <= n < wbase Uptr →
    wunsigned (p - wrepr Uptr n) <= wunsigned p →
@@ -3641,7 +3651,7 @@ End ILSTEPS_END.
       have -> /= : find_instr p' (lnext_pc ls1_) = Some {| li_ii := ii; li_i := linear.Llabel ExternalLabel lbl |}.
       + rewrite /lnext_pc; assert (h := find_instr_skip C).
         have h1 := h ls1_ (size before + 1) erefl.
-        by rewrite -addn1 -addnA -/before h1 -catA oseq.onth_cat ltnNge addn1 leqnSn /= subSnn.
+        by rewrite -addn1 -addnA -/before h1 -catA oseq_facts.onth_cat ltnNge addn1 leqnSn /= subSnn.
       rewrite /rencode_label ok_ptr /= (eval_jumpP ok_lfd' (find_entry_label _ _)); last by apply/eqP.
       have hfind : find_label lbl P' = ok (size P + size before).+1.
       + rewrite /P' find_label_cat_hd; last by apply: D; rewrite /next_lbl; lia.
