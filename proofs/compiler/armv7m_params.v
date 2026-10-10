@@ -21,12 +21,12 @@ Require Import
   arch_extra
   asm_gen.
 Require Import
-  arm_decl
-  arm_extra
-  arm_instr_decl
-  arm_params_common
-  arm_lowering
-  arm_stack_zeroization.
+  armv7m_decl
+  armv7m_extra
+  armv7m_instr_decl
+  armv7m_params_common
+  armv7m_lowering
+  armv7m_stack_zeroization.
 
 Section Section.
 Context {atoI : arch_toIdent} {prof : armv7m_profile}.

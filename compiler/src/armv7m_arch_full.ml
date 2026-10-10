@@ -1,9 +1,9 @@
 open Arch_decl
 open Arm_common
-open Arm_decl
+open Armv7m_decl
 
 
-module type Arm_input = sig
+module type Armv7m_input = sig
   val call_conv : (register, Arch_utils.empty, Arch_utils.empty, rflag, condt) calling_convention
 
 end
@@ -11,23 +11,23 @@ end
 (* Shared by all the profiles: the registers are the same variables. *)
 let atoI = X86_arch_full.atoI arm_decl
 
-module Arm_core (P : Armv7m_profile.S) = struct
+module Armv7m_core (P : Armv7m_profile.S) = struct
   type reg = register
   type regx = Arch_utils.empty
   type xreg = Arch_utils.empty
   type nonrec rflag = rflag
   type cond = condt
-  type asm_op = Arm_instr_decl.arm_op
-  type extra_op = Arm_extra.arm_extra_op
+  type asm_op = Armv7m_instr_decl.arm_op
+  type extra_op = Armv7m_extra.arm_extra_op
 
-  let asm_e = Arm_extra.arm_extra atoI P.profile
+  let asm_e = Armv7m_extra.arm_extra atoI P.profile
 
-  let aparams = Arm_params.arm_params atoI P.profile
+  let aparams = Armv7m_params.arm_params atoI P.profile
 
   let known_implicits = ["NF", "_nf_"; "ZF", "_zf_"; "CF", "_cf_"; "VF", "_vf_"]
 
   let alloc_stack_need_extra sz =
-    not (Arm_params_core.is_arith_small (Conv.cz_of_z sz))
+    not (Armv7m_params_core.is_arith_small (Conv.cz_of_z sz))
 
   let is_ct_asm_op (o : asm_op) =
     match o with
@@ -39,23 +39,23 @@ module Arm_core (P : Armv7m_profile.S) = struct
 
 end
 
-module Arm (P : Armv7m_profile.S) (Lowering_params : Arm_input) : Arch_full.Core_arch
+module Armv7m (P : Armv7m_profile.S) (Lowering_params : Armv7m_input) : Arch_full.Core_arch
   with type reg = register
    and type regx = Arch_utils.empty
    and type xreg = Arch_utils.empty
    and type rflag = rflag
    and type cond = condt
-   and type asm_op = Arm_instr_decl.arm_op
-   and type extra_op = Arm_extra.arm_extra_op = struct
-  include Arm_core (P)
+   and type asm_op = Armv7m_instr_decl.arm_op
+   and type extra_op = Armv7m_extra.arm_extra_op = struct
+  include Armv7m_core (P)
   include Lowering_params
 
   (* TODO_ARM: r9 is a platform register. (cf. arch_decl)
      Here we assume it's just a variable register. *)
 
-  let not_saved_stack = (Arm_params.arm_liparams atoI P.profile).lip_not_saved_stack
+  let not_saved_stack = (Armv7m_params.arm_liparams atoI P.profile).lip_not_saved_stack
 
-  let pp_asm = Pp_arm_m4.print_prog (module P)
+  let pp_asm = Pp_armv7m.print_prog (module P)
 
   let callstyle = Arch_full.ByReg { call = Some LR; return = false }
 
@@ -67,5 +67,5 @@ module Arm (P : Armv7m_profile.S) (Lowering_params : Arm_input) : Arch_full.Core
 
   let max_store_size = Wsize.U32
 
-  let internal_call_conv = Arm_decl.arm_internal_call_conv
+  let internal_call_conv = Armv7m_decl.arm_internal_call_conv
 end

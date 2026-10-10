@@ -1,5 +1,5 @@
 (* Correctness of the params-level ARMv8-A operation wrappers
-   ([ARMv8AFopn_*] in armv8a_params.v), mirroring [arm_params_common_proof.v].
+   ([ARMv8AFopn_*] in armv8a_params.v), mirroring [armv7m_params_common_proof.v].
 
    These lemmas lift the core [sem_fopn_args] results of
    [armv8a_params_core_proof.v] through the [to_opn] wrapper (which tags the

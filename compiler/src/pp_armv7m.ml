@@ -11,9 +11,9 @@ open Asm_utils
 
 (* Architecture imports*)
 open Arm_common
-open Arm_decl
-open Arm_instr_decl
-open Arm_expand_imm
+open Armv7m_decl
+open Armv7m_instr_decl
+open Armv7m_expand_imm
 
 let arch = arm_decl
 
@@ -97,7 +97,7 @@ let pp_shift (ARM_op (_, opts)) args =
 
 let pp_mnemonic_ext profile (ARM_op (_, opts) as op) suff args =
   let id =
-    instr_desc Arm_decl.arm_decl (Arm_instr_decl.arm_op_decl profile) (None, op)
+    instr_desc Armv7m_decl.arm_decl (Armv7m_instr_decl.arm_op_decl profile) (None, op)
   in
   let pp = id.id_pp_asm args in
   Format.asprintf "%s%s%s%s" pp.pp_aop_name suff (pp_set_flags opts) (pp_conditional args)
@@ -189,8 +189,8 @@ end = struct
       -> ""
 end
 
-module ArmTarget (P : Armv7m_profile.S) : AsmTargetBuilder.AsmTarget with
-type reg = Arm_decl.register
+module Armv7mTarget (P : Armv7m_profile.S) : AsmTargetBuilder.AsmTarget with
+type reg = Armv7m_decl.register
 and type regx = Arch_utils.empty
 and type xreg = Arch_utils.empty
 and type rflag = Arm_common.rflag
@@ -198,7 +198,7 @@ and type cond = Arm_common.condt
 and type asm_op = arm_op
 = struct
 
-  type reg = Arm_decl.register
+  type reg = Armv7m_decl.register
   type regx = Arch_utils.empty
   type xreg = Arch_utils.empty
   type rflag = Arm_common.rflag
@@ -296,5 +296,5 @@ and type asm_op = arm_op
 end
 
 let print_prog (module P : Armv7m_profile.S) fmt prog =
-  let module ArmBuilder = AsmTargetBuilder.Make (ArmTarget (P)) in
-  PrintASM.pp_asm fmt (ArmBuilder.asm_of_prog prog)
+  let module Armv7mBuilder = AsmTargetBuilder.Make (Armv7mTarget (P)) in
+  PrintASM.pp_asm fmt (Armv7mBuilder.asm_of_prog prog)

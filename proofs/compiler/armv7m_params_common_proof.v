@@ -17,12 +17,12 @@ Require Import
   arch_extra
   sem_params_of_arch_extra.
 Require Import
-  arm_decl
-  arm_extra
-  arm_instr_decl
-  arm_params_core_proof.
+  armv7m_decl
+  armv7m_extra
+  armv7m_instr_decl
+  armv7m_params_core_proof.
 
-Require Export arm_params_common.
+Require Export armv7m_params_common.
 
 (* Most ARM instructions with default options are executed as follows:
    1. Unfold instruction execution definitions, e.g. [eval_instr].
