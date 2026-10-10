@@ -191,13 +191,18 @@ Definition armv8a_lmove (_ : wsize) (xd xs : var_i) :=
 
 Definition armv8a_check_ws ws := ws == reg_size.
 
+(* STRB and STRH store the low byte or halfword of a register, STR on a
+   32-bit register its low word (see [store_mn_of_wsize]). *)
+Definition armv8a_check_store_ws ws := (ws <= reg_size)%CMP.
+
 Definition armv8a_lstore (ws : wsize) (xd : var_i) (ofs : Z) (xs : var_i) :=
-  let mn := STR in
-  ([:: Store Aligned ws (faddv Uptr xd (fconst ws ofs))], Oarmv8a (ARMv8A_op mn default_opts), [:: Rexpr (Fvar xs)]).
+  let mn := odflt STR (store_mn_of_wsize ws) in
+  let opts := {| has_shift := None; opts_size := if (ws <= U16)%CMP then U64 else ws |} in
+  ([:: Store Aligned ws (faddv Uptr xd (fconst Uptr ofs))], Oarmv8a (ARMv8A_op mn opts), [:: Rexpr (Fvar xs)]).
 
 Definition armv8a_lload (ws : wsize) (xd : var_i) (xs : var_i) (ofs : Z) :=
   let mn := LDR in
-  ([:: LLvar xd], Oarmv8a (ARMv8A_op mn default_opts), [:: Load Aligned ws (faddv Uptr xs (fconst ws ofs))]).
+  ([:: LLvar xd], Oarmv8a (ARMv8A_op mn default_opts), [:: Load Aligned ws (faddv Uptr xs (fconst Uptr ofs))]).
 
 (* A saved register is stored to or loaded from [SP + ofs] directly only when
    LDR and STR can encode [ofs]: for an X register, "a multiple of 8 in the
@@ -253,6 +258,7 @@ Definition armv8a_liparams : linearization_params :=
     lip_set_up_sp_register := armv8a_set_up_sp_register;
     lip_lmove := armv8a_lmove;
     lip_check_ws := armv8a_check_ws;
+    lip_check_store_ws := armv8a_check_store_ws;
     lip_lstore  := armv8a_lstore;
     lip_lload := armv8a_lload;
     lip_lstores := lstores_imm_dfl armv8a_tmp2 armv8a_lstore ARMv8AFopn_smart_addi is_save_slot_offset;
