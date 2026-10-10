@@ -2,7 +2,11 @@ open Glob_options
 open Utils
 open X86_decl
 
-module Core_arch_ARM = Arm_arch_full.Arm (struct
+module Core_arch_ARM = Arm_arch_full.Arm (Armv7m_profile.Cortex_m4) (struct
+  let call_conv = Arm_decl.arm_linux_call_conv
+end)
+
+module Core_arch_ARM_M3 = Arm_arch_full.Arm (Armv7m_profile.Cortex_m3) (struct
   let call_conv = Arm_decl.arm_linux_call_conv
 end)
 
@@ -38,6 +42,7 @@ let get_arch_module arch call_conv : (module Arch_full.Arch) =
                   | X86_64 ->
                       (module (val core_arch_x86 call_conv)
                       : Arch_full.Core_arch)
+                  | ARM_M3 -> (module Core_arch_ARM_M3 : Arch_full.Core_arch)
                   | ARM_M4 -> (module Core_arch_ARM : Arch_full.Core_arch)
                   | ARMv8A -> (module Core_arch_ARMV8A : Arch_full.Core_arch)
                   | RISCV -> (module Core_arch_RISCV : Arch_full.Core_arch))))

@@ -25,7 +25,10 @@ $(dirname $0)/../jasminc -g -system linux -o ${ASM} "$@"
 # Succeed early if it’s not the case (i.e., do not try to assemble the result)
 (echo $@ | grep -q fail) && exit 0
 
-if [ $ARCH = "arm-m4" ]
+if [ $ARCH = "arm-m3" ]
+then
+    ASARGS="--triple=armv7m --mcpu=cortex-m3"
+elif [ $ARCH = "arm-m4" ]
 then
     ASARGS="--triple=armv7m --mcpu=cortex-m4"
 elif [ $ARCH = "riscv" ]
@@ -42,4 +45,4 @@ fi
 llvm-mc $ASARGS --filetype=obj -o ${OBJ} ${ASM}
 
 # Compile as a shared library, except for ARMv7 for which it is known not to work
-[ $ARCH = "arm-m4" ] || ld.lld -shared -o ${DLL} ${OBJ}
+[ $ARCH = "arm-m3" ] || [ $ARCH = "arm-m4" ] || ld.lld -shared -o ${DLL} ${OBJ}

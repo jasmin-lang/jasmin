@@ -32,7 +32,7 @@ To verify that a program is constant-time using Jasmin type system, you can use 
 The main options are:
 
   - `--arch=VAL` (absent=`x86-64`)
-    The target architecture (one of `x86-64`, `arm-m4` or `riscv`)
+    The target architecture (one of `x86-64`, `arm-m3`, `arm-m4` or `riscv`)
   - `--compile=VAL`, `--after=VAL` (absent=`typing`)
 Run after the given compilation pass (one of `typing`, `cstexp`, `wintword`, `arraycopy`, `addarrinit`, `lowerspill`, `inline`, `rmfunc`,
 `unroll`, `splitting`, `renaming`, `rmphi`, `renamingd`, `rmarrinit`, `makeref`, `arrexp`, `rmglobals`, `loadconst`, `lowering`, `propagate`, `slhlowering` or `loweraddr`).

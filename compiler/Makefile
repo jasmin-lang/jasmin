@@ -10,18 +10,22 @@ CHECKCATS ?= \
 	x86-64-Intel \
 	x86-64-nolea \
 	x86-64-windows \
+	arm-m3 \
+	arm-m3-dsp \
 	arm-m4 \
 	armv8a \
 	risc-v \
 	x86-64-stack-zero-loop \
 	x86-64-stack-zero-unrolled \
+	arm-m3-stack-zero-loop \
+	arm-m3-stack-zero-unrolled \
 	arm-m4-stack-zero-loop \
 	arm-m4-stack-zero-unrolled \
 	armv8a-stack-zero-loop \
 	armv8a-stack-zero-unrolled \
 	risc-v-stack-zero-loop \
 	risc-v-stack-zero-unrolled \
-	CCT CCT-riscv CCT-DOIT CCT-DOIT-riscv CCT-DOIT-arm-m4 SCT
+	CCT CCT-riscv CCT-arm-m3 CCT-DOIT CCT-DOIT-riscv CCT-DOIT-arm-m3 CCT-DOIT-arm-m4 SCT
 
 # --------------------------------------------------------------------
 DESTDIR  ?=

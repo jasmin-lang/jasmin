@@ -7,6 +7,8 @@ module Core_arch_ARM : Arch_full.Core_arch
    and type asm_op = Arm_instr_decl.arm_op
    and type extra_op = Arm_extra.arm_extra_op
 
+module Core_arch_ARM_M3 : module type of Core_arch_ARM
+
 module Core_arch_RISCV : Arch_full.Core_arch
   with type reg = Riscv_decl.register
    and type regx = Arch_utils.empty

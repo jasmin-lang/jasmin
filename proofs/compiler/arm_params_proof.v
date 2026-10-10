@@ -52,6 +52,7 @@ Section Section.
 
 Context
   {atoI  : arch_toIdent}
+  {prof : armv7m_profile}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
   {call_conv : calling_convention}.
