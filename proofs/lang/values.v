@@ -278,20 +278,27 @@ Proof. by case: v => //= [? [<-] | [] ]. Qed.
 Lemma to_int_undef v : to_int v = undef_error -> v = undef_i.
 Proof. by case: v => //= -[] // e; rewrite (Eqdep_dec.UIP_refl_bool _ e). Qed.
 
-Definition to_arr len v : exec (sem_t (carr len)) :=
+Definition to_arr len (v: value) : exec (sem_t (carr len)) :=
   match v with
-  | Varr len' t => WArray.cast len t
+  | Varr len' t => if len' =P len is ReflectT h then ok (ecast n (WArray.array n) h t) else type_error
   | _ => type_error
   end.
 
+Lemma to_arrK len (a: WArray.array len) : to_arr len (Varr a) = ok a.
+Proof. by rewrite /=; case: eqP => // h; rewrite (Eqdep_dec.UIP_dec Z.eq_dec h erefl). Qed.
+
 Lemma to_arrI n v t : to_arr n v = ok t -> v = Varr t.
-Proof.
-  case: v => //= n' t' /[dup] /WArray.cast_len ?; subst n'.
-  by rewrite WArray.castK => -[<-].
-Qed.
+Proof. by case: v => //= n' t'; case: eqP => // ? /ok_inj; subst => ->. Qed.
 
 Lemma to_arr_undef p v : to_arr p v <> undef_error.
-Proof. by case: v => //= ??; rewrite /WArray.cast; case: ifP. Qed.
+Proof. by case: v => //= ??; case: eqP. Qed.
+
+Global Opaque to_arr.
+
+Lemma to_arr_empty (len len': Z) (a: WArray.array len):
+  to_arr len (Varr (WArray.empty len')) = ok a →
+  a = WArray.empty len.
+Proof. by case/to_arrI/Varr_inj => ??; subst. Qed.
 
 Definition to_word s v : exec (word s) :=
   match v with
@@ -388,8 +395,8 @@ Lemma of_value_uincl_te ty v v' vt :
   | _ => fun _ => of_val ty v' = ok vt
   end vt.
 Proof.
-  case: v => > /value_uinclE + /of_valE //; try (by move=> -> [? ]; subst=> /= ->).
-  + by move: vt => + [? -> +] [?] => vt ??; subst => /=; rewrite WArray.castK; eauto.
+  case: v => [ b | z | len a | sz w | t ht ] /value_uinclE + /of_valE //; try (by move=> -> [? ]; subst=> /= ->).
+  + by case => a' -> h [?] ?; subst; exists a'; first exact: to_arrK.
   move: vt => + [? [? [-> +]]] [? [? [? []]]]; subst=> /= _ ++ ->.
   exact: word_uincl_truncate.
 Qed.
@@ -409,9 +416,9 @@ Proof. by case: t v1 v2 => /= > => [[]|[]| /Varr_inj1 |[]]. Qed.
 
 Lemma of_val_to_val t (v : sem_t t) : of_val t (to_val v) = ok v.
 Proof.
-  case: t v => //=.
-  + by move=> len a; rewrite WArray.castK.
-  by move=> ws w; rewrite truncate_word_u.
+  case: t v => //.
+  + move => len a; exact: to_arrK.
+  by move=> ws w; rewrite /= truncate_word_u.
 Qed.
 
 Lemma to_valI t (x: sem_t t) v : to_val x = v ->
@@ -497,7 +504,7 @@ Lemma val_uincl_of_val ty v v' vt :
 Proof.
   case: v => > /value_uinclE + /of_valE //;
     try (by move=> -> [? ]; subst => /= ->; eauto).
-  + by move=> [???] [??]; subst => /=; rewrite WArray.castK; eauto.
+  + by case => ??? [] ??; subst; rewrite /of_val to_arrK; eauto.
   move: vt => + [? [? [-> +]]] [s [x [? []]]]; subst=> /= _ ++ ->.
   move=> /word_uincl_truncate h/h{h} ->; eauto.
 Qed.
@@ -604,7 +611,7 @@ Lemma truncate_val_idem (t : ctype) (v v' : value) :
   truncate_val t v = ok v' -> truncate_val t v' = ok v'.
 Proof.
   move=> /truncate_valI; case: v' => [b[]|z[]|len a[]|ws w[?[?[]]]| ] //= -> //=.
-  + by move=> _; rewrite /truncate_val /= WArray.castK.
+  + by move=> _; rewrite /truncate_val /of_val to_arrK.
   by move=> _ _; rewrite /truncate_val /= truncate_word_u.
 Qed.
 
@@ -635,7 +642,7 @@ Proof.
   + by move=> b [-> _] ->; eexists; reflexivity.
   + by move=> z [-> _] ->; eexists; reflexivity.
   + move=> len a [-> _] ->.
-    by rewrite /truncate_val /= WArray.castK; eexists; reflexivity.
+    by rewrite /truncate_val /of_val to_arrK; eexists; reflexivity.
   move=> ws1 w1 [_ [_ [-> _ _]]] [ws2 [-> hcmp2]].
   rewrite /truncate_val /= truncate_word_le //.
   by eexists; reflexivity.
@@ -658,7 +665,7 @@ Proof.
     rewrite /truncate_val /=.
   + by eexists; first by reflexivity.
   + by eexists; first by reflexivity.
-  + rewrite WArray.castK.
+  + rewrite to_arrK.
     by eexists; first by reflexivity.
   rewrite (word_uincl_truncate hincl (truncate_word_u _)).
   eexists; first by reflexivity.

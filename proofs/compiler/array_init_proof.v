@@ -78,7 +78,7 @@ Proof.
       by apply: WArray.uincl_empty.
     + by t_xrbindP.
     + by apply: on_arr_varP => ???; t_xrbindP.
-    apply: on_arr_varP => /= tlen t ?; t_xrbindP => hg i vi hvi hi _ /WArray.cast_empty_ok ->.
+    apply: on_arr_varP => /= tlen t ?; t_xrbindP => hg i vi hvi hi _ /to_arr_empty ->.
     move => t1 ht1 /write_varP_arr [/= hty _ _ ->]; split => //.
     apply vm_uincl_set_l => //=.
     move: hg; rewrite /get_var; t_xrbindP => _ hx.
@@ -169,7 +169,7 @@ Proof.
   rewrite -(cat0s c) -cat1s.
   apply wequiv_cat with (cmpl_inv I) => //.
   apply wequiv_assign_right => s t h.
-  rewrite /=  /truncate_val /= WArray.castK /=.
+  rewrite /= /truncate_val /= to_arrK /=.
   eexists.
   + by apply write_varP; split => //; rewrite heq /= eqxx.
   case h => h1 h2 [h3 h4]; split => //; split => //.
