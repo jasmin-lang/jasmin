@@ -32,6 +32,3 @@ Definition stack_zero_strategy_list := [::
 
 (* To use [Finite.axiom], we must first show that [stack_zero_strategy] is [eqType]. *)
 HB.instance Definition _ := hasDecEq.Build stack_zero_strategy stack_zero_strategy_eqb_OK.
-
-Lemma stack_zero_strategy_list_complete : Finite.axiom stack_zero_strategy_list.
-Proof. by case. Qed.

@@ -232,6 +232,7 @@ lang/sopn_semi.v
 lang/sopn_semi_facts.v
 lang/slh_ops.v
 lang/stack_zero_strategy.v
+lang/stack_zero_strategy_facts.v
 lang/strings.v
 lang/syscall.v
 lang/syscall_sem.v
