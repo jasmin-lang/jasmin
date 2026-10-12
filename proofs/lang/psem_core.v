@@ -7,6 +7,7 @@ Require Export type type_facts expr gen_map warray_ sem_type sem_type_facts sem_
 Require Export
   flag_combination
   sem_params.
+Require Import utils_facts.
 Import Utf8.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)

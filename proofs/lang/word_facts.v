@@ -3,7 +3,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype choice t
 From mathcomp Require Import div fintype order ssralg ssrnum word_ssrZ word.
 From Coq Require Zquot.
 From Coq Require Import ZArith.
-Require Import utils.
+Require Import utils utils_facts.
 Require Import wsize.
 Require Import word.
 Import Utf8 Lia.

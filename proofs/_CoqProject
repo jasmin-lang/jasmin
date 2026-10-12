@@ -248,6 +248,7 @@ lang/tagged.v
 lang/type.v
 lang/type_facts.v
 lang/utils.v
+lang/utils_facts.v
 lang/values.v
 lang/values_facts.v
 lang/var.v

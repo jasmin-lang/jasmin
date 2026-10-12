@@ -2,6 +2,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 From Coq Require Import Utf8.
 Require Import seq_extra seq_extra_facts.
 Require Export expr.
+Require Import utils_facts.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
