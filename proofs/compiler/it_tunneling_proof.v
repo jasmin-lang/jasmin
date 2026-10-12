@@ -19,6 +19,7 @@ Local Open Scope seq_scope.
 Require Import oseq oseq_facts seq_extra seq_extra_facts unionfind tunneling unionfind_proof.
 Require Import linear_sem.
 Require Import utils_facts.
+Require Import xseq_facts.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
