@@ -25,9 +25,13 @@ $(dirname $0)/../jasminc -g -system linux -o ${ASM} "$@"
 # Succeed early if it’s not the case (i.e., do not try to assemble the result)
 (echo $@ | grep -q fail) && exit 0
 
-if [ $ARCH = "arm-m4" ]
+if [ $ARCH = "arm-m4" ] || [ $ARCH = "armv7m" ]
 then
     ASARGS="--triple=armv7m --mcpu=cortex-m4"
+elif [ $ARCH = "armv8m" ]
+then
+    # ARMv8-M with the Main and DSP extensions: the Cortex-M33
+    ASARGS="--triple=thumbv8m.main --mcpu=cortex-m33"
 elif [ $ARCH = "riscv" ]
 then
      # +m enables integer multiplication
@@ -41,5 +45,9 @@ fi
 
 llvm-mc $ASARGS --filetype=obj -o ${OBJ} ${ASM}
 
-# Compile as a shared library, except for ARMv7 for which it is known not to work
-[ $ARCH = "arm-m4" ] || ld.lld -shared -o ${DLL} ${OBJ}
+# Compile as a shared library, except for ARMv7-M and ARMv8-M for which it is
+# known not to work
+case $ARCH in
+    arm-m4|armv7m|armv8m) ;;
+    *) ld.lld -shared -o ${DLL} ${OBJ} ;;
+esac
