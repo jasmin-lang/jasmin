@@ -110,6 +110,7 @@ compiler/jasmin_compiler.v
 compiler/lea.v
 compiler/lea_proof.v
 compiler/linear_util.v
+compiler/linear_util_lemmas.v
 compiler/linearization.v
 compiler/load_constants_in_cond.v
 compiler/load_constants_in_cond_proof.v
