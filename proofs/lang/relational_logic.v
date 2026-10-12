@@ -22,6 +22,7 @@ Local Open Scope monad_scope.
 Require Import xrutt xrutt_facts.
 Require Import expr psem_defs psem_core oseq compiler_util.
 Require Import it_sems_core core_logics hoare_logic.
+Require Import values_facts.
 Import Utf8.
 
 Definition rel (I1 I2 : Type) := I1 -> I2 -> Prop.

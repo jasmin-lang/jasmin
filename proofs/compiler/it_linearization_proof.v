@@ -28,6 +28,7 @@ Require Export linearization linear_sem linear_facts core_logics relational_logi
 Require Import varmap_facts.
 Require Import syscall_sem_facts.
 Require Import low_memory_facts.
+Require Import values_facts.
 Import Memory.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)

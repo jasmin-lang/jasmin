@@ -245,6 +245,7 @@ lang/tagged.v
 lang/type.v
 lang/utils.v
 lang/values.v
+lang/values_facts.v
 lang/var.v
 lang/varmap.v
 lang/varmap_facts.v
