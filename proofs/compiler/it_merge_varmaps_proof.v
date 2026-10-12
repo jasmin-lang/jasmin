@@ -13,6 +13,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 Require Import sem_one_varmap it_sems_one_varmap merge_varmaps psem_facts core_logics relational_logic.
 Require sem_one_varmap_facts.
 Require Import seq_extra.
+Require Import varmap_facts.
 Import Utf8.
 Import word_ssrZ.
 Import psem.
