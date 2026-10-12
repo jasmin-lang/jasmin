@@ -64,9 +64,6 @@ Definition wsize_eq_dec := wsize_eqb_OK_sumbool.
 Definition wsizes :=
   [:: U8 ; U16 ; U32 ; U64 ; U128 ; U256 ].
 
-Lemma wsize_fin_axiom : Finite.axiom wsizes.
-Proof. by case. Qed.
-
 (* ** Comparison
  * -------------------------------------------------------------------- *)
 Definition wsize_cmp s s' :=
@@ -115,11 +112,6 @@ Definition size_16_64 sz := ((U16 ≤ sz) && (sz ≤ U64))%CMP.
 Definition size_32_64 sz := ((U32 ≤ sz) && (sz ≤ U64))%CMP.
 Definition size_64_128 sz := ((U64 ≤ sz) && (sz ≤ U128))%CMP.
 Definition size_128_256 sz := ((U128 ≤ sz) && (sz ≤ U256))%CMP.
-
-Lemma wsize_nle_u64_size_128_256 sz :
-  (sz ≤ U64)%CMP = false →
-  size_128_256 sz.
-Proof. by case: sz. Qed.
 
 (* -------------------------------------------------------------------- *)
 (* -------------------------------------------------------------- *)
