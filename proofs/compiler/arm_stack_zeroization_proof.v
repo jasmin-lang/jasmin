@@ -23,7 +23,8 @@ Require Import
   arm_instr_decl
   arm_params_common_proof.
 Require Export arm_stack_zeroization.
-Import seq_extra.
+Require seq_extra_facts.
+Import seq_extra seq_extra_facts.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 

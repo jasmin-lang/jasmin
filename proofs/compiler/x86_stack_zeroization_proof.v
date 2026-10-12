@@ -22,7 +22,8 @@ Require Import
   x86_extra
   x86_instr_decl.
 Require Export x86_stack_zeroization.
-Import seq_extra.
+Require seq_extra_facts.
+Import seq_extra seq_extra_facts.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 

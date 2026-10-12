@@ -1,6 +1,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import expr label linear.
-Require Import seq_extra compiler_util.
+Require Import seq_extra seq_extra_facts compiler_util.
 Require Import linear_util.
 Notation map_cflprog_name := (map_cfprog_name_gen lfd_info).
 Notation map_cflprog := (map_cfprog_gen lfd_info).

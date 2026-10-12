@@ -22,7 +22,7 @@ Import word_ssrZ.
 Import ssrring.
 Require low_memory_facts.
 Import psem it_sems_one_varmap compiler_util label low_memory low_memory_facts.
-Require Import seq_extra psem_facts.
+Require Import seq_extra seq_extra_facts psem_facts.
 Require Import fexpr fexpr_sem fexpr_facts.
 Require Export linearization linear_sem linear_facts core_logics relational_logic.
 Require Import varmap_facts.
