@@ -23,6 +23,7 @@ Require Import
   linear_facts.
 Require Import seq_extra compiler_util relational_logic.
 Require Export stack_zeroization.
+Require oseq_facts.
 
 Section WITH_PARAMS.
 
@@ -132,7 +133,7 @@ Proof.
   by t_xrbindP=> _ _ <- /=.
 Qed.
 
-(* oseq.onthP: why eqType ?? *)
+(* oseq_facts.onthP: why eqType ?? *)
 Lemma onth_cat_l T (s1 s2 : seq T) n x :
   oseq.onth s1 n = Some x ->
   oseq.onth (s1 ++ s2) n = Some x.

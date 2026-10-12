@@ -23,6 +23,7 @@ Require Import
   x86_instr_decl.
 Require Export x86_stack_zeroization.
 Require seq_extra_facts.
+Require oseq_facts.
 Import seq_extra seq_extra_facts.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
@@ -771,7 +772,7 @@ Local Opaque wsize_size Z.of_nat.
   + apply: (lsem_n_eval_lin1 (n:= (3+n)) hbody) => //=.
     + by rewrite addnA.
     + rewrite onth_map.
-      rewrite oseq.onth_cat !size_map size_rev size_ziota.
+      rewrite oseq_facts.onth_cat !size_map size_rev size_ziota.
       have hlt'': n < Z.to_nat (stk_max / wsize_size ws) by apply /ltP; lia.
       rewrite hlt''.
       rewrite !onth_map.
@@ -932,7 +933,7 @@ Proof using hbody rsp_nin.
   + apply: (lsem_n_eval_lin1 (n:= (3 + Z.to_nat (stk_max / wsize_size ws))) hbody) => //=.
     + by rewrite addnA.
     + rewrite onth_map.
-      rewrite oseq.onth_cat !size_map size_rev size_ziota.
+      rewrite oseq_facts.onth_cat !size_map size_rev size_ziota.
       by rewrite ltnn subnn /=.
     rewrite /eval_instr /=.
     rewrite /get_var /= hsr.(sr_tmp) /=.
@@ -1008,7 +1009,7 @@ Local Opaque wsize_size Z.of_nat.
   + apply: (lsem_n_eval_lin1 (n:= 4+n) hbody) => //=.
     + by rewrite addnA.
     + rewrite onth_map.
-      rewrite oseq.onth_cat !size_map size_rev size_ziota.
+      rewrite oseq_facts.onth_cat !size_map size_rev size_ziota.
       have hlt'': n < Z.to_nat (stk_max / wsize_size ws) by apply /ltP; lia.
       rewrite hlt''.
       rewrite !onth_map.
@@ -1177,7 +1178,7 @@ Proof using hbody rsp_nin.
   + apply: (lsem_n_eval_lin1 (n:=4 + Z.to_nat (stk_max / wsize_size ws)) hbody) => //=.
     + by rewrite addnA.
     + rewrite onth_map.
-      rewrite oseq.onth_cat !size_map size_rev size_ziota.
+      rewrite oseq_facts.onth_cat !size_map size_rev size_ziota.
       by rewrite ltnn subnn /=.
     rewrite /eval_instr /=.
     rewrite /get_var /= hsr.(sr_tmp) /=.
