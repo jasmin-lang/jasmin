@@ -9,6 +9,7 @@ From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
 Require Import sem_op_typed safety_cond_facts values.
 Require Import sem_type_facts.
+Require Import word_facts.
 Import Utf8.
 
 Local Open Scope Z_scope.
