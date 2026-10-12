@@ -18,7 +18,7 @@ Require Import
   psem
   one_varmap
   linear
-  linear_util
+  linear_util linear_util_lemmas
   linear_sem
   linear_facts.
 Require Import seq_extra compiler_util relational_logic.
