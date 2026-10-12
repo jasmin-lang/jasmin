@@ -17,6 +17,7 @@ Require Import varmap_facts.
 Require Import syscall_sem_facts.
 Require Import low_memory_facts.
 Require Import values_facts.
+Require Import utils_facts.
 Import Utf8.
 Import word_ssrZ.
 Import psem.

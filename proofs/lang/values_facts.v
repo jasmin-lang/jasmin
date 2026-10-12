@@ -4,6 +4,7 @@ Require Import xseq.
 Require Import warray_ word word_facts sem_type sem_type_facts.
 Require Import values.
 Require Import type_facts.
+Require Import utils_facts.
 Import Utf8.
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
