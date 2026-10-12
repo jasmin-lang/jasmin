@@ -31,6 +31,7 @@
 -R itrees Jasmin
 
 ssrmisc/oseq.v
+ssrmisc/oseq_facts.v
 ssrmisc/seq_extra.v
 ssrmisc/seq_extra_facts.v
 3rdparty/ssrring.v

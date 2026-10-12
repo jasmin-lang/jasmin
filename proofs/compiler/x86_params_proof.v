@@ -37,6 +37,7 @@ Require Import
   x86_lowering_proof
   x86_stack_zeroization_proof.
 Require Export x86_params.
+Require oseq_facts.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
@@ -449,7 +450,7 @@ Proof.
   rewrite hn => /(_ erefl) ha.
   assert (hcIaux := check_sopn_argP ha).
   move: hcIaux; rewrite hE => h; inversion_clear h.
-  rewrite H; move: H => /(oseq.onthP (Imm (wrepr U8 0))) /andP [hk] /eqP heqa.
+  rewrite H; move: H => /(oseq_facts.onthP (Imm (wrepr U8 0))) /andP [hk] /eqP heqa.
   have : check_arg_kinds (nth (Imm (wrepr U8 0)) oargs k) (nth xmm cond k).
   + by have /(_ k) := all2_nth (Imm (wrepr U8 0)) xmm _ hc; rewrite hk; apply.
   rewrite heqa hxmm.
@@ -485,7 +486,7 @@ Proof.
   set e := nth (LLvar _) _ _.
   rewrite /check_sopn_dest hE /=.
   case H : oseq.onth => [a | //].
-  move: H => /(oseq.onthP (Imm (wrepr U8 0))) /andP [hk] /eqP heqa.
+  move: H => /(oseq_facts.onthP (Imm (wrepr U8 0))) /andP [hk] /eqP heqa.
   have : check_arg_kinds (nth (Imm (wrepr U8 0)) oargs k) (nth xmm cond k).
   + by have /(_ k) := all2_nth (Imm (wrepr U8 0)) xmm _ hc; rewrite hk; apply.
   rewrite heqa hxmm.

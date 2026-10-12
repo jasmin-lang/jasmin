@@ -5,7 +5,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From ITree Require Import ITreeFacts.
 
 Require Import xseq.
-Require Export utils_facts wsize_facts word_facts var_facts slh_ops_facts compiler_util_lemmas seq_extra_facts type type_facts expr gen_map warray_ sem_type sem_type_facts sem_op_typed values values_facts varmap varmap_facts expr_facts low_memory low_memory_facts syscall_sem syscall_sem_facts psem_defs.
+Require Export oseq_facts utils_facts wsize_facts word_facts var_facts slh_ops_facts compiler_util_lemmas seq_extra_facts type type_facts expr gen_map warray_ sem_type sem_type_facts sem_op_typed values values_facts varmap varmap_facts expr_facts low_memory low_memory_facts syscall_sem syscall_sem_facts psem_defs.
 Require Export psem_core it_sems_core hoare_logic relational_logic.
 Require Export
   flag_combination
