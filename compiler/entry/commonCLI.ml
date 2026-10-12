@@ -53,7 +53,7 @@ let after_pass =
 let parse_and_compile (type asm_op extra_op)
     (module Arch : Arch_full.Arch
       with type asm_op = asm_op
-       and type extra_op = extra_op) ~wi2i pass file idirs =
+       and type extra_op = extra_op) ?(slice = []) ~wi2i pass file idirs =
   let _env, pprog, _ast =
     try Compile.parse_file Arch.arch_info ~idirs file with
     | Annot.AnnotationError (loc, code) ->
@@ -69,6 +69,8 @@ let parse_and_compile (type asm_op extra_op)
     with Typing.TyError (loc, code) ->
       hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
   in
+
+  let prog = if slice = [] then prog else Slicing.slice slice prog in
 
   let prog =
     if not wi2i then prog else Compile.do_wint_int (module Arch) prog
