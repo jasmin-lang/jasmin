@@ -30,6 +30,7 @@ Require Import expr psem_defs oseq compiler_util.
 Require Import psem_core.
 
 Require Import it_sems_core core_logics.
+Require Import varmap_facts.
 
 Notation PredT := (fun=>True).
 
