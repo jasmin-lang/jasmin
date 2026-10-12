@@ -861,6 +861,126 @@ compilation error in function main:
 stack allocation: argument a is used with 32-bit alignment at:
 "fail/common/alignment_internal.jazz", line 10 (2-23)
 
+fail/common/bug_1126.jazz:
+
+"fail/common/bug_1126.jazz", line 3 (2-30):
+compilation error in function entry:
+linearization: The argument
+(32u) [:u8 RDI +64u (64u) 0]
+of this instruction cannot be expressed in the target architecture.
+The usual cause is a memory access (for instance to a stack variable, a global or an array element) inside a larger expression:
+load it into a register variable first.
+
+fail/common/bug_1126.jazz:
+
+"fail/common/bug_1126.jazz", line 3 (2-30):
+compilation error in function entry:
+linearization: The argument
+(32u) [:u8 r0 +32u (32u) 0]
+of this instruction cannot be expressed in the target architecture.
+The usual cause is a memory access (for instance to a stack variable, a global or an array element) inside a larger expression:
+load it into a register variable first.
+
+fail/common/bug_1126.jazz:
+
+"fail/common/bug_1126.jazz", line 3 (2-30):
+compilation error in function entry:
+linearization: The argument
+(32u) [:u8 x0 +64u (64u) 0]
+of this instruction cannot be expressed in the target architecture.
+The usual cause is a memory access (for instance to a stack variable, a global or an array element) inside a larger expression:
+load it into a register variable first.
+
+fail/common/bug_1126.jazz:
+
+"fail/common/bug_1126.jazz", line 3 (2-30):
+compilation error in function entry:
+linearization: The argument
+(32u) [:u8 x10 +32u (32u) 0]
+of this instruction cannot be expressed in the target architecture.
+The usual cause is a memory access (for instance to a stack variable, a global or an array element) inside a larger expression:
+load it into a register variable first.
+
+fail/common/bug_1126_condition.jazz:
+
+"fail/common/bug_1126_condition.jazz", line 3 (2-60):
+compilation error in function entry:
+linearization: The condition
+[:u32 RDI +64u (64u) 0] ==32u RSI || [:u32 RDI +64u (64u) 4] <s RSI
+of this instruction cannot be expressed in the target architecture.
+The usual cause is a memory access (for instance to a stack variable, a global or an array element) inside a larger expression:
+load it into a register variable first.
+
+fail/common/bug_1126_condition.jazz:
+
+"fail/common/bug_1126_condition.jazz", line 3 (2-60):
+compilation error in function entry:
+linearization: The condition
+[:u32 r0 +32u (32u) 0] ==32u r1 || [:u32 r0 +32u (32u) 4] <s r1
+of this instruction cannot be expressed in the target architecture.
+The usual cause is a memory access (for instance to a stack variable, a global or an array element) inside a larger expression:
+load it into a register variable first.
+
+fail/common/bug_1126_condition.jazz:
+
+"fail/common/bug_1126_condition.jazz", line 3 (2-60):
+compilation error in function entry:
+linearization: The condition
+[:u32 x0 +64u (64u) 0] ==32u x1 || [:u32 x0 +64u (64u) 4] <s x1
+of this instruction cannot be expressed in the target architecture.
+The usual cause is a memory access (for instance to a stack variable, a global or an array element) inside a larger expression:
+load it into a register variable first.
+
+fail/common/bug_1126_condition.jazz:
+
+"fail/common/bug_1126_condition.jazz", line 3 (2-60):
+compilation error in function entry:
+linearization: The condition
+[:u32 x10 +32u (32u) 0] ==32u x11 || [:u32 x10 +32u (32u) 4] <s x11
+of this instruction cannot be expressed in the target architecture.
+The usual cause is a memory access (for instance to a stack variable, a global or an array element) inside a larger expression:
+load it into a register variable first.
+
+fail/common/bug_1126_store.jazz:
+
+"fail/common/bug_1126_store.jazz", line 2 (2-21):
+compilation error in function entry:
+linearization: The destination
+[:u32 RDI +64u ((64u) 4 *64u (64u) (uint) [:u32 RDI +64u (64u) 0] +64u (64u) 0)]
+of this instruction cannot be expressed in the target architecture.
+The usual cause is a memory access (for instance to a stack variable, a global or an array element) inside a larger expression:
+load it into a register variable first.
+
+fail/common/bug_1126_store.jazz:
+
+"fail/common/bug_1126_store.jazz", line 2 (2-21):
+compilation error in function entry:
+linearization: The destination
+[:u32 r0 +32u ((32u) 4 *32u [:u32 r0 +32u (32u) 0] +32u (32u) 0)]
+of this instruction cannot be expressed in the target architecture.
+The usual cause is a memory access (for instance to a stack variable, a global or an array element) inside a larger expression:
+load it into a register variable first.
+
+fail/common/bug_1126_store.jazz:
+
+"fail/common/bug_1126_store.jazz", line 2 (2-21):
+compilation error in function entry:
+linearization: The destination
+[:u32 x0 +64u ((64u) 4 *64u (64u) (uint) [:u32 x0 +64u (64u) 0] +64u (64u) 0)]
+of this instruction cannot be expressed in the target architecture.
+The usual cause is a memory access (for instance to a stack variable, a global or an array element) inside a larger expression:
+load it into a register variable first.
+
+fail/common/bug_1126_store.jazz:
+
+"fail/common/bug_1126_store.jazz", line 2 (2-21):
+compilation error in function entry:
+linearization: The destination
+[:u32 x10 +32u ((32u) 4 *32u [:u32 x10 +32u (32u) 0] +32u (32u) 0)]
+of this instruction cannot be expressed in the target architecture.
+The usual cause is a memory access (for instance to a stack variable, a global or an array element) inside a larger expression:
+load it into a register variable first.
+
 fail/common/bug_1214.jazz:
 
 "fail/common/bug_1214.jazz", line 13 (6-7):
@@ -1749,9 +1869,12 @@ stack allocation: cannot access the subarray [16; 32[ of a[0; 24[, the access ov
 fail/stack_allocation/x86-64/reg_var_expected.jazz:
 
 "fail/stack_allocation/x86-64/reg_var_expected.jazz", line 6 (2-12):
-internal compilation error in function main:
-  linearization: check_rexpr
-Please report at https://github.com/jasmin-lang/jasmin/issues
+compilation error in function main:
+linearization: The argument
+[:u64 [#aligned :u64 RSP +64u (64u) 0]]
+of this instruction cannot be expressed in the target architecture.
+The usual cause is a memory access (for instance to a stack variable, a global or an array element) inside a larger expression:
+load it into a register variable first.
 
 fail/stack_allocation/x86-64/regions_not_equal_array.jazz:
 
@@ -2185,4 +2308,4 @@ Statistics:
 	Pretyping:  65
 	Parsing:     5
 	Typing:      5
-	Compile:   250
+	Compile:   262
