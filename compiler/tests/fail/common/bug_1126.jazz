@@ -1,0 +1,5 @@
+export fn entry(reg ptr u8[2] p) -> reg u32 {
+  reg u32 v;
+  v = (32u) p[0] + (32u) p[1];
+  return v;
+}
