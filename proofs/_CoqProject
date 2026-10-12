@@ -38,6 +38,7 @@ ssrmisc/seq_extra_facts.v
 arch/arch_decl.v
 arch/arch_decl_facts.v
 arch/arch_extra.v
+arch/arch_extra_lemmas.v
 arch/arch_sem.v
 arch/arch_utils.v
 arch/arm_expand_imm.v

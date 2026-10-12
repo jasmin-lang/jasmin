@@ -15,7 +15,7 @@ Require Import
 Require stack_zeroization_proof.
 Require Import
   arch_decl
-  arch_extra
+  arch_extra arch_extra_lemmas
   sem_params_of_arch_extra.
 Require Import
   x86_decl

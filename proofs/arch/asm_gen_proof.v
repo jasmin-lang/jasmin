@@ -25,7 +25,7 @@ Require Import
 Require Import
   arch_decl
   arch_decl_facts
-  arch_extra
+  arch_extra arch_extra_lemmas
   arch_sem
   safety_cond_facts
   sem_params_of_arch_extra.

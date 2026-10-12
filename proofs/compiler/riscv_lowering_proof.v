@@ -15,7 +15,7 @@ Require Import
   sem_op_typed_facts
   utils.
 Require Import
-  arch_extra
+  arch_extra arch_extra_lemmas
   sem_params_of_arch_extra.
 Require Import
   riscv_decl
