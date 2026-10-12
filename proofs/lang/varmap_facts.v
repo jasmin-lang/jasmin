@@ -1,7 +1,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith Setoid Morphisms.
-Require Import var type values values_facts.
+Require Import var type type_facts values values_facts.
 Require Import varmap.
 Require Import sem_type_facts.
 Import Utf8 ssrbool.

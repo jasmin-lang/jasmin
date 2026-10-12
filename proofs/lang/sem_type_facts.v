@@ -3,6 +3,7 @@ From mathcomp Require Import word_ssrZ.
 Require Import xseq.
 Require Import strings warray_.
 Require Import sem_type.
+Require Import type_facts.
 Import Utf8.
 
 Lemma convertible_subatype t1 t2 :
