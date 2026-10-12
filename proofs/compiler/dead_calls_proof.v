@@ -1,7 +1,8 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 (* ------- *) Require Import expr compiler_util psem gen_map dead_calls.
-Import Utf8 xseq.
+Require xseq_facts.
+Import Utf8 xseq xseq_facts.
 
 Section WITH_PARAMS.
 
