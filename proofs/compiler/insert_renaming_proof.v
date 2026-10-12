@@ -1,7 +1,8 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import insert_renaming psem.
 Import Utf8.
-Import expr compiler_util.
+Require compiler_util_lemmas.
+Import expr compiler_util compiler_util_lemmas.
 
 Section WITH_SUB_WORD.
 

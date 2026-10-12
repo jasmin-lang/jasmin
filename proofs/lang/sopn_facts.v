@@ -9,6 +9,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import sopn.
+Require Import type_facts.
 Import Utf8.
 
 Local Open Scope seq_scope.
