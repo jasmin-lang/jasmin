@@ -183,18 +183,6 @@ Definition map_prog_name (F: funname -> fundef -> fundef) (p:prog) : prog :=
 Definition map_prog (F: fundef -> fundef) (p:prog) :=
   map_prog_name (fun _ => F) p.
 
-Lemma get_map_prog_name F p fn :
-  get_fundef (p_funcs (map_prog_name F p)) fn =
-  ssrfun.omap (F fn) (get_fundef (p_funcs p) fn).
-Proof.
-  rewrite /get_fundef /map_prog_name /=.
-  by elim: p_funcs => // -[fn' fd] pfuns /= ->;case:eqP => [-> | ].
-Qed.
-
-Lemma get_map_prog F p fn :
-  get_fundef (p_funcs (map_prog F p)) fn = ssrfun.omap F (get_fundef (p_funcs p) fn).
-Proof. apply: get_map_prog_name. Qed.
-
 End ASM_OP.
 
 (* If function [F] can fail, we add the function name and the function info to
