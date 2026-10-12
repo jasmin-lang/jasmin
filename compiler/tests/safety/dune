@@ -7,8 +7,3 @@
   (names
     run))
 
-(cram
-  (deps
-    ../../jasmin-checksafety
-    slice.jazz
-    slice.json))
