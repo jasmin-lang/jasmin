@@ -2471,8 +2471,7 @@ Let ak_reg_reg_pair :=
      X{datasize}(t2) = data2;
    If t == t2, the behavior is CONSTRAINED UNPREDICTABLE (K1.2.17.7). The
    two destinations are written by the same instruction, so register
-   allocation gives them distinct registers; the assembly printer rejects
-   an LDP whose destinations are equal.
+   allocation gives them distinct registers.
 *)
 Definition armv8a_LDP_semi {ws : wsize} (w : word (wsize_pair ws))
   : sem_ltuple [:: lword ws; lword ws ] :=
