@@ -1,7 +1,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import xseq.
-Require Import warray_ word sem_type sem_type_facts.
+Require Import warray_ word word_facts sem_type sem_type_facts.
 Require Import values.
 Require Import type_facts.
 Import Utf8.
