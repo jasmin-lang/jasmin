@@ -14,6 +14,7 @@ Require Import sem_one_varmap it_sems_one_varmap merge_varmaps psem_facts core_l
 Require sem_one_varmap_facts.
 Require Import seq_extra.
 Require Import varmap_facts.
+Require Import syscall_sem_facts.
 Import Utf8.
 Import word_ssrZ.
 Import psem.
