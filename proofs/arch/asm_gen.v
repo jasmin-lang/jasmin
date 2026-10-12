@@ -77,16 +77,6 @@ Definition of_var_e ii (v: var_i) :=
     else Error (E.invalid_ty category ii v)
   end.
 
-Lemma of_var_eP {ii v r} :
-  of_var_e ii v = ok r -> of_var v = Some r.
-Proof.
-  rewrite /of_var_e; case: of_var; last by case: eqP.
-  by move=> _ [->].
-Qed.
-
-Lemma of_var_eI {ii v r} : of_var_e ii v = ok r -> to_var r = v.
-Proof. by move => /of_var_eP; apply/of_varI. Qed.
-
 End TOIDENT.
 
 (* -------------------------------------------------------------------- *)
@@ -122,21 +112,6 @@ Definition var_of_asm_typed_reg (x : asm_typed_reg) : var :=
   | AXReg r => to_var r
   | ABReg r => to_var r
   end.
-
-Lemma asm_typed_reg_of_varI x r :
-  asm_typed_reg_of_var x = ok r
-  -> x = var_of_asm_typed_reg r:> var.
-Proof.
-  move=> h;apply/sym_eq; move:h;rewrite /asm_typed_reg_of_var.
-  case heqr: (to_reg x) => [ ? | ].
-  + by move=> [<-]; apply:of_varI.
-  case heqrx: (to_regx x) => [ ? | ].
-  + by move=> [<-]; apply: of_varI.
-  case heqx: (to_xreg x) => [ ? | ].
-  + by move=> [<-]; apply: of_varI.
-  case heqf: (to_rflag x) => [ ? | //].
-  by move=> [<-]; apply: of_varI.
-Qed.
 
 End OF_TO.
 
