@@ -17,11 +17,11 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
 From Coq Require Import ZArith Utf8.
 Import Relations.
 
-Require it_sems_one_varmap label.
+Require it_sems_one_varmap label label_lemmas.
 Import word_ssrZ.
 Import ssrring.
 Require low_memory_facts.
-Import psem it_sems_one_varmap compiler_util label low_memory low_memory_facts.
+Import psem it_sems_one_varmap compiler_util label label_lemmas low_memory low_memory_facts.
 Require Import seq_extra seq_extra_facts psem_facts.
 Require Import fexpr fexpr_sem fexpr_facts.
 Require Export linearization linear_sem linear_facts core_logics relational_logic.
@@ -30,6 +30,7 @@ Require Import syscall_sem_facts.
 Require Import low_memory_facts.
 Require Import values_facts.
 Require Import sem_type_facts.
+Require Import label_lemmas.
 Import Memory.
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
