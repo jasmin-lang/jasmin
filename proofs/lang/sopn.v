@@ -255,14 +255,14 @@ rewrite /app_sopn_v /= => -[] {vs vs'} // v1 v2 + +
   /of_value_uincl_te -/(_ (carr (arr_size ws p))) /= hu.
 move=> l l'; case => //=; rewrite /= /safety_cond_holds /= /check_safe_conds /=.
 + t_xrbindP => t a /hu [a' -> ha].
-  rewrite !WArray.castK /= !andbT WArray.castK /=.
+  rewrite !to_arrK /= !andbT to_arrK /=.
   case: ifP => // hall _ <- <-.
   have hall' : all (fun i => is_ok (WArray.get Unaligned AAscale ws a' i)) (ziota 0 p).
   + apply: sub_all hall => i.
     by case hg : (WArray.get Unaligned AAscale ws a i) => [w | //] _;
        rewrite (WArray.uincl_get ha hg).
   rewrite hall' /= (@copy_total_eq ws p a a' ha hall).
-  by exists [:: Varr (@copy_total ws p a')] => //; apply: List_Forall2_refl.
+  by exists [:: Varr (@copy_total ws p a')] => //; apply: values_uincl_refl.
 by t_xrbindP.
 Qed.
 

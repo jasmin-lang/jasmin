@@ -91,7 +91,7 @@ have -> : @mk_semi [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
             [:: AllInit ws p 0] ErrAddrUndef [:: IBool true] (@copy_total ws p) t
         = (Let _ := check_safe_conds [:: Varr t] [:: AllInit ws p 0] ErrAddrUndef in
            ok (@copy_total ws _ t)) by [].
-rewrite /check_safe_conds /= andbT WArray.castK array_copy_eq.
+rewrite /check_safe_conds /= andbT to_arrK array_copy_eq.
 by case: all.
 Qed.
 

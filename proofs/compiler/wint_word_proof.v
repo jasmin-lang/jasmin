@@ -174,7 +174,7 @@ Proof.
   have ? := value_uinclE hu2; subst => /=.
   move=> ? /to_arrI ?; subst.
   have [? ? htu']:= value_uinclE hvu; subst => /=.
-  rewrite WArray.castK /=.
+  rewrite to_arrK /=.
   move=> ? /(WArray.uincl_set_sub htu htu') [? -> ?] /=.
   by apply write_var_uincl.
 Qed.

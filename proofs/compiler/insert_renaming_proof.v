@@ -21,11 +21,8 @@ Proof.
   1, 3: by move => ? /ok_inj <-.
   1, 2, 5: by case.
   1, 2: t_xrbindP.
-  - move => ? a ? ok_a <-.
-    have ? := WArray.cast_len ok_a; subst.
-    have := WArray.castK a.
-    rewrite ok_a => /ok_inj ?; subst.
-    by rewrite /= eqxx.
+  - move => ? a ? /to_arrI /Varr_inj[] ???; subst.
+    by rewrite eqxx.
   move => ws' w' w /truncate_wordP[] ws_le_ws' ok_w ?; subst.
   rewrite ws_le_ws' /= orbT.
   case: ifP; last by [].

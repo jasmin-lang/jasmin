@@ -1186,7 +1186,7 @@ Proof.
   t_xrbindP=> > /Hvm1{Hvm1} [? ->]
     /[swap] /to_intI -> /value_uinclE -> ? /to_arrI ?.
   subst; move: Hv => /value_uinclE [? ->] /= h.
-  by rewrite WArray.castK /= => ? /hu -/(_ _ h){hu h} [? -> ?] /= /write_var_uincl_on; apply => //; rewrite Htx.
+  by rewrite to_arrK /= => ? /hu -/(_ _ h){hu h} [? -> ?] /= /write_var_uincl_on; apply => //; rewrite Htx.
 Qed.
 
 Corollary write_uincl wdb gd s1 s2 vm1 r v1 v2:
@@ -1346,7 +1346,7 @@ Proof.
   + by rewrite /write_var; t_xrbindP => > /set_varP [].
   + by t_xrbindP.
   + by move => al aa ws [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
-  by move => aa ws len [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
+  by move => aa ws len [] [vt vn] /= ? e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
 Qed.
 
 (* MOVE THIS *)
