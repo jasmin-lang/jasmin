@@ -1,6 +1,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool seq ssralg.
 From Coq Require Import ZArith.
-Require Import utils syscall wsize word type low_memory sem_type values.
+Require Import utils syscall wsize word type low_memory low_memory_facts sem_type values.
 Require Import syscall_sem.
 Import Utf8.
 Local Open Scope Z_scope.
