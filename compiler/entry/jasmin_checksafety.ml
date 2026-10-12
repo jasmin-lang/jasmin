@@ -14,7 +14,7 @@ let checksafety arch call_conv idirs slice safety_param no_check_alignment
   let module Arch = P.A in
   let after_pass = SafetyConfig.sc_comp_pass () in
   let prog =
-    try parse_and_compile (module Arch) ~wi2i:false after_pass file idirs
+    try parse_and_compile (module Arch) ~slice ~wi2i:false after_pass file idirs
     with HiError err ->
       Format.eprintf "%a@." pp_hierror err;
       exit 1
@@ -28,11 +28,6 @@ let checksafety arch call_conv idirs slice safety_param no_check_alignment
   in
   let () = SafetyConfig.pp_current_config_diff () in
   let fds = prog |> snd |> List.filter (fun fd -> FInfo.is_export fd.f_cc) in
-  let fds =
-    if slice <> [] then
-      fds |> List.filter (fun fd -> List.mem fd.f_name.fn_name slice)
-    else fds
-  in
   let is_safe =
     List.fold_left
       (fun res f_decl ->
