@@ -1,7 +1,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import xseq.
-Require Import warray_ word sem_type.
+Require Import warray_ word sem_type sem_type_facts.
 Require Import values.
 Import Utf8.
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
