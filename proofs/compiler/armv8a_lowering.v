@@ -283,13 +283,6 @@ Definition check_shift_expr (ws : wsize) (e : pexpr) : option pexpr :=
     | _ => None
     end.
 
-(* Recognize a complemented operand [!b] at width [ws]. BIC computes
-   [Xn AND NOT Xm], so [a & !b] and [!b & a] are both BIC with [b] as its
-   second operand. *)
-Definition is_lnot (ws : wsize) (e : pexpr) : option pexpr :=
-  if e is Papp1 (Olnot ws') b then if ws' == ws then Some b else None
-  else None.
-
 Definition lower_Papp2_op
   (ws : wsize) (op : sop2) (e0 e1 : pexpr) :
   option (armv8a_mnemonic * pexpr * pexprs) :=
@@ -315,12 +308,10 @@ Definition lower_Papp2_op
   | Odiv Unsigned (Op_w ws') =>
       let%opt _ := oassert (ws' == ws) in
       Some (UDIV, e0, [:: e1 ])
-  | Oland ws' =>
-      if ws' == ws
-      then
-        if is_lnot ws e1 is Some b then Some (BIC, e0, [:: b ])
-        else if is_lnot ws e0 is Some a then Some (BIC, e1, [:: a ])
-        else Some (AND, e0, [:: e1 ])
+  | Oland _ =>
+      (* BIC computes [Xn AND NOT Xm]: [a & !b] and [!b & a] are both
+         [BIC a, b]. *)
+      if is_andn e0 e1 is Some (b, a) then Some (BIC, a, [:: b ])
       else Some (AND, e0, [:: e1 ])
   | Olor _ =>
       Some (ORR, e0, [:: e1 ])
