@@ -113,10 +113,11 @@ val set_target_system: string -> unit
 val is_target_system_macos : unit -> bool
 
 (* -------------------------------------------------------------------- *)
-type model = 
+type model =
   | ConstantTime
   | ConstantTimeGlobal
   | Normal
+  | Declassify
 
 type callee_saved_strategy =
   | CSS_Tight (* run register allocation to compute the precise count of needed callee-saved registers *)
