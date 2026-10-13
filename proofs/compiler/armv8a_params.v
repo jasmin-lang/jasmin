@@ -199,6 +199,17 @@ Definition armv8a_lload (ws : wsize) (xd : var_i) (xs : var_i) (ofs : Z) :=
   let mn := LDR in
   ([:: LLvar xd], Oarmv8a (ARMv8A_op mn default_opts), [:: Load Aligned ws (faddv Uptr xs (fconst ws ofs))]).
 
+(* A saved register is stored to or loaded from [SP + ofs] directly only when
+   LDR and STR can encode [ofs]: for an X register, "a multiple of 8 in the
+   range 0 to 32760" (ARM DDI 0487 M.d, C6.2.216 LDR (immediate) and C6.2.415
+   STR (immediate), unsigned offset). The saved registers are X registers
+   ([armv8a_check_ws]) in 8-byte aligned slots; a wider saved register needs
+   this test revised. Otherwise the address of the first slot is computed
+   into X17 and the slots are reached from it with small offsets. Keeping
+   [is_arith_small] changes only the code that did not assemble. *)
+Definition is_save_slot_offset (ofs : Z) : bool :=
+  is_arith_small ofs && ((0 <=? ofs) && (ofs <=? 32760) && (ofs mod 8 =? 0))%Z.
+
 (* Restore saved values from the stack. Unlike ARMv7 (where SP/R13 is an
    ordinary register that LDR can target), an A64 load writes its result through
    the general-purpose (X[]) register accessor, for which register number 31 is
@@ -211,7 +222,7 @@ Definition armv8a_lload (ws : wsize) (xd : var_i) (xs : var_i) (ofs : Z) :=
 Definition armv8a_lloads (rspi : var_i) (to_restore : seq (var * Z)) (spofs : Z) :
     seq fopn_args :=
   let restore_regs :=
-    if all (fun '(_, ofs) => is_arith_small ofs) to_restore then
+    if all (fun '(_, ofs) => is_save_slot_offset ofs) to_restore then
       map (fun '(x, ofs) =>
              armv8a_lload (wsize_of_atype (vtype x)) (VarI x dummy_var_info) rspi ofs)
           to_restore
@@ -224,7 +235,7 @@ Definition armv8a_lloads (rspi : var_i) (to_restore : seq (var * Z)) (spofs : Z)
                to_restore
   in
   let restore_sp :=
-    if is_arith_small spofs then
+    if is_save_slot_offset spofs then
       [:: armv8a_lload Uptr vtmp2i rspi spofs; armv8a_lmove Uptr rspi vtmp2i ]
     else
       ARMv8AFopn_smart_addi vtmp2i rspi spofs
@@ -244,7 +255,7 @@ Definition armv8a_liparams : linearization_params :=
     lip_check_ws := armv8a_check_ws;
     lip_lstore  := armv8a_lstore;
     lip_lload := armv8a_lload;
-    lip_lstores := lstores_imm_dfl armv8a_tmp2 armv8a_lstore ARMv8AFopn_smart_addi is_arith_small;
+    lip_lstores := lstores_imm_dfl armv8a_tmp2 armv8a_lstore ARMv8AFopn_smart_addi is_save_slot_offset;
     lip_lloads  := armv8a_lloads;
   |}.
 

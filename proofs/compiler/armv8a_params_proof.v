@@ -407,7 +407,7 @@ Proof.
       get_var true vmr rspi >>= to_word Uptr = ok top ->
       exists2 vm,
         sem_fopns_args (with_vm s vmr)
-          (if is_arith_small ofs
+          (if is_save_slot_offset ofs
            then [:: armv8a_lload Uptr vtmp2i rspi ofs; armv8a_lmove Uptr rspi vtmp2i ]
            else ARMv8AFopn_smart_addi vtmp2i rspi ofs
                 ++ [:: armv8a_lload Uptr vtmp2i vtmp2i 0%Z; armv8a_lmove Uptr rspi vtmp2i ])
@@ -459,7 +459,7 @@ Proof.
 
   rewrite /lip_lloads /armv8a_lloads.
   rewrite /sem_fopns_args foldM_cat -!/sem_fopns_args.
-  case hall: (all (fun '(_, ofs1) => is_arith_small ofs1) to_save).
+  case hall: (all (fun '(_, ofs1) => is_save_slot_offset ofs1) to_save).
 
   (* All offsets small: LDR directly from [rspi]. *)
   - have [hsem1 hget1] := lloads_aux_correct armv8a_lload_correct hnin hget hf.
