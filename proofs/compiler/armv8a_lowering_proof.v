@@ -782,6 +782,25 @@ Qed.
 
 End IS_MUL.
 
+Section IS_LNOT.
+
+Variant is_lnot_spec (ws : wsize) (e : pexpr) : option pexpr -> Type :=
+  | IsLnotSome b : e = Papp1 (Olnot ws) b -> is_lnot_spec (Some b)
+  | IsLnotNone : is_lnot_spec None.
+
+Lemma is_lnotP ws e : is_lnot_spec ws e (is_lnot ws e).
+Proof.
+  rewrite /is_lnot.
+  case: e; try (move=> *; exact: IsLnotNone).
+  move=> op b.
+  case: op; try (move=> *; exact: IsLnotNone).
+  move=> ws'.
+  case: eqP => [-> | _]; last exact: IsLnotNone.
+  exact: IsLnotSome.
+Qed.
+
+End IS_LNOT.
+
 (* The main consequence of the lemmas in this section is lemma [lower_base_op].
    It was moved far from it, because we also use [with_shift_binop]
    in the proof of [lower_Papp2P]. *)
@@ -1034,6 +1053,9 @@ Proof.
             case: is_mulP => [wsm ? ? hlem ?|]; subst
         end
       | match goal with
+        | [ |- context[ is_lnot ] ] => case: is_lnotP => [? ?|]
+        end
+      | match goal with
         | [ |- context[ is_wconst ] ] => case hconst: is_wconst => [c|//]
         end
       ].
@@ -1075,6 +1097,64 @@ Proof.
                 -?(wor_zero_extend _ _ hws) -?(wxor_zero_extend _ _ hws);
         rewrite ?(wopp_zero_extend _ hws) ?(zero_extend_idem _ hws);
         by rewrite ?(zero_extend_idem _ hws)
+      | (* BIC from [a & !b]: BIC a, b computes a AND NOT b. *)
+        lazymatch goal with
+        | [ |- context[ARMv8A_op BIC _] ] => idtac
+        end;
+        match goal with
+        | [ h : ?x = Papp1 (Olnot _) _ |- _ ] => subst x
+        end;
+        lazymatch type of hseme1 with
+        | sem_pexpr _ _ _ (Papp1 (Olnot _) _) = _ => idtac
+        end;
+        match goal with
+        | [ h : is_true (_ == _) |- _ ] => move/eqP: h => ?; subst
+        end;
+        move: hseme1 => /=; t_xrbindP => vb hsemb /sem_sop1I /= [wb [wn [hwb hwn ?]]];
+        subst v1;
+        move: hwn; rewrite /sem_sop1_typed /= => -[?]; subst wn;
+        move: hsemop => /sem_sop2I /= [w0' [w1' [w2 [hw0 hw1 hop hw]]]];
+        move: hw0 => /to_wordI [ws0 [w0 [? /truncate_wordP [hws0 ?]]]]; subst v0 w0';
+        move: hw1; rewrite /= truncate_word_u => -[?]; subst w1';
+        move: hop; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst w2;
+        move: hw => /Vword_inj [?]; subst ws'; move=> /= ?; subst w;
+        (split;
+          last (split; [ exact: (disj_fvars_read_es2 hfve0 hfve1) | by [] ]));
+        (exists [:: Vword w0; vb];
+          first by rewrite /sem_pexprs /= hseme0 hsemb /=);
+        move: (hwsx); rewrite orbC => hval;
+        rewrite /exec_sopn /= hval /= (truncate_word_le _ hws0) hwb /=;
+        rewrite !computational_eq_refl /=;
+        by rewrite /armv8a_bitwise_semi zero_extend_u
+      | (* BIC from [!b & a]: the AND is commuted. *)
+        lazymatch goal with
+        | [ |- context[ARMv8A_op BIC _] ] => idtac
+        end;
+        match goal with
+        | [ h : ?x = Papp1 (Olnot _) _ |- _ ] => subst x
+        end;
+        lazymatch type of hseme0 with
+        | sem_pexpr _ _ _ (Papp1 (Olnot _) _) = _ => idtac
+        end;
+        match goal with
+        | [ h : is_true (_ == _) |- _ ] => move/eqP: h => ?; subst
+        end;
+        move: hseme0 => /=; t_xrbindP => vb hsemb /sem_sop1I /= [wb [wn [hwb hwn ?]]];
+        subst v0;
+        move: hwn; rewrite /sem_sop1_typed /= => -[?]; subst wn;
+        move: hsemop => /sem_sop2I /= [w0' [w1' [w2 [hw0 hw1 hop hw]]]];
+        move: hw0; rewrite /= truncate_word_u => -[?]; subst w0';
+        move: hw1 => /to_wordI [ws1 [w1 [? /truncate_wordP [hws1 ?]]]]; subst v1 w1';
+        move: hop; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst w2;
+        move: hw => /Vword_inj [?]; subst ws'; move=> /= ?; subst w;
+        (split;
+          last (split; [ exact: (disj_fvars_read_es2 hfve1 hfve0) | by [] ]));
+        (exists [:: Vword w1; vb];
+          first by rewrite /sem_pexprs /= hseme1 hsemb /=);
+        move: (hwsx); rewrite orbC => hval;
+        rewrite /exec_sopn /= hval /= (truncate_word_le _ hws1) hwb /=;
+        rewrite !computational_eq_refl /=;
+        by rewrite /armv8a_bitwise_semi zero_extend_u wandC
       | (* Division: SDIV, UDIV (operate at [ws''= ws]). *)
         lazymatch goal with
         | [ |- context[ARMv8A_op SDIV _] ] => idtac
@@ -1279,6 +1359,9 @@ Proof.
           | [ |- context[ is_mul ] ] => case: is_mulP => [? ? ? ? ?|]; subst
           end
         | match goal with
+          | [ |- context[ is_lnot ] ] => case: is_lnotP => [? ?|]
+          end
+        | match goal with
           | [ |- context[ is_wconst ] ] => case hc': is_wconst => [c'|//]
           end
         ].
@@ -1326,6 +1409,9 @@ Proof.
     [ move=> /oassertP [/eqP ?]; subst ws''
     | match goal with
       | [ |- context[ is_mul ] ] => case: is_mulP => [? ? ? ? ?|]; subst
+      end
+    | match goal with
+      | [ |- context[ is_lnot ] ] => case: is_lnotP => [? ?|]
       end
     | match goal with
       | [ |- context[ is_wconst ] ] => case hconst: is_wconst => [c'|//]
