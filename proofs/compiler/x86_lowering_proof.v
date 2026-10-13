@@ -852,33 +852,11 @@ Section PROOF.
         + move=> he.
           have : sem_pexpr true gd s (Papp2 (Oland sz) (Papp1 (Olnot sz) a1) a2) = ok v /\
                  Sv.Subset (read_es [:: a1; a2]) (read_e (Papp2 (Oland sz) e1 e2)).
-          + have hlnot : forall e, match is_lnot e with
-                                   | Some a => exists sz, e = Papp1 (Olnot sz) a
-                                   | _      => True
-                                   end.
-            + by case => //= -[] // ??;eexists;eauto.
-            move: handn (hlnot e1) (hlnot e2); rewrite /is_andn.
-            case: is_lnot.
-            + move=> a1' [] ?? [sz1 ?] ?; subst e1 a1' a2.
-              move: he;rewrite /= /sem_sop2 /= /sem_sop1 /=.
-              t_xrbindP => y h ha1 h' /to_wordI' [sz' [w' [hsz]]] ???;subst y h h'.
-              move=> w2 -> wn /to_wordI' [sz1' [wn1 [hsz1]]].
-              move=> /Vword_inj [heq ]; subst sz1' => /= ??; subst wn1 wn.
-              move=> w3 /to_wordI' [sz2 [wn2 [hsz2]]] ???; subst w2 w3 v.
-              have hle := cmp_le_trans hsz1 hsz.
-              rewrite ha1 /= !truncate_word_le // /= truncate_word_u /=.
-              rewrite !wnot_zero_extend // zero_extend_idem //; split => //.
-              by rewrite /read_e /read_es /= !read_eE; clear; SvD.fsetdec.
-            case: is_lnot => //.
-            move=> a1' [] ?? _ [sz1 ?]; subst e1 a1' e2.
-            move: he;rewrite /= /sem_sop2 /= /sem_sop1 /=.
-            t_xrbindP => y -> w wa -> h3 /to_wordI' [sz' [w' [hsz]]] ???; subst wa h3 w.
-            move=> w2 /to_wordI' [sz1' [wn1 [hsz1]]] ??; subst y w2.
-            move=> w3 /to_wordI' [sz2 [wn2 [hsz2]]].
-            move=> /Vword_inj [heq ]; subst sz1 => /= ???; subst wn2 w3 v.
-            have hle := cmp_le_trans hsz2 hsz.
-            rewrite !truncate_word_le // /= truncate_word_u /=.
-            by rewrite !wnot_zero_extend // zero_extend_idem // (@wandC sz); split.
+          + have [wsx [wx [wsy [wy [hx hy hwsx hwsy ?]]]]] := is_andn_semP handn he; subst v.
+            split.
+            + by rewrite /= hx hy /= /sem_sop1 /sem_sop2 /= !truncate_word_le // /= truncate_word_u.
+            rewrite (is_andn_read_es handn) /read_es /read_e /= !read_eE.
+            by clear; SvD.fsetdec.
           move=> []; rewrite /= /sem_sop1 /sem_sop2 /=.
           t_xrbindP => v1 va1 ha1 wa1 hva1 hv1 va2 ha2 wa2 hwa2 twa2 hva2 ? hread.
           subst v v1.

@@ -169,19 +169,6 @@ Definition is_lea sz x e :=
 
 (* -------------------------------------------------------------------- *)
 
-Definition is_lnot a :=
-  match a with
-  | Papp1 (Olnot _) a => Some a
-  | _                 => None
-  end.
-
-Definition is_andn  a b :=
-  match is_lnot a, is_lnot b with
-  | Some a, _      => Some (a, b)
-  | None  , Some b => Some (b, a)
-  | None  , None   => None
-  end.
-
 Definition mulr sz a b :=
   match is_wconst sz a with
   | Some _ => (IMULri sz, [:: b ; a ])
