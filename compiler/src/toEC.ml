@@ -2192,7 +2192,9 @@ let extract ((globs,funcs):('info, 'asm) prog) arch pd msfsz asmOp (model: model
     | [] -> List.map (fun { f_name ; _ } -> f_name.fn_name) funcs
     | fnames -> fnames
   in
-  let funcs = List.map Regalloc.fill_in_missing_names funcs in
+  let funcs =
+    let f = Regalloc.fill_in_missing_names (Sopn.get_instr_desc pd msfsz asmOp) in
+    List.map f funcs in
   let tokeep = ref (Ss.of_list fnames) in
   let dofun f =
     if Ss.mem f.f_name.fn_name !tokeep then

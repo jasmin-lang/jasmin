@@ -442,6 +442,19 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     dead_vars_fd f
   in
 
+  let fill_in_missing_names fd =
+    fd
+    |> Regalloc.fill_in_missing_names
+         (Sopn.get_instr_desc Arch.pointer_data Arch.msf_size Arch.asmOp)
+    |> Prog.refresh_i_loc_f
+  in
+
+  let fill_in_missing_names_sfd fn fd =
+    let extra, fd = Conv.fdef_of_csfdef (fn, fd) in
+    let fd = Regalloc.fill_in_missing_names (Sopn.get_instr_desc Arch.pointer_data Arch.msf_size Arch.asmOp) fd in
+    snd (Conv.csfdef_of_fdef (extra, fd))
+  in
+
   let cparams =
     {
       Compiler.extend_iinfo;
@@ -487,6 +500,8 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.dead_vars_sfd;
       Compiler.pp_sr;
       Compiler.apply_ret_annot = StackAlloc.apply_ret_annot;
+      Compiler.fill_in_missing_names_ufd = apply "fill-in missing names" fill_in_missing_names;
+      Compiler.fill_in_missing_names_sfd;
     }
   in
 

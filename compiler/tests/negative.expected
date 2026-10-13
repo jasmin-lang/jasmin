@@ -938,13 +938,13 @@ fail/nolea/x86-64/test_merge.jazz:
 compilation error:
 register allocation: conflicting variables “x” and “z” must be merged due to:
   at "fail/nolea/x86-64/test_merge.jazz", line 12 (3-13):
-     _0,  _1,  _2,  _3, z = #INC_64(x);
+    OF, SF, PF, ZF, z = #INC_64(x);
   at "fail/nolea/x86-64/test_merge.jazz", line 13 (3-10):
-     _4,  _5,  _6,  _7,  _8, z = #ADD_64(z, x);
+    OF, CF, SF, PF, ZF, z = #ADD_64(z, x);
   at "fail/nolea/x86-64/test_merge.jazz", line 22 (3-15):
-     _0,  _1,  _2,  _3, z1 = #INC_64(z1);
+    OF, SF, PF, ZF, z1 = #INC_64(z1);
   at "fail/nolea/x86-64/test_merge.jazz", line 25 (3-12):
-     _4,  _5,  _6,  _7,  _8, z1 = #ADD_64(z1, z2);
+    OF, CF, SF, PF, ZF, z1 = #ADD_64(z1, z2);
   at "fail/nolea/x86-64/test_merge.jazz", line 24 (3-17):
     z1 = add1(z1);
 
@@ -1095,7 +1095,7 @@ fail/register_allocation/x86-64/bug_309.jazz:
 
 "fail/register_allocation/x86-64/bug_309.jazz", line 6 (2-19):
 compilation error:
-register allocation: variable  _5 must be allocated to register CF due to architectural constraints; this register already holds conflicting variable: cf
+register allocation: variable CF must be allocated to register CF due to architectural constraints; this register already holds conflicting variable: cf
 
 fail/register_allocation/x86-64/bug_310.jazz:
 
@@ -1128,6 +1128,11 @@ fail/register_allocation/x86-64/bug_523.jazz:
 compilation error:
 register allocation: variable rot2 must be allocated to register RCX due to architectural constraints; this register already holds conflicting variable: rot1
 
+fail/register_allocation/x86-64/bug_679.jazz:
+
+"fail/register_allocation/x86-64/bug_679.jazz", line 4 (10-11):
+compilation error: cannot fill the hole to match the right-hand side expression “s”
+
 fail/register_allocation/x86-64/callee_saved-too-small.jazz:
 
 "fail/register_allocation/x86-64/callee_saved-too-small.jazz", line 10 (0) to line 19 (1):
@@ -1138,7 +1143,7 @@ fail/register_allocation/x86-64/conflicting_register.jazz:
 
 "fail/register_allocation/x86-64/conflicting_register.jazz", line 9 (0-27):
 compilation error:
-register allocation: variable  _5 must be allocated to register CF due to architectural constraints; this register already holds conflicting variable: cf
+register allocation: variable CF must be allocated to register CF due to architectural constraints; this register already holds conflicting variable: cf
 
 fail/register_allocation/x86-64/conflicting_variables.jazz:
 
@@ -1146,11 +1151,20 @@ fail/register_allocation/x86-64/conflicting_variables.jazz:
 compilation error:
 register allocation: conflicting variables “z” and “res” must be merged due to:
   at "fail/register_allocation/x86-64/conflicting_variables.jazz", line 3 (2-16):
-     _0,  _1,  _2,  _3,  _4, res = #ADD_64(arg, (64u) 3);
+    OF, CF, SF, PF, ZF, res = #ADD_64(arg, (64u) 3);
   at "fail/register_allocation/x86-64/conflicting_variables.jazz", line 12 (2-11):
-     _0,  _1,  _2,  _3,  _4, z = #ADD_64(z, res);
+    OF, CF, SF, PF, ZF, z = #ADD_64(z, res);
   at "fail/register_allocation/x86-64/conflicting_variables.jazz", line 11 (2-14):
     res = f(z);
+
+fail/register_allocation/x86-64/hole_forced_to_live.jazz:
+
+"fail/register_allocation/x86-64/hole_forced_to_live.jazz", line 4 (10-20):
+compilation error:
+register allocation: conflicting variables “x” and “x” must be merged due to:
+  at "fail/register_allocation/x86-64/hole_forced_to_live.jazz", line 4 (10-20):
+    #[keep]
+  OF, SF, PF, ZF, x = #INC_64(x); /* :k */
 
 fail/register_allocation/x86-64/merge_across_banks.jazz:
 
@@ -1966,4 +1980,4 @@ Statistics:
 	Pretyping:  65
 	Parsing:     5
 	Typing:      5
-	Compile:   235
+	Compile:   237

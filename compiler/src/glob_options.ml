@@ -169,6 +169,7 @@ let print_strings = function
   | Compiler.LowerInstruction            -> "lowering" , "lowering of instructions"
   | Compiler.PropagateInline             -> "propagate", "propagate inline variables"
   | Compiler.SLHLowering                 -> "slhlowering" , "lowering of selective load hardening instructions"
+  | Compiler.NameHoles                   -> "nameholes" , "fill-in holes and give them names if needed"
   | Compiler.LowerAddressing             -> "loweraddr", "lowering of complex addressing modes (RISC-V only)"
   | Compiler.StackAllocation             -> "stkalloc" , "stack allocation"
   | Compiler.RemoveReturn                -> "rmreturn" , "remove unused returned values"

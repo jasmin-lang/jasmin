@@ -1,0 +1,6 @@
+/* On x86, the inc instruction operates in place and the x variable is live, so
+ * there is no way to fill the hole _ satisfying both constraints. */
+export fn inc_live(reg u64 x) -> reg u64 {
+  #[keep] _ = x + 1;
+  return x;
+}

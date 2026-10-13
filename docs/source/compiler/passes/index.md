@@ -62,6 +62,7 @@ Each pass is described in more detail on a dedicated page.
   it is particularly useful to deal with expressions made of flags
 - [SLH](lower_slh) replaces SLH operators with their implementations in the
   target architecture
+- [Name discarded values](name_holes) replaces unnamed destinations by fresh variables;
 - [Stack allocation](stack_alloc) replaces stack variables with memory accesses
 - [Lower addr. (RISC-V)](lower_addr) turns complex memory accesses, not compilable
   as is on RISC-V, into several simpler instructions (on RISC-V only)
@@ -100,6 +101,7 @@ load_constants
 inst_select
 propagate_inline
 lower_slh
+name_holes
 stack_alloc
 lower_addr
 rm_unused_ret_value
