@@ -1387,7 +1387,7 @@ Definition arm_BFC_semi_t (x : wreg) (lsb width : word U8) : wreg :=
   winit reg_size mk.
 
 Definition arm_BFC_semi_sc :=
-  map sc_of_safe_cond [:: ULt U8 1 32%Z; UGe U8 1%Z 2; UaddLe U8 2 1 32%Z].
+  [:: sc_ult U8 1 32%Z; sc_uge U8 1%Z 2; sc_uadd_le U8 2 1 32%Z].
 
 Definition arm_BFC_instr : instr_desc_t :=
   let mn := BFC in
@@ -1424,7 +1424,7 @@ Definition arm_BFI_semi_t (x y : wreg) (lsb width : word U8) : wreg :=
   winit reg_size mk.
 
 Definition arm_BFI_semi_sc :=
-  map sc_of_safe_cond [:: ULt U8 2 32%Z; UGe U8 1%Z 3; UaddLe U8 3 2 32%Z].
+  [:: sc_ult U8 2 32%Z; sc_uge U8 1%Z 3; sc_uadd_le U8 3 2 32%Z].
 
 Definition arm_BFI_instr : instr_desc_t :=
   let mn := BFI in
@@ -1865,7 +1865,7 @@ Definition bit_field_extract_semi_t
   shr (wshl wn (32 - width - idx)%Z) (32 - width)%Z.
 
 Definition bit_field_extract_semi_sc :=
-  map sc_of_safe_cond [:: UGe U8 1%Z 2; UaddLe U8 2 1 32%Z].
+  [:: sc_uge U8 1%Z 2; sc_uadd_le U8 2 1 32%Z].
 
 Definition ak_reg_reg_imm_imm_extr :=
    [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAimm (Some (CAimmC_arm_shift_amout SLSL)) U8 ]; [:: CAimm_sz U8 ] ] ].

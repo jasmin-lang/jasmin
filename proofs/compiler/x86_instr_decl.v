@@ -490,7 +490,7 @@ Notation mk_instr_w2_b5w2 name semi_total init ain aout nargs check prc valid do
   mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b5w2_ty sz) ain (implicit_flags ++ aout) (reg_msb_flag sz) (semi_total sz) init (check sz) nargs (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_division sg name semi_total init check prc valid doit pp_asm wf := ((fun sz =>
-  mk_instr (pp_sz name sz) (w3_ty sz) (b5w2_ty sz) [:: R RDX; R RAX; Eu 0]  (implicit_flags ++ [:: R RAX; R RDX]) (reg_msb_flag sz) (semi_total sz) init (check sz) 1 (map sc_of_safe_cond [:: X86Division sz sg]) ErrArith (valid sz) doit (pp_asm sz) (wf sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (w3_ty sz) (b5w2_ty sz) [:: R RDX; R RAX; Eu 0]  (implicit_flags ++ [:: R RAX; R RDX]) (reg_msb_flag sz) (semi_total sz) init (check sz) 1 [:: sc_x86_division sz sg] ErrArith (valid sz) doit (pp_asm sz) (wf sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2_w_120 name semi check prc valid doit pp_asm := ((fun sz =>
   mk_instr_safe (pp_sz name sz) (w2_ty sz sz) (w_ty sz) [:: Eu 1 ; Eu 2] [:: Eu 0] MSB_CLEAR (semi sz) (check sz) 3 (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
@@ -975,7 +975,7 @@ Definition Ox86_BSR_instr :=
        (reg_msb_flag sz)
        (@x86_BSR_t sz) init_bsr
        [:: r_rm ] 2
-       (map sc_of_safe_cond [:: NotZero sz 0 ]) ErrArith (size_16_64 sz) NOT_DOIT
+       [:: sc_not_zero sz 0 ] ErrArith (size_16_64 sz) NOT_DOIT
        (pp_iname "bsr" sz) (x86_BSR_wf sz)
 
   , ("BSR"%string, prim_16_64 BSR)).
@@ -1245,7 +1245,7 @@ Definition check_shld (_:wsize):= [::[::rm false; r; ri U8]].
 
 Definition safe_shxd sz : seq safety_cond :=
   match sz with
-  | U16 => map sc_of_safe_cond [:: InRangeMod32 U8 0 16 2 ]
+  | U16 => [:: sc_in_range_mod32 U8 0 16 2 ]
   | _ => [::]
   end.
 
@@ -2000,7 +2000,7 @@ Definition Ox86_RDTSC_instr :=
               (init_all_true 2)
               [:: [::]]
               0 (* nargs *)
-              (map sc_of_safe_cond [:: ScFalse])
+              [:: sc_false]
               ErrSemUndef
               (size_32_64 sz)
               NOT_DOIT
@@ -2021,7 +2021,7 @@ Definition Ox86_RDTSCP_instr :=
               (init_all_true 3)
               [:: [::]] (* arg checks *)
               0 (* nargs *)
-              (map sc_of_safe_cond [:: ScFalse])
+              [:: sc_false]
               ErrSemUndef
               (size_32_64 sz)
               NOT_DOIT
@@ -2042,7 +2042,7 @@ Definition Ox86_RDPMC_instr :=
      (init_all_true 2)
      [:: [::] ]
      0 (* nargs *)
-     (map sc_of_safe_cond [:: ScFalse ])
+     [:: sc_false ]
      ErrSemUndef
      true
      NOT_DOIT
