@@ -810,6 +810,33 @@ Proof.
   by case: mn => //=; case: sf sk' => [] [] //.
 Qed.
 
+(* [a & !b] and [!b & a] are lowered to [BIC a, b], which computes
+   [a AND NOT b]: the complement commutes with the truncation of the operands
+   to the register size. *)
+Lemma lower_Papp2_BICP s ws'' ws' e0 e1 x y v0 v1 (w : word ws') :
+  is_andn e0 e1 = Some (x, y)
+  -> (reg_size <= ws')%CMP
+  -> disj_fvars (read_e e0)
+  -> disj_fvars (read_e e1)
+  -> sem_pexpr true (p_globs p) s e0 = ok v0
+  -> sem_pexpr true (p_globs p) s e1 = ok v1
+  -> sem_sop2 (Oland ws'') v0 v1 = ok (Vword w)
+  -> ok_lower_pexpr_aux s reg_size
+       (Oasm (BaseOp (None, ARM_op BIC default_opts))) [:: y; x ] w.
+Proof.
+  move=> handn hws hfve0 hfve1 hseme0 hseme1 hsemop.
+  have hsem : sem_pexpr true (p_globs p) s (Papp2 (Oland ws'') e0 e1) = ok (Vword w)
+    by rewrite /= hseme0 hseme1 /= hsemop.
+  have [wsx [wx [wsy [wy [hx hy hwsx hwsy /Vword_inj [?]]]]]] := is_andn_semP handn hsem.
+  subst ws' => /= ?; subst w.
+  split; last by split => //; exact: (disj_fvars_is_andn handn hfve0 hfve1).
+  exists [:: Vword wy; Vword wx ]; first by rewrite /sem_pexprs /= hy hx.
+  rewrite /exec_sopn /=.
+  rewrite !(truncate_word_le _ (cmp_le_trans hws _)) //=.
+  by rewrite -(wand_zero_extend _ _ hws) -(wnot_zero_extend _ hws)
+    !(zero_extend_idem _ hws) wandC.
+Qed.
+
 Lemma lower_Papp2P op e0 e1 :
   Plower_pexpr_aux (Papp2 op e0 e1).
 Proof.
@@ -864,6 +891,10 @@ Proof.
         | [ |- context[ Oasr ] ] => rewrite /=; case: is_zeroP => hzero
         | [ |- context[ Oror ] ] => rewrite /=; case: is_zeroP => hzero
         | [ |- context[ Orol ] ] => rewrite /=; case hconst: is_wconst => [ c | // ]; case: eqP => ?; [ subst c | ]
+        | [ |- context[ is_andn ] ] =>
+            case handn: is_andn => [[x y] | ] /=;
+            first by move=> [???] hsemop; subst mn' e0' e1';
+              exact: (lower_Papp2_BICP handn hws hfve0 hfve1 hseme0 hseme1 hsemop)
       end.
 
     all:
@@ -1008,8 +1039,8 @@ Proof.
       repeat
         match goal with
         | [ |- context[ if _ then _ else _] ] => case: ifP => _
+        | [ |- context[ is_andn ] ] => case: is_andn => [[? ?] | ] /=
         end.
-
     all: by move=> [<- _ _].
   }
   move: hdflt => [[vs ok_vs hsopn] [hfv _ htout]].
