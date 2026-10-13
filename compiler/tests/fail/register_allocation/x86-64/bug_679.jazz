@@ -1,0 +1,5 @@
+export fn stack_variable()
+{
+  stack u64 s = 0;
+  #[keep] _ = s + 1;
+}

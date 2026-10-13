@@ -35,22 +35,24 @@ loadconst[label="Load constants\n(RISC-V)",fillcolor=lightgreen,href="load_const
 lowering[label="Instruction\nselection",fillcolor=lightgreen,href="inst_select.html",target="_top",tooltip="Instruction selection"];
 propagate[label="Inline\npropagation",fillcolor=lightgreen,href="propagate_inline.html",target="_top",tooltip="Inline propagation"];
 slhlowering[label="SLH",fillcolor=lightgreen,href="lower_slh.html",target="_top",tooltip="Lowering of SLH"];
+nameholes[label="Name holes",fillcolor=lightgreen,href="name_holes.html",target="_top",tooltip="Fill in holes and give them names if needed"];
 stkalloc[label="Stack\nallocation",fillcolor=lightgreen,href="stack_alloc.html",target="_top",tooltip="Stack allocation"];
 stack[label="Stack",shape=oval,fillcolor=white];
-loweraddr[label="Lower addr.\n(RISC-V)",fillcolor=lightgreen,href="lower_addr.html",target="_top",tooltip="Lowering of complex addressing mode (RISC-V)"];
 
+loweraddr[label="Lower addr.\n(RISC-V)",fillcolor=lightgreen,href="lower_addr.html",target="_top",tooltip="Lowering of complex addressing mode (RISC-V)"];
 rmreturn[label="Remove\nunused ret.",fillcolor=lightgreen,href="rm_unused_ret_value.html",target="_top",tooltip="Remove unused return values"];
 ralloc[label="Register\nallocation",fillcolor=mediumpurple,href="reg_alloc.html",target="_top",tooltip="Register allocation"];
 dce2[label="Dead code\nelimination",fillcolor=lightgreen,href="deadcode_elimination.html",target="_top",tooltip="Dead code elimination"];
 onevarmap[label="One\nvarmap",style="filled,dotted",fillcolor=lightgreen,href="merge_varmaps.html",target="_top",tooltip="One varmap checker"];
 linearization[label="Linearization",fillcolor=lightgreen,href="linearization.html",target="_top",tooltip="Linearization"];
-linear[label="Linear",shape=oval,fillcolor=white];
 
+linear[label="Linear",shape=oval,fillcolor=white];
 stackzero[label="Stack\nzeroization",fillcolor=lightgreen,href="stack_zero.html",target="_top",tooltip="Stack zeroization"];
 tunnel[label="Tunneling",fillcolor=lightgreen,href="tunneling.html",target="_top",tooltip="Tunneling"];
 asmgen[label="Assembly\ngeneration",fillcolor=lightgreen,href="asm_gen.html",target="_top",tooltip="Assembly generation"];
 asm[label="ASM",shape=oval,fillcolor=white];
 prettyprint[label="Pretty-\nprinting",fillcolor=moccasin];
+
 asmfile[label=".s",shape=oval,fillcolor=white];
 
 
@@ -112,35 +114,37 @@ subgraph line5 {
 
   lowering -> propagate;
   propagate -> slhlowering;
-  slhlowering -> stkalloc;
+  slhlowering -> nameholes;
+  nameholes -> stkalloc;
   stkalloc -> stack;
-  stack -> loweraddr;
 }
 
-loweraddr -> rmreturn;
+stack -> loweraddr;
 
 subgraph line6 {
   rank=same;
   edge[dir=back];
 
-  linear -> linearization;
   linearization -> onevarmap;
   onevarmap -> dce2;
   dce2 -> ralloc;
   ralloc -> rmreturn;
+  rmreturn -> loweraddr;
 }
 
-linear -> stackzero;
+linearization -> linear;
 
 subgraph line7 {
   rank=same;
 
+  linear -> stackzero;
   stackzero -> tunnel;
   tunnel -> asmgen;
   asmgen -> asm;
   asm -> prettyprint;
-  prettyprint -> asmfile;
 }
+
+prettyprint -> asmfile;
 
 subgraph caption {
   node[color=white,fillcolor=white];
@@ -174,18 +178,20 @@ edge[style=invis];
 
 // This better aligns the blocks
 rmfunc -> loadconst;
-jazz -> lowerspill -> cstprop -> rmglobals -> propagate -> linearization -> tunnel;
-parse -> addarrinit -> dce -> splitting2 -> slhlowering -> onevarmap -> asmgen;
-preprocess -> arraycopy -> unroll -> arrexp -> stkalloc -> dce2 -> asm;
-typing -> renaming -> rmfunc2 -> makeref -> stack -> ralloc -> prettyprint;
+lowering -> linearization;
+jazz -> lowerspill -> cstprop -> rmglobals -> propagate -> onevarmap -> stackzero;
+parse -> addarrinit -> dce -> splitting2 -> slhlowering -> dce2 -> tunnel;
+preprocess -> arraycopy -> unroll -> arrexp -> nameholes -> ralloc -> asmgen;
+typing -> renaming -> rmfunc2 -> makeref -> stkalloc -> rmreturn -> asm;
 wintword -> splitting;
-rmarrinit -> loweraddr;
+rmarrinit -> stack;
+loweraddr -> prettyprint;
 
 // This puts the caption below the graph
 proved0[style=invis];
-tunnel -> proved0 -> proved;
+stackzero -> proved0 -> proved;
 intermediate0[style=invis];
-asm -> intermediate0 -> intermediate;
+asmgen -> intermediate0 -> intermediate;
 
 // The 2 following lines allow the loop back from unroll to cstprop
 // to be above instead of below the second line.
