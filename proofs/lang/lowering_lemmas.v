@@ -231,6 +231,30 @@ End CALL.
 End ESTATE_EQ_EXCEPT.
 
 
+(* -------------------------------------------------------------------- *)
+(* The patterns of [lowering.v]. *)
+
+Variant is_lnot_spec (e : pexpr) : option pexpr -> Type :=
+  | IsLnotSome ws a : e = Papp1 (Olnot ws) a -> is_lnot_spec (Some a)
+  | IsLnotNone : is_lnot_spec None.
+
+Lemma is_lnotP e : is_lnot_spec e (is_lnot e).
+Proof.
+  rewrite /is_lnot.
+  case: e; try (move=> *; exact: IsLnotNone).
+  move=> op a; case: op; try (move=> *; exact: IsLnotNone).
+  by move=> ws /=; apply: IsLnotSome.
+Qed.
+
+Lemma is_andn_read_es a b x y :
+  is_andn a b = Some (x, y)
+  -> Sv.Equal (read_es [:: x; y ]) (read_es [:: a; b ]).
+Proof.
+  rewrite /is_andn.
+  case: (is_lnotP a) => [wsa x' -> [ <- ->] |]; last case: (is_lnotP b) => // wsb y' -> [<- ->];
+  by rewrite /read_es /= !read_eE; SvD.fsetdec.
+Qed.
+
 Section DISJ_FVARS.
 
 Context
@@ -257,6 +281,19 @@ Proof.
   rewrite /read_e /=.
   move=> /(disjoint_equal_l (read_eE _ _)).
   by move=> /disjoint_union [h0 h1].
+Qed.
+
+(* The operands of [a & b] recognized by [is_andn] read the same variables. *)
+Lemma disj_fvars_is_andn a b x y :
+  is_andn a b = Some (x, y)
+  -> disj_fvars (read_e a)
+  -> disj_fvars (read_e b)
+  -> disj_fvars (read_es [:: y; x ]).
+Proof.
+  move=> + ha hb.
+  rewrite /is_andn.
+  case: (is_lnotP a) => [wsa x' ? [<- ?] |]; last case: (is_lnotP b) => // wsb y' ? [<- ?]; subst a b.
+  all: by apply: (disjoint_equal_r (read_eE _ _)); apply: union_disjoint.
 Qed.
 
 Lemma disj_fvars_read_e_Pif ty c e0 e1 :
@@ -384,3 +421,49 @@ Proof.
 Qed.
 
 End DISJ_FVARS.
+
+Section IS_ANDN.
+
+Context
+  {wsw : WithSubWord}
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}.
+
+(* The value of [a & b] when [is_andn a b = Some (x, y)]: the conjunction of
+   [y] with the complement of [x], both truncated to the width of the
+   operator (the complement commutes with the truncation). *)
+Lemma is_andn_semP wdb gd s ws a b x y v :
+  is_andn a b = Some (x, y)
+  -> sem_pexpr wdb gd s (Papp2 (Oland ws) a b) = ok v
+  -> exists wsx (wx : word wsx) wsy (wy : word wsy),
+       [/\ sem_pexpr wdb gd s x = ok (Vword wx)
+         , sem_pexpr wdb gd s y = ok (Vword wy)
+         , (ws <= wsx)%CMP
+         , (ws <= wsy)%CMP
+         & v = Vword (wand (wnot (zero_extend ws wx)) (zero_extend ws wy))
+       ].
+Proof.
+  move=> handn /=.
+  t_xrbindP=> va hva vb hvb /sem_sop2I /= [wa [wb [w [hwa hwb hw ?]]]]; subst v.
+  move: hw; rewrite /sem_sop2_typed /mk_sem_op /= => -[?]; subst w.
+  move: handn; rewrite /is_andn.
+  case: (is_lnotP a) => [wsa x' ? [??] |]; last case: (is_lnotP b) => // wsb y' ? [??].
+  all: subst.
+  - move: hva => /=; t_xrbindP=> vx hvx /sem_sop1I /= [wx' [wn [hwx' hwn ?]]]; subst va.
+    move: hwn; rewrite /sem_sop1_typed /= => -[?]; subst wn.
+    move: hwx' => /to_wordI' [wsx [wx [hlex ??]]]; subst vx wx'.
+    move: hwa => /truncate_wordP [hle ?]; subst wa.
+    move: hwb => /to_wordI' [wsy [wy [hley ??]]]; subst vb wb.
+    exists wsx, wx, wsy, wy; split=> //; first exact: (cmp_le_trans hle hlex).
+    by rewrite -wnot_zero_extend // zero_extend_idem.
+  move: hvb => /=; t_xrbindP=> vx hvx /sem_sop1I /= [wx' [wn [hwx' hwn ?]]]; subst vb.
+  move: hwn; rewrite /sem_sop1_typed /= => -[?]; subst wn.
+  move: hwx' => /to_wordI' [wsx [wx [hlex ??]]]; subst vx wx'.
+  move: hwb => /truncate_wordP [hle ?]; subst wb.
+  move: hwa => /to_wordI' [wsy [wy [hley ??]]]; subst va wa.
+  exists wsx, wx, wsy, wy; split=> //; first exact: (cmp_le_trans hle hlex).
+  by rewrite -wnot_zero_extend // zero_extend_idem // wandC.
+Qed.
+
+End IS_ANDN.
