@@ -1,12 +1,14 @@
-EXTRACTION_DIR := extraction
+EXTRACTION_DIR ?= extraction
+ARRAY_MODEL ?= barray
+MODEL ?= normal
 
-JASMIN2EC := ../../../../jasmin2ec --mjazz --mfile_ec $(EXTRACTION_DIR)
+JASMIN2EC := ../../../../jasmin2ec --mjazz -I Lib=. --array-model=$(ARRAY_MODEL) --model=$(MODEL) --mfile_ec $(EXTRACTION_DIR)
 SOURCES := $(wildcard *.mjazz)
 EXTRACTED := $(SOURCES:.mjazz=.ec)
 
-all: extraction $(EXTRACTED)
+all: $(EXTRACTION_DIR) $(EXTRACTED)
 
-extraction:
+$(EXTRACTION_DIR):
 	mkdir -p $(EXTRACTION_DIR)
 
 %.ec: %.mjazz

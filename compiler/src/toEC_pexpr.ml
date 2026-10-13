@@ -67,6 +67,16 @@ module Sarraytheory = Set.Make(ATcmp)
 
 module AbsATcmp = struct
   type t = pexpr_ array_theory
+  let map_at f = function
+    | Array n -> Array (f n)
+    | WArray n -> WArray (f n)
+    | ByteArray n -> ByteArray (f n)
+    | ArrayWords a -> ArrayWords { sizew = f a.sizew; sizea = f a.sizea }
+    | SubArray a -> SubArray { sizes = f a.sizes; sizeb = f a.sizeb }
+    | SubByteArray a -> SubByteArray { sizes = f a.sizes; sizeb = f a.sizeb }
+    | SubArrayDirect a -> SubArrayDirect { sizew = f a.sizew; sizes = f a.sizes; sizeb = f a.sizeb }
+    | SubArrayCast a -> SubArrayCast { sizews = f a.sizews; sizewb = f a.sizewb; sizes = f a.sizes; sizeb = f a.sizeb }
+    | ArrayAccessCast a -> ArrayAccessCast { sizews = f a.sizews; sizewb = f a.sizewb; sizeb = f a.sizeb }
   let compare a1 a2 =
   match a1, a2 with
   | Array e1, Array e2 -> if Prog.pexpr__equal e1 e2 then 0 else compare e1 e2
@@ -492,6 +502,11 @@ module type EnvT = sig
   val array_theories: t -> Sarraytheory.t
   val abstract_array_theories: t -> int Aarraytheory.t
   val set_abstract_array_theories: t -> int Aarraytheory.t -> unit
+  val array_alias: t -> string Aarraytheory.t
+  val set_array_alias: t -> string Aarraytheory.t -> unit
+  val get_alias: t -> pexpr_ array_theory -> string option
+  val add_alias: t -> pexpr_ array_theory -> string -> unit
+  val abstract_name: t -> pexpr_ array_theory -> string
   val get_funtype: t -> funname -> (pty list * pty list)
   val get_funname: t -> funname -> string
   val create_aux: t -> string -> ec_ty -> string
@@ -506,8 +521,7 @@ module type EnvT = sig
   val get_module_funcs: t -> string -> funname list
   val get_module_vars: t -> string -> pvar list
   val get_module_modules: t -> string -> string list
-  val get_module_arrays: t -> string -> (pexpr_ array_theory * int) list
-  val get_abstract_array: t -> pexpr_ array_theory -> int 
+  val get_module_arrays: t -> string -> (pexpr_ array_theory * string) list
   val add_module_fun: t -> string -> funname -> t
   val add_module_var: t -> string -> pvar -> t
   val add_module_module: t -> string -> string -> t
@@ -536,7 +550,7 @@ module Env: EnvT = struct
     funs: funname list;
     vars: pvar list;
     modules: string list;
-    arrays: (pexpr_ array_theory * int) list;
+    arrays: (pexpr_ array_theory * string) list;
   } 
 
   type t = {
@@ -551,6 +565,7 @@ module Env: EnvT = struct
       modules: module_info Ms.t;
       array_theories: Sarraytheory.t ref;
       abstract_array_theories: int Aarraytheory.t ref;
+      array_alias: string Aarraytheory.t ref;
       (* aux variables: intermediate variables introduced by extraction.
         aux variables have a prefix in their name that identifies their use
         (such as jasmin assignments, for loop bounds, intermediate leakage variables).
@@ -575,25 +590,33 @@ module Env: EnvT = struct
   let abstract_array_theories env = !(env.abstract_array_theories)
   let set_abstract_array_theories env abs_theories =
     env.abstract_array_theories := abs_theories
+  let array_alias env = !(env.array_alias)
+  let set_array_alias env alias = env.array_alias := alias
+  let get_alias env a = Aarraytheory.find_opt a !(env.array_alias)
+  let add_alias env a name = env.array_alias := Aarraytheory.add a name !(env.array_alias)
+
+  let register env a =
+    if not (Aarraytheory.mem a !(env.abstract_array_theories)) && not (Aarraytheory.mem a !(env.array_alias)) then
+      let used = List.map snd (Aarraytheory.to_list !(env.abstract_array_theories)) in
+      let aliases = List.map (fun (_, n) -> List.last (String.split_on_char '.' n)) (Aarraytheory.to_list !(env.array_alias)) in
+      let rec next i = if List.mem i used || List.mem (snd (fmt_abstract_array_theory a i)) aliases then next (i + 1) else i in
+      env.abstract_array_theories := Aarraytheory.add a (next 0) !(env.abstract_array_theories)
+
+  let abstract_name env a =
+    match Aarraytheory.find_opt a !(env.array_alias) with
+    | Some name -> name
+    | None -> snd (fmt_abstract_array_theory a (Aarraytheory.find a !(env.abstract_array_theories)))
 
   let add_Array env n =
     env.array_theories := Sarraytheory.add (Array n) !(env.array_theories)
   
-  let add_AArray env n =
-    try Aarraytheory.find (Array n) !(env.abstract_array_theories) |> ignore
-    with Not_found ->
-      let i = Aarraytheory.cardinal !(env.abstract_array_theories) in
-      env.abstract_array_theories := Aarraytheory.add (Array n) i !(env.abstract_array_theories)
+  let add_AArray env n = register env (Array n)
 
 
   let add_BArray env size =
     env.array_theories := Sarraytheory.add (ByteArray size) !(env.array_theories)
 
-  let add_ABArray env size =
-    try Aarraytheory.find (ByteArray size) !(env.abstract_array_theories) |> ignore
-    with Not_found ->
-      let i = Aarraytheory.cardinal !(env.abstract_array_theories) in
-      env.abstract_array_theories := Aarraytheory.add (ByteArray size) i !(env.abstract_array_theories)
+  let add_ABArray env size = register env (ByteArray size)
 
   let add_SBArray env (s:int subarray) =
     add_BArray env s.sizeb;
@@ -603,19 +626,12 @@ module Env: EnvT = struct
   let add_ASBArray env (s:pexpr_ subarray) =
     add_ABArray env s.sizeb;
     add_ABArray env s.sizes;
-    try Aarraytheory.find (SubByteArray s) !(env.abstract_array_theories) |> ignore
-    with Not_found ->
-      let i = Aarraytheory.cardinal !(env.abstract_array_theories) in
-      env.abstract_array_theories := Aarraytheory.add (SubByteArray s) i !(env.abstract_array_theories)
+    register env (SubByteArray s)
 
   let add_WArray env n =
     env.array_theories := Sarraytheory.add (WArray n) !(env.array_theories)
 
-  let add_AWArray env size =
-    try Aarraytheory.find (WArray size) !(env.abstract_array_theories) |> ignore
-    with Not_found ->
-      let i = Aarraytheory.cardinal !(env.abstract_array_theories) in
-      env.abstract_array_theories := Aarraytheory.add (WArray size) i !(env.abstract_array_theories)
+  let add_AWArray env size = register env (WArray size)
 
   let add_ArrayWords env sizew sizea =
     match get_int sizea with
@@ -627,20 +643,14 @@ module Env: EnvT = struct
       let size = Papp2 (Omul Op_int ,icnst sizew , pexpr_of_pexpr_ sizea) in
       add_AWArray env (PE size);
       add_AArray env sizea;
-      try Aarraytheory.find (ArrayWords {sizew = PE (icnst sizew); sizea}) !(env.abstract_array_theories) |> ignore
-      with Not_found ->
-        let i = Aarraytheory.cardinal !(env.abstract_array_theories) in
-        env.abstract_array_theories := Aarraytheory.add (ArrayWords {sizew = PE (icnst sizew);sizea}) i !(env.abstract_array_theories)
+      register env (ArrayWords {sizew = PE (icnst sizew); sizea})
 
   let add_SubArray env sizes sizeb =
     let addSubArrayA sizes sizeb =
       add_AArray env sizes;
       add_AArray env sizeb;
-      try Aarraytheory.find (SubArray {sizes;sizeb}) !(env.abstract_array_theories) |> fmt_abstract_array_theory (SubArray {sizes;sizeb}) |> snd
-      with Not_found ->
-        let i = Aarraytheory.cardinal !(env.abstract_array_theories) in
-        env.abstract_array_theories := Aarraytheory.add (SubArray {sizes;sizeb}) i !(env.abstract_array_theories);
-          fmt_abstract_array_theory (SubArray {sizes;sizeb}) i |> snd 
+      register env (SubArray {sizes;sizeb});
+      abstract_name env (SubArray {sizes;sizeb})
     in
     match get_int sizes, get_int sizeb with
     | Some sizes, Some sizeb ->
@@ -659,11 +669,8 @@ module Env: EnvT = struct
       fmt_array_theory (SubArrayDirect {sizew; sizes; sizeb})
     | _,_ -> 
       let theory = SubArrayDirect {sizew = PE (icnst sizew); sizes; sizeb} in
-      try Aarraytheory.find (theory) !(env.abstract_array_theories) |> fmt_abstract_array_theory theory |> snd
-      with Not_found ->
-        let i = Aarraytheory.cardinal !(env.abstract_array_theories) in
-        env.abstract_array_theories := Aarraytheory.add theory i !(env.abstract_array_theories);
-        fmt_abstract_array_theory theory i |> snd
+      register env theory;
+      abstract_name env theory
 
   let add_SubArrayCast env sizews sizewb sizes sizeb =
     add_ArrayWords env sizews sizes;
@@ -675,11 +682,8 @@ module Env: EnvT = struct
       fmt_array_theory (theory)
     | _,_ ->
       let theory = SubArrayCast {sizews = PE (icnst sizews); sizewb = PE (icnst sizewb); sizes; sizeb} in
-      try Aarraytheory.find (theory) !(env.abstract_array_theories) |> fmt_abstract_array_theory (theory) |> snd
-      with Not_found ->
-        let i = Aarraytheory.cardinal !(env.abstract_array_theories) in
-        env.abstract_array_theories := Aarraytheory.add (theory) i !(env.abstract_array_theories);
-        fmt_abstract_array_theory (theory) i |> snd
+      register env theory;
+      abstract_name env theory
 
   let add_ArrayAccessCast env sizews sizewb sizeb =
     add_ArrayWords env sizewb sizeb;
@@ -690,11 +694,8 @@ module Env: EnvT = struct
       fmt_array_theory (theory)
     | None ->
       let theory = ArrayAccessCast {sizews = PE (icnst sizews); sizewb = PE (icnst sizewb); sizeb} in
-      try Aarraytheory.find (theory) !(env.abstract_array_theories) |> fmt_abstract_array_theory (theory) |> snd
-      with Not_found ->
-        let i = Aarraytheory.cardinal !(env.abstract_array_theories) in
-        env.abstract_array_theories := Aarraytheory.add (theory) i !(env.abstract_array_theories);
-        fmt_abstract_array_theory (theory) i |> snd
+      register env theory;
+      abstract_name env theory
 
   let add_randombytes env n = env.randombytes := Sint.add n !(env.randombytes)
 
@@ -745,6 +746,7 @@ module Env: EnvT = struct
       modules = Ms.empty;
       array_theories;
       abstract_array_theories;
+      array_alias = ref Aarraytheory.empty;
       auxv  = ref Mpty.empty;
       count = Mpty.empty;
       randombytes = ref Sint.empty;
@@ -801,8 +803,6 @@ module Env: EnvT = struct
   let get_module_arrays env m = 
     (get_module_info env m).arrays
 
-  let get_abstract_array env a =
-    Aarraytheory.find a !(env.abstract_array_theories) 
 
   let add_module_fun env m f =
     let mod_info = get_module_info env m in
@@ -832,11 +832,13 @@ module Env: EnvT = struct
     { env with modules = Ms.add m minfo env.modules }, name
   
   let exit_module env m =
-    let array_theories = Aarraytheory.to_list !(env.abstract_array_theories) in
+    let array_theories = List.map (fun (a, i) -> a, snd (fmt_abstract_array_theory a i)) (Aarraytheory.to_list !(env.abstract_array_theories)) in
+    let array_theories = array_theories @ Aarraytheory.to_list !(env.array_alias) in
     let minfo = get_module_info env m in
     let modules = Ms.add m {minfo with arrays = array_theories} env.modules in
     let env = { env with modules } in
     env.abstract_array_theories := Aarraytheory.empty;
+    env.array_alias := Aarraytheory.empty;
     let mname = minfo.name in
     let env = List.fold_left (fun env f ->
       let fname = get_funname env f in
@@ -930,8 +932,8 @@ let check_array env x =
   | Arr(ws, n) ->
       begin match get_int n with
       | None -> 
-        Aarraytheory.mem (Array n) (Env.abstract_array_theories env) &&
-        Aarraytheory.mem (WArray ((PE (arr_size_pexpr_ ws n)))) (Env.abstract_array_theories env)
+        let mem a = Aarraytheory.mem a (Env.abstract_array_theories env) || Env.get_alias env a <> None in
+        mem (Array n) && mem (WArray ((PE (arr_size_pexpr_ ws n))))
       | Some n ->
         Sarraytheory.mem (Array n) (Env.array_theories env) &&
         Sarraytheory.mem (WArray (arr_size ws n)) (Env.array_theories env)
@@ -1314,22 +1316,19 @@ let ec_zeroext (t_o, t_i) e =
   if t_o = t_i then e else ec_zeroext_sz (ws_of_ty t_o, ws_of_ty t_i) e
 
 let ec_Array env n = Env.add_Array env n; Format.sprintf "Array%i" n
-let ec_PArray env n = let i = 
+let ec_PArray env n =
   Env.add_AArray env n;
-  Env.get_abstract_array env (Array n) in
-  Format.sprintf "ArrayS%i" i
+  Env.abstract_name env (Array n)
 
 let ec_WArray env n = Env.add_WArray env n; Format.sprintf "WArray%i" n
-let ec_PWArray env n = let i =
+let ec_PWArray env n =
   Env.add_AWArray env n;
-  Env.get_abstract_array env (WArray n) in
-  Format.sprintf "WArrayS%i" i
+  Env.abstract_name env (WArray n)
 let ec_BArray env n = Env.add_BArray env n; Format.sprintf "BArray%i" n
 
 let ec_PBArray env size =
   Env.add_ABArray env size;
-  let i = Env.get_abstract_array env (ByteArray size) in
-  Format.sprintf "BArrayS%i" i
+  Env.abstract_name env (ByteArray size)
   
 
 let ec_SBArray env s =
@@ -1338,8 +1337,7 @@ let ec_SBArray env s =
 
 let ec_PSBArray env s = 
   Env.add_ASBArray env s;
-  let i = Env.get_abstract_array env (SubByteArray s) in
-  Format.sprintf "SBArrayS%i" i
+  Env.abstract_name env (SubByteArray s)
 
 
 let toec_ty onarray env ty = match ty with
@@ -1463,9 +1461,7 @@ module EcArrayOld : EcArray = struct
             let nws = n * int_of_ws xws in
             ec_WArray env (nws / 8) 
           | None ->
-            let size = arr_size_pexpr_ ws n in
-            let size = Papp2 (Odiv (Unsigned,Op_int) , size, icnst 8) in
-            ec_PWArray env (PE size)
+            ec_PWArray env (PE (arr_size_pexpr_ xws n))
         in
         let waget = Eident [warray; Format.sprintf "get%i" (int_of_ws xws)] in
         let wsi = int_of_ws ws in
@@ -1507,7 +1503,7 @@ module EcArrayOld : EcArray = struct
         match get_int len with
         | Some len -> ec_WArray env (len* int_of_ws ws / 8 )
         | None -> 
-          let size = Papp2 (Omul Op_int, pexpr_of_pexpr_ n , icnst (int_of_ws ws /8)) in
+          let size = Papp2 (Omul Op_int, pexpr_of_pexpr_ len , icnst (int_of_ws ws /8)) in
           ec_PWArray env (PE size)
       in
       let at = Eapp (Eident[aw_get len; "get8"], [ec_initi env (e, len, ws); Eop2 (Infix "-", ec_ident i, start)]) in
@@ -1516,9 +1512,7 @@ module EcArrayOld : EcArray = struct
         match get_int len with
         | Some len ->ec_int (len * int_of_ws ws / 8)
         | None -> 
-          let size = arr_size_pexpr_ ws n in
-          let size = Papp2 (Odiv (Unsigned,Op_int) , size, icnst 8) in
-          toec_expr env size
+          toec_expr env (arr_size_pexpr_ ws len)
       in
       let in_range = Eop3 (InORange, start, ec_ident i, Eop2 (Plus, start, len8)) in
       let ainit = Eident [aw_get n; "init8"] in
@@ -1648,6 +1642,8 @@ module EcWArray : EcArray  = struct
 end
 
 module EcBArray : EcArray = struct
+  let arr_size_pexpr_ ws n = Pretyping.canon_expr (arr_size_pexpr_ ws n)
+
   let ec_darray8 (env: Env.t) (sz:int) =
     Eident [ec_BArray env sz; "darray"]
 
@@ -2394,7 +2390,7 @@ struct
 
   let toec_funsig env name fsig =
     let dummy_args = List.map (fun ty -> ("_", toec_ty env ty)) fsig.Mprog.fs_tyin in
-    let rtys = List.map (toec_ty env) fsig.Mprog.fs_tyout in
+    let rtys = ec_leak_rty env (List.map (toec_ty env) fsig.Mprog.fs_tyout) in
     {
       fname = name;
       args = dummy_args;
@@ -2506,7 +2502,7 @@ struct
         | Some sizea -> fmt_array_theory (ArrayWords{sizew; sizea})
         | None -> 
           let aw = ArrayWords{sizew=s.sizew; sizea = size} in
-          fmt_abstract_array_theory aw (Env.get_abstract_array env aw) |> snd
+          Env.abstract_name env aw
         end in
         [("sizeW",  toec_expr env (pexpr_of_pexpr_ s.sizew)); 
         ("sizeS", toec_expr env (pexpr_of_pexpr_ s.sizes));
@@ -2526,7 +2522,7 @@ struct
         | Some sizea -> fmt_array_theory (ArrayWords{sizew; sizea})
         | None -> 
           let aw = ArrayWords{sizew= (PE (icnst sizew)); sizea = size} in
-          fmt_abstract_array_theory aw (Env.get_abstract_array env aw) |> snd
+          Env.abstract_name env aw
         end in
       [("sizeWS",  toec_expr env (pexpr_of_pexpr_ s.sizews));
        ("sizeWB", toec_expr env (pexpr_of_pexpr_ s.sizewb));
@@ -2548,7 +2544,7 @@ struct
         | Some sizea -> fmt_array_theory (ArrayWords{sizew; sizea})
         | None -> 
           let aw = ArrayWords{sizew= (PE (icnst sizew)); sizea = size} in
-          fmt_abstract_array_theory aw (Env.get_abstract_array env aw) |> snd
+          Env.abstract_name env aw
         end in
       [("sizeWS",  toec_expr env (pexpr_of_pexpr_ s.sizews));
        ("sizeWB", toec_expr env (pexpr_of_pexpr_ s.sizewb));
@@ -2573,11 +2569,16 @@ struct
     | _ -> e
 
   let subst_var_ma env ma (v:string) e =
-    let subst_pexpr = subst_expr_arr env v e in
+    let subst_pexpr e' = Pretyping.canon_expr (subst_expr_arr env v e e') in
     let subst_pexpr_ s = PE(subst_pexpr(pexpr_of_pexpr_ s )) in
+    let subst_bytes e' =
+      match subst_expr_arr env v e e' with
+      | Papp2 (Omul Op_int, a, (Pconst _ as k)) -> Papp2 (Omul Op_int, Pretyping.canon_expr a, k)
+      | Papp2 (Omul Op_int, (Pconst _ as k), a) -> Papp2 (Omul Op_int, k, Pretyping.canon_expr a)
+      | e' -> Pretyping.canon_expr e' in
     match ma with
     | Array (PE n) -> Array (PE(subst_pexpr n))
-    | WArray (PE n) -> WArray(PE(subst_pexpr n))
+    | WArray (PE n) -> WArray(PE(subst_bytes n))
     | ByteArray (PE n) -> ByteArray(PE(subst_pexpr n))
     | SubByteArray s -> 
       let sizes = subst_pexpr_ s.sizes in
@@ -2646,8 +2647,7 @@ struct
         fmt_array_theory (ArrayWords{sizew; sizea})
       | Some sw, None -> 
         Env.add_ArrayWords env sw s.sizea;
-        let i = Env.get_abstract_array env (ArrayWords s) in
-        fmt_abstract_array_theory (ArrayWords s) i |> snd
+        Env.abstract_name env (ArrayWords s)
       | _ -> assert false
       end
     | SubArrayDirect s ->
@@ -2768,6 +2768,29 @@ struct
         env, (theory :: (List.rev params)) @ items, [IendTheory(name)], arg_name
       else env, [Itheory(false,name)], [IendTheory(name)], ""
     
+    let subst_ma env mapp ma_params ma =
+      List.fold_left2 (fun ma arg param ->
+          match arg,param with
+          | Mprog.MaParam e, v -> subst_var_ma env ma v e
+          | _ -> ma
+        ) ma mapp.Mprog.ma_args ma_params
+
+    let add_modapp_alias env mapp =
+      let ma_params, _ = Env.get_module env mapp.Mprog.ma_func in
+      let _, ma_name' = Env.set_module env mapp.ma_name [] in
+      let is_abstract ma =
+        let abs = ref false in
+        ignore (AbsATcmp.map_at (fun n -> if get_int n = None then abs := true; n) ma);
+        !abs in
+      List.iter (fun (ma, arr) ->
+          match subst_ma env mapp ma_params ma with
+          | ma when is_abstract ma
+                    && Env.get_alias env ma = None
+                    && not (Aarraytheory.mem ma (Env.abstract_array_theories env)) ->
+            Env.add_alias env ma (ma_name' ^ "." ^ arr)
+          | _ -> ()
+        ) (Env.get_module_arrays env mapp.ma_func)
+
     let toec_modapp env m mapp =
       let ma_params, ma_func' = Env.get_module env mapp.Mprog.ma_func in
       let env, ma_name' = Env.set_module env mapp.ma_name [] in
@@ -2784,15 +2807,10 @@ struct
           let env = Env.add_module_module env mapp.ma_name new_name in
           Env.set_mod_mod env new_name mm mapp.ma_name 
       ) env (Env.get_module_modules env mapp.Mprog.ma_func) in
-      let theories = List.map( fun (ma, i) ->
-           let _, arr = fmt_abstract_array_theory ma i in
-           let ma = List.fold_left2 (fun ma arg param ->
-              match arg,param with
-              | Mprog.MaParam e, v -> subst_var_ma env ma v e
-              | _ -> ma
-            ) ma mapp.ma_args ma_params in
-           let ma = ma_pexpr_to_string env ma in
-           (arr, ma)
+      let theories = List.filter_map( fun (ma, arr) ->
+           let ma = subst_ma env mapp ma_params ma in
+           if Env.get_alias env ma = Some (ma_name' ^ "." ^ arr) then None
+           else Some (arr, ma_pexpr_to_string env ma)
       ) (Env.get_module_arrays env mapp.Mprog.ma_func) in
       let env, modappf = modapp_f env m mapp in
       let abstract_ops = List.concat (List.map2 (toec_modulearg env) mapp.ma_args ma_params) in
@@ -2802,9 +2820,12 @@ struct
       function
       | Mprog.MsMod sm -> 
         let current_abs_theories = Env.abstract_array_theories env in
+        let current_alias = Env.array_alias env in
         Env.set_abstract_array_theories env (Aarraytheory.empty);
+        Env.set_array_alias env (Aarraytheory.empty);
         let env, i = extract_module env sm mod_arg asmOp imports in
         Env.set_abstract_array_theories env current_abs_theories;
+        Env.set_array_alias env current_alias;
         let env = Env.add_module_module env m.Mprog.name sm.name in
         let env =
           if sm.params <> [] then env
@@ -2864,10 +2885,19 @@ struct
 
       let env, init_items, end_items, modf_args = setup_theory env m name pfuns in
 
-      let env, items = List.fold_left (fun (env, items) sm ->
+      let early, late =
+        if m.params = [] then [], m.items
+        else List.partition (function
+            | Mprog.MsModApp mapp -> List.for_all (function Mprog.MaParam _ -> true | _ -> false) mapp.ma_args
+            | _ -> false) m.items in
+      List.iter (function Mprog.MsModApp mapp -> add_modapp_alias env mapp | _ -> ()) early;
+
+      let toec_items env l = List.fold_left (fun (env, items) sm ->
           let env, i = toec_item env m modf_args (mod_arg,asmOp,imports) sm in   
           env, items @ i
-      ) (env,[]) m.items in
+      ) (env,[]) l in
+      let env, early_items = toec_items env early in
+      let env, items = toec_items env late in
 
       let init_abstract_arrays = List.map (fun (ma,i) -> 
         let t, arr = fmt_abstract_array_theory ma i in
@@ -2875,9 +2905,13 @@ struct
         Iclone(true,t, arr, ops,theories)
       ) (Aarraytheory.to_list (Env.abstract_array_theories env)) in
 
+      let alias_imports = match List.map snd (Aarraytheory.to_list (Env.array_alias env)) with
+        | [] -> []
+        | l -> [Iimport l] in
+
       let env = Env.exit_module env m.name in
 
-      env, imports' @ init_items @ init_abstract_arrays @ items @ end_items
+      env, imports' @ init_items @ early_items @ alias_imports @ init_abstract_arrays @ items @ end_items
 
   let toec_mprog mprog env asmOp imports =
       let pp_array_theories ats = match Sarraytheory.elements ats with

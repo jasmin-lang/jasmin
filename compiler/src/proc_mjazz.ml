@@ -112,6 +112,7 @@ module MEnv = struct
     ; mi_decls : ( unit, 'asm) M.gmodule_item list
     ; mi_opened: M.modulename list
     ; mi_instances : (((unit, 'asm) M.modulearg list)*(M.modulename list)*M.modulename*bool) list
+    ; mi_scope : (string * 'asm global_bindings * bool) list * 'asm global_bindings
     }
 
   let functor_from_modinfo modname imports modinfo =
@@ -354,7 +355,7 @@ let exit_module_moduleapp menv mname modname add_module: 'asm menv =
 
 
   (** exit of a non-toplevel module *)
-  let exit_module mname mparams imports mbody (menv: 'asm menv): 'asm menv =
+  let exit_module mname mparams imports mbody scope (menv: 'asm menv): 'asm menv =
     let rec loop = function
       | [], _ ->
         rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "empty module stack")
@@ -391,6 +392,7 @@ let exit_module_moduleapp menv mname modname add_module: 'asm menv =
          ; mi_decls = mdecls
          ; mi_opened = mod_omods
          ; mi_instances = []
+         ; mi_scope = scope
          }
     in let menv = add_decls menv [functor_from_modinfo modname imports modinfo]
     in let menv = { menv with
@@ -540,9 +542,9 @@ let add_opened modname menv =
 
     
 
-  let exit_file menv requires saved =
+  let exit_file menv requires saved open_ =
     let modname, p = List.hd menv.me_visiting
-    in let menv = exit_module (L.mk_loc L._dummy modname) [] requires [] menv
+    in let menv = exit_module (L.mk_loc L._dummy modname) [] requires [] (Env.bindings menv.me_store) menv
     in match saved with
     | None ->
       { menv with
@@ -551,13 +553,13 @@ let add_opened modname menv =
       }
     | Some (top,saved_decls) ->
       let me_store = Env.update_bindings menv.me_store (top, snd (Env.bindings menv.me_store)) in
-      let menv = open_modules [modname]
-                    { menv with
-                      me_store
-                    ; me_decls = saved_decls::menv.me_decls
-                    ; me_processed = (modname,p) :: menv.me_processed
-                    ; me_visiting = List.tl menv.me_visiting
-                    }
+      let menv = { menv with
+                   me_store
+                 ; me_decls = saved_decls::menv.me_decls
+                 ; me_processed = (modname,p) :: menv.me_processed
+                 ; me_visiting = List.tl menv.me_visiting
+                 }
+      in let menv = if open_ then open_modules [modname] menv else menv
       in 
       (* Env.dbg_gb (fun bs -> bs.gb_types) menv.me_store; *)
       menv
@@ -641,7 +643,9 @@ let has_instance insts args =
   | None -> None
 
 
-let rename_module_bindings _ full_name _ modfunc (st:'asm global_bindings) =
+let rename_module_bindings sub _ full_name _ modfunc (st:'asm global_bindings) =
+  let sub_len (P.PE e) = P.PE (canon_expr (Subst.psubst_e sub e)) in
+  let sub_ety = function P.ETarr (ws, n) -> P.ETarr (ws, sub_len n) | ty -> ty in
   let rename_value v =
     String.concat "" [full_name;(String.sub v (String.length modfunc) (String.length v - String.length modfunc))]
   in
@@ -660,10 +664,13 @@ let rename_module_bindings _ full_name _ modfunc (st:'asm global_bindings) =
         Some { pf with f_name }
       | None -> None
       in
-    let renamed_func = { func with f_name = new_f_name; f_pfunc} in
-    (renamed_func, sig_)
+    let f_tyin = List.map (Subst.gsubst_ty sub_len) func.f_tyin in
+    let f_tyout = List.map (Subst.gsubst_ty sub_len) func.f_tyout in
+    let renamed_func = { func with f_name = new_f_name; f_pfunc; f_tyin; f_tyout } in
+    (renamed_func, { fs_tin = List.map sub_ety sig_.fs_tin; fs_tout = List.map sub_ety sig_.fs_tout })
   in
   let f_vars (v,ty,s) =
+    let ty = sub_ety ty in
     let new_v_name = rename_value v.CoreIdent.v_name in
     let renamed_v = CoreIdent.GV.mk new_v_name v.v_kind (P.gty_of_gety ty) v.v_dloc v.v_annot in
     (renamed_v, ty, s)
@@ -686,7 +693,7 @@ let merge_instances (menv:'asm MEnv.menv) (menv': 'asm MEnv.menv) =
   { menv with me_env }
 
 
-let rec add_instance_module (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping.arch_info) (menv: 'asm MEnv.menv) full_name modfunc modfuncname margs modinfo =
+let rec add_instance_module (arch_info:'asm P.arch_info) (menv: 'asm MEnv.menv) full_name modfunc modfuncname margs modinfo =
     match has_instance modinfo.MEnv.mi_instances margs with
         | Some (mnames,iname) -> 
           let rec insert_instance margs = function
@@ -699,7 +706,7 @@ let rec add_instance_module (arch_info:('a, 'b, 'c, 'd, 'e, 'f, 'g) Pretyping.ar
           let me_env = Map.add (L.unloc modfunc) new_modinfo menv.me_env
           in {menv with me_env = me_env}
         | None ->
-          let stack, bot = Env.bindings menv.me_store in
+          let stack, bot = modinfo.MEnv.mi_scope in
           let menv' = { menv with
                        MEnv.me_store = Env.update_bindings menv.me_store (List.map (fun(ns,top,_) -> (ns,top,true)) stack, bot)
                      } in
@@ -722,9 +729,10 @@ and mt_item (arch_info:'asm P.arch_info) (menv: 'asm MEnv.menv) mitem : 'asm MEn
     in if not ground_module && mparams <> []
     then rs_mjazzerror ~loc:(L.loc mname) (InnerPModule (L.unloc mname));
     (* proceed... *)
-    let menv, mparams = MEnv.enter_module arch_info.pd mname mparams menv
+    let scope = Env.bindings menv.me_store
+    in let menv, mparams = MEnv.enter_module arch_info.pd mname mparams menv
     in let menv = List.fold_left (mt_item arch_info) menv body
-    in let menv = MEnv.exit_module mname mparams [] body menv
+    in let menv = MEnv.exit_module mname mparams [] body scope menv
     in menv
   | S.PModuleApp (mname, modfunc, margs) ->
     if !Glob_options.debug
@@ -736,6 +744,9 @@ and mt_item (arch_info:'asm P.arch_info) (menv: 'asm MEnv.menv) mitem : 'asm MEn
   | S.POpen (mname, Some newname) ->
     let _, m = Env.Modules.get menv.me_store mname
     in MEnv.open_as_modules (L.unloc m) newname menv
+  | S.POpenFile (from, s, newname) ->
+    let menv = mt_file arch_info menv from (Some (L.loc s)) (L.unloc s) false
+    in MEnv.open_as_modules (fmodule_name (L.unloc s)) newname menv
   | S.Prequire (from, fs) ->
     List.fold_left (mt_file_loc arch_info from) menv fs
   | S.PNamespace (ns, _) ->
@@ -763,7 +774,11 @@ and mt_moduleapp arch_info menv mname modfuncname margs =
     let full_name = qualify (MEnv.fully_qualified_modname menv.MEnv.me_store) (L.unloc mname) in 
     let ground_module = List.for_all identity menv.MEnv.me_gmod   in
     let margs = mt_margs arch_info.pd menv modinfo.mi_params margs in
-    let mi_store = rename_module_bindings (L.unloc mname) full_name (L.unloc modfuncname) (L.unloc modfunc) modinfo.mi_store in
+    let sub v =
+      match List.find_opt (fun (p, _) -> match p with M.Param x -> P.PV.equal x (L.unloc v.P.gv) | _ -> false) (List.combine modinfo.mi_params margs) with
+      | Some (_, M.MaParam e) -> e
+      | _ -> P.Pvar v in
+    let mi_store = rename_module_bindings sub (L.unloc mname) full_name (L.unloc modfuncname) (L.unloc modfunc) modinfo.mi_store in
     let s_bindings = match Env.bindings menv.me_store with
       |  stack, bot -> ((L.unloc mname), mi_store, false)::stack, bot
       in
@@ -771,7 +786,7 @@ and mt_moduleapp arch_info menv mname modfuncname margs =
     let me_env = Map.foldi (fun m ml me_env ->
       let minfo = Map.find (L.unloc ml) menv.me_env in
       let name = qualify full_name m in 
-      let mi_store = rename_module_bindings (L.unloc mname) full_name (L.unloc modfuncname) (L.unloc modfunc) minfo.mi_store in
+      let mi_store = rename_module_bindings sub (L.unloc mname) full_name (L.unloc modfuncname) (L.unloc modfunc) minfo.mi_store in
       Map.add name {minfo with mi_store;MEnv.mi_params = [] } me_env 
     ) modinfo.mi_store.gb_modules me_env in
     let menv =
@@ -792,9 +807,9 @@ and mt_moduleapp arch_info menv mname modfuncname margs =
                } ]
 
 and mt_file_loc arch_info from menv fname =
-  mt_file arch_info menv from (Some (L.loc fname)) (L.unloc fname)
+  mt_file arch_info menv from (Some (L.loc fname)) (L.unloc fname) true
 
-and mt_file arch_info menv from loc fname =
+and mt_file arch_info menv from loc fname open_ =
   match MEnv.enter_file menv from loc fname with
   | menv, None -> menv
   | menv, Some (ast,saved) ->
@@ -804,14 +819,15 @@ and mt_file arch_info menv from loc fname =
         | S.Prequire (_, fs) -> 
             let names = List.map (fun f -> L.unloc f |> fmodule_name) fs in
             names @ acc
+        | S.POpenFile (_, f, _) -> fmodule_name (L.unloc f) :: acc
         | _ -> acc
       ) [] ast
     in
     let menv = List.fold_left (mt_item arch_info) menv ast
-    in MEnv.exit_file menv requires saved
+    in MEnv.exit_file menv requires saved open_
 
 let mt_mprogram arch_info menv (fname: string) =
-  let menv = mt_file arch_info menv None None fname
+  let menv = mt_file arch_info menv None None fname true
   in menv
 
 
@@ -842,7 +858,8 @@ let rec add_instance_gexpr new_vars inst_subst expr =
     | Psub(aa,ws,size,v,ge) ->
         let ge = add_instance_gexpr new_vars inst_subst ge in
         let v' = get_new_var new_vars inst_subst v in
-        P.Psub(aa,ws,size,v',ge)
+        let P.PE size = size in
+        P.Psub(aa,ws,P.PE (add_instance_gexpr new_vars inst_subst size),v',ge)
     | Pload(a,ws,ge) ->
         let ge = add_instance_gexpr new_vars inst_subst ge in
         P.Pload(a,ws,ge)
@@ -861,6 +878,7 @@ let rec add_instance_gexpr new_vars inst_subst expr =
         let ge2 = add_instance_gexpr new_vars inst_subst ge2 in
         let ge3 = add_instance_gexpr new_vars inst_subst ge3 in
         P.Pif (ty, ge1,ge2,ge3)
+    | Parr_init (ws, P.PE size) -> Parr_init (ws, P.PE (add_instance_gexpr new_vars inst_subst size))
     | _ -> expr
 and get_new_var new_vars inst_subst (v:'len P.ggvar) = 
   let v' = L.unloc v.gv in
@@ -914,7 +932,8 @@ let get_new_lvar new_vars inst_subst (lv:'len P.glval) =
       let v' = {P.gv=v; P.gs =Slocal} in
       let v' = (get_new_var new_vars inst_subst v').gv in
       let e' = add_instance_gexpr new_vars inst_subst e in
-      P.Lasub (acc,ws,size,v',e')
+      let P.PE size = size in
+      P.Lasub (acc,ws,P.PE (add_instance_gexpr new_vars inst_subst size),v',e')
   | _ -> lv
 
 let rec add_instance_instr new_vars new_funcs inst_subst (instr:('len,'info,'asm) P.ginstr) =
@@ -923,7 +942,7 @@ let rec add_instance_instr new_vars new_funcs inst_subst (instr:('len,'info,'asm
     | Cassgn (lv,at,ty,e) ->
         let lv' = get_new_lvar new_vars inst_subst lv in
         let e' = add_instance_gexpr new_vars inst_subst e in
-        P.Cassgn (lv',at,ty,e'), instr.i_annot
+        P.Cassgn (lv',at,change_ty new_vars inst_subst ty,e'), instr.i_annot
     | Copn (lvs, at,o,es) ->
         let lvs' = List.map (get_new_lvar new_vars inst_subst) lvs in
         let es' = List.map (add_instance_gexpr new_vars inst_subst) es in

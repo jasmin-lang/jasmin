@@ -3,8 +3,10 @@ module M1
  with
   param int n;
 {
-  param int nn = n;
-  fn f(reg ptr u64[n] a) -> reg ptr u64[n]
+  param int nn = (1 + n) * 2;
+  fn f(reg ptr u64[nn] a) -> reg ptr u64[n + n + 2]
   { return a; }
 
 }
+
+// module A = M1(3);

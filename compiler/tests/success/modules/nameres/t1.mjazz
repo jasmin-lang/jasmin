@@ -7,7 +7,7 @@ module M2
    param int c;
 {
    module B = M1(2*c);
-   fn ff(reg ptr u64[2*c] a) -> reg ptr u64[2*c] {
+   fn ff(reg ptr u64[4*c + 2] a) -> reg ptr u64[4*c+2] {
      a = B::f(a);
      return a;
    }

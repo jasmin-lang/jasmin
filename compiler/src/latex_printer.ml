@@ -417,6 +417,14 @@ let rec pp_pitem fmt pi =
   | POpen (name, Some a) ->
       F.fprintf fmt "%a %s %a %s;" kw "open" (L.unloc name) kw "as" (L.unloc a);
       F.fprintf fmt eol
+  | POpenFile (from, s, a) ->
+    let pp_from fmt =
+      Option.may (fun name ->
+          F.fprintf fmt "%a %s " kw "from" (L.unloc name)) in
+    F.fprintf fmt "%a%a " pp_from from kw "open";
+    pp_path fmt s;
+    F.fprintf fmt " %a %s" kw "as" (L.unloc a);
+    F.fprintf fmt eol
  
 
 let pp_info fmt =

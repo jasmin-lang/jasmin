@@ -3,6 +3,10 @@ open Prog
 (* apply a substitution within a function *)
 val gsubst_func : (?loc:L.t -> 'ty1 -> 'ty2) -> ('ty1 ggvar -> 'ty2 gexpr) -> ('ty1, 'info, 'asm) gfunc -> ('ty2, 'info, 'asm) gfunc
 
+val gsubst_ty : ('len1 -> 'len2) -> 'len1 gty -> 'len2 gty
+
+val psubst_e : (pexpr_ ggvar -> pexpr) -> pexpr -> pexpr
+
 (* apply a substitution within a function *)
 val subst_func : ('ty gvar_i -> 'ty gexpr) -> ('ty, 'info, 'asm) gfunc -> ('ty, 'info, 'asm) gfunc
 

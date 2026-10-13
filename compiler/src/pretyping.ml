@@ -831,10 +831,51 @@ let tt_fun (st : 'asm Env.store) { L.pl_desc = x; L.pl_loc = loc; } =
   Env.Funs.find x st |> oget ~exn:(tyerror ~loc (UnknownFun x))
 
 (* -------------------------------------------------------------------- *)
+let canon_expr (e: P.pexpr): P.pexpr =
+  let key e = F.asprintf "%a" (Printer.pp_pexpr ~debug:true) e in
+  let add p q =
+    List.fold_left (fun acc (m, c) ->
+        let c' = Option.default Z.zero (List.assoc_opt m acc) in
+        (m, Z.add c c') :: List.remove_assoc m acc) p q in
+  let mul p q =
+    List.fold_left (fun acc (m1, c1) ->
+        add acc (List.map (fun (m2, c2) -> (List.sort compare (m1 @ m2), Z.mul c1 c2)) q)) [] p in
+  let atoms = ref [] in
+  let rec poly e =
+    match e with
+    | P.Pconst z -> [([], z)]
+    | P.Papp1 (Oneg Op_int, e1) -> mul [([], Z.minus_one)] (poly e1)
+    | P.Papp2 (Oadd Op_int, e1, e2) -> add (poly e1) (poly e2)
+    | P.Papp2 (Osub Op_int, e1, e2) -> add (poly e1) (mul [([], Z.minus_one)] (poly e2))
+    | P.Papp2 (Omul Op_int, e1, e2) -> mul (poly e1) (poly e2)
+    | P.Papp1 (o, e1) -> atom (P.Papp1 (o, expr (poly e1)))
+    | P.Papp2 (o, e1, e2) -> atom (P.Papp2 (o, expr (poly e1), expr (poly e2)))
+    | _ -> atom e
+  and atom e =
+    let k = key e in
+    atoms := (k, e) :: !atoms;
+    [([k], Z.one)]
+  and expr p =
+    let p = List.sort compare (List.filter (fun (_, c) -> not (Z.equal c Z.zero)) p) in
+    let term (m, c) =
+      match List.map (fun k -> List.assoc k !atoms) m with
+      | [] -> P.Pconst c
+      | a :: l ->
+        let a = List.fold_left (fun a b -> P.Papp2 (Omul Op_int, a, b)) a l in
+        if Z.equal c Z.one then a else P.Papp2 (Omul Op_int, P.Pconst c, a) in
+    match List.map term p with
+    | [] -> P.Pconst Z.zero
+    | t :: l -> List.fold_left (fun a b -> P.Papp2 (Oadd Op_int, a, b)) t l in
+  expr (poly e)
+
+let arr_size_equal ws1 (P.PE e1) ws2 (P.PE e2) =
+  let bytes ws e = canon_expr (P.Papp2 (Omul Op_int, P.Pconst (Z.of_int (P.size_of_ws ws)), e)) in
+  P.pexpr_equal (bytes ws1 e1) (bytes ws2 e2)
+
 let check_ty_eq ~loc ~(from : P.epty) ~(to_ : P.epty) =
   if not (P.epty_equal from to_) then
     match from, to_ with
-    | ETarr _, ETarr _ -> () (* we delay typechecking until we know the lengths *)
+    | ETarr (ws1, e1), ETarr (ws2, e2) when not !Glob_options.modular_jazz || arr_size_equal ws1 e1 ws2 e2 -> () (* we delay typechecking until we know the lengths *)
     | _, _ -> rs_tyerror ~loc (TypeMismatch (from, to_))
 
 (* -------------------------------------------------------------------- *)
@@ -1251,7 +1292,7 @@ let cast loc e ety ty =
   | P.ETword(Some W.Unsigned, w1),  P.ETword(Some W.Unsigned, w2) when W.wsize_cmp w1 w2 <> Datatypes.Lt -> e
 
   | _, _ when P.epty_equal ety ty -> e
-  | P.ETarr _, P.ETarr _ -> e (* we delay typechecking until we know the lengths *)
+  | P.ETarr (ws1, e1), P.ETarr (ws2, e2) when not !Glob_options.modular_jazz || arr_size_equal ws1 e1 ws2 e2 -> e (* we delay typechecking until we know the lengths *)
   | _  ->  rs_tyerror ~loc (InvalidCast(ety,ty))
 
 (** Builds an expression of type int from expression e whose type is ety. The
@@ -1520,6 +1561,8 @@ and norm_omod_expr s e1 e2 =
   | _, _ ->
     Papp2 (Omod (s,Op_int), e1, e2)
 
+let mjazz_size e v = if !Glob_options.modular_jazz then canon_expr (Option.default e v) else e
+
 (* -------------------------------------------------------------------- *)
 
 let rec tt_expr pd ?(mode=`AllVar) (st : 'asm Env.store) pe =
@@ -1555,8 +1598,9 @@ let rec tt_expr pd ?(mode=`AllVar) (st : 'asm Env.store) pe =
        P.Pget (al, aa, ws, x, i), ty, None
     | Some plen ->
        ignore_align ~loc:(L.loc pe) al;
-      let len,ity,_  = tt_expr ~mode:`OnlyParam pd st plen in
+      let len,ity,v  = tt_expr ~mode:`OnlyParam pd st plen in
       check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.etint;
+      let len = mjazz_size len v in
       let ty = P.ETarr (ws, P.PE len) in
       P.Psub (aa, ws, P.PE len, x, i), ty,None
     end
@@ -1711,8 +1755,8 @@ and tt_type_annot pd (st : 'asm Env.store) (pty : S.ptype) : A.annotations * P.e
        match ety with
        | P.ETword(None, ws) -> ws (* wint array are not allowed this is require by wint_int *)
        | ty -> rs_tyerror ~loc (InvalidTypeAlias (id,ty))
-     in let e, _ , _ = tt_expr ~mode:`OnlyParam pd st e in
-     [], P.ETarr (ws, P.PE e)
+     in let e, _ , v = tt_expr ~mode:`OnlyParam pd st e in
+     [], P.ETarr (ws, P.PE (mjazz_size e v))
   | S.TAlias id ->
       let a, ty = Env.TypeAlias.get st id in
       a, L.unloc ty
@@ -1799,8 +1843,9 @@ let tt_lvalue pd (st : 'asm Env.store) { L.pl_desc = pl; L.pl_loc = loc; } =
       loc, (fun _ -> P.Laset (al, aa, ws, L.mk_loc xlc x, i)), Some ty
     | Some plen ->
       ignore_align ~loc al;
-      let len,ity,_  = tt_expr ~mode:`OnlyParam pd st plen in
+      let len,ity,v  = tt_expr ~mode:`OnlyParam pd st plen in
       check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.etint;
+      let len = mjazz_size len v in
       let ty = P.ETarr(ws, P.PE len) in
       loc, (fun _ -> P.Lasub (aa, ws, P.PE len, L.mk_loc xlc x, i)), Some ty
     end
@@ -2921,7 +2966,7 @@ let rec tt_item (arch_info : 'asm P.arch_info) (env : 'asm Env.env) pt : 'asm En
         ~loc:Lnone
         ~kind:"compilation"
         "modules only supported in `-mjazz` mode"     
-  | S.POpen _ ->
+  | S.POpen _ | S.POpenFile _ ->
       hierror
         ~loc:Lnone
         ~kind:"compilation"

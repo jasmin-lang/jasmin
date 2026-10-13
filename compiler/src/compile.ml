@@ -27,7 +27,7 @@ let parse_file arch_info ?(idirs=[]) fname =
   let idirs = idirs @ get_jasminpath () in
   if !Glob_options.modular_jazz
   then
-    Proc_mjazz.parse_file arch_info !Glob_options.idirs fname
+    Proc_mjazz.parse_file arch_info idirs fname
   else 
   let env = List.fold_left Pretyping.Env.add_from Pretyping.Env.empty idirs in
   let env, pprog, _ast = Pretyping.tt_program arch_info env fname

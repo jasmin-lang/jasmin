@@ -570,6 +570,7 @@ top:
     }
 | x=pmodapp { Syntax.PModuleApp x }
 | x=popen   { Syntax.POpen      x }
+| f=ioption(from) OPEN s=loc(STRING) AS id=nonqual_ident { Syntax.POpenFile (f, s, id) }
 
 
 (* -------------------------------------------------------------------- *)

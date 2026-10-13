@@ -485,6 +485,7 @@ type pitem =
   | PModule of pident * modsigentry list * pitem L.located list
   | PModuleApp of (pident * pident * pexpr list)
   | POpen of (pident * pident option)
+  | POpenFile of (pident option * prequire * pident)
 
 (* -------------------------------------------------------------------- *)
 type pprogram = pitem L.located list

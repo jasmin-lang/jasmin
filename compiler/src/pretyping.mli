@@ -134,6 +134,8 @@ val tt_expr :
 val tt_var_global :
   tt_mode -> 'asm Env.store -> A.pident -> P.pexpr_ P.ggvar * P.epty * P.pexpr option
 
+val canon_expr : P.pexpr -> P.pexpr
+
 val tt_typealias :
   'asm P.arch_info -> A.pident -> A.annotations -> S.ptype -> 'asm Env.store -> 'asm Env.store
 
