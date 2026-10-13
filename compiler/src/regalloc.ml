@@ -21,22 +21,58 @@ let make_counter () =
     n),
   (fun () -> !count)
 
-let fill_in_missing_names (f: ('info, 'asm) func) : ('info, 'asm) func =
+type forced_hole =
+  | ForcedReg of var
+  | ForcedNotReg of expr
+  | NotForced
+
+let fill_in_missing_names
+      (get_opn_descr: 'asm sopn -> instruction_desc)
+      (f: ('info, 'asm) func) : ('info, 'asm) func =
   let fresh_name : L.t -> ty -> var_i =
-    let fresh, _ = make_counter () in
     fun loc ty ->
-      let n = Printf.sprintf " _%d" (fresh ()) in
-      L.mk_loc loc (V.mk n (Reg(Normal, Direct)) ty L._dummy [])
+      let r = if is_ty_arr ty then Pointer Writable else Direct in
+      L.mk_loc loc (V.mk " __" (Reg (Normal, r)) ty L._dummy [])
   in
   let fill_lv =
     function
     | Lnone(p, ty) -> Lvar (fresh_name p ty)
     | x -> x in
   let fill_lvs lvs = List.map fill_lv lvs in
+  let set_forced_register get ad x =
+    match ad, x with
+    | ADImplicit v, Lnone (loc, _) -> Lvar (L.mk_loc loc (Conv.var_of_cvar v))
+    | ADExplicit (n, _), Lnone (loc, ty) ->
+       begin match get n with
+       | ForcedReg v -> Lvar (L.mk_loc loc (V.clone v)) (* Clone because v might be live. *)
+       | ForcedNotReg e ->
+          hierror ~loc:(Lone loc)
+            "cannot fill the hole to match the right-hand side expression “%a”"
+            (Printer.pp_expr ~debug:false) e
+       | NotForced -> Lvar (fresh_name loc ty)
+       end
+    | _, _ -> fill_lv x
+  in
   let rec fill_instr_r =
     function
     | Cassgn (lv, tg, ty, e) -> Cassgn (fill_lv lv, tg, ty, e)
-    | Copn (lvs, tg, op, es) -> Copn (fill_lvs lvs, tg, op, es)
+    | Copn (lvs, tg, op, es) ->
+       let id = get_opn_descr op in
+       let get_arg n =
+         List.fold_left2 (fun acc ad e ->
+             match ad with
+             | ADExplicit (n', _) when n' = n ->
+              begin match e with
+                | Pvar { gv ; gs = Slocal }->
+                   let x = L.unloc gv in
+                   if is_reg_kind x.v_kind then ForcedReg x else ForcedNotReg e
+                | _ -> ForcedNotReg e
+              end
+             | _ -> acc
+           ) NotForced id.i_in es
+       in
+       let lvs = List.map2 (set_forced_register get_arg) id.i_out lvs in
+       Copn (lvs, tg, op, es)
     | Csyscall (lvs, op, es) -> Csyscall(fill_lvs lvs, op, es)
     | Cassert (msg, e) -> Cassert (msg, e)
     | Cif (e, s1, s2) -> Cif (e, fill_stmt s1, fill_stmt s2)
@@ -1271,7 +1307,6 @@ let pp_liveness vars liveness_per_callsite liveness_table a =
 let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
   (unit, 'asm) func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) =
   (* Preprocessing of functions:
-    - ensure all variables are named (no anonymous assign)
     - generate a fresh variable to hold the return address (if needed)
     - split live ranges (caveat: do not forget to remove φ-nodes at the end)
     - compute liveness information
@@ -1291,7 +1326,7 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
   let is_subroutine f =
     match f.f_cc with Subroutine -> true | Export | Internal -> false in
   let preprocess f =
-    let f = f |> fill_in_missing_names |> Ssa.split_live_ranges false in
+    let f = f |> Ssa.split_live_ranges false in
     Hf.add liveness_table f.f_name (Liveness.live_fd true f);
     let ra = Hf.find return_addresses f.f_name in
     let written, cg = written_vars_fc f in

@@ -1,6 +1,14 @@
 open Prog
 
-val fill_in_missing_names : ('info, 'asm) Prog.func -> ('info, 'asm) Prog.func
+val fill_in_missing_names :
+  ('asm Sopn.sopn -> Sopn.instruction_desc) ->
+  ('info, 'asm) Prog.func ->
+  ('info, 'asm) Prog.func
+(** Replace every unnamed destination (`Lnone`) by a variable (`Lvar`). When the
+    destination is forced to a fixed register by the architecture, the
+    corresponding variable is used, otherwise a fresh variable is created. If
+    the hole is the destination of an in-place operation whose matching source
+    is not a register, an error is raised. *)
 
 type retaddr =
   | StackDirect
@@ -47,4 +55,6 @@ module type Regalloc = sig
 end
 
 module Regalloc (Arch : Arch_full.Arch) :
-  Regalloc with type extended_op := (Arch.asm_op, Arch.extra_op) Arch_extra.extended_op_gen
+  Regalloc
+    with type extended_op :=
+      (Arch.asm_op, Arch.extra_op) Arch_extra.extended_op_gen
