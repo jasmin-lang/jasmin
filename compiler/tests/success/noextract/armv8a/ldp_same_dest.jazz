@@ -1,0 +1,8 @@
+/* The two destinations of LDP get distinct registers.
+   Not extracted: EasyCrypt rejects a left-value with a repeated variable. */
+export
+fn ldp_same_dest(reg u64 p) -> reg u64 {
+    reg u64 a;
+    a, a = #LDP([:u128 p + 16]);
+    return a;
+}

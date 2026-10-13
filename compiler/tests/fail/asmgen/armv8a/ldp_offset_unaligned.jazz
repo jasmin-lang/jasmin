@@ -1,0 +1,8 @@
+/* The LDP offset is not a multiple of 8. */
+export
+fn ldp_offset_unaligned(reg u64 p) -> reg u64 {
+    reg u64 a b;
+    a, b = #LDP([:u128 p + 12]);
+    a += b;
+    return a;
+}

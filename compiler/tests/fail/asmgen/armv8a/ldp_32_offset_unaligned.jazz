@@ -1,0 +1,8 @@
+/* The LDP (W form) offset is not a multiple of 4. */
+export
+fn ldp_32_offset_unaligned(reg u64 p) -> reg u32 {
+    reg u32 a b;
+    a, b = #LDP_32([:u64 p + 2]);
+    a += b;
+    return a;
+}

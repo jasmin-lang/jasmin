@@ -286,3 +286,14 @@ op STR_64 (x: W64.t) : W64.t = x.
 op STRB_64 (x: W8.t) : W8.t = x.
 
 op STRH_64 (x: W16.t) : W16.t = x.
+
+(* Load and store pair: the two registers are transferred through one
+   memory argument of twice their size; the first register is the low
+   half, i.e. the word at the lower address. *)
+op LDP_64 (x: W128.t) : W64.t * W64.t = (x \bits64 0, x \bits64 1).
+
+op LDP_32 (x: W64.t) : W32.t * W32.t = (x \bits32 0, x \bits32 1).
+
+op STP_64 (x y: W64.t) : W128.t = W2u64.pack2 [x; y].
+
+op STP_32 (x y: W32.t) : W64.t = W2u32.pack2 [x; y].
