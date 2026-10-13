@@ -242,11 +242,11 @@ Qed.
 Lemma copy_semu ws p vs vs' v :
   values_uincl vs vs' ->
   app_sopn_v (@mk_semi [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
-                (map sc_of_safe_cond [:: AllInit ws p 0]) ErrAddrUndef [:: IBool true] (@copy_total ws p)) vs
+                [:: sc_all_init ws p 0] ErrAddrUndef [:: IBool true] (@copy_total ws p)) vs
     = ok v ->
   exists2 v' : values,
     app_sopn_v (@mk_semi [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
-                  (map sc_of_safe_cond [:: AllInit ws p 0]) ErrAddrUndef [:: IBool true] (@copy_total ws p)) vs'
+                  [:: sc_all_init ws p 0] ErrAddrUndef [:: IBool true] (@copy_total ws p)) vs'
       = ok v'
     & values_uincl v v'.
 Proof.
@@ -284,7 +284,7 @@ Definition Ocopy_instr ws p :=
      i_semi_total := @copy_total ws p;
      i_valid  := true;
      i_doit   := DOIT;
-     i_safe   := map sc_of_safe_cond [:: AllInit ws p 0];
+     i_safe   := [:: sc_all_init ws p 0];
      i_err    := ErrAddrUndef;
      i_init   := [:: IBool true];
      i_wf         := copy_wf ws p;
@@ -561,10 +561,10 @@ Definition SLHprotect_ptr_instr ws n :=
 
 Lemma protect_ptr_fail_semu n vs vs' v:
   values_uincl vs vs' ->
-  app_sopn_v (@mk_semi [:: carr n; cty_msf ] [:: carr n] (map sc_of_safe_cond [:: IsZero msf_size 1]) ErrSemUndef
+  app_sopn_v (@mk_semi [:: carr n; cty_msf ] [:: carr n] [:: sc_is_zero msf_size 1] ErrSemUndef
                 [:: IBool true ] (fun (t : WArray.array n) (_ : wmsf) => t)) vs = ok v ->
   exists2 v' : values,
-    app_sopn_v (@mk_semi [:: carr n; cty_msf ] [:: carr n] (map sc_of_safe_cond [:: IsZero msf_size 1]) ErrSemUndef
+    app_sopn_v (@mk_semi [:: carr n; cty_msf ] [:: carr n] [:: sc_is_zero msf_size 1] ErrSemUndef
                   [:: IBool true ] (fun (t : WArray.array n) (_ : wmsf) => t)) vs' = ok v'
     & values_uincl v v'.
 Proof.
@@ -596,7 +596,7 @@ Definition SLHprotect_ptr_fail_instr ws n :=
      i_out    := [:: E 2 ]; (* this info is irrelevant *)
      conflicts:=[::];
      i_semi_total := fun (t : WArray.array len) (_ : wmsf) => t;
-     i_safe   := map sc_of_safe_cond [:: IsZero msf_size 1];
+     i_safe   := [:: sc_is_zero msf_size 1];
      i_err    := ErrSemUndef;
      i_init   := [:: IBool true ];
      i_valid  := true;
