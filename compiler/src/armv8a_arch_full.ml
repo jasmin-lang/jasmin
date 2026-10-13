@@ -51,6 +51,14 @@ module Armv8a (Lowering_params : Armv8a_input) = struct
 
   let callstyle = Arch_full.ByReg { call = Some Armv8a_decl.R30; return = true }
 
+  (* X16 and X17 are the AAPCS64 intra-procedure-call scratch registers
+     (IP0/IP1), the ones a linker's long-branch stub is allowed to use. The
+     stubs of GNU ld and LLD only use X16, but the AAPCS64 reserves both for
+     this purpose, so both are kept free: this costs a register to the
+     subroutines under -function-sections, and tracks the ABI rather than
+     the current linkers. *)
+  let veneer_registers = [ Armv8a_decl.R16; Armv8a_decl.R17 ]
+
   (* SP must stay 16-byte aligned: SP alignment checking, Arm ARM
      DDI0487M.a, D1.4.10.2 (see also the AAPCS64 stack constraints). *)
   let sp_min_align = Wsize.U128

@@ -147,6 +147,96 @@ Class asm_syscall_sem := {
 
 Context {asm_scsem : asm_syscall_sem}.
 
+(* ------------------------------------------------------------------ *)
+(* Linker veneers.
+
+   When the caller and the callee of a call may end up far apart -- which,
+   with -function-sections, is the case for every call internal to a
+   compilation unit -- the linker is free to route the call through a veneer
+   (a long-branch thunk).  The veneer runs after the call instruction has
+   recorded the return address and before the first instruction of the
+   callee, and it destroys the registers listed by [veneer_regs] -- an
+   architecture-level parameter ([arch_decl.veneer_regs_info]) which is the
+   single source of truth for the veneer: [one_varmap.call_kill], what the
+   middle end undefines there, is this same list mapped through [to_var]
+   (asm_gen.veneer_i).
+
+   Nothing is assumed about the values the veneer leaves behind: they are
+   given by [veneer_oracle], an arbitrary function of the machine state, and
+   the development is universally quantified over it, so the correctness
+   theorem covers every veneer behaviour on those registers. *)
+Context {vregs : veneer_regs_info}.
+
+Class asm_veneer_sem := {
+  veneer_oracle : asmmem -> reg_t -> wreg;
+}.
+
+Context {avs : asm_veneer_sem}.
+
+(* The register map is updated by a fold over the (abstract) list
+   [veneer_regs] and not by a [finfun] comprehension: the fold keeps the
+   definition from reducing, where [simpl] would unfold a comprehension into
+   one branch per machine register. *)
+Definition veneer_regmap (vals : reg_t -> wreg) (rm : regmap) : regmap :=
+  foldl (fun rm r => RegMap.set rm r (vals r)) rm veneer_regs.
+
+Definition veneer_kill (m : asmmem) : asmmem :=
+  {| asm_rip  := m.(asm_rip)
+   ; asm_scs  := m.(asm_scs)
+   ; asm_mem  := m.(asm_mem)
+   ; asm_reg  := veneer_regmap (veneer_oracle m) m.(asm_reg)
+   ; asm_regx := m.(asm_regx)
+   ; asm_xreg := m.(asm_xreg)
+   ; asm_flag := m.(asm_flag)
+  |}.
+
+Definition st_veneer (s : asm_state) : asm_state :=
+  {| asm_m  := veneer_kill s.(asm_m)
+   ; asm_f  := s.(asm_f)
+   ; asm_c  := s.(asm_c)
+   ; asm_ip := s.(asm_ip)
+  |}.
+
+Lemma veneer_regmap_foldlE (l : seq reg_t) vals rm r :
+  (foldl (fun rm r => RegMap.set rm r (vals r)) rm l) r =
+  (if (r : ceqT_eqType) \in (l : seq ceqT_eqType) then vals r else rm r).
+Proof.
+  elim: l rm => //= r' l ih rm.
+  rewrite ih /RegMap.set /FinMap.set ffunE.
+  have -> : ((r : ceqT_eqType) \in (r' :: l : seq ceqT_eqType)) =
+            (((r : ceqT_eqType) == r') || ((r : ceqT_eqType) \in (l : seq ceqT_eqType))) by [].
+  case hin: ((r : ceqT_eqType) \in (l : seq ceqT_eqType)); first by rewrite orbT.
+  by rewrite orbF; case: eqP => [->|].
+Qed.
+
+Lemma veneer_kill_reg m r :
+  (veneer_kill m).(asm_reg) r =
+  (if (r : ceqT_eqType) \in (veneer_regs : seq ceqT_eqType) then veneer_oracle m r else m.(asm_reg) r).
+Proof. exact: veneer_regmap_foldlE. Qed.
+
+Lemma veneer_kill_reg_notin m r :
+  (r : ceqT_eqType) \notin (veneer_regs : seq ceqT_eqType) ->
+  (veneer_kill m).(asm_reg) r = m.(asm_reg) r.
+Proof. by rewrite veneer_kill_reg => /negbTE ->. Qed.
+
+Lemma veneer_kill_rip m : (veneer_kill m).(asm_rip) = m.(asm_rip).
+Proof. by []. Qed.
+
+Lemma veneer_kill_scs m : (veneer_kill m).(asm_scs) = m.(asm_scs).
+Proof. by []. Qed.
+
+Lemma veneer_kill_mem m : (veneer_kill m).(asm_mem) = m.(asm_mem).
+Proof. by []. Qed.
+
+Lemma veneer_kill_regx m : (veneer_kill m).(asm_regx) = m.(asm_regx).
+Proof. by []. Qed.
+
+Lemma veneer_kill_xreg m : (veneer_kill m).(asm_xreg) = m.(asm_xreg).
+Proof. by []. Qed.
+
+Lemma veneer_kill_flag m : (veneer_kill m).(asm_flag) = m.(asm_flag).
+Proof. by []. Qed.
+
 Notation asm_result := (result error asmmem).
 Notation asm_result_state := (result error asm_state).
 
@@ -469,12 +559,15 @@ Definition eval_instr (i : asm_i_r) (s: asm_state) : exec asm_state :=
   | Jcc   lbl ct => eval_Jcc lbl ct s
   | JAL d lbl =>
       if return_address_from s is Some ra then
-        let s' := st_update_next (mem_write_reg MSB_CLEAR d ra s) s in
+        (* The return address is written first, then the veneer destroys
+           [veneer_regs] on its way to the callee. *)
+        let s' := st_update_next (veneer_kill (mem_write_reg MSB_CLEAR d ra s)) s in
         eval_JMP p lbl s'
       else type_error
   | CALL lbl =>
       if return_address_from s is Some ra then
-        eval_PUSH ra s >>= eval_JMP p lbl
+        Let s' := eval_PUSH ra s in
+        eval_JMP p lbl (st_veneer s')
       else type_error
   | POPPC =>
     Let: (s', dst) := eval_POP s in
@@ -533,6 +626,14 @@ Lemma mem_write_reg_invariant f r sz (w: word sz) (s: asmmem) :
   mem_write_reg f r w s ≡ s.
 Proof. by []. Qed.
 
+Lemma veneer_kill_invariant (s: asmmem) :
+  veneer_kill s ≡ s.
+Proof. by []. Qed.
+
+Lemma st_veneer_invariant (s: asm_state) :
+  st_veneer s ≡ s.
+Proof. by []. Qed.
+
 Lemma mem_write_mem_invariant al a sz (w: word sz) (s s': asmmem) :
   mem_write_mem al a w s = ok s' → s ≡ s'.
 Proof. by rewrite /mem_write_mem; t_xrbindP => ? /Memory.write_mem_stable ? <-. Qed.
@@ -565,6 +666,13 @@ Proof.
   by transitivity s1.
 Qed.
 
+Lemma eval_PUSH_invariant (w: wreg) (s s': asm_state) :
+  eval_PUSH w s = ok s' -> s ≡ s'.
+Proof.
+  rewrite /eval_PUSH; t_xrbindP => ? _ ? /mem_write_mem_invariant h <- /=.
+  by rewrite mem_write_reg_invariant.
+Qed.
+
 Lemma eval_instr_invariant (i: asm_i_r) (s s': asm_state) :
   eval_instr i s = ok s' →
   s ≡ s'.
@@ -578,8 +686,11 @@ Proof.
     + by move => _ _ <- /=.
     by move => <-.
   - case: return_address_from => // ra /eval_JMP_invariant /=.
-    by rewrite mem_write_reg_invariant.
-  - by case: return_address_from => // ra; rewrite /eval_PUSH; t_xrbindP => ? ? _ ? /mem_write_mem_invariant -> <- /eval_JMP_invariant /=; rewrite mem_write_reg_invariant.
+    by rewrite veneer_kill_invariant mem_write_reg_invariant.
+  - case: return_address_from => // ra; t_xrbindP => s1 /eval_PUSH_invariant h1 /eval_JMP_invariant h2.
+    transitivity (asm_m s1); first exact: h1.
+    transitivity (asm_m (st_veneer s1)); last exact: h2.
+    by symmetry; apply: st_veneer_invariant.
   - rewrite /eval_POP; t_xrbindP => _ ? _ ? _ <-.
     by case: decode_label => // ? /eval_JMP_invariant <-.
   - by rewrite /eval_op /exec_instr_op; t_xrbindP => ? ? ? /mem_write_vals_invariant -> <-.

@@ -38,7 +38,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
-  {ovm_i : one_varmap_info}.
+  {ovm_i : one_varmap_info} {vinfo : veneer_info}.
 
 (* TODO: move and also move low_memory.wunsigned_sub_small *)
 Lemma wunsigned_sub_small (p: pointer) (n: Z) :
@@ -2780,11 +2780,14 @@ End ILSTEPS_END.
      - if it's a callee ([lret] carries the caller), we return.
      Note that if it's a callee then we start execution at position 1 (because
      the first instruction is just the label). *)
+  (* Mirrors [one_varmap.ra_vm]: a function entered by a call internal to the
+     unit (RAreg, RAstack) is entered through a linker veneer, which destroys
+     [call_kill] before its first instruction. *)
   Definition killed_on_entry (ra : return_address_location) : Sv.t :=
     match ra with
     | RAnone => var_tmps
-    | RAreg x _ => Sv.singleton x
-    | RAstack or _ _ _ => sv_of_option or
+    | RAreg x _ => Sv.union call_kill (Sv.singleton x)
+    | RAstack or _ _ _ => Sv.union call_kill (sv_of_option or)
     end.
 
   (* The set of variable killed/written by the execution of the function,
@@ -3165,7 +3168,7 @@ End ILSTEPS_END.
     rewrite wunsigned_sub.
     - have /= := MAX1 _ ok_fd.
       move: (checked_prog ok_fd) => /=; rewrite /check_fd.
-      t_xrbindP=> _ _ _ _ /and4P [_ _ _ /ZleP /= ?] _ _ _.
+      t_xrbindP=> _ _ _ _ /and4P [_ _ _ /ZleP /= ?] _ _ _ _.
       by lia.
     have /= := wunsigned_range sp0; lia.
   Qed.
@@ -3224,7 +3227,7 @@ End ILSTEPS_END.
     have h: (wunsigned sp0 - max0 <= wunsigned (top_stack (emem s1)))%Z.
     + have /= := MAX1 _ ok_fd.
       move: (checked_prog ok_fd) => /=; rewrite /check_fd.
-      t_xrbindP=> _ _ _ _ /and4P [_ _ _ /ZleP /= ?] _ _ _.
+      t_xrbindP=> _ _ _ _ /and4P [_ _ _ /ZleP /= ?] _ _ _ _.
       by lia.
     rewrite wunsigned_sub; first by lia.
     move: (top_stack (emem s1)) h => sp.
@@ -3343,7 +3346,7 @@ End ILSTEPS_END.
       have h: (wunsigned sp0 - max0 <= wunsigned (top_stack (emem s1)))%Z.
       + have /= := MAX1 _ ok_fd.
         move: (checked_prog ok_fd) => /=; rewrite /check_fd.
-        t_xrbindP=> _ _ _ _ /and4P [_ _ _ /ZleP /= ?] _ _ _.
+        t_xrbindP=> _ _ _ _ /and4P [_ _ _ /ZleP /= ?] _ _ _ _.
         by lia.
       rewrite wunsigned_sub; first by lia.
       move: (top_stack (emem s1)) h => sp.
@@ -3567,7 +3570,7 @@ End ILSTEPS_END.
     have f_not_export : ~~ fn_is_export p' f.
     - by rewrite /fn_is_export ok_lfd' /lfd' /= (negbTE ok_ra).
     move: (checked_prog ok_fd') => /=; rewrite /check_fd /frame_size.
-    t_xrbindP => chk_body ok_to_save _ _ ok_stk_sz ok_ret_addr ok_save_stack _.
+    t_xrbindP => chk_body ok_to_save _ _ ok_stk_sz ok_ret_addr ok_ra_veneer ok_save_stack _.
     have lbl_valid : (fn, lbl) \in (label_in_lprog p').
     - apply: (label_in_lfundef _ C).
       rewrite /label_in_lcmd /=.
@@ -3655,25 +3658,42 @@ End ILSTEPS_END.
       case eq_ra : sf_return_address ok_ra ok_ret_addr ra_sem hvm2_b_rsp heqvm2 => [ | x | [ x | ] ra_return ofs] //= _
         ok_ret_addr ra_sem hvm2_b_rsp heqvm2.
        (* RAreg x _ *)
-      + exists (lmem ls1),  vm2_b.[x <- Vword ptr]; split => //.
-        + rewrite Vm.setP_neq ?hvm2_b_rsp //; apply /eqP => ?; subst x.
-          by apply: (ra_sem vrsp).
-        + by move=> /= y hy; rewrite Vm.setP_neq //; apply/eqP; move: hy; clear; SvD.fsetdec.
+      (* The callee is entered through a veneer, which destroys [call_kill]
+         after the return address has been written to [x]; the linearization
+         check guarantees that [x] is not one of those registers. *)
+      + move: ok_ra_veneer; rewrite eq_ra /= => x_nk.
+        have rsp_nk : ~~ Sv.mem vrsp call_kill.
+        + apply/negP => /Sv_memP hin.
+          by apply: (ra_sem vrsp); [ clear -hin; SvD.fsetdec | exact: rsp_magic ].
+        exists (lmem ls1), (kill_vars call_kill vm2_b.[x <- Vword ptr]); split => //.
+        + rewrite kill_varsE (negbTE rsp_nk) Vm.setP_neq ?hvm2_b_rsp //; apply /eqP => ?; subst x.
+          by apply: (ra_sem vrsp); [ clear; SvD.fsetdec | exact: rsp_magic ].
+        + move=> /= y hy; rewrite kill_varsE.
+          case: Sv_memP => hin; first by (exfalso; apply: hy; clear -hin; SvD.fsetdec).
+          by rewrite Vm.setP_neq //; apply/eqP; move: hy; clear; SvD.fsetdec.
         + move: ok_ret_addr => /andP[] hty _.
           split => //.
-          rewrite ok_ptr; exists ptr => //; rewrite Vm.setP_eq vm_truncate_val_eq //.
+          rewrite ok_ptr; exists ptr => //.
+          rewrite kill_varsE (negbTE x_nk) Vm.setP_eq vm_truncate_val_eq //.
           by rewrite (convertible_eval_atype hty).
         rewrite f_not_export /= set_var_truncate //=.
         move: ok_ret_addr => /andP[] hty _.
         by rewrite (convertible_eval_atype hty).
       (* RAstack (Some x) ofs _ *)
       + case/and5P: ok_ret_addr => ok_ret_addr _ _ _ _.
-        exists (lmem ls1), vm2_b.[x <- Vword ptr]; split => //.
-        + rewrite Vm.setP_neq ?hvm2_b_rsp //; apply /eqP => ?; subst x.
-          by apply: (ra_sem vrsp).
-        + by move=> /= y hy; rewrite Vm.setP_neq //; apply/eqP; move: hy; clear; SvD.fsetdec.
+        move: ok_ra_veneer; rewrite eq_ra /= => x_nk.
+        have rsp_nk : ~~ Sv.mem vrsp call_kill.
+        + apply/negP => /Sv_memP hin.
+          by apply: (ra_sem vrsp); [ clear -hin; SvD.fsetdec | exact: rsp_magic ].
+        exists (lmem ls1), (kill_vars call_kill vm2_b.[x <- Vword ptr]); split => //.
+        + rewrite kill_varsE (negbTE rsp_nk) Vm.setP_neq ?hvm2_b_rsp //; apply /eqP => ?; subst x.
+          by apply: (ra_sem vrsp); [ clear; SvD.fsetdec | exact: rsp_magic ].
+        + move=> /= y hy; rewrite kill_varsE.
+          case: Sv_memP => hin; first by (exfalso; apply: hy; clear -hin; SvD.fsetdec).
+          by rewrite Vm.setP_neq //; apply/eqP; move: hy; clear; SvD.fsetdec.
         + split => //.
-          rewrite ok_ptr; exists ptr => //; rewrite Vm.setP_eq vm_truncate_val_eq //.
+          rewrite ok_ptr; exists ptr => //.
+          rewrite kill_varsE (negbTE x_nk) Vm.setP_eq vm_truncate_val_eq //.
           by rewrite (convertible_eval_atype ok_ret_addr).
         by rewrite f_not_export  /= set_var_truncate //= (convertible_eval_atype ok_ret_addr).
       (* RAstack None ofs _ *)
@@ -3692,11 +3712,17 @@ End ILSTEPS_END.
         have := (Memory.alloc_stackP ok_m).(ass_ioff).
         rewrite /kill_tmp_call /= hioff /=.
         lia.
-      exists m', vm2_b.[vrsp <- Vword s]; split => //.
-      + by rewrite Vm.setP_eq vm_truncate_val_eq.
-      + by move=> /= y hy; rewrite Vm.setP_neq //; apply/eqP; move: hy; clear; SvD.fsetdec.
+      have rsp_nk : ~~ Sv.mem vrsp call_kill.
+      + apply/negP => /Sv_memP hin.
+        by apply: (ra_sem vrsp); [ clear -hin; SvD.fsetdec | exact: rsp_magic ].
+      exists m', (kill_vars call_kill vm2_b.[vrsp <- Vword s]); split => //.
+      + by rewrite kill_varsE (negbTE rsp_nk) Vm.setP_eq vm_truncate_val_eq.
+      + move=> /= y hy; rewrite kill_varsE.
+        case: Sv_memP => hin; first by (exfalso; apply: hy; clear -hin; SvD.fsetdec).
+        by rewrite Vm.setP_neq //; apply/eqP; move: hy; clear; SvD.fsetdec.
       + split => //.
-        rewrite ok_ptr; exists ptr => //; exists s; first by rewrite Vm.setP_eq vm_truncate_val_eq.
+        rewrite ok_ptr; exists ptr => //; exists s;
+          first by rewrite kill_varsE (negbTE rsp_nk) Vm.setP_eq vm_truncate_val_eq.
         move: ok_m'; rewrite /= wrepr0 GRing.addr0 top_stack_after_aligned_alloc // wrepr_opp.
         by apply writeP_eq.
       + apply: (preserved_metadata_store_top_stack ok_m ok_m').
@@ -4269,7 +4295,7 @@ Qed.
     move: heq; rewrite /initialize_funcall; t_xrbindP => /andP [] rsp_aligned valid_rsp m1' /map_errP ok_m1' ?; subst s'.
     have A := alloc_stackP ok_m1'.
     move: (checked_prog ok_fd); rewrite /check_fd /=.
-    t_xrbindP => chk_body ok_to_save _ _ ok_stk_sz ok_ret_addr ok_save_stack _.
+    t_xrbindP => chk_body ok_to_save _ _ ok_stk_sz ok_ret_addr ok_ra_veneer ok_save_stack _.
     case/and4P: ok_stk_sz => /lezP stk_sz_pos /lezP stk_extra_sz_pos /ltzP frame_noof /lezP stk_frame_le_max.
     have ? : fd' = (linear_fd fn fd).2.
     - have := get_fundef_p' ok_fd.
@@ -5339,7 +5365,7 @@ Qed.
     set max0 := fd.(f_extra).(sf_stk_max).
     have enough_space : (0 <= max0 <= wunsigned sp0)%Z.
     + have := checked_prog ok_fd.
-      rewrite /check_fd; t_xrbindP=> _ _ _ _ ok_stk_sz _ _ _.
+      rewrite /check_fd; t_xrbindP=> _ _ _ _ ok_stk_sz _ _ _ _.
       case/and4P: ok_stk_sz => /ZleP stk_sz_pos /ZleP stk_extra_sz_pos /ZltP frame_noof /ZleP stk_frame_le_max.
       rewrite /max0 /sp0; split.
       + by have := frame_size_bound stk_sz_pos stk_extra_sz_pos; lia.
@@ -5362,7 +5388,7 @@ Qed.
       by lia.
     have sp0_top : (wunsigned sp0 <= wunsigned (top_stack (emem s)))%Z.
     + have := checked_prog ok_fd.
-      rewrite /check_fd; t_xrbindP=> _ _ _ _ ok_stk_sz _ _ _.
+      rewrite /check_fd; t_xrbindP=> _ _ _ _ ok_stk_sz _ _ _ _.
       case/and4P: ok_stk_sz => /ZleP stk_sz_pos /ZleP stk_extra_sz_pos /ZltP frame_noof /ZleP stk_frame_le_max.
       rewrite /sp0 /align_top_stack /align_top.
       have hass := alloc_stackP ok_m1.
@@ -5394,7 +5420,7 @@ Qed.
         rewrite /align_top_stack /align_top -(alloc_stack_top_stack ok_m1).
         have /= habove := (alloc_stackP ok_m1).(ass_above_limit).
         have := checked_prog ok_fd.
-        rewrite /check_fd; t_xrbindP => _ _ _ _ ok_stk_sz _ _ _.
+        rewrite /check_fd; t_xrbindP => _ _ _ _ ok_stk_sz _ _ _ _.
         case/and4P: ok_stk_sz => /= /ZleP stk_sz_pos /ZleP stk_extra_sz_pos /ZltP frame_noof /ZleP stk_frame_le_max.
         rewrite wunsigned_add; first by lia.
         have := [elaborate (wunsigned_range (top_stack m1))].
@@ -5443,7 +5469,7 @@ Qed.
       rewrite /killed_by_exit Sv_mem_add /=.
       case: eqP => [ | _]; last by move /Sv_memP: r_not_saved => /negbTE ->.
       have := checked_prog ok_fd.
-      rewrite /check_fd; t_xrbindP => _ _ _ _ _ + _ _ /= heq.
+      rewrite /check_fd; t_xrbindP => _ _ _ _ _ + _ _ _ /= heq.
       by rewrite Export -heq => /sv_of_listP.
     move=> res; apply: (get_var_is_uincl_on vm2_vmo).
     by move=> x hx; apply/Sv_memP/sv_of_listP/in_map; exists x.

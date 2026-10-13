@@ -134,6 +134,8 @@ module Armv8aTarget : AsmTargetBuilder.AsmTarget with
 
   let headers = []
 
+  let text_alignment = []
+
   let data_segment_header =
     [
       Instr (".p2align", ["5"]);
@@ -186,7 +188,7 @@ module Armv8aTarget : AsmTargetBuilder.AsmTarget with
         [ Instr (iname, [ string_of_label fn lbl ]) ]
 
     | JAL (R30, lbl) ->
-        [ Instr ("bl", [ pp_remote_label lbl ]) ]
+        [ Instr ("bl", [ pp_call_target lbl ]) ]
 
     | CALL _
     | JAL _ -> assert false

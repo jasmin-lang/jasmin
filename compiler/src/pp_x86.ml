@@ -413,12 +413,9 @@ and type asm_op = X86_instr_decl.x86_op
 
   let function_tail = [Instr ("ret", [])]
 
-  let headers =
-    [
-      asm_syntax;
-      Header (".text", []);
-      Header (".p2align", ["5"]); (* Need to determine what 5 is*)
-    ]
+  let text_alignment = [ Header (".p2align", ["5"]) ]
+
+  let headers = asm_syntax :: Header (".text", []) :: text_alignment
 
   let data_segment_header =
     let name = global_datas_label in

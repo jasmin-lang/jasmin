@@ -221,6 +221,16 @@ Context
   (aparams : architecture_params)
   (cparams : compiler_params).
 
+(* The registers that a linker-inserted veneer may destroy in front of a call
+   internal to the unit.  The driver passes the empty list unless the
+   functions are laid out in sections of their own (the -function-sections
+   option), in which case it passes the architecture's intra-procedure-call
+   scratch registers.  The set the middle end undefines at the entry of such
+   a call is this very list mapped through [to_var] (asm_gen.veneer_i), so
+   there is a single source of truth shared with the assembly semantics.  The
+   whole pipeline, and its correctness theorem, are parametric in it. *)
+Context {vregs : veneer_regs_info}.
+
 Notation saparams := (ap_sap aparams).
 Notation liparams := (ap_lip aparams).
 Notation loparams := (ap_lop aparams).

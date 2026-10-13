@@ -17,7 +17,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
-  {ovm_i : one_varmap_info}
+  {ovm_i : one_varmap_info} {vinfo : veneer_info}
   (p : sprog)
   (var_tmp : Sv.t).
 
@@ -337,6 +337,9 @@ Qed.
 Section PRESERVED_RSP_GD.
 
 Hypothesis var_tmp_not_magic : disjoint var_tmp (magic_variables p).
+(* A register that a veneer may clobber is a scratch register, never RSP or
+   the global-data pointer; merge_varmaps checks it. *)
+Hypothesis call_kill_not_magic : disjoint call_kill (magic_variables p).
 
 Let Pc (k: Sv.t) (_: estate) (_: cmd) (_: estate) : Prop := disjoint k (magic_variables p).
 Let Pi (k: Sv.t) (_: estate) (_: instr) (_: estate) : Prop := disjoint k (magic_variables p).
@@ -393,7 +396,7 @@ Proof.
 Qed.
 
 Lemma Hproc_pm : sem_Ind_proc p var_tmp Pc Pfun.
-Proof using var_tmp_not_magic.
+Proof using var_tmp_not_magic call_kill_not_magic.
   red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m1 /sem_stack_stable s ih ok_RSP' ->.
   have hmagic: forall (r:var),
     r != vid (sp_rip (p_extra p)) ->
@@ -408,11 +411,12 @@ Proof using var_tmp_not_magic.
     case: sf_return_address => //.
     + move=> _; rewrite disjoint_unionE.
       by apply/andP; split => //; apply: flags_not_magic.
-    + move=> ra _ /and3P [+ + _].
-      by apply hmagic.
+    + move=> ra _ /and3P [+ + _] => h1 h2.
+      by rewrite disjoint_unionE call_kill_not_magic /=; apply: hmagic.
     move=> ra_call _ _ _ /andP [hcall _].
-    case: ra_call hcall => [ra_call|//] /andP[].
-    by apply hmagic.
+    rewrite disjoint_unionE call_kill_not_magic /=.
+    case: ra_call hcall => [ra_call|]; last by rewrite /disjoint; clear; SvD.fsetdec.
+    by move=> /andP[]; apply hmagic.
   + move: ok_ss; rewrite /saved_stack_valid /saved_stack_vm.
     case: sf_save_stack => //.
     move=> /= r /and3P[] r_neq_gd r_neq_rsp _.
@@ -425,7 +429,7 @@ Qed.
 
 Lemma sem_RSP_GD_not_written k s1 c s2 :
   sem p var_tmp k s1 c s2 → disjoint k (magic_variables p).
-Proof using var_tmp_not_magic.
+Proof using var_tmp_not_magic call_kill_not_magic.
   exact:
     (sem_Ind
        Hnil_pm
@@ -445,7 +449,7 @@ Qed.
 Lemma sem_I_RSP_GD_not_written k s1 i s2 :
   sem_I p var_tmp k s1 i s2
   → disjoint k (magic_variables p).
-Proof using var_tmp_not_magic.
+Proof using var_tmp_not_magic call_kill_not_magic.
   exact:
     (sem_I_Ind
        Hnil_pm
@@ -464,7 +468,7 @@ Qed.
 
 Lemma sem_preserved_RSP_GD k s1 c s2 :
   sem p var_tmp k s1 c s2 → evm s1 =[magic_variables p] evm s2.
-Proof using var_tmp_not_magic.
+Proof using var_tmp_not_magic call_kill_not_magic.
   move => exec.
   apply: eq_ex_disjoint_eq_on.
   - exact: sem_not_written exec.
@@ -473,7 +477,7 @@ Qed.
 
 Lemma sem_I_preserved_RSP_GD k s1 i s2 :
   sem_I p var_tmp k s1 i s2 → evm s1 =[magic_variables p] evm s2.
-Proof using var_tmp_not_magic.
+Proof using var_tmp_not_magic call_kill_not_magic.
   move => exec.
   apply: eq_ex_disjoint_eq_on.
   - exact: sem_I_not_written exec.

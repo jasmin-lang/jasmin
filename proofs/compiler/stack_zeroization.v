@@ -66,7 +66,7 @@ Section STACK_ZEROIZATION.
 Context
   {pd: PointerData}
   {asm_op : Type} {asmop: asmOp asm_op}
-  {ovmi : one_varmap_info}
+  {ovmi : one_varmap_info} {vinfo : veneer_info}
   (szparams : stack_zeroization_params)
   (szs_of_fn : funname -> option (stack_zero_strategy * wsize)).
 
