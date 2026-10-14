@@ -107,7 +107,10 @@ type parsed_reg_address = {
 
 let parse_reg_address (arch : ('a, 'b, 'c, 'd, 'e) arch_decl) addr =
   match addr.ad_base with
-  | None -> failwith (Format.asprintf "TODO_RISC: pp_reg_address")
+  | None ->
+      (* The conditions on the memory arguments require a base register. *)
+      hierror ~loc:Lnone ~kind:"assembly printing" ~internal:true
+        "address without a base register"
   | Some r ->
       let base = pp_register arch r in
       let displacement = Conv.z_of_word (arch_pd arch) addr.ad_disp in
