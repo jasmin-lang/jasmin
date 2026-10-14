@@ -605,19 +605,25 @@ Definition assemble_asm_op rip ii op (outx : lexprs) (inx : rexprs) :=
       ok asm_args
     else
       let mem := has_CAmem_cond args_kinds in
+      (* The alternatives whose shapes match the arguments; the full list
+         follows only when some alternatives were filtered out. *)
+      let filtered := args_kinds != id.(id_args_kinds) in
       Error (E.error ii (pp_nobox [::
         pp_unencodable_arg id s args_kinds outx inx asm_args;
         PPEbreak;
-        pp_vbox [::
-        pp_s (if mem
+        pp_vbox ([::
+        pp_s (if ~~ filtered then "Allowed args are:"
+              else if mem
               then "Allowed args compatible with the input (except on immediate sizes"
                    ++ " and address shapes) are:"
               else "Allowed args compatible with the input (except on immediate sizes) are:")%string;
         pp_nobox [::pp_s "  "; pp_vbox [::
-        pp_i_args_kinds args_kinds]];
+        pp_i_args_kinds args_kinds]] ] ++
+        if filtered then [::
         pp_s "All allowed args (regardless of the input) are:";
         pp_nobox [:: pp_s "  "; pp_vbox [::
-        pp_i_args_kinds id.(id_args_kinds)]]]]))
+        pp_i_args_kinds id.(id_args_kinds)]] ]
+        else [::])]))
   in
   Let _ := assert (check_sopn_args rip ii asm_args inx (zip id.(id_in) id.(id_tin)) &&
                      check_sopn_dests rip ii asm_args outx (zip id.(id_out) id.(id_tout)))
