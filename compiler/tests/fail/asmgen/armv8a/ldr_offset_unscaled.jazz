@@ -1,0 +1,8 @@
+/* The LDR offset is neither a multiple of 8 nor in the unscaled range
+   [-256, 255]. */
+export
+fn ldr_offset_unscaled(reg u64 p) -> reg u64 {
+    reg u64 a;
+    a = [:u64 p + 260];
+    return a;
+}

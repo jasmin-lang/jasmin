@@ -1,0 +1,7 @@
+/* The register offset of a 64-bit LDR can only be shifted by 3. */
+export
+fn ldr_register_shift(reg u64 p i) -> reg u64 {
+    reg u64 a;
+    a = [:u64 p + 4 * i];
+    return a;
+}

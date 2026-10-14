@@ -1,0 +1,5 @@
+/* The STRH offset is odd and outside the unscaled range [-256, 255]. */
+export
+fn strh_offset_unscaled(reg u64 p, reg u64 x) {
+    [:u16 p + 257] = x;
+}

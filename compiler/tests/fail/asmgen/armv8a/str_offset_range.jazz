@@ -1,0 +1,5 @@
+/* The STR offset is outside the unsigned 12-bit range scaled by 4. */
+export
+fn str_offset_range(reg u64 p, reg u32 x) {
+    [:u32 p + 16384] = x;
+}

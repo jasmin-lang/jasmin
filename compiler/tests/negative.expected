@@ -646,6 +646,81 @@ All allowed args (regardless of the input) are:
   reg, reg, mem
     mem: [base + imm], imm a multiple of 8 in [-512, 504]
 
+fail/asmgen/armv8a/ldr_offset_neg.jazz:
+
+"fail/asmgen/armv8a/ldr_offset_neg.jazz", line 5 (4-23):
+compilation error in function ldr_offset_neg:
+asmgen: instruction LDR_64 is given an unencodable address as an argument:
+  x0, [:u64 x0 -64u (64u) 264]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 8 in [0, 32760] or in [-256, 255]
+         [base + s * index], s in {1, 8}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 8 in [0, 32760] or in [-256, 255]
+         [base + s * index], s in {1, 8}
+
+fail/asmgen/armv8a/ldr_offset_range.jazz:
+
+"fail/asmgen/armv8a/ldr_offset_range.jazz", line 5 (4-25):
+compilation error in function ldr_offset_range:
+asmgen: instruction LDR_64 is given an unencodable address as an argument:
+  x0, [:u64 x0 +64u (64u) 32768]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 8 in [0, 32760] or in [-256, 255]
+         [base + s * index], s in {1, 8}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 8 in [0, 32760] or in [-256, 255]
+         [base + s * index], s in {1, 8}
+
+fail/asmgen/armv8a/ldr_offset_unscaled.jazz:
+
+"fail/asmgen/armv8a/ldr_offset_unscaled.jazz", line 6 (4-23):
+compilation error in function ldr_offset_unscaled:
+asmgen: instruction LDR_64 is given an unencodable address as an argument:
+  x0, [:u64 x0 +64u (64u) 260]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 8 in [0, 32760] or in [-256, 255]
+         [base + s * index], s in {1, 8}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 8 in [0, 32760] or in [-256, 255]
+         [base + s * index], s in {1, 8}
+
+fail/asmgen/armv8a/ldr_register_shift.jazz:
+
+"fail/asmgen/armv8a/ldr_register_shift.jazz", line 5 (4-25):
+compilation error in function ldr_register_shift:
+asmgen: instruction LDR_64 is given an unencodable address as an argument:
+  x0, [:u64 x0 +64u (64u) 4 *64u x1]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 8 in [0, 32760] or in [-256, 255]
+         [base + s * index], s in {1, 8}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 8 in [0, 32760] or in [-256, 255]
+         [base + s * index], s in {1, 8}
+
+fail/asmgen/armv8a/ldrb_register_shift.jazz:
+
+"fail/asmgen/armv8a/ldrb_register_shift.jazz", line 5 (4-29):
+compilation error in function ldrb_register_shift:
+asmgen: instruction LDRB_64 is given an unencodable address as an argument:
+  x0, [:u8 x0 +64u (64u) 2 *64u x1]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm in [-256, 4095]
+         [base + index]
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm in [-256, 4095]
+         [base + index]
+
 fail/asmgen/armv8a/stp_32_offset_range.jazz:
 
 "fail/asmgen/armv8a/stp_32_offset_range.jazz", line 4 (4-35):
@@ -671,6 +746,36 @@ Allowed args compatible with the input (except on immediate sizes and address sh
 All allowed args (regardless of the input) are:
   reg, reg, mem
     mem: [base + imm], imm a multiple of 8 in [-512, 504]
+
+fail/asmgen/armv8a/str_offset_range.jazz:
+
+"fail/asmgen/armv8a/str_offset_range.jazz", line 4 (4-25):
+compilation error in function str_offset_range:
+asmgen: instruction STR_32 is given an unencodable address as an argument:
+  x1, [:u32 x0 +64u (64u) 16384]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 4 in [0, 16380] or in [-256, 255]
+         [base + s * index], s in {1, 4}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 4 in [0, 16380] or in [-256, 255]
+         [base + s * index], s in {1, 4}
+
+fail/asmgen/armv8a/strh_offset_unscaled.jazz:
+
+"fail/asmgen/armv8a/strh_offset_unscaled.jazz", line 4 (4-23):
+compilation error in function strh_offset_unscaled:
+asmgen: instruction STRH_64 is given an unencodable address as an argument:
+  x1, [:u16 x0 +64u (64u) 257]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 2 in [0, 8190] or in [-256, 255]
+         [base + s * index], s in {1, 2}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 2 in [0, 8190] or in [-256, 255]
+         [base + s * index], s in {1, 2}
 
 fail/asmgen/x86-64/incompatible_args.jazz:
 
@@ -2073,4 +2178,4 @@ Statistics:
 	Pretyping:  65
 	Parsing:     5
 	Typing:      5
-	Compile:   238
+	Compile:   245

@@ -1,0 +1,7 @@
+/* A negative LDR offset below the unscaled range. */
+export
+fn ldr_offset_neg(reg u64 p) -> reg u64 {
+    reg u64 a;
+    a = [:u64 p - 264];
+    return a;
+}
