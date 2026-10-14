@@ -346,8 +346,9 @@ Definition prim_MV := ("MV"%string, primM MV).
 Definition riscv_LA_semi (wn : ty_r) : ty_r :=
   wn.
 
-Definition ak_reg_addr :=
-  [:: [:: [:: CAreg ]; [:: CAmem tt ] ] ].
+(* The operand of LA: a global ([CAmemC_riscv_la]). *)
+Definition ak_reg_addr_la :=
+  [:: [:: [:: CAreg ]; [:: CAmem CAmemC_riscv_la ] ] ].
 
 Definition riscv_LA_instr : instr_desc_t :=
   let tin := [:: lreg ] in
@@ -362,7 +363,7 @@ Definition riscv_LA_instr : instr_desc_t :=
       id_out := [:: Ea 0 ];
       id_semi_total := semi;
       id_nargs := 2;
-      id_args_kinds := ak_reg_addr;
+      id_args_kinds := ak_reg_addr_la;
       id_eq_size := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s "LA";
@@ -491,6 +492,11 @@ Definition riscv_extend_semi s ws' ws (w : word ws) : word ws' :=
 Arguments riscv_extend_semi s ws' ws w /.
 
 (* TODO: unaligned access are ok but very discouraged on RISC-V, should we allow them? *)
+(* The memory argument of a load or store: its address is restricted to
+   the encodable forms ([CAmemC_riscv_ldst] in riscv_decl.v). *)
+Definition ak_reg_addr_ldst :=
+  [:: [:: [:: CAreg ]; [:: CAmem CAmemC_riscv_ldst ] ] ].
+
 Definition riscv_LOAD_instr s ws : instr_desc_t :=
   let tin := [:: lword ws ] in
   let semi := @riscv_extend_semi s reg_size ws in
@@ -504,7 +510,7 @@ Definition riscv_LOAD_instr s ws : instr_desc_t :=
       id_out := [:: Ea 0 ];
       id_semi_total := semi;
       id_nargs := 2;
-      id_args_kinds := ak_reg_addr; (* TODO: are globs allowed? *)
+      id_args_kinds := ak_reg_addr_ldst;
       id_eq_size := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_sign_sz "LOAD" s ws;
@@ -538,7 +544,7 @@ Definition riscv_STORE_instr ws : instr_desc_t :=
       id_out := [:: Eu 1 ];
       id_semi_total := semi;
       id_nargs := 2;
-      id_args_kinds := ak_reg_addr; (* TODO: are globs allowed? *)
+      id_args_kinds := ak_reg_addr_ldst;
       id_eq_size := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_sz "STORE" ws;
