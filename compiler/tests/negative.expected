@@ -822,6 +822,32 @@ All allowed args (regardless of the input) are:
     mem: [base + imm], imm a multiple of 2 in [0, 8190] or in [-256, 255]
          [base + s * index], s in {1, 2}
 
+fail/asmgen/risc-v/lw_offset_range.jazz:
+
+"fail/asmgen/risc-v/lw_offset_range.jazz", line 5 (4-24):
+compilation error in function lw_offset_range:
+asmgen: instruction LOAD_s32 is given an unencodable address as an argument:
+  x10, [:u32 x10 +32u (32u) 2048]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm in [-2048, 2047]
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm in [-2048, 2047]
+
+fail/asmgen/risc-v/sw_offset_neg.jazz:
+
+"fail/asmgen/risc-v/sw_offset_neg.jazz", line 4 (4-24):
+compilation error in function sw_offset_neg:
+asmgen: instruction STORE_32 is given an unencodable address as an argument:
+  x11, [:u32 x10 -32u (32u) 2049]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm in [-2048, 2047]
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm in [-2048, 2047]
+
 fail/asmgen/x86-64/incompatible_args.jazz:
 
 "fail/asmgen/x86-64/incompatible_args.jazz", line 4 (2-14):
@@ -2203,4 +2229,4 @@ Statistics:
 	Pretyping:  65
 	Parsing:     5
 	Typing:      5
-	Compile:   245
+	Compile:   247
