@@ -140,9 +140,16 @@ fail/arm-m4/bug_667.jazz:
 
 "fail/arm-m4/bug_667.jazz", line 9 (2-16):
 compilation error in function main:
-asmgen: the address computation is too complex
-          sp +32u ((32u) 4 *32u r0 +32u (32u) 4)
-        an intermediate variable might be needed
+asmgen: instruction LDR is given an unencodable address as an argument:
+  r1, [:u32 sp +32u ((32u) 4 *32u r0 +32u (32u) 4)]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm in [-255, 4095]
+         [base + s * index], s in {1, 2, 4, 8}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm in [-255, 4095]
+         [base + s * index], s in {1, 2, 4, 8}
 
 fail/arm-m4/cmp_imm_too_large.jazz:
 
@@ -564,9 +571,16 @@ fail/asmgen/arm-m4/address_too_complex.jazz:
 
 "fail/asmgen/arm-m4/address_too_complex.jazz", line 2 (2-23):
 compilation error in function f:
-asmgen: the address computation is too complex
-          r0 +32u ((32u) 4 *32u (r1 +32u (32u) 2) +32u (32u) 0)
-        an intermediate variable might be needed
+asmgen: instruction LDR is given an unencodable address as an argument:
+  r0, [:u32 r0 +32u ((32u) 4 *32u (r1 +32u (32u) 2) +32u (32u) 0)]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm in [-255, 4095]
+         [base + s * index], s in {1, 2, 4, 8}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm in [-255, 4095]
+         [base + s * index], s in {1, 2, 4, 8}
 
 fail/asmgen/arm-m4/ldr_offset_neg.jazz:
 
