@@ -82,11 +82,3 @@ Definition check_ei_kind ewe sz (w: word sz) :=
   | EI_shift => check_wencoding (on_shift ewe) z
   | EI_none => check_wencoding (on_none ewe) z
   end.
-
-Definition string_of_ew ew :=
-  match ew with
-  | WE_allowed b => if b then "allowed"%string else "not allowed"%string
-  | W12_encoding => "W12"%string
-  | W16_encoding => "W16"%string
-  end.
-
