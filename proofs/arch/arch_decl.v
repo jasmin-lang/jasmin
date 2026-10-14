@@ -53,11 +53,12 @@ Definition rtype {t T} `{ToString t T} := t.
    conditions (e.g. x86) use [empty]. This keeps each architecture's
    conditions in its own files.
 
-   Memory-argument conditions work the same way: [camem_cond] and
-   [check_CAmem] restrict the shape of the [address] of a memory operand,
-   including whether an address relative to the instruction pointer (a
-   global) is accepted, for instructions whose encoding accepts fewer
-   addressing modes than the architecture's other loads and stores. *)
+   Memory-argument conditions work the same way: every memory operand
+   carries a [camem_cond], and [check_CAmem] decides whether an [address]
+   has a shape that the encoding accepts, including whether an address
+   relative to the instruction pointer (a global) is accepted. An
+   architecture whose instructions accept every address (x86) uses [unit],
+   with a checker that always succeeds and an empty description. *)
 
 (* -------------------------------------------------------------------- *)
 (* Addresses, for a type of registers and a size of pointers.
@@ -366,7 +367,7 @@ Variant arg_kind :=
 | CAreg
 | CAregx
 | CAxmm
-| CAmem of bool & option camem_cond (* true if Global is allowed *)
+| CAmem of camem_cond
 | CAimm of option caimm_cond & wsize
 | CAimmRip of rip_imm_kind.
 
@@ -379,8 +380,7 @@ Definition arg_kind_eqb (a1 a2 : arg_kind) : bool :=
   | CAreg, CAreg
   | CAregx, CAregx
   | CAxmm, CAxmm => true
-  | CAmem b1 c1, CAmem b2 c2 =>
-      (b1 == b2) && ((c1 : option ceqT_eqType) == c2)
+  | CAmem c1, CAmem c2 => (c1 : ceqT_eqType) == c2
   | CAimm c1 ws1, CAimm c2 ws2 =>
       ((c1 : option ceqT_eqType) == c2) && (ws1 == ws2)
   | CAimmRip k1, CAimmRip k2 => k1 == k2
@@ -390,8 +390,8 @@ Definition arg_kind_eqb (a1 a2 : arg_kind) : bool :=
 Lemma arg_kind_eqb_OK : forall a1 a2, reflect (a1 = a2) (arg_kind_eqb a1 a2).
 Proof.
   move=> a1 a2; apply: (iffP idP).
-  - case: a1 a2 => [||||b1 c1|c1 ws1|k1] [||||b2 c2|c2 ws2|k2] //=.
-    + by move=> /andP [/eqP -> /eqP ->].
+  - case: a1 a2 => [||||c1|c1 ws1|k1] [||||c2|c2 ws2|k2] //=.
+    + by move=> /eqP ->.
     + by move=> /andP [/eqP -> /eqP ->].
     by move=> /eqP ->.
   move=> <-; case: a1 => //= *; by rewrite !eqxx.
@@ -430,8 +430,7 @@ Definition check_arg_kind (a:asm_arg) (cond: arg_kind) :=
   | ImmRip k _, CAimmRip k' => k == k'
   | Reg _ , CAreg => true
   | Regx _, CAregx => true
-  | Addr a, CAmem _ checker =>
-      oapp (fun c => check_CAmem c a) true checker
+  | Addr a, CAmem checker => check_CAmem checker a
   | XReg _, CAxmm   => true
   | _, _ => false
   end.
@@ -630,7 +629,7 @@ Proof. by rewrite size_map. Qed.
 
 Definition is_not_CAmem (cond : arg_kind) :=
   match cond with
-  | CAmem _ _ => false
+  | CAmem _ => false
   | _ => true
   end.
 

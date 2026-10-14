@@ -349,6 +349,9 @@ Definition prim_MV := ("MV"%string, primM MV).
 Definition riscv_LA_semi (wn : ty_r) : ty_r :=
   wn.
 
+Definition ak_reg_addr :=
+  [:: [:: [:: CAreg ]; [:: CAmem tt ] ] ].
+
 Definition riscv_LA_instr : instr_desc_t :=
   let tin := [:: lreg ] in
   let semi := riscv_LA_semi in

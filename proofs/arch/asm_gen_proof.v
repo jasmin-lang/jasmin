@@ -1186,7 +1186,7 @@ Lemma enforce_imm_arg_kind_correct a c a' :
   enforce_imm_arg_kind a c = Some a' ->
   check_arg_kind a' c.
 Proof.
-  case: a; case: c => [|||| b checker | | k'] //=; try by move=> ? /Some_inj <-.
+  case: a; case: c => [|||| checker | | k'] //=; try by move=> ? /Some_inj <-.
   + move=> checker ws1 ws2 w.
     by case: ifP => // /andP [] /eqP -> /= h [<-] /=; rewrite h eqxx.
   + by move=> k ofs; case: eqP => // -> [<-] /=.

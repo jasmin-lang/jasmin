@@ -438,7 +438,7 @@ Definition check_arg_kind_no_imm (a:asm_arg) (cond: arg_kind) :=
   | ImmRip k _, CAimmRip k' => k == k'
   | Reg _ , CAreg => true
   | Regx _, CAregx => true
-  | Addr _, CAmem _ _ => true
+  | Addr _, CAmem _ => true
   | XReg _, CAxmm   => true
   | _, _ => false
   end.
@@ -478,9 +478,8 @@ Definition enforce_imm_arg_kind (a:asm_arg) (cond: arg_kind) : option asm_arg :=
   | ImmRip k _, CAimmRip k' => if k == k' then Some a else None
   | Reg _, CAreg => Some a
   | Regx _, CAregx => Some a
-  | Addr addr, CAmem _ checker =>
-    if oapp (fun c => check_CAmem c addr) true checker
-    then Some a else None
+  | Addr addr, CAmem checker =>
+    if check_CAmem checker addr then Some a else None
   | XReg _, CAxmm   => Some a
   | _, _ => None
   end.
@@ -510,7 +509,7 @@ Definition enforce_imm_i_args_kinds (cond:i_args_kinds) (a:asm_args) :=
 
 Definition pp_arg_kind_tag c :=
   match c with
-  | CAmem _ _ => pp_s "mem"
+  | CAmem _ => pp_s "mem"
   | CAimm _ ws => pp_nobox [:: pp_s "imm "; pp_s (string_of_wsize ws)]
   | CAimmRip k =>
       pp_s (if k is RipLo16 then "glob addr (lo16)" else "glob addr (hi16)")%string
@@ -523,7 +522,7 @@ Definition pp_arg_kind_tag c :=
 (* The conditions imposed by a kind, one line each; empty if none. *)
 Definition arg_kind_conds c : seq string :=
   match c with
-  | CAmem _ (Some checker) => camem_cond_pp checker
+  | CAmem checker => camem_cond_pp checker
   | CAimm (Some checker) _ => [:: caimm_cond_pp checker ]
   | _ => [::]
   end.
@@ -555,7 +554,7 @@ Definition pp_i_args_kinds cond :=
    the error message of [assemble_asm_op]. *)
 Definition has_CAmem_cond (cond : i_args_kinds) : bool :=
   has (has (has (fun c =>
-    if c is CAmem _ (Some checker) then ~~ nilp (camem_cond_pp checker) else false))) cond.
+    if c is CAmem checker then ~~ nilp (camem_cond_pp checker) else false))) cond.
 
 (* The first argument that no alternative of [cond] accepts, with its
    position, when the shapes of the arguments match [cond] but the
