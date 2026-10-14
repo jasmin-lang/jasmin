@@ -34,11 +34,11 @@ asmgen: instruction ADC is given an unencodable immediate as an argument:
   r0, r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
   reg, reg, imm 32
-    imm 32: (shift = allowed, none = not allowed)
+    imm 32: a byte, a byte pattern or a shifted byte
 All allowed args (regardless of the input) are:
   reg, reg, reg
   reg, reg, imm 32
-    imm 32: (shift = allowed, none = not allowed)
+    imm 32: a byte, a byte pattern or a shifted byte
 
 fail/arm-m4/add_imm_too_large.jazz:
 
@@ -48,11 +48,11 @@ asmgen: instruction ADD is given an unencodable immediate as an argument:
   r0, r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
   reg, reg, imm 32
-    imm 32: (shift = allowed, none = W12)
+    imm 32: a byte, a byte pattern, a shifted byte or a 12-bit value
 All allowed args (regardless of the input) are:
   reg, reg, reg
   reg, reg, imm 32
-    imm 32: (shift = allowed, none = W12)
+    imm 32: a byte, a byte pattern, a shifted byte or a 12-bit value
 
 fail/arm-m4/add_shift.jazz:
 
@@ -69,11 +69,11 @@ asmgen: instruction ADDS is given an unencodable immediate as an argument:
   r0, r0, (32u) 2762
 Allowed args compatible with the input (except on immediate sizes) are:
   reg, reg, imm 32
-    imm 32: (shift = allowed, none = not allowed)
+    imm 32: a byte, a byte pattern or a shifted byte
 All allowed args (regardless of the input) are:
   reg, reg, reg
   reg, reg, imm 32
-    imm 32: (shift = allowed, none = not allowed)
+    imm 32: a byte, a byte pattern or a shifted byte
 
 fail/arm-m4/and_imm_shifted.jazz:
 
@@ -83,11 +83,11 @@ asmgen: instruction AND is given an unencodable immediate as an argument:
   r0, r0, (32u) 831488
 Allowed args compatible with the input (except on immediate sizes) are:
   reg, reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 All allowed args (regardless of the input) are:
   reg, reg, reg
   reg, reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 
 fail/arm-m4/and_imm_too_large.jazz:
 
@@ -97,11 +97,11 @@ asmgen: instruction AND is given an unencodable immediate as an argument:
   r0, r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
   reg, reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 All allowed args (regardless of the input) are:
   reg, reg, reg
   reg, reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 
 fail/arm-m4/bic_imm_shifted.jazz:
 
@@ -111,11 +111,11 @@ asmgen: instruction BIC is given an unencodable immediate as an argument:
   r0, r0, (32u) 831488
 Allowed args compatible with the input (except on immediate sizes) are:
   reg, reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 All allowed args (regardless of the input) are:
   reg, reg, reg
   reg, reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 
 fail/arm-m4/bic_imm_too_large.jazz:
 
@@ -125,11 +125,11 @@ asmgen: instruction BIC is given an unencodable immediate as an argument:
   r0, r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
   reg, reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 All allowed args (regardless of the input) are:
   reg, reg, reg
   reg, reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 
 fail/arm-m4/bug_1112.jazz:
 
@@ -155,11 +155,11 @@ asmgen: instruction CMP is given an unencodable immediate as an argument:
   r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
   reg, imm 32
-    imm 32: (shift = allowed, none = not allowed)
+    imm 32: a byte, a byte pattern or a shifted byte
 All allowed args (regardless of the input) are:
   reg, reg
   reg, imm 32
-    imm 32: (shift = allowed, none = not allowed)
+    imm 32: a byte, a byte pattern or a shifted byte
 
 fail/arm-m4/eor_imm_shifted.jazz:
 
@@ -169,11 +169,11 @@ asmgen: instruction EOR is given an unencodable immediate as an argument:
   r0, r0, (32u) 831488
 Allowed args compatible with the input (except on immediate sizes) are:
   reg, reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 All allowed args (regardless of the input) are:
   reg, reg, reg
   reg, reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 
 fail/arm-m4/eor_imm_too_large.jazz:
 
@@ -183,11 +183,11 @@ asmgen: instruction EOR is given an unencodable immediate as an argument:
   r0, r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
   reg, reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 All allowed args (regardless of the input) are:
   reg, reg, reg
   reg, reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 
 fail/arm-m4/mov_imm_shifted.jazz:
 
@@ -197,11 +197,11 @@ asmgen: instruction MOV is given an unencodable immediate as an argument:
   r0, (32u) 831488
 Allowed args compatible with the input (except on immediate sizes) are:
   reg, imm 32
-    imm 32: (shift = W16, none = W16)
+    imm 32: a byte pattern or a 16-bit value
 All allowed args (regardless of the input) are:
   reg, reg
   reg, imm 32
-    imm 32: (shift = W16, none = W16)
+    imm 32: a byte pattern or a 16-bit value
   reg, glob addr (lo16)
 
 fail/arm-m4/mov_imm_too_large.jazz:
@@ -212,11 +212,11 @@ asmgen: instruction MOV is given an unencodable immediate as an argument:
   r0, (32u) 707274
 Allowed args compatible with the input (except on immediate sizes) are:
   reg, imm 32
-    imm 32: (shift = W16, none = W16)
+    imm 32: a byte pattern or a 16-bit value
 All allowed args (regardless of the input) are:
   reg, reg
   reg, imm 32
-    imm 32: (shift = W16, none = W16)
+    imm 32: a byte pattern or a 16-bit value
   reg, glob addr (lo16)
 
 fail/arm-m4/mov_shiftedw_set_flags.jazz:
@@ -227,11 +227,11 @@ asmgen: instruction MOVS is given an unencodable immediate as an argument:
   r0, (32u) 51968
 Allowed args compatible with the input (except on immediate sizes) are:
   reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 All allowed args (regardless of the input) are:
   reg, reg
   reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 
 fail/arm-m4/movw_set_flags.jazz:
 
@@ -241,11 +241,11 @@ asmgen: instruction MOVS is given an unencodable immediate as an argument:
   r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
   reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 All allowed args (regardless of the input) are:
   reg, reg
   reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 
 fail/arm-m4/muls_conditional.jazz:
 
@@ -259,11 +259,11 @@ asmgen: instruction MVN is given an unencodable immediate as an argument:
   r0, (32u) 831488
 Allowed args compatible with the input (except on immediate sizes) are:
   reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 All allowed args (regardless of the input) are:
   reg, reg
   reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 
 fail/arm-m4/mvn_imm_too_large.jazz:
 
@@ -273,11 +273,11 @@ asmgen: instruction MVN is given an unencodable immediate as an argument:
   r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
   reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 All allowed args (regardless of the input) are:
   reg, reg
   reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 
 fail/arm-m4/orr_imm_shifted.jazz:
 
@@ -287,11 +287,11 @@ asmgen: instruction ORR is given an unencodable immediate as an argument:
   r0, r0, (32u) 831488
 Allowed args compatible with the input (except on immediate sizes) are:
   reg, reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 All allowed args (regardless of the input) are:
   reg, reg, reg
   reg, reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 
 fail/arm-m4/orr_imm_too_large.jazz:
 
@@ -301,11 +301,11 @@ asmgen: instruction ORR is given an unencodable immediate as an argument:
   r0, r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
   reg, reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 All allowed args (regardless of the input) are:
   reg, reg, reg
   reg, reg, imm 32
-    imm 32: (shift = not allowed, none = not allowed)
+    imm 32: a byte or a byte pattern
 
 fail/arm-m4/rsb_imm_too_large.jazz:
 
@@ -315,11 +315,11 @@ asmgen: instruction RSB is given an unencodable immediate as an argument:
   r0, r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
   reg, reg, imm 32
-    imm 32: (shift = allowed, none = not allowed)
+    imm 32: a byte, a byte pattern or a shifted byte
 All allowed args (regardless of the input) are:
   reg, reg, reg
   reg, reg, imm 32
-    imm 32: (shift = allowed, none = not allowed)
+    imm 32: a byte, a byte pattern or a shifted byte
 
 fail/arm-m4/sub_imm_too_large.jazz:
 
@@ -329,11 +329,11 @@ asmgen: instruction SUB is given an unencodable immediate as an argument:
   r0, r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
   reg, reg, imm 32
-    imm 32: (shift = allowed, none = W12)
+    imm 32: a byte, a byte pattern, a shifted byte or a 12-bit value
 All allowed args (regardless of the input) are:
   reg, reg, reg
   reg, reg, imm 32
-    imm 32: (shift = allowed, none = W12)
+    imm 32: a byte, a byte pattern, a shifted byte or a 12-bit value
 
 fail/arm-m4/subw_set_flags.jazz:
 
@@ -343,11 +343,11 @@ asmgen: instruction SUBS is given an unencodable immediate as an argument:
   r0, r0, (32u) 2762
 Allowed args compatible with the input (except on immediate sizes) are:
   reg, reg, imm 32
-    imm 32: (shift = allowed, none = not allowed)
+    imm 32: a byte, a byte pattern or a shifted byte
 All allowed args (regardless of the input) are:
   reg, reg, reg
   reg, reg, imm 32
-    imm 32: (shift = allowed, none = not allowed)
+    imm 32: a byte, a byte pattern or a shifted byte
 
 fail/arm-m4/tst_imm_shifted.jazz:
 

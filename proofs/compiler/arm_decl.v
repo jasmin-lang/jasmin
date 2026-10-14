@@ -164,6 +164,39 @@ Definition arm_check_CAimm (checker : arm_caimm_cond) ws (w : word ws) : bool :=
   | CAimmC_arm_0_8_16_24 => let x := wunsigned w in x \in [::0;8;16;24]%Z
   end.
 
+(* "a, b or c" *)
+Fixpoint join_or (xs : seq string) : string :=
+  match xs with
+  | [::] => ""
+  | [:: x ] => x
+  | [:: x; y ] => x ++ " or " ++ y
+  | x :: xs => x ++ ", " ++ join_or xs
+  end%string.
+
+(* The values accepted by [check_ei_kind ew]: a byte and a byte pattern
+   always are; a shifted byte and the other values depend on [ew] (see
+   [expected_wencoding] in arm_expand_imm.v). MOV without flags accepts any
+   16-bit value, which covers the bytes. *)
+Definition describe_wencoding (ew : expected_wencoding) : string :=
+  match on_shift ew, on_none ew with
+  | W16_encoding, W16_encoding => "a byte pattern or a 16-bit value"
+  | shift, none =>
+    join_or
+      ([:: "a byte"; "a byte pattern" ]
+       ++ match shift with
+          | WE_allowed true => [:: "a shifted byte" ]
+          | WE_allowed false => [::]
+          | W12_encoding => [:: "a shifted byte below 2^12" ]
+          | W16_encoding => [:: "a shifted byte below 2^16" ]
+          end
+       ++ match none with
+          | WE_allowed true => [:: "any value" ]
+          | WE_allowed false => [::]
+          | W12_encoding => [:: "a 12-bit value" ]
+          | W16_encoding => [:: "a 16-bit value" ]
+          end)
+  end%string.
+
 Definition arm_caimm_cond_pp (checker : arm_caimm_cond) : string :=
   match checker with
   | CAimmC_arm_shift_amout sk =>
@@ -173,9 +206,7 @@ Definition arm_caimm_cond_pp (checker : arm_caimm_cond) : string :=
       | SASR => "[1, 32]"
       | SROR => "[1, 31]"
       end
-  | CAimmC_arm_wencoding ew =>
-      "(shift = " ++ string_of_ew (on_shift ew)
-        ++ ", none = " ++ string_of_ew (on_none ew) ++ ")"
+  | CAimmC_arm_wencoding ew => describe_wencoding ew
   | CAimmC_arm_0_8_16_24 => "[0; 8; 16; 24]"
   end%string.
 
