@@ -31,7 +31,7 @@ let mk_spill o s =
   let xs = Sv.elements s in
   let tys = List.map (fun x -> Conv.cty_of_ty x.v_ty) xs in
   let es = List.map (fun x -> Pvar (gkvar (L.mk_loc L._dummy x))) xs in
-  Copn ([], AT_none, Sopn.Opseudo_op (Ospill (o, tys)), es)
+  Copn ([], AT_none, Sopn.Opseudo_op (Ospill (o, tys)), [], es)
 
 let vars_lv = function
   | Lnone _ | Lvar _ -> Sv.empty
@@ -40,7 +40,7 @@ let vars_lv = function
 
 let vars_i = function
   | Cassgn (x, _, _, e) -> Sv.union (vars_lv x) (vars_e e)
-  | Copn (xs, _, _, es) | Csyscall (xs, _, es) | Ccall (xs, _, es) ->
+  | Copn (xs, _, _, _, es) | Csyscall (xs, _, es) | Ccall (xs, _, _, es) ->
       List.fold Sv.union (vars_es es) (List.map vars_lv xs)
   | Cassert (_, e) -> vars_a e
   | Cfor _ | Cif _ | Cwhile _ -> assert false

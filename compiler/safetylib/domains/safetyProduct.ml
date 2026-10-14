@@ -678,7 +678,7 @@ module PIDynMake (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extende
     | _ -> assert false
 
   let rec build_lmap_i lmap i ssa_i = match i.i_desc, ssa_i.i_desc with
-    | Copn (lvs,_,_,_), Copn (ssa_lvs,_,_,_) ->
+    | Copn (lvs,_,_,_,_), Copn (ssa_lvs,_,_,_,_) ->
       List.fold_left2 (build_map_lv i.i_info) lmap lvs ssa_lvs
         
     | Cassgn (lv,_,_,_), Cassgn (ssa_lv,_,_,_) ->

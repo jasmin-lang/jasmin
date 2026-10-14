@@ -549,10 +549,10 @@ let rec ty_instr is_ct_asm fenv env i =
     let env, lvl = ty_expr ~public:false env e in
     ty_lval env x (declassify_lvl ~loc i.i_annot lvl)
 
-  | Copn (_, _, Sopn.Opseudo_op (Odeclassify _), [ e ]) ->
+  | Copn (_, _, Sopn.Opseudo_op (Odeclassify _), _, [ e ]) ->
      declassify_expr ~loc env e
 
-  | Copn(xs, _, o, es) ->
+  | Copn(xs, _, o, _, es) ->
     let public = not (is_ct_sopn is_ct_asm o) in
     let env, lvl = ty_exprs_max ~public env es in
     ty_lvals1 env xs (declassify_lvl ~loc i.i_annot lvl)
@@ -594,7 +594,7 @@ let rec ty_instr is_ct_asm fenv env i =
       else loop (Env.max env2 env) in
     loop env
 
-  | Ccall (xs, f, es) ->
+  | Ccall (xs, f, _als, es) ->
     let fty = get_fun is_ct_asm fenv f in
     (* Check the arguments *)
     let do_e env e lvl = ty_expr ~public:(lvl=Public) env e in

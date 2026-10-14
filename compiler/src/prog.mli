@@ -72,13 +72,13 @@ type 'len assertion = string * 'len gassert
 type ('len, 'info, 'asm) ginstr_r =
   | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
   (* turn 'asm Sopn.sopn into 'sopn? could be useful to ensure that we remove things statically *)
-  | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
+  | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len list * 'len gexprs
   | Csyscall of 'len glvals * (Wsize.wsize * BinNums.coq_Z) Syscall_t.syscall_t * 'len gexprs
   | Cassert of 'len assertion
   | Cif    of 'len gexpr * ('len, 'info, 'asm) gstmt * ('len, 'info, 'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len, 'info, 'asm) gstmt
   | Cwhile of E.align * ('len, 'info, 'asm) gstmt * 'len gexpr * (IInfo.t * 'info) * ('len, 'info, 'asm) gstmt
-  | Ccall  of 'len glvals * funname * 'len gexprs
+  | Ccall  of 'len glvals * funname * 'len list * 'len gexprs
 
 and ('len, 'info, 'asm) ginstr = {
     i_desc : ('len, 'info, 'asm) ginstr_r;
@@ -112,6 +112,7 @@ type ('len, 'info, 'asm) gfunc = {
     f_contract: 'len gfcontract option;
     f_cc   : FInfo.call_conv;
     f_name : funname;
+    f_al : (Uint63.t * 'len gvar) list;
     f_tyin : 'len gty list;
     f_args : 'len gvar list;
     f_body : ('len, 'info, 'asm) gstmt;
@@ -163,8 +164,6 @@ module PV : sig
   val equal : pvar -> pvar -> bool
 
   val hash : pvar -> int
-
-  val is_glob : pvar -> bool
 end
 
 val gkglob : 'len gvar_i -> 'len ggvar
@@ -232,8 +231,6 @@ module V : sig
   val equal : var -> var -> bool
 
   val hash : var -> int
-
-  val is_glob : var -> bool
 end
 
 module Sv : Set.S  with type elt = var

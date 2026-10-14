@@ -31,7 +31,7 @@ let parse_file arch_info ?(idirs=[]) fname =
 (* -------------------------------------------------------------------- *)
 let rec warn_extra_i pd msfsize asmOp i =
   match i.i_desc with
-  | Cassgn (_, tag, _, _) | Copn (_, tag, _, _) -> (
+  | Cassgn (_, tag, _, _) | Copn (_, tag, _, _, _) -> (
       match tag with
       | AT_rename ->
           warning ExtraAssignment i.i_loc

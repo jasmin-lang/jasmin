@@ -13,7 +13,7 @@ type mem_loc = MemLoc of var
 
 (* (v,ws,i) is the slice [8*i; 8*i + ws[ of v. 
      Note that the slice offset is not scaled on the word-size. *)
-type slice = var * wsize * int
+type slice = var * wsize * Z.t
              
 type atype =
   | Avar of var                     (* Variable *)
@@ -63,8 +63,8 @@ let string_of_mloc = function
 let string_of_atype = function
   | Avar s -> "v_" ^ s.v_name
   | Aarray t -> "a_" ^ t.v_name
-  | AarraySlice (t,ws,int) ->
-    Format.asprintf "ael_%s_%d_%d" t.v_name (int_of_ws ws) int
+  | AarraySlice (t,ws,z) ->
+    Format.asprintf "ael_%s_%d_%a" t.v_name (int_of_ws ws) Z.pp_print z
 
 let string_of_mvar = function
   | Temp (s, i, _) -> "tmp_" ^ s ^ "_" ^ string_of_int i
@@ -103,8 +103,8 @@ let mvar_ignore = function
   | _ -> false
     
 (*---------------------------------------------------------------*)
-let arr_range (v : var) : int = match v.v_ty with
-  | Arr (_,i) -> length_to_int i
+let arr_range (v : var) : Z.t = match v.v_ty with
+  | Arr (_,i) -> z_of_length i
   | _ -> assert false
 
 let arr_size v = match v.v_ty with
@@ -179,14 +179,14 @@ let u8_blast_at ~blast_arrays scope at =
     | Aarray v ->
       if blast_arrays then
         let iws = size_of_ws (arr_size v) in
-        let r = max 0 (arr_range v) in
-        let vi i = AarraySlice (v,U8,i) in
+        let r = int_of_z (Z.(max zero (arr_range v))) in
+        let vi i = AarraySlice (v,U8,Z.of_int i) in
         List.init (r * iws) vi
       else [at]
 
     | AarraySlice (v,ws,j) ->
       let iws = size_of_ws ws in
-      let vi i = AarraySlice (v,U8,i + j) in
+      let vi i = AarraySlice (v,U8,Z.(of_int i + j)) in
       List.init iws vi
     | _ -> [at]
   in
@@ -211,9 +211,9 @@ let rec expand_arr_vars = function
       match v.v_ty with
       | Bty _ -> assert false
       | Arr (ws, n) ->
-        let n = length_to_int n in
+        let n = z_of_length n in
         let wsz = size_of_ws ws in
-        List.init (max 0 n) (fun i -> of_scope scope (AarraySlice (v,ws,wsz * i)))
+        List.init (int_of_z Z.(max zero n)) (fun i -> of_scope scope (AarraySlice (v,ws,Z.of_int (wsz * i))))
         @ expand_arr_vars t
     end
   | v :: t -> v :: expand_arr_vars t

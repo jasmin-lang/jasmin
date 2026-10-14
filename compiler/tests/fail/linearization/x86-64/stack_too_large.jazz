@@ -1,8 +1,7 @@
 export
 fn main() -> reg u64 {
-    stack u64[1] a;
+    stack u64[0x10000000000000000] a;
 
-    a[0:0x10000000000000000] = a;
     a[0] = 0;
 
     reg u64 r;

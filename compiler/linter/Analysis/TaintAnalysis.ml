@@ -71,11 +71,11 @@ let analyse_stmt (context : signatures) dom stmt =
         ( ( { get_writeset = written_lv w.get_writeset x },
             write_dependencies d deps x ),
           Cassgn (x, tg, ty, e) )
-    | Copn (xs, tg, op, es) ->
+    | Copn (xs, tg, op, als, es) ->
         let d = vars_es es in
         ( (written_lvs w xs, List.fold_left (write_dependencies d) deps xs),
-          Copn (xs, tg, op, es) )
-    | Ccall (xs, fn, es) ->
+          Copn (xs, tg, op, als, es) )
+    | Ccall (xs, fn, als, es) ->
         let args, rets = Mf.find fn context in
         let w =
           {
@@ -92,7 +92,7 @@ let analyse_stmt (context : signatures) dom stmt =
             (fun d lv x -> write_dependencies (Sv.singleton x) d lv)
             deps xs rets
         in
-        ((written_lvs w xs, deps), Ccall (xs, fn, es))
+        ((written_lvs w xs, deps), Ccall (xs, fn, als, es))
     | Csyscall ([ x ], RandomBytes len, es) ->
         (* The result of #randombytes does not depend on its argument. *)
         ( ( { get_writeset = written_lv w.get_writeset x },
@@ -202,7 +202,7 @@ let check_func (context : signatures) (liveness : Sv.t Miloc.t) fd :
     let tocheck = Sv.inter written live in
     check ~loc:i.i_loc.base_loc deps tocheck;
     match i.i_desc with
-    | Ccall (_xs, fn, _es) ->
+    | Ccall (_xs, fn, _als, _es) ->
         let args, _rets = Mf.find fn context in
         check ~kind:"Inline parameter" ~loc:i.i_loc.base_loc deps
           (Sv.of_list args)

@@ -1,5 +1,7 @@
 open Prog
 
+val psubst_ety : (pexpr_ ggvar -> pexpr) -> epty -> epty
+
 (* apply a substitution within a function *)
 val gsubst_func : (?loc:L.t -> 'ty1 -> 'ty2) -> ('ty1 ggvar -> 'ty2 gexpr) -> ('ty1, 'info, 'asm) gfunc -> ('ty2, 'info, 'asm) gfunc
 

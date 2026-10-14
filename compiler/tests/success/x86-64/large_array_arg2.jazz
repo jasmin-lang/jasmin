@@ -1,0 +1,10 @@
+param int N = 1 << 64;
+
+export fn array_sum(reg ptr u64[N] array, reg u64 size) -> reg u64 {
+  reg u64 i = 0, sum = 0;
+  while (i < size) {
+    sum += array[i];
+    i += 1;
+  }
+  return i;
+}

@@ -58,6 +58,9 @@ let rec cal_of_al al =
   | Shl (al1, al2) -> ALShl (cal_of_al al1, cal_of_al al2)
   | Shr (al1, al2) -> ALShr (cal_of_al al1, cal_of_al al2)
 
+let al_of_cals als = List.map al_of_cal als
+let cal_of_als als = List.map cal_of_al als
+
 let cty_of_ty = function
   | Bty Bool      -> T.Coq_abool
   | Bty Int       -> T.Coq_aint
@@ -201,9 +204,9 @@ and cinstr_r_of_instr_r p i =
       C.Cassgn(clval_of_lval x, t, cty_of_ty ty, cexpr_of_expr e) in
     C.MkI(p, ir)
 
-  | Copn(x,t,o,e) ->
+  | Copn(x,t,o,als,e) ->
     let ir =
-      C.Copn(clval_of_lvals x, t, o, cexpr_of_exprs e) in
+      C.Copn(clval_of_lvals x, t, o, cal_of_als als, cexpr_of_exprs e) in
     C.MkI(p, ir)
 
   | Csyscall(x,o,e) ->
@@ -231,8 +234,8 @@ and cinstr_r_of_instr_r p i =
     let ir = C.Cwhile(a, cstmt_of_stmt c, cexpr_of_expr e, info,
                       cstmt_of_stmt c') in
     C.MkI(p,ir)
-  | Ccall(x, f, e) ->
-    let ir = C.Ccall(clval_of_lvals x, f, cexpr_of_exprs e) in
+  | Ccall(x, f, al, e) ->
+    let ir = C.Ccall(clval_of_lvals x, f, cal_of_als al, cexpr_of_exprs e) in
     C.MkI(p,ir)
 
 and cstmt_of_stmt c =
@@ -249,8 +252,8 @@ and instr_r_of_cinstr_r = function
   | C.Cassgn(x,t, ty,e) ->
     Cassgn(lval_of_clval x, t, ty_of_cty ty, expr_of_cexpr e)
 
-  | C.Copn(x,t,o,e) ->
-    Copn(lval_of_clvals x, t, o, expr_of_cexprs e)
+  | C.Copn(x,t,o,als,e) ->
+    Copn(lval_of_clvals x, t, o, al_of_cals als, expr_of_cexprs e)
 
   | C.Csyscall(x,o,e) ->
     Csyscall(lval_of_clvals x, o, expr_of_cexprs e)
@@ -272,8 +275,8 @@ and instr_r_of_cinstr_r = function
   | Cwhile(a, c, e, info, c') ->
     Cwhile(a, stmt_of_cstmt c, expr_of_cexpr e, (info, ()), stmt_of_cstmt c')
 
-  | Ccall(x, f, e) ->
-    Ccall(lval_of_clvals x, f, expr_of_cexprs e)
+  | Ccall(x, f, als, e) ->
+    Ccall(lval_of_clvals x, f, al_of_cals als, expr_of_cexprs e)
 
 and stmt_of_cstmt c =
   List.map instr_of_cinstr c
@@ -297,6 +300,7 @@ let cufdef_of_fdef fd =
   let f_res = List.map cvari_of_vari fd.f_ret in
   fn, { C.f_info   = f_info;
         C.f_contract = Option.map ccontract_of_contract fd.f_contract;
+        C.f_al     = fd.f_al;
         C.f_tyin   = List.map cty_of_ty fd.f_tyin;
         C.f_params = f_params;
         C.f_body   = f_body;
@@ -321,6 +325,7 @@ let fdef_of_cufdef (fn, fd) =
     f_cc;
     f_info = ();
     f_name = fn;
+    f_al = fd.f_al;
     f_tyin = List.map ty_of_cty fd.C.f_tyin;
     f_args = List.map (fun v -> L.unloc (vari_of_cvari v)) fd.C.f_params;
     f_body = stmt_of_cstmt fd.C.f_body;

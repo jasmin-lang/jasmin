@@ -4,17 +4,17 @@ let jasmin_bool b = Jasmin.Values.Vbool b
 
 let () =
   let prog = load_file "basic.jazz" in
-  exec prog [] "f" [];
-  exec prog [] "ft" [];
-  exec prog [ (Z.of_string "0x1000", Z.of_int 8) ] "mem" [];
-  exec prog [ (Z.of_string "0x1000", Z.of_int 16) ] "mem1" [];
-  exec prog [] "test_assert" [ jasmin_bool true ];
-  exec prog [] "test_assert" [ jasmin_bool false ]
+  exec prog [] "f" [] [];
+  exec prog [] "ft" [] [];
+  exec prog [ (Z.of_string "0x1000", Z.of_int 8) ] "mem" [] [];
+  exec prog [ (Z.of_string "0x1000", Z.of_int 16) ] "mem1" [] [];
+  exec prog [] "test_assert" [] [ jasmin_bool true ];
+  exec prog [] "test_assert" [] [ jasmin_bool false ]
 
 let () =
   let prog = load_file "../success/x86-64/clc-stc.jazz" in
-  exec prog [] "test_stc" [];
-  exec prog [] "test_clc" []
+  exec prog [] "test_stc" [] [];
+  exec prog [] "test_clc" [] []
 
 let () =
   let prog = load_file "poly1305.jazz" in
@@ -24,55 +24,55 @@ let () =
       (Z.of_int 0x1100, Z.of_int 32);
       (Z.of_int 0x1000, Z.of_int 34);
     ]
-    "test_poly1305" []
+    "test_poly1305" [] []
 
 let () =
   let prog = load_file "return-undef.jazz" in
-  exec prog [] "f" []
+  exec prog [] "f" [] []
 
 let () =
   let prog = load_file "cmoveptr.jazz" in
-  exec prog [] "zero" [];
-  exec prog [] "one" []
+  exec prog [] "zero" [] [];
+  exec prog [] "one" [] []
 
 let () =
   let prog = load_file "../success/subroutines/x86-64/literal-argument.jazz" in
-  exec prog [] "one" []
+  exec prog [] "one" [] []
 
 let () =
   let prog = load_file "for.jazz" in
-  exec prog [] "test_for" [];
-  exec prog [] "test_param" []
+  exec prog [] "test_for" [] [];
+  exec prog [] "test_param" [] []
 
 let () =
   let prog = load_file "inline-call.jazz" in
-  exec prog [] "test" []
+  exec prog [] "test" [] []
 
 let () =
   let prog = load_file "../success/x86-64/lzcnt.jazz" in
-  exec prog [] "foo" []
+  exec prog [] "foo" [] []
 
 let () =
   let prog = load_file "../success/x86-64/test_parity.jazz" in
-  exec prog [] "test_parity" []
+  exec prog [] "test_parity" [] []
 
 let () =
   let prog = load_file "../success/x86-64/test_ptr_fn_inline.jazz" in
-  exec prog [] "foo" []
+  exec prog [] "foo" [] []
 
 let () =
   let prog = load_file "vpsxldq.jazz" in
-  exec prog [ (Z.of_int 0x480, Z.of_int 64) ] "etest" []
+  exec prog [ (Z.of_int 0x480, Z.of_int 64) ] "etest" [] []
 
 let () =
   let prog = load_file "../success/x86-64/test_global_string_literal.jazz" in
-  exec prog [] "main" []
+  exec prog [] "main" [] []
 
 let () =
   let prog = load_file "wide_rotation.jazz" in
-  exec prog [] "main" []
+  exec prog [] "main" [] []
 
 let () =
   let prog = load_file "../success/common/literal-arrays.jazz" in
   let w z = Jasmin.(Values.Vword (U32, Conv.word_of_z U32 z)) in
-  exec prog [] "test_string" [ w Z.zero ]
+  exec prog [] "test_string" [] [ w Z.zero ]

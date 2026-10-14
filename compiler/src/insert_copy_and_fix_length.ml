@@ -60,17 +60,17 @@ and iac_instr_r pd loc ir =
           warning IntroduceArrayCopy
             loc "an array copy is introduced";
           let op = Pseudo_operator.Ocopy(ws, Conv.cz_of_z n) in
-          Copn([x], t, Sopn.Opseudo_op op, [e])
+          Copn([x], t, Sopn.Opseudo_op op, [], [e])
     end
   | Cif (b, th, el) -> Cif (b, iac_stmt pd th, iac_stmt pd el)
   | Cfor (i, r, s) -> Cfor (i, r, iac_stmt pd s)
   | Cwhile (a, c1, t, info, c2) -> Cwhile (a, iac_stmt pd c1, t, info, iac_stmt pd c2)
-  | Copn (xs,t,o,es) ->
+  | Copn (xs,t,o,als,es) ->
 
     begin match o, xs with
     | Sopn.Opseudo_op(Pseudo_operator.Ospill(o,_)), _ ->
       let tys = List.map (fun e -> Conv.cty_of_ty (Typing.ty_expr pd loc e)) es in
-      Copn(xs,t, Sopn.Opseudo_op(Pseudo_operator.Ospill(o, tys)), es)
+      Copn(xs,t, Sopn.Opseudo_op(Pseudo_operator.Ospill(o, tys)), als,es)
 
     | Sopn.Opseudo_op(Pseudo_operator.Ocopy(ws, _)), [x] ->
       (* Fix the size it is dummy for the moment *)
@@ -88,12 +88,12 @@ and iac_instr_r pd loc ir =
       else
         let len = Z.div xn (Z.of_int wsn) in
         let op = Pseudo_operator.Ocopy (ws, Conv.cz_of_z len) in
-        Copn(xs,t,Sopn.Opseudo_op op, es)
+        Copn(xs,t,Sopn.Opseudo_op op, als,es)
     | Sopn.Opseudo_op(Ocopy _), _ -> assert false
     | Sopn.Opseudo_op(Pseudo_operator.Oswap _), x::_ ->
       (* Fix the type it is dummy for the moment *)
       let ty = Conv.cty_of_ty (Typing.ty_lval pd loc x) in
-      Copn(xs, t, Sopn.Opseudo_op(Pseudo_operator.Oswap ty), es)
+      Copn(xs, t, Sopn.Opseudo_op(Pseudo_operator.Oswap ty), als, es)
     | Sopn.Opseudo_op(Pseudo_operator.Oswap _), [] -> assert false
     | Sopn.Oslh (SLHprotect_ptr _), [Lvar x] ->
       (* Fix the size it is dummy for the moment *)
@@ -104,12 +104,12 @@ and iac_instr_r pd loc ir =
         | _ -> assert false (* FIXME *)
       in
       let op = Slh_ops.SLHprotect_ptr (ws, Conv.cz_of_z len) in
-      Copn(xs,t, Sopn.Oslh op, es)
+      Copn(xs,t, Sopn.Oslh op, als, es)
     | Sopn.Oslh (SLHprotect_ptr _), _ -> assert false
     | Sopn.Opseudo_op (Odeclassify _), _ ->
       let arg = List.hd es in
       let ty = Conv.cty_of_ty (Typing.ty_expr pd loc arg) in
-      Copn(xs, t, Sopn.Opseudo_op (Odeclassify ty), es)
+      Copn(xs, t, Sopn.Opseudo_op (Odeclassify ty), als, es)
     | Sopn.Opseudo_op (Onop | Odeclassify_mem _ | Omulu _ | Oaddcarry _ | Osubcarry _), _
     | Sopn.Oslh (SLHinit|SLHupdate|SLHmove|SLHprotect _|SLHprotect_ptr_fail _), _
     | Sopn.Oasm _, _ -> ir

@@ -190,7 +190,7 @@ let main () =
               |> Evaluator.run
                    (module Arch)
                    (Expr.to_uprog Arch.asmOp cprog)
-                   ii f []
+                   ii f [] []
             in
 
             Format.printf "@[<v>%a@]@."

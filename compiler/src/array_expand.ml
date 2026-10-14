@@ -13,8 +13,13 @@ let init_tbl fc =
       let ty = Bty (U ws) in
       let vi i =
         V.mk (v.v_name ^ "#" ^ string_of_int i) (Reg(reg_kind v.v_kind, Direct)) ty v.v_dloc v.v_annot in
-      let t = Array.init (Z.to_int (Z.max Z.zero len)) vi in (* FIXME: should we catch Overflow? *)
-      Hv.add tbl v (ws, t)
+      begin match Z.to_int (Z.max Z.zero len) with
+      | exception Z.Overflow ->
+        hierror ~loc:(Lone v.v_dloc) ~funname:fc.f_name.fn_name "the length of variable %a is too large" (Printer.pp_dvar ~debug:true) v
+      | z ->
+        let t = Array.init z vi in
+        Hv.add tbl v (ws, t)
+      end
     | _ ->
       hierror ~loc:(Lone v.v_dloc) ~funname:fc.f_name.fn_name "variable %a has a non-constant length" (Printer.pp_dvar ~debug:true) v
   in

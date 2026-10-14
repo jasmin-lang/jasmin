@@ -20,21 +20,21 @@ val check_is_word : length ggvar -> unit
 type 'a gmsub = { ms_v      : var;
                   ms_sc     : Expr.v_scope;
                   ms_ws     : wsize;
-                  ms_len    : int;
+                  ms_len    : Z.t;
                   ms_offset : 'a; }
 
 (* - [{ms_v; ms_ws; ms_len; Some ms_offset}] is the slice
      [8*ms_offset; 8*ms_offset + ms_ws * ms_len[ of ms_v.
      Note that the offset is not scaled on the word-size.
    - if [ms_offset] is not, the slices starts at an unknown offset. *)
-type msub = int gmsub
+type msub = Z.t gmsub
 
 (*---------------------------------------------------------------*)
 type mlvar =
   | MLnone
   | MLvar  of minfo * mvar
   | MLvars of minfo * mvar list
-  | MLasub of minfo * int option gmsub
+  | MLasub of minfo * Z.t option gmsub
 
 val pp_mlvar : Format.formatter -> mlvar -> unit
 
@@ -53,7 +53,7 @@ module AbsExpr (Arch: SafetyArch.SafetyArch) (AbsDom : SafetyInterfaces.AbsNumBo
 
   val abs_sub_arr_range :
     AbsDom.t -> (var * Expr.v_scope) ->
-    Warray_.arr_access -> wsize -> int -> expr ->
+    Warray_.arr_access -> wsize -> Z.t -> expr ->
     mvar list
 
   val linearize_smpl_iexpr : AbsDom.t -> expr -> Mtexpr.t option

@@ -155,8 +155,8 @@ and eq_pinstr_r (x : _ pinstr_r) y =
   match (x, y) with
   | Cassgn (a, b, c, d), Cassgn (e, f, g, h) ->
       eq_plval a e && b = f && eq_pty c g && eq_pexpr d h
-  | Copn (a, b, c, d), Copn (e, f, g, h) ->
-      eq_plvals a e && b = f && c = g && eq_pexprs d h
+  | Copn (a, b, c, d, e), Copn (f, g, h, i, j) ->
+      eq_plvals a f && b = g && c = h && List.for_all2 eq_pexpr_ d i && eq_pexprs e j
   | Cassert (a, b), Cassert (c, d) -> eq_assertion (a, b) (c, d)
   | Csyscall (a, b, c), Csyscall (d, e, f) ->
       eq_plvals a d && b = e && eq_pexprs c f
@@ -165,8 +165,8 @@ and eq_pinstr_r (x : _ pinstr_r) y =
       eq_pvar_i a d && eq_prange b e && eq_pstmt c f
   | Cwhile (a, b, c, _d, e), Cwhile (f, g, h, _i, j) ->
       a = f && eq_pstmt b g && eq_pexpr c h && eq_pstmt e j
-  | Ccall (a, b, c), Ccall (d, e, f) ->
-      eq_plvals a d && b.fn_name = e.fn_name && eq_pexprs c f
+  | Ccall (a, b, c, d), Ccall (e, f, g, h) ->
+      eq_plvals a e && b.fn_name = f.fn_name && List.for_all2 eq_pexpr_ c g && eq_pexprs d h
   | ( ( Cassgn _ | Copn _ | Csyscall _ | Cassert _ | Cif _ | Cfor _ | Cwhile _
       | Ccall _ ),
       _ ) ->

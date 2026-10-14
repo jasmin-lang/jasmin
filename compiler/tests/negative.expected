@@ -744,6 +744,12 @@ internal compilation error in function main:
   dead code: loop iterator too small
 Please report at https://github.com/jasmin-lang/jasmin/issues
 
+fail/linearization/x86-64/stack_too_large.jazz:
+
+"fail/linearization/x86-64/stack_too_large.jazz", line 1 (0) to line 11 (1):
+compilation error in function main:
+linearization: bad stack size
+
 fail/namespaces/common/duplicate.jazz:
 
 "fail/namespaces/common/duplicate.jazz", line 2 (13-23): The function A::f is already declared at "fail/namespaces/common/duplicate.jazz", line 1 (13-23)
@@ -784,53 +790,29 @@ fail/param_expansion/x86-64/array_size_mismatch2.jazz:
 compilation error:
 param expansion: array size mismatch for global variable g: 1 value given (4 expected)
 
-fail/param_expansion/x86-64/array_too_large_arg.jazz:
-
-"fail/param_expansion/x86-64/array_too_large_arg.jazz", line 2 (37-38):
-compilation error in function main:
-param expansion: cannot define a (sub-)array of size 18446744073709551616, this number is too big
-
-fail/param_expansion/x86-64/array_too_large_expr.jazz:
-
-"fail/param_expansion/x86-64/array_too_large_expr.jazz", line 5 (8-9):
-compilation error in function main:
-param expansion: cannot define a (sub-)array of size 18446744073709551616, this number is too big
-
-fail/param_expansion/x86-64/array_too_large_global.jazz:
-
-"fail/param_expansion/x86-64/array_too_large_global.jazz", line 1 (25-26):
-compilation error:
-param expansion: cannot define a (sub-)array of size 18446744073709551616, this number is too big
-
-fail/param_expansion/x86-64/array_too_large_lval.jazz:
-
-"fail/param_expansion/x86-64/array_too_large_lval.jazz", line 5 (4-5):
-compilation error in function main:
-param expansion: cannot define a (sub-)array of size 18446744073709551616, this number is too big
-
 fail/param_expansion/x86-64/expression_arg.jazz:
 
 "fail/param_expansion/x86-64/expression_arg.jazz", line 3 (24-25):
 compilation error in function f:
-param expansion: unary operator (64u) not supported in array sizes
+param expansion: unary operator (uint) not supported in array sizes
 
 fail/param_expansion/x86-64/expression_global.jazz:
 
 "fail/param_expansion/x86-64/expression_global.jazz", line 2 (7-8):
 compilation error:
-param expansion: unary operator (64u) not supported in array sizes
+param expansion: unary operator (uint) not supported in array sizes
 
 fail/param_expansion/x86-64/expression_global2.jazz:
 
 "fail/param_expansion/x86-64/expression_global2.jazz", line 2 (18-19):
 compilation error:
-param expansion: unary operator (64u) not supported in array sizes
+param expansion: unary operator (uint) not supported in array sizes
 
 fail/param_expansion/x86-64/expression_res.jazz:
 
 "fail/param_expansion/x86-64/expression_res.jazz", line 4 (13-14):
 compilation error in function f:
-param expansion: unary operator (64u) not supported in array sizes
+param expansion: unary operator (uint) not supported in array sizes
 
 fail/param_expansion/x86-64/global_array_not_constant.jazz:
 
@@ -1534,7 +1516,7 @@ fail/typing/x86-64/lval_mismatch.jazz:
 
 fail/typing/x86-64/lval_param.jazz:
 
-"fail/typing/x86-64/lval_param.jazz", line 4 (3-4): param variables are not allowed here
+"fail/typing/x86-64/lval_param.jazz", line 4 (3-4): param and length variables are not allowed here
 
 fail/typing/x86-64/non_inline_stack_arg.jazz:
 
@@ -1548,7 +1530,7 @@ typing error: t has kind stack, only reg or reg ptr are allowed in result of non
 
 fail/typing/x86-64/only_param.jazz:
 
-"fail/typing/x86-64/only_param.jazz", line 3 (10-11): only param variables are allowed here
+"fail/typing/x86-64/only_param.jazz", line 3 (10-11): only param and length variables are allowed here
 
 fail/typing/x86-64/param_type_mismatch.jazz:
 
@@ -1560,7 +1542,7 @@ fail/typing/x86-64/res_wrong_type.jazz:
 
 fail/typing/x86-64/subarray_non_const_len.jazz:
 
-"fail/typing/x86-64/subarray_non_const_len.jazz", line 5 (6-7): only param variables are allowed here
+"fail/typing/x86-64/subarray_non_const_len.jazz", line 5 (6-7): only param and length variables are allowed here
 
 fail/typing/x86-64/unsupported_primitive.jazz:
 
@@ -1765,4 +1747,4 @@ Statistics:
 	Pretyping:  52
 	Parsing:     4
 	Typing:      5
-	Compile:   218
+	Compile:   215

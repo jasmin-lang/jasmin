@@ -195,9 +195,16 @@ let rec check_instr pd msfsz asmOp env i =
     check_expr pd loc e ty;
     check_lval pd loc x ty
 
-  | Copn(xs,_,op,es) ->
+  | Copn(xs,_,op,als,es) ->
     let tins, tout = type_of_sopn loc pd msfsz asmOp op in
+    let al = (Sopn.get_instr_desc pd msfsz asmOp op).al in
+    let f =
+      let l = List.combine al als in
+      fun x -> List.assoc_opt x l
+    in
+    let tins = List.map (subst_ty f) tins in
     check_exprs pd loc es tins;
+    let tout = List.map (subst_ty f) tout in
     check_lvals pd loc xs tout
 
   | Csyscall(xs, o, es) ->
@@ -226,10 +233,16 @@ let rec check_instr pd msfsz asmOp env i =
     check_cmd pd msfsz asmOp env c1;
     check_cmd pd msfsz asmOp env c2
 
-  | Ccall(xs,fn,es) ->
+  | Ccall(xs,fn,als,es) ->
     let fd = getfun env fn in
-    check_exprs pd loc es fd.f_tyin;
-    check_lvals pd loc xs fd.f_tyout
+    let f =
+      let l = List.combine fd.f_al als in
+      fun x -> List.assoc_opt x l
+    in
+    let tyin = List.map (subst_ty f) fd.f_tyin in
+    check_exprs pd loc es tyin;
+    let tyout = List.map (subst_ty f) fd.f_tyout in
+    check_lvals pd loc xs tyout
 
 and check_cmd pd msfsz asmOp env c =
   List.iter (check_instr pd msfsz asmOp env) c

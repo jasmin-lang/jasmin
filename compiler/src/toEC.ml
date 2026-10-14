@@ -1387,7 +1387,7 @@ let rec is_write_i x i =
   match i.i_desc with
   | Cassgn (lv,_,_,_) ->
     is_write_lv x lv
-  | Copn(lvs,_,_,_) | Ccall(lvs, _, _) | Csyscall(lvs,_,_) ->
+  | Copn(lvs,_,_,_,_) | Ccall(lvs, _, _, _) | Csyscall(lvs,_,_) ->
     is_write_lvs x lvs
   | Cassert _ -> false
   | Cif(_, c1, c2) | Cwhile(_, c1, _, _, c2) ->
@@ -1885,10 +1885,12 @@ struct
           let tys = [ty_expr e] in
           (ec_leaks_es env [e]) @
           ec_expr_assgn env [lv] tys tys (toec_expr env e)
-      | Copn ([], _, op, es) ->
+      | Copn ([], _, op, als, es) ->
+          assert (als = []);
           (ec_leaks_opn env es) @
           [EScomment (Format.sprintf "Erased call to %s" (ec_opn (Env.pd env) (Env.msfsz env) asmOp op))]
-      | Copn (lvs, _, op, es) ->
+      | Copn (lvs, _, op, als, es) ->
+          assert (als = []);
           let op' = base_op op in
           (* Since we do not have merge for the moment only the output type can change *)
           let otys,itys = ty_sopn (Env.pd env) (Env.msfsz env) asmOp op es in
@@ -1897,7 +1899,8 @@ struct
           let ec_e op = Eapp (ec_op op, List.map (toec_cast env) (List.combine itys es)) in
           (ec_leaks_opn env es) @
           (ec_expr_assgn env lvs otys otys' (ec_e op'))
-      | Ccall (lvs, f, es) ->
+      | Ccall (lvs, f, als, es) ->
+          assert (als = []);
           let env = Env.new_aux_range env in
           let otys, itys = Env.get_funtype env f in
           let args = List.map (toec_cast env) (List.combine itys es) in
@@ -2117,7 +2120,7 @@ and used_func_i used i =
   | Cif (_,c1,c2)     -> used_func_c (used_func_c used c1) c2
   | Cfor(_,_,c)       -> used_func_c used c
   | Cwhile(_, c1, _, _, c2) -> used_func_c (used_func_c used c1) c2
-  | Ccall (_,f,_)   -> Ss.add f.fn_name used
+  | Ccall (_,f,_,_)   -> Ss.add f.fn_name used
 
 let extract ((globs,funcs):('info, 'asm) prog) arch pd msfsz asmOp (model: model) amodel fnames array_dir fmt =
   let save_array_theories array_theories =

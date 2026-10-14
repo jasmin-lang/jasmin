@@ -242,12 +242,15 @@ let split_div sg ws es =
 
 (* Quick port of the safety checker to arrays of non-const length: we fail when encountering
    such an array. TODO: proper support *)
-let length_to_int len =
+let z_of_length len =
   match len with
-  | CoreIdent.Const len -> Z.to_int len
+  | CoreIdent.Const len -> len
   | _ ->
     Format.eprintf "Arrays of non-const length not supported yet@.";
     assert false
 
-(* TODO: proper support of Z.t rather than int *)
-let access_offset aa ws i = Z.to_int (access_offset aa ws (Z.of_int i))
+let int_of_z z =
+  try Z.to_int z
+  with Z.Overflow ->
+    Format.eprintf "Error: cannot analyze a (sub-)array of size %a, it is too large.@." Z.pp_print z;
+    exit 1

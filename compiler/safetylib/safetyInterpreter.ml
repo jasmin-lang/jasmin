@@ -94,7 +94,7 @@ let add_glob_var env (v : var) =
 
 type arr_slice = { as_arr    : var;
                    as_wsize  : wsize;
-                   as_len    : int;
+                   as_len    : Z.t;
                    as_access : Warray_.arr_access;
                    as_offset : Prog.expr; }
 
@@ -102,7 +102,7 @@ type safe_cond =
   | Initv of var
 
   | Initai  of arr_slice
-  | InBound of int * arr_slice
+  | InBound of Z.t * arr_slice
   | InRange of expr * expr * expr (* InRange a b c ≡ c ∈ [a; b] *)
 
   | Valid       of wsize * expr (* allocated memory region *)
@@ -139,12 +139,12 @@ let pp_arr_slice fmt slice =
   let pp_var = Printer.pp_var ~debug:false in
   let pp_expr = Printer.pp_expr ~debug:false in
   let ws = non_default_wsize slice.as_arr slice.as_wsize in
-  if Stdlib.Int.equal slice.as_len 1 then
+  if Z.equal slice.as_len Z.one then
     pp_arr_access pp_var pp_expr fmt Memory_model.Unaligned slice.as_access ws
       slice.as_arr slice.as_offset
   else
     pp_arr_slice pp_var pp_expr Printer.pp_len fmt slice.as_access ws slice.as_arr
-      slice.as_offset (Const (Z.of_int slice.as_len))
+      slice.as_offset (Const slice.as_len)
 
 let pp_safety_cond fmt = function
   | Initv x -> Format.fprintf fmt "is_init %a" pp_var x
@@ -155,8 +155,8 @@ let pp_safety_cond fmt = function
   | NotEqual(sz, e1, e2) -> Format.fprintf fmt "%a <>%a %a" pp_expr e1 pp_ows sz pp_expr e2
   | InRange(lo, hi, e) -> Format.fprintf fmt "%a ∈ [%a; %a]" pp_expr e pp_expr lo pp_expr hi
   | InBound(n,slice)  ->
-    Format.fprintf fmt "in_bound: %a (length %i U8)"
-      pp_arr_slice slice n
+    Format.fprintf fmt "in_bound: %a (length %a U8)"
+      pp_arr_slice slice Z.pp_print n
 
   | Valid (sz, e) ->
     Format.fprintf fmt "is_valid %a u%a" pp_expr e pp_ws sz
@@ -241,8 +241,8 @@ let in_bound x access ws e len =
   let ux = L.unloc x in
   match ux.v_ty with
   | Arr(ws',n) ->
-    let n = length_to_int n in
-                  [InBound ( n * size_of_ws ws',
+    let n = z_of_length n in
+                  [InBound ( Z.(n * of_int (size_of_ws ws')),
                              { as_arr = ux;
                                as_len = len;
                                as_wsize = ws;
@@ -354,13 +354,13 @@ let rec safe_e_rec safe = function
     (safe_e_rec safe e)
 
   | Pget (al, access, ws, x, e) ->
-    in_bound    x.gv access ws e 1 @
-    init_get    x access ws e 1 @
+    in_bound    x.gv access ws e Z.one @
+    init_get    x access ws e Z.one @
     (if al = Aligned then arr_aligned (* x.gv *) access ws e else []) @
     safe
 
   | Psub (access, ws, len, x, e) ->
-    let len = length_to_int len in
+    let len = z_of_length len in
     in_bound    x.gv access ws e len @
     (* Remark that we do not have to check initialization for sub-arrays. *)
     (* Note that the length is scaled with the word-size, so we only
@@ -390,12 +390,12 @@ let safe_lval = function
     (safe_e_rec [] e)
 
   | Laset(al, access,ws, x,e) ->
-    in_bound x access ws e 1 @
+    in_bound x access ws e Z.one @
     (if al = Aligned then arr_aligned (* x *) access ws e else []) @
     safe_e_rec [] e
 
   | Lasub(access,ws,len,x,e) ->
-    let len = length_to_int len in
+    let len = z_of_length len in
     in_bound x access ws e len @
     arr_aligned (* x  *) access ws e @
     safe_e_rec [] e
@@ -438,7 +438,7 @@ let safe_opn pd asmOp safe opn es =
            | _ -> assert false
          in
            List.flatten
-             (List.init (max 0 (Conv.int_of_cz len)) (fun i -> init_get array aa ws (offset i) 1))
+             (List.init (int_of_z Z.(max zero (Conv.z_of_cz len))) (fun i -> init_get array aa ws (offset i) Z.one))
       | NotZero (sz, n) ->
         [ notZero(sz, List.nth es (Conv.int_of_nat n)) ]
 
@@ -479,11 +479,11 @@ let rec safe_eassert cs e =
 
 let safe_instr pd asmOp ginstr = match ginstr.i_desc with
   | Cassgn (lv, _, _, e) -> safe_e_rec (safe_lval lv) e
-  | Copn (lvs,_,opn,es) -> safe_opn pd asmOp (safe_lvals lvs @ safe_es es) opn es
+  | Copn (lvs,_,opn,_,es) -> safe_opn pd asmOp (safe_lvals lvs @ safe_es es) opn es
   | Cassert (_, e) -> safe_eassert [] e
   | Cif(e, _, _) -> safe_e e
   | Cwhile(_, _, _, _, _) -> []       (* We check the while condition later. *)
-  | Ccall(lvs, _, es) | Csyscall(lvs, _, es) -> safe_lvals lvs @ safe_es es
+  | Ccall(lvs, _, _, es) | Csyscall(lvs, _, es) -> safe_lvals lvs @ safe_es es
   | Cfor (_, (_, e1, e2), _) -> safe_es [e1;e2]
 
 let safe_return main_decl =
@@ -739,7 +739,7 @@ end = struct
 
       let upper_bound = Papp2 (Oadd Op_int,
                        lower_bound,
-                       Pconst (Z.of_int (size_of_ws slice.as_wsize *
+                       Pconst (Z.(of_int (size_of_ws slice.as_wsize) *
                                          slice.as_len))) in
       (* We want to check that
            0 <= lower_bound && upper_bound <= n *)
@@ -750,14 +750,14 @@ end = struct
           let int_lower = AbsDom.bound_texpr state.abs lin_lower in
           let int_upper = AbsDom.bound_texpr state.abs lin_upper in
           Scalar.cmp_int int_lower.inf 0 >= 0 &&
-          Scalar.cmp_int int_upper.sup n <= 0 in
+          Scalar.cmp_int int_upper.sup (int_of_z n) <= 0 in
 
       if simple_check then true
       else
         (* We construct the negation of what we want to prove and check that it
            implies false: (0 > lower_bound || upper_bound > n) => false *)
         let lower_be = Papp2 (Ogt Cmp_int, Pconst (Z.of_int 0), lower_bound) in
-        let upper_be = Papp2 (Ogt Cmp_int, upper_bound, Pconst (Z.of_int n)) in
+        let upper_be = Papp2 (Ogt Cmp_int, upper_bound, Pconst n) in
         let be = Papp2 (Oor, lower_be, upper_be) in
 
         begin match AbsExpr.bexpr_to_btcons be state.abs with
@@ -1249,7 +1249,7 @@ end = struct
       let brev = List.rev loop_body in
       begin try
           List.find_map (fun ginstr -> match ginstr.i_desc with
-              | Copn(lvs,_,opn,es) ->
+              | Copn(lvs,_,opn,_,es) ->
                 List.find_map_opt (fun lv ->
                     match lv with
                     | Lvar x ->
@@ -1284,7 +1284,7 @@ end = struct
        a constant integer value. *)
     let rec nm_i vs_for i = match i.i_desc with
       | Cassgn (lv, _, _, e)    -> nm_lv vs_for lv && nm_e vs_for e
-      | Copn (lvs, _, _, es)    -> nm_lvs vs_for lvs && nm_es vs_for es
+      | Copn (lvs, _, _, _, es) -> nm_lvs vs_for lvs && nm_es vs_for es
       | Csyscall(lvs, _ ,es)    -> nm_lvs vs_for lvs && nm_es vs_for es
       | Cassert(_, e)           -> nm_a vs_for e
       | Cif (e, st, st')        ->
@@ -1292,7 +1292,7 @@ end = struct
       | Cfor (i, _, st)         -> nm_stmt (i :: vs_for) st
       | Cwhile (_, st1, e, _, st2) ->
         nm_e vs_for e && nm_stmt vs_for st1 && nm_stmt vs_for st2
-      | Ccall (lvs, fn, es)  ->
+      | Ccall (lvs, fn, _, es)  ->
         let f' = get_fun_def prog fn |> oget in
         nm_lvs vs_for lvs && nm_es vs_for es && nm_fdecl f'
 
@@ -1428,7 +1428,7 @@ end = struct
 
   let cells_of_array x ofs n =
     let x = L.unloc x in
-    List.init (max 0 (Conv.int_of_cz n)) (fun i -> SafetyVar.AarraySlice (x, U8, ofs + i))
+    List.init (int_of_z Z.(max zero (Conv.z_of_cz n))) (fun i -> SafetyVar.AarraySlice (x, U8, Z.(ofs + of_int i)))
 
   let aeval_syscall state sc lvs _es =
     match sc with
@@ -1436,9 +1436,9 @@ end = struct
        let n = Type.arr_size ws len in
        let cells = match lvs with
          | [ Lnone _ ] -> []
-         | [ Lvar x ] -> cells_of_array x 0 n
+         | [ Lvar x ] -> cells_of_array x Z.zero n
          | [ Lasub(aa, ws, _len, x, ofs) ] ->
-            begin match AbsExpr.aeval_cst_int state.abs ofs with
+            begin match AbsExpr.aeval_cst_zint state.abs ofs with
             | Some j -> cells_of_array x (access_offset aa ws j) n
             | None ->
                debug (fun () ->
@@ -1481,7 +1481,7 @@ end = struct
         let abs = AbsExpr.abs_forget_array_contents state.abs ginstr.i_info lv in
         { state with abs }
 
-      | Copn ([ lv ], _, Opseudo_op (Ocopy _), [ e ])
+      | Copn ([ lv ], _, Opseudo_op (Ocopy _), _, [ e ])
       | Cassgn (lv, _, _, e) ->
         let abs = AbsExpr.abs_assign
             state.abs
@@ -1490,7 +1490,7 @@ end = struct
             e in
         { state with abs = abs; }
 
-      | Copn (lvs,tag,opn,es) ->
+      | Copn (lvs,tag,opn,_,es) ->
         begin match is_conditional lvs tag opn es with
         | Some (b, c1, c2)
           when Config.sc_pif_movecc_as_if () ->
@@ -1735,7 +1735,7 @@ end = struct
         { state with abs = abs; }
 
 
-      | Ccall(lvs, f, es) ->
+      | Ccall(lvs, f, _, es) ->
         let f_decl = get_fun_def state.prog f |> oget in
         let fn = f_decl.f_name in
 

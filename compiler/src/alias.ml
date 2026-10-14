@@ -138,7 +138,7 @@ let compare_gvar params x gx y gy =
   let check_size kind1 kind2 x1 s1 x2 s2 =
     match s1, s2 with
     | Const s1, Const s2 ->
-      if not (s1 <= s2) then
+      if not (Z.leq s1 s2) then
         hierror_no_loc "cannot merge a %s and a %s that is larger (%a of size %a, and %a of size %a)"
           kind1 kind2 pp_var x2 Z.pp_print s2 pp_var x1 Z.pp_print s1
     | _ -> ()
@@ -217,7 +217,7 @@ let merge_slices params a s1 s2 =
       | Exact(lo1, _hi1), Exact(lo2, _hi2) ->
         let lo = Z.sub lo2 lo1 in
         let hi = add_z_length lo (size_of s1.in_var.v_ty) in
-        if Z.lt lo Z.zero || (match sz2, hi with | Const sz2, Const hi -> sz2 < hi | _ -> false)
+        if Z.lt lo Z.zero || (match sz2, hi with | Const sz2, Const hi -> Z.lt sz2 hi | _ -> false)
         then hierror_no_loc "merging slices %a and %a may introduce invalid accesses; consider declaring variable %a smaller" pp_slice s1 pp_slice s2 pp_var s1.in_var;
         Exact(lo, hi)
       | Exact(lo1,_hi1), Sub ws2 ->
@@ -297,10 +297,10 @@ let opn_cc o =
 let rec analyze_instr_r params cc a =
   function
   | Cfor _ -> assert false
-  | Ccall (xs, fn, es) -> link_array_return params a xs es (cc fn)
+  | Ccall (xs, fn, _, es) -> link_array_return params a xs es (cc fn)
   | Csyscall (xs, o, es) -> link_array_return params a xs es (syscall_cc o)
   | Cassgn (x, _, ty, e) -> if is_ty_arr ty then assign_arr params a x e else a
-  | Copn (xs, _, o, es) ->
+  | Copn (xs, _, o, _, es) ->
     (* A special case for operators that can return array *)
     begin match opn_cc o with
     | None -> a

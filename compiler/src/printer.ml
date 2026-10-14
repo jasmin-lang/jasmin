@@ -167,6 +167,11 @@ let pp_optional_comment fmt s =
   if s <> "" then
     Format.fprintf fmt " /* %s */" s
 
+let pp_optional_al pp_len fmt al =
+  if al = [] then ()
+  else
+    F.fprintf fmt "{%a}" (pp_list ",@ " pp_len) al
+
 let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
   F.fprintf fmt "%a" pp_info (i.i_loc, i.i_info);
   F.fprintf fmt "%a" pp_annotations i.i_annot;
@@ -185,9 +190,10 @@ let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
       (pp_gtype pp_len) ty
       (pp_tag tg)
 
-  | Copn(x, t, o, e) ->
-    F.fprintf fmt "@[<hov 2>%a%a#%a(%a);%a@]"
+  | Copn(x, t, o, als, e) ->
+    F.fprintf fmt "@[<hov 2>%a%a#%a%a(%a);%a@]"
       (pp_glvs ~debug pp_len pp_var) x pp_cast_opn o pp_opn o
+      (pp_optional_al pp_len) als
       (pp_ges ~debug pp_len pp_var) e
       pp_optional_comment (pp_tag t)
 
@@ -238,12 +244,12 @@ let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
       (pp_ge ~debug pp_len pp_var) e
       (pp_cblock ~debug pp_info pp_len pp_opn pp_var) c'
 
-  | Ccall(x, f, e) ->
+  | Ccall(x, f, al, e) ->
     let pp_x fmt = function
       | [] -> ()
       | x -> F.fprintf fmt "%a" (pp_glvs ~debug pp_len pp_var) x in
-    F.fprintf fmt "@[<hov 2>%a%s(%a);@]"
-      pp_x x f.fn_name (pp_ges ~debug pp_len pp_var) e
+    F.fprintf fmt "@[<hov 2>%a%s%a(%a);@]"
+      pp_x x f.fn_name (pp_optional_al pp_len) al (pp_ges ~debug pp_len pp_var) e
 
 (* -------------------------------------------------------------------- *)
 and pp_gc ~debug pp_info pp_len pp_opn pp_var fmt c =
@@ -293,8 +299,9 @@ let pp_header_ pp_size pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_size in
   let ret = List.map L.unloc fd.f_ret in
   let set_var_type x ty = GV.mk x.v_name x.v_kind ty x.v_dloc x.v_annot in
-  F.fprintf fmt "fn %s @[(%a)@] -> @[(%a)@]"
+  F.fprintf fmt "fn %s%a @[(%a)@] -> @[(%a)@]"
     fd.f_name.fn_name
+    (pp_optional_al pp_var) (List.map snd fd.f_al)
     (pp_list ",@ " pp_vd) fd.f_args
     (pp_return_type pp_size) (List.combine fd.f_ret_info.ret_annot (List.map2 set_var_type ret fd.f_tyout))
 

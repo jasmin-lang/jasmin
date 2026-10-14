@@ -115,7 +115,7 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
   let crip = Var0.Var.vname (Conv.cvar_of_var Arch.rip) in
   let crsp = Var0.Var.vname (Conv.cvar_of_var Arch.rsp_var) in
   let do_slots slots = 
-    List.map (fun (x,ws,ofs) -> ((Conv.cvar_of_var x, ws), Conv.cz_of_int ofs)) slots in
+    List.map (fun (x,ws,ofs) -> ((Conv.cvar_of_var x, ws), Conv.cz_of_z ofs)) slots in
   let cglobs = do_slots gao.gao_slots in
   
   let mk_csao fn = 
@@ -143,7 +143,7 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
   
     let sao = Stack_alloc.{
         sao_align  = align;
-        sao_size   = Conv.cz_of_int size;
+        sao_size   = Conv.cz_of_z size;
         sao_ioff   = Z0;
         sao_extra_size = Z0;
         sao_max_size = Z0;
@@ -293,7 +293,7 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
     let max_size =
       let stk_size =
         Z.add (Conv.z_of_cz csao.Stack_alloc.sao_size)
-                   (Z.of_int extra_size) in
+                   extra_size in
       let stk_size =
         Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size)) in
       add_internal_size fn stk_size;
@@ -306,7 +306,7 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
       Stack_alloc.{ csao with
         sao_align = align;
         sao_ioff = Conv.cz_of_int (if rastack && not (FInfo.is_export fd.f_cc) then size_of_ws Arch.reg_size else 0);
-        sao_extra_size = Conv.cz_of_int extra_size;
+        sao_extra_size = Conv.cz_of_z extra_size;
         sao_max_size = Conv.cz_of_z max_size;
         sao_max_call_depth = Conv.cz_of_z max_call_depth;
       } in
@@ -393,7 +393,7 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
       | Export, Some (_, Some ws) ->
           if Z.equal max_stk Z.zero
             && Z.equal (Conv.z_of_cz csao.Stack_alloc.sao_size) Z.zero
-            && extra_size = 0
+            && Z.equal extra_size Z.zero
           then
             (* no stack to clear, we don't change the alignment *)
             align
@@ -408,13 +408,13 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
     let extra_size =
       let stk_size = 
         Z.add (Conv.z_of_cz csao.Stack_alloc.sao_size)
-                   (Z.of_int extra_size) in
+                   extra_size in
       match fd.f_annot.stack_zero_strategy with
       | Some _ ->
           let round =
               Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size))
           in
-          Z.to_int (Z.sub round (Conv.z_of_cz csao.Stack_alloc.sao_size))
+          Z.sub round (Conv.z_of_cz csao.Stack_alloc.sao_size)
       | None -> extra_size
     in
     (* if we zeroize the stack, we ensure that the max size is a multiple of the
@@ -424,7 +424,7 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
     let max_size = 
       let stk_size = 
         Z.add (Conv.z_of_cz csao.Stack_alloc.sao_size)
-                   (Z.of_int extra_size) in
+                   extra_size in
       let stk_size = 
         match fd.f_cc with
         | Export -> stk_size
@@ -447,7 +447,7 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
       if has_stack then
         match no_room_for_rsp with
         | false -> Expr.SavedStackReg (Conv.cvar_of_var Arch.rip)
-        | true   -> Expr.SavedStackStk (Conv.cz_of_int (List.assoc rsp extrapos))
+        | true   -> Expr.SavedStackStk (Conv.cz_of_z (List.assoc rsp extrapos))
       else Expr.SavedStackNone in
 
     let conv_to_save x =
@@ -455,17 +455,17 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
       List.assoc x extrapos
     in
 
-    let compare_to_save (_, x) (_, y) = Stdlib.Int.compare y x in
+    let compare_to_save (_, x) (_, y) = Z.compare y x in
 
     (* Stack slots for saving callee-saved registers are sorted in increasing order to simplify the check that they are all disjoint. *)
     let convert_to_save m =
-      m |> List.rev_map conv_to_save |> List.sort compare_to_save |> List.rev_map (fun (x, n) -> x, Conv.cz_of_int n)
+      m |> List.rev_map conv_to_save |> List.sort compare_to_save |> List.rev_map (fun (x, n) -> x, Conv.cz_of_z n)
     in
     let csao =
       Stack_alloc.{ csao with
         sao_align = align;
         sao_ioff = Conv.cz_of_int 0;
-        sao_extra_size = Conv.cz_of_int extra_size;
+        sao_extra_size = Conv.cz_of_z extra_size;
         sao_max_size = Conv.cz_of_z max_size;
         sao_max_call_depth = Conv.cz_of_z max_call_depth;
         sao_to_save = convert_to_save to_save; 

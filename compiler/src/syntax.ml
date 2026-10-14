@@ -175,9 +175,9 @@ type pexpr_r =
   | PEstring of string
   | PEBool   of bool
   | PEInt    of int_representation
-  | PECall   of pident * pexpr list
+  | PECall   of pident * pexpr list * pexpr list
   | PECombF  of pident * pexpr list
-  | PEPrim   of pident * pexpr list
+  | PEPrim   of pident * pexpr list * pexpr list
   | PEOp1    of peop1 * pexpr
   | PEOp2    of peop2 * (pexpr * pexpr)
   | PEIf of pexpr * pexpr * pexpr
@@ -274,10 +274,10 @@ module SPrinter = struct
     | PEstring s -> pp_string fmt s
     | PEBool b -> F.fprintf fmt "%s" (if b then "true" else "false")
     | PEInt i -> F.fprintf fmt "%s" i
-    | PECall (f, args) -> F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
+    | PECall (f, al, args) -> F.fprintf fmt "%a%a(%a)" pp_var f pp_optional_al al (pp_list ", " pp_expr) args
     | PECombF (f, args) ->
       F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
-    | PEPrim (f, args) -> F.fprintf fmt "%a%s(%a)" sharp () (L.unloc f) (pp_list ", " pp_expr) args
+    | PEPrim (f, al, args) -> F.fprintf fmt "%a%s%a(%a)" sharp () (L.unloc f) pp_optional_al al (pp_list ", " pp_expr) args
     | PEOp1 (op, e) ->
       let p = prio_of_op1 op in
       optparent fmt prio p "(";
@@ -312,6 +312,11 @@ module SPrinter = struct
       (if aa = Warray_.AAdirect then "." else "")
       pp_aligned (Option.bind len (fun _ -> al))
       (pp_opt pp_ws) ws (pp_opt pp_space) ws pp_expr e pp_olen len
+
+  and pp_optional_al fmt al =
+    if al = [] then ()
+    else
+      F.fprintf fmt "{%a}" (pp_list ",@ " pp_expr) al
 
 end
 
@@ -445,6 +450,7 @@ type pfundef = {
   pdf_annot : pannotations;
   pdf_cc   : pcall_conv option;
   pdf_name : pident;
+  pdf_alargs : pident list;
   pdf_args : (pannotations * paramdecls) list;
   pdf_rty  : (pannotations * pstotype) list option;
   pdf_body : pfunbody;

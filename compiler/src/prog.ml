@@ -108,13 +108,13 @@ type 'len assertion = string * 'len gassert
 type ('len, 'info, 'asm) ginstr_r =
   | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
   (* turn 'asm Sopn.sopn into 'sopn? could be useful to ensure that we remove things statically *)
-  | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
+  | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len list * 'len gexprs
   | Csyscall of 'len glvals * (Wsize.wsize * BinNums.coq_Z) Syscall_t.syscall_t * 'len gexprs
   | Cassert of 'len assertion
   | Cif    of 'len gexpr * ('len, 'info, 'asm) gstmt * ('len, 'info, 'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len, 'info, 'asm) gstmt
   | Cwhile of E.align * ('len, 'info, 'asm) gstmt * 'len gexpr * (IInfo.t * 'info) * ('len, 'info, 'asm) gstmt
-  | Ccall  of 'len glvals * funname * 'len gexprs
+  | Ccall  of 'len glvals * funname * 'len list * 'len gexprs
 
 and ('len,'info,'asm) ginstr = {
     i_desc : ('len, 'info, 'asm) ginstr_r;
@@ -150,6 +150,7 @@ type ('len, 'info, 'asm) gfunc = {
     f_contract: 'len gfcontract option;
     f_cc   : FInfo.call_conv;
     f_name : funname;
+    f_al : (Uint63.t * 'len gvar) list;
     f_tyin : 'len gty list;
     f_args : 'len gvar list;
     f_body : ('len, 'info, 'asm) gstmt;
@@ -456,13 +457,13 @@ let rvars_as f s es = List.fold_left (fun s (_, a) -> rvars_a f s a) s es
 let rec rvars_i f s i =
   match i.i_desc with
   | Cassgn(x, _, _, e)  -> rvars_e f (rvars_lv f s x) e
-  | Copn(x,_,_,e)  | Csyscall (x, _, e) -> rvars_es f (rvars_lvs f s x) e
+  | Copn(x,_,_,_,e)  | Csyscall (x, _, e) -> rvars_es f (rvars_lvs f s x) e
   | Cassert(_, e) -> rvars_a f s e
   | Cif(e,c1,c2)   -> rvars_c f (rvars_c f (rvars_e f s e) c1) c2
   | Cfor(x,(_,e1,e2), c) ->
     rvars_c f (rvars_e f (rvars_e f (f (L.unloc x) s) e1) e2) c
   | Cwhile(_, c, e, _, c') -> rvars_c f (rvars_e f (rvars_c f s c') e) c
-  | Ccall(x,_,e) -> rvars_es f (rvars_lvs f s x) e
+  | Ccall(x,_,_,e) -> rvars_es f (rvars_lvs f s x) e
 
 and rvars_c f s c =  List.fold_left (rvars_i f) s c
 
@@ -505,8 +506,7 @@ let vars_fc_contract fc =
 
 let locals fc =
   let s1 = params fc in
-  let s2 = Sv.diff (vars_fc fc) s1 in
-  Sv.filter V.is_local s2
+  Sv.diff (vars_fc fc) s1
 
 let written_lv s =
   function
@@ -519,9 +519,9 @@ let written_lv s =
 let rec written_vars_i ((v, f) as acc) i =
   match i.i_desc with
   | Cassgn(x, _, _, _) -> written_lv v x, f
-  | Copn(xs, _, _, _) | Csyscall(xs, _, _)
+  | Copn(xs, _, _, _, _) | Csyscall(xs, _, _)
     -> List.fold_left written_lv v xs, f
-  | Ccall(xs, fn, _) ->
+  | Ccall(xs, fn, _, _) ->
      List.fold_left written_lv v xs, Mf.modify_def [] fn (fun old -> i.i_loc :: old) f
   | Cassert (_, _) -> v, f
   | Cif(_, s1, s2)
@@ -689,7 +689,7 @@ let is_inline annot cc =
 
 let rec spilled_i s i =
   match i.i_desc with
-  | Copn(_, _, Sopn.Opseudo_op (Pseudo_operator.Ospill _), es) -> rvars_es Sv.add s es
+  | Copn(_, _, Sopn.Opseudo_op (Pseudo_operator.Ospill _), _, es) -> rvars_es Sv.add s es
   | Cassgn _ | Csyscall _ | Ccall _ | Copn _ | Cassert _ -> s
   | Cif(_e, c1, c2)  -> spilled_c (spilled_c s c1) c2
   | Cfor(_, _, c)    -> spilled_c s c
@@ -701,7 +701,7 @@ let spilled fc = spilled_c Sv.empty fc.f_body
 
 let assigns = function
   | Cassgn (x, _, _, _) -> written_lv Sv.empty x
-  | Copn (xs, _, _, _) | Csyscall (xs, _, _) | Ccall (xs, _, _) ->
+  | Copn (xs, _, _, _, _) | Csyscall (xs, _, _) | Ccall (xs, _, _, _) ->
       List.fold_left written_lv Sv.empty xs
   | Cif _ | Cwhile _ | Cassert _ | Cfor _ -> Sv.empty
 
@@ -712,7 +712,7 @@ let is_lmem = function
 let has_effect = function
   | Csyscall _ | Ccall _ -> true
   | Cassgn (x, _, _, _) -> is_lmem x
-  | Copn (xs, _, _, _) -> List.exists is_lmem xs
+  | Copn (xs, _, _, _, _) -> List.exists is_lmem xs
   | Cassert _ | Cif _ | Cwhile _ | Cfor _ -> false
 
 (* -------------------------------------------------------------------- *)

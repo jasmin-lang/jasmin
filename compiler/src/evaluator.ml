@@ -46,6 +46,7 @@ type 'asm stack =
 type ('syscall_state, 'asm) state =
   { s_prog : 'asm prog;
     s_cmd  : 'asm instr list;
+    s_env  : env_t;
     s_estate : 'syscall_state estate;
     s_stk  : 'asm stack;
   }
@@ -63,14 +64,18 @@ let exec_post ep spp env ii fc gd escs emem (vargs:value list) (vres: value list
   let s1 = exn_exec ii (write_vars nosubword ep env true fc.f_ires vres s1) in
   List.iter (fun pa -> exn_exec ii (sem_assert nosubword withassert ep spp env gd s1 pa)) fc.f_post
 
-let init_estate ep spp env p ii fn scs0 m vargs =
+let init_estate ep spp p ii fn scs0 m alargs vargs =
   let f = BatOption.get (get_fundef p.p_funcs fn) in
   let gd = p.p_globs in
+  let env =
+    let l = List.combine f.f_al alargs in
+    fun x -> List.find (fun ((n, _), _) -> x = n) l |> snd
+  in
   let vargs = exn_exec ii (mapM2 ErrType truncate_val (List.map (eval_atype env) f.f_tyin) vargs) in
   BatOption.may (fun fc -> exec_pre ep spp env ii fc gd scs0 m vargs) f.f_contract;
   let s_estate = { escs = scs0; emem = m; evm = Vm.init nosubword env} in
   let s_estate = exn_exec ii (write_vars nosubword ep env true f.f_params vargs s_estate) in
-  f, vargs, s_estate
+  f, vargs, env, s_estate
 
 let finalize_estate ep spp env p ii f vargs (s: _ estate) =
   let gd = p.p_globs in
@@ -104,12 +109,13 @@ let return ep spp env s =
                s_estate = s1;
                s_stk = Sfor(ii, i, ws, body, c, stk) }
 
-let small_step1 ep spp sip env s =
+let small_step1 ep spp sip s =
   match s.s_cmd with
-  | [] -> return ep spp env s
+  | [] -> return ep spp s.s_env s
   | i :: c ->
     let MkI(ii,ir) = i in
     let gd = s.s_prog.p_globs in
+    let env = s.s_env in
     let s1 = s.s_estate in
     match ir with
 
@@ -119,8 +125,8 @@ let small_step1 ep spp sip env s =
       let s2 = exn_exec ii (write_lval nosubword ep spp env true gd x v' s1) in
       { s with s_cmd = c; s_estate = s2 }
 
-    | Copn(xs,_,op,es) ->
-      let s2 = exn_exec ii (sem_sopn nosubword ep spp sip._asmop env gd op s1 xs es) in
+    | Copn(xs,_,op,als,es) ->
+      let s2 = exn_exec ii (sem_sopn nosubword ep spp sip._asmop env gd op s1 xs als es) in
       { s with s_cmd = c; s_estate = s2 }
 
     | Csyscall(xs,o, es) ->
@@ -150,26 +156,28 @@ let small_step1 ep spp sip env s =
     | Cwhile (_, c1, e, _, c2) ->
       { s with s_cmd = c1 @ MkI(ii, Cif(e, c2@[i],[])) :: c }
 
-    | Ccall(xs,fn,es) ->
+    | Ccall(xs,fn,als,es) ->
+      let vals = List.map (eval env) als in
       let vargs = exn_exec ii (sem_pexprs nosubword ep spp env true gd s1 es) in
-      let f, vargs, s_estate = init_estate ep spp env s.s_prog ii fn s1.escs s1.emem  vargs in
+      let f, vargs, s_env, s_estate = init_estate ep spp s.s_prog ii fn s1.escs s1.emem vals vargs in
       let stk = Scall(ii,f, vargs, xs, s1.evm, c, s.s_stk) in
       {s with s_cmd = f.f_body;
+              s_env;
               s_estate;
               s_stk = stk }
 
 
-let rec small_step ep spp sip env s =
-  small_step ep spp sip env (small_step1 ep spp sip env s)
+let rec small_step ep spp sip s =
+  small_step ep spp sip (small_step1 ep spp sip s)
 
-let init_state ep spp env p ii fn scs0 m vargs =
-  let f, vargs, s_estate = init_estate ep spp env p ii fn scs0 m vargs in
-  { s_prog = p; s_cmd = f.f_body; s_estate; s_stk = Sempty (ii, f, vargs) }
+let init_state ep spp p ii fn scs0 m vals vargs =
+  let f, vargs, s_env, s_estate = init_estate ep spp p ii fn scs0 m vals vargs in
+  { s_prog = p; s_cmd = f.f_body; s_env; s_estate; s_stk = Sempty (ii, f, vargs) }
 
 
-let exec ep spp sip env scs0 p ii fn vargs m =
-  let s = init_state ep spp env p ii fn scs0 m vargs in
-  try small_step ep spp sip env s
+let exec ep spp sip scs0 p ii fn vals vargs m =
+  let s = init_state ep spp p ii fn scs0 m vals vargs in
+  try small_step ep spp sip s
   with Final(m,vs) -> m, vs
 
 (* ----------------------------------------------------------- *)
@@ -185,15 +193,14 @@ let run (type asm_op extra_op)
               with type asm_op = asm_op
                and type extra_op = extra_op)
       (p : (asm_op, extra_op) Arch_extra.extended_op_gen Expr.uprog)
-      ii fn args m =
+      ii fn vals args m =
   let ep = Sem_params_of_arch_extra.ep_of_asm_e A.asm_e Syscall_ocaml.sc_sem in
   let spp = Sem_params_of_arch_extra.spp_of_asm_e A.asm_e in
   let sip =
     Sem_params_of_arch_extra.sip_of_asm_e A.asm_e Syscall_ocaml.sc_sem
   in
-  let env = empty_env in
   let scs0 = Syscall_ocaml.initial_state () in
-  exec ep spp sip env scs0 p ii fn args m
+  exec ep spp sip scs0 p ii fn vals args m
 
 (* ----------------------------------------------------------- *)
 let pp_undef fmt cty =

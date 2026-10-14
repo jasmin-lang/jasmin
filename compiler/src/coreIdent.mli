@@ -73,11 +73,9 @@ module GV : sig
 
   val hash : 'len gvar -> int
 
-  val is_glob : 'len gvar -> bool
+  val is_length_var : 'len gvar -> bool
 
-  (* Fixme : still used *)
-  val is_local : 'len gvar -> bool
-
+  val cast : 'len1 gvar -> 'len2 gvar
 end
 
 (* ------------------------------------------------------------------------ *)
@@ -98,6 +96,10 @@ type length =
 type ty    = length gty
 type var   = length gvar
 
+val subst_al : (Uint63.t * var -> length option) -> length -> length
+val subst_ety : (Uint63.t * var -> length option) -> length gety -> length gety
+val subst_ty : (Uint63.t * var -> length option) -> ty -> ty
+
 module V : sig
   type t = var
 
@@ -111,10 +113,7 @@ module V : sig
 
   val hash : var -> int
 
-  val is_glob : var -> bool
-
-  (* Fixme : still used *)
-  val is_local : var -> bool
+  val is_length_var : var -> bool
 end
 
 (* Cident *)
