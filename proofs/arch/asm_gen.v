@@ -152,15 +152,12 @@ Record asm_gen_params :=
   {
     agp_assemble_cond : instr_info -> fexpr -> cexec cond_t;
       (* Assemble an expression into an architecture-specific condition. *)
-    agp_is_valid_address : reg_address -> bool;
-      (* Checks whether the addressing mode is supported on the given arch. *)
   }.
 
 Context
   (agparams : asm_gen_params).
 
 Notation assemble_cond := (agp_assemble_cond agparams).
-Notation is_valid_address := (agp_is_valid_address agparams).
 
 (* -------------------------------------------------------------------- *)
 (* Compilation of fexprs *)
@@ -208,12 +205,7 @@ Definition assemble_lea_checked ii (pp_fe : pp_error) lea :=
     with_pel_msg err (pp_vbox vbox)
   in
   Let addr := Result.map_err mk_err (assemble_lea ii lea) in
-  Let _ := assert (is_valid_address addr)
-                  (E.error ii (pp_vbox
-                    [:: pp_s "the address computation is too complex";
-                        pp_nobox [:: pp_s "  "; pp_fe];
-                        pp_s "an intermediate variable might be needed"]))
-  in ok (Areg addr).
+  ok (Areg addr).
 
 Let is_none {A: Type} (m: option A) : bool :=
       if m is None then true else false.
