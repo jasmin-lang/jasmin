@@ -1,0 +1,27 @@
+/* Addresses of loads and stores at the limits of the encodable form: a
+   base register and a signed 12-bit offset. */
+
+export
+fn ldst_addr(reg u32 p) -> reg u32 {
+    reg u32 a b;
+
+    a = [:u32 p + 2047];
+    b = (32u)[:u16 p + 2047];
+    a += b;
+    b = (32u)[:u8 p + 2047];
+    a += b;
+    b = [:u32 p - 2048];
+    a += b;
+    b = (32s)[:u16 p - 2048];
+    a += b;
+    b = (32s)[:u8 p - 2048];
+    a += b;
+    [:u32 p + 2047] = a;
+    [:u16 p + 2047] = a;
+    [:u8 p + 2047] = a;
+    [:u32 p - 2048] = a;
+    [:u16 p - 2048] = a;
+    [:u8 p - 2048] = a;
+
+    return a;
+}
