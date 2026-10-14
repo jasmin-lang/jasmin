@@ -1,0 +1,7 @@
+/* The load offset is above 2047. */
+export
+fn lw_offset_range(reg u32 p) -> reg u32 {
+    reg u32 a;
+    a = [:u32 p + 2048];
+    return a;
+}
