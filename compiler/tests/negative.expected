@@ -568,6 +568,51 @@ asmgen: the address computation is too complex
           r0 +32u ((32u) 4 *32u (r1 +32u (32u) 2) +32u (32u) 0)
         an intermediate variable might be needed
 
+fail/asmgen/arm-m4/ldr_offset_neg.jazz:
+
+"fail/asmgen/arm-m4/ldr_offset_neg.jazz", line 5 (4-23):
+compilation error in function ldr_offset_neg:
+asmgen: instruction LDR is given an unencodable address as an argument:
+  r0, [:u32 r0 -32u (32u) 256]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm in [-255, 4095]
+         [base + s * index], s in {1, 2, 4, 8}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm in [-255, 4095]
+         [base + s * index], s in {1, 2, 4, 8}
+
+fail/asmgen/arm-m4/ldr_offset_range.jazz:
+
+"fail/asmgen/arm-m4/ldr_offset_range.jazz", line 5 (4-24):
+compilation error in function ldr_offset_range:
+asmgen: instruction LDR is given an unencodable address as an argument:
+  r0, [:u32 r0 +32u (32u) 4096]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm in [-255, 4095]
+         [base + s * index], s in {1, 2, 4, 8}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm in [-255, 4095]
+         [base + s * index], s in {1, 2, 4, 8}
+
+fail/asmgen/arm-m4/strh_offset_range.jazz:
+
+"fail/asmgen/arm-m4/strh_offset_range.jazz", line 4 (4-24):
+compilation error in function strh_offset_range:
+asmgen: instruction STRH is given an unencodable address as an argument:
+  r1, [:u16 r0 +32u (32u) 4096]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm in [-255, 4095]
+         [base + s * index], s in {1, 2, 4, 8}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm in [-255, 4095]
+         [base + s * index], s in {1, 2, 4, 8}
+
 fail/asmgen/armv8a/ldp_32_offset_unaligned.jazz:
 
 "fail/asmgen/armv8a/ldp_32_offset_unaligned.jazz", line 5 (4-33):
@@ -2158,4 +2203,4 @@ Statistics:
 	Pretyping:  65
 	Parsing:     5
 	Typing:      5
-	Compile:   242
+	Compile:   245
