@@ -599,28 +599,27 @@ Definition pp_cqo sz (args: asm_args) :=
 Definition c := [::CAcond].
 Definition r := [:: CAreg].
 Definition rx := [:: CAregx].
-Definition m b := [:: CAmem b None].
+Definition m := [:: CAmem tt].
 Definition i sz := [:: CAimm None sz].
-Definition rm b := [:: CAreg; CAmem b None].
-Definition rxm b := [:: CAregx; CAmem b None].
+Definition rm := [:: CAreg; CAmem tt].
+Definition rxm := [:: CAregx; CAmem tt].
 
-Definition rmi sz := [:: CAreg; CAmem true None; CAimm None sz].
+Definition rmi sz := [:: CAreg; CAmem tt; CAimm None sz].
 Definition ri  sz := [:: CAreg; CAimm None sz].
 
-Definition m_r := [:: m false; r].
-Definition r_rm_false := [:: r; rm false].
+Definition m_r := [:: m; r].
 
-Definition r_rm := [:: r; rm true].
+Definition r_rm := [:: r; rm].
 Definition r_rmi sz := [:: r; rmi sz].
-Definition m_ri sz := [:: m false; ri sz].
+Definition m_ri sz := [:: m; ri sz].
 
 Definition xmm := [:: CAxmm ].
-Definition xmmm b := [:: CAxmm; CAmem b None].
-Definition xmmmi sz := [:: CAxmm; CAmem true None; CAimm None sz].
+Definition xmmm := [:: CAxmm; CAmem tt].
+Definition xmmmi sz := [:: CAxmm; CAmem tt; CAimm None sz].
 
-Definition xmm_xmmm := [::xmm; xmmm true].
-Definition xmmm_xmm := [::xmmm false; xmm].
-Definition xmm_xmm_xmmm := [::xmm; xmm; xmmm true].
+Definition xmm_xmmm := [::xmm; xmmm].
+Definition xmmm_xmm := [::xmmm; xmm].
+Definition xmm_xmm_xmmm := [::xmm; xmm; xmmm].
 Definition xmm_xmm_xmmmi sz := [::xmm; xmm; xmmmi sz].
 
 Definition x86_MOV sz (x: word sz) : word sz := x.
@@ -631,7 +630,7 @@ Definition Ox86_MOV_instr               :=
   mk_instr_w_w "MOV" x86_MOV [:: Eu 1] [:: Eu 0] 2
                check_mov (prim_8_64 MOV) size_8_64 (fun=> DOIT) (pp_iname "mov").
 
-Definition check_movx (sz:wsize) := [:: [:: rx; rm true]; [:: rm true; rx]].
+Definition check_movx (sz:wsize) := [:: [:: rx; rm]; [:: rm; rx]].
 
 Definition pp_movd name sz args :=
  pp_name_ty (if sz == U64 then (name ++ "q")%string else (name ++ "d")%string)
@@ -648,7 +647,7 @@ Definition Ox86_MOVX_instr               :=
   mk_instr_w_w "MOVX" x86_MOVX [:: Eu 1] [:: Eu 0] 2
                check_movx (prim_32_64 MOVX) size_32_64 (fun=> DOIT) (pp_movd "mov").
 
-Definition check_por : i_args_kinds := [:: [:: rx; rxm true ] ].
+Definition check_por : i_args_kinds := [:: [:: rx; rxm ] ].
 
 Definition x86_POR (v1 v2: wreg) : wreg := wor v1 v2.
 
@@ -670,7 +669,7 @@ Definition Ox86_POR_instr :=
   in
   (desc, ("POR"%string, primM POR)).
 
-Definition check_padd : i_args_kinds := [:: [:: rx; rxm true ]; [:: xmm; xmmm true ] ].
+Definition check_padd : i_args_kinds := [:: [:: rx; rxm ]; [:: xmm; xmmm ] ].
 
 Definition Ox86_PADD_instr :=
   let padd := "PADD"%string in
@@ -727,7 +726,7 @@ Definition Ox86_XCHG_instr :=
   let name := "XCHG"%string in
   ( (fun sz => mk_instr_safe (pp_sz name sz) (w2_ty sz sz) (w2_ty sz sz) [:: Eu 0; Eu 1] [:: Eu 0; Eu 1] (reg_msb_flag sz) (@x86_XCHG sz) check_xchg 2 (size_8_64 sz) NOT_DOIT (pp_name "xchg" sz)), (name, primP XCHG)).
 
-Definition c_r_rm := [:: c; r; rm true].
+Definition c_r_rm := [:: c; r; rm].
 
 Definition x86_CMOVcc sz (b:bool) (w2 w3: word sz) : tpl (w_ty sz) :=
   if b then w2 else w3.
@@ -755,7 +754,7 @@ Definition x86_SUB_t sz (v1 v2 : word sz) : sem_ltuple_t (b5w_ty sz) :=
 Definition Ox86_SUB_instr :=
   mk_instr_w2_b5w_010 "SUB" x86_SUB_t (init_all_true 6) check_add (prim_8_64 SUB) size_8_64 DOIT (pp_iname "sub").
 
-Definition check_mul (_:wsize) := [:: [::rm true]].
+Definition check_mul (_:wsize) := [:: [::rm]].
 
 Definition x86_MUL_t sz (v1 v2: word sz) : sem_ltuple_t (b5w2_ty sz) :=
   let lo := (v1 * v2)%w in
@@ -803,7 +802,7 @@ Definition Ox86_IMULr_instr             :=
 
 Definition Ox86_IMULri_instr :=
   mk_instr_w2_b5w "IMULri" x86_IMULt_t init_mul [:: Eu 1; Eu 2] [:: Eu 0] 3
-  (fun sz => [:: [::r; rm true; i (max_32 sz)]]) (prim_16_64 IMULri) size_16_64 DOIT (pp_iname "imul").
+  (fun sz => [:: [::r; rm; i (max_32 sz)]]) (prim_16_64 IMULri) size_16_64 DOIT (pp_iname "imul").
 
 Definition x86_DIV_t sz (hi lo dv: word sz) : sem_ltuple_t (b5w2_ty sz) :=
   let dd := wdwordu hi lo in
@@ -888,7 +887,7 @@ Definition Ox86_ADCX_instr :=
 Definition Ox86_ADOX_instr :=
   mk_instr_w2b_bw "ADOX" x86_ADCX_t (init_all_true 2) OF check_adcx (prim_32_64 ADOX) size_32_64 DOIT (pp_iname "adox").
 
-Definition check_mulx := [:: [::r;r;rm true]].
+Definition check_mulx := [:: [::r;r;rm]].
 
 Definition x86_MULX_lo_hi sz (v1 v2: word sz) : tpl (w2_ty sz sz) :=
   let: (hi, lo) := wumul v1 v2 in
@@ -902,7 +901,7 @@ Definition Ox86_MULX_lo_hi_instr :=
          (@x86_MULX_lo_hi sz) check_mulx 3 (size_32_64 sz) DOIT (pp_iname "mulx" sz)),
     (name, prim_32_64 MULX_lo_hi)).
 
-Definition check_neg (_:wsize) := [::[::rm false]].
+Definition check_neg (_:wsize) := [::[::rm]].
 
 Definition x86_NEG_t sz (w: word sz) : sem_ltuple_t (b5w_ty sz) :=
   let vs := (- wsigned w)%Z in
@@ -980,7 +979,7 @@ Definition Ox86_BSR_instr :=
 
   , ("BSR"%string, prim_16_64 BSR)).
 
-Definition check_setcc := [:: [::c; rm false]].
+Definition check_setcc := [:: [::c; rm]].
 
 Definition x86_SETcc (b:bool) : tpl (w_ty U8) := wrepr U8 (Z.b2z b).
 
@@ -1020,14 +1019,14 @@ Definition Ox86_STC_instr :=
   mk_instr_pp_b "STC" [::] b_ty [::] [:: F CF ] MSB_CLEAR x86_STC_t (init_all_true 1) [:: [::]] 0 NOT_DOIT (primM STC) (pp_name "stc" U8).
 
 (* -------------------------------------------------------------------- *)
-Definition check_lea (_:wsize) := [:: [::r; m true]].
+Definition check_lea (_:wsize) := [:: [::r; m]].
 
 Definition x86_LEA sz (addr: word sz) : tpl (w_ty sz) := addr.
 
 Definition Ox86_LEA_instr :=
   mk_instr_w_w "LEA" x86_LEA [:: Ec 1] [:: Eu 0] 2 check_lea (prim_16_64 LEA) size_16_64 (fun=> DOIT) (pp_iname "lea").
 
-Definition check_test (sz:wsize) := [:: [::rm false; ri (max_32 sz)]].
+Definition check_test (sz:wsize) := [:: [::rm; ri (max_32 sz)]].
 
 Definition x86_TEST_t sz (x y: word sz) : sem_ltuple_t b5_ty :=
   rflags_of_bwop_t (wand x y).
@@ -1035,7 +1034,7 @@ Definition x86_TEST_t sz (x y: word sz) : sem_ltuple_t b5_ty :=
 Definition Ox86_TEST_instr              :=
   mk_instr_w2_b5 "TEST" x86_TEST_t (init_all_true 5) [:: Eu 0; Eu 1] 2 check_test (prim_8_64 TEST) size_8_64 DOIT (pp_iname "test").
 
-Definition check_cmp (sz:wsize) := [:: [::rm false; ri (max_32 sz)]; r_rm].
+Definition check_cmp (sz:wsize) := [:: [::rm; ri (max_32 sz)]; r_rm].
 
 Definition x86_CMP_t sz (x y: word sz) : sem_ltuple_t b5_ty :=
   rflags_of_aluop_t (x - y)%w
@@ -1062,7 +1061,7 @@ Definition x86_XOR_t sz (v1 v2: word sz) : sem_ltuple_t (b5w_ty sz) :=
 Definition Ox86_XOR_instr               :=
   mk_instr_w2_b5w_010 "XOR" x86_XOR_t (init_all_true 6) check_cmp (prim_8_64 XOR) size_8_64 DOIT (pp_iname "xor").
 
-Definition check_andn (_:wsize) := [:: [:: r; r; rm true]].
+Definition check_andn (_:wsize) := [:: [:: r; r; rm]].
 
 Definition x86_ANDN_t sz (v1 v2: word sz) : sem_ltuple_t (b5w_ty sz) :=
   let w := wandn v1 v2 in
@@ -1081,7 +1080,7 @@ Definition x86_NOT sz (v: word sz)  : tpl (w_ty sz) := wnot v.
 Definition Ox86_NOT_instr               :=
   mk_instr_w_w "NOT" x86_NOT [:: Eu 0] [:: Eu 0] 1 check_neg (prim_8_64 NOT) size_8_64 (fun=> DOIT) (pp_iname "not").
 
-Definition check_ror (_:wsize):= [::[::rm false; ri U8]].
+Definition check_ror (_:wsize):= [::[::rm; ri U8]].
 Definition x86_shift_mask (s:wsize) : u8 :=
   match s with
   | U8 | U16 | U32 => wrepr U8 31
@@ -1241,7 +1240,7 @@ Definition x86_SAR_t sz (v: word sz) (i: u8) : sem_ltuple_t (b5w_ty sz) :=
 Definition Ox86_SAR_instr :=
   mk_instr_ww8_b5w_0c0 "SAR" x86_SAR_t (init_shift 1) check_ror (prim_8_64 SAR) size_8_64 DOIT (pp_iname_w_8 "sar").
 
-Definition check_shld (_:wsize):= [::[::rm false; r; ri U8]].
+Definition check_shld (_:wsize):= [::[::rm; r; ri U8]].
 
 Definition safe_shxd sz : seq safety_cond :=
   match sz with
@@ -1289,7 +1288,7 @@ Definition Ox86_SHRD_instr :=
   mk_instr_w2w8_b5w_01c0 "SHRD" x86_SHRD_t (init_shift 2) check_shld safe_shxd (prim_16_64 SHRD) size_16_64 DOIT (pp_iname_ww_8 "shrd")
    x86_shxd_wf.
 
-Definition check_rorx (_: wsize) := [::[::r ; rm true; i U8]].
+Definition check_rorx (_: wsize) := [::[::r ; rm; i U8]].
 
 Definition x86_RORX sz (v: word sz) (i: u8) : word sz :=
   let i := wand i (x86_shift_mask sz) in
@@ -1302,7 +1301,7 @@ Definition x86_bmi_shift sz (op: word sz → Z → word sz) (v i: word sz) : wor
   let i := Z.land (wunsigned i) (wunsigned (x86_shift_mask sz)) in
   op v i.
 
-Definition check_sarx (_: wsize) := [::[::r ; rm true; r]].
+Definition check_sarx (_: wsize) := [::[::r ; rm; r]].
 
 Definition x86_SARX sz := x86_bmi_shift (@wsar sz).
 
@@ -1358,17 +1357,17 @@ Definition x86_PEXT sz (v1 v2: word sz): tpl (w_ty sz) :=
   @pextr sz v1 v2.
 
 Definition Ox86_PEXT_instr :=
-  mk_instr_w2_w_120 "PEXT" x86_PEXT (fun _ => [:: [:: r; r; rm true]]) (prim_32_64 PEXT) size_32_64 NOT_DOIT (pp_name "pext").
+  mk_instr_w2_w_120 "PEXT" x86_PEXT (fun _ => [:: [:: r; r; rm]]) (prim_32_64 PEXT) size_32_64 NOT_DOIT (pp_name "pext").
 
 Definition x86_PDEP sz (v1 v2: word sz): tpl (w_ty sz) :=
   @pdep sz v1 v2.
 
 Definition Ox86_PDEP_instr :=
-  mk_instr_w2_w_120 "PDEP" x86_PDEP (fun _ => [:: [:: r; r; rm true]]) (prim_32_64 PDEP) size_32_64 NOT_DOIT (pp_name "pdep").
+  mk_instr_w2_w_120 "PDEP" x86_PDEP (fun _ => [:: [:: r; r; rm]]) (prim_32_64 PDEP) size_32_64 NOT_DOIT (pp_name "pdep").
 
 (* Vectorized instruction *)
 
-Definition check_movd (_:wsize) := [:: [::xmm; rm true]].
+Definition check_movd (_:wsize) := [:: [::xmm; rm]].
 Definition x86_MOVD sz (v: word sz) : tpl (w_ty U128) :=
   zero_extend U128 v.
 
@@ -1376,7 +1375,7 @@ Definition Ox86_MOVD_instr :=
   mk_instr_w_w128_10 "MOVD" MSB_MERGE x86_MOVD check_movd (prim_32_64 MOVD) size_32_64 DOIT (pp_movd "mov").
 
 Definition Ox86_MOVV_instr :=
-  mk_instr_w_w "MOVV" x86_MOVX [:: Eu 1 ] [:: Eu 0 ] 2 (λ _, [:: [:: rm false; xmm ] ]) (prim_32_64 MOVV) size_32_64 (fun=> DOIT) (pp_movd "mov").
+  mk_instr_w_w "MOVV" x86_MOVX [:: Eu 1 ] [:: Eu 0 ] 2 (λ _, [:: [:: rm; xmm ] ]) (prim_32_64 MOVV) size_32_64 (fun=> DOIT) (pp_movd "mov").
 
 Definition Ox86_VMOV_instr :=
   mk_instr_w_w128_10 "VMOV" MSB_CLEAR x86_MOVD check_movd (prim_32_64 VMOV) size_32_64 DOIT (pp_movd "vmov").
@@ -1414,7 +1413,7 @@ Definition Ox86_VPMOVSX_instr :=
   let name := "VPMOVSX"%string in
   (λ ve sz ve' sz',
    mk_instr_safe (pp_ve_sz_ve_sz name ve sz ve' sz') [:: lword sz ] [:: lword sz' ] [:: Eu 1 ] [:: Eu 0 ]
-            MSB_CLEAR (@x86_VPMOVSX ve sz ve' sz') [:: [:: xmm ; xmmm true]] 2
+            MSB_CLEAR (@x86_VPMOVSX ve sz ve' sz') [:: [:: xmm ; xmmm]] 2
                       (size_128_256 sz' && check_vector_length ve sz ve' sz') DOIT (pp_vpmovx "vpmovsx" ve sz ve' sz'),
    (name, prim_vv VPMOVSX)
    ).
@@ -1426,7 +1425,7 @@ Definition Ox86_VPMOVZX_instr :=
   let name := "VPMOVZX"%string in
   (λ ve sz ve' sz',
    mk_instr_safe (pp_ve_sz_ve_sz name ve sz ve' sz') [:: lword sz ] [:: lword sz' ] [:: Eu 1 ] [:: Eu 0 ]
-            MSB_CLEAR (@x86_VPMOVZX ve sz ve' sz') [:: [:: xmm ; xmmm true]] 2
+            MSB_CLEAR (@x86_VPMOVZX ve sz ve' sz') [:: [:: xmm ; xmmm]] 2
                       (size_128_256 sz' && check_vector_length ve sz ve' sz') DOIT (pp_vpmovx "vpmovzx" ve sz ve' sz'),
    (name, prim_vv VPMOVZX)
    ).
@@ -1498,7 +1497,7 @@ Definition x86_VPMULHRS sz v1 v2 :=
 
 Definition Ox86_VPMULHRS_instr := mk_instr_vpmulh "VPMULHRS" x86_VPMULHRS VPMULHRS DOIT "vpmulhrs".
 
-Definition check_vpextr (_:wsize) :=  [:: [:: rm false; xmm; i U8] ].
+Definition check_vpextr (_:wsize) :=  [:: [:: rm; xmm; i U8] ].
 
 Definition pp_viname_t name ve (ts:seq wsize) args :=
   {| pp_aop_name := name;
@@ -1526,7 +1525,7 @@ Definition pp_vpinsr ve args :=
      pp_aop_ext  := PP_viname ve false;
      pp_aop_args := zip [::U128; U128; rs; U8] args; |}.
 
-Definition check_vpinsr (_:wsize) :=  [:: [:: xmm; xmm; rm true; i U8] ].
+Definition check_vpinsr (_:wsize) :=  [:: [:: xmm; xmm; rm; i U8] ].
 
 Definition x86_VPINSR (ve: velem) (v1: u128) (v2: word ve) (i: u8) : tpl (w_ty U128) :=
   let i := wand i (x86_nelem_mask ve U128) in
@@ -1603,7 +1602,7 @@ Definition x86_VPSHUFB sz := lift2_vec U128 (@wpshufb U128) sz.
 Definition Ox86_VPSHUFB_instr :=
   mk_instr_w2_w_120 "VPSHUFB" x86_VPSHUFB check_xmm_xmm_xmmm (prim_128_256 VPSHUFB) size_128_256 DOIT (pp_name "vpshufb").
 
-Definition check_xmm_xmmm_imm8 (_:wsize) := [:: [:: xmm; xmmm true; i U8]].
+Definition check_xmm_xmmm_imm8 (_:wsize) := [:: [:: xmm; xmmm; i U8]].
 
 Definition x86_vpshuf sz (op: word sz → Z → word sz) (v1: word sz) (v2: u8) : tpl (w_ty sz) :=
   op v1 (wunsigned v2).
@@ -1635,7 +1634,7 @@ Definition x86_VPUNPCKL ve sz := @wpunpckl sz ve.
 Definition Ox86_VPUNPCKL_instr :=
   mk_ve_instr_w2_w_120 "VPUNPCKL" x86_VPUNPCKL check_xmm_xmm_xmmm (primV VPUNPCKL) (fun ve sz => size_128_256 sz) (fun=> DOIT) (pp_viname_long "vpunpckl").
 
-Definition check_xmm_xmm_xmmm_imm8 (_:wsize) := [:: [:: xmm; xmm; xmmm true; i U8]].
+Definition check_xmm_xmm_xmmm_imm8 (_:wsize) := [:: [:: xmm; xmm; xmmm; i U8]].
 
 Definition wpblendw (m : u8) (w1 w2 : word U128) :=
   let v1 := split_vec U16 w1 in
@@ -1652,7 +1651,7 @@ Definition Ox86_VPBLEND_instr :=
   mk_ve_instr_w2w8_w_1230 "VPBLEND" (@x86_VPBLEND) check_xmm_xmm_xmmm_imm8 (primV_16_32 VPBLEND)
   (fun ve sz => size_16_32 ve && size_128_256 sz) DOIT (pp_viname "vpblend").
 
-Definition check_xmm_xmm_xmmm_xmm (_:wsize) := [:: [:: xmm; xmm; xmmm true; xmm]].
+Definition check_xmm_xmm_xmmm_xmm (_:wsize) := [:: [:: xmm; xmm; xmmm; xmm]].
 
 Definition x86_BLENDV ve sz (x y m: word sz) : tpl (w_ty sz) :=
   blendv ve x y m.
@@ -1724,7 +1723,7 @@ Definition pp_vpbroadcast ve sz args :=
      pp_aop_ext  := PP_viname ve false;
      pp_aop_args := zip [::sz; wsize_of_velem ve] args; |}.
 
-Definition check_xmm_xmmm (_:wsize) := [:: [:: xmm; xmmm true]].
+Definition check_xmm_xmmm (_:wsize) := [:: [:: xmm; xmmm]].
 
 Definition x86_VPBROADCAST ve sz (v: word ve) : tpl (w_ty sz) :=
   wpbroadcast sz v.
@@ -1764,10 +1763,10 @@ Definition Ox86_VPALIGNR_instr :=
 
 Definition Ox86_VBROADCASTI128_instr    :=
   (mk_instr_safe (pp_s "VPBROADCAST_2u128") w128_ty w256_ty [:: Eu 1] [:: Eu 0] MSB_CLEAR (x86_VPBROADCAST U256)
-            ([:: [::xmm; m true]]) 2 true DOIT (pp_name_ty "vbroadcasti128" [::U256; U128]),
+            ([:: [::xmm; m]]) 2 true DOIT (pp_name_ty "vbroadcasti128" [::U256; U128]),
    ("VPBROADCAST_2u128"%string, (primM VBROADCASTI128))).
 
-Definition check_xmmm_xmm_imm8 (_:wsize) := [:: [:: xmmm false; xmm; i U8]].
+Definition check_xmmm_xmm_imm8 (_:wsize) := [:: [:: xmmm; xmm; i U8]].
 
 Definition x86_VEXTRACTI128 (v: u256) (i: u8) : tpl (w_ty U128) :=
   let r := if lsb i then wshr v (Z.of_nat U128) else v in
@@ -1919,7 +1918,7 @@ Definition Ox86_VPMADDWD_instr :=
              ,("VPMADDWD"%string, prim_128_256 VPMADDWD)
   ).
 
-Definition check_movpd := [:: [::m false; xmm]].
+Definition check_movpd := [:: [::m; xmm]].
 
 Definition x86_VMOVLPD (v: u128): tpl (w_ty U64) :=
   zero_extend U64 v.
@@ -2053,16 +2052,16 @@ Definition Ox86_RDPMC_instr :=
 
 (* Fences & cache-related instructions *)
 Definition Ox86_CLFLUSH_instr :=
-  mk_instr_pp "CLFLUSH" [:: lword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 NOT_DOIT (primM CLFLUSH) (pp_name "clflush" U8).
+  mk_instr_pp "CLFLUSH" [:: lword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m ] ] 1 NOT_DOIT (primM CLFLUSH) (pp_name "clflush" U8).
 
 Definition Ox86_PREFETCHT0_instr :=
-  mk_instr_pp "PREFETCHT0" [:: lword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 NOT_DOIT (primM PREFETCHT0) (pp_name "prefetcht0" U8).
+  mk_instr_pp "PREFETCHT0" [:: lword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m ] ] 1 NOT_DOIT (primM PREFETCHT0) (pp_name "prefetcht0" U8).
 Definition Ox86_PREFETCHT1_instr :=
-  mk_instr_pp "PREFETCHT1" [:: lword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 NOT_DOIT (primM PREFETCHT1) (pp_name "prefetcht1" U8).
+  mk_instr_pp "PREFETCHT1" [:: lword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m ] ] 1 NOT_DOIT (primM PREFETCHT1) (pp_name "prefetcht1" U8).
 Definition Ox86_PREFETCHT2_instr :=
-  mk_instr_pp "PREFETCHT2" [:: lword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 NOT_DOIT (primM PREFETCHT2) (pp_name "prefetcht2" U8).
+  mk_instr_pp "PREFETCHT2" [:: lword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m ] ] 1 NOT_DOIT (primM PREFETCHT2) (pp_name "prefetcht2" U8).
 Definition Ox86_PREFETCHNTA_instr :=
-  mk_instr_pp "PREFETCHNTA" [:: lword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 NOT_DOIT (primM PREFETCHNTA) (pp_name "prefetchnta" U8).
+  mk_instr_pp "PREFETCHNTA" [:: lword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m ] ] 1 NOT_DOIT (primM PREFETCHNTA) (pp_name "prefetchnta" U8).
 
 Definition Ox86_LFENCE_instr :=
   mk_instr_pp "LFENCE" [::] [::] [::] [::] MSB_CLEAR tt [:: [::] ] 0 NOT_DOIT (primM LFENCE) (pp_name "lfence" U8).
@@ -2189,7 +2188,7 @@ Definition Ox86_SHA256RNDS2_instr :=
   mk_instr_pp "SHA256RNDS2" (w3_ty U128) (w_ty U128)
     [:: Eu 0; Eu 1; ADExplicit (AK_mem Unaligned) 2 (ACR_vector XMM0)]
     [:: Eu 0] MSB_MERGE sha256rnds2
-    [:: [:: xmm; xmmm true; xmm ]] 3 DOIT (primM SHA256RNDS2) (pp_name_ty "sha256rnds2" [:: U128; U128; U128 ]).
+    [:: [:: xmm; xmmm; xmm ]] 3 DOIT (primM SHA256RNDS2) (pp_name_ty "sha256rnds2" [:: U128; U128; U128 ]).
 
 Definition Ox86_SHA256MSG1_instr :=
   mk_instr_pp "SHA256MSG1" (w2_ty U128 U128) (w_ty U128) [:: Eu 0; Eu 1] [:: Eu 0] MSB_MERGE sha256msg1

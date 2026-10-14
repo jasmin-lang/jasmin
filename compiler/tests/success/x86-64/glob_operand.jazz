@@ -1,0 +1,24 @@
+/* A global as the memory operand of an instruction: the first operand of
+   CMP, and the source of the arithmetic instructions. The memory operand
+   is RIP-relative in every case. */
+
+u64 g = 42;
+u32 h = 7;
+u64[2] t = { 1, 2 };
+
+export
+fn glob_operand(reg u64 x, reg u32 y) -> reg u64 {
+    reg u64 r;
+
+    r = x;
+    if g == x { r += 1; }
+    if g < x { r += 4; }
+    if h == y { r += 8; }
+    r += g;
+    r ^= t[1];
+    r -= t[0];
+    r &= g;
+    r |= t[1];
+    r *= g;
+    return r;
+}

@@ -195,10 +195,10 @@ Instance arm_decl : arch_decl register register_ext xregister rflag condt :=
   ; caimm_cond_eqC := eqTC_arm_caimm_cond
   ; caimm_cond_pp := arm_caimm_cond_pp
   ; check_CAimm := arm_check_CAimm
-  ; camem_cond := empty
-  ; camem_cond_eqC := eqTC_empty
-  ; camem_cond_pp := of_empty _
-  ; check_CAmem := fun c _ => of_empty _ c
+  ; camem_cond := unit (* every address is accepted *)
+  ; camem_cond_eqC := eqTC_unit
+  ; camem_cond_pp := fun _ => [::]
+  ; check_CAmem := fun _ _ => true
   }.
 
 Definition arm_linux_call_conv : calling_convention :=

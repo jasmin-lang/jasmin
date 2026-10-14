@@ -2146,6 +2146,9 @@ Definition arm_extend_semi
   let f := if sign then sign_extend else zero_extend in
   (f ws' ws wn).
 
+Definition ak_reg_addr :=
+  [:: [:: [:: CAreg ]; [:: CAmem tt ] ] ].
+
 Definition arm_load_instr mn : instr_desc_t :=
   let ws :=
     if wsize_of_load_mn mn is Some ws'

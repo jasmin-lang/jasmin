@@ -630,11 +630,11 @@ Let ak_rrrr := ak_reg_reg_reg_reg.
    restricted to the encodable forms ([CAmemC_armv8a_ldst] in
    armv8a_decl.v). *)
 Let ak_reg_addr_ldst (ws : wsize) :=
-  [:: [:: [:: CAreg ]; [:: CAmem false (Some (CAmemC_armv8a_ldst ws)) ] ] ].
+  [:: [:: [:: CAreg ]; [:: CAmem (CAmemC_armv8a_ldst ws) ] ] ].
 
 (* The operand of ADR: an address relative to the PC ([CAmemC_armv8a_adr]). *)
 Let ak_reg_addr_adr :=
-  [:: [:: [:: CAreg ]; [:: CAmem true (Some CAmemC_armv8a_adr) ] ] ].
+  [:: [:: [:: CAreg ]; [:: CAmem CAmemC_armv8a_adr ] ] ].
 
 Let ak_rr_or_imm (ick : option armv8a_caimm_cond) :=
   if ick is Some ic
@@ -2891,7 +2891,7 @@ Definition wsize_pair (ws : wsize) : wsize := if ws == U32 then U64 else U128.
    address of a global into a register ([armv8a_is_load]). *)
 Let ak_reg_reg_pair :=
   [:: [:: [:: CAreg ]; [:: CAreg ];
-          [:: CAmem false (Some (CAmemC_armv8a_pair osz)) ] ] ].
+          [:: CAmem (CAmemC_armv8a_pair osz) ] ] ].
 
 (* [C6.2.214 LDP] ARM DDI 0487 M.d
    Load pair of registers. Signed offset form:

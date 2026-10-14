@@ -25,6 +25,14 @@ Instance eqTC_empty : eqTypeC empty :=
     ceqP := ltac:(done);
   }.
 
+(* Unit type for architectures whose conditions are trivial. *)
+#[export]
+Instance eqTC_unit : eqTypeC unit :=
+  {
+    beq := fun _ _ => true;
+    ceqP := ltac:(by case; case; apply: ReflectT);
+  }.
+
 #[export]
 Instance finTC_empty : finTypeC empty :=
   {
@@ -60,9 +68,6 @@ Definition ak_reg_imm8 : i_args_kinds :=
   [:: [:: [:: CAreg ]; [:: CAimm_sz U8 ] ] ].
 Definition ak_reg_imm16 : i_args_kinds :=
   [:: [:: [:: CAreg ]; [:: CAimm_sz U16 ] ] ].
-
-Definition ak_reg_addr : i_args_kinds :=
-  [:: [:: [:: CAreg ]; [:: CAmem true None ] ] ].
 
 Definition ak_reg_imm8_imm8 : i_args_kinds :=
   [:: [:: [:: CAreg ]; [:: CAimm_sz U8 ]; [:: CAimm_sz U8 ] ] ].
