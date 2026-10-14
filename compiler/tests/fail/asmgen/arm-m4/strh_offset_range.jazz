@@ -1,0 +1,5 @@
+/* The STRH offset is above 4095. */
+export
+fn strh_offset_range(reg u32 p a) {
+    [:u16 p + 4096] = a;
+}
