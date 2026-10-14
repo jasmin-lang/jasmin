@@ -39,7 +39,9 @@ Inductive pp_error :=
   | PPEfexpr of fexpr
   | PPEbox     `(box) `(seq pp_error)
   | PPEbreak
-  | PPexcpt.
+  | PPEhighlight of pp_error. (* emphasized (in color when enabled) *)
+(*  | PPexcpt. *)
+(* (added stack alloc files for OOM (wip)) *)
 
 (* TODO: it was simpler to put pel_fn and pel_fi as separate fields; in the future,
    do we want to merge them?

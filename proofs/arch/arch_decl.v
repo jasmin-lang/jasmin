@@ -115,7 +115,7 @@ Class arch_decl (reg regx xreg rflag cond : Type) :=
   ; check_CAimm : caimm_cond -> forall ws, word ws -> bool
   ; camem_cond : Type  (* architecture-specific memory-argument conditions *)
   ; camem_cond_eqC : eqTypeC camem_cond
-  ; camem_cond_pp : camem_cond -> string  (* for error messages *)
+  ; camem_cond_pp : camem_cond -> seq string  (* the accepted shapes, for error messages *)
   ; check_CAmem : camem_cond -> address_ reg reg_size -> bool
   }.
 

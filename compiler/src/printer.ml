@@ -570,5 +570,6 @@ let pp_err ~debug fmt (pp_e : Compiler_util.pp_error) =
       | Compiler_util.Nobox -> Format.fprintf fmt "%a" (pp_list "" pp_err) pp_e
       end
     | Compiler_util.PPEbreak -> Format.fprintf fmt "@ "
+    | Compiler_util.PPEhighlight pp_e -> pp_print_bold_red pp_err fmt pp_e
   in
   pp_err fmt pp_e

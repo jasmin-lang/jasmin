@@ -335,12 +335,12 @@ Definition armv8a_check_CAmem
     && is_pair_offset ws (wsigned ra.(ad_disp))
   end.
 
-Definition armv8a_camem_cond_pp (checker : armv8a_camem_cond) : string :=
+Definition armv8a_camem_cond_pp (checker : armv8a_camem_cond) : seq string :=
   match checker with
   | CAmemC_armv8a_pair ws =>
-    if ws == U64
-    then "[Xn|SP, #imm], imm a multiple of 8 in [-512, 504]"
-    else "[Xn|SP, #imm], imm a multiple of 4 in [-256, 252]"
+    [:: if ws == U64
+        then "[base + imm], imm a multiple of 8 in [-512, 504]"
+        else "[base + imm], imm a multiple of 4 in [-256, 252]" ]
   end%string.
 
 #[ export ]
