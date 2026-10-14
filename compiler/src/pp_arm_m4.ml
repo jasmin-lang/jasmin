@@ -114,7 +114,9 @@ let get_IT i =
 module ArgChecker : sig
   (* Return the (possibly empty) suffix for the mnemonic according to its
      arguments.
-     Raise an error if the arguments are invalid. *)
+     The immediates were checked in assembly generation
+     ([CAimmC_arm_wencoding] in arm_decl.v): an unencodable one here is an
+     internal error. *)
   val check_args :
     arm_op ->
     (Wsize.wsize * (register, Arch_utils.empty, Arch_utils.empty, rflag, condt) asm_arg)
@@ -124,14 +126,16 @@ end = struct
   let exn_imm_too_big n =
     hierror
       ~loc:Lnone
-      ~kind:"printing"
+      ~kind:"assembly printing"
+      ~internal:true
       "invalid immediate (%s is too large)."
       (Z.to_string (Conv.z_of_cz n))
 
   let exn_imm_shifted n =
-      hierror
+    hierror
       ~loc:Lnone
-      ~kind:"printing"
+      ~kind:"assembly printing"
+      ~internal:true
       "unsupported immediate (%s needs a shift with carry)."
       (Z.to_string (Conv.z_of_cz n))
 
