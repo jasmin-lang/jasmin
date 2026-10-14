@@ -32,13 +32,13 @@ type parsed_reg_address = {
 
 val parse_reg_address :
   ('reg, _, _, _, _) Arch_decl.arch_decl ->
-  ('reg, _, _, _, _) Arch_decl.reg_address ->
+  'reg Arch_decl.reg_address_ ->
   parsed_reg_address
 
 val declassify_mem :
    ('a, 'b, 'c, 'd, 'e) Arch_decl.arch_decl ->
    BinNums.coq_Z ->
-   ('a, 'f, 'g, 'h, 'i) Arch_decl.address ->
+   'a Arch_decl.address_ ->
    PrintASM.asm
 
 val declassify_val : (Type.ltype -> 'a -> string) -> Type.ltype -> 'a -> PrintASM.asm

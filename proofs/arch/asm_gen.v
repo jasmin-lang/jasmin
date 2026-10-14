@@ -479,7 +479,7 @@ Definition enforce_imm_arg_kind (a:asm_arg) (cond: arg_kind) : option asm_arg :=
   | Reg _, CAreg => Some a
   | Regx _, CAregx => Some a
   | Addr addr, CAmem _ checker =>
-    if oapp (fun c => check_CAmem_address c addr) true checker
+    if oapp (fun c => check_CAmem c addr) true checker
     then Some a else None
   | XReg _, CAxmm   => Some a
   | _, _ => None

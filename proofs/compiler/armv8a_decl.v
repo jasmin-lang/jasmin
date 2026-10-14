@@ -323,12 +323,16 @@ Definition is_pair_offset (ws : wsize) (d : Z) : bool :=
   let q := (d / n)%Z in
   ((d mod n =? 0) && (-64 <=? q) && (q <=? 63))%Z.
 
+(* A64 has no PC-relative addressing for the loads and stores (the literal
+   form of LDR, within 1 MB of the PC, is not used), so an address relative
+   to the instruction pointer is never accepted. *)
 Definition armv8a_check_CAmem
-  (checker : armv8a_camem_cond) (disp : word armv8a_reg_size)
-  (base : option register) (_ : nat) (ofs : option register) : bool :=
-  match checker with
-  | CAmemC_armv8a_pair ws =>
-    isSome base && ~~ isSome ofs && is_pair_offset ws (wsigned disp)
+  (checker : armv8a_camem_cond) (a : address_ register armv8a_reg_size) : bool :=
+  match checker, a with
+  | _, Arip _ => false
+  | CAmemC_armv8a_pair ws, Areg ra =>
+    isSome ra.(ad_base) && ~~ isSome ra.(ad_offset)
+    && is_pair_offset ws (wsigned ra.(ad_disp))
   end.
 
 Definition armv8a_camem_cond_pp (checker : armv8a_camem_cond) : string :=
