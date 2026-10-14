@@ -372,11 +372,16 @@ Instance armv8a_decl : arch_decl register register_ext xregister rflag condt :=
    is valid on all platforms. *)
 
 Definition armv8a_call_conv : calling_convention :=
-  {| callee_saved :=
-      map ARReg [:: R19; R20; R21; R22; R23; R24; R25; R26; R27; R28
-                  ; R29; RSP ]
+  let saved_regs :=
+    map ARReg [:: R19; R20; R21; R22; R23; R24; R25; R26; R27; R28
+                ; R29; RSP ] in
+  {| callee_saved := saved_regs
    ; callee_saved_not_bool := erefl true
    ; callee_saved_has_rsp  := erefl true
+     (* No vector register: AAPCS64 only preserves the low 64 bits of
+        v8-v15. *)
+   ; syscall_preserved := saved_regs
+   ; syscall_preserved_subset := erefl true
    ; call_reg_args  := [:: R0; R1; R2; R3; R4; R5; R6; R7 ]
    ; call_xreg_args := [::]
    ; call_reg_ret   := [:: R0; R1; R2; R3; R4; R5; R6; R7 ]

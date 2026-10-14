@@ -139,7 +139,7 @@ Class asm_syscall_sem := {
   eval_syscall_preserves :
     forall o s1 s2,
       eval_syscall o s1 = ok s2 ->
-      [/\ forall r, r \in callee_saved -> preserved_register r s1 s2
+      [/\ forall r, r \in syscall_preserved -> preserved_register r s1 s2
         , s1.(asm_rip) = s2.(asm_rip)
         & stack_stable s1.(asm_mem) s2.(asm_mem)
       ];

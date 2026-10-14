@@ -1817,6 +1817,11 @@ fail/unroll/x86-64/run-time-bound.jazz:
 compilation error in function count:
 loop unrolling: for loops remain
 
+fail/windows/x86-64/syscall_live_u256.jazz:
+
+compilation error:
+register allocation: cannot solve the register allocation problem.
+
 fail/x86-64/bug_1366.jazz:
 
 "fail/x86-64/bug_1366.jazz", line 2 (2-21): invalid number of lvalues, 1 provided instead of 2
@@ -1981,4 +1986,4 @@ Statistics:
 	Pretyping:  65
 	Parsing:     5
 	Typing:      5
-	Compile:   237
+	Compile:   238
