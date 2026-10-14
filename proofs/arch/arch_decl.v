@@ -54,11 +54,45 @@ Definition rtype {t T} `{ToString t T} := t.
    conditions in its own files.
 
    Memory-argument conditions work the same way: [camem_cond] and
-   [check_CAmem] restrict the shape of the address of a memory operand
-   (given by the fields of a [reg_address]), for
-   instructions whose encoding accepts fewer addressing modes than the
-   architecture's other loads and stores. Addresses relative to the
-   instruction pointer never satisfy a condition. *)
+   [check_CAmem] restrict the shape of the [address] of a memory operand,
+   including whether an address relative to the instruction pointer (a
+   global) is accepted, for instructions whose encoding accepts fewer
+   addressing modes than the architecture's other loads and stores. *)
+
+(* -------------------------------------------------------------------- *)
+(* Addresses, for a type of registers and a size of pointers.
+ * An address consists of
+ *   - A displacement (an immediate value).
+ *   - A base (a register).
+ *   - A scale.
+ *   - An offset (a register).
+ * The effective address is displacement + base + offset * scale.
+ * An architecture declaration ([arch_decl] below) fixes the register type
+ * and the pointer size: [reg_address] and [address] are the instances.
+ *)
+Section ADDRESS.
+Context (reg : Type) (sz : wsize).
+
+Record reg_address_ : Type := mkAddress
+  { ad_disp   : word sz
+  ; ad_base   : option reg
+  ; ad_scale  : nat
+  ; ad_offset : option reg
+  }.
+
+Variant address_ :=
+| Areg of reg_address_ (* Absolute address. *)
+| Arip of word sz.     (* Address relative to the instruction pointer. *)
+
+End ADDRESS.
+
+Arguments mkAddress {reg sz}.
+Arguments ad_disp {reg sz}.
+Arguments ad_base {reg sz}.
+Arguments ad_scale {reg sz}.
+Arguments ad_offset {reg sz}.
+Arguments Areg {reg sz}.
+Arguments Arip {reg sz}.
 
 (* -------------------------------------------------------------------- *)
 (* Basic architecture declaration.
@@ -82,9 +116,7 @@ Class arch_decl (reg regx xreg rflag cond : Type) :=
   ; camem_cond : Type  (* architecture-specific memory-argument conditions *)
   ; camem_cond_eqC : eqTypeC camem_cond
   ; camem_cond_pp : camem_cond -> string  (* for error messages *)
-  ; check_CAmem :
-      camem_cond -> word reg_size (* displacement *) -> option reg (* base *) ->
-      nat (* scale *) -> option reg (* offset *) -> bool
+  ; check_CAmem : camem_cond -> address_ reg reg_size -> bool
   }.
 
 #[global]
@@ -106,6 +138,10 @@ Definition regx_t  {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg r
 Definition xreg_t  {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond} := xreg.
 Definition rflag_t {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond} := rflag.
 Definition cond_t  {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond} := cond.
+
+(* The addresses of an architecture. *)
+Notation reg_address := (reg_address_ reg_t reg_size).
+Notation address := (address_ reg_t reg_size).
 
 Notation sem_lt t := (sem_t (eval_ltype t)).
 Notation sem_olt t := (sem_ot (eval_ltype t)).
@@ -135,30 +171,6 @@ Proof.
   apply/eqP. move=> []. apply/eqP. exact: reg_size_neq_xreg_size.
 Qed.
 
-(* -------------------------------------------------------------------- *)
-(* Addresses.
- * An address consists of
- *   - A displacement (an immediate value).
- *   - A base (a register).
- *   - A scale.
- *   - An offset (a register).
- * The effective address is displacement + base + offset * scale.
- *)
-Record reg_address : Type := mkAddress
-  { ad_disp   : pointer
-  ; ad_base   : option reg_t
-  ; ad_scale  : nat
-  ; ad_offset : option reg_t
-  }.
-
-Variant address :=
-| Areg of reg_address (* Absolute address. *)
-| Arip of pointer.    (* Address relative to instruction pointer. *)
-
-Definition check_CAmem_address (c : camem_cond) (a : address) : bool :=
-  if a is Areg ra
-  then check_CAmem c ra.(ad_disp) ra.(ad_base) ra.(ad_scale) ra.(ad_offset)
-  else false.
 
 Definition oeq_reg (x y:option reg_t) :=
   @eq_op (option ceqT_eqType) x y.
@@ -419,7 +431,7 @@ Definition check_arg_kind (a:asm_arg) (cond: arg_kind) :=
   | Reg _ , CAreg => true
   | Regx _, CAregx => true
   | Addr a, CAmem _ checker =>
-      oapp (fun c => check_CAmem_address c a) true checker
+      oapp (fun c => check_CAmem c a) true checker
   | XReg _, CAxmm   => true
   | _, _ => false
   end.
