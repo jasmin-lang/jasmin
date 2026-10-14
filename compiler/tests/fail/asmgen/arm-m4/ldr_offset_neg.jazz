@@ -1,0 +1,7 @@
+/* The LDR offset is below -255. */
+export
+fn ldr_offset_neg(reg u32 p) -> reg u32 {
+    reg u32 a;
+    a = [:u32 p - 256];
+    return a;
+}

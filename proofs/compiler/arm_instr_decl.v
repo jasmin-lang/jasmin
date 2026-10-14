@@ -2146,8 +2146,10 @@ Definition arm_extend_semi
   let f := if sign then sign_extend else zero_extend in
   (f ws' ws wn).
 
-Definition ak_reg_addr :=
-  [:: [:: [:: CAreg ]; [:: CAmem tt ] ] ].
+(* The memory argument of a load or store: its address is restricted to
+   the encodable forms ([CAmemC_arm_ldst] in arm_decl.v). *)
+Definition ak_reg_addr_ldst :=
+  [:: [:: [:: CAreg ]; [:: CAmem CAmemC_arm_ldst ] ] ].
 
 Definition arm_load_instr mn : instr_desc_t :=
   let ws :=
@@ -2165,7 +2167,7 @@ Definition arm_load_instr mn : instr_desc_t :=
     id_out := [:: Ea 0 ];
     id_semi_total := semi;
     id_nargs := 2;
-    id_args_kinds := ak_reg_addr;
+    id_args_kinds := ak_reg_addr_ldst;
     id_eq_size := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
@@ -2196,7 +2198,7 @@ Definition arm_store_instr mn : instr_desc_t :=
     id_out := [:: Eu 1 ];
     id_semi_total := semi;
     id_nargs := 2;
-    id_args_kinds := ak_reg_addr;
+    id_args_kinds := ak_reg_addr_ldst;
     id_eq_size := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);

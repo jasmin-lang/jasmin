@@ -1,0 +1,7 @@
+/* The LDR offset is above 4095. */
+export
+fn ldr_offset_range(reg u32 p) -> reg u32 {
+    reg u32 a;
+    a = [:u32 p + 4096];
+    return a;
+}
