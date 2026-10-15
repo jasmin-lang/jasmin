@@ -1,0 +1,55 @@
+/* The three moves the prologue of an export function can make, in one
+   function and on every architecture: a parameter of kind stack that arrives
+   in a register is stored in the frame, one that arrives in the frame of the
+   caller is moved to the frame of the function, and a parameter of kind reg
+   that arrives in the frame of the caller is loaded in its register.  Which
+   parameter gets which move depends on the number of argument registers (six
+   on x86-64, four on arm-m4, eight on risc-v), so all three moves happen on
+   every architecture but not for the same parameters. */
+export
+fn all_moves(reg u32 a b c d e f, stack u32 p q, reg u32 g h) -> reg u32 {
+  reg u32 r t;
+  r = a;
+  r += b;
+  r += c;
+  r += d;
+  r += e;
+  r += f;
+  /* arm and risc-v have no arithmetic instruction reading from memory */
+  t = p;
+  r += t;
+  t = q;
+  r += t;
+  r += g;
+  r += h;
+  return r;
+}
+
+/* The same, in a function that has a frame of its own and that uses enough
+   registers to have some callee-saved register to preserve: the stack pointer
+   of the caller is then kept in the frame, and the arguments the caller left
+   on the stack are read through the temporary register that still holds it. */
+export
+fn all_moves_callee_saved(reg u32 a b c d e f, stack u32 p q, reg u32 g h) -> reg u32 {
+  stack u32[2] v;
+  reg u32 r t u;
+  v[0] = a;
+  v[1] = b;
+  r = c;
+  r += d;
+  t = e;
+  t += f;
+  u = g;
+  u += h;
+  r += t;
+  r += u;
+  t = p;
+  r += t;
+  t = q;
+  r += t;
+  t = v[0];
+  r += t;
+  t = v[1];
+  r += t;
+  return r;
+}

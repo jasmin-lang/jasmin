@@ -445,7 +445,7 @@ Context
     exists s1 => //.
     exists (st_eq_on X), (st_eq_on X); split => //; last first.
     + move: hinit; rewrite /initialize_funcall; t_xrbindP.
-      move=> vargs hvargs _ _ _ {s1}.
+      move=> vargs hvargs _ _ _ _ _ {s1}.
       rewrite /finalize_funcall => s1 s2 o1 heqon.
       t_xrbindP => vres.
       rewrite -(sem_pexprs_get_var _ [::]) => hres.

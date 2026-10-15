@@ -1,0 +1,25 @@
+// Parameters of an export function may be of kind stack: they are received
+// like the reg parameters (in a register, or on the stack when the argument
+// registers are exhausted) and spilled into the frame by the compiler.
+
+export
+fn stack_arg_first(stack u32 x, reg u32 y) -> reg u32 {
+  reg u32 z t;
+  z = y;
+  // arm and risc-v have no arithmetic instruction reading from memory
+  t = x;
+  z += t;
+  return z;
+}
+
+export
+fn stack_arg_sixth(reg u32 a b c d e, stack u32 f) -> reg u32 {
+  reg u32 r;
+  r = f;
+  r += a;
+  r += b;
+  r += c;
+  r += d;
+  r += e;
+  return r;
+}

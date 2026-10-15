@@ -1,0 +1,27 @@
+/* Parameters of kind stack, more numerous than the argument registers of any
+   of the architectures (six on x86-64, four on arm-m4, eight on risc-v): the
+   first ones arrive in a register and the prologue stores them in the frame,
+   the last ones are left by the caller in its own frame and travel to the
+   frame of the function through a temporary register. */
+export
+fn four_reg_six_stack(reg u32 a b c d, stack u32 s0 s1 s2 s3 s4 s5) -> reg u32 {
+  reg u32 r t;
+  r = a;
+  r += b;
+  r += c;
+  r += d;
+  /* arm and risc-v have no arithmetic instruction reading from memory */
+  t = s0;
+  r += t;
+  t = s1;
+  r += t;
+  t = s2;
+  r += t;
+  t = s3;
+  r += t;
+  t = s4;
+  r += t;
+  t = s5;
+  r += t;
+  return r;
+}

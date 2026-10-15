@@ -429,9 +429,26 @@ Definition check_wf_ptr entries (p:uprog) (ao: funname -> stk_alloc_oracle_t) : 
                 pp_s " and be returned first, in the same order, in the results."]))))
       end) entries.
 
+(* The types that the parameters of an entry function are declared with are
+   preserved by the first part of the compiler, up to [convertible]: the stack
+   allocation stores the arguments of the parameters of kind [stack] in the
+   frame at these types, while the semantics of the source truncates the
+   arguments at the types of the source. *)
+Definition check_entries_tyin entries (p pl : uprog) : cexec unit :=
+  allM (fun fn =>
+          match get_fundef (p_funcs p) fn, get_fundef (p_funcs pl) fn with
+          | Some fd, Some fd' =>
+              assert (all2 convertible fd.(f_tyin) fd'.(f_tyin))
+                (pp_at_fi fd'.(f_info) (pp_at_fn fn
+                  (stack_alloc.E.stk_ierror_no_var
+                     "the types of the parameters of the export function are not preserved")))
+          | _, _ => ok tt
+          end) entries.
+
 Definition compiler_front_end (entries: seq funname) (p: uprog) : cexec sprog :=
 
   Let pl := compiler_first_part entries p in
+  Let _ := check_entries_tyin entries p pl in
   (* stack + register allocation *)
   let ao := cparams.(stackalloc) pl in
   Let _ := check_wf_ptr entries p ao.(ao_stack_alloc) in
@@ -441,7 +458,7 @@ Definition compiler_front_end (entries: seq funname) (p: uprog) : cexec sprog :=
       shparams
       saparams
       (ap_is_move_op aparams)
-      (fun vk => fresh_var_ident cparams vk dummy_instr_info)
+      (fresh_var_ident cparams)
       (pp_sr cparams)
       (global_static_data_symbol cparams)
       (stack_register_symbol cparams)

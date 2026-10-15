@@ -1,0 +1,27 @@
+/* Thirteen parameters of kind reg, the most the x86-64 register allocation
+   can accommodate (fourteen is
+   fail/register_allocation/x86-64/too_many_args.jazz), and two parameters of
+   kind stack: the seven reg parameters that do not fit in the argument
+   registers are loaded from the frame of the caller, and the two stack ones,
+   which arrive there as well, are moved into the frame of the function. */
+export
+fn stack_to_reg_and_stack(reg u32 a b c d e f g h i j k l m,
+                          stack u32 p q) -> reg u32 {
+  reg u32 r;
+  r = a;
+  r += b;
+  r += c;
+  r += d;
+  r += e;
+  r += f;
+  r += g;
+  r += h;
+  r += i;
+  r += j;
+  r += k;
+  r += l;
+  r += m;
+  r += p;
+  r += q;
+  return r;
+}

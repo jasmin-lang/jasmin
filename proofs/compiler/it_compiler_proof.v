@@ -117,7 +117,7 @@ Proof using sc_sem print_sprogP.
     dead_code_prog_tokeep_get_fundef hpb get_fda'].
   exists fdb; split=> //.
   have [_ _ ->] := dead_code_fd_meta ok_fdb.
-  have /= [_ _ _ <-] := [elaborate check_fundef_meta check_fda'].
+  have /= [_ _ _ <- _] := [elaborate check_fundef_meta check_fda'].
   have [_ _ ->] := dead_code_fd_meta ok_fda.
   done.
 Qed.
@@ -286,7 +286,7 @@ Proof using print_sprogP.
   move: (alloc_pc _ get_fdc).
   have [_ _ ->]:= dead_code_fd_meta ok_fdc.
   rewrite /sf_total_stack.
-  have [ <- <- <- ] := [elaborate @check_fundef_meta _ _ _ _ _ _ _ _ _ (_, fda) _ _ _ ok_fdb].
+  have [ <- <- <- _ _ ] := [elaborate @check_fundef_meta _ _ _ _ _ _ _ _ _ (_, fda) _ _ _ ok_fdb].
   by have [_ _ ->]:= dead_code_fd_meta ok_fda.
 Qed.
 
@@ -778,6 +778,23 @@ Qed.
 
 End THIRD_PART.
 
+(* The first part of the compiler preserves, up to [convertible], the types
+   the parameters of an entry function are declared with: [check_entries_tyin]
+   checks it. The stack allocation relies on it to store the arguments of the
+   parameters of kind [stack] in the frame at these types, while the semantics
+   of the source truncates the arguments at the types of the source. *)
+Lemma check_entries_tyinP entries (p pl : uprog (asmop := _asmop)) fn fd fd' :
+  check_entries_tyin entries p pl = ok tt ->
+  fn \in entries ->
+  get_fundef (p_funcs p) fn = Some fd ->
+  get_fundef (p_funcs pl) fn = Some fd' ->
+  all2 convertible fd.(f_tyin) fd'.(f_tyin).
+Proof.
+move=> hcheck /InP ok_fn get_fd get_fd'.
+move: hcheck; rewrite /check_entries_tyin => /allMP -/(_ _ ok_fn).
+by rewrite get_fd get_fd' => /assertP.
+Qed.
+
 Section FRONT_END.
 
 Context
@@ -805,6 +822,20 @@ Definition front_end_pre : relPreF :=
       , Forall3 (value_eq_or_in_mem mt) (get_wptrs up fn) args argt
       , it_extend_mem ms mt
       & fscs s = fscs t ].
+
+(* [front_end_pre] and, moreover, the arguments of the parameters declared of a
+   word type are words at least that wide, at the types of [p] (the program the
+   stack allocation is applied to). The prologue of an export function needs it
+   to store in the stack frame the arguments of its parameters of kind [stack].
+
+   It is not part of [front_end_pre]: the semantics of the source truncates the
+   arguments, so the caller of the compiler does not have to require it, it
+   comes for free from the fact that the source does not fail. *)
+Definition front_end_pre_wt (p : uprog (asmop := _asmop)) : relPreF :=
+  fun fn fn' s t =>
+    front_end_pre fn fn' s t /\
+    forall fd, get_fundef (p_funcs p) fn = Some fd ->
+      List.Forall2 wf_spill_arg fd.(f_tyin) (fvals s).
 
 Definition front_end_post : relPostF :=
   fun fn _ s t s' t' =>
@@ -839,7 +870,7 @@ Lemma it_compiler_front_endP {ev fn} :
     (dc1 := indirect_c) (dc2 := direct_c)
     up sp ev rip rpreF fn fn rpostF.
 Proof using haparams print_uprogP print_sprogP.
-rewrite /compiler_front_end; t_xrbindP=> p1 ok_p1 check_p1 p2 ok_p2 p3.
+rewrite /compiler_front_end; t_xrbindP=> p1 ok_p1 check_tyin check_p1 p2 ok_p2 p3.
 rewrite print_sprogP => ok_p3 p4.
 set rp := fun (fn : funname) => _.
 rewrite print_sprogP => ok_sp ? ok_fn; subst p4.
@@ -857,12 +888,18 @@ rewrite /= all2_map -eqseq_all => /eqP check_params check_return h.
 apply: (
   wiequiv_f_trans
     (scP1 := sCP_unit) (scP2 := sCP_unit) (scP3 := sCP_stack)
-    (rpreF23 := front_end_pre) (rpostF23 := front_end_post)
+    (rpreF23 := front_end_pre_wt p1) (rpostF23 := front_end_post)
     _ _
     (it_compiler_first_part ok_p1 ok_fn)
 ).
-- move=> s1 ? [? _]; by exists s1.
-- move=> s1 _ s3 r1 r3 [_ <-] [_ halloc hwf hptr hmem hscs] [] r2
+- (* the arguments have the types that the parameters of the source declare:
+     the semantics of the call truncates them at those types *)
+  move=> s1 s3 [hpre _ [s0 hinit]]; exists s1 => //; split=> // fd1 get_fd1.
+  have /all2P /Forall2_flip hc := check_entries_tyinP check_tyin ok_fn get_fd get_fd1.
+  apply: (Forall2_trans convertible_wf_spill_arg hc).
+  move: hinit; rewrite /it_sems_core.initialize_funcall.
+  by t_xrbindP=> vs /mapM2_truncate_val_wf_spill_arg hwt ????.
+- move=> s1 _ s3 r1 r3 [_ <-] [[_ halloc hwf hptr hmem hscs] _] [] r2
     [hscs1 hmem1 hval1] [] hptr' hres hmem' hparams hscs'.
   split=> //.
   + apply: Forall2_trans hptr'; first exact: value_uincl_value_in_mem_trans.
@@ -890,12 +927,15 @@ apply: (
        (hap_hshp haparams) (hap_hsap haparams) (hap_is_move_opP haparams)
        ok_p2 ev (rip := rip))
 ).
-- move=> s1 s3 [] [_ hok hwf hptr hmem hscs] _; exists s3 => //; split=> //.
+(* the fifth conjunct, the one about the arguments of the parameters of kind
+   [stack], is [hwt] *)
+- move=> s1 s3 [] [[_ hok hwf hptr hmem hscs] hwt] _; exists s3 => //;
+    split=> //.
   + by rewrite -p2_p1_extra p2_p3_extra -sp_p3_extra.
   + move: hwf; rewrite /wf_args_s /get_wptrs get_fd /= check_params.
     rewrite /size_glob sp_p3_extra -p2_p3_extra p2_p1_extra.
     rewrite /get_align_args get_fd4 /= -fd3_fd4_align -fd2_fd3_extra.
-    move: ok_fd2; rewrite /alloc_fd; by t_xrbindP=> _ _ <- /=.
+    move: ok_fd2; rewrite /alloc_fd; by t_xrbindP=> -[fda spa] _ [<-] /=.
   + move: hptr; rewrite /get_wptrs get_fd /=.
     apply: value_eq_or_in_mem_any_option.
     rewrite check_params.
@@ -908,7 +948,7 @@ apply: (
     have :=
       compiler_third_part_alloc_ok print_sprogP ok_sp hok get_fd3.
     by rewrite -fd2_fd3_extra.
-- move=> s1 s2 _ r1 r3 [hscs_s1] hmem_s1 hwf_s1 heqinmem halloc [_ <-] [].
+- move=> s1 s2 _ r1 r3 [hscs_s1] hmem_s1 hwf_s1 heqinmem _ halloc [_ <-] [].
   move=> r2 [hscs1 m'_mi' vr2_wf vr2_eqinmem U] [hscs2 hmem2 vr_vr1].
   set rminfo := fun fn => _ in vr_vr1.
   set va := fvals s1.
@@ -1696,11 +1736,11 @@ move: get_lfd; rewrite get_lfd3 => -[?]; subst lfd.
 have [_ _ htyin harg _ _ _ _ _ _] := stack_zeroization_lfd_invariants ok_lfd2.
 rewrite /tunneling.tunnel_lfundef /= -htyin -harg /=.
 (* the parameters of an export function are in registers of the class of their
-   declared types: this is the second conjunct of [ok_stack_args] *)
+   declared types: this is the third conjunct of [ok_stack_args] *)
 have := [elaborate it_linearization_proof.checked_prog ok_lp1 get_sfd]; rewrite /check_fd.
 t_xrbindP=> _ _ _ _ _ _ _ _ hok.
 move: hok; rewrite ranone /=.
-by move=> /andP[_ /andP[/andP[h _] _]] _.
+by move=> /andP[_ /andP[_ /andP[/andP[h _] _]]] _.
 Qed.
 
 Lemma it_compiler_back_end_to_asmP {fn} :

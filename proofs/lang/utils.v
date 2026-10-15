@@ -2028,3 +2028,43 @@ Lemma is_reflect_some_inv {A B : Type} {P : A -> B} {e a} :
   is_reflect P e (Some a) ->
   e = P a.
 Proof. by rewrite -/(if Some a is Some a' then e = P a' else True) => -[]. Qed.
+
+Lemma all_pmap_filter (T U : Type) (f : T -> option U) (P : pred T) (q : pred U) l :
+  all q (pmap f l) -> all q (pmap f (filter P l)).
+Proof. by rewrite !seq.all_pmap all_filter; apply: sub_all => x /=; case: (P x). Qed.
+
+Lemma all_Forall (T : Type) (Q : T -> bool) (Pr : T -> Prop) s :
+  (forall x, Q x -> Pr x) -> all Q s -> List.Forall Pr s.
+Proof.
+  move=> h; elim: s => //= x s ih /andP [] /h ? /ih ?.
+  by constructor.
+Qed.
+
+Lemma Forall_zip_zip_Forall3 (A B C : Type) (R : A * C * B -> Prop) l1 l2 l3 :
+  size l1 = size l3 -> size l1 = size l2 ->
+  List.Forall R (zip (zip l1 l3) l2) ->
+  Forall3 (fun a b c => R (a, c, b)) l1 l2 l3.
+Proof.
+  elim: l1 l2 l3 => [|a l1 ih] [|b l2] [|c l3] //=.
+  + by move=> _ _ _; constructor.
+  move=> [hs1] [hs2] /List.Forall_cons_iff [h1 h2].
+  by constructor => //; apply: ih.
+Qed.
+
+Lemma map_zip_zip (A B C : Type) (l1 : seq A) (l2 : seq B) (l3 : seq C) :
+  size l1 = size l2 ->
+  map (fun x : A * B * C => (x.1.1, x.2)) (zip (zip l1 l2) l3) = zip l1 l3.
+Proof.
+  elim: l1 l2 l3 => [|ty l1 ih] [|v l2] [|o l3] //= [] /ih{}ih.
+  by rewrite ih.
+Qed.
+
+Lemma pairwise_pmap (T U : Type) (f : T -> option U) (R : U -> U -> bool) (s : seq T) :
+  pairwise R (pmap f s) ->
+  pairwise (fun x y => oapp (fun a => oapp (R a) true (f y)) true (f x)) s.
+Proof.
+  elim: s => //= x s ih.
+  case hfx: (f x) => [a|] /=; last by move=> /ih ->; rewrite all_predT.
+  move=> /andP [hall /ih ->]; rewrite andbT.
+  by rewrite -seq.all_pmap.
+Qed.

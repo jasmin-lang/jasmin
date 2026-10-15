@@ -892,13 +892,17 @@ Context
   (shparams : slh_lowering.sh_params)
   (saparams : stack_alloc_params)
   (is_move_op : asm_op_t -> bool)
-  (fresh_var_ident  : v_kind -> Uint63.int -> string -> atype -> Ident.ident)
+  (fresh_var_ident  : v_kind -> instr_info -> Uint63.int -> string -> atype -> Ident.ident)
   (pp_sr : sub_region -> pp_error)
 .
 
+(* [ii] is the entry information of the function being compiled: it makes the
+   fresh variables of two different functions different. *)
+Definition fresh_reg ii := fresh_var_ident (Reg (Normal, Direct)) ii 0.
+
 Definition clone (x:var) n :=
   let xn :=
-    fresh_var_ident (Ident.id_kind x.(vname)) n (Ident.id_name x.(vname)) x.(vtype)
+    fresh_var_ident (Ident.id_kind x.(vname)) dummy_instr_info n (Ident.id_name x.(vname)) x.(vtype)
   in
   {| vtype := x.(vtype); vname := xn |}.
 
@@ -1973,14 +1977,43 @@ Definition check_results pmap rmap paramsi params ret_pos res :=
         (check_result pmap rmap paramsi params) ret_pos res.
 
 (* TODO: is duplicate region the best error msg ? *)
-Definition init_param (mglob stack : Mvar.t (Z * wsize)) accu pi (x:var_i) :=
+(* A parameter of kind [stack] is allocated in the stack frame like a local
+   variable; it is replaced, in the signature of the function, by a fresh
+   register that does not occur in the body. The prologue of the function
+   stores the value of that register (or the value passed on the stack) at the
+   address of the slot; the offset of the slot is recorded in the third
+   component of the result and ends up in [sf_spill_params]. *)
+Definition init_stack_param ii
+    (disj : Sv.t) (lmap : Mvar.t ptr_kind) (rmap : region_map) (x:var_i) ofs cs :
+    cexec (Sv.t * Mvar.t ptr_kind * region_map * (option sub_region * var_i * option Z)) :=
+  Let _ :=
+    assert (is_aword x.(vtype))
+      (stk_error x (pp_box [::
+        pp_var x; pp_s "is a parameter of kind stack, but its type is not a word"])) in
+  let xa :=
+    {| vtype := x.(vtype);
+       vname := fresh_reg ii (append (Ident.id_name x.(vname)) "_arg") x.(vtype) |} in
+  Let _ := assert (~~ Sv.mem xa disj) (stk_ierror_no_var "the fresh parameter is not fresh") in
+  if Mvar.get lmap xa is Some _ then
+    Error (stk_ierror_no_var "the fresh parameter is a local variable")
+  else
+  (* [x] is already registered as valid in [rmap] by [add_alloc]. *)
+  ok (Sv.add xa disj, lmap, rmap, (None, with_var x xa, Some (ofs + cs.(cs_ofs))%Z)).
+
+Definition init_param ii (is_export : bool) (mglob stack : Mvar.t (Z * wsize)) accu pi (x:var_i) :=
   let: (disj, lmap, rmap) := accu in
   Let _ := assert (~~ Sv.mem x disj) (stk_ierror_no_var "a parameter already exists") in
-  if Mvar.get lmap x is Some _ then Error (stk_ierror_no_var "a stack variable also occurs as a parameter")
-  else
-  match pi with
-  | None => ok (accu, (None, x))
-  | Some pi =>
+  match Mvar.get lmap x, pi with
+  | Some (Pdirect _ ofs _ cs Slocal), None =>
+    (* only export functions may receive a parameter spilled in the frame:
+       the semantics of the call ignores [sf_spill_params] otherwise *)
+    Let _ := assert is_export
+      (stk_error x (pp_box [::
+        pp_var x; pp_s "is a parameter of kind stack of a non-export function"])) in
+    init_stack_param ii disj lmap rmap x ofs cs
+  | Some _, _ => Error (stk_ierror_no_var "a stack variable also occurs as a parameter")
+  | None, None => ok (accu, (None, x, None))
+  | None, Some pi =>
     Let _ := assert (convertible (vtype pi.(pp_ptr)) (aword Uptr)) (stk_ierror_no_var "bad ptr type") in
     Let _ := assert (~~Sv.mem pi.(pp_ptr) disj) (stk_ierror_no_var "duplicate region") in
     Let _ := assert (is_aarr x.(vtype)) (stk_ierror_no_var "bad reg ptr type") in
@@ -1995,19 +2028,19 @@ Definition init_param (mglob stack : Mvar.t (Z * wsize)) accu pi (x:var_i) :=
     ok (Sv.add pi.(pp_ptr) disj,
         Mvar.set lmap x (Pregptr pi.(pp_ptr)),
         set_move rmap x sr Valid,
-        (Some sr, with_var x pi.(pp_ptr)))
+        (Some sr, with_var x pi.(pp_ptr), None))
   end.
 
-Definition init_params mglob stack disj lmap rmap sao_params params :=
+Definition init_params ii is_export mglob stack disj lmap rmap sao_params params :=
   fmapM2 (stk_ierror_no_var "invalid function info")
-    (init_param mglob stack) (disj, lmap, rmap) sao_params params.
+    (init_param ii is_export mglob stack) (disj, lmap, rmap) sao_params params.
 
-Definition fresh_reg := fresh_var_ident (Reg (Normal, Direct)) 0.
-
-Definition alloc_fd_aux P p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) sao fd : cexec _ufundef :=
+Definition alloc_fd_aux P p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) sao fd :
+    cexec (_ufundef * seq (option Z)) :=
   let vrip := {| vtype := aword Uptr; vname := p_extra.(sp_rip) |} in
   let vrsp := {| vtype := aword Uptr; vname := p_extra.(sp_rsp) |} in
-  let vxlen := {| vtype := aword Uptr; vname := fresh_reg "__len__"%string (aword Uptr) |} in
+  let ii := entry_info_of_fun_info fd.(f_info) in
+  let vxlen := {| vtype := aword Uptr; vname := fresh_reg dummy_instr_info "__len__"%string (aword Uptr) |} in
   let ra := sao.(sao_return_address) in
   Let stack := init_stack_layout mglob sao in
   Let mstk := init_local_map vrip vrsp vxlen mglob stack sao in
@@ -2022,10 +2055,45 @@ Definition alloc_fd_aux P p_extra mglob (local_alloc: funname -> stk_alloc_oracl
   in *)
   (* adding params to the map *)
   Let rparams :=
-    init_params mglob stack disj locals rmap sao.(sao_params) fd.(f_params) in
+    init_params ii (is_RAnone ra) mglob stack disj locals rmap sao.(sao_params) fd.(f_params) in
   let: (sv, lmap, rmap, alloc_params) := rparams in
-  let paramsi := map fst alloc_params in
-  let params : seq var_i := map snd alloc_params in
+  let paramsi := map (fun '(osr, _, _) => osr) alloc_params in
+  let params : seq var_i := map (fun '(_, x, _) => x) alloc_params in
+  let spill_params : seq (option Z) := map (fun '(_, _, ospill) => ospill) alloc_params in
+  (* the fresh variables introduced for the spilled parameters must not collide
+     with the other parameters *)
+  Let _ := assert (uniq (map v_var params))
+                  (stk_ierror_no_var "the parameters are not distinct") in
+  (* a spilled parameter: its declared type is the type of its variable (the
+     value the call writes in the variable and the value stored in the frame
+     agree), and its slot is aligned for its width *)
+  Let _ :=
+    assert
+      (all2 (fun ty (a : option sub_region * var_i * option Z) =>
+               let '(_, x, o) := a in
+               if o is Some ofs then
+                 (ty == vtype x) &&
+                 (if is_word_type ty is Some ws then
+                    is_align (wrepr Uptr ofs) ws && (ws <= sao.(sao_align))%CMP
+                  else false)
+               else true)
+            fd.(f_tyin) alloc_params)
+      (stk_ierror_no_var "bad spilled parameter") in
+  (* the slots of the spilled parameters are pairwise disjoint: all of them
+     hold a value at the entry of the function *)
+  let spill_slots :=
+    pmap (fun (a : atype * option Z) =>
+            let '(ty, o) := a in
+            if o is Some ofs then
+              if is_word_type ty is Some ws then Some (ofs, ws) else None
+            else None)
+         (zip fd.(f_tyin) spill_params) in
+  Let _ :=
+    assert
+      (pairwise (fun s1 s2 : Z * wsize =>
+                   ((s1.1 + wsize_size s1.2 <=? s2.1) || (s2.1 + wsize_size s2.2 <=? s1.1))%Z)
+                spill_slots)
+      (stk_ierror_no_var "the slots of the spilled parameters overlap") in
   let pmap := {|
         vrip    := vrip;
         vrsp    := vrsp;
@@ -2046,7 +2114,7 @@ Definition alloc_fd_aux P p_extra mglob (local_alloc: funname -> stk_alloc_oracl
     fmapM (alloc_i pmap local_alloc P sao) (table, rmap) fd.(f_body) in
   Let res :=
       check_results pmap rmap paramsi fd.(f_params) sao.(sao_return) fd.(f_res) in
-  ok {|
+  ok ({|
     f_info := f_info fd;
     f_contract := f_contract fd;
     f_tyin := map2 (fun o ty => if o is Some _ then aword Uptr else ty) sao.(sao_params) fd.(f_tyin);
@@ -2054,11 +2122,12 @@ Definition alloc_fd_aux P p_extra mglob (local_alloc: funname -> stk_alloc_oracl
     f_body := flatten body;
     f_tyout := map2 (fun o ty => if o is Some _ then aword Uptr else ty) sao.(sao_return) fd.(f_tyout);
     f_res := res;
-    f_extra := f_extra fd |}.
+    f_extra := f_extra fd |}, spill_params).
 
 Definition alloc_fd P p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) fn fd :=
   let: sao := local_alloc fn in
-  Let fd := alloc_fd_aux P p_extra mglob local_alloc sao fd in
+  Let fdsp := alloc_fd_aux P p_extra mglob local_alloc sao fd in
+  let: (fd, spill_params) := fdsp in
   let f_extra := {|
         sf_align  := sao.(sao_align);
         sf_stk_sz := sao.(sao_size);
@@ -2069,7 +2138,8 @@ Definition alloc_fd P p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t)
         sf_to_save := sao.(sao_to_save);
         sf_save_stack := sao.(sao_rsp);
         sf_return_address := sao.(sao_return_address);
-        sf_align_args := map (oapp pp_align U8) sao.(sao_params)
+        sf_align_args := map (oapp pp_align U8) sao.(sao_params);
+        sf_spill_params := spill_params
       |} in
   ok (swith_extra fd f_extra).
 

@@ -26,6 +26,16 @@ Class semCallParams
   := SemCallParams
   {
   init_state : extra_fun_t -> extra_prog_t -> extra_val_t -> estate -> exec estate;
+  (* Store in the stack frame the parameters that are passed on the stack;
+     called just after the parameters have been written in the variable map. *)
+  spill_params : extra_fun_t -> seq atype -> values -> estate -> exec estate;
+  (* [spill_params] only modifies the memory, and the resulting memory does not
+     depend on the variable map nor change when the arguments are given more
+     precise values. *)
+  spill_paramsP : forall ef tys vs vs' (s s2 : estate) vm',
+     values_uincl vs vs' ->
+     spill_params ef tys vs s = ok s2 ->
+     s2.(evm) = s.(evm) /\ spill_params ef tys vs' (with_vm s vm') = ok (with_vm s2 vm');
   finalize   : extra_fun_t -> mem -> mem;
   exec_syscall : syscall_state_t -> mem -> syscall_t -> values -> exec (syscall_state_t * mem * values);
   exec_syscallP: forall scs m o vargs vargs' rscs rm vres,
@@ -66,9 +76,17 @@ Context
 (* ** Semantic without stack
  * -------------------------------------------------------------------- *)
 
+Lemma spill_params_unitP (ef : unit) (tys : seq atype) (vs vs' : values) (s s2 : estate) vm' :
+  values_uincl vs vs' ->
+  (ok s : exec estate) = ok s2 ->
+  s2.(evm) = s.(evm) /\ (ok (with_vm s vm') : exec estate) = ok (with_vm s2 vm').
+Proof. by move=> _ [<-]. Qed.
+
 #[ global ]
 Instance sCP_unit : semCallParams (pT := progUnit) :=
   { init_state := fun _ _ _ s => ok s;
+    spill_params := fun _ _ _ s => ok s;
+    spill_paramsP := spill_params_unitP;
     finalize   := fun _ m => m;
     exec_syscall  := exec_syscall_u;
     exec_syscallP := exec_syscallPu;
@@ -89,9 +107,128 @@ Definition init_stk_state (sf : stk_fun_extra) (pe:sprog_extra) (wrip:pointer) (
 Definition finalize_stk_mem (sf : stk_fun_extra) (m:mem) :=
   free_stack m.
 
+(* Store the argument [v] of a parameter of declared type [ty] in the stack
+   frame at offset [ofs] (relative to the stack pointer of the current
+   function). The value comes from the argument list, not from the variable
+   map, and the width from the declared type, not from the variable: after
+   register allocation, the parameters are machine registers, and several
+   parameters that arrive on the stack may share one. *)
+Definition spill_stk_param (tvo : atype * value * option Z) (m : mem) : exec mem :=
+  let '(ty, v, oofs) := tvo in
+  match oofs with
+  | None => ok m
+  | Some ofs =>
+    Let ws := o2r ErrType (is_word_type ty) in
+    Let w := to_word ws v in
+    write m Aligned (top_stack m + wrepr Uptr ofs)%R w
+  end.
+
+(* Memory obtained from [m] by storing the arguments [vs] of the parameters
+   (of declared types [tys]) that are spilled in the stack frame. *)
+Definition spill_stk_params_mem
+    (sf : stk_fun_extra) (tys : seq atype) (vs : values) (m : mem) : exec mem :=
+  (* only export functions receive parameters that are spilled in the frame;
+     [sf_spill_params] is meaningless for the other functions *)
+  if is_RAnone sf.(sf_return_address)
+  then foldM spill_stk_param m (zip (zip tys vs) sf.(sf_spill_params))
+  else ok m.
+
+Definition spill_stk_params
+    (sf : stk_fun_extra) (tys : seq atype) (vs : values) (s : estate) : exec estate :=
+  Let m := spill_stk_params_mem sf tys vs s.(emem) in
+  ok (with_mem s m).
+
+Lemma spill_stk_paramP ty v v' o m m' :
+  value_uincl v v' ->
+  spill_stk_param (ty, v, o) m = ok m' ->
+  spill_stk_param (ty, v', o) m = ok m'.
+Proof.
+  move=> hu; case: o => [ofs|] //=.
+  t_xrbindP => ws hws w hw hwr.
+  rewrite hws /=.
+  by move: (of_value_uincl_te (ty := cword ws) hu hw) => /= ->.
+Qed.
+
+Lemma spill_stk_params_memP ef tys vs vs' m m' :
+  values_uincl vs vs' ->
+  spill_stk_params_mem ef tys vs m = ok m' ->
+  spill_stk_params_mem ef tys vs' m = ok m'.
+Proof.
+  rewrite /spill_stk_params_mem; case: is_RAnone => //.
+  elim: tys vs vs' (sf_spill_params ef) m => [ | ty tys ih] [ | v vs] vs' os m /=.
+  - by move=> /List_Forall2_inv_l ->; case: os.
+  - by move=> _; case: os => [ | o os] /=; case: vs'.
+  - by move=> /List_Forall2_inv_l ->; case: os.
+  move=> /List_Forall2_inv_l [v''] [vs''] [-> [hu hus]]; case: os => [ | o os] //=.
+  change (Let acc := spill_stk_param (ty, v, o) m in foldM spill_stk_param acc (zip (zip tys vs) os) = ok m' ->
+          Let acc := spill_stk_param (ty, v'', o) m in foldM spill_stk_param acc (zip (zip tys vs'') os) = ok m').
+  by t_xrbindP => m1 /(spill_stk_paramP hu) -> /=; exact: ih hus.
+Qed.
+
+Lemma spill_stk_paramsP ef tys vs vs' (s s2 : estate) vm' :
+  values_uincl vs vs' ->
+  spill_stk_params ef tys vs s = ok s2 ->
+  s2.(evm) = s.(evm) /\ spill_stk_params ef tys vs' (with_vm s vm') = ok (with_vm s2 vm').
+Proof.
+  rewrite /spill_stk_params => hu; t_xrbindP => m hm <-.
+  by split => //=; rewrite (spill_stk_params_memP hu hm).
+Qed.
+
+(* [spill_stk_param] writes in the stack frame: the shape of the stack is
+   preserved, and so is the set of valid addresses. *)
+Lemma spill_stk_param_stable tvo m m' :
+  spill_stk_param tvo m = ok m' -> stack_stable m m'.
+Proof.
+  case: tvo => [[ty v] [ofs|]] /=; last by move=> [<-].
+  by t_xrbindP => ????; apply: Memory.write_mem_stable.
+Qed.
+
+Lemma spill_stk_param_validw tvo m m' :
+  spill_stk_param tvo m = ok m' -> validw m =3 validw m'.
+Proof.
+  case: tvo => [[ty v] [ofs|]] /=; last by move=> [<-].
+  by t_xrbindP => ???? h al p ws; rewrite (write_validw_eq h).
+Qed.
+
+Lemma spill_stk_params_mem_stable ef tys vs m m' :
+  spill_stk_params_mem ef tys vs m = ok m' -> stack_stable m m'.
+Proof.
+  rewrite /spill_stk_params_mem; case: is_RAnone; last by move=> [<-].
+  move: m; elim: (zip _ _) => [ | tvo l ih] m /=; first by move=> [<-].
+  t_xrbindP => m1 /spill_stk_param_stable h /ih.
+  exact: stack_stable_trans h.
+Qed.
+
+Lemma spill_stk_params_mem_validw ef tys vs m m' :
+  spill_stk_params_mem ef tys vs m = ok m' -> validw m =3 validw m'.
+Proof.
+  rewrite /spill_stk_params_mem; case: is_RAnone; last by move=> [<-].
+  move: m; elim: (zip _ _) => [ | tvo l ih] m /=; first by move=> [<-].
+  by t_xrbindP => m1 /spill_stk_param_validw h /ih h1 al p ws; rewrite h h1.
+Qed.
+
+Lemma spill_stk_params_mem_equiv ef tys vs m m' :
+  spill_stk_params_mem ef tys vs m = ok m' -> mem_equiv m m'.
+Proof.
+  by move=> h; split;
+    [apply: spill_stk_params_mem_stable h | apply: spill_stk_params_mem_validw h].
+Qed.
+
+(* Only export functions spill their parameters in the stack frame. *)
+Lemma spill_stk_params_mem_not_export ef tys vs m :
+  ~~ is_RAnone ef.(sf_return_address) ->
+  spill_stk_params_mem ef tys vs m = ok m.
+Proof. by rewrite /spill_stk_params_mem => /negbTE ->. Qed.
+
+Lemma spill_stk_params_equiv ef tys vs (s s' : estate) :
+  spill_stk_params ef tys vs s = ok s' -> mem_equiv s.(emem) s'.(emem).
+Proof. by rewrite /spill_stk_params; t_xrbindP => m /spill_stk_params_mem_equiv h <-. Qed.
+
 #[ global ]
 Instance sCP_stack : semCallParams (pT := progStack) :=
   { init_state := init_stk_state;
+    spill_params := spill_stk_params;
+    spill_paramsP := spill_stk_paramsP;
     finalize   := finalize_stk_mem;
     exec_syscall  := exec_syscall_s;
     exec_syscallP := exec_syscallPs;

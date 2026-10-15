@@ -317,7 +317,8 @@ Definition initialize_funcall (p : prog) (ev : extra_val_t) (fd : fundef) (fs : 
   let sinit := estate0 fs in
   Let vargs' := mapM2 ErrType dc_truncate_val (map eval_atype fd.(f_tyin)) fs.(fvals) in
   Let s0 := init_state fd.(f_extra) (p_extra p) ev sinit in
-  write_vars (~~direct_call) fd.(f_params) vargs' s0.
+  Let s1 := write_vars (~~direct_call) fd.(f_params) vargs' s0 in
+  spill_params fd.(f_extra) fd.(f_tyin) vargs' s1.
 
 Definition finalize_funcall (fd : fundef) (s:estate) : exec fstate :=
   Let vres := get_var_is (~~ direct_call) s.(evm) fd.(f_res) in

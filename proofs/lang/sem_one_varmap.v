@@ -226,25 +226,33 @@ Definition get_export_args (m : mem) (vm : Vm.t) (sp : pointer) (fd : sfundef) :
   mapM (get_export_arg m vm sp) (zip fd.(f_params) (export_arg_positions fd)).
 
 (* The prologue of an export function loads into their registers the arguments
-   that the caller left on the stack. *)
-Definition load_export_arg (a : var_i * value * option Z) (vm : Vm.t) : exec Vm.t :=
-  let '(x, v, o) := a in
-  if o is Some _ then set_var true vm x v else ok vm.
+   that the caller left on the stack and that stack allocation did not spill in
+   the frame ([sf_spill_params]); the spilled ones are stored in the frame by
+   [spill_stk_params_mem]. *)
+Definition load_export_arg (a : var_i * value * option Z * option Z) (vm : Vm.t) : exec Vm.t :=
+  let '(x, v, o, d) := a in
+  match o, d with
+  | Some _, None => set_var true vm x v
+  | _, _ => ok vm
+  end.
 
 Definition load_export_args (fd : sfundef) (vs : values) (vm : Vm.t) : exec Vm.t :=
-  foldM load_export_arg vm (zip (zip fd.(f_params) vs) (export_arg_positions fd)).
+  foldM load_export_arg vm
+    (zip (zip (zip fd.(f_params) vs) (export_arg_positions fd)) fd.(f_extra).(sf_spill_params)).
 
 Variant sem_export_call_conclusion (scs: syscall_state_t) (m: mem) (fd: sfundef) (args: values) (vm: Vm.t) (scs': syscall_state_t) (m': mem) (res: values) : Prop :=
-  | SemExportCallConclusion (m1: mem) (vm1 : Vm.t) (k: Sv.t) (m2: mem) (vm2: Vm.t) (res':values) of
+  | SemExportCallConclusion (m1 m1': mem) (vm1 : Vm.t) (k: Sv.t) (m2: mem) (vm2: Vm.t) (res':values) of
     saved_stack_valid fd k &
     Sv.Subset (Sv.inter callee_saved (Sv.union k (Sv.union (ra_undef fd var_tmp) (stack_params nb_reg_args fd)))) (sv_of_list fst fd.(f_extra).(sf_to_save)) &
     alloc_stack m fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_ioff) fd.(f_extra).(sf_stk_extra_sz) = ok m1 &
 (*    all2 check_ty_val fd.(f_tyin) args & *)
-    (* effect of the prologue: the arguments passed on the stack are loaded into
-       their registers (internal functions have no such parameters, hence
-       [EcallRun] does nothing of the kind) *)
+    (* effect of the prologue: the arguments of the spilled parameters are
+       stored in the frame, the arguments passed on the stack of the parameters
+       that live in a register are loaded there (internal functions have no
+       such parameters, hence [EcallRun] does neither) *)
+    spill_stk_params_mem fd.(f_extra) fd.(f_tyin) args m1 = ok m1' &
     load_export_args fd args (ra_undef_vm_none fd.(f_extra).(sf_save_stack) var_tmp vm) = ok vm1 &
-    sem k {| escs := scs; emem := m1 ; evm := set_RSP m1 vm1 |} fd.(f_body) {| escs:= scs'; emem := m2 ; evm := vm2 |} &
+    sem k {| escs := scs; emem := m1' ; evm := set_RSP m1' vm1 |} fd.(f_body) {| escs:= scs'; emem := m2 ; evm := vm2 |} &
     get_var_is false vm2 fd.(f_res) = ok res' &
     values_uincl res res' &
  (*   all2 check_ty_val fd.(f_tyout) res' & *)

@@ -53,6 +53,12 @@ Section WITH_PARAMS.
       {pT: progT}
       {sCP: semCallParams}.
 
+  (* Only the variables that do not live in the frame are renamed. *)
+  Lemma rename_vars_cons ii x xs :
+    rename_vars ii (x :: xs) =
+    if rename_needed x then rename_var ii x :: rename_vars ii xs else rename_vars ii xs.
+  Proof. by rewrite /rename_vars /=; case: rename_needed. Qed.
+
   Section PROOF.
 
     Context (insert_renaming_p: fun_info → bool).
@@ -192,18 +198,22 @@ Section WITH_PARAMS.
         move: {1}[::].
         elim: {1 3}(f_params fd).
         - by move => _ _; apply wequiv_nil.
-        move => x xs ih /= xs' hparams.
+        move => x xs ih xs' hparams.
         move: ih => /(_ (xs' ++ [:: x ])).
         rewrite -catA => /(_ hparams).
+        rewrite rename_vars_cons.
+        case: (rename_needed x); last by [].
         rewrite -{2}(cat0s [::]) -cat1s; apply wequiv_cat.
         apply wequiv_assign_right.
         move => s t [] hu [] fs /[dup] ok_fs.
         rewrite /initialize_funcall; t_xrbindP => va.
         case/and3P: (do_insert) => _ /eqP -> _.
-        move => ok_va si ok_si ok_s.
-        have /(_ x) := write_vars_defined ok_va ok_s.
+        move => ok_va si ok_si s1 ok_s1 hspill.
+        have [hvm _] := spill_paramsP (evm s1) values_uincl_refl hspill.
+        have /(_ x) := write_vars_defined ok_va ok_s1.
         rewrite -hparams all_cat /= eqxx andbF => /(_ erefl).
         case => v [] v' [] ok_v get_x.
+        rewrite -hvm in get_x.
         have /(_ (evm t)) := get_var_uincl _ get_x.
         case: (hu) => _ _ vms_vmt /(_ vms_vmt).
         case => vt {} get_x v_vt.
@@ -230,9 +240,11 @@ Section WITH_PARAMS.
       move: {1}[::].
       elim: {1 3}(f_res fd).
       + by move => _ _; apply wequiv_nil => ?? [] ? [].
-      move => x xs ih /= xs' hres.
+      move => x xs ih xs' hres.
       move: ih => /(_ (xs' ++ [:: x ])).
       rewrite -catA => /(_ hres).
+      rewrite rename_vars_cons.
+      case: (rename_needed x); last by [].
       rewrite -{2}(cat0s [::]) -cat1s; apply wequiv_cat.
       apply wequiv_assign_right.
       move => s t [] ? [] [] ?? hst [] fs.

@@ -1,0 +1,10 @@
+// All the parameters are of kind stack; they arrive in the argument registers.
+
+export
+fn three_stack_args(stack u64 x y z) -> reg u64 {
+  reg u64 r;
+  r = x;
+  r += y;
+  r += z;
+  return r;
+}

@@ -46,6 +46,8 @@ let config path =
         ("fail/slh/x86-64/export_takes_msf.jazz", disable_renaming);
         ( "fail/typing/x86-64/bug_488.jazz",
           disable_warnings [ SimplifyVectorSuffix ] );
+        ( "fail/typing/x86-64/export_stack_arg_too_large.jazz",
+          reset_warn_recoverable );
         ( "fail/typing/x86-64/export_stack_array_res.jazz",
           reset_warn_recoverable );
         ("fail/typing/x86-64/export_stack_res.jazz", reset_warn_recoverable);

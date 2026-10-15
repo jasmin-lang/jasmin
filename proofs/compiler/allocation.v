@@ -688,8 +688,9 @@ Definition check_f_extra_s (r: M.t) (e1 e2: extra_fun_t) p1 p2 : cexec M.t :=
   (e1.(sf_stk_extra_sz) == e2.(sf_stk_extra_sz)),
   (e1.(sf_stk_max) == e2.(sf_stk_max)),
   (e1.(sf_max_call_depth) == e2.(sf_max_call_depth)),
-  (is_RAnone e1.(sf_return_address) == is_RAnone e2.(sf_return_address)) &
-  (e1.(sf_align_args) == e2.(sf_align_args))]
+  (is_RAnone e1.(sf_return_address) == is_RAnone e2.(sf_return_address)),
+  (e1.(sf_align_args) == e2.(sf_align_args)) &
+  (e1.(sf_spill_params) == e2.(sf_spill_params))]
       (E.error "extra not equal") in
   check_vars p1 p2 r.
 

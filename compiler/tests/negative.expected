@@ -1696,6 +1696,11 @@ fail/typing/x86-64/export_reg_array_res.jazz:
 compilation error in function test3:
 array expansion: cannot expand variable t1 (reg arrays are not allowed in the return type of export functions)
 
+fail/typing/x86-64/export_stack_arg_too_large.jazz:
+
+"fail/typing/x86-64/export_stack_arg_too_large.jazz", line 5 (52-53):
+typing error: v has kind stack, only reg or reg ptr are allowed in parameter of non inlined function
+
 fail/typing/x86-64/export_stack_array_res.jazz:
 
 "fail/typing/x86-64/export_stack_array_res.jazz", line 30 (9-11):
@@ -1987,4 +1992,4 @@ Statistics:
 	Pretyping:  65
 	Parsing:     5
 	Typing:      5
-	Compile:   238
+	Compile:   239

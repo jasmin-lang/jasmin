@@ -338,20 +338,72 @@ Definition set_up_sp_register
   (vrspi : var_i) (sf_sz : Z) (al : wsize) (r : var_i) (tmp : var_i) : lcmd :=
   map (li_of_fopn_args ii) (lip_set_up_sp_register liparams vrspi sf_sz al r tmp).
 
-(* Loads of the parameters of an export function that the caller passes on
-   the stack: [args] pairs each parameter with where the caller left it
-   ([None]: in the register found in [f_params]; [Some sofs]: on the stack at
-   offset [sofs] from the stack pointer at the entry of the function, which
-   [old_rsp] must hold). The parameters are architecture registers here, so a
-   whole register is loaded; as for an argument passed in a register, the bits
-   beyond the declared width of the argument are not constrained. *)
-Definition load_stack_args (ii : instr_info) (old_rsp : var_i)
-  (args : seq (var_i * option Z)) : lcmd :=
+(* Width of a parameter that is spilled in the stack frame; the [lbool] case is
+   dead code ([check_fd] rejects it), [U8] is arbitrary. *)
+Definition wsize_of_ltype (ty : ltype) : wsize :=
+  if ty is lword ws then ws else U8.
+
+(* Description of the parameters of an export function: for each of them, its
+   declared type, where the caller left it ([None]: in the register found in
+   [f_params]; [Some sofs]: on the stack at offset [sofs] from the stack pointer
+   at the entry of the function) and where the function expects it ([None]: in
+   that same register; [Some dofs]: in the stack frame at offset [dofs] from the
+   stack pointer of the function, see [sf_spill_params]).  There are thus three
+   kinds of parameters that the prologue has to move: register to stack, stack
+   to stack and stack to register; a parameter passed in a register and used in
+   a register needs nothing.
+   The declared type is needed because the variables of [f_params] are
+   architecture registers at this point: their type is that of a register, not
+   the one the source program gave to the parameter. *)
+(* Register to stack: the parameter arrives in a register and lives in the
+   frame; the store frees the register.  The slot has the width of the
+   parameter. *)
+Definition store_reg_args (ii : instr_info) (rsp : var_i)
+  (args : seq (var_i * ltype * option Z * option Z)) : lcmd :=
   pmap
     (fun a =>
-       if a.2 is Some sofs
-       then Some (lload ii (wsize_of_atype (vtype (v_var a.1))) a.1 old_rsp sofs)
-       else None)
+       let '(x, ty, o, d) := a in
+       match o, d with
+       | None, Some dofs => Some (lstore ii (wsize_of_ltype ty) rsp dofs x)
+       | _, _ => None
+       end)
+    args.
+
+(* Stack to stack: the parameter arrives on the stack and lives in the frame; it
+   travels through [tmp2].  The slot of the caller is pointer sized, so a whole
+   register is loaded, and the slot in the frame has the width of the
+   parameter, so only that many bytes are stored. *)
+Definition move_stack_args (ii : instr_info) (rsp old_rsp tmp2 : var_i)
+  (args : seq (var_i * ltype * option Z * option Z)) : lcmd :=
+  flatten
+    (pmap
+       (fun a =>
+          let '(_, ty, o, d) := a in
+          match o, d with
+          | Some sofs, Some dofs =>
+              Some [:: lload ii Uptr tmp2 old_rsp sofs
+                     ; lstore ii (wsize_of_ltype ty) rsp dofs tmp2 ]
+          | _, _ => None
+          end)
+       args).
+
+(* Stack to register: the parameter arrives on the stack and lives in the
+   register found in [f_params].
+   [old_rsp] must hold the value the stack pointer had at the entry of the
+   function.
+   The parameters are architecture registers here, so a whole register is
+   loaded; as for an argument passed in a register, the bits beyond the declared
+   width of the argument are not constrained. *)
+Definition load_stack_args (ii : instr_info) (old_rsp : var_i)
+  (args : seq (var_i * ltype * option Z * option Z)) : lcmd :=
+  pmap
+    (fun a =>
+       let '(x, _, o, d) := a in
+       match o, d with
+       | Some sofs, None =>
+           Some (lload ii (wsize_of_atype (vtype (v_var x))) x old_rsp sofs)
+       | _, _ => None
+       end)
     args.
 
 (* -------------------------------------------------------------------------- *)
@@ -659,8 +711,10 @@ Context
 Definition export_arg_positions (tyin : seq ltype) : seq (option Z) :=
   stack_arg_positions nb_reg_args stack_args_ofs tyin.
 
-Definition arg_positions (tyin : seq ltype) (params : seq var_i) : seq (var_i * option Z) :=
-  zip params (export_arg_positions tyin).
+Definition arg_positions (tyin : seq ltype) (params : seq var_i) (spill : seq (option Z))
+  : seq (var_i * ltype * option Z * option Z) :=
+  zip (zip (zip params tyin) (export_arg_positions tyin)) spill.
+
 
 Definition ov_type_ptr (o: option var) :=
    if o is Some r then convertible (vtype r) (aword Uptr) else true.
@@ -709,7 +763,9 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
         [&& sf_to_save e == [::]
           , sf_align e == U8
           , sf_stk_sz e == 0%Z
-          & sf_stk_extra_sz e == 0%Z
+          , sf_stk_extra_sz e == 0%Z
+          (* there is no frame to spill a parameter into *)
+          & all (fun o => ~~ isSome o) (sf_spill_params e)
         ]
 
     | SavedStackReg x =>
@@ -731,20 +787,78 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
       (~~ is_RAnone (sf_return_address e) || ok_save_stack)
       (E.error "bad save-stack")
   in
-  (* The prologue of an export function loads into their registers the
-     parameters that the caller passes on the stack (see [linear_body]): these
-     registers must be pairwise distinct and must not clash with the registers
-     used to set up the stack, in particular with the one holding the value the
-     stack pointer had at the entry. *)
+  (* Slot of the stack frame, of size [ws], holding a spilled parameter: it is
+     inside the zone of the local variables. *)
+  let ok_spill_slot dofs ws :=
+    [&& (0 <=? dofs)%Z
+      , (dofs + wsize_size ws <=? sf_stk_sz e)%Z
+      , (ws <= sf_align e)%CMP (* the frame is aligned enough for the slot *)
+      & is_align (wrepr Uptr dofs) ws (* the slot itself is aligned *)
+    ]
+  in
+  (* The prologue of an export function moves the parameters to the place where
+     the body expects them (see [linear_body]):
+     - a parameter that the caller passes on the stack and that the body reads
+       in a register is loaded into that register: these registers must be
+       pairwise distinct and must not clash with the registers used to set up
+       the stack, in particular with the one holding the value the stack pointer
+       had at the entry;
+     - a parameter that stack allocation spilled in the frame is stored there,
+       from its argument register or through [var_tmp2]: only its slot and the
+       width of the store matter, the register it comes in is the one the
+       calling convention says (the assembly generation checks it) and the
+       registers of the other parameters are not touched. *)
   let ok_stack_args :=
     let tyin := odflt [::] (oseq.omap ltype_of_atype fd.(f_tyin)) in
-    let args := arg_positions tyin fd.(f_params) in
-    let xs := pmap (fun a => if a.2 is Some _ then Some (v_var a.1) else None) args in
+    let args := arg_positions tyin fd.(f_params) (sf_spill_params e) in
+    let xs :=
+      pmap (fun a =>
+              let '(x, _, o, d) := a in
+              match o, d with Some _, None => Some (v_var x) | _, _ => None end)
+        args
+    in
     let forbidden :=
       Sv.add rsp (Sv.add var_tmp (Sv.add var_tmp2
         (if sf_save_stack e is SavedStackReg x then Sv.singleton x else Sv.empty)))
     in
+    let ok_spilled (a : var_i * ltype * option Z * option Z) :=
+      let '(x, ty, o, d) := a in
+      if d is Some dofs then
+        [&& if ty is lword ws
+            then [&& lip_check_store_ws liparams ws & ok_spill_slot dofs ws]
+            else false
+          , (* the store into the frame goes through [var_tmp2] *)
+            if o is Some _ then lip_check_ws liparams Uptr else true
+          & (* a spilled parameter that arrives in a register is stored after
+               the stack frame has been set up, which overwrites the
+               registers used for that *)
+            if o is Some _ then v_var x != rsp else ~~ Sv.mem (v_var x) forbidden
+        ]
+      else true
+    in
+    (* a spilled parameter that arrives on the stack travels through [var_tmp2],
+       which therefore cannot hold the value the stack pointer had at the entry *)
+    let stos :=
+      has (fun a => let '(_, _, o, d) := a in isSome o && isSome d) args in
+    let ok_saved_reg :=
+      if sf_save_stack e is SavedStackReg x then ~~ stos || (x != var_tmp2) else true
+    in
+    (* The prologue fills the slots of the spilled parameters in an order that
+       is not the order of the parameters (the ones that arrive in a register
+       come first), so these slots must be pairwise disjoint. *)
+    let spill_slots :=
+      pmap (fun a => let '(_, ty, _, d) := a in
+                     if d is Some dofs then Some (dofs, wsize_of_ltype ty) else None)
+        args
+    in
+    let disjoint_slots :=
+      pairwise (fun s1 s2 : Z * wsize =>
+                  ((s1.1 + wsize_size s1.2 <=? s2.1)
+                   || (s2.1 + wsize_size s2.2 <=? s1.1))%Z)
+        spill_slots
+    in
     [&& size fd.(f_tyin) == size fd.(f_params)
+      , size (sf_spill_params e) == size fd.(f_params)
       , (* every parameter is in a register of the class of its declared type
            (the positions are computed from the declared types), and a parameter
            loaded from the stack is a pointer-sized register: the whole slot is
@@ -752,7 +866,9 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
         all2 arg_reg_class tyin fd.(f_params)
         && all (fun x => convertible (vtype x) (aword Uptr) && lip_check_ws liparams Uptr) xs
       , uniq xs
-      & all (fun x => ~~ Sv.mem x forbidden) xs
+      , all (fun x => ~~ Sv.mem x forbidden) xs
+      , [&& ok_saved_reg & disjoint_slots]
+      & all ok_spilled args
     ]
   in
   Let _ :=
@@ -915,27 +1031,39 @@ Definition linear_body
        )
      | RAnone =>
        let sf_sz := (sf_stk_sz e + sf_stk_extra_sz e)%Z in
-       (* Load the parameters that the caller passes on the stack into their
-          registers. These arguments live in the frame of the caller, so they
-          are read relative to the value the stack pointer had at the entry of
-          the function ([old_rsp]). *)
-       let load_args old_rsp :=
-         load_stack_args fentry_ii old_rsp (arg_positions tyin params)
+       (* Move the parameters where the body expects them. The arguments passed
+          on the stack live in the frame of the caller, so they are read
+          relative to the value the stack pointer had at the entry of the
+          function ([old_rsp]); the parameters that stack allocation spilled are
+          written in the frame of the function, relative to [rsp].
+          The stores of the parameters that arrive in a register come first,
+          since they free these registers; the loads into the registers of the
+          parameters that stay in registers come last, since these registers may
+          hold another parameter until then. The parameters that go through
+          [var_tmp2] are in between: at this point of the prologue that register
+          is free (it is used by [set_up_sp_register] only as a temporary). *)
+       let move_args old_rsp :=
+         let args := arg_positions tyin params (sf_spill_params e) in
+         store_reg_args fentry_ii rspi args
+           ++ move_stack_args fentry_ii rspi old_rsp (mk_var_i var_tmp2) args
+           ++ load_stack_args fentry_ii old_rsp args
        in
        match sf_save_stack e with
        | SavedStackNone =>
-         (* Head: Load the parameters passed on the stack. *)
-         ([::], load_args rspi, 1%positive)
+         (* Head: Move the parameters (the frame is empty, so no parameter is
+          *       spilled: only the loads from the stack of the caller remain).
+          *)
+         ([::], move_args rspi, 1%positive)
        | SavedStackReg x =>
          (* Tail: R[rsp] := R[x]
           * Head: R[x] := R[rsp]
           *       Setup stack.
-          *       Load the parameters passed on the stack.
+          *       Move the parameters.
           *)
          let r := mk_var_i x in
          ( [:: lmove ret_ii Uptr rspi r ]
          , set_up_sp_register fentry_ii rspi sf_sz (sf_align e) r (mk_var_i var_tmp)
-             ++ load_args r
+             ++ move_args r
          , 1%positive
          )
        | SavedStackStk ofs =>
@@ -945,13 +1073,13 @@ Definition linear_body
           *       Setup stack.
           *       M[R[rsp] + ofs] := R[r]
           *       Push registers to save to the stack.
-          *       Load the parameters passed on the stack.
+          *       Move the parameters.
           *)
          let r := mk_var_i var_tmp in
          ( pop_to_save ret_ii e.(sf_to_save) ofs
          , set_up_sp_register fentry_ii rspi sf_sz (sf_align e) r (mk_var_i var_tmp2)
              ++ push_to_save fentry_ii e.(sf_to_save) (var_tmp, ofs)
-             ++ load_args r
+             ++ move_args r
          , 1%positive)
        end
      end

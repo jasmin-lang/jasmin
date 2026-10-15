@@ -210,7 +210,7 @@ Proof.
  move=> s1 hinit.
  exists s1=> //; exists (cmpl_inv I), (cmpl_inv cm.2); split => //.
  + move: hinit; rewrite /initialize_funcall.
-   t_xrbindP => vs hargs s0 hini hw.
+   t_xrbindP => vs hargs s0 hini sw hw /= [<-].
    split => //; split => //.
    move=> x hx.
    move: hw; rewrite (write_vars_lvals _ gd) => /disjoint_eq_ons -/(_ (Sv.singleton x)) <-.

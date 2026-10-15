@@ -1,0 +1,15 @@
+export
+fn mix(stack u64 p q, reg u64 a b c d, reg u64 g h, stack u64 t u) -> reg u64 {
+  reg u64 r;
+  r = p;
+  r += q;
+  r += a;
+  r += b;
+  r += c;
+  r += d;
+  r += g;
+  r += h;
+  r += t;
+  r += u;
+  return r;
+}

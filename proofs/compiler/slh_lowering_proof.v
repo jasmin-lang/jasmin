@@ -306,6 +306,19 @@ Lemma wf_env_empty gd s :
   wf_env Env.empty gd s.
 Proof. done. Qed.
 
+(* The environment only constrains the variable map: the condition it remembers
+   does not read the memory. *)
+Lemma wf_env_eq_vm env gd s s' :
+  evm s' = evm s ->
+  wf_env env gd s ->
+  wf_env env gd s'.
+Proof.
+  move=> heq [hvars hcond]; split; first by rewrite heq.
+  move: hcond; rewrite /wf_cond; case: Env.cond => // c [hsem hmem]; split => //.
+  rewrite -hsem; apply: use_memP_eq_on => //.
+  by rewrite heq.
+Qed.
+
 Lemma wf_env_initial_write_var wdb gd s s' x :
   eval_atype (vtype (v_var x)) = cty_msf
   -> write_var wdb x (@Vword msf_size 0) s = ok s'
@@ -1093,7 +1106,9 @@ exists fd' => // => s hs; exists s.
 exists (st_eq env), (st_eq env'); split => //.
 (* Precondition *)
 - split=> //.
-  move: hs; rewrite /initialize_funcall; t_xrbindP=> args hargs s0 hs0 hwrite.
+  move: hs; rewrite /initialize_funcall; t_xrbindP=> args hargs s0 hs0 s1 hwrite hsp.
+  have [hvm _] := spill_paramsP (evm s1) values_uincl_refl hsp.
+  apply: (wf_env_eq_vm hvm).
   apply: (init_envP _ henv hargs hwrite (wf_env_empty _ _)).
   apply: htin.
   rewrite -(size_init_fun_env henv).

@@ -323,6 +323,16 @@ Proof.
   by rewrite sub_wordE wsub_zero_extend // !zero_extend_u wrepr_sub.
 Qed.
 
+(* [write_vars] does not read the memory. *)
+Lemma write_vars_with_mem wdb (xs:seq var_i) vs (s s' : estate) m :
+  write_vars wdb xs vs s = ok s' ->
+  write_vars wdb xs vs (with_mem s m) = ok (with_mem s' m).
+Proof.
+  elim: xs vs s => [|x xs ih] [|v vs] //= s; first by move=> [<-].
+  t_xrbindP=> s1 hw hws.
+  move: hw hws; rewrite /write_var; t_xrbindP=> vm hvm ? hws; subst s1.
+  by rewrite hvm /=; apply: ih hws.
+Qed.
 End WITH_PARAMS.
 
 Section EQ_EX.
@@ -414,3 +424,187 @@ Proof.
 Qed.
 
 End EQ_EX.
+
+Section FRAME_SLOTS.
+
+Context {pd : PointerData}.
+
+(* Two memories with the same contents, the same valid addresses and the same
+   stack.  The memory model is not extensional: the same writes performed in
+   two orders only give such memories. *)
+Definition same_mem (m m' : mem) :=
+  [/\ forall al q ws, read m al q ws = read m' al q ws,
+      forall al q ws, validw m al q ws = validw m' al q ws
+    & stack_stable m m'].
+
+Lemma same_mem_sym m m' : same_mem m m' -> same_mem m' m.
+Proof.
+  by case=> h1 h2 h3; split => *; [rewrite h1 | rewrite h2 | apply: stack_stable_sym].
+Qed.
+
+Lemma same_mem_trans m2 m1 m3 : same_mem m1 m2 -> same_mem m2 m3 -> same_mem m1 m3.
+Proof.
+  case=> h1 h2 h3 [] k1 k2 k3; split => *; [rewrite h1 k1 | rewrite h2 k2 |] => //.
+  exact: stack_stable_trans h3 k3.
+Qed.
+
+Lemma same_mem_writeV al q ws (w : word ws) m m' r :
+  same_mem m m' -> write m al q w = ok r ->
+  exists2 r', write m' al q w = ok r' & same_mem r r'.
+Proof.
+  case=> h1 h2 h3 hw.
+  have /(writeV w) [r' hw'] : validw m' al q ws by rewrite -h2; apply: write_validw hw.
+  exists r' => //; split.
+  + move=> al' q' ws'; apply: (eq_read al') => al'' i _.
+    by apply: (read_write_any_mem _ hw hw').
+  + by move=> al' q' ws'; rewrite (write_validw_eq hw) (write_validw_eq hw').
+  apply: (stack_stable_trans (m2 := m)); first exact: stack_stable_sym (write_mem_stable hw).
+  exact: stack_stable_trans h3 (write_mem_stable hw').
+Qed.
+
+(* Two writes in disjoint ranges commute. *)
+Lemma write_write_comm al1 p1 ws1 (w1 : word ws1) al2 p2 ws2 (w2 : word ws2) m m1 m12 :
+  disjoint_range p1 ws1 p2 ws2 ->
+  write m al1 p1 w1 = ok m1 -> write m1 al2 p2 w2 = ok m12 ->
+  exists2 m2, write m al2 p2 w2 = ok m2 &
+  exists2 m21, write m2 al1 p1 w1 = ok m21 & same_mem m12 m21.
+Proof.
+  move=> hdisj hm1 hm12.
+  have /(writeV w2) [m2 hm2] : validw m al2 p2 ws2.
+  + by rewrite -(write_validw_eq hm1); apply: write_validw hm12.
+  exists m2 => //.
+  have /(writeV w1) [m21 hm21] : validw m2 al1 p1 ws1.
+  + by rewrite (write_validw_eq hm2); apply: write_validw hm1.
+  exists m21 => //; split.
+  + move=> al q ws; apply: (eq_read al) => al' i _.
+    rewrite (write_read8 hm12) (write_read8 hm1) (write_read8 hm21) (write_read8 hm2) /=.
+    case: ifPn => h2 //; case: ifPn => h1 //; exfalso.
+    move: (disjoint_range_alt hdisj) => /(_ (sub (add q i) p1) (sub (add q i) p2)); apply.
+    + by case/andP: h1 => /ZleP ? /ZltP ?.
+    + by case/andP: h2 => /ZleP ? /ZltP ?.
+    by rewrite !add_sub.
+  + by move=> al q ws; rewrite (write_validw_eq hm12) (write_validw_eq hm1)
+      (write_validw_eq hm21) (write_validw_eq hm2).
+  apply: (stack_stable_trans (m2 := m1)); first exact: stack_stable_sym (write_mem_stable hm12).
+  apply: (stack_stable_trans (m2 := m)); first exact: stack_stable_sym (write_mem_stable hm1).
+  exact: stack_stable_trans (write_mem_stable hm2) (write_mem_stable hm21).
+Qed.
+
+(* A slot of a stack frame whose top is [top]: [ofs] is its offset and [ws] its
+   size; [write_slot] stores the value [v] there. *)
+Definition write_slot (top : pointer) (s : Z * wsize * value) (m : mem) : exec mem :=
+  let '(ofs, ws, v) := s in
+  Let w := to_word ws v in
+  write m Aligned (top + wrepr Uptr ofs)%R w.
+
+(* The slot lies in the first [hi] bytes of the frame. *)
+Definition slot_in (hi : Z) (s : Z * wsize) : bool :=
+  ((0 <=? s.1) && (s.1 + wsize_size s.2 <=? hi))%Z.
+
+Definition slots_disjoint (s1 s2 : Z * wsize) : bool :=
+  ((s1.1 + wsize_size s1.2 <=? s2.1) || (s2.1 + wsize_size s2.2 <=? s1.1))%Z.
+
+Lemma slots_disjoint_range top hi s1 s2 :
+  (wunsigned top + hi < wbase Uptr)%Z ->
+  slot_in hi s1 -> slot_in hi s2 -> slots_disjoint s1 s2 ->
+  disjoint_range (top + wrepr Uptr s1.1)%R s1.2 (top + wrepr Uptr s2.1)%R s2.2.
+Proof.
+  case: s1 s2 => [ofs1 ws1] [ofs2 ws2] /= hno.
+  rewrite /slot_in /slots_disjoint /disjoint_range /disjoint_zrange /no_overflow /= !zify.
+  have := wunsigned_range top; have := wsize_size_pos ws1; have := wsize_size_pos ws2.
+  move=> ? ? ? h1 h2 hd; rewrite !wunsigned_add; [ | lia | lia].
+  split; [apply/ZleP; lia | apply/ZleP; lia | lia].
+Qed.
+
+(* A write in a slot does not change what is outside the first [hi] bytes. *)
+Lemma write_slot_read_out top hi s m r al q ws :
+  (wunsigned top + hi < wbase Uptr)%Z ->
+  slot_in hi s.1 ->
+  disjoint_zrange top hi q (wsize_size ws) ->
+  write_slot top s m = ok r ->
+  read r al q ws = read m al q ws.
+Proof.
+  case: s => -[ofs wss] v /= hno /andP [] /ZleP h1 /ZleP h2 hdisj.
+  t_xrbindP => w _ hwr.
+  rewrite (writeP_neq _ hwr) //.
+  apply: disjoint_range_alt.
+  apply: (disjoint_zrange_incl_l _ hdisj).
+  have := wunsigned_range top; have := wsize_size_pos wss.
+  by move: h1 h2 => /= ????; rewrite /zbetween !zify wunsigned_add; lia.
+Qed.
+
+Lemma foldM_write_slot_read_out top hi l m r al q ws :
+  (wunsigned top + hi < wbase Uptr)%Z ->
+  all (slot_in hi) (map fst l) ->
+  disjoint_zrange top hi q (wsize_size ws) ->
+  foldM (write_slot top) m l = ok r ->
+  read r al q ws = read m al q ws.
+Proof.
+  move=> hno; elim: l m => [ | s l ih] m /=; first by move=> _ _ [<-].
+  move=> /andP [] hs hall hdisj; t_xrbindP => m1 h1 hf.
+  by rewrite (ih _ hall hdisj hf) (write_slot_read_out al hno hs hdisj h1).
+Qed.
+
+Lemma foldM_write_slot_same top l m m' r :
+  same_mem m m' -> foldM (write_slot top) m l = ok r ->
+  exists2 r', foldM (write_slot top) m' l = ok r' & same_mem r r'.
+Proof.
+  elim: l m m' => [ | [[ofs ws] v] l ih] m m' hs /=; first by move=> [<-]; exists m'.
+  t_xrbindP => m1 w hw hm1 hf.
+  have [m1' hm1' hs1] := same_mem_writeV hs hm1.
+  have [r' hf' hs'] := ih _ _ hs1 hf.
+  by exists r' => //; rewrite hw /= hm1' /=.
+Qed.
+
+(* A write in a slot that is disjoint from the slots written afterwards can be
+   moved after them. *)
+Lemma foldM_write_slot_move top hi s l1 l2 m r :
+  (wunsigned top + hi < wbase Uptr)%Z ->
+  slot_in hi s.1 ->
+  all (slot_in hi) (map fst l1) ->
+  all (slots_disjoint s.1) (map fst l1) ->
+  foldM (write_slot top) m (s :: l1 ++ l2) = ok r ->
+  exists2 r', foldM (write_slot top) m (l1 ++ s :: l2) = ok r' & same_mem r r'.
+Proof.
+  case: s => -[ofs ws] v hno /= hs.
+  elim: l1 m r => [ | s1 l1 ih] m r; first by move=> _ _ hf; exists r.
+  move=> /= /andP [] hs1 hall /andP [] hd hdall.
+  t_xrbindP => ma w hw hma mab hmab hf.
+  case: s1 hs1 hd hmab => -[ofs1 ws1] v1 hs1 hd /=; t_xrbindP => w1 hw1 hmab.
+  have [mb hmb [mba hmba hsame]] :=
+    write_write_comm (slots_disjoint_range hno hs hs1 hd) hma hmab.
+  have [r2 hf2 hs2] := foldM_write_slot_same hsame hf.
+  have [r3 hf3 hs3] : exists2 r3,
+      foldM (write_slot top) mb (l1 ++ (ofs, ws, v) :: l2) = ok r3 & same_mem r2 r3.
+  + by apply: (ih mb r2) => //=; rewrite hw /= hmba.
+  by exists r3; [rewrite hw1 /= hmb /= | apply: same_mem_trans hs2 hs3].
+Qed.
+
+(* The writes in pairwise disjoint slots can be performed in any order; here,
+   those of the elements of [l] that satisfy [P] first. *)
+Lemma foldM_write_slots_partition (T : Type) (f : T -> option (Z * wsize * value)) (P : pred T)
+    top hi l m m' :
+  (wunsigned top + hi < wbase Uptr)%Z ->
+  all (slot_in hi) (map fst (pmap f l)) ->
+  pairwise slots_disjoint (map fst (pmap f l)) ->
+  foldM (write_slot top) m (pmap f l) = ok m' ->
+  exists2 m2,
+    foldM (write_slot top) m (pmap f (filter P l) ++ pmap f (filter (predC P) l)) = ok m2
+  & same_mem m' m2.
+Proof.
+  move=> hno; elim: l m m' => [ | a l ih] m m' /=; first by move=> _ _ [<-]; exists m.
+  case hfa: (f a) => [s | ] /=; last by case: (P a) => /=; rewrite hfa; apply: ih.
+  move=> /andP [] hs hall /andP [] hd hpw; t_xrbindP => m1 hm1 hf.
+  have [m2 hf2 hs2] := ih _ _ hall hpw hf.
+  case: (P a) => /=; rewrite hfa /=; first by exists m2 => //; rewrite hm1.
+  have hsub : forall q : pred (Z * wsize), all q (map fst (pmap f l)) ->
+                all q (map fst (pmap f (filter P l))).
+  + move=> q; rewrite !all_map !all_pmap all_filter; apply: sub_all => x /=.
+    by case: (P x).
+  have hf' : foldM (write_slot top) m
+      (s :: pmap f (filter P l) ++ pmap f (filter (predC P) l)) = ok m2 by rewrite /= hm1.
+  have [m3 hf3 hs3] := foldM_write_slot_move hno hs (hsub _ hall) (hsub _ hd) hf'.
+  by exists m3 => //; apply: same_mem_trans hs2 hs3.
+Qed.
+
+End FRAME_SLOTS.

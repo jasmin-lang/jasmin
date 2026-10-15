@@ -1,0 +1,35 @@
+/* Twenty-six parameters: the six argument registers of the x86-64 ABI hold
+   the parameters of kind reg, so every parameter of kind stack arrives in the
+   frame of the caller and is moved to the frame of the function through a
+   temporary. */
+export
+fn six_reg_twenty_stack(reg u64 a b c d e f, stack u64 s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17 s18 s19) -> reg u64 {
+  reg u64 r;
+  r = a;
+  r += b;
+  r += c;
+  r += d;
+  r += e;
+  r += f;
+  r += s0;
+  r += s1;
+  r += s2;
+  r += s3;
+  r += s4;
+  r += s5;
+  r += s6;
+  r += s7;
+  r += s8;
+  r += s9;
+  r += s10;
+  r += s11;
+  r += s12;
+  r += s13;
+  r += s14;
+  r += s15;
+  r += s16;
+  r += s17;
+  r += s18;
+  r += s19;
+  return r;
+}

@@ -267,12 +267,14 @@ Lemma sem_fun_mem_equiv fn ii :
       init_state ef p.(p_extra) ev s1 = ok s2 ->
       mem_equiv (emem s2) m2 ->
       mem_equiv (emem s1) (finalize ef m2)) ->
+  (forall ef tys vs s s',
+      spill_params ef tys vs s = ok s' -> mem_equiv (emem s) (emem s')) ->
   hoare_f_ii (sem_F := sem_fun_full) p ev
     relT
     ii fn
     (fun _ fs fs' => mem_equiv (fmem fs) (fmem fs')).
 Proof.
-move=> h; apply: (ihoare_io_fun (spec := spec) (Qerr := relT)) => {}fn.
+move=> h hspill; apply: (ihoare_io_fun (spec := spec) (Qerr := relT)) => {}fn.
 split=> //; case hget: get_fundef => [fd|//]; split=> //.
 exists
   (fun fs s => initialize_funcall p ev fd fs = ok s),
@@ -282,8 +284,8 @@ exists
 - move=> fs _; apply: khoare_io_weaken (isem_cmd_mem_equiv _) => //.
 move=> fs s _ hp s' hq; case hf: finalize_funcall => [fs''|//].
 move: hp hf; rewrite /initialize_funcall /finalize_funcall.
-t_xrbindP=> vs _ s0 /h {}h /write_vars_memP heq _ _ _ _ <- /= {fs''}.
-by apply/h; rewrite heq; apply/hq.
+t_xrbindP=> vs _ s0 /h {}h s1 /write_vars_memP heq /hspill hme _ _ _ _ <- /= {fs''}.
+by apply/h; rewrite heq; apply: mem_equiv_trans hme hq.
 Qed.
 
 End MEMEQ.
@@ -310,7 +312,7 @@ Lemma sem_fun_mem_equiv_uprog (p : uprog) ev fn ii :
     relT
     ii fn
     (fun _ fs fs' => mem_equiv (fmem fs) (fmem fs')).
-Proof. by apply sem_fun_mem_equiv => s1 s2 m2 ef /= [<-]. Qed.
+Proof. by apply sem_fun_mem_equiv => [s1 s2 m2 ef /= [<-] | ???? _ /= [<-]]. Qed.
 
 Lemma sem_fun_mem_equiv_sprog (p : sprog) ev fn ii :
   hoare_f_ii (sem_F := sem_fun_full) p ev
@@ -318,7 +320,8 @@ Lemma sem_fun_mem_equiv_sprog (p : sprog) ev fn ii :
     ii fn
     (fun _ fs fs' => mem_equiv (fmem fs) (fmem fs')).
 Proof.
-apply sem_fun_mem_equiv => s1 s2 m2 ef /=.
+apply sem_fun_mem_equiv; last by move=> ????? /= /spill_stk_params_equiv.
+move=> s1 s2 m2 ef /=.
 rewrite /init_stk_state /finalize_stk_mem.
 t_xrbindP=> m1 /Memory.alloc_stackP hass /=.
 do 2!rewrite write_var_eq_type //=; move=> [<-] /= [hss hvalid].

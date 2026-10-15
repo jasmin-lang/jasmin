@@ -1,0 +1,26 @@
+/* Parameters of kind stack on armv8a: the store the linearization uses only
+   handles a whole register, so such a parameter must be a u64 (see
+   tests/fail/arm-m4/narrow_stack_param.jazz for the narrow case).  The eight
+   argument registers of the ABI hold a, b, c, d and s0, s1, s2, s3; s4 and s5
+   are left by the caller on the stack. */
+export
+fn four_reg_six_stack(reg u64 a b c d, stack u64 s0 s1 s2 s3 s4 s5) -> reg u64 {
+  reg u64 r t;
+  r = a;
+  r += b;
+  r += c;
+  r += d;
+  t = s0;
+  r += t;
+  t = s1;
+  r += t;
+  t = s2;
+  r += t;
+  t = s3;
+  r += t;
+  t = s4;
+  r += t;
+  t = s5;
+  r += t;
+  return r;
+}

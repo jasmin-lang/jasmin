@@ -267,6 +267,12 @@ Proof.
   by move=> ws' /eqP.
 Qed.
 
+(* Convertible types have the same word size, so a spill driven by the declared
+   types of the parameters writes the same memory on both sides. *)
+Lemma convertible_is_word_type t1 t2 :
+  convertible t1 t2 -> is_word_type t1 = is_word_type t2.
+Proof. by case: t1 t2 => [||??|?] [||??|?] //= /eqP [] ->. Qed.
+
 Lemma convertible_eval_atype ty1 ty2 :
   convertible ty1 ty2 ->
   eval_atype ty1 = eval_atype ty2.

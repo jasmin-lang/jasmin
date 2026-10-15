@@ -1,0 +1,12 @@
+/* A parameter of an export function may be of kind stack only when its type
+   is a word that fits in a register: the compiler stores it in the frame from
+   the register or the stack slot the calling convention gives it. */
+export
+fn export_stack_arg_too_large(reg u64 a, stack u128 v) -> reg u64 {
+  reg u128 w;
+  reg u64 r;
+  w = v;
+  r = #VPEXTR_64(w, 0);
+  r += a;
+  return r;
+}

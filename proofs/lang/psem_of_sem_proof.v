@@ -213,17 +213,26 @@ Lemma it_psem_call :
       init_state (f_extra fd) (p_extra p) ev {| escs := scs; emem := mem; evm := Vm.init |} = ok s' &
       estate_sim s s') ->
 
+  (forall ef tys vs (s s' : estate_n) (t : estate_s),
+    estate_sim s t ->
+    spill_params (wsw:= nosubword) ef tys vs s = ok s' ->
+    exists2 t',
+      spill_params (wsw:= withsubword) ef tys vs t = ok t' &
+      estate_sim s' t') ->
+
   (forall fd mem, finalize (wsw:= nosubword) (f_extra fd) mem = finalize (wsw:= withsubword) (f_extra fd) mem) ->
 
   forall fn,
     wiequiv_f (wsw1:=nosubword) (wsw2:=withsubword) p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
-  move=> hsyscall hinitstate hfinal fn.
+  move=> hsyscall hinitstate hspill hfinal fn.
   apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd ->; exists fd => // s1 hinit.
   have : exists2 s2 : estate_s, initialize_funcall p ev fd fs = ok s2 & estate_sim s1 s2.
   + move: hinit; rewrite /initialize_funcall.
-    t_xrbindP => > -> s1' /hinitstate [s2'] /= -> hs hw.
-    have [s2'' [] /=]:= write_vars_sim hs hw; eauto.
+    t_xrbindP => > -> s1' /hinitstate [s2'] /= -> hs sw hw hsp.
+    have [sw2 [hsim2 hw2]] := write_vars_sim hs hw.
+    have [t2 ht2 hsim3] := hspill _ _ _ _ _ _ hsim2 hsp.
+    by exists t2 => //=; rewrite hw2.
   move=> [s2 h1 h2]; exists s2 => //.
   exists estate_sim, estate_sim; split => //; last first.
   + move=> s1' s2' fs1' [hscs hmem hvm]; rewrite /finalize_funcall.
@@ -235,7 +244,7 @@ Proof.
   set Pr_ := fun (i:instr_r) => forall ii, Pi_ (MkI ii i).
   set Pc_ := fun (c:cmd) => wequiv_rec (wsw1:= nosubword) (wsw2:= withsubword)
                             p p ev ev eq_spec estate_sim c c estate_sim.
-  move=> {fn fs hinit h1 h2 s1 s2 hfinal hinitstate}.
+  move=> {fn fs hinit h1 h2 s1 s2 hfinal hinitstate hspill}.
   apply (cmd_rect (Pr := Pr_) (Pi:=Pi_) (Pc:=Pc_)) => // {fd}.
   + by apply wequiv_nil.
   + by move=> i c; apply wequiv_cons.
@@ -270,23 +279,29 @@ Lemma it_psem_call_u (p:uprog) ev fn :
   wiequiv_f (wsw1:=nosubword) (wsw2:=withsubword) p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
   apply (it_psem_call (sCP := fun wsw => sCP_unit (wsw := wsw))) => //=.
-  move=> _ ??? [<-]; eexists; eauto.
-  by split => //= x; rewrite !Vm.initP.
+  + move=> _ ??? [<-]; eexists; eauto.
+    by split => //= x; rewrite !Vm.initP.
+  by move=> _ _ _ ?? t h [<-]; exists t.
 Qed.
 
 Lemma it_psem_call_s (p:sprog) ev fn :
   wiequiv_f (wsw1:=nosubword) (wsw2:=withsubword) p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
   apply (it_psem_call (sCP := fun wsw => sCP_stack (wsw := wsw))) => //=.
-  clear.
-  move=> fd scs mem s.
-  rewrite /init_stk_state; t_xrbindP => mem' -> hw.
-  have hsim : st_eq (wsw1:= nosubword) (wsw2:= withsubword) tt
-                 {| escs := scs; emem := mem'; evm := Vm.init |}
-                 {| escs := scs; emem := mem'; evm := Vm.init |}.
-  + by split => //= ?; rewrite !Vm.initP.
-  have [s' [hsim' hw']] := write_vars_sim hsim hw.
-  by exists s'.
+  + clear.
+    move=> fd scs mem s.
+    rewrite /init_stk_state; t_xrbindP => mem' -> hw.
+    have hsim : st_eq (wsw1:= nosubword) (wsw2:= withsubword) tt
+                   {| escs := scs; emem := mem'; evm := Vm.init |}
+                   {| escs := scs; emem := mem'; evm := Vm.init |}.
+    + by split => //= ?; rewrite !Vm.initP.
+    have [s' [hsim' hw']] := write_vars_sim hsim hw.
+    by exists s'.
+  (* [spill_stk_params] only changes the memory, which the two states share. *)
+  move=> ef tys vs s s' t [hscs hmem hvm].
+  rewrite /spill_stk_params -hmem.
+  t_xrbindP => m -> <- /=.
+  by exists (with_mem t m).
 Qed.
 
 End INSTANCE.

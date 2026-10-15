@@ -51,6 +51,13 @@ Fixpoint stack_arg_positions (nreg : nat) (ofs0 : Z) (tys : seq ltype) : seq (op
     end
   end.
 
+Lemma size_stack_arg_positions n ofs tys :
+  size (stack_arg_positions n ofs tys) = size tys.
+Proof.
+  elim: tys n ofs => [ | ty tys ih] n ofs //=.
+  by case: ty => [ | ws] //=; [rewrite ih | case: ifP => _; [case: n => [ | n] | ]; rewrite /= ih].
+Qed.
+
 (* The offset of the first stack slot does not decide which arguments go to the
    stack. *)
 Lemma stack_arg_positions_isSome nreg ofs0 ofs1 tys :

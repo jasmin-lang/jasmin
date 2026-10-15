@@ -1,0 +1,15 @@
+// f and g do not fit in the argument registers: they are passed by the caller
+// on the stack, loaded in the prologue and spilled into the frame.
+
+export
+fn stack_to_stack(reg u32 a b c d e, stack u32 f g) -> reg u32 {
+  reg u32 r;
+  r = a;
+  r += b;
+  r += c;
+  r += d;
+  r += e;
+  r += f;
+  r += g;
+  return r;
+}

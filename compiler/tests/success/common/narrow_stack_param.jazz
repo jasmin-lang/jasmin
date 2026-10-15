@@ -1,0 +1,13 @@
+/* Parameters of kind stack narrower than a register: the prologue stores the
+   declared width into the frame (a byte or a halfword store on arm-m4,
+   armv8a and riscv). */
+export
+fn narrow_stack_param(reg u32 a, stack u8 x, stack u16 y) -> reg u32 {
+  reg u32 r t;
+  r = a;
+  t = (32u) x;
+  r += t;
+  t = (32u) y;
+  r += t;
+  return r;
+}

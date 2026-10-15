@@ -204,7 +204,7 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
         Arch.aparams.ap_shp
         Arch.aparams.ap_sap
         Arch.aparams.ap_is_move_op
-        (fun vk -> Conv.fresh_var_ident vk IInfo.dummy)
+        Conv.fresh_var_ident
         pp_sr
         crip
         crsp
@@ -337,7 +337,7 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
     else None
   in
 
-  let fix_csao (_, fd) =
+  let fix_csao (fe, fd) =
     let fn = fd.f_name in
     match fd.f_cc with
     | Subroutine ->
@@ -374,7 +374,7 @@ let memory_analysis pp_sr pp_err ~debug callee_saved_strategy up =
       match callee_saved_strategy with
       | CSS_Tight ->
          let killed = Option.get ra_data in
-         let ro = Regalloc.get_reg_oracle has_stack killed fd in
+         let ro = Regalloc.get_reg_oracle has_stack killed fe fd in
          ro.ro_to_save, ro.ro_rsp = None
       | CSS_Optimistic -> [], has_stack fd
       | CSS_Pessimistic -> callee_saved, true

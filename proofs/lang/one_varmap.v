@@ -44,6 +44,16 @@ Class veneer_info := { call_kill : Sv.t }.
    the proofs with two syntactically different forms of the same set. *)
 Arguments call_kill : simpl never.
 
+(* The registers among the parameters paired with their position of arrival
+   and their spill offset: the ones that arrive on the stack and are not
+   spilled. *)
+Notation stack_param_regs l :=
+  (pmap (fun a : var_i * option Z * option Z =>
+           match a.1.2, a.2 with
+           | Some _, None => Some (v_var a.1.1)
+           | _, _ => None
+           end) l) (only parsing).
+
 Section Section.
 
 Context {pd: PointerData} {asm_op} {asmop:asmOp asm_op} {ovm_i : one_varmap_info}
@@ -114,19 +124,22 @@ Definition fd_tmp_call (p:sprog) f :=
   end.
 
 (* Registers of the parameters of an export function that the caller passes on
-   the stack, [nb_reg_args] being the number of argument registers of the
-   calling convention (see stack_args.v). The prologue built by the
+   the stack and that stack allocation did not spill in the frame
+   ([sf_spill_params]), [nb_reg_args] being the number of argument registers of
+   the calling convention (see stack_args.v). The prologue built by the
    linearization loads them, hence the function writes them even when its body
-   does not. Only the distinction between register and stack matters here, so
-   the offset of the first stack argument is irrelevant. Internal functions
-   receive all their arguments in registers. *)
+   does not; a spilled parameter is only stored in the frame. Only the
+   distinction between register and stack matters here, so the offset of the
+   first stack argument is irrelevant. Internal functions receive all their
+   arguments in registers. *)
 Definition stack_params (nb_reg_args : nat) (fd : sfundef) : Sv.t :=
   if is_RAnone (sf_return_address fd.(f_extra))
   then
     let tyin := odflt [::] (oseq.omap ltype_of_atype fd.(f_tyin)) in
     sv_of_list id
-      (pmap (fun a : var_i * option Z => if a.2 is Some _ then Some (v_var a.1) else None)
-         (zip fd.(f_params) (stack_arg_positions nb_reg_args 0 tyin)))
+      (stack_param_regs
+         (zip (zip fd.(f_params) (stack_arg_positions nb_reg_args 0 tyin))
+              fd.(f_extra).(sf_spill_params)))
   else Sv.empty.
 
 End Section.

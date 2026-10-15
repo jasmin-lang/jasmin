@@ -512,8 +512,15 @@ let collect_opn_conflicts pd reg_size asmOp
   in
   List.fold_left (fun c f -> collect_opn_conflicts_stmt c f.f_body) c f
 
+(* [free_args] are the parameters that the function does not receive in a
+   register (the prologue stores them in the stack frame without going through
+   the register found in [f_args]): they are dead, so they may all share the
+   same register. They still have to be distinct from the other parameters: the
+   checker of the register allocation reads the parameters in order and would
+   see the register of an earlier parameter taken over by a later one. *)
 let collect_conflicts pd reg_size asmOp
-      (tbl: int Hv.t) (tr: ('info, 'asm) trace) (f: (Sv.t * Sv.t, 'asm) func) (c: conflicts) : conflicts =
+      (tbl: int Hv.t) (tr: ('info, 'asm) trace) (free_args: Sv.t)
+      (f: (Sv.t * Sv.t, 'asm) func) (c: conflicts) : conflicts =
   let add_one = conflicts_add_one pd reg_size asmOp tbl tr in
   let add (c: conflicts) loc ((i, j): (Sv.t * Sv.t)) : conflicts =
     c
@@ -538,7 +545,12 @@ let collect_conflicts pd reg_size asmOp
   and collect_stmt c s = List.fold_left collect_instr c s in
   (* function arguments do conflict with each other, even if they are not live *)
   let args = Sv.of_list f.f_args in
+  let free = Sv.inter args free_args in
+  let args = Sv.diff args free in
   let c = conflicts_in args (add_one Lnone) c in
+  let c =
+    Sv.fold (fun x c -> Sv.fold (fun y c -> add_one Lnone x y c) args c) free c
+  in
   collect_stmt c f.f_body
 
 let iter_variables (cb: var -> unit) (f: ('info, 'asm) func) : unit =
@@ -696,12 +708,13 @@ module type Regalloc = sig
 
   val get_reg_oracle :
     (('info, 'asm) func -> bool) ->
-    (funname -> Sv.t) -> ('info, 'asm) func -> reg_oracle_t
+    (funname -> Sv.t) -> Expr.stk_fun_extra -> ('info, 'asm) func -> reg_oracle_t
 
   val alloc_prog :
     retaddr Hf.t ->
-    ('a * (unit, extended_op) func) list ->
-    (var -> var) * (funname -> Sv.t) * ('a * (unit, extended_op) func) list
+    (Expr.stk_fun_extra * (unit, extended_op) func) list ->
+    (var -> var) * (funname -> Sv.t)
+    * (Expr.stk_fun_extra * (unit, extended_op) func) list
 end
 
 module Regalloc (Arch : Arch_full.Arch)
@@ -861,7 +874,19 @@ let stack_passed_args (f: ('info, 'asm) func) : var list =
     in
     go Arch.argument_vars [] f.f_args
 
-let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conflicts)
+(** Among those, the ones the prologue loads into the register found in
+    [f_args]: the parameters that stack allocation spilled in the frame
+    ([spilled]) are stored there through a temporary of the linearization
+    instead, and their variable is dead in the body. *)
+let stack_loaded_args (spilled: Sv.t) (f: ('info, 'asm) func) : var list =
+  List.filter (fun x -> not (Sv.mem x spilled)) (stack_passed_args f)
+
+(** The other ones: their variable holds nothing, so they may share a register
+    with each other (see [collect_conflicts]). *)
+let stack_spilled_args (spilled: Sv.t) (f: ('info, 'asm) func) : var list =
+  List.filter (fun x -> Sv.mem x spilled) (stack_passed_args f)
+
+let allocate_forced_registers return_addresses (spilled: Sv.t) nv (vars: int Hv.t) tr (cnf: conflicts)
     (f: ('info, 'asm) func) (a: A.allocation) : conflicts =
   let split ~ctxt ~num =
     function
@@ -960,10 +985,13 @@ let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conf
        the stack, but the prologue loads them into registers, after the
        temporaries of the linearization have been used: all the word
        parameters are then live, in distinct registers that are not these
-       temporaries. *)
+       temporaries. The parameters that stack allocation spilled in the frame
+       and that arrive on the stack are the exception: their register is
+       dead, they may share one. *)
     let nwords =
       List.length
-        (List.filter (fun p -> kind_of_type Arch.reg_size p.v_kind p.v_ty = Word) f.f_args) in
+        (List.filter (fun p -> kind_of_type Arch.reg_size p.v_kind p.v_ty = Word) f.f_args)
+      - List.length (stack_spilled_args spilled f) in
     let nargs = List.length Arch.argument_vars in
     let nregs =
       List.length
@@ -1363,7 +1391,7 @@ let pp_liveness vars liveness_per_callsite liveness_table a =
     let extern = !m_word, !m_extra, !m_vector, !m_flag in
     pp_recap Format.std_formatter fn intern extern)
 
-let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
+let global_allocation return_addresses (spilled: Sv.t) (funcs: ('info, 'asm) func list) :
   (unit, 'asm) func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) =
   (* Preprocessing of functions:
     - generate a fresh variable to hold the return address (if needed)
@@ -1475,10 +1503,21 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
       funcs
       empty_conflicts
   in
+  (* Parameters of an export function that the calling convention passes on the
+     stack and that stack allocation spilled in the stack frame: the prologue
+     moves them from the frame of the caller to ours through a temporary
+     register of the linearization, so the variable found in [f_args] is dead
+     and unconstrained. *)
+  let free_args =
+    List.fold_left (fun s f -> Sv.union s (Sv.of_list (stack_spilled_args spilled f)))
+      Sv.empty funcs
+  in
+
   (* Intra-procedural conflicts *)
   let conflicts =
     Hf.fold (fun _fn lf conflicts ->
-        collect_conflicts Arch.pointer_data Arch.reg_size Arch.asmOp vars tr lf conflicts
+        collect_conflicts Arch.pointer_data Arch.reg_size Arch.asmOp vars tr
+          free_args lf conflicts
       )
       liveness_table
       conflicts
@@ -1510,7 +1549,12 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
      a register holding another argument (the loads would clobber it).
      The register saving the stack pointer of the caller cannot clash with them:
      [get_reg_oracle] only picks a register that is used neither by the body nor
-     by the arguments of the function. *)
+     by the arguments of the function.
+     The parameters that are spilled in the frame need none of these conflicts:
+     the ones that arrive in a register are stored from the register the calling
+     convention imposes, before anything else is loaded, and the ones that
+     arrive on the stack travel through a temporary of the linearization; in
+     both cases their variable is dead in the body. *)
   let conflicts =
     let add x y cnf =
       conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp vars tr Lnone x y cnf in
@@ -1518,7 +1562,7 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
         List.fold_left (fun cnf x ->
             let cnf = List.fold_left (fun cnf tmp -> add tmp x cnf) cnf Arch.linearization_tmps in
             List.fold_left (fun cnf y -> if V.equal x y then cnf else add x y cnf) cnf f.f_args)
-          cnf (stack_passed_args f))
+          cnf (stack_loaded_args spilled f))
       conflicts funcs in
 
   (* In-register return address conflicts with function arguments *)
@@ -1606,7 +1650,7 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
 
   let conflicts =
     List.fold_left
-      (fun c f -> allocate_forced_registers return_addresses nv vars tr c f a)
+      (fun c f -> allocate_forced_registers return_addresses spilled nv vars tr c f a)
       conflicts
       funcs
   in
@@ -1625,12 +1669,20 @@ let allocatable_vars = Sv.of_list Arch.allocatable_vars
 let callee_save_vars = Sv.of_list Arch.callee_save_vars
 let not_saved_stack = Sv.of_list (Arch.not_saved_stack @ Arch.callee_save_vars)
 
+(* The register that keeps the stack pointer of the caller is read by the whole
+   prologue, in particular by the moves of the parameters that stack allocation
+   spilled in the frame: those the caller passes on the stack travel through
+   [lip_tmp2], so that register is not a candidate for such a function. *)
+let not_saved_stack_spilled =
+  Sv.union not_saved_stack (Sv.of_list Arch.linearization_tmps)
+
 (** Computes all callee-saved registers overwritten by this function (including
     rsp) and, if the function has a stack but no register to save, picks a free
     register to hold the stack pointer of the caller (aka environment). *)
 let get_reg_oracle
       (has_stack: ('info, 'asm) func -> bool)
       killed
+      (fe : Expr.stk_fun_extra)
       f : reg_oracle_t =
   assert (FInfo.is_export f.f_cc);
   let killed_in_f = killed f.f_name in
@@ -1641,24 +1693,41 @@ let get_reg_oracle
     if has_stack f && ro_to_save = []
     then
       let free_regs = Sv.diff allocatable_vars killed_in_f in
-      Sv.Exceptionless.any (Sv.diff free_regs not_saved_stack)
+      let forbidden =
+        if List.exists Option.is_some fe.Expr.sf_spill_params
+        then not_saved_stack_spilled else not_saved_stack in
+      Sv.Exceptionless.any (Sv.diff free_regs forbidden)
     else None
   in
   { ro_to_save ; ro_rsp }
 
-let alloc_prog return_addresses (dfuncs: ('a * ('info, 'asm) func) list)
-    : (var -> var) * _ * ('a * (unit, 'asm) func) list =
+let alloc_prog return_addresses (dfuncs: (Expr.stk_fun_extra * ('info, 'asm) func) list)
+    : (var -> var) * _ * (Expr.stk_fun_extra * (unit, 'asm) func) list =
   (* Ensure that instruction locations are really unique,
      so that there is no confusion on the position of the “extra free register”. *)
   let dfuncs =
     List.map (fun (a,f) -> a, Prog.refresh_i_loc_f f) dfuncs in
 
-  let extra : 'a Hf.t = Hf.create 17 in
+  let extra : Expr.stk_fun_extra Hf.t = Hf.create 17 in
+
+  (* The parameters that stack allocation decided to store in the stack frame
+     ([sf_spill_params] is aligned with [f_args]; it is empty before stack
+     allocation has run). *)
+  let spilled =
+    let rec add s params spill =
+      match params, spill with
+      | x :: params, o :: spill ->
+        add (match o with None -> s | Some _ -> Sv.add x s) params spill
+      | _, _ -> s
+    in
+    List.fold_left (fun s (e, f) -> add s f.f_args e.Expr.sf_spill_params)
+      Sv.empty dfuncs
+  in
 
   let funcs, _get_liveness, subst, killed =
     dfuncs
     |> List.map (fun (a, f) -> Hf.add extra f.f_name a; f)
-    |> global_allocation return_addresses
+    |> global_allocation return_addresses spilled
   in
   (* The registers of the parameters of an export function are clobbered by
      the function even when its body does not write them: the ones the calling

@@ -472,6 +472,12 @@ Record stk_fun_extra := MkSFun {
   sf_save_stack     : saved_stack;
   sf_return_address : return_address_location;
   sf_align_args     : seq wsize;
+  (* Aligned with [f_params]. [Some ofs] means that the value of the
+     corresponding parameter is stored, at the beginning of the function, in the
+     stack frame at offset [ofs] (relative to the stack pointer of the
+     function); the variable found in [f_params] is then a fresh register that
+     does not occur in the body. [None] means an ordinary parameter. *)
+  sf_spill_params   : seq (option Z);
 }.
 
 Record sprog_extra := {

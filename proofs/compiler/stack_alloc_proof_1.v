@@ -1095,6 +1095,16 @@ Proof.
   by case: ifP => //; rewrite !zify.
 Qed.
 
+(* At the entry of the function no variable holds any byte: the arrays are
+   empty and the other variables are undefined. *)
+Lemma get_var_init_no_byte (y:var_i) v off b :
+  get_var true Vm.init y = ok v -> get_val_byte v off <> ok b.
+Proof.
+  move=> /get_varP [-> _ _]; rewrite Vm.initP.
+  case: (eval_atype (vtype y)) => [||n|wsz] //=.
+  by rewrite WArray.get_empty; case: ifP.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 Lemma check_gvalid_lvar rmap (x : var_i) sr :
@@ -4481,7 +4491,7 @@ Qed.
 
 (* TODO: move? *)
 Context
-  (fresh_var_ident : v_kind -> PrimInt63.int -> string -> atype -> Ident.ident)
+  (fresh_var_ident : v_kind -> instr_info -> PrimInt63.int -> string -> atype -> Ident.ident)
   (pp_sr : sub_region -> pp_error).
 
 Local Lemma clone_ty : forall x n, vtype (clone fresh_var_ident x n) = vtype x.

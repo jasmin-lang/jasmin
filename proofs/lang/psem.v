@@ -656,10 +656,12 @@ Lemma fs_uincl_initialize p' fd fd' fs fs' s:
 Proof.
   move=> hty hex hpa hpex hfs; rewrite /initialize_funcall -hty -hex -hpa -hpex /estate0 /=.
   case: hfs => <- <- hu.
-  t_xrbindP => vs htr s0 -> hw.
-  have [vs' -> {}hu /=] := mapM2_dc_truncate_val htr hu.
-  have [vm] := [elaborate write_vars_uincl (vm_uincl_refl (evm s0)) hu hw].
-  by rewrite with_vm_same => -> ? /=; eexists; eauto.
+  t_xrbindP => vs htr s0 -> s1 hw hsp.
+  have [vs' -> hus /=] := mapM2_dc_truncate_val htr hu.
+  have [vm] := [elaborate write_vars_uincl (vm_uincl_refl (evm s0)) hus hw].
+  rewrite with_vm_same => -> {}hu /=.
+  have [heq ->] := spill_paramsP vm hus hsp.
+  by eexists; first reflexivity; split => //=; rewrite heq.
 Qed.
 
 (* TODO: Can we generalize this to different semantic ? *)

@@ -349,8 +349,15 @@ Hypothesis check_f_extraP :
     check_f_extra r e1 e2 p1 p2 = ok r' →
     [/\
        check_vars p1 p2 r = ok r',
-       ∀ ep ev s s', init_state e1 ep ev s = ok s' → init_state e2 ep ev s = ok s' &
-       ∀ m, finalize e1 m = finalize e2 m
+       ∀ ep ev s s', init_state e1 ep ev s = ok s' → init_state e2 ep ev s = ok s',
+       ∀ m, finalize e1 m = finalize e2 m &
+       (* The spill of the parameters reads the arguments and the extra
+          information only; the two functions hold their parameters in
+          different variables and their declared types are only convertible. *)
+       ∀ tys1 tys2 vs (s s' : estate),
+         all2 convertible tys1 tys2 →
+         spill_params e1 tys1 vs s = ok s' →
+         spill_params e2 tys2 vs s = ok s'
     ].
 
 Variable (dead_vars_fd : fun_decl → instr_info → Sv.t).
@@ -576,11 +583,11 @@ Section PROOF.
   Proof using init_allocP check_f_extraP Hcheck eq_globs.
     apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
     have [fd2 [Hget2 /=]]:= all_checked hget.
-    t_xrbindP => /and3P [] _ htyin htyout r0 Hcinit r1 /check_f_extraP[] Hcparams hinit hfinalize r2 Hcc r3 Hcres _.
+    t_xrbindP => /and3P [] _ htyin htyout r0 Hcinit r1 /check_f_extraP[] Hcparams hinit hfinalize hspill r2 Hcc r3 Hcres _.
     exists fd2 => // s11 Hi.
     (* TODO : can we have a generic lemma for initialize_funcall based on check_es *)
     move: Hi; rewrite /initialize_funcall; t_xrbindP.
-    move=> vargs2 hvargs2 s0 Hi hw.
+    move=> vargs2 hvargs2 s0 Hi s1 hw hsp.
     have [vm0 [Hi0 Hvm0]]:= init_allocP Hcinit Hi.
     case: hfsu => heq1 heq2 hu.
     have [vs2 htr hall2]:= mapM2_dc_truncate_val hvargs2 hu.
@@ -588,7 +595,10 @@ Section PROOF.
     move=> /(_ _ _ Hvm0 hall2) [vm3 /= Hw2 Hvm3].
     rewrite -(all2_convertible_eval_atype htyin) htr /= /estate0 -heq1 -heq2 (hinit _ _ _ _ Hi0) /=.
     rewrite (write_vars_lvals _ gd) Hw2.
-    exists (with_vm s11 vm3)=> //; exists (st_eq_alloc r1), (st_eq_alloc r2).
+    have [hvm {}hsp] := spill_paramsP vm3 hall2 hsp.
+    rewrite -hvm in Hvm3.
+    exists (with_vm s11 vm3); first exact: hspill htyin hsp.
+    exists (st_eq_alloc r1), (st_eq_alloc r2).
     split => //; first exact: it_alloc_cP Hcc.
     (* FIXME: can we have a generic lemma for finialize_funcall based on check_es *)
     move=> s t fs' /st_relP [-> /=] hu'; rewrite /finalize_funcall.
@@ -646,6 +656,37 @@ Section SPROG.
 #[local]
 Existing Instance progStack.
 
+Lemma spill_stk_params_mem_convertible e1 e2 tys1 tys2 vs m m' :
+  is_RAnone (sf_return_address e1) = is_RAnone (sf_return_address e2) ->
+  sf_spill_params e1 = sf_spill_params e2 ->
+  all2 convertible tys1 tys2 ->
+  spill_stk_params_mem e1 tys1 vs m = ok m' ->
+  spill_stk_params_mem e2 tys2 vs m = ok m'.
+Proof.
+  rewrite /spill_stk_params_mem => -> ->; case: is_RAnone => //.
+  elim: tys1 tys2 vs (sf_spill_params e2) m
+    => [ | ty1 tys1 ih] [ | ty2 tys2] [ | v vs] [ | o os] m //=.
+  move=> /andP [] /convertible_is_word_type hw hall.
+  change (Let acc := spill_stk_param (ty1, v, o) m in
+            foldM spill_stk_param acc (zip (zip tys1 vs) os) = ok m' ->
+          Let acc := spill_stk_param (ty2, v, o) m in
+            foldM spill_stk_param acc (zip (zip tys2 vs) os) = ok m').
+  have heq : spill_stk_param (ty1, v, o) m = spill_stk_param (ty2, v, o) m.
+  + by case: o => [ofs|] //=; rewrite hw.
+  by rewrite heq; t_xrbindP => m1 -> /=; exact: ih hall.
+Qed.
+
+Lemma spill_stk_params_convertible e1 e2 tys1 tys2 vs (s s' : estate) :
+  is_RAnone (sf_return_address e1) = is_RAnone (sf_return_address e2) ->
+  sf_spill_params e1 = sf_spill_params e2 ->
+  all2 convertible tys1 tys2 ->
+  spill_stk_params e1 tys1 vs s = ok s' ->
+  spill_stk_params e2 tys2 vs s = ok s'.
+Proof.
+  rewrite /spill_stk_params => h1 h2 h3; t_xrbindP => m hm <-.
+  by rewrite (spill_stk_params_mem_convertible h1 h2 h3 hm).
+Qed.
+
 Lemma check_fundef_meta dead_vars_fd ep1 ep2 ffd1 ffd2 u u' :
   check_fundef init_alloc_sprog check_f_extra_s dead_vars_fd ep1 ep2 ffd1 ffd2 u = ok u' →
   let fd1 := ffd1.2 in
@@ -653,14 +694,15 @@ Lemma check_fundef_meta dead_vars_fd ep1 ep2 ffd1 ffd2 u u' :
   [/\
      sf_align fd1.(f_extra) = sf_align fd2.(f_extra),
      sf_stk_max fd1.(f_extra) = sf_stk_max fd2.(f_extra),
-     is_RAnone (sf_return_address fd1.(f_extra)) = is_RAnone (sf_return_address fd2.(f_extra)) &
-     sf_align_args fd1.(f_extra) = sf_align_args fd2.(f_extra)
+     is_RAnone (sf_return_address fd1.(f_extra)) = is_RAnone (sf_return_address fd2.(f_extra)),
+     sf_align_args fd1.(f_extra) = sf_align_args fd2.(f_extra) &
+     sf_spill_params fd1.(f_extra) = sf_spill_params fd2.(f_extra)
   ].
 Proof.
   case: ffd1 ffd2 => f1 fd1 [] f2 fd2.
   rewrite /check_fundef; t_xrbindP => _ r _ r'.
   rewrite /check_f_extra_s; t_xrbindP => /and4P[] /eqP -> _ _.
-  by case/and5P => _ /eqP -> _ /eqP -> /eqP ->.
+  by case/and5P => _ /eqP -> _ /eqP -> /andP[] /eqP -> /eqP ->.
 Qed.
 
 Lemma init_alloc_sprogP :
@@ -693,10 +735,13 @@ Proof.
   set p1' := {| p_funcs := p1 |}; set p2' := {| p_funcs := p2 |}.
   move=> /(_ check_f_extra_s _ dead_vars_fd p1' p2' ev H); apply => //.
   rewrite /check_f_extra_s; t_xrbindP => r e1 e2 a1 a2 r' c1 c2.
-  split; last by []; first by [].
-  rewrite /= /init_stk_state => a b c d.
-  case/and4P: c1 => /eqP -> /eqP -> /eqP ->.
-  by case/and4P => /eqP ->.
+  split => //.
+  + rewrite /= /init_stk_state => a b c d.
+    case/and4P: c1 => /eqP -> /eqP -> /eqP ->.
+    by case/and4P => /eqP ->.
+  move=> tys1 tys2 vs s s' hconv.
+  case/and4P: c1 => _ _ _ /and5P[] _ _ _ /eqP hra /andP[] _ /eqP hsp.
+  exact: spill_stk_params_convertible hra hsp hconv.
 Qed.
 
 End IT.

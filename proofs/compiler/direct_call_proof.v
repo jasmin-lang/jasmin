@@ -141,14 +141,16 @@ Lemma it_indirect_to_direct fn :
 Proof.
   apply wequiv_fun_ind => {}fn _ fs1 fs2 [<-] [hscs hmem hu] fd hget.
   exists fd => // s.
-  rewrite /initialize_funcall; t_xrbindP => vs htra s0 hinit hw.
+  rewrite /initialize_funcall; t_xrbindP => vs htra s0 hinit s1 hw hsp.
   have -> /= := mapM2_dc_truncate_weak hu htra.
   rewrite /estate0 -hscs -hmem hinit /=.
-  have {}hu := values_uincl_trans (mapM2_dc_truncate_value_uincl htra) hu.
-  assert (h := write_vars_uincl (vm_uincl_refl (evm s0)) hu hw).
-  case: h=> vm1; rewrite with_vm_same => /(write_vars_weak false) -> {}hu.
+  have huv := values_uincl_trans (mapM2_dc_truncate_value_uincl htra) hu.
+  assert (h := write_vars_uincl (vm_uincl_refl (evm s0)) huv hw).
+  case: h=> vm1; rewrite with_vm_same => /(write_vars_weak false) -> {}hu /=.
+  have [hvm ->] := spill_paramsP vm1 huv hsp.
+  rewrite -hvm in hu.
   eexists; first reflexivity.
-  exists (st_uincl tt), (st_uincl tt); split => // {s hw hu vm1 hinit vs htra s0 hscs hmem fs1 fs2}; last first.
+  exists (st_uincl tt), (st_uincl tt); split => // {s s1 hw hsp hu huv hvm vm1 hinit vs htra s0 hscs hmem fs1 fs2}; last first.
   + move=> s t fr1 [hscs hmem hle2]; rewrite /finalize_funcall; t_xrbindP.
     move=> vres hgetr vres' htrr <-.
     have [vres2 /= hgetr2 hu2] := get_var_is_uincl hle2 hgetr.

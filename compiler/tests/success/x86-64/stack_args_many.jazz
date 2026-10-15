@@ -1,0 +1,29 @@
+/* The number of parameters of kind stack is not bounded by the number of
+   registers: they are stored in the stack frame by the prologue, from the
+   argument register they arrive in for the first six and through a temporary
+   for the fourteen the caller leaves on the stack. */
+export
+fn twenty_stack_args(stack u64 s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17 s18 s19) -> reg u64 {
+  reg u64 r;
+  r = s0;
+  r += s1;
+  r += s2;
+  r += s3;
+  r += s4;
+  r += s5;
+  r += s6;
+  r += s7;
+  r += s8;
+  r += s9;
+  r += s10;
+  r += s11;
+  r += s12;
+  r += s13;
+  r += s14;
+  r += s15;
+  r += s16;
+  r += s17;
+  r += s18;
+  r += s19;
+  return r;
+}

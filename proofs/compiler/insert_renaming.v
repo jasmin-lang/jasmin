@@ -12,8 +12,14 @@ Section WITH_PARAMS.
   Definition rename_var ii (x: var_i) : instr :=
     MkI ii (rename_var_r x).
 
-  Definition rename_vars ii : seq var_i → cmd :=
-    map (rename_var ii).
+  (* Renaming a variable that lives in the frame is pointless: the renaming is
+     there to help the register allocation, and it would introduce an assignment
+     from memory to memory. *)
+  Definition rename_needed (x: var_i) : bool :=
+    if Ident.id_kind (vname x) is Stack _ then false else true.
+
+  Definition rename_vars ii (xs: seq var_i) : cmd :=
+    map (rename_var ii) (filter rename_needed xs).
 
   Definition insert_renaming_body (fd: fundef) : cmd :=
     rename_vars (entry_info_of_fun_info fd.(f_info)) fd.(f_params) ++

@@ -2253,18 +2253,27 @@ let tt_funbody arch_info env (pb : S.pfunbody) =
 
 (* -------------------------------------------------------------------- *)
 
-let tt_call_conv _loc params returns cc =
+let tt_call_conv pd _loc params returns cc =
   match cc with
   | Some `Inline -> FInfo.Internal
 
   | Some `Export | None ->
-    let check s x =
-      if not (P.is_reg_kind (L.unloc x).P.v_kind) then
+    (* An export function may take a word-sized [stack] parameter: it is passed
+       in a register (or on the stack) and spilled into the frame by a later
+       pass. *)
+    let is_export = cc = Some `Export in
+    let is_spillable_param x =
+      is_export &&
+      match (L.unloc x).P.v_kind, (L.unloc x).P.v_ty with
+      | W.Stack W.Direct, P.Bty (P.U ws) -> Wsize.wsize_cmp ws pd <> Datatypes.Gt
+      | _ -> false in
+    let check ?(spillable = false) s x =
+      if not (P.is_reg_kind (L.unloc x).P.v_kind) && not (spillable && is_spillable_param x) then
         warning PedanticPretyping (L.i_loc0 (L.loc x))
           "%a has kind %a, only reg or reg ptr are allowed in %s of non inlined function"
             Printer.pp_pvar (L.unloc x)
             PrintCommon.pp_kind (L.unloc x).P.v_kind s in
-    List.iter (check "parameter") params;
+    List.iter (check ~spillable:true "parameter") params;
     List.iter (check "result") returns;
     let returned_params =
       let args = List.map L.unloc params in
@@ -2508,7 +2517,7 @@ let tt_fundef (arch_info : 'asm P.arch_info) (env0 : 'asm Env.env) loc (pf : S.p
   let f_args = List.map (fun x -> L.mk_loc (L.loc x) (fst (L.unloc x))) args in
   let fs_tin = List.map (fun x -> snd (L.unloc x)) args in
   let f_ret = List.map (fun x -> L.mk_loc (L.loc x) (fst (L.unloc x))) xret in
-  let f_cc = tt_call_conv loc f_args f_ret pf.pdf_cc in
+  let f_cc = tt_call_conv arch_info.pd loc f_args f_ret pf.pdf_cc in
   let annot, f_contract = tt_contract arch_info env0 f_ret dfl_mut pf in
   let name = L.unloc pf.pdf_name in
   let fdef =

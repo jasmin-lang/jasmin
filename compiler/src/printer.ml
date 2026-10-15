@@ -506,11 +506,15 @@ let pp_return_address ~debug fmt = function
 
   | Expr.RAnone   -> Format.fprintf fmt "_"
 
+let pp_spill_param fmt = function
+  | None -> Format.fprintf fmt "_"
+  | Some ofs -> Format.fprintf fmt "RSP + %a" Z.pp_print (Conv.z_of_cz ofs)
+
 let pp_sprog ~debug pd msfsize asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
   let pp_opn = pp_opn pd msfsize asmOp in
   let pp_var = pp_var ~debug in
   let pp_f_extra fmt f_extra =
-    Format.fprintf fmt "/* @[<v>alignment = %s; argument alignment = [%a];@ stack size = %a + %a; max stack size = %a;@ max call depth = %a;@ saved register = @[%a@];@ saved stack = %a;@ return_addr = %a@] */"
+    Format.fprintf fmt "/* @[<v>alignment = %s; argument alignment = [%a];@ stack size = %a + %a; max stack size = %a;@ max call depth = %a;@ saved register = @[%a@];@ saved stack = %a;@ return_addr = %a;@ spill params = @[%a@]@] */"
       (string_of_ws f_extra.Expr.sf_align)
       (pp_list ", " pp_wsize) (f_extra.Expr.sf_align_args)
       Z.pp_print (Conv.z_of_cz f_extra.Expr.sf_stk_sz)
@@ -520,6 +524,7 @@ let pp_sprog ~debug pd msfsize asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sp
       (pp_list ",@ " (pp_to_save ~debug)) (f_extra.Expr.sf_to_save)
       (pp_saved_stack ~debug) (f_extra.Expr.sf_save_stack)
       (pp_return_address ~debug)  (f_extra.Expr.sf_return_address)
+      (pp_list ",@ " pp_spill_param) (f_extra.Expr.sf_spill_params)
   in
   let pp_fun fmt (f_extra,f) =
     Format.fprintf fmt "@[<v>%a@ %a@]" pp_f_extra f_extra (pp_fun_ ~debug pp_opn pp_var) f in

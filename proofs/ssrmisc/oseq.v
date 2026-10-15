@@ -71,6 +71,13 @@ Fixpoint omap (s : seq T) :=
   else Some [::].
 End OMap.
 
+Lemma omap_isSome (T U : Type) (f : T -> option U) l :
+  all (fun x => isSome (f x)) l -> exists l2, omap f l = Some l2.
+Proof.
+  elim: l => [ | a l ih] /=; first by exists [::].
+  by move=> /andP [] ha /ih [l2 ->]; case: (f a) ha => //= b _; exists (b :: l2).
+Qed.
+
 (* -------------------------------------------------------------------- *)
 Notation "[ 'oseq' E | i <- s ]" := (omap (fun i => E) s)
   (at level 0, E at level 99, i ident,

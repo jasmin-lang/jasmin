@@ -381,7 +381,7 @@ Proof using uniq_funname inline_fd_ok.
     apply xrutt.xrutt_CutL => //.
     by rewrite /core_logics.errcutoff /is_error /Subevent.subevent /CategoryOps.resum /fromErr mid12.
   rewrite ITree.Eq.Eqit.bind_ret_l ITree.Eq.Eqit.bind_bind.
-  move: hinit; rewrite /initialize_funcall /=; t_xrbindP => vs' htr hws.
+  move: hinit; rewrite /initialize_funcall /=; t_xrbindP => vs' htr sw hws ?; subst sw.
   rewrite isem_cmd_cat.
   have /(_ X1 es es X1 _ _ _ _ hpre hes) [|] := checker_st_uincl_onP_.(ucheck_esP) wdb_ok_true.
   + by subst X1; split => //; rewrite !read_writeE; clear; SvD.fsetdec.

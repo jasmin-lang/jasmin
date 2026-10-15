@@ -36,6 +36,7 @@ module type Regalloc = sig
   val get_reg_oracle :
     (('info, 'asm) func -> bool) ->
     (funname -> Sv.t) ->
+    Expr.stk_fun_extra ->
     ('info, 'asm) func ->
     reg_oracle_t
   (** Extract from the outcome of register allocation the information that is
@@ -43,8 +44,9 @@ module type Regalloc = sig
 
   val alloc_prog :
     retaddr Hf.t ->
-    ('a * (unit, extended_op) func) list ->
-    (var -> var) * (funname -> Sv.t) * ('a * (unit, extended_op) func) list
+    (Expr.stk_fun_extra * (unit, extended_op) func) list ->
+    (var -> var) * (funname -> Sv.t)
+    * (Expr.stk_fun_extra * (unit, extended_op) func) list
   (** Returns:
       - the global renaming function
       - the set of killed registers (see note below)

@@ -156,13 +156,16 @@ Definition initialize_funcall (p:sprog) f (fs:estate) :=
       f.(f_extra).(sf_stk_sz)
       f.(f_extra).(sf_stk_ioff)
       f.(f_extra).(sf_stk_extra_sz)) in
+ (* effect of the prologue of an export function on its arguments (nothing for
+    an internal function) *)
+ Let m1' :=
+   Result.map_err (fun _ => ErrSemUndef)
+     (spill_stk_params_mem f.(f_extra) f.(f_tyin) args m1) in
  let vm1 := ra_undef_vm f fs.(evm) var_tmp in
- (* effect of the prologue of an export function: the arguments passed on the
-    stack are loaded into their registers (nothing for an internal function) *)
  Let vm1' :=
    Result.map_err (fun _ => ErrSemUndef)
      (load_export_args nb_reg_args stack_args_ofs f args vm1) in
- ok {| escs := fs.(escs); emem := m1; evm := set_RSP p m1 vm1'; |}.
+ ok {| escs := fs.(escs); emem := m1'; evm := set_RSP p m1' vm1'; |}.
 
 Definition is_disjoint_magic (p:sprog) fn :=
   match get_fundef (p_funcs p) fn with

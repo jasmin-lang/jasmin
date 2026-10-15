@@ -64,6 +64,14 @@ let incr_liverange r x d : liverange =
   let g = Mv.add x i g in
   Mint.add s g r
 
+let is_ty_word = function Bty (U _) -> true | _ -> false
+
+(* A parameter of kind [stack] whose type is a word is not a parameter of the
+   compiled function: it is allocated in the stack frame like a local variable
+   and the prologue of the function stores there the value that is passed by the
+   caller (in a register or on the stack). *)
+let is_spilled_param x = is_stack_kind x.v_kind && is_ty_word x.v_ty
+
 let live_ranges_stmt pd (alias: Alias.alias) (ptr_classes: var -> bool) d c =
 
 let stack_pointers = Hv.create 117 in
@@ -74,10 +82,6 @@ let get_stack_pointer pd x =
     let r = V.mk x.v_name (Stack Direct) (tu pd) x.v_dloc x.v_annot in
     Hv.add stack_pointers x r;
     r
-in
-
-let is_ty_word =
-  function Bty (U _) -> true | _ -> false
 in
 
 let preprocess_liveset (s: Sv.t) : Sv.t =
@@ -321,6 +325,9 @@ let all_alignment ~funname ~contract pd (ctbl: alignment) alias params lalloc : 
           max_align ~loc:Siloc.empty Aligned ws pi_align
       in
       Some { pi_ptr; pi_writable; pi_align }
+    | Stack Direct when is_ty_word x.v_ty ->
+      (* passed on the stack: allocated in the frame like a local variable *)
+      None
     | _ -> assert false in
   let params = List.map doparam params in
 
@@ -388,6 +395,21 @@ let alloc_local_stack size slots atbl =
   stk_align, slots, !size
 
 (* --------------------------------------------------- *)
+(* The value of a parameter of kind [stack] is stored in its slot by the
+   prologue of the function: the parameter is live from the entry of the
+   function (position -1), even when it is never read. *)
+let expand_param_range ranges x =
+  if is_spilled_param x then
+    let sx = max 0 (size_of x.v_ty) in
+    let rng = Mint.find_default Mv.empty sx ranges in
+    let r =
+      match Mv.find x rng with
+      | (_, hi) -> (-1, hi)
+      | exception Not_found -> (-1, -1) in
+    Mint.add sx (Mv.add x r rng) ranges
+  else ranges
+
+(* --------------------------------------------------- *)
 let get_returned_params ~funname (alias: Alias.alias) args =
   let arg_slices = List.map (fun arg -> if is_ptr arg.v_kind then Some (Alias.normalize_var alias arg) else None) args in
   List.map (fun xr ->
@@ -432,6 +454,8 @@ let alloc_stack_fd callstyle pd get_info gtbl fd =
   let fd = Liveness.live_fd true fd in
   let (_, ranges), stack_pointers =
     live_ranges_stmt pd alias ptr_classes (0, Mint.empty) fd.f_body in
+
+  let ranges = List.fold_left expand_param_range ranges fd.f_args in
 
   let coloring = Mint.mapi G.solve ranges in
 
@@ -484,7 +508,10 @@ let alloc_stack_fd callstyle pd get_info gtbl fd =
   (* FIXME: 1- make this U128 arch (call-conv) dependent; 2- make it a semantic requirement. *)
   let sao_align = if has_syscall fd.f_body && wsize_lt sao_align U128 then U128 else sao_align in
 
-  let sao_alloc = List.iter (Hv.remove lalloc) fd.f_args; lalloc in
+  (* the parameters of kind [stack] keep their allocation: they are not
+     parameters of the compiled function any more *)
+  let remove lalloc v = if is_spilled_param v then () else Hv.remove lalloc v in
+  let sao_alloc = List.iter (remove lalloc) fd.f_args; lalloc in
 
   let sao_modify_rsp =
     (* a slot can have size 0, so the condition on [sao_slots] is not redundant

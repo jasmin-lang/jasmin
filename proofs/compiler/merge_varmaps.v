@@ -1,6 +1,7 @@
 (*
 *)
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype seq.
+From Coq Require Import ZArith.
 Require Import one_varmap.
 Import Utf8.
 Import expr compiler_util.
@@ -38,6 +39,10 @@ Definition ii_loop_iterator :=
 
 End E.
 
+Notation spilled_param_regs l :=
+  (pmap (fun a : var_i * option Z => if a.2 is Some _ then Some (v_var a.1) else None) l)
+  (only parsing).
+
 Section PROG.
 Context {pd: PointerData} {syscall_state : Type} {asm_op} {asmop : asmOp asm_op} {ovm_i : one_varmap_info} {vinfo : veneer_info} {LC : LoopCounter}.
 Context (p: sprog).
@@ -47,6 +52,15 @@ Context (var_tmp : Sv.t).
 Context (nb_reg_args : nat).
 
 Let magic_variables : Sv.t := magic_variables p.
+
+(* The parameters that stack allocation spilled in the frame: the prologue only
+   stores them in memory, their register is not loaded (for those arriving on
+   the stack) or is free to be reused (for those arriving in a register), so the
+   body must not read them. *)
+Definition spilled_params (fd: sfundef) : Sv.t :=
+  if is_RAnone (sf_return_address fd.(f_extra))
+  then sv_of_list id (spilled_param_regs (zip fd.(f_params) fd.(f_extra).(sf_spill_params)))
+  else Sv.empty.
 
 (** Set of variables written by a function (including RA and extra registers),
       assuming this information is known for the called functions. *)
@@ -232,7 +246,7 @@ Section CHECK.
 
   Definition check_fd (fn:funname) (fd: sfundef) :=
     let params := sv_of_list v_var fd.(f_params) in
-    let DI := Sv.inter params (ra_undef fd var_tmp) in
+    let DI := Sv.union (spilled_params fd) (Sv.inter params (ra_undef fd var_tmp)) in
     Let D := check_cmd fd.(f_extra).(sf_align) DI fd.(f_body) in
     let DF := Sv.union (ra_vm_return fd.(f_extra)) D in
     let res := sv_of_list v_var fd.(f_res) in
@@ -269,13 +283,21 @@ Section CHECK.
         else ok tt
     | RAnone =>
         let to_save := sv_of_list fst fd.(f_extra).(sf_to_save) in
-        (* Each parameter has a register of its own: the prologue writes the
-           ones that arrive on the stack one after the other. *)
-        let live_params := map v_var fd.(f_params) in
+        (* Registers of the parameters that are not spilled in the frame. The
+           spilled ones are undefined at the entry of the body (they are in
+           [DI]), so register allocation may give them a common register; the
+           others must have one of their own, since the prologue writes them
+           one after the other. *)
+        let live_params :=
+          pmap (fun a : var_i * option Z =>
+                  if isSome a.2 then None else Some (v_var a.1))
+               (zip fd.(f_params) fd.(f_extra).(sf_spill_params)) in
         Let _ := assert (disjoint to_save res)
                     (E.gen_error true None (pp_s "the function returns a callee-saved register")) in
         Let _ := assert (Sv.subset (Sv.inter callee_saved W') to_save)
                     (E.gen_error true None (pp_s "the function kills some callee-saved registers")) in
+        Let _ := assert (size fd.(f_extra).(sf_spill_params) == size fd.(f_params))
+                    (E.gen_error true None (pp_s "bad number of spilled parameters")) in
         Let _ := assert (uniq live_params)
                     (E.gen_error true None (pp_s "the parameters of the export function are not distinct")) in
         assert (all (λ x : var_i, if vtype x is aword _ then true else false ) (f_params fd))

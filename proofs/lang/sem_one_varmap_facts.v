@@ -632,9 +632,9 @@ Context (nb_reg_args : nat) (stack_args_ofs : Z).
 
 (* An internal function receives all its arguments in registers: the prologue
    built for an export function does nothing for it. *)
-Lemma load_export_args_nseq (xs : seq var_i) vb n vm :
-  foldM load_export_arg vm (zip (zip xs vb) (nseq n None)) = ok vm.
-Proof. by elim: xs vb n vm => [ | x xs ih] [ | v vb] [ | n] vm //=; apply ih. Qed.
+Lemma load_export_args_nseq (xs : seq var_i) vb n os vm :
+  foldM load_export_arg vm (zip (zip (zip xs vb) (nseq n None)) os) = ok vm.
+Proof. by elim: xs vb n os vm => [ | x xs ih] [ | v vb] [ | n] [ | d os] vm //=; apply ih. Qed.
 
 Lemma load_not_export fd args vm vm' :
   ~~ is_RAnone (sf_return_address (f_extra fd)) ->
@@ -655,17 +655,14 @@ Proof.
   by elim: xs => //= x xs ih; rewrite ih.
 Qed.
 
-(* The prologue only writes the registers of the parameters that arrive on the
-   stack. *)
-Lemma load_export_args_aux (xs : seq var_i) vs pos vm vm' :
-  foldM load_export_arg vm (zip (zip xs vs) pos) = ok vm' →
-  vm =[\ sv_of_list id
-            (pmap (fun a : var_i * option Z => if a.2 is Some _ then Some (v_var a.1) else None)
-               (zip xs pos)) ] vm'.
+(* The prologue only writes the registers it loads. *)
+Lemma load_export_args_aux (xs : seq var_i) vs pos os vm vm' :
+  foldM load_export_arg vm (zip (zip (zip xs vs) pos) os) = ok vm' →
+  vm =[\ sv_of_list id (stack_param_regs (zip (zip xs pos) os)) ] vm'.
 Proof.
-  elim: xs vs pos vm => [ | x xs ih] [ | v vs] [ | o pos] vm //=;
+  elim: xs vs pos os vm => [ | x xs ih] [ | v vs] [ | o pos] [ | d os] vm //=;
     try by move=> [<-]; apply eq_ex_refl.
-  case: o => [sofs | ] /=; last by move=> /ih.
+  case: o d => [sofs | ] [dofs | ] /=; try by move=> /ih.
   t_xrbindP => vm1 /set_var_eq_ex h /ih h1.
   rewrite sv_of_list_cons; apply: (eq_exT (vm2 := vm1)); rewrite /=.
   + by apply: eq_exI h; clear; SvD.fsetdec.
@@ -674,13 +671,12 @@ Qed.
 
 (* Which parameters go to the stack depends only on whether their position is
    a stack position, not on the offsets. *)
-Lemma stack_arg_regs_isSome (xs : seq var_i) pos pos0 :
+Lemma stack_arg_regs_isSome (xs : seq var_i) pos pos0 os :
   [seq isSome o | o <- pos] = [seq isSome o | o <- pos0] ->
-  pmap (fun a : var_i * option Z => if a.2 is Some _ then Some (v_var a.1) else None) (zip xs pos)
-  = pmap (fun a : var_i * option Z => if a.2 is Some _ then Some (v_var a.1) else None) (zip xs pos0).
+  stack_param_regs (zip (zip xs pos) os) = stack_param_regs (zip (zip xs pos0) os).
 Proof.
-  elim: xs pos pos0 => [ | x xs ih] [ | o pos] [ | o0 pos0] //= [hoo hpos].
-  by case: o o0 hoo => [?|] [?|] //= _; rewrite (ih _ _ hpos).
+  elim: xs pos pos0 os => [ | x xs ih] [ | o pos] [ | o0 pos0] [ | d os] //= [hoo hpos].
+  by case: o o0 hoo => [?|] [?|] //= _; case: d => [?|] /=; rewrite (ih _ _ _ hpos).
 Qed.
 
 (* Arguments all passed in registers: the value of a parameter after the call

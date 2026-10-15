@@ -784,7 +784,7 @@ Proof using Hcomp Hstep1.
   set fd := {| f_info := finfo |} => hinit.
   t_xrbindP => ins hparams outs hres <- ??; subst mt inout.
   t_xrbindP => c hc ?; exists fd1; subst fd1 => // s1.
-  rewrite /initialize_funcall /=; t_xrbindP; rewrite /estate0 => vs1 htr hw.
+  rewrite /initialize_funcall /=; t_xrbindP; rewrite /estate0 => vs1 htr sw hw [<-].
   rewrite -hscs -hmem hflat => {hflat}.
   move: hexpd; rewrite hsigs => -[??]; subst expdin expdout.
   set (sempty := {| escs := fscs fs1; emem := fmem fs1; evm := Vm.init |}).
@@ -864,7 +864,7 @@ Proof using Hcomp.
     by rewrite /expand_tyv; case: Mvar.get => //; t_xrbindP => _ <-.
   apply wkequiv_io_weaken with (rpreF (eS:=exp_spec s1) f f) (rpostF (eS:=exp_spec s1) f f) => //.
   + move=> fs1 fs2 [] [_ <-] _ [s]; rewrite /initialize_funcall; t_xrbindP.
-    move=> vs htri _ _ _; split => //; split => //.
+    move=> vs htri _ _ _ _ _; split => //; split => //.
     eexists; first exact hgets.
     exists [seq [:: x] | x <- (fvals fs1)] => /=.
     + by elim: (f_tyin fd) (fvals fs1) vs htri => [[]|> hrec []]//=; t_xrbindP=> > /hrec ->.
