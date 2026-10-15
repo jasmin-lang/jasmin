@@ -1,0 +1,35 @@
+/* Save slots at SP + 4096: an ADD immediate (a shifted byte) but not an
+   LDR/STR offset (at most 4095). */
+
+/* No saved register; the stack pointer is saved at SP + 4096. */
+#[callee_saved = 1]
+export fn sp_slot(reg u32 p) -> reg u32 {
+  stack u8[4096] buf;
+  reg u32 i lim a;
+  lim = 4096; i = 0;
+  while (i < lim) { buf[i] = (8u)i; i += 1; }
+  i -= 1;
+  a = (32u)buf[i];
+  [:u32 p + 0] = a;
+  return a;
+}
+
+/* One saved register (r4) at SP + 4092, the stack pointer at SP + 4096. */
+#[callee_saved = 2]
+export fn one_saved(reg u32 p) -> reg u32 {
+  stack u8[4092] buf;
+  reg u32 a0 a1 a2;
+  reg u32 i lim;
+  a0 = [:u32 p + 0];
+  a1 = [:u32 p + 4];
+  a2 = [:u32 p + 8];
+  lim = 4092; i = 0;
+  while (i < lim) { buf[i] = (8u)i; i += 1; }
+  i -= 1;
+  lim = (32u)buf[i];
+  a1 ^= lim;
+  a0 ^= a1;
+  a0 ^= a2;
+  [:u32 p + 0] = a0;
+  return a0;
+}

@@ -491,7 +491,7 @@ Context (lip_check_ws : wsize -> bool)
         (lip_lstore  : wsize -> var_i -> Z -> var_i -> fopn_args)
         (lip_lload   : wsize -> var_i -> var_i -> Z -> fopn_args)
         (lip_add_imm : var_i -> var_i -> Z -> seq fopn_args)
-        (lip_imm_small : Z -> bool).
+        (lip_imm_small : wsize -> Z -> bool).
 
 Context (lstore_correct : lstore_correct_aux lip_check_ws lip_lstore).
 
