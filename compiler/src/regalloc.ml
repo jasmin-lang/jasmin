@@ -7,6 +7,7 @@ module IntSet = Sint
 module IntMap = Mint
 
 let hierror = hierror ~kind:"compilation error"
+let hierror_fill = hierror ~sub_kind:"name holes"
 let hierror_reg = hierror ~sub_kind:"register allocation"
 
 let debug () = !Glob_options.debug || !Glob_options.verbosity > 0
@@ -46,7 +47,7 @@ let fill_in_missing_names
        begin match get n with
        | ForcedReg v -> Lvar (L.mk_loc loc (V.clone v)) (* Clone because v might be live. *)
        | ForcedNotReg e ->
-          hierror ~loc:(Lone loc)
+          hierror_fill ~loc:(Lone loc)
             "cannot fill the hole to match the right-hand side expression “%a”"
             (Printer.pp_expr ~debug:false) e
        | NotForced -> Lvar (fresh_name loc ty)
@@ -81,7 +82,10 @@ let fill_in_missing_names
     | Ccall (lvs, f, es) -> Ccall (fill_lvs lvs, f, es)
   and fill_instr i = { i with i_desc = fill_instr_r i.i_desc }
   and fill_stmt s = List.map fill_instr s in
-  let f_body = fill_stmt f.f_body in
+  let f_body =
+    try fill_stmt f.f_body
+    with HiError e -> raise (HiError { e with err_funname = Some f.f_name.fn_name })
+  in
   { f with f_body }
 
 type kind = Word | Extra | Vector | Flag | Unknown of ty

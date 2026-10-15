@@ -1131,7 +1131,8 @@ register allocation: variable rot2 must be allocated to register RCX due to arch
 fail/register_allocation/x86-64/bug_679.jazz:
 
 "fail/register_allocation/x86-64/bug_679.jazz", line 4 (10-11):
-compilation error: cannot fill the hole to match the right-hand side expression “s”
+compilation error in function stack_variable:
+name holes: cannot fill the hole to match the right-hand side expression “s”
 
 fail/register_allocation/x86-64/callee_saved-too-small.jazz:
 
