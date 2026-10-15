@@ -1,0 +1,66 @@
+/* Save slots at SP + 36864: a multiple of 4096 (an ADD immediate) but out
+   of the range of LDR and STR of an X register (a multiple of 8 up to
+   32760). */
+
+/* One saved register (x19), restored alone from SP + 36864. */
+#[callee_saved = 2]
+export fn one_saved(reg u64 p) -> reg u64 {
+  stack u8[36864] buf;
+  reg u64 a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16;
+  reg u64 i lim;
+  a0 = [:u64 p + 0];
+  a1 = [:u64 p + 8];
+  a2 = [:u64 p + 16];
+  a3 = [:u64 p + 24];
+  a4 = [:u64 p + 32];
+  a5 = [:u64 p + 40];
+  a6 = [:u64 p + 48];
+  a7 = [:u64 p + 56];
+  a8 = [:u64 p + 64];
+  a9 = [:u64 p + 72];
+  a10 = [:u64 p + 80];
+  a11 = [:u64 p + 88];
+  a12 = [:u64 p + 96];
+  a13 = [:u64 p + 104];
+  a14 = [:u64 p + 112];
+  a15 = [:u64 p + 120];
+  a16 = [:u64 p + 128];
+  lim = 36864; i = 0;
+  while (i < lim) { buf[i] = (8u)i; i += 1; }
+  i -= 1;
+  lim = (64u)buf[i];
+  a1 ^= lim;
+  a0 ^= a1;
+  a0 ^= a2;
+  a0 ^= a3;
+  a0 ^= a4;
+  a0 ^= a5;
+  a0 ^= a6;
+  a0 ^= a7;
+  a0 ^= a8;
+  a0 ^= a9;
+  a0 ^= a10;
+  a0 ^= a11;
+  a0 ^= a12;
+  a0 ^= a13;
+  a0 ^= a14;
+  a0 ^= a15;
+  a0 ^= a16;
+  [:u64 p + 0] = a0;
+  return a0;
+}
+
+
+/* No saved register; the stack pointer is saved at SP + 36864, then
+   restored from there. */
+#[callee_saved = 1]
+export fn sp_slot(reg u64 p) -> reg u64 {
+  stack u8[36864] buf;
+  reg u64 i lim a;
+  lim = 36864; i = 0;
+  while (i < lim) { buf[i] = (8u)i; i += 1; }
+  i -= 1;
+  a = (64u)buf[i];
+  [:u64 p + 0] = a;
+  return a;
+}
