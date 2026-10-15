@@ -208,6 +208,9 @@ Definition arm_linux_call_conv : calling_convention :=
    ; callee_saved_has_rsp  := erefl true
    ; call_reg_args  := [:: R00; R01; R02; R03 ]
    ; call_xreg_args := [::]
+     (* The call leaves the return address in LR; the function header of the
+        printer (pp_arm_m4.ml) pushes it: [push {lr}], 4 bytes. *)
+   ; call_stack_args_ofs := 4%Z
    ; call_reg_ret   := [:: R00; R01 ]
    ; call_xreg_ret  := [::]
    ; call_reg_ret_uniq := erefl true;

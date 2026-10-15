@@ -47,6 +47,10 @@ module Armv8a (Lowering_params : Armv8a_input) = struct
 
   let not_saved_stack = (Armv8a_params.armv8a_liparams atoI).lip_not_saved_stack
 
+  let armv8a_liparams = Armv8a_params.armv8a_liparams atoI
+
+  let linearization_tmps = [ armv8a_liparams.lip_tmp; armv8a_liparams.lip_tmp2 ]
+
   let pp_asm = Pp_arm_v8a.print_prog
 
   let callstyle = Arch_full.ByReg { call = Some Armv8a_decl.R30; return = true }

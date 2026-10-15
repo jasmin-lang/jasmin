@@ -1069,9 +1069,9 @@ register allocation: unable to allocate tmp (defined at "fail/register_allocatio
 
 fail/register_allocation/arm-m4/too_many_args.jazz:
 
-"fail/register_allocation/arm-m4/too_many_args.jazz", line 1 (0) to line 2 (38):
+"fail/register_allocation/arm-m4/too_many_args.jazz", line 1 (0) to line 5 (54):
 compilation error in function too_many_args:
-register allocation: too many parameters according to the ABI (only 4 available on this architecture)
+register allocation: too many parameters: 13 parameters of kind reg, but only 12 registers are available for them on this architecture (the parameters beyond the 4 argument registers of the ABI are passed on the stack and loaded into registers)
 
 fail/register_allocation/arm-m4/too_many_large_ret.jazz:
 
@@ -1190,14 +1190,20 @@ register allocation: unable to allocate variable toto: no register bank for type
 
 fail/register_allocation/x86-64/too_many_args.jazz:
 
-"fail/register_allocation/x86-64/too_many_args.jazz", line 1 (0) to line 2 (42):
+"fail/register_allocation/x86-64/too_many_args.jazz", line 1 (0) to line 5 (56):
 compilation error in function too_many_args:
-register allocation: too many parameters according to the ABI (only 6 available on this architecture)
+register allocation: too many parameters: 14 parameters of kind reg, but only 13 registers are available for them on this architecture (the parameters beyond the 6 argument registers of the ABI are passed on the stack and loaded into registers)
 
 fail/register_allocation/x86-64/too_many_large_args.jazz:
 
 "fail/register_allocation/x86-64/too_many_large_args.jazz", line 1 (0) to line 2 (47):
 compilation error in function too_many_args:
+register allocation: too many large parameters according to the ABI (only 8 available on this architecture)
+
+fail/register_allocation/x86-64/too_many_large_args_mixed.jazz:
+
+"fail/register_allocation/x86-64/too_many_large_args_mixed.jazz", line 1 (0) to line 4 (91):
+compilation error in function too_many_large_args_mixed:
 register allocation: too many large parameters according to the ABI (only 8 available on this architecture)
 
 fail/register_allocation/x86-64/too_many_large_ret.jazz:
@@ -1981,4 +1987,4 @@ Statistics:
 	Pretyping:  65
 	Parsing:     5
 	Typing:      5
-	Compile:   237
+	Compile:   238

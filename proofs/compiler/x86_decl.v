@@ -320,6 +320,9 @@ Definition x86_linux_call_conv : calling_convention :=
    ; callee_saved_has_rsp  := erefl true
    ; call_reg_args  := [:: RDI; RSI; RDX; RCX; R8; R9 ]
    ; call_xreg_args := [:: XMM0; XMM1; XMM2; XMM3; XMM4; XMM5; XMM6; XMM7 ]
+     (* The function header of the printer is empty; the return address that
+        [call] pushed sits at [rsp]. *)
+   ; call_stack_args_ofs := 8%Z
    ; call_reg_ret   := [:: RAX; RDX ]
    ; call_xreg_ret  := [:: XMM0; XMM1 ]
    ; call_reg_ret_uniq := erefl true;
@@ -332,6 +335,10 @@ Definition x86_windows_call_conv : calling_convention :=
    ; callee_saved_has_rsp  := erefl true
    ; call_reg_args  := [:: RCX; RDX; R8; R9 ]
    ; call_xreg_args := [:: XMM0; XMM1; XMM2; XMM3 ]
+     (* The function header of the printer is empty; the return address that
+        [call] pushed sits at [rsp], followed by 32 bytes of shadow space
+        reserved for the four register arguments. *)
+   ; call_stack_args_ofs := 40%Z
    ; call_reg_ret   := [:: RAX ]
    ; call_xreg_ret  := [:: XMM0 ]
    ; call_reg_ret_uniq := erefl true;

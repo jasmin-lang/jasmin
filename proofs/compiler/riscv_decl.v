@@ -195,6 +195,10 @@ Definition riscv_linux_call_conv : calling_convention :=
  ; callee_saved_has_rsp  := erefl true
  ; call_reg_args  := [:: X10; X11; X12; X13; X14; X15; X16; X17 ]
  ; call_xreg_args := [::]
+   (* The call leaves the return address in RA; the function header of the
+      printer (pp_riscv.ml) pushes it: [addi sp, sp, -4; sw ra, 0(sp)],
+      4 bytes. *)
+ ; call_stack_args_ofs := 4%Z
  ; call_reg_ret   := [:: X10; X11]
  ; call_xreg_ret  := [::]
  ; call_reg_ret_uniq := erefl true;

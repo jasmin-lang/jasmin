@@ -117,7 +117,7 @@ Definition rec_callK {E : Type -> Type} (f : funname) (fs : estate) :
 Instance sem_funK_rec (E : Type -> Type) : sem_FunK (recCallK +' E) | 0 :=
   {| sem_funK := fun _ => rec_callK (E:=E) |}.
 
-Context (var_tmp : Sv.t).
+Context (var_tmp : Sv.t) (nb_reg_args : nat) (stack_args_ofs : Z).
 
 Section SEM_I.
 
@@ -144,6 +144,11 @@ Definition saved_stack_valid_final (p:sprog) fd (k:Sv.t) :=
 Definition initialize_funcall (p:sprog) f (fs:estate) :=
  Let _ := assert [&& top_stack_aligned f fs.(emem)
                    & valid_RSP p fs.(emem) fs.(evm)] ErrSemUndef in
+ (* arguments: in their registers, or on the stack of the caller for the last
+    arguments of an export function *)
+ Let args :=
+   Result.map_err (fun _ => ErrSemUndef)
+     (get_export_args nb_reg_args stack_args_ofs fs.(emem) fs.(evm) (top_stack fs.(emem)) f) in
  Let m1 :=
    Result.map_err (fun _ => ErrSemUndef)
       (alloc_stack fs.(emem)
@@ -152,7 +157,12 @@ Definition initialize_funcall (p:sprog) f (fs:estate) :=
       f.(f_extra).(sf_stk_ioff)
       f.(f_extra).(sf_stk_extra_sz)) in
  let vm1 := ra_undef_vm f fs.(evm) var_tmp in
- ok {| escs := fs.(escs); emem := m1; evm := set_RSP p m1 vm1; |}.
+ (* effect of the prologue of an export function: the arguments passed on the
+    stack are loaded into their registers (nothing for an internal function) *)
+ Let vm1' :=
+   Result.map_err (fun _ => ErrSemUndef)
+     (load_export_args nb_reg_args stack_args_ofs f args vm1) in
+ ok {| escs := fs.(escs); emem := m1; evm := set_RSP p m1 vm1'; |}.
 
 Definition is_disjoint_magic (p:sprog) fn :=
   match get_fundef (p_funcs p) fn with
@@ -222,7 +232,9 @@ Definition finalize_funcall p f ks2 :=
   let m2 := free_stack s2'.(emem) in
   let vm2 := kill_vars (ra_vm_return f.(f_extra)) s2'.(evm) in
   let s2 := {| escs := s2'.(escs); emem := m2 ; evm := set_RSP p m2 vm2 |} in
-  let k' := Sv.union (ra_undef f var_tmp) (ra_vm_return f.(f_extra)) in
+  (* the registers the prologue loads are written by the function *)
+  let k' := Sv.union (ra_undef f var_tmp)
+              (Sv.union (ra_vm_return f.(f_extra)) (stack_params nb_reg_args f)) in
   ok (Sv.union k k', s2).
 
 Definition isem_fun_body (p : prog)

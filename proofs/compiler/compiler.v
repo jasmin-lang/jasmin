@@ -474,8 +474,8 @@ Definition check_export entries (p: sprog) : cexec unit :=
 Definition compiler_back_end entries (pd: sprog) :=
   Let _ := check_export entries pd in
   (* linearisation                     *)
-  Let _ := merge_varmaps.check pd var_tmps in
-  Let pl := linear_prog liparams pd in
+  Let _ := merge_varmaps.check pd var_tmps (size call_reg_args) in
+  Let pl := linear_prog liparams pd (size call_reg_args) call_stack_args_ofs in
   let pl := cparams.(print_linear) Linearization pl in
   (* stack zeroization                 *)
   let szs_of_fn fn :=

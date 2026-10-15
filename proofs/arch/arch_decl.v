@@ -24,6 +24,7 @@ Require Import
   sopn_semi
   flag_combination
   shift_kind
+  stack_args
   arm_expand_imm.
 
 (* -------------------------------------------------------------------- *)
@@ -773,6 +774,15 @@ Class calling_convention :=
   ; callee_saved_has_rsp  : ARReg ad_rsp \in callee_saved
   ; call_reg_args  : seq reg_t
   ; call_xreg_args : seq xreg_t
+    (* Offset of the first argument that the caller passes on the stack, with
+       respect to the stack pointer at the entry of the *linear* code of the
+       function, that is after the function header emitted by the assembly
+       printer (which may itself push the return address and move the stack
+       pointer). It therefore accounts both for what the caller left on the
+       stack before the call (the return address on x86) and for what the
+       header pushes (the return address on the architectures where the call
+       leaves it in a register). *)
+  ; call_stack_args_ofs : Z
   ; call_reg_ret   : seq reg_t
   ; call_xreg_ret  : seq xreg_t
   ; call_reg_ret_uniq : uniq (T:= @ceqT_eqType _ _) call_reg_ret
@@ -800,9 +810,27 @@ Definition check_list {T} {eqc : eqTypeC T} (get : asm_typed_reg -> option T) (l
   let r := pmap get l in
   (r : seq (@ceqT_eqType T eqc)) == take (size r) expected.
 
+(* The type of the value held by a typed register; this is what decides how the
+   argument is passed (see stack_args.v). *)
+Definition ltype_of_asm_typed_reg (a : asm_typed_reg) : ltype :=
+  match a with
+  | ARReg _ | ARegX _ => lword reg_size
+  | AXReg _ => lword xreg_size
+  | ABReg _ => lbool
+  end.
+
+(* The arguments that the caller passes in registers; the other ones are passed
+   on the stack and are therefore not constrained by the calling convention. *)
+Definition reg_passed_args {call_conv:calling_convention} (args:asm_typed_regs) : asm_typed_regs :=
+  let pos :=
+    stack_arg_positions (size call_reg_args) call_stack_args_ofs
+      (map ltype_of_asm_typed_reg args)
+  in
+  pmap (fun '(a, o) => if o is None then Some a else None) (zip args pos).
+
 Definition check_call_conv {call_conv:calling_convention} (fd:asm_fundef) :=
   implb fd.(asm_fd_export)
-    [&& check_list get_ARReg fd.(asm_fd_arg) call_reg_args,
+    [&& check_list get_ARReg (reg_passed_args fd.(asm_fd_arg)) call_reg_args,
         check_list get_AXReg fd.(asm_fd_arg) call_xreg_args,
         check_list get_ARReg fd.(asm_fd_res) call_reg_ret &
         check_list get_AXReg fd.(asm_fd_res) call_xreg_ret].

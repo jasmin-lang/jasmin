@@ -1,2 +1,5 @@
+/* One parameter more than the allocatable registers: the parameters beyond
+   the argument registers of the ABI are passed on the stack but loaded into
+   registers by the prologue. */
 export
-fn too_many_args(reg u64 a b c d e f g) {}
+fn too_many_args(reg u64 a b c d e f g h i j k l m n) {}

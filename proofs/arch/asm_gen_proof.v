@@ -21,7 +21,9 @@ Require Import
   linear_sem
   linear_facts
   fexpr
-  fexpr_sem.
+  fexpr_sem
+  stack_args
+  arg_class.
 Require Import
   arch_decl
   arch_decl_facts
@@ -1330,6 +1332,45 @@ Proof.
     => c ok_c ok_rsp ok_callee_saved arg ok_arg res ok_res ok_call_conv <-;
     split => //.
   by exists c, arg, res.
+Qed.
+
+(* -------------------------------------------------------------------- *)
+(* Where the calling convention leaves the arguments of an export function.
+
+   [reg_passed_args] (arch_decl) reads the positions off the registers that
+   [assemble_fd] gave to the arguments, that is off [ltype_of_asm_typed_reg];
+   the linearization reads them off the declared types of the arguments
+   ([lfd_tyin]).  The two agree because a position depends on a type only
+   through the test [ws <= Uptr]: a word that fits in a pointer travels in a
+   general-purpose register — [ARReg] or [ARegX], of type [lword reg_size] — or,
+   when those are exhausted, on the stack, while a wider one travels in a vector
+   register — [AXReg], of type [lword xreg_size].
+
+   [typed_reg_of_vari] only reads which register a variable denotes, so the
+   agreement between the declared type of an argument and the class of its
+   register is an invariant established by the register allocation, not by the
+   assembly generation: it is a hypothesis of the lemmas below. *)
+
+(* A variable that denotes a register has the type of that register. *)
+Lemma vtype_typed_reg_of_vari x a :
+  typed_reg_of_vari x = ok a ->
+  vtype x = atype_of_ltype (ltype_of_asm_typed_reg a).
+Proof. by case: x => x xi /= /asm_typed_reg_of_varI ->; case: a. Qed.
+
+Lemma reg_passed_args_positions fd args :
+  mapM typed_reg_of_vari (lfd_arg fd) = ok args ->
+  all2 arg_reg_class (lfd_tyin fd) (lfd_arg fd) ->
+  stack_arg_positions (size call_reg_args) call_stack_args_ofs
+    [seq ltype_of_asm_typed_reg a | a <- args]
+  = stack_arg_positions (size call_reg_args) call_stack_args_ofs (lfd_tyin fd).
+Proof.
+  move=> ok_args hall; apply: esym; apply: stack_arg_positions_class.
+  elim: (lfd_tyin fd) (lfd_arg fd) args ok_args hall => [ | ty tys ih] [ | x xs] //= args.
+  + by move=> [<-].
+  t_xrbindP => a ok_a {}args ok_args <- /= /andP[] hcl /(ih _ _ ok_args) ->.
+  by rewrite andbT; move: hcl;
+    rewrite /arg_reg_class (vtype_typed_reg_of_vari ok_a);
+    case: (ltype_of_asm_typed_reg a).
 Qed.
 
 (* -------------------------------------------------------------------- *)

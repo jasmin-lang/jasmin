@@ -31,6 +31,11 @@ module type Core_arch = sig
 
   val not_saved_stack : var list
 
+  (* The registers the linearization pass uses as scratch space in the
+     prologue of an export function ([lip_tmp] and [lip_tmp2]): their contents
+     are destroyed before the stack-passed arguments are loaded. *)
+  val linearization_tmps : var list
+
   val pp_asm : Format.formatter -> (reg, regx, xreg, rflag, cond, asm_op) Arch_decl.asm_prog -> unit
 
   val callstyle : reg callstyle

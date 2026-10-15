@@ -1,7 +1,8 @@
 (** This module defines common definitions related to the “one-varmap” intermediate language.
 This language is structured (as jasmin-source) and is used just before linearization: there is a single environment (varmap) shared across function calls.
 *)
-Require Import expr compiler_util.
+From Coq Require Import ZArith.
+Require Import expr compiler_util stack_args.
 Import Utf8.
 From mathcomp Require Import ssreflect ssrfun ssrbool.
 
@@ -111,5 +112,21 @@ Definition fd_tmp_call (p:sprog) f :=
   | None => Sv.empty
   | Some fd => tmp_call fd.(f_extra)
   end.
+
+(* Registers of the parameters of an export function that the caller passes on
+   the stack, [nb_reg_args] being the number of argument registers of the
+   calling convention (see stack_args.v). The prologue built by the
+   linearization loads them, hence the function writes them even when its body
+   does not. Only the distinction between register and stack matters here, so
+   the offset of the first stack argument is irrelevant. Internal functions
+   receive all their arguments in registers. *)
+Definition stack_params (nb_reg_args : nat) (fd : sfundef) : Sv.t :=
+  if is_RAnone (sf_return_address fd.(f_extra))
+  then
+    let tyin := odflt [::] (oseq.omap ltype_of_atype fd.(f_tyin)) in
+    sv_of_list id
+      (pmap (fun a : var_i * option Z => if a.2 is Some _ then Some (v_var a.1) else None)
+         (zip fd.(f_params) (stack_arg_positions nb_reg_args 0 tyin)))
+  else Sv.empty.
 
 End Section.

@@ -32,7 +32,11 @@ module X86_core = struct
   let asm_e = X86_extra.x86_extra atoI
   let aparams = X86_params.x86_params atoI
 
-  let not_saved_stack = (X86_params.x86_liparams atoI).lip_not_saved_stack
+  let x86_liparams = X86_params.x86_liparams atoI
+
+  let not_saved_stack = x86_liparams.lip_not_saved_stack
+
+  let linearization_tmps = [ x86_liparams.lip_tmp; x86_liparams.lip_tmp2 ]
 
   let pp_asm = Pp_x86.print_prog
 

@@ -51,7 +51,11 @@ module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch
   (* TODO_ARM: r9 is a platform register. (cf. arch_decl)
      Here we assume it's just a variable register. *)
 
-  let not_saved_stack = (Arm_params.arm_liparams atoI).lip_not_saved_stack
+  let arm_liparams = Arm_params.arm_liparams atoI
+
+  let not_saved_stack = arm_liparams.lip_not_saved_stack
+
+  let linearization_tmps = [ arm_liparams.lip_tmp; arm_liparams.lip_tmp2 ]
 
   let pp_asm = Pp_arm_m4.print_prog
 

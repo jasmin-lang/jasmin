@@ -180,6 +180,7 @@ itrees/rutt_extras.v
 itrees/while.v
 itrees/xrutt.v
 itrees/xrutt_facts.v
+lang/arg_class.v
 lang/core_logics.v
 lang/expr.v
 lang/expr_facts.v
@@ -230,6 +231,7 @@ lang/sopn_facts.v
 lang/sopn_semi.v
 lang/sopn_semi_facts.v
 lang/slh_ops.v
+lang/stack_args.v
 lang/stack_zero_strategy.v
 lang/strings.v
 lang/syscall.v

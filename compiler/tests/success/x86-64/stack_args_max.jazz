@@ -1,0 +1,21 @@
+/* The largest number of word arguments the x86-64 register allocation can
+   accommodate: all of them are live at once when the prologue has loaded the
+   seven that came on the stack. */
+export
+fn thirteen_args(reg u64 a b c d e f g h i j k l m) -> reg u64 {
+  reg u64 r;
+  r = a;
+  r += b;
+  r += c;
+  r += d;
+  r += e;
+  r += f;
+  r += g;
+  r += h;
+  r += i;
+  r += j;
+  r += k;
+  r += l;
+  r += m;
+  return r;
+}

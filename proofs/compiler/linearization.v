@@ -6,7 +6,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 From Coq Require Import ZArith Utf8.
 Import Relations.
 
-Require Import expr fexpr compiler_util label constant_prop one_varmap.
+Require Import expr fexpr compiler_util label constant_prop one_varmap stack_args arg_class.
 Require Export linear linear_util.
 Import word_ssrZ.
 
@@ -338,6 +338,22 @@ Definition set_up_sp_register
   (vrspi : var_i) (sf_sz : Z) (al : wsize) (r : var_i) (tmp : var_i) : lcmd :=
   map (li_of_fopn_args ii) (lip_set_up_sp_register liparams vrspi sf_sz al r tmp).
 
+(* Loads of the parameters of an export function that the caller passes on
+   the stack: [args] pairs each parameter with where the caller left it
+   ([None]: in the register found in [f_params]; [Some sofs]: on the stack at
+   offset [sofs] from the stack pointer at the entry of the function, which
+   [old_rsp] must hold). The parameters are architecture registers here, so a
+   whole register is loaded; as for an argument passed in a register, the bits
+   beyond the declared width of the argument are not constrained. *)
+Definition load_stack_args (ii : instr_info) (old_rsp : var_i)
+  (args : seq (var_i * option Z)) : lcmd :=
+  pmap
+    (fun a =>
+       if a.2 is Some sofs
+       then Some (lload ii (wsize_of_atype (vtype (v_var a.1))) a.1 old_rsp sofs)
+       else None)
+    args.
+
 (* -------------------------------------------------------------------------- *)
 Section CHECK_SOME.
   Context (E: Type) (error: string → E) (A B: Type) (conv: A → option B).
@@ -626,7 +642,25 @@ Definition align ii a (p:label * lcmd) : label * lcmd :=
 Section FUN.
 
 Context
+  (* Number of registers the calling convention uses for arguments and offset,
+     relative to the stack pointer at the entry of a function, of the first
+     argument the caller passes on the stack. *)
+  (nb_reg_args : nat)
+  (stack_args_ofs : Z)
   (fn : funname).
+
+(* Positions of the arguments of an export function: [None] for the arguments
+   that the caller passes in registers, [Some ofs] for the ones it leaves on the
+   stack at offset [ofs] from the stack pointer at the entry of the function.
+   The positions are computed from the declared types [tyin], since the
+   variables of [f_params] are architecture registers at this point: their type
+   is that of a register, not the one the source program gave to the
+   parameter. *)
+Definition export_arg_positions (tyin : seq ltype) : seq (option Z) :=
+  stack_arg_positions nb_reg_args stack_args_ofs tyin.
+
+Definition arg_positions (tyin : seq ltype) (params : seq var_i) : seq (var_i * option Z) :=
+  zip params (export_arg_positions tyin).
 
 Definition ov_type_ptr (o: option var) :=
    if o is Some r then convertible (vtype r) (aword Uptr) else true.
@@ -696,6 +730,35 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
     assert
       (~~ is_RAnone (sf_return_address e) || ok_save_stack)
       (E.error "bad save-stack")
+  in
+  (* The prologue of an export function loads into their registers the
+     parameters that the caller passes on the stack (see [linear_body]): these
+     registers must be pairwise distinct and must not clash with the registers
+     used to set up the stack, in particular with the one holding the value the
+     stack pointer had at the entry. *)
+  let ok_stack_args :=
+    let tyin := odflt [::] (oseq.omap ltype_of_atype fd.(f_tyin)) in
+    let args := arg_positions tyin fd.(f_params) in
+    let xs := pmap (fun a => if a.2 is Some _ then Some (v_var a.1) else None) args in
+    let forbidden :=
+      Sv.add rsp (Sv.add var_tmp (Sv.add var_tmp2
+        (if sf_save_stack e is SavedStackReg x then Sv.singleton x else Sv.empty)))
+    in
+    [&& size fd.(f_tyin) == size fd.(f_params)
+      , (* every parameter is in a register of the class of its declared type
+           (the positions are computed from the declared types), and a parameter
+           loaded from the stack is a pointer-sized register: the whole slot is
+           loaded *)
+        all2 arg_reg_class tyin fd.(f_params)
+        && all (fun x => convertible (vtype x) (aword Uptr) && lip_check_ws liparams Uptr) xs
+      , uniq xs
+      & all (fun x => ~~ Sv.mem x forbidden) xs
+    ]
+  in
+  Let _ :=
+    assert
+      (~~ is_RAnone (sf_return_address e) || ok_stack_args)
+      (E.error "bad stack arguments")
   in
   ok tt.
 
@@ -827,7 +890,9 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   | Cfor _ _ _ => (lbl, lc)
   end.
 
-Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) : label * lcmd :=
+Definition linear_body
+  (fi: fun_info) (e: stk_fun_extra)
+  (tyin: seq ltype) (params: seq var_i) (body: cmd) : label * lcmd :=
   let fentry_ii := entry_info_of_fun_info fi in
   let ret_ii := ret_info_of_fun_info fi in
   let: (tail, head, lbl) :=
@@ -850,17 +915,27 @@ Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) : label * l
        )
      | RAnone =>
        let sf_sz := (sf_stk_sz e + sf_stk_extra_sz e)%Z in
+       (* Load the parameters that the caller passes on the stack into their
+          registers. These arguments live in the frame of the caller, so they
+          are read relative to the value the stack pointer had at the entry of
+          the function ([old_rsp]). *)
+       let load_args old_rsp :=
+         load_stack_args fentry_ii old_rsp (arg_positions tyin params)
+       in
        match sf_save_stack e with
        | SavedStackNone =>
-         ([::], [::], 1%positive)
+         (* Head: Load the parameters passed on the stack. *)
+         ([::], load_args rspi, 1%positive)
        | SavedStackReg x =>
          (* Tail: R[rsp] := R[x]
           * Head: R[x] := R[rsp]
           *       Setup stack.
+          *       Load the parameters passed on the stack.
           *)
          let r := mk_var_i x in
          ( [:: lmove ret_ii Uptr rspi r ]
          , set_up_sp_register fentry_ii rspi sf_sz (sf_align e) r (mk_var_i var_tmp)
+             ++ load_args r
          , 1%positive
          )
        | SavedStackStk ofs =>
@@ -870,11 +945,13 @@ Definition linear_body (fi: fun_info) (e: stk_fun_extra) (body: cmd) : label * l
           *       Setup stack.
           *       M[R[rsp] + ofs] := R[r]
           *       Push registers to save to the stack.
+          *       Load the parameters passed on the stack.
           *)
          let r := mk_var_i var_tmp in
          ( pop_to_save ret_ii e.(sf_to_save) ofs
          , set_up_sp_register fentry_ii rspi sf_sz (sf_align e) r (mk_var_i var_tmp2)
              ++ push_to_save fentry_ii e.(sf_to_save) (var_tmp, ofs)
+             ++ load_args r
          , 1%positive)
        end
      end
@@ -888,7 +965,7 @@ Definition linear_fd (fd: sfundef) :=
   let tyin := odflt [::] (oseq.omap ltype_of_atype fd.(f_tyin)) in
   let tyout := odflt [::] (oseq.omap ltype_of_atype fd.(f_tyout)) in
   let res := if is_export then f_res fd else [::] in
-  let body := linear_body fd.(f_info) e fd.(f_body) in
+  let body := linear_body fd.(f_info) e tyin fd.(f_params) fd.(f_body) in
   (body.1,
     {| lfd_info := f_info fd
     ; lfd_align := sf_align e
@@ -906,12 +983,12 @@ Definition linear_fd (fd: sfundef) :=
 
 End FUN.
 
-Definition linear_prog : cexec lprog :=
-  Let _ := check_prog in
+Definition linear_prog (nb_reg_args : nat) (stack_args_ofs : Z) : cexec lprog :=
+  Let _ := check_prog nb_reg_args stack_args_ofs in
   Let _ := assert (size p.(p_globs) == 0)
              (E.internal_error "invalid p_globs") in
   let funcs := fmap (fun nb_lbl '(f,fd) =>
-    let fd := linear_fd f fd in
+    let fd := linear_fd nb_reg_args stack_args_ofs f fd in
     ((nb_lbl + fd.1)%positive, (f, fd.2))) 1%positive p.(p_funcs)
   in
   Let _ := assert (funcs.1 <=? wbase Uptr)%Z

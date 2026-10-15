@@ -1759,6 +1759,21 @@ Record extend_mem (m1 m2:mem) (rip:pointer) (data:seq u8) := {
     (* the memory at address [rip] contains [data] *)
 }.
 
+(* A read that succeeds in the memory of the source succeeds in the extended
+   memory of the target, with the same value. *)
+Lemma extend_mem_read ms mt gd data al p ws w :
+  extend_mem ms mt gd data ->
+  read ms al p ws = ok w ->
+  read mt al p ws = ok w.
+Proof.
+move=> hext hr.
+have [hal h8] := read_read8 hr.
+rewrite -hr; apply: eq_read => al' i hi.
+rewrite 2!(read8_alignment Aligned); symmetry.
+apply: hext.(em_read_old8).
+rewrite (validw8_alignment al); apply/readV; exact: h8 hi.
+Qed.
+
 (* TODO: should we assume init_stk_state = ok ... as section hypothesis and reason about it,
    it would in particular ease the proof of params <> locals, since we would have the properties
    of alloc_stack_spec to reason with. The advantages are not clear. For now, I leave it like this.

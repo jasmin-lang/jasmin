@@ -16,6 +16,8 @@ Require Import
   core_logics
   relational_logic
   sem_one_varmap
+  arg_class
+  stack_args
   linear
   linear_sem
   it_sems_one_varmap
@@ -173,6 +175,49 @@ Definition value_uincl_or_in_mem {A} (m : mem) (o : option A) (v v' : value) :=
   | None => value_uincl v v'
   | Some _ => value_in_mem m v v'
   end.
+
+(* Where the calling convention leaves the arguments of an export function.
+
+   The first arguments travel in registers; the following ones are left by the
+   caller on its stack, one pointer-sized word each. [stack_arg_positions]
+   computes from the declared types which is which: [None] for a register,
+   [Some ofs] for the word at offset [ofs] from the stack pointer at the entry
+   of the function.
+
+   On the architectures whose assembly printer emits a function header (arm,
+   risc-v, armv8a) the Rocq semantics starts after that header, so the stack
+   pointer the offsets refer to is the one the header has already moved; this is
+   accounted for by the value of [call_stack_args_ofs] (see [arch_decl]). The
+   statements below are therefore uniform across architectures. *)
+Definition abi_arg_positions (tys : seq ltype) : seq (option Z) :=
+  stack_arg_positions (size call_reg_args) call_stack_args_ofs tys.
+
+(* The values that the caller passed, as a function of the state of the
+   target: for an argument at position [o], the value [vt] of the register the
+   compiler gave to that parameter, or a pointer-sized word read on the stack
+   of the caller at [sp + ofs]. *)
+Definition passed_arg (m : mem) (sp : pointer) (o : option Z) (vt : value) : exec value :=
+  if o is Some ofs
+  then Let w := read m Aligned (sp + wrepr Uptr ofs)%R Uptr in ok (Vword w)
+  else ok vt.
+
+Definition passed_args (pos : seq (option Z)) (m : mem) (sp : pointer) (argt : values) :
+    exec values :=
+  mapM2 ErrType (passed_arg m sp) pos argt.
+
+(* The reads are transported to any memory that contains the one they are
+   stated in. *)
+Lemma passed_args_read_incl pos m m' sp argt vargs :
+  (forall al p ws w, read m al p ws = ok w -> read m' al p ws = ok w) ->
+  passed_args pos m sp argt = ok vargs ->
+  passed_args pos m' sp argt = ok vargs.
+Proof.
+  move=> hread; rewrite /passed_args.
+  elim: pos argt vargs => [ | o pos ih] [ | vt argt] vargs //=.
+  t_xrbindP => v hv vs /ih -> <- /=.
+  case: o hv => [ofs|] /=; last by move=> [<-].
+  by t_xrbindP => w /hread -> <-.
+Qed.
 
 Definition size_glob (p:sprog) := Z.of_nat (size (sp_globs (p_extra p))).
 Definition get_wptrs (p:uprog) fn :=
@@ -1009,7 +1054,9 @@ Definition back_end_pre lfd s t :=
   let: mt := t.(emem) in
   [/\ vmt.[vid tp.(lp_rsp)] = Vword (top_stack ms)
     , vmt.[vid tp.(lp_rip)] = Vword rip
-    , values_uincl args argt
+    , exists2 vargs,
+        passed_args (abi_arg_positions lfd.(lfd_tyin)) ms (top_stack ms) argt = ok vargs
+        & values_uincl args vargs
     , match_mem ms mt
     , s.(fscs) = t.(escs)
     , vm_initialized_on vmt lfd.(lfd_callee_saved)
@@ -1040,6 +1087,19 @@ Definition lin_sz_pre lp fn lfd i2 i3 :=
 Definition lin_sz_post szi sp lp fn zfd i1 i3 :=
   rcompose (lin_post sp lp fn i1 i3) (sz_post szi lp fn zfd i3 i3).
 
+(* At the level of the one-varmap semantics, the values passed are the ones
+   that [get_export_args] reads. *)
+Lemma passed_args_get_export_args pos m sp' xs vm vs :
+  passed_args pos m sp' (lget_vars xs vm) = ok vs ->
+  mapM (sem_one_varmap.get_export_arg m vm sp') (zip xs pos) = ok vs.
+Proof.
+rewrite /passed_args /lget_vars.
+elim: xs pos vs => [ | x xs ih] [ | o pos] vs //=.
+t_xrbindP => v hv vs' /ih -> <- /=.
+case: o hv => [ofs|] /=; last by move=> [<-].
+by t_xrbindP => w -> <-.
+Qed.
+
 Lemma trans_pre_ovm_lin_sz lp fn sfd lfd tfd i1 i3 :
   tp.(lp_rsp) = sp.(p_extra).(sp_rsp) ->
   tp.(lp_rip) = sp.(p_extra).(sp_rip) ->
@@ -1053,22 +1113,27 @@ Lemma trans_pre_ovm_lin_sz lp fn sfd lfd tfd i1 i3 :
   tfd.(lfd_stk_max) = sfd.(f_extra).(sf_stk_max) ->
   tfd.(lfd_stk_max) = lfd.(lfd_stk_max) ->
   tfd.(lfd_arg) = sfd.(f_params) ->
+  tfd.(lfd_tyin) = odflt [::] (oseq.omap ltype_of_atype sfd.(f_tyin)) ->
+  is_RAnone sfd.(f_extra).(sf_return_address) ->
   get_fundef (p_funcs sp) fn = Some sfd ->
   get_fundef (lp_funcs lp) fn = Some lfd ->
   back_end_pre tfd i1 i3 ->
-  exists2 i2, ovm_pre sp rip fn i1 i2 & lin_sz_pre lp fn lfd i2 i3.
+  exists2 i2,
+    ovm_pre sp (size call_reg_args) call_stack_args_ofs rip fn i1 i2
+    & lin_sz_pre lp fn lfd i2 i3.
 Proof.
 move=> rsp_tp_sp rip_tp_sp rsp_tp_lp rip_tp_lp al_tfd_sfd al_tfd_lfd exp_tfd
-  exp_tfd_lfd cs_tfd_lfd stkmax_tfd_sfd stkmax_tfd_lfd args_tfd_sfd get_sfd
-  get_lfd [hrsp hrip] uvals mmem hscs init alloc.
-set vs' := lget_args tfd i3.(evm) in uvals.
+  exp_tfd_lfd cs_tfd_lfd stkmax_tfd_sfd stkmax_tfd_lfd args_tfd_sfd tyin_tfd_sfd
+  ranone_sfd get_sfd get_lfd [hrsp hrip] uvals mmem hscs init alloc.
 set i2 := with_vm (estate0 i1) i3.(evm).
+case: uvals => vs' /passed_args_get_export_args ok_vs' uvs'.
 exists i2.
 - split=> //.
-  rewrite get_sfd /=; exists vs'; split; last exact: uvals.
+  rewrite get_sfd /=; exists vs'; split; last exact: uvs'.
   + by rewrite -rsp_tp_sp hrsp.
   + by rewrite -rip_tp_sp hrip.
-  by rewrite get_var_is_allow_undefined -args_tfd_sfd.
+  rewrite /get_export_args /sem_one_varmap.export_arg_positions ranone_sfd.
+  by rewrite -args_tfd_sfd -tyin_tfd_sfd /abi_arg_positions; exact: ok_vs'.
 rewrite /lin_sz_pre /lin_pre get_sfd get_lfd; split; first split=> //.
 - by rewrite -rsp_tp_lp hrsp.
 - by rewrite -rip_tp_lp hrip.
@@ -1110,7 +1175,7 @@ by t_lia.
 Qed.
 
 Lemma linear_prog_extra_frame_size lp fn sfd :
-  linear_prog aparams.(ap_lip) sp = ok lp ->
+  linear_prog aparams.(ap_lip) sp (size call_reg_args) call_stack_args_ofs = ok lp ->
   get_fundef sp.(p_funcs) fn = Some sfd ->
   [/\ 0 <= sfd.(f_extra).(sf_stk_sz)
     , 0 <= sfd.(f_extra).(sf_stk_extra_sz)
@@ -1120,7 +1185,7 @@ Lemma linear_prog_extra_frame_size lp fn sfd :
 Proof.
 move=> ok_lp get_sfd.
 have := [elaborate it_linearization_proof.checked_prog ok_lp get_sfd].
-rewrite /check_fd /=; t_xrbindP=> _ _ _ _ + _ _ _.
+rewrite /check_fd /=; t_xrbindP=> _ _ _ _ + _ _ _ _.
 move=> /and4P [/ZleP stk_sz_pos /ZleP stk_extra_sz_pos _ /ZleP
   stk_frame_le_max].
 split=> //; exact: frame_size_bound stk_sz_pos stk_extra_sz_pos.
@@ -1130,7 +1195,7 @@ Lemma trans_post_ovm_lin_alloc''' lp fn sfd lfd i2 :
   let: ts_i2 := top_stack i2.(emem) in
   let: sl_i2 := stack_limit i2.(emem) in
   let: sm_lfd := lfd.(lfd_stk_max) in
-  linear_prog aparams.(ap_lip) sp = ok lp ->
+  linear_prog aparams.(ap_lip) sp (size call_reg_args) call_stack_args_ofs = ok lp ->
   get_fundef sp.(p_funcs) fn = Some sfd ->
   lfd.(lfd_stk_max) = sfd.(f_extra).(sf_stk_max) ->
   allocatable_stack
@@ -1164,7 +1229,7 @@ by t_lia.
 Qed.
 
 Lemma trans_post_ovm_lin szi lp fn sfd lfd zfd tfd i1 i2 i3 o1 o4 :
-  linear_prog (ap_lip aparams) sp = ok lp ->
+  linear_prog (ap_lip aparams) sp (size call_reg_args) call_stack_args_ofs = ok lp ->
   stack_zeroization_lfd aparams.(ap_szp) szi lp.(lp_rsp) fn lfd = ok zfd ->
   isSome (szi fn) = isSome (cparams.(stack_zero_info) fn) ->
   get_fundef (p_funcs sp) fn = Some sfd ->
@@ -1177,7 +1242,7 @@ Lemma trans_post_ovm_lin szi lp fn sfd lfd zfd tfd i1 i2 i3 o1 o4 :
   tfd.(lfd_align) = lfd.(lfd_align) ->
   tfd.(lfd_res) = lfd.(lfd_res) ->
   tfd.(lfd_stk_max) = lfd.(lfd_stk_max) ->
-  ovm_pre sp rip fn i1 i2 ->
+  ovm_pre sp (size call_reg_args) call_stack_args_ofs rip fn i1 i2 ->
   lin_sz_pre lp fn lfd i2 i3 ->
   rcompose (ovm_post' fn i1 i2) (lin_sz_post szi sp lp fn tfd i2 i3) o1 o4 ->
   back_end_post fn tfd i1 i3 o1 o4.
@@ -1284,7 +1349,7 @@ by rewrite Z.sub_add_distr Z.sub_diag Z.sub_0_l Z.opp_involutive.
 Qed.
 
 Lemma trans_pre_lin_sz_lin_sz lp fn sfd lfd i1 i3 :
-  linear_prog aparams.(ap_lip) sp = ok lp ->
+  linear_prog aparams.(ap_lip) sp (size call_reg_args) call_stack_args_ofs = ok lp ->
   lfd.(lfd_align) = sfd.(f_extra).(sf_align) ->
   lfd.(lfd_export) ->
   lfd.(lfd_stk_max) = sfd.(f_extra).(sf_stk_max) ->
@@ -1366,13 +1431,15 @@ have hexp : is_export sp fn by exists fd => //; apply/is_RAnoneP/exp_sfd.
 (* Merge varmaps + mem_equiv *)
 have wovm := [elaborate
   merge_varmaps_export_call_checkP
-    (p := sp) (global_data := rip) (fn := fn) checked_p hexp ] .
+    (p := sp) (stack_args_ofs := call_stack_args_ofs) (global_data := rip)
+    (fn := fn) checked_p hexp ] .
 set var_tmps := (X in isem_exportcall_check X) in wovm.
 have {}wovm : [elaborate
   wkequiv_io
-    (ovm_pre sp rip fn)
+    (ovm_pre sp (size call_reg_args) call_stack_args_ofs rip fn)
     (it_sems_core.isem_fun sp rip fn)
-    (isem_exportcall_check var_tmps sp rip fn)
+    (isem_exportcall_check var_tmps (size call_reg_args) call_stack_args_ofs
+       sp rip fn)
     (ovm_post' fn) ].
 - move=> i1 i2 pre.
   have valid :
@@ -1407,7 +1474,7 @@ have [zfd ok_zfd get_zfd] :=
   [elaborate stack_zeroization_lprog_get_fundef ok_zp get_lfd ].
 have [rip_lp_zp rsp_lp_zp _] := [elaborate
   stack_zeroization_lprog_invariants ok_zp].
-have [_ al_zfd _ arg_zfd _ res_zfd exp_zfd cs_zfd stkmax_zfd _] :=
+have [_ al_zfd tyin_zfd arg_zfd _ res_zfd exp_zfd cs_zfd stkmax_zfd _] :=
   [elaborate stack_zeroization_lfd_invariants ok_zfd].
 
 have := istack_zeroization_lprogP
@@ -1429,7 +1496,8 @@ apply: wkequiv_io_eutt_r (tunnel_funcs ok_tp fn) _.
 
 (* OVM *)
 apply: (wkequiv_io_trans
-  (P12 := ovm_pre sp rip fn) (Q12 := ovm_post' fn)
+  (P12 := ovm_pre sp (size call_reg_args) call_stack_args_ofs rip fn)
+  (Q12 := ovm_post' fn)
   (P23 := lin_sz_pre lp fn lfd) (Q23 := lin_sz_post szi sp lp fn tfd)
   _ _ wovm).
 - move=> >.
@@ -1444,7 +1512,9 @@ apply: (wkequiv_io_trans
   + by rewrite -cs_zfd.
   + by rewrite -stkmax_zfd.
   + by rewrite -stkmax_zfd.
-  by rewrite -arg_zfd.
+  + by rewrite -arg_zfd.
+  + by rewrite -tyin_zfd.
+  exact: exp_sfd.
   (* Avoid [=> //] to track hypotheses more easily. *)
 - move=> >; apply: (trans_post_ovm_lin ok_lp ok_zfd _ get_sfd get_lfd).
   + by rewrite /szi; case: stack_zero_info => [[]|].
@@ -1549,6 +1619,13 @@ Context
   (rip : pointer)
 .
 
+(* The positions of the arguments, read off the registers that the assembly
+   generation gave to the parameters. They agree with the positions the
+   linearization computes from the declared types under the register-allocation
+   invariant [arg_reg_class] (see [asm_gen_proof]). *)
+Definition asm_abi_arg_positions (xfd : asm_fundef) : seq (option Z) :=
+  abi_arg_positions [seq ltype_of_asm_typed_reg a | a <- xfd.(asm_fd_arg)].
+
 Definition back_end_to_asm_pre xfd (s : fstate) (t : asmmem) :=
   let: args := s.(fvals) in
   let: ms := s.(fmem) in
@@ -1557,7 +1634,9 @@ Definition back_end_to_asm_pre xfd (s : fstate) (t : asmmem) :=
   let: mt := t.(asm_mem) in
   [/\ rm ad_rsp = top_stack ms
     , t.(asm_rip) = rip
-    , values_uincl args argt
+    , exists2 vargs,
+        passed_args (asm_abi_arg_positions xfd) ms (rm ad_rsp) argt = ok vargs
+        & values_uincl args vargs
     , match_mem ms mt
     , s.(fscs) = t.(asm_scs)
     & allocatable_stack ms xfd.(asm_fd_total_stack)
@@ -1575,6 +1654,54 @@ Definition back_end_to_asm_post fn xfd (s : fstate) (t : asmmem) (s' : fstate) (
     , s'.(fscs) = t'.(asm_scs)
     & zeroized_s fn ms mt mt'
   ].
+
+(* The register the compiler gave to a parameter has the class that the calling
+   convention derives from the declared type of that parameter: a word that fits
+   in a pointer goes to a general-purpose register (or, when those are
+   exhausted, on the stack) and a wider one to a vector register. This is what
+   makes the positions that the assembly generation sees (off [asm_fd_arg],
+   [reg_passed_args]) agree with the ones the linearization emits the loads for
+   (off [lfd_tyin]); see the documentation of [reg_passed_args_positions] in
+   [asm_gen_proof].
+
+   It is the [ok_stack_args] block of [linearization.check_fd], which only
+   concerns the export functions, and the passes below the linearization
+   (stack zeroization, tunneling) do not change the signature of a function. *)
+Lemma lfd_arg_reg_class lp fn lfd :
+  compiler_back_end aparams cparams entries sp = ok lp ->
+  fn \in entries ->
+  get_fundef lp.(lp_funcs) fn = Some lfd ->
+  all2 arg_reg_class lfd.(lfd_tyin) lfd.(lfd_arg).
+Proof using print_linearP.
+rewrite /compiler_back_end; t_xrbindP=> hcheck _ lp1 ok_lp1 lp2.
+rewrite print_linearP => ok_lp2 lp3.
+rewrite print_linearP => ok_lp3.
+rewrite print_linearP => ?; subst lp.
+move=> ok_fn get_lfd.
+have [sfd [get_sfd ranone]]:
+  exists sfd,
+    get_fundef sp.(p_funcs) fn = Some sfd
+    /\ is_RAnone sfd.(f_extra).(sf_return_address).
++ move: hcheck; rewrite /check_export.
+  have /InP ok_fn' := ok_fn.
+  move=> /allMP -/(_ fn ok_fn').
+  case: get_fundef => //.
+  t_xrbindP=> sfd ranone.
+  by exists sfd.
+have get_lfd1 := [elaborate get_fundef_p' ok_lp1 get_sfd].
+have [lfd2 ok_lfd2 get_lfd2] := [elaborate
+  stack_zeroization_lprog_get_fundef ok_lp2 get_lfd1].
+have get_lfd3 := [elaborate get_fundef_tunnel_program ok_lp3 get_lfd2].
+move: get_lfd; rewrite get_lfd3 => -[?]; subst lfd.
+have [_ _ htyin harg _ _ _ _ _ _] := stack_zeroization_lfd_invariants ok_lfd2.
+rewrite /tunneling.tunnel_lfundef /= -htyin -harg /=.
+(* the parameters of an export function are in registers of the class of their
+   declared types: this is the second conjunct of [ok_stack_args] *)
+have := [elaborate it_linearization_proof.checked_prog ok_lp1 get_sfd]; rewrite /check_fd.
+t_xrbindP=> _ _ _ _ _ _ _ _ hok.
+move: hok; rewrite ranone /=.
+by move=> /andP[_ /andP[/andP[h _] _]] _.
+Qed.
 
 Lemma it_compiler_back_end_to_asmP {fn} :
   compiler_back_end_to_asm aparams cparams entries sp = ok xp ->
@@ -1604,6 +1731,7 @@ have cs_not_arr :
 have [lfd [get_lfd lfd_export w_be]] :=
   it_compiler_back_endP (tp := lp) rip rsp_in_callee_saved ok_lp
     ok_fn.
+have hall := lfd_arg_reg_class ok_lp ok_fn get_lfd.
 have [xfd ok_get_xfd ok_xfd] := ok_get_fundef ok_xp get_lfd.
 case/assemble_fdI: (ok_xfd) =>
   rsp_not_arg ok_callee_saved_lfd
@@ -1636,7 +1764,8 @@ apply: (
     * rewrite -hrip; by case: Meq.
     * rewrite /lget_args (lget_vars_vmap_of_asm_mem
         (top_stack (fmem fs)) (lp_rip lp) (lp_rsp lp) xm ok_xargs).
-      by move: hargs; rewrite hxfd /=.
+      move: hargs; rewrite /asm_abi_arg_positions /abi_arg_positions hxfd /=.
+      by rewrite (reg_passed_args_positions ok_xargs hall) hrsp.
     * exact: hmm.
     * exact: hscs.
     * exact: (vm_init_vmap_of_asm_mem_is_typed_reg
@@ -1689,19 +1818,38 @@ Definition wf_args_x rip fn ms mi args argt :=
   let al := get_asm_align_args xp fn in
   wf_args n rip ms mi ws al args argt.
 
+(* Precondition of the top-level theorem: what the caller of the export
+   function [fn] must have done.
+
+   [argt] are the values held by the registers that the compiler gave to the
+   parameters and [vargs] the values that are actually passed: the ones of the
+   registers for the arguments the convention passes in a register, and the
+   pointer-sized words the caller left on its stack, at [rsp + ofs], for the
+   others ([passed_args]).
+
+   The reads are stated in the memory [ms] of the source, which is where the
+   semantics of the export entry performs them; [mem_agreement_with_ghost] takes
+   them to the memory [mt] of the assembly, so the clause is equivalent to
+   requiring the same words in [asm_mem t].
+
+   [rm ad_rsp] is the stack pointer at the entry of the Rocq semantics, that is
+   after the function header emitted by the assembly printer on arm, risc-v and
+   armv8a; [call_stack_args_ofs] takes that header into account, so the
+   statement is the same on every architecture. *)
 Definition full_pre fn xfd (s : fstate) (t : asmmem) :=
   let: args := s.(fvals) in
   let: ms := s.(fmem) in
   let: rm := t.(asm_reg) in
   let: argt := get_typed_reg_values t xfd.(asm_fd_arg) in
   let: mt := t.(asm_mem) in
-  exists mi : @mem _pd,
+  exists (mi : @mem _pd) (vargs : values),
     [/\ mem_agreement_with_ghost ms mt t.(asm_rip) xp.(asm_globs) mi
       , enough_stack_space xp fn (top_stack ms) mt
       , t.(asm_scs) = s.(fscs)
       , rm ad_rsp = top_stack ms
-      , wf_args_x t.(asm_rip) fn ms mi args argt
-      & Forall3 (value_uincl_or_in_mem mt) (get_wptrs up fn) args argt ].
+      , passed_args (asm_abi_arg_positions xfd) ms (rm ad_rsp) argt = ok vargs
+      , wf_args_x t.(asm_rip) fn ms mi args vargs
+      & Forall3 (value_uincl_or_in_mem mt) (get_wptrs up fn) args vargs ].
 
 Definition full_post fn xfd (s : fstate) (t : asmmem) (s' : fstate) (t' : asmmem) :=
   let: args := s.(fvals) in
@@ -1713,10 +1861,14 @@ Definition full_post fn xfd (s : fstate) (t : asmmem) (s' : fstate) (t' : asmmem
   let: rest := get_typed_reg_values t' xfd.(asm_fd_res) in
   let: mt' := t'.(asm_mem) in
   let: n := get_nb_wptr up fn in
+  (* [vargs] are the values the caller passed, as in [full_pre]: a function of
+     [argt] and of the memory *)
+  forall vargs,
+    passed_args (asm_abi_arg_positions xfd) ms (asm_reg t ad_rsp) argt = ok vargs ->
   [/\ mem_agreement ms' mt' t'.(asm_rip) xp.(asm_globs)
     , t'.(asm_scs) = s'.(fscs)
-    , zeroized_u fn args argt ms mt mt'
-    , List.Forall2 (value_in_mem mt') (take n ress) (take n argt)
+    , zeroized_u fn args vargs ms mt mt'
+    , List.Forall2 (value_in_mem mt') (take n ress) (take n vargs)
     & values_uincl (drop n ress) rest ].
 
 Lemma it_compile_prog_to_asmP {fn} :
@@ -1737,7 +1889,7 @@ have [sfd [xfd [get_sfd get_xfd xfd_export align_args_eq]]] :=
   compiler_back_end_to_asm_get_fundef print_linearP ok_xp ok_fn.
 exists xfd; split => //.
 move=> fs xm hpre.
-case: hpre => mi [hmga hesp hscs_eq hrsp_eq hwfa hfuim].
+case: hpre => mi [vargs [hmga hesp hscs_eq hrsp_eq hpassed hwfa hfuim]].
 have FE := it_compiler_front_endP ok_sp ok_fn.
 
 have [xfd2 [get_xfd2 _ BE]] :=
@@ -1751,15 +1903,15 @@ have [fs_sp [? hsp_scs hsp_eqinmem hsp_uincl hsp_ptr_eq]] :
     [/\ fmem fs_sp = mi
       , fscs fs_sp = fscs fs
       , Forall3 (value_eq_or_in_mem mi) (get_wptrs up fn) (fvals fs) (fvals fs_sp)
-      , values_uincl (fvals fs_sp) (get_typed_reg_values xm (asm_fd_arg xfd))
+      , values_uincl (fvals fs_sp) vargs
       & Forall3 (fun o v v' => isSome o -> v = v')
                 (get_wptrs up fn) (fvals fs_sp)
-                (get_typed_reg_values xm (asm_fd_arg xfd))
+                vargs
     ].
 - have [hsize1 hsize2] := Forall3_size hfuim.
   have hfuim_mi :
     Forall3 (value_uincl_or_in_mem mi) (get_wptrs up fn) (fvals fs)
-      (get_typed_reg_values xm (asm_fd_arg xfd)).
+      vargs.
   + apply: (nth_Forall3 None (Vbool true) (Vbool true) hsize1 hsize2) => i hi.
     have := Forall3_nth hfuim None (Vbool true) (Vbool true) hi.
     case ok_writable: (nth None (get_wptrs up fn) i) => [writable|//].
@@ -1774,7 +1926,7 @@ have [fs_sp [? hsp_scs hsp_eqinmem hsp_uincl hsp_ptr_eq]] :
   exists {| fscs := fscs fs; fmem := mi
           ; fvals := map3 (fun o v v' => if o is Some _ then v' else v)
                           (get_wptrs up fn) (fvals fs)
-                          (get_typed_reg_values xm (asm_fd_arg xfd)) |}.
+                          vargs |}.
   split => /=.
   + reflexivity.
   + reflexivity.
@@ -1812,7 +1964,7 @@ have/(FE _ tt) h_fe : front_end_pre up sp (asm_rip xm) fn fn fs fs_sp.
     move=> [p [hargt_p hargptr]].
     have hi := nth_not_default hptr ltac:(discriminate).
     have hfssp_i : nth (Vbool true) (fvals fs_sp) i =
-                   nth (Vbool true) (get_typed_reg_values xm (asm_fd_arg xfd)) i.
+                   nth (Vbool true) vargs i.
     + have := Forall3_nth hsp_ptr_eq None (Vbool true) (Vbool true) hi.
       by rewrite hptr /= => /(_ isT).
     exists p; split; first by rewrite hfssp_i.
@@ -1822,7 +1974,7 @@ have/(FE _ tt) h_fe : front_end_pre up sp (asm_rip xm) fn fn fs fs_sp.
     move: hsome_j; case hptr_j: (nth None (get_wptrs up fn) j) => [writablej|//] _.
     have hj := nth_not_default hptr_j ltac:(discriminate).
     have hfssp_j_eq : nth (Vbool true) (fvals fs_sp) j =
-                      nth (Vbool true) (get_typed_reg_values xm (asm_fd_arg xfd)) j.
+                      nth (Vbool true) vargs j.
     + have := Forall3_nth hsp_ptr_eq None (Vbool true) (Vbool true) hj.
       by rewrite hptr_j /= => /(_ isT).
     apply: (hdisj hw _ _ _ neq_ij _ hvaj _).
@@ -1862,7 +2014,11 @@ have /BE h_be : back_end_to_asm_pre (asm_rip xm) xfd fs_sp xm.
 - split.
   - by rewrite -(ss_top_stack hmga.(ma_stack_stable)).
   - reflexivity. (* asm_rip xm = asm_rip xm *)
-  - exact: hsp_uincl. (* values_uincl (fvals fs_sp) argt — STEP 1 output *)
+  (* the values are where the convention says: in the registers, or in the
+     memory of the source, which the ghost memory extends *)
+  - exists vargs; last exact: hsp_uincl.
+    apply: (passed_args_read_incl _ hpassed).
+    by move=> al p ws w; apply: extend_mem_read hmga.(ma_extend_mem).
   - exact hmga.(ma_match_mem).
   - by rewrite hsp_scs hscs_eq.
   rewrite /allocatable_stack.
@@ -1889,7 +2045,11 @@ apply: xrutt_weaken_v1;
 - by move=> T1 T2 e1 e2 [T3 e3] [_ [_ []]].
 - move=> T1 T2 e1 t1 e2 t2 hpost T3 e3 [hpre3 hpre13] hpre32.
   by case: e1 t1 hpost hpre13 => //.
-- move=> fs' xm' [] fs_sp' h_fe_post h_be_post; split.
+- move=> fs' xm' [] fs_sp' h_fe_post h_be_post.
+  (* the values the caller passed are determined by the registers and by the
+     memory, so they are the [vargs] of the precondition *)
+  move=> vargs'; rewrite hpassed => -[<-].
+  split.
   + have [hmem_s [hmem_u [_ _ hext _ _]]] := h_fe_post.
     have [[hrip_eq hss_xm] [_ hmm _ _]] := h_be_post.
     have hglobs := compiler_back_end_to_asm_meta print_linearP ok_xp.
@@ -1926,7 +2086,7 @@ apply: xrutt_weaken_v1;
     have [hsz1 hsz2] := Forall3_size hsp_ptr_eq.
     have heq_take : take (get_nb_wptr up fn) (fvals fs_sp) =
                     take (get_nb_wptr up fn)
-                         (get_typed_reg_values xm (asm_fd_arg xfd)).
+                         vargs.
     { apply: (@eq_from_nth _ (Vbool true)).
       - by rewrite !size_take -hsz1 hsz2.
       - move=> i; rewrite size_take ltn_min => /andP [hlt_n hlt_wptr].

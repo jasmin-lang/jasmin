@@ -1,0 +1,22 @@
+/* Vector arguments always travel in vector registers and do not consume
+   general-purpose argument registers: here the seventh word argument still
+   goes to the stack even though only five words precede it in the register
+   file. */
+export
+fn vector_and_stack_args(reg u64 a, reg u256 x, reg u64 b c d e f g, reg u256 y) -> reg u64 {
+  reg u64 r t;
+  reg u128 w;
+  reg u256 z;
+  z = #VPADD_4u64(x, y);
+  w = #VEXTRACTI128(z, 0);
+  t = #VPEXTR_64(w, 0);
+  r = a;
+  r += b;
+  r += c;
+  r += d;
+  r += e;
+  r += f;
+  r += g;
+  r += t;
+  return r;
+}

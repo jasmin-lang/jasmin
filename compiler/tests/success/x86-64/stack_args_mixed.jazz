@@ -1,0 +1,19 @@
+/* Arguments of several widths beyond the six argument registers of the
+   x86-64 ABI: the caller leaves them in eight-byte stack slots; only the
+   declared width of each argument is meaningful. */
+export
+fn mixed_args(reg u64 a b c d e f, reg u8 g, reg u32 h, reg u64 i) -> reg u64 {
+  reg u64 r t;
+  r = a;
+  r += b;
+  r += c;
+  r += d;
+  r += e;
+  r += f;
+  t = (64u) g;
+  r += t;
+  t = (64u) h;
+  r += t;
+  r += i;
+  return r;
+}

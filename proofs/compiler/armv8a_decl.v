@@ -379,6 +379,10 @@ Definition armv8a_call_conv : calling_convention :=
    ; callee_saved_has_rsp  := erefl true
    ; call_reg_args  := [:: R0; R1; R2; R3; R4; R5; R6; R7 ]
    ; call_xreg_args := [::]
+     (* The call leaves the return address in X30; the function header of the
+        printer (pp_arm_v8a.ml) pushes it: [str x30, [sp, #-16]!], 16 bytes
+        (SP must stay 16-byte aligned). *)
+   ; call_stack_args_ofs := 16%Z
    ; call_reg_ret   := [:: R0; R1; R2; R3; R4; R5; R6; R7 ]
    ; call_xreg_ret  := [::]
    ; call_reg_ret_uniq := erefl true

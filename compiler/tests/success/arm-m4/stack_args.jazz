@@ -1,0 +1,12 @@
+/* Two arguments beyond the four argument registers of the ARM ABI. */
+export
+fn six_args(reg u32 a b c d e f) -> reg u32 {
+  reg u32 r;
+  r = a;
+  r += b;
+  r += c;
+  r += d;
+  r += e;
+  r += f;
+  return r;
+}

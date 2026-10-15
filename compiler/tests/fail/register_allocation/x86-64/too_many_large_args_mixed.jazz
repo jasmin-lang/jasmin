@@ -1,0 +1,4 @@
+/* Word arguments beyond the argument registers are passed on the stack, but
+   vector arguments are not: too many of them is still an error. */
+export
+fn too_many_large_args_mixed(reg u64 a b c d e f g, reg u256 v0 v1 v2 v3 v4 v5 v6 v7 v8) {}

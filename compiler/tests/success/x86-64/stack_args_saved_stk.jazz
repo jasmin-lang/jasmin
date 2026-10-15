@@ -1,0 +1,21 @@
+/* A stack frame and callee-saved registers to preserve: the stack pointer the
+   caller had is saved in the frame, and the arguments the caller left on the
+   stack are read through the temporary register that still holds it. */
+export
+fn stack_args_callee_saved(reg u64 a b c d e f g h) -> reg u64 {
+  stack u64[4] s;
+  reg u64 r;
+  s[0] = a;
+  s[1] = b;
+  s[2] = g;
+  s[3] = h;
+  r = s[0];
+  r += s[1];
+  r += c;
+  r += d;
+  r += e;
+  r += f;
+  r += s[2];
+  r += s[3];
+  return r;
+}

@@ -1,5 +1,6 @@
 (*
 *)
+From Coq Require Import ZArith.
 Require psem_facts sem_one_varmap.
 Import Utf8.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
@@ -622,5 +623,91 @@ Proof.
 Qed.
 
 End VALIDW_STABLE.
+
+(* Arguments of an export function at its entry (see [get_export_args] and
+   [load_export_args]). *)
+Section EXPORT_ARGS.
+
+Context (nb_reg_args : nat) (stack_args_ofs : Z).
+
+(* An internal function receives all its arguments in registers: the prologue
+   built for an export function does nothing for it. *)
+Lemma load_export_args_nseq (xs : seq var_i) vb n vm :
+  foldM load_export_arg vm (zip (zip xs vb) (nseq n None)) = ok vm.
+Proof. by elim: xs vb n vm => [ | x xs ih] [ | v vb] [ | n] vm //=; apply ih. Qed.
+
+Lemma load_not_export fd args vm vm' :
+  ~~ is_RAnone (sf_return_address (f_extra fd)) ->
+  load_export_args nb_reg_args stack_args_ofs fd args vm = ok vm' ->
+  vm' = vm.
+Proof.
+  move=> hra.
+  rewrite /load_export_args /export_arg_positions (negbTE hra) load_export_args_nseq.
+  by move=> [<-].
+Qed.
+
+Lemma get_export_args_not_export m vm sp fd :
+  ~~ is_RAnone (sf_return_address (f_extra fd)) ->
+  get_export_args nb_reg_args stack_args_ofs m vm sp fd = get_var_is false vm (f_params fd).
+Proof.
+  rewrite /get_export_args /export_arg_positions => /negbTE ->.
+  rewrite /get_var_is; move: (f_params fd) => xs.
+  by elim: xs => //= x xs ih; rewrite ih.
+Qed.
+
+(* The prologue only writes the registers of the parameters that arrive on the
+   stack. *)
+Lemma load_export_args_aux (xs : seq var_i) vs pos vm vm' :
+  foldM load_export_arg vm (zip (zip xs vs) pos) = ok vm' →
+  vm =[\ sv_of_list id
+            (pmap (fun a : var_i * option Z => if a.2 is Some _ then Some (v_var a.1) else None)
+               (zip xs pos)) ] vm'.
+Proof.
+  elim: xs vs pos vm => [ | x xs ih] [ | v vs] [ | o pos] vm //=;
+    try by move=> [<-]; apply eq_ex_refl.
+  case: o => [sofs | ] /=; last by move=> /ih.
+  t_xrbindP => vm1 /set_var_eq_ex h /ih h1.
+  rewrite sv_of_list_cons; apply: (eq_exT (vm2 := vm1)); rewrite /=.
+  + by apply: eq_exI h; clear; SvD.fsetdec.
+  by apply: eq_exI h1; clear; SvD.fsetdec.
+Qed.
+
+(* Which parameters go to the stack depends only on whether their position is
+   a stack position, not on the offsets. *)
+Lemma stack_arg_regs_isSome (xs : seq var_i) pos pos0 :
+  [seq isSome o | o <- pos] = [seq isSome o | o <- pos0] ->
+  pmap (fun a : var_i * option Z => if a.2 is Some _ then Some (v_var a.1) else None) (zip xs pos)
+  = pmap (fun a : var_i * option Z => if a.2 is Some _ then Some (v_var a.1) else None) (zip xs pos0).
+Proof.
+  elim: xs pos pos0 => [ | x xs ih] [ | o pos] [ | o0 pos0] //= [hoo hpos].
+  by case: o o0 hoo => [?|] [?|] //= _; rewrite (ih _ _ hpos).
+Qed.
+
+(* Arguments all passed in registers: the value of a parameter after the call
+   has written it is below the value in the register. *)
+Lemma get_export_args_uinclP_nseq (xs : seq var_i) n vargs vs (s0 sw : estate) vm m sp z wdb :
+  values_uincl vargs vs ->
+  write_vars wdb xs vargs s0 = ok sw ->
+  mapM (get_export_arg m vm sp) (zip xs (nseq n None)) = ok vs ->
+  z \in [seq v_var x | x <- xs] ->
+  value_uincl (evm sw).[z] vm.[z].
+Proof using ep spp syscall_state.
+  elim: xs n vargs vs s0 => [ | x xs ih] n vargs vs s0 //=.
+  case: n => [ | n] /=.
+  + move=> hu; case: vargs hu => [ | va vargs] hu //= _ [] ?; subst vs.
+    by move: hu => /List_Forall2_inv_l [?] [?] [].
+  case: vargs => [ | va vargs] //.
+  move=> hu; t_xrbindP => s1 hwx hws vs1 hvs1 ?; subst vs.
+  move: hu => /List_Forall2_inv_l [w] [vb2] [] [] ?? [huv huvs]; subst w vb2.
+  rewrite in_cons => /orP [/eqP ? | hin]; last by apply: (ih n vargs vs1 s1).
+  subst z.
+  case: (Sv_memP (v_var x) (sv_of_list v_var xs)) => hxs; last first.
+  + rewrite -(write_vars_eq_ex hws) //.
+    move: hwx => /write_varP [] ? _ /vm_truncate_value_uincl htr; subst s1.
+    by rewrite Vm.setP_eq; apply: value_uincl_trans htr huv.
+  by apply: (ih n vargs vs1 s1) => //; apply/sv_of_listP.
+Qed.
+
+End EXPORT_ARGS.
 
 End PROG.

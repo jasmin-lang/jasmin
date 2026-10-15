@@ -838,6 +838,29 @@ let process_call_conv f =
       (fun loc _nid -> Annot.error ~loc "no attribute or = {reg = <int>; regx = <int>; xreg = <int>; flag = <int> } expected after %s" stable_call_conv))
   f.f_annot.f_user_annot
 
+(** Arguments of an export function that the calling convention passes on the
+    stack rather than in a register. Parameters are walked in order: a word
+    (of size at most [reg_size]) takes the next general-purpose argument
+    register if any is left and goes to the stack otherwise; a vector always
+    takes a vector argument register and does not consume a general-purpose
+    one. This mirrors the position rule used by the linearization pass. *)
+let stack_passed_args (f: ('info, 'asm) func) : var list =
+  if not (FInfo.is_export f.f_cc) then []
+  else
+    let rec go regs acc =
+      function
+      | [] -> List.rev acc
+      | p :: params ->
+        match kind_of_type Arch.reg_size p.v_kind p.v_ty with
+        | Word ->
+          begin match regs with
+          | [] -> go regs (p :: acc) params
+          | _ :: regs -> go regs acc params
+          end
+        | Vector | Extra | Flag | Unknown _ -> go regs acc params
+    in
+    go Arch.argument_vars [] f.f_args
+
 let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conflicts)
     (f: ('info, 'asm) func) (a: A.allocation) : conflicts =
   let split ~ctxt ~num =
@@ -847,7 +870,10 @@ let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conf
        hierror_reg ~loc:(Lone f.f_loc) ~funname:f.f_name.fn_name "too many %s according to the ABI (only %d available on this architecture)"
          ctxt num
   in
-  let alloc_from_list ~ctxt get regs regxs xregs flags loc vs : unit =
+  (* When [on_stack] is set, running out of general-purpose registers is not an
+     error: the remaining word-sized values are passed on the stack and are
+     therefore left free for the register allocator. *)
+  let alloc_from_list ~ctxt ?(on_stack = false) get regs regxs xregs flags loc vs : unit =
     let f x = Hv.find vars x in
     let num_regs  = List.length regs in
     let num_regxs = List.length regxs in
@@ -859,21 +885,27 @@ let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conf
         | i ->
           let d, regs, regxs, xregs, flags =
             match kind_of_type Arch.reg_size p.v_kind p.v_ty with
-            | Word -> let d, regs = split ~ctxt ~num:num_regs regs in d, regs, regxs, xregs, flags
+            | Word ->
+                begin match regs with
+                | [] when on_stack -> None, regs, regxs, xregs, flags
+                | _ ->
+                    let d, regs = split ~ctxt ~num:num_regs regs in
+                    Some d, regs, regxs, xregs, flags
+                end
             | Vector ->
                 let ctxt = "large " ^ ctxt in
-                let d, xregs = split ~ctxt ~num:num_xregs xregs in d, regs, regxs, xregs, flags
+                let d, xregs = split ~ctxt ~num:num_xregs xregs in Some d, regs, regxs, xregs, flags
             | Extra ->
                 let ctxt = "extra " ^ ctxt in
-                let d, regxs = split ~ctxt ~num:num_regxs regxs in d, regs, regxs, xregs, flags
+                let d, regxs = split ~ctxt ~num:num_regxs regxs in Some d, regs, regxs, xregs, flags
             | Flag ->
                 let ctxt = "flag " ^ ctxt in
-                let d, flags = split ~ctxt ~num:num_flags flags in d, regs, regxs, xregs, flags
+                let d, flags = split ~ctxt ~num:num_flags flags in Some d, regs, regxs, xregs, flags
             | Unknown ty ->
               hierror_reg ~loc:(Lmore loc) "unknown type %a for forced register %a"
                 PrintCommon.pp_ty ty (Printer.pp_var ~debug:true) p
           in
-          allocate_one nv vars loc cnf p i d a;
+          Option.may (fun d -> allocate_one nv vars loc cnf p i d a) d;
           (regs, regxs, xregs, flags)
         | exception Not_found -> (regs, regxs, xregs, flags))
       (regs, regxs, xregs, flags)
@@ -884,6 +916,11 @@ let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conf
   let alloc_args_gen get = alloc_from_list ~ctxt:"parameters" get in
   let alloc_ret_gen get =  alloc_from_list ~ctxt:"return values" get in
   let alloc_args get = alloc_args_gen get Arch.argument_vars [] Arch.xmm_argument_vars [] in
+  (* Export functions may take more word arguments than there are argument
+     registers; the extra ones are passed on the stack. *)
+  let alloc_export_args get =
+    alloc_from_list ~ctxt:"parameters" ~on_stack:true get
+      Arch.argument_vars [] Arch.xmm_argument_vars [] in
   let alloc_ret get  = alloc_ret_gen get Arch.ret_vars [] Arch.xmm_ret_vars [] in
   let rec alloc_instr_r loc c =
     function
@@ -918,8 +955,26 @@ let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conf
     List.fold_left (fun c instr -> alloc_instr c instr) c s
   in
   let loc = L.i_loc0 f.f_loc in
-  if FInfo.is_export f.f_cc then
-    (alloc_args identity loc f.f_args; alloc_ret L.unloc loc f.f_ret)
+  if FInfo.is_export f.f_cc then begin
+    (* The parameters beyond the argument registers of the ABI are passed on
+       the stack, but the prologue loads them into registers, after the
+       temporaries of the linearization have been used: all the word
+       parameters are then live, in distinct registers that are not these
+       temporaries. *)
+    let nwords =
+      List.length
+        (List.filter (fun p -> kind_of_type Arch.reg_size p.v_kind p.v_ty = Word) f.f_args) in
+    let nargs = List.length Arch.argument_vars in
+    let nregs =
+      List.length
+        (List.filter (fun r -> not (List.exists (V.equal r) Arch.linearization_tmps))
+           Arch.allocatable_vars) in
+    if nargs < nwords && nregs < nwords then
+      hierror_reg ~loc:(Lone f.f_loc) ~funname:f.f_name.fn_name
+        "too many parameters: %d parameters of kind reg, but only %d registers are available for them on this architecture (the parameters beyond the %d argument registers of the ABI are passed on the stack and loaded into registers)"
+        nwords nregs nargs;
+    alloc_export_args identity loc f.f_args; alloc_ret L.unloc loc f.f_ret
+  end
   else
     if is_stable_call_conv f then (
       warning Experimental loc "support for %s annotation is experimental" stable_call_conv;
@@ -1449,6 +1504,23 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
      List.fold_left doit conflicts funcs
     in
 
+  (* Arguments of an export function that are passed on the stack are loaded in
+     the prologue, after the stack pointer has been set up: they must not be
+     allocated to a register the linearization pass uses as a temporary, nor to
+     a register holding another argument (the loads would clobber it).
+     The register saving the stack pointer of the caller cannot clash with them:
+     [get_reg_oracle] only picks a register that is used neither by the body nor
+     by the arguments of the function. *)
+  let conflicts =
+    let add x y cnf =
+      conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp vars tr Lnone x y cnf in
+    List.fold_left (fun cnf f ->
+        List.fold_left (fun cnf x ->
+            let cnf = List.fold_left (fun cnf tmp -> add tmp x cnf) cnf Arch.linearization_tmps in
+            List.fold_left (fun cnf y -> if V.equal x y then cnf else add x y cnf) cnf f.f_args)
+          cnf (stack_passed_args f))
+      conflicts funcs in
+
   (* In-register return address conflicts with function arguments *)
   let conflicts =
     let doit ra =
@@ -1568,8 +1640,7 @@ let get_reg_oracle
   let ro_rsp =
     if has_stack f && ro_to_save = []
     then
-      let used_in_f = List.fold_left (Fun.flip Sv.add) killed_in_f f.f_args in
-      let free_regs = Sv.diff allocatable_vars used_in_f in
+      let free_regs = Sv.diff allocatable_vars killed_in_f in
       Sv.Exceptionless.any (Sv.diff free_regs not_saved_stack)
     else None
   in
@@ -1589,8 +1660,16 @@ let alloc_prog return_addresses (dfuncs: ('a * ('info, 'asm) func) list)
     |> List.map (fun (a, f) -> Hf.add extra f.f_name a; f)
     |> global_allocation return_addresses
   in
+  (* The registers of the parameters of an export function are clobbered by
+     the function even when its body does not write them: the ones the calling
+     convention passes on the stack are loaded into their register by the
+     prologue. *)
+  let export_args : Sv.t Hf.t = Hf.create 17 in
+  List.iter
+    (fun f -> if FInfo.is_export f.f_cc then Hf.add export_args f.f_name (Sv.of_list f.f_args))
+    funcs;
   subst,
-  (fun f -> Sv.map subst (killed f)),
+  (fun fn -> Sv.union (Sv.map subst (killed fn)) (Hf.find_default export_args fn Sv.empty)),
   funcs |>
   List.map (fun f ->
       let e = Hf.find extra f.f_name in

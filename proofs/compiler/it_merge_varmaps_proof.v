@@ -10,8 +10,8 @@ From ITree Require Import
   Eq.RuttFacts.
 
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
-Require Import sem_one_varmap it_sems_one_varmap merge_varmaps psem_facts core_logics relational_logic.
-Require sem_one_varmap_facts.
+Require Import stack_args sem_one_varmap it_sems_one_varmap merge_varmaps psem_facts core_logics relational_logic.
+Require Import sem_one_varmap_facts.
 Require Import seq_extra.
 Import Utf8.
 Import word_ssrZ.
@@ -70,6 +70,8 @@ Context
   {ovm_i : one_varmap_info} {vinfo : veneer_info}
   (p : sprog)
   (id_tmp id_tmp2: Ident.ident)
+  (nb_reg_args : nat)
+  (stack_args_ofs : Z)
   (global_data : pointer)
   {LC : LoopCounter}.
 
@@ -77,29 +79,196 @@ Let var_tmp  : var := vid id_tmp.
 Let var_tmp2 : var := vid id_tmp2.
 Let var_tmps : Sv.t := Sv.add var_tmp2 (Sv.singleton var_tmp).
 
+(* Whether an argument is passed in a register or on the stack of the caller
+   does not depend on the offset of the first stack slot: [merge_varmaps] uses
+   the positions computed from the offset [0], the semantics and the
+   linearization the ones computed from [stack_args_ofs]. *)
+Notation stack_arg_regs l :=
+  (pmap (fun a : var_i * option Z => if a.2 is Some _ then Some (v_var a.1) else None) l)
+  (only parsing).
+
+Lemma stack_arg_regs_nseq (xs : seq var_i) n :
+  stack_arg_regs (zip xs (nseq n None)) = [::].
+Proof. by elim: xs n => [ | x xs ih] [ | n] //=; apply ih. Qed.
+
+(* The prologue of an export function writes only the registers of the
+   parameters that the caller passes on the stack: exactly
+   [stack_params]. *)
+Lemma load_export_args_eq_ex fd vs vm vm' :
+  load_export_args nb_reg_args stack_args_ofs fd vs vm = ok vm' →
+  vm =[\ stack_params nb_reg_args fd ] vm'.
+Proof.
+  rewrite /load_export_args /stack_params /export_arg_positions.
+  case: is_RAnone; last first.
+  + by move=> /load_export_args_aux; rewrite stack_arg_regs_nseq.
+  move=> /load_export_args_aux; apply: eq_exI.
+  by rewrite (stack_arg_regs_isSome _ (stack_arg_positions_isSome _ _ 0%Z _)).
+Qed.
+
+Lemma in_stack_arg_live (xs : seq var_i) pos z :
+  Sv.In z (sv_of_list id (stack_arg_regs (zip xs pos))) ->
+  z \in [seq v_var x | x <- xs].
+Proof.
+  elim: xs pos => [ | x xs ih] pos /=.
+  + by case: pos => [|??] /=; move=> /sv_of_listP.
+  case: pos => [ | o pos] /=; first by move=> /sv_of_listP.
+  rewrite in_cons; case: o => [? | ] /=; last by move=> /ih ->; rewrite orbT.
+  by rewrite sv_of_list_cons => /Sv.add_spec [-> | /ih ->]; rewrite ?eqxx ?orbT.
+Qed.
+
+(* The prologue of an export function succeeds, and it puts in the register of
+   a parameter that the caller passed on the stack a value at least as precise
+   as the one the source semantics writes there. *)
+Lemma load_export_argsP vm0 (xs : seq var_i) va vb pos (s0 sw : estate) vm m sp wdb :
+  all (fun x : var_i => if vtype x is aword _ then true else false) xs ->
+  uniq [seq v_var x | x <- xs] ->
+  values_uincl va vb ->
+  write_vars wdb xs va s0 = ok sw ->
+  mapM (get_export_arg m vm sp) (zip xs pos) = ok vb ->
+  exists2 vm1,
+    foldM load_export_arg vm0 (zip (zip xs vb) pos) = ok vm1 &
+    forall z, Sv.In z (sv_of_list id (stack_arg_regs (zip xs pos))) ->
+      value_uincl (evm sw).[z] vm1.[z].
+Proof using ep spp syscall_state.
+  elim: xs va vb pos s0 vm0 => [ | x xs ih] va vb pos s0 vm0 /=.
+  + case: va => [ | v va]; last by [].
+    move=> _ _ /List_Forall2_inv_l -> /= [<-] _.
+    by case: pos => [|o pos] /=; (exists vm0 => // z /sv_of_listP).
+  move=> /andP [] hwx hall /andP [] hxn hun.
+  case: va => [ | v va] // hu.
+  t_xrbindP => s1 hwv hws.
+  case: pos => [ | o pos] /=.
+  + by move=> [] ?; subst vb; exists vm0 => // z /sv_of_listP.
+  t_xrbindP => v0 hv0 vb1 hvb1 ?; subst vb.
+  move: hu => /List_Forall2_inv_l [w0] [vb2] [] [] ?? [huv huvs]; subst w0 vb2.
+  rewrite /=.
+  case: o hv0 => [sofs|] hv0 /=; last first.
+  + have [vm1 hf hz] := ih _ _ pos _ vm0 hall hun huvs hws hvb1.
+    by exists vm1.
+  move: hv0; t_xrbindP => w hread ?; subst v0.
+  have htr : truncatable true (eval_atype (vtype x)) (Vword w).
+  + by move: hwx; case: (vtype x) => //= ws _.
+  have hdb : DB true (Vword w) by [].
+  rewrite (set_var_truncate hdb htr) /=.
+  have [vm1 hf hz] := ih va vb1 pos s1 (Vm.set vm0 x (Vword w)) hall hun huvs hws hvb1.
+  exists vm1 => // z; rewrite sv_of_list_cons => /Sv.add_spec [heq | hin]; last by apply: hz.
+  have ? : z = v_var x by rewrite heq.
+  subst z; rewrite /=.
+  have hxs : ~ Sv.In (v_var x) (sv_of_list v_var xs).
+  + by move=> /sv_of_listP; rewrite (negbTE hxn).
+  rewrite -(write_vars_eq_ex hws) //.
+  rewrite -(load_export_args_aux hf); last first.
+  + by move=> /in_stack_arg_live; rewrite (negbTE hxn).
+  move: hwv => /write_varP [] ? _ _; subst s1.
+  rewrite !Vm.setP_eq.
+  by apply: value_uincl_vm_truncate.
+Qed.
+
+(* Same, at the level of a function: the set of registers written by the
+   prologue is [stack_params]. *)
+Lemma load_export_argsPF fd vargs vs (s0 sw : estate) (vmi vm : Vm.t) m sp wdb :
+  (if is_RAnone (sf_return_address (f_extra fd)) then
+     uniq [seq v_var x | x <- f_params fd] /\
+     all (fun x : var_i => if vtype x is aword _ then true else false) (f_params fd)
+   else True) ->
+  values_uincl vargs vs ->
+  write_vars wdb (f_params fd) vargs s0 = ok sw ->
+  get_export_args nb_reg_args stack_args_ofs m vm sp fd = ok vs ->
+  exists2 vm',
+    load_export_args nb_reg_args stack_args_ofs fd vs vmi = ok vm' &
+    forall z, Sv.In z (stack_params nb_reg_args fd) ->
+      value_uincl (evm sw).[z] vm'.[z].
+Proof using ep spp syscall_state.
+  rewrite /load_export_args /stack_params /get_export_args /export_arg_positions.
+  case: is_RAnone => [[hun hall] | _] hu hw hg; last first.
+  + by exists vmi; [apply: load_export_args_nseq | move=> z /SvD.F.empty_iff].
+  have [vm' hf hz] := load_export_argsP vmi hall hun hu hw hg.
+  exists vm' => // z.
+  rewrite (stack_arg_regs_isSome _
+             (stack_arg_positions_isSome nb_reg_args 0%Z stack_args_ofs _)).
+  by apply: hz.
+Qed.
+
+(* The value the source semantics writes in the register of a parameter that
+   the caller passed in a register is the one the one-varmap semantics finds
+   there. Parameters that arrive on the stack are excluded: their register
+   holds nothing at the entry of the function. *)
+Lemma get_export_args_uinclP (xs : seq var_i) pos vargs vs (s0 sw : estate) vm m sp z wdb :
+  uniq [seq v_var x | x <- xs] ->
+  values_uincl vargs vs ->
+  write_vars wdb xs vargs s0 = ok sw ->
+  mapM (get_export_arg m vm sp) (zip xs pos) = ok vs ->
+  z \in [seq v_var x | x <- xs] ->
+  ~ Sv.In z (sv_of_list id (stack_arg_regs (zip xs pos))) ->
+  value_uincl (evm sw).[z] vm.[z].
+Proof using ep spp syscall_state.
+  elim: xs pos vargs vs s0 => [ | x xs ih] pos vargs vs s0 //=.
+  move=> /andP [] hxn hun.
+  case: pos => [ | o pos] /=.
+  + move=> hu; case: vargs hu => [ | va vargs] hu //= _ [] ?; subst vs.
+    by move: hu => /List_Forall2_inv_l [?] [?] [].
+  case: vargs => [ | va vargs] //.
+  move=> hu; t_xrbindP => s1 hwx hws v0 hv0 vs1 hvs1 ?; subst vs.
+  move: hu => /List_Forall2_inv_l [w] [vb2] [] [] ?? [huv huvs]; subst w vb2.
+  rewrite in_cons => /orP [/eqP ? | hin] hnin; last first.
+  + apply: (ih pos vargs vs1 s1) => // h; apply: hnin.
+    case: o {hv0} => [? | ] //=.
+    by rewrite sv_of_list_cons; apply/Sv.add_spec; right.
+  subst z.
+  case: o hv0 hnin => [sofs | ] hv0 hnin.
+  + by case: hnin; rewrite sv_of_list_cons; apply/Sv.add_spec; left.
+  move: hv0; rewrite /get_export_arg /get_var /= => -[] ?; subst v0.
+  have hxs : ~ Sv.In (v_var x) (sv_of_list v_var xs).
+  + by move=> /sv_of_listP; rewrite (negbTE hxn).
+  rewrite -(write_vars_eq_ex hws) //=.
+  move: hwx => /write_varP [] ? _ /vm_truncate_value_uincl htr; subst s1.
+  by rewrite Vm.setP_eq; apply: value_uincl_trans htr huv.
+Qed.
+
+Lemma get_export_args_uinclPF fd vargs vs (s0 sw : estate) vm m sp z wdb :
+  (if is_RAnone (sf_return_address (f_extra fd)) then
+     uniq [seq v_var x | x <- f_params fd] /\
+     all (fun x : var_i => if vtype x is aword _ then true else false) (f_params fd)
+   else True) ->
+  values_uincl vargs vs ->
+  write_vars wdb (f_params fd) vargs s0 = ok sw ->
+  get_export_args nb_reg_args stack_args_ofs m vm sp fd = ok vs ->
+  Sv.In z (sv_of_list v_var (f_params fd)) ->
+  ~ Sv.In z (stack_params nb_reg_args fd) ->
+  value_uincl (evm sw).[z] vm.[z].
+Proof using ep spp syscall_state.
+  rewrite /get_export_args /stack_params /export_arg_positions.
+  case: is_RAnone => [[hun _] | _] hu hw hg /sv_of_listP hin hn1; last first.
+  + by apply: (get_export_args_uinclP_nseq hu hw hg hin).
+  apply: (get_export_args_uinclP hun hu hw hg hin).
+  move=> h; apply: hn1; move: h.
+  by rewrite (stack_arg_regs_isSome _
+                (stack_arg_positions_isSome nb_reg_args stack_args_ofs 0%Z _)).
+Qed.
+
 Definition valid_writefun (w: funname → Sv.t) (f: sfun_decl) : bool :=
-  Sv.subset (write_fd p var_tmps w f.2) (w f.1).
+  Sv.subset (write_fd p var_tmps nb_reg_args w f.2) (w f.1).
 
 Lemma check_wmapP (wm: Mf.t Sv.t) (fn: funname) (fd: sfundef) :
   get_fundef (p_funcs p) fn = Some fd →
-  check_wmap p var_tmps wm →
+  check_wmap p var_tmps nb_reg_args wm →
   valid_writefun (get_wmap wm) (fn, fd).
 Proof. by move /get_fundef_in' => h /allE/List.Forall_forall /(_ _ h). Qed.
 
-Let wmap := mk_wmap p var_tmps.
+Let wmap := mk_wmap p var_tmps nb_reg_args.
 Notation wrf := (get_wmap wmap).
 
 Lemma checkP u (fn: funname) (fd: sfundef) :
-  check p var_tmps = ok u →
+  check p var_tmps nb_reg_args = ok u →
   get_fundef (p_funcs p) fn = Some fd →
-  valid_writefun wrf (fn, fd) ∧ check_fd p var_tmps wrf fn fd = ok tt.
+  valid_writefun wrf (fn, fd) ∧ check_fd p var_tmps nb_reg_args wrf fn fd = ok tt.
 Proof.
   rewrite /check; t_xrbindP => ok_wmap _ _ _ ? ok_prog _ ok_fd; split.
   - exact: check_wmapP ok_fd ok_wmap.
   by have [ [] ] := get_map_cfprog_name_gen ok_prog ok_fd.
 Qed.
 
-Hypothesis ok_p : check p var_tmps = ok tt.
+Hypothesis ok_p : check p var_tmps nb_reg_args = ok tt.
 
 Let vgd : var := vid p.(p_extra).(sp_rip).
 Let vrsp : var := vid p.(p_extra).(sp_rsp).
@@ -156,12 +325,12 @@ Proof using ok_p.
   rewrite /magic_variables /vgd /=; clear; SvD.fsetdec.
 Qed.
 
-Notation write_c_rec := (merge_varmaps.write_c_rec p var_tmps wrf).
-Notation write_c := (merge_varmaps.write_c p var_tmps wrf).
-Notation write_I_rec := (merge_varmaps.write_I_rec p var_tmps wrf).
-Notation write_I := (merge_varmaps.write_I p var_tmps wrf).
-Notation write_i_rec := (merge_varmaps.write_i_rec p var_tmps wrf).
-Notation write_i := (merge_varmaps.write_i p var_tmps wrf).
+Notation write_c_rec := (merge_varmaps.write_c_rec p var_tmps nb_reg_args wrf).
+Notation write_c := (merge_varmaps.write_c p var_tmps nb_reg_args wrf).
+Notation write_I_rec := (merge_varmaps.write_I_rec p var_tmps nb_reg_args wrf).
+Notation write_I := (merge_varmaps.write_I p var_tmps nb_reg_args wrf).
+Notation write_i_rec := (merge_varmaps.write_i_rec p var_tmps nb_reg_args wrf).
+Notation write_i := (merge_varmaps.write_i p var_tmps nb_reg_args wrf).
 
 Section WRITE.
 
@@ -208,8 +377,8 @@ Proof. etransitivity; last exact: (write_i_if e c1 c2). reflexivity. Qed.
 
 End WRITE.
 
-Notation check_instr := (check_i p var_tmps wrf).
-Notation check_instr_r := (check_ir p var_tmps wrf).
+Notation check_instr := (check_i p var_tmps nb_reg_args wrf).
+Notation check_instr_r := (check_ir p var_tmps nb_reg_args wrf).
 Notation check_cmd sz := (check_c (check_instr sz)).
 
 Lemma check_instr_r_CwhileP sz ii aa c e ei c' D D' :
@@ -284,7 +453,7 @@ Definition preF (fn1 fn2 : funname) (fs:fstate) (s:estate) :=
          [/\ top_stack_aligned fd m
            , tvm1.[vrsp] = Vword (top_stack m)
            , tvm1.[ vgd ] = Vword global_data
-           , get_var_is false tvm1 fd.(f_params) = ok args'
+           , get_export_args nb_reg_args stack_args_ofs m tvm1 (top_stack m) fd = ok args'
            & List.Forall2 value_uincl args args']
       | None => false
       end].
@@ -301,10 +470,10 @@ Definition postF (fn1 fn2 : funname) (fs:fstate) (s:estate) (fs':fstate) (ks:Sv.
        match get_fundef (p_funcs p) fn1 with
        | Some fd =>
          exists res',
-          [/\ Sv.Subset k (writefun_ra p var_tmps wrf fn1)
+          [/\ Sv.Subset k (writefun_ra p var_tmps nb_reg_args wrf fn1)
             , Sv.Subset (writefun_RA var_tmps p fn1) k
             , get_var_is false tvm2 fd.(f_res) = ok res'
-            , tvm1 =[\ writefun_ra p var_tmps wrf fn1 ] tvm2
+            , tvm1 =[\ writefun_ra p var_tmps nb_reg_args wrf fn1 ] tvm2
             , stack_stable (emem s) (emem s')
             , tvm2.[vrsp] = Vword (top_stack m')
             , tvm2.[ vgd ] = Vword global_data
@@ -755,7 +924,7 @@ Proof using ok_p hcall mvp_not_written.
   move=> xs f es ii I O.
   rewrite /write_i /= => /SvSubset_and [_] /SvSubset_and [] hsubra hsubtmp.
   case hget : get_fundef => [ fd | //].
-  t_xrbindP => hches hal halles hallxs hdisj <-.
+  t_xrbindP => hnotexport hches hal halles hallxs hdisj <-.
   rewrite /isem_i_rec /isem_ir_rec /= => s1 t1 hinv1.
   rewrite /isem_pexprs.
   case hes : sem_pexprs => [vs | e]; last first.
@@ -784,6 +953,7 @@ Proof using ok_p hcall mvp_not_written.
     + by rewrite /top_stack_aligned (is_align_m hal hali) orbT.
     split => //; split => //.
     exists ves'; split => //.
+    rewrite (get_export_args_not_export nb_reg_args stack_args_ofs _ _ _ hnotexport).
     elim: (f_params fd) (ves') hgetv => //=.
     move=> x xs' hrec ?; t_xrbindP => ? /hrec -> <- /=.
     by rewrite /fd_tmp_call hget.
@@ -793,7 +963,7 @@ Proof using ok_p hcall mvp_not_written.
   + have [_] := checkP ok_p hget.
     rewrite /check_fd; t_xrbindP => k _ _ _ _ + _ _ _.
     move=> /disjoint_union [_]; rewrite hget.
-    move=> /disjoint_union [] /disjoint_union [] + _ _.
+    move=> /disjoint_union [] /disjoint_union [] /disjoint_union [] + _ _ _.
     rewrite /ra_vm; case: sf_return_address => //.
     by apply: disjoint_w; clear;SvD.fsetdec.
   rewrite !bind_ret_l; apply (xrutt_facts.xrutt_bind hf).
@@ -808,7 +978,7 @@ Proof using ok_p hcall mvp_not_written.
   + rewrite /writefun_ra_call => x hx.
     have /Sv_memP/negbTE hn : ¬ Sv.In x (fd_tmp_call p f) by clear -hx; SvD.fsetdec.
     rewrite kill_varsE hn.
-    have ? : ¬ Sv.In x (writefun_ra p var_tmps wrf f).
+    have ? : ¬ Sv.In x (writefun_ra p var_tmps nb_reg_args wrf f).
     + by move: hx; clear; SvD.fsetdec.
     by rewrite -heqex // kill_varsE hn.
   split.
@@ -850,7 +1020,7 @@ Lemma merge_varmaps_funP fn1 fn2 :
   wkequiv_io
     (preF fn1 fn2)
     (sem_fun (sem_Fun := sem_fun_full) p global_data dummy_instr_info fn1)
-    (it_sems_one_varmap.isem_fun var_tmps p fn2)
+    (it_sems_one_varmap.isem_fun var_tmps nb_reg_args stack_args_ofs p fn2)
     (postF fn1 fn2).
 Proof using ok_p.
   move=> fs1 t1 hpre /=.
@@ -871,12 +1041,14 @@ Proof using ok_p.
     checked_params RSP_not_result preserved_magic
     checked_save_stack htmp_call_magic checked_ra.
   rewrite /iresult.
-  case hinit: (initialize_funcall p global_data fd fs1) => [s1 | e] /=; last first.
+  case hinit: (initialize_funcall p global_data fd fs1) => [sw | e] /=; last first.
   + rewrite bind_throw. eapply lcutoff_wE.
   rewrite bind_ret_l.
   move: hinit; rewrite /initialize_funcall /init_state /=.
   t_xrbindP.
-  move=> vargs ok_vargs s0' /init_stk_stateI -/(_ rip_neq_rsp) [hscs0 vgd_v ok_m' vrsp_v hvmap0] ok_s1.
+  move=> vargs ok_vargs s0' /init_stk_stateI -/(_ rip_neq_rsp) [hscs0 vgd_v ok_m' vrsp_v hvmap0] ok_sw.
+  have huv : values_uincl vargs vs.
+  + apply: values_uincl_trans hu; by apply: mapM2_dc_truncate_value_uincl ok_vargs.
   have {}checked_ra :
     match sf_return_address (f_extra fd) with
     | RAreg ra _ =>
@@ -891,14 +1063,15 @@ Proof using ok_p.
     | RAnone =>
         let to_save := sv_of_list fst (sf_to_save (f_extra fd)) in
       [/\ disjoint to_save res,
-       Sv.subset (Sv.inter callee_saved (writefun_ra p var_tmps wrf fn)) to_save &
-       all
+       Sv.subset (Sv.inter callee_saved (writefun_ra p var_tmps nb_reg_args wrf fn)) to_save,
+       uniq [seq v_var x | x <- f_params fd]
+       & all
          (λ x : var_i, if vtype x is aword _ then true else false)
          (f_params fd)
         ]
     end.
   - case heq : sf_return_address checked_ra => [ | ra ? | ra_call ra_return ofs ?].
-    + by t_xrbindP => ??.
+    + by t_xrbindP => ?? ? ?.
     + t_xrbindP => -> /Sv_memP ra_not_written.
       by rewrite SvP.union_mem negb_or => /andP[] /Sv_memP ra_not_magic /Sv_memP ra_not_param.
     t_xrbindP=> hcall hreturn.
@@ -932,6 +1105,13 @@ Proof using ok_p.
     rewrite /magic_variables -/vgd -/vrsp /= => -[].
     rewrite Sv.add_spec Sv.singleton_spec => ->.
     by case/Decidable.not_or => /eqP -> /eqP ->.
+  (* what the prologue of an export function needs from the checker *)
+  have hparams :
+    if is_RAnone (sf_return_address (f_extra fd)) then
+      uniq [seq v_var x | x <- f_params fd] /\
+      all (fun x : var_i => if vtype x is aword _ then true else false) (f_params fd)
+    else True.
+  + by case: sf_return_address checked_ra => [ | ra ? | ????] //= -[_ _ ? ?].
   rewrite /it_sems_one_varmap.initialize_funcall.
   rewrite -hmem hal /valid_RSP hrsp value_eqb_refl //=.
   have -> /= : saved_stack_valid_init p fd.
@@ -941,7 +1121,15 @@ Proof using ok_p.
     rewrite /magic_variables /= => /Sv_memP.
     rewrite Sv.union_spec Sv.add_spec Sv.singleton_spec => ? /Sv.subset_spec ?.
     apply/andP; split; [apply/eqP | apply/eqP ]; intuition.
-  rewrite ok_m' /= !bind_ret_l.
+  rewrite hgetvs /= ok_m' /=.
+  have [vm1' ok_vm1' hvm1'] :
+    exists2 vm1',
+      load_export_args nb_reg_args stack_args_ofs fd vs
+        (ra_undef_vm fd (evm t1) var_tmps) = ok vm1' &
+      forall z, Sv.In z (stack_params nb_reg_args fd) ->
+        value_uincl (evm sw).[z] vm1'.[z].
+  + exact: load_export_argsPF hparams huv ok_sw hgetvs.
+  rewrite ok_vm1' /= !bind_ret_l.
   set t1' := (t1' in it_sems_one_varmap.isem_cmd _ _ _ t1').
   have hfun : ∀ (ii1 : instr_info) (fn1 fn2 : funname),
       wkequiv_io (preF fn1 fn2)
@@ -956,57 +1144,55 @@ Proof using ok_p.
     etransitivity; first by rewrite -Sv.subset_spec; exact: hvalra.
     rewrite /writefun_ra hget; exact: Sv_Subset_union_left.
   have hsub : Sv.Subset (write_c (f_body fd)) (write_c (f_body fd)) by done.
-  have hpre : merged_vmap_inv (emem s0') (sf_align (f_extra fd)) ID s1 (Sv.empty, t1').2.
+  have hpre : merged_vmap_inv (emem s0') (sf_align (f_extra fd)) ID sw (Sv.empty, t1').2.
   + subst t1'; constructor.
     - split.
-      + move: ok_s1; rewrite /= (write_vars_lvals _ [::]) => /write_lvals_escs ->.
+      + move: ok_sw; rewrite /= (write_vars_lvals _ [::]) => /write_lvals_escs ->.
         by rewrite -hscs -hscs0.
-      + by rewrite /= -(write_vars_memP ok_s1).
+      + by rewrite /= -(write_vars_memP ok_sw).
       rewrite /set_RSP => z.
       case: (z =P vrsp) => [-> _ | /eqP hzrsp hnin].
-      + rewrite Vm.setP_eq -(write_vars_eq_ex ok_s1) ?vrsp_v ?vm_truncate_val_eq //.
+      + rewrite Vm.setP_eq -(write_vars_eq_ex ok_sw) ?vrsp_v ?vm_truncate_val_eq //.
         by case: (not_written_magic checked_params).
       rewrite /= Vm.setP_neq; last by rewrite eq_sym.
-      have huninit : ¬ Sv.In z params → z ≠ vgd → (evm s1).[z] = undef_addr (eval_atype (vtype z)).
-      + move => h zgd; rewrite -(write_vars_eq_ex ok_s1) // hvmap0 //; last by apply/eqP.
+      (* a parameter the caller left on the stack is loaded by the prologue *)
+      case: (Sv_memP z (stack_params nb_reg_args fd)) => hzsp.
+      + exact: hvm1' hzsp.
+      rewrite -(load_export_args_eq_ex ok_vm1') //.
+      have huninit : ¬ Sv.In z params → z ≠ vgd → (evm sw).[z] = undef_addr (eval_atype (vtype z)).
+      + move => h zgd; rewrite -(write_vars_eq_ex ok_sw) // hvmap0 //; last by apply/eqP.
         by apply Vm.initP.
-      have hz : value_uincl (evm s1).[z] (evm t1).[z].
-      + case: (Sv_memP z (sv_of_list v_var (f_params fd))) => hinp.
-        + have : values_uincl vargs vs.
-          + apply: values_uincl_trans hu; by apply: mapM2_dc_truncate_value_uincl ok_vargs.
-          move/Sv_memP: hinp; rewrite sv_of_listE /=.
-          elim: (f_params fd) (vargs) (vs) (s0') ok_s1 hgetvs => [ | x xs hrec] [ | v vs1] vs_ s //=.
-          t_xrbindP => s' hx hxs vs' hmap <-; rewrite inE => hin /List_Forall2_inv[] ? H0.
-          case: (@idP (z \in [seq v_var i | i <- xs])) hin => [hin _ | hnin'].
-          + by apply: hrec hxs hmap hin H0.
-          rewrite orbF => /eqP heq; rewrite -(write_vars_eq_ex hxs); last first.
-          + by apply/Sv_memP; rewrite sv_of_listE /=;apply/negP.
-          move/write_varP: hx => [-> _ /vm_truncate_value_uincl htr].
-          by rewrite heq Vm.setP_eq; apply: (value_uincl_trans htr).
-        rewrite -(write_vars_eq_ex ok_s1) //.
+      have hz : value_uincl (evm sw).[z] (evm t1).[z].
+      + case: (Sv_memP z params) => hinp.
+        + by apply: (get_export_args_uinclPF hparams huv ok_sw hgetvs hinp hzsp).
+        rewrite -(write_vars_eq_ex ok_sw) //.
         case: (z =P vgd) => [-> | /eqP hzvgd]; first by rewrite vgd_v hgd.
         rewrite hvmap0 //. 2-3: by apply/eqP.
         rewrite Vm.initP.
         apply/compat_value_uincl_undef/Vm.getP.
 
       rewrite /ra_undef_vm kill_varsE; case:Sv_memP; last by [].
-      move: hnin preserved_magic; rewrite /ID /writefun_ra hget -/(ra_undef _ _) -/params Sv.inter_spec => hnin no_magic hin.
-      have {} hnin : ¬ Sv.In z params by intuition.
+      move: hnin preserved_magic; rewrite /ID /writefun_ra hget => hnin no_magic hin.
+      have {} hnin : ¬ Sv.In z params.
+      + by move=> hp; apply: hnin; apply/Sv.inter_spec.
       have { no_magic } [ not_GD _ ] := not_written_magic no_magic.
       have {not_GD} z_not_GD : z ≠ vgd.
-      + move: vgd (ra_undef _ _) (wrf _) hin not_GD; clear; SvD.fsetdec.
+      + move=> ?; subst z; apply: not_GD.
+        by apply/Sv.union_spec; right; apply/Sv.union_spec; left; apply/Sv.union_spec; left.
       rewrite huninit //.
     constructor => //=.
     + by rewrite /set_RSP Vm.setP_eq /= cmp_le_refl.
     + rewrite Vm.setP_neq; last by rewrite eq_sym vgd_neq_vrsp.
-      rewrite /ra_undef_vm kill_varsE.
-      have := not_written_magic preserved_magic.
-      rewrite /writefun_ra hget /ra_undef.
-      by case: Sv_memP => // h [[] ]; clear -h; SvD.fsetdec.
+      have [not_GD _] := not_written_magic preserved_magic.
+      move: not_GD; rewrite /writefun_ra hget => not_GD.
+      rewrite -(load_export_args_eq_ex ok_vm1'); last first.
+      + by move=> h; apply: not_GD; apply/Sv.union_spec; right; apply/Sv.union_spec; right.
+      rewrite /ra_undef_vm kill_varsE; case: Sv_memP => // h; case: not_GD.
+      by apply/Sv.union_spec; right; apply/Sv.union_spec; left; apply/Sv.union_spec; left.
     rewrite (alloc_stack_top_stack ok_m').
     exact: do_align_is_align.
   have := merge_varmaps_cmdP hfun (m0:=emem s0') (sz:=sf_align (f_extra fd)) hdisj_w hsub checked_body.
-  move=> /(_ s1 (Sv.empty, t1') hpre).
+  move=> /(_ sw (Sv.empty, t1') hpre).
   set post := (post in xrutt.xrutt _ _ _ _ post _ _) => hbody.
   apply (xrutt_facts.xrutt_bind (RR:=post)).
   + apply: xrutt_facts.xrutt_weaken hbody => //.
@@ -1100,13 +1286,16 @@ Proof using ok_p.
       have ok_free := Memory.free_stackP (emem kt2.2).
       rewrite /top_stack (fss_root ok_free) -(ss_root hstable) (fss_frames ok_free) -(ss_frames hstable) /=.
       have ok_alloc:= Memory.alloc_stackP ok_m'.
-      rewrite (ass_frames ok_alloc) (ass_root ok_alloc) /= -/(top_stack (emem s1)) cmp_le_refl.
+      rewrite (ass_frames ok_alloc) (ass_root ok_alloc) /= -/(top_stack (fmem fs1)) cmp_le_refl.
       exact: hrsp.
     move => /eqP r_neq_rsp.
     rewrite kill_varsE.
     case: Sv_memP; first by clear -hr; SvD.fsetdec.
     move=> _; rewrite -(hex r).
-    + rewrite /= /set_RSP Vm.setP_neq // /ra_undef_vm kill_varsE.
+    + rewrite /= /set_RSP Vm.setP_neq //.
+      rewrite -(load_export_args_eq_ex ok_vm1'); last first.
+      + by move=> h; apply: hr; apply/Sv.union_spec; right; apply/Sv.union_spec; right.
+      rewrite /ra_undef_vm kill_varsE.
       by case: Sv_memP => //; clear -hr; SvD.fsetdec.
     move: hvalra hr; rewrite /valid_writefun /= /write_fd /= => /Sv.subset_spec.
     by clear; SvD.fsetdec.
@@ -1131,12 +1320,12 @@ Lemma merge_varmaps_export_callP fn:
              ∃ (args' : seq value),
                [/\ tvm1.[vrsp] = Vword (top_stack m)
                  , tvm1.[vgd] = Vword global_data
-                 , get_var_is false tvm1 (f_params fd) = ok args'
+                 , get_export_args nb_reg_args stack_args_ofs m tvm1 (top_stack m) fd = ok args'
                  & values_uincl args args']
           | None => true
           end])
     (isem_fun p global_data fn)
-    (it_sems_one_varmap.isem_exportcall var_tmps p global_data fn)
+    (it_sems_one_varmap.isem_exportcall var_tmps nb_reg_args stack_args_ofs p global_data fn)
     (fun fs' t' =>
       [/\ fscs fs' = escs t'
         , fmem fs' = emem t'
@@ -1161,7 +1350,7 @@ Proof using ok_p.
   set results := sv_of_list v_var (f_res fd).
   set params := sv_of_list v_var (f_params fd).
   move => checked_body hdisj checked_params RSP_not_result preserved_magic checked_save_stack tmp_call_magic.
-  t_xrbindP => to_save_not_result ok_callee_saved ok_params.
+  t_xrbindP => to_save_not_result ok_callee_saved _ ok_params.
   have /merge_varmaps_funP hsem : preF fn fn fs t.
   + rewrite /preF ok_fd; split => //.
     exists args'; split => //.
@@ -1194,7 +1383,7 @@ Definition ovm_pre fn fs t :=
          ∃ (args' : seq value),
            [/\ tvm1.[vrsp] = Vword (top_stack m)
              , tvm1.[vgd] = Vword global_data
-             , get_var_is false tvm1 (f_params fd) = ok args'
+             , get_export_args nb_reg_args stack_args_ofs m tvm1 (top_stack m) fd = ok args'
              & values_uincl args args']
       | None => true
       end].
@@ -1218,11 +1407,13 @@ Lemma merge_varmaps_export_call_checkP fn:
   wkequiv
     (ovm_pre fn)
     (isem_fun p global_data fn)
-    (it_sems_one_varmap.isem_exportcall_check var_tmps p global_data fn)
+    (it_sems_one_varmap.isem_exportcall_check var_tmps nb_reg_args stack_args_ofs p global_data fn)
     (ovm_post fn).
 Proof using ok_p.
   move=> /merge_varmaps_export_callP => h fs s /h.
-  have -> // : isem_exportcall var_tmps p global_data fn s ≈ isem_exportcall_check var_tmps p global_data fn s.
+  have -> // :
+    isem_exportcall var_tmps nb_reg_args stack_args_ofs p global_data fn s ≈
+      isem_exportcall_check var_tmps nb_reg_args stack_args_ofs p global_data fn s.
   rewrite /isem_exportcall /isem_exportcall_check.
   case ok_fd : (get_fundef (p_funcs p) fn) => [fd | ] /=; last first.
   + rewrite !bind_throw; reflexivity.
@@ -1234,19 +1425,24 @@ Proof using ok_p.
   rewrite /= /it_sems_one_varmap.isem_fun_body.
   rewrite /it_sems_one_varmap.initialize_funcall ok_fd /=.
   setoid_rewrite bind_ret_l.
+  (* the check performed before the call is the allocation of the stack frame *)
   case: alloc_stack => [m | err] /=.
   + rewrite bind_ret_l; reflexivity.
   rewrite bind_throw.
-  set F := (mrecursive _ ).
+  set F := (mrecursive _).
   have interp_throw : forall T e, interp F (Exception.throw (X:=T) e) ≈ Exception.throw e.
   + by move=> T e; rewrite interp_vis bind_trigger; apply eqit_Vis => -[].
+  (* the entry of the function fails as well, at the latest on the allocation *)
   case: saved_stack_valid_init => /=; last first.
   + rewrite bind_throw interp_throw bind_throw; reflexivity.
   rewrite bind_ret_l.
   case: top_stack_aligned => /=; last first.
   + rewrite bind_throw interp_throw bind_throw; reflexivity.
-  case: valid_RSP => /=; rewrite bind_throw interp_throw bind_throw; reflexivity.
+  case: valid_RSP => /=; last first.
+  + rewrite bind_throw interp_throw bind_throw; reflexivity.
+  case: get_export_args => [args | e] /=; rewrite bind_throw interp_throw bind_throw; reflexivity.
 Qed.
+
 
 End PROG.
 

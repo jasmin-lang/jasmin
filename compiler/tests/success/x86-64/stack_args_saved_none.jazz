@@ -1,0 +1,15 @@
+/* No stack frame at all (no local in memory, no call, no callee-saved
+   register needed): the stack pointer is not modified, so the arguments the
+   caller left on the stack are read through rsp itself. */
+export
+fn stack_args_no_frame(reg u64 a b c d e f g) -> reg u64 {
+  reg u64 r;
+  r = a;
+  r += b;
+  r += c;
+  r += d;
+  r += e;
+  r += f;
+  r += g;
+  return r;
+}

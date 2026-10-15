@@ -258,6 +258,15 @@ Proof.
   by move=> /eqP ->.
 Qed.
 
+Lemma convertible_wordP t ws : convertible t (aword ws) -> t = aword ws.
+Proof.
+  case: t => /=.
+  + by move=> /eqP.
+  + by move=> /eqP.
+  + by move=> ws' n.
+  by move=> ws' /eqP.
+Qed.
+
 Lemma convertible_eval_atype ty1 ty2 :
   convertible ty1 ty2 ->
   eval_atype ty1 = eval_atype ty2.

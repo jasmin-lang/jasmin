@@ -1,0 +1,17 @@
+/* A stack frame, but no callee-saved register is used, so the stack pointer
+   the caller had is kept in a register; the argument the caller leaves on the
+   stack is read through that register. */
+export
+fn stack_args_frame(reg u64 a b c d e f g) -> reg u64 {
+  stack u64[1] s;
+  reg u64 r;
+  s[0] = a;
+  r = s[0];
+  r += b;
+  r += c;
+  r += d;
+  r += e;
+  r += f;
+  r += g;
+  return r;
+}

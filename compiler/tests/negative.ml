@@ -39,6 +39,8 @@ let config path =
           disable_warnings [ UnusedVar ] );
         ( "fail/register_allocation/x86-64/too_many_large_args.jazz",
           disable_warnings [ UnusedVar ] );
+        ( "fail/register_allocation/x86-64/too_many_large_args_mixed.jazz",
+          disable_warnings [ UnusedVar ] );
         ( "fail/register_allocation/x86-64/unknown_type_register.jazz",
           disable_warnings [ UnusedVar ] );
         ("fail/slh/x86-64/export_takes_msf.jazz", disable_renaming);

@@ -42,6 +42,9 @@ Section PROG.
 Context {pd: PointerData} {syscall_state : Type} {asm_op} {asmop : asmOp asm_op} {ovm_i : one_varmap_info} {vinfo : veneer_info} {LC : LoopCounter}.
 Context (p: sprog).
 Context (var_tmp : Sv.t).
+(* Number of registers the calling convention uses for arguments (see
+   [stack_params]). *)
+Context (nb_reg_args : nat).
 
 Let magic_variables : Sv.t := magic_variables p.
 
@@ -55,7 +58,9 @@ Section WRITE1.
     let ra :=
       match get_fundef (p_funcs p) fn with
       | None => Sv.empty
-      | Some fd => Sv.union (ra_undef fd var_tmp) (ra_vm_return fd.(f_extra))
+      | Some fd =>
+        Sv.union (Sv.union (ra_undef fd var_tmp) (ra_vm_return fd.(f_extra)))
+                 (stack_params nb_reg_args fd)
       end in
     Sv.union (writefun fn) ra.
 
@@ -190,6 +195,11 @@ Section CHECK.
     | Ccall xs fn es =>
       if get_fundef (p_funcs p) fn is Some fd then
         let tmp := tmp_call (f_extra fd) in
+        (* the one-varmap semantics of an export function reads its arguments
+           in registers and on the stack of the caller, following the calling
+           convention; the linearization rejects such a call too *)
+        Let _ := assert (~~ is_RAnone (sf_return_address (f_extra fd)))
+          (E.internal_error ii "internal call to an export function") in
         Let _ := check_es ii (Sv.union D tmp) es in
         Let _ := assert (sf_align (f_extra fd) ≤ sz)%CMP
           (E.internal_error ii "alignment constraints error") in
@@ -259,10 +269,15 @@ Section CHECK.
         else ok tt
     | RAnone =>
         let to_save := sv_of_list fst fd.(f_extra).(sf_to_save) in
+        (* Each parameter has a register of its own: the prologue writes the
+           ones that arrive on the stack one after the other. *)
+        let live_params := map v_var fd.(f_params) in
         Let _ := assert (disjoint to_save res)
                     (E.gen_error true None (pp_s "the function returns a callee-saved register")) in
         Let _ := assert (Sv.subset (Sv.inter callee_saved W') to_save)
                     (E.gen_error true None (pp_s "the function kills some callee-saved registers")) in
+        Let _ := assert (uniq live_params)
+                    (E.gen_error true None (pp_s "the parameters of the export function are not distinct")) in
         assert (all (λ x : var_i, if vtype x is aword _ then true else false ) (f_params fd))
             (E.gen_error true None (pp_s "the export function has non-word arguments"))
     end.

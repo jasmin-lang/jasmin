@@ -52,7 +52,11 @@ module Riscv (Lowering_params : Riscv_input) : Arch_full.Core_arch
   include Riscv_core
   include Lowering_params
 
-  let not_saved_stack = (Riscv_params.riscv_liparams atoI).lip_not_saved_stack
+  let riscv_liparams = Riscv_params.riscv_liparams atoI
+
+  let not_saved_stack = riscv_liparams.lip_not_saved_stack
+
+  let linearization_tmps = [ riscv_liparams.lip_tmp; riscv_liparams.lip_tmp2 ]
 
   let pp_asm = Pp_riscv.print_prog
 

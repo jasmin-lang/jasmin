@@ -1,10 +1,10 @@
 (** Semantics of the “one-varmap” intermediate language.
 *)
-Require psem one_varmap.
+Require psem one_varmap stack_args.
 Import Utf8.
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 Export one_varmap.
-Import psem var.
+Import psem var stack_args.
 Import low_memory.
 
 Local Unset Elimination Schemes.
@@ -62,7 +62,12 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {ovm_i : one_varmap_info} {vinfo : veneer_info}
   (p : sprog)
-  (var_tmp : Sv.t).
+  (var_tmp : Sv.t)
+  (* Number of registers the calling convention uses for arguments, and offset
+     from the stack pointer at the entry of an export function of the first
+     argument the caller leaves on the stack. *)
+  (nb_reg_args : nat)
+  (stack_args_ofs : Z).
 
 Local Notation gd := (p_globs p).
 
@@ -199,13 +204,47 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
     let k' := Sv.union (ra_undef f var_tmp) (ra_vm_return f.(f_extra)) in
     sem_call ii (Sv.union k k') s1 fn s2.
 
+(* Arguments of an export function at its entry.
+   The caller passes the first arguments in registers and leaves the others on
+   its stack, at [sp + sofs] where [sp] is the stack pointer at the entry;
+   [export_arg_positions] says which is which ([None]: register, [Some sofs]:
+   stack). Internal functions receive all their arguments in registers. *)
+Definition export_arg_positions (fd : sfundef) : seq (option Z) :=
+  if is_RAnone fd.(f_extra).(sf_return_address)
+  then stack_arg_positions nb_reg_args stack_args_ofs
+         (odflt [::] (oseq.omap ltype_of_atype fd.(f_tyin)))
+  else nseq (size fd.(f_params)) None.
+
+Definition get_export_arg (m : mem) (vm : Vm.t) (sp : pointer) (xo : var_i * option Z) : exec value :=
+  let '(x, o) := xo in
+  match o with
+  | None => get_var false vm x
+  | Some sofs => Let w := read m Aligned (sp + wrepr Uptr sofs)%R Uptr in ok (Vword w)
+  end.
+
+Definition get_export_args (m : mem) (vm : Vm.t) (sp : pointer) (fd : sfundef) : exec values :=
+  mapM (get_export_arg m vm sp) (zip fd.(f_params) (export_arg_positions fd)).
+
+(* The prologue of an export function loads into their registers the arguments
+   that the caller left on the stack. *)
+Definition load_export_arg (a : var_i * value * option Z) (vm : Vm.t) : exec Vm.t :=
+  let '(x, v, o) := a in
+  if o is Some _ then set_var true vm x v else ok vm.
+
+Definition load_export_args (fd : sfundef) (vs : values) (vm : Vm.t) : exec Vm.t :=
+  foldM load_export_arg vm (zip (zip fd.(f_params) vs) (export_arg_positions fd)).
+
 Variant sem_export_call_conclusion (scs: syscall_state_t) (m: mem) (fd: sfundef) (args: values) (vm: Vm.t) (scs': syscall_state_t) (m': mem) (res: values) : Prop :=
-  | SemExportCallConclusion (m1: mem) (k: Sv.t) (m2: mem) (vm2: Vm.t) (res':values) of
+  | SemExportCallConclusion (m1: mem) (vm1 : Vm.t) (k: Sv.t) (m2: mem) (vm2: Vm.t) (res':values) of
     saved_stack_valid fd k &
-    Sv.Subset (Sv.inter callee_saved (Sv.union k (ra_undef fd var_tmp))) (sv_of_list fst fd.(f_extra).(sf_to_save)) &
+    Sv.Subset (Sv.inter callee_saved (Sv.union k (Sv.union (ra_undef fd var_tmp) (stack_params nb_reg_args fd)))) (sv_of_list fst fd.(f_extra).(sf_to_save)) &
     alloc_stack m fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_ioff) fd.(f_extra).(sf_stk_extra_sz) = ok m1 &
 (*    all2 check_ty_val fd.(f_tyin) args & *)
-    sem k {| escs := scs; emem := m1 ; evm := set_RSP m1 (ra_undef_vm_none fd.(f_extra).(sf_save_stack) var_tmp vm) |} fd.(f_body) {| escs:= scs'; emem := m2 ; evm := vm2 |} &
+    (* effect of the prologue: the arguments passed on the stack are loaded into
+       their registers (internal functions have no such parameters, hence
+       [EcallRun] does nothing of the kind) *)
+    load_export_args fd args (ra_undef_vm_none fd.(f_extra).(sf_save_stack) var_tmp vm) = ok vm1 &
+    sem k {| escs := scs; emem := m1 ; evm := set_RSP m1 vm1 |} fd.(f_body) {| escs:= scs'; emem := m2 ; evm := vm2 |} &
     get_var_is false vm2 fd.(f_res) = ok res' &
     values_uincl res res' &
  (*   all2 check_ty_val fd.(f_tyout) res' & *)
@@ -219,7 +258,7 @@ Variant sem_export_call (gd: @extra_val_t progStack)  (scs: syscall_state_t) (m:
       disjoint (sv_of_list fst fd.(f_extra).(sf_to_save)) (sv_of_list v_var fd.(f_res)) &
       ~~ Sv.mem vrsp (sv_of_list v_var fd.(f_res)) &
     ∀ vm args',
-      get_var_is false vm fd.(f_params) = ok args' →
+      get_export_args m vm (top_stack m) fd = ok args' →
       values_uincl args args' →
       valid_RSP m vm →
       vm.[vgd] = Vword gd →

@@ -1,0 +1,14 @@
+export
+fn many(reg u32 a b c d e f g h i) -> reg u32 {
+  reg u32 r;
+  r = a;
+  r += b;
+  r += c;
+  r += d;
+  r += e;
+  r += f;
+  r += g;
+  r += h;
+  r += i;
+  return r;
+}
