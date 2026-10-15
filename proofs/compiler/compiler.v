@@ -385,7 +385,7 @@ Definition compiler_third_part (returned_params: funname -> option (seq (option 
 (* returns None if not reg ptr, Some false if reg const ptr, Some true if reg mut ptr *)
 Definition wptr_status (x : var_i) :=
   match Ident.id_kind x.(vname) with
-  | Reg (_, Pointer writable) =>
+  | Reg (_, Pointer writable) | Stack (Pointer writable) =>
     Some match writable with | Writable => true | Constant => false end
   | _ => None
   end.

@@ -66,11 +66,16 @@ let incr_liverange r x d : liverange =
 
 let is_ty_word = function Bty (U _) -> true | _ -> false
 
-(* A parameter of kind [stack] whose type is a word is not a parameter of the
-   compiled function: it is allocated in the stack frame like a local variable
-   and the prologue of the function stores there the value that is passed by the
-   caller (in a register or on the stack). *)
-let is_spilled_param x = is_stack_kind x.v_kind && is_ty_word x.v_ty
+(* A parameter of kind [stack] whose type is a word, or of kind [stack ptr],
+   is not a parameter of the compiled function: it (the pointer, for a
+   [stack ptr]) is allocated in the stack frame like a local variable and the
+   prologue of the function stores there the value that is passed by the caller
+   (in a register or on the stack). *)
+let is_spilled_param x =
+  match x.v_kind with
+  | Stack Direct -> is_ty_word x.v_ty
+  | Stack (Pointer _) -> true
+  | _ -> false
 
 let live_ranges_stmt pd (alias: Alias.alias) (ptr_classes: var -> bool) d c =
 
@@ -303,12 +308,15 @@ let all_alignment ~funname ~contract pd (ctbl: alignment) alias params lalloc : 
   let doparam x =
     match x.v_kind with
     | Reg (_, Direct) -> None
-    | Reg (_, Pointer w) ->
+    | Reg (_, Pointer w) | Stack (Pointer w) ->
       let c = Alias.normalize_var alias x in
       assert (V.equal x c.in_var && c.scope = E.Slocal);
       let pi_ptr =
         match Hv.find lalloc x with
         | RegPtr p -> p
+        | StackPtr _ ->
+          (* the pointer arrives in a fresh register and is spilled in its slot *)
+          V.mk x.v_name (Reg (Normal, Direct)) (tu pd) x.v_dloc x.v_annot
         | _ | exception Not_found -> assert false in
       let pi_writable = w = Writable in
       let pi_align = get_align c in
@@ -395,11 +403,20 @@ let alloc_local_stack size slots atbl =
   stk_align, slots, !size
 
 (* --------------------------------------------------- *)
-(* The value of a parameter of kind [stack] is stored in its slot by the
-   prologue of the function: the parameter is live from the entry of the
-   function (position -1), even when it is never read. *)
-let expand_param_range ranges x =
+(* The value of a parameter of kind [stack] (the pointer, for a [stack ptr])
+   is stored in its slot by the prologue of the function: the slot is live
+   from the entry of the function (position -1), even when it is never read. *)
+let expand_param_range pd stack_pointers ranges x =
   if is_spilled_param x then
+    let x =
+      match x.v_kind with
+      | Stack (Pointer _) ->
+        (try Hv.find stack_pointers x
+         with Not_found ->
+           let xp = V.mk x.v_name (Stack Direct) (tu pd) x.v_dloc x.v_annot in
+           Hv.add stack_pointers x xp;
+           xp)
+      | _ -> x in
     let sx = max 0 (size_of x.v_ty) in
     let rng = Mint.find_default Mv.empty sx ranges in
     let r =
@@ -455,7 +472,7 @@ let alloc_stack_fd callstyle pd get_info gtbl fd =
   let (_, ranges), stack_pointers =
     live_ranges_stmt pd alias ptr_classes (0, Mint.empty) fd.f_body in
 
-  let ranges = List.fold_left expand_param_range ranges fd.f_args in
+  let ranges = List.fold_left (expand_param_range pd stack_pointers) ranges fd.f_args in
 
   let coloring = Mint.mapi G.solve ranges in
 

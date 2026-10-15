@@ -1610,6 +1610,12 @@ fail/stack_allocation/x86-64/stack_ptr_in_expr.jazz:
 compilation error in function main:
 stack allocation: sp is a stack ptr, it should not appear in a sub-expression
 
+fail/stack_allocation/x86-64/stack_ptr_param_not_returned.jazz:
+
+"fail/stack_allocation/x86-64/stack_ptr_param_not_returned.jazz", line 1 (0) to line 10 (1):
+compilation error in function f:
+stack allocation: the writable pointer parameter p is not returned
+
 fail/stack_allocation/x86-64/unaligned_sub_offset.jazz:
 
 "fail/stack_allocation/x86-64/unaligned_sub_offset.jazz", line 9 (8-9):
@@ -1780,6 +1786,11 @@ fail/typing/x86-64/param_type_mismatch.jazz:
 fail/typing/x86-64/res_wrong_type.jazz:
 
 "fail/typing/x86-64/res_wrong_type.jazz", line 1 (0) to line 11 (1): In function “init”, return statement variable “pt” has storage type “reg mut ptr”, which differs from declared return storage type “stack”
+
+fail/typing/x86-64/stack_ptr_param_internal.jazz:
+
+"fail/typing/x86-64/stack_ptr_param_internal.jazz", line 3 (28-29):
+typing error: p has kind stack const ptr, only reg or reg ptr are allowed in parameter of non inlined function
 
 fail/typing/x86-64/subarray_non_const_len.jazz:
 
@@ -1992,4 +2003,4 @@ Statistics:
 	Pretyping:  65
 	Parsing:     5
 	Typing:      5
-	Compile:   239
+	Compile:   241

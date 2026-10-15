@@ -1,0 +1,10 @@
+/* A writable stack ptr parameter must be returned, through a reg ptr that
+   holds its pointer. */
+export
+fn f(stack mut ptr u64[4] p, reg u64 x) -> reg u64 {
+  reg ptr u64[4] rp;
+  rp = p;
+  rp[1] = x;
+  x = rp[0];
+  return x;
+}

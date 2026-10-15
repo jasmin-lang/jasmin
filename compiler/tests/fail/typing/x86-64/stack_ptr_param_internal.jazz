@@ -1,0 +1,16 @@
+/* A stack ptr parameter is only accepted in an export function: for a local
+   function the pointer must be in a register. */
+fn f(stack const ptr u64[2] p) -> reg u64 {
+  reg const ptr u64[2] rp;
+  reg u64 r;
+  rp = p;
+  r = rp[0];
+  return r;
+}
+
+export
+fn main(reg const ptr u64[2] p) -> reg u64 {
+  reg u64 r;
+  r = f(p);
+  return r;
+}

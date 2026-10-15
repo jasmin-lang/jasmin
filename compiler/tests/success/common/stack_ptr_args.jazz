@@ -1,0 +1,26 @@
+/* Parameters of kind stack ptr: the caller passes the pointer, in a register
+   or on the stack, and the prologue stores it in the frame; as for a local
+   variable of kind stack ptr, the body loads the pointer into a reg ptr to
+   access the array. */
+export
+fn stack_ptr_args(stack const ptr u32[2] p, reg u32 a b c d e, stack const ptr u32[2] q)
+    -> reg u32 {
+  reg const ptr u32[2] rp;
+  reg u32 r t;
+  r = a;
+  r += b;
+  r += c;
+  r += d;
+  r += e;
+  rp = p;
+  t = rp[0];
+  r += t;
+  t = rp[1];
+  r += t;
+  rp = q;
+  t = rp[0];
+  r += t;
+  t = rp[1];
+  r += t;
+  return r;
+}

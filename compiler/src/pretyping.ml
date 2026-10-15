@@ -2258,14 +2258,15 @@ let tt_call_conv pd _loc params returns cc =
   | Some `Inline -> FInfo.Internal
 
   | Some `Export | None ->
-    (* An export function may take a word-sized [stack] parameter: it is passed
-       in a register (or on the stack) and spilled into the frame by a later
-       pass. *)
+    (* An export function may take a word-sized [stack] parameter, or a
+       [stack ptr] parameter: it is passed in a register (or on the stack) and
+       spilled into the frame by a later pass. *)
     let is_export = cc = Some `Export in
     let is_spillable_param x =
       is_export &&
       match (L.unloc x).P.v_kind, (L.unloc x).P.v_ty with
       | W.Stack W.Direct, P.Bty (P.U ws) -> Wsize.wsize_cmp ws pd <> Datatypes.Gt
+      | W.Stack (W.Pointer _), P.Arr _ -> true
       | _ -> false in
     let check ?(spillable = false) s x =
       if not (P.is_reg_kind (L.unloc x).P.v_kind) && not (spillable && is_spillable_param x) then

@@ -1,0 +1,15 @@
+/* A writable stack ptr parameter: the array of the caller is modified through
+   a reg ptr loaded from the slot that holds the pointer, and that reg ptr is
+   returned, as the calling convention of writable pointer parameters
+   requires. */
+export
+fn stack_ptr_writable(stack mut ptr u64[4] p, reg u64 x) -> reg ptr u64[4] {
+  reg ptr u64[4] rp;
+  reg u64 t;
+  rp = p;
+  t = rp[0];
+  t += x;
+  rp[1] = t;
+  rp[2] = x;
+  return rp;
+}

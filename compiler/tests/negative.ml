@@ -53,6 +53,8 @@ let config path =
         ("fail/typing/x86-64/export_stack_res.jazz", reset_warn_recoverable);
         ("fail/typing/x86-64/non_inline_stack_arg.jazz", reset_warn_recoverable);
         ("fail/typing/x86-64/non_inline_stack_res.jazz", reset_warn_recoverable);
+        ( "fail/typing/x86-64/stack_ptr_param_internal.jazz",
+          reset_warn_recoverable );
         ( "fail/typing/x86-64/write_constant_pointer_direct_array.jazz",
           reset_warn_recoverable );
         ( "fail/typing/x86-64/write_constant_pointer_subproc_array.jazz",

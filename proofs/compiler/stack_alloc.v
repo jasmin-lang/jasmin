@@ -1961,18 +1961,22 @@ Definition check_result pmap rmap paramsi params oi (x:var_i) :=
     ok x
   end.
 
-(* TODO: clean the 3 [all2] functions *)
-Definition check_all_writable_regions_returned paramsi (ret_pos:seq (option nat)) :=
-  all2 (fun i osr =>
-    match osr with
-    | Some sr => if sr.(sr_region).(r_writable) then Some i \in ret_pos else true
-    | None => true
-    end) (iota 0 (seq.size paramsi)) paramsi.
+(* A writable pointer parameter is returned (its position is among the
+   returned positions), so that the caller sees the writes. The front-end
+   checks it for a reg ptr parameter; a stack ptr parameter is returned through
+   a reg ptr that holds its pointer, which only the alias analysis sees. *)
+Fixpoint check_writable_regions_returned (ret_pos:seq (option nat)) i params paramsi :=
+  match params, paramsi with
+  | x :: params, osr :: paramsi =>
+    Let _ :=
+      assert (if osr is Some sr then ~~ sr.(sr_region).(r_writable) || (Some i \in ret_pos) else true)
+        (stk_error x (pp_box [:: pp_s "the writable pointer parameter"; pp_var x; pp_s "is not returned"])) in
+    check_writable_regions_returned ret_pos i.+1 params paramsi
+  | _, _ => ok tt
+  end.
 
 Definition check_results pmap rmap paramsi params ret_pos res :=
-  Let _ := assert (check_all_writable_regions_returned paramsi ret_pos)
-                  (stk_ierror_no_var "a writable region is not returned")
-  in
+  Let _ := check_writable_regions_returned ret_pos 0 params paramsi in
   mapM2 (stk_ierror_no_var "invalid function info")
         (check_result pmap rmap paramsi params) ret_pos res.
 
@@ -2011,6 +2015,28 @@ Definition init_param ii (is_export : bool) (mglob stack : Mvar.t (Z * wsize)) a
       (stk_error x (pp_box [::
         pp_var x; pp_s "is a parameter of kind stack of a non-export function"])) in
     init_stack_param ii disj lmap rmap x ofs cs
+  | Some (Pstkptr slot ofs ws cs xp), Some pi =>
+    (* a parameter of kind stack ptr: the pointer arrives in the register
+       [pp_ptr] of the signature and is stored in the slot of the frame that
+       holds the pointer, at the entry *)
+    Let _ := assert is_export
+      (stk_error x (pp_box [::
+        pp_var x; pp_s "is a parameter of kind stack ptr of a non-export function"])) in
+    Let _ := assert (convertible (vtype pi.(pp_ptr)) (aword Uptr)) (stk_ierror_no_var "bad ptr type") in
+    Let _ := assert (~~Sv.mem pi.(pp_ptr) disj) (stk_ierror_no_var "duplicate region") in
+    Let _ := assert (is_aarr x.(vtype)) (stk_ierror_no_var "bad stack ptr type") in
+    if Mvar.get lmap pi.(pp_ptr) is Some _ then Error (stk_ierror_no_var "a pointer is equal to a local var")
+    else if Mvar.get mglob x is Some _ then Error (stk_ierror_no_var "a region is both glob and param")
+    else if Mvar.get stack x is Some _ then Error (stk_ierror_no_var "a region is both stack and param")
+    else
+    let r :=
+      {| r_slot := x;
+         r_align := pi.(pp_align); r_writable := pi.(pp_writable) |} in
+    let sr := sub_region_full x r in
+    let rmap := set_move rmap x sr Valid in
+    let rmap := set_stack_ptr rmap slot ws cs xp in
+    ok (Sv.add pi.(pp_ptr) disj, lmap, rmap,
+        (Some sr, with_var x pi.(pp_ptr), Some (ofs + cs.(cs_ofs))%Z))
   | Some _, _ => Error (stk_ierror_no_var "a stack variable also occurs as a parameter")
   | None, None => ok (accu, (None, x, None))
   | None, Some pi =>
@@ -2060,13 +2086,19 @@ Definition alloc_fd_aux P p_extra mglob (local_alloc: funname -> stk_alloc_oracl
   let paramsi := map (fun '(osr, _, _) => osr) alloc_params in
   let params : seq var_i := map (fun '(_, x, _) => x) alloc_params in
   let spill_params : seq (option Z) := map (fun '(_, _, ospill) => ospill) alloc_params in
-  (* the fresh variables introduced for the spilled parameters must not collide
-     with the other parameters *)
+  (* the parameters of the source function are distinct (a variable that
+     occurs twice as a parameter of kind stack ptr would otherwise pass
+     [init_param] twice), and the fresh variables introduced for the spilled
+     parameters do not collide with the other parameters *)
+  Let _ := assert (uniq (map v_var fd.(f_params)))
+                  (stk_ierror_no_var "the parameters of the source function are not distinct") in
   Let _ := assert (uniq (map v_var params))
                   (stk_ierror_no_var "the parameters are not distinct") in
-  (* a spilled parameter: its declared type is the type of its variable (the
-     value the call writes in the variable and the value stored in the frame
-     agree), and its slot is aligned for its width *)
+  let tyin := map2 (fun o ty => if o is Some _ then aword Uptr else ty) sao.(sao_params) fd.(f_tyin) in
+  (* a spilled parameter: its declared type (the pointer type for a stack ptr)
+     is the type of its variable (the value the call writes in the variable and
+     the value stored in the frame agree), and its slot is aligned for its
+     width *)
   Let _ :=
     assert
       (all2 (fun ty (a : option sub_region * var_i * option Z) =>
@@ -2077,7 +2109,7 @@ Definition alloc_fd_aux P p_extra mglob (local_alloc: funname -> stk_alloc_oracl
                     is_align (wrepr Uptr ofs) ws && (ws <= sao.(sao_align))%CMP
                   else false)
                else true)
-            fd.(f_tyin) alloc_params)
+            tyin alloc_params)
       (stk_ierror_no_var "bad spilled parameter") in
   (* the slots of the spilled parameters are pairwise disjoint: all of them
      hold a value at the entry of the function *)
@@ -2087,7 +2119,7 @@ Definition alloc_fd_aux P p_extra mglob (local_alloc: funname -> stk_alloc_oracl
             if o is Some ofs then
               if is_word_type ty is Some ws then Some (ofs, ws) else None
             else None)
-         (zip fd.(f_tyin) spill_params) in
+         (zip tyin spill_params) in
   Let _ :=
     assert
       (pairwise (fun s1 s2 : Z * wsize =>
