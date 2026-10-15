@@ -309,7 +309,10 @@ Definition lower_Papp2_op
       let%opt _ := oassert (ws' == ws) in
       Some (UDIV, e0, [:: e1 ])
   | Oland _ =>
-      Some (AND, e0, [:: e1 ])
+      (* BIC computes [Xn AND NOT Xm]: [a & !b] and [!b & a] are both
+         [BIC a, b]. *)
+      if is_andn e0 e1 is Some (b, a) then Some (BIC, a, [:: b ])
+      else Some (AND, e0, [:: e1 ])
   | Olor _ =>
       Some (ORR, e0, [:: e1 ])
   | Olxor _ =>

@@ -118,7 +118,6 @@ Proof. by repeat (exact: SvD.F.add_1 || apply: SvD.F.add_2). Qed.
 Lemma fvars_VF : Sv.In (fvVF fv) fvars.
 Proof. by repeat (exact: SvD.F.add_1 || apply: SvD.F.add_2). Qed.
 
-
 (* -------------------------------------------------------------------- *)
 (* Lowering of conditions. *)
 
@@ -387,7 +386,6 @@ Proof using atoI ev fv fv_correct p pT sCP sc_sem syscall_state warning wsw.
 
   exact: (eeq_exc_sem_pexpr hfv hs00 hseme).
 Qed.
-
 
 (* -------------------------------------------------------------------- *)
 (* Lowering of assignments. *)
@@ -992,6 +990,35 @@ Proof.
     by exists c.
 Qed.
 
+(* [a & !b] and [!b & a] are lowered to [BIC a, b], which computes
+   [a AND NOT b]: the complement commutes with the truncation of the operands
+   to the register size. *)
+Lemma lower_Papp2_BICP s ws ws' ws'' e0 e1 x y v0 v1 (w : word ws') :
+  is_andn e0 e1 = Some (x, y)
+  -> (ws <= ws')%CMP
+  -> (ws == U32) || (ws == U64)
+  -> disj_fvars (read_e e0)
+  -> disj_fvars (read_e e1)
+  -> sem_pexpr true (p_globs p) s e0 = ok v0
+  -> sem_pexpr true (p_globs p) s e1 = ok v1
+  -> sem_sop2 (Oland ws'') v0 v1 = ok (Vword w)
+  -> ok_lower_pexpr_aux s ws
+       (Oasm (BaseOp (None, ARMv8A_op BIC (opts_at ws)))) [:: y; x ] w.
+Proof.
+  move=> handn hws hwsx hfve0 hfve1 hseme0 hseme1 hsemop.
+  have hsem : sem_pexpr true (p_globs p) s (Papp2 (Oland ws'') e0 e1) = ok (Vword w)
+    by rewrite /= hseme0 hseme1 /= hsemop.
+  have [wsx [wx [wsy [wy [hx hy hwsx' hwsy /Vword_inj [?]]]]]] := is_andn_semP handn hsem.
+  subst ws' => /= ?; subst w.
+  split; last by split => //; exact: (disj_fvars_is_andn handn hfve0 hfve1).
+  exists [:: Vword wy; Vword wx ]; first by rewrite /sem_pexprs /= hy hx.
+  rewrite /exec_sopn /= hwsx /=.
+  rewrite !(truncate_word_le _ (cmp_le_trans hws _)) //=.
+  rewrite !computational_eq_refl /= /armv8a_bitwise_semi.
+  by rewrite -(wand_zero_extend _ _ hws) -(wnot_zero_extend _ hws)
+    !(zero_extend_idem _ hws) wandC.
+Qed.
+
 Lemma lower_Papp2P op e0 e1 :
   Plower_pexpr_aux (Papp2 op e0 e1).
 Proof.
@@ -1032,6 +1059,9 @@ Proof.
       | match goal with
         | [ |- context[ is_mul ] ] =>
             case: is_mulP => [wsm ? ? hlem ?|]; subst
+        end
+      | match goal with
+        | [ |- context[ is_andn ] ] => case handn: is_andn => [[? ?] | ]
         end
       | match goal with
         | [ |- context[ is_wconst ] ] => case hconst: is_wconst => [c|//]
@@ -1075,6 +1105,12 @@ Proof.
                 -?(wor_zero_extend _ _ hws) -?(wxor_zero_extend _ _ hws);
         rewrite ?(wopp_zero_extend _ hws) ?(zero_extend_idem _ hws);
         by rewrite ?(zero_extend_idem _ hws)
+      | (* BIC from [a & !b] or [!b & a]: BIC a, b computes a AND NOT b. *)
+        lazymatch goal with
+        | [ |- context[ARMv8A_op BIC _] ] => idtac
+        end;
+        rewrite orbC in hwsx;
+        exact: (lower_Papp2_BICP handn hws hwsx hfve0 hfve1 hseme0 hseme1 hsemop)
       | (* Division: SDIV, UDIV (operate at [ws''= ws]). *)
         lazymatch goal with
         | [ |- context[ARMv8A_op SDIV _] ] => idtac
@@ -1279,6 +1315,9 @@ Proof.
           | [ |- context[ is_mul ] ] => case: is_mulP => [? ? ? ? ?|]; subst
           end
         | match goal with
+          | [ |- context[ is_andn ] ] => case handn: is_andn => [[? ?] | ]
+          end
+        | match goal with
           | [ |- context[ is_wconst ] ] => case hc': is_wconst => [c'|//]
           end
         ].
@@ -1326,6 +1365,9 @@ Proof.
     [ move=> /oassertP [/eqP ?]; subst ws''
     | match goal with
       | [ |- context[ is_mul ] ] => case: is_mulP => [? ? ? ? ?|]; subst
+      end
+    | match goal with
+      | [ |- context[ is_andn ] ] => case handn: is_andn => [[? ?] | ]
       end
     | match goal with
       | [ |- context[ is_wconst ] ] => case hconst: is_wconst => [c'|//]

@@ -1,0 +1,41 @@
+/* An AND with a complemented operand is lowered to BIC, whichever side the
+   complement is on; a shift of the complemented operand is folded in. */
+export fn bic_right(reg u32 a b) -> reg u32 {
+  reg u32 r;
+  r = a & !b;
+  return r;
+}
+
+export fn bic_left(reg u32 a b) -> reg u32 {
+  reg u32 r;
+  r = !b & a;
+  return r;
+}
+
+export fn bic_shift(reg u32 a b) -> reg u32 {
+  reg u32 r;
+  r = a & !(b >> 7);
+  return r;
+}
+
+export fn bic_lsl(reg u32 a b) -> reg u32 {
+  reg u32 r;
+  r = a & !(b << 3);
+  return r;
+}
+
+export fn bic_asr_left(reg u32 a b) -> reg u32 {
+  reg u32 r;
+  r = !(b >>s 5) & a;
+  return r;
+}
+
+/* A complemented constant is folded first: this is an AND with an immediate,
+   not a BIC (the complement, 0xff, is an encodable immediate). */
+param int C = 0xffffff00;
+
+export fn and_not_const(reg u32 a) -> reg u32 {
+  reg u32 r;
+  r = a & !(32u) C;
+  return r;
+}
