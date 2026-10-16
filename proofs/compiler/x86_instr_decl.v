@@ -439,95 +439,95 @@ Notation mk_instr_safe_b str_jas tin tout ain aout msb semi_total init args_kind
 
 (* Can only be use for safe instruction *)
 Notation mk_instr_pp name tin tout ain aout msb semi check nargs doit prc pp_asm :=
-  (mk_instr_safe (pp_s name%string) tin tout ain aout msb semi check nargs true doit pp_asm,
-   (name%string, prc)) (only parsing).
+  (mk_instr_safe (pp_s name) tin tout ain aout msb semi check nargs true doit pp_asm,
+   (name%_string, prc)) (only parsing).
 
 Notation mk_instr_pp_b name tin tout ain aout msb semi_total init check nargs doit prc pp_asm :=
-  (mk_instr_safe_b (pp_s name%string) tin tout ain aout msb semi_total init check nargs true doit pp_asm,
-   (name%string, prc)) (only parsing).
+  (mk_instr_safe_b (pp_s name) tin tout ain aout msb semi_total init check nargs true doit pp_asm,
+   (name%_string, prc)) (only parsing).
 
 (* Can only be use for safe instruction *)
 Notation mk_instr_w_w name semi ain aout nargs check prc valid doit pp_asm :=
  ((fun sz =>
-  mk_instr_safe (pp_sz name sz) (w_ty sz) (w_ty sz) ain aout (reg_msb_flag sz) (semi sz) (check sz) nargs (valid sz) (doit sz) (pp_asm sz)), (name%string,prc)) (only parsing).
+  mk_instr_safe (pp_sz name sz) (w_ty sz) (w_ty sz) ain aout (reg_msb_flag sz) (semi sz) (check sz) nargs (valid sz) (doit sz) (pp_asm sz)), (name%_string,prc)) (only parsing).
 
 Notation mk_instr_w_w'_10 name sign semi check prc valid doit pp_asm :=
  ((fun szo szi =>
-  mk_instr_safe (pp_sz_sz name sign szo szi) (w_ty szi) (w_ty szo) [:: Eu 1] [:: Eu 0] (reg_msb_flag szo) (semi szi szo) (check szi szo) 2 (valid szi szo) doit (pp_asm szi szo)), (name%string,prc)) (only parsing).
+  mk_instr_safe (pp_sz_sz name sign szo szi) (w_ty szi) (w_ty szo) [:: Eu 1] [:: Eu 0] (reg_msb_flag szo) (semi szi szo) (check szi szo) 2 (valid szi szo) doit (pp_asm szi szo)), (name%_string,prc)) (only parsing).
 
 Notation mk_instr_bw2_w_0211 name semi check prc valid doit pp_asm :=
  ((fun sz =>
-  mk_instr_safe (pp_sz name sz) (bw2_ty sz) (w_ty sz) [:: Ea 0; Eu 2; Ea 1] [:: Ea 1] (reg_msb_flag sz) (semi sz) (check sz) 3 (valid sz) doit (pp_asm sz)), (name%string, prc))  (only parsing).
+  mk_instr_safe (pp_sz name sz) (bw2_ty sz) (w_ty sz) [:: Ea 0; Eu 2; Ea 1] [:: Ea 1] (reg_msb_flag sz) (semi sz) (check sz) 3 (valid sz) doit (pp_asm sz)), (name%_string, prc))  (only parsing).
 
 Notation mk_instr_w_b5w name semi_total init ain aout nargs check prc valid doit pp_asm :=
  ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (w_ty sz) (b5w_ty sz) ain (implicit_flags ++ aout) (reg_msb_flag sz) (semi_total sz) init (check sz) nargs (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr_safe_b (pp_sz name sz) (w_ty sz) (b5w_ty sz) ain (implicit_flags ++ aout) (reg_msb_flag sz) (semi_total sz) init (check sz) nargs (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
 Notation mk_instr_w_b4w_00 name semi_total init check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (w_ty sz) (b4w_ty sz) [:: Eu 0] (implicit_flags_noCF ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) init (check sz) 1 (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr_safe_b (pp_sz name sz) (w_ty sz) (b4w_ty sz) [:: Eu 0] (implicit_flags_noCF ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) init (check sz) 1 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
 Notation mk_instr_w2_b4 name semi_total init ain aout nargs check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b4_ty) ain aout (reg_msb_flag sz) (semi_total sz) init (check sz) nargs (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b4_ty) ain aout (reg_msb_flag sz) (semi_total sz) init (check sz) nargs (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
 Notation mk_instr_w2_b5 name semi_total init ain nargs check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b5_ty) ain implicit_flags (reg_msb_flag sz) (semi_total sz) init (check sz) nargs (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b5_ty) ain implicit_flags (reg_msb_flag sz) (semi_total sz) init (check sz) nargs (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
 Notation mk_instr_w2_b5w name semi_total init ain aout nargs check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b5w_ty sz) ain (implicit_flags ++ aout) (reg_msb_flag sz) (semi_total sz) init (check sz) nargs (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b5w_ty sz) ain (implicit_flags ++ aout) (reg_msb_flag sz) (semi_total sz) init (check sz) nargs (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
 Notation mk_instr_w2_b5w_010 name semi_total init check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b5w_ty sz) [:: Eu 0; Eu 1] (implicit_flags ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) init (check sz) 2 (valid sz) doit (pp_asm sz)), (name%string,prc)) (only parsing).
+  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b5w_ty sz) [:: Eu 0; Eu 1] (implicit_flags ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) init (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc)) (only parsing).
 
 Notation mk_instr_w2b_b5w_010 name semi_total init check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (w2b_ty sz sz) (b5w_ty sz) ([:: Eu 0; Eu 1] ++ [::iCF]) (implicit_flags ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) init (check sz) 2 (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr_safe_b (pp_sz name sz) (w2b_ty sz sz) (b5w_ty sz) ([:: Eu 0; Eu 1] ++ [::iCF]) (implicit_flags ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) init (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
 Notation mk_instr_w2_b4w name semi_total init flags check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b4w_ty sz) [:: Ea 0; Eu 1] (flags ++ [::Ea 0]) (reg_msb_flag sz) (semi_total sz) init (check sz) 2 (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b4w_ty sz) [:: Ea 0; Eu 1] (flags ++ [::Ea 0]) (reg_msb_flag sz) (semi_total sz) init (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
 Notation mk_instr_w2b_bw name semi_total init flag check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (w2b_ty sz sz) (bw_ty sz) ([:: Ea 0; Eu 1] ++ [::F flag]) ([::F flag; Ea 0]) (reg_msb_flag sz) (semi_total sz) init (check sz) 2 (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr_safe_b (pp_sz name sz) (w2b_ty sz sz) (bw_ty sz) ([:: Ea 0; Eu 1] ++ [::F flag]) ([::F flag; Ea 0]) (reg_msb_flag sz) (semi_total sz) init (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
 Notation mk_instr_w2_b5w2 name semi_total init ain aout nargs check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b5w2_ty sz) ain (implicit_flags ++ aout) (reg_msb_flag sz) (semi_total sz) init (check sz) nargs (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b5w2_ty sz) ain (implicit_flags ++ aout) (reg_msb_flag sz) (semi_total sz) init (check sz) nargs (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
 Notation mk_instr_division sg name semi_total init check prc valid doit pp_asm wf := ((fun sz =>
-  mk_instr (pp_sz name sz) (w3_ty sz) (b5w2_ty sz) [:: R RDX; R RAX; Eu 0]  (implicit_flags ++ [:: R RAX; R RDX]) (reg_msb_flag sz) (semi_total sz) init (check sz) 1 [:: X86Division sz sg] ErrArith (valid sz) doit (pp_asm sz) refl_equal (wf sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (w3_ty sz) (b5w2_ty sz) [:: R RDX; R RAX; Eu 0]  (implicit_flags ++ [:: R RAX; R RDX]) (reg_msb_flag sz) (semi_total sz) init (check sz) 1 [:: X86Division sz sg] ErrArith (valid sz) doit (pp_asm sz) refl_equal (wf sz)), (name%_string,prc))  (only parsing).
 
 Notation mk_instr_w2_w_120 name semi check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe (pp_sz name sz) (w2_ty sz sz) (w_ty sz) [:: Eu 1 ; Eu 2] [:: Eu 0] MSB_CLEAR (semi sz) (check sz) 3 (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr_safe (pp_sz name sz) (w2_ty sz sz) (w_ty sz) [:: Eu 1 ; Eu 2] [:: Eu 0] MSB_CLEAR (semi sz) (check sz) 3 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
 Notation mk_instr_ww8_w_120 name semi check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe (pp_sz name sz) (ww8_ty sz) (w_ty sz) [:: Eu 1 ; Ea 2] [:: Ea 0] (reg_msb_flag sz) (semi sz) (check sz) 3 (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr_safe (pp_sz name sz) (ww8_ty sz) (w_ty sz) [:: Eu 1 ; Ea 2] [:: Ea 0] (reg_msb_flag sz) (semi sz) (check sz) 3 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
 Notation mk_instr_ww8_b2w_0c0 name semi_total init check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (ww8_ty sz) (b2w_ty sz) [:: Eu 0; Ef 1 RCX] [::F OF; F CF; Eu 0] (reg_msb_flag sz) (semi_total sz) (init sz) (check sz) 2 (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr_safe_b (pp_sz name sz) (ww8_ty sz) (b2w_ty sz) [:: Eu 0; Ef 1 RCX] [::F OF; F CF; Eu 0] (reg_msb_flag sz) (semi_total sz) (init sz) (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
 Notation mk_instr_ww8b_b2w_0c0 name semi_total init check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (ww8b_ty sz) (b2w_ty sz) [:: Eu 0; Ef 1 RCX; F CF] [::F OF; F CF; Eu 0] (reg_msb_flag sz) (semi_total sz) (init sz) (check sz) 2 (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr_safe_b (pp_sz name sz) (ww8b_ty sz) (b2w_ty sz) [:: Eu 0; Ef 1 RCX; F CF] [::F OF; F CF; Eu 0] (reg_msb_flag sz) (semi_total sz) (init sz) (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
 Notation mk_instr_ww8_b5w_0c0 name semi_total init check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (ww8_ty sz) (b5w_ty sz) [:: Eu 0; Ef 1 RCX] (implicit_flags ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) (init sz) (check sz) 2 (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr_safe_b (pp_sz name sz) (ww8_ty sz) (b5w_ty sz) [:: Eu 0; Ef 1 RCX] (implicit_flags ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) (init sz) (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
 Notation mk_instr_w2w8_b5w_01c0 name semi_total init check safe_cond prc valid doit pp_asm safe_wf wf := ((fun sz =>
-  mk_instr (pp_sz name sz) (w2w8_ty sz) (b5w_ty sz) [:: Eu 0; Ea 1; Ef 2 RCX] (implicit_flags ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) (init sz) (check sz) 3 (safe_cond sz) ErrArith (valid sz) doit (pp_asm sz) (safe_wf sz) (wf sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (w2w8_ty sz) (b5w_ty sz) [:: Eu 0; Ea 1; Ef 2 RCX] (implicit_flags ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) (init sz) (check sz) 3 (safe_cond sz) ErrArith (valid sz) doit (pp_asm sz) (safe_wf sz) (wf sz)), (name%_string,prc))  (only parsing).
 
 Notation mk_instr_w2w8_w_1230 name semi check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe (pp_sz name sz) (w2w8_ty sz) (w_ty sz) [:: Ea 1 ; Eu 2 ; Ea 3] [:: Ea 0] (reg_msb_flag sz) (semi sz) (check sz) 4 (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr_safe (pp_sz name sz) (w2w8_ty sz) (w_ty sz) [:: Ea 1 ; Eu 2 ; Ea 3] [:: Ea 0] (reg_msb_flag sz) (semi sz) (check sz) 4 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
 Notation mk_ve_instr_w2w8_w_1230 name semi check prc valid doit pp_asm := ((fun (ve:velem) sz =>
-  mk_instr_safe (pp_ve_sz name ve sz) (w2w8_ty sz) (w_ty sz) [:: Ea 1 ; Eu 2 ; Ea 3] [:: Ea 0] (reg_msb_flag sz) (semi ve sz) (check sz) 4 (valid ve sz) doit (pp_asm ve sz)), (name%string,prc))  (only parsing).
+  mk_instr_safe (pp_ve_sz name ve sz) (w2w8_ty sz) (w_ty sz) [:: Ea 1 ; Eu 2 ; Ea 3] [:: Ea 0] (reg_msb_flag sz) (semi ve sz) (check sz) 4 (valid ve sz) doit (pp_asm ve sz)), (name%_string,prc))  (only parsing).
 
 Notation mk_instr_w_w128_10 name msb semi check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe (pp_sz name sz) (w_ty sz) (w128_ty) [:: Eu 1] [:: Eu 0] msb (semi sz) (check sz) 2 (valid sz) doit (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr_safe (pp_sz name sz) (w_ty sz) (w128_ty) [:: Eu 1] [:: Eu 0] msb (semi sz) (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
 Notation mk_ve_instr_w_w_10 name semi check prc valid doit pp_asm := ((fun (ve:velem) sz =>
-  mk_instr_safe (pp_ve_sz name ve sz) (w_ty _) (w_ty sz) [:: Eu 1] [:: Ea 0] (reg_msb_flag sz) (semi ve sz) (check sz) 2 (valid ve sz) doit (pp_asm ve sz)), (name%string,prc))  (only parsing).
+  mk_instr_safe (pp_ve_sz name ve sz) (w_ty _) (w_ty sz) [:: Eu 1] [:: Ea 0] (reg_msb_flag sz) (semi ve sz) (check sz) 2 (valid ve sz) doit (pp_asm ve sz)), (name%_string,prc))  (only parsing).
 
 Notation mk_ve_instr_w2_w_120 name semi check prc valid doit pp_asm := ((fun (ve:velem) sz =>
-  mk_instr_safe (pp_ve_sz name ve sz) (w2_ty sz sz) (w_ty sz) [:: Ea 1 ; Eu 2] [:: Ea 0] MSB_CLEAR (semi ve sz) (check sz) 3 (valid ve sz) (doit ve) (pp_asm ve sz)), (name%string,prc))  (only parsing).
+  mk_instr_safe (pp_ve_sz name ve sz) (w2_ty sz sz) (w_ty sz) [:: Ea 1 ; Eu 2] [:: Ea 0] MSB_CLEAR (semi ve sz) (check sz) 3 (valid ve sz) (doit ve) (pp_asm ve sz)), (name%_string,prc))  (only parsing).
 
 Notation mk_ve_instr_ww128_w_120 name semi check prc valid doit pp_asm := ((fun ve sz =>
-  mk_instr_safe (pp_ve_sz name ve sz) (w2_ty sz U128) (w_ty sz) [:: Ea 1 ; Eu 2] [:: Ea 0] (reg_msb_flag sz) (semi ve sz) (check sz) 3 (valid ve sz) doit (pp_asm ve sz)), (name%string,prc))  (only parsing).
+  mk_instr_safe (pp_ve_sz name ve sz) (w2_ty sz U128) (w_ty sz) [:: Ea 1 ; Eu 2] [:: Ea 0] (reg_msb_flag sz) (semi ve sz) (check sz) 3 (valid ve sz) doit (pp_asm ve sz)), (name%_string,prc))  (only parsing).
 
 Definition max_32 (sz:wsize) := if (sz <= U32)%CMP then sz else U32.
 
@@ -1465,7 +1465,7 @@ Definition Ox86_VPMULU_instr := ((fun sz => mk_instr_safe (pp_sz "VPMULU" sz) (w
 
 Notation mk_instr_vpmulh name semi prc doit asm_name :=
   ((λ sz,
-     mk_instr_safe (pp_ve_sz name VE16 sz) (w2_ty sz sz) (w_ty sz) [:: Eu 1 ; Eu 2 ] [:: Eu 0] (reg_msb_flag sz) (semi sz) (check_xmm_xmm_xmmm sz) 3 (size_128_256 sz) doit (pp_viname asm_name VE16 sz)), (name%string, primV_16 (λ _, prc)))  (only parsing).
+     mk_instr_safe (pp_ve_sz name VE16 sz) (w2_ty sz sz) (w_ty sz) [:: Eu 1 ; Eu 2 ] [:: Eu 0] (reg_msb_flag sz) (semi sz) (check_xmm_xmm_xmmm sz) 3 (size_128_256 sz) doit (pp_viname asm_name VE16 sz)), (name%_string, primV_16 (λ _, prc)))  (only parsing).
 
 Definition x86_VPMULH sz v1 v2 :=
   lift2_vec U16 (@wmulhs U16) sz v1 v2.
@@ -2074,7 +2074,7 @@ Definition mk_instr_aes3 jname aname doit (constr: wsize → x86_op) x86_sem  :=
            (check_xmm_xmm_xmmm sz) 3
            (size_128_256 sz) doit
            (pp_name_ty aname [:: sz; sz; sz ]),
-   (jname%string, prim_128_256 constr)).
+   (jname%_string, prim_128_256 constr)).
 
 Definition Ox86_AESDEC_instr :=
   mk_instr_aes2 "AESDEC" "aesdec" DOIT AESDEC x86_AESDEC MSB_MERGE.
