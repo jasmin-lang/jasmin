@@ -607,6 +607,16 @@ Let ak_rr := ak_reg_reg.
 Let ak_rrr := ak_reg_reg_reg.
 Let ak_rrrr := ak_reg_reg_reg_reg.
 
+(* The memory argument of a load or store of a [ws] datum: its address is
+   restricted to the encodable forms ([CAmemC_armv8a_ldst] in
+   armv8a_decl.v). *)
+Let ak_reg_addr_ldst (ws : wsize) :=
+  [:: [:: [:: CAreg ]; [:: CAmem (CAmemC_armv8a_ldst ws) ] ] ].
+
+(* The operand of ADR: an address relative to the PC ([CAmemC_armv8a_adr]). *)
+Let ak_reg_addr_adr :=
+  [:: [:: [:: CAreg ]; [:: CAmem CAmemC_armv8a_adr ] ] ].
+
 Let ak_rr_or_imm (ick : option armv8a_caimm_cond) :=
   if ick is Some ic
   then ak_reg_reg ++ [:: [:: [:: CAreg ]; [:: CAimm (Some ic) osz ] ] ]
@@ -1623,7 +1633,7 @@ Definition armv8a_ADR_instr : instr_desc_t :=
     id_out := [:: Ea 0 ];
     id_semi_total := semi;
     id_nargs := 2;
-    id_args_kinds := ak_reg_addr;
+    id_args_kinds := ak_reg_addr_adr;
     id_eq_size := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := armv8a_mn_str mn;
@@ -2193,7 +2203,7 @@ Definition armv8a_load_instr mn : instr_desc_t :=
     id_out := [:: Ea 0 ];
     id_semi_total := semi;
     id_nargs := 2;
-    id_args_kinds := ak_reg_addr;
+    id_args_kinds := ak_reg_addr_ldst wacc;
     id_eq_size := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := armv8a_mn_str mn;
@@ -2370,7 +2380,7 @@ Definition armv8a_store_instr mn : instr_desc_t :=
     id_out := [:: Eu 1 ];
     id_semi_total := semi;
     id_nargs := 2;
-    id_args_kinds := ak_reg_addr;
+    id_args_kinds := ak_reg_addr_ldst wacc;
     id_eq_size := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := armv8a_mn_str mn;
@@ -2452,7 +2462,7 @@ Definition wsize_pair (ws : wsize) : wsize := if ws == U32 then U64 else U128.
    address of a global into a register ([armv8a_is_load]). *)
 Let ak_reg_reg_pair :=
   [:: [:: [:: CAreg ]; [:: CAreg ];
-          [:: CAmem false (Some (CAmemC_armv8a_pair osz)) ] ] ].
+          [:: CAmem (CAmemC_armv8a_pair osz) ] ] ].
 
 (* [C6.2.214 LDP] ARM DDI 0487 M.d
    Load pair of registers. Signed offset form:

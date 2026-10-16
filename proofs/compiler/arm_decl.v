@@ -179,6 +179,51 @@ Definition arm_caimm_cond_pp (checker : arm_caimm_cond) : string :=
   | CAimmC_arm_0_8_16_24 => "[0; 8; 16; 24]"
   end%string.
 
+(* Memory-argument conditions (see [camem_cond] in arch_decl.v).
+   [CAmemC_arm_ldst]: the address of a load or store (LDR, STR and the
+   narrow and signed loads and stores), in the Thumb-2 encodings
+   (ARM DDI 0403E.e, A7.7.43 LDR (immediate), A7.7.45 LDR (register), and
+   the entries of LDRB, LDRH, LDRSB, LDRSH, STR, STRB and STRH). In the
+   immediate form, [<Rn>, #<imm>], the offset is in [0, 4095] (encoding T3,
+   imm12) or in [-255, 255] (encoding T4, imm8 and the U bit); in the
+   register form, [<Rn>, <Rm>{, LSL #<imm2>}], the shift amount is in
+   [0, 3]. The forms are the same for every access size, and an address
+   has either an immediate or a register offset. *)
+#[only(eqbOK)] derive
+Variant arm_camem_cond :=
+  | CAmemC_arm_ldst.
+
+#[ export ]
+Instance eqTC_arm_camem_cond : eqTypeC arm_camem_cond :=
+  { ceqP := arm_camem_cond_eqb_OK }.
+
+Definition is_ldst_offset (d : Z) : bool :=
+  ((-255 <=? d) && (d <=? 4095))%Z.
+
+(* Thumb-2 has no PC-relative addressing for the loads and stores (the
+   literal form of LDR, within 4 KB of the PC, is not used), so an address
+   relative to the instruction pointer is never accepted. *)
+Definition arm_check_CAmem
+  (checker : arm_camem_cond) (a : address_ register arm_reg_size) : bool :=
+  match a with
+  | Arip _ => false
+  | Areg ra =>
+    match checker with
+    | CAmemC_arm_ldst =>
+      isSome ra.(ad_base)
+      && if isSome ra.(ad_offset)
+         then (ra.(ad_disp) == 0%w) && Nat.leb ra.(ad_scale) 3
+         else is_ldst_offset (wsigned ra.(ad_disp))
+    end
+  end.
+
+Definition arm_camem_cond_pp (checker : arm_camem_cond) : seq string :=
+  match checker with
+  | CAmemC_arm_ldst =>
+    [:: "[base + imm], imm in [-255, 4095]"
+      ; "[base + s * index], s in {1, 2, 4, 8}" ]
+  end%string.
+
 #[ export ]
 Instance arm_decl : arch_decl register register_ext xregister rflag condt :=
   { reg_size  := arm_reg_size
@@ -195,10 +240,10 @@ Instance arm_decl : arch_decl register register_ext xregister rflag condt :=
   ; caimm_cond_eqC := eqTC_arm_caimm_cond
   ; caimm_cond_pp := arm_caimm_cond_pp
   ; check_CAimm := arm_check_CAimm
-  ; camem_cond := empty
-  ; camem_cond_eqC := eqTC_empty
-  ; camem_cond_pp := of_empty _
-  ; check_CAmem := fun c _ _ _ _ => of_empty _ c
+  ; camem_cond := arm_camem_cond
+  ; camem_cond_eqC := eqTC_arm_camem_cond
+  ; camem_cond_pp := arm_camem_cond_pp
+  ; check_CAmem := arm_check_CAmem
   }.
 
 Definition arm_linux_call_conv : calling_convention :=

@@ -152,15 +152,12 @@ Record asm_gen_params :=
   {
     agp_assemble_cond : instr_info -> fexpr -> cexec cond_t;
       (* Assemble an expression into an architecture-specific condition. *)
-    agp_is_valid_address : reg_address -> bool;
-      (* Checks whether the addressing mode is supported on the given arch. *)
   }.
 
 Context
   (agparams : asm_gen_params).
 
 Notation assemble_cond := (agp_assemble_cond agparams).
-Notation is_valid_address := (agp_is_valid_address agparams).
 
 (* -------------------------------------------------------------------- *)
 (* Compilation of fexprs *)
@@ -208,12 +205,7 @@ Definition assemble_lea_checked ii (pp_fe : pp_error) lea :=
     with_pel_msg err (pp_vbox vbox)
   in
   Let addr := Result.map_err mk_err (assemble_lea ii lea) in
-  Let _ := assert (is_valid_address addr)
-                  (E.error ii (pp_vbox
-                    [:: pp_s "the address computation is too complex";
-                        pp_nobox [:: pp_s "  "; pp_fe];
-                        pp_s "an intermediate variable might be needed"]))
-  in ok (Areg addr).
+  ok (Areg addr).
 
 Let is_none {A: Type} (m: option A) : bool :=
       if m is None then true else false.
@@ -438,7 +430,7 @@ Definition check_arg_kind_no_imm (a:asm_arg) (cond: arg_kind) :=
   | ImmRip k _, CAimmRip k' => k == k'
   | Reg _ , CAreg => true
   | Regx _, CAregx => true
-  | Addr _, CAmem _ _ => true
+  | Addr _, CAmem _ => true
   | XReg _, CAxmm   => true
   | _, _ => false
   end.
@@ -478,9 +470,8 @@ Definition enforce_imm_arg_kind (a:asm_arg) (cond: arg_kind) : option asm_arg :=
   | ImmRip k _, CAimmRip k' => if k == k' then Some a else None
   | Reg _, CAreg => Some a
   | Regx _, CAregx => Some a
-  | Addr addr, CAmem _ checker =>
-    if oapp (fun c => check_CAmem_address c addr) true checker
-    then Some a else None
+  | Addr addr, CAmem checker =>
+    if check_CAmem checker addr then Some a else None
   | XReg _, CAxmm   => Some a
   | _, _ => None
   end.
@@ -499,16 +490,19 @@ Definition enforce_imm_args_kinds (args:asm_args) (cond:args_kinds) : option asm
 Definition enforce_imm_i_args_kinds (cond:i_args_kinds) (a:asm_args) :=
   utils.find_map (enforce_imm_args_kinds a) cond.
 
-Definition pp_arg_kind c :=
+(* Printing of the argument kinds, for the error messages.
+   An alternative [args_kinds] is printed on one line, the kinds accepted at
+   a position separated by "|"; the conditions on the immediates and on the
+   addresses are listed under the line, one per argument, with the shapes
+   of an address one per line:
+     reg, (reg | mem)
+       mem: [base + imm], imm in [-255, 4095]
+            [base + s * index], s in {1, 2, 4, 8} *)
+
+Definition pp_arg_kind_tag c :=
   match c with
-  | CAmem b checker =>
-      pp_nobox
-        ([:: pp_s "mem (glob "; pp_s (if b then "" else "not ")%string; pp_s "allowed)"]
-         ++ oapp (fun c => [:: pp_s " "; pp_s (camem_cond_pp c)]) [::] checker)
-  | CAimm checker ws =>
-      pp_nobox
-        ([:: pp_s "imm "; pp_s (string_of_wsize ws)]
-         ++ oapp (fun c => [:: pp_s " "; pp_s (caimm_cond_pp c)]) [::] checker)
+  | CAmem _ => pp_s "mem"
+  | CAimm _ ws => pp_nobox [:: pp_s "imm "; pp_s (string_of_wsize ws)]
   | CAimmRip k =>
       pp_s (if k is RipLo16 then "glob addr (lo16)" else "glob addr (hi16)")%string
   | CAcond => pp_s "cond"
@@ -517,19 +511,81 @@ Definition pp_arg_kind c :=
   | CAxmm => pp_s "xreg"
   end.
 
-Definition pp_arg_kinds cond :=
-  pp_box [:: pp_nobox [:: pp_s "["; pp_list (pp_break_s ";") pp_arg_kind cond; pp_s "]"]].
+(* The conditions imposed by a kind, one line each; empty if none. *)
+Definition arg_kind_conds c : seq string :=
+  match c with
+  | CAmem checker => camem_cond_pp checker
+  | CAimm (Some checker) _ => [:: caimm_cond_pp checker ]
+  | _ => [::]
+  end.
 
-Definition pp_args_kinds cond :=
-  pp_box [:: pp_nobox [:: pp_s "["; pp_list (pp_break_s ";") pp_arg_kinds cond; pp_s "]"]].
+Definition pp_arg_kinds (ks : arg_kinds) :=
+  if ks is [:: k ] then pp_arg_kind_tag k
+  else pp_nobox [:: pp_s "("; pp_list (pp_s " | ") pp_arg_kind_tag ks; pp_s ")"].
+
+Definition pp_arg_kind_conds c :=
+  if arg_kind_conds c is [::] then [::]
+  else
+    [:: pp_nobox [:: pp_arg_kind_tag c; pp_s ": ";
+          pp_vbox [:: pp_list PPEbreak pp_s (arg_kind_conds c) ] ] ].
+
+Definition pp_args_kinds (a : args_kinds) :=
+  let line := pp_list (pp_s ", ") pp_arg_kinds a in
+  if flatten (map (fun ks => flatten (map pp_arg_kind_conds ks)) a) is [::] then line
+  else
+    pp_vbox [:: line;
+      pp_nobox [:: pp_s "  ";
+        pp_vbox [:: pp_list PPEbreak idfun
+          (flatten (map (fun ks => flatten (map pp_arg_kind_conds ks)) a)) ] ] ].
 
 Definition pp_i_args_kinds cond :=
   pp_vbox [:: pp_list PPEbreak pp_args_kinds cond].
 
-(* Whether some argument kind in [cond] restricts the shape of an address;
-   used to word the error message of [assemble_asm_op]. *)
+(* Whether some argument kind in [cond] restricts the shape of an address
+   (a condition with no description accepts every address); used to word
+   the error message of [assemble_asm_op]. *)
 Definition has_CAmem_cond (cond : i_args_kinds) : bool :=
-  has (has (has (fun c => if c is CAmem _ (Some _) then true else false))) cond.
+  has (has (has (fun c =>
+    if c is CAmem checker then ~~ nilp (camem_cond_pp checker) else false))) cond.
+
+(* The first argument that no alternative of [cond] accepts, with its
+   position, when the shapes of the arguments match [cond] but the
+   constraints on immediates and addresses do not. *)
+Definition arg_unencodable (cond : i_args_kinds) (n : nat) (a : asm_arg) : bool :=
+  all (fun ks => if onth ks n is Some c then ~~ isSome (enforce_imm_arg_kinds a c) else true) cond.
+
+Definition first_unencodable_arg (cond : i_args_kinds) (args : asm_args) : option (nat * asm_arg) :=
+  utils.find_map
+    (fun na => if arg_unencodable cond na.1 na.2 then Some na else None)
+    (zip (iota 0 (size args)) args).
+
+(* The source expression of the argument at position [n] in assembly syntax. *)
+Definition source_of_arg (id : instr_desc_t) (outx : lexprs) (inx : rexprs) (n : nat) : option rexpr :=
+  utils.find_map
+    (fun ade => if ade.1 is ADExplicit _ m _ then if m == n then Some ade.2 else None else None)
+    (zip (id.(id_in) ++ id.(id_out)) (inx ++ map rexpr_of_lexpr outx)).
+
+(* The arguments of the instruction, in assembly order, the unencodable
+   one highlighted. *)
+Definition pp_unencodable_arg (id : instr_desc_t) s (cond : i_args_kinds) (outx : lexprs) (inx : rexprs) (asm_args : asm_args) :=
+  match first_unencodable_arg cond asm_args with
+  | Some (n, a) =>
+    let what := if a is Addr _ then "address" else "immediate" in
+    let pp_arg m :=
+      let e := if source_of_arg id outx inx m is Some e then pp_re e else pp_s "?" in
+      if m == n then PPEhighlight e else e in
+    pp_nobox [::
+      pp_box [:: pp_s "instruction"; pp_s s;
+        pp_s ("is given an unencodable " ++ what ++ " as an argument:") ];
+      PPEbreak;
+      pp_nobox [:: pp_s "  "; pp_list (pp_s ", ") pp_arg (iota 0 (size asm_args)) ] ]
+  | None =>
+    pp_box [:: pp_s "instruction"; pp_s s;
+      pp_s (if has_CAmem_cond cond
+            then "is given at least one too large immediate or unencodable"
+                 ++ " address as an argument."
+            else "is given at least one too large immediate as an argument.") ]
+  end%string.
 
 Definition assemble_asm_op rip ii op (outx : lexprs) (inx : rexprs) :=
   let id := instr_desc op in
@@ -548,11 +604,7 @@ Definition assemble_asm_op rip ii op (outx : lexprs) (inx : rexprs) :=
     else
       let mem := has_CAmem_cond args_kinds in
       Error (E.error ii (pp_nobox [::
-        pp_box [:: pp_s "instruction"; pp_s s;
-          pp_s (if mem
-                then "is given at least one too large immediate or unencodable"
-                     ++ " address as an argument."
-                else "is given at least one too large immediate as an argument.")%string];
+        pp_unencodable_arg id s args_kinds outx inx asm_args;
         PPEbreak;
         pp_vbox [::
         pp_s (if mem

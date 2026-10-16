@@ -1,0 +1,56 @@
+/* Addresses of loads and stores at the limits of the encodable forms:
+   unsigned scaled offset (imm12), unscaled signed offset (imm9, the LDUR
+   and STUR encodings), and register offset with the shift of the access
+   size. */
+
+export
+fn ldst_addr(reg u64 p i) -> reg u64 {
+    reg u64 a b;
+    reg u32 c;
+
+    // Unsigned scaled offsets, upper bound.
+    a = [:u64 p + 32760];
+    c = [:u32 p + 16380];
+    b = (64u)[:u16 p + 8190];
+    a += b;
+    b = (64u)[:u8 p + 4095];
+    a += b;
+    [:u64 p + 32760] = a;
+    [:u32 p + 16380] = c;
+    [:u16 p + 8190] = a;
+    [:u8 p + 4095] = a;
+
+    // Unscaled offsets: negative, or not a multiple of the access size.
+    b = [:u64 p - 256];
+    a += b;
+    b = [:u64 p + 255];
+    a += b;
+    b = [:u64 p + 4];
+    a += b;
+    c = [:u32 p - 4];
+    b = (64s)[:u16 p + 1];
+    a += b;
+    [:u64 p - 256] = a;
+    [:u64 p + 255] = a;
+    [:u32 p + 2] = c;
+    [:u16 p - 3] = a;
+
+    // Register offsets, with the shift of the access size or none.
+    b = [:u64 p + 8 * i];
+    a += b;
+    b = [:u64 p + i];
+    a += b;
+    c = [:u32 p + 4 * i];
+    b = (64u)[:u16 p + 2 * i];
+    a += b;
+    b = (64s)[:u8 p + i];
+    a += b;
+    [:u64 p + 8 * i] = a;
+    [:u32 p + 4 * i] = c;
+    [:u16 p + 2 * i] = a;
+    [:u8 p + i] = a;
+
+    b = (64u)c;
+    a += b;
+    return a;
+}

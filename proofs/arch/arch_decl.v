@@ -53,12 +53,47 @@ Definition rtype {t T} `{ToString t T} := t.
    conditions (e.g. x86) use [empty]. This keeps each architecture's
    conditions in its own files.
 
-   Memory-argument conditions work the same way: [camem_cond] and
-   [check_CAmem] restrict the shape of the address of a memory operand
-   (given by the fields of a [reg_address]), for
-   instructions whose encoding accepts fewer addressing modes than the
-   architecture's other loads and stores. Addresses relative to the
-   instruction pointer never satisfy a condition. *)
+   Memory-argument conditions work the same way: every memory operand
+   carries a [camem_cond], and [check_CAmem] decides whether an [address]
+   has a shape that the encoding accepts, including whether an address
+   relative to the instruction pointer (a global) is accepted. An
+   architecture whose instructions accept every address (x86) uses [unit],
+   with a checker that always succeeds and an empty description. *)
+
+(* -------------------------------------------------------------------- *)
+(* Addresses, for a type of registers and a size of pointers.
+ * An address consists of
+ *   - A displacement (an immediate value).
+ *   - A base (a register).
+ *   - A scale.
+ *   - An offset (a register).
+ * The effective address is displacement + base + offset * scale.
+ * An architecture declaration ([arch_decl] below) fixes the register type
+ * and the pointer size: [reg_address] and [address] are the instances.
+ *)
+Section ADDRESS.
+Context (reg : Type) (sz : wsize).
+
+Record reg_address_ : Type := mkAddress
+  { ad_disp   : word sz
+  ; ad_base   : option reg
+  ; ad_scale  : nat
+  ; ad_offset : option reg
+  }.
+
+Variant address_ :=
+| Areg of reg_address_ (* Absolute address. *)
+| Arip of word sz.     (* Address relative to the instruction pointer. *)
+
+End ADDRESS.
+
+Arguments mkAddress {reg sz}.
+Arguments ad_disp {reg sz}.
+Arguments ad_base {reg sz}.
+Arguments ad_scale {reg sz}.
+Arguments ad_offset {reg sz}.
+Arguments Areg {reg sz}.
+Arguments Arip {reg sz}.
 
 (* -------------------------------------------------------------------- *)
 (* Basic architecture declaration.
@@ -81,10 +116,8 @@ Class arch_decl (reg regx xreg rflag cond : Type) :=
   ; check_CAimm : caimm_cond -> forall ws, word ws -> bool
   ; camem_cond : Type  (* architecture-specific memory-argument conditions *)
   ; camem_cond_eqC : eqTypeC camem_cond
-  ; camem_cond_pp : camem_cond -> string  (* for error messages *)
-  ; check_CAmem :
-      camem_cond -> word reg_size (* displacement *) -> option reg (* base *) ->
-      nat (* scale *) -> option reg (* offset *) -> bool
+  ; camem_cond_pp : camem_cond -> seq string  (* the accepted shapes, for error messages *)
+  ; check_CAmem : camem_cond -> address_ reg reg_size -> bool
   }.
 
 #[global]
@@ -106,6 +139,10 @@ Definition regx_t  {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg r
 Definition xreg_t  {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond} := xreg.
 Definition rflag_t {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond} := rflag.
 Definition cond_t  {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond} := cond.
+
+(* The addresses of an architecture. *)
+Notation reg_address := (reg_address_ reg_t reg_size).
+Notation address := (address_ reg_t reg_size).
 
 Notation sem_lt t := (sem_t (eval_ltype t)).
 Notation sem_olt t := (sem_ot (eval_ltype t)).
@@ -135,30 +172,6 @@ Proof.
   apply/eqP. move=> []. apply/eqP. exact: reg_size_neq_xreg_size.
 Qed.
 
-(* -------------------------------------------------------------------- *)
-(* Addresses.
- * An address consists of
- *   - A displacement (an immediate value).
- *   - A base (a register).
- *   - A scale.
- *   - An offset (a register).
- * The effective address is displacement + base + offset * scale.
- *)
-Record reg_address : Type := mkAddress
-  { ad_disp   : pointer
-  ; ad_base   : option reg_t
-  ; ad_scale  : nat
-  ; ad_offset : option reg_t
-  }.
-
-Variant address :=
-| Areg of reg_address (* Absolute address. *)
-| Arip of pointer.    (* Address relative to instruction pointer. *)
-
-Definition check_CAmem_address (c : camem_cond) (a : address) : bool :=
-  if a is Areg ra
-  then check_CAmem c ra.(ad_disp) ra.(ad_base) ra.(ad_scale) ra.(ad_offset)
-  else false.
 
 Definition oeq_reg (x y:option reg_t) :=
   @eq_op (option ceqT_eqType) x y.
@@ -354,7 +367,7 @@ Variant arg_kind :=
 | CAreg
 | CAregx
 | CAxmm
-| CAmem of bool & option camem_cond (* true if Global is allowed *)
+| CAmem of camem_cond
 | CAimm of option caimm_cond & wsize
 | CAimmRip of rip_imm_kind.
 
@@ -367,8 +380,7 @@ Definition arg_kind_eqb (a1 a2 : arg_kind) : bool :=
   | CAreg, CAreg
   | CAregx, CAregx
   | CAxmm, CAxmm => true
-  | CAmem b1 c1, CAmem b2 c2 =>
-      (b1 == b2) && ((c1 : option ceqT_eqType) == c2)
+  | CAmem c1, CAmem c2 => (c1 : ceqT_eqType) == c2
   | CAimm c1 ws1, CAimm c2 ws2 =>
       ((c1 : option ceqT_eqType) == c2) && (ws1 == ws2)
   | CAimmRip k1, CAimmRip k2 => k1 == k2
@@ -378,8 +390,8 @@ Definition arg_kind_eqb (a1 a2 : arg_kind) : bool :=
 Lemma arg_kind_eqb_OK : forall a1 a2, reflect (a1 = a2) (arg_kind_eqb a1 a2).
 Proof.
   move=> a1 a2; apply: (iffP idP).
-  - case: a1 a2 => [||||b1 c1|c1 ws1|k1] [||||b2 c2|c2 ws2|k2] //=.
-    + by move=> /andP [/eqP -> /eqP ->].
+  - case: a1 a2 => [||||c1|c1 ws1|k1] [||||c2|c2 ws2|k2] //=.
+    + by move=> /eqP ->.
     + by move=> /andP [/eqP -> /eqP ->].
     by move=> /eqP ->.
   move=> <-; case: a1 => //= *; by rewrite !eqxx.
@@ -418,8 +430,7 @@ Definition check_arg_kind (a:asm_arg) (cond: arg_kind) :=
   | ImmRip k _, CAimmRip k' => k == k'
   | Reg _ , CAreg => true
   | Regx _, CAregx => true
-  | Addr a, CAmem _ checker =>
-      oapp (fun c => check_CAmem_address c a) true checker
+  | Addr a, CAmem checker => check_CAmem checker a
   | XReg _, CAxmm   => true
   | _, _ => false
   end.
@@ -618,7 +629,7 @@ Proof. by rewrite size_map. Qed.
 
 Definition is_not_CAmem (cond : arg_kind) :=
   match cond with
-  | CAmem _ _ => false
+  | CAmem _ => false
   | _ => true
   end.
 

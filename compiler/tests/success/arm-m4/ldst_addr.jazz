@@ -1,0 +1,50 @@
+/* Addresses of loads and stores at the limits of the Thumb-2 encodings:
+   immediate offset in [-255, 4095] (encodings T3 and T4), and register
+   offset shifted by 0 to 3. The forms do not depend on the access size. */
+
+export
+fn ldst_addr(reg u32 p i) -> reg u32 {
+    reg u32 a b;
+
+    // Immediate offsets, upper and lower bounds.
+    a = [:u32 p + 4095];
+    b = (32u)[:u16 p + 4095];
+    a += b;
+    b = (32u)[:u8 p + 4095];
+    a += b;
+    b = [:u32 p - 255];
+    a += b;
+    b = (32s)[:u16 p - 255];
+    a += b;
+    b = (32s)[:u8 p - 255];
+    a += b;
+    b = [:u32 p + 4093];
+    a += b;
+    [:u32 p + 4095] = a;
+    [:u16 p + 4095] = a;
+    [:u8 p + 4095] = a;
+    [:u32 p - 255] = a;
+    [:u16 p - 255] = a;
+    [:u8 p - 255] = a;
+    [:u32 p + 4093] = a;
+
+    // Register offsets, shifted by 0 to 3.
+    b = [:u32 p + i];
+    a += b;
+    b = [:u32 p + 2 * i];
+    a += b;
+    b = [:u32 p + 4 * i];
+    a += b;
+    b = [:u32 p + 8 * i];
+    a += b;
+    b = (32u)[:u8 p + 8 * i];
+    a += b;
+    b = (32s)[:u16 p + 8 * i];
+    a += b;
+    [:u32 p + i] = a;
+    [:u32 p + 8 * i] = a;
+    [:u16 p + 8 * i] = a;
+    [:u8 p + 8 * i] = a;
+
+    return a;
+}

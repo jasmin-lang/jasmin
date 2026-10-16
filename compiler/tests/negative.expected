@@ -30,23 +30,29 @@ fail/arm-m4/adc_imm_too_large.jazz:
 
 "fail/arm-m4/adc_imm_too_large.jazz", line 5 (4-31):
 compilation error in function main:
-asmgen: instruction ADC is given at least one too large immediate as an argument.
+asmgen: instruction ADC is given an unencodable immediate as an argument:
+  r0, r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32 (shift = allowed, none = not allowed)]]
+  reg, reg, imm 32
+    imm 32: (shift = allowed, none = not allowed)
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32 (shift = allowed, none = not allowed)]]
+  reg, reg, reg
+  reg, reg, imm 32
+    imm 32: (shift = allowed, none = not allowed)
 
 fail/arm-m4/add_imm_too_large.jazz:
 
 "fail/arm-m4/add_imm_too_large.jazz", line 3 (4-28):
 compilation error in function main:
-asmgen: instruction ADD is given at least one too large immediate as an argument.
+asmgen: instruction ADD is given an unencodable immediate as an argument:
+  r0, r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32 (shift = allowed, none = W12)]]
+  reg, reg, imm 32
+    imm 32: (shift = allowed, none = W12)
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32 (shift = allowed, none = W12)]]
+  reg, reg, reg
+  reg, reg, imm 32
+    imm 32: (shift = allowed, none = W12)
 
 fail/arm-m4/add_shift.jazz:
 
@@ -59,56 +65,71 @@ fail/arm-m4/addw_set_flags.jazz:
 
 "fail/arm-m4/addw_set_flags.jazz", line 3 (4-34):
 compilation error in function main:
-asmgen: instruction ADDS is given at least one too large immediate as an argument.
+asmgen: instruction ADDS is given an unencodable immediate as an argument:
+  r0, r0, (32u) 2762
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32 (shift = allowed, none = not allowed)]]
+  reg, reg, imm 32
+    imm 32: (shift = allowed, none = not allowed)
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32 (shift = allowed, none = not allowed)]]
+  reg, reg, reg
+  reg, reg, imm 32
+    imm 32: (shift = allowed, none = not allowed)
 
 fail/arm-m4/and_imm_shifted.jazz:
 
 "fail/arm-m4/and_imm_shifted.jazz", line 3 (4-28):
 compilation error in function main:
-asmgen: instruction AND is given at least one too large immediate as an argument.
+asmgen: instruction AND is given an unencodable immediate as an argument:
+  r0, r0, (32u) 831488
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, reg, reg
+  reg, reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 
 fail/arm-m4/and_imm_too_large.jazz:
 
 "fail/arm-m4/and_imm_too_large.jazz", line 3 (4-28):
 compilation error in function main:
-asmgen: instruction AND is given at least one too large immediate as an argument.
+asmgen: instruction AND is given an unencodable immediate as an argument:
+  r0, r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, reg, reg
+  reg, reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 
 fail/arm-m4/bic_imm_shifted.jazz:
 
 "fail/arm-m4/bic_imm_shifted.jazz", line 3 (4-28):
 compilation error in function main:
-asmgen: instruction BIC is given at least one too large immediate as an argument.
+asmgen: instruction BIC is given an unencodable immediate as an argument:
+  r0, r0, (32u) 831488
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, reg, reg
+  reg, reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 
 fail/arm-m4/bic_imm_too_large.jazz:
 
 "fail/arm-m4/bic_imm_too_large.jazz", line 3 (4-28):
 compilation error in function main:
-asmgen: instruction BIC is given at least one too large immediate as an argument.
+asmgen: instruction BIC is given an unencodable immediate as an argument:
+  r0, r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, reg, reg
+  reg, reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 
 fail/arm-m4/bug_1112.jazz:
 
@@ -119,88 +140,116 @@ fail/arm-m4/bug_667.jazz:
 
 "fail/arm-m4/bug_667.jazz", line 9 (2-16):
 compilation error in function main:
-asmgen: the address computation is too complex
-          sp +32u ((32u) 4 *32u r0 +32u (32u) 4)
-        an intermediate variable might be needed
+asmgen: instruction LDR is given an unencodable address as an argument:
+  r1, [:u32 sp +32u ((32u) 4 *32u r0 +32u (32u) 4)]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm in [-255, 4095]
+         [base + s * index], s in {1, 2, 4, 8}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm in [-255, 4095]
+         [base + s * index], s in {1, 2, 4, 8}
 
 fail/arm-m4/cmp_imm_too_large.jazz:
 
 "fail/arm-m4/cmp_imm_too_large.jazz", line 4 (4-37):
 compilation error in function main:
-asmgen: instruction CMP is given at least one too large immediate as an argument.
+asmgen: instruction CMP is given an unencodable immediate as an argument:
+  r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [imm 32 (shift = allowed, none = not allowed)]]
+  reg, imm 32
+    imm 32: (shift = allowed, none = not allowed)
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]]
-  [[reg]; [imm 32 (shift = allowed, none = not allowed)]]
+  reg, reg
+  reg, imm 32
+    imm 32: (shift = allowed, none = not allowed)
 
 fail/arm-m4/eor_imm_shifted.jazz:
 
 "fail/arm-m4/eor_imm_shifted.jazz", line 3 (4-28):
 compilation error in function main:
-asmgen: instruction EOR is given at least one too large immediate as an argument.
+asmgen: instruction EOR is given an unencodable immediate as an argument:
+  r0, r0, (32u) 831488
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, reg, reg
+  reg, reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 
 fail/arm-m4/eor_imm_too_large.jazz:
 
 "fail/arm-m4/eor_imm_too_large.jazz", line 3 (4-28):
 compilation error in function main:
-asmgen: instruction EOR is given at least one too large immediate as an argument.
+asmgen: instruction EOR is given an unencodable immediate as an argument:
+  r0, r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, reg, reg
+  reg, reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 
 fail/arm-m4/mov_imm_shifted.jazz:
 
 "fail/arm-m4/mov_imm_shifted.jazz", line 3 (4-25):
 compilation error in function main:
-asmgen: instruction MOV is given at least one too large immediate as an argument.
+asmgen: instruction MOV is given an unencodable immediate as an argument:
+  r0, (32u) 831488
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [imm 32 (shift = W16, none = W16)]]
+  reg, imm 32
+    imm 32: (shift = W16, none = W16)
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]]
-  [[reg]; [imm 32 (shift = W16, none = W16)]]
-  [[reg]; [glob addr (lo16)]]
+  reg, reg
+  reg, imm 32
+    imm 32: (shift = W16, none = W16)
+  reg, glob addr (lo16)
 
 fail/arm-m4/mov_imm_too_large.jazz:
 
 "fail/arm-m4/mov_imm_too_large.jazz", line 3 (4-25):
 compilation error in function main:
-asmgen: instruction MOV is given at least one too large immediate as an argument.
+asmgen: instruction MOV is given an unencodable immediate as an argument:
+  r0, (32u) 707274
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [imm 32 (shift = W16, none = W16)]]
+  reg, imm 32
+    imm 32: (shift = W16, none = W16)
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]]
-  [[reg]; [imm 32 (shift = W16, none = W16)]]
-  [[reg]; [glob addr (lo16)]]
+  reg, reg
+  reg, imm 32
+    imm 32: (shift = W16, none = W16)
+  reg, glob addr (lo16)
 
 fail/arm-m4/mov_shiftedw_set_flags.jazz:
 
 "fail/arm-m4/mov_shiftedw_set_flags.jazz", line 3 (4-31):
 compilation error in function main:
-asmgen: instruction MOVS is given at least one too large immediate as an argument.
+asmgen: instruction MOVS is given an unencodable immediate as an argument:
+  r0, (32u) 51968
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]]
-  [[reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, reg
+  reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 
 fail/arm-m4/movw_set_flags.jazz:
 
 "fail/arm-m4/movw_set_flags.jazz", line 3 (4-31):
 compilation error in function main:
-asmgen: instruction MOVS is given at least one too large immediate as an argument.
+asmgen: instruction MOVS is given an unencodable immediate as an argument:
+  r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]]
-  [[reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, reg
+  reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 
 fail/arm-m4/muls_conditional.jazz:
 
@@ -210,78 +259,99 @@ fail/arm-m4/mvn_imm_shifted.jazz:
 
 "fail/arm-m4/mvn_imm_shifted.jazz", line 3 (4-25):
 compilation error in function main:
-asmgen: instruction MVN is given at least one too large immediate as an argument.
+asmgen: instruction MVN is given an unencodable immediate as an argument:
+  r0, (32u) 831488
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]]
-  [[reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, reg
+  reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 
 fail/arm-m4/mvn_imm_too_large.jazz:
 
 "fail/arm-m4/mvn_imm_too_large.jazz", line 3 (4-25):
 compilation error in function main:
-asmgen: instruction MVN is given at least one too large immediate as an argument.
+asmgen: instruction MVN is given an unencodable immediate as an argument:
+  r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]]
-  [[reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, reg
+  reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 
 fail/arm-m4/orr_imm_shifted.jazz:
 
 "fail/arm-m4/orr_imm_shifted.jazz", line 3 (4-28):
 compilation error in function main:
-asmgen: instruction ORR is given at least one too large immediate as an argument.
+asmgen: instruction ORR is given an unencodable immediate as an argument:
+  r0, r0, (32u) 831488
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, reg, reg
+  reg, reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 
 fail/arm-m4/orr_imm_too_large.jazz:
 
 "fail/arm-m4/orr_imm_too_large.jazz", line 3 (4-28):
 compilation error in function main:
-asmgen: instruction ORR is given at least one too large immediate as an argument.
+asmgen: instruction ORR is given an unencodable immediate as an argument:
+  r0, r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32 (shift = not allowed, none = not allowed)]]
+  reg, reg, reg
+  reg, reg, imm 32
+    imm 32: (shift = not allowed, none = not allowed)
 
 fail/arm-m4/rsb_imm_too_large.jazz:
 
 "fail/arm-m4/rsb_imm_too_large.jazz", line 3 (4-28):
 compilation error in function main:
-asmgen: instruction RSB is given at least one too large immediate as an argument.
+asmgen: instruction RSB is given an unencodable immediate as an argument:
+  r0, r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32 (shift = allowed, none = not allowed)]]
+  reg, reg, imm 32
+    imm 32: (shift = allowed, none = not allowed)
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32 (shift = allowed, none = not allowed)]]
+  reg, reg, reg
+  reg, reg, imm 32
+    imm 32: (shift = allowed, none = not allowed)
 
 fail/arm-m4/sub_imm_too_large.jazz:
 
 "fail/arm-m4/sub_imm_too_large.jazz", line 3 (4-28):
 compilation error in function main:
-asmgen: instruction SUB is given at least one too large immediate as an argument.
+asmgen: instruction SUB is given an unencodable immediate as an argument:
+  r0, r0, (32u) 51914
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32 (shift = allowed, none = W12)]]
+  reg, reg, imm 32
+    imm 32: (shift = allowed, none = W12)
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32 (shift = allowed, none = W12)]]
+  reg, reg, reg
+  reg, reg, imm 32
+    imm 32: (shift = allowed, none = W12)
 
 fail/arm-m4/subw_set_flags.jazz:
 
 "fail/arm-m4/subw_set_flags.jazz", line 3 (4-34):
 compilation error in function main:
-asmgen: instruction SUBS is given at least one too large immediate as an argument.
+asmgen: instruction SUBS is given an unencodable immediate as an argument:
+  r0, r0, (32u) 2762
 Allowed args compatible with the input (except on immediate sizes) are:
-  [[reg]; [reg]; [imm 32 (shift = allowed, none = not allowed)]]
+  reg, reg, imm 32
+    imm 32: (shift = allowed, none = not allowed)
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [reg]]
-  [[reg]; [reg]; [imm 32 (shift = allowed, none = not allowed)]]
+  reg, reg, reg
+  reg, reg, imm 32
+    imm 32: (shift = allowed, none = not allowed)
 
 fail/arm-m4/tst_imm_shifted.jazz:
 
@@ -501,89 +571,296 @@ fail/asmgen/arm-m4/address_too_complex.jazz:
 
 "fail/asmgen/arm-m4/address_too_complex.jazz", line 2 (2-23):
 compilation error in function f:
-asmgen: the address computation is too complex
-          r0 +32u ((32u) 4 *32u (r1 +32u (32u) 2) +32u (32u) 0)
-        an intermediate variable might be needed
+asmgen: instruction LDR is given an unencodable address as an argument:
+  r0, [:u32 r0 +32u ((32u) 4 *32u (r1 +32u (32u) 2) +32u (32u) 0)]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm in [-255, 4095]
+         [base + s * index], s in {1, 2, 4, 8}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm in [-255, 4095]
+         [base + s * index], s in {1, 2, 4, 8}
+
+fail/asmgen/arm-m4/ldr_offset_neg.jazz:
+
+"fail/asmgen/arm-m4/ldr_offset_neg.jazz", line 5 (4-23):
+compilation error in function ldr_offset_neg:
+asmgen: instruction LDR is given an unencodable address as an argument:
+  r0, [:u32 r0 -32u (32u) 256]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm in [-255, 4095]
+         [base + s * index], s in {1, 2, 4, 8}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm in [-255, 4095]
+         [base + s * index], s in {1, 2, 4, 8}
+
+fail/asmgen/arm-m4/ldr_offset_range.jazz:
+
+"fail/asmgen/arm-m4/ldr_offset_range.jazz", line 5 (4-24):
+compilation error in function ldr_offset_range:
+asmgen: instruction LDR is given an unencodable address as an argument:
+  r0, [:u32 r0 +32u (32u) 4096]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm in [-255, 4095]
+         [base + s * index], s in {1, 2, 4, 8}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm in [-255, 4095]
+         [base + s * index], s in {1, 2, 4, 8}
+
+fail/asmgen/arm-m4/strh_offset_range.jazz:
+
+"fail/asmgen/arm-m4/strh_offset_range.jazz", line 4 (4-24):
+compilation error in function strh_offset_range:
+asmgen: instruction STRH is given an unencodable address as an argument:
+  r1, [:u16 r0 +32u (32u) 4096]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm in [-255, 4095]
+         [base + s * index], s in {1, 2, 4, 8}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm in [-255, 4095]
+         [base + s * index], s in {1, 2, 4, 8}
 
 fail/asmgen/armv8a/ldp_32_offset_unaligned.jazz:
 
 "fail/asmgen/armv8a/ldp_32_offset_unaligned.jazz", line 5 (4-33):
 compilation error in function ldp_32_offset_unaligned:
-asmgen: instruction LDP_32 is given at least one too large immediate or unencodable address as an argument.
+asmgen: instruction LDP_32 is given an unencodable address as an argument:
+  x0, x1, [:u64 x0 +64u (64u) 2]
 Allowed args compatible with the input (except on immediate sizes and address shapes) are:
-  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 4 in [-256, 252]]]
+  reg, reg, mem
+    mem: [base + imm], imm a multiple of 4 in [-256, 252]
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 4 in [-256, 252]]]
+  reg, reg, mem
+    mem: [base + imm], imm a multiple of 4 in [-256, 252]
 
 fail/asmgen/armv8a/ldp_offset_range.jazz:
 
 "fail/asmgen/armv8a/ldp_offset_range.jazz", line 5 (4-33):
 compilation error in function ldp_offset_range:
-asmgen: instruction LDP_64 is given at least one too large immediate or unencodable address as an argument.
+asmgen: instruction LDP_64 is given an unencodable address as an argument:
+  x0, x1, [:u128 x0 +64u (64u) 512]
 Allowed args compatible with the input (except on immediate sizes and address shapes) are:
-  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+  reg, reg, mem
+    mem: [base + imm], imm a multiple of 8 in [-512, 504]
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+  reg, reg, mem
+    mem: [base + imm], imm a multiple of 8 in [-512, 504]
 
 fail/asmgen/armv8a/ldp_offset_range_neg.jazz:
 
 "fail/asmgen/armv8a/ldp_offset_range_neg.jazz", line 5 (4-33):
 compilation error in function ldp_offset_range_neg:
-asmgen: instruction LDP_64 is given at least one too large immediate or unencodable address as an argument.
+asmgen: instruction LDP_64 is given an unencodable address as an argument:
+  x0, x1, [:u128 x0 -64u (64u) 520]
 Allowed args compatible with the input (except on immediate sizes and address shapes) are:
-  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+  reg, reg, mem
+    mem: [base + imm], imm a multiple of 8 in [-512, 504]
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+  reg, reg, mem
+    mem: [base + imm], imm a multiple of 8 in [-512, 504]
 
 fail/asmgen/armv8a/ldp_offset_unaligned.jazz:
 
 "fail/asmgen/armv8a/ldp_offset_unaligned.jazz", line 5 (4-32):
 compilation error in function ldp_offset_unaligned:
-asmgen: instruction LDP_64 is given at least one too large immediate or unencodable address as an argument.
+asmgen: instruction LDP_64 is given an unencodable address as an argument:
+  x0, x1, [:u128 x0 +64u (64u) 12]
 Allowed args compatible with the input (except on immediate sizes and address shapes) are:
-  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+  reg, reg, mem
+    mem: [base + imm], imm a multiple of 8 in [-512, 504]
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+  reg, reg, mem
+    mem: [base + imm], imm a multiple of 8 in [-512, 504]
 
 fail/asmgen/armv8a/ldp_register_offset.jazz:
 
 "fail/asmgen/armv8a/ldp_register_offset.jazz", line 5 (4-35):
 compilation error in function ldp_register_offset:
-asmgen: instruction LDP_64 is given at least one too large immediate or unencodable address as an argument.
+asmgen: instruction LDP_64 is given an unencodable address as an argument:
+  x0, x1, [:u128 x0 +64u (64u) 8 *64u x1]
 Allowed args compatible with the input (except on immediate sizes and address shapes) are:
-  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+  reg, reg, mem
+    mem: [base + imm], imm a multiple of 8 in [-512, 504]
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+  reg, reg, mem
+    mem: [base + imm], imm a multiple of 8 in [-512, 504]
 
 fail/asmgen/armv8a/ldp_stack_offset.jazz:
 
 "fail/asmgen/armv8a/ldp_stack_offset.jazz", line 8 (4-34):
 compilation error in function ldp_stack_offset:
-asmgen: instruction LDP_64 is given at least one too large immediate or unencodable address as an argument.
+asmgen: instruction LDP_64 is given an unencodable address as an argument:
+  x0, x1, [:u128 sp +64u (64u) 544]
 Allowed args compatible with the input (except on immediate sizes and address shapes) are:
-  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+  reg, reg, mem
+    mem: [base + imm], imm a multiple of 8 in [-512, 504]
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+  reg, reg, mem
+    mem: [base + imm], imm a multiple of 8 in [-512, 504]
+
+fail/asmgen/armv8a/ldr_offset_neg.jazz:
+
+"fail/asmgen/armv8a/ldr_offset_neg.jazz", line 5 (4-23):
+compilation error in function ldr_offset_neg:
+asmgen: instruction LDR_64 is given an unencodable address as an argument:
+  x0, [:u64 x0 -64u (64u) 264]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 8 in [0, 32760] or in [-256, 255]
+         [base + s * index], s in {1, 8}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 8 in [0, 32760] or in [-256, 255]
+         [base + s * index], s in {1, 8}
+
+fail/asmgen/armv8a/ldr_offset_range.jazz:
+
+"fail/asmgen/armv8a/ldr_offset_range.jazz", line 5 (4-25):
+compilation error in function ldr_offset_range:
+asmgen: instruction LDR_64 is given an unencodable address as an argument:
+  x0, [:u64 x0 +64u (64u) 32768]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 8 in [0, 32760] or in [-256, 255]
+         [base + s * index], s in {1, 8}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 8 in [0, 32760] or in [-256, 255]
+         [base + s * index], s in {1, 8}
+
+fail/asmgen/armv8a/ldr_offset_unscaled.jazz:
+
+"fail/asmgen/armv8a/ldr_offset_unscaled.jazz", line 6 (4-23):
+compilation error in function ldr_offset_unscaled:
+asmgen: instruction LDR_64 is given an unencodable address as an argument:
+  x0, [:u64 x0 +64u (64u) 260]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 8 in [0, 32760] or in [-256, 255]
+         [base + s * index], s in {1, 8}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 8 in [0, 32760] or in [-256, 255]
+         [base + s * index], s in {1, 8}
+
+fail/asmgen/armv8a/ldr_register_shift.jazz:
+
+"fail/asmgen/armv8a/ldr_register_shift.jazz", line 5 (4-25):
+compilation error in function ldr_register_shift:
+asmgen: instruction LDR_64 is given an unencodable address as an argument:
+  x0, [:u64 x0 +64u (64u) 4 *64u x1]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 8 in [0, 32760] or in [-256, 255]
+         [base + s * index], s in {1, 8}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 8 in [0, 32760] or in [-256, 255]
+         [base + s * index], s in {1, 8}
+
+fail/asmgen/armv8a/ldrb_register_shift.jazz:
+
+"fail/asmgen/armv8a/ldrb_register_shift.jazz", line 5 (4-29):
+compilation error in function ldrb_register_shift:
+asmgen: instruction LDRB_64 is given an unencodable address as an argument:
+  x0, [:u8 x0 +64u (64u) 2 *64u x1]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm in [-256, 4095]
+         [base + index]
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm in [-256, 4095]
+         [base + index]
 
 fail/asmgen/armv8a/stp_32_offset_range.jazz:
 
 "fail/asmgen/armv8a/stp_32_offset_range.jazz", line 4 (4-35):
 compilation error in function stp_32_offset_range:
-asmgen: instruction STP_32 is given at least one too large immediate or unencodable address as an argument.
+asmgen: instruction STP_32 is given an unencodable address as an argument:
+  x1, x2, [:u64 x0 -64u (64u) 260]
 Allowed args compatible with the input (except on immediate sizes and address shapes) are:
-  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 4 in [-256, 252]]]
+  reg, reg, mem
+    mem: [base + imm], imm a multiple of 4 in [-256, 252]
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 4 in [-256, 252]]]
+  reg, reg, mem
+    mem: [base + imm], imm a multiple of 4 in [-256, 252]
 
 fail/asmgen/armv8a/stp_offset_range.jazz:
 
 "fail/asmgen/armv8a/stp_offset_range.jazz", line 4 (4-33):
 compilation error in function stp_offset_range:
-asmgen: instruction STP_64 is given at least one too large immediate or unencodable address as an argument.
+asmgen: instruction STP_64 is given an unencodable address as an argument:
+  x1, x2, [:u128 x0 +64u (64u) 512]
 Allowed args compatible with the input (except on immediate sizes and address shapes) are:
-  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+  reg, reg, mem
+    mem: [base + imm], imm a multiple of 8 in [-512, 504]
 All allowed args (regardless of the input) are:
-  [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
+  reg, reg, mem
+    mem: [base + imm], imm a multiple of 8 in [-512, 504]
+
+fail/asmgen/armv8a/str_offset_range.jazz:
+
+"fail/asmgen/armv8a/str_offset_range.jazz", line 4 (4-25):
+compilation error in function str_offset_range:
+asmgen: instruction STR_32 is given an unencodable address as an argument:
+  x1, [:u32 x0 +64u (64u) 16384]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 4 in [0, 16380] or in [-256, 255]
+         [base + s * index], s in {1, 4}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 4 in [0, 16380] or in [-256, 255]
+         [base + s * index], s in {1, 4}
+
+fail/asmgen/armv8a/strh_offset_unscaled.jazz:
+
+"fail/asmgen/armv8a/strh_offset_unscaled.jazz", line 4 (4-23):
+compilation error in function strh_offset_unscaled:
+asmgen: instruction STRH_64 is given an unencodable address as an argument:
+  x1, [:u16 x0 +64u (64u) 257]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 2 in [0, 8190] or in [-256, 255]
+         [base + s * index], s in {1, 2}
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm a multiple of 2 in [0, 8190] or in [-256, 255]
+         [base + s * index], s in {1, 2}
+
+fail/asmgen/risc-v/lw_offset_range.jazz:
+
+"fail/asmgen/risc-v/lw_offset_range.jazz", line 5 (4-24):
+compilation error in function lw_offset_range:
+asmgen: instruction LOAD_s32 is given an unencodable address as an argument:
+  x10, [:u32 x10 +32u (32u) 2048]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm in [-2048, 2047]
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm in [-2048, 2047]
+
+fail/asmgen/risc-v/sw_offset_neg.jazz:
+
+"fail/asmgen/risc-v/sw_offset_neg.jazz", line 4 (4-24):
+compilation error in function sw_offset_neg:
+asmgen: instruction STORE_32 is given an unencodable address as an argument:
+  x11, [:u32 x10 -32u (32u) 2049]
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  reg, mem
+    mem: [base + imm], imm in [-2048, 2047]
+All allowed args (regardless of the input) are:
+  reg, mem
+    mem: [base + imm], imm in [-2048, 2047]
 
 fail/asmgen/x86-64/incompatible_args.jazz:
 
@@ -1843,8 +2120,8 @@ fail/x86-64/por_32.jazz:
 compilation error in function por_32:
 asmgen: instruction OR_32 is given incompatible args.
 Allowed args are:
-  [[reg; mem (glob not allowed)]; [reg; imm 32]]
-  [[reg]; [reg; mem (glob allowed)]]
+  (reg | mem), (reg | imm 32)
+  reg, (reg | mem)
 
 fail/x86-64/por_32_intrinsic.jazz:
 
@@ -1856,8 +2133,8 @@ fail/x86-64/por_mem.jazz:
 compilation error in function por_mem:
 asmgen: instruction OR_64 is given incompatible args.
 Allowed args are:
-  [[reg; mem (glob not allowed)]; [reg; imm 32]]
-  [[reg]; [reg; mem (glob allowed)]]
+  (reg | mem), (reg | imm 32)
+  reg, (reg | mem)
 
 fail/x86-64/por_mem_intrinsic.jazz:
 
@@ -1865,7 +2142,7 @@ fail/x86-64/por_mem_intrinsic.jazz:
 compilation error in function por_mem:
 asmgen: instruction POR is given incompatible args.
 Allowed args are:
-  [[regx]; [regx; mem (glob allowed)]]
+  regx, (regx | mem)
 
 fail/x86-64/por_reg.jazz:
 
@@ -1873,7 +2150,7 @@ fail/x86-64/por_reg.jazz:
 compilation error in function por_mmx_reg:
 asmgen: instruction POR is given incompatible args.
 Allowed args are:
-  [[regx]; [regx; mem (glob allowed)]]
+  regx, (regx | mem)
 
 fail/x86-64/por_reg_intrinsic.jazz:
 
@@ -1881,7 +2158,7 @@ fail/x86-64/por_reg_intrinsic.jazz:
 compilation error in function por_mmx_reg:
 asmgen: instruction POR is given incompatible args.
 Allowed args are:
-  [[regx]; [regx; mem (glob allowed)]]
+  regx, (regx | mem)
 
 fail/x86-64/randombytes_length_neg.jazz:
 
@@ -1959,11 +2236,11 @@ fail/x86-64/zxspill.jazz:
 compilation error in function zxspill:
 asmgen: instruction MOVZX_u64u8 is given incompatible args.
 Allowed args are:
-  [[reg]; [reg; mem (glob allowed)]]
+  reg, (reg | mem)
 
 Statistics:
 	Annots:      5
 	Pretyping:  65
 	Parsing:     5
 	Typing:      5
-	Compile:   235
+	Compile:   247
