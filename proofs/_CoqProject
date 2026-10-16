@@ -230,8 +230,6 @@ lang/wsize.v
 
 itrees/lutt_extras.v
 itrees/safety_extras.v
-itrees/exec_extras.v
-itrees/eutt_extras.v
 itrees/equiv_extras.v
 itrees/axiom_extras.v
 itrees/eqit_facts.v

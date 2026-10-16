@@ -511,7 +511,7 @@ Qed.
 
 End IrrStrength.
 
-
+(*
 Section RHandlerSwitch.
 
 Context {E D} (hnd0 hnd1: D ~> itree (D +' E)).
@@ -659,3 +659,4 @@ Qed.
   
 End RHandlerSwitch.  
 
+*)

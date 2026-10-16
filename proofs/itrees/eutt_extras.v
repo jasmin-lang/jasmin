@@ -658,7 +658,7 @@ Qed.
 
 End InlineOK2.
 
-
+(*
 (* minor generalization (with h) of ITree library bind_iter *)
 Lemma bind_iter' {E A B C D} (f : A -> itree E (A + B))
   (g : D -> itree E (D + C)) (h: B -> D)
@@ -728,7 +728,7 @@ Proof.
     + etau. 
     + reflexivity.  
 Qed.
-
+*)
 
 (*
 Lemma rassoc_free_right_interp_lemma T h (t: itree (D1 +' E) T) :

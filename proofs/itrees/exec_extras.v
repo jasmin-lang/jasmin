@@ -39,6 +39,7 @@ Definition ext_handler {E1 E2} (h: E1 ~> itree E2) :
 
 (***)
 
+(*
 
 Definition exec_wk_rel {X: Type} (R : relation X) :
    relation (execS X) := execS_rel R (fun _ _ => True).
@@ -69,7 +70,9 @@ Proof.
   unfold Proper, respectful.
   eapply interp_exec_wk_eutt.
 Qed.
-  
+
+*)
+
 #[global] Instance interp_exec_eutt_eq {X E F} (h : E ~> execT (itree F)) :
   Proper (eutt eq ==> eutt eq) (@interp_exec _ _ _ _ _ h X).
 Proof.
@@ -79,6 +82,7 @@ Proof.
 Qed.
 
 
+(*
 Section WithE1.
 
 Context {E1 E2 : Type -> Type}.
@@ -97,7 +101,7 @@ Proof.
 Qed.
 
 End WithE1.
-
+*)
 
 Section WithError1.
 
@@ -220,6 +224,8 @@ Qed.
 
 End WithError1.
 
+
+(*
 (* not used yet *)
 Section ExecTranslate.
 
@@ -240,4 +246,4 @@ Arguments xtranslate {E F} & h [T].
 
 End ExecTranslate.
 
-
+*)

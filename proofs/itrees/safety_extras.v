@@ -20,7 +20,7 @@ From ITree Require Import
 
 From mathcomp Require Import word_ssrZ ssreflect ssrfun ssrbool eqtype.
 
-Require Import rutt_extras it_exec exec_extras eutt_extras
+Require Import rutt_extras it_exec (* exec_extras *) (* eutt_extras *)
   (* tfam_iso *) equiv_extras lutt_extras axiom_extras core_logics.
 Require Import (* it_exec_sem. *) it_sems_core_defs.
 
@@ -93,6 +93,7 @@ Definition esdflt {A} (a : A) (r : execS A) : A :=
 Let ret_dflt {E X} (d : X) (t : itree (ErrEvent +' E) X) : itree E X :=
   ITree.bind (interp_Err t) (fun x => Ret (esdflt d x)).
 
+(*
 (* basic monotonicity, with hyp about RR *)
 Lemma safe_default_basic V1 V2 d1 d2 
   (t1: itree (ErrEvent +' E) V1) (t2: itree (ErrEvent +' E) V2) RR :
@@ -113,6 +114,7 @@ Proof.
     destruct r2 eqn:was_r2; eauto; try (intuition auto with * ).
     destruct r2 eqn:was_r2; eauto; try (intuition auto with * ).
 Qed.
+*)
 
 (* used to lift the return values relation *)
 Definition ok_ret_rel {T1 T2} (RR: T1 -> T2 -> Prop) :
@@ -120,7 +122,8 @@ Definition ok_ret_rel {T1 T2} (RR: T1 -> T2 -> Prop) :
   fun x y => match (x, y) with
              | (utils.Ok x', utils.Ok y') => RR x' y'
              | _ => False end.
- 
+
+(*
 (* safety lemma with void, using eqit in H1 *)
 Lemma aux_eqit_lemma (V1 V2 : Type)
   (t1 : itree (ErrEvent +' void1) V1) (t2 : itree (ErrEvent +' void1) V2)
@@ -239,7 +242,9 @@ Proof.
     eapply IHeqitF; eauto.
   } 
 Qed. 
+*)
 
+(*
 (* safety lemma with void, analogous but using rutt in H1 and more 
    abstract *)
 Lemma aux_abs_rutt_lemma (VV : E = void1)
@@ -325,7 +330,9 @@ Proof.
     auto.
   }
 Qed.  
+*)
 
+(*
 (* safety lemma with void, analogous but using rutt_inr in H1 *)
 Lemma aux_rutt_inr_lemma (VV : E = void1)
   (V1 : Type)
@@ -346,7 +353,9 @@ Proof.
   unfold rutt_inr, rutt_img in *.
   eapply aux_abs_rutt_lemma; eauto.
 Qed.
+*)
 
+(*
 (* no condition on RR, but E must be the empty type *)
 Lemma safe_default_void (VV : E = void1) V1 d1 d2 
   (t1: itree (ErrEvent +' E) V1) (t2: itree (ErrEvent +' E) V1) RR :
@@ -368,8 +377,9 @@ Proof.
     destruct r1 eqn:was_r1; eauto; try (intuition auto).
     destruct r2 eqn:was_r2; eauto; try (intuition auto).
 Qed.
+*)
 
-
+(*
 (* general safety lemma (E does not need to be void). here H1 is a
    diagonal *)
 Lemma aux_gen_rutt_lemma1 
@@ -473,6 +483,7 @@ Proof.
     eapply IHeqitF; eauto.
   }
 Qed.
+*)
 
 (* general safety lemma (E does not need to be void). similar to
    aux_gen_rutt_lemma1, but this is a preservation result wrt H1 *)
@@ -580,6 +591,7 @@ Proof.
   }
 Qed.
 
+(*
 (* kind of good, but admit will go through with void *)
 Lemma test2_rev (VV : E = void1) V1 d1 d2 
   (t1: itree (ErrEvent +' E) V1) (t2: itree (ErrEvent +' E) V1) RR :
@@ -603,6 +615,7 @@ Proof.
     destruct r1 eqn:was_r1; eauto; try (intuition auto).
     destruct r2 eqn:was_r2; eauto; try (intuition auto).
 Qed.
+*)
 
 (* generalization of safe. actually quite close to eutt: we require
    events to match up to type conversion. But we also require end
@@ -618,6 +631,7 @@ Definition ok_rutt T1 T2 RR
                      | _ => False end)
        (interp_exec ext_handle_Err t1) (interp_exec ext_handle_Err t2). 
 
+(*
 (* not used *)
 Definition ok_deep_rutt E0 T1 T2 RR
   (t1 : itree E0 T1) (t2 : itree E0 T2) : Prop := 
@@ -629,7 +643,9 @@ Definition ok_deep_rutt E0 T1 T2 RR
                  | utils.Ok v => JMeq u1 u2
                  | utils.Error d => False end)
           \/ (forall U3, ~ (U1 = execS U3) /\ JMeq u1 u2)) RR t1 t2. 
+*)
 
+(*
 (* safe_default lemma expressed with 'ok_rutt t1 t1' (diagonal). here
    we have no restriction on E; based on aux_gen_rutt_lemma1 *)
 Lemma gen_safe_default_ok1 V1 d1 d2 
@@ -652,6 +668,7 @@ Proof.
     destruct r1 eqn:was_r1; eauto; try (intuition auto).
     destruct r2 eqn:was_r2; eauto; try (intuition auto).
 Qed.
+*)
 
 (* safe_default lemma expressed with 'ok_rutt t1 t2'
    (preservation). here we have no restriction on E; based on
@@ -821,6 +838,7 @@ Proof.
   exists (k3 a); auto.
 Qed.
 
+(*
 (* Not used. simple_rutt implies that the existential variable in the
    first hyp (parametrized by RR) can be instantiated with t2 *)
 Lemma lutt2rutt_RR V1 (t1 t2: itree (ErrEvent +' E) V1) RR :
@@ -900,6 +918,7 @@ Proof.
     eapply IHruttF; eauto.
   }
 Qed.
+*)
 
 (* simple_rutt implies that the existential variable in the first hyp
    (safe) can be instantiated with t2 *)
