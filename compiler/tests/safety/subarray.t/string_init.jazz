@@ -1,0 +1,9 @@
+// A string is written into t[1 : 3]: t[3] is initialized.
+export fn g(reg u64 p) -> reg u64 {
+  stack u8[4] t;
+  reg u64 x;
+  t[1 : 3] = "abc";
+  x = (64u) t[3];
+  [p + 0] = x;
+  return x;
+}

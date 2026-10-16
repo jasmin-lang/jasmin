@@ -1,0 +1,12 @@
+// A callee without memory access that branches.
+fn f(reg u64 x) -> reg u64 {
+  if (x < 3) { x = 1; } else { x = 2; }
+  return x;
+}
+
+export fn g(reg u64 p) -> reg u64 {
+  reg u64 a;
+  a = [p + 0];
+  a = f(a);
+  return a;
+}

@@ -1,0 +1,27 @@
+// With off = 1, a is undefined after the first iteration, b after the
+// second, and the third iteration reads b[0] undefined.
+export fn g(reg u64 p) -> reg u64 {
+  stack u64[1] a b;
+  stack u64[2] s t;
+  stack u8[1] c;
+  reg u64 x off;
+  s[0] = 7;
+  t[0] = 7;
+  t[1] = 8;
+  off = [p + 8];
+  off &= 1;
+  a[0] = 1;
+  a = t[off : 1];
+  b[0] = 2;
+  b = t[off : 1];
+  x = 0;
+  while {
+    c = #randombytes(c);
+  } (c[0] != 0) {
+    x = b[0];
+    b = a;
+    a = s[off : 1];
+  }
+  [p + 0] = x;
+  return x;
+}

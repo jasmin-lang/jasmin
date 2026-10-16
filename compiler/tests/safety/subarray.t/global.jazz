@@ -1,0 +1,16 @@
+// A slice at an unknown offset of a global array, which is initialized.
+u64[16] T = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
+
+export fn g(reg u64 p) -> reg u64 {
+  reg ptr u64[16] tab;
+  reg ptr u64[4] e;
+  reg u64 off x;
+  tab = T;
+  off = [p + 0];
+  off &= 3;
+  off <<= 2;
+  e = tab[off : 4];
+  x = e[3];
+  [p + 0] = x;
+  return x;
+}
