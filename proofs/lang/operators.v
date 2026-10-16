@@ -308,3 +308,9 @@ Definition type_of_opN (op: opN) : seq atype * atype :=
   | Oarray len => (nseq (Z.to_nat len) (aword U8), aarr U8 len)
   | Ocombine_flags c => (tin_combine_flags, abool)
   end.
+
+(* Type of the predicates of the safety conditions: inputs, output *)
+Definition type_of_opN_safety (op: opN_safety) : seq atype * atype :=
+  (match op with
+   | Ois_arr_init len | Ois_barr_init len => [:: aarr U8 len; aint; aint]
+   end, abool).

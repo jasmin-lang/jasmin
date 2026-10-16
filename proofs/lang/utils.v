@@ -459,6 +459,13 @@ Lemma mapM_ok {eT} {A B:Type} (f: A -> B) (l:list A) :
   mapM (eT:=eT) (fun x => ok (f x)) l = ok (map f l).
 Proof. by elim l => //= ?? ->. Qed.
 
+Lemma is_ok_mapM (eT aT bT : Type) (f : aT -> result eT bT) l :
+  is_ok (mapM f l) = all (fun a => is_ok (f a)) l.
+Proof.
+elim: l => //= a l ih; case: (f a) => //= b.
+by rewrite -ih; case: mapM.
+Qed.
+
 Section FOLDM.
 
   Context (eT aT bT:Type) (f:aT -> bT -> result eT bT).
