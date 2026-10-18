@@ -762,6 +762,16 @@ Allowed args compatible with the input (except on immediate sizes) are:
 All allowed args (regardless of the input) are:
   [[xreg]; [xreg]; [imm 8 [1, 64]]]
 
+fail/asmgen/armv8a/xar_rotation_range.jazz:
+
+"fail/asmgen/armv8a/xar_rotation_range.jazz", line 7 (4-23):
+compilation error in function xar_rotation_range:
+asmgen: instruction XAR is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [xreg]; [xreg]; [imm 8 [0, 63]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [xreg]; [xreg]; [imm 8 [0, 63]]]
+
 fail/asmgen/x86-64/incompatible_args.jazz:
 
 "fail/asmgen/x86-64/incompatible_args.jazz", line 4 (2-14):
@@ -2173,4 +2183,4 @@ Statistics:
 	Pretyping:  65
 	Parsing:     5
 	Typing:      5
-	Compile:   258
+	Compile:   259

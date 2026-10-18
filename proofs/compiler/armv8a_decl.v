@@ -323,7 +323,8 @@ Notation xregister := vregister.
      C6.2 shifted-register decode. The Advanced SIMD left shifts by an
      immediate (SHL, SLI) use it with the element size [esize] of the
      arrangement: their amount is in [0, esize - 1] (ARM DDI 0487 M.d,
-     C7.2.298 SHL, operand description).
+     C7.2.298 SHL, operand description). XAR uses it with [U64] for its
+     right rotation, in [0, 63] (C7.2.460 XAR, <imm6>, a 6-bit field).
    - [CAimmC_armv8a_halfword_shift] carries a [wsize]: the MOVZ/MOVN/MOVK
      halfword shift (hw field, C6.2.192-C6.2.194) is a multiple of 16 below
      the operand width, so 32 and 48 only exist in the X form.

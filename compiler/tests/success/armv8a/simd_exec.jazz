@@ -1,8 +1,9 @@
 /*
- * Fixed-input checks of the Advanced SIMD permutations and element moves,
- * evaluated by tests/exec/exec_armv8a.ml. Byte i of the first input vector
- * is i and byte i of the second is 16 + i, so that every element of a
- * result names the element it comes from.
+ * Fixed-input checks of the Advanced SIMD permutations and element moves
+ * and of the SHA-3 instructions, evaluated by tests/exec/exec_armv8a.ml.
+ * Byte i of the first permutation input is i and byte i of the second is
+ * 16 + i, so that every element of a result names the element it comes
+ * from.
  */
 
 u128[2] PERM_IN = {
@@ -138,4 +139,38 @@ fn move_umov_sd() -> reg u32, reg u64 {
   r0 = #VUMOV_4u32(a, 2);
   r1 = #VUMOV_2u64(b, 1);
   return r0, r1;
+}
+
+/* SHA-3 instructions on three unrelated vectors. */
+u128[3] SHA3_IN = {
+  0x0123456789abcdeffedcba9876543210,
+  0x9e3779b97f4a7c15f39cc0605cedc834,
+  0xb7e151628aed2a6abf7158809cf4f3c7
+};
+
+export
+fn sha3_ops() -> reg u128, reg u128, reg u128, reg u128 {
+  reg u128 a b c r0 r1 r2 r3;
+  a = SHA3_IN[0];
+  b = SHA3_IN[1];
+  c = SHA3_IN[2];
+  r0 = #EOR3(a, b, c);
+  r1 = #BCAX(a, b, c);
+  r2 = #RAX1(a, b);
+  r3 = #RAX1(b, a);
+  return r0, r1, r2, r3;
+}
+
+/* XAR rotates right; a rotation by 32 is also one by 32 to the left, so
+   the others tell the direction. */
+export
+fn sha3_xar() -> reg u128, reg u128, reg u128, reg u128 {
+  reg u128 a b r0 r1 r2 r3;
+  a = SHA3_IN[0];
+  b = SHA3_IN[1];
+  r0 = #XAR(a, b, 1);
+  r1 = #XAR(a, b, 7);
+  r2 = #XAR(a, b, 32);
+  r3 = #XAR(a, b, 63);
+  return r0, r1, r2, r3;
 }

@@ -210,7 +210,13 @@ Variant armv8a_mnemonic : Type :=
 | SHA512H                        (* SHA-512 hash update, part 1 *)
 | SHA512H2                       (* SHA-512 hash update, part 2 *)
 | SHA512SU0                      (* SHA-512 schedule update 0 *)
-| SHA512SU1.                     (* SHA-512 schedule update 1 *)
+| SHA512SU1                      (* SHA-512 schedule update 1 *)
+
+(* Cryptographic extension: SHA-3 (FEAT_SHA3). *)
+| EOR3                           (* Three-way exclusive-OR *)
+| BCAX                           (* Bit clear and exclusive-OR *)
+| RAX1                           (* Rotate and exclusive-OR *)
+| XAR.                           (* Exclusive-OR and rotate *)
 
 #[ export ]
 Instance eqTC_armv8a_mnemonic : eqTypeC armv8a_mnemonic :=
@@ -240,6 +246,7 @@ Definition armv8a_mnemonics : seq armv8a_mnemonic :=
     ; VDUP; VDUPE; VINS; VINSE; VUMOV
     ; SHA256H; SHA256H2; SHA256SU0; SHA256SU1
     ; SHA512H; SHA512H2; SHA512SU0; SHA512SU1
+    ; EOR3; BCAX; RAX1; XAR
   ].
 
 Lemma armv8a_mnemonic_fin_axiom : Finite.axiom armv8a_mnemonics.
@@ -433,6 +440,10 @@ Definition string_of_armv8a_mnemonic (mn : armv8a_mnemonic) : string :=
   | SHA512H2 => "SHA512H2"
   | SHA512SU0 => "SHA512SU0"
   | SHA512SU1 => "SHA512SU1"
+  | EOR3 => "EOR3"
+  | BCAX => "BCAX"
+  | RAX1 => "RAX1"
+  | XAR => "XAR"
   end%string.
 
 (* Assembly mnemonic of the Advanced SIMD instructions. *)
@@ -486,6 +497,8 @@ Definition vector_esizes (mn : armv8a_mnemonic) : seq wsize :=
   | VDUP | VDUPE | VINS | VINSE | VUMOV => [:: U8; U16; U32; U64 ]
   | SHA256H | SHA256H2 | SHA256SU0 | SHA256SU1 => [:: U32 ]
   | SHA512H | SHA512H2 | SHA512SU0 | SHA512SU1 => [:: U64 ]
+  | EOR3 | BCAX => [:: U8 ]
+  | RAX1 | XAR => [:: U64 ]
   | _ => [::]
   end.
 
@@ -3564,6 +3577,75 @@ Definition armv8a_SHA512SU1_instr : instr_desc_t :=
   mk_v3d_instr SHA512SU1 [:: U64; U64; U64 ] armv8a_SHA512SU1_semi.
 
 (* -------------------------------------------------------------------- *)
+(* SHA-3. EOR3 and BCAX use the 16B arrangement, RAX1 and XAR the 2D one.
+   The Operational information section of each one states that it is a
+   data-independent-time instruction, and ARM DDI 0487 M.d, C5.2.4
+   "DIT, Data Independent Timing", p. C5-958, lists all four. *)
+
+Let ak_vvvv := [:: [:: [:: CAxmm ]; [:: CAxmm ]; [:: CAxmm ]; [:: CAxmm ] ] ].
+
+(* Three vector sources. *)
+Definition mk_v3_instr mn (semi : word U128 -> word U128 -> word U128 -> ty_v) : instr_desc_t :=
+  let tin := [:: lvec; lvec; lvec ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 4;
+    id_args_kinds := ak_vvvv;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop mn [:: esize; esize; esize; esize ];
+    id_valid := vvalid mn;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* [C7.2.42 EOR3] ARM DDI 0487 M.d, p. C7-3025
+   Syntax: EOR3 <Vd>.16B, <Vn>.16B, <Vm>.16B, <Va>.16B
+   Semantics: bitwise Vn XOR Vm XOR Va. *)
+Definition armv8a_EOR3_semi (wn wm wa : word U128) : ty_v :=
+  wxor (wxor wn wm) wa.
+
+Definition armv8a_EOR3_instr : instr_desc_t := mk_v3_instr EOR3 armv8a_EOR3_semi.
+
+(* [C7.2.12 BCAX] ARM DDI 0487 M.d, p. C7-2959
+   Syntax: BCAX <Vd>.16B, <Vn>.16B, <Vm>.16B, <Va>.16B
+   Semantics: bitwise Vn XOR (Vm AND NOT Va). *)
+Definition armv8a_BCAX_semi (wn wm wa : word U128) : ty_v :=
+  wxor wn (wand wm (wnot wa)).
+
+Definition armv8a_BCAX_instr : instr_desc_t := mk_v3_instr BCAX armv8a_BCAX_semi.
+
+(* [C7.2.260 RAX1] ARM DDI 0487 M.d, p. C7-3598
+   Syntax: RAX1 <Vd>.2D, <Vn>.2D, <Vm>.2D
+   Semantics: Vn XOR Vm with each 64-bit element of Vm first rotated left
+   by one. *)
+Definition armv8a_RAX1_semi (wn wm : word U128) : ty_v := rax1 wn wm.
+
+Definition armv8a_RAX1_instr : instr_desc_t := mk_v2_instr RAX1 armv8a_RAX1_semi.
+
+(* [C7.2.460 XAR] ARM DDI 0487 M.d, p. C7-4104
+   Syntax: XAR <Vd>.2D, <Vn>.2D, <Vm>.2D, #<imm6>
+   The immediate is a right rotation in [0, 63]
+   ([CAimmC_armv8a_shift_amount U64]).
+   Semantics: each 64-bit element of Vn XOR Vm rotated right by the
+   immediate. *)
+Definition armv8a_XAR_semi (wn wm : word U128) (imm : word U8) : ty_v :=
+  xar wn wm (wunsigned imm).
+
+Definition armv8a_XAR_instr : instr_desc_t :=
+  mk_v2_imm_instr XAR (CAimmC_armv8a_shift_amount U64) armv8a_XAR_semi.
+
+(* -------------------------------------------------------------------- *)
 (* Description of instructions. *)
 
 Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
@@ -3673,6 +3755,10 @@ Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
   | SHA512H2 => armv8a_SHA512H2_instr
   | SHA512SU0 => armv8a_SHA512SU0_instr
   | SHA512SU1 => armv8a_SHA512SU1_instr
+  | EOR3 => armv8a_EOR3_instr
+  | BCAX => armv8a_BCAX_instr
+  | RAX1 => armv8a_RAX1_instr
+  | XAR => armv8a_XAR_instr
   end.
 
 End ARMV8A_INSTR.

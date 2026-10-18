@@ -202,3 +202,15 @@ Definition sha512su1 (w x y : u128) : u128 :=
   let y0 := velem_at U64 y 0 in let y1 := velem_at U64 y 1 in
   let w0 := velem_at U64 w 0 in let w1 := velem_at U64 w 1 in
   make_vec U128 [:: w0 + sha512_sigma1 x0 + y0; w1 + sha512_sigma1 x1 + y1 ].
+
+(* -------------------------------------------------------------------- *)
+(* SHA-3 (FEAT_SHA3). *)
+
+(* RAX1: [n] XOR [m], each 64-bit element of [m] first rotated left by
+   one. *)
+Definition rax1 (n m : u128) : u128 :=
+  wxor n (lift1_vec U64 (fun x => wrol x 1) U128 m).
+
+(* XAR: each 64-bit element of [n] XOR [m] rotated right by [imm]. *)
+Definition xar (n m : u128) (imm : Z) : u128 :=
+  lift1_vec U64 (fun x => wror x imm) U128 (wxor n m).

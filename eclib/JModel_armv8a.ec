@@ -667,3 +667,15 @@ op SHA512SU0 (d n: W128.t) : W128.t =
 op SHA512SU1 (d n m: W128.t) : W128.t =
   W2u64.pack2 [(d \bits64 0) + sha512sigma1 (n \bits64 0) + (m \bits64 0);
                (d \bits64 1) + sha512sigma1 (n \bits64 1) + (m \bits64 1)].
+
+(* -------------------------------------------------------------------- *)
+(* SHA-3 (FEAT_SHA3). *)
+
+op EOR3 (n m a: W128.t) : W128.t = n +^ m +^ a.
+
+op BCAX (n m a: W128.t) : W128.t = n +^ (m `&` invw a).
+
+op RAX1 (n m: W128.t) : W128.t = n +^ W2u64.map (fun (e: W64.t) => e `|<<<|` 1) m.
+
+op XAR (n m: W128.t) (imm: W8.t) : W128.t =
+  W2u64.map (fun (e: W64.t) => e `|>>>|` to_uint imm) (n +^ m).

@@ -15,7 +15,8 @@
      perform two SHA-512 rounds; [SHA512SU_schedule]: SHA512SU0 then
      SHA512SU1 compute two message-schedule words;
    - the [*_instr_*] lemmas: the same statements about the [id_semi] of the
-     instruction descriptions, which fix the role of each operand.
+     instruction descriptions, which fix the role of each operand;
+   - [xar_rolE]: XAR by 64 - r is a left rotation by r of the XOR.
    These are statements about the semantics as transcribed; they do not
    validate the transcription against the architecture. *)
 
@@ -353,3 +354,22 @@ Proof.
 Qed.
 
 End INSTR.
+
+(* -------------------------------------------------------------------- *)
+(* SHA-3: the Keccak-f[1600] steps of FIPS 202, 3.2, with each 64-bit word
+   A[x, y] of the state in a 64-bit element, so that a register holds the
+   same word of two states. With C[x] the column parities of θ:
+     θ:   D[x] = C[x - 1] XOR ROT(C[x + 1], 1)   = RAX1(C[x - 1], C[x + 1])
+     θ+ρ: ROT(A[x, y] XOR D[x], r)              = XAR(A[x, y], D[x], 64 - r)
+     χ:   A[x] XOR (NOT A[x + 1] AND A[x + 2])  = BCAX(A[x], A[x + 2], A[x + 1])
+   and the parities are folded with EOR3. The rotation of ρ is a left
+   rotation by r; XAR rotates right, by 64 - r, or by 0 when r = 0 (the
+   immediate is in [0, 63]). This correspondence is informal: only the
+   rotation identity below is proved here. *)
+
+Lemma xar_rolE (n m : u128) (r : Z) :
+  xar n m (64 - r) = lift1_vec U64 (fun x => wrol x r) U128 (wxor n m).
+Proof.
+  rewrite /xar /lift1_vec /lift1_vec'; congr make_vec.
+  by apply: eq_map => x; exact: (wror_opp x r).
+Qed.
