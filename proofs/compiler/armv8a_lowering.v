@@ -402,6 +402,28 @@ Definition lower_pexpr_aux (ws : wsize) (e : pexpr) : low_expr :=
   | _ => le_skip
   end.
 
+(* -------------------------------------------------------------------- *)
+(* Lowering of 128-bit expressions to Advanced SIMD instructions.
+   A 128-bit value lives in a SIMD&FP register. A variable in a register is
+   copied with MOV; one in memory, an array element and a load are read
+   with LDR. *)
+
+Definition lower_vec_Pvar (v : gvar) : low_expr :=
+  if is_var_in_memory (gv v)
+  then le_issue VLDR U128 [:: Pvar v ]
+  else le_issue VMOV U8 [:: Pvar v ].
+
+Definition lower_vec_pexpr (e : pexpr) : low_expr :=
+  match e with
+  | Pvar v => lower_vec_Pvar v
+  | Pget _ _ _ _ _
+  | Pload _ _ _ => le_issue VLDR U128 [:: e ]
+  | _ => le_skip
+  end.
+
+Definition lower_pexpr_word (ws : wsize) (e : pexpr) : low_expr :=
+  if ws == U128 then lower_vec_pexpr e else lower_pexpr_aux ws e.
+
 (* A64 has no conditional execution: conditional expressions are lowered
    to the conditional select instructions, whose operands must be
    registers. *)
@@ -475,7 +497,7 @@ Definition lower_pexpr (vi : var_info) (ws : wsize) (e : pexpr) :
       let of_int e := Papp1 (Oword_of_int ws') e in
       lower_Pif vi ws c (of_int e0) (of_int e1)
   | _ =>
-      no_pre (lower_pexpr_aux ws e)
+      no_pre (lower_pexpr_word ws e)
   end.
 
 (* Lower an assignment to memory.
@@ -485,6 +507,9 @@ Definition lower_pexpr (vi : var_info) (ws : wsize) (e : pexpr) :
      + a memory location.
    - [e] must be a register. *)
 Definition lower_store (ws : wsize) (e : pexpr) : option (armv8a_asm_op * seq pexpr) :=
+  if ws == U128 then
+    if e is Pvar _ then Some (ARMv8A_op VSTR (opts_at U128), [:: e ]) else None
+  else
   let%opt mn := store_mn_of_wsize ws in
   let osz := if (ws <= U16)%CMP then U64 else ws in
   match e with

@@ -1,0 +1,7 @@
+/* The LDR <Qt> offset is above the unsigned 12-bit range scaled by 16. */
+export
+fn vldr_offset_range(reg u64 p) {
+    reg u128 a;
+    a = [:u128 p + 65536];
+    [:u128 p] = a;
+}

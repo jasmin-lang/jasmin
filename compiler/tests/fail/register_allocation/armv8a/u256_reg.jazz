@@ -1,0 +1,7 @@
+/* The SIMD&FP registers hold 128 bits: a 256-bit register variable cannot be
+   allocated. */
+export fn u256_reg(reg u64 p) {
+  reg u256 x;
+  x = [:u256 p];
+  [:u256 p] = x;
+}

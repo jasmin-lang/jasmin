@@ -297,3 +297,12 @@ op LDP_32 (x: W64.t) : W32.t * W32.t = (x \bits32 0, x \bits32 1).
 op STP_64 (x y: W64.t) : W128.t = W2u64.pack2 [x; y].
 
 op STP_32 (x y: W32.t) : W64.t = W2u32.pack2 [x; y].
+
+(* -------------------------------------------------------------------- *)
+(* Advanced SIMD. A SIMD&FP register is a W128.t. *)
+
+op VMOV (x: W128.t) : W128.t = x.
+
+op VLDR (x: W128.t) : W128.t = x.
+
+op VSTR (x: W128.t) : W128.t = x.

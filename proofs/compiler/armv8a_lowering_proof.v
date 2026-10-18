@@ -1418,8 +1418,56 @@ Proof.
   exact: lower_Papp2P.
 Qed.
 
+(* -------------------------------------------------------------------- *)
+(* Lowering of 128-bit expressions to Advanced SIMD instructions. *)
+
+#[ local ]
+Definition Plower_vec_pexpr (e : pexpr) : Prop :=
+  forall s ws' aop es (w : word ws'),
+    lower_vec_pexpr e = Some (aop, es)
+    -> (U128 <= ws')%CMP
+    -> disj_fvars (read_e e)
+    -> sem_pexpr true (p_globs p) s e = ok (Vword w)
+    -> ok_lower_pexpr_aux s U128 aop es w.
+
+(* A variable, an array element or a memory word is given as it is to VMOV
+   or VLDR. *)
+Lemma lower_vec_moveP e :
+  match e with Pvar _ | Pget _ _ _ _ _ | Pload _ _ _ => Plower_vec_pexpr e
+  | _ => True end.
+Proof.
+  case: e => // [ gx | al aa ws0 x e | al ws0 e ] s ws' aop es w + hws hfve hsem.
+  all: rewrite /lower_vec_pexpr.
+  1: rewrite /lower_vec_Pvar; case: is_var_in_memory.
+  all: move=> -[? ?]; subst aop es.
+  all: split; last done.
+  all: exists [:: Vword w ]; first by apply/mapM_cons.
+  all: by rewrite /exec_sopn /= truncate_word_le.
+Qed.
+
+Lemma lower_vec_pexprP e : Plower_vec_pexpr e.
+Proof.
+  case: e => [||| gx | al aa ws0 x e || al ws0 x e | op e | op e0 e1 ||].
+  all: try by move=> > /=.
+  - exact: (lower_vec_moveP (Pvar _)).
+  - exact: (lower_vec_moveP (Pget _ _ _ _ _)).
+  exact: (lower_vec_moveP (Pload _ _ _)).
+Qed.
+
+Lemma lower_pexpr_wordP s ws ws' e aop es (w : word ws') :
+  lower_pexpr_word ws e = Some (aop, es)
+  -> (ws <= ws')%CMP
+  -> disj_fvars (read_e e)
+  -> sem_pexpr true (p_globs p) s e = ok (Vword w)
+  -> ok_lower_pexpr_aux s ws aop es w.
+Proof.
+  rewrite /lower_pexpr_word; case: eqP => [-> | _].
+  - exact: lower_vec_pexprP.
+  exact: lower_pexpr_auxP.
+Qed.
+
 Lemma sem_i_lower_pexpr_aux s0 s1 s0' ws ws' ii e op es (w : word ws') lv tag :
-  lower_pexpr_aux ws e = Some (op, es)
+  lower_pexpr_word ws e = Some (op, es)
   -> eq_fv s0 s0'
   -> (ws <= ws')%CMP
   -> disj_fvars (read_e e)
@@ -1435,7 +1483,7 @@ Proof.
   have hseme' := eeq_exc_sem_pexpr hfve hs00 hseme.
   clear hseme.
 
-  have [[vs hsemes hexec] _] := lower_pexpr_auxP h hws hfve hseme'.
+  have [[vs hsemes hexec] _] := lower_pexpr_wordP h hws hfve hseme'.
   clear h hws hfve hseme'.
 
   have [s1' hwrite' hs11] := eeq_exc_write_lval hfvlv hs00 hwrite.
@@ -1631,7 +1679,7 @@ Proof using atoI ev fv fv_correct p pT sCP sc_sem syscall_state warning wsw.
      [lower_pexpr_aux]. *)
   match goal with
   | [ |- ?G ] =>
-      have hnopre : no_pre (lower_pexpr_aux ws e) = Some (pre, op, es) -> G
+      have hnopre : no_pre (lower_pexpr_word ws e) = Some (pre, op, es) -> G
   end.
   {
     move=> /no_preP [? h']; subst pre.
@@ -1717,6 +1765,16 @@ Proof.
 
   move: h.
   rewrite /lower_store.
+  case: eqP => [? | _].
+  {
+    (* A 128-bit register is stored with STR <Qt>. *)
+    subst ws.
+    case: e hseme hfv => [||| gx |||||||] // hseme hfv [? ?]; subst aop es.
+    rewrite /= /sem_sopn /=.
+    have /= -> := eeq_exc_sem_pexpr hfv hs00 hseme.
+    rewrite /exec_sopn /= (truncate_word_le _ hws) /=.
+    by rewrite hwrite.
+  }
   case hmn: store_mn_of_wsize => [mn|] //.
 
   (* On armv8a only a register can be stored: [e] is a [Pvar]. *)

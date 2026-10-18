@@ -160,7 +160,16 @@ Variant armv8a_mnemonic : Type :=
 (* Barriers *)
 | CSDB                           (* Consumption of speculative data barrier *)
 | DSB                            (* Data synchronization barrier, full system *)
-| ISB.                           (* Instruction synchronization barrier *)
+| ISB                            (* Instruction synchronization barrier *)
+
+(* Advanced SIMD. The [opts_size] option of these mnemonics is the element
+   size of the arrangement (U8 for 16B, U16 for 8H, U32 for 4S, U64 for 2D),
+   or U128 for the loads and stores of a whole Q register. Each one is named
+   V followed by its assembly mnemonic; its element sizes, and with them its
+   intrinsic names, are given by [vector_esizes] below. *)
+| VMOV                           (* Move vector (MOV, alias of ORR (vector)) *)
+| VLDR                           (* Load a Q register *)
+| VSTR.                          (* Store a Q register *)
 
 #[ export ]
 Instance eqTC_armv8a_mnemonic : eqTypeC armv8a_mnemonic :=
@@ -181,6 +190,7 @@ Definition armv8a_mnemonics : seq armv8a_mnemonic :=
     ; LDR; LDRB; LDRH; LDRSB; LDRSH; LDRSW; LDP
     ; STR; STRB; STRH; STP
     ; CSDB; DSB; ISB
+    ; VMOV; VLDR; VSTR
   ].
 
 Lemma armv8a_mnemonic_fin_axiom : Finite.axiom armv8a_mnemonics.
@@ -336,7 +346,38 @@ Definition string_of_armv8a_mnemonic (mn : armv8a_mnemonic) : string :=
   | CSDB => "CSDB"
   | DSB => "DSB"
   | ISB => "ISB"
+  | VMOV => "VMOV"
+  | VLDR => "VLDR"
+  | VSTR => "VSTR"
   end%string.
+
+(* Assembly mnemonic of the Advanced SIMD instructions. *)
+Definition vasm_name (mn : armv8a_mnemonic) : string :=
+  match mn with
+  | VMOV => "MOV"
+  | VLDR => "LDR"
+  | VSTR => "STR"
+  | _ => string_of_armv8a_mnemonic mn
+  end%string.
+
+(* The element sizes ([opts_size]) at which each Advanced SIMD mnemonic
+   exists; empty for the general-purpose mnemonics. A mnemonic with a single
+   element size has no size suffix in Jasmin; the others are suffixed with
+   their arrangement as on x86 ([VADD_4u32] is [ADD <Vd>.4S, ...]). *)
+Definition vector_esizes (mn : armv8a_mnemonic) : seq wsize :=
+  match mn with
+  | VMOV => [:: U8 ]
+  | VLDR | VSTR => [:: U128 ]
+  | _ => [::]
+  end.
+
+Definition velem_of_wsize (ws : wsize) : velem :=
+  match ws with
+  | U8 => VE8
+  | U16 => VE16
+  | U32 => VE32
+  | _ => VE64
+  end.
 
 
 (* -------------------------------------------------------------------- *)
@@ -591,7 +632,10 @@ Notation msbf := (if osz == U64 then MSB_MERGE else MSB_CLEAR) (only parsing).
 Let armv8a_mn_str (mn : armv8a_mnemonic) : unit -> string :=
   if mn \in sized_mnemonics
   then pp_sz (string_of_armv8a_mnemonic mn) osz
-  else pp_s (string_of_armv8a_mnemonic mn).
+  else
+    if 1 < size (vector_esizes mn)
+    then pp_ve_sz (string_of_armv8a_mnemonic mn) (velem_of_wsize osz) U128
+    else pp_s (string_of_armv8a_mnemonic mn).
 
 (* Argument kinds.
    Immediate operands are checked against the A64 encoding rules
@@ -2608,6 +2652,165 @@ Definition armv8a_DSB_instr : instr_desc_t := mk_barrier_instr DSB.
 *)
 Definition armv8a_ISB_instr : instr_desc_t := mk_barrier_instr ISB.
 
+
+(* -------------------------------------------------------------------- *)
+(* Advanced SIMD.
+   The operands are whole 128-bit registers (the Q form of the vector
+   instructions, [Q = 1]); the 64-bit (D) forms are not provided. The
+   [opts_size] option is the element size [esize] of the arrangement and
+   the descriptions are valid only at the element sizes listed by
+   [vector_esizes].
+
+   The semantics below are our transcriptions of the operational pseudocode
+   of the Arm Architecture Reference Manual (ARM DDI 0487 M.d, C7.2,
+   "Alphabetical list of A64 Advanced SIMD and floating-point
+   instructions"); each description cites its instruction section and
+   states the semantics in our words. They are trusted, as are the
+   semantics of the general-purpose instructions above.
+
+   The Operational information section of every instruction below states
+   that it is a data-independent-time instruction, hence [id_doit := DOIT]
+   (an instruction is one only if that section says so: ARM DDI 0487 M.d,
+   B1.5.6 "About PSTATE.DIT", p. B1-245). *)
+
+Notation esize := (opts_size opts) (only parsing).
+
+Notation vvalid mn :=
+  ((has_shift opts == None) && (esize \in vector_esizes mn)) (only parsing).
+
+Notation lvec := (lword U128) (only parsing).
+Notation ty_v := (sem_ltuple [:: lvec ]) (only parsing).
+
+(* The [wsize] paired with a vector-register operand is the element size
+   of its arrangement, U128 standing for the Q register name; see the
+   assembly printer. *)
+Definition pp_armv8a_vop
+  (mn : armv8a_mnemonic) (szs : seq wsize) (args : seq asm_arg) : pp_asm_op :=
+  {|
+    pp_aop_name := vasm_name mn;
+    pp_aop_ext := PP_name;
+    pp_aop_args := zip szs args;
+  |}.
+
+Let ak_vv := [:: [:: [:: CAxmm ]; [:: CAxmm ] ] ].
+
+(* One vector source. *)
+Definition mk_v1_instr mn (semi : word U128 -> ty_v) : instr_desc_t :=
+  let tin := [:: lvec ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 2;
+    id_args_kinds := ak_vv;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop mn [:: esize; esize ];
+    id_valid := vvalid mn;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* [C7.2.245 MOV (vector)] ARM DDI 0487 M.d, p. C7-3567, alias of
+   [C7.2.256 ORR (vector, register)] with Vm = Vn.
+   Syntax: MOV <Vd>.<T>, <Vn>.<T>  ==  ORR <Vd>.<T>, <Vn>.<T>, <Vn>.<T>
+   Semantics: the OR of Vn with itself, that is, a copy of Vn. *)
+Definition armv8a_VMOV_semi (wn : word U128) : ty_v := wn.
+
+Definition armv8a_VMOV_instr : instr_desc_t := mk_v1_instr VMOV armv8a_VMOV_semi.
+
+(* [C7.2.230 LDR (immediate, SIMD&FP)] ARM DDI 0487 M.d, p. C7-3528
+   [C7.2.235 LDUR (SIMD&FP)] ARM DDI 0487 M.d, p. C7-3545
+   [C7.2.232 LDR (register, SIMD&FP)] ARM DDI 0487 M.d, p. C7-3535
+   128-bit variants.
+   Syntax: LDR <Qt>, [<Xn|SP>{, #<pimm>}]
+           LDR <Qt>, [<Xn|SP>, <Xm>]
+           LDUR <Qt>, [<Xn|SP>{, #<simm>}]
+   The unsigned offset is a multiple of 16 up to 65520, the signed offset
+   lies in [-256, 255], and the register offset is used unshifted; the
+   address condition [CAmemC_armv8a_q] (armv8a_decl.v) accepts exactly
+   these forms.
+   Semantics: the 16 bytes at the address, as the whole register. The
+   writeback (pre- and post-index) forms are not provided. As for the
+   general-purpose loads, the memory argument is unaligned ([Eu]): no
+   alignment is required, which matches the hardware for Normal memory when
+   alignment checking is disabled (SCTLR_ELx.A = 0), as in user mode on the
+   supported platforms. *)
+Definition armv8a_VLDR_semi (w : word U128) : ty_v := w.
+
+Let ak_v_q := [:: [:: [:: CAxmm ]; [:: CAmem false (Some CAmemC_armv8a_q) ] ] ].
+
+Definition armv8a_VLDR_instr : instr_desc_t :=
+  let tin := [:: lvec ] in
+  let semi := armv8a_VLDR_semi in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Eu 1 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 2;
+    id_args_kinds := ak_v_q;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str VLDR;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VLDR [:: U128; U64 ];
+    id_valid := vvalid VLDR;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* [C7.2.387 STR (immediate, SIMD&FP)] ARM DDI 0487 M.d, p. C7-3926
+   [C7.2.391 STUR (SIMD&FP)] ARM DDI 0487 M.d, p. C7-3940
+   [C7.2.388 STR (register, SIMD&FP)] ARM DDI 0487 M.d, p. C7-3931
+   128-bit variants.
+   Syntax: STR <Qt>, [<Xn|SP>{, #<pimm>}]
+           STR <Qt>, [<Xn|SP>, <Xm>]
+           STUR <Qt>, [<Xn|SP>{, #<simm>}]
+   Semantics: the whole register is written to the 16 bytes at the
+   address. *)
+Definition armv8a_VSTR_semi (w : word U128) : ty_v := w.
+
+(* The destination is memory, so the MSB flag has no effect; MSB_MERGE as
+   for the scalar stores. *)
+Definition armv8a_VSTR_instr : instr_desc_t :=
+  let tin := [:: lvec ] in
+  let semi := armv8a_VSTR_semi in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := tin;
+    id_in := [:: Ea 0 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Eu 1 ];
+    id_semi_total := semi;
+    id_nargs := 2;
+    id_args_kinds := ak_v_q;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str VSTR;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VSTR [:: U128; U64 ];
+    id_valid := vvalid VSTR;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
 (* -------------------------------------------------------------------- *)
 (* Description of instructions. *)
 
@@ -2680,6 +2883,9 @@ Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
   | CSDB => armv8a_CSDB_instr
   | DSB => armv8a_DSB_instr
   | ISB => armv8a_ISB_instr
+  | VMOV => armv8a_VMOV_instr
+  | VLDR => armv8a_VLDR_instr
+  | VSTR => armv8a_VSTR_instr
   end.
 
 End ARMV8A_INSTR.
@@ -2700,13 +2906,34 @@ Definition armv8a_prim_sized (mn : armv8a_mnemonic) : prim_constructor armv8a_as
        then Some (ARMv8A_op mn (opts_at sz))
        else None).
 
+(* Advanced SIMD intrinsics: [#VMOV] for a mnemonic with a single element
+   size; a mnemonic with several element sizes is suffixed with its
+   arrangement, [_16u8], [_8u16], [_4u32] or [_2u64]. *)
+Definition armv8a_prim_vector (mn : armv8a_mnemonic) : prim_constructor armv8a_asm_op :=
+  let szs := vector_esizes mn in
+  if szs is [:: sz ]
+  then primM (ARMv8A_op mn (opts_at sz))
+  else
+    PrimX86
+      [seq PVv (velem_of_wsize sz) U128 | sz <- szs ]
+      (fun s =>
+         if s is PVv ve U128
+         then
+           if wsize_of_velem ve \in szs
+           then Some (ARMv8A_op mn (opts_at ve))
+           else None
+         else None).
+
 Definition armv8a_prim_string : seq (string * prim_constructor armv8a_asm_op) :=
   map
     (fun mn =>
        (string_of_armv8a_mnemonic mn,
         if mn \in sized_mnemonics
         then armv8a_prim_sized mn
-        else primM (ARMv8A_op mn default_opts)))
+        else
+          if vector_esizes mn != [::]
+          then armv8a_prim_vector mn
+          else primM (ARMv8A_op mn default_opts)))
     cenum.
 
 #[ export ]

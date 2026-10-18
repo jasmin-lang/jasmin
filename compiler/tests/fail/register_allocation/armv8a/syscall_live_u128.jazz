@@ -1,0 +1,13 @@
+/* A syscall is not assumed to preserve the vector registers: [a] cannot stay
+   in v8-v15 across it (AAPCS64 preserves only their low 64 bits), and there
+   is no other register for it. */
+export fn syscall_live_u128(reg ptr u8[48] io) -> reg ptr u8[48] {
+  stack u8[16] r;
+  reg u128 a b;
+  a = io[:u128 0];
+  r = #randombytes(r);
+  b = r[:u128 0];
+  io[:u128 1] = a;
+  io[:u128 2] = b;
+  return io;
+}

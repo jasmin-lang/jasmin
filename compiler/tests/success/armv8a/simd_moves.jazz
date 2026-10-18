@@ -1,0 +1,117 @@
+/* Loads and stores at the encodable address forms. */
+export fn ldst(reg u64 src dst) {
+  reg u128 a b c d;
+  a = [:u128 src + 0];
+  b = [:u128 src + 16];
+  c = [:u128 src + 3];
+  d = [:u128 src - 7];
+  [:u128 dst + 0] = a;
+  [:u128 dst + 33] = c;
+  [:u128 dst + 4080] = b;
+  [:u128 dst - 16] = d;
+}
+
+/* The ends of the immediate offsets: 255 and -256 (LDUR/STUR), 256 and 65520
+   (LDR/STR, a multiple of 16). */
+export fn ldst_bounds(reg u64 src dst) {
+  reg u128 a b c d;
+  a = [:u128 src + 255];
+  b = [:u128 src + 256];
+  c = [:u128 src - 256];
+  d = [:u128 src + 65520];
+  [:u128 dst + 255] = b;
+  [:u128 dst + 256] = c;
+  [:u128 dst - 256] = d;
+  [:u128 dst + 65520] = a;
+}
+
+/* Register offset. */
+export fn ldst_reg(reg u64 src dst i) {
+  reg u128 a;
+  a = [:u128 src + i];
+  [:u128 dst + i] = a;
+}
+
+/* Vector arguments and result (V0-V7 in, V0 out), next to a general-purpose
+   argument. */
+export fn vargs(reg u64 p, reg u128 a b c d e f g h) -> reg u128 {
+  [:u128 p + 0] = a;
+  [:u128 p + 16] = b;
+  [:u128 p + 32] = c;
+  [:u128 p + 48] = d;
+  [:u128 p + 64] = e;
+  [:u128 p + 80] = f;
+  [:u128 p + 96] = g;
+  [:u128 p + 112] = h;
+  return h;
+}
+
+/* Internal call with vector arguments and results. */
+fn inner(reg u128 x y) -> reg u128, reg u128 {
+  return y, x;
+}
+
+export fn call_inner(reg u64 p) {
+  reg u128 a b s t;
+  a = [:u128 p + 0];
+  b = [:u128 p + 16];
+  s, t = inner(a, b);
+  [:u128 p + 32] = s;
+  [:u128 p + 48] = t;
+}
+
+/* 30 live vectors: forces the allocator to use V8-V15 (callee-saved). */
+export fn pressure(reg u64 p) {
+  inline int i;
+  reg u128[30] v;
+  for i = 0 to 30 { v[i] = [:u128 p + 16 * i]; }
+  for i = 0 to 30 { [:u128 p + 480 + 16 * i] = v[29 - i]; }
+}
+
+/* 30 live vectors and 20 live general-purpose values: the save area holds
+   both Q registers (v8-v13) and X registers (x19, x20). */
+export fn pressure_mixed(reg u64 p) {
+  inline int i;
+  reg u128[30] v;
+  reg u64[20] x;
+  for i = 0 to 30 { v[i] = [:u128 p + 16 * i]; }
+  for i = 0 to 20 { x[i] = [:u64 p + 480 + 8 * i]; }
+  for i = 0 to 30 { [:u128 p + 640 + 16 * i] = v[29 - i]; }
+  for i = 0 to 20 { [:u64 p + 1120 + 8 * i] = x[19 - i]; }
+}
+
+/* Stack-resident vectors and a vector stack array. */
+export fn stackvec(reg u64 p) {
+  inline int i;
+  stack u128[4] s;
+  stack u128 t;
+  reg u128 a b;
+  for i = 0 to 4 { a = [:u128 p + 16 * i]; s[i] = a; }
+  b = s[3];
+  t = b;
+  a = s[0];
+  s[3] = a;
+  b = t;
+  s[0] = b;
+  for i = 0 to 4 { a = s[i]; [:u128 p + 64 + 16 * i] = a; }
+}
+
+/* Explicit spill and reload. */
+export fn spill(reg u64 p) {
+  reg u128 a b;
+  a = [:u128 p + 0];
+  () = #spill(a);
+  b = [:u128 p + 16];
+  [:u128 p + 48] = b;
+  () = #unspill(a);
+  [:u128 p + 32] = a;
+}
+
+/* Load of a u128 global. */
+u128 gv = 0x0f0e0d0c0b0a09080706050403020100;
+
+export fn load_global(reg u64 dst) {
+  reg u128 a;
+  a = gv;
+  [:u128 dst + 0] = a;
+}

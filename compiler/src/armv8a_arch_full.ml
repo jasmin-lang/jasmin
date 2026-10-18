@@ -2,7 +2,7 @@
 open Arch_decl
 
 module type Armv8a_input = sig
-  val call_conv : (Armv8a_decl.register, Arch_utils.empty, Arch_utils.empty, Arm_common.rflag, Arm_common.condt) calling_convention
+  val call_conv : (Armv8a_decl.register, Arch_utils.empty, Armv8a_decl.vregister, Arm_common.rflag, Arm_common.condt) calling_convention
 end
 
 (* Create arch_toIdent for ARMv8A *)
@@ -21,7 +21,7 @@ module Armv8a (Lowering_params : Armv8a_input) = struct
 
   type reg = AD.register
   type regx = Arch_utils.empty
-  type xreg = Arch_utils.empty
+  type xreg = AD.vregister
   type nonrec rflag = Arm_common.rflag
   type cond = Arm_common.condt
   type asm_op = Armv8a_instr_decl.armv8a_asm_op
@@ -63,7 +63,8 @@ module Armv8a (Lowering_params : Armv8a_input) = struct
      DDI0487M.a, D1.4.10.2 (see also the AAPCS64 stack constraints). *)
   let sp_min_align = Wsize.U128
 
-  (* One X-register store; SIMD (NEON) stores would raise this to u128. *)
+  (* One X-register store. Stack zeroization stores XZR; clearing with
+     128-bit stores would need a zeroed SIMD&FP register. *)
   let max_store_size = Wsize.U64
 
   let internal_call_conv = Armv8a_decl.armv8a_internal_call_conv

@@ -186,27 +186,38 @@ Definition armv8a_set_up_sp_register
 Definition armv8a_tmp  : Ident.ident := vname (v_var vtmpi).
 Definition armv8a_tmp2 : Ident.ident := vname (v_var vtmp2i).
 
-Definition armv8a_lmove (_ : wsize) (xd xs : var_i) :=
-  ([:: LLvar xd], Oarmv8a (ARMv8A_op MOV default_opts), [:: Rexpr (Fvar xs)]).
+(* Moves, stores and loads of saved registers: X registers (U64) and, for
+   the callee-saved SIMD&FP registers, whole Q registers (U128). The offset
+   of a slot is a pointer-sized constant whatever the size of the register. *)
+Definition armv8a_lmove (ws : wsize) (xd xs : var_i) :=
+  let op := if ws == U128 then ARMv8A_op VMOV (opts_at U8) else ARMv8A_op MOV default_opts in
+  ([:: LLvar xd], Oarmv8a op, [:: Rexpr (Fvar xs)]).
 
-Definition armv8a_check_ws ws := ws == reg_size.
+Definition armv8a_check_ws ws := (ws == reg_size) || (ws == U128).
 
 Definition armv8a_lstore (ws : wsize) (xd : var_i) (ofs : Z) (xs : var_i) :=
-  let mn := STR in
-  ([:: Store Aligned ws (faddv Uptr xd (fconst ws ofs))], Oarmv8a (ARMv8A_op mn default_opts), [:: Rexpr (Fvar xs)]).
+  let op := if ws == U128 then ARMv8A_op VSTR (opts_at U128) else ARMv8A_op STR default_opts in
+  ([:: Store Aligned ws (faddv Uptr xd (fconst Uptr ofs))], Oarmv8a op, [:: Rexpr (Fvar xs)]).
 
 Definition armv8a_lload (ws : wsize) (xd : var_i) (xs : var_i) (ofs : Z) :=
-  let mn := LDR in
-  ([:: LLvar xd], Oarmv8a (ARMv8A_op mn default_opts), [:: Load Aligned ws (faddv Uptr xs (fconst ws ofs))]).
+  let op := if ws == U128 then ARMv8A_op VLDR (opts_at U128) else ARMv8A_op LDR default_opts in
+  ([:: LLvar xd], Oarmv8a op, [:: Load Aligned ws (faddv Uptr xs (fconst Uptr ofs))]).
 
 (* A saved register is stored to or loaded from [SP + ofs] directly only when
-   LDR and STR can encode [ofs]: for an X register, "a multiple of 8 in the
-   range 0 to 32760" (ARM DDI 0487 M.d, C6.2.216 LDR (immediate) and C6.2.415
-   STR (immediate), unsigned offset). The saved registers are X registers
-   ([armv8a_check_ws]) in 8-byte aligned slots; a wider saved register needs
-   this test revised. Otherwise the address of the first slot is computed
-   into X17 and the slots are reached from it with small offsets. Keeping
-   [is_arith_small] changes only the code that did not assemble. *)
+   [ofs] is a multiple of 8 in [0, 32760], the unsigned offset range of LDR
+   and STR of an X register (ARM DDI 0487 M.d, C6.2.216 LDR (immediate) and
+   C6.2.415 STR (immediate)). The saved Q registers pass the same test: their
+   slots are 16-byte aligned (the alignment check of [check_to_save],
+   linearization.v), so such an offset is also a multiple of 16 in the range
+   of LDR and STR of a Q register, 0 to 65520 (C7.2.230 LDR (immediate,
+   SIMD&FP) and C7.2.387 STR (immediate, SIMD&FP)); the test is conservative
+   for them. Otherwise the address of the first slot is computed into X17
+   and each slot is reached at its distance from the first one, within the
+   save area. For an X register this distance is a multiple of 8 far below
+   32760, so it is always encodable; for a Q register, a distance that LDR or
+   STR cannot encode is rejected by assembly generation ([CAmemC_armv8a_q],
+   armv8a_decl.v). Keeping [is_arith_small] leaves the code unchanged
+   wherever the direct offset was already encodable. *)
 Definition is_save_slot_offset (ofs : Z) : bool :=
   is_arith_small ofs && ((0 <=? ofs) && (ofs <=? 32760) && (ofs mod 8 =? 0))%Z.
 
@@ -235,7 +246,13 @@ Definition armv8a_lloads (rspi : var_i) (to_restore : seq (var * Z)) (spofs : Z)
                to_restore
   in
   let restore_sp :=
-    if is_save_slot_offset spofs then
+    if vtype rspi != aword Uptr then
+      (* Not reached: the stack pointer is a pointer-sized register. This
+         case only keeps the specification of [lip_lloads] uniform in the
+         type of [rspi], which may be any type accepted by
+         [armv8a_check_ws]. *)
+      [:: armv8a_lload (wsize_of_atype (vtype rspi)) rspi rspi spofs ]
+    else if is_save_slot_offset spofs then
       [:: armv8a_lload Uptr vtmp2i rspi spofs; armv8a_lmove Uptr rspi vtmp2i ]
     else
       ARMv8AFopn_smart_addi vtmp2i rspi spofs
@@ -431,7 +448,7 @@ Definition armv8a_szparams : stack_zeroization_params :=
 
 Definition armv8a_is_load (o : asm_op_t) : bool :=
   if o is BaseOp (None, ARMv8A_op mn _) then
-    mn \in [:: LDR; LDRB; LDRH; LDRSB; LDRSH; LDRSW; LDP ]
+    mn \in [:: VLDR; LDR; LDRB; LDRH; LDRSB; LDRSH; LDRSW; LDP ]
   else false.
 
 Definition armv8a_laparams : lower_addressing_params :=
@@ -446,7 +463,7 @@ Definition armv8a_laparams : lower_addressing_params :=
 Definition armv8a_is_move_op (o : asm_op_t) : bool :=
   match o with
   | BaseOp (None, ARMv8A_op o opts) =>
-    if o \in [:: MOV; LDR; STR; STRH; STRB ] then
+    if o \in [:: MOV; LDR; STR; STRH; STRB; VMOV; VLDR; VSTR ] then
       ~~ has_shift opts
     else false
 

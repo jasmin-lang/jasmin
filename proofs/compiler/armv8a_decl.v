@@ -1,8 +1,11 @@
 (* ARMv8-A (AArch64) architecture declaration.
 
- * Description of the A64 base architecture (no SIMD/FP, no extensions).
+ * Description of the A64 base architecture and of its Advanced SIMD
+ * register file (no floating point).
  * General-purpose registers are modeled at their full 64-bit width (X
  * registers); instructions come in 64-bit (X) and 32-bit (W) forms.
+ * SIMD&FP registers are modeled at their full 128-bit width (V/Q
+ * registers).
  *)
 From elpi.apps Require Import derive.std.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype fintype ssralg.
@@ -245,10 +248,71 @@ Definition is_mov_imm (ws : wsize) (x : Z) : bool :=
     | is_bitmask_imm ws x ].
 
 (* -------------------------------------------------------------------- *)
+(* SIMD&FP registers.
+
+   AArch64 has 32 SIMD&FP registers V0..V31, each 128 bits wide (ARM DDI
+   0487 M.d, B1.2 "Registers in AArch64 Execution state", p. B1-206). They are
+   modeled at their full width: the Q view of a register is the register
+   itself, and the narrower views (D, S, H, B) are not modeled as
+   registers. Writing a narrower view zero-extends the value to the whole
+   register (the setter of the V{width}(n) accessor, ARM DDI 0487 M.d,
+   J1.4.3.351 V, outside SVE); an instruction writing such a view
+   states the zero-extension in its semantics. *)
+
+#[only(eqbOK)] derive
+Variant vregister : Type :=
+| V0  | V1  | V2  | V3  | V4  | V5  | V6  | V7
+| V8  | V9  | V10 | V11 | V12 | V13 | V14 | V15
+| V16 | V17 | V18 | V19 | V20 | V21 | V22 | V23
+| V24 | V25 | V26 | V27 | V28 | V29 | V30 | V31.
+
+#[ export ]
+Instance eqTC_vregister : eqTypeC vregister :=
+  { ceqP := vregister_eqb_OK }.
+
+Canonical armv8a_vregister_eqType := @ceqT_eqType _ eqTC_vregister.
+
+Definition vregisters :=
+  [:: V0;  V1;  V2;  V3;  V4;  V5;  V6;  V7;
+      V8;  V9;  V10; V11; V12; V13; V14; V15;
+      V16; V17; V18; V19; V20; V21; V22; V23;
+      V24; V25; V26; V27; V28; V29; V30; V31 ].
+
+Lemma vregister_fin_axiom : Finite.axiom vregisters.
+Proof. by case. Qed.
+
+#[ export ]
+Instance finTC_vregister : finTypeC vregister :=
+  {
+    cenum  := vregisters;
+    cenumP := vregister_fin_axiom;
+  }.
+
+Canonical vregister_finType := @cfinT_finType _ finTC_vregister.
+
+Definition vregister_to_string (r : vregister) : string :=
+  match r with
+  | V0  => "v0"  | V1  => "v1"  | V2  => "v2"  | V3  => "v3"
+  | V4  => "v4"  | V5  => "v5"  | V6  => "v6"  | V7  => "v7"
+  | V8  => "v8"  | V9  => "v9"  | V10 => "v10" | V11 => "v11"
+  | V12 => "v12" | V13 => "v13" | V14 => "v14" | V15 => "v15"
+  | V16 => "v16" | V17 => "v17" | V18 => "v18" | V19 => "v19"
+  | V20 => "v20" | V21 => "v21" | V22 => "v22" | V23 => "v23"
+  | V24 => "v24" | V25 => "v25" | V26 => "v26" | V27 => "v27"
+  | V28 => "v28" | V29 => "v29" | V30 => "v30" | V31 => "v31"
+  end.
+
+#[ export ]
+Instance vreg_toS : ToString (lword armv8a_xreg_size) vregister :=
+  {| category  := "vector register"
+   ; to_string := vregister_to_string
+  |}.
+
+(* -------------------------------------------------------------------- *)
 (* Architecture declaration. *)
 
 Notation register_ext := empty.
-Notation xregister := empty.
+Notation xregister := vregister.
 
 (* Immediate-argument conditions (see [caimm_cond] in arch_decl.v).
    Each constructor is a validity predicate for an immediate operand and
@@ -309,10 +373,25 @@ Definition armv8a_caimm_cond_pp (checker : armv8a_caimm_cond) : string :=
      register and no offset register, and the displacement is "a multiple of
      8 in the range -512 to 504" (X registers) or "a multiple of 4 in the
      range -256 to 252" (W registers), encoded in the imm7 field
-     (ARM DDI 0487 M.d, C6.2.214 LDP and C6.2.414 STP). *)
+     (ARM DDI 0487 M.d, C6.2.214 LDP and C6.2.414 STP).
+   - [CAmemC_armv8a_q]: the address of a load or store of a 128-bit SIMD&FP
+     register (LDR/STR <Qt>). The encodable forms are a base register with
+     an unsigned offset that is a multiple of 16 in [0, 65520] (field imm12
+     scaled by 16; ARM DDI 0487 M.d, C7.2.230 LDR (immediate, SIMD&FP),
+     p. C7-3528), a base register with a signed unscaled offset in
+     [-256, 255] (field imm9, which assemblers select for this syntax;
+     C7.2.235 LDUR (SIMD&FP), p. C7-3545), and a base register with an
+     unshifted register offset (LSL #0; C7.2.232 LDR (register, SIMD&FP),
+     p. C7-3535). The stores have the same forms (C7.2.387, C7.2.391 and
+     C7.2.388).
+     The register offset scaled by 16 (LSL #4) is encodable but not
+     accepted: assembly generation represents scales 1, 2, 4 and 8 only
+     ([scale_of_z]) and reports an index scaled by 16 as an invalid scale
+     before this check. *)
 #[only(eqbOK)] derive
 Variant armv8a_camem_cond :=
-  | CAmemC_armv8a_pair of wsize.
+  | CAmemC_armv8a_pair of wsize
+  | CAmemC_armv8a_q.
 
 #[ export ]
 Instance eqTC_armv8a_camem_cond : eqTypeC armv8a_camem_cond :=
@@ -323,12 +402,21 @@ Definition is_pair_offset (ws : wsize) (d : Z) : bool :=
   let q := (d / n)%Z in
   ((d mod n =? 0) && (-64 <=? q) && (q <=? 63))%Z.
 
+Definition is_q_offset (d : Z) : bool :=
+  ((-256 <=? d) && (d <=? 255))%Z
+  || ((d mod 16 =? 0) && (0 <=? d) && (d <=? 65520))%Z.
+
 Definition armv8a_check_CAmem
   (checker : armv8a_camem_cond) (disp : word armv8a_reg_size)
-  (base : option register) (_ : nat) (ofs : option register) : bool :=
+  (base : option register) (scale : nat) (ofs : option register) : bool :=
   match checker with
   | CAmemC_armv8a_pair ws =>
     isSome base && ~~ isSome ofs && is_pair_offset ws (wsigned disp)
+  | CAmemC_armv8a_q =>
+    isSome base &&
+    if ofs is Some _
+    then (disp == 0%R) && Nat.eqb scale 0
+    else is_q_offset (wsigned disp)
   end.
 
 Definition armv8a_camem_cond_pp (checker : armv8a_camem_cond) : string :=
@@ -337,6 +425,8 @@ Definition armv8a_camem_cond_pp (checker : armv8a_camem_cond) : string :=
     if ws == U64
     then "[Xn|SP, #imm], imm a multiple of 8 in [-512, 504]"
     else "[Xn|SP, #imm], imm a multiple of 4 in [-256, 252]"
+  | CAmemC_armv8a_q =>
+    "[Xn|SP, #imm] with imm in [-256, 255] or a multiple of 16 in [0, 65520], or [Xn|SP, Xm]"
   end%string.
 
 #[ export ]
@@ -346,7 +436,7 @@ Instance armv8a_decl : arch_decl register register_ext xregister rflag condt :=
   ; cond_eqC  := eqTC_condt
   ; toS_r     := reg_toS
   ; toS_rx    := empty_toS lword64
-  ; toS_x     := empty_toS lword128
+  ; toS_x     := vreg_toS
   ; toS_f     := rflag_toS
   ; reg_size_neq_xreg_size := refl_equal
   ; ad_rsp := RSP
@@ -369,18 +459,33 @@ Instance armv8a_decl : arch_decl register register_ext xregister rflag condt :=
    x18 (reserved on Windows, on Apple platforms and under
    shadow-call-stack Linux), and it is excluded from the register file
    altogether (see the [register] declaration above), so this convention
-   is valid on all platforms. *)
+   is valid on all platforms.
+
+   SIMD&FP registers (AAPCS64, Arm IHI 0055, release 2025Q4, "SIMD and
+   Floating-Point registers"): V0-V7 pass arguments and return results,
+   V8-V15 are callee-saved, and V0-V7 and V16-V31 are caller-saved. A
+   result is returned in the registers that an argument of its type would
+   be passed in ("Result return"), and a homogeneous short-vector
+   aggregate of at most four members is passed in consecutive SIMD&FP
+   registers (rule C.2 of the parameter passing rules), so up to four
+   vector results are returned, in V0-V3.
+   Only the bottom 64 bits of V8-V15 need to be callee-saved. They are
+   declared callee-saved as whole registers, so the compiler saves and
+   restores all 128 bits, which preserves more than required. In the other
+   direction, a system call is not assumed to preserve them
+   ([syscall_preserved], arch_decl.v). *)
 
 Definition armv8a_call_conv : calling_convention :=
   {| callee_saved :=
       map ARReg [:: R19; R20; R21; R22; R23; R24; R25; R26; R27; R28
                   ; R29; RSP ]
+      ++ map AXReg [:: V8; V9; V10; V11; V12; V13; V14; V15 ]
    ; callee_saved_not_bool := erefl true
    ; callee_saved_has_rsp  := erefl true
    ; call_reg_args  := [:: R0; R1; R2; R3; R4; R5; R6; R7 ]
-   ; call_xreg_args := [::]
+   ; call_xreg_args := [:: V0; V1; V2; V3; V4; V5; V6; V7 ]
    ; call_reg_ret   := [:: R0; R1; R2; R3; R4; R5; R6; R7 ]
-   ; call_xreg_ret  := [::]
+   ; call_xreg_ret  := [:: V0; V1; V2; V3 ]
    ; call_reg_ret_uniq := erefl true
    |}.
 
@@ -392,6 +497,6 @@ Definition armv8a_internal_call_conv : internal_calling_convention :=
           R19; R20; R21; R22; R23; R24;
           R25; R26; R27; R28; R29 ]
    ; icall_regx  := [::]
-   ; icall_xreg  := [::]
+   ; icall_xreg  := vregisters
    ; icall_rflag := [:: CF; NF; ZF; VF ]
   |}.

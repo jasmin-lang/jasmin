@@ -1,0 +1,7 @@
+/* LDR/STR <Qt> only shift the register offset by 4: a scale of 2 is unencodable. */
+export
+fn vstr_scaled_index2(reg u64 p i) {
+    reg u128 a;
+    a = [:u128 p];
+    [:u128 p + 2 * i] = a;
+}
