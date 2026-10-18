@@ -1,0 +1,10 @@
+/* Both indices of a 16B vector are in [0, 15]: here the second one, the
+   source element, is not. */
+export
+fn vinse_index_range(reg u64 p) {
+    reg u128 a b;
+    a = [:u128 p];
+    b = [:u128 p + 16];
+    a = #VINSE_16u8(a, b, 0, 16);
+    [:u128 p] = a;
+}

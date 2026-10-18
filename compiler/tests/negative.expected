@@ -585,6 +585,46 @@ Allowed args compatible with the input (except on immediate sizes and address sh
 All allowed args (regardless of the input) are:
   [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
 
+fail/asmgen/armv8a/vdupe_index_range.jazz:
+
+"fail/asmgen/armv8a/vdupe_index_range.jazz", line 6 (4-26):
+compilation error in function vdupe_index_range:
+asmgen: instruction VDUPE_8u16 is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [xreg]; [imm 8 [0, 7]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [xreg]; [imm 8 [0, 7]]]
+
+fail/asmgen/armv8a/vext_index_range.jazz:
+
+"fail/asmgen/armv8a/vext_index_range.jazz", line 7 (4-24):
+compilation error in function vext_index_range:
+asmgen: instruction VEXT is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [xreg]; [xreg]; [imm 8 [0, 15]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [xreg]; [xreg]; [imm 8 [0, 15]]]
+
+fail/asmgen/armv8a/vins_index_range.jazz:
+
+"fail/asmgen/armv8a/vins_index_range.jazz", line 8 (4-28):
+compilation error in function vins_index_range:
+asmgen: instruction VINS_4u32 is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [reg]; [imm 8 [0, 3]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [reg]; [imm 8 [0, 3]]]
+
+fail/asmgen/armv8a/vinse_index_range.jazz:
+
+"fail/asmgen/armv8a/vinse_index_range.jazz", line 8 (4-33):
+compilation error in function vinse_index_range:
+asmgen: instruction VINSE_16u8 is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [xreg]; [imm 8 [0, 15]]; [imm 8 [0, 15]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [xreg]; [imm 8 [0, 15]]; [imm 8 [0, 15]]]
+
 fail/asmgen/armv8a/vldr_index_scale16.jazz:
 
 "fail/asmgen/armv8a/vldr_index_scale16.jazz", line 9 (4-13):
@@ -701,6 +741,16 @@ Allowed args compatible with the input (except on immediate sizes and address sh
   [[xreg]; [mem (glob not allowed) [Xn|SP, #imm] with imm in [-256, 255] or a multiple of 16 in [0, 65520], or [Xn|SP, Xm]]]
 All allowed args (regardless of the input) are:
   [[xreg]; [mem (glob not allowed) [Xn|SP, #imm] with imm in [-256, 255] or a multiple of 16 in [0, 65520], or [Xn|SP, Xm]]]
+
+fail/asmgen/armv8a/vumov_index_range.jazz:
+
+"fail/asmgen/armv8a/vumov_index_range.jazz", line 7 (4-26):
+compilation error in function vumov_index_range:
+asmgen: instruction VUMOV_2u64 is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [xreg]; [imm 8 [0, 1]]]
+All allowed args (regardless of the input) are:
+  [[reg]; [xreg]; [imm 8 [0, 1]]]
 
 fail/asmgen/armv8a/vushr_amount_zero.jazz:
 
@@ -2123,4 +2173,4 @@ Statistics:
 	Pretyping:  65
 	Parsing:     5
 	Typing:      5
-	Compile:   253
+	Compile:   258

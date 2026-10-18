@@ -167,7 +167,9 @@ Variant armv8a_mnemonic : Type :=
    or U128 for the loads and stores of a whole Q register. Each one is named
    V followed by its assembly mnemonic; its element sizes, and with them its
    intrinsic names, are given by [vector_esizes] below. [VSHL] is SHL
-   (immediate), not the AArch32 shift by a register. *)
+   (immediate), not the AArch32 shift by a register. DUP and INS have a
+   form with a general-purpose source ([VDUP], [VINS]) and one with a
+   vector element source ([VDUPE], [VINSE]). *)
 | VMOV                           (* Move vector (MOV, alias of ORR (vector)) *)
 | VMOVI                          (* Move immediate (vector), 64-bit variant *)
 | VLDR                           (* Load a Q register *)
@@ -183,7 +185,21 @@ Variant armv8a_mnemonic : Type :=
 | VUSHR                          (* Unsigned shift right (immediate, vector) *)
 | VSSHR                          (* Signed shift right (immediate, vector) *)
 | VSRI                           (* Shift right and insert (immediate) *)
-| VSLI.                          (* Shift left and insert (immediate) *)
+| VSLI                           (* Shift left and insert (immediate) *)
+| VEXT                           (* Extract vector from a pair of vectors *)
+| VREV32                         (* Reverse elements in 32-bit words (vector) *)
+| VREV64                         (* Reverse elements in 64-bit doublewords (vector) *)
+| VTRN1                          (* Transpose vectors (primary) *)
+| VTRN2                          (* Transpose vectors (secondary) *)
+| VZIP1                          (* Zip vectors (primary) *)
+| VZIP2                          (* Zip vectors (secondary) *)
+| VUZP1                          (* Unzip vectors (primary) *)
+| VUZP2                          (* Unzip vectors (secondary) *)
+| VDUP                           (* Duplicate general-purpose register to vector *)
+| VDUPE                          (* Duplicate vector element to vector *)
+| VINS                           (* Insert vector element from general-purpose register *)
+| VINSE                          (* Insert vector element from another vector element *)
+| VUMOV.                         (* Unsigned move vector element to general-purpose register *)
 
 #[ export ]
 Instance eqTC_armv8a_mnemonic : eqTypeC armv8a_mnemonic :=
@@ -208,6 +224,9 @@ Definition armv8a_mnemonics : seq armv8a_mnemonic :=
     ; VAND; VBIC; VORR; VEOR; VNOT
     ; VADD; VSUB
     ; VSHL; VUSHR; VSSHR; VSRI; VSLI
+    ; VEXT; VREV32; VREV64
+    ; VTRN1; VTRN2; VZIP1; VZIP2; VUZP1; VUZP2
+    ; VDUP; VDUPE; VINS; VINSE; VUMOV
   ].
 
 Lemma armv8a_mnemonic_fin_axiom : Finite.axiom armv8a_mnemonics.
@@ -379,6 +398,20 @@ Definition string_of_armv8a_mnemonic (mn : armv8a_mnemonic) : string :=
   | VSSHR => "VSSHR"
   | VSRI => "VSRI"
   | VSLI => "VSLI"
+  | VEXT => "VEXT"
+  | VREV32 => "VREV32"
+  | VREV64 => "VREV64"
+  | VTRN1 => "VTRN1"
+  | VTRN2 => "VTRN2"
+  | VZIP1 => "VZIP1"
+  | VZIP2 => "VZIP2"
+  | VUZP1 => "VUZP1"
+  | VUZP2 => "VUZP2"
+  | VDUP => "VDUP"
+  | VDUPE => "VDUPE"
+  | VINS => "VINS"
+  | VINSE => "VINSE"
+  | VUMOV => "VUMOV"
   end%string.
 
 (* Assembly mnemonic of the Advanced SIMD instructions. *)
@@ -400,6 +433,18 @@ Definition vasm_name (mn : armv8a_mnemonic) : string :=
   | VSSHR => "SSHR"
   | VSRI => "SRI"
   | VSLI => "SLI"
+  | VEXT => "EXT"
+  | VREV32 => "REV32"
+  | VREV64 => "REV64"
+  | VTRN1 => "TRN1"
+  | VTRN2 => "TRN2"
+  | VZIP1 => "ZIP1"
+  | VZIP2 => "ZIP2"
+  | VUZP1 => "UZP1"
+  | VUZP2 => "UZP2"
+  | VDUP | VDUPE => "DUP"
+  | VINS | VINSE => "INS"
+  | VUMOV => "UMOV"
   | _ => string_of_armv8a_mnemonic mn
   end%string.
 
@@ -413,6 +458,24 @@ Definition vector_esizes (mn : armv8a_mnemonic) : seq wsize :=
   | VMOVI => [:: U64 ]
   | VLDR | VSTR => [:: U128 ]
   | VADD | VSUB | VSHL | VUSHR | VSSHR | VSRI | VSLI => [:: U8; U16; U32; U64 ]
+  | VEXT => [:: U8 ]
+  | VREV32 => [:: U8; U16 ]
+  | VREV64 => [:: U8; U16; U32 ]
+  | VTRN1 | VTRN2 | VZIP1 | VZIP2 | VUZP1 | VUZP2
+  | VDUP | VDUPE | VINS | VINSE | VUMOV => [:: U8; U16; U32; U64 ]
+  | _ => [::]
+  end.
+
+(* The element operands [<Vn>.<Ts>[<index>]] of the Advanced SIMD
+   instructions, as pairs of positions (register, index) in the argument
+   list of their description. The assembly printer writes the register,
+   with the element size paired with it, and the immediate index as one
+   operand; an operand description has no element view of a register. *)
+Definition velem_operands (mn : armv8a_mnemonic) : seq (nat * nat) :=
+  match mn with
+  | VDUPE | VUMOV => [:: (1, 2) ]
+  | VINS => [:: (0, 2) ]
+  | VINSE => [:: (0, 2); (1, 3) ]
   | _ => [::]
   end.
 
@@ -2741,6 +2804,8 @@ Let ak_vv := [:: [:: [:: CAxmm ]; [:: CAxmm ] ] ].
 Let ak_vvv := [:: [:: [:: CAxmm ]; [:: CAxmm ]; [:: CAxmm ] ] ].
 Let ak_vv_imm (c : armv8a_caimm_cond) :=
   [:: [:: [:: CAxmm ]; [:: CAxmm ]; [:: CAimm (Some c) U8 ] ] ].
+Let ak_vvv_imm (c : armv8a_caimm_cond) :=
+  [:: [:: [:: CAxmm ]; [:: CAxmm ]; [:: CAxmm ]; [:: CAimm (Some c) U8 ] ] ].
 
 (* One vector source. *)
 Definition mk_v1_instr mn (semi : word U128 -> ty_v) : instr_desc_t :=
@@ -2840,6 +2905,32 @@ Definition mk_v1d_imm_instr mn (c : armv8a_caimm_cond)
     id_init := [:: IBool true ];
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_vop mn [:: esize; esize; U8 ];
+    id_valid := vvalid mn;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* Two vector sources and an immediate. *)
+Definition mk_v2_imm_instr mn (c : armv8a_caimm_cond)
+  (semi : word U128 -> word U128 -> word U8 -> ty_v) : instr_desc_t :=
+  let tin := [:: lvec; lvec; lword U8 ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 4;
+    id_args_kinds := ak_vvv_imm c;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop mn [:: esize; esize; esize; U8 ];
     id_valid := vvalid mn;
     id_safe_wf := refl_equal;
     id_wf := refl_equal;
@@ -3086,6 +3177,219 @@ Definition armv8a_VSLI_semi (ve : wsize) (wd wn : word U128) (sh : word U8) : ty
 Definition armv8a_VSLI_instr : instr_desc_t :=
   mk_v1d_imm_instr VSLI (CAimmC_armv8a_shift_amount esize) (armv8a_VSLI_semi esize).
 
+(* Permutations and element moves.
+   A general-purpose operand is a W register for elements of at most 32
+   bits and an X register for 64-bit elements ([gsz]). An element operand
+   [<Vn>.<Ts>[<index>]] is described as the register, paired with the
+   element size, and the immediate index (see [velem_operands]). An index
+   is checked against the number of elements of the arrangement
+   ([CAimmC_armv8a_vindex]). *)
+
+Notation gsz := (if esize == U64 then U64 else U32) (only parsing).
+
+(* [C7.2.44 EXT] ARM DDI 0487 M.d, p. C7-3028
+   Syntax: EXT <Vd>.16B, <Vn>.16B, <Vm>.16B, #<index>
+   The index is in [0, 15] for the 16B arrangement.
+   Semantics: the 16 bytes starting at byte [index] of the 32-byte value
+   whose low half is Vn and high half Vm. *)
+Definition armv8a_VEXT_semi (wn wm : word U128) (idx : word U8) : ty_v :=
+  vext wn wm (vindex idx).
+
+Definition armv8a_VEXT_instr : instr_desc_t :=
+  mk_v2_imm_instr VEXT (CAimmC_armv8a_vindex U8) armv8a_VEXT_semi.
+
+(* [C7.2.263 REV32 (vector)] ARM DDI 0487 M.d, p. C7-3603
+   Syntax: REV32 <Vd>.<T>, <Vn>.<T>   (T in 16B, 8H)
+   Semantics: the order of the elements is reversed within each 32-bit
+   container. *)
+Definition armv8a_VREV32_semi (ve : wsize) (wn : word U128) : ty_v :=
+  lift1_vec U32 (vrev_elems ve) U128 wn.
+
+Definition armv8a_VREV32_instr : instr_desc_t :=
+  mk_v1_instr VREV32 (armv8a_VREV32_semi esize).
+
+(* [C7.2.264 REV64] ARM DDI 0487 M.d, p. C7-3605
+   Syntax: REV64 <Vd>.<T>, <Vn>.<T>   (T in 16B, 8H, 4S)
+   Semantics: as REV32, within each 64-bit container. *)
+Definition armv8a_VREV64_semi (ve : wsize) (wn : word U128) : ty_v :=
+  lift1_vec U64 (vrev_elems ve) U128 wn.
+
+Definition armv8a_VREV64_instr : instr_desc_t :=
+  mk_v1_instr VREV64 (armv8a_VREV64_semi esize).
+
+(* [C7.2.399 TRN1] ARM DDI 0487 M.d, p. C7-3958
+   [C7.2.400 TRN2] ARM DDI 0487 M.d, p. C7-3960
+   Syntax: TRN1 <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Semantics (part = 0 for TRN1, 1 for TRN2): result pair p is
+   (Vn[2p + part], Vm[2p + part]). *)
+Definition armv8a_VTRN1_instr : instr_desc_t := mk_v2_instr VTRN1 (vtrn esize 0).
+Definition armv8a_VTRN2_instr : instr_desc_t := mk_v2_instr VTRN2 (vtrn esize 1).
+
+(* [C7.2.462 ZIP1] ARM DDI 0487 M.d, p. C7-4107
+   [C7.2.463 ZIP2] ARM DDI 0487 M.d, p. C7-4109
+   Syntax: ZIP1 <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Semantics (part = 0 for ZIP1, 1 for ZIP2): with half the number of
+   elements h, result pair p is (Vn[part * h + p], Vm[part * h + p]). *)
+Definition armv8a_VZIP1_instr : instr_desc_t := mk_v2_instr VZIP1 (vzip esize 0).
+Definition armv8a_VZIP2_instr : instr_desc_t := mk_v2_instr VZIP2 (vzip esize 1).
+
+(* [C7.2.458 UZP1] ARM DDI 0487 M.d, p. C7-4100
+   [C7.2.459 UZP2] ARM DDI 0487 M.d, p. C7-4102
+   Syntax: UZP1 <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Semantics (part = 0 for UZP1, 1 for UZP2): result element e is element
+   2e + part of the sequence of the elements of Vn followed by those of
+   Vm. *)
+Definition armv8a_VUZP1_instr : instr_desc_t := mk_v2_instr VUZP1 (vuzp esize 0).
+Definition armv8a_VUZP2_instr : instr_desc_t := mk_v2_instr VUZP2 (vuzp esize 1).
+
+(* [C7.2.41 DUP (general)] ARM DDI 0487 M.d, p. C7-3023
+   Syntax: DUP <Vd>.<T>, <R><n>   (R is W for 8, 16 and 32-bit elements, X for 64)
+   Semantics: the low [esize] bits of the general-purpose register in
+   every element. *)
+Definition armv8a_VDUP_semi (ve : wsize) {gs : wsize} (x : word gs) : ty_v :=
+  wpbroadcast U128 (zero_extend ve x).
+
+Definition armv8a_VDUP_instr : instr_desc_t :=
+  let tin := [:: lword gsz ] in
+  let semi := armv8a_VDUP_semi esize (gs := gsz) in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 2;
+    id_args_kinds := [:: [:: [:: CAxmm ]; [:: CAreg ] ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str VDUP;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VDUP [:: esize; gsz ];
+    id_valid := vvalid VDUP;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* [C7.2.40 DUP (element)] ARM DDI 0487 M.d, p. C7-3019
+   Syntax: DUP <Vd>.<T>, <Vn>.<Ts>[<index>]
+   Semantics: element [index] of Vn in every element. *)
+Definition armv8a_VDUPE_semi (ve : wsize) (wn : word U128) (idx : word U8) : ty_v :=
+  wpbroadcast U128 (velem_at ve wn (vindex idx)).
+
+Definition armv8a_VDUPE_instr : instr_desc_t :=
+  mk_v1_imm_instr VDUPE (CAimmC_armv8a_vindex esize) (armv8a_VDUPE_semi esize).
+
+(* [C7.2.203 INS (general)] ARM DDI 0487 M.d, p. C7-3439, with the
+   preferred alias [C7.2.244 MOV (from general)].
+   Syntax: INS <Vd>.<Ts>[<index>], <R><n>
+   Semantics: Vd with element [index] replaced by the low [esize] bits of
+   the general-purpose register. *)
+Definition armv8a_VINS_semi (ve : wsize) {gs : wsize}
+  (wd : word U128) (x : word gs) (idx : word U8) : ty_v :=
+  wpinsr wd (zero_extend ve x) idx.
+
+Definition armv8a_VINS_instr : instr_desc_t :=
+  let tin := [:: lvec; lword gsz; lword U8 ] in
+  let semi := armv8a_VINS_semi esize (gs := gsz) in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 0; Ea 1; Ea 2 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds :=
+      [:: [:: [:: CAxmm ]; [:: CAreg ]; [:: CAimm (Some (CAimmC_armv8a_vindex esize)) U8 ] ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str VINS;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VINS [:: esize; gsz; U8 ];
+    id_valid := vvalid VINS;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* [C7.2.202 INS (element)] ARM DDI 0487 M.d, p. C7-3436, with the
+   preferred alias [C7.2.243 MOV (element)].
+   Syntax: INS <Vd>.<Ts>[<index1>], <Vn>.<Ts>[<index2>]
+   Semantics: Vd with element [index1] replaced by element [index2] of
+   Vn. *)
+Definition armv8a_VINSE_semi (ve : wsize)
+  (wd wn : word U128) (di si : word U8) : ty_v :=
+  wpinsr wd (velem_at ve wn (vindex si)) di.
+
+Definition armv8a_VINSE_instr : instr_desc_t :=
+  let tin := [:: lvec; lvec; lword U8; lword U8 ] in
+  let semi := armv8a_VINSE_semi esize in
+  let idx := CAimm (Some (CAimmC_armv8a_vindex esize)) U8 in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 0; Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 4;
+    id_args_kinds := [:: [:: [:: CAxmm ]; [:: CAxmm ]; [:: idx ]; [:: idx ] ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str VINSE;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VINSE [:: esize; esize; U8; U8 ];
+    id_valid := vvalid VINSE;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* [C7.2.430 UMOV] ARM DDI 0487 M.d, p. C7-4026, with the preferred
+   alias [C7.2.246 MOV (to general)] for 32 and 64-bit elements.
+   Syntax: UMOV <Wd>, <Vn>.<Ts>[<index>]   (Ts in B, H, S)
+           UMOV <Xd>, <Vn>.D[<index>]
+   Semantics: element [index] of Vn, zero-extended to the destination.
+   A W destination clears the upper 32 bits of the X register
+   ([MSB_CLEAR]). *)
+Definition armv8a_VUMOV_semi (ve gs : wsize) (wn : word U128) (idx : word U8)
+  : sem_ltuple [:: lword gs ] :=
+  zero_extend gs (velem_at ve wn (vindex idx)).
+
+Definition armv8a_VUMOV_instr : instr_desc_t :=
+  let tin := [:: lvec; lword U8 ] in
+  let semi := armv8a_VUMOV_semi esize gsz in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2 ];
+    id_tout := [:: lword gsz ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds :=
+      [:: [:: [:: CAreg ]; [:: CAxmm ]; [:: CAimm (Some (CAimmC_armv8a_vindex esize)) U8 ] ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str VUMOV;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VUMOV [:: gsz; esize; U8 ];
+    id_valid := vvalid VUMOV;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
 (* -------------------------------------------------------------------- *)
 (* Description of instructions. *)
 
@@ -3174,6 +3478,20 @@ Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
   | VSSHR => armv8a_VSSHR_instr
   | VSRI => armv8a_VSRI_instr
   | VSLI => armv8a_VSLI_instr
+  | VEXT => armv8a_VEXT_instr
+  | VREV32 => armv8a_VREV32_instr
+  | VREV64 => armv8a_VREV64_instr
+  | VTRN1 => armv8a_VTRN1_instr
+  | VTRN2 => armv8a_VTRN2_instr
+  | VZIP1 => armv8a_VZIP1_instr
+  | VZIP2 => armv8a_VZIP2_instr
+  | VUZP1 => armv8a_VUZP1_instr
+  | VUZP2 => armv8a_VUZP2_instr
+  | VDUP => armv8a_VDUP_instr
+  | VDUPE => armv8a_VDUPE_instr
+  | VINS => armv8a_VINS_instr
+  | VINSE => armv8a_VINSE_instr
+  | VUMOV => armv8a_VUMOV_instr
   end.
 
 End ARMV8A_INSTR.

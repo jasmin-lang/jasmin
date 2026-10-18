@@ -343,7 +343,12 @@ Notation xregister := vregister.
      [1, esize] (ARM DDI 0487 M.d, C7.2.451 USHR, operand description).
    - [CAimmC_armv8a_movi_2d]: the 64-bit immediate of MOVI <Vd>.2D. The
      architecture encodes every value whose bytes are each 0x00 or 0xFF
-     (C7.2.247 MOVI, p. C7-3570, <imm>); only 0 is accepted. *)
+     (C7.2.247 MOVI, p. C7-3570, <imm>); only 0 is accepted.
+   - [CAimmC_armv8a_vindex esize]: an element index in [0, 128 / esize - 1]
+     (operand descriptions of <index>, <index1> and <index2> in C7.2.40
+     DUP (element), C7.2.202 INS (element), C7.2.203 INS (general) and
+     C7.2.430 UMOV); with [esize = 8] also the byte position of EXT, in
+     [0, 15] for the 16B arrangement (C7.2.44 EXT, <index>). *)
 #[only(eqbOK)] derive
 Variant armv8a_caimm_cond :=
   | CAimmC_armv8a_shift_amount of wsize
@@ -352,7 +357,8 @@ Variant armv8a_caimm_cond :=
   | CAimmC_armv8a_bitmask_imm
   | CAimmC_armv8a_mov_imm
   | CAimmC_armv8a_vshr of wsize
-  | CAimmC_armv8a_movi_2d.
+  | CAimmC_armv8a_movi_2d
+  | CAimmC_armv8a_vindex of wsize.
 
 #[ export ]
 Instance eqTC_armv8a_caimm_cond : eqTypeC armv8a_caimm_cond :=
@@ -368,6 +374,7 @@ Definition armv8a_check_CAimm (checker : armv8a_caimm_cond) ws (w : word ws) : b
   | CAimmC_armv8a_mov_imm => is_mov_imm ws (wunsigned w)
   | CAimmC_armv8a_vshr ve => (0 <? wunsigned w)%Z && (wunsigned w <=? wsize_bits ve)%Z
   | CAimmC_armv8a_movi_2d => (wunsigned w =? 0)%Z
+  | CAimmC_armv8a_vindex ve => (wunsigned w <? wsize_size U128 / wsize_size ve)%Z
   end.
 
 Definition armv8a_caimm_cond_pp (checker : armv8a_caimm_cond) : string :=
@@ -385,6 +392,8 @@ Definition armv8a_caimm_cond_pp (checker : armv8a_caimm_cond) : string :=
   | CAimmC_armv8a_vshr ve =>
       match ve with U8 => "[1, 8]" | U16 => "[1, 16]" | U32 => "[1, 32]" | _ => "[1, 64]" end
   | CAimmC_armv8a_movi_2d => "(0 only)"
+  | CAimmC_armv8a_vindex ve =>
+      match ve with U8 => "[0, 15]" | U16 => "[0, 7]" | U32 => "[0, 3]" | _ => "[0, 1]" end
   end%string.
 
 (* Memory-argument conditions (see [camem_cond] in arch_decl.v).

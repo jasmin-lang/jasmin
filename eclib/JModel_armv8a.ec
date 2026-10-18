@@ -404,3 +404,186 @@ op VSLI_4u32 (d n: W128.t) (s: W8.t) : W128.t =
   W4u32.map2 (fun (a b: W32.t) => orw (andw a (invw (W32.onew `<<<` to_uint s))) (b `<<<` to_uint s)) d n.
 op VSLI_2u64 (d n: W128.t) (s: W8.t) : W128.t =
   W2u64.map2 (fun (a b: W64.t) => orw (andw a (invw (W64.onew `<<<` to_uint s))) (b `<<<` to_uint s)) d n.
+
+(* -------------------------------------------------------------------- *)
+(* Advanced SIMD permutations and element moves. Elements are indexed from
+   the least significant end ([w \bitsN i]). An element index at or beyond
+   the number of elements selects no element of a register: reading gives
+   0 and writing changes nothing, as in the Rocq semantics; assembly
+   generation only accepts indices in range. *)
+
+op VEXT (n m: W128.t) (imm: W8.t) : W128.t =
+  W16u8.pack16_t (W16u8.Pack.init (fun k =>
+    let j = k + to_uint imm in
+    if j < 16 then n \bits8 j else if j < 32 then m \bits8 (j - 16) else W8.zero)).
+
+op VREV32_16u8 (x: W128.t) : W128.t =
+  W16u8.pack16_t (W16u8.Pack.init (fun k => x \bits8 (k %/ 4 * 4 + (4 - 1 - k %% 4)))).
+
+op VREV64_16u8 (x: W128.t) : W128.t =
+  W16u8.pack16_t (W16u8.Pack.init (fun k => x \bits8 (k %/ 8 * 8 + (8 - 1 - k %% 8)))).
+
+op VREV32_8u16 (x: W128.t) : W128.t =
+  W8u16.pack8_t (W8u16.Pack.init (fun k => x \bits16 (k %/ 2 * 2 + (2 - 1 - k %% 2)))).
+
+op VREV64_8u16 (x: W128.t) : W128.t =
+  W8u16.pack8_t (W8u16.Pack.init (fun k => x \bits16 (k %/ 4 * 4 + (4 - 1 - k %% 4)))).
+
+op VREV64_4u32 (x: W128.t) : W128.t =
+  W4u32.pack4_t (W4u32.Pack.init (fun k => x \bits32 (k %/ 2 * 2 + (2 - 1 - k %% 2)))).
+
+op VTRN1_16u8 (n m: W128.t) : W128.t =
+  W16u8.pack16_t (W16u8.Pack.init (fun k =>
+    if k %% 2 = 0 then n \bits8 (k + 0) else m \bits8 (k - 1 + 0))).
+
+op VZIP1_16u8 (n m: W128.t) : W128.t =
+  W16u8.pack16_t (W16u8.Pack.init (fun k =>
+    if k %% 2 = 0 then n \bits8 (0 * 8 + k %/ 2) else m \bits8 (0 * 8 + k %/ 2))).
+
+op VUZP1_16u8 (n m: W128.t) : W128.t =
+  W16u8.pack16_t (W16u8.Pack.init (fun k =>
+    if 2 * k + 0 < 16 then n \bits8 (2 * k + 0) else m \bits8 (2 * k + 0 - 16))).
+
+op VTRN2_16u8 (n m: W128.t) : W128.t =
+  W16u8.pack16_t (W16u8.Pack.init (fun k =>
+    if k %% 2 = 0 then n \bits8 (k + 1) else m \bits8 (k - 1 + 1))).
+
+op VZIP2_16u8 (n m: W128.t) : W128.t =
+  W16u8.pack16_t (W16u8.Pack.init (fun k =>
+    if k %% 2 = 0 then n \bits8 (1 * 8 + k %/ 2) else m \bits8 (1 * 8 + k %/ 2))).
+
+op VUZP2_16u8 (n m: W128.t) : W128.t =
+  W16u8.pack16_t (W16u8.Pack.init (fun k =>
+    if 2 * k + 1 < 16 then n \bits8 (2 * k + 1) else m \bits8 (2 * k + 1 - 16))).
+
+op VTRN1_8u16 (n m: W128.t) : W128.t =
+  W8u16.pack8_t (W8u16.Pack.init (fun k =>
+    if k %% 2 = 0 then n \bits16 (k + 0) else m \bits16 (k - 1 + 0))).
+
+op VZIP1_8u16 (n m: W128.t) : W128.t =
+  W8u16.pack8_t (W8u16.Pack.init (fun k =>
+    if k %% 2 = 0 then n \bits16 (0 * 4 + k %/ 2) else m \bits16 (0 * 4 + k %/ 2))).
+
+op VUZP1_8u16 (n m: W128.t) : W128.t =
+  W8u16.pack8_t (W8u16.Pack.init (fun k =>
+    if 2 * k + 0 < 8 then n \bits16 (2 * k + 0) else m \bits16 (2 * k + 0 - 8))).
+
+op VTRN2_8u16 (n m: W128.t) : W128.t =
+  W8u16.pack8_t (W8u16.Pack.init (fun k =>
+    if k %% 2 = 0 then n \bits16 (k + 1) else m \bits16 (k - 1 + 1))).
+
+op VZIP2_8u16 (n m: W128.t) : W128.t =
+  W8u16.pack8_t (W8u16.Pack.init (fun k =>
+    if k %% 2 = 0 then n \bits16 (1 * 4 + k %/ 2) else m \bits16 (1 * 4 + k %/ 2))).
+
+op VUZP2_8u16 (n m: W128.t) : W128.t =
+  W8u16.pack8_t (W8u16.Pack.init (fun k =>
+    if 2 * k + 1 < 8 then n \bits16 (2 * k + 1) else m \bits16 (2 * k + 1 - 8))).
+
+op VTRN1_4u32 (n m: W128.t) : W128.t =
+  W4u32.pack4_t (W4u32.Pack.init (fun k =>
+    if k %% 2 = 0 then n \bits32 (k + 0) else m \bits32 (k - 1 + 0))).
+
+op VZIP1_4u32 (n m: W128.t) : W128.t =
+  W4u32.pack4_t (W4u32.Pack.init (fun k =>
+    if k %% 2 = 0 then n \bits32 (0 * 2 + k %/ 2) else m \bits32 (0 * 2 + k %/ 2))).
+
+op VUZP1_4u32 (n m: W128.t) : W128.t =
+  W4u32.pack4_t (W4u32.Pack.init (fun k =>
+    if 2 * k + 0 < 4 then n \bits32 (2 * k + 0) else m \bits32 (2 * k + 0 - 4))).
+
+op VTRN2_4u32 (n m: W128.t) : W128.t =
+  W4u32.pack4_t (W4u32.Pack.init (fun k =>
+    if k %% 2 = 0 then n \bits32 (k + 1) else m \bits32 (k - 1 + 1))).
+
+op VZIP2_4u32 (n m: W128.t) : W128.t =
+  W4u32.pack4_t (W4u32.Pack.init (fun k =>
+    if k %% 2 = 0 then n \bits32 (1 * 2 + k %/ 2) else m \bits32 (1 * 2 + k %/ 2))).
+
+op VUZP2_4u32 (n m: W128.t) : W128.t =
+  W4u32.pack4_t (W4u32.Pack.init (fun k =>
+    if 2 * k + 1 < 4 then n \bits32 (2 * k + 1) else m \bits32 (2 * k + 1 - 4))).
+
+op VTRN1_2u64 (n m: W128.t) : W128.t =
+  W2u64.pack2_t (W2u64.Pack.init (fun k =>
+    if k %% 2 = 0 then n \bits64 (k + 0) else m \bits64 (k - 1 + 0))).
+
+op VZIP1_2u64 (n m: W128.t) : W128.t =
+  W2u64.pack2_t (W2u64.Pack.init (fun k =>
+    if k %% 2 = 0 then n \bits64 (0 * 1 + k %/ 2) else m \bits64 (0 * 1 + k %/ 2))).
+
+op VUZP1_2u64 (n m: W128.t) : W128.t =
+  W2u64.pack2_t (W2u64.Pack.init (fun k =>
+    if 2 * k + 0 < 2 then n \bits64 (2 * k + 0) else m \bits64 (2 * k + 0 - 2))).
+
+op VTRN2_2u64 (n m: W128.t) : W128.t =
+  W2u64.pack2_t (W2u64.Pack.init (fun k =>
+    if k %% 2 = 0 then n \bits64 (k + 1) else m \bits64 (k - 1 + 1))).
+
+op VZIP2_2u64 (n m: W128.t) : W128.t =
+  W2u64.pack2_t (W2u64.Pack.init (fun k =>
+    if k %% 2 = 0 then n \bits64 (1 * 1 + k %/ 2) else m \bits64 (1 * 1 + k %/ 2))).
+
+op VUZP2_2u64 (n m: W128.t) : W128.t =
+  W2u64.pack2_t (W2u64.Pack.init (fun k =>
+    if 2 * k + 1 < 2 then n \bits64 (2 * k + 1) else m \bits64 (2 * k + 1 - 2))).
+
+op VDUP_16u8 (x: W32.t) : W128.t =
+  W16u8.pack16_t (W16u8.Pack.init (fun _ => W8.of_int (W32.to_uint x))).
+
+op VDUPE_16u8 (n: W128.t) (i: W8.t) : W128.t =
+  W16u8.pack16_t (W16u8.Pack.init (fun _ => n \bits8 (to_uint i))).
+
+op VINS_16u8 (d: W128.t) (x: W32.t) (i: W8.t) : W128.t =
+  W16u8.pack16_t (W16u8.Pack.init (fun k => if k = to_uint i then W8.of_int (W32.to_uint x) else d \bits8 k)).
+
+op VINSE_16u8 (d n: W128.t) (i j: W8.t) : W128.t =
+  W16u8.pack16_t (W16u8.Pack.init (fun k => if k = to_uint i then n \bits8 (to_uint j) else d \bits8 k)).
+
+op VUMOV_16u8 (n: W128.t) (i: W8.t) : W32.t =
+  W32.of_int (W8.to_uint (n \bits8 (to_uint i))).
+
+op VDUP_8u16 (x: W32.t) : W128.t =
+  W8u16.pack8_t (W8u16.Pack.init (fun _ => W16.of_int (W32.to_uint x))).
+
+op VDUPE_8u16 (n: W128.t) (i: W8.t) : W128.t =
+  W8u16.pack8_t (W8u16.Pack.init (fun _ => n \bits16 (to_uint i))).
+
+op VINS_8u16 (d: W128.t) (x: W32.t) (i: W8.t) : W128.t =
+  W8u16.pack8_t (W8u16.Pack.init (fun k => if k = to_uint i then W16.of_int (W32.to_uint x) else d \bits16 k)).
+
+op VINSE_8u16 (d n: W128.t) (i j: W8.t) : W128.t =
+  W8u16.pack8_t (W8u16.Pack.init (fun k => if k = to_uint i then n \bits16 (to_uint j) else d \bits16 k)).
+
+op VUMOV_8u16 (n: W128.t) (i: W8.t) : W32.t =
+  W32.of_int (W16.to_uint (n \bits16 (to_uint i))).
+
+op VDUP_4u32 (x: W32.t) : W128.t =
+  W4u32.pack4_t (W4u32.Pack.init (fun _ => x)).
+
+op VDUPE_4u32 (n: W128.t) (i: W8.t) : W128.t =
+  W4u32.pack4_t (W4u32.Pack.init (fun _ => n \bits32 (to_uint i))).
+
+op VINS_4u32 (d: W128.t) (x: W32.t) (i: W8.t) : W128.t =
+  W4u32.pack4_t (W4u32.Pack.init (fun k => if k = to_uint i then x else d \bits32 k)).
+
+op VINSE_4u32 (d n: W128.t) (i j: W8.t) : W128.t =
+  W4u32.pack4_t (W4u32.Pack.init (fun k => if k = to_uint i then n \bits32 (to_uint j) else d \bits32 k)).
+
+op VUMOV_4u32 (n: W128.t) (i: W8.t) : W32.t =
+  n \bits32 (to_uint i).
+
+op VDUP_2u64 (x: W64.t) : W128.t =
+  W2u64.pack2_t (W2u64.Pack.init (fun _ => x)).
+
+op VDUPE_2u64 (n: W128.t) (i: W8.t) : W128.t =
+  W2u64.pack2_t (W2u64.Pack.init (fun _ => n \bits64 (to_uint i))).
+
+op VINS_2u64 (d: W128.t) (x: W64.t) (i: W8.t) : W128.t =
+  W2u64.pack2_t (W2u64.Pack.init (fun k => if k = to_uint i then x else d \bits64 k)).
+
+op VINSE_2u64 (d n: W128.t) (i j: W8.t) : W128.t =
+  W2u64.pack2_t (W2u64.Pack.init (fun k => if k = to_uint i then n \bits64 (to_uint j) else d \bits64 k)).
+
+op VUMOV_2u64 (n: W128.t) (i: W8.t) : W64.t =
+  n \bits64 (to_uint i).
