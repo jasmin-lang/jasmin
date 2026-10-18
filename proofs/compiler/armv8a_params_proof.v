@@ -310,19 +310,22 @@ Qed.
 
 Lemma armv8a_lmove_correct : lmove_correct armv8a_liparams.
 Proof.
-  move=> xd xs ws w s /eqP hws htxd; t_xrbindP => z hget htr; subst.
-  rewrite /armv8a_liparams /lip_lmove /armv8a_lmove /= hget /=.
-  rewrite /exec_sopn /= htr /= /set_var /=.
-  by case: vtype htxd.
+  move=> xd xs ws w s hchk htxd; t_xrbindP => z hget htr.
+  case/orP: hchk => /eqP ?; subst ws.
+  all: rewrite /armv8a_liparams /lip_lmove /armv8a_lmove /= hget /=.
+  all: rewrite /exec_sopn /= htr /= /set_var /=.
+  all: by case: vtype htxd.
 Qed.
 
 Lemma armv8a_lstore_correct : lstore_correct_aux armv8a_check_ws armv8a_lstore.
 Proof.
-  move=> xd xs ofs ws w wp s m /eqP hchk; t_xrbindP; subst ws.
+  move=> xd xs ofs ws w wp s m hchk; t_xrbindP.
   move=> vd hgetd htrd vs hgets htrs hwr.
-  rewrite /armv8a_lstore /= hgets hgetd /= /exec_sopn /= htrs /=.
-  rewrite /sem_sop2 /= htrd /= !truncate_word_u /= truncate_word_u /=.
-  by rewrite zero_extend_u hwr.
+  have {}htrd : to_word armv8a_reg_size vd = ok wp := htrd.
+  case/orP: hchk => /eqP ?; subst ws.
+  all: rewrite /armv8a_lstore /= hgets hgetd /= /exec_sopn /= htrs /=.
+  all: rewrite /sem_sop2 /= htrd /= !truncate_word_u /= truncate_word_u /=.
+  all: by rewrite ?zero_extend_u hwr.
 Qed.
 
 Lemma armv8a_smart_addi_correct : ladd_imm_correct_aux ARMv8AFopn_smart_addi.
@@ -343,10 +346,11 @@ Lemma armv8a_lload_correct :
   lload_correct_aux (lip_check_ws armv8a_liparams) armv8a_lload.
 Proof.
   move=> xd xs ofs ws top s w vm hcheck; t_xrbindP => ? hgets hto hread hset.
-  move/eqP: hcheck => ?; subst ws.
-  rewrite /armv8a_lload /= hgets /= /sem_sop2 /= hto /= !truncate_word_u /=
+  have {}hto : to_word armv8a_reg_size _ = ok top := hto.
+  case/orP: hcheck => /eqP ?; subst ws.
+  all: rewrite /armv8a_lload /= hgets /= /sem_sop2 /= hto /= !truncate_word_u /=
     truncate_word_u /= hread /=.
-  by rewrite /exec_sopn /= truncate_word_u /= zero_extend_u hset.
+  all: by rewrite /exec_sopn /= truncate_word_u /= ?zero_extend_u hset.
 Qed.
 
 Lemma armv8a_tmp_correct : lip_tmp armv8a_liparams <> lip_tmp2 armv8a_liparams.
@@ -393,7 +397,6 @@ Proof.
   case heqt: (vtype rspi) => [|||ws] //=; t_xrbindP
     => vm2' wsx hwsx hchk w_sp hread hset heqv.
   subst wsx vm2.
-  move/eqP: (hchk) => ?; subst ws.
   move/set_varP: hset => [_ _ ?]; subst vm2'.
 
   have hsetvar : forall (vm : Vm.t) (w : word Uptr),
@@ -407,13 +410,28 @@ Proof.
       get_var true vmr rspi >>= to_word Uptr = ok top ->
       exists2 vm,
         sem_fopns_args (with_vm s vmr)
-          (if is_save_slot_offset ofs
+          (if vtype rspi != aword Uptr
+           then [:: armv8a_lload (constant_prop.wsize_of_atype (vtype rspi)) rspi rspi ofs ]
+           else if is_save_slot_offset ofs
            then [:: armv8a_lload Uptr vtmp2i rspi ofs; armv8a_lmove Uptr rspi vtmp2i ]
            else ARMv8AFopn_smart_addi vtmp2i rspi ofs
                 ++ [:: armv8a_lload Uptr vtmp2i vtmp2i 0%Z; armv8a_lmove Uptr rspi vtmp2i ])
           = ok (with_vm s vm)
         & vm =[\ Sv.singleton (v_var vtmp2i) ] vmr.[v_var rspi <- Vword w_sp].
   - move=> vmr hget_r.
+    rewrite heqt.
+    case/orP: (hchk) => /eqP ?; subst ws; last first.
+    + (* A 128-bit [rspi] (not produced by the compiler) is reloaded
+         directly. *)
+      have -> : (aword U128 != aword Uptr) = true by apply/eqP.
+      rewrite sem_fopns_args_1.
+      rewrite (armv8a_lload_correct (xd := rspi) (xs := rspi)
+                 (s := with_vm s vmr) (ws := U128) _ hget_r hread
+                 (vm := vmr.[v_var rspi <- Vword w_sp])); first last.
+      * by rewrite set_var_eq_type // heqt.
+      * by [].
+      by eexists.
+    rewrite eqxx /=.
     case: ifP => _.
     + (* Small offset: LDR from [rspi] directly. *)
       rewrite -cat1s sem_fopns_args_cat !sem_fopns_args_1.

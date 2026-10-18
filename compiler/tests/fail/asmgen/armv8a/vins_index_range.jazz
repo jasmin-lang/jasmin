@@ -1,0 +1,10 @@
+/* A 4S vector has elements 0 to 3. */
+export
+fn vins_index_range(reg u64 p) {
+    reg u128 a;
+    reg u32 w;
+    a = [:u128 p];
+    w = [:u32 p + 16];
+    a = #VINS_4u32(a, w, 4);
+    [:u128 p] = a;
+}

@@ -25,7 +25,7 @@ Require Import
   sopn_semi
   arch_decl
   arch_utils.
-Require Import armv8a_decl.
+Require Import armv8a_decl armv8a_simd.
 
 
 Module E.
@@ -160,7 +160,63 @@ Variant armv8a_mnemonic : Type :=
 (* Barriers *)
 | CSDB                           (* Consumption of speculative data barrier *)
 | DSB                            (* Data synchronization barrier, full system *)
-| ISB.                           (* Instruction synchronization barrier *)
+| ISB                            (* Instruction synchronization barrier *)
+
+(* Advanced SIMD. The [opts_size] option of these mnemonics is the element
+   size of the arrangement (U8 for 16B, U16 for 8H, U32 for 4S, U64 for 2D),
+   or U128 for the loads and stores of a whole Q register. Each one is named
+   V followed by its assembly mnemonic, except the cryptographic-extension
+   mnemonics at the end, which keep their assembly names; its element
+   sizes, and with them its intrinsic names, are given by [vector_esizes]
+   below. [VSHL] is SHL (immediate), not the AArch32 shift by a register.
+   DUP and INS have a form with a general-purpose source ([VDUP], [VINS])
+   and one with a vector element source ([VDUPE], [VINSE]). *)
+| VMOV                           (* Move vector (MOV, alias of ORR (vector)) *)
+| VMOVI                          (* Move immediate (vector), 64-bit variant *)
+| VLDR                           (* Load a Q register *)
+| VSTR                           (* Store a Q register *)
+| VAND                           (* Bitwise AND (vector) *)
+| VBIC                           (* Bitwise bit clear (vector, register) *)
+| VORR                           (* Bitwise OR (vector, register) *)
+| VEOR                           (* Bitwise exclusive-OR (vector) *)
+| VNOT                           (* Bitwise NOT (vector) *)
+| VADD                           (* Add (vector) *)
+| VSUB                           (* Subtract (vector) *)
+| VSHL                           (* Shift left (immediate, vector) *)
+| VUSHR                          (* Unsigned shift right (immediate, vector) *)
+| VSSHR                          (* Signed shift right (immediate, vector) *)
+| VSRI                           (* Shift right and insert (immediate) *)
+| VSLI                           (* Shift left and insert (immediate) *)
+| VEXT                           (* Extract vector from a pair of vectors *)
+| VREV32                         (* Reverse elements in 32-bit words (vector) *)
+| VREV64                         (* Reverse elements in 64-bit doublewords (vector) *)
+| VTRN1                          (* Transpose vectors (primary) *)
+| VTRN2                          (* Transpose vectors (secondary) *)
+| VZIP1                          (* Zip vectors (primary) *)
+| VZIP2                          (* Zip vectors (secondary) *)
+| VUZP1                          (* Unzip vectors (primary) *)
+| VUZP2                          (* Unzip vectors (secondary) *)
+| VDUP                           (* Duplicate general-purpose register to vector *)
+| VDUPE                          (* Duplicate vector element to vector *)
+| VINS                           (* Insert vector element from general-purpose register *)
+| VINSE                          (* Insert vector element from another vector element *)
+| VUMOV                          (* Unsigned move vector element to general-purpose register *)
+
+(* Cryptographic extension: SHA-256 (FEAT_SHA256) and SHA-512 (FEAT_SHA512). *)
+| SHA256H                        (* SHA-256 hash update, part 1 *)
+| SHA256H2                       (* SHA-256 hash update, part 2 *)
+| SHA256SU0                      (* SHA-256 schedule update 0 *)
+| SHA256SU1                      (* SHA-256 schedule update 1 *)
+| SHA512H                        (* SHA-512 hash update, part 1 *)
+| SHA512H2                       (* SHA-512 hash update, part 2 *)
+| SHA512SU0                      (* SHA-512 schedule update 0 *)
+| SHA512SU1                      (* SHA-512 schedule update 1 *)
+
+(* Cryptographic extension: SHA-3 (FEAT_SHA3). *)
+| EOR3                           (* Three-way exclusive-OR *)
+| BCAX                           (* Bit clear and exclusive-OR *)
+| RAX1                           (* Rotate and exclusive-OR *)
+| XAR.                           (* Exclusive-OR and rotate *)
 
 #[ export ]
 Instance eqTC_armv8a_mnemonic : eqTypeC armv8a_mnemonic :=
@@ -181,6 +237,16 @@ Definition armv8a_mnemonics : seq armv8a_mnemonic :=
     ; LDR; LDRB; LDRH; LDRSB; LDRSH; LDRSW; LDP
     ; STR; STRB; STRH; STP
     ; CSDB; DSB; ISB
+    ; VMOV; VMOVI; VLDR; VSTR
+    ; VAND; VBIC; VORR; VEOR; VNOT
+    ; VADD; VSUB
+    ; VSHL; VUSHR; VSSHR; VSRI; VSLI
+    ; VEXT; VREV32; VREV64
+    ; VTRN1; VTRN2; VZIP1; VZIP2; VUZP1; VUZP2
+    ; VDUP; VDUPE; VINS; VINSE; VUMOV
+    ; SHA256H; SHA256H2; SHA256SU0; SHA256SU1
+    ; SHA512H; SHA512H2; SHA512SU0; SHA512SU1
+    ; EOR3; BCAX; RAX1; XAR
   ].
 
 Lemma armv8a_mnemonic_fin_axiom : Finite.axiom armv8a_mnemonics.
@@ -336,7 +402,126 @@ Definition string_of_armv8a_mnemonic (mn : armv8a_mnemonic) : string :=
   | CSDB => "CSDB"
   | DSB => "DSB"
   | ISB => "ISB"
+  | VMOV => "VMOV"
+  | VMOVI => "VMOVI"
+  | VLDR => "VLDR"
+  | VSTR => "VSTR"
+  | VAND => "VAND"
+  | VBIC => "VBIC"
+  | VORR => "VORR"
+  | VEOR => "VEOR"
+  | VNOT => "VNOT"
+  | VADD => "VADD"
+  | VSUB => "VSUB"
+  | VSHL => "VSHL"
+  | VUSHR => "VUSHR"
+  | VSSHR => "VSSHR"
+  | VSRI => "VSRI"
+  | VSLI => "VSLI"
+  | VEXT => "VEXT"
+  | VREV32 => "VREV32"
+  | VREV64 => "VREV64"
+  | VTRN1 => "VTRN1"
+  | VTRN2 => "VTRN2"
+  | VZIP1 => "VZIP1"
+  | VZIP2 => "VZIP2"
+  | VUZP1 => "VUZP1"
+  | VUZP2 => "VUZP2"
+  | VDUP => "VDUP"
+  | VDUPE => "VDUPE"
+  | VINS => "VINS"
+  | VINSE => "VINSE"
+  | VUMOV => "VUMOV"
+  | SHA256H => "SHA256H"
+  | SHA256H2 => "SHA256H2"
+  | SHA256SU0 => "SHA256SU0"
+  | SHA256SU1 => "SHA256SU1"
+  | SHA512H => "SHA512H"
+  | SHA512H2 => "SHA512H2"
+  | SHA512SU0 => "SHA512SU0"
+  | SHA512SU1 => "SHA512SU1"
+  | EOR3 => "EOR3"
+  | BCAX => "BCAX"
+  | RAX1 => "RAX1"
+  | XAR => "XAR"
   end%string.
+
+(* Assembly mnemonic of the Advanced SIMD instructions. *)
+Definition vasm_name (mn : armv8a_mnemonic) : string :=
+  match mn with
+  | VMOV => "MOV"
+  | VMOVI => "MOVI"
+  | VLDR => "LDR"
+  | VSTR => "STR"
+  | VAND => "AND"
+  | VBIC => "BIC"
+  | VORR => "ORR"
+  | VEOR => "EOR"
+  | VNOT => "NOT"
+  | VADD => "ADD"
+  | VSUB => "SUB"
+  | VSHL => "SHL"
+  | VUSHR => "USHR"
+  | VSSHR => "SSHR"
+  | VSRI => "SRI"
+  | VSLI => "SLI"
+  | VEXT => "EXT"
+  | VREV32 => "REV32"
+  | VREV64 => "REV64"
+  | VTRN1 => "TRN1"
+  | VTRN2 => "TRN2"
+  | VZIP1 => "ZIP1"
+  | VZIP2 => "ZIP2"
+  | VUZP1 => "UZP1"
+  | VUZP2 => "UZP2"
+  | VDUP | VDUPE => "DUP"
+  | VINS | VINSE => "INS"
+  | VUMOV => "UMOV"
+  | _ => string_of_armv8a_mnemonic mn
+  end%string.
+
+(* The element sizes ([opts_size]) at which each Advanced SIMD mnemonic
+   exists; empty for the general-purpose mnemonics. A mnemonic with a single
+   element size has no size suffix in Jasmin; the others are suffixed with
+   their arrangement as on x86 ([VADD_4u32] is [ADD <Vd>.4S, ...]). *)
+Definition vector_esizes (mn : armv8a_mnemonic) : seq wsize :=
+  match mn with
+  | VMOV | VAND | VBIC | VORR | VEOR | VNOT => [:: U8 ]
+  | VMOVI => [:: U64 ]
+  | VLDR | VSTR => [:: U128 ]
+  | VADD | VSUB | VSHL | VUSHR | VSSHR | VSRI | VSLI => [:: U8; U16; U32; U64 ]
+  | VEXT => [:: U8 ]
+  | VREV32 => [:: U8; U16 ]
+  | VREV64 => [:: U8; U16; U32 ]
+  | VTRN1 | VTRN2 | VZIP1 | VZIP2 | VUZP1 | VUZP2
+  | VDUP | VDUPE | VINS | VINSE | VUMOV => [:: U8; U16; U32; U64 ]
+  | SHA256H | SHA256H2 | SHA256SU0 | SHA256SU1 => [:: U32 ]
+  | SHA512H | SHA512H2 | SHA512SU0 | SHA512SU1 => [:: U64 ]
+  | EOR3 | BCAX => [:: U8 ]
+  | RAX1 | XAR => [:: U64 ]
+  | _ => [::]
+  end.
+
+(* The element operands [<Vn>.<Ts>[<index>]] of the Advanced SIMD
+   instructions, as pairs of positions (register, index) in the argument
+   list of their description. The assembly printer writes the register,
+   with the element size paired with it, and the immediate index as one
+   operand; an operand description has no element view of a register. *)
+Definition velem_operands (mn : armv8a_mnemonic) : seq (nat * nat) :=
+  match mn with
+  | VDUPE | VUMOV => [:: (1, 2) ]
+  | VINS => [:: (0, 2) ]
+  | VINSE => [:: (0, 2); (1, 3) ]
+  | _ => [::]
+  end.
+
+Definition velem_of_wsize (ws : wsize) : velem :=
+  match ws with
+  | U8 => VE8
+  | U16 => VE16
+  | U32 => VE32
+  | _ => VE64
+  end.
 
 
 (* -------------------------------------------------------------------- *)
@@ -591,7 +776,10 @@ Notation msbf := (if osz == U64 then MSB_MERGE else MSB_CLEAR) (only parsing).
 Let armv8a_mn_str (mn : armv8a_mnemonic) : unit -> string :=
   if mn \in sized_mnemonics
   then pp_sz (string_of_armv8a_mnemonic mn) osz
-  else pp_s (string_of_armv8a_mnemonic mn).
+  else
+    if 1 < size (vector_esizes mn)
+    then pp_ve_sz (string_of_armv8a_mnemonic mn) (velem_of_wsize osz) U128
+    else pp_s (string_of_armv8a_mnemonic mn).
 
 (* Argument kinds.
    Immediate operands are checked against the A64 encoding rules
@@ -2608,6 +2796,855 @@ Definition armv8a_DSB_instr : instr_desc_t := mk_barrier_instr DSB.
 *)
 Definition armv8a_ISB_instr : instr_desc_t := mk_barrier_instr ISB.
 
+
+(* -------------------------------------------------------------------- *)
+(* Advanced SIMD.
+   The operands are whole 128-bit registers (the Q form of the vector
+   instructions, [Q = 1]); the 64-bit (D) forms are not provided. The
+   [opts_size] option is the element size [esize] of the arrangement and
+   the descriptions are valid only at the element sizes listed by
+   [vector_esizes].
+
+   The semantics below are our transcriptions of the operational pseudocode
+   of the Arm Architecture Reference Manual (ARM DDI 0487 M.d, C7.2,
+   "Alphabetical list of A64 Advanced SIMD and floating-point
+   instructions"); each description cites its instruction section and
+   states the semantics in our words. They are trusted, as are the
+   semantics of the general-purpose instructions above.
+
+   The Operational information section of every instruction below, except
+   MOVI, states that it is a data-independent-time instruction, hence
+   [id_doit := DOIT] (an instruction is one only if that section says so:
+   ARM DDI 0487 M.d, B1.5.6 "About PSTATE.DIT", p. B1-245). *)
+
+Notation esize := (opts_size opts) (only parsing).
+
+Notation vvalid mn :=
+  ((has_shift opts == None) && (esize \in vector_esizes mn)) (only parsing).
+
+Notation lvec := (lword U128) (only parsing).
+Notation ty_v := (sem_ltuple [:: lvec ]) (only parsing).
+
+(* The [wsize] paired with a vector-register operand is the element size
+   of its arrangement, U128 standing for the Q register name; see the
+   assembly printer. *)
+Definition pp_armv8a_vop
+  (mn : armv8a_mnemonic) (szs : seq wsize) (args : seq asm_arg) : pp_asm_op :=
+  {|
+    pp_aop_name := vasm_name mn;
+    pp_aop_ext := PP_name;
+    pp_aop_args := zip szs args;
+  |}.
+
+Let ak_vv := [:: [:: [:: CAxmm ]; [:: CAxmm ] ] ].
+Let ak_vvv := [:: [:: [:: CAxmm ]; [:: CAxmm ]; [:: CAxmm ] ] ].
+Let ak_vv_imm (c : armv8a_caimm_cond) :=
+  [:: [:: [:: CAxmm ]; [:: CAxmm ]; [:: CAimm (Some c) U8 ] ] ].
+Let ak_vvv_imm (c : armv8a_caimm_cond) :=
+  [:: [:: [:: CAxmm ]; [:: CAxmm ]; [:: CAxmm ]; [:: CAimm (Some c) U8 ] ] ].
+
+(* One vector source. *)
+Definition mk_v1_instr mn (semi : word U128 -> ty_v) : instr_desc_t :=
+  let tin := [:: lvec ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 2;
+    id_args_kinds := ak_vv;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop mn [:: esize; esize ];
+    id_valid := vvalid mn;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* Two vector sources. *)
+Definition mk_v2_instr mn (semi : word U128 -> word U128 -> ty_v) : instr_desc_t :=
+  let tin := [:: lvec; lvec ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds := ak_vvv;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop mn [:: esize; esize; esize ];
+    id_valid := vvalid mn;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* One vector source and an immediate. *)
+Definition mk_v1_imm_instr mn (c : armv8a_caimm_cond)
+  (semi : word U128 -> word U8 -> ty_v) : instr_desc_t :=
+  let tin := [:: lvec; lword U8 ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds := ak_vv_imm c;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop mn [:: esize; esize; U8 ];
+    id_valid := vvalid mn;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* The destination is also a source (insertions): [Vd] is read, then
+   written. *)
+Definition mk_v1d_imm_instr mn (c : armv8a_caimm_cond)
+  (semi : word U128 -> word U128 -> word U8 -> ty_v) : instr_desc_t :=
+  let tin := [:: lvec; lvec; lword U8 ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 0; Ea 1; Ea 2 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds := ak_vv_imm c;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop mn [:: esize; esize; U8 ];
+    id_valid := vvalid mn;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* Two vector sources and an immediate. *)
+Definition mk_v2_imm_instr mn (c : armv8a_caimm_cond)
+  (semi : word U128 -> word U128 -> word U8 -> ty_v) : instr_desc_t :=
+  let tin := [:: lvec; lvec; lword U8 ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 4;
+    id_args_kinds := ak_vvv_imm c;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop mn [:: esize; esize; esize; U8 ];
+    id_valid := vvalid mn;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* [C7.2.245 MOV (vector)] ARM DDI 0487 M.d, p. C7-3567, alias of
+   [C7.2.256 ORR (vector, register)] with Vm = Vn.
+   Syntax: MOV <Vd>.<T>, <Vn>.<T>  ==  ORR <Vd>.<T>, <Vn>.<T>, <Vn>.<T>
+   Semantics: the OR of Vn with itself, that is, a copy of Vn. *)
+Definition armv8a_VMOV_semi (wn : word U128) : ty_v := wn.
+
+Definition armv8a_VMOV_instr : instr_desc_t := mk_v1_instr VMOV armv8a_VMOV_semi.
+
+(* [C7.2.247 MOVI] ARM DDI 0487 M.d, p. C7-3570
+   64-bit variant of the vector form (Q = 1, op = 1, cmode = 1110).
+   Syntax: MOVI <Vd>.2D, #<imm>
+   The immediate is the 64-bit value of the assembler syntax, whose bytes
+   are each 0x00 or 0xFF (AdvSIMDExpandImm, J1.4.3.535, p. J1-16726); the
+   condition [CAimmC_armv8a_movi_2d] accepts only 0.
+   Semantics: the immediate in both 64-bit elements of Vd.
+   MOVI has no Operational information section, so it is not a
+   data-independent-time instruction. Its only input is the immediate. *)
+Definition armv8a_VMOVI_semi (imm : word U64) : ty_v :=
+  make_vec U128 [:: imm; imm ].
+
+Definition armv8a_VMOVI_instr : instr_desc_t :=
+  let tin := [:: lword U64 ] in
+  let semi := armv8a_VMOVI_semi in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 2;
+    id_args_kinds :=
+      [:: [:: [:: CAxmm ]; [:: CAimm (Some CAimmC_armv8a_movi_2d) U64 ] ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str VMOVI;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := NOT_DOIT; (* Not DIT *)
+    id_pp_asm := pp_armv8a_vop VMOVI [:: U64; U64 ];
+    id_valid := vvalid VMOVI;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* [C7.2.230 LDR (immediate, SIMD&FP)] ARM DDI 0487 M.d, p. C7-3528
+   [C7.2.235 LDUR (SIMD&FP)] ARM DDI 0487 M.d, p. C7-3545
+   [C7.2.232 LDR (register, SIMD&FP)] ARM DDI 0487 M.d, p. C7-3535
+   128-bit variants.
+   Syntax: LDR <Qt>, [<Xn|SP>{, #<pimm>}]
+           LDR <Qt>, [<Xn|SP>, <Xm>]
+           LDUR <Qt>, [<Xn|SP>{, #<simm>}]
+   The unsigned offset is a multiple of 16 up to 65520, the signed offset
+   lies in [-256, 255], and the register offset is used unshifted; the
+   address condition [CAmemC_armv8a_q] (armv8a_decl.v) accepts exactly
+   these forms.
+   Semantics: the 16 bytes at the address, as the whole register. The
+   writeback (pre- and post-index) forms are not provided. As for the
+   general-purpose loads, the memory argument is unaligned ([Eu]): no
+   alignment is required, which matches the hardware for Normal memory when
+   alignment checking is disabled (SCTLR_ELx.A = 0), as in user mode on the
+   supported platforms. *)
+Definition armv8a_VLDR_semi (w : word U128) : ty_v := w.
+
+Let ak_v_q := [:: [:: [:: CAxmm ]; [:: CAmem false (Some CAmemC_armv8a_q) ] ] ].
+
+Definition armv8a_VLDR_instr : instr_desc_t :=
+  let tin := [:: lvec ] in
+  let semi := armv8a_VLDR_semi in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Eu 1 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 2;
+    id_args_kinds := ak_v_q;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str VLDR;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VLDR [:: U128; U64 ];
+    id_valid := vvalid VLDR;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* [C7.2.387 STR (immediate, SIMD&FP)] ARM DDI 0487 M.d, p. C7-3926
+   [C7.2.391 STUR (SIMD&FP)] ARM DDI 0487 M.d, p. C7-3940
+   [C7.2.388 STR (register, SIMD&FP)] ARM DDI 0487 M.d, p. C7-3931
+   128-bit variants.
+   Syntax: STR <Qt>, [<Xn|SP>{, #<pimm>}]
+           STR <Qt>, [<Xn|SP>, <Xm>]
+           STUR <Qt>, [<Xn|SP>{, #<simm>}]
+   Semantics: the whole register is written to the 16 bytes at the
+   address. *)
+Definition armv8a_VSTR_semi (w : word U128) : ty_v := w.
+
+(* The destination is memory, so the MSB flag has no effect; MSB_MERGE as
+   for the scalar stores. *)
+Definition armv8a_VSTR_instr : instr_desc_t :=
+  let tin := [:: lvec ] in
+  let semi := armv8a_VSTR_semi in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := tin;
+    id_in := [:: Ea 0 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Eu 1 ];
+    id_semi_total := semi;
+    id_nargs := 2;
+    id_args_kinds := ak_v_q;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str VSTR;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VSTR [:: U128; U64 ];
+    id_valid := vvalid VSTR;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* [C7.2.11 AND (vector)] ARM DDI 0487 M.d, p. C7-2957
+   Syntax: AND <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Semantics: bitwise Vn AND Vm. *)
+Definition armv8a_VAND_semi (wn wm : word U128) : ty_v := wand wn wm.
+
+Definition armv8a_VAND_instr : instr_desc_t := mk_v2_instr VAND armv8a_VAND_semi.
+
+(* [C7.2.22 BIC (vector, register)] ARM DDI 0487 M.d, p. C7-2977
+   Syntax: BIC <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Semantics: bitwise Vn AND NOT Vm. *)
+Definition armv8a_VBIC_semi (wn wm : word U128) : ty_v := wand wn (wnot wm).
+
+Definition armv8a_VBIC_instr : instr_desc_t := mk_v2_instr VBIC armv8a_VBIC_semi.
+
+(* [C7.2.256 ORR (vector, register)] ARM DDI 0487 M.d, p. C7-3589
+   Syntax: ORR <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Semantics: bitwise Vn OR Vm. *)
+Definition armv8a_VORR_semi (wn wm : word U128) : ty_v := wor wn wm.
+
+Definition armv8a_VORR_instr : instr_desc_t := mk_v2_instr VORR armv8a_VORR_semi.
+
+(* [C7.2.43 EOR (vector)] ARM DDI 0487 M.d, p. C7-3026
+   Syntax: EOR <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Semantics: bitwise Vn XOR Vm (EOR shares its pseudocode with BSL, BIT
+   and BIF; with the constant operands of EOR it is the XOR). *)
+Definition armv8a_VEOR_semi (wn wm : word U128) : ty_v := wxor wn wm.
+
+Definition armv8a_VEOR_instr : instr_desc_t := mk_v2_instr VEOR armv8a_VEOR_semi.
+
+(* [C7.2.253 NOT] ARM DDI 0487 M.d, p. C7-3583 (alias MVN)
+   Syntax: NOT <Vd>.<T>, <Vn>.<T>
+   Semantics: the complement of every byte, that is, the complement of the
+   register. *)
+Definition armv8a_VNOT_semi (wn : word U128) : ty_v := wnot wn.
+
+Definition armv8a_VNOT_instr : instr_desc_t := mk_v1_instr VNOT armv8a_VNOT_semi.
+
+(* [C7.2.2 ADD (vector)] ARM DDI 0487 M.d, p. C7-2943
+   Syntax: ADD <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Semantics: element-wise sum of Vn and Vm, modulo 2^esize. *)
+Definition armv8a_VADD_semi (ve : wsize) (wn wm : word U128) : ty_v :=
+  lift2_vec ve +%w U128 wn wm.
+
+Definition armv8a_VADD_instr : instr_desc_t :=
+  mk_v2_instr VADD (armv8a_VADD_semi esize).
+
+(* [C7.2.392 SUB (vector)] ARM DDI 0487 M.d, p. C7-3942
+   Syntax: SUB <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Semantics: element-wise difference Vn - Vm, modulo 2^esize. *)
+Definition armv8a_VSUB_semi (ve : wsize) (wn wm : word U128) : ty_v :=
+  lift2_vec ve (fun x y => x - y)%w U128 wn wm.
+
+Definition armv8a_VSUB_instr : instr_desc_t :=
+  mk_v2_instr VSUB (armv8a_VSUB_semi esize).
+
+(* [C7.2.298 SHL] ARM DDI 0487 M.d, p. C7-3666
+   Syntax: SHL <Vd>.<T>, <Vn>.<T>, #<shift>
+   The shift amount lies in [0, esize - 1].
+   Semantics: every element of Vn shifted left by the amount. *)
+Definition armv8a_VSHL_semi (ve : wsize) (wn : word U128) (sh : word U8) : ty_v :=
+  lift1_vec ve (fun x => wshl x (wunsigned sh)) U128 wn.
+
+Definition armv8a_VSHL_instr : instr_desc_t :=
+  mk_v1_imm_instr VSHL (CAimmC_armv8a_shift_amount esize) (armv8a_VSHL_semi esize).
+
+(* [C7.2.451 USHR] ARM DDI 0487 M.d, p. C7-4084
+   Syntax: USHR <Vd>.<T>, <Vn>.<T>, #<shift>
+   The shift amount lies in [1, esize].
+   Semantics: every element of Vn, as an unsigned integer, shifted right by
+   the amount without rounding; a shift by [esize] gives 0, as [wshr]
+   does. *)
+Definition armv8a_VUSHR_semi (ve : wsize) (wn : word U128) (sh : word U8) : ty_v :=
+  lift1_vec ve (fun x => wshr x (wunsigned sh)) U128 wn.
+
+Definition armv8a_VUSHR_instr : instr_desc_t :=
+  mk_v1_imm_instr VUSHR (CAimmC_armv8a_vshr esize) (armv8a_VUSHR_semi esize).
+
+(* [C7.2.361 SSHR] ARM DDI 0487 M.d, p. C7-3851
+   Syntax: SSHR <Vd>.<T>, <Vn>.<T>, #<shift>
+   The shift amount lies in [1, esize].
+   Semantics: every element of Vn, as a signed integer, shifted right by
+   the amount without rounding (RShr, J1.4.3.21, p. J1-16525); a shift by
+   [esize] gives 0 or -1, the sign, as [wsar] does. *)
+Definition armv8a_VSSHR_semi (ve : wsize) (wn : word U128) (sh : word U8) : ty_v :=
+  lift1_vec ve (fun x => wsar x (wunsigned sh)) U128 wn.
+
+Definition armv8a_VSSHR_instr : instr_desc_t :=
+  mk_v1_imm_instr VSSHR (CAimmC_armv8a_vshr esize) (armv8a_VSSHR_semi esize).
+
+(* [C7.2.355 SRI] ARM DDI 0487 M.d, p. C7-3833
+   Syntax: SRI <Vd>.<T>, <Vn>.<T>, #<shift>
+   The shift amount lies in [1, esize].
+   Semantics: in every element, the bits of Vn shifted right by the amount
+   replace the low bits of Vd; the top [shift] bits of Vd are kept. *)
+Definition armv8a_VSRI_semi (ve : wsize) (wd wn : word U128) (sh : word U8) : ty_v :=
+  lift2_vec ve (vsri_elem (wunsigned sh)) U128 wd wn.
+
+Definition armv8a_VSRI_instr : instr_desc_t :=
+  mk_v1d_imm_instr VSRI (CAimmC_armv8a_vshr esize) (armv8a_VSRI_semi esize).
+
+(* [C7.2.302 SLI] ARM DDI 0487 M.d, p. C7-3677
+   Syntax: SLI <Vd>.<T>, <Vn>.<T>, #<shift>
+   The shift amount lies in [0, esize - 1].
+   Semantics: in every element, the bits of Vn shifted left by the amount
+   replace the high bits of Vd; the low [shift] bits of Vd are kept. *)
+Definition armv8a_VSLI_semi (ve : wsize) (wd wn : word U128) (sh : word U8) : ty_v :=
+  lift2_vec ve (vsli_elem (wunsigned sh)) U128 wd wn.
+
+Definition armv8a_VSLI_instr : instr_desc_t :=
+  mk_v1d_imm_instr VSLI (CAimmC_armv8a_shift_amount esize) (armv8a_VSLI_semi esize).
+
+(* Permutations and element moves.
+   A general-purpose operand is a W register for elements of at most 32
+   bits and an X register for 64-bit elements ([gsz]). An element operand
+   [<Vn>.<Ts>[<index>]] is described as the register, paired with the
+   element size, and the immediate index (see [velem_operands]). An index
+   is checked against the number of elements of the arrangement
+   ([CAimmC_armv8a_vindex]). *)
+
+Notation gsz := (if esize == U64 then U64 else U32) (only parsing).
+
+(* [C7.2.44 EXT] ARM DDI 0487 M.d, p. C7-3028
+   Syntax: EXT <Vd>.16B, <Vn>.16B, <Vm>.16B, #<index>
+   The index is in [0, 15] for the 16B arrangement.
+   Semantics: the 16 bytes starting at byte [index] of the 32-byte value
+   whose low half is Vn and high half Vm. *)
+Definition armv8a_VEXT_semi (wn wm : word U128) (idx : word U8) : ty_v :=
+  vext wn wm (vindex idx).
+
+Definition armv8a_VEXT_instr : instr_desc_t :=
+  mk_v2_imm_instr VEXT (CAimmC_armv8a_vindex U8) armv8a_VEXT_semi.
+
+(* [C7.2.263 REV32 (vector)] ARM DDI 0487 M.d, p. C7-3603
+   Syntax: REV32 <Vd>.<T>, <Vn>.<T>   (T in 16B, 8H)
+   Semantics: the order of the elements is reversed within each 32-bit
+   container. *)
+Definition armv8a_VREV32_semi (ve : wsize) (wn : word U128) : ty_v :=
+  lift1_vec U32 (vrev_elems ve) U128 wn.
+
+Definition armv8a_VREV32_instr : instr_desc_t :=
+  mk_v1_instr VREV32 (armv8a_VREV32_semi esize).
+
+(* [C7.2.264 REV64] ARM DDI 0487 M.d, p. C7-3605
+   Syntax: REV64 <Vd>.<T>, <Vn>.<T>   (T in 16B, 8H, 4S)
+   Semantics: as REV32, within each 64-bit container. *)
+Definition armv8a_VREV64_semi (ve : wsize) (wn : word U128) : ty_v :=
+  lift1_vec U64 (vrev_elems ve) U128 wn.
+
+Definition armv8a_VREV64_instr : instr_desc_t :=
+  mk_v1_instr VREV64 (armv8a_VREV64_semi esize).
+
+(* [C7.2.399 TRN1] ARM DDI 0487 M.d, p. C7-3958
+   [C7.2.400 TRN2] ARM DDI 0487 M.d, p. C7-3960
+   Syntax: TRN1 <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Semantics (part = 0 for TRN1, 1 for TRN2): result pair p is
+   (Vn[2p + part], Vm[2p + part]). *)
+Definition armv8a_VTRN1_instr : instr_desc_t := mk_v2_instr VTRN1 (vtrn esize 0).
+Definition armv8a_VTRN2_instr : instr_desc_t := mk_v2_instr VTRN2 (vtrn esize 1).
+
+(* [C7.2.462 ZIP1] ARM DDI 0487 M.d, p. C7-4107
+   [C7.2.463 ZIP2] ARM DDI 0487 M.d, p. C7-4109
+   Syntax: ZIP1 <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Semantics (part = 0 for ZIP1, 1 for ZIP2): with half the number of
+   elements h, result pair p is (Vn[part * h + p], Vm[part * h + p]). *)
+Definition armv8a_VZIP1_instr : instr_desc_t := mk_v2_instr VZIP1 (vzip esize 0).
+Definition armv8a_VZIP2_instr : instr_desc_t := mk_v2_instr VZIP2 (vzip esize 1).
+
+(* [C7.2.458 UZP1] ARM DDI 0487 M.d, p. C7-4100
+   [C7.2.459 UZP2] ARM DDI 0487 M.d, p. C7-4102
+   Syntax: UZP1 <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Semantics (part = 0 for UZP1, 1 for UZP2): result element e is element
+   2e + part of the sequence of the elements of Vn followed by those of
+   Vm. *)
+Definition armv8a_VUZP1_instr : instr_desc_t := mk_v2_instr VUZP1 (vuzp esize 0).
+Definition armv8a_VUZP2_instr : instr_desc_t := mk_v2_instr VUZP2 (vuzp esize 1).
+
+(* [C7.2.41 DUP (general)] ARM DDI 0487 M.d, p. C7-3023
+   Syntax: DUP <Vd>.<T>, <R><n>   (R is W for 8, 16 and 32-bit elements, X for 64)
+   Semantics: the low [esize] bits of the general-purpose register in
+   every element. *)
+Definition armv8a_VDUP_semi (ve : wsize) {gs : wsize} (x : word gs) : ty_v :=
+  wpbroadcast U128 (zero_extend ve x).
+
+Definition armv8a_VDUP_instr : instr_desc_t :=
+  let tin := [:: lword gsz ] in
+  let semi := armv8a_VDUP_semi esize (gs := gsz) in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 2;
+    id_args_kinds := [:: [:: [:: CAxmm ]; [:: CAreg ] ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str VDUP;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VDUP [:: esize; gsz ];
+    id_valid := vvalid VDUP;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* [C7.2.40 DUP (element)] ARM DDI 0487 M.d, p. C7-3019
+   Syntax: DUP <Vd>.<T>, <Vn>.<Ts>[<index>]
+   Semantics: element [index] of Vn in every element. *)
+Definition armv8a_VDUPE_semi (ve : wsize) (wn : word U128) (idx : word U8) : ty_v :=
+  wpbroadcast U128 (velem_at ve wn (vindex idx)).
+
+Definition armv8a_VDUPE_instr : instr_desc_t :=
+  mk_v1_imm_instr VDUPE (CAimmC_armv8a_vindex esize) (armv8a_VDUPE_semi esize).
+
+(* [C7.2.203 INS (general)] ARM DDI 0487 M.d, p. C7-3439, with the
+   preferred alias [C7.2.244 MOV (from general)].
+   Syntax: INS <Vd>.<Ts>[<index>], <R><n>
+   Semantics: Vd with element [index] replaced by the low [esize] bits of
+   the general-purpose register. *)
+Definition armv8a_VINS_semi (ve : wsize) {gs : wsize}
+  (wd : word U128) (x : word gs) (idx : word U8) : ty_v :=
+  wpinsr wd (zero_extend ve x) idx.
+
+Definition armv8a_VINS_instr : instr_desc_t :=
+  let tin := [:: lvec; lword gsz; lword U8 ] in
+  let semi := armv8a_VINS_semi esize (gs := gsz) in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 0; Ea 1; Ea 2 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds :=
+      [:: [:: [:: CAxmm ]; [:: CAreg ]; [:: CAimm (Some (CAimmC_armv8a_vindex esize)) U8 ] ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str VINS;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VINS [:: esize; gsz; U8 ];
+    id_valid := vvalid VINS;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* [C7.2.202 INS (element)] ARM DDI 0487 M.d, p. C7-3436, with the
+   preferred alias [C7.2.243 MOV (element)].
+   Syntax: INS <Vd>.<Ts>[<index1>], <Vn>.<Ts>[<index2>]
+   Semantics: Vd with element [index1] replaced by element [index2] of
+   Vn. *)
+Definition armv8a_VINSE_semi (ve : wsize)
+  (wd wn : word U128) (di si : word U8) : ty_v :=
+  wpinsr wd (velem_at ve wn (vindex si)) di.
+
+Definition armv8a_VINSE_instr : instr_desc_t :=
+  let tin := [:: lvec; lvec; lword U8; lword U8 ] in
+  let semi := armv8a_VINSE_semi esize in
+  let idx := CAimm (Some (CAimmC_armv8a_vindex esize)) U8 in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 0; Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 4;
+    id_args_kinds := [:: [:: [:: CAxmm ]; [:: CAxmm ]; [:: idx ]; [:: idx ] ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str VINSE;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VINSE [:: esize; esize; U8; U8 ];
+    id_valid := vvalid VINSE;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* [C7.2.430 UMOV] ARM DDI 0487 M.d, p. C7-4026, with the preferred
+   alias [C7.2.246 MOV (to general)] for 32 and 64-bit elements.
+   Syntax: UMOV <Wd>, <Vn>.<Ts>[<index>]   (Ts in B, H, S)
+           UMOV <Xd>, <Vn>.D[<index>]
+   Semantics: element [index] of Vn, zero-extended to the destination.
+   A W destination clears the upper 32 bits of the X register
+   ([MSB_CLEAR]). *)
+Definition armv8a_VUMOV_semi (ve gs : wsize) (wn : word U128) (idx : word U8)
+  : sem_ltuple [:: lword gs ] :=
+  zero_extend gs (velem_at ve wn (vindex idx)).
+
+Definition armv8a_VUMOV_instr : instr_desc_t :=
+  let tin := [:: lvec; lword U8 ] in
+  let semi := armv8a_VUMOV_semi esize gsz in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2 ];
+    id_tout := [:: lword gsz ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds :=
+      [:: [:: [:: CAreg ]; [:: CAxmm ]; [:: CAimm (Some (CAimmC_armv8a_vindex esize)) U8 ] ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str VUMOV;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VUMOV [:: gsz; esize; U8 ];
+    id_valid := vvalid VUMOV;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* -------------------------------------------------------------------- *)
+(* SHA-256 and SHA-512.
+   The destination register is also the first source: [Vd] holds the state
+   or schedule words being updated. The hash updates name the first two
+   operands as Q registers and the last as a 4S/2D vector; the schedule
+   updates use the 4S/2D arrangement throughout. The Operational
+   information section of each one states that it is a
+   data-independent-time instruction, and ARM DDI 0487 M.d, C5.2.4
+   "DIT, Data Independent Timing", p. C5-958, lists all eight. *)
+
+(* Destination and one other source. *)
+Definition mk_v2d_instr mn (szs : seq wsize)
+  (semi : word U128 -> word U128 -> ty_v) : instr_desc_t :=
+  let tin := [:: lvec; lvec ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 0; Ea 1 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 2;
+    id_args_kinds := ak_vv;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop mn szs;
+    id_valid := vvalid mn;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* Destination and two other sources. *)
+Definition mk_v3d_instr mn (szs : seq wsize)
+  (semi : word U128 -> word U128 -> word U128 -> ty_v) : instr_desc_t :=
+  let tin := [:: lvec; lvec; lvec ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 0; Ea 1; Ea 2 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds := ak_vvv;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop mn szs;
+    id_valid := vvalid mn;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* [C7.2.290 SHA256H] ARM DDI 0487 M.d, p. C7-3655
+   Syntax: SHA256H <Qd>, <Qn>, <Vm>.4S
+   Semantics: four SHA-256 rounds by the shared SHA256hash function (see
+   [sha256hash], armv8a_simd.v), returning the updated (a, b, c, d).
+   [Qd] holds the working variables (a, b, c, d) and [Qn] (e, f, g, h),
+   element 0 first; [Vm] holds W[t] + K[t] for four rounds. *)
+Definition armv8a_SHA256H_semi (wd wn wm : word U128) : ty_v :=
+  sha256hash wd wn wm true.
+
+Definition armv8a_SHA256H_instr : instr_desc_t :=
+  mk_v3d_instr SHA256H [:: U128; U128; U32 ] armv8a_SHA256H_semi.
+
+(* [C7.2.289 SHA256H2] ARM DDI 0487 M.d, p. C7-3654
+   Syntax: SHA256H2 <Qd>, <Qn>, <Vm>.4S
+   Semantics: the same four rounds with Qn as (a, b, c, d) and Qd as
+   (e, f, g, h), returning the updated (e, f, g, h). *)
+Definition armv8a_SHA256H2_semi (wd wn wm : word U128) : ty_v :=
+  sha256hash wn wd wm false.
+
+Definition armv8a_SHA256H2_instr : instr_desc_t :=
+  mk_v3d_instr SHA256H2 [:: U128; U128; U32 ] armv8a_SHA256H2_semi.
+
+(* [C7.2.291 SHA256SU0] ARM DDI 0487 M.d, p. C7-3656
+   Syntax: SHA256SU0 <Vd>.4S, <Vn>.4S
+   Semantics: element e of the result is Vd[e] plus the small sigma-0 of
+   SHA-256 applied to element e of the sequence Vd[1..3], Vn[0] (see
+   [sha256su0], armv8a_simd.v). *)
+Definition armv8a_SHA256SU0_semi (wd wn : word U128) : ty_v :=
+  sha256su0 wd wn.
+
+Definition armv8a_SHA256SU0_instr : instr_desc_t :=
+  mk_v2d_instr SHA256SU0 [:: U32; U32 ] armv8a_SHA256SU0_semi.
+
+(* [C7.2.292 SHA256SU1] ARM DDI 0487 M.d, p. C7-3657
+   Syntax: SHA256SU1 <Vd>.4S, <Vn>.4S, <Vm>.4S
+   Semantics: element e of the result is Vd[e] plus element e of the
+   sequence Vn[1..3], Vm[0], plus the small sigma-1 of SHA-256 applied to
+   Vm[2 + e] for e = 0, 1 and to result element e - 2 for e = 2, 3 (see
+   [sha256su1], armv8a_simd.v). *)
+Definition armv8a_SHA256SU1_semi (wd wn wm : word U128) : ty_v :=
+  sha256su1 wd wn wm.
+
+Definition armv8a_SHA256SU1_instr : instr_desc_t :=
+  mk_v3d_instr SHA256SU1 [:: U32; U32; U32 ] armv8a_SHA256SU1_semi.
+
+(* [C7.2.294 SHA512H] ARM DDI 0487 M.d, p. C7-3660
+   Syntax: SHA512H <Qd>, <Qn>, <Vm>.2D
+   Semantics: with x = Vn, y = Vm and w = Vd, two applications of
+   Ch(e, f, g) + Sigma1(e) + w of SHA-512, the second one on the first
+   result plus y[0]; see [sha512h], armv8a_simd.v, and SHA512H_H2_rounds
+   in armv8a_simd_lemmas.v for the round it computes. *)
+Definition armv8a_SHA512H_semi (wd wn wm : word U128) : ty_v :=
+  sha512h wd wn wm.
+
+Definition armv8a_SHA512H_instr : instr_desc_t :=
+  mk_v3d_instr SHA512H [:: U128; U128; U64 ] armv8a_SHA512H_semi.
+
+(* [C7.2.293 SHA512H2] ARM DDI 0487 M.d, p. C7-3659
+   Syntax: SHA512H2 <Qd>, <Qn>, <Vm>.2D
+   Semantics: with x = Vn, y = Vm and w = Vd, two applications of
+   Maj + Sigma0 + w of SHA-512, the second one on the first result; see
+   [sha512h2], armv8a_simd.v. *)
+Definition armv8a_SHA512H2_semi (wd wn wm : word U128) : ty_v :=
+  sha512h2 wd wn wm.
+
+Definition armv8a_SHA512H2_instr : instr_desc_t :=
+  mk_v3d_instr SHA512H2 [:: U128; U128; U64 ] armv8a_SHA512H2_semi.
+
+(* [C7.2.295 SHA512SU0] ARM DDI 0487 M.d, p. C7-3662
+   Syntax: SHA512SU0 <Vd>.2D, <Vn>.2D
+   Semantics: element 0 is Vd[0] + sigma0(Vd[1]) and element 1 is
+   Vd[1] + sigma0(Vn[0]), sigma0 the small sigma-0 of SHA-512. *)
+Definition armv8a_SHA512SU0_semi (wd wn : word U128) : ty_v :=
+  sha512su0 wd wn.
+
+Definition armv8a_SHA512SU0_instr : instr_desc_t :=
+  mk_v2d_instr SHA512SU0 [:: U64; U64 ] armv8a_SHA512SU0_semi.
+
+(* [C7.2.296 SHA512SU1] ARM DDI 0487 M.d, p. C7-3663
+   Syntax: SHA512SU1 <Vd>.2D, <Vn>.2D, <Vm>.2D
+   Semantics: element e is Vd[e] + sigma1(Vn[e]) + Vm[e], sigma1 the small
+   sigma-1 of SHA-512. *)
+Definition armv8a_SHA512SU1_semi (wd wn wm : word U128) : ty_v :=
+  sha512su1 wd wn wm.
+
+Definition armv8a_SHA512SU1_instr : instr_desc_t :=
+  mk_v3d_instr SHA512SU1 [:: U64; U64; U64 ] armv8a_SHA512SU1_semi.
+
+(* -------------------------------------------------------------------- *)
+(* SHA-3. EOR3 and BCAX use the 16B arrangement, RAX1 and XAR the 2D one.
+   The Operational information section of each one states that it is a
+   data-independent-time instruction, and ARM DDI 0487 M.d, C5.2.4
+   "DIT, Data Independent Timing", p. C5-958, lists all four. *)
+
+Let ak_vvvv := [:: [:: [:: CAxmm ]; [:: CAxmm ]; [:: CAxmm ]; [:: CAxmm ] ] ].
+
+(* Three vector sources. *)
+Definition mk_v3_instr mn (semi : word U128 -> word U128 -> word U128 -> ty_v) : instr_desc_t :=
+  let tin := [:: lvec; lvec; lvec ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 4;
+    id_args_kinds := ak_vvvv;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop mn [:: esize; esize; esize; esize ];
+    id_valid := vvalid mn;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* [C7.2.42 EOR3] ARM DDI 0487 M.d, p. C7-3025
+   Syntax: EOR3 <Vd>.16B, <Vn>.16B, <Vm>.16B, <Va>.16B
+   Semantics: bitwise Vn XOR Vm XOR Va. *)
+Definition armv8a_EOR3_semi (wn wm wa : word U128) : ty_v :=
+  wxor (wxor wn wm) wa.
+
+Definition armv8a_EOR3_instr : instr_desc_t := mk_v3_instr EOR3 armv8a_EOR3_semi.
+
+(* [C7.2.12 BCAX] ARM DDI 0487 M.d, p. C7-2959
+   Syntax: BCAX <Vd>.16B, <Vn>.16B, <Vm>.16B, <Va>.16B
+   Semantics: bitwise Vn XOR (Vm AND NOT Va). *)
+Definition armv8a_BCAX_semi (wn wm wa : word U128) : ty_v :=
+  wxor wn (wand wm (wnot wa)).
+
+Definition armv8a_BCAX_instr : instr_desc_t := mk_v3_instr BCAX armv8a_BCAX_semi.
+
+(* [C7.2.260 RAX1] ARM DDI 0487 M.d, p. C7-3598
+   Syntax: RAX1 <Vd>.2D, <Vn>.2D, <Vm>.2D
+   Semantics: Vn XOR Vm with each 64-bit element of Vm first rotated left
+   by one. *)
+Definition armv8a_RAX1_semi (wn wm : word U128) : ty_v := rax1 wn wm.
+
+Definition armv8a_RAX1_instr : instr_desc_t := mk_v2_instr RAX1 armv8a_RAX1_semi.
+
+(* [C7.2.460 XAR] ARM DDI 0487 M.d, p. C7-4104
+   Syntax: XAR <Vd>.2D, <Vn>.2D, <Vm>.2D, #<imm6>
+   The immediate is a right rotation in [0, 63]
+   ([CAimmC_armv8a_shift_amount U64]).
+   Semantics: each 64-bit element of Vn XOR Vm rotated right by the
+   immediate. *)
+Definition armv8a_XAR_semi (wn wm : word U128) (imm : word U8) : ty_v :=
+  xar wn wm (wunsigned imm).
+
+Definition armv8a_XAR_instr : instr_desc_t :=
+  mk_v2_imm_instr XAR (CAimmC_armv8a_shift_amount U64) armv8a_XAR_semi.
+
 (* -------------------------------------------------------------------- *)
 (* Description of instructions. *)
 
@@ -2680,6 +3717,48 @@ Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
   | CSDB => armv8a_CSDB_instr
   | DSB => armv8a_DSB_instr
   | ISB => armv8a_ISB_instr
+  | VMOV => armv8a_VMOV_instr
+  | VMOVI => armv8a_VMOVI_instr
+  | VLDR => armv8a_VLDR_instr
+  | VSTR => armv8a_VSTR_instr
+  | VAND => armv8a_VAND_instr
+  | VBIC => armv8a_VBIC_instr
+  | VORR => armv8a_VORR_instr
+  | VEOR => armv8a_VEOR_instr
+  | VNOT => armv8a_VNOT_instr
+  | VADD => armv8a_VADD_instr
+  | VSUB => armv8a_VSUB_instr
+  | VSHL => armv8a_VSHL_instr
+  | VUSHR => armv8a_VUSHR_instr
+  | VSSHR => armv8a_VSSHR_instr
+  | VSRI => armv8a_VSRI_instr
+  | VSLI => armv8a_VSLI_instr
+  | VEXT => armv8a_VEXT_instr
+  | VREV32 => armv8a_VREV32_instr
+  | VREV64 => armv8a_VREV64_instr
+  | VTRN1 => armv8a_VTRN1_instr
+  | VTRN2 => armv8a_VTRN2_instr
+  | VZIP1 => armv8a_VZIP1_instr
+  | VZIP2 => armv8a_VZIP2_instr
+  | VUZP1 => armv8a_VUZP1_instr
+  | VUZP2 => armv8a_VUZP2_instr
+  | VDUP => armv8a_VDUP_instr
+  | VDUPE => armv8a_VDUPE_instr
+  | VINS => armv8a_VINS_instr
+  | VINSE => armv8a_VINSE_instr
+  | VUMOV => armv8a_VUMOV_instr
+  | SHA256H => armv8a_SHA256H_instr
+  | SHA256H2 => armv8a_SHA256H2_instr
+  | SHA256SU0 => armv8a_SHA256SU0_instr
+  | SHA256SU1 => armv8a_SHA256SU1_instr
+  | SHA512H => armv8a_SHA512H_instr
+  | SHA512H2 => armv8a_SHA512H2_instr
+  | SHA512SU0 => armv8a_SHA512SU0_instr
+  | SHA512SU1 => armv8a_SHA512SU1_instr
+  | EOR3 => armv8a_EOR3_instr
+  | BCAX => armv8a_BCAX_instr
+  | RAX1 => armv8a_RAX1_instr
+  | XAR => armv8a_XAR_instr
   end.
 
 End ARMV8A_INSTR.
@@ -2700,13 +3779,34 @@ Definition armv8a_prim_sized (mn : armv8a_mnemonic) : prim_constructor armv8a_as
        then Some (ARMv8A_op mn (opts_at sz))
        else None).
 
+(* Advanced SIMD intrinsics: [#VMOV] for a mnemonic with a single element
+   size; a mnemonic with several element sizes is suffixed with its
+   arrangement, [_16u8], [_8u16], [_4u32] or [_2u64]. *)
+Definition armv8a_prim_vector (mn : armv8a_mnemonic) : prim_constructor armv8a_asm_op :=
+  let szs := vector_esizes mn in
+  if szs is [:: sz ]
+  then primM (ARMv8A_op mn (opts_at sz))
+  else
+    PrimX86
+      [seq PVv (velem_of_wsize sz) U128 | sz <- szs ]
+      (fun s =>
+         if s is PVv ve U128
+         then
+           if wsize_of_velem ve \in szs
+           then Some (ARMv8A_op mn (opts_at ve))
+           else None
+         else None).
+
 Definition armv8a_prim_string : seq (string * prim_constructor armv8a_asm_op) :=
   map
     (fun mn =>
        (string_of_armv8a_mnemonic mn,
         if mn \in sized_mnemonics
         then armv8a_prim_sized mn
-        else primM (ARMv8A_op mn default_opts)))
+        else
+          if vector_esizes mn != [::]
+          then armv8a_prim_vector mn
+          else primM (ARMv8A_op mn default_opts)))
     cenum.
 
 #[ export ]

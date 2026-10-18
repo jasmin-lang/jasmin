@@ -1,0 +1,7 @@
+/* MOVI is accepted with the immediate 0 only. */
+export
+fn vmovi_nonzero(reg u64 p) {
+    reg u128 a;
+    a = #VMOVI(1);
+    [:u128 p] = a;
+}

@@ -402,6 +402,66 @@ Definition lower_pexpr_aux (ws : wsize) (e : pexpr) : low_expr :=
   | _ => le_skip
   end.
 
+(* -------------------------------------------------------------------- *)
+(* Lowering of 128-bit expressions to Advanced SIMD instructions.
+   A 128-bit value lives in a SIMD&FP register. Moves, loads, the zero
+   constant, the bitwise operations and the element-wise additions,
+   subtractions and shifts by a constant are lowered; the bitwise operations
+   use the 16B arrangement. The vector shifts of Jasmin take their amount as
+   a 128-bit word and yield 0 (or the sign) when it reaches the element
+   size: they are lowered only for a constant amount within the range of
+   the immediate forms (SHL: [0, esize - 1], USHR and SSHR: [1, esize]),
+   where both semantics agree. *)
+
+Definition lower_vec_Pvar (v : gvar) : low_expr :=
+  if is_var_in_memory (gv v)
+  then le_issue VLDR U128 [:: Pvar v ]
+  else le_issue VMOV U8 [:: Pvar v ].
+
+Definition lower_vec_Papp2 (op : sop2) (e0 e1 : pexpr) : low_expr :=
+  match op with
+  | Oland U128 =>
+      (* BIC computes [Vn AND NOT Vm]: [a & !b] and [!b & a] are both
+         [BIC a, b]. *)
+      if is_andn e0 e1 is Some (b, a)
+      then le_issue VBIC U8 [:: a; b ]
+      else le_issue VAND U8 [:: e0; e1 ]
+  | Olor U128 => le_issue VORR U8 [:: e0; e1 ]
+  | Olxor U128 => le_issue VEOR U8 [:: e0; e1 ]
+  | Ovadd ve U128 => le_issue VADD ve [:: e0; e1 ]
+  | Ovsub ve U128 => le_issue VSUB ve [:: e0; e1 ]
+  | Ovlsl ve U128 =>
+      let%opt n := is_wconst U128 e1 in
+      let%opt _ := oassert (wunsigned n <? wsize_bits ve)%Z in
+      le_issue VSHL ve [:: e0; eword_of_int U8 (wunsigned n) ]
+  | Ovlsr ve U128 =>
+      let%opt n := is_wconst U128 e1 in
+      let%opt _ := oassert ((0 <? wunsigned n) && (wunsigned n <=? wsize_bits ve))%Z in
+      le_issue VUSHR ve [:: e0; eword_of_int U8 (wunsigned n) ]
+  | Ovasr ve U128 =>
+      let%opt n := is_wconst U128 e1 in
+      let%opt _ := oassert ((0 <? wunsigned n) && (wunsigned n <=? wsize_bits ve))%Z in
+      le_issue VSSHR ve [:: e0; eword_of_int U8 (wunsigned n) ]
+  | _ => le_skip
+  end.
+
+Definition lower_vec_pexpr (e : pexpr) : low_expr :=
+  match e with
+  | Pvar v => lower_vec_Pvar v
+  | Pget _ _ _ _ _
+  | Pload _ _ _ => le_issue VLDR U128 [:: e ]
+  | Papp1 (Oword_of_int _) _ =>
+      let%opt n := is_wconst U128 e in
+      let%opt _ := oassert (n == 0%R) in
+      le_issue VMOVI U64 [:: eword_of_int U64 0 ]
+  | Papp1 (Olnot U128) a => le_issue VNOT U8 [:: a ]
+  | Papp2 op a b => lower_vec_Papp2 op a b
+  | _ => le_skip
+  end.
+
+Definition lower_pexpr_word (ws : wsize) (e : pexpr) : low_expr :=
+  if ws == U128 then lower_vec_pexpr e else lower_pexpr_aux ws e.
+
 (* A64 has no conditional execution: conditional expressions are lowered
    to the conditional select instructions, whose operands must be
    registers. *)
@@ -475,7 +535,7 @@ Definition lower_pexpr (vi : var_info) (ws : wsize) (e : pexpr) :
       let of_int e := Papp1 (Oword_of_int ws') e in
       lower_Pif vi ws c (of_int e0) (of_int e1)
   | _ =>
-      no_pre (lower_pexpr_aux ws e)
+      no_pre (lower_pexpr_word ws e)
   end.
 
 (* Lower an assignment to memory.
@@ -485,6 +545,9 @@ Definition lower_pexpr (vi : var_info) (ws : wsize) (e : pexpr) :
      + a memory location.
    - [e] must be a register. *)
 Definition lower_store (ws : wsize) (e : pexpr) : option (armv8a_asm_op * seq pexpr) :=
+  if ws == U128 then
+    if e is Pvar _ then Some (ARMv8A_op VSTR (opts_at U128), [:: e ]) else None
+  else
   let%opt mn := store_mn_of_wsize ws in
   let osz := if (ws <= U16)%CMP then U64 else ws in
   match e with

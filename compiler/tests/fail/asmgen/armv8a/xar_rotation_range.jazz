@@ -1,0 +1,9 @@
+/* XAR rotates by at most 63. */
+export
+fn xar_rotation_range(reg u64 p) {
+    reg u128 a b;
+    a = [:u128 p];
+    b = [:u128 p + 16];
+    a = #XAR(a, b, 64);
+    [:u128 p] = a;
+}

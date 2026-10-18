@@ -1,0 +1,8 @@
+/* SSHR shifts by at most the element size. */
+export
+fn vsshr_amount_range(reg u64 p) {
+    reg u128 a;
+    a = [:u128 p];
+    a = #VSSHR_4u32(a, 33);
+    [:u128 p] = a;
+}

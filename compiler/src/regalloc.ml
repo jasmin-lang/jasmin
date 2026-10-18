@@ -1522,6 +1522,23 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
     let add_conflicts x = Sv.fold (conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp vars tr Lnone x) Arch.syscall_kill in
     Hashtbl.fold (fun _o live cnf -> cnf |> Sv.fold add_conflicts live) slive conflicts in
 
+  (* Give a specific error message if a variable of the vector bank is larger
+     than the registers of that bank: no choice of register can be valid. An
+     empty bank is reported by [two_phase_coloring]. *)
+  begin match Arch.xmm_allocatable_vars with
+  | { v_ty = Bty (U rsz); _ } :: _ ->
+      Hv.iter (fun x _ ->
+          match x.v_ty with
+          | Bty (U sz) when Wsize.wsize_cmp sz rsz = Datatypes.Gt ->
+              hierror_reg ~loc:Lnone "unable to allocate %a: bank “%s” has no register of type %a on this architecture"
+                (Printer.pp_dvar ~debug:(debug())) x
+                (string_of_kind Vector)
+                PrintCommon.pp_ty x.v_ty
+          | _ -> ())
+        vars
+  | _ -> ()
+  end;
+
   let a = A.empty nv in
 
   (* Allocate all_vars *)

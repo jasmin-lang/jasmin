@@ -767,6 +767,12 @@ Definition is_ABReg r :=
   | _ => false
   end.
 
+Definition is_AXReg r :=
+  match r with
+  | AXReg _ => true
+  | _ => false
+  end.
+
 Class calling_convention :=
   { callee_saved   : seq asm_typed_reg
   ; callee_saved_not_bool : all (fun r => ~~is_ABReg r) callee_saved
@@ -777,6 +783,16 @@ Class calling_convention :=
   ; call_xreg_ret  : seq xreg_t
   ; call_reg_ret_uniq : uniq (T:= @ceqT_eqType _ _) call_reg_ret
   }.
+
+(* The registers that a system call (a call to an external function, e.g.
+   randombytes) is assumed to preserve: the callee-saved registers, except
+   the vector ones.  The ABIs may preserve only part of a vector register
+   (Microsoft x64: the upper portions of YMM0-YMM15 are volatile; AAPCS64:
+   only the bottom 64 bits of v8-v15 need to be preserved), and a register is
+   either preserved in full or not at all here, so they are not assumed to be
+   preserved. *)
+Definition syscall_preserved {call_conv : calling_convention} :=
+  [seq r <- callee_saved | ~~ is_AXReg r].
 
 Definition get_ARReg (a:asm_typed_reg) :=
   match a with

@@ -1,0 +1,11 @@
+/* A u128 array indexed by a register: LDR <Qt> could shift the index by 4,
+   but assembly generation has no scale of 16. */
+export
+fn vldr_index_scale16(reg u64 p i) {
+    stack u128[4] s;
+    reg u128 a;
+    a = [:u128 p];
+    s[0] = a; s[1] = a; s[2] = a; s[3] = a;
+    a = s[i];
+    [:u128 p] = a;
+}

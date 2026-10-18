@@ -1,0 +1,63 @@
+/* Advanced SIMD operations: lowered source operators and intrinsics. */
+export
+fn simd_ops(reg u64 p) {
+    reg u128 a b c d z;
+    a = [:u128 p];
+    b = [:u128 p + 16];
+
+    c = a ^ b;
+    c = c & b;
+    c = c | a;
+    c = c & !b;
+    c = !c;
+    c = c +16u8 a;
+    c = c +8u16 a;
+    c = c +4u32 a;
+    c = c +2u64 a;
+    c = c -16u8 b;
+    c = c -8u16 b;
+    c = c -4u32 b;
+    c = c -2u64 b;
+    c = c <<16u8 7;
+    c = c <<8u16 1;
+    c = c <<4u32 0;
+    c = c >>2u64 64;
+    c = c >>4u32 1;
+    c = c >>16s8 8;
+    c = c >>8s16 3;
+    c = c >>4s32 1;
+    c = c >>2s64 64;
+
+    z = 0;
+    [:u128 p + 48] = z;
+
+    d = #VMOV(a);
+    d = #VEOR(d, c);
+    d = #VAND(d, b);
+    d = #VORR(d, b);
+    d = #VBIC(d, a);
+    d = #VNOT(d);
+    d = #VADD_16u8(d, a);
+    d = #VSUB_2u64(d, b);
+    d = #VSHL_8u16(d, 15);
+    d = #VUSHR_16u8(d, 8);
+    d = #VSSHR_8u16(d, 16);
+    d = #VSRI_4u32(d, a, 32);
+    d = #VSLI_2u64(d, b, 63);
+    [:u128 p + 32] = d;
+    d = #VMOVI(0);
+    [:u128 p + 64] = d;
+}
+
+/* Vector arguments through arithmetic (V0-V7 in, V0 out). */
+export fn vargs_ops(reg u128 a b c d e f g h) -> reg u128 {
+  reg u128 r;
+  r = a +4u32 b;
+  r = r ^ c;
+  r = r -2u64 d;
+  r = r | e;
+  r = r & !f;
+  r = r +16u8 g;
+  r = r ^ h;
+  return r;
+}

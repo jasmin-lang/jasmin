@@ -1,0 +1,9 @@
+/* A 2D vector has elements 0 and 1. */
+export
+fn vumov_index_range(reg u64 p) -> reg u64 {
+    reg u128 a;
+    reg u64 x;
+    a = [:u128 p];
+    x = #VUMOV_2u64(a, 2);
+    return x;
+}

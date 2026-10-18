@@ -1,0 +1,14 @@
+/* The SHA-3 cryptographic-extension instructions; XAR at both ends of its range. */
+export
+fn simd_sha3(reg u64 p) {
+    reg u128 a b c d e;
+    a = [:u128 p];
+    b = [:u128 p + 16];
+    c = [:u128 p + 32];
+    d = #EOR3(a, b, c);
+    e = #RAX1(d, a);
+    e = #XAR(e, b, 63);
+    e = #XAR(e, c, 0);
+    e = #BCAX(e, a, b);
+    [:u128 p + 48] = e;
+}

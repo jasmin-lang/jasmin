@@ -51,3 +51,20 @@ export fn and_not_const(reg u64 a) -> reg u64 {
   r = a & !(64u) C;
   return r;
 }
+
+/* The same at u128, with the vector BIC. */
+export fn bic_128_right(reg u64 p) {
+  reg u128 a b r;
+  a = [:u128 p];
+  b = [:u128 p + 16];
+  r = a & !b;
+  [:u128 p + 32] = r;
+}
+
+export fn bic_128_left(reg u64 p) {
+  reg u128 a b r;
+  a = [:u128 p];
+  b = [:u128 p + 16];
+  r = !b & a;
+  [:u128 p + 32] = r;
+}

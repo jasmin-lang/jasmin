@@ -1,0 +1,211 @@
+/*
+ * Known-answer test of the SHA-256 and SHA-512 instructions: the SHA-256
+ * and SHA-512 digests of "abc", computed with SHA256H/H2/SU0/SU1 and
+ * SHA512H/H2/SU0/SU1 (tests/exec/exec_armv8a.ml). The message is stored
+ * already padded (FIPS 180-4 5.1), as the bytes of each block in memory
+ * order.
+ */
+
+/* FIPS 180-4 4.2.2, four constants per vector, K[4i] in element 0. */
+u128[16] SHA256_K = {
+  0xe9b5dba5b5c0fbcf71374491428a2f98,
+  0xab1c5ed5923f82a459f111f13956c25b,
+  0x550c7dc3243185be12835b01d807aa98,
+  0xc19bf1749bdc06a780deb1fe72be5d74,
+  0x240ca1cc0fc19dc6efbe4786e49b69c1,
+  0x76f988da5cb0a9dc4a7484aa2de92c6f,
+  0xbf597fc7b00327c8a831c66d983e5152,
+  0x1429296706ca6351d5a79147c6e00bf3,
+  0x53380d134d2c6dfc2e1b213827b70a85,
+  0x92722c8581c2c92e766a0abb650a7354,
+  0xc76c51a3c24b8b70a81a664ba2bfe8a1,
+  0x106aa070f40e3585d6990624d192e819,
+  0x34b0bcb52748774c1e376c0819a4c116,
+  0x682e6ff35b9cca4f4ed8aa4a391c0cb3,
+  0x8cc7020884c8781478a5636f748f82ee,
+  0xc67178f2bef9a3f7a4506ceb90befffa
+};
+
+/* FIPS 180-4 5.3.3: H0..H3 in elements 0..3, then H4..H7. */
+u128[2] SHA256_IV = {
+  0xa54ff53a3c6ef372bb67ae856a09e667,
+  0x5be0cd191f83d9ab9b05688c510e527f
+};
+
+/* FIPS 180-4 4.2.3, two constants per vector, K[2i] in element 0. */
+u128[40] SHA512_K = {
+  0x7137449123ef65cd428a2f98d728ae22,
+  0xe9b5dba58189dbbcb5c0fbcfec4d3b2f,
+  0x59f111f1b605d0193956c25bf348b538,
+  0xab1c5ed5da6d8118923f82a4af194f9b,
+  0x12835b0145706fbed807aa98a3030242,
+  0x550c7dc3d5ffb4e2243185be4ee4b28c,
+  0x80deb1fe3b1696b172be5d74f27b896f,
+  0xc19bf174cf6926949bdc06a725c71235,
+  0xefbe4786384f25e3e49b69c19ef14ad2,
+  0x240ca1cc77ac9c650fc19dc68b8cd5b5,
+  0x4a7484aa6ea6e4832de92c6f592b0275,
+  0x76f988da831153b55cb0a9dcbd41fbd4,
+  0xa831c66d2db43210983e5152ee66dfab,
+  0xbf597fc7beef0ee4b00327c898fb213f,
+  0xd5a79147930aa725c6e00bf33da88fc2,
+  0x142929670a0e6e7006ca6351e003826f,
+  0x2e1b21385c26c92627b70a8546d22ffc,
+  0x53380d139d95b3df4d2c6dfc5ac42aed,
+  0x766a0abb3c77b2a8650a73548baf63de,
+  0x92722c851482353b81c2c92e47edaee6,
+  0xa81a664bbc423001a2bfe8a14cf10364,
+  0xc76c51a30654be30c24b8b70d0f89791,
+  0xd69906245565a910d192e819d6ef5218,
+  0x106aa07032bbd1b8f40e35855771202a,
+  0x1e376c085141ab5319a4c116b8d2d0c8,
+  0x34b0bcb5e19b48a82748774cdf8eeb99,
+  0x4ed8aa4ae3418acb391c0cb3c5c95a63,
+  0x682e6ff3d6b2b8a35b9cca4f7763e373,
+  0x78a5636f43172f60748f82ee5defb2fc,
+  0x8cc702081a6439ec84c87814a1f0ab72,
+  0xa4506cebde82bde990befffa23631e28,
+  0xc67178f2e372532bbef9a3f7b2c67915,
+  0xd186b8c721c0c207ca273eceea26619c,
+  0xf57d4f7fee6ed178eada7dd6cde0eb1e,
+  0x0a637dc5a2c898a606f067aa72176fba,
+  0x1b710b35131c471b113f9804bef90dae,
+  0x32caab7b40c7249328db77f523047d84,
+  0x431d67c49c100d4c3c9ebe0a15c9bebc,
+  0x597f299cfc657e2a4cc5d4becb3e42b6,
+  0x6c44198c4a4758175fcb6fab3ad6faec
+};
+
+/* FIPS 180-4 5.3.5: (H0, H1), (H2, H3), (H4, H5), (H6, H7). */
+u128[4] SHA512_IV = {
+  0xbb67ae8584caa73b6a09e667f3bcc908,
+  0xa54ff53a5f1d36f13c6ef372fe94f82b,
+  0x9b05688c2b3e6c1f510e527fade682d1,
+  0x5be0cd19137e21791f83d9abfb41bd6b
+};
+
+/* SHA256, padded: "abc" */
+u128[4] SHA256_MSG_ABC = {
+  0x00000000000000000000000080636261,
+  0x00000000000000000000000000000000,
+  0x00000000000000000000000000000000,
+  0x18000000000000000000000000000000
+};
+
+/* SHA512, padded: "abc" */
+u128[8] SHA512_MSG_ABC = {
+  0x00000000000000000000000080636261,
+  0x00000000000000000000000000000000,
+  0x00000000000000000000000000000000,
+  0x00000000000000000000000000000000,
+  0x00000000000000000000000000000000,
+  0x00000000000000000000000000000000,
+  0x00000000000000000000000000000000,
+  0x18000000000000000000000000000000
+};
+
+/*
+ * One SHA-256 block. abcd holds (A, B, C, D) in elements 0..3 and efgh holds
+ * (E, F, G, H). Each iteration performs four rounds: SHA256H updates
+ * (A..D) and SHA256H2 updates (E..H) from the same W+K vector, and
+ * SHA256SU0/SU1 compute the next four schedule words in place.
+ */
+inline
+fn sha256_block(reg u128 abcd efgh, reg u128 m0 m1 m2 m3) -> reg u128, reg u128 {
+  reg u128 abcd0 efgh0 wk t;
+  inline int i;
+  abcd0 = abcd;
+  efgh0 = efgh;
+  m0 = #VREV32_16u8(m0);
+  m1 = #VREV32_16u8(m1);
+  m2 = #VREV32_16u8(m2);
+  m3 = #VREV32_16u8(m3);
+  for i = 0 to 16 {
+    wk = SHA256_K[i];
+    wk = wk +4u32 m0;
+    t = abcd;
+    abcd = #SHA256H(abcd, efgh, wk);
+    efgh = #SHA256H2(efgh, t, wk);
+    if (i < 12) {
+      m0 = #SHA256SU0(m0, m1);
+      m0 = #SHA256SU1(m0, m2, m3);
+    }
+    t = m0; m0 = m1; m1 = m2; m2 = m3; m3 = t;
+  }
+  abcd = abcd +4u32 abcd0;
+  efgh = efgh +4u32 efgh0;
+  return abcd, efgh;
+}
+
+/*
+ * One SHA-512 block, two rounds per iteration. ab, cd, ef, gh hold
+ * (A, B), (C, D), (E, F), (G, H), first one in element 0. SHA512H takes
+ * the W+K pair added to (G, H) with its elements swapped, (F, G) and (D, E);
+ * its result plus (C, D) is the next (E, F)-register, and SHA512H2 then
+ * forms the next (A, B)-register from it, (C, D) and (A, B).
+ */
+inline
+fn sha512_block(reg u128 ab cd ef gh, reg u128 m0 m1 m2 m3 m4 m5 m6 m7)
+  -> reg u128, reg u128, reg u128, reg u128 {
+  reg u128 ab0 cd0 ef0 gh0 wk fg de s t;
+  inline int i;
+  ab0 = ab; cd0 = cd; ef0 = ef; gh0 = gh;
+  m0 = #VREV64_16u8(m0); m1 = #VREV64_16u8(m1);
+  m2 = #VREV64_16u8(m2); m3 = #VREV64_16u8(m3);
+  m4 = #VREV64_16u8(m4); m5 = #VREV64_16u8(m5);
+  m6 = #VREV64_16u8(m6); m7 = #VREV64_16u8(m7);
+  for i = 0 to 40 {
+    wk = SHA512_K[i];
+    wk = wk +2u64 m0;
+    fg = #VEXT(ef, gh, 8);
+    wk = #VEXT(wk, wk, 8);
+    de = #VEXT(cd, ef, 8);
+    gh = gh +2u64 wk;
+    if (i < 32) {
+      s = #VEXT(m4, m5, 8);
+      m0 = #SHA512SU0(m0, m1);
+      m0 = #SHA512SU1(m0, m7, s);
+    }
+    gh = #SHA512H(gh, fg, de);
+    t = cd +2u64 gh;
+    gh = #SHA512H2(gh, cd, ab);
+    /* (A..H) rotate by two: gh is the new (A, B), t the new (E, F). */
+    s = ab; ab = gh; gh = ef; ef = t; cd = s;
+    s = m0; m0 = m1; m1 = m2; m2 = m3; m3 = m4; m4 = m5; m5 = m6; m6 = m7; m7 = s;
+  }
+  ab = ab +2u64 ab0; cd = cd +2u64 cd0;
+  ef = ef +2u64 ef0; gh = gh +2u64 gh0;
+  return ab, cd, ef, gh;
+}
+
+export
+fn sha256_abc() -> reg u128, reg u128 {
+  reg u128 abcd efgh m0 m1 m2 m3;
+  abcd = SHA256_IV[0];
+  efgh = SHA256_IV[1];
+  m0 = SHA256_MSG_ABC[0];
+  m1 = SHA256_MSG_ABC[1];
+  m2 = SHA256_MSG_ABC[2];
+  m3 = SHA256_MSG_ABC[3];
+  abcd, efgh = sha256_block(abcd, efgh, m0, m1, m2, m3);
+  return abcd, efgh;
+}
+
+export
+fn sha512_abc() -> reg u128, reg u128, reg u128, reg u128 {
+  reg u128 ab cd ef gh m0 m1 m2 m3 m4 m5 m6 m7;
+  ab = SHA512_IV[0];
+  cd = SHA512_IV[1];
+  ef = SHA512_IV[2];
+  gh = SHA512_IV[3];
+  m0 = SHA512_MSG_ABC[0];
+  m1 = SHA512_MSG_ABC[1];
+  m2 = SHA512_MSG_ABC[2];
+  m3 = SHA512_MSG_ABC[3];
+  m4 = SHA512_MSG_ABC[4];
+  m5 = SHA512_MSG_ABC[5];
+  m6 = SHA512_MSG_ABC[6];
+  m7 = SHA512_MSG_ABC[7];
+  ab, cd, ef, gh = sha512_block(ab, cd, ef, gh, m0, m1, m2, m3, m4, m5, m6, m7);
+  return ab, cd, ef, gh;
+}

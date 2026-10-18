@@ -585,6 +585,193 @@ Allowed args compatible with the input (except on immediate sizes and address sh
 All allowed args (regardless of the input) are:
   [[reg]; [reg]; [mem (glob not allowed) [Xn|SP, #imm], imm a multiple of 8 in [-512, 504]]]
 
+fail/asmgen/armv8a/vdupe_index_range.jazz:
+
+"fail/asmgen/armv8a/vdupe_index_range.jazz", line 6 (4-26):
+compilation error in function vdupe_index_range:
+asmgen: instruction VDUPE_8u16 is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [xreg]; [imm 8 [0, 7]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [xreg]; [imm 8 [0, 7]]]
+
+fail/asmgen/armv8a/vext_index_range.jazz:
+
+"fail/asmgen/armv8a/vext_index_range.jazz", line 7 (4-24):
+compilation error in function vext_index_range:
+asmgen: instruction VEXT is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [xreg]; [xreg]; [imm 8 [0, 15]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [xreg]; [xreg]; [imm 8 [0, 15]]]
+
+fail/asmgen/armv8a/vins_index_range.jazz:
+
+"fail/asmgen/armv8a/vins_index_range.jazz", line 8 (4-28):
+compilation error in function vins_index_range:
+asmgen: instruction VINS_4u32 is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [reg]; [imm 8 [0, 3]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [reg]; [imm 8 [0, 3]]]
+
+fail/asmgen/armv8a/vinse_index_range.jazz:
+
+"fail/asmgen/armv8a/vinse_index_range.jazz", line 8 (4-33):
+compilation error in function vinse_index_range:
+asmgen: instruction VINSE_16u8 is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [xreg]; [imm 8 [0, 15]]; [imm 8 [0, 15]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [xreg]; [imm 8 [0, 15]]; [imm 8 [0, 15]]]
+
+fail/asmgen/armv8a/vldr_index_scale16.jazz:
+
+"fail/asmgen/armv8a/vldr_index_scale16.jazz", line 9 (4-13):
+compilation error in function vldr_index_scale16:
+asmgen: Invalid address:  sp +64u ((64u) 16 *64u x1 +64u (64u) 0)
+        Invalid scale: 16 (should be 1, 2, 4, or 8)
+
+fail/asmgen/armv8a/vldr_offset_neg257.jazz:
+
+"fail/asmgen/armv8a/vldr_offset_neg257.jazz", line 5 (4-24):
+compilation error in function vldr_offset_neg257:
+asmgen: instruction VLDR is given at least one too large immediate or unencodable address as an argument.
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  [[xreg]; [mem (glob not allowed) [Xn|SP, #imm] with imm in [-256, 255] or a multiple of 16 in [0, 65520], or [Xn|SP, Xm]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [mem (glob not allowed) [Xn|SP, #imm] with imm in [-256, 255] or a multiple of 16 in [0, 65520], or [Xn|SP, Xm]]]
+
+fail/asmgen/armv8a/vldr_offset_range.jazz:
+
+"fail/asmgen/armv8a/vldr_offset_range.jazz", line 5 (4-26):
+compilation error in function vldr_offset_range:
+asmgen: instruction VLDR is given at least one too large immediate or unencodable address as an argument.
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  [[xreg]; [mem (glob not allowed) [Xn|SP, #imm] with imm in [-256, 255] or a multiple of 16 in [0, 65520], or [Xn|SP, Xm]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [mem (glob not allowed) [Xn|SP, #imm] with imm in [-256, 255] or a multiple of 16 in [0, 65520], or [Xn|SP, Xm]]]
+
+fail/asmgen/armv8a/vldr_offset_unaligned.jazz:
+
+"fail/asmgen/armv8a/vldr_offset_unaligned.jazz", line 5 (4-24):
+compilation error in function vldr_offset_unaligned:
+asmgen: instruction VLDR is given at least one too large immediate or unencodable address as an argument.
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  [[xreg]; [mem (glob not allowed) [Xn|SP, #imm] with imm in [-256, 255] or a multiple of 16 in [0, 65520], or [Xn|SP, Xm]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [mem (glob not allowed) [Xn|SP, #imm] with imm in [-256, 255] or a multiple of 16 in [0, 65520], or [Xn|SP, Xm]]]
+
+fail/asmgen/armv8a/vldr_scaled_index4.jazz:
+
+"fail/asmgen/armv8a/vldr_scaled_index4.jazz", line 5 (4-26):
+compilation error in function vldr_scaled_index4:
+asmgen: instruction VLDR is given at least one too large immediate or unencodable address as an argument.
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  [[xreg]; [mem (glob not allowed) [Xn|SP, #imm] with imm in [-256, 255] or a multiple of 16 in [0, 65520], or [Xn|SP, Xm]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [mem (glob not allowed) [Xn|SP, #imm] with imm in [-256, 255] or a multiple of 16 in [0, 65520], or [Xn|SP, Xm]]]
+
+fail/asmgen/armv8a/vmovi_nonzero.jazz:
+
+"fail/asmgen/armv8a/vmovi_nonzero.jazz", line 5 (4-18):
+compilation error in function vmovi_nonzero:
+asmgen: instruction VMOVI is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [imm 64 (0 only)]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [imm 64 (0 only)]]
+
+fail/asmgen/armv8a/vshl_amount_range.jazz:
+
+"fail/asmgen/armv8a/vshl_amount_range.jazz", line 6 (4-26):
+compilation error in function vshl_amount_range:
+asmgen: instruction VSHL_4u32 is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [xreg]; [imm 8 [0, 31]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [xreg]; [imm 8 [0, 31]]]
+
+fail/asmgen/armv8a/vsli_amount_range.jazz:
+
+"fail/asmgen/armv8a/vsli_amount_range.jazz", line 7 (4-29):
+compilation error in function vsli_amount_range:
+asmgen: instruction VSLI_2u64 is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [xreg]; [imm 8 [0, 63]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [xreg]; [imm 8 [0, 63]]]
+
+fail/asmgen/armv8a/vsri_amount_zero.jazz:
+
+"fail/asmgen/armv8a/vsri_amount_zero.jazz", line 7 (4-28):
+compilation error in function vsri_amount_zero:
+asmgen: instruction VSRI_4u32 is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [xreg]; [imm 8 [1, 32]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [xreg]; [imm 8 [1, 32]]]
+
+fail/asmgen/armv8a/vsshr_amount_range.jazz:
+
+"fail/asmgen/armv8a/vsshr_amount_range.jazz", line 6 (4-27):
+compilation error in function vsshr_amount_range:
+asmgen: instruction VSSHR_4u32 is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [xreg]; [imm 8 [1, 32]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [xreg]; [imm 8 [1, 32]]]
+
+fail/asmgen/armv8a/vstr_scaled_index.jazz:
+
+"fail/asmgen/armv8a/vstr_scaled_index.jazz", line 6 (4-26):
+compilation error in function vstr_scaled_index:
+asmgen: instruction VSTR is given at least one too large immediate or unencodable address as an argument.
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  [[xreg]; [mem (glob not allowed) [Xn|SP, #imm] with imm in [-256, 255] or a multiple of 16 in [0, 65520], or [Xn|SP, Xm]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [mem (glob not allowed) [Xn|SP, #imm] with imm in [-256, 255] or a multiple of 16 in [0, 65520], or [Xn|SP, Xm]]]
+
+fail/asmgen/armv8a/vstr_scaled_index2.jazz:
+
+"fail/asmgen/armv8a/vstr_scaled_index2.jazz", line 6 (4-26):
+compilation error in function vstr_scaled_index2:
+asmgen: instruction VSTR is given at least one too large immediate or unencodable address as an argument.
+Allowed args compatible with the input (except on immediate sizes and address shapes) are:
+  [[xreg]; [mem (glob not allowed) [Xn|SP, #imm] with imm in [-256, 255] or a multiple of 16 in [0, 65520], or [Xn|SP, Xm]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [mem (glob not allowed) [Xn|SP, #imm] with imm in [-256, 255] or a multiple of 16 in [0, 65520], or [Xn|SP, Xm]]]
+
+fail/asmgen/armv8a/vumov_index_range.jazz:
+
+"fail/asmgen/armv8a/vumov_index_range.jazz", line 7 (4-26):
+compilation error in function vumov_index_range:
+asmgen: instruction VUMOV_2u64 is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[reg]; [xreg]; [imm 8 [0, 1]]]
+All allowed args (regardless of the input) are:
+  [[reg]; [xreg]; [imm 8 [0, 1]]]
+
+fail/asmgen/armv8a/vushr_amount_zero.jazz:
+
+"fail/asmgen/armv8a/vushr_amount_zero.jazz", line 6 (4-26):
+compilation error in function vushr_amount_zero:
+asmgen: instruction VUSHR_2u64 is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [xreg]; [imm 8 [1, 64]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [xreg]; [imm 8 [1, 64]]]
+
+fail/asmgen/armv8a/xar_rotation_range.jazz:
+
+"fail/asmgen/armv8a/xar_rotation_range.jazz", line 7 (4-23):
+compilation error in function xar_rotation_range:
+asmgen: instruction XAR is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [xreg]; [xreg]; [imm 8 [0, 63]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [xreg]; [xreg]; [imm 8 [0, 63]]]
+
 fail/asmgen/x86-64/incompatible_args.jazz:
 
 "fail/asmgen/x86-64/incompatible_args.jazz", line 4 (2-14):
@@ -1084,6 +1271,16 @@ fail/register_allocation/arm-m4/too_many_ret.jazz:
 "fail/register_allocation/arm-m4/too_many_ret.jazz", line 1 (0) to line 11 (1):
 compilation error in function too_many_ret:
 register allocation: too many return values according to the ABI (only 2 available on this architecture)
+
+fail/register_allocation/armv8a/syscall_live_u128.jazz:
+
+compilation error:
+register allocation: cannot solve the register allocation problem.
+
+fail/register_allocation/armv8a/u256_reg.jazz:
+
+compilation error:
+register allocation: unable to allocate x (defined at "fail/register_allocation/armv8a/u256_reg.jazz", line 5 (2-3)): bank “vector” has no register of type u256 on this architecture
 
 fail/register_allocation/x86-64/already_allocated.jazz:
 
@@ -1817,6 +2014,11 @@ fail/unroll/x86-64/run-time-bound.jazz:
 compilation error in function count:
 loop unrolling: for loops remain
 
+fail/windows/x86-64/syscall_live_u256.jazz:
+
+compilation error:
+register allocation: cannot solve the register allocation problem.
+
 fail/x86-64/bug_1366.jazz:
 
 "fail/x86-64/bug_1366.jazz", line 2 (2-21): invalid number of lvalues, 1 provided instead of 2
@@ -1981,4 +2183,4 @@ Statistics:
 	Pretyping:  65
 	Parsing:     5
 	Typing:      5
-	Compile:   237
+	Compile:   259

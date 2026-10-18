@@ -130,6 +130,50 @@ the `SP[]` accessor). This is what the backend's custom `armv8a_lloads` does: it
 restores the ordinary saved registers first (relative to the still-live `SP`),
 then loads the saved `SP` into `X17` and issues `MOV SP, X17`.
 
+## 6. The SIMD&FP registers and the calling convention
+
+AArch64 has 32 SIMD&FP registers `V0..V31` of 128 bits each; the narrower
+`D`, `S`, `H` and `B` names are views of the same registers.
+
+> Arm ARM (DDI 0487 M.d), **B1.2 "Registers in AArch64 Execution state"**,
+> p. B1-206: "32 SIMD&FP registers, V0 to V31. Each can be accessed as:
+> [...] A 128-bit register named Q0 to Q31."
+
+They are the `xreg` register class of the backend (`vregister` in
+`armv8a_decl.v`), modeled at their full width: a `u128` variable in a register
+lives in one of them. The narrower views are not registers of the model.
+
+Their use at a function boundary follows the AAPCS64 (IHI 0055, release
+2025Q4):
+
+> AAPCS64, *SIMD and Floating-Point registers*: "The first eight registers,
+> v0-v7, are used to pass argument values into a subroutine and to return
+> result values from a function. [...] Registers v8-v15 are Callee-saved and
+> the remaining registers (v0-v7, v16-v31) are Caller-saved. Additionally,
+> only the bottom 64 bits of each value stored in v8-v15 need to be
+> Callee-saved."
+
+- **Arguments** of type `u128` go in `V0..V7`, in order, independently of the
+  `u64` arguments in `X0..X7`.
+- **Results** of type `u128` go in `V0..V3`: a result is returned in the
+  registers an argument of its type would be passed in (*Result return*), and
+  a homogeneous short-vector aggregate of at most four vectors is passed in
+  consecutive SIMD&FP registers (*Parameter passing rules*, C.2).
+- **`V8..V15`** are saved and restored in full, 128 bits, by an export function
+  that uses them. This preserves more than the 64 bits the AAPCS64 requires.
+  In the other direction, a system call (`#randombytes`) is not assumed to
+  preserve them, because the callee only has to preserve their low 64 bits: a
+  `u128` value live across a system call must be spilled.
+
+**Interfacing with C.** On the C side, a `u128` argument or result of an export
+function is a short vector type, such as `uint8x16_t` or `uint32x4_t` from
+`arm_neon.h` (AAPCS64, *APPENDIX Support for Advanced SIMD Extensions*), not
+`unsigned __int128`: a 16-byte integer is passed in a pair of general-purpose
+registers (*Parameter passing rules*, C.11). Several `u128` results correspond
+to a C function returning a structure of up to four such vectors (an HVA). As
+on x86-64, a function that returns both `u64` and `u128` results has no C
+equivalent.
+
 ---
 
 ### Cross-reference to the code
@@ -141,3 +185,5 @@ then loads the saved `SP` into `X17` and issues `MOV SP, X17`.
 | Round frames to 16 | `armv8a_params.v` — `round_up_16`, `armv8a_allocate_stack_frame`, `armv8a_free_stack_frame` | Arm ARM D1.4.10.2 (RRDMXG, RTFVSM) |
 | Re-align frames ≥ 16 | `armv8a_params.v` — `armv8a_set_up_sp_register` | Arm ARM D1.4.10.2; AAPCS64 |
 | Restore `SP` via scratch + `MOV` | `armv8a_params.v` — `armv8a_lloads` | Arm ARM B1.2, p. B1-206 |
+| `V0..V31` as 128-bit `xreg` | `armv8a_decl.v` — `vregister`, `vregisters` | Arm ARM (M.d) B1.2, p. B1-206 |
+| SIMD&FP calling convention | `armv8a_decl.v` — `armv8a_call_conv`, `armv8a_internal_call_conv` | AAPCS64 (2025Q4), *SIMD and Floating-Point registers*, *Result return* |
