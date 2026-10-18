@@ -11,6 +11,7 @@
 require import AllCore List Bool IntDiv.
 require export JModel_common JArray JWord_array JMemory JLeakage Jslh.
 require export JModel_arm.
+require SHA.
 
 abbrev ptr_modulus = 2^64.
 
@@ -587,3 +588,82 @@ op VINSE_2u64 (d n: W128.t) (i j: W8.t) : W128.t =
 
 op VUMOV_2u64 (n: W128.t) (i: W8.t) : W64.t =
   n \bits64 (to_uint i).
+
+(* -------------------------------------------------------------------- *)
+(* SHA-256 (FEAT_SHA256). Element 0 of a W128.t is bits 31:0. The sigma,
+   choose and majority functions are those of SHA.ec, as for SHA-NI in
+   JModel_x86, and as in armv8a_simd.v. *)
+
+(* One iteration of SHA256hash on (x0, x1, x2, x3), (y0, y1, y2, y3): the
+   final rotation moves y3 to x0 and x3 to y0. *)
+op sha256hash_step (xy: (W32.t * W32.t * W32.t * W32.t) * (W32.t * W32.t * W32.t * W32.t)) (wk: W32.t) =
+  let (x, y) = xy in
+  let (x0, x1, x2, x3) = x in
+  let (y0, y1, y2, y3) = y in
+  let t = y3 + SHA.sum1 y0 + SHA.ch y0 y1 y2 + wk in
+  ((t + SHA.sum0 x0 + SHA.maj x0 x1 x2, x0, x1, x2), (t + x3, y0, y1, y2)).
+
+op sha256hash (x y w: W128.t) (part1: bool) : W128.t =
+  let s0 = ((x \bits32 0, (x \bits32 1), (x \bits32 2), (x \bits32 3)),
+            (y \bits32 0, (y \bits32 1), (y \bits32 2), (y \bits32 3))) in
+  let s1 = sha256hash_step s0 (w \bits32 0) in
+  let s2 = sha256hash_step s1 (w \bits32 1) in
+  let s3 = sha256hash_step s2 (w \bits32 2) in
+  let s4 = sha256hash_step s3 (w \bits32 3) in
+  let (x', y') = s4 in
+  let r = if part1 then x' else y' in
+  let (r0, r1, r2, r3) = r in
+  W4u32.pack4 [r0; r1; r2; r3].
+
+op SHA256H (d n m: W128.t) : W128.t = sha256hash d n m true.
+
+op SHA256H2 (d n m: W128.t) : W128.t = sha256hash n d m false.
+
+op SHA256SU0 (d n: W128.t) : W128.t =
+  let t = [(d \bits32 1); (d \bits32 2); (d \bits32 3); (n \bits32 0)] in
+  W4u32.pack4 (map (fun i => SHA.sigma0 (nth W32.zero t i) + (d \bits32 i)) (iota_ 0 4)).
+
+op SHA256SU1 (d n m: W128.t) : W128.t =
+  let t0 = [(n \bits32 1); (n \bits32 2); (n \bits32 3); (m \bits32 0)] in
+  let r0 = SHA.sigma1 (m \bits32 2) + (d \bits32 0) + nth W32.zero t0 0 in
+  let r1 = SHA.sigma1 (m \bits32 3) + (d \bits32 1) + nth W32.zero t0 1 in
+  let r2 = SHA.sigma1 r0 + (d \bits32 2) + nth W32.zero t0 2 in
+  let r3 = SHA.sigma1 r1 + (d \bits32 3) + nth W32.zero t0 3 in
+  W4u32.pack4 [r0; r1; r2; r3].
+
+(* -------------------------------------------------------------------- *)
+(* SHA-512 (FEAT_SHA512). Element 0 of a W128.t is bits 63:0. *)
+
+op SHAmajority64 (x y z: W64.t) : W64.t = (x `&` y) `|` ((x `|` y) `&` z).
+
+op SHA512Sigma1 (x: W64.t) : W64.t = (x `|>>>|` 14) +^ (x `|>>>|` 18) +^ (x `|>>>|` 41).
+
+op SHA512Sigma0 (x: W64.t) : W64.t = (x `|>>>|` 28) +^ (x `|>>>|` 34) +^ (x `|>>>|` 39).
+
+op sha512sigma0 (x: W64.t) : W64.t = (x `|>>>|` 1) +^ (x `|>>>|` 8) +^ (x `>>>` 7).
+
+op sha512sigma1 (x: W64.t) : W64.t = (x `|>>>|` 19) +^ (x `|>>>|` 61) +^ (x `>>>` 6).
+
+op SHA512H (d n m: W128.t) : W128.t =
+  let x0 = (n \bits64 0) in let x1 = (n \bits64 1) in
+  let y0 = (m \bits64 0) in let y1 = (m \bits64 1) in
+  let w0 = (d \bits64 0) in let w1 = (d \bits64 1) in
+  let v1 = ((y1 `&` x0) +^ (invw y1 `&` x1)) + SHA512Sigma1 y1 + w1 in
+  let tmp = v1 + y0 in
+  let v0 = ((tmp `&` y1) +^ (invw tmp `&` x0)) + SHA512Sigma1 tmp + w0 in
+  W2u64.pack2 [v0; v1].
+
+op SHA512H2 (d n m: W128.t) : W128.t =
+  let x0 = (n \bits64 0) in
+  let y0 = (m \bits64 0) in let y1 = (m \bits64 1) in
+  let w0 = (d \bits64 0) in let w1 = (d \bits64 1) in
+  let v1 = SHAmajority64 x0 y1 y0 + SHA512Sigma0 y0 + w1 in
+  let v0 = SHAmajority64 v1 y0 y1 + SHA512Sigma0 v1 + w0 in
+  W2u64.pack2 [v0; v1].
+
+op SHA512SU0 (d n: W128.t) : W128.t =
+  W2u64.pack2 [(d \bits64 0) + sha512sigma0 (d \bits64 1); (d \bits64 1) + sha512sigma0 (n \bits64 0)].
+
+op SHA512SU1 (d n m: W128.t) : W128.t =
+  W2u64.pack2 [(d \bits64 0) + sha512sigma1 (n \bits64 0) + (m \bits64 0);
+               (d \bits64 1) + sha512sigma1 (n \bits64 1) + (m \bits64 1)].

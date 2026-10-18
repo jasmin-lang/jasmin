@@ -165,11 +165,12 @@ Variant armv8a_mnemonic : Type :=
 (* Advanced SIMD. The [opts_size] option of these mnemonics is the element
    size of the arrangement (U8 for 16B, U16 for 8H, U32 for 4S, U64 for 2D),
    or U128 for the loads and stores of a whole Q register. Each one is named
-   V followed by its assembly mnemonic; its element sizes, and with them its
-   intrinsic names, are given by [vector_esizes] below. [VSHL] is SHL
-   (immediate), not the AArch32 shift by a register. DUP and INS have a
-   form with a general-purpose source ([VDUP], [VINS]) and one with a
-   vector element source ([VDUPE], [VINSE]). *)
+   V followed by its assembly mnemonic, except the cryptographic-extension
+   mnemonics at the end, which keep their assembly names; its element
+   sizes, and with them its intrinsic names, are given by [vector_esizes]
+   below. [VSHL] is SHL (immediate), not the AArch32 shift by a register.
+   DUP and INS have a form with a general-purpose source ([VDUP], [VINS])
+   and one with a vector element source ([VDUPE], [VINSE]). *)
 | VMOV                           (* Move vector (MOV, alias of ORR (vector)) *)
 | VMOVI                          (* Move immediate (vector), 64-bit variant *)
 | VLDR                           (* Load a Q register *)
@@ -199,7 +200,17 @@ Variant armv8a_mnemonic : Type :=
 | VDUPE                          (* Duplicate vector element to vector *)
 | VINS                           (* Insert vector element from general-purpose register *)
 | VINSE                          (* Insert vector element from another vector element *)
-| VUMOV.                         (* Unsigned move vector element to general-purpose register *)
+| VUMOV                          (* Unsigned move vector element to general-purpose register *)
+
+(* Cryptographic extension: SHA-256 (FEAT_SHA256) and SHA-512 (FEAT_SHA512). *)
+| SHA256H                        (* SHA-256 hash update, part 1 *)
+| SHA256H2                       (* SHA-256 hash update, part 2 *)
+| SHA256SU0                      (* SHA-256 schedule update 0 *)
+| SHA256SU1                      (* SHA-256 schedule update 1 *)
+| SHA512H                        (* SHA-512 hash update, part 1 *)
+| SHA512H2                       (* SHA-512 hash update, part 2 *)
+| SHA512SU0                      (* SHA-512 schedule update 0 *)
+| SHA512SU1.                     (* SHA-512 schedule update 1 *)
 
 #[ export ]
 Instance eqTC_armv8a_mnemonic : eqTypeC armv8a_mnemonic :=
@@ -227,6 +238,8 @@ Definition armv8a_mnemonics : seq armv8a_mnemonic :=
     ; VEXT; VREV32; VREV64
     ; VTRN1; VTRN2; VZIP1; VZIP2; VUZP1; VUZP2
     ; VDUP; VDUPE; VINS; VINSE; VUMOV
+    ; SHA256H; SHA256H2; SHA256SU0; SHA256SU1
+    ; SHA512H; SHA512H2; SHA512SU0; SHA512SU1
   ].
 
 Lemma armv8a_mnemonic_fin_axiom : Finite.axiom armv8a_mnemonics.
@@ -412,6 +425,14 @@ Definition string_of_armv8a_mnemonic (mn : armv8a_mnemonic) : string :=
   | VINS => "VINS"
   | VINSE => "VINSE"
   | VUMOV => "VUMOV"
+  | SHA256H => "SHA256H"
+  | SHA256H2 => "SHA256H2"
+  | SHA256SU0 => "SHA256SU0"
+  | SHA256SU1 => "SHA256SU1"
+  | SHA512H => "SHA512H"
+  | SHA512H2 => "SHA512H2"
+  | SHA512SU0 => "SHA512SU0"
+  | SHA512SU1 => "SHA512SU1"
   end%string.
 
 (* Assembly mnemonic of the Advanced SIMD instructions. *)
@@ -463,6 +484,8 @@ Definition vector_esizes (mn : armv8a_mnemonic) : seq wsize :=
   | VREV64 => [:: U8; U16; U32 ]
   | VTRN1 | VTRN2 | VZIP1 | VZIP2 | VUZP1 | VUZP2
   | VDUP | VDUPE | VINS | VINSE | VUMOV => [:: U8; U16; U32; U64 ]
+  | SHA256H | SHA256H2 | SHA256SU0 | SHA256SU1 => [:: U32 ]
+  | SHA512H | SHA512H2 | SHA512SU0 | SHA512SU1 => [:: U64 ]
   | _ => [::]
   end.
 
@@ -3391,6 +3414,156 @@ Definition armv8a_VUMOV_instr : instr_desc_t :=
   |}.
 
 (* -------------------------------------------------------------------- *)
+(* SHA-256 and SHA-512.
+   The destination register is also the first source: [Vd] holds the state
+   or schedule words being updated. The hash updates name the first two
+   operands as Q registers and the last as a 4S/2D vector; the schedule
+   updates use the 4S/2D arrangement throughout. The Operational
+   information section of each one states that it is a
+   data-independent-time instruction, and ARM DDI 0487 M.d, C5.2.4
+   "DIT, Data Independent Timing", p. C5-958, lists all eight. *)
+
+(* Destination and one other source. *)
+Definition mk_v2d_instr mn (szs : seq wsize)
+  (semi : word U128 -> word U128 -> ty_v) : instr_desc_t :=
+  let tin := [:: lvec; lvec ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 0; Ea 1 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 2;
+    id_args_kinds := ak_vv;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop mn szs;
+    id_valid := vvalid mn;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* Destination and two other sources. *)
+Definition mk_v3d_instr mn (szs : seq wsize)
+  (semi : word U128 -> word U128 -> word U128 -> ty_v) : instr_desc_t :=
+  let tin := [:: lvec; lvec; lvec ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 0; Ea 1; Ea 2 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds := ak_vvv;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop mn szs;
+    id_valid := vvalid mn;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* [C7.2.290 SHA256H] ARM DDI 0487 M.d, p. C7-3655
+   Syntax: SHA256H <Qd>, <Qn>, <Vm>.4S
+   Semantics: four SHA-256 rounds by the shared SHA256hash function (see
+   [sha256hash], armv8a_simd.v), returning the updated (a, b, c, d).
+   [Qd] holds the working variables (a, b, c, d) and [Qn] (e, f, g, h),
+   element 0 first; [Vm] holds W[t] + K[t] for four rounds. *)
+Definition armv8a_SHA256H_semi (wd wn wm : word U128) : ty_v :=
+  sha256hash wd wn wm true.
+
+Definition armv8a_SHA256H_instr : instr_desc_t :=
+  mk_v3d_instr SHA256H [:: U128; U128; U32 ] armv8a_SHA256H_semi.
+
+(* [C7.2.289 SHA256H2] ARM DDI 0487 M.d, p. C7-3654
+   Syntax: SHA256H2 <Qd>, <Qn>, <Vm>.4S
+   Semantics: the same four rounds with Qn as (a, b, c, d) and Qd as
+   (e, f, g, h), returning the updated (e, f, g, h). *)
+Definition armv8a_SHA256H2_semi (wd wn wm : word U128) : ty_v :=
+  sha256hash wn wd wm false.
+
+Definition armv8a_SHA256H2_instr : instr_desc_t :=
+  mk_v3d_instr SHA256H2 [:: U128; U128; U32 ] armv8a_SHA256H2_semi.
+
+(* [C7.2.291 SHA256SU0] ARM DDI 0487 M.d, p. C7-3656
+   Syntax: SHA256SU0 <Vd>.4S, <Vn>.4S
+   Semantics: element e of the result is Vd[e] plus the small sigma-0 of
+   SHA-256 applied to element e of the sequence Vd[1..3], Vn[0] (see
+   [sha256su0], armv8a_simd.v). *)
+Definition armv8a_SHA256SU0_semi (wd wn : word U128) : ty_v :=
+  sha256su0 wd wn.
+
+Definition armv8a_SHA256SU0_instr : instr_desc_t :=
+  mk_v2d_instr SHA256SU0 [:: U32; U32 ] armv8a_SHA256SU0_semi.
+
+(* [C7.2.292 SHA256SU1] ARM DDI 0487 M.d, p. C7-3657
+   Syntax: SHA256SU1 <Vd>.4S, <Vn>.4S, <Vm>.4S
+   Semantics: element e of the result is Vd[e] plus element e of the
+   sequence Vn[1..3], Vm[0], plus the small sigma-1 of SHA-256 applied to
+   Vm[2 + e] for e = 0, 1 and to result element e - 2 for e = 2, 3 (see
+   [sha256su1], armv8a_simd.v). *)
+Definition armv8a_SHA256SU1_semi (wd wn wm : word U128) : ty_v :=
+  sha256su1 wd wn wm.
+
+Definition armv8a_SHA256SU1_instr : instr_desc_t :=
+  mk_v3d_instr SHA256SU1 [:: U32; U32; U32 ] armv8a_SHA256SU1_semi.
+
+(* [C7.2.294 SHA512H] ARM DDI 0487 M.d, p. C7-3660
+   Syntax: SHA512H <Qd>, <Qn>, <Vm>.2D
+   Semantics: with x = Vn, y = Vm and w = Vd, two applications of
+   Ch(e, f, g) + Sigma1(e) + w of SHA-512, the second one on the first
+   result plus y[0]; see [sha512h], armv8a_simd.v, and SHA512H_H2_rounds
+   in armv8a_simd_lemmas.v for the round it computes. *)
+Definition armv8a_SHA512H_semi (wd wn wm : word U128) : ty_v :=
+  sha512h wd wn wm.
+
+Definition armv8a_SHA512H_instr : instr_desc_t :=
+  mk_v3d_instr SHA512H [:: U128; U128; U64 ] armv8a_SHA512H_semi.
+
+(* [C7.2.293 SHA512H2] ARM DDI 0487 M.d, p. C7-3659
+   Syntax: SHA512H2 <Qd>, <Qn>, <Vm>.2D
+   Semantics: with x = Vn, y = Vm and w = Vd, two applications of
+   Maj + Sigma0 + w of SHA-512, the second one on the first result; see
+   [sha512h2], armv8a_simd.v. *)
+Definition armv8a_SHA512H2_semi (wd wn wm : word U128) : ty_v :=
+  sha512h2 wd wn wm.
+
+Definition armv8a_SHA512H2_instr : instr_desc_t :=
+  mk_v3d_instr SHA512H2 [:: U128; U128; U64 ] armv8a_SHA512H2_semi.
+
+(* [C7.2.295 SHA512SU0] ARM DDI 0487 M.d, p. C7-3662
+   Syntax: SHA512SU0 <Vd>.2D, <Vn>.2D
+   Semantics: element 0 is Vd[0] + sigma0(Vd[1]) and element 1 is
+   Vd[1] + sigma0(Vn[0]), sigma0 the small sigma-0 of SHA-512. *)
+Definition armv8a_SHA512SU0_semi (wd wn : word U128) : ty_v :=
+  sha512su0 wd wn.
+
+Definition armv8a_SHA512SU0_instr : instr_desc_t :=
+  mk_v2d_instr SHA512SU0 [:: U64; U64 ] armv8a_SHA512SU0_semi.
+
+(* [C7.2.296 SHA512SU1] ARM DDI 0487 M.d, p. C7-3663
+   Syntax: SHA512SU1 <Vd>.2D, <Vn>.2D, <Vm>.2D
+   Semantics: element e is Vd[e] + sigma1(Vn[e]) + Vm[e], sigma1 the small
+   sigma-1 of SHA-512. *)
+Definition armv8a_SHA512SU1_semi (wd wn wm : word U128) : ty_v :=
+  sha512su1 wd wn wm.
+
+Definition armv8a_SHA512SU1_instr : instr_desc_t :=
+  mk_v3d_instr SHA512SU1 [:: U64; U64; U64 ] armv8a_SHA512SU1_semi.
+
+(* -------------------------------------------------------------------- *)
 (* Description of instructions. *)
 
 Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
@@ -3492,6 +3665,14 @@ Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
   | VINS => armv8a_VINS_instr
   | VINSE => armv8a_VINSE_instr
   | VUMOV => armv8a_VUMOV_instr
+  | SHA256H => armv8a_SHA256H_instr
+  | SHA256H2 => armv8a_SHA256H2_instr
+  | SHA256SU0 => armv8a_SHA256SU0_instr
+  | SHA256SU1 => armv8a_SHA256SU1_instr
+  | SHA512H => armv8a_SHA512H_instr
+  | SHA512H2 => armv8a_SHA512H2_instr
+  | SHA512SU0 => armv8a_SHA512SU0_instr
+  | SHA512SU1 => armv8a_SHA512SU1_instr
   end.
 
 End ARMV8A_INSTR.

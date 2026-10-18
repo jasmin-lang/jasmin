@@ -39,6 +39,13 @@ else
     ASARGS="--triple=x86_64"
 fi
 
+# On every armv8a triple: +sha2 enables the SHA-256 instructions and +sha3
+# the SHA-512 ones, both optional (LLVM puts SHA-512 under sha3)
+if [ $ARCH = "armv8a" ]
+then
+    ASARGS="$ASARGS -mattr=+sha2,+sha3"
+fi
+
 llvm-mc $ASARGS --filetype=obj -o ${OBJ} ${ASM}
 
 # Compile as a shared library, except for ARMv7 for which it is known not to work

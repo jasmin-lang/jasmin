@@ -1,0 +1,141 @@
+/*
+ * Fixed-input checks of the Advanced SIMD permutations and element moves,
+ * evaluated by tests/exec/exec_armv8a.ml. Byte i of the first input vector
+ * is i and byte i of the second is 16 + i, so that every element of a
+ * result names the element it comes from.
+ */
+
+u128[2] PERM_IN = {
+  0x0f0e0d0c0b0a09080706050403020100,
+  0x1f1e1d1c1b1a19181716151413121110
+};
+
+u32[1] MOVE_W = { 0xa3a2a1a0 };
+
+u64[1] MOVE_X = { 0xb7b6b5b4b3b2b1b0 };
+
+export
+fn perm_ext() -> reg u128, reg u128, reg u128, reg u128 {
+  reg u128 a b r0 r1 r2 r3;
+  a = PERM_IN[0];
+  b = PERM_IN[1];
+  r0 = #VEXT(a, b, 0);
+  r1 = #VEXT(a, b, 3);
+  r2 = #VEXT(a, b, 8);
+  r3 = #VEXT(a, b, 15);
+  return r0, r1, r2, r3;
+}
+
+export
+fn perm_rev() -> reg u128, reg u128, reg u128, reg u128 {
+  reg u128 a r0 r1 r2 r3;
+  a = PERM_IN[0];
+  r0 = #VREV32_16u8(a);
+  r1 = #VREV32_8u16(a);
+  r2 = #VREV64_16u8(a);
+  r3 = #VREV64_8u16(a);
+  return r0, r1, r2, r3;
+}
+
+export
+fn perm_rev64_4s() -> reg u128 {
+  reg u128 a r;
+  a = PERM_IN[0];
+  r = #VREV64_4u32(a);
+  return r;
+}
+
+export
+fn perm_trn() -> reg u128, reg u128, reg u128, reg u128 {
+  reg u128 a b r0 r1 r2 r3;
+  a = PERM_IN[0];
+  b = PERM_IN[1];
+  r0 = #VTRN1_16u8(a, b);
+  r1 = #VTRN1_4u32(a, b);
+  r2 = #VTRN2_8u16(a, b);
+  r3 = #VTRN2_2u64(a, b);
+  return r0, r1, r2, r3;
+}
+
+export
+fn perm_zip() -> reg u128, reg u128, reg u128, reg u128 {
+  reg u128 a b r0 r1 r2 r3;
+  a = PERM_IN[0];
+  b = PERM_IN[1];
+  r0 = #VZIP1_16u8(a, b);
+  r1 = #VZIP1_4u32(a, b);
+  r2 = #VZIP2_8u16(a, b);
+  r3 = #VZIP2_2u64(a, b);
+  return r0, r1, r2, r3;
+}
+
+export
+fn perm_uzp() -> reg u128, reg u128, reg u128, reg u128 {
+  reg u128 a b r0 r1 r2 r3;
+  a = PERM_IN[0];
+  b = PERM_IN[1];
+  r0 = #VUZP1_16u8(a, b);
+  r1 = #VUZP1_4u32(a, b);
+  r2 = #VUZP2_8u16(a, b);
+  r3 = #VUZP2_2u64(a, b);
+  return r0, r1, r2, r3;
+}
+
+export
+fn move_dup() -> reg u128, reg u128, reg u128, reg u128 {
+  reg u128 a b r0 r1 r2 r3;
+  reg u32 w;
+  reg u64 x;
+  a = PERM_IN[0];
+  b = PERM_IN[1];
+  w = MOVE_W[0];
+  x = MOVE_X[0];
+  r0 = #VDUP_16u8(w);
+  r1 = #VDUP_2u64(x);
+  r2 = #VDUPE_8u16(a, 5);
+  r3 = #VDUPE_4u32(b, 2);
+  return r0, r1, r2, r3;
+}
+
+/* Vd is also an input of INS: each result starts from a fresh copy. */
+export
+fn move_ins() -> reg u128, reg u128, reg u128, reg u128 {
+  reg u128 b r0 r1 r2 r3;
+  reg u32 w;
+  reg u64 x;
+  b = PERM_IN[1];
+  w = MOVE_W[0];
+  x = MOVE_X[0];
+  r0 = PERM_IN[0];
+  r0 = #VINS_4u32(r0, w, 1);
+  r1 = PERM_IN[0];
+  r1 = #VINS_2u64(r1, x, 0);
+  r2 = PERM_IN[0];
+  r2 = #VINSE_16u8(r2, b, 2, 13);
+  r3 = PERM_IN[0];
+  r3 = #VINSE_4u32(r3, b, 1, 3);
+  return r0, r1, r2, r3;
+}
+
+export
+fn move_umov_bh() -> reg u32, reg u32 {
+  reg u128 a b;
+  reg u32 r0 r1;
+  a = PERM_IN[0];
+  b = PERM_IN[1];
+  r0 = #VUMOV_16u8(a, 13);
+  r1 = #VUMOV_8u16(b, 6);
+  return r0, r1;
+}
+
+export
+fn move_umov_sd() -> reg u32, reg u64 {
+  reg u128 a b;
+  reg u32 r0;
+  reg u64 r1;
+  a = PERM_IN[0];
+  b = PERM_IN[1];
+  r0 = #VUMOV_4u32(a, 2);
+  r1 = #VUMOV_2u64(b, 1);
+  return r0, r1;
+}
