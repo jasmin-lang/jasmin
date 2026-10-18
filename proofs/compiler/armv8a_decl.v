@@ -320,7 +320,10 @@ Notation xregister := vregister.
    - [CAimmC_armv8a_shift_amount] carries a [wsize]: the amount range is
      [0, datasize) for every shift type, but there are two operand widths
      (W = 32, X = 64). See [check_shift_amount] above, grounded in the
-     C6.2 shifted-register decode.
+     C6.2 shifted-register decode. The Advanced SIMD left shifts by an
+     immediate (SHL, SLI) use it with the element size [esize] of the
+     arrangement: their amount is in [0, esize - 1] (ARM DDI 0487 M.d,
+     C7.2.298 SHL, operand description).
    - [CAimmC_armv8a_halfword_shift] carries a [wsize]: the MOVZ/MOVN/MOVK
      halfword shift (hw field, C6.2.192-C6.2.194) is a multiple of 16 below
      the operand width, so 32 and 48 only exist in the X form.
@@ -334,14 +337,22 @@ Notation xregister := vregister.
      operand (AND/ORR/EOR/ANDS/TST immediate class, DecodeBitMasks, J1.1).
    - [CAimmC_armv8a_mov_imm]: immediates accepted by the MOV alias - a wide
      immediate (MOVZ), an inverted wide immediate (MOVN) or a bitmask
-     immediate (ORR), C6.2.192-C6.2.194. *)
+     immediate (ORR), C6.2.192-C6.2.194.
+   The other Advanced SIMD conditions:
+   - [CAimmC_armv8a_vshr esize]: a right shift amount (USHR, SSHR, SRI) in
+     [1, esize] (ARM DDI 0487 M.d, C7.2.451 USHR, operand description).
+   - [CAimmC_armv8a_movi_2d]: the 64-bit immediate of MOVI <Vd>.2D. The
+     architecture encodes every value whose bytes are each 0x00 or 0xFF
+     (C7.2.247 MOVI, p. C7-3570, <imm>); only 0 is accepted. *)
 #[only(eqbOK)] derive
 Variant armv8a_caimm_cond :=
   | CAimmC_armv8a_shift_amount of wsize
   | CAimmC_armv8a_halfword_shift of wsize
   | CAimmC_armv8a_arith_imm
   | CAimmC_armv8a_bitmask_imm
-  | CAimmC_armv8a_mov_imm.
+  | CAimmC_armv8a_mov_imm
+  | CAimmC_armv8a_vshr of wsize
+  | CAimmC_armv8a_movi_2d.
 
 #[ export ]
 Instance eqTC_armv8a_caimm_cond : eqTypeC armv8a_caimm_cond :=
@@ -355,16 +366,25 @@ Definition armv8a_check_CAimm (checker : armv8a_caimm_cond) ws (w : word ws) : b
   | CAimmC_armv8a_arith_imm => is_arith_imm (wunsigned w)
   | CAimmC_armv8a_bitmask_imm => is_bitmask_imm ws (wunsigned w)
   | CAimmC_armv8a_mov_imm => is_mov_imm ws (wunsigned w)
+  | CAimmC_armv8a_vshr ve => (0 <? wunsigned w)%Z && (wunsigned w <=? wsize_bits ve)%Z
+  | CAimmC_armv8a_movi_2d => (wunsigned w =? 0)%Z
   end.
 
 Definition armv8a_caimm_cond_pp (checker : armv8a_caimm_cond) : string :=
   match checker with
-  | CAimmC_armv8a_shift_amount ws => if ws == U64 then "[0, 63]" else "[0, 31]"
+  | CAimmC_armv8a_shift_amount ws =>
+      match ws with
+      | U8 => "[0, 7]" | U16 => "[0, 15]" | U32 => "[0, 31]" | U64 => "[0, 63]"
+      | U128 => "[0, 127]" | U256 => "[0, 255]"
+      end
   | CAimmC_armv8a_halfword_shift ws =>
       if ws == U64 then "[0; 16; 32; 48]" else "[0; 16]"
   | CAimmC_armv8a_arith_imm => "(arith imm12, optionally << 12)"
   | CAimmC_armv8a_bitmask_imm => "(logical bitmask immediate)"
   | CAimmC_armv8a_mov_imm => "(wide, inverted wide or bitmask immediate)"
+  | CAimmC_armv8a_vshr ve =>
+      match ve with U8 => "[1, 8]" | U16 => "[1, 16]" | U32 => "[1, 32]" | _ => "[1, 64]" end
+  | CAimmC_armv8a_movi_2d => "(0 only)"
   end%string.
 
 (* Memory-argument conditions (see [camem_cond] in arch_decl.v).

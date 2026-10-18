@@ -1430,6 +1430,17 @@ Definition Plower_vec_pexpr (e : pexpr) : Prop :=
     -> sem_pexpr true (p_globs p) s e = ok (Vword w)
     -> ok_lower_pexpr_aux s U128 aop es w.
 
+(* The shift amount of a vector shift by a constant, given to the
+   instruction as an 8-bit immediate. *)
+Lemma vshift_amount (n : word U128) (ve : velem) :
+  (wunsigned n <=? wsize_bits ve)%Z ->
+  wunsigned (wrepr U8 (wunsigned n)) = wunsigned n.
+Proof.
+  move=> /ZleP h; apply: wunsigned_repr_small.
+  have [h0 _] := wunsigned_range n.
+  by case: ve h => /= h; split => //; apply: (Z.le_lt_trans _ _ _ h).
+Qed.
+
 (* A variable, an array element or a memory word is given as it is to VMOV
    or VLDR. *)
 Lemma lower_vec_moveP e :
@@ -1445,13 +1456,139 @@ Proof.
   all: by rewrite /exec_sopn /= truncate_word_le.
 Qed.
 
+Lemma lower_vec_Papp1P op e : Plower_vec_pexpr (Papp1 op e).
+Proof.
+  move=> s ws' aop es w h hws hfve hsem.
+  move: h; rewrite /lower_vec_pexpr.
+  case: op hsem hfve => [ ws0 | ? ? | ? ? | ? ? || ws0 | ? | ? ? ] // hsem hfve.
+
+  (* The zero constant, set by MOVI. *)
+  - case hn: is_wconst => [n|] // /oassertP [/eqP ? [? ?]]; subst n aop es.
+    assert (hn' := is_wconstP true (p_globs p) s hn).
+    move: hn'; rewrite hsem /= (truncate_word_le _ hws) => /ok_inj hw.
+    split; last done.
+    rewrite /=; eexists; first reflexivity.
+    rewrite /exec_sopn /= truncate_word_u /= hw.
+    (* Both 64-bit elements are 0. *)
+    by congr (ok [:: Vword _]); apply/eqP; vm_compute.
+
+  (* Bitwise NOT. *)
+  case: ws0 hsem hfve => // + hfve [? ?]; subst aop es.
+  rewrite /sem_pexpr -/(sem_pexpr _ _ s e).
+  t_xrbindP=> v hseme /sem_sop1I /= [w' [w2] [hw' [<-] hw]].
+  move: hw => /Vword_inj [?]; subst ws' => /= ?; subst w.
+  split; last done.
+  rewrite /= hseme /=; eexists; first reflexivity.
+  by rewrite /exec_sopn /= hw' /= zero_extend_u.
+Qed.
+
+(* A 128-bit binary operator lowered to one instruction applied to both
+   operands. *)
+Lemma lower_vec_binopP s mn ve e0 e1 v0 v1 (w : word U128) :
+  sem_pexpr true (p_globs p) s e0 = ok v0
+  -> sem_pexpr true (p_globs p) s e1 = ok v1
+  -> disj_fvars (read_e e0)
+  -> disj_fvars (read_e e1)
+  -> exec_sopn (Oarmv8a (ARMv8A_op mn (opts_at ve))) [:: v0; v1 ] = ok [:: Vword w ]
+  -> sopn_tout (Oarmv8a (ARMv8A_op mn (opts_at ve))) = [:: aword U128 ]
+  -> ok_lower_pexpr_aux s U128 (Oarmv8a (ARMv8A_op mn (opts_at ve))) [:: e0; e1 ] w.
+Proof.
+  move=> hsem0 hsem1 hfve0 hfve1 hexec htout.
+  split; last by split => //; apply: disj_fvars_read_es2.
+  rewrite /= hsem0 hsem1 /=; eexists; first reflexivity.
+  by rewrite zero_extend_u.
+Qed.
+
+(* A conjunction with a complemented operand, on either side, lowered to
+   BIC. *)
+Lemma lower_vec_BICP s e0 e1 x y v0 v1 ws' (w : word ws') :
+  is_andn e0 e1 = Some (x, y)
+  -> disj_fvars (read_e e0)
+  -> disj_fvars (read_e e1)
+  -> sem_pexpr true (p_globs p) s e0 = ok v0
+  -> sem_pexpr true (p_globs p) s e1 = ok v1
+  -> sem_sop2 (Oland U128) v0 v1 = ok (Vword w)
+  -> ok_lower_pexpr_aux s U128
+       (Oarmv8a (ARMv8A_op VBIC (opts_at U8))) [:: y; x ] w.
+Proof.
+  move=> handn hfve0 hfve1 hseme0 hseme1 hsemop.
+  have hsem : sem_pexpr true (p_globs p) s (Papp2 (Oland U128) e0 e1) = ok (Vword w)
+    by rewrite /= hseme0 hseme1 /= hsemop.
+  have [wsx [wx [wsy [wy [hx hy hwsx hwsy /Vword_inj [?]]]]]] := is_andn_semP handn hsem.
+  subst ws' => /= ?; subst w.
+  split; last by split => //; exact: (disj_fvars_is_andn handn hfve0 hfve1).
+  exists [:: Vword wy; Vword wx ]; first by rewrite /sem_pexprs /= hy hx.
+  rewrite /exec_sopn /= !truncate_word_le //= zero_extend_u.
+  by rewrite /armv8a_VBIC_semi wandC.
+Qed.
+
+Lemma lower_vec_Papp2P op e0 e1 : Plower_vec_pexpr (Papp2 op e0 e1).
+Proof.
+  move=> s ws' aop es w h hws hfve.
+  have [hfve0 hfve1] := disj_fvars_read_e_Papp2 hfve; clear hfve.
+  move: h; rewrite /sem_pexpr -/(sem_pexpr _ _ s e0) -/(sem_pexpr _ _ s e1).
+  t_xrbindP=> h v0 hsem0 v1 hsem1 hop.
+  move: hop h; rewrite /lower_vec_pexpr /lower_vec_Papp2.
+  case: op => [ | | | ? | ? | ? | ? ? | ? ? | ws | ws | ws | ? | ? | ? | ? | ?
+              | ? | ? | ? | ? | ? | ? | ve ws | ve ws | ? ? | ve ws | ve ws
+              | ve ws | ? ? ? ] //.
+  1-5: case: ws => //.
+
+  (* Bitwise AND, or BIC when an operand is complemented. *)
+  - move=> hop.
+    case handn: is_andn => [[x y]|] [? ?]; subst aop es.
+    + exact: (lower_vec_BICP handn hfve0 hfve1 hsem0 hsem1 hop).
+    move: hop => /sem_sop2I /= [w0 [w1 [w2 [hw0 hw1 [<-] /Vword_inj [?]]]]].
+    subst ws' => /= ?; subst w.
+    apply: (lower_vec_binopP hsem0 hsem1 hfve0 hfve1) => //.
+    by rewrite /exec_sopn /= hw0 hw1.
+
+  1-4: move=> /sem_sop2I /= [w0 [w1 [w2 [hw0 hw1 [<-] /Vword_inj [?]]]]].
+  1-4: subst ws' => /= ?; subst w.
+
+  (* Bitwise OR and XOR. *)
+  1-2: move=> [? ?]; subst aop es.
+  1-2: apply: (lower_vec_binopP hsem0 hsem1 hfve0 hfve1) => //.
+  1-2: by rewrite /exec_sopn /= hw0 hw1.
+
+  (* Element-wise addition and subtraction. *)
+  1-2: move=> [? ?]; subst aop es.
+  1-2: apply: (lower_vec_binopP hsem0 hsem1 hfve0 hfve1) => //.
+  1-2: by case: ve; rewrite /exec_sopn /= hw0 hw1.
+
+  (* Element-wise shifts by a constant amount. *)
+  all: case: ws => //.
+  all: move=> /sem_sop2I /= [w0 [w1 [w2 [hw0 hw1 [<-] /Vword_inj [?]]]]].
+  all: subst ws' => /= ?; subst w.
+  all: case hn: is_wconst => [n|] //.
+  all: move=> /oassertP [] hrange [? ?]; subst aop es.
+  all: assert (hn1 := is_wconstP true (p_globs p) s hn).
+  all: move: hn1; rewrite hsem1 /= hw1 => -[?].
+  all: subst w1.
+  all: split; last by split => //; apply: disj_fvars_read_es2.
+  all: rewrite /= hsem0 /=; eexists; first reflexivity.
+  all: rewrite /exec_sopn /= hw0 /= truncate_word_u /= zero_extend_u.
+  (* USHR: the amount is in [1, esize]. *)
+  - have hn8 := @vshift_amount n ve (proj2 (andP hrange)).
+    by case: ve hrange hn8 => /= _ hn8; rewrite /armv8a_VUSHR_semi /sem_vshr hn8.
+  (* SHL: the amount is in [0, esize - 1]. *)
+  - have hn8 : wunsigned (wrepr U8 (wunsigned n)) = wunsigned n.
+    + by apply: (vshift_amount (ve := ve)); move: hrange => /ZltP h; apply/ZleP; lia.
+    by case: ve hrange hn8 => /= _ hn8; rewrite /armv8a_VSHL_semi /sem_vshl hn8.
+  (* SSHR: the amount is in [1, esize]. *)
+  have hn8 := @vshift_amount n ve (proj2 (andP hrange)).
+  by case: ve hrange hn8 => /= _ hn8; rewrite /armv8a_VSSHR_semi /sem_vsar hn8.
+Qed.
+
 Lemma lower_vec_pexprP e : Plower_vec_pexpr e.
 Proof.
   case: e => [||| gx | al aa ws0 x e || al ws0 x e | op e | op e0 e1 ||].
   all: try by move=> > /=.
   - exact: (lower_vec_moveP (Pvar _)).
   - exact: (lower_vec_moveP (Pget _ _ _ _ _)).
-  exact: (lower_vec_moveP (Pload _ _ _)).
+  - exact: (lower_vec_moveP (Pload _ _ _)).
+  - exact: lower_vec_Papp1P.
+  exact: lower_vec_Papp2P.
 Qed.
 
 Lemma lower_pexpr_wordP s ws ws' e aop es (w : word ws') :

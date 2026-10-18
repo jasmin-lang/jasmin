@@ -632,6 +632,56 @@ Allowed args compatible with the input (except on immediate sizes and address sh
 All allowed args (regardless of the input) are:
   [[xreg]; [mem (glob not allowed) [Xn|SP, #imm] with imm in [-256, 255] or a multiple of 16 in [0, 65520], or [Xn|SP, Xm]]]
 
+fail/asmgen/armv8a/vmovi_nonzero.jazz:
+
+"fail/asmgen/armv8a/vmovi_nonzero.jazz", line 5 (4-18):
+compilation error in function vmovi_nonzero:
+asmgen: instruction VMOVI is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [imm 64 (0 only)]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [imm 64 (0 only)]]
+
+fail/asmgen/armv8a/vshl_amount_range.jazz:
+
+"fail/asmgen/armv8a/vshl_amount_range.jazz", line 6 (4-26):
+compilation error in function vshl_amount_range:
+asmgen: instruction VSHL_4u32 is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [xreg]; [imm 8 [0, 31]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [xreg]; [imm 8 [0, 31]]]
+
+fail/asmgen/armv8a/vsli_amount_range.jazz:
+
+"fail/asmgen/armv8a/vsli_amount_range.jazz", line 7 (4-29):
+compilation error in function vsli_amount_range:
+asmgen: instruction VSLI_2u64 is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [xreg]; [imm 8 [0, 63]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [xreg]; [imm 8 [0, 63]]]
+
+fail/asmgen/armv8a/vsri_amount_zero.jazz:
+
+"fail/asmgen/armv8a/vsri_amount_zero.jazz", line 7 (4-28):
+compilation error in function vsri_amount_zero:
+asmgen: instruction VSRI_4u32 is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [xreg]; [imm 8 [1, 32]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [xreg]; [imm 8 [1, 32]]]
+
+fail/asmgen/armv8a/vsshr_amount_range.jazz:
+
+"fail/asmgen/armv8a/vsshr_amount_range.jazz", line 6 (4-27):
+compilation error in function vsshr_amount_range:
+asmgen: instruction VSSHR_4u32 is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [xreg]; [imm 8 [1, 32]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [xreg]; [imm 8 [1, 32]]]
+
 fail/asmgen/armv8a/vstr_scaled_index.jazz:
 
 "fail/asmgen/armv8a/vstr_scaled_index.jazz", line 6 (4-26):
@@ -651,6 +701,16 @@ Allowed args compatible with the input (except on immediate sizes and address sh
   [[xreg]; [mem (glob not allowed) [Xn|SP, #imm] with imm in [-256, 255] or a multiple of 16 in [0, 65520], or [Xn|SP, Xm]]]
 All allowed args (regardless of the input) are:
   [[xreg]; [mem (glob not allowed) [Xn|SP, #imm] with imm in [-256, 255] or a multiple of 16 in [0, 65520], or [Xn|SP, Xm]]]
+
+fail/asmgen/armv8a/vushr_amount_zero.jazz:
+
+"fail/asmgen/armv8a/vushr_amount_zero.jazz", line 6 (4-26):
+compilation error in function vushr_amount_zero:
+asmgen: instruction VUSHR_2u64 is given at least one too large immediate as an argument.
+Allowed args compatible with the input (except on immediate sizes) are:
+  [[xreg]; [xreg]; [imm 8 [1, 64]]]
+All allowed args (regardless of the input) are:
+  [[xreg]; [xreg]; [imm 8 [1, 64]]]
 
 fail/asmgen/x86-64/incompatible_args.jazz:
 
@@ -2063,4 +2123,4 @@ Statistics:
 	Pretyping:  65
 	Parsing:     5
 	Typing:      5
-	Compile:   247
+	Compile:   253

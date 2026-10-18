@@ -25,7 +25,7 @@ Require Import
   sopn_semi
   arch_decl
   arch_utils.
-Require Import armv8a_decl.
+Require Import armv8a_decl armv8a_simd.
 
 
 Module E.
@@ -166,10 +166,24 @@ Variant armv8a_mnemonic : Type :=
    size of the arrangement (U8 for 16B, U16 for 8H, U32 for 4S, U64 for 2D),
    or U128 for the loads and stores of a whole Q register. Each one is named
    V followed by its assembly mnemonic; its element sizes, and with them its
-   intrinsic names, are given by [vector_esizes] below. *)
+   intrinsic names, are given by [vector_esizes] below. [VSHL] is SHL
+   (immediate), not the AArch32 shift by a register. *)
 | VMOV                           (* Move vector (MOV, alias of ORR (vector)) *)
+| VMOVI                          (* Move immediate (vector), 64-bit variant *)
 | VLDR                           (* Load a Q register *)
-| VSTR.                          (* Store a Q register *)
+| VSTR                           (* Store a Q register *)
+| VAND                           (* Bitwise AND (vector) *)
+| VBIC                           (* Bitwise bit clear (vector, register) *)
+| VORR                           (* Bitwise OR (vector, register) *)
+| VEOR                           (* Bitwise exclusive-OR (vector) *)
+| VNOT                           (* Bitwise NOT (vector) *)
+| VADD                           (* Add (vector) *)
+| VSUB                           (* Subtract (vector) *)
+| VSHL                           (* Shift left (immediate, vector) *)
+| VUSHR                          (* Unsigned shift right (immediate, vector) *)
+| VSSHR                          (* Signed shift right (immediate, vector) *)
+| VSRI                           (* Shift right and insert (immediate) *)
+| VSLI.                          (* Shift left and insert (immediate) *)
 
 #[ export ]
 Instance eqTC_armv8a_mnemonic : eqTypeC armv8a_mnemonic :=
@@ -190,7 +204,10 @@ Definition armv8a_mnemonics : seq armv8a_mnemonic :=
     ; LDR; LDRB; LDRH; LDRSB; LDRSH; LDRSW; LDP
     ; STR; STRB; STRH; STP
     ; CSDB; DSB; ISB
-    ; VMOV; VLDR; VSTR
+    ; VMOV; VMOVI; VLDR; VSTR
+    ; VAND; VBIC; VORR; VEOR; VNOT
+    ; VADD; VSUB
+    ; VSHL; VUSHR; VSSHR; VSRI; VSLI
   ].
 
 Lemma armv8a_mnemonic_fin_axiom : Finite.axiom armv8a_mnemonics.
@@ -347,16 +364,42 @@ Definition string_of_armv8a_mnemonic (mn : armv8a_mnemonic) : string :=
   | DSB => "DSB"
   | ISB => "ISB"
   | VMOV => "VMOV"
+  | VMOVI => "VMOVI"
   | VLDR => "VLDR"
   | VSTR => "VSTR"
+  | VAND => "VAND"
+  | VBIC => "VBIC"
+  | VORR => "VORR"
+  | VEOR => "VEOR"
+  | VNOT => "VNOT"
+  | VADD => "VADD"
+  | VSUB => "VSUB"
+  | VSHL => "VSHL"
+  | VUSHR => "VUSHR"
+  | VSSHR => "VSSHR"
+  | VSRI => "VSRI"
+  | VSLI => "VSLI"
   end%string.
 
 (* Assembly mnemonic of the Advanced SIMD instructions. *)
 Definition vasm_name (mn : armv8a_mnemonic) : string :=
   match mn with
   | VMOV => "MOV"
+  | VMOVI => "MOVI"
   | VLDR => "LDR"
   | VSTR => "STR"
+  | VAND => "AND"
+  | VBIC => "BIC"
+  | VORR => "ORR"
+  | VEOR => "EOR"
+  | VNOT => "NOT"
+  | VADD => "ADD"
+  | VSUB => "SUB"
+  | VSHL => "SHL"
+  | VUSHR => "USHR"
+  | VSSHR => "SSHR"
+  | VSRI => "SRI"
+  | VSLI => "SLI"
   | _ => string_of_armv8a_mnemonic mn
   end%string.
 
@@ -366,8 +409,10 @@ Definition vasm_name (mn : armv8a_mnemonic) : string :=
    their arrangement as on x86 ([VADD_4u32] is [ADD <Vd>.4S, ...]). *)
 Definition vector_esizes (mn : armv8a_mnemonic) : seq wsize :=
   match mn with
-  | VMOV => [:: U8 ]
+  | VMOV | VAND | VBIC | VORR | VEOR | VNOT => [:: U8 ]
+  | VMOVI => [:: U64 ]
   | VLDR | VSTR => [:: U128 ]
+  | VADD | VSUB | VSHL | VUSHR | VSSHR | VSRI | VSLI => [:: U8; U16; U32; U64 ]
   | _ => [::]
   end.
 
@@ -2668,10 +2713,10 @@ Definition armv8a_ISB_instr : instr_desc_t := mk_barrier_instr ISB.
    states the semantics in our words. They are trusted, as are the
    semantics of the general-purpose instructions above.
 
-   The Operational information section of every instruction below states
-   that it is a data-independent-time instruction, hence [id_doit := DOIT]
-   (an instruction is one only if that section says so: ARM DDI 0487 M.d,
-   B1.5.6 "About PSTATE.DIT", p. B1-245). *)
+   The Operational information section of every instruction below, except
+   MOVI, states that it is a data-independent-time instruction, hence
+   [id_doit := DOIT] (an instruction is one only if that section says so:
+   ARM DDI 0487 M.d, B1.5.6 "About PSTATE.DIT", p. B1-245). *)
 
 Notation esize := (opts_size opts) (only parsing).
 
@@ -2693,6 +2738,9 @@ Definition pp_armv8a_vop
   |}.
 
 Let ak_vv := [:: [:: [:: CAxmm ]; [:: CAxmm ] ] ].
+Let ak_vvv := [:: [:: [:: CAxmm ]; [:: CAxmm ]; [:: CAxmm ] ] ].
+Let ak_vv_imm (c : armv8a_caimm_cond) :=
+  [:: [:: [:: CAxmm ]; [:: CAxmm ]; [:: CAimm (Some c) U8 ] ] ].
 
 (* One vector source. *)
 Definition mk_v1_instr mn (semi : word U128 -> ty_v) : instr_desc_t :=
@@ -2719,6 +2767,84 @@ Definition mk_v1_instr mn (semi : word U128 -> ty_v) : instr_desc_t :=
     id_wf := refl_equal;
   |}.
 
+(* Two vector sources. *)
+Definition mk_v2_instr mn (semi : word U128 -> word U128 -> ty_v) : instr_desc_t :=
+  let tin := [:: lvec; lvec ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds := ak_vvv;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop mn [:: esize; esize; esize ];
+    id_valid := vvalid mn;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* One vector source and an immediate. *)
+Definition mk_v1_imm_instr mn (c : armv8a_caimm_cond)
+  (semi : word U128 -> word U8 -> ty_v) : instr_desc_t :=
+  let tin := [:: lvec; lword U8 ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds := ak_vv_imm c;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop mn [:: esize; esize; U8 ];
+    id_valid := vvalid mn;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
+(* The destination is also a source (insertions): [Vd] is read, then
+   written. *)
+Definition mk_v1d_imm_instr mn (c : armv8a_caimm_cond)
+  (semi : word U128 -> word U128 -> word U8 -> ty_v) : instr_desc_t :=
+  let tin := [:: lvec; lvec; lword U8 ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 0; Ea 1; Ea 2 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds := ak_vv_imm c;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop mn [:: esize; esize; U8 ];
+    id_valid := vvalid mn;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
+
 (* [C7.2.245 MOV (vector)] ARM DDI 0487 M.d, p. C7-3567, alias of
    [C7.2.256 ORR (vector, register)] with Vm = Vn.
    Syntax: MOV <Vd>.<T>, <Vn>.<T>  ==  ORR <Vd>.<T>, <Vn>.<T>, <Vn>.<T>
@@ -2726,6 +2852,44 @@ Definition mk_v1_instr mn (semi : word U128 -> ty_v) : instr_desc_t :=
 Definition armv8a_VMOV_semi (wn : word U128) : ty_v := wn.
 
 Definition armv8a_VMOV_instr : instr_desc_t := mk_v1_instr VMOV armv8a_VMOV_semi.
+
+(* [C7.2.247 MOVI] ARM DDI 0487 M.d, p. C7-3570
+   64-bit variant of the vector form (Q = 1, op = 1, cmode = 1110).
+   Syntax: MOVI <Vd>.2D, #<imm>
+   The immediate is the 64-bit value of the assembler syntax, whose bytes
+   are each 0x00 or 0xFF (AdvSIMDExpandImm, J1.4.3.535, p. J1-16726); the
+   condition [CAimmC_armv8a_movi_2d] accepts only 0.
+   Semantics: the immediate in both 64-bit elements of Vd.
+   MOVI has no Operational information section, so it is not a
+   data-independent-time instruction. Its only input is the immediate. *)
+Definition armv8a_VMOVI_semi (imm : word U64) : ty_v :=
+  make_vec U128 [:: imm; imm ].
+
+Definition armv8a_VMOVI_instr : instr_desc_t :=
+  let tin := [:: lword U64 ] in
+  let semi := armv8a_VMOVI_semi in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1 ];
+    id_tout := [:: lvec ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 2;
+    id_args_kinds :=
+      [:: [:: [:: CAxmm ]; [:: CAimm (Some CAimmC_armv8a_movi_2d) U64 ] ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str VMOVI;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := NOT_DOIT; (* Not DIT *)
+    id_pp_asm := pp_armv8a_vop VMOVI [:: U64; U64 ];
+    id_valid := vvalid VMOVI;
+    id_safe_wf := refl_equal;
+    id_wf := refl_equal;
+  |}.
 
 (* [C7.2.230 LDR (immediate, SIMD&FP)] ARM DDI 0487 M.d, p. C7-3528
    [C7.2.235 LDUR (SIMD&FP)] ARM DDI 0487 M.d, p. C7-3545
@@ -2811,6 +2975,117 @@ Definition armv8a_VSTR_instr : instr_desc_t :=
     id_wf := refl_equal;
   |}.
 
+(* [C7.2.11 AND (vector)] ARM DDI 0487 M.d, p. C7-2957
+   Syntax: AND <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Semantics: bitwise Vn AND Vm. *)
+Definition armv8a_VAND_semi (wn wm : word U128) : ty_v := wand wn wm.
+
+Definition armv8a_VAND_instr : instr_desc_t := mk_v2_instr VAND armv8a_VAND_semi.
+
+(* [C7.2.22 BIC (vector, register)] ARM DDI 0487 M.d, p. C7-2977
+   Syntax: BIC <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Semantics: bitwise Vn AND NOT Vm. *)
+Definition armv8a_VBIC_semi (wn wm : word U128) : ty_v := wand wn (wnot wm).
+
+Definition armv8a_VBIC_instr : instr_desc_t := mk_v2_instr VBIC armv8a_VBIC_semi.
+
+(* [C7.2.256 ORR (vector, register)] ARM DDI 0487 M.d, p. C7-3589
+   Syntax: ORR <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Semantics: bitwise Vn OR Vm. *)
+Definition armv8a_VORR_semi (wn wm : word U128) : ty_v := wor wn wm.
+
+Definition armv8a_VORR_instr : instr_desc_t := mk_v2_instr VORR armv8a_VORR_semi.
+
+(* [C7.2.43 EOR (vector)] ARM DDI 0487 M.d, p. C7-3026
+   Syntax: EOR <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Semantics: bitwise Vn XOR Vm (EOR shares its pseudocode with BSL, BIT
+   and BIF; with the constant operands of EOR it is the XOR). *)
+Definition armv8a_VEOR_semi (wn wm : word U128) : ty_v := wxor wn wm.
+
+Definition armv8a_VEOR_instr : instr_desc_t := mk_v2_instr VEOR armv8a_VEOR_semi.
+
+(* [C7.2.253 NOT] ARM DDI 0487 M.d, p. C7-3583 (alias MVN)
+   Syntax: NOT <Vd>.<T>, <Vn>.<T>
+   Semantics: the complement of every byte, that is, the complement of the
+   register. *)
+Definition armv8a_VNOT_semi (wn : word U128) : ty_v := wnot wn.
+
+Definition armv8a_VNOT_instr : instr_desc_t := mk_v1_instr VNOT armv8a_VNOT_semi.
+
+(* [C7.2.2 ADD (vector)] ARM DDI 0487 M.d, p. C7-2943
+   Syntax: ADD <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Semantics: element-wise sum of Vn and Vm, modulo 2^esize. *)
+Definition armv8a_VADD_semi (ve : wsize) (wn wm : word U128) : ty_v :=
+  lift2_vec ve +%w U128 wn wm.
+
+Definition armv8a_VADD_instr : instr_desc_t :=
+  mk_v2_instr VADD (armv8a_VADD_semi esize).
+
+(* [C7.2.392 SUB (vector)] ARM DDI 0487 M.d, p. C7-3942
+   Syntax: SUB <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Semantics: element-wise difference Vn - Vm, modulo 2^esize. *)
+Definition armv8a_VSUB_semi (ve : wsize) (wn wm : word U128) : ty_v :=
+  lift2_vec ve (fun x y => x - y)%w U128 wn wm.
+
+Definition armv8a_VSUB_instr : instr_desc_t :=
+  mk_v2_instr VSUB (armv8a_VSUB_semi esize).
+
+(* [C7.2.298 SHL] ARM DDI 0487 M.d, p. C7-3666
+   Syntax: SHL <Vd>.<T>, <Vn>.<T>, #<shift>
+   The shift amount lies in [0, esize - 1].
+   Semantics: every element of Vn shifted left by the amount. *)
+Definition armv8a_VSHL_semi (ve : wsize) (wn : word U128) (sh : word U8) : ty_v :=
+  lift1_vec ve (fun x => wshl x (wunsigned sh)) U128 wn.
+
+Definition armv8a_VSHL_instr : instr_desc_t :=
+  mk_v1_imm_instr VSHL (CAimmC_armv8a_shift_amount esize) (armv8a_VSHL_semi esize).
+
+(* [C7.2.451 USHR] ARM DDI 0487 M.d, p. C7-4084
+   Syntax: USHR <Vd>.<T>, <Vn>.<T>, #<shift>
+   The shift amount lies in [1, esize].
+   Semantics: every element of Vn, as an unsigned integer, shifted right by
+   the amount without rounding; a shift by [esize] gives 0, as [wshr]
+   does. *)
+Definition armv8a_VUSHR_semi (ve : wsize) (wn : word U128) (sh : word U8) : ty_v :=
+  lift1_vec ve (fun x => wshr x (wunsigned sh)) U128 wn.
+
+Definition armv8a_VUSHR_instr : instr_desc_t :=
+  mk_v1_imm_instr VUSHR (CAimmC_armv8a_vshr esize) (armv8a_VUSHR_semi esize).
+
+(* [C7.2.361 SSHR] ARM DDI 0487 M.d, p. C7-3851
+   Syntax: SSHR <Vd>.<T>, <Vn>.<T>, #<shift>
+   The shift amount lies in [1, esize].
+   Semantics: every element of Vn, as a signed integer, shifted right by
+   the amount without rounding (RShr, J1.4.3.21, p. J1-16525); a shift by
+   [esize] gives 0 or -1, the sign, as [wsar] does. *)
+Definition armv8a_VSSHR_semi (ve : wsize) (wn : word U128) (sh : word U8) : ty_v :=
+  lift1_vec ve (fun x => wsar x (wunsigned sh)) U128 wn.
+
+Definition armv8a_VSSHR_instr : instr_desc_t :=
+  mk_v1_imm_instr VSSHR (CAimmC_armv8a_vshr esize) (armv8a_VSSHR_semi esize).
+
+(* [C7.2.355 SRI] ARM DDI 0487 M.d, p. C7-3833
+   Syntax: SRI <Vd>.<T>, <Vn>.<T>, #<shift>
+   The shift amount lies in [1, esize].
+   Semantics: in every element, the bits of Vn shifted right by the amount
+   replace the low bits of Vd; the top [shift] bits of Vd are kept. *)
+Definition armv8a_VSRI_semi (ve : wsize) (wd wn : word U128) (sh : word U8) : ty_v :=
+  lift2_vec ve (vsri_elem (wunsigned sh)) U128 wd wn.
+
+Definition armv8a_VSRI_instr : instr_desc_t :=
+  mk_v1d_imm_instr VSRI (CAimmC_armv8a_vshr esize) (armv8a_VSRI_semi esize).
+
+(* [C7.2.302 SLI] ARM DDI 0487 M.d, p. C7-3677
+   Syntax: SLI <Vd>.<T>, <Vn>.<T>, #<shift>
+   The shift amount lies in [0, esize - 1].
+   Semantics: in every element, the bits of Vn shifted left by the amount
+   replace the high bits of Vd; the low [shift] bits of Vd are kept. *)
+Definition armv8a_VSLI_semi (ve : wsize) (wd wn : word U128) (sh : word U8) : ty_v :=
+  lift2_vec ve (vsli_elem (wunsigned sh)) U128 wd wn.
+
+Definition armv8a_VSLI_instr : instr_desc_t :=
+  mk_v1d_imm_instr VSLI (CAimmC_armv8a_shift_amount esize) (armv8a_VSLI_semi esize).
+
 (* -------------------------------------------------------------------- *)
 (* Description of instructions. *)
 
@@ -2884,8 +3159,21 @@ Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
   | DSB => armv8a_DSB_instr
   | ISB => armv8a_ISB_instr
   | VMOV => armv8a_VMOV_instr
+  | VMOVI => armv8a_VMOVI_instr
   | VLDR => armv8a_VLDR_instr
   | VSTR => armv8a_VSTR_instr
+  | VAND => armv8a_VAND_instr
+  | VBIC => armv8a_VBIC_instr
+  | VORR => armv8a_VORR_instr
+  | VEOR => armv8a_VEOR_instr
+  | VNOT => armv8a_VNOT_instr
+  | VADD => armv8a_VADD_instr
+  | VSUB => armv8a_VSUB_instr
+  | VSHL => armv8a_VSHL_instr
+  | VUSHR => armv8a_VUSHR_instr
+  | VSSHR => armv8a_VSSHR_instr
+  | VSRI => armv8a_VSRI_instr
+  | VSLI => armv8a_VSLI_instr
   end.
 
 End ARMV8A_INSTR.

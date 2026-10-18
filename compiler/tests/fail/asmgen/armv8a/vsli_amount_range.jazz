@@ -1,0 +1,9 @@
+/* SLI shifts by at most the element size minus one. */
+export
+fn vsli_amount_range(reg u64 p) {
+    reg u128 a b;
+    a = [:u128 p];
+    b = [:u128 p + 16];
+    a = #VSLI_2u64(a, b, 64);
+    [:u128 p] = a;
+}
