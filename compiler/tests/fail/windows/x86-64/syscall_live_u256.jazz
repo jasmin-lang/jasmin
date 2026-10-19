@@ -1,0 +1,11 @@
+/* A syscall is not assumed to preserve the vector registers: [a] cannot stay
+   in ymm6-ymm15 across it, and there is no other register for it. */
+export fn f(reg ptr u8[64] io) -> reg ptr u8[64] {
+  stack u8[32] r;
+  reg u256 a;
+  a = io[:u256 0];
+  r = #randombytes(r);
+  a ^= r[:u256 0];
+  io[:u256 1] = a;
+  return io;
+}

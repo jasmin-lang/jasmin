@@ -1,0 +1,11 @@
+/* A syscall is not assumed to preserve the vector registers (with the Windows
+   calling convention, only the low 128 bits of xmm6-xmm15 are callee-saved),
+   so an export function that issues a syscall saves and restores them. */
+export fn rand64() -> reg u64 {
+  reg u64 res;
+  stack u64[4] r;
+  r = #randombytes(r);
+  res = r[0];
+  res += r[3];
+  return res;
+}
