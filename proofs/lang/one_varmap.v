@@ -12,12 +12,13 @@ Class one_varmap_info := {
   syscall_sig  : syscall_t -> ovm_syscall_sig_t;
   all_vars     : Sv.t;
   callee_saved : Sv.t;
+  syscall_preserved : Sv.t;
   vflags       : Sv.t;
   vflagsP      : forall x, Sv.In x vflags -> vtype x = abool
 }.
 
 Definition syscall_kill {ovm_i : one_varmap_info} :=
-  Sv.diff all_vars callee_saved.
+  Sv.diff all_vars syscall_preserved.
 
 (* Registers that a linker-inserted veneer (a long-branch thunk) may destroy
    between a call and its callee.  A veneer is synthesised when the caller and

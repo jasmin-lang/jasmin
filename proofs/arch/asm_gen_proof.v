@@ -1764,9 +1764,9 @@ Proof using hagparams ok_p'.
     case: (Sv_memP (to_var r) syscall_kill) => hinK.
     + by rewrite (hkill _ hinK hinR) /=.
     move: (hinK); rewrite /syscall_kill => hnin.
-    have : Sv.In (to_var r) one_varmap.callee_saved.
+    have : Sv.In (to_var r) one_varmap.syscall_preserved.
     + by have := reg_in_all r; SvD.fsetdec.
-    rewrite /one_varmap.callee_saved /= => /sv_of_listP /mapP [x] /hpr.
+    rewrite /one_varmap.syscall_preserved /= => /sv_of_listP /mapP [x] /hpr.
     move=> h /to_var_typed_reg ?; subst x.
     rewrite -h heqx // /X.
     SvD.fsetdec.
@@ -1779,9 +1779,9 @@ Proof using hagparams ok_p'.
     case: (Sv_memP (to_var r) syscall_kill) => hinK.
     + by have /(_ erefl) -> /= := hkill _ hinK hinR.
     move: (hinK); rewrite /syscall_kill => hnin.
-    have : Sv.In (to_var r) one_varmap.callee_saved.
+    have : Sv.In (to_var r) one_varmap.syscall_preserved.
     + have := regx_in_all r; SvD.fsetdec.
-    rewrite /one_varmap.callee_saved /= => /sv_of_listP /mapP [x] /hpr.
+    rewrite /one_varmap.syscall_preserved /= => /sv_of_listP /mapP [x] /hpr.
     move=> h /to_var_typed_regx ?; subst x.
     rewrite -h heqx // /X.
     SvD.fsetdec.
@@ -1794,9 +1794,9 @@ Proof using hagparams ok_p'.
     case: (Sv_memP (to_var r) syscall_kill) => hinK.
     + by have /(_ erefl) -> /= := hkill _ hinK hinR.
     move: (hinK); rewrite /syscall_kill => hnin.
-    have : Sv.In (to_var r) one_varmap.callee_saved.
+    have : Sv.In (to_var r) one_varmap.syscall_preserved.
     + have := xreg_in_all r. SvD.fsetdec.
-    rewrite /one_varmap.callee_saved /= => /sv_of_listP /mapP [x] /hpr.
+    rewrite /one_varmap.syscall_preserved /= => /sv_of_listP /mapP [x] /hpr.
     move=> h /to_var_typed_xreg ?; subst x.
     rewrite -h heqx // /X.
     SvD.fsetdec.
@@ -1805,9 +1805,10 @@ Proof using hagparams ok_p'.
   have hinR : ~Sv.In (to_var r) R.
   + rewrite /R /= vrvs_to_lvals => /sv_of_listP.
     by move=> /(mapP (T1 := @ceqT_eqType _ _)) [x _].
-  have hnc: ~ Sv.In (to_var r) one_varmap.callee_saved.
+  have hnc: ~ Sv.In (to_var r) one_varmap.syscall_preserved.
   + move=>
-      /= /sv_of_listP /mapP [] f /(allP callee_saved_not_bool) h
+      /= /sv_of_listP /mapP [] f
+      /(allP syscall_preserved_subset) /(allP callee_saved_not_bool) h
       /to_var_typed_flag ?.
     by subst f.
   have hinK : Sv.In (to_var r) syscall_kill.

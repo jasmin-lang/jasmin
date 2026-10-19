@@ -771,6 +771,13 @@ Class calling_convention :=
   { callee_saved   : seq asm_typed_reg
   ; callee_saved_not_bool : all (fun r => ~~is_ABReg r) callee_saved
   ; callee_saved_has_rsp  : ARReg ad_rsp \in callee_saved
+    (* The registers that a system call (a call to an external function, e.g.
+       randombytes) is assumed to preserve. A register is either preserved in
+       full or not at all here, so a register that the ABI preserves only in
+       part must be left out. *)
+  ; syscall_preserved : seq asm_typed_reg
+  ; syscall_preserved_subset :
+      all (fun r => r \in callee_saved) syscall_preserved
   ; call_reg_args  : seq reg_t
   ; call_xreg_args : seq xreg_t
   ; call_reg_ret   : seq reg_t

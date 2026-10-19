@@ -189,10 +189,13 @@ Instance riscv_decl : arch_decl register register_ext xregister rflag condt :=
   }.
 
 Definition riscv_linux_call_conv : calling_convention :=
-{| callee_saved :=
-    map ARReg [:: SP; X8; X9; X18; X19; X20; X21; X22; X23; X24; X25; X26; X27 ]
+let saved :=
+  map ARReg [:: SP; X8; X9; X18; X19; X20; X21; X22; X23; X24; X25; X26; X27 ] in
+{| callee_saved := saved
  ; callee_saved_not_bool := erefl true
  ; callee_saved_has_rsp  := erefl true
+ ; syscall_preserved := saved
+ ; syscall_preserved_subset := erefl true
  ; call_reg_args  := [:: X10; X11; X12; X13; X14; X15; X16; X17 ]
  ; call_xreg_args := [::]
  ; call_reg_ret   := [:: X10; X11]

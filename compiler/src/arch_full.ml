@@ -211,19 +211,21 @@ module Arch_from_Core_arch (A : Core_arch) :
   let xmm_allocatable_vars =
     List.map var_of_xreg xmm_allocatable
 
-  let callee_save_vars =
-    let var_of_typed = function
-      | ARReg r -> var_of_reg  r
-      | ARegX r -> var_of_regx r
-      | AXReg r -> var_of_xreg r
-      | ABReg r -> var_of_flag r in
-    List.map var_of_typed callee_save
+  let var_of_typed = function
+    | ARReg r -> var_of_reg  r
+    | ARegX r -> var_of_regx r
+    | AXReg r -> var_of_xreg r
+    | ABReg r -> var_of_flag r
+
+  let callee_save_vars = List.map var_of_typed callee_save
 
   let rsp_var = var_of_reg rsp
 
   let all_registers = reg_vars @ regx_vars @ xreg_vars @ flag_vars
 
-  let syscall_kill = Sv.diff (Sv.of_list all_registers) (Sv.of_list callee_save_vars)
+  let syscall_kill =
+    let preserved = List.map var_of_typed call_conv.syscall_preserved in
+    Sv.diff (Sv.of_list all_registers) (Sv.of_list preserved)
 
   let veneer_kill = Sv.of_list (List.map var_of_reg A.veneer_registers)
 
