@@ -320,211 +320,6 @@ Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
 (* similar, for commands *)
 Definition isem_cmd_ := isem_foldr isem_i_body.
 
-
-(* Definition xcall_upd_estate (wdb: bool) (gd : glob_decls)
-  (xs: lvals) (vs: values) (s: estate) : exec estate.
-Admitted. 
-*)
-
-(*
-Definition isem_pexprs_to_pointers (wdb : bool) (gd : glob_decls) (es: pexprs)
-    (s : estate) : itree E values :=
-  iresult s (sem_pexprs wdb gd s es).
-
-Record sfstate := { sfscs : syscall_state_t; sfmem : mem; in_locs : lvals;
-    out_locs : lvals }.
-
-Definition mk_sep_fstate (xs1 xs2: lvals) (s: estate) :=
-  {| sfscs := escs s; sfmem:= emem s; in_locs := xs1; out_locs := xs2 |}.
-
-
-Record xfstate := { xcontext : lvals;
-                    xinlocs: lvals; 
-                    xvals : values }.
-
-
-Definition fexec_xcall (xs: lvals) (o: syscall_t) (vs: values) (sz: Z)
-  (s: estate) : exec values.
-Admitted.
-
-Definition xcall_upd_estate (wdb: bool) (gd : glob_decls)
-  (xs: lvals) (vs: values) (s: estate) : exec estate.
-Admitted. 
-
-Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
-    itree E estate :=
-  let: (MkI ii i) := i in
-  match i with
-  | Cassgn x tg ty e => iresult s (sem_assgn p x tg ty e s)
-
-  | Copn xs tg o es => iresult s (sem_sopn (p_globs p) o s xs es)
-
-  (* sz: stack size;
-
-   xs: context (an array of left values).
-
-   pre: condition on stack quota requirement, the context array, the
-   input values and the current state; returns unit if the condition
-   is met, otherwise fails.
-
-   post: condition on the context array, the input and output
-   subarrays, the input and output values; returns unit or fail.
-
-   es: call arguments (expressions for the input values) *)
-
-  | Cxcall (sz: Z)
-      (pre: Z -> lvals -> values -> estate -> exec unit)
-      (post: lvals -> values -> exec unit)
-      (xs: lvals)
-      (o: syscall_t)
-      (es: pexprs) =>
-      (* evaluate the arguments *)
-      vs0 <- isem_pexprs true (p_globs p) es s ;;
-      iresult s (pre sz xs vs0 s)
-      (* applies the external function o to the values vs, given a
-      stack quota sz, context xs, input values vs,
-      and the current state; the only reason to pass the state is to
-      manage stack allocation further down the line *)
-      vs1 <- fexec_xcall xs o vs sz s ;;
-      (* check that the output values associated with the context
-      satisfy the postcondition *)
-      iresult s (post xs vs1) ;;
-      (* write to the state *)
-      iresult s (xcall_upd_estate true (p_globs p) xs vs1 s)
-
-
-Definition fexec_xcall (sz: Z) (o: syscall_t) (xs xs0: lvals) (vs: values) (s: estate) :
-  exec (lvals * values).
-Admitted.
-
-Definition xcall_upd_estate (wdb: bool) (gd : glob_decls)
-  (xs xs0 xs1: lvals) (vs0 vs1: values) (s: estate) : exec estate.
-Admitted. 
-
-Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
-    itree E estate :=
-  let: (MkI ii i) := i in
-  match i with
-  | Cassgn x tg ty e => iresult s (sem_assgn p x tg ty e s)
-
-  | Copn xs tg o es => iresult s (sem_sopn (p_globs p) o s xs es)
-
-  (* sz: stack size;
-
-   xs: context (an array of left values).
-
-   pre: condition on stack quota requirement, the context array, the
-   input values and the current state; returns the subarray of the
-   context where the inputs must be stored if the condition is met,
-   otherwise fails.
-
-   post: condition on the context array, the input and output
-   subarrays, the input and output values; returns unit or fail.
-
-   es: call arguments (expressions for the input values) *)
-
-  | Cxcall (sz: Z)
-      (xs: lvals)
-      (pre: Z -> lvals -> values -> estate -> exec lvals)
-      (post: lvals -> lvals -> lvals -> values -> values -> exec unit)
-      (o: syscall_t)
-      (es: pexprs) =>
-      (* evaluate the arguments *)
-      vs0 <- isem_pexprs true (p_globs p) es s ;;
-      xs0 <- iresult s (pre sz xs vs0 s)
-      (* applies the external function o to the values vs, given a
-      stack quota sz, context xs, input subarry xs0, input values vs,
-      and the current state; the only reason to pass the state is to
-      manage stack allocation further down the line *)
-      (xs1, vs1) <- fexec_xcall sz o xs xs0 vs s ;;
-      (* check that the xfstate, input and output states satisfies the
-      postcondition *)
-      iresult s (post xs xs0 xs1 vs0 vs1) ;;
-      iresult s (xcall_upd_estate true (p_globs p) xs xs0 xs1 vs0 vs1 s)
-
-                               
-  | Cxcall sz xs pre post o es =>
-      (* evaluate the arguments *)
-      vs <- isem_pexprs true (p_globs p) es s ;;
-      xs0 <- iresult s (pre sz xs vs s)
-      (* return an xfstate with xs, xs0 and vs if s has at least sz
-      free stack space, otherwise fails *)
-    (*  xfs0 <- initialize_xfstate sz xs xs0 vs s ;; *)
-      (* applies external function o to values vs, given stack size
-      sz and xfstate xfs0; returns an xfstate and a state *)
-      (xfs1, s1) <- fexec_xcall sz o xfs0 s ;;
-      (* check that the xfstate, input and output states satisfies the
-      postcondition *)
-      iresult s (post xfs1 s s1) ;;
-      iresult s (sep_upd_estate true (p_globs p) xs xfs1 s)
-
-                               
-  | Cxcall sz xs pre post o es =>
-      (* evaluate the arguments *)
-      vs <- isem_pexprs true (p_globs p) es s ;;
-      (* check that, w.r.t. the current state s, the input values vs
-      and the locations xs satisfy the precondition, and return the
-      locations where the values should be stored (a subarray of xs)
-      *)
-      xs_in <- iresult s (pre xs vs s) ;;
-      (* applies external function o to values vs, given stack size
-      sz, the xfstate and the current state; notice that the current
-      state is only passed in view of stack allocation. returns an
-      xfstate *)
-      xfs <- fexec_xcall sz o vs post (mk_xfstate xs xs_in vs) s ;;
-      (* check that the xfstate satisfies the postcondition *)
-      iresult s (post sfs) ;;
-      iresult s (sep_upd_estate true (p_globs p) xs sfs s)
-
-
-
-                               
-  | Cxcall sz xs pre post o es =>
-      vs <- isem_pexprs true (p_globs p) es s ;;
-      s' <- initialize_xcall 
-      sfs <- fexec_xcall o (mk_sep_fstate xs1 xs2 s) vs ;;      
-      iresult s (sep_upd_estate true (p_globs p) xs sfs s)
-
- 
-                               
-  | Cxcall les o es =>
-      vs <- isem_pexprs true (p_globs p) es s ;;
-      xs <- isem_pexprs_to_pointers true (p_globs p) les s ;; 
-      fs <- fexec_xcall o (mk_sep_fstate xs s) vs 
-  
-              
-  | Csyscall xs o es =>
-      vs <- isem_pexprs true (p_globs p) es s;;
-      fs <- fexec_syscall s o (mk_fstate vs s);;
-      iresult s (upd_estate true (p_globs p) xs fs s)
-
-  | Cassert a => isem_assert p a s;; Ret s
-
-  | Cif e c1 c2 =>
-    b <- isem_cond p e s;;
-    isem_foldr isem_i_body p ev (if b then c1 else c2) s
-
-  | Cwhile a c1 e i c2 =>
-    isem_while_loop isem_i_body p ev c1 e c2 s
-
-  | Cfor i (d, lo, hi) c =>
-    bounds <- isem_bound p lo hi s;;
-    isem_for_loop isem_i_body p ev i c (wrange d bounds.1 bounds.2) s
-
-  | Ccall xs fn args =>
-    vargs <- isem_pexprs  (~~direct_call) (p_globs p) args s;;
-    let fi := mk_fstate vargs s in
-    isem_pre p s fn fi;;
-    fs <- sem_fun p ev ii fn fi ;;
-    isem_post p s fn vargs fs;;
-    iresult s (upd_estate (~~direct_call) (p_globs p) xs fs s)
-
-  end.
-(* similar, for commands *)
-Definition isem_cmd_ := isem_foldr isem_i_body.
-
-*)
-
 Lemma isem_cmd_cat p ev c c' s :
   isem_cmd_ p ev (c ++ c') s ≈ (s <- isem_cmd_ p ev c s;; isem_cmd_ p ev c' s).
 Proof.
@@ -840,19 +635,21 @@ Proof.
     exact (hi s).
     by move=> s'; apply hc.
   1-2: by move=> >; apply interp_iresult.
-  + admit. 
-   (* 
-    move=> xs o es ii s; rewrite /isem_i /isem_i_rec /=.
-    rewrite interp_bind; apply eqit_bind; first by apply interp_iresult.
-    move=> vs; rewrite interp_bind; apply eqit_bind.
-    + rewrite /fexec_syscall.
+  + move=> xs o es ii s.
+    rewrite /isem_i /isem_i_rec /=.
+    rewrite interp_bind. eapply eqit_bind; first by apply interp_iresult.
+    move=> vs; rewrite interp_bind. eapply eqit_bind.
+    * rewrite /fexec_xcall.
       rewrite interp_bind; apply eqit_bind; first by apply interp_iresult.
-      move=> len; rewrite interp_bind; apply eqit_bind.
-      + destruct XPars; simpl. setoid_rewrite interp_trigger. reflexivity.
-      move=> scsbytes; rewrite interp_bind; apply eqit_bind; first by apply interp_iresult.
-      move=> scsmvs; rewrite interp_ret; reflexivity.
-      move=> fs; exact: interp_iresult.
-   *)   
+      move=> [vs1 vs2].
+      rewrite interp_bind; apply eqit_bind. eapply interp_iresult.
+      move=> [].
+      rewrite interp_bind; apply eqit_bind.
+      - unfold inner_fexec_xcall.
+        setoid_rewrite interp_trigger; reflexivity.
+      - move=> fs.
+        apply interp_iresult.
+    * move=> fs; eapply interp_iresult.
   + move => a ii s /=.
     rewrite interp_bind; apply eqit_bind.
     + by apply interp_iresult.
@@ -887,9 +684,7 @@ Proof.
   move => ?;rewrite interp_bind;apply eqit_bind.
   + by apply interp_iresult.
   move=> ?; exact: interp_iresult.
-Admitted. 
-
-Check @isem_fun.
+Qed.
 
 Lemma isem_call_unfold (fn : funname) (fs : fstate) :
   isem_fun (XCE := XCE) (XPars := XPars)  p ev fn fs ≈ isem_fun_body (XPars := XPars)  (sem_F := sem_fun_full (XPars := XPars)) p ev fn fs.
@@ -930,7 +725,8 @@ Proof.
 Qed.
 
 Lemma isem_call_inline do_inline (fn : funname) (fs : fstate) :
-  isem_fun (XPars := XPars) p ev fn fs ≈ isem_fun_inline (XPars := XPars)  do_inline p ev fn fs.
+  isem_fun (XPars := XPars) p ev fn fs ≈
+    isem_fun_inline (XPars := XPars) do_inline p ev fn fs.
 Proof.
   rewrite /isem_fun /isem_fun_inline /isem_fun_def /handle_recCall /=.
   rewrite /isem_fun_body.
@@ -941,21 +737,18 @@ Proof.
   rewrite (mrec_loop2 cond).
   rewrite /mrec.
   set F := (X in ctx2_cond _ X).
+
   have haux : forall (ii1 : instr_info) (fn1 : funname) (fs1 : fstate),
     ctx2_cond cond F (RecCall ii1 fn1 fs1)
     ≈ fd <- kget_fundef (p_funcs p) fn1 fs1;;
       _ <- isem_pre p (estate0 fs1) fn1 fs1;;
       s1 <- iresult (estate0 fs1) (initialize_funcall p ev fd fs1);;
-      s2 <- isem_cmd_ (sem_F:= sem_fun_inline do_inline fn1) p ev (f_body fd) s1;;
+      s2 <- isem_cmd_ (sem_F:= sem_fun_inline do_inline fn1 (XPars := XPars))
+              (XPars := XPars) p ev (f_body fd) s1;;
       fr <- iresult s2 (finalize_funcall fd s2) ;;
       _ <- isem_post p s2 fn1 (fvals fs1) fr;;
       Ret fr.
-  +
-
-Admitted. 
-
-(*
-    move=> ii1 fn1 fs1.
+  + move=> ii1 fn1 fs1.
     rewrite /ctx2_cond /Handler.cat interp_bind.
     apply eutt_eq_bind'.
     + rewrite /kget_fundef; case: get_fundef => [fd | ] /=.
@@ -965,7 +758,7 @@ Admitted.
     rewrite interp_bind.
     apply eutt_eq_bind'.
     + rewrite interp_cond_iresult; reflexivity.
-    move=> ?.
+    move=> [].
     rewrite interp_bind.
     apply eutt_eq_bind'.
     + by apply interp_cond_iresult.
@@ -975,36 +768,60 @@ Admitted.
       + by apply interp_cond_iresult.
       move=> ?; rewrite interp_bind; apply eutt_eq_bind'.
       + by apply interp_cond_iresult.
-      move=> ?; rewrite interp_ret; reflexivity.
+        move=> ?; rewrite interp_ret; reflexivity.
+  
+    set (X1 := fun i s =>
+         (@isem_i_body (recCall +' E) (recCall +' E0)
+            (@FIso_suml recCall E E0 ErrEvent wE) _ (sem_fun_rec E)
+            XPars p ev i s)).
+    set (X2 := fun i s =>
+          (@isem_i_body (recCall +' E) (recCall +' E0)
+             (@FIso_suml recCall E E0 ErrEvent wE) _
+             (sem_fun_inline do_inline fn1 (XPars := XPars)) XPars p ev i s)).
+
     set Pi := fun i =>
       forall s,
        interp (ctx_cond (cond fstate (RecCall dummy_instr_info fn1 fs1)) F)
-          (isem_i_body (sem_F := sem_fun_rec E) p ev i s) ≈
-       isem_i_body (sem_F:= sem_fun_inline do_inline fn1) p ev i s.
+         (X1 i s) ≈ X2 i s.
+
     set Pr := fun i => forall ii, Pi (MkI ii i).
+
     set Pc := fun c =>
       forall s,
         interp (ctx_cond (cond fstate (RecCall dummy_instr_info fn1 fs1)) F)
-          (isem_cmd_rec p ev c s) ≈
-        isem_cmd_ (sem_F:= sem_fun_inline do_inline fn1) p ev c s.
+          (isem_cmd_rec (XPars := XPars) p ev c s ) ≈
+        isem_cmd_ (sem_F:= sem_fun_inline do_inline fn1 (XPars := XPars))
+         (XPars := XPars) p ev c s.
     move: (f_body fd) s.
+    subst X1 X2; simpl in *.
     apply (cmd_rect (Pr:=Pr) (Pi:=Pi) (Pc:=Pc)) => //=; subst Pi Pr Pc => /=.
     + move=> s; rewrite interp_ret; reflexivity.
     + by move=> i c hi hc s; rewrite interp_bind hi; apply/eutt_eq_bind/hc.
     + by move=> > ? >; apply interp_cond_iresult.
     + by move=> > ? > ? > ; apply interp_cond_iresult.
-    + move=> xs o es ii s; rewrite interp_bind.
-      rewrite /isem_pexprs interp_cond_iresult; apply eutt_eq_bind => ?.
-      rewrite /fexec_syscall interp_bind; apply eutt_eq_bind'.
-      + rewrite interp_bind; apply eutt_eq_bind'.
-        + by apply interp_cond_iresult.
-        move=> ?; rewrite interp_bind; apply eutt_eq_bind'.
-        + rewrite /ctx_cond /Handler.case_.
+    + move=> xs o es ii s.
+      rewrite interp_bind.
+      rewrite /isem_pexprs.
+      rewrite interp_cond_iresult.
+      eapply eutt_eq_bind.
+      move=> ?.
+      rewrite /fexec_xcall.
+      rewrite interp_bind.
+      eapply eutt_eq_bind'.
+      * rewrite interp_bind; eapply eutt_eq_bind'.
+        - by eapply interp_cond_iresult.
+        move=> [vs1 vs2].
+        rewrite interp_bind; apply eutt_eq_bind'.
+        - rewrite interp_cond_iresult; reflexivity.
+        move=> [].
+        rewrite interp_bind; eapply eutt_eq_bind'.
+        - rewrite /inner_fexec_xcall; simpl.
+          rewrite /ctx_cond /Handler.case_.
           setoid_rewrite interp_trigger; reflexivity.
-        move=> ?; rewrite interp_bind; apply eutt_eq_bind'.
-        + by apply interp_cond_iresult.
-        move=> ?; rewrite interp_ret; reflexivity.
-      by move=> ?; apply interp_cond_iresult.
+        move=> ?.
+        rewrite interp_cond_iresult; reflexivity.
+      * move=> ?.
+        rewrite interp_cond_iresult; reflexivity.
     + move=> a ii s; rewrite interp_bind; apply eutt_eq_bind'.
       + by apply interp_cond_iresult.
       by move=> ?; rewrite interp_ret; reflexivity.
@@ -1023,7 +840,8 @@ Admitted.
       rewrite /isem_while_loop interp_iter.
       apply eutt_iter => s'.
       rewrite /isem_while_round interp_bind hc.
-      apply eutt_eq_bind => ?; rewrite interp_bind /isem_cond interp_cond_iresult.
+      apply eutt_eq_bind => ?;
+           rewrite interp_bind /isem_cond interp_cond_iresult.
       apply eutt_eq_bind => -[]; last first.
       + rewrite interp_ret; reflexivity.
       rewrite interp_bind hc'.
@@ -1042,15 +860,12 @@ Admitted.
   apply Proper_interp_mrec => //.
   by move=> T [].
 Qed.
-*)
-
+    
 End CoreLemmas.
 
 End WSW.
 
 
-
-(*
 Section ISEM_FINALIZE.
 
 Context
@@ -1066,6 +881,8 @@ Context
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
   {rE : RndEvent syscall_state -< E}
+  {XCE: XCallEvent -< E}
+  {XPars : forall (p : prog) (o: syscall_t), xparams}
 .
 
 Definition is_finalize (fd : fundef) (fs : fstate) : Prop :=
@@ -1076,7 +893,7 @@ Lemma isem_fun_finalize (p : prog) ev fn fd fs :
   lutt
     (fun _ _ => True) (fun _ _ _ => True)
     (is_finalize fd)
-    (isem_fun p ev fn fs).
+    (isem_fun (XPars := XPars) p ev fn fs).
 Proof.
 move=> h.
 rewrite isem_call_unfold /isem_fun_body /kget_fundef h /= bind_ret_l.
@@ -1091,4 +908,4 @@ exact/(lutt_Ret _ _ (is_finalize _))/fin.
 Qed.
 
 End ISEM_FINALIZE.
-*)
+
