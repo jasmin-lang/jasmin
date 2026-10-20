@@ -19,7 +19,7 @@ module Core_arch_RISCV : Arch_full.Core_arch
 module Core_arch_ARMV8A : Arch_full.Core_arch
   with type reg = Armv8a_decl.register
    and type regx = Arch_utils.empty
-   and type xreg = Arch_utils.empty
+   and type xreg = Armv8a_decl.xregister
    and type rflag = Arm_common.rflag
    and type cond = Arm_common.condt
    and type asm_op = Armv8a_instr_decl.armv8a_asm_op

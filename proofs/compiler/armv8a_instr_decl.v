@@ -3,10 +3,12 @@
    A64 base instructions. Data-processing instructions come in two forms
    selected by the [opts_size] option: the 64-bit (X registers) form and
    the 32-bit (W registers) form, which zeroes the upper 32 bits of
-   destination registers. Instruction documentation is quoted from the ARM
-   Architecture Reference Manual for A-profile architecture, ARM DDI 0487
-   M.a (the machine-readable extraction lives in
-   compiler/doc/armv8a_isa_docs.json). *)
+   destination registers. Advanced SIMD (NEON) instructions, on 64-bit or
+   128-bit vectors held in the SIMD&FP registers, have their own mnemonics
+   and descriptions (see [armv8a_vmnemonic] below). Instruction
+   documentation is quoted from the ARM Architecture Reference Manual for
+   A-profile architecture, ARM DDI 0487 M.a (the machine-readable
+   extraction lives in compiler/doc/armv8a_isa_docs.json). *)
 
 From elpi.apps Require Import derive.std.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
@@ -363,11 +365,63 @@ Definition string_of_armv8a_mnemonic (mn : armv8a_mnemonic) : string :=
 
 
 (* -------------------------------------------------------------------- *)
-(* ARMv8-A operators are pairs of mnemonics and options. *)
+(* ARMv8-A Advanced SIMD (NEON) instruction mnemonics.
+   They operate on the 128-bit SIMD&FP registers, as 64-bit or 128-bit
+   vectors (the lane size and the vector size are arguments of
+   [ARMv8A_vop]). Their constructors are prefixed with [V] to keep them
+   apart from the scalar mnemonics; the assembly names are the
+   architectural ones (see [string_of_armv8a_vmnemonic]), the intrinsic
+   names keep the [V] prefix (see [armv8a_vmn_name]). *)
+
+#[only(eqbOK)] derive
+Variant armv8a_vmnemonic : Type :=
+(* Moves, loads and stores *)
+| VMOV                           (* Move vector *)
+| VLDR                           (* Load a SIMD&FP register *)
+| VSTR.                          (* Store a SIMD&FP register *)
+
+#[ export ]
+Instance eqTC_armv8a_vmnemonic : eqTypeC armv8a_vmnemonic :=
+  { ceqP := armv8a_vmnemonic_eqb_OK }.
+
+Canonical armv8a_vmnemonic_eqType := @ceqT_eqType _ eqTC_armv8a_vmnemonic.
+
+Definition armv8a_vmnemonics : seq armv8a_vmnemonic :=
+  [:: VMOV; VLDR; VSTR
+  ].
+
+Lemma armv8a_vmnemonic_fin_axiom : Finite.axiom armv8a_vmnemonics.
+Proof. by case. Qed.
+
+#[ export ]
+Instance finTC_armv8a_vmnemonic : finTypeC armv8a_vmnemonic :=
+  {
+    cenum := armv8a_vmnemonics;
+    cenumP := armv8a_vmnemonic_fin_axiom;
+  }.
+
+Definition string_of_armv8a_vmnemonic (vmn : armv8a_vmnemonic) : string :=
+  match vmn with
+  | VMOV => "MOV"
+  | VLDR => "LDR"
+  | VSTR => "STR"
+  end%string.
+
+(* The Jasmin name of a vector mnemonic: the architectural one prefixed
+   with [V] ([VMOV]), so that it is distinct from the scalar ones. *)
+Definition armv8a_vmn_name (vmn : armv8a_vmnemonic) : string :=
+  ("V" ++ string_of_armv8a_vmnemonic vmn)%string.
+
+
+(* -------------------------------------------------------------------- *)
+(* ARMv8-A operators are pairs of mnemonics and options, or Advanced SIMD
+   mnemonics with a lane size and a vector size, as the x86 vector
+   instructions. *)
 
 #[only(eqbOK)] derive
 Variant armv8a_asm_op :=
-| ARMv8A_op : armv8a_mnemonic -> armv8a_options -> armv8a_asm_op.
+| ARMv8A_op : armv8a_mnemonic -> armv8a_options -> armv8a_asm_op
+| ARMv8A_vop : armv8a_vmnemonic -> velem -> wsize -> armv8a_asm_op.
 
 #[ export ]
 Instance eqTC_armv8a_asm_op : eqTypeC armv8a_asm_op :=
@@ -3129,9 +3183,175 @@ End ARMV8A_INSTR.
 
 Arguments armv8a_extend_semi {ws} sign ws' wn /.
 
+(* -------------------------------------------------------------------- *)
+(* Advanced SIMD (NEON) instruction descriptions.
+   They are parameterised by the arrangement of the vector: its lane size
+   and its size, 64 bits (the low half of the register) or 128 bits (the
+   whole register). An instruction on a 64-bit vector zeroes the upper 64
+   bits of its destination register, hence [MSB_CLEAR]: a 64-bit result
+   zero-extended to 128 bits (in the source, the result is cast to [u128]) is the
+   whole register. The assembly printer shows the arrangement of the vector
+   registers ([v0.4s], [v0.2d], ...), which the shape [pp_vec ve sz]
+   requests. Loads and stores name the register
+   through its 128-bit scalar view ([q0]), which [pp_full] requests.
+   The operations of the moves, loads and stores below are written after the
+   pseudocode of the ARM Architecture Reference Manual. *)
+
+(* The valid arrangements of a mnemonic, as pairs of a lane size and a
+   vector size; the first one is the default of its intrinsic. *)
+Definition armv8a_vmn_shapes (vmn : armv8a_vmnemonic) : seq (velem * wsize) :=
+  match vmn with
+  | VMOV | VLDR | VSTR => [:: (VE8, U128) ]
+  end.
+
+(* Whether [ve] lanes in a vector of [sz] bits is a valid arrangement of
+   [vmn] (lane sizes are compared as word sizes). *)
+Definition armv8a_vop_valid
+  (vmn : armv8a_vmnemonic) (ve : velem) (sz : wsize) : bool :=
+  has
+    (fun s : velem * wsize => (wsize_of_velem ve == s.1) && (sz == s.2))
+    (armv8a_vmn_shapes vmn).
+
+(* The operations whose result depends on the lane size. *)
+Definition armv8a_vmn_lanewise (vmn : armv8a_vmnemonic) : bool :=
+  match vmn with
+  | VMOV | VLDR | VSTR => false
+  end.
+
+(* A vector instruction whose operands are printed with the given shapes. *)
+Definition pp_armv8a_vop
+  (vmn : armv8a_vmnemonic) (shapes : seq pp_shape) : asm_args -> pp_asm_op :=
+  pp_op_shapes (string_of_armv8a_vmnemonic vmn) shapes.
+
+(* Jasmin-source and EasyCrypt name of a vector operation, as the x86
+   vector instructions: suffixed with the vector size (VMOV_128, as
+   VPAND_128) or, for a lane-wise one, with the lanes (as VPADD_4u32). *)
+Definition armv8a_vmn_str
+  (vmn : armv8a_vmnemonic) (ve : velem) (sz : wsize) : unit -> string :=
+  if armv8a_vmn_lanewise vmn
+  then pp_ve_sz (armv8a_vmn_name vmn) ve sz
+  else pp_sz (armv8a_vmn_name vmn) sz.
+
+Notation ak_v := [:: CAxmm ] (only parsing).
+
+(* A vector instruction [vmn Vd, Vn] or [vmn Vd, Vn, Vm] computing a
+   function of its source registers. *)
+Definition mk_vunop_instr vmn (ve : velem) {sz} (doit_v : doit_t)
+  (semi : word sz -> ty_w sz) : instr_desc_t :=
+  let tin := [:: lword sz ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1 ];
+    id_tout := [:: lword sz ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 2;
+    id_args_kinds := [:: [:: ak_v; ak_v ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_vmn_str vmn ve sz;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := doit_v;
+    id_pp_asm := pp_armv8a_vop vmn [:: pp_vec ve sz; pp_vec ve sz ];
+    id_valid := armv8a_vop_valid vmn ve sz;
+    id_wf := refl_equal;
+  |}.
+
+(* [MOV (vector)] ARM DDI 0487 M.a, C7.2
+   Move vector. This is an alias of ORR (vector, register) with the same
+   source register twice.
+   Syntax: MOV <Vd>.<T>, <Vn>.<T>  ==  ORR <Vd>.<T>, <Vn>.<T>, <Vn>.<T>
+   Operation (after the ASL of ORR (vector, register)):
+     constant bits(datasize) operand1 = V[n, datasize];
+     constant bits(datasize) operand2 = V[m, datasize];
+     V[d, datasize] = operand1 OR operand2;
+*)
+Definition armv8a_VMOV_semi sz (wn : word sz) : ty_w sz :=
+  wn.
+
+Definition armv8a_VMOV_instr (ve : velem) sz : instr_desc_t :=
+  mk_vunop_instr VMOV ve DOIT (@armv8a_VMOV_semi sz).
+
+(* [LDR (immediate, SIMD&FP)] ARM DDI 0487 M.a, C7.2
+   Load SIMD&FP register (immediate offset). The Q form loads 128 bits.
+   Syntax: LDR <Qt>, [<Xn|SP>{, #<pimm>}]
+   Operation (after the ASL):
+     constant bits(datasize) data = Mem[address, datasize DIV 8, accdesc];
+     V[t, datasize] = data;
+*)
+Definition armv8a_VLDR_instr (ve : velem) sz : instr_desc_t :=
+  let tin := [:: lword sz ] in
+  let semi := @armv8a_VMOV_semi sz in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Eu 1 ];
+    id_tout := [:: lword sz ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 2;
+    id_args_kinds := [:: [:: ak_v; [:: CAmem true None ] ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_vmn_str VLDR ve sz;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VLDR [:: pp_full sz; pp_full U64 ];
+    id_valid := armv8a_vop_valid VLDR ve sz;
+    id_wf := refl_equal;
+  |}.
+
+(* [STR (immediate, SIMD&FP)] ARM DDI 0487 M.a, C7.2
+   Store SIMD&FP register (immediate offset). The Q form stores 128 bits.
+   Syntax: STR <Qt>, [<Xn|SP>{, #<pimm>}]
+   Operation (after the ASL):
+     Mem[address, datasize DIV 8, accdesc] = V[t, datasize];
+*)
+Definition armv8a_VSTR_instr (ve : velem) sz : instr_desc_t :=
+  let tin := [:: lword sz ] in
+  let semi := @armv8a_VMOV_semi sz in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := tin;
+    id_in := [:: Ea 0 ];
+    id_tout := [:: lword sz ];
+    id_out := [:: Eu 1 ];
+    id_semi_total := semi;
+    id_nargs := 2;
+    id_args_kinds := [:: [:: ak_v; [:: CAmem true None ] ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_vmn_str VSTR ve sz;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VSTR [:: pp_full sz; pp_full U64 ];
+    id_valid := armv8a_vop_valid VSTR ve sz;
+    id_wf := refl_equal;
+  |}.
+
+Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
+  : instr_desc_t :=
+  match vmn with
+  | VMOV => armv8a_VMOV_instr ve sz
+  | VLDR => armv8a_VLDR_instr ve sz
+  | VSTR => armv8a_VSTR_instr ve sz
+  end.
+
+
+(* -------------------------------------------------------------------- *)
+
 Definition armv8a_instr_desc (o : armv8a_asm_op) : instr_desc_t :=
-  let '(ARMv8A_op mn opts) := o in
-  mn_desc opts mn.
+  match o with
+  | ARMv8A_op mn opts => mn_desc opts mn
+  | ARMv8A_vop vmn ve sz => vmn_desc ve sz vmn
+  end.
 
 (* Size-suffixed intrinsic parsing: [#ADD] is the X (64-bit) form and
    [#ADD_32] the W form. Fixed-size mnemonics take no suffix. *)
@@ -3143,6 +3363,22 @@ Definition armv8a_prim_sized (mn : armv8a_mnemonic) : prim_constructor armv8a_as
        then Some (ARMv8A_op mn (opts_at sz))
        else None).
 
+(* Vector intrinsics are suffixed, as the x86 ones, with the vector size
+   ([#VMOV_128]) or, for the lane-wise operations, with the lanes (as
+   [#VPADD_4u32]). Only the valid arrangements are accepted. *)
+Definition armv8a_prim_vector (vmn : armv8a_vmnemonic) : prim_constructor armv8a_asm_op :=
+  let suffix '(ve, sz) :=
+    if armv8a_vmn_lanewise vmn then PVv ve sz else PVp sz
+  in
+  PrimX86
+    (map suffix (armv8a_vmn_shapes vmn))
+    (fun s =>
+       match s with
+       | PVp sz => Some (ARMv8A_vop vmn VE8 sz)
+       | PVv ve sz => Some (ARMv8A_vop vmn ve sz)
+       | _ => None
+       end).
+
 Definition armv8a_prim_string : seq (string * prim_constructor armv8a_asm_op) :=
   map
     (fun mn =>
@@ -3150,7 +3386,8 @@ Definition armv8a_prim_string : seq (string * prim_constructor armv8a_asm_op) :=
         if mn \in sized_mnemonics
         then armv8a_prim_sized mn
         else primM (ARMv8A_op mn default_opts)))
-    cenum.
+    cenum
+  ++ map (fun vmn => (armv8a_vmn_name vmn, armv8a_prim_vector vmn)) cenum.
 
 #[ export ]
 Instance armv8a_op_decl : asm_op_decl armv8a_asm_op :=

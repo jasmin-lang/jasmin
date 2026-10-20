@@ -520,6 +520,11 @@ Proof.
   move=> h hws hfvx /= hget.
   move: h.
   rewrite /lower_pexpr_aux /lower_Pvar /ok_lower_pexpr_aux.
+  case: eqP => [? [<- <-] | _].
+  - subst ws; case: is_var_in_memory.
+    1-2: split; last by split => //; rewrite /sopn_tout /=.
+    1-2: rewrite /= hget /=; eexists; first reflexivity.
+    1-2: by rewrite /exec_sopn /= truncate_word_le.
   move=> /chk_ws_regP [hws' [? ?]]; subst aop es.
   case/orP: hws' => /eqP ?; subst ws.
 
@@ -541,6 +546,10 @@ Lemma lower_loadP e :
 Proof.
   case: e => // [ al aa wsg x| al wsg] e s ws' ws'' aop es w.
   all: rewrite /lower_pexpr_aux /lower_load.
+  all: case: eqP => [-> [<- <-] hws hfve hsem | _].
+  1,3: split; last by split => //; rewrite /sopn_tout /=.
+  1-2: exists [:: Vword w]; first by rewrite /sem_pexprs /mapM hsem.
+  1-2: by rewrite /exec_sopn /= truncate_word_le.
   all: move=> /chk_ws_regP [hwsx [??]] hws hfve; subst aop es.
   all: have hwsx' : (ws' == U32) || (ws' == U64) by rewrite orbC.
   all: rewrite /sem_pexpr -/(sem_pexpr _ _ s e).
@@ -1859,6 +1868,12 @@ Proof.
 
   move: h.
   rewrite /lower_store.
+  case: eqP => [? | _].
+  - subst ws.
+    case: e hseme hfv => [||| gx |||||||] // hseme hfv [? ?]; subst aop es.
+    rewrite /= /sem_sopn /=.
+    have /= -> := eeq_exc_sem_pexpr hfv hs00 hseme.
+    by rewrite /exec_sopn /= truncate_word_le //= hwrite.
   case hmn: store_mn_of_wsize => [mn|] //.
 
   (* On armv8a only a register can be stored: [e] is a [Pvar]. *)
@@ -2048,7 +2063,7 @@ Lemma lower_base_op s0 s1 ii lvs tag aop es lvs' op' es' :
   -> lower_base_op lvs aop es = Some (lvs', op', es')
   -> esem_i p' ev (MkI ii (Copn lvs' tag op' es')) s0 = ok s1.
 Proof.
-  move: aop => [mn opts].
+  case: aop => [mn opts | vmn] //.
   move=> hfve hsemi.
   rewrite /lower_base_op.
   assert (default : forall lvs' op' es', Some (lvs, Oasm (BaseOp (None, ARMv8A_op mn opts)), es) = Some (lvs', op', es') ->

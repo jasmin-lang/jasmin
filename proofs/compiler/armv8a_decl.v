@@ -1,8 +1,10 @@
 (* ARMv8-A (AArch64) architecture declaration.
 
- * Description of the A64 base architecture (no SIMD/FP, no extensions).
- * General-purpose registers are modeled at their full 64-bit width (X
- * registers); instructions come in 64-bit (X) and 32-bit (W) forms.
+ * Description of the A64 base architecture and of the SIMD&FP register
+ * file used by the Advanced SIMD (NEON) instructions (no floating point,
+ * no other extension). General-purpose registers are modeled at their full
+ * 64-bit width (X registers); instructions come in 64-bit (X) and 32-bit
+ * (W) forms. SIMD&FP registers are modeled at their full 128-bit width.
  *)
 From elpi.apps Require Import derive.std.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype fintype ssralg.
@@ -117,6 +119,61 @@ Definition register_to_string (r : register) : string :=
 Instance reg_toS : ToString (lword armv8a_reg_size) register :=
   {| category  := "register"
    ; to_string := register_to_string
+  |}.
+
+(* -------------------------------------------------------------------- *)
+(* SIMD&FP registers.
+
+   AArch64 has 32 SIMD&FP registers V0..V31 of 128 bits (Arm ARM DDI0487M.a,
+   B1.2 "Registers in AArch64 Execution state"). They are modeled at their
+   full width: the Q view of the assembly syntax ([q0]) and the vector
+   arrangements ([v0.16b], ...) are chosen by the assembly printer. *)
+
+#[only(eqbOK)] derive
+Variant xregister : Type :=
+| V0 | V1 | V2 | V3 | V4 | V5 | V6 | V7
+| V8 | V9 | V10 | V11 | V12 | V13 | V14 | V15
+| V16 | V17 | V18 | V19 | V20 | V21 | V22 | V23
+| V24 | V25 | V26 | V27 | V28 | V29 | V30 | V31.
+
+#[ export ]
+Instance eqTC_xregister : eqTypeC xregister :=
+  { ceqP := xregister_eqb_OK }.
+
+Canonical armv8a_xregister_eqType := @ceqT_eqType _ eqTC_xregister.
+
+Definition xregisters :=
+  [:: V0; V1; V2; V3; V4; V5; V6; V7;
+      V8; V9; V10; V11; V12; V13; V14; V15;
+      V16; V17; V18; V19; V20; V21; V22; V23;
+      V24; V25; V26; V27; V28; V29; V30; V31 ].
+
+Lemma xregister_fin_axiom : Finite.axiom xregisters.
+Proof. by case. Qed.
+
+#[ export ]
+Instance finTC_xregister : finTypeC xregister :=
+  {
+    cenum  := xregisters;
+    cenumP := xregister_fin_axiom;
+  }.
+
+Definition xregister_to_string (r : xregister) : string :=
+  match r with
+  | V0 => "v0"   | V1 => "v1"   | V2 => "v2"   | V3 => "v3"
+  | V4 => "v4"   | V5 => "v5"   | V6 => "v6"   | V7 => "v7"
+  | V8 => "v8"   | V9 => "v9"   | V10 => "v10" | V11 => "v11"
+  | V12 => "v12" | V13 => "v13" | V14 => "v14" | V15 => "v15"
+  | V16 => "v16" | V17 => "v17" | V18 => "v18" | V19 => "v19"
+  | V20 => "v20" | V21 => "v21" | V22 => "v22" | V23 => "v23"
+  | V24 => "v24" | V25 => "v25" | V26 => "v26" | V27 => "v27"
+  | V28 => "v28" | V29 => "v29" | V30 => "v30" | V31 => "v31"
+  end.
+
+#[ export ]
+Instance xreg_toS : ToString (lword armv8a_xreg_size) xregister :=
+  {| category  := "vector register"
+   ; to_string := xregister_to_string
   |}.
 
 (* The flags ([rflag]) and conditions ([condt]) are shared with the other
@@ -240,7 +297,6 @@ Definition is_mov_imm (ws : wsize) (x : Z) : bool :=
 (* Architecture declaration. *)
 
 Notation register_ext := empty.
-Notation xregister := empty.
 
 (* Immediate-argument conditions (see [caimm_cond] in arch_decl.v).
    Each constructor is a validity predicate for an immediate operand and
@@ -338,7 +394,7 @@ Instance armv8a_decl : arch_decl register register_ext xregister rflag condt :=
   ; cond_eqC  := eqTC_condt
   ; toS_r     := reg_toS
   ; toS_rx    := empty_toS lword64
-  ; toS_x     := empty_toS lword128
+  ; toS_x     := xreg_toS
   ; toS_f     := rflag_toS
   ; reg_size_neq_xreg_size := refl_equal
   ; ad_rsp := RSP
@@ -361,13 +417,23 @@ Instance armv8a_decl : arch_decl register register_ext xregister rflag condt :=
    x18 (reserved on Windows, on Apple platforms and under
    shadow-call-stack Linux), and it is excluded from the register file
    altogether (see the [register] declaration above), so this convention
-   is valid on all platforms. *)
+   is valid on all platforms.
+
+   Vector arguments are passed in V0-V7 and vector results returned in
+   V0-V3, the registers of a homogeneous short-vector aggregate of at most
+   four members (AAPCS64, "Parameter passing" and "Result return").
+   AAPCS64 ("SIMD and Floating-Point registers") only requires a callee to
+   preserve the low 64 bits of V8-V15; Jasmin cannot save part of a
+   register, so V8-V15 are declared callee-saved in full. This is stronger
+   than what the ABI requires, hence sound: a caller cannot observe that the
+   upper halves are preserved too. *)
 
 Definition armv8a_call_conv : calling_convention :=
   let saved_regs :=
     map ARReg [:: R19; R20; R21; R22; R23; R24; R25; R26; R27; R28
                 ; R29; RSP ] in
-  {| callee_saved := saved_regs
+  {| callee_saved :=
+      saved_regs ++ map AXReg [:: V8; V9; V10; V11; V12; V13; V14; V15 ]
    ; callee_saved_not_bool := erefl true
    ; callee_saved_has_rsp  := erefl true
      (* No vector register: AAPCS64 only preserves the low 64 bits of
@@ -375,9 +441,9 @@ Definition armv8a_call_conv : calling_convention :=
    ; syscall_preserved := saved_regs
    ; syscall_preserved_subset := erefl true
    ; call_reg_args  := [:: R0; R1; R2; R3; R4; R5; R6; R7 ]
-   ; call_xreg_args := [::]
+   ; call_xreg_args := [:: V0; V1; V2; V3; V4; V5; V6; V7 ]
    ; call_reg_ret   := [:: R0; R1; R2; R3; R4; R5; R6; R7 ]
-   ; call_xreg_ret  := [::]
+   ; call_xreg_ret  := [:: V0; V1; V2; V3 ]
    ; call_reg_ret_uniq := erefl true
    |}.
 
@@ -389,6 +455,6 @@ Definition armv8a_internal_call_conv : internal_calling_convention :=
           R19; R20; R21; R22; R23; R24;
           R25; R26; R27; R28; R29 ]
    ; icall_regx  := [::]
-   ; icall_xreg  := [::]
+   ; icall_xreg  := xregisters
    ; icall_rflag := [:: CF; NF; ZF; VF ]
   |}.
