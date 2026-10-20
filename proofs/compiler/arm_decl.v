@@ -102,14 +102,6 @@ Canonical shift_kind_eqType := @ceqT_eqType _ eqTC_shift_kind.
 Definition shift_kinds :=
   [:: SLSL; SLSR; SASR; SROR ].
 
-Definition string_of_shift_kind (sk : shift_kind) : string :=
-  match sk with
-  | SLSL => "lsl"
-  | SLSR => "lsr"
-  | SASR => "asr"
-  | SROR => "ror"
-  end.
-
 Definition check_shift_amount (sk: shift_kind) (z: Z) : bool :=
   let: (lo, hi) := shift_amount_bounds sk in
   (lo <=? z)%Z && (z <=? hi)%Z.
