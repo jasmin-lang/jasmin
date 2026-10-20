@@ -1,9 +1,10 @@
 (* Assembly printer for ARMv8-A (AArch64).
 
-   GNU assembler (ELF) syntax. General-purpose registers are printed in
-   their 64-bit X form except for the instruction operands that require the
-   32-bit W form (narrow loads and stores, 32-bit multiplies, zero
-   extensions). Immediate values are printed as nonnegative integers. *)
+   GNU assembler (ELF) syntax. Each operand is printed as the instruction
+   description requests it ([pp_arg]): a general-purpose register in its
+   32-bit W form or its 64-bit X form, by the size it is paired with; a
+   shift amount with the name of the shift ([lsl #3]), omitted when it is
+   zero. Immediate values are printed as nonnegative integers. *)
 
 open Arch_decl
 open Utils
@@ -83,25 +84,15 @@ let pp_asm_arg ?(wform = false) (arg : (register, Arch_utils.empty, Arch_utils.e
 
 (* -------------------------------------------------------------------- *)
 
-let pp_shift_kind = hash_to_string string_of_shift_kind
-
-(* Append the optional shift to the last (immediate) operand:
-   [..., <shift> #<amount>]. *)
-let pp_shift (ARMv8A_op (_, opts)) args =
-  match has_shift opts with
-  | None ->
-      args
-  | Some sk ->
-      let sh = pp_shift_kind sk in
-      List.modify_last (Format.asprintf "%s %s" sh) args
-
-(* The last operand of MOVZ/MOVN/MOVK is the halfword shift: print it as
-   [LSL #<sh>], dropping it when it is zero. *)
-let pp_mov_wide_shift args =
-  match List.rev args with
-  | "#0" :: rest -> List.rev rest
-  | sh :: rest -> List.rev (Format.asprintf "lsl %s" sh :: rest)
-  | [] -> []
+(* An operand, as the instruction description requests it. *)
+let pp_arg (a : (register, Arch_utils.empty, Arch_utils.empty, rflag, condt) pp_arg) =
+  match a with
+  | PPa_full (ws, a) -> Some (pp_asm_arg ~wform:(Wsize.size_8_32 ws) a)
+  | PPa_shift (sk, Imm (ws, n)) ->
+      let n = Conv.z_unsigned_of_word ws n in
+      if Z.equal n Z.zero then None
+      else Some (Format.asprintf "%s %s" sk (pp_imm n))
+  | PPa_shift _ -> assert false
 
 let pp_mnemonic (ARMv8A_op (mn, _) as op) =
   let id = instr_desc Armv8a_decl.armv8a_decl Armv8a_instr_decl.armv8a_op_decl (None, op) in
@@ -206,27 +197,13 @@ module Armv8aTarget : AsmTargetBuilder.AsmTarget with
         declassify_mem arch len a
 
     | AsmOp (op, args) ->
-        let (ARMv8A_op (mn, _)) = op in
         let id = instr_desc Armv8a_decl.armv8a_decl Armv8a_instr_decl.armv8a_op_decl (None, op) in
         let pp = id.id_pp_asm args in
         match op, args with
         | ARMv8A_op (ADR, _), [ dst; Addr (Arip r) ] ->
             pp_ADR (pp_asm_arg dst) (pp_rip_address r)
         | _, _ ->
-            let name = pp_mnemonic op in
-            (* Registers are printed in the W form when the instruction
-               declaration pairs them with a width of at most [U32]. *)
-            let pargs =
-              List.map
-                (fun (sz, a) -> pp_asm_arg ~wform:(Wsize.size_8_32 sz) a)
-                pp.pp_aop_args
-            in
-            let pargs =
-              match mn with
-              | MOVZ | MOVN | MOVK -> pp_mov_wide_shift pargs
-              | _ -> pp_shift op pargs
-            in
-            [ Instr (name, pargs) ]
+            [ Instr (pp_mnemonic op, List.filter_map pp_arg pp.pp_aop_args) ]
 
 end
 

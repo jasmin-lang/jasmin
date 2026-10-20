@@ -543,7 +543,9 @@ Definition mk_shifted
     id_err := id_err idt;
     id_init := id_init idt;
     id_doit := id_doit idt;
-    id_pp_asm := id_pp_asm idt;
+    (* The shift amount is printed after the operands of the base
+       instruction, with the name of the shift: [lsl #3]. *)
+    id_pp_asm := pp_append_shift sk (id_nargs idt) (id_pp_asm idt);
     (* The descriptor itself rejects a shift kind that the instruction
        does not admit (ROR on the arithmetic class). *)
     id_valid := id_valid idt && shift_allowed mn sk;
@@ -556,15 +558,15 @@ Arguments mk_shifted : clear implicits.
 (* -------------------------------------------------------------------- *)
 (* Printing. *)
 
-(* The [wsize] paired with each argument is the width of the register form
-   to print: W for widths up to [U32], X for [U64]. It only matters for
+(* Each argument is printed as a register of the width of the operand size:
+   W for widths up to [U32], X for [U64]. The width only matters for
    register operands. *)
 Definition pp_armv8a_op
   (mn : armv8a_mnemonic) (opts : armv8a_options) (args : seq asm_arg) : pp_asm_op :=
   {|
     pp_aop_name := string_of_armv8a_mnemonic mn;
     pp_aop_ext := PP_name;
-    pp_aop_args := map (fun a => (opts_size opts, a)) args;
+    pp_aop_args := map (PPa_full (opts_size opts)) args;
   |}.
 
 (* Same as [pp_armv8a_op] with an explicit width per argument, for the
@@ -575,9 +577,8 @@ Definition pp_armv8a_op_szs
   {|
     pp_aop_name := string_of_armv8a_mnemonic mn;
     pp_aop_ext := PP_name;
-    pp_aop_args := zip szs args;
+    pp_aop_args := pp_fulls szs args;
   |}.
-
 
 (* -------------------------------------------------------------------- *)
 (* Instruction descriptions.
@@ -1932,7 +1933,11 @@ Definition mk_movw_instr mn (semi : word U16 -> word U8 -> ty_w osz)
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_doit := DOIT;
-    id_pp_asm := pp_armv8a_op mn opts;
+    (* The halfword shift is printed as [LSL #<sh>], and dropped when it is
+       zero. *)
+    id_pp_asm :=
+      pp_op_shapes (string_of_armv8a_mnemonic mn)
+        [:: pp_full osz; pp_full U16; pp_shift SLSL ];
     id_valid := osz_valid;
     id_wf := refl_equal;
   |}.
@@ -2003,7 +2008,9 @@ Definition armv8a_MOVK_instr : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_doit := DOIT;
-    id_pp_asm := pp_armv8a_op mn opts;
+    id_pp_asm :=
+      pp_op_shapes (string_of_armv8a_mnemonic mn)
+        [:: pp_full osz; pp_full U16; pp_shift SLSL ];
     id_valid := osz_valid;
     id_wf := refl_equal;
   |}.

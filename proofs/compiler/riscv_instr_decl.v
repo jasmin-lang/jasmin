@@ -30,7 +30,7 @@ Definition pp_name name args :=
   {|
     pp_aop_name := name;
     pp_aop_ext := PP_name;
-    pp_aop_args := map (fun a => (reg_size, a)) args;
+    pp_aop_args := map (PPa_full reg_size) args;
   |}.
 
 (* RISC-V declares encodings :

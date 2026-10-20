@@ -19,6 +19,10 @@ val format_glob_data :
   PrintASM.asm_element list
 
 val hash_to_string : ('a -> string) -> 'a -> string
+val pp_full_args :
+  ('reg, 'regx, 'xreg, 'rflag, 'cond) Arch_decl.pp_asm_op ->
+  (Wsize.wsize * ('reg, 'regx, 'xreg, 'rflag, 'cond) Arch_decl.asm_arg) list
+
 val pp_imm : string -> Z.t -> string
 val pp_rip_address : Word0.word -> string
 val pp_register : ('reg, _, _, _, _) Arch_decl.arch_decl -> 'reg -> string

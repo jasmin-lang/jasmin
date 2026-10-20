@@ -91,6 +91,15 @@ let hash_to_string (to_string : 'a -> string) =
       Hashtbl.add tbl r s;
       s
 
+(* The operands of an instruction whose description prints each of them in
+   the form of a size ([PPa_full]), paired with that size. *)
+let pp_full_args (pp : _ pp_asm_op) =
+  List.map
+    (function
+      | PPa_full (ws, a) -> (ws, a)
+      | PPa_shift _ -> assert false)
+    pp.pp_aop_args
+
 let pp_imm imm_pre imm = Format.asprintf "%s%s" imm_pre (Z.to_string imm)
 
 let pp_rip_address p : string =
