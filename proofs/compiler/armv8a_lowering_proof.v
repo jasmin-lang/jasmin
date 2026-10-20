@@ -1212,6 +1212,23 @@ Proof.
   (* Case: [ws = U128], a vector instruction. *)
   {
     subst ws; rewrite /lower_Papp2_128.
+    case hvar: lower_varith => [[vmn ve] | ].
+
+    (* A lane-wise arithmetic operation: the instruction with the same
+       lanes computes the same function. *)
+    {
+      move=> /oassertP [hvalid [<- <-]].
+      move: hvar hvalid hsemop; case: op => // ve0 [] // [<- <-] hvalid.
+      all: move=> /sem_sop2I /= [w0 [w1 [w2 [hw0 hw1 hw2 /Vword_inj [?]]]]].
+      all: subst ws'; move: hw2 => /= -[<-] ?; subst w.
+      all: split; last by split; [exact: disj_fvars_read_es2 | ].
+      all: exists [:: v0; v1]; first by rewrite /sem_pexprs /= hseme0 hseme1.
+      all: rewrite /exec_sopn /= hw0 hw1 /sopn_sem /sopn_sem_ /= hvalid.
+      all: by rewrite /= zero_extend_u.
+    }
+
+    (* A bitwise operation. *)
+    clear hvar.
     apply: obindP => -[vmn es0] hlow [<- <-].
     have hfve : disj_fvars (read_e (Papp2 op e0 e1))
       by exact: disj_fvars_read_es2.

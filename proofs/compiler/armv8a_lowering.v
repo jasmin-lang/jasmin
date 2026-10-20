@@ -456,10 +456,26 @@ Definition large_arith_imm (ws : wsize) (mn : armv8a_mnemonic) (es : pexprs) : o
     | _ => None
     end.
 
-(* A 128-bit bitwise operation is a 128-bit vector instruction. *)
+(* The lane-wise arithmetic operators on 128-bit vectors are the vector
+   instructions with the same lanes. *)
+Definition lower_varith (op : sop2) : option (armv8a_vmnemonic * velem) :=
+  match op with
+  | Ovadd ve U128 => Some (VADD, ve)
+  | Ovsub ve U128 => Some (VSUB, ve)
+  | Ovmul ve U128 => Some (VMUL, ve)
+  | _ => None
+  end.
+
+(* A 128-bit arithmetic operation is lowered when its arrangement exists:
+   there is no MUL on 64-bit lanes. *)
 Definition lower_Papp2_128 (op : sop2) (e0 e1 : pexpr) : low_expr :=
-  let%opt (vmn, es) := lower_vbitwise U128 (Papp2 op e0 e1) in
-  le_issue_aop (ARMv8A_vop vmn VE8 U128) es.
+  if lower_varith op is Some (vmn, ve)
+  then
+    let%opt _ := oassert (armv8a_vop_valid vmn ve U128) in
+    le_issue_aop (ARMv8A_vop vmn ve U128) [:: e0; e1 ]
+  else
+    let%opt (vmn, es) := lower_vbitwise U128 (Papp2 op e0 e1) in
+    le_issue_aop (ARMv8A_vop vmn VE8 U128) es.
 
 (* Lower an expression of the form [a <+> b].
    Precondition:
