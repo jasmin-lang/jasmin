@@ -1,0 +1,58 @@
+// 128-bit bitwise NEON instructions.
+
+export
+fn neon_bitwise(reg u64 p) {
+    reg u128 a b c d;
+    stack u128 s;
+
+    a = [:u128 p];
+    b = [:u128 p + 16];
+
+    c = #VAND_128(a, b);
+    d = #VORR_128(a, b);
+    c = #VEOR_128(c, d);
+    d = #VBIC_128(c, a);
+    c = #VORN_128(d, b);
+    d = #VNOT_128(c);
+
+    s = d;
+    () = #spill(a, b);
+    c = #VAND_128(c, d);
+    () = #unspill(a, b);
+    c = #VEOR_128(c, a);
+    c = #VEOR_128(c, b);
+    d = s;
+    c = #VEOR_128(c, d);
+
+    [:u128 p + 32] = c;
+}
+
+// Vector arguments and results are passed in V registers.
+export
+fn neon_args(reg u128 x y) -> reg u128, reg u128 {
+    reg u128 z w;
+    z = #VEOR_128(x, y);
+    w = #VAND_128(x, y);
+    return z, w;
+}
+
+// More vectors live at once than there are caller-saved V registers:
+// some of V8-V15 are used, and saved and restored around the body.
+export
+fn neon_pressure(reg u64 p) {
+    inline int i;
+    reg u128[26] v;
+    reg u128 acc;
+
+    for i = 0 to 26 {
+        v[i] = [:u128 p + 16 * i];
+    }
+    acc = v[0];
+    for i = 1 to 26 {
+        acc = #VEOR_128(acc, v[i]);
+    }
+    for i = 0 to 26 {
+        acc = #VAND_128(acc, v[i]);
+    }
+    [:u128 p] = acc;
+}

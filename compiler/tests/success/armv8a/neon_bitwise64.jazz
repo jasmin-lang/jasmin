@@ -1,0 +1,28 @@
+// 64-bit (.8b) bitwise NEON instructions. They operate on the low halves
+// of the vector registers and zero the upper halves: the result, cast to
+// u128, is the whole register.
+
+export
+fn neon_bitwise64(reg u64 p) {
+    reg u128 a b c d;
+
+    a = [:u128 p];
+    b = [:u128 p + 16];
+
+    c = (128u)#VAND_64(a, b);
+    d = (128u)#VORR_64(a, b);
+    c = (128u)#VEOR_64(c, d);
+    d = (128u)#VBIC_64(c, a);
+    c = (128u)#VORN_64(d, b);
+    d = (128u)#VNOT_64(c);
+    [:u128 p + 32] = d;
+}
+
+// 64-bit operations on vector arguments, results in V registers.
+export
+fn neon_args64(reg u128 x y) -> reg u128, reg u128 {
+    reg u128 z w;
+    z = (128u)#VEOR_64(x, y);
+    w = (128u)#VAND_64(x, y);
+    return z, w;
+}

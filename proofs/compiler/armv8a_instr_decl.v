@@ -378,7 +378,15 @@ Variant armv8a_vmnemonic : Type :=
 (* Moves, loads and stores *)
 | VMOV                           (* Move vector *)
 | VLDR                           (* Load a SIMD&FP register *)
-| VSTR.                          (* Store a SIMD&FP register *)
+| VSTR                           (* Store a SIMD&FP register *)
+
+(* Bitwise *)
+| VAND                           (* Bitwise AND *)
+| VBIC                           (* Bitwise bit clear *)
+| VORR                           (* Bitwise inclusive OR *)
+| VORN                           (* Bitwise inclusive OR NOT *)
+| VEOR                           (* Bitwise exclusive OR *)
+| VNOT.                          (* Bitwise NOT *)
 
 #[ export ]
 Instance eqTC_armv8a_vmnemonic : eqTypeC armv8a_vmnemonic :=
@@ -388,6 +396,7 @@ Canonical armv8a_vmnemonic_eqType := @ceqT_eqType _ eqTC_armv8a_vmnemonic.
 
 Definition armv8a_vmnemonics : seq armv8a_vmnemonic :=
   [:: VMOV; VLDR; VSTR
+    ; VAND; VBIC; VORR; VORN; VEOR; VNOT
   ].
 
 Lemma armv8a_vmnemonic_fin_axiom : Finite.axiom armv8a_vmnemonics.
@@ -405,6 +414,12 @@ Definition string_of_armv8a_vmnemonic (vmn : armv8a_vmnemonic) : string :=
   | VMOV => "MOV"
   | VLDR => "LDR"
   | VSTR => "STR"
+  | VAND => "AND"
+  | VBIC => "BIC"
+  | VORR => "ORR"
+  | VORN => "ORN"
+  | VEOR => "EOR"
+  | VNOT => "NOT"
   end%string.
 
 (* The Jasmin name of a vector mnemonic: the architectural one prefixed
@@ -3189,19 +3204,23 @@ Arguments armv8a_extend_semi {ws} sign ws' wn /.
    and its size, 64 bits (the low half of the register) or 128 bits (the
    whole register). An instruction on a 64-bit vector zeroes the upper 64
    bits of its destination register, hence [MSB_CLEAR]: a 64-bit result
-   zero-extended to 128 bits (in the source, the result is cast to [u128]) is the
+   zero-extended to 128 bits (in the source, [(128u)#VAND_64(a, b)]) is the
    whole register. The assembly printer shows the arrangement of the vector
    registers ([v0.4s], [v0.2d], ...), which the shape [pp_vec ve sz]
-   requests. Loads and stores name the register
+   requests. Bitwise operations do not depend on the arrangement; they have
+   byte lanes only, [v0.8b] or [v0.16b]. Loads and stores name the register
    through its 128-bit scalar view ([q0]), which [pp_full] requests.
-   The operations of the moves, loads and stores below are written after the
-   pseudocode of the ARM Architecture Reference Manual. *)
+   The operations of the moves, loads, stores and bitwise instructions below
+   are written after the pseudocode of the ARM Architecture Reference
+   Manual. *)
 
 (* The valid arrangements of a mnemonic, as pairs of a lane size and a
    vector size; the first one is the default of its intrinsic. *)
 Definition armv8a_vmn_shapes (vmn : armv8a_vmnemonic) : seq (velem * wsize) :=
   match vmn with
   | VMOV | VLDR | VSTR => [:: (VE8, U128) ]
+  | VAND | VBIC | VORR | VORN | VEOR | VNOT =>
+      [:: (VE8, U128); (VE8, U64) ]
   end.
 
 (* Whether [ve] lanes in a vector of [sz] bits is a valid arrangement of
@@ -3215,7 +3234,8 @@ Definition armv8a_vop_valid
 (* The operations whose result depends on the lane size. *)
 Definition armv8a_vmn_lanewise (vmn : armv8a_vmnemonic) : bool :=
   match vmn with
-  | VMOV | VLDR | VSTR => false
+  | VMOV | VLDR | VSTR
+  | VAND | VBIC | VORR | VORN | VEOR | VNOT => false
   end.
 
 (* A vector instruction whose operands are printed with the given shapes. *)
@@ -3256,6 +3276,31 @@ Definition mk_vunop_instr vmn (ve : velem) {sz} (doit_v : doit_t)
     id_init := [:: IBool true ];
     id_doit := doit_v;
     id_pp_asm := pp_armv8a_vop vmn [:: pp_vec ve sz; pp_vec ve sz ];
+    id_valid := armv8a_vop_valid vmn ve sz;
+    id_wf := refl_equal;
+  |}.
+
+Definition mk_vbinop_instr vmn (ve : velem) {sz} (doit_v : doit_t)
+  (semi : word sz -> word sz -> ty_w sz)
+  : instr_desc_t :=
+  let tin := [:: lword sz; lword sz ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2 ];
+    id_tout := [:: lword sz ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds := [:: [:: ak_v; ak_v; ak_v ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_vmn_str vmn ve sz;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := doit_v;
+    id_pp_asm := pp_armv8a_vop vmn [:: pp_vec ve sz; pp_vec ve sz; pp_vec ve sz ];
     id_valid := armv8a_vop_valid vmn ve sz;
     id_wf := refl_equal;
   |}.
@@ -3336,12 +3381,101 @@ Definition armv8a_VSTR_instr (ve : velem) sz : instr_desc_t :=
     id_wf := refl_equal;
   |}.
 
+(* [AND (vector)] ARM DDI 0487 M.a, C7.2
+   Bitwise AND (vector).
+   Syntax: AND <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Operation (after the ASL):
+     constant bits(datasize) operand1 = V[n, datasize];
+     constant bits(datasize) operand2 = V[m, datasize];
+     V[d, datasize] = operand1 AND operand2;
+*)
+Definition armv8a_VAND_semi sz (wn wm : word sz) : ty_w sz :=
+  wand wn wm.
+
+Definition armv8a_VAND_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VAND ve DOIT (@armv8a_VAND_semi sz).
+
+(* [BIC (vector, register)] ARM DDI 0487 M.a, C7.2
+   Bitwise bit clear (vector, register).
+   Syntax: BIC <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Operation (after the ASL):
+     constant bits(datasize) operand1 = V[n, datasize];
+     constant bits(datasize) operand2 = NOT(V[m, datasize]);
+     V[d, datasize] = operand1 AND operand2;
+*)
+Definition armv8a_VBIC_semi sz (wn wm : word sz) : ty_w sz :=
+  wandn wm wn.
+
+Definition armv8a_VBIC_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VBIC ve DOIT (@armv8a_VBIC_semi sz).
+
+(* [ORR (vector, register)] ARM DDI 0487 M.a, C7.2
+   Bitwise inclusive OR (vector, register).
+   Syntax: ORR <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Operation (after the ASL):
+     constant bits(datasize) operand1 = V[n, datasize];
+     constant bits(datasize) operand2 = V[m, datasize];
+     V[d, datasize] = operand1 OR operand2;
+*)
+Definition armv8a_VORR_semi sz (wn wm : word sz) : ty_w sz :=
+  wor wn wm.
+
+Definition armv8a_VORR_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VORR ve DOIT (@armv8a_VORR_semi sz).
+
+(* [ORN (vector)] ARM DDI 0487 M.a, C7.2
+   Bitwise inclusive OR NOT (vector).
+   Syntax: ORN <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Operation (after the ASL):
+     constant bits(datasize) operand1 = V[n, datasize];
+     constant bits(datasize) operand2 = NOT(V[m, datasize]);
+     V[d, datasize] = operand1 OR operand2;
+*)
+Definition armv8a_VORN_semi sz (wn wm : word sz) : ty_w sz :=
+  wor wn (wnot wm).
+
+Definition armv8a_VORN_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VORN ve DOIT (@armv8a_VORN_semi sz).
+
+(* [EOR (vector)] ARM DDI 0487 M.a, C7.2
+   Bitwise exclusive OR (vector).
+   Syntax: EOR <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Operation (after the ASL):
+     constant bits(datasize) operand1 = V[m, datasize];
+     constant bits(datasize) operand2 = V[n, datasize];
+     V[d, datasize] = operand1 EOR operand2;
+*)
+Definition armv8a_VEOR_semi sz (wn wm : word sz) : ty_w sz :=
+  wxor wn wm.
+
+Definition armv8a_VEOR_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VEOR ve DOIT (@armv8a_VEOR_semi sz).
+
+(* [NOT] ARM DDI 0487 M.a, C7.2
+   Bitwise NOT (vector). This instruction is used by the alias MVN.
+   Syntax: NOT <Vd>.<T>, <Vn>.<T>
+   Operation (after the ASL, per element, which amounts to the whole vector):
+     element = Elem[operand, e, esize];
+     Elem[result, e, esize] = NOT(element);
+*)
+Definition armv8a_VNOT_semi sz (wn : word sz) : ty_w sz :=
+  wnot wn.
+
+Definition armv8a_VNOT_instr (ve : velem) sz : instr_desc_t :=
+  mk_vunop_instr VNOT ve DOIT (@armv8a_VNOT_semi sz).
+
 Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   : instr_desc_t :=
   match vmn with
   | VMOV => armv8a_VMOV_instr ve sz
   | VLDR => armv8a_VLDR_instr ve sz
   | VSTR => armv8a_VSTR_instr ve sz
+  | VAND => armv8a_VAND_instr ve sz
+  | VBIC => armv8a_VBIC_instr ve sz
+  | VORR => armv8a_VORR_instr ve sz
+  | VORN => armv8a_VORN_instr ve sz
+  | VEOR => armv8a_VEOR_instr ve sz
+  | VNOT => armv8a_VNOT_instr ve sz
   end.
 
 
