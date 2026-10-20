@@ -1,0 +1,43 @@
+// AES NEON instructions, through their intrinsics: AESE and AESD, which
+// add the round key and apply ShiftRows and SubBytes or their inverses,
+// and read their destination, the first argument of the intrinsic; AESMC
+// and AESIMC, which apply MixColumns and its inverse. They require the aes
+// extension, which the assembly file enables.
+
+// Two rounds of encryption, the last one without MixColumns, then the
+// corresponding two rounds of decryption with the equivalent inverse
+// cipher, whose middle round key goes through InvMixColumns.
+export
+fn neon_aes(reg u64 p) {
+    reg u128 s k0 k1 k2 dk;
+
+    s = [:u128 p];
+    k0 = [:u128 p + 16];
+    k1 = [:u128 p + 32];
+    k2 = [:u128 p + 48];
+
+    s = #VAESE_128(s, k0);
+    s = #VAESMC_128(s);
+    s = #VAESE_128(s, k1);
+    s = #VEOR_128(s, k2);
+    [:u128 p + 64] = s;
+
+    dk = #VAESIMC_128(k1);
+    s = #VAESD_128(s, k2);
+    s = #VAESIMC_128(s);
+    s = #VAESD_128(s, dk);
+    s = #VEOR_128(s, k0);
+    [:u128 p + 80] = s;
+}
+
+// One round on vector arguments, results in V registers.
+export
+fn neon_aes_args(reg u128 s k) -> reg u128, reg u128 {
+    reg u128 t;
+    t = s;
+    t = #VAESE_128(t, k);
+    t = #VAESMC_128(t);
+    s = #VAESD_128(s, k);
+    s = #VAESIMC_128(s);
+    return t, s;
+}

@@ -254,4 +254,22 @@ end
 
 module Armv8aBuilder = AsmTargetBuilder.Make(Armv8aTarget)
 
-let print_prog fmt prog = PrintASM.pp_asm fmt (Armv8aBuilder.asm_of_prog prog)
+(* The directives that enable the architecture extensions required by the
+   instructions of the program ([.arch_extension aes]), each once and in
+   the order of their declaration, at the top of the file: the assembler
+   then accepts these instructions without being told of the extensions on
+   its command line. A program that requires none gets no directive. *)
+let arch_extensions (prog : (_, _, _, _, _, armv8a_asm_op) asm_prog) =
+  let extension (i : (_, _, _, _, _, armv8a_asm_op) asm_i) =
+    match i.asmi_i with
+    | AsmOp (ARMv8A_vop (vmn, _, _), _) -> armv8a_vmn_extension vmn
+    | _ -> None
+  in
+  List.concat_map (fun (_, fd) -> List.filter_map extension fd.asm_fd_body)
+    prog.asm_funcs
+  |> List.sort_uniq compare
+  |> List.map (fun ext ->
+         Header (".arch_extension", [ string_of_armv8a_extension ext ]))
+
+let print_prog fmt prog =
+  PrintASM.pp_asm fmt (arch_extensions prog @ Armv8aBuilder.asm_of_prog prog)
