@@ -228,7 +228,49 @@ Definition uext_mn (ws ws' : wsize) : option armv8a_mnemonic :=
   | _ => None
   end.
 
+(* The bitwise operations on vectors of size [vs] are vector instructions:
+   [lower_vbitwise vs e] is the mnemonic and the arguments of the one that
+   computes [e]. *)
+Definition is_lnot (vs : wsize) (e : pexpr) : option pexpr :=
+  if e is Papp1 (Olnot ws) a then if ws == vs then Some a else None else None.
+
+(* An AND or an OR with a complemented operand is a single BIC or ORN
+   ([mn_not]), whose second source is the one complemented. *)
+Definition lower_vlogic
+  (vs : wsize) (mn mn_not : armv8a_vmnemonic) (e0 e1 : pexpr) :
+  armv8a_vmnemonic * seq pexpr :=
+  if is_lnot vs e1 is Some b then (mn_not, [:: e0; b ])
+  else if is_lnot vs e0 is Some a then (mn_not, [:: e1; a ])
+  else (mn, [:: e0; e1 ]).
+
+Definition lower_vbitwise (vs : wsize) (e : pexpr) :
+  option (armv8a_vmnemonic * seq pexpr) :=
+  match e with
+  | Papp1 (Olnot ws) a =>
+      if ws == vs then Some (VNOT, [:: a ]) else None
+  | Papp2 (Oland ws) e0 e1 =>
+      if ws == vs then Some (lower_vlogic vs VAND VBIC e0 e1) else None
+  | Papp2 (Olor ws) e0 e1 =>
+      if ws == vs then Some (lower_vlogic vs VORR VORN e0 e1) else None
+  | Papp2 (Olxor ws) e0 e1 =>
+      if ws == vs then Some (VEOR, [:: e0; e1 ]) else None
+  | _ => None
+  end.
+
+(* A 128-bit bitwise operation is a 128-bit vector instruction. The zero
+   extension to 128 bits of a 64-bit one is the 64-bit instruction, which
+   zeroes the upper half of its destination register. *)
+Definition lower_Papp1_128 (op : sop1) (e : pexpr) : low_expr :=
+  if op == Ozeroext U128 U64
+  then
+    let%opt (vmn, es) := lower_vbitwise U64 e in
+    le_issue_sopn (Oasm (BaseOp (Some U128, ARMv8A_vop vmn VE8 U64))) es
+  else
+    let%opt (vmn, es) := lower_vbitwise U128 (Papp1 op e) in
+    le_issue_aop (ARMv8A_vop vmn VE8 U128) es.
+
 Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : low_expr :=
+  if ws == U128 then lower_Papp1_128 op e else
   let%opt _ := chk_ws_reg ws in
   match op with
   | Oword_of_int ws' =>
@@ -414,6 +456,11 @@ Definition large_arith_imm (ws : wsize) (mn : armv8a_mnemonic) (es : pexprs) : o
     | _ => None
     end.
 
+(* A 128-bit bitwise operation is a 128-bit vector instruction. *)
+Definition lower_Papp2_128 (op : sop2) (e0 e1 : pexpr) : low_expr :=
+  let%opt (vmn, es) := lower_vbitwise U128 (Papp2 op e0 e1) in
+  le_issue_aop (ARMv8A_vop vmn VE8 U128) es.
+
 (* Lower an expression of the form [a <+> b].
    Precondition:
    - [a] is a register.
@@ -423,6 +470,7 @@ Definition large_arith_imm (ws : wsize) (mn : armv8a_mnemonic) (es : pexprs) : o
      + an immediate word. *)
 Definition lower_Papp2
   (ws : wsize) (op : sop2) (e0 e1 : pexpr) : low_expr :=
+  if ws == U128 then lower_Papp2_128 op e0 e1 else
   let%opt (mn, e0', e1') := lower_Papp2_op ws op e0 e1 in
   if large_arith_imm ws mn e1' is Some imm
   then le_issue_extra Oarmv8a_add_large_imm [:: e0'; wconst (wrepr U64 imm) ]

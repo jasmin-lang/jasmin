@@ -588,6 +588,80 @@ Proof.
   by rewrite zero_extend_u.
 Qed.
 
+Lemma is_lnotP vs e a :
+  is_lnot vs e = Some a -> e = Papp1 (Olnot vs) a.
+Proof. by case: e => // -[] // ws ? /=; case: eqP => // -> [->]. Qed.
+
+(* The vector instruction computing a bitwise operation on vectors of size
+   [vs]. *)
+Lemma lower_vbitwiseP vs e vmn es s v :
+  vs \in [:: U128; U64 ]
+  -> lower_vbitwise vs e = Some (vmn, es)
+  -> disj_fvars (read_e e)
+  -> sem_pexpr true (p_globs p) s e = ok v
+  -> [/\ vmn \in [:: VNOT; VAND; VBIC; VORR; VORN; VEOR ]
+       , disj_fvars (read_es es)
+       & exists2 vargs,
+           sem_pexprs true (p_globs p) s es = ok vargs
+           & exec_sopn (Oasm (BaseOp (None, ARMv8A_vop vmn VE8 vs))) vargs
+             = ok [:: v ] ].
+Proof.
+  move=> hvs.
+  case: e => // [[] // ws a | [] // ws e0 e1] /=.
+  all: case: eqP => // ?; subst ws.
+
+  (* NOT *)
+  {
+    move=> [<- <-] hfv; t_xrbindP => va hsema.
+    move=> /sem_sop1I /= [wa [?] [hwa [?] ->]]; subst.
+    split => //; exists [:: va]; first by rewrite hsema.
+    move: hvs hwa; rewrite !inE => /orP [] /eqP ? hwa; subst vs.
+    all: by rewrite /exec_sopn /= hwa.
+  }
+
+  all: move=> hlow hfv; t_xrbindP => v0 hseme0 v1 hseme1.
+  all: move=> /sem_sop2I /= [w0 [w1 [w2 [hw0 hw1 [<-] ->]]]].
+  all: move: hfv => /disj_fvars_read_e_Papp2 [hfv0 hfv1].
+
+  (* EOR *)
+  3: {
+    move: hlow => [<- <-]; split => //; first exact: disj_fvars_read_es2.
+    exists [:: v0; v1]; first by rewrite /sem_pexprs /= hseme0 hseme1.
+    move: hvs hw0 hw1; rewrite !inE => /orP [] /eqP ? hw0 hw1; subst vs.
+    all: by rewrite /exec_sopn /= hw0 hw1.
+  }
+
+  (* AND, BIC, ORR, ORN *)
+  all: move: hlow; rewrite /lower_vlogic.
+  all: case h1: is_lnot => [b|]; last case h0: is_lnot => [a|].
+
+  (* No complemented operand: AND, ORR. *)
+  3,6: move=> [<- <-]; (split => //; first exact: disj_fvars_read_es2).
+  3,4: exists [:: v0; v1]; first by rewrite /sem_pexprs /= hseme0 hseme1.
+
+  (* Complemented second operand: [a & !b] is BIC a b, [a | !b] is ORN a b. *)
+  1,5: move: h1 => /is_lnotP ?; subst e1.
+  1,2: move=> [<- <-]; move: hseme1 => /=; t_xrbindP => vb hsemb.
+  1,2: move=> /sem_sop1I /= [wb [?] [hwb [<-] ?]]; subst v1.
+  1,2: move: hw1; rewrite /= truncate_word_u => -[?]; subst w1.
+  1,2: (split => //; first exact: disj_fvars_read_es2).
+  1,2: exists [:: v0; vb]; first by rewrite /sem_pexprs /= hseme0 hsemb.
+
+  (* Complemented first operand: [!a & b] is BIC b a, [!a | b] is ORN b a. *)
+  3,6: move: h0 => /is_lnotP ?; subst e0.
+  3,4: move=> [<- <-]; move: hseme0 => /=; t_xrbindP => va hsema.
+  3,4: move=> /sem_sop1I /= [wa [?] [hwa [<-] ?]]; subst v0.
+  3,4: move: hw0; rewrite /= truncate_word_u => -[?]; subst w0.
+  3,4: (split => //; first exact: disj_fvars_read_es2).
+  3,4: exists [:: v1; va]; first by rewrite /sem_pexprs /= hseme1 hsema.
+
+  all: move: hvs; rewrite !inE => /orP [] /eqP ?; subst vs.
+  all: rewrite /exec_sopn /= ?hw0 ?hw1 ?hwa ?hwb /=.
+  1-2: by rewrite /armv8a_VBIC_semi /wandn wandC.
+  5-6: by rewrite /armv8a_VORN_semi worC.
+  all: by [].
+Qed.
+
 Lemma lower_Papp1P op e:
   Plower_pexpr_aux (Papp1 op e).
 Proof.
@@ -599,6 +673,44 @@ Proof.
 
   move: h.
   rewrite /lower_pexpr_aux /lower_Papp1.
+  case: eqP => [? | _].
+
+  (* Case: [ws = U128], a vector instruction. *)
+  {
+    subst ws; rewrite /lower_Papp1_128.
+    case: eqP => [? | hop]; last first.
+
+    (* A 128-bit NOT. *)
+    {
+      apply: obindP => -[vmn es0] hlow [<- <-].
+      have hsem : sem_pexpr true (p_globs p) s (Papp1 op e) = ok (Vword w)
+        by rewrite /= hseme.
+      have [_ hfv [vargs hargs hex]] :=
+        lower_vbitwiseP (erefl : U128 \in [:: U128; U64 ]) hlow hfve hsem.
+      move: hlow hw hex => /=; case: op {hop hsem hfve} => // ws0.
+      case: eqP => // ? [? ?]; subst.
+      move=> /sem_sop1I /= [? [?] [_ [?] /Vword_inj [?]]].
+      subst ws' => _ hex.
+      by split; [exists vargs; rewrite ?zero_extend_u | split].
+    }
+
+    (* The zero extension of a 64-bit bitwise operation: the 64-bit vector
+       instruction, whose result is zero-extended. *)
+    subst op; apply: obindP => -[vmn es0] hlow [<- <-].
+    move: hw => /sem_sop1I /= [w1 [?] [hw1 [<-] /Vword_inj [?]]].
+    subst ws' => /= ->.
+    have [hvmn hfv [vargs hargs hex]] :=
+      lower_vbitwiseP (erefl : U64 \in [:: U128; U64 ]) hlow hfve hseme.
+    split; last by split => //; case: vmn hvmn {hex hlow}.
+    exists vargs => //.
+    rewrite zero_extend_u.
+    case: vmn hvmn hex {hlow} => // _; rewrite /exec_sopn /=.
+    all: clear hargs; case: vargs => [|va [|vb [|? ?]]] //=; t_xrbindP.
+    all: move=> ?? h0; rewrite h0 /=; try (move=> ? h1; rewrite h1 /=).
+    all: move=> // <- ?; subst v.
+    all: by move: hw1; rewrite /= truncate_word_u => -[<-].
+  }
+
   move=> /chk_ws_regP [hwsx h].
   have hwsx' : (ws == U32) || (ws == U64) by rewrite orbC.
   move: h.
@@ -1095,6 +1207,28 @@ Proof.
 
   move: h.
   rewrite /= /lower_Papp2.
+  case: eqP => [? | _].
+
+  (* Case: [ws = U128], a vector instruction. *)
+  {
+    subst ws; rewrite /lower_Papp2_128.
+    apply: obindP => -[vmn es0] hlow [<- <-].
+    have hfve : disj_fvars (read_e (Papp2 op e0 e1))
+      by exact: disj_fvars_read_es2.
+    have hsem : sem_pexpr true (p_globs p) s (Papp2 op e0 e1) = ok (Vword w)
+      by rewrite /= hseme0 hseme1.
+    have [hvmn hfv [vargs hargs hex]] :=
+      lower_vbitwiseP (erefl : U128 \in [:: U128; U64 ]) hlow hfve hsem.
+    have ? : ws' = U128.
+    {
+      move: hlow hsemop; case: op {hsem hfve} => //= ws0.
+      all: case: eqP => // ? _; subst ws0.
+      all: by move=> /sem_sop2I /= [? [? [? [_ _ _ /Vword_inj [?]]]]].
+    }
+    subst ws'.
+    split; last by split => //; case: vmn hvmn {hex hlow}.
+    by exists vargs; rewrite ?zero_extend_u.
+  }
 
   apply: obindP => -[[mn' e0'] e1'] /chk_ws_regP [hwsx hop].
 
