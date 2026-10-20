@@ -434,7 +434,15 @@ Variant armv8a_vmnemonic : Type :=
 | VCMGE                          (* Compare signed greater than or equal *)
 | VCMHI                          (* Compare unsigned higher *)
 | VCMHS                          (* Compare unsigned higher or same *)
-| VCMTST.                        (* Compare bitwise test bits nonzero *)
+| VCMTST                         (* Compare bitwise test bits nonzero *)
+
+(* Copies between lanes and general registers *)
+| VDUP                           (* Duplicate general register *)
+| VDUPLANE                       (* Duplicate vector element *)
+| VINS                           (* Insert general register *)
+| VINSLANE                       (* Insert vector element *)
+| VUMOV                          (* Unsigned move vector element *)
+| VSMOV.                         (* Signed move vector element *)
 
 #[ export ]
 Instance eqTC_armv8a_vmnemonic : eqTypeC armv8a_vmnemonic :=
@@ -451,6 +459,7 @@ Definition armv8a_vmnemonics : seq armv8a_vmnemonic :=
     ; VEXT; VZIP1; VZIP2; VUZP1; VUZP2; VTRN1; VTRN2
     ; VREV16; VREV32; VREV64; VTBL
     ; VCMEQ; VCMGT; VCMGE; VCMHI; VCMHS; VCMTST
+    ; VDUP; VDUPLANE; VINS; VINSLANE; VUMOV; VSMOV
   ].
 
 Lemma armv8a_vmnemonic_fin_axiom : Finite.axiom armv8a_vmnemonics.
@@ -512,12 +521,23 @@ Definition string_of_armv8a_vmnemonic (vmn : armv8a_vmnemonic) : string :=
   | VCMHI => "CMHI"
   | VCMHS => "CMHS"
   | VCMTST => "CMTST"
+  | VDUP | VDUPLANE => "DUP"
+  | VINS | VINSLANE => "INS"
+  | VUMOV => "UMOV"
+  | VSMOV => "SMOV"
   end%string.
 
 (* The Jasmin name of a vector mnemonic: the architectural one prefixed
-   with [V] ([VMOV]), so that it is distinct from the scalar ones. *)
+   with [V] ([VMOV]), so that it is distinct from the scalar ones. The
+   element forms of DUP and INS, whose source is a lane of a vector
+   register, are named [VDUPLANE] and [VINSLANE], to keep them apart from
+   the general-register forms [VDUP] and [VINS]. *)
 Definition armv8a_vmn_name (vmn : armv8a_vmnemonic) : string :=
-  ("V" ++ string_of_armv8a_vmnemonic vmn)%string.
+  match vmn with
+  | VDUPLANE => "VDUPLANE"
+  | VINSLANE => "VINSLANE"
+  | _ => "V" ++ string_of_armv8a_vmnemonic vmn
+  end%string.
 
 
 (* -------------------------------------------------------------------- *)
@@ -3312,7 +3332,10 @@ Arguments armv8a_extend_semi {ws} sign ws' wn /.
    lane-wise operations have every arrangement that the architecture allows:
    1D is reserved, MUL, SMAX, SMIN, UMAX, UMIN and REV64 have no 64-bit
    lanes, REV32 has 8- and 16-bit lanes and REV16 8-bit lanes only. EXT and
-   TBL operate on bytes. *)
+   TBL operate on bytes. INS, UMOV and SMOV address a lane of a whole
+   register, hence have 128-bit vectors only; UMOV and SMOV move a lane to
+   a general register, W for 8-, 16- and 32-bit lanes and X for 64-bit
+   ones, and SMOV, which is taken in its X form only, has no 64-bit lanes. *)
 Definition armv8a_vmn_shapes (vmn : armv8a_vmnemonic) : seq (velem * wsize) :=
   match vmn with
   | VMOV | VLDR | VSTR => [:: (VE8, U128) ]
@@ -3323,9 +3346,13 @@ Definition armv8a_vmn_shapes (vmn : armv8a_vmnemonic) : seq (velem * wsize) :=
   | VSHL | VUSHR | VSSHR | VSLI | VSRI | VUSRA | VSSRA
   | VUSHL | VSSHL
   | VZIP1 | VZIP2 | VUZP1 | VUZP2 | VTRN1 | VTRN2
-  | VCMEQ | VCMGT | VCMGE | VCMHI | VCMHS | VCMTST =>
+  | VCMEQ | VCMGT | VCMGE | VCMHI | VCMHS | VCMTST
+  | VDUP | VDUPLANE =>
       [:: (VE8, U128); (VE16, U128); (VE32, U128); (VE64, U128)
         ; (VE8, U64); (VE16, U64); (VE32, U64) ]
+  | VINS | VINSLANE | VUMOV =>
+      [:: (VE8, U128); (VE16, U128); (VE32, U128); (VE64, U128) ]
+  | VSMOV => [:: (VE8, U128); (VE16, U128); (VE32, U128) ]
   | VMUL | VSMAX | VSMIN | VUMAX | VUMIN | VREV64 =>
       [:: (VE8, U128); (VE16, U128); (VE32, U128)
         ; (VE8, U64); (VE16, U64); (VE32, U64) ]
@@ -3348,7 +3375,8 @@ Definition armv8a_vmn_lanewise (vmn : armv8a_vmnemonic) : bool :=
   | VUSHL | VSSHL
   | VZIP1 | VZIP2 | VUZP1 | VUZP2 | VTRN1 | VTRN2
   | VREV16 | VREV32 | VREV64
-  | VCMEQ | VCMGT | VCMGE | VCMHI | VCMHS | VCMTST => true
+  | VCMEQ | VCMGT | VCMGE | VCMHI | VCMHS | VCMTST
+  | VDUP | VDUPLANE | VINS | VINSLANE | VUMOV | VSMOV => true
   | VMOV | VLDR | VSTR
   | VAND | VBIC | VORR | VORN | VEOR | VNOT | VBSL | VBIT | VBIF
   | VEXT | VTBL => false
@@ -4528,6 +4556,299 @@ Definition armv8a_VCMHS_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
 Definition armv8a_VCMHS_instr (ve : velem) sz : instr_desc_t :=
   mk_vbinop_instr VCMHS ve DOIT (@armv8a_VCMHS_semi ve sz).
 
+(* The copies below move lanes between vector registers and general
+   registers. An index is an 8-bit immediate that addresses a lane of a
+   whole 128-bit register, whatever the size of the vector: see
+   [check_lane_index]. The assembly printer shows the register of such a
+   lane as an element followed by the index ([v1.s[2]]), and not the index
+   as an operand of its own. In the arguments, as in the assembly, each
+   index follows the register it refers to, and the shape [pp_lane] takes
+   both. A general register is W for lanes up to 32 bits, X for 64-bit
+   lanes; its value is the lane, which the intrinsics take and return at the
+   size of the lane.
+
+   [Elem[operand, index, esize]], the lane [index] of [operand]. *)
+Definition armv8a_velem (ve : velem) (v : u128) (index : u8) : word ve :=
+  nth (0%w : word ve) (split_vec ve v) (Z.to_nat (wunsigned index)).
+
+Definition ak_lane (ve : velem) : arg_kinds :=
+  [:: CAimm (Some (CAimmC_armv8a_lane_index ve)) U8 ].
+
+Definition armv8a_gpr_size (ve : velem) : wsize :=
+  if ve is VE64 then U64 else U32.
+
+(* [DUP (general)] ARM DDI 0487 M.a, C7.2
+   Duplicate general-purpose register to vector.
+   Syntax: DUP <Vd>.<T>, <R><n>
+   <T> is 8B, 16B, 4H, 8H, 2S, 4S or 2D (1D is reserved); <R> is W, or X
+   for 2D.
+   Operation:
+     CheckFPAdvSIMDEnabled64();
+     bits(esize) element = X[n, esize];
+     bits(datasize) result;
+
+     for e = 0 to elements-1
+         Elem[result, e, esize] = element;
+     V[d, datasize] = result;
+*)
+Definition armv8a_VDUP_semi (ve : velem) sz (wn : word ve) : ty_w sz :=
+  wpbroadcast sz wn.
+
+Definition armv8a_VDUP_instr (ve : velem) sz : instr_desc_t :=
+  let tin := [:: lword ve ] in
+  let semi := @armv8a_VDUP_semi ve sz in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1 ];
+    id_tout := [:: lword sz ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 2;
+    id_args_kinds := [:: [:: ak_v; [:: CAreg ] ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_vmn_str VDUP ve sz;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VDUP [:: pp_vec ve sz; pp_full (armv8a_gpr_size ve) ];
+    id_valid := armv8a_vop_valid VDUP ve sz;
+    id_wf := refl_equal;
+  |}.
+
+(* [DUP (element)] ARM DDI 0487 M.a, C7.2
+   Duplicate vector element to vector.
+   Syntax: DUP <Vd>.<T>, <Vn>.<Ts>[<index>]
+   <T> is 8B, 16B, 4H, 8H, 2S, 4S or 2D (1D is reserved); <Ts> is B, H, S
+   or D, and <index> is 0..15, 0..7, 0..3 or 0..1 respectively.
+   Decode: integer idxdsize = if imm5<4> == '1' then 128 else 64;
+   Operation:
+     CheckFPAdvSIMDEnabled64();
+     bits(idxdsize) operand = V[n, idxdsize];
+     bits(datasize) result;
+     bits(esize) element;
+
+     element = Elem[operand, index, esize];
+     for e = 0 to elements-1
+         Elem[result, e, esize] = element;
+     V[d, datasize] = result;
+
+   The index selects a lane of the whole source register: [idxdsize] is 64
+   exactly when that lane is in its low half. *)
+Definition armv8a_VDUPLANE_semi (ve : velem) sz (wn : word U128) (index : word U8)
+  : ty_w sz :=
+  wpbroadcast sz (armv8a_velem ve wn index).
+
+Definition armv8a_VDUPLANE_instr (ve : velem) sz : instr_desc_t :=
+  let tin := [:: lword U128; lword8 ] in
+  let semi := @armv8a_VDUPLANE_semi ve sz in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2 ];
+    id_tout := [:: lword sz ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds := [:: [:: ak_v; ak_v; ak_lane ve ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_vmn_str VDUPLANE ve sz;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VDUPLANE [:: pp_vec ve sz; pp_lane ve ];
+    id_valid := armv8a_vop_valid VDUPLANE ve sz;
+    id_wf := refl_equal;
+  |}.
+
+(* [INS (general)] ARM DDI 0487 M.a, C7.2
+   Insert vector element from general-purpose register.
+   Syntax: INS <Vd>.<Ts>[<index>], <R><n>
+   <Ts> is B, H, S or D, and <index> is 0..15, 0..7, 0..3 or 0..1
+   respectively; <R> is W, or X for D.
+   Decode: integer datasize = 128;
+   Operation:
+     CheckFPAdvSIMDEnabled64();
+     bits(esize) element = X[n, esize];
+     bits(datasize) result;
+
+     result = V[d, datasize];
+     Elem[result, index, esize] = element;
+     V[d, datasize] = result;
+
+   The intrinsic takes the destination, whose other lanes are kept, the
+   index, which follows the register it refers to, and the general
+   register. *)
+Definition armv8a_VINS_semi (ve : velem) (wd : word U128) (index : word U8)
+  (wn : word ve) : ty_w U128 :=
+  wpinsr wd wn index.
+
+Definition armv8a_VINS_instr (ve : velem) sz : instr_desc_t :=
+  let tin := [:: lword U128; lword8; lword ve ] in
+  let semi := @armv8a_VINS_semi ve in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 0; Ea 1; Ea 2 ];
+    id_tout := [:: lword U128 ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds := [:: [:: ak_v; ak_lane ve; [:: CAreg ] ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_vmn_str VINS ve sz;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VINS [:: pp_lane ve; pp_full (armv8a_gpr_size ve) ];
+    id_valid := armv8a_vop_valid VINS ve sz;
+    id_wf := refl_equal;
+  |}.
+
+(* [INS (element)] ARM DDI 0487 M.a, C7.2
+   Insert vector element from another vector element.
+   Syntax: INS <Vd>.<Ts>[<index1>], <Vn>.<Ts>[<index2>]
+   <Ts> is B, H, S or D, and each index is 0..15, 0..7, 0..3 or 0..1
+   respectively.
+   Decode: integer dst_index = UInt(imm5<4:size+1>);
+           integer src_index = UInt(imm4<3:size>);
+           integer idxdsize = if imm4<3> == '1' then 128 else 64;
+   Operation:
+     CheckFPAdvSIMDEnabled64();
+     bits(idxdsize) operand = V[n, idxdsize];
+     bits(128) result;
+
+     result = V[d, 128];
+     Elem[result, dst_index, esize] = Elem[operand, src_index, esize];
+     V[d, 128] = result;
+
+   The intrinsic takes the destination, whose other lanes are kept, [index1],
+   the source and [index2]: each index follows the register it refers to. *)
+Definition armv8a_VINSLANE_semi (ve : velem) (wd : word U128)
+  (dst_index : word U8) (wn : word U128) (src_index : word U8) : ty_w U128 :=
+  wpinsr wd (armv8a_velem ve wn src_index) dst_index.
+
+Definition armv8a_VINSLANE_instr (ve : velem) sz : instr_desc_t :=
+  let tin := [:: lword U128; lword8; lword U128; lword8 ] in
+  let semi := @armv8a_VINSLANE_semi ve in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 0; Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lword U128 ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 4;
+    id_args_kinds := [:: [:: ak_v; ak_lane ve; ak_v; ak_lane ve ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_vmn_str VINSLANE ve sz;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VINSLANE [:: pp_lane ve; pp_lane ve ];
+    id_valid := armv8a_vop_valid VINSLANE ve sz;
+    id_wf := refl_equal;
+  |}.
+
+(* [UMOV] ARM DDI 0487 M.a, C7.2
+   Unsigned move vector element to general-purpose register.
+   Syntax: UMOV <Wd>, <Vn>.<Ts>[<index>]
+   Syntax: UMOV <Xd>, <Vn>.<Ts>[<index>]
+   <Ts> is B, H or S for the 32-bit variant, with <index> 0..15, 0..7 or
+   0..3 respectively, and D for the 64-bit one, with <index> 0..1.
+   Decode: integer idxdsize = if imm5<4> == '1' then 128 else 64;
+           integer datasize = if Q == '1' then 64 else 32;
+   Operation:
+     if index == 0 then
+         CheckFPEnabled64();
+     else
+         CheckFPAdvSIMDEnabled64();
+     bits(idxdsize) operand = V[n, idxdsize];
+
+     X[d, datasize] = ZeroExtend(Elem[operand, index, esize], datasize);
+
+   The result is the lane; the zero extension to the register is that of
+   [MSB_CLEAR]: [(64u)#VUMOV_8u16(v, 5)]. *)
+Definition armv8a_VUMOV_semi (ve : velem) (wn : word U128) (index : word U8)
+  : ty_w ve :=
+  armv8a_velem ve wn index.
+
+Definition armv8a_VUMOV_instr (ve : velem) sz : instr_desc_t :=
+  let tin := [:: lword U128; lword8 ] in
+  let semi := @armv8a_VUMOV_semi ve in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2 ];
+    id_tout := [:: lword ve ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds := [:: [:: [:: CAreg ]; ak_v; ak_lane ve ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_vmn_str VUMOV ve sz;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VUMOV [:: pp_full (armv8a_gpr_size ve); pp_lane ve ];
+    id_valid := armv8a_vop_valid VUMOV ve sz;
+    id_wf := refl_equal;
+  |}.
+
+(* [SMOV] ARM DDI 0487 M.a, C7.2
+   Signed move vector element to general-purpose register, 64-bit variant.
+   Syntax: SMOV <Xd>, <Vn>.<Ts>[<index>]
+   <Ts> is B, H or S, and <index> is 0..15, 0..7 or 0..3 respectively.
+   Decode: integer idxdsize = if imm5<4> == '1' then 128 else 64;
+           integer datasize = if Q == '1' then 64 else 32;
+   where Q is '1' (the 32-bit variant, SMOV <Wd>, is left out).
+   Operation:
+     if index == 0 then
+         CheckFPEnabled64();
+     else
+         CheckFPAdvSIMDEnabled64();
+     bits(idxdsize) operand = V[n, idxdsize];
+
+     X[d, datasize] = SignExtend(Elem[operand, index, esize], datasize);
+*)
+Definition armv8a_VSMOV_semi (ve : velem) (wn : word U128) (index : word U8)
+  : ty_w U64 :=
+  sign_extend U64 (armv8a_velem ve wn index).
+
+Definition armv8a_VSMOV_instr (ve : velem) sz : instr_desc_t :=
+  let tin := [:: lword U128; lword8 ] in
+  let semi := @armv8a_VSMOV_semi ve in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2 ];
+    id_tout := [:: lword U64 ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds := [:: [:: [:: CAreg ]; ak_v; ak_lane ve ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_vmn_str VSMOV ve sz;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_vop VSMOV [:: pp_full U64; pp_lane ve ];
+    id_valid := armv8a_vop_valid VSMOV ve sz;
+    id_wf := refl_equal;
+  |}.
+
 Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   : instr_desc_t :=
   match vmn with
@@ -4578,6 +4899,12 @@ Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   | VCMHI => armv8a_VCMHI_instr ve sz
   | VCMHS => armv8a_VCMHS_instr ve sz
   | VCMTST => armv8a_VCMTST_instr ve sz
+  | VDUP => armv8a_VDUP_instr ve sz
+  | VDUPLANE => armv8a_VDUPLANE_instr ve sz
+  | VINS => armv8a_VINS_instr ve sz
+  | VINSLANE => armv8a_VINSLANE_instr ve sz
+  | VUMOV => armv8a_VUMOV_instr ve sz
+  | VSMOV => armv8a_VSMOV_instr ve sz
   end.
 
 

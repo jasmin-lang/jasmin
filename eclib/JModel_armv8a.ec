@@ -974,3 +974,87 @@ op VCMTST_4u16 (n m: W64.t) : W64.t =
 
 op VCMTST_2u32 (n m: W64.t) : W64.t =
   W2u32.map2 (fun (x y: W32.t) => if andw x y = W32.zero then W32.zero else W32.onew) n m.
+
+(* Copies between lanes and general registers. The lane index is an 8-bit
+   immediate that addresses a lane of a whole 128-bit register; in the
+   arguments, it follows the register it refers to. DUP broadcasts a
+   general register (VDUP, the VPBROADCAST of JWord) or a lane of a register
+   (VDUPLANE) to every lane of a 128-bit (16u8, 8u16, 4u32, 2u64) or 64-bit
+   (8u8, 4u16, 2u32) vector. INS replaces a lane of a register by a general
+   register (VINS) or by a lane of another register (VINSLANE), and keeps
+   the other lanes. UMOV extracts a lane (VUMOV), SMOV extracts it
+   sign-extended to 64 bits (VSMOV).
+   The operators agree with the Jasmin semantics on every index, including
+   the out-of-range ones that the compiler rejects: a lane read out of
+   range is zero (\bits gives zero out of range, see get_out), and INS out
+   of range leaves the vector unchanged (unlike VPINSR, which takes the
+   index modulo the number of lanes). *)
+abbrev [-printing] VDUP_16u8 = VPBROADCAST_16u8.
+abbrev [-printing] VDUP_8u16 = VPBROADCAST_8u16.
+abbrev [-printing] VDUP_4u32 = VPBROADCAST_4u32.
+abbrev [-printing] VDUP_2u64 = VPBROADCAST_2u64.
+abbrev [-printing] VDUP_8u8 = VPBROADCAST_8u8.
+abbrev [-printing] VDUP_4u16 = VPBROADCAST_4u16.
+abbrev [-printing] VDUP_2u32 = VPBROADCAST_2u32.
+
+op VDUPLANE_16u8 (v: W128.t) (i: W8.t) : W128.t =
+  VPBROADCAST_16u8 (v \bits8 W8.to_uint i).
+
+op VDUPLANE_8u16 (v: W128.t) (i: W8.t) : W128.t =
+  VPBROADCAST_8u16 (v \bits16 W8.to_uint i).
+
+op VDUPLANE_4u32 (v: W128.t) (i: W8.t) : W128.t =
+  VPBROADCAST_4u32 (v \bits32 W8.to_uint i).
+
+op VDUPLANE_2u64 (v: W128.t) (i: W8.t) : W128.t =
+  VPBROADCAST_2u64 (v \bits64 W8.to_uint i).
+
+op VDUPLANE_8u8 (v: W128.t) (i: W8.t) : W64.t =
+  VPBROADCAST_8u8 (v \bits8 W8.to_uint i).
+
+op VDUPLANE_4u16 (v: W128.t) (i: W8.t) : W64.t =
+  VPBROADCAST_4u16 (v \bits16 W8.to_uint i).
+
+op VDUPLANE_2u32 (v: W128.t) (i: W8.t) : W64.t =
+  VPBROADCAST_2u32 (v \bits32 W8.to_uint i).
+
+op VINS_16u8 (v: W128.t) (i: W8.t) (w: W8.t) : W128.t =
+  pack16_t (W16u8.Pack.init (fun j => if j = W8.to_uint i then w else v \bits8 j)).
+
+op VINS_8u16 (v: W128.t) (i: W8.t) (w: W16.t) : W128.t =
+  pack8_t (W8u16.Pack.init (fun j => if j = W8.to_uint i then w else v \bits16 j)).
+
+op VINS_4u32 (v: W128.t) (i: W8.t) (w: W32.t) : W128.t =
+  pack4_t (W4u32.Pack.init (fun j => if j = W8.to_uint i then w else v \bits32 j)).
+
+op VINS_2u64 (v: W128.t) (i: W8.t) (w: W64.t) : W128.t =
+  pack2_t (W2u64.Pack.init (fun j => if j = W8.to_uint i then w else v \bits64 j)).
+
+op VINSLANE_16u8 (v: W128.t) (i: W8.t) (u: W128.t) (j: W8.t) : W128.t =
+  VINS_16u8 v i (u \bits8 W8.to_uint j).
+
+op VINSLANE_8u16 (v: W128.t) (i: W8.t) (u: W128.t) (j: W8.t) : W128.t =
+  VINS_8u16 v i (u \bits16 W8.to_uint j).
+
+op VINSLANE_4u32 (v: W128.t) (i: W8.t) (u: W128.t) (j: W8.t) : W128.t =
+  VINS_4u32 v i (u \bits32 W8.to_uint j).
+
+op VINSLANE_2u64 (v: W128.t) (i: W8.t) (u: W128.t) (j: W8.t) : W128.t =
+  VINS_2u64 v i (u \bits64 W8.to_uint j).
+
+op VUMOV_16u8 (v: W128.t) (i: W8.t) : W8.t = v \bits8 W8.to_uint i.
+
+op VUMOV_8u16 (v: W128.t) (i: W8.t) : W16.t = v \bits16 W8.to_uint i.
+
+op VUMOV_4u32 (v: W128.t) (i: W8.t) : W32.t = v \bits32 W8.to_uint i.
+
+op VUMOV_2u64 (v: W128.t) (i: W8.t) : W64.t = v \bits64 W8.to_uint i.
+
+op VSMOV_16u8 (v: W128.t) (i: W8.t) : W64.t =
+  sigextu64 (v \bits8 W8.to_uint i).
+
+op VSMOV_8u16 (v: W128.t) (i: W8.t) : W64.t =
+  sigextu64 (v \bits16 W8.to_uint i).
+
+op VSMOV_4u32 (v: W128.t) (i: W8.t) : W64.t =
+  sigextu64 (v \bits32 W8.to_uint i).

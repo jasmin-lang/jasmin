@@ -457,6 +457,9 @@ Variant pp_arg :=
   | PPa_vec   of wsize & wsize & asm_arg
     (* a vector register with its arrangement, the size of its lanes and
        the size of the vector: v0.4s, v0.8b, v0.1q *)
+  | PPa_lane  of wsize & asm_arg & asm_arg
+    (* a vector register and the immediate index of one of its lanes:
+       v0.s[2] *)
   | PPa_shift of string & asm_arg
     (* an immediate shift amount with the shift name: lsl #3 *)
   | PPa_list  of wsize & wsize & seq asm_arg.
@@ -488,6 +491,10 @@ Definition pp_shift (sk : shift_kind) : pp_shape := fun args =>
   if args is a :: args
   then Some (PPa_shift (string_of_shift_kind sk) a, args)
   else None.
+
+(* A vector register and the index of one of its lanes, which follows it. *)
+Definition pp_lane (ve : wsize) : pp_shape := fun args =>
+  if args is r :: i :: args then Some (PPa_lane ve r i, args) else None.
 
 (* A single vector register, printed as a list. *)
 Definition pp_reglist (ve : wsize) (sz : wsize) : pp_shape := fun args =>

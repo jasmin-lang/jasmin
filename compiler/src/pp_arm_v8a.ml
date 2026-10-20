@@ -4,7 +4,8 @@
    description requests it ([pp_arg]): a general-purpose register in its
    32-bit W form or its 64-bit X form, by the size it is paired with; a
    SIMD&FP register as a vector with its arrangement, the number and size
-   of its lanes ([v0.16b], [v0.4s], [v0.2s], ...), as a list of vectors
+   of its lanes ([v0.16b], [v0.4s], [v0.2s], ...), as an element and the
+   index of one of its lanes ([v1.s[2]]), as a list of vectors
    ([{ v1.16b }]), or in its 128-bit scalar form ([q0]); a shift amount
    with the name of the shift
    ([lsl #3]), omitted when it is zero. Immediate values are printed as
@@ -119,6 +120,12 @@ let pp_arg (a : (register, Arch_utils.empty, xregister, rflag, condt) pp_arg) =
   | PPa_full (ws, a) -> Some (pp_asm_arg ~wform:(Wsize.size_8_32 ws) a)
   | PPa_vec (ve, ws, a) ->
       Some (pp_asm_arg ~arrangement:(vector_arrangement ve ws) a)
+  | PPa_lane (ve, r, Imm (ws, i)) ->
+      Some
+        (Format.asprintf "%s[%s]"
+           (pp_asm_arg ~arrangement:(element_size ve) r)
+           (Z.to_string (Conv.z_unsigned_of_word ws i)))
+  | PPa_lane _ -> assert false
   | PPa_shift (sk, Imm (ws, n)) ->
       let n = Conv.z_unsigned_of_word ws n in
       if Z.equal n Z.zero then None
