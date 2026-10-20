@@ -449,11 +449,62 @@ Variant pp_asm_op_ext :=
   | PP_viname2 of velem & velem (* source and target element sizes *)
   | PP_ct      of asm_arg.
 
+(* A printed operand, with what its printing needs. *)
+Variant pp_arg :=
+  | PPa_full  of wsize & asm_arg
+    (* an operand printed in the form of this size: w1 / x1, %eax / %rax,
+       an immediate, an address *)
+  | PPa_shift of string & asm_arg.
+    (* an immediate shift amount with the shift name: lsl #3 *)
+
+(* Operands printed in the forms of the given sizes. *)
+Definition pp_fulls (szs : seq wsize) (args : asm_args) : seq pp_arg :=
+  map (fun p => PPa_full p.1 p.2) (zip szs args).
+
 Record pp_asm_op := mk_pp_asm_op {
   pp_aop_name : string;
   pp_aop_ext  : pp_asm_op_ext;
-  pp_aop_args : seq (wsize * asm_arg);
+  pp_aop_args : seq pp_arg;
 }.
+
+(* The shape of a printed operand: it takes its arguments from the head of
+   the argument list and says how they are printed (see [pp_arg]). *)
+Definition pp_shape := asm_args -> option (pp_arg * asm_args).
+
+Definition pp_full (sz : wsize) : pp_shape := fun args =>
+  if args is a :: args then Some (PPa_full sz a, args) else None.
+
+Definition pp_shift (sk : shift_kind) : pp_shape := fun args =>
+  if args is a :: args
+  then Some (PPa_shift (string_of_shift_kind sk) a, args)
+  else None.
+
+Fixpoint pp_shapes (shapes : seq pp_shape) (args : asm_args) : seq pp_arg :=
+  if shapes is s :: shapes then
+    if s args is Some (a, args) then a :: pp_shapes shapes args else [::]
+  else [::].
+
+(* An instruction whose operands are printed with the given shapes. *)
+Definition pp_op_shapes
+  (name : string) (shapes : seq pp_shape) (args : asm_args) : pp_asm_op :=
+  {|
+    pp_aop_name := name;
+    pp_aop_ext := PP_name;
+    pp_aop_args := pp_shapes shapes args;
+  |}.
+
+(* The shifted-register form of an instruction: the operands of [pp] on the
+   first [n] arguments, then the other arguments as shift amounts with the
+   name of the shift ([lsl #3]). *)
+Definition pp_append_shift
+  (sk : shift_kind) (n : nat) (pp : asm_args -> pp_asm_op) : asm_args -> pp_asm_op :=
+  fun args =>
+    let p := pp (take n args) in
+    {|
+      pp_aop_name := pp_aop_name p;
+      pp_aop_ext := pp_aop_ext p;
+      pp_aop_args := pp_aop_args p ++ map (PPa_shift (string_of_shift_kind sk)) (drop n args);
+    |}.
 
 (* -------------------------------------------------------------------- *)
 (* Instruction descriptions. *)

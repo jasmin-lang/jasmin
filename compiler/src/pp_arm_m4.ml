@@ -1,6 +1,8 @@
 (* Assembly printer for ARM Cortex M4 (ARMv7-M).
 
 We always use the Unified Assembly Language (UAL).
+Each operand is printed as the instruction description requests it
+([pp_arg]): a shift amount with the name of the shift ([lsl #3]).
 Immediate values (denoted <imm>) are always nonnegative integers.
 *)
 
@@ -85,15 +87,11 @@ let pp_conditional args =
   | Some ct -> pp_condt ct
   | None -> ""
 
-let pp_shift_kind = hash_to_string string_of_shift_kind
-
-let pp_shift (ARM_op (_, opts)) args =
-  match opts.has_shift with
-  | None ->
-      args
-  | Some sk ->
-      let sh = pp_shift_kind sk in
-      List.modify_last (Format.asprintf "%s %s" sh) args
+(* An operand, as the instruction description requests it. *)
+let pp_arg (a : (register, Arch_utils.empty, Arch_utils.empty, rflag, condt) pp_arg) =
+  match a with
+  | PPa_full (_, a) -> pp_asm_arg a
+  | PPa_shift (sk, a) -> Option.map (Format.asprintf "%s %s" sk) (pp_asm_arg a)
 
 let pp_mnemonic_ext (ARM_op (_, opts) as op) suff args =
   let id = instr_desc Arm_decl.arm_decl Arm_instr_decl.arm_op_decl (None, op) in
@@ -282,12 +280,14 @@ and type asm_op = arm_op
         let pp = id.id_pp_asm args in
         (* We need to perform the check even if we don't use the suffix, for
            instance for [LDR] or [STR]. *)
-        let suff = ArgChecker.check_args op pp.pp_aop_args in
-        let name = pp_mnemonic_ext op suff args in
-        let args =
-          List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args
+        let full_args =
+          List.filter_map
+            (function PPa_full (ws, a) -> Some (ws, a) | PPa_shift _ -> None)
+            pp.pp_aop_args
         in
-        let args = pp_shift op args in
+        let suff = ArgChecker.check_args op full_args in
+        let name = pp_mnemonic_ext op suff args in
+        let args = List.filter_map pp_arg pp.pp_aop_args in
         get_IT i @ [ Instr (name, args) ]
 
 
