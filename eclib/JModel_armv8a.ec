@@ -319,6 +319,13 @@ op VEOR_128 (x y: W128.t) : W128.t = x +^ y.
 
 op VNOT_128 (x: W128.t) : W128.t = invw x.
 
+(* BSL, BIT and BIF take the destination register as first argument. *)
+op VBSL_128 (d n m: W128.t) : W128.t = m +^ andw (m +^ n) d.
+
+op VBIT_128 (d n m: W128.t) : W128.t = d +^ andw (d +^ n) m.
+
+op VBIF_128 (d n m: W128.t) : W128.t = d +^ andw (d +^ n) (invw m).
+
 (* The 64-bit forms, on the low half of the registers. *)
 op VAND_64 (x y: W64.t) : W64.t = andw x y.
 
@@ -331,3 +338,9 @@ op VORN_64 (x y: W64.t) : W64.t = orw x (invw y).
 op VEOR_64 (x y: W64.t) : W64.t = x +^ y.
 
 op VNOT_64 (x: W64.t) : W64.t = invw x.
+
+op VBSL_64 (d n m: W64.t) : W64.t = m +^ andw (m +^ n) d.
+
+op VBIT_64 (d n m: W64.t) : W64.t = d +^ andw (d +^ n) m.
+
+op VBIF_64 (d n m: W64.t) : W64.t = d +^ andw (d +^ n) (invw m).

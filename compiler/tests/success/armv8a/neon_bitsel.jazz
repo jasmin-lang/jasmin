@@ -1,0 +1,43 @@
+// Bit selection NEON instructions BSL, BIT and BIF, which read their
+// destination register: it is the first argument of their intrinsics.
+
+export
+fn neon_bitsel(reg u64 p) {
+    reg u128 a b c d m;
+
+    a = [:u128 p];
+    b = [:u128 p + 16];
+    m = [:u128 p + 32];
+
+    c = m;
+    c = #VBSL_128(c, a, b);
+    d = m;
+    d = #VBIT_128(d, a, b);
+    [:u128 p + 48] = c;
+    [:u128 p + 64] = d;
+    d = m;
+    d = #VBIF_128(d, a, b);
+    [:u128 p + 80] = d;
+
+    // 64-bit forms, on the low halves of the registers.
+    c = m;
+    c = (128u)#VBSL_64(c, a, b);
+    d = m;
+    d = (128u)#VBIT_64(d, a, b);
+    [:u128 p + 96] = c;
+    [:u128 p + 112] = d;
+    d = m;
+    d = (128u)#VBIF_64(d, a, b);
+    [:u128 p + 128] = d;
+}
+
+// On vector arguments, results in V registers.
+export
+fn neon_bitsel_args(reg u128 x y m) -> reg u128, reg u128 {
+    reg u128 z w;
+    z = m;
+    z = #VBSL_128(z, x, y);
+    w = m;
+    w = (128u)#VBIF_64(w, x, y);
+    return z, w;
+}
