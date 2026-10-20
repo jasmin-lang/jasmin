@@ -1207,7 +1207,6 @@ Definition mk_mull_instr mn (semi : word U32 -> word U32 -> ty_r)
     (* [UMULL <Xd>, <Wn>, <Wm>] *)
     id_pp_asm := pp_armv8a_op_szs mn [:: U64; U32; U32 ];
     id_valid := osz == U64;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1278,7 +1277,6 @@ Definition mk_maddl_instr mn (semi : word U32 -> word U32 -> word U64 -> ty_r)
     (* [UMADDL <Xd>, <Wn>, <Wm>, <Xa>] *)
     id_pp_asm := pp_armv8a_op_szs mn [:: U64; U32; U32; U64 ];
     id_valid := osz == U64;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1605,7 +1603,6 @@ Definition armv8a_EXTR_instr : instr_desc_t :=
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1646,7 +1643,7 @@ Definition armv8a_BFC_semi (x : word osz) (lsb width : word U8) : ty_w osz :=
   winit osz mk.
 
 Definition armv8a_BFC_semi_sc :=
-  [:: UGe U8 1%Z 2; UaddLe U8 2 1 (wsize_bits osz) ].
+  [:: sc_uge U8 1%Z 2; sc_uadd_le U8 2 1 (wsize_bits osz) ].
 
 Definition armv8a_BFC_instr : instr_desc_t :=
   let mn := BFC in
@@ -1668,7 +1665,6 @@ Definition armv8a_BFC_instr : instr_desc_t :=
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1703,7 +1699,7 @@ Definition armv8a_BFI_semi (x y : word osz) (lsb width : word U8) : ty_w osz :=
   winit osz mk.
 
 Definition armv8a_BFI_semi_sc :=
-  [:: UGe U8 1%Z 3; UaddLe U8 3 2 (wsize_bits osz) ].
+  [:: sc_uge U8 1%Z 3; sc_uadd_le U8 3 2 (wsize_bits osz) ].
 
 Definition armv8a_BFI_instr : instr_desc_t :=
   let mn := BFI in
@@ -1725,7 +1721,6 @@ Definition armv8a_BFI_instr : instr_desc_t :=
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1782,7 +1777,6 @@ Definition armv8a_BFXIL_instr : instr_desc_t :=
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
@@ -1799,7 +1793,7 @@ Definition armv8a_bitfield_extract_semi
   shr (wshl wn (bits - width - lsb)%Z) (bits - width)%Z.
 
 Definition armv8a_bitfield_extract_semi_sc :=
-  [:: UGe U8 1%Z 2; UaddLe U8 2 1 (wsize_bits osz) ].
+  [:: sc_uge U8 1%Z 2; sc_uadd_le U8 2 1 (wsize_bits osz) ].
 
 Definition mk_bfx_instr mn (shr : word osz -> Z -> word osz) : instr_desc_t :=
   {|
@@ -1820,7 +1814,6 @@ Definition mk_bfx_instr mn (shr : word osz -> Z -> word osz) : instr_desc_t :=
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
     id_wf := refl_equal;
   |}.
 
