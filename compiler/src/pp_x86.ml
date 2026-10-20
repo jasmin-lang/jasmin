@@ -405,7 +405,7 @@ and type asm_op = X86_instr_decl.x86_op
       let id = instr_desc X86_decl.x86_decl X86_instr_decl.x86_op_decl (None, op) in
       let pp = id.id_pp_asm args in
       let name = pp_name_ext pp in
-      [Instr(name, (pp_asm_args pp.pp_aop_args))]
+      [Instr(name, (pp_asm_args (pp_full_args pp)))]
 
   let function_directives = []
 

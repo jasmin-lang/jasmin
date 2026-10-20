@@ -603,7 +603,9 @@ Definition mk_shifted
     id_safe := id_safe idt;
     id_err := id_err idt;
     id_init := id_init idt;
-    id_pp_asm := id_pp_asm idt;
+    (* The shift amount is printed after the operands of the base
+       instruction, with the name of the shift: [lsl #3]. *)
+    id_pp_asm := pp_append_shift sk (id_nargs idt) (id_pp_asm idt);
     id_valid := id_valid idt;
     id_doit := id_doit idt;
     id_wf := shifted_wf idt;
@@ -656,8 +658,13 @@ Definition pp_arm_op
   {|
     pp_aop_name := string_of_arm_mnemonic mn;
     pp_aop_ext := PP_name;
-    pp_aop_args := map (fun a => (reg_size, a)) args;
+    pp_aop_args := map (PPa_full reg_size) args;
   |}.
+
+(* An instruction whose operands are printed with the given shapes. *)
+Definition pp_arm_op_shapes
+  (mn : arm_mnemonic) (shapes : seq pp_shape) : asm_args -> pp_asm_op :=
+  pp_op_shapes (string_of_arm_mnemonic mn) shapes.
 
 (* -------------------------------------------------------------------- *)
 (* Instruction semantics and description. *)
@@ -1946,7 +1953,9 @@ Definition arm_UXTB_instr : instr_desc_t :=
     id_safe := [::];
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
-    id_pp_asm := pp_arm_op mn opts;
+    (* The rotation amount is printed with the name of the shift: [ror #8]. *)
+    id_pp_asm :=
+      pp_arm_op_shapes mn [:: pp_full reg_size; pp_full reg_size; pp_shift SROR ];
     id_valid := true;
     id_doit := DOIT;
     id_wf := refl_equal;
@@ -1972,7 +1981,9 @@ Definition arm_UXTH_instr : instr_desc_t :=
     id_safe := [::];
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
-    id_pp_asm := pp_arm_op mn opts;
+    (* The rotation amount is printed with the name of the shift: [ror #8]. *)
+    id_pp_asm :=
+      pp_arm_op_shapes mn [:: pp_full reg_size; pp_full reg_size; pp_shift SROR ];
     id_valid := true;
     id_doit := DOIT;
     id_wf := refl_equal;
@@ -2030,7 +2041,9 @@ Definition arm_SXTB_instr : instr_desc_t :=
     id_safe := [::];
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
-    id_pp_asm := pp_arm_op mn opts;
+    (* The rotation amount is printed with the name of the shift: [ror #8]. *)
+    id_pp_asm :=
+      pp_arm_op_shapes mn [:: pp_full reg_size; pp_full reg_size; pp_shift SROR ];
     id_valid := true;
     id_doit := DOIT;
     id_wf := refl_equal;
@@ -2056,7 +2069,9 @@ Definition arm_SXTH_instr : instr_desc_t :=
     id_safe := [::];
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
-    id_pp_asm := pp_arm_op mn opts;
+    (* The rotation amount is printed with the name of the shift: [ror #8]. *)
+    id_pp_asm :=
+      pp_arm_op_shapes mn [:: pp_full reg_size; pp_full reg_size; pp_shift SROR ];
     id_valid := true;
     id_doit := DOIT;
     id_wf := refl_equal;
