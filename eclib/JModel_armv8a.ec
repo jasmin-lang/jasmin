@@ -344,3 +344,51 @@ op VBSL_64 (d n m: W64.t) : W64.t = m +^ andw (m +^ n) d.
 op VBIT_64 (d n m: W64.t) : W64.t = d +^ andw (d +^ n) m.
 
 op VBIF_64 (d n m: W64.t) : W64.t = d +^ andw (d +^ n) (invw m).
+
+(* Lane-wise integer arithmetic, on 128-bit (16u8, 8u16, 4u32, 2u64) and
+   64-bit (8u8, 4u16, 2u32) vectors. Except NEG, they are the lane-wise
+   operators of JWord, which the x86 vector instructions also use. *)
+abbrev [-printing] VADD_16u8 = VPADD_16u8.
+abbrev [-printing] VADD_8u16 = VPADD_8u16.
+abbrev [-printing] VADD_4u32 = VPADD_4u32.
+abbrev [-printing] VADD_2u64 = VPADD_2u64.
+abbrev [-printing] VADD_8u8 = VPADD_8u8.
+abbrev [-printing] VADD_4u16 = VPADD_4u16.
+abbrev [-printing] VADD_2u32 = VPADD_2u32.
+
+abbrev [-printing] VSUB_16u8 = VPSUB_16u8.
+abbrev [-printing] VSUB_8u16 = VPSUB_8u16.
+abbrev [-printing] VSUB_4u32 = VPSUB_4u32.
+abbrev [-printing] VSUB_2u64 = VPSUB_2u64.
+abbrev [-printing] VSUB_8u8 = VPSUB_8u8.
+abbrev [-printing] VSUB_4u16 = VPSUB_4u16.
+abbrev [-printing] VSUB_2u32 = VPSUB_2u32.
+
+op VNEG_16u8 (w: W128.t) : W128.t =
+  W16u8.map (fun (x: W8.t) => - x) w.
+
+op VNEG_8u16 (w: W128.t) : W128.t =
+  W8u16.map (fun (x: W16.t) => - x) w.
+
+op VNEG_4u32 (w: W128.t) : W128.t =
+  W4u32.map (fun (x: W32.t) => - x) w.
+
+op VNEG_2u64 (w: W128.t) : W128.t =
+  W2u64.map (fun (x: W64.t) => - x) w.
+
+op VNEG_8u8 (w: W64.t) : W64.t =
+  W8u8.map (fun (x: W8.t) => - x) w.
+
+op VNEG_4u16 (w: W64.t) : W64.t =
+  W4u16.map (fun (x: W16.t) => - x) w.
+
+op VNEG_2u32 (w: W64.t) : W64.t =
+  W2u32.map (fun (x: W32.t) => - x) w.
+
+abbrev [-printing] VABS_16u8 = VPABS_16u8.
+abbrev [-printing] VABS_8u16 = VPABS_8u16.
+abbrev [-printing] VABS_4u32 = VPABS_4u32.
+abbrev [-printing] VABS_2u64 = VPABS_2u64.
+abbrev [-printing] VABS_8u8 = VPABS_8u8.
+abbrev [-printing] VABS_4u16 = VPABS_4u16.
+abbrev [-printing] VABS_2u32 = VPABS_2u32.
