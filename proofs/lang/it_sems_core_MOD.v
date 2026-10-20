@@ -41,7 +41,7 @@ Variant recCall : Type -> Type :=
  | RecCall (ii:instr_info) (f:funname) (fs:fstate) : recCall fstate.
 
 Variant XCallEvent : Type -> Type :=
-  | XCall : syscall_state -> Z -> lvals -> lvals -> mem ->
+  | XCall : syscall_state -> Z -> Z -> lvals -> lvals -> mem ->
             XCallEvent fstate.
 
 Definition mk_error_data (s:estate) (e:error)  := (e, tt).
@@ -227,8 +227,8 @@ Definition fexec_syscall (s : estate) (o : syscall_t) (fs:fstate) : itree E fsta
 (**********************************************************************)
 
 Record xparams : Type := XParams {
-  (* stack quota *)                           
-  xpars_sz : Z ;
+  (* stack quota and fresh allocation limit *)                           
+  xpars_sz : (Z * Z) ;
   (* context locations (for input and output) *)                           
   xcall_context : fstate -> exec (lvals * lvals) ;
   (* precondition on the context, the input values and the current state
@@ -245,11 +245,11 @@ Section XCalls.
 Context {XPars : forall (p : prog) (o: syscall_t), xparams}.
 
 Definition inner_fexec_xcall 
-  (xsp: (lvals * lvals)) (sz: Z)
+  (xsp: (lvals * lvals)) (sz: Z * Z)
   (o: syscall_t) (fs: fstate) : itree E fstate :=
   let m0 := fmem fs in
   let: (xs1, xs2) := xsp in
-  trigger (XCall (fscs fs) sz xs1 xs2 m0).
+  trigger (XCall (fscs fs) (fst sz) (snd sz) xs1 xs2 m0).
   
 Definition fexec_xcall (p: prog) (s : estate) (o : syscall_t) (fs: fstate) :
   itree E fstate :=
@@ -263,20 +263,21 @@ Definition fexec_xcall (p: prog) (s : estate) (o : syscall_t) (fs: fstate) :
      and xsp.fst should contain the right arguments (regardless);
      notice that xsp.fst is where the callee should find its input,
      and may fall outside its *known* valid memory when compiled
-     separately *)
+     separately. fs can contain values that constrain those found in
+     xsp.fst. In a case such as random events, the only input is
+     provided by fs. *)
   iresult s (xpars_pre XP xsp fs) ;;
 
   (* executes the external function o in the fstate fs, given a stack
-     quota sz, and context xsp *)
+     quota sz, context xsp, and a fresh allocation limit  *)
   fs1 <- inner_fexec_xcall xsp (xpars_sz XP) o fs ;;
   
-  (* check that the only changes in memory are those in xsp.snd
-     context, and that the return values are contained there; notice
-     that xsp.snd is where the caller might expect to find the call
-     output; maybe checking the full validity of xsp.snd can be
-     delayed to this point. fs and fs1 are passed to check that they
-     are equal, expcept for possible changes to the context, if the
-     context points to locations in fs. *)
+  (* check that xsp.snd contains valid return values; notice that
+     xsp.snd is where the caller should expect to find the call
+     output; the validity of xsp.snd may have changed at this point,
+     as a result of allocation. the only changes between fs and fs1
+     should be down to the context, but fs and fs1 are passed only to
+     compare changes in memory size *)
   iresult s (xpars_post XP xsp fs fs1).
 
 
