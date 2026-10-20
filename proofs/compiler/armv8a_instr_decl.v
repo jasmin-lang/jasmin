@@ -389,7 +389,13 @@ Variant armv8a_vmnemonic : Type :=
 | VNOT                           (* Bitwise NOT *)
 | VBSL                           (* Bitwise select *)
 | VBIT                           (* Bitwise insert if true *)
-| VBIF.                          (* Bitwise insert if false *)
+| VBIF                           (* Bitwise insert if false *)
+
+(* Lane-wise integer arithmetic *)
+| VADD                           (* Add *)
+| VSUB                           (* Subtract *)
+| VNEG                           (* Negate *)
+| VABS.                          (* Absolute value *)
 
 #[ export ]
 Instance eqTC_armv8a_vmnemonic : eqTypeC armv8a_vmnemonic :=
@@ -400,6 +406,7 @@ Canonical armv8a_vmnemonic_eqType := @ceqT_eqType _ eqTC_armv8a_vmnemonic.
 Definition armv8a_vmnemonics : seq armv8a_vmnemonic :=
   [:: VMOV; VLDR; VSTR
     ; VAND; VBIC; VORR; VORN; VEOR; VNOT; VBSL; VBIT; VBIF
+    ; VADD; VSUB; VNEG; VABS
   ].
 
 Lemma armv8a_vmnemonic_fin_axiom : Finite.axiom armv8a_vmnemonics.
@@ -426,6 +433,10 @@ Definition string_of_armv8a_vmnemonic (vmn : armv8a_vmnemonic) : string :=
   | VBSL => "BSL"
   | VBIT => "BIT"
   | VBIF => "BIF"
+  | VADD => "ADD"
+  | VSUB => "SUB"
+  | VNEG => "NEG"
+  | VABS => "ABS"
   end%string.
 
 (* The Jasmin name of a vector mnemonic: the architectural one prefixed
@@ -3228,15 +3239,21 @@ Arguments armv8a_extend_semi {ws} sign ws' wn /.
    through its 128-bit scalar view ([q0]), which [pp_full] requests.
    The operations of the moves, loads, stores and bitwise instructions below
    are written after the pseudocode of the ARM Architecture Reference
-   Manual. *)
+   Manual; those of the lane-wise instructions are quoted from its
+   machine-readable version (the A64 ISA XML). *)
 
 (* The valid arrangements of a mnemonic, as pairs of a lane size and a
-   vector size; the first one is the default of its intrinsic. *)
+   vector size; the first one is the default of its intrinsic. The
+   lane-wise operations have every arrangement that the architecture allows:
+   1D is reserved. *)
 Definition armv8a_vmn_shapes (vmn : armv8a_vmnemonic) : seq (velem * wsize) :=
   match vmn with
   | VMOV | VLDR | VSTR => [:: (VE8, U128) ]
   | VAND | VBIC | VORR | VORN | VEOR | VNOT | VBSL | VBIT | VBIF =>
       [:: (VE8, U128); (VE8, U64) ]
+  | VADD | VSUB | VNEG | VABS =>
+      [:: (VE8, U128); (VE16, U128); (VE32, U128); (VE64, U128)
+        ; (VE8, U64); (VE16, U64); (VE32, U64) ]
   end.
 
 (* Whether [ve] lanes in a vector of [sz] bits is a valid arrangement of
@@ -3250,6 +3267,7 @@ Definition armv8a_vop_valid
 (* The operations whose result depends on the lane size. *)
 Definition armv8a_vmn_lanewise (vmn : armv8a_vmnemonic) : bool :=
   match vmn with
+  | VADD | VSUB | VNEG | VABS => true
   | VMOV | VLDR | VSTR
   | VAND | VBIC | VORR | VORN | VEOR | VNOT | VBSL | VBIT | VBIF => false
   end.
@@ -3559,6 +3577,85 @@ Definition armv8a_VBIF_semi sz (wd wn wm : word sz) : ty_w sz :=
 Definition armv8a_VBIF_instr (ve : velem) sz : instr_desc_t :=
   mk_vbinop_acc_instr VBIF ve DOIT (@armv8a_VBIF_semi sz).
 
+(* The lane-wise operations below read and write vectors of [elements]
+   lanes of [esize] bits: [ve] is [esize] and [sz] is [datasize].
+
+   [ADD (vector)] ARM DDI 0487 M.a, C7.2
+   Add (vector).
+   Syntax: ADD <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   [SUB (vector)] ARM DDI 0487 M.a, C7.2
+   Subtract (vector).
+   Syntax: SUB <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   <T> is 8B, 16B, 4H, 8H, 2S, 4S or 2D (1D is reserved).
+   Operation, where [sub_op] is FALSE for ADD and TRUE for SUB:
+     CheckFPAdvSIMDEnabled64();
+     bits(datasize) operand1 = V[n, datasize];
+     bits(datasize) operand2 = V[m, datasize];
+     bits(datasize) result;
+     bits(esize) element1;
+     bits(esize) element2;
+
+     for e = 0 to elements-1
+         element1 = Elem[operand1, e, esize];
+         element2 = Elem[operand2, e, esize];
+         if sub_op then
+             Elem[result, e, esize] = element1 - element2;
+         else
+             Elem[result, e, esize] = element1 + element2;
+
+     V[d, datasize] = result;
+*)
+Definition armv8a_VADD_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  lift2_vec ve +%w sz wn wm.
+
+Definition armv8a_VADD_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VADD ve DOIT (@armv8a_VADD_semi ve sz).
+
+Definition armv8a_VSUB_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  lift2_vec ve (fun x y => x - y)%w sz wn wm.
+
+Definition armv8a_VSUB_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VSUB ve DOIT (@armv8a_VSUB_semi ve sz).
+
+(* [NEG (vector)] ARM DDI 0487 M.a, C7.2
+   Negate (vector).
+   Syntax: NEG <Vd>.<T>, <Vn>.<T>
+
+   [ABS] ARM DDI 0487 M.a, C7.2
+   Absolute value (vector).
+   Syntax: ABS <Vd>.<T>, <Vn>.<T>
+
+   <T> is 8B, 16B, 4H, 8H, 2S, 4S or 2D (1D is reserved).
+   Operation, where [neg] is TRUE for NEG and FALSE for ABS:
+     CheckFPAdvSIMDEnabled64();
+     bits(datasize) operand = V[n, datasize];
+     bits(datasize) result;
+     integer element;
+
+     for e = 0 to elements-1
+         element = SInt(Elem[operand, e, esize]);
+         if neg then
+             element = -element;
+         else
+             element = Abs(element);
+         Elem[result, e, esize] = element<esize-1:0>;
+
+     V[d, datasize] = result;
+*)
+Definition armv8a_VNEG_semi (ve : velem) sz (wn : word sz) : ty_w sz :=
+  lift1_vec ve (fun x => wrepr ve (- wsigned x)) sz wn.
+
+Definition armv8a_VNEG_instr (ve : velem) sz : instr_desc_t :=
+  mk_vunop_instr VNEG ve DOIT (@armv8a_VNEG_semi ve sz).
+
+Definition armv8a_VABS_semi (ve : velem) sz (wn : word sz) : ty_w sz :=
+  wabs ve wn.
+
+Definition armv8a_VABS_instr (ve : velem) sz : instr_desc_t :=
+  mk_vunop_instr VABS ve DOIT (@armv8a_VABS_semi ve sz).
+
 Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   : instr_desc_t :=
   match vmn with
@@ -3574,6 +3671,10 @@ Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   | VBSL => armv8a_VBSL_instr ve sz
   | VBIT => armv8a_VBIT_instr ve sz
   | VBIF => armv8a_VBIF_instr ve sz
+  | VADD => armv8a_VADD_instr ve sz
+  | VSUB => armv8a_VSUB_instr ve sz
+  | VNEG => armv8a_VNEG_instr ve sz
+  | VABS => armv8a_VABS_instr ve sz
   end.
 
 

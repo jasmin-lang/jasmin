@@ -1,0 +1,68 @@
+// Lane-wise integer arithmetic NEON instructions ADD, SUB, NEG and ABS,
+// through their intrinsics, in every arrangement that the architecture
+// allows: 8-, 16-, 32- and 64-bit lanes (but no 1D).
+
+// 128-bit vectors: .16b, .8h, .4s, .2d.
+export
+fn neon_arith(reg u64 p) {
+    reg u128 a c;
+
+    a = [:u128 p];
+    c = [:u128 p + 16];
+
+    c = #VADD_16u8(c, a);
+    c = #VADD_8u16(c, a);
+    c = #VADD_4u32(c, a);
+    c = #VADD_2u64(c, a);
+    c = #VSUB_16u8(c, a);
+    c = #VSUB_8u16(c, a);
+    c = #VSUB_4u32(c, a);
+    c = #VSUB_2u64(c, a);
+    c = #VNEG_16u8(c);
+    c = #VNEG_8u16(c);
+    c = #VNEG_4u32(c);
+    c = #VNEG_2u64(c);
+    c = #VABS_16u8(c);
+    c = #VABS_8u16(c);
+    c = #VABS_4u32(c);
+    c = #VABS_2u64(c);
+
+    [:u128 p + 32] = c;
+}
+
+// 64-bit vectors: .8b, .4h, .2s. They operate on the low halves of the
+// vector registers and zero the upper halves: the result, cast to u128, is
+// the whole register.
+export
+fn neon_arith64(reg u64 p) {
+    reg u128 a c;
+
+    a = [:u128 p];
+    c = [:u128 p + 16];
+
+    c = (128u)#VADD_8u8(c, a);
+    c = (128u)#VADD_4u16(c, a);
+    c = (128u)#VADD_2u32(c, a);
+    c = (128u)#VSUB_8u8(c, a);
+    c = (128u)#VSUB_4u16(c, a);
+    c = (128u)#VSUB_2u32(c, a);
+    c = (128u)#VNEG_8u8(c);
+    c = (128u)#VNEG_4u16(c);
+    c = (128u)#VNEG_2u32(c);
+    c = (128u)#VABS_8u8(c);
+    c = (128u)#VABS_4u16(c);
+    c = (128u)#VABS_2u32(c);
+
+    [:u128 p + 32] = c;
+}
+
+// Operations on vector arguments, results in V registers.
+export
+fn neon_arith_args(reg u128 x y) -> reg u128, reg u128 {
+    reg u128 z w;
+    z = #VADD_4u32(x, y);
+    w = (128u)#VSUB_4u16(x, y);
+    z = #VABS_16u8(z);
+    w = #VNEG_2u64(w);
+    return z, w;
+}
