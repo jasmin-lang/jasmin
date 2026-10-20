@@ -1,0 +1,70 @@
+// Lane-wise NEON multiplication, minimum and maximum: MUL, SMAX, SMIN,
+// UMAX and UMIN, through their intrinsics, in every arrangement that the
+// architecture allows: 8-, 16- and 32-bit lanes (64-bit lanes are
+// reserved).
+
+// 128-bit vectors: .16b, .8h, .4s.
+export
+fn neon_mul_minmax(reg u64 p) {
+    reg u128 b c;
+
+    b = [:u128 p];
+    c = [:u128 p + 16];
+
+    c = #VMUL_16u8(c, b);
+    c = #VMUL_8u16(c, b);
+    c = #VMUL_4u32(c, b);
+    c = #VSMAX_16u8(c, b);
+    c = #VSMAX_8u16(c, b);
+    c = #VSMAX_4u32(c, b);
+    c = #VSMIN_16u8(c, b);
+    c = #VSMIN_8u16(c, b);
+    c = #VSMIN_4u32(c, b);
+    c = #VUMAX_16u8(c, b);
+    c = #VUMAX_8u16(c, b);
+    c = #VUMAX_4u32(c, b);
+    c = #VUMIN_16u8(c, b);
+    c = #VUMIN_8u16(c, b);
+    c = #VUMIN_4u32(c, b);
+
+    [:u128 p + 32] = c;
+}
+
+// 64-bit vectors: .8b, .4h, .2s. They operate on the low halves of the
+// vector registers and zero the upper halves: the result, cast to u128, is
+// the whole register.
+export
+fn neon_mul_minmax64(reg u64 p) {
+    reg u128 b c;
+
+    b = [:u128 p];
+    c = [:u128 p + 16];
+
+    c = (128u)#VMUL_8u8(c, b);
+    c = (128u)#VMUL_4u16(c, b);
+    c = (128u)#VMUL_2u32(c, b);
+    c = (128u)#VSMAX_8u8(c, b);
+    c = (128u)#VSMAX_4u16(c, b);
+    c = (128u)#VSMAX_2u32(c, b);
+    c = (128u)#VSMIN_8u8(c, b);
+    c = (128u)#VSMIN_4u16(c, b);
+    c = (128u)#VSMIN_2u32(c, b);
+    c = (128u)#VUMAX_8u8(c, b);
+    c = (128u)#VUMAX_4u16(c, b);
+    c = (128u)#VUMAX_2u32(c, b);
+    c = (128u)#VUMIN_8u8(c, b);
+    c = (128u)#VUMIN_4u16(c, b);
+    c = (128u)#VUMIN_2u32(c, b);
+
+    [:u128 p + 32] = c;
+}
+
+// Operations on vector arguments, results in V registers.
+export
+fn neon_mul_minmax_args(reg u128 x y) -> reg u128, reg u128 {
+    reg u128 z w;
+    z = #VMUL_4u32(x, y);
+    w = (128u)#VUMAX_4u16(x, y);
+    z = #VSMIN_16u8(z, w);
+    return z, w;
+}

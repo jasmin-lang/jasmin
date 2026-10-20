@@ -392,3 +392,38 @@ abbrev [-printing] VABS_2u64 = VPABS_2u64.
 abbrev [-printing] VABS_8u8 = VPABS_8u8.
 abbrev [-printing] VABS_4u16 = VPABS_4u16.
 abbrev [-printing] VABS_2u32 = VPABS_2u32.
+
+abbrev [-printing] VMUL_16u8 = VPMULL_16u8.
+abbrev [-printing] VMUL_8u16 = VPMULL_8u16.
+abbrev [-printing] VMUL_4u32 = VPMULL_4u32.
+abbrev [-printing] VMUL_8u8 = VPMULL_8u8.
+abbrev [-printing] VMUL_4u16 = VPMULL_4u16.
+abbrev [-printing] VMUL_2u32 = VPMULL_2u32.
+
+abbrev [-printing] VSMAX_16u8 = VPMAXS_16u8.
+abbrev [-printing] VSMAX_8u16 = VPMAXS_8u16.
+abbrev [-printing] VSMAX_4u32 = VPMAXS_4u32.
+abbrev [-printing] VSMAX_8u8 = VPMAXS_8u8.
+abbrev [-printing] VSMAX_4u16 = VPMAXS_4u16.
+abbrev [-printing] VSMAX_2u32 = VPMAXS_2u32.
+
+abbrev [-printing] VSMIN_16u8 = VPMINS_16u8.
+abbrev [-printing] VSMIN_8u16 = VPMINS_8u16.
+abbrev [-printing] VSMIN_4u32 = VPMINS_4u32.
+abbrev [-printing] VSMIN_8u8 = VPMINS_8u8.
+abbrev [-printing] VSMIN_4u16 = VPMINS_4u16.
+abbrev [-printing] VSMIN_2u32 = VPMINS_2u32.
+
+abbrev [-printing] VUMAX_16u8 = VPMAXU_16u8.
+abbrev [-printing] VUMAX_8u16 = VPMAXU_8u16.
+abbrev [-printing] VUMAX_4u32 = VPMAXU_4u32.
+abbrev [-printing] VUMAX_8u8 = VPMAXU_8u8.
+abbrev [-printing] VUMAX_4u16 = VPMAXU_4u16.
+abbrev [-printing] VUMAX_2u32 = VPMAXU_2u32.
+
+abbrev [-printing] VUMIN_16u8 = VPMINU_16u8.
+abbrev [-printing] VUMIN_8u16 = VPMINU_8u16.
+abbrev [-printing] VUMIN_4u32 = VPMINU_4u32.
+abbrev [-printing] VUMIN_8u8 = VPMINU_8u8.
+abbrev [-printing] VUMIN_4u16 = VPMINU_4u16.
+abbrev [-printing] VUMIN_2u32 = VPMINU_2u32.

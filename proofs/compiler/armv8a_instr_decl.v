@@ -394,8 +394,13 @@ Variant armv8a_vmnemonic : Type :=
 (* Lane-wise integer arithmetic *)
 | VADD                           (* Add *)
 | VSUB                           (* Subtract *)
+| VMUL                           (* Multiply *)
 | VNEG                           (* Negate *)
-| VABS.                          (* Absolute value *)
+| VABS                           (* Absolute value *)
+| VSMAX                          (* Signed maximum *)
+| VSMIN                          (* Signed minimum *)
+| VUMAX                          (* Unsigned maximum *)
+| VUMIN.                         (* Unsigned minimum *)
 
 #[ export ]
 Instance eqTC_armv8a_vmnemonic : eqTypeC armv8a_vmnemonic :=
@@ -406,7 +411,7 @@ Canonical armv8a_vmnemonic_eqType := @ceqT_eqType _ eqTC_armv8a_vmnemonic.
 Definition armv8a_vmnemonics : seq armv8a_vmnemonic :=
   [:: VMOV; VLDR; VSTR
     ; VAND; VBIC; VORR; VORN; VEOR; VNOT; VBSL; VBIT; VBIF
-    ; VADD; VSUB; VNEG; VABS
+    ; VADD; VSUB; VMUL; VNEG; VABS; VSMAX; VSMIN; VUMAX; VUMIN
   ].
 
 Lemma armv8a_vmnemonic_fin_axiom : Finite.axiom armv8a_vmnemonics.
@@ -435,8 +440,13 @@ Definition string_of_armv8a_vmnemonic (vmn : armv8a_vmnemonic) : string :=
   | VBIF => "BIF"
   | VADD => "ADD"
   | VSUB => "SUB"
+  | VMUL => "MUL"
   | VNEG => "NEG"
   | VABS => "ABS"
+  | VSMAX => "SMAX"
+  | VSMIN => "SMIN"
+  | VUMAX => "UMAX"
+  | VUMIN => "UMIN"
   end%string.
 
 (* The Jasmin name of a vector mnemonic: the architectural one prefixed
@@ -3235,7 +3245,8 @@ Arguments armv8a_extend_semi {ws} sign ws' wn /.
 (* The valid arrangements of a mnemonic, as pairs of a lane size and a
    vector size; the first one is the default of its intrinsic. The
    lane-wise operations have every arrangement that the architecture allows:
-   1D is reserved. *)
+   1D is reserved, and MUL, SMAX, SMIN, UMAX and UMIN have no 64-bit
+   lanes. *)
 Definition armv8a_vmn_shapes (vmn : armv8a_vmnemonic) : seq (velem * wsize) :=
   match vmn with
   | VMOV | VLDR | VSTR => [:: (VE8, U128) ]
@@ -3243,6 +3254,9 @@ Definition armv8a_vmn_shapes (vmn : armv8a_vmnemonic) : seq (velem * wsize) :=
       [:: (VE8, U128); (VE8, U64) ]
   | VADD | VSUB | VNEG | VABS =>
       [:: (VE8, U128); (VE16, U128); (VE32, U128); (VE64, U128)
+        ; (VE8, U64); (VE16, U64); (VE32, U64) ]
+  | VMUL | VSMAX | VSMIN | VUMAX | VUMIN =>
+      [:: (VE8, U128); (VE16, U128); (VE32, U128)
         ; (VE8, U64); (VE16, U64); (VE32, U64) ]
   end.
 
@@ -3257,7 +3271,7 @@ Definition armv8a_vop_valid
 (* The operations whose result depends on the lane size. *)
 Definition armv8a_vmn_lanewise (vmn : armv8a_vmnemonic) : bool :=
   match vmn with
-  | VADD | VSUB | VNEG | VABS => true
+  | VADD | VSUB | VMUL | VNEG | VABS | VSMAX | VSMIN | VUMAX | VUMIN => true
   | VMOV | VLDR | VSTR
   | VAND | VBIC | VORR | VORN | VEOR | VNOT | VBSL | VBIT | VBIF => false
   end.
@@ -3605,6 +3619,36 @@ Definition armv8a_VSUB_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
 Definition armv8a_VSUB_instr (ve : velem) sz : instr_desc_t :=
   mk_vbinop_instr VSUB ve DOIT (@armv8a_VSUB_semi ve sz).
 
+(* [MUL (vector)] ARM DDI 0487 M.a, C7.2
+   Multiply (vector).
+   Syntax: MUL <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   <T> is 8B, 16B, 4H, 8H, 2S or 4S (64-bit lanes are reserved).
+   Operation, where [poly] is FALSE (TRUE is PMUL):
+     CheckFPAdvSIMDEnabled64();
+     bits(datasize) operand1 = V[n, datasize];
+     bits(datasize) operand2 = V[m, datasize];
+     bits(datasize) result;
+     bits(esize) element1;
+     bits(esize) element2;
+     bits(esize) product;
+
+     for e = 0 to elements-1
+         element1 = Elem[operand1, e, esize];
+         element2 = Elem[operand2, e, esize];
+         if poly then
+             product = PolynomialMult(element1, element2)<esize-1:0>;
+         else
+             product = (UInt(element1) * UInt(element2))<esize-1:0>;
+         Elem[result, e, esize] = product;
+
+     V[d, datasize] = result;
+*)
+Definition armv8a_VMUL_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  lift2_vec ve *%w sz wn wm.
+
+Definition armv8a_VMUL_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VMUL ve DOIT (@armv8a_VMUL_semi ve sz).
+
 (* [NEG (vector)] ARM DDI 0487 M.a, C7.2
    Negate (vector).
    Syntax: NEG <Vd>.<T>, <Vn>.<T>
@@ -3642,6 +3686,65 @@ Definition armv8a_VABS_semi (ve : velem) sz (wn : word sz) : ty_w sz :=
 Definition armv8a_VABS_instr (ve : velem) sz : instr_desc_t :=
   mk_vunop_instr VABS ve DOIT (@armv8a_VABS_semi ve sz).
 
+(* [SMAX] ARM DDI 0487 M.a, C7.2
+   Signed Maximum (vector).
+   Syntax: SMAX <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   [SMIN] ARM DDI 0487 M.a, C7.2
+   Signed Minimum (vector).
+   Syntax: SMIN <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   [UMAX] ARM DDI 0487 M.a, C7.2
+   Unsigned Maximum (vector).
+   Syntax: UMAX <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   [UMIN] ARM DDI 0487 M.a, C7.2
+   Unsigned Minimum (vector).
+   Syntax: UMIN <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+
+   <T> is 8B, 16B, 4H, 8H, 2S or 4S (64-bit lanes are reserved).
+   Operation, where [unsigned] is TRUE for UMAX and UMIN, and [minimum] is
+   TRUE for SMIN and UMIN:
+     CheckFPAdvSIMDEnabled64();
+     bits(datasize) operand1 = V[n, datasize];
+     bits(datasize) operand2 = V[m, datasize];
+     bits(datasize) result;
+     integer element1;
+     integer element2;
+     integer maxmin;
+
+     for e = 0 to elements-1
+         element1 = Int(Elem[operand1, e, esize], unsigned);
+         element2 = Int(Elem[operand2, e, esize], unsigned);
+         maxmin = if minimum then Min(element1, element2) else Max(element1, element2);
+         Elem[result, e, esize] = maxmin<esize-1:0>;
+
+     V[d, datasize] = result;
+*)
+Definition armv8a_VSMAX_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  wmax Signed ve wn wm.
+
+Definition armv8a_VSMAX_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VSMAX ve DOIT (@armv8a_VSMAX_semi ve sz).
+
+Definition armv8a_VSMIN_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  wmin Signed ve wn wm.
+
+Definition armv8a_VSMIN_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VSMIN ve DOIT (@armv8a_VSMIN_semi ve sz).
+
+Definition armv8a_VUMAX_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  wmax Unsigned ve wn wm.
+
+Definition armv8a_VUMAX_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VUMAX ve DOIT (@armv8a_VUMAX_semi ve sz).
+
+Definition armv8a_VUMIN_semi (ve : velem) sz (wn wm : word sz) : ty_w sz :=
+  wmin Unsigned ve wn wm.
+
+Definition armv8a_VUMIN_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_instr VUMIN ve DOIT (@armv8a_VUMIN_semi ve sz).
+
 Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   : instr_desc_t :=
   match vmn with
@@ -3659,8 +3762,13 @@ Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   | VBIF => armv8a_VBIF_instr ve sz
   | VADD => armv8a_VADD_instr ve sz
   | VSUB => armv8a_VSUB_instr ve sz
+  | VMUL => armv8a_VMUL_instr ve sz
   | VNEG => armv8a_VNEG_instr ve sz
   | VABS => armv8a_VABS_instr ve sz
+  | VSMAX => armv8a_VSMAX_instr ve sz
+  | VSMIN => armv8a_VSMIN_instr ve sz
+  | VUMAX => armv8a_VUMAX_instr ve sz
+  | VUMIN => armv8a_VUMIN_instr ve sz
   end.
 
 
