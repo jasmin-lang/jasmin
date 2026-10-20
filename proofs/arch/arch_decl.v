@@ -465,6 +465,9 @@ Variant pp_arg :=
   | PPa_full  of wsize & asm_arg
     (* an operand printed in the form of this size: w1 / x1, %eax / %rax,
        an immediate, an address *)
+  | PPa_vec   of wsize & wsize & asm_arg
+    (* a vector register with its arrangement, the size of its lanes and
+       the size of the vector: v0.4s, v0.8b, v0.1q *)
   | PPa_shift of string & asm_arg.
     (* an immediate shift amount with the shift name: lsl #3 *)
 
@@ -484,6 +487,11 @@ Definition pp_shape := asm_args -> option (pp_arg * asm_args).
 
 Definition pp_full (sz : wsize) : pp_shape := fun args =>
   if args is a :: args then Some (PPa_full sz a, args) else None.
+
+(* A vector register with its arrangement, lanes of [ve] bits in a vector
+   of [sz] bits ([v0.4s]). *)
+Definition pp_vec (ve : wsize) (sz : wsize) : pp_shape := fun args =>
+  if args is a :: args then Some (PPa_vec ve sz a, args) else None.
 
 Definition pp_shift (sk : shift_kind) : pp_shape := fun args =>
   if args is a :: args

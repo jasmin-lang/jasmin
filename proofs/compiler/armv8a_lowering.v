@@ -169,16 +169,26 @@ Definition arg_shift
    Precondition:
    - [v] is a one of the following:
      + a register.
-     + a stack variable. *)
+     + a stack variable.
+   A 128-bit value lives in a SIMD&FP register: it is moved or loaded with
+   the vector instructions. *)
 Definition lower_Pvar (ws : wsize) (v : gvar) : low_expr :=
-  let%opt _ := chk_ws_reg ws in
-  let mn := if is_var_in_memory (gv v) then LDR else MOV in
-  le_issue mn ws [:: Pvar v ].
+  if ws == U128
+  then
+    let vmn := if is_var_in_memory (gv v) then VLDR else VMOV in
+    le_issue_aop (ARMv8A_vop vmn VE8 U128) [:: Pvar v ]
+  else
+    let%opt _ := chk_ws_reg ws in
+    let mn := if is_var_in_memory (gv v) then LDR else MOV in
+    le_issue mn ws [:: Pvar v ].
 
 (* Lower an expression of the form [(ws)[v + e]] or [tab[ws e]]. *)
 Definition lower_load (ws : wsize) (e : pexpr) : low_expr :=
-  let%opt _ := chk_ws_reg ws in
-  le_issue LDR ws [:: e ].
+  if ws == U128
+  then le_issue_aop (ARMv8A_vop VLDR VE8 U128) [:: e ]
+  else
+    let%opt _ := chk_ws_reg ws in
+    le_issue LDR ws [:: e ].
 
 Definition mov_imm_op (ws : wsize) (e : pexpr) : sopn :=
   if isSome (is_const e)
@@ -513,10 +523,16 @@ Definition lower_pexpr (vi : var_info) (ws : wsize) (e : pexpr) :
      + a memory location.
    - [e] must be a register. *)
 Definition lower_store (ws : wsize) (e : pexpr) : option (armv8a_asm_op * seq pexpr) :=
-  let%opt mn := store_mn_of_wsize ws in
-  let osz := if (ws <= U16)%CMP then U64 else ws in
+  let%opt op :=
+    if ws == U128
+    then Some (ARMv8A_vop VSTR VE8 U128)
+    else
+      let%opt mn := store_mn_of_wsize ws in
+      let osz := if (ws <= U16)%CMP then U64 else ws in
+      Some (ARMv8A_op mn (opts_at osz))
+  in
   match e with
-  | Pvar _ => Some (ARMv8A_op mn (opts_at osz), [:: e ])
+  | Pvar _ => Some (op, [:: e ])
   | _ => None
   end.
 
@@ -565,38 +581,42 @@ Definition lower_add_carry
 Definition with_shift (opts : armv8a_options) sh :=
   {| has_shift := Some sh; opts_size := opts_size opts; |}.
 
+(* Vector operations are left unchanged. *)
 Definition lower_base_op
   (lvs : seq lval) (aop : armv8a_asm_op) (es : seq pexpr) : option copn_args :=
-  let: ARMv8A_op mn opts := aop in
-  let ws := opts_size opts in
-  if has_shift opts != None
-  then
-    let%opt _ := oassert (mn \in has_shift_mnemonics) in
-    Some (lvs, Oasm (BaseOp (None, ARMv8A_op mn opts)), es)
-  else
-    if mn \in [:: MVN; NEG ]
-    then
-      match es with
-      | x :: rest =>
-          if get_arg_shift ws [:: x ] is Some (ebase, sh, esham)
-          then
-            if shift_allowed mn sh
-            then Some (lvs, Oasm (BaseOp (None, ARMv8A_op mn (with_shift opts sh))), ebase :: esham :: rest)
-            else Some (lvs, Oasm (BaseOp (None, ARMv8A_op mn opts)), es)
-          else Some (lvs, Oasm (BaseOp (None, ARMv8A_op mn opts)), es)
-      | _ => None end
-    else if mn \in [:: ADD; ADDS; SUB; SUBS; AND; ANDS; BIC; BICS; EOR; ORR; CMP; CMN; TST ]
-    then
-      match es with
-      | x :: y :: rest =>
-          if get_arg_shift ws [:: y ] is Some (ebase, sh, esham)
-          then
-            if shift_allowed mn sh
-            then Some (lvs, Oasm (BaseOp (None, ARMv8A_op mn (with_shift opts sh))), x :: ebase :: esham :: rest)
-            else Some (lvs, Oasm (BaseOp (None, ARMv8A_op mn opts)), es)
-          else Some (lvs, Oasm (BaseOp (None, ARMv8A_op mn opts)), es)
-      | _ => None end
-    else None.
+  match aop with
+  | ARMv8A_vop _ _ _ => None
+  | ARMv8A_op mn opts =>
+      let ws := opts_size opts in
+      if has_shift opts != None
+      then
+        let%opt _ := oassert (mn \in has_shift_mnemonics) in
+        Some (lvs, Oasm (BaseOp (None, ARMv8A_op mn opts)), es)
+      else
+        if mn \in [:: MVN; NEG ]
+        then
+          match es with
+          | x :: rest =>
+              if get_arg_shift ws [:: x ] is Some (ebase, sh, esham)
+              then
+                if shift_allowed mn sh
+                then Some (lvs, Oasm (BaseOp (None, ARMv8A_op mn (with_shift opts sh))), ebase :: esham :: rest)
+                else Some (lvs, Oasm (BaseOp (None, ARMv8A_op mn opts)), es)
+              else Some (lvs, Oasm (BaseOp (None, ARMv8A_op mn opts)), es)
+          | _ => None end
+        else if mn \in [:: ADD; ADDS; SUB; SUBS; AND; ANDS; BIC; BICS; EOR; ORR; CMP; CMN; TST ]
+        then
+          match es with
+          | x :: y :: rest =>
+              if get_arg_shift ws [:: y ] is Some (ebase, sh, esham)
+              then
+                if shift_allowed mn sh
+                then Some (lvs, Oasm (BaseOp (None, ARMv8A_op mn (with_shift opts sh))), x :: ebase :: esham :: rest)
+                else Some (lvs, Oasm (BaseOp (None, ARMv8A_op mn opts)), es)
+              else Some (lvs, Oasm (BaseOp (None, ARMv8A_op mn opts)), es)
+          | _ => None end
+        else None
+  end.
 
 Definition lower_swap ty lvs es : option copn_args :=
   match ty with

@@ -1,0 +1,67 @@
+// Moves, loads and stores of u128 values, which live in the SIMD&FP
+// registers.
+
+export
+fn neon_moves(reg u64 p) {
+    reg u128 a b c;
+    stack u128 s;
+
+    a = [:u128 p];
+    b = [:u128 p + 16];
+
+    s = a;
+    () = #spill(a, b);
+    c = #VMOV_128(b);
+    () = #unspill(a, b);
+    [:u128 p + 32] = c;
+    c = s;
+    [:u128 p + 48] = c;
+    [:u128 p + 64] = a;
+
+    c = #VLDR_128([:u128 p + 80]);
+    [:u128 p + 96] = #VSTR_128(c);
+}
+
+// Vector arguments and results are passed in V registers.
+export
+fn neon_args(reg u128 x y) -> reg u128, reg u128 {
+    reg u128 z w;
+    z = y;
+    w = #VMOV_128(x);
+    return z, w;
+}
+
+// More vectors live at once than there are caller-saved V registers:
+// some of V8-V15 are used, and saved and restored around the body.
+export
+fn neon_pressure(reg u64 p) {
+    inline int i;
+    reg u128[26] v;
+
+    for i = 0 to 26 {
+        v[i] = [:u128 p + 16 * i];
+    }
+    for i = 0 to 26 {
+        [:u128 p + 16 * i] = v[25 - i];
+    }
+}
+
+// A system call preserves no V register (AAPCS64 only preserves the low 64
+// bits of V8-V15): a vector live across #randombytes is spilled.
+export
+fn neon_randombytes(reg u64 p) {
+    inline int i;
+    reg u128 a;
+    reg u64 b;
+    stack u8[16] t;
+
+    a = [:u128 p];
+    () = #spill(a);
+    t = #randombytes(t);
+    () = #unspill(a);
+    for i = 0 to 16 {
+        b = (64u)t[i];
+        [:u8 p + 16 + i] = b;
+    }
+    [:u128 p + 32] = a;
+}
