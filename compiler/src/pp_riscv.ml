@@ -170,7 +170,7 @@ module RiscVTarget: AsmTarget
         let id = instr_desc riscv_decl riscv_op_decl (None, op) in
         let pp = id.id_pp_asm args in
         let name = pp_name_ext pp in
-        let args = List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args in
+        let args = List.filter_map (fun (_, a) -> pp_asm_arg a) (pp_full_args pp) in
         [ Instr (name, args) ]
 
 end
