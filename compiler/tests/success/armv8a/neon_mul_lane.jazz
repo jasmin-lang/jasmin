@@ -1,0 +1,149 @@
+// Multiplications by element NEON instructions, through their intrinsics,
+// on 16- and 32-bit lanes: MUL, MLA, MLS, SQDMULH, SQRDMULH, SQRDMLAH and
+// SQRDMLSH whose second factor is a lane of a vector register, given by the
+// index that follows it and applied to every lane of the first factor.
+// #VMULLANE_4u32(a, b, 3) is mul v.4s, a.4s, b.s[3]. The index addresses
+// a lane of the whole 128-bit register, 0 to 7 for 16-bit lanes and 0 to 3
+// for 32-bit lanes, also for the 64-bit forms. With 16-bit lanes, the
+// register of the element is one of v0 to v15. MLA, MLS, SQRDMLAH and
+// SQRDMLSH read their destination, their first argument; SQRDMLAH and
+// SQRDMLSH require the rdm extension, which the assembly file enables.
+
+// 128-bit vectors: .8h and .4s, with the least and the greatest index.
+export
+fn neon_mul_lane(reg u64 p) {
+    reg u128 a b c;
+
+    a = [:u128 p];
+    b = [:u128 p + 16];
+    c = [:u128 p + 32];
+
+    c = #VMULLANE_8u16(c, a, 0);
+    c = #VMULLANE_8u16(c, a, 7);
+    c = #VMLALANE_8u16(c, a, b, 0);
+    c = #VMLALANE_8u16(c, a, b, 7);
+    c = #VMLSLANE_8u16(c, a, b, 0);
+    c = #VMLSLANE_8u16(c, a, b, 7);
+    c = #VSQDMULHLANE_8u16(c, b, 0);
+    c = #VSQDMULHLANE_8u16(c, b, 7);
+    c = #VSQRDMULHLANE_8u16(c, b, 0);
+    c = #VSQRDMULHLANE_8u16(c, b, 7);
+    c = #VSQRDMLAHLANE_8u16(c, a, b, 0);
+    c = #VSQRDMLAHLANE_8u16(c, a, b, 7);
+    c = #VSQRDMLSHLANE_8u16(c, a, b, 0);
+    c = #VSQRDMLSHLANE_8u16(c, a, b, 7);
+
+    c = #VMULLANE_4u32(c, a, 0);
+    c = #VMULLANE_4u32(c, a, 3);
+    c = #VMLALANE_4u32(c, a, b, 0);
+    c = #VMLALANE_4u32(c, a, b, 3);
+    c = #VMLSLANE_4u32(c, a, b, 0);
+    c = #VMLSLANE_4u32(c, a, b, 3);
+    c = #VSQDMULHLANE_4u32(c, b, 0);
+    c = #VSQDMULHLANE_4u32(c, b, 3);
+    c = #VSQRDMULHLANE_4u32(c, b, 0);
+    c = #VSQRDMULHLANE_4u32(c, b, 3);
+    c = #VSQRDMLAHLANE_4u32(c, a, b, 0);
+    c = #VSQRDMLAHLANE_4u32(c, a, b, 3);
+    c = #VSQRDMLSHLANE_4u32(c, a, b, 0);
+    c = #VSQRDMLSHLANE_4u32(c, a, b, 3);
+
+    [:u128 p + 48] = c;
+}
+
+// 64-bit vectors: .4h and .2s. They operate on the low halves of the vector
+// registers and zero the upper halves: the result, cast to u128, is the
+// whole register. The lane still addresses the whole 128-bit register.
+export
+fn neon_mul_lane64(reg u64 p) {
+    reg u128 a b c;
+
+    a = [:u128 p];
+    b = [:u128 p + 16];
+    c = [:u128 p + 32];
+
+    c = (128u)#VMULLANE_4u16(c, a, 0);
+    c = (128u)#VMULLANE_4u16(c, a, 7);
+    c = (128u)#VMLALANE_4u16(c, a, b, 0);
+    c = (128u)#VMLALANE_4u16(c, a, b, 7);
+    c = (128u)#VMLSLANE_4u16(c, a, b, 0);
+    c = (128u)#VMLSLANE_4u16(c, a, b, 7);
+    c = (128u)#VSQDMULHLANE_4u16(c, b, 0);
+    c = (128u)#VSQDMULHLANE_4u16(c, b, 7);
+    c = (128u)#VSQRDMULHLANE_4u16(c, b, 0);
+    c = (128u)#VSQRDMULHLANE_4u16(c, b, 7);
+    c = (128u)#VSQRDMLAHLANE_4u16(c, a, b, 0);
+    c = (128u)#VSQRDMLAHLANE_4u16(c, a, b, 7);
+    c = (128u)#VSQRDMLSHLANE_4u16(c, a, b, 0);
+    c = (128u)#VSQRDMLSHLANE_4u16(c, a, b, 7);
+
+    c = (128u)#VMULLANE_2u32(c, a, 0);
+    c = (128u)#VMULLANE_2u32(c, a, 3);
+    c = (128u)#VMLALANE_2u32(c, a, b, 0);
+    c = (128u)#VMLALANE_2u32(c, a, b, 3);
+    c = (128u)#VMLSLANE_2u32(c, a, b, 0);
+    c = (128u)#VMLSLANE_2u32(c, a, b, 3);
+    c = (128u)#VSQDMULHLANE_2u32(c, b, 0);
+    c = (128u)#VSQDMULHLANE_2u32(c, b, 3);
+    c = (128u)#VSQRDMULHLANE_2u32(c, b, 0);
+    c = (128u)#VSQRDMULHLANE_2u32(c, b, 3);
+    c = (128u)#VSQRDMLAHLANE_2u32(c, a, b, 0);
+    c = (128u)#VSQRDMLAHLANE_2u32(c, a, b, 3);
+    c = (128u)#VSQRDMLSHLANE_2u32(c, a, b, 0);
+    c = (128u)#VSQRDMLSHLANE_2u32(c, a, b, 3);
+
+    [:u128 p + 48] = c;
+}
+
+// A product by each lane of b in turn, the index being the counter of an
+// unrolled loop.
+export
+fn neon_mul_lane_loop(reg u64 p) {
+    inline int i;
+    reg u128 a b;
+
+    a = [:u128 p];
+    b = [:u128 p + 16];
+    for i = 0 to 4 {
+        a = #VMULLANE_4u32(a, b, i);
+    }
+    for i = 0 to 8 {
+        a = #VMULLANE_8u16(a, b, i);
+    }
+    [:u128 p] = a;
+}
+
+// Register pressure: twenty-two vectors are live at once, so that ten of
+// them are in v16 to v31. The factors given by their lanes are among them:
+// with 16-bit lanes (x[0] to x[7]), the allocator puts them in v0 to v15;
+// with 32-bit lanes (x[12] to x[19]), they may be anywhere.
+export
+fn neon_mul_lane_pressure(reg u64 p) {
+    inline int i;
+    reg u128[20] x;
+    reg u128 h s;
+
+    for i = 0 to 20 {
+        x[i] = [:u128 p + 16 * i];
+    }
+    h = [:u128 p + 320];
+    s = [:u128 p + 336];
+    for i = 0 to 8 {
+        h = #VMLALANE_8u16(h, x[8 + i], x[i], i);
+        s = #VMLALANE_4u32(s, x[i], x[12 + i], i % 4);
+    }
+    for i = 0 to 20 {
+        h = #VADD_8u16(h, x[i]);
+    }
+    [:u128 p] = h;
+    [:u128 p + 16] = s;
+}
+
+// On vector arguments, results in V registers.
+export
+fn neon_mul_lane_args(reg u128 x y) -> reg u128, reg u128 {
+    reg u128 z;
+    z = #VSQRDMULHLANE_4u32(x, y, 2);
+    x = #VSQRDMLAHLANE_8u16(x, y, z, 5);
+    return x, z;
+}

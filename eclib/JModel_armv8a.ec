@@ -1177,3 +1177,71 @@ op VSQRDMLSH_4u16 (d n m: W64.t) : W64.t =
 op VSQRDMLSH_2u32 (d n m: W64.t) : W64.t =
   W2u32.pack2_t (W2u32.Pack.init (fun i =>
     sqrdmlsh_32 (d \bits32 i) (n \bits32 i) (m \bits32 i))).
+
+(* Multiplications by element, on 16- and 32-bit lanes of 128-bit (8u16,
+   4u32) and 64-bit (4u16, 2u32) vectors: the vector operation whose second
+   factor is the lane of the third argument, given by the index that
+   follows it (a lane of the whole 128-bit register), duplicated to every
+   lane, as DUP (element). *)
+abbrev [-printing] VMULLANE_8u16 (n m: W128.t) (i: W8.t) =
+  VMUL_8u16 n (VDUPLANE_8u16 m i).
+abbrev [-printing] VMULLANE_4u32 (n m: W128.t) (i: W8.t) =
+  VMUL_4u32 n (VDUPLANE_4u32 m i).
+abbrev [-printing] VMULLANE_4u16 (n: W64.t) (m: W128.t) (i: W8.t) =
+  VMUL_4u16 n (VDUPLANE_4u16 m i).
+abbrev [-printing] VMULLANE_2u32 (n: W64.t) (m: W128.t) (i: W8.t) =
+  VMUL_2u32 n (VDUPLANE_2u32 m i).
+
+abbrev [-printing] VMLALANE_8u16 (d n m: W128.t) (i: W8.t) =
+  VMLA_8u16 d n (VDUPLANE_8u16 m i).
+abbrev [-printing] VMLALANE_4u32 (d n m: W128.t) (i: W8.t) =
+  VMLA_4u32 d n (VDUPLANE_4u32 m i).
+abbrev [-printing] VMLALANE_4u16 (d n: W64.t) (m: W128.t) (i: W8.t) =
+  VMLA_4u16 d n (VDUPLANE_4u16 m i).
+abbrev [-printing] VMLALANE_2u32 (d n: W64.t) (m: W128.t) (i: W8.t) =
+  VMLA_2u32 d n (VDUPLANE_2u32 m i).
+
+abbrev [-printing] VMLSLANE_8u16 (d n m: W128.t) (i: W8.t) =
+  VMLS_8u16 d n (VDUPLANE_8u16 m i).
+abbrev [-printing] VMLSLANE_4u32 (d n m: W128.t) (i: W8.t) =
+  VMLS_4u32 d n (VDUPLANE_4u32 m i).
+abbrev [-printing] VMLSLANE_4u16 (d n: W64.t) (m: W128.t) (i: W8.t) =
+  VMLS_4u16 d n (VDUPLANE_4u16 m i).
+abbrev [-printing] VMLSLANE_2u32 (d n: W64.t) (m: W128.t) (i: W8.t) =
+  VMLS_2u32 d n (VDUPLANE_2u32 m i).
+
+abbrev [-printing] VSQDMULHLANE_8u16 (n m: W128.t) (i: W8.t) =
+  VSQDMULH_8u16 n (VDUPLANE_8u16 m i).
+abbrev [-printing] VSQDMULHLANE_4u32 (n m: W128.t) (i: W8.t) =
+  VSQDMULH_4u32 n (VDUPLANE_4u32 m i).
+abbrev [-printing] VSQDMULHLANE_4u16 (n: W64.t) (m: W128.t) (i: W8.t) =
+  VSQDMULH_4u16 n (VDUPLANE_4u16 m i).
+abbrev [-printing] VSQDMULHLANE_2u32 (n: W64.t) (m: W128.t) (i: W8.t) =
+  VSQDMULH_2u32 n (VDUPLANE_2u32 m i).
+
+abbrev [-printing] VSQRDMULHLANE_8u16 (n m: W128.t) (i: W8.t) =
+  VSQRDMULH_8u16 n (VDUPLANE_8u16 m i).
+abbrev [-printing] VSQRDMULHLANE_4u32 (n m: W128.t) (i: W8.t) =
+  VSQRDMULH_4u32 n (VDUPLANE_4u32 m i).
+abbrev [-printing] VSQRDMULHLANE_4u16 (n: W64.t) (m: W128.t) (i: W8.t) =
+  VSQRDMULH_4u16 n (VDUPLANE_4u16 m i).
+abbrev [-printing] VSQRDMULHLANE_2u32 (n: W64.t) (m: W128.t) (i: W8.t) =
+  VSQRDMULH_2u32 n (VDUPLANE_2u32 m i).
+
+abbrev [-printing] VSQRDMLAHLANE_8u16 (d n m: W128.t) (i: W8.t) =
+  VSQRDMLAH_8u16 d n (VDUPLANE_8u16 m i).
+abbrev [-printing] VSQRDMLAHLANE_4u32 (d n m: W128.t) (i: W8.t) =
+  VSQRDMLAH_4u32 d n (VDUPLANE_4u32 m i).
+abbrev [-printing] VSQRDMLAHLANE_4u16 (d n: W64.t) (m: W128.t) (i: W8.t) =
+  VSQRDMLAH_4u16 d n (VDUPLANE_4u16 m i).
+abbrev [-printing] VSQRDMLAHLANE_2u32 (d n: W64.t) (m: W128.t) (i: W8.t) =
+  VSQRDMLAH_2u32 d n (VDUPLANE_2u32 m i).
+
+abbrev [-printing] VSQRDMLSHLANE_8u16 (d n m: W128.t) (i: W8.t) =
+  VSQRDMLSH_8u16 d n (VDUPLANE_8u16 m i).
+abbrev [-printing] VSQRDMLSHLANE_4u32 (d n m: W128.t) (i: W8.t) =
+  VSQRDMLSH_4u32 d n (VDUPLANE_4u32 m i).
+abbrev [-printing] VSQRDMLSHLANE_4u16 (d n: W64.t) (m: W128.t) (i: W8.t) =
+  VSQRDMLSH_4u16 d n (VDUPLANE_4u16 m i).
+abbrev [-printing] VSQRDMLSHLANE_2u32 (d n: W64.t) (m: W128.t) (i: W8.t) =
+  VSQRDMLSH_2u32 d n (VDUPLANE_2u32 m i).
