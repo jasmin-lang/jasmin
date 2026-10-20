@@ -92,7 +92,7 @@ let pp_arg (a : (register, Arch_utils.empty, Arch_utils.empty, rflag, condt) pp_
   match a with
   | PPa_full (_, a) -> pp_asm_arg a
   | PPa_shift (sk, a) -> Option.map (Format.asprintf "%s %s" sk) (pp_asm_arg a)
-  | PPa_vec _ | PPa_list _ -> assert false
+  | PPa_vec _ | PPa_list _ | PPa_lane _ -> assert false
 
 let pp_mnemonic_ext op_decl (ARM_op (_, opts) as op) suff args =
   let id = instr_desc Arm_decl.arm_decl op_decl (None, op) in
@@ -296,7 +296,7 @@ and type asm_op = arm_op
         let full_args =
           List.filter_map
             (function PPa_full (ws, a) -> Some (ws, a) | PPa_shift _ -> None
-                      | PPa_vec _ | PPa_list _ -> assert false)
+                      | PPa_vec _ | PPa_list _ | PPa_lane _ -> assert false)
             pp.pp_aop_args
         in
         let suff = ArgChecker.check_args op full_args in
