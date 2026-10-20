@@ -12,6 +12,9 @@ Detailed instruction are available at
 This formalization has been developed with the tools listed in the opam
 file (located at the root of the project).
 
+It is necessary to install either Nix ([link](https://nixos.org/)) or all
+dependencies in the opam file to run this artifact.
+
 A convenient way to get the correct dependencies is to use the nix package
 manager and to run in this directory:
 ```
@@ -36,13 +39,22 @@ opam update
 and install the dependencies listed in the opam file.
 
 
+## Tested environment
+
+- Operating system: Ubuntu 24.04.5 LTS (x86-64), dependencies provided by `nix-shell`.
+- Rocq 9.0.1, compiled with OCaml 4.14.2.
+- Expected build time for the proofs: about 20 minutes with a single job
+  (measured: 18m27s); use `make -j N` to parallelize.
+- Expected peak memory consumption: about 2 GB (measured: 1.8 GB maximum).
+
 ## Build
 
-To run Rocq and check the validity of the proofs, run in the `proof` directory:
+To run Rocq and check the validity of the proofs, run in the `proofs` directory:
 ```
 make
 ```
-This verifies all Coq files.
+This verifies all Rocq files. A successful check ends with `make` exiting with
+status 0 and no `Error:` message in the output (warnings are expected).
 
 Alternatively, to compile the full compiler, run in the root of the project:
 ```
@@ -81,21 +93,24 @@ The general security preservation theorem is `compiler_preserves` in
 `proofs/compiler/end_to_end.v`, and its instantiation to KEM-IND-CCA is
 `mlkem_end_to_end` in the same file.
 
+Note that `mlkem_end_to_end` does not include the source-level KEM-IND-CCA
+security proof of Jasmin's ML-KEM (it is prior work, proven in EasyCrypt).
+
 ## Relational Hoare Logic
 
 The implementation of the logic is in `proofs/lang/relational_logic.v`.
 Equivalence up-to-cutoff is defined as `xrutt` in `proofs/itrees/xrutt.v`.
 
-- rule SKIP is `wequiv_nil` in `/proof/lang/relational_logic.v`.
-- rule SEQ is `wequiv_cons` in `/proof/lang/relational_logic.v`.
-- rule ASSIGN is `wequiv_assgn` in `/proof/lang/relational_logic.v`.
-- rule COND is `wequiv_if` in `/proof/lang/relational_logic.v`.
-- rule LOOP is `wequiv_while` in `/proof/lang/relational_logic.v`.
-- rule RAND is `wequiv_syscall` in `/proof/lang/relational_logic.v`.
-- rule CALL is `wequiv_call` in `/proof/lang/relational_logic.v`.
+- rule SKIP is `wequiv_nil` in `proofs/lang/relational_logic.v`.
+- rule SEQ is `wequiv_cons` in `proofs/lang/relational_logic.v`.
+- rule ASSIGN is `wequiv_assgn` in `proofs/lang/relational_logic.v`.
+- rule COND is `wequiv_if` in `proofs/lang/relational_logic.v`.
+- rule LOOP is `wequiv_while` in `proofs/lang/relational_logic.v`.
+- rule RAND is `wequiv_syscall` in `proofs/lang/relational_logic.v`.
+- rule CALL is `wequiv_call` in `proofs/lang/relational_logic.v`.
 - rule CONSEQ is inlined in each rule.
-- rule TRANS is `wequiv_trans` in `/proof/lang/relational_logic.v`.
-- rule REC is `wequiv_fun_ind`
+- rule TRANS is `wequiv_trans` in `proofs/lang/relational_logic.v`.
+- rule REC is `wequiv_fun_ind` in `proofs/lang/relational_logic.v`.
 
 ## Compiler Passes and Proofs
 
@@ -106,16 +121,16 @@ Front-End:
 - Spilling: `proofs/compiler/lower_spill_proof.v`: the proofs are in `Section IT`.
 - Inlining: `proofs/compiler/inline_proof.v`: the proofs are in `Section IT`.
 - Function Pruning: `proofs/compiler/dead_calls_proof.v`: the proofs are in `Section IT`.
-- Constant Propagation: `proofs/compiler/const_prop_proof.v`: the proofs are in `Section IT`.
-- Dead Code Elimination: `proofs/compiler/dead_code_prooof.v`: the proofs are in `Section IT`.
+- Constant Propagation: `proofs/compiler/constant_prop_proof.v`: the proofs are in `Section IT`.
+- Dead Code Elimination: `proofs/compiler/dead_code_proof.v`: the proofs are in `Section IT`.
 - Unrolling: `proofs/compiler/unrolling_proof.v`: the proofs are in `Section IT`.
 - Remove Array Initialization:
-  + `proofs/compiler/array_init_proof`: the proofs are in `Section IT`.
-  + `proofs/compiler/array_expansion_proof`: the proofs are in `Section IT`.
+  + `proofs/compiler/array_init_proof.v`: the proofs are in `Section IT`.
+  + `proofs/compiler/array_expansion_proof.v`: the proofs are in `Section IT`.
 - Reference Arguments: `proofs/compiler/makeReferenceArguments_proof.v`: the proofs are in `Section IT`.
 - Register Array Expansion: `proofs/compiler/array_expansion_proof.v`: the proofs are in `Section IT`.
 - Remove Globals: `proofs/compiler/remove_globals_proof.v`: the proofs are in `Section IT`.
-- Load Immediates: `proofs/compiler/load_constant_in_cond.v`: the proofs are in `Section IT`.
+- Load Immediates: `proofs/compiler/load_constants_in_cond_proof.v`: the proofs are in `Section IT`.
 - x86-64 Instruction Selection: `proofs/compiler/x86_lowering_proof.v`: the proofs are in `Section IT`.
 - ARMv7 Instruction Selection : `proofs/compiler/arm_lowering_proof.v`: the proofs are in `Section IT`.
 - RISC-V Instruction Selection: `proofs/compiler/riscv_lowering_proof.v`: the proofs are in `Section IT`.
@@ -128,8 +143,8 @@ Front-End:
 - Register Renaming: `proofs/compiler/allocation_proof.v`: the proofs are in `Section IT`.
 
 Back-End:
-- One Varmap : `prood/compiler/it_merge_varmap_proof.v`
-- Linearization : `proofs/compiler/it_linearization_proofs.v`
+- One Varmap : `proofs/compiler/it_merge_varmaps_proof.v`
+- Linearization : `proofs/compiler/it_linearization_proof.v`
 - Stack Zeroization : `proofs/compiler/stack_zeroization_proof.v`: the proofs are in `Section IT`.
 - Tunneling : `proofs/compiler/tunneling_proof_2.v`
 - Assembly Generation : `proofs/arch/asm_gen_proof.v`: the proofs are in `Section IT`.
