@@ -9,7 +9,7 @@
    the 64-bit forms and the AArch64-specific 32-bit ones (flag-setting
    logical instructions, shifts, extensions, ...). *)
 require import AllCore List Bool IntDiv.
-require export JModel_common JArray JWord_array JMemory JLeakage Jslh.
+require export JModel_common JArray JWord_array JMemory JLeakage Jslh AES.
 require export JModel_arm.
 
 abbrev ptr_modulus = 2^64.
@@ -1058,3 +1058,15 @@ op VSMOV_8u16 (v: W128.t) (i: W8.t) : W64.t =
 
 op VSMOV_4u32 (v: W128.t) (i: W8.t) : W64.t =
   sigextu64 (v \bits32 W8.to_uint i).
+
+(* AES, on the 128-bit state of AES.ec. AESE and AESD add the round key
+   (the second argument, the destination register being the first) and
+   apply ShiftRows and SubBytes, or their inverses; AESMC and AESIMC apply
+   MixColumns and its inverse. *)
+op VAESE_128 (d n: W128.t) : W128.t = SubBytes (ShiftRows (d +^ n)).
+
+op VAESD_128 (d n: W128.t) : W128.t = InvSubBytes (InvShiftRows (d +^ n)).
+
+op VAESMC_128 (x: W128.t) : W128.t = MixColumns x.
+
+op VAESIMC_128 (x: W128.t) : W128.t = InvMixColumns x.

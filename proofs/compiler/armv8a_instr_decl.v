@@ -19,6 +19,7 @@ Require Import
   shift_kind
   strings
   utils
+  waes
   word.
 Require xseq.
 Require Import
@@ -442,7 +443,13 @@ Variant armv8a_vmnemonic : Type :=
 | VINS                           (* Insert general register *)
 | VINSLANE                       (* Insert vector element *)
 | VUMOV                          (* Unsigned move vector element *)
-| VSMOV.                         (* Signed move vector element *)
+| VSMOV                          (* Signed move vector element *)
+
+(* AES *)
+| VAESE                          (* AES single round encryption *)
+| VAESD                          (* AES single round decryption *)
+| VAESMC                         (* AES mix columns *)
+| VAESIMC.                       (* AES inverse mix columns *)
 
 #[ export ]
 Instance eqTC_armv8a_vmnemonic : eqTypeC armv8a_vmnemonic :=
@@ -460,6 +467,7 @@ Definition armv8a_vmnemonics : seq armv8a_vmnemonic :=
     ; VREV16; VREV32; VREV64; VTBL
     ; VCMEQ; VCMGT; VCMGE; VCMHI; VCMHS; VCMTST
     ; VDUP; VDUPLANE; VINS; VINSLANE; VUMOV; VSMOV
+    ; VAESE; VAESD; VAESMC; VAESIMC
   ].
 
 Lemma armv8a_vmnemonic_fin_axiom : Finite.axiom armv8a_vmnemonics.
@@ -525,6 +533,10 @@ Definition string_of_armv8a_vmnemonic (vmn : armv8a_vmnemonic) : string :=
   | VINS | VINSLANE => "INS"
   | VUMOV => "UMOV"
   | VSMOV => "SMOV"
+  | VAESE => "AESE"
+  | VAESD => "AESD"
+  | VAESMC => "AESMC"
+  | VAESIMC => "AESIMC"
   end%string.
 
 (* The Jasmin name of a vector mnemonic: the architectural one prefixed
@@ -538,6 +550,26 @@ Definition armv8a_vmn_name (vmn : armv8a_vmnemonic) : string :=
   | VINSLANE => "VINSLANE"
   | _ => "V" ++ string_of_armv8a_vmnemonic vmn
   end%string.
+
+(* The architecture extensions that the assembler must be told of for some
+   Advanced SIMD instructions (with the directive [.arch_extension]), named
+   as the assembler knows them: the base ARMv8-A instruction set does not
+   include the cryptographic instructions. *)
+Variant armv8a_extension :=
+| EXT_aes.                       (* AESE, AESD, AESMC, AESIMC *)
+
+Definition string_of_armv8a_extension (ext : armv8a_extension) : string :=
+  match ext with
+  | EXT_aes => "aes"
+  end%string.
+
+(* The extension that a vector mnemonic requires, if any. *)
+Definition armv8a_vmn_extension (vmn : armv8a_vmnemonic)
+  : option armv8a_extension :=
+  match vmn with
+  | VAESE | VAESD | VAESMC | VAESIMC => Some EXT_aes
+  | _ => None
+  end.
 
 
 (* -------------------------------------------------------------------- *)
@@ -3335,7 +3367,8 @@ Arguments armv8a_extend_semi {ws} sign ws' wn /.
    TBL operate on bytes. INS, UMOV and SMOV address a lane of a whole
    register, hence have 128-bit vectors only; UMOV and SMOV move a lane to
    a general register, W for 8-, 16- and 32-bit lanes and X for 64-bit
-   ones, and SMOV, which is taken in its X form only, has no 64-bit lanes. *)
+   ones, and SMOV, which is taken in its X form only, has no 64-bit lanes.
+   AESE, AESD, AESMC and AESIMC operate on a whole register, as bytes. *)
 Definition armv8a_vmn_shapes (vmn : armv8a_vmnemonic) : seq (velem * wsize) :=
   match vmn with
   | VMOV | VLDR | VSTR => [:: (VE8, U128) ]
@@ -3353,6 +3386,7 @@ Definition armv8a_vmn_shapes (vmn : armv8a_vmnemonic) : seq (velem * wsize) :=
   | VINS | VINSLANE | VUMOV =>
       [:: (VE8, U128); (VE16, U128); (VE32, U128); (VE64, U128) ]
   | VSMOV => [:: (VE8, U128); (VE16, U128); (VE32, U128) ]
+  | VAESE | VAESD | VAESMC | VAESIMC => [:: (VE8, U128) ]
   | VMUL | VSMAX | VSMIN | VUMAX | VUMIN | VREV64 =>
       [:: (VE8, U128); (VE16, U128); (VE32, U128)
         ; (VE8, U64); (VE16, U64); (VE32, U64) ]
@@ -3379,7 +3413,8 @@ Definition armv8a_vmn_lanewise (vmn : armv8a_vmnemonic) : bool :=
   | VDUP | VDUPLANE | VINS | VINSLANE | VUMOV | VSMOV => true
   | VMOV | VLDR | VSTR
   | VAND | VBIC | VORR | VORN | VEOR | VNOT | VBSL | VBIT | VBIF
-  | VEXT | VTBL => false
+  | VEXT | VTBL
+  | VAESE | VAESD | VAESMC | VAESIMC => false
   end.
 
 (* A vector instruction whose operands are printed with the given shapes. *)
@@ -3445,6 +3480,32 @@ Definition mk_vbinop_instr vmn (ve : velem) {sz} (doit_v : doit_t)
     id_init := [:: IBool true ];
     id_doit := doit_v;
     id_pp_asm := pp_armv8a_vop vmn [:: pp_vec ve sz; pp_vec ve sz; pp_vec ve sz ];
+    id_valid := armv8a_vop_valid vmn ve sz;
+    id_wf := refl_equal;
+  |}.
+
+(* A vector instruction [vmn Vd, Vn] that also reads its destination
+   register: the first source is [Vd] itself. *)
+Definition mk_vunop_acc_instr vmn (ve : velem) {sz} (doit_v : doit_t)
+  (semi : word sz -> word sz -> ty_w sz) : instr_desc_t :=
+  let tin := [:: lword sz; lword sz ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 0; Ea 1 ];
+    id_tout := [:: lword sz ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 2;
+    id_args_kinds := [:: [:: ak_v; ak_v ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_vmn_str vmn ve sz;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := doit_v;
+    id_pp_asm := pp_armv8a_vop vmn [:: pp_vec ve sz; pp_vec ve sz ];
     id_valid := armv8a_vop_valid vmn ve sz;
     id_wf := refl_equal;
   |}.
@@ -4849,6 +4910,85 @@ Definition armv8a_VSMOV_instr (ve : velem) sz : instr_desc_t :=
     id_wf := refl_equal;
   |}.
 
+(* The AES instructions operate on the 128-bit state of AES, as the x86
+   ones, with the building blocks of waes.v: the state is the register, its
+   bytes in increasing order of significance. AESE and AESD compute the
+   first half of a round: they add the round key and apply ShiftRows and
+   SubBytes, or their inverses; AESMC and AESIMC compute MixColumns and
+   its inverse. So [AESMC(AESE(s, k0))] XOR [k1] is the x86
+   [AESENC(s XOR k0, k1)]. AESE and AESD read their destination, which is
+   the first argument of their intrinsic. They have the single arrangement
+   16B, and their descriptions are those of 128-bit vectors of bytes.
+
+   [AESE] ARM DDI 0487 M.a, C7.2
+   AES single round encryption.
+   Syntax: AESE <Vd>.16B, <Vn>.16B
+   Decode: boolean decrypt = (D == '1');
+   where D is '0'.
+   Operation:
+     AArch64.CheckFPAdvSIMDEnabled();
+
+     bits(128) operand1 = V[d, 128];
+     bits(128) operand2 = V[n, 128];
+     bits(128) result;
+     result = operand1 EOR operand2;
+     if decrypt then
+         result = AESInvSubBytes(AESInvShiftRows(result));
+     else
+         result = AESSubBytes(AESShiftRows(result));
+
+     V[d, 128] = result;
+
+   [AESD] ARM DDI 0487 M.a, C7.2
+   AES single round decryption.
+   Syntax: AESD <Vd>.16B, <Vn>.16B
+   Decode and operation: those of AESE, where D is '1'.
+*)
+Definition armv8a_VAESE_semi (wd wn : word U128) : ty_w U128 :=
+  SubBytes (ShiftRows (wxor wd wn)).
+
+Definition armv8a_VAESE_instr : instr_desc_t :=
+  mk_vunop_acc_instr VAESE VE8 DOIT armv8a_VAESE_semi.
+
+Definition armv8a_VAESD_semi (wd wn : word U128) : ty_w U128 :=
+  InvSubBytes (InvShiftRows (wxor wd wn)).
+
+Definition armv8a_VAESD_instr : instr_desc_t :=
+  mk_vunop_acc_instr VAESD VE8 DOIT armv8a_VAESD_semi.
+
+(* [AESMC] ARM DDI 0487 M.a, C7.2
+   AES mix columns.
+   Syntax: AESMC <Vd>.16B, <Vn>.16B
+   Decode: boolean decrypt = (D == '1');
+   where D is '0'.
+   Operation:
+     AArch64.CheckFPAdvSIMDEnabled();
+
+     bits(128) operand = V[n, 128];
+     bits(128) result;
+     if decrypt then
+         result = AESInvMixColumns(operand);
+     else
+         result = AESMixColumns(operand);
+     V[d, 128] = result;
+
+   [AESIMC] ARM DDI 0487 M.a, C7.2
+   AES inverse mix columns.
+   Syntax: AESIMC <Vd>.16B, <Vn>.16B
+   Decode and operation: those of AESMC, where D is '1'.
+*)
+Definition armv8a_VAESMC_semi (wn : word U128) : ty_w U128 :=
+  MixColumns wn.
+
+Definition armv8a_VAESMC_instr : instr_desc_t :=
+  mk_vunop_instr VAESMC VE8 DOIT armv8a_VAESMC_semi.
+
+Definition armv8a_VAESIMC_semi (wn : word U128) : ty_w U128 :=
+  InvMixColumns wn.
+
+Definition armv8a_VAESIMC_instr : instr_desc_t :=
+  mk_vunop_instr VAESIMC VE8 DOIT armv8a_VAESIMC_semi.
+
 Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   : instr_desc_t :=
   match vmn with
@@ -4905,6 +5045,10 @@ Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   | VINSLANE => armv8a_VINSLANE_instr ve sz
   | VUMOV => armv8a_VUMOV_instr ve sz
   | VSMOV => armv8a_VSMOV_instr ve sz
+  | VAESE => armv8a_VAESE_instr
+  | VAESD => armv8a_VAESD_instr
+  | VAESMC => armv8a_VAESMC_instr
+  | VAESIMC => armv8a_VAESIMC_instr
   end.
 
 
