@@ -386,7 +386,10 @@ Variant armv8a_vmnemonic : Type :=
 | VORR                           (* Bitwise inclusive OR *)
 | VORN                           (* Bitwise inclusive OR NOT *)
 | VEOR                           (* Bitwise exclusive OR *)
-| VNOT.                          (* Bitwise NOT *)
+| VNOT                           (* Bitwise NOT *)
+| VBSL                           (* Bitwise select *)
+| VBIT                           (* Bitwise insert if true *)
+| VBIF.                          (* Bitwise insert if false *)
 
 #[ export ]
 Instance eqTC_armv8a_vmnemonic : eqTypeC armv8a_vmnemonic :=
@@ -396,7 +399,7 @@ Canonical armv8a_vmnemonic_eqType := @ceqT_eqType _ eqTC_armv8a_vmnemonic.
 
 Definition armv8a_vmnemonics : seq armv8a_vmnemonic :=
   [:: VMOV; VLDR; VSTR
-    ; VAND; VBIC; VORR; VORN; VEOR; VNOT
+    ; VAND; VBIC; VORR; VORN; VEOR; VNOT; VBSL; VBIT; VBIF
   ].
 
 Lemma armv8a_vmnemonic_fin_axiom : Finite.axiom armv8a_vmnemonics.
@@ -420,6 +423,9 @@ Definition string_of_armv8a_vmnemonic (vmn : armv8a_vmnemonic) : string :=
   | VORN => "ORN"
   | VEOR => "EOR"
   | VNOT => "NOT"
+  | VBSL => "BSL"
+  | VBIT => "BIT"
+  | VBIF => "BIF"
   end%string.
 
 (* The Jasmin name of a vector mnemonic: the architectural one prefixed
@@ -3219,7 +3225,7 @@ Arguments armv8a_extend_semi {ws} sign ws' wn /.
 Definition armv8a_vmn_shapes (vmn : armv8a_vmnemonic) : seq (velem * wsize) :=
   match vmn with
   | VMOV | VLDR | VSTR => [:: (VE8, U128) ]
-  | VAND | VBIC | VORR | VORN | VEOR | VNOT =>
+  | VAND | VBIC | VORR | VORN | VEOR | VNOT | VBSL | VBIT | VBIF =>
       [:: (VE8, U128); (VE8, U64) ]
   end.
 
@@ -3235,7 +3241,7 @@ Definition armv8a_vop_valid
 Definition armv8a_vmn_lanewise (vmn : armv8a_vmnemonic) : bool :=
   match vmn with
   | VMOV | VLDR | VSTR
-  | VAND | VBIC | VORR | VORN | VEOR | VNOT => false
+  | VAND | VBIC | VORR | VORN | VEOR | VNOT | VBSL | VBIT | VBIF => false
   end.
 
 (* A vector instruction whose operands are printed with the given shapes. *)
@@ -3288,6 +3294,32 @@ Definition mk_vbinop_instr vmn (ve : velem) {sz} (doit_v : doit_t)
     id_msb_flag := MSB_CLEAR;
     id_tin := tin;
     id_in := [:: Ea 1; Ea 2 ];
+    id_tout := [:: lword sz ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds := [:: [:: ak_v; ak_v; ak_v ] ];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_vmn_str vmn ve sz;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := doit_v;
+    id_pp_asm := pp_armv8a_vop vmn [:: pp_vec ve sz; pp_vec ve sz; pp_vec ve sz ];
+    id_valid := armv8a_vop_valid vmn ve sz;
+    id_wf := refl_equal;
+  |}.
+
+(* A vector instruction [vmn Vd, Vn, Vm] that also reads its destination
+   register: the first source is [Vd] itself. *)
+Definition mk_vbinop_acc_instr vmn (ve : velem) {sz} (doit_v : doit_t)
+  (semi : word sz -> word sz -> word sz -> ty_w sz) : instr_desc_t :=
+  let tin := [:: lword sz; lword sz; lword sz ] in
+  {|
+    id_msb_flag := MSB_CLEAR;
+    id_tin := tin;
+    id_in := [:: Ea 0; Ea 1; Ea 2 ];
     id_tout := [:: lword sz ];
     id_out := [:: Ea 0 ];
     id_semi_total := semi;
@@ -3464,6 +3496,55 @@ Definition armv8a_VNOT_semi sz (wn : word sz) : ty_w sz :=
 Definition armv8a_VNOT_instr (ve : velem) sz : instr_desc_t :=
   mk_vunop_instr VNOT ve DOIT (@armv8a_VNOT_semi sz).
 
+(* BSL, BIT and BIF insert the bits of [Vn] into a result that otherwise
+   takes the bits of another register, as selected by a mask: [Vd] for
+   BSL, [Vm] for BIT and its complement for BIF.
+
+   [BSL] ARM DDI 0487 M.a, C7.2
+   Bitwise select.
+   Syntax: BSL <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Operation (after the ASL):
+     constant bits(datasize) operand1 = V[d, datasize];
+     constant bits(datasize) operand2 = V[n, datasize];
+     constant bits(datasize) operand3 = V[m, datasize];
+     V[d, datasize] = operand3 EOR ((operand3 EOR operand2) AND operand1);
+
+   [BIT] ARM DDI 0487 M.a, C7.2
+   Bitwise insert if true.
+   Syntax: BIT <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Operation (after the ASL):
+     constant bits(datasize) operand1 = V[d, datasize];
+     constant bits(datasize) operand2 = V[n, datasize];
+     constant bits(datasize) operand3 = V[m, datasize];
+     V[d, datasize] = operand1 EOR ((operand1 EOR operand2) AND operand3);
+
+   [BIF] ARM DDI 0487 M.a, C7.2
+   Bitwise insert if false.
+   Syntax: BIF <Vd>.<T>, <Vn>.<T>, <Vm>.<T>
+   Operation (after the ASL):
+     constant bits(datasize) operand1 = V[d, datasize];
+     constant bits(datasize) operand2 = V[n, datasize];
+     constant bits(datasize) operand3 = V[m, datasize];
+     V[d, datasize] = operand1 EOR ((operand1 EOR operand2) AND NOT(operand3));
+*)
+Definition armv8a_VBSL_semi sz (wd wn wm : word sz) : ty_w sz :=
+  wxor wm (wand (wxor wm wn) wd).
+
+Definition armv8a_VBSL_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_acc_instr VBSL ve DOIT (@armv8a_VBSL_semi sz).
+
+Definition armv8a_VBIT_semi sz (wd wn wm : word sz) : ty_w sz :=
+  wxor wd (wand (wxor wd wn) wm).
+
+Definition armv8a_VBIT_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_acc_instr VBIT ve DOIT (@armv8a_VBIT_semi sz).
+
+Definition armv8a_VBIF_semi sz (wd wn wm : word sz) : ty_w sz :=
+  wxor wd (wand (wxor wd wn) (wnot wm)).
+
+Definition armv8a_VBIF_instr (ve : velem) sz : instr_desc_t :=
+  mk_vbinop_acc_instr VBIF ve DOIT (@armv8a_VBIF_semi sz).
+
 Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   : instr_desc_t :=
   match vmn with
@@ -3476,6 +3557,9 @@ Definition vmn_desc (ve : velem) (sz : wsize) (vmn : armv8a_vmnemonic)
   | VORN => armv8a_VORN_instr ve sz
   | VEOR => armv8a_VEOR_instr ve sz
   | VNOT => armv8a_VNOT_instr ve sz
+  | VBSL => armv8a_VBSL_instr ve sz
+  | VBIT => armv8a_VBIT_instr ve sz
+  | VBIF => armv8a_VBIF_instr ve sz
   end.
 
 
