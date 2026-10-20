@@ -306,3 +306,28 @@ op VMOV_128 (x: W128.t) : W128.t = x.
 op VLDR_128 (x: W128.t) : W128.t = x.
 
 op VSTR_128 (x: W128.t) : W128.t = x.
+
+op VAND_128 (x y: W128.t) : W128.t = andw x y.
+
+op VBIC_128 (x y: W128.t) : W128.t = andw x (invw y).
+
+op VORR_128 (x y: W128.t) : W128.t = orw x y.
+
+op VORN_128 (x y: W128.t) : W128.t = orw x (invw y).
+
+op VEOR_128 (x y: W128.t) : W128.t = x +^ y.
+
+op VNOT_128 (x: W128.t) : W128.t = invw x.
+
+(* The 64-bit forms, on the low half of the registers. *)
+op VAND_64 (x y: W64.t) : W64.t = andw x y.
+
+op VBIC_64 (x y: W64.t) : W64.t = andw x (invw y).
+
+op VORR_64 (x y: W64.t) : W64.t = orw x y.
+
+op VORN_64 (x y: W64.t) : W64.t = orw x (invw y).
+
+op VEOR_64 (x y: W64.t) : W64.t = x +^ y.
+
+op VNOT_64 (x: W64.t) : W64.t = invw x.
