@@ -1,0 +1,39 @@
+// The bitwise operators on u128 compile to the 128-bit NEON instructions.
+
+export
+fn neon_ops(reg u64 p) {
+    reg u128 a b c d;
+    stack u128 s;
+
+    a = [:u128 p];
+    b = [:u128 p + 16];
+    c = [:u128 p + 32];
+    s = c;
+
+    c = a & b;          // AND
+    d = a | b;          // ORR
+    c = c ^ d;          // EOR
+    d = !c;             // NOT
+    c = c & !a;         // BIC c, a
+    d = !b & d;         // BIC d, b
+    c = c | !d;         // ORN c, d
+    d = !a | d;         // ORN d, a
+    c = c ^ d;
+    d = s;
+    c = c ^ d;
+    d = [:u128 p + 48];
+    c = c & d;
+
+    [:u128 p + 64] = c;
+}
+
+// Operators on vector arguments, results in V registers.
+export
+fn neon_ops_args(reg u128 x y) -> reg u128, reg u128 {
+    reg u128 z w;
+    z = x ^ y;
+    w = x & !y;
+    z = z | w;
+    w = !z;
+    return z, w;
+}

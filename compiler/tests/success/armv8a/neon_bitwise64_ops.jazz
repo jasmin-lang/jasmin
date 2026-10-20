@@ -1,0 +1,31 @@
+// The zero extension to u128 of a 64-bit bitwise operator on the low halves
+// of u128 values compiles to the 64-bit (.8b) NEON instruction.
+
+export
+fn neon_ops64(reg u64 p) {
+    reg u128 a b c d;
+
+    a = [:u128 p];
+    b = [:u128 p + 16];
+
+    c = (128u)(a &64u b);           // AND
+    d = (128u)(a |64u b);           // ORR
+    c = (128u)(c ^64u d);           // EOR
+    d = (128u)(!64u c);             // NOT
+    c = (128u)(c &64u !64u a);      // BIC c, a
+    d = (128u)(!64u b &64u d);      // BIC d, b
+    c = (128u)(c |64u !64u d);      // ORN c, d
+    d = (128u)(!64u a |64u d);      // ORN d, a
+
+    [:u128 p + 32] = c;
+    [:u128 p + 48] = d;
+}
+
+// Operators on vector arguments, results in V registers.
+export
+fn neon_ops64_args(reg u128 x y) -> reg u128, reg u128 {
+    reg u128 z w;
+    z = (128u)(x ^64u y);
+    w = (128u)(x &64u !64u y);
+    return z, w;
+}
