@@ -158,6 +158,15 @@ Instance finTC_xregister : finTypeC xregister :=
     cenumP := xregister_fin_axiom;
   }.
 
+(* The vector registers that an instruction cannot name when it encodes its
+   register number on 4 bits: the multiplications by element on 16-bit
+   lanes (MUL, MLA, SQDMULH, ... Vm.H[index]) take their element from V0 to
+   V15 only, the fifth bit of the register number (M) being that of the
+   index. *)
+Definition armv8a_high_vregisters : seq xregister :=
+  [:: V16; V17; V18; V19; V20; V21; V22; V23
+    ; V24; V25; V26; V27; V28; V29; V30; V31 ].
+
 Definition xregister_to_string (r : xregister) : string :=
   match r with
   | V0 => "v0"   | V1 => "v1"   | V2 => "v2"   | V3 => "v3"
@@ -229,7 +238,9 @@ Definition check_vext_index (sz : wsize) (z : Z) : bool :=
 (* The Advanced SIMD copies (DUP (element), INS, UMOV, SMOV, C7.2) address a
    lane of [esize] bits of a whole 128-bit register, by an index encoded in
    imm5 (and imm4): 0..15 for bytes, 0..7 for halfwords, 0..3 for words and
-   0..1 for doublewords. *)
+   0..1 for doublewords. So do the vector x indexed element forms (MUL, MLA,
+   SQDMULH, ... by element), whose index is encoded in H:L:M for halfwords
+   and in H:L for words. *)
 Definition check_lane_index (esize : wsize) (z : Z) : bool :=
   (0 <=? z)%Z && (z <? wsize_size U128 / wsize_size esize)%Z.
 
@@ -337,7 +348,8 @@ Notation register_ext := empty.
    - [CAimmC_armv8a_vext_index] carries the vector size of an Advanced SIMD
      EXT: see [check_vext_index] above.
    - [CAimmC_armv8a_lane_index] carries the lane size of an Advanced SIMD
-     copy: see [check_lane_index] above.
+     copy or of a vector x indexed element form: see [check_lane_index]
+     above.
    The immediate-encoding conditions take the operand width from the
    [wsize] of the immediate itself (the [CAimm] argument kind carries it),
    so they need no payload:
