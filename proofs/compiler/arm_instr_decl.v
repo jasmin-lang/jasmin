@@ -661,6 +661,17 @@ Definition pp_arm_op
 
 (* -------------------------------------------------------------------- *)
 (* Instruction semantics and description. *)
+(* Data independent timing ([id_doit]): the Cortex-M4 has no architectural
+   notion of it, so the classification follows the cycle counts of the
+   Cortex-M4 Technical Reference Manual (Arm DDI 0439B), Table 3-1
+   "Cortex-M4 instruction set summary" and Table 3-2 "Cortex-M4 DSP
+   instruction set summary". Every instruction described here takes a fixed
+   number of cycles, one for most of them, except SDIV and UDIV: "2 to 12",
+   the division "terminates when the divide calculation completes, with the
+   number of cycles required dependent on the values of the input operands".
+   The lists of instructions with data independent timing of the A-profile
+   (CPSR.DIT) and of ARMv8.1-M (AIRCR.DIT) describe other processors and do
+   not apply to the Cortex-M4. *)
 (* Data instructions descriptions are defined first as setting flags, and
    without shifts.
    Then, depending on [set_flags], the description is updated with [drop_nzcv].
@@ -890,7 +901,7 @@ Definition arm_SDIV_instr : instr_desc_t :=
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
+    id_doit := NOT_DOIT; (* 2 to 12 cycles, depending on the operands. *)
     id_wf := refl_equal;
   |}.
 
@@ -996,7 +1007,7 @@ Definition arm_RSB_instr : instr_desc_t :=
       id_init := [:: IBool true; IBool true; IBool true; IBool true; IBool true ];
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
-      id_doit := NOT_DOIT; (* Not DIT *)
+      id_doit := DOIT;
       id_wf := refl_equal;
     |}
   in
@@ -1033,7 +1044,7 @@ Definition arm_UDIV_instr : instr_desc_t :=
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
+    id_doit := NOT_DOIT; (* 2 to 12 cycles, depending on the operands. *)
     id_wf := refl_equal;
   |}.
 
@@ -1089,7 +1100,7 @@ Definition arm_UMAAL_instr : instr_desc_t :=
     id_init := [:: IBool true; IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
+    id_doit := DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1200,7 +1211,7 @@ Definition arm_SMMUL_instr : instr_desc_t :=
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
+    id_doit := DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1227,7 +1238,7 @@ Definition arm_SMMULR_instr : instr_desc_t :=
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
+    id_doit := DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1263,7 +1274,7 @@ Definition arm_smul_hw_instr hwn hwm : instr_desc_t :=
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
+    id_doit := DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1295,7 +1306,7 @@ Definition arm_smla_hw_instr hwn hwm : instr_desc_t :=
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
+    id_doit := DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1326,7 +1337,7 @@ Definition arm_smulw_hw_instr hw : instr_desc_t :=
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
+    id_doit := DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1790,7 +1801,7 @@ Definition arm_REVSH_semi (w : ty_r) : ty_r :=
 
 Definition arm_REV_instr   := mk_rev_instr REV   arm_REV_semi   DOIT.
 Definition arm_REV16_instr := mk_rev_instr REV16 arm_REV16_semi DOIT.
-Definition arm_REVSH_instr := mk_rev_instr REVSH arm_REVSH_semi NOT_DOIT. (* Not DIT *)
+Definition arm_REVSH_instr := mk_rev_instr REVSH arm_REVSH_semi DOIT.
 
 Definition arm_MOV_semi_t (wn : ty_r) : ty_nzc_r_t :=
   (:: NF_of_word wn, ZF_of_word wn, undefined_flag & wn).
