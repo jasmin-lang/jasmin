@@ -60,7 +60,7 @@ let pp_asm_arg (arg : (register, Arch_utils.empty, Arch_utils.empty, Arch_utils.
   | Addr (Areg ra) ->
     Some (pp_reg_address ra)
   | Addr  (Arip r) -> Some (pp_rip_address r)
-  | ImmRip _ -> assert false (* Only on ARMv7-M. *)
+  | ImmRip _ -> assert false (* Only on the ARM M-profile. *)
   | XReg _ -> .
 
 let pp_iname_ext _ = ""

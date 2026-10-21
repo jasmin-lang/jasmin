@@ -10,6 +10,7 @@
 open Jasmin
 open Prog
 open Utils
+open Architecture
 open Jasmin_checksafety
 
 (** Specific configuration for some example programs. *)

@@ -3,17 +3,12 @@ open Cmdliner
 open Utils
 
 let arch =
-  let alts =
-    [
-      ("x86-64", Utils.X86_64); ("arm-m4", Utils.ARM_M4);
-      ("armv8a", Utils.ARMv8A); ("riscv", Utils.RISCV);
-    ]
-  in
+  let alts = Architecture.architectures in
   let doc =
     Format.asprintf "The target architecture (%s)" (Arg.doc_alts_enum alts)
   in
   let arch = Arg.enum alts in
-  Arg.(value & opt arch Utils.X86_64 & info [ "arch" ] ~doc)
+  Arg.(value & opt arch Architecture.X86_64 & info [ "arch" ] ~doc)
 
 let call_conv =
   let alts =

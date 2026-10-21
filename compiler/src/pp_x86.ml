@@ -338,7 +338,7 @@ and type asm_op = X86_instr_decl.x86_op
     | Reg r      -> pp_register ~reg_pre (rsize_of_wsize ws) r
     | Regx r     -> pp_register_ext ~reg_pre ws r
     | Addr addr  -> pp_address ws addr
-    | ImmRip _   -> assert false (* Only on ARMv7-M. *)
+    | ImmRip _   -> assert false (* Only on the ARM M-profile. *)
     | XReg r     -> pp_xmm_register ~reg_pre ws r
 
   let pp_asm_args args = List.map pp_asm_arg (rev_args args)

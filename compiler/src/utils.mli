@@ -101,14 +101,6 @@ val pp_paren : 'a pp -> 'a pp
 val pp_string : string pp
  
 (* -------------------------------------------------------------------- *)
-type architecture =
-  | X86_64
-  | ARM_M4
-  | ARMv8A
-  | RISCV
-val architecture_to_string : architecture -> string
-
-(* -------------------------------------------------------------------- *)
 val set_target_system: string -> unit
 val is_target_system_macos : unit -> bool
 

@@ -1,6 +1,6 @@
 open Jasmin
 open Utils
-
+open Architecture
 let rec check_dir check_file archs prefix errors =
   let dir = Sys.readdir prefix in
   Array.sort String.compare dir;
@@ -12,13 +12,13 @@ and check_path check_file archs prefix errors filename =
     let archs =
       try
         List.assoc filename
-          [
-            ("x86-64", X86_64 :: archs);
-            ("arm-m4", ARM_M4 :: archs);
-            ("armv8a", ARMv8A :: archs);
-            ("risc-v", RISCV :: archs);
-            ("common", [ X86_64; ARM_M4; ARMv8A; RISCV ]);
-          ]
+          (("x86-64", X86_64 :: archs)
+           :: List.map (fun c -> (c.Arm_mcore.name, ARM_M c :: archs)) Arm_mcore.all
+           @ [
+               ("armv8a", ARMv8A :: archs);
+               ("risc-v", RISCV :: archs);
+               ("common", List.map snd architectures);
+             ])
       with Not_found -> archs
     in
     check_dir check_file archs path errors
