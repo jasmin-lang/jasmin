@@ -1,0 +1,7 @@
+/* UDIV takes 2 to 12 cycles on the Cortex-M4, depending on its operands
+   (Technical Reference Manual, Table 3-1). */
+#[ct="secret * secret -> secret"]
+export fn udiv(reg u32 x y) -> reg u32 {
+  x = #UDIV(x, y);
+  return x;
+}
