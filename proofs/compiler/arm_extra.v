@@ -138,6 +138,10 @@ Definition li_condition_modified ii :=
     "assignment needs to be split but condition is modified by assignment".
 End E.
 
+Section WITH_PARAMS.
+
+Context {core : arm_core}.
+
 Definition asm_args_of_opn_args
   : seq ARMFopn_core.opn_args -> seq (asm_op_msb_t * lexprs * rexprs) :=
   map (fun '(les, aop, res) => ((None, aop), les, res)).
@@ -267,13 +271,15 @@ Definition assemble_extra
   | Oarm_glob_addr => assemble_glob_addr ii outx inx
   end.
 
+End WITH_PARAMS.
+
 #[ export ]
-Instance arm_extra {atoI : arch_toIdent} :
+Instance arm_extra {core : arm_core} {atoI : arch_toIdent} :
   asm_extra register register_ext xregister rflag condt arm_op arm_extra_op :=
   { to_asm := assemble_extra }.
 
 (* This concise name is convenient in OCaml code. *)
-Definition arm_extended_op {atoI : arch_toIdent} :=
+Definition arm_extended_op {core : arm_core} {atoI : arch_toIdent} :=
   @extended_op _ _ _ _ _ _ _ arm_extra.
 
-Definition Oarm {atoI : arch_toIdent} o : @sopn arm_extended_op _ := Oasm (BaseOp (None, o)).
+Definition Oarm {core : arm_core} {atoI : arch_toIdent} o : @sopn arm_extended_op _ := Oasm (BaseOp (None, o)).

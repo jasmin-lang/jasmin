@@ -51,6 +51,7 @@ Section Section.
 #[local] Existing Instance direct_c.
 
 Context
+  {core : arm_core}
   {atoI  : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
