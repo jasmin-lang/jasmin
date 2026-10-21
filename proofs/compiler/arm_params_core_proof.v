@@ -42,6 +42,7 @@ Module ARMFopn_coreP.
 Section Section.
 
 Context
+  {core : arm_core}
   {wsw: WithSubWord}
   {syscall_state : Type}
   {ep : EstateParams syscall_state}.

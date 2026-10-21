@@ -16,7 +16,7 @@ Require Import compiler_util.
 
 Section STACK_ZEROIZATION.
 
-Context {atoI : arch_toIdent}.
+Context {core : arm_core} {atoI : arch_toIdent}.
 
 Section RSP.
 

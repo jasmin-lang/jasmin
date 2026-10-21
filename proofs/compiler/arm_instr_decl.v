@@ -688,9 +688,21 @@ Definition pp_arm_op
    All descriptions have [id_msb_flag] as [MSB_MERGE], but since all
    instructions have a 32-bit output, this is irrelevant. *)
 
+(* The mnemonics of the DSP extension (ARMv7E-M). *)
+Definition is_dsp_mnemonic (mn : arm_mnemonic) : bool :=
+  match mn with
+  | UMAAL | SMMUL | SMMULR | SMUL_hw _ _ | SMLA_hw _ _ | SMULW_hw _ => true
+  | _ => false
+  end.
+
+(* The mnemonics the core has. *)
+Definition arm_mnemonic_available {core : arm_core} (mn : arm_mnemonic) : bool :=
+  ~~ is_dsp_mnemonic mn || core_dsp.
+
 Section ARM_INSTR.
 
 Context
+  {core : arm_core}
   (opts : arm_options).
 
 Let string_of_arm_mnemonic mn :=
@@ -1099,7 +1111,7 @@ Definition arm_UMAAL_instr : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true; IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := true;
+    id_valid := arm_mnemonic_available mn;
     id_doit := DOIT;
     id_wf := refl_equal;
   |}.
@@ -1210,7 +1222,7 @@ Definition arm_SMMUL_instr : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := true;
+    id_valid := arm_mnemonic_available mn;
     id_doit := DOIT;
     id_wf := refl_equal;
   |}.
@@ -1237,7 +1249,7 @@ Definition arm_SMMULR_instr : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := true;
+    id_valid := arm_mnemonic_available mn;
     id_doit := DOIT;
     id_wf := refl_equal;
   |}.
@@ -1273,7 +1285,7 @@ Definition arm_smul_hw_instr hwn hwm : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := true;
+    id_valid := arm_mnemonic_available mn;
     id_doit := DOIT;
     id_wf := refl_equal;
   |}.
@@ -1305,7 +1317,7 @@ Definition arm_smla_hw_instr hwn hwm : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := true;
+    id_valid := arm_mnemonic_available mn;
     id_doit := DOIT;
     id_wf := refl_equal;
   |}.
@@ -1336,7 +1348,7 @@ Definition arm_smulw_hw_instr hw : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := true;
+    id_valid := arm_mnemonic_available mn;
     id_doit := DOIT;
     id_wf := refl_equal;
   |}.
@@ -2334,15 +2346,15 @@ Definition arm_single_cycle (mn : arm_mnemonic) : bool :=
     => false
   end.
 
-Definition arm_instr_desc (o : arm_op) : instr_desc_t :=
+Definition arm_instr_desc {core : arm_core} (o : arm_op) : instr_desc_t :=
   let '(ARM_op mn opts) := o in
   let x := mn_desc opts mn in
   if is_conditional opts
   then mk_cond (arm_single_cycle mn) x
   else x.
 
-Definition arm_prim_string : seq (string * prim_constructor arm_op) :=
-  Eval compute in
+Definition arm_prim_string {core : arm_core}
+  : seq (string * prim_constructor arm_op) :=
   let mk_prim mn sf ic :=
     let hs := xseq.assoc always_has_shift_mnemonics mn in
     let opts := {| set_flags := sf; is_conditional := ic; has_shift := hs; |} in
@@ -2356,15 +2368,22 @@ Definition arm_prim_string : seq (string * prim_constructor arm_op) :=
         (~~ [&& sf, ic & mn == MUL ])
         "this mnemonic cannot both set flags and be conditional"%string
     in
-    ok (ARM_op mn opts)
+    let op := ARM_op mn opts in
+    Let _ :=
+      assert
+        (id_valid (arm_instr_desc op))
+        "this instruction is not available on this core"%string
+    in
+    ok op
   in
   map (fun mn => (string_of_arm_mnemonic mn, PrimARM (mk_prim mn))) cenum.
 
 #[ export ]
-Instance arm_op_decl : asm_op_decl arm_op :=
+Instance arm_op_decl {core : arm_core} : asm_op_decl arm_op :=
   {|
     instr_desc_op := arm_instr_desc;
     prim_string := arm_prim_string;
   |}.
 
-Definition arm_prog := @asm_prog _ _ _ _ _ _ _ arm_op_decl.
+Definition arm_prog {core : arm_core} :=
+  @asm_prog _ _ _ _ _ _ _ arm_op_decl.

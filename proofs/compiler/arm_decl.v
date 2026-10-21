@@ -24,6 +24,20 @@ Require Export arm_expand_imm.
  * This is a description of the base architecture (no extensions).
  *)
 
+(* -------------------------------------------------------------------- *)
+(* The core: what distinguishes the processors that run this instruction
+   set. The instruction descriptions (arm_instr_decl.v) describe the
+   instructions; the core says which ones it has. *)
+
+Class arm_core :=
+  {
+    (* The DSP extension (ARMv7E-M) is implemented. *)
+    core_dsp : bool;
+  }.
+
+(* Cortex-M4: ARMv7E-M. *)
+Definition cortex_m4 : arm_core := {| core_dsp := true; |}.
+
 (* --------------------------------------------- *)
 Definition arm_reg_size  := U32.
 Definition arm_xreg_size := U64.
