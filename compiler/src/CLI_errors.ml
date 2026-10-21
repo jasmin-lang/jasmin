@@ -1,6 +1,6 @@
 open Glob_options
 open Utils
-
+open Architecture
 (* -------------------------------------------------------------------- *)
 
 type cli_error =
@@ -54,9 +54,11 @@ let check_options () =
   then warning Experimental Location.i_dummy
       "automatic spilling is experimental";
 
-  if !target_arch = ARM_M4
-    then warning Experimental Location.i_dummy
-      "support of the ARMv7 architecture is experimental";
+  (match !target_arch with
+   | ARM_M _ ->
+     warning Experimental Location.i_dummy
+       "support of the ARM M-profile architectures is experimental"
+   | _ -> ());
 
   if !target_arch = RISCV
     then warning Experimental Location.i_dummy

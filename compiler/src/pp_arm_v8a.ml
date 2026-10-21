@@ -78,7 +78,7 @@ let pp_asm_arg ?(wform = false) (arg : (register, Arch_utils.empty, Arch_utils.e
         ~kind:"assembly printing"
         ~internal:true
         "memory operand relative to the instruction pointer"
-  | ImmRip _ -> assert false (* Only on ARMv7-M. *)
+  | ImmRip _ -> assert false (* Only on the ARM M-profile. *)
   | XReg _ -> .
 
 (* -------------------------------------------------------------------- *)
