@@ -267,7 +267,7 @@ Definition fexec_xcall (p: prog) (s : estate) (o : syscall_t) (fs: fstate) :
      xsp.fst. In a case such as random events, the only input is
      provided by fs. *)
   iresult s (xpars_pre XP xsp fs) ;;
-
+  
   (* executes the external function o in the fstate fs, given a stack
      quota sz, context xsp, and a fresh allocation limit  *)
   fs1 <- inner_fexec_xcall xsp (xpars_sz XP) o fs ;;
