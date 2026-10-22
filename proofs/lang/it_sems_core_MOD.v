@@ -41,8 +41,7 @@ Variant recCall : Type -> Type :=
  | RecCall (ii:instr_info) (f:funname) (fs:fstate) : recCall fstate.
 
 Variant XCallEvent : Type -> Type :=
-  | XCall : syscall_state -> Z -> Z -> lvals -> lvals -> mem ->
-            XCallEvent fstate.
+  | XCall : Z -> Z -> Z -> lvals -> mem -> XCallEvent fstate.
 
 Definition mk_error_data (s:estate) (e:error)  := (e, tt).
 
@@ -227,16 +226,19 @@ Definition fexec_syscall (s : estate) (o : syscall_t) (fs:fstate) : itree E fsta
 (**********************************************************************)
 
 Record xparams : Type := XParams {
-  (* stack quota and fresh allocation limit *)                           
-  xpars_sz : (Z * Z) ;
-  (* context locations (for input and output) *)                           
-  xcall_context : fstate -> exec (lvals * lvals) ;
-  (* precondition on the context, the input values and the current state
-   *)                           
-  xpars_pre : (lvals * lvals) -> fstate -> exec unit ;
-  (* postcondition on the context, the output values and the current state
-   *)                                                        
-  xpars_post : (lvals * lvals) -> fstate -> fstate -> exec fstate
+  (* stack size limit *)                           
+  xp_stack_sz : Z ;
+  (* fresh allocation size limit *)                           
+  xp_alloc_sz : Z ;
+  (* output size limit *)                           
+  xp_ret_sz : Z ;                           
+  (* return address (output locations) *)                           
+  xp_ret_loc : fstate -> exec lvals ;
+  (* precondition on the size limits, output address and current memory *) 
+  xp_pre : Z -> Z -> Z -> lvals -> fstate -> exec unit ;
+  (* postcondition on the size of the output, the validity of the
+     return address, and the size of the current memory *) 
+  xp_post : Z -> Z -> lvals -> fstate -> fstate -> exec fstate
 }.                                                                       
 
 
@@ -245,18 +247,17 @@ Section XCalls.
 Context {XPars : forall (p : prog) (o: syscall_t), xparams}.
 
 Definition inner_fexec_xcall 
-  (xsp: (lvals * lvals)) (sz: Z * Z)
+   (s_sz a_sz o_sz: Z) (xsp: lvals)
   (o: syscall_t) (fs: fstate) : itree E fstate :=
   let m0 := fmem fs in
-  let: (xs1, xs2) := xsp in
-  trigger (XCall (fscs fs) (fst sz) (snd sz) xs1 xs2 m0).
+  trigger (XCall s_sz a_sz o_sz xsp m0).
   
 Definition fexec_xcall (p: prog) (s : estate) (o : syscall_t) (fs: fstate) :
   itree E fstate :=
   let XP := XPars p o in
 
-  (* extract input and output context from the arguments *)
-  xsp <- iresult s (xcall_context XP fs) ;; 
+  (* extract the output locations from the arguments *)
+  xsp <- iresult s (xp_ret_loc XP fs) ;; 
 
   (* check that the context is compatible with the fstate: the context
      locations (xsp) should be valid (in a whole program execution)
@@ -266,11 +267,11 @@ Definition fexec_xcall (p: prog) (s : estate) (o : syscall_t) (fs: fstate) :
      separately. fs can contain values that constrain those found in
      xsp.fst. In a case such as random events, the only input is
      provided by fs. *)
-  iresult s (xpars_pre XP xsp fs) ;;
+  iresult s (xp_pre XP (xp_stack_sz XP) (xp_alloc_sz XP) (xp_ret_sz XP) xsp fs) ;;
   
   (* executes the external function o in the fstate fs, given a stack
      quota sz, context xsp, and a fresh allocation limit  *)
-  fs1 <- inner_fexec_xcall xsp (xpars_sz XP) o fs ;;
+  fs1 <- inner_fexec_xcall (xp_stack_sz XP) (xp_alloc_sz XP) (xp_ret_sz XP) xsp o fs ;;
   
   (* check that xsp.snd contains valid return values; notice that
      xsp.snd is where the caller should expect to find the call
@@ -278,7 +279,7 @@ Definition fexec_xcall (p: prog) (s : estate) (o : syscall_t) (fs: fstate) :
      as a result of allocation. the only changes between fs and fs1
      should be down to the context, but fs and fs1 are passed only to
      compare changes in memory size *)
-  iresult s (xpars_post XP xsp fs fs1).
+  iresult s (xp_post XP (xp_alloc_sz XP) (xp_ret_sz XP) xsp fs fs1).
 
 
 (* semantics of instructions, abstracting on function calls (through
@@ -642,7 +643,7 @@ Proof.
     move=> vs; rewrite interp_bind. eapply eqit_bind.
     * rewrite /fexec_xcall.
       rewrite interp_bind; apply eqit_bind; first by apply interp_iresult.
-      move=> [vs1 vs2].
+      move=> vs1.
       rewrite interp_bind; apply eqit_bind. eapply interp_iresult.
       move=> [].
       rewrite interp_bind; apply eqit_bind.
@@ -811,7 +812,7 @@ Proof.
       eapply eutt_eq_bind'.
       * rewrite interp_bind; eapply eutt_eq_bind'.
         - by eapply interp_cond_iresult.
-        move=> [vs1 vs2].
+        move=> vs1.
         rewrite interp_bind; apply eutt_eq_bind'.
         - rewrite interp_cond_iresult; reflexivity.
         move=> [].
