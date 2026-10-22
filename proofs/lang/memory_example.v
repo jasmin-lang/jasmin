@@ -170,10 +170,13 @@ Module MemoryI : MemoryT.
 
   Lemma get_noerrty m p e : get m p = Error e -> e <> ErrType.
   Proof. rewrite /get /assert. case: ifP => _ //= h. congruence. Qed.
+  
+  Lemma set_noerrty m p e w : set m p w = Error e -> e <> ErrType.
+  Proof. rewrite /set /assert. case: ifP => _ //= h. congruence. Qed.
 
   #[ global ]
   Instance CM : coreMem pointer mem :=
-    CoreMem setP is_allocP get_valid8 is_alloc_set get_noerrty.
+    CoreMem setP is_allocP get_valid8 is_alloc_set get_noerrty set_noerrty.
 
   Lemma is_align_wunsigned_add ptr ws i :
     is_align ptr ws →

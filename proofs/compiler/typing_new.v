@@ -30,7 +30,7 @@ Module Import E.
 
 End E.
 
-Section WITH_PARAMS.
+Section TYPING.
 
 Context `{asmop : asmOp}.
 Context {pd : PointerData}.
@@ -72,7 +72,7 @@ Definition pp_atype (t : atype) : pp_error :=
                    pp_s "["; pp_z len; pp_s "]"]
   end.
 
-Definition check_type (te : atype (*actual type*)) (ty : atype (*expected type*)) (*expected type <= actual type*): cexec unit :=
+Definition check_type (te : atype (*actual type*)) (ty : atype (*expected type*)) (*expected wsize <= actual wsize*): cexec unit :=
   let b := subatype ty te in
   if negb b then
     Error (typing_error (pp_vbox
@@ -86,8 +86,8 @@ Definition check_int (te : atype) : cexec unit := check_type te (aint).
 
 Definition check_ptr (te : atype) : cexec unit := check_type te (aword Uptr).
 
-Definition check_expr (ty_expr : pexpr -> cexec atype) (e' : pexpr) (ty : atype) : cexec unit := 
-  Let te := ty_expr e' in
+Definition check_expr (ty_expr : pexpr -> cexec atype) (e : pexpr) (ty : atype) : cexec unit := 
+  Let te := ty_expr e in
   check_type te ty.
 
 Definition check_exprs (ty_expr : pexpr -> cexec atype) (es : seq pexpr) (tys : seq atype) : cexec unit := 
@@ -105,7 +105,7 @@ Definition ty_get_set_sub (ty_expr : pexpr -> cexec atype) (ws : wsize) (len : Z
   Let te := ty_expr e' in
   Let _ := check_array tx in
   Let _ := check_int te in
-  ok (aarr ws len). (* TODO : how about checking that subarr fits within arr*) 
+  ok (aarr ws len).
 
 Definition ty_load_store (ty_expr : pexpr -> cexec atype) (ws : wsize) (e' : pexpr) : cexec atype :=
   Let te := ty_expr e' in
@@ -198,7 +198,7 @@ Fixpoint check_instr (p : ufun_decls) (i : instr) : cexec unit :=
                               check_cmd check_instr p c
     | Cwhile _ c1 e _ c2 => Let _ := check_expr ty_expr e abool in
                             Let _ := check_cmd check_instr p c1 in
-                            check_cmd check_instr p c1
+                            check_cmd check_instr p c2
     | Ccall xs fn es =>  Let fd := get_fun p fn in
                           Let _  := check_exprs ty_expr es fd.(f_tyin) in
                           check_lvals xs fd.(f_tyout)
@@ -221,19 +221,16 @@ Definition check_global_decl (gd : glob_decl) : cexec unit :=
                     in if c then Error global_mismatch else ok tt
   end.
 
-Definition check_contract (tyin tyout : list atype) (fc : fun_contract) : cexec unit := (* I don't know what a contract is*)
-  let args := map (Pvar \o mk_gvar) fc.(f_iparams) in
-  let res := map (Pvar \o mk_gvar) fc.(f_ires) in
-  Let _ := check_exprs ty_expr args tyin in
-  Let _ := check_exprs ty_expr res tyout in
+Definition check_contract (tyin tyout : list atype) (fc : fun_contract) : cexec unit :=
+  Let _ := check_lvals (map Lvar (f_iparams fc)) tyin in
+  Let _ := check_lvals (map Lvar (f_ires fc)) tyout in
   Let _ := allM (fun '(_, a) => check_eassert a) fc.(f_pre) in
   allM (fun '(_, a) => check_eassert a) fc.(f_post).
 
 Definition check_fun (p : ufun_decls) (func : ufun_decl) : cexec unit := 
   let fd := snd func in
-  let args := map (Pvar \o mk_gvar) fd.(f_params) in
   let res := map (Pvar \o mk_gvar) fd.(f_res) in
-  Let _ := check_exprs ty_expr args fd.(f_tyin) in
+  Let _ := check_lvals (map Lvar fd.(f_params)) fd.(f_tyin) in
   Let _ := check_exprs ty_expr res fd.(f_tyout) in
   Let _ := check_cmd check_instr p fd.(f_body) in
   Let _ := oapp (check_contract fd.(f_tyin) fd.(f_tyout)) (ok tt) fd.(f_contract) in
@@ -249,7 +246,7 @@ Definition check_prog (p : uprog): cexec unit :=
 
 
   
-End WITH_PARAMS.
+End TYPING.
 
 
 

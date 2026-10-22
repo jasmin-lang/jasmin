@@ -71,4 +71,10 @@ apply: (sem_forall_m (P := fun r => exists t, r = ok t)); last exact: sem_prod_o
 by move=> r [t ->].
 Qed.
 
+Lemma sem_opN_safety_typed_ok (op : opN_safety) :
+  sem_forall (@is_ok _ _) _ (sem_opN_safety_typed op).
+Proof.
+  by case: op => /=.
+Qed.
+
 End WITH_PARAMS.

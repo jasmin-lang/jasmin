@@ -159,6 +159,7 @@ Class coreMem (core_mem: Type) := CoreMem {
   get_valid8 : forall m p w, get m p = ok w -> valid8 m p;
   valid8_set : forall m p w m' p', set m p w = ok m' -> valid8 m' p' = valid8 m p';
   get_noerrty: forall m p e, get m p = Error e -> e <> ErrType;
+  set_noerrty: forall m p e w, set m p w = Error e -> e <> ErrType;
 }.
 
 End POINTER.
