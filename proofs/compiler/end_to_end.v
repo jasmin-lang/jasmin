@@ -179,6 +179,24 @@ Definition cast_vals tys vs := [seq wseq_of_val x.1 x.2 | x <- zip tys vs ].
 
 Definition cast_vals_self vs := cast_vals (map type_of_val vs) vs.
 
+Lemma cast_vals_cat tys1 tys2 vs1 vs2 :
+  size tys1 = size vs1 ->
+  cast_vals (tys1 ++ tys2) (vs1 ++ vs2)
+  = cast_vals tys1 vs1 ++ cast_vals tys2 vs2.
+Proof. by move=> h; rewrite /cast_vals zip_cat // map_cat. Qed.
+
+Lemma mapM2_truncate_val_type_of_val tys vs vs' :
+  mapM2 ErrType truncate_val tys vs = ok vs' ->
+  [seq type_of_val v | v <- vs'] = tys.
+Proof.
+elim: tys vs vs' => [|ty tys ih] [|v vs] //= vs'; first by move=> [<-].
+by t_xrbindP=> v' /truncate_val_has_type <- ? /ih <- <-.
+Qed.
+
+(* Types of the results of a function, according to its signature. *)
+Definition get_tyout (p : uprog) (fn : funname) : seq ctype :=
+  oapp (fun fd => map eval_atype fd.(f_tyout)) [::] (get_fundef p.(p_funcs) fn).
+
 Lemma values_uincl_is_def s s' :
   let: ty := map type_of_val s in
   all val_is_def s ->
@@ -205,9 +223,11 @@ Definition values_match p fn xfd t s' t' :=
   let: mt' := t'.(asm_mem) in
   let: ress := s'.(fvals) in
   let: rest := get_typed_reg_values t' xfd.(asm_fd_res) in
-  let: tys := [seq type_of_val x | x <- drop n ress ] in
-  List.Forall2 (value_in_mem mt') (take n ress) (take n argt)
-  /\ cast_vals tys (drop n ress) = cast_vals tys rest.
+  let: tys := get_tyout p fn in
+  [/\ all val_is_def ress
+    , [seq type_of_val x | x <- ress ] = tys
+    , List.Forall2 (value_in_mem mt') (take n ress) (take n argt)
+    & cast_vals (drop n tys) (drop n ress) = cast_vals (drop n tys) rest ].
 
 Definition aux_post p q fn xfd s t s' t' :=
   let: args := s.(fvals) in
@@ -223,8 +243,7 @@ Definition aux_post p q fn xfd s t s' t' :=
   [/\ mem_agreement ms' mt' t'.(asm_rip) q.(asm_globs)
     , t'.(asm_scs) = s'.(fscs)
     , zeroized_u cparams p fn args argt ms mt mt'
-    & values_match p fn xfd t s' t'
-  ].
+    & values_match p fn xfd t s' t' ].
 
 Lemma correct_comp entries p q fn fd :
   compile_prog_to_asm aparams cparams entries p = ok q ->
@@ -267,8 +286,13 @@ apply: (lutt_xrutt_trans_l'
   done.
 - done.
 - done.
-move=> s' t' hfin [{}hdef [hm hscs hz hptr hres]]; split=> //; split=> //.
-apply: values_uincl_is_def hres.
+move=> s' t' [st hfin] [{}hdef [hm hscs hz hptr hres]]; split=> //.
+have htys : [seq type_of_val v | v <- fvals s'] = get_tyout p fn.
+- rewrite /get_tyout hfd /=.
+  move: hfin; rewrite /finalize_funcall; t_xrbindP=> vres _ vres' htr <- /=.
+  exact: mapM2_truncate_val_type_of_val htr.
+split=> //.
+rewrite -htys -map_drop; apply: values_uincl_is_def hres.
 by rewrite all_drop // hdef.
 Qed.
 
@@ -320,6 +344,54 @@ have {}hdef :
 f_equal; elim: ziota hdef => //= x xs hind hdef.
 move: (hdef x); rewrite in_cons eqxx /read8 => /(_ erefl) [w -> ->].
 rewrite hind // => i hi; apply: hdef; by rewrite in_cons hi orbT.
+Qed.
+
+Lemma wseq_word_in_mem m ws (w : word ws) p :
+  value_in_mem m (Vword w) (Vword p) ->
+  split_vec 8 w = read_wseq m p (Z.to_pos (wsize_size ws)).
+Proof.
+move=> [_ [[<- h]]].
+have {}h :
+  forall i, i \in ziota 0 (wsize_size ws) -> read8 m p i = ok (LE.wread8 w i).
+- move=> i; rewrite in_ziota !zify => hi.
+  by apply: h; rewrite get_val_byte_word //; lia.
+have -> :
+  read_wseq m p (Z.to_pos (wsize_size ws))
+  = [seq LE.wread8 w i | i <- ziota 0 (wsize_size ws)].
+- rewrite /read_wseq Z2Pos.id; last exact: wsize_size_pos.
+  suff -> :
+    mapM (read8 m p) (ziota 0 (wsize_size ws))
+    = ok [seq LE.wread8 w i | i <- ziota 0 (wsize_size ws)] by [].
+  elim: ziota h => //= i zs ih h.
+  rewrite h ?in_cons ?eqxx //= ih // => j hj.
+  by apply: h; rewrite in_cons hj orbT.
+have -> : split_vec 8 w = LE.encode w by [].
+rewrite -{1}(mkseq_nth 0%R (LE.encode w)) /mkseq LE.size_encode.
+rewrite /LE.wread8 ziotaE -map_comp.
+by apply: eq_map => i /=; rewrite Nat2Z.id.
+Qed.
+
+(* Read a result of type [ty] from memory, given the pointer [pv] to it. *)
+Definition read_res (m : mem) (ty : ctype) (pv : value) : wseq :=
+  if to_pointer pv is Ok ptr then
+    match ty with
+    | carr len => read_wseq m ptr len
+    | cword ws => read_wseq m ptr (Z.to_pos (wsize_size ws))
+    | _ => [::]
+    end
+  else [::].
+
+Lemma value_in_mem_read_res m v pv :
+  val_is_def v ->
+  value_in_mem m v pv ->
+  wseq_of_val (type_of_val v) v = read_res m (type_of_val v) pv.
+Proof.
+case: v => [b|z|len a|ws w|//] hdef hin; have [p [? h]] := hin; subst pv.
+all: rewrite /read_res /= truncate_word_u //=.
+- rewrite /wseq_of_val /= /to_arr WArray.castK /=.
+  exact: wseq_in_mem hdef hin.
+rewrite /wseq_of_val /= truncate_word_u /=.
+exact: wseq_word_in_mem hin.
 Qed.
 
 Lemma write_wseq_wf_ptr_arg
@@ -571,24 +643,40 @@ Instance Source : OracleSystem JazzI :=
 
 Definition MoT : choiceType := {choice asmmem}.
 
-(* We assume a function to read from target states.
-   This function models what information reaches the adversary as an oracle
-   output (rather than part of the state).
-   [values_match] means that values are equal pointwise, so we ask that the
-   extracted information contains only these values. *)
-Context
-  (xget_res : funname -> asmmem -> seq pointer -> seq wseq)
-  (xget_resP :
-    forall xfd o (i : valid_input o) fs xm,
-      get_fundef q.(asm_funcs) o = Some xfd ->
-      values_match p o xfd (mkxm o xmT i (vi_ptrs i)) fs xm ->
-      cast_vals [seq type_of_val v | v <- fvals fs] (fvals fs) = xget_res o xm (vi_ptrs i)).
+(* Reading the results from target states.
+   Pointer results are read from memory from the argument pointers.
+   The rest from registers. *)
+Definition xget_res (fn : funname) (t t' : asmmem) : seq wseq :=
+  if get_fundef q.(asm_funcs) fn is Some xfd then
+    let: n := get_nb_wptr p fn in
+    let: tys := get_tyout p fn in
+    let: argt := get_typed_reg_values t xfd.(asm_fd_arg) in
+    let: rest := get_typed_reg_values t' xfd.(asm_fd_res) in
+    [seq read_res t'.(asm_mem) x.1 x.2 | x <- zip (take n tys) (take n argt) ]
+    ++ cast_vals (drop n tys) rest
+  else [::]. (* absurd *)
+
+Lemma xget_resP xfd fn t fs t' :
+  get_fundef q.(asm_funcs) fn = Some xfd ->
+  values_match p fn xfd t fs t' ->
+  cast_vals (get_tyout p fn) (fvals fs) = xget_res fn t t'.
+Proof.
+move=> hxfd [hdef htys hmem hreg].
+rewrite /xget_res hxfd /= -hreg -htys -map_drop -map_take.
+rewrite -[in LHS](cat_take_drop (get_nb_wptr p fn) (fvals fs)).
+rewrite map_cat cast_vals_cat ?size_map //; congr (_ ++ _).
+move: hmem (all_take (get_nb_wptr p fn) hdef).
+elim: (take (get_nb_wptr p fn) (fvals fs))
+  (take (get_nb_wptr p fn) (get_typed_reg_values t (asm_fd_arg xfd)))
+  => [|v vs ih] [|pv pvs] /List_Forall2_inv //= [hv hvs] /andP [hdv hdvs].
+by rewrite -(ih _ hvs hdvs) /cast_vals /= (value_in_mem_read_res hdv hv).
+Qed.
 
 Definition isem_asm_res
   (o : JNo) (i : JIn o) (m : MoT) : itree E (JOut o * MoT) :=
   let xm := mkxm o m i (vi_ptrs i) in
   let* xm' := isem_asm q o xm in
-  Ret (xget_res o xm' (vi_ptrs i), xmT).
+  Ret (xget_res o xm xm', xmT).
 Arguments isem_asm_res : clear implicits.
 
 (* Assembly semantics:
@@ -696,7 +784,8 @@ have hdef : res_defined p o (mkfs ms i) by apply/vi_def/sim_mem_equiv_mi/hm.
 apply: eutt_clo_bind; first exact: eutt_isem_post hsafe hdef hm.
 case: hm => ??; subst ms mt.
 move=> fs xm [xfd [hxfd hpre [hma hscs hz hargs]]]; apply eutt_Ret.
-split=> //=; exact: xget_resP hxfd hargs.
+have [_ htys _ _] := hargs.
+by split=> //=; rewrite htys; exact: xget_resP hxfd hargs.
 Qed.
 
 (* Security preservation: the source and target oracle systems are in
@@ -870,23 +959,17 @@ Context
   (print_sprogP : forall s p, cparams.(print_sprog) s p = p)
   (print_linearP : forall s p, cparams.(print_linear) s p = p)
   (hcomp : compile_prog_to_asm aparams cparams entries p = ok q)
-  (xget_res : funname -> asmmem -> seq pointer -> seq wseq)
-  (xget_resP :
-    forall xfd o (i : valid_input p q o) fs xm,
-      get_fundef q.(asm_funcs) o = Some xfd ->
-      values_match p o xfd (mkxm q o xmT i (vi_ptrs i)) fs xm ->
-      cast_vals [seq type_of_val v | v <- fvals fs] (fvals fs) = xget_res o xm (vi_ptrs i))
 .
 
 (* The main result for ML-KEM. *)
 Theorem mlkem_end_to_end mkigk mkienc mkidec :
   indcca_reduction
     (KEM_of_Jazz (Source p q) mkigk mkienc mkidec)
-    (KEM_of_Jazz (Target p q xget_res) mkigk mkienc mkidec).
+    (KEM_of_Jazz (Target p q) mkigk mkienc mkidec).
 Proof.
 apply/sim_indcca_adv/simulating_JKEM.
-exact: (compiler_preserves
-          xget_resP haparams print_uprogP print_sprogP print_linearP hcomp).
+exact:
+  (compiler_preserves haparams print_uprogP print_sprogP print_linearP hcomp).
 Qed.
 
 End INSTANTIATION.
