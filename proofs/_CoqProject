@@ -11,6 +11,8 @@
 -arg "-w -projection-no-head-constant"
 -arg "-w -postfix-notation-not-level-1"
 -arg "-w -deprecated-since-mathcomp-2.5.0"
+# to be handled when requiring mathcomp >= 2.7
+-arg "-w -deprecated-since-mathcomp-2.7.0"
 -arg "-w -deprecated-from-Coq"
 -arg "-w -deprecated-dirpath-Coq"
 # the next 2 lines can be solved only with Stdlib >= 9.1
