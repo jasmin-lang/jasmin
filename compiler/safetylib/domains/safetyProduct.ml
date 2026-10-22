@@ -539,9 +539,11 @@ module PIMake (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extended_o
         pp_rel_vars v_pt)
 
   (* Arrays and array elements must always be non-relational. 
-     We do not use the state in this heuristic *)
+     We do not use the state in this heuristic. A temporary can be
+     relational: the bounds of a right shift are stated on one. *)
   let vdom v _ = match v with
-    | Temp _ | WTemp _ -> assert false
+    | Temp _ -> Ppl 0
+    | WTemp _ -> assert false
 
     | MNumInv _ -> Ppl 0        (* Numerical invariant must be relational *)
 
@@ -741,9 +743,11 @@ module PIDynMake (Arch : SafetyArch.SafetyArch) (PW : ProgWrap with type extende
       ) dom_st vs
     
   (* Arrays and array elements must always be non-relational. 
-     We do not use the state in this heuristic *)
+     We do not use the state in this heuristic. A temporary can be
+     relational: the bounds of a right shift are stated on one. *)
   let vdom (v : mvar) (dom_st : dom_st) = match v with
-    | Temp _ | WTemp _ -> assert false
+    | Temp _ -> Ppl 0
+    | WTemp _ -> assert false
 
     | MNumInv _ -> Ppl 0        (* Numerical invariant must be relational *)
 
