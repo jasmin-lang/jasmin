@@ -5,7 +5,7 @@ to the paper "KEM-IND-CCA-Preserving Compilation of Jasmin's ML-KEM."
 # Download, installation, and sanity-testing instructions
 
 Detailed instruction are available at
-[link](https://github.com/jasmin-lang/jasmin/wiki/Installation-instructions)
+[link](https://jasmin-lang.readthedocs.io/en/stable/misc/installation_guide.html)
 
 ## Dependencies
 

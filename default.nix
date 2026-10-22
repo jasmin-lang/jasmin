@@ -77,7 +77,7 @@ else
 
 let ecDeps = ecRef != ""; in
 
-stdenv.mkDerivation {
+stdenv.mkDerivation ({
   name = "jasmin-0";
   src = nix-gitignore.gitignoreSource [] ./.;
   buildInputs = []
@@ -105,4 +105,7 @@ stdenv.mkDerivation {
   installPhase = ''
     make -C compiler install PREFIX=$out
   '';
-}
+} // lib.optionalAttrs stdenv.hostPlatform.isLinux {
+  # Nix's glibc ignores the host's locales; see https://wiki.nixos.org/wiki/Locales
+  LOCALE_ARCHIVE = "${glibcLocales}/lib/locale/locale-archive";
+})
