@@ -31,6 +31,7 @@
 -R lang Jasmin
 -R ssrmisc Jasmin
 -R itrees Jasmin
+-R probabilistic Jasmin
 
 ssrmisc/oseq.v
 ssrmisc/seq_extra.v
@@ -96,7 +97,6 @@ compiler/dead_calls_proof.v
 compiler/dead_code.v
 compiler/dead_code_proof.v
 compiler/direct_call_proof.v
-compiler/end_to_end.v
 compiler/hoare_valid.v
 compiler/toec_prog.v
 compiler/toec_proof.v
@@ -177,18 +177,21 @@ compiler/x86_params_proof.v
 compiler/x86_stack_zeroization.v
 compiler/x86_stack_zeroization_proof.v
 compiler/x86.v
-itrees/eqit_facts.v
-itrees/equiv_extras.v
 itrees/it_exec.v
-itrees/lutt_extras.v
 itrees/rec_facts.v
 itrees/rutt_extras.v
 itrees/while.v
 itrees/xrutt.v
 itrees/xrutt_facts.v
+
+probabilistic/dinterp.v
+probabilistic/distr_extra.v
+probabilistic/distr_preservation.v
+probabilistic/eqit_facts.v
+probabilistic/equiv_extras.v
+probabilistic/lutt_extras.v
+
 lang/core_logics.v
-lang/dinterp.v
-lang/distr_extra.v
 lang/expr.v
 lang/expr_facts.v
 lang/extraction.v

@@ -30,6 +30,7 @@ this-clean::
 	$(RM) lang/*.glob lang/*.d lang/*.vo lang/.*.vo
 	$(RM) compiler/*.glob compiler/*.d compiler/*.vo compiler/.*.vo
 	$(RM) arch/*.glob arch/*.d arch/*.vo arch/.*.vo
+	$(RM) probabilistic/*.glob probabilistic/*.d probabilistic/*.vo probabilistic/.*.vo
 
 this-distclean::
 	$(RM) $(shell find . -name '*~')

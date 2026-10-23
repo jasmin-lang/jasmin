@@ -88,8 +88,6 @@ Import Order.TTheory.
   (@ITree.bind _ _ _ c1 (fun p => c2))
     (at level 61, p as pattern, c1 at next level, right associativity).
 
-#[local] Notation "x |> f" := (f x) (only parsing, at level 25).
-
 Section MOVE.
 
 Context
@@ -110,20 +108,6 @@ Context
 Definition safe_uprog (p : uprog) (fn : funname) (fs : fstate) : Prop :=
   safe (is_error wE) (isem_unit p fn fs).
 
-(* move to values.v *)
-Definition arr_is_def (n : Z) (a : WArray.array n) : bool :=
-  all (WArray.is_init a) (ziota 0 n).
-
-Definition val_is_def (v : value) : bool :=
-  if v is Varr _ a then arr_is_def a else is_defined v.
-
-Definition res_defined (p : uprog) (fn : funname) (fs : fstate) : Prop :=
-  lutt
-    (fun T e => True)
-    (fun T e r => True)
-    (fun fs => all val_is_def (fvals fs))
-    (isem_unit p fn fs).
-
 Let REeq {E : Type -> Type} A1 A2 (e1: E A1) (e2: E A2) :=
   exists h : A2 = A1, e1 = eq_rect A2 E e2 A1 h.
 
@@ -139,7 +123,6 @@ Lemma correct_comp entries p q fn fd :
     get_fundef q.(asm_funcs) fn = Some xfd
     & forall s t,
         safe_uprog p fn s ->
-        res_defined p fn s ->
         full_pre p q fn xfd s t ->
         eutt
           (full_post cparams p q fn xfd s t)
@@ -150,20 +133,18 @@ have [xfd [hxfd MY heq]] := [elaborate
   it_compile_prog_to_asmP
     haparams print_uprogP print_sprogP print_linearP hcomp hfn ].
 exists xfd; first exact: hxfd.
-move=> s t hsafe hdef hpre.
+move=> s t hsafe hpre.
 apply/simple_rutt_eutt/(EPreRel_safe_xrutt_rutt hsafe).
-apply: (lutt_xrutt_trans_l'
+apply: (lutt_xrutt_trans_l
   (REv := EPreRel_safe (is_error wE) REeq)
   (RAns := RAeq)
-  (RR := fun s' t' =>
-           [/\ all val_is_def (fvals s')
-             & full_post cparams p q fn xfd s t s' t' ]));
+  (RR := full_post cparams p q fn xfd s t));
   cycle -2.
 
 - exact:
     (isem_fun_finalize (wa := withassert) (scP := sCP_unit) (wE := wE)) hfd.
-- apply: lutt_xrutt_trans_l'; cycle -2.
-  + exact: hdef.
+- apply: lutt_xrutt_trans_l; cycle -2.
+  + exact: lutt_true.
   + exact: heq hpre.
   + move=> T1 T2 [|[n1]]; first by left. 
     move=> [|[n2]]; first by left.
@@ -179,7 +160,7 @@ apply: (lutt_xrutt_trans_l'
   done.
 - done.
 - done.
-- move=> s' t' hfin [{}hdef [hm hz hptr hres]]; split=> //; split=> //.
+- by [].
 Qed.
 
 End MOVE.
@@ -203,9 +184,6 @@ Section CHOICEOF.
     boolp.gen_choiceMixin choiceof.
 
 End CHOICEOF.
-
-Notation "{ 'choiceof' T }" := (choiceof T)
-  (format "{ 'choiceof'  T }").
 
 
 Section MAIN.
@@ -279,6 +257,17 @@ Proof.
   eapply safe_default_ok; auto.
 Qed.  
 
+(* Probabilistic correcteness spec: given a source program p and a
+   target program q with random events, a target function xfd for a
+   function name fn satisfying the full_post spec with respect to a
+   source state s and a target state t, the probabilistic
+   interpretations of fn as source function of p starting from s and
+   as target function of q starting from t give the same
+   distribution. *)
+Notation prob_equivalence p q fn xfd s t :=
+  (prob_sim (choice_rel (full_post cparams p q fn xfd s t))
+          (isem_unit p fn s) (isem_asm q fn t)).
+
 (* compilation of programs with random events preserves probabilities
 *)
 Lemma rnd_correct_comp entries p q fn fd :
@@ -289,22 +278,16 @@ Lemma rnd_correct_comp entries p q fn fd :
     get_fundef q.(asm_funcs) fn = Some xfd
     & forall s t,
         safe_uprog p fn s ->
-        res_defined p fn s ->
         full_pre p q fn xfd s t ->
-        eutt
-          (full_post cparams p q fn xfd s t)
-          (isem_unit p fn s) (isem_asm q fn t) /\
-        prob_sim (choice_rel (full_post cparams p q fn xfd s t))
-          (isem_unit p fn s) (isem_asm q fn t).
+        prob_equivalence p q fn xfd s t. 
 Proof using R aparams asm_e asm_op asm_scsem call_conv cond cparams extra_op
 haparams print_linearP print_sprogP print_uprogP reg regx rflag xreg.
   intros H H0 H1.
   have [xfd H2 H3] := [elaborate correct_comp haparams
                print_uprogP print_sprogP print_linearP H H0 H1]. 
   exists xfd; auto.
-  intros s t X1 X2 X3.
-  specialize (H3 s t X1 X2 X3).
-  split; auto.
+  intros s t X1 X3.
+  specialize (H3 s t X1 X3).
   eapply probabilistic_correctness; auto.
 Qed.
 
