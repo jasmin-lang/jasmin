@@ -20,6 +20,12 @@ type base_leakage = [
   | LeakW64_  of W64.t
   | LeakW128_  of W128.t
   | LeakW256_  of W256.t
+  | LeakArrW8_  of W8.t list
+  | LeakArrW16_  of W16.t list
+  | LeakArrW32_  of W32.t list
+  | LeakArrW64_  of W64.t list
+  | LeakArrW128_  of W128.t list
+  | LeakArrW256_  of W256.t list
   ].
 
 type leakage = [
@@ -36,6 +42,12 @@ op [opaque] Leak_W32 x = LeakBase (LeakW32_ x).
 op [opaque] Leak_W64 x = LeakBase (LeakW64_ x).
 op [opaque] Leak_W128 x = LeakBase (LeakW128_ x).
 op [opaque] Leak_W256 x = LeakBase (LeakW256_ x).
+op [opaque] Leak_arrW8 (x : W8.t list) = LeakBase (LeakArrW8_ x).
+op [opaque] Leak_arrW16 (x : W16.t list) = LeakBase (LeakArrW16_ x).
+op [opaque] Leak_arrW32 (x : W32.t list) = LeakBase (LeakArrW32_ x).
+op [opaque] Leak_arrW64 (x : W64.t list) = LeakBase (LeakArrW64_ x).
+op [opaque] Leak_arrW128 (x : W128.t list) = LeakBase (LeakArrW128_ x).
+op [opaque] Leak_arrW256 (x : W256.t list) = LeakBase (LeakArrW256_ x).
 
 type leakages = leakage list.
 

@@ -12,6 +12,7 @@ ECLIB=$(dirname $0)/../../eclib
 EC=${DIR}/jasmin.ec
 CT=${DIR}/jasmin_ct.ec
 CTG=${DIR}/jasmin_ctg.ec
+DECLASSIFY=${DIR}/jasmin_declassify.ec
 
 if [ -d "${DIR}" ]; then rm -r ${DIR}; fi
 mkdir -p $DIR
@@ -24,7 +25,9 @@ set -o xtrace
 $(dirname $0)/../jasmin2ec ${ARCH} -o ${EC} "$2"
 $(dirname $0)/../jasmin2ec ${ARCH} -o ${CT} -m CT "$2"
 $(dirname $0)/../jasmin2ec ${ARCH} -o ${CTG} -m CTG "$2"
+$(dirname $0)/../jasmin2ec ${ARCH} -o ${DECLASSIFY} -m declassify "$2"
 
 easycrypt -I Jasmin:${ECLIB} ${ECARGS} ${EC}
 easycrypt -I Jasmin:${ECLIB} ${ECARGS} ${CT}
 easycrypt -I Jasmin:${ECLIB} ${ECARGS} ${CTG}
+easycrypt -I Jasmin:${ECLIB} ${ECARGS} ${DECLASSIFY}
