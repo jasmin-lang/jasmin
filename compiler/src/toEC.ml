@@ -1088,6 +1088,17 @@ let of_list_dfl env ws n =
   let witness = Format.asprintf "witness<:%s.t>" (fmt_Wsz ws) in
   Eapp (Eident [ec_Array env n; "of_list"], [ec_ident witness])
 
+(* [Array<n>.init (WArray<size>.get<ws> a)] where [a] is the byte array whose
+   bytes in [lo, lo + len) equal [w], the others zero *)
+let fill_dfl env ws n lo len w =
+  let i = Env.create_name env "i" in
+  let warray = ec_WArray env (arr_size ws n) in
+  let in_range = Eop3 (InORange, lo, ec_ident i, Eop2 (Plus, lo, len)) in
+  let a = Eapp (Eident [warray; "init8"],
+                [Efun1 (i, Eop3 (If, in_range, w, ec_ident "W8.zero"))]) in
+  let get = Eident [warray; Format.sprintf "get%i" (int_of_ws ws)] in
+  Eapp (Eident [ec_Array env n; "init"], [Eapp (get, [a])])
+
 let randombytes_suffix_dfl ws n =
   if ws = U8 then
     (* in the U8 case, we just print the length for backward compatibility *)
@@ -1110,6 +1121,7 @@ module type EcArray = sig
   val add_arr: Env.t -> wsize -> int -> unit
   val add_jarray: Env.t -> wsize -> int -> unit
   val of_list:  Env.t -> wsize -> int -> ec_expr
+  val fill: Env.t -> wsize -> int -> ec_expr -> ec_expr -> ec_expr -> ec_expr
   val randombytes_suffix: wsize -> int -> string
 
 end
@@ -1236,6 +1248,7 @@ module EcArrayOld : EcArray = struct
   let add_jarray env ws n = Env.add_jarray env ws n
 
   let of_list =  of_list_dfl
+  let fill = fill_dfl
 
   let randombytes_suffix = randombytes_suffix_dfl
 end
@@ -1351,6 +1364,7 @@ module EcWArray: EcArray = struct
   let add_jarray env ws n = Env.add_jarray env ws n
 
   let of_list =  of_list_dfl
+  let fill = fill_dfl
 
   let randombytes_suffix = randombytes_suffix_dfl
 end
@@ -1414,6 +1428,8 @@ module EcBArray : EcArray = struct
 
   let of_list env ws n =
     Eident [ec_BArray env (arr_size ws n); Format.sprintf "of_list%i" (int_of_ws ws)]
+
+  let fill env ws n lo len w = Eapp (Eident [ec_BArray env (arr_size ws n); "fill8"], [lo; len; w])
 
   let randombytes_suffix ws n =
     Format.asprintf "%i" (arr_size ws n)
@@ -1559,6 +1575,12 @@ module EcExpression(EA: EcArray): EcExpression = struct
                   EA.of_list env U8 (Conv.int_of_cz len),
                   [Elist (List.map (toec_expr env) es)]
               )
+          | Oarr_fill (ws, len) ->
+              let len = Conv.int_of_cz len in
+              begin match List.map (toec_expr env) es with
+              | [lo; n; w] -> EA.fill env ws len lo n w
+              | _ -> assert false
+              end
           end
       | Pif(_,e1,et,ef) ->
           let ty = ty_expr e in

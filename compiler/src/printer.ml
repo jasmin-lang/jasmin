@@ -74,6 +74,8 @@ let pp_ge_aux ~debug (pp_len: 'len pp) (pp_var: 'len gvar pp) : associativity ->
      | exception Not_found ->
      F.fprintf fmt "/* %au8 */ @[{ %a }@]" Z.pp_print (Conv.z_of_cz len) (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
      end
+  | PappN (Oarr_fill (ws, len), es) ->
+     F.fprintf fmt "/* %a%s */ @[fill(%a)@]" Z.pp_print (Conv.z_of_cz len) (string_of_ws ws) (pp_list ",@ " (pp_expr NoAssoc priority_min)) es
   | Pif(_, e,e1,e2) ->
      let p = priority_ternary in
      optparent fmt prio side p "%a ? %a : %a" (pp_expr Left p) e (pp_expr NoAssoc p) e1 (pp_expr Right p) e2

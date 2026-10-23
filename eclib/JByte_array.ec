@@ -23,11 +23,8 @@ abstract theory ByteArray.
 
   op is_init (t:t) (k l : int): bool = forall i, k <= i => i < k + l => is_init_cell t i.
 
-  op init_arr (b : W8.t) : t =
-    init (fun _ => b).
-
- lemma init_arrP (t: t) (k: int) : is_init_cell (init_arr (W8.of_int 255))  k.
- proof. by move => hk; rewrite initE hk. qed.
+  (* the bytes in [lo, lo + n) equal [w], the others are zero *)
+  op fill8 (lo n : int) (w : W8.t) : t = init (fun i => if lo <= i < lo + n then w else W8.zero).
 
  lemma is_init_set_last t len :
    is_init t 0 len => is_init t.[len <- W8.of_int 255] 0 (len + 1).

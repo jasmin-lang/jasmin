@@ -226,6 +226,10 @@ Definition sem_opN_total (o: opN) :
       let ty := sem_prod_app (collect (Z.to_nat len) [::])
                   (λ vs : seq (sem_t (cword U8)), rdflt (WArray.empty _) (WArray.fill _ vs)) in
       ecast l (sem_prod l _) (esym (map_nseq _ _ _)) ty
+  | Oarr_fill ws len =>
+      fun (lo n : Z) (w : u8) =>
+        let byte k := if (Z.leb lo k && Z.ltb k (lo + n))%Z then w else 0%R in
+        rdflt (WArray.empty _) (WArray.fill _ (map byte (ziota 0 (arr_size ws len))))
   | Ocombine_flags cf =>
       fun b0 b1 b2 b3 => sem_combine_flags cf b0 b1 b2 b3
   end.

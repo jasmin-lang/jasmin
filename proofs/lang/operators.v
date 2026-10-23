@@ -126,6 +126,7 @@ Variant combine_flags :=
 Variant opN :=
 | Opack of wsize & pelem (* Pack words of size pelem into one word of wsize *)
 | Oarray of Z (* Literal array of bytes *)
+| Oarr_fill of wsize & Z (* Array of [len] [ws]-words whose bytes in [lo, lo + n) equal [w], the others 0 *)
 | Ocombine_flags of combine_flags
 .
 
@@ -323,6 +324,7 @@ Definition type_of_opN (op: opN) : seq atype * atype :=
     let n := nat_of_wsize ws %/ nat_of_pelem p in
     (nseq n aint, aword ws)
   | Oarray len => (nseq (Z.to_nat len) (aword U8), aarr U8 len)
+  | Oarr_fill ws len => ([:: aint; aint; aword U8], aarr ws len)
   | Ocombine_flags c => (tin_combine_flags, abool)
   end.
 
