@@ -3256,7 +3256,7 @@ Corollary alloc_stack_spec_value_eq_or_in_mem m2 fn vargs1 vargs2 ws sz ioff sz'
 Proof.
   move=> heqinmem hass.
   apply: read_incl_value_eq_or_in_mem heqinmem.
-  by move=> p w ok_w; rewrite -(hass.(ass_read_old8) (readV ok_w)).
+  by move=> p w ok_w; rewrite -(hass.(ass_read_old8) (read_validw ok_w)).
 Qed.
 
 Lemma alloc_stack_spec_extend_mem m1 m2 ws sz ioff sz' m3 :

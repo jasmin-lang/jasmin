@@ -418,7 +418,7 @@ Module WArray.
         i * mk_scale aa ws + wsize_size ws <= len &
         is_aligned_if al (i * mk_scale aa ws) ws]%Z.
   Proof.
-    move=> hg; assert (h := readV hg); move: h.
+    move=> hg; assert (h := read_validw hg); move: h.
     by rewrite validw_in_range => /andP [] ? /in_rangeP [].
   Qed.
 

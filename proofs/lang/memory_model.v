@@ -352,7 +352,7 @@ Section CoreMem.
     by move=> i;rewrite (valid8_set _ hset).
   Qed.
 
-  Lemma readV m al ptr sz w :
+  Lemma read_validw m al ptr sz w :
     read m al ptr sz = ok w ->
     validw m al ptr sz.
   Proof.
@@ -492,7 +492,7 @@ Section CoreMem.
     by rewrite (mapM_factorization (fun _ _ h => get_totalE h) hl) (mapM_ok id) map_id.
   Qed.
 
-  Lemma validrP m al p sz :
+  Lemma readV m al p sz :
     reflect (exists w, read (sm := partial) m al p sz = ok w) (validr m al p sz).
   Proof.
     rewrite /read /validr or_is_total_partial -is_ok_mapM.
@@ -506,8 +506,8 @@ Section CoreMem.
     validr m al p sz /\ read (sm := total) m al p sz = ok w.
   Proof.
     split.
-    + by move=> h; split; [apply/validrP; exists w | apply: read_totalE].
-    move=> [] /validrP [w1 hw1] ht.
+    + by move=> h; split; [apply/readV; exists w | apply: read_totalE].
+    move=> [] /readV [w1 hw1] ht.
     by move: ht; rewrite (read_totalE hw1) => -[<-].
   Qed.
 
