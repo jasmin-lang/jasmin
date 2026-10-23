@@ -1,0 +1,24 @@
+inline
+fn and32(reg u32 x y) -> reg u32 {
+  x &= y;
+  return x;
+}
+
+inline
+fn or32(reg u32 x y) -> reg u32 {
+  x |= y;
+  return x;
+}
+
+inline
+fn xor32(reg u32 x y) -> reg u32 {
+  x ^= y;
+  return x;
+}
+
+inline
+fn xor_round_constant(reg ptr u32[12] state, reg u32 rc, inline int round) -> reg ptr u32[12] {
+  reg u32 a = state[0], b = rc + round, c = a ^ b;
+  state[0] = c;
+  return state;
+}

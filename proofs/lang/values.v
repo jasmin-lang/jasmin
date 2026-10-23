@@ -278,20 +278,27 @@ Proof. by case: v => //= [? [<-] | [] ]. Qed.
 Lemma to_int_undef v : to_int v = undef_error -> v = undef_i.
 Proof. by case: v => //= -[] // e; rewrite (Eqdep_dec.UIP_refl_bool _ e). Qed.
 
-Definition to_arr len v : exec (sem_t (carr len)) :=
+Definition to_arr len (v: value) : exec (sem_t (carr len)) :=
   match v with
-  | Varr len' t => WArray.cast len t
+  | Varr len' t => if len' =P len is ReflectT h then ok (ecast n (WArray.array n) h t) else type_error
   | _ => type_error
   end.
 
+Lemma to_arrK len (a: WArray.array len) : to_arr len (Varr a) = ok a.
+Proof. by rewrite /=; case: eqP => // h; rewrite (Eqdep_dec.UIP_dec Z.eq_dec h erefl). Qed.
+
 Lemma to_arrI n v t : to_arr n v = ok t -> v = Varr t.
-Proof.
-  case: v => //= n' t' /[dup] /WArray.cast_len ?; subst n'.
-  by rewrite WArray.castK => -[<-].
-Qed.
+Proof. by case: v => //= n' t'; case: eqP => // ? /ok_inj; subst => ->. Qed.
 
 Lemma to_arr_undef p v : to_arr p v <> undef_error.
-Proof. by case: v => //= ??; rewrite /WArray.cast; case: ifP. Qed.
+Proof. by case: v => //= ??; case: eqP. Qed.
+
+Global Opaque to_arr.
+
+Lemma to_arr_empty (len len': Z) (a: WArray.array len):
+  to_arr len (Varr (WArray.empty len')) = ok a →
+  a = WArray.empty len.
+Proof. by case/to_arrI/Varr_inj => ??; subst. Qed.
 
 Definition to_word s v : exec (word s) :=
   match v with
@@ -388,8 +395,8 @@ Lemma of_value_uincl_te ty v v' vt :
   | _ => fun _ => of_val ty v' = ok vt
   end vt.
 Proof.
-  case: v => > /value_uinclE + /of_valE //; try (by move=> -> [? ]; subst=> /= ->).
-  + by move: vt => + [? -> +] [?] => vt ??; subst => /=; rewrite WArray.castK; eauto.
+  case: v => [ b | z | len a | sz w | t ht ] /value_uinclE + /of_valE //; try (by move=> -> [? ]; subst=> /= ->).
+  + by case => a' -> h [?] ?; subst; exists a'; first exact: to_arrK.
   move: vt => + [? [? [-> +]]] [? [? [? []]]]; subst=> /= _ ++ ->.
   exact: word_uincl_truncate.
 Qed.
@@ -409,9 +416,9 @@ Proof. by case: t v1 v2 => /= > => [[]|[]| /Varr_inj1 |[]]. Qed.
 
 Lemma of_val_to_val t (v : sem_t t) : of_val t (to_val v) = ok v.
 Proof.
-  case: t v => //=.
-  + by move=> len a; rewrite WArray.castK.
-  by move=> ws w; rewrite truncate_word_u.
+  case: t v => //.
+  + move => len a; exact: to_arrK.
+  by move=> ws w; rewrite /= truncate_word_u.
 Qed.
 
 Lemma to_valI t (x: sem_t t) v : to_val x = v ->
@@ -497,7 +504,7 @@ Lemma val_uincl_of_val ty v v' vt :
 Proof.
   case: v => > /value_uinclE + /of_valE //;
     try (by move=> -> [? ]; subst => /= ->; eauto).
-  + by move=> [???] [??]; subst => /=; rewrite WArray.castK; eauto.
+  + by case => ??? [] ??; subst; rewrite /of_val to_arrK; eauto.
   move: vt => + [? [? [-> +]]] [s [x [? []]]]; subst=> /= _ ++ ->.
   move=> /word_uincl_truncate h/h{h} ->; eauto.
 Qed.
@@ -604,7 +611,7 @@ Lemma truncate_val_idem (t : ctype) (v v' : value) :
   truncate_val t v = ok v' -> truncate_val t v' = ok v'.
 Proof.
   move=> /truncate_valI; case: v' => [b[]|z[]|len a[]|ws w[?[?[]]]| ] //= -> //=.
-  + by move=> _; rewrite /truncate_val /= WArray.castK.
+  + by move=> _; rewrite /truncate_val /of_val to_arrK.
   by move=> _ _; rewrite /truncate_val /= truncate_word_u.
 Qed.
 
@@ -635,7 +642,7 @@ Proof.
   + by move=> b [-> _] ->; eexists; reflexivity.
   + by move=> z [-> _] ->; eexists; reflexivity.
   + move=> len a [-> _] ->.
-    by rewrite /truncate_val /= WArray.castK; eexists; reflexivity.
+    by rewrite /truncate_val /of_val to_arrK; eexists; reflexivity.
   move=> ws1 w1 [_ [_ [-> _ _]]] [ws2 [-> hcmp2]].
   rewrite /truncate_val /= truncate_word_le //.
   by eexists; reflexivity.
@@ -658,7 +665,7 @@ Proof.
     rewrite /truncate_val /=.
   + by eexists; first by reflexivity.
   + by eexists; first by reflexivity.
-  + rewrite WArray.castK.
+  + rewrite to_arrK.
     by eexists; first by reflexivity.
   rewrite (word_uincl_truncate hincl (truncate_word_u _)).
   eexists; first by reflexivity.
@@ -801,19 +808,6 @@ Proof.
   by rewrite (vuincl_sopn hall hu h1) /= h2.
 Qed.
 
-Lemma vuincl_copy_eq ws n :
-  let len := arr_size ws n in
-  forall vs vs' v,
-  values_uincl vs vs' ->
-  @app_sopn_v [::carr len] [::carr len] (@WArray.copy ws n) vs = ok v ->
-  @app_sopn_v [::carr len] [::carr len] (@WArray.copy ws n) vs' = ok v.
-Proof.
-  move=> sz _ _ v [// | v1 v2 [_ /value_uinclE hu /List_Forall2_inv_l -> |]];
-    rewrite /app_sopn_v /=; t_xrbindP=> // ??.
-  move: hu => + /to_arrI ? /WArray.uincl_copy H ?; subst.
-  by move=> /=[? -> /H h] /=; rewrite WArray.castK /= h.
-Qed.
-
 Lemma vuincl_app_sopn_v tin tout (semi: sem_prod tin (exec (sem_tuple tout))) :
   all is_not_carr tin ->
   forall vs vs' v, values_uincl vs vs' ->
@@ -822,39 +816,6 @@ Lemma vuincl_app_sopn_v tin tout (semi: sem_prod tin (exec (sem_tuple tout))) :
 Proof.
   move=> /vuincl_app_sopn_v_eq h ?? v /h{}h/h{}h.
   by exists v => //; exact: List_Forall2_refl.
-Qed.
-
-Lemma vuincl_copy ws n :
-  let len := arr_size ws n in
-  forall vs vs' v,
-  values_uincl vs vs' ->
-  @app_sopn_v [::carr len] [::carr len] (@WArray.copy ws n) vs = ok v ->
-  exists2 v' : values, @app_sopn_v [::carr len] [::carr len] (@WArray.copy ws n) vs' = ok v' & values_uincl v v'.
-Proof.
-  move=> ??? v /vuincl_copy_eq h/h{h}?.
-  by exists v => //; exact: List_Forall2_refl.
-Qed.
-
-Lemma value_uincl_oto_val ty (z z' : sem_t ty) :
-  val_uincl z z' ->
-  value_uincl (oto_val (sem_prod_id z)) (oto_val (sem_prod_id z')).
-Proof. by case: ty z z'. Qed.
-
-Definition swap_semi ty (x y: sem_t ty) : (sem_tuple [:: ty; ty]):= (sem_prod_id y, sem_prod_id x).
-
-Lemma swap_semu ty (vs vs' : seq value) (v : values):
-  values_uincl vs vs' ->
-  @app_sopn_v [::ty; ty] [::ty; ty] (sem_prod_ok [::ty; ty] (@swap_semi ty)) vs = ok v ->
-  exists2 v' : values, @app_sopn_v [::ty; ty] [::ty; ty] (sem_prod_ok [::ty; ty] (@swap_semi ty)) vs' = ok v' & values_uincl v v'.
-Proof.
-  rewrite /app_sopn_v.
-  case => //= v1 v1' ?? hu1; t_xrbindP.
-  case => //= v2 v2' ?? hu2; t_xrbindP.
-  case => // _ z1 hv1 z2 hv2 [] <- <- /=.
-  have [z1' -> hu1']:= val_uincl_of_val hu1 hv1.
-  have [z2' -> hu2' /=]:= val_uincl_of_val hu2 hv2.
-  eexists; first by eauto.
-  by repeat constructor; apply: value_uincl_oto_val.
 Qed.
 
 Section FORALL.
@@ -897,96 +858,6 @@ Section FORALL.
   Qed.
 
 End FORALL.
-
-Definition interp_safe_cond (vs : values) (sc : safe_cond) :=
-  match sc with
-  | NotZero ws k =>
-    forall w, to_word ws (nth undef_b vs k) = ok w -> wunsigned w <> 0%Z
-  | InRangeMod32 ws i j k =>
-    forall w, to_word ws (nth undef_b vs k) = ok w -> (i <= (wunsigned w) mod 32 <= j)%Z
-  | ULt ws k z =>
-    forall w, to_word ws (nth undef_b vs k) = ok w -> (wunsigned w < z)%Z
-  | UGe ws z k =>
-    forall w, to_word ws (nth undef_b vs k) = ok w -> (z <= wunsigned w)%Z
-  | UaddLe ws k1 k2 z =>
-    forall w1 w2, to_word ws (nth undef_b vs k1) = ok w1 ->
-                  to_word ws (nth undef_b vs k2) = ok w2 ->
-                  (wunsigned w1 + wunsigned w2 <= z)%Z
-  | AllInit ws n k =>
-    forall t, to_arr (arr_size ws n) (nth undef_b vs k) = ok t ->
-    forall i, (0 <= i < n)%Z ->
-     exists w, WArray.get Unaligned AAscale ws t i = ok w
-  | X86Division sz sign =>
-    forall hi lo dv,
-      mapM (to_word sz) (take 3 vs) = ok [:: hi; lo; dv] ->
-      match sign with
-      | Signed =>
-        let dd := wdwords hi lo in
-        let dv := wsigned dv in
-        let q  := (Z.quot dd dv)%Z in
-        let r  := (Z.rem  dd dv)%Z in
-        let ov := (q <? wmin_signed sz)%Z || (q >? wmax_signed sz)%Z in
-        ~((dv == 0)%Z || ov)
-      | Unsigned =>
-        let dd := wdwordu hi lo in
-        let dv := wunsigned dv in
-        let q  := (dd  /  dv)%Z in
-        let r  := (dd mod dv)%Z in
-        let ov := (q >? wmax_unsigned sz)%Z in
-        ~( (dv == 0)%Z || ov)
-      end
-  | ScFalse => False
-  end.
-
-Definition sc_needed_args sc :=
-  match sc with
-  | NotZero _ k | InRangeMod32 _ _ _ k | AllInit _ _ k | ULt _ k _ | UGe _ _ k => S k
-  | UaddLe _ k1 k2 _ => S (if ssrnat.leq k1 k2 then k2 else k1)
-  | X86Division sz sign => 3
-  | ScFalse => 0
-  end.
-
-Lemma interp_safe_cond_cat vs1 vs2 sc :
-  ssrnat.leq (sc_needed_args sc) (size vs1) ->
-  interp_safe_cond vs1 sc <-> interp_safe_cond (vs1 ++ vs2) sc.
-Proof.
-  case: sc => //=.
-  + by move=> ws k hsz; rewrite nth_cat hsz.
-  + by move=> ws s hsz; rewrite takel_cat //; apply/ssrnat.leP.
-  + by move=> ws i j k hsz; rewrite nth_cat hsz.
-  + by move=> ws k z hsz; rewrite nth_cat hsz.
-  + by move=> ws z k hsz; rewrite nth_cat hsz.
-  + move=> ws k1 k2 z hsz.
-    have [hsz1 hsz2]: ssrnat.leq (S k1) (size vs1) /\ ssrnat.leq (S k2) (size vs1).
-    + move: hsz.
-      case: ifP => h1 h2; split; apply: ssrnat.leq_trans h2 => //.
-      have /(@Logic.eq_sym bool) := ssrnat.leqNgt k1 k2.
-      by rewrite h1 => /negbFE h2; apply: (ssrnat.leq_trans h2).
-    by rewrite !nth_cat hsz1 hsz2.
-  by move=> ws p k hsz; rewrite nth_cat hsz.
-Qed.
-
-Fixpoint interp_safe_cond_ty_aux
-  {T} (P : values -> T -> Prop) (vs: values) (tin : seq ctype) : sem_prod tin T -> Prop :=
-match tin return sem_prod tin T -> Prop with
-| [::] => fun t => P vs t
-| t::tin => fun o => forall v, interp_safe_cond_ty_aux P (rcons vs (to_val v)) (o v)
-end.
-
-Definition interp_safe_cond_ty tin T sc (semi : sem_prod tin (exec T)) :=
-  interp_safe_cond_ty_aux
-    (fun vs r => List.Forall (interp_safe_cond vs) sc -> exists t, r = ok t) [::] semi.
-
-Lemma sem_prod_ok_safe_aux {T:Type} (tin : seq ctype) (o: sem_prod tin T) sc vs :
-   interp_safe_cond_ty_aux
-     (fun (vs : values) (r : result error T) =>
-        List.Forall (interp_safe_cond vs) sc -> exists t : T, r = ok t) vs
-      (sem_prod_ok tin o).
-Proof. elim: tin vs o => //=; eauto. Qed.
-
-Lemma sem_prod_ok_safe {T:Type} (tin : seq ctype) (o: sem_prod tin T) :
-   interp_safe_cond_ty [::] (sem_prod_ok tin o).
-Proof. apply sem_prod_ok_safe_aux. Qed.
 
 Definition value_eqb (v1 v2:value) :=
   match v1, v2 with

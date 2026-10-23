@@ -1,4 +1,4 @@
-require Gimli_arm Gimli_x86.
+require Gimli_arm Gimli_x86 Gimli_armv8a.
 import List Int JWord.
 
 equiv gimli_equiv :
@@ -11,3 +11,8 @@ proof.
   while (={round, state} /\ rc{1} = W32.of_int k); wp; last by auto.
   by while (={column, state} /\ rc{1} = W32.of_int k); auto => /> /#.
 qed.
+
+equiv gimli_arm_equiv :
+  Gimli_arm.M.gimli ~ Gimli_armv8a.M.gimli :
+  ={ state } ==> ={ res }.
+proof. sim. qed.

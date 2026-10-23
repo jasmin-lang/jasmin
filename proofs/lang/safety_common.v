@@ -29,6 +29,9 @@ Fixpoint sc_to_e (es : pexprs) (c : safety_cond) : pexpr :=
   | IVar k => nth (Pbool false) es k
   | IOp1 o c => sc_op1_to_e o c (sc_to_e es c)
   | IOp2 o c1 c2 => Papp2 o (sc_to_e es c1) (sc_to_e es c2)
+  (* The predicates of the safety conditions are not expressions: they are
+     assertions ([PappN_safety]), so there is nothing to translate here. *)
+  | IOpN_safety _ _ _ _ => Pbool false
   end.
 
 Definition sc_to_eassert (es : pexprs) (c : safety_cond) : eassert :=

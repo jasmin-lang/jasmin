@@ -188,7 +188,7 @@ module type X86AsmSyntax = sig
   val reg_pre         : string
   val indirect_pre    : string
 
-  val pp_address       : wsize -> (register, 'a, 'b, 'c, 'd) Arch_decl.address -> string
+  val pp_address       : wsize -> register Arch_decl.address_ -> string
   val rev_args        : 'a list -> 'a list
   val pp_iname_ext    : wsize -> string
 
@@ -207,7 +207,7 @@ module ATTSyntax : X86AsmSyntax = struct
   let indirect_pre = "*"
 
   (* -------------------------------------------------------------------- *)
-  let pp_reg_address (addr : (_, _, _, _, _) Arch_decl.reg_address) =
+  let pp_reg_address (addr : _ Arch_decl.reg_address_) =
     let disp = Conv.z_of_int64 addr.ad_disp in
     let base = addr.ad_base in
     let off  = addr.ad_offset in
@@ -230,7 +230,7 @@ module ATTSyntax : X86AsmSyntax = struct
           Format.asprintf "%s(%s,%s,%s)" disp base off (pp_scale scal)
     end
 
-  let pp_address _ws (addr : (_, _, _, _, _) Arch_decl.address) =
+  let pp_address _ws (addr : _ Arch_decl.address_) =
     match addr with
     | Areg ra -> pp_reg_address ra
     | Arip d ->
@@ -260,7 +260,7 @@ module IntelSyntax : X86AsmSyntax = struct
   let reg_pre = ""
   let indirect_pre = ""
 
-  let pp_reg_address (addr : (_, _, _, _, _) Arch_decl.reg_address) =
+  let pp_reg_address (addr : _ Arch_decl.reg_address_) =
     let disp = Conv.z_of_int64 addr.ad_disp in
     let base = addr.ad_base in
     let off  = addr.ad_offset in
@@ -288,7 +288,7 @@ module IntelSyntax : X86AsmSyntax = struct
       | U128 -> "xmmword"
       | U256 -> "ymmword"
 
-  let pp_address ws (addr : (_, _, _, _, _) Arch_decl.address) =
+  let pp_address ws (addr : _ Arch_decl.address_) =
     match addr with
     | Areg ra -> Format.asprintf "%s ptr[%s]" (pp_address_size ws) (pp_reg_address ra)
     | Arip d ->
@@ -413,12 +413,9 @@ and type asm_op = X86_instr_decl.x86_op
 
   let function_tail = [Instr ("ret", [])]
 
-  let headers =
-    [
-      asm_syntax;
-      Header (".text", []);
-      Header (".p2align", ["5"]); (* Need to determine what 5 is*)
-    ]
+  let text_alignment = [ Header (".p2align", ["5"]) ]
+
+  let headers = asm_syntax :: Header (".text", []) :: text_alignment
 
   let data_segment_header =
     let name = global_datas_label in

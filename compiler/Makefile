@@ -21,7 +21,7 @@ CHECKCATS ?= \
 	armv8a-stack-zero-unrolled \
 	risc-v-stack-zero-loop \
 	risc-v-stack-zero-unrolled \
-	CCT CCT-riscv CCT-DOIT CCT-DOIT-riscv SCT
+	CCT CCT-riscv CCT-DOIT CCT-DOIT-riscv CCT-DOIT-arm-m4 SCT
 
 # --------------------------------------------------------------------
 DESTDIR  ?=

@@ -1,0 +1,7 @@
+/* The register offset of a byte load cannot be shifted. */
+export
+fn ldrb_register_shift(reg u64 p i) -> reg u64 {
+    reg u64 a;
+    a = (64u)[:u8 p + 2 * i];
+    return a;
+}

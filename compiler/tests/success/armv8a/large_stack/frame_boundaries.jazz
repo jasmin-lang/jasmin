@@ -1,0 +1,38 @@
+// Frames around the limits of the ADD/SUB immediate (12 bits, optionally
+// shifted by 12): 4096 and 16773120 are immediates, 4112 and 16777216 are not.
+
+fn f4096 (reg u64 x) -> reg u64 {
+  stack u8[4096] s;
+  s[:u64 0] = x;
+  x = s[:u64 0];
+  return x;
+}
+
+fn f4112 (reg u64 x) -> reg u64 {
+  stack u8[4112] s;
+  s[:u64 0] = x;
+  x = s[:u64 0];
+  return x;
+}
+
+fn f16773120 (reg u64 x) -> reg u64 {
+  stack u8[16773120] s;
+  s[:u64 0] = x;
+  x = s[:u64 0];
+  return x;
+}
+
+fn f16777216 (reg u64 x) -> reg u64 {
+  stack u8[16777216] s;
+  s[:u64 0] = x;
+  x = s[:u64 0];
+  return x;
+}
+
+export fn main (reg u64 x) -> reg u64 {
+  x = f4096(x);
+  x = f4112(x);
+  x = f16773120(x);
+  x = f16777216(x);
+  return x;
+}

@@ -34,6 +34,7 @@ Require Import
   riscv_instr_decl
   riscv
   riscv_params_common_proof
+  riscv_params_core_proof
   riscv_lowering
   riscv_lowering_proof
   riscv_lower_addressing_proof
@@ -48,7 +49,8 @@ Context
   {atoI  : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
-  {call_conv : calling_convention}.
+  {call_conv : calling_convention}
+  {vinfo : one_varmap.veneer_info}.
 
 #[local] Existing Instance withsubword.
 #[local] Existing Instance direct_c.
@@ -505,7 +507,7 @@ Proof.
   case: lvs => // -[] // x [] // -[] // y [] //.
   case: args => // -[] // [] // z [] // [] // [] // w [] //=.
   t_xrbindP => vz hz _ vw hw <- <-.
-  rewrite /exec_sopn /= /swap_semi.
+  rewrite /exec_sopn /= /Oswap_instr /=.
   t_xrbindP => /= _ wz hvz ww hvw <- <- /=.
   t_xrbindP.
   t_xrbindP => _ vm1 /set_varP [_ htrx ->] <- _ vm2 /set_varP [_ htry ->] <- <- /eqP hxw /eqP hyx
@@ -625,7 +627,6 @@ Definition riscv_is_move_opP op vx v :
 Proof.
   case: op => // -[[] // op] /= hop.
   rewrite /exec_sopn /=.
-  rewrite /semi_to_atype.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.
   clear e1 e2.

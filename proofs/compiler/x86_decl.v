@@ -308,12 +308,19 @@ Instance x86_decl : arch_decl register register_ext xmm_register rflag condt :=
   ; caimm_cond_eqC := eqTC_empty
   ; caimm_cond_pp := x86_caimm_cond_pp
   ; check_CAimm := x86_check_CAimm
+  ; camem_cond := unit (* every address is accepted *)
+  ; camem_cond_eqC := eqTC_unit
+  ; camem_cond_pp := fun _ => [::]
+  ; check_CAmem := fun _ _ => true
   }.
 
 Definition x86_linux_call_conv : calling_convention :=
-  {| callee_saved   := map ARReg [:: RBX; RBP; RSP; R12; R13; R14; R15 ]
+  let saved := map ARReg [:: RBX; RBP; RSP; R12; R13; R14; R15 ] in
+  {| callee_saved   := saved
    ; callee_saved_not_bool := erefl true
    ; callee_saved_has_rsp  := erefl true
+   ; syscall_preserved := saved
+   ; syscall_preserved_subset := erefl true
    ; call_reg_args  := [:: RDI; RSI; RDX; RCX; R8; R9 ]
    ; call_xreg_args := [:: XMM0; XMM1; XMM2; XMM3; XMM4; XMM5; XMM6; XMM7 ]
    ; call_reg_ret   := [:: RAX; RDX ]
@@ -322,10 +329,15 @@ Definition x86_linux_call_conv : calling_convention :=
   |}.
 
 Definition x86_windows_call_conv : calling_convention :=
-  {| callee_saved   := map ARReg [:: RBX; RBP; RDI; RSI; RSP; R12; R13; R14; R15 ] ++
+  let saved_regs := map ARReg [:: RBX; RBP; RDI; RSI; RSP; R12; R13; R14; R15 ] in
+  {| callee_saved   := saved_regs ++
                        map AXReg [:: XMM6; XMM7; XMM8; XMM9; XMM10; XMM11; XMM12; XMM13; XMM14; XMM15]
    ; callee_saved_not_bool := erefl true
    ; callee_saved_has_rsp  := erefl true
+     (* XMM6-XMM15 are callee-saved, but a Jasmin xreg is the 256-bit YMM, and
+        the upper portions of YMM0-YMM15 are volatile in the Microsoft x64 ABI. *)
+   ; syscall_preserved := saved_regs
+   ; syscall_preserved_subset := erefl true
    ; call_reg_args  := [:: RCX; RDX; R8; R9 ]
    ; call_xreg_args := [:: XMM0; XMM1; XMM2; XMM3 ]
    ; call_reg_ret   := [:: RAX ]

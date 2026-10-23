@@ -143,8 +143,8 @@ Definition riscv_liparams : linearization_params :=
     lip_check_ws := riscv_check_ws;
     lip_lstore  := riscv_lstore;
     lip_lload := riscv_lload;
-    lip_lstores := lstores_imm_dfl riscv_tmp2 riscv_lstore RISCVFopn.smart_addi is_arith_small;
-    lip_lloads  := lloads_imm_dfl riscv_tmp2 riscv_lload  RISCVFopn.smart_addi is_arith_small;
+    lip_lstores := lstores_imm_dfl riscv_tmp2 riscv_lstore RISCVFopn.smart_addi (fun _ => is_arith_small);
+    lip_lloads  := lloads_imm_dfl riscv_tmp2 riscv_lload  RISCVFopn.smart_addi (fun _ => is_arith_small);
   |}.
 
 End LINEARIZATION.
@@ -226,17 +226,9 @@ Fixpoint assemble_cond ii (e : fexpr) : cexec condt :=
       Error (E.berror ii e "Can't assemble condition.")
   end.
 
-Definition is_valid_address (addr : reg_address) :=
-  match addr.(ad_disp) != 0%w, isSome addr.(ad_offset), addr.(ad_scale) != 0 with
-  | false, false, false => true
-  | true, false, false => true
-  | _, _, _ => false
-  end.
-
 Definition riscv_agparams : asm_gen_params :=
   {|
     agp_assemble_cond := assemble_cond;
-    agp_is_valid_address := is_valid_address;
   |}.
 
 (* ------------------------------------------------------------------------ *)

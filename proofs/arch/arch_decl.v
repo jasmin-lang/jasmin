@@ -21,6 +21,7 @@ Require Import
 
 Require Import
   sopn
+  sopn_semi
   flag_combination
   shift_kind
   arm_expand_imm.
@@ -50,7 +51,49 @@ Definition rtype {t T} `{ToString t T} := t.
    condition and [caimm_cond_pp] to render the condition in assembly
    generation error messages. Architectures with no special immediate
    conditions (e.g. x86) use [empty]. This keeps each architecture's
-   conditions in its own files. *)
+   conditions in its own files.
+
+   Memory-argument conditions work the same way: every memory operand
+   carries a [camem_cond], and [check_CAmem] decides whether an [address]
+   has a shape that the encoding accepts, including whether an address
+   relative to the instruction pointer (a global) is accepted. An
+   architecture whose instructions accept every address (x86) uses [unit],
+   with a checker that always succeeds and an empty description. *)
+
+(* -------------------------------------------------------------------- *)
+(* Addresses, for a type of registers and a size of pointers.
+ * An address consists of
+ *   - A displacement (an immediate value).
+ *   - A base (a register).
+ *   - A scale.
+ *   - An offset (a register).
+ * The effective address is displacement + base + offset * scale.
+ * An architecture declaration ([arch_decl] below) fixes the register type
+ * and the pointer size: [reg_address] and [address] are the instances.
+ *)
+Section ADDRESS.
+Context (reg : Type) (sz : wsize).
+
+Record reg_address_ : Type := mkAddress
+  { ad_disp   : word sz
+  ; ad_base   : option reg
+  ; ad_scale  : nat
+  ; ad_offset : option reg
+  }.
+
+Variant address_ :=
+| Areg of reg_address_ (* Absolute address. *)
+| Arip of word sz.     (* Address relative to the instruction pointer. *)
+
+End ADDRESS.
+
+Arguments mkAddress {reg sz}.
+Arguments ad_disp {reg sz}.
+Arguments ad_base {reg sz}.
+Arguments ad_scale {reg sz}.
+Arguments ad_offset {reg sz}.
+Arguments Areg {reg sz}.
+Arguments Arip {reg sz}.
 
 (* -------------------------------------------------------------------- *)
 (* Basic architecture declaration.
@@ -71,10 +114,15 @@ Class arch_decl (reg regx xreg rflag cond : Type) :=
   ; caimm_cond_eqC : eqTypeC caimm_cond
   ; caimm_cond_pp : caimm_cond -> string  (* for error messages *)
   ; check_CAimm : caimm_cond -> forall ws, word ws -> bool
+  ; camem_cond : Type  (* architecture-specific memory-argument conditions *)
+  ; camem_cond_eqC : eqTypeC camem_cond
+  ; camem_cond_pp : camem_cond -> seq string  (* the accepted shapes, for error messages *)
+  ; check_CAmem : camem_cond -> address_ reg reg_size -> bool
   }.
 
 #[global]
-Existing Instances cond_eqC toS_r toS_rx toS_x toS_f ad_fcp caimm_cond_eqC.
+Existing Instances cond_eqC toS_r toS_rx toS_x toS_f ad_fcp caimm_cond_eqC
+  camem_cond_eqC.
 
 #[export]
 Instance arch_pd `{arch_decl} : PointerData := { Uptr := reg_size }.
@@ -92,13 +140,22 @@ Definition xreg_t  {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg r
 Definition rflag_t {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond} := rflag.
 Definition cond_t  {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond} := cond.
 
+(* The addresses of an architecture. *)
+Notation reg_address := (reg_address_ reg_t reg_size).
+Notation address := (address_ reg_t reg_size).
+
 Notation sem_lt t := (sem_t (eval_ltype t)).
 Notation sem_olt t := (sem_ot (eval_ltype t)).
 Notation sem_lprod ts tr := (sem_prod (map eval_ltype ts) tr).
 Notation sem_ltuple ts := (sem_tuple (map eval_ltype ts)).
-Notation sem_lforall P tin := (sem_forall P (map eval_ltype tin)).
-Notation interp_safe_cond_lty tin id_safe id_semi :=
-  (values.interp_safe_cond_ty (tin := map eval_ltype tin) id_safe id_semi).
+Notation sem_ltuple_t ts := (sem_tuple_t (map eval_ltype ts)).
+
+(* Value given by the total semantics ([id_semi_total]) to a flag that the
+   instruction leaves undefined. It is filtered out by [id_init], so its value
+   never reaches the semantics; it mirrors the abstract [undefined_flag] of the
+   EasyCrypt model (eclib/JWord.ec). *)
+Definition undefined_flag : bool := false.
+Global Opaque undefined_flag.
 
 Section DECL.
 
@@ -115,25 +172,6 @@ Proof.
   apply/eqP. move=> []. apply/eqP. exact: reg_size_neq_xreg_size.
 Qed.
 
-(* -------------------------------------------------------------------- *)
-(* Addresses.
- * An address consists of
- *   - A displacement (an immediate value).
- *   - A base (a register).
- *   - A scale.
- *   - An offset (a register).
- * The effective address is displacement + base + offset * scale.
- *)
-Record reg_address : Type := mkAddress
-  { ad_disp   : pointer
-  ; ad_base   : option reg_t
-  ; ad_scale  : nat
-  ; ad_offset : option reg_t
-  }.
-
-Variant address :=
-| Areg of reg_address (* Absolute address. *)
-| Arip of pointer.    (* Address relative to instruction pointer. *)
 
 Definition oeq_reg (x y:option reg_t) :=
   @eq_op (option ceqT_eqType) x y.
@@ -329,19 +367,20 @@ Variant arg_kind :=
 | CAreg
 | CAregx
 | CAxmm
-| CAmem of bool (* true if Global is allowed *)
+| CAmem of camem_cond
 | CAimm of option caimm_cond & wsize
 | CAimmRip of rip_imm_kind.
 
-(* [caimm_cond] is an abstract type equipped with an [eqTypeC], so the
-   decidable equality is written by hand instead of derived. *)
+(* [caimm_cond] and [camem_cond] are abstract types equipped with an
+   [eqTypeC], so the decidable equality is written by hand instead of
+   derived. *)
 Definition arg_kind_eqb (a1 a2 : arg_kind) : bool :=
   match a1, a2 with
   | CAcond, CAcond
   | CAreg, CAreg
   | CAregx, CAregx
   | CAxmm, CAxmm => true
-  | CAmem b1, CAmem b2 => b1 == b2
+  | CAmem c1, CAmem c2 => (c1 : ceqT_eqType) == c2
   | CAimm c1 ws1, CAimm c2 ws2 =>
       ((c1 : option ceqT_eqType) == c2) && (ws1 == ws2)
   | CAimmRip k1, CAimmRip k2 => k1 == k2
@@ -351,7 +390,7 @@ Definition arg_kind_eqb (a1 a2 : arg_kind) : bool :=
 Lemma arg_kind_eqb_OK : forall a1 a2, reflect (a1 = a2) (arg_kind_eqb a1 a2).
 Proof.
   move=> a1 a2; apply: (iffP idP).
-  - case: a1 a2 => [||||b1|c1 ws1|k1] [||||b2|c2 ws2|k2] //=.
+  - case: a1 a2 => [||||c1|c1 ws1|k1] [||||c2|c2 ws2|k2] //=.
     + by move=> /eqP ->.
     + by move=> /andP [/eqP -> /eqP ->].
     by move=> /eqP ->.
@@ -391,7 +430,7 @@ Definition check_arg_kind (a:asm_arg) (cond: arg_kind) :=
   | ImmRip k _, CAimmRip k' => k == k'
   | Reg _ , CAreg => true
   | Regx _, CAregx => true
-  | Addr _, CAmem _ => true
+  | Addr a, CAmem checker => check_CAmem checker a
   | XReg _, CAxmm   => true
   | _, _ => false
   end.
@@ -445,8 +484,10 @@ Record instr_desc_t := {
   id_tout       : seq ltype;
   (* Description of output arguments. *)
   id_out        : seq arg_desc;
-  (* Semantics (only deals with values). *)
-  id_semi       : sem_lprod id_tin (exec (sem_ltuple id_tout));
+  (* Total semantics: no error can be raised and the boolean outputs are plain
+     booleans (no [None]); the semantics of the instruction is obtained from it
+     by [mk_semi], see [id_semi] below. *)
+  id_semi_total : sem_lprod id_tin (sem_ltuple_t id_tout);
   (* Possible signatures for an instruction. *)
   id_args_kinds : i_args_kinds;
   (* Number of explicit arguments in assembly syntax. *)
@@ -455,18 +496,30 @@ Record instr_desc_t := {
   id_eq_size    : (size id_in == size id_tin) && (size id_out == size id_tout);
   id_str_jas    : unit -> string;
   id_check_dest : all2 check_arg_dest id_out id_tout;
-  id_safe       : seq safe_cond;
+  id_safe       : seq safety_cond;
+  (* The error raised when one of the safety conditions does not hold. *)
+  id_err        : error;
+  (* One initialisation condition per output: the output is defined exactly
+     when its condition holds on the arguments. *)
+  id_init       : seq safety_cond;
   (* Whether the instruction has data operand independent timing, i.e. belongs
      to the DOIT (Intel) / DIT (ARM) subsets of instructions. *)
   id_doit       : doit_t;
   id_pp_asm     : asm_args -> pp_asm_op;
-  (* Extra properties ensuring that previous information are consistent *)
-  id_safe_wf    : all (fun sc => values.sc_needed_args sc <= size id_tin) id_safe;
-    (* id_semi does not generates type error *)
-  id_semi_errty : id_valid -> sem_lforall (fun r => r <> Error ErrType) id_tin id_semi;
-    (* safety condition are sufficient to ensure that no error are raised *)
-  id_semi_safe  : id_valid -> interp_safe_cond_lty id_tin id_safe id_semi;
+  (* Extra properties ensuring that previous information are consistent:
+     the safety and initialisation conditions are well typed, there is one
+     initialisation condition per output, and the error is not a type error *)
+  id_wf         : [&& all (safety_cond_wt (map eval_ltype id_tin)) id_safe,
+                      all (safety_cond_wt (map eval_ltype id_tin)) id_init,
+                      ssrnat.eqn (size id_init) (size id_tout) & ~~ is_ErrType id_err];
 }.
+
+(* Semantics of an instruction (only deals with values): the safety conditions
+   are checked on the arguments, then the total semantics is filtered by the
+   initialisation conditions, one per output. *)
+Definition id_semi (d : instr_desc_t) :
+    sem_lprod d.(id_tin) (exec (sem_ltuple d.(id_tout))) :=
+  mk_semi d.(id_safe) d.(id_err) d.(id_init) d.(id_semi_total).
 
 (* -------------------------------------------------------------------- *)
 (* Architecture operand declaration. *)
@@ -520,6 +573,32 @@ Fixpoint extend_tuple (ws:wsize) (id_tout : list ltype) (t: sem_ltuple id_tout) 
    end (@extend_tuple ws ts)
  end t.
 
+(* Total counterparts of [wextend_size] and [extend_tuple]: the same
+   zero-extension, on tuples whose boolean components are plain booleans. *)
+Definition wextend_size_t (ws: wsize) (t:ltype) : sem_lt t -> sem_lt (extend_size ws t) :=
+  match t return sem_lt t -> sem_lt (extend_size ws t) with
+  | lword ws' =>
+    fun (w: word ws') =>
+    match (ws' <= ws)%CMP as b return sem_lt (if b then lword ws else lword ws') with
+    | true => zero_extend ws w
+    | false => w
+    end
+  | _ => fun x => x
+  end.
+
+Fixpoint extend_tuple_t (ws:wsize) (id_tout : list ltype) (t: sem_ltuple_t id_tout) :
+   sem_ltuple_t (map (extend_size ws) id_tout) :=
+ match id_tout return sem_ltuple_t id_tout -> sem_ltuple_t (map (extend_size ws) id_tout) with
+ | [::] => fun _ => tt
+ | t :: ts =>
+   match ts return
+     (sem_ltuple_t ts -> sem_ltuple_t (map (extend_size ws) ts)) ->
+     sem_ltuple_t (t::ts) -> sem_ltuple_t (map (extend_size ws) (t::ts)) with
+   | [::] => fun rec_ x => wextend_size_t ws x
+   | t'::ts'    => fun rec_ p => (wextend_size_t ws p.1, rec_ p.2)
+   end (@extend_tuple_t ws ts)
+ end t.
+
 Fixpoint apply_lprod (A B : Type) (f : A -> B) (ts:list Type) : lprod ts A -> lprod ts B :=
   match ts return lprod ts A -> lprod ts B with
   | [::] => fun a => f a
@@ -540,6 +619,15 @@ Proof.
   case: t => // ws'.
   by rewrite /extend_size /check_arg_dest; case: a => //; case: ifP.
 Qed.
+
+Lemma instr_desc_aux3 ws (id_tin id_tout : list ltype) (safe init : seq safety_cond) err :
+  [&& all (safety_cond_wt (map eval_ltype id_tin)) safe,
+      all (safety_cond_wt (map eval_ltype id_tin)) init,
+      ssrnat.eqn (size init) (size id_tout) & ~~ is_ErrType err] ->
+  [&& all (safety_cond_wt (map eval_ltype id_tin)) safe,
+      all (safety_cond_wt (map eval_ltype id_tin)) init,
+      ssrnat.eqn (size init) (size (map (extend_size ws) id_tout)) & ~~ is_ErrType err].
+Proof. by rewrite size_map. Qed.
 
 Definition is_not_CAmem (cond : arg_kind) :=
   match cond with
@@ -576,30 +664,13 @@ Definition extend_sem {tin tout : seq ltype} ws
   (semi : sem_lprod tin (exec (sem_ltuple tout))) : sem_lprod tin (exec (sem_ltuple (map (extend_size ws) tout))) :=
   apply_lprod (Result.map (@extend_tuple ws tout)) semi.
 
-Lemma extend_sem_errty tin tout ws (semi : sem_lprod tin (exec (sem_ltuple tout))) :
-  sem_lforall (fun r => r <> Error ErrType) tin semi ->
-  sem_lforall (fun r => r <> Error ErrType) tin (extend_sem ws semi).
-Proof.
-  rewrite /extend_sem; elim: tin semi => //=.
-  + by move=> [] //= ? h [h1]; apply h; rewrite h1.
-  move=> t ts hrec semi hsemi v; apply/hrec/hsemi.
-Qed.
-
-Lemma extend_sem_safe tin tout ws sc (semi : sem_lprod tin (exec (sem_ltuple tout))) :
-  values.interp_safe_cond_ty sc semi ->
-  values.interp_safe_cond_ty sc (extend_sem ws semi).
-Proof.
-  rewrite /values.interp_safe_cond_ty /extend_sem.
-  elim: tin semi (@nil values.value) => //= [ | t ts hrec] semi vs.
-  + by move=> h /h [t] -> /=; eauto.
-  move=> h v; apply/hrec/h.
-Qed.
+Definition extend_sem_t {tin tout : seq ltype} ws
+  (f : sem_lprod tin (sem_ltuple_t tout)) :
+    sem_lprod tin (sem_ltuple_t (map (extend_size ws) tout)) :=
+  apply_lprod (@extend_tuple_t ws tout) f.
 
 Definition can_zeroextend (d:instr_desc_t) :=
   (d.(id_msb_flag) == MSB_CLEAR).
-
-Lemma and_proj1 (a b : bool) : a && b -> a.
-Proof. by move=> /andP []. Qed.
 
 Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
   let (ws, o) := o in
@@ -616,18 +687,20 @@ Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
        id_in         := d.(id_in);
        id_tout       := tout;
        id_out        := d.(id_out);
-       id_semi       := extend_sem ws d.(id_semi);
+       id_semi_total := extend_sem_t ws d.(id_semi_total);
        id_args_kinds := exclude_mem d.(id_args_kinds) d.(id_out) ;
        id_nargs      := d.(id_nargs);
        id_eq_size    := instr_desc_aux1 ws d.(id_eq_size);
        id_str_jas    := d.(id_str_jas);
        id_check_dest := instr_desc_aux2 ws d.(id_check_dest);
        id_safe       := d.(id_safe);
+       id_err        := d.(id_err);
+       (* [extend_size] does not change the boolean outputs, hence the
+          initialisation conditions are unchanged *)
+       id_init       := d.(id_init);
        id_doit       := d.(id_doit);
        id_pp_asm     := d.(id_pp_asm);
-       id_safe_wf    := d.(id_safe_wf);
-       id_semi_errty := fun h => extend_sem_errty ws (d.(id_semi_errty) (and_proj1 h));
-       id_semi_safe  := fun h => extend_sem_safe ws (d.(id_semi_safe) (and_proj1 h));
+       id_wf         := instr_desc_aux3 ws d.(id_wf);
     |}
   else
     d.
@@ -710,6 +783,13 @@ Class calling_convention :=
   { callee_saved   : seq asm_typed_reg
   ; callee_saved_not_bool : all (fun r => ~~is_ABReg r) callee_saved
   ; callee_saved_has_rsp  : ARReg ad_rsp \in callee_saved
+    (* The registers that a system call (a call to an external function, e.g.
+       randombytes) is assumed to preserve. A register is either preserved in
+       full or not at all here, so a register that the ABI preserves only in
+       part must be left out. *)
+  ; syscall_preserved : seq asm_typed_reg
+  ; syscall_preserved_subset :
+      all (fun r => r \in callee_saved) syscall_preserved
   ; call_reg_args  : seq reg_t
   ; call_xreg_args : seq xreg_t
   ; call_reg_ret   : seq reg_t
@@ -753,6 +833,32 @@ Class internal_calling_convention :=
   ; icall_xreg  : seq xreg_t
   ; icall_rflag : seq rflag_t
   }.
+
+(* Registers that a linker-inserted veneer (a long-branch thunk) may destroy
+   between a call and its callee.  A veneer is synthesised when the caller and
+   the callee may end up far apart, which under -function-sections is the case
+   for every call internal to a compilation unit; it runs after the call
+   instruction has recorded the return address and before the first
+   instruction of the callee.  These are the ABI's intra-procedure-call
+   scratch registers: r12 on ARM, x16/x17 on AArch64; on x86-64 and RISC-V no
+   veneer is synthesised and the list is empty.
+
+   This is the ONE source of truth for the veneer: the assembly semantics
+   havocs exactly these registers at a call (arch_sem.veneer_kill) and the
+   middle end's [one_varmap.call_kill] is this list mapped through [to_var]
+   (asm_gen.veneer_i).  It is deliberately NOT a field of
+   [calling_convention], because it is gated by an option: the driver passes
+   the empty list unless the functions are laid out in sections of their own.
+   With the option off, every function of the unit lies in the one text
+   section, in emission order, and the linker synthesises a veneer only when
+   the callee is out of the range of a direct branch (16 MB for a Thumb-2 BL,
+   128 MB for an A64 BL), so the empty list is sound as long as the code of a
+   unit stays below that size. This is assumed, not checked.
+   It lives here and not next to the semantics in arch_sem.v, because
+   asm_gen.v -- where the [one_varmap] instance is built, next to [ovm_i] --
+   must see it and does not (and should not) depend on the machine
+   semantics. *)
+Class veneer_regs_info := { veneer_regs : seq reg_t }.
 
 End DECL.
 

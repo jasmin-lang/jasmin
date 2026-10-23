@@ -156,8 +156,11 @@ Definition arm_liparams : linearization_params :=
     lip_check_ws := arm_check_ws;
     lip_lstore  := arm_lstore;
     lip_lload := arm_lload;
-    lip_lstores := lstores_imm_dfl arm_tmp2 arm_lstore ARMFopn.smart_addi is_arith_small;
-    lip_lloads  := lloads_imm_dfl arm_tmp2 arm_lload  ARMFopn.smart_addi is_arith_small;
+    (* A save slot is reached directly from SP when LDR and STR encode its
+       offset (the condition checked in assembly generation), otherwise
+       through [arm_tmp2]. *)
+    lip_lstores := lstores_imm_dfl arm_tmp2 arm_lstore ARMFopn.smart_addi (fun _ => is_ldst_offset);
+    lip_lloads  := lloads_imm_dfl arm_tmp2 arm_lload  ARMFopn.smart_addi (fun _ => is_ldst_offset);
   |}.
 
 End LINEARIZATION.
@@ -276,19 +279,9 @@ Fixpoint assemble_cond ii (e : fexpr) : cexec condt :=
       Error (E.berror ii e "Can't assemble condition.")
   end.
 
-Definition is_valid_address (addr : reg_address) :=
-  match addr.(ad_disp) != 0%w, isSome addr.(ad_offset), addr.(ad_scale) != 0 with
-  | false, false, false => true
-  | true, false, false => true
-  | false, true, false => true
-  | false, true, true => true
-  | _, _, _ => false
-  end.
-
 Definition arm_agparams : asm_gen_params :=
   {|
     agp_assemble_cond := assemble_cond;
-    agp_is_valid_address := is_valid_address;
   |}.
 
 (* ------------------------------------------------------------------------ *)

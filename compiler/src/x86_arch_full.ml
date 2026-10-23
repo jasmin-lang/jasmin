@@ -38,6 +38,10 @@ module X86_core = struct
 
   let callstyle = Arch_full.StackDirect
 
+  (* A "call" to a symbol defined in the same object is resolved by the
+     linker without any thunk on x86-64. *)
+  let veneer_registers = []
+
   let sp_min_align = Wsize.U8
 
   (* One YMM store. *)

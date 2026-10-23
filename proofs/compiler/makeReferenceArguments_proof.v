@@ -286,10 +286,10 @@ Context
         + move=> xe; case: ifP => // /and4P=> -[ _ /is_aarrP [ws [len hlen]] hc _] [<-] hget /=.
           have : type_of_val va = carr (arr_size ws len).
           + by rewrite (type_of_get_gvar_not_word _ hget) hlen.
-          by move=> /type_of_valI [t ->]; rewrite (convertible_eval_atype hc) hlen /truncate_val /= WArray.castK.
+          by move=> /type_of_valI [t ->]; rewrite (convertible_eval_atype hc) hlen /truncate_val /= to_arrK.
         move=> a ws len xe e; case: ifP => // /andP [_ hc] [<-] /=.
         apply on_arr_gvarP; t_xrbindP => ?? _ _ ?? _ _ ? _ <-.
-        by rewrite (convertible_eval_atype hc) /truncate_val /= WArray.castK.
+        by rewrite (convertible_eval_atype hc) /truncate_val /= to_arrK.
       by rewrite write_var_eq_type.
     have [||vm2 [h1 h2 h3]]:= ih _ _ _ _ _ hmk _ hasX _ vm1' hvargs.
     + by clear -hXY; SvD.fsetdec.
@@ -328,7 +328,7 @@ Context
   Proof.
     case: o => ws len /=; t_xrbindP; rewrite /exec_getrandom_u => -[scs1 vs1] hex _ _ <- /=.
     case: ves hex => // v [] //=; t_xrbindP => t ht t' hfill ??; subst scs1 vs1.
-    by rewrite /truncate_val /= WArray.castK.
+    by rewrite /truncate_val /= to_arrK.
   Qed.
 
   Lemma sem_sopn_update_i s1 s2 t o xs es ii X c' vm1 :
@@ -357,14 +357,14 @@ Context
       move => vm' [] sem_pl ok_vs' hvm'.
       have X_xs : Sv.Subset (Sv.union (read_rvs xs) (vrvs xs)) X by clear -hsub; SvD.fsetdec.
       have := make_epilogueP ok_epilogue X_xs ok_xs (vres := [:: Varr a; Varr b]) _ (eq_onT hvm hvm').
-      case; first by rewrite /= /truncate_val /= !WArray.castK.
+      case; first by rewrite /= /truncate_val /= !to_arrK.
       move => vm2 [] s2' [] ok_s2' sem_el hvm2.
       exists vm2; first by [].
       rewrite esem_cat sem_pl /=.
       set so := sem_sopn _ _ _ _ _.
       have -> //: so = ok s2'.
       rewrite /so => {so}.
-      by rewrite /sem_sopn ok_vs' /= /exec_sopn /= !WArray.castK /=.
+      by rewrite /sem_sopn ok_vs' /= /exec_sopn /= !to_arrK /=.
 
     }
     move => /ok_inj <- {c'}.

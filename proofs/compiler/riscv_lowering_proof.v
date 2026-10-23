@@ -345,7 +345,7 @@ Proof.
       rewrite /exec_sopn /=.
       move: htrunc.
       rewrite /truncate_val /= truncate_word_u /= => -[] ?; subst.
-      rewrite truncate_word_le //= /= hle /=.
+      rewrite truncate_word_le //= hle /=.
       rewrite computational_eq_refl /=.
       by rewrite hwrite.
     + move => w w0 hseme /=.
@@ -363,7 +363,7 @@ Proof.
       rewrite /exec_sopn /=.
       move: htrunc.
       rewrite /truncate_val /= truncate_word_u /= => -[] ?; subst.
-      rewrite truncate_word_le //= /= hle /=.
+      rewrite truncate_word_le //= hle /=.
       rewrite computational_eq_refl /=.
       by rewrite hwrite.
     + move => ws hseme.

@@ -1,0 +1,9 @@
+/* MLA takes two cycles when it is executed and one when its condition fails:
+   a conditional MLA leaks its condition. */
+#[ct="secret * secret * secret -> secret"]
+export fn conditional_mla(reg u32 x y z) -> reg u32 {
+  reg bool zf;
+  ?{ "==" = zf } = #CMP(x, y);
+  x = #MLAcc(x, y, z, zf, x);
+  return x;
+}

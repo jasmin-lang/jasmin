@@ -32,6 +32,8 @@ Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then
 
 Section STACK_ZEROIZATION.
 
+Context {vinfo : one_varmap.veneer_info}.
+
 Context {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
 Context {call_conv : calling_convention}.
 

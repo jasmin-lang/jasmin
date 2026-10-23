@@ -24,23 +24,11 @@ Require Import
 
 Require Export arm_params_common.
 
-(* Most ARM instructions with default options are executed as follows:
-   1. Unfold instruction execution definitions, e.g. [eval_instr].
-   2. Rewrite argument hypotheses, i.e. [sem_pexpr].
-   3. Unfold casting definitions in result, e.g. [zero_extend] and
-      [pword_of_word].
-   4. Rewrite result hypotheses, i.e. [write_lval]. *)
-Ltac t_arm_op :=
-  rewrite /eval_instr /= /sem_sopn /= /exec_sopn /get_gvar /=;
-  t_simpl_rewrites;
-  rewrite /of_estate /= /with_vm /=;
-  repeat rewrite truncate_word_u /=;
-  rewrite ?zero_extend_u ?addn1;
-  t_simpl_rewrites.
-
 Module ARMFopnP.
 
 Section WITH_PARAMS.
+
+Context {vinfo : one_varmap.veneer_info}.
 
 Context
   {atoI  : arch_toIdent}
@@ -60,6 +48,7 @@ Lemma sem_fopn_equiv o s :
 Proof.
   case: o => -[xs o] es /=; case: sem_rexprs => //= >.
   rewrite /exec_sopn /=; case: id_valid => //=.
+  rewrite /semi /semi_to_atype_t /=.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.
   by case: app_sopn.
@@ -291,6 +280,8 @@ End WITH_PARAMS.
 End ARMFopnP.
 
 Section WITH_PARAMS.
+
+Context {vinfo : one_varmap.veneer_info}.
 
 Context
   {atoI  : arch_toIdent}

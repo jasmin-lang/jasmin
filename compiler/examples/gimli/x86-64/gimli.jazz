@@ -1,65 +1,42 @@
-#[ct = "state -> state"]
-export
-fn gimli(reg ptr u32[12] state) -> reg ptr u32[12] {
-  inline int round, column;
-  reg u32 x, y, z;
-  reg u32 a, b, c;
+inline
+fn rol32(reg u32 in, inline int cnt) -> reg u32 {
+  in <<r = cnt;
+  return in;
+}
 
-  for round = 24 downto 0 {
-    for column = 0 to 4 {
-      x = state[0 + column];
-      x <<r= 24;
-      y = state[4 + column];
-      y <<r= 9;
-      z = state[8 + column];
+inline
+fn and32(reg u32 x y) -> reg u32 {
+  x = x;
+  x &= y;
+  return x;
+}
 
-      a = x;
-      b = z; b <<= 1;
-      c = y; c &= z; c <<= 2;
-      a ^= b; a ^= c;
+inline
+fn or32(reg u32 x y) -> reg u32 {
+  x = x;
+  x |= y;
+  return x;
+}
 
-      state[8 + column] = a;
+inline
+fn xor32(reg u32 x y) -> reg u32 {
+  x = x;
+  x ^= y;
+  return x;
+}
 
-      a = y;
-      b = x; b |= z; b <<= 1;
-      a ^= x; a ^= b;
+inline
+fn xor_shift(reg u32 x y, inline int cnt) -> reg u32 {
+  x = x; y = y;
+  y <<= cnt;
+  x ^= y;
+  return x;
+}
 
-      state[4 + column] = a;
-
-      a = z;
-      b = x; b &= y; b <<= 3;
-      a ^= y; a ^= b;
-
-      state[0 + column] = a;
-    }
-
-    if (round % 4) == 0 { // small swap: pattern s...s...s... etc.
-      x = state[0];
-      y = state[1];
-      state[0] = y;
-      state[1] = x;
-
-      x = state[2];
-      y = state[3];
-      state[2] = y;
-      state[3] = x;
-    }
-
-    if (round % 4) == 2 { // big swap: pattern ..S...S...S. etc.
-      x = state[0];
-      y = state[2];
-      state[0] = y;
-      state[2] = x;
-
-      x = state[1];
-      y = state[3];
-      state[1] = y;
-      state[3] = x;
-    }
-
-    if (round % 4) == 0 { // add constant: pattern c...c...c... etc.
-      state[0] ^= 0x9e377900 + round;
-    }
-  }
+inline
+fn xor_round_constant(reg ptr u32[12] state, reg u32 _rc, inline int round) -> reg ptr u32[12] {
+  state[0] ^= 0x9e377900 + round;
   return state;
 }
+
+require "../common/gimli.jinc"

@@ -6,7 +6,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 From Coq Require Import ZArith Utf8.
 Import Relations.
 
-Require Import expr fexpr compiler_util label constant_prop.
+Require Import expr fexpr compiler_util label constant_prop one_varmap.
 Require Export linear linear_util.
 Import word_ssrZ.
 
@@ -250,13 +250,18 @@ Context (lip_tmp2 : Ident.ident).
 Context (lip_lstore  : wsize -> var_i -> Z -> var_i -> fopn_args)
         (lip_lload   : wsize -> var_i -> var_i -> Z -> fopn_args)
         (lip_add_imm : var_i -> var_i -> Z -> seq fopn_args)
-        (lip_imm_small : Z -> bool).
+        (lip_imm_small : wsize -> Z -> bool).
+
+(* [lip_imm_small ws ofs] holds when a register of size [ws] can be stored
+   to or loaded from [SP + ofs] directly. *)
+Definition imm_small_slot (xofs : var * Z) : bool :=
+  lip_imm_small (wsize_of_atype (vtype xofs.1)) xofs.2.
 
 Definition lstores_dfl (rsp: var_i) (to_save : seq (var * Z)) :=
   map (fun '(x,ofs) => lip_lstore (wsize_of_atype (vtype x)) rsp ofs (VarI x dummy_var_info)) to_save.
 
 Definition lstores_imm_dfl (rsp : var_i) (to_save : seq (var * Z)) :=
-  if all (fun '(_,ofs) => lip_imm_small ofs) to_save then
+  if all imm_small_slot to_save then
     lstores_dfl rsp to_save
   else
     let ofs0 := snd (head (v_var rsp, 0%Z) to_save) in
@@ -272,7 +277,7 @@ Definition lloads_dfl (rsp:var_i) (to_restore : seq (var * Z)) (spofs:Z) :=
 
 Definition lloads_imm_dfl (rsp:var_i) (to_restore : seq (var * Z)) (spofs:Z) :=
   let to_restore := to_restore ++ [:: (v_var rsp, spofs)] in
-  if all (fun '(_,ofs) => lip_imm_small ofs) to_restore then
+  if all imm_small_slot to_restore then
     lloads_aux rsp to_restore
   else
     let ofs0 := snd (head (v_var rsp, 0%Z) to_restore) in
@@ -382,6 +387,7 @@ Definition tmpi_of_ra (ra : return_address_location) : option var_i :=
 Section PROG.
 
 Context
+  {vinfo : veneer_info}
   (p : sprog).
 (*  (extra_free_registers : instr_info -> option var) *)
 
@@ -650,6 +656,18 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
                         & check_stack_ofs_internal_call e ofs Uptr]
                   end
                   (E.error "bad return-address") in
+  (* A veneer clobbers [call_kill] between the call and the callee, after the
+     return address has been recorded, so the register holding it must not be
+     one of them, or the return address would be lost.  (The register holding
+     the address to *return* to is not concerned: a return is an indirect
+     branch, which the linker never routes through a veneer.) *)
+  Let _ := assert match sf_return_address e with
+                  | RAnone => true
+                  | RAreg ra _ => ~~ Sv.mem ra call_kill
+                  | RAstack ra_call _ _ _ =>
+                      if ra_call is Some r then ~~ Sv.mem r call_kill else true
+                  end
+                  (E.error "the return address is held in a register a linker veneer may clobber") in
   let ok_save_stack :=
     let sf_sz := (sf_stk_sz e + sf_stk_extra_sz e)%Z in
     match sf_save_stack e with

@@ -35,6 +35,13 @@ module type Core_arch = sig
 
   val callstyle : reg callstyle
 
+  (* Registers that a linker-inserted veneer (a long-branch thunk) may
+     destroy on its way to the callee. A veneer is only needed when a call
+     and its target may end up far apart, which under -function-sections is
+     the case for every call internal to a compilation unit, so those
+     registers must then be free across such a call. *)
+  val veneer_registers : reg list
+
   (* Minimal alignment of every stack frame. Frame sizes are rounded up to
      the frame's alignment (see [stack_frame_allocation_size]), so this
      bounds the alignment the stack pointer keeps across calls. Armv7-M
@@ -86,6 +93,13 @@ module type Arch = sig
   val rsp_var : var
   val all_registers : var list
   val syscall_kill : Sv.t
+
+  (* [veneer_registers], as variables: destroyed between a call internal to
+     the unit and its callee when the two may be placed in different
+     sections.  Used by the register allocator only; the verified pipeline is
+     given [veneer_registers] itself and derives the set from it (see
+     asm_gen.veneer_i). *)
+  val veneer_kill : Sv.t
 
   val callstyle : var callstyle
 
@@ -197,19 +211,23 @@ module Arch_from_Core_arch (A : Core_arch) :
   let xmm_allocatable_vars =
     List.map var_of_xreg xmm_allocatable
 
-  let callee_save_vars =
-    let var_of_typed = function
-      | ARReg r -> var_of_reg  r
-      | ARegX r -> var_of_regx r
-      | AXReg r -> var_of_xreg r
-      | ABReg r -> var_of_flag r in
-    List.map var_of_typed callee_save
+  let var_of_typed = function
+    | ARReg r -> var_of_reg  r
+    | ARegX r -> var_of_regx r
+    | AXReg r -> var_of_xreg r
+    | ABReg r -> var_of_flag r
+
+  let callee_save_vars = List.map var_of_typed callee_save
 
   let rsp_var = var_of_reg rsp
 
   let all_registers = reg_vars @ regx_vars @ xreg_vars @ flag_vars
 
-  let syscall_kill = Sv.diff (Sv.of_list all_registers) (Sv.of_list callee_save_vars)
+  let syscall_kill =
+    let preserved = List.map var_of_typed call_conv.syscall_preserved in
+    Sv.diff (Sv.of_list all_registers) (Sv.of_list preserved)
+
+  let veneer_kill = Sv.of_list (List.map var_of_reg A.veneer_registers)
 
   let callstyle =
     match A.callstyle with

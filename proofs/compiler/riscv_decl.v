@@ -166,6 +166,42 @@ Definition riscv_caimm_cond_pp (checker : riscv_caimm_cond) : string :=
   | CAimmC_riscv_5bits_unsigned => "[0, 31]"
   end%string.
 
+(* Memory-argument conditions (see [camem_cond] in arch_decl.v).
+   [CAmemC_riscv_ldst]: the address of a load or store, [<imm>(<rs1>)]: a
+   base register and a signed 12-bit offset, with no offset register
+   (RISC-V ISA, RV32I, "Load and Store Instructions"), or a global, through
+   the pseudo-instruction [lw rd, symbol] that the assembler expands into
+   [auipc] and the access.
+   [CAmemC_riscv_la]: the operand of LA, [<symbol>]: a global, the
+   pseudo-instruction having no register form. *)
+#[only(eqbOK)] derive
+Variant riscv_camem_cond :=
+  | CAmemC_riscv_ldst
+  | CAmemC_riscv_la.
+
+#[ export ]
+Instance eqTC_riscv_camem_cond : eqTypeC riscv_camem_cond :=
+  { ceqP := riscv_camem_cond_eqb_OK }.
+
+Definition is_ldst_reg_address (ra : reg_address_ register riscv_reg_size) : bool :=
+  isSome ra.(ad_base) && ~~ isSome ra.(ad_offset)
+  && let d := wsigned ra.(ad_disp) in ((-2048 <=? d) && (d <=? 2047))%Z.
+
+Definition riscv_check_CAmem
+  (checker : riscv_camem_cond) (a : address_ register riscv_reg_size) : bool :=
+  match checker, a with
+  | CAmemC_riscv_ldst, Arip _ => true
+  | CAmemC_riscv_ldst, Areg ra => is_ldst_reg_address ra
+  | CAmemC_riscv_la, Arip _ => true
+  | CAmemC_riscv_la, Areg _ => false
+  end.
+
+Definition riscv_camem_cond_pp (checker : riscv_camem_cond) : seq string :=
+  match checker with
+  | CAmemC_riscv_ldst => [:: "[base + imm], imm in [-2048, 2047]" ]
+  | CAmemC_riscv_la => [:: "a global" ]
+  end%string.
+
 #[ export ]
 Instance riscv_decl : arch_decl register register_ext xregister rflag condt :=
   { reg_size  := riscv_reg_size
@@ -182,13 +218,20 @@ Instance riscv_decl : arch_decl register register_ext xregister rflag condt :=
   ; caimm_cond_eqC := eqTC_riscv_caimm_cond
   ; caimm_cond_pp := riscv_caimm_cond_pp
   ; check_CAimm := riscv_check_CAimm
+  ; camem_cond := riscv_camem_cond
+  ; camem_cond_eqC := eqTC_riscv_camem_cond
+  ; camem_cond_pp := riscv_camem_cond_pp
+  ; check_CAmem := riscv_check_CAmem
   }.
 
 Definition riscv_linux_call_conv : calling_convention :=
-{| callee_saved :=
-    map ARReg [:: SP; X8; X9; X18; X19; X20; X21; X22; X23; X24; X25; X26; X27 ]
+let saved :=
+  map ARReg [:: SP; X8; X9; X18; X19; X20; X21; X22; X23; X24; X25; X26; X27 ] in
+{| callee_saved := saved
  ; callee_saved_not_bool := erefl true
  ; callee_saved_has_rsp  := erefl true
+ ; syscall_preserved := saved
+ ; syscall_preserved_subset := erefl true
  ; call_reg_args  := [:: X10; X11; X12; X13; X14; X15; X16; X17 ]
  ; call_xreg_args := [::]
  ; call_reg_ret   := [:: X10; X11]

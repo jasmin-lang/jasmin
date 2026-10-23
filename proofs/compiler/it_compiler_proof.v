@@ -69,6 +69,7 @@ Section SHARED.
 Context
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra} {call_conv : calling_convention} {asm_scsem : asm_syscall_sem}
+  {vregs : veneer_regs_info} {avs : asm_veneer_sem}
   (aparams : architecture_params)
   (haparams : h_architecture_params aparams)
   (cparams : compiler_params).
@@ -107,7 +108,8 @@ Proof using sc_sem print_sprogP.
   rewrite /check_sprog in check_pa.
   have [fda' [get_fda' check_fda']] := [elaborate
     allocation_proof.all_checked (pT:=progStack)
-      (p2:={| p_funcs := regalloc cparams (p_funcs pa); p_globs := p_globs pa; p_extra := p_extra pa |})
+      (p2:={| p_funcs := [seq (f.1, fill_in_missing_names_sfd cparams f.1 f.2) | f <- regalloc cparams (p_funcs pa)];
+             p_globs := p_globs pa; p_extra := p_extra pa |})
       check_pa get_fda].
   have [fdb ok_fdb get_fdb] := [elaborate
     dead_code_prog_tokeep_get_fundef hpb get_fda'].
@@ -209,6 +211,7 @@ Section PROOF.
 Context
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra} {call_conv : calling_convention} {asm_scsem : asm_syscall_sem}
+  {vregs : veneer_regs_info} {avs : asm_veneer_sem}
   (aparams : architecture_params)
   (haparams : h_architecture_params aparams)
   (cparams : compiler_params).
@@ -422,6 +425,14 @@ Context
   {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
   {call_conv : calling_convention}
   {asm_scsem : asm_syscall_sem}
+  (* The registers a linker-inserted veneer may destroy in front of a call
+     internal to the compilation unit, and the values it leaves in them.  The
+     theorem is universally quantified over both, so it covers every veneer
+     behaviour; nothing relates them to the middle end's [call_kill], which
+     IS [veneer_regs] mapped through [to_var] (asm_gen.veneer_i).  With
+     -function-sections off the list is empty and no register is havoced at a
+     call. *)
+  {vregs : veneer_regs_info} {avs : asm_veneer_sem}
   (aparams : architecture_params)
   (haparams : h_architecture_params aparams)
   (cparams : compiler_params)
@@ -590,7 +601,7 @@ rewrite !print_uprogP => pg ok_pg.
 rewrite !print_uprogP => ph ok_ph pi ok_pi.
 rewrite !print_uprogP => plc ok_plc.
 rewrite !print_uprogP => ok_fvars pj ok_pj pp.
-rewrite !print_uprogP => ok_pp <- {p'} ok_fn.
+rewrite !print_uprogP => ok_pp check_pp <- {p'} ok_fn.
 
 apply: (wiequiv_f_trans_EE_EU (wsw2:=nosubword) (dc2:=indirect_c)).
 + by apply: (it_remove_assert_progP (dc:=indirect_c) (sip:=sip_of_asm_e) (pT:=progUnit) (wsw:=nosubword) ev).
@@ -627,6 +638,9 @@ apply: wiequiv_f_trans_EE_EU; first exact:
 apply: wiequiv_f_trans_UU_EU; first exact: (it_pi_callP _ ok_pj).
 apply: wiequiv_f_trans_EE_EU;
   first exact: (it_lower_call_export (hap_hshp haparams) _ ok_pp ok_fn).
+
+rewrite -(surj_prog (pT := progUnit) pp).
+apply: wiequiv_f_trans_UU_EU; first exact: (it_alloc_call_uprogP _ _ check_pp).
 
 apply: wkequiv_io_weaken; last exact: wiequiv_f_eq.
 1-3: done.

@@ -1,0 +1,5 @@
+/* The store offset is below -2048. */
+export
+fn sw_offset_neg(reg u32 p a) {
+    [:u32 p - 2049] = a;
+}

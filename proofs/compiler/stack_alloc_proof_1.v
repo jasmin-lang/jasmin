@@ -1469,7 +1469,7 @@ Section EXPR.
       by eexists; split; first by reflexivity.
     + move=> ws n ???? [<-] [<-] /= /truncate_valE [-> ->].
       eexists; split; first by reflexivity.
-      by rewrite /truncate_val /= WArray.castK /=.
+      by rewrite /truncate_val /= to_arrK /=.
     + move=> x ty e' v v2; t_xrbindP => -[ vpk | ] hgvk; last first.
       + t_xrbindP=> /check_diffP hnnew <- /= ok_v htr.
         exists v; split=> //.
@@ -4986,7 +4986,7 @@ Proof using wf_pmap0 hsaparams.
   case: xs => // -[] // x [] // [] // y [] //.
   case: es => // -[] // z [] // [] // w [] //=.
   t_xrbindP => vz hz _ vw hw <- <-.
-  rewrite /exec_sopn /= /swap_semi; t_xrbindP.
+  rewrite /exec_sopn /= /Oswap_instr /=; t_xrbindP.
   move=> _ tz /to_arrI hvz tw /to_arrI hvw <- <- /=; t_xrbindP; subst vz vw.
   move=> _ /write_varP [-> _ /[dup] hxtr /vm_truncate_valE [hxty hxtr']].
   move=> _ /write_varP [-> _ /[dup] hytr /vm_truncate_valE [hyty hytr']].
@@ -5055,7 +5055,7 @@ Proof using addr_no_overflow disjoint_writable slot_align wf_pmap0 P'_globs hsap
   + by move=> _; apply alloc_array_moveP.
   move=> [ws [m ->]] /= [<-].
   rewrite /truncate_val /=.
-  t_xrbindP=> _ /WArray.cast_empty_ok -> {m} <-.
+  t_xrbindP=> _ /to_arr_empty -> {m} <-.
   case: r => //=.
   t_xrbindP=> x /write_varP [-> _ htr] srx /get_sub_regionP hsrx <- <- <-.
   exists s2, vme; split=> //.

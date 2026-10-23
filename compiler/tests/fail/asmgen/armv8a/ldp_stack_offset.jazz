@@ -1,0 +1,11 @@
+/* The stack slot lands outside the LDP offset range. */
+export
+fn ldp_stack_offset(reg u64 x) -> reg u64 {
+    stack u64[70] s;
+    reg u64 a b;
+    inline int i;
+    for i = 0 to 70 { s[i] = x; }
+    a, b = #LDP(s.[:u128 8 * 68]);
+    a += b;
+    return a;
+}

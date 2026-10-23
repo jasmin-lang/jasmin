@@ -152,15 +152,12 @@ Record asm_gen_params :=
   {
     agp_assemble_cond : instr_info -> fexpr -> cexec cond_t;
       (* Assemble an expression into an architecture-specific condition. *)
-    agp_is_valid_address : reg_address -> bool;
-      (* Checks whether the addressing mode is supported on the given arch. *)
   }.
 
 Context
   (agparams : asm_gen_params).
 
 Notation assemble_cond := (agp_assemble_cond agparams).
-Notation is_valid_address := (agp_is_valid_address agparams).
 
 (* -------------------------------------------------------------------- *)
 (* Compilation of fexprs *)
@@ -208,12 +205,7 @@ Definition assemble_lea_checked ii (pp_fe : pp_error) lea :=
     with_pel_msg err (pp_vbox vbox)
   in
   Let addr := Result.map_err mk_err (assemble_lea ii lea) in
-  Let _ := assert (is_valid_address addr)
-                  (E.error ii (pp_vbox
-                    [:: pp_s "the address computation is too complex";
-                        pp_nobox [:: pp_s "  "; pp_fe];
-                        pp_s "an intermediate variable might be needed"]))
-  in ok (Areg addr).
+  ok (Areg addr).
 
 Let is_none {A: Type} (m: option A) : bool :=
       if m is None then true else false.
@@ -429,7 +421,8 @@ Definition check_sopn_dests rip ii (loargs : seq asm_arg) (outx : lexprs) (adt :
   let eoutx := map rexpr_of_lexpr outx in
   all2 (check_sopn_dest rip ii loargs) eoutx adt.
 
-(* [check_arg_kind] but ignore constraints on immediate sizes *)
+(* [check_arg_kind] but ignore constraints on immediate sizes and on the
+   shape of memory addresses *)
 Definition check_arg_kind_no_imm (a:asm_arg) (cond: arg_kind) :=
   match a, cond with
   | Condt _, CAcond => true
@@ -463,7 +456,8 @@ Definition filter_args_kinds_no_imm (args:asm_args) (cond:args_kinds) : option a
 Definition filter_i_args_kinds_no_imm (cond:i_args_kinds) (a:asm_args) : i_args_kinds :=
   pmap (filter_args_kinds_no_imm a) cond.
 
-(* Enforce size constraints on immediates. *)
+(* Enforce size constraints on immediates and shape constraints on memory
+   addresses. *)
 Definition enforce_imm_arg_kind (a:asm_arg) (cond: arg_kind) : option asm_arg :=
   match a, cond with
   | Condt _, CAcond => Some a
@@ -476,7 +470,8 @@ Definition enforce_imm_arg_kind (a:asm_arg) (cond: arg_kind) : option asm_arg :=
   | ImmRip k _, CAimmRip k' => if k == k' then Some a else None
   | Reg _, CAreg => Some a
   | Regx _, CAregx => Some a
-  | Addr _, CAmem _ => Some a
+  | Addr addr, CAmem checker =>
+    if check_CAmem checker addr then Some a else None
   | XReg _, CAxmm   => Some a
   | _, _ => None
   end.
@@ -495,13 +490,19 @@ Definition enforce_imm_args_kinds (args:asm_args) (cond:args_kinds) : option asm
 Definition enforce_imm_i_args_kinds (cond:i_args_kinds) (a:asm_args) :=
   utils.find_map (enforce_imm_args_kinds a) cond.
 
-Definition pp_arg_kind c :=
+(* Printing of the argument kinds, for the error messages.
+   An alternative [args_kinds] is printed on one line, the kinds accepted at
+   a position separated by "|"; the conditions on the immediates and on the
+   addresses are listed under the line, one per argument, with the shapes
+   of an address one per line:
+     reg, (reg | mem)
+       mem: [base + imm], imm in [-255, 4095]
+            [base + s * index], s in {1, 2, 4, 8} *)
+
+Definition pp_arg_kind_tag c :=
   match c with
-  | CAmem b => pp_nobox [:: pp_s "mem (glob "; pp_s (if b then "" else "not ")%string; pp_s "allowed)"]
-  | CAimm checker ws =>
-      pp_nobox
-        ([:: pp_s "imm "; pp_s (string_of_wsize ws)]
-         ++ oapp (fun c => [:: pp_s " "; pp_s (caimm_cond_pp c)]) [::] checker)
+  | CAmem _ => pp_s "mem"
+  | CAimm _ ws => pp_nobox [:: pp_s "imm "; pp_s (string_of_wsize ws)]
   | CAimmRip k =>
       pp_s (if k is RipLo16 then "glob addr (lo16)" else "glob addr (hi16)")%string
   | CAcond => pp_s "cond"
@@ -510,14 +511,83 @@ Definition pp_arg_kind c :=
   | CAxmm => pp_s "xreg"
   end.
 
-Definition pp_arg_kinds cond :=
-  pp_box [:: pp_nobox [:: pp_s "["; pp_list (pp_break_s ";") pp_arg_kind cond; pp_s "]"]].
+(* The conditions imposed by a kind, one line each; empty if none. *)
+Definition arg_kind_conds c : seq string :=
+  match c with
+  | CAmem checker => camem_cond_pp checker
+  | CAimm (Some checker) _ => [:: caimm_cond_pp checker ]
+  | _ => [::]
+  end.
 
-Definition pp_args_kinds cond :=
-  pp_box [:: pp_nobox [:: pp_s "["; pp_list (pp_break_s ";") pp_arg_kinds cond; pp_s "]"]].
+Definition pp_arg_kinds (ks : arg_kinds) :=
+  if ks is [:: k ] then pp_arg_kind_tag k
+  else pp_nobox [:: pp_s "("; pp_list (pp_s " | ") pp_arg_kind_tag ks; pp_s ")"].
+
+Definition pp_arg_kind_conds c :=
+  if arg_kind_conds c is [::] then [::]
+  else
+    [:: pp_nobox [:: pp_arg_kind_tag c; pp_s ": ";
+          pp_vbox [:: pp_list PPEbreak pp_s (arg_kind_conds c) ] ] ].
+
+Definition pp_args_kinds (a : args_kinds) :=
+  let line := pp_list (pp_s ", ") pp_arg_kinds a in
+  let conds := flatten (map (fun ks => flatten (map pp_arg_kind_conds ks)) a) in
+  if conds is [::] then line
+  else
+    pp_vbox [:: line;
+      pp_nobox [:: pp_s "  "; pp_vbox [:: pp_list PPEbreak idfun conds ] ] ].
 
 Definition pp_i_args_kinds cond :=
   pp_vbox [:: pp_list PPEbreak pp_args_kinds cond].
+
+(* Whether some argument kind in [cond] restricts the shape of an address
+   (a condition with no description accepts every address); used to word
+   the error message of [assemble_asm_op]. *)
+Definition has_CAmem_cond (cond : i_args_kinds) : bool :=
+  has (has (has (fun c =>
+    if c is CAmem checker then ~~ nilp (camem_cond_pp checker) else false))) cond.
+
+(* The arguments that no alternative of [cond] accepts or, when every
+   alternative rejects a different one, those that some alternative
+   rejects. The list is not empty when the shapes of the arguments match
+   [cond] but the constraints on immediates and addresses do not, since
+   every alternative then rejects an argument. *)
+Definition arg_rejected_by (ks : args_kinds) (n : nat) (a : asm_arg) : bool :=
+  if onth ks n is Some c then ~~ isSome (enforce_imm_arg_kinds a c) else false.
+
+Definition unencodable_args (cond : i_args_kinds) (args : asm_args) : seq nat :=
+  let rejected (p : pred args_kinds -> i_args_kinds -> bool) :=
+    [seq na.1 | na <- zip (iota 0 (size args)) args
+              & p (fun ks => arg_rejected_by ks na.1 na.2) cond ] in
+  let by_all := rejected all in
+  if by_all is [::] then rejected has else by_all.
+
+(* The source expression of the argument at position [n] in assembly syntax.
+   Every position of an [asm_args] built by [assemble_asm_op_aux] has one:
+   the positions are filled from the [ADExplicit] descriptors of the
+   instruction. *)
+Definition source_of_arg (id : instr_desc_t) (outx : lexprs) (inx : rexprs) (n : nat) : option rexpr :=
+  utils.find_map
+    (fun ade => if ade.1 is ADExplicit _ m _ then if m == n then Some ade.2 else None else None)
+    (zip (id.(id_in) ++ id.(id_out)) (inx ++ map rexpr_of_lexpr outx)).
+
+(* The arguments of the instruction, in assembly order, the unencodable
+   ones highlighted. *)
+Definition pp_unencodable_arg (id : instr_desc_t) s (cond : i_args_kinds) (outx : lexprs) (inx : rexprs) (asm_args : asm_args) :=
+  let bad := unencodable_args cond asm_args in
+  let what :=
+    (if bad is [:: n ] then
+       (if onth asm_args n is Some (Addr _) then "an unencodable address" else "an unencodable immediate")
+       ++ " as an argument:"
+     else "unencodable arguments:")%string in
+  let pp_arg m e := let e := pp_re e in if m \in bad then PPEhighlight e else e in
+  pp_nobox [::
+    pp_box [:: pp_s "instruction"; pp_s s; pp_s ("is given " ++ what) ];
+    PPEbreak;
+    pp_nobox [:: pp_s "  ";
+      pp_list (pp_s ", ") idfun
+        (pmap (fun m => Option.map (pp_arg m) (source_of_arg id outx inx m))
+              (iota 0 (size asm_args))) ] ]%string.
 
 Definition assemble_asm_op rip ii op (outx : lexprs) (inx : rexprs) :=
   let id := instr_desc op in
@@ -534,15 +604,26 @@ Definition assemble_asm_op rip ii op (outx : lexprs) (inx : rexprs) :=
     if enforce_imm_i_args_kinds args_kinds asm_args is Some asm_args then
       ok asm_args
     else
+      let mem := has_CAmem_cond args_kinds in
+      (* The alternatives whose shapes match the arguments; the full list
+         follows only when some alternatives were filtered out. *)
+      let filtered := args_kinds != id.(id_args_kinds) in
       Error (E.error ii (pp_nobox [::
-        pp_box [:: pp_s "instruction"; pp_s s; pp_s "is given at least one too large immediate as an argument."]; PPEbreak;
-        pp_vbox [::
-        pp_s "Allowed args compatible with the input (except on immediate sizes) are:";
+        pp_unencodable_arg id s args_kinds outx inx asm_args;
+        PPEbreak;
+        pp_vbox ([::
+        pp_s (if ~~ filtered then "Allowed args are:"
+              else if mem
+              then "Allowed args compatible with the input (except on immediate sizes"
+                   ++ " and address shapes) are:"
+              else "Allowed args compatible with the input (except on immediate sizes) are:")%string;
         pp_nobox [::pp_s "  "; pp_vbox [::
-        pp_i_args_kinds args_kinds]];
+        pp_i_args_kinds args_kinds]] ] ++
+        if filtered then [::
         pp_s "All allowed args (regardless of the input) are:";
         pp_nobox [:: pp_s "  "; pp_vbox [::
-        pp_i_args_kinds id.(id_args_kinds)]]]]))
+        pp_i_args_kinds id.(id_args_kinds)]] ]
+        else [::])]))
   in
   Let _ := assert (check_sopn_args rip ii asm_args inx (zip id.(id_in) id.(id_tin)) &&
                      check_sopn_dests rip ii asm_args outx (zip id.(id_out) id.(id_tout)))
@@ -717,7 +798,8 @@ End ASM_EXTRA.
 
 Section OVM_I.
 
-Context {reg regx xreg rflag cond} {ad : arch_decl reg regx xreg rflag cond} {atoI : arch_toIdent} {call_conv: calling_convention}.
+Context {reg regx xreg rflag cond} {ad : arch_decl reg regx xreg rflag cond} {atoI : arch_toIdent} {call_conv: calling_convention}
+  {vregs : veneer_regs_info}.
 
 Definition vflags := sv_of_list to_var rflags.
 
@@ -738,9 +820,22 @@ Definition all_vars :=
          scs_vout := map to_var (take (size sig.(scs_tout)) call_reg_ret) |};
   all_vars     := all_vars;
   callee_saved := sv_of_list var_of_asm_typed_reg callee_saved;
+  syscall_preserved := sv_of_list var_of_asm_typed_reg syscall_preserved;
   vflags       := vflags;
   vflagsP      := vflagsP;
 }.
+
+(* The registers a linker-inserted veneer may destroy in front of a call
+   internal to the unit, as seen by the middle end: exactly the machine
+   registers of [veneer_regs] (arch_decl.veneer_regs_info), mapped through
+   [to_var].  Being a definition and not a parameter, it needs no side
+   condition relating the two sides of the translation to assembly (see
+   asm_gen_proof.call_kill_regs_only and asm_gen_proof.veneer_kill_outside).
+   The list is empty unless the functions are laid out in sections of their
+   own, and an empty set constrains nothing. *)
+#[global] Instance veneer_i : one_varmap.veneer_info := {|
+  call_kill := sv_of_list to_var veneer_regs;
+|}.
 
 End OVM_I.
 

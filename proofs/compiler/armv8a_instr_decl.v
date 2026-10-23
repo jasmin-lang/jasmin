@@ -22,6 +22,7 @@ Require xseq.
 Require Import
   values
   sopn
+  sopn_semi
   arch_decl
   arch_utils.
 Require Import armv8a_decl.
@@ -78,6 +79,8 @@ Variant armv8a_mnemonic : Type :=
 | ADCS                           (* Add with carry, setting flags *)
 | SUB                            (* Subtract without carry *)
 | SUBS                           (* Subtract without carry, setting flags *)
+| SBC                            (* Subtract with carry *)
+| SBCS                           (* Subtract with carry, setting flags *)
 | NEG                            (* Negate *)
 | MUL                            (* Multiply and write the least significant
                                     bits of the result *)
@@ -85,11 +88,18 @@ Variant armv8a_mnemonic : Type :=
 | MSUB                           (* Multiply and subtract *)
 | SDIV                           (* Signed division *)
 | UDIV                           (* Unsigned division *)
+| UMULL                          (* Unsigned multiply long *)
+| SMULL                          (* Signed multiply long *)
+| UMADDL                         (* Unsigned multiply-add long *)
+| SMADDL                         (* Signed multiply-add long *)
 | UMULH                          (* Unsigned multiply high *)
 | SMULH                          (* Signed multiply high *)
 
 (* Logical *)
 | AND                            (* Bitwise AND *)
+| ANDS                           (* Bitwise AND, setting flags *)
+| BIC                            (* Bitwise AND with bitwise NOT *)
+| BICS                           (* Bitwise AND with bitwise NOT, setting flags *)
 | ORR                            (* Bitwise OR *)
 | EOR                            (* Bitwise XOR *)
 | MVN                            (* Bitwise NOT *)
@@ -109,6 +119,12 @@ Variant armv8a_mnemonic : Type :=
 | CLS                            (* Count leading sign bits *)
 
 (* Bit field operations *)
+| BFC                            (* Bitfield clear *)
+| BFI                            (* Bitfield insert *)
+| BFXIL                          (* Bitfield extract and insert at low end *)
+| SBFX                           (* Signed bitfield extract *)
+| UBFX                           (* Unsigned bitfield extract *)
+| EXTR                           (* Extract register from a register pair *)
 
 (* Other data processing instructions *)
 | MOV                            (* Copy operand to destination *)
@@ -125,10 +141,16 @@ Variant armv8a_mnemonic : Type :=
 
 (* Comparisons *)
 | CMP                            (* Compare *)
+| CMN                            (* Compare negative *)
 | TST                            (* Test *)
 
 (* Conditional selection *)
 | CSEL                           (* Conditional select *)
+| CSINC                          (* Conditional select increment *)
+| CSINV                          (* Conditional select invert *)
+| CSNEG                          (* Conditional select negate *)
+| CSET                           (* Conditional set *)
+| CSETM                          (* Conditional set mask *)
 
 (* Loads *)
 | LDR                            (* Load a word or doubleword *)
@@ -137,11 +159,13 @@ Variant armv8a_mnemonic : Type :=
 | LDRSB                          (* Load a sign extended byte *)
 | LDRSH                          (* Load a sign extended halfword *)
 | LDRSW                          (* Load a sign extended word *)
+| LDP                            (* Load a pair of words or doublewords *)
 
 (* Stores *)
 | STR                            (* Store a word or doubleword *)
 | STRB                           (* Store a byte *)
 | STRH                           (* Store a halfword *)
+| STP                            (* Store a pair of words or doublewords *)
 
 (* Barriers *)
 | CSDB                           (* Consumption of speculative data barrier *)
@@ -155,17 +179,19 @@ Instance eqTC_armv8a_mnemonic : eqTypeC armv8a_mnemonic :=
 Canonical armv8a_mnemonic_eqType := @ceqT_eqType _ eqTC_armv8a_mnemonic.
 
 Definition armv8a_mnemonics : seq armv8a_mnemonic :=
-  [:: ADD; ADDS; ADC; ADCS; SUB; SUBS; NEG
-    ; MUL; MADD; MSUB; SDIV; UDIV; UMULH; SMULH
-    ; AND; ORR; EOR; MVN
+  [:: ADD; ADDS; ADC; ADCS; SUB; SUBS; SBC; SBCS; NEG
+    ; MUL; MADD; MSUB; SDIV; UDIV
+    ; UMULL; SMULL; UMADDL; SMADDL; UMULH; SMULH
+    ; AND; ANDS; BIC; BICS; ORR; EOR; MVN
     ; ASR; LSL; LSR; ROR
     ; RBIT; REV; REV16; REV32; CLZ; CLS
+    ; BFC; BFI; BFXIL; SBFX; UBFX; EXTR
     ; MOV; MOVN; MOVZ; MOVK; ADR
     ; SXTB; SXTH; SXTW; UXTB; UXTH; UXTW
-    ; CMP; TST
-    ; CSEL
-    ; LDR; LDRB; LDRH; LDRSB; LDRSH; LDRSW
-    ; STR; STRB; STRH
+    ; CMP; CMN; TST
+    ; CSEL; CSINC; CSINV; CSNEG; CSET; CSETM
+    ; LDR; LDRB; LDRH; LDRSB; LDRSH; LDRSW; LDP
+    ; STR; STRB; STRH; STP
     ; CSDB; DSB; ISB
   ].
 
@@ -184,16 +210,16 @@ Canonical armv8a_mnemonic_finType := @cfinT_finType _ finTC_armv8a_mnemonic.
 (* Mnemonics whose last register operand can be optionally shifted. *)
 Definition has_shift_mnemonics : seq armv8a_mnemonic :=
   [:: ADD; ADDS; SUB; SUBS; NEG
-    ; AND; ORR; EOR; MVN
-    ; CMP; TST
+    ; AND; ANDS; BIC; BICS; ORR; EOR; MVN
+    ; CMP; CMN; TST
   ].
 
-(* The arithmetic instructions (ADD/ADDS/SUB/SUBS/NEG/CMP) only admit
+(* The arithmetic instructions (ADD/ADDS/SUB/SUBS/NEG/CMP/CMN) only admit
    LSL, LSR and ASR on their shifted-register operand; ROR is reserved
    (C6.2.5 "ADD (shifted register)"). The logical instructions admit all
    four shifts (C6.2.14 "AND (shifted register)"). *)
 Definition ror_shift_mnemonics : seq armv8a_mnemonic :=
-  [:: AND; ORR; EOR; MVN; TST ].
+  [:: AND; ANDS; BIC; BICS; ORR; EOR; MVN; TST ].
 
 Definition shift_allowed (mn : armv8a_mnemonic) (sk : shift_kind) : bool :=
   if sk is SROR then mn \in ror_shift_mnemonics else true.
@@ -202,17 +228,18 @@ Definition shift_allowed (mn : armv8a_mnemonic) (sk : shift_kind) : bool :=
    remaining mnemonics are only valid with [opts_size = U64], except the
    barriers, which have no operand. *)
 Definition sized_mnemonics : seq armv8a_mnemonic :=
-  [:: ADD; ADDS; ADC; ADCS; SUB; SUBS; NEG
+  [:: ADD; ADDS; ADC; ADCS; SUB; SUBS; SBC; SBCS; NEG
     ; MUL; MADD; MSUB; SDIV; UDIV
-    ; AND; ORR; EOR; MVN
+    ; AND; ANDS; BIC; BICS; ORR; EOR; MVN
     ; ASR; LSL; LSR; ROR
     ; RBIT; REV; REV16; CLZ; CLS
+    ; BFC; BFI; BFXIL; SBFX; UBFX; EXTR
     ; MOV; MOVN; MOVZ; MOVK
     ; SXTB; SXTH; UXTB; UXTH
-    ; CMP; TST
-    ; CSEL
-    ; LDR; LDRB; LDRH; LDRSB; LDRSH
-    ; STR; STRB; STRH
+    ; CMP; CMN; TST
+    ; CSEL; CSINC; CSINV; CSNEG; CSET; CSETM
+    ; LDR; LDRB; LDRH; LDRSB; LDRSH; LDP
+    ; STR; STRB; STRH; STP
   ].
 
 Definition wsize_uload_mn : seq (wsize * armv8a_mnemonic) :=
@@ -261,15 +288,24 @@ Definition string_of_armv8a_mnemonic (mn : armv8a_mnemonic) : string :=
   | ADCS => "ADCS"
   | SUB => "SUB"
   | SUBS => "SUBS"
+  | SBC => "SBC"
+  | SBCS => "SBCS"
   | NEG => "NEG"
   | MUL => "MUL"
   | MADD => "MADD"
   | MSUB => "MSUB"
   | SDIV => "SDIV"
   | UDIV => "UDIV"
+  | UMULL => "UMULL"
+  | SMULL => "SMULL"
+  | UMADDL => "UMADDL"
+  | SMADDL => "SMADDL"
   | UMULH => "UMULH"
   | SMULH => "SMULH"
   | AND => "AND"
+  | ANDS => "ANDS"
+  | BIC => "BIC"
+  | BICS => "BICS"
   | ORR => "ORR"
   | EOR => "EOR"
   | MVN => "MVN"
@@ -283,6 +319,12 @@ Definition string_of_armv8a_mnemonic (mn : armv8a_mnemonic) : string :=
   | REV32 => "REV32"
   | CLZ => "CLZ"
   | CLS => "CLS"
+  | BFC => "BFC"
+  | BFI => "BFI"
+  | BFXIL => "BFXIL"
+  | SBFX => "SBFX"
+  | UBFX => "UBFX"
+  | EXTR => "EXTR"
   | MOV => "MOV"
   | MOVN => "MOVN"
   | MOVZ => "MOVZ"
@@ -295,17 +337,25 @@ Definition string_of_armv8a_mnemonic (mn : armv8a_mnemonic) : string :=
   | UXTH => "UXTH"
   | UXTW => "UXTW"
   | CMP => "CMP"
+  | CMN => "CMN"
   | TST => "TST"
   | CSEL => "CSEL"
+  | CSINC => "CSINC"
+  | CSINV => "CSINV"
+  | CSNEG => "CSNEG"
+  | CSET => "CSET"
+  | CSETM => "CSETM"
   | LDR => "LDR"
   | LDRB => "LDRB"
   | LDRH => "LDRH"
   | LDRSB => "LDRSB"
   | LDRSH => "LDRSH"
   | LDRSW => "LDRSW"
+  | LDP => "LDP"
   | STR => "STR"
   | STRB => "STRB"
   | STRH => "STRH"
+  | STP => "STP"
   | CSDB => "CSDB"
   | DSB => "DSB"
   | ISB => "ISB"
@@ -337,6 +387,11 @@ Notation ty_r := (sem_ltuple [:: lreg ]) (only parsing).
 Notation ty_w ws := (sem_ltuple [:: lword ws ]) (only parsing).
 
 Notation ty_nzcv_w ws := (sem_ltuple (snzcv ++ [:: lword ws ])) (only parsing).
+
+(* Counterparts of the above for the total semantics: the flags are [bool]. *)
+Notation ty_nzcv_t := (sem_ltuple_t snzcv) (only parsing).
+Notation ty_w_t ws := (sem_ltuple_t [:: lword ws ]) (only parsing).
+Notation ty_nzcv_w_t ws := (sem_ltuple_t (snzcv ++ [:: lword ws ])) (only parsing).
 
 
 (* -------------------------------------------------------------------- *)
@@ -372,18 +427,27 @@ Definition nzcv_of_aluop
 
 (* Flags of A64 flag-setting logical instructions (ANDS, BICS, TST):
    PSTATE.<N,Z,C,V> = result<msb>:IsZeroBit(result):'00'. *)
-Definition nzcv_of_logop {ws : wsize} (res : word ws) : ty_nzcv :=
-  (:: Some (NF_of_word res)
-    , Some (ZF_of_word res)
-    , Some false
-    & Some false
-  ).
-
 Definition nzcv_w_of_aluop {ws : wsize} (w : word ws) (wun wsi : Z) :=
   merge_tuple (nzcv_of_aluop w wun wsi) (w : ty_w ws).
 
-Definition nzcv_w_of_logop {ws : wsize} (w : word ws) :=
-  merge_tuple (nzcv_of_logop w) (w : ty_w ws).
+(* Total counterparts: every A64 flag is defined, so they only drop the
+   [Some]. *)
+Definition nzcv_of_aluop_t
+  {ws : wsize} (res : word ws) (res_unsigned res_signed : Z) : ty_nzcv_t :=
+  (:: NF_of_word res
+    , ZF_of_word res
+    , wunsigned res != res_unsigned
+    & wsigned res != res_signed
+  ).
+
+Definition nzcv_of_logop_t {ws : wsize} (res : word ws) : ty_nzcv_t :=
+  (:: NF_of_word res, ZF_of_word res, false & false).
+
+Definition nzcv_w_of_aluop_t {ws : wsize} (w : word ws) (wun wsi : Z) : ty_nzcv_w_t ws :=
+  merge_tuple (nzcv_of_aluop_t w wun wsi) (w : ty_w_t ws).
+
+Definition nzcv_w_of_logop_t {ws : wsize} (w : word ws) : ty_nzcv_w_t ws :=
+  merge_tuple (nzcv_of_logop_t w) (w : ty_w_t ws).
 
 
 (* -------------------------------------------------------------------- *)
@@ -406,6 +470,23 @@ Definition mk_semi2_2_shifted
     let sham := wunsigned shift_amount in
     semi x (shift_op sk wm sham).
 
+(* Same, for a total semantics (no [exec] on the result). *)
+Definition mk_semi1_shifted_t
+  {A} {ws : wsize} (sk : shift_kind) (semi : sem_lprod [:: lword ws ] A) :
+  sem_lprod [:: lword ws; lword8 ] A :=
+  fun wn shift_amount =>
+    let sham := wunsigned shift_amount in
+    semi (shift_op sk wn sham).
+Arguments mk_semi1_shifted_t {A ws} sk semi /.
+
+Definition mk_semi2_2_shifted_t
+  {A} {o : ltype} {ws : wsize} (sk : shift_kind) (semi : sem_lprod [:: o; lword ws ] A) :
+  sem_lprod [:: o; lword ws; lword8 ] A :=
+  fun x wm shift_amount =>
+    let sham := wunsigned shift_amount in
+    semi x (shift_op sk wm sham).
+Arguments mk_semi2_2_shifted_t {A o ws} sk semi /.
+
 #[ local ]
 Lemma mk_shifted_eq_size {A B} {x y} {xs0 : seq A} {ys0 : seq B} {p} :
   (size xs0 == size ys0) && p
@@ -416,32 +497,18 @@ Proof.
   by apply/andP.
 Qed.
 
-Lemma mk_semi1_shifted_errty A ws sk (semi : sem_lprod [:: lword ws] (exec A)) :
-  sem_lforall (fun r : exec A => r <> Error ErrType) [:: lword ws] semi ->
-  sem_lforall (fun r : exec A => r <> Error ErrType)
-         ([:: lword ws] ++ [:: lword8]) (mk_semi1_shifted sk semi).
-Proof. by rewrite /mk_semi1_shifted /= => h *; apply h. Qed.
-
-Lemma mk_semi2_2_shifted_errty A (t : ltype) ws sk (semi : sem_lprod [:: t; lword ws] (exec A)) :
-  sem_lforall (fun r : exec A => r <> Error ErrType) [:: t; lword ws] semi ->
-  sem_lforall (fun r : exec A => r <> Error ErrType)
-         ([:: t; lword ws] ++ [:: lword8]) (mk_semi2_2_shifted sk semi).
-Proof. rewrite /mk_semi2_2_shifted /= => h *; apply h. Qed.
-
-Lemma mk_semi1_shifted_safe A ws sk (semi : sem_lprod [:: lword ws] (exec A)) :
-  interp_safe_cond_ty [::] semi ->
-  interp_safe_cond_ty [::] (mk_semi1_shifted sk semi).
-Proof. move=> h > _; apply h; constructor. Qed.
-
-Lemma mk_semi2_2_shifted_safe A sk (t : ltype) ws (semi : sem_lprod [:: t; lword ws] (exec A)) :
-  interp_safe_cond_ty [::] semi ->
-  interp_safe_cond_ty [::] (mk_semi2_2_shifted sk semi).
-Proof. move=> h > _; apply h; constructor. Qed.
-
-Lemma safe_wf_cat (tin tin' : seq ltype) sc :
-  all (fun sc => sc_needed_args sc <= size tin) sc ->
-  all (fun sc => sc_needed_args sc <= size (tin ++ tin')) sc.
-Proof. apply sub_all => c h; rewrite size_cat; apply: (leq_trans h); apply leq_addr. Qed.
+(* Adding the shift amount at the end of the arguments does not change the
+   safety and initialisation conditions, which only mention the earlier
+   ones. *)
+Lemma shifted_wf (idt : instr_desc_t) :
+  [&& all (safety_cond_wt (map eval_ltype (id_tin idt ++ [:: lword8 ]))) (id_safe idt),
+      all (safety_cond_wt (map eval_ltype (id_tin idt ++ [:: lword8 ]))) (id_init idt),
+      ssrnat.eqn (size (id_init idt)) (size (id_tout idt))
+    & ~~ is_ErrType (id_err idt)].
+Proof.
+  have /and4P [h0 h1 h2 h3] := id_wf idt.
+  by rewrite map_cat (all_safety_cond_wt_cat _ h0) (all_safety_cond_wt_cat _ h1) h2 h3.
+Qed.
 
 (* On A64 a shifted operand exists only in the register form of an
    instruction (C6.2.5 "ADD (shifted register)" and friends). The immediate
@@ -456,14 +523,15 @@ Definition args_kinds_no_imm (x : args_kinds) : bool :=
 
 Definition mk_shifted
   (ws : wsize) (sk : shift_kind) (mn : armv8a_mnemonic)
-  (idt : instr_desc_t) semi' semi_errty' semi_safe' : instr_desc_t :=
+  (idt : instr_desc_t) semi_total'
+  : instr_desc_t :=
   {|
     id_msb_flag := idt.(id_msb_flag);
     id_tin := (id_tin idt) ++ [:: lword8 ];
     id_in := (id_in idt) ++ [:: Ea (id_nargs idt) ];
     id_tout := id_tout idt;
     id_out := id_out idt;
-    id_semi := semi';
+    id_semi_total := semi_total';
     id_nargs := (id_nargs idt).+1;
     id_args_kinds :=
       map (fun x => x ++ [:: [:: CAimm (Some (CAimmC_armv8a_shift_amount ws)) U8] ])
@@ -472,14 +540,14 @@ Definition mk_shifted
     id_check_dest := id_check_dest idt;
     id_str_jas := id_str_jas idt;
     id_safe := id_safe idt;
+    id_err := id_err idt;
+    id_init := id_init idt;
     id_doit := id_doit idt;
     id_pp_asm := id_pp_asm idt;
     (* The descriptor itself rejects a shift kind that the instruction
        does not admit (ROR on the arithmetic class). *)
     id_valid := id_valid idt && shift_allowed mn sk;
-    id_safe_wf := safe_wf_cat _ (id_safe_wf idt);
-    id_semi_errty := semi_errty';
-    id_semi_safe := semi_safe'
+    id_wf := shifted_wf idt;
   |}.
 
 Arguments mk_shifted : clear implicits.
@@ -558,6 +626,16 @@ Let ak_rr := ak_reg_reg.
 Let ak_rrr := ak_reg_reg_reg.
 Let ak_rrrr := ak_reg_reg_reg_reg.
 
+(* The memory argument of a load or store of a [ws] datum: its address is
+   restricted to the encodable forms ([CAmemC_armv8a_ldst] in
+   armv8a_decl.v). *)
+Let ak_reg_addr_ldst (ws : wsize) :=
+  [:: [:: [:: CAreg ]; [:: CAmem (CAmemC_armv8a_ldst ws) ] ] ].
+
+(* The operand of ADR: an address relative to the PC ([CAmemC_armv8a_adr]). *)
+Let ak_reg_addr_adr :=
+  [:: [:: [:: CAreg ]; [:: CAmem CAmemC_armv8a_adr ] ] ].
+
 Let ak_rr_or_imm (ick : option armv8a_caimm_cond) :=
   if ick is Some ic
   then ak_reg_reg ++ [:: [:: [:: CAreg ]; [:: CAimm (Some ic) osz ] ] ]
@@ -583,14 +661,13 @@ Let ak_rrr_cond :=
 Let ak_r_cond :=
   [:: [:: [:: CAreg ]; [:: CAcond ] ] ].
 
-Let ak_rr_imm8_imm8 :=
-  [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAimm_sz U8 ]; [:: CAimm_sz U8 ] ] ].
-
-Let ak_r_imm8_imm8 :=
-  [:: [:: [:: CAreg ]; [:: CAimm_sz U8 ]; [:: CAimm_sz U8 ] ] ].
-
-Let ak_rr_imm_imm_extr :=
+(* Bit-field instructions: the bit position is bounded by the operand size,
+   the width is an 8-bit immediate. *)
+Let ak_rr_lsb_width :=
   [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAimm (Some (CAimmC_armv8a_shift_amount osz)) U8 ]; [:: CAimm_sz U8 ] ] ].
+
+Let ak_r_lsb_width :=
+  [:: [:: [:: CAreg ]; [:: CAimm (Some (CAimmC_armv8a_shift_amount osz)) U8 ]; [:: CAimm_sz U8 ] ] ].
 
 (* -------------------------------------------------------------------- *)
 (* Arithmetic instructions. *)
@@ -610,32 +687,28 @@ Definition mk_arith_instr mn (ick : option armv8a_caimm_cond)
       id_in := [:: Ea 1; Ea 2 ];
       id_tout := [:: lword osz ];
       id_out := [:: Ea 0 ];
-      id_semi := sem_lprod_ok tin semi;
+      id_semi_total := semi;
       id_nargs := 3;
       id_args_kinds := ak_rrr_or_imm ick;
       id_eq_size := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := armv8a_mn_str mn;
       id_safe := [::];
+      id_err := ErrSemUndef;
+      id_init := [:: IBool true ];
       id_doit := DOIT;
       id_pp_asm := pp_armv8a_op mn opts;
       id_valid := osz_valid;
-      id_safe_wf := refl_equal;
-      id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-      id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+      id_wf := refl_equal;
     |}
   in
   if has_shift opts is Some sk
-  then mk_shifted osz sk mn x (mk_semi2_2_shifted sk (id_semi x))
-                       (fun h => mk_semi2_2_shifted_errty
-                                   (x.(id_semi_errty) (proj1 (andb_prop _ _ h))))
-                       (fun h => mk_semi2_2_shifted_safe sk
-                                   (x.(id_semi_safe) (proj1 (andb_prop _ _ h))))
+  then mk_shifted osz sk mn x (mk_semi2_2_shifted_t sk (id_semi_total x))
   else x.
 
 (* Same as [mk_arith_instr], with the NZCV flags as extra outputs. *)
 Definition mk_ariths_instr mn (ick : option armv8a_caimm_cond)
-  (semi : word osz -> word osz -> ty_nzcv_w osz)
+  (semi_t : word osz -> word osz -> ty_nzcv_w_t osz)
   : instr_desc_t :=
   let tin := [:: lword osz; lword osz ] in
   let x :=
@@ -645,28 +718,26 @@ Definition mk_ariths_instr mn (ick : option armv8a_caimm_cond)
       id_in := [:: Ea 1; Ea 2 ];
       id_tout := snzcv ++ [:: lword osz ];
       id_out := ad_nzcv ++ [:: Ea 0 ];
-      id_semi := sem_lprod_ok tin semi;
+      id_semi_total := semi_t;
       id_nargs := 3;
       id_args_kinds := ak_rrr_or_imm ick;
       id_eq_size := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := armv8a_mn_str mn;
       id_safe := [::];
+      id_err := ErrSemUndef;
+      id_init := [:: IBool true; IBool true; IBool true; IBool true; IBool true ];
       id_doit := DOIT;
       id_pp_asm := pp_armv8a_op mn opts;
       id_valid := osz_valid;
-      id_safe_wf := refl_equal;
-      id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-      id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+      id_wf := refl_equal;
     |}
   in
   if has_shift opts is Some sk
-  then mk_shifted osz sk mn x (mk_semi2_2_shifted sk (id_semi x))
-                       (fun h => mk_semi2_2_shifted_errty
-                                   (x.(id_semi_errty) (proj1 (andb_prop _ _ h))))
-                       (fun h => mk_semi2_2_shifted_safe sk
-                                   (x.(id_semi_safe) (proj1 (andb_prop _ _ h))))
+  then mk_shifted osz sk mn x (mk_semi2_2_shifted_t sk (id_semi_total x))
   else x.
+
+Arguments mk_ariths_instr : clear implicits.
 
 Notation arith_imm := (Some CAimmC_armv8a_arith_imm) (only parsing).
 Notation bitmask_imm := (Some CAimmC_armv8a_bitmask_imm) (only parsing).
@@ -704,14 +775,15 @@ Definition armv8a_ADD_instr : instr_desc_t :=
      X[d, datasize] = result;
      PSTATE.<N,Z,C,V> = nzcv;
 *)
-Definition armv8a_ADDS_semi {ws : wsize} (wn wm : word ws) : ty_nzcv_w ws :=
-  nzcv_w_of_aluop
+
+Definition armv8a_ADDS_semi_t {ws : wsize} (wn wm : word ws) : ty_nzcv_w_t ws :=
+  nzcv_w_of_aluop_t
     (wn + wm)%w
     (wunsigned wn + wunsigned wm)%Z
     (wsigned wn + wsigned wm)%Z.
 
 Definition armv8a_ADDS_instr : instr_desc_t :=
-  mk_ariths_instr ADDS arith_imm armv8a_ADDS_semi.
+  mk_ariths_instr ADDS arith_imm armv8a_ADDS_semi_t.
 (* [C6.2.457 SUB (shifted register)] ARM DDI 0487 M.a, p. 2785
    Subtract optionally-shifted register  This instruction subtracts an
    optionally-shifted register value from a register value, and writes the
@@ -746,15 +818,16 @@ Definition armv8a_SUB_instr : instr_desc_t :=
      X[d, datasize] = result;
      PSTATE.<N,Z,C,V> = nzcv;
 *)
-Definition armv8a_SUBS_semi {ws : wsize} (wn wm : word ws) : ty_nzcv_w ws :=
+
+Definition armv8a_SUBS_semi_t {ws : wsize} (wn wm : word ws) : ty_nzcv_w_t ws :=
   let wmnot := wnot wm in
-  nzcv_w_of_aluop
+  nzcv_w_of_aluop_t
     (wn + wmnot + 1)%w
     (wunsigned wn + wunsigned wmnot + 1)%Z
     (wsigned wn + wsigned wmnot + 1)%Z.
 
 Definition armv8a_SUBS_instr : instr_desc_t :=
-  mk_ariths_instr SUBS arith_imm armv8a_SUBS_semi.
+  mk_ariths_instr SUBS arith_imm armv8a_SUBS_semi_t.
 
 (* Add/subtract with carry (no shifted or immediate forms in A64). *)
 Definition mk_carry_instr mn (semi : word osz -> word osz -> bool -> ty_w osz)
@@ -766,22 +839,23 @@ Definition mk_carry_instr mn (semi : word osz -> word osz -> bool -> ty_w osz)
     id_in := [:: Ea 1; Ea 2; F CF ];
     id_tout := [:: lword osz ];
     id_out := [:: Ea 0 ];
-    id_semi := sem_lprod_ok tin semi;
+    id_semi_total := semi;
     id_nargs := 3;
     id_args_kinds := ak_rrr;
     id_eq_size := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := armv8a_mn_str mn;
     id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
-    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+    id_wf := refl_equal;
   |}.
 
-Definition mk_carrys_instr mn (semi : word osz -> word osz -> bool -> ty_nzcv_w osz)
+Definition mk_carrys_instr mn
+  (semi_t : word osz -> word osz -> bool -> ty_nzcv_w_t osz)
   : instr_desc_t :=
   let tin := [:: lword osz; lword osz; lbool ] in
   {|
@@ -790,20 +864,22 @@ Definition mk_carrys_instr mn (semi : word osz -> word osz -> bool -> ty_nzcv_w 
     id_in := [:: Ea 1; Ea 2; F CF ];
     id_tout := snzcv ++ [:: lword osz ];
     id_out := ad_nzcv ++ [:: Ea 0 ];
-    id_semi := sem_lprod_ok tin semi;
+    id_semi_total := semi_t;
     id_nargs := 3;
     id_args_kinds := ak_rrr;
     id_eq_size := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := armv8a_mn_str mn;
     id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true; IBool true; IBool true; IBool true; IBool true ];
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
-    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+    id_wf := refl_equal;
   |}.
+
+Arguments mk_carrys_instr : clear implicits.
 
 (* [C6.2.2 ADC] ARM DDI 0487 M.a, p. 1789
    Add with carry  This instruction adds two register values and the Carry flag
@@ -835,14 +911,52 @@ Definition armv8a_ADC_instr : instr_desc_t := mk_carry_instr ADC armv8a_ADC_semi
      X[d, datasize] = result;
      PSTATE.<N,Z,C,V> = nzcv;
 *)
-Definition armv8a_ADCS_semi {ws : wsize} (wn wm : word ws) (cf : bool) : ty_nzcv_w ws :=
+
+Definition armv8a_ADCS_semi_t {ws : wsize} (wn wm : word ws) (cf : bool) : ty_nzcv_w_t ws :=
   let c := Z.b2z cf in
-  nzcv_w_of_aluop
+  nzcv_w_of_aluop_t
     (wn + wm + wrepr ws c)%w
     (wunsigned wn + wunsigned wm + c)%Z
     (wsigned wn + wsigned wm + c)%Z.
 
-Definition armv8a_ADCS_instr : instr_desc_t := mk_carrys_instr ADCS armv8a_ADCS_semi.
+Definition armv8a_ADCS_instr : instr_desc_t :=
+  mk_carrys_instr ADCS armv8a_ADCS_semi_t.
+(* [C6.2.351 SBC] ARM DDI 0487 M.a, p. 2548
+   Subtract with carry  This instruction subtracts a register value and the
+   value of NOT (Carry flag) from a register value, and writes the result to
+   the destination register.  This instruction is used by the alias NGC.
+   Syntax: SBC <Xd>, <Xn>, <Xm>
+   Operation (ASL):
+     constant bits(datasize) operand1 = X[n, datasize];
+     constant bits(datasize) operand2 = NOT(X[m, datasize]);
+     bits(datasize) result;
+     (result, -) = AddWithCarry(operand1, operand2, PSTATE.C);
+     X[d, datasize] = result;
+*)
+Definition armv8a_SBC_semi {ws : wsize} (wn wm : word ws) (cf : bool) : ty_w ws :=
+  armv8a_ADC_semi wn (wnot wm) cf.
+
+Definition armv8a_SBC_instr : instr_desc_t := mk_carry_instr SBC armv8a_SBC_semi.
+(* [C6.2.352 SBCS] ARM DDI 0487 M.a, p. 2550
+   Subtract with carry, setting flags  This instruction subtracts a register
+   value and the value of NOT (Carry flag) from a register value, and writes
+   the result to the destination register. It updates the condition flags based
+   on the result.  This instruction is used by the alias NGCS.
+   Syntax: SBCS <Xd>, <Xn>, <Xm>
+   Operation (ASL):
+     constant bits(datasize) operand1 = X[n, datasize];
+     constant bits(datasize) operand2 = NOT(X[m, datasize]);
+     bits(datasize) result;
+     bits(4) nzcv;
+     (result, nzcv) = AddWithCarry(operand1, operand2, PSTATE.C);
+     X[d, datasize] = result;
+     PSTATE.<N,Z,C,V> = nzcv;
+*)
+Definition armv8a_SBCS_semi_t {ws : wsize} (wn wm : word ws) (cf : bool) : ty_nzcv_w_t ws :=
+  armv8a_ADCS_semi_t wn (wnot wm) cf.
+
+Definition armv8a_SBCS_instr : instr_desc_t :=
+  mk_carrys_instr SBCS armv8a_SBCS_semi_t.
 (* [C6.2.294 NEG (shifted register)] ARM DDI 0487 M.a, p. 2440
    Negate (shifted register)  This instruction negates an optionally-shifted
    register value, and writes the result to the destination register.  This is
@@ -876,27 +990,23 @@ Definition armv8a_NEG_instr : instr_desc_t :=
       id_in := [:: Ea 1 ];
       id_tout := [:: lword osz ];
       id_out := [:: Ea 0 ];
-      id_semi := sem_lprod_ok tin semi;
+      id_semi_total := semi;
       id_nargs := 2;
       id_args_kinds := ak_rr;
       id_eq_size := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := armv8a_mn_str mn;
       id_safe := [::];
+      id_err := ErrSemUndef;
+      id_init := [:: IBool true ];
       id_doit := DOIT;
       id_pp_asm := pp_armv8a_op mn opts;
       id_valid := osz_valid;
-      id_safe_wf := refl_equal;
-      id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-      id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+      id_wf := refl_equal;
     |}
   in
   if has_shift opts is Some sk
-  then mk_shifted osz sk mn x (mk_semi1_shifted sk (id_semi x))
-                       (fun h => mk_semi1_shifted_errty
-                                   (x.(id_semi_errty) (proj1 (andb_prop _ _ h))))
-                       (fun h => mk_semi1_shifted_safe sk
-                                   (x.(id_semi_safe) (proj1 (andb_prop _ _ h))))
+  then mk_shifted osz sk mn x (mk_semi1_shifted_t sk (id_semi_total x))
   else x.
 
 (* A three-register instruction without flags (MUL, SDIV, UDIV, ...).
@@ -911,19 +1021,19 @@ Definition mk_rrr_instr mn (doit_v : doit_t) (valid : bool)
     id_in := [:: Ea 1; Ea 2 ];
     id_tout := [:: lword osz ];
     id_out := [:: Ea 0 ];
-    id_semi := sem_lprod_ok tin semi;
+    id_semi_total := semi;
     id_nargs := 3;
     id_args_kinds := ak_rrr;
     id_eq_size := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := armv8a_mn_str mn;
     id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
     id_doit := doit_v;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := valid;
-    id_safe_wf := refl_equal;
-    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+    id_wf := refl_equal;
   |}.
 
 (* [C6.2.292 MUL] ARM DDI 0487 M.a, p. 2436
@@ -1035,19 +1145,19 @@ Definition mk_madd_instr mn (semi : word osz -> word osz -> word osz -> ty_w osz
     id_in := [:: Ea 1; Ea 2; Ea 3 ];
     id_tout := [:: lword osz ];
     id_out := [:: Ea 0 ];
-    id_semi := sem_lprod_ok tin semi;
+    id_semi_total := semi;
     id_nargs := 4;
     id_args_kinds := ak_rrrr;
     id_eq_size := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := armv8a_mn_str mn;
     id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
-    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+    id_wf := refl_equal;
   |}.
 
 (* [C6.2.274 MADD] ARM DDI 0487 M.a, p. 2401
@@ -1083,6 +1193,138 @@ Definition armv8a_MSUB_semi {ws : wsize} (wn wm wa : word ws) : ty_w ws :=
 
 Definition armv8a_MSUB_instr : instr_desc_t := mk_madd_instr MSUB armv8a_MSUB_semi.
 
+(* Long multiplies: the product of two 32-bit (W) registers is a 64-bit (X)
+   register. These instructions only exist with an X destination. *)
+Definition mk_mull_instr mn (semi : word U32 -> word U32 -> ty_r)
+  : instr_desc_t :=
+  let tin := [:: lword U32; lword U32 ] in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2 ];
+    id_tout := [:: lreg ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds := ak_rrr;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    (* [UMULL <Xd>, <Wn>, <Wm>] *)
+    id_pp_asm := pp_armv8a_op_szs mn [:: U64; U32; U32 ];
+    id_valid := osz == U64;
+    id_wf := refl_equal;
+  |}.
+
+(* [C6.2.498 UMULL] ARM DDI 0487 M.a, p. 2862
+   Unsigned multiply long  This instruction multiplies two 32-bit register
+   values, and writes the result to the 64-bit destination register.  This is
+   an alias of UMADDL. This means:  • The encodings in this description are
+   named to match the encodings of UMADDL. • The description of UMADDL gives
+   the operational pseudocode, any CONSTRAINED UNPREDICTABLE behavior, and any
+   operational information for this instruction.
+   Syntax: UMULL <Xd>, <Wn>, <Wm>  ==  UMADDL <Xd>, <Wn>, <Wm>, XZR
+   Operation (ASL):
+     The description of UMADDL gives the operational pseudocode for this instruction.
+   Base instruction [C6.2.490 UMADDL] p. 2848, Operation (ASL):
+     constant bits(32) operand1 = X[n, 32];
+     constant bits(32) operand2 = X[m, 32];
+     constant bits(64) operand3 = X[a, 64];
+     constant integer result = UInt(operand3) + (UInt(operand1) * UInt(operand2));
+     X[d, 64] = result<63:0>;
+*)
+Definition armv8a_UMULL_semi (wn wm : word U32) : ty_r :=
+  (zero_extend U64 wn * zero_extend U64 wm)%w.
+
+Definition armv8a_UMULL_instr : instr_desc_t := mk_mull_instr UMULL armv8a_UMULL_semi.
+(* [C6.2.379 SMULL] ARM DDI 0487 M.a, p. 2616
+   Signed multiply long  This instruction multiplies two 32-bit register
+   values, and writes the result to the 64-bit destination register.  This is
+   an alias of SMADDL. This means:  • The encodings in this description are
+   named to match the encodings of SMADDL. • The description of SMADDL gives
+   the operational pseudocode, any CONSTRAINED UNPREDICTABLE behavior, and any
+   operational information for this instruction.
+   Syntax: SMULL <Xd>, <Wn>, <Wm>  ==  SMADDL <Xd>, <Wn>, <Wm>, XZR
+   Operation (ASL):
+     The description of SMADDL gives the operational pseudocode for this instruction.
+   Base instruction [C6.2.368 SMADDL] p. 2599, Operation (ASL):
+     constant bits(32) operand1 = X[n, 32];
+     constant bits(32) operand2 = X[m, 32];
+     constant bits(64) operand3 = X[a, 64];
+     constant integer result = SInt(operand3) + (SInt(operand1) * SInt(operand2));
+     X[d, 64] = result<63:0>;
+*)
+Definition armv8a_SMULL_semi (wn wm : word U32) : ty_r :=
+  (sign_extend U64 wn * sign_extend U64 wm)%w.
+
+Definition armv8a_SMULL_instr : instr_desc_t := mk_mull_instr SMULL armv8a_SMULL_semi.
+
+(* Long multiply-adds: the product of two 32-bit (W) registers is added to a
+   64-bit (X) register. *)
+Definition mk_maddl_instr mn (semi : word U32 -> word U32 -> word U64 -> ty_r)
+  : instr_desc_t :=
+  let tin := [:: lword U32; lword U32; lreg ] in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lreg ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 4;
+    id_args_kinds := ak_rrrr;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    (* [UMADDL <Xd>, <Wn>, <Wm>, <Xa>] *)
+    id_pp_asm := pp_armv8a_op_szs mn [:: U64; U32; U32; U64 ];
+    id_valid := osz == U64;
+    id_wf := refl_equal;
+  |}.
+
+(* [C6.2.490 UMADDL] ARM DDI 0487 M.a, p. 2848
+   Unsigned multiply-add long  This instruction multiplies two 32-bit register
+   values, adds a 64-bit register value, and writes the result to the 64-bit
+   destination register.  This instruction is used by the alias UMULL.
+   Syntax: UMADDL <Xd>, <Wn>, <Wm>, <Xa>
+   Operation (ASL):
+     constant bits(32) operand1 = X[n, 32];
+     constant bits(32) operand2 = X[m, 32];
+     constant bits(64) operand3 = X[a, 64];
+     constant integer result = UInt(operand3) + (UInt(operand1) * UInt(operand2));
+     X[d, 64] = result<63:0>;
+*)
+Definition armv8a_UMADDL_semi (wn wm : word U32) (wa : word U64) : ty_r :=
+  (wa + zero_extend U64 wn * zero_extend U64 wm)%w.
+
+Definition armv8a_UMADDL_instr : instr_desc_t := mk_maddl_instr UMADDL armv8a_UMADDL_semi.
+(* [C6.2.368 SMADDL] ARM DDI 0487 M.a, p. 2599
+   Signed multiply-add long  This instruction multiplies two 32-bit register
+   values, adds a 64-bit register value, and writes the result to the 64-bit
+   destination register.  This instruction is used by the alias SMULL.
+   Syntax: SMADDL <Xd>, <Wn>, <Wm>, <Xa>
+   Operation (ASL):
+     constant bits(32) operand1 = X[n, 32];
+     constant bits(32) operand2 = X[m, 32];
+     constant bits(64) operand3 = X[a, 64];
+     constant integer result = SInt(operand3) + (SInt(operand1) * SInt(operand2));
+     X[d, 64] = result<63:0>;
+*)
+(* Adding modulo 2^64 the unsigned or the signed interpretation of the
+   64-bit operand gives the same low 64 bits. *)
+Definition armv8a_SMADDL_semi (wn wm : word U32) (wa : word U64) : ty_r :=
+  (wa + sign_extend U64 wn * sign_extend U64 wm)%w.
+
+Definition armv8a_SMADDL_instr : instr_desc_t := mk_maddl_instr SMADDL armv8a_SMADDL_semi.
+
 (* -------------------------------------------------------------------- *)
 (* Bitwise instructions. *)
 
@@ -1106,6 +1348,60 @@ Definition armv8a_bitwise_semi
 *)
 Definition armv8a_AND_instr : instr_desc_t :=
   mk_arith_instr AND bitmask_imm (armv8a_bitwise_semi id id wand).
+
+(* [C6.2.17 ANDS (shifted register)] ARM DDI 0487 M.a, p. 1817
+   Bitwise AND (shifted register), setting flags  This instruction performs a
+   bitwise AND of a register value and an optionally-shifted register value,
+   and writes the result to the destination register. It updates the condition
+   flags based on the result.  This instruction is used by the alias TST
+   (shifted register).
+   Syntax: ANDS <Xd>, <Xn>, <Xm>{, <shift> #<amount>}
+   Operation (ASL):
+     constant bits(datasize) operand1 = X[n, datasize];
+     constant bits(datasize) operand2 = ShiftReg(m, shift_type, shift_amount, datasize);
+     constant bits(datasize) result = operand1 AND operand2;
+     X[d, datasize] = result;
+     PSTATE.<N,Z,C,V> = result<datasize-1>:IsZeroBit(result):'00';
+*)
+Definition armv8a_ANDS_semi_t {ws : wsize} (wn wm : word ws) : ty_nzcv_w_t ws :=
+  nzcv_w_of_logop_t (wand wn wm).
+
+Definition armv8a_ANDS_instr : instr_desc_t :=
+  mk_ariths_instr ANDS bitmask_imm armv8a_ANDS_semi_t.
+
+(* [C6.2.41 BIC (shifted register)] ARM DDI 0487 M.a, p. 1856
+   Bitwise bit clear (shifted register)  This instruction performs a bitwise
+   AND of a register value and the complement of an optionally-shifted register
+   value, and writes the result to the destination register.
+   Syntax: BIC <Xd>, <Xn>, <Xm>{, <shift> #<amount>}
+   Operation (ASL):
+     constant bits(datasize) operand1 = X[n, datasize];
+     constant bits(datasize) operand2 = ShiftReg(m, shift_type, shift_amount, datasize);
+     X[d, datasize] = operand1 AND NOT(operand2);
+*)
+(* BIC and BICS have no immediate form in A64 (an inverted bitmask
+   immediate is an AND or ANDS immediate). *)
+Definition armv8a_BIC_instr : instr_desc_t :=
+  mk_arith_instr BIC no_imm (armv8a_bitwise_semi id wnot wand).
+
+(* [C6.2.42 BICS (shifted register)] ARM DDI 0487 M.a, p. 1858
+   Bitwise bit clear (shifted register), setting flags  This instruction
+   performs a bitwise AND of a register value and the complement of an
+   optionally-shifted register value, and writes the result to the destination
+   register. It updates the condition flags based on the result.
+   Syntax: BICS <Xd>, <Xn>, <Xm>{, <shift> #<amount>}
+   Operation (ASL):
+     constant bits(datasize) operand1 = X[n, datasize];
+     constant bits(datasize) operand2 = ShiftReg(m, shift_type, shift_amount, datasize);
+     constant bits(datasize) result = operand1 AND NOT(operand2);
+     X[d, datasize] = result;
+     PSTATE.<N,Z,C,V> = result<datasize-1>:IsZeroBit(result):'00';
+*)
+Definition armv8a_BICS_semi_t {ws : wsize} (wn wm : word ws) : ty_nzcv_w_t ws :=
+  nzcv_w_of_logop_t (wand wn (wnot wm)).
+
+Definition armv8a_BICS_instr : instr_desc_t :=
+  mk_ariths_instr BICS no_imm armv8a_BICS_semi_t.
 
 (* [C6.2.301 ORR (shifted register)] ARM DDI 0487 M.a, p. 2453
    Bitwise OR (shifted register)  This instruction performs a bitwise
@@ -1161,27 +1457,23 @@ Definition armv8a_MVN_instr : instr_desc_t :=
       id_in := [:: Ea 1 ];
       id_tout := [:: lword osz ];
       id_out := [:: Ea 0 ];
-      id_semi := sem_lprod_ok tin semi;
+      id_semi_total := semi;
       id_nargs := 2;
       id_args_kinds := ak_rr;
       id_eq_size := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := armv8a_mn_str mn;
       id_safe := [::];
+      id_err := ErrSemUndef;
+      id_init := [:: IBool true ];
       id_doit := DOIT;
       id_pp_asm := pp_armv8a_op mn opts;
       id_valid := osz_valid;
-      id_safe_wf := refl_equal;
-      id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-      id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+      id_wf := refl_equal;
     |}
   in
   if has_shift opts is Some sk
-  then mk_shifted osz sk mn x (mk_semi1_shifted sk (id_semi x))
-                       (fun h => mk_semi1_shifted_errty
-                                   (x.(id_semi_errty) (proj1 (andb_prop _ _ h))))
-                       (fun h => mk_semi1_shifted_safe sk
-                                   (x.(id_semi_safe) (proj1 (andb_prop _ _ h))))
+  then mk_shifted osz sk mn x (mk_semi1_shifted_t sk (id_semi_total x))
   else x.
 
 (* -------------------------------------------------------------------- *)
@@ -1210,19 +1502,19 @@ Definition mk_shift_instr mn (op : forall sz, word sz -> Z -> word sz)
     id_in := [:: Ea 1; Ea 2 ];
     id_tout := [:: lword osz ];
     id_out := [:: Ea 0 ];
-    id_semi := sem_lprod_ok tin semi;
+    id_semi_total := semi;
     id_nargs := 3;
     id_args_kinds := ak_rrr ++ ak_rr_imm_shift;
     id_eq_size := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := armv8a_mn_str mn;
     id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
-    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+    id_wf := refl_equal;
   |}.
 
 (* [C6.2.19 ASR (register)] ARM DDI 0487 M.a, p. 1820
@@ -1278,6 +1570,305 @@ Definition armv8a_ROR_instr : instr_desc_t := mk_shift_instr ROR (@wror).
 (* -------------------------------------------------------------------- *)
 (* Bit field instructions. *)
 
+(* [C6.2.160 EXTR] ARM DDI 0487 M.a, p. 2174
+   Extract register  This instruction extracts a register from a pair of
+   registers.  This instruction is used by the alias ROR (immediate).
+   Syntax: EXTR <Xd>, <Xn>, <Xm>, #<lsb>
+   Operation (ASL):
+     bits(datasize) result;
+     constant bits(datasize) operand1 = X[n, datasize];
+     constant bits(datasize) operand2 = X[m, datasize];
+     constant bits(2*datasize) concat = operand1:operand2;
+     result = concat<(lsb+datasize)-1:lsb>;
+     X[d, datasize] = result;
+*)
+(* The argument checker bounds [lsb] by the operand size; the low [lsb]
+   bits of [operand1] form the top of the result. *)
+Definition armv8a_EXTR_semi {ws : wsize} (wn wm : word ws) (wlsb : word U8) : ty_w ws :=
+  let bits := wsize_bits ws in
+  let l := (wunsigned wlsb mod bits)%Z in
+  if (l =? 0)%Z
+  then wm
+  else wor (wshr wm l) (wshl wn (bits - l)).
+
+Definition armv8a_EXTR_instr : instr_desc_t :=
+  let mn := EXTR in
+  let tin := [:: lword osz; lword osz; lword U8 ] in
+  let semi := armv8a_EXTR_semi (ws := osz) in
+  {|
+    id_msb_flag := msbf;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lword osz ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 4;
+    id_args_kinds := ak_rrr_imm_shift;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_op mn opts;
+    id_valid := osz_valid;
+    id_wf := refl_equal;
+  |}.
+
+(* The bitfield aliases take the bit position [lsb] and the width of the
+   field as 8-bit immediates. The field must lie within the register: the
+   argument checker bounds [lsb] by the operand size, and the safety
+   conditions [id_safe] state [1 <= width] and [lsb + width <= datasize];
+   the semantics is undefined otherwise. *)
+
+(* [C6.2.37 BFC] ARM DDI 0487 M.a, p. 1848
+   Bitfield clear  This instruction sets a bitfield of <width> bits at bit
+   position <lsb> of the destination register to zero, leaving the other
+   destination bits unchanged.  This is an alias of BFM. This means:  • The
+   encodings in this description are named to match the encodings of BFM. • The
+   description of BFM gives the operational pseudocode, any CONSTRAINED
+   UNPREDICTABLE behavior, and any operational information for this
+   instruction.
+   Syntax: BFC <Xd>, #<lsb>, #<width>  ==  BFM <Xd>, XZR, #(-<lsb> MOD 64), #(<width>-1)
+   Operation (ASL):
+     The description of BFM gives the operational pseudocode for this instruction.
+   Base instruction [C6.2.39 BFM] p. 1852, Operation (ASL):
+     constant bits(datasize) dst = X[d, datasize];
+     constant bits(datasize) src = X[n, datasize];
+     // Perform bitfield move on low bits
+     constant bits(datasize) bot = (dst AND NOT(wmask)) OR (ROR(src, r) AND wmask);
+     // Combine extension bits and result bits
+     X[d, datasize] = (dst AND NOT(tmask)) OR (bot AND tmask);
+*)
+Definition armv8a_BFC_semi (x : word osz) (lsb width : word U8) : ty_w osz :=
+  let lsbit := wunsigned lsb in
+  let nbits := wunsigned width in
+  let msbit := (lsbit + nbits - 1)%Z in
+  let mk i :=
+    if [&& Z.to_nat lsbit <=? i & i <=? Z.to_nat msbit ]
+    then false
+    else wbit_n x i
+  in
+  winit osz mk.
+
+Definition armv8a_BFC_semi_sc :=
+  [:: sc_uge U8 1%Z 2; sc_uadd_le U8 2 1 (wsize_bits osz) ].
+
+Definition armv8a_BFC_instr : instr_desc_t :=
+  let mn := BFC in
+  {|
+    id_msb_flag := msbf;
+    id_tin := [:: lword osz; lword8; lword8 ];
+    id_in := [:: Ea 0; Ea 1; Ea 2 ];
+    id_tout := [:: lword osz ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := armv8a_BFC_semi;
+    id_nargs := 3;
+    id_args_kinds := ak_r_lsb_width;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := armv8a_BFC_semi_sc;
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_op mn opts;
+    id_valid := osz_valid;
+    id_wf := refl_equal;
+  |}.
+
+(* [C6.2.38 BFI] ARM DDI 0487 M.a, p. 1850
+   Bitfield insert  This instruction copies a bitfield of <width> bits from the
+   least significant bits of the source register to bit position <lsb> of the
+   destination register, leaving the other destination bits unchanged.  This is
+   an alias of BFM. This means:  • The encodings in this description are named
+   to match the encodings of BFM. • The description of BFM gives the
+   operational pseudocode, any CONSTRAINED UNPREDICTABLE behavior, and any
+   operational information for this instruction.
+   Syntax: BFI <Xd>, <Xn>, #<lsb>, #<width>  ==  BFM <Xd>, <Xn>, #(-<lsb> MOD 64), #(<width>-1)
+   Operation (ASL):
+     The description of BFM gives the operational pseudocode for this instruction.
+   Base instruction [C6.2.39 BFM] p. 1852, Operation (ASL):
+     constant bits(datasize) dst = X[d, datasize];
+     constant bits(datasize) src = X[n, datasize];
+     // Perform bitfield move on low bits
+     constant bits(datasize) bot = (dst AND NOT(wmask)) OR (ROR(src, r) AND wmask);
+     // Combine extension bits and result bits
+     X[d, datasize] = (dst AND NOT(tmask)) OR (bot AND tmask);
+*)
+Definition armv8a_BFI_semi (x y : word osz) (lsb width : word U8) : ty_w osz :=
+  let lsbit := wunsigned lsb in
+  let nbits := wunsigned width in
+  let msbit := (lsbit + nbits - 1)%Z in
+  let mk i :=
+    if [&& Z.to_nat lsbit <=? i & i <=? Z.to_nat msbit ]
+    then wbit_n y (i - Z.to_nat lsbit)
+    else wbit_n x i
+  in
+  winit osz mk.
+
+Definition armv8a_BFI_semi_sc :=
+  [:: sc_uge U8 1%Z 3; sc_uadd_le U8 3 2 (wsize_bits osz) ].
+
+Definition armv8a_BFI_instr : instr_desc_t :=
+  let mn := BFI in
+  {|
+    id_msb_flag := msbf;
+    id_tin := [:: lword osz; lword osz; lword8; lword8 ];
+    id_in := [:: Ea 0; Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lword osz ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := armv8a_BFI_semi;
+    id_nargs := 4;
+    id_args_kinds := ak_rr_lsb_width;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := armv8a_BFI_semi_sc;
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_op mn opts;
+    id_valid := osz_valid;
+    id_wf := refl_equal;
+  |}.
+
+(* [C6.2.40 BFXIL] ARM DDI 0487 M.a, p. 1854
+   Bitfield extract and insert at low end  This instruction copies a bitfield
+   of <width> bits starting from bit position <lsb> in the source register to
+   the least significant bits of the destination register, leaving the other
+   destination bits unchanged.  This is an alias of BFM. This means:  • The
+   encodings in this description are named to match the encodings of BFM. • The
+   description of BFM gives the operational pseudocode, any CONSTRAINED
+   UNPREDICTABLE behavior, and any operational information for this
+   instruction.
+   Syntax: BFXIL <Xd>, <Xn>, #<lsb>, #<width>  ==  BFM <Xd>, <Xn>, #<lsb>, #(<lsb>+<width>-1)
+   Operation (ASL):
+     The description of BFM gives the operational pseudocode for this instruction.
+   Base instruction [C6.2.39 BFM] p. 1852, Operation (ASL):
+     constant bits(datasize) dst = X[d, datasize];
+     constant bits(datasize) src = X[n, datasize];
+     // Perform bitfield move on low bits
+     constant bits(datasize) bot = (dst AND NOT(wmask)) OR (ROR(src, r) AND wmask);
+     // Combine extension bits and result bits
+     X[d, datasize] = (dst AND NOT(tmask)) OR (bot AND tmask);
+*)
+Definition armv8a_BFXIL_semi (x y : word osz) (lsb width : word U8) : ty_w osz :=
+  let lsbit := wunsigned lsb in
+  let nbits := wunsigned width in
+  let mk i :=
+    if (i <? Z.to_nat nbits)%nat
+    then wbit_n y (i + Z.to_nat lsbit)
+    else wbit_n x i
+  in
+  winit osz mk.
+
+(* The same bounds as BFI. *)
+Definition armv8a_BFXIL_semi_sc := armv8a_BFI_semi_sc.
+
+Definition armv8a_BFXIL_instr : instr_desc_t :=
+  let mn := BFXIL in
+  {|
+    id_msb_flag := msbf;
+    id_tin := [:: lword osz; lword osz; lword8; lword8 ];
+    id_in := [:: Ea 0; Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lword osz ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := armv8a_BFXIL_semi;
+    id_nargs := 4;
+    id_args_kinds := ak_rr_lsb_width;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := armv8a_BFXIL_semi_sc;
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_op mn opts;
+    id_valid := osz_valid;
+    id_wf := refl_equal;
+  |}.
+
+(* Bitfield extraction (SBFX, UBFX): the field is moved to the top of the
+   register by a left shift, then to the bottom by a right shift, which is
+   arithmetic for SBFX (sign extension) and logical for UBFX (zero
+   extension). The argument checker bounds [lsb] by the operand size. *)
+Definition armv8a_bitfield_extract_semi
+  (shr : word osz -> Z -> word osz) (wn : word osz) (wlsb wwidth : word U8)
+  : ty_w osz :=
+  let bits := wsize_bits osz in
+  let lsb := wunsigned wlsb in
+  let width := wunsigned wwidth in
+  shr (wshl wn (bits - width - lsb)%Z) (bits - width)%Z.
+
+Definition armv8a_bitfield_extract_semi_sc :=
+  [:: sc_uge U8 1%Z 2; sc_uadd_le U8 2 1 (wsize_bits osz) ].
+
+Definition mk_bfx_instr mn (shr : word osz -> Z -> word osz) : instr_desc_t :=
+  {|
+    id_msb_flag := msbf;
+    id_tin := [:: lword osz; lword8; lword8 ];
+    id_in := [:: Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lword osz ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := armv8a_bitfield_extract_semi shr;
+    id_nargs := 4;
+    id_args_kinds := ak_rr_lsb_width;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := armv8a_bitfield_extract_semi_sc;
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_op mn opts;
+    id_valid := osz_valid;
+    id_wf := refl_equal;
+  |}.
+
+(* [C6.2.355 SBFX] ARM DDI 0487 M.a, p. 2556
+   Signed bitfield extract  This instruction copies a bitfield of <width> bits
+   starting from bit position <lsb> in the source register to the least
+   significant bits of the destination register, and sets destination bits
+   above the bitfield to a copy of the most significant bit of the bitfield.
+   This is an alias of SBFM. This means:  • The encodings in this description
+   are named to match the encodings of SBFM. • The description of SBFM gives
+   the operational pseudocode, any CONSTRAINED UNPREDICTABLE behavior, and any
+   operational information for this instruction.
+   Syntax: SBFX <Xd>, <Xn>, #<lsb>, #<width>  ==  SBFM <Xd>, <Xn>, #<lsb>, #(<lsb>+<width>-1)
+   Operation (ASL):
+     The description of SBFM gives the operational pseudocode for this instruction.
+   Base instruction [C6.2.354 SBFM] p. 2554, Operation (ASL):
+     constant bits(datasize) src = X[n, datasize];
+     // Perform bitfield move on low bits
+     constant bits(datasize) bot = ROR(src, r) AND wmask;
+     constant bits(datasize) top = Replicate(src<s>, datasize);
+     // Combine extension bits and result bits
+     X[d, datasize] = (top AND NOT(tmask)) OR (bot AND tmask);
+*)
+Definition armv8a_SBFX_instr : instr_desc_t := mk_bfx_instr SBFX (wsar (sz := osz)).
+(* [C6.2.487 UBFX] ARM DDI 0487 M.a, p. 2843
+   Unsigned bitfield extract  This instruction copies a bitfield of <width>
+   bits starting from bit position <lsb> in the source register to the least
+   significant bits of the destination register, and sets destination bits
+   above the bitfield to zero.  This is an alias of UBFM. This means:  • The
+   encodings in this description are named to match the encodings of UBFM. •
+   The description of UBFM gives the operational pseudocode, any CONSTRAINED
+   UNPREDICTABLE behavior, and any operational information for this
+   instruction.
+   Syntax: UBFX <Xd>, <Xn>, #<lsb>, #<width>  ==  UBFM <Xd>, <Xn>, #<lsb>, #(<lsb>+<width>-1)
+   Operation (ASL):
+     The description of UBFM gives the operational pseudocode for this instruction.
+   Base instruction [C6.2.486 UBFM] p. 2841, Operation (ASL):
+     constant bits(datasize) src = X[n, datasize];
+     // Perform bitfield move on low bits
+     constant bits(datasize) bot = ROR(src, r) AND wmask;
+     // Combine extension bits and result bits
+     X[d, datasize] = bot AND tmask;
+*)
+Definition armv8a_UBFX_instr : instr_desc_t := mk_bfx_instr UBFX (wshr (sz := osz)).
+
 
 (* -------------------------------------------------------------------- *)
 (* Moves. *)
@@ -1306,7 +1897,7 @@ Definition armv8a_MOV_instr : instr_desc_t :=
     id_in := [:: Ea 1 ];
     id_tout := [:: lword osz ];
     id_out := [:: Ea 0 ];
-    id_semi := sem_lprod_ok tin semi;
+    id_semi_total := semi;
     id_nargs := 2;
     id_args_kinds :=
       ak_reg_reg ++ [:: [:: [:: CAreg ]; [:: CAimm (Some CAimmC_armv8a_mov_imm) osz ] ] ];
@@ -1314,12 +1905,12 @@ Definition armv8a_MOV_instr : instr_desc_t :=
     id_check_dest := refl_equal;
     id_str_jas := armv8a_mn_str mn;
     id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
-    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+    id_wf := refl_equal;
   |}.
 
 Definition mk_movw_instr mn (semi : word U16 -> word U8 -> ty_w osz)
@@ -1331,19 +1922,19 @@ Definition mk_movw_instr mn (semi : word U16 -> word U8 -> ty_w osz)
     id_in := [:: Ea 1; Ea 2 ];
     id_tout := [:: lword osz ];
     id_out := [:: Ea 0 ];
-    id_semi := sem_lprod_ok tin semi;
+    id_semi_total := semi;
     id_nargs := 3;
     id_args_kinds := ak_r_imm16_shift;
     id_eq_size := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := armv8a_mn_str mn;
     id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
-    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+    id_wf := refl_equal;
   |}.
 
 (* [C6.2.284 MOVZ] ARM DDI 0487 M.a, p. 2418
@@ -1402,19 +1993,19 @@ Definition armv8a_MOVK_instr : instr_desc_t :=
     id_in := [:: Ea 0; Ea 1; Ea 2 ];
     id_tout := [:: lword osz ];
     id_out := [:: Ea 0 ];
-    id_semi := sem_lprod_ok tin semi;
+    id_semi_total := semi;
     id_nargs := 3;
     id_args_kinds := ak_r_imm16_shift;
     id_eq_size := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := armv8a_mn_str mn;
     id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
-    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+    id_wf := refl_equal;
   |}.
 
 
@@ -1438,21 +2029,21 @@ Definition mk_extend_instr mn (in_ws : wsize) (sign : bool) (valid : bool)
     id_in := [:: Ea 1 ];
     id_tout := [:: lword osz ];
     id_out := [:: Ea 0 ];
-    id_semi := sem_lprod_ok tin semi;
+    id_semi_total := semi;
     id_nargs := 2;
     id_args_kinds := ak_reg_reg;
     id_eq_size := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := armv8a_mn_str mn;
     id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
     id_doit := DOIT;
     (* [SXTB <Xd>, <Wn>] / [UXTB <Wd>, <Wn>]: the source is always a W
        register, and so is the destination of the zero-extensions. *)
     id_pp_asm := pp_armv8a_op_szs mn [:: (if sign then osz else U32); U32 ];
     id_valid := valid;
-    id_safe_wf := refl_equal;
-    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+    id_wf := refl_equal;
   |}.
 
 (* [C6.2.12 ADR] ARM DDI 0487 M.a, p. 1809
@@ -1476,19 +2067,19 @@ Definition armv8a_ADR_instr : instr_desc_t :=
     id_in := [:: Ec 1 ];
     id_tout := [:: lreg ];
     id_out := [:: Ea 0 ];
-    id_semi := sem_lprod_ok tin semi;
+    id_semi_total := semi;
     id_nargs := 2;
-    id_args_kinds := ak_reg_addr;
+    id_args_kinds := ak_reg_addr_adr;
     id_eq_size := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := armv8a_mn_str mn;
     id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
     id_doit := NOT_DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz == U64;
-    id_safe_wf := refl_equal;
-    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+    id_wf := refl_equal;
   |}.
 
 (* [C6.2.471 SXTB] ARM DDI 0487 M.a, p. 2812
@@ -1583,19 +2174,19 @@ Definition mk_rr_instr mn (doit_v : doit_t) (valid : bool)
     id_in := [:: Ea 1 ];
     id_tout := [:: lword osz ];
     id_out := [:: Ea 0 ];
-    id_semi := sem_lprod_ok tin semi;
+    id_semi_total := semi;
     id_nargs := 2;
     id_args_kinds := ak_rr;
     id_eq_size := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := armv8a_mn_str mn;
     id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
     id_doit := doit_v;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := valid;
-    id_safe_wf := refl_equal;
-    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+    id_wf := refl_equal;
   |}.
 
 (* [RBIT] ARM DDI 0487 M.a
@@ -1714,7 +2305,7 @@ Definition armv8a_REV32_instr : instr_desc_t :=
 (* Comparisons. *)
 
 Definition mk_cmp_instr mn (ick : option armv8a_caimm_cond)
-  (semi : word osz -> word osz -> ty_nzcv)
+  (semi_t : word osz -> word osz -> ty_nzcv_t)
   : instr_desc_t :=
   let tin := [:: lword osz; lword osz ] in
   let x :=
@@ -1724,28 +2315,26 @@ Definition mk_cmp_instr mn (ick : option armv8a_caimm_cond)
       id_in := [:: Ea 0; Ea 1 ];
       id_tout := snzcv;
       id_out := ad_nzcv;
-      id_semi := sem_lprod_ok tin semi;
+      id_semi_total := semi_t;
       id_nargs := 2;
       id_args_kinds := ak_rr_or_imm ick;
       id_eq_size := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := armv8a_mn_str mn;
       id_safe := [::];
+      id_err := ErrSemUndef;
+      id_init := [:: IBool true; IBool true; IBool true; IBool true ];
       id_doit := DOIT;
       id_pp_asm := pp_armv8a_op mn opts;
       id_valid := osz_valid;
-      id_safe_wf := refl_equal;
-      id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-      id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+      id_wf := refl_equal;
     |}
   in
   if has_shift opts is Some sk
-  then mk_shifted osz sk mn x (mk_semi2_2_shifted sk (id_semi x))
-                       (fun h => mk_semi2_2_shifted_errty
-                                   (x.(id_semi_errty) (proj1 (andb_prop _ _ h))))
-                       (fun h => mk_semi2_2_shifted_safe sk
-                                   (x.(id_semi_safe) (proj1 (andb_prop _ _ h))))
+  then mk_shifted osz sk mn x (mk_semi2_2_shifted_t sk (id_semi_total x))
   else x.
+
+Arguments mk_cmp_instr : clear implicits.
 
 (* [C6.2.97 CMP (shifted register)] ARM DDI 0487 M.a, p. 1953
    Compare (shifted register)  This instruction subtracts an optionally-shifted
@@ -1760,15 +2349,45 @@ Definition mk_cmp_instr mn (ick : option armv8a_caimm_cond)
    Operation (ASL):
      The description of SUBS (shifted register) gives the operational pseudocode for this instruction.
 *)
-Definition armv8a_CMP_semi {ws : wsize} (wn wm : word ws) : ty_nzcv :=
+
+Definition armv8a_CMP_semi_t {ws : wsize} (wn wm : word ws) : ty_nzcv_t :=
   let wmnot := wnot wm in
-  nzcv_of_aluop
+  nzcv_of_aluop_t
     (wn + wmnot + 1)%w
     (wunsigned wn + wunsigned wmnot + 1)%Z
     (wsigned wn + wsigned wmnot + 1)%Z.
 
 Definition armv8a_CMP_instr : instr_desc_t :=
-  mk_cmp_instr CMP arith_imm armv8a_CMP_semi.
+  mk_cmp_instr CMP arith_imm armv8a_CMP_semi_t.
+(* [C6.2.94 CMN (shifted register)] ARM DDI 0487 M.a, p. 1946
+   Compare negative (shifted register)  This instruction adds a register value
+   and an optionally-shifted register value. It updates the condition flags
+   based on the result, and discards the result.  This is an alias of ADDS
+   (shifted register). This means:  • The encodings in this description are
+   named to match the encodings of ADDS (shifted register). • The description
+   of ADDS (shifted register) gives the operational pseudocode, any CONSTRAINED
+   UNPREDICTABLE behavior, and any operational information for this
+   instruction.
+   Syntax: CMN <Wn>, <Wm>{, <shift> #<amount>}  ==  CMN <Xn>, <Xm>{, <shift> #<amount>}
+   Operation (ASL):
+     The description of ADDS (shifted register) gives the operational pseudocode for this instruction.
+   Base instruction [C6.2.11 ADDS (shifted register)] p. 1807, Operation (ASL):
+     constant bits(datasize) operand1 = X[n, datasize];
+     constant bits(datasize) operand2 = ShiftReg(m, shift_type, shift_amount, datasize);
+     bits(datasize) result;
+     bits(4) nzcv;
+     (result, nzcv) = AddWithCarry(operand1, operand2, '0');
+     X[d, datasize] = result;
+     PSTATE.<N,Z,C,V> = nzcv;
+*)
+Definition armv8a_CMN_semi_t {ws : wsize} (wn wm : word ws) : ty_nzcv_t :=
+  nzcv_of_aluop_t
+    (wn + wm)%w
+    (wunsigned wn + wunsigned wm)%Z
+    (wsigned wn + wsigned wm)%Z.
+
+Definition armv8a_CMN_instr : instr_desc_t :=
+  mk_cmp_instr CMN arith_imm armv8a_CMN_semi_t.
 (* [C6.2.484 TST (shifted register)] ARM DDI 0487 M.a, p. 2837
    Test (shifted register)  This instruction performs a bitwise AND operation
    on a register value and an optionally-shifted register value. It updates the
@@ -1782,11 +2401,12 @@ Definition armv8a_CMP_instr : instr_desc_t :=
    Operation (ASL):
      The description of ANDS (shifted register) gives the operational pseudocode for this instruction.
 *)
-Definition armv8a_TST_semi {ws : wsize} (wn wm : word ws) : ty_nzcv :=
-  nzcv_of_logop (wand wn wm).
+
+Definition armv8a_TST_semi_t {ws : wsize} (wn wm : word ws) : ty_nzcv_t :=
+  nzcv_of_logop_t (wand wn wm).
 
 Definition armv8a_TST_instr : instr_desc_t :=
-  mk_cmp_instr TST bitmask_imm armv8a_TST_semi.
+  mk_cmp_instr TST bitmask_imm armv8a_TST_semi_t.
 
 (* -------------------------------------------------------------------- *)
 (* Conditional selection.
@@ -1803,19 +2423,19 @@ Definition mk_csel_instr mn (semi : word osz -> word osz -> bool -> ty_w osz)
     id_in := [:: Ea 1; Ea 2; Ea 3 ];
     id_tout := [:: lword osz ];
     id_out := [:: Ea 0 ];
-    id_semi := sem_lprod_ok tin semi;
+    id_semi_total := semi;
     id_nargs := 4;
     id_args_kinds := ak_rrr_cond;
     id_eq_size := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := armv8a_mn_str mn;
     id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
     id_doit := DOIT;
     id_pp_asm := pp_armv8a_op mn opts;
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
-    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+    id_wf := refl_equal;
   |}.
 
 (* [C6.2.138 CSEL] ARM DDI 0487 M.a, p. 2138
@@ -1836,6 +2456,136 @@ Definition armv8a_CSEL_semi {ws : wsize} (wn wm : word ws) (b : bool) : ty_w ws 
   if b then wn else wm.
 
 Definition armv8a_CSEL_instr := mk_csel_instr CSEL (armv8a_CSEL_semi (ws := osz)).
+
+(* [C6.2.141 CSINC] ARM DDI 0487 M.a, p. 2144
+   Conditional select increment  This instruction returns, in the destination
+   register, the value of the first source register if the condition is TRUE,
+   and otherwise returns the value of the second source register incremented by
+   1.  This instruction is used by the aliases CINC and CSET.
+   Syntax: CSINC <Xd>, <Xn>, <Xm>, <cond>
+   Operation (ASL):
+     bits(datasize) result;
+     if ConditionHolds(condition) then
+         result = X[n, datasize];
+     else
+         result = X[m, datasize] + 1;
+     X[d, datasize] = result;
+*)
+Definition armv8a_CSINC_semi {ws : wsize} (wn wm : word ws) (b : bool) : ty_w ws :=
+  if b then wn else (wm + 1)%w.
+
+Definition armv8a_CSINC_instr := mk_csel_instr CSINC (armv8a_CSINC_semi (ws := osz)).
+
+(* [C6.2.142 CSINV] ARM DDI 0487 M.a, p. 2146
+   Conditional select invert  This instruction returns, in the destination
+   register, the value of the first source register if the condition is TRUE,
+   and otherwise returns the bitwise inversion value of the second source
+   register.  This instruction is used by the aliases CINV and CSETM.
+   Syntax: CSINV <Xd>, <Xn>, <Xm>, <cond>
+   Operation (ASL):
+     bits(datasize) result;
+     if ConditionHolds(condition) then
+         result = X[n, datasize];
+     else
+         result = NOT(X[m, datasize]);
+     X[d, datasize] = result;
+*)
+Definition armv8a_CSINV_semi {ws : wsize} (wn wm : word ws) (b : bool) : ty_w ws :=
+  if b then wn else wnot wm.
+
+Definition armv8a_CSINV_instr := mk_csel_instr CSINV (armv8a_CSINV_semi (ws := osz)).
+
+(* [C6.2.143 CSNEG] ARM DDI 0487 M.a, p. 2148
+   Conditional select negation  This instruction returns, in the destination
+   register, the value of the first source register if the condition is TRUE,
+   and otherwise returns the negated value of the second source register.  This
+   instruction is used by the alias CNEG.
+   Syntax: CSNEG <Xd>, <Xn>, <Xm>, <cond>
+   Operation (ASL):
+     bits(datasize) result;
+     if ConditionHolds(condition) then
+         result = X[n, datasize];
+     else
+         result = NOT(X[m, datasize]) + 1;
+     X[d, datasize] = result;
+*)
+Definition armv8a_CSNEG_semi {ws : wsize} (wn wm : word ws) (b : bool) : ty_w ws :=
+  if b then wn else (wnot wm + 1)%w.
+
+Definition armv8a_CSNEG_instr := mk_csel_instr CSNEG (armv8a_CSNEG_semi (ws := osz)).
+
+(* The conditional set aliases take only a destination and a condition.
+   The condition operand is the one written in the alias: the assembler
+   encodes its inverse in the base instruction, whose source registers are
+   the zero register. *)
+Definition mk_cset_instr mn (semi : bool -> ty_w osz) : instr_desc_t :=
+  let tin := [:: lbool ] in
+  {|
+    id_msb_flag := msbf;
+    id_tin := tin;
+    id_in := [:: Ea 1 ];
+    id_tout := [:: lword osz ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 2;
+    id_args_kinds := ak_r_cond;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str mn;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_op mn opts;
+    id_valid := osz_valid;
+    id_wf := refl_equal;
+  |}.
+
+(* [C6.2.139 CSET] ARM DDI 0487 M.a, p. 2140
+   Conditional set  This instruction sets the destination register to 1 if the
+   condition is TRUE, and otherwise sets it to 0.  This is an alias of CSINC.
+   This means:  • The encodings in this description are named to match the
+   encodings of CSINC. • The description of CSINC gives the operational
+   pseudocode, any CONSTRAINED UNPREDICTABLE behavior, and any operational
+   information for this instruction.
+   Syntax: CSET <Xd>, <invcond>  ==  CSINC <Xd>, XZR, XZR, <cond>
+   Operation (ASL):
+     The description of CSINC gives the operational pseudocode for this instruction.
+   Base instruction [C6.2.141 CSINC] p. 2144, Operation (ASL):
+     bits(datasize) result;
+     if ConditionHolds(condition) then
+         result = X[n, datasize];
+     else
+         result = X[m, datasize] + 1;
+     X[d, datasize] = result;
+*)
+Definition armv8a_CSET_semi {ws : wsize} (b : bool) : ty_w ws :=
+  if b then 1%w else 0%w.
+
+Definition armv8a_CSET_instr := mk_cset_instr CSET (armv8a_CSET_semi (ws := osz)).
+
+(* [C6.2.140 CSETM] ARM DDI 0487 M.a, p. 2142
+   Conditional set mask  This instruction sets all bits of the destination
+   register to 1 if the condition is TRUE, and otherwise sets all bits to 0.
+   This is an alias of CSINV. This means:  • The encodings in this description
+   are named to match the encodings of CSINV. • The description of CSINV gives
+   the operational pseudocode, any CONSTRAINED UNPREDICTABLE behavior, and any
+   operational information for this instruction.
+   Syntax: CSETM <Xd>, <invcond>  ==  CSINV <Xd>, XZR, XZR, <cond>
+   Operation (ASL):
+     The description of CSINV gives the operational pseudocode for this instruction.
+   Base instruction [C6.2.142 CSINV] p. 2146, Operation (ASL):
+     bits(datasize) result;
+     if ConditionHolds(condition) then
+         result = X[n, datasize];
+     else
+         result = NOT(X[m, datasize]);
+     X[d, datasize] = result;
+*)
+Definition armv8a_CSETM_semi {ws : wsize} (b : bool) : ty_w ws :=
+  if b then wrepr ws (-1) else 0%w.
+
+Definition armv8a_CSETM_instr := mk_cset_instr CSETM (armv8a_CSETM_semi (ws := osz)).
 
 (* -------------------------------------------------------------------- *)
 (* Loads and stores.
@@ -1882,13 +2632,15 @@ Definition armv8a_load_instr mn : instr_desc_t :=
     id_in := [:: Eu 1 ];
     id_tout := [:: lword osz ];
     id_out := [:: Ea 0 ];
-    id_semi := sem_lprod_ok tin semi;
+    id_semi_total := semi;
     id_nargs := 2;
-    id_args_kinds := ak_reg_addr;
+    id_args_kinds := ak_reg_addr_ldst wacc;
     id_eq_size := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := armv8a_mn_str mn;
     id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
     id_doit := DOIT;
     (* The transferred register of the zero-extending narrow loads is
        always a W register ([LDRB <Wt>, ...]); the sign-extending loads
@@ -1897,9 +2649,7 @@ Definition armv8a_load_instr mn : instr_desc_t :=
       pp_armv8a_op_szs mn
         [:: (match mn with LDRB | LDRH => U32 | _ => osz end); osz ];
     id_valid := osz_valid && (if mn is LDRSW then osz == U64 else true);
-    id_safe_wf := refl_equal;
-    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+    id_wf := refl_equal;
   |}.
 
 (* [C6.2.220 LDRB (register)] ARM DDI 0487 M.a, p. 2283
@@ -2058,13 +2808,15 @@ Definition armv8a_store_instr mn : instr_desc_t :=
     id_in := [:: Ea 0 ];
     id_tout := [:: lword wacc ];
     id_out := [:: Eu 1 ];
-    id_semi := sem_lprod_ok tin semi;
+    id_semi_total := semi;
     id_nargs := 2;
-    id_args_kinds := ak_reg_addr;
+    id_args_kinds := ak_reg_addr_ldst wacc;
     id_eq_size := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := armv8a_mn_str mn;
     id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
     id_doit := DOIT;
     (* The transferred register of the narrow stores is always a W
        register ([STRB <Wt>, ...]). *)
@@ -2072,9 +2824,7 @@ Definition armv8a_store_instr mn : instr_desc_t :=
       pp_armv8a_op_szs mn
         [:: (match mn with STRB | STRH => U32 | _ => osz end); osz ];
     id_valid := osz_valid;
-    id_safe_wf := refl_equal;
-    id_semi_errty := fun _ => sem_lprod_ok_error tin semi;
-    id_semi_safe := fun _ => sem_lprod_ok_safe tin semi;
+    id_wf := refl_equal;
   |}.
 
 (* [C6.2.417 STRB (register)] ARM DDI 0487 M.a, p. 2699
@@ -2127,6 +2877,110 @@ Definition armv8a_store_instr mn : instr_desc_t :=
 *)
 
 (* -------------------------------------------------------------------- *)
+(* Load and store pair, signed offset form.
+   The two registers are transferred through a single memory argument of
+   twice the register size ([wsize_pair]). Jasmin memory is little endian,
+   so the low half of that argument is the word at the lower address, which
+   the first register receives (or provides). The address must satisfy
+   [CAmemC_armv8a_pair]: a base register and a scaled 7-bit displacement.
+   The pre-index and post-index (writeback) forms are not modelled. *)
+
+Definition wsize_pair (ws : wsize) : wsize := if ws == U32 then U64 else U128.
+
+(* Global addresses are not allowed: [lower_glob_load] first computes the
+   address of a global into a register ([armv8a_is_load]). *)
+Let ak_reg_reg_pair :=
+  [:: [:: [:: CAreg ]; [:: CAreg ];
+          [:: CAmem (CAmemC_armv8a_pair osz) ] ] ].
+
+(* [C6.2.214 LDP] ARM DDI 0487 M.d
+   Load pair of registers. Signed offset form:
+   Syntax: LDP <Wt1>, <Wt2>, [<Xn|SP>{, #<imm>}]
+   Syntax: LDP <Xt1>, <Xt2>, [<Xn|SP>{, #<imm>}]
+   <imm> is "a multiple of 4 in the range -256 to 252" (W) or "a multiple
+   of 8 in the range -512 to 504" (X), "encoded in the "imm7" field".
+   Operation (ASL, excerpt):
+     let data : bits(2*datasize) = Mem{2*datasize}(address, accdesc);
+     ...
+     else
+         data1 = data[(datasize-1):0];
+         data2 = data[(2*datasize-1):datasize];
+     end;
+     X{datasize}(t) = data1;
+     X{datasize}(t2) = data2;
+   If t == t2, the behavior is CONSTRAINED UNPREDICTABLE (K1.2.17.7). The
+   two destinations are written by the same instruction, so register
+   allocation gives them distinct registers.
+*)
+Definition armv8a_LDP_semi {ws : wsize} (w : word (wsize_pair ws))
+  : sem_ltuple [:: lword ws; lword ws ] :=
+  (zero_extend ws w, zero_extend ws (wshr w (wsize_bits ws))).
+
+Definition armv8a_LDP_instr : instr_desc_t :=
+  let tin := [:: lword (wsize_pair osz) ] in
+  let semi := armv8a_LDP_semi (ws := osz) in
+  {|
+    id_msb_flag := msbf;
+    id_tin := tin;
+    id_in := [:: Eu 2 ];
+    id_tout := [:: lword osz; lword osz ];
+    id_out := [:: Ea 0; Ea 1 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds := ak_reg_reg_pair;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str LDP;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true; IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_op_szs LDP [:: osz; osz; osz ];
+    id_valid := osz_valid;
+    id_wf := refl_equal;
+  |}.
+
+(* [C6.2.414 STP] ARM DDI 0487 M.d
+   Store pair of registers. Signed offset form:
+   Syntax: STP <Wt1>, <Wt2>, [<Xn|SP>{, #<imm>}]
+   Syntax: STP <Xt1>, <Xt2>, [<Xn|SP>{, #<imm>}]
+   <imm> has the same range as for LDP.
+   Operation (ASL, excerpt, without the writeback cases):
+     data1 = X{datasize}(t);
+     data2 = X{datasize}(t2);
+     let data : bits(2*datasize) = (if BigEndian(accdesc.acctype) then data1::data2
+                                                                 else data2::data1);
+     Mem{2 * datasize}(address, accdesc) = data;
+*)
+Definition armv8a_STP_semi {ws : wsize} (w1 w2 : word ws)
+  : sem_ltuple [:: lword (wsize_pair ws) ] :=
+  make_vec (wsize_pair ws) [:: w1; w2 ].
+
+Definition armv8a_STP_instr : instr_desc_t :=
+  let tin := [:: lword osz; lword osz ] in
+  let semi := armv8a_STP_semi (ws := osz) in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := tin;
+    id_in := [:: Ea 0; Ea 1 ];
+    id_tout := [:: lword (wsize_pair osz) ];
+    id_out := [:: Eu 2 ];
+    id_semi_total := semi;
+    id_nargs := 3;
+    id_args_kinds := ak_reg_reg_pair;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := armv8a_mn_str STP;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_doit := DOIT;
+    id_pp_asm := pp_armv8a_op_szs STP [:: osz; osz; osz ];
+    id_valid := osz_valid;
+    id_wf := refl_equal;
+  |}.
+
+(* -------------------------------------------------------------------- *)
 (* Barriers.
    They only constrain speculative execution and the order in which memory
    accesses are observed, which the semantics does not model: in the
@@ -2149,19 +3003,19 @@ Definition mk_barrier_instr mn : instr_desc_t :=
     id_in := [::];
     id_tout := [::];
     id_out := [::];
-    id_semi := sem_lprod_ok [::] semi;
+    id_semi_total := semi;
     id_nargs := 0;
     id_args_kinds := [:: [::] ];
     id_eq_size := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := armv8a_mn_str mn;
     id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [::];
     id_doit := NOT_DOIT; (* Not DIT *)
     id_pp_asm := pp_barrier mn;
     id_valid := true;
-    id_safe_wf := refl_equal;
-    id_semi_errty := fun _ => sem_lprod_ok_error [::] semi;
-    id_semi_safe := fun _ => sem_lprod_ok_safe [::] semi;
+    id_wf := refl_equal;
   |}.
 
 (* [CSDB] ARM DDI 0487 M.a
@@ -2201,15 +3055,24 @@ Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
   | ADCS => armv8a_ADCS_instr
   | SUB => armv8a_SUB_instr
   | SUBS => armv8a_SUBS_instr
+  | SBC => armv8a_SBC_instr
+  | SBCS => armv8a_SBCS_instr
   | NEG => armv8a_NEG_instr
   | MUL => armv8a_MUL_instr
   | MADD => armv8a_MADD_instr
   | MSUB => armv8a_MSUB_instr
   | SDIV => armv8a_SDIV_instr
   | UDIV => armv8a_UDIV_instr
+  | UMULL => armv8a_UMULL_instr
+  | SMULL => armv8a_SMULL_instr
+  | UMADDL => armv8a_UMADDL_instr
+  | SMADDL => armv8a_SMADDL_instr
   | UMULH => armv8a_UMULH_instr
   | SMULH => armv8a_SMULH_instr
   | AND => armv8a_AND_instr
+  | ANDS => armv8a_ANDS_instr
+  | BIC => armv8a_BIC_instr
+  | BICS => armv8a_BICS_instr
   | ORR => armv8a_ORR_instr
   | EOR => armv8a_EOR_instr
   | MVN => armv8a_MVN_instr
@@ -2223,6 +3086,12 @@ Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
   | REV32 => armv8a_REV32_instr
   | CLZ => armv8a_CLZ_instr
   | CLS => armv8a_CLS_instr
+  | BFC => armv8a_BFC_instr
+  | BFI => armv8a_BFI_instr
+  | BFXIL => armv8a_BFXIL_instr
+  | SBFX => armv8a_SBFX_instr
+  | UBFX => armv8a_UBFX_instr
+  | EXTR => armv8a_EXTR_instr
   | MOV => armv8a_MOV_instr
   | MOVN => armv8a_MOVN_instr
   | MOVZ => armv8a_MOVZ_instr
@@ -2235,23 +3104,33 @@ Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
   | UXTH => armv8a_UXTH_instr
   | UXTW => armv8a_UXTW_instr
   | CMP => armv8a_CMP_instr
+  | CMN => armv8a_CMN_instr
   | TST => armv8a_TST_instr
   | CSEL => armv8a_CSEL_instr
+  | CSINC => armv8a_CSINC_instr
+  | CSINV => armv8a_CSINV_instr
+  | CSNEG => armv8a_CSNEG_instr
+  | CSET => armv8a_CSET_instr
+  | CSETM => armv8a_CSETM_instr
   | LDR => armv8a_load_instr LDR
   | LDRB => armv8a_load_instr LDRB
   | LDRH => armv8a_load_instr LDRH
   | LDRSB => armv8a_load_instr LDRSB
   | LDRSH => armv8a_load_instr LDRSH
   | LDRSW => armv8a_load_instr LDRSW
+  | LDP => armv8a_LDP_instr
   | STR => armv8a_store_instr STR
   | STRB => armv8a_store_instr STRB
   | STRH => armv8a_store_instr STRH
+  | STP => armv8a_STP_instr
   | CSDB => armv8a_CSDB_instr
   | DSB => armv8a_DSB_instr
   | ISB => armv8a_ISB_instr
   end.
 
 End ARMV8A_INSTR.
+
+Arguments armv8a_extend_semi {ws} sign ws' wn /.
 
 Definition armv8a_instr_desc (o : armv8a_asm_op) : instr_desc_t :=
   let '(ARMv8A_op mn opts) := o in

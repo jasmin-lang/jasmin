@@ -303,6 +303,96 @@ Definition armv8a_caimm_cond_pp (checker : armv8a_caimm_cond) : string :=
   | CAimmC_armv8a_mov_imm => "(wide, inverted wide or bitmask immediate)"
   end%string.
 
+(* Memory-argument conditions (see [camem_cond] in arch_decl.v).
+   - [CAmemC_armv8a_pair ws]: the address of a load/store pair of [ws]
+     registers in the signed offset form, [<Xn|SP>{, #<imm>}]. It has a base
+     register and no offset register, and the displacement is "a multiple of
+     8 in the range -512 to 504" (X registers) or "a multiple of 4 in the
+     range -256 to 252" (W registers), encoded in the imm7 field
+     (ARM DDI 0487 M.d, C6.2.214 LDP and C6.2.414 STP).
+   - [CAmemC_armv8a_ldst ws]: the address of a load or store of a [ws]
+     datum (LDR, STR and the narrow loads and stores). In the immediate
+     forms, [<Xn|SP>{, #<imm>}], the offset is either "a multiple of [ws] in
+     the range 0 to 4095 * [ws]", encoded scaled in the imm12 field of the
+     unsigned offset form (LDR (immediate), STR (immediate)), or "in the
+     range -256 to 255", encoded in the imm9 field of the unscaled offset
+     form (LDUR, STUR); the assembler selects the encoding from the offset,
+     so the two forms share the mnemonic. In the register form,
+     [<Xn|SP>, <Xm>{, LSL #<amount>}], the shift amount is 0 or the log2 of
+     [ws] (LDR (register), STR (register)).
+   - [CAmemC_armv8a_adr]: the operand of ADR, [<label>]: an address relative
+     to the PC (C6.2.11 ADR; the printer emits the ADRP and ADD pair, with
+     its :lo12: relocation, to reach any global). *)
+#[only(eqbOK)] derive
+Variant armv8a_camem_cond :=
+  | CAmemC_armv8a_pair of wsize
+  | CAmemC_armv8a_ldst of wsize
+  | CAmemC_armv8a_adr.
+
+#[ export ]
+Instance eqTC_armv8a_camem_cond : eqTypeC armv8a_camem_cond :=
+  { ceqP := armv8a_camem_cond_eqb_OK }.
+
+Definition is_pair_offset (ws : wsize) (d : Z) : bool :=
+  let n := wsize_size ws in
+  let q := (d / n)%Z in
+  ((d mod n =? 0) && (-64 <=? q) && (q <=? 63))%Z.
+
+(* The unsigned offset form (scaled imm12) or the unscaled offset form
+   (signed imm9). *)
+Definition is_ldst_offset (ws : wsize) (d : Z) : bool :=
+  let n := wsize_size ws in
+  ((0 <=? d) && (d mod n =? 0) && (d / n <=? 4095))%Z
+  || ((-256 <=? d) && (d <=? 255))%Z.
+
+(* The register offset form: no shift, or a shift by the access size. *)
+Definition is_ldst_shift (ws : wsize) (scale : nat) : bool :=
+  Nat.eqb scale 0 || Nat.eqb scale (wsize_log2 ws).
+
+(* A64 has no PC-relative addressing for the loads and stores (the literal
+   form of LDR, within 1 MB of the PC, is not used), so an address relative
+   to the instruction pointer is never accepted. *)
+Definition armv8a_check_CAmem
+  (checker : armv8a_camem_cond) (a : address_ register armv8a_reg_size) : bool :=
+  match checker, a with
+  | CAmemC_armv8a_adr, Arip _ => true
+  | CAmemC_armv8a_adr, Areg _ => false
+  | _, Arip _ => false
+  | CAmemC_armv8a_pair ws, Areg ra =>
+    isSome ra.(ad_base) && ~~ isSome ra.(ad_offset)
+    && is_pair_offset ws (wsigned ra.(ad_disp))
+  | CAmemC_armv8a_ldst ws, Areg ra =>
+    isSome ra.(ad_base)
+    && if isSome ra.(ad_offset)
+       then (ra.(ad_disp) == 0%w) && is_ldst_shift ws ra.(ad_scale)
+       else is_ldst_offset ws (wsigned ra.(ad_disp))
+  end.
+
+Definition armv8a_camem_cond_pp (checker : armv8a_camem_cond) : seq string :=
+  match checker with
+  | CAmemC_armv8a_pair ws =>
+    [:: if ws == U64
+        then "[base + imm], imm a multiple of 8 in [-512, 504]"
+        else "[base + imm], imm a multiple of 4 in [-256, 252]" ]
+  | CAmemC_armv8a_ldst ws =>
+    match ws with
+    | U8 =>
+      [:: "[base + imm], imm in [-256, 4095]"
+        ; "[base + index]" ]
+    | U16 =>
+      [:: "[base + imm], imm a multiple of 2 in [0, 8190] or in [-256, 255]"
+        ; "[base + s * index], s in {1, 2}" ]
+    | U32 =>
+      [:: "[base + imm], imm a multiple of 4 in [0, 16380] or in [-256, 255]"
+        ; "[base + s * index], s in {1, 4}" ]
+    | U64 =>
+      [:: "[base + imm], imm a multiple of 8 in [0, 32760] or in [-256, 255]"
+        ; "[base + s * index], s in {1, 8}" ]
+    | _ => [:: "(unsupported access size)" ]
+    end
+  | CAmemC_armv8a_adr => [:: "a global" ]
+  end%string.
+
 #[ export ]
 Instance armv8a_decl : arch_decl register register_ext xregister rflag condt :=
   { reg_size  := armv8a_reg_size
@@ -319,6 +409,10 @@ Instance armv8a_decl : arch_decl register register_ext xregister rflag condt :=
   ; caimm_cond_eqC := eqTC_armv8a_caimm_cond
   ; caimm_cond_pp := armv8a_caimm_cond_pp
   ; check_CAimm := armv8a_check_CAimm
+  ; camem_cond := armv8a_camem_cond
+  ; camem_cond_eqC := eqTC_armv8a_camem_cond
+  ; camem_cond_pp := armv8a_camem_cond_pp
+  ; check_CAmem := armv8a_check_CAmem
   }.
 
 (* -------------------------------------------------------------------- *)
@@ -332,11 +426,16 @@ Instance armv8a_decl : arch_decl register register_ext xregister rflag condt :=
    is valid on all platforms. *)
 
 Definition armv8a_call_conv : calling_convention :=
-  {| callee_saved :=
-      map ARReg [:: R19; R20; R21; R22; R23; R24; R25; R26; R27; R28
-                  ; R29; RSP ]
+  let saved_regs :=
+    map ARReg [:: R19; R20; R21; R22; R23; R24; R25; R26; R27; R28
+                ; R29; RSP ] in
+  {| callee_saved := saved_regs
    ; callee_saved_not_bool := erefl true
    ; callee_saved_has_rsp  := erefl true
+     (* No vector register: AAPCS64 only preserves the low 64 bits of
+        v8-v15. *)
+   ; syscall_preserved := saved_regs
+   ; syscall_preserved_subset := erefl true
    ; call_reg_args  := [:: R0; R1; R2; R3; R4; R5; R6; R7 ]
    ; call_xreg_args := [::]
    ; call_reg_ret   := [:: R0; R1; R2; R3; R4; R5; R6; R7 ]

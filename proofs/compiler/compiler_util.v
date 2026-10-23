@@ -38,7 +38,8 @@ Inductive pp_error :=
   | PPErexpr of rexpr
   | PPEfexpr of fexpr
   | PPEbox     `(box) `(seq pp_error)
-  | PPEbreak.
+  | PPEbreak
+  | PPEhighlight of pp_error. (* emphasized (in color when enabled) *)
 
 (* TODO: it was simpler to put pel_fn and pel_fi as separate fields; in the future,
    do we want to merge them?

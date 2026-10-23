@@ -15,6 +15,7 @@ module type AsmTarget = sig
     type asm_op
 
     val headers             : asm_element list
+    val text_alignment      : asm_element list
     val data_segment_header : asm_element list
     val function_directives : asm_element list
     val function_header     : asm_element list
@@ -61,26 +62,43 @@ module Make(Target : AsmTarget) : S
 
     let pp_body name decl =pp_instrs name decl.asm_fd_body
 
-    let pp_function_header (name:string) decl =
-        if decl.asm_fd_export then
-          let name  = mangle name in
-          Target.function_directives
-          @ (if is_target_system_macos () then []
-            else [ Header (".type", [name; "%function"]) ])
-          @ Label name
-          :: Target.function_header
-        else []
+    (* Mach-O has neither the ".size" directive nor the sections used below;
+       only ELF (and COFF) targets get them. *)
+    let elf_target () = not (is_target_system_macos ())
 
-    let pp_function_tail decl =
-        if decl.asm_fd_export then
-            Target.function_tail
-        else []
+    (* The symbol under which a function is emitted, on every system. An
+       exported function is mangled and declared global; a function that is
+       not exported gets a symbol of its own too, an object-local one under
+       its bare name, which is what the calls to it are printed against
+       ([pp_call_target]). The symbol heads the body, so it denotes the same
+       address as the label the calls target in the linear program. *)
+    let function_symbol name decl =
+        if decl.asm_fd_export then mangle name else name
+
+    let pp_function_header (name:string) decl =
+        let name = function_symbol name decl in
+        (if Glob_options.use_function_sections ()
+         then text_section name :: Target.text_alignment
+         else [])
+        @ Target.function_directives
+        @ (if elf_target ()
+           then [ Header (".type", [name; "%function"]) ]
+           else [])
+        @ Label name
+        :: (if decl.asm_fd_export then Target.function_header else [])
+
+    let pp_function_tail name decl =
+        let name = function_symbol name decl in
+        (if decl.asm_fd_export then Target.function_tail else [])
+        @ (if elf_target ()
+           then [ Header (".size", [name; Format.asprintf ".-%s" name]) ]
+           else [])
 
     let pp_function (fname,decl) =
         let name = escape fname.fn_name in
         let headers = pp_function_header name decl in
         let body = pp_body name decl in
-        let tail = pp_function_tail decl in
+        let tail = pp_function_tail name decl in
         headers @ body @ tail
 
     let pp_functions funcs = List.concat_map pp_function funcs

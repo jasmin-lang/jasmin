@@ -1,0 +1,7 @@
+/* The LDR offset is outside the unsigned 12-bit range scaled by 8. */
+export
+fn ldr_offset_range(reg u64 p) -> reg u64 {
+    reg u64 a;
+    a = [:u64 p + 32768];
+    return a;
+}

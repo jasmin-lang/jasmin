@@ -19,6 +19,9 @@ module type AsmTarget = sig
     (* Header of the file*)
     val headers             : PrintASM.asm_element list
 
+    (* Alignment of the code sections *)
+    val text_alignment      : PrintASM.asm_element list
+
     (* Data segment header*)
     val data_segment_header : PrintASM.asm_element list
 

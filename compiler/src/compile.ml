@@ -442,6 +442,19 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     dead_vars_fd f
   in
 
+  let fill_in_missing_names fd =
+    fd
+    |> Regalloc.fill_in_missing_names
+         (Sopn.get_instr_desc Arch.pointer_data Arch.msf_size Arch.asmOp)
+    |> Prog.refresh_i_loc_f
+  in
+
+  let fill_in_missing_names_sfd fn fd =
+    let extra, fd = Conv.fdef_of_csfdef (fn, fd) in
+    let fd = Regalloc.fill_in_missing_names (Sopn.get_instr_desc Arch.pointer_data Arch.msf_size Arch.asmOp) fd in
+    snd (Conv.csfdef_of_fdef (extra, fd))
+  in
+
   let cparams =
     {
       Compiler.extend_iinfo;
@@ -487,6 +500,8 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.dead_vars_sfd;
       Compiler.pp_sr;
       Compiler.apply_ret_annot = StackAlloc.apply_ret_annot;
+      Compiler.fill_in_missing_names_ufd = apply "fill-in missing names" fill_in_missing_names;
+      Compiler.fill_in_missing_names_sfd;
     }
   in
 
@@ -500,6 +515,21 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       (snd prog) []
   in
 
+  (* The registers a linker-inserted veneer may destroy in front of a call
+     internal to the unit.  A veneer is only possible when the caller and the
+     callee may be placed far apart, which is the case exactly when the
+     functions are laid out in sections of their own; the verified pipeline
+     then treats those registers as undefined at the entry of every internal
+     call (it derives one_varmap.call_kill from this very list, see
+     asm_gen.veneer_i) and its checker rejects an allocation that depends on
+     them there.  Off, the list is empty and no register is constrained at a
+     call: the functions then share one section and no veneer is synthesised
+     as long as the unit stays within the range of a direct branch (see
+     [veneer_regs_info] in arch_decl.v). *)
+  let veneer_registers =
+    if Glob_options.use_function_sections () then Arch.veneer_registers else []
+  in
+
   Compiler.compile_prog_to_asm Arch.asm_e Arch.call_conv Arch.aparams cparams
-    export_functions
+    veneer_registers export_functions
     (Expr.to_uprog Arch.asmOp cprog)

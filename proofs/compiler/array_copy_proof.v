@@ -3,6 +3,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith Lia.
 Require Import array_copy psem.
+Require Import sopn_facts.
 Require Import compiler_util.
 Import Utf8.
 
@@ -120,7 +121,7 @@ Proof using Hp freshX.
   move => /sem_pexpr_uincl_on /(_ ok_vofs) [] vofs' ok_vofs' /value_uinclE ?; subst vofs'.
   eexists; split.
   -  rewrite /= -eq_globs ok_t' /= ok_vofs' /= ok_sub' /=.
-     rewrite /truncate_val /= WArray.castK /=.
+     rewrite /truncate_val /= to_arrK /=.
      rewrite /= /write_var /= /set_var /= eqxx /= with_vm_idem; reflexivity.
   - apply: uincl_on_set_r; first by [].
     apply: uincl_onI hvm; clear -hyX; SvD.fsetdec.
@@ -163,7 +164,7 @@ Opaque esem.
       move=> z hz; rewrite Vm.setP_neq //; apply /eqP => heq; subst z.
       have : Sv.In x (read_gvar src) by clear -hz; SvD.fsetdec.
       by case/norP: hxy; rewrite /eq_gvar /= /read_gvar; case: (src) => /= vy [/= /eqP | /=]; clear; SvD.fsetdec.
-    by rewrite /= /truncate_val /= WArray.castK /= write_var_eq_type.
+    by rewrite /= /truncate_val /= to_arrK /= write_var_eq_type.
   move: hcopy; rewrite /WArray.copy -/len => /(WArray.fcopy_uincl (WArray.uincl_empty tx0 erefl))
     => -[tx'] hcopy hutx.
   have :
@@ -282,9 +283,8 @@ Proof using Hp.
   set dst_var := {| vtype := aarr _ _ |}.
   move/Sv_memP => dstX ?? s; subst => /=.
   rewrite /on_arr_var; t_xrbindP => - [] // alen a ok_a; t_xrbindP => iofs vofs ok_ofs /to_intI ?; subst vofs.
-  move=> z1 hcast z2 hset hw ?; subst s.
+  move=> z1 /to_arrI /Varr_inj[] ?? z2 hset hw ?; subst.
   rewrite read_rvs_cons read_rvs_nil /= read_eE => hsub hvm ok_dst t't''.
-  have [ z1' hcast' z1z1' ] := WArray.uincl_cast t't'' hcast.
   have : get_gvar true gd (evm s1) (mk_lvar x) = ok (Varr a) := ok_a.
   case/(get_gvar_uincl_at (vm2 := vm1)).
   - by apply: hvm => /=; clear -hsub dstX; SvD.fsetdec.
@@ -292,15 +292,15 @@ Proof using Hp.
   have hvm' : evm s1 <=[ read_e ofs ] vm1.
   - by apply: uincl_onI hvm; clear -hsub dstX; SvD.fsetdec.
   case: (sem_pexpr_uincl_on hvm' ok_ofs) => ? ok_ofs' /value_uinclE ?; subst.
-  have [ z2' hset' z2z2' ] := WArray.uincl_set_sub hab z1z1' hset.
+  have [ z2' hset' z2z2' ] := WArray.uincl_set_sub hab t't'' hset.
   have {}z2z2' : value_uincl (Varr z2) (Varr z2') by [].
   have! := (write_var_uincl_on z2z2' hw hvm).
   case => vm2 hw' hvm2.
   exists vm2.
   + by apply: uincl_onI hvm2; clear -dstX; SvD.fsetdec.
   rewrite /= /get_gvar /= ok_b /get_var /= ok_dst /=.
-  rewrite /truncate_val /= hcast' /=.
-  by rewrite -eq_globs ok_ofs' /= WArray.castK /= hset' /= hw'.
+  rewrite /truncate_val /= to_arrK /=.
+  by rewrite -eq_globs ok_ofs' /= to_arrK /= hset' /= hw'.
 Qed.
 
 Lemma esem_array_copy ii xs es ws n sx sc tx tc s s' vm vs vs' :
@@ -320,7 +320,10 @@ Proof using Hp freshX.
   have hesX : Sv.Subset (read_es es) X by clear -hsub; SvD.fsetdec.
   have [ hdis [] v ? [] vm1 [] exec_pfx hvm1 [] vy hy ] := get_sourceP hgets hes hesX hu; subst vs.
   move: hcopy.
-  rewrite /exec_sopn /=; t_xrbindP => t' t /to_arrI ? ok_t' ?; subst v vs'.
+  rewrite /exec_sopn /= /Ocopy_instr /=.
+  t_xrbindP => t' t /to_arrI ? hsafe <- ?; subst v vs'.
+  have heq := @array_copy_semi_eq ws n; rewrite /= in heq.
+  have ok_t' : WArray.copy t = ok (copy_total t) by rewrite heq hsafe.
   case/value_uinclE => t2 ? htt2; subst vy.
   have ok_t2' := WArray.uincl_copy htt2 ok_t'.
   have [ vm2 [] hvm2 [] t'' ok_dst t't'' exec_array_copy ] := array_copyP ii htx hdis hvm1 hy ok_t2'.

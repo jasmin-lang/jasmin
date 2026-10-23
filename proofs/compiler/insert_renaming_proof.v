@@ -21,11 +21,8 @@ Proof.
   1, 3: by move => ? /ok_inj <-.
   1, 2, 5: by case.
   1, 2: t_xrbindP.
-  - move => ? a ? ok_a <-.
-    have ? := WArray.cast_len ok_a; subst.
-    have := WArray.castK a.
-    rewrite ok_a => /ok_inj ?; subst.
-    by rewrite /= eqxx.
+  - move => ? a ? /to_arrI /Varr_inj[] ???; subst.
+    by rewrite eqxx.
   move => ws' w' w /truncate_wordP[] ws_le_ws' ok_w ?; subst.
   rewrite ws_le_ws' /= orbT.
   case: ifP; last by [].
@@ -135,10 +132,8 @@ Section WITH_PARAMS.
     #[local] Hint Resolve checker_st_uinclP : core.
 
     Lemma it_insert_renaming_rec (fd: fundef) :
-      (∀ ii1 ii2 fn1 fn2, wequiv_f_rec p p' ev ev uincl_spec pre_incl ii1 ii2 fn1 fn2 post_incl) →
       wequiv (rE0 := relEvent_recCall uincl_spec) p p' ev ev (st_uincl tt) (f_body fd) (f_body fd) (st_uincl tt).
     Proof.
-      move => hrec.
       apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)).
       - done.
       - by apply wequiv_nil.
@@ -151,7 +146,7 @@ Section WITH_PARAMS.
       - by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
       - by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.
       move=> xs fn es ii; apply wequiv_call_rel_uincl with checker_st_uincl tt => //.
-      by move=> ???; apply hrec.
+      by move=> ???; apply: wequiv_fun_rec.
     Qed.
 
     Definition st_uincl_at_init fd s t :=
@@ -184,12 +179,10 @@ Section WITH_PARAMS.
       - clear htyin hextra hparams fn fs ft hfsu hget s hinit t hu.
         subst do_insert.
         case do_insert: should_insert_renaming; last first.
-        + apply: (wequiv_weaken _ _ (it_insert_renaming_rec fd _)); [ by move => ?? [] | by [] | ].
-          by move => ii1 ii2 fn1 fn2; apply @wequiv_fun_rec.
+        + by apply: (wequiv_weaken _ _ (it_insert_renaming_rec fd)); [ move => ?? [] | ].
         rewrite -{1}(cat0s (f_body fd)).
         apply (wequiv_cat (R := st_uincl_at_init fd)); last first.
-        + apply: (wequiv_weaken _ _ (it_insert_renaming_rec fd _)); [ by move => ?? [] | by [] | ].
-          by move => ii1 ii2 fn1 fn2; apply @wequiv_fun_rec.
+        + by apply: (wequiv_weaken _ _ (it_insert_renaming_rec fd)); [ move => ?? [] | ].
         move: (entry_info_of_fun_info _) => ii.
         have := cat0s (f_params fd).
         move: {1}[::].

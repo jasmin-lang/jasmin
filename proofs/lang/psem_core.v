@@ -313,10 +313,9 @@ Qed.
 Lemma sopn_tinP o vs vs' : exec_sopn o vs = ok vs' ->
   all2 subctype (map eval_atype (sopn_tin o)) (List.map type_of_val vs).
 Proof.
-  rewrite /exec_sopn /sopn_tin /sopn_sem /sopn_sem_; t_xrbindP => _ _ <-.
-  case (get_instr_desc o) => /= _ tin _ tout _ _ semi _ _ _ _ _ _ _.
-  t_xrbindP => p hp _.
-  elim: tin vs semi hp => /= [ | t tin hrec] [ | v vs] // semi.
+  rewrite /exec_sopn /sopn_tin /sopn_sem /sopn_sem_.
+  move: (semi (get_instr_desc o)) => f; t_xrbindP => _ _ <- + + _.
+  elim: (tin (get_instr_desc o)) vs f => /= [ | t ti hrec] [ | v vs] //= semi p.
   by t_xrbindP => sv /= /of_val_subctype -> /hrec.
 Qed.
 
@@ -1187,7 +1186,7 @@ Proof.
   t_xrbindP=> > /Hvm1{Hvm1} [? ->]
     /[swap] /to_intI -> /value_uinclE -> ? /to_arrI ?.
   subst; move: Hv => /value_uinclE [? ->] /= h.
-  by rewrite WArray.castK /= => ? /hu -/(_ _ h){hu h} [? -> ?] /= /write_var_uincl_on; apply => //; rewrite Htx.
+  by rewrite to_arrK /= => ? /hu -/(_ _ h){hu h} [? -> ?] /= /write_var_uincl_on; apply => //; rewrite Htx.
 Qed.
 
 Corollary write_uincl wdb gd s1 s2 vm1 r v1 v2:
@@ -1347,7 +1346,7 @@ Proof.
   + by rewrite /write_var; t_xrbindP => > /set_varP [].
   + by t_xrbindP.
   + by move => al aa ws [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
-  by move => aa ws len [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
+  by move => aa ws len [] [vt vn] /= ? e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
 Qed.
 
 (* MOVE THIS *)

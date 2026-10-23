@@ -64,7 +64,8 @@ Context
   {atoI  : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
-  {call_conv : calling_convention}.
+  {call_conv : calling_convention}
+  {vinfo : one_varmap.veneer_info}.
 
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc hypotheses. *)
@@ -406,7 +407,7 @@ Proof.
       get_var true vmr rspi >>= to_word Uptr = ok top ->
       exists2 vm,
         sem_fopns_args (with_vm s vmr)
-          (if is_arith_small ofs
+          (if is_save_slot_offset Uptr ofs
            then [:: armv8a_lload Uptr vtmp2i rspi ofs; armv8a_lmove Uptr rspi vtmp2i ]
            else ARMv8AFopn_smart_addi vtmp2i rspi ofs
                 ++ [:: armv8a_lload Uptr vtmp2i vtmp2i 0%Z; armv8a_lmove Uptr rspi vtmp2i ])
@@ -458,7 +459,7 @@ Proof.
 
   rewrite /lip_lloads /armv8a_lloads.
   rewrite /sem_fopns_args foldM_cat -!/sem_fopns_args.
-  case hall: (all (fun '(_, ofs1) => is_arith_small ofs1) to_save).
+  case hall: (all (fun '(x, ofs1) => is_save_slot_offset (constant_prop.wsize_of_atype (vtype x)) ofs1) to_save).
 
   (* All offsets small: LDR directly from [rspi]. *)
   - have [hsem1 hget1] := lloads_aux_correct armv8a_lload_correct hnin hget hf.
@@ -863,7 +864,7 @@ Proof.
   case: lvs => // -[] // x [] // -[] // y [] //.
   case: args => // -[] // [] // z [] // [] // [] // w [] //=.
   t_xrbindP => vz hz _ vw hw <- <-.
-  rewrite /exec_sopn /= /swap_semi.
+  rewrite /exec_sopn /= /Oswap_instr /=.
   t_xrbindP => /= _ wz hvz ww hvw <- <- /=.
   t_xrbindP => _ vm1 /set_varP [_ htrx ->] <- _ vm2 /set_varP [_ htry ->] <- <-
     /eqP hxw /eqP hyx /and4P [hxt hyt hzt hwt] <-.
@@ -1205,7 +1206,6 @@ Proof.
   case: opt hmn hs => sho sz hmn /= hs.
   case: sho hs => [sk | ] hs; first by [].
   rewrite /exec_sopn /=.
-  rewrite /semi_to_atype.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.
   clear e1 e2.

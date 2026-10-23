@@ -153,6 +153,32 @@ Module WArray.
   Definition get len al (aa: arr_access) ws (a: array len) (i: Z) :=
     CoreMem.read a al (i * mk_scale aa ws)%Z ws.
 
+  Lemma is_ok_get8 len (t : array len) i :
+    is_ok (get8 t i) = in_bound t i && is_init t i.
+  Proof. by rewrite /get8; case: in_bound; case: is_init. Qed.
+
+  (* An array read succeeds exactly when all the cells it reads are in bounds
+     and initialised. *)
+  Lemma is_ok_get ws len (t : array len) i :
+    is_ok (get Unaligned AAscale ws t i)
+    = all (fun k => in_bound t (i * wsize_size ws + k)%Z
+                    && is_init t (i * wsize_size ws + k)%Z)
+          (ziota 0 (wsize_size ws)).
+  Proof.
+  rewrite /get /CoreMem.read /assert /is_aligned_if /mk_scale.
+  have heq : forall k,
+    memory_model.get t (add (i * wsize_size ws)%Z k) = get8 t (i * wsize_size ws + k)%Z.
+  + by move=> k; rewrite addE.
+  have -> :
+    all (fun k => in_bound t (i * wsize_size ws + k)%Z
+                  && is_init t (i * wsize_size ws + k)%Z)
+        (ziota 0 (wsize_size ws))
+    = is_ok (mapM (fun k => memory_model.get t (add (i * wsize_size ws)%Z k))
+                  (ziota 0 (wsize_size ws))).
+  + by rewrite is_ok_mapM; apply: eq_all => k; rewrite heq is_ok_get8.
+  by case: mapM.
+  Qed.
+
   Definition set {len ws} (a: array len) al aa i (v: word ws) : exec (array len) :=
     CoreMem.write a al (i * mk_scale aa ws)%Z v.
 
@@ -207,10 +233,6 @@ Module WArray.
       ok (Build_array lena (set_sub_data aa ws len (arr_data a) i (arr_data b)))
     else Error ErrOob.
 
-  Definition cast len len' (a:array len) : result error (array len') :=
-    if len' == len then ok {| arr_data := a.(arr_data) |}
-    else type_error.
-
   Definition of_list {ws} (l:list (word ws)) : array (Z.of_nat (size l) * wsize_size ws) :=
     let m := Mz.empty in
     let do8 (mz: Mz.t _ * Z) (w:u8) :=
@@ -264,40 +286,6 @@ Module WArray.
     move => x /(_ _ erefl).
     case: get8; last by [].
     by move => /= ? /ok_inj <-.
-  Qed.
-
-  Lemma castK len (a:array len) : WArray.cast len a = ok a.
-  Proof. by rewrite /cast eqxx; case: a. Qed.
-
-  Lemma cast_len len1 len2 (t2:WArray.array len2) t1: WArray.cast len1 t2 = ok t1 -> len1 = len2.
-  Proof. by rewrite /cast; case: eqP. Qed.
-
-  Lemma cast_empty len1 len2 :
-    WArray.cast len1 (empty len2) = if len1 == len2 then ok (empty len1) else type_error.
-  Proof. done. Qed.
-
-  Lemma cast_empty_ok len1 len2 t:
-    WArray.cast len1 (empty len2) = ok t -> t = empty len1.
-  Proof. by move=> /[dup]/cast_len/eqP; rewrite cast_empty => -> [<-]. Qed.
-
-  Lemma cast_get8 len1 len2 (m : array len2) m' :
-    cast len1 m = ok m' ->
-    forall k,
-      read m' Aligned k U8 =
-        if k <? len1 then read m Aligned k U8 else Error ErrOob.
-  Proof.
-    rewrite /cast; case: eqP => // hle [<-] k.
-    rewrite -!get_read8 /memory_model.get /= /get8 /is_init /in_bound /=.
-    by case: ZleP => /=; case: ZltP => //=; case: ZltP => //; lia.
-  Qed.
-
-  Lemma uincl_cast len1 len2 (a1: array len1) (a2:array len2) len a1' :
-    uincl a1 a2 ->
-    cast len a1 = ok a1' ->
-    exists2 a2', cast len a2 = ok a2' & uincl a1' a2'.
-  Proof.
-    move=> /[dup] /uincl_len ? hu /[dup] /cast_len ?; subst len1 len2.
-    rewrite castK => -[<-]; exists a2 => //; apply castK.
   Qed.
 
   Lemma mk_scale_U8 aa : mk_scale aa U8 = 1%Z.

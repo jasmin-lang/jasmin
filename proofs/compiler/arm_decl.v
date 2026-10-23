@@ -164,6 +164,39 @@ Definition arm_check_CAimm (checker : arm_caimm_cond) ws (w : word ws) : bool :=
   | CAimmC_arm_0_8_16_24 => let x := wunsigned w in x \in [::0;8;16;24]%Z
   end.
 
+(* "a, b or c" *)
+Fixpoint join_or (xs : seq string) : string :=
+  match xs with
+  | [::] => ""
+  | [:: x ] => x
+  | [:: x; y ] => x ++ " or " ++ y
+  | x :: xs => x ++ ", " ++ join_or xs
+  end%string.
+
+(* The values accepted by [check_ei_kind ew]: a byte and a byte pattern
+   always are; a shifted byte and the other values depend on [ew] (see
+   [expected_wencoding] in arm_expand_imm.v). MOV without flags accepts any
+   16-bit value, which covers the bytes. *)
+Definition describe_wencoding (ew : expected_wencoding) : string :=
+  match on_shift ew, on_none ew with
+  | W16_encoding, W16_encoding => "a byte pattern or a 16-bit value"
+  | shift, none =>
+    join_or
+      ([:: "a byte"; "a byte pattern" ]
+       ++ match shift with
+          | WE_allowed true => [:: "a shifted byte" ]
+          | WE_allowed false => [::]
+          | W12_encoding => [:: "a shifted byte below 2^12" ]
+          | W16_encoding => [:: "a shifted byte below 2^16" ]
+          end
+       ++ match none with
+          | WE_allowed true => [:: "any value" ]
+          | WE_allowed false => [::]
+          | W12_encoding => [:: "a 12-bit value" ]
+          | W16_encoding => [:: "a 16-bit value" ]
+          end)
+  end%string.
+
 Definition arm_caimm_cond_pp (checker : arm_caimm_cond) : string :=
   match checker with
   | CAimmC_arm_shift_amout sk =>
@@ -173,10 +206,53 @@ Definition arm_caimm_cond_pp (checker : arm_caimm_cond) : string :=
       | SASR => "[1, 32]"
       | SROR => "[1, 31]"
       end
-  | CAimmC_arm_wencoding ew =>
-      "(shift = " ++ string_of_ew (on_shift ew)
-        ++ ", none = " ++ string_of_ew (on_none ew) ++ ")"
+  | CAimmC_arm_wencoding ew => describe_wencoding ew
   | CAimmC_arm_0_8_16_24 => "[0; 8; 16; 24]"
+  end%string.
+
+(* Memory-argument conditions (see [camem_cond] in arch_decl.v).
+   [CAmemC_arm_ldst]: the address of a load or store (LDR, STR and the
+   narrow and signed loads and stores), in the Thumb-2 encodings
+   (ARM DDI 0403E.e, A7.7.43 LDR (immediate), A7.7.45 LDR (register), and
+   the entries of LDRB, LDRH, LDRSB, LDRSH, STR, STRB and STRH). In the
+   immediate form, [<Rn>, #<imm>], the offset is in [0, 4095] (encoding T3,
+   imm12) or in [-255, 255] (encoding T4, imm8 and the U bit); in the
+   register form, [<Rn>, <Rm>{, LSL #<imm2>}], the shift amount is in
+   [0, 3]. The forms are the same for every access size, and an address
+   has either an immediate or a register offset. *)
+#[only(eqbOK)] derive
+Variant arm_camem_cond :=
+  | CAmemC_arm_ldst.
+
+#[ export ]
+Instance eqTC_arm_camem_cond : eqTypeC arm_camem_cond :=
+  { ceqP := arm_camem_cond_eqb_OK }.
+
+Definition is_ldst_offset (d : Z) : bool :=
+  ((-255 <=? d) && (d <=? 4095))%Z.
+
+(* Thumb-2 has no PC-relative addressing for the loads and stores (the
+   literal form of LDR, within 4 KB of the PC, is not used), so an address
+   relative to the instruction pointer is never accepted. *)
+Definition arm_check_CAmem
+  (checker : arm_camem_cond) (a : address_ register arm_reg_size) : bool :=
+  match a with
+  | Arip _ => false
+  | Areg ra =>
+    match checker with
+    | CAmemC_arm_ldst =>
+      isSome ra.(ad_base)
+      && if isSome ra.(ad_offset)
+         then (ra.(ad_disp) == 0%w) && Nat.leb ra.(ad_scale) 3
+         else is_ldst_offset (wsigned ra.(ad_disp))
+    end
+  end.
+
+Definition arm_camem_cond_pp (checker : arm_camem_cond) : seq string :=
+  match checker with
+  | CAmemC_arm_ldst =>
+    [:: "[base + imm], imm in [-255, 4095]"
+      ; "[base + s * index], s in {1, 2, 4, 8}" ]
   end%string.
 
 #[ export ]
@@ -195,13 +271,19 @@ Instance arm_decl : arch_decl register register_ext xregister rflag condt :=
   ; caimm_cond_eqC := eqTC_arm_caimm_cond
   ; caimm_cond_pp := arm_caimm_cond_pp
   ; check_CAimm := arm_check_CAimm
+  ; camem_cond := arm_camem_cond
+  ; camem_cond_eqC := eqTC_arm_camem_cond
+  ; camem_cond_pp := arm_camem_cond_pp
+  ; check_CAmem := arm_check_CAmem
   }.
 
 Definition arm_linux_call_conv : calling_convention :=
-  {| callee_saved :=
-      map ARReg [:: R04; R05; R06; R07; R08; R09; R10; R11; SP ]
+  let saved := map ARReg [:: R04; R05; R06; R07; R08; R09; R10; R11; SP ] in
+  {| callee_saved := saved
    ; callee_saved_not_bool := erefl true
    ; callee_saved_has_rsp  := erefl true
+   ; syscall_preserved := saved
+   ; syscall_preserved_subset := erefl true
    ; call_reg_args  := [:: R00; R01; R02; R03 ]
    ; call_xreg_args := [::]
    ; call_reg_ret   := [:: R00; R01 ]

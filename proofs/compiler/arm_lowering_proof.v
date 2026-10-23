@@ -738,7 +738,7 @@ Ltac rewrite_exec :=
       case: b; mytac; last done
   end
   || mytac;
-  rewrite /= !zero_extend_u.
+  rewrite /= !zero_extend_u ?add_arguments_app ?add_arguments_nil /=.
 
 Lemma with_shift_unop s eb ea ts (b: word ts) (a: u8) x vs sh opts r :
   (U32 ≤ ts)%CMP ->
@@ -810,6 +810,33 @@ Proof.
   by case: mn => //=; case: sf sk' => [] [] //.
 Qed.
 
+(* [a & !b] and [!b & a] are lowered to [BIC a, b], which computes
+   [a AND NOT b]: the complement commutes with the truncation of the operands
+   to the register size. *)
+Lemma lower_Papp2_BICP s ws'' ws' e0 e1 x y v0 v1 (w : word ws') :
+  is_andn e0 e1 = Some (x, y)
+  -> (reg_size <= ws')%CMP
+  -> disj_fvars (read_e e0)
+  -> disj_fvars (read_e e1)
+  -> sem_pexpr true (p_globs p) s e0 = ok v0
+  -> sem_pexpr true (p_globs p) s e1 = ok v1
+  -> sem_sop2 (Oland ws'') v0 v1 = ok (Vword w)
+  -> ok_lower_pexpr_aux s reg_size
+       (Oasm (BaseOp (None, ARM_op BIC default_opts))) [:: y; x ] w.
+Proof.
+  move=> handn hws hfve0 hfve1 hseme0 hseme1 hsemop.
+  have hsem : sem_pexpr true (p_globs p) s (Papp2 (Oland ws'') e0 e1) = ok (Vword w)
+    by rewrite /= hseme0 hseme1 /= hsemop.
+  have [wsx [wx [wsy [wy [hx hy hwsx hwsy /Vword_inj [?]]]]]] := is_andn_semP handn hsem.
+  subst ws' => /= ?; subst w.
+  split; last by split => //; exact: (disj_fvars_is_andn handn hfve0 hfve1).
+  exists [:: Vword wy; Vword wx ]; first by rewrite /sem_pexprs /= hy hx.
+  rewrite /exec_sopn /=.
+  rewrite !(truncate_word_le _ (cmp_le_trans hws _)) //=.
+  by rewrite -(wand_zero_extend _ _ hws) -(wnot_zero_extend _ hws)
+    !(zero_extend_idem _ hws) wandC.
+Qed.
+
 Lemma lower_Papp2P op e0 e1 :
   Plower_pexpr_aux (Papp2 op e0 e1).
 Proof.
@@ -864,6 +891,10 @@ Proof.
         | [ |- context[ Oasr ] ] => rewrite /=; case: is_zeroP => hzero
         | [ |- context[ Oror ] ] => rewrite /=; case: is_zeroP => hzero
         | [ |- context[ Orol ] ] => rewrite /=; case hconst: is_wconst => [ c | // ]; case: eqP => ?; [ subst c | ]
+        | [ |- context[ is_andn ] ] =>
+            case handn: is_andn => [[x y] | ] /=;
+            first by move=> [???] hsemop; subst mn' e0' e1';
+              exact: (lower_Papp2_BICP handn hws hfve0 hfve1 hseme0 hseme1 hsemop)
       end.
 
     all:
@@ -950,12 +981,9 @@ Proof.
     10, 11: have! := (is_wconstP true (p_globs p) s hconst); rewrite hseme1 => /truncate_wordP[] _.
     10: move => <-; rewrite /sem_rol /sem_shift wrol0.
     all: rewrite /= !zero_extend_u //.
-    all: rewrite /arm_LSR_semi /arm_LSL_semi /arm_ASR_semi /arm_ROR_semi /arm_shift_semi.
-    all: rewrite /arch_utils.semi_drop3 /=.
-    1-4: by case: ifP => //=.
     move=> ?; subst c.
     rewrite /sem_rol /sem_shift wrepr_unsigned -wror_opp.
-    case: eqP => /= _; do 3 f_equal; apply: wror_m;
+    do 3 f_equal; apply: wror_m;
       change (wsize_bits _) with (wsize_size U256);
       by rewrite sub_wordE wunsigned_sub_mod.
   }
@@ -1011,8 +1039,8 @@ Proof.
       repeat
         match goal with
         | [ |- context[ if _ then _ else _] ] => case: ifP => _
+        | [ |- context[ is_andn ] ] => case: is_andn => [[? ?] | ] /=
         end.
-
     all: by move=> [<- _ _].
   }
   move: hdflt => [[vs ok_vs hsopn] [hfv _ htout]].
@@ -1262,6 +1290,7 @@ Proof.
   all: rewrite truncate_word_le /=.
   2, 4, 6, 8, 10, 12: exact: cmp_le_trans hws hws0.
   all: rewrite (zero_extend_idem _ hws) {hws} /= in hwrite.
+  all: rewrite ?add_arguments_app ?add_arguments_nil /=.
   1-3: rewrite zero_extend_u.
   all: by rewrite hwrite {hwrite}.
 Qed.

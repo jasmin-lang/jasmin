@@ -951,6 +951,7 @@ op VPTEST_256 (v1 v2: W256.t) =
 (*
 | RDTSC   of wsize
 | RDTSCP  of wsize
+| RDPMC
 *)
 (* We do not provid a model of those instructions *)
 

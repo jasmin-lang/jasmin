@@ -98,6 +98,8 @@ module RiscVTarget: AsmTarget
   (* TODO_RISCV: Review. *)
   let headers = []
 
+  let text_alignment = [ Header (".p2align", ["2"]) ]
+
   let data_segment_header =
     [
       Instr (".p2align", ["5"]) ;

@@ -25,6 +25,20 @@ Require Import
 
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
+(* Most RISCV instructions with default options are executed as follows:
+   1. Unfold instruction execution definitions, e.g. [eval_instr].
+   2. Rewrite argument hypotheses, i.e. [sem_pexpr].
+   3. Unfold casting definitions in result, e.g. [zero_extend] and
+      [pword_of_word].
+   4. Rewrite result hypotheses, i.e. [write_lval]. *)
+Ltac t_riscv_op :=
+  rewrite /linear_sem.eval_instr /= /sem_sopn /= /exec_sopn /get_gvar /=;
+  t_simpl_rewrites;
+  rewrite /of_estate /= /with_vm /=;
+  repeat rewrite truncate_word_u /=;
+  rewrite ?zero_extend_u ?addn1 ?sign_extend_u;
+  t_simpl_rewrites.
+
 Module RISCVFopn_coreP.
 
 Section Section.
@@ -45,14 +59,6 @@ Definition sem_fopn_args (p : seq lexpr * riscv_op * seq rexpr) (s : estate) :=
   write_lexprs xs res s.
 
 Definition sem_fopns_args := foldM sem_fopn_args.
-
-Ltac t_riscv_op :=
-  rewrite /sem_fopn_args /get_gvar /=;
-  t_simpl_rewrites;
-  rewrite /= /with_vm /=;
-  repeat rewrite truncate_word_u /=;
-  rewrite ?zero_extend_u ?addn1 ?sign_extend_u;
-  t_simpl_rewrites.
 
 Lemma add_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr} :
   convertible xi.(vtype) (aword riscv_reg_size) ->

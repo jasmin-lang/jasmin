@@ -114,6 +114,7 @@ Variant compiler_step :=
   | LowerInstruction            : compiler_step
   | PropagateInline             : compiler_step
   | SLHLowering                 : compiler_step
+  | NameHoles                   : compiler_step
   | LowerAddressing             : compiler_step
   | StackAllocation             : compiler_step
   | RemoveReturn                : compiler_step
@@ -151,6 +152,7 @@ Definition compiler_step_list := [::
   ; LowerInstruction
   ; PropagateInline
   ; SLHLowering
+  ; NameHoles
   ; LowerAddressing
   ; StackAllocation
   ; RemoveReturn
@@ -209,6 +211,8 @@ Record compiler_params
     (* Same as dead_vars_ufd, but for _sfun_decl instead of _ufun_decl. *)
   pp_sr            : sub_region -> pp_error;
   apply_ret_annot  : seq bool -> fun_info -> fun_info;
+  fill_in_missing_names_ufd : funname → _ufundef → _ufundef;
+  fill_in_missing_names_sfd : funname → _sfundef → _sfundef;
 }.
 
 Context
@@ -220,6 +224,16 @@ Context
   {call_conv: calling_convention}
   (aparams : architecture_params)
   (cparams : compiler_params).
+
+(* The registers that a linker-inserted veneer may destroy in front of a call
+   internal to the unit.  The driver passes the empty list unless the
+   functions are laid out in sections of their own (the -function-sections
+   option), in which case it passes the architecture's intra-procedure-call
+   scratch registers.  The set the middle end undefines at the entry of such
+   a call is this very list mapped through [to_var] (asm_gen.veneer_i), so
+   there is a single source of truth shared with the assembly semantics.  The
+   whole pipeline, and its correctness theorem, are parametric in it. *)
+Context {vregs : veneer_regs_info}.
 
 Notation saparams := (ap_sap aparams).
 Notation liparams := (ap_lip aparams).
@@ -338,7 +352,11 @@ Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :
   Let p := lower_slh_prog shparams (cparams.(slh_info) p) to_keep p in
   let p := cparams.(print_uprog) SLHLowering p in
 
-  ok p.
+  let pf := map_prog_name cparams.(fill_in_missing_names_ufd) p in
+  let pf := cparams.(print_uprog) NameHoles pf in
+  Let _ := check_uprog (wsw:= withsubword) cparams.(dead_vars_ufd) p.(p_extra) p.(p_funcs) pf.(p_extra) pf.(p_funcs) in
+
+  ok pf.
 
 Definition compiler_third_part (returned_params: funname -> option (seq (option nat))) (ps: sprog) : cexec sprog :=
 
@@ -355,6 +373,7 @@ Definition compiler_third_part (returned_params: funname -> option (seq (option 
   let pr := cparams.(print_sprog) RemoveReturn pr in
 
   let pa := {| p_funcs := cparams.(regalloc) pr.(p_funcs) ; p_globs := pr.(p_globs) ; p_extra := pr.(p_extra) |} in
+  let pa := map_prog_name (pT := progStack) cparams.(fill_in_missing_names_sfd) pa in
   let pa : sprog := cparams.(print_sprog) RegAllocation pa in
   Let _ := check_sprog (wsw:= withsubword) cparams.(dead_vars_sfd) pr.(p_extra) pr.(p_funcs) pa.(p_extra) pa.(p_funcs) in
 

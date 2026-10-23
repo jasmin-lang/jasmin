@@ -1,6 +1,6 @@
 export
 fn csel(reg u64 arg0, reg u64 arg1) -> reg u64 {
-    reg u64 x;
+    reg u64 x y;
     reg bool b;
 
     b = arg0 < arg1;         // Unsigned.
@@ -16,6 +16,30 @@ fn csel(reg u64 arg0, reg u64 arg1) -> reg u64 {
     b = arg0 >= arg1;
     x = arg1 if b;
 
-    x = #CSEL(arg0, arg1, b);
+    x = #CSEL(x, arg1, b);
+    x = #CSINC(x, arg1, b);
+    x = #CSINV(x, arg1, b);
+    x = #CSNEG(x, arg1, b);
+    y = #CSET(b);
+    x = x + y;
+    y = #CSETM(b);
+    x = x ^ y;
+    return x;
+}
+
+export
+fn csel32(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x y;
+    reg bool b;
+
+    b = arg0 <s arg1;
+    x = #CSEL_32(arg0, arg1, b);
+    x = #CSINC_32(x, arg1, b);
+    x = #CSINV_32(x, arg1, b);
+    x = #CSNEG_32(x, arg1, b);
+    y = #CSET_32(b);
+    x = x + y;
+    y = #CSETM_32(b);
+    x = x ^ y;
     return x;
 }

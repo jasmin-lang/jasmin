@@ -78,14 +78,14 @@ Qed.
 Lemma glob_load_dstP (tmp : var_i) xs es' :
   vtype tmp = aword Uptr ->
   let y := glob_load_dst tmp xs es' in
-  vtype y = aword Uptr /\ (y = tmp \/ xs = [:: Lvar y] /\ es' = [::]).
+  vtype y = aword Uptr /\
+  (y = tmp \/ (exists xs', xs = Lvar y :: xs') /\ es' = [::]).
 Proof.
   rewrite /glob_load_dst => tmp_ty.
   case: xs => [ | x xs]; first by split => //; left.
   case: x => [ | x | | | ]; try by split => //; left.
-  case: xs => [ | ??]; last by split => //; left.
   case: es' => [ | ??]; last by split => //; left.
-  by case: eqP => [ | _]; split => //; [right | left].
+  by case: eqP => [ | _]; split => //; [right; split => //; exists xs | left].
 Qed.
 
 Lemma lower_glob_loadP rip tmp s1 s2 t o xs es ii c X :
@@ -108,7 +108,7 @@ Proof using dc glob_addr_opP.
   + by rewrite ok_ve.
   rewrite (@glob_addr_opP _ _ _ _ _ h y_ty) /= /sem_sopn /=.
   rewrite /get_gvar /= get_var_eq y_ty /= cmp_le_refl orbT //= truncate_word_u /= ok_w /=.
-  case: hy => [? | [? ?]]; subst.
+  case: hy => [? | [[xs' ?] ?]]; subst.
   (* [xs = [e], es] becomes [tmp = e; xs = [tmp], es]. *)
   + set vm1 := (evm s1).[tmp <- _].
     have eqX : evm s1 =[X] vm1.
@@ -126,14 +126,17 @@ Proof using dc glob_addr_opP.
       by apply tmp_nin; clear -hsub hz; SvD.fsetdec.
     exists vm2 => // z hz; apply heq2 => /Sv.singleton_spec ?; subst z.
     exact: tmp_nin hz.
-  (* [x = [e]] becomes [x = e; x = [x]]. *)
+  (* [x, xs = [e]] becomes [x = e; x, xs = [x]]: [x] is written first. *)
   move: ok_ves => /= -[?]; subst ves.
   rewrite /= ok_vs /=.
-  move: ok_s2; case: vs ok_vs => [ | v [ | v' vs]] ok_vs //=; last by t_xrbindP.
-  t_xrbindP => s2' /write_varP [-> hdb htr] <-.
-  rewrite (write_var_truncate hdb htr) /=.
-  exists ((evm s1).[y <- Vword pa]).[y <- v]; first by rewrite with_vm_idem.
-  by move=> z _; rewrite /= !Vm.setP; case: eqP.
+  move: ok_s2; case: vs ok_vs => [ | v vs] ok_vs //=.
+  t_xrbindP => s2' /write_varP [-> hdb htr] ok_s2.
+  rewrite (write_var_truncate hdb htr) /= with_vm_idem.
+  have [ | | vm2 -> heq2] := write_lvals_eq_ex (X := Sv.empty)
+    (vm1 := ((evm s1).[y <- Vword pa]).[y <- v]) _ ok_s2.
+  + by apply/disjointP => z; SvD.fsetdec.
+  + by move=> z _; rewrite /= !Vm.setP; case: eqP.
+  by exists vm2 => // z _; apply: heq2; SvD.fsetdec.
 Qed.
 
 Lemma Hopn_aux rip (tmp : var_i) (s1 s2 : estate) t o xs es ii vm1 X :
