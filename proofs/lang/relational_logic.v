@@ -561,8 +561,6 @@ Notation write_lvals1 := (write_lvals (sm:=sm1)).
 Notation write_lvals2 := (write_lvals (sm:=sm2)).
 Notation upd_estate1  := (upd_estate (sm:=sm1)).
 Notation upd_estate2  := (upd_estate (sm:=sm2)).
-Notation sem_eassert1 := (sem_eassert (sm:=sm1)).
-Notation sem_eassert2 := (sem_eassert (sm:=sm2)).
 Notation exec_sopn1   := (exec_sopn (sm:=sm1)).
 Notation exec_sopn2   := (exec_sopn (sm:=sm2)).
 Notation sem_sopn1    := (sem_sopn (sm:=sm1)).
@@ -606,10 +604,10 @@ Definition wequiv (pre:rel_c) (c1 c2 : cmd) (post : rel_c) :=
      (isem_cmd_ (wa:=wa2) (sm:=sm2) (dc:=dc2) (sem_F:=sem_F2) p2 ev2 c2)
     post.
 
-Notation sem_pre1 := (sem_pre (wsw:=wsw1) (wa:=wa1) (sm:=sm1) (dc:=dc1) (pT:=pT1)).
-Notation sem_pre2 := (sem_pre (wsw:=wsw2) (wa:=wa2) (sm:=sm2) (dc:=dc2) (pT:=pT2)).
-Notation sem_post1 := (sem_post (wsw:=wsw1) (wa:=wa1) (sm:=sm1) (dc:=dc1) (pT:=pT1)).
-Notation sem_post2 := (sem_post (wsw:=wsw2) (wa:=wa2) (sm:=sm2) (dc:=dc2) (pT:=pT2)).
+Notation sem_pre1 := (sem_pre (wsw:=wsw1) (wa:=wa1) (dc:=dc1) (pT:=pT1)).
+Notation sem_pre2 := (sem_pre (wsw:=wsw2) (wa:=wa2) (dc:=dc2) (pT:=pT2)).
+Notation sem_post1 := (sem_post (wsw:=wsw1) (wa:=wa1) (dc:=dc1) (pT:=pT1)).
+Notation sem_post2 := (sem_post (wsw:=wsw2) (wa:=wa2) (dc:=dc2) (pT:=pT2)).
 
 Lemma wequiv_weaken P1 P2 Q1 Q2 c1 c2 :
   (forall s1 s2, P1 s1 s2 -> P2 s1 s2) ->
@@ -809,7 +807,7 @@ Proof.
 Qed.
 
 Lemma wequiv_assert_esem (P Q : rel_c) ii1 a1 c2 :
-  wrequiv P (fun (s:estate1) => Let _ := sem_assert (wsw:=wsw1) (wa:=wa1) (sm:=sm1) (p_globs p1) s a1 in ok s)
+  wrequiv P (fun (s:estate1) => Let _ := sem_assert (wsw:=wsw1) (wa:=wa1) (p_globs p1) s a1 in ok s)
             (esem (wa:=wa2) (sm:=sm2) p2 ev2 c2) Q ->
   wequiv P [:: MkI ii1 (Cassert a1)] c2 Q.
 Proof.
@@ -828,8 +826,8 @@ Lemma wequiv_assert (P Q : rel_c) ii1 a1 ii2 a2 :
    assert_allowed (WithAssert:=wa2) /\
    forall s1 s2,
      P s1 s2 ->
-     sem_eassert1 (p_globs p1) s1 a1.2 = ok true ->
-     sem_eassert2 (p_globs p2) s2 a2.2 = ok true /\ Q s1 s2) ->
+     sem_eassert (p_globs p1) s1 a1.2 = ok true ->
+     sem_eassert (p_globs p2) s2 a2.2 = ok true /\ Q s1 s2) ->
   wequiv P [:: MkI ii1 (Cassert a1)] [:: MkI ii2 (Cassert a2)] Q.
 Proof.
   move=> hcond; apply wequiv_assert_esem => s t s' hP /=.
@@ -849,14 +847,14 @@ Qed.
 Lemma wequiv_assert_eq (P Q : rel_c) ii1 a1 ii2 a2 :
   (assert_allowed (WithAssert:=wa1) ->
      assert_allowed (WithAssert:=wa2) /\
-     wrequiv P (fun s => sem_eassert1 (p_globs p1) s a1.2)
-               (fun s => sem_eassert2 (p_globs p2) s a2.2) eq) ->
+     wrequiv P (fun s => sem_eassert (p_globs p1) s a1.2)
+               (fun s => sem_eassert (p_globs p2) s a2.2) eq) ->
   (assert_allowed (WithAssert:=wa1) ->
    assert_allowed (WithAssert:=wa2) ->
    forall s1 s2,
      P s1 s2 ->
-     sem_eassert1 (p_globs p1) s1 a1.2 = ok true ->
-     sem_eassert2 (p_globs p2) s2 a2.2 = ok true ->
+     sem_eassert (p_globs p1) s1 a1.2 = ok true ->
+     sem_eassert (p_globs p2) s2 a2.2 = ok true ->
      Q s1 s2) ->
   wequiv P [:: MkI ii1 (Cassert a1)] [:: MkI ii2 (Cassert a2)] Q.
 Proof.
@@ -1377,7 +1375,7 @@ Qed.
 
 Lemma wequiv_assert_left P Q ii a :
   (assert_allowed (WithAssert:=wa1) ->
-   forall s t, P s t -> sem_eassert1 (p_globs p1) s a.2 = ok true -> Q s t) ->
+   forall s t, P s t -> sem_eassert (p_globs p1) s a.2 = ok true -> Q s t) ->
   wequiv P [::MkI ii (Cassert a)] [::] Q.
 Proof.
   move=> h; rewrite /wequiv /=.
@@ -1394,20 +1392,20 @@ Qed.
 Lemma wequiv_asserts_left P Q ii (a_s : list assertion) :
   assert_allowed (WithAssert:=wa1) ->
   (forall s t, P s t ->
-     (forall a, List.In a a_s -> sem_eassert1 (p_globs p1) s a.2 = ok true) -> Q s t) ->
+     (forall a, List.In a a_s -> sem_eassert (p_globs p1) s a.2 = ok true) -> Q s t) ->
   wequiv P [seq MkI ii (Cassert a) | a <- a_s] [::] Q.
 Proof.
   rewrite -{1}(app_nil_l a_s) => hwa1 hPQ.
   apply wequiv_weaken with
     (fun s t => P s t /\
-       (forall a, List.In a (@nil assertion) -> sem_eassert1 (p_globs p1) s a.2 = ok true))
+       (forall a, List.In a (@nil assertion) -> sem_eassert (p_globs p1) s a.2 = ok true))
     Q => //.
   elim: a_s (@nil assertion) hPQ => [ | a0 a_s hrec] /= a_s0 hPQ.
   + by apply wequiv_nil => s t [hP ha_s0]; apply hPQ => //; rewrite app_nil_r.
   rewrite -(cat0s [::]) -cat1s.
   apply wequiv_cat with
     (fun s t => P s t /\
-       (forall a, List.In a (a0::a_s0) -> sem_eassert1 (p_globs p1) s a.2 = ok true)).
+       (forall a, List.In a (a0::a_s0) -> sem_eassert (p_globs p1) s a.2 = ok true)).
   + by apply wequiv_assert_left => _ s t [hP ha_s0] ha0; split => //= a [<- // | hin]; apply ha_s0.
   apply hrec => s t hP h; apply hPQ => // a /in_app_iff /= [hin|[<-|hin]];
     apply h; rewrite in_app_iff /=; auto.
@@ -1478,7 +1476,7 @@ Class Checker_a_eq :=
  { echeck_aP   :
    forall d a1 a2 d',
      check_a d a1 a2 d' ->
-     wrequiv (R d) ((sem_eassert1 (p_globs p1))^~ a1) ((sem_eassert2 (p_globs p2))^~ a2) eq
+     wrequiv (R d) ((sem_eassert (p_globs p1))^~ a1) ((sem_eassert (p_globs p2))^~ a2) eq
  }.
 
 Section UINCL.
@@ -2073,8 +2071,8 @@ Definition wequiv_fun_body_hyp_rec' (RPreF:relPreF) fn1 fn2 (RPostF:relPostF) :=
   RPreF fn1 fn2 fs1 fs2 ->
   forall fd1, get_fundef (p_funcs p1) fn1 = Some fd1 ->
   exists2 fd2, get_fundef (p_funcs p2) fn2 = Some fd2 &
-    sem_pre (wsw:=wsw1) (wa:=wa1) (sm:=sm1) (dc:=dc1) (pT:=pT1) p1 fn1 fs1 = ok tt ->
-    sem_pre (wsw:=wsw2) (wa:=wa2) (sm:=sm2) (dc:=dc2) (pT:=pT2) p2 fn2 fs2 = ok tt /\
+    sem_pre (wsw:=wsw1) (wa:=wa1) (dc:=dc1) (pT:=pT1) p1 fn1 fs1 = ok tt ->
+    sem_pre (wsw:=wsw2) (wa:=wa2) (dc:=dc2) (pT:=pT2) p2 fn2 fs2 = ok tt /\
     forall s11, initialize_funcall (dc:=dc1) p1 ev1 fd1 fs1 = ok s11 ->
     exists2 s21,
       initialize_funcall (dc:=dc2) p2 ev2 fd2 fs2 = ok s21 &
@@ -2085,8 +2083,8 @@ Definition wequiv_fun_body_hyp_rec' (RPreF:relPreF) fn1 fn2 (RPostF:relPostF) :=
           , ∀ s₀, wequiv (sem_F1 := sem_F1 fn1) (sem_F2 := sem_F2 fn2) (rE0:=relEvent_recCall spec) p1 p2 ev1 ev2 (λ s t, s = s₀ ∧ Q s t ∧ ∃ fs, finalize_funcall (sm:=sm1) (dc:=dc1) fd1 s = ok fs) [::] epilogue (λ s t, s = s₀ ∧ Q s t)
           , wrequiv Q (finalize_funcall (sm:=sm1) (dc:=dc1) fd1) (finalize_funcall (sm:=sm2) (dc:=dc2) fd2) (RPostF fn1 fn2 fs1 fs2)
           & forall fr1 fr2, RPostF fn1 fn2 fs1 fs2 fr1 fr2 ->
-               sem_post (wsw:=wsw1) (wa:=wa1) (sm:=sm1) (dc:=dc1) (pT:=pT1) p1 fn1 fs1.(fvals) fr1 = ok () ->
-               sem_post (wsw:=wsw2) (wa:=wa2) (sm:=sm2) (dc:=dc2) (pT:=pT2) p2 fn2 fs2.(fvals) fr2 = ok ()].
+               sem_post (wsw:=wsw1) (wa:=wa1) (dc:=dc1) (pT:=pT1) p1 fn1 fs1.(fvals) fr1 = ok () ->
+               sem_post (wsw:=wsw2) (wa:=wa2) (dc:=dc2) (pT:=pT2) p2 fn2 fs2.(fvals) fr2 = ok ()].
 
 #[local]
 Lemma xrutt_weaken_aux post (sem1 : itree (recCall +' E) fstate) (sem2 : itree (recCall +' E) fstate) :
@@ -2147,8 +2145,8 @@ Definition wequiv_fun_body_hyp_rec_wa (RPreF:relPreF) fn1 fn2 (RPostF:relPostF) 
   RPreF fn1 fn2 fs1 fs2 ->
   forall fd1, get_fundef (p_funcs p1) fn1 = Some fd1 ->
   exists2 fd2, get_fundef (p_funcs p2) fn2 = Some fd2 &
-    sem_pre (wsw:=wsw1) (wa:=wa1) (sm:=sm1) (dc:=dc1) (pT:=pT1) p1 fn1 fs1 = ok tt ->
-    sem_pre (wsw:=wsw2) (wa:=wa2) (sm:=sm2) (dc:=dc2) (pT:=pT2) p2 fn2 fs2 = ok tt /\
+    sem_pre (wsw:=wsw1) (wa:=wa1) (dc:=dc1) (pT:=pT1) p1 fn1 fs1 = ok tt ->
+    sem_pre (wsw:=wsw2) (wa:=wa2) (dc:=dc2) (pT:=pT2) p2 fn2 fs2 = ok tt /\
     forall s11, initialize_funcall (dc:=dc1) p1 ev1 fd1 fs1 = ok s11 ->
       exists2 s21,
         initialize_funcall (dc:=dc2) p2 ev2 fd2 fs2 = ok s21 &
@@ -2157,8 +2155,8 @@ Definition wequiv_fun_body_hyp_rec_wa (RPreF:relPreF) fn1 fn2 (RPostF:relPostF) 
             , wequiv (sem_F1 := sem_F1 fn1) (sem_F2 := sem_F2 fn2) (rE0:=relEvent_recCall spec) p1 p2 ev1 ev2 P fd1.(f_body) fd2.(f_body) Q
             , wrequiv Q (finalize_funcall (sm:=sm1) (dc:=dc1) fd1) (finalize_funcall (sm:=sm2) (dc:=dc2) fd2) (RPostF fn1 fn2 fs1 fs2)
             & (forall fr1 fr2, RPostF fn1 fn2 fs1 fs2 fr1 fr2 ->
-               sem_post (wsw:=wsw1) (wa:=wa1) (sm:=sm1) (dc:=dc1) (pT:=pT1) p1 fn1 fs1.(fvals) fr1 = ok () ->
-               sem_post (wsw:=wsw2) (wa:=wa2) (sm:=sm2) (dc:=dc2) (pT:=pT2) p2 fn2 fs2.(fvals) fr2 = ok ())].
+               sem_post (wsw:=wsw1) (wa:=wa1) (dc:=dc1) (pT:=pT1) p1 fn1 fs1.(fvals) fr1 = ok () ->
+               sem_post (wsw:=wsw2) (wa:=wa2) (dc:=dc2) (pT:=pT2) p2 fn2 fs2.(fvals) fr2 = ok ())].
 
 Notation isem_fun_def1 := (isem_fun_def (wsw:=wsw1) (wa:=wa1) (sm:=sm1) (dc:=dc1) (ep:=ep) (spp:=spp) (sip:=sip) (pT:=pT1) (scP:= scP1) (sem_F:=sem_F1)).
 
@@ -2203,7 +2201,7 @@ Lemma wequiv_fun_get fn1 fn2 Pf Qf :
   (forall fd1, get_fundef (p_funcs p1) fn1 = Some fd1 ->
     wiequiv_f (fun fn1 fn2 fs1 fs2 =>
       [/\ Pf fn1 fn2 fs1 fs2
-        , sem_pre (dc:=dc1) (wsw:=wsw1) (wa:=wa1) (sm:=sm1) p1 fn1 fs1 = ok tt
+        , sem_pre (dc:=dc1) (wsw:=wsw1) (wa:=wa1) p1 fn1 fs1 = ok tt
         & exists s1, initialize_funcall (dc:=dc1) p1 ev1 fd1 fs1 = ok s1])
       fn1 fn2 Qf) ->
   wiequiv_f Pf fn1 fn2 Qf.
@@ -2215,7 +2213,7 @@ Proof.
     case heq0 : (sem_pre p1 fn1 fs1) => [ [] | ].
     + case heq1 : initialize_funcall => [s1 | e].
       + have hpre' :
-          [/\ Pf fn1 fn2 fs1 fs2, sem_pre (dc:=dc1) (wsw:=wsw1) (wa:=wa1) (sm:=sm1) p1 fn1 fs1 = ok tt
+          [/\ Pf fn1 fn2 fs1 fs2, sem_pre (dc:=dc1) (wsw:=wsw1) (wa:=wa1) p1 fn1 fs1 = ok tt
             & exists s1, initialize_funcall (dc:=dc1) p1 ev1 fd1 fs1 = ok s1].
         + by split => //; exists s1.
         have /= := hfd _ heq _ _ hpre'.
@@ -2449,7 +2447,7 @@ End SYSCALL.
 Arguments Checker_eq {syscall_state} {ep spp} {asm_op} {sip pT1 pT2 wsw1 wsw2 dc1 dc2 sm1 sm2}
   _ _ {D} [R] ce.
 
-Arguments Checker_a_eq {syscall_state} {ep spp} {asm_op} {sip pT1 pT2 wsw1 wsw2 sm1 sm2}
+Arguments Checker_a_eq {syscall_state} {ep spp} {asm_op} {sip pT1 pT2 wsw1 wsw2}
   _ _ {D} [R] ca.
 
 Arguments Checker_uincl {syscall_state} {ep spp} {asm_op} {sip pT1 pT2 wsw1 wsw2 dc1 dc2 sm1 sm2}

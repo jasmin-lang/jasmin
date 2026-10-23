@@ -742,28 +742,28 @@ Proof.
   by case: s' eq_mem => /= > <-.
 Qed.
 
+End WITH_MODE.
+
 Lemma eq_on_sem_eassert s' gd s e :
   emem s = emem s' →
   evm s =[read_eassert e] evm s' →
   sem_eassert gd s e = sem_eassert gd s' e.
 Proof.
   move=> hmem; elim: e.
-  + by move=> e; rewrite read_eassert_Pexpr /= => /(eq_on_sem_pexpr true gd hmem) ->.
+  + by move=> e; rewrite read_eassert_Pexpr /= => /(eq_on_sem_pexpr (sm := total) true gd hmem) ->.
   + move=> o es; rewrite read_eassert_PappN /= => hes.
-    have := eq_on_sem_pexprs true gd hmem hes.
+    have := eq_on_sem_pexprs (sm := total) true gd hmem hes.
     by rewrite /sem_pexprs => ->.
   + move=> x; rewrite read_eassert_Pis_var_init /= => hx.
     by rewrite /is_var_init (hx x) //; clear; SvD.fsetdec.
   + move=> e1 e2; rewrite read_eassert_Pis_mem_init /= => h.
-    rewrite !(eq_on_sem_pexpr true gd hmem) ?hmem //;
+    rewrite !(eq_on_sem_pexpr (sm := total) true gd hmem) ?hmem //;
     by apply: eq_onI h; clear; SvD.fsetdec.
   move=> e1 he1 e2 he2.
   rewrite read_eassert_Pand /= => h.
   rewrite he1 ?he2 //;
   by apply: eq_onI h; clear; SvD.fsetdec.
 Qed.
-
-End WITH_MODE.
 
 Section UseMem.
 
@@ -803,15 +803,16 @@ End UseMem.
 
 (* The [eassert] counterparts of [use_memP]: an assertion that does not observe
    the memory only depends on the variable map. *)
-Lemma use_mem_eassertP {sm : SemMode} gd (s1 s2 : estate) a :
+Lemma use_mem_eassertP gd (s1 s2 : estate) a :
   evm s1 = evm s2 ->
   ~~ use_mem_eassert a -> sem_eassert gd s1 a = sem_eassert gd s2 a.
 Proof.
   move=> heq.
-  have he : forall e, ~~ use_mem e -> sem_pexpr true gd s1 e = sem_pexpr true gd s2 e.
-  + by move=> e h; apply: (use_memP true gd heq h).
+  have he : forall e, ~~ use_mem e ->
+    sem_pexpr (sm := total) true gd s1 e = sem_pexpr (sm := total) true gd s2 e.
+  + by move=> e h; apply: (use_memP (sm := total) true gd heq h).
   have hes : forall es, ~~ has use_mem es ->
-    mapM (sem_pexpr true gd s1) es = mapM (sem_pexpr true gd s2) es.
+    mapM (sem_pexpr (sm := total) true gd s1) es = mapM (sem_pexpr (sm := total) true gd s2) es.
   + by elim => //= e es hrec; rewrite negb_or => /andP [] /he -> /hrec ->.
   elim: a => //=.
   + by move=> e /he ->.
@@ -820,7 +821,7 @@ Proof.
   by move=> a1 h1 a2 h2; rewrite negb_or => /andP [] /h1 -> /h2 ->.
 Qed.
 
-Lemma use_mem_eassertP_eq_on {sm : SemMode} gd s1 s2 a :
+Lemma use_mem_eassertP_eq_on gd s1 s2 a :
   evm s1 =[read_eassert a] evm s2 ->
   ~~ use_mem_eassert a ->
   sem_eassert gd s1 a = sem_eassert gd s2 a.
