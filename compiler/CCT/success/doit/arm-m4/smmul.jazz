@@ -1,0 +1,15 @@
+/* SMMUL, SMMULR and the halfword multiplications take one cycle on the
+   Cortex-M4 (Technical Reference Manual, Table 3-2): their execution time
+   does not depend on their operands. */
+#[ct="secret * secret -> secret"]
+export fn smmul(reg u32 x y) -> reg u32 {
+  reg u32 r;
+  r = #SMMUL(x, y);
+  x = #SMMULR(x, y);
+  r ^= x;
+  x = #SMULBT(x, y);
+  r ^= x;
+  x = #SMULWB(x, y);
+  r ^= x;
+  return r;
+}

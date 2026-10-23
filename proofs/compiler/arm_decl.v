@@ -24,6 +24,34 @@ Require Export arm_expand_imm.
  * This is a description of the base architecture (no extensions).
  *)
 
+(* -------------------------------------------------------------------- *)
+(* The core: what distinguishes the processors that run this instruction
+   set. The instruction descriptions (arm_instr_decl.v) describe the
+   instructions; the core says which ones it has. *)
+
+Class arm_core :=
+  {
+    (* The DSP extension (ARMv7E-M) is implemented. *)
+    core_dsp : bool;
+    (* The long multiplications (UMULL, SMULL, UMLAL, SMLAL) have
+       data-independent timing. *)
+    core_long_mul_dit : bool;
+  }.
+
+(* Cortex-M4: ARMv7E-M; every multiplication takes one cycle. *)
+Definition cortex_m4 : arm_core :=
+  {| core_dsp := true; core_long_mul_dit := true; |}.
+
+(* Cortex-M3: ARMv7-M, without the DSP extension; the long multiplications
+   terminate early, depending on the magnitude of the operands (Cortex-M3
+   Technical Reference Manual, DDI 0337, instruction timings). The table of
+   the single-cycle instructions of the Cortex-M4 ([arm_single_cycle] in
+   arm_instr_decl.v), which decides whether a conditional instruction keeps
+   its data independent timing, holds for the Cortex-M3 but for these long
+   multiplications, which are not DIT on it anyway. *)
+Definition cortex_m3 : arm_core :=
+  {| core_dsp := false; core_long_mul_dit := false; |}.
+
 (* --------------------------------------------- *)
 Definition arm_reg_size  := U32.
 Definition arm_xreg_size := U64.

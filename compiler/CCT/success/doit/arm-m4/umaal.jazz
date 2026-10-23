@@ -1,0 +1,8 @@
+/* UMAAL takes one cycle on the Cortex-M4 (Technical Reference Manual,
+   Table 3-2): its execution time does not depend on its operands. */
+#[ct="secret * secret * secret * secret -> secret"]
+export fn umaal(reg u32 a b c d) -> reg u32 {
+  a, b = #UMAAL(a, b, c, d);
+  a ^= b;
+  return a;
+}
