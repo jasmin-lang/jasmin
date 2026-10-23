@@ -241,6 +241,7 @@ lang/waes.v
 lang/warray_.v
 lang/word.v
 lang/wsize.v
+toEC/explicit_init.v
 toEC/for_to_while.v
 toEC/for_to_while_proof.v
 toEC/normalize_calls.v
