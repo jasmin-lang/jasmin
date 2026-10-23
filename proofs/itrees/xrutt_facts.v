@@ -927,16 +927,21 @@ Proof.
   now apply xrutt_gen_trans.
 Qed.
 
-Lemma xrutt_refl {E} {R: Type}
+Lemma xrutt_refl_gen {E} {R: Type}
   (EE1: forall X, E X -> bool)
   (EE2: forall X, E X -> bool)
   (REv : prerel E E)
-  (RAns: postrel E E) :
-  (forall T (ev:E T), IsNoCut_ EE1 T ev -> IsNoCut_ EE2 T ev -> REv T T ev ev) ->
-  (forall T (ev:E T) (t1 t2:T) , IsNoCut_ EE1 T ev -> IsNoCut_ EE2 T ev -> RAns T T ev t1 ev t2 -> t1 = t2 ) ->
-  forall (t: itree E R), xrutt (@EE1) (@EE2) REv RAns eq t t.
+  (RAns: postrel E E)
+  (RR : R -> R -> Prop) :
+  (forall T (ev:E T),
+      IsNoCut_ EE1 T ev -> IsNoCut_ EE2 T ev -> REv T T ev ev) ->
+  (forall T (ev:E T) (t1 t2:T) ,
+      IsNoCut_ EE1 T ev -> IsNoCut_ EE2 T ev ->
+      RAns T T ev t1 ev t2 -> t1 = t2 ) ->
+  Reflexive RR ->
+  forall (t: itree E R), xrutt (@EE1) (@EE2) REv RAns RR t t.
 Proof.
-  intros hpre hans.
+  intros hpre hans hr.
   ginit. gcofix CIH. intros t.
   rewrite itree_eta.
   destruct (observe t); gstep.
@@ -952,6 +957,21 @@ Proof.
   rewrite (hans _ _ _ _ heq1 heq2 hpost).
   constructor; constructor; right; apply CIH.
 Qed.
+
+Lemma xrutt_refl {E} {R: Type}
+  (EE1: forall X, E X -> bool)
+  (EE2: forall X, E X -> bool)
+  (REv : prerel E E)
+  (RAns: postrel E E) :
+  (forall T (ev:E T),
+      IsNoCut_ EE1 T ev -> IsNoCut_ EE2 T ev -> REv T T ev ev) ->
+  (forall T (ev:E T) (t1 t2:T) ,
+      IsNoCut_ EE1 T ev -> IsNoCut_ EE2 T ev ->
+      RAns T T ev t1 ev t2 -> t1 = t2 ) ->
+  forall (t: itree E R), xrutt (@EE1) (@EE2) REv RAns eq t t.
+Proof.
+  intros; eapply xrutt_refl_gen; eauto.
+Qed.  
 
 Lemma xrutt_translate {E1 E2 F1 F2 : Type -> Type} {R1 R2 : Type}
   (h1 : forall T, E1 T -> F1 T) (h2 : forall T, E2 T -> F2 T)

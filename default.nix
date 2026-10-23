@@ -34,6 +34,9 @@ let coqPackages =
       mathcomp = super.mathcomp.override { version = "master"; };
       mathcomp-word = super.mathcomp-word.override { version = "master"; };
       mathcomp-zify = super.mathcomp-zify.override { version = "master"; };
+      mathcomp-analysis = super.mathcomp-analysis.override { version = "1.14.0"; };
+      mathcomp-finmap = super.mathcomp-finmap.override { version = "master"; };
+      mathcomp-bigenough = super.mathcomp-bigenough.override { version = "master"; };
       coq-elpi = super.coq-elpi.override { version = "master"; inherit elpi-version; };
       hierarchy-builder = super.hierarchy-builder.override { version = "master"; };
       ExtLib = super.ExtLib.override { version = "master"; };
@@ -48,6 +51,7 @@ let coqPackages =
       hierarchy-builder = super.hierarchy-builder.override { version = "1.9.1"; };
       mathcomp = super.mathcomp.override { version = "2.4.0"; };
       mathcomp-word = callPackage scripts/mathcomp-word.nix { inherit super; };
+      mathcomp-analysis = super.mathcomp-analysis.override { version = "1.14.0"; };
     })
 ; in
 
@@ -84,6 +88,7 @@ stdenv.mkDerivation {
     ++ optionals coqDeps [
       coqPackages.coq
       coqPackages.mathcomp-word
+      coqPackages.mathcomp-analysis.experimental-reals
       coqPackages.ITree
     ]
     ++ optionals runDeps [ curl.bin gmp ]

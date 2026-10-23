@@ -22,7 +22,7 @@ Context
   {dc: DirectCall}
   {E0 E : Type -> Type}
   {wE : with_Error E E0}
-  {rE : with_RndEvent E0}
+  {rE : with_RndEvent E0} 
   {ep : EstateParams}
   {spp : SemPexprParams}
   {wa: WithAssert}
@@ -879,9 +879,49 @@ Lemma fexec_syscallS o fs :
     (fexec_syscall o fs).
 Proof.
 apply: lutt_bind; first exact: exec_syscallS.
-by move=> [m vs] h; apply/lutt_Ret'/h.
+by move=> [m vs] h; apply/lutt_Ret/h.
 Qed.
 
 End WSW.
 
-Arguments sem_assgn {asm_op wsw syscall_state ep spp sip pT} p !x tg ty e s /.
+Arguments sem_assgn {asm_op wsw ep spp sip pT} p !x tg ty e s /.
+Section ISEM_FINALIZE.
+  
+Context
+  {asm_op syscall_state : Type}
+  {ep : EstateParams}
+  {spp : SemPexprParams}
+  {wa : WithAssert}
+  {sip : SemInstrParams asm_op}
+  {pT : progT}
+  {wsw : WithSubWord}
+  {scP : semCallParams}
+  {dc : DirectCall}
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : RndEvent -< E0}
+.
+
+Definition is_finalize (fd : fundef) (fs : fstate) : Prop :=
+  exists st, finalize_funcall fd st = ok fs.
+
+Lemma isem_fun_finalize (p : prog) ev fn fd fs :
+  get_fundef (p_funcs p) fn = Some fd -> 
+  @lutt E
+    (fun _ _ => True) (fun _ _ _ => True) fstate
+    (is_finalize fd)
+    (isem_fun p ev fn fs).
+Proof.
+move=> h.
+rewrite isem_call_unfold /isem_fun_body /kget_fundef h /= bind_ret_l.
+apply: lutt_bind => [|_ _]; first exact: lutt_true.
+apply: lutt_bind => [|s _]; first exact: lutt_true.
+apply: lutt_bind => [|s' _]; first exact: lutt_true.
+apply: (lutt_bind (R := is_finalize fd)) => [|fr fin].
+- case h': finalize_funcall => [fs'|]; last exact/lutt_Vis.
+  apply/(lutt_Ret _ _ (is_finalize _)); by exists s'.
+apply: lutt_bind => [|_ _]; first exact: lutt_true.
+exact/(lutt_Ret _ _ (is_finalize _))/fin.
+Qed.
+
+End ISEM_FINALIZE.

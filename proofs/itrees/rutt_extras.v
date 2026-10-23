@@ -6,7 +6,9 @@ found in ITree.RuttFacts.v. Some of the proofs are partly built as a
 refactoring of proofs in ITree.Eqit.v. *)
 
 From Coq Require Import
+  JMeq
   Program
+  Program.Equality
   Setoid
   Morphisms
   RelationClasses.
@@ -14,88 +16,35 @@ From Coq Require Import
 From Paco Require Import paco.
 
 From ITree Require Import
+  Basics
   ITree
   ITreeFacts
   Basics.HeterogeneousRelations
+  Interp
   Interp.Recursion
+  Interp.Interp
+  Interp.InterpFacts
+  Interp.TranslateFacts
+  Rutt
+  RuttFacts
+  State
+  Events.StateFacts
+  Subevent
   Eq.Paco2
+  Eq.Eqit
+  Eq.Shallow
   Eq.Rutt
   Eq.RuttFacts.
 
-From mathcomp Require Import ssreflect ssrfun ssrbool.
+From mathcomp Require Import
+  ssreflect ssrbool ssrfun ssralg ssrnum ssrnat order
+  choice constructive_ereal distr eqtype fintype reals seq.
+
+Import GRing.Theory.
 
 Require Import xrutt xrutt_facts while.
+Require Import utils.
 
-Lemma rutt_iter_n (E1 E2 : Type -> Type) {I1 I2 R1 R2}
-      (RI : I1 -> I2 -> Prop)
-      (RR : R1 -> R2 -> Prop)
-      (body1 : I1 -> itree E1 (I1 + R1))
-      (body2 : I2 -> itree E2 (I2 + R2))
-      (RPreE : forall A B : Type, E1 A -> E2 B -> Prop)
-      (RPostE : forall A B : Type, E1 A -> A -> E2 B -> B -> Prop) :
-  (forall j1 j2, RI j1 j2 ->
-     exists n,
-       rutt RPreE RPostE (sum_rel RI RR) (body1 j1) (iter_n body2 n j2)) ->
-  forall (i1 : I1) (i2 : I2) (RI_i : RI i1 i2),
-    @rutt E1 E2 R1 R2 RPreE RPostE RR
-      (ITree.iter body1 i1) (ITree.iter body2 i2).
-Proof.
-  ginit. gcofix CIH.
-  intros.
-  rewrite unfold_iter.
-  have [n hn] := H0 _ _ RI_i.
-  rewrite (unfold_iter_n body2 n).
-  eapply gpaco2_uclo; [|eapply rutt_clo_bind|]; eauto with paco.
-  econstructor; eauto. intros; subst. gfinal. right.
-  destruct u1; try discriminate.
-  destruct u2; try discriminate.
-  pstep; red.
-  econstructor.
-  right.
-  eapply CIH; eauto.
-  inversion H; subst; auto.
-  pstep; red.
-  inversion H; subst.
-  destruct u2; try discriminate.
-  inversion H; subst.
-  pstep; red.
-  econstructor.
-  inversion H; subst; auto.
-Qed.
-
-Lemma rutt_iter (E1 E2 : Type -> Type) {I1 I2 R1 R2}
-      (RI : I1 -> I2 -> Prop)
-      (RR : R1 -> R2 -> Prop)
-      (body1 : I1 -> itree E1 (I1 + R1))
-      (body2 : I2 -> itree E2 (I2 + R2))
-      (RPreE : forall A B : Type, E1 A -> E2 B -> Prop)
-      (RPostE : forall A B : Type, E1 A -> A -> E2 B -> B -> Prop) :
-  (forall j1 j2, RI j1 j2 ->
-                 rutt RPreE RPostE (sum_rel RI RR) (body1 j1) (body2 j2)) ->
-  forall (i1 : I1) (i2 : I2) (RI_i : RI i1 i2),
-    @rutt E1 E2 R1 R2 RPreE RPostE RR
-      (ITree.iter body1 i1) (ITree.iter body2 i2).
-Proof.
-  ginit. gcofix CIH.
-  intros.
-  rewrite !unfold_iter.
-  eapply gpaco2_uclo; [|eapply rutt_clo_bind|]; eauto with paco.
-  econstructor; eauto. intros; subst. gfinal. right.
-  destruct u1; try discriminate.
-  destruct u2; try discriminate.
-  pstep; red.
-  econstructor.
-  right.
-  eapply CIH; eauto.
-  inversion H; subst; auto.
-  pstep; red.
-  inversion H; subst.
-  destruct u2; try discriminate.
-  inversion H; subst.
-  pstep; red.
-  econstructor.
-  inversion H; subst; auto.
-Qed.
 
 Lemma rutt_weaken {E1 E2: Type -> Type} {O1 O2 : Type}
   (REv REv' : prerel E1 E2)
@@ -209,6 +158,88 @@ Proof.
   - econstructor; eauto.
 Qed.
 
+Definition simple_rutt E T1 T2 RR
+  (t1 : itree E T1) (t2 : itree E T2) : Prop := 
+  rutt (fun U1 U2 (e1: E U1) (e2: E U2) =>
+             exists h : U2 = U1, e1 = eq_rect U2 E e2 U1 h)
+       (fun U1 U2 (e1: E U1) (u1: U1) (e2: E U2) (u2: U2) => JMeq u1 u2)
+       RR t1 t2.
+
+Lemma rutt2eutt E T1 T2 RR 
+  (t1: itree E T1) (t2: itree E T2) :
+ @simple_rutt E T1 T2 RR t1 t2 -> eutt RR t1 t2.
+Proof.
+  revert t1 t2.
+  ginit; gcofix CIH.
+  unfold simple_rutt.
+  intros t1 t2 H.
+  rewrite (itree_eta t1).
+  rewrite (itree_eta t2).
+  punfold H; red in H; simpl in H.   
+  remember (observe t1) as ot1.
+  remember (observe t2) as ot2.
+  hinduction H before CIH.
+  
+  { intros t1 t2 H0 H1.
+    gstep; red; simpl.
+    econstructor; auto.
+  }
+  { intros t1 t2 H0 H1.
+    gstep; red; simpl; pclearbot.
+    econstructor; eauto.
+    gfinal; left.
+    eapply CIH; auto.
+  }
+  { intros t1 t2 H1 H2.
+    gstep; red; simpl.
+    destruct H as [ee HA].
+    dependent destruction ee.
+    simpl in HA. inv HA.  
+    econstructor.
+    intros v; unfold Datatypes.id; simpl.
+    gfinal; left; pclearbot.
+    eapply CIH; auto; simpl.
+    eapply H0; auto.
+  }
+  { intros t1' t2 H0 H1.
+    guclo eqit_clo_trans.
+    econstructor 1 with (RR1 := eq) (RR2:= eq); auto.
+    instantiate (1:= t1).
+    eapply eqit_Tau_l; reflexivity.
+    reflexivity.
+    setoid_rewrite (itree_eta t1).
+    pclearbot; eapply IHruttF; auto.
+    exact H1.
+    intros; inv H2; auto.
+    intros; inv H2; auto.
+  }
+  { intros t1 t2' H0 H1.
+    guclo eqit_clo_trans.
+    econstructor 1 with (RR1 := eq) (RR2:= eq); auto.
+    3: { eapply IHruttF; try reflexivity; eauto. }
+    { inv H0; simpl.
+      setoid_rewrite (itree_eta t1) at 2; reflexivity.
+    }  
+    { eapply eqit_Tau_l.
+      setoid_rewrite (itree_eta t2) at 1; reflexivity.
+    }  
+    { intros; inv H2; auto. }
+    { intros; inv H2; auto. }
+  }
+Qed.  
+
+Lemma simple_rutt_eutt E T1 T2 RR
+  (t1: itree E T1) (t2: itree E T2) :
+ @simple_rutt E T1 T2 RR t1 t2 <-> eutt RR t1 t2.
+Proof.
+  split; intros.
+  - eapply rutt2eutt; eauto.
+  - eapply gen_eutt_rutt; eauto.
+    + intros; exists erefl; simpl; auto.
+    + intros T e a b H0. dependent destruction H0; auto.
+Qed.
+
+
 Definition RPre_eq {E : Type -> Type} T1 T2 (e1 : E T1) (e2 : E T2) :=
   exists (h : T1 = T2), e2 = eq_rect T1 E e1 T2 h.
 
@@ -245,6 +276,10 @@ Proof.
   - econstructor; eauto.
 Qed.
 
+Local Notation nocutoff := (fun (E : Type -> Type) (T : Type) =>
+                      fun (e: E T) => false).
+
+
 Lemma rutt_xrutt {E1 E2 : Type -> Type} {R1 R2 : Type}
   (EE1 : forall X, E1 X -> bool) (EE2 : forall X, E2 X -> bool)
   (REv : prerel E1 E2)
@@ -267,8 +302,64 @@ elim: h => {t1 t2}.
 by move=> ?? _; apply: EqTauR.
 Qed.
 
+    
+Section Iterative.
+
+
+Lemma rutt_iter (E1 E2 : Type -> Type) {I1 I2 R1 R2}
+      (RI : I1 -> I2 -> Prop)
+      (RR : R1 -> R2 -> Prop)
+      (body1 : I1 -> itree E1 (I1 + R1))
+      (body2 : I2 -> itree E2 (I2 + R2))
+      (RPreE : forall A B : Type, E1 A -> E2 B -> Prop)
+      (RPostE : forall A B : Type, E1 A -> A -> E2 B -> B -> Prop) :
+  (forall j1 j2, RI j1 j2 ->
+                 rutt RPreE RPostE (sum_rel RI RR) (body1 j1) (body2 j2)) ->
+  forall (i1 : I1) (i2 : I2) (RI_i : RI i1 i2),
+    @rutt E1 E2 R1 R2 RPreE RPostE RR
+      (ITree.iter body1 i1) (ITree.iter body2 i2).
+Proof.
+  ginit. gcofix CIH.
+  intros.
+  rewrite !unfold_iter.
+  eapply gpaco2_uclo; [|eapply rutt_clo_bind|]; eauto with paco.
+  econstructor; eauto. intros; subst. gfinal. right.
+  destruct u1; try discriminate.
+  destruct u2; try discriminate.
+  pstep; red.
+  econstructor.
+  right.
+  eapply CIH; eauto.
+  inversion H; subst; auto.
+  pstep; red.
+  inversion H; subst.
+  destruct u2; try discriminate.
+  inversion H; subst.
+  pstep; red.
+  econstructor.
+  inversion H; subst; auto.
+Qed.
+
+End Iterative.  
+
+
+Section STATE.
+
+Context
+  {E : Type -> Type}
+  {S1 S2 : Type}
+  (state_inv : S1 -> S2 -> Prop)
+.
+
+Notation E1 := (stateE S1 +' E) (only parsing).
+Notation E2 := (stateE S2 +' E) (only parsing).
+
+
+End STATE.
+
+
 Lemma rutt_translate {E1 E2 F1 F2 : Type -> Type} {R1 R2 : Type}
-  (h1 : forall T, E1 T -> F1 T) (h2 : forall T, E2 T -> F2 T)
+  (h1 : E1 ~> F1) (h2 : E2 ~> F2)
   (REv : prerel E1 E2) (RAns : postrel E1 E2)
   (FEv : prerel F1 F2) (FAns : postrel F1 F2)
   (RR : R1 -> R2 -> Prop)
@@ -297,3 +388,24 @@ Proof.
   - apply Rutt.EqTauR; exact IHHrutt.
 Qed.
 
+
+(*** lemmas about translate and rutt *)
+Section TranslRuttSec.
+
+Context {E1 E2 E3 E4: Type -> Type}
+        {R1 R2: Type}
+        (TR12 : prerel E1 E2)
+        (TR34 : prerel E3 E4)
+        (ER12 : postrel E1 E2)
+        (ER34 : postrel E3 E4)
+        (RR : R1 -> R2 -> Prop).
+
+Context (F13: E1 ~> E3) (F24: E2 ~> E4).
+
+Context (PreH: forall T1 T2 (e1: E1 T1) (e2: E2 T2),
+            TR12 e1 e2 -> TR34 (F13 e1) (F24 e2))
+        (PostH: forall T1 T2 (e1: E1 T1) (e2: E2 T2) a b,
+            ER34 (F13 e1) a (F24 e2) b -> ER12 e1 a e2 b).
+
+
+End TranslRuttSec.

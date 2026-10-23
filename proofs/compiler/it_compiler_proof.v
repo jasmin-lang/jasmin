@@ -415,90 +415,6 @@ Qed.
 
 End PROOF.
 
-(* TODO: move to hoare_logic.v and relational_logic.v *)
-Section MOVE.
-
-Context
-  {E E0 : Type -> Type}
-  {wE : with_Error E E0}
-  {rE0 : EventRels E0}
-.
-
-Lemma postInv_trivial T (e : E T) (t : T) :
-  postInv (iE0 := trivial_invEvent E0) e t.
-Proof.
-rewrite /postInv; case: (mfun1 e) t => // -[] ? [].
-Qed.
-
-(* lutt_xrutt_trans_r ignoring event rels *)
-(* TODO use weakened form instead of /\ *)
-Lemma xrutt_lutt_l {O1 O2} (PEv : prepred E) (PAns : postpred E)
-  (P1 : O1 -> Prop) (RR : O1 -> O2 -> Prop)
-  (t1 : itree E O1) (t2 : itree E O2) :
-  (forall T (e : E T) t, PAns T e t) ->
-  lutt PEv PAns P1 t1 ->
-  lxrutt EPreRel EPostRel RR t1 t2 ->
-  lxrutt EPreRel EPostRel (fun o1 o2 => P1 o1 /\ RR o1 o2) t1 t2.
-Proof.
-move=> hPAns hlutt hxrutt.
-have := lutt_xrutt_trans_l hlutt hxrutt.
-apply: (xrutt_weaken_v2 (EE1 := errcutoff (is_error wE)) (EE2 := nocutoff)
-  _ _ _ _ _) => //.
-by move=> ???? [].
-Qed.
-
-(* TODO use weakened form instead of /\ *)
-Lemma xrutt_lutt_r {O1 O2} (PEv : prepred E) (PAns : postpred E)
-  (P2 : O2 -> Prop) (RR : O1 -> O2 -> Prop)
-  (t1 : itree E O1) (t2 : itree E O2) :
-  (forall T (e : E T) t, PAns T e t) ->
-  lutt PEv PAns P2 t2 ->
-  lxrutt EPreRel EPostRel RR t1 t2 ->
-  lxrutt EPreRel EPostRel (fun o1 o2 => P2 o2 /\ RR o1 o2) t1 t2.
-Proof.
-move=> hPAns hlutt hxrutt.
-have := lutt_xrutt_trans_r hlutt hxrutt.
-apply: (xrutt_weaken_v2 (EE1 := errcutoff (is_error wE)) (EE2 := nocutoff)
-  _ _ _ _ _) => //.
-by move=> ???? [].
-Qed.
-
-End MOVE.
-
-Section MOVE.
-
-Context
-  {E E0 : Type -> Type}
-  {wE : with_Error E E0}
-  {rE12 rE23 rE13 : EventRels E0}
-  {rE_trans : EventRels_trans rE12 rE23 rE13}
-.
-
-Lemma xrutt_EPreRel_trans {O1 O2 O3}
-  (RR12 : O1 -> O2 -> Prop) (RR23 : O2 -> O3 -> Prop) (RR13 : O1 -> O3 -> Prop)
-  (t1 : itree E O1) (t2 : itree E O2) (t3 : itree E O3) :
-  (forall o1 o2 o3, RR12 o1 o2 -> RR23 o2 o3 -> RR13 o1 o3) ->
-  lxrutt (EPreRel (rE0 := rE12)) (EPostRel (rE0 := rE12)) RR12 t1 t2 ->
-  lxrutt (EPreRel (rE0 := rE23)) (EPostRel (rE0 := rE23)) RR23 t2 t3 ->
-  lxrutt (EPreRel (rE0 := rE13)) (EPostRel (rE0 := rE13)) RR13 t1 t3.
-Proof using rE_trans.
-move=> hRR h12 h23.
-have h13 :
-  wkequiv_io (rE0 := rE13)
-    (fun _ _ : unit => True) (fun _ => t1) (fun _ => t3) (fun _ _ => RR13).
-- apply: (wkequiv_io_trans
-    (P12 := fun _ _ => True) (P23 := fun _ _ => True)
-    (Q12 := fun _ _ => RR12) (Q23 := fun _ _ => RR23)
-    (F2 := fun _ => t2)).
-  + by move=> ???; exists tt.
-  + by move=> ????? _ _ [o2]; apply: hRR.
-  + by move=> ???.
-  by move=> ???.
-exact: (h13 tt tt I).
-Qed.
-
-End MOVE.
-
 Section IT.
 
 Context
@@ -1769,7 +1685,8 @@ Definition full_post fn xfd (s : fstate) (t : asmmem) (s' : fstate) (t' : asmmem
     , List.Forall2 (value_in_mem mt') (take n ress) (take n argt)
     & values_uincl (drop n ress) rest ].
 
-Lemma it_compile_prog_to_asmP {fn} :
+(* Correctness of the full compiler *)
+Theorem it_compile_prog_to_asmP {fn} :
   compile_prog_to_asm aparams cparams entries up = ok xp ->
   fn \in entries ->
   exists xfd,
