@@ -187,7 +187,7 @@ Lemma of_val_noerrty t v :
   of_val t v <> Error ErrType.
 Proof.
   case: v => [b|z|len a|ws w|[||n|ws] ht'] /=; case: t => //=.
-  - by move=> z /eqP [->]; rewrite WArray.castK.
+  - by move=> z /eqP [->]; rewrite to_arrK.
   - by move=> s HCMP; rewrite (truncate_word_le _ HCMP).
 Qed.
 
@@ -743,17 +743,32 @@ Lemma ty_prog_safe:
   forall fn, fun_safe fn.
 Proof.
   rewrite /check_prog.
-  t_xrbindP=>Hgd /check_funsP Hfns _ fn Hfn_in_p.
-  apply (ihoare_fun (Qerr := noerrty)) => hrec.
+  t_xrbindP=>Hgd /check_funsP Hfns _.
+  apply: (ihoare_fun (Qerr := noerrty)).
   rewrite /hoare_fun_body_hyp_rec.
-  move=> fn0 fs [[fd0 [/get_funP Hfn0p Hargs]] Hpre]; split; move=> //.
+  move=> fn0 fs [[fd0 [Hfn0p Hargs]] Hpre]; split; move=> //.
+  move: (Hfns _ _ Hfn0p).
+  move => [Hf_params Hf_res Hf_body Hf_contract].
+  clear Hfns.
+  apply get_funP in Hfn0p.
   rewrite Hfn0p.
   split=> // [fs' HpostF|].
+rewrite /sem_post.
+  case: ifP => // (*TODO change this to _ if aa is not needed for sem_post*) /negbFE Haa.
+  rewrite Hfn0p.
+  case Hcon: (f_contract _) => //.
+  move: Hf_contract; rewrite Hcon => //= Hf_contract.
+  Search List.Forall2 mapM2.
+  Search rbind ok.
+
+
+
   admit.
   exists PredT , PredT.
   split => //.
   admit.
-  apply: (check_cmdP Hgd).
+  apply: (check_cmdP Hgd) => //.
+  admit.
 Admitted.
 
 

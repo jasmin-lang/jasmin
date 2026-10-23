@@ -72,7 +72,7 @@ by move=> r [t ->].
 Qed.
 
 Lemma sem_opN_safety_typed_ok (op : opN_safety) :
-  sem_forall (@is_ok _ _) _ (sem_opN_safety_typed op).
+  sem_forall (@is_ok _ _) _ (sem_prod_ok _ (sem_opN_safety_total op)).
 Proof.
   by case: op => /=.
 Qed.
