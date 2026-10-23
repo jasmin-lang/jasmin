@@ -891,15 +891,14 @@ Proof.
   by rewrite /postInv /=; case: mfun1.
 Qed.
 
+Lemma hoare_fun_rec ii fn : hoare_f_rec preF ii fn postF.
+Proof. by move=> fs hpre /=; apply lutt_trigger. Qed.
+
 Lemma ihoare_fun Qerr :
-  ((forall ii fn, hoare_f_rec preF ii fn postF) ->
-   forall fn, hoare_fun_body_hyp_rec preF fn postF Qerr) ->
+  (forall fn, hoare_fun_body_hyp_rec preF fn postF Qerr) ->
   forall fn, ihoare_f p ev preF fn postF.
 Proof.
-  have hrec : (forall ii fn, hoare_f_rec preF ii fn postF).
-  + by move=> ii fn' fs' hpre' /=; apply lutt_trigger.
-  move=> /(_ hrec) hbody {hrec}.
-  move=> fn fs hpre.
+  move=> hbody fn fs hpre.
   apply interp_mrec_lutt with (DPEv := preD spec) (DPAns := postD spec).
   + move=> {hpre fn fs}.
     move=> ? [ii_ fn fs] /= hpre.
@@ -1040,13 +1039,15 @@ Definition whoare_fun_body_hyp_rec Pf fn Qf :=
         , whoare_rec P fd.(f_body) Q
         & rhoare Q (finalize_funcall fd) (Qf fn fs) PredT]].
 
+Lemma whoare_fun_rec ii fn : whoare_f_rec preF ii fn postF.
+Proof. by move=> fs hpre /=; apply lutt_trigger. Qed.
+
 Lemma iwhoare_fun :
-  ((forall ii fn, whoare_f_rec preF ii fn postF) ->
-   forall fn, whoare_fun_body_hyp_rec preF fn postF) ->
+  (forall fn, whoare_fun_body_hyp_rec preF fn postF) ->
   forall fn, iwhoare_f p ev preF fn postF.
 Proof.
   move=> h; apply ihoare_fun with PredT.
-  move=> /h{}h fn fs /h{}h; split => //.
+  move=> fn fs /h{}h; split => //.
   case heq : get_fundef => [fd | ] //.
   have [Pre Post [P [Q [???]]]] := h _ heq; split => //.
   by exists P, Q.
