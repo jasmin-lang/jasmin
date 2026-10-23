@@ -245,19 +245,7 @@ op TST_32 (x y: W32.t) : bool * bool * bool * bool =
   let (n, z, c, v, _) = ANDS_32 x y in (n, z, c, v).
 
 (* -------------------------------------------------------------------- *)
-(* Conditional selection. *)
-
-op CSEL_64  (x y: W64.t) (b: bool) : W64.t = if b then x else y.
-op CSEL_32  (x y: W32.t) (b: bool) : W32.t = if b then x else y.
-
-op CSINC_64 (x y: W64.t) (b: bool) : W64.t = if b then x else y + W64.one.
-op CSINC_32 (x y: W32.t) (b: bool) : W32.t = if b then x else y + W32.one.
-
-op CSINV_64 (x y: W64.t) (b: bool) : W64.t = if b then x else invw y.
-op CSINV_32 (x y: W32.t) (b: bool) : W32.t = if b then x else invw y.
-
-op CSNEG_64 (x y: W64.t) (b: bool) : W64.t = if b then x else invw y + W64.one.
-op CSNEG_32 (x y: W32.t) (b: bool) : W32.t = if b then x else invw y + W32.one.
+(* Conditional selection: CSEL, CSINC, CSINV and CSNEG come from JModel_arm. *)
 
 op CSET_64  (b: bool) : W64.t = if b then W64.one else W64.zero.
 op CSET_32  (b: bool) : W32.t = if b then W32.one else W32.zero.

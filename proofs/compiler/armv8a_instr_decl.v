@@ -2452,10 +2452,7 @@ Definition mk_csel_instr mn (semi : word osz -> word osz -> bool -> ty_w osz)
          result = X[m, datasize];
      X[d, datasize] = result;
 *)
-Definition armv8a_CSEL_semi {ws : wsize} (wn wm : word ws) (b : bool) : ty_w ws :=
-  if b then wn else wm.
-
-Definition armv8a_CSEL_instr := mk_csel_instr CSEL (armv8a_CSEL_semi (ws := osz)).
+Definition armv8a_CSEL_instr := mk_csel_instr CSEL (arm_CSEL_semi (ws := osz)).
 
 (* [C6.2.141 CSINC] ARM DDI 0487 M.a, p. 2144
    Conditional select increment  This instruction returns, in the destination
@@ -2471,10 +2468,7 @@ Definition armv8a_CSEL_instr := mk_csel_instr CSEL (armv8a_CSEL_semi (ws := osz)
          result = X[m, datasize] + 1;
      X[d, datasize] = result;
 *)
-Definition armv8a_CSINC_semi {ws : wsize} (wn wm : word ws) (b : bool) : ty_w ws :=
-  if b then wn else (wm + 1)%w.
-
-Definition armv8a_CSINC_instr := mk_csel_instr CSINC (armv8a_CSINC_semi (ws := osz)).
+Definition armv8a_CSINC_instr := mk_csel_instr CSINC (arm_CSINC_semi (ws := osz)).
 
 (* [C6.2.142 CSINV] ARM DDI 0487 M.a, p. 2146
    Conditional select invert  This instruction returns, in the destination
@@ -2490,10 +2484,7 @@ Definition armv8a_CSINC_instr := mk_csel_instr CSINC (armv8a_CSINC_semi (ws := o
          result = NOT(X[m, datasize]);
      X[d, datasize] = result;
 *)
-Definition armv8a_CSINV_semi {ws : wsize} (wn wm : word ws) (b : bool) : ty_w ws :=
-  if b then wn else wnot wm.
-
-Definition armv8a_CSINV_instr := mk_csel_instr CSINV (armv8a_CSINV_semi (ws := osz)).
+Definition armv8a_CSINV_instr := mk_csel_instr CSINV (arm_CSINV_semi (ws := osz)).
 
 (* [C6.2.143 CSNEG] ARM DDI 0487 M.a, p. 2148
    Conditional select negation  This instruction returns, in the destination
@@ -2509,10 +2500,7 @@ Definition armv8a_CSINV_instr := mk_csel_instr CSINV (armv8a_CSINV_semi (ws := o
          result = NOT(X[m, datasize]) + 1;
      X[d, datasize] = result;
 *)
-Definition armv8a_CSNEG_semi {ws : wsize} (wn wm : word ws) (b : bool) : ty_w ws :=
-  if b then wn else (wnot wm + 1)%w.
-
-Definition armv8a_CSNEG_instr := mk_csel_instr CSNEG (armv8a_CSNEG_semi (ws := osz)).
+Definition armv8a_CSNEG_instr := mk_csel_instr CSNEG (arm_CSNEG_semi (ws := osz)).
 
 (* The conditional set aliases take only a destination and a condition.
    The condition operand is the one written in the alias: the assembler

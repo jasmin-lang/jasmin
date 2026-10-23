@@ -323,3 +323,13 @@ op SXTBcc x n g o = if g then SXTB x n else o.
 op SXTH (x: W32.t) (n: W8.t) : W32.t =
   W32.of_int (W16.to_sint (W16.of_int (W32.to_uint (ror x (to_uint n))))).
 op SXTHcc x n g o = if g then SXTH x n else o.
+
+(* -------------------------------------------------------------------- *)
+(* Conditional selects (ARMv8.1-M): the first source when the condition
+   holds, the second one, respectively unchanged, incremented, inverted and
+   negated, otherwise. *)
+
+abbrev [-printing] CSEL = CSEL_32.
+abbrev [-printing] CSINC = CSINC_32.
+abbrev [-printing] CSINV = CSINV_32.
+abbrev [-printing] CSNEG = CSNEG_32.

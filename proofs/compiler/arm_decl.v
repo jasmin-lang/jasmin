@@ -25,12 +25,28 @@ Require Export arm_expand_imm.
  *)
 
 (* -------------------------------------------------------------------- *)
+(* Versions of the architecture.
+
+ * ARMv8.1-M with the Main and DSP extensions (as implemented by the ARM
+ * Cortex-M55 processor) has the instructions of ARMv7-M that are described in
+ * arm_instr_decl.v, and others; the reference is the Armv8-M Architecture
+ * Reference Manual (DDI0553B.r).
+ *)
+
+Variant arm_version : Type :=
+| ARMv7M
+| ARMv8_1M.
+
+(* -------------------------------------------------------------------- *)
 (* The core: what distinguishes the processors that run this instruction
    set. The instruction descriptions (arm_instr_decl.v) describe the
    instructions; the core says which ones it has. *)
 
 Class arm_core :=
   {
+    (* The version of the architecture: which instructions exist, and the
+       classification of their timing. *)
+    core_version : arm_version;
     (* The DSP extension (ARMv7E-M) is implemented. *)
     core_dsp : bool;
     (* The long multiplications (UMULL, SMULL, UMLAL, SMLAL) have
@@ -40,7 +56,7 @@ Class arm_core :=
 
 (* Cortex-M4: ARMv7E-M; every multiplication takes one cycle. *)
 Definition cortex_m4 : arm_core :=
-  {| core_dsp := true; core_long_mul_dit := true; |}.
+  {| core_version := ARMv7M; core_dsp := true; core_long_mul_dit := true; |}.
 
 (* Cortex-M3: ARMv7-M, without the DSP extension; the long multiplications
    terminate early, depending on the magnitude of the operands (Cortex-M3
@@ -50,7 +66,11 @@ Definition cortex_m4 : arm_core :=
    its data independent timing, holds for the Cortex-M3 but for these long
    multiplications, which are not DIT on it anyway. *)
 Definition cortex_m3 : arm_core :=
-  {| core_dsp := false; core_long_mul_dit := false; |}.
+  {| core_version := ARMv7M; core_dsp := false; core_long_mul_dit := false; |}.
+
+(* ARMv8.1-M with the Main and DSP extensions (Cortex-M52, M55, M85). *)
+Definition armv8_1m : arm_core :=
+  {| core_version := ARMv8_1M; core_dsp := true; core_long_mul_dit := true; |}.
 
 (* --------------------------------------------- *)
 Definition arm_reg_size  := U32.

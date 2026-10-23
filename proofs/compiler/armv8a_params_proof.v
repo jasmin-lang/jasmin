@@ -1051,7 +1051,7 @@ Proof.
   rewrite hvmsf hvb.
   move/set_varP: hset => -[_ _ ?]; subst vm.
   rewrite /get_var /= Vm.setP_eq (convertible_eval_atype hty) /=.
-  by rewrite hw /= truncate_word_u /= hbb /= /armv8a_CSEL_semi hm1.
+  by rewrite hw /= truncate_word_u /= hbb /= /arm_CSEL_semi hm1.
 Qed.
 
 Lemma assemble_slh_move_correct : assemble_extra_correct Oarmv8a_SLHmove.
