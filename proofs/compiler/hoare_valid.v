@@ -43,9 +43,6 @@ Context
   {spec : HoareSpec}
 .
 
-Lemma hoare_fun_rec ii fn : hoare_f_rec p ev spec preF ii fn postF.
-Proof. by move=> fs hpre /=; apply lutt_trigger. Qed.
-
 Definition hoare_io_rec P c Q :=
   hoare_io (wa := wa) (iE0 := invEvent_recCall spec) p ev P c Q.
 
