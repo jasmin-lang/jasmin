@@ -27,7 +27,7 @@ End E.
 Section INLINE.
 
 Context
-  {asm_op syscall_state : Type}
+  {asm_op : Type}
   {asmop:asmOp asm_op}
   (extend_iinfo : instr_info -> instr_info -> instr_info)
 .

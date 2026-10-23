@@ -58,6 +58,7 @@ Extraction Blacklist String List Nat Uint63 Utils Var Array.
 
 Separate Extraction
   utils
+  syscall.rnd_answer
   warray_
   sem_type
   sopn

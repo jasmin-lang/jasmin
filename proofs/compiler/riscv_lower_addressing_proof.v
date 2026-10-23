@@ -26,8 +26,6 @@ Context
   {wsw : WithSubWord}
   {dc : DirectCall}
   {atoI : arch_toIdent}
-  {syscall_state : Type}
-  {sc_sem : syscall_sem syscall_state}
   {pT : progT}
   {sCP : semCallParams}.
 
@@ -169,7 +167,7 @@ Proof using ok_p'.
     move: hsem; rewrite /sem_sopn.
     t_xrbindP => -[] // v [] /=; last by t_xrbindP.
     t_xrbindP=> vs ok_vs ok_v ? we ve ok_ve ok_we w ok_w
-      m2 ok_m2 <- /= [eq_scs ??]; subst vm2 m2.
+      m2 ok_m2 <- /= [??]; subst vm2 m2.
     have /(_ (with_vm s1 vm1) we) := compute_addrP ii _ tmp_ty hcompute.
     rewrite ok_ve /= ok_we.
     move=> /(_ erefl) [vm1' [hsem1' eq_vm1' ok_ep]].
@@ -180,7 +178,7 @@ Proof using ok_p'.
       + apply: (eq_ex_disjoint_eq_on eq_vm1').
         by apply/disjointP => ?; clear -tmp_nin hsub; SvD.fsetdec.
       rewrite ok_vs /= ok_v /= ok_ep /= ok_w /= ok_m2 /=.
-      by rewrite /with_mem /with_vm /= eq_scs.
+      by rewrite /with_mem /with_vm /=.
     move=> z hz; rewrite eq_vm2 // eq_vm1' //; clear -tmp_nin hz; SvD.fsetdec.
 
   case hes: is_one_Pload => [[[al ws] e]|//].
@@ -205,7 +203,7 @@ Context
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
   {rE0 : EventRels E0}
-  {rndE : with_RndEvent syscall_state E0}
+  {rndE : with_RndEvent E0}
   {rndE_refl : RndRels_refl rE0}.
 
 #[ local ]

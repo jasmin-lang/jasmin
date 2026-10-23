@@ -14,10 +14,15 @@ Variant syscall_t : Type :=
 
 HB.instance Definition _ := hasDecEq.Build syscall_t syscall_t_eqb_OK.
 
-Variant RndEvent (syscall_state : Type) : Type -> Type :=
-| Rnd : syscall_state -> Z -> RndEvent (syscall_state * seq u8).
+Variant RndEvent : Type -> Type :=
+| Rnd : Z -> RndEvent (seq u8).
 
-Notation with_RndEvent scs E := (RndEvent scs -< E).
+(* The answer to a random-sampling event, given a source of random bytes:
+   the type of the answer is the one the event announces. *)
+Definition rnd_answer (bytes : Z -> seq u8) T (e : RndEvent T) : T :=
+  match e in RndEvent T return T with Rnd len => bytes len end.
+
+Notation with_RndEvent E := (RndEvent -< E).
 
 (* -------------------------------------------------------------------- *)
 (* For typing                                                           *)
@@ -40,8 +45,3 @@ Definition syscall_sig_s {pd:PointerData} (o:syscall_t) : syscall_sig_t :=
   | RandomBytes _ _ => {| scs_tin := [::aword Uptr; aword Uptr]; scs_tout := [::aword Uptr] |}
   end.
 
-(* TODO remove with syscall_state *)
-Class syscall_sem (syscall_state : Type).
-
-
-Definition syscall_state_t {syscall_state : Type} {sc_sem: syscall_sem syscall_state} := syscall_state.

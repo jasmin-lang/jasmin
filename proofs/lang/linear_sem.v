@@ -14,7 +14,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssralg eqtype.
 From Coq Require Import ZArith Utf8.
 Import Relations.
 Require oseq.
-Require Import while it_sems_core psem fexpr_sem compiler_util label one_varmap linear sem_one_varmap mix_to_small_steps.
+Require Import while it_sems_core core_logics psem fexpr_sem compiler_util label one_varmap linear sem_one_varmap mix_to_small_steps.
 Require Import xrutt xrutt_facts.
 
 Import Memory.
@@ -26,10 +26,10 @@ Local Open Scope seq_scope.
 Section SEM.
 
 Context
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {ovm_i : one_varmap_info}
   {vinfo : veneer_info}
   (P : lprog).
@@ -49,28 +49,25 @@ Notation labels := label_in_lprog.
 (* Semantic                                                                    *)
 
 Record lstate := Lstate
-  { lscs : syscall_state_t;
-    lmem : mem;
+  { lmem : mem;
     lvm  : Vm.t;
     lfn : funname;
     lpc  : nat; }.
 
-Definition to_estate (s:lstate) : estate := Estate s.(lscs) s.(lmem) s.(lvm).
-Definition of_estate (s:estate) fn pc := Lstate s.(escs) s.(emem) s.(evm) fn pc.
-Definition setpc (s:lstate) pc :=  Lstate s.(lscs) s.(lmem) s.(lvm) s.(lfn) pc.
-Definition setc (s:lstate) fn := Lstate s.(lscs) s.(lmem) s.(lvm) fn s.(lpc).
-Definition setcpc (s:lstate) fn pc := Lstate s.(lscs) s.(lmem) s.(lvm) fn pc.
+Definition to_estate (s:lstate) : estate := Estate s.(lmem) s.(lvm).
+Definition of_estate (s:estate) fn pc := Lstate s.(emem) s.(evm) fn pc.
+Definition setpc (s:lstate) pc :=  Lstate s.(lmem) s.(lvm) s.(lfn) pc.
+Definition setc (s:lstate) fn := Lstate s.(lmem) s.(lvm) fn s.(lpc).
+Definition setcpc (s:lstate) fn pc := Lstate s.(lmem) s.(lvm) fn pc.
 Definition lset_estate' (ls : lstate) (s : estate) : lstate :=
   Eval hnf in of_estate s ls.(lfn) ls.(lpc).
 Definition lset_estate
-  (ls : lstate) (scs : syscall_state) (m : mem) (vm : Vm.t) : lstate :=
-  Eval hnf in lset_estate' ls {| escs := scs; emem := m; evm := vm; |}.
-Definition lset_mem_vm (ls : lstate) (m : mem) (vm : Vm.t) : lstate :=
-  Eval hnf in lset_estate ls (lscs ls) m vm.
+  (ls : lstate) (m : mem) (vm : Vm.t) : lstate :=
+  Eval hnf in lset_estate' ls {| emem := m; evm := vm; |}.
 Definition lset_mem (ls : lstate) (m : mem) : lstate :=
-  Eval hnf in lset_mem_vm ls m (lvm ls).
+  Eval hnf in lset_estate ls m (lvm ls).
 Definition lset_vm (ls : lstate) (vm : Vm.t) : lstate :=
-  Eval hnf in lset_mem_vm ls (lmem ls) vm.
+  Eval hnf in lset_estate ls (lmem ls) vm.
 Definition lnext_pc (ls : lstate) : lstate :=
   Eval hnf in setpc ls (lpc ls).+1.
 
@@ -81,7 +78,6 @@ Proof. by case: es. Qed.
 Lemma of_estate_to_estate ls :
   of_estate (to_estate ls) (lfn ls) (lpc ls) = ls.
 Proof. by case: ls. Qed.
-
 
 (* The [lsem] relation defines the semantics of a linear command
 as the reflexive transitive closure of the [lsem1] relation that
@@ -143,7 +139,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     (* The callee is entered through a veneer that destroys [call_kill]; the
        return address has already been recorded (here, in memory), so it
        survives.  See [one_varmap.veneer_info]. *)
-    eval_jump d (lset_mem_vm s1 m (kill_vars call_kill vm))
+    eval_jump d (lset_estate s1 m (kill_vars call_kill vm))
   | Lcall (Some r) d =>
     Let _ := assert (~~ fn_is_export d.1) ErrSemUndef in
     Let lbl := get_label_after_pc s1 in
@@ -182,9 +178,8 @@ Definition step (s: lstate) : exec lstate :=
     eval_instr i s
   else type_error.
 
-Definition ls_export_initial scs m vm fn :=
+Definition ls_export_initial m vm fn :=
   {|
-    lscs := scs;
     lmem := m;
     lvm := vm;
     lfn := fn;
@@ -268,7 +263,7 @@ Section SMALL_STEP.
 Context
   {E E0}
   {wE : with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}.
+  {rE : with_RndEvent E0}.
 
 Import ITreeNotations.
 #[local] Open Scope itree_scope.
@@ -282,7 +277,7 @@ Definition lexec_syscall (o : syscall_t) (s : lstate) : itree E lstate :=
   let vin := sig.(scs_vin) in
   let vm := s.(lvm) in
   ves <- iresult (get_vars true vm vin) ;;
-  let fs := {| fscs := s.(lscs); fmem := s.(lmem); fvals := ves; |} in
+  let fs := {| fmem := s.(lmem); fvals := ves; |} in
   fs' <- fexec_syscall (scP := sCP_stack) o fs;;
   let vout := sig.(scs_vout) in
   let s' := lset_vm s (vm_after_syscall vm) in
@@ -300,7 +295,7 @@ Definition ilsem (cond : lstate -> bool) (s:lstate) :=
   while cond istep s.
 
 Definition ilsem_exportcall (fn: funname) (es:estate) :=
-  let s := (ls_export_initial (escs es) (emem es) (evm es) fn) in
+  let s := (ls_export_initial (emem es) (evm es) fn) in
   fd <-ioget ErrType (get_fundef P.(lp_funcs) fn);;
   _ <- iresult (assert (lfd_export fd) ErrSemUndef);;
   s' <- ilsem (endpc fn) s;;
@@ -377,7 +372,7 @@ Import ITreeNotations.
 Context
   {E E0}
   {wE : with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}.
+  {rE : with_RndEvent E0}.
 
 Definition is_call (s : lstate) :=
   if find_instr s is Some i then
@@ -421,7 +416,7 @@ Definition mix_ilsem cond s :=
   interp_mrec handle_call (mix_ilsteps cond s).
 
 Definition mix_ilsem_exportcall (fn: funname) (es:estate) :=
-  let s := (ls_export_initial (escs es) (emem es) (evm es) fn) in
+  let s := (ls_export_initial (emem es) (evm es) fn) in
   fd <-ioget ErrType (get_fundef P.(lp_funcs) fn);;
   _ <- iresult (assert (lfd_export fd) ErrSemUndef);;
   s' <- mix_ilsem_fun fn s;;
@@ -533,7 +528,6 @@ rewrite /mix_ilsem_fun /mrec /= /handle_call_cond /fn_is_export.
 rewrite ok_fn hfn.
 exact: mix_ilsem_ilsem.
 Qed.
-
 
 End MIX_STEP.
 

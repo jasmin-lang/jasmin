@@ -67,39 +67,6 @@ Definition preservesE
 
 #[global] Arguments preservesE _ {_ _ _ _} _.
 
-Section Preserves.
-
-Context
-  {E E' : Type -> Type}
-  {SErr : ErrEvent -< E}
-.
-
-Lemma translate_inr_iresult T (r : exec T) :
-  eutt eq
-    (translate inr1 (iresult (E := E) r))
-    (iresult (E := E' +' E) r).
-Proof.
-case: r => [r|e]; first by rewrite translate_ret; reflexivity.
-by rewrite translate_vis; apply: eqit_Vis => -[].
-Qed.
-
-Context {SErr' : ErrEvent -< E'}.
-
-Lemma interp_preserves_throw (F : Handler E E') T e :
-  preservesE ErrEvent F ->
-  eutt eq (interp F (throw (X := T) e)) (throw e).
-Proof. by move=> h; rewrite interp_vis h bind_vis; apply: eqit_Vis. Qed.
-
-Lemma interp_preserves_iresult (F : Handler E E') T (r : exec T) :
-  preservesE ErrEvent F ->
-  eutt eq (interp F (iresult r)) (iresult r).
-Proof.
-move=> h; case: r => [r|e]; first by rewrite interp_ret; reflexivity.
-rewrite (interp_preserves_throw _ _ h); reflexivity.
-Qed.
-
-End Preserves.
-
 (** Type function isomorphism class *)
 Class FIso (E1 E2: Type -> Type) : Type := FI {
     mfun1 : E1 -< E2 ;
@@ -178,30 +145,3 @@ Proof.
   rewrite /Exception.throw /= bind_vis.
   apply eqit_Vis; case.
 Qed.
-
-(* TODO is this somewhere? *)
-Lemma eqit_throw
-  {Err E R1 R2} {H : exceptE Err -< E} (RR : R1 -> R2 -> Prop) b1 b2 (e : Err) :
-  eqit RR b1 b2 (throw (H := H) e) (throw e).
-Proof. exact: eqit_Vis. Qed.
-
-Section ItAppSopn.
-
-Context {E : Type -> Type} `{ErrEvent -< E}.
-
-Definition it_sem_prod (ts : seq ctype) (T : Type) := sem_prod ts (itree E T).
-
-Fixpoint it_app_sopn A (ts : seq ctype) : it_sem_prod ts A -> values -> itree E A :=
-  match ts return it_sem_prod ts A -> values -> itree E A with
-  | [::] => fun (o : itree E A) vs =>
-      if vs is [::] then o else throw ErrType
-  | t :: ts => fun (o : sem_t t -> it_sem_prod ts A) vs =>
-      if vs is v :: vs then
-        v' <- iresult (of_val t v) ;;
-        it_app_sopn (o v') vs
-      else throw ErrType
-  end.
-
-#[global] Arguments it_app_sopn {A} ts _ _.
-
-End ItAppSopn.

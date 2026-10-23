@@ -18,10 +18,10 @@ Section WITH_PARAMS.
 Context
   {wsw:WithSubWord}
   {dc:DirectCall}
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {pT : progT}
   {sCP : semCallParams}.
 
@@ -946,7 +946,7 @@ Section IT_PROOF.
 Context
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
-  {rndE : with_RndEvent syscall_state E0}
+  {rndE : with_RndEvent E0}
   {rE : EventRels E0}
   {rndE_refl : RndRels_refl rE}
 .
@@ -1046,10 +1046,10 @@ Proof.
   apply wkequivP' => s1_ s2_.
   move: (hc s1_); apply wkequiv_weaken => //.
   + by move=> _ _ [[-> ->] /hPP' []].
-  move=> _ _ s1 s2 [[-> ->] /hPP'] [] [_ _ [h1 ?]] _ [heq [?? [h2 ?]]]; do 3! split => //.
+  move=> _ _ s1 s2 [[-> ->] /hPP'] [] [_ [h1 _]] _ [heq [h2 [??]]]; do 3! split=> //.
   move=> x v h.
   have [_ hnin] := get_remove_cpm h.
-  rewrite -heq; auto.
+  by rewrite -heq; auto.
 Qed.
 
 Lemma remove_cpm_write1 c c2 X m mc P P':
@@ -1110,7 +1110,7 @@ Local Opaque opp_word.
   exists (cmpl_inv empty_cpm),
          (cmpl_inv (const_prop (const_prop_i gd) empty_cpm (f_body fd)).1); split => //; last first.
   + apply wrequiv_weaken with (st_uincl tt) fs_uincl => //.
-    + by move=> > [] ?? [??].
+    + by move=> i1 i2 [hmem [hval hu]]; split.
     by apply fs_uincl_finalize.
   have -> : f_body (const_prop_fun gd fd) = (const_prop (const_prop_i gd) empty_cpm (f_body fd)).2 by done.
   apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {fd fn fs hfsu hinit hin hout hex hpar hres hinv ht1 t1 ft s1}.

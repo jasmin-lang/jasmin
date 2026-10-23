@@ -28,7 +28,6 @@ Section PROOF.
     {wsw : WithSubWord}
     {dc : DirectCall}
     {atoI : arch_toIdent}
-    {syscall_state : Type} {sc_sem : syscall_sem syscall_state}
     {pT: progT} {sCP: semCallParams}.
 
   Variable p : prog.
@@ -214,7 +213,6 @@ Section PROOF.
     2-5: rewrite /= /get_gvar /=; by t_get_var.
     rewrite /= /with_vm /=.
     split.
-    - by rewrite escs_with_vm.
     - by rewrite emem_with_vm.
     move=> x hx.
     rewrite !Vm.setP_neq //;
@@ -1793,7 +1791,7 @@ Section PROOF.
     {E E0 : Type -> Type}
     {wE : with_Error E E0}
     {rE0 : EventRels E0}
-    {rndE : with_RndEvent syscall_state E0}
+    {rndE : with_RndEvent E0}
     {rndE_refl : RndRels_refl rE0}
   .
 

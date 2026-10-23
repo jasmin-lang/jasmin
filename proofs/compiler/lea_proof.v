@@ -15,10 +15,10 @@ Local Open Scope seq_scope.
 Section PROOF.
   Context
     {wsw : WithSubWord}
-    {asm_op syscall_state : Type}
-    {ep : EstateParams syscall_state}
+    {asm_op : Type}
+    {ep : EstateParams}
     {spp : SemPexprParams}
-    {sip : SemInstrParams asm_op syscall_state}
+    {sip : SemInstrParams asm_op}
     (gd : glob_decls).
 
   (* ---------------------------------------------------------- *)

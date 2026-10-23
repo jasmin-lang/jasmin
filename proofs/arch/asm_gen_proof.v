@@ -40,8 +40,8 @@ Section ASM_EXTRA.
 
 #[local] Existing Instance withsubword.
 
-Context {syscall_state : Type} {sc_sem : syscall_sem syscall_state}
-        `{asm_e : asm_extra} {call_conv: calling_convention}
+Context
+  `{asm_e : asm_extra} {call_conv: calling_convention}
          {asm_scsem : asm_syscall_sem} {vregs : veneer_regs_info}
          {avs : asm_veneer_sem}.
 
@@ -96,8 +96,7 @@ Variant disj_rip rip :=
 
 Variant lom_eqv rip (m : estate) (lom : asmmem) :=
   | MEqv of
-      escs m = asm_scs lom
-    & emem m = asm_mem lom
+      emem m = asm_mem lom
     & (evm m).[rip] = Vword lom.(asm_rip)
     & disj_rip rip
     & (∀ r, value_uincl (evm m).[to_var r] (Vword (asm_reg lom r)))
@@ -154,7 +153,7 @@ Lemma getreg wdb rip r v s xs :
   lom_eqv rip s xs →
   get_var wdb s.(evm) (to_var r) = ok v →
   value_uincl v (Vword (xs.(asm_reg) r)).
-Proof. by case => _ _ _ _ eqv _ _ _ /get_varP [-> _ _]. Qed.
+Proof. by case => _ _ _ eqv _ _ _ /get_varP [-> _ _]. Qed.
 
 Lemma ofgetreg wdb rip x r v s xs :
   lom_eqv rip s xs →
@@ -168,7 +167,7 @@ Lemma getregx wdb rip r v s xs :
   lom_eqv rip s xs →
   get_var wdb s.(evm) (to_var r) = ok v →
   value_uincl v (Vword (xs.(asm_regx) r)).
-Proof. by case => _ _ _ _ _ eqv' _ _ /get_varP [-> _ _]. Qed.
+Proof. by case => _ _ _ _ eqv' _ _ /get_varP [-> _ _]. Qed.
 
 Lemma ofgetregx wdb rip x r v s xs :
   lom_eqv rip s xs →
@@ -182,7 +181,7 @@ Lemma getxreg wdb rip r v s xs :
   lom_eqv rip s xs →
   get_var wdb (evm s) (to_var r) = ok v →
   value_uincl v (Vword (asm_xreg xs r)).
-Proof. by case => _ _ _ _ _ _ eqv _ /get_varP [-> _ _]. Qed.
+Proof. by case => _ _ _ _ _ eqv _ /get_varP [-> _ _]. Qed.
 
 Lemma ofgetxreg wdb rip x r v s xs :
   lom_eqv rip s xs →
@@ -197,7 +196,7 @@ Lemma getflag wdb rip f v s xs :
   lom_eqv rip s xs →
   get_var wdb (evm s) (to_var f) = ok v →
   value_uincl v (of_rbool (asm_flag xs f)).
-Proof. by case => _ _ _ _ _ _ _ eqf /get_varP [-> _ _]. Qed.
+Proof. by case => _ _ _ _ _ _ eqf /get_varP [-> _ _]. Qed.
 
 Lemma xgetflag_ex wdb ii m rf x f v :
   eqflags m rf →
@@ -222,7 +221,7 @@ Qed.
 Lemma lom_rip wdb rip s xs :
   lom_eqv rip s xs →
   get_var wdb (evm s) rip = ok (Vword (asm_rip xs)).
-Proof. by rewrite /get_var orbC => -[_ _ -> *] /=. Qed.
+Proof. by rewrite /get_var orbC => -[_ -> *] /=. Qed.
 
 (* -------------------------------------------------------------------- *)
 
@@ -492,7 +491,7 @@ Proof using eval_assemble_cond.
   + case: e; first by [].
     t_xrbindP => e _ <- c hac <-.
     rewrite /compat_imm orbF => /eqP <- -> /= b hb.
-    case: eqm => ???? eqr ?? eqf.
+    case: eqm => ??? eqr ?? eqf.
     have [v'] := eval_assemble_cond eqr eqf hac hb.
     rewrite /eval_cond_mem; case: eval_cond => /=;
       last by case=> // [[<-]] /[swap] /to_boolI ->.
@@ -520,7 +519,7 @@ Proof using eval_assemble_cond.
     move: hcomp; rewrite /compat_imm orbF => /eqP <-.
     move=> w1 wp' vp' hp hp' wr hwr <- /= htr.
     have -> := addr_of_xpexprP eqm hr hp hp'.
-    by case: eqm => ? <- ??????; rewrite (aligned_le_read ok_al' hwr) /=; eauto.
+    by case: eqm => <- ??????; rewrite (aligned_le_read ok_al' hwr) /=; eauto.
   case => //.
   + move=> x.
     move=> /xreg_of_varI; case: a' hcomp => // r;
@@ -585,7 +584,7 @@ Lemma lom_eqv_write_var f rip s xs (x : var_i) sz (w : word sz) s' r :
   -> to_var r = x
   -> lom_eqv rip s' (mem_write_reg f r w xs).
 Proof.
-  case => eqscs eqm ok_rip [dr drx dx df] eqr eqrx eqx eqf.
+  case => eqm ok_rip [dr drx dx df] eqr eqrx eqx eqf.
   case: x => x xi /=.
   rewrite /mem_write_reg => /write_varP [-> hdb htr] ?; subst x.
   constructor => //=.
@@ -610,11 +609,11 @@ Proof.
   by move=> hx; apply/negP => /Sv_memP /call_kill_regs_only [r /esym]; apply: hx.
 Qed.
 
-Lemma lom_eqv_veneer_kill rip scs m vm xs :
-  lom_eqv rip {| escs := scs; emem := m; evm := vm |} xs ->
-  lom_eqv rip {| escs := scs; emem := m; evm := kill_vars call_kill vm |} (veneer_kill xs).
+Lemma lom_eqv_veneer_kill rip m vm xs :
+  lom_eqv rip {| emem := m; evm := vm |} xs ->
+  lom_eqv rip {| emem := m; evm := kill_vars call_kill vm |} (veneer_kill xs).
 Proof.
-  case => /= eqscs eqm ok_rip hdisj eqr eqrx eqx eqf.
+  case => /= eqm ok_rip hdisj eqr eqrx eqx eqf.
   case: (hdisj) => dr drx dx df.
   have hflag : forall (f : rflag_t) (r : reg), to_var r <> to_var f by move=> f r [].
   constructor => //=.
@@ -642,7 +641,7 @@ Lemma lom_eqv_write_reg rip msbf r s xs ws ws0 (w : word ws0) :
     (with_vm s (evm s).[to_var r <- Vword (zero_extend ws w)])
     (mem_write_reg msbf r w xs).
 Proof.
-  move=> [hscs h1 hrip hnrip h2 h3 h4 h5] h.
+  move=> [h1 hrip hnrip h2 h3 h4 h5] h.
   constructor => //=.
 
   - rewrite /get_var Vm.setP_neq //. apply/eqP. by move: hnrip => [].
@@ -685,7 +684,7 @@ Lemma compile_lval rip ii msb_flag loargs ad ty (vt:sem_olt ty) m m' s lv1 e1:
   check_sopn_dest agparams rip ii loargs e1 (ad, ty) ->
   exists s', mem_write_val msb_flag loargs (ad, ty) (oto_val vt) s = ok s' /\ lom_eqv rip m' s'.
 Proof.
-  move=> hlom; case:(hlom) => [hscs h1 hrip hnrip h2 h3 h4 h5]; case: ad => [ai _ | k n o]; rewrite /check_sopn_dest /=.
+  move=> hlom; case:(hlom) => [h1 hrip hnrip h2 h3 h4 h5]; case: ad => [ai _ | k n o]; rewrite /check_sopn_dest /=.
   case: ai => [f | r].
   + case: lv1 => //=; first by move=> ???? <-.
     t_xrbindP => x vm hvm <- <- /is_implicitP[] xi [] ?; subst x.
@@ -699,7 +698,7 @@ Proof.
     + by case: vt htr.
     eexists; split; first reflexivity.
     constructor => //=.
-    + by case:hlom => ? ? hget hd _ _ _; rewrite Vm.setP_neq //; apply/eqP; case: hd.
+    + by case:hlom => ? hget hd _ _ _; rewrite Vm.setP_neq //; apply/eqP; case: hd.
     1-3: by move=> r; rewrite Vm.setP_neq.
     move=> f'; rewrite /RflagMap.set /= ffunE Vm.setP eq_sym.
     have -> : (to_var f' == to_var f) = (f' == f ::>).
@@ -726,7 +725,7 @@ Proof.
     + move: hw; t_xrbindP => vm /set_varP [_ htr ->] <-.
       eexists; split; first reflexivity.
       constructor => //=.
-      + by case:hlom => ? ? hget hd _ _ _ _;rewrite Vm.setP_neq //; apply/eqP; case: hd.
+      + by case:hlom => ? hget hd _ _ _ _;rewrite Vm.setP_neq //; apply/eqP; case: hd.
       + move=> r'; rewrite Vm.setP_neq //.
         by apply/eqP/nesym/to_var_reg_neq_regx.
       + move=> r'; rewrite Vm.setP /RegMap.set ffunE eq_sym.
@@ -742,7 +741,7 @@ Proof.
     move: hw; t_xrbindP => vm /set_varP [_ htr ->] <-.
     eexists; split; first reflexivity.
     constructor => //=.
-    + by case:hlom => ? ? hget hd _ _ _ _;rewrite Vm.setP_neq //; apply /eqP; case: hd.
+    + by case:hlom => ? hget hd _ _ _ _;rewrite Vm.setP_neq //; apply /eqP; case: hd.
     + move=> r'; rewrite Vm.setP_neq //.
       by apply/eqP/nesym/to_var_reg_neq_xreg.
     + move=> r'; rewrite Vm.setP_neq //.
@@ -1442,7 +1441,7 @@ Proof.
     + exact: (ofgetregx eqm ok_r ok_v).
     exact: (ofgetxreg eqm ok_r ok_v).
   move => al' sz' ? _ /=. t_xrbindP => /eqP <-{sz'} ok_al' d ok_d <- ptr u ok_u ok_uptr ? ok_rd ?; subst v => /=.
-  case: (eqm) => _ eqmem _ _ _ _ _.
+  case: (eqm) => eqmem _ _ _ _ _.
   rewrite (addr_of_xpexprP eqm ok_d ok_u ok_uptr) -eqmem (aligned_le_read ok_al' ok_rd).
   eexists; first reflexivity.
   exact: word_uincl_refl.
@@ -1689,7 +1688,7 @@ Section ITREE.
 Context
   {E E0: Type -> Type}
   {wE: with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}
+  {rE : with_RndEvent E0}
   {rE0 : EventRels E0}
   {rndE : RndRels2 (rE_l := rE) (rE_r := rE) (rE0 := rE0)}
 .
@@ -1827,7 +1826,7 @@ Lemma match_state_SysCall_eval fd ls ii sc ac0 ac1 xs :
   lxrutt EPreRel EPostRel inv
     (lexec_syscall sc ls)
     (asm_exec_syscall sc xs).
-Proof using hagparams ok_p' rndE.
+Proof using avs hagparams ok_p' rndE.
   move=> hloeq ok_fd hfn hass hac heq hip hnth ok_i.
   rewrite /lexec_syscall.
   apply: xrutt_bind_iresult_left => ves hves /=.
@@ -1842,23 +1841,23 @@ Proof using hagparams ok_p' rndE.
 
   rewrite /it_sems_core.fexec_syscall /asm_exec_syscall /= bind_bind.
   rewrite /exec_syscall /=.
-  case: (hloeq) => /= hscs hmem _ _ _ _ _ _.
-  rewrite hscs hmem.
+  case: (hloeq) => /= hmem _ _ _ _ _ _.
+  rewrite hmem.
   apply: (xrutt_facts.xrutt_bind (RR := syscall_ans_rel sc (asm_m xs))).
   - exact/lxeutt_lrutt_RndRels_refl/asm_exec_syscall_coreP/uves.
-  move=> [[scs m] vs] xm' [/= hscs1 hmem1 hvs hpr hrip].
+  move=> [m vs] xm' [/= hmem1 hvs hpr hrip].
   rewrite bind_ret_l.
   apply: xrutt_bind_iresult_left => ls''.
   rewrite /lset_fstate /upd_estate /=; t_xrbindP=> s hw ?; subst ls''.
   apply: xrutt.xrutt_Ret.
   rewrite /inv /lnext_pc /st_update_next /= ok_fd /=.
   exists (lfd_body fd) => //.
-  subst scs m vs.
+  subst m vs.
   rewrite /read_sc_vres size_map in hw.
   split => //=; last by apply: asm_pos_incr ok_i hac heq hip.
   rewrite /to_estate /=.
 
-  case: hloeq => /= _ _ hgetrip hdisjrip hreg hregx hxreg hflag.
+  case: hloeq => /= _ hgetrip hdisjrip hreg hregx hxreg hflag.
   set R := vrvs (to_lvals (syscall_sig sc).(scs_vout)).
   set X := Sv.union syscall_kill R.
 
@@ -1878,7 +1877,7 @@ Proof using hagparams ok_p' rndE.
     have! h :=
       (take_uniq (size (scs_tout (syscall_sig_s sc))) call_reg_ret_uniq).
     move: hw r.
-    rewrite /with_scs /with_mem /to_estate /lset_vm /=.
+    rewrite /with_mem /to_estate /lset_vm /=.
     elim:
       (take (size (syscall_sig_s sc).(scs_tout)) call_reg_ret)
       {| evm := vm_after_syscall (lvm ls); |} h
@@ -1905,8 +1904,6 @@ Proof using hagparams ok_p' rndE.
     rewrite /get_var kill_varsE hin; by case: (vtype x).
 
   constructor=> //=.
-  - by rewrite (write_lvals_escs hw).
-
   - by apply: write_lvals_emem hw; apply: get_lvar_to_lvals.
 
   - rewrite heqx /X; first by rewrite hgetrip hrip.
@@ -1927,9 +1924,9 @@ Proof using hagparams ok_p' rndE.
     case: (Sv_memP (to_var r) syscall_kill) => hinK.
     + by rewrite (hkill _ hinK hinR) /=.
     move: (hinK); rewrite /syscall_kill => hnin.
-    have : Sv.In (to_var r) one_varmap.callee_saved.
+    have : Sv.In (to_var r) one_varmap.syscall_preserved.
     + by have := reg_in_all r; SvD.fsetdec.
-    rewrite /one_varmap.callee_saved /= => /sv_of_listP /mapP [x] /hpr.
+    rewrite /one_varmap.syscall_preserved /= => /sv_of_listP /mapP [x] /hpr.
     move=> h /to_var_typed_reg ?; subst x.
     rewrite -h heqx // /X.
     SvD.fsetdec.
@@ -1942,9 +1939,9 @@ Proof using hagparams ok_p' rndE.
     case: (Sv_memP (to_var r) syscall_kill) => hinK.
     + by have /(_ erefl) -> /= := hkill _ hinK hinR.
     move: (hinK); rewrite /syscall_kill => hnin.
-    have : Sv.In (to_var r) one_varmap.callee_saved.
+    have : Sv.In (to_var r) one_varmap.syscall_preserved.
     + have := regx_in_all r; SvD.fsetdec.
-    rewrite /one_varmap.callee_saved /= => /sv_of_listP /mapP [x] /hpr.
+    rewrite /one_varmap.syscall_preserved /= => /sv_of_listP /mapP [x] /hpr.
     move=> h /to_var_typed_regx ?; subst x.
     rewrite -h heqx // /X.
     SvD.fsetdec.
@@ -1957,9 +1954,9 @@ Proof using hagparams ok_p' rndE.
     case: (Sv_memP (to_var r) syscall_kill) => hinK.
     + by have /(_ erefl) -> /= := hkill _ hinK hinR.
     move: (hinK); rewrite /syscall_kill => hnin.
-    have : Sv.In (to_var r) one_varmap.callee_saved.
+    have : Sv.In (to_var r) one_varmap.syscall_preserved.
     + have := xreg_in_all r. SvD.fsetdec.
-    rewrite /one_varmap.callee_saved /= => /sv_of_listP /mapP [x] /hpr.
+    rewrite /one_varmap.syscall_preserved /= => /sv_of_listP /mapP [x] /hpr.
     move=> h /to_var_typed_xreg ?; subst x.
     rewrite -h heqx // /X.
     SvD.fsetdec.
@@ -1968,9 +1965,10 @@ Proof using hagparams ok_p' rndE.
   have hinR : ~Sv.In (to_var r) R.
   + rewrite /R /= vrvs_to_lvals => /sv_of_listP.
     by move=> /(mapP (T1 := @ceqT_eqType _ _)) [x _].
-  have hnc: ~ Sv.In (to_var r) one_varmap.callee_saved.
+  have hnc: ~ Sv.In (to_var r) one_varmap.syscall_preserved.
   + move=>
-      /= /sv_of_listP /mapP [] f /(allP callee_saved_not_bool) h
+      /= /sv_of_listP /mapP [] f
+      /(allP syscall_preserved_subset) /(allP callee_saved_not_bool) h
       /to_var_typed_flag ?.
     by subst f.
   have hinK : Sv.In (to_var r) syscall_kill.
@@ -2114,7 +2112,7 @@ Proof using hagparams ok_p' rndE.
       apply: eval_jumpP; last by apply hjump.
       rewrite /st_update_next /=.
       apply: lom_eqv_veneer_kill.
-      have : write_var true xlr (Vword ptr) (to_estate ls) = ok {| escs := lscs ls; emem := lmem ls; evm := vm |}.
+      have : write_var true xlr (Vword ptr) (to_estate ls) = ok {| emem := lmem ls; evm := vm |}.
       + by rewrite /write_var /= hset.
       have {}heqlr := of_varI heqlr.
       by move=> /(lom_eqv_write_var MSB_CLEAR hloeq) -/(_ _ heqlr).
@@ -2131,12 +2129,12 @@ Proof using hagparams ok_p' rndE.
     rewrite /eval_PUSH truncate_word_u /=.
     rewrite to_var_rsp in hsp.
     have -> := var_of_regP_eq hloeq hsp htow_sp.
-    rewrite /mem_write_mem; case: (hloeq) => /= _ <- _ _ _ _ _ _.
+    rewrite /mem_write_mem; case: (hloeq) => /= <- _ _ _ _ _ _.
     rewrite hm1 /=; apply: eval_jumpP; last by apply hjump.
     apply: lom_eqv_veneer_kill.
     set vrspi := {| v_var := to_var ad_rsp; v_info := dummy_var_info |}.
-    set vmsp := (X in lom_eqv _ {| escs := _; emem := _; evm := X |} _).
-    have : write_var true vrspi (Vword (wsp -  wrepr reg_size (wsize_size reg_size))) (to_estate ls) = ok {| escs := lscs ls; emem := lmem ls; evm := vmsp |}.
+    set vmsp := (X in lom_eqv _ {| emem := _; evm := X |} _).
+    have : write_var true vrspi (Vword (wsp -  wrepr reg_size (wsize_size reg_size))) (to_estate ls) = ok {| emem := lmem ls; evm := vmsp |}.
     + rewrite /vmsp /write_var /= /to_estate //= /with_vm /=.
       by have [ ->] := to_var_rsp.
     move=> /(lom_eqv_write_var MSB_CLEAR hloeq) -/(_ ad_rsp erefl).
@@ -2148,7 +2146,7 @@ Proof using hagparams ok_p' rndE.
     rewrite /eval_POP truncate_word_u /=.
     rewrite to_var_rsp in hsp.
     have -> := var_of_regP_eq hloeq hsp htow_sp.
-    case: (hloeq) => /= _ <- _ _ _ _ _ _.
+    case: (hloeq) => /= <- _ _ _ _ _ _.
     rewrite ok_ptr /=.
     change reg_size with Uptr in ptr.
     replace (decode_label _ ptr) with (Some r);
@@ -2156,7 +2154,7 @@ Proof using hagparams ok_p' rndE.
     apply: eval_jumpP; last by apply hjump.
     set vi := {| v_var := to_var ad_rsp; v_info := dummy_var_info |}.
     set ls1 := (X in to_estate X).
-    have : write_var true vi (Vword (wsp +  wrepr reg_size (wsize_size reg_size))) (to_estate ls) = ok {| escs := lscs ls; emem := lmem ls; evm := lvm ls1 |}.
+    have : write_var true vi (Vword (wsp +  wrepr reg_size (wsize_size reg_size))) (to_estate ls) = ok {| emem := lmem ls; evm := lvm ls1 |}.
     + rewrite /write_var /= /to_estate //= /with_vm /=.
       by have [ ->] := to_var_rsp.
     move=> /(lom_eqv_write_var MSB_CLEAR hloeq) -/(_ ad_rsp erefl).
@@ -2206,7 +2204,7 @@ Proof using hagparams ok_p' rndE.
     by apply: asm_pos_incr hok_i hac heq hip => /=; rewrite ok_r_x'.
   rewrite /linear_sem.eval_instr => /=.
   t_xrbindP => cnd lbl _ hok_i cndt ok_c ? b v ok_v ok_b; subst aci.
-  case: hloeq => eqscs eqm hrip hd eqr eqrx eqx eqf.
+  case: hloeq => eqm hrip hd eqr eqrx eqx eqf.
   have [v' ok_v' hvv'] := hagp_eval_assemble_cond hagparams eqr eqf ok_c ok_v.
   case: v ok_v ok_b hvv' => // [ b' | [] // ] ok_b [?]; subst b'.
   rewrite ok_fd /=; case: v' ok_v' => // b1 ok_v' ? h; subst b1.
@@ -2264,7 +2262,7 @@ Proof using hagparams ok_p' rndE.
   + case: lfd_export; first exact: xrutt.xrutt_Ret.
     exact/lxrutt_throw_l.
   move=> _ _ _.
-  set l := ls_export_initial _ _ _ _.
+  set l := ls_export_initial _ _ _.
   set s := {| asm_m := xm; asm_f := fn; asm_c := c; asm_ip := 0; |}.
   have hwfend : wf_endpc (fn, size (lfd_body fd)) (fn, size c).
   + by rewrite /wf_endpc /= ok_fd ok_fd' /=.
@@ -2290,8 +2288,8 @@ Proof using hagparams ok_p' rndE.
   move: H => {} hr.
   have /saved_registers/value_eqb_eq E1 : (var_of_asm_typed_reg r) \in Sv.elements (sv_of_list var_of_asm_typed_reg callee_saved).
   + by apply/Sv_elemsP/sv_of_listP.
-  case: M => /= _ _ _ _ Mr Mrx Mxr Mf.
-  case: M' => /= _ _ _ _ Mr' Mrx' Mxr' Mf'.
+  case: M => /= _ _ _ Mr Mrx Mxr Mf.
+  case: M' => /= _ _ _ Mr' Mrx' Mxr' Mf'.
   assert (h1 := Vm.getP (evm ls) (var_of_asm_typed_reg r)).
   move/ok_vm: hr h1.
   case: r E1 => r /= E1;
@@ -2396,7 +2394,7 @@ Qed.
 
 Definition estate_of_asm_mem
   (sp : word Uptr) (rip rsp : Ident.ident) (s : asmmem) : estate :=
-  {| escs := asm_scs s; emem := asm_mem s; evm := vmap_of_asm_mem sp rip rsp s; |}.
+  {| emem := asm_mem s; evm := vmap_of_asm_mem sp rip rsp s; |}.
 
 Lemma lom_eqv_estate_of_asm_mem sp rip rsp s :
   disj_rip (mk_ptr rip)
@@ -2426,7 +2424,7 @@ Lemma lom_eqv_ext rip s xs vm :
   lom_eqv rip s xs ->
   lom_eqv rip (with_vm s vm) xs.
 Proof.
-  move=> heq [] h1 h2 h3 h4 h5 h6 h7 h8; split => //=;
+  move=> heq [] h1 h2 h3 h4 h5 h6 h7; split => //=;
    first (by rewrite -heq);
    by move=> r; rewrite -heq; auto.
 Qed.

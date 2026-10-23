@@ -90,12 +90,11 @@ End TRIVIAL.
 Section Section.
 
 Context
-  {syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {ep : EstateParams}
   {spp : SemPexprParams}
   {wa: WithAssert}
   {asm_op: Type}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {pT : progT}
   {wsw : WithSubWord}
   {scP : semCallParams}
@@ -303,7 +302,7 @@ Qed.
 Lemma khoare_io_ret {I O} (P: Pred I) (f : I -> O) (Q : Pred_io I O) :
   (forall i, P i -> Q i (f i)) ->
   khoare_io P (fun i => ret (f i)) Q.
-Proof. by move=> hPQ i hP; rewrite -lutt_Ret; apply hPQ. Qed.
+Proof. by move=> hPQ i hP; rewrite lutt_Ret; apply hPQ. Qed.
 
 Lemma khoare_ret {I O} (P : Pred I) (f : I -> O) (Q : Pred O) :
   (forall i, P i -> Q (f i)) ->
@@ -437,7 +436,7 @@ Context
   {E E0: Type -> Type}
   {sem_F : sem_Fun E}
   {wE: with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}
+  {rE : with_RndEvent E0}
   {iE0 : InvEvent E0}
   {iEr : InvErr}.
 
@@ -832,7 +831,7 @@ Context
   {E E0: Type -> Type}
   {sem_F : sem_Fun E}
   {wE: with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}.
+  {rE : with_RndEvent E0}.
 
 Context (p : prog) (ev: extra_val_t).
 
@@ -860,7 +859,7 @@ Section HOARE_FUN.
 Context
   {E E0: Type -> Type}
   {wE: with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}
+  {rE : with_RndEvent E0}
   {iE0 : InvEvent E0}
   {iEr : InvErr}.
 
@@ -938,7 +937,7 @@ Context
   {E E0: Type -> Type}
   {sem_F : sem_Fun E}
   {wE: with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}
+  {rE : with_RndEvent E0}
   {iE0 : InvEvent E0}.
 
 Context (p : prog) (ev: extra_val_t).
@@ -1042,7 +1041,7 @@ Section WHOARE_FUN.
 Context
   {E E0: Type -> Type}
   {wE: with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}
+  {rE : with_RndEvent E0}
   {iE0 : InvEvent E0}.
 
 Context (p : prog) (ev: extra_val_t) (spec : HoareSpec).
@@ -1095,12 +1094,11 @@ Hint Immediate rhoare_true rhoare_false : core.
 
 Section Test.
 Context
-  {syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {ep : EstateParams}
   {spp : SemPexprParams}
   {asm_op: Type}
   {wa: WithAssert}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {pT : progT}
   {wsw : WithSubWord}
   {scP : semCallParams}
@@ -1110,7 +1108,7 @@ Context
   {E E0: Type -> Type}
   {sem_F : sem_Fun E}
   {wE: with_Error E E0}
-  {rE : with_RndEvent syscall_state E0}.
+  {rE : with_RndEvent E0}.
 
 Context (p : prog) (ev : extra_val_t).
 

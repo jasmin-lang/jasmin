@@ -181,9 +181,9 @@ Definition not_misspeculating_args {msfsize : MSFsize}
 Section H_SH_PARAMS.
 
   Context
-    {asm_op syscall_state : Type}
+    {asm_op : Type}
     {wsw: WithSubWord}
-    {ep : EstateParams syscall_state}
+    {ep : EstateParams}
     {spp : SemPexprParams}
     {asmop : asmOp asm_op}.
 
@@ -260,11 +260,11 @@ End EnvP.
 Section WITH_PARAMS.
 
 Context
-  {asm_op syscall_state : Type}
+  {asm_op : Type}
   {wsw: WithSubWord}
-  {ep : EstateParams syscall_state}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {LC : LoopCounter}
 .
 
@@ -819,7 +819,7 @@ Context
   {E E0: Type -> Type}
   {wE : with_Error E E0}
   {rE : EventRels E0}
-  {rndE : with_RndEvent syscall_state E0}
+  {rndE : with_RndEvent E0}
   {rndE_refl : RndRels_refl rE}
   (shparams : sh_params)
   (hshparams : h_sh_params shparams)

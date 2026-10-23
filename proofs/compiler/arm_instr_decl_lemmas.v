@@ -124,8 +124,6 @@ Context
   {wsw : WithSubWord}
   {core : arm_core}
   {atoI : arch_toIdent}
-  {syscall_state : Type}
-  {sc_sem : syscall_sem syscall_state}
   {pT : progT}
   {sCP : semCallParams}.
 

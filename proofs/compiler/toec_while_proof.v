@@ -8,17 +8,22 @@ Section PROOF.
 #[local] Existing Instance progUnit.
 
 Context
-  {asm_op syscall_state : Type}
+  {asm_op : Type}
   {wa : WithAssert}
-  {ep : EstateParams syscall_state}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}.
+  {sip : SemInstrParams asm_op}.
 
 #[local] Existing Instance sCP_unit.
 #[local] Existing Instance nosubword.
 #[local] Existing Instance indirect_c.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rndE : with_RndEvent E0}
+  {rE : EventRels E0}
+  {rndE_refl : RndRels_refl rE}.
 
 Context (p : prog) (ev:extra_val_t).
 Definition p' := toec_while_prog p.
@@ -57,7 +62,7 @@ Qed.
 #[local] Hint Resolve wrequiv_eq : core.
 
 Lemma toec_while_l fn : wiequiv_f p' p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-Proof.
+Proof using rndE_refl.
   apply wequiv_fun_ind_wa =>{} fn fn' fsi fs.
   move => [<- hrel] fdi.
   rewrite get_map_prog_name.
@@ -71,7 +76,7 @@ Proof.
   split => //.
   2: { move=> i1 i2 o1 <- //= H. subst. by exists o1. }
   2: { move : hrel => -> fr1 fr2 ->. by apply ec_while_sem_post. }
-  clear -Pc Pi Pi_r hcomp hsem.
+  clear -Pc Pi Pi_r hcomp hsem rndE_refl.
   apply (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)).
   { done. }
   { move=> c <-. by apply wequiv_nil. }
@@ -80,7 +85,7 @@ Proof.
   }
   { move=> x tg ty e ii i <-. by apply wequiv_assgn_eq. }
   { move=> xs t o es ii i <-. by apply wequiv_opn_eq. }
-  { move=> xs o es ii i <-. apply wequiv_syscall_eq => //. by move=>??->. }
+  { move=> xs o es ii i <-. apply wequiv_syscall_eq => //. by move=>??->. by apply fs_eq_syscall. }
   { move=> a ii i <-. by apply wequiv_assert_eq. }
   { move=> e c1 c2 Hc1 Hc2 ii i <-. apply wequiv_if_eq => //.
     case. by apply Hc1. by apply Hc2.
@@ -107,7 +112,7 @@ Proof.
     - by intros; subst.
     - move=> fs1 fs2 fr1 fr2  [_ ->] ->.
       exact (ec_while_sem_post erefl erefl).
-    - move=>???. by apply wequiv_fun_rec.
+    - by move=> ???; apply: wequiv_fun_rec.
     - by move=>fs1 fs2 fr1 fr2 [_ ->] ->.
   }
   { by rewrite -hcomp. }
