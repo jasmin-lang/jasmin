@@ -56,12 +56,12 @@ let withassert = Sem_params.withassert
 
 let exec_pre ep spp ii fc gd escs emem (vargs:value list) =
   let s1 = exn_exec ii (write_vars nosubword ep true fc.f_iparams vargs {escs; emem; evm = Vm.init nosubword}) in
-  List.iter (fun pa -> exn_exec ii (sem_assert nosubword withassert ep spp Utils0.partial gd s1 pa)) fc.f_pre
+  List.iter (fun pa -> exn_exec ii (sem_assert nosubword withassert ep spp gd s1 pa)) fc.f_pre
 
 let exec_post ep spp ii fc gd escs emem (vargs:value list) (vres: value list) =
   let s1 = exn_exec ii (write_vars nosubword ep true fc.f_iparams vargs {escs; emem; evm = Vm.init nosubword}) in
   let s1 = exn_exec ii (write_vars nosubword ep true fc.f_ires vres s1) in
-  List.iter (fun pa -> exn_exec ii (sem_assert nosubword withassert ep spp Utils0.partial gd s1 pa)) fc.f_post
+  List.iter (fun pa -> exn_exec ii (sem_assert nosubword withassert ep spp gd s1 pa)) fc.f_post
 
 let init_estate ep spp p ii fn scs0 m vargs =
   let f = BatOption.get (get_fundef p.p_funcs fn) in
@@ -131,7 +131,7 @@ let small_step1 ep spp sip s =
       { s with s_cmd = c; s_estate = s2 }
 
     | Cassert (p,a) ->
-      let _ = exn_exec ii (sem_assert nosubword withassert ep spp Utils0.partial gd s1 (p, a)) in
+      let _ = exn_exec ii (sem_assert nosubword withassert ep spp gd s1 (p, a)) in
       { s with s_cmd = c }
 
     | Cif(e,c1,c2) ->

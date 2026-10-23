@@ -207,24 +207,28 @@ End SEM_PEXPR.
 
 Section SEM_EASSERT.
 
+(* An assertion is a specification, not an instruction: it is evaluated in the
+   total mode whatever the mode of the program, so that it never fails and
+   means the same as in EasyCrypt. Its initialisation tests observe the raw
+   state. *)
+
 Context
   {wa:WithAssert}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
-  {sm : SemMode}
   (gd : glob_decls).
 
 Fixpoint sem_eassert (s : estate) (e : eassert) : exec bool :=
   match e with
-  | Pexpr e => sem_pexpr true gd s e >>= to_bool
+  | Pexpr e => sem_pexpr (sm := total) true gd s e >>= to_bool
   | PappN_safety op es =>
-    Let vs := mapM (sem_pexpr true gd s) es in
+    Let vs := mapM (sem_pexpr (sm := total) true gd s) es in
     sem_opN_safety op vs
   | Pis_var_init x => ok (is_var_init (evm s) x)
   | Pis_mem_init e1 e2 =>
-    Let lo := sem_pexpr true gd s e1 >>= to_pointer in
-    Let sz := sem_pexpr true gd s e2 >>= to_int in
+    Let lo := sem_pexpr (sm := total) true gd s e1 >>= to_pointer in
+    Let sz := sem_pexpr (sm := total) true gd s e2 >>= to_int in
     ok (all (fun i => validr s.(emem) Unaligned (lo + wrepr Uptr i)%w U8) (ziota 0 sz))
   | Pand e1 e2 =>
     Let b1 := sem_eassert s e1 in
