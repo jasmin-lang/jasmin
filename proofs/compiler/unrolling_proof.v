@@ -50,7 +50,13 @@ Section PROOF.
 
   Section IT.
 
-  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context
+    {E E0 : Type -> Type}
+    {wE : with_Error E E0}
+    {rndE : with_RndEvent syscall_state E0}
+    {rE : EventRels E0}
+    {rndE_refl : RndRels_refl rE}
+  .
 
   Let Pi (i:instr) :=
     wequiv_rec p p' ev ev eq_spec (st_eq tt) [::i] (unroll_i i).1 (st_eq tt).
@@ -71,7 +77,7 @@ Section PROOF.
 
   Lemma it_unroll_callP fn :
     wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-  Proof.
+  Proof using rndE_refl.
     apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hfd.
     exists (unroll_fun (fn, fd)).1.2.
     + by apply: p'_get_fundef hfd.

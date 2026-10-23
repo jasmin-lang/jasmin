@@ -55,13 +55,6 @@ Definition sem_Ind_opn : Prop :=
     sem_sopn gd o s1 xs es = ok s2 →
     Pi_r s1 (Copn xs t o es) s2.
 
-Definition sem_Ind_syscall : Prop :=
-  forall  s1 scs m s2 o xs es ves vs,
-    sem_pexprs true gd s1 es = ok ves →
-    exec_syscall s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
-    write_lvals true gd (with_scs (with_mem s1 m) scs) xs vs = ok s2 →
-    Pi_r s1 (Csyscall xs o es) s2.
-
 End SEM.
 
 Section WITH_PARAMS.
@@ -133,7 +126,13 @@ Proof using eq_globs. constructor; move=> > ->; apply st_eq_sem_eassert. Qed.
 
 Section FUN.
 
-Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {sem_F : sem_Fun E}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
+  {rE0 : EventRels E0}
+  {rndE : RndRels2 (rE_l := rE) (rE_r := rE) (rE0 := rE0)}.
 
 Let Pi i := wequiv p p' ev ev' (st_eq tt) [::i] [::i] (st_eq tt).
 
@@ -144,7 +143,7 @@ Let Pc c := wequiv p p' ev ev' (st_eq tt) c c (st_eq tt).
 Lemma wequiv_st_eq c :
   (forall ii f, wequiv_f_ii p p' ev ev' (λ (_ _ : funname), eq) ii ii f f (λ (_ _ : funname) (_ _ : fstate), eq)) ->
   Pc c.
-Proof using eq_globs.
+Proof using eq_globs rndE.
   move=> hf; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}.
   + by apply wequiv_nil.
   + by move=> *; apply wequiv_cons with (st_eq tt).
@@ -194,10 +193,6 @@ Proof using eq_globs.
     move=> vs' vs hes hop hw heq.
     rewrite -(sem_pexprs_ext_eq true (p_globs p) _ heq) hes /= hop /=.
     by have [vm2 ??] := write_lvars_ext_eq heq hw; exists vm2.
-  + move=> xs o es ii s1 s2 vm1 /=; rewrite /sem_syscall -eq_globs /upd_estate; t_xrbindP.
-    move=> vs hes fs ho hw heq.
-    rewrite -(sem_pexprs_ext_eq true (p_globs p) _ heq) hes /= ho /= /upd_estate.
-    by have /(_ _ heq) [vm2 ??]:= write_lvars_ext_eq _ hw; exists vm2.
   + move=> e c1 c2 hc1 hc2 ii s1 s2 vm1 /=; rewrite /sem_cond -eq_globs; t_xrbindP.
     move=> b v he hb hc heq.
     rewrite -(sem_pexpr_ext_eq true (p_globs p) _ heq) he /= hb /= => {hb}.
@@ -219,10 +214,15 @@ End ESEM.
 
 Section REC.
 
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
+  {rE0 : EventRels E0}
+  {rndE : RndRels2 (rE_l := rE) (rE_r := rE) (rE0 := rE0)}.
 
 Lemma wequiv_rec_st_eq c : wequiv_rec p p' ev ev' eq_spec (st_eq tt) c c (st_eq tt).
-Proof using eq_globs.
+Proof using eq_globs rndE.
   apply wequiv_st_eq.
   by move=> ii f s t <-; apply xrutt_facts.xrutt_trigger.
 Qed.
@@ -234,7 +234,12 @@ End PROG.
 Section WIEQUIV_F.
 
 Context (p : prog) (ev: extra_val_t).
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
+  {rE0 : EventRels E0}
+  {rndE : RndRels2 (rE_l := rE) (rE_r := rE) (rE0 := rE0)}.
 
 Lemma st_eq_finalize fd fd' :
   f_tyout fd = f_tyout fd' ->
@@ -252,7 +257,7 @@ Qed.
 
 Lemma wiequiv_f_eq fn :
   wiequiv_f p p ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
-Proof.
+Proof using rndE.
 apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
 exists fd => // s1 ?; exists s1 => //; exists (st_eq tt), (st_eq tt).
 split=> //; first exact/wequiv_rec_st_eq.
@@ -260,7 +265,7 @@ exact/st_eq_finalize.
 Qed.
 
 Lemma wiequiv_st_eq c : wiequiv p p ev ev (st_eq tt) c c (st_eq tt).
-Proof. by apply wequiv_st_eq => // ii f ???; apply wiequiv_f_eq. Qed.
+Proof using rndE. by apply wequiv_st_eq => // ii f ???; apply wiequiv_f_eq. Qed.
 
 End WIEQUIV_F.
 
@@ -418,7 +423,13 @@ Qed.
 
 Section FUN.
 
-Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {sem_F : sem_Fun E}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
+  {rE0 : EventRels E0}
+  {rndE : RndRels2 (rE_l := rE) (rE_r := rE) (rE0 := rE0)}.
 
 Let Pi i :=
   forall X, Sv.Subset (read_I i) X ->
@@ -437,7 +448,7 @@ Lemma it_read_cP_aux c X :
      wequiv_f_ii p p' ev ev' (λ (_ _ : funname), eq) ii ii fn fn (λ _ _  _ _, eq)) ->
   Sv.Subset (read_c c) X ->
   wequiv p p' ev ev' (st_eq_on X) c c (st_eq_on X).
-Proof using eq_globs.
+Proof using eq_globs rndE.
   move=> hfn; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c X}.
   + by move=> i ii hi X; apply hi.
   + by move=> ii X; apply wequiv_nil.
@@ -479,12 +490,17 @@ End FUN.
 
 Section REC.
 
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
+  {rE0 : EventRels E0}
+  {rndE : RndRels2 (rE_l := rE) (rE_r := rE) (rE0 := rE0)}.
 
 Lemma it_read_cP_rec X c :
   Sv.Subset (read_c c) X ->
   wequiv_rec p p' ev ev' eq_spec (st_eq_on X) c c (st_eq_on X).
-Proof using eq_globs.
+Proof using eq_globs rndE.
   apply it_read_cP_aux.
   by move=> ii f s t <-; apply xrutt_facts.xrutt_trigger.
 Qed.
@@ -496,12 +512,17 @@ End PROG.
 Section REFL.
 
 Context (p : prog) (ev: extra_val_t).
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
+  {rE0 : EventRels E0}
+  {rndE : RndRels2 (rE_l := rE) (rE_r := rE) (rE0 := rE0)}.
 
 Lemma it_read_cP X c :
   Sv.Subset (read_c c) X ->
   wiequiv p p ev ev (st_eq_on X) c c (st_eq_on X).
-Proof.
+Proof using rndE.
   apply it_read_cP_aux => //= ii fn i1 i2 h.
   have /(_ i1 i2) := [elaborate wiequiv_f_eq p ev (fn:=fn)].
   by apply.
@@ -594,7 +615,13 @@ Proof using eq_globs.
 Qed.
 #[local] Hint Resolve checker_st_uinclP : core.
 
-Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {sem_F : sem_Fun E}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
+  {rE0 : EventRels E0}
+  {rndE : RndRels2 (rE_l := rE) (rE_r := rE) (rE0 := rE0)}.
 
 Let Pi i := wequiv p p' ev ev' (st_uincl tt) [::i] [::i] (st_uincl tt).
 
@@ -608,7 +635,7 @@ Lemma it_sem_uincl_aux c :
   (forall ii fn,
      wequiv_f_ii p p' ev ev' (λ (_ _ : funname), fs_uincl) ii ii fn fn (λ _ _  _ _, fs_uincl)) ->
   wequiv p p' ev ev' (st_uincl tt) c c (st_uincl tt).
-Proof using eq_globs.
+Proof using eq_globs rndE.
   move=> hfn; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}.
   + by move=> i ii hi X; apply hi.
   + by move=> ii X; apply wequiv_nil.
@@ -629,7 +656,12 @@ End PROG.
 Section REFL.
 
 Context (p : prog) (ev: extra_val_t).
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
+  {rE0 : EventRels E0}
+  {rndE : RndRels2 (rE_l := rE) (rE_r := rE) (rE0 := rE0)}.
 
 Definition uincl_spec : EquivSpec :=
   {| rpreF_ := fun (fn1 fn2 : funname) (fs1 fs2 : fstate) => fn1 = fn2 /\ fs_uincl fs1 fs2
@@ -694,17 +726,18 @@ Qed.
 
 Lemma it_sem_uincl_f fn :
   wiequiv_f p p ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-Proof.
+Proof using rndE.
 apply wequiv_fun_ind => {}fn _ fs1 fs2 [<-] hu fd ->.
 exists fd => // s /(fs_uincl_initialize erefl erefl erefl erefl hu) [t] -> {}hu.
 exists t => //; exists (st_uincl tt), (st_uincl tt); split=> //.
-+ apply it_sem_uincl_aux => // ii fn' fs1' fs2' h; exact/wequiv_fun_rec.
++ apply: (it_sem_uincl_aux _ (rndE := RndRels2_recCall uincl_spec)) => //.
+  by move=> ii fn' fs1' fs2' h; exact/wequiv_fun_rec.
 exact/fs_uincl_finalize.
 Qed.
 
 Lemma it_sem_uincl c :
   wiequiv p p ev ev (st_uincl tt) c c (st_uincl tt).
-Proof.
+Proof using rndE.
   by apply it_sem_uincl_aux => // ? fn ?? h; apply it_sem_uincl_f.
 Qed.
 
@@ -716,12 +749,17 @@ Context (p p':prog) (ev ev': extra_val_t).
 
 Context (eq_globs: p_globs p = p_globs p').
 
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
+  {rE0 : EventRels E0}
+  {rndE : RndRels2 (rE_l := rE) (rE_r := rE) (rE0 := rE0)}.
 
 Lemma it_sem_uincl_rec c :
   wequiv_rec p p' ev ev' uincl_spec (st_uincl tt) c c (st_uincl tt).
-Proof using eq_globs.
-  apply it_sem_uincl_aux => //.
+Proof using eq_globs rndE.
+  apply: (it_sem_uincl_aux _ (rndE := RndRels2_recCall uincl_spec)) => //.
   by move=> ii f s t hu; apply xrutt_facts.xrutt_trigger.
 Qed.
 
@@ -761,7 +799,13 @@ Proof using eq_globs.
 Qed.
 #[local] Hint Resolve checker_eq_cmdP : core.
 
-Context {E E0 : Type -> Type} {sem_F : sem_Fun E} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {sem_F : sem_Fun E}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
+  {rE0 : EventRels E0}
+  {rndE : RndRels2 (rE_l := rE) (rE_r := rE) (rE0 := rE0)}.
 
 Let Pi i :=
   forall i', eq_instr i i' ->
@@ -780,7 +824,7 @@ Lemma it_eq_cmdP_aux c :
      wequiv_f_ii p p' ev ev' (λ (_ _ : funname), fs_uincl) ii ii' fn fn (λ _ _  _ _, fs_uincl)) ->
   forall c', eq_cmd c c' ->
   wequiv p p' ev ev' (st_uincl tt) c c' (st_uincl tt).
-Proof using eq_globs.
+Proof using eq_globs rndE.
   move=> hfn; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => {c}.
   + by move=> i ii hi [??] /= ?; apply hi.
   + by move=> [|//] _; apply wequiv_nil.
@@ -820,13 +864,18 @@ Context (p p':prog) (ev ev': extra_val_t).
 
 Context (eq_globs: p_globs p = p_globs p').
 
-Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
+  {rE0 : EventRels E0}
+  {rndE : RndRels2 (rE_l := rE) (rE_r := rE) (rE0 := rE0)}.
 
 Lemma it_eq_cmdP_rec c c' :
   eq_cmd c c' ->
   wequiv_rec p p' ev ev' uincl_spec (st_uincl tt) c c' (st_uincl tt).
-Proof using eq_globs.
-  apply it_eq_cmdP_aux => //.
+Proof using eq_globs rndE.
+  apply: (it_eq_cmdP_aux _ (rndE := RndRels2_recCall uincl_spec)) => //.
   by move=> ii ii' f s t hu; apply xrutt_facts.xrutt_trigger.
 Qed.
 
@@ -841,7 +890,9 @@ Context
   {dc1 : DirectCall}
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
   {rE12 : EventRels E0}
+  {rndE : RndRels2 (rE_l := rE) (rE_r := rE) (rE0 := rE12)}
   {rE_trans : EventRels_trans rE12 rE12 rE12}
   {p1 : prog (pT := pT1)} {p2 : prog (pT := pT)}
   {ev1 : extra_val_t (progT := pT1)} {ev2 : extra_val_t (progT := pT)}
@@ -857,7 +908,7 @@ Notation wiequiv_f :=
 Lemma it_sem_refl_EU_UU :
   wiequiv_f (rpreF (eS := eq_spec)) fn1 fn2 (rpostF (eS := uincl_spec)) ->
   wiequiv_f (rpreF (eS := uincl_spec)) fn1 fn2 (rpostF (eS := uincl_spec)).
-Proof using rE_trans.
+Proof using rE_trans rndE.
 move=> h.
 apply: (
   wiequiv_f_trans
@@ -879,7 +930,7 @@ Qed.
 Lemma it_sem_refl_EE_UU :
   wiequiv_f (rpreF (eS := eq_spec)) fn1 fn2 (rpostF (eS := eq_spec)) ->
   wiequiv_f (rpreF (eS := uincl_spec)) fn1 fn2 (rpostF (eS := uincl_spec)).
-Proof using rE_trans.
+Proof using rE_trans rndE.
   move=> h; apply: it_sem_refl_EU_UU.
   apply: (
            wkequiv_io_weaken
@@ -1002,6 +1053,7 @@ Context
   {pT1 pT2 pT3 : progT}
   {E E0 : Type -> Type}
   {wE : with_Error E E0}
+  {rE : with_RndEvent syscall_state E0}
   {wsw1 wsw2 wsw3 : WithSubWord}
   {wa1 wa2 wa3 : WithAssert}
   {scP1 : semCallParams (wsw := wsw1) (pT := pT1)}

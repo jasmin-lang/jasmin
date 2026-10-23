@@ -293,6 +293,17 @@ Proof. by case: v => //= n' t'; case: eqP => // ? /ok_inj; subst => ->. Qed.
 Lemma to_arr_undef p v : to_arr p v <> undef_error.
 Proof. by case: v => //= ??; case: eqP. Qed.
 
+Lemma value_uincl_to_arr_err va va' len e :
+  value_uincl va va' ->
+  to_arr len va = Error e ->
+  to_arr len va' = Error e.
+Proof.
+move=> /value_uinclE.
+case: va => [? -> | ? -> | n a | ?? [? [? [-> _]]] |] //.
+- by move=> [a' -> _] /=; case: eqP.
+by move=> [||//|ws] ?; case: va'.
+Qed.
+
 Global Opaque to_arr.
 
 Lemma to_arr_empty (len len': Z) (a: WArray.array len):
@@ -532,6 +543,9 @@ Qed.
 
 Definition truncate_val (ty: ctype) (v: value) : exec value :=
   of_val ty v >>= λ x, ok (to_val x).
+
+Definition truncate_vals (ty : seq ctype) (vs : values) : exec values :=
+  mapM2 ErrType truncate_val ty vs.
 
 Lemma truncate_val_typeE ty v vt :
   truncate_val ty v = ok vt ->
@@ -894,4 +908,6 @@ Proof.
   by case: v => //= sz w _; rewrite eqxx truncate_word_u.
 Qed.
 
-
+Definition sem_tuple_of_values
+  (ts : seq ctype) (vs : values) : exec (sem_tuple ts) :=
+  app_sopn ts (sem_prod_ok ts (sem_prod_tuple ts)) vs.

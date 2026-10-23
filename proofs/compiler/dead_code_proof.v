@@ -252,7 +252,13 @@ Section PROOF.
   Qed.
 
   Section IT.
-  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : EventRels E0}
+  {rndE : with_RndEvent syscall_state E0}
+  {rndE_refl : RndRels_refl rE}
+.
 
   #[local] Lemma checker_st_uincl_onP : Checker_uincl p p' checker_st_uincl_on.
   Proof using dead_code_ok. apply/checker_st_uincl_onP/eq_globs. Qed.
@@ -278,7 +284,7 @@ Section PROOF.
 
   Lemma it_dead_code_callP fn :
     wiequiv_f p p' ev ev (rpreF (eS:= dc_spec)) fn fn (rpostF (eS:=dc_spec)).
-  Proof using is_move_opP dead_code_ok.
+  Proof using is_move_opP dead_code_ok rndE_refl.
     apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
     have dcok : map_cfprog_name (dead_code_fd is_move_op apply_ret_annot do_nop onfun) (p_funcs p) = ok (p_funcs p').
     + by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? ? <-.
@@ -402,12 +408,18 @@ End PROOF.
 End Section.
 
 Section IT.
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : EventRels E0}
+  {rndE : with_RndEvent syscall_state E0}
+  {rndE_refl : RndRels_refl rE}
+.
 
 Lemma it_dead_code_tokeep_callPu (p p': uprog) apply_ret_annot do_nop onfun fn ev:
   dead_code_prog_tokeep is_move_op apply_ret_annot do_nop onfun p = ok p' ->
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=dc_spec onfun)).
-Proof using is_move_opP.
+Proof using is_move_opP rndE_refl.
   move=> hd; apply wkequiv_io_weaken with
    (rpreF (eS:= dc_spec onfun) fn fn) (rpostF (eS:=dc_spec onfun) fn fn) => //=.
   + by move=> ?? [_ <-]; split => //; split => //; apply List_Forall2_refl.
@@ -417,7 +429,7 @@ Qed.
 Lemma it_dead_code_tokeep_callPs (p p': sprog) apply_ret_annot do_nop onfun fn wrip:
   dead_code_prog_tokeep is_move_op apply_ret_annot do_nop onfun p = ok p' ->
   wiequiv_f p p' wrip wrip (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=dc_spec onfun)).
-Proof using is_move_opP.
+Proof using is_move_opP rndE_refl.
   move=> hd; apply wkequiv_io_weaken with
    (rpreF (eS:= dc_spec onfun) fn fn) (rpostF (eS:=dc_spec onfun) fn fn) => //=.
   + by move=> ?? [_ <-]; split => //; split => //; apply List_Forall2_refl.
@@ -427,12 +439,12 @@ Qed.
 Lemma it_dead_code_callPu (p p': uprog) do_nop fn ev :
   dead_code_prog is_move_op p do_nop = ok p' ->
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=uincl_spec)).
-Proof using is_move_opP. apply it_dead_code_tokeep_callPu. Qed.
+Proof using is_move_opP rndE_refl. apply it_dead_code_tokeep_callPu. Qed.
 
 Lemma it_dead_code_callPs (p p': sprog) do_nop fn wrip:
   dead_code_prog is_move_op p do_nop = ok p' ->
   wiequiv_f p p' wrip wrip (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=uincl_spec)).
-Proof using is_move_opP. apply it_dead_code_tokeep_callPs. Qed.
+Proof using is_move_opP rndE_refl. apply it_dead_code_tokeep_callPs. Qed.
 
 Lemma dead_code_prog_tokeep_meta (p p': sprog) apply_ret_annot do_nop onfun :
   dead_code_prog_tokeep is_move_op apply_ret_annot do_nop onfun p = ok p' →

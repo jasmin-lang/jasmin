@@ -444,7 +444,13 @@ Section PROOF.
 
   Section IT.
 
-  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context
+    {E E0 : Type -> Type}
+    {wE : with_Error E E0}
+    {rndE : with_RndEvent syscall_state E0}
+    {rE : EventRels E0}
+    {rndE_refl : RndRels_refl rE}
+  .
 
   Definition st_eq_alloc (r : M.t) := st_rel eq_alloc r.
 
@@ -498,7 +504,7 @@ Section PROOF.
   Lemma it_alloc_cP (f_body : cmd) (dead_vars_fd0 : instr_info → Sv.t) (r1 : M.t_) (r2 : M.t) (f_body0 : cmd) :
     check_cmd dead_vars_fd0 f_body f_body0 r1 = ok r2 →
     wequiv_rec p1 p2 ev ev uincl_spec (st_eq_alloc r1) f_body f_body0 (st_eq_alloc r2).
-  Proof using eq_globs.
+  Proof using rndE_refl eq_globs.
     move: f_body dead_vars_fd0 r1 r2 f_body0.
     apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //.
     + move=> i1 ii1 hi1 dead_vars r1 r2 [ii2 i2] /=; t_xrbindP => r2' /hi1 -/(_ ii1 ii2) + <-.
@@ -573,7 +579,7 @@ Section PROOF.
 
   Lemma it_alloc_callP fn :
     wiequiv_f p1 p2 ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-  Proof using init_allocP check_f_extraP Hcheck eq_globs.
+  Proof using rndE_refl init_allocP check_f_extraP Hcheck eq_globs.
     apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd hget.
     have [fd2 [Hget2 /=]]:= all_checked hget.
     t_xrbindP => /and3P [] _ htyin htyout r0 Hcinit r1 /check_f_extraP[] Hcparams hinit hfinalize r2 Hcc r3 Hcres _.
@@ -624,14 +630,20 @@ Qed.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rndE : with_RndEvent syscall_state E0}
+  {rE : EventRels E0}
+  {rndE_refl : RndRels_refl rE}
+ .
 
 Lemma it_alloc_call_uprogP dead_vars_fd ev gd ep1 p1 ep2 p2
   (H: check_prog init_alloc_uprog check_f_extra_u dead_vars_fd ep1 p1 ep2 p2 = ok tt) fn:
     wiequiv_f {|p_globs := gd; p_funcs := p1; p_extra := ep1; |}
               {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev ev
         (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-Proof.
+Proof using rndE_refl.
   have := it_alloc_callP init_alloc_uprogP.
   set p1' := {| p_funcs := p1 |}; set p2' := {| p_funcs := p2 |}.
   by move=> /(_ check_f_extra_u _ dead_vars_fd p1' p2' ev H); apply.
@@ -681,14 +693,20 @@ Qed.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rndE : with_RndEvent syscall_state E0}
+  {rE : EventRels E0}
+  {rndE_refl : RndRels_refl rE}
+.
 
 Lemma it_alloc_callP_sprogP dead_vars_fd ev gd ep1 p1 ep2 p2
   (H: check_prog init_alloc_sprog check_f_extra_s dead_vars_fd ep1 p1 ep2 p2 = ok tt) fn :
     wiequiv_f {|p_globs := gd; p_funcs := p1; p_extra := ep1; |}
               {|p_globs := gd; p_funcs := p2; p_extra := ep2; |} ev ev
         (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-Proof.
+Proof using rndE_refl.
   have := it_alloc_callP init_alloc_sprogP.
   set p1' := {| p_funcs := p1 |}; set p2' := {| p_funcs := p2 |}.
   move=> /(_ check_f_extra_s _ dead_vars_fd p1' p2' ev H); apply => //.

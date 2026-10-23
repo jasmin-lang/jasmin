@@ -32,7 +32,9 @@ Record h_lowering_params
         {sCP : semCallParams}
         {E E0: Type -> Type}
         {wE : with_Error E E0}
+        {rndE : with_RndEvent syscall_state E0}
         {rE : EventRels E0}
+        {rndE_refl : RndRels_refl rE}
         {p : prog}
         {ev : extra_val_t}
         (warning : instr_info -> warning_msg -> instr_info)
@@ -75,7 +77,9 @@ Record h_lower_addressing_params
       forall
         {E E0: Type -> Type}
         {wE : with_Error E E0}
+        {rndE : with_RndEvent syscall_state E0}
         {rE : EventRels E0}
+        {rndE_refl : RndRels_refl rE}
         {fresh_reg}
         {p p' : sprog}
         {ev fn},

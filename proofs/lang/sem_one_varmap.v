@@ -142,13 +142,6 @@ with sem_i : instr_info → Sv.t → estate → instr_r → estate → Prop :=
     sem_sopn gd o s1 xs es = ok s2 →
     sem_i ii (vrvs xs) s1 (Copn xs t o es) s2
 
-| Esyscall ii s1 scs m s2 o xs es ves vs:
-    get_vars true s1.(evm) (syscall_sig o).(scs_vin) = ok ves ->
-    exec_syscall (semCallParams:= sCP_stack) s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
-    write_lvals true gd {| escs := scs; emem := m; evm := vm_after_syscall s1.(evm) |}
-       (to_lvals (syscall_sig o).(scs_vout)) vs = ok s2 →
-    sem_i ii (Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout)))) s1 (Csyscall xs o es) s2
-
 | Eif_true ii k s1 s2 e c1 c2 :
     sem_pexpr true gd s1 e = ok (Vbool true) →
     sem k s1 c1 s2 →
@@ -258,13 +251,7 @@ Lemma sem_iE ii k s i s' :
     k = vrv x ∧
     exists2 v', sem_pexpr true gd s e >>= truncate_val (eval_atype ty) = ok v' & write_lval true gd x v' s = ok s'
   | Copn xs t o es => k = vrvs xs ∧ sem_sopn gd o s xs es = ok s'
-  | Csyscall xs o es => 
-    k = Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout))) /\  
-    ∃ scs m ves vs,
-     [/\ get_vars true s.(evm) (syscall_sig o).(scs_vin) = ok ves,
-         exec_syscall (semCallParams:= sCP_stack) s.(escs) s.(emem) o ves = ok (scs, m, vs) &
-         write_lvals true gd {| escs := scs; emem := m; evm := vm_after_syscall s.(evm) |}
-           (to_lvals (syscall_sig o).(scs_vout)) vs = ok s']
+  | Csyscall xs o es => False
   | Cassert _ => False
   | Cif e c1 c2 =>
     exists2 b, sem_pexpr true gd s e = ok (Vbool b) & sem k s (if b then c1 else c2) s'
@@ -283,7 +270,6 @@ Lemma sem_iE ii k s i s' :
 Proof.
   case => { ii k s i s' }; eauto.
   - by move => _ s s' x _ ty e v v' -> /= ->; eauto.
-  - by move=> _ s1 scs m s2 o xs es ves vs h1 h2 h3; split => //; exists scs, m, ves, vs.
   - by move => ii k k' krec s1 s2 s3 s4 a c e c' exec_c eval_e exec_c' rec; exists k, s2, true; split; try eexists; eauto.
   by move => ii k s1 s2 a c e c' exec_c eval_e; exists k, s2, false.
 Qed.
@@ -356,14 +342,6 @@ Section SEM_IND.
       sem_sopn gd o s1 xs es = ok s2 →
       Pi_r ii (vrvs xs) s1 (Copn xs t o es) s2.
 
-  Definition sem_Ind_syscall : Prop :=
-    ∀ (ii: instr_info) (s1 s2 : estate) (o : syscall_t) (xs : lvals) (es : pexprs) scs m ves vs,
-      get_vars true s1.(evm) (syscall_sig o).(scs_vin) = ok ves ->
-      exec_syscall (semCallParams:= sCP_stack) s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
-      write_lvals true gd {| escs := scs; emem := m; evm := vm_after_syscall s1.(evm) |}
-        (to_lvals (syscall_sig o).(scs_vout)) vs = ok s2 →
-      Pi_r ii (Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout)))) s1 (Csyscall xs o es) s2.
-
   Definition sem_Ind_if_true : Prop :=
     ∀ (ii: instr_info) (k: Sv.t) (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
     sem_pexpr true gd s1 e = ok (Vbool true) →
@@ -393,7 +371,6 @@ Section SEM_IND.
   Hypotheses
     (Hasgn: sem_Ind_assgn)
     (Hopn: sem_Ind_opn)
-    (Hsyscall: sem_Ind_syscall)
     (Hif_true: sem_Ind_if_true)
     (Hif_false: sem_Ind_if_false)
     (Hwhile_true: sem_Ind_while_true)
@@ -448,7 +425,6 @@ Section SEM_IND.
     match s in sem_i ii k s1 i s2 return Pi_r ii k s1 i s2 with
     | @Eassgn ii s1 s2 x tag ty e1 v v' h1 h2 h3 => @Hasgn ii s1 s2 x tag ty e1 v v' h1 h2 h3
     | @Eopn ii s1 s2 t o xs es e1 => @Hopn ii s1 s2 t o xs es e1
-    | @Esyscall ii s1 scs m s2 o xs es ves vs h1 h2 h3 => @Hsyscall ii s1 s2 o xs es scs m ves vs h1 h2 h3
     | @Eif_true ii k s1 s2 e1 c1 c2 e2 s0 =>
       @Hif_true ii k s1 s2 e1 c1 c2 e2 s0 (@sem_Ind k s1 c1 s2 s0)
     | @Eif_false ii k s1 s2 e1 c1 c2 e2 s0 =>

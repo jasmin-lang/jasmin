@@ -18,5 +18,3 @@ let get_random (s : state) (z:BinNums.coq_Z) =
   let n = CoreConv.int_of_cz z in
   assert (0 <= n);
   s, List.init n random_char
-
-let sc_sem : state Syscall.syscall_sem = get_random

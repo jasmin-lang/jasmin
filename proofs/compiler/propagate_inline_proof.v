@@ -539,7 +539,13 @@ Section PROOF.
 
   Section IT.
 
-  Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+  Context
+    {E E0 : Type -> Type}
+    {wE : with_Error E E0}
+    {rndE : with_RndEvent syscall_state E0}
+    {rE : EventRels E0}
+    {rndE_refl : RndRels_refl rE}
+  .
 
   Definition st_pi pi s1 s2 :=
     st_uincl tt s1 s2 /\ valid_pi gd s1 pi.
@@ -609,7 +615,7 @@ Section PROOF.
   Proof. by move=> hincl s1 s2 [hu hval]; split => //; apply: valid_pi_incl hval. Qed.
 
   Lemma it_pi_callP fn : wiequiv_f p1 p2 ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
-  Proof using hcomp.
+  Proof using hcomp rndE_refl.
     apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd1 hget.
     have [fd2 hfun ->] := all_checked hget.
     exists fd2 => // {hget}.

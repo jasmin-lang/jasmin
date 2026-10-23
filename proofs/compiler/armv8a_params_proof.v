@@ -589,7 +589,7 @@ Proof.
   split=> /=.
   + exact: (lower_glob_load_prog_invariants (sip := sip_of_asm_e)).
   + exact: (lower_glob_load_fd_invariants (sip := sip_of_asm_e)).
-  by move=> > /(it_lower_glob_load_progP (sip := sip_of_asm_e) armv8a_glob_addrP).
+  by move=> > h; apply: (it_lower_glob_load_progP (sip := sip_of_asm_e) armv8a_glob_addrP h).
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -1181,7 +1181,7 @@ Proof. by constructor; exact: armv8a_spec_shp_lower. Qed.
 Section STACK_ZEROIZATION.
 
 Lemma armv8a_hszparams : h_stack_zeroization_params (ap_szp armv8a_params).
-Proof.
+Proof using atoI call_conv sc_sem syscall_state.
   split.
   + exact: armv8a_stack_zero_cmd_not_ext_lbl.
   exact: armv8a_stack_zero_cmdP.

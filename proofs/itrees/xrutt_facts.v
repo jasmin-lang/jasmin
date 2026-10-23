@@ -714,6 +714,18 @@ Proof.
   intros. eapply xrutt_weaken in H4; eauto.
 Qed.
 
+Lemma xrutt_weaken_v3
+  {E1 E2 : Type -> Type} {O1 O2 : Type}
+  (EE1 : forall X, E1 X -> bool)
+  (EE2 : forall X, E2 X -> bool)
+  (REv : forall A B, E1 A -> E2 B -> Prop)
+  (RAns : forall A B, E1 A -> A -> E2 B -> B -> Prop)
+  (RR RR' : O1 -> O2 -> Prop) t1 t2 :
+  (forall o1 o2, RR o1 o2 -> RR' o1 o2) ->
+  xrutt EE1 EE2 REv RAns RR t1 t2 ->
+  xrutt EE1 EE2 REv RAns RR' t1 t2.
+Proof. intros; eapply xrutt_weaken_v2; eauto. Qed.
+
 
 (** Transitivity *)
 
@@ -939,4 +951,44 @@ Proof.
   intros t1 t2 hpost.
   rewrite (hans _ _ _ _ heq1 heq2 hpost).
   constructor; constructor; right; apply CIH.
+Qed.
+
+Lemma xrutt_translate {E1 E2 F1 F2 : Type -> Type} {R1 R2 : Type}
+  (h1 : forall T, E1 T -> F1 T) (h2 : forall T, E2 T -> F2 T)
+  (EE1 : forall X, E1 X -> bool) (EE2 : forall X, E2 X -> bool)
+  (FF1 : forall X, F1 X -> bool) (FF2 : forall X, F2 X -> bool)
+  (REv : prerel E1 E2) (RAns : postrel E1 E2)
+  (FEv : prerel F1 F2) (FAns : postrel F1 F2)
+  (RR : R1 -> R2 -> Prop)
+  (t1 : itree E1 R1) (t2 : itree E2 R2) :
+  (forall X (e1 : E1 X), IsCut_ EE1 X e1 -> IsCut_ FF1 X (h1 X e1)) ->
+  (forall X (e2 : E2 X), IsCut_ EE2 X e2 -> IsCut_ FF2 X (h2 X e2)) ->
+  (forall A B (e1 : E1 A) (e2 : E2 B),
+     REv A B e1 e2 -> FEv A B (h1 A e1) (h2 B e2)) ->
+  (forall A B (e1 : E1 A) (a : A) (e2 : E2 B) (b : B),
+     REv A B e1 e2 -> FAns A B (h1 A e1) a (h2 B e2) b -> RAns A B e1 a e2 b) ->
+  xrutt EE1 EE2 REv RAns RR t1 t2 ->
+  xrutt FF1 FF2 FEv FAns RR (translate h1 t1) (translate h2 t2).
+Proof.
+  intros hEE1 hEE2 hREv hRAns.
+  revert t1 t2; pcofix CIH; intros t1 t2 Hrutt.
+  punfold Hrutt; red in Hrutt. pstep; red.
+  change (observe (translate h1 t1)) with
+    (observe (translateF h1 (fun t => translate h1 t) (observe t1))).
+  change (observe (translate h2 t2)) with
+    (observe (translateF h2 (fun t => translate h2 t) (observe t2))).
+  hinduction Hrutt before CIH; intros; cbn.
+  - now constructor.
+  - constructor. right. apply CIH. now pclearbot.
+  - destruct (FF1 A (h1 A e1)) eqn:hff1.
+    { now apply EqCutL. }
+    destruct (FF2 B (h2 B e2)) eqn:hff2.
+    { now apply EqCutR. }
+    apply EqVis; auto.
+    intros a b HAns. right. apply CIH.
+    specialize (H2 a b (hRAns _ _ _ _ _ _ H1 HAns)). now pclearbot.
+  - now apply EqCutL, hEE1.
+  - now apply EqCutR, hEE2.
+  - apply EqTauL. exact IHHrutt.
+  - apply EqTauR. exact IHHrutt.
 Qed.

@@ -111,8 +111,11 @@ Section WITH_PARAMS.
 
     Context
       {E E0: Type → Type}
-        {wE: with_Error E E0}
-        {rE: EventRels E0}.
+      {wE: with_Error E E0}
+      {rE: EventRels E0}
+      {rndE : with_RndEvent syscall_state E0}
+      {rndE_refl : RndRels_refl rE}
+    .
 
     Context (insert_renaming_p: fun_info → bool).
     Context (p: prog) (ev: extra_val_t).
@@ -133,7 +136,7 @@ Section WITH_PARAMS.
 
     Lemma it_insert_renaming_rec (fd: fundef) :
       wequiv (rE0 := relEvent_recCall uincl_spec) p p' ev ev (st_uincl tt) (f_body fd) (f_body fd) (st_uincl tt).
-    Proof.
+    Proof using rndE_refl.
       apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)).
       - done.
       - by apply wequiv_nil.
@@ -154,7 +157,7 @@ Section WITH_PARAMS.
 
     Theorem it_insert_renaming_callP fn :
       wiequiv_f p p' ev ev pre_incl fn fn post_incl.
-    Proof.
+    Proof using rndE_refl.
       apply wequiv_fun_ind' => {} fn _ fs ft [] <- hfsu fd hget.
       exists (insert_renaming_fd insert_renaming_p fd).
       - by rewrite get_map_prog hget.
