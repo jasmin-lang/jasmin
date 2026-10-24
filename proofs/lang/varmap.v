@@ -471,7 +471,7 @@ Module Type VM.
      undefined and the mode is total. *)
   Parameter get_modeE : forall {wsw:WithSubWord} {sm : SemMode} vm x,
     get (sm := sm) vm x =
-    if is_total (SemMode := sm) && ~~ is_defined (get (sm := partial) vm x)
+    if is_total (sm := sm) && ~~ is_defined (get (sm := partial) vm x)
     then dfl_val (eval_atype (vtype x)) else get (sm := partial) vm x.
 
   (* Every mode reads the same entry: two variable maps that agree on a
@@ -550,7 +550,7 @@ Module Vm : VM.
 
   Lemma get_modeE vm x :
     get (sm := sm) vm x =
-    if is_total (SemMode := sm) && ~~ is_defined (get (sm := partial) vm x)
+    if is_total (sm := sm) && ~~ is_defined (get (sm := partial) vm x)
     then dfl_val (eval_atype (vtype x)) else get (sm := partial) vm x.
   Proof. by rewrite /get /=. Qed.
 

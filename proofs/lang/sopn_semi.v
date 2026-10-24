@@ -183,13 +183,15 @@ Definition is_ErrType (e : error) : bool := if e is ErrType then true else false
 
 (* The semantics of an instruction: the safety conditions are checked on the
    arguments, then the total semantics is filtered by the initialisation
-   conditions, one per output. *)
+   conditions, one per output; in the [total_init] mode nothing is filtered. *)
 Definition mk_semi {sm : SemMode} (tin tout : seq ctype) (safe : seq safety_cond) (err : error)
     (init : seq safety_cond)
     (f : sem_prod tin (sem_tuple_t tout)) : sem_prod tin (exec (sem_tuple tout)) :=
   mk_semi_aux
     (fun vs t => Let _ := check_safe vs safe err in
-                 ok (filter_tuple tout (map (safety_cond_holds vs) init) t))
+                 ok (filter_tuple tout
+                       (if undef_outputs then map (safety_cond_holds vs) init
+                        else nseq (size tout) true) t))
     [::] tin f.
 Arguments mk_semi {sm !tin tout} safe err init f / : assert.
 

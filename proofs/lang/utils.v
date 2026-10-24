@@ -119,22 +119,37 @@ Proof. by move=> ?? h1 ?? h2 ?? h3; split => -[] /h1 ? /h2 ? /h3. Qed.
  * --------------------------------------------------------------------
  * In the [partial] mode an access that is out of bounds, not initialised or
  * not aligned fails; in the [total] mode it succeeds and reads a default
- * value.  The mode is a class, so that the existing development, which has no
- * mode in context, uses the default instance [partial] and keeps its meaning.
+ * value, and an instruction leaves undefined the outputs whose initialisation
+ * condition does not hold; in the [total_init] mode every output of an
+ * instruction is moreover defined.  The mode is a class, so that the existing
+ * development, which has no mode in context, uses the default instance
+ * [partial] and keeps its meaning.
  *)
 
-Class SemMode := { is_total : bool }.
-Definition partial : SemMode := {| is_total := false |}.
-Definition total : SemMode := {| is_total := true |}.
+Variant sem_mode := Partial | Total | Total_init.
+
+Class SemMode := { sm_mode : sem_mode }.
+Definition partial : SemMode := {| sm_mode := Partial |}.
+Definition total : SemMode := {| sm_mode := Total |}.
+Definition total_init : SemMode := {| sm_mode := Total_init |}.
+
+(* Whether an access that would fail succeeds with a default value. *)
+Definition is_total {sm : SemMode} : bool :=
+  if sm_mode is Partial then false else true.
+
+(* Whether an instruction leaves undefined the outputs whose initialisation
+   condition does not hold. *)
+Definition undef_outputs {sm : SemMode} : bool :=
+  if sm_mode is Total_init then false else true.
 
 #[global] Existing Instances partial | 1000.
 
 (* An access is guarded by [is_total || c]: the check [c] is done in the
    partial mode only. *)
-Lemma or_is_total_partial (b : bool) : (is_total (SemMode := partial) || b) = b.
+Lemma or_is_total_partial (b : bool) : (is_total (sm := partial) || b) = b.
 Proof. by []. Qed.
 
-Lemma or_is_total_total (b : bool) : (is_total (SemMode := total) || b) = true.
+Lemma or_is_total_total (b : bool) : (is_total (sm := total) || b) = true.
 Proof. by []. Qed.
 
 (* ** Result monad

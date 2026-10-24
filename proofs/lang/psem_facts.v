@@ -466,7 +466,7 @@ End SYSCALL_U.
 (* ------------------------------------------------------------------------- *)
 (* A success of the partial mode is a success of the total mode               *)
 
-Section PARTIAL_TOTAL.
+Section MODES.
 
 Context
   {wsw:WithSubWord}
@@ -474,6 +474,103 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   (gd : glob_decls).
+
+(* The semantics depends on the mode through [is_total] only: the
+   [total_init] mode differs from the [total] mode on the outputs of the
+   instructions, not on the expressions nor on the writes. *)
+Lemma get_var_is_totalE {sm1 sm2 : SemMode} wdb vm x :
+  is_total (sm := sm1) = is_total (sm := sm2) ->
+  get_var (sm := sm1) wdb vm x = get_var (sm := sm2) wdb vm x.
+Proof. by move=> h; rewrite /get_var Vm.get_modeE h -Vm.get_modeE. Qed.
+
+Lemma get_gvar_is_totalE {sm1 sm2 : SemMode} wdb vm x :
+  is_total (sm := sm1) = is_total (sm := sm2) ->
+  get_gvar (sm := sm1) wdb gd vm x = get_gvar (sm := sm2) wdb gd vm x.
+Proof. by move=> h; rewrite /get_gvar (get_var_is_totalE _ _ _ h). Qed.
+
+Lemma sem_sop1_is_totalE {sm1 sm2 : SemMode} o v :
+  is_total (sm := sm1) = is_total (sm := sm2) ->
+  sem_sop1 (sm := sm1) o v = sem_sop1 (sm := sm2) o v.
+Proof.
+move=> h; rewrite /sem_sop1; case: of_val => //= x.
+by rewrite /sem_sop1_typed !mk_sem_op1E (check_safe_is_totalE _ _ _ h).
+Qed.
+
+Lemma sem_sop2_is_totalE {sm1 sm2 : SemMode} o v1 v2 :
+  is_total (sm := sm1) = is_total (sm := sm2) ->
+  sem_sop2 (sm := sm1) o v1 v2 = sem_sop2 (sm := sm2) o v1 v2.
+Proof.
+move=> h; rewrite /sem_sop2; case: of_val => //= x1; case: of_val => //= x2.
+by rewrite /sem_sop2_typed !mk_sem_op2E (check_safe_is_totalE _ _ _ h).
+Qed.
+
+Lemma sem_opN_is_totalE {sm1 sm2 : SemMode} o vs :
+  is_total (sm := sm1) = is_total (sm := sm2) ->
+  sem_opN (sm := sm1) o vs = sem_opN (sm := sm2) o vs.
+Proof.
+move=> h; rewrite /sem_opN /sem_opN_typed.
+by rewrite (sem_prod_eq_app_sopn _ (mk_sem_op_is_totalE _ _ _ h)).
+Qed.
+
+Lemma sem_pexpr_is_totalE_aux {sm1 sm2 : SemMode} wdb :
+  is_total (sm := sm1) = is_total (sm := sm2) ->
+  (forall e s, sem_pexpr (sm := sm1) wdb gd s e = sem_pexpr (sm := sm2) wdb gd s e) /\
+  (forall es s, sem_pexprs (sm := sm1) wdb gd s es = sem_pexprs (sm := sm2) wdb gd s es).
+Proof.
+move=> h; apply: pexprs_ind_pair; split => //=.
++ by move=> e he es hes s; rewrite he hes.
++ by move=> x s; apply: get_gvar_is_totalE.
++ move=> al aa sz x e he s; rewrite (get_gvar_is_totalE _ _ _ h) he.
+  case: get_gvar => //= -[] //= n t; case: (_ >>= to_int) => //= i.
+  by rewrite (WArray.get_is_totalE _ _ _ _ _ h).
++ move=> aa sz len x e he s; rewrite (get_gvar_is_totalE _ _ _ h) he.
+  case: get_gvar => //= -[] //= n t; case: (_ >>= to_int) => //= i.
+  by rewrite (WArray.get_sub_is_totalE _ _ _ _ _ h).
++ move=> al sz e he s; rewrite he; case: (_ >>= to_pointer) => //= p.
+  by rewrite (read_is_totalE _ _ _ _ h).
++ move=> op e he s; rewrite he; case: sem_pexpr => //= v.
+  exact: sem_sop1_is_totalE.
++ move=> op e1 he1 e2 he2 s; rewrite he1 he2.
+  case: sem_pexpr => //= v1; case: sem_pexpr => //= v2.
+  exact: sem_sop2_is_totalE.
++ move=> op es hes s; have := hes s; rewrite /sem_pexprs => ->; case: mapM => //= vs.
+  exact: sem_opN_is_totalE.
+by move=> t e he e1 he1 e2 he2 s; rewrite he he1 he2.
+Qed.
+
+Lemma sem_pexpr_is_totalE {sm1 sm2 : SemMode} wdb s e :
+  is_total (sm := sm1) = is_total (sm := sm2) ->
+  sem_pexpr (sm := sm1) wdb gd s e = sem_pexpr (sm := sm2) wdb gd s e.
+Proof. by move=> h; have [he _] := sem_pexpr_is_totalE_aux wdb h; apply: he. Qed.
+
+Lemma sem_pexprs_is_totalE {sm1 sm2 : SemMode} wdb s es :
+  is_total (sm := sm1) = is_total (sm := sm2) ->
+  sem_pexprs (sm := sm1) wdb gd s es = sem_pexprs (sm := sm2) wdb gd s es.
+Proof. by move=> h; have [_ hes] := sem_pexpr_is_totalE_aux wdb h; apply: hes. Qed.
+
+Lemma write_lval_is_totalE {sm1 sm2 : SemMode} wdb x v s :
+  is_total (sm := sm1) = is_total (sm := sm2) ->
+  write_lval (sm := sm1) wdb gd x v s = write_lval (sm := sm2) wdb gd x v s.
+Proof.
+move=> h; case: x => //=.
++ move=> al ws _ e; rewrite (sem_pexpr_is_totalE _ _ _ h).
+  case: (_ >>= to_pointer) => //= p; case: to_word => //= w.
+  by rewrite (write_is_totalE _ _ _ _ h).
++ move=> al aa ws x e; rewrite (get_var_is_totalE _ _ _ h) (sem_pexpr_is_totalE _ _ _ h).
+  case: get_var => //= -[] //= n t; case: (_ >>= to_int) => //= i; case: to_word => //= w.
+  by rewrite (WArray.set_is_totalE _ _ _ _ _ h).
+move=> aa ws len x e; rewrite (get_var_is_totalE _ _ _ h) (sem_pexpr_is_totalE _ _ _ h).
+case: get_var => //= -[] //= n t; case: (_ >>= to_int) => //= i; case: to_arr => //= b.
+by rewrite (WArray.set_sub_is_totalE _ _ _ _ h).
+Qed.
+
+Lemma write_lvals_is_totalE {sm1 sm2 : SemMode} wdb s xs vs :
+  is_total (sm := sm1) = is_total (sm := sm2) ->
+  write_lvals (sm := sm1) wdb gd s xs vs = write_lvals (sm := sm2) wdb gd s xs vs.
+Proof.
+move=> h; elim: xs vs s => [ | x xs ih] [ | v vs] s //=.
+by rewrite (write_lval_is_totalE _ _ _ _ h); case: write_lval => //= s'; apply: ih.
+Qed.
 
 Lemma get_gvar_partialE s x v :
   get_gvar (sm := partial) true gd (evm s) x = ok v ->
@@ -528,10 +625,14 @@ Lemma sem_pexpr_partialE s e v :
   sem_pexpr (sm := total) true gd s e = ok v.
 Proof. by have [h _] := sem_pexpr_partialE_aux; apply: h. Qed.
 
-(* In any mode: the total mode is itself, the partial mode is the lemma above. *)
+(* In any mode: the total mode is itself, the partial mode is the lemma above,
+   the [total_init] mode reads as the total one. *)
 Lemma sem_pexpr_totalE {sm : SemMode} s e v :
   sem_pexpr (sm := sm) true gd s e = ok v ->
   sem_pexpr (sm := total) true gd s e = ok v.
-Proof. by case: sm => -[]; last exact: sem_pexpr_partialE. Qed.
+Proof.
+case: sm => -[]; [exact: sem_pexpr_partialE | done | ].
+by rewrite (sem_pexpr_is_totalE (sm2 := total)).
+Qed.
 
-End PARTIAL_TOTAL.
+End MODES.

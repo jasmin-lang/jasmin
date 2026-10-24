@@ -75,6 +75,22 @@ Lemma check_safe_ok {sm : SemMode} vs safe err :
   all (safety_cond_holds vs) safe -> check_safe vs safe err = ok tt.
 Proof. by rewrite /check_safe => ->; case: is_total. Qed.
 
+(* The check, hence every operation, depends on the mode through [is_total]
+   only. *)
+Lemma check_safe_is_totalE {sm1 sm2 : SemMode} vs safe err :
+  is_total (sm := sm1) = is_total (sm := sm2) ->
+  check_safe (sm := sm1) vs safe err = check_safe (sm := sm2) vs safe err.
+Proof. by rewrite /check_safe => ->. Qed.
+
+Lemma mk_sem_op_is_totalE {sm1 sm2 : SemMode} tin t safe err (f : sem_prod tin (sem_t t)) :
+  is_total (sm := sm1) = is_total (sm := sm2) ->
+  sem_prod_eq tin (@mk_sem_op sm1 tin t safe err f) (@mk_sem_op sm2 tin t safe err f).
+Proof.
+move=> h; rewrite /mk_sem_op; elim: tin [::] f => /= [vs f | ty tin ih vs f v].
++ by rewrite (check_safe_is_totalE _ _ _ h).
+by apply: ih.
+Qed.
+
 (* -------------------------------------------------------------------- *)
 (* ** Conditions on truncated arguments                                  *)
 

@@ -131,11 +131,11 @@ Module MemoryI : MemoryT.
   (* In the total mode a read is the byte stored at the address (or 0) and a
      write is always performed: the allocation is not consulted. *)
   Definition get (sm : SemMode) (m:mem) (p:pointer) :=
-    Let _ := assert (is_total (SemMode := sm) || (is_alloc m p && is_init m p)) ErrAddrInvalid in
+    Let _ := assert (is_total (sm := sm) || (is_alloc m p && is_init m p)) ErrAddrInvalid in
     ok (odflt 0%w (Mz.get m.(data) (wunsigned p))).
 
   Definition set (sm : SemMode) (m:mem) (p:pointer) (w:u8) :=
-    Let _ := assert (is_total (SemMode := sm) || is_alloc m p) ErrAddrInvalid in
+    Let _ := assert (is_total (sm := sm) || is_alloc m p) ErrAddrInvalid in
     ok {| data      := Mz.set m.(data) (wunsigned p) w ;
           alloc     := m.(alloc);
           stk_root  := m.(stk_root);
@@ -158,13 +158,21 @@ Module MemoryI : MemoryT.
   Lemma is_alloc_set sm m p w m' p' : set sm m p w = ok m' -> is_alloc m' p' = is_alloc m p'.
   Proof. by rewrite /set; t_xrbindP => _ <-. Qed.
 
+  Lemma get_is_totalE sm1 sm2 m p :
+    is_total (sm := sm1) = is_total (sm := sm2) -> get sm1 m p = get sm2 m p.
+  Proof. by rewrite /get => ->. Qed.
+
+  Lemma set_is_totalE sm1 sm2 m p w :
+    is_total (sm := sm1) = is_total (sm := sm2) -> set sm1 m p w = set sm2 m p w.
+  Proof. by rewrite /set => ->. Qed.
+
   (* The byte read at [p'] after a write at [p] of [w], in either mode: in the
      partial mode the write and the read have succeeded, in the total mode
      nothing is checked. *)
   Lemma setP_gen sm m p w p' m' :
     set sm m p w = ok m' ->
     get sm m' p' = if p == p' then ok w else
-                   Let _ := assert (is_total (SemMode := sm) || (is_alloc m p' && is_init m p'))
+                   Let _ := assert (is_total (sm := sm) || (is_alloc m p' && is_init m p'))
                               ErrAddrInvalid in
                    ok (odflt 0%w (Mz.get m.(data) (wunsigned p'))).
   Proof.
@@ -226,6 +234,8 @@ Module MemoryI : MemoryT.
     memory_model.valid8_set_total := @is_alloc_set total;
     memory_model.valid8_set_dom := valid8_set_dom;
     memory_model.set_dom_set := set_dom_set;
+    memory_model.get_is_totalE := get_is_totalE;
+    memory_model.set_is_totalE := set_is_totalE;
   |}.
 
   Lemma is_align_wunsigned_add ptr ws i :

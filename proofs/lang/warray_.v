@@ -96,7 +96,7 @@ Module WArray.
     (* In the total mode a cell that is out of bounds or not initialised reads
        as 0, and a write out of bounds is ignored. *)
     Definition get8 (sm : SemMode) (m:array s) (i:pointer) :=
-      if is_total (SemMode := sm) then
+      if is_total (sm := sm) then
         ok (if in_bound m i then odflt 0%w (Mz.get m.(arr_data) i) else 0%w)
       else
         Let _ := assert (in_bound m i) ErrOob in
@@ -104,7 +104,7 @@ Module WArray.
         ok (odflt 0%w (Mz.get m.(arr_data) i)).
 
     Definition set8 (sm : SemMode) (m:array s) (i:pointer) (v:u8) : result _ (array s):=
-      if is_total (SemMode := sm) then
+      if is_total (sm := sm) then
         ok (if in_bound m i then {| arr_data := Mz.set m.(arr_data) i v |} else m)
       else
         Let _ := assert (in_bound m i) ErrOob in
@@ -180,6 +180,14 @@ Module WArray.
     Lemma set_dom_set m i w m' i' : set8 total m i w = ok m' -> in_bound m' i' = in_bound m i'.
     Proof. by []. Qed.
 
+    Lemma get8_is_totalE sm1 sm2 m i :
+      is_total (sm := sm1) = is_total (sm := sm2) -> get8 sm1 m i = get8 sm2 m i.
+    Proof. by rewrite /get8 => ->. Qed.
+
+    Lemma set8_is_totalE sm1 sm2 m i w :
+      is_total (sm := sm1) = is_total (sm := sm2) -> set8 sm1 m i w = set8 sm2 m i w.
+    Proof. by rewrite /set8 => ->. Qed.
+
     (* [set_dom] is [in_bound]: a write out of bounds has no effect. *)
     Global Instance array_CM : coreMem pointer (array s) := {|
       memory_model.get := get8;
@@ -198,6 +206,8 @@ Module WArray.
       memory_model.valid8_set_total := @valid8_set total;
       memory_model.valid8_set_dom := valid8_set_dom;
       memory_model.set_dom_set := set_dom_set;
+      memory_model.get_is_totalE := get8_is_totalE;
+      memory_model.set_is_totalE := set8_is_totalE;
     |}.
 
     Lemma is_ok_get8 m i : is_ok (get8 partial m i) = in_bound m i && is_init m i.
@@ -334,6 +344,28 @@ Module WArray.
     else Error ErrOob.
 
   End MODE_SUB.
+
+  (* The accesses depend on the mode through [is_total] only. *)
+  Lemma get_is_totalE {sm1 sm2 : SemMode} len al aa ws (a : array len) i :
+    is_total (sm := sm1) = is_total (sm := sm2) ->
+    get (sm := sm1) al aa ws a i = get (sm := sm2) al aa ws a i.
+  Proof. exact: read_is_totalE. Qed.
+
+  Lemma set_is_totalE {sm1 sm2 : SemMode} len ws (a : array len) al aa i (v : word ws) :
+    is_total (sm := sm1) = is_total (sm := sm2) ->
+    set (sm := sm1) a al aa i v = set (sm := sm2) a al aa i v.
+  Proof. exact: write_is_totalE. Qed.
+
+  Lemma get_sub_is_totalE {sm1 sm2 : SemMode} lena aa ws len (a : array lena) i :
+    is_total (sm := sm1) = is_total (sm := sm2) ->
+    get_sub (sm := sm1) aa ws len a i = get_sub (sm := sm2) aa ws len a i.
+  Proof. by rewrite /get_sub => ->. Qed.
+
+  Lemma set_sub_is_totalE {sm1 sm2 : SemMode} lena aa ws len (a : array lena) i
+      (b : array (arr_size ws len)) :
+    is_total (sm := sm1) = is_total (sm := sm2) ->
+    set_sub (sm := sm1) aa a i b = set_sub (sm := sm2) aa a i b.
+  Proof. by rewrite /set_sub => ->. Qed.
 
   Definition of_list {ws} (l:list (word ws)) : array (Z.of_nat (size l) * wsize_size ws) :=
     let m := Mz.empty in

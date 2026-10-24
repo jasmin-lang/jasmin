@@ -179,6 +179,13 @@ Class coreMem (core_mem: Type) := CoreMem {
   valid8_set_total : forall m p w m' p', set (sm := total) m p w = ok m' -> valid8 m' p' = valid8 m p';
   valid8_set_dom : forall m p, valid8 m p -> set_dom m p;
   set_dom_set : forall m p w m' p', set (sm := total) m p w = ok m' -> set_dom m' p' = set_dom m p';
+
+  (* The accesses depend on the mode through [is_total] only: the other modes
+     behave as [partial] or as [total]. *)
+  get_is_totalE : forall {sm1 sm2 : SemMode} m p,
+    is_total (sm := sm1) = is_total (sm := sm2) -> get (sm := sm1) m p = get (sm := sm2) m p;
+  set_is_totalE : forall {sm1 sm2 : SemMode} m p w,
+    is_total (sm := sm1) = is_total (sm := sm2) -> set (sm := sm1) m p w = set (sm := sm2) m p w;
 }.
 
 End POINTER.
@@ -235,6 +242,23 @@ Section CoreMem.
     foldM (fun k m => set m (add ptr k) (nth 0%w bytes (Z.to_nat k))) m (ziota 0 (wsize_size sz)).
 
   End MODE.
+
+  (* [read] and [write] depend on the mode through [is_total] only. *)
+  Lemma read_is_totalE {sm1 sm2 : SemMode} m al p sz :
+    is_total (sm := sm1) = is_total (sm := sm2) ->
+    read (sm := sm1) m al p sz = read (sm := sm2) m al p sz.
+  Proof.
+    move=> h; rewrite /read h (mapM_ext (f2 := fun k => get (sm := sm2) m (add p k))) //.
+    by move=> k _; apply: get_is_totalE.
+  Qed.
+
+  Lemma write_is_totalE {sm1 sm2 : SemMode} m al p sz (w : word sz) :
+    is_total (sm := sm1) = is_total (sm := sm2) ->
+    write (sm := sm1) m al p w = write (sm := sm2) m al p w.
+  Proof.
+    move=> h; rewrite /write h; case: assert => // -[]; elim: (ziota _ _) m => // k l ih m.
+    by rewrite /= (set_is_totalE _ _ _ h); case: set.
+  Qed.
 
   Definition validw (m:core_mem) (al: aligned) (ptr:pointer) (sz:wsize) :=
     is_aligned_if al ptr sz && all (fun k => valid8 m (add ptr k)) (ziota 0 (wsize_size sz)).
@@ -294,7 +318,10 @@ Section CoreMem.
   (* A write does not change the writable bytes, in either mode. *)
   Lemma valid8_set_mode m p w m' p' :
     set m p w = ok m' -> valid8 m' p' = valid8 m p'.
-  Proof. by case: sm => -[]; [apply: valid8_set_total | apply: valid8_set]. Qed.
+  Proof.
+    case: sm => -[]; [exact: valid8_set | exact: valid8_set_total | ].
+    by rewrite (set_is_totalE (sm2 := total)) //; exact: valid8_set_total.
+  Qed.
 
   Lemma write_valid8_eq m m' al p s (v :word s) :
     write m al p v = ok m' ->
