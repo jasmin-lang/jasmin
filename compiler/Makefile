@@ -12,6 +12,7 @@ CHECKCATS ?= \
 	x86-64-windows \
 	arm-m4 \
 	armv8a \
+	armv8a-macos \
 	risc-v \
 	x86-64-stack-zero-loop \
 	x86-64-stack-zero-unrolled \
