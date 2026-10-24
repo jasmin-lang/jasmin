@@ -78,6 +78,8 @@ Definition get_gvar {sm : SemMode} (wdb : bool) (gd : glob_decls) (vm : Vm.t) (x
   if is_lvar x then get_var wdb vm x.(gv)
   else get_global gd x.(gv).
 
+(* The results of a function call are read in the partial mode in both modes:
+   a result that is not initialised is a failure of the call. *)
 Definition get_var_is wdb vm := mapM (fun x => get_var wdb vm (v_var x)).
 
 Definition on_arr_var A (v:exec value) (f:forall n, WArray.array n -> exec A) :=
@@ -204,24 +206,28 @@ End SEM_PEXPR.
 
 Section SEM_EASSERT.
 
+(* An assertion is a specification, not an instruction: it is evaluated in the
+   total mode whatever the mode of the program, so that it never fails and
+   means the same as in EasyCrypt. Its initialisation tests observe the raw
+   state. *)
+
 Context
   {wa:WithAssert}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
-  {sm : SemMode}
   (gd : glob_decls).
 
 Fixpoint sem_eassert (s : estate) (e : eassert) : exec bool :=
   match e with
-  | Pexpr e => sem_pexpr true gd s e >>= to_bool
+  | Pexpr e => sem_pexpr (sm := total) true gd s e >>= to_bool
   | PappN_safety op es =>
-    Let vs := mapM (sem_pexpr true gd s) es in
+    Let vs := mapM (sem_pexpr (sm := total) true gd s) es in
     sem_opN_safety op vs
   | Pis_var_init x => ok (Vm.is_var_init (evm s) x)
   | Pis_mem_init e1 e2 =>
-    Let lo := sem_pexpr true gd s e1 >>= to_pointer in
-    Let sz := sem_pexpr true gd s e2 >>= to_int in
+    Let lo := sem_pexpr (sm := total) true gd s e1 >>= to_pointer in
+    Let sz := sem_pexpr (sm := total) true gd s e2 >>= to_int in
     ok (all (fun i => validr s.(emem) Unaligned (lo + wrepr Uptr i)%w U8) (ziota 0 sz))
   | Pand e1 e2 =>
     Let b1 := sem_eassert s e1 in
@@ -243,9 +249,10 @@ Context
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  {sm : SemMode}
   {asmop : asmOp asm_op}.
 
-Definition exec_sopn {sm : SemMode} (o:sopn) (vs:values) : exec values :=
+Definition exec_sopn (o:sopn) (vs:values) : exec values :=
   Let semi := sopn_sem o in
   Let t := app_sopn _ semi vs in
   ok (list_ltuple t).
