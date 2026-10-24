@@ -1129,7 +1129,8 @@ Definition x86_ROR_t sz (v: word sz) (i: u8) : sem_ltuple_t (b2w_ty sz) :=
   else
     let r := wror v (wunsigned i) in
     let CF := msb r in
-    (:: (CF != msb v), CF & r).
+    let OF := if i == 1%w then CF != msb v else undefined_flag in
+    (:: OF, CF & r).
 
 Definition Ox86_ROR_instr               :=
   mk_instr_ww8_b2w_0c0 "ROR" x86_ROR_t (init_rot 1) check_ror (prim_8_64 ROR) size_8_64 DOIT (pp_iname_w_8 "ror").
@@ -1141,7 +1142,8 @@ Definition x86_ROL_t sz (v: word sz) (i: u8) : sem_ltuple_t (b2w_ty sz) :=
   else
     let r := wrol v (wunsigned i) in
     let CF := lsb r in
-    (:: (msb r != CF), CF & r).
+    let OF := if i == 1%w then msb r != CF else undefined_flag in
+    (:: OF, CF & r).
 
 Definition Ox86_ROL_instr :=
   mk_instr_ww8_b2w_0c0 "ROL" x86_ROL_t (init_rot 1) check_ror (prim_8_64 ROL) size_8_64 DOIT (pp_iname_w_8 "rol").
@@ -1156,33 +1158,24 @@ Definition x86_rotate_count (sz:wsize) (i:u8) : Z :=
   | _  => wunsigned i
   end.
 
-(* The modulus of the reduction; 256 is the identity on an [u8]. *)
-Definition x86_rot_mod (sz:wsize) : Z :=
-  match sz with U8 => 9 | U16 => 17 | _ => 256 end%Z.
-
-Definition ic_rot_count (k:nat) (sz:wsize) : safety_cond :=
-  IOp2 (Omod Unsigned Op_int) (IOp1 (Oint_of_word Unsigned U8) (ic_shift_count k sz))
-       (IConst (x86_rot_mod sz)).
-
-Definition ic_rot_eq1 (k:nat) (sz:wsize) : safety_cond :=
-  IOp2 (Oeq Op_int) (ic_rot_count k sz) (IConst 1).
-
-(* RCL, RCR: CF is always defined, OF only when the reduced count is 1. *)
+(* RCL, RCR: CF is always defined, OF only when the masked count is 1. *)
 Definition init_rcx (k:nat) (sz:wsize) : seq safety_cond :=
-  [:: ic_rot_eq1 k sz; IBool true; IBool true].
+  [:: ic_count_eq1 k sz; IBool true; IBool true].
 
 Definition x86_rotate_with_carry_t (sz: wsize)
   (rot: word.word.word sz.+1 → nat → word.word.word sz.+1)
   (ovf: word sz → bool → bool)
   (v: word sz) (i: u8) (cf: bool)
   : sem_ltuple_t (b2w_ty sz) :=
+  let m := wand i (x86_shift_mask sz) in
   let i := x86_rotate_count sz i in
   let r := mathcomp.word.word.t2w [tuple of cf::mathcomp.word.word.w2t v] in
   let r := rot r (Z.to_nat i) in
   let r := mathcomp.word.word.w2t r in
   let CF := head false r in
   let r : word sz := mathcomp.word.word.t2w [tuple of behead r] in
-  (:: ovf r CF, CF & r ).
+  let OF := if m == 1%w then ovf r CF else undefined_flag in
+  (:: OF, CF & r ).
 
 Definition x86_RCR_t sz (v: word sz) (i: u8) (cf:bool) : sem_ltuple_t (b2w_ty sz) :=
   @x86_rotate_with_carry_t sz (@mathcomp.word.word.rotr _) (λ _ _, msb v != cf) v i cf.
@@ -1198,7 +1191,9 @@ Definition Ox86_RCL_instr :=
   mk_instr_ww8b_b2w_0c0 "RCL" x86_RCL_t (init_rcx 1)
     check_ror (prim_8_64 RCL) size_8_64 NOT_DOIT (pp_iname_w_8 "rcl").
 
+(* OF is defined only for a shift by one. *)
 Definition rflags_OF_t {s} sz (i:word s) (r:word sz) rc OF : sem_ltuple_t (b5w_ty sz) :=
+  let OF := if i == 1%w then OF else undefined_flag in
   (:: OF, rc, SF_of_word r, PF_of_word r, ZF_of_word r & r).
 
 Definition x86_SHL_t sz (v: word sz) (i: u8) : sem_ltuple_t (b5w_ty sz) :=

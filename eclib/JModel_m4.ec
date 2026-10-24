@@ -33,7 +33,7 @@ op with_nzc_shift
   let r = op_ wn sham in
   (W32.msb r,
    r = W32.zero,
-   opc wn sham,
+   (if wsham = W8.zero then undefined_flag else opc wn sham),
    r).
 
 (* -------------------------------------------------------------------- *)

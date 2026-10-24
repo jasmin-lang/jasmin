@@ -1612,21 +1612,21 @@ Definition arm_ORR_instr : instr_desc_t :=
   then x
   else drop_nzc x.
 
-(* At [sham = 0] the three flags are undefined; the values below are then
-   filtered out by [id_init]. *)
+(* At [sham = 0] the carry is undefined. *)
 Definition arm_shift_semi_t
   (op : ty_r -> Z -> ty_r) (op_c : ty_r -> Z -> bool)
   (wn : ty_r) (wsham : word U8) : ty_nzc_r_t :=
   let sham := wunsigned wsham in
   let res := op wn sham in
-  (:: NF_of_word res, ZF_of_word res, op_c wn sham & res).
+  let C := if wsham == 0%w then undefined_flag else op_c wn sham in
+  (:: NF_of_word res, ZF_of_word res, C & res).
 
 (* The shift amount is the second argument, of type [u8]. *)
 Definition arm_sham_ne0 : safety_cond :=
   IOp2 (Oneq (Op_w U8)) (IVar 1) (IOp1 (Oword_of_int U8) (IConst 0)).
 
 Definition arm_shift_init : seq safety_cond :=
-  [:: arm_sham_ne0; arm_sham_ne0; arm_sham_ne0; IBool true ].
+  [:: IBool true; IBool true; arm_sham_ne0; IBool true ].
 
 Definition arm_ASR_C (wn : ty_r) (shift : Z) :=
   if (32 <=? shift)%Z then msb wn
