@@ -1,0 +1,12 @@
+// The callee has no memory access and returns its pointer argument.
+inline fn next(reg u64 p) -> reg u64 {
+  p += 8;
+  return p;
+}
+
+export fn g(reg u64 p) -> reg u64 {
+  reg u64 a;
+  p = next(p);
+  a = [p + 0];
+  return a;
+}

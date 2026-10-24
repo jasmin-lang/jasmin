@@ -1,0 +1,12 @@
+// f has no memory access, so it is analysed once from top.
+fn f(reg u64 x) -> reg u64 {
+  x += 1;
+  return x;
+}
+
+export fn g(reg u64 p) -> reg u64 {
+  reg u64 a;
+  a = [p + 0];
+  a = f(a);
+  return a;
+}

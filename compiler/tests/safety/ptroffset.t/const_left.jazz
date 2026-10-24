@@ -1,0 +1,9 @@
+// The offset of p is lost: it is added to a constant.
+export fn g(reg u64 pkp) -> reg u64 {
+  reg u64 p v;
+  v = 1;
+  p = 32;
+  p += pkp;
+  [p + 8] = v;
+  return v;
+}

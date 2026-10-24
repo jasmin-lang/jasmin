@@ -1,0 +1,15 @@
+// The same, where the last cell of s is not initialized.
+export fn g(reg u64 p) -> reg u64 {
+  stack u64[16] s;
+  reg ptr u64[4] e;
+  reg u64 off x;
+  inline int i;
+  for i = 0 to 15 { s[i] = i; }
+  off = [p + 0];
+  off &= 3;
+  off <<= 2;
+  e = s[off : 4];
+  x = e[3];
+  [p + 0] = x;
+  return x;
+}

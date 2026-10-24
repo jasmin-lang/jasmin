@@ -1,0 +1,17 @@
+// A partially initialized u is written at an unknown offset into an
+// initialized t: t[1] may be undefined.
+export fn g(reg u64 p) -> reg u64 {
+  stack u64[8] t;
+  stack u64[2] u;
+  reg u64 off x;
+  inline int i;
+  for i = 0 to 8 { t[i] = i; }
+  u[0] = 1;
+  off = [p + 0];
+  off &= 3;
+  off <<= 1;
+  t[off : 2] = u;
+  x = t[1];
+  [p + 0] = x;
+  return x;
+}

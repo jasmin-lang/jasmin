@@ -1,0 +1,14 @@
+// t[0] is 5, then 90 ("Z"): a[t[0]] is out of bounds.
+export fn g(reg u64 p) -> reg u64 {
+  stack u8[4] t;
+  stack u64[8] a;
+  reg u64 x;
+  inline int i;
+  for i = 0 to 8 { a[i] = i; }
+  t[0] = 5;
+  t[0 : 1] = "Z";
+  x = (64u) t[0];
+  x = a[x];
+  [p + 0] = x;
+  return x;
+}
