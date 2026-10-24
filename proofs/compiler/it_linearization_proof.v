@@ -1349,7 +1349,7 @@ Section PROOF.
     + move=> p1 w1 hb Hr.
       apply Hrstk.
       + by move: hb; rewrite (free_stackP _).(fss_limit).
-      rewrite -Hr. apply: fss_read_old; [ exact: free_stackP | exact: readV Hr ].
+      rewrite -Hr. apply: fss_read_old; [ exact: free_stackP | exact: read_validw Hr ].
     (* valid *)
     + move=> p1 Hv.
       assert (Hs := free_stackP). move: (Hs m1)=> Hm1. move: (Hs m1')=> Hm1'.
@@ -1378,7 +1378,7 @@ Section PROOF.
         && (wunsigned (add p'' i) <? wunsigned sp))%Z);
       rewrite !zify => hb.
     + by rewrite Hread; apply Hrstk.
-    by symmetry; apply (Hrm _ hb (readV Hread)).
+    by symmetry; apply (Hrm _ hb (read_validw Hread)).
   Qed.
 
   Lemma mm_write : ∀ sp m1 m1' al p s (w:word s) m2,
@@ -1443,7 +1443,7 @@ Section PROOF.
     (* read stk *)
     + move=> p1 w1 hb /[dup] Hr1.
       move: (Hve p1) (Hvr p1).
-      have -> := readV Hr1.
+      have -> := read_validw Hr1.
       case: validw.
       * move => _ <- //; apply Hrstk.
         by rewrite -Hsl.
@@ -1495,7 +1495,7 @@ Section PROOF.
       have ? : j = 0%Z by lia.
       subst j => { j_range }.
       rewrite add_0 => ?; subst p1.
-      apply/negP: (readV Hr).
+      apply/negP: (read_validw Hr).
       apply: stack_region_is_free.
       rewrite -/(top_stack m) wunsigned_add; first lia.
       have := wunsigned_range a.

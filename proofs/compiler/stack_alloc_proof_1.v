@@ -1550,7 +1550,7 @@ Section EXPR.
       rewrite /truncate_val /= hto /= => /(_ _ erefl) [] v' [] he1'.
       t_xrbindP=> w hv' ?; subst w.
       rewrite he1' /= hv' /=.
-      by rewrite -(eq_mem_source_word hvalid (readV hr)) hr.
+      by rewrite -(eq_mem_source_word hvalid (read_validw hr)) hr.
     + move=> o1 e1 IH ty e2 v v2.
       t_xrbindP => e1' /IH hrec <- ve1 /hrec{}hrec hve1 htr.
       exists v; split=> //=.

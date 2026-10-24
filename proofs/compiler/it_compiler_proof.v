@@ -1245,7 +1245,7 @@ split.
     move=> /(zbetween_trans bottom_instack).
     rewrite -/(between _ _ _ _) -pointer_range_between => /pointer_rangeP hpr.
     have/negP := stack_region_is_free hpr; apply.
-    by rewrite valid (readV ok_w).
+    by rewrite valid (read_validw ok_w).
   + by move=> pr /mmem_o23.(valid_incl); rewrite mmz_o34.(valid_eq).
   by move=> pr; rewrite -mmz_o34.(valid_eq); apply: mmem_o23.(valid_stk).
 - by rewrite scs_o12 scs_o23 scs_o34.
