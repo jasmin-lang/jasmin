@@ -519,7 +519,7 @@ let alloc_mem (gtbl: wsize Hv.t) globs =
       let ni = Conv.int_of_cz n in
       for i = 0 to ni - 1 do
         let w =
-          match Warray_.WArray.get n Aligned Warray_.AAdirect U8 gt (Conv.cz_of_int i) with
+          match Warray_.WArray.get Utils0.partial n Aligned Warray_.AAdirect U8 gt (Conv.cz_of_int i) with
           | Ok w -> w
           | _    -> assert false in
         t.(ofs + i) <- w
