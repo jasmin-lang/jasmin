@@ -22,6 +22,58 @@ Lemma filter_add_tuple (t : ctype) (lt : seq ctype) (b : bool) (mask : seq bool)
 Proof. by case: lt xs => [ | t1 lt] xs //=; case: xs. Qed.
 
 (* -------------------------------------------------------------------- *)
+(* ** Defaulting the undefined outputs                                   *)
+
+Lemma undefined_flagE : undefined_flag = false.
+Proof. by []. Qed.
+
+(* An undefined boolean component is [undefined_flag], every other component
+   is left untouched. *)
+Definition ot_dflt (t : ctype) : sem_ot t -> sem_t t :=
+  if t is cbool then (fun o => if o is Some b then b else undefined_flag) else id.
+
+Fixpoint sem_tuple_dflt (ts : seq ctype) : sem_tuple ts -> sem_tuple_t ts :=
+  match ts return sem_tuple ts -> sem_tuple_t ts with
+  | [::] => fun t => t
+  | t :: ts =>
+    let rec := @sem_tuple_dflt ts in
+    match ts return (sem_tuple ts -> sem_tuple_t ts) ->
+                    sem_tuple (t :: ts) -> sem_tuple_t (t :: ts) with
+    | [::] => fun _ (x : sem_ot t) => ot_dflt x
+    | t1 :: ts' => fun rec (p : sem_ot t * sem_tuple (t1 :: ts')) =>
+        (ot_dflt p.1, rec p.2)
+    end rec
+  end.
+Arguments sem_tuple_dflt : clear implicits.
+
+(* Filtering by a mask then defaulting is defaulting by the mask. *)
+Lemma sem_tuple_dflt_filter ts mask (t : sem_tuple_t ts) :
+  sem_tuple_dflt ts (filter_tuple ts mask t) = dflt_mask_tuple ts mask t.
+Proof.
+have hd : forall b t1 (x : sem_t t1), ot_dflt (filter_ot b x) = dflt_ot b x by move=> [] [].
+elim: ts mask t => [ | t1 ts ih] mask //= t; first by case: t.
+case: ts ih t => [ | t2 ts] ih t /=; first by apply hd.
+by rewrite hd; congr pair; apply ih.
+Qed.
+
+(* A value that is undefined takes the default value of its type. *)
+Definition value_dflt (v : value) : value :=
+  if is_defined v then v else dfl_val (type_of_val v).
+
+(* Seen as values, defaulting a tuple defaults its undefined components. *)
+Lemma list_ltuple_dflt ts (t : sem_tuple ts) :
+  list_ltuple (filter_tuple ts (nseq (size ts) true) (sem_tuple_dflt ts t)) =
+  map value_dflt (list_ltuple t).
+Proof.
+have hd : forall t1 (x : sem_ot t1),
+  oto_val (filter_ot true (ot_dflt x)) = value_dflt (oto_val x).
++ by move=> [] //= [b | ]; rewrite /value_dflt //= undefined_flagE.
+elim: ts t => [ | t1 ts ih] //= t.
+case: ts ih t => [ | t2 ts] ih t /=; first by rewrite hd.
+by case: t => x xs /=; rewrite hd; congr cons; apply ih.
+Qed.
+
+(* -------------------------------------------------------------------- *)
 (* ** Generic properties of the construction                             *)
 
 (* Two pointwise equal post-treatments give two equal semantics. *)
@@ -91,6 +143,37 @@ apply: sem_prod_eq_trans; first by apply: sem_prod_app_comp.
 apply: sem_prod_eq_trans; last by apply: sem_prod_eq_sym; apply: sem_prod_app_comp.
 apply: (ih mask _ _ hall hsz) => t2.
 by rewrite h filter_add_tuple hb filter_ot_true.
+Qed.
+
+(* -------------------------------------------------------------------- *)
+(* ** The [total_init] semantics                                         *)
+
+(* [init_dflt] read on the arguments the semantics is applied to. *)
+Lemma init_dflt_aux_app_sopn vs0 tin tout init (f : sem_prod tin (sem_tuple_t tout)) vs vs' t :
+  init_dflt_aux vs0 tin tout init f ->
+  mapM2 ErrType truncate_val tin vs = ok vs' ->
+  app_sopn tin (sem_prod_ok tin f) vs = ok t ->
+  dflt_mask_tuple tout (map (safety_cond_holds (vs0 ++ vs')) init) t = t.
+Proof.
+elim: tin f vs vs0 vs' => [ | ty tin ih] f [ | v vs] //= vs0 vs'.
++ by move=> h [<-] [<-]; rewrite cats0.
+rewrite /truncate_val; case: (of_val ty v) => //= x h.
+case hm: mapM2 => [lc | ] //= [<-] happ.
+by rewrite -cat_rcons; apply: ih (h x) hm happ.
+Qed.
+
+(* When the total semantics gives [undefined_flag] to the outputs it leaves
+   undefined, the [total_init] semantics is the [total] one where every
+   undefined output takes that value. *)
+Lemma mk_semi_total_initE tin tout safe err init (f : sem_prod tin (sem_tuple_t tout)) vs :
+  init_dflt tin tout init f ->
+  app_sopn tin (mk_semi (sm := total_init) safe err init f) vs =
+  Let t := app_sopn tin (mk_semi (sm := total) safe err init f) vs in
+  ok (filter_tuple tout (nseq (size tout) true) (sem_tuple_dflt tout t)).
+Proof.
+move=> h; rewrite /mk_semi !mk_semi_aux_app_sopnE.
+case hm: mapM2 => [vs' | ] //=; case happ: app_sopn => [t | ] //=.
+by rewrite sem_tuple_dflt_filter (init_dflt_aux_app_sopn h hm happ).
 Qed.
 
 (* -------------------------------------------------------------------- *)

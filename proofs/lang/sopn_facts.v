@@ -8,7 +8,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
-Require Import sopn.
+Require Import sopn_semi sopn_semi_facts values sopn psem_defs.
 Import Utf8.
 
 Local Open Scope seq_scope.
@@ -98,6 +98,39 @@ have -> : @mk_semi _ [:: carr (arr_size ws p)] [:: carr (arr_size ws p)]
 rewrite /check_safe /= andbT (safety_cond_holds_all_init (t := t)) // array_copy_eq.
 by case: all.
 Qed.
+
+(* -------------------------------------------------------------------- *)
+(* ** The [total_init] semantics                                         *)
+
+Section EXEC_SOPN.
+
+Context {asm_op syscall_state : Type} {ep : EstateParams syscall_state} {asmop : asmOp asm_op}.
+
+(* An instruction in the [total_init] mode computes what it computes in the
+   [total] mode, where every undefined output takes its default value: its
+   total semantics gives [undefined_flag], that is [false], to a boolean
+   output it leaves undefined ([i_init_dflt]). *)
+Lemma exec_sopn_total_initE o vs :
+  exec_sopn (sm := total_init) o vs =
+  Let vs2 := exec_sopn (sm := total) o vs in ok (map value_dflt vs2).
+Proof.
+rewrite /exec_sopn /sopn_sem; case: assert => //= _.
+rewrite /sopn_sem_ /semi (mk_semi_total_initE _ _ _ (i_init_dflt (get_instr_desc o))).
+by case: app_sopn => //= t; rewrite list_ltuple_dflt.
+Qed.
+
+Lemma exec_sopn_total_initP o vs vs1 :
+  exec_sopn (sm := total_init) o vs = ok vs1 <->
+  exists2 vs2, exec_sopn (sm := total) o vs = ok vs2 & vs1 = map value_dflt vs2.
+Proof.
+rewrite exec_sopn_total_initE; case: exec_sopn => //= [vs2 | e]; split.
++ by move=> [<-]; exists vs2.
++ by move=> [_ [<-] ->].
++ by [].
+by case.
+Qed.
+
+End EXEC_SOPN.
 
 (* -------------------------------------------------------------------- *)
 (* ** Protection of a pointer                                            *)
