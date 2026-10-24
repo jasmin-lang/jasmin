@@ -26,6 +26,17 @@ Proof.
   by move: (a'::l) hl => {a'} {}l <-.
 Qed.
 
+Lemma read_e_sc_to_e es c :
+  Sv.Subset (read_e (sc_to_e eint_of_word es c)) (read_es es).
+Proof.
+elim: c => [b | z | k | o c ih | o c1 ih1 c2 ih2 | o c1 _ c2 _ c3 _] /=.
+1,2,6: by rewrite /read_e /=; SvD.fsetdec.
+- elim: es k => [ | e es ih] [ | k] /=; rewrite ?read_es_cons; try by rewrite /read_e /=; SvD.fsetdec.
+  by have := ih k; SvD.fsetdec.
+- by case: o => //= *; case: c ih => //=; rewrite read_e_Papp1.
+by rewrite read_e_Papp2; SvD.fsetdec.
+Qed.
+
 Section LEMMAS.
 
 Context

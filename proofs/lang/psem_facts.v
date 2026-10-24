@@ -636,3 +636,222 @@ by rewrite (sem_pexpr_is_totalE (sm2 := total)).
 Qed.
 
 End MODES.
+
+(* ------------------------------------------------------------------------- *)
+(* The operators with an array result                                        *)
+
+Lemma sem_forall_ecast {T} (Q : T -> Prop) l1 l2 (h : l1 = l2) (f : sem_prod l1 T) :
+  sem_forall Q l1 f -> sem_forall Q l2 (ecast l (sem_prod l T) h f).
+Proof. by case: l2 / h. Qed.
+
+Lemma mk_forall_ok {T} (Q : T -> Prop) l (f : sem_prod l T) :
+  sem_forall Q l f -> mk_forall Q (sem_prod_ok l f).
+Proof. by elim: l f => [ | t l ih] f /=; [move=> h _ [<-] | move=> h v; apply: ih]. Qed.
+
+Section OPN.
+
+Context {cfcd : FlagCombinationParams}.
+
+Local Open Scope Z_scope.
+
+(* What the total semantics of an operator guarantees, its application does. *)
+Lemma sem_opN_forall {sm : SemMode} (op : opN) (Q : sem_t (eval_atype (type_of_opN op).2) -> Prop) vs v :
+  sem_forall Q _ (sem_opN_total op) ->
+  sem_opN (sm := sm) op vs = ok v -> exists2 t, v = to_val t & Q t.
+Proof.
+move=> hQ; rewrite /sem_opN /sem_opN_typed /opN_safe.
+rewrite /mk_sem_op (sem_prod_eq_app_sopn vs (mk_semi_aux_id _ _ _)); last by move=> ??; rewrite /check_safe /= orbT.
+t_xrbindP => t /(mk_forallP (mk_forall_ok hQ)) ht <-.
+by exists t.
+Qed.
+
+Lemma sem_opN_Oarr_fill_init {sm : SemMode} ws len vs v :
+  sem_opN (sm := sm) (Oarr_fill ws len) vs = ok v ->
+  exists2 t : WArray.array (arr_size ws len), v = Varr t &
+    forall i, 0 <= i < arr_size ws len -> WArray.is_init t i.
+Proof.
+have hQ : sem_forall (fun t : WArray.array (arr_size ws len) => forall i, 0 <= i < arr_size ws len -> WArray.is_init t i)
+            _ (sem_opN_total (Oarr_fill ws len)).
+- move=> lo n w /= i hi; apply: rdflt_fill_is_init => //.
+  by rewrite size_map size_ziota.
+by move=> /(sem_opN_forall (op := Oarr_fill ws len) hQ) [t -> ht]; exists t.
+Qed.
+
+End OPN.
+
+(* ------------------------------------------------------------------------- *)
+(* The writes, and the initialisation of what they write                     *)
+
+Section WRITES.
+
+Context
+  {wsw : WithSubWord}
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
+  {gd : glob_decls}.
+
+Local Open Scope Z_scope.
+
+Lemma exec_sopn_not_carr o vs vs2 :
+  all is_not_carr (map eval_atype (sopn_tout o)) ->
+  exec_sopn (sm := total) o vs = ok vs2 -> all (fun v => ~~ is_carr (type_of_val v)) vs2.
+Proof.
+move=> hall /sopn_toutP; move: hall; rewrite all_map.
+elim: vs2 (sopn_tout o) => [ | v vs2 ih] [ | ty tys] //=.
+by move=> /andP [h1 h2] [-> /(ih _ h2) ->]; rewrite andbT.
+Qed.
+
+Lemma exec_sopn_tout_size {sm : SemMode} o vs vs2 :
+  exec_sopn (sm := sm) o vs = ok vs2 -> size vs2 = size (sopn_tout o).
+Proof.
+by move=> /sopn_toutP; elim: vs2 (sopn_tout o) => [ | v vs2 ih] [ | ty tys] //= [_ /ih ->].
+Qed.
+
+Lemma get_total_eq_ex vm vm' X z :
+  vm =[\X] vm' -> ~ Sv.In z X -> Vm.get (sm := total) vm z = Vm.get (sm := total) vm' z.
+Proof. by move=> h hz; apply: (Vm.get_eq_mode erefl); apply: h. Qed.
+
+Lemma set_var_arr_get vm x v vm' :
+  set_var true vm x v = ok vm' -> is_arr_var x -> vm'.[x] = v.
+Proof.
+move=> /set_varP [_ htr ->] /is_aarrP [ws [len hty]]; rewrite Vm.setP_eq.
+move: htr; rewrite hty /= => /vm_truncate_valE.
+case: v => [b|z|n a|ws' w|t h] /=.
+1,2: by move=> [].
+- by move=> [_ ->].
+- by move=> [? []].
+by move=> [hsub _]; case: t h hsub.
+Qed.
+
+(* An array is always defined: the total read is the raw one. *)
+Lemma get_total_arr vm x : is_arr_var x -> Vm.get (sm := total) vm x = vm.[x].
+Proof.
+move=> /is_aarrP [ws [len hty]]; apply: Vm.get_totalE; have := Vm.getP vm x.
+by rewrite hty /= => /compat_valEl [? ->].
+Qed.
+
+Lemma arr_defined (vm : Vm.t) x : is_arr_var x -> is_defined vm.[x].
+Proof.
+rewrite /is_arr_var; have := Vm.getP vm x; move=> /compat_valEl.
+by case: (vtype x) => //= ?? [? ->].
+Qed.
+
+Lemma with_vm_evm (s1 s2 : estate) : escs s1 = escs s2 -> emem s1 = emem s2 -> with_vm s1 (evm s2) = s2.
+Proof. by case: s1 s2 => ??? [] ??? /= -> ->. Qed.
+
+Lemma lv_write_scs_mem {sm : SemMode} wdb (x : lval) v s1 s2 :
+  write_lval (sm := sm) wdb gd x v s1 = ok s2 ->
+  escs s1 = escs s2 /\ (~~ lv_write_mem x -> emem s1 = emem s2).
+Proof.
+case: x => /= [v0 t | v0 | al ws x e | al aa ws v0 e | aa ws len v0 e].
+- by move=> /write_noneP [-> _].
+- by rewrite /write_var; t_xrbindP => ?? <-.
+- by t_xrbindP => > _ _ > _ > _ <-.
+- by apply: on_arr_varP => n t _ _; t_xrbindP => > _ _ > _ > _; rewrite /write_var; t_xrbindP => ?? <-.
+by apply: on_arr_varP => n t _ _; t_xrbindP => > _ _ > _ > _; rewrite /write_var; t_xrbindP => ?? <-.
+Qed.
+
+(* A value that is not an array can only be written in a scalar variable, a
+   cell or the memory. *)
+Lemma write_lval_nonarr {sm : SemMode} lv v s s' :
+  ~~ is_carr (type_of_val v) ->
+  write_lval (sm := sm) true gd lv v s = ok s' ->
+  match lv with Lvar x => ~~ is_arr_var x | Lasub _ _ _ _ _ => False | _ => True end.
+Proof.
+move=> hv; case: lv => //= [x | aa ws len x e].
+- rewrite /write_var /is_arr_var; t_xrbindP => vm /set_varP [_ htr _] _.
+  case: (vtype x) htr => //= ws len; case: v hv => //= t h _.
+  by case: t h.
+apply: on_arr_varP => n t _ _; t_xrbindP => i vi _ _ b /to_arrI ?; subst v.
+by move: hv.
+Qed.
+
+Lemma write_none_nonarr {sm : SemMode} vi ty v s s' :
+  ~~ is_carr (type_of_val v) ->
+  write_lval (sm := sm) true gd (Lnone vi ty) v s = ok s' -> ~~ is_aarr ty.
+Proof.
+rewrite /= /write_none; t_xrbindP => hv /= htr _.
+by case: ty htr => //= ws len; case: v hv => //= t h _; case: t h.
+Qed.
+
+Lemma write_lval_arr {sm : SemMode} lv v s s' :
+  is_carr (type_of_val v) ->
+  write_lval (sm := sm) true gd lv v s = ok s' ->
+  match lv with
+  | Lvar x => is_arr_var x | Lnone _ ty => is_aarr ty
+  | Lasub _ _ _ _ _ => True | _ => False end : Prop.
+Proof.
+move=> hv; case: lv => //= [vi ty | x | al ws vi e | al aa ws x e].
+- rewrite /write_none; t_xrbindP => /= htr _.
+  by case: v hv htr => //= [len t | t ht]; case: ty => //=; case: t ht.
+- rewrite /write_var /is_arr_var; t_xrbindP => vm /set_varP [_ htr _] _.
+  by case: v hv htr => //= [len t | t ht]; case: (vtype x) => //=; case: t ht.
+- t_xrbindP => pt vp _ _ w hw.
+  by case: v hv hw => //= t; case: t.
+apply: on_arr_varP => n t _ _; t_xrbindP => i vi _ _ w hw.
+by case: v hv hw => //= ty; case: ty.
+Qed.
+
+(* An array is not written in memory. *)
+Lemma write_lval_arr_nomem {sm : SemMode} lv m s s' :
+  is_carr (type_of_val m) -> write_lval (sm := sm) true gd lv m s = ok s' -> ~~ lv_write_mem lv.
+Proof.
+case: lv => //= al ws x e.
+case: m => //=.
+- by move=> > _ _; case: (sem_pexpr _ _ _ e) => //= ?; case: to_pointer.
+by move=> t; case: t.
+Qed.
+
+Lemma write_lvals_arr_mem {sm : SemMode} lvs vs s s' :
+  all (fun v => is_carr (type_of_val v)) vs ->
+  write_lvals (sm := sm) true gd s lvs vs = ok s' -> escs s = escs s' /\ emem s = emem s'.
+Proof.
+elim: lvs vs s => [ | lv lvs ih] [ | v vs] s //=; first by move=> _ [<-].
+move=> /andP [hv hvs]; t_xrbindP => s1 hw1 hws.
+have [h1 h2] := ih _ _ hvs hws.
+have [hs hm] := lv_write_scs_mem hw1; split; first by rewrite hs.
+by rewrite hm //; apply: write_lval_arr_nomem hv hw1.
+Qed.
+
+Lemma truncate_varr len n (t : WArray.array len) v' :
+  truncate_val (carr n) (Varr t) = ok v' -> v' = Varr t /\ exists2 a : WArray.array n, v' = Varr a & len = n.
+Proof.
+rewrite /truncate_val; t_xrbindP => a /to_arrI h <-.
+case: (Varr_inj h) => e; subst n => /= ?; subst a.
+by split => //; exists t.
+Qed.
+
+End WRITES.
+
+(* ------------------------------------------------------------------------- *)
+(* The semantics of a single instruction that makes no call                  *)
+
+Section ESEM1.
+
+Context
+  {wsw : WithSubWord}
+  {dc : DirectCall}
+  {wa : WithAssert}
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
+  {pT : progT}
+  {scP : semCallParams}
+  (ev : extra_val_t).
+
+Lemma esem_assgn1 {sm : SemMode} (q : prog) ii x tg ty e s :
+  esem (sm := sm) q ev [:: MkI ii (Cassgn x tg ty e)] s = sem_assgn q x tg ty e s.
+Proof. by rewrite esem1. Qed.
+
+Lemma esem_opn1 {sm : SemMode} (q : prog) ii lvs tg o es s :
+  esem (sm := sm) q ev [:: MkI ii (Copn lvs tg o es)] s = sem_sopn (p_globs q) o s lvs es.
+Proof. by rewrite esem1. Qed.
+
+Lemma esem_syscall1 {sm : SemMode} (q : prog) ii lvs o es s :
+  esem (sm := sm) q ev [:: MkI ii (Csyscall lvs o es)] s = sem_syscall q lvs o es s.
+Proof. by rewrite esem1. Qed.
+
+End ESEM1.

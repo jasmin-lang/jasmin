@@ -8,8 +8,8 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
-Require Import sopn_semi sopn_semi_facts values sopn psem_defs.
-Import Utf8.
+Require Import pseudo_operator slh_ops safety_cond_facts sopn_semi sopn_semi_facts values sopn psem_defs.
+Import Utf8 Lia.
 
 Local Open Scope seq_scope.
 
@@ -99,6 +99,47 @@ rewrite /check_safe /= andbT (safety_cond_holds_all_init (t := t)) // array_copy
 by case: all.
 Qed.
 
+Section COPY_TOTAL.
+
+Local Open Scope Z_scope.
+
+(* The total copy writes every cell of its result. *)
+Lemma copy_total_is_init ws n (a : WArray.array (arr_size ws n)) k :
+  0 <= k < arr_size ws n -> WArray.is_init (@copy_total ws n a) k.
+Proof.
+move=> hk.
+have hws := wsize_size_pos ws.
+have hset : forall (t : WArray.array (arr_size ws n)) i (w : word ws),
+  i * wsize_size ws <= k < i * wsize_size ws + wsize_size ws -> WArray.is_init (copy_set t i w) k.
+- move=> t i w hi; rewrite /copy_set.
+  case h : WArray.set => [t' | e].
+  + rewrite (set_total_is_init k h) /= /WArray.in_bound.
+    by apply/orP; left; apply/and4P; split; [apply/ZleP | apply/ZltP | apply/ZleP | apply/ZltP]; lia.
+  move: h; rewrite /WArray.set.
+  have := write_total_ok t Unaligned (i * mk_scale AAscale ws) w.
+  by move=> /(_ _ (WArray.array_CM _)) /[swap] ->.
+have hmono : forall (t : WArray.array (arr_size ws n)) i (w : word ws),
+  WArray.is_init t k -> WArray.is_init (copy_set t i w) k.
+- move=> t i w hi; rewrite /copy_set.
+  case h : WArray.set => [t' | //].
+  by rewrite (set_total_is_init k h) hi orbT.
+set i0 := k / wsize_size ws.
+have hi0 : i0 * wsize_size ws <= k < i0 * wsize_size ws + wsize_size ws.
+- rewrite /i0; have := Z.div_mod k (wsize_size ws); have := Z.mod_pos_bound k (wsize_size ws); lia.
+have : i0 \in ziota 0 n.
+- rewrite in_ziota; apply/andP; split; [apply/ZleP | apply/ZltP]; rewrite /arr_size in hk; nia.
+rewrite /copy_total; move=> hin.
+have : forall l (t : WArray.array (arr_size ws n)), (i0 \in l) || WArray.is_init t k ->
+  WArray.is_init (foldl (fun t i => copy_set t i (copy_get ws a i)) t l) k.
+- elim => [ | j l ih] t //=.
+  move=> h; apply: ih; move: h; rewrite in_cons -orbA => /orP [/eqP <- | /orP [-> // | hinit]].
+  + by rewrite hset ?orbT.
+  by rewrite hmono ?orbT.
+by move=> h; apply: h; rewrite hin.
+Qed.
+
+End COPY_TOTAL.
+
 (* -------------------------------------------------------------------- *)
 (* ** The [total_init] semantics                                         *)
 
@@ -134,3 +175,63 @@ End EXEC_SOPN.
 
 (* -------------------------------------------------------------------- *)
 (* ** Protection of a pointer                                            *)
+
+(* -------------------------------------------------------------------- *)
+(* ** The outputs of an instruction                                      *)
+
+Section OUTPUTS.
+
+Context {asm_op syscall_state : Type} {ep : EstateParams syscall_state} {asmop : asmOp asm_op}.
+
+Lemma oto_val_DB t (x : sem_ot t) : DB true (oto_val x).
+Proof. by case: t x => //= -[]. Qed.
+
+(* Only a boolean output may be undefined. *)
+Lemma list_ltuple_DB ts (t : sem_tuple ts) : all (DB true) (list_ltuple t).
+Proof.
+elim: ts t => [ | t1 ts ih] //= t.
+case: ts ih t => [ | t2 ts] ih t /=; first by rewrite oto_val_DB.
+by rewrite oto_val_DB; apply: ih.
+Qed.
+
+Lemma exec_sopn_DB {sm : SemMode} o vs vs2 : exec_sopn (sm := sm) o vs = ok vs2 -> all (DB true) vs2.
+Proof. by rewrite /exec_sopn; t_xrbindP => _ _ t _ <-; apply: list_ltuple_DB. Qed.
+
+Lemma app_sopn_size T ts (f : sem_prod ts (exec T)) vs t :
+  app_sopn ts f vs = ok t -> size vs = size ts.
+Proof.
+clear.
+by elim: ts f vs => [ | ty ts ih] f [ | v vs] //=; t_xrbindP => // x _ /ih ->.
+Qed.
+
+Lemma instr_desc_init_wt (d : instruction_desc) :
+  all (safety_cond_wt [seq eval_atype i | i <- tin d]) (i_init d).
+Proof. by case/and4P: (i_wf d). Qed.
+
+Lemma exec_sopn_size {sm : SemMode} o vs vs2 :
+  exec_sopn (sm := sm) o vs = ok vs2 -> size vs = size (tin (get_instr_desc o)).
+Proof.
+rewrite /exec_sopn /sopn_sem; t_xrbindP => _ _ <- t ht _.
+by rewrite (app_sopn_size ht) size_map.
+Qed.
+
+Lemma exec_protect_ptr o ws len vs v :
+  (o = SLHprotect_ptr ws len \/ o = SLHprotect_ptr_fail ws len) ->
+  exec_sopn (sm := total) (Oslh o) vs = ok [:: v] -> v = head v vs.
+Proof.
+move=> ho; rewrite /exec_sopn /sopn_sem; case: ho => -> /=; t_xrbindP => t.
+all: case: vs => [ | a [ | b [ | ? ?]]] /=; try by t_xrbindP.
+all: by t_xrbindP => a' /to_arrI -> w _ <- <-.
+Qed.
+
+Lemma exec_swapE {sm : SemMode} ws len vs vs' :
+  exec_sopn (sm := sm) (Opseudo_op (Oswap (aarr ws len))) vs = ok vs' ->
+  exists (a1 a2 : WArray.array (arr_size ws len)), vs = [:: Varr a1; Varr a2] /\ vs' = [:: Varr a2; Varr a1].
+Proof.
+rewrite /exec_sopn /sopn_sem /=; t_xrbindP => t.
+case: vs => [ | v1 [ | v2 [ | ? ?]]] /=; try by t_xrbindP.
+t_xrbindP => a1 /to_arrI -> a2 /to_arrI -> _.
+by move=> <- <-; exists a1, a2.
+Qed.
+
+End OUTPUTS.

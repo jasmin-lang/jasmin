@@ -790,3 +790,117 @@ End WArray.
 
 #[global]
 Hint Resolve WArray.uincl_refl : core.
+
+(* -------------------------------------------------------------------- *)
+(* ** The arrays written in the total mode                                *)
+
+Local Opaque ziota.
+
+(* The writes of bytes of the total mode. *)
+Lemma foldM_set8_total len (t t' : WArray.array len) (f : Z -> u8) (ptr : Z) l :
+  foldM (fun k m => memory_model.set (sm := total) m (add ptr k) (f k)) t l = ok t' ->
+  forall j, Mz.get t'.(WArray.arr_data) j =
+    if (j - ptr \in l) && WArray.in_bound t j then Some (f (j - ptr))
+    else Mz.get t.(WArray.arr_data) j.
+Proof.
+elim: l t => [ | k l ih] t /=.
+- by move=> [<-] j.
+move=> /ih{}ih j; rewrite ih /= in_cons WArray.addE /WArray.in_bound /=.
+have hjk : (j - ptr == k) = (ptr + k == j) by apply/eqP/eqP; lia.
+rewrite hjk; case hkb: ((0 <=? ptr + k) && (ptr + k <? len)) => /=.
+- rewrite Mz.setP; case: eqP => [<- | _] /=; last by case: ifP.
+  by rewrite hkb; case: ifP => //; have -> : ptr + k - ptr = k by ring.
+case: (ptr + k =P j) => [<- | _] //=.
+by rewrite hkb !andbF.
+Qed.
+
+Lemma set_total_data len ws (t t' : WArray.array len) al aa i (w : word ws) :
+  WArray.set (sm := total) t al aa i w = ok t' ->
+  forall j, Mz.get t'.(WArray.arr_data) j =
+    let k := j - i * mk_scale aa ws in
+    if [&& 0 <=? k, k <? wsize_size ws & WArray.in_bound t j] then Some (LE.wread8 w k)
+    else Mz.get t.(WArray.arr_data) j.
+Proof.
+rewrite /WArray.set /CoreMem.write /= => /foldM_set8_total h j.
+rewrite h in_ziota /=.
+by rewrite -andbA.
+Qed.
+
+Lemma set_total_is_init len ws (t t' : WArray.array len) al aa i (w : word ws) j :
+  WArray.set (sm := total) t al aa i w = ok t' ->
+  WArray.is_init t' j =
+    [&& 0 <=? j - i * mk_scale aa ws, j - i * mk_scale aa ws <? wsize_size ws & WArray.in_bound t j]
+    || WArray.is_init t j.
+Proof. by move=> h; rewrite /WArray.is_init (set_total_data h) /=; case: ifP. Qed.
+
+Lemma fill_data len l (a : WArray.array len) :
+  WArray.fill len l = ok a ->
+  forall k, Mz.get a.(WArray.arr_data) k =
+    if (0 <=? k) && (k <? len) then Some (nth 0%R l (Z.to_nat k)) else None.
+Proof.
+rewrite /WArray.fill /WArray.fill_aux; t_xrbindP => /eqP hsize -[z a'] /= hfold <- k.
+have : forall z0 (a0 : WArray.array len),
+  foldM (fun w it => Let t := WArray.set it.2 Aligned AAscale it.1 w in ok (it.1 + 1, t)) (z0, a0) l = ok (z, a') ->
+  forall k, Mz.get a'.(WArray.arr_data) k =
+    if [&& 0 <=? k - z0, k - z0 <? Z.of_nat (size l) & WArray.in_bound a0 k]
+    then Some (nth 0%R l (Z.to_nat (k - z0))) else Mz.get a0.(WArray.arr_data) k.
+- elim: (l) => [ | w l' ih] z0 a0 /=.
+  + move=> [_ <-] k'; case: ZleP => //= ?; case: ZltP => //= ?; lia.
+  t_xrbindP => _ a1 hset <- /ih{}ih k'.
+  rewrite ih (set_total_data (write_totalE hset)) /= Z.mul_1_r.
+  rewrite /WArray.in_bound /= wsize8.
+  have [h | [<- | h]] := Z.lt_trichotomy k' z0.
+  + have -> : (0 <=? k' - (z0 + 1)) = false by apply/ZleP; lia.
+    have -> : (0 <=? k' - z0) = false by apply/ZleP; lia.
+    done.
+  + rewrite Z.sub_diag /=.
+    have -> : (0 <=? k' - (k' + 1)) = false by apply/ZleP; lia.
+    by rewrite /LE.wread8 LE.encode8E.
+  have -> : (0 <=? k' - (z0 + 1)) = true by apply/ZleP; lia.
+  have -> : (0 <=? k' - z0) = true by apply/ZleP; lia.
+  have -> : (k' - z0 <? 1) = false by apply/ZltP; lia.
+  have -> : (k' - (z0 + 1) <? Z.of_nat (size l')) = (k' - z0 <? Pos.of_succ_nat (size l')) by apply/ZltP/ZltP; lia.
+  case: ifP => //= _.
+  have -> : Z.to_nat (k' - z0) = S (Z.to_nat (k' - (z0 + 1))) by lia.
+  done.
+move=> /(_ _ _ hfold k); rewrite Z.sub_0_r /= Mz.get0 => ->.
+rewrite /WArray.in_bound hsize.
+case: (ZleP 0 k) => //= ?; case: (ZltP k len) => ? /=.
+- by rewrite andbT; case: ZltP => //; lia.
+by rewrite andbF.
+Qed.
+
+(* [fill] succeeds on a list of the right size. *)
+Lemma fill_size_ok len l :
+  size l = Z.to_nat len -> exists a, WArray.fill len l = ok a.
+Proof.
+move=> hsize; rewrite /WArray.fill hsize eqxx /=.
+have : is_ok (WArray.fill_aux len l) by apply: WArray.fill_aux_ok; rewrite hsize.
+by case: WArray.fill_aux => // -[z a] _; exists a.
+Qed.
+
+(* In the array of the bytes [f k], the cell [k] is initialised to [0xFF]
+   exactly when it is in bounds and [f k] is [0xFF]. *)
+Lemma rdflt_fill_map_initb len (f : Z -> u8) k :
+  WArray.is_initb (rdflt (WArray.empty len) (WArray.fill len (map f (ziota 0 len)))) k =
+  [&& 0 <=? k, k <? len & f k == wrepr U8 (-1)].
+Proof.
+have [|a ha] := @fill_size_ok len (map f (ziota 0 len)).
+- by rewrite size_map size_ziota.
+rewrite ha /= /WArray.is_initb (fill_data ha).
+case: ZleP => //= ?; case: ZltP => //= ?.
+rewrite (nth_map 0) ?nth_ziota ?size_ziota.
+- by rewrite Z.add_0_l Z2Nat.id.
+all: by apply/ssrnat.ltP; lia.
+Qed.
+
+(* [fill] succeeds on a list of the right size, and initialises every cell. *)
+Lemma rdflt_fill_is_init len l i :
+  size l = Z.to_nat len -> 0 <= i < len ->
+  WArray.is_init (rdflt (WArray.empty len) (WArray.fill len l)) i.
+Proof.
+move=> /fill_size_ok [a ha] hi.
+rewrite ha /=.
+rewrite /WArray.is_init (fill_data ha).
+have -> // : (0 <=? i) && (i <? len) = true by apply/andP; split; [apply/ZleP | apply/ZltP]; lia.
+Qed.

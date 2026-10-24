@@ -524,6 +524,9 @@ Proof.
     clear; SvD.fsetdec.
 Qed.
 
+Lemma vars_l_cat l1 l2 : Sv.Equal (vars_l (l1 ++ l2)) (Sv.union (vars_l l1) (vars_l l2)).
+Proof. by elim: l1 => [ | x l1 ih] /=; [clear; SvD.fsetdec | rewrite ih; clear; SvD.fsetdec]. Qed.
+
 Lemma vars_c_cons i c:
   Sv.Equal (vars_c (i :: c)) (Sv.union (vars_I i) (vars_c c)).
 Proof.
