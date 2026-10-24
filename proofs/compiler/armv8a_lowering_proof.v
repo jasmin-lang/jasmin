@@ -1872,6 +1872,54 @@ Proof.
   all: by rewrite hwrite.
 Qed.
 
+Lemma fvars_TMP : Sv.In (fvTMP fv) fvars.
+Proof. by repeat (exact: SvD.F.add_1 || apply: SvD.F.add_2). Qed.
+
+(* A constant stored to memory goes through the scratch register: the first
+   instruction only writes that register, a fresh variable, and the store
+   then writes the same bytes as the source assignment. *)
+Lemma sem_lower_store_imm s0 s0' s1' ws ws' ii vi e pre aop es (w : word ws') lv tag :
+  lower_store_imm fv vi ws e = Some (pre, (aop, es))
+  -> disj_fvars (vars_lval lv)
+  -> sem_pexpr true (p_globs p) s0 e = ok (Vword w)
+  -> write_lval true (p_globs p) lv (Vword (zero_extend ws w)) s0' = ok s1'
+  -> exists2 s2',
+       esem p' ev (map (MkI ii) (pre ++ [:: Copn [:: lv ] tag (Oasm (BaseOp (None, aop))) es ])) s0' = ok s2'
+       & eq_fv s1' s2'.
+Proof.
+  rewrite /lower_store_imm.
+  move=> h hfvlv hseme hwrite.
+  move: h.
+  case hc: is_wconst => [c|] //=.
+  case hmn: store_mn_of_wsize => [mn|] //= [? ? ?]; subst pre aop es.
+  assert (hwc := is_wconstP true (p_globs p) s0 hc).
+  move: hwc; rewrite hseme /= => /truncate_wordP [hws ?]; subst c.
+  have hz s1 (x : word ws') :
+    (s1 <= U64)%CMP -> zero_extend s1 (zero_extend U64 (zero_extend s1 x)) = zero_extend s1 x.
+  { by move=> hs1; rewrite zero_extend_idem // zero_extend_u. }
+  have hs0'' :
+    eq_fv s0' (with_vm s0' (evm s0').[fvTMP fv <- Vword (zero_extend U64 (zero_extend ws w))]).
+  {
+    split => //=.
+    move=> x hx.
+    rewrite Vm.setP_neq //.
+    apply/eqP => ?; subst x.
+    exact: hx fvars_TMP.
+  }
+  have [s2' hwrite' hs12] := eeq_exc_write_lval hfvlv hs0'' hwrite.
+  exists s2'; last exact: hs12.
+  rewrite /sem_sopn /= wrepr_unsigned /exec_sopn /= truncate_word_u /=.
+  rewrite /write_var /set_var /= cmp_le_refl orbT /=.
+  rewrite /get_gvar /= /get_var /= Vm.setP_eq /=.
+  move: hwrite'.
+  case: ws hws hwrite hmn hs0'' {hc hseme hs12} => // hws hwrite [?] hs0'' hwrite'; subst mn.
+  all: rewrite cmp_le_refl orbT /= truncate_word_le //=.
+  all: rewrite ?computational_eq_refl /=.
+  all: rewrite /armv8a_extend_semi /=.
+  all: try (rewrite hz //).
+  all: by move: hwrite'; rewrite ?zero_extend_u => ->.
+Qed.
+
 Lemma lower_cassgn_wordP ii s0 lv tag ws e v v' s0' s1' pre lvs op es :
   lower_cassgn_word fv lv ws e = Some (pre, (lvs, op, es))
   -> sem_pexpr true (p_globs p) s0 e = ok v
@@ -1895,10 +1943,13 @@ Proof using atoI ev fv fv_correct p pT sCP sc_sem syscall_state warning wsw.
   move: hw' => /to_wordI [ws' [w [? /truncate_wordP [hws ?]]]]; subst v w'.
 
   case: is_lval_in_memory.
-  - case h: lower_store => [[op' es']|] // [? ? ? ?]; subst pre lvs op es.
-    exists s1'; last exact: eeq_excR.
-    rewrite esem1.
-    exact: (sem_i_lower_store ii tag h hs00 hws hfve hseme hwrite01').
+  - case h: lower_store => [[op' es']|].
+    + move=> [? ? ? ?]; subst pre lvs op es.
+      exists s1'; last exact: eeq_excR.
+      rewrite esem1.
+      exact: (sem_i_lower_store ii tag h hs00 hws hfve hseme hwrite01').
+    case h': lower_store_imm => [[pre' [op' es']]|] // [? ? ? ?]; subst pre lvs op es.
+    exact: (sem_lower_store_imm ii tag h' hfvlv hseme hwrite01').
 
   case h: lower_pexpr => [[[pre' op'] es']|] // [? ? ? ?];
     subst pre lvs op es.
