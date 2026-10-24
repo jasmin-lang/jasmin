@@ -1,5 +1,5 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
-Require Import psem.
+Require Import psem safety_cond_facts sem_op_typed_facts.
 Import Utf8 Lia.
 Import Memory low_memory.
 
@@ -442,3 +442,81 @@ Proof.
 Qed.
 
 End SYSCALL_U.
+
+(* ------------------------------------------------------------------------- *)
+(* A success of the partial mode is a success of the total mode               *)
+
+Section PARTIAL_TOTAL.
+
+Context
+  {wsw:WithSubWord}
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  (gd : glob_decls).
+
+Lemma get_gvar_partialE s x v :
+  get_gvar (sm := partial) true gd (evm s) x = ok v ->
+  get_gvar (sm := total) true gd (evm s) x = ok v.
+Proof.
+  rewrite /get_gvar; case: ifP => // _; rewrite /get_var /=.
+  by case heq: is_defined => //= -[<-]; rewrite (Vm.get_totalE heq) heq.
+Qed.
+
+Let Pe e :=
+  forall s v, sem_pexpr (sm := partial) true gd s e = ok v ->
+              sem_pexpr (sm := total) true gd s e = ok v.
+
+Let Qe es :=
+  forall s vs, sem_pexprs (sm := partial) true gd s es = ok vs ->
+               sem_pexprs (sm := total) true gd s es = ok vs.
+
+(* The partial mode succeeds only where the total mode computes the same
+   value: the accesses by [getE], [get_subE] and [read_partialE], the operators
+   because [mk_sem_op] checks their conditions and then returns the total
+   semantics. *)
+Lemma sem_pexpr_partialE_aux : (forall e, Pe e) /\ (forall es, Qe es).
+Proof.
+  apply: pexprs_ind_pair; subst Pe Qe; split => //=; t_xrbindP => //.
+  + by move=> e he es hes s vs z /he -> z0 /hes -> <-.
+  + by move=> x s v /get_gvar_partialE.
+  + move=> al aa sz x e he s v; apply on_arr_gvarP => n r htx hgvr.
+    t_xrbindP => zi z hz /to_intI ? w hw <-; subst z.
+    rewrite (get_gvar_partialE hgvr) /= (he _ _ hz) /=.
+    by move/getE: hw => [_ ->].
+  + move=> aa sz len x e he s v; apply on_arr_gvarP => n r htx hgvr.
+    t_xrbindP => zi z hz /to_intI ? t hw <-; subst z.
+    rewrite (get_gvar_partialE hgvr) /= (he _ _ hz) /=.
+    by move/get_subE: hw => [_ /= [<-]].
+  + move=> al sz e he s v pt vpt hvpt htop w hread <-.
+    by rewrite (he _ _ hvpt) /= htop /=; move/read_partialE: hread => [_ ->].
+  + move=> op e he s v z hz; rewrite (he _ _ hz) /= /sem_sop1; t_xrbindP => x hof r hr <-.
+    rewrite hof /=.
+    move: hr; rewrite /sem_sop1_typed mk_sem_op1E /=.
+    by case: check_safe => //= _ [<-].
+  + move=> op e1 he1 e2 he2 s v z1 hz1 z2 hz2; rewrite (he1 _ _ hz1) (he2 _ _ hz2) /= /sem_sop2.
+    t_xrbindP => x1 hof1 x2 hof2 r hr <-; rewrite hof1 hof2 /=.
+    move: hr; rewrite /sem_sop2_typed mk_sem_op2E /=.
+    by case: check_safe => //= _ [<-].
+  + by move=> op es hes s v z /hes; rewrite /sem_pexprs => ->.
+  move=> ty e he e1 he1 e2 he2 s v.
+  by t_xrbindP => b vb /he -> /= -> v1 v1b /he1 -> /= -> v2 v2b /he2 -> /= -> <-.
+Qed.
+
+Lemma sem_pexpr_partialE s e v :
+  sem_pexpr (sm := partial) true gd s e = ok v ->
+  sem_pexpr (sm := total) true gd s e = ok v.
+Proof. by have [h _] := sem_pexpr_partialE_aux; apply: h. Qed.
+
+Lemma sem_pexprs_partialE s es vs :
+  sem_pexprs (sm := partial) true gd s es = ok vs ->
+  sem_pexprs (sm := total) true gd s es = ok vs.
+Proof. by have [_ h] := sem_pexpr_partialE_aux; apply: h. Qed.
+
+(* In any mode: the total mode is itself, the partial mode is the lemma above. *)
+Lemma sem_pexpr_totalE {sm : SemMode} s e v :
+  sem_pexpr (sm := sm) true gd s e = ok v ->
+  sem_pexpr (sm := total) true gd s e = ok v.
+Proof. by case: sm => -[]; last exact: sem_pexpr_partialE. Qed.
+
+End PARTIAL_TOTAL.

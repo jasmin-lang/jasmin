@@ -470,6 +470,13 @@ Module Type VM.
   Parameter get_totalE : forall {wsw:WithSubWord} vm x,
     is_defined (get vm x) -> get (sm := total) vm x = get vm x.
 
+  (* What a mode reads: the entry, or its default value when the entry is
+     undefined and the mode is total. *)
+  Parameter get_modeE : forall {wsw:WithSubWord} {sm : SemMode} vm x,
+    get (sm := sm) vm x =
+    if is_total (SemMode := sm) && ~~ is_defined (get (sm := partial) vm x)
+    then dfl_val (eval_atype (vtype x)) else get (sm := partial) vm x.
+
   (* Every mode reads the same entry: two variable maps that agree on a
      variable in the [partial] mode agree on it in every mode. *)
   Parameter get_eq_mode : forall {wsw:WithSubWord} {sm : SemMode} vm1 vm2 x,
@@ -538,6 +545,12 @@ Module Vm : VM.
 
   Lemma get_totalE vm x : is_defined (get vm x) -> get (sm := total) vm x = get vm x.
   Proof. by rewrite /get /= => ->. Qed.
+
+  Lemma get_modeE {sm : SemMode} vm x :
+    get (sm := sm) vm x =
+    if is_total (SemMode := sm) && ~~ is_defined (get (sm := partial) vm x)
+    then dfl_val (eval_atype (vtype x)) else get (sm := partial) vm x.
+  Proof. by rewrite /get /=. Qed.
 
   Lemma get_eq_mode {sm : SemMode} vm1 vm2 x :
     get (sm := partial) vm1 x = get (sm := partial) vm2 x ->
