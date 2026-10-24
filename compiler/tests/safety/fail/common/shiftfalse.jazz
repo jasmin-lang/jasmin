@@ -1,0 +1,11 @@
+/* The assertion is false: n is inlen divided by 64, so 64 n + 64 is
+   strictly greater than inlen. The checker must still report it. */
+export fn shift(reg u64 inlen) -> reg u64
+{
+  reg u64 n;
+
+  n = inlen;
+  n >>= 6;
+  assert("too far", n * 64 + 64 <= inlen);
+  return n;
+}

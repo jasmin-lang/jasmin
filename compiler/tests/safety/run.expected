@@ -375,6 +375,168 @@ mem_t ∊ [0; 0]
 
 Program is not safe!
 
+File fail/common/shiftcast.jazz (on arch x86-64):
+Analyzing function f
+
+
+*** Possible Safety Violation(s):
+  "fail/common/shiftcast.jazz", line 13 (2-13): in_bound: buf[x] (length 300 U8)
+  
+Memory ranges:
+  mem_x: [0; 0]
+  
+* Rel:
+{inv_x ≥ 0, inv_x ≤ 18446744073709551615, mem_x = 0}
+mem_x ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/shiftcast.jazz (on arch arm-m4):
+Analyzing function f
+
+
+*** Possible Safety Violation(s):
+  "fail/common/shiftcast.jazz", line 13 (2-13): in_bound: buf[x] (length 300 U8)
+  
+Memory ranges:
+  mem_x: [0; 0]
+  
+* Rel:
+{inv_x ≥ 0, inv_x ≤ 18446744073709551615, mem_x = 0}
+mem_x ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/shiftcast.jazz (on arch riscv):
+Analyzing function f
+
+
+*** Possible Safety Violation(s):
+  "fail/common/shiftcast.jazz", line 13 (2-13): in_bound: buf[x] (length 300 U8)
+  
+Memory ranges:
+  mem_x: [0; 0]
+  
+* Rel:
+{inv_x ≥ 0, inv_x ≤ 18446744073709551615, mem_x = 0}
+mem_x ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/shiftfalse.jazz (on arch x86-64):
+Analyzing function shift
+
+
+*** Possible Safety Violation(s):
+  "fail/common/shiftfalse.jazz", line 9 (2-42): n *64u (64u) 64 +64u (64u) 64 <=u inlen
+  
+Memory ranges:
+  mem_inlen: [0; 0]
+  
+* Rel:
+{inv_inlen ≤ 18446744073709551615, inv_inlen ≥ 0, mem_inlen = 0}
+mem_inlen ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/shiftfalse.jazz (on arch arm-m4):
+Analyzing function shift
+
+
+*** Possible Safety Violation(s):
+  "fail/common/shiftfalse.jazz", line 9 (2-42): n *64u (64u) 64 +64u (64u) 64 <=u inlen
+  
+Memory ranges:
+  mem_inlen: [0; 0]
+  
+* Rel:
+{inv_inlen ≤ 18446744073709551615, inv_inlen ≥ 0, mem_inlen = 0}
+mem_inlen ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/shiftfalse.jazz (on arch riscv):
+Analyzing function shift
+
+
+*** Possible Safety Violation(s):
+  "fail/common/shiftfalse.jazz", line 9 (2-42): n *64u (64u) 64 +64u (64u) 64 <=u inlen
+  
+Memory ranges:
+  mem_inlen: [0; 0]
+  
+* Rel:
+{inv_inlen ≤ 18446744073709551615, inv_inlen ≥ 0, mem_inlen = 0}
+mem_inlen ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/shiftnarrow.jazz (on arch x86-64):
+Analyzing function narrow
+
+
+*** Possible Safety Violation(s):
+  "fail/common/shiftnarrow.jazz", line 8 (2-38): (64u) n *64u (64u) 64 <=u x
+  
+Memory ranges:
+  mem_x: [0; 0]
+  
+* Rel:
+{inv_x ≥ 0, inv_x ≤ 18446744073709551615, mem_x = 0}
+mem_x ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/shiftnarrow.jazz (on arch arm-m4):
+Analyzing function narrow
+
+
+*** Possible Safety Violation(s):
+  "fail/common/shiftnarrow.jazz", line 8 (2-38): (64u) n *64u (64u) 64 <=u x
+  
+Memory ranges:
+  mem_x: [0; 0]
+  
+* Rel:
+{inv_x ≥ 0, inv_x ≤ 18446744073709551615, mem_x = 0}
+mem_x ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/shiftnarrow.jazz (on arch riscv):
+Analyzing function narrow
+
+
+*** Possible Safety Violation(s):
+  "fail/common/shiftnarrow.jazz", line 8 (2-38): (64u) n *64u (64u) 64 <=u x
+  
+Memory ranges:
+  mem_x: [0; 0]
+  
+* Rel:
+{inv_x ≥ 0, inv_x ≤ 18446744073709551615, mem_x = 0}
+mem_x ∊ [0; 0]
+
+
+
+Program is not safe!
+
 File fail/common/wint_overflow.jazz (on arch x86-64):
 Analyzing function wint_overflow
 

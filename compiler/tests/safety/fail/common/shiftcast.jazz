@@ -1,0 +1,16 @@
+/* The cast truncates x to u8 before the shift. The exact bounds of the
+   shift apply to the truncated value, not to x, so the read of buf[x]
+   must stay reported. */
+export fn f(reg u64 x) -> reg u64
+{
+  stack u8[300] buf;
+  reg u8 n i;
+  reg u64 r;
+  inline int k;
+
+  for k = 0 to 300 { buf[k] = 0; }
+  n = ((8u) x) >> 0;
+  i = buf[x];
+  r = (64u) i;
+  return r;
+}

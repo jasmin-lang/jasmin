@@ -1,0 +1,12 @@
+/* The block count is the input length shifted right by 6. The bounds of
+   the shift also give the block count a lower bound, so the end of the
+   last whole block is known to stay within the length. */
+export fn bound(reg u64 inlen) -> reg u64
+{
+  reg u64 n;
+
+  n = inlen;
+  n >>= 6;
+  assert("upper", inlen <= n * 64 + 63);
+  return n;
+}

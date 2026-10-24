@@ -1,0 +1,11 @@
+/* A shifted value that is a conditional expression has no single linear
+   form. The bounds of the shift cannot be stated on it, and the
+   assignment keeps the conditional abstraction instead of failing. */
+export fn cond(reg u64 inlen, reg bool b) -> reg u64
+{
+  reg u64 n y;
+
+  y = 0;
+  n = (b ? inlen : y) >> 6;
+  return n;
+}

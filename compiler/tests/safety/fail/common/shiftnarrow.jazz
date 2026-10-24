@@ -1,0 +1,10 @@
+/* The destination is narrower than the shift. The value is truncated, so
+   the exact bounds of the shift do not apply. */
+export fn narrow(reg u64 x) -> reg u32
+{
+  reg u32 n;
+
+  n = x >> 6;
+  assert("narrow", (64u) n * 64 <= x);
+  return n;
+}
