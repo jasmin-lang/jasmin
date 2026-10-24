@@ -316,14 +316,19 @@ Proof.
   by case: vtype htxd.
 Qed.
 
-Lemma armv8a_lstore_correct : lstore_correct_aux armv8a_check_ws armv8a_lstore.
+Lemma armv8a_lstore_correct :
+  lstore_correct_aux armv8a_check_store_ws armv8a_lstore.
 Proof.
-  move=> xd xs ofs ws w wp s m /eqP hchk; t_xrbindP; subst ws.
-  move=> vd hgetd htrd vs hgets htrs hwr.
-  rewrite /armv8a_lstore /= hgets hgetd /= /exec_sopn /= htrs /=.
-  rewrite /sem_sop2 /= htrd /= !truncate_word_u /= truncate_word_u /=.
-  by rewrite zero_extend_u hwr.
+  move=> xd xs ofs ws w wp s m hchk; t_xrbindP => vd hgetd htrd vs hgets htrs hwr.
+  case: ws w hchk htrs hwr => // w _ htrs hwr.
+  all: rewrite /armv8a_lstore /= hgets hgetd /= /exec_sopn /= htrs /=.
+  all: rewrite /sem_sop2 /= htrd /= !truncate_word_u /= truncate_word_u /=.
+  all: by rewrite zero_extend_u hwr.
 Qed.
+
+Lemma armv8a_check_store_ws_correct ws :
+  armv8a_check_ws ws -> armv8a_check_store_ws ws.
+Proof. by move=> /eqP ->. Qed.
 
 Lemma armv8a_smart_addi_correct : ladd_imm_correct_aux ARMv8AFopn_smart_addi.
 Proof.
@@ -335,8 +340,9 @@ Qed.
 Lemma armv8a_lstores_correct : lstores_correct armv8a_liparams.
 Proof.
   apply/lstores_imm_dfl_correct.
-  + by apply armv8a_lstore_correct.
-  apply armv8a_smart_addi_correct.
+  + exact: armv8a_lstore_correct.
+  + exact: armv8a_check_store_ws_correct.
+  exact: armv8a_smart_addi_correct.
 Qed.
 
 Lemma armv8a_lload_correct :
@@ -554,6 +560,7 @@ Definition armv8a_hliparams :
     spec_lip_lloads               := armv8a_lloads_correct;
     spec_lip_tmp                  := armv8a_tmp_correct;
     spec_lip_check_ws             := armv8a_check_ws_correct;
+    spec_lip_check_store_ws       := armv8a_check_store_ws_correct;
   |}.
 
 Lemma armv8a_ok_lip_tmp :

@@ -128,6 +128,11 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
        i.e if an operation exists for that size. *)
     lip_check_ws : wsize -> bool;
 
+    (* Sizes of the words that [lip_lstore] can store: the sizes accepted by
+       [lip_check_ws] and, on the architectures that have narrow store
+       instructions, the smaller ones. *)
+    lip_check_store_ws : wsize -> bool;
+
     (* Return the arguments for a linear instruction that corresponds to
        a store to memory.
        In symbols, the linear instruction derived from [lip_lstore xd ofs xs]
@@ -472,7 +477,7 @@ Definition classify_cassgn (x: lval) (ty: atype) (e: pexpr) : cassign_kind :=
         Cassgn_load ws rd rs ofs
       else Cassgn_invalid
   | Lmem Aligned ws _ (Papp2 (Oadd (Op_w _)) (Pvar {| gs := Slocal; gv := rd |}) (Papp1 (Oword_of_int _) (Pconst ofs))), Pvar {| gs := Slocal ; gv := rs |} =>
-      if [&& ty == aword ws & lip_check_ws liparams ws ] then
+      if [&& ty == aword ws & lip_check_store_ws liparams ws ] then
         Cassgn_store ws rd rs ofs
       else Cassgn_invalid
   | _, _ => Cassgn_invalid
