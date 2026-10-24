@@ -180,13 +180,24 @@ Proof.
   by apply/eqnP/eqP; apply: (size_beheadn (n:=n)); apply/eqP; apply/eqnP.
 Qed.
 
+(* Dropping the first output of a total semantics and its condition preserves
+   [init_dflt]. *)
+#[local]
+Lemma behead_init_dflt {tin tout init} {f : sem_lprod tin (sem_ltuple_t tout)} :
+  init_dflt (map eval_ltype tin) (map eval_ltype tout) init f ->
+  init_dflt (map eval_ltype tin) (map eval_ltype (behead tout)) (behead init) (behead_tuple_t f).
+Proof.
+  case: tout f => [ | t1 [ | t2 tout]] f; apply: init_dflt_aux_sem_prod_app => vs t //=.
+  by rewrite !behead_map; case: t => x xs [_].
+Qed.
+
 Section WITH_ARCH.
 
 Context
   {reg regx xreg rflag cond : Type}
   {ad : arch_decl reg regx xreg rflag cond}.
 
-Notation idt_dropn semi_dropn_t :=
+Notation idt_dropn semi_dropn_t init_dflt_dropn :=
   (fun idt =>
      {|
        id_valid := id_valid idt;
@@ -207,11 +218,16 @@ Notation idt_dropn semi_dropn_t :=
        id_doit := id_doit idt;
        id_pp_asm := id_pp_asm idt;
        id_wf := drop_id_wf (id_wf idt);
+       id_init_dflt := init_dflt_dropn (id_init_dflt idt);
      |}).
 
-Definition idt_drop1 : instr_desc_t -> instr_desc_t := idt_dropn semi_drop1_t.
-Definition idt_drop2 : instr_desc_t -> instr_desc_t := idt_dropn semi_drop2_t.
-Definition idt_drop3 : instr_desc_t -> instr_desc_t := idt_dropn semi_drop3_t.
-Definition idt_drop4 : instr_desc_t -> instr_desc_t := idt_dropn semi_drop4_t.
+Definition idt_drop1 : instr_desc_t -> instr_desc_t :=
+  idt_dropn semi_drop1_t behead_init_dflt.
+Definition idt_drop2 : instr_desc_t -> instr_desc_t :=
+  idt_dropn semi_drop2_t (fun h => behead_init_dflt (behead_init_dflt h)).
+Definition idt_drop3 : instr_desc_t -> instr_desc_t :=
+  idt_dropn semi_drop3_t (fun h => behead_init_dflt (behead_init_dflt (behead_init_dflt h))).
+Definition idt_drop4 : instr_desc_t -> instr_desc_t :=
+  idt_dropn semi_drop4_t (fun h => behead_init_dflt (behead_init_dflt (behead_init_dflt (behead_init_dflt h)))).
 
 End WITH_ARCH.

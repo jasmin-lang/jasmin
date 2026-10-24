@@ -113,6 +113,7 @@ Definition RTypeInstruction ws semi jazz_name asm_name (doit : doit_t) : instr_d
       id_init := [:: IBool true ];
       id_pp_asm := pp_name asm_name; (* how to print it in asm *)
       id_wf := refl_equal;
+      id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition ITypeInstruction chk_imm ws semi jazz_name asm_name (doit : doit_t) : instr_desc_t :=
@@ -137,6 +138,7 @@ Definition ITypeInstruction chk_imm ws semi jazz_name asm_name (doit : doit_t) :
       id_init := [:: IBool true ];
       id_pp_asm := pp_name asm_name; (* how to print it in asm *)
       id_wf := refl_equal;
+      id_init_dflt := init_dflt_true erefl erefl;
     |}.
 
 Definition ITypeInstruction_12s := ITypeInstruction CAimmC_riscv_12bits_signed.
@@ -338,6 +340,7 @@ Definition riscv_MV_instr : instr_desc_t :=
       id_init := [:: IBool true ];
       id_pp_asm := pp_name "mv";
       id_wf := refl_equal;
+      id_init_dflt := init_dflt_true erefl erefl;
     |}.
 
 Definition prim_MV := ("MV"%string, primM MV).
@@ -372,6 +375,7 @@ Definition riscv_LA_instr : instr_desc_t :=
       id_init := [:: IBool true ];
       id_pp_asm := pp_name "la";
       id_wf := refl_equal;
+      id_init_dflt := init_dflt_true erefl erefl;
     |}.
 
 Definition prim_LA := ("LA"%string, primM LA).
@@ -402,6 +406,7 @@ Definition riscv_LI_instr : instr_desc_t :=
       id_init := [:: IBool true ];
       id_pp_asm := pp_name "li";
       id_wf := refl_equal;
+      id_init_dflt := init_dflt_true erefl erefl;
     |}.
 
 Definition prim_LI := ("LI"%string, primM LI).
@@ -433,6 +438,7 @@ Definition riscv_NOT_instr : instr_desc_t :=
       id_init := [:: IBool true ];
       id_pp_asm := pp_name "not";
       id_wf := refl_equal;
+      id_init_dflt := init_dflt_true erefl erefl;
     |}.
 
 Definition prim_NOT := ("NOT"%string, primM NOT).
@@ -463,6 +469,7 @@ Definition riscv_NEG_instr : instr_desc_t :=
       id_init := [:: IBool true ];
       id_pp_asm := pp_name "neg";
       id_wf := refl_equal;
+      id_init_dflt := init_dflt_true erefl erefl;
     |}.
 
 Definition prim_NEG := ("NEG"%string, primM NEG).
@@ -519,6 +526,7 @@ Definition riscv_LOAD_instr s ws : instr_desc_t :=
       id_init := [:: IBool true ];
       id_pp_asm := pp_name ("l" ++ string_of_size ws ++ string_of_sign s);
       id_wf := refl_equal;
+      id_init_dflt := init_dflt_true erefl erefl;
     |}.
 
 Definition primS (f: signedness -> wsize -> riscv_op) :=
@@ -553,6 +561,7 @@ Definition riscv_STORE_instr ws : instr_desc_t :=
       id_init := [:: IBool true ];
       id_pp_asm := pp_name ("s" ++ string_of_size ws);
       id_wf := refl_equal;
+      id_init_dflt := init_dflt_true erefl erefl;
     |}.
 
 Definition prim_STORE := ("STORE"%string, primP STORE).

@@ -374,6 +374,17 @@ Lemma semi_to_atype_wf (tin tout : seq ltype) safe init err :
       ssrnat.eqn (size init) (size (map atype_of_ltype tout)) & ~~ is_ErrType err].
 Proof. by rewrite map_eval_atype_of_ltype size_map. Qed.
 
+(* The transport of the types keeps [init_dflt]. *)
+Lemma semi_to_atype_init_dflt (tin tout : seq ltype) init
+    (f : sem_prod (map eval_ltype tin) (sem_tuple_t (map eval_ltype tout))) :
+  init_dflt (map eval_ltype tin) (map eval_ltype tout) init f ->
+  init_dflt (map eval_atype (map atype_of_ltype tin)) (map eval_atype (map atype_of_ltype tout))
+    init (semi_to_atype_t f).
+Proof.
+  rewrite /semi_to_atype_t; move: (computational_eq _) (computational_eq _).
+  by move=> e1 e2; case: _ / e1; case: _ / e2.
+Qed.
+
 Definition get_instr_desc (o: extended_op) : instruction_desc :=
  match o with
  | BaseOp o =>
@@ -391,6 +402,7 @@ Definition get_instr_desc (o: extended_op) : instruction_desc :=
     ; i_valid  := id.(id_valid)
     ; i_doit   := id.(id_doit)
     ; i_wf     := semi_to_atype_wf id.(id_wf)
+    ; i_init_dflt := semi_to_atype_init_dflt id.(id_init_dflt)
     ; semu     := @vuincl_app_sopn_v _ _ _ (is_not_carr_ltype _)
    |}
  | ExtOp o => asm_op_instr o

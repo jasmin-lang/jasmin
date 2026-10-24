@@ -14,20 +14,6 @@ Require Import
   arm_extra
   arm_instr_decl.
 
-(* [add_arguments] adds the arguments of the guarded instruction one by one. *)
-Lemma add_arguments_nil A lt f: @add_arguments A [::] lt f = f.
-Proof. by rewrite /add_arguments /eq_rect_r /=. Qed.
-
-Lemma add_arguments_app t lt0 lt1 A (f : sem_lprod (t::lt0) (sem_lprod lt1 A)) v :
-  add_arguments f v = add_arguments (f v).
-Proof.
-  move: f; rewrite /add_arguments /sem_prod /=.
-  rewrite /eq_ind_r /eq_ind /=.
-  move: (sem_lprod_cat lt0 lt1 A); rewrite /sem_prod.
-  move: (lprod [seq sem_t i | i <- map eval_ltype lt0] (lprod [seq sem_t i | i <- map eval_ltype lt1] A)) => T hT.
-  subst T => //.
-Qed.
-
 Lemma mk_cond_aux (tin tout : seq ltype) (ts : seq ctype) (vs0 : values)
     (safe : seq safety_cond) (err : error) (init : seq safety_cond)
     (semi : sem_lprod tin (exec (sem_ltuple tout)))

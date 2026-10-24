@@ -69,6 +69,11 @@ Record instruction_desc := mkInstruction {
   i_wf         : [&& all (safety_cond_wt (map eval_atype tin)) i_safe,
                      all (safety_cond_wt (map eval_atype tin)) i_init,
                      ssrnat.eqn (size i_init) (size tout) & ~~ is_ErrType i_err];
+  (* The total semantics gives [undefined_flag] to a boolean output whose
+     initialisation condition fails, as the EasyCrypt model does: a mode that
+     reads every output of an instruction as defined agrees with the one that
+     filters them by their conditions. *)
+  i_init_dflt  : init_dflt (map eval_atype tin) (map eval_atype tout) i_init i_semi_total;
     (* the semantics is monotone with respect to [value_uincl] *)
   semu     : forall vs vs' v,
                 values_uincl vs vs' ->
@@ -87,7 +92,7 @@ Arguments semi {sm} !i /.
 
 Arguments semu _ [vs vs' v] _ _.
 
-Notation mk_instr_desc str tin i_in tout i_out semi_total safe err init valid doit :=
+Notation mk_instr_desc str tin i_in tout i_out semi_total safe err init valid doit init_dflt :=
   {| str          := str;
      tin          := tin;
      i_in         := i_in;
@@ -101,14 +106,17 @@ Notation mk_instr_desc str tin i_in tout i_out semi_total safe err init valid do
      i_valid      := valid;
      i_doit       := doit;
      i_wf         := refl_equal;
+     i_init_dflt  := init_dflt;
      semu         := @vuincl_app_sopn_v (map eval_atype tin) (map eval_atype tout)
                        (@mk_semi _ (map eval_atype tin) (map eval_atype tout)
                           safe err init semi_total) refl_equal;
   |}.
 
-(* For an instruction without safety condition. *)
+(* For an instruction without safety condition, whose outputs are always
+   defined. *)
 Notation mk_instr_desc_safe str tin i_in tout i_out semi_total init valid doit :=
-  (mk_instr_desc str tin i_in tout i_out semi_total [::] ErrSemUndef init valid doit)
+  (mk_instr_desc str tin i_in tout i_out semi_total [::] ErrSemUndef init valid doit
+     (init_dflt_true erefl erefl))
   (only parsing).
 
 (* -------------------------------------------------------------------- *)
@@ -292,6 +300,7 @@ Definition Ocopy_instr ws p :=
      i_err    := ErrAddrUndef;
      i_init   := [:: IBool true];
      i_wf         := copy_wf ws p;
+     i_init_dflt  := init_dflt_true erefl erefl;
      semu     := @copy_semu ws p;
   |}.
 
@@ -341,6 +350,7 @@ Definition Odeclassify_instr ty :=
     i_valid  := true;
     i_doit   := DOIT;
     i_wf         := refl_equal;
+    i_init_dflt  := init_dflt_true erefl erefl;
     semu     := @const_semu [:: cty ];
   |}.
 
@@ -360,6 +370,7 @@ Definition Odeclassify_mem_instr len :=
     i_valid  := true;
     i_doit   := DOIT;
     i_wf         := refl_equal;
+    i_init_dflt  := init_dflt_true erefl erefl;
     semu     := @const_semu [:: cty ];
   |}.
 
@@ -411,6 +422,7 @@ Definition Ospill_instr o (tys:seq atype) :=
      i_valid  := true;
      i_doit   := DOIT;
      i_wf         := refl_equal;
+     i_init_dflt  := init_dflt_true erefl erefl;
      semu     := @const_semu ctys;
   |}.
 
@@ -456,6 +468,7 @@ Definition Oswap_instr ty :=
      i_valid := true;
      i_doit := DOIT;
      i_wf         := refl_equal;
+     i_init_dflt  := init_dflt_true erefl erefl;
      semu   := @swap_semu cty;
   |}.
 
@@ -560,6 +573,7 @@ Definition SLHprotect_ptr_instr ws n :=
      i_valid  := true;
      i_doit   := DOIT;
      i_wf         := refl_equal;
+     i_init_dflt  := init_dflt_true erefl erefl;
      semu     := @protect_ptr_semu (arr_size ws n);
   |}.
 
@@ -606,6 +620,7 @@ Definition SLHprotect_ptr_fail_instr ws n :=
      i_valid  := true;
      i_doit   := DOIT;
      i_wf         := protect_ptr_fail_wf ws n;
+     i_init_dflt  := init_dflt_true erefl erefl;
      semu     := @protect_ptr_fail_semu len;
   |}.
 

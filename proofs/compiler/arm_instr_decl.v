@@ -448,6 +448,20 @@ Proof.
   by apply: f.
 Defined.
 
+(* [add_arguments] adds the arguments of the guarded instruction one by one. *)
+Lemma add_arguments_nil A lt f: @add_arguments A [::] lt f = f.
+Proof. by rewrite /add_arguments /eq_rect_r /=. Qed.
+
+Lemma add_arguments_app t lt0 lt1 A (f : sem_lprod (t::lt0) (sem_lprod lt1 A)) v :
+  add_arguments f v = add_arguments (f v).
+Proof.
+  move: f; rewrite /add_arguments /sem_prod /=.
+  rewrite /eq_ind_r /eq_ind /=.
+  move: (sem_lprod_cat lt0 lt1 A); rewrite /sem_prod.
+  move: (lprod [seq sem_t i | i <- map eval_ltype lt0] (lprod [seq sem_t i | i <- map eval_ltype lt1] A)) => T hT.
+  subst T => //.
+Qed.
+
 Definition mk_semi_cond tin tout (semi : sem_lprod tin (exec (sem_ltuple tout)))
   : sem_lprod (tin ++ lbool :: tout) (exec (sem_ltuple tout)) :=
   let f0 res cond : sem_lprod tout (exec (sem_ltuple tout)) :=
@@ -494,6 +508,45 @@ Proof.
   by rewrite size_map h2 h3 !andbT (hg _ h0) (hg _ h1).
 Qed.
 
+(* Under a false guard the outputs are the previous values, all defined; under
+   a true one the conditions are those of the guarded instruction. The [ts]
+   are the types of the arguments [vs0] already collected. *)
+Lemma mk_cond_init_dflt_aux (tin tout : seq ltype) (ts : seq ctype) (vs0 : values)
+    (init : seq safety_cond) (f : sem_lprod tin (sem_ltuple_t tout)) :
+  List.Forall2 (fun t v => exists x : sem_t t, v = to_val x) ts vs0 ->
+  size init = size tout ->
+  all (safety_cond_wt (ts ++ map eval_ltype tin)) init ->
+  init_dflt_aux vs0 (map eval_ltype tin) (map eval_ltype tout) init f ->
+  init_dflt_aux vs0 (map eval_ltype (tin ++ lbool :: tout)) (map eval_ltype tout)
+    (map (sc_guarded (size ts + size tin)) init) (mk_semi_cond_t f).
+Proof.
+  elim: tin ts vs0 f => [ | t tin ih] ts vs0 f hall hsz hwt hf.
+  + move: hwt; rewrite cats0 addn0 => hwt.
+    rewrite /mk_semi_cond_t add_arguments_nil => -[] /=.
+    + apply: init_dflt_aux_const => vs2.
+      by rewrite (safety_cond_holds_guarded_map true vs2 hall hwt erefl).
+    apply: init_dflt_aux_all_true; first by rewrite !size_map.
+    move=> vs2.
+    have := congr1 (all id) (safety_cond_holds_guarded_map false vs2 hall hwt (erefl (size init))).
+    by rewrite all_map all_nseq orbT.
+  move=> /= v; rewrite /mk_semi_cond_t add_arguments_app; simpl sem_prod_app.
+  have -> : size ts + (size tin).+1 = size (rcons ts (eval_ltype t)) + size tin.
+  + by rewrite size_rcons addSnnS.
+  apply: (ih (rcons ts (eval_ltype t)) (rcons vs0 (to_val v))).
+  + by rewrite -!cats1; apply: List.Forall2_app => //; constructor => //; exists v.
+  + done.
+  + by rewrite cat_rcons.
+  by apply: hf.
+Qed.
+
+Lemma mk_cond_init_dflt (idt : instr_desc_t) :
+  init_dflt (map eval_ltype (id_tin idt ++ lbool :: id_tout idt)) (map eval_ltype (id_tout idt))
+    (map (sc_guarded (size (id_tin idt))) (id_init idt)) (mk_semi_cond_t (id_semi_total idt)).
+Proof.
+  have /and4P [_ hok /eqnP hsz _] := id_wf idt.
+  by apply: (mk_cond_init_dflt_aux (ts := [::]) (vs0 := [::])) => //; apply: id_init_dflt.
+Qed.
+
 Definition mk_cond (single_cycle : bool) (idt : instr_desc_t) : instr_desc_t :=
   {|
     id_msb_flag := MSB_MERGE;
@@ -517,6 +570,7 @@ Definition mk_cond (single_cycle : bool) (idt : instr_desc_t) : instr_desc_t :=
     id_valid := id_valid idt;
     id_doit := if single_cycle then id_doit idt else NOT_DOIT;
     id_wf := mk_cond_wf idt;
+    id_init_dflt := mk_cond_init_dflt idt;
   |}.
 Arguments mk_cond : clear implicits.
 
@@ -586,7 +640,9 @@ Proof.
 Qed.
 
 Definition mk_shifted
-  (sk : shift_kind) (idt : instr_desc_t) semi_total' : instr_desc_t :=
+  (sk : shift_kind) (idt : instr_desc_t) semi_total'
+  (init_dflt' : init_dflt (map eval_ltype (id_tin idt ++ [:: lword8 ])) (map eval_ltype (id_tout idt))
+                  (id_init idt) semi_total') : instr_desc_t :=
   {|
     id_msb_flag := MSB_MERGE;
     id_tin := (id_tin idt) ++ [:: lword8 ];
@@ -609,6 +665,7 @@ Definition mk_shifted
     id_valid := id_valid idt;
     id_doit := id_doit idt;
     id_wf := shifted_wf idt;
+    id_init_dflt := init_dflt';
   |}.
 
 Arguments mk_shifted : clear implicits.
@@ -735,11 +792,12 @@ Definition arm_ADD_instr : instr_desc_t :=
       id_valid := true;
       id_doit := DOIT;
       id_wf := refl_equal;
+      id_init_dflt := init_dflt_true erefl erefl;
     |}
   in
   let x :=
     if has_shift opts is Some sk
-    then mk_shifted sk x (mk_semi2_2_shifted_t sk (id_semi_total x))
+    then mk_shifted sk x (mk_semi2_2_shifted_t sk (id_semi_total x)) (init_dflt_true erefl erefl)
     else x
   in
   if set_flags opts
@@ -776,12 +834,13 @@ Definition arm_ADC_instr : instr_desc_t :=
       id_valid := true;
       id_doit := DOIT;
       id_wf := refl_equal;
+      id_init_dflt := init_dflt_true erefl erefl;
     |}
   in
   let x :=
     if has_shift opts is Some sk
     then
-      mk_shifted sk x (mk_semi3_2_shifted_t sk (id_semi_total x))
+      mk_shifted sk x (mk_semi3_2_shifted_t sk (id_semi_total x)) (init_dflt_true erefl erefl)
     else x
   in
   if set_flags opts
@@ -824,6 +883,7 @@ Definition arm_MUL_instr : instr_desc_t :=
       id_valid := ~~ (set_flags opts && is_conditional opts);
       id_doit := DOIT;
       id_wf := refl_equal;
+      id_init_dflt := init_dflt_true erefl erefl;
     |}
   in
   if set_flags opts
@@ -855,6 +915,7 @@ Definition arm_MLA_instr : instr_desc_t :=
       id_valid := true;
       id_doit := DOIT;
       id_wf := refl_equal;
+      id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition arm_MLS_semi (wn wm wa: ty_r) : ty_r :=
@@ -882,6 +943,7 @@ Definition arm_MLS_instr : instr_desc_t :=
       id_valid := true;
       id_doit := DOIT;
       id_wf := refl_equal;
+      id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 (* We assume that DIV_0_TRP bit in the Configuration Control register is set to 0*)
@@ -911,6 +973,7 @@ Definition arm_SDIV_instr : instr_desc_t :=
     id_valid := true;
     id_doit := NOT_DOIT; (* 2 to 12 cycles, depending on the operands. *)
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition arm_SUB_semi_t (wn wm : ty_r) : ty_nzcv_r_t :=
@@ -943,11 +1006,12 @@ Definition arm_SUB_instr : instr_desc_t :=
       id_valid := true;
       id_doit := DOIT;
       id_wf := refl_equal;
+      id_init_dflt := init_dflt_true erefl erefl;
     |}
   in
   let x :=
     if has_shift opts is Some sk
-    then mk_shifted sk x (mk_semi2_2_shifted_t sk (id_semi_total x))
+    then mk_shifted sk x (mk_semi2_2_shifted_t sk (id_semi_total x)) (init_dflt_true erefl erefl)
     else x
   in
   if set_flags opts
@@ -980,12 +1044,13 @@ Definition arm_SBC_instr : instr_desc_t :=
       id_valid := true;
       id_doit := DOIT;
       id_wf := refl_equal;
+      id_init_dflt := init_dflt_true erefl erefl;
     |}
   in
   let x :=
     if has_shift opts is Some sk
     then
-      mk_shifted sk x (mk_semi3_2_shifted_t sk (id_semi_total x))
+      mk_shifted sk x (mk_semi3_2_shifted_t sk (id_semi_total x)) (init_dflt_true erefl erefl)
     else x
   in
   if set_flags opts
@@ -1017,11 +1082,12 @@ Definition arm_RSB_instr : instr_desc_t :=
       id_valid := true;
       id_doit := DOIT;
       id_wf := refl_equal;
+      id_init_dflt := init_dflt_true erefl erefl;
     |}
   in
   let x :=
     if has_shift opts is Some sk
-    then mk_shifted sk x (mk_semi2_2_shifted_t sk (id_semi_total x))
+    then mk_shifted sk x (mk_semi2_2_shifted_t sk (id_semi_total x)) (init_dflt_true erefl erefl)
     else x
   in
   if set_flags opts
@@ -1054,6 +1120,7 @@ Definition arm_UDIV_instr : instr_desc_t :=
     id_valid := true;
     id_doit := NOT_DOIT; (* 2 to 12 cycles, depending on the operands. *)
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition arm_UMULL_semi (wn wm : ty_r) : ty_rr :=
@@ -1082,6 +1149,7 @@ Definition arm_UMULL_instr : instr_desc_t :=
     id_valid := true;
     id_doit := if core_long_mul_dit then DOIT else NOT_DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition arm_UMAAL_semi (wa wb wn wm : ty_r) : ty_rr :=
@@ -1110,6 +1178,7 @@ Definition arm_UMAAL_instr : instr_desc_t :=
     id_valid := core_dsp;
     id_doit := DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition arm_UMLAL_semi (dlo dhi wn wm : ty_r) : ty_rr :=
@@ -1138,6 +1207,7 @@ Definition arm_UMLAL_instr : instr_desc_t :=
     id_valid := true;
     id_doit := if core_long_mul_dit then DOIT else NOT_DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition arm_SMULL_semi (wn wm : ty_r) : ty_rr :=
@@ -1166,6 +1236,7 @@ Definition arm_SMULL_instr : instr_desc_t :=
     id_valid := true;
     id_doit := if core_long_mul_dit then DOIT else NOT_DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition arm_SMLAL_semi (dlo dhi wn wm : ty_r) : ty_rr :=
@@ -1194,6 +1265,7 @@ Definition arm_SMLAL_instr : instr_desc_t :=
     id_valid := true;
     id_doit := if core_long_mul_dit then DOIT else NOT_DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition arm_SMMUL_semi (wn wm : ty_r) : ty_r :=
@@ -1221,6 +1293,7 @@ Definition arm_SMMUL_instr : instr_desc_t :=
     id_valid := core_dsp;
     id_doit := DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition arm_SMMULR_semi (wn wm : ty_r) : ty_r :=
@@ -1248,6 +1321,7 @@ Definition arm_SMMULR_instr : instr_desc_t :=
     id_valid := core_dsp;
     id_doit := DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition get_hw (hw : halfword) (x : wreg) : u16 :=
@@ -1284,6 +1358,7 @@ Definition arm_smul_hw_instr hwn hwm : instr_desc_t :=
     id_valid := core_dsp;
     id_doit := DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition arm_smla_hw_semi
@@ -1316,6 +1391,7 @@ Definition arm_smla_hw_instr hwn hwm : instr_desc_t :=
     id_valid := core_dsp;
     id_doit := DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition arm_smulw_hw_semi (hw : halfword) (wn wm : wreg) : wreg :=
@@ -1347,6 +1423,7 @@ Definition arm_smulw_hw_instr hw : instr_desc_t :=
     id_valid := core_dsp;
     id_doit := DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 (* The carry is left undefined: it depends on the shift. *)
@@ -1383,11 +1460,12 @@ Definition arm_AND_instr : instr_desc_t :=
       id_valid := true;
       id_doit := DOIT;
       id_wf := refl_equal;
+      id_init_dflt := fun _ _ => erefl;
     |}
   in
   let x :=
     if has_shift opts is Some sk
-    then mk_shifted sk x (mk_semi2_2_shifted_t sk (id_semi_total x))
+    then mk_shifted sk x (mk_semi2_2_shifted_t sk (id_semi_total x)) (fun _ _ _ => erefl)
     else x
   in
   if set_flags opts
@@ -1429,6 +1507,7 @@ Definition arm_BFC_instr : instr_desc_t :=
     id_valid := true;
     id_doit := DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition arm_BFI_semi_t (x y : wreg) (lsb width : word U8) : wreg :=
@@ -1466,6 +1545,7 @@ Definition arm_BFI_instr : instr_desc_t :=
     id_valid := true;
     id_doit := DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition arm_BIC_instr : instr_desc_t :=
@@ -1492,11 +1572,12 @@ Definition arm_BIC_instr : instr_desc_t :=
       id_valid := true;
       id_doit := DOIT;
       id_wf := refl_equal;
+      id_init_dflt := fun _ _ => erefl;
     |}
   in
   let x :=
     if has_shift opts is Some sk
-    then mk_shifted sk x (mk_semi2_2_shifted_t sk (id_semi_total x))
+    then mk_shifted sk x (mk_semi2_2_shifted_t sk (id_semi_total x)) (fun _ _ _ => erefl)
     else x
   in
   if set_flags opts
@@ -1527,11 +1608,12 @@ Definition arm_EOR_instr : instr_desc_t :=
       id_valid := true;
       id_doit := DOIT;
       id_wf := refl_equal;
+      id_init_dflt := fun _ _ => erefl;
     |}
   in
   let x :=
     if has_shift opts is Some sk
-    then mk_shifted sk x (mk_semi2_2_shifted_t sk (id_semi_total x))
+    then mk_shifted sk x (mk_semi2_2_shifted_t sk (id_semi_total x)) (fun _ _ _ => erefl)
     else x
   in
   if set_flags opts
@@ -1566,11 +1648,12 @@ Definition arm_MVN_instr : instr_desc_t :=
       id_valid := true;
       id_doit := DOIT;
       id_wf := refl_equal;
+      id_init_dflt := fun _ => erefl;
     |}
   in
   let x :=
     if has_shift opts is Some sk
-    then mk_shifted sk x (mk_semi1_shifted_t sk (id_semi_total x))
+    then mk_shifted sk x (mk_semi1_shifted_t sk (id_semi_total x)) (fun _ _ => erefl)
     else x
   in
   if set_flags opts
@@ -1601,11 +1684,12 @@ Definition arm_ORR_instr : instr_desc_t :=
       id_valid := true;
       id_doit := DOIT;
       id_wf := refl_equal;
+      id_init_dflt := fun _ _ => erefl;
     |}
   in
   let x :=
     if has_shift opts is Some sk
-    then mk_shifted sk x (mk_semi2_2_shifted_t sk (id_semi_total x))
+    then mk_shifted sk x (mk_semi2_2_shifted_t sk (id_semi_total x)) (fun _ _ _ => erefl)
     else x
   in
   if set_flags opts
@@ -1627,6 +1711,16 @@ Definition arm_sham_ne0 : safety_cond :=
 
 Definition arm_shift_init : seq safety_cond :=
   [:: IBool true; IBool true; arm_sham_ne0; IBool true ].
+
+(* The condition is the test of the semantics on the shift amount. *)
+Lemma arm_shift_init_dflt {op op_c} :
+  init_dflt (map eval_ltype [:: lreg; lword U8 ]) (map eval_ltype snzc_r) arm_shift_init
+    (arm_shift_semi_t op op_c).
+Proof.
+  move=> wn wsham; rewrite /= /safety_cond_holds /= !truncate_word_u /= /arm_shift_semi_t.
+  have -> : (wsham != wrepr U8 0) = (wsham != 0%w) by [].
+  by case: (wsham == 0%w).
+Qed.
 
 Definition arm_ASR_C (wn : ty_r) (shift : Z) :=
   if (32 <=? shift)%Z then msb wn
@@ -1659,6 +1753,7 @@ Definition arm_ASR_instr : instr_desc_t :=
       id_valid := true;
       id_doit := DOIT;
       id_wf := refl_equal;
+      id_init_dflt := arm_shift_init_dflt;
     |}
   in
   if set_flags opts
@@ -1696,6 +1791,7 @@ Definition arm_LSL_instr : instr_desc_t :=
       id_valid := true;
       id_doit := DOIT;
       id_wf := refl_equal;
+      id_init_dflt := arm_shift_init_dflt;
     |}
   in
   if set_flags opts
@@ -1733,6 +1829,7 @@ Definition arm_LSR_instr : instr_desc_t :=
       id_valid := true;
       id_doit := DOIT;
       id_wf := refl_equal;
+      id_init_dflt := arm_shift_init_dflt;
     |}
   in
   if set_flags opts
@@ -1770,6 +1867,7 @@ Definition arm_ROR_instr : instr_desc_t :=
       id_valid := true;
       id_doit := DOIT;
       id_wf := refl_equal;
+      id_init_dflt := arm_shift_init_dflt;
     |}
   in
   if set_flags opts
@@ -1796,6 +1894,7 @@ Definition mk_rev_instr mn semi doit :=
    ; id_valid := true
    ; id_doit := doit
    ; id_wf := refl_equal
+   ; id_init_dflt := init_dflt_true erefl erefl
   |}.
 
 Definition arm_REV_semi (w : ty_r) : ty_r :=
@@ -1840,6 +1939,7 @@ Definition arm_MOV_instr : instr_desc_t :=
       id_valid := true;
       id_doit := DOIT;
       id_wf := refl_equal;
+      id_init_dflt := fun _ => erefl;
     |}
   in
   if set_flags opts
@@ -1875,6 +1975,7 @@ Definition arm_MOVT_instr : instr_desc_t :=
     id_valid := true;
     id_doit := DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition bit_field_extract_semi_t
@@ -1911,6 +2012,7 @@ Definition arm_UBFX_instr : instr_desc_t :=
     id_valid := true;
     id_doit := DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition extend_bits_semi
@@ -1948,6 +2050,7 @@ Definition arm_UXTB_instr : instr_desc_t :=
     id_valid := true;
     id_doit := DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition arm_UXTH_instr : instr_desc_t :=
@@ -1976,6 +2079,7 @@ Definition arm_UXTH_instr : instr_desc_t :=
     id_valid := true;
     id_doit := DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition arm_SBFX_instr : instr_desc_t :=
@@ -2004,6 +2108,7 @@ Definition arm_SBFX_instr : instr_desc_t :=
     id_valid := true;
     id_doit := DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition sign_extend_bits_semi
@@ -2036,6 +2141,7 @@ Definition arm_SXTB_instr : instr_desc_t :=
     id_valid := true;
     id_doit := DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition arm_SXTH_instr : instr_desc_t :=
@@ -2064,6 +2170,7 @@ Definition arm_SXTH_instr : instr_desc_t :=
     id_valid := true;
     id_doit := DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition arm_CMP_semi_t (wn wm : ty_r) : ty_nzcv_t :=
@@ -2097,10 +2204,11 @@ Definition arm_CMP_instr : instr_desc_t :=
       id_valid := true;
       id_doit := DOIT;
       id_wf := refl_equal;
+      id_init_dflt := init_dflt_true erefl erefl;
     |}
   in
   if has_shift opts is Some sk
-  then mk_shifted sk x (mk_semi2_2_shifted_t sk (id_semi_total x))
+  then mk_shifted sk x (mk_semi2_2_shifted_t sk (id_semi_total x)) (init_dflt_true erefl erefl)
   else x.
 
 (* The carry is left undefined: it depends on the shift. *)
@@ -2132,10 +2240,11 @@ Definition arm_TST_instr : instr_desc_t :=
       id_valid := true;
       id_doit := DOIT;
       id_wf := refl_equal;
+      id_init_dflt := fun _ _ => erefl;
     |}
   in
   if has_shift opts is Some sk
-  then mk_shifted sk x (mk_semi2_2_shifted_t sk (id_semi_total x))
+  then mk_shifted sk x (mk_semi2_2_shifted_t sk (id_semi_total x)) (fun _ _ _ => erefl)
   else x.
 
 Definition arm_CMN_instr : instr_desc_t :=
@@ -2162,10 +2271,11 @@ Definition arm_CMN_instr : instr_desc_t :=
       id_valid := true;
       id_doit := DOIT;
       id_wf := refl_equal;
+      id_init_dflt := init_dflt_true erefl erefl;
     |}
   in
   if has_shift opts is Some sk
-  then mk_shifted sk x (mk_semi2_2_shifted_t sk (id_semi_total x))
+  then mk_shifted sk x (mk_semi2_2_shifted_t sk (id_semi_total x)) (init_dflt_true erefl erefl)
   else x.
 
 Definition arm_extend_semi
@@ -2205,6 +2315,7 @@ Definition arm_load_instr mn : instr_desc_t :=
     id_valid := true;
     id_doit := DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition arm_store_instr mn : instr_desc_t :=
@@ -2236,6 +2347,7 @@ Definition arm_store_instr mn : instr_desc_t :=
     id_valid := true;
     id_doit := DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 Definition arm_CLZ_instr :=
@@ -2261,6 +2373,7 @@ Definition arm_CLZ_instr :=
     id_valid := true;
     id_doit := DOIT;
     id_wf := refl_equal;
+    id_init_dflt := init_dflt_true erefl erefl;
   |}.
 
 (* -------------------------------------------------------------------- *)

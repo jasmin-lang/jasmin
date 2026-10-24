@@ -150,6 +150,83 @@ Lemma all_safety_cond_wt_cat tin tin' l :
   all (safety_cond_wt tin) l -> all (safety_cond_wt (tin ++ tin')) l.
 Proof. by apply: sub_all => c; apply: safety_cond_wt_cat. Qed.
 
+(* The variables of a well-typed condition are among the arguments. *)
+Lemma safety_cond_type_below tin c t :
+  safety_cond_type tin c = Some t -> safety_cond_below (size tin) c.
+Proof.
+elim: c t => //=.
++ by move=> k t; case: ifP.
++ move=> o c ih t; case heq: (safety_cond_type tin c) => [t1|] //=; case: ifP => // _ _.
+  by apply: ih heq.
++ move=> o c1 ih1 c2 ih2 t.
+  case heq1: (safety_cond_type tin c1) => [t1|] //=; case heq2: (safety_cond_type tin c2) => [t2|] //=.
+  case: ifP => // _ _.
+  by rewrite (ih1 _ heq1) (ih2 _ heq2).
+move=> o c1 ih1 c2 ih2 c3 ih3 t.
+case heq1: (safety_cond_type tin c1) => [t1|] //=; case heq2: (safety_cond_type tin c2) => [t2|] //=.
+case heq3: (safety_cond_type tin c3) => [t3|] //=.
+case: ifP => // _ _.
+by rewrite (ih1 _ heq1) (ih2 _ heq2) (ih3 _ heq3).
+Qed.
+
+(* The interpretation only depends on the arguments the condition reads. *)
+Lemma sem_safety_cond_cat (vs vs' : values) c :
+  safety_cond_below (size vs) c -> sem_safety_cond (vs ++ vs') c = sem_safety_cond vs c.
+Proof.
+elim: c => //=.
++ by move=> k hk; rewrite nth_cat hk.
++ by move=> o c ih h; rewrite ih.
++ by move=> o c1 ih1 c2 ih2 /andP [h1 h2]; rewrite ih1 // ih2.
+by move=> o c1 ih1 c2 ih2 c3 ih3 /and3P [h1 h2 h3]; rewrite ih1 // ih2 // ih3.
+Qed.
+
+(* Truncating at [t] does not change how the value is read at a smaller type:
+   this is what makes a condition agree on the arguments and on their
+   truncation. *)
+Lemma truncate_val_to_val t (x : sem_t t) : truncate_val t (to_val x) = ok (to_val x).
+Proof. by rewrite /truncate_val of_val_to_val. Qed.
+
+Lemma of_val_subctype_ok t t' (x : sem_t t) :
+  subctype t' t -> exists y : sem_t t', of_val t' (to_val x) = ok y.
+Proof.
+move=> hsub; have [v2] := subctype_truncate_val hsub (truncate_val_to_val x).
+by rewrite /truncate_val; case hof: (of_val t' (to_val x)) => [y|e] //= _; exists y.
+Qed.
+
+(* A well-typed condition evaluates to a value on arguments of the announced
+   types. *)
+Lemma safety_cond_type_ok tin (vs : values) c t :
+  List.Forall2 (fun (t : ctype) v => exists x : sem_t t, v = to_val x) tin vs ->
+  safety_cond_type tin c = Some t ->
+  exists x : sem_t t, sem_safety_cond vs c = ok (to_val x).
+Proof.
+move=> hall; elim: c t => /=.
+1,2: by move=> x t [<-]; eexists.
++ move=> k t; case: ifP => // hk [<-].
+  by have [x hx] := Forall2_nth hall cbool undef_b hk; exists x; rewrite hx.
++ move=> o c ih t.
+  case heq: (safety_cond_type tin c) => [t1|] //=; case: ifP => // hsub [<-].
+  have [x1 ->] := ih _ heq.
+  have [y hy] := of_val_subctype_ok x1 hsub.
+  by rewrite /= hy /=; eexists.
++ move=> o c1 ih1 c2 ih2 t.
+  case heq1: (safety_cond_type tin c1) => [t1|] //=; case heq2: (safety_cond_type tin c2) => [t2|] //=.
+  case: ifP => // /andP [hsub1 hsub2] [<-].
+  have [x1 ->] := ih1 _ heq1; have [x2 ->] := ih2 _ heq2.
+  have [y1 hy1] := of_val_subctype_ok x1 hsub1.
+  have [y2 hy2] := of_val_subctype_ok x2 hsub2.
+  by rewrite /= hy1 /= hy2 /=; eexists.
+move=> o c1 ih1 c2 ih2 c3 ih3 t.
+case heq1: (safety_cond_type tin c1) => [t1|] //=; case heq2: (safety_cond_type tin c2) => [t2|] //=.
+case heq3: (safety_cond_type tin c3) => [t3|] //=.
+case: ifP => // hsub [<-].
+have [x1 hx1] := ih1 _ heq1; have [x2 hx2] := ih2 _ heq2.
+have [x3 hx3] := ih3 _ heq3.
+move: hsub x1 x2 x3 hx1 hx2 hx3; case: o => len /=; rewrite !andbT.
+all: move=> /and3P [/eqP <- /eqP <- /eqP <-] x1 x2 x3 -> -> ->.
+all: by rewrite /= to_arrK /=; eexists.
+Qed.
+
 (* -------------------------------------------------------------------- *)
 (* ** Checking the conditions                                            *)
 
@@ -235,6 +312,18 @@ Definition sc_all_init ws len k :=
 (* The condition [c] is required only when the [k]-th argument, a boolean,
    is true. *)
 Definition sc_guarded (k : nat) (c : safety_cond) : safety_cond := sc_or (sc_not (IVar k)) c.
+
+(* A guarded condition: when the guard is false the condition is not
+   required, when it is true it amounts to the guarded condition. *)
+Lemma safety_cond_holds_guarded (vs0 vs2 : values) (b : bool) (c : safety_cond) (bb : bool) :
+  safety_cond_below (size vs0) c ->
+  sem_safety_cond vs0 c = ok (Vbool bb) ->
+  safety_cond_holds (vs0 ++ Vbool b :: vs2) (sc_guarded (size vs0) c) = (~~ b) || bb.
+Proof.
+move=> hb hev; rewrite /safety_cond_holds /sc_guarded /sc_or /sc_not /=.
+rewrite nth_cat ltnn subnn /=.
+by rewrite (sem_safety_cond_cat (Vbool b :: vs2) hb) hev /=.
+Qed.
 
 (* The result of a [wint] operation fits in its type. *)
 Definition sc_wi_range sg sz (c : safety_cond) : safety_cond :=

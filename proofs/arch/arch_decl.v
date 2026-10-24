@@ -150,13 +150,6 @@ Notation sem_lprod ts tr := (sem_prod (map eval_ltype ts) tr).
 Notation sem_ltuple ts := (sem_tuple (map eval_ltype ts)).
 Notation sem_ltuple_t ts := (sem_tuple_t (map eval_ltype ts)).
 
-(* Value given by the total semantics ([id_semi_total]) to a flag that the
-   instruction leaves undefined. It is filtered out by [id_init], so its value
-   never reaches the semantics; it mirrors the abstract [undefined_flag] of the
-   EasyCrypt model (eclib/JWord.ec). *)
-Definition undefined_flag : bool := false.
-Global Opaque undefined_flag.
-
 Section DECL.
 
 Context {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond}.
@@ -563,6 +556,8 @@ Record instr_desc_t := {
   id_wf         : [&& all (safety_cond_wt (map eval_ltype id_tin)) id_safe,
                       all (safety_cond_wt (map eval_ltype id_tin)) id_init,
                       ssrnat.eqn (size id_init) (size id_tout) & ~~ is_ErrType id_err];
+  (* See [i_init_dflt] in sopn.v. *)
+  id_init_dflt  : init_dflt (map eval_ltype id_tin) (map eval_ltype id_tout) id_init id_semi_total;
 }.
 
 (* Semantics of an instruction (only deals with values): the safety conditions
@@ -680,6 +675,31 @@ Lemma instr_desc_aux3 ws (id_tin id_tout : list ltype) (safe init : seq safety_c
       ssrnat.eqn (size init) (size (map (extend_size ws) id_tout)) & ~~ is_ErrType err].
 Proof. by rewrite size_map. Qed.
 
+(* A transformation of the outputs that preserves the defaulting by the
+   conditions, applied after the total semantics, preserves [init_dflt]. *)
+Lemma init_dflt_aux_apply_lprod vs tin tout tout' init init'
+    (g : sem_tuple_t tout -> sem_tuple_t tout') (f : sem_prod tin (sem_tuple_t tout)) :
+  (forall vs t, dflt_mask_tuple tout (map (safety_cond_holds vs) init) t = t ->
+     dflt_mask_tuple tout' (map (safety_cond_holds vs) init') (g t) = g t) ->
+  init_dflt_aux vs tin tout init f -> init_dflt_aux vs tin tout' init' (apply_lprod g f).
+Proof.
+  move=> hg; elim: tin vs f => /= [ | t tin ih] vs f; first by apply hg.
+  by move=> h v; apply ih.
+Qed.
+
+(* [extend_tuple_t] only changes words, [dflt_mask_tuple] only booleans. *)
+Lemma extend_dflt_mask_tuple ws tout mask (t : sem_ltuple_t tout) :
+  dflt_mask_tuple (map eval_ltype (map (extend_size ws) tout)) mask (extend_tuple_t ws t)
+  = extend_tuple_t ws (dflt_mask_tuple (map eval_ltype tout) mask t).
+Proof.
+  have hot : forall t1 b (x : sem_lt t1),
+    dflt_ot b (wextend_size_t ws x) = wextend_size_t ws (dflt_ot b x).
+  + by case => //= ws1 b w; case: (ws1 <= ws)%CMP.
+  elim: tout mask t => // t1 tout hrec mask t.
+  case: tout hrec t => [ | t2 tout] hrec t; first by apply hot.
+  by case: t => x ts /=; congr pair; [apply hot | apply hrec].
+Qed.
+
 Definition is_not_CAmem (cond : arg_kind) :=
   match cond with
   | CAmem _ => false
@@ -720,6 +740,12 @@ Definition extend_sem_t {tin tout : seq ltype} ws
     sem_lprod tin (sem_ltuple_t (map (extend_size ws) tout)) :=
   apply_lprod (@extend_tuple_t ws tout) f.
 
+Lemma instr_desc_aux4 ws (id_tin id_tout : list ltype) init (f : sem_lprod id_tin (sem_ltuple_t id_tout)) :
+  init_dflt (map eval_ltype id_tin) (map eval_ltype id_tout) init f ->
+  init_dflt (map eval_ltype id_tin) (map eval_ltype (map (extend_size ws) id_tout)) init
+    (extend_sem_t ws f).
+Proof. by apply: init_dflt_aux_apply_lprod => vs t h; rewrite extend_dflt_mask_tuple h. Qed.
+
 Definition can_zeroextend (d:instr_desc_t) :=
   (d.(id_msb_flag) == MSB_CLEAR).
 
@@ -752,6 +778,7 @@ Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
        id_doit       := d.(id_doit);
        id_pp_asm     := d.(id_pp_asm);
        id_wf         := instr_desc_aux3 ws d.(id_wf);
+       id_init_dflt  := instr_desc_aux4 ws d.(id_init_dflt);
     |}
   else
     d.

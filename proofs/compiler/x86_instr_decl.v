@@ -398,7 +398,7 @@ Definition reg_msb_flag (sz : wsize) :=
   if (sz <= U16)%CMP then MSB_MERGE
   else MSB_CLEAR.
 
-Notation mk_instr str_jas tin tout ain aout msb semi_total init args_kinds nargs safe_cond err valid doit pp_asm wf :=
+Notation mk_instr str_jas tin tout ain aout msb semi_total init args_kinds nargs safe_cond err valid doit pp_asm wf init_dflt :=
  {|
   id_valid      := valid;
   id_msb_flag   := msb;
@@ -418,6 +418,7 @@ Notation mk_instr str_jas tin tout ain aout msb semi_total init args_kinds nargs
   id_doit       := doit;
   id_pp_asm     := pp_asm;
   id_wf         := wf;
+  id_init_dflt  := init_dflt;
 |}.
 
 (* Can only be used for safe instructions whose outputs are all defined and
@@ -425,15 +426,16 @@ Notation mk_instr str_jas tin tout ain aout msb semi_total init args_kinds nargs
 Notation mk_instr_safe str_jas tin tout ain aout msb semi args_kinds nargs valid doit pp_asm :=
   (mk_instr str_jas tin tout ain aout msb semi
     (init_all_true (size (tout : seq ltype))) args_kinds nargs [::] ErrSemUndef valid doit pp_asm
-    refl_equal)
+    refl_equal (init_dflt_true erefl erefl))
   (only parsing).
 
 (* Same, for an instruction with flags: the initialisation conditions are
-   given, one per output. *)
-Notation mk_instr_safe_b str_jas tin tout ain aout msb semi_total init args_kinds nargs valid doit pp_asm :=
+   given, one per output, with the proof that the total semantics gives
+   [undefined_flag] to the flags they leave undefined. *)
+Notation mk_instr_safe_b str_jas tin tout ain aout msb semi_total init init_dflt args_kinds nargs valid doit pp_asm :=
   (mk_instr str_jas tin tout ain aout msb semi_total
     init args_kinds nargs [::] ErrSemUndef valid doit pp_asm
-    refl_equal)
+    refl_equal init_dflt)
   (only parsing).
 
 (* Can only be use for safe instruction *)
@@ -441,8 +443,8 @@ Notation mk_instr_pp name tin tout ain aout msb semi check nargs doit prc pp_asm
   (mk_instr_safe (pp_s name) tin tout ain aout msb semi check nargs true doit pp_asm,
    (name%_string, prc)) (only parsing).
 
-Notation mk_instr_pp_b name tin tout ain aout msb semi_total init check nargs doit prc pp_asm :=
-  (mk_instr_safe_b (pp_s name) tin tout ain aout msb semi_total init check nargs true doit pp_asm,
+Notation mk_instr_pp_b name tin tout ain aout msb semi_total init init_dflt check nargs doit prc pp_asm :=
+  (mk_instr_safe_b (pp_s name) tin tout ain aout msb semi_total init init_dflt check nargs true doit pp_asm,
    (name%_string, prc)) (only parsing).
 
 (* Can only be use for safe instruction *)
@@ -458,39 +460,39 @@ Notation mk_instr_bw2_w_0211 name semi check prc valid doit pp_asm :=
  ((fun sz =>
   mk_instr_safe (pp_sz name sz) (bw2_ty sz) (w_ty sz) [:: Ea 0; Eu 2; Ea 1] [:: Ea 1] (reg_msb_flag sz) (semi sz) (check sz) 3 (valid sz) doit (pp_asm sz)), (name%_string, prc))  (only parsing).
 
-Notation mk_instr_w_b5w name semi_total init ain aout nargs check prc valid doit pp_asm :=
+Notation mk_instr_w_b5w name semi_total init init_dflt ain aout nargs check prc valid doit pp_asm :=
  ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (w_ty sz) (b5w_ty sz) ain (implicit_flags ++ aout) (reg_msb_flag sz) (semi_total sz) init (check sz) nargs (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
+  mk_instr_safe_b (pp_sz name sz) (w_ty sz) (b5w_ty sz) ain (implicit_flags ++ aout) (reg_msb_flag sz) (semi_total sz) init init_dflt (check sz) nargs (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
-Notation mk_instr_w_b4w_00 name semi_total init check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (w_ty sz) (b4w_ty sz) [:: Eu 0] (implicit_flags_noCF ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) init (check sz) 1 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
+Notation mk_instr_w_b4w_00 name semi_total init init_dflt check prc valid doit pp_asm := ((fun sz =>
+  mk_instr_safe_b (pp_sz name sz) (w_ty sz) (b4w_ty sz) [:: Eu 0] (implicit_flags_noCF ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) init init_dflt (check sz) 1 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
-Notation mk_instr_w2_b4 name semi_total init ain aout nargs check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b4_ty) ain aout (reg_msb_flag sz) (semi_total sz) init (check sz) nargs (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
+Notation mk_instr_w2_b4 name semi_total init init_dflt ain aout nargs check prc valid doit pp_asm := ((fun sz =>
+  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b4_ty) ain aout (reg_msb_flag sz) (semi_total sz) init init_dflt (check sz) nargs (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
-Notation mk_instr_w2_b5 name semi_total init ain nargs check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b5_ty) ain implicit_flags (reg_msb_flag sz) (semi_total sz) init (check sz) nargs (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
+Notation mk_instr_w2_b5 name semi_total init init_dflt ain nargs check prc valid doit pp_asm := ((fun sz =>
+  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b5_ty) ain implicit_flags (reg_msb_flag sz) (semi_total sz) init init_dflt (check sz) nargs (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
-Notation mk_instr_w2_b5w name semi_total init ain aout nargs check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b5w_ty sz) ain (implicit_flags ++ aout) (reg_msb_flag sz) (semi_total sz) init (check sz) nargs (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
+Notation mk_instr_w2_b5w name semi_total init init_dflt ain aout nargs check prc valid doit pp_asm := ((fun sz =>
+  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b5w_ty sz) ain (implicit_flags ++ aout) (reg_msb_flag sz) (semi_total sz) init init_dflt (check sz) nargs (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
-Notation mk_instr_w2_b5w_010 name semi_total init check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b5w_ty sz) [:: Eu 0; Eu 1] (implicit_flags ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) init (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc)) (only parsing).
+Notation mk_instr_w2_b5w_010 name semi_total init init_dflt check prc valid doit pp_asm := ((fun sz =>
+  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b5w_ty sz) [:: Eu 0; Eu 1] (implicit_flags ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) init init_dflt (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc)) (only parsing).
 
-Notation mk_instr_w2b_b5w_010 name semi_total init check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (w2b_ty sz sz) (b5w_ty sz) ([:: Eu 0; Eu 1] ++ [::iCF]) (implicit_flags ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) init (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
+Notation mk_instr_w2b_b5w_010 name semi_total init init_dflt check prc valid doit pp_asm := ((fun sz =>
+  mk_instr_safe_b (pp_sz name sz) (w2b_ty sz sz) (b5w_ty sz) ([:: Eu 0; Eu 1] ++ [::iCF]) (implicit_flags ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) init init_dflt (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
-Notation mk_instr_w2_b4w name semi_total init flags check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b4w_ty sz) [:: Ea 0; Eu 1] (flags ++ [::Ea 0]) (reg_msb_flag sz) (semi_total sz) init (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
+Notation mk_instr_w2_b4w name semi_total init init_dflt flags check prc valid doit pp_asm := ((fun sz =>
+  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b4w_ty sz) [:: Ea 0; Eu 1] (flags ++ [::Ea 0]) (reg_msb_flag sz) (semi_total sz) init init_dflt (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
-Notation mk_instr_w2b_bw name semi_total init flag check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (w2b_ty sz sz) (bw_ty sz) ([:: Ea 0; Eu 1] ++ [::F flag]) ([::F flag; Ea 0]) (reg_msb_flag sz) (semi_total sz) init (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
+Notation mk_instr_w2b_bw name semi_total init init_dflt flag check prc valid doit pp_asm := ((fun sz =>
+  mk_instr_safe_b (pp_sz name sz) (w2b_ty sz sz) (bw_ty sz) ([:: Ea 0; Eu 1] ++ [::F flag]) ([::F flag; Ea 0]) (reg_msb_flag sz) (semi_total sz) init init_dflt (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
-Notation mk_instr_w2_b5w2 name semi_total init ain aout nargs check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b5w2_ty sz) ain (implicit_flags ++ aout) (reg_msb_flag sz) (semi_total sz) init (check sz) nargs (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
+Notation mk_instr_w2_b5w2 name semi_total init init_dflt ain aout nargs check prc valid doit pp_asm := ((fun sz =>
+  mk_instr_safe_b (pp_sz name sz) (w2_ty sz sz) (b5w2_ty sz) ain (implicit_flags ++ aout) (reg_msb_flag sz) (semi_total sz) init init_dflt (check sz) nargs (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
-Notation mk_instr_division sg name semi_total init check prc valid doit pp_asm wf := ((fun sz =>
-  mk_instr (pp_sz name sz) (w3_ty sz) (b5w2_ty sz) [:: R RDX; R RAX; Eu 0]  (implicit_flags ++ [:: R RAX; R RDX]) (reg_msb_flag sz) (semi_total sz) init (check sz) 1 [:: sc_x86_division sz sg] ErrArith (valid sz) doit (pp_asm sz) (wf sz)), (name%_string,prc))  (only parsing).
+Notation mk_instr_division sg name semi_total init init_dflt check prc valid doit pp_asm wf := ((fun sz =>
+  mk_instr (pp_sz name sz) (w3_ty sz) (b5w2_ty sz) [:: R RDX; R RAX; Eu 0]  (implicit_flags ++ [:: R RAX; R RDX]) (reg_msb_flag sz) (semi_total sz) init (check sz) 1 [:: sc_x86_division sz sg] ErrArith (valid sz) doit (pp_asm sz) (wf sz) init_dflt), (name%_string,prc))  (only parsing).
 
 Notation mk_instr_w2_w_120 name semi check prc valid doit pp_asm := ((fun sz =>
   mk_instr_safe (pp_sz name sz) (w2_ty sz sz) (w_ty sz) [:: Eu 1 ; Eu 2] [:: Eu 0] MSB_CLEAR (semi sz) (check sz) 3 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
@@ -498,17 +500,17 @@ Notation mk_instr_w2_w_120 name semi check prc valid doit pp_asm := ((fun sz =>
 Notation mk_instr_ww8_w_120 name semi check prc valid doit pp_asm := ((fun sz =>
   mk_instr_safe (pp_sz name sz) (ww8_ty sz) (w_ty sz) [:: Eu 1 ; Ea 2] [:: Ea 0] (reg_msb_flag sz) (semi sz) (check sz) 3 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
-Notation mk_instr_ww8_b2w_0c0 name semi_total init check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (ww8_ty sz) (b2w_ty sz) [:: Eu 0; Ef 1 RCX] [::F OF; F CF; Eu 0] (reg_msb_flag sz) (semi_total sz) (init sz) (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
+Notation mk_instr_ww8_b2w_0c0 name semi_total init init_dflt check prc valid doit pp_asm := ((fun sz =>
+  mk_instr_safe_b (pp_sz name sz) (ww8_ty sz) (b2w_ty sz) [:: Eu 0; Ef 1 RCX] [::F OF; F CF; Eu 0] (reg_msb_flag sz) (semi_total sz) (init sz) init_dflt (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
-Notation mk_instr_ww8b_b2w_0c0 name semi_total init check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (ww8b_ty sz) (b2w_ty sz) [:: Eu 0; Ef 1 RCX; F CF] [::F OF; F CF; Eu 0] (reg_msb_flag sz) (semi_total sz) (init sz) (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
+Notation mk_instr_ww8b_b2w_0c0 name semi_total init init_dflt check prc valid doit pp_asm := ((fun sz =>
+  mk_instr_safe_b (pp_sz name sz) (ww8b_ty sz) (b2w_ty sz) [:: Eu 0; Ef 1 RCX; F CF] [::F OF; F CF; Eu 0] (reg_msb_flag sz) (semi_total sz) (init sz) init_dflt (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
-Notation mk_instr_ww8_b5w_0c0 name semi_total init check prc valid doit pp_asm := ((fun sz =>
-  mk_instr_safe_b (pp_sz name sz) (ww8_ty sz) (b5w_ty sz) [:: Eu 0; Ef 1 RCX] (implicit_flags ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) (init sz) (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
+Notation mk_instr_ww8_b5w_0c0 name semi_total init init_dflt check prc valid doit pp_asm := ((fun sz =>
+  mk_instr_safe_b (pp_sz name sz) (ww8_ty sz) (b5w_ty sz) [:: Eu 0; Ef 1 RCX] (implicit_flags ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) (init sz) init_dflt (check sz) 2 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
 
-Notation mk_instr_w2w8_b5w_01c0 name semi_total init check safe_cond prc valid doit pp_asm wf := ((fun sz =>
-  mk_instr (pp_sz name sz) (w2w8_ty sz) (b5w_ty sz) [:: Eu 0; Ea 1; Ef 2 RCX] (implicit_flags ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) (init sz) (check sz) 3 (safe_cond sz) ErrArith (valid sz) doit (pp_asm sz) (wf sz)), (name%_string,prc))  (only parsing).
+Notation mk_instr_w2w8_b5w_01c0 name semi_total init init_dflt check safe_cond prc valid doit pp_asm wf := ((fun sz =>
+  mk_instr (pp_sz name sz) (w2w8_ty sz) (b5w_ty sz) [:: Eu 0; Ea 1; Ef 2 RCX] (implicit_flags ++ [:: Eu 0]) (reg_msb_flag sz) (semi_total sz) (init sz) (check sz) 3 (safe_cond sz) ErrArith (valid sz) doit (pp_asm sz) (wf sz) init_dflt), (name%_string,prc))  (only parsing).
 
 Notation mk_instr_w2w8_w_1230 name semi check prc valid doit pp_asm := ((fun sz =>
   mk_instr_safe (pp_sz name sz) (w2w8_ty sz) (w_ty sz) [:: Ea 1 ; Eu 2 ; Ea 3] [:: Ea 0] (reg_msb_flag sz) (semi sz) (check sz) 4 (valid sz) doit (pp_asm sz)), (name%_string,prc))  (only parsing).
@@ -743,7 +745,7 @@ Definition x86_ADD_t sz (v1 v2 : word sz) : sem_ltuple_t (b5w_ty sz) :=
     (wsigned   v1 + wsigned   v2)%Z.
 
 Definition Ox86_ADD_instr  :=
-  mk_instr_w2_b5w_010 "ADD" x86_ADD_t (init_all_true 6) check_add (prim_8_64 ADD) size_8_64 DOIT (pp_iname "add").
+  mk_instr_w2_b5w_010 "ADD" x86_ADD_t (init_all_true 6) (init_dflt_true erefl erefl) check_add (prim_8_64 ADD) size_8_64 DOIT (pp_iname "add").
 
 Definition x86_SUB_t sz (v1 v2 : word sz) : sem_ltuple_t (b5w_ty sz) :=
   rflags_of_aluop_w_t
@@ -752,7 +754,7 @@ Definition x86_SUB_t sz (v1 v2 : word sz) : sem_ltuple_t (b5w_ty sz) :=
     (wsigned   v1 - wsigned   v2)%Z.
 
 Definition Ox86_SUB_instr :=
-  mk_instr_w2_b5w_010 "SUB" x86_SUB_t (init_all_true 6) check_add (prim_8_64 SUB) size_8_64 DOIT (pp_iname "sub").
+  mk_instr_w2_b5w_010 "SUB" x86_SUB_t (init_all_true 6) (init_dflt_true erefl erefl) check_add (prim_8_64 SUB) size_8_64 DOIT (pp_iname "sub").
 
 Definition check_mul (_:wsize) := [:: [::rm]].
 
@@ -768,8 +770,13 @@ Definition init_mul2 : seq safety_cond :=
   [:: IBool true; IBool true; IBool false; IBool false; IBool false;
       IBool true; IBool true].
 
+(* MUL gives [undefined_flag] to SF, PF and ZF. *)
+Lemma x86_MUL_init_dflt {sz} :
+  init_dflt (map eval_ltype (w2_ty sz sz)) (map eval_ltype (b5w2_ty sz)) init_mul2 (@x86_MUL_t sz).
+Proof. by []. Qed.
+
 Definition Ox86_MUL_instr :=
-  mk_instr_w2_b5w2 "MUL"  x86_MUL_t init_mul2 [:: R RAX; Eu 0] [:: R RDX; R RAX] 1
+  mk_instr_w2_b5w2 "MUL"  x86_MUL_t init_mul2 x86_MUL_init_dflt [:: R RAX; Eu 0] [:: R RDX; R RAX] 1
     check_mul (prim_16_64 MUL) size_16_64 DOIT (pp_iname "mul").
 
 Definition x86_IMUL_overflow sz (hi lo: word sz) : bool :=
@@ -782,8 +789,13 @@ Definition x86_IMUL_t sz (v1 v2: word sz) : sem_ltuple_t (b5w2_ty sz) :=
   let ov := x86_IMUL_overflow hi lo in
   flags_w2 (rflags_of_mul_t ov) (:: hi & lo).
 
+(* IMUL gives [undefined_flag] to SF, PF and ZF. *)
+Lemma x86_IMUL_init_dflt {sz} :
+  init_dflt (map eval_ltype (w2_ty sz sz)) (map eval_ltype (b5w2_ty sz)) init_mul2 (@x86_IMUL_t sz).
+Proof. by []. Qed.
+
 Definition Ox86_IMUL_instr :=
-  mk_instr_w2_b5w2 "IMUL" x86_IMUL_t init_mul2 [:: R RAX; Eu 0] [:: R RDX; R RAX] 1
+  mk_instr_w2_b5w2 "IMUL" x86_IMUL_t init_mul2 x86_IMUL_init_dflt [:: R RAX; Eu 0] [:: R RDX; R RAX] 1
     check_mul (prim_16_64 IMUL) size_16_64 DOIT (pp_iname "imul") .
 
 Definition x86_IMULt_t sz (v1 v2: word sz) : sem_ltuple_t (b5w_ty sz) :=
@@ -796,12 +808,17 @@ Definition x86_IMULt_t sz (v1 v2: word sz) : sem_ltuple_t (b5w_ty sz) :=
 Definition init_mul : seq safety_cond :=
   [:: IBool true; IBool true; IBool false; IBool false; IBool false; IBool true].
 
+(* IMUL gives [undefined_flag] to SF, PF and ZF. *)
+Lemma x86_IMULt_init_dflt {sz} :
+  init_dflt (map eval_ltype (w2_ty sz sz)) (map eval_ltype (b5w_ty sz)) init_mul (@x86_IMULt_t sz).
+Proof. by []. Qed.
+
 Definition Ox86_IMULr_instr             :=
-  mk_instr_w2_b5w_010 "IMULr" x86_IMULt_t init_mul
+  mk_instr_w2_b5w_010 "IMULr" x86_IMULt_t init_mul x86_IMULt_init_dflt
     (fun _ => [::r_rm]) (prim_16_64 IMULr) size_16_64 DOIT (pp_iname "imul").
 
 Definition Ox86_IMULri_instr :=
-  mk_instr_w2_b5w "IMULri" x86_IMULt_t init_mul [:: Eu 1; Eu 2] [:: Eu 0] 3
+  mk_instr_w2_b5w "IMULri" x86_IMULt_t init_mul x86_IMULt_init_dflt [:: Eu 1; Eu 2] [:: Eu 0] 3
   (fun sz => [:: [::r; rm; i (max_32 sz)]]) (prim_16_64 IMULri) size_16_64 DOIT (pp_iname "imul").
 
 Definition x86_DIV_t sz (hi lo dv: word sz) : sem_ltuple_t (b5w2_ty sz) :=
@@ -827,8 +844,13 @@ Proof.
   by rewrite /= andbT h.
 Qed.
 
+(* DIV gives [undefined_flag] to the five flags. *)
+Lemma x86_DIV_init_dflt {sz} :
+  init_dflt (map eval_ltype (w3_ty sz)) (map eval_ltype (b5w2_ty sz)) init_div (@x86_DIV_t sz).
+Proof. by []. Qed.
+
 Definition Ox86_DIV_instr :=
-  mk_instr_division Unsigned "DIV" x86_DIV_t init_div check_mul (prim_16_64 DIV) size_16_64 NOT_DOIT (pp_iname "div")
+  mk_instr_division Unsigned "DIV" x86_DIV_t init_div x86_DIV_init_dflt check_mul (prim_16_64 DIV) size_16_64 NOT_DOIT (pp_iname "div")
     (fun sz => x86_division_wf sz Unsigned).
 
 Definition x86_IDIV_t sz (hi lo dv: word sz) : sem_ltuple_t (b5w2_ty sz) :=
@@ -838,8 +860,13 @@ Definition x86_IDIV_t sz (hi lo dv: word sz) : sem_ltuple_t (b5w2_ty sz) :=
   let r  := (Z.rem  dd dv)%Z in
   flags_w2 rflags_of_div_t (:: (wrepr sz q) & (wrepr sz r)).
 
+(* IDIV gives [undefined_flag] to the five flags. *)
+Lemma x86_IDIV_init_dflt {sz} :
+  init_dflt (map eval_ltype (w3_ty sz)) (map eval_ltype (b5w2_ty sz)) init_div (@x86_IDIV_t sz).
+Proof. by []. Qed.
+
 Definition Ox86_IDIV_instr :=
-  mk_instr_division Signed "IDIV" x86_IDIV_t init_div check_mul (prim_16_64 IDIV) size_16_64 NOT_DOIT (pp_iname "idiv")
+  mk_instr_division Signed "IDIV" x86_IDIV_t init_div x86_IDIV_init_dflt check_mul (prim_16_64 IDIV) size_16_64 NOT_DOIT (pp_iname "idiv")
     (fun sz => x86_division_wf sz Signed).
 
 Definition x86_CQO sz (w:word sz) : word sz :=
@@ -860,7 +887,7 @@ Definition x86_ADC_t sz (v1 v2 : word sz) (c: bool) : sem_ltuple_t (b5w_ty sz) :
     (wsigned   v1 + wsigned   v2 + c)%Z.
 
 Definition Ox86_ADC_instr :=
-  mk_instr_w2b_b5w_010 "ADC" x86_ADC_t (init_all_true 6) check_add (prim_8_64 ADC) size_8_64 DOIT (pp_iname "adc").
+  mk_instr_w2b_b5w_010 "ADC" x86_ADC_t (init_all_true 6) (init_dflt_true erefl erefl) check_add (prim_8_64 ADC) size_8_64 DOIT (pp_iname "adc").
 
 Definition sub_borrow sz (x y c: Z) : word sz :=
   wrepr sz (x - y - c).
@@ -873,7 +900,7 @@ Definition x86_SBB_t sz (v1 v2 : word sz) (c:bool) : sem_ltuple_t (b5w_ty sz) :=
     (wsigned   v1 - (wsigned   v2 + c))%Z.
 
 Definition Ox86_SBB_instr               :=
-  mk_instr_w2b_b5w_010 "SBB" x86_SBB_t (init_all_true 6) check_add (prim_8_64 SBB) size_8_64 DOIT (pp_iname "sbb").
+  mk_instr_w2b_b5w_010 "SBB" x86_SBB_t (init_all_true 6) (init_dflt_true erefl erefl) check_add (prim_8_64 SBB) size_8_64 DOIT (pp_iname "sbb").
 
 Definition check_adcx (_:wsize) := [:: r_rm].
 
@@ -882,10 +909,10 @@ Definition x86_ADCX_t sz (v1 v2: word sz) (c:bool) : sem_ltuple_t (bw_ty sz) :=
   (c, w).
 
 Definition Ox86_ADCX_instr :=
-  mk_instr_w2b_bw "ADCX" x86_ADCX_t (init_all_true 2) CF check_adcx (prim_32_64 ADCX) size_32_64 DOIT (pp_iname "adcx").
+  mk_instr_w2b_bw "ADCX" x86_ADCX_t (init_all_true 2) (init_dflt_true erefl erefl) CF check_adcx (prim_32_64 ADCX) size_32_64 DOIT (pp_iname "adcx").
 
 Definition Ox86_ADOX_instr :=
-  mk_instr_w2b_bw "ADOX" x86_ADCX_t (init_all_true 2) OF check_adcx (prim_32_64 ADOX) size_32_64 DOIT (pp_iname "adox").
+  mk_instr_w2b_bw "ADOX" x86_ADCX_t (init_all_true 2) (init_dflt_true erefl erefl) OF check_adcx (prim_32_64 ADOX) size_32_64 DOIT (pp_iname "adox").
 
 Definition check_mulx := [:: [::r;r;rm]].
 
@@ -911,7 +938,7 @@ Definition x86_NEG_t sz (w: word sz) : sem_ltuple_t (b5w_ty sz) :=
   v.
 
 Definition Ox86_NEG_instr               :=
-  mk_instr_w_b5w "NEG" x86_NEG_t (init_all_true 6) [:: Eu 0] [:: Eu 0] 1 check_neg (prim_8_64 NEG) size_8_64 DOIT (pp_iname "neg").
+  mk_instr_w_b5w "NEG" x86_NEG_t (init_all_true 6) (init_dflt_true erefl erefl) [:: Eu 0] [:: Eu 0] 1 check_neg (prim_8_64 NEG) size_8_64 DOIT (pp_iname "neg").
 
 Definition x86_INC_t sz (w: word sz) : sem_ltuple_t (b4w_ty sz) :=
   rflags_of_aluop_nocf_w_t
@@ -919,7 +946,7 @@ Definition x86_INC_t sz (w: word sz) : sem_ltuple_t (b4w_ty sz) :=
     (wsigned w + 1)%Z.
 
 Definition Ox86_INC_instr               :=
-  mk_instr_w_b4w_00 "INC" x86_INC_t (init_all_true 5) check_neg (prim_8_64 INC) size_8_64 DOIT (pp_iname "inc").
+  mk_instr_w_b4w_00 "INC" x86_INC_t (init_all_true 5) (init_dflt_true erefl erefl) check_neg (prim_8_64 INC) size_8_64 DOIT (pp_iname "inc").
 
 Definition x86_DEC_t sz (w: word sz) : sem_ltuple_t (b4w_ty sz) :=
   rflags_of_aluop_nocf_w_t
@@ -927,7 +954,7 @@ Definition x86_DEC_t sz (w: word sz) : sem_ltuple_t (b4w_ty sz) :=
     (wsigned w - 1)%Z.
 
 Definition Ox86_DEC_instr :=
-  mk_instr_w_b4w_00 "DEC" x86_DEC_t (init_all_true 5) check_neg (prim_8_64 DEC) size_8_64 DOIT (pp_iname "dec").
+  mk_instr_w_b4w_00 "DEC" x86_DEC_t (init_all_true 5) (init_dflt_true erefl erefl) check_neg (prim_8_64 DEC) size_8_64 DOIT (pp_iname "dec").
 
 Definition x86_LZCNT_t sz (w: word sz) : sem_ltuple_t (b5w_ty sz) :=
    let v := leading_zero w in
@@ -939,16 +966,26 @@ Definition x86_LZCNT_t sz (w: word sz) : sem_ltuple_t (b5w_ty sz) :=
 Definition init_cnt : seq safety_cond :=
   [:: IBool false; IBool true; IBool false; IBool false; IBool true; IBool true].
 
+(* LZCNT gives [undefined_flag] to OF, SF and PF. *)
+Lemma x86_LZCNT_init_dflt {sz} :
+  init_dflt (map eval_ltype (w_ty sz)) (map eval_ltype (b5w_ty sz)) init_cnt (@x86_LZCNT_t sz).
+Proof. by []. Qed.
+
 Definition Ox86_LZCNT_instr               :=
-  mk_instr_w_b5w "LZCNT" x86_LZCNT_t init_cnt [:: Eu 1] [:: Eu 0] 2 (fun _ => [::r_rm]) (prim_16_64 LZCNT) size_16_64 NOT_DOIT (pp_iname "lzcnt").
+  mk_instr_w_b5w "LZCNT" x86_LZCNT_t init_cnt x86_LZCNT_init_dflt [:: Eu 1] [:: Eu 0] 2 (fun _ => [::r_rm]) (prim_16_64 LZCNT) size_16_64 NOT_DOIT (pp_iname "lzcnt").
 
 Definition x86_TZCNT_t sz (w: word sz) : sem_ltuple_t (b5w_ty sz) :=
   let v := trailing_zero w in
   flags_w
     ((:: undefined_flag, ZF_of_word w, undefined_flag, undefined_flag & ZF_of_word v) : sem_ltuple_t b5_ty) v.
 
+(* TZCNT gives [undefined_flag] to OF, SF and PF. *)
+Lemma x86_TZCNT_init_dflt {sz} :
+  init_dflt (map eval_ltype (w_ty sz)) (map eval_ltype (b5w_ty sz)) init_cnt (@x86_TZCNT_t sz).
+Proof. by []. Qed.
+
 Definition Ox86_TZCNT_instr               :=
-  mk_instr_w_b5w "TZCNT" x86_TZCNT_t init_cnt [:: Eu 1] [:: Eu 0] 2 (fun _ => [::r_rm]) (prim_16_64 TZCNT) size_16_64 NOT_DOIT (pp_iname "tzcnt").
+  mk_instr_w_b5w "TZCNT" x86_TZCNT_t init_cnt x86_TZCNT_init_dflt [:: Eu 1] [:: Eu 0] 2 (fun _ => [::r_rm]) (prim_16_64 TZCNT) size_16_64 NOT_DOIT (pp_iname "tzcnt").
 
 Definition x86_BSR_t sz (w: word sz) : sem_ltuple_t (b5w_ty sz) :=
   flags_w ((:: undefined_flag, undefined_flag, undefined_flag, undefined_flag & false) : sem_ltuple_t b5_ty)
@@ -966,6 +1003,11 @@ Lemma x86_BSR_wf sz :
     & ~~ is_ErrType ErrArith].
 Proof. by rewrite /= safety_cond_wt_not_zero. Qed.
 
+(* BSR gives [undefined_flag] to OF, CF, SF and PF. *)
+Lemma x86_BSR_init_dflt {sz} :
+  init_dflt (map eval_ltype [:: lword sz]) (map eval_ltype (b5w_ty sz)) init_bsr (@x86_BSR_t sz).
+Proof. by []. Qed.
+
 Definition Ox86_BSR_instr :=
   (fun sz =>
      mk_instr
@@ -975,7 +1017,7 @@ Definition Ox86_BSR_instr :=
        (@x86_BSR_t sz) init_bsr
        [:: r_rm ] 2
        [:: sc_not_zero sz 0 ] ErrArith (size_16_64 sz) NOT_DOIT
-       (pp_iname "bsr" sz) (x86_BSR_wf sz)
+       (pp_iname "bsr" sz) (x86_BSR_wf sz) x86_BSR_init_dflt
 
   , ("BSR"%string, prim_16_64 BSR)).
 
@@ -1000,9 +1042,14 @@ Definition x86_BT_t sz (x y: word sz) : sem_ltuple_t b4_ty :=
 Definition init_bt : seq safety_cond :=
   [:: IBool false; IBool true; IBool false; IBool false].
 
+(* BT gives [undefined_flag] to OF, SF and PF. *)
+Lemma x86_BT_init_dflt {sz} :
+  init_dflt (map eval_ltype (w2_ty sz sz)) (map eval_ltype b4_ty) init_bt (@x86_BT_t sz).
+Proof. by []. Qed.
+
 Definition Ox86_BT_instr :=
   mk_instr_w2_b4
-    "BT" x86_BT_t init_bt
+    "BT" x86_BT_t init_bt x86_BT_init_dflt
     [:: Eu 0; Eu 1] implicit_OF_CF_SF_PF 2
     check_bt (prim_16_64 BT) size_16_64 DOIT (pp_iname "bt").
 
@@ -1011,12 +1058,12 @@ Definition Ox86_BT_instr :=
 Definition x86_CLC_t : sem_ltuple_t b_ty := false.
 
 Definition Ox86_CLC_instr :=
-  mk_instr_pp_b "CLC" [::] b_ty [::] [:: F CF ] MSB_CLEAR x86_CLC_t (init_all_true 1) [:: [::]] 0 NOT_DOIT (primM CLC) (pp_name "clc" U8).
+  mk_instr_pp_b "CLC" [::] b_ty [::] [:: F CF ] MSB_CLEAR x86_CLC_t (init_all_true 1) (init_dflt_true erefl erefl) [:: [::]] 0 NOT_DOIT (primM CLC) (pp_name "clc" U8).
 
 Definition x86_STC_t : sem_ltuple_t b_ty := true.
 
 Definition Ox86_STC_instr :=
-  mk_instr_pp_b "STC" [::] b_ty [::] [:: F CF ] MSB_CLEAR x86_STC_t (init_all_true 1) [:: [::]] 0 NOT_DOIT (primM STC) (pp_name "stc" U8).
+  mk_instr_pp_b "STC" [::] b_ty [::] [:: F CF ] MSB_CLEAR x86_STC_t (init_all_true 1) (init_dflt_true erefl erefl) [:: [::]] 0 NOT_DOIT (primM STC) (pp_name "stc" U8).
 
 (* -------------------------------------------------------------------- *)
 Definition check_lea (_:wsize) := [:: [::r; m]].
@@ -1032,7 +1079,7 @@ Definition x86_TEST_t sz (x y: word sz) : sem_ltuple_t b5_ty :=
   rflags_of_bwop_t (wand x y).
 
 Definition Ox86_TEST_instr              :=
-  mk_instr_w2_b5 "TEST" x86_TEST_t (init_all_true 5) [:: Eu 0; Eu 1] 2 check_test (prim_8_64 TEST) size_8_64 DOIT (pp_iname "test").
+  mk_instr_w2_b5 "TEST" x86_TEST_t (init_all_true 5) (init_dflt_true erefl erefl) [:: Eu 0; Eu 1] 2 check_test (prim_8_64 TEST) size_8_64 DOIT (pp_iname "test").
 
 Definition check_cmp (sz:wsize) := [:: [::rm; ri (max_32 sz)]; r_rm].
 
@@ -1041,25 +1088,25 @@ Definition x86_CMP_t sz (x y: word sz) : sem_ltuple_t b5_ty :=
        (wunsigned x - wunsigned y)%Z (wsigned x - wsigned y)%Z.
 
 Definition Ox86_CMP_instr :=
-  mk_instr_w2_b5 "CMP" x86_CMP_t (init_all_true 5) [:: Eu 0; Eu 1] 2 check_cmp (prim_8_64 CMP) size_8_64 DOIT (pp_iname "cmp").
+  mk_instr_w2_b5 "CMP" x86_CMP_t (init_all_true 5) (init_dflt_true erefl erefl) [:: Eu 0; Eu 1] 2 check_cmp (prim_8_64 CMP) size_8_64 DOIT (pp_iname "cmp").
 
 Definition x86_AND_t sz (v1 v2: word sz) : sem_ltuple_t (b5w_ty sz) :=
   rflags_of_bwop_w_t (wand v1 v2).
 
 Definition Ox86_AND_instr :=
-  mk_instr_w2_b5w_010 "AND" x86_AND_t (init_all_true 6) check_cmp (prim_8_64 AND) size_8_64 DOIT (pp_iname "and").
+  mk_instr_w2_b5w_010 "AND" x86_AND_t (init_all_true 6) (init_dflt_true erefl erefl) check_cmp (prim_8_64 AND) size_8_64 DOIT (pp_iname "and").
 
 Definition x86_OR_t sz (v1 v2: word sz) : sem_ltuple_t (b5w_ty sz) :=
   rflags_of_bwop_w_t (wor v1 v2).
 
 Definition Ox86_OR_instr                :=
-  mk_instr_w2_b5w_010 "OR" x86_OR_t (init_all_true 6) check_cmp (prim_8_64 OR) size_8_64 DOIT (pp_iname "or").
+  mk_instr_w2_b5w_010 "OR" x86_OR_t (init_all_true 6) (init_dflt_true erefl erefl) check_cmp (prim_8_64 OR) size_8_64 DOIT (pp_iname "or").
 
 Definition x86_XOR_t sz (v1 v2: word sz) : sem_ltuple_t (b5w_ty sz) :=
   rflags_of_bwop_w_t (wxor v1 v2).
 
 Definition Ox86_XOR_instr               :=
-  mk_instr_w2_b5w_010 "XOR" x86_XOR_t (init_all_true 6) check_cmp (prim_8_64 XOR) size_8_64 DOIT (pp_iname "xor").
+  mk_instr_w2_b5w_010 "XOR" x86_XOR_t (init_all_true 6) (init_dflt_true erefl erefl) check_cmp (prim_8_64 XOR) size_8_64 DOIT (pp_iname "xor").
 
 Definition check_andn (_:wsize) := [:: [:: r; r; rm]].
 
@@ -1071,8 +1118,13 @@ Definition x86_ANDN_t sz (v1 v2: word sz) : sem_ltuple_t (b5w_ty sz) :=
 Definition init_andn : seq safety_cond :=
   [:: IBool true; IBool true; IBool true; IBool false; IBool true; IBool true].
 
+(* ANDN gives [undefined_flag] to PF. *)
+Lemma x86_ANDN_init_dflt {sz} :
+  init_dflt (map eval_ltype (w2_ty sz sz)) (map eval_ltype (b5w_ty sz)) init_andn (@x86_ANDN_t sz).
+Proof. by []. Qed.
+
 Definition Ox86_ANDN_instr              :=
-  mk_instr_w2_b5w "ANDN" x86_ANDN_t init_andn [:: Eu 1; Eu 2] [:: Eu 0] 3
+  mk_instr_w2_b5w "ANDN" x86_ANDN_t init_andn x86_ANDN_init_dflt [:: Eu 1; Eu 2] [:: Eu 0] 3
   check_andn (prim_32_64 ANDN) size_32_64 DOIT (pp_iname "andn").
 
 Definition x86_NOT sz (v: word sz)  : tpl (w_ty sz) := wnot v.
@@ -1112,6 +1164,18 @@ Definition ic_count_neq0 (k:nat) (sz:wsize) : safety_cond :=
 Definition ic_count_eq1 (k:nat) (sz:wsize) : safety_cond :=
   IOp2 (Oeq (Op_w U8)) (ic_shift_count k sz) (ic_w8 1).
 
+(* The conditions on the count are the tests of the semantics on the masked
+   count. *)
+Lemma safety_cond_holds_count_eq1 k sz (vs : values) (i : u8) :
+  nth undef_b vs k = Vword i ->
+  safety_cond_holds vs (ic_count_eq1 k sz) = (wand i (x86_shift_mask sz) == 1%w).
+Proof. by move=> h; rewrite /safety_cond_holds /= h /= !truncate_word_u /= !truncate_word_u; case: sz. Qed.
+
+Lemma safety_cond_holds_count_neq0 k sz (vs : values) (i : u8) :
+  nth undef_b vs k = Vword i ->
+  safety_cond_holds vs (ic_count_neq0 k sz) = (wand i (x86_shift_mask sz) != 0%w).
+Proof. by move=> h; rewrite /safety_cond_holds /= h /= !truncate_word_u /= !truncate_word_u; case: sz. Qed.
+
 (* SHL, SHR, SAL, SAR, SHLD, SHRD: OF is defined when the masked count is 1,
    the four other flags when it is not 0. *)
 Definition init_shift (k:nat) (sz:wsize) : seq safety_cond :=
@@ -1121,6 +1185,21 @@ Definition init_shift (k:nat) (sz:wsize) : seq safety_cond :=
 (* ROL, ROR: OF is defined when the masked count is 1, CF when it is not 0. *)
 Definition init_rot (k:nat) (sz:wsize) : seq safety_cond :=
   [:: ic_count_eq1 k sz; ic_count_neq0 k sz; IBool true].
+
+(* A result of ROL/ROR, the count being the [k]-th argument, has the shape
+   that [init_rot] expects: both flags are [undefined_flag] for a null masked
+   count, OF is when it is not 1. *)
+Lemma init_rot_dflt k sz (vs : values) (i : u8) (t : sem_ltuple_t (b2w_ty sz)) :
+  nth undef_b vs k = Vword i ->
+  let m := wand i (x86_shift_mask sz) in
+  (if m == 0%w then exists v, t = (:: undefined_flag, undefined_flag & v)
+   else exists OF CF r, t = (:: if m == 1%w then OF else undefined_flag, CF & r)) ->
+  dflt_mask_tuple (map eval_ltype (b2w_ty sz)) (map (safety_cond_holds vs) (init_rot k sz)) t = t.
+Proof.
+  move=> h m; rewrite /= (safety_cond_holds_count_eq1 _ h) (safety_cond_holds_count_neq0 _ h) -/m.
+  case: eqP => [-> [v ->] | _ [OF [CF [r ->]]]] //=.
+  by case: (m == 1%w).
+Qed.
 
 Definition x86_ROR_t sz (v: word sz) (i: u8) : sem_ltuple_t (b2w_ty sz) :=
   let i := wand i (x86_shift_mask sz) in
@@ -1132,8 +1211,14 @@ Definition x86_ROR_t sz (v: word sz) (i: u8) : sem_ltuple_t (b2w_ty sz) :=
     let OF := if i == 1%w then CF != msb v else undefined_flag in
     (:: OF, CF & r).
 
+(* ROR gives [undefined_flag] to OF unless the masked count
+   is 1, and to CF when it is 0. *)
+Lemma x86_ROR_init_dflt {sz} :
+  init_dflt (map eval_ltype (ww8_ty sz)) (map eval_ltype (b2w_ty sz)) (init_rot 1 sz) (@x86_ROR_t sz).
+Proof. by move=> v i; apply: (@init_rot_dflt 1 sz _ i) => //=; rewrite /x86_ROR_t; case: eqP => _; eauto. Qed.
+
 Definition Ox86_ROR_instr               :=
-  mk_instr_ww8_b2w_0c0 "ROR" x86_ROR_t (init_rot 1) check_ror (prim_8_64 ROR) size_8_64 DOIT (pp_iname_w_8 "ror").
+  mk_instr_ww8_b2w_0c0 "ROR" x86_ROR_t (init_rot 1) x86_ROR_init_dflt check_ror (prim_8_64 ROR) size_8_64 DOIT (pp_iname_w_8 "ror").
 
 Definition x86_ROL_t sz (v: word sz) (i: u8) : sem_ltuple_t (b2w_ty sz) :=
   let i := wand i (x86_shift_mask sz) in
@@ -1145,8 +1230,14 @@ Definition x86_ROL_t sz (v: word sz) (i: u8) : sem_ltuple_t (b2w_ty sz) :=
     let OF := if i == 1%w then msb r != CF else undefined_flag in
     (:: OF, CF & r).
 
+(* ROL gives [undefined_flag] to OF unless the masked count
+   is 1, and to CF when it is 0. *)
+Lemma x86_ROL_init_dflt {sz} :
+  init_dflt (map eval_ltype (ww8_ty sz)) (map eval_ltype (b2w_ty sz)) (init_rot 1 sz) (@x86_ROL_t sz).
+Proof. by move=> v i; apply: (@init_rot_dflt 1 sz _ i) => //=; rewrite /x86_ROL_t; case: eqP => _; eauto. Qed.
+
 Definition Ox86_ROL_instr :=
-  mk_instr_ww8_b2w_0c0 "ROL" x86_ROL_t (init_rot 1) check_ror (prim_8_64 ROL) size_8_64 DOIT (pp_iname_w_8 "rol").
+  mk_instr_ww8_b2w_0c0 "ROL" x86_ROL_t (init_rot 1) x86_ROL_init_dflt check_ror (prim_8_64 ROL) size_8_64 DOIT (pp_iname_w_8 "rol").
 
 (* The count of RCL/RCR, after the mask and the reduction modulo 9 (U8) or
    17 (U16). *)
@@ -1161,6 +1252,19 @@ Definition x86_rotate_count (sz:wsize) (i:u8) : Z :=
 (* RCL, RCR: CF is always defined, OF only when the masked count is 1. *)
 Definition init_rcx (k:nat) (sz:wsize) : seq safety_cond :=
   [:: ic_count_eq1 k sz; IBool true; IBool true].
+
+(* A result of RCL/RCR, the count being the [k]-th argument, has the shape
+   that [init_rcx] expects: OF is [undefined_flag] when the masked count is
+   not 1. *)
+Lemma init_rcx_dflt k sz (vs : values) (i : u8) (t : sem_ltuple_t (b2w_ty sz)) :
+  nth undef_b vs k = Vword i ->
+  (exists OF CF r,
+     t = (:: if wand i (x86_shift_mask sz) == 1%w then OF else undefined_flag, CF & r)) ->
+  dflt_mask_tuple (map eval_ltype (b2w_ty sz)) (map (safety_cond_holds vs) (init_rcx k sz)) t = t.
+Proof.
+  move=> h [OF [CF [r ->]]]; rewrite /= (safety_cond_holds_count_eq1 _ h).
+  by case: (_ == 1%w).
+Qed.
 
 Definition x86_rotate_with_carry_t (sz: wsize)
   (rot: word.word.word sz.+1 → nat → word.word.word sz.+1)
@@ -1180,21 +1284,46 @@ Definition x86_rotate_with_carry_t (sz: wsize)
 Definition x86_RCR_t sz (v: word sz) (i: u8) (cf:bool) : sem_ltuple_t (b2w_ty sz) :=
   @x86_rotate_with_carry_t sz (@mathcomp.word.word.rotr _) (λ _ _, msb v != cf) v i cf.
 
+(* RCR gives [undefined_flag] to OF unless the masked count is 1. *)
+Lemma x86_RCR_init_dflt {sz} :
+  init_dflt (map eval_ltype (ww8b_ty sz)) (map eval_ltype (b2w_ty sz)) (init_rcx 1 sz) (@x86_RCR_t sz).
+Proof. by move=> v i cf; apply: (@init_rcx_dflt 1 sz _ i) => //; do 3!eexists. Qed.
+
 Definition Ox86_RCR_instr :=
-  mk_instr_ww8b_b2w_0c0 "RCR" x86_RCR_t (init_rcx 1)
+  mk_instr_ww8b_b2w_0c0 "RCR" x86_RCR_t (init_rcx 1) x86_RCR_init_dflt
     check_ror (prim_8_64 RCR) size_8_64 NOT_DOIT (pp_iname_w_8 "rcr").
 
 Definition x86_RCL_t sz (v: word sz) (i: u8) (cf:bool) : sem_ltuple_t (b2w_ty sz) :=
   @x86_rotate_with_carry_t sz (@mathcomp.word.word.rotl _) (λ r c, msb r != c) v i cf.
 
+(* RCL gives [undefined_flag] to OF unless the masked count is 1. *)
+Lemma x86_RCL_init_dflt {sz} :
+  init_dflt (map eval_ltype (ww8b_ty sz)) (map eval_ltype (b2w_ty sz)) (init_rcx 1 sz) (@x86_RCL_t sz).
+Proof. by move=> v i cf; apply: (@init_rcx_dflt 1 sz _ i) => //; do 3!eexists. Qed.
+
 Definition Ox86_RCL_instr :=
-  mk_instr_ww8b_b2w_0c0 "RCL" x86_RCL_t (init_rcx 1)
+  mk_instr_ww8b_b2w_0c0 "RCL" x86_RCL_t (init_rcx 1) x86_RCL_init_dflt
     check_ror (prim_8_64 RCL) size_8_64 NOT_DOIT (pp_iname_w_8 "rcl").
 
 (* OF is defined only for a shift by one. *)
 Definition rflags_OF_t {s} sz (i:word s) (r:word sz) rc OF : sem_ltuple_t (b5w_ty sz) :=
   let OF := if i == 1%w then OF else undefined_flag in
   (:: OF, rc, SF_of_word r, PF_of_word r, ZF_of_word r & r).
+
+(* A result of a shift, the count being the [k]-th argument, has the shape
+   that [init_shift] expects: every flag is [undefined_flag] for a null masked
+   count, OF is when it is not 1. *)
+Lemma init_shift_dflt k sz (vs : values) (i : u8) (t : sem_ltuple_t (b5w_ty sz)) :
+  nth undef_b vs k = Vword i ->
+  let m := wand i (x86_shift_mask sz) in
+  (if m == 0%w then exists v, t = rflags_None_w_t v
+   else exists r rc OF, t = rflags_OF_t m r rc OF) ->
+  dflt_mask_tuple (map eval_ltype (b5w_ty sz)) (map (safety_cond_holds vs) (init_shift k sz)) t = t.
+Proof.
+  move=> h m; rewrite /= (safety_cond_holds_count_eq1 _ h) (safety_cond_holds_count_neq0 _ h) -/m.
+  case: eqP => [-> [v ->] | _ [r [rc [OF ->]]]] //=.
+  by rewrite /rflags_OF_t; case: (m == 1%w).
+Qed.
 
 Definition x86_SHL_t sz (v: word sz) (i: u8) : sem_ltuple_t (b5w_ty sz) :=
   let i := wand i (x86_shift_mask sz) in
@@ -1205,8 +1334,14 @@ Definition x86_SHL_t sz (v: word sz) (i: u8) : sem_ltuple_t (b5w_ty sz) :=
     let r  := wshl v (wunsigned i) in
     rflags_OF_t i r rc (msb r (+) rc).
 
+(* SHL gives [undefined_flag] to OF unless the masked count
+   is 1, and to every flag when it is 0. *)
+Lemma x86_SHL_init_dflt {sz} :
+  init_dflt (map eval_ltype (ww8_ty sz)) (map eval_ltype (b5w_ty sz)) (init_shift 1 sz) (@x86_SHL_t sz).
+Proof. by move=> v i; apply: (@init_shift_dflt 1 sz _ i) => //=; rewrite /x86_SHL_t; case: eqP => _; eauto. Qed.
+
 Definition Ox86_SHL_instr :=
-  mk_instr_ww8_b5w_0c0 "SHL" x86_SHL_t (init_shift 1) check_ror (prim_8_64 SHL) size_8_64 DOIT (pp_iname_w_8 "shl").
+  mk_instr_ww8_b5w_0c0 "SHL" x86_SHL_t (init_shift 1) x86_SHL_init_dflt check_ror (prim_8_64 SHL) size_8_64 DOIT (pp_iname_w_8 "shl").
 
 Definition x86_SHR_t sz (v: word sz) (i: u8) : sem_ltuple_t (b5w_ty sz) :=
   let i := wand i (x86_shift_mask sz) in
@@ -1217,11 +1352,17 @@ Definition x86_SHR_t sz (v: word sz) (i: u8) : sem_ltuple_t (b5w_ty sz) :=
     let r  := wshr v (wunsigned i) in
     rflags_OF_t i r rc (msb v).
 
+(* SHR gives [undefined_flag] to OF unless the masked count
+   is 1, and to every flag when it is 0. *)
+Lemma x86_SHR_init_dflt {sz} :
+  init_dflt (map eval_ltype (ww8_ty sz)) (map eval_ltype (b5w_ty sz)) (init_shift 1 sz) (@x86_SHR_t sz).
+Proof. by move=> v i; apply: (@init_shift_dflt 1 sz _ i) => //=; rewrite /x86_SHR_t; case: eqP => _; eauto. Qed.
+
 Definition Ox86_SHR_instr :=
-  mk_instr_ww8_b5w_0c0 "SHR" x86_SHR_t (init_shift 1) check_ror (prim_8_64 SHR) size_8_64 DOIT (pp_iname_w_8 "shr").
+  mk_instr_ww8_b5w_0c0 "SHR" x86_SHR_t (init_shift 1) x86_SHR_init_dflt check_ror (prim_8_64 SHR) size_8_64 DOIT (pp_iname_w_8 "shr").
 
 Definition Ox86_SAL_instr :=
-  mk_instr_ww8_b5w_0c0 "SAL" x86_SHL_t (init_shift 1) check_ror (prim_8_64 SAL) size_8_64 DOIT (pp_iname_w_8 "sal").
+  mk_instr_ww8_b5w_0c0 "SAL" x86_SHL_t (init_shift 1) x86_SHL_init_dflt check_ror (prim_8_64 SAL) size_8_64 DOIT (pp_iname_w_8 "sal").
 
 Definition x86_SAR_t sz (v: word sz) (i: u8) : sem_ltuple_t (b5w_ty sz) :=
   let i := wand i (x86_shift_mask sz) in
@@ -1232,8 +1373,14 @@ Definition x86_SAR_t sz (v: word sz) (i: u8) : sem_ltuple_t (b5w_ty sz) :=
     let r  := wsar v (wunsigned i) in
     rflags_OF_t i r rc false.
 
+(* SAR gives [undefined_flag] to OF unless the masked count
+   is 1, and to every flag when it is 0. *)
+Lemma x86_SAR_init_dflt {sz} :
+  init_dflt (map eval_ltype (ww8_ty sz)) (map eval_ltype (b5w_ty sz)) (init_shift 1 sz) (@x86_SAR_t sz).
+Proof. by move=> v i; apply: (@init_shift_dflt 1 sz _ i) => //=; rewrite /x86_SAR_t; case: eqP => _; eauto. Qed.
+
 Definition Ox86_SAR_instr :=
-  mk_instr_ww8_b5w_0c0 "SAR" x86_SAR_t (init_shift 1) check_ror (prim_8_64 SAR) size_8_64 DOIT (pp_iname_w_8 "sar").
+  mk_instr_ww8_b5w_0c0 "SAR" x86_SAR_t (init_shift 1) x86_SAR_init_dflt check_ror (prim_8_64 SAR) size_8_64 DOIT (pp_iname_w_8 "sar").
 
 Definition check_shld (_:wsize):= [::[::rm; r; ri U8]].
 
@@ -1263,8 +1410,14 @@ Definition x86_SHLD_t sz (v1 v2: word sz) (i: u8) : sem_ltuple_t (b5w_ty sz) :=
     let r  := wor r1 r2 in
     rflags_OF_t i r rc (msb r (+) rc).
 
+(* SHLD gives [undefined_flag] to OF unless the masked count
+   is 1, and to every flag when it is 0. *)
+Lemma x86_SHLD_init_dflt {sz} :
+  init_dflt (map eval_ltype (w2w8_ty sz)) (map eval_ltype (b5w_ty sz)) (init_shift 2 sz) (@x86_SHLD_t sz).
+Proof. by move=> v1 v2 i; apply: (@init_shift_dflt 2 sz _ i) => //=; rewrite /x86_SHLD_t; case: eqP => _; eauto. Qed.
+
 Definition Ox86_SHLD_instr :=
-  mk_instr_w2w8_b5w_01c0 "SHLD" x86_SHLD_t (init_shift 2) check_shld safe_shxd (prim_16_64 SHLD) size_16_64 DOIT (pp_iname_ww_8 "shld")
+  mk_instr_w2w8_b5w_01c0 "SHLD" x86_SHLD_t (init_shift 2) x86_SHLD_init_dflt check_shld safe_shxd (prim_16_64 SHLD) size_16_64 DOIT (pp_iname_ww_8 "shld")
    x86_shxd_wf.
 
 Definition x86_SHRD_t sz (v1 v2: word sz) (i: u8) : sem_ltuple_t (b5w_ty sz) :=
@@ -1279,8 +1432,14 @@ Definition x86_SHRD_t sz (v1 v2: word sz) (i: u8) : sem_ltuple_t (b5w_ty sz) :=
     let r  := wor r1 r2 in
     rflags_OF_t i r rc (msb r (+) msb v1).
 
+(* SHRD gives [undefined_flag] to OF unless the masked count
+   is 1, and to every flag when it is 0. *)
+Lemma x86_SHRD_init_dflt {sz} :
+  init_dflt (map eval_ltype (w2w8_ty sz)) (map eval_ltype (b5w_ty sz)) (init_shift 2 sz) (@x86_SHRD_t sz).
+Proof. by move=> v1 v2 i; apply: (@init_shift_dflt 2 sz _ i) => //=; rewrite /x86_SHRD_t; case: eqP => _; eauto. Qed.
+
 Definition Ox86_SHRD_instr :=
-  mk_instr_w2w8_b5w_01c0 "SHRD" x86_SHRD_t (init_shift 2) check_shld safe_shxd (prim_16_64 SHRD) size_16_64 DOIT (pp_iname_ww_8 "shrd")
+  mk_instr_w2w8_b5w_01c0 "SHRD" x86_SHRD_t (init_shift 2) x86_SHRD_init_dflt check_shld safe_shxd (prim_16_64 SHRD) size_16_64 DOIT (pp_iname_ww_8 "shrd")
    x86_shxd_wf.
 
 Definition check_rorx (_: wsize) := [::[::r ; rm; i U8]].
@@ -1323,7 +1482,7 @@ Definition x86_POPCNT_t sz (v: word sz): sem_ltuple_t (b5w_ty sz) :=
   (:: false, false, false, false, ZF_of_word v & r).
 
 Definition Ox86_POPCNT_instr :=
-  mk_instr_w_b5w "POPCNT" x86_POPCNT_t (init_all_true 6) [:: Eu 1] [:: Eu 0] 2 (fun _ => [::r_rm]) (prim_16_64 POPCNT) size_16_64 NOT_DOIT (pp_name "popcnt").
+  mk_instr_w_b5w "POPCNT" x86_POPCNT_t (init_all_true 6) (init_dflt_true erefl erefl) [:: Eu 1] [:: Eu 0] 2 (fun _ => [::r_rm]) (prim_16_64 POPCNT) size_16_64 NOT_DOIT (pp_name "popcnt").
 
 (* From Vol. 2A 3-116 and 3-118:
    The CF flag contains the value of the selected bit (before the action).
@@ -1342,11 +1501,16 @@ Definition x86_BTX_t op sz (x y: word sz) : sem_ltuple_t (b4w_ty sz) :=
 Definition init_btx : seq safety_cond :=
   [:: IBool false; IBool true; IBool false; IBool false; IBool true].
 
+(* BTR and BTS give [undefined_flag] to OF, SF and PF. *)
+Lemma x86_BTX_init_dflt op {sz} :
+  init_dflt (map eval_ltype (w2_ty sz sz)) (map eval_ltype (b4w_ty sz)) init_btx (@x86_BTX_t op sz).
+Proof. by []. Qed.
+
 Definition Ox86_BTR_instr :=
-  mk_instr_w2_b4w "BTR" (x86_BTX_t wandn) init_btx implicit_OF_CF_SF_PF check_bt (prim_16_64 BTR) size_16_64 DOIT (pp_iname "btr").
+  mk_instr_w2_b4w "BTR" (x86_BTX_t wandn) init_btx (x86_BTX_init_dflt wandn) implicit_OF_CF_SF_PF check_bt (prim_16_64 BTR) size_16_64 DOIT (pp_iname "btr").
 
 Definition Ox86_BTS_instr :=
-  mk_instr_w2_b4w "BTS" (x86_BTX_t (@wor)) init_btx implicit_OF_CF_SF_PF check_bt (prim_16_64 BTS) size_16_64 DOIT (pp_iname "bts").
+  mk_instr_w2_b4w "BTS" (x86_BTX_t (@wor)) init_btx (x86_BTX_init_dflt (@wor)) implicit_OF_CF_SF_PF check_bt (prim_16_64 BTS) size_16_64 DOIT (pp_iname "bts").
 
 Definition x86_PEXT sz (v1 v2: word sz): tpl (w_ty sz) :=
   @pextr sz v1 v2.
@@ -1973,7 +2137,7 @@ Definition x86_VPTEST_t sz (x y: word sz) : sem_ltuple_t b5_ty :=
 Definition Ox86_VPTEST_instr :=
   (fun sz => mk_instr_safe_b
                (pp_sz "VPTEST" sz) (w2_ty sz sz) (b5_ty) [:: Eu 0; Eu 1] implicit_flags MSB_MERGE
-               (@x86_VPTEST_t sz) (init_all_true 5) (check_vptest sz) 2
+               (@x86_VPTEST_t sz) (init_all_true 5) (init_dflt_true erefl erefl) (check_vptest sz) 2
                (size_128_256 sz) DOIT
                (pp_name "vptest" sz), ("VPTEST"%string, prim_128_256 VPTEST)).
 
@@ -1999,7 +2163,7 @@ Definition Ox86_RDTSC_instr :=
               (size_32_64 sz)
               NOT_DOIT
               (pp_name_ty "rdtsc" [:: sz; sz]) (* asm pretty-print*)
-              refl_equal
+              refl_equal (init_dflt_true erefl erefl)
    ,("RDTSC"%string, prim_32_64 RDTSC) (* jasmin concrete syntax *)
   ).
 
@@ -2020,7 +2184,7 @@ Definition Ox86_RDTSCP_instr :=
               (size_32_64 sz)
               NOT_DOIT
               (pp_name_ty "rdtscp" [:: sz; sz; sz]) (* asm pprinter *)
-              refl_equal
+              refl_equal (init_dflt_true erefl erefl)
    ,("RDTSCP"%string, prim_32_64 RDTSCP) (* jasmin concrete syntax *)
   ).
 
@@ -2041,7 +2205,7 @@ Definition Ox86_RDPMC_instr :=
      true
      NOT_DOIT
      (pp_name_ty "rdpmc" [:: U32 ]) (* asm pretty-print *)
-     refl_equal
+     refl_equal (init_dflt_true erefl erefl)
    , ("RDPMC"%string, primM RDPMC) (* jasmin concrete syntax *)
   ).
 
