@@ -239,7 +239,7 @@ Definition sem_opN_safety_total (o: opN_safety) :
   match o with
   | Ois_arr_init alen =>
       fun (a:WArray.array _) (lo:Z) (len:Z) =>
-        all (WArray.is_init a) (ziota lo len)
+        WArray.all_init a lo len
   | Ois_barr_init alen =>
       fun (a:WArray.array _) (lo:Z) (len:Z) =>
         all (WArray.is_initb a) (ziota lo len)

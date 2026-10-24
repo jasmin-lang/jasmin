@@ -84,6 +84,9 @@ Module WArray.
       | None   => false
       end.
 
+    (* The [len] cells from [lo] are all initialised. *)
+    Definition all_init (m:array s) (lo len:Z) := all (is_init m) (ziota lo len).
+
     Definition is_initb (m:array s) (i:pointer) :=
       match Mz.get m.(arr_data) i with
       | Some w => (w == wrepr U8 (-1))
