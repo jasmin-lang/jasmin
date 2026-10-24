@@ -1,4 +1,1 @@
-type state
-
-val initial_state : unit -> state
-val sc_sem : state Syscall.syscall_sem
+val get_random : BinNums.coq_Z -> Word0.word list

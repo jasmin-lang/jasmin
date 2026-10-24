@@ -60,15 +60,13 @@ Context {wsw:WithSubWord}.
  * ------------------------------------------------------------------------- *)
 
 Record estate
-  {syscall_state : Type}
-  {ep : EstateParams syscall_state} := Estate
+  {ep : EstateParams} := Estate
   {
-    escs : syscall_state;
     emem : mem;
     evm  : Vm.t
   }.
 
-Arguments Estate {syscall_state}%_type_scope {ep} _ _ _%_vm_scope.
+Arguments Estate {ep} _ _%_vm_scope.
 
 (* ** Variable map
  * -------------------------------------------------------------------- *)
@@ -95,25 +93,21 @@ Notation "'Let' ( n , t ) ':=' wdb ',' gd ',' s '.[' v ']' 'in' body" :=
 Section ESTATE_UTILS.
 
 Context
-  {syscall_state : Type}
-  {ep : EstateParams syscall_state}.
+  {ep : EstateParams}.
 
 Definition with_vm (s:estate) vm :=
-  {| escs := s.(escs); emem := s.(emem); evm := vm |}.
+  {| emem := s.(emem); evm := vm |}.
 
 Definition with_mem (s:estate) m :=
-  {| escs := s.(escs); emem := m; evm := s.(evm) |}.
-
-Definition with_scs (s:estate) scs :=
-  {| escs := scs; emem := s.(emem); evm := s.(evm) |}.
+  {| emem := m; evm := s.(evm) |}.
 
 End ESTATE_UTILS.
 
 Section SEM_PEXPR.
 
 Context
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
   (wdb : bool)
   (gd : glob_decls).
@@ -204,8 +198,8 @@ Section SEM_EASSERT.
 
 Context
   {wa:WithAssert}
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
   (gd : glob_decls).
 
@@ -239,8 +233,8 @@ End SEM_EASSERT.
 Section EXEC_ASM.
 
 Context
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
   {asmop : asmOp asm_op}.
 

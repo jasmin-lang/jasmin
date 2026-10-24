@@ -53,8 +53,6 @@ Section Section.
 Context
   {core : arm_core}
   {atoI  : arch_toIdent}
-  {syscall_state : Type}
-  {sc_sem : syscall_sem syscall_state}
   {call_conv : calling_convention}
   {vinfo : one_varmap.veneer_info}.
 
@@ -389,7 +387,7 @@ Proof.
   split=> /=.
   + exact: (lower_glob_load_prog_invariants (sip := sip_of_asm_e)).
   + exact: (lower_glob_load_fd_invariants (sip := sip_of_asm_e)).
-  by move=> > /(it_lower_glob_load_progP (sip := sip_of_asm_e) arm_glob_addrP).
+  by move=> > h; apply: (it_lower_glob_load_progP (sip := sip_of_asm_e) arm_glob_addrP h).
 Qed.
 
 (* ------------------------------------------------------------------------ *)

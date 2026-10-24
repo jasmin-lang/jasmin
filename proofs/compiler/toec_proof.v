@@ -7,17 +7,19 @@ Section PROOF.
 #[local] Existing Instance progUnit.
 
 Context
-  {asm_op syscall_state : Type}
+  {asm_op : Type}
   {wa : WithAssert}
-  {ep : EstateParams syscall_state}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   .
 
 Context
   {E E0: Type -> Type}
   {wE : with_Error E E0}
+  {rndE : with_RndEvent E0}
   {rE : EventRels E0}
+  {rndE_refl : RndRels_refl rE}
   {rE_trans : EventRels_trans rE rE rE}.
 
 #[local] Existing Instance nosubword.
@@ -31,7 +33,7 @@ Hypothesis Hp : toec_prog fresh_var_ident p = ok p'.
 Lemma toec_t fn :
   wiequiv_f p' p ev ev
     (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
-Proof using rE_trans fresh_var_ident Hp.
+Proof using rE_trans fresh_var_ident Hp rndE_refl.
   eapply (wiequiv_f_trans rpreF_trans_eq_eq_eq).
   2: eapply toec_for_l; exact Hp.
   2: apply toec_while_l.

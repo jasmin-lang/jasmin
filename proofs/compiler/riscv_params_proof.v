@@ -47,8 +47,6 @@ Section Section.
 
 Context
   {atoI  : arch_toIdent}
-  {syscall_state : Type}
-  {sc_sem : syscall_sem syscall_state}
   {call_conv : calling_convention}
   {vinfo : one_varmap.veneer_info}.
 
@@ -356,7 +354,7 @@ Proof.
   split=> /=.
   + exact: (lower_addressing_prog_invariants (pT:=progStack)).
   + exact: (lower_addressing_fd_invariants (pT:=progStack)).
-  by move=> > /(it_lower_addressing_progP (pT := progStack)).
+  move=> > /(it_lower_addressing_progP (pT := progStack)) h; exact: h.
 Qed.
 
 (* ------------------------------------------------------------------------ *)

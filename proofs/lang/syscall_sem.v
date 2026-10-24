@@ -1,141 +1,133 @@
-(* * Jasmin semantics with “partial values”. *)
-
-(* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool seq ssralg.
+(* The semantics of external calls as ITree events.
+   The semantics for the source language ([uprog]) is defined directly.
+   The semantics for [sprog] is defined like [Copn] or [Ccall]: evaluate and
+   truncate arguments, pure computation, writeback. *)
+From mathcomp Require Import ssreflect ssrfun ssrbool seq ssralg eqtype.
 From Coq Require Import ZArith.
+
+From ITree Require Import Basics ITree ITreeFacts Exception.
+Import Basics.Monads.
+
 Require Export utils syscall wsize word type low_memory sem_type values.
-Import Utf8.
+Require Import it_sems_core_defs.
 
 Local Open Scope Z_scope.
 
+Import MonadNotation ITreeNotations.
+Local Open Scope monad_scope.
 
-
+#[global] Instance with_RndEventE
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : with_RndEvent E0}
+  : with_RndEvent E :=
+  fun T e => mfun2 (inr1 (rE T e)).
 
 Section SourceSysCall.
 
 Context
   {pd: PointerData}
-  {syscall_state : Type}
-  {sc_sem : syscall_sem syscall_state} .
+.
 
-Definition exec_getrandom_u (scs : syscall_state) len vs :=
-  Let _ :=
-    match vs with
-    | [:: v] => to_arr len v
-    | _ => type_error
-    end in
-  let sd := get_random scs len in
-  Let t := WArray.fill len sd.2 in
-  ok (sd.1, [::Varr t]).
+Notation E := (ErrEvent +' RndEvent).
+
+Implicit Types
+  (len : Z)
+  (vs : values)
+.
+
+Definition exec_getrandom_u len vs : itree E values :=
+  iassert (if vs is [:: v] then is_ok (to_arr len v) else false) ErrType;;
+  bs <- trigger (Rnd len);;
+  a <- iresult (WArray.fill len bs);;
+  Ret [:: Varr a].
 
 Definition exec_syscall_u
-  {pd : PointerData}
-  (scs : syscall_state_t)
-  (m : mem)
-  (o : syscall_t)
-  (vs : values) :
-  exec (syscall_state_t * mem * values) :=
+  (m : mem) (o : syscall_t) vs : itree E (mem * values) :=
   match o with
   | RandomBytes ws n =>
       let len := arr_size ws n in
-      Let sv := exec_getrandom_u scs len vs in
-      ok (sv.1, m, sv.2)
+      vs' <- exec_getrandom_u len vs;;
+      Ret (m, vs')
   end.
 
-Lemma exec_syscallPu scs m o vargs vargs' rscs rm vres :
-  exec_syscall_u scs m o vargs = ok (rscs, rm, vres) →
-  values_uincl vargs vargs' →
-  exists2 vres' : values,
-    exec_syscall_u scs m o vargs' = ok (rscs, rm, vres') & values_uincl vres vres'.
-Proof.
-  rewrite /exec_syscall_u; case: o => [ ws p ].
-  t_xrbindP => -[scs' v'] /= h ??? hu; subst scs' m v'.
-  move: h; rewrite /exec_getrandom_u.
-  case: hu => // va va' ?? /of_value_uincl_te h [] //.
-  t_xrbindP => a /h{h}[? /= -> ?] ra hra ??; subst rscs vres.
-  by rewrite hra /=; eexists; eauto.
-Qed.
+Definition sc_out_u o :=
+  [seq eval_atype t | t <- (syscall_sig_u o).(scs_tout)].
+
+Definition sc_res_uincl (r1 r2 : mem * values) : Prop :=
+  let '(m1, vres1) := r1 in
+  let '(m2, vres2) := r2 in
+  m1 = m2 /\ values_uincl vres1 vres2.
 
 Definition mem_equiv m1 m2 := stack_stable m1 m2 /\ validw m1 =3 validw m2.
 
-Lemma exec_syscallSu scs m o vargs rscs rm vres :
-  exec_syscall_u scs m o vargs = ok (rscs, rm, vres) →
-  mem_equiv m rm.
-Proof.
-  rewrite /exec_syscall_u; case: o => [ ws p ].
-  by t_xrbindP => -[scs' v'] /= _ _ <- _.
-Qed.
-
 End SourceSysCall.
 
-Section Section.
+Section StackSyscall.
 
-Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
+Context
+  {pd : PointerData}
+.
 
-Definition exec_getrandom_s_core (scs : syscall_state_t) (m : mem) (p:pointer) (len:pointer) : exec (syscall_state_t * mem * pointer) :=
-  let len := wunsigned len in
-  let sd := syscall.get_random scs len in
-  Let m := fill_mem m p sd.2 in
-  ok (sd.1, m, p).
+Notation E := (ErrEvent +' RndEvent).
 
-Lemma exec_getrandom_s_core_stable scs m p len rscs rm rp :
-  exec_getrandom_s_core scs m p len = ok (rscs, rm, rp) →
-  stack_stable m rm.
-Proof. by rewrite /exec_getrandom_s_core; t_xrbindP => rm' /fill_mem_stack_stable hf ? <- ?. Qed.
+Implicit Types
+  (o : syscall_t)
+  (vs : values)
+  (m : mem)
+  (p : pointer)
+  (len : pointer)
+.
 
-Lemma exec_getrandom_s_core_validw scs m p len rscs rm rp :
-  exec_getrandom_s_core scs m p len = ok (rscs, rm, rp) →
-  validw m =3 validw rm.
-Proof. by rewrite /exec_getrandom_s_core; t_xrbindP => rm' /fill_mem_validw_eq hf ? <- ?. Qed.
+Definition sc_in_s o :=
+  [seq eval_atype t | t <- (syscall_sig_s o).(scs_tin)].
+Definition sc_out_s o :=
+  [seq eval_atype t | t <- (syscall_sig_s o).(scs_tout)].
 
-Definition sem_syscall (o:syscall_t) :
-     syscall_state_t -> mem -> sem_prod (map eval_atype (syscall_sig_s o).(scs_tin)) (exec (syscall_state_t * mem * sem_tuple (map eval_atype (syscall_sig_s o).(scs_tout)))) :=
+(* Cast syscall inputs to signature *)
+Definition sem_syscall_cast o : values -> exec (sem_tuple (sc_in_s o)) :=
+  sem_tuple_of_values (sc_in_s o).
+
+(* TODO For now, syscalls always return bytes. We should generalize the
+   writeback to return other stuff. *)
+Definition exec_getrandom_s_core
+  (args : pointer * pointer) : itree E (seq u8) :=
+  trigger (Rnd (wunsigned args.2)).
+
+Definition sem_syscall o :
+  sem_tuple (sc_in_s o) ->
+  itree E (seq u8) :=
   match o with
   | RandomBytes _ _ => exec_getrandom_s_core
   end.
+Arguments sem_syscall : clear implicits.
 
-Definition exec_syscall_s (scs : syscall_state_t) (m : mem) (o:syscall_t) vs : exec (syscall_state_t * mem * values) :=
-  let semi := sem_syscall o in
-  Let: (scs', m', t) := app_sopn _ (semi scs m) vs in
-  ok (scs', m', list_ltuple t).
+(* Writeback *)
+Definition exec_getrandom_s_store
+  (m : mem)
+  (args : pointer * pointer)
+  (bytes : seq u8) :
+  exec (mem * pointer) :=
+  Let m' := fill_mem m args.1 bytes in
+  ok (m', args.1).
 
-Lemma syscall_sig_s_noarr o : all is_not_carr (map eval_atype (syscall_sig_s o).(scs_tin)).
-Proof. by case: o. Qed.
+Definition sem_syscall_store o :
+  mem ->
+  sem_tuple (sc_in_s o) ->
+  seq u8 ->
+  exec (mem * sem_tuple (sc_out_s o)) :=
+  match o with
+  | RandomBytes _ _ => exec_getrandom_s_store
+  end.
+Arguments sem_syscall_store : clear implicits.
 
-Lemma exec_syscallPs_eq scs m o vargs vargs' rscs rm vres :
-  exec_syscall_s scs m o vargs = ok (rscs, rm, vres) →
-  values_uincl vargs vargs' →
-  exec_syscall_s scs m o vargs' = ok (rscs, rm, vres).
-Proof.
-  rewrite /exec_syscall_s; t_xrbindP => -[[scs' m'] t] happ [<- <- <-] hu.
-  by have -> := vuincl_sopn (syscall_sig_s_noarr o) hu happ.
-Qed.
+Definition exec_syscall_s m o vs : itree E (mem * values) :=
+  args <- iresult (sem_syscall_cast o vs);;
+  bytes <- sem_syscall o args;;
+  '(m', t) <- iresult (sem_syscall_store o m args bytes);;
+  Ret (m', list_ltuple t).
 
-Lemma exec_syscallPs scs m o vargs vargs' rscs rm vres :
-  exec_syscall_s scs m o vargs = ok (rscs, rm, vres) →
-  values_uincl vargs vargs' →
-  exists2 vres' : values,
-    exec_syscall_s scs m o vargs' = ok (rscs, rm, vres') & values_uincl vres vres'.
-Proof.
-  move=> h1 h2; rewrite (exec_syscallPs_eq h1 h2).
-  by exists vres=> //; apply List_Forall2_refl.
-Qed.
+End StackSyscall.
 
-Lemma sem_syscall_equiv o scs m :
-  mk_forall (fun (rm: (syscall_state_t * mem * _)) => mem_equiv m rm.1.2)
-            (sem_syscall o scs m).
-Proof.
-  case: o => _ws _len /= p len [[scs' rm] t] /= hex; split.
-  + by apply: exec_getrandom_s_core_stable hex.
-  by apply: exec_getrandom_s_core_validw hex.
-Qed.
-
-Lemma exec_syscallSs scs m o vargs rscs rm vres :
-  exec_syscall_s scs m o vargs = ok (rscs, rm, vres) →
-  mem_equiv m rm.
-Proof.
-  rewrite /exec_syscall_s; t_xrbindP => -[[scs' m'] t] happ [_ <- _].
-  apply (mk_forallP (sem_syscall_equiv o scs m) happ).
-Qed.
-
-End Section.
+Arguments sem_syscall {pd} o _.
+Arguments sem_syscall_store {pd} o _ _ _.

@@ -44,8 +44,7 @@ Section Section.
 Context
   {core : arm_core}
   {wsw: WithSubWord}
-  {syscall_state : Type}
-  {ep : EstateParams syscall_state}.
+  {ep : EstateParams}.
 
 Definition sem_fopn_args (p : seq lexpr * arm_op * seq rexpr) (s : estate) :=
   let: (xs,o,es) := p in

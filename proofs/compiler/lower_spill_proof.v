@@ -13,10 +13,10 @@ Section WITH_PARAMS.
 Context
   {wsw : WithSubWord}
   {dc  : DirectCall}
-  {asm_op syscall_state : Type}
-  {ep  : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep  : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {LC  : LoopCounter}
   {pT  : progT}
   {sCP : semCallParams}
@@ -422,7 +422,13 @@ Qed.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : EventRels E0}
+  {rndE : with_RndEvent E0}
+  {rndE_refl : RndRels_refl rE}
+.
 
 Definition st_ve S env := st_rel (valid_env S) env.
 
@@ -455,7 +461,7 @@ Qed.
 
 Lemma it_lower_spill_fdP fn :
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-Proof using spill_prog_ok.
+Proof using spill_prog_ok rndE_refl.
   apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
   have spillok : map_cfprog_name (spill_fd fresh_var_ident spill_to_mmx) (p_funcs p) = ok (p_funcs p').
   + by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? ? <-.
@@ -483,7 +489,7 @@ Proof using spill_prog_ok.
   + by split => //; split => // ? /Sv_memP.
   2: {
     apply wrequiv_weaken with (st_eq_on (vars_l (f_res fd))) eq => //.
-    move=> ?? [??[h ?]]; split => //.
+    move=> ?? [? [h ?]]; split => //.
     + by apply: eq_onI h; rewrite /X /= /vars_fd /=; clear; SvD.fsetdec.
     by apply st_eq_on_finalize.
   }

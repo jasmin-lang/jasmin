@@ -31,6 +31,7 @@
 -R lang Jasmin
 -R ssrmisc Jasmin
 -R itrees Jasmin
+-R probabilistic Jasmin
 
 ssrmisc/oseq.v
 ssrmisc/seq_extra.v
@@ -182,6 +183,14 @@ itrees/rutt_extras.v
 itrees/while.v
 itrees/xrutt.v
 itrees/xrutt_facts.v
+
+probabilistic/dinterp.v
+probabilistic/distr_extra.v
+probabilistic/distr_preservation.v
+probabilistic/eqit_facts.v
+probabilistic/equiv_extras.v
+probabilistic/lutt_extras.v
+
 lang/core_logics.v
 lang/expr.v
 lang/expr_facts.v
@@ -236,6 +245,7 @@ lang/stack_zero_strategy.v
 lang/strings.v
 lang/syscall.v
 lang/syscall_sem.v
+lang/syscall_sem_facts.v
 lang/tagged.v
 lang/type.v
 lang/utils.v

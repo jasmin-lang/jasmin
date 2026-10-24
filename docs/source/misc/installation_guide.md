@@ -211,6 +211,7 @@ The dependencies of the Coq development are as follows:
   - [Coq](https://coq.inria.fr/) at version 9.0
   - The [Mathematical Components](https://math-comp.github.io/) library, at version 2.4 (only the following sub-libraries are required: ssreflect, fingroup, algebra)
   - The [mathcomp-word](https://github.com/jasmin-lang/coqword) library, at version 3.5
+  - The [Mathematical Components Analysis](https://github.com/math-comp/analysis) library, at version 1.14 (only the following sub-libraries are required: classical, reals, experimental_reals, together with finmap and bigenough)
   - The [Interaction Trees](https://github.com/DeepSpec/InteractionTrees) library, at version 5.2.1
 
 The file `default.nix` at the root of the repository contains a precise description of these dependencies.

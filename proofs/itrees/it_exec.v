@@ -63,11 +63,10 @@ Section ExecT.
 End ExecT.
 
 Section ExecTLaws.
-
-
-Definition execS_rel {X} (R : relation X) (Re : relation error) :
-   relation (exec X) :=
-fun (mx my : exec X) =>
+  
+Definition execS_rel2 {X Y : Type} (R : X -> Y -> Prop)
+           (Re : relation error) : exec X -> exec Y -> Prop :=
+fun (mx : exec X) (my : exec Y) =>
 match mx with
 | Ok x => match my with
             | Ok y => R x y
@@ -80,19 +79,22 @@ match mx with
 end.
 
 Lemma execS_rel_eq : forall {A : Type},
-    eq_rel (@eq (exec A)) (execS_rel eq eq).
+    eq_rel (@eq (exec A)) (execS_rel2 eq eq).
 Proof.
   intros ?; split; intros [] [] EQ; subst; try inv EQ; cbn; auto.
 Qed.
 
-Definition exec_rel {X: Type} (R : relation X) :
-   relation (exec X) := execS_rel R eq.
+Definition exec_rel {X Y : Type} (R : X -> Y -> Prop) :
+   exec X -> exec Y -> Prop := execS_rel2 R eq.
 
 Lemma exec_rel_eq : forall {A : Type},
     eq_rel (@eq (exec A)) (exec_rel eq).
 Proof.
   intros ?; split; intros [] [] EQ; subst; try inv EQ; cbn; auto.
 Qed.
+
+Definition execS_rel {X} (R : relation X) (Re : relation error) :
+   relation (exec X) := @execS_rel2 X X R Re.
 
 #[global] Instance execT_Eq1 {E} : Eq1 (execT (itree E)) :=
   fun _ => eutt (exec_rel eq).
@@ -176,20 +178,69 @@ Proof.
   - rewrite bind_ret_l; reflexivity.
 Qed.
 
-#[global] Instance interp_exec_eq_itree {X E F} {R : X -> X -> Prop}
-  (h : E ~> execT (itree F)) :
-  Proper (eq_itree R ==> eq_itree (exec_rel R)) (@interp_exec _ _ _ _ _ h X).
+Lemma interp_exec_eq_itree_gen
+      {X Y E F} (R : X -> Y -> Prop)
+      (h : E ~> execT (itree F))
+      (s : itree E X) (t : itree E Y) :
+  eq_itree R s t ->
+  eq_itree (exec_rel R) (interp_exec h s) (interp_exec h t).
 Proof.
-  repeat red.
+  revert s t.
   ginit.
   pcofix CIH.
   intros s t EQ.
   rewrite 2 unfold_interp_exec.
   punfold EQ; red in EQ.
-  destruct EQ; cbn; subst; try discriminate; pclearbot; try (gstep; constructor; eauto with paco; fail).
+  destruct EQ; cbn; subst;
+    try discriminate; pclearbot;
+    try (gstep; constructor; eauto with paco; fail).
   guclo eqit_clo_bind; econstructor; [reflexivity | intros x ? <-].
-  destruct x as [x|]; gstep; econstructor; eauto with paco itree.
+  destruct x as [x|]; gstep; econstructor;
+    eauto with paco itree.
   unfold exec_rel, execS_rel; auto.
+  reflexivity.
+Qed.
+
+#[global] Instance interp_exec_eq_itree {X E F} {R : X -> X -> Prop}
+  (h : E ~> execT (itree F)) :
+  Proper (eq_itree R ==> eq_itree (exec_rel R)) (@interp_exec _ _ _ _ _ h X).
+Proof. repeat intro; eapply interp_exec_eq_itree_gen; eauto. Qed.
+
+Lemma interp_exec_eutt_gen
+      {X Y E F} (R : X -> Y -> Prop)
+      (h : E ~> execT (itree F))
+      (s : itree E X) (t : itree E Y) :
+  eutt R s t ->
+  eutt (exec_rel R) (interp_exec h s) (interp_exec h t).
+Proof.
+  revert s t.
+  einit.
+  ecofix CIH.
+  intros s t EQ.
+  rewrite 2 unfold_interp_exec.
+  punfold EQ; red in EQ.
+  induction EQ; intros; cbn; subst;
+    try discriminate; pclearbot;
+    try (estep; constructor; eauto with paco; fail).
+  - ebind; econstructor; [reflexivity |].
+    intros [] [] EQ'; inv EQ'.
+    + estep; ebase.
+    + eret.
+    + reflexivity.
+  - rewrite tau_euttge, unfold_interp_exec; eauto.
+  - rewrite tau_euttge, unfold_interp_exec; eauto.
+Qed.
+
+#[global] Instance interp_exec_eutt {X E F R} (h : E ~> execT (itree F)) :
+  Proper (eutt R ==> eutt (exec_rel R)) (@interp_exec _ _ _ _ _ h X).
+Proof. repeat intro; eapply interp_exec_eutt_gen; eauto. Qed.
+
+#[global] Instance interp_exec_eutt_eq {X E F} (h : E ~> execT (itree F)) :
+  Proper (eutt eq ==> eutt eq) (@interp_exec _ _ _ _ _ h X).
+Proof.
+  repeat intro.
+  rewrite exec_rel_eq.
+  apply interp_exec_eutt; auto.
 Qed.
 
 #[global] Instance interp_exec_eq_itree_eq {X E F} (h : E ~> execT (itree F)) :
@@ -198,33 +249,6 @@ Proof.
   repeat intro.
   setoid_rewrite execS_rel_eq.
   apply interp_exec_eq_itree; auto.
-Qed.
-
-#[global] Instance interp_exec_eutt {X E F R} (h : E ~> execT (itree F)) :
-  Proper (eutt R ==> eutt (exec_rel R)) (@interp_exec _ _ _ _ _ h X).
-Proof.
-  repeat red.
-  einit.
-  ecofix CIH.
-  intros s t EQ.
-  rewrite 2 unfold_interp_exec.
-  punfold EQ; red in EQ.
-  induction EQ; intros; cbn; subst; try discriminate; pclearbot; try (estep; constructor; eauto with paco; fail).
-  - ebind; econstructor; [reflexivity |].
-    intros [] [] EQ; inv EQ.
-    + estep; ebase.
-    + eret.
-    + reflexivity.
-  - rewrite tau_euttge, unfold_interp_exec; eauto.
-  - rewrite tau_euttge, unfold_interp_exec; eauto.
-Qed.
-
-#[global] Instance interp_exec_eutt_eq {X E F} (h : E ~> execT (itree F)) :
-  Proper (eutt eq ==> eutt eq) (@interp_exec _ _ _ _ _ h X).
-Proof.
-  repeat intro.
-  rewrite exec_rel_eq.
-  apply interp_exec_eutt; auto.
 Qed.
 
 Lemma interp_exec_tau {E F R} {f : E ~> execT (itree F)} (t: itree E R):
@@ -268,32 +292,6 @@ Proof.
   reflexivity.
 Qed.
 
-(* Inlined *)
-Lemma interp_exec_bind : forall {X Y E F} (t : itree _ X) (k : X -> itree _ Y) (h : E ~> execT (itree F)),
-    interp_exec h (ITree.bind t k) ≅
-                ITree.bind (interp_exec h t)
-                (fun mx => match mx with | (Error e) => ret (Error e) | Ok x => interp_exec h (k x) end).
-Proof.
-  intros X Y E F; ginit; pcofix CIH; intros.
-  rewrite unfold_bind.
-  rewrite (unfold_interp_exec h t).
-  destruct (observe t) eqn:EQ; cbn.
-  - rewrite bind_ret_l. apply reflexivity.
-  - cbn. rewrite bind_tau, !interp_exec_tau.
-    gstep. econstructor; eauto with paco.
-  - rewrite bind_bind, interp_exec_vis.
-    guclo eqit_clo_bind; econstructor.
-    reflexivity.
-    intros [] ? <-; cbn.
-    + rewrite bind_tau.
-      gstep; constructor.
-      ITree.fold_subst.
-      auto with paco.
-    + rewrite bind_ret_l.
-      apply reflexivity.
-Qed.
-
-(* proper *)
 Lemma interp_exec_bind' : forall {X Y E F} (t : itree _ X) (k : X -> itree _ Y) (h : E ~> execT (itree F)),
     interp_exec h (bind t k) ≅
                 bind (interp_exec h t)

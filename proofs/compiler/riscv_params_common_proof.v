@@ -34,8 +34,6 @@ Context {vinfo : one_varmap.veneer_info}.
 
 Context
   {atoI  : arch_toIdent}
-  {syscall_state : Type}
-  {sc_sem : syscall_sem syscall_state}
   {call_conv : calling_convention}.
 
 #[local] Existing Instance withsubword.
@@ -63,7 +61,7 @@ Proof. by elim: o s => //= o os ih s; rewrite sem_fopn_equiv; case: sem_fopn_arg
 Section RISCV_OP.
 
 (* Linear state after executing a linear instruction [Lopn]. *)
-Notation next_ls ls m vm := (lnext_pc (lset_mem_vm ls m vm)) (only parsing).
+Notation next_ls ls m vm := (lnext_pc (lset_estate ls m vm)) (only parsing).
 Notation next_vm_ls ls vm := (lnext_pc (lset_vm ls vm)) (only parsing).
 Notation next_mem_ls ls m := (lnext_pc (lset_mem ls m)) (only parsing).
 
@@ -105,8 +103,8 @@ Lemma align_eval_instr {lp ls ii xname vi y al} {wy : word Uptr} :
   eval_instr lp li ls = ok (next_vm_ls ls vm').
 Proof.
   move=> h1; set vm := _.[ _ <- _].
-  apply (sem_fopn_args_eval_instr (ls:= ls) (s' := with_vm (to_estate ls) vm)).
-  by apply :  align_sem_fopn_args; rewrite h1 /= truncate_word_u.
+  apply/sem_fopn_args_eval_instr/align_sem_fopn_args.
+  by rewrite h1 /= truncate_word_u.
 Qed.
 
 (* TODO try to remove the usage of this lemma, use sem_fopn_args version instead *)
@@ -185,7 +183,7 @@ Lemma smart_addi_sem_fopn_args (xi:var_i) y imm s (w : wreg) :
 Proof.
   move=> hc hor hget; rewrite -sem_fopns_equiv.
   have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small) (neutral:= Some 0%Z)
-             (@RISCVFopn_coreP.add_sem_fopn_args _ _ _) (@RISCVFopn_coreP.addi_sem_fopn_args _ _ _)].
+             (@RISCVFopn_coreP.add_sem_fopn_args _ _) (@RISCVFopn_coreP.addi_sem_fopn_args _ _)].
   move=> /(_ _ xi xi y imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.addr0.
   move=> vm' [hsem heq heqx] ; exists vm'; split => //=.
@@ -205,7 +203,7 @@ Proof.
   rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
   move=> hor hget; rewrite -sem_fopns_equiv.
   have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small_neg) (neutral:= Some 0%Z)
-              (@RISCVFopn_coreP.sub_sem_fopn_args _ _ _) (@RISCVFopn_coreP.subi_sem_fopn_args _ _ _)].
+              (@RISCVFopn_coreP.sub_sem_fopn_args _ _) (@RISCVFopn_coreP.subi_sem_fopn_args _ _)].
   move=> /(_ _ xi xi y imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.subr0.
   move=> vm' [hsem heq heqx] ; exists vm'; split => //=.
@@ -226,7 +224,7 @@ Proof.
   rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
   move=> hne hty hget; rewrite -sem_fopns_equiv.
   have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small) (neutral:= Some 0%Z)
-             (@RISCVFopn_coreP.add_sem_fopn_args _ _ _) (@RISCVFopn_coreP.addi_sem_fopn_args _ _ _)].
+             (@RISCVFopn_coreP.add_sem_fopn_args _ _) (@RISCVFopn_coreP.addi_sem_fopn_args _ _)].
   move=> /(_ _ tmp xi xi imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.addr0.
   + by right => h; rewrite h in hne.
@@ -248,7 +246,7 @@ Proof.
   rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
   move=> hne hty hget; rewrite -sem_fopns_equiv.
   have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small_neg) (neutral:= Some 0%Z)
-              (@RISCVFopn_coreP.sub_sem_fopn_args _ _ _) (@RISCVFopn_coreP.subi_sem_fopn_args _ _ _)].
+              (@RISCVFopn_coreP.sub_sem_fopn_args _ _) (@RISCVFopn_coreP.subi_sem_fopn_args _ _)].
   move=> /(_ _ tmp xi xi imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.subr0.
   + by right => h; rewrite h in hne.
@@ -266,8 +264,6 @@ Context {vinfo : one_varmap.veneer_info}.
 
 Context
   {atoI  : arch_toIdent}
-  {syscall_state : Type}
-  {sc_sem : syscall_sem syscall_state}
   {call_conv : calling_convention}
 .
 

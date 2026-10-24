@@ -19,10 +19,10 @@ Section WITH_PARAMS.
 Context
   {wsw : WithSubWord}
   {dc : DirectCall}
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
+  {asm_op : Type}
+  {ep : EstateParams}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
+  {sip : SemInstrParams asm_op}
   {sCP : semCallParams}.
 
 Context (is_load : asm_op -> bool) (glob_addr_op : asm_op).
@@ -95,7 +95,7 @@ Lemma lower_glob_loadP rip tmp s1 s2 t o xs es ii c X :
   ~ Sv.In tmp X -> Sv.Subset (Sv.union (read_rvs xs) (read_es es)) X ->
   exists2 vm2,
     esem p' ev (map (MkI ii) c) s1 = ok (with_vm s2 vm2) & evm s2 =[X] vm2.
-Proof using dc glob_addr_opP.
+Proof using dc glob_addr_opP sCP.
   rewrite /lower_glob_load.
   case: o => // op; case: is_load => //.
   case: es => // -[] // al ws e es'.
@@ -148,7 +148,7 @@ Lemma Hopn_aux rip (tmp : var_i) (s1 s2 : estate) t o xs es ii vm1 X :
     esem p' ev (lower_glob_load_i is_load glob_addr_op rip tmp (MkI ii (Copn xs t o es))) (with_vm s1 vm1)
     = ok (with_vm s2 vm2) &
     evm s2 =[X] vm2.
-Proof using dc glob_addr_opP ok_p'.
+Proof using dc glob_addr_opP ok_p' sCP.
   rewrite !read_writeE => ok_s2 tmp_ty tmp_nin hsub eq_vm1 /=.
   have [vm2 hsem eq_vm2] :
      exists2 vm2 : Vm.t,
@@ -170,7 +170,12 @@ Qed.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rndE : with_RndEvent E0}
+  {rE0 : EventRels E0}
+  {rndE_refl : RndRels_refl rE0}.
 
 #[ local ]
 Lemma checker_st_eq_onP_ : Checker_eq p p' checker_st_eq_on.
@@ -179,7 +184,7 @@ Proof using ok_p'. apply checker_st_eq_onP; apply eq_globs. Qed.
 
 Lemma it_lower_glob_load_progP fn:
   wiequiv_f p p' ev ev (rpreF (eS:=eq_spec)) fn fn (rpostF (eS:=eq_spec)).
-Proof using glob_addr_opP ok_p'.
+Proof using glob_addr_opP ok_p' rndE_refl.
   apply wequiv_fun_ind => {}fn _ fs _ [<-] <- fd hget.
   move: ok_p'; rewrite /lower_glob_load_prog.
   set rip := {| vtype := _; vname := _ |}.
