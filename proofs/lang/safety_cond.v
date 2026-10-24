@@ -286,9 +286,10 @@ Qed.
 (* The cells of an array of [len] words of size [ws] are all initialised
    exactly when each of the [len] words can be read. *)
 Lemma all_init_getE ws len (t : WArray.array (arr_size ws len)) :
-  all (WArray.is_init t) (ziota 0 (arr_size ws len))
+  WArray.all_init t 0 (arr_size ws len)
   = all (fun i => is_ok (WArray.get Unaligned AAscale ws t i)) (ziota 0 len).
 Proof.
+rewrite /WArray.all_init.
 have hws := wsize_size_pos ws.
 apply/idP/idP => [/allP h | /allP h]; apply/allP.
 + move=> i; rewrite in_ziota !zify => hi.
