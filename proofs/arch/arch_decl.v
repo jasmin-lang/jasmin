@@ -558,6 +558,8 @@ Record instr_desc_t := {
                       ssrnat.eqn (size id_init) (size id_tout) & ~~ is_ErrType id_err];
   (* See [i_init_dflt] in sopn.v. *)
   id_init_dflt  : init_dflt (map eval_ltype id_tin) (map eval_ltype id_tout) id_init id_semi_total;
+  (* See [i_init_expr] in sopn.v. *)
+  id_init_expr  : all safety_cond_expr id_init;
 }.
 
 (* Semantics of an instruction (only deals with values): the safety conditions
@@ -779,6 +781,7 @@ Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
        id_pp_asm     := d.(id_pp_asm);
        id_wf         := instr_desc_aux3 ws d.(id_wf);
        id_init_dflt  := instr_desc_aux4 ws d.(id_init_dflt);
+       id_init_expr  := d.(id_init_expr);
     |}
   else
     d.

@@ -419,6 +419,7 @@ Notation mk_instr str_jas tin tout ain aout msb semi_total init args_kinds nargs
   id_pp_asm     := pp_asm;
   id_wf         := wf;
   id_init_dflt  := init_dflt;
+  id_init_expr  := erefl;
 |}.
 
 (* Can only be used for safe instructions whose outputs are all defined and

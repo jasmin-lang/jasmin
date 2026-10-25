@@ -551,6 +551,7 @@ Definition mk_shifted
     id_valid := id_valid idt && shift_allowed mn sk;
     id_wf := shifted_wf idt;
     id_init_dflt := init_dflt';
+    id_init_expr := id_init_expr idt;
   |}.
 
 Arguments mk_shifted : clear implicits.
@@ -703,6 +704,7 @@ Definition mk_arith_instr mn (ick : option armv8a_caimm_cond)
       id_valid := osz_valid;
       id_wf := refl_equal;
       id_init_dflt := init_dflt_true erefl erefl;
+      id_init_expr := erefl;
     |}
   in
   if has_shift opts is Some sk
@@ -735,6 +737,7 @@ Definition mk_ariths_instr mn (ick : option armv8a_caimm_cond)
       id_valid := osz_valid;
       id_wf := refl_equal;
       id_init_dflt := init_dflt_true erefl erefl;
+      id_init_expr := erefl;
     |}
   in
   if has_shift opts is Some sk
@@ -857,6 +860,7 @@ Definition mk_carry_instr mn (semi : word osz -> word osz -> bool -> ty_w osz)
     id_valid := osz_valid;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition mk_carrys_instr mn
@@ -883,6 +887,7 @@ Definition mk_carrys_instr mn
     id_valid := osz_valid;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Arguments mk_carrys_instr : clear implicits.
@@ -1010,6 +1015,7 @@ Definition armv8a_NEG_instr : instr_desc_t :=
       id_valid := osz_valid;
       id_wf := refl_equal;
       id_init_dflt := init_dflt_true erefl erefl;
+      id_init_expr := erefl;
     |}
   in
   if has_shift opts is Some sk
@@ -1042,6 +1048,7 @@ Definition mk_rrr_instr mn (doit_v : doit_t) (valid : bool)
     id_valid := valid;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* [C6.2.292 MUL] ARM DDI 0487 M.a, p. 2436
@@ -1167,6 +1174,7 @@ Definition mk_madd_instr mn (semi : word osz -> word osz -> word osz -> ty_w osz
     id_valid := osz_valid;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* [C6.2.274 MADD] ARM DDI 0487 M.a, p. 2401
@@ -1228,6 +1236,7 @@ Definition mk_mull_instr mn (semi : word U32 -> word U32 -> ty_r)
     id_valid := osz == U64;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* [C6.2.498 UMULL] ARM DDI 0487 M.a, p. 2862
@@ -1299,6 +1308,7 @@ Definition mk_maddl_instr mn (semi : word U32 -> word U32 -> word U64 -> ty_r)
     id_valid := osz == U64;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* [C6.2.490 UMADDL] ARM DDI 0487 M.a, p. 2848
@@ -1482,6 +1492,7 @@ Definition armv8a_MVN_instr : instr_desc_t :=
       id_valid := osz_valid;
       id_wf := refl_equal;
       id_init_dflt := init_dflt_true erefl erefl;
+      id_init_expr := erefl;
     |}
   in
   if has_shift opts is Some sk
@@ -1528,6 +1539,7 @@ Definition mk_shift_instr mn (op : forall sz, word sz -> Z -> word sz)
     id_valid := osz_valid;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* [C6.2.19 ASR (register)] ARM DDI 0487 M.a, p. 1820
@@ -1628,6 +1640,7 @@ Definition armv8a_EXTR_instr : instr_desc_t :=
     id_valid := osz_valid;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* The bitfield aliases take the bit position [lsb] and the width of the
@@ -1691,6 +1704,7 @@ Definition armv8a_BFC_instr : instr_desc_t :=
     id_valid := osz_valid;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* [C6.2.38 BFI] ARM DDI 0487 M.a, p. 1850
@@ -1748,6 +1762,7 @@ Definition armv8a_BFI_instr : instr_desc_t :=
     id_valid := osz_valid;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* [C6.2.40 BFXIL] ARM DDI 0487 M.a, p. 1854
@@ -1805,6 +1820,7 @@ Definition armv8a_BFXIL_instr : instr_desc_t :=
     id_valid := osz_valid;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* Bitfield extraction (SBFX, UBFX): the field is moved to the top of the
@@ -1843,6 +1859,7 @@ Definition mk_bfx_instr mn (shr : word osz -> Z -> word osz) : instr_desc_t :=
     id_valid := osz_valid;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* [C6.2.355 SBFX] ARM DDI 0487 M.a, p. 2556
@@ -1930,6 +1947,7 @@ Definition armv8a_MOV_instr : instr_desc_t :=
     id_valid := osz_valid;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition mk_movw_instr mn (semi : word U16 -> word U8 -> ty_w osz)
@@ -1959,6 +1977,7 @@ Definition mk_movw_instr mn (semi : word U16 -> word U8 -> ty_w osz)
     id_valid := osz_valid;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* [C6.2.284 MOVZ] ARM DDI 0487 M.a, p. 2418
@@ -2033,6 +2052,7 @@ Definition armv8a_MOVK_instr : instr_desc_t :=
     id_valid := osz_valid;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 
@@ -2073,6 +2093,7 @@ Definition mk_extend_instr mn (in_ws : wsize) (sign : bool) (valid : bool)
     id_valid := valid;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* [C6.2.12 ADR] ARM DDI 0487 M.a, p. 1809
@@ -2110,6 +2131,7 @@ Definition armv8a_ADR_instr : instr_desc_t :=
     id_valid := osz == U64;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* [C6.2.471 SXTB] ARM DDI 0487 M.a, p. 2812
@@ -2205,6 +2227,7 @@ Definition mk_rr_instr mn (doit_v : doit_t) (valid : bool)
     id_valid := valid;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* [RBIT] ARM DDI 0487 M.a
@@ -2347,6 +2370,7 @@ Definition mk_cmp_instr mn (ick : option armv8a_caimm_cond)
       id_valid := osz_valid;
       id_wf := refl_equal;
       id_init_dflt := init_dflt_true erefl erefl;
+      id_init_expr := erefl;
     |}
   in
   if has_shift opts is Some sk
@@ -2456,6 +2480,7 @@ Definition mk_csel_instr mn (semi : word osz -> word osz -> bool -> ty_w osz)
     id_valid := osz_valid;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* [C6.2.138 CSEL] ARM DDI 0487 M.a, p. 2138
@@ -2560,6 +2585,7 @@ Definition mk_cset_instr mn (semi : bool -> ty_w osz) : instr_desc_t :=
     id_valid := osz_valid;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* [C6.2.139 CSET] ARM DDI 0487 M.a, p. 2140
@@ -2672,6 +2698,7 @@ Definition armv8a_load_instr mn : instr_desc_t :=
     id_valid := osz_valid && (if mn is LDRSW then osz == U64 else true);
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* [C6.2.220 LDRB (register)] ARM DDI 0487 M.a, p. 2283
@@ -2848,6 +2875,7 @@ Definition armv8a_store_instr mn : instr_desc_t :=
     id_valid := osz_valid;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* [C6.2.417 STRB (register)] ARM DDI 0487 M.a, p. 2699
@@ -2962,6 +2990,7 @@ Definition armv8a_LDP_instr : instr_desc_t :=
     id_valid := osz_valid;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* [C6.2.414 STP] ARM DDI 0487 M.d
@@ -3003,6 +3032,7 @@ Definition armv8a_STP_instr : instr_desc_t :=
     id_valid := osz_valid;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* -------------------------------------------------------------------- *)
@@ -3042,6 +3072,7 @@ Definition mk_barrier_instr mn : instr_desc_t :=
     id_valid := true;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* [CSDB] ARM DDI 0487 M.a

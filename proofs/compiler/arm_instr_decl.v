@@ -547,6 +547,11 @@ Proof.
   by apply: (mk_cond_init_dflt_aux (ts := [::]) (vs0 := [::])) => //; apply: id_init_dflt.
 Qed.
 
+(* The guard keeps the initialisation conditions expressions. *)
+Lemma mk_cond_init_expr (idt : instr_desc_t) :
+  all safety_cond_expr (map (sc_guarded (size (id_tin idt))) (id_init idt)).
+Proof. by rewrite all_map; apply: id_init_expr. Qed.
+
 Definition mk_cond (single_cycle : bool) (idt : instr_desc_t) : instr_desc_t :=
   {|
     id_msb_flag := MSB_MERGE;
@@ -571,6 +576,7 @@ Definition mk_cond (single_cycle : bool) (idt : instr_desc_t) : instr_desc_t :=
     id_doit := if single_cycle then id_doit idt else NOT_DOIT;
     id_wf := mk_cond_wf idt;
     id_init_dflt := mk_cond_init_dflt idt;
+    id_init_expr := mk_cond_init_expr idt;
   |}.
 Arguments mk_cond : clear implicits.
 
@@ -666,6 +672,7 @@ Definition mk_shifted
     id_doit := id_doit idt;
     id_wf := shifted_wf idt;
     id_init_dflt := init_dflt';
+    id_init_expr := id_init_expr idt;
   |}.
 
 Arguments mk_shifted : clear implicits.
@@ -793,6 +800,7 @@ Definition arm_ADD_instr : instr_desc_t :=
       id_doit := DOIT;
       id_wf := refl_equal;
       id_init_dflt := init_dflt_true erefl erefl;
+      id_init_expr := erefl;
     |}
   in
   let x :=
@@ -835,6 +843,7 @@ Definition arm_ADC_instr : instr_desc_t :=
       id_doit := DOIT;
       id_wf := refl_equal;
       id_init_dflt := init_dflt_true erefl erefl;
+      id_init_expr := erefl;
     |}
   in
   let x :=
@@ -884,6 +893,7 @@ Definition arm_MUL_instr : instr_desc_t :=
       id_doit := DOIT;
       id_wf := refl_equal;
       id_init_dflt := init_dflt_true erefl erefl;
+      id_init_expr := erefl;
     |}
   in
   if set_flags opts
@@ -916,6 +926,7 @@ Definition arm_MLA_instr : instr_desc_t :=
       id_doit := DOIT;
       id_wf := refl_equal;
       id_init_dflt := init_dflt_true erefl erefl;
+      id_init_expr := erefl;
   |}.
 
 Definition arm_MLS_semi (wn wm wa: ty_r) : ty_r :=
@@ -944,6 +955,7 @@ Definition arm_MLS_instr : instr_desc_t :=
       id_doit := DOIT;
       id_wf := refl_equal;
       id_init_dflt := init_dflt_true erefl erefl;
+      id_init_expr := erefl;
   |}.
 
 (* We assume that DIV_0_TRP bit in the Configuration Control register is set to 0*)
@@ -974,6 +986,7 @@ Definition arm_SDIV_instr : instr_desc_t :=
     id_doit := NOT_DOIT; (* 2 to 12 cycles, depending on the operands. *)
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition arm_SUB_semi_t (wn wm : ty_r) : ty_nzcv_r_t :=
@@ -1007,6 +1020,7 @@ Definition arm_SUB_instr : instr_desc_t :=
       id_doit := DOIT;
       id_wf := refl_equal;
       id_init_dflt := init_dflt_true erefl erefl;
+      id_init_expr := erefl;
     |}
   in
   let x :=
@@ -1045,6 +1059,7 @@ Definition arm_SBC_instr : instr_desc_t :=
       id_doit := DOIT;
       id_wf := refl_equal;
       id_init_dflt := init_dflt_true erefl erefl;
+      id_init_expr := erefl;
     |}
   in
   let x :=
@@ -1083,6 +1098,7 @@ Definition arm_RSB_instr : instr_desc_t :=
       id_doit := DOIT;
       id_wf := refl_equal;
       id_init_dflt := init_dflt_true erefl erefl;
+      id_init_expr := erefl;
     |}
   in
   let x :=
@@ -1121,6 +1137,7 @@ Definition arm_UDIV_instr : instr_desc_t :=
     id_doit := NOT_DOIT; (* 2 to 12 cycles, depending on the operands. *)
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition arm_UMULL_semi (wn wm : ty_r) : ty_rr :=
@@ -1150,6 +1167,7 @@ Definition arm_UMULL_instr : instr_desc_t :=
     id_doit := if core_long_mul_dit then DOIT else NOT_DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition arm_UMAAL_semi (wa wb wn wm : ty_r) : ty_rr :=
@@ -1179,6 +1197,7 @@ Definition arm_UMAAL_instr : instr_desc_t :=
     id_doit := DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition arm_UMLAL_semi (dlo dhi wn wm : ty_r) : ty_rr :=
@@ -1208,6 +1227,7 @@ Definition arm_UMLAL_instr : instr_desc_t :=
     id_doit := if core_long_mul_dit then DOIT else NOT_DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition arm_SMULL_semi (wn wm : ty_r) : ty_rr :=
@@ -1237,6 +1257,7 @@ Definition arm_SMULL_instr : instr_desc_t :=
     id_doit := if core_long_mul_dit then DOIT else NOT_DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition arm_SMLAL_semi (dlo dhi wn wm : ty_r) : ty_rr :=
@@ -1266,6 +1287,7 @@ Definition arm_SMLAL_instr : instr_desc_t :=
     id_doit := if core_long_mul_dit then DOIT else NOT_DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition arm_SMMUL_semi (wn wm : ty_r) : ty_r :=
@@ -1294,6 +1316,7 @@ Definition arm_SMMUL_instr : instr_desc_t :=
     id_doit := DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition arm_SMMULR_semi (wn wm : ty_r) : ty_r :=
@@ -1322,6 +1345,7 @@ Definition arm_SMMULR_instr : instr_desc_t :=
     id_doit := DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition get_hw (hw : halfword) (x : wreg) : u16 :=
@@ -1359,6 +1383,7 @@ Definition arm_smul_hw_instr hwn hwm : instr_desc_t :=
     id_doit := DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition arm_smla_hw_semi
@@ -1392,6 +1417,7 @@ Definition arm_smla_hw_instr hwn hwm : instr_desc_t :=
     id_doit := DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition arm_smulw_hw_semi (hw : halfword) (wn wm : wreg) : wreg :=
@@ -1424,6 +1450,7 @@ Definition arm_smulw_hw_instr hw : instr_desc_t :=
     id_doit := DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* The carry is left undefined: it depends on the shift. *)
@@ -1461,6 +1488,7 @@ Definition arm_AND_instr : instr_desc_t :=
       id_doit := DOIT;
       id_wf := refl_equal;
       id_init_dflt := fun _ _ => erefl;
+      id_init_expr := erefl;
     |}
   in
   let x :=
@@ -1508,6 +1536,7 @@ Definition arm_BFC_instr : instr_desc_t :=
     id_doit := DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition arm_BFI_semi_t (x y : wreg) (lsb width : word U8) : wreg :=
@@ -1546,6 +1575,7 @@ Definition arm_BFI_instr : instr_desc_t :=
     id_doit := DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition arm_BIC_instr : instr_desc_t :=
@@ -1573,6 +1603,7 @@ Definition arm_BIC_instr : instr_desc_t :=
       id_doit := DOIT;
       id_wf := refl_equal;
       id_init_dflt := fun _ _ => erefl;
+      id_init_expr := erefl;
     |}
   in
   let x :=
@@ -1609,6 +1640,7 @@ Definition arm_EOR_instr : instr_desc_t :=
       id_doit := DOIT;
       id_wf := refl_equal;
       id_init_dflt := fun _ _ => erefl;
+      id_init_expr := erefl;
     |}
   in
   let x :=
@@ -1649,6 +1681,7 @@ Definition arm_MVN_instr : instr_desc_t :=
       id_doit := DOIT;
       id_wf := refl_equal;
       id_init_dflt := fun _ => erefl;
+      id_init_expr := erefl;
     |}
   in
   let x :=
@@ -1685,6 +1718,7 @@ Definition arm_ORR_instr : instr_desc_t :=
       id_doit := DOIT;
       id_wf := refl_equal;
       id_init_dflt := fun _ _ => erefl;
+      id_init_expr := erefl;
     |}
   in
   let x :=
@@ -1754,6 +1788,7 @@ Definition arm_ASR_instr : instr_desc_t :=
       id_doit := DOIT;
       id_wf := refl_equal;
       id_init_dflt := arm_shift_init_dflt;
+      id_init_expr := erefl;
     |}
   in
   if set_flags opts
@@ -1792,6 +1827,7 @@ Definition arm_LSL_instr : instr_desc_t :=
       id_doit := DOIT;
       id_wf := refl_equal;
       id_init_dflt := arm_shift_init_dflt;
+      id_init_expr := erefl;
     |}
   in
   if set_flags opts
@@ -1830,6 +1866,7 @@ Definition arm_LSR_instr : instr_desc_t :=
       id_doit := DOIT;
       id_wf := refl_equal;
       id_init_dflt := arm_shift_init_dflt;
+      id_init_expr := erefl;
     |}
   in
   if set_flags opts
@@ -1868,6 +1905,7 @@ Definition arm_ROR_instr : instr_desc_t :=
       id_doit := DOIT;
       id_wf := refl_equal;
       id_init_dflt := arm_shift_init_dflt;
+      id_init_expr := erefl;
     |}
   in
   if set_flags opts
@@ -1895,6 +1933,7 @@ Definition mk_rev_instr mn semi doit :=
    ; id_doit := doit
    ; id_wf := refl_equal
    ; id_init_dflt := init_dflt_true erefl erefl
+   ; id_init_expr := erefl
   |}.
 
 Definition arm_REV_semi (w : ty_r) : ty_r :=
@@ -1940,6 +1979,7 @@ Definition arm_MOV_instr : instr_desc_t :=
       id_doit := DOIT;
       id_wf := refl_equal;
       id_init_dflt := fun _ => erefl;
+      id_init_expr := erefl;
     |}
   in
   if set_flags opts
@@ -1976,6 +2016,7 @@ Definition arm_MOVT_instr : instr_desc_t :=
     id_doit := DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition bit_field_extract_semi_t
@@ -2013,6 +2054,7 @@ Definition arm_UBFX_instr : instr_desc_t :=
     id_doit := DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition extend_bits_semi
@@ -2051,6 +2093,7 @@ Definition arm_UXTB_instr : instr_desc_t :=
     id_doit := DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition arm_UXTH_instr : instr_desc_t :=
@@ -2080,6 +2123,7 @@ Definition arm_UXTH_instr : instr_desc_t :=
     id_doit := DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition arm_SBFX_instr : instr_desc_t :=
@@ -2109,6 +2153,7 @@ Definition arm_SBFX_instr : instr_desc_t :=
     id_doit := DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition sign_extend_bits_semi
@@ -2142,6 +2187,7 @@ Definition arm_SXTB_instr : instr_desc_t :=
     id_doit := DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition arm_SXTH_instr : instr_desc_t :=
@@ -2171,6 +2217,7 @@ Definition arm_SXTH_instr : instr_desc_t :=
     id_doit := DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition arm_CMP_semi_t (wn wm : ty_r) : ty_nzcv_t :=
@@ -2205,6 +2252,7 @@ Definition arm_CMP_instr : instr_desc_t :=
       id_doit := DOIT;
       id_wf := refl_equal;
       id_init_dflt := init_dflt_true erefl erefl;
+      id_init_expr := erefl;
     |}
   in
   if has_shift opts is Some sk
@@ -2241,6 +2289,7 @@ Definition arm_TST_instr : instr_desc_t :=
       id_doit := DOIT;
       id_wf := refl_equal;
       id_init_dflt := fun _ _ => erefl;
+      id_init_expr := erefl;
     |}
   in
   if has_shift opts is Some sk
@@ -2272,6 +2321,7 @@ Definition arm_CMN_instr : instr_desc_t :=
       id_doit := DOIT;
       id_wf := refl_equal;
       id_init_dflt := init_dflt_true erefl erefl;
+      id_init_expr := erefl;
     |}
   in
   if has_shift opts is Some sk
@@ -2316,6 +2366,7 @@ Definition arm_load_instr mn : instr_desc_t :=
     id_doit := DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition arm_store_instr mn : instr_desc_t :=
@@ -2348,6 +2399,7 @@ Definition arm_store_instr mn : instr_desc_t :=
     id_doit := DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 Definition arm_CLZ_instr :=
@@ -2374,6 +2426,7 @@ Definition arm_CLZ_instr :=
     id_doit := DOIT;
     id_wf := refl_equal;
     id_init_dflt := init_dflt_true erefl erefl;
+    id_init_expr := erefl;
   |}.
 
 (* -------------------------------------------------------------------- *)

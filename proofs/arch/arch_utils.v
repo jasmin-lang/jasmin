@@ -219,6 +219,7 @@ Notation idt_dropn semi_dropn_t init_dflt_dropn :=
        id_pp_asm := id_pp_asm idt;
        id_wf := drop_id_wf (id_wf idt);
        id_init_dflt := init_dflt_dropn (id_init_dflt idt);
+       id_init_expr := all_beheadn (id_init_expr idt);
      |}).
 
 Definition idt_drop1 : instr_desc_t -> instr_desc_t :=

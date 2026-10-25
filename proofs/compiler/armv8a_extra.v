@@ -66,6 +66,7 @@ Definition Oarmv8a_add_large_imm_instr : instruction_desc :=
    ; i_doit := DOIT
    ; i_wf := refl_equal
    ; i_init_dflt := init_dflt_true erefl erefl
+   ; i_init_expr := erefl
    ; semu   := @values.vuincl_app_sopn_v ctin [:: cty]
                  (@mk_semi _ ctin [:: cty] [::] ErrSemUndef [:: IBool true ] semi) refl_equal
  |}.
@@ -114,6 +115,7 @@ Definition Oarmv8a_SLHupdate_instr : instruction_desc :=
    ; i_doit := DOIT
    ; i_wf := refl_equal
    ; i_init_dflt := init_dflt_true erefl erefl
+   ; i_init_expr := erefl
    ; semu   :=
        @values.vuincl_app_sopn_v ctin ctout
          (@mk_semi _ ctin ctout [::] ErrSemUndef [:: IBool true; IBool true ]

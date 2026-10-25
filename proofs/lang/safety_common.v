@@ -38,16 +38,6 @@ Fixpoint sc_to_e (es : pexprs) (c : safety_cond) : pexpr :=
   | IOpN_safety _ _ _ _ => Pbool false
   end.
 
-(* The conditions [sc_to_e] translates into an expression: those without the
-   predicates [IOpN_safety]. *)
-Fixpoint safety_cond_expr (c : safety_cond) : bool :=
-  match c with
-  | IBool _ | IConst _ | IVar _ => true
-  | IOp1 _ c => safety_cond_expr c
-  | IOp2 _ c1 c2 => safety_cond_expr c1 && safety_cond_expr c2
-  | IOpN_safety _ _ _ _ => false
-  end.
-
 (* A predicate [IOpN_safety] at the top is the assertion [PappN_safety]. *)
 Definition sc_to_eassert (es : pexprs) (c : safety_cond) : eassert :=
   if safety_cond_below (size es) c then

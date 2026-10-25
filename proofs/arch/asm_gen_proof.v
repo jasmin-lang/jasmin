@@ -820,11 +820,11 @@ Proof.
   case: id Hargs Hdest => /= id_valid msb_flag id_tin
    id_in id_tout id_out id_semi_total id_args_kinds id_nargs heqsz
    id_str_jas id_check_dest id_safe id_err id_init id_doit id_pp id_wf id_init_dflt
-   Hargs Hdest vt happ Hm'.
+   id_init_expr Hargs Hdest vt happ Hm'.
   rewrite /id_semi /=.
   case/andP: heqsz => /eqP hsin /eqP hsout.
   move: happ; move: (mk_semi id_safe id_err id_init id_semi_total) => id_semi happ.
-  clear id_semi_total id_wf id_init_dflt id_init.
+  clear id_semi_total id_wf id_init_dflt id_init_expr id_init.
   elim: id_in id_tin hsin id_semi args xs Hargs happ Hxs; rewrite /sem_prod.
   + move=> [] //= _ id_semi [|a1 args] [|v1 vs] //= _ -> _ /=.
     exact: (compile_lvals _ hsout Hm' Hlomeqv Hdest).

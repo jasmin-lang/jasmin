@@ -403,6 +403,7 @@ Definition get_instr_desc (o: extended_op) : instruction_desc :=
     ; i_doit   := id.(id_doit)
     ; i_wf     := semi_to_atype_wf id.(id_wf)
     ; i_init_dflt := semi_to_atype_init_dflt id.(id_init_dflt)
+    ; i_init_expr := id.(id_init_expr)
     ; semu     := @vuincl_app_sopn_v _ _ _ (is_not_carr_ltype _)
    |}
  | ExtOp o => asm_op_instr o

@@ -120,6 +120,17 @@ Fixpoint safety_cond_below (n : nat) (c : safety_cond) : bool :=
     [&& safety_cond_below n c1, safety_cond_below n c2 & safety_cond_below n c3]
   end.
 
+(* The conditions that are expressions on the arguments: those without the
+   predicates [IOpN_safety]. They are the conditions [sc_to_e] (safety_common.v)
+   translates into an expression. *)
+Fixpoint safety_cond_expr (c : safety_cond) : bool :=
+  match c with
+  | IBool _ | IConst _ | IVar _ => true
+  | IOp1 _ c => safety_cond_expr c
+  | IOp2 _ c1 c2 => safety_cond_expr c1 && safety_cond_expr c2
+  | IOpN_safety _ _ _ _ => false
+  end.
+
 (* Extra arguments do not change the type of a condition: the descriptors that
    extend the arguments of an instruction ([mk_cond], the shifted variants)
    need this to keep their conditions well typed. *)
