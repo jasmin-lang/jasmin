@@ -1,12 +1,12 @@
 (* * Correctness of the pass simplify_asserts.
 
    The pass rewrites the assertions only, with facts that hold on every path
-   that reaches them (constants, full masks, copies of arrays); a rewritten
-   assertion that holds implies the original one, on the same state. The rest
-   of the code is unchanged. The facts rely on a total mode: a write out of
-   the bounds of an array leaves it unchanged, which keeps a full mask full.
-   The pass runs after [explicit_init], on programs whose semantics is the
-   mode [total_init].
+   that reaches them (constants, full masks, bytes of masks known to be
+   0xFF, copies of arrays); a rewritten assertion that holds implies the
+   original one, on the same state. The rest of the code is unchanged. The
+   facts rely on a total mode: a write out of the bounds of an array leaves
+   it unchanged, which keeps a full mask full. The pass runs after
+   [explicit_init], on programs whose semantics is the mode [total_init].
 
    The relation [wiequiv_f] only constrains the runs of its first program that
    do not fail: the statement is that of the direction needed, from the

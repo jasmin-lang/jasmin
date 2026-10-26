@@ -2,7 +2,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 From Coq Require Import ZArith.
 From mathcomp Require Import word_ssrZ.
-Require Import expr compiler_util psem_defs.
+Require Import expr pseudo_operator compiler_util psem_defs.
 
 Local Open Scope seq_scope.
 
@@ -22,23 +22,26 @@ Local Open Scope seq_scope.
      [lo, lo + n) and 0 elsewhere, written by an assignment of an [Oarr_fill]
      (the mask of a sub-array of a global array), where [lo] and [n] are
      integer expressions over integer local variables written by no
-     instruction since.
-   At a join of paths, the facts on which both paths agree remain. At the
-   head of a loop, the facts are those on entry that the body preserves: the
-   fixpoint of the join with the state after the body, reached in fewer
-   iterations than there are facts on entry. An assertion that holds
-   establishes facts after it: a boolean variable it asserts is [true], a mask
-   whose bytes it tests over the whole array is full.
+     instruction since;
+   - [Ainit l]: the variable is an array whose bytes in the intervals of
+     constants of [l] are 0xFF: a partially initialised mask, whose cells are
+     written at literal indices.
+   At a join of paths, the facts on which both paths agree remain, and of two
+   facts on the bytes of an array, the bytes known on both paths. At the head
+   of a loop, the facts are those on entry that the body preserves: the
+   fixpoint of the join with the state after the body. An assertion that
+   holds establishes facts after it: a boolean variable it asserts is
+   [true], the bytes of a mask it tests at literal bounds are 0xFF.
 
    The assertions are rewritten with these facts; the rest of the code is
    left unchanged. A variable with a known constant is replaced by the
    constant; a closed operation on literals is replaced by its value, computed
    by the semantics of the total mode, in which the assertions are evaluated;
    an initialisation test [Ois_barr_init] becomes [true] when it tests no
-   cell, and the condition on its bounds that it amounts to when its mask is
-   full, a sub-array of a full local mask, or a local mask known to be a fill
-   [Afill lo n]; a conjunct [true] is removed, and an assertion that becomes
-   [true] is removed.
+   cell or bytes known to be 0xFF, and the condition on its bounds that it
+   amounts to when its mask is full, a sub-array of a full local mask, or a
+   local mask known to be a fill [Afill lo n]; a conjunct [true] is removed,
+   and an assertion that becomes [true] is removed.
 
    The rewriting drops no subexpression whose evaluation could fail: the
    rewritten expression evaluates exactly as the original one, but for the
@@ -48,8 +51,9 @@ Local Open Scope seq_scope.
    and reads the bounds of a fill [Afill lo n]: these were evaluated by the
    assignment of the fill, and the variables they read have not been written
    since, so that they evaluate again to the same integers. A test on no
-   cell drops only literals and the read of a local array or of its
-   sub-array at a literal index, which do not fail in the total mode. When
+   cell, or on bytes known to be 0xFF, drops only literals and the read of a
+   local array or of its sub-array at a literal index, or a fill of literals,
+   which do not fail in the total mode. When
    the rewritten assertion holds, so does the original one. *)
 
 Section ASM_OP.
@@ -100,7 +104,8 @@ Variant aval :=
   | Aconst of pexpr
   | Afull
   | Acopy of var
-  | Afill of pexpr & pexpr.
+  | Afill of pexpr & pexpr
+  | Ainit of seq (Z * Z).
 
 Definition aval_beq (a1 a2 : aval) : bool :=
   match a1, a2 with
@@ -108,6 +113,7 @@ Definition aval_beq (a1 a2 : aval) : bool :=
   | Afull, Afull => true
   | Acopy x1, Acopy x2 => x1 == x2
   | Afill lo1 n1, Afill lo2 n2 => eq_expr lo1 lo2 && eq_expr n1 n2
+  | Ainit l1, Ainit l2 => l1 == l2
   | _, _ => false
   end.
 
@@ -116,27 +122,110 @@ Definition astate := Mvar.t aval.
 Definition eint_le e1 e2 := Papp2 (Ole Cmp_int) e1 e2.
 Definition eint_add e1 e2 := Papp2 (Oadd Op_int) e1 e2.
 
-(* The facts that hold on both paths. *)
+(* ------------------------------------------------------------------------- *)
+(* Sets of bytes                                                              *)
+
+(* A set of bytes is a list of intervals [[a, b)], sorted, nonempty, and
+   neither overlapping nor adjacent: the bytes of an interval are in the set
+   exactly when it is included in one of the intervals. The operations below
+   take and return such lists. *)
+
+(* The union of [[a, b)] and [l]. *)
+Fixpoint iv_add (a b : Z) (l : seq (Z * Z)) : seq (Z * Z) :=
+  if (b <=? a)%Z then l
+  else
+    match l with
+    | [::] => [:: (a, b)]
+    | (c, d) :: l' =>
+      if (b <? c)%Z then (a, b) :: l
+      else if (d <? a)%Z then (c, d) :: iv_add a b l'
+      else iv_add (Z.min a c) (Z.max b d) l'
+    end.
+
+(* [l1] is any list of intervals. *)
+Definition iv_union (l1 l2 : seq (Z * Z)) : seq (Z * Z) :=
+  foldr (fun ab l => iv_add ab.1 ab.2 l) l2 l1.
+
+Definition iv_inter (l1 l2 : seq (Z * Z)) : seq (Z * Z) :=
+  foldr (fun ab l =>
+    foldr (fun cd l => iv_add (Z.max ab.1 cd.1) (Z.min ab.2 cd.2) l) l l2) [::] l1.
+
+(* The bytes of [l] out of [[a, b)]. *)
+Definition iv_remove (l : seq (Z * Z)) (a b : Z) : seq (Z * Z) :=
+  foldr (fun cd l => iv_add cd.1 (Z.min cd.2 a) (iv_add (Z.max cd.1 b) cd.2 l)) [::] l.
+
+Definition iv_shift (k : Z) (l : seq (Z * Z)) : seq (Z * Z) :=
+  map (fun ab => (ab.1 + k, ab.2 + k)%Z) l.
+
+(* The bytes of [[a, b)] are in [l]. *)
+Definition iv_incl (l : seq (Z * Z)) (a b : Z) : bool :=
+  (b <=? a)%Z || has (fun cd => (cd.1 <=? a) && (b <=? cd.2))%Z l.
+
+(* The bytes of [[0, len)]. *)
+Definition iv_bounds (len : Z) : seq (Z * Z) := iv_add 0 len [::].
+
+(* The number of intervals kept in a fact. *)
+Definition iv_max := 16%nat.
+
+(* The size in bytes of an array variable. *)
+Definition arr_len (x : var) : Z :=
+  if vtype x is aarr ws len then arr_size ws len else 0.
+
+(* The fact that the bytes of [l] of an array of [len] bytes are 0xFF: none
+   when no byte of [l] is in its bounds, [Afull] when [l] covers them. Beyond
+   [iv_max] intervals, the first ones only: a subset of the bytes. *)
+Definition aof_ivs (len : Z) (l : seq (Z * Z)) : option aval :=
+  let l := take iv_max (iv_inter l (iv_bounds len)) in
+  if l is [::] then None
+  else if iv_incl l 0 len then Some Afull
+  else Some (Ainit l).
+
+(* The bytes known to be 0xFF in an array of [len] bytes with the fact [a]: a
+   fill of 0xFF at literal bounds has them in its bounds ([WArray.fill]). *)
+Definition ivs_of_aval (len : Z) (a : aval) : seq (Z * Z) :=
+  match a with
+  | Afull => iv_bounds len
+  | Ainit l => l
+  | Afill (Pconst lo) (Pconst n) => iv_inter (iv_add lo (lo + n) [::]) (iv_bounds len)
+  | _ => [::]
+  end.
+
+(* The facts that hold on both paths: the same fact, or the bytes of an array
+   that are 0xFF on both paths. *)
 Definition ajoin (s1 s2 : astate) : astate :=
-  Mvar.map2 (fun _ o1 o2 =>
+  Mvar.map2 (fun x o1 o2 =>
     match o1, o2 with
-    | Some a1, Some a2 => if aval_beq a1 a2 then Some a1 else None
+    | Some a1, Some a2 =>
+      if aval_beq a1 a2 then Some a1
+      else
+        let len := arr_len x in
+        aof_ivs len (iv_inter (ivs_of_aval len a1) (ivs_of_aval len a2))
     | _, _ => None
     end) s1 s2.
 
 Definition asize (s : astate) : nat := size (Mvar.elements s).
+
+(* The same facts. *)
+Definition aeq (s1 s2 : astate) : bool :=
+  (asize s1 == asize s2) &&
+  all (fun xa => if Mvar.get s2 xa.1 is Some a then aval_beq xa.2 a else false)
+      (Mvar.elements s1).
+
+(* A fact on a variable not in [xs] that a write to the variables of [xs]
+   preserves: not a copy of one of them, nor a fill whose bounds read them. *)
+Definition akeep (xs : Sv.t) (a : aval) : bool :=
+  match a with
+  | Acopy z => ~~ Sv.mem z xs
+  | Afill lo n => disjoint (read_e (eint_add lo n)) xs
+  | _ => true
+  end.
 
 (* After a write to the variables of [xs]: no fact on them, nor on the copies
    of them, nor fills whose bounds read them. *)
 Definition akill (s : astate) (xs : Sv.t) : astate :=
   Mvar.filter_map (fun y a =>
     if Sv.mem y xs then None
-    else
-      match a with
-      | Acopy z => if Sv.mem z xs then None else Some a
-      | Afill lo n => if disjoint (read_e (eint_add lo n)) xs then Some a else None
-      | _ => Some a
-      end) s.
+    else if akeep xs a then Some a else None) s.
 
 Definition akill1 s x := akill s (Sv.singleton x).
 
@@ -257,6 +346,50 @@ Definition is_ones_fill (es : pexprs) : option (pexpr * pexpr) :=
   | _ => None
   end.
 
+(* The bytes known to be 0xFF in the array variable [x]: those of its fact,
+   or of the fact of the array [y] when [x] is known to be a copy of [y]. *)
+Definition ivs_of_var (s : astate) (x : var) : seq (Z * Z) :=
+  let len := arr_len x in
+  match Mvar.get s x with
+  | Some (Acopy y) => if Mvar.get s y is Some a then ivs_of_aval len a else [::]
+  | Some a => ivs_of_aval len a
+  | None => [::]
+  end.
+
+(* The bytes known to be 0xFF in the value of [e], an array of [len] bytes:
+   - a local array variable;
+   - a sub-array at a literal index [i] of a local array variable: in the
+     total mode ([WArray.get_sub]), its byte [k] is the byte [start + k] of
+     the array, with [start = i * mk_scale aa ws], when it lies in the bounds
+     of the array, and is not initialised otherwise;
+   - a fill with 0xFF at literal bounds, in the bounds of the array
+     ([WArray.fill]).
+   Each of these expressions evaluates without failure in the total mode. *)
+Definition ivs_of_e (s : astate) (len : Z) (e : pexpr) : seq (Z * Z) :=
+  match e with
+  | Pvar x =>
+    if is_lvar x && (arr_len x.(gv) == len) then ivs_of_var s x.(gv) else [::]
+  | Psub aa ws slen x (Pconst i) =>
+    if is_lvar x && (arr_size ws slen == len) then
+      let start := (i * mk_scale aa ws)%Z in
+      iv_shift (- start) (iv_inter (ivs_of_var s x.(gv)) (iv_add start (start + len) [::]))
+    else [::]
+  | PappN (Oarr_fill ws flen) [:: Pconst lo; Pconst n; Papp1 (Oword_of_int U8) (Pconst z)] =>
+    if (arr_size ws flen == len) && (wrepr U8 z == wrepr U8 (-1)) then
+      iv_inter (iv_add lo (lo + n) [::]) (iv_bounds len)
+    else [::]
+  | _ => [::]
+  end.
+
+(* An initialisation test at literal bounds of at least one cell, all of
+   whose bytes are known to be 0xFF. The mask is then one of the expressions
+   of [ivs_of_e], which do not fail to evaluate. *)
+Definition is_init_ivs (s : astate) (len : Z) (m lo n : pexpr) : bool :=
+  match lo, n with
+  | Pconst lo, Pconst k => (0 <? k)%Z && iv_incl (ivs_of_e s len m) lo (lo + k)
+  | _, _ => false
+  end.
+
 (* An initialisation test on no cell: its length [n] is a literal [<= 0], so
    that [ziota lo n] is empty and the test holds whatever the mask. The test
    is recognised only when the arguments it drops cannot fail to evaluate:
@@ -280,11 +413,11 @@ Definition is_no_cell (len : Z) (m lo n : pexpr) : bool :=
   end.
 
 (* The condition on the bounds that an initialisation test on the mask [m]
-   of [len] bytes amounts to, when it tests no cell, or when [m] is a full
-   mask, a sub-array of a full local mask of the same size, or a local mask of
-   the same size known to be a fill. *)
+   of [len] bytes amounts to, when it tests no cell or bytes known to be
+   0xFF, or when [m] is a full mask, a sub-array of a full local mask of the
+   same size, or a local mask of the same size known to be a fill. *)
 Definition is_init_bounds (s : astate) (len : Z) (m lo n : pexpr) : option pexpr :=
-  if is_no_cell len m lo n then Some (Pbool true)
+  if is_no_cell len m lo n || is_init_ivs s len m lo n then Some (Pbool true)
   else if is_full s len m then Some (ebounds len lo n)
   else
     match m with
@@ -344,17 +477,37 @@ Fixpoint simpl_a (s : astate) (a : eassert) : option eassert :=
   | Pand a1 a2 => aand (simpl_a s a1) (simpl_a s a2)
   end.
 
-(* What an assertion that holds establishes: a boolean variable is [true]; a
-   mask whose bytes are tested over the whole array is full. *)
+(* The bytes [[a, b)] of the array variable [x] are 0xFF: the fact is set on
+   [x], or on [y] when [x] is known to be a copy of [y], which keeps the copy;
+   when this covers the array, [x] is full. A fill [Afill lo n] at bounds that
+   are not literals is kept as it is: its bytes are known exactly. *)
+Definition aadd_ivs (s : astate) (x : var) (a b : Z) : astate :=
+  let l := ivs_of_var s x in
+  let y := if Mvar.get s x is Some (Acopy y) then y else x in
+  if iv_incl l a b then s
+  else if Mvar.get s y is Some (Afill _ _) then s
+  else
+    match aof_ivs (arr_len x) (iv_add a b l) with
+    | Some Afull => aset_full s x
+    | Some f => Mvar.set s y f
+    | None => s
+    end.
+
+(* What an assertion that holds establishes: a boolean variable is [true]; the
+   bytes of a mask tested at literal bounds are 0xFF, and a mask whose bytes
+   are tested over the whole array is full. *)
 Fixpoint learn_a (s : astate) (a : eassert) : astate :=
   match a with
   | Pexpr (Pvar x) =>
     if is_lvar x && (vtype x.(gv) == abool) then Mvar.set s x.(gv) (Aconst (Pbool true))
     else s
   | PappN_safety (Ois_barr_init n) [:: Pvar x; Pconst lo; Pconst k] =>
-    if is_lvar x && (lo <=? 0)%Z && (n <=? lo + k)%Z then
+    if is_lvar x then
       if vtype x.(gv) is aarr ws len then
-        if arr_size ws len == n then aset_full s x.(gv) else s
+        if arr_size ws len == n then
+          if (lo <=? 0)%Z && (n <=? lo + k)%Z then aset_full s x.(gv)
+          else aadd_ivs s x.(gv) lo (lo + k)
+        else s
       else s
     else s
   | Pand a1 a2 => learn_a (learn_a s a1) a2
@@ -378,9 +531,11 @@ Definition aval_of_e (s : astate) (x : var) (ty : atype) (e : pexpr) : option av
         | Some Afull => Some Afull
         | Some (Acopy z) => Some (Acopy z)
         | Some (Afill lo n) => Some (Afill lo n)
+        | Some (Ainit l) => Some (Ainit l)
         | None => Some (Acopy y.(gv))
         end
       else None
+    | Psub _ _ _ _ _, aarr _ _ => aof_ivs (arr_len x) (ivs_of_e s (arr_len x) e)
     | PappN (Oarr_fill ws len) es, aarr _ _ =>
       if aarr ws len != ty then None
       else if is_full_fill ws len es then Some Afull
@@ -397,33 +552,79 @@ Definition aassign (s : astate) (x : var) (oa : option aval) : astate :=
   | Some a => Mvar.set s x a
   end.
 
-Definition is_afull (oa : option aval) : bool :=
-  if oa is Some Afull then true else false.
-
 (* The value written by a cell write at type [ws]: all-ones bytes. *)
 Definition is_ones ws (ty : atype) (e : pexpr) : bool :=
   if e is Papp1 (Oword_of_int ws') (Pconst z) then
     [&& ws' == ws, ty == aword ws & wrepr ws z == wrepr ws (-1)]
   else false.
 
-(* A full mask stays full when a cell is written with all-ones bytes, or a
-   sub-array with a full mask: in the total mode, a write out of the bounds of
-   the array leaves it unchanged. Any other write to an array forgets what is
-   known of it. *)
+(* [x] has the bytes [l] known to be 0xFF, after a write to it. *)
+Definition aset_ivs (s : astate) (x : var) (l : seq (Z * Z)) : astate :=
+  let s := akill1 s x in
+  if aof_ivs (arr_len x) l is Some a then Mvar.set s x a else s.
+
+(* The bytes known to be 0xFF after a write to an array. In the total mode, a
+   write sets the bytes in the bounds of the array and ignores the others
+   ([WArray.set8], [WArray.set_sub_data]); the index of the write is
+   evaluated in the state before it, where the constants are known.
+   - A cell of [ws] bytes at the offset [off = i * mk_scale aa ws] written
+     with all-ones bytes: the bytes [[off, off + ws)] are 0xFF in addition to
+     the known ones when [i] is a literal; at another index, the known ones
+     stay 0xFF, the write adds 0xFF bytes only.
+   - A cell written with another value at a literal index: its bytes are
+     unknown, the others stay; at another index, any byte may change and
+     nothing is known.
+   - A sub-array of [n] bytes at the literal offset [off]: its byte [k] is
+     copied to the byte [off + k] when it lies in the bounds, which are then
+     known to be 0xFF when the byte [k] of the value is; the other bytes stay.
+     At another index, the known bytes stay when the value is known to be
+     full, which writes 0xFF bytes only; otherwise nothing is known. *)
 Definition aassgn (s : astate) (lv : lval) (ty : atype) (e : pexpr) : astate :=
   let e := simpl_e s e in
   match lv with
   | Lvar x => aassign s x (aval_of_e s x ty e)
-  | Laset _ _ ws x _ =>
-    let full := is_afull (Mvar.get s x) && is_ones ws ty e in
-    let s := akill1 s x in
-    if full then Mvar.set s x Afull else s
-  | Lasub _ ws len x _ =>
-    let full := is_afull (Mvar.get s x) && (ty == aarr ws len)
-                && is_full s (arr_size ws len) e in
-    let s := akill1 s x in
-    if full then Mvar.set s x Afull else s
+  | Laset _ aa ws x i =>
+    let l := ivs_of_var s x in
+    let off := if simpl_e s i is Pconst k then Some (k * mk_scale aa ws)%Z else None in
+    let l :=
+      match is_ones ws ty e, off with
+      | true, Some off => iv_add off (off + wsize_size ws) l
+      | true, None => l
+      | false, Some off => iv_remove l off (off + wsize_size ws)
+      | false, None => [::]
+      end in
+    aset_ivs s x l
+  | Lasub aa ws len x i =>
+    let n := arr_size ws len in
+    let l := ivs_of_var s x in
+    let le := if ty == aarr ws len then ivs_of_e s n e else [::] in
+    let l :=
+      if simpl_e s i is Pconst k then
+        let off := (k * mk_scale aa ws)%Z in
+        iv_union (iv_shift off le) (iv_remove l off (off + n))
+      else if iv_incl le 0 n then l
+      else [::] in
+    aset_ivs s x l
   | Lnone _ _ | Lmem _ _ _ _ => s
+  end.
+
+(* After [x1, x2 := swap(e1, e2)] on arrays of the type of the swap, [x1] holds
+   the value of [e2] and [x2] that of [e1], both evaluated before the writes:
+   the facts on [e2] and [e1] in the state before, that the writes preserve.
+   Any other instruction forgets what is known of the variables it writes. *)
+Definition aopn (s : astate) (lvs : lvals) (o : sopn) (es : pexprs) : astate :=
+  let xs := vrvs lvs in
+  let s' := akill s xs in
+  match o, lvs, es with
+  | Opseudo_op (Oswap (aarr _ _ as ty)), [:: Lvar x1; Lvar x2], [:: e1; e2] =>
+    if [&& vtype x1 == ty, vtype x2 == ty & x1.(v_var) != x2.(v_var)] then
+      let add x e s1 :=
+        if aval_of_e s x ty (simpl_e s e) is Some a then
+          if akeep xs a then Mvar.set s1 x a else s1
+        else s1 in
+      add x1 e2 (add x2 e1 s')
+    else s'
+  | _, _, _ => s'
   end.
 
 Section LOOP.
@@ -435,13 +636,14 @@ Section LOOP.
 Context (body : astate -> astate * astate * cmd * cmd).
 
 (* The state at the head of the loop is the join of the state on entry with
-   the states after the body: a decreasing sequence of states, each a subset
-   of the previous one, which is stable once its size is; [n] bounds the
-   number of iterations by the size of the state on entry. *)
+   the states after the body: a decreasing sequence of states, each fact
+   being the one of the previous state or a weaker one, until it is stable.
+   [n] bounds the number of iterations; beyond it, the body is analysed from
+   no fact, which holds at the head of the loop. *)
 Fixpoint wloop (n : nat) (s : astate) : astate * cmd * cmd :=
   let: (s1, s2, c1, c2) := body s in
   let s' := ajoin s s2 in
-  if asize s' == asize s then (s1, c1, c2)
+  if aeq s' s then (s1, c1, c2)
   else if n is S n then wloop n s'
   else let: (s1, _, c1, c2) := body (Mvar.empty _) in (s1, c1, c2).
 
@@ -466,7 +668,8 @@ Fixpoint simpl_i (s : astate) (i : instr) : astate * cmd :=
   let: MkI ii ir := i in
   match ir with
   | Cassgn lv _ ty e => (aassgn s lv ty e, [:: i])
-  | Copn lvs _ _ _ | Csyscall lvs _ _ | Ccall lvs _ _ => (akill s (vrvs lvs), [:: i])
+  | Copn lvs _ o es => (aopn s lvs o es, [:: i])
+  | Csyscall lvs _ _ | Ccall lvs _ _ => (akill s (vrvs lvs), [:: i])
   | Cassert (lbl, a) =>
     match simpl_a s a with
     | None => (s, [::])
@@ -482,14 +685,14 @@ Fixpoint simpl_i (s : astate) (i : instr) : astate * cmd :=
     let body s :=
       let: (s2, c) := simpl_c simpl_i (akill1 s x) c in
       (s, s2, c, [::]) in
-    let: (s, c, _) := wloop body (S (asize s)) s in
+    let: (s, c, _) := wloop body (iv_max * S (asize s)) s in
     (s, [:: MkI ii (Cfor x r c)])
   | Cwhile a c1 e ii_w c2 =>
     let body s :=
       let: (s1, c1) := simpl_c simpl_i s c1 in
       let: (s2, c2) := simpl_c simpl_i s1 c2 in
       (s1, s2, c1, c2) in
-    let: (s1, c1, c2) := wloop body (S (asize s)) s in
+    let: (s1, c1, c2) := wloop body (iv_max * S (asize s)) s in
     (s1, [:: MkI ii (Cwhile a c1 e ii_w c2)])
   end.
 
