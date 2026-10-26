@@ -2,14 +2,12 @@ require import AllCore IntDiv CoreMap List Distr.
 from Jasmin require import JModel_x86.
 
 (* ----------------------------------------------------------------------------*)
-require Test_arr_sum.
+require Test_arr_sum Test_arr_sum_specs.
 require import BArray5.
 
-lemma test_arr_sum_safe :
-  hoare [ Test_arr_sum.M.test :
-          BArray5.is_init b_x 0 5 ==> true | Test_arr_sum.Assertion_failure => false ].
+lemma test_arr_sum_safe _x _b_x : Test_arr_sum_specs.test_spec _x _b_x.
 proof.
-  proc; wp.
+  rewrite /Test_arr_sum_specs.test_spec; proc; wp.
   while (0 <= i /\ b_sum /\ BArray5.is_init b_x 0 5).
   + by auto => /> &m; rewrite /BArray5.is_init /BArray5.is_init_cell /#.
   by auto.
@@ -74,15 +72,13 @@ lemma test_glob_var_safe :
 proof. by proc; auto. qed.
 
 (* ----------------------------------------------------------------------------*)
-require Test_init_arr_sum.
+require Test_init_arr_sum Test_init_arr_sum_specs.
 require import BArray10.
 
-lemma test_init_arr_sum_safe :
-  hoare [ Test_init_arr_sum.M.test :
-          BArray10.is_init b_x 0 10 /\ BArray10.is_init b_y 0 10 ==>
-          BArray10.is_init res.`2 0 10 | Test_init_arr_sum.Assertion_failure => false ].
+lemma test_init_arr_sum_safe _x _b_x _y _b_y _z _b_z :
+  Test_init_arr_sum_specs.test_spec _x _b_x _y _b_y _z _b_z.
 proof.
-  proc; wp.
+  rewrite /Test_init_arr_sum_specs.test_spec; proc; wp.
   while (0 <= i <= 5 /\ b_i = (0 < i) /\ BArray10.is_init b_x 0 10 /\
          BArray10.is_init b_y 0 10 /\ BArray10.is_init b_z 0 (2 * i)).
   + by auto => /> &m; rewrite /BArray10.is_init /#.
@@ -90,7 +86,7 @@ proof.
 qed.
 
 (* ----------------------------------------------------------------------------*)
-require Test_init_pos_func.
+require Test_init_pos_func Test_init_pos_func_specs.
 require import BArray5.
 
 (* [init_pos] initialises the cell [i] and leaves the others as they were *)
@@ -104,20 +100,24 @@ proof.
   by rewrite /BArray5.is_init_cell; smt(get_setE).
 qed.
 
-lemma test2_safe :
-  hoare [ Test_init_pos_func.M.test2 :
-          BArray5.is_init b_x 0 5 ==> true | Test_init_pos_func.Assertion_failure => false ].
+(* the specification of [init_pos], weaker *)
+lemma init_pos_spec_safe _x _b_x _i : Test_init_pos_func_specs.init_pos_spec _x _b_x _i.
 proof.
-  proc; auto.
-  ecall (init_pos_safe b_x0 ix); auto => /> &m hx r h.
+  rewrite /Test_init_pos_func_specs.init_pos_spec.
+  conseq (init_pos_safe _b_x _i) => /> &m *.
+  by rewrite /BArray5.is_init /#.
+qed.
+
+lemma test2_safe _x _b_x : Test_init_pos_func_specs.test2_spec _x _b_x.
+proof.
+  rewrite /Test_init_pos_func_specs.test2_spec; proc; auto.
+  ecall (init_pos_safe b_x0 ix); auto => /> hx r h.
   move: hx; rewrite /BArray5.is_init; smt().
 qed.
 
-lemma test_safe :
-  hoare [ Test_init_pos_func.M.test :
-          true ==> BArray5.is_init res.`2 0 5 | Test_init_pos_func.Assertion_failure => false ].
+lemma test_safe _x _b_x : Test_init_pos_func_specs.test_spec _x _b_x.
 proof.
-  proc; auto.
+  rewrite /Test_init_pos_func_specs.test_spec; proc; auto.
   while (0 <= i <= 5 /\ b_i /\ BArray5.is_init b_x 0 i).
   + wp; ecall (init_pos_safe b_x0 ix); auto => /> &m h0 _ hx h5 r h.
     move: hx; rewrite /BArray5.is_init; smt().
@@ -132,3 +132,30 @@ lemma test_mem_safe :
           0 <= str /\ str + 8 < W64.modulus /\ is_valid W64.modulus Glob.mem_v str 8 ==>
           true | Test_mem.Assertion_failure => false ].
 proof. by proc; auto => /> &m /#. qed.
+
+(* ----------------------------------------------------------------------------*)
+require Test_call_post Test_call_post_specs.
+require import BArray16.
+
+lemma fill_safe _x _b_x : Test_call_post_specs.fill_spec _x _b_x.
+proof.
+  rewrite /Test_call_post_specs.fill_spec; proc; wp.
+  while (0 <= i <= 4 /\ BArray16.is_init b_x 0 (4 * i)).
+  + auto => /> &m h0 _ hinit h4; split; 1: smt().
+    move=> _ _; split; 1: smt().
+    rewrite /BArray16.is_init => k hk1 hk2 /=.
+    move: hinit; rewrite /BArray16.is_init /#.
+  auto => />; split; 1: by rewrite /BArray16.is_init /#.
+  by move=> b i h4 h0 h4' hinit; have <- : 4 * i = 16 by smt().
+qed.
+
+(* [sum] reads the array returned by [fill]: the specification of [fill]
+   states that it is initialised. *)
+lemma sum_safe :
+  hoare [ Test_call_post.M.sum : true ==> true | Test_call_post.Assertion_failure => false ].
+proof.
+  proc; wp.
+  while (0 <= i /\ b_s /\ BArray16.is_init b_a 0 16).
+  + by auto => /> &m; rewrite /BArray16.is_init /#.
+  wp; ecall (fill_safe x b_x); auto => /> /#.
+qed.

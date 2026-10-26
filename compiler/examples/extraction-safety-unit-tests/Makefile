@@ -6,14 +6,16 @@ JASMIN2EC := ../../jasmin2ec
 
 SOURCES := $(wildcard *.jazz)
 EXTRACTED := $(SOURCES:.jazz=.ec)
+# the specifications of the functions with a contract
+SPECS := $(SOURCES:.jazz=_specs.ec)
 
-all: proofs.ec $(EXTRACTED)
+all: proofs.ec $(EXTRACTED) $(SPECS)
 	easycrypt runtest $(ECARGS) ec.config $@
 
 clean:
-	$(RM) $(EXTRACTED)
+	$(RM) $(EXTRACTED) $(SPECS)
 
-%.ec: %.jazz $(JASMIN2EC)
-	$(JASMIN2EC) --safety -o $@ $<
+%.ec %_specs.ec: %.jazz $(JASMIN2EC)
+	$(JASMIN2EC) --safety --safety-specs $*_specs.ec -o $*.ec $<
 
 .PHONY: all

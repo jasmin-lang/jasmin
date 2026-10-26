@@ -1,0 +1,27 @@
+// [sum] reads the array that [fill] returns: it is safe by the ensures
+// clause of [fill], which states that every cell is initialised.
+#[safety =
+   { res = {r}
+   , ensures = is_arr_init(r,0,16) }
+ ]
+fn fill(reg ptr u32[4] x) -> reg ptr u32[4]
+{
+    inline int i;
+    for i = 0 to 4 {
+      x[i] = 0;
+    }
+    return x;
+}
+
+fn sum() -> reg u32
+{
+    stack u32[4] a;
+    reg u32 s;
+    inline int i;
+    a = fill(a);
+    s = 0;
+    for i = 0 to 4 {
+      s += a[i];
+    }
+    return s;
+}
