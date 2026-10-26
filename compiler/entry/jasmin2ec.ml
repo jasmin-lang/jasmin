@@ -54,7 +54,7 @@ let parse_and_extract arch call_conv idirs =
       output pass file =
     let prog = parse_and_compile (module A) ~wi2i:true pass file idirs in
     let prog =
-      if safety then Compile.do_toec_safety (module A) prog
+      if safety then Compile.do_toec_safety (module A) ~fnames:functions prog
       else Compile.do_toec (module A) prog
     in
     try

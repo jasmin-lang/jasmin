@@ -13,7 +13,8 @@
    expressions are well typed does not fail: the memory accesses, the array
    accesses and the operators are total, a variable never written reads a
    default value. [total_ok] states it for every assignment and operator of
-   the program. *)
+   the program (and for the arguments of the calls, which the removal of
+   parameters, in [dead_args], removes). *)
 
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import compiler_util psem psem_facts.
@@ -30,7 +31,7 @@ Context
   {spp : SemPexprParams} {sip : SemInstrParams asm_op syscall_state}.
 
 (* In the total mode, on every state, the assignments and the operators of [p]
-   run. *)
+   run, and the arguments of its calls evaluate. *)
 Fixpoint total_ok_i (p : uprog) (i : instr) : Prop :=
   let total_ok_c :=
     fix total_ok_c (c : cmd) : Prop :=
@@ -39,7 +40,8 @@ Fixpoint total_ok_i (p : uprog) (i : instr) : Prop :=
   match ir with
   | Cassgn x tg ty e => forall s, is_ok (sem_assgn (sm := total) p x tg ty e s)
   | Copn xs tg o es => forall s, is_ok (sem_sopn (sm := total) (p_globs p) o s xs es)
-  | Ccall _ _ _ | Csyscall _ _ _ | Cassert _ => True
+  | Ccall _ _ es => forall s, is_ok (sem_pexprs (sm := total) true (p_globs p) s es)
+  | Csyscall _ _ _ | Cassert _ => True
   | Cif _ c1 c2 | Cwhile _ c1 _ _ c2 => total_ok_c c1 /\ total_ok_c c2
   | Cfor _ _ c => total_ok_c c
   end.

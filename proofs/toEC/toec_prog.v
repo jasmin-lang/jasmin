@@ -1,5 +1,5 @@
 Require Import toec_for toec_while for_to_while normalize_calls contracts_to_asserts safety explicit_init
-  simplify_asserts assert_facts dead_code.
+  simplify_asserts assert_facts dead_args.
 Import compiler_util expr.
 
 #[local] Instance toec_LoopCounter : LoopCounter :=
@@ -33,9 +33,14 @@ Definition toec_uprog : _uprog -> cexec _uprog :=
    ([simplify_asserts]): the constants, among them the masks of the scalars,
    and the masks of the arrays known to be full; then the conjuncts that an
    earlier assertion establishes are removed ([assert_facts]). Then the code
-   that computes nothing used is removed ([dead_code]): among it the writes of
-   the masks that no assertion reads. *)
-Definition toec_uprog_safety (mask : var -> var) (p : _uprog) : cexec _uprog :=
+   that computes nothing used is removed, with the parameters and the results
+   of the functions that nothing uses ([dead_args]): among them the masks that
+   no assertion reads. [protect] tells the parameters and results that are
+   kept, [dead_info protect] those that are dead. *)
+Definition toec_uprog_safety (mask : var -> var) (protect : funname -> var -> bool)
+    (dead_info : (funname -> var -> bool) -> _uprog ->
+                 funname -> option (seq bool) * option (seq bool))
+    (p : _uprog) : cexec _uprog :=
   Let p := normalize_calls_prog (pT := progUnit) fresh_var_ident p in
   Let p := contracts_to_asserts_prog fresh_var_ident p in
   Let p := sc_prog p in
@@ -43,6 +48,6 @@ Definition toec_uprog_safety (mask : var -> var) (p : _uprog) : cexec _uprog :=
   Let p := toec_for_prog (pT := progUnit) fresh_var_ident p in
   Let p := explicit_init_prog mask p in
   let p := assert_facts_prog (simplify_asserts_prog p) in
-  dead_code_prog (fun _ => false) (pT := progUnit) p false.
+  dead_args_prog protect (dead_info protect) p.
 
 End TOEC.

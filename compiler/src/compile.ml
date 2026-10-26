@@ -134,13 +134,31 @@ let do_toec
   let cp = catch_error cp in
   Conv.prog_of_cuprog cp
 
-(* The extraction for safety: the mask of an array is an array of the same
-   type, the mask of a scalar is a boolean. *)
-let do_toec_safety
-   (type asm_op extra_op)
-    (module Arch : Arch_full.Arch
-       with type asm_op = asm_op
-       and type extra_op = extra_op) prog =
+(* The functions that EasyCrypt may call, whose signature the extraction
+   keeps: the export functions, the functions with a contract (their
+   specification is printed from their signature), the functions that no
+   function of the program calls and those named in [fnames]. *)
+let toec_entries fnames (fds : ('info, 'asm) func list) =
+  let rec called_i s i =
+    match i.i_desc with
+    | Ccall (_, f, _) -> Sf.add f s
+    | Cif (_, c1, c2) | Cwhile (_, c1, _, _, c2) -> called_c (called_c s c1) c2
+    | Cfor (_, _, c) -> called_c s c
+    | Cassgn _ | Copn _ | Csyscall _ | Cassert _ -> s
+  and called_c s c = List.fold_left called_i s c in
+  let called = List.fold_left (fun s fd -> called_c s fd.f_body) Sf.empty fds in
+  fun fd ->
+    FInfo.is_export fd.f_cc
+    || Option.is_some fd.f_contract
+    || not (Sf.mem fd.f_name called)
+    || List.mem fd.f_name.fn_name fnames
+
+(* The arguments of the passes of the extraction for safety: the mask of an
+   array is an array of the same type, the mask of a scalar is a boolean; the
+   parameters and results kept by [Dead_args] are all those of the entries
+   ([protect_all]); the dead parameters and results are computed by
+   [DeadArgs]. *)
+let toec_safety_args fnames ((_, fds) : ('info, 'asm) prog) =
   let freshvar = (fun vk ii -> Conv.fresh_var_ident vk ii (Uint63.of_int 0)) in
   let masks = Hv.create 101 in
   let mask cx =
@@ -156,10 +174,28 @@ let do_toec_safety
     in
     Conv.cvar_of_var m
   in
+  let is_entry = toec_entries fnames fds in
+  let entries = Hf.create 17 in
+  List.iter (fun fd -> if is_entry fd then Hf.add entries fd.f_name fd) fds;
+  let protect_all fn _ = Hf.mem entries fn in
+  let dead_info protect cp =
+    let _, fds = Conv.prog_of_cuprog cp in
+    DeadArgs.analyse
+      ~protect:(fun fd x -> protect fd.f_name (Conv.cvar_of_var x))
+      fds
+  in
+  (freshvar, mask, protect_all, dead_info)
+
+let do_toec_safety
+   (type asm_op extra_op)
+    (module Arch : Arch_full.Arch
+       with type asm_op = asm_op
+       and type extra_op = extra_op) ?(fnames = []) prog =
+  let freshvar, mask, protect_all, dead_info = toec_safety_args fnames prog in
   let cp = Conv.cuprog_of_prog prog in
   let cp =
     Toec_prog.toec_uprog_safety Arch.asmOp Arch.pointer_data Arch.msf_size
-      freshvar mask cp in
+      freshvar mask protect_all dead_info cp in
   Conv.prog_of_cuprog (catch_error cp)
 
 (*--------------------------------------------------------------------- *)
