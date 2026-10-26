@@ -3,36 +3,55 @@ open Cmdliner
 open CommonCLI
 open Utils
 
+let open_fmt = function
+  | None -> (Format.std_formatter, fun () -> ())
+  | Some f ->
+      let out = open_out f in
+      let fmt = Format.formatter_of_out_channel out in
+      (fmt, fun () -> close_out out)
+
+(* The EasyCrypt name of the theory of a file. *)
+let theory_name f =
+  f |> Filename.basename |> Filename.remove_extension |> String.capitalize_ascii
+
 let extract_to_file prog arch pd msfsz asmOp model amodel global_options
-    safety fnames array_dir outfile =
+    safety specs fnames array_dir outfile =
   let array_dir =
     if array_dir = None then Option.map Filename.dirname outfile else array_dir
   in
-  let fmt, close =
-    match outfile with
-    | None -> (Format.std_formatter, fun () -> ())
-    | Some f ->
-        let out = open_out f in
-        let fmt = Format.formatter_of_out_channel out in
-        (fmt, fun () -> close_out out)
+  let specs =
+    match (specs, outfile) with
+    | None, _ -> None
+    | Some s, Some o -> Some (s, theory_name o)
+    | Some _, None ->
+        hierror ~loc:Lnone ~kind:"extraction error"
+          "the specifications require an output file (-o)"
   in
+  let fmt, close = open_fmt outfile in
+  let sfmt, sclose = open_fmt (Option.map fst specs) in
   try
     BatPervasives.finally
-      (fun () -> close ())
+      (fun () ->
+        close ();
+        if Option.is_some specs then sclose ())
       (fun () ->
         ToEC.extract prog arch pd msfsz asmOp model amodel global_options
-          ~safety fnames array_dir fmt)
+          ~safety
+          ?specs:(Option.map (fun (_, th) -> (th, sfmt)) specs)
+          fnames array_dir fmt)
       ()
   with e ->
     BatPervasives.ignore_exceptions
-      (fun () -> Option.map Unix.unlink outfile)
+      (fun () ->
+        Option.may Unix.unlink outfile;
+        Option.may (fun (s, _) -> Unix.unlink s) specs)
       ();
     raise e
 
 let parse_and_extract arch call_conv idirs =
   let module A = (val CoreArchFactory.get_arch_module arch call_conv) in
-  let extract model amodel global_options safety functions array_dir output
-      pass file =
+  let extract model amodel global_options safety specs functions array_dir
+      output pass file =
     let prog = parse_and_compile (module A) ~wi2i:true pass file idirs in
     let prog =
       if safety then Compile.do_toec_safety (module A) prog
@@ -40,16 +59,16 @@ let parse_and_extract arch call_conv idirs =
     in
     try
       extract_to_file prog arch A.reg_size A.msf_size A.asmOp model amodel
-        global_options safety functions array_dir output
+        global_options safety specs functions array_dir output
     with Annot.AnnotationError (loc, code) ->
       hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
   in
-  fun model amodel global_options safety functions array_dir output pass file
-      warn ->
+  fun model amodel global_options safety specs functions array_dir output pass
+      file warn ->
     if not warn then nowarning ();
     match
-      extract model amodel global_options safety functions array_dir output
-        pass file
+      extract model amodel global_options safety specs functions array_dir
+        output pass file
     with
     | () -> ()
     | exception HiError e ->
@@ -168,6 +187,21 @@ let safety =
   in
   Arg.(value & flag & info [ "safety" ] ~doc)
 
+let safety_specs =
+  let doc =
+    "With $(b,--safety), also write to $(docv) the specification of each
+     extracted function with a contract, as an operator $(i,f)_spec of the
+     values of its arguments: a hoare statement on the procedure, without
+     proof, whose precondition is the requires clause and whose postcondition
+     is the ensures clause, and which states that Assertion_failure is not
+     raised. The file requires the extracted file, which must be given by
+     $(b,-o)."
+  in
+  Arg.(
+    value
+    & opt (some string) None
+    & info [ "safety-specs" ] ~docv:"FILE" ~doc)
+
 let functions =
   let doc =
     "Only extract the given function (and its dependencies). This argument may \
@@ -214,6 +248,6 @@ let () =
   Cmd.v info
     Term.(
       const parse_and_extract $ arch $ call_conv $ idirs $ model $ array_model
-      $ global_model $ safety $ functions $ array_dir $ output $ after_pass
+      $ global_model $ safety $ safety_specs $ functions $ array_dir $ output $ after_pass
       $ file $ warn)
   |> Cmd.eval |> exit

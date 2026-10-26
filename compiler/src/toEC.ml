@@ -382,6 +382,8 @@ type ec_expr =
     | Eop3 of ec_op3 * ec_expr * ec_expr * ec_expr (* ternary operator *)
     | Elist of ec_expr list (* list litteral *)
     | Etuple of ec_expr list (* tuple litteral *)
+    | Ehoare of ec_ident * ec_expr * ec_expr * ec_ident
+      (* hoare [proc : pre ==> post | exception => false] *)
 
 type ec_lvalue =
     | LvIdent of ec_ident
@@ -440,6 +442,7 @@ type ec_item =
     | ImoduleType of ec_module_type
     | Imodule of ec_module
     | Iexception of string
+    | Iopdef of string * ec_var list * ec_expr (* op with parameters *)
 
 type ec_prog = ec_item list
 
@@ -476,6 +479,7 @@ module type EnvT = sig
   val new_aux_range: t -> t
   val new_fun: t -> t
   val set_var: t -> var -> t
+  val bind_var: t -> var -> string -> t
   val aux_vars: t -> (string * string) list
 end
 
@@ -582,6 +586,9 @@ module Env: EnvT = struct
     { env with
       alls = ref (Ss.add s !(env.alls));
       vars = Mv.add x s env.vars }
+
+  (* [x] printed as [s], which is not a name of the program *)
+  let bind_var env x s = { env with vars = Mv.add x s env.vars }
 
   let empty arch pd msfsz array_theories =
     {
@@ -764,6 +771,9 @@ let rec pp_ec_ast_expr fmt e = match e with
     | Eop3 (op, e1, e2, e3) -> pp_ec_op3 fmt (op, e1, e2, e3)
     | Elist es -> Format.fprintf fmt "@[[%a]@]" (pp_list ";@ " pp_ec_ast_expr) es
     | Etuple es -> Format.fprintf fmt "@[(%a)@]" (pp_list ",@ " pp_ec_ast_expr) es
+    | Ehoare (f, pre, post, exn) ->
+        Format.fprintf fmt "@[hoare [@[%a :@ @[%a@] ==>@ @[%a@]@ | %a => false@]]@]"
+          pp_ec_ident f pp_ec_ast_expr pre pp_ec_ast_expr post pp_ec_ident exn
 
 and pp_ec_op2 fmt (op2, e1, e2) =
     let f fmt = match op2 with
@@ -867,6 +877,10 @@ let pp_ec_item fmt it =
     in
     Format.fprintf fmt "@[op%a %s =@ @[%a@].@]" pp_opts opts a pp_ec_ast_expr e
   | Iexception x -> Format.fprintf fmt "@[exception %s.@]" x
+  | Iopdef (a, params, e) ->
+    let pp_param fmt (x, ty) = Format.fprintf fmt "(%s : %s)" x ty in
+    Format.fprintf fmt "@[<hov 2>op %s @[%a@] =@ @[%a@].@]"
+      a (pp_list "@ " pp_param) params pp_ec_ast_expr e
   | ImoduleType mt ->
     Format.fprintf fmt "@[<v>@[module type %s = {@]@   @[<v>%a@]@ }.@]"
       mt.name (pp_list "@ " pp_ec_fun_decl) mt.funs
@@ -2008,9 +2022,14 @@ struct
 
   let var2ec_var env x = (List.hd [ec_vars env x], toec_ty env x.v_ty)
 
-  let toec_fun asmOp env f =
+  (* The function as it is extracted, its local variables, and the names of its
+     variables. *)
+  let fun_env env f =
       let locals = Sv.elements (locals f) in
-      let env = List.fold_left Env.set_var env (f.f_args @ locals) in
+      f, locals, List.fold_left Env.set_var env (f.f_args @ locals)
+
+  let toec_fun asmOp env f =
+      let f, locals, env = fun_env env f in
       (* Limit the scope of changes for aux variables to the current function. *)
       let env = Env.new_fun env in
       let init = ec_fun_leak_init env in
@@ -2166,10 +2185,69 @@ struct
       pp_array_theories (Env.array_theories env) @
       (List.map (fun glob -> ec_glob_decl env global_options glob) globs) @
       (ec_randombytes env) @
-      [top_mod]
+      [top_mod],
+      env
 
-  let pp_prog env asmOp global_options fmt globs funcs =
-    Format.fprintf fmt "%a@." pp_ec_prog (toec_prog env asmOp global_options globs funcs)
+  (* ------------------------------------------------------------------- *)
+  (* Specifications *)
+
+  let ec_conj = function
+    | [] -> Ebool true
+    | e :: es -> List.fold_left (fun acc e -> Eop2 (Infix "/\\", acc, e)) e es
+
+  (* The specification of a function with a contract, in the extraction for
+     safety, as an operator of the logical values [_x] of its arguments [x]:
+     the function called on these values, which satisfy the precondition, does
+     not raise [Assertion_failure], and its results satisfy the postcondition.
+     The parameters of the contract are the logical values, its results are
+     [res] or its projections. The contract is the one transformed by
+     [Explicit_init]: it binds the masks of the arrays too. *)
+  let toec_spec env file f =
+    match f.f_contract with
+    | None -> None
+    | Some c ->
+      let f, _, env = fun_env env f in
+      let fname = Env.get_funname env f.f_name in
+      let params = List.map (fun x -> "_" ^ ec_vars env x, toec_ty env x.v_ty) f.f_args in
+      let env =
+        List.fold_left2 (fun env x (s, _) -> Env.bind_var env (L.unloc x) s)
+          env c.f_iparams params in
+      let args_eq =
+        List.map2 (fun x (s, _) -> Eop2 (Infix "=", ec_vari env x, ec_ident s)) f.f_args params in
+      let pre = ec_conj (args_eq @ List.map (fun (_, a) -> toec_assert env a) c.f_pre) in
+      let env =
+        match c.f_ires with
+        | [x] -> Env.bind_var env (L.unloc x) "res"
+        | xs -> List.fold_lefti (fun env i x ->
+                    Env.bind_var env (L.unloc x) (Format.sprintf "res.`%i" (i + 1))) env xs
+      in
+      let post = ec_conj (List.map (fun (_, a) -> toec_assert env a) c.f_post) in
+      let m =
+        if List.is_empty (Env.randombytes env) then [file; "M"]
+        else [file; Format.sprintf "M(%s.%s)" file syscall_mod]
+      in
+      let form = Ehoare (m @ [fname], pre, post, [file; "Assertion_failure"]) in
+      Some (Iopdef (fname ^ "_spec", params, form))
+
+  (* The specifications of the functions with a contract, in a file that
+     requires the extracted file [file]. *)
+  let toec_specs env file funcs =
+    let specs = List.filter_map (toec_spec env file) funcs in
+    [ IrequireImport ["AllCore"; "IntDiv"; "CoreMap"; "List"; "Distr"];
+      IfromRequireImport ("Jasmin", [jmodel env]);
+      Iimport [lib_slh env];
+      IrequireImport [file] ] @
+    (match Sarraytheory.elements (Env.array_theories env) with
+     | [] -> []
+     | l -> [IrequireImport (List.map fmt_array_theory l)]) @
+    specs
+
+  let pp_prog env asmOp global_options ?specs fmt globs funcs =
+    let prog, env = toec_prog env asmOp global_options globs funcs in
+    Format.fprintf fmt "%a@." pp_ec_prog prog;
+    Option.may (fun (file, sfmt) ->
+        Format.fprintf sfmt "%a@." pp_ec_prog (toec_specs env file funcs))
+      specs
 
 end
 
@@ -2190,10 +2268,13 @@ and used_func_i used i =
   | Cwhile(_, c1, _, _, c2) -> used_func_c (used_func_c used c1) c2
   | Ccall (_,f,_)   -> Ss.add f.fn_name used
 
-let extract ((globs,funcs):('info, 'asm) prog) arch pd msfsz asmOp (model: model) amodel (global_options: global_options) ?(safety = false) fnames array_dir fmt =
+let extract ((globs,funcs):('info, 'asm) prog) arch pd msfsz asmOp (model: model) amodel (global_options: global_options) ?(safety = false) ?specs fnames array_dir fmt =
   if safety && amodel <> BArray then
     hierror ~loc:Lnone ~kind:"extraction error"
       "the extraction for safety requires the array model barray";
+  if Option.is_some specs && not (safety && model = Normal) then
+    hierror ~loc:Lnone ~kind:"extraction error"
+      "the specifications are printed by the extraction for safety, in the normal model";
   let save_array_theories array_theories =
     match array_dir with
     | Some prefix ->
@@ -2237,6 +2318,6 @@ let extract ((globs,funcs):('info, 'asm) prog) arch pd msfsz asmOp (model: model
     else (module EcSafetyNone: EcSafety)
   ) in
   let module E = Extraction(EA)(EL)(ES) in
-  let prog = E.pp_prog env asmOp global_options fmt globs funcs in
+  let prog = E.pp_prog env asmOp global_options ?specs fmt globs funcs in
   save_array_theories (Env.array_theories env);
   prog

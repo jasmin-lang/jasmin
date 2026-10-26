@@ -33,6 +33,9 @@ val default_global_options : global_options
 
 val ty_expr : Prog.expr -> Prog.ty
 val ty_lval : Prog.lval -> Prog.ty
+(* With [specs = (file, fmt)], the extraction for safety also prints on [fmt]
+   the specifications of the functions with a contract, in a file that
+   requires the extracted file, of name [file]. *)
 val extract :
   ('info, ('asm_op, 'extra_op) Arch_extra.extended_op_gen) Prog.prog ->
   Architecture.architecture ->
@@ -43,6 +46,7 @@ val extract :
   amodel ->
   global_options ->
   ?safety:bool ->
+  ?specs:string * Format.formatter ->
   string list ->
   string option ->
   Format.formatter ->
