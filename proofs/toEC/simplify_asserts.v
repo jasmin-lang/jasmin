@@ -6,7 +6,7 @@ Require Import expr compiler_util psem_defs.
 
 Local Open Scope seq_scope.
 
-(* ** Simplification of the assertions: constants and full masks
+(* ** Simplification of the assertions: constants and initialisation masks
 
    A forward analysis of each function body computes, at each program point,
    facts on some local variables, true on every path that reaches the point:
@@ -17,7 +17,12 @@ Local Open Scope seq_scope.
    - [Afull]: the variable is an array whose bytes are all 0xFF, in its
      bounds: a full initialisation mask;
    - [Acopy y]: the variable is an array that holds the value of the array
-     [y].
+     [y];
+   - [Afill lo n]: the variable is an array whose bytes are 0xFF in
+     [lo, lo + n) and 0 elsewhere, written by an assignment of an [Oarr_fill]
+     (the mask of a sub-array of a global array), where [lo] and [n] are
+     integer expressions over integer local variables written by no
+     instruction since.
    At a join of paths, the facts on which both paths agree remain. At the
    head of a loop, the facts are those on entry that the body preserves: the
    fixpoint of the join with the state after the body, reached in fewer
@@ -29,15 +34,20 @@ Local Open Scope seq_scope.
    left unchanged. A variable with a known constant is replaced by the
    constant; a closed operation on literals is replaced by its value, computed
    by the semantics of the total mode, in which the assertions are evaluated;
-   an initialisation test [Ois_barr_init] on a full mask becomes the
-   condition on its bounds that it amounts to; a conjunct [true] is removed,
-   and an assertion that becomes [true] is removed.
+   an initialisation test [Ois_barr_init] becomes the condition on its bounds
+   that it amounts to when its mask is full, a sub-array of a full local mask,
+   or a local mask known to be a fill [Afill lo n]; a conjunct [true] is
+   removed, and an assertion that becomes [true] is removed.
 
    The rewriting drops no subexpression whose evaluation could fail: the
    rewritten expression evaluates exactly as the original one, but for the
-   initialisation test on a full mask, whose rewriting reads the same
-   arguments and keeps their type conditions. When the rewritten assertion
-   holds, so does the original one. *)
+   initialisation tests, whose rewriting reads the same scalar arguments
+   (the bounds of the test, the index of the sub-array) with the same type
+   conditions, drops only the reads of array variables, which do not fail,
+   and reads the bounds of a fill [Afill lo n]: these were evaluated by the
+   assignment of the fill, and the variables they read have not been written
+   since, so that they evaluate again to the same integers. When the
+   rewritten assertion holds, so does the original one. *)
 
 Section ASM_OP.
 
@@ -86,17 +96,22 @@ Definition fold_app2 (o : sop2) (e1 e2 : pexpr) : pexpr :=
 Variant aval :=
   | Aconst of pexpr
   | Afull
-  | Acopy of var.
+  | Acopy of var
+  | Afill of pexpr & pexpr.
 
 Definition aval_beq (a1 a2 : aval) : bool :=
   match a1, a2 with
   | Aconst e1, Aconst e2 => eq_expr e1 e2
   | Afull, Afull => true
   | Acopy x1, Acopy x2 => x1 == x2
+  | Afill lo1 n1, Afill lo2 n2 => eq_expr lo1 lo2 && eq_expr n1 n2
   | _, _ => false
   end.
 
 Definition astate := Mvar.t aval.
+
+Definition eint_le e1 e2 := Papp2 (Ole Cmp_int) e1 e2.
+Definition eint_add e1 e2 := Papp2 (Oadd Op_int) e1 e2.
 
 (* The facts that hold on both paths. *)
 Definition ajoin (s1 s2 : astate) : astate :=
@@ -109,12 +124,16 @@ Definition ajoin (s1 s2 : astate) : astate :=
 Definition asize (s : astate) : nat := size (Mvar.elements s).
 
 (* After a write to the variables of [xs]: no fact on them, nor on the copies
-   of them. *)
+   of them, nor fills whose bounds read them. *)
 Definition akill (s : astate) (xs : Sv.t) : astate :=
   Mvar.filter_map (fun y a =>
     if Sv.mem y xs then None
-    else if a is Acopy z then if Sv.mem z xs then None else Some a
-    else Some a) s.
+    else
+      match a with
+      | Acopy z => if Sv.mem z xs then None else Some a
+      | Afill lo n => if disjoint (read_e (eint_add lo n)) xs then Some a else None
+      | _ => Some a
+      end) s.
 
 Definition akill1 s x := akill s (Sv.singleton x).
 
@@ -154,27 +173,107 @@ Definition is_full_fill ws len (es : pexprs) : bool :=
   | _ => false
   end.
 
+(* The local array [x] is a full mask: known to be full, or a copy of an
+   array known to be full. *)
+Definition is_full_var (s : astate) (x : gvar) : bool :=
+  match alocal s x with
+  | Some Afull => true
+  | Some (Acopy y) => if Mvar.get s y is Some Afull then true else false
+  | _ => false
+  end.
+
 (* The expression is a full mask of [n] bytes: a local array known to be
    full, or a fill of the whole array with 0xFF. *)
 Definition is_full (s : astate) (n : Z) (e : pexpr) : bool :=
   match e with
   | Pvar x =>
-    if (alocal s x, vtype x.(gv)) is (Some Afull, aarr ws len) then arr_size ws len == n
+    if vtype x.(gv) is aarr ws len then is_full_var s x && (arr_size ws len == n)
     else false
   | PappN (Oarr_fill ws len) es => (arr_size ws len == n) && is_full_fill ws len es
   | _ => false
   end.
 
-Definition eint_le e1 e2 := Papp2 (Ole Cmp_int) e1 e2.
-
-(* The cells [lo, lo + n) of an array of [len] bytes whose cells are all
-   initialised are initialised when [n <= 0] or [0 <= lo /\ lo + n <= len];
-   the first disjunct is left out when [n] is a positive constant. *)
-Definition ebounds (len : Z) (lo n : pexpr) : pexpr :=
-  let inb := eand (eint_le (Pconst 0) lo)
-                  (eint_le (Papp2 (Oadd Op_int) lo n) (Pconst len)) in
+(* The cells [lo, lo + n) are all initialised when [n <= 0] or [inb], the
+   condition that each of them is initialised; the first disjunct is left out
+   when [n] is a positive constant. *)
+Definition eall_cells (n inb : pexpr) : pexpr :=
   if n is Pconst k then if (0 <? k)%Z then inb else eor (eint_le n (Pconst 0)) inb
   else eor (eint_le n (Pconst 0)) inb.
+
+(* The interval [lo, lo + n) lies within [0, len). *)
+Definition ein_bounds (len : Z) (lo n : pexpr) : pexpr :=
+  eand (eint_le (Pconst 0) lo) (eint_le (eint_add lo n) (Pconst len)).
+
+(* The cells [lo, lo + n) of an array of [len] bytes whose cells are all
+   initialised are initialised when [n <= 0] or [0 <= lo /\ lo + n <= len]. *)
+Definition ebounds (len : Z) (lo n : pexpr) : pexpr :=
+  eall_cells n (ein_bounds len lo n).
+
+(* The sub-array [Psub aa ws slen x i] of an array [x] of [lenx] bytes whose
+   cells are all initialised: in the total mode ([WArray.get_sub]), its byte
+   [k], for [0 <= k < arr_size ws slen], is the byte [start + k] of [x], with
+   [start = i * mk_scale aa ws], when [0 <= start + k < lenx], and is not
+   initialised otherwise. Its cells [lo, lo + n) are initialised when
+   [n <= 0] or both [lo, lo + n) lies within the sub-array of [len] bytes and
+   [start + lo, start + lo + n) within [x]. The index [i] is read as in the
+   original expression. *)
+Definition esub_bounds (len lenx : Z) aa ws (i lo n : pexpr) : pexpr :=
+  let sc := mk_scale aa ws in
+  let start := if sc == 1%Z then i else Papp2 (Omul Op_int) i (Pconst sc) in
+  let lo' := if lo is Pconst 0 then start else eint_add start lo in
+  eall_cells n (eand (ein_bounds len lo n) (ein_bounds lenx lo' n)).
+
+(* The array of [len] bytes filled with 0xFF in [flo, flo + fn) and with 0
+   elsewhere ([Oarr_fill]): its cells [lo, lo + n) are initialised when
+   [n <= 0] or [lo, lo + n) lies within both [0, len) and [flo, flo + fn)
+   ([WArray.fill] keeps the bytes in [0, len) only). *)
+Definition efill_bounds (len : Z) (flo fn lo n : pexpr) : pexpr :=
+  eall_cells n (eand (ein_bounds len lo n)
+                     (eand (eint_le flo lo) (eint_le (eint_add lo n) (eint_add flo fn)))).
+
+(* The integer expressions whose evaluation, once it has succeeded, succeeds
+   again with the same value as long as the variables they read are not
+   written: constants, integer local variables, opposite, sum, difference and
+   product. *)
+Fixpoint is_stable_int (e : pexpr) : bool :=
+  match e with
+  | Pconst _ => true
+  | Pvar x => is_lvar x && (vtype x.(gv) == aint)
+  | Papp1 (Oneg Op_int) e1 => is_stable_int e1
+  | Papp2 (Oadd Op_int | Osub Op_int | Omul Op_int) e1 e2 => is_stable_int e1 && is_stable_int e2
+  | _ => false
+  end.
+
+(* The arguments [lo; n; w] of [Oarr_fill], with the byte [w] equal to 0xFF
+   and stable bounds [lo] and [n]. *)
+Definition is_ones_fill (es : pexprs) : option (pexpr * pexpr) :=
+  match es with
+  | [:: lo; n; Papp1 (Oword_of_int U8) (Pconst z)] =>
+    if [&& wrepr U8 z == wrepr U8 (-1), is_stable_int lo & is_stable_int n] then Some (lo, n)
+    else None
+  | _ => None
+  end.
+
+(* The condition on the bounds that an initialisation test on the mask [m]
+   of [len] bytes amounts to, when [m] is a full mask, a sub-array of a full
+   local mask of the same size, or a local mask of the same size known to be
+   a fill. *)
+Definition is_init_bounds (s : astate) (len : Z) (m lo n : pexpr) : option pexpr :=
+  if is_full s len m then Some (ebounds len lo n)
+  else
+    match m with
+    | Psub aa ws slen x i =>
+      if vtype x.(gv) is aarr wsx lenx then
+        if is_full_var s x && (arr_size ws slen == len) then
+          Some (esub_bounds len (arr_size wsx lenx) aa ws i lo n)
+        else None
+      else None
+    | Pvar x =>
+      if (alocal s x, vtype x.(gv)) is (Some (Afill flo fn), aarr ws xlen) then
+        if arr_size ws xlen == len then Some (efill_bounds len flo fn lo n) else None
+      else None
+    | _ => None
+    end.
 
 (* The literals of the bound condition are folded. *)
 Fixpoint fold_e (e : pexpr) : pexpr :=
@@ -210,7 +309,7 @@ Fixpoint simpl_a (s : astate) (a : eassert) : option eassert :=
     let es := map (simpl_e s) es in
     match o, es with
     | Ois_barr_init len, [:: m; lo; n] =>
-      if is_full s len m then simpl_pexpr_a (fold_e (ebounds len lo n))
+      if is_init_bounds s len m lo n is Some c then simpl_pexpr_a (fold_e c)
       else Some (PappN_safety o es)
     | _, _ => Some (PappN_safety o es)
     end
@@ -252,11 +351,15 @@ Definition aval_of_e (s : astate) (x : var) (ty : atype) (e : pexpr) : option av
         | Some (Aconst _) => None
         | Some Afull => Some Afull
         | Some (Acopy z) => Some (Acopy z)
+        | Some (Afill lo n) => Some (Afill lo n)
         | None => Some (Acopy y.(gv))
         end
       else None
     | PappN (Oarr_fill ws len) es, aarr _ _ =>
-      if (aarr ws len == ty) && is_full_fill ws len es then Some Afull else None
+      if aarr ws len != ty then None
+      else if is_full_fill ws len es then Some Afull
+      else if is_ones_fill es is Some (lo, n) then Some (Afill lo n)
+      else None
     | _, _ => None
     end.
 
