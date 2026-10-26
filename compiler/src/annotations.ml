@@ -57,6 +57,12 @@ let is_wint (k, _) =
 
 let remove_wint annot = List.filter (fun x -> not (is_wint x)) annot
 
+(* A variable that a pass of the extraction to EasyCrypt introduces and that
+   the plain extraction through the extraction for safety removes. *)
+let removable = "Internal::removable"
+
+let has_removable annot = has_symbol removable annot
+
 let has_wint annot =
   BatList.find_map_opt (fun (k, _) ->
     let s = Location.unloc k in

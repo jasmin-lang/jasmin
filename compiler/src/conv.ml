@@ -396,7 +396,7 @@ let error_of_cerror pp_err e =
   }
 
 (* -------------------------------------------------------------------------- *)
-let fresh_var_ident =
+let fresh_var_ident_with annot =
   let memo = Hashtbl.create 5 in
   fun r (i_loc, _) num n st ->
     let k = (r, i_loc.L.uid_loc, num, n, st) in
@@ -408,9 +408,14 @@ let fresh_var_ident =
           (* When generating an mmx variable, we add the #[mmx] annotation
              for the sake of clarity when printing programs *)
           match r with
-          | Wsize.Reg (Extra, _) -> [(L.mk_loc L._dummy "mmx", None)]
-          | _ -> []
+          | Wsize.Reg (Extra, _) -> (L.mk_loc L._dummy "mmx", None) :: annot
+          | _ -> annot
         in
         let x = V.mk n r ty i_loc.L.base_loc v_annot in
         Hashtbl.add memo k x;
         x
+
+let fresh_var_ident = fresh_var_ident_with []
+
+let fresh_removable_var_ident () =
+  fresh_var_ident_with [ (L.mk_loc L._dummy Annotations.removable, None) ]

@@ -67,3 +67,9 @@ val error_of_cerror :
 
 (* ---------------------------------------------------- *)
 val fresh_var_ident : v_kind -> IInfo.t -> Uint63.t -> Name.t -> Type.atype -> var
+
+(** A generator of fresh variables like [fresh_var_ident], whose variables
+    carry the annotation [Annotations.removable]; each call gives a generator
+    with its own memoisation. *)
+val fresh_removable_var_ident :
+  unit -> v_kind -> IInfo.t -> Uint63.t -> Name.t -> Type.atype -> var

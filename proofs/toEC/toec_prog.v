@@ -36,13 +36,16 @@ Definition toec_uprog : _uprog -> cexec _uprog :=
    that computes nothing used is removed, with the parameters and the results
    of the functions that nothing uses ([dead_args]): among them the masks that
    no assertion reads. [protect] tells the parameters and results that are
-   kept, [dead_info protect] those that are dead. *)
-Definition toec_uprog_safety (mask : var -> var) (protect : funname -> var -> bool)
+   kept, [dead_info protect] those that are dead. The variables that
+   [contracts_to_asserts] introduces are named by [fresh_removable_ident]. *)
+Definition toec_uprog_safety
+    (fresh_removable_ident : v_kind -> instr_info -> string -> atype -> Ident.ident)
+    (mask : var -> var) (protect : funname -> var -> bool)
     (dead_info : (funname -> var -> bool) -> _uprog ->
                  funname -> option (seq bool) * option (seq bool))
     (p : _uprog) : cexec _uprog :=
   Let p := normalize_calls_prog (pT := progUnit) fresh_var_ident p in
-  Let p := contracts_to_asserts_prog fresh_var_ident p in
+  Let p := contracts_to_asserts_prog fresh_removable_ident p in
   Let p := sc_prog p in
   let p := toec_while_prog (pT := progUnit) p in
   Let p := toec_for_prog (pT := progUnit) fresh_var_ident p in
@@ -55,12 +58,14 @@ Definition toec_uprog_safety (mask : var -> var) (protect : funname -> var -> bo
    with the rest of the dead code. [protect_safety] tells the parameters and
    results kept by the extraction for safety, [protect] those kept in the
    result. *)
-Definition toec_uprog_via_safety (mask : var -> var)
+Definition toec_uprog_via_safety
+    (fresh_removable_ident : v_kind -> instr_info -> string -> atype -> Ident.ident)
+    (mask : var -> var)
     (protect_safety protect : funname -> var -> bool)
     (dead_info : (funname -> var -> bool) -> _uprog ->
                  funname -> option (seq bool) * option (seq bool))
     (p : _uprog) : cexec _uprog :=
-  Let p := toec_uprog_safety mask protect_safety dead_info p in
+  Let p := toec_uprog_safety fresh_removable_ident mask protect_safety dead_info p in
   dead_args_prog protect (dead_info protect) (drop_asserts_prog (pT := progUnit) p).
 
 End TOEC.
