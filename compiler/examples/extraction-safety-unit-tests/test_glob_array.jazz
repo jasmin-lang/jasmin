@@ -1,0 +1,7 @@
+u32[2] t = {0, 1};
+
+export fn get_global() -> reg u32 {
+  reg u32 r;
+  r = t[0];
+  return r;
+}

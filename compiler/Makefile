@@ -60,6 +60,7 @@ check-ci:
 check-ec:
 	$(MAKE) -C examples/gimli/proofs
 	$(MAKE) -C examples/extraction-unit-tests
+	$(MAKE) -C examples/extraction-safety-unit-tests
 
 check-all: check
 	dune runtest -f

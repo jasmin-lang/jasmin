@@ -1,0 +1,10 @@
+#[safety =
+   { requires = is_mem_init((64u)str,8) }
+ ]
+fn test (reg ui64 str) -> reg u8
+{
+  reg u8 r;
+  r =  [:u8 (64u)(str + 1)];
+  [:u32 (64u)str] = [:u32 (64u)(str + 4)];
+  return r;
+}
