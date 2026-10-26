@@ -241,6 +241,8 @@ lang/waes.v
 lang/warray_.v
 lang/word.v
 lang/wsize.v
+toEC/assert_facts.v
+toEC/assert_facts_proof.v
 toEC/contracts_to_asserts.v
 toEC/contracts_to_asserts_proof.v
 toEC/explicit_init.v
