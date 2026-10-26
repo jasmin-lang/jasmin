@@ -55,8 +55,7 @@ let parse_and_extract arch call_conv idirs =
     let prog = parse_and_compile (module A) ~wi2i:true pass file idirs in
     let prog =
       if safety then Compile.do_toec_safety (module A) ~fnames:functions prog
-      else if via_safety then
-        Compile.do_toec_via_safety (module A) ~fnames:functions prog
+      else if via_safety then Compile.do_toec_via_safety (module A) prog
       else Compile.do_toec (module A) prog
     in
     try
@@ -192,10 +191,10 @@ let safety =
 let via_safety =
   let doc =
     "Plain extraction (without $(b,--safety)) through the passes of the
-     extraction for safety: the assertions are then removed, and the dead
-     code, the dead parameters and results with it, among them the masks. The
-     export functions, the functions with a contract, the functions that no
-     function calls and those given by $(b,-f) keep their signature."
+     extraction for safety: the assertions are then removed, and the
+     variables that these passes introduce, the masks and the copies of the
+     arguments and of the results of the calls to the functions with a
+     contract. The result is the plain extraction."
   in
   Arg.(value & flag & info [ "via-safety-chain" ] ~doc)
 

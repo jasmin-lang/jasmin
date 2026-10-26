@@ -72,14 +72,15 @@ val do_toec_via_safety :
   (module Arch_full.Arch
      with type asm_op = 'asm_op
       and type extra_op = 'extra_op) ->
-  ?fnames:string list ->
   (unit, ('asm_op, 'extra_op) Arch_extra.extended_op_gen) prog ->
   (unit, ('asm_op, 'extra_op) Arch_extra.extended_op_gen) prog
 (** The plain extraction through the passes of the extraction for safety
-    ([Toec_prog.toec_uprog_via_safety]): those of [do_toec_safety], then the
-    assertions are removed, and the dead code, parameters and results, among
-    them the masks. The functions that EasyCrypt may call keep their
-    signature in the source. *)
+    ([Toec_prog.toec_uprog_via_safety]): those of [do_toec_safety] but the
+    simplification of the assertions and the removal of the dead code, then
+    the assertions are removed, and the variables that these passes introduce
+    ([Drop_removable]): the masks, the copies of the arguments and the
+    destinations of the calls to the functions with a contract. The rest of
+    the program is that of [do_toec]. *)
 
 val compile :
   (module Arch_full.Arch

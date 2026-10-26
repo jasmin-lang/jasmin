@@ -8,9 +8,9 @@
    the removed arguments are not read, and the removed results are not used.
 
    As for [dead_code] ([dead_code_total_proof]), the direction from the
-   transformed program to the source needs the removed instructions not to
-   fail ([total_ok]), and the source to accept the removed arguments: they
-   have the types of the parameters. *)
+   transformed program to the source needs the removed code not to fail
+   ([total_ok], the well-typedness of the source), and the source to accept
+   the removed arguments: they have the types of the parameters. *)
 
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import compiler_util psem psem_facts.

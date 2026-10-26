@@ -118,6 +118,8 @@ let do_wint_int
 
 
 (* -------------------------------------------------------------------- *)
+let toec_freshvar vk ii = Conv.fresh_var_ident vk ii (Uint63.of_int 0)
+
 let do_toec
    (type reg regx xreg rflag cond asm_op extra_op)
     (module Arch : Arch_full.Arch
@@ -128,9 +130,8 @@ let do_toec
        and type cond = cond
        and type asm_op = asm_op
        and type extra_op = extra_op) prog =
-  let freshvar = (fun vk ii -> Conv.fresh_var_ident vk ii (Uint63.of_int 0)) in
   let cp = Conv.cuprog_of_prog prog in
-  let cp = Toec_prog.toec_uprog Arch.asmOp Arch.pointer_data Arch.msf_size freshvar cp in
+  let cp = Toec_prog.toec_uprog Arch.asmOp Arch.pointer_data Arch.msf_size toec_freshvar cp in
   let cp = catch_error cp in
   Conv.prog_of_cuprog cp
 
@@ -153,16 +154,13 @@ let toec_entries fnames (fds : ('info, 'asm) func list) =
     || not (Sf.mem fd.f_name called)
     || List.mem fd.f_name.fn_name fnames
 
-(* The arguments of the passes of the extraction for safety. The variables
-   that these passes introduce carry the annotation [Annotations.removable]:
-   those that [contracts_to_asserts] introduces, named by [fresh_removable],
-   and the masks of [explicit_init], given by [mask]. The mask of an array is
-   an array of the same type, the mask of a scalar is a boolean; the
-   parameters and results kept by [Dead_args] are all those of the entries
-   ([protect_all]), or those of the entries in the source ([protect_source]);
-   the dead parameters and results are computed by [DeadArgs]. *)
-let toec_safety_args fnames ((_, fds) : ('info, 'asm) prog) =
-  let freshvar = (fun vk ii -> Conv.fresh_var_ident vk ii (Uint63.of_int 0)) in
+(* The variables that the passes of the extraction for safety introduce and
+   that the plain extraction through them removes carry the annotation
+   [Annotations.removable]: those that [contracts_to_asserts] introduces,
+   named by [fresh_removable], and the masks of [explicit_init], given by
+   [mask]. The mask of an array is an array of the same type, the mask of a
+   scalar is a boolean. *)
+let toec_removable () =
   let annot = [ (L.mk_loc L._dummy Annotations.removable, None) ] in
   let fresh_removable =
     let fresh = Conv.fresh_removable_var_ident () in
@@ -182,50 +180,59 @@ let toec_safety_args fnames ((_, fds) : ('info, 'asm) prog) =
     in
     Conv.cvar_of_var m
   in
+  (fresh_removable, mask)
+
+let do_toec_safety
+   (type asm_op extra_op)
+    (module Arch : Arch_full.Arch
+       with type asm_op = asm_op
+       and type extra_op = extra_op) ?(fnames = []) ((_, fds) as prog) =
+  let fresh_removable, mask = toec_removable () in
+  (* The parameters and results kept by [Dead_args]: those of the entries; the
+     dead ones are computed by [DeadArgs]. *)
   let is_entry = toec_entries fnames fds in
   let entries = Hf.create 17 in
-  List.iter (fun fd -> if is_entry fd then Hf.add entries fd.f_name fd) fds;
-  let protect_all fn _ = Hf.mem entries fn in
-  let protect_source fn cx =
-    match Hf.find entries fn with
-    | fd ->
-      let x = Conv.var_of_cvar cx in
-      List.exists (V.equal x) fd.f_args
-      || List.exists (fun y -> V.equal x (L.unloc y)) fd.f_ret
-    | exception Not_found -> false
-  in
+  List.iter (fun fd -> if is_entry fd then Hf.add entries fd.f_name ()) fds;
+  let protect fn _ = Hf.mem entries fn in
   let dead_info protect cp =
     let _, fds = Conv.prog_of_cuprog cp in
     DeadArgs.analyse
       ~protect:(fun fd x -> protect fd.f_name (Conv.cvar_of_var x))
       fds
   in
-  (freshvar, fresh_removable, mask, protect_all, protect_source, dead_info)
-
-let do_toec_safety
-   (type asm_op extra_op)
-    (module Arch : Arch_full.Arch
-       with type asm_op = asm_op
-       and type extra_op = extra_op) ?(fnames = []) prog =
-  let freshvar, fresh_removable, mask, protect_all, _, dead_info =
-    toec_safety_args fnames prog in
   let cp = Conv.cuprog_of_prog prog in
   let cp =
     Toec_prog.toec_uprog_safety Arch.asmOp Arch.pointer_data Arch.msf_size
-      freshvar fresh_removable mask protect_all dead_info cp in
+      toec_freshvar fresh_removable mask protect dead_info cp in
   Conv.prog_of_cuprog (catch_error cp)
 
 let do_toec_via_safety
    (type asm_op extra_op)
     (module Arch : Arch_full.Arch
        with type asm_op = asm_op
-       and type extra_op = extra_op) ?(fnames = []) prog =
-  let freshvar, fresh_removable, mask, protect_all, protect_source, dead_info =
-    toec_safety_args fnames prog in
+       and type extra_op = extra_op) ((_, fds) as prog) =
+  let fresh_removable, mask = toec_removable () in
+  (* The variables removed: those annotated, and the variables of the
+     contracts, which are not variables of their function and which
+     [contracts_to_asserts] introduces in its body. *)
+  let contract_vars =
+    List.fold_left
+      (fun s fd ->
+        match fd.f_contract with
+        | None -> s
+        | Some ci ->
+          List.fold_left (fun s x -> Sv.add (L.unloc x) s) s
+            (ci.f_iparams @ ci.f_ires))
+      Sv.empty fds
+  in
+  let removable cx =
+    let x = Conv.var_of_cvar cx in
+    Annotations.has_removable x.v_annot || Sv.mem x contract_vars
+  in
   let cp = Conv.cuprog_of_prog prog in
   let cp =
     Toec_prog.toec_uprog_via_safety Arch.asmOp Arch.pointer_data Arch.msf_size
-      freshvar fresh_removable mask protect_all protect_source dead_info cp in
+      toec_freshvar fresh_removable mask removable cp in
   Conv.prog_of_cuprog (catch_error cp)
 
 (*--------------------------------------------------------------------- *)

@@ -9,12 +9,20 @@
    [dead_code] keeps the assertions, the system calls and the calls, and
    removes assignments and operators whose results are dead. The direction
    from the transformed program to the source therefore needs these removed
-   instructions not to fail. In the total mode an instruction whose
-   expressions are well typed does not fail: the memory accesses, the array
-   accesses and the operators are total, a variable never written reads a
-   default value. [total_ok] states it for every assignment and operator of
-   the program (and for the arguments of the calls, which the removal of
-   parameters, in [dead_args], removes). *)
+   instructions not to fail; [dead_args] and [drop_removable] also remove
+   arguments, destinations, parameters and results, which the source passes
+   and writes. [total_ok p] states that, from any state, these never fail in
+   the total mode: the assignments and the operators of [p] run; the
+   arguments of a call evaluate to values of the types of the parameters of
+   the callee, and the destinations accept any values of the types of its
+   results; the parameters of a function accept any values of their types,
+   and its results, read from any state, have their types.
+
+   [total_ok p] amounts to [p] being well typed. In the total mode the
+   memory accesses, the array accesses and the operators do not fail, and a
+   variable never written reads the default value of its type; what is left
+   to fail is a value that does not have the type that its destination, the
+   parameter or the result expects. *)
 
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import compiler_util psem psem_facts.
@@ -31,7 +39,9 @@ Context
   {spp : SemPexprParams} {sip : SemInstrParams asm_op syscall_state}.
 
 (* In the total mode, on every state, the assignments and the operators of [p]
-   run, and the arguments of its calls evaluate. *)
+   run, the arguments of its calls evaluate to values of the types of the
+   parameters, and their destinations accept values of the types of the
+   results. *)
 Fixpoint total_ok_i (p : uprog) (i : instr) : Prop :=
   let total_ok_c :=
     fix total_ok_c (c : cmd) : Prop :=
@@ -40,14 +50,33 @@ Fixpoint total_ok_i (p : uprog) (i : instr) : Prop :=
   match ir with
   | Cassgn x tg ty e => forall s, is_ok (sem_assgn (sm := total) p x tg ty e s)
   | Copn xs tg o es => forall s, is_ok (sem_sopn (sm := total) (p_globs p) o s xs es)
-  | Ccall _ _ es => forall s, is_ok (sem_pexprs (sm := total) true (p_globs p) s es)
+  | Ccall xs f es =>
+    if get_fundef (p_funcs p) f is Some fd then
+      (forall s,
+         is_ok (Let vs := sem_pexprs (sm := total) true (p_globs p) s es in
+                mapM2 ErrType dc_truncate_val (map eval_atype fd.(f_tyin)) vs))
+      /\ forall s vs vs',
+         mapM2 ErrType dc_truncate_val (map eval_atype fd.(f_tyout)) vs = ok vs' ->
+         is_ok (write_lvals (sm := total) true (p_globs p) s xs vs')
+    else forall s, is_ok (sem_pexprs (sm := total) true (p_globs p) s es)
   | Csyscall _ _ _ | Cassert _ => True
   | Cif _ c1 c2 | Cwhile _ c1 _ _ c2 => total_ok_c c1 /\ total_ok_c c2
   | Cfor _ _ c => total_ok_c c
   end.
 
+(* The parameters of [fd] accept any values of their types; its results, read
+   in the total mode from any state, have their types. *)
+Definition total_ok_fd (fd : ufundef) : Prop :=
+  (forall s vs vs',
+     mapM2 ErrType dc_truncate_val (map eval_atype fd.(f_tyin)) vs = ok vs' ->
+     is_ok (write_vars true fd.(f_params) vs' s))
+  /\ forall s,
+     is_ok (Let vs := get_var_is (sm := total) true (evm s) fd.(f_res) in
+            mapM2 ErrType dc_truncate_val (map eval_atype fd.(f_tyout)) vs).
+
 Definition total_ok (p : uprog) : Prop :=
-  forall fn fd i, get_fundef (p_funcs p) fn = Some fd -> List.In i fd.(f_body) -> total_ok_i p i.
+  forall fn fd, get_fundef (p_funcs p) fn = Some fd ->
+    total_ok_fd fd /\ forall i, List.In i fd.(f_body) -> total_ok_i p i.
 
 (* The results of [fn] that [onfun] keeps. *)
 Definition dc_keep_res (onfun : funname -> option (seq bool)) (fn : funname) (fr : fstate) :=
