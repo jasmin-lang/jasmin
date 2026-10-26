@@ -58,9 +58,26 @@ Existing Instances _asmop _sc_sem | 1000.
 
 Arguments mk_sip {_ _ _ _}.
 
-Class WithAssert := { assert_allowed : bool }.
-Definition noassert : WithAssert := {| assert_allowed := false |}.
-Definition withassert : WithAssert := {| assert_allowed := true |}.
+(* How the semantics treats specifications:
+   - [NoAssert]: an assertion is an error, contracts are ignored;
+   - [AssertOnly]: assertions are evaluated, contracts are ignored (this is
+     the semantics of the extraction to EasyCrypt, where contracts become
+     specifications, not checks);
+   - [AssertContracts]: assertions are evaluated, and so are the pre- and
+     postconditions of a function at each call. *)
+Variant assert_mode := NoAssert | AssertOnly | AssertContracts.
+
+Class WithAssert := { wa_mode : assert_mode }.
+
+Definition assert_allowed {wa : WithAssert} : bool :=
+  match wa_mode with NoAssert => false | _ => true end.
+
+Definition contracts_checked {wa : WithAssert} : bool :=
+  match wa_mode with AssertContracts => true | _ => false end.
+
+Definition noassert : WithAssert := {| wa_mode := NoAssert |}.
+Definition withassert : WithAssert := {| wa_mode := AssertContracts |}.
+Definition withassert_nocontract : WithAssert := {| wa_mode := AssertOnly |}.
 
 #[global] Existing Instances noassert | 1000.
 

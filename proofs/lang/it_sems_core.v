@@ -106,7 +106,7 @@ Definition isem_assert (a: assertion) (s: estate) : itree E unit :=
   iresult (sem_assert (p_globs p) s a).
 
 Definition sem_pre {dc: DirectCall} (P : prog) (fn:funname) (fs: fstate) :=
-  if ~~assert_allowed then ok tt
+  if ~~contracts_checked then ok tt
   else if get_fundef (p_funcs P) fn is Some f then
     match f.(f_contract) with
     | Some ci =>
@@ -122,7 +122,7 @@ Definition isem_pre {dc : DirectCall} (fn : funname) (fs:fstate) : itree E unit 
   iresult (sem_pre p fn fs).
 
 Definition sem_post {dc: DirectCall} (P : prog) (fn:funname) (vargs' : values) (fs: fstate) :=
-  if ~~assert_allowed then ok tt
+  if ~~contracts_checked then ok tt
   else if get_fundef (p_funcs P) fn is Some f then
     match f.(f_contract) with
     | Some ci =>

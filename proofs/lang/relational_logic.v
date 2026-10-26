@@ -838,8 +838,8 @@ Proof.
 Qed.
 
 Lemma wequiv_assert (P Q : rel_c) ii1 a1 ii2 a2 :
-  (assert_allowed (WithAssert:=wa1) ->
-   assert_allowed (WithAssert:=wa2) /\
+  (assert_allowed (wa:=wa1) ->
+   assert_allowed (wa:=wa2) /\
    forall s1 s2,
      P s1 s2 ->
      sem_eassert (p_globs p1) s1 a1.2 = ok true ->
@@ -861,12 +861,12 @@ Proof.
 Qed.
 
 Lemma wequiv_assert_eq (P Q : rel_c) ii1 a1 ii2 a2 :
-  (assert_allowed (WithAssert:=wa1) ->
-     assert_allowed (WithAssert:=wa2) /\
+  (assert_allowed (wa:=wa1) ->
+     assert_allowed (wa:=wa2) /\
      wrequiv P (fun s => sem_eassert (p_globs p1) s a1.2)
                (fun s => sem_eassert (p_globs p2) s a2.2) eq) ->
-  (assert_allowed (WithAssert:=wa1) ->
-   assert_allowed (WithAssert:=wa2) ->
+  (assert_allowed (wa:=wa1) ->
+   assert_allowed (wa:=wa2) ->
    forall s1 s2,
      P s1 s2 ->
      sem_eassert (p_globs p1) s1 a1.2 = ok true ->
@@ -1415,7 +1415,7 @@ Proof.
 Qed.
 
 Lemma wequiv_assert_left P Q ii a :
-  (assert_allowed (WithAssert:=wa1) ->
+  (assert_allowed (wa:=wa1) ->
    forall s t, P s t -> sem_eassert (p_globs p1) s a.2 = ok true -> Q s t) ->
   wequiv P [::MkI ii (Cassert a)] [::] Q.
 Proof.
@@ -1431,7 +1431,7 @@ Proof.
 Qed.
 
 Lemma wequiv_asserts_left P Q ii (a_s : list assertion) :
-  assert_allowed (WithAssert:=wa1) ->
+  assert_allowed (wa:=wa1) ->
   (forall s t, P s t ->
      (forall a, List.In a a_s -> sem_eassert (p_globs p1) s a.2 = ok true) -> Q s t) ->
   wequiv P [seq MkI ii (Cassert a) | a <- a_s] [::] Q.
@@ -1722,7 +1722,7 @@ Proof using cu.
 Qed.
 
 Lemma wequiv_assert_rel_eq d de ii1 a1 ii2 a2 :
-  (assert_allowed (WithAssert:=wa1) → assert_allowed (WithAssert:=wa2)) ->
+  (assert_allowed (wa:=wa1) → assert_allowed (wa:=wa2)) ->
   check_a d a1.2 a2.2 de ->
   wequiv (R d) [:: MkI ii1 (Cassert a1)] [:: MkI ii2 (Cassert a2)] (R de).
 Proof using caP.
