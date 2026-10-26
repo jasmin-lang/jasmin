@@ -31,6 +31,7 @@
 -R lang Jasmin
 -R ssrmisc Jasmin
 -R itrees Jasmin
+-R toEC Jasmin
 
 ssrmisc/oseq.v
 ssrmisc/seq_extra.v
@@ -216,6 +217,7 @@ lang/pseudo_operator.v
 lang/psem_facts.v
 lang/relational_logic.v
 lang/safety_common.v
+lang/safety_common_proof.v
 lang/safety_cond.v
 lang/safety_cond_facts.v
 lang/sem_one_varmap.v
@@ -246,3 +248,5 @@ lang/waes.v
 lang/warray_.v
 lang/word.v
 lang/wsize.v
+toEC/safety.v
+toEC/safety_proof.v

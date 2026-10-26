@@ -65,7 +65,8 @@ Qed.
 (* sem_stack_stable and sem_validw_stable both for uprog and sprog *)
 (* inspired by sem_one_varmap_facts *)
 
-Lemma write_lval_stack_stable wdb gd x v s s' :
+(* True in both modes: the total memory write does not move the stack either. *)
+Lemma write_lval_stack_stable {sm : SemMode} wdb gd x v s s' :
   write_lval wdb gd x v s = ok s' →
   stack_stable (emem s) (emem s').
 Proof.
@@ -77,7 +78,7 @@ Proof.
   all: by apply: on_arr_varP; rewrite /write_var; t_xrbindP => ?????????????? <-.
 Qed.
 
-Lemma write_lvals_stack_stable wdb gd xs vs s s' :
+Lemma write_lvals_stack_stable {sm : SemMode} wdb gd xs vs s s' :
   write_lvals wdb gd s xs vs = ok s' →
   stack_stable (emem s) (emem s').
 Proof.
@@ -85,7 +86,7 @@ Proof.
   by move => v vs s /=; t_xrbindP => ? /write_lval_stack_stable -> /ih.
 Qed.
 
-Lemma write_lval_validw wdb gd x v s s' :
+Lemma write_lval_validw {sm : SemMode} wdb gd x v s s' :
   write_lval wdb gd x v s = ok s' ->
   validw (emem s) =3 validw (emem s').
 Proof.
@@ -97,7 +98,7 @@ Proof.
   all: by apply: on_arr_varP; rewrite /write_var; t_xrbindP => ?????????????? <-.
 Qed.
 
-Lemma write_lvals_validw wdb gd xs vs s s' :
+Lemma write_lvals_validw {sm : SemMode} wdb gd xs vs s s' :
   write_lvals wdb gd s xs vs = ok s' ->
   validw (emem s) =3 validw (emem s').
 Proof.
@@ -414,3 +415,30 @@ Proof.
 Qed.
 
 End EQ_EX.
+
+Section SYSCALL_U.
+
+Context
+  {wsw : WithSubWord}
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {sip : SemInstrParams asm_op syscall_state}.
+
+#[local] Existing Instance progUnit.
+#[local] Existing Instance sCP_unit.
+
+(* The unit syscall semantics does not touch the memory and returns values of
+   the declared output types. *)
+Lemma syscall_u_toutP o fs fs2 :
+  fexec_syscall o fs = ok fs2 ->
+  fmem fs = fmem fs2 /\
+  List.map type_of_val fs2.(fvals) = map eval_atype (scs_tout (syscall_sig_u o)).
+Proof.
+  rewrite /fexec_syscall.
+  t_xrbindP => -[[scs m_] vs_] + [<-] /=.
+  case: o => ws len /=; rewrite /exec_getrandom_u.
+  t_xrbindP => a ha t ht heq.
+  by move=> <- /= _ <- <-.
+Qed.
+
+End SYSCALL_U.
