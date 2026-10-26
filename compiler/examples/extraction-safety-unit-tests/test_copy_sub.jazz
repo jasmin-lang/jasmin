@@ -1,0 +1,11 @@
+fn test() -> reg u64 {
+  inline int i;
+  stack u64[4] a;
+  stack u64[2] b;
+  reg u64 r;
+  for i = 0 to 4 { a[i] = i; }
+  b = #copy(a[1:2]);
+  r = b[0];
+  r += b[1];
+  return r;
+}

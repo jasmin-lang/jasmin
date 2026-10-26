@@ -34,6 +34,31 @@ lemma test_cast_safe :
 proof. by proc; auto. qed.
 
 (* ----------------------------------------------------------------------------*)
+require Test_copy_sub.
+require import BArray16 BArray32 SBArray32_16.
+
+(* The copied sub-array [a[1:2]] is initialised: the loop initialises [a]. *)
+lemma test_copy_sub_safe :
+  hoare [ Test_copy_sub.M.test : true ==> true | Test_copy_sub.Assertion_failure => false ].
+proof.
+  proc; wp.
+  while (0 <= i <= 4 /\ BArray32.is_init b_a 0 (8 * i)).
+  + auto => /> &m h0 _ hinit h4; split; 1: smt().
+    move=> _ _; split; 1: smt().
+    move: hinit; rewrite /BArray32.is_init => hinit k hk1 hk2 /=; smt().
+  auto => />.
+  split; 1: by rewrite /BArray16.is_init /#.
+  move=> b_a i h4 h0 h4' hinit; have ->> : i = 4 by smt().
+  have hb : forall k, 0 <= k < 16 =>
+    BArray16.is_init_cell (BArray16.fill8 0 16 (W8.of_int 255)) k.
+  + by move=> k hk; rewrite /BArray16.is_init_cell /BArray16.fill8 BArray16.initiE /#.
+  split.
+  + move=> k hk1 hk2; rewrite SBArray32_16.is_init_cell_get 1,2:/#.
+    by move: hinit; rewrite /BArray32.is_init /#.
+  by move=> _; split => [k * | _ k *]; apply hb => /#.
+qed.
+
+(* ----------------------------------------------------------------------------*)
 require Test_glob_array.
 
 lemma test_glob_array_safe :
