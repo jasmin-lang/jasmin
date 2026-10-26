@@ -396,6 +396,7 @@ type ec_instr =
     | ESif of ec_expr * ec_stmt * ec_stmt
     | ESwhile of ec_expr * ec_stmt
     | ESreturn of ec_expr
+    | ESraise of string (* raise an exception *)
     | EScomment of string (* comment line *)
 
 and ec_stmt = ec_instr list
@@ -438,6 +439,7 @@ type ec_item =
     | Iop of string * string * ec_expr
     | ImoduleType of ec_module_type
     | Imodule of ec_module
+    | Iexception of string
 
 type ec_prog = ec_item list
 
@@ -816,6 +818,7 @@ and pp_ec_ast_instr fmt instr =
             Format.fprintf fmt "@[<v>while (%a) {@   %a@ }@]"
             pp_ec_ast_expr e pp_ec_ast_stmt c
     | ESreturn e -> Format.fprintf fmt "@[return %a;@]" pp_ec_ast_expr e
+    | ESraise x -> Format.fprintf fmt "@[raise %s;@]" x
     | EScomment s -> Format.fprintf fmt "@[(* %s *)@]" s
 
 let pp_ec_vdecl fmt (x, ty) = Format.fprintf fmt "%s:%a" x pp_string ty
@@ -863,6 +866,7 @@ let pp_ec_item fmt it =
       | opts -> Format.fprintf fmt " [%s]" opts
     in
     Format.fprintf fmt "@[op%a %s =@ @[%a@].@]" pp_opts opts a pp_ec_ast_expr e
+  | Iexception x -> Format.fprintf fmt "@[exception %s.@]" x
   | ImoduleType mt ->
     Format.fprintf fmt "@[<v>@[module type %s = {@]@   @[<v>%a@]@ }.@]"
       mt.name (pp_list "@ " pp_ec_fun_decl) mt.funs
@@ -1090,6 +1094,11 @@ let of_list_dfl env ws n =
 
 (* [Array<n>.init (WArray<size>.get<ws> a)] where [a] is the byte array whose
    bytes in [lo, lo + len) equal [w], the others zero *)
+(* The masks of the extraction for safety are byte arrays of the size of the
+   arrays they describe: only the byte-array model gives them that type, the
+   extraction for safety requires it. *)
+let is_init_dfl _env _len _m _lo _n = assert false
+
 let fill_dfl env ws n lo len w =
   let i = Env.create_name env "i" in
   let warray = ec_WArray env (arr_size ws n) in
@@ -1122,6 +1131,9 @@ module type EcArray = sig
   val add_jarray: Env.t -> wsize -> int -> unit
   val of_list:  Env.t -> wsize -> int -> ec_expr
   val fill: Env.t -> wsize -> int -> ec_expr -> ec_expr -> ec_expr -> ec_expr
+  (* [is_init env len m lo n]: the bytes of the mask [m] (an array of [len]
+     bytes) in [lo, lo + n) are all ones *)
+  val is_init: Env.t -> int -> ec_expr -> ec_expr -> ec_expr -> ec_expr
   val randombytes_suffix: wsize -> int -> string
 
 end
@@ -1250,6 +1262,8 @@ module EcArrayOld : EcArray = struct
   let of_list =  of_list_dfl
   let fill = fill_dfl
 
+  let is_init = is_init_dfl
+
   let randombytes_suffix = randombytes_suffix_dfl
 end
 
@@ -1366,6 +1380,8 @@ module EcWArray: EcArray = struct
   let of_list =  of_list_dfl
   let fill = fill_dfl
 
+  let is_init = is_init_dfl
+
   let randombytes_suffix = randombytes_suffix_dfl
 end
 
@@ -1431,6 +1447,8 @@ module EcBArray : EcArray = struct
 
   let fill env ws n lo len w = Eapp (Eident [ec_BArray env (arr_size ws n); "fill8"], [lo; len; w])
 
+  let is_init env len m lo n = Eapp (Eident [ec_BArray env len; "is_init"], [m; lo; n])
+
   let randombytes_suffix ws n =
     Format.asprintf "%i" (arr_size ws n)
 end
@@ -1478,6 +1496,7 @@ module type EcExpression = sig
   val ec_cast: Env.t -> ty * ty -> ec_expr -> ec_expr
   val toec_cast: Env.t -> ty * expr -> ec_expr
   val toec_expr: Env.t -> expr -> ec_expr
+  val toec_assert: Env.t -> eassert -> ec_expr
 end
 
 let int_of_word ws e = Papp1 (Oint_of_word(Unsigned, ws), e)
@@ -1592,6 +1611,23 @@ module EcExpression(EA: EcArray): EcExpression = struct
           )
 
   and toec_cast env (ty, e) = ec_cast env (ty, ty_expr e) (toec_expr env e)
+
+  (* The initialisation predicates on variables have been turned into reads of
+     their masks ([Explicit_init]); the validity of the memory is that of
+     [Glob.mem_v]. *)
+  let rec toec_assert env = function
+    | Pexpr e -> toec_expr env e
+    | PappN_safety (Ois_barr_init len, [m; lo; n]) ->
+        EA.is_init env (Conv.int_of_cz len)
+          (toec_expr env m) (toec_expr env lo) (toec_expr env n)
+    | PappN_safety ((Ois_arr_init _ | Ois_barr_init _), _) | Pis_var_init _ ->
+        assert false
+    | Pis_mem_init (p, n) ->
+        Eapp (ec_ident "is_valid", [
+            ec_ident "ptr_modulus"; Eident ["Glob"; "mem_v"];
+            toec_expr env (int_of_ptr (Env.pd env) p); toec_expr env n
+          ])
+    | Pand (a1, a2) -> Eop2 (Infix "/\\", toec_assert env a1, toec_assert env a2)
 end
 
 module type EcLeakage = sig
@@ -1812,12 +1848,37 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
 end
 
 
+(* The assertions of the program. In the extraction for safety, an assertion
+   that does not hold raises the exception [Assertion_failure]: the program is
+   safe when no execution raises it. Otherwise the assertions are dropped. *)
+module type EcSafety = sig
+  val ec_assert: Env.t -> int assertion -> ec_instr list
+  val safety_decls: ec_item list
+end
+
+module EcSafetyNone : EcSafety = struct
+  let ec_assert _env _a = []
+  let safety_decls = []
+end
+
+module EcSafetyExn(EE: EcExpression) : EcSafety = struct
+  let assertion_failure = "Assertion_failure"
+
+  let ec_assert env (_, a) =
+    let e = Eapp (ec_ident "!", [EE.toec_assert env a]) in
+    [ESif (e, [ESraise assertion_failure], [])]
+
+  let safety_decls = [Iexception assertion_failure]
+end
+
 module Extraction
   (EA: EcArray)
-  (EL: EcLeakage) =
+  (EL: EcLeakage)
+  (ES: EcSafety) =
 struct
   open EcExpression(EA)
   open EL
+  open ES
   (* ------------------------------------------------------------------- *)
   (* Extraction of lvals *)
 
@@ -1931,7 +1992,7 @@ struct
           let dests, _ = ec_dests env lvs otys otys in
           (ec_leaks_es env es) @
           [EScall (dests, [ec_syscall env o], args)]
-      | Cassert _a -> [(* TODO *)]
+      | Cassert a -> ec_assert env a
       | Cif (e, c1, c2) ->
           let c1 env = toec_cmd asmOp env c1 in
           let c2 env = toec_cmd asmOp env c2 in
@@ -2101,6 +2162,7 @@ struct
       } in
       glob_imports @
       (leakage_imports env) @
+      safety_decls @
       pp_array_theories (Env.array_theories env) @
       (List.map (fun glob -> ec_glob_decl env global_options glob) globs) @
       (ec_randombytes env) @
@@ -2128,7 +2190,10 @@ and used_func_i used i =
   | Cwhile(_, c1, _, _, c2) -> used_func_c (used_func_c used c1) c2
   | Ccall (_,f,_)   -> Ss.add f.fn_name used
 
-let extract ((globs,funcs):('info, 'asm) prog) arch pd msfsz asmOp (model: model) amodel (global_options: global_options) fnames array_dir fmt =
+let extract ((globs,funcs):('info, 'asm) prog) arch pd msfsz asmOp (model: model) amodel (global_options: global_options) ?(safety = false) fnames array_dir fmt =
+  if safety && amodel <> BArray then
+    hierror ~loc:Lnone ~kind:"extraction error"
+      "the extraction for safety requires the array model barray";
   let save_array_theories array_theories =
     match array_dir with
     | Some prefix ->
@@ -2167,7 +2232,11 @@ let extract ((globs,funcs):('info, 'asm) prog) arch pd msfsz asmOp (model: model
           "EasyCrypt extraction for constant-time in CTG mode is deprecated. Use the CT mode instead.";
         (module EcLeakConstantTimeGlobal(EE): EcLeakage)
   ) in
-  let module E = Extraction(EA)(EL) in
+  let module ES: EcSafety = (val
+    if safety then (module EcSafetyExn(EE): EcSafety)
+    else (module EcSafetyNone: EcSafety)
+  ) in
+  let module E = Extraction(EA)(EL)(ES) in
   let prog = E.pp_prog env asmOp global_options fmt globs funcs in
   save_array_theories (Env.array_theories env);
   prog

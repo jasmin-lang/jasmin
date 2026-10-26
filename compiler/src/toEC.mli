@@ -42,6 +42,7 @@ val extract :
   Utils.model ->
   amodel ->
   global_options ->
+  ?safety:bool ->
   string list ->
   string option ->
   Format.formatter ->

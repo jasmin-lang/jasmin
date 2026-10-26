@@ -4,7 +4,7 @@ open CommonCLI
 open Utils
 
 let extract_to_file prog arch pd msfsz asmOp model amodel global_options
-    fnames array_dir outfile =
+    safety fnames array_dir outfile =
   let array_dir =
     if array_dir = None then Option.map Filename.dirname outfile else array_dir
   in
@@ -21,7 +21,7 @@ let extract_to_file prog arch pd msfsz asmOp model amodel global_options
       (fun () -> close ())
       (fun () ->
         ToEC.extract prog arch pd msfsz asmOp model amodel global_options
-          fnames array_dir fmt)
+          ~safety fnames array_dir fmt)
       ()
   with e ->
     BatPervasives.ignore_exceptions
@@ -31,19 +31,25 @@ let extract_to_file prog arch pd msfsz asmOp model amodel global_options
 
 let parse_and_extract arch call_conv idirs =
   let module A = (val CoreArchFactory.get_arch_module arch call_conv) in
-  let extract model amodel global_options functions array_dir output pass file =
-    let prog = parse_and_compile (module A) ~wi2i:true pass file idirs
-      |> Compile.do_toec (module A) in
+  let extract model amodel global_options safety functions array_dir output
+      pass file =
+    let prog = parse_and_compile (module A) ~wi2i:true pass file idirs in
+    let prog =
+      if safety then Compile.do_toec_safety (module A) prog
+      else Compile.do_toec (module A) prog
+    in
     try
       extract_to_file prog arch A.reg_size A.msf_size A.asmOp model amodel
-        global_options functions array_dir output
+        global_options safety functions array_dir output
     with Annot.AnnotationError (loc, code) ->
       hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
   in
-  fun model amodel global_options functions array_dir output pass file warn ->
+  fun model amodel global_options safety functions array_dir output pass file
+      warn ->
     if not warn then nowarning ();
     match
-      extract model amodel global_options functions array_dir output pass file
+      extract model amodel global_options safety functions array_dir output
+        pass file
     with
     | () -> ()
     | exception HiError e ->
@@ -152,6 +158,16 @@ let global_model =
         & opt_all (conv (parse, pp)) []
         & info [ "global-model" ] ~docv:"MODEL" ~doc))
 
+let safety =
+  let doc =
+    "Extract for safety verification: the safety conditions of the program
+     become assertions, and the initialisation state of the variables becomes
+     explicit (each variable gets a mask). An assertion that does not hold
+     raises the exception Assertion_failure: the program is safe when no
+     execution raises it. Requires the $(b,barray) array model."
+  in
+  Arg.(value & flag & info [ "safety" ] ~doc)
+
 let functions =
   let doc =
     "Only extract the given function (and its dependencies). This argument may \
@@ -198,6 +214,6 @@ let () =
   Cmd.v info
     Term.(
       const parse_and_extract $ arch $ call_conv $ idirs $ model $ array_model
-      $ global_model $ functions $ array_dir $ output $ after_pass
+      $ global_model $ safety $ functions $ array_dir $ output $ after_pass
       $ file $ warn)
   |> Cmd.eval |> exit

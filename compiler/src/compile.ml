@@ -134,6 +134,34 @@ let do_toec
   let cp = catch_error cp in
   Conv.prog_of_cuprog cp
 
+(* The extraction for safety: the mask of an array is an array of the same
+   type, the mask of a scalar is a boolean. *)
+let do_toec_safety
+   (type asm_op extra_op)
+    (module Arch : Arch_full.Arch
+       with type asm_op = asm_op
+       and type extra_op = extra_op) prog =
+  let freshvar = (fun vk ii -> Conv.fresh_var_ident vk ii (Uint63.of_int 0)) in
+  let masks = Hv.create 101 in
+  let mask cx =
+    let x = Conv.var_of_cvar cx in
+    let m =
+      match Hv.find masks x with
+      | m -> m
+      | exception Not_found ->
+        let ty = match x.v_ty with Arr _ -> x.v_ty | _ -> tbool in
+        let m = V.mk ("b_" ^ x.v_name) x.v_kind ty x.v_dloc [] in
+        Hv.add masks x m;
+        m
+    in
+    Conv.cvar_of_var m
+  in
+  let cp = Conv.cuprog_of_prog prog in
+  let cp =
+    Toec_prog.toec_uprog_safety Arch.asmOp Arch.pointer_data Arch.msf_size
+      freshvar mask cp in
+  Conv.prog_of_cuprog (catch_error cp)
+
 (*--------------------------------------------------------------------- *)
 
 let compile (type reg regx xreg rflag cond asm_op extra_op)

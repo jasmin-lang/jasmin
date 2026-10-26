@@ -1,4 +1,4 @@
-Require Import toec_for toec_while normalize_calls for_to_while.
+Require Import toec_for toec_while normalize_calls for_to_while safety explicit_init.
 Import compiler_util expr.
 
 #[local] Instance toec_LoopCounter : LoopCounter :=
@@ -18,5 +18,17 @@ Definition toec_prog {pT : progT} (p : prog) : cexec prog :=
 
 Definition toec_uprog : _uprog -> cexec _uprog :=
   toec_prog : (@prog _ _ progUnit -> _).
+
+(* The extraction for safety. The safety conditions are added once the
+   destinations of the calls are normalised, so that they describe the
+   instructions that are extracted, and before [toec_while], which moves the
+   condition part of a loop, where they go, out of it; [explicit_init] checks
+   the form [normalize_calls] produces. *)
+Definition toec_uprog_safety (mask : var -> var) (p : _uprog) : cexec _uprog :=
+  Let p := normalize_calls_prog (pT := progUnit) fresh_var_ident p in
+  Let p := sc_prog p in
+  let p := toec_while_prog (pT := progUnit) p in
+  Let p := toec_for_prog (pT := progUnit) fresh_var_ident p in
+  explicit_init_prog mask p.
 
 End TOEC.
