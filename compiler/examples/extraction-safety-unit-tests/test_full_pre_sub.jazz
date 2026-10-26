@@ -1,0 +1,14 @@
+// The precondition states that [x] is initialised: the copy of the sub-array
+// [x[2:4]] needs no initialisation test, only its bounds, which are constant.
+#[safety =
+   { requires = is_arr_init(x,0,64) }
+ ]
+fn sub(reg ptr u64[8] x) -> reg u64
+{
+    stack u64[4] y;
+    reg u64 r;
+    y = #copy(x[2:4]);
+    r = y[0];
+    r += y[3];
+    return r;
+}
