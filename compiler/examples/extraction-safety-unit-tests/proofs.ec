@@ -82,7 +82,7 @@ lemma test_init_arr_sum_safe :
           BArray10.is_init b_x 0 10 /\ BArray10.is_init b_y 0 10 ==>
           BArray10.is_init res.`2 0 10 | Test_init_arr_sum.Assertion_failure => false ].
 proof.
-  proc.
+  proc; wp.
   while (0 <= i <= 5 /\ b_i = (0 < i) /\ BArray10.is_init b_x 0 10 /\
          BArray10.is_init b_y 0 10 /\ BArray10.is_init b_z 0 (2 * i)).
   + by auto => /> &m; rewrite /BArray10.is_init /#.
@@ -109,7 +109,7 @@ lemma test2_safe :
           BArray5.is_init b_x 0 5 ==> true | Test_init_pos_func.Assertion_failure => false ].
 proof.
   proc; auto.
-  ecall (init_pos_safe b_x 2); auto => /> &m hx r h.
+  ecall (init_pos_safe b_x0 ix); auto => /> &m hx r h.
   move: hx; rewrite /BArray5.is_init; smt().
 qed.
 
@@ -119,7 +119,7 @@ lemma test_safe :
 proof.
   proc; auto.
   while (0 <= i <= 5 /\ b_i /\ BArray5.is_init b_x 0 i).
-  + wp; ecall (init_pos_safe b_x i); auto => /> &m h0 _ hx h5 r h.
+  + wp; ecall (init_pos_safe b_x0 ix); auto => /> &m h0 _ hx h5 r h.
     move: hx; rewrite /BArray5.is_init; smt().
   by auto => /> /#.
 qed.
