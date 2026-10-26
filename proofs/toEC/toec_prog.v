@@ -1,4 +1,5 @@
-Require Import toec_for toec_while for_to_while normalize_calls contracts_to_asserts safety explicit_init.
+Require Import toec_for toec_while for_to_while normalize_calls contracts_to_asserts safety explicit_init
+  simplify_asserts.
 Import compiler_util expr.
 
 #[local] Instance toec_LoopCounter : LoopCounter :=
@@ -27,13 +28,17 @@ Definition toec_uprog : _uprog -> cexec _uprog :=
    moves the condition part of a loop, where they go, out of it;
    [explicit_init] checks the form [normalize_calls] produces. In the result,
    the contracts are not checks but specifications: the semantics of the
-   extracted program evaluates its assertions, not its contracts. *)
+   extracted program evaluates its assertions, not its contracts. Last, the
+   assertions are simplified with what holds where they are
+   ([simplify_asserts]): the constants, among them the masks of the scalars,
+   and the masks of the arrays known to be full. *)
 Definition toec_uprog_safety (mask : var -> var) (p : _uprog) : cexec _uprog :=
   Let p := normalize_calls_prog (pT := progUnit) fresh_var_ident p in
   Let p := contracts_to_asserts_prog fresh_var_ident p in
   Let p := sc_prog p in
   let p := toec_while_prog (pT := progUnit) p in
   Let p := toec_for_prog (pT := progUnit) fresh_var_ident p in
-  explicit_init_prog mask p.
+  Let p := explicit_init_prog mask p in
+  ok (simplify_asserts_prog p).
 
 End TOEC.

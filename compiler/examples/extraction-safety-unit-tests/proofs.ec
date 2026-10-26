@@ -19,10 +19,7 @@ require import BArray8.
 
 lemma test_array_safe :
   hoare [ Test_array.M.test : true ==> true | Test_array.Assertion_failure => false ].
-proof.
-  proc; auto => /> i *.
-  by rewrite /BArray8.is_init_cell /BArray8.fill8 initiE /#.
-qed.
+proof. by proc; auto. qed.
 
 (* ----------------------------------------------------------------------------*)
 require Test_cast.
@@ -45,15 +42,10 @@ proof.
     move=> _ _; split; 1: smt().
     move: hinit; rewrite /BArray32.is_init => hinit k hk1 hk2 /=; smt().
   auto => />.
-  split; 1: by rewrite /BArray16.is_init /#.
+  split; 1: by rewrite /BArray32.is_init /#.
   move=> b_a i h4 h0 h4' hinit; have ->> : i = 4 by smt().
-  have hb : forall k, 0 <= k < 16 =>
-    BArray16.is_init_cell (BArray16.fill8 0 16 (W8.of_int 255)) k.
-  + by move=> k hk; rewrite /BArray16.is_init_cell /BArray16.fill8 BArray16.initiE /#.
-  split.
-  + move=> k hk1 hk2; rewrite SBArray32_16.is_init_cell_get 1,2:/#.
-    by move: hinit; rewrite /BArray32.is_init /#.
-  by move=> _; split => [k * | _ k *]; apply hb => /#.
+  move=> k hk1 hk2; rewrite SBArray32_16.is_init_cell_get 1,2:/#.
+  by move: hinit; rewrite /BArray32.is_init /#.
 qed.
 
 (* ----------------------------------------------------------------------------*)

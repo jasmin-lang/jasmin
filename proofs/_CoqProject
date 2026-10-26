@@ -251,6 +251,8 @@ toEC/normalize_calls.v
 toEC/normalize_calls_proof.v
 toEC/safety.v
 toEC/safety_proof.v
+toEC/simplify_asserts.v
+toEC/simplify_asserts_proof.v
 toEC/toec_for.v
 toEC/toec_for_proof.v
 toEC/toec_prog.v
