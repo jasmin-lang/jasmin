@@ -151,3 +151,16 @@ proof.
   + by auto => /> &m; rewrite /BArray16.is_init /#.
   wp; ecall (fill_safe x b_x); auto => /> /#.
 qed.
+
+(* ----------------------------------------------------------------------------*)
+require Test_full_pre Test_full_pre_specs.
+require import BArray32.
+
+(* The precondition gives the initialisation of [x]: the body tests only the
+   bounds of the accesses in the loop. *)
+lemma sum_full_pre_safe _x _b_x : Test_full_pre_specs.sum_spec _x _b_x.
+proof.
+  rewrite /Test_full_pre_specs.sum_spec; proc; wp.
+  while (1 <= i <= 3); 1: by auto => /#.
+  by auto.
+qed.
