@@ -7,8 +7,8 @@ BArray2.ec
 globals.ec
 globals_unsigned.ec
 BArray16.ec
-WArray16.ec
 bug_1555.ec
+SBArray8_8.ec
 bug_1557.ec
 cast_in_return.ec
 BArray8.ec
