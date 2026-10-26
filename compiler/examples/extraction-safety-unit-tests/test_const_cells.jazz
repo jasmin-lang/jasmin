@@ -1,0 +1,16 @@
+// The cells of [t] are written at constant indices: the bytes of its mask
+// that they cover are known to be initialised, and the reads within them,
+// at the size of the cells or not, need no initialisation test.
+fn sum(reg u64 x) -> reg u64
+{
+    stack u64[4] t;
+    reg u64 r;
+    reg u32 h;
+    t[0] = x;
+    t[2] = x;
+    r = t[0];
+    r += t[2];
+    h = t.[:u32 4];
+    r += (64u) h;
+    return r;
+}

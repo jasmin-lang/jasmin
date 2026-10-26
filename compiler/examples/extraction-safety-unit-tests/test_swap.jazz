@@ -1,0 +1,19 @@
+// The pointers [p] and [q] are exchanged by [#swap]: so are the masks of
+// the arrays they point to, and the reads of [p] and [q] after the swap
+// need no initialisation test.
+fn sum(reg u64 x) -> reg u64
+{
+    stack u64[2] a b;
+    reg ptr u64[2] p q;
+    reg u64 r;
+    a[0] = x;
+    a[1] = x;
+    b[0] = x;
+    p = a;
+    q = b;
+    p, q = #swap(p, q);
+    r = p[0];
+    r += q[0];
+    r += q[1];
+    return r;
+}
