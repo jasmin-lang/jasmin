@@ -34,10 +34,11 @@ Local Open Scope seq_scope.
    left unchanged. A variable with a known constant is replaced by the
    constant; a closed operation on literals is replaced by its value, computed
    by the semantics of the total mode, in which the assertions are evaluated;
-   an initialisation test [Ois_barr_init] becomes the condition on its bounds
-   that it amounts to when its mask is full, a sub-array of a full local mask,
-   or a local mask known to be a fill [Afill lo n]; a conjunct [true] is
-   removed, and an assertion that becomes [true] is removed.
+   an initialisation test [Ois_barr_init] becomes [true] when it tests no
+   cell, and the condition on its bounds that it amounts to when its mask is
+   full, a sub-array of a full local mask, or a local mask known to be a fill
+   [Afill lo n]; a conjunct [true] is removed, and an assertion that becomes
+   [true] is removed.
 
    The rewriting drops no subexpression whose evaluation could fail: the
    rewritten expression evaluates exactly as the original one, but for the
@@ -46,8 +47,10 @@ Local Open Scope seq_scope.
    conditions, drops only the reads of array variables, which do not fail,
    and reads the bounds of a fill [Afill lo n]: these were evaluated by the
    assignment of the fill, and the variables they read have not been written
-   since, so that they evaluate again to the same integers. When the
-   rewritten assertion holds, so does the original one. *)
+   since, so that they evaluate again to the same integers. A test on no
+   cell drops only literals and the read of a local array or of its
+   sub-array at a literal index, which do not fail in the total mode. When
+   the rewritten assertion holds, so does the original one. *)
 
 Section ASM_OP.
 
@@ -254,12 +257,35 @@ Definition is_ones_fill (es : pexprs) : option (pexpr * pexpr) :=
   | _ => None
   end.
 
+(* An initialisation test on no cell: its length [n] is a literal [<= 0], so
+   that [ziota lo n] is empty and the test holds whatever the mask. The test
+   is recognised only when the arguments it drops cannot fail to evaluate:
+   [lo] is a literal, and the mask [m] of [len] bytes is a local array
+   variable or a sub-array at a literal index of a local array variable (in
+   the total mode, [WArray.get_sub] does not fail). A test whose [lo] or
+   mask reads a scalar (a variable that may be undefined, the index of a
+   sub-array) is left to the other cases. *)
+Definition is_no_cell (len : Z) (m lo n : pexpr) : bool :=
+  let safe_mask :=
+    match m with
+    | Pvar x =>
+      is_lvar x && if vtype x.(gv) is aarr ws xlen then arr_size ws xlen == len else false
+    | Psub _ ws slen x (Pconst _) =>
+      [&& is_lvar x, arr_size ws slen == len & if vtype x.(gv) is aarr _ _ then true else false]
+    | _ => false
+    end in
+  match lo, n with
+  | Pconst _, Pconst k => (k <=? 0)%Z && safe_mask
+  | _, _ => false
+  end.
+
 (* The condition on the bounds that an initialisation test on the mask [m]
-   of [len] bytes amounts to, when [m] is a full mask, a sub-array of a full
-   local mask of the same size, or a local mask of the same size known to be
-   a fill. *)
+   of [len] bytes amounts to, when it tests no cell, or when [m] is a full
+   mask, a sub-array of a full local mask of the same size, or a local mask of
+   the same size known to be a fill. *)
 Definition is_init_bounds (s : astate) (len : Z) (m lo n : pexpr) : option pexpr :=
-  if is_full s len m then Some (ebounds len lo n)
+  if is_no_cell len m lo n then Some (Pbool true)
+  else if is_full s len m then Some (ebounds len lo n)
   else
     match m with
     | Psub aa ws slen x i =>
