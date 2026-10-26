@@ -25,7 +25,7 @@ Definition with_id vi ii ctr id ty :=
 Definition is_reg_ptr_expr doit ii ctr id ty e :=
   match e with
   | Pvar x' =>
-    if [&& doit, is_aarr (vtype x'.(gv)), convertible ty (vtype x'.(gv)) & (is_glob x' || ~~is_reg_ptr x'.(gv))] then
+    if [&& doit, is_arr_var x'.(gv), convertible ty (vtype x'.(gv)) & (is_glob x' || ~~is_reg_ptr x'.(gv))] then
       Some (with_id x'.(gv).(v_info) ii ctr id ty)
     else None
   | Psub _ ws len x' _ =>

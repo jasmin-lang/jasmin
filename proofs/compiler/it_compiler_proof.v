@@ -1395,7 +1395,7 @@ have {}wovm : [elaborate
 
 (* Linearization *)
 have cs_not_arr :
-  forall x, Sv.In x one_varmap.callee_saved -> ~ is_aarr (vtype x).
+  forall x, Sv.In x one_varmap.callee_saved -> ~ is_arr_var x.
 + by move=> x /sv_of_listP /mapP [/= r _ ->]; case: r.
 have wlin := [elaborate
   linear_exportcallP
@@ -1598,7 +1598,7 @@ have rsp_in_callee_saved :
   apply/sv_of_listP.
   exact: (map_f var_of_asm_typed_reg callee_saved_has_rsp).
 have cs_not_arr :
-  forall x, Sv.In x one_varmap.callee_saved -> ~ is_aarr (vtype x).
+  forall x, Sv.In x one_varmap.callee_saved -> ~ is_arr_var x.
 - move=> x /sv_of_listP /mapP [/= r _ ->]; by case: r.
 
 have [lfd [get_lfd lfd_export w_be]] :=

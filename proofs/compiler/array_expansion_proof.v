@@ -12,7 +12,7 @@ Local Open Scope seq_scope.
 Record wf_ai (m : t) (x:var) ai := {
   x_nin : ~ Sv.In x m.(svars);
   len_def : ai_len ai = Z.of_nat (size (ai_elems ai));
-  x_ty    : is_aarr (vtype x);
+  x_ty    : is_arr_var x;
   xi_nin  : forall xi, xi \in ai_elems ai -> ~ Sv.In xi m.(svars);
   xi_ty   : forall xi, xi \in ai_elems ai -> xi.(vtype) = aword ai.(ai_ty);
   el_uni  : uniq (ai_elems ai);

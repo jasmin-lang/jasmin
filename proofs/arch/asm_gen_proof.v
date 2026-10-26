@@ -1734,7 +1734,7 @@ Proof using hagparams ok_p'.
     forall x,
       Sv.In x syscall_kill ->
       ~ Sv.In x R ->
-      ~~ is_aarr (vtype x) ->
+      ~~ is_arr_var x ->
       (evm s).[x] = undef_addr (eval_atype (vtype x)).
   - move=> x /Sv_memP hin hnin.
     have [<-] := get_var_eq_ex false hnin (vrvsP hw).

@@ -106,9 +106,11 @@ Definition is_reg_ptr (x: var) : bool :=
 Definition is_regx (x: var) : bool :=
   if Ident.id_kind x.(vname) is Reg(Extra, _) then true else false.
 
+Definition is_arr_var (x : var) : bool := is_aarr x.(vtype).
+
 Definition is_reg_array x :=
   if Ident.id_kind x.(vname) is Reg (_, Direct) then
-    if is_aarr x.(vtype) then true else false
+    is_arr_var x
   else false.
 
 (* ** Finite set of variables (computable)
