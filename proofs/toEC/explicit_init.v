@@ -24,7 +24,8 @@ Local Open Scope seq_scope.
    initialised. The pass fails when it cannot place a mask exactly; it
    checks that its input is in the normal form produced by [normalize_calls]
    (see [check_i]), that the arrays whose initialisation its assertions test
-   are local variables or sub-arrays of local variables ([check_arr_init])
+   are local variables, sub-arrays of local variables or declared global
+   arrays ([check_arr_init])
    and that the globals are initialised exactly in their bounds. *)
 
 Module Import E.
@@ -36,7 +37,7 @@ Module Import E.
       "a call, a system call or an operator with several destinations writes an array cell, a sub-array or the memory".
 
   Definition arr_init_error :=
-    pp_internal_error_s pass "an assertion tests the initialisation of an array that is not a local variable".
+    pp_internal_error_s pass "an assertion tests the initialisation of an array that is neither a local variable nor a declared global".
 
   Definition contract_error :=
     pp_internal_error_s pass "a contract reads a variable it does not bind".
@@ -120,9 +121,9 @@ Section ASSERT.
    in a contract, [true]. *)
 Context (var_init : var_i -> pexpr).
 
-(* The array [e] whose initialisation is tested is a local variable or a
-   sub-array of a local variable ([check_arr_init]): its mask is a variable or
-   the same sub-array of a variable. *)
+(* The array [e] whose initialisation is tested is a local variable, a
+   sub-array of a local variable or a global array ([check_arr_init]): its mask
+   is a variable, the same sub-array of a variable or the full mask. *)
 Fixpoint explicit_init_a (a : eassert) : eassert :=
   match a with
   | Pexpr _ | Pis_mem_init _ _ => a
@@ -314,18 +315,25 @@ Definition explicit_init_fd (fd : ufundef) : ufundef :=
 (* ------------------------------------------------------------------------- *)
 (* The checks                                                                 *)
 
-(* The array argument of an initialisation test is a local variable or a
-   sub-array of a local variable, as the safety pass produces it (the argument
-   of a copy can be a sub-array): a local array always has a value, and its
-   mask is a variable, or the same sub-array of a variable, that describes it. *)
-Fixpoint check_arr_init (a : eassert) : bool :=
+(* The array argument of an initialisation test is a local variable, a
+   sub-array of a local variable or a global array of [gd], as the safety pass
+   produces it (the argument of a copy can be a sub-array): a local array
+   always has a value, and its mask is a variable, or the same sub-array of a
+   variable, that describes it; a global of [gd] has a value, and its mask, the
+   full one, describes it. The mask of a global reads nothing of it: without
+   the test that the global is declared, the instrumented assertion would hold
+   where the original one fails. A sub-array of a global is refused: its mask
+   holds the cells within the global even when the sub-array is out of its
+   bounds. *)
+Fixpoint check_arr_init (gd : glob_decls) (a : eassert) : bool :=
   match a with
   | PappN_safety (Ois_arr_init _) es =>
     match es with
-    | [:: Pvar x; _; _] | [:: Psub _ _ _ x _; _; _] => is_lvar x
+    | [:: Pvar x; _; _] => is_lvar x || is_ok (get_global gd x.(gv))
+    | [:: Psub _ _ _ x _; _; _] => is_lvar x
     | _ => false
     end
-  | Pand a1 a2 => check_arr_init a1 && check_arr_init a2
+  | Pand a1 a2 => check_arr_init gd a1 && check_arr_init gd a2
   | Pexpr _ | PappN_safety _ _ | Pis_var_init _ | Pis_mem_init _ _ => true
   end.
 
@@ -335,32 +343,32 @@ Definition is_var_lv (lv : lval) : bool :=
 (* The destinations of a call, of a system call and of an operator with several
    destinations are variables, as [normalize_calls] produces them: the masks of
    the destinations of such an instruction are then exact. *)
-Fixpoint check_i (i : instr) : cexec unit :=
+Fixpoint check_i (gd : glob_decls) (i : instr) : cexec unit :=
   let: MkI ii ir := i in
   let check_lvs lvs := assert (all is_var_lv lvs) (E.dest_error ii) in
   match ir with
   | Cassgn _ _ _ _ => ok tt
   | Copn lvs _ _ _ => if 1 < size lvs then check_lvs lvs else ok tt
   | Csyscall lvs _ _ | Ccall lvs _ _ => check_lvs lvs
-  | Cassert (_, a) => add_iinfo ii (assert (check_arr_init a) E.arr_init_error)
-  | Cif _ c1 c2 | Cwhile _ c1 _ _ c2 => Let _ := allM check_i c1 in allM check_i c2
-  | Cfor _ _ c => allM check_i c
+  | Cassert (_, a) => add_iinfo ii (assert (check_arr_init gd a) E.arr_init_error)
+  | Cif _ c1 c2 | Cwhile _ c1 _ _ c2 => Let _ := allM (check_i gd) c1 in allM (check_i gd) c2
+  | Cfor _ _ c => allM (check_i gd) c
   end.
 
 (* A precondition reads only the parameters of the contract, a postcondition
    only its parameters and results. *)
-Definition check_ci (ci : fun_contract) : cexec unit :=
+Definition check_ci (gd : glob_decls) (ci : fun_contract) : cexec unit :=
   let params := vars_l ci.(f_iparams) in
   let pre := [seq a.2 | a <- ci.(f_pre)] in
   let post := [seq a.2 | a <- ci.(f_post)] in
   Let _ := assert (Sv.subset (read_easserts pre) params) E.contract_error in
   Let _ := assert (Sv.subset (read_easserts post) (Sv.union params (vars_l ci.(f_ires))))
                   E.contract_error in
-  assert (all check_arr_init (pre ++ post)) E.arr_init_error.
+  assert (all (check_arr_init gd) (pre ++ post)) E.arr_init_error.
 
-Definition check_fd (fd : ufundef) : cexec unit :=
-  Let _ := allM check_i fd.(f_body) in
-  oapp check_ci (ok tt) fd.(f_contract).
+Definition check_fd (gd : glob_decls) (fd : ufundef) : cexec unit :=
+  Let _ := allM (check_i gd) fd.(f_body) in
+  oapp (check_ci gd) (ok tt) fd.(f_contract).
 
 (* A global array is initialised in its bounds and nowhere else: its mask is
    the full one. *)
@@ -372,7 +380,7 @@ Definition check_glob_init (g : glob_decl) : bool :=
 
 Definition explicit_init_prog (p : _uprog) : cexec _uprog :=
   Let _ := assert (all check_glob_init p.(p_globs)) E.glob_init_error in
-  Let _ := allM (fun f => add_funname f.1 (add_finfo f.2.(f_info) (check_fd f.2)))
+  Let _ := allM (fun f => add_funname f.1 (add_finfo f.2.(f_info) (check_fd p.(p_globs) f.2)))
                 p.(p_funcs) in
   ok (map_prog explicit_init_fd p).
 
