@@ -279,23 +279,31 @@ Module WArray.
     Let it := fill_aux len bytes in
     ok it.2.
 
-  Definition get_sub_data (aa:arr_access) ws len (a:Mz.t u8) i :=
+  (* A sub-array takes only the cells of [a] that lie in its bounds [0, lena):
+     out of bounds, as with [get8] and [set8], nothing is read or written. *)
+  Definition get_in_bounds lena (a:Mz.t u8) k :=
+    if (0 <=? k) && (k <? lena) then Mz.get a k else None.
+
+  Definition get_sub_data lena (aa:arr_access) ws len (a:Mz.t u8) i :=
      let size := arr_size ws len in
      let start := (i * mk_scale aa ws)%Z in
      foldr (fun i data =>
-       match Mz.get a (start + i) with
+       match get_in_bounds lena a (start + i) with
        | None => Mz.remove data i
        | Some w => Mz.set data i w
        end) (Mz.empty _) (ziota 0 size).
 
-  Definition set_sub_data (aa:arr_access) ws len (a:Mz.t u8) i (b:Mz.t u8) :=
+  Definition set_sub_data lena (aa:arr_access) ws len (a:Mz.t u8) i (b:Mz.t u8) :=
     let size := arr_size ws len in
     let start := (i * mk_scale aa ws)%Z in
     foldr (fun i data =>
-      match Mz.get b i with
-      | None => Mz.remove data (start + i)
-      | Some w => Mz.set data (start + i) w
-      end) a (ziota 0 size).
+      let k := (start + i)%Z in
+      if (0 <=? k) && (k <? lena) then
+        match Mz.get b i with
+        | None => Mz.remove data k
+        | Some w => Mz.set data k w
+        end
+      else data) a (ziota 0 size).
 
   Section MODE_SUB.
 
@@ -305,14 +313,14 @@ Module WArray.
      let size := arr_size ws len in
      let start := (i * mk_scale aa ws)%Z in
      if is_total || ((0 <=? start) && (start + size <=? lena)) then
-       ok (Build_array size (get_sub_data aa ws len (arr_data a) i))
+       ok (Build_array size (get_sub_data lena aa ws len (arr_data a) i))
      else Error ErrOob.
 
   Definition set_sub lena (aa:arr_access) ws len (a:array lena) i (b:array (arr_size ws len)) : exec (array lena) :=
     let size := arr_size ws len in
     let start := (i * mk_scale aa ws)%Z in
     if is_total || ((0 <=? start) && (start + size <=? lena)) then
-      ok (Build_array lena (set_sub_data aa ws len (arr_data a) i (arr_data b)))
+      ok (Build_array lena (set_sub_data lena aa ws len (arr_data a) i (arr_data b)))
     else Error ErrOob.
 
   End MODE_SUB.
@@ -571,10 +579,10 @@ Module WArray.
     by rewrite Z.sub_diag.
   Qed.
 
-  Lemma set_sub_data_get8 aa ws a len i t k:
-    Mz.get (@set_sub_data aa ws len a i t) k =
+  Lemma set_sub_data_get8 lena aa ws a len i t k:
+    Mz.get (@set_sub_data lena aa ws len a i t) k =
       let j := (k - i * mk_scale aa ws)%Z in
-      if (0 <=? j) && (j <? arr_size ws len) then Mz.get t j
+      if [&& 0 <=? j, j <? arr_size ws len, 0 <=? k & k <? lena] then Mz.get t j
       else Mz.get a k.
   Proof.
     rewrite /set_sub_data.
@@ -582,16 +590,13 @@ Module WArray.
     + rewrite ziota_neg //=.
       by case: ifPn => //; rewrite !zify; lia.
     rewrite ziotaS_cat // foldr_cat Z.add_0_l /= ih.
-    case: ifPn; rewrite !zify => h3; case: ifPn; rewrite !zify => h4 //.
-    + nia.
-    + case heq: (Mz.get t) => [w|].
-      + rewrite Mz.setP; case: eqP => [<- | ?]; last nia.
-        rewrite -heq; f_equal; ring.
-      rewrite Mz.removeP; case eqP => [<- | ?]; last nia.
-      rewrite -heq; f_equal; ring.
-    case heq: (Mz.get t) => [w|].
-    + rewrite Mz.setP; case: eqP => [? | //]; lia.
-    rewrite Mz.removeP; case eqP => [? | //]; lia.
+    case: ifPn; rewrite !zify => h3.
+    + by case: ifPn; rewrite !zify => // h5; nia.
+    case: ifPn; rewrite !zify => h4; case: ifPn; rewrite !zify => h5; last done; last nia.
+    + have -> : k = i * mk_scale aa ws + len by nia.
+      have -> : i * mk_scale aa ws + len - i * mk_scale aa ws = len by ring.
+      by case: (Mz.get t len) => [w|]; rewrite ?Mz.setP ?Mz.removeP; case: eqP => // -[].
+    by case: (Mz.get t len) => [w|]; rewrite ?Mz.setP ?Mz.removeP; case: eqP => // ?; nia.
   Qed.
 
   Lemma set_sub_get8 aa ws lena a len i t a' :
@@ -604,7 +609,8 @@ Module WArray.
   Proof.
     rewrite /set_sub or_is_total_partial; case: andP => // -[/ZleP h1 /ZleP h2] [<-] /= k.
     rewrite -!get_read8 /memory_model.get /= /get8 /is_init /in_bound set_sub_data_get8 /=.
-    case: andP; rewrite !zify //= => ?; case: andP; rewrite !zify //= => ?; lia.
+    case: (boolP [&& _, _, _ & _]); rewrite /= !zify => h3.
+    all: case: andP; rewrite !zify //= => ?; case: andP; rewrite !zify //= => ?; lia.
   Qed.
 
   Lemma set_sub_bound aa ws lena a len i t a' :
@@ -645,10 +651,10 @@ Module WArray.
   Qed.
   Transparent Z.mul ziota. Opaque arr_size.
 
-  Lemma get_sub_data_get8 aa ws a len i k:
-    Mz.get (get_sub_data aa ws len a i) k =
+  Lemma get_sub_data_get8 lena aa ws a len i k:
+    Mz.get (get_sub_data lena aa ws len a i) k =
       let start := (i * mk_scale aa ws)%Z in
-      if (0 <=? k) && (k <? arr_size ws len) then Mz.get a (start + k)
+      if (0 <=? k) && (k <? arr_size ws len) then get_in_bounds lena a (start + k)
       else None.
   Proof.
     rewrite /get_sub_data -(Mz.get0 u8 k).
@@ -658,10 +664,10 @@ Module WArray.
     rewrite ziotaS_cat // foldr_cat Z.add_0_l /= ih.
     case: ifPn; rewrite !zify => h3; case: ifPn; rewrite !zify => h4 //.
     + nia.
-    + case heq: (Mz.get a) => [w|].
+    + case heq: (get_in_bounds lena a) => [w|].
       + by rewrite Mz.setP; case: eqP => [<- | ]; [rewrite heq | nia].
       by rewrite Mz.removeP; case: eqP => [<- | ]; [rewrite heq | nia].
-    case heq: (Mz.get a) => [w|].
+    case heq: (get_in_bounds lena a) => [w|].
     + by rewrite Mz.setP; case: eqP => //; nia.
     by rewrite Mz.removeP; case: eqP => //; nia.
   Qed.
@@ -675,8 +681,10 @@ Module WArray.
         else Error ErrOob.
   Proof.
     rewrite /get_sub or_is_total_partial; case: andP => // -[/ZleP h1 /ZleP h2] [<-] /= k.
-    rewrite -!get_read8 /memory_model.get /= /get8 /is_init /in_bound get_sub_data_get8 /=.
-    case: andP; rewrite !zify //= => ?; case: andP; rewrite !zify //= => ?; lia.
+    rewrite -!get_read8 /memory_model.get /= /get8 /is_init /in_bound get_sub_data_get8 /get_in_bounds /=.
+    case: (boolP ((0 <=? k) && (k <? arr_size ws len))) => //= hk.
+    have -> // : (0 <=? i * mk_scale aa ws + k) && (i * mk_scale aa ws + k <? lena).
+    by move: hk; rewrite !zify; lia.
   Qed.
 
   Lemma get_sub_bound aa ws lena a len i a' :
