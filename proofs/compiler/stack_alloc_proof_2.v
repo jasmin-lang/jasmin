@@ -1110,7 +1110,7 @@ Proof using hlayout.
     + by move=> <- _.
     by move=> _; apply hnew.
   + move=> p.
-    case harr: is_aarr => //=.
+    case harr: is_arr_var => //=.
     case: Sv_memP => [//|hnnew2].
     case heq0: Mvar.get => //.
     case hty: convertible => [|//] /= [<- <- _].
@@ -1162,7 +1162,7 @@ Proof using hlayout.
     have ?: p <> y by congruence.
     by move=> /SvD.F.add_3; auto.
   move=> s z f.
-  case harr: is_aarr => //.
+  case harr: is_arr_var => //.
   case heq: Mvar.get => [[ofs ws]|//].
   case: Sv_memP => [//|hnnew2].
   case: eqP => [//|hneq0].
@@ -1288,7 +1288,7 @@ Proof using hlayout.
     rewrite Mvar.setP.
     by case: eqP; first by congruence.
   + move=> p.
-    case harr: is_aarr => //=.
+    case harr: is_arr_var => //=.
     case: Sv_memP => [//|hnnew2].
     case heq0: Mvar.get => //.
     case hty: convertible => [|//] /= [<- <- <-].
@@ -1299,7 +1299,7 @@ Proof using hlayout.
     rewrite Mvar.setP.
     by case: eqP; first by congruence.
   move=> s cs f.
-  case harr: is_aarr => //.
+  case harr: is_arr_var => //.
   case heq: Mvar.get => [[ofs ws]|//].
   case: Sv_memP => [//|hnnew2].
   case: eqP => [//|hneq0].
@@ -1724,7 +1724,7 @@ Proof using hparams.
 Qed.
 
 Lemma init_params_aarr :
-  List.Forall2 (fun opi (x:var_i) => opi <> None -> is_aarr x.(vtype)) sao.(sao_params) params.
+  List.Forall2 (fun opi (x:var_i) => opi <> None -> is_arr_var x) sao.(sao_params) params.
 Proof using hparams.
   elim: sao.(sao_params) params vnew1 locals1 rmap1 vnew2 locals2 rmap2 alloc_params hparams.
   + by move=> [|//] _ _ _ _ _ _ _ _.
@@ -3193,11 +3193,11 @@ Qed.
 Hypothesis rip_rsp_neq : P'.(p_extra).(sp_rip) <> P'.(p_extra).(sp_rsp).
 
 (* could probably be written
-   Forall2 (fun x v2 => is_aarr x.(vtype) -> size_slot x <= size_val v) l params
+   Forall2 (fun x v2 => is_arr_var x -> size_slot x <= size_val v) l params
    But maybe more complex to use?
 *)
 Lemma write_vars_subtype A (l:seq (option A)) params :
-  List.Forall2 (fun o (x:var_i) => o <> None -> is_aarr x.(vtype)) l params ->
+  List.Forall2 (fun o (x:var_i) => o <> None -> is_arr_var x) l params ->
   forall wdb vargs1 s1 s2,
   write_vars wdb params vargs1 s1 = ok s2 ->
   Forall3 (fun o (x:var_i) v => o <> None -> subctype (eval_atype x.(vtype)) (type_of_val v)) l params vargs1.
@@ -4112,7 +4112,7 @@ Proof using no_overflow_glob_size hmap P'_globs hshparams hsaparams is_move_opP 
   move=> s1' s2' fr1 [vme] [hvs''' hstable hext''' hvalw hvalw'] _.
   rewrite /finalize_funcall; t_xrbindP => vres1 hvres1 vres1' hvres1' <- {fr1} /=.
   (* get_var of results *)
-  have harr: List.Forall2 (fun osr (x : var_i) => osr <> None -> is_aarr (vtype x)) (map fst alloc_params) (f_params fd).
+  have harr: List.Forall2 (fun osr (x : var_i) => osr <> None -> is_arr_var x) (map fst alloc_params) (f_params fd).
   + by apply: (Forall2_trans _ (init_params_alloc_params_not_None hparams) (init_params_aarr hparams)); auto.
   have hsub' := write_vars_subtype harr hs1.
   have haddr := init_params_alloc_params rsp hargs'' heqinmem_args'' hparams vme.

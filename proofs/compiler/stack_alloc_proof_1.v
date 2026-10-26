@@ -150,7 +150,7 @@ Record wf_direct (x : var) (s : slot) ofs ws cs sc := {
 }.
 
 Record wf_regptr x xr := {
-  wfr_type : is_aarr (vtype x);
+  wfr_type : is_arr_var x;
   wfr_rtype : convertible (vtype xr) spointer;
   wfr_not_vrip : xr <> pmap.(vrip);
   wfr_not_vrsp : xr <> pmap.(vrsp);
@@ -161,7 +161,7 @@ Record wf_regptr x xr := {
 
 Record wf_stkptr (x : var) (s : slot) ofs ws cs (xf : var) := {
   wfs_slot : Sv.In s Slots;
-  wfs_type : is_aarr (vtype x);
+  wfs_type : is_arr_var x;
   wfs_size : wsize_size Uptr <= cs.(cs_len);
   wfs_zone : 0 <= cs.(cs_ofs) /\ cs.(cs_ofs) + cs.(cs_len) <= size_slot s;
   wfs_writable : Writable s;

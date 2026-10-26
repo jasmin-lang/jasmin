@@ -5335,7 +5335,7 @@ Qed.
 
   Context {E E0: Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
-  Context (callee_saved_not_arr : forall x, Sv.In x callee_saved -> ~is_aarr (vtype x)).
+  Context (callee_saved_not_arr : forall x, Sv.In x callee_saved -> ~is_arr_var x).
 
   Lemma linear_exportcall_mixP gd fn :
     wkequiv_io
@@ -5451,7 +5451,7 @@ Qed.
         by SvD.fsetdec.
       move=> heq; apply/allP => x /Sv_elemsP hx; rewrite heq // value_eqb_refl //.
       move: (lvm ls2).[x] (Vm.getP (lvm ls2) x) (callee_saved_not_arr hx) => [] //.
-      by move=> ?? /compat_valE; case: vtype.
+      by move=> ?? /compat_valE; rewrite /is_arr_var; case: vtype.
     rewrite bind_ret_l; apply xrutt.xrutt_Ret; split => //.
     + have := K2 vrsp; rewrite Vm.setP_eq /= cmp_le_refl /sp_alloc_ra /= => ?.
       by apply get_word_uincl_eq => //=; rewrite lp_rspE.
