@@ -245,6 +245,8 @@ toEC/assert_facts.v
 toEC/assert_facts_proof.v
 toEC/contracts_to_asserts.v
 toEC/contracts_to_asserts_proof.v
+toEC/drop_asserts.v
+toEC/drop_asserts_proof.v
 toEC/explicit_init.v
 toEC/explicit_init_proof.v
 toEC/for_to_while.v
