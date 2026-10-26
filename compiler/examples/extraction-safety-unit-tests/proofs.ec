@@ -8,7 +8,7 @@ require import BArray5.
 lemma test_arr_sum_safe _x _b_x : Test_arr_sum_specs.test_spec _x _b_x.
 proof.
   rewrite /Test_arr_sum_specs.test_spec; proc; wp.
-  while (0 <= i /\ b_sum /\ BArray5.is_init b_x 0 5).
+  while (0 <= i /\ BArray5.is_init b_x 0 5).
   + by auto => /> &m; rewrite /BArray5.is_init /BArray5.is_init_cell /#.
   by auto.
 qed.
@@ -71,7 +71,7 @@ lemma test_init_arr_sum_safe _x _b_x _y _b_y _z _b_z :
   Test_init_arr_sum_specs.test_spec _x _b_x _y _b_y _z _b_z.
 proof.
   rewrite /Test_init_arr_sum_specs.test_spec; proc; wp.
-  while (0 <= i <= 5 /\ b_i = (0 < i) /\ BArray10.is_init b_x 0 10 /\
+  while (0 <= i <= 5 /\ BArray10.is_init b_x 0 10 /\
          BArray10.is_init b_y 0 10 /\ BArray10.is_init b_z 0 (2 * i)).
   + by auto => /> &m; rewrite /BArray10.is_init /#.
   by auto => /> /#.
@@ -110,7 +110,7 @@ qed.
 lemma test_safe _x _b_x : Test_init_pos_func_specs.test_spec _x _b_x.
 proof.
   rewrite /Test_init_pos_func_specs.test_spec; proc; auto.
-  while (0 <= i <= 5 /\ b_i /\ BArray5.is_init b_x 0 i).
+  while (0 <= i <= 5 /\ BArray5.is_init b_x 0 i).
   + wp; ecall (init_pos_safe b_x0 ix); auto => /> &m h0 _ hx h5 r h.
     move: hx; rewrite /BArray5.is_init; smt().
   by auto => /> /#.
@@ -147,7 +147,7 @@ lemma sum_safe :
   hoare [ Test_call_post.M.sum : true ==> true | Test_call_post.Assertion_failure => false ].
 proof.
   proc; wp.
-  while (0 <= i /\ b_s /\ BArray16.is_init b_a 0 16).
+  while (0 <= i /\ BArray16.is_init b_a 0 16).
   + by auto => /> &m; rewrite /BArray16.is_init /#.
   wp; ecall (fill_safe x b_x); auto => /> /#.
 qed.
