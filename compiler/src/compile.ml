@@ -156,8 +156,8 @@ let toec_entries fnames (fds : ('info, 'asm) func list) =
 (* The arguments of the passes of the extraction for safety: the mask of an
    array is an array of the same type, the mask of a scalar is a boolean; the
    parameters and results kept by [Dead_args] are all those of the entries
-   ([protect_all]); the dead parameters and results are computed by
-   [DeadArgs]. *)
+   ([protect_all]), or those of the entries in the source ([protect_source]);
+   the dead parameters and results are computed by [DeadArgs]. *)
 let toec_safety_args fnames ((_, fds) : ('info, 'asm) prog) =
   let freshvar = (fun vk ii -> Conv.fresh_var_ident vk ii (Uint63.of_int 0)) in
   let masks = Hv.create 101 in
@@ -178,24 +178,46 @@ let toec_safety_args fnames ((_, fds) : ('info, 'asm) prog) =
   let entries = Hf.create 17 in
   List.iter (fun fd -> if is_entry fd then Hf.add entries fd.f_name fd) fds;
   let protect_all fn _ = Hf.mem entries fn in
+  let protect_source fn cx =
+    match Hf.find entries fn with
+    | fd ->
+      let x = Conv.var_of_cvar cx in
+      List.exists (V.equal x) fd.f_args
+      || List.exists (fun y -> V.equal x (L.unloc y)) fd.f_ret
+    | exception Not_found -> false
+  in
   let dead_info protect cp =
     let _, fds = Conv.prog_of_cuprog cp in
     DeadArgs.analyse
       ~protect:(fun fd x -> protect fd.f_name (Conv.cvar_of_var x))
       fds
   in
-  (freshvar, mask, protect_all, dead_info)
+  (freshvar, mask, protect_all, protect_source, dead_info)
 
 let do_toec_safety
    (type asm_op extra_op)
     (module Arch : Arch_full.Arch
        with type asm_op = asm_op
        and type extra_op = extra_op) ?(fnames = []) prog =
-  let freshvar, mask, protect_all, dead_info = toec_safety_args fnames prog in
+  let freshvar, mask, protect_all, _, dead_info =
+    toec_safety_args fnames prog in
   let cp = Conv.cuprog_of_prog prog in
   let cp =
     Toec_prog.toec_uprog_safety Arch.asmOp Arch.pointer_data Arch.msf_size
       freshvar mask protect_all dead_info cp in
+  Conv.prog_of_cuprog (catch_error cp)
+
+let do_toec_via_safety
+   (type asm_op extra_op)
+    (module Arch : Arch_full.Arch
+       with type asm_op = asm_op
+       and type extra_op = extra_op) ?(fnames = []) prog =
+  let freshvar, mask, protect_all, protect_source, dead_info =
+    toec_safety_args fnames prog in
+  let cp = Conv.cuprog_of_prog prog in
+  let cp =
+    Toec_prog.toec_uprog_via_safety Arch.asmOp Arch.pointer_data Arch.msf_size
+      freshvar mask protect_all protect_source dead_info cp in
   Conv.prog_of_cuprog (catch_error cp)
 
 (*--------------------------------------------------------------------- *)

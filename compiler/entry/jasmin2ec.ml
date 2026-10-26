@@ -50,11 +50,13 @@ let extract_to_file prog arch pd msfsz asmOp model amodel global_options
 
 let parse_and_extract arch call_conv idirs =
   let module A = (val CoreArchFactory.get_arch_module arch call_conv) in
-  let extract model amodel global_options safety specs functions array_dir
-      output pass file =
+  let extract model amodel global_options safety via_safety specs functions
+      array_dir output pass file =
     let prog = parse_and_compile (module A) ~wi2i:true pass file idirs in
     let prog =
       if safety then Compile.do_toec_safety (module A) ~fnames:functions prog
+      else if via_safety then
+        Compile.do_toec_via_safety (module A) ~fnames:functions prog
       else Compile.do_toec (module A) prog
     in
     try
@@ -63,12 +65,12 @@ let parse_and_extract arch call_conv idirs =
     with Annot.AnnotationError (loc, code) ->
       hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
   in
-  fun model amodel global_options safety specs functions array_dir output pass
-      file warn ->
+  fun model amodel global_options safety via_safety specs functions array_dir
+      output pass file warn ->
     if not warn then nowarning ();
     match
-      extract model amodel global_options safety specs functions array_dir
-        output pass file
+      extract model amodel global_options safety via_safety specs functions
+        array_dir output pass file
     with
     | () -> ()
     | exception HiError e ->
@@ -187,6 +189,16 @@ let safety =
   in
   Arg.(value & flag & info [ "safety" ] ~doc)
 
+let via_safety =
+  let doc =
+    "Plain extraction (without $(b,--safety)) through the passes of the
+     extraction for safety: the assertions are then removed, and the dead
+     code, the dead parameters and results with it, among them the masks. The
+     export functions, the functions with a contract, the functions that no
+     function calls and those given by $(b,-f) keep their signature."
+  in
+  Arg.(value & flag & info [ "via-safety-chain" ] ~doc)
+
 let safety_specs =
   let doc =
     "With $(b,--safety), also write to $(docv) the specification of each
@@ -248,6 +260,6 @@ let () =
   Cmd.v info
     Term.(
       const parse_and_extract $ arch $ call_conv $ idirs $ model $ array_model
-      $ global_model $ safety $ safety_specs $ functions $ array_dir $ output $ after_pass
+      $ global_model $ safety $ via_safety $ safety_specs $ functions $ array_dir $ output $ after_pass
       $ file $ warn)
   |> Cmd.eval |> exit

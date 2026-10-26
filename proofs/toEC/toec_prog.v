@@ -1,5 +1,5 @@
 Require Import toec_for toec_while for_to_while normalize_calls contracts_to_asserts safety explicit_init
-  simplify_asserts assert_facts dead_args.
+  simplify_asserts assert_facts dead_args drop_asserts.
 Import compiler_util expr.
 
 #[local] Instance toec_LoopCounter : LoopCounter :=
@@ -49,5 +49,18 @@ Definition toec_uprog_safety (mask : var -> var) (protect : funname -> var -> bo
   Let p := explicit_init_prog mask p in
   let p := assert_facts_prog (simplify_asserts_prog p) in
   dead_args_prog protect (dead_info protect) p.
+
+(* The plain extraction through the extraction for safety: once the
+   assertions are removed, the masks compute nothing used, and are removed
+   with the rest of the dead code. [protect_safety] tells the parameters and
+   results kept by the extraction for safety, [protect] those kept in the
+   result. *)
+Definition toec_uprog_via_safety (mask : var -> var)
+    (protect_safety protect : funname -> var -> bool)
+    (dead_info : (funname -> var -> bool) -> _uprog ->
+                 funname -> option (seq bool) * option (seq bool))
+    (p : _uprog) : cexec _uprog :=
+  Let p := toec_uprog_safety mask protect_safety dead_info p in
+  dead_args_prog protect (dead_info protect) (drop_asserts_prog (pT := progUnit) p).
 
 End TOEC.
