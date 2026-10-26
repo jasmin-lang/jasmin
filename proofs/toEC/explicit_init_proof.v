@@ -847,37 +847,71 @@ by case: ifP => _; rewrite ?h1 ?h2; case: (ty) hty.
 Qed.
 
 
-(* The initialisation of the cells of a local array, read on its mask. The
-   array is a variable, so it has a value in the total mode. *)
-Lemma arr_init_aP X s1 s2 len (x : gvar) lo n :
-  mask_st_ex X s1 s2 -> no_mask (read_es [:: Pvar x; lo; n]) -> is_lvar x ->
-  sem_eassert gd s1 (PappN_safety (Ois_barr_init len) [:: mask_of (Pvar x); lo; n]) = ok true ->
-  sem_eassert gd s2 (PappN_safety (Ois_arr_init len) [:: Pvar x; lo; n]) = ok true.
+(* The initialisation of the cells of an array expression, read on its mask,
+   when the expression has a value. *)
+Lemma arr_init_eP X s1 s2 len e v lo n :
+  mask_st_ex X s1 s2 -> no_mask (read_es [:: e; lo; n]) -> is_arr_expr e ->
+  sem_pexpr (sm := total) true gd s2 e = ok v ->
+  sem_eassert gd s1 (PappN_safety (Ois_barr_init len) [:: mask_of e; lo; n]) = ok true ->
+  sem_eassert gd s2 (PappN_safety (Ois_arr_init len) [:: e; lo; n]) = ok true.
 Proof using explicit_init_ok mask_type.
-move=> [hscs hmem hvm] hXs; rewrite is_lvar_is_glob => /negbTE hg /=; rewrite hg /=; t_xrbindP.
+move=> [hscs hmem hvm] hXs hxa hve /=; t_xrbindP.
 move=> _ m hm _ vl hl _ vn hn <- <- <-.
-rewrite /sem_opN_safety /=; t_xrbindP => tm /to_arrI ? lo' hlo' n' hn' hall; subst m.
-have hxa : is_arr_var (gv x).
-- move: hm => /get_gvar_compat /= [_ /compat_valEl]; rewrite mask_type.
-  by case: is_arr_var => //= -[ | [? //] ].
-have hve : sem_pexpr (sm := total) true gd s2 (Pvar x) = ok (evm s2).[gv x].
-- rewrite /= /get_gvar is_lvar_is_glob hg /= /get_var.
-  by rewrite (get_total_arr _ hxa) arr_defined.
+rewrite /sem_opN_safety /=; t_xrbindP => tm /to_arrI ? lo1 hlo1 n1 hn1 hall; subst m.
 have hsame : forall e0, no_mask (read_e e0) ->
     sem_pexpr (sm := total) true gd s2 e0 = sem_pexpr (sm := total) true gd s1 e0.
 - by move=> e0 h0; symmetry; apply: prog_eq_sem_pexpr => //; exact: hvm.1.
-have hXe : no_mask (read_e (Pvar x)) by apply: no_maskI hXs; rewrite !read_es_cons; SvD.fsetdec.
-move: (hve); rewrite [sem_pexpr _ _ _ (Pvar x)]/= => ->.
-rewrite (hsame lo) ?hl ?(hsame n) ?hn /=; last 2 first.
+have hXe : no_mask (read_e e) by apply: no_maskI hXs; rewrite !read_es_cons; SvD.fsetdec.
+rewrite hve (hsame lo) ?hl ?(hsame n) ?hn /=; last 2 first.
 - by apply: no_maskI hXs; rewrite !read_es_cons; SvD.fsetdec.
 - by apply: no_maskI hXs; rewrite !read_es_cons; SvD.fsetdec.
-have hm' : sem_pexpr (sm := total) true gd s1 (mask_of (Pvar x)) = ok (Varr tm) by rewrite /= hg.
-have hve1 : sem_pexpr (sm := total) true gd s1 (Pvar x) = ok (evm s2).[gv x] by rewrite -hsame.
-have hmo := mask_ofP hXe (fun y hy => mask_vm_self hvm hy) hve1 hm'.
-have := mask_of_type (e := Pvar x) hxa hve1 hm'; have := sem_pexpr_defined hve.
-case: (evm s2).[gv x] hve hve1 hmo => //= len' t _ _ hmo _ [?]; subst len'.
-rewrite to_arrK /= hlo' hn' /=; congr ok.
+have hve1 : sem_pexpr (sm := total) true gd s1 e = ok v by rewrite -hsame.
+have hmo := mask_ofP hXe (fun y hy => mask_vm_self hvm hy) hve1 hm.
+have := mask_of_type hxa hve1 hm; have := sem_pexpr_defined hve.
+case: v hve hve1 hmo => //= len1 t _ _ hmo _ [?]; subst len1.
+rewrite to_arrK /= hlo1 hn1 /=; congr ok.
 by apply/allP => i /(allP hall); have /= <- := hmo i.
+Qed.
+
+(* The initialisation of the cells of a local array or of a sub-array of a
+   local array ([check_arr_init]), read on its mask. A local array has a value
+   in the total mode, and so has a sub-array of it, whose index the mask
+   evaluates. *)
+Lemma arr_init_aP X s1 s2 len e lo n :
+  mask_st_ex X s1 s2 -> no_mask (read_es [:: e; lo; n]) ->
+  check_arr_init (PappN_safety (Ois_arr_init len) [:: e; lo; n]) ->
+  sem_eassert gd s1 (PappN_safety (Ois_barr_init len) [:: mask_of e; lo; n]) = ok true ->
+  sem_eassert gd s2 (PappN_safety (Ois_arr_init len) [:: e; lo; n]) = ok true.
+Proof using explicit_init_ok mask_type.
+move=> hst hXs hc hs; have [hscs hmem hvm] := hst.
+have := hs; rewrite /=; t_xrbindP => _ m hm _ vl hl _ vn hn <- <- <-.
+rewrite /sem_opN_safety /=; t_xrbindP => tm /to_arrI ? _ _ _ _ _; subst m.
+case: e hXs hc hs hm => // [x | aa ws alen x i] hXs hx hs hm; simpl in hx;
+  rewrite is_lvar_is_glob in hx; rewrite /= (negbTE hx) /= in hm.
+- have hxa : is_arr_var (gv x).
+  + move: hm => /get_gvar_compat /= [_ /compat_valEl]; rewrite mask_type.
+    by case: is_arr_var => //= -[ | [? //] ].
+  have hve : sem_pexpr (sm := total) true gd s2 (Pvar x) = ok (evm s2).[gv x].
+  + rewrite /= /get_gvar is_lvar_is_glob hx /get_var.
+    by rewrite (get_total_arr _ hxa) arr_defined.
+  exact: (arr_init_eP hst hXs hxa hve hs).
+move: hm; apply: on_arr_gvarP => n0 t0 htm hgm; t_xrbindP => j vj hvj hj _ _.
+have hxa : is_arr_var (gv x).
+- by move: htm; rewrite /= mask_type /is_arr_var; case: (vtype (gv x)).
+have /is_aarrP [wsx [lenx htyx]] := hxa.
+have [nx [tx htx]] : exists nx (tx : WArray.array nx), (evm s2).[gv x] = Varr tx.
+- have := Vm.getP (evm s2) (gv x); rewrite htyx /= => /compat_valEl [t1 h1].
+  by exists (arr_size wsx lenx), t1.
+have hgx : get_gvar (sm := total) true gd (evm s2) x = ok (Varr tx).
+- by rewrite /get_gvar is_lvar_is_glob hx /get_var (get_total_arr _ hxa) htx.
+have hi : sem_pexpr (sm := total) true gd s2 i = ok vj.
+- rewrite -hvj; symmetry; apply: prog_eq_sem_pexpr => //; last exact: hvm.1.
+  by apply: no_maskI hXs; rewrite !read_es_cons read_e_Psub; SvD.fsetdec.
+have hve : sem_pexpr (sm := total) true gd s2 (Psub aa ws alen x i) =
+  ok (Varr (WArray.Build_array (arr_size ws alen)
+    (WArray.get_sub_data nx aa ws alen (WArray.arr_data tx) j))).
+- by rewrite /= hgx /= hi /= hj.
+exact: (arr_init_eP hst hXs _ hve hs).
 Qed.
 
 (* The assertions of the instrumented program imply the original ones. *)
@@ -899,8 +933,7 @@ elim: a => [e | o es | x | e1 e2 | a1 ih1 a2 ih2] hX hc hvi.
   clear hvi; case: o hX hc => len hX hc; last by rewrite [explicit_init_a _ _ _]/= hunch.
   case: es hunch heqs hX hc => [|e [|lo [|n [|? ?]]]] hunch heqs hX hc;
     try by rewrite [explicit_init_a _ _ _]/= hunch.
-  case: e hunch heqs hX hc => // x _ _ hX hx.
-  by apply: arr_init_aP hst _ hx; move: hX; rewrite read_eassert_PappN.
+  by apply: arr_init_aP hst _ hc; move: hX; rewrite read_eassert_PappN.
 - by rewrite /=; t_xrbindP => v hv /to_boolI ?; subst v; rewrite (hvi _ _ hv) //; rewrite read_eassert_Pis_var_init; SvD.fsetdec.
 - have hs : forall e0, no_mask (read_e e0) ->
     sem_pexpr (sm := total) true gd s1 e0 = sem_pexpr (sm := total) true gd s2 e0.

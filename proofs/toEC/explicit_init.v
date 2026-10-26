@@ -24,8 +24,8 @@ Local Open Scope seq_scope.
    initialised. The pass fails when it cannot place a mask exactly; it
    checks that its input is in the normal form produced by [normalize_calls]
    (see [check_i]), that the arrays whose initialisation its assertions test
-   are local variables ([check_arr_init]) and that the globals are initialised
-   exactly in their bounds. *)
+   are local variables or sub-arrays of local variables ([check_arr_init])
+   and that the globals are initialised exactly in their bounds. *)
 
 Module Import E.
 
@@ -120,8 +120,9 @@ Section ASSERT.
    in a contract, [true]. *)
 Context (var_init : var_i -> pexpr).
 
-(* The array [e] whose initialisation is tested is a local variable
-   ([check_arr_init]): its mask is a variable. *)
+(* The array [e] whose initialisation is tested is a local variable or a
+   sub-array of a local variable ([check_arr_init]): its mask is a variable or
+   the same sub-array of a variable. *)
 Fixpoint explicit_init_a (a : eassert) : eassert :=
   match a with
   | Pexpr _ | Pis_mem_init _ _ => a
@@ -313,13 +314,17 @@ Definition explicit_init_fd (fd : ufundef) : ufundef :=
 (* ------------------------------------------------------------------------- *)
 (* The checks                                                                 *)
 
-(* The array argument of an initialisation test is a local variable, as the
-   safety pass produces it: a local array always has a value, and its mask is
-   a variable that describes it. *)
+(* The array argument of an initialisation test is a local variable or a
+   sub-array of a local variable, as the safety pass produces it (the argument
+   of a copy can be a sub-array): a local array always has a value, and its
+   mask is a variable, or the same sub-array of a variable, that describes it. *)
 Fixpoint check_arr_init (a : eassert) : bool :=
   match a with
   | PappN_safety (Ois_arr_init _) es =>
-    if es is [:: Pvar x; _; _] then is_lvar x else false
+    match es with
+    | [:: Pvar x; _; _] | [:: Psub _ _ _ x _; _; _] => is_lvar x
+    | _ => false
+    end
   | Pand a1 a2 => check_arr_init a1 && check_arr_init a2
   | Pexpr _ | PappN_safety _ _ | Pis_var_init _ | Pis_mem_init _ _ => true
   end.
