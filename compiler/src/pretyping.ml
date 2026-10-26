@@ -924,7 +924,12 @@ let check_return_storage ~loc fname =
       -> rs_tyerror ~loc (InvalidSignatureStorage(fname, sto, (L.unloc y).v_name,(L.unloc y).v_kind))
     )
 (* -------------------------------------------------------------------- *)
-let check_sig_lvs loc sig_ lvs =
+let prim_arr_ty prim ty oty =
+  match ty, oty with
+  | P.ETarr _, Some (P.ETarr _ as t) when prim && !Glob_options.modular_jazz -> t
+  | _ -> ty
+
+let check_sig_lvs ?(prim=false) loc sig_ lvs =
   let loc () = loc_of_tuples loc (List.map (fun (l,_,_) -> l) lvs) in
 
   let nsig_ = List.length sig_ in
@@ -933,7 +938,7 @@ let check_sig_lvs loc sig_ lvs =
   if nlvs <> nsig_ then
     rs_tyerror ~loc:(loc ()) (InvalidLvalCount(nlvs, nsig_));
 
-  List.map2 (fun ty (_,flv,_) -> flv ty) sig_ lvs
+  List.map2 (fun ty (_,flv,vty) -> flv (prim_arr_ty prim ty vty)) sig_ lvs
 
 
 (* -------------------------------------------------------------------- *)
@@ -1571,7 +1576,7 @@ let rec tt_expr pd ?(mode=`AllVar) (st : 'asm Env.store) pe =
     tt_expr ~mode pd st pe
 
   | S.PEBool b ->
-    P.Pbool b, P.etbool, None
+    P.Pbool b, P.etbool, Some (P.Pbool b)
 
   | S.PEInt i ->
     let e = P.Pconst (S.parse_int i) in
@@ -1606,18 +1611,18 @@ let rec tt_expr pd ?(mode=`AllVar) (st : 'asm Env.store) pe =
     end
 
   | S.PEOp1 (op, pe) ->
-    let e, ety,_ = tt_expr ~mode pd st pe in
+    let e, ety, p = tt_expr ~mode pd st pe in
 
     begin match op with
     | `Cast (`ToInt s) ->
-      let e = cast_int (L.loc pe) (Some s) e ety in
-      e, P.etint, None
+      let cast e = cast_int (L.loc pe) (Some s) e ety in
+      cast e, P.etint, Option.map cast p
 
     | `Cast (`ToWord (sz, sg)) ->
        let rty = tt_swsize (sz, sg) in
        (* We allow either to change the kind (i.e. ui/si/w) or the size but
           not both at the same time *)
-       let e =
+       let cast e =
          match sg, ety with
          | `Word s, P.ETword(None, ws) ->
             if W.wsize_cmp ws sz <> Datatypes.Lt then e (* implicit truncation *)
@@ -1652,12 +1657,11 @@ let rec tt_expr pd ?(mode=`AllVar) (st : 'asm Env.store) pe =
 
          | _ -> rs_tyerror ~loc:(L.loc pe) (InvalidCast(ety,rty))
        in
-       e, rty, None
+       cast e, rty, Option.map cast p
     | _  ->
-      let e1, t1, p1 = tt_expr ~mode pd st pe in
-      let e,t = tt_op1 (L.loc pe, (e1,t1)) (L.mk_loc (L.loc pe) op)
-      in let p = Option.map norm_expr p1 in
-      e, t, p
+      let op1 e = tt_op1 (L.loc pe, (e,ety)) (L.mk_loc (L.loc pe) op) in
+      let e,t = op1 e in
+      e, t, Option.map (fun p -> norm_expr (fst (op1 p))) p
     end
 
   | S.PEOp2 (pop, (pe1, pe2)) ->
@@ -1678,8 +1682,7 @@ let rec tt_expr pd ?(mode=`AllVar) (st : 'asm Env.store) pe =
       if nargs <> nexp then
         rs_tyerror ~loc:(L.loc pe) (InvalidArgCount(nargs, nexp));
       let tt_expr pe =
-        let e, ety,_ = tt_expr ~mode pd st pe in
-        check_ty_eq ~loc:(L.loc pe) ~from:ety ~to_:P.etbool;
+        let e, _ety,_ = tt_expr ~mode pd st pe in
         e in
       let args = List.map tt_expr args in
       P.PappN (Ocombine_flags c, args), P.etbool, None
@@ -1716,15 +1719,19 @@ let rec tt_expr pd ?(mode=`AllVar) (st : 'asm Env.store) pe =
   | S.PEstring s ->
      let es = array_of_string s in
      let len = Z.of_int (List.length es) in
-     P.PappN (Oarray (Conv.cz_of_z len), es), P.(ETarr (U8, PE (Pconst len))), None
+     let e = P.PappN (Oarray (Conv.cz_of_z len), es) in
+     e, P.(ETarr (U8, PE (Pconst len))), Some e
 
   | S.PEIf (pe1, pe2, pe3) ->
-    let e1, _ty1, _ = tt_expr ~mode pd st pe1 in
-    let e2, ty2,  _ = tt_expr ~mode pd st pe2 in
-    let e3, ty3,  _ = tt_expr ~mode pd st pe3 in
+    let e1, _ty1, p1 = tt_expr ~mode pd st pe1 in
+    let e2, ty2,  p2 = tt_expr ~mode pd st pe2 in
+    let e3, ty3,  p3 = tt_expr ~mode pd st pe3 in
 
     let ty = max_ty ty2 ty3 |> oget ~exn:(tyerror ~loc:(L.loc pe3) (TypeMismatch (ty3, ty2))) in
-    P.Pif(P.gty_of_gety ty, e1, e2, e3), ty, None
+    let p = match p1, p2, p3 with
+      | Some p1, Some p2, Some p3 -> Some (P.Pif(P.gty_of_gety ty, p1, p2, p3))
+      | _ -> None in
+    P.Pif(P.gty_of_gety ty, e1, e2, e3), ty, p
 
 and tt_expr_cast pd ?(mode=`AllVar) (st : 'asm Env.store) pe ty =
   let e, ety, _ = tt_expr ~mode pd st pe in
@@ -1803,10 +1810,11 @@ let tt_vardecls_push ?(warn=true) dfl_writable pd (st : 'asm Env.store) pxs =
 let tt_param pd (pp : S.pparam) (st : 'asm Env.store) =
   let ty = tt_type pd st pp.ppa_ty in
   let pe, ety, p = tt_expr ~mode:`OnlyParam pd st pp.S.ppa_init in
+  check_ty_eq ~loc:(L.loc pp.ppa_init) ~from:ety ~to_:ty;
   let p = match p with
-    | None -> assert false (* params should have a value *)
+    | None -> rs_tyerror ~loc:(L.loc pp.ppa_init) (StringError "the value of a param must be a constant expression")
     | Some p -> p
-  in check_ty_eq ~loc:(L.loc pp.ppa_init) ~from:ety ~to_:ty;
+  in
   let x = mk_var (L.unloc pp.ppa_name) W.Const ty (L.loc pp.ppa_name) [] in
   Env.Vars.push_param st (x,ety, pe, p)
 
@@ -2099,7 +2107,7 @@ let cast_opn (arch_info : 'op P.arch_info) ~loc id ws =
     end
   | _ -> invalid ()
 
-let tt_lvalues (arch_info : 'asm P.arch_info) st loc (pimp, pls) implicit tys =
+let tt_lvalues ?prim (arch_info : 'asm P.arch_info) st loc (pimp, pls) implicit tys =
   let pimp = Option.map (fun pimp -> L.mk_loc (L.loc pimp) (pannot_to_annotations (L.unloc pimp))) pimp in
   let loc = loc_of_tuples loc (List.map P.L.loc pls) in
 
@@ -2172,7 +2180,7 @@ let tt_lvalues (arch_info : 'asm P.arch_info) st loc (pimp, pls) implicit tys =
   in
 
   let ls = List.map (tt_lvalue arch_info.pd st) pls in
-  let ls = check_sig_lvs loc tys ls in
+  let ls = check_sig_lvs ?prim loc tys ls in
   let li =
     match pimp_c with
     | [] -> []
@@ -2209,7 +2217,7 @@ let tt_lvalues (arch_info : 'asm P.arch_info) st loc (pimp, pls) implicit tys =
 
 
 
-let tt_exprs_cast pd st loc les tys =
+let tt_exprs_cast ?(prim=false) pd st loc les tys =
   let loc () = loc_of_tuples loc (List.map L.loc les) in
   let n1 = List.length les in
   let n2 = List.length tys in
@@ -2217,7 +2225,7 @@ let tt_exprs_cast pd st loc les tys =
     rs_tyerror ~loc:(loc ()) (InvalidArgCount (n1, n2));
   List.map2 (fun le ty ->
     let e, ety, _ = tt_expr ~mode:`AllVar pd st le in
-    cast (L.loc le) e ety ty) les tys
+    cast (L.loc le) e ety (prim_arr_ty prim ty (Some ety))) les tys
 
 let arr_init (xi, ty) =
   let open P in
@@ -2458,8 +2466,8 @@ let rec tt_instr arch_info (st : 'asm Env.store) ((pannot,pi) : S.pinstr) : 'asm
   | ls, `Raw, { pl_desc = PEPrim (f, args) }, None ->
       let p = tt_prim arch_info.asmOp f in
       let tlvs, tes, arguments = prim_sig arch_info.asmOp p in
-      let lvs, einstr = tt_lvalues arch_info st_lhs (L.loc pi) ls (Some arguments) tlvs in
-      let es  = tt_exprs_cast arch_info.pd st_rhs (L.loc pi) args tes in
+      let lvs, einstr = tt_lvalues ~prim:true arch_info st_lhs (L.loc pi) ls (Some arguments) tlvs in
+      let es  = tt_exprs_cast ~prim:true arch_info.pd st_rhs (L.loc pi) args tes in
       let must_keep = lvs = [] || match p with Oslh _ -> true | _ -> false in
       mk_i (P.Copn(lvs, Option.default (if must_keep then E.AT_keep else default_tag) tag, p, es)) :: einstr
 
@@ -2474,8 +2482,8 @@ let rec tt_instr arch_info (st : 'asm Env.store) ((pannot,pi) : S.pinstr) : 'asm
       let id = Sopn.asm_op_instr arch_info.asmOp p in
       let p = cast_opn arch_info ~loc:(L.loc pi) id ws p in
       let tlvs, tes, arguments = prim_sig arch_info.asmOp p in
-      let lvs, einstr = tt_lvalues arch_info st_lhs (L.loc pi) ls (Some arguments) tlvs in
-      let es  = tt_exprs_cast arch_info.pd st_rhs (L.loc pi) args tes in
+      let lvs, einstr = tt_lvalues ~prim:true arch_info st_lhs (L.loc pi) ls (Some arguments) tlvs in
+      let es  = tt_exprs_cast ~prim:true arch_info.pd st_rhs (L.loc pi) args tes in
       mk_i (P.Copn(lvs, Option.default default_tag tag, p, es)) :: einstr
 
   | (None,[lv]), `Raw, pe, None ->

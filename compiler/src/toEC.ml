@@ -1111,6 +1111,7 @@ module type EcArray = sig
   val add_jarray: Env.t -> wsize -> int -> unit
   val of_list:  Env.t -> wsize -> int -> ec_expr
   val randombytes_suffix: wsize -> int -> string
+  val of_byte_list: (Env.t -> wsize -> int -> ec_expr) option
 
 end
 
@@ -1238,6 +1239,7 @@ module EcArrayOld : EcArray = struct
   let of_list =  of_list_dfl
 
   let randombytes_suffix = randombytes_suffix_dfl
+  let of_byte_list = None
 end
 
 module EcWArray: EcArray = struct
@@ -1353,6 +1355,7 @@ module EcWArray: EcArray = struct
   let of_list =  of_list_dfl
 
   let randombytes_suffix = randombytes_suffix_dfl
+  let of_byte_list = None
 end
 
 module EcBArray : EcArray = struct
@@ -1417,6 +1420,8 @@ module EcBArray : EcArray = struct
 
   let randombytes_suffix ws n =
     Format.asprintf "%i" (arr_size ws n)
+
+  let of_byte_list = Some (fun env ws n -> Eident [ec_BArray env (arr_size ws n); "of_list"])
 end
 
 (* ------------------------------------------------------------------- *)
@@ -1489,6 +1494,16 @@ let rec remove_for_i i =
   in
   { i with i_desc }
 and remove_for c = List.map remove_for_i c
+
+let is_const_bound e =
+  let rec closed = function
+    | Pconst _ -> true
+    | Papp1 (_, e) -> closed e
+    | Papp2 (_, e1, e2) -> closed e1 && closed e2
+    | _ -> false in
+  match e with
+  | Pconst _ -> true
+  | _ -> !Glob_options.modular_jazz && closed e
 
 let ty_lval = function
   | Lnone (_, ty) -> ty
@@ -1963,6 +1978,13 @@ struct
           (ec_leaks_es env es) @
           (ec_pcall env lvs leak_lvs otys [Env.get_funname env f] args) @
           (ec_leak_call_acc env)
+      | Csyscall ([x], Syscall_t.RandomBytes (ws, n), es) when !Glob_options.modular_jazz && EA.of_byte_list <> None ->
+          let n = Conv.int_of_cz n in
+          Env.add_randombytes env ws n;
+          let l = Env.create_aux env "bytes" "W8.t list" in
+          (ec_leaks_es env es) @ (ec_leaks_lvs env [x]) @
+          [EScall ([LvIdent [l]], [syscall_mod_arg ^ ".randombytes"], [ec_int (arr_size ws n)]);
+           toec_lval1 env x (Eapp (Option.get EA.of_byte_list env ws n, [ec_ident l]))]
       | Csyscall (lvs, o, es) ->
           let s = Syscall.syscall_sig_u o in
           let otys = List.map Conv.ty_of_cty s.scs_tout in
@@ -1986,7 +2008,7 @@ struct
           let init, ec_e2 =
               match e2 with
               (* Can be generalized to the case where e2 is not modified by c and i *)
-              | Pconst _ -> ([], toec_expr env e2)
+              | _ when is_const_bound e2 -> ([], toec_expr env e2)
               | _ ->
                   let aux = Env.create_aux env "inc" "int" in
                   let init = ESasgn ([LvIdent [aux]], toec_expr env e2) in
@@ -2094,6 +2116,7 @@ struct
               rtys = [arr_ty];
           }
       in
+      let randombytes_list_decl n = { fname = "randombytes"; args = [(n, "int")]; rtys = ["W8.t list"] } in
       let randombytes_f (ws, n) =
         let dmap = EA.ec_darray8 env ws n in
         { decl = randombytes_decl "a" (ws, n)
@@ -2107,6 +2130,22 @@ struct
       in
       if List.is_empty randombytes then
         []
+      else if !Glob_options.modular_jazz && EA.of_byte_list <> None then
+        [
+          IrequireImport ["DList"];
+          ImoduleType {
+            name = syscall_mod_sig;
+              funs = [randombytes_list_decl "_"];
+          };
+          Imodule {
+            name = syscall_mod;
+              params = [];
+              ty = Some syscall_mod_sig;
+              vars = [];
+              funs = [{ decl = randombytes_list_decl "n"; locals = [("l", "W8.t list")];
+                        stmt = [ESsample ([LvIdent ["l"]], Eapp (ec_ident "dlist", [ec_ident "W8.dword"; ec_ident "n"])); ESreturn (ec_ident "l")] }];
+          }
+        ]
       else
         [
           ImoduleType {
@@ -2171,7 +2210,13 @@ struct
 
       
   let pp_prog env asmOp global_options fmt globs funcs =
-    Format.fprintf fmt "%a@." pp_ec_prog (toec_prog env asmOp global_options globs funcs)
+    let items = toec_prog env asmOp global_options globs funcs in
+    Format.fprintf fmt "%a@." pp_ec_prog items;
+    match List.last items with
+    | Imodule m ->
+      let mname = if m.params = [] then m.name else Format.sprintf "%s(%s)" m.name syscall_mod_arg in
+      List.map2 (fun f d -> f.f_name.fn_name, mname ^ "." ^ d.decl.fname) funcs m.funs
+    | _ -> []
 
 end
 

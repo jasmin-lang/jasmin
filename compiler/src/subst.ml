@@ -578,10 +578,7 @@ let remove_params_modular : ('info, 'asm) Mprog.mpprog -> ('info, 'asm) Mprog.mo
     let subst = ref (Mpv.empty : pexpr Mpv.t) in
     psubst_mprog mprog subst
 
-let remove_params (prog : ('info, 'asm) pprog) =
-  let globals, prog = psubst_prog prog in
-  let globals, prog = isubst_prog globals prog in
-
+let glob_evaluator () =
   let global_tbl = Hv.create 101 in
   let add_glob x gv = Hv.add global_tbl x gv in
   let get_glob x = Hv.find_option global_tbl (Conv.var_of_cvar x) in
@@ -626,6 +623,22 @@ let remove_params (prog : ('info, 'asm) pprog) =
     add_glob x gv;
     x, gv
   in
+  doglob
+
+let eval_glob_modular () =
+  let globs = ref [] in
+  fun g ->
+    let doglob = glob_evaluator () in
+    try
+      let gv = List.last (List.map doglob (fst (isubst_prog (!globs @ [g]) []))) in
+      globs := !globs @ [g];
+      Some gv
+    with HiError _ -> None
+
+let remove_params (prog : ('info, 'asm) pprog) =
+  let globals, prog = psubst_prog prog in
+  let globals, prog = isubst_prog globals prog in
+  let doglob = glob_evaluator () in
   let globals = List.rev_map doglob (List.rev globals) in
   globals, prog
 

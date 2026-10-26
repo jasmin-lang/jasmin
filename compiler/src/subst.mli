@@ -13,6 +13,8 @@ val subst_func : ('ty gvar_i -> 'ty gexpr) -> ('ty, 'info, 'asm) gfunc -> ('ty, 
 (* replace parameter by their definition everywhere in the program *)
 val remove_params_modular : ('info, 'asm) Mprog.mpprog ->  ('info,'asm) Mprog.module_summary list
 
+val eval_glob_modular : unit -> pvar * pexpr_ ggexpr -> (var * Global.glob_value) option
+
 (* replace parameter by their definition everywhere in the program *)
 val remove_params : ('info, 'asm) pprog -> ('info, 'asm) prog
 

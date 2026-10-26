@@ -4,7 +4,7 @@ open CommonCLI
 open Utils
 
 let extract_to_file prog mprog arch pd msfsz asmOp model amodel global_options 
-    fnames array_dir outfile mjazz mfile_ec =
+    fnames array_dir outfile mjazz mfile_ec equiv =
   let array_dir =
     if array_dir = None then Option.map Filename.dirname outfile else array_dir
   in
@@ -12,6 +12,12 @@ let extract_to_file prog mprog arch pd msfsz asmOp model amodel global_options
     if array_dir = None then mfile_ec else array_dir
   in
   let mprog = Subst.remove_params_modular mprog in
+  if equiv && not mjazz then
+    warning Always Location.i_dummy "--mjazz-equiv is ignored without --mjazz";
+  if equiv && mjazz && mfile_ec <> None then
+    warning Always Location.i_dummy "--mjazz-equiv is ignored with --mfile_ec";
+  if equiv && mjazz && mfile_ec = None && outfile = None then
+    hierror ~loc:Lnone ~kind:"EasyCrypt extraction" "--mjazz-equiv requires an output file (-o)";
   let fmt, close =
     if mfile_ec!=None && mjazz then
       let folder_name = Option.get mfile_ec in
@@ -33,11 +39,20 @@ let extract_to_file prog mprog arch pd msfsz asmOp model amodel global_options
     BatPervasives.finally
       (fun () -> List.iter (fun c -> c() ) close)
       (fun () ->
-         if mjazz then
-          ToEC_pexpr.extract_modular mprog arch pd msfsz asmOp model amodel fnames
-            array_dir fmt
+        if not mjazz then 
+            ignore (ToEC.extract prog arch pd msfsz asmOp model amodel global_options fnames array_dir (List.hd fmt))
         else
-          ToEC.extract prog arch pd msfsz asmOp model amodel global_options fnames array_dir (List.hd fmt)
+          let mod_names = ToEC_pexpr.extract_modular mprog arch pd msfsz asmOp model amodel global_options fnames array_dir fmt in
+          if equiv && mfile_ec = None then
+            let base = Filename.remove_extension (Option.get outfile) in
+            let name f = String.capitalize_ascii (Filename.basename f) in
+            let with_file f p =
+              let out = open_out (f ^ ".ec") in
+              BatPervasives.finally (fun () -> close_out out) p (Format.formatter_of_out_channel out) in
+            let flat_names =
+              with_file (base ^ "_flat") (ToEC.extract prog arch pd msfsz asmOp model amodel global_options [] array_dir) in
+            with_file (base ^ "_equiv")
+              (ToEC_pexpr.extract_equiv arch model (name (base ^ "_flat")) [name base] flat_names mod_names)
       )
       ()
   with e ->
@@ -48,20 +63,20 @@ let extract_to_file prog mprog arch pd msfsz asmOp model amodel global_options
 
 let parse_and_extract arch call_conv idirs =
   let module A = (val CoreArchFactory.get_arch_module arch call_conv) in
-  let extract model amodel global_options functions array_dir output pass file modular_jazz mfile_ec =
+  let extract model amodel global_options functions array_dir output pass file modular_jazz mfile_ec equiv =
     if modular_jazz then Glob_options.modular_jazz := true;
     let prog,mprog = parse_and_compile (module A) ~wi2i:true pass file idirs in
     let prog = Compile.do_toec (module A) prog in
     try
       extract_to_file prog mprog arch A.reg_size A.msf_size A.asmOp model amodel
-        global_options functions array_dir output modular_jazz mfile_ec
+        global_options functions array_dir output modular_jazz mfile_ec equiv
     with Annot.AnnotationError (loc, code) ->
       hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
   in
-  fun model amodel global_options functions array_dir output pass file warn modular_jazz mfile_ec ->
+  fun model amodel global_options functions array_dir output pass file warn modular_jazz mfile_ec equiv ->
     if not warn then nowarning ();
     match
-      extract model amodel global_options functions array_dir output pass file modular_jazz mfile_ec
+      extract model amodel global_options functions array_dir output pass file modular_jazz mfile_ec equiv
     with
     | () -> ()
     | exception HiError e ->
@@ -211,6 +226,10 @@ let multifile_extraction =
     & opt (some dir) None
     & info [ "mfile_ec" ] ~doc)
 
+let equiv =
+  let doc = "With $(b,--mjazz) and $(b,--mfile_ec), also extract the flattened program to MAIN_flat.ec and EasyCrypt proofs of the equivalence of each of its functions with the modular extraction to MAIN_equiv.ec (normal model only)." in
+  Arg.(value & flag & info [ "mjazz-equiv" ] ~doc)
+
 
 let () =
   let doc = "Extract Jasmin program to easycrypt" in
@@ -229,5 +248,5 @@ let () =
     Term.(
       const parse_and_extract $ arch $ call_conv $ idirs $ model $ array_model
       $ global_model $ functions $ array_dir $ output $ after_pass
-      $ file $ warn $ modular_jazz $ multifile_extraction)
+      $ file $ warn $ modular_jazz $ multifile_extraction $ equiv)
   |> Cmd.eval |> exit

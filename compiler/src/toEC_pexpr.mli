@@ -9,7 +9,18 @@ val extract_modular :
   ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
   Utils.model ->
   ToEC.amodel ->
+  ToEC.global_options ->
   string list ->
   string option ->
   Format.formatter list ->
+  (string * string) list
+
+val extract_equiv :
+  Utils.architecture ->
+  Utils.model ->
+  string ->
+  string list ->
+  (string * string) list ->
+  (string * string) list ->
+  Format.formatter ->
   unit

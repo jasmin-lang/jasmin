@@ -31,6 +31,9 @@ type global_options = {
 
 val default_global_options : global_options
 
+val gmodel_of_annot : Annotations.annotations -> gmodel option
+val gsign_of_annot : Annotations.annotations -> gsign option
+
 val ty_expr : Prog.expr -> Prog.ty
 val ty_lval : Prog.lval -> Prog.ty
 val extract :
@@ -45,4 +48,4 @@ val extract :
   string list ->
   string option ->
   Format.formatter ->
-  unit
+  (string * string) list

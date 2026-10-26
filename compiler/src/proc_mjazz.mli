@@ -22,6 +22,8 @@ exception MJazzError of L.t * mjazzerror
 
 val pp_mjazzerror: F.formatter -> mjazzerror -> unit
 
+val get_flat_funname : string -> string
+
 val parse_file :
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Prog.arch_info ->
   (string*string) list ->

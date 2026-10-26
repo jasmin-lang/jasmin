@@ -1059,6 +1059,8 @@ let add_new_items (new_vars:(string,P.pvar) Utils.Map.t) new_funcs module_name i
   in
   new_vars, new_funcs
   
+let instance_names : (string * string) list ref = ref []
+
 let rec init_instance menv inst_subst new_vars new_funcs args mname =
     let _, modfunc = Env.Modules.get menv.MEnv.me_store (L.mk_loc (L._dummy) mname) in
     let modinfo =
@@ -1113,6 +1115,7 @@ and init_modapp menv new_vars new_funcs inst_subst ma_name ma_func =
   let mname = replace_with_instance inst_subst ma_name in
   let instance = List.find_opt (fun (_,mnames,_,_)-> List.exists (fun n -> n = mname) mnames) modinfo.mi_instances in
   let instance_togen = List.find_opt (fun (_,mnames,_,generated)-> (not generated) && List.exists (fun n -> n = mname) mnames) modinfo.mi_instances in
+  Option.may (fun (_,_,iname,_) -> instance_names := (mname, iname) :: !instance_names) instance;
   match instance_togen, instance with
   | _ , None -> assert false
   | None, Some (_,_,iname,_) ->
@@ -1156,7 +1159,19 @@ and mprog_topprog menv new_vars new_funcs inst_subst = function
         let menv, new_vars, new_funcs, items' = mprog_topprog menv new_vars new_funcs inst_subst xs in
         menv, new_vars, new_funcs, items @ items'
 
+let rec get_flat_funname f =
+  let names = String.split_on_string ~by:"::" f in
+  let rec replace_instances n =
+    if n = 0 then None
+    else match List.assoc_opt (String.concat "::" (List.take n names)) !instance_names with
+      | Some i -> Some (String.concat "::" (i :: List.drop n names))
+      | None -> replace_instances (n - 1) in
+  match replace_instances (List.length names - 1) with
+  | Some f -> get_flat_funname f
+  | None -> f
+
 let instantiate_pprog menv =
+  instance_names := [];
   let mprog = List.hd menv.MEnv.me_decls in
   let _,_, _, pprog = mprog_topprog menv Map.empty Map.empty ("","") (List.rev mprog) in
   let pprog =  List.rev pprog in

@@ -6,6 +6,14 @@ open PrintCommon
 
 let ws2bytes ws = (int_of_ws ws) / 8
 
+module Ws = struct
+  type t = wsize
+  let compare = compare
+end
+
+module WsInt = Set.Make2(Ws)(BatInt)
+module Swi = WsInt.Product
+
 module Scmp = struct
   type t = string
   let compare = compare
@@ -130,7 +138,7 @@ let ec_keyword =
  ; "for"
  ; "while"
  ; "raise"
- ; "assert"
+ ; "assert" (* No longer a keyword since 2026.03 *)
  ; "return"
  ; "res"
  ; "equiv"
@@ -145,6 +153,7 @@ let ec_keyword =
  ; "last"
  ; "do"
  ; "expect"
+ ; "extens"
 
  (* Lambda tactics *)
  ; "beta"
@@ -245,6 +254,10 @@ let ec_keyword =
  ; "kill"
  ; "eager"
 
+ ; "array"
+ ; "bind"
+ ; "circuit"
+ ; "bitstring"
  ; "axiom"
  ; "axiomatized"
  ; "lemma"
@@ -376,16 +389,23 @@ let fmt_abstract_array_theory at i = match at with
   | ArrayAccessCast _ -> "ArrayAccessCast", Format.sprintf "ArrayAccessCastWS%i" i
   | ByteArray _ -> "ByteArray", Format.sprintf "BArrayS%i" i
   | SubByteArray _ -> "SubByteArray", Format.sprintf "SBArrayS%i" i
+(* we print negative lengths with a "m"-prefix to create valid module names *)
+let pp_length fmt i =
+  if i < 0 then
+    Format.fprintf fmt "m%d" (-i)
+  else
+    Format.fprintf fmt "%d" i
+
 let fmt_array_theory at = match at with
-  | Array n -> Format.sprintf "Array%i" n
-  | WArray n -> Format.sprintf "WArray%i" n
-  | ArrayWords aw -> Format.sprintf "ArrayWords%iW%i" aw.sizea (8*aw.sizew)
-  | SubArray x -> Format.sprintf "SubArray%i_%i" x.sizes x.sizeb
-  | SubArrayDirect x -> Format.sprintf "SubArrayDirect%i_%iW%i" x.sizes x.sizeb (8*x.sizew)
-  | SubArrayCast x -> Format.sprintf "SubArrayDirect%iW%i_%iW%i" x.sizes (8*x.sizews) x.sizeb (8*x.sizewb)
-  | ArrayAccessCast x -> Format.sprintf "ArrayAccessCastW%i_%iW%i" (8*x.sizews) x.sizeb (8*x.sizewb)
-  | ByteArray n -> Format.sprintf "BArray%i" n
-  | SubByteArray x -> Format.sprintf "SBArray%i_%i" x.sizeb x.sizes
+  | Array n -> Format.asprintf "Array%a" pp_length n
+  | WArray n -> Format.asprintf "WArray%a" pp_length n
+  | ArrayWords aw -> Format.asprintf "ArrayWords%aW%i" pp_length aw.sizea (8*aw.sizew)
+  | SubArray x -> Format.asprintf "SubArray%a_%a" pp_length x.sizes pp_length x.sizeb
+  | SubArrayDirect x -> Format.asprintf "SubArrayDirect%a_%aW%i" pp_length x.sizes pp_length x.sizeb (8*x.sizew)
+  | SubArrayCast x -> Format.asprintf "SubArrayDirect%aW%i_%aW%i" pp_length x.sizes (8*x.sizews) pp_length x.sizeb (8*x.sizewb)
+  | ArrayAccessCast x -> Format.asprintf "ArrayAccessCastW%i_%aW%i" (8*x.sizews) pp_length x.sizeb (8*x.sizewb)
+  | ByteArray n -> Format.asprintf "BArray%a" pp_length n
+  | SubByteArray x -> Format.asprintf "SBArray%a_%a" pp_length x.sizeb pp_length x.sizes
 
 (* ------------------------------------------------------------------- *)
 (* Easycrypt very simplified (and incomplete) AST. *)
@@ -464,6 +484,7 @@ type ec_item =
     | Iimport of string list
     | IfromRequireImport of string * (string list)
     | Iabbrev of string * ec_expr
+    | Iop of string * string * ec_expr
     | ImoduleTypeEq of string * string * (string * string) list 
     | ImoduleEq of string * string
     | ImoduleType of ec_module_type
@@ -479,7 +500,7 @@ module type EnvT = sig
   val pd: t -> Wsize.wsize
   val msfsz: t -> Wsize.wsize
   val arch: t -> architecture
-  val randombytes: t -> int list
+  val randombytes: t -> (wsize * int) list
   val set_fun: t -> ('a, 'b) pfunc -> t
   val add_Array: t -> int -> unit
   val add_AArray: t -> pexpr_ -> unit
@@ -494,8 +515,7 @@ module type EnvT = sig
   val add_SubArrayDirect: t -> int -> pexpr_ -> pexpr_ -> string
   val add_SubArrayCast: t -> int -> int -> pexpr_ -> pexpr_ -> string
   val add_ArrayAccessCast: t -> int -> int -> pexpr_ -> string
-  val add_randombytes: t -> int -> unit
-  val add_ty: t -> pty -> unit
+  val add_randombytes: t -> wsize -> int -> unit
   val add_jarray: t -> Wsize.wsize -> int -> unit
   val empty: architecture -> Wsize.wsize -> Wsize.wsize -> Sarraytheory.t ref ->  int Aarraytheory.t ref -> t
   val create_name: t -> string -> string
@@ -509,6 +529,7 @@ module type EnvT = sig
   val abstract_name: t -> pexpr_ array_theory -> string
   val get_funtype: t -> funname -> (pty list * pty list)
   val get_funname: t -> funname -> string
+  val fun_names: t -> (string * string) list
   val create_aux: t -> string -> ec_ty -> string
   val reuse_aux: t -> string -> ec_ty -> string
   val new_aux_range: t -> t
@@ -574,7 +595,7 @@ module Env: EnvT = struct
         *)
       auxv: string BatVect.t Mpty.t ref;
       mutable count: int Mpty.t;
-      randombytes: Sint.t ref;
+      randombytes: Swi.t ref;
     }
 
 
@@ -584,7 +605,7 @@ module Env: EnvT = struct
 
   let arch env = env.arch
 
-  let randombytes env = Sint.elements !(env.randombytes)
+  let randombytes env = Swi.elements !(env.randombytes)
 
   let array_theories env = !(env.array_theories)
   let abstract_array_theories env = !(env.abstract_array_theories)
@@ -697,7 +718,7 @@ module Env: EnvT = struct
       register env theory;
       abstract_name env theory
 
-  let add_randombytes env n = env.randombytes := Sint.add n !(env.randombytes)
+  let add_randombytes env ws n = env.randombytes := Swi.add (ws, n) !(env.randombytes)
 
   let add_jarray env ws n =
     let ats = Sarraytheory.add (Array n) !(env.array_theories) in
@@ -728,13 +749,6 @@ module Env: EnvT = struct
     try Mpv.find v env.vars 
      with Not_found -> 
       Mpv.filter (fun v' _ -> v'.v_name = v.v_name) env.vars |> Mpv.choose |> snd
-  let add_ty env = function
-      | Bty _ -> ()
-      | Arr (_ws, n) -> 
-        match  get_int n with
-        | Some n -> add_Array env n
-        | None -> ()
-
   let empty arch pd msfsz array_theories abstract_array_theories =
     {
       arch;
@@ -749,7 +763,7 @@ module Env: EnvT = struct
       array_alias = ref Aarraytheory.empty;
       auxv  = ref Mpty.empty;
       count = Mpty.empty;
-      randombytes = ref Sint.empty;
+      randombytes = ref Swi.empty;
     }
 
   let set_fun env fd =
@@ -766,6 +780,8 @@ module Env: EnvT = struct
       Mf.filter (fun k _ -> k.fn_name = f.fn_name) env.funs |> Mf.choose |> snd
 
   let get_funtype env f = snd (get_fun env f)
+
+  let fun_names env = List.map (fun (f, (s, _)) -> f.fn_name, s) (Mf.bindings env.funs)
 
   let get_funname env f = fst (get_fun env f)
 
@@ -1113,6 +1129,12 @@ let pp_ec_item fmt it =
     Format.fprintf fmt "@[from %s require import@ @[%a@].@]" m (pp_list "@ " pp_string) is
   | Iabbrev (a, e) ->
     Format.fprintf fmt "@[abbrev %s =@ @[%a@].@]" a pp_ec_ast_expr e
+  | Iop (a, opts, e) ->
+    let pp_opts fmt = function
+      | "" -> ()
+      | opts -> Format.fprintf fmt " [%s]" opts
+    in
+    Format.fprintf fmt "@[op%a %s =@ @[%a@].@]" pp_opts opts a pp_ec_ast_expr e
   | ImoduleType mt ->
     Format.fprintf fmt "@[<v>@[module type %s = {@]@   @[<v>%a@]@ }.@]"
       mt.name (pp_list "@ " pp_ec_fun_decl) mt.funs
@@ -1152,13 +1174,21 @@ let pp_ec_prog fmt (prog:ec_prog) = Format.fprintf fmt "@[<v>%a@]" (pp_list "@ @
 (* Array theory cloning *)
 
 
+(* For negative lengths, we need to import Int. We import it systematically. *)
+let pp_import_Int fmt () =
+  Format.fprintf fmt "require import Int.@ @ "
+
 let fmt_array_decl fmt i =
-  Format.fprintf fmt "@[<v>from Jasmin require import JArray.@ @ ";
-  Format.fprintf fmt "clone export PolyArray as Array%i  with op size <= %i.@]@." i i
+  Format.fprintf fmt "@[<v>";
+  pp_import_Int fmt ();
+  Format.fprintf fmt "from Jasmin require import JArray.@ @ ";
+  Format.fprintf fmt "clone export PolyArray as Array%a  with op size <= %i.@]@." pp_length i i
 
 let fmt_warray_decl fmt i =
-  Format.fprintf fmt "@[<v>from Jasmin require import JWord_array.@ @ ";
-  Format.fprintf fmt "clone export WArray as WArray%i  with op size <= %i.@]@." i i
+  Format.fprintf fmt "@[<v>";
+  pp_import_Int fmt ();
+  Format.fprintf fmt "from Jasmin require import JWord_array.@ @ ";
+  Format.fprintf fmt "clone export WArray as WArray%a  with op size <= %i.@]@." pp_length i i
 
 let fmt_op fmt (op_name, v) = Format.fprintf fmt "op %s <= %i" op_name v
 
@@ -1167,8 +1197,8 @@ let fmt_the fmt (th, v) = Format.fprintf fmt "theory %s <= %s" th v
 let fmt_th fmt (th, v) = Format.fprintf fmt "theory %s <= %s" th v
 
 let fmt_arraywords_decl fmt (aw: int arraywords) =
-  let arrayn = Format.sprintf "Array%i" aw.sizea in
-  let warrayn = Format.sprintf "WArray%i" (aw.sizew*aw.sizea) in
+  let arrayn = Format.asprintf "Array%a" pp_length aw.sizea in
+  let warrayn = Format.asprintf "WArray%a" pp_length (aw.sizew*aw.sizea) in
   let fmt_insts fmt (aw: int arraywords) =
     Format.fprintf fmt "%a,@ %a,@ %a,@ %a,@ %a"
     fmt_op ("sizeW", aw.sizew)
@@ -1177,15 +1207,17 @@ let fmt_arraywords_decl fmt (aw: int arraywords) =
     fmt_th ("ArrayN", arrayn)
     fmt_th ("WArrayN", warrayn)
   in
-  Format.fprintf fmt "@[<v>from Jasmin require import JWord JWord_array.@ @ ";
-  Format.fprintf fmt "@[<v>require import %s %s.@ @ " arrayn warrayn;
+  Format.fprintf fmt "@[<v>";
+  pp_import_Int fmt ();
+  Format.fprintf fmt "from Jasmin require import JWord JWord_array.@ @ ";
+  Format.fprintf fmt "require import %s %s.@ @ " arrayn warrayn;
   Format.fprintf fmt "clone export ArrayWords as %s  with @[%a@].@]@."
     (fmt_array_theory (ArrayWords aw))
     fmt_insts aw
 
 let fmt_subarray_decl fmt (s: int subarray) =
-  let arrays = Format.sprintf "Array%i" s.sizes in
-  let arrayb = Format.sprintf "Array%i" s.sizeb in
+  let arrays = Format.asprintf "Array%a" pp_length s.sizes in
+  let arrayb = Format.asprintf "Array%a" pp_length s.sizeb in
   let fmt_insts fmt (s: int subarray) =
     Format.fprintf fmt "%a,@ %a,@ %a,@ %a"
     fmt_op ("sizeS", s.sizes)
@@ -1193,8 +1225,10 @@ let fmt_subarray_decl fmt (s: int subarray) =
     fmt_th ("ArrayS", arrays)
     fmt_th ("ArrayB", arrayb)
   in
-  Format.fprintf fmt "@[<v>from Jasmin require import JArray.@ @ ";
-  Format.fprintf fmt "@[<v>require import %s %s.@ @ " arrays arrayb;
+  Format.fprintf fmt "@[<v>";
+  pp_import_Int fmt ();
+  Format.fprintf fmt "from Jasmin require import JArray.@ @ ";
+  Format.fprintf fmt "require import %s %s.@ @ " arrays arrayb;
   Format.fprintf fmt "clone export SubArray as %s  with @[%a@].@]@."
     (fmt_array_theory (SubArray s))
     fmt_insts s
@@ -1211,8 +1245,10 @@ let fmt_subarraydirect_decl fmt (s: int subarraydirect) =
     fmt_th ("ArrayWordsS", arrayws)
     fmt_th ("ArrayWordsB", arraywb)
   in
-  Format.fprintf fmt "@[<v>from Jasmin require import JWord JWord_array.@ @ ";
-  Format.fprintf fmt "@[<v>require import %s %s.@ @ " arrayws arraywb;
+  Format.fprintf fmt "@[<v>";
+  pp_import_Int fmt ();
+  Format.fprintf fmt "from Jasmin require import JWord JWord_array.@ @ ";
+  Format.fprintf fmt "require import %s %s.@ @ " arrayws arraywb;
   Format.fprintf fmt "clone export SubArrayDirect as %s  with @[%a@].@]@."
     (fmt_array_theory (SubArrayDirect s))
     fmt_insts s
@@ -1231,8 +1267,10 @@ let fmt_subarraycast_decl fmt (s: int subarraycast) =
     fmt_th ("ArrayWordsS", arrayws)
     fmt_th ("ArrayWordsB", arraywb)
   in
-  Format.fprintf fmt "@[<v>from Jasmin require import JWord JWord_array.@ @ ";
-  Format.fprintf fmt "@[<v>require import %s %s.@ @ " arrayws arraywb;
+  Format.fprintf fmt "@[<v>";
+  pp_import_Int fmt ();
+  Format.fprintf fmt "from Jasmin require import JWord JWord_array.@ @ ";
+  Format.fprintf fmt "require import %s %s.@ @ " arrayws arraywb;
   Format.fprintf fmt "clone export SubArrayCast as %s  with @[%a@].@]@."
     (fmt_array_theory (SubArrayCast s))
     fmt_insts s
@@ -1248,14 +1286,18 @@ let fmt_arrayaccesscast_decl fmt (s: int arrayaccesscast) =
     fmt_the ("WordB", Format.sprintf "W%i" (8*s.sizewb))
     fmt_th ("ArrayWordsB", arraywb)
   in
-  Format.fprintf fmt "@[<v>from Jasmin require import JWord JWord_array.@ @ ";
-  Format.fprintf fmt "@[<v>require import %s.@ @ " arraywb;
+  Format.fprintf fmt "@[<v>";
+  pp_import_Int fmt ();
+  Format.fprintf fmt "from Jasmin require import JWord JWord_array.@ @ ";
+  Format.fprintf fmt "require import %s.@ @ " arraywb;
   Format.fprintf fmt "clone export ArrayAccessCast as %s  with @[%a@].@]@."
     (fmt_array_theory (ArrayAccessCast s))
     fmt_insts s
 
 let fmt_bytearray_decl fmt n =
-  Format.fprintf fmt "@[<v>from Jasmin require import JByte_array.@ @ ";
+  Format.fprintf fmt "@[<v>";
+  pp_import_Int fmt ();
+  Format.fprintf fmt "from Jasmin require import JByte_array.@ @ ";
   Format.fprintf fmt "clone include ByteArray with op size <= %i.@]@." n
 
 let fmt_subbytearray_decl fmt (s:int subarray) =
@@ -1266,8 +1308,10 @@ let fmt_subbytearray_decl fmt (s:int subarray) =
     fmt_th ("Asmall", arrays)
     fmt_th ("Abig", arrayb)
   in
-  Format.fprintf fmt "@[<v>from Jasmin require import JByte_array.@ @ ";
-  Format.fprintf fmt "@[<v>require import %s %s.@ @ " arrays arrayb;
+  Format.fprintf fmt "@[<v>";
+  pp_import_Int fmt ();
+  Format.fprintf fmt "from Jasmin require import JByte_array.@ @ ";
+  Format.fprintf fmt "require import %s %s.@ @ " arrays arrayb;
   Format.fprintf fmt "clone SubByteArray as %s  with @[%t@].@]@."
     (fmt_array_theory (SubByteArray s))
     fmt_insts
@@ -1315,16 +1359,16 @@ let ec_zeroext_sz (szo, szi) e =
 let ec_zeroext (t_o, t_i) e =
   if t_o = t_i then e else ec_zeroext_sz (ws_of_ty t_o, ws_of_ty t_i) e
 
-let ec_Array env n = Env.add_Array env n; Format.sprintf "Array%i" n
+let ec_Array env n = Env.add_Array env n; Format.asprintf "Array%a" pp_length n
 let ec_PArray env n =
   Env.add_AArray env n;
   Env.abstract_name env (Array n)
 
-let ec_WArray env n = Env.add_WArray env n; Format.sprintf "WArray%i" n
+let ec_WArray env n = Env.add_WArray env n; Format.asprintf "WArray%a" pp_length n
 let ec_PWArray env n =
   Env.add_AWArray env n;
   Env.abstract_name env (WArray n)
-let ec_BArray env n = Env.add_BArray env n; Format.sprintf "BArray%i" n
+let ec_BArray env n = Env.add_BArray env n; Format.asprintf "BArray%a" pp_length n
 
 let ec_PBArray env size =
   Env.add_ABArray env size;
@@ -1333,7 +1377,7 @@ let ec_PBArray env size =
 
 let ec_SBArray env s =
   Env.add_SBArray env s;
-  Format.sprintf "SBArray%i_%i" s.sizeb s.sizes
+  Format.asprintf "SBArray%a_%a" pp_length s.sizeb pp_length s.sizes
 
 let ec_PSBArray env s = 
   Env.add_ASBArray env s;
@@ -1354,14 +1398,22 @@ let onarray_ty_dfl env ws n =
     Format.sprintf "%s.t %s.t" (fmt_Wsz ws) (ec_PArray env n)
   
 
-let of_list_dfl env _ws n =
-  Eapp (Eident [ec_Array env n; "of_list"], [ec_ident "witness"])
+let of_list_dfl env ws n =
+  let witness = Format.asprintf "witness<:%s.t>" (fmt_Wsz ws) in
+  Eapp (Eident [ec_Array env n; "of_list"], [ec_ident witness])
+
+let randombytes_suffix_dfl ws n =
+  if ws = U8 then
+    (* in the U8 case, we just print the length for backward compatibility *)
+    Format.asprintf "%a" pp_length n
+  else
+    Format.asprintf "%a%s" pp_length n (fmt_Wsz ws)
 
 (* ------------------------------------------------------------------- *)
 (* Extraction of array operations *)
 
 module type EcArray = sig
-  val ec_darray8: Env.t -> int -> ec_expr
+  val ec_darray8: Env.t -> wsize -> int -> ec_expr
   val ec_cast_array: Env.t -> wsize * pexpr_ -> wsize * pexpr_ -> ec_expr -> ec_expr
   val toec_pget: Env.t -> Memory_model.aligned * Warray_.arr_access * wsize * pvar * ec_expr -> ec_expr
   val toec_psub: Env.t -> Warray_.arr_access * wsize * pexpr_ * pexpr_ ggvar * ec_expr -> ec_expr
@@ -1372,6 +1424,8 @@ module type EcArray = sig
   val add_arr: Env.t -> wsize -> int -> unit
   val add_jarray: Env.t -> wsize -> int -> unit
   val add_abstract_array: Env.t -> wsize -> pexpr_ -> unit
+  val randombytes_suffix: wsize -> int -> string
+  val of_byte_list: (Env.t -> wsize -> pexpr_ -> ec_expr) option
   val of_list:  Env.t -> wsize -> int -> ec_expr
 
 end
@@ -1401,14 +1455,15 @@ module EcArrayOld : EcArray = struct
 
   let ec_initi_var env (x, n, ws) = ec_initi env (ec_vari env x, n, ws)
 
-  let ec_darray8 env n =
-    let wa = ec_WArray env n in
+  let ec_darray8 env ws n =
+    let wa = ec_WArray env (arr_size ws n) in
+    let geti = Format.sprintf "get%i" (int_of_ws ws) in
     let eto = Efun1 ("a", Eapp (Eident [ec_Array env n; "init"], [
-      Efun1 ("i", Eapp (Eident [wa; "get8"], [ec_ident "a"; ec_ident "i"]))
+      Efun1 ("i", Eapp (Eident [wa; geti], [ec_ident "a"; ec_ident "i"]))
       ])) in
     Eapp (
             ec_ident "dmap",
-            [Eident [ec_WArray env n; "darray"]; eto]
+            [Eident [wa; "darray"]; eto]
           )
 
   let ec_cast_array env (ws, n) (wse, ne) e =
@@ -1529,18 +1584,21 @@ module EcArrayOld : EcArray = struct
     Env.add_AArray env n;
     Env.add_AWArray env size
 
+  let randombytes_suffix = randombytes_suffix_dfl
+  let of_byte_list = None
+
   let of_list =  of_list_dfl
 end
 
 
 module EcWArray : EcArray  = struct
-  let ec_darray8 env n =
-    Env.add_ArrayWords env 1 (PE (icnst n));
-    let aw = fmt_array_theory (ArrayWords { sizew=1; sizea=n }) in
+  let ec_darray8 env ws n =
+    Env.add_ArrayWords env (ws2bytes ws) (PE (icnst n));
+    let aw = fmt_array_theory (ArrayWords { sizew=ws2bytes ws; sizea=n }) in
     let eto = Eident [aw; "to_word_array"] in
     Eapp (
             ec_ident "dmap",
-            [Eident [ec_WArray env n; "darray"]; eto]
+            [Eident [ec_WArray env (arr_size ws n); "darray"]; eto]
           )
 
   let ec_cast_array env (ws, n) (wse, ne) e =
@@ -1638,14 +1696,17 @@ module EcWArray : EcArray  = struct
     let size = PE (arr_size_pexpr_ ws n) in
     Env.add_AArray env n;
     Env.add_AWArray env size
+
+  let randombytes_suffix = randombytes_suffix_dfl
+  let of_byte_list = None
   let of_list =  of_list_dfl
 end
 
 module EcBArray : EcArray = struct
   let arr_size_pexpr_ ws n = Pretyping.canon_expr (arr_size_pexpr_ ws n)
 
-  let ec_darray8 (env: Env.t) (sz:int) =
-    Eident [ec_BArray env sz; "darray"]
+  let ec_darray8 (env: Env.t) ws (n:int) =
+    Eident [ec_BArray env (arr_size ws n); "darray"]
 
   let ec_cast_array (_env:Env.t) (ws1, sz1) (ws2, sz2) e =
     match get_int sz1, get_int sz2 with
@@ -1738,6 +1799,14 @@ module EcBArray : EcArray = struct
     let size = PE (arr_size_pexpr_ ws n) in
     Env.add_ABArray env size
 
+  let randombytes_suffix ws n =
+    Format.asprintf "%i" (arr_size ws n)
+
+  let of_byte_list = Some (fun env ws n ->
+    match get_int n with
+    | Some n -> Eident [ec_BArray env (arr_size ws n); "of_list"]
+    | None -> Eident [ec_PBArray env (PE (arr_size_pexpr_ ws n)); "of_list"])
+
   let of_list env ws n =
     Eident [ec_BArray env (arr_size ws n); Format.sprintf "of_list%i" (int_of_ws ws)]
 
@@ -1768,8 +1837,8 @@ let ty_expr (e: pexpr) =
 let ty_sopn pd msfsz asmOp op (es: pexpr list) =
   match op with
   (* Do a special case for copy since the Coq type loose information  *)
-  | Sopn.Opseudo_op (Pseudo_operator.Ocopy(ws, p)) ->
-    let l = [Arr(ws, PE (Pconst (Z.of_int (Conv.int_of_cz p))))] in
+  | Sopn.Opseudo_op (Pseudo_operator.Ocopy _) ->
+    let l = List.map ty_expr es in
     l, l
   | Sopn.Opseudo_op (Pseudo_operator.Oswap _) ->
     let l = List.map ty_expr es in
@@ -1821,11 +1890,201 @@ let rec remove_for_i i =
   { i with i_desc }
 and remove_for c = List.map remove_for_i c
 
+let rec toec_while_i i =
+  match i.i_desc with
+  | Cassgn _ | Copn _ | Csyscall _ | Cassert _ | Ccall _ -> [i]
+  | Cif (e, c1, c2) -> [{ i with i_desc = Cif (e, toec_while c1, toec_while c2) }]
+  | Cfor (x, r, c) -> [{ i with i_desc = Cfor (x, r, toec_while c) }]
+  | Cwhile (a, c1, e, ii, c2) ->
+    let c1 = toec_while c1 in
+    let c2 = toec_while c2 in
+    c1 @ [{ i with i_desc = Cwhile (a, [], e, ii, c2 @ c1) }]
+and toec_while c = List.concat_map toec_while_i c
+
+let wi2i_op2 = function
+  | Owi2 (s, _, op) ->
+    begin match op with
+    | WIadd -> Oadd Op_int
+    | WImul -> Omul Op_int
+    | WIsub -> Osub Op_int
+    | WIdiv -> Odiv (s, Op_int)
+    | WImod -> Omod (s, Op_int)
+    | WIshl -> Olsl Op_int
+    | WIshr -> Oasr Op_int
+    | WIeq  -> Oeq Op_int
+    | WIneq -> Oneq Op_int
+    | WIlt  -> Olt Cmp_int
+    | WIle  -> Ole Cmp_int
+    | WIgt  -> Ogt Cmp_int
+    | WIge  -> Oge Cmp_int
+    end
+  | o -> o
+
+let wi2i_op1_e o e =
+  match o with
+  | Owi1 (s, o) ->
+    begin match o with
+    | WIwint_of_int _ | WIint_of_wint _ -> e
+    | WIword_of_wint ws -> Papp1 (Owi1 (s, WIwint_of_int ws), e)
+    | WIwint_of_word ws -> Papp1 (Oint_of_word (s, ws), e)
+    | WIwint_ext (szo, szi) ->
+      if int_of_ws szi <= int_of_ws szo then e
+      else
+        let ext = if s = Signed then Osignext (szo, szi) else Ozeroext (szo, szi) in
+        Papp1 (Oint_of_word (s, szo), Papp1 (ext, Papp1 (Oword_of_int szi, e)))
+    | WIneg _ -> Papp1 (Oneg Op_int, e)
+    end
+  | o -> Papp1 (o, e)
+
+let wi2i_fun (f: ('info, 'asm) pfunc) : ('info, 'asm) pfunc =
+  let m = Spv.fold (fun x m ->
+      match x.v_ty, Annotations.has_wint x.v_annot with
+      | Bty (U _), Some sg ->
+        Mpv.add x (sg, PV.mk x.v_name x.v_kind (Bty Int) x.v_dloc (Annotations.remove_wint x.v_annot)) m
+      | _ -> m) (pvars_fc f) Mpv.empty in
+  if Mpv.is_empty m then f else
+  let sign_v x = Option.map fst (Mpv.find_opt (L.unloc x) m) in
+  let rec sign_e = function
+    | Pvar x -> sign_v x.gv
+    | Papp1 (Owi1 (s, (WIwint_of_int _ | WIwint_of_word _ | WIwint_ext _ | WIneg _)), _) -> Some s
+    | Papp2 (Owi2 (s, _, (WIadd | WImul | WIsub | WIdiv | WImod | WIshl | WIshr)), _, _) -> Some s
+    | Pif (_, _, e, _) -> sign_e e
+    | _ -> None in
+  let wi2i_type sg ty = if sg = None then ty else Bty Int in
+  let rec wi2i_e = function
+    | (Pconst _ | Pbool _ | Parr_init _ | Pvar _) as e -> e
+    | Pget (al, aa, ws, x, e) -> Pget (al, aa, ws, x, wi2i_e e)
+    | Psub (aa, ws, len, x, e) -> Psub (aa, ws, len, x, wi2i_e e)
+    | Pload (al, ws, e) -> Pload (al, ws, wi2i_e e)
+    | Papp1 (o, e) -> wi2i_op1_e o (wi2i_e e)
+    | Papp2 (o, e1, e2) -> Papp2 (wi2i_op2 o, wi2i_e e1, wi2i_e e2)
+    | PappN (o, es) -> PappN (o, List.map wi2i_e es)
+    | Pif (ty, e1, e2, e3) -> Pif (wi2i_type (sign_e e2) ty, wi2i_e e1, wi2i_e e2, wi2i_e e3) in
+  let wi2i_lv sg = function
+    | Lnone (l, ty) -> Lnone (l, wi2i_type sg ty)
+    | Lvar _ as lv -> lv
+    | Lmem (al, ws, l, e) -> Lmem (al, ws, l, wi2i_e e)
+    | Laset (al, aa, ws, x, e) -> Laset (al, aa, ws, x, wi2i_e e)
+    | Lasub (aa, ws, len, x, e) -> Lasub (aa, ws, len, x, wi2i_e e) in
+  let wi2i_lvs = List.map (wi2i_lv None) in
+  let wi2i_es = List.map wi2i_e in
+  let patch_op o es =
+    let sg e = sign_e e in
+    match o with
+    | Sopn.Opseudo_op (Pseudo_operator.Ospill (k, tys)) when List.length tys = List.length es ->
+      Sopn.Opseudo_op (Pseudo_operator.Ospill (k, List.map2 (fun ty e -> if sg e = None then ty else Type.Coq_aint) tys es))
+    | Sopn.Opseudo_op (Pseudo_operator.Oswap ty) ->
+      Sopn.Opseudo_op (Pseudo_operator.Oswap (if sg (List.hd es) = None then ty else Type.Coq_aint))
+    | Sopn.Opseudo_op (Pseudo_operator.Odeclassify ty) ->
+      Sopn.Opseudo_op (Pseudo_operator.Odeclassify (if sg (List.hd es) = None then ty else Type.Coq_aint))
+    | o -> o in
+  let rec wi2i_i i =
+    let i_desc =
+      match i.i_desc with
+      | Cassgn (x, tag, ty, e) ->
+        let sg = sign_e e in
+        Cassgn (wi2i_lv sg x, tag, wi2i_type sg ty, wi2i_e e)
+      | Copn (xs, t, o, es) -> Copn (wi2i_lvs xs, t, patch_op o es, wi2i_es es)
+      | Csyscall (xs, o, es) -> Csyscall (wi2i_lvs xs, o, wi2i_es es)
+      | Cassert _ as c -> c
+      | Cif (b, c1, c2) -> Cif (wi2i_e b, wi2i_c c1, wi2i_c c2)
+      | Cfor (x, (d, e1, e2), c) -> Cfor (x, (d, wi2i_e e1, wi2i_e e2), wi2i_c c)
+      | Cwhile (a, c, e, ii, c') -> Cwhile (a, wi2i_c c, wi2i_e e, ii, wi2i_c c')
+      | Ccall (xs, fn, es) -> Ccall (wi2i_lvs xs, fn, wi2i_es es)
+    in
+    { i with i_desc }
+  and wi2i_c c = List.map wi2i_i c in
+  let mk xs tys = List.map2 (fun x ty -> wi2i_type (sign_v x) ty) xs tys in
+  let f = { f with
+            f_tyin = mk (List.map (fun x -> L.mk_loc L._dummy x) f.f_args) f.f_tyin;
+            f_tyout = mk f.f_ret f.f_tyout;
+            f_body = wi2i_c f.f_body } in
+  let subst v =
+    match Mpv.find_opt (L.unloc v.gv) m with
+    | Some (_, x') -> Pvar { v with gv = L.mk_loc (L.loc v.gv) x' }
+    | None -> Pvar v in
+  Subst.gsubst_func (fun ?loc:_ l -> l) subst f
+
+let fill_in_missing_names (f: ('info, 'asm) pfunc) : ('info, 'asm) pfunc =
+  let fresh_name : L.t -> pty -> pvar_i =
+    let count = ref 0 in
+    fun loc ty ->
+      let n = Printf.sprintf " _%d" !count in
+      incr count;
+      L.mk_loc loc (PV.mk n (Reg(Normal, Direct)) ty L._dummy [])
+  in
+  let fill_lv =
+    function
+    | Lnone(p, ty) -> Lvar (fresh_name p ty)
+    | x -> x in
+  let fill_lvs lvs = List.map fill_lv lvs in
+  let rec fill_instr_r =
+    function
+    | Cassgn (lv, tg, ty, e) -> Cassgn (fill_lv lv, tg, ty, e)
+    | Copn (lvs, tg, op, es) -> Copn (fill_lvs lvs, tg, op, es)
+    | Csyscall (lvs, op, es) -> Csyscall(fill_lvs lvs, op, es)
+    | Cassert (msg, e) -> Cassert (msg, e)
+    | Cif (e, s1, s2) -> Cif (e, fill_stmt s1, fill_stmt s2)
+    | Cfor (i, r, s) -> Cfor (i, r, fill_stmt s)
+    | Cwhile (a, s, e, loc, s') -> Cwhile (a, fill_stmt s, e, loc, fill_stmt s')
+    | Ccall (lvs, f, es) -> Ccall (fill_lvs lvs, f, es)
+  and fill_instr i = { i with i_desc = fill_instr_r i.i_desc }
+  and fill_stmt s = List.map fill_instr s in
+  let f_body = fill_stmt f.f_body in
+  { f with f_body }
+
+let rec is_const_bound = function
+  | Pconst _ -> true
+  | Pvar x -> let x = L.unloc x.gv in x.v_kind = Const && x.v_ty = Bty Int
+  | Papp1 (_, e) -> is_const_bound e
+  | Papp2 (_, e1, e2) -> is_const_bound e1 && is_const_bound e2
+  | _ -> false
+
 let ty_lval = function
   | Lnone (_, ty) -> ty
   | Lvar x -> (L.unloc x).v_ty
   | Lmem (_, ws,_,_) | Laset(_, _, ws, _, _) -> Bty (U ws)
   | Lasub (_,ws, len, _, _) -> Arr(ws, len)
+
+let is_array_copy (x:plval) (e:pexpr) =
+  match x, e with
+  | Lvar x, Pvar y ->
+    let x = L.unloc x in
+    let y = L.unloc y.gv in
+    begin match x.v_ty, y.v_ty with
+    | Arr (xws, xn), Arr (yws, yn) ->
+      begin match get_int xn, get_int yn with
+      | Some xn', Some yn' when arr_size yws yn' < arr_size xws xn' -> None
+      | _ ->
+        if x.v_kind = Reg(Normal, Direct) then Some xws
+        else if y.v_kind = Reg(Normal, Direct) then Some yws
+        else None
+      end
+    | _ -> None
+    end
+  | _ -> None
+
+let rec insert_copy_and_fix_length_i i =
+  let i_desc =
+    match i.i_desc with
+    | Cassgn (x, t, _, e) ->
+      begin match is_array_copy x e with
+      | None -> i.i_desc
+      | Some ws -> Copn([x], t, Sopn.Opseudo_op (Pseudo_operator.Ocopy(ws, Conv.cz_of_int 1)), [e])
+      end
+    | Csyscall ([x], Syscall_t.RandomBytes _, es) ->
+      begin match ty_lval x with
+      | Arr (ws, n) when get_int n <> None ->
+        Csyscall ([x], Syscall_t.RandomBytes (ws, Conv.cz_of_int (Option.get (get_int n))), es)
+      | _ -> i.i_desc
+      end
+    | Cif (b, th, el) -> Cif (b, insert_copy_and_fix_length th, insert_copy_and_fix_length el)
+    | Cfor (x, r, c) -> Cfor (x, r, insert_copy_and_fix_length c)
+    | Cwhile (a, c1, e, info, c2) -> Cwhile (a, insert_copy_and_fix_length c1, e, info, insert_copy_and_fix_length c2)
+    | Copn _ | Csyscall _ | Cassert _ | Ccall _ -> i.i_desc
+  in
+  { i with i_desc }
+and insert_copy_and_fix_length c = List.map insert_copy_and_fix_length_i c
 
 module type EcExpression = sig
   val ec_cast: Env.t -> pty * pty -> ec_expr -> ec_expr
@@ -1939,7 +2198,7 @@ module type EcLeakage = sig
   val ec_leaks_es: Env.t -> pexprs -> ec_instr list
   val ec_leaks_opn: Env.t -> pexprs -> ec_instr list
   val ec_leaking_if: Env.t -> pexpr -> (Env.t -> ec_stmt) -> (Env.t -> ec_stmt) -> ec_stmt
-  val ec_leaking_while: Env.t -> (Env.t -> ec_stmt) -> pexpr -> (Env.t -> ec_stmt) -> ec_stmt
+  val ec_leaking_while: Env.t -> pexpr -> (Env.t -> ec_stmt) -> ec_stmt
   val ec_leaking_for: Env.t -> (Env.t -> ec_stmt) -> pexpr -> pexpr -> ec_stmt -> ec_expr -> ec_stmt -> ec_stmt
   val ec_leaks_lvs: Env.t -> plvals -> ec_stmt
   val global_leakage_vars: Env.t -> (ec_modty * ec_modty) list
@@ -1955,8 +2214,8 @@ module EcLeakNormal(EE: EcExpression): EcLeakage = struct
   let ec_leaks_es _env _es = []
   let ec_leaks_opn _env _es = []
   let ec_leaking_if env e c1 c2 = [ESif (EE.toec_expr env e, c1 env, c2 env)]
-  let ec_leaking_while env c1 e c2 =
-    c1 env @ [ESwhile (EE.toec_expr env e, (c2 env @ c1 env))]
+  let ec_leaking_while env e c =
+    [ESwhile (EE.toec_expr env e, c env)]
   let ec_leaking_for env c _e1 _e2 init cond i_upd = init @ [ESwhile (cond, c env @ i_upd)]
   let ec_leaks_lvs _env _lvs = []
   let global_leakage_vars _env = []
@@ -2009,9 +2268,9 @@ module EcLeakConstantTimeGlobal(EE: EcExpression): EcLeakage = struct
   let ec_leaking_if env e c1 c2 =
     leak_cond env e @ [ESif (EE.toec_expr env e, c1 env, c2 env)]
 
-  let ec_leaking_while env c1 e c2 =
+  let ec_leaking_while env e c =
     let le = leak_cond env e in
-    c1 env @ le @ [ESwhile (EE.toec_expr env e, (c2 env @ c1 env @ le))]
+    le @ [ESwhile (EE.toec_expr env e, (c env @ le))]
 
   let ec_leaking_for env c e1 e2 init cond i_upd =
     let leaks = List.map (toec_expr env) (leaks_es (Env.pd env) [e1;e2]) in
@@ -2129,34 +2388,19 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
     ec_addleaks env (leak_cond env e) @
     [ESif (toec_expr env e, leak_block env c1 acc, leak_block env c2 acc)]
 
-  let ec_leaking_while env c1 e c2 =
+  let ec_leaking_while env e c =
     let env = Env.new_aux_range env in
     let vleak_cond = Env.create_aux env "leak_cond" leakv_ty in
-    (* We don't use leak_block since we need to check if c1 is empty. *)
-    let env_c1 = Env.new_aux_range env in
-    let c1 = c1 env_c1 in
-    let (leaking_c1, reset_c1_leak, c1_leaklist) = if c1 = [] then
-      ([], [], [])
-    else
-      let leak_c1 = Env.create_aux env "leak_b1" leakv_ty in
-      let leak_start_c1 = start_leakacc env_c1 in
-      (
-        leak_start_c1 @ c1 @ push_leak leak_c1 (leaklistv (leakacc env_c1)),
-        reset_leak leak_c1,
-        [leaklistv leak_c1]
-      )
-    in
-    let leak_c2 = Env.create_aux env (if c1 = [] then "_b" else "_b2") leakv_ty in
-    let leaking_c2 = leak_block env c2 leak_c2 in
-    let reset_c2_leak = reset_leak leak_c2 in
-    reset_leak vleak_cond @ reset_c1_leak @ reset_c2_leak @
-    leaking_c1 @
+    let leak_c = Env.create_aux env "_b" leakv_ty in
+    let leaking_c = leak_block env c leak_c in
+    let reset_c_leak = reset_leak leak_c in
+    reset_leak vleak_cond @ reset_c_leak @
     push_leak vleak_cond (leaklist (leak_cond env e)) @
     [ESwhile (
       toec_expr env e,
-      leaking_c2 @ leaking_c1 @ push_leak vleak_cond (leaklist (leak_cond env e))
+      leaking_c @ push_leak vleak_cond (leaklist (leak_cond env e))
     )] @
-    push_leak (leakacc env) (leaklist (c1_leaklist @ [leaklistv vleak_cond; leaklistv leak_c2]))
+    push_leak (leakacc env) (leaklist ([leaklistv vleak_cond; leaklistv leak_c]))
 
   let leak_for_bounds env e1 e2 =
     leaks_es env [e1; e2] @ leak_val env e1 @ leak_val env e2
@@ -2269,10 +2513,10 @@ struct
 
   let ec_syscall env o =
     match o with
-    | Syscall_t.RandomBytes (ws, p) ->
-      let n = arr_size ws (Conv.int_of_cz p) in
-      Env.add_randombytes env n;
-      Format.sprintf "%s.randombytes_%i" syscall_mod_arg n
+    | Syscall_t.RandomBytes (ws, n) ->
+      let n = Conv.int_of_cz n in
+      Env.add_randombytes env ws n;
+      Format.asprintf "%s.randombytes_%s" syscall_mod_arg (EA.randombytes_suffix ws n)
 
   let ec_opn pd msfsz asmOp o =
     let s = Format.asprintf "%a" (pp_opn pd msfsz asmOp) o in
@@ -2303,13 +2547,26 @@ struct
           (ec_expr_assgn env lvs otys otys' (ec_e op'))
       | Ccall (lvs, f, es) ->
           let env = Env.new_aux_range env in
-          let otys = List.map ty_lval lvs in
-          let itys = List.map ty_expr es in
+          let otys, itys = Env.get_funtype env f in
+          let concrete ty ty' = match ty, ty' with
+            | Arr (_, n), Arr (_, n') when get_int n = None || get_int n' = None -> ty'
+            | _ -> ty in
+          let otys = List.map2 concrete otys (List.map ty_lval lvs) in
+          let itys = List.map2 concrete itys (List.map ty_expr es) in
           let args = List.map (toec_cast env) (List.combine itys es) in
           let leak_lvs = ec_leak_call_lvs env in
           (ec_leaks_es env es) @
           (ec_pcall env lvs leak_lvs otys [Env.get_funname env f] args) @
           (ec_leak_call_acc env)
+      | Csyscall ([x], Syscall_t.RandomBytes _, es) when EA.of_byte_list <> None ->
+          let ws, n = match ty_lval x with Arr (ws, n) -> ws, n | _ -> assert false in
+          let len = match get_int n with
+            | Some n -> ec_int (arr_size ws n)
+            | None -> toec_expr env (Pretyping.canon_expr (arr_size_pexpr_ ws n)) in
+          let l = Env.create_aux env "bytes" "W8.t list" in
+          (ec_leaks_es env es) @ (ec_leaks_lvs env [x]) @
+          [EScall ([LvIdent [l]], [syscall_mod_arg ^ ".randombytes"], [len]);
+           toec_lval1 env x (Eapp (Option.get EA.of_byte_list env ws n, [ec_ident l]))]
       | Csyscall (lvs, o, es) ->
           let s = Syscall.syscall_sig_u o in
           let otys = List.map Conv.pty_of_cty s.scs_tout in
@@ -2322,10 +2579,10 @@ struct
           let c1 env = toec_cmd asmOp env c1 in
           let c2 env = toec_cmd asmOp env c2 in
           ec_leaking_if env e c1 c2
-      | Cwhile (_, c1, e, _, c2) ->
-          let c1 env = toec_cmd asmOp env c1 in
-          let c2 env = toec_cmd asmOp env c2 in
-          ec_leaking_while env c1 e c2
+      | Cwhile (_, c1, e, _, c) ->
+          assert (List.is_empty c1); (* c1 is empty after toec_while. *)
+          let c env = toec_cmd asmOp env c in
+          ec_leaking_while env e c
       | Cfor (i, (d,e1,e2), c) ->
           let env = Env.new_aux_range env in
           (* decreasing for loops have bounds swaped *)
@@ -2333,7 +2590,7 @@ struct
           let init, ec_e2 =
               match e2 with
               (* Can be generalized to the case where e2 is not modified by c and i *)
-              | Pconst _ -> ([], toec_expr env e2)
+              | _ when is_const_bound e2 -> ([], toec_expr env e2)
               | _ ->
                   let aux = Env.create_aux env "inc" "int" in
                   let init = ESasgn ([LvIdent [aux]], toec_expr env e2) in
@@ -2357,7 +2614,6 @@ struct
   let var2ec_var env x = (List.hd [ec_vars env x], toec_ty env x.v_ty)
 
   let toec_fun asmOp env f =
-      let f = { f with f_body = remove_for f.f_body } in
       let locals = Spv.elements (plocals f) in
       let env = List.fold_left Env.set_var env (f.f_args @ locals) in
       (* Limit the scope of changes for aux variables to the current function. *)
@@ -2371,13 +2627,12 @@ struct
           |> List.map (fun x -> ESasgn ([LvIdent [ec_vars env x]], ec_ident "witness"))
       in
       let ret =
-          let ec_var x = ec_vari env (L.unloc x) in
-          match ec_leak_ret env (List.map ec_var f.f_ret) with
+          let ret = List.map (fun x -> Pvar (gkvar x)) f.f_ret in
+          let ret = List.map (toec_cast env) (List.combine f.f_tyout ret) in
+          match ec_leak_ret env ret with
           | [x] -> ESreturn x
           | xs -> ESreturn (Etuple xs)
       in
-      List.iter (Env.add_ty env) f.f_tyout;
-      List.iter (fun x -> Env.add_ty env x.v_ty) (f.f_args @ locals);
       {
           decl = {
               fname = (Env.get_funname env f.f_name);
@@ -2412,24 +2667,44 @@ struct
     | RISCV  -> "SLH32"
 
   let ec_randombytes env =
-      let randombytes_decl a n =
-          let arr_ty = toec_ty env (Arr (U8, PE (Pconst (Z.of_int n)))) in
+      let randombytes_decl a (ws, n) =
+          let arr_ty = toec_ty env (Arr (ws, PE (Pconst (Z.of_int n)))) in
           {
-              fname = Format.sprintf "randombytes_%i" n;
+              fname = Format.asprintf "randombytes_%s" (EA.randombytes_suffix ws n);
               args = [(a, arr_ty)];
               rtys = [arr_ty];
           }
       in
-      let randombytes_f n =
-        let dmap = EA.ec_darray8 env n in
-        { decl = randombytes_decl "a" n
+      let randombytes_list_decl n = { fname = "randombytes"; args = [(n, "int")]; rtys = ["W8.t list"] } in
+      let randombytes_f (ws, n) =
+        let dmap = EA.ec_darray8 env ws n in
+        { decl = randombytes_decl "a" (ws, n)
         ; locals = []
         ; stmt = [ESsample ([LvIdent ["a"]], dmap); ESreturn (ec_ident "a")]
         }
       in
-      let randombytes = Env.randombytes env in
+      let randombytes =
+        Env.randombytes env
+        |> List.sort_uniq (fun (ws1, n1) (ws2, n2) -> compare (EA.randombytes_suffix ws1 n1) (EA.randombytes_suffix ws2 n2))
+      in
       if List.is_empty randombytes then
         []
+      else if EA.of_byte_list <> None then
+        [
+          IrequireImport ["DList"];
+          ImoduleType {
+            name = syscall_mod_sig;
+              funs = [randombytes_list_decl "_"];
+          };
+          Imodule {
+            name = syscall_mod;
+              params = [];
+              ty = Some syscall_mod_sig;
+              vars = [];
+              funs = [{ decl = randombytes_list_decl "n"; locals = [("l", "W8.t list")];
+                        stmt = [ESsample ([LvIdent ["l"]], Eapp (ec_ident "dlist", [ec_ident "W8.dword"; ec_ident "n"])); ESreturn (ec_ident "l")] }];
+          }
+        ]
       else
         [
           ImoduleType {
@@ -2669,7 +2944,9 @@ struct
       | _ -> assert false
       end      
 
-    let modapp_f env m mapp = 
+    let modapp_f env m mapp mod_arg = 
+      let sc_app = if mod_arg = [] then "" else "(" ^ syscall_mod_arg ^ ")" in
+      let sc_param = if mod_arg = [] then "" else Format.sprintf "(%s:%s)" syscall_mod_arg syscall_mod_sig in
       let ma_params, ma_func = Env.get_module env mapp.Mprog.ma_func in
       let ma_func_funcs = Env.get_module_funcs env mapp.Mprog.ma_func in
       let ma_args_funcs = List.concat (List.map2 (fun param arg ->
@@ -2694,20 +2971,20 @@ struct
         let env, init_funs = List.fold_left ( fun (env,init_funs) f ->
           let f_modname = f.fn_name |> String.split_on_string ~by:"::"  |> List.last |> String.capitalize_ascii|>  escape in
           let fname = Env.get_funname env f in
-          let fs_tyin,fs_tyout = Env.get_funtype env f in
+          let fs_tyout,fs_tyin = Env.get_funtype env f in
           let f = { name = f; Mprog.fs_tyin; fs_tyout} in
           let new_fmodname = ma_name^"__"^f_modname in
-          let _,new_fname = String.replace ~str:fname ~sub:ma_args ~by:m_args in
+          let _,new_fname = String.replace ~str:fname ~sub:ma_args ~by:(m_args ^ sc_app) in
           let fname, new_fname = 
             match List.rev (String.split_on_char '.' new_fname) with
             | [] -> "", ""
             | f :: m -> f, String.concat "." (List.rev m)  
           in
-          let env = Env.rename_fun env f (new_fmodname ^ "." ^ fname) in
-          env, ImoduleEq(new_fmodname,new_fname)::init_funs
+          let env = Env.rename_fun env f (new_fmodname ^ sc_app ^ "." ^ fname) in
+          env, ImoduleEq(new_fmodname ^ sc_param,new_fname)::init_funs
         ) (env,[]) new_fs
         in
-        env, ImoduleTypeEq(m_args,ma_name^"."^ma_args,init_args) :: init_funs
+        env, ImoduleTypeEq(m_args ^ sc_param,ma_name^"."^ma_args,init_args) :: init_funs
       else env, [] 
 
     let add_arrsz env f =
@@ -2791,7 +3068,7 @@ struct
           | _ -> ()
         ) (Env.get_module_arrays env mapp.ma_func)
 
-    let toec_modapp env m mapp =
+    let toec_modapp env m mapp mod_arg =
       let ma_params, ma_func' = Env.get_module env mapp.Mprog.ma_func in
       let env, ma_name' = Env.set_module env mapp.ma_name [] in
       let env = List.fold_left ( fun env v ->
@@ -2812,18 +3089,18 @@ struct
            if Env.get_alias env ma = Some (ma_name' ^ "." ^ arr) then None
            else Some (arr, ma_pexpr_to_string env ma)
       ) (Env.get_module_arrays env mapp.Mprog.ma_func) in
-      let env, modappf = modapp_f env m mapp in
+      let env, modappf = modapp_f env m mapp mod_arg in
       let abstract_ops = List.concat (List.map2 (toec_modulearg env) mapp.ma_args ma_params) in
       env,[Iclone(false,ma_func', ma_name', abstract_ops ,theories)] @ modappf
 
-    let rec toec_item env m modf_args (mod_arg,asmOp,imports) =
+    let rec toec_item env m modf_args (mod_arg,asmOp,imports,go,eval_glob) =
       function
       | Mprog.MsMod sm -> 
         let current_abs_theories = Env.abstract_array_theories env in
         let current_alias = Env.array_alias env in
         Env.set_abstract_array_theories env (Aarraytheory.empty);
         Env.set_array_alias env (Aarraytheory.empty);
-        let env, i = extract_module env sm mod_arg asmOp imports in
+        let env, i = extract_module env sm mod_arg asmOp imports go eval_glob in
         Env.set_abstract_array_theories env current_abs_theories;
         Env.set_array_alias env current_alias;
         let env = Env.add_module_module env m.Mprog.name sm.name in
@@ -2836,12 +3113,21 @@ struct
             add_item Env.get_module_modules Env.add_module_module env  
         in
         env, i
-      | MsModApp mapp -> toec_modapp env m mapp
+      | MsModApp mapp -> toec_modapp env m mapp mod_arg
       | MsGlob (v,e) ->
         let env = Env.set_var env v in
         let env = Env.add_module_var env m.name v in
-        Env.add_ty env v.v_ty;
-        let e = begin match e with
+        let signed = Option.default go.ToEC.gsign (ToEC.gsign_of_annot v.v_annot) = ToEC.GlobSigned in
+        let w_of_z ws z = Eapp (Eident [fmt_Wsz ws; "of_int"], [Econst z]) in
+        let e = match eval_glob (v, e) with
+          | Some (_, Global.Gword (ws, w)) ->
+            w_of_z ws (if signed then Conv.z_of_word ws w else Conv.z_unsigned_of_word ws w)
+          | Some (x, Global.Garr (p, t)) ->
+            let ws, t = Conv.to_array ~signed x.v_ty p t in
+            EA.add_jarray env ws (Array.length t);
+            Eapp (EA.of_list env ws (Array.length t), [Elist (List.map (w_of_z ws) (Array.to_list t))])
+          | None ->
+          begin match e with
           | GEword e -> toec_expr env e
           | GEarray es ->
              match es with
@@ -2852,8 +3138,13 @@ struct
                 | _ -> assert false
               end     
           end in
-        env, [Iabbrev (ec_vars env v, e)]
+        let decl = match Option.default go.ToEC.gmodel (ToEC.gmodel_of_annot v.v_annot) with
+          | ToEC.GlobAbbrev -> Iabbrev (ec_vars env v, e)
+          | GlobOp opts -> Iop (ec_vars env v, opts, e) in
+        env, [decl]
       | MsFun f -> 
+          let f = wi2i_fun { f with f_body = insert_copy_and_fix_length f.f_body } in
+          let f = fill_in_missing_names { f with f_body = remove_for (toec_while f.f_body) } in
           add_arrsz env f;
           let env = Env.set_fun env f in
           let env = Env.add_module_fun env m.name f.f_name in
@@ -2867,6 +3158,9 @@ struct
           let cfname = "M__"^ fname in
           let mname = Env.get_module env m.name  |> snd in
           let modargs = if modf_args <> "" then [(mname^"_args",mname^"_args")] else []  in
+          let app = match List.map fst (modargs @ mod_arg) with
+            | [] -> ""
+            | l -> "(" ^ String.concat ", " l ^ ")" in
           let f = [Imodule {
             name=cfname;
             params = modargs @ mod_arg;
@@ -2874,10 +3168,10 @@ struct
             vars = global_leakage_vars env;
             funs;
           }] in
-          let env = Env.rename_fun env fsig (cfname^modf_args^"."^fname) in
+          let env = Env.rename_fun env fsig (cfname^app^"."^fname) in
           env, f
 
-    and extract_module env m mod_arg asmOp imports =
+    and extract_module env m mod_arg asmOp imports go eval_glob =
       let imports' = if imports then List.map (fun m -> IrequireImport [m]) m.Mprog.requires else [] in
 
       let env, params, pfuns = set_module_params env m.Mprog.params in
@@ -2893,7 +3187,7 @@ struct
       List.iter (function Mprog.MsModApp mapp -> add_modapp_alias env mapp | _ -> ()) early;
 
       let toec_items env l = List.fold_left (fun (env, items) sm ->
-          let env, i = toec_item env m modf_args (mod_arg,asmOp,imports) sm in   
+          let env, i = toec_item env m modf_args (mod_arg,asmOp,imports,go,eval_glob) sm in   
           env, items @ i
       ) (env,[]) l in
       let env, early_items = toec_items env early in
@@ -2913,7 +3207,7 @@ struct
 
       env, imports' @ init_items @ early_items @ alias_imports @ init_abstract_arrays @ items @ end_items
 
-  let toec_mprog mprog env asmOp imports =
+  let toec_mprog mprog env asmOp imports go eval_glob =
       let pp_array_theories ats = match Sarraytheory.elements ats with
           | [] -> []
           | l -> [IrequireImport (List.map fmt_array_theory l)]
@@ -2929,7 +3223,7 @@ struct
       ] in
       let env, items = List.fold_left (fun acc m ->
         let env, items = acc in
-        let env, items_m = extract_module env m mod_arg asmOp imports in
+        let env, items_m = extract_module env m mod_arg asmOp imports go eval_glob in
         (env, items @ items_m)
       ) (env, []) mprog in
       env,
@@ -2940,21 +3234,44 @@ struct
       items
       
 
-  let pp_mprog mprog env asmOp fmt =
+  let rec add_randombytes_c env c = List.iter (add_randombytes_i env) c
+  and add_randombytes_i env i =
+    match i.i_desc with
+    | Csyscall ([x], Syscall_t.RandomBytes _, _) ->
+      begin match ty_lval x with
+      | Arr (ws, n) when get_int n <> None -> Env.add_randombytes env ws (Option.get (get_int n))
+      | Arr (ws, _) when EA.of_byte_list <> None -> Env.add_randombytes env ws 0
+      | _ -> hierror ~loc:(Lone i.i_loc.base_loc) ~kind:"EasyCrypt extraction" "randombytes on an array of abstract size is not supported"
+      end
+    | Cif (_, c1, c2) | Cwhile (_, c1, _, _, c2) -> add_randombytes_c env c1; add_randombytes_c env c2
+    | Cfor (_, _, c) -> add_randombytes_c env c
+    | Cassgn _ | Copn _ | Csyscall _ | Cassert _ | Ccall _ -> ()
+
+  let rec add_randombytes_m env m =
+    List.iter (function
+      | Mprog.MsFun f -> add_randombytes_c env f.f_body
+      | MsMod sm -> add_randombytes_m env sm
+      | _ -> ()) m.Mprog.items
+
+  let pp_mprog mprog env asmOp go fmt =
+    let eval_glob = Subst.eval_glob_modular () in
+    List.iter (add_randombytes_m env) mprog;
     match fmt with
     | [f] ->
-      let _, ec_items = toec_mprog mprog env asmOp false in
-      Format.fprintf f "%a@." pp_ec_prog ec_items
+      let env, ec_items = toec_mprog mprog env asmOp false go eval_glob in
+      Format.fprintf f "%a@." pp_ec_prog ec_items;
+      Env.fun_names env
     | fmt -> 
-      let _, items = List.fold_left (fun (env,items) m ->
-        let env, i = toec_mprog [m] env asmOp true in
+      let env, items = List.fold_left (fun (env,items) m ->
+        let env, i = toec_mprog [m] env asmOp true go eval_glob in
         env, items @ [i]
       ) (env,[]) mprog in
-      List.iter2 (fun fmt i -> Format.fprintf fmt "%a@." pp_ec_prog i) fmt items
+      List.iter2 (fun fmt i -> Format.fprintf fmt "%a@." pp_ec_prog i) fmt items;
+      Env.fun_names env
 
 end
 
-let extract_modular mprog arch pd msfsz asmOp (model: model) amodel _fnames array_dir fmt =
+let extract_modular mprog arch pd msfsz asmOp (model: model) amodel global_options _fnames array_dir fmt =
    let save_array_theories array_theories =
     match array_dir with
     | Some prefix ->
@@ -2982,6 +3299,33 @@ let extract_modular mprog arch pd msfsz asmOp (model: model) amodel _fnames arra
         (module EcLeakConstantTimeGlobal(EE): EcLeakage)
   ) in
   let module E = Extraction(EA)(EL) in
-  let mprog = E.pp_mprog mprog env asmOp fmt in
+  let names = E.pp_mprog mprog env asmOp global_options fmt in
   save_array_theories (Env.array_theories env);
-  mprog
+  names
+
+let extract_equiv arch (model: model) flat_file mfiles flat_names mod_names fmt =
+  if model <> Normal then
+    hierror ~loc:Lnone ~kind:"EasyCrypt extraction" "the equivalence proofs are only generated for the normal model";
+  let jmodel = match arch with
+    | X86_64 -> "JModel_x86"
+    | ARM_M4 -> "JModel_m4"
+    | ARMv8A -> "JModel_armv8a"
+    | RISCV  -> "JModel_riscv" in
+  let ident s = String.map (fun c -> if BatChar.is_letter c || BatChar.is_digit c || c = '_' then c else '_') s in
+  let pairs = List.concat_map (fun (f, fec) ->
+      let ps = List.filter_map (fun (g, gec) ->
+          if Proc_mjazz.get_flat_funname g = f then Some (fec, gec) else None) mod_names in
+      if ps = [] then warning Always Location.i_dummy "no modular counterpart for function %s, its equivalence is not proved" f;
+      ps) flat_names in
+  let sc = List.exists (fun (_, fec) -> String.exists fec ("(" ^ syscall_mod_arg ^ ")")) flat_names in
+  let glob = if sc then Format.sprintf "Glob.mem, glob %s" syscall_mod_arg else "Glob.mem" in
+  let pp_lemma fmt (fec, gec) =
+    Format.fprintf fmt "@[<v>lemma eq_%s : equiv [%s.%s ~ %s :@   ={arg, %s} ==> ={res, %s}].@ proof. proc; inline *; sim. qed.@]@ @ "
+      (ident gec) flat_file fec gec glob glob in
+  Format.fprintf fmt "@[<v>require import AllCore.@ from Jasmin require import %s.@ require import %s.@ require %s.@ @ " 
+    jmodel (String.concat " " mfiles) flat_file;
+  if sc then
+    Format.fprintf fmt "section.@ @ declare module %s <: %s.%s {-Glob}.@ @ " syscall_mod_arg flat_file syscall_mod_sig;
+  List.iter (pp_lemma fmt) pairs;
+  if sc then Format.fprintf fmt "end section.@ ";
+  Format.fprintf fmt "@]@."
