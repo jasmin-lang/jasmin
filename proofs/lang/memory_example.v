@@ -216,6 +216,15 @@ Module MemoryI : MemoryT.
   Lemma valid8_set_dom m p : is_alloc m p -> set_dom m p.
   Proof. by []. Qed.
 
+  Lemma get_set_total_invalid m p w m' p' :
+    set total m p w = ok m' -> ~~ is_alloc m p -> get partial m' p' = get partial m p'.
+  Proof.
+    rewrite /set /get or_is_total_partial; t_xrbindP => _ <- hp.
+    rewrite or_is_total_partial /is_init /is_alloc /=.
+    case: (p =P p') => [<- | hne]; first by move: hp; rewrite /is_alloc => /negbTE ->.
+    by rewrite /is_zalloc !Mz.setP; case: eqP => // /wunsigned_inj.
+  Qed.
+
   #[ global ]
   Instance CM : coreMem pointer mem := {|
     memory_model.get := get;
@@ -234,6 +243,7 @@ Module MemoryI : MemoryT.
     memory_model.valid8_set_total := @is_alloc_set total;
     memory_model.valid8_set_dom := valid8_set_dom;
     memory_model.set_dom_set := set_dom_set;
+    memory_model.get_set_total_invalid := get_set_total_invalid;
     memory_model.get_is_totalE := get_is_totalE;
     memory_model.set_is_totalE := set_is_totalE;
   |}.

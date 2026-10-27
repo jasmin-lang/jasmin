@@ -586,6 +586,24 @@ Proof.
   by apply on_arr_varP; t_xrbindP => *; apply: write_var_memP; eauto.
 Qed.
 
+(* A write to left values keeps the readable bytes of the memory readable. *)
+Lemma write_lval_validr wdb gd (x:lval) v s1 s2 al p ws :
+  write_lval wdb gd x v s1 = ok s2 ->
+  validr (emem s1) al p ws -> validr (emem s2) al p ws.
+Proof.
+  case: (boolP (lv_write_mem x)) => [ | h /(lv_write_memP h) -> //].
+  case: x => //= al' ws' x e _; t_xrbindP.
+  by move=> ? ? _ _ ? _ m hw <-; apply: write_validr hw.
+Qed.
+
+Lemma write_lvals_validr wdb gd xs vs s1 s2 al p ws :
+  write_lvals wdb gd s1 xs vs = ok s2 ->
+  validr (emem s1) al p ws -> validr (emem s2) al p ws.
+Proof.
+  elim: xs vs s1 => [ | x xs ih] [ | v vs] s1 //=; first by move=> [<-].
+  by t_xrbindP => s /write_lval_validr h /ih{}ih /h.
+Qed.
+
 Lemma write_var_scsP wdb x v s1 s2 :
   write_var wdb x v s1 = ok s2 → escs s1 = escs s2.
 Proof. by apply: rbindP=> ?? [] <-. Qed.

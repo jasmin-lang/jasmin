@@ -179,6 +179,11 @@ Class coreMem (core_mem: Type) := CoreMem {
   valid8_set_total : forall m p w m' p', set (sm := total) m p w = ok m' -> valid8 m' p' = valid8 m p';
   valid8_set_dom : forall m p, valid8 m p -> set_dom m p;
   set_dom_set : forall m p w m' p', set (sm := total) m p w = ok m' -> set_dom m' p' = set_dom m p';
+  (* A write in the total mode outside the writable bytes does not change the
+     readable ones. *)
+  get_set_total_invalid : forall m p w m' p',
+    set (sm := total) m p w = ok m' -> ~~ valid8 m p ->
+    get (sm := partial) m' p' = get (sm := partial) m p';
 
   (* The accesses depend on the mode through [is_total] only: the other modes
      behave as [partial] or as [total]. *)
@@ -591,6 +596,36 @@ Section CoreMem.
     move=> [] hv ht.
     have [m1 hm1] : exists m1, write (sm := partial) m al p w = ok m1 by apply/(writeV w).
     by move: ht; rewrite (write_totalE hm1) => -[<-].
+  Qed.
+
+  (* A write, in either mode, keeps the readable bytes readable. *)
+  Lemma set_get_partial_ok {sm : SemMode} m p w m' p' :
+    set m p w = ok m' ->
+    is_ok (get (sm := partial) m p') ->
+    is_ok (get (sm := partial) m' p').
+  Proof.
+    have hp m1 : set (sm := partial) m p w = ok m1 ->
+      is_ok (get (sm := partial) m p') -> is_ok (get (sm := partial) m1 p').
+    + by move=> h; rewrite (setP _ h); case: eqP.
+    have ht : set (sm := total) m p w = ok m' ->
+      is_ok (get (sm := partial) m p') -> is_ok (get (sm := partial) m' p').
+    + case: (boolP (valid8 m p)) => hv; last by move=> h; rewrite (get_set_total_invalid _ h).
+      by move/(valid8P m p w): hv => -[m1 h1]; rewrite (set_totalE h1) => -[<-]; apply hp.
+    case: sm => -[]; [exact: hp | exact: ht | ].
+    by rewrite (set_is_totalE (sm2 := total)).
+  Qed.
+
+  Lemma write_validr {sm : SemMode} m m' al p s (v :word s) al' p' s' :
+    write m al p v = ok m' ->
+    validr m al' p' s' ->
+    validr m' al' p' s'.
+  Proof.
+    rewrite /write; t_xrbindP => _ hfold.
+    have hm q : is_ok (get (sm := partial) m q) -> is_ok (get (sm := partial) m' q).
+    + move: m hfold; apply ziota_ind => /= [m [<-] // | i l _ hrec m].
+      by t_xrbindP => m1 h1 /hrec{}hrec hq; apply/hrec/(set_get_partial_ok h1 hq).
+    rewrite /validr => /andP [-> /allP h].
+    by apply/allP => k /h /hm.
   Qed.
 
   Lemma validr_validw m al p sz : validr m al p sz -> validw m al p sz.

@@ -180,6 +180,10 @@ Module WArray.
     Lemma set_dom_set m i w m' i' : set8 total m i w = ok m' -> in_bound m' i' = in_bound m i'.
     Proof. by []. Qed.
 
+    Lemma get_set_total_invalid m i w m' i' :
+      set8 total m i w = ok m' -> ~~ in_bound m i -> get8 partial m' i' = get8 partial m i'.
+    Proof. by rewrite set8_total => -[<-] /negbTE ->. Qed.
+
     Lemma get8_is_totalE sm1 sm2 m i :
       is_total (sm := sm1) = is_total (sm := sm2) -> get8 sm1 m i = get8 sm2 m i.
     Proof. by rewrite /get8 => ->. Qed.
@@ -206,6 +210,7 @@ Module WArray.
       memory_model.valid8_set_total := @valid8_set total;
       memory_model.valid8_set_dom := valid8_set_dom;
       memory_model.set_dom_set := set_dom_set;
+      memory_model.get_set_total_invalid := get_set_total_invalid;
       memory_model.get_is_totalE := get8_is_totalE;
       memory_model.set_is_totalE := set8_is_totalE;
     |}.
