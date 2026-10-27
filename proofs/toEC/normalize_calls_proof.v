@@ -119,6 +119,7 @@ Context
    variable it reads is read in [t] through the renaming. *)
 Section RENAME.
 
+Context {sm : SemMode}.
 Context (r : Mvar.t var) (wdb : bool) (gd : glob_decls) (t s : estate) (R : Sv.t).
 Hypothesis hmem : emem t = emem s.
 Hypothesis hR : forall z, Sv.In z R -> (evm t).[odflt z (Mvar.get r z)] = (evm s).[z].
