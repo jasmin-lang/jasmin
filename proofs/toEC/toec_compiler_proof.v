@@ -1,27 +1,27 @@
 (* * The extraction for safety and the compiler, composed.
 
-   [jasmin2ec] extracts a Jasmin program [up] for safety in two steps:
-   [wi2i_prog] turns the machine words annotated [wint] into integers, giving
-   [pi], then [toec_uprog_safety] gives [p'], printed in EasyCrypt. The
-   compiler compiles [up] itself into the assembly program [xp].
+   [jasmin2ec] extracts a Jasmin program [up] for safety with
+   [toec_uprog_safety], which gives [p'], printed in EasyCrypt; its first
+   pass, [wi2i_prog], turns the machine words annotated [wint] into integers,
+   giving [pi]. The compiler compiles [up] itself into the assembly program
+   [xp].
 
    [toec_compiler_tgt_src]: for an export function [fn], every run of [p']
    in the semantics of EasyCrypt (the mode [total_init], the assertions
    evaluated, the contracts not) that does not fail, from arguments related
    to the initial state of [xp], corresponds to a run of [xp] that does not
    fail. The results are related through the run of [up] that links them:
-   - [safety_spec]: the arguments and results of [p'] are those of [pi], up
-     to the masks of the arrays and to the positions that [dead_args] keeps;
-   - [vs_pre], [vs_post]: those of [pi] are those of [up], the words
-     annotated [wint] being read as integers;
+   - [safety_wi_pre], [safety_wi_post]: the arguments and results of [p']
+     are those of [pi], up to the masks of the arrays and to the positions
+     that [dead_args] keeps ([safety_spec]), and those of [pi] are those of
+     [up], the words annotated [wint] being read as integers ([vs_pre],
+     [vs_post]);
    - [full_pre], [full_post]: those of [up] and the assembly state, as in
      [it_compile_prog_to_asmP].
-   It composes [safety_chain_tgt_src] (from [p'] to [pi], the passes of
-   [toec_uprog_safety] being named), [wi2w_callP]
-   (from [pi] to [up]) and [it_compile_prog_to_asmP] (from [up] to [xp]).
-   Each of them states that the run on its right does not fail when the run
-   on its left does not fail ([wkequiv_io]), so that they compose by
-   [wkequiv_io_trans].
+   It composes [toec_uprog_safety_tgt_src] (from [p'] to [up]) and
+   [it_compile_prog_to_asmP] (from [up] to [xp]). Each of them states that
+   the run on its right does not fail when the run on its left does not fail
+   ([wkequiv_io]), so that they compose by [wkequiv_io_trans].
 
    [toec_compiler_scalars_tgt_src] is the case of a function whose
    parameters and results are not arrays and whose signature [dead_args]
@@ -71,7 +71,7 @@ Definition isem_ec (p : uprog) (fn : funname) (fs : fstate) :
     (scP := sCP_unit) (wE := with_Error0) (wsw := nosubword) (dc := indirect_c)
     (pT := progUnit) p tt fn fs.
 
-(* The parameters of [Compile.do_toec_safety] and [Compile.do_wint_int]. *)
+(* The parameters of [Compile.do_toec_safety]. *)
 Context
   (fresh_var_ident fresh_removable_ident : v_kind -> instr_info -> string -> atype -> Ident.ident)
   (mask : var -> var)
@@ -91,20 +91,15 @@ Context (up : uprog) (xp : asm_prog) (info : keep_info) (p8 : uprog) (fn : funna
   (fsig : seq (extended_type Z) * seq (extended_type Z)) (xfd : asm_fundef).
 
 (* The arguments [fs'] of [p'] and the initial state [t] of [xp] are related
-   through arguments [fsi] of [pi] and [fs] of [up]. *)
+   through arguments [fs] of [up]. *)
 Definition toec_pre (fs' : fstate) (t : asmmem) : Prop :=
-  exists fsi fs,
-    [/\ rpreF (eS := safety_spec info p8) fn fn fs' fsi,
-        fs_rel (vs_pre fsig.1) fsi fs
-      & full_pre up xp fn xfd fs t].
+  exists2 fs, safety_wi_pre info p8 fsig fn fn fs' fs & full_pre up xp fn xfd fs t.
 
 Definition toec_post (fs' : fstate) (t : asmmem) (fr' : fstate) (t' : asmmem) : Prop :=
-  exists fsi fs fri fr,
-    [/\ rpreF (eS := safety_spec info p8) fn fn fs' fsi,
-        fs_rel (vs_pre fsig.1) fsi fs,
+  exists fs fr,
+    [/\ safety_wi_pre info p8 fsig fn fn fs' fs,
         full_pre up xp fn xfd fs t,
-        rpostF (eS := safety_spec info p8) fn fn fs' fsi fr' fri,
-        fs_rel (vs_post fsig.2) fri fr
+        safety_wi_post info p8 fsig fn fn fs' fs fr' fr
       & full_post cparams up xp fn xfd fs t fr t'].
 
 (* Without arrays and with the signature kept by [dead_args]: the arguments
@@ -144,7 +139,7 @@ Theorem toec_compiler_tgt_src entries (up p' : uprog) xp fn fd :
   [/\ wi2i_prog get_info up = ok pi,
       toec_uprog_pre_init fresh_var_ident fresh_removable_ident pi = ok p5,
       explicit_init_prog mask p5 = ok p6,
-      dead_args_info protect (dead_info protect) p8 = ok (p', info),
+      dead_args_info (LC := toec_LoopCounter) protect (dead_info protect) p8 = ok (p', info),
       get_fundef xp.(asm_funcs) fn = Some xfd,
       xfd.(asm_fd_export) &
       mask_ok mask p5 -> total_ok p8 ->
@@ -155,39 +150,17 @@ Theorem toec_compiler_tgt_src entries (up p' : uprog) xp fn fd :
         (toec_post up xp info p8 fn fsig xfd)].
 Proof using asm_op_tout haparams print_linearP print_sprogP print_uprogP.
   move=> hp' hxp hfn hfd fsig.
-  move: hp'; rewrite /toec_uprog_safety /toec_uprog_assert /dead_args_prog.
-  t_xrbindP => p6 pi hpi p1 h1 p2 h2 p3 h3 p5 h5 h6 [p9 info] h9 /= ?; subst p9.
+  have [pi [p5 [p6 [info [hpi h5 h6 h9 hsafe]]]]] :=
+    toec_uprog_safety_tgt_src (asm_op := extended_op) (ep := ep_of_asm_e) (spp := spp_of_asm_e)
+      (sip := sip_of_asm_e) (E := ErrEvent) (wE := with_Error0) (rE := HandlerContract)
+      (rE_trans := HandlerContract_trans) tt asm_op_tout hp'.
   have [xfd [hxfd hexp hcomp]] :=
     it_compile_prog_to_asmP haparams print_uprogP print_sprogP print_linearP hxp hfn.
-  exists pi, p5, p6, info, xfd; split => //.
-  - by rewrite /toec_uprog_pre_init h1 /= h2 /= h3.
-  move=> hmask hok.
-  have hchain :=
-    safety_chain_tgt_src (asm_op := extended_op) (ep := ep_of_asm_e) (spp := spp_of_asm_e)
-      (sip := sip_of_asm_e) (E := ErrEvent) (wE := with_Error0) (rE := HandlerContract)
-      (rE_trans := HandlerContract_trans) tt asm_op_tout (fn := fn) h1 h2 h3 h5 hmask h6 hok h9.
-  have hwi :=
-    wi2w_callP (asm_op := extended_op)
-      (ep := @ep_of_asm_e _ _ _ _ _ _ _ asm_e syscall_state sc_sem)
-      (spp := @spp_of_asm_e _ _ _ _ _ _ _ asm_e)
-      (sip := @sip_of_asm_e _ _ _ _ _ _ _ asm_e syscall_state sc_sem)
-      (E := ErrEvent) (wE := with_Error0) (rE := HandlerContract) tt hpi hfd.
-  have h23 :=
-    wkequiv_io_trans (rE12 := HandlerContract) (rE23 := HandlerContract)
-      (rE13 := HandlerContract) (rE_trans := HandlerContract_trans)
-      (P13 := fun fsi t => exists2 fs, fs_rel (vs_pre fsig.1) fsi fs & full_pre up xp fn xfd fs t)
-      (Q13 := fun fsi t fri t' => exists fs fr,
-         [/\ fs_rel (vs_pre fsig.1) fsi fs, full_pre up xp fn xfd fs t,
-             fs_rel (vs_post fsig.2) fri fr & full_post cparams up xp fn xfd fs t fr t'])
-      (fun i1 i3 h => h)
-      (fun i1 i2 i3 o1 o3 h12 h23 '(Eqit.rcompose_intro o2 hq12 hq23) =>
-         ex_intro _ i2 (ex_intro _ o2 (And4 h12 h23 hq12 hq23)))
-      hwi hcomp.
+  exists pi, p5, p6, info, xfd; split => // hmask hok.
   apply: (wkequiv_io_trans (rE12 := HandlerContract) (rE23 := HandlerContract)
-            (rE_trans := HandlerContract_trans) _ _ hchain h23).
-  - by move=> fs' t [fsi [fs [hp1 hp2 hp3]]]; exists fsi => //; exists fs.
-  move=> fs' fsi t fr' t' hp1 _ [fri hq1 [fs [fr [hp2 hp3 hq2 hq3]]]].
-  by exists fsi, fs, fri, fr.
+            (rE_trans := HandlerContract_trans) _ _ (hsafe hmask hok fn fd hfd) hcomp).
+  - by move=> fs' t [fs hp1 hp2]; exists fs.
+  by move=> fs' fs t fr' t' hp1 hp2 [fr hq1 hq2]; exists fs, fr.
 Qed.
 
 (* ------------------------------------------------------------------------- *)
@@ -259,13 +232,14 @@ Proof using asm_op_tout haparams print_linearP print_sprogP print_uprogP.
   have hsig2 : all not_arr_ety fsig.2.
   - by rewrite /fsig; case: (fd) htyout => /= ????????; apply: not_arr_fsig.
   apply: wkequiv_io_weaken (hall hmask hok) => //.
-  - move=> fs' t [fs [hpre hdef hty hfull]]; exists fs', fs; split => //; split => //.
+  - move=> fs' t [fs [hpre hdef hty hfull]]; exists fs => //; exists fs' => //; split => //.
     exists fs'.
     + case: hpre => _ _ [hF hvs]; split => //.
       apply/mask_vals_scalarsE; last by [].
       by apply: vs_scalars hsig1 hF hvs.
     by split => //; rewrite hkeep.
-  move=> fs' t fr' t' _ [fsi [fs [fri [fr [[_ [fsm hm [hfs _]]] hp2 hp3 [frm hm' hfr] hq2 hq3]]]]].
+  move=> fs' t fr' t' _
+    [fs [fr [_ hp3 [fsi [fri [[_ [fsm hm [hfs _]]] hp2 [frm hm' hfr] hq2]]] hq3]]].
   have hesub ety : esubtype ety ety.
   - case: ety => //=.
     by move=> [sg|] w; rewrite ?eqxx // cmp_le_refl.

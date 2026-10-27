@@ -1436,3 +1436,32 @@ Qed.
 
 End FINAL.
 End PROOF.
+
+(* The converse of [wi2w_callP], from the source to the result of
+   [wi2i_prog]: every run of the source that does not fail is matched by a
+   run of the result that does not fail, with the same relation between the
+   arguments and the results. The assertions that [wi2i_prog] adds hold
+   there: they are the safety conditions of the operations on [wint], which
+   the semantics of the source checks, and the ranges of the parameters and
+   results annotated [wint], which hold for the integers that words denote.
+   NOT PROVED: stated as an axiom. *)
+#[local] Existing Instance progUnit.
+#[local] Existing Instance sCP_unit.
+#[local] Existing Instance nosubword.
+#[local] Existing Instance indirect_c.
+#[local] Existing Instance withassert.
+
+Axiom wi2i_src_tgt :
+  forall {asm_op syscall_state : Type}
+    {ep : EstateParams syscall_state}
+    {spp : SemPexprParams}
+    {sip : SemInstrParams asm_op syscall_state}
+    {E E0 : Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}
+    (p : uprog) (ev : extra_val_t)
+    (get_info : _uprog → Sv.t * (var → option (signedness * var))) (pi : uprog),
+  wi2i_prog get_info p = ok pi ->
+  forall fn fd, get_fundef (p_funcs p) fn = Some fd ->
+  let fsig := (build_sig (get_info p).2 (fn, fd)).2 in
+  wiequiv_f p pi ev ev
+    (λ _ _ fs fsi, fs_rel (vs_pre fsig.1) fsi fs) fn fn
+    (λ _ _ _ _ fr fri, fs_rel (vs_post fsig.2) fri fr).

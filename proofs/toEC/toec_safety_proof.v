@@ -9,23 +9,29 @@
 
    - [toec_uprog_safety_tgt_src]: every run of the result of the extraction
      for safety that does not fail corresponds to a run of the source that
-     does not fail, with related arguments and results ([safety_spec]).
+     does not fail, with related arguments and results ([safety_wi_pre],
+     [safety_wi_post]).
    - [toec_uprog_via_safety_src_tgt]: every run of the source that does not
      fail is matched by a run of the result of the plain extraction through
      the passes of the extraction for safety, with related arguments and
-     results ([via_safety_spec]). Its direction is that of [drop_asserts],
-     which holds only from the program with assertions to the one without.
+     results ([via_safety_wi_pre], [via_safety_wi_post]). Its direction is
+     that of [drop_asserts], which holds only from the program with
+     assertions to the one without.
 
-   Both compose the correctness of each pass. The statements on the masks of
-   [explicit_init] ([mask_ok]) and the well-typedness that [dead_args] needs
-   ([total_ok]) are on the programs these passes receive. *)
+   Both compose the correctness of each pass. The first one, [wi2i_prog],
+   turns the words annotated [wint] into integers: [wi2w_callP] relates its
+   result to the source, the axiom [wi2i_src_tgt] the source to its result.
+   The others relate their input and their output by [safety_spec] and
+   [via_safety_spec]. The statements on the masks of [explicit_init]
+   ([mask_ok]) and the well-typedness that [dead_args] needs ([total_ok])
+   are on the programs these passes receive. *)
 
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import compiler_util psem psem_facts.
 Require Import wint_int toec_for toec_while normalize_calls contracts_to_asserts safety
   explicit_init simplify_asserts assert_facts dead_code dead_args drop_asserts drop_removable
   toec_prog.
-Require Import normalize_calls_proof contracts_to_asserts_proof safety_proof
+Require Import wint_int_proof normalize_calls_proof contracts_to_asserts_proof safety_proof
   toec_while_proof toec_for_proof explicit_init_proof simplify_asserts_proof
   assert_facts_proof dead_code_total_proof dead_args_proof drop_asserts_proof
   drop_removable_proof.
@@ -95,8 +101,8 @@ Context
 Context (ev : extra_val_t).
 
 (* From the output of [sc_prog], in the total mode and with the assertions
-   evaluated, to the source, in the partial mode and with the assertions and
-   the contracts evaluated. *)
+   evaluated, to the result of [wi2i_prog], in the partial mode and with the
+   assertions and the contracts evaluated. *)
 Lemma sc_front_tgt_src (p p1 p2 p3 : uprog) fn :
   normalize_calls_prog fresh_var_ident p = ok p1 ->
   contracts_to_asserts_prog fresh_removable_ident p1 = ok p2 ->
@@ -162,13 +168,13 @@ Proof using rE_trans.
   exact: (simplify_asserts_tgt_src (rE := rE)).
 Qed.
 
-(* The relation between a run of the result of the extraction for safety and
-   a run of the source: the arguments given to the source are those given to
-   the result, plus the removed ones, once the masks that [explicit_init]
-   adds after the arrays are dropped; the masks describe the initialisation
-   of the arrays and the scalars are defined; the arguments have the types of
-   the parameters of [p8], the input of [dead_args]. The results are related
-   in the same way. *)
+(* The relation between a run of the result of the extraction for safety and a
+   run of the result of [wi2i_prog]: the arguments given to the latter are
+   those given to the former, plus the removed ones, once the masks that
+   [explicit_init] adds after the arrays are dropped; the masks describe the
+   initialisation of the arrays and the scalars are defined; the arguments
+   have the types of the parameters of [p8], the input of [dead_args]. The
+   results are related in the same way. *)
 Definition safety_spec (info : keep_info) (p8 : uprog) : EquivSpec :=
   {| rpreF_ := fun fn1 fn2 fs' fs =>
        fn1 = fn2 /\
@@ -210,35 +216,61 @@ Definition toec_uprog_pre_init (p : _uprog) : cexec _uprog :=
   Let p := sc_prog p in
   toec_for_prog (pT := progUnit) fresh_var_ident (toec_while_prog (pT := progUnit) p).
 
+(* The relation between a run of the result of the extraction for safety and
+   a run of the source [p] of [wi2i_prog], whose result is related to the
+   result of the extraction by [safety_spec]: the arguments [fsi] of the
+   result of [wi2i_prog] are those of [p], the words annotated [wint] being
+   read as integers ([vs_pre], [vs_post] of the signature [fsig] of the
+   function in [p]). *)
+Definition safety_wi_pre (info : keep_info) (p8 : uprog)
+    (fsig : seq (extended_type Z) * seq (extended_type Z))
+    (fn1 fn2 : funname) (fs' fs : fstate) : Prop :=
+  exists2 fsi, rpreF (eS := safety_spec info p8) fn1 fn2 fs' fsi & fs_rel (vs_pre fsig.1) fsi fs.
+
+Definition safety_wi_post (info : keep_info) (p8 : uprog)
+    (fsig : seq (extended_type Z) * seq (extended_type Z))
+    (fn1 fn2 : funname) (fs' fs fr' fr : fstate) : Prop :=
+  exists fsi fri,
+    [/\ rpreF (eS := safety_spec info p8) fn1 fn2 fs' fsi,
+        fs_rel (vs_pre fsig.1) fsi fs,
+        rpostF (eS := safety_spec info p8) fn1 fn2 fs' fsi fr' fri &
+        fs_rel (vs_post fsig.2) fri fr].
+
 (* Every run of the result of the extraction for safety, in the semantics of
    EasyCrypt (the mode [total_init], the assertions evaluated, the contracts
    not), that does not fail corresponds to a run of the source, in the
    partial mode with its assertions and its contracts evaluated, that does
-   not fail and computes the same results, up to [safety_spec]. The masks
-   are fresh in the program that [explicit_init] receives, and the input of
-   [dead_args] is well typed ([total_ok]). *)
+   not fail and computes the same results, up to [safety_wi_pre] and
+   [safety_wi_post]. The masks are fresh in the program that [explicit_init]
+   receives, and the input of [dead_args] is well typed ([total_ok]). *)
 Theorem toec_uprog_safety_tgt_src (p p' : uprog) :
   toec_uprog_safety fresh_var_ident get_info fresh_removable_ident mask protect dead_info p = ok p' ->
   exists pi p5 p6 info,
+  let p8 := assert_facts_prog (simplify_asserts_prog p6) in
   [/\ wi2i_prog get_info p = ok pi,
       toec_uprog_pre_init pi = ok p5,
-      explicit_init_prog mask p5 = ok p6 &
-      let p8 := assert_facts_prog (simplify_asserts_prog p6) in
+      explicit_init_prog mask p5 = ok p6,
+      dead_args_info (LC := toec_LoopCounter) protect (dead_info protect) p8 = ok (p', info) &
       mask_ok mask p5 -> total_ok p8 ->
-      forall fn,
-      wiequiv_f_ withassert_nocontract withassert total_init partial p' pi ev ev
-        (rpreF (eS := safety_spec info p8)) fn fn (rpostF (eS := safety_spec info p8))].
+      forall fn fd, get_fundef (p_funcs p) fn = Some fd ->
+      let fsig := (build_sig (get_info p).2 (fn, fd)).2 in
+      wiequiv_f_ withassert_nocontract withassert total_init partial p' p ev ev
+        (safety_wi_pre info p8 fsig) fn fn (safety_wi_post info p8 fsig)].
 Proof using asm_op_tout rE_trans.
   rewrite /toec_uprog_safety /toec_uprog_assert /dead_args_prog /toec_uprog_pre_init.
   t_xrbindP => p6 pi hpi p1 h1 p2 h2 p3 h3 p5 h5 h6 r h9 <-.
   case: r h9 => p9 info h9; exists pi, p5, p6, info; split => //.
   - by rewrite h1 /= h2 /= h3.
-  by move=> hmask hok fn; apply: safety_chain_tgt_src h1 h2 h3 h5 hmask h6 hok h9.
+  move=> hmask hok fn fd hfd.
+  apply: wkequiv_io_trans (safety_chain_tgt_src h1 h2 h3 h5 hmask h6 hok h9)
+                          (wi2w_callP ev hpi hfd).
+  - by move=> fs' fs [fsi h12 h23]; exists fsi.
+  by move=> fs' fsi fs fr' fr h12 h23 [fri hq12 hq23]; exists fsi, fri.
 Qed.
 
-(* From the source, in the partial mode with its assertions and its contracts
-   evaluated, to the input of [explicit_init], in the total mode with the
-   assertions evaluated. *)
+(* From the result of [wi2i_prog], in the partial mode with its assertions and
+   its contracts evaluated, to the input of [explicit_init], in the total mode
+   with the assertions evaluated. *)
 Lemma pre_init_src_tgt (p p1 p2 p3 p5 : uprog) fn :
   normalize_calls_prog fresh_var_ident p = ok p1 ->
   contracts_to_asserts_prog fresh_removable_ident p1 = ok p2 ->
@@ -265,12 +297,12 @@ Qed.
 
 Context (removable : var -> bool).
 
-(* The relation between a run of the source and a run of the result of the
-   plain extraction through the passes of the extraction for safety: the
-   arguments given to the result are those given to the source followed, for
-   the arrays, by masks that describe their initialisation, but those that
-   [drop_removable] removes from [p7], its input; the scalars are defined.
-   The results are related in the same way. *)
+(* The relation between a run of the result of [wi2i_prog] and a run of the
+   result of the plain extraction through the passes of the extraction for
+   safety: the arguments given to the latter are those given to the former
+   followed, for the arrays, by masks that describe their initialisation, but
+   those that [drop_removable] removes from [p7], its input; the scalars are
+   defined. The results are related in the same way. *)
 Definition via_safety_spec (p7 : uprog) : EquivSpec :=
   {| rpreF_ := fun fn1 fn2 fs fs' =>
        fn1 = fn2 /\
@@ -303,13 +335,32 @@ Proof using asm_op_tout rE_trans.
   by move=> fs1 fs2 fs3 r1 r2 r3 _ _ /= hm ->; exists r2.
 Qed.
 
+(* The relation between a run of the source [p] of [wi2i_prog] and a run of
+   the plain extraction through the passes of the extraction for safety,
+   related to the result of [wi2i_prog] by [via_safety_spec]: as in
+   [safety_wi_pre] and [safety_wi_post]. *)
+Definition via_safety_wi_pre (p7 : uprog)
+    (fsig : seq (extended_type Z) * seq (extended_type Z))
+    (fn1 fn2 : funname) (fs fs' : fstate) : Prop :=
+  exists2 fsi, fs_rel (vs_pre fsig.1) fsi fs & rpreF (eS := via_safety_spec p7) fn1 fn2 fsi fs'.
+
+Definition via_safety_wi_post (p7 : uprog)
+    (fsig : seq (extended_type Z) * seq (extended_type Z))
+    (fn1 fn2 : funname) (fs fs' fr fr' : fstate) : Prop :=
+  exists fsi fri,
+    [/\ fs_rel (vs_pre fsig.1) fsi fs,
+        rpreF (eS := via_safety_spec p7) fn1 fn2 fsi fs',
+        fs_rel (vs_post fsig.2) fri fr &
+        rpostF (eS := via_safety_spec p7) fn1 fn2 fsi fs' fri fr'].
+
 (* Every run of the source, in the partial mode with its assertions and its
    contracts evaluated, that does not fail is matched by a run of the result
    of the plain extraction through the passes of the extraction for safety,
    in the semantics of EasyCrypt (the mode [total_init], the assertions
    evaluated, the contracts not), that does not fail and computes the same
-   results, up to [via_safety_spec]. The masks are fresh in the program that
-   [explicit_init] receives. *)
+   results, up to [via_safety_wi_pre] and [via_safety_wi_post]. The masks are
+   fresh in the program that [explicit_init] receives. The step of
+   [wi2i_prog] is the axiom [wi2i_src_tgt]. *)
 Theorem toec_uprog_via_safety_src_tgt (p p' : uprog) :
   toec_uprog_via_safety fresh_var_ident get_info fresh_removable_ident mask removable p = ok p' ->
   exists pi p5 p6,
@@ -317,19 +368,27 @@ Theorem toec_uprog_via_safety_src_tgt (p p' : uprog) :
       toec_uprog_pre_init pi = ok p5,
       explicit_init_prog mask p5 = ok p6 &
       mask_ok mask p5 ->
-      forall fn,
-      wiequiv_f_ withassert withassert_nocontract partial total_init pi p' ev ev
-        (rpreF (eS := via_safety_spec (drop_asserts_prog p6))) fn fn
-        (rpostF (eS := via_safety_spec (drop_asserts_prog p6)))].
+      forall fn fd, get_fundef (p_funcs p) fn = Some fd ->
+      let fsig := (build_sig (get_info p).2 (fn, fd)).2 in
+      wiequiv_f_ withassert withassert_nocontract partial total_init p p' ev ev
+        (via_safety_wi_pre (drop_asserts_prog p6) fsig) fn fn
+        (via_safety_wi_post (drop_asserts_prog p6) fsig)].
 Proof using asm_op_tout rE_trans.
   rewrite /toec_uprog_via_safety /toec_uprog_assert /toec_uprog_pre_init.
   t_xrbindP => p6 pi hpi p1 h1 p2 h2 p3 h3 p5 h5 h6 h8.
   exists pi, p5, p6; split => //.
   - by rewrite h1 /= h2 /= h3.
-  move=> hmask fn.
-  apply: (wiequiv_f_trans_eq_l (wa2 := withassert_nocontract) (sm2 := total) (p2 := p5)).
-  - exact: pre_init_src_tgt h1 h2 h3 h5.
-  exact: ei_drop_src_tgt hmask h6 h8.
+  move=> hmask fn fd hfd.
+  have hpi' :
+    wiequiv_f_ withassert withassert_nocontract partial total_init pi p' ev ev
+      (rpreF (eS := via_safety_spec (drop_asserts_prog p6))) fn fn
+      (rpostF (eS := via_safety_spec (drop_asserts_prog p6))).
+  - apply: (wiequiv_f_trans_eq_l (wa2 := withassert_nocontract) (sm2 := total) (p2 := p5)).
+    + exact: pre_init_src_tgt h1 h2 h3 h5.
+    exact: ei_drop_src_tgt hmask h6 h8.
+  apply: wkequiv_io_trans (wi2i_src_tgt ev hpi hfd) hpi'.
+  - by move=> fs fs' [fsi h12 h23]; exists fsi.
+  by move=> fs fsi fs' fr fr' h12 h23 [fri hq12 hq23]; exists fsi, fri.
 Qed.
 
 End PROOF.
