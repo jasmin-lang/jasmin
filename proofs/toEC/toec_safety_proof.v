@@ -294,7 +294,7 @@ Proof using asm_op_tout rE_trans.
   3: exact: (explicit_init_src_tgt (spp := spp) (wa := withassert_nocontract) (wE := wE)
                (rE := rE) ev erefl hmask asm_op_tout h6).
   3: exact: (drop_asserts_src_tgt (spp := spp) (sm := total_init) (wE := wE) (rE := rE)).
-  3: exact: (drop_removable_src_tgt (LC := toec_LoopCounter) (spp := spp) (sm := total_init)
+  3: exact: (drop_removable_src_tgt (spp := spp) (sm := total_init)
                (wE := wE) (rE := rE) ev h8).
   - by move=> fs1 fs3 /= [_ [fsm hm ->]]; exists fsm.
   by move=> fs1 fs2 fs3 r1 r2 r3 _ _ /= hm ->; exists r2.
