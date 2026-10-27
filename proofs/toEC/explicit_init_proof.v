@@ -161,6 +161,22 @@ Definition mask_spec : EquivSpec :=
   {| rpreF_ := fun fn1 fn2 fs1 fs2 => fn1 = fn2 /\ mask_fs fs1 fs2
    ; rpostF_ := fun fn1 fn2 fs1 fs2 fr1 fr2 => mask_fs fr1 fr2 |}.
 
+(* Without arrays, no mask is exchanged: the values are the same on both
+   sides, and defined. *)
+Lemma mask_vals_scalarsE vs1 vs2 :
+  all (fun v => ~~ is_carr (type_of_val v)) vs2 ->
+  mask_vals vs1 vs2 <-> vs1 = vs2 /\ all is_defined vs2.
+Proof.
+elim: vs2 vs1 => [|v vs2 ih] vs1 /=.
+- by move=> _; split => [h | [-> _]]; [inversion h | constructor].
+move=> /andP [hv /ih{}ih]; split.
+- move=> h; inversion h; subst.
+  + by have [-> ->] := (ih vs0).1 H4; rewrite H3.
+  + by [].
+move=> [-> /andP [hd hds]]; constructor => //.
+by apply/ih.
+Qed.
+
 (* Only the scalars of [X] matter. *)
 Lemma mask_inv_eq X X' vm1 vm2 :
   (forall x, ~~ is_arr_var x -> Sv.In x X <-> Sv.In x X') ->

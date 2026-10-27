@@ -12,7 +12,7 @@
    ([total_ok], the well-typedness of the source), and the source to accept
    the removed arguments: they have the types of the parameters. *)
 
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssrnat.
 Require Import compiler_util psem psem_facts.
 Require Import dead_code dead_args dead_code_total_proof.
 
@@ -88,3 +88,48 @@ Axiom dead_args_tgt_src :
     (wa1 := withassert_nocontract) (wa2 := withassert_nocontract)
     p' p ev ev (rpreF (eS := dead_args_tgt_src_spec info p)) fn fn
     (rpostF (eS := dead_args_tgt_src_spec info p)).
+
+Section PROTECTED.
+
+Context
+  {asm_op syscall_state : Type} {ep : EstateParams syscall_state}
+  {spp : SemPexprParams} {sip : SemInstrParams asm_op syscall_state}
+  {LC : LoopCounter}.
+
+(* The parameters and the results of a function whose variables are all
+   protected are all kept. *)
+Lemma dead_args_info_protected (protect : funname -> var -> bool) dead_info
+  (p p' : uprog) info fn :
+  (forall x, protect fn x) ->
+  dead_args_info protect dead_info p = ok (p', info) ->
+  all id (kparams info fn) /\ all id (kres info fn).
+Proof.
+move=> hpr; rewrite /dead_args_info.
+move: (sumn _).+1 => fuel.
+set info0 := [seq _ | f <- p_funcs p].
+have : forall k, get_fundef info0 fn = Some k -> all id k.1 && all id k.2.
+- rewrite /info0 /get_fundef assoc_mapE; last by move=> ? [].
+  move=> k; case: assoc => //= fd [<-] /=.
+  by rewrite !all_nseq !orbT.
+elim: fuel p info0 => [|n ih] p0 i0 hi /=.
+- move=> [_ <-]; rewrite /kparams /kres.
+  by case: get_fundef hi => // k /(_ _ erefl) /andP.
+have hupd : forall kp kr, kp = params_keep protect dead_info p0 ->
+  kr = res_keep protect dead_info p0 ->
+  forall k, get_fundef (update_info kp kr i0) fn = Some k -> all id k.1 && all id k.2.
+- move=> kp kr -> -> k; rewrite /update_info /get_fundef assoc_mapE; last by move=> ? [].
+  have hk : forall o xs, keep_vars protect fn o xs = None.
+  + move=> [k'|] xs //=; rewrite /keep_vars; case: ifP => // /negP [].
+    by rewrite all_map; elim: zip => //= b l ->; rewrite hpr orbT.
+  rewrite /= /params_keep /res_keep; case: get_fundef => [fd|]; rewrite ?hk /=.
+  1,2: by move: (hi k); rewrite /get_fundef; case: assoc => //= -[k1 k2] h [?]; subst k; apply: h.
+t_xrbindP => -[[[p2 ch] kp] kr] hr.
+have [-> ->] : kp = params_keep protect dead_info p0 /\ kr = res_keep protect dead_info p0.
+- by move: hr; rewrite /dead_args_round; t_xrbindP => ?? _ _ _ <- <-.
+have hi' := hupd _ _ erefl erefl.
+case: ch hr => _; first by apply: ih.
+move=> [_ <-]; rewrite /kparams /kres.
+by case: get_fundef hi' => // k /(_ _ erefl) /andP.
+Qed.
+
+End PROTECTED.
