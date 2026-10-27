@@ -15,9 +15,12 @@
    and writes. [total_ok p] states that, from any state, these never fail in
    the total mode: the assignments and the operators of [p] run; the
    arguments of a call evaluate to values of the types of the parameters of
-   the callee, and the destinations accept any values of the types of its
-   results; the parameters of a function accept any values of their types,
-   and its results, read from any state, have their types.
+   the callee, and each destination accepts, on every state, any value of
+   the type of its result; each parameter of a function accepts any value of
+   its type, and its results, read from any state, have their types. The
+   conditions are stated destination by destination and parameter by
+   parameter, so that they hold of the calls and the functions that
+   [dead_args] leaves with fewer destinations and parameters.
 
    [total_ok p] amounts to [p] being well typed. In the total mode the
    memory accesses, the array accesses and the operators do not fail, and a
@@ -42,8 +45,8 @@ Context
 
 (* In the total mode, on every state, the assignments and the operators of [p]
    run, the arguments of its calls evaluate to values of the types of the
-   parameters, and their destinations accept values of the types of the
-   results. *)
+   parameters, and each of their destinations accepts, on every state, the
+   values of the type of the corresponding result. *)
 Fixpoint total_ok_i (p : uprog) (i : instr) : Prop :=
   let total_ok_c :=
     fix total_ok_c (c : cmd) : Prop :=
@@ -57,21 +60,22 @@ Fixpoint total_ok_i (p : uprog) (i : instr) : Prop :=
       (forall s,
          is_ok (Let vs := sem_pexprs (sm := total) true (p_globs p) s es in
                 mapM2 ErrType dc_truncate_val (map eval_atype fd.(f_tyin)) vs))
-      /\ forall s vs vs',
-         mapM2 ErrType dc_truncate_val (map eval_atype fd.(f_tyout)) vs = ok vs' ->
-         is_ok (write_lvals (sm := total) true (p_globs p) s xs vs')
+      /\ List.Forall2 (fun x ty =>
+           forall s v v', dc_truncate_val ty v = ok v' ->
+             is_ok (write_lval (sm := total) true (p_globs p) x v' s))
+         xs (map eval_atype fd.(f_tyout))
     else forall s, is_ok (sem_pexprs (sm := total) true (p_globs p) s es)
   | Csyscall _ _ _ | Cassert _ => True
   | Cif _ c1 c2 | Cwhile _ c1 _ _ c2 => total_ok_c c1 /\ total_ok_c c2
   | Cfor _ _ c => total_ok_c c
   end.
 
-(* The parameters of [fd] accept any values of their types; its results, read
-   in the total mode from any state, have their types. *)
+(* Each parameter of [fd] accepts, on every state, any value of its type; its
+   results, read in the total mode from any state, have their types. *)
 Definition total_ok_fd (fd : ufundef) : Prop :=
-  (forall s vs vs',
-     mapM2 ErrType dc_truncate_val (map eval_atype fd.(f_tyin)) vs = ok vs' ->
-     is_ok (write_vars true fd.(f_params) vs' s))
+  List.Forall2 (fun x ty =>
+      forall s v v', dc_truncate_val ty v = ok v' -> is_ok (write_var true x v' s))
+    fd.(f_params) (map eval_atype fd.(f_tyin))
   /\ forall s,
      is_ok (Let vs := get_var_is (sm := total) true (evm s) fd.(f_res) in
             mapM2 ErrType dc_truncate_val (map eval_atype fd.(f_tyout)) vs).
@@ -233,6 +237,20 @@ case h: exec_sopn => [vs2 | ] //=.
 rewrite (write_lvals_is_totalE gd (sm1 := total_init) (sm2 := total)) //.
 case hw: write_lvals => [a' | ] // _.
 by have [c' -> _] := write_lvals_dflt erefl erefl (exec_sopn_DB h) (fun _ => erefl) hw.
+Qed.
+
+(* Destinations that each accept the values of their types, on every state,
+   accept them in sequence. *)
+Lemma total_ok_writes gd xs tys vs vs' :
+  List.Forall2 (fun x ty =>
+      forall s v v', dc_truncate_val ty v = ok v' ->
+        is_ok (write_lval (sm := total) true gd x v' s)) xs tys ->
+  mapM2 ErrType dc_truncate_val tys vs = ok vs' ->
+  forall s, is_ok (write_lvals (sm := total) true gd s xs vs').
+Proof.
+move=> h; elim: h vs vs' => {xs tys} [ | x ty xs tys hx _ ih] [ | v vs] vs' //=; first by move=> [<-].
+t_xrbindP => v' hv vs1 /ih{}ih <- s.
+case: (write_lval _ _ _ _ s) (hx s _ _ hv) => //= s1 _; apply: ih.
 Qed.
 
 (* ** The results kept *)
@@ -824,7 +842,7 @@ move: heq hw; rewrite /sxs /fn_keep_only; case: (onfun f) => [tokeep | [??]]; la
 move=> hc hw.
 have {}hc : check_keep_only xs tokeep O = ok (I, xs').
 + by move: hc; rewrite /add_iinfo; case: check_keep_only => // ? [->].
-move: hoki; rewrite /= hfd => -[_ /(_ s1 _ _ htr)].
+move: hoki; rewrite /= hfd => -[_ /total_ok_writes /(_ htr s1)].
 rewrite -(write_lvals_is_totalE _ _ _ _ _ (sm1 := sm) (sm2 := total)) ?hsm //.
 case hws: write_lvals => [s' | ] // _; exists s' => //.
 have [ | | | t'' hw' hR] := check_keep_onlyP (R := fun X a b => st_dc X b a) _ _ _ hc hts hws.
