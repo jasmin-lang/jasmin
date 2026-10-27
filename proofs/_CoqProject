@@ -266,6 +266,7 @@ toEC/toec_for.v
 toEC/toec_for_proof.v
 toEC/toec_prog.v
 toEC/toec_proof.v
+toEC/toec_safety_proof.v
 toEC/toec_while.v
 toEC/toec_while_proof.v
 toEC/wint_int.v
