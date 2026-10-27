@@ -30,13 +30,6 @@ val do_spill_unspill :
   ((unit, 'asm) prog, Utils.hierror) result
 (** Removes (aka implements) #spill and #unspill instructions. *)
 
-val do_wint_int :
-  (module Arch_full.Arch
-     with type asm_op = 'asm_op
-      and type extra_op = 'extra_op) ->
-  (unit, ('asm_op, 'extra_op) Arch_extra.extended_op_gen) prog ->
-  (unit, ('asm_op, 'extra_op) Arch_extra.extended_op_gen) prog
-
 val do_toec :
   (module Arch_full.Arch
      with type reg = 'reg
@@ -52,6 +45,9 @@ val do_toec :
   (unit,
     ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asm_op_t)
    prog
+(** The passes of the plain extraction ([Toec_prog.toec_uprog]): the machine
+    words annotated [wint] become integers ([Wint_int]), then the loops and
+    the calls are put in the form that EasyCrypt expects. *)
 
 val do_toec_safety :
   (module Arch_full.Arch

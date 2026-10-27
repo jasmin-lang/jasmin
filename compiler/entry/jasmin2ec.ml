@@ -52,7 +52,7 @@ let parse_and_extract arch call_conv idirs =
   let module A = (val CoreArchFactory.get_arch_module arch call_conv) in
   let extract model amodel global_options safety via_safety specs functions
       array_dir output pass file =
-    let prog = parse_and_compile (module A) ~wi2i:true pass file idirs in
+    let prog = parse_and_compile (module A) pass file idirs in
     let prog =
       if safety then Compile.do_toec_safety (module A) ~fnames:functions prog
       else if via_safety then Compile.do_toec_via_safety (module A) prog

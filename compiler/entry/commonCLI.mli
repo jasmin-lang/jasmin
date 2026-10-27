@@ -13,8 +13,6 @@ val parse_and_compile :
       and type extra_op = 'extra_op) ->
   ?slice:string list ->
   (* keep only these functions and what they use, as [jasminc -slice] *)
-  wi2i:bool ->
-  (* true => start by replacing wint operation by int operation *)
   Compiler.compiler_step ->
   string ->
   (string * string) list ->

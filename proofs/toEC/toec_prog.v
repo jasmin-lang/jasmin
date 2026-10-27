@@ -1,5 +1,5 @@
-Require Import toec_for toec_while for_to_while normalize_calls contracts_to_asserts safety explicit_init
-  simplify_asserts assert_facts dead_args drop_asserts drop_removable.
+Require Import wint_int toec_for toec_while for_to_while normalize_calls contracts_to_asserts safety
+  explicit_init simplify_asserts assert_facts dead_args drop_asserts drop_removable.
 Import compiler_util expr.
 
 #[local] Instance toec_LoopCounter : LoopCounter :=
@@ -17,13 +17,20 @@ Definition toec_prog {pT : progT} (p : prog) : cexec prog :=
   Let p := normalize_calls_prog fresh_var_ident p in
   for_to_while_prog fresh_var_ident p.
 
-Definition toec_uprog : _uprog -> cexec _uprog :=
-  toec_prog : (@prog _ _ progUnit -> _).
+(* Both extractions first turn the machine words annotated [wint] into
+   integers ([wi2i_prog]); [get_info] tells the integer variable of each such
+   word variable. *)
+Context (get_info : _uprog -> Sv.t * (var -> option (signedness * var))).
+
+(* The plain extraction. *)
+Definition toec_uprog (p : _uprog) : cexec _uprog :=
+  Let p := wi2i_prog get_info p in
+  toec_prog (pT := progUnit) p.
 
 (* The passes common to the extraction for safety and to the plain extraction
-   through it. The contracts become assertions once the destinations of the
-   calls are normalised: the results of a call are then in distinct
-   variables, which the postcondition of the callee reads. The safety
+   through it, after [wi2i_prog]. The contracts become assertions once the
+   destinations of the calls are normalised: the results of a call are then in
+   distinct variables, which the postcondition of the callee reads. The safety
    conditions are added next, so that they describe the instructions that are
    extracted, those of the contracts included, and before [toec_while], which
    moves the condition part of a loop, where they go, out of it;
@@ -37,6 +44,7 @@ Definition toec_uprog : _uprog -> cexec _uprog :=
 Context (fresh_removable_ident : v_kind -> instr_info -> string -> atype -> Ident.ident).
 
 Definition toec_uprog_assert (mask : var -> var) (p : _uprog) : cexec _uprog :=
+  Let p := wi2i_prog get_info p in
   Let p := normalize_calls_prog (pT := progUnit) fresh_var_ident p in
   Let p := contracts_to_asserts_prog fresh_removable_ident p in
   Let p := sc_prog p in

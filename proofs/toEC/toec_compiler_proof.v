@@ -133,16 +133,16 @@ End FN.
    fail, with results related through a run of [up]. The masks are fresh in
    the program that [explicit_init] receives and the input of [dead_args] is
    well typed, as in [toec_uprog_safety_tgt_src]. *)
-Theorem toec_compiler_tgt_src entries (up pi p' : uprog) xp fn fd :
-  wi2i_prog get_info up = ok pi ->
-  toec_uprog_safety fresh_var_ident fresh_removable_ident mask protect dead_info pi = ok p' ->
+Theorem toec_compiler_tgt_src entries (up p' : uprog) xp fn fd :
+  toec_uprog_safety fresh_var_ident get_info fresh_removable_ident mask protect dead_info up = ok p' ->
   compile_prog_to_asm aparams cparams entries up = ok xp ->
   fn \in entries ->
   get_fundef (p_funcs up) fn = Some fd ->
   let fsig := (build_sig (get_info up).2 (fn, fd)).2 in
-  exists p5 p6 info xfd,
+  exists pi p5 p6 info xfd,
   let p8 := assert_facts_prog (simplify_asserts_prog p6) in
-  [/\ toec_uprog_pre_init fresh_var_ident fresh_removable_ident pi = ok p5,
+  [/\ wi2i_prog get_info up = ok pi,
+      toec_uprog_pre_init fresh_var_ident fresh_removable_ident pi = ok p5,
       explicit_init_prog mask p5 = ok p6,
       dead_args_info protect (dead_info protect) p8 = ok (p', info),
       get_fundef xp.(asm_funcs) fn = Some xfd,
@@ -154,12 +154,12 @@ Theorem toec_compiler_tgt_src entries (up pi p' : uprog) xp fn fd :
         (isem_asm xp fn)
         (toec_post up xp info p8 fn fsig xfd)].
 Proof using asm_op_tout haparams print_linearP print_sprogP print_uprogP.
-  move=> hpi hp' hxp hfn hfd fsig.
+  move=> hp' hxp hfn hfd fsig.
   move: hp'; rewrite /toec_uprog_safety /toec_uprog_assert /dead_args_prog.
-  t_xrbindP => p6 p1 h1 p2 h2 p3 h3 p5 h5 h6 [p9 info] h9 /= ?; subst p9.
+  t_xrbindP => p6 pi hpi p1 h1 p2 h2 p3 h3 p5 h5 h6 [p9 info] h9 /= ?; subst p9.
   have [xfd [hxfd hexp hcomp]] :=
     it_compile_prog_to_asmP haparams print_uprogP print_sprogP print_linearP hxp hfn.
-  exists p5, p6, info, xfd; split => //.
+  exists pi, p5, p6, info, xfd; split => //.
   - by rewrite /toec_uprog_pre_init h1 /= h2 /= h3.
   move=> hmask hok.
   have hchain :=
@@ -222,9 +222,8 @@ Proof. by elim: xs tys => [|x xs ih] [|ty tys] //= /andP [+ /ih ->]; case: ty. Q
 (* For an export function [fn] of [up] whose parameters and results are not
    arrays and whose variables are protected, the arguments and the results of
    [p'] are those of [up], read through [wi2i]. *)
-Theorem toec_compiler_scalars_tgt_src entries (up pi p' : uprog) xp fn fd :
-  wi2i_prog get_info up = ok pi ->
-  toec_uprog_safety fresh_var_ident fresh_removable_ident mask protect dead_info pi = ok p' ->
+Theorem toec_compiler_scalars_tgt_src entries (up p' : uprog) xp fn fd :
+  toec_uprog_safety fresh_var_ident get_info fresh_removable_ident mask protect dead_info up = ok p' ->
   compile_prog_to_asm aparams cparams entries up = ok xp ->
   fn \in entries ->
   get_fundef (p_funcs up) fn = Some fd ->
@@ -232,9 +231,10 @@ Theorem toec_compiler_scalars_tgt_src entries (up pi p' : uprog) xp fn fd :
   all (fun ty => is_not_carr (eval_atype ty)) fd.(f_tyout) ->
   (forall x, protect fn x) ->
   let fsig := (build_sig (get_info up).2 (fn, fd)).2 in
-  exists p5 p6 xfd,
+  exists pi p5 p6 xfd,
   let p8 := assert_facts_prog (simplify_asserts_prog p6) in
-  [/\ toec_uprog_pre_init fresh_var_ident fresh_removable_ident pi = ok p5,
+  [/\ wi2i_prog get_info up = ok pi,
+      toec_uprog_pre_init fresh_var_ident fresh_removable_ident pi = ok p5,
       explicit_init_prog mask p5 = ok p6,
       get_fundef xp.(asm_funcs) fn = Some xfd,
       xfd.(asm_fd_export) &
@@ -245,9 +245,9 @@ Theorem toec_compiler_scalars_tgt_src entries (up pi p' : uprog) xp fn fd :
         (isem_asm xp fn)
         (toec_scalars_post up xp fn fsig xfd)].
 Proof using asm_op_tout haparams print_linearP print_sprogP print_uprogP.
-  move=> hpi hp' hxp hfn hfd htyin htyout hpr fsig.
-  have [p5 [p6 [info [xfd]]]] := toec_compiler_tgt_src hpi hp' hxp hfn hfd.
-  move=> /= [h5 h6 h9 hxfd hexp hall]; exists p5, p6, xfd; split => // hmask hok.
+  move=> hp' hxp hfn hfd htyin htyout hpr fsig.
+  have [pi [p5 [p6 [info [xfd]]]]] := toec_compiler_tgt_src hp' hxp hfn hfd.
+  move=> /= [hpi h5 h6 h9 hxfd hexp hall]; exists pi, p5, p6, xfd; split => // hmask hok.
   have [hkp hkr] :=
     dead_args_info_protected (asm_op := extended_op)
       (sip := @sip_of_asm_e _ _ _ _ _ _ _ asm_e syscall_state sc_sem) hpr h9.

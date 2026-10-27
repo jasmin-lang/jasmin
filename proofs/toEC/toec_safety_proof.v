@@ -22,8 +22,9 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import compiler_util psem psem_facts.
-Require Import toec_for toec_while normalize_calls contracts_to_asserts safety explicit_init
-  simplify_asserts assert_facts dead_code dead_args drop_asserts drop_removable toec_prog.
+Require Import wint_int toec_for toec_while normalize_calls contracts_to_asserts safety
+  explicit_init simplify_asserts assert_facts dead_code dead_args drop_asserts drop_removable
+  toec_prog.
 Require Import normalize_calls_proof contracts_to_asserts_proof safety_proof
   toec_while_proof toec_for_proof explicit_init_proof simplify_asserts_proof
   assert_facts_proof dead_code_total_proof dead_args_proof drop_asserts_proof
@@ -111,6 +112,7 @@ Proof using rE_trans.
   exact: (normalize_calls_l ev h1).
 Qed.
 
+Context (get_info : _uprog -> Sv.t * (var -> option (signedness * var))).
 Context (mask : var -> var).
 
 (* No instruction of the architecture outputs an array ([is_not_carr_ltype] in
@@ -216,19 +218,20 @@ Definition toec_uprog_pre_init (p : _uprog) : cexec _uprog :=
    are fresh in the program that [explicit_init] receives, and the input of
    [dead_args] is well typed ([total_ok]). *)
 Theorem toec_uprog_safety_tgt_src (p p' : uprog) :
-  toec_uprog_safety fresh_var_ident fresh_removable_ident mask protect dead_info p = ok p' ->
-  exists p5 p6 info,
-  [/\ toec_uprog_pre_init p = ok p5,
+  toec_uprog_safety fresh_var_ident get_info fresh_removable_ident mask protect dead_info p = ok p' ->
+  exists pi p5 p6 info,
+  [/\ wi2i_prog get_info p = ok pi,
+      toec_uprog_pre_init pi = ok p5,
       explicit_init_prog mask p5 = ok p6 &
       let p8 := assert_facts_prog (simplify_asserts_prog p6) in
       mask_ok mask p5 -> total_ok p8 ->
       forall fn,
-      wiequiv_f_ withassert_nocontract withassert total_init partial p' p ev ev
+      wiequiv_f_ withassert_nocontract withassert total_init partial p' pi ev ev
         (rpreF (eS := safety_spec info p8)) fn fn (rpostF (eS := safety_spec info p8))].
 Proof using asm_op_tout rE_trans.
   rewrite /toec_uprog_safety /toec_uprog_assert /dead_args_prog /toec_uprog_pre_init.
-  t_xrbindP => p6 p1 h1 p2 h2 p3 h3 p5 h5 h6 r h9 <-.
-  case: r h9 => p9 info h9; exists p5, p6, info; split => //.
+  t_xrbindP => p6 pi hpi p1 h1 p2 h2 p3 h3 p5 h5 h6 r h9 <-.
+  case: r h9 => p9 info h9; exists pi, p5, p6, info; split => //.
   - by rewrite h1 /= h2 /= h3.
   by move=> hmask hok fn; apply: safety_chain_tgt_src h1 h2 h3 h5 hmask h6 hok h9.
 Qed.
@@ -308,19 +311,20 @@ Qed.
    results, up to [via_safety_spec]. The masks are fresh in the program that
    [explicit_init] receives. *)
 Theorem toec_uprog_via_safety_src_tgt (p p' : uprog) :
-  toec_uprog_via_safety fresh_var_ident fresh_removable_ident mask removable p = ok p' ->
-  exists p5 p6,
-  [/\ toec_uprog_pre_init p = ok p5,
+  toec_uprog_via_safety fresh_var_ident get_info fresh_removable_ident mask removable p = ok p' ->
+  exists pi p5 p6,
+  [/\ wi2i_prog get_info p = ok pi,
+      toec_uprog_pre_init pi = ok p5,
       explicit_init_prog mask p5 = ok p6 &
       mask_ok mask p5 ->
       forall fn,
-      wiequiv_f_ withassert withassert_nocontract partial total_init p p' ev ev
+      wiequiv_f_ withassert withassert_nocontract partial total_init pi p' ev ev
         (rpreF (eS := via_safety_spec (drop_asserts_prog p6))) fn fn
         (rpostF (eS := via_safety_spec (drop_asserts_prog p6)))].
 Proof using asm_op_tout rE_trans.
   rewrite /toec_uprog_via_safety /toec_uprog_assert /toec_uprog_pre_init.
-  t_xrbindP => p6 p1 h1 p2 h2 p3 h3 p5 h5 h6 h8.
-  exists p5, p6; split => //.
+  t_xrbindP => p6 pi hpi p1 h1 p2 h2 p3 h3 p5 h5 h6 h8.
+  exists pi, p5, p6; split => //.
   - by rewrite h1 /= h2 /= h3.
   move=> hmask fn.
   apply: (wiequiv_f_trans_eq_l (wa2 := withassert_nocontract) (sm2 := total) (p2 := p5)).

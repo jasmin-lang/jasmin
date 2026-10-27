@@ -70,37 +70,30 @@ let catch_error cp =
     let e = Conv.error_of_cerror (Printer.pp_err ~debug:false) e in
     raise (HiError e)
 
-let do_wint_int
-   (type asm_op extra_op)
-    (module Arch : Arch_full.Arch
-       with type asm_op = asm_op
-       and type extra_op = extra_op) prog =
-  let get_info p =
-    let p = Conv.prog_of_cuprog p in
-    let fv = List.fold_left (fun fv fd -> Sv.union fv (vars_fc_contract fd)) Sv.empty (snd p) in
-    let m =
-      Sv.fold (fun x m ->
-          match x.v_ty with
-          | Bty (U _) ->
-            begin match Annotations.has_wint x.v_annot with
-            | None -> m
-            | Some sg ->
-              let annot = Annotations.remove_wint x.v_annot in
-              let xi = V.mk x.v_name x.v_kind tint x.v_dloc annot in
-              Mv.add x (sg, Conv.cvar_of_var xi) m
-            end
-          | _ -> m)
+(* The oracle of [Wint_int.wi2i_prog], which starts the extractions: each
+   machine-word variable annotated [wint] gets a fresh integer variable of
+   the same name, without the annotation. The map from these word variables
+   to their signedness and integer variable is also returned. *)
+let toec_wint_info ((_, fds) : ('info, 'asm) prog) =
+  let fv = List.fold_left (fun fv fd -> Sv.union fv (vars_fc_contract fd)) Sv.empty fds in
+  let m =
+    Sv.fold (fun x m ->
+        match x.v_ty with
+        | Bty (U _) ->
+          begin match Annotations.has_wint x.v_annot with
+          | None -> m
+          | Some sg ->
+            let annot = Annotations.remove_wint x.v_annot in
+            let xi = V.mk x.v_name x.v_kind tint x.v_dloc annot in
+            Mv.add x (sg, xi) m
+          end
+        | _ -> m)
       fv Mv.empty in
-    let info x =
-      let x = Conv.var_of_cvar x in
-      Mv.find_opt x m in
-    Conv.csv_of_sv fv ,info
-  in
-  let cp = Conv.cuprog_of_prog prog in
-  let cp = Wint_int.wi2i_prog Arch.asmOp Arch.pointer_data Arch.msf_size get_info cp in
-  let cp = catch_error cp in
-  Conv.prog_of_cuprog cp
-
+  let info cx =
+    Option.map (fun (sg, xi) -> (sg, Conv.cvar_of_var xi))
+      (Mv.find_opt (Conv.var_of_cvar cx) m) in
+  let cfv = Conv.csv_of_sv fv in
+  (m, fun _ -> (cfv, info))
 
 (* -------------------------------------------------------------------- *)
 let toec_freshvar vk ii = Conv.fresh_var_ident vk ii (Uint63.of_int 0)
@@ -115,8 +108,11 @@ let do_toec
        and type cond = cond
        and type asm_op = asm_op
        and type extra_op = extra_op) prog =
+  let _, get_info = toec_wint_info prog in
   let cp = Conv.cuprog_of_prog prog in
-  let cp = Toec_prog.toec_uprog Arch.asmOp Arch.pointer_data Arch.msf_size toec_freshvar cp in
+  let cp =
+    Toec_prog.toec_uprog Arch.asmOp Arch.pointer_data Arch.msf_size
+      toec_freshvar get_info cp in
   let cp = catch_error cp in
   Conv.prog_of_cuprog cp
 
@@ -185,10 +181,11 @@ let do_toec_safety
       ~protect:(fun fd x -> protect fd.f_name (Conv.cvar_of_var x))
       fds
   in
+  let _, get_info = toec_wint_info prog in
   let cp = Conv.cuprog_of_prog prog in
   let cp =
     Toec_prog.toec_uprog_safety Arch.asmOp Arch.pointer_data Arch.msf_size
-      toec_freshvar fresh_removable mask protect dead_info cp in
+      toec_freshvar get_info fresh_removable mask protect dead_info cp in
   Conv.prog_of_cuprog (catch_error cp)
 
 let do_toec_via_safety
@@ -197,16 +194,19 @@ let do_toec_via_safety
        with type asm_op = asm_op
        and type extra_op = extra_op) ((_, fds) as prog) =
   let fresh_removable, mask = toec_removable () in
+  let wint, get_info = toec_wint_info prog in
   (* The variables removed: those annotated, and the variables of the
      contracts, which are not variables of their function and which
-     [contracts_to_asserts] introduces in its body. *)
+     [contracts_to_asserts] introduces in its body; those annotated [wint]
+     are replaced by their integer variable. *)
+  let wi2i x = match Mv.find_opt x wint with Some (_, xi) -> xi | None -> x in
   let contract_vars =
     List.fold_left
       (fun s fd ->
         match fd.f_contract with
         | None -> s
         | Some ci ->
-          List.fold_left (fun s x -> Sv.add (L.unloc x) s) s
+          List.fold_left (fun s x -> Sv.add (wi2i (L.unloc x)) s) s
             (ci.f_iparams @ ci.f_ires))
       Sv.empty fds
   in
@@ -217,7 +217,7 @@ let do_toec_via_safety
   let cp = Conv.cuprog_of_prog prog in
   let cp =
     Toec_prog.toec_uprog_via_safety Arch.asmOp Arch.pointer_data Arch.msf_size
-      toec_freshvar fresh_removable mask removable cp in
+      toec_freshvar get_info fresh_removable mask removable cp in
   Conv.prog_of_cuprog (catch_error cp)
 
 (*--------------------------------------------------------------------- *)
