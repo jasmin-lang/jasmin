@@ -116,3 +116,19 @@ Qed.
 
 End PROOF.
 
+#[local] Existing Instance progUnit.
+#[local] Existing Instance nosubword.
+#[local] Existing Instance indirect_c.
+
+(* The direction from the source to the transformed program: when the source
+   runs without failure, the transformed program runs with the same results.
+   The plain extraction through the passes of the extraction for safety
+   relies on it ([toec_safety_proof]). Not proved yet. *)
+Axiom toec_while_src_tgt :
+  forall {asm_op syscall_state : Type} {wa : WithAssert} {ep : EstateParams syscall_state}
+    {spp : SemPexprParams} {sip : SemInstrParams asm_op syscall_state}
+    {E E0 : Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}
+    (p : uprog) (ev : extra_val_t),
+  forall fn,
+  wiequiv_f (sm1 := total) (sm2 := total)
+    p (toec_while_prog p) ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).

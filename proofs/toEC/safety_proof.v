@@ -746,3 +746,25 @@ Qed.
 Transparent ziota.
 
 End SAFETY_PROOF.
+
+#[local] Existing Instance progUnit.
+#[local] Existing Instance nosubword.
+#[local] Existing Instance indirect_c.
+
+(* The direction from the original program to the instrumented one: when the
+   original program runs without failure in the partial mode, the conditions
+   that the pass asserts hold, and the instrumented program runs in the total
+   mode with the same results. The plain extraction through the passes of the
+   extraction for safety relies on it ([toec_safety_proof]). Not proved
+   yet. *)
+Axiom safety_src_tgt :
+  forall {asm_op syscall_state : Type} {ep : EstateParams syscall_state}
+    {spp : SemPexprParams} {sip : SemInstrParams asm_op syscall_state}
+    {wa : WithAssert}
+    {E E0 : Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}
+    (p psc : uprog) (ev : extra_val_t),
+  assert_allowed ->
+  sc_prog p = ok psc ->
+  forall fn,
+  wiequiv_f (sm1 := partial) (sm2 := total) p psc ev ev
+    (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
