@@ -7,8 +7,9 @@
    the source, but those removed, from the same arguments, but those removed:
    the removed arguments are not read, and the removed results are not used.
 
-   As for [dead_code] ([dead_code_total_proof]), the direction from the
-   transformed program to the source needs the removed code not to fail
+   The correctness is stated from the transformed program to the source, the
+   direction the extraction for safety needs. As for [dead_code]
+   ([dead_code_total_proof]), it needs the removed code not to fail
    ([total_ok], the well-typedness of the source), and the source to accept
    the removed arguments: they have the types of the parameters. *)
 
@@ -38,10 +39,6 @@ Definition kres (fn : funname) : seq bool :=
 Definition fs_keep (k : seq bool) (fs : fstate) : fstate :=
   {| fscs := fscs fs; fmem := fmem fs; fvals := keep_only (fvals fs) k |}.
 
-Definition dead_args_src_tgt_spec : EquivSpec :=
-  {| rpreF_ := fun fn1 fn2 fs1 fs2 => fn1 = fn2 /\ fs2 = fs_keep (kparams fn1) fs1;
-     rpostF_ := fun fn1 _ _ _ fr1 fr2 => fr2 = fs_keep (kres fn1) fr1 |}.
-
 (* The arguments given to the source are those given to the transformed
    program, the removed ones being values of the types of the parameters. *)
 Definition dead_args_tgt_src_spec (p : uprog) : EquivSpec :=
@@ -52,21 +49,6 @@ Definition dead_args_tgt_src_spec (p : uprog) : EquivSpec :=
      rpostF_ := fun fn1 _ _ _ fr1 fr2 => fr1 = fs_keep (kres fn1) fr2 |}.
 
 End DEFS.
-
-(* When the source runs without failure, its assertions evaluated, the
-   transformed program runs, from the arguments kept, with the same results,
-   but those removed. *)
-Axiom dead_args_src_tgt :
-  forall {asm_op syscall_state : Type} {ep : EstateParams syscall_state}
-    {spp : SemPexprParams} {sip : SemInstrParams asm_op syscall_state}
-    {sm : SemMode} {LC : LoopCounter}
-    {E E0 : Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}
-    protect dead_info (p p' : uprog) info (ev : extra_val_t),
-  dead_args_info protect dead_info p = ok (p', info) ->
-  forall fn,
-  wiequiv_f (wa1 := withassert_nocontract) (wa2 := withassert_nocontract)
-    p p' ev ev (rpreF (eS := dead_args_src_tgt_spec info)) fn fn
-    (rpostF (eS := dead_args_src_tgt_spec info)).
 
 (* When the transformed program runs without failure, in the mode
    [total_init] (the pass runs after [explicit_init]) with its assertions
