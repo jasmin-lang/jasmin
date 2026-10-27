@@ -1031,6 +1031,457 @@ Qed.
 
 End TGT_SRC.
 
+Section SRC_TGT.
+Context
+  {asm_op syscall_state : Type} {ep : EstateParams syscall_state}
+  {spp : SemPexprParams} {sip : SemInstrParams asm_op syscall_state} {sm : SemMode}
+  {E E0 : Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context (fresh_var_ident : v_kind -> instr_info -> string -> atype -> Ident.ident).
+Context (p p' : prog) (ev : extra_val_t).
+Hypothesis Hp : contracts_to_asserts_prog fresh_var_ident p = ok p'.
+Section FUN_RULE.
+Context (spec : EquivSpec).
+Definition fun_hyp_st fn1 fn2 :=
+  forall fs1 fs2, rpreF (eS := spec) fn1 fn2 fs1 fs2 ->
+  forall fd1, get_fundef (p_funcs p) fn1 = Some fd1 ->
+  exists2 fd2, get_fundef (p_funcs p') fn2 = Some fd2 &
+  sem_pre (wa := withassert) p fn1 fs1 = ok tt ->
+  forall s11, initialize_funcall p ev fd1 fs1 = ok s11 ->
+  exists2 s21, initialize_funcall p' ev fd2 fs2 = ok s21 &
+  exists (P Q : rel_c) (tbody epilogue : cmd),
+    [/\ P s11 s21, f_body fd2 = tbody ++ epilogue,
+        wequiv_rec (wa1 := withassert) (wa2 := withassert_nocontract) p p' ev ev spec P (f_body fd1) tbody Q &
+        forall s1 s2 fr1, Q s1 s2 -> finalize_funcall fd1 s1 = ok fr1 ->
+          sem_post (wa := withassert) p fn1 (fvals fs1) fr1 = ok tt ->
+          exists2 s2', esem (wa := withassert_nocontract) p' ev epilogue s2 = ok s2' &
+          exists2 fr2, finalize_funcall fd2 s2' = ok fr2 & rpostF (eS := spec) fn1 fn2 fs1 fs2 fr1 fr2].
+Lemma fun_body_st fn1 fn2 :
+  fun_hyp_st fn1 fn2 ->
+  wequiv_f_body (wa1 := withassert) (wa2 := withassert_nocontract) (rE0 := relEvent_recCall spec)
+    p p' ev ev rpreF fn1 fn2 rpostF.
+Proof.
+move=> hf; rewrite /wequiv_f_body /isem_fun_body.
+apply wkequiv_ioP => fs1 fs2 hPf.
+have {}hf := hf _ _ hPf.
+apply wkequiv_read with (fun fd1 fd2 => get_fundef (p_funcs p) fn1 = Some fd1 /\ get_fundef (p_funcs p') fn2 = Some fd2).
++ rewrite /kget_fundef => ??.
+  case: get_fundef hf => /= [fd1 | ].
+  + by move=> /(_ _ erefl) [fd2] -> _ _; apply xrutt.xrutt_Ret.
+  move=> _ _; apply xrutt.xrutt_CutL.
+  by rewrite /core_logics.errcutoff /is_error /Subevent.subevent /CategoryOps.resum /fromErr mid12.
+move=> fd1 fd2 [+ hfd2].
+move=> {}/hf [fd2']; rewrite hfd2 => -[?] hf; subst fd2'.
+apply wkequiv_read with (fun _ _ => sem_pre (wa := withassert) p fn1 fs1 = ok tt).
++ by apply wkequiv_iresult => ?? [] [-> ->] h; exists tt.
+move=> _ _ /hf {}hf _ _ [-> ->].
+apply xrutt_facts.xrutt_bind with (fun s1 s2 =>
+   [/\ initialize_funcall p ev fd1 fs1 = ok s1 & initialize_funcall p' ev fd2 fs2 = ok s2]).
++ apply (wkequiv_iresult (P := eq_init fs1 fs2)) => //.
+  by move=> ?? s1 [-> ->] /[dup] hinit1 /hf [s2] hinit2 _; exists s2.
+move=> s1 s2 [hs1 hs2].
+have [s2_ ] := hf s1 hs1; rewrite hs2 => -[?] [P [Q [tbody [epi [hP hbody hwb hepi]]]]]; subst s2_.
+rewrite hbody isem_cmd_cat !Monad.bind_bind.
+apply xrutt_facts.xrutt_bind with Q; first by apply hwb.
+move=> s1' s2' hQ.
+case hfin: (finalize_funcall fd1 s1') => [fr1 | e1]; last first.
+- rewrite /= bind_throw; apply xrutt.xrutt_CutL => //.
+  by rewrite /core_logics.errcutoff /is_error /Subevent.subevent /CategoryOps.resum /fromErr mid12.
+rewrite /= Eqit.bind_ret_l /isem_post.
+case hpo: (sem_post (wa := withassert) p fn1 (fvals fs1) fr1) => [[] | e1]; last first.
+- rewrite /= bind_throw; apply xrutt.xrutt_CutL => //.
+  by rewrite /core_logics.errcutoff /is_error /Subevent.subevent /CategoryOps.resum /fromErr mid12.
+have [s2'' hepi' [fr2 hfin2 hR]] := hepi _ _ _ hQ hfin hpo.
+rewrite /= Eqit.bind_ret_l (esem_i_bodyP hepi') /= Eqit.bind_ret_l hfin2 /= Eqit.bind_ret_l /sem_post /= Eqit.bind_ret_l.
+by apply xrutt.xrutt_Ret.
+Qed.
+Lemma fun_ind_st :
+  (forall fn1 fn2, fun_hyp_st fn1 fn2) ->
+  forall fn1 fn2,
+  wiequiv_f (wa1 := withassert) (wa2 := withassert_nocontract) p p' ev ev
+    (rpreF (eS := spec)) fn1 fn2 (rpostF (eS := spec)).
+Proof.
+move=> hbody fn1 fn2 fs1 fs2 hpre.
+apply xrutt_facts.interp_mrec_xrutt with (RPreInv := (@RPreD _ _ _ _ spec)) (RPostInv := (@RPostD _ _ _ _ spec)).
++ move=> _ _ [ii1 fn1' fs1'] [ii2 fn2' fs2'] hpre'.
+  have := fun_body_st (hbody fn1' fn2') hpre'.
+  apply xrutt_facts.xrutt_weaken => //.
+  + by move=> A e1; rewrite <- core_logics.errcutoff_conv; auto.
+  + move=> T1 T2 e1 e2; rewrite /EPreRel core_logics.sum_prerelP.
+    case: e1 e2 => [ [???] | ?] [ [???] | ?] //=.
+    + by case : mfun1.
+    + by case : mfun1.
+    by case: mfun1 => // ?; case: mfun1.
+  move=> T1 T2 e1 t1 e2 t2; rewrite /EPostRel core_logics.sum_postrelP.
+  case: e1 t1 e2 t2 => [ [???] | ?] ? [ [???] | ?] ? //=.
+  by case: mfun1 => // ?; case: mfun1.
+have := fun_body_st (hbody fn1 fn2) hpre.
+apply xrutt_facts.xrutt_weaken => //.
++ by move=> A e1; rewrite <- core_logics.errcutoff_conv; auto.
++ move=> T1 T2 e1 e2; rewrite /EPreRel core_logics.sum_prerelP.
+  case: e1 e2 => [ [???] | ?] [ [???] | ?] //=.
+  + by case : mfun1.
+  + by case : mfun1.
+  by case: mfun1 => // ?; case: mfun1.
+move=> T1 T2 e1 t1 e2 t2; rewrite /EPostRel core_logics.sum_postrelP.
+case: e1 t1 e2 t2 => [ [???] | ?] ? [ [???] | ?] ? //=.
+by case: mfun1 => // ?; case: mfun1.
+Qed.
+
+End FUN_RULE.
+Definition pre_st (fn : funname) (fs ft : fstate) :=
+  [/\ fscs fs = fscs ft, fmem fs = fmem ft &
+      forall fd, get_fundef (p_funcs p) fn = Some fd ->
+        mapM2 ErrType truncate_val (map eval_atype (f_tyin fd)) (fvals fs) =
+        mapM2 ErrType truncate_val (map eval_atype (f_tyin fd)) (fvals ft)].
+Definition spec_st : EquivSpec :=
+  {| rpreF_ := fun fn1 fn2 fs ft => fn1 = fn2 /\ pre_st fn1 fs ft
+   ; rpostF_ := fun _ _ _ _ fr1 fr2 => fr1 = fr2 |}.
+Lemma eq_globs_st : p_globs p' = p_globs p.
+Proof using Hp. by case: (c2a_prog_inv Hp). Qed.
+Lemma call_st R Q ii xs1 f es1 c0 xs2 es2 c1 :
+  (forall s t vs, R s t -> sem_pexprs true (p_globs p) s es1 = ok vs ->
+     sem_pre (wa := withassert) p f (mk_fstate vs s) = ok tt ->
+     exists2 t0, esem (wa := withassert_nocontract) p' ev c0 t = ok t0 &
+     exists2 vs', sem_pexprs true (p_globs p') t0 es2 = ok vs' &
+     rpreF (eS := spec_st) f f (mk_fstate vs s) (mk_fstate vs' t0) /\
+     forall fr s', sem_post (wa := withassert) p f vs fr = ok tt ->
+       upd_estate true (p_globs p) xs1 fr s = ok s' ->
+       exists2 t', (Let t1 := upd_estate true (p_globs p') xs2 fr t0 in
+                    esem (wa := withassert_nocontract) p' ev c1 t1) = ok t' & Q s' t') ->
+  wequiv_rec (wa1 := withassert) (wa2 := withassert_nocontract) p p' ev ev spec_st R
+    [:: MkI ii (Ccall xs1 f es1)] (c0 ++ MkI ii (Ccall xs2 f es2) :: c1) Q.
+Proof.
+move=> h s t hR.
+rewrite isem_cmd_cat /=.
+rewrite Eqit.bind_ret_r /isem_pexprs.
+case hes: (sem_pexprs true (p_globs p) s es1) => [vs | e]; last first.
+- rewrite /= bind_throw; apply xrutt.xrutt_CutL => //.
+  by rewrite /core_logics.errcutoff /is_error /Subevent.subevent /CategoryOps.resum /fromErr mid12.
+rewrite /= Eqit.bind_ret_l /isem_pre.
+case hpre: (sem_pre (wa := withassert) p f (mk_fstate vs s)) => [[] | e]; last first.
+- rewrite /= bind_throw; apply xrutt.xrutt_CutL => //.
+  by rewrite /core_logics.errcutoff /is_error /Subevent.subevent /CategoryOps.resum /fromErr mid12.
+have [t0 hc0 [vs' hes2 [hPf hpost]]] := h _ _ _ hR hes hpre.
+rewrite /= Eqit.bind_ret_l (esem_i_bodyP hc0) /= Eqit.bind_ret_l hes2 /= Eqit.bind_ret_l /sem_pre /= Eqit.bind_ret_l.
+rewrite Eqit.bind_bind.
+apply xrutt_facts.xrutt_bind with (rpostF (eS := spec_st) f f (mk_fstate vs s) (mk_fstate vs' t0)).
++ by apply (@wequiv_fun_rec _ _ _ _ _ _ _ _ _ _ p p' ev ev spec_st ii ii f f).
+move=> fr fr2 /= ?; subst fr2; rewrite /isem_post.
+case hpo: (sem_post (wa := withassert) p f vs fr) => [[] | e]; last first.
+- rewrite /= bind_throw; apply xrutt.xrutt_CutL => //.
+  by rewrite /core_logics.errcutoff /is_error /Subevent.subevent /CategoryOps.resum /fromErr mid12.
+case hup: (upd_estate true (p_globs p) xs1 fr s) => [s' | e]; last first.
+- rewrite /= Eqit.bind_ret_l /= /iresult; apply xrutt.xrutt_CutL => //.
+  by rewrite /core_logics.errcutoff /is_error /Subevent.subevent /CategoryOps.resum /fromErr mid12.
+have [t' ht' hQ] := hpost _ _ hpo hup.
+move: ht'; case hup': upd_estate => [t1 | //] /= hc1.
+rewrite !Eqit.bind_ret_l (esem_i_bodyP hc1).
+by apply xrutt.xrutt_Ret.
+Qed.
+Lemma esem_asserts_ok (P : prog) ii l (s : estate) :
+  (forall a, List.In a l -> sem_eassert (p_globs P) s a.2 = ok true) ->
+  esem (wa := withassert_nocontract) P ev (assert_all ii l) s = ok s.
+Proof.
+elim: l => [ | a l ih] //= h.
+rewrite /esem /= /sem_assert /= (h a (or_introl erefl)) /=.
+by apply ih => a' ha'; apply h; right.
+Qed.
+Lemma write_vars_cat wdb xs1 xs2 vs1 vs2 (s : estate) :
+  size xs1 = size vs1 ->
+  write_vars wdb (xs1 ++ xs2) (vs1 ++ vs2) s = Let s1 := write_vars wdb xs1 vs1 s in write_vars wdb xs2 vs2 s1.
+Proof.
+elim: xs1 vs1 s => [ | x xs1 ih] [ | v vs1] //= s [hs].
+by case: write_var => //= s1; apply ih.
+Qed.
+Lemma write_vars_with wdb xs vs (s s' : estate) m scs :
+  write_vars wdb xs vs s = ok s' ->
+  write_vars wdb xs vs (with_scs (with_mem s m) scs) = ok (with_scs (with_mem s' m) scs).
+Proof.
+elim: xs vs s => [ | x xs ih] [ | v vs] //= s; first by move=> [<-].
+by t_xrbindP => s1 /write_varP [-> hdb htr] /ih; rewrite (write_var_truncate hdb htr).
+Qed.
+Lemma c2a_call_st X Y ii lvs f es fd ci acc acc' c' :
+  get_fundef (p_funcs p) f = Some fd -> f_contract fd = Some ci ->
+  Sv.Subset (vars_I (MkI ii (Ccall lvs f es))) Y -> Sv.Subset Y X ->
+  call_with_contract fresh_var_ident ii X acc lvs f es (f_tyin fd) ci = ok (acc', c') ->
+  wequiv_rec (wa1 := withassert) (wa2 := withassert_nocontract) p p' ev ev spec_st
+    (st_eq_on Y) [:: MkI ii (Ccall lvs f es)] c' (st_eq_on Y).
+Proof using Hp.
+move=> hfd hci hsub hYX /call_with_contractP [ip [ds [-> hsize htyip hipX htyds hds huniq]]].
+have [_ _ _ hchk] := c2a_prog_inv Hp.
+have [htyi htyo htyp hup hsres hpreC hpostC hdisj] := check_contractP (hchk _ _ hfd) hci.
+rewrite vars_I_call in hsub.
+have huniq' := huniq ltac:(rewrite /vars_lvals in hsub; clear -hsub hYX; SvD.fsetdec).
+have hui : uniq [seq v_var x | x <- ip] by move: huniq'; rewrite map_cat cat_uniq => /andP [].
+rewrite catA; apply call_st => s t vs hst hes hpre.
+have [vargs [Sp [hvargs hSp hpreSp]]] := (sem_preE _ hfd hci).1 hpre.
+have hdis : forall x, Sv.In x (vars_l ip) -> ~ Sv.In x (read_es es).
++ by move=> x /hipX hx hx'; apply hx; clear -hx' hsub hYX; SvD.fsetdec.
+case: (hst) => hst1 hst2 hst3.
+have hes' : sem_pexprs true (p_globs p') t es = ok vs.
++ rewrite eq_globs_st -hes; apply: eq_on_sem_pexprs => //.
+  by apply/eq_on_mode => z hz; symmetry; apply hst3; clear -hz hsub; SvD.fsetdec.
+have [t1 hcp hw] := copy_es_ok (wa := withassert_nocontract) ev ii hdis (etrans htyip htyi) hes' hvargs.
+have hren := rename_map_write htyip hui hSp hw.
+have [hscs1 hmem1] := write_vars_scs_mem hw.
+have hasserts : esem (wa := withassert_nocontract) p' ev
+   (assert_all ii [seq rename_assertion (rename_map (f_iparams ci) ip) i | i <- f_pre ci]) t1 = ok t1.
++ apply esem_asserts_ok => a /List.in_map_iff [a0 [<- ha0]] /=.
+  rewrite eq_globs_st (rename_eassertP _ _ hren (hpreC _ ha0)); first exact: hpreSp.
+  by rewrite hmem1; have [_ ->] := write_vars_scs_mem hSp.
+exists t1; first by rewrite esem_cat hcp /= hasserts.
+exists vargs.
++ apply: write_vars_read hui _ (mapM2_truncate_defined hvargs) hw.
+  by rewrite (mapM2_truncate_val_has_type hvargs) -htyi -htyip -map_comp.
+split.
++ split => //; split => //=; first by rewrite hscs1 hst1.
+  + by rewrite hmem1 hst2.
+  by move=> fd0; rewrite hfd => -[<-]; rewrite hvargs (mapM2_truncate_idem hvargs).
+move=> fr s' hpo hupd.
+have [vargs2 [Sp2 [Sq [hvargs2 hSp2 hSq hpostSq]]]] := (sem_postE _ _ hfd hci).1 hpo.
+move: hvargs2; rewrite hvargs => -[?]; subst vargs2.
+move: hupd; rewrite /upd_estate => hupd.
+have hY1 : evm s =[Y] evm t1.
++ move=> z hz; rewrite hst3 //; apply: (write_vars_eq_ex hw) => /sv_of_listP /vars_lP /hipX; apply.
+  by clear -hz hYX; SvD.fsetdec.
+have hstw : st_eq_on Y (with_scs (with_mem s (fmem fr)) (fscs fr)) (with_scs (with_mem t1 (fmem fr)) (fscs fr)) by split.
+have [t2 hw2 hst2'] := dests_write_st hYX hds hstw hupd.
+rewrite eq_globs_st hw2 /=.
+have hszv : size ip = size vargs by exact: size_fold2 hw.
+have hszp : size (f_iparams ci) = size vargs by rewrite -hszv -(size_map (fun x : var_i => vtype x)) -htyip size_map.
+have hWs : write_vars true (f_iparams ci ++ f_ires ci) (vargs ++ fvals fr) (Estate (fscs fr) (fmem fr) Vm.init) = ok Sq.
++ by rewrite write_vars_cat // hSp2.
+have hWt : write_vars true (ip ++ ds) (vargs ++ fvals fr) (with_scs (with_mem t (fmem fr)) (fscs fr)) = ok t2.
++ rewrite write_vars_cat // (write_vars_with _ _ hw) /=.
+  move: hw2; clear; move: (with_scs _ _) (fvals fr) t2; elim: (ds) => [ | d ds' ih] s0 [ | v vs0] t2' //=.
+  by case: write_var => //= ?; apply ih.
+have htys2 : [seq vtype (v_var y) | y <- ip ++ ds] = [seq vtype (v_var x) | x <- f_iparams ci ++ f_ires ci].
++ by rewrite !map_cat htyip htyds.
+have hren2 := rename_map_write htys2 huniq' hWs hWt.
+exists t2 => //.
+apply esem_asserts_ok => a /List.in_map_iff [a0 [<- ha0]] /=.
+rewrite eq_globs_st (rename_eassertP _ _ hren2).
++ exact: hpostSq ha0.
++ have [_ ->] := write_vars_scs_mem hWt; have [_ ->] := write_vars_scs_mem hWs; done.
+by rewrite vars_l_cat; apply: hpostC ha0.
+Qed.
+#[local] Lemma checker_st_eq_onP_st : Checker_eq p p' checker_st_eq_on.
+Proof using Hp. by apply checker_st_eq_onP; rewrite eq_globs_st. Qed.
+#[local] Lemma checker_a_st_eq_onP_st : Checker_a_eq p p' checker_a_st_eq_on.
+Proof using Hp. by apply checker_a_st_eq_onP; rewrite eq_globs_st. Qed.
+Lemma c2a_call_nc_st Y ii lvs f es :
+  Sv.Subset (vars_I (MkI ii (Ccall lvs f es))) Y ->
+  wequiv_rec (wa1 := withassert) (wa2 := withassert_nocontract) p p' ev ev spec_st
+    (st_eq_on Y) [:: MkI ii (Ccall lvs f es)] [:: MkI ii (Ccall lvs f es)] (st_eq_on Y).
+Proof using Hp.
+rewrite vars_I_call /vars_lvals => hsub.
+apply wequiv_call_wa with (Pf := rpreF (eS := spec_st)) (Qf := rpostF (eS := spec_st)) (Rv := eq).
++ rewrite -eq_globs_st; apply read_es_st_eq_on; clear -hsub; SvD.fsetdec.
++ by [].
++ by move=> t s vs _ [h1 h2 _] <-; split => //; split.
++ by [].
++ exact: (@wequiv_fun_rec _ _ _ _ _ _ _ _ _ _ p p' ev ev spec_st ii ii f f).
+move=> fs1 fs2 fr1 fr2 _ /= <-; rewrite /upd_estate -eq_globs_st => s t s' [h1 h2 h3] hw.
+have hrd : Sv.Subset (read_rvs lvs) Y by clear -hsub; SvD.fsetdec.
+have [|t' ht' hst] := write_lvals_st_eq_on hrd (i1 := with_scs (with_mem s (fmem fr1)) (fscs fr1)) (i2 := with_scs (with_mem t (fmem fr1)) (fscs fr1)) _ hw.
++ by split.
+exists t' => //; apply: st_rel_weaken hst => ??; apply eq_onI; clear; SvD.fsetdec.
+Qed.
+#[local] Hint Resolve checker_st_eq_onP_st checker_a_st_eq_onP_st : core.
+Let Pi_st (i : instr) :=
+  forall X Y acc acc' c', Sv.Subset (vars_I i) Y -> Sv.Subset Y X ->
+  c2a_i fresh_var_ident p X acc i = ok (acc', c') ->
+  wequiv_rec (wa1 := withassert) (wa2 := withassert_nocontract) p p' ev ev spec_st
+    (st_eq_on Y) [:: i] c' (st_eq_on Y).
+
+Let Pr_st (ir : instr_r) := forall ii, Pi_st (MkI ii ir).
+
+Let Pc_st (c : cmd) :=
+  forall X Y acc acc' c', Sv.Subset (vars_c c) Y -> Sv.Subset Y X ->
+  c2a_c (c2a_i fresh_var_ident p X) acc c = ok (acc', c') ->
+  wequiv_rec (wa1 := withassert) (wa2 := withassert_nocontract) p p' ev ev spec_st
+    (st_eq_on Y) c c' (st_eq_on Y).
+
+Lemma c2a_body_st : forall c, Pc_st c.
+Proof using Hp.
+apply (cmd_rect (Pr := Pr_st) (Pi := Pi_st) (Pc := Pc_st)).
++ done.
++ by move=> X Y acc acc' c' _ _ [_ <-]; apply wequiv_nil.
++ move=> i c Hi Hc X Y acc acc' c' hsub hYX /=.
+  t_xrbindP => -[acc1 ci] hci -[acc2 cc] hcc _ <-.
+  rewrite vars_c_cons in hsub.
+  rewrite -cat1s; apply wequiv_cat with (st_eq_on Y).
+  + by apply: (Hi _ _ _ _ _ _ hYX hci); clear -hsub; SvD.fsetdec.
+  by apply: (Hc _ _ _ _ _ _ hYX hcc); clear -hsub; SvD.fsetdec.
+{ move=> x tg ty e ii X Y acc acc' c' hsub _ [_ <-].
+  rewrite vars_I_assgn /vars_lval in hsub.
+  apply wequiv_assgn_rel_eq with checker_st_eq_on Y => //.
+  all: by split; try done; rewrite /read_es /read_rvs /=; clear -hsub; SvD.fsetdec. }
+{ move=> xs tg o es ii X Y acc acc' c' hsub _ [_ <-].
+  rewrite vars_I_opn /vars_lvals in hsub.
+  apply wequiv_opn_rel_eq with checker_st_eq_on Y => //.
+  all: by split; try done; clear -hsub; SvD.fsetdec. }
+{ move=> xs o es ii X Y acc acc' c' hsub _ [_ <-].
+  rewrite vars_I_syscall /vars_lvals in hsub.
+  apply wequiv_syscall_rel_eq_core with (ce := checker_st_eq_on) (d := Y) (de := Y).
+  + exact: checker_st_eq_onP_st.
+  1,2: by split; try done; clear -hsub; SvD.fsetdec.
+  exact: wrequiv_eq. }
+{ move=> a ii X Y acc acc' c' hsub _ [_ <-].
+  rewrite vars_I_assert in hsub.
+  apply wequiv_assert_rel_eq with (ca := checker_a_st_eq_on) (d := Y) (de := Y) => //.
+  by split; try done; clear -hsub; SvD.fsetdec. }
+{ move=> e c1 c2 Hc1 Hc2 ii X Y acc acc' c' hsub hYX /=.
+  t_xrbindP => -[acc1 c1'] hc1 -[acc2 c2'] hc2 _ <-.
+  rewrite vars_I_if in hsub.
+  apply wequiv_if_rel_eq with checker_st_eq_on Y Y Y => //.
+  + by split; try done; clear -hsub; SvD.fsetdec.
+  + by apply: (Hc1 _ _ _ _ _ _ hYX hc1); clear -hsub; SvD.fsetdec.
+  by apply: (Hc2 _ _ _ _ _ _ hYX hc2); clear -hsub; SvD.fsetdec. }
+{ move=> v dir lo hi c Hc ii X Y acc acc' c' hsub hYX /=.
+  t_xrbindP => -[acc1 c1'] hc _ <-.
+  rewrite vars_I_for in hsub.
+  apply wequiv_for_rel_eq with checker_st_eq_on Y Y => //.
+  + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
+  + by split; try done; clear -hsub; SvD.fsetdec.
+  by apply: (Hc _ _ _ _ _ _ hYX hc); clear -hsub; SvD.fsetdec. }
+{ move=> a c e info c2 Hc Hc2 ii X Y acc acc' c'' hsub hYX /=.
+  t_xrbindP => -[acc1 c1'] hc -[acc2 c2'] hc2 _ <-.
+  rewrite vars_I_while in hsub.
+  apply wequiv_while_rel_eq with checker_st_eq_on Y => //.
+  + by split; try done; clear -hsub; SvD.fsetdec.
+  + by apply: (Hc _ _ _ _ _ _ hYX hc); clear -hsub; SvD.fsetdec.
+  by apply: (Hc2 _ _ _ _ _ _ hYX hc2); clear -hsub; SvD.fsetdec. }
+move=> xs f es ii X Y acc acc' c' hsub hYX /=.
+case hfd: get_fundef => [fd | //]; case hci: f_contract => [ci | ].
++ exact: c2a_call_st hfd hci hsub hYX.
+by move=> [_ <-]; apply: c2a_call_nc_st hsub.
+Qed.
+
+
+Lemma c2a_fun_st fn :
+  wiequiv_f (wa1 := withassert) (wa2 := withassert_nocontract) p p' ev ev
+    (rpreF (eS := spec_st)) fn fn (rpostF (eS := spec_st)).
+Proof using Hp.
+apply fun_ind_st => {}fn _ fs ft [<- hpre] fd hfd.
+move: (c2a_get_fundef Hp fn); rewrite hfd => -[fd' hc2a hfd'].
+exists fd' => // hpre_s s hinit.
+have [acc [body' [hbody [_ hcontr htyin hparams htyout hres hextra] [ii hb]]]] := c2a_fdP hc2a.
+have [_ _ _ hchk] := c2a_prog_inv Hp.
+have hinit' : initialize_funcall p' ev fd' ft = ok s.
++ move: hinit; case: hpre => hscs hmem /(_ _ hfd) htr.
+  rewrite /initialize_funcall htyin hparams hextra /estate0 hscs hmem /dc_truncate_val /= htr.
+  by [].
+exists s => //.
+move: hb hbody hcontr; rewrite /c2a_X; case hci: (f_contract fd) => [ci | ] /= hb hbody hcontr; last first.
++ exists (fun s1 s2 => s1 = s /\ s2 = s), (st_eq_on (vars_fd (pT := progUnit) fd)), body', [::].
+  split => //; first by rewrite hb cats0.
+  + have hb' := c2a_body_st (c := f_body fd) (X := Sv.union (vars_fd (pT := progUnit) fd) Sv.empty) (Y := vars_fd (pT := progUnit) fd) ltac:(rewrite /vars_fd; clear; SvD.fsetdec) ltac:(clear; SvD.fsetdec) hbody.
+    eapply wkequiv_weaken; last exact hb'.
+    1,2,4: by [].
+    by move=> ?? [-> ->].
+  move=> s1 s2 fr1 hst hf _; exists s2 => //; exists fr1 => //.
+  have hfin := finalize_eq_on (esym htyout) (esym hres); apply: hfin hf.
+  by apply: st_rel_weaken hst => ??; apply eq_onI; rewrite /vars_fd; clear; SvD.fsetdec.
+have [htyi htyo htyp hup hsres hpreC hpostC hdisj] := check_contractP (hchk _ _ hfd) hci.
+have hdz : forall z, Sv.In z (contract_vars ci) -> ~ Sv.In z (vars_fd (pT := progUnit) fd) by apply/disjointP.
+have [vargs [Sp [hvargs hSp hpreSp]]] := (sem_preE _ hfd hci).1 hpre_s.
+move: hinit; rewrite /initialize_funcall /dc_truncate_val /= hvargs /= => hinit.
+exists (fun s1 s2 => s1 = s /\ s2 = s),
+  (fun s1 s2 => st_eq_on (vars_fd (pT := progUnit) fd) s1 s2 /\ evm s2 =[vars_l (f_iparams ci)] evm Sp),
+  (copy_es ii (f_iparams ci) (f_tyin fd) [seq Plvar i | i <- f_params fd] ++ assert_all ii (f_pre ci) ++ body'),
+  (copy_es ii (f_ires ci) (f_tyout fd) [seq Plvar i | i <- f_res fd] ++ assert_all ii (f_post ci)).
+split => //; first by rewrite hb -!catA.
++ rewrite catA -[f_body fd]cat0s.
+  apply wequiv_cat with (fun s1 s2 => st_eq_on (vars_fd (pT := progUnit) fd) s1 s2 /\ evm s2 =[vars_l (f_iparams ci)] evm Sp).
+  + apply wequiv_basic_esem => // s1 s2 s1' [-> ->] [<-].
+    have hdis : forall x, Sv.In x (vars_l (f_iparams ci)) -> ~ Sv.In x (read_es [seq Plvar i | i <- f_params fd]).
+    + move=> x hx; rewrite vars_l_read_es => hx'.
+      apply: (hdz x); rewrite /contract_vars /vars_fd; clear -hx hx'; SvD.fsetdec.
+    have hrd : sem_pexprs true (p_globs p') s [seq Plvar i | i <- f_params fd] = ok vargs.
+    + apply: write_vars_read hup _ (mapM2_truncate_defined hvargs) hinit.
+      by rewrite (mapM2_truncate_val_has_type hvargs) -htyp -map_comp.
+    have [t1 hcp hw] := copy_es_ok (wa := withassert_nocontract) ev ii hdis htyi hrd (mapM2_truncate_idem hvargs).
+    have hIP : evm t1 =[vars_l (f_iparams ci)] evm Sp.
+    + have := write_vars_eq_on2 (Z := Sv.empty) hw hSp.
+      move=> /(_ ltac:(by move=> ?; clear; SvD.fsetdec)) h z hz; apply h; clear -hz; SvD.fsetdec.
+    have [hscs1 hmem1] := write_vars_scs_mem hw.
+    have [_ hmemS] := write_vars_scs_mem hinit.
+    have [_ hmemP] := write_vars_scs_mem hSp.
+    exists t1.
+    + rewrite esem_cat hcp /=; apply esem_asserts_ok => a ha.
+      rewrite eq_globs_st (eq_on_sem_eassert _ (s' := Sp)); first exact: hpreSp.
+      + by rewrite hmem1 hmemS hmemP.
+      by move=> z hz; apply hIP; apply: hpreC ha _ hz.
+    split => //.
+    split; [by rewrite hscs1 | by rewrite hmem1 | ].
+    move=> z hz; apply: (write_vars_eq_ex hw) => /sv_of_listP /vars_lP hz'.
+    by apply: (hdz z) hz; rewrite /contract_vars; clear -hz'; SvD.fsetdec.
+  have hb' := c2a_body_st (c := f_body fd) (X := Sv.union (vars_fd (pT := progUnit) fd) (contract_vars ci)) (Y := vars_fd (pT := progUnit) fd) ltac:(rewrite /vars_fd; clear; SvD.fsetdec) ltac:(clear; SvD.fsetdec) hbody.
+  have hwr := c2a_write hbody.
+  apply: wkequiv_eq_pred => s0 t0 [h0 hIP].
+  have := wequiv_write2 hb' (s2_ := t0).
+  move=> h; eapply wkequiv_weaken; last exact h.
+  1,2: by [].
+  + by move=> ?? [-> ->].
+  move=> _ _ o1 o2 _ [hex hst]; split => // z hz.
+  rewrite -hIP // hex //.
+  move=> /hwr [hw | hX].
+  + by apply: (hdz z); rewrite /contract_vars /vars_fd /vars_c; clear -hz hw; SvD.fsetdec.
+  by apply: hX; rewrite /contract_vars; clear -hz; SvD.fsetdec.
+move=> s1 s2 fr1 [[hst1 hst2 hst3] hIP] hf hpo.
+have := hf; rewrite {1}/finalize_funcall; t_xrbindP => vsr hvsr vres hvres hfr.
+have hvsr2 : sem_pexprs true (p_globs p') s2 [seq Plvar i | i <- f_res fd] = ok vsr.
++ rewrite sem_pexprs_get_var -hvsr.
+  have : forall z, Sv.In z (vars_l (f_res fd)) -> Vm.get (sm := partial) (evm s1) z = Vm.get (sm := partial) (evm s2) z.
+  + by move=> z hz; apply hst3; rewrite /vars_fd; clear -hz; SvD.fsetdec.
+  elim: (f_res fd) => //= x xs ih hx.
+  rewrite ih; last by move=> z hz; apply hx; rewrite /=; clear -hz; SvD.fsetdec.
+  have hxe : Vm.get (sm := sm) (evm s2) x = Vm.get (sm := sm) (evm s1) x.
+  + by apply Vm.get_eq_mode => //; symmetry; apply hx; rewrite /=; clear; SvD.fsetdec.
+  by rewrite /get_var hxe.
+have hdis : forall x, Sv.In x (vars_l (f_ires ci)) -> ~ Sv.In x (read_es [seq Plvar i | i <- f_res fd]).
++ move=> x hx; rewrite vars_l_read_es => hx'.
+  apply: (hdz x); rewrite /contract_vars /vars_fd; clear -hx hx'; SvD.fsetdec.
+have [t3 hcp hw] := copy_es_ok (wa := withassert_nocontract) ev ii hdis htyo hvsr2 hvres.
+have [vargs2 [Sp2 [Sq [hvargs2 hSp2 hSq hpostSq]]]] := (sem_postE _ _ hfd hci).1 hpo.
+move: hvargs2; rewrite hvargs => -[?]; subst vargs2.
+have [hscs3 hmem3] := write_vars_scs_mem hw.
+have hPP : evm s2 =[vars_l (f_iparams ci)] evm Sp2.
++ have := write_vars_eq_on2 (Z := Sv.empty) hSp hSp2.
+  move=> /(_ ltac:(by move=> ?; clear; SvD.fsetdec)) h z hz.
+  by rewrite hIP // h //; clear -hz; SvD.fsetdec.
+rewrite -hfr /= in hSq.
+have hC : evm t3 =[contract_vars ci] evm Sq.
++ have := write_vars_eq_on2 hw hSq hPP.
+  by move=> h z hz; apply h; rewrite /contract_vars in hz; clear -hz; SvD.fsetdec.
+exists t3.
++ rewrite esem_cat hcp /=; apply esem_asserts_ok => a ha.
+  rewrite eq_globs_st (eq_on_sem_eassert _ (s' := Sq)); first exact: hpostSq.
+  + have [_ ->] := write_vars_scs_mem hSq; have [_ ->] := write_vars_scs_mem hSp2.
+    by rewrite hmem3 -hst2 -hfr.
+  by move=> z hz; apply hC; apply: hpostC ha _ hz.
+exists fr1 => //.
+have hfin := finalize_eq_on (esym htyout) (esym hres); apply: hfin hf.
+split => //; first by rewrite hscs3.
++ by rewrite hmem3.
+move=> z hz; rewrite -(write_vars_eq_ex hw); first by apply hst3; rewrite /vars_fd; clear -hz; SvD.fsetdec.
+move=> /sv_of_listP /vars_lP hz'.
+by apply: (hdz z); rewrite /contract_vars /vars_fd; clear -hz hz'; SvD.fsetdec.
+Qed.
+
+Lemma c2a_src_tgt fn :
+  wiequiv_f (wa1 := withassert) (wa2 := withassert_nocontract) p p' ev ev
+    (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
+Proof using Hp.
+move=> fs _ [_ <-].
+have h : rpreF (eS := spec_st) fn fn fs fs by split => //; split.
+have := c2a_fun_st h.
+by apply xrutt_facts.xrutt_weaken.
+Qed.
+
+End SRC_TGT.
+
 
 (* When the transformed program runs without failure, its assertions
    evaluated, the source runs with the same results, its contracts
@@ -1050,7 +1501,7 @@ Proof. by move=> > hp fn; exact: (c2a_tgt_src _ hp (fn := fn)). Qed.
 (* When the source runs without failure, its contracts evaluated, the
    transformed program runs with the same results, its assertions
    evaluated. *)
-Axiom contracts_to_asserts_src_tgt :
+Theorem contracts_to_asserts_src_tgt :
   forall {asm_op syscall_state : Type} {ep : EstateParams syscall_state}
     {spp : SemPexprParams} {sip : SemInstrParams asm_op syscall_state} {sm : SemMode}
     {E E0 : Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}
@@ -1060,3 +1511,4 @@ Axiom contracts_to_asserts_src_tgt :
   forall fn,
   wiequiv_f (wa1 := withassert) (wa2 := withassert_nocontract)
     p p' ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
+Proof. by move=> > hp fn; exact: (c2a_src_tgt _ hp (fn := fn)). Qed.
