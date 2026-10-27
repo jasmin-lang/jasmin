@@ -114,12 +114,15 @@ Definition rm_params_fd (fn : funname) (fd : ufundef) : ufundef :=
      f_extra := fd.(f_extra);
   |}.
 
-(* The parameters of [fd] that [kp] removes are not live at the entry of the
-   body of [fd'], the function once transformed. *)
-Definition check_params (fn : funname) (fd fd' : ufundef) : cexec unit :=
+(* The parameters of [fd] that [kp] removes are not live at the entry of its
+   body once these parameters are removed, as [dead_code] computes the
+   liveness when it removes the results that [kr] tells dead. *)
+Definition check_params (kr : funname -> option (seq bool)) (fn : funname) (fd : ufundef) :
+  cexec unit :=
   if kp fn is Some k then
-    let s := read_es (map Plvar fd'.(f_res)) in
-    Let sc := dead_code_c (dead_code_i (fun _ => None)) fd'.(f_body) s in
+    let fd' := rm_params_fd fn fd in
+    let s := read_es (map Plvar (fn_keep_only kr fn fd'.(f_res))) in
+    Let sc := dead_code_c (dead_code_i kr) fd'.(f_body) s in
     assert (all (fun b => b.1 || ~~ Sv.mem (v_var b.2) sc.1) (zip k fd.(f_params)))
       live_param_error
   else ok tt.
@@ -144,10 +147,7 @@ Definition dead_args_round (p : _uprog) :
   let kr := res_keep p in
   let p1 := map_prog_name (pT := progUnit) (rm_params_fd kp) p in
   Let p2 := dead_code_prog_tokeep (pT := progUnit) (fun _ => false) (fun _ fi => fi) false kr p1 in
-  Let _ := allM (fun f =>
-    if get_fundef (p_funcs p2) f.1 is Some fd' then
-      add_funname f.1 (check_params kp f.1 f.2 fd')
-    else ok tt) (p_funcs p) in
+  Let _ := allM (fun f => add_funname f.1 (check_params kp kr f.1 f.2)) (p_funcs p) in
   let changed := has (fun f => isSome (kp f.1) || isSome (kr f.1)) (p_funcs p) in
   ok (p2, changed, kp, kr).
 
