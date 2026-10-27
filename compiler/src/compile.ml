@@ -75,7 +75,6 @@ let do_wint_int
     (module Arch : Arch_full.Arch
        with type asm_op = asm_op
        and type extra_op = extra_op) prog =
-  let fdsi = snd prog in
   let get_info p =
     let p = Conv.prog_of_cuprog p in
     let fv = List.fold_left (fun fv fd -> Sv.union fv (vars_fc_contract fd)) Sv.empty (snd p) in
@@ -100,21 +99,7 @@ let do_wint_int
   let cp = Conv.cuprog_of_prog prog in
   let cp = Wint_int.wi2i_prog Arch.asmOp Arch.pointer_data Arch.msf_size get_info cp in
   let cp = catch_error cp in
-  let (gd, fdso) = Conv.prog_of_cuprog cp in
-  (* Restore type of array in the functions signature *)
-  let restore_ty tyi tyo =
-    match tyi, tyo with
-    | Arr(ws1, l1), Arr(ws2, l2) -> assert (arr_size ws1 l1 = arr_size ws2 l2); tyi
-    | Bty (U _), Bty Int -> tyo
-    | _, _ -> assert (tyi = tyo); tyo
-  in
-  let restore_sig fdi fdo =
-    { fdo with
-      f_tyin = List.map2 restore_ty fdi.f_tyin fdo.f_tyin;
-      f_tyout = List.map2 restore_ty fdi.f_tyout fdo.f_tyout;
-    } in
-  let fds = List.map2 restore_sig fdsi fdso in
-  (gd, fds)
+  Conv.prog_of_cuprog cp
 
 
 (* -------------------------------------------------------------------- *)
