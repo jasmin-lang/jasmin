@@ -47,7 +47,7 @@ Module Import E.
 
   Definition contract_error :=
     pp_internal_error_s pass
-      "a contract does not match the signature of its function, reads a variable it does not bind, or binds a variable of the function".
+      "a contract does not match the signature of its function, reads a variable it does not bind, or binds a variable of the function, or the parameters of the function are not distinct variables of the types of its arguments".
 
   Definition fresh_error (ii : instr_info) :=
     pp_internal_error_s_at pass ii "fresh auxiliary variable is not fresh".
@@ -55,6 +55,9 @@ Module Import E.
   Definition call_error (ii : instr_info) :=
     pp_internal_error_s_at pass ii
       "the arguments or the destinations of a call to a function with a contract do not match its signature".
+
+  Definition unknown_fun_error (ii : instr_info) :=
+    pp_internal_error_s_at pass ii "call to an unknown function".
 
 End E.
 
@@ -179,7 +182,7 @@ Fixpoint c2a_i (X acc : Sv.t) (i : instr) : cexec (Sv.t * cmd) :=
       if fd.(f_contract) is Some ci then
         call_with_contract ii X acc lvs f es fd.(f_tyin) ci
       else ok (acc, [:: i])
-    else ok (acc, [:: i])
+    else Error (E.unknown_fun_error ii)
   | Cif e c1 c2 =>
     Let ac1 := c2a_c (c2a_i X) acc c1 in
     Let ac2 := c2a_c (c2a_i X) ac1.1 c2 in
@@ -215,13 +218,17 @@ Definition contracts_to_asserts_fd (fd : ufundef) : cexec ufundef :=
 (* The contract binds one variable per parameter and per result, of its type;
    its precondition reads only its parameters, its postcondition only its
    parameters and results; its variables are not variables of the
-   function. *)
+   function. The parameters of the function are pairwise distinct and of the
+   types of its arguments: after the initialisation of the function, each of
+   them holds its argument, which the copies give to the contract. *)
 Definition check_contract (fd : ufundef) : cexec unit :=
   if fd.(f_contract) is Some ci then
     let iparams := vars_l ci.(f_iparams) in
     assert
       [&& all2 (fun (x : var_i) ty => vtype x == ty) ci.(f_iparams) fd.(f_tyin),
           all2 (fun (x : var_i) ty => vtype x == ty) ci.(f_ires) fd.(f_tyout),
+          all2 (fun (x : var_i) ty => vtype x == ty) fd.(f_params) fd.(f_tyin),
+          uniq [seq v_var x | x <- fd.(f_params)],
           size ci.(f_iparams) == size fd.(f_params),
           size ci.(f_ires) == size fd.(f_res),
           Sv.subset (read_easserts [seq a.2 | a <- ci.(f_pre)]) iparams,
