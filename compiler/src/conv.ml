@@ -417,5 +417,4 @@ let fresh_var_ident_with annot =
 
 let fresh_var_ident = fresh_var_ident_with []
 
-let fresh_removable_var_ident () =
-  fresh_var_ident_with [ (L.mk_loc L._dummy Annotations.removable, None) ]
+let fresh_var_ident_gen () = fresh_var_ident_with []

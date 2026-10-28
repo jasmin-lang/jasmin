@@ -146,16 +146,14 @@ let toec_entries fnames (fds : ('info, 'asm) func list) =
     || not (Sf.mem fd.f_name called)
     || List.mem fd.f_name.fn_name fnames
 
-(* The variables that the passes of the extraction for safety introduce and
-   that the plain extraction through them removes carry the annotation
-   [Annotations.removable]: those that [contracts_to_asserts] introduces,
-   named by [fresh_removable], and the masks of [explicit_init], given by
-   [mask]. The mask of an array is an array of the same type, the mask of a
-   scalar is a boolean. *)
-let toec_removable () =
-  let annot = [ (L.mk_loc L._dummy Annotations.removable, None) ] in
-  let fresh_removable =
-    let fresh = Conv.fresh_removable_var_ident () in
+(* The variables that the extraction for safety introduces: the copies that
+   [contracts_to_asserts] introduces, named by [fresh_copy], a generator of
+   their own, and the masks of [explicit_init], given by [mask]. The mask of
+   an array is an array of the same type, the mask of a scalar is a
+   boolean. *)
+let toec_safety_vars () =
+  let fresh_copy =
+    let fresh = Conv.fresh_var_ident_gen () in
     fun vk ii -> fresh vk ii (Uint63.of_int 0)
   in
   let masks = Hv.create 101 in
@@ -166,13 +164,13 @@ let toec_removable () =
       | m -> m
       | exception Not_found ->
         let ty = match x.v_ty with Arr _ -> x.v_ty | _ -> tbool in
-        let m = V.mk ("b_" ^ x.v_name) x.v_kind ty x.v_dloc annot in
+        let m = V.mk ("b_" ^ x.v_name) x.v_kind ty x.v_dloc [] in
         Hv.add masks x m;
         m
     in
     Conv.cvar_of_var m
   in
-  (fresh_removable, mask)
+  (fresh_copy, mask)
 
 let do_toec_safety
    (type asm_op extra_op)
@@ -180,7 +178,7 @@ let do_toec_safety
        with type asm_op = asm_op
        and type extra_op = extra_op) ?(wi2i = true) ?(fnames = [])
     ((_, fds) as prog) =
-  let fresh_removable, mask = toec_removable () in
+  let fresh_copy, mask = toec_safety_vars () in
   (* The parameters and results kept by [Dead_args]: those of the entries; the
      dead ones are computed by [DeadArgs]. *)
   let is_entry = toec_entries fnames fds in
@@ -197,7 +195,7 @@ let do_toec_safety
   let cp = Conv.cuprog_of_prog prog in
   let cp =
     Toec_prog.toec_uprog_safety Arch.asmOp Arch.pointer_data Arch.msf_size
-      toec_freshvar get_info fresh_removable wi2i mask protect dead_info cp in
+      toec_freshvar get_info fresh_copy wi2i mask protect dead_info cp in
   Conv.prog_of_cuprog (catch_error cp)
 
 (*--------------------------------------------------------------------- *)

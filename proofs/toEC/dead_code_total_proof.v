@@ -10,9 +10,9 @@
    [dead_code] keeps the assertions, the system calls and the calls, and
    removes assignments and operators whose results are dead. The direction
    from the transformed program to the source therefore needs these removed
-   instructions not to fail; [dead_args] and [drop_removable] also remove
-   arguments, destinations, parameters and results, which the source passes
-   and writes. [total_ok p] states that, from any state, these never fail in
+   instructions not to fail; [dead_args] also removes arguments,
+   destinations, parameters and results, which the source passes and
+   writes. [total_ok p] states that, from any state, these never fail in
    the total mode: the assignments and the operators of [p] run; the
    arguments of a call evaluate to values of the types of the parameters of
    the callee, and each destination accepts, on every state, any value of
