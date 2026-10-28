@@ -95,23 +95,29 @@ Section E.
       rewrite /sem_sop2 /=; t_xrbindP.
       move=> w1 /(of_value_uincl_te hu1) h1 w2 /(of_value_uincl_te hu2) h2 {hu1 hu2}.
       case: o w1 h1 w2 h2 =>
-       [ | | | k | k | k | si k | si k | ws | ws | ws | ws | k | k | ws | ws | k | k | k | k | k | k
+       [ | | | k | k | k | si k | si k | si k | si k | ws | ws | ws | ws | k | k | ws | ws | k | k | k | k | k | k
                               | ve ws | ve ws | ve ws | ve ws | ve ws | ve ws | si ws o];
         try by move => /= > -> > -> > /= [<-] <-; eexists; first reflexivity.
       1-3: by rewrite /=; case: k => /= > -> > -> > [<-] <- /=; (eexists; first reflexivity) => /=.
       1-2: by rewrite /=; (case: k => /= > -> > -> >; first case) => /= -> <-;
              (eexists; first reflexivity).
+      1-2: case: k => /= > -> > -> > h h2; (eexists; first reflexivity);
+           rewrite /sem_sop2 in h;
+           case: h => heq;
+           rewrite heq h2;
+           by apply value_uincl_refl.
       1-8: by case: k => /= > -> /= > -> /= > [->] <-; (eexists; first reflexivity).
       case: o; rewrite /=.
       1-3: by move=> > -> > -> /= >; rewrite /sem_sop2_typed /mk_sem_op /=;
            case: (check_safe _ _ _) => //= _ [<-] <-; (eexists; first reflexivity) => /=.
       1-2: by move=> > -> > -> /= >; rewrite /sem_sop2_typed /mk_sem_op /= => -> <-;
            (eexists; first reflexivity) => /=.
+      1-2: by case: si => /= w1 -> w2 -> >; rewrite /sem_sop2_typed /mk_sem_op /= => -[<-] <-;
+           (eexists; first reflexivity).
       + by move=> > -> > -> /= >; rewrite /sem_sop2_typed /mk_sem_op /=;
           case: (check_safe _ _ _) => //= _ [<-] <-; (eexists; first reflexivity) => /=.
       + by case: si => /= w1 -> w2 -> >; rewrite /sem_sop2_typed /mk_sem_op /= => -[<-] <-;
           (eexists; first reflexivity).
-
       1-2: by move=> > -> > -> >; rewrite /sem_sop2_typed /mk_sem_op /= => -[<-] <-;
           (eexists; first reflexivity) => /=;
           rewrite /mk_sem_wicmp_total int_of_word_eqb.

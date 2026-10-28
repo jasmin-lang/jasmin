@@ -313,7 +313,14 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
         | Signed   => Ox86 (IDIV sz)
         end in
       k16 sz (LowerDivMod DM_Snd u sz opn a b)
-
+    | Omax u (Op_w sz) =>
+        if atype_of_lval x is aword _ then
+          k16 (wsize_of_lval x) (LowerIf (aword sz) (Papp2 (Olt (Cmp_w u sz)) a b) b a)
+        else LowerAssgn
+    | Omin u (Op_w sz) =>
+        if atype_of_lval x is aword _ then
+          k16 (wsize_of_lval x) (LowerIf (aword sz) (Papp2 (Ogt (Cmp_w u sz)) a b) b a)
+        else LowerAssgn
     | Oland sz =>
       match is_andn a b with
       | Some (a,b) =>
