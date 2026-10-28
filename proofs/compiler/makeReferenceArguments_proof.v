@@ -464,7 +464,7 @@ Context
       have [// | | vmx [hpl hes' vm1_vmx]] := make_prologueP plE _ _ hes hvm1.
       * by clear -hsub; SvD.fsetdec.
       move: I.
-      rewrite (esem_i_bodyP hpl) bind_ret_l hes' bind_ret_l !bind_bind /= => _.
+      rewrite (esem_i_bodyP hpl) bind_ret_l hes' Monad.bind_ret_l !bind_bind /= => _.
       apply: xrutt_lutt_true_bind_l.
       * rewrite /exec_syscall; apply/lxeutt_lrutt_RndRels_refl/xrutt_refl.
         - by move=> T e _ _; apply: RPre_eq_refl.

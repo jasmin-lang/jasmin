@@ -12,7 +12,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import expr psem_defs psem_core it_exec rec_facts core_logics.
 Require Export it_sems_core_defs.
 
-Import MonadNotation ITreeNotations.
+Import MonadNotation.
 Local Open Scope monad_scope.
 
 Section WSW.
