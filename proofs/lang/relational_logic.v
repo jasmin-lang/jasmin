@@ -13,6 +13,8 @@ From ITree Require Import
   Eq.Rutt
   Eq.RuttFacts.
 
+From Paco Require Import paco.
+
 From mathcomp Require Import ssreflect ssrfun ssrbool.
 
 Import Monads.
@@ -2442,6 +2444,29 @@ End RELATIONAL.
 
 Arguments wequiv_fun_rec {_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _}.
 
+Section SAFE_F.
+
+Context
+  {syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {asm_op: Type}
+  {sip : SemInstrParams asm_op syscall_state}
+  {pT : progT}
+  {wsw : WithSubWord}
+  {scP : semCallParams (wsw:= wsw) (pT := pT)}
+  {dc : DirectCall}
+  {wa : WithAssert}
+  {sm : SemMode}
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}.
+
+(* No call of [fn] in [p] on arguments satisfying [P] raises an error. *)
+Definition safe_f (P : fstate -> Prop) (p : prog) (ev : extra_val_t) (fn : funname) : Prop :=
+  forall fs, P fs -> safe (is_error wE) (isem_fun p ev fn fs).
+
+End SAFE_F.
+
 Notation wiequiv   := (wequiv (sem_F1 := sem_fun_full) (sem_F2 := sem_fun_full)).
 
 Lemma st_relP {syscall_state : Type} {ep : EstateParams syscall_state} {wsw : WithSubWord}
@@ -2708,7 +2733,122 @@ rewrite -[in RPost_eq _](mid21 e1) -[in RPost_eq _ _ _](mid21 e2).
 by case: mfun1 => [//|e1'] _ _ _ /=; case: mfun1 => [//|e2'].
 Qed.
 
+(* Without cutoff on the right, [xrutt] is weaker than [rutt]. *)
+Lemma rutt_xrutt_nocutoff {E1 E2 : Type -> Type} {R1 R2 : Type}
+  (EE1 : forall T, E1 T -> bool) (REv : prerel E1 E2) (RAns : postrel E1 E2)
+  (RR : R1 -> R2 -> Prop) (t1 : itree E1 R1) (t2 : itree E2 R2) :
+  rutt REv RAns RR t1 t2 -> xrutt EE1 nocutoff REv RAns RR t1 t2.
+Proof.
+  move: t1 t2; pcofix CIH => t1 t2 h.
+  punfold h; red in h; pstep; red.
+  elim: h => {t1 t2}.
+  + by move=> r1 r2 h; constructor.
+  + by move=> m1 m2 h; constructor; pclearbot; right; apply CIH.
+  + move=> A B e1 e2 k1 k2 hREv hk.
+    case he1: (EE1 _ e1).
+    + by apply: xrutt.EqCutL.
+    apply: xrutt.EqVis => // a b h; right; apply CIH.
+    by have := hk a b h; case.
+  + by move=> t1 ot2 _ h; constructor.
+  by move=> ot1 t2 _ h; constructor.
+Qed.
+
 End FACTS.
+
+(* Every answer to an event of the right has a related answer to any related
+   event of the left. *)
+Class EventRels_ans_total {E0_l E0_r : Type -> Type} (rE0 : EventRels2 E0_l E0_r) :=
+  ERans_total : forall T1 T2 (e1 : E0_l T1) (e2 : E0_r T2) (t2 : T2),
+    EPreRel0 (rE0 := rE0) e1 e2 -> exists t1, EPostRel0 (rE0 := rE0) e1 t1 e2 t2.
+
+Definition EventRels_flip {E0_l E0_r : Type -> Type} (rE0 : EventRels2 E0_l E0_r) :
+  EventRels2 E0_r E0_l :=
+  {| EPreRel0_  := fun T2 T1 e2 e1 => EPreRel0 (rE0 := rE0) e1 e2;
+     EPostRel0_ := fun T2 T1 e2 t2 e1 t1 => EPostRel0 (rE0 := rE0) e1 t1 e2 t2; |}.
+
+(* A relation from [p1] to [p2] transports the safety of [p1] to [p2], and on
+   safe runs of [p1] it is an equivalence without cutoff: it holds in the
+   other direction too. *)
+Section SAFE_TRANSPORT.
+
+Context
+  {syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {asm_op: Type}
+  {sip : SemInstrParams asm_op syscall_state}
+  {pT1 pT2 : progT}
+  {wsw1 wsw2: WithSubWord}
+  {scP1 : semCallParams (wsw:= wsw1) (pT := pT1)}
+  {scP2 : semCallParams (wsw:= wsw2) (pT := pT2)}
+  {dc1 dc2: DirectCall}
+  {wa1 wa2 : WithAssert}
+  {sm1 sm2 : SemMode}
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE0 : EventRels E0}
+  {rE0_ans : EventRels_ans_total rE0}.
+
+Notation isem_fun1 := (isem_fun (wsw:=wsw1) (dc:=dc1) (ep:=ep) (spp:=spp) (wa:=wa1) (sm:=sm1) (sip:=sip) (pT:=pT1) (scP:= scP1)).
+Notation isem_fun2 := (isem_fun (wsw:=wsw2) (dc:=dc2) (ep:=ep) (spp:=spp) (wa:=wa2) (sm:=sm2) (sip:=sip) (pT:=pT2) (scP:= scP2)).
+
+Notation safe_f1 := (safe_f (wsw:=wsw1) (dc:=dc1) (wa:=wa1) (sm:=sm1) (pT:=pT1) (scP:= scP1) (wE:=wE)).
+Notation safe_f2 := (safe_f (wsw:=wsw2) (dc:=dc2) (wa:=wa2) (sm:=sm2) (pT:=pT2) (scP:= scP2) (wE:=wE)).
+
+Notation wiequiv_f12 :=
+  (wiequiv_f (wsw1 := wsw1) (wsw2 := wsw2) (scP1 := scP1) (scP2 := scP2) (dc1 := dc1) (dc2 := dc2)
+     (wa1 := wa1) (wa2 := wa2) (sm1 := sm1) (sm2 := sm2) (wE := wE) (rE0 := rE0)).
+Notation wiequiv_f21 :=
+  (wiequiv_f (wsw1 := wsw2) (wsw2 := wsw1) (scP1 := scP2) (scP2 := scP1) (dc1 := dc2) (dc2 := dc1)
+     (wa1 := wa2) (wa2 := wa1) (sm1 := sm2) (sm2 := sm1) (wE := wE) (rE0 := EventRels_flip rE0)).
+
+Context (p1 : prog (pT := pT1)) (p2 : prog (pT := pT2))
+  (ev1 : @extra_val_t pT1) (ev2 : @extra_val_t pT2).
+
+Lemma wiequiv_f_safe_rutt pre fn1 fn2 post fs1 fs2 :
+  wiequiv_f12 p1 p2 ev1 ev2 pre fn1 fn2 post ->
+  pre fn1 fn2 fs1 fs2 ->
+  safe (is_error wE) (isem_fun1 p1 ev1 fn1 fs1) ->
+  rutt EPreRel EPostRel (post fn1 fn2 fs1 fs2) (isem_fun1 p1 ev1 fn1 fs1) (isem_fun2 p2 ev2 fn2 fs2)
+  /\ safe (is_error wE) (isem_fun2 p2 ev2 fn2 fs2).
+Proof using rE0_ans.
+  move=> h hpre hsafe.
+  have hr := safe_xrutt_rutt hsafe (h _ _ hpre).
+  split => //.
+  apply: safe_rutt_safe hsafe hr.
+  + move=> T1 T2 e1 e2; rewrite /EPreRel /is_error.
+    by case: mfun1 => // ?; case: mfun1.
+  move=> T1 T2 e1 e2 r2; rewrite /EPreRel /EPostRel /is_error.
+  case: mfun1 => // e1'; case: mfun1 => // e2' /= hpre0 _.
+  exact: ERans_total hpre0.
+Qed.
+
+Lemma wiequiv_f_safe_f pre fn1 fn2 post P1 :
+  wiequiv_f12 p1 p2 ev1 ev2 pre fn1 fn2 post ->
+  safe_f1 P1 p1 ev1 fn1 ->
+  safe_f2 (fun fs2 => exists fs1, pre fn1 fn2 fs1 fs2 /\ P1 fs1) p2 ev2 fn2.
+Proof using rE0_ans.
+  move=> h hsafe fs2 [fs1 [hpre hP1]].
+  exact: (wiequiv_f_safe_rutt h hpre (hsafe _ hP1)).2.
+Qed.
+
+Lemma wiequiv_f_flip_safe pre fn1 fn2 post P1 :
+  wiequiv_f12 p1 p2 ev1 ev2 pre fn1 fn2 post ->
+  safe_f1 P1 p1 ev1 fn1 ->
+  wiequiv_f21 p2 p1 ev2 ev1 (fun fn2 fn1 fs2 fs1 => pre fn1 fn2 fs1 fs2 /\ P1 fs1) fn2 fn1
+    (fun fn2 fn1 fs2 fs1 r2 r1 => post fn1 fn2 fs1 fs2 r1 r2).
+Proof using rE0_ans.
+  move=> h hsafe fs2 fs1 [hpre hP1].
+  have [hr _] := wiequiv_f_safe_rutt h hpre (hsafe _ hP1).
+  apply: rutt_xrutt_nocutoff.
+  move/rutt_flip: hr; apply: rutt_extras.rutt_weaken => //.
+  + move=> T1 T2 e1 e2; rewrite /RuttFacts.flip_REv /EPreRel.
+    by case: (mfun1 e1) => ?; case: (mfun1 e2).
+  move=> T1 T2 e1 t1 e2 t2 _; rewrite /RuttFacts.flip_RAns /EPostRel /= /flip /=.
+  by case: (mfun1 e1) => ?; case: (mfun1 e2).
+Qed.
+
+End SAFE_TRANSPORT.
 
 Notation pre_eq := (rpreF (eS := eq_spec)).
 Notation post_eq := (rpostF (eS := eq_spec)).
