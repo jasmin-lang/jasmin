@@ -6,7 +6,16 @@ type architecture =
   | ARMv8A
   | RISCV
 
-(* The architectures, by the name they have on the command line. *)
+val all_architectures : architecture list
+
+(* The architectures, by the names they have on the command line. *)
 val architectures : (string * architecture) list
 
+(* The former names of the architectures, still accepted on the command line. *)
+val deprecated_architectures : (string * architecture) list
+
 val architecture_to_string : architecture -> string
+
+(* The architecture of a name of the command line, current or former; a former
+   name raises a deprecation warning. *)
+val architecture_of_string : string -> architecture option
