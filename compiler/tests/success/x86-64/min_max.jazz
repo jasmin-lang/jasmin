@@ -1,0 +1,146 @@
+export
+fn test_min_si64(reg si64 a b) -> reg si64 {
+	reg si64 r;
+
+	r = min(a,b);
+
+	return r;
+}
+
+export
+fn test_max_si64(reg si64 a b) -> reg si64 {
+	reg si64 r;
+
+	r = max(a,b);
+
+	return r;
+}
+
+export
+fn test_min_u64(reg u64 a b) -> reg u64 {
+	reg u64 r;
+
+	r = min(a,b);
+
+	return r;
+}
+
+export
+fn test_max_u64(reg u64 a b) -> reg u64 {
+	reg u64 r;
+
+	r = max(a,b);
+
+	return r;
+}
+
+export
+fn test_min_ui64(reg ui64 a b) -> reg ui64 {
+	reg ui64 r;
+
+	r = min(a,b);
+
+	return r;
+}
+
+export
+fn test_max_ui64(reg ui64 a b) -> reg ui64 {
+	reg ui64 r;
+
+	r = max(a,b);
+
+	return r;
+}
+
+export
+fn test_min_max_cst_ui64() -> reg ui64 {
+	reg ui64 r;
+	r = min(25,5) + max(10,30);
+	return r;
+}
+
+export
+fn test_min_si32(reg si32 a b) -> reg si32 {
+	reg si32 r;
+
+	r = min(a,b);
+
+	return r;
+}
+
+export
+fn test_max_si32(reg si32 a b) -> reg si32 {
+	reg si32 r;
+
+	r = max(a,b);
+
+	return r;
+}
+
+export
+fn test_min_u32(reg u32 a b) -> reg u32 {
+	reg u32 r;
+
+	r = min(a,b);
+
+	return r;
+}
+
+export
+fn test_max_u32(reg u32 a b) -> reg u32 {
+	reg u32 r;
+
+	r = max(a,b);
+
+	return r;
+}
+
+export
+fn test_min_max_cst_ui32() -> reg ui32 {
+	reg ui32 r;
+	r = min(25,5) + max(10,30);
+	return r;
+}
+
+export
+fn test_min_si16(reg si16 a b) -> reg si16 {
+	reg si16 r;
+
+	r = min(a,b);
+
+	return r;
+}
+
+export
+fn test_max_si16(reg si16 a b) -> reg si16 {
+	reg si16 r;
+
+	r = max(a,b);
+
+	return r;
+}
+
+export
+fn test_min_u16(reg u16 a b) -> reg u16 {
+	reg u16 r;
+
+	r = min(a,b);
+
+	return r;
+}
+
+export
+fn test_max_u16(reg u16 a b) -> reg u16 {
+	reg u16 r;
+
+	r = max(a,b);
+
+	return r;
+}
+
+export
+fn test_min_max_cst_ui16() -> reg ui16 {
+	reg ui16 r;
+	r = min(25,5) + max(10,30);
+	return r;
+}

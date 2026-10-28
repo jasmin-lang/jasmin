@@ -101,6 +101,8 @@ let string_of_wiop2 sg sz = function
   | WIsub -> "-" ^ string_of_wi_cast sg sz
   | WIdiv -> "/" ^ string_of_wi_cast sg sz
   | WImod -> "%" ^ string_of_wi_cast sg sz
+  | WImax -> "max" ^ string_of_wi_cast sg sz
+  | WImin -> "min" ^ string_of_wi_cast sg sz
 
   | WIshr -> ">>" ^ string_of_wi_cast sg sz
   | WIshl -> "<<" ^ string_of_wi_cast sg sz
@@ -121,6 +123,8 @@ let string_of_op2 = function
   | Osub k -> "-" ^ string_of_op_kind k
   | Odiv(s, k) -> "/" ^ string_of_div_kind s k
   | Omod(s, k) -> "%" ^ string_of_div_kind s k
+  | Omax(s, k) -> "max" ^ string_of_div_kind s k
+  | Omin(s, k) -> "min" ^ string_of_div_kind s k
   | Oland w -> "&"  ^ string_of_w_cast w
   | Olor  w -> "|"  ^ string_of_w_cast w
   | Olxor w -> "^"  ^ string_of_w_cast w
@@ -276,6 +280,7 @@ let priority_of_op1 = function
 let priority_of_wop2 = function
   | WIadd | WIsub -> OpPsum
   | WImul | WIdiv | WImod -> OpPprod
+  | WImax | WImin -> OpPmin
   | WIshl | WIshr -> OpPshift
   | WIeq | WIneq -> OpPeq
   | WIlt | WIle | WIgt | WIge -> OpPcmp
@@ -286,6 +291,7 @@ let priority_of_op2 = function
   | Oor -> OpPbor
   | Oadd _ | Osub _ | Ovadd _ | Ovsub _ -> OpPsum
   | Omul _ | Odiv _ | Omod _ | Ovmul _ -> OpPprod
+  | Omax _ | Omin _ -> OpPmin
   | Oland _ -> OpPand
   | Olor _ -> OpPor
   | Olxor _ -> OpPxor

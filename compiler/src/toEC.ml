@@ -706,6 +706,9 @@ let fmt_op2 fmt op =
 
   | Osub  _ -> Format.fprintf fmt "-"
 
+  | Omin _ -> Format.fprintf fmt "min"
+  | Omax _ -> Format.fprintf fmt "max"
+
   | Oland _ -> Format.fprintf fmt "`&`"
   | Olor  _ -> Format.fprintf fmt "`|`"
   | Olxor _ -> Format.fprintf fmt "`^`"
@@ -1542,6 +1545,12 @@ module EcExpression(EA: EcArray): EcExpression = struct
           ])
       | Papp1 (op1, e) ->
             ec_op1 op1 (toec_cast env (Conv.ty_of_cty (fst (Operators.type_of_op1 op1)), e))
+      | Papp2 (Omax _ |Omin _  as op2, e1, e2) ->
+          let t1, t2 = fst (Operators.type_of_op2 op2) in
+          let te1 = (Conv.ty_of_cty t1, e1) in
+          let te2 = (Conv.ty_of_cty t2, e2) in
+          let e_op_name = Format.asprintf "%a" fmt_op2 op2 in
+          Eapp (ec_ident e_op_name, List.map (toec_cast env) [te1;te2])
       | Papp2 (op2, e1, e2) ->
           let t1, t2 = fst (Operators.type_of_op2 op2) in
           let te1 = (Conv.ty_of_cty t1, e1) in

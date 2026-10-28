@@ -122,6 +122,10 @@ Binary operators are, by decreasing precedence:
 
 Note that most operators accept as suffix a size annotation. For instance `+32u` is the 32-bit (unsigned) addition and `+8u16` is the parallel 16-bit (unsigned) addition for vectors of 8 elements (i.e., 128 bit). Said annotation can be limited to a sign annotation, for instance `>>u` is the _logical_ right shift whereas `>>s` is the _arithmetic_ right shift.
 
+Moreover, there exist two additional binary operators written like function calls:
+
+  - maximum (`max(x, y)`) and minimum (`min(x, y)`). In x86-64, these are compiled with a `CMP` followed by a `CMOV`.
+
 ## Array access
 
 For an array
