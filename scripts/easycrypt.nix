@@ -16,7 +16,18 @@ with {
     version = "main";
     rev = "????";
     src = builtins.fetchTarball "https://api.github.com/repos/easycrypt/easycrypt/tarball/main";
-    extraBuildInputs = [ ];
+    extraBuildInputs = [
+    (why3.overrideAttrs (o: {
+      version = "1.9.0";
+      src = fetchurl {
+        url = "https://why3.gitlabpages.inria.fr/releases/why3-1.9.0.tar.gz";
+        hash = "sha256-VXmTFiFGyRZwCCLVPo+3V/bwPgbSILLI+5alc98PpKk=";
+      };
+      nativeBuildInputs = o.nativeBuildInputs ++ [ dune ];
+    }))
+      ocamlPackages.ocamlgraph
+      ocamlPackages.ppx_sexp_conv
+    ];
   };
 
   "release" = rec {
@@ -28,7 +39,7 @@ with {
       inherit rev;
       hash = "sha256-7ZnGZOZyV5znDGzg0c3XSsliQyOFOwJp2iyAzJtDNwk=";
     };
-    extraBuildInputs = [];
+    extraBuildInputs = [ why3 ];
   };
 
 }."${ecRef}";
@@ -52,7 +63,6 @@ stdenv.mkDerivation rec {
     dune-site
     markdown
     pcre2
-    why3
     yojson
     zarith
   ] ++ extraBuildInputs;
