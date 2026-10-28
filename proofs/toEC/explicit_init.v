@@ -28,7 +28,8 @@ Local Open Scope seq_scope.
    arrays ([check_arr_init])
    and that the globals are initialised exactly in their bounds. It also
    checks the masks that the caller gives ([check_masks]): they are fresh,
-   distinct, and of the expected types. *)
+   distinct, and of the expected types; and that no operator of the
+   architecture in the program outputs an array ([check_op_out]). *)
 
 Module Import E.
 
@@ -49,6 +50,9 @@ Module Import E.
 
   Definition mask_error :=
     pp_internal_error_s pass "the masks are not fresh and distinct variables of the expected types".
+
+  Definition op_error (ii : instr_info) :=
+    pp_internal_error_s_at pass ii "an operator of the architecture outputs an array".
 
 End E.
 
@@ -342,6 +346,11 @@ Fixpoint check_arr_init (gd : glob_decls) (a : eassert) : bool :=
   | Pexpr _ | PappN_safety _ _ | Pis_var_init _ | Pis_mem_init _ _ => true
   end.
 
+(* No operator of the architecture outputs an array: the pass treats their
+   outputs as scalars ([explicit_init_opn]). *)
+Definition check_op_out (o : sopn) : bool :=
+  if o is Oasm o then all is_not_carr (map eval_atype (tout (asm_op_instr o))) else true.
+
 Definition is_var_lv (lv : lval) : bool :=
   if lv is (Lvar _ | Lnone _ _) then true else false.
 
@@ -353,7 +362,9 @@ Fixpoint check_i (gd : glob_decls) (i : instr) : cexec unit :=
   let check_lvs lvs := assert (all is_var_lv lvs) (E.dest_error ii) in
   match ir with
   | Cassgn _ _ _ _ => ok tt
-  | Copn lvs _ _ _ => if 1 < size lvs then check_lvs lvs else ok tt
+  | Copn lvs _ o _ =>
+    Let _ := assert (check_op_out o) (E.op_error ii) in
+    if 1 < size lvs then check_lvs lvs else ok tt
   | Csyscall lvs _ _ | Ccall lvs _ _ => check_lvs lvs
   | Cassert (_, a) => add_iinfo ii (assert (check_arr_init gd a) E.arr_init_error)
   | Cif _ c1 c2 | Cwhile _ c1 _ _ c2 => Let _ := allM (check_i gd) c1 in allM (check_i gd) c2

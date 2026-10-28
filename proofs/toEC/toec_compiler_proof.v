@@ -81,11 +81,6 @@ Context
                funname -> option (seq bool) * option (seq bool))
   (get_info : _uprog -> Sv.t * (var -> option (signedness * var))).
 
-(* No instruction of the architecture outputs an array: [is_not_carr_ltype]
-   for the base instructions, the extra ones of each architecture. *)
-Hypothesis asm_op_tout :
-  forall o : extended_op, all is_not_carr (map eval_atype (tout (asm_op_instr o))).
-
 Section FN.
 
 Context (wi2i : bool) (up : uprog) (xp : asm_prog) (info : keep_info) (p8 : uprog)
@@ -149,12 +144,12 @@ Theorem toec_compiler_tgt_src (wi2i : bool) entries (up p' : uprog) xp fn fd :
         (isem_ec p' fn)
         (isem_asm xp fn)
         (toec_post wi2i up xp info p8 fn fsig xfd)].
-Proof using asm_op_tout haparams print_linearP print_sprogP print_uprogP.
+Proof using haparams print_linearP print_sprogP print_uprogP.
   move=> hp' hxp hfn hfd fsig.
   have [p5 [p6 [info [h5 h6 h9 hsafe]]]] :=
     toec_uprog_safety_tgt_src (asm_op := extended_op) (ep := ep_of_asm_e) (spp := spp_of_asm_e)
       (sip := sip_of_asm_e) (E := ErrEvent) (wE := with_Error0) (rE := HandlerContract)
-      (rE_trans := HandlerContract_trans) tt asm_op_tout hp'.
+      (rE_trans := HandlerContract_trans) tt hp'.
   have [xfd [hxfd hexp hcomp]] :=
     it_compile_prog_to_asmP haparams print_uprogP print_sprogP print_linearP hxp hfn.
   exists p5, p6, info, xfd; split => // hok.
@@ -218,7 +213,7 @@ Theorem toec_compiler_scalars_tgt_src entries (up p' : uprog) xp fn fd :
         (isem_ec p' fn)
         (isem_asm xp fn)
         (toec_scalars_post up xp fn fsig xfd)].
-Proof using asm_op_tout haparams print_linearP print_sprogP print_uprogP.
+Proof using haparams print_linearP print_sprogP print_uprogP.
   move=> hp' hxp hfn hfd htyin htyout hpr fsig.
   have [p5 [p6 [info [xfd]]]] := toec_compiler_tgt_src hp' hxp hfn hfd.
   move=> /= [h5 h6 h9 hxfd hexp hall]; exists p5, p6, xfd; split => // hok.

@@ -105,11 +105,6 @@ Qed.
 
 Context (mask : var -> var).
 
-(* No instruction of the architecture outputs an array ([is_not_carr_ltype] in
-   [arch_extra.v]). *)
-Hypothesis asm_op_tout :
-  forall o : asm_op_t, all is_not_carr (map eval_atype (tout (asm_op_instr o))).
-
 (* From the output of [explicit_init], in the mode [total_init], to the output
    of [sc_prog], in the total mode, both with the assertions evaluated:
    [toec_while] runs in between. *)
@@ -117,11 +112,11 @@ Lemma ei_tgt_src (p3 p6 : uprog) fn :
   explicit_init_prog mask (toec_while_prog p3) = ok p6 ->
   wiequiv_f_ withassert_nocontract withassert_nocontract total_init total p6 p3 ev ev
     (rpreF (eS := mask_spec)) fn fn (rpostF (eS := mask_spec)).
-Proof using asm_op_tout rE_trans.
+Proof using rE_trans.
   move=> h6.
   apply: (wiequiv_f_trans_eq_r (wa2 := withassert_nocontract) (sm2 := total)
            (p2 := toec_while_prog p3)).
-  - exact: (explicit_init_callP (wa := withassert_nocontract) erefl ev asm_op_tout h6).
+  - exact: (explicit_init_callP (wa := withassert_nocontract) erefl ev h6).
   exact: (toec_while_l (wa := withassert_nocontract) (sm := total) (rE := rE) p3 ev).
 Qed.
 
@@ -175,7 +170,7 @@ Lemma safety_chain_tgt_src {LC : LoopCounter} (pc p2 p3 p6 p9 : uprog) info fn :
   dead_args_info protect (dead_info protect) p8 = ok (p9, info) ->
   wiequiv_f_ withassert_nocontract withassert total_init partial p9 pc ev ev
     (rpreF (eS := safety_spec info p8)) fn fn (rpostF (eS := safety_spec info p8)).
-Proof using asm_op_tout rE_trans.
+Proof using rE_trans.
   move=> p8 h2 h3 h6 hok h9.
   apply: (wiequiv_f_trans_eq_r (wa2 := withassert_nocontract) (sm2 := total) (p2 := p3));
     last first.
@@ -234,7 +229,7 @@ Theorem toec_uprog_safety_tgt_src (wi2i : bool) (p p' : uprog) :
       let fsig := (build_sig (get_info p).2 (fn, fd)).2 in
       wiequiv_f_ withassert_nocontract withassert total_init partial p' p ev ev
         (safety_wi_pre wi2i info p8 fsig) fn fn (safety_wi_post wi2i info p8 fsig)].
-Proof using asm_op_tout rE_trans.
+Proof using rE_trans.
   rewrite /toec_uprog_safety /dead_args_prog /toec_uprog_pre_init.
   t_xrbindP => pc hpc p2 h2 p3 h3 p6 h6 r h9 <-.
   case: r h9 => p9 info h9; exists (toec_while_prog p3), p6, info; split => //.

@@ -45,11 +45,6 @@ Notation mask_lv := (mask_lv mask).
 Notation mask_v := (mask_v mask).
 Notation mask_gv := (mask_gv mask).
 
-(* No instruction of the architecture outputs an array ([is_not_carr_ltype] in
-   [arch_extra.v]): only the pseudo-operations handled by the pass do. *)
-Hypothesis asm_op_tout :
-  forall o : asm_op_t, all is_not_carr (map eval_atype (tout (asm_op_instr o))).
-
 Hypothesis explicit_init_ok : explicit_init_prog mask p = ok p'.
 
 (* ------------------------------------------------------------------------- *)
@@ -1615,15 +1610,16 @@ have hne : y <> v_var x by move=> ?; subst y; move: hy hxa; rewrite /is_arr_var 
 SvD.fsetdec.
 Qed.
 Lemma opn_caseP ii lvs tg o es s0 s1' s2 :
-  no_mask (vars_I (MkI ii (Copn lvs tg o es))) ->
+  no_mask (vars_I (MkI ii (Copn lvs tg o es))) -> check_op_out o ->
   (ssrnat.leq 2 (size lvs) -> all is_var_lv lvs) -> mask_st s0 s2 ->
   esem (sm := total_init) pm ev (explicit_init_i mask (MkI ii (Copn lvs tg o es))) s0 = ok s1' ->
   exists2 s2', esem (sm := total) p ev [:: MkI ii (Copn lvs tg o es)] s2 = ok s2' & mask_st s1' s2'.
-Proof using asm_op_tout explicit_init_ok spp.
-move=> hX hvar; have hbh : all is_var_lv (behead lvs).
+Proof using explicit_init_ok spp.
+move=> hX hop hvar; have hbh : all is_var_lv (behead lvs).
 - by case: (lvs) hvar => [ | lv [ | lv' lvs']] //= /(_ isT) /andP [].
-move: hX hvar hbh; case: o => [po | so | ao].
-3: by move=> hX _ hbh hst /= hs; apply: (opnP hX hbh _ hst hs) => vs vs2 _ /(exec_sopn_not_carr (o := Oasm ao) (asm_op_tout ao)).
+move: hX hvar hbh; case: o hop => [po | so | ao] hop.
+3: by move=> hX _ hbh hst /= hs; apply: (opnP hX hbh _ hst hs) => vs vs2 _ /(exec_sopn_not_carr (o := Oasm ao) hop).
+1,2: clear hop.
 2: case: so => [ | | | ws | ws len | ws len].
 2-5: by move=> hX _ hbh hst /= hs; apply: (opnP hX hbh _ hst hs) => vs vs2 _ hex _; apply: (exec_sopn_not_carr _ hex).
 2,3: case: lvs => [ | lv [ | lv' lvs]]; case: es => [ | e [ | e' [ | e'' es]]].
@@ -2132,13 +2128,14 @@ Qed.
 
 Lemma simple_instrP i : is_simple_i i -> no_mask (vars_I i) -> check_i gd i = ok tt ->
   wequiv_m mask_st (explicit_init_i mask i) [:: i] mask_st.
-Proof using asm_op_tout explicit_init_ok spp.
+Proof using explicit_init_ok spp.
 move=> hs hX hc; have [i1 [c1 he]] := explicit_init_cons hs.
 have hall := explicit_init_simple hs; rewrite he in hall *.
 apply: wequiv_esem => // s1 s2 s1' hst; rewrite -he.
 case: i hs hX hc {he hall} => ii [] // => [lv tg ty e | lvs tg o es | lvs o es] _ hX /= hc.
 - exact: assgnP hX hst.
-- apply: opn_caseP hX _ hst => h.
+- move: hc; t_xrbindP => hop hc.
+  apply: opn_caseP hX hop _ hst => h.
   by move: hc; rewrite h; t_xrbindP.
 by apply: syscall_caseP hX _ hst; move: hc; t_xrbindP.
 Qed.
@@ -2197,7 +2194,7 @@ Let Pc (c : cmd) :=
 
 (* The body of a function. *)
 Lemma explicit_init_cP c : Pc c.
-Proof using asm_op_tout assert_allowed_wa explicit_init_ok spp.
+Proof using assert_allowed_wa explicit_init_ok spp.
 apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => //.
 - by move=> _ _; apply wequiv_nil.
 - move=> i c0 hi hc hX; rewrite /allM /=; t_xrbindP => hci hcc.
@@ -2250,7 +2247,7 @@ Qed.
 Lemma explicit_init_callP fn :
   wiequiv_f (sm1 := total_init) (sm2 := total) p' p ev ev
     (rpreF (eS := mask_spec)) fn fn (rpostF (eS := mask_spec)).
-Proof using asm_op_tout assert_allowed_wa explicit_init_ok spp.
+Proof using assert_allowed_wa explicit_init_ok spp.
 have [-> _ _ hchk] := explicit_init_okE.
 apply wequiv_fun_ind_wa => {}fn _ fs1 fs2 [<- hfs] fd1.
 rewrite get_map_prog; case hfd: get_fundef => [fd | ] //= [<-].
