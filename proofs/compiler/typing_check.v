@@ -1,7 +1,8 @@
 (* * Type checker of unit programs
 
    [check_prog p] checks that every expression, destination, assertion and
-   contract of [p] is well typed, that the arguments of each operator, system
+   contract of [p] is well typed, that each operator is valid (its semantics
+   fails otherwise, in every mode), that the arguments of each operator, system
    call and function call have the types of the parameters, that each
    destination accepts the type of the value written into it, and that the
    global declarations have the types of their variables. A word of size [ws]
@@ -31,6 +32,7 @@ Module Import E.
   Definition arity_mismatch := typing_error (pp_s "arity mismatch").
   Definition unknown_function := typing_error (pp_s "unknown function").
   Definition unknown_global := typing_error (pp_s "unknown global variable").
+  Definition invalid_operator := typing_error (pp_s "invalid operator").
   Definition global_mismatch :=
     typing_error (pp_s "global variable type value mismatch").
 
@@ -186,6 +188,7 @@ Fixpoint check_instr (p : ufun_decls) (i : instr) : cexec unit :=
     Let _ := check_expr ty_expr e ty in
     check_lval x ty
   | Copn xs _ o es =>
+    Let _ := assert (i_valid (get_instr_desc o)) E.invalid_operator in
     Let _ := check_exprs ty_expr es (sopn_tin o) in
     check_lvals xs (sopn_tout o)
   | Csyscall xs o es =>
