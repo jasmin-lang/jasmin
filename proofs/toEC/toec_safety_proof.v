@@ -16,9 +16,8 @@
      does not fail, with related arguments and results ([safety_wi_pre],
      [safety_wi_post]).
 
-   Both compose the correctness of each pass. The statements on the masks of
-   [explicit_init] ([mask_ok]) and the well-typedness that [dead_args] needs
-   ([total_ok]) are on the programs these passes receive. *)
+   Both compose the correctness of each pass. The well-typedness that
+   [dead_args] needs ([total_ok]) is on the program it receives. *)
 
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import compiler_util psem psem_facts.
@@ -115,16 +114,14 @@ Hypothesis asm_op_tout :
    of [sc_prog], in the total mode, both with the assertions evaluated:
    [toec_while] runs in between. *)
 Lemma ei_tgt_src (p3 p6 : uprog) fn :
-  mask_ok mask (toec_while_prog p3) ->
   explicit_init_prog mask (toec_while_prog p3) = ok p6 ->
   wiequiv_f_ withassert_nocontract withassert_nocontract total_init total p6 p3 ev ev
     (rpreF (eS := mask_spec)) fn fn (rpostF (eS := mask_spec)).
 Proof using asm_op_tout rE_trans.
-  move=> [hinj hfresh htype hcontract] h6.
+  move=> h6.
   apply: (wiequiv_f_trans_eq_r (wa2 := withassert_nocontract) (sm2 := total)
            (p2 := toec_while_prog p3)).
-  - exact: (explicit_init_callP (wa := withassert_nocontract) erefl ev
-              hinj hfresh htype hcontract asm_op_tout h6).
+  - exact: (explicit_init_callP (wa := withassert_nocontract) erefl ev asm_op_tout h6).
   exact: (toec_while_l (wa := withassert_nocontract) (sm := total) (rE := rE) p3 ev).
 Qed.
 
@@ -173,20 +170,19 @@ Lemma safety_chain_tgt_src {LC : LoopCounter} (pc p2 p3 p6 p9 : uprog) info fn :
   let p8 := assert_facts_prog (simplify_asserts_prog p6) in
   contracts_to_asserts_prog fresh_copy_ident pc = ok p2 ->
   sc_prog p2 = ok p3 ->
-  mask_ok mask (toec_while_prog p3) ->
   explicit_init_prog mask (toec_while_prog p3) = ok p6 ->
   total_ok p8 ->
   dead_args_info protect (dead_info protect) p8 = ok (p9, info) ->
   wiequiv_f_ withassert_nocontract withassert total_init partial p9 pc ev ev
     (rpreF (eS := safety_spec info p8)) fn fn (rpostF (eS := safety_spec info p8)).
 Proof using asm_op_tout rE_trans.
-  move=> p8 h2 h3 hmask h6 hok h9.
+  move=> p8 h2 h3 h6 hok h9.
   apply: (wiequiv_f_trans_eq_r (wa2 := withassert_nocontract) (sm2 := total) (p2 := p3));
     last first.
   - exact: sc_front_tgt_src h2 h3.
   apply: (wiequiv_f_trans_sm (wa2 := withassert_nocontract) (sm2 := total_init) (p2 := p6)).
   3: exact: dead_tgt_src hok h9.
-  3: exact: ei_tgt_src hmask h6.
+  3: exact: ei_tgt_src h6.
   - move=> fs1 fs3 /= [_ [fsm hm [-> hty]]]; exists fsm => //.
   by move=> fs1 fs2 fs3 r1 r2 r3 _ _ /= -> hm; exists r2.
 Qed.
@@ -233,7 +229,7 @@ Theorem toec_uprog_safety_tgt_src (wi2i : bool) (p p' : uprog) :
   [/\ toec_uprog_pre_init wi2i p = ok p5,
       explicit_init_prog mask p5 = ok p6,
       dead_args_info (LC := toec_LoopCounter) protect (dead_info protect) p8 = ok (p', info) &
-      mask_ok mask p5 -> total_ok p8 ->
+      total_ok p8 ->
       forall fn fd, get_fundef (p_funcs p) fn = Some fd ->
       let fsig := (build_sig (get_info p).2 (fn, fd)).2 in
       wiequiv_f_ withassert_nocontract withassert total_init partial p' p ev ev
@@ -243,8 +239,8 @@ Proof using asm_op_tout rE_trans.
   t_xrbindP => pc hpc p2 h2 p3 h3 p6 h6 r h9 <-.
   case: r h9 => p9 info h9; exists (toec_while_prog p3), p6, info; split => //.
   - by rewrite hpc /= h2 /= h3.
-  move=> hmask hok fn fd hfd.
-  apply: wkequiv_io_trans (safety_chain_tgt_src h2 h3 hmask h6 hok h9)
+  move=> hok fn fd hfd.
+  apply: wkequiv_io_trans (safety_chain_tgt_src h2 h3 h6 hok h9)
                           (common_tgt_src hpc hfd).
   - by move=> fs' fs [fsi h12 h23]; exists fsi.
   by move=> fs' fsi fs fr' fr h12 h23 [fri hq12 hq23]; exists fsi, fri.

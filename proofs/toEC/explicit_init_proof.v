@@ -45,27 +45,6 @@ Notation mask_lv := (mask_lv mask).
 Notation mask_v := (mask_v mask).
 Notation mask_gv := (mask_gv mask).
 
-(* ------------------------------------------------------------------------- *)
-(* The masks                                                                  *)
-
-(* A mask is a fresh variable: distinct variables have distinct masks, no mask
-   is a variable of the program, and the mask of [x] is a boolean for a scalar
-   [x] and an array of the type of [x] for an array. *)
-Hypothesis mask_inj : injective mask.
-Hypothesis mask_fresh : forall x y, Sv.In y (vars_p (p_funcs p)) -> mask x <> y.
-Hypothesis mask_type :
-  forall x, vtype (mask x) = if is_arr_var x then vtype x else abool.
-
-Lemma is_arr_var_mask x : is_arr_var (mask x) = is_arr_var x.
-Proof using mask_type. by rewrite {1}/is_arr_var mask_type; case: ifP. Qed.
-
-(* The contracts are not part of [vars_p]: their variables are fresh too. *)
-Hypothesis mask_fresh_contract :
-  forall fn fd ci, get_fundef (p_funcs p) fn = Some fd -> f_contract fd = Some ci ->
-  forall x y, Sv.In y (vars_l (f_iparams ci ++ f_ires ci)) -> mask x <> y.
-
-Definition is_mask (y : var) := exists x, mask x = y.
-
 (* No instruction of the architecture outputs an array ([is_not_carr_ltype] in
    [arch_extra.v]): only the pseudo-operations handled by the pass do. *)
 Hypothesis asm_op_tout :
@@ -76,20 +55,84 @@ Hypothesis explicit_init_ok : explicit_init_prog mask p = ok p'.
 (* ------------------------------------------------------------------------- *)
 (* The checks of the pass                                                     *)
 
+(* The variables of the program: those of its functions and of their
+   contracts. *)
+Notation pvars := (explicit_init_vars p).
+
 Lemma explicit_init_okE :
-  [/\ p' = pm, all check_glob_init gd &
+  [/\ p' = pm, all check_glob_init gd, check_masks mask pvars (Sv.elements pvars) &
       forall fn fd, get_fundef (p_funcs p) fn = Some fd -> check_fd gd fd = ok tt].
-Proof using explicit_init_ok.
-move: explicit_init_ok; rewrite /explicit_init_prog; t_xrbindP => hg hf <-.
+Proof using explicit_init_ok spp.
+move: explicit_init_ok; rewrite /explicit_init_prog; t_xrbindP => hg hf hm <-.
 split => // fn fd /get_fundef_in' hin.
 by have := allMP hin hf; move=> /add_funnameP /add_finfoP.
 Qed.
 
+Lemma pvarsP fn fd :
+  get_fundef (p_funcs p) fn = Some fd ->
+  Sv.Subset (vars_fd fd) pvars /\
+  forall ci, f_contract fd = Some ci -> Sv.Subset (contract_vars ci) pvars.
+Proof using spp.
+rewrite /explicit_init_vars; elim: (p_funcs p) => //= -[fn' fd'] fds ih.
+case: eqP => [_ [<-] | _ /ih [h1 h2]].
+- by split => [ | ci /= ->]; SvD.fsetdec.
+by split => [ | ci /h2]; SvD.fsetdec.
+Qed.
+
+Lemma check_masksP X xs :
+  check_masks mask X xs ->
+  [/\ forall x, x \in xs -> vtype (mask x) = if is_arr_var x then vtype x else abool,
+      forall x, x \in xs -> ~ Sv.In (mask x) X &
+      forall x y, x \in xs -> y \in xs -> mask x = mask y -> x = y].
+Proof using spp.
+elim: xs X => [ | x xs ih] X //=.
+move=> /and3P [/eqP hty /Sv_memP hX /ih [hty' hX' hinj]]; split.
+- by move=> y; rewrite in_cons => /orP [/eqP -> // | /hty'].
+- by move=> y; rewrite in_cons => /orP [/eqP -> // | /hX']; SvD.fsetdec.
+have hne : forall y, y \in xs -> mask y <> mask x by move=> y /hX' h heq; apply: h; rewrite heq; SvD.fsetdec.
+move=> y z; rewrite !in_cons => /orP [/eqP -> | hy] /orP [/eqP -> | hz] //.
+- by move=> /esym /(hne _ hz).
+- by move=> /(hne _ hy).
+exact: hinj.
+Qed.
+
+(* The checks of the pass make a mask a fresh variable: distinct variables
+   of the program have distinct masks, no mask is a variable of the program,
+   and the mask of [x] is a boolean for a scalar [x] and an array of the type
+   of [x] for an array. *)
+Lemma mask_type x :
+  Sv.In x pvars -> vtype (mask x) = if is_arr_var x then vtype x else abool.
+Proof using explicit_init_ok spp.
+have [_ _ /check_masksP [h _ _] _] := explicit_init_okE.
+by move=> /Sv_elemsP; apply: h.
+Qed.
+
+Lemma mask_fresh x : Sv.In x pvars -> ~ Sv.In (mask x) pvars.
+Proof using explicit_init_ok spp.
+have [_ _ /check_masksP [_ h _] _] := explicit_init_okE.
+by move=> /Sv_elemsP; apply: h.
+Qed.
+
+Lemma mask_inj x y : Sv.In x pvars -> Sv.In y pvars -> mask x = mask y -> x = y.
+Proof using explicit_init_ok spp.
+have [_ _ /check_masksP [_ _ h] _] := explicit_init_okE.
+by move=> /Sv_elemsP hx /Sv_elemsP hy; apply: h.
+Qed.
+
+Lemma is_arr_var_mask x : Sv.In x pvars -> is_arr_var (mask x) = is_arr_var x.
+Proof using explicit_init_ok spp. by move=> hx; rewrite {1}/is_arr_var mask_type //; case: ifP. Qed.
+
+(* A variable that is not of the program, such as a mask. *)
+Definition is_mask (y : var) := ~ Sv.In y pvars.
+
+Lemma is_mask_mask x : Sv.In x pvars -> is_mask (mask x).
+Proof using explicit_init_ok spp. exact: mask_fresh. Qed.
+
 (* A global array is initialised exactly in its bounds. *)
 Lemma get_global_arr_init x len (t : WArray.array len) :
   get_global gd x = ok (Varr t) -> forall i, WArray.is_init t i = (0 <=? i) && (i <? len).
-Proof using explicit_init_ok.
-have [_ hg _] := explicit_init_okE.
+Proof using explicit_init_ok spp.
+have [_ hg _ _] := explicit_init_okE.
 rewrite /get_global; case hx: get_global_value => [g | ] //.
 have := (seq_extra.allInP _ _ hg) _ (assoc_mem' hx).
 case: ifP => // _; case: g {hx} => //= len' t' /andP [/allP hin /Mz.allP hout] heq.
@@ -115,8 +158,8 @@ Definition is_initv (v : value) i := if v is Varr _ t then WArray.is_init t i el
 Definition is_initbv (v : value) i := if v is Varr _ t then WArray.is_initb t i else false.
 Definition val_mask_of (v m : value) := forall i, is_initbv m i = is_initv v i.
 
-(* The masks of [vm1] describe the values of [vm2]: the mask of a scalar [x]
-   holds exactly when [x] is defined in [vm2]; the mask of an array [x] is a
+(* The masks of [vm1] describe the values of [vm2] on the variables of the
+   program: the mask of a scalar [x] holds exactly when [x] is defined in [vm2]; the mask of an array [x] is a
    mask of its value. A mask never written reads as [false] or as an empty
    array in the total mode.
    The scalars of [X] are written, defined, and their masks are not written
@@ -124,18 +167,18 @@ Definition val_mask_of (v m : value) := forall i, is_initbv m i = is_initv v i.
    of a loop and its mask, between the parameters of a function and their
    masks. *)
 Definition mask_inv (X : Sv.t) (vm1 vm2 : Vm.t) : Prop :=
-  (forall x, ~~ is_arr_var x ->
+  (forall x, Sv.In x pvars -> ~~ is_arr_var x ->
      if Sv.mem x X then is_true (is_defined vm2.[x]%vm)
      else Vm.get (sm := total) vm1 (mask x) = Vbool (is_defined vm2.[x]%vm)) /\
-  (forall x, val_mask_of vm2.[x]%vm (Vm.get (sm := total) vm1 (mask x))).
+  (forall x, Sv.In x pvars -> val_mask_of vm2.[x]%vm (Vm.get (sm := total) vm1 (mask x))).
 
 (* [vm1] is the variable map of the instrumented program, [vm2] the one of the
-   original program. They agree on the total reads of every variable that is
-   not a mask (an undefined scalar of [vm2] reads as its default value, which
+   original program. They agree on the total reads of every variable of the
+   program (an undefined scalar of [vm2] reads as its default value, which
    is what [total_init] gives to an undefined output), and the masks of [vm1]
    describe [vm2]. *)
 Definition prog_eq (vm1 vm2 : Vm.t) :=
-  forall x, ~ is_mask x -> Vm.get (sm := total) vm1 x = Vm.get (sm := total) vm2 x.
+  forall x, Sv.In x pvars -> Vm.get (sm := total) vm1 x = Vm.get (sm := total) vm2 x.
 
 Definition mask_vm X (vm1 vm2 : Vm.t) : Prop := prog_eq vm1 vm2 /\ mask_inv X vm1 vm2.
 
@@ -182,21 +225,19 @@ Lemma mask_inv_eq X X' vm1 vm2 :
   (forall x, ~~ is_arr_var x -> Sv.In x X <-> Sv.In x X') ->
   mask_inv X vm1 vm2 -> mask_inv X' vm1 vm2.
 Proof.
-move=> hX [hsc har]; split => // x hx.
-have := hsc x hx; case: (Sv_memP x X) => h; case: (Sv_memP x X') => h' //.
+move=> hX [hsc har]; split => // x hU hx.
+have := hsc x hU hx; case: (Sv_memP x X) => h; case: (Sv_memP x X') => h' //.
 all: by have := hX x hx; tauto.
 Qed.
 
 (* ------------------------------------------------------------------------- *)
 (* The masks and the variables of the program                                 *)
 
-Definition no_mask (X : Sv.t) := forall y, Sv.In y X -> ~ is_mask y.
+(* The variables of [X] are variables of the program. *)
+Definition no_mask (X : Sv.t) := forall y, Sv.In y X -> Sv.In y pvars.
 
 Lemma no_maskI X Y : Sv.Subset X Y -> no_mask Y -> no_mask X.
 Proof. by move=> hsub h y hy; apply: h; apply: hsub. Qed.
-
-Lemma no_mask_vars_p : no_mask (vars_p (p_funcs p)).
-Proof using mask_fresh. by move=> y hy [x hx]; apply: (mask_fresh hy hx). Qed.
 
 Lemma prog_eq_eq_on X vm1 vm2 : no_mask X -> prog_eq vm1 vm2 -> eq_on (sm := total) X vm1 vm2.
 Proof. by move=> hX h x /hX; apply: h. Qed.
@@ -343,12 +384,12 @@ Proof. by case: v. Qed.
    its own variables. *)
 Lemma mask_ofP s e v m :
   no_mask (read_e e) ->
-  (forall x, ~ is_mask x ->
+  (forall x, Sv.In x pvars ->
      val_mask_of (Vm.get (sm := total) (evm s) x) (Vm.get (sm := total) (evm s) (mask x))) ->
   sem_pexpr (sm := total) true gd s e = ok v ->
   sem_pexpr (sm := total) true gd s (mask_of e) = ok m ->
   val_mask_of v m.
-Proof using explicit_init_ok mask_type.
+Proof using explicit_init_ok spp.
 move=> + hself.
 elim: e v m => [z | b | ws n | x | al aa sz x e he | aa sz len x e he | al sz e he | op e he
   | op e1 he1 e2 he2 | op es hes | t e he e1 he1 e2 he2] v m hX.
@@ -371,14 +412,14 @@ elim: e v m => [z | b | ws n | x | al aa sz x e he | aa sz len x e he | al sz e 
     t_xrbindP => i vi hvi hi <-.
     apply: on_arr_gvarP => n' tm htm hgetm; rewrite hvi /= hi /= => -[<-] k /=.
     have hxa : is_arr_var x by move: htx; rewrite /is_arr_var; case: (vtype x).
-    have ? : n' = n by move: htm htx; rewrite mask_type hxa => -> [].
+    have hU : Sv.In x pvars by apply: hX; rewrite read_e_Psub /read_gvar /=; SvD.fsetdec.
+    have ? : n' = n by move: htm htx; rewrite (mask_type hU) hxa => -> [].
     subst n'.
     rewrite /WArray.is_initb /WArray.is_init /= !WArray.get_sub_data_get8 /=.
     case: ifP => // _.
     move: hget hgetm; rewrite /get_gvar /= /get_var; t_xrbindP => _ hx _ hmx.
-    have := hself x _ (i * mk_scale aa sz + k); rewrite hx hmx /WArray.get_in_bounds.
-    case: ifP => // _; apply.
-    by apply: hX; rewrite read_e_Psub /read_gvar /=; SvD.fsetdec.
+    have := hself x hU (i * mk_scale aa sz + k); rewrite hx hmx /WArray.get_in_bounds.
+    by case: ifP => // _; apply.
   apply: on_arr_gvarP => n t htx hget.
   t_xrbindP => i vi hvi hi <-.
   move: htx; rewrite /eglob_sub_mask; case: (vtype x) => // wsg leng [?]; subst n.
@@ -431,34 +472,34 @@ Qed.
 (* A variable and its mask written together: the mask of a scalar holds exactly
    where the scalar is defined, the mask of an array is a mask of it. *)
 Lemma mask_inv_set_var X x m v vm1 vm1' vm2 vm2' :
-  mask_inv X vm1 vm2 ->
+  Sv.In x pvars -> mask_inv X vm1 vm2 ->
   (~~ is_arr_var x -> ~~ Sv.mem x X /\ m = Vbool (is_defined v)) ->
   val_mask_of v m ->
   set_var true vm1 (mask x) m = ok vm1' ->
   set_var true vm2 x v = ok vm2' ->
   mask_inv X vm1' vm2'.
-Proof using mask_inj mask_type.
-move=> [hsc har] hdef hval hs1 hs2.
+Proof using explicit_init_ok spp.
+move=> hx [hsc har] hdef hval hs1 hs2.
 have hz1 := set_var_eq_ex hs1; have hz2 := set_var_eq_ex hs2.
 split.
-- move=> z hz; case: (x =P z) => [? | hne]; last first.
+- move=> z hzU hz; case: (x =P z) => [? | hne]; last first.
   + rewrite -(get_total_eq_ex (z := mask z) hz1).
     + rewrite -hz2; first by apply: hsc.
       by move=> /SvD.F.singleton_iff.
-    by move=> /SvD.F.singleton_iff /mask_inj.
+    by move=> /SvD.F.singleton_iff /(mask_inj hx hzU).
   subst z; have [/negbTE -> ?] := hdef hz; subst m.
   move: hs1 hs2 => /set_varP [_ htm ->] /set_varP [_ htv ->].
   rewrite Vm.setP_eq; have /= <- := vm_truncate_val_defined htv.
-  by rewrite Vm.get_modeE Vm.setP_eq mask_type (negbTE hz).
-move=> z; case: (x =P z) => [? | hne]; last first.
-- rewrite -(get_total_eq_ex (z := mask z) hz1); last by move=> /SvD.F.singleton_iff /mask_inj.
+  by rewrite Vm.get_modeE Vm.setP_eq (mask_type hx) (negbTE hz).
+move=> z hzU; case: (x =P z) => [? | hne]; last first.
+- rewrite -(get_total_eq_ex (z := mask z) hz1); last by move=> /SvD.F.singleton_iff /(mask_inj hx hzU).
   by rewrite -hz2; [apply: har | move=> /SvD.F.singleton_iff].
 subst z; case hxa: (is_arr_var x); last first.
-- by move=> i; rewrite is_initbv_scalar ?is_initv_scalar ?is_arr_var_mask ?hxa.
+- by move=> i; rewrite is_initbv_scalar ?is_initv_scalar ?(is_arr_var_mask hx) ?hxa.
 rewrite (set_var_arr_get hs2 hxa) Vm.get_totalE.
-- by rewrite (set_var_arr_get hs1) // is_arr_var_mask.
+- by rewrite (set_var_arr_get hs1) // (is_arr_var_mask hx).
 move: hxa => /is_aarrP [ws [len hty]]; have := Vm.getP vm1' (mask x).
-by rewrite mask_type /is_arr_var hty /= => /compat_valEl [? ->].
+by rewrite (mask_type hx) /is_arr_var hty /= => /compat_valEl [? ->].
 Qed.
 
 (* Every byte of the word [-1] is [0xFF]. *)
@@ -504,7 +545,7 @@ Definition lv_idx (lv : lval) : option pexpr :=
 
 (* A destination and its mask written at the same place. *)
 Lemma mask_inv_mirror X lv m v a a' c c' :
-  mask_inv X (evm a) (evm c) ->
+  no_mask (vrv lv) -> mask_inv X (evm a) (evm c) ->
   (forall e, lv_idx lv = Some e ->
      sem_pexpr (sm := total) true gd a e = sem_pexpr (sm := total) true gd c e) ->
   (forall x, lv = Lvar x -> ~~ is_arr_var x -> ~~ Sv.mem x X /\ m = Vbool (is_defined v)) ->
@@ -513,35 +554,37 @@ Lemma mask_inv_mirror X lv m v a a' c c' :
   write_lval (sm := total) true gd (mask_lv lv) m a = ok a' ->
   write_lval (sm := total) true gd lv v c = ok c' ->
   mask_inv X (evm a') (evm c').
-Proof using mask_inj mask_type.
-move=> hinv hidx hdef hcell hval.
-case: lv hidx hdef hcell => [vi ty | x | al ws x e | al aa ws x e | aa ws len x e] /= hidx hdef hcell.
+Proof using explicit_init_ok spp.
+move=> hX hinv hidx hdef hcell hval.
+case: lv hX hidx hdef hcell => [vi ty | x | al ws x e | al aa ws x e | aa ws len x e] /= hX hidx hdef hcell.
 - by move=> /write_noneP [-> _ _] /write_noneP [-> _ _].
 - rewrite /write_var; t_xrbindP => vm1 hs1 <- vm2 hs2 <- /=.
-  by apply: mask_inv_set_var hinv (hdef _ erefl) hval hs1 hs2.
+  by apply: mask_inv_set_var (hX _ (SvD.F.singleton_2 erefl)) hinv (hdef _ erefl) hval hs1 hs2.
 - by t_xrbindP => > _ _ > _ > _ <- > _ _ > _ > _ <-.
 - apply: on_arr_varP => n tm htm hgetm; t_xrbindP => i vi hvi hi w' hw' tm' hset' hw1.
   apply: on_arr_varP => n' t htx hgetx; rewrite -(hidx _ erefl) hvi /= hi /=.
   t_xrbindP => w hw t' hset hw2.
   have hxa : is_arr_var x by move: htx; rewrite /is_arr_var; case: (vtype x).
-  have ? : n' = n by move: htm htx; rewrite mask_type hxa => -> [].
+  have hU : Sv.In x pvars by apply: hX; SvD.fsetdec.
+  have ? : n' = n by move: htm htx; rewrite (mask_type hU) hxa => -> [].
   subst n'.
   move: hw1 hw2; rewrite /write_var; t_xrbindP => vm1 hs1 <- vm2 hs2 <-.
-  apply: (mask_inv_set_var hinv _ _ hs1 hs2); first by rewrite hxa.
+  apply: (mask_inv_set_var hU hinv _ _ hs1 hs2); first by rewrite hxa.
   move: hw'; rewrite (hcell _ _ _ _ _ erefl) /= truncate_word_u => -[?]; subst w'.
   apply: (set_total_mask hset hset').
-  have := hinv.2 x; move: hgetx hgetm; rewrite /get_var -get_total_arr //; t_xrbindP => _ -> _ ->.
+  have := hinv.2 x hU; move: hgetx hgetm; rewrite /get_var -get_total_arr //; t_xrbindP => _ -> _ ->.
   by apply.
 apply: on_arr_varP => n tm htm hgetm; t_xrbindP => i vi hvi hi bm hbm hw1.
 apply: on_arr_varP => n' t htx hgetx; rewrite -(hidx _ erefl) hvi /= hi /=.
 t_xrbindP => b hb hw2.
 have hxa : is_arr_var x by move: htx; rewrite /is_arr_var; case: (vtype x).
-have ? : n' = n by move: htm htx; rewrite mask_type hxa => -> [].
+have hU : Sv.In x pvars by apply: hX; SvD.fsetdec.
+have ? : n' = n by move: htm htx; rewrite (mask_type hU) hxa => -> [].
 subst n'.
 move: hw1 hw2; rewrite /write_var; t_xrbindP => vm1 hs1 <- vm2 hs2 <-.
-apply: (mask_inv_set_var hinv _ _ hs1 hs2); first by rewrite hxa.
+apply: (mask_inv_set_var hU hinv _ _ hs1 hs2); first by rewrite hxa.
 apply: (set_sub_total_mask (t := t) (tm := tm) (i := i) (b := b) (bm := bm) erefl erefl).
-- have := hinv.2 x; move: hgetx hgetm; rewrite /get_var -get_total_arr //; t_xrbindP => _ -> _ ->.
+- have := hinv.2 x hU; move: hgetx hgetm; rewrite /get_var -get_total_arr //; t_xrbindP => _ -> _ ->.
   by apply.
 by move: hval; rewrite (to_arrI hb) (to_arrI hbm).
 Qed.
@@ -551,9 +594,9 @@ Lemma mask_inv_set_var_r X a x v vm2 vm2' :
   mask_inv X a vm2 -> ~~ is_arr_var x -> is_defined v ->
   set_var true vm2 x v = ok vm2' ->
   mask_inv (Sv.add x X) a vm2'.
-Proof using mask_type.
+Proof using explicit_init_ok spp.
 move=> [hsc har] hx hv hs2; have hz2 := set_var_eq_ex hs2.
-split => z.
+split => z hzU.
 - move=> hz; rewrite SvD.F.add_b; case: (x =P z) => [? | hne]; last first.
   + rewrite /SvD.F.eqb; case: SvD.F.eq_dec => // _ /=.
     by rewrite -hz2; [apply: hsc | move=> /SvD.F.singleton_iff].
@@ -561,7 +604,7 @@ split => z.
   by move: hs2 => /set_varP [_ htv ->]; rewrite Vm.setP_eq; have /= <- := vm_truncate_val_defined htv.
 case: (x =P z) => [? | hne]; last first.
 - by rewrite -hz2; [apply: har | move=> /SvD.F.singleton_iff].
-by subst z => i; rewrite is_initbv_scalar ?is_initv_scalar ?is_arr_var_mask ?(negbTE hx).
+by subst z => i; rewrite is_initbv_scalar ?is_initv_scalar ?(is_arr_var_mask hzU) ?(negbTE hx).
 Qed.
 
 (* A destination that writes no variable. *)
@@ -576,34 +619,34 @@ Qed.
 
 (* The mask of a variable written alone. *)
 Lemma mask_inv_set_mask_l X x m a a' c :
-  mask_inv X a c ->
+  Sv.In x pvars -> mask_inv X a c ->
   (if is_arr_var x then val_mask_of c.[x] m else m = Vbool (is_defined c.[x])) ->
   set_var true a (mask x) m = ok a' ->
   mask_inv (Sv.remove x X) a' c.
-Proof using mask_inj mask_type.
-move=> [hsc har] hx hs1; have hz1 := set_var_eq_ex hs1.
-split => z.
+Proof using explicit_init_ok spp.
+move=> hxU [hsc har] hx hs1; have hz1 := set_var_eq_ex hs1.
+split => z hzU.
 - move=> hz; rewrite SvD.F.remove_b; case: (x =P z) => [? | hne]; last first.
   + rewrite /SvD.F.eqb; case: SvD.F.eq_dec => //= _; rewrite andbT.
     rewrite -(get_total_eq_ex (z := mask z) hz1); first by apply: hsc.
-    by move=> /SvD.F.singleton_iff /mask_inj.
+    by move=> /SvD.F.singleton_iff /(mask_inj hxU hzU).
   subst z; rewrite /SvD.F.eqb; case: SvD.F.eq_dec => //= _; rewrite andbF.
   move: hx; rewrite (negbTE hz) => ?; subst m.
   move: hs1 => /set_varP [_ htm ->].
-  by rewrite Vm.get_modeE Vm.setP_eq mask_type (negbTE hz).
+  by rewrite Vm.get_modeE Vm.setP_eq (mask_type hxU) (negbTE hz).
 case: (x =P z) => [? | hne]; last first.
 - rewrite -(get_total_eq_ex (z := mask z) hz1); first by apply: har.
-  by move=> /SvD.F.singleton_iff /mask_inj.
-subst z; move: hx; case: ifP => hxa hx; last by move=> i; rewrite is_initbv_scalar ?is_initv_scalar ?is_arr_var_mask ?hxa.
-have hmxa : is_arr_var (mask x) by rewrite is_arr_var_mask.
+  by move=> /SvD.F.singleton_iff /(mask_inj hxU hzU).
+subst z; move: hx; case: ifP => hxa hx; last by move=> i; rewrite is_initbv_scalar ?is_initv_scalar ?(is_arr_var_mask hxU) ?hxa.
+have hmxa : is_arr_var (mask x) by rewrite (is_arr_var_mask hxU).
 by rewrite get_total_arr // (set_var_arr_get hs1).
 Qed.
 (* Writing a mask leaves the variables of the program untouched. *)
 Lemma prog_eq_set_mask x m a a' c :
-  set_var true a (mask x) m = ok a' -> prog_eq a c -> prog_eq a' c.
-Proof.
-move=> /set_var_eq_ex hz h y hy; rewrite -(get_total_eq_ex hz); first by apply: h.
-by move=> /SvD.F.singleton_iff hm; apply: hy; exists x.
+  Sv.In x pvars -> set_var true a (mask x) m = ok a' -> prog_eq a c -> prog_eq a' c.
+Proof using explicit_init_ok spp.
+move=> hx /set_var_eq_ex hz h y hy; rewrite -(get_total_eq_ex hz); first by apply: h.
+by move=> /SvD.F.singleton_iff hm; apply: (mask_fresh hx); rewrite hm.
 Qed.
 
 (* A destination of the program written on both sides with the same value. *)
@@ -674,20 +717,21 @@ Qed.
 (* The writes of the variables of the program leave the masks untouched. *)
 Lemma mask_inv_prog_l X W vm1 vm1' vm2 :
   no_mask W -> vm1 =[\W] vm1' -> mask_inv X vm1 vm2 -> mask_inv X vm1' vm2.
-Proof.
-move=> hW heq [hsc har]; have hm : forall x, Vm.get (sm := total) vm1' (mask x) = Vm.get (sm := total) vm1 (mask x).
-- by move=> x; symmetry; apply: (get_total_eq_ex heq) => /hW; apply; exists x.
-by split => x; rewrite hm; [apply: hsc | apply: har].
+Proof using explicit_init_ok spp.
+move=> hW heq [hsc har].
+have hm : forall x, Sv.In x pvars -> Vm.get (sm := total) vm1' (mask x) = Vm.get (sm := total) vm1 (mask x).
+- by move=> x hx; symmetry; apply: (get_total_eq_ex heq) => /hW; apply: mask_fresh hx.
+by split => x hx; rewrite hm //; [apply: hsc | apply: har].
 Qed.
 
 (* The masks of the instrumented program describe its own arrays. *)
 Lemma mask_vm_self X vm1 vm2 x :
-  mask_vm X vm1 vm2 -> ~ is_mask x ->
+  mask_vm X vm1 vm2 -> Sv.In x pvars ->
   val_mask_of (Vm.get (sm := total) vm1 x) (Vm.get (sm := total) vm1 (mask x)).
-Proof using mask_type.
+Proof using explicit_init_ok spp.
 move=> [heq [_ har]] hx; case hxa: (is_arr_var x); last first.
-- by move=> i; rewrite is_initbv_scalar ?is_initv_scalar ?is_arr_var_mask ?hxa.
-by rewrite (heq _ hx) get_total_arr.
+- by move=> i; rewrite is_initbv_scalar ?is_initv_scalar ?(is_arr_var_mask hx) ?hxa.
+by rewrite (heq _ hx) get_total_arr //; apply: har.
 Qed.
 
 (* The mask of a cell: every byte is [0xFF]. *)
@@ -707,38 +751,39 @@ Lemma assgn_mask_inv ii lv ty e v v' s0 s1 s2 s2' :
   esem (sm := total_init) pm ev (explicit_init_assgn mask ii lv ty e) s0 = ok s1 ->
   write_lval (sm := total) true gd lv v' s2 = ok s2' ->
   mask_inv Sv.empty (evm s1) (evm s2').
-Proof using explicit_init_ok mask_inj mask_type.
+Proof using explicit_init_ok spp.
 move=> hvm hmem hX hv htr hm hw; move: hm.
 have hXe : no_mask (read_e e) by apply: no_maskI hX; SvD.fsetdec.
 have hidx : forall e', lv_idx lv = Some e' ->
     sem_pexpr (sm := total) true gd s0 e' = sem_pexpr (sm := total) true gd s2 e'.
 - move=> e' he'; apply: prog_eq_sem_pexpr => //; last exact: hvm.1.
   apply: no_maskI hX; case: (lv) he' => //= > [<-]; rewrite /vars_lval /read_rv /= read_eE; SvD.fsetdec.
-case: lv hX hw hidx => [vi tyn | x | al ws x e' | al aa ws x e' | aa ws len x e'] hX hw hidx;
+have hXv : no_mask (vrv lv) by apply: no_maskI hX; rewrite /vars_lval; SvD.fsetdec.
+case: lv hX hXv hw hidx => [vi tyn | x | al ws x e' | al aa ws x e' | aa ws len x e'] hX hXv hw hidx;
   rewrite [explicit_init_assgn _ _ _ _ _]/=.
 - by move=> [<-]; rewrite (write_lval_novar _ hw) //; exact: hvm.2.
 - case: ifP => hxa; rewrite esem_assgn1 /sem_assgn.
   + t_xrbindP => mv hmv mv' htm hwm.
     rewrite (sem_pexpr_is_totalE gd (sm2 := total)) // in hmv.
-    apply: (mask_inv_mirror (lv := Lvar x) hvm.2 hidx _ _ _ hwm hw) => //.
+    apply: (mask_inv_mirror (lv := Lvar x) hXv hvm.2 hidx _ _ _ hwm hw) => //.
     + by move=> _ [<-]; rewrite hxa.
     move=> i; apply: (val_mask_of_truncate htr htm _ i).
     by apply: (mask_ofP hXe _ hv hmv) => y hy; apply: (mask_vm_self hvm).
   t_xrbindP => mv [<-] mv' /= [<-] hwm.
-  apply: (mask_inv_mirror (lv := Lvar x) hvm.2 hidx _ _ _ hwm hw) => //.
+  apply: (mask_inv_mirror (lv := Lvar x) hXv hvm.2 hidx _ _ _ hwm hw) => //.
   + by move=> _ [<-] _; rewrite SvD.F.empty_b (truncate_val_defined htr).
   move=> i; case: v' hw {htr} => //= len t hw.
   by have := write_lval_arr (sm := total) (spp := spp) (gd := gd) (lv := Lvar x) (v := Varr t) erefl hw; rewrite /= hxa.
 - by move=> [<-]; rewrite (write_lval_novar _ hw) //; exact: hvm.2.
 - move=> /sem_cell_mask hwm.
-  apply: (mask_inv_mirror (lv := Laset al aa ws x e') hvm.2 hidx _ _ _ hwm hw) => //.
+  apply: (mask_inv_mirror (lv := Laset al aa ws x e') hXv hvm.2 hidx _ _ _ hwm hw) => //.
   + by move=> > [] _ _ <-.
   move=> i; case: v' {htr} hw => //= len t; apply: on_arr_varP => > _ _; t_xrbindP.
   by [].
 rewrite esem_assgn1 /sem_assgn; t_xrbindP => mv hmv mv' htm hwm.
 rewrite (write_lval_is_totalE gd (sm2 := total)) // in hwm.
 rewrite (sem_pexpr_is_totalE gd (sm2 := total)) // in hmv.
-apply: (mask_inv_mirror (lv := Lasub aa ws len x e') hvm.2 hidx _ _ _ hwm hw) => //.
+apply: (mask_inv_mirror (lv := Lasub aa ws len x e') hXv hvm.2 hidx _ _ _ hwm hw) => //.
 move=> i; apply: (val_mask_of_truncate htr htm _ i).
 by apply: (mask_ofP hXe _ hv hmv) => y hy; apply: (mask_vm_self hvm).
 Qed.
@@ -764,18 +809,21 @@ have [-> -> h] := ih _ hall hWc hc.
 have [hscs hmem] := lv_write_scs_mem hw; split => //.
 - by rewrite -hmem.
 move=> vm hp; apply: h => y hy; rewrite -(get_total_eq_ex (vrvP hw)); first by apply: hp.
-by move=> /hW1 /hy.
+by move=> /hW1 /(_ hy).
 Qed.
 
 
 Lemma mask_cmd_assgn ii lv ty e :
+  no_mask (vrv lv) ->
   all is_mask_assgn (explicit_init_assgn mask ii lv ty e) /\
   forall y, Sv.In y (write_c (explicit_init_assgn mask ii lv ty e)) -> is_mask y.
-Proof.
-case: lv => [vi tyn | x | al ws x e' | al aa ws x e' | aa ws len x e'] /=.
+Proof using explicit_init_ok spp.
+case: lv => [vi tyn | x | al ws x e' | al aa ws x e' | aa ws len x e'] /= hX.
 1,3: by split => // y; rewrite write_c_nil => /SvD.F.empty_iff.
-- by case: ifP => _; split => // y; rewrite write_c_assgn1 /= => /SvD.F.singleton_iff <-; exists x.
-all: by split => // y; rewrite write_c_assgn1 /= => /SvD.F.singleton_iff <-; exists x.
+- by case: ifP => _; split => // y; rewrite write_c_assgn1 /= => /SvD.F.singleton_iff <-;
+    apply: is_mask_mask; apply: hX; SvD.fsetdec.
+all: by split => // y; rewrite write_c_assgn1 /= => /SvD.F.singleton_iff <-;
+  apply: is_mask_mask; apply: hX; SvD.fsetdec.
 Qed.
 
 Lemma assgnP ii lv tg ty e s0 s1' s2 :
@@ -783,15 +831,16 @@ Lemma assgnP ii lv tg ty e s0 s1' s2 :
   mask_st s0 s2 ->
   esem (sm := total_init) pm ev (explicit_init_assgn mask ii lv ty e ++ [:: MkI ii (Cassgn lv tg ty e)]) s0 = ok s1' ->
   exists2 s2', esem (sm := total) p ev [:: MkI ii (Cassgn lv tg ty e)] s2 = ok s2' & mask_st s1' s2'.
-Proof using explicit_init_ok mask_inj mask_type.
+Proof using explicit_init_ok spp.
 move=> hX [hscs hmem hvm]; rewrite esem_cat; t_xrbindP => s1 hmask.
-have [hall hW] := mask_cmd_assgn ii lv ty e.
-have [hscs1 hmem1 hp1] := esem_mask_cmd hall hW hmask.
-rewrite esem_assgn1 /sem_assgn; t_xrbindP => v hv v' htr hw.
 have hX' : no_mask (Sv.union (read_e e) (vars_lval lv)).
 - apply: no_maskI hX; rewrite /vars_I /vars_lval read_Ii write_Ii read_i_assgn write_i_assgn; SvD.fsetdec.
 have hXe : no_mask (read_e e) by apply: no_maskI hX'; SvD.fsetdec.
 have hXl : no_mask (vars_lval lv) by apply: no_maskI hX'; SvD.fsetdec.
+have hXv : no_mask (vrv lv) by apply: no_maskI hXl; rewrite /vars_lval; SvD.fsetdec.
+have [hall hW] := mask_cmd_assgn ii ty e hXv.
+have [hscs1 hmem1 hp1] := esem_mask_cmd hall hW hmask.
+rewrite esem_assgn1 /sem_assgn; t_xrbindP => v hv v' htr hw.
 have hp12 := hp1 _ hvm.1.
 have hp10 : prog_eq (evm s1) (evm s0) by apply: hp1.
 have hv2 : sem_pexpr (sm := total) true gd s2 e = ok v.
@@ -802,7 +851,7 @@ rewrite (write_lval_is_totalE gd (sm2 := total)) // in hw.
 have [s2' hw2 [hs hm hp]] := prog_eq_write_lval hp12 (etrans hscs1 hscs) (etrans hmem1 hmem) hXl hw.
 exists s2'; first by rewrite esem_assgn1 /sem_assgn hv2 /= htr.
 split => //; split => //.
-apply: (mask_inv_prog_l (W := vrv lv)); first by apply: no_maskI hXl; rewrite /vars_lval; SvD.fsetdec.
+apply: (mask_inv_prog_l (W := vrv lv)); first exact: hXv.
 - exact: vrvP hw.
 exact: assgn_mask_inv hvm hmem hX' hv0 htr hmask hw2.
 Qed.
@@ -820,30 +869,31 @@ Qed.
 
 (* The mask of an array expression has the type of the expression. *)
 Lemma mask_of_type s e v m :
-  is_arr_expr e ->
+  is_arr_expr e -> no_mask (read_e e) ->
   sem_pexpr (sm := total) true gd s e = ok v ->
   sem_pexpr (sm := total) true gd s (mask_of e) = ok m ->
   type_of_val m = type_of_val v.
-Proof using mask_type.
+Proof using explicit_init_ok spp.
 have hpif : forall ty b e1 e2 m, sem_pexpr (sm := total) true gd s (Pif ty b e1 e2) = ok m -> type_of_val m = eval_atype ty.
 - move=> ty b e1 e2 m0 /=; t_xrbindP => > _ _ > _ /truncate_val_has_type h1 > _ /truncate_val_has_type h2 <-.
   by case: ifP.
 case: e => //=.
-- move=> ws len _ [<-]; rewrite /sem_opN /=.
+- move=> ws len _ _ [<-]; rewrite /sem_opN /=.
   by t_xrbindP => > _ _ <-.
-- move=> g; rewrite /is_arr_var => hg /get_gvar_compat /= [_ /compat_valEl hv]; case: ifP => hgl.
+- move=> g; rewrite /is_arr_var => hg hX /get_gvar_compat /= [_ /compat_valEl hv]; case: ifP => hgl.
   + by case: (vtype (gv g)) hg hv => //= ws len _ [t ->] /sem_opN_Oarr_fill_init [? -> _].
-  move=> /get_gvar_compat /= [_ /compat_valEl]; rewrite mask_type /is_arr_var hg.
+  have hU : Sv.In (gv g) pvars by apply: hX; rewrite read_e_var /read_gvar is_lvar_is_glob hgl /=; SvD.fsetdec.
+  move=> /get_gvar_compat /= [_ /compat_valEl]; rewrite (mask_type hU) /is_arr_var hg.
   by case: (vtype (gv g)) hg hv => //= ws len _ [? ->] [? ->].
-- move=> aa ws len g e _; apply: on_arr_gvarP => n t hty hg; t_xrbindP => i vi _ _ <-.
+- move=> aa ws len g e _ _; apply: on_arr_gvarP => n t hty hg; t_xrbindP => i vi _ _ <-.
   case: is_glob.
   + case: (vtype (gv g)) hty => // wsg leng _.
     by move=> /sem_efill_type ->.
   by rewrite /=; apply: on_arr_gvarP => ????; t_xrbindP => > _ _ <-.
-- move=> o > ho; t_xrbindP => > _; rewrite /sem_opN; t_xrbindP => > _ <-.
+- move=> o > ho _; t_xrbindP => > _; rewrite /sem_opN; t_xrbindP => > _ <-.
   rewrite type_of_to_val.
   by clear -s ho; case: o ho => // [len | ws len] _ /sem_efill_type ->.
-by move=> ty b e1 e2 _ hv hm; rewrite (hpif _ _ _ _ _ hm) (hpif _ _ _ _ _ hv).
+by move=> ty b e1 e2 _ _ hv hm; rewrite (hpif _ _ _ _ _ hm) (hpif _ _ _ _ _ hv).
 Qed.
 
 (* An expression of an array type evaluates to an array. *)
@@ -870,7 +920,7 @@ Lemma arr_init_eP X s1 s2 len e v lo n :
   sem_pexpr (sm := total) true gd s2 e = ok v ->
   sem_eassert gd s1 (PappN_safety (Ois_barr_init len) [:: mask_of e; lo; n]) = ok true ->
   sem_eassert gd s2 (PappN_safety (Ois_arr_init len) [:: e; lo; n]) = ok true.
-Proof using explicit_init_ok mask_type.
+Proof using explicit_init_ok spp.
 move=> [hscs hmem hvm] hXs hxa hve /=; t_xrbindP.
 move=> _ m hm _ vl hl _ vn hn <- <- <-.
 rewrite /sem_opN_safety /=; t_xrbindP => tm /to_arrI ? lo1 hlo1 n1 hn1 hall; subst m.
@@ -883,7 +933,7 @@ rewrite hve (hsame lo) ?hl ?(hsame n) ?hn /=; last 2 first.
 - by apply: no_maskI hXs; rewrite !read_es_cons; SvD.fsetdec.
 have hve1 : sem_pexpr (sm := total) true gd s1 e = ok v by rewrite -hsame.
 have hmo := mask_ofP hXe (fun y hy => mask_vm_self hvm hy) hve1 hm.
-have := mask_of_type hxa hve1 hm; have := sem_pexpr_defined hve.
+have := mask_of_type hxa hXe hve1 hm; have := sem_pexpr_defined hve.
 case: v hve hve1 hmo => //= len1 t _ _ hmo _ [?]; subst len1.
 rewrite to_arrK /= hlo1 hn1 /=; congr ok.
 by apply/allP => i /(allP hall); have /= <- := hmo i.
@@ -898,16 +948,18 @@ Lemma arr_init_aP X s1 s2 len e lo n :
   check_arr_init gd (PappN_safety (Ois_arr_init len) [:: e; lo; n]) ->
   sem_eassert gd s1 (PappN_safety (Ois_barr_init len) [:: mask_of e; lo; n]) = ok true ->
   sem_eassert gd s2 (PappN_safety (Ois_arr_init len) [:: e; lo; n]) = ok true.
-Proof using explicit_init_ok mask_type.
+Proof using explicit_init_ok spp.
 move=> hst hXs hc hs; have [hscs hmem hvm] := hst.
 have := hs; rewrite /=; t_xrbindP => _ m hm _ vl hl _ vn hn <- <- <-.
 rewrite /sem_opN_safety /=; t_xrbindP => tm /to_arrI ? _ _ _ _ _; subst m.
 case: e hXs hc hs hm => // [x | aa ws alen x i] hXs hx hs hm; simpl in hx.
 - have [hlx | [hg /is_okP [v hgv]]] : is_lvar x \/ (is_glob x /\ is_ok (get_global gd (gv x))).
   + by move: hx; rewrite is_lvar_is_glob; case: is_glob => /=; auto.
-  + rewrite is_lvar_is_glob in hlx; rewrite /= (negbTE hlx) /= in hm.
+  + have hU : Sv.In (gv x) pvars.
+    * by apply: hXs; rewrite !read_es_cons read_e_var /read_gvar hlx; SvD.fsetdec.
+    rewrite is_lvar_is_glob in hlx; rewrite /= (negbTE hlx) /= in hm.
     have hxa : is_arr_var (gv x).
-    * move: hm => /get_gvar_compat /= [_ /compat_valEl]; rewrite mask_type.
+    * move: hm => /get_gvar_compat /= [_ /compat_valEl]; rewrite (mask_type hU).
       by case: is_arr_var => //= -[ | [? //] ].
     have hve : sem_pexpr (sm := total) true gd s2 (Pvar x) = ok (evm s2).[gv x].
     * rewrite /= /get_gvar is_lvar_is_glob hlx /get_var.
@@ -918,10 +970,12 @@ case: e hXs hc hs hm => // [x | aa ws alen x i] hXs hx hs hm; simpl in hx.
   have hve : sem_pexpr (sm := total) true gd s2 (Pvar x) = ok v.
   + by rewrite /= /get_gvar is_lvar_is_glob hg.
   exact: (arr_init_eP hst hXs hxa hve hs).
+have hU : Sv.In (gv x) pvars.
+- by apply: hXs; rewrite !read_es_cons read_e_Psub /read_gvar hx; SvD.fsetdec.
 rewrite is_lvar_is_glob in hx; rewrite /= (negbTE hx) /= in hm.
 move: hm; apply: on_arr_gvarP => n0 t0 htm hgm; t_xrbindP => j vj hvj hj _ _.
 have hxa : is_arr_var (gv x).
-- by move: htm; rewrite /= mask_type /is_arr_var; case: (vtype (gv x)).
+- by move: htm; rewrite /= (mask_type hU) /is_arr_var; case: (vtype (gv x)).
 have /is_aarrP [wsx [lenx htyx]] := hxa.
 have [nx [tx htx]] : exists nx (tx : WArray.array nx), (evm s2).[gv x] = Varr tx.
 - have := Vm.getP (evm s2) (gv x); rewrite htyx /= => /compat_valEl [t1 h1].
@@ -946,7 +1000,7 @@ Lemma explicit_init_aP X var_init s1 s2 a :
      is_var_init (evm s2) x) ->
   sem_eassert gd s1 (explicit_init_a mask var_init a) = ok true ->
   sem_eassert gd s2 a = ok true.
-Proof using explicit_init_ok mask_type.
+Proof using explicit_init_ok spp.
 move=> hst; have [hscs hmem hvm] := hst.
 elim: a => [e | o es | x | e1 e2 | a1 ih1 a2 ih2] hX hc hvi.
 - by rewrite /= (prog_eq_sem_pexpr (sm2 := total) _ _ _ _ hvm.1 hmem).
@@ -1032,17 +1086,19 @@ by move=> /(sem_pexpr_sc_to_e hes hce hb); rewrite /safety_cond_holds => ->.
 Qed.
 Lemma mask_cmd_out ii lv ce :
   all is_mask_assgn (explicit_init_out mask ii lv ce) /\
-  forall y, Sv.In y (write_c (explicit_init_out mask ii lv ce)) -> is_mask y.
-Proof.
+  (no_mask (vrv lv) -> forall y, Sv.In y (write_c (explicit_init_out mask ii lv ce)) -> is_mask y).
+Proof using explicit_init_ok spp.
 case: lv => [vi tyn | x | al ws x e' | al aa ws x e' | aa ws len x e'] /=.
-1,3,5: by split => // y; rewrite write_c_nil => /SvD.F.empty_iff.
-- case: ifP => _; first by split => // y; rewrite write_c_nil => /SvD.F.empty_iff.
-  by split => // y; rewrite write_c_assgn1 /= => /SvD.F.singleton_iff <-; exists x.
-by split => // y; rewrite write_c_assgn1 /= => /SvD.F.singleton_iff <-; exists x.
+1,3,5: by split => // _ y; rewrite write_c_nil => /SvD.F.empty_iff.
+- case: ifP => _; first by split => // _ y; rewrite write_c_nil => /SvD.F.empty_iff.
+  by split => // hX y; rewrite write_c_assgn1 /= => /SvD.F.singleton_iff <-;
+    apply: is_mask_mask; apply: hX; SvD.fsetdec.
+by split => // hX y; rewrite write_c_assgn1 /= => /SvD.F.singleton_iff <-;
+  apply: is_mask_mask; apply: hX; SvD.fsetdec.
 Qed.
 
 Lemma opn_mask_step ii lv ce v s2 a a1 c c1 :
-  mask_inv Sv.empty (evm a) (evm c) -> prog_eq (evm a) (evm s2) -> emem a = emem s2 ->
+  no_mask (vrv lv) -> mask_inv Sv.empty (evm a) (evm c) -> prog_eq (evm a) (evm s2) -> emem a = emem s2 ->
   (forall e, lv_idx lv = Some e ->
      sem_pexpr (sm := total) true gd a e = sem_pexpr (sm := total) true gd c e) ->
   no_mask (read_e ce) ->
@@ -1051,21 +1107,21 @@ Lemma opn_mask_step ii lv ce v s2 a a1 c c1 :
   esem (sm := total_init) pm ev (explicit_init_out mask ii lv ce) a = ok a1 ->
   write_lval (sm := total) true gd lv v c = ok c1 ->
   mask_inv Sv.empty (evm a1) (evm c1).
-Proof using mask_inj mask_type.
-move=> hinv hp hmem hidx hXc hdef hv ha hw.
+Proof using explicit_init_ok spp.
+move=> hXv hinv hp hmem hidx hXc hdef hv ha hw.
 have hna := write_lval_nonarr hv hw.
-case: lv hidx ha hw hna => [vi ty | x | al ws x e | al aa ws x e | aa ws len x e] hidx ha hw hna //;
+case: lv hXv hidx ha hw hna => [vi ty | x | al ws x e | al aa ws x e | aa ws len x e] hXv hidx ha hw hna //;
   move: ha; rewrite [explicit_init_out _ _ _ _]/=.
 - by move=> [<-]; rewrite (write_lval_novar _ hw).
 - rewrite (negbTE hna) esem_assgn1 /sem_assgn; t_xrbindP => mv hmv mv' htm hwm.
-  apply: (mask_inv_mirror (lv := Lvar x) hinv hidx _ _ _ hwm hw) => //.
+  apply: (mask_inv_mirror (lv := Lvar x) hXv hinv hidx _ _ _ hwm hw) => //.
   + move=> _ [<-] _; rewrite SvD.F.empty_b; split => //.
     move: htm => /truncate_val_typeE [b ? ->]; subst mv; congr Vbool; apply: hdef.
     by rewrite -hmv; symmetry; apply: prog_eq_sem_pexpr.
   by move=> i; rewrite is_initv_not_arr //; case/truncate_val_typeE: htm => ? _ ->.
 - by move=> [<-]; rewrite (write_lval_novar _ hw).
 move=> /sem_cell_mask hwm.
-apply: (mask_inv_mirror (lv := Laset al aa ws x e) hinv hidx _ _ _ hwm hw) => //.
+apply: (mask_inv_mirror (lv := Laset al aa ws x e) hXv hinv hidx _ _ _ hwm hw) => //.
 - by move=> > [] _ _ <-.
 by move=> i; rewrite is_initv_not_arr.
 Qed.
@@ -1073,7 +1129,7 @@ Lemma lv_idx_var lv : is_var_lv lv -> lv_idx lv = None.
 Proof. by case: lv. Qed.
 
 Lemma opn_masks_inv ii lvs ces vs2 s2 a a' c c' :
-  mask_inv Sv.empty (evm a) (evm c) -> prog_eq (evm a) (evm s2) -> emem a = emem s2 ->
+  no_mask (vrvs lvs) -> mask_inv Sv.empty (evm a) (evm c) -> prog_eq (evm a) (evm s2) -> emem a = emem s2 ->
   (forall e, lv_idx (head (Lnone dummy_var_info abool) lvs) = Some e ->
      sem_pexpr (sm := total) true gd a e = sem_pexpr (sm := total) true gd c e) ->
   all is_var_lv (behead lvs) ->
@@ -1083,19 +1139,21 @@ Lemma opn_masks_inv ii lvs ces vs2 s2 a a' c c' :
   esem (sm := total_init) pm ev (flatten (map2 (explicit_init_out mask ii) lvs ces)) a = ok a' ->
   write_lvals (sm := total) true gd c lvs vs2 = ok c' ->
   mask_inv Sv.empty (evm a') (evm c').
-Proof using mask_inj mask_type.
-elim: lvs ces vs2 a c => [ | lv lvs ih] ces vs2 a c hinv hp hmem hidx hvar hXc hdef hna.
+Proof using explicit_init_ok spp.
+elim: lvs ces vs2 a c => [ | lv lvs ih] ces vs2 a c hXv hinv hp hmem hidx hvar hXc hdef hna.
 - have -> : map2 (explicit_init_out mask ii) [::] ces = [::] by case: ces {hXc hdef}.
   by case: vs2 {hdef hna} => //= -[<-] [<-].
 case: hdef hXc hna => [ | ce v ces' vs' hcev hdef'] hXc hna //=.
 rewrite esem_cat; t_xrbindP => a1 ha1 ha2 c1 hc1 hc2.
 move: hna => /andP [hv hna].
+have hXv1 : no_mask (vrv lv) by apply: no_maskI hXv; rewrite vrvs_cons; SvD.fsetdec.
+have hXvs : no_mask (vrvs lvs) by apply: no_maskI hXv; rewrite vrvs_cons; SvD.fsetdec.
 have [hall hW] := mask_cmd_out ii lv ce.
-have [hscs1 hmem1 hp1] := esem_mask_cmd hall hW ha1.
+have [hscs1 hmem1 hp1] := esem_mask_cmd hall (hW hXv1) ha1.
 have hXce : no_mask (read_e ce) by apply: no_maskI hXc; rewrite read_es_cons; SvD.fsetdec.
 have hXcs : no_mask (read_es ces') by apply: no_maskI hXc; rewrite read_es_cons; SvD.fsetdec.
-have hinv1 := opn_mask_step hinv hp hmem hidx hXce hcev hv ha1 hc1.
-apply: (ih ces' vs' a1 c1 hinv1 (hp1 _ hp) _ _ _ hXcs hdef' hna ha2 hc2).
+have hinv1 := opn_mask_step hXv1 hinv hp hmem hidx hXce hcev hv ha1 hc1.
+apply: (ih ces' vs' a1 c1 hXvs hinv1 (hp1 _ hp) _ _ _ hXcs hdef' hna ha2 hc2).
 - by rewrite hmem1.
 - by case: (lvs) hvar => //= lv' ? /andP [/lv_idx_var ->].
 by case: (lvs) hvar => //= ? ? /andP [].
@@ -1110,11 +1168,14 @@ Qed.
 
 Lemma mask_cmd_opn ii lvs ces :
   all is_mask_assgn (flatten (map2 (explicit_init_out mask ii) lvs ces)) /\
-  forall y, Sv.In y (write_c (flatten (map2 (explicit_init_out mask ii) lvs ces))) -> is_mask y.
-Proof.
-elim: lvs ces => [ | lv lvs ih] [ | ce ces] /=; try by split => // y; rewrite write_c_nil => /SvD.F.empty_iff.
+  (no_mask (vrvs lvs) ->
+   forall y, Sv.In y (write_c (flatten (map2 (explicit_init_out mask ii) lvs ces))) -> is_mask y).
+Proof using explicit_init_ok spp.
+elim: lvs ces => [ | lv lvs ih] [ | ce ces] /=; try by split => // _ y; rewrite write_c_nil => /SvD.F.empty_iff.
 have [h1 h2] := mask_cmd_out ii lv ce; have [h3 h4] := ih ces.
-rewrite all_cat h1 h3; split => // y; rewrite write_c_app => /Sv.union_spec [/h2 | /h4] //.
+rewrite all_cat h1 h3; split => // hX y; rewrite write_c_app => /Sv.union_spec [ | ].
+- by apply: h2; apply: no_maskI hX; rewrite vrvs_cons; SvD.fsetdec.
+by apply: h4; apply: no_maskI hX; rewrite vrvs_cons; SvD.fsetdec.
 Qed.
 
 Lemma opnP ii lvs tg o es s0 s1' s2 :
@@ -1125,15 +1186,16 @@ Lemma opnP ii lvs tg o es s0 s1' s2 :
   mask_st s0 s2 ->
   esem (sm := total_init) pm ev (explicit_init_opn mask ii lvs o es ++ [:: MkI ii (Copn lvs tg o es)]) s0 = ok s1' ->
   exists2 s2', esem (sm := total) p ev [:: MkI ii (Copn lvs tg o es)] s2 = ok s2' & mask_st s1' s2'.
-Proof using mask_inj mask_type.
+Proof using explicit_init_ok spp.
 move=> hX hvar hna [hscs hmem hvm]; rewrite esem_cat; t_xrbindP => s1 hmask.
-have [hall hW] := mask_cmd_opn ii lvs (map2 (out_mask es) (tout (get_instr_desc o)) (i_init (get_instr_desc o))).
-have [hscs1 hmem1 hp1] := esem_mask_cmd hall hW hmask.
-rewrite esem_opn1 /sem_sopn; t_xrbindP => vs1 vs hvs hex hw.
 have hXes : no_mask (read_es es).
 - by apply: no_maskI hX; rewrite /vars_I read_Ii write_Ii read_i_opn write_i_opn; SvD.fsetdec.
 have hXl : no_mask (vars_lvals lvs).
 - by apply: no_maskI hX; rewrite /vars_I /vars_lvals read_Ii write_Ii read_i_opn write_i_opn; SvD.fsetdec.
+have hXv : no_mask (vrvs lvs) by apply: no_maskI hXl; rewrite /vars_lvals; SvD.fsetdec.
+have [hall hW] := mask_cmd_opn ii lvs (map2 (out_mask es) (tout (get_instr_desc o)) (i_init (get_instr_desc o))).
+have [hscs1 hmem1 hp1] := esem_mask_cmd hall (hW hXv) hmask.
+rewrite esem_opn1 /sem_sopn; t_xrbindP => vs1 vs hvs hex hw.
 have hp12 := hp1 _ hvm.1.
 have hvs2 : sem_pexprs (sm := total) true gd s2 es = ok vs.
 - by rewrite -hvs; symmetry; apply: prog_eq_sem_pexprs => //; rewrite hmem1.
@@ -1147,9 +1209,9 @@ have [s2' hw2 [hs hm hp]] :=
 exists s2'.
 - by rewrite esem_opn1 /sem_sopn hvs2 /= hex2.
 split => //; split => //.
-apply: (mask_inv_prog_l (W := vrvs lvs)); first by apply: no_maskI hXl; rewrite /vars_lvals; SvD.fsetdec.
+apply: (mask_inv_prog_l (W := vrvs lvs)); first exact: hXv.
 - exact: vrvsP hw.
-apply: (opn_masks_inv (s2 := s2) hvm.2 hvm.1 hmem _ hvar _ (out_mask_exact hvs2 hex2) _ hmask hw2).
+apply: (opn_masks_inv (s2 := s2) hXv hvm.2 hvm.1 hmem _ hvar _ (out_mask_exact hvs2 hex2) _ hmask hw2).
 - move=> e he; apply: prog_eq_sem_pexpr => //; last exact: hvm.1.
   apply: no_maskI hXl; case: (lvs) he => //= lv ? he.
   rewrite /vars_lvals read_rvs_cons; case: (lv) he => //= > [<-]; rewrite /read_rv /= read_eE; SvD.fsetdec.
@@ -1178,33 +1240,34 @@ Proof. by case: lv. Qed.
 
 
 (* The mask of a destination writes masks only. *)
-Lemma vrv_mask_lv lv y : Sv.In y (vrv (mask_lv lv)) -> is_mask y.
-Proof.
-case: lv => /= [vi ty | x | al ws x e | al aa ws x e | aa ws len x e].
+Lemma vrv_mask_lv lv y : no_mask (vrv lv) -> Sv.In y (vrv (mask_lv lv)) -> is_mask y.
+Proof using explicit_init_ok spp.
+case: lv => /= [vi ty | x | al ws x e | al aa ws x e | aa ws len x e] hX.
 1,3: by move=> /SvD.F.empty_iff.
-all: by move=> /SvD.F.singleton_iff <-; exists x.
+all: by move=> /SvD.F.singleton_iff <-; apply: is_mask_mask; apply: hX; SvD.fsetdec.
 Qed.
 
 (* The mask written for the single array output of an instruction. *)
 Lemma arr_mask_writeP ii ws len lv me s0 s1 :
   esem (sm := total_init) pm ev [:: set_arr_mask mask ii ws len lv me] s0 = ok s1 ->
+  no_mask (vrv lv) ->
   exists m m', [/\ sem_pexpr (sm := total) true gd s0 me = ok m,
     truncate_val (carr (arr_size ws len)) m = ok m',
     write_lval (sm := total) true gd (mask_lv lv) m' s0 = ok s1,
     [/\ escs s1 = escs s0, emem s1 = emem s0 & forall vm, prog_eq (evm s0) vm -> prog_eq (evm s1) vm] &
     ~~ lv_write_mem lv].
-Proof.
-rewrite /set_arr_mask esem_assgn1 /sem_assgn; t_xrbindP => m hm m' htr hw.
+Proof using explicit_init_ok spp.
+rewrite /set_arr_mask esem_assgn1 /sem_assgn; t_xrbindP => m hm m' htr hw hX.
 rewrite (sem_pexpr_is_totalE gd (sm2 := total)) // in hm.
 rewrite (write_lval_is_totalE gd (sm2 := total)) // in hw.
 have hnm : ~~ lv_write_mem lv.
 - case/truncate_val_typeE: htr => a _ hm'; subst m'.
-  by case: lv hw => //= al ws' x e; t_xrbindP.
+  by move: hw; case: (lv) => //= al ws' x e; t_xrbindP => > _ _.
 exists m, m'; split => //.
 have [hscs hmem] := lv_write_scs_mem hw; split => //.
 - by rewrite hmem // lv_write_mem_mask_lv.
 move=> vm hp y hy; rewrite -(get_total_eq_ex (vrvP hw)); first by apply: hp.
-by move=> /vrv_mask_lv.
+by move=> /(vrv_mask_lv hX).
 Qed.
 
 Lemma opn1_arrP ii lv tg o es ws len me s0 s1' s2 :
@@ -1216,8 +1279,11 @@ Lemma opn1_arrP ii lv tg o es ws len me s0 s1' s2 :
   mask_st s0 s2 ->
   esem (sm := total_init) pm ev [:: set_arr_mask mask ii ws len lv me; MkI ii (Copn [:: lv] tg o es)] s0 = ok s1' ->
   exists2 s2', esem (sm := total) p ev [:: MkI ii (Copn [:: lv] tg o es)] s2 = ok s2' & mask_st s1' s2'.
-Proof using mask_inj mask_type.
-move=> hX hval [hscs hmem hvm]; rewrite -cat1s esem_cat; t_xrbindP => s1 /arr_mask_writeP.
+Proof using explicit_init_ok spp.
+move=> hX hval [hscs hmem hvm].
+have hXv : no_mask (vrv lv).
+- by apply: no_maskI hX; rewrite /vars_I read_Ii write_Ii read_i_opn write_i_opn vrvs_cons; SvD.fsetdec.
+rewrite -cat1s esem_cat; t_xrbindP => s1 /arr_mask_writeP /(_ hXv).
 move=> [m [m' [hm htr hwm [hscs1 hmem1 hp1] hnm]]].
 rewrite esem_opn1 /sem_sopn; t_xrbindP => vs1 vs hvs hex hw.
 have hXes : no_mask (read_es es).
@@ -1242,11 +1308,11 @@ apply: (mask_inv_prog_l (W := vrvs [:: lv])); first by apply: no_maskI hXl; rewr
 clear hex hw.
 case: vs2 hex2 hw2 => [ | v [ | ? ?]] hex2 //=; t_xrbindP => // s2'' hw2 ?; subst s2''.
 case/truncate_val_typeE: (htr) => tm ? ?; subst m m'.
-apply: (mask_inv_mirror hvm.2 _ _ _ (hval _ _ _ _ hm htr hvs0 hex2) hwm hw2).
+apply: (mask_inv_mirror hXv hvm.2 _ _ _ (hval _ _ _ _ hm htr hvs0 hex2) hwm hw2).
 - move=> e0 he0; apply: prog_eq_sem_pexpr => //; last exact: hvm.1.
   apply: no_maskI hXl; case: (lv) he0 => //= > [<-]; rewrite /vars_lvals /read_rvs /= read_eE; SvD.fsetdec.
 - move=> x ? hx; subst lv; move: hwm; rewrite /= /write_var; t_xrbindP => ? /set_varP [_ + _].
-  by rewrite mask_type (negbTE hx).
+  by rewrite mask_type ?(negbTE hx) //; apply: hXv; rewrite /=; SvD.fsetdec.
 by move=> al aa ws0 x e ?; subst lv; move: hwm => /=; apply: on_arr_varP => > _ _; t_xrbindP.
 Qed.
 
@@ -1267,7 +1333,7 @@ Lemma copyP ii lv tg ws len es s0 s1' s2 :
                                     MkI ii (Copn [:: lv] tg (Opseudo_op (Ocopy ws len)) es)] s0 = ok s1' ->
   exists2 s2', esem (sm := total) p ev [:: MkI ii (Copn [:: lv] tg (Opseudo_op (Ocopy ws len)) es)] s2 = ok s2'
              & mask_st s1' s2'.
-Proof using mask_inj mask_type.
+Proof using explicit_init_ok spp.
 move=> hX; apply: opn1_arrP => // m m' vs v /sem_efull hm /truncate_val_typeE [a ? ?] _ hex i; subst m m'.
 by rewrite hm (exec_copy_init hex).
 Qed.
@@ -1280,7 +1346,7 @@ Lemma protectP ii lv tg o ws len e e' s0 s1' s2 :
                                     MkI ii (Copn [:: lv] tg (Oslh o) [:: e; e'])] s0 = ok s1' ->
   exists2 s2', esem (sm := total) p ev [:: MkI ii (Copn [:: lv] tg (Oslh o) [:: e; e'])] s2 = ok s2'
              & mask_st s1' s2'.
-Proof using explicit_init_ok mask_inj mask_type.
+Proof using explicit_init_ok spp.
 move=> ho hX hst; apply: opn1_arrP => // m m' vs v hm /truncate_val_typeE [a ? ?] hvs hex; subst m m'.
 have -> := exec_protect_ptr ho hex.
 move: hvs => /=; t_xrbindP.
@@ -1293,31 +1359,35 @@ Qed.
 
 (* Variables and their masks written by the same instruction. *)
 Lemma mirror_lvals_inv lvs mvs vs a a' c c' :
-  mask_inv Sv.empty (evm a) (evm c) -> all is_var_lv lvs ->
+  no_mask (vrvs lvs) -> mask_inv Sv.empty (evm a) (evm c) -> all is_var_lv lvs ->
   List.Forall2 val_mask_of vs mvs ->
   all (fun m => is_carr (type_of_val m)) mvs ->
   write_lvals (sm := total) true gd a (mask_lvs mask lvs) mvs = ok a' ->
   write_lvals (sm := total) true gd c lvs vs = ok c' ->
   mask_inv Sv.empty (evm a') (evm c').
-Proof using mask_inj mask_type.
-elim: lvs mvs vs a c => [ | lv lvs ih] mvs vs a c hinv hvar hval hmarr.
+Proof using explicit_init_ok spp.
+elim: lvs mvs vs a c => [ | lv lvs ih] mvs vs a c hXv hinv hvar hval hmarr.
 - by case: mvs vs {hval hmarr} => [ | ??] [ | ??] //= [<-] [<-].
+have hXv1 : no_mask (vrv lv) by apply: no_maskI hXv; rewrite vrvs_cons; SvD.fsetdec.
+have hXvs : no_mask (vrvs lvs) by apply: no_maskI hXv; rewrite vrvs_cons; SvD.fsetdec.
 case: hval hmarr => [ | v m vs' mvs' hvm hval'] hmarr //=.
 move: hvar hmarr => /= /andP [hv hvar] /andP [hm hmarr].
 t_xrbindP => a1 hwa1 hwa c1 hwc1 hwc.
-apply: (ih _ _ a1 c1 _ hvar hval' hmarr hwa hwc).
-apply: (mask_inv_mirror hinv _ _ _ hvm hwa1 hwc1).
+apply: (ih _ _ a1 c1 hXvs _ hvar hval' hmarr hwa hwc).
+apply: (mask_inv_mirror hXv1 hinv _ _ _ hvm hwa1 hwc1).
 - by case: (lv) hv.
 - move=> x ? hx; subst lv; move: hwa1; rewrite /= /write_var; t_xrbindP => ? /set_varP [hdb + _].
-  rewrite mask_type (negbTE hx).
+  rewrite mask_type ?(negbTE hx); last by apply: hXv1; rewrite /=; SvD.fsetdec.
   by case: (m) hm hdb => //=; case.
 by move=> > ?; subst lv.
 Qed.
 
-Lemma vrvs_mask_lvs lvs y : Sv.In y (vrvs (mask_lvs mask lvs)) -> is_mask y.
-Proof.
-elim: lvs => [ | lv lvs ih] /=; first by rewrite /vrvs /= => /SvD.F.empty_iff.
-by rewrite vrvs_cons => /Sv.union_spec [/vrv_mask_lv | /ih].
+Lemma vrvs_mask_lvs lvs y : no_mask (vrvs lvs) -> Sv.In y (vrvs (mask_lvs mask lvs)) -> is_mask y.
+Proof using explicit_init_ok spp.
+elim: lvs => [ | lv lvs ih] /= hX; first by rewrite /vrvs /= => /SvD.F.empty_iff.
+rewrite vrvs_cons => /Sv.union_spec [ | ].
+- by apply: vrv_mask_lv; apply: no_maskI hX; rewrite vrvs_cons; SvD.fsetdec.
+by apply: ih; apply: no_maskI hX; rewrite vrvs_cons; SvD.fsetdec.
 Qed.
 Lemma swapP ii lvs tg ws len es s0 s1' s2 :
   let o := Opseudo_op (Oswap (aarr ws len)) in
@@ -1327,7 +1397,7 @@ Lemma swapP ii lvs tg ws len es s0 s1' s2 :
   esem (sm := total_init) pm ev [:: MkI ii (Copn (mask_lvs mask lvs) tg o (mask_es mask es));
                                     MkI ii (Copn lvs tg o es)] s0 = ok s1' ->
   exists2 s2', esem (sm := total) p ev [:: MkI ii (Copn lvs tg o es)] s2 = ok s2' & mask_st s1' s2'.
-Proof using explicit_init_ok mask_inj mask_type.
+Proof using explicit_init_ok spp.
 move=> o hX hok [hscs hmem hvm]; rewrite -cat1s esem_cat esem_opn1 /sem_sopn; t_xrbindP.
 move=> s1 ms' ms hms hexm hwm; rewrite esem_opn1 /sem_sopn; t_xrbindP => vs' vs hvs hex hw.
 have [m1 [m2 [? ?]]] := exec_swapE hexm; subst ms ms'.
@@ -1337,13 +1407,14 @@ rewrite (sem_pexprs_is_totalE gd (sm2 := total)) // in hvs.
 rewrite (write_lvals_is_totalE gd (sm2 := total)) // in hwm.
 rewrite (write_lvals_is_totalE gd (sm2 := total)) // in hw.
 have [hscs1 hmem1] := write_lvals_arr_mem (vs := [:: Varr m2; Varr m1]) erefl hwm.
-have hp1 : forall vm, prog_eq (evm s0) vm -> prog_eq (evm s1) vm.
-- move=> vm hp y hy; rewrite -(get_total_eq_ex (vrvsP hwm)); first by apply: hp.
-  by move=> /vrvs_mask_lvs.
 have hXes : no_mask (read_es es).
 - by apply: no_maskI hX; rewrite /vars_I read_Ii write_Ii read_i_opn write_i_opn; SvD.fsetdec.
 have hXl : no_mask (vars_lvals lvs).
 - by apply: no_maskI hX; rewrite /vars_I /vars_lvals read_Ii write_Ii read_i_opn write_i_opn; SvD.fsetdec.
+have hXv : no_mask (vrvs lvs) by apply: no_maskI hXl; rewrite /vars_lvals; SvD.fsetdec.
+have hp1 : forall vm, prog_eq (evm s0) vm -> prog_eq (evm s1) vm.
+- move=> vm hp y hy; rewrite -(get_total_eq_ex (vrvsP hwm)); first by apply: hp.
+  by move=> /(vrvs_mask_lvs hXv).
 have hp12 := hp1 _ hvm.1.
 have hvs2 : sem_pexprs (sm := total) true gd s2 es = ok [:: Varr a1; Varr a2].
 - rewrite -hvs; symmetry; apply: prog_eq_sem_pexprs => //.
@@ -1359,13 +1430,13 @@ have [s2' hw2 [hs hm' hp]] :=
 exists s2'.
 - by rewrite esem_opn1 /sem_sopn hvs2 /= hex2.
 split => //; split => //.
-apply: (mask_inv_prog_l (W := vrvs lvs)); first by apply: no_maskI hXl; rewrite /vars_lvals; SvD.fsetdec.
+apply: (mask_inv_prog_l (W := vrvs lvs)); first exact: hXv.
 - exact: vrvsP hw.
 have hval : List.Forall2 val_mask_of [:: Varr a2; Varr a1] [:: Varr m2; Varr m1].
 - case: es hms hvs0 hXes {hvs hvs2 hX} => [ | e1 [ | e2 [ | ? ?]]] //=; t_xrbindP => //.
   + move=> z hm1 z0 z1 hm2 ? ? hz1 z2 he1 z3 z4 he2 ? ? hz4 hXes'; subst.
     case: hz1 => ?; case: hz4 => ?; subst.
-    have hself : forall x, ~ is_mask x ->
+    have hself : forall x, Sv.In x pvars ->
       val_mask_of (Vm.get (sm := total) (evm s0) x) (Vm.get (sm := total) (evm s0) (mask x)).
     * by move=> y hy; apply: (mask_vm_self hvm).
     have hX1 : no_mask (read_e e1) by apply: no_maskI hXes'; rewrite !read_es_cons; SvD.fsetdec.
@@ -1374,7 +1445,7 @@ have hval : List.Forall2 val_mask_of [:: Varr a2; Varr a1] [:: Varr m2; Varr m1]
     by constructor => //; exact: (mask_ofP hX1 hself he1 hm1).
   move=> z hm1 z0 z1 hm2 z2 z3 hm3 z4 hm4 ? ? ? hz; subst.
   by case: hz.
-apply: (mirror_lvals_inv hvm.2 _ hval _ hwm hw2) => //.
+apply: (mirror_lvals_inv hXv hvm.2 _ hval _ hwm hw2) => //.
 apply: hok; have := size_fold2 hwm; by rewrite /mask_lvs size_map => ->.
 Qed.
 
@@ -1402,14 +1473,16 @@ Lemma syscall_arrP ii lv ws len es s0 s1' s2 :
                                     MkI ii (Csyscall [:: lv] (RandomBytes ws len) es)] s0 = ok s1' ->
   exists2 s2', esem (sm := total) p ev [:: MkI ii (Csyscall [:: lv] (RandomBytes ws len) es)] s2 = ok s2'
              & mask_st s1' s2'.
-Proof using mask_inj mask_type.
-move=> hX [hscs hmem hvm]; rewrite -cat1s esem_cat; t_xrbindP => s1 /arr_mask_writeP.
-move=> [m [m' [hm htr hwm [hscs1 hmem1 hp1] hnm]]].
-rewrite esem_syscall1 /sem_syscall; t_xrbindP => vs hvs fs hfs hw.
+Proof using explicit_init_ok spp.
+move=> hX [hscs hmem hvm].
 have hXes : no_mask (read_es es).
 - by apply: no_maskI hX; rewrite /vars_I read_Ii write_Ii read_i_syscall write_i_syscall; SvD.fsetdec.
 have hXl : no_mask (vars_lval lv).
 - by apply: no_maskI hX; rewrite /vars_I /vars_lval read_Ii write_Ii read_i_syscall write_i_syscall /vars_lvals read_rvs_cons vrvs_cons; SvD.fsetdec.
+have hXv : no_mask (vrv lv) by apply: no_maskI hXl; rewrite /vars_lval; SvD.fsetdec.
+rewrite -cat1s esem_cat; t_xrbindP => s1 /arr_mask_writeP /(_ hXv).
+move=> [m [m' [hm htr hwm [hscs1 hmem1 hp1] hnm]]].
+rewrite esem_syscall1 /sem_syscall; t_xrbindP => vs hvs fs hfs hw.
 have hp12 := hp1 _ hvm.1.
 rewrite (sem_pexprs_is_totalE gd (sm2 := total)) // in hvs.
 have hvs2 : sem_pexprs (sm := total) true gd s2 es = ok vs.
@@ -1429,13 +1502,13 @@ apply: (mask_inv_prog_l (W := vrv lv)); first by apply: no_maskI hXl; rewrite /v
 - exact: vrvP hw.
 rewrite /=.
 case/truncate_val_typeE: (htr) => a ? ?; subst m m'.
-apply: (mask_inv_mirror (c := with_scs (with_mem s2 (fmem fs)) (fscs fs)) hvm.2 _ _ _ _ hwm hw2).
+apply: (mask_inv_mirror (c := with_scs (with_mem s2 (fmem fs)) (fscs fs)) hXv hvm.2 _ _ _ _ hwm hw2).
 - move=> e he; have hXe : no_mask (read_e e).
   + by apply: no_maskI hXl; case: (lv) he => //= > [<-]; rewrite /vars_lval /read_rv /= read_eE; SvD.fsetdec.
   apply: (prog_eq_sem_pexpr (sm2 := total)) => //=; first exact: hvm.1.
   by rewrite hmfs /= hmem1.
 - move=> x ? hx; subst lv; move: hwm; rewrite /= /write_var; t_xrbindP => ? /set_varP [_ + _].
-  by rewrite mask_type (negbTE hx).
+  by rewrite mask_type ?(negbTE hx) //; apply: hXv; rewrite /=; SvD.fsetdec.
 - by move=> al aa ws0 x e ?; subst lv; move: hwm => /=; apply: on_arr_varP => > _ _; t_xrbindP.
 by move=> i /=; rewrite hinit -(sem_efull hm).
 Qed.
@@ -1448,7 +1521,7 @@ Lemma syscall_otherP ii lvs ws len es s0 s1' s2 :
   esem (sm := total_init) pm ev [:: MkI ii (Csyscall lvs (RandomBytes ws len) es)] s0 = ok s1' ->
   exists2 s2', esem (sm := total) p ev [:: MkI ii (Csyscall lvs (RandomBytes ws len) es)] s2 = ok s2'
              & mask_st s1' s2'.
-Proof using mask_inj mask_type.
+Proof using explicit_init_ok spp.
 move=> hlvs hvar hX [hscs hmem hvm]; rewrite esem_syscall1 /sem_syscall; t_xrbindP => vs hvs fs hfs hw.
 have hXes : no_mask (read_es es).
 - by apply: no_maskI hX; rewrite /vars_I read_Ii write_Ii read_i_syscall write_i_syscall; SvD.fsetdec.
@@ -1502,11 +1575,12 @@ Lemma write_vars_mask X xs vs1 vs2 s1 s1' s2 :
   mask_st_ex X s1 s2 -> no_mask (vars_l xs) -> mask_vals vs1 vs2 ->
   write_vars true (List.flat_map (with_mask_x mask) xs) vs1 s1 = ok s1' ->
   exists2 s2', write_vars true xs vs2 s2 = ok s2' & mask_st_ex (Sv.union (vars_l xs) X) s1' s2'.
-Proof using asm_op ep mask mask_inj mask_type p sip spp syscall_state.
+Proof using asm_op ep explicit_init_ok mask p sip spp syscall_state.
 elim: xs vs1 vs2 X s1 s2 => [ | x xs ih] vs1 vs2 X s1 s2 hst hX hv /=.
 - by case: hv => //= [[<-]]; exists s2.
 have hXx : no_mask (vars_lval (Lvar x)) by apply: no_maskI hX; rewrite /vars_lval /=; SvD.fsetdec.
 have hXs : no_mask (vars_l xs) by apply: no_maskI hX => /=; SvD.fsetdec.
+have hxU : Sv.In x pvars by apply: hX => /=; SvD.fsetdec.
 case: hst => hscs hmem [hp hinv].
 case: hv => [ | v vs1' vs2' hna hdef hv | len t tm vs1' vs2' htm hv]; rewrite /with_mask_x; case hxa: (is_arr_var x).
 1,2: by [].
@@ -1528,12 +1602,12 @@ have [s2a hw2 [hsa hma hpa]] := prog_eq_write_lval (lv := Lvar x) hp hscs hmem h
 move: hwm; rewrite /write_var; t_xrbindP => vm1 hsm ?; subst s1b.
 have hinva : mask_inv X vm1 (evm s2a).
 - move: hw2; rewrite /= /write_var; t_xrbindP => vm hs ?; subst s2a => /=.
-  apply: (@mask_inv_set_var X x (Varr tm) (Varr t) (evm s1a) vm1 (evm s2) vm _ _ htm hsm hs).
+  apply: (@mask_inv_set_var X x (Varr tm) (Varr t) (evm s1a) vm1 (evm s2) vm hxU _ _ htm hsm hs).
   + apply: (mask_inv_prog_l (W := Sv.singleton x)); first by apply: no_maskI hXx; rewrite /vars_lval /=; SvD.fsetdec.
     * exact: vrvP_var hw1.
     exact: hinv.
   by move: hxa; rewrite /is_arr_var => ->.
-have hpb : prog_eq vm1 (evm s2a) by apply: (prog_eq_set_mask hsm).
+have hpb : prog_eq vm1 (evm s2a) by apply: (prog_eq_set_mask hxU hsm).
 have [s2' hws2 [? ? [? hinv']]] := ih _ _ _ (with_vm s1a vm1) _ (And3 hsa hma (conj hpb hinva)) hXs hv hws.
 exists s2'; first by move: hw2; rewrite /= /write_var => -> /=.
 split => //; split => //; apply: mask_inv_eq hinv' => y hy.
@@ -1545,7 +1619,7 @@ Lemma opn_caseP ii lvs tg o es s0 s1' s2 :
   (ssrnat.leq 2 (size lvs) -> all is_var_lv lvs) -> mask_st s0 s2 ->
   esem (sm := total_init) pm ev (explicit_init_i mask (MkI ii (Copn lvs tg o es))) s0 = ok s1' ->
   exists2 s2', esem (sm := total) p ev [:: MkI ii (Copn lvs tg o es)] s2 = ok s2' & mask_st s1' s2'.
-Proof using asm_op_tout explicit_init_ok mask_inj mask_type.
+Proof using asm_op_tout explicit_init_ok spp.
 move=> hX hvar; have hbh : all is_var_lv (behead lvs).
 - by case: (lvs) hvar => [ | lv [ | lv' lvs']] //= /(_ isT) /andP [].
 move: hX hvar hbh; case: o => [po | so | ao].
@@ -1570,7 +1644,7 @@ Lemma syscall_caseP ii lvs o es s0 s1' s2 :
   no_mask (vars_I (MkI ii (Csyscall lvs o es))) -> all is_var_lv lvs -> mask_st s0 s2 ->
   esem (sm := total_init) pm ev (explicit_init_i mask (MkI ii (Csyscall lvs o es))) s0 = ok s1' ->
   exists2 s2', esem (sm := total) p ev [:: MkI ii (Csyscall lvs o es)] s2 = ok s2' & mask_st s1' s2'.
-Proof using mask_inj mask_type.
+Proof using explicit_init_ok spp.
 case: o => ws len hX hvar hst hs.
 case: lvs hX hvar hs => [ | lv [ | lv' lvs]] hX hvar hs.
 - by apply: (syscall_otherP _ hvar hX hst) => //; exact hs.
@@ -1587,7 +1661,7 @@ Lemma same_write_step X lv v a a1 c :
   (if lv is Lvar x then ~~ is_arr_var x else if lv is Lnone _ _ then true else false) ->
   write_lval (sm := total) true gd lv v a = ok a1 ->
   exists2 c1, write_lval (sm := total) true gd lv v c = ok c1 & mask_st_ex (Sv.union (vrv lv) X) a1 c1.
-Proof using mask_inj mask_type.
+Proof using explicit_init_ok spp.
 move=> [hscs hmem [hp hinv]] hX hdef hlv hw.
 have [c1 hw2 [hsa hma hpa]] := prog_eq_write_lval hp hscs hmem hX hw.
 exists c1 => //; split => //; split => //.
@@ -1603,11 +1677,11 @@ Qed.
 
 (* An array result of a call followed by its mask. *)
 Lemma mask_write_step X (x : var_i) len (t tm : WArray.array len) a a1 a2 c :
-  mask_st_ex X a c -> ~ is_mask x -> arr_mask_of t tm ->
+  mask_st_ex X a c -> Sv.In x pvars -> arr_mask_of t tm ->
   write_var true x (Varr t) a = ok a1 ->
   write_var true (mask_v x) (Varr tm) a1 = ok a2 ->
   exists2 c1, write_var true x (Varr t) c = ok c1 & mask_st_ex X a2 c1.
-Proof using mask_inj mask_type.
+Proof using explicit_init_ok spp.
 move=> [hscs hmem [hp hinv]] hx htm.
 rewrite /write_var; t_xrbindP => vm0 hs0 <- vm1 hs1 <-.
 have [vm2 hs2] : exists vm2, set_var true (evm c) x (Varr t) = ok vm2.
@@ -1615,14 +1689,14 @@ have [vm2 hs2] : exists vm2, set_var true (evm c) x (Varr t) = ok vm2.
 rewrite hs2 /=; eexists; first reflexivity.
 split => //; split.
 - move=> y hy; rewrite -(get_total_eq_ex (set_var_eq_ex hs1)); last first.
-  + by move=> /SvD.F.singleton_iff ?; apply: hy; exists x.
+  + by move=> /SvD.F.singleton_iff /= hm; apply: (mask_fresh hx); rewrite hm.
   case: (v_var x =P y) => [<- | hne].
   + move: hs0 hs2 => /set_varP [_ _ ->] /set_varP [_ _ ->] /=.
     by rewrite [LHS]Vm.get_modeE [RHS]Vm.get_modeE !Vm.setP_eq.
   rewrite -(get_total_eq_ex (set_var_eq_ex hs0)); last by move=> /SvD.F.singleton_iff.
   by rewrite -(get_total_eq_ex (set_var_eq_ex hs2)); [apply: hp | move=> /SvD.F.singleton_iff].
 move: hs1 => /= hs1 /=.
-apply: (mask_inv_set_var (m := Varr tm) (v := Varr t) _ _ _ hs1 hs2).
+apply: (mask_inv_set_var (m := Varr tm) (v := Varr t) hx _ _ _ hs1 hs2).
 - apply: (mask_inv_prog_l (W := Sv.singleton x) _ (set_var_eq_ex hs0) hinv).
   by move=> y /SvD.F.singleton_iff <-.
 - by rewrite /is_arr_var => hxa; move: hs2 => /set_varP [_ + _]; case: (vtype x) hxa.
@@ -1636,7 +1710,7 @@ Lemma call_lvsP X lvs vs1 vs2 a a' c :
   write_lvals (sm := total) true gd a (List.flat_map (with_mask_lv mask) lvs) vs1 = ok a' ->
   exists2 c', write_lvals (sm := total) true gd c lvs vs2 = ok c' &
     mask_st_ex (Sv.union (vrvs lvs) X) a' c'.
-Proof using mask_inj mask_type.
+Proof using explicit_init_ok spp.
 elim: lvs vs1 vs2 X a c => [ | lv lvs ih] vs1 vs2 X a c hst hX /= hvar hv.
 - case: hv => //=; move=> [<-]; exists c => //.
 have hXl : no_mask (vars_lval lv) by apply: no_maskI hX; rewrite /vars_lvals /vars_lval /= vrvs_cons read_rvs_cons; SvD.fsetdec.
@@ -1679,7 +1753,7 @@ case hx: (is_arr_var x) => /=; t_xrbindP; last first.
   have := write_lval_arr (sm := total) (spp := spp) (gd := gd) (lv := Lvar x) (v := Varr t) erefl hw1.
   by rewrite /= hx.
 move=> a1 hw1 a2 hwm hws.
-have hxm : ~ is_mask x by apply: hXl; rewrite /vars_lval /=; SvD.fsetdec.
+have hxm : Sv.In x pvars by apply: hXl; rewrite /vars_lval /=; SvD.fsetdec.
 have [c1 hw2 hst1] := mask_write_step hst hxm htm hw1 hwm.
 have [c2 hws2 hst2] := ih _ _ _ _ _ hst1 hXs hvar hv hws.
 exists c2; first by rewrite /= hw2.
@@ -1692,7 +1766,7 @@ Lemma with_mask_esP X s1 s2 es vs1 :
   mask_st_ex X s1 s2 -> no_mask (read_es es) ->
   sem_pexprs (sm := total) true gd s1 (List.flat_map (with_mask_e mask) es) = ok vs1 ->
   exists2 vs2, sem_pexprs (sm := total) true gd s2 es = ok vs2 & mask_vals vs1 vs2.
-Proof using explicit_init_ok mask_type.
+Proof using explicit_init_ok spp.
 move=> hst; elim: es vs1 => [ | e es ih] vs1 hX /=.
 - by move=> [<-]; exists [::] => //; constructor.
 have hXe : no_mask (read_e e) by apply: no_maskI hX; rewrite read_es_cons; SvD.fsetdec.
@@ -1707,7 +1781,7 @@ rewrite /with_mask_e hee; case ha: (is_arr_expr e) => /=; t_xrbindP.
   have [len [t ?]] : exists len (t : WArray.array len), v = Varr t.
   + have := sem_pexpr_defined hv; have := sem_pexpr_arr ha hv.
     by case: v {hv hvm} => // len t _ _; exists len, t.
-  subst v; have /type_of_valI /= [tm ?] := mask_of_type ha hv hm; subst m.
+  subst v; have /type_of_valI /= [tm ?] := mask_of_type ha hXe hv hm; subst m.
   by exists (Varr t :: vs2); [rewrite hv hvs2 | constructor].
 move=> v hv vs hvs <-; have [vs2 hvs2 hmv] := ih _ hXs hvs.
 exists (v :: vs2); first by rewrite hv hvs2.
@@ -1717,32 +1791,34 @@ Qed.
 (* The masks of the scalar results of a call, written after it: the results
    are defined. *)
 Lemma res_masksP X ii lvs a a' c :
-  mask_st_ex X a c -> all is_var_lv lvs ->
+  mask_st_ex X a c -> all is_var_lv lvs -> no_mask (vrvs lvs) ->
   (forall y, ~~ is_arr_var y -> Sv.In y X -> Sv.In y (vrvs lvs)) ->
   (forall y, ~~ is_arr_var y -> Sv.In y (vrvs lvs) -> is_defined (evm c).[y]) ->
   esem (sm := total_init) pm ev
     (List.flat_map (fun lv => explicit_init_out mask ii lv (Pbool true)) lvs) a = ok a' ->
   mask_st a' c.
-Proof using mask_inj mask_type.
+Proof using explicit_init_ok spp.
 elim: lvs X a => [ | lv lvs ih] X a hst /=.
-- move=> _ hX _ [<-]; case: hst => ? ? [? hinv]; split => //; split => //.
+- move=> _ _ hX _ [<-]; case: hst => ? ? [? hinv]; split => //; split => //.
   by apply: mask_inv_eq hinv => y hy; split => [/(hX _ hy) | ]; rewrite /vrvs /= => /SvD.F.empty_iff.
-move=> /andP [hlv hvar] hX hdef; rewrite esem_cat; t_xrbindP => a1 ha1.
+move=> /andP [hlv hvar] hXv hX hdef; rewrite esem_cat; t_xrbindP => a1 ha1.
+have hXvs : no_mask (vrvs lvs) by apply: no_maskI hXv; rewrite vrvs_cons; SvD.fsetdec.
 have hdef' : forall y, ~~ is_arr_var y -> Sv.In y (vrvs lvs) -> is_defined (evm c).[y].
 - by move=> y hy hin; apply: hdef => //; rewrite vrvs_cons; SvD.fsetdec.
-case: lv hlv hX hdef ha1 => //= [vi ty | x] _ hX hdef.
-- move=> [<-]; apply: ih hst hvar _ hdef' => y hy /(hX _ hy).
+case: lv hlv hXv hX hdef ha1 => //= [vi ty | x] _ hXv hX hdef.
+- move=> [<-]; apply: ih hst hvar hXvs _ hdef' => y hy /(hX _ hy).
   by rewrite vrvs_cons /=; SvD.fsetdec.
 case hx: is_arr_var.
-- move=> [<-]; apply: ih hst hvar _ hdef' => y hy /(hX _ hy).
+- move=> [<-]; apply: ih hst hvar hXvs _ hdef' => y hy /(hX _ hy).
   rewrite vrvs_cons /=; have : y <> v_var x by move=> ?; subst y; move: hy hx; rewrite /is_arr_var => /negbTE ->.
   by SvD.fsetdec.
 rewrite esem_assgn1 /sem_assgn; t_xrbindP => mv [<-] mv' /= [<-] hw.
 move: hw; rewrite /write_var; t_xrbindP => vm hsv <-.
-apply: (ih (Sv.remove x X)) hvar _ hdef'.
+have hxU : Sv.In x pvars by apply: hXv; rewrite vrvs_cons /=; SvD.fsetdec.
+apply: (ih (Sv.remove x X)) hvar hXvs _ hdef'.
 - case: hst => hscs hmem [hp hinv]; split => //; split.
-  + exact: (prog_eq_set_mask hsv hp).
-  apply: (mask_inv_set_mask_l hinv _ hsv).
+  + exact: (prog_eq_set_mask hxU hsv hp).
+  apply: (mask_inv_set_mask_l hxU hinv _ hsv).
   have hxs : ~~ is_arr_var x by rewrite hx.
   by rewrite (negbTE hxs) hdef // vrvs_cons /=; SvD.fsetdec.
 move=> y hy /SvD.F.remove_iff [/(hX _ hy)]; rewrite vrvs_cons /=; SvD.fsetdec.
@@ -1750,11 +1826,11 @@ Qed.
 (* A variable never written is undefined, or an array with no initialised cell,
    and so is its mask. *)
 Lemma mask_vm_init : mask_vm Sv.empty Vm.init Vm.init.
-Proof using mask_type.
-split => //; split => x.
-- move=> hx; rewrite SvD.F.empty_b (Vm.get_modeE (sm := total) Vm.init (mask x)) Vm.initP mask_type (negbTE hx) /=.
+Proof using explicit_init_ok spp.
+split => //; split => x hxU.
+- move=> hx; rewrite SvD.F.empty_b (Vm.get_modeE (sm := total) Vm.init (mask x)) Vm.initP (mask_type hxU) (negbTE hx) /=.
   by rewrite Vm.initP; move: hx; rewrite /is_arr_var; case: (vtype x).
-move=> i; rewrite (Vm.get_modeE (sm := total) Vm.init (mask x)) !Vm.initP mask_type.
+move=> i; rewrite (Vm.get_modeE (sm := total) Vm.init (mask x)) !Vm.initP (mask_type hxU).
 by rewrite /is_arr_var; case: (vtype x).
 Qed.
 
@@ -1766,8 +1842,8 @@ Lemma contract_checkE fn fd ci :
                 (Sv.union (vars_l (f_iparams ci)) (vars_l (f_ires ci))),
       all (check_arr_init gd) [seq a.2 | a <- f_pre ci] &
       all (check_arr_init gd) [seq a.2 | a <- f_post ci]].
-Proof using explicit_init_ok.
-move=> hfd hci; have [_ _ h] := explicit_init_okE.
+Proof using explicit_init_ok spp.
+move=> hfd hci; have [_ _ _ h] := explicit_init_okE.
 move: (h _ _ hfd); rewrite /check_fd hci /= /check_ci; t_xrbindP.
 move=> _ /Sv.subset_spec h1 /Sv.subset_spec h2.
 by rewrite all_cat => /andP [].
@@ -1779,10 +1855,10 @@ Lemma contract_no_mask fn fd ci :
   [/\ no_mask (vars_l (f_iparams ci)), no_mask (vars_l (f_ires ci)),
       no_mask (read_easserts [seq a.2 | a <- f_pre ci])
     & no_mask (read_easserts [seq a.2 | a <- f_post ci])].
-Proof using ep explicit_init_ok mask_fresh_contract spp.
+Proof using ep explicit_init_ok spp.
 move=> hfd hci; have [h1 h2 _ _] := contract_checkE hfd hci.
 have h : no_mask (vars_l (f_iparams ci ++ f_ires ci)).
-- by move=> y hy [x hx]; apply: (mask_fresh_contract hfd hci hy hx).
+- by have [_ h] := pvarsP hfd; apply: h.
 by split; apply: no_maskI h; rewrite vars_l_cat; SvD.fsetdec.
 Qed.
 
@@ -1794,7 +1870,7 @@ Lemma contract_assertsP X s1 s2 (asrts : seq assertion) us :
   (forall x : var_i, Sv.In x (read_easserts [seq a.2 | a <- asrts]) -> is_var_init (evm s2) x) ->
   mapM (sem_assert gd s1) [seq (a.1, explicit_init_contract_a mask a.2) | a <- asrts] = ok us ->
   exists us', mapM (sem_assert gd s2) asrts = ok us'.
-Proof using assert_allowed_wa explicit_init_ok mask_type.
+Proof using assert_allowed_wa explicit_init_ok spp.
 move=> hst + + hdef; elim: asrts us hdef => [ | a asrts ih] us hdef /=; first by exists [::].
 move=> hX /andP [hc1 hc]; t_xrbindP => ha us1 hus1 _.
 have hX1 : no_mask (read_eassert a.2) by apply: no_maskI hX; rewrite read_easserts_cons; SvD.fsetdec.
@@ -1813,18 +1889,18 @@ Qed.
 
 (* The variables of [X] are initialised. *)
 Lemma mask_inv_var_init X vm1 vm2 (x : var) :
-  mask_inv X vm1 vm2 -> Sv.In x X -> is_var_init vm2 x.
+  mask_inv X vm1 vm2 -> Sv.In x X -> Sv.In x pvars -> is_var_init vm2 x.
 Proof.
-move=> [hsc _] hx; rewrite /is_var_init.
+move=> [hsc _] hx hxU; rewrite /is_var_init.
 case ha: (is_arr_var x); first by apply: arr_defined; rewrite ha.
-by move/Sv_memP: hx => hx; have := hsc x; rewrite ha hx => /(_ isT).
+by move/Sv_memP: hx => hx; have := hsc x hxU; rewrite ha hx => /(_ isT).
 Qed.
 
 (* The precondition: the parameters of the contract are bound to the
    arguments, its arrays followed by their masks. *)
 Lemma explicit_init_preP fn fs1 fs2 :
   mask_fs fs1 fs2 -> sem_pre pm fn fs1 = ok tt -> sem_pre p fn fs2 = ok tt.
-Proof using assert_allowed_wa explicit_init_ok mask_fresh_contract mask_inj mask_type.
+Proof using assert_allowed_wa explicit_init_ok spp.
 move=> [hscs hmem hv]; rewrite /sem_pre get_map_prog /=.
 case: contracts_checked => //=.
 case hfd: get_fundef => [fd | ] //=.
@@ -1838,7 +1914,8 @@ have hst0 : mask_st {| escs := fscs fs1; emem := fmem fs1; evm := Vm.init |}
 - by split => //=; apply: mask_vm_init.
 have [s2 -> hst] := write_vars_mask hst0 hXi hv2 hw.
 have hb : forall x : var_i, Sv.In x (read_easserts [seq a.2 | a <- f_pre ci]) -> is_var_init (evm s2) x.
-- by move=> x hx; case: hst => _ _ [_ hinv]; apply: (mask_inv_var_init hinv); move: hx => /hrd; SvD.fsetdec.
+- move=> x hx; case: hst => _ _ [_ hinv]; apply: (mask_inv_var_init hinv); last exact: hXpre.
+  by move: hx => /hrd; SvD.fsetdec.
 by have [us' /= ->] := contract_assertsP hst hXpre hc hb hpre.
 Qed.
 
@@ -1847,7 +1924,7 @@ Qed.
 Lemma explicit_init_postP fn vargs1 vargs2 fr1 fr2 :
   mask_vals vargs1 vargs2 -> mask_fs fr1 fr2 ->
   sem_post pm fn vargs1 fr1 = ok tt -> sem_post p fn vargs2 fr2 = ok tt.
-Proof using assert_allowed_wa explicit_init_ok mask_fresh_contract mask_inj mask_type.
+Proof using assert_allowed_wa explicit_init_ok spp.
 move=> hv [hscs hmem hr]; rewrite /sem_post get_map_prog /=.
 case: contracts_checked => //=.
 case hfd: get_fundef => [fd | ] //=.
@@ -1862,7 +1939,8 @@ have hst0 : mask_st {| escs := fscs fr1; emem := fmem fr1; evm := Vm.init |}
 have [s2 -> hst] := write_vars_mask hst0 hXi hv2 hw.
 rewrite /=; have [s2' -> hst'] := write_vars_mask hst hXr hr hw' => /=.
 have hb : forall x : var_i, Sv.In x (read_easserts [seq a.2 | a <- f_post ci]) -> is_var_init (evm s2') x.
-- by move=> x hx; case: hst' => _ _ [_ hinv]; apply: (mask_inv_var_init hinv); move: hx => /hrd; SvD.fsetdec.
+- move=> x hx; case: hst' => _ _ [_ hinv]; apply: (mask_inv_var_init hinv); last exact: hXpost.
+  by move: hx => /hrd; SvD.fsetdec.
 by have [us' /= ->] := contract_assertsP hst' hXpost hc hb hpost.
 Qed.
 
@@ -1871,10 +1949,10 @@ Lemma get_var_is_mask X xs vm1 vm2 vs1 :
   mask_vm X vm1 vm2 -> no_mask (vars_l xs) ->
   get_var_is (sm := total) true vm1 (List.flat_map (with_mask_x mask) xs) = ok vs1 ->
   exists2 vs2, get_var_is (sm := total) true vm2 xs = ok vs2 & mask_vals vs1 vs2.
-Proof using ep mask_type spp syscall_state.
+Proof using ep explicit_init_ok spp syscall_state.
 move=> hvm; elim: xs vs1 => [ | x xs ih] vs1 /= hX.
 - by move=> [<-]; exists [::] => //; constructor.
-have hXx : ~ is_mask x by apply: hX; SvD.fsetdec.
+have hXx : Sv.In x pvars by apply: hX; SvD.fsetdec.
 have {hX} hXs : no_mask (vars_l xs) by apply: no_maskI hX; SvD.fsetdec.
 have hgx : get_var (sm := total) true vm2 x = get_var (sm := total) true vm1 x by rewrite /get_var (hvm.1 _ hXx).
 rewrite hgx /with_mask_x; case ha: (is_arr_var x) => /=; t_xrbindP.
@@ -1882,7 +1960,7 @@ rewrite hgx /with_mask_x; case ha: (is_arr_var x) => /=; t_xrbindP.
   move: hv hm; rewrite /get_var; t_xrbindP => _ <- _ <-.
   have hmo := mask_vm_self hvm hXx.
   move: (Vm.getP_mode (sm := total) vm1 x) (Vm.getP_mode (sm := total) vm1 (mask x)) hmo.
-  rewrite mask_type; move: ha; rewrite /is_arr_var; case: (vtype x) => //= ws len _.
+  rewrite (mask_type hXx); move: ha; rewrite /is_arr_var; case: (vtype x) => //= ws len _.
   move=> /compat_valEl [t ->] /compat_valEl [tm ->] hmo /=.
   by exists (Varr t :: vs2); [rewrite hvs2 | constructor].
 move=> v hv vs hvs <-; have [vs2 hvs2 hmv] := ih _ hXs hvs.
@@ -1898,7 +1976,7 @@ Lemma finalize_maskP X (fd : ufundef) s1 s2 fr1 :
   mask_st_ex X s1 s2 -> no_mask (vars_l (f_res fd)) ->
   finalize_funcall (sm := total_init) (explicit_init_fd mask fd) s1 = ok fr1 ->
   exists2 fr2, finalize_funcall (sm := total) fd s2 = ok fr2 & mask_fs fr1 fr2.
-Proof using mask_type spp.
+Proof using explicit_init_ok spp.
 case: fd => fii ci tin params c tout res fev [hscs hmem hvm] /= hX.
 rewrite /finalize_funcall /=; t_xrbindP => vs1 hvs vs1' htr <-.
 have {}hvs : get_var_is (sm := total) true (evm s1) (List.flat_map (with_mask_x mask) res) = ok vs1.
@@ -1915,7 +1993,7 @@ Lemma initialize_maskP (fd : ufundef) fs1 fs2 s1 :
   exists2 s2, initialize_funcall p ev fd fs2 = ok s2 &
     mask_st_ex (vars_l (f_params fd)) s1 s2 /\
     (forall x, ~ Sv.In x (vars_l (f_params fd)) -> (evm s2).[x] = Vm.init.[x]).
-Proof using mask_inj mask_type spp.
+Proof using explicit_init_ok spp.
 case: fd => fii ci tin params c tout res fev [hscs hmem hv] /= hX.
 rewrite /initialize_funcall /=; t_xrbindP.
 move=> vs1 htr hw; have [vs2 -> hv2] := truncate_mask_vals htr hv => /=.
@@ -1932,19 +2010,22 @@ Qed.
 (* The masks written on entry: a scalar parameter is defined; any other
    variable is undefined, or an array with no initialised cell. *)
 Lemma init_masksP X ii (fd : ufundef) s1 s1' s2 :
-  mask_st_ex X s1 s2 ->
+  no_mask (vars_fd fd) -> mask_st_ex X s1 s2 ->
   (forall x, ~~ is_arr_var x -> Sv.In x X -> x \in Sv.elements (vars_fd fd)) ->
   (forall x, ~~ is_arr_var x -> Sv.In x (vars_l (f_params fd)) -> is_defined (evm s2).[x]) ->
   (forall x, ~ Sv.In x (vars_l (f_params fd)) -> (evm s2).[x] = Vm.init.[x]) ->
   esem (sm := total_init) pm ev (init_masks mask ii fd) s1 = ok s1' -> mask_st s1' s2.
-Proof using mask_inj mask_type.
-move=> + + hdef hinit; rewrite /init_masks.
-elim: (Sv.elements (vars_fd fd)) X s1 => [ | x xs ih] X s1 hst hX /=.
+Proof using explicit_init_ok spp.
+move=> hXfd + + hdef hinit; rewrite /init_masks.
+have : forall x, x \in Sv.elements (vars_fd fd) -> Sv.In x pvars by move=> x /Sv_elemsP; apply: hXfd.
+elim: (Sv.elements (vars_fd fd)) X s1 => [ | x xs ih] X s1 hU hst hX /=.
 - move=> [<-]; case: hst => ? ? [? hinv]; split => //; split => //.
   by apply: mask_inv_eq hinv => y hy; split => [h | /SvD.F.empty_iff []]; have := hX _ hy h.
 rewrite esem_cat; t_xrbindP => s1a ha.
 case: hst => hscs hmem [hp hinv].
-apply: (ih (Sv.remove x X)); last first.
+have hxU : Sv.In x pvars by apply: hU; rewrite in_cons eqxx.
+have hU' : forall y, y \in xs -> Sv.In y pvars by move=> y hy; apply: hU; rewrite in_cons hy orbT.
+apply: (ih (Sv.remove x X) _ hU'); last first.
 - move=> y hy /SvD.F.remove_iff [/(hX _ hy)]; rewrite in_cons => /orP [/eqP -> | //].
   by move=> /(_ erefl).
 case hx: (vtype x) ha => [ | | ws len | ws]; last 2 first.
@@ -1954,13 +2035,13 @@ case hx: (vtype x) ha => [ | | ws len | ws]; last 2 first.
     by SvD.fsetdec.
   rewrite esem_assgn1 /sem_assgn; t_xrbindP => m hm m' htr.
   rewrite (sem_pexpr_is_totalE gd (sm2 := total)) // in hm.
-  rewrite /= /write_var; t_xrbindP => vm hsv <-; split => //; split; first exact: (prog_eq_set_mask hsv hp).
-  apply: (mask_inv_set_mask_l hinv _ hsv); rewrite /is_arr_var hx /= hinit // => i.
+  rewrite /= /write_var; t_xrbindP => vm hsv <-; split => //; split; first exact: (prog_eq_set_mask hxU hsv hp).
+  apply: (mask_inv_set_mask_l hxU hinv _ hsv); rewrite /is_arr_var hx /= hinit // => i.
   case/truncate_val_typeE: htr => ? ? ->; subst m; rewrite (sem_eempty hm) Vm.initP hx.
   by rewrite /WArray.is_init /=.
 all: rewrite esem_assgn1 /sem_assgn; t_xrbindP => m [<-] m' /= [<-].
-all: rewrite /= /write_var; t_xrbindP => vm hsv <-; split => //; split; first exact: (prog_eq_set_mask hsv hp).
-all: apply: (mask_inv_set_mask_l hinv _ hsv); rewrite /is_arr_var hx /=.
+all: rewrite /= /write_var; t_xrbindP => vm hsv <-; split => //; split; first exact: (prog_eq_set_mask hxU hsv hp).
+all: apply: (mask_inv_set_mask_l hxU hinv _ hsv); rewrite /is_arr_var hx /=.
 all: case: Sv_memP => hin; first by rewrite hdef // /is_arr_var hx.
 all: by rewrite hinit // Vm.initP hx.
 Qed.
@@ -1968,10 +2049,10 @@ Qed.
 (* The counter of a loop: a defined integer, written alike on both sides; its
    mask is written at the start of the body. *)
 Lemma for_writeP (x : var_i) i s1 s2 s1' :
-  mask_st s1 s2 -> ~ is_mask x -> write_var true x (Vint i) s1 = ok s1' ->
+  mask_st s1 s2 -> Sv.In x pvars -> write_var true x (Vint i) s1 = ok s1' ->
   exists2 s2', write_var true x (Vint i) s2 = ok s2' &
     mask_st_ex (Sv.add x Sv.empty) s1' s2'.
-Proof using asm_op mask_inj mask_type p sip spp.
+Proof using asm_op explicit_init_ok p sip spp.
 move=> hst hx hw.
 have hX : no_mask (vars_lval (Lvar x)) by move=> y; rewrite /vars_lval /=; move=> hy; have <- : v_var x = y by SvD.fsetdec.
 have hna : ~~ is_arr_var x.
@@ -2029,7 +2110,7 @@ by apply: wequiv_esem => // s1 s2 s1' hP hs; exists s2 => //; apply: h hP hs.
 Qed.
 
 Lemma explicit_init_simple i : is_simple_i i -> all is_simple_i (explicit_init_i mask i).
-Proof.
+Proof using explicit_init_ok spp.
 case: i => ii [] //= => [lv tg ty e | lvs tg o es | lvs o es] _.
 - by rewrite all_cat andbT; case: lv => //= x; case: is_arr_var.
 - have hm : forall c, all is_mask_assgn c -> all is_simple_i c by move=> c; apply: sub_all => -[? []].
@@ -2051,7 +2132,7 @@ Qed.
 
 Lemma simple_instrP i : is_simple_i i -> no_mask (vars_I i) -> check_i gd i = ok tt ->
   wequiv_m mask_st (explicit_init_i mask i) [:: i] mask_st.
-Proof using asm_op_tout explicit_init_ok mask_inj mask_type.
+Proof using asm_op_tout explicit_init_ok spp.
 move=> hs hX hc; have [i1 [c1 he]] := explicit_init_cons hs.
 have hall := explicit_init_simple hs; rewrite he in hall *.
 apply: wequiv_esem => // s1 s2 s1' hst; rewrite -he.
@@ -2066,10 +2147,11 @@ Qed.
 Lemma callP ii lvs fn es :
   no_mask (vars_I (MkI ii (Ccall lvs fn es))) -> all is_var_lv lvs ->
   wequiv_m mask_st (explicit_init_i mask (MkI ii (Ccall lvs fn es))) [:: MkI ii (Ccall lvs fn es)] mask_st.
-Proof using assert_allowed_wa explicit_init_ok mask_fresh_contract mask_inj mask_type.
+Proof using assert_allowed_wa explicit_init_ok spp.
 move=> hX hvar.
 have hXl : no_mask (vars_lvals lvs) by apply: no_maskI hX; rewrite /vars_I /vars_lvals read_Ii write_Ii read_i_call write_i_call; SvD.fsetdec.
 have {hX} hXe : no_mask (read_es es) by apply: no_maskI hX; rewrite /vars_I read_Ii write_Ii read_i_call write_i_call; SvD.fsetdec.
+have hXv : no_mask (vrvs lvs) by apply: no_maskI hXl; rewrite /vars_lvals; SvD.fsetdec.
 rewrite /= -cat1s -[[:: MkI ii (Ccall lvs fn es)]]cats0.
 apply wequiv_cat with (mask_st_ex (Sv.union (vrvs lvs) Sv.empty)).
 - apply wequiv_call_wa with (rpreF (eS := mask_spec)) (rpostF (eS := mask_spec)) mask_vals.
@@ -2087,25 +2169,25 @@ apply wequiv_cat with (mask_st_ex (Sv.union (vrvs lvs) Sv.empty)).
 apply wequiv_esem_l.
 - elim: (lvs) => //= lv lvs' ih; rewrite all_cat ih andbT.
   by apply: sub_all (mask_cmd_out ii lv (Pbool true)).1 => -[? []].
-move=> s1 s2 s1' hst; apply: (res_masksP hst hvar).
+move=> s1 s2 s1' hst; apply: (res_masksP hst hvar hXv).
 - by move=> y _; SvD.fsetdec.
 move=> y _ hy; case: hst => _ _ [_ hinv].
-by have := mask_inv_var_init hinv (x := y); apply; SvD.fsetdec.
+by apply: (mask_inv_var_init hinv); [SvD.fsetdec | apply: hXv].
 Qed.
 (* An assertion reads the masks in place of the initialisation. *)
 Lemma assert_instrP ii lbl a :
   no_mask (vars_I (MkI ii (Cassert (lbl, a)))) -> check_arr_init gd a ->
   wequiv_m mask_st (explicit_init_i mask (MkI ii (Cassert (lbl, a)))) [:: MkI ii (Cassert (lbl, a))] mask_st.
-Proof using assert_allowed_wa explicit_init_ok mask_type.
+Proof using assert_allowed_wa explicit_init_ok spp.
 move=> hX hc.
 have {hX} hXa : no_mask (read_eassert a) by apply: no_maskI hX; rewrite /vars_I read_Ii write_Ii read_i_assert write_i_assert; SvD.fsetdec.
 apply wequiv_assert => _; split => // s1 s2 hst h; split => //.
-apply: (explicit_init_aP hst hXa hc _ h) => x _ /=; rewrite /is_var_init.
+apply: (explicit_init_aP hst hXa hc _ h) => x hxr /=; rewrite /is_var_init.
 case ha: (is_arr_var x); first by move=> _; apply: arr_defined; move: ha; rewrite /is_arr_var.
 move=> /=; rewrite /get_gvar /= /get_var; t_xrbindP => _ hm.
 case: hst => _ _ [_ [hinv _]].
 have hxa : ~~ is_arr_var x by rewrite ha.
-by have /= := hinv x hxa; rewrite hm => -[<-].
+by have /= := hinv x (hXa _ hxr) hxa; rewrite hm => -[<-].
 Qed.
 Let Pi (i : instr) :=
   no_mask (vars_I i) -> check_i gd i = ok tt -> wequiv_m mask_st (explicit_init_i mask i) [:: i] mask_st.
@@ -2115,7 +2197,7 @@ Let Pc (c : cmd) :=
 
 (* The body of a function. *)
 Lemma explicit_init_cP c : Pc c.
-Proof using assert_allowed_wa asm_op_tout explicit_init_ok mask_fresh_contract mask_inj mask_type.
+Proof using asm_op_tout assert_allowed_wa explicit_init_ok spp.
 apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => //.
 - by move=> _ _; apply wequiv_nil.
 - move=> i c0 hi hc hX; rewrite /allM /=; t_xrbindP => hci hcc.
@@ -2133,7 +2215,7 @@ apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => //.
   by move=> ->; exists v.
 - move=> x dir lo hi c0 hc ii hX /= hcc.
   have hXb : no_mask (read_es [:: lo; hi]) by apply: no_maskI hX; rewrite /vars_I read_Ii write_Ii read_i_for write_i_for !read_es_cons; SvD.fsetdec.
-  have hXx : ~ is_mask x by apply: hX; rewrite /vars_I read_Ii write_Ii read_i_for write_i_for; SvD.fsetdec.
+  have hXx : Sv.In x pvars by apply: hX; rewrite /vars_I read_Ii write_Ii read_i_for write_i_for; SvD.fsetdec.
   have {hX} hXc : no_mask (vars_c c0) by apply: no_maskI hX; rewrite /vars_c /vars_I read_Ii write_Ii read_i_for write_i_for; SvD.fsetdec.
   apply (wequiv_for_eq (P0 := mask_st) (P := mask_st)
     (Pi := fun s1 s2 => mask_st_ex (Sv.add x Sv.empty) s1 s2 /\ ~~ is_arr_var x)) => //.
@@ -2145,8 +2227,10 @@ apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => //.
   rewrite -cat1s -[c0]cat0s; apply wequiv_cat with mask_st; last by apply: hc.
   apply wequiv_esem_l => // s1 s2 s1' [hst hna] hs.
   apply: (res_masksP (ii := ii) (lvs := [:: Lvar x]) hst) => //.
+  + by move=> y; rewrite vrvs_cons /vrvs /= => hy; have <- : v_var x = y by SvD.fsetdec.
   + move=> y _ hy; case: hst => _ _ [_ hinv]; apply: (mask_inv_var_init hinv).
-    by move: hy; rewrite vrvs_cons /= /vrvs /=; SvD.fsetdec.
+    * by move: hy; rewrite vrvs_cons /= /vrvs /=; SvD.fsetdec.
+    by move: hy; rewrite vrvs_cons /= /vrvs /= => hy; have <- : v_var x = y by SvD.fsetdec.
   by rewrite /= (negbTE hna) /=.
 - move=> a c1 e info c2 hc1 hc2 ii hX; rewrite /= /allM; t_xrbindP => hc1' hc2'.
   have hXe : no_mask (read_e e) by apply: no_maskI hX; rewrite /vars_I read_Ii write_Ii read_i_while write_i_while; SvD.fsetdec.
@@ -2166,12 +2250,12 @@ Qed.
 Lemma explicit_init_callP fn :
   wiequiv_f (sm1 := total_init) (sm2 := total) p' p ev ev
     (rpreF (eS := mask_spec)) fn fn (rpostF (eS := mask_spec)).
-Proof using assert_allowed_wa asm_op_tout explicit_init_ok mask_fresh mask_fresh_contract mask_inj mask_type.
-have [-> _ hchk] := explicit_init_okE.
+Proof using asm_op_tout assert_allowed_wa explicit_init_ok spp.
+have [-> _ _ hchk] := explicit_init_okE.
 apply wequiv_fun_ind_wa => {}fn _ fs1 fs2 [<- hfs] fd1.
 rewrite get_map_prog; case hfd: get_fundef => [fd | ] //= [<-].
 exists fd => // hpre; split; first exact: explicit_init_preP hfs hpre.
-have hXfd : no_mask (vars_fd fd) := no_maskI (vars_pP hfd) no_mask_vars_p.
+have [hXfd _] := pvarsP hfd.
 move=> s11 hinit.
 have hXp : no_mask (vars_l (f_params fd)) by apply: no_maskI hXfd; rewrite /vars_fd; SvD.fsetdec.
 have hXr : no_mask (vars_l (f_res fd)) by apply: no_maskI hXfd; rewrite /vars_fd; SvD.fsetdec.
@@ -2184,9 +2268,9 @@ exists s21 => //; exists (fun s1 s2 => s1 = s11 /\ s2 = s21), mask_st; split => 
       ++ explicit_init_c mask (f_body fd0) by case.
   rewrite hbody -[f_body fd]cat0s; apply wequiv_cat with mask_st; last by apply: explicit_init_cP.
   apply wequiv_esem_l; last first.
-  + move=> s1 s2 s1' [-> ->]; apply: (init_masksP hst _ _ hdef).
+  + move=> s1 s2 s1' [-> ->]; apply: (init_masksP hXfd hst _ _ hdef).
     * move=> x _ hx; apply/Sv_elemsP; rewrite /vars_fd; SvD.fsetdec.
-    by move=> x _ hx; case: hst => _ _ [_ hinv]; apply: (mask_inv_var_init hinv).
+    by move=> x _ hx; case: hst => _ _ [_ hinv]; apply: (mask_inv_var_init hinv) => //; apply: hXp.
   rewrite /init_masks; elim: (Sv.elements _) => //= x xs ih; rewrite all_cat ih andbT.
   by rewrite /is_arr_var; case: (vtype x) => // ??; case: Sv.mem.
 - by move=> s1 s2 fr1 hst' hfin; apply: finalize_maskP hst' hXr hfin.
@@ -2194,26 +2278,3 @@ by have [_ _ hv] := hfs; move=> fr1 fr2 hfr; apply: explicit_init_postP hv hfr.
 Qed.
 
 End EXPLICIT_INIT_PROOF.
-
-#[local] Existing Instance progUnit.
-#[local] Existing Instance nosubword.
-#[local] Existing Instance indirect_c.
-
-Section DEFS.
-
-Context
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
-  {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}.
-
-(* The hypotheses of [explicit_init_callP] on the masks of the variables of
-   [p]. *)
-Definition mask_ok (mask : var -> var) (p : uprog) : Prop :=
-  [/\ injective mask,
-      forall x y, Sv.In y (vars_p (p_funcs p)) -> mask x <> y,
-      forall x, vtype (mask x) = if is_arr_var x then vtype x else abool
-    & forall fn fd ci, get_fundef (p_funcs p) fn = Some fd -> f_contract fd = Some ci ->
-      forall x y, Sv.In y (vars_l (f_iparams ci ++ f_ires ci)) -> mask x <> y].
-
-End DEFS.

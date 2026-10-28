@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssrnat seq.
 From Coq Require Import ZArith.
 Require Import expr compiler_util sopn safety_cond safety_common
   pseudo_operator slh_ops syscall psem_defs.
@@ -26,7 +26,9 @@ Local Open Scope seq_scope.
    (see [check_i]), that the arrays whose initialisation its assertions test
    are local variables, sub-arrays of local variables or declared global
    arrays ([check_arr_init])
-   and that the globals are initialised exactly in their bounds. *)
+   and that the globals are initialised exactly in their bounds. It also
+   checks the masks that the caller gives ([check_masks]): they are fresh,
+   distinct, and of the expected types. *)
 
 Module Import E.
 
@@ -44,6 +46,9 @@ Module Import E.
 
   Definition glob_init_error :=
     pp_internal_error_s pass "a global array is not initialised exactly in its bounds".
+
+  Definition mask_error :=
+    pp_internal_error_s pass "the masks are not fresh and distinct variables of the expected types".
 
 End E.
 
@@ -378,10 +383,36 @@ Definition check_glob_init (g : glob_decl) : bool :=
     && Mz.all (fun i _ => (0 <=? i) && (i <? len))%Z (WArray.arr_data t)
   else true.
 
+(* The variables that a contract binds. *)
+Definition contract_vars (ci : fun_contract) : Sv.t :=
+  vars_l (f_iparams ci ++ f_ires ci).
+
+(* The variables of the program: those of its functions and of their
+   contracts. *)
+Definition explicit_init_vars (p : _uprog) : Sv.t :=
+  foldr (fun (f : ufun_decl) X =>
+    Sv.union (Sv.union (vars_fd f.2) (oapp contract_vars Sv.empty f.2.(f_contract))) X)
+    Sv.empty p.(p_funcs).
+
+(* The masks of the variables [xs] are of the expected types, pairwise
+   distinct and not in [X]. *)
+Fixpoint check_masks (X : Sv.t) (xs : seq var) : bool :=
+  if xs is x :: xs then
+    let mx := mask x in
+    let ty := if is_arr_var x then vtype x else abool in
+    [&& vtype mx == ty, ~~ Sv.mem mx X & check_masks (Sv.add mx X) xs]
+  else true.
+
+(* The masks are checked once the program is instrumented: the caller may
+   create the masks when they are first asked for, and they are then created
+   in the order of the instrumented program. *)
 Definition explicit_init_prog (p : _uprog) : cexec _uprog :=
   Let _ := assert (all check_glob_init p.(p_globs)) E.glob_init_error in
   Let _ := allM (fun f => add_funname f.1 (add_finfo f.2.(f_info) (check_fd p.(p_globs) f.2)))
                 p.(p_funcs) in
-  ok (map_prog explicit_init_fd p).
+  let p' := map_prog explicit_init_fd p in
+  let X := explicit_init_vars p in
+  Let _ := assert (check_masks X (Sv.elements X)) E.mask_error in
+  ok p'.
 
 End ASM_OP.
