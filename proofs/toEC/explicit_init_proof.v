@@ -497,17 +497,6 @@ move: hxa => /is_aarrP [ws [len hty]]; have := Vm.getP vm1' (mask x).
 by rewrite (mask_type hx) /is_arr_var hty /= => /compat_valEl [? ->].
 Qed.
 
-(* Every byte of the word [-1] is [0xFF]. *)
-Lemma wread8_m1 ws k :
-  0 <= k < wsize_size ws -> LE.wread8 (wrepr ws (-1)) k = wrepr U8 (-1).
-Proof.
-move=> hk.
-have hall : all (eq_op^~ (wrepr U8 (-1))) (LE.encode (wrepr ws (-1))).
-- by case: ws {hk}; vm_compute.
-rewrite /LE.wread8; apply/eqP; apply: (all_nthP 0%R hall).
-rewrite LE.size_encode; apply/ssrnat.ltP; lia.
-Qed.
-
 (* A cell and its mask written at the same place: the mask is full on the
    cell. *)
 Lemma set_total_mask len ws (t t' tm tm' : WArray.array len) al aa i (w : word ws) :

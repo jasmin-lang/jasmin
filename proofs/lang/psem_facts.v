@@ -483,6 +483,10 @@ Lemma get_var_is_totalE {sm1 sm2 : SemMode} wdb vm x :
   get_var (sm := sm1) wdb vm x = get_var (sm := sm2) wdb vm x.
 Proof. by move=> h; rewrite /get_var Vm.get_modeE h -Vm.get_modeE. Qed.
 
+(* In the total mode a variable always reads a defined value. *)
+Lemma get_total_defined vm x : is_defined (Vm.get (sm := total) vm x).
+Proof. by rewrite Vm.get_modeE /=; case: ifP => [_ | /negbFE //]; case: eval_atype. Qed.
+
 Lemma get_gvar_is_totalE {sm1 sm2 : SemMode} wdb vm x :
   is_total (sm := sm1) = is_total (sm := sm2) ->
   get_gvar (sm := sm1) wdb gd vm x = get_gvar (sm := sm2) wdb gd vm x.
@@ -682,7 +686,45 @@ have hQ : sem_forall (fun t : WArray.array (arr_size ws len) => forall i, 0 <= i
 by move=> /(sem_opN_forall (op := Oarr_fill ws len) hQ) [t -> ht]; exists t.
 Qed.
 
+(* The array of [Oarr_fill], on integer bounds and a byte. *)
+Lemma sem_opN_fill ws len lo n (w : u8) :
+  sem_opN (sm := total) (Oarr_fill ws len) [:: Vint lo; Vint n; Vword w] =
+  ok (Varr (rdflt (WArray.empty _) (WArray.fill (arr_size ws len)
+     (map (fun k => if (lo <=? k) && (k <? lo + n) then w else 0%R)%Z (ziota 0 (arr_size ws len)))))).
+Proof. by rewrite /sem_opN /= truncate_word_u. Qed.
+
+Lemma sem_opN_fillI ws len va vb (w : u8) v :
+  sem_opN (sm := total) (Oarr_fill ws len) [:: va; vb; Vword w] = ok v ->
+  exists lo n, [/\ va = Vint lo, vb = Vint n &
+    v = Varr (rdflt (WArray.empty _) (WArray.fill (arr_size ws len)
+     (map (fun k => if (lo <=? k) && (k <? lo + n) then w else 0%R)%Z (ziota 0 (arr_size ws len)))))].
+Proof.
+rewrite /sem_opN /=; t_xrbindP => t lo /to_intI -> n /to_intI -> w' hw.
+move: hw; rewrite truncate_word_u => -[<-] /= [<-] <-.
+by exists lo, n.
+Qed.
+
 End OPN.
+
+(* The test that the cells [a, a + b) of a mask are all 0xFF. *)
+Lemma barr_initE n len (t : WArray.array n) a b :
+  n = len ->
+  sem_opN_safety (Ois_barr_init len) [:: Varr t; Vint a; Vint b] = ok (all (WArray.is_initb t) (ziota a b)).
+Proof.
+move=> hn; have h : arr_size U8 len = n by rewrite arr_sizeE wsize8 Z.mul_1_l.
+clear hn; subst n; by rewrite /sem_opN_safety /= to_arrK.
+Qed.
+
+(* Every byte of the word [-1] is [0xFF]. *)
+Lemma wread8_m1 ws k :
+  (0 <= k < wsize_size ws)%Z -> LE.wread8 (wrepr ws (-1)) k = wrepr U8 (-1).
+Proof.
+move=> hk.
+have hall : all (eq_op^~ (wrepr U8 (-1))) (LE.encode (wrepr ws (-1))).
+- by case: ws {hk}; vm_compute.
+rewrite /LE.wread8; apply/eqP; apply: (all_nthP 0%R hall).
+rewrite LE.size_encode; apply/ssrnat.ltP; lia.
+Qed.
 
 (* ------------------------------------------------------------------------- *)
 (* The writes, and the initialisation of what they write                     *)
