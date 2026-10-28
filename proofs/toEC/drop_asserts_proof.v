@@ -15,7 +15,7 @@
    with [noassert]. *)
 
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-Require Import compiler_util psem psem_facts.
+Require Import compiler_util psem psem_facts psem_contracts_facts psem_mode_facts.
 Require Import drop_asserts.
 
 #[local] Existing Instance progUnit.
@@ -77,3 +77,50 @@ Lemma drop_asserts_src_tgt :
   wiequiv_f (wa1 := withassert_nocontract) (wa2 := withassert_nocontract)
     p (drop_asserts_prog p) ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
 Proof. exact: @drop_asserts_src_tgt_aux. Qed.
+
+(* ------------------------------------------------------------------------- *)
+(* Erasure: from the source semantics to the semantics of EasyCrypt          *)
+
+(* The program without assertions does not test whether a variable is
+   initialised. *)
+Lemma no_var_init_drop_asserts {asm_op : Type} {asmop : asmOp asm_op} {pT : progT} (p : prog) :
+  no_var_init_prog (drop_asserts_prog p).
+Proof.
+  set Pi := fun i => all no_var_init_i (drop_asserts_i i).
+  set Pi_r := fun i => forall ii, Pi (MkI ii i).
+  set Pc := fun c => all no_var_init_i (drop_asserts_c c).
+  have hc : forall c, Pc c.
+  + apply (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) => //.
+    + move=> i c hi hc; rewrite /Pc /drop_asserts_c /=.
+      by rewrite all_cat; apply/andP; split.
+    + by move=> e c1 c2 hc1 hc2 ii; move: hc1 hc2; rewrite /Pi /Pc /drop_asserts_c /= => -> ->.
+    + by move=> v dir lo hi c hc ii; rewrite /Pi /= andbT.
+    by move=> a c e info c' hc hc' ii; move: hc hc'; rewrite /Pi /Pc /drop_asserts_c /= => -> ->.
+  rewrite /no_var_init_prog /drop_asserts_prog /map_prog /= all_map.
+  by elim: (p_funcs p) => //= -[fn fd] fds ->; rewrite andbT; apply hc.
+Qed.
+
+Section ERASE.
+
+Context
+  {asm_op syscall_state : Type} {ep : EstateParams syscall_state}
+  {spp : SemPexprParams} {sip : SemInstrParams asm_op syscall_state}
+  {E E0 : Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}
+  {rE_trans : EventRels_trans rE rE rE}.
+
+(* From the source, in the partial mode with the assertions and the contracts
+   evaluated, to the program given to EasyCrypt, in the mode [total_init] with
+   the assertions evaluated and the contracts not, the assertions dropped. *)
+Lemma erase_src_tgt (p : uprog) (ev : extra_val_t) fn :
+  wiequiv_f (sm1 := partial) (sm2 := total_init) (wa1 := withassert) (wa2 := withassert_nocontract)
+    p (drop_asserts_prog p) ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
+Proof using rE_trans.
+  apply: (wiequiv_f_trans_eq_r (wa2 := withassert_nocontract) (sm2 := partial) (p2 := p)).
+  - exact: forget_contracts.
+  apply: (wiequiv_f_trans_eq_r (wa2 := withassert_nocontract) (sm2 := partial)
+           (p2 := drop_asserts_prog p)).
+  - exact: drop_asserts_src_tgt.
+  by apply: partial_total_init; apply: no_var_init_drop_asserts.
+Qed.
+
+End ERASE.
