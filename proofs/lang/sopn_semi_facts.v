@@ -82,6 +82,13 @@ Lemma mk_semi_aux_eq {T T'} (P Q : values -> T -> exec T') vs tin (f : sem_prod 
   sem_prod_eq tin (mk_semi_aux P vs tin f) (mk_semi_aux Q vs tin f).
 Proof. by move=> h; elim: tin vs f => /= [vs f | t tin ih vs f v]; [apply h | apply ih]. Qed.
 
+(* A post-treatment that never fails gives a semantics that never fails. *)
+Lemma mk_semi_aux_ok {T T'} (P : values -> T -> exec T') vs0 tin (f : sem_prod tin T) :
+  (forall vs t, is_ok (P vs t)) -> sem_forall (fun r => is_ok r) tin (mk_semi_aux P vs0 tin f).
+Proof.
+by move=> hP; elim: tin vs0 f => [ | t tin ih] vs0 f /=; [apply: hP | move=> v; apply: ih].
+Qed.
+
 (* An application of the construction: the arguments are truncated, the total
    semantics is applied, then [P] sees the truncated arguments and the result. *)
 Lemma mk_semi_aux_app_sopnE {T T'} (P : values -> T -> exec T') vs0 tin (f : sem_prod tin T) vs :

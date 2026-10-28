@@ -487,6 +487,13 @@ Proof. by move=> h; rewrite /get_var Vm.get_modeE h -Vm.get_modeE. Qed.
 Lemma get_total_defined vm x : is_defined (Vm.get (sm := total) vm x).
 Proof. by rewrite Vm.get_modeE /=; case: ifP => [_ | /negbFE //]; case: eval_atype. Qed.
 
+(* A variable accepts the values of the types smaller than its own. *)
+Lemma write_var_total_ok (x : var_i) v s :
+  subctype (eval_atype (vtype x)) (type_of_val v) -> DB true v -> is_ok (write_var true x v s).
+Proof.
+by move=> hsub hdb; rewrite /write_var /set_var hdb (subctype_truncatable _ hsub).
+Qed.
+
 Lemma get_gvar_is_totalE {sm1 sm2 : SemMode} wdb vm x :
   is_total (sm := sm1) = is_total (sm := sm2) ->
   get_gvar (sm := sm1) wdb gd vm x = get_gvar (sm := sm2) wdb gd vm x.
@@ -645,6 +652,26 @@ by rewrite (sem_pexpr_is_totalE (sm2 := total)).
 Qed.
 
 End MODES.
+
+Section NOSUBWORD.
+
+#[local] Existing Instance nosubword.
+
+(* Without subwords, a variable reads in the total mode a defined value of
+   exactly its type. *)
+Lemma get_var_total_ok vm (x : var) :
+  exists2 v, get_var (sm := total) true vm x = ok v &
+    type_of_val v = eval_atype (vtype x) /\ is_defined v.
+Proof.
+have hd := get_total_defined vm x.
+exists (Vm.get (sm := total) vm x); first by rewrite /get_var hd.
+split => //.
+have := Vm.getP_mode (sm := total) vm x.
+rewrite /compat_val hd.
+by move=> /eqP.
+Qed.
+
+End NOSUBWORD.
 
 (* ------------------------------------------------------------------------- *)
 (* The operators with an array result                                        *)

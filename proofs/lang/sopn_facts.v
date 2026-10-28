@@ -8,7 +8,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
-Require Import pseudo_operator slh_ops safety_cond_facts sopn_semi sopn_semi_facts values sopn psem_defs.
+Require Import pseudo_operator slh_ops safety_cond_facts sopn_semi sopn_semi_facts values values_facts sopn psem_defs.
 Import Utf8 Lia.
 
 Local Open Scope seq_scope.
@@ -232,6 +232,25 @@ rewrite /exec_sopn /sopn_sem /=; t_xrbindP => t.
 case: vs => [ | v1 [ | v2 [ | ? ?]]] /=; try by t_xrbindP.
 t_xrbindP => a1 /to_arrI -> a2 /to_arrI -> _.
 by move=> <- <-; exists a1, a2.
+Qed.
+
+(* In the total mode a valid instruction runs on defined arguments of its
+   types, and gives values of the types of its outputs. *)
+Lemma exec_sopn_total_ok o vs : i_valid (get_instr_desc o) ->
+  List.Forall2 (fun t v => is_defined v /\ subctype t (type_of_val v))
+    (map eval_atype (sopn_tin o)) vs ->
+  exists2 vs', exec_sopn (sm := total) o vs = ok vs' &
+    List.Forall2 (fun t v => type_of_val v = eval_atype t /\ DB true v) (sopn_tout o) vs'.
+Proof.
+move=> hv hall; rewrite /exec_sopn /sopn_sem hv /=.
+have hf : sem_forall (fun r => is_ok r) _ (sopn_sem_ (sm := total) o).
++ by apply: mk_semi_aux_ok.
+have [t ->] := app_sopn_ok hf hall.
+eexists; first reflexivity.
+have := type_of_val_ltuple t; have := list_ltuple_DB t; rewrite /sopn_tout.
+move: (list_ltuple t) => l; clear t hf hall.
+elim: l (tout (get_instr_desc o)) => [ | v l ih] [ | ty tys] //= /andP [hdb hdbs] [hty htys].
+by constructor; [split | apply: ih].
 Qed.
 
 End OUTPUTS.
