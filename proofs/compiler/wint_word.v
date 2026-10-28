@@ -40,6 +40,8 @@ Definition wi2w_wiop2 s sz (o : wiop2) : sop2 :=
   | WIge  => Oge  (Cmp_w s sz)
   | WIdiv => Odiv s (Op_w sz)
   | WImod => Omod s (Op_w sz)
+  | WImax => Omax s (Op_w sz)
+  | WImin => Omin s (Op_w sz)
   | WIshl => Olsl (Op_w sz)
   | WIshr => if s is Signed then Oasr (Op_w sz) else Olsr sz
   end.

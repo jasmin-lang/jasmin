@@ -84,6 +84,8 @@ let remove_Owi2 o =
     | WIsub -> Osub(Op_w sz)
     | WImod -> Omod(sg, Op_w sz)
     | WIdiv -> Odiv(sg, Op_w sz)
+    | WImax -> Omax(sg, Op_w sz)
+    | WImin -> Omin(sg, Op_w sz)
     | WIshr -> if sg = Signed then Oasr (Op_w sz) else Olsr sz
     | WIshl -> Olsl(Op_w sz)
     | WIeq  -> Oeq(Op_w sz)
@@ -152,6 +154,7 @@ let op2_to_abs_binop op2 = match op2 with
   | Odiv (Signed, _) -> AB_Unknown
   | Odiv _ -> AB_Arith Texpr1.Div
 
+  | Omin _ | Omax _ -> AB_Unknown
   | Olsr _ -> AB_Wop (Wshift Unsigned_right)
   | Olsl (Op_w _) -> AB_Wop (Wshift Unsigned_left)
   | Olsl Op_int -> AB_Unknown
@@ -754,6 +757,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
     | Ogt k -> (Tcons1.SUP, k)
     | Oge k -> (Tcons1.SUPEQ, k)
 
+    | Omin _ | Omax _
     | Ovadd (_, _) | Ovsub (_, _) | Ovmul (_, _)
     | Ovlsr (_, _) | Ovlsl (_, _) | Ovasr (_, _) -> assert false
     | Owi2 _ -> assert false
@@ -801,6 +805,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
         | Olxor _ | Olsr _ | Olsl _ | Oasr _ -> assert false
 
         | Ovadd (_, _) | Ovsub (_, _) | Ovmul (_, _)
+        | Omin _ | Omax _
         | Ovlsr (_, _) | Ovlsl (_, _) | Ovasr (_, _) -> assert false
 
         | Obeq ->

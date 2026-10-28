@@ -573,6 +573,12 @@ op (\umod) = ulift2 IntDiv.( %%) axiomatized by umodE.
 op (\sdiv) = slift2 (\zquot) axiomatized by sdivE.
 op (\smod) = slift2 (\zrem) axiomatized by smodE.
 
+op umax = ulift2 Int.max axiomatized by umaxE.
+op umin = ulift2 Int.min axiomatized by uminE.
+
+op smax = slift2 Int.max axiomatized by smaxE.
+op smin = slift2 Int.min axiomatized by sminE.
+
 (* --------------------------------------------------------------------- *)
 (* Comparisons                                                           *)
 
