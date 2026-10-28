@@ -57,45 +57,6 @@ Context
 Notation wiequiv_f_ wa1 wa2 sm1 sm2 :=
   (wiequiv_f (wa1 := wa1) (wa2 := wa2) (sm1 := sm1) (sm2 := sm2)).
 
-(* [wiequiv_f_trans] in any modes. *)
-Lemma wiequiv_f_trans_sm {wa1 wa2 wa3 : WithAssert} {sm1 sm2 sm3 : SemMode}
-  (p1 p2 p3 : uprog) (ev : extra_val_t) fn (S12 S23 S13 : EquivSpec) :
-  (forall fs1 fs3, rpreF (eS := S13) fn fn fs1 fs3 ->
-     exists2 fs2, rpreF (eS := S12) fn fn fs1 fs2 & rpreF (eS := S23) fn fn fs2 fs3) ->
-  (forall fs1 fs2 fs3 r1 r2 r3,
-     rpreF (eS := S12) fn fn fs1 fs2 -> rpreF (eS := S23) fn fn fs2 fs3 ->
-     rpostF (eS := S12) fn fn fs1 fs2 r1 r2 -> rpostF (eS := S23) fn fn fs2 fs3 r2 r3 ->
-     rpostF (eS := S13) fn fn fs1 fs3 r1 r3) ->
-  wiequiv_f_ wa1 wa2 sm1 sm2 p1 p2 ev ev (rpreF (eS := S12)) fn fn (rpostF (eS := S12)) ->
-  wiequiv_f_ wa2 wa3 sm2 sm3 p2 p3 ev ev (rpreF (eS := S23)) fn fn (rpostF (eS := S23)) ->
-  wiequiv_f_ wa1 wa3 sm1 sm3 p1 p3 ev ev (rpreF (eS := S13)) fn fn (rpostF (eS := S13)).
-Proof using rE_trans.
-  move=> hpre hpost; apply: wkequiv_io_trans => //.
-  by move=> > h12 h23 [r2 ??]; apply: hpost h12 h23 _ _; eauto.
-Qed.
-
-Lemma wiequiv_f_trans_eq_r {wa1 wa2 wa3 : WithAssert} {sm1 sm2 sm3 : SemMode}
-  (p1 p2 p3 : uprog) (ev : extra_val_t) fn (S : EquivSpec) :
-  wiequiv_f_ wa1 wa2 sm1 sm2 p1 p2 ev ev (rpreF (eS := S)) fn fn (rpostF (eS := S)) ->
-  wiequiv_f_ wa2 wa3 sm2 sm3 p2 p3 ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)) ->
-  wiequiv_f_ wa1 wa3 sm1 sm3 p1 p3 ev ev (rpreF (eS := S)) fn fn (rpostF (eS := S)).
-Proof using rE_trans.
-  apply: wiequiv_f_trans_sm.
-  - by move=> fs1 fs3 h; exists fs3.
-  by move=> > _ [_ <-] + <-.
-Qed.
-
-Lemma wiequiv_f_trans_eq_l {wa1 wa2 wa3 : WithAssert} {sm1 sm2 sm3 : SemMode}
-  (p1 p2 p3 : uprog) (ev : extra_val_t) fn (S : EquivSpec) :
-  wiequiv_f_ wa1 wa2 sm1 sm2 p1 p2 ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)) ->
-  wiequiv_f_ wa2 wa3 sm2 sm3 p2 p3 ev ev (rpreF (eS := S)) fn fn (rpostF (eS := S)) ->
-  wiequiv_f_ wa1 wa3 sm1 sm3 p1 p3 ev ev (rpreF (eS := S)) fn fn (rpostF (eS := S)).
-Proof using rE_trans.
-  apply: wiequiv_f_trans_sm.
-  - by move=> fs1 fs3 h; exists fs1.
-  by move=> > [_ <-] _ <-.
-Qed.
-
 Context
   (fresh_var_ident fresh_removable_ident : v_kind -> instr_info -> string -> atype -> Ident.ident).
 Context (ev : extra_val_t).
