@@ -391,7 +391,7 @@ Definition lstore_correct_aux lip_check_ws lip_lstore :=
     write (emem s) Aligned (wp + wrepr Uptr ofs)%R w = ok m ->
     sem_fopn_args (lip_lstore ws xd ofs xs) s = ok (with_mem s m).
 
-Definition lstore_correct := lstore_correct_aux (lip_check_ws liparams) (lip_lstore liparams).
+Definition lstore_correct := lstore_correct_aux (lip_check_store_ws liparams) (lip_lstore liparams).
 
 Definition lload_correct_aux lip_check_ws lip_lload :=
   forall (xd xs : var_i) ofs ws wp s w vm,
@@ -478,6 +478,7 @@ Record h_linearization_params :=
     spec_lip_lloads  : lloads_correct;
     spec_lip_tmp     : lip_tmp liparams <> lip_tmp2 liparams;
     spec_lip_check_ws: lip_check_ws liparams Uptr;
+    spec_lip_check_store_ws : forall ws, lip_check_ws liparams ws -> lip_check_store_ws liparams ws;
   }.
 
 (* FIXME: move this *)
@@ -487,13 +488,16 @@ Proof. by case: ls. Qed.
 Section DEFAULT.
 
 Context (lip_tmp2 : Ident.ident).
-Context (lip_check_ws : wsize -> bool)
+Context (lip_check_ws lip_check_store_ws : wsize -> bool)
         (lip_lstore  : wsize -> var_i -> Z -> var_i -> fopn_args)
         (lip_lload   : wsize -> var_i -> var_i -> Z -> fopn_args)
         (lip_add_imm : var_i -> var_i -> Z -> seq fopn_args)
         (lip_imm_small : wsize -> Z -> bool).
 
-Context (lstore_correct : lstore_correct_aux lip_check_ws lip_lstore).
+Context (lstore_correct : lstore_correct_aux lip_check_store_ws lip_lstore).
+
+(* The slots to save have a size that [lip_lstore] can store. *)
+Context (check_store_ws : forall ws, lip_check_ws ws -> lip_check_store_ws ws).
 
 Context (lload_correct : lload_correct_aux lip_check_ws lip_lload).
 
@@ -520,17 +524,17 @@ Lemma lstores_dfl_correct1 rspi to_save s top m2:
       Let v := Let x := get_var true vm1 x in to_word ws x in write m Aligned (top + wrepr Uptr ofs)%R v) m1 to_save =
     ok m2
   → sem_fopns_args s lcmd = ok (with_mem s m2) .
-Proof using lstore_correct.
+Proof using lstore_correct check_store_ws.
   elim: to_save s => /= [ | [x ofs] to_save ih] s hget.
   + by move=> [<-]; rewrite with_mem_same.
-  t_xrbindP; case heq: vtype => [|||ws]// m' _ [<-] hchk w v hgetx htow hw hf.
+  t_xrbindP; case heq: vtype => [|||ws]// m' _ [<-] /check_store_ws hchk w v hgetx htow hw hf.
   have -> := lstore_correct (xd:= rspi) (xs:= VarI x dummy_var_info) hchk hget _ hw.
   + by have /= -> := ih (with_mem s m') hget hf.
   by rewrite hgetx /= htow.
 Qed.
 
 Lemma lstores_dfl_correct : lstores_correct_aux lip_check_ws lip_tmp2 (lstores_dfl lip_lstore).
-Proof using lstore_correct.
+Proof using lstore_correct check_store_ws.
   move=> rspi to_save s top m2 /= _ _ hget hf.
   have -> := lstores_dfl_correct1 hget hf.
   by exists (evm s) => //; rewrite with_vm_same.
@@ -538,7 +542,7 @@ Qed.
 
 Lemma lstores_imm_dfl_correct :
   lstores_correct_aux lip_check_ws lip_tmp2 (lstores_imm_dfl lip_tmp2 lip_lstore lip_add_imm lip_imm_small).
-Proof using lstore_correct ladd_imm_correct.
+Proof using lstore_correct check_store_ws ladd_imm_correct.
   move=> rspi to_save s top m2 /= hnin hne hget hf.
   rewrite /lstores_imm_dfl.
   case: ifP => _; first by apply: lstores_dfl_correct hget hf.
@@ -668,7 +672,7 @@ Section HLIPARAMS.
   Qed.
 
   Lemma spec_lstore {lp ii ls m ofs} {x y:var_i} {wx ws ws' wy'} {wy : word ws'} :
-    lip_check_ws liparams ws ->
+    lip_check_store_ws liparams ws ->
     get_var true (lvm ls) y = ok (Vword wy) ->
     truncate_word ws wy = ok wy' ->
     get_var true (lvm ls) x >>= to_pointer = ok wx ->
@@ -3049,7 +3053,7 @@ End ILSTEPS_END.
             ∃ ws' ws'', e = Pload Aligned ws (Papp2 (Oadd (Op_w ws')) (Pvar {| gs := Slocal; gv := rs |}) (Papp1 (Oword_of_int ws'') (Pconst ofs))) ]
       | Cassgn_store ws rd rs ofs =>
           [/\ e = Pvar {| gs := Slocal ; gv := rs |},
-          ty = aword ws, lip_check_ws liparams ws &
+          ty = aword ws, lip_check_store_ws liparams ws &
           ∃ vi ws' ws'', x = Lmem Aligned ws vi (Papp2 (Oadd (Op_w ws')) (Pvar {| gs := Slocal; gv := rd |}) (Papp1 (Oword_of_int ws'') (Pconst ofs))) ]
       end.
   Proof.
@@ -5052,7 +5056,7 @@ Qed.
           set x := eval_instr _ _ _.
           have -> : x = ok (lnext_pc (lset_mem t1 m1s)).
           + apply: (spec_lstore hliparams) => //.
-            * exact: spec_lip_check_ws.
+            * exact/(spec_lip_check_store_ws hliparams)/spec_lip_check_ws.
             * by rewrite /get_var ok_ra.
             * by rewrite truncate_word_u.
             * by rewrite /get_var ok_rsp; exact: truncate_word_u.
