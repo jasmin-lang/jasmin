@@ -63,10 +63,12 @@ let pp_reg_address addr =
   let addr = parse_reg_address arch addr in
   pp_reg_address_aux addr.base addr.displacement addr.offset addr.scale
 
+let pp_xreg = hash_to_string arch.toS_x.to_string
+
 (* A SIMD&FP register [v<n>]: as a vector with the given arrangement
    ([v<n>.16b]), or through its 128-bit scalar view ([q<n>]). *)
 let pp_xregister ?arrangement r =
-  let v = hash_to_string arch.toS_x.to_string r in
+  let v = pp_xreg r in
   match arrangement with
   | Some arr -> Format.asprintf "%s.%s" v arr
   | None -> "q" ^ String.sub v 1 (String.length v - 1)
