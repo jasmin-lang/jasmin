@@ -17,15 +17,16 @@
      [safety_wi_post]).
 
    Both compose the correctness of each pass. The well-typedness that
-   [dead_args] needs ([total_ok]) is on the program it receives. *)
+   [dead_args] needs ([total_ok]) holds on the program it receives, which the
+   chain type checks ([check_prog_total_ok]). *)
 
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import compiler_util psem psem_facts.
 Require Import wint_int toec_for toec_while normalize_calls contracts_to_asserts safety
-  explicit_init simplify_asserts assert_facts dead_code dead_args toec_prog.
+  explicit_init simplify_asserts assert_facts typing_check dead_code dead_args toec_prog.
 Require Import wint_int_proof normalize_calls_proof contracts_to_asserts_proof safety_proof
   toec_while_proof toec_for_proof explicit_init_proof simplify_asserts_proof
-  assert_facts_proof dead_code_total_proof dead_args_proof.
+  assert_facts_proof typing_check_proof dead_code_total_proof dead_args_proof.
 
 Section PROOF.
 
@@ -129,13 +130,13 @@ Context (dead_info : (funname -> var -> bool) -> _uprog ->
    the mode [total_init] with the assertions evaluated. *)
 Lemma dead_tgt_src {LC : LoopCounter} (p6 p9 : uprog) info fn :
   let p8 := assert_facts_prog (simplify_asserts_prog p6) in
-  total_ok p8 ->
+  check_prog p8 = ok tt ->
   dead_args_info protect (dead_info protect) p8 = ok (p9, info) ->
   wiequiv_f_ withassert_nocontract withassert_nocontract total_init total_init p9 p6 ev ev
     (rpreF (eS := dead_args_tgt_src_spec info p8)) fn fn
     (rpostF (eS := dead_args_tgt_src_spec info p8)).
 Proof using rE_trans.
-  move=> p8 hok h9.
+  move=> p8 /check_prog_total_ok hok h9.
   apply: (wiequiv_f_trans_eq_r (wa2 := withassert_nocontract) (sm2 := total_init) (p2 := p8)).
   - exact: (dead_args_tgt_src (rE := rE) ev hok h9).
   apply: (wiequiv_f_trans_eq_l (wa2 := withassert_nocontract) (sm2 := total_init)
@@ -166,7 +167,7 @@ Lemma safety_chain_tgt_src {LC : LoopCounter} (pc p2 p3 p6 p9 : uprog) info fn :
   contracts_to_asserts_prog fresh_copy_ident pc = ok p2 ->
   sc_prog p2 = ok p3 ->
   explicit_init_prog mask (toec_while_prog p3) = ok p6 ->
-  total_ok p8 ->
+  check_prog p8 = ok tt ->
   dead_args_info protect (dead_info protect) p8 = ok (p9, info) ->
   wiequiv_f_ withassert_nocontract withassert total_init partial p9 pc ev ev
     (rpreF (eS := safety_spec info p8)) fn fn (rpostF (eS := safety_spec info p8)).
@@ -214,8 +215,7 @@ Definition safety_wi_post (wi2i : bool) (info : keep_info) (p8 : uprog)
    not), that does not fail corresponds to a run of the source, in the
    partial mode with its assertions and its contracts evaluated, that does
    not fail and computes the same results, up to [safety_wi_pre] and
-   [safety_wi_post]. The masks are fresh in the program that [explicit_init]
-   receives, and the input of [dead_args] is well typed ([total_ok]). *)
+   [safety_wi_post]. *)
 Theorem toec_uprog_safety_tgt_src (wi2i : bool) (p p' : uprog) :
   toec_uprog_safety fresh_var_ident get_info fresh_copy_ident wi2i mask protect dead_info p
     = ok p' ->
@@ -224,17 +224,16 @@ Theorem toec_uprog_safety_tgt_src (wi2i : bool) (p p' : uprog) :
   [/\ toec_uprog_pre_init wi2i p = ok p5,
       explicit_init_prog mask p5 = ok p6,
       dead_args_info (LC := toec_LoopCounter) protect (dead_info protect) p8 = ok (p', info) &
-      total_ok p8 ->
       forall fn fd, get_fundef (p_funcs p) fn = Some fd ->
       let fsig := (build_sig (get_info p).2 (fn, fd)).2 in
       wiequiv_f_ withassert_nocontract withassert total_init partial p' p ev ev
         (safety_wi_pre wi2i info p8 fsig) fn fn (safety_wi_post wi2i info p8 fsig)].
 Proof using rE_trans.
   rewrite /toec_uprog_safety /dead_args_prog /toec_uprog_pre_init.
-  t_xrbindP => pc hpc p2 h2 p3 h3 p6 h6 r h9 <-.
+  t_xrbindP => pc hpc p2 h2 p3 h3 p6 h6 hok r h9 <-.
   case: r h9 => p9 info h9; exists (toec_while_prog p3), p6, info; split => //.
   - by rewrite hpc /= h2 /= h3.
-  move=> hok fn fd hfd.
+  move=> fn fd hfd.
   apply: wkequiv_io_trans (safety_chain_tgt_src h2 h3 h6 hok h9)
                           (common_tgt_src hpc hfd).
   - by move=> fs' fs [fsi h12 h23]; exists fsi.

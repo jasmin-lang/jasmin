@@ -1,5 +1,5 @@
 Require Import wint_int toec_for toec_while normalize_calls contracts_to_asserts safety
-  explicit_init simplify_asserts assert_facts dead_args drop_asserts.
+  explicit_init simplify_asserts assert_facts typing_check dead_args drop_asserts.
 Import compiler_util expr.
 
 #[local] Instance toec_LoopCounter : LoopCounter :=
@@ -41,10 +41,12 @@ Definition toec_uprog (wi2i : bool) (p : _uprog) : cexec _uprog :=
    are simplified with what holds where they are ([simplify_asserts]): the
    constants, among them the masks of the scalars, and the masks of the arrays
    known to be full; then the conjuncts that an earlier assertion establishes
-   are removed ([assert_facts]). Last, the code that computes nothing used is
-   removed, with the parameters and the results of the functions that nothing
-   uses ([dead_args]): among them the masks that no assertion reads and the
-   copies that [contracts_to_asserts] introduces, named by [fresh_copy_ident].
+   are removed ([assert_facts]). The result is type checked ([check_prog]):
+   [dead_args] is correct on a well typed program. Last, the code that
+   computes nothing used is removed, with the parameters and the results of
+   the functions that nothing uses ([dead_args]): among them the masks that
+   no assertion reads and the copies that [contracts_to_asserts] introduces,
+   named by [fresh_copy_ident].
    [protect] tells the parameters and results that are kept, [dead_info
    protect] those that are dead. In the result, the contracts are not checks
    but specifications: the semantics of the extracted program evaluates its
@@ -62,6 +64,7 @@ Definition toec_uprog_safety (wi2i : bool) (mask : var -> var)
   let p := toec_while_prog (pT := progUnit) p in
   Let p := explicit_init_prog mask p in
   let p := assert_facts_prog (simplify_asserts_prog p) in
+  Let _ := check_prog p in
   dead_args_prog protect (dead_info protect) p.
 
 End TOEC.

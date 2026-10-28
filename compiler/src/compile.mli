@@ -64,7 +64,8 @@ val do_toec_safety :
     the passes common to both extractions, with [wi2i] as in [do_toec], the
     contracts as assertions, the safety conditions as assertions, and the
     initialisation state made explicit, each variable getting a mask that the
-    assertions read; last, the dead code, parameters and results are removed.
+    assertions read; the program is type checked; last, the dead code,
+    parameters and results are removed.
     The signature of the functions that EasyCrypt may call is kept: the export
     functions, the functions with a contract, the functions that no function
     calls and those named in [fnames]. *)

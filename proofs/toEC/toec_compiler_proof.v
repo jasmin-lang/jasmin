@@ -121,9 +121,7 @@ End FN.
 
 (* For an export function [fn] of [up], every run of [p'] in the semantics
    of EasyCrypt that does not fail corresponds to a run of [xp] that does not
-   fail, with results related through a run of [up]. The masks are fresh in
-   the program that [explicit_init] receives and the input of [dead_args] is
-   well typed, as in [toec_uprog_safety_tgt_src]. *)
+   fail, with results related through a run of [up]. *)
 Theorem toec_compiler_tgt_src (wi2i : bool) entries (up p' : uprog) xp fn fd :
   toec_uprog_safety fresh_var_ident get_info fresh_copy_ident wi2i mask protect dead_info up
     = ok p' ->
@@ -138,7 +136,6 @@ Theorem toec_compiler_tgt_src (wi2i : bool) entries (up p' : uprog) xp fn fd :
       dead_args_info (LC := toec_LoopCounter) protect (dead_info protect) p8 = ok (p', info),
       get_fundef xp.(asm_funcs) fn = Some xfd,
       xfd.(asm_fd_export) &
-      total_ok p8 ->
       wkequiv_io
         (toec_pre wi2i up xp info p8 fn fsig xfd)
         (isem_ec p' fn)
@@ -152,9 +149,9 @@ Proof using haparams print_linearP print_sprogP print_uprogP.
       (rE_trans := HandlerContract_trans) tt hp'.
   have [xfd [hxfd hexp hcomp]] :=
     it_compile_prog_to_asmP haparams print_uprogP print_sprogP print_linearP hxp hfn.
-  exists p5, p6, info, xfd; split => // hok.
+  exists p5, p6, info, xfd; split => //.
   apply: (wkequiv_io_trans (rE12 := HandlerContract) (rE23 := HandlerContract)
-            (rE_trans := HandlerContract_trans) _ _ (hsafe hok fn fd hfd) hcomp).
+            (rE_trans := HandlerContract_trans) _ _ (hsafe fn fd hfd) hcomp).
   - by move=> fs' t [fs hp1 hp2]; exists fs.
   by move=> fs' fs t fr' t' hp1 hp2 [fr hq1 hq2]; exists fs, fr.
 Qed.
@@ -207,7 +204,6 @@ Theorem toec_compiler_scalars_tgt_src entries (up p' : uprog) xp fn fd :
       explicit_init_prog mask p5 = ok p6,
       get_fundef xp.(asm_funcs) fn = Some xfd,
       xfd.(asm_fd_export) &
-      total_ok p8 ->
       wkequiv_io
         (toec_scalars_pre up xp p8 fn fsig xfd)
         (isem_ec p' fn)
@@ -216,7 +212,7 @@ Theorem toec_compiler_scalars_tgt_src entries (up p' : uprog) xp fn fd :
 Proof using haparams print_linearP print_sprogP print_uprogP.
   move=> hp' hxp hfn hfd htyin htyout hpr fsig.
   have [p5 [p6 [info [xfd]]]] := toec_compiler_tgt_src hp' hxp hfn hfd.
-  move=> /= [h5 h6 h9 hxfd hexp hall]; exists p5, p6, xfd; split => // hok.
+  move=> /= [h5 h6 h9 hxfd hexp hall]; exists p5, p6, xfd; split => //.
   have [hkp hkr] :=
     dead_args_info_protected (asm_op := extended_op)
       (sip := @sip_of_asm_e _ _ _ _ _ _ _ asm_e syscall_state sc_sem) hpr h9.
@@ -227,7 +223,7 @@ Proof using haparams print_linearP print_sprogP print_uprogP.
   - by rewrite /fsig; case: (fd) htyin => /= ????????; apply: not_arr_fsig.
   have hsig2 : all not_arr_ety fsig.2.
   - by rewrite /fsig; case: (fd) htyout => /= ????????; apply: not_arr_fsig.
-  apply: wkequiv_io_weaken (hall hok) => //.
+  apply: wkequiv_io_weaken hall => //.
   - move=> fs' t [fs [hpre hdef hty hfull]]; exists fs => //; exists fs' => //; split => //.
     exists fs'.
     + case: hpre => _ _ [hF hvs]; split => //.
