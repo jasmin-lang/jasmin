@@ -1,0 +1,38 @@
+/* This example shows that live-range splitting is useful after lowering:
+  each of the the io[·] = large instruction needs an extra assignment through
+  a temporary register: lowering picks the same fresh variable for assignments
+  but the two live-ranges of this variable must be assigned to different
+  registers. */
+
+param int large = 0x736f6d6570736575;
+param int NR = 12;
+
+export fn main(reg ptr u64[2] io) -> reg ptr u64[2], reg u32 {
+  reg u32 a b;
+  reg u32[NR] bank;
+  inline int i;
+  for i = 0 to NR {
+    bank[i] = i;
+  }
+  a = 1234;
+
+  // Here, bank and a are live (“b” is free)
+  io[0] = large;
+
+  b = bank[0];
+  for i = 1 to NR {
+    b ^= bank[i];
+  }
+
+  // Ensure that a and b conflict
+  b ^= a;
+
+  // Here bank and b are live (“a” is free)
+  io[1] = large;
+
+  for i = 0 to NR {
+    b ^= bank[i];
+  }
+
+  return io, b;
+}
