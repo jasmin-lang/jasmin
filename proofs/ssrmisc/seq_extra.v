@@ -85,6 +85,17 @@ Proof.
   by case: (ih ps r) => y Y Z; exists y; first right.
 Qed.
 
+Lemma In_has {T} (p : pred T) s x : List.In x s -> p x -> has p s.
+Proof. by elim: s => //= y s ih [<- -> // | /ih h /h ->]; rewrite orbT. Qed.
+
+Lemma In_filter {T} (p : pred T) s x : List.In x (filter p s) <-> List.In x s /\ p x.
+Proof.
+  elim: s => /= [ | y s ih]; first by split => [ | []].
+  case: ifP => hy /=; rewrite ih.
+  + by split => [[<- | []] | [[<- | ] ]]; auto.
+  by split => [[] | [[<- | ] ]]; [auto | rewrite hy | auto].
+Qed.
+
 Lemma all2_symm T (p : rel T) : pre_symmetric p → pre_symmetric (all2 p).
 Proof.
   move=> hsymm.

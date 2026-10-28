@@ -586,6 +586,16 @@ Proof.
   by apply on_arr_varP; t_xrbindP => *; apply: write_var_memP; eauto.
 Qed.
 
+Lemma write_lvals_memP wdb gd xs vs s1 s2 :
+  ~~ has lv_write_mem xs ->
+  write_lvals wdb gd s1 xs vs = ok s2 ->
+  emem s1 = emem s2.
+Proof.
+  elim: xs vs s1 => [ | x xs ih] [ | v vs] s1 //=; first by move=> _ [<-].
+  rewrite negb_or => /andP [hx hxs]; t_xrbindP => s /(lv_write_memP hx) ->.
+  exact: ih.
+Qed.
+
 (* A write to left values keeps the readable bytes of the memory readable. *)
 Lemma write_lval_validr wdb gd (x:lval) v s1 s2 al p ws :
   write_lval wdb gd x v s1 = ok s2 ->
@@ -1518,10 +1528,10 @@ Qed.
 
 End Expr.
 
-Lemma eq_gvarP wdb gd vm x x' : eq_gvar x x' → get_gvar wdb gd vm x = get_gvar wdb gd vm x'.
+Lemma eq_gvarP {sm : SemMode} wdb gd vm x x' : eq_gvar x x' → get_gvar wdb gd vm x = get_gvar wdb gd vm x'.
 Proof. by rewrite /eq_gvar /get_gvar /is_lvar => /andP [] /eqP -> /eqP ->. Qed.
 
-Lemma eq_exprP_pair wdb gd s :
+Lemma eq_exprP_pair {sm : SemMode} wdb gd s :
   (∀ e e', eq_expr e e' → sem_pexpr wdb gd s e = sem_pexpr wdb gd s e') ∧
   (∀ es es', all2 eq_expr es es' → sem_pexprs wdb gd s es = sem_pexprs wdb gd s es').
 Proof.
@@ -1539,12 +1549,23 @@ Proof.
   by move=> > /andP[]/andP[]/andP[] /eqP -> /He -> /He1 -> /He2 ->.
 Qed.
 
-Lemma eq_exprP wdb gd s e1 e2 : eq_expr e1 e2 -> sem_pexpr wdb gd s e1 = sem_pexpr wdb gd s e2.
+Lemma eq_exprP {sm : SemMode} wdb gd s e1 e2 : eq_expr e1 e2 -> sem_pexpr wdb gd s e1 = sem_pexpr wdb gd s e2.
 Proof. exact: (proj1 (eq_exprP_pair wdb gd s)). Qed.
 
-Lemma eq_exprsP wdb gd m es1 es2:
+Lemma eq_exprsP {sm : SemMode} wdb gd m es1 es2:
   all2 eq_expr es1 es2 → sem_pexprs wdb gd m es1 = sem_pexprs wdb gd m es2.
 Proof. exact: (proj2 (eq_exprP_pair wdb gd m)). Qed.
+
+(* Assertions equal up to the information on the variables evaluate alike. *)
+Lemma eq_eassertP gd s a a' : eq_eassert a a' -> sem_eassert gd s a = sem_eassert gd s a'.
+Proof.
+  elim: a a' => [e | o es | x | e1 e2 | a1 h1 a2 h2] [e' | o' es' | x' | e1' e2' | a1' a2'] //=.
+  + by move=> /(eq_exprP (sm := total) true gd s) ->.
+  + by move=> /andP [/eqP <-] /(eq_exprsP (sm := total) true gd s); rewrite /sem_pexprs => ->.
+  + by move=> /eqP; rewrite /is_var_init => ->.
+  + by move=> /andP [] /(eq_exprP (sm := total) true gd s) -> /(eq_exprP (sm := total) true gd s) ->.
+  by move=> /andP [] /h1 -> /h2 ->.
+Qed.
 
 Lemma eq_lvalP wdb gd m lv lv' v :
   eq_lval lv lv' ->

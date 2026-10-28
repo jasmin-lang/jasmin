@@ -1430,6 +1430,15 @@ Proof.
   by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
 Qed.
 
+Lemma wequiv_assert_right P Q ii a :
+  (forall s t, P s t ->
+     sem_assert (wsw:=wsw2) (wa:=wa2) (p_globs p2) t a = ok tt /\ Q s t) ->
+  wequiv P [::] [::MkI ii (Cassert a)] Q.
+Proof.
+  move=> h s t /h [ha hQ]; rewrite /isem_cmd_ /= /isem_assert ha /= !bind_ret_l.
+  exact: xrutt.xrutt_Ret.
+Qed.
+
 Lemma wequiv_asserts_left P Q ii (a_s : list assertion) :
   assert_allowed (wa:=wa1) ->
   (forall s t, P s t ->

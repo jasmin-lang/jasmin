@@ -13,9 +13,9 @@ Local Open Scope seq_scope.
    every path that reaches the point, such that nothing they read has been
    written since. The evaluation of an assertion is deterministic and depends
    only on the variables it reads, on the content of the memory when it
-   loads from it, and on the validity of the memory: a fact still holds. A
-   conjunct of an assertion that a fact implies is removed, and so is an
-   assertion with no conjunct left; the rest of the code is unchanged.
+   loads from it, and on the readable bytes of the memory: a fact still
+   holds. A conjunct of an assertion that a fact implies is removed, and so
+   is an assertion with no conjunct left; the rest of the code is unchanged.
 
    A fact implies a conjunct when they are equal (up to the information on
    the variables), or when both test the initialisation of the same mask, on
@@ -24,9 +24,9 @@ Local Open Scope seq_scope.
 
    A write to a variable removes the facts that read it. A write to the
    memory, a call and a system call remove the facts that load from the
-   memory; no instruction changes the validity of the memory, which the facts
-   [Pis_mem_init] observe. At the head of a loop, the facts that read what the
-   loop writes are removed; the others hold at each iteration. *)
+   memory; no instruction makes a readable byte of the memory unreadable, so
+   the facts [Pis_mem_init] still hold. At the head of a loop, the facts that
+   read what the loop writes are removed; the others hold at each iteration. *)
 
 Section ASM_OP.
 
