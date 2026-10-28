@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 
-# Regression check of the extraction to EasyCrypt for safety.
+# Regression check of the extraction to EasyCrypt.
 #
 # Usage: scripts/check-ec-chain.sh OUTDIR
 # (run from the compiler directory, after `make`)
 #
-# Each program of the corpus below is extracted with `jasmin2ec --safety`
-# into OUTDIR/<group>/<name>.ec, where <group> names the directory of the
+# Each program of the corpus below is extracted in two modes: `jasmin2ec`
+# (mode plain) and `jasmin2ec --safety` (mode safety), into
+# OUTDIR/<mode>/<group>/<name>.ec, where <group> names the directory of the
 # program (two directories may hold programs of the same name). The script
-# then checks every extracted file with EasyCrypt and reports the programs
-# that do not extract and the files that do not check, with their logs in
-# OUTDIR/<group>/<name>.log.
+# then checks every extracted file with EasyCrypt and reports, for each mode,
+# the programs that do not extract and the files that do not check, with
+# their logs in OUTDIR/<mode>/<group>/<name>.log.
 
 set -u
 
@@ -35,47 +36,60 @@ tests/success/common
 tests/success/x86-64
 "
 
-total=0
-extracted=()
-failed_extract=()
+# The modes: name and options of jasmin2ec.
+MODES="plain: safety:--safety"
 
-for d in $DIRS; do
-  group=$(echo "$d" | tr / _)
-  mkdir -p "$OUT/$group"
-  for f in "$COMPILER/$d"/*.jazz; do
-    name=$(basename "$f" .jazz)
-    total=$((total + 1))
-    if "$JASMIN2EC" --safety -o "$OUT/$group/$name.ec" "$f" \
-         > "$OUT/$group/$name.extract.log" 2>&1; then
-      extracted+=("$group/$name")
+status=0
+for m in $MODES; do
+  mode=${m%%:*}
+  opts=${m#*:}
+  total=0
+  extracted=()
+  failed_extract=()
+
+  for d in $DIRS; do
+    group=$(echo "$d" | tr / _)
+    mkdir -p "$OUT/$mode/$group"
+    for f in "$COMPILER/$d"/*.jazz; do
+      name=$(basename "$f" .jazz)
+      total=$((total + 1))
+      # $opts is empty or a single option
+      if "$JASMIN2EC" $opts -o "$OUT/$mode/$group/$name.ec" "$f" \
+           > "$OUT/$mode/$group/$name.extract.log" 2>&1; then
+        extracted+=("$mode/$group/$name")
+      else
+        failed_extract+=("$mode/$group/$name")
+      fi
+    done
+  done
+
+  echo "== $mode, extraction: ${#extracted[@]}/$total"
+  for p in "${failed_extract[@]+"${failed_extract[@]}"}"; do
+    echo "  FAIL $p: $(grep -v '^Please report' "$OUT/$p.extract.log" | tail -n 1)"
+  done
+
+  # Each file is checked in its own directory, where the extraction put the
+  # theories it requires.
+  checked=0
+  failed_check=()
+  for p in "${extracted[@]+"${extracted[@]}"}"; do
+    if (cd "$OUT/$(dirname "$p")" &&
+        easycrypt compile -I "Jasmin:$ECLIB" "$(basename "$p").ec") \
+         > "$OUT/$p.log" 2>&1; then
+      checked=$((checked + 1))
     else
-      failed_extract+=("$group/$name")
+      failed_check+=("$p")
     fi
   done
-done
 
-echo "== extraction: ${#extracted[@]}/$total"
-for p in "${failed_extract[@]+"${failed_extract[@]}"}"; do
-  echo "  FAIL $p: $(grep -v '^Please report' "$OUT/$p.extract.log" | tail -n 1)"
-done
+  echo "== $mode, EasyCrypt: $checked/${#extracted[@]}"
+  for p in "${failed_check[@]+"${failed_check[@]}"}"; do
+    echo "  FAIL $p: see $OUT/$p.log"
+  done
 
-# Each file is checked in its own directory, where the extraction put the
-# theories it requires.
-checked=0
-failed_check=()
-for p in "${extracted[@]+"${extracted[@]}"}"; do
-  if (cd "$OUT/$(dirname "$p")" &&
-      easycrypt compile -I "Jasmin:$ECLIB" "$(basename "$p").ec") \
-       > "$OUT/$p.log" 2>&1; then
-    checked=$((checked + 1))
-  else
-    failed_check+=("$p")
+  if [ ${#failed_extract[@]} -ne 0 ] || [ ${#failed_check[@]} -ne 0 ]; then
+    status=1
   fi
 done
 
-echo "== EasyCrypt: $checked/${#extracted[@]}"
-for p in "${failed_check[@]+"${failed_check[@]}"}"; do
-  echo "  FAIL $p: see $OUT/$p.log"
-done
-
-[ ${#failed_extract[@]} -eq 0 ] && [ ${#failed_check[@]} -eq 0 ]
+exit $status
