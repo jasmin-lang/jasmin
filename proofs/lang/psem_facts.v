@@ -625,6 +625,11 @@ Lemma sem_pexpr_partialE s e v :
   sem_pexpr (sm := total) true gd s e = ok v.
 Proof. by have [h _] := sem_pexpr_partialE_aux; apply: h. Qed.
 
+Lemma sem_pexprs_partialE s es vs :
+  sem_pexprs (sm := partial) true gd s es = ok vs ->
+  sem_pexprs (sm := total) true gd s es = ok vs.
+Proof. by have [_ h] := sem_pexpr_partialE_aux; apply: h. Qed.
+
 (* In any mode: the total mode is itself, the partial mode is the lemma above,
    the [total_init] mode reads as the total one. *)
 Lemma sem_pexpr_totalE {sm : SemMode} s e v :
