@@ -87,6 +87,8 @@ type peop2 = [
   | `Mul  of castop
   | `Div  of sign option * castop
   | `Mod  of sign option * castop
+  | `Max  of sign option * castop
+  | `Min  of sign option * castop
   | `BAnd of castop
   | `BOr  of castop
   | `BXOr of castop
@@ -142,6 +144,8 @@ let string_of_peop2 : peop2 -> string =
   | `Mul c -> f c "*"
   | `Div c -> g c "/"
   | `Mod c -> g c "%"
+  | `Max _ -> "max"
+  | `Min _ -> "min"
 
   | `BAnd c -> f c "&"
   | `BOr  c -> f c "|"
@@ -235,6 +239,7 @@ module SPrinter = struct
     | `Mul _ | `Div _ | `Mod _ -> Pmul
     | `And -> Pand
     | `Or -> Por
+    | `Min _ | `Max _ -> Pmin
     | `BAnd _ -> Pbwand
     | `BOr _ -> Pbwor
     | `BXOr _ -> Pbwxor
