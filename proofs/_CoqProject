@@ -203,6 +203,7 @@ lang/one_varmap.v
 lang/op_semi.v
 lang/operators.v
 lang/psem.v
+lang/psem_contracts_facts.v
 lang/psem_defs.v
 lang/psem_core.v
 lang/psem_of_sem_proof.v
