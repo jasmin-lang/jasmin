@@ -241,3 +241,138 @@ Proof using rE_trans.
 Qed.
 
 End PROOF.
+
+(* * The plain extraction ([toec_uprog]) under the safety of the extraction
+   for safety. *)
+
+From ITree Require Import Rutt.
+Require Import drop_asserts drop_asserts_proof.
+
+Section EQUIV.
+
+#[local] Existing Instance progUnit.
+#[local] Existing Instance nosubword.
+#[local] Existing Instance indirect_c.
+
+Context
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}.
+
+Context
+  {E E0 : Type -> Type}
+  {wE : with_Error E E0}
+  {rE : EventRels E0}
+  {rE_trans : EventRels_trans rE rE rE}
+  {rE_ans : EventRels_ans_total rE}
+  {rE_flip : EventRels_trans (EventRels_flip rE) rE rE}.
+
+Notation wiequiv_f_ wa1 wa2 sm1 sm2 :=
+  (wiequiv_f (wa1 := wa1) (wa2 := wa2) (sm1 := sm1) (sm2 := sm2)).
+Notation safe_f_ wa sm := (safe_f (wa := wa) (sm := sm) (wE := wE)).
+
+Context
+  (fresh_var_ident fresh_copy_ident : v_kind -> instr_info -> string -> atype -> Ident.ident).
+Context (get_info : _uprog -> Sv.t * (var -> option (signedness * var))).
+Context (ev : extra_val_t).
+Context (mask : var -> var).
+Context (protect : funname -> var -> bool).
+Context (dead_info : (funname -> var -> bool) -> _uprog ->
+                     funname -> option (seq bool) * option (seq bool)).
+
+(* The safety of the result of the extraction for safety, in the semantics of
+   EasyCrypt, on the arguments that satisfy [P], gives the safety of the
+   result of [toec_uprog_common] and of the source, both in the partial mode
+   with the assertions and the contracts evaluated, on the related
+   arguments. *)
+Lemma toec_uprog_safety_safe (wi2i : bool) (p pc ps : uprog) :
+  toec_uprog_common fresh_var_ident get_info wi2i p = ok pc ->
+  toec_uprog_safety fresh_var_ident get_info fresh_copy_ident wi2i mask protect dead_info p
+    = ok ps ->
+  exists p5 p6 info,
+  let p8 := assert_facts_prog (simplify_asserts_prog p6) in
+  [/\ toec_uprog_pre_init fresh_var_ident fresh_copy_ident get_info wi2i p = ok p5,
+      explicit_init_prog mask p5 = ok p6,
+      dead_args_info (LC := toec_LoopCounter) protect (dead_info protect) p8 = ok (ps, info) &
+      forall fn fd, get_fundef (p_funcs p) fn = Some fd ->
+      let fsig := (build_sig (get_info p).2 (fn, fd)).2 in
+      forall P, safe_f_ withassert_nocontract total_init P ps ev fn ->
+      safe_f_ withassert partial
+        (fun fsi => exists fss, rpreF (eS := safety_spec info p8) fn fn fss fsi /\ P fss)
+        pc ev fn /\
+      safe_f_ withassert partial
+        (fun fs => exists fss, safety_wi_pre wi2i info p8 fsig fn fn fss fs /\ P fss)
+        p ev fn].
+Proof using rE_ans rE_trans.
+  move=> hpc; rewrite /toec_uprog_safety /dead_args_prog /toec_uprog_pre_init hpc /=.
+  t_xrbindP => p2 h2 p3 h3 p6 h6 hok r h9 <-.
+  case: r h9 => p9 info h9; exists (toec_while_prog p3), p6, info; split => //.
+  - by rewrite h2 /= h3.
+  move=> fn fd hfd P hsafe.
+  have hspc := wiequiv_f_safe_f (safety_chain_tgt_src (rE := rE) ev (fn := fn) h2 h3 h6 hok h9) hsafe.
+  split; first exact: hspc.
+  move=> fs [fss [[fsi hss hc] hP]].
+  apply: (wiequiv_f_safe_f (common_tgt_src (rE := rE) ev hpc hfd) (hspc _ _)).
+  by exists fsi; split => //; exists fss.
+Qed.
+
+(* The plain extraction [p'] and its source [p] are equivalent on the
+   arguments on which the extraction for safety [ps] is safe. Let [P] be
+   arguments of [ps] on which [ps] does not fail in the semantics of
+   EasyCrypt (the safety proved in EasyCrypt). Take an argument [fs'] of
+   [p'], related by [safety_spec] to an argument of [ps] in [P], and related
+   by [common_rel] to an argument [fs] of [p]. The run of [p'] on [fs'], in
+   the semantics of EasyCrypt, does not fail, and it is equivalent to the run
+   of [p] on [fs], in the partial mode with the assertions and the contracts
+   evaluated: same events, results related by [common_rel]. The relation
+   holds in both directions. So a property of [p'] proved in EasyCrypt,
+   together with the safety of [ps], gives the same property of [p]. *)
+Theorem toec_uprog_equiv (wi2i : bool) (p ps p' : uprog) :
+  toec_uprog_safety fresh_var_ident get_info fresh_copy_ident wi2i mask protect dead_info p
+    = ok ps ->
+  toec_uprog fresh_var_ident get_info wi2i p = ok p' ->
+  exists p5 p6 info,
+  let p8 := assert_facts_prog (simplify_asserts_prog p6) in
+  [/\ toec_uprog_pre_init fresh_var_ident fresh_copy_ident get_info wi2i p = ok p5,
+      explicit_init_prog mask p5 = ok p6,
+      dead_args_info (LC := toec_LoopCounter) protect (dead_info protect) p8 = ok (ps, info) &
+      forall fn fd, get_fundef (p_funcs p) fn = Some fd ->
+      let fsig := (build_sig (get_info p).2 (fn, fd)).2 in
+      forall P, safe_f_ withassert_nocontract total_init P ps ev fn ->
+      let pre fs' fs :=
+        common_rel wi2i (vs_pre fsig.1) fs' fs /\
+        exists fss, rpreF (eS := safety_spec info p8) fn fn fss fs' /\ P fss in
+      let post := common_rel wi2i (vs_post fsig.2) in
+      [/\ wiequiv_f_ withassert_nocontract withassert total_init partial p' p ev ev
+            (fun _ _ => pre) fn fn (fun _ _ _ _ => post),
+          wiequiv_f (wa1 := withassert) (wa2 := withassert_nocontract) (sm1 := partial)
+            (sm2 := total_init) (rE0 := EventRels_flip rE) p p' ev ev
+            (fun _ _ fs fs' => pre fs' fs) fn fn (fun _ _ _ _ fr fr' => post fr' fr) &
+          forall fs' fs, pre fs' fs ->
+          rutt (EPreRel (rE0 := rE)) (EPostRel (rE0 := rE)) post
+            (isem_fun (wa := withassert_nocontract) (sm := total_init) p' ev fn fs')
+            (isem_fun (wa := withassert) (sm := partial) p ev fn fs)]].
+Proof using rE_ans rE_flip rE_trans.
+  rewrite /toec_uprog; t_xrbindP => hps pc hpc <-.
+  have [p5 [p6 [info [h5 h6 h9 hs]]]] := toec_uprog_safety_safe hpc hps.
+  exists p5, p6, info; split => // fn fd hfd P hsafe.
+  have [hspc _] := hs fn fd hfd P hsafe.
+  have hflip := wiequiv_f_flip_safe (erase_src_tgt (rE := rE) pc ev (fn := fn)) hspc.
+  have hsp' := wiequiv_f_safe_f (erase_src_tgt (rE := rE) pc ev (fn := fn)) hspc.
+  set pre := fun fs' fs => common_rel wi2i _ fs' fs /\ _.
+  set post := common_rel wi2i (vs_post _).
+  have h1 : wiequiv_f_ withassert_nocontract withassert total_init partial
+      (drop_asserts_prog pc) p ev ev (fun _ _ => pre) fn fn (fun _ _ _ _ => post).
+  - apply: (wkequiv_io_trans (rE12 := EventRels_flip rE) (rE23 := rE) _ _ (hflip _ _)
+             (common_tgt_src (rE := rE) ev hpc hfd)).
+    + by move=> fs' fs [hc hP]; exists fs'.
+    by move=> > _ _ [r /= ->].
+  split => //.
+  - apply: (wkequiv_io_weaken _ _ _ _ (wiequiv_f_flip_safe h1 (hsp' _ _))) => //.
+    by move=> fs fs' [hc hP]; split => //; exists fs'.
+  move=> fs' fs hpre; apply: (wiequiv_f_safe_rutt h1 hpre _).1.
+  by apply: (hsp' _ _); exists fs'; case: hpre.
+Qed.
+
+End EQUIV.
