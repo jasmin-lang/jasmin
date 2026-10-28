@@ -90,4 +90,5 @@ Separate Extraction
   wint_int
   toec_prog
   safety
-  explicit_init.
+  explicit_init
+  typing_check.

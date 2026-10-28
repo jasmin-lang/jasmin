@@ -10,3 +10,4 @@ Require wint_int.
 Require toec_prog.
 Require safety.
 Require explicit_init.
+Require typing_check.
