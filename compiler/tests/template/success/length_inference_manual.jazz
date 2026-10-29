@@ -1,0 +1,17 @@
+fn f{k}(reg ptr u32[k] r) -> reg u64 {
+  reg u64 res = r[:u64 0];
+  return res;
+}
+
+param int N = 5;
+
+export fn main () -> reg u64 {
+  stack u64[N] s;
+  inline int i;
+  for i = 0 to N {
+    s[i] = i;
+  }
+  reg u64 res = f{2*N}(s); // the length arg of f cannot be inferred (because u32 <> u64)
+                           // but we can specify it manually
+  return res;
+}

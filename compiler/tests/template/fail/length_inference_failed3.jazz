@@ -1,0 +1,18 @@
+fn f{k}(reg ptr u64[k] r) -> reg u64 {
+  reg u64 res = r[0];
+  return res;
+}
+
+param int N = 5;
+
+export fn main () -> reg u64 {
+  stack u64[N] s;
+  inline int i;
+  for i = 0 to N {
+    s[i] = i;
+  }
+  reg u64 res = f(); // the length args of f cannot be inferred,
+                     // but the fact that we do not have the right number of arguments
+                     // seems more important, should we change the error?
+  return res;
+}

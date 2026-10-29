@@ -41,7 +41,7 @@ Lemma eeq_excT xs (s0 s1 s2 : estate env) :
   st_eq_ex xs s0 s1
   -> st_eq_ex xs s1 s2
   -> st_eq_ex xs s0 s2.
-Proof. rewrite /st_eq_ex /st_rel => -[-> -> _ h] [-> -> _ h2]; split; eauto. by rewrite h. Qed.
+Proof. rewrite /st_eq_ex /st_rel => -[-> -> _ h] [-> -> _ h2]; split => //. by rewrite h. Qed.
 
 Lemma eeq_exc_disjoint env1 env2 xs ys (s0 : estate env1) (s1 : estate env2) :
   disjoint xs ys

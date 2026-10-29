@@ -444,6 +444,51 @@ Definition eval_ltype ty :=
 
 End EVAL.
 
+Section NO_VAR.
+
+Fixpoint no_var_al (al : array_length) :=
+  match al with
+  | ALConst _ => true
+  | ALVar _ _ => false
+  | ALNeg al => no_var_al al
+  | ALAdd al1 al2
+  | ALSub al1 al2
+  | ALMul al1 al2
+  | ALDiv _ al1 al2
+  | ALMod _ al1 al2
+  | ALShl al1 al2
+  | ALShr al1 al2 => no_var_al al1 && no_var_al al2
+  end.
+
+Definition no_var_ty ty :=
+  match ty with
+  | aarr _ al => no_var_al al
+  | _ => true
+  end.
+
+Lemma no_var_alP al : no_var_al al -> forall env1 env2, eval env1 al = eval env2 al.
+Proof.
+  move=> hnovar env1 env2.
+  elim: al hnovar => //=.
+  + by move=> al ih /ih ->.
+  + by move=> al1 ih1 al2 ih2 /andP [/ih1 -> /ih2 ->].
+  + by move=> al1 ih1 al2 ih2 /andP [/ih1 -> /ih2 ->].
+  + by move=> al1 ih1 al2 ih2 /andP [/ih1 -> /ih2 ->].
+  + by move=> ? al1 ih1 al2 ih2 /andP [/ih1 -> /ih2 ->].
+  + by move=> ? al1 ih1 al2 ih2 /andP [/ih1 -> /ih2 ->].
+  + by move=> al1 ih1 al2 ih2 /andP [/ih1 -> /ih2 ->].
+  by move=> al1 ih1 al2 ih2 /andP [/ih1 -> /ih2 ->].
+Qed.
+
+Lemma no_var_tyP ty : no_var_ty ty -> forall env1 env2, eval_atype env1 ty = eval_atype env2 ty.
+Proof.
+  case: ty => //= ws al hnovar env1 env2.
+  congr (fun al => carr (arr_size ws al)).
+  by apply no_var_alP.
+Qed.
+
+End NO_VAR.
+
 Section EXT.
 
 Lemma eval_ext env1 env2 :
@@ -929,6 +974,10 @@ Qed.
 
 Section SUBST.
 
+Require Import seq_extra.
+
+Section DEF.
+
 (* When [f x] returns [None], we preserve [x]. Is this reasonable?
    Can this situation happen? If not, then this is a reasonable thing to do.
    If yes, does this mean that we ignore an error? Or does this mean that
@@ -981,6 +1030,101 @@ Definition subst_ty ty :=
     Some (aarr ws al)
   | _ => Some ty
   end.
+
+End DEF.
+
+(* not used
+Lemma assoc_zip_None (A:eqType) B1 B2 (l1 : seq A) (l2 : seq B1) (l2' : seq B2) x :
+  size l2 = size l2' ->
+  assoc (zip l1 l2) x = None ->
+  assoc (zip l1 l2') x = None.
+Proof.
+  elim: l1 l2 l2' => [|a1 l1 ih1] /=.
+  + by move=> ? [].
+  move=> [|a2 l2] [|a2' l2'] //= [heq].
+  case: eqP => // _.
+  by apply ih1.
+Qed.
+*)
+
+(* TODO: move ? *)
+Lemma assoc_zip_Some (A:eqType) B1 B2 (l1 : seq A) (l2 : seq B1) (l2' : seq B2) x y :
+  size l2 = size l2' ->
+  xseq.assoc (zip l1 l2) x = Some y ->
+  exists k, [/\
+      oseq.onth l1 k = Some x
+    , oseq.onth l2 k = Some y
+    & xseq.assoc (zip l1 l2') x = oseq.onth l2' k].
+Proof.
+  elim: l1 l2 l2' => [|a1 l1 ih1] /=.
+  + by move=> [].
+  move=> [|a2 l2] [|a2' l2'] //= [heq].
+  case: eqP => [<-|_].
+  + move=> [<-].
+    by exists 0.
+  move=> /(ih1 _ _ heq) [k [h1 h2 h3]].
+  by exists (S k).
+Qed.
+
+Definition create_env (als : seq (Uint63.int * Ident.ident)) (vals : seq Z) :=
+  let l := zip (map fst als) vals in
+  fun (i:Uint63.int) => odflt 0%Z (xseq.assoc l i).
+
+Lemma subst_alP env l als al al' :
+  subst_al (xseq.assoc (zip [seq i.1 | i <- l] als)) al = Some al' ->
+  eval env al' = eval (create_env l [seq eval env i | i <- als]) al.
+Proof.
+  elim: al al' => /=.
+  + by move=> z _ [<-] /=.
+  + move=> i _ al' hassoc.
+    rewrite /create_env.
+    have hsize := size_map (eval env) als.
+    have [k [_ hnth ->]] := assoc_zip_Some (esym hsize) hassoc.
+    by rewrite seq_extra.onth_map hnth /=.
+  + move=> al ih al'.
+    by apply: obindP => ? /ih <- [<-] /=.
+  + move=> al1 ih1 al2 ih2 al'.
+    apply: obindP => ? /ih1 <-.
+    apply: obindP => ? /ih2 <-.
+    by move=> [<-] /=.
+  + move=> al1 ih1 al2 ih2 al'.
+    apply: obindP => ? /ih1 <-.
+    apply: obindP => ? /ih2 <-.
+    by move=> [<-] /=.
+  + move=> al1 ih1 al2 ih2 al'.
+    apply: obindP => ? /ih1 <-.
+    apply: obindP => ? /ih2 <-.
+    by move=> [<-] /=.
+  + move=> sg1 al1 ih1 al2 ih2 al'.
+    apply: obindP => ? /ih1 <-.
+    apply: obindP => ? /ih2 <-.
+    by move=> [<-] /=.
+  + move=> sg1 al1 ih1 al2 ih2 al'.
+    apply: obindP => ? /ih1 <-.
+    apply: obindP => ? /ih2 <-.
+    by move=> [<-] /=.
+  + move=> al1 ih1 al2 ih2 al'.
+    apply: obindP => ? /ih1 <-.
+    apply: obindP => ? /ih2 <-.
+    by move=> [<-] /=.
+  move=> al1 ih1 al2 ih2 al'.
+  apply: obindP => ? /ih1 <-.
+  apply: obindP => ? /ih2 <-.
+  by move=> [<-] /=.
+Qed.
+
+Lemma subst_tyP env l als ty ty' :
+  subst_ty (xseq.assoc (zip [seq i.1 | i <- l] als)) ty = Some ty' ->
+  eval_atype env ty' = eval_atype (create_env l [seq eval env i | i <- als]) ty.
+Proof.
+  case: ty => /=.
+  + by move=> [<-] /=.
+  + by move=> [<-] /=.
+  + move=> ws al.
+    apply: obindP => al' hal [<-] /=.
+    by rewrite (subst_alP _ hal).
+  by move=> ? [<-] /=.
+Qed.
 
 End SUBST.
 

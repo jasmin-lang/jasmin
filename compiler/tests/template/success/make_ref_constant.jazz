@@ -1,0 +1,13 @@
+// we test make ref arg instantiated on a constant
+
+fn f{n}(reg ptr u64[n] r) -> reg u64 {
+  reg u64 res = r[0];
+  return res;
+}
+
+export fn main () -> reg u64 {
+  stack u64[4] s;
+  s[0] = 0;
+  reg u64 res = f{4}(s);
+  return res;
+}

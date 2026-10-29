@@ -180,26 +180,6 @@ Proof using spill_prog_ok.
   rewrite !Vm.setP_neq //; apply /eqP => heqsx; last by clear -hnin hIn heqsx; SvD.fsetdec.
   by subst sx'; apply/heqx/(get_spill_inj hsx (hsx' ii)).
 Qed.
-  Lemma no_var_alP al : no_var_al al -> forall env1 env2, eval env1 al = eval env2 al.
-  Proof.
-    move=> hnovar env1 env2.
-    elim: al hnovar => //=.
-    + by move=> al ih /ih ->.
-    + by move=> al1 ih1 al2 ih2 /andP [/ih1 -> /ih2 ->].
-    + by move=> al1 ih1 al2 ih2 /andP [/ih1 -> /ih2 ->].
-    + by move=> al1 ih1 al2 ih2 /andP [/ih1 -> /ih2 ->].
-    + by move=> ? al1 ih1 al2 ih2 /andP [/ih1 -> /ih2 ->].
-    + by move=> ? al1 ih1 al2 ih2 /andP [/ih1 -> /ih2 ->].
-    + by move=> al1 ih1 al2 ih2 /andP [/ih1 -> /ih2 ->].
-    by move=> al1 ih1 al2 ih2 /andP [/ih1 -> /ih2 ->].
-  Qed.
-
-  Lemma no_var_tyP ty : no_var_ty ty -> forall env1 env2, eval_atype env1 ty = eval_atype env2 ty.
-  Proof.
-    case: ty => //= ws al hnovar env1 env2.
-    congr (fun al => carr (arr_size ws al)).
-    by apply no_var_alP.
-  Qed.
 
 Lemma spill_esP env S ii tys es c senv senv' (s : estate env) vs vs' vm :
   sem_pexprs true gd s es = ok vs ->

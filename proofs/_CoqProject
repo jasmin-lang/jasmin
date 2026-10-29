@@ -104,6 +104,8 @@ compiler/merge_varmaps.v
 compiler/post_unrolling_check.v
 compiler/propagate_inline.v
 compiler/propagate_inline_proof.v
+compiler/remove_length.v
+compiler/remove_length_proof.v
 compiler/riscv.v
 compiler/riscv_decl.v
 compiler/riscv_instr_decl.v

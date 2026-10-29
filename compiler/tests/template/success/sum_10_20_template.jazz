@@ -1,0 +1,28 @@
+fn sum{N} (reg ptr u64[N] r, reg u64 n) -> reg u64 {
+  reg u64 res = 0;
+  reg u64 i = 0;
+  while (i < n) {
+    res += r[i];
+    i += 1;
+  }
+  return res;
+}
+
+export fn main () -> reg u64 {
+  stack u64[20] s;
+  inline int i;
+  for i = 0 to 20 {
+    s[i] = i;
+  }
+
+  reg u64 len10 = 10;
+  reg u64 res10 = sum{10} (s[0:10], len10);
+  reg u64 res = res10;
+
+  reg u64 len20 = 20;
+  reg u64 res20 = sum{20} (s, len20);
+
+  res += res20;
+
+  return res;
+}

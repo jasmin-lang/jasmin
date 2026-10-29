@@ -413,7 +413,7 @@ let get_returned_params ~funname (alias: Alias.alias) args =
       let x = L.unloc xr in
       if is_ptr x.v_kind then
         let c = Alias.normalize_var alias x in
-        match fst (List.findi (fun _ slice -> Some c = slice) arg_slices) with
+        match fst (List.findi (fun _ slice -> Option.map_default (Alias.eq_slice c) false slice) arg_slices) with
         | exception Not_found ->
            let msg =
              if List.mem c.in_var args

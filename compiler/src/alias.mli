@@ -9,6 +9,8 @@ type sub_slice_kind =
 
 type slice = { in_var : var ; scope : E.v_scope ; kind : sub_slice_kind }
 
+val eq_slice : slice -> slice -> bool
+
 type alias = slice Mv.t
 
 val normalize_var : alias -> var -> slice

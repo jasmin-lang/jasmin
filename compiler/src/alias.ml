@@ -21,6 +21,18 @@ type sub_slice_kind =
 
 type slice = { in_var : var ; scope : E.v_scope ; kind : sub_slice_kind }
 
+let eq_slice s1 s2 =
+  let eq_range (n1, len1) (n2, len2) =
+    Z.equal n1 n2 && convertible (Arr (U8, len1)) (Arr (U8, len2))
+  in
+  let eq_kind k1 k2 =
+    match k1, k2 with
+    | Exact r1, Exact r2 -> eq_range r1 r2
+    | Sub ws1, Sub ws2 -> ws1 = ws2
+    | _ -> false
+  in
+  s1.in_var = s2.in_var && s1.scope = s2.scope && eq_kind s1.kind s2.kind
+
 type alias = slice Mv.t
 
 (* --------------------------------------------------- *)

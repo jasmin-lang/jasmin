@@ -127,22 +127,26 @@ let psubst_v subst =
   let subst = ref subst in
   let rec aux v : pexpr =
     let k = v.gs in
-    let v = v.gv in
-    let v_ = v.L.pl_desc in
+    let gv = v.gv in
+    let v_ = gv.L.pl_desc in
     let e =
       try Mpv.find v_ !subst
       with Not_found ->
+        (* length variables are unchanged *)
+        if PV.is_length_var v_ then
+          Pvar v
+        else
         let ty = psubst_ty aux v_.v_ty in
         let v' = PV.mk v_.v_name v_.v_kind ty v_.v_dloc v_.v_annot in
-        let v = {v with L.pl_desc = v'} in
-        let v = { gv = v; gs = k } in
+        let gv = {gv with L.pl_desc = v'} in
+        let v = { gv ; gs = k } in
         let e = Pvar v in
         subst := Mpv.add v_ e !subst;
         e in
     match e with
     | Pvar x ->
       let k = x.gs in
-      let x = {x.gv with L.pl_loc = L.loc v} in
+      let x = {x.gv with L.pl_loc = L.loc gv} in
       let x = {gv = x; gs = k} in
       Pvar x
     | _      -> e in
@@ -305,7 +309,7 @@ let isubst_prog glob prog =
     let f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret in
     let fc = {
         fc with
-        f_al = List.map (fun (n, x) -> (n, dov x)) fc.f_al;
+        f_al = List.map (fun (n, x) -> (n, GV.cast x)) fc.f_al;
         f_tyin = List.map isubst_ty fc.f_tyin;
         f_contract = Option.map (gsubst_cf_contract isubst_len subst_v) fc.f_contract;
         f_args;

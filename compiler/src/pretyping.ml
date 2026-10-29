@@ -2464,6 +2464,14 @@ let add_known_implicits (arch_info : 'asm P.arch_info) env c =
 let warn_unused_variables env f =
   let used = List.fold_left (fun s v -> P.Spv.add (L.unloc v) s) P.Spv.empty f.P.f_ret in
   let used = P.Spv.union used (P.pvars_c f.P.f_body) in
+  (* we also add the variables used in the types *)
+  (* should they be in a different category? *)
+  let pvars_ty ty =
+    match ty with
+    | P.Bty _ -> P.Spv.empty
+    | Arr (_, P.PE len) -> P.rvars_e P.Spv.add P.Spv.empty len
+  in
+  let used = P.Spv.fold (fun x acc -> P.Spv.union (pvars_ty x.v_ty) acc) used used in
   let pp_var fmt x = F.fprintf fmt "%s.%s" x.P.v_name (CoreIdent.string_of_uid x.P.v_id) in
   Env.Vars.iter_locals (fun x ->
    if not (P.Spv.mem x used) then

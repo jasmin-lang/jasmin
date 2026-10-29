@@ -43,6 +43,7 @@ Require Import
 
   it_tunneling_proof
   it_linearization_proof
+  remove_length_proof
   it_merge_varmaps_proof
   psem_of_sem_proof
   slh_lowering_proof
@@ -84,9 +85,10 @@ Lemma compiler_third_part_meta entries (p p' : sprog) :
   p_extra p' = p_extra p.
 Proof using sc_sem print_sprogP.
   rewrite /compiler_third_part.
-  t_xrbindP => pa hpa _ pb hpb.
+  t_xrbindP => pa hpa _ pb hpb pr hpr.
   have! [_ ok_pa] := (dead_code_prog_tokeep_meta hpa).
   have! [] := (dead_code_prog_tokeep_meta hpb).
+  move: hpr; rewrite /remove_length_prog; t_xrbindP=> ?? <- /=.
   rewrite !print_sprogP /= => _ ok_pb <- {p'}.
   by rewrite ok_pb ok_pa.
 Qed.
@@ -100,6 +102,7 @@ Proof using sc_sem print_sprogP.
   rewrite /compiler_third_part.
   t_xrbindP => pa hpa.
   rewrite 2!print_sprogP /= => check_pa pb hpb.
+  rewrite print_sprogP => pr hpr.
   rewrite print_sprogP => <-{p'}.
   move=> fn fd ok_fd.
   have [fda ok_fda get_fda] := [elaborate
@@ -111,7 +114,10 @@ Proof using sc_sem print_sprogP.
       check_pa get_fda].
   have [fdb ok_fdb get_fdb] := [elaborate
     dead_code_prog_tokeep_get_fundef hpb get_fda'].
-  exists fdb; split=> //.
+  move: hpr; rewrite /remove_length_prog; t_xrbindP => fdrs ok_fdrs <- /=.
+  have [fdr ok_fdr get_fdr] := get_map_cfprog_gen ok_fdrs get_fdb.
+  exists fdr; split=> //.
+  move: ok_fdr; rewrite /remove_length_fd; t_xrbindP => _ <- /=.
   have [_ _ ->] := dead_code_fd_meta ok_fdb.
   have /= [_ _ _ <-] := [elaborate check_fundef_meta check_fda'].
   have [_ _ ->] := dead_code_fd_meta ok_fda.
@@ -227,6 +233,7 @@ Lemma compiler_third_part_alloc_ok entries (p p' : sprog) (fn: funname) (m: mem)
 Proof using print_sprogP.
   rewrite /compiler_third_part; t_xrbindP=> pa ok_pa.
   rewrite !print_sprogP => ok_pb pc ok_pc.
+  rewrite print_sprogP => pr ok_pr.
   rewrite print_sprogP => <- {p'}.
   rewrite /alloc_ok => alloc_pc fd get_fd.
   have [fda ok_fda get_fda] := [elaborate
@@ -235,7 +242,10 @@ Proof using print_sprogP.
     allocation_proof.all_checked (sip := sip_of_asm_e) ok_pb get_fda.
   have [fdc ok_fdc get_fdc] := [elaborate
     (dead_code_prog_tokeep_get_fundef ok_pc get_fdb)].
-  move: (alloc_pc _ get_fdc).
+  move: ok_pr; rewrite /remove_length_prog; t_xrbindP => fdrs ok_fdrs ?; subst pr.
+  have [fdr ok_fdr get_fdr] := get_map_cfprog_gen ok_fdrs get_fdc.
+  move: (alloc_pc _ get_fdr).
+  move: ok_fdr; rewrite /remove_length_fd; t_xrbindP => _ <- /=.
   have [_ _ ->]:= dead_code_fd_meta ok_fdc.
   rewrite /sf_total_stack.
   have [ <- <- <- ] := [elaborate @check_fundef_meta _ _ _ _ _ _ _ _ _ (_, fda) _ _ _ ok_fdb].
@@ -684,7 +694,8 @@ Proof using haparams print_sprogP.
 rewrite /compiler_third_part; t_xrbindP=> pa ok_pa.
 rewrite !print_sprogP.
 set pb := {| p_funcs := regalloc _ _; |} => ok_pb pc ok_p'.
-rewrite print_sprogP => ?; subst pc.
+rewrite print_sprogP => pr ok_pr.
+rewrite print_sprogP => ?; subst pr.
 apply: (
   wiequiv_f_trans
     (scP1 := sCP_stack) (scP2 := sCP_stack) (scP3 := sCP_stack)
@@ -719,6 +730,18 @@ apply: (
 - move=> ??? s1 _ s3 r1 r3 [_ [<- <-]] _ [r2 [?? hvals2] [?? hvals3]].
   split; only 1,2: congruence.
   exact: values_uincl_trans hvals2 hvals3.
+apply: (
+  wiequiv_f_trans
+    (scP1 := sCP_stack) (scP2 := sCP_stack) (scP3 := sCP_stack)
+    (rpreF23 := pre_incl) (rpostF23 := post_incl)
+    _ _
+    (remove_length_progP (siparams:=sip_of_asm_e) ok_pr _ (fn:=fn))
+).
+- move=> ???? /= [_ [<- ?]]. eexists _, _. split.
+  split. done. split. reflexivity. reflexivity.
+    split. done. done.
+- move=> ???????? /=. move=> [_ [<- <-]].
+  move=> [_ [_ ?]]. move=> [_ <-]. done.
 exact: (it_sem_uincl_f (sCP := sCP_stack) p' ev (fn := fn)).
 Qed.
 

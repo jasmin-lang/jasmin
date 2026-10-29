@@ -174,6 +174,7 @@ let print_strings = function
   | Compiler.RemoveReturn                -> "rmreturn" , "remove unused returned values"
   | Compiler.RegAllocation               -> "ralloc"   , "register allocation"
   | Compiler.DeadCode_RegAllocation      -> "rallocd"  , "dead code after register allocation"
+  | Compiler.RemoveLength                -> "rmlength",  "remove length variables"
   | Compiler.Linearization               -> "linear"   , "linearization"
   | Compiler.StackZeroization            -> "stackzero", "stack zeroization"
   | Compiler.Tunneling                   -> "tunnel"   , "tunneling"

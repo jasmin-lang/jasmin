@@ -129,26 +129,6 @@ Definition subst_al_err f al :=
 Definition subst_ty_err f ty :=
   o2r (inline_error (pp_s "subst_ty: failed substitution")) (subst_ty f ty).
 
-Fixpoint no_var_al (al : array_length) :=
-  match al with
-  | ALConst _ => true
-  | ALVar _ _ => false
-  | ALNeg al => no_var_al al
-  | ALAdd al1 al2
-  | ALSub al1 al2
-  | ALMul al1 al2
-  | ALDiv _ al1 al2
-  | ALMod _ al1 al2
-  | ALShl al1 al2
-  | ALShr al1 al2 => no_var_al al1 && no_var_al al2
-  end.
-
-Definition no_var_ty ty :=
-  match ty with
-  | aarr _ al => no_var_al al
-  | _ => true
-  end.
-
 Definition sm_add_var f sm x :=
   let ty := x.(vtype) in
   if no_var_ty ty then
