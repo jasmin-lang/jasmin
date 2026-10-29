@@ -269,6 +269,7 @@ let collect_equality_constraints_in_func
       (asmOp:'asm Sopn.asmOp)
       is_move_op
       ~(with_call_sites: (funname -> ('info, 'asm) func) option)
+      ~(with_in_place: bool)
       (msg: string)
       (tbl: int Hv.t)
       (nv: int)
@@ -301,7 +302,8 @@ let collect_equality_constraints_in_func
   let names = ref (Puf.create nv) in
   let renames = Hv.create 97 in
   let first_pass ii =
-    process_inplace_annotation addv ii;
+    if with_in_place then
+      process_inplace_annotation addv ii;
     match ii.i_desc with
     | Copn (lvs, _, op, es) ->
         copn_constraints
@@ -403,7 +405,7 @@ let collect_equality_constraints
     (nv: int)
     (f: (Sv.t * Sv.t, 'asm) func) : Puf.t =
   let s = { cac_friends = IntMap.empty ; cac_eqc = Puf.create nv ; cac_trace = Array.make nv [] } in
-  collect_equality_constraints_in_func asmOp is_move_op ~with_call_sites:None msg tbl nv snd copn_constraints s f;
+  collect_equality_constraints_in_func asmOp is_move_op ~with_call_sites:None ~with_in_place: false msg tbl nv snd copn_constraints s f;
   s.cac_eqc
 
 let collect_equality_constraints_in_prog
@@ -419,7 +421,7 @@ let collect_equality_constraints_in_prog
   let get_var n = Hf.find ftbl n in
   let () = List.fold_right (fun f () ->
                Hf.add ftbl f.f_name f;
-               collect_equality_constraints_in_func asmOp is_move_op ~with_call_sites:(Some get_var) msg tbl nv (fun _ -> Sv.empty) copn_constraints s f)
+               collect_equality_constraints_in_func asmOp is_move_op ~with_call_sites:(Some get_var) ~with_in_place:true msg tbl nv (fun _ -> Sv.empty) copn_constraints s f)
              f ()
   in
   let eqc = s.cac_eqc in
@@ -1312,7 +1314,6 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
   (unit, 'asm) func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) =
   (* Preprocessing of functions:
     - generate a fresh variable to hold the return address (if needed)
-    - split live ranges (caveat: do not forget to remove φ-nodes at the end)
     - compute liveness information
     - compute variables that are killed by a call to a function,
       including return addresses and extra registers.
@@ -1330,7 +1331,6 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
   let is_subroutine f =
     match f.f_cc with Subroutine -> true | Export | Internal -> false in
   let preprocess f =
-    let f = f |> Ssa.split_live_ranges false in
     Hf.add liveness_table f.f_name (Liveness.live_fd true f);
     let ra = Hf.find return_addresses f.f_name in
     let written, cg = written_vars_fc f in
@@ -1544,7 +1544,7 @@ let global_allocation return_addresses (funcs: ('info, 'asm) func list) :
   greedy_allocation vars nv conflicts fr a;
   let subst = var_subst_of_allocation vars a in
 
-  List.map (fun f -> f |> Subst.subst_func (subst_of_var_subst subst) |> Ssa.remove_phi_nodes) funcs,
+  List.map (Subst.subst_func (subst_of_var_subst subst)) funcs,
   get_liveness,
   subst
   , killed

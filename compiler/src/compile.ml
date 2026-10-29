@@ -444,6 +444,9 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
 
   let fill_in_missing_names fd =
     fd
+    |> Ssa.split_live_ranges false
+    |> RA.renaming
+    |> Ssa.remove_phi_nodes
     |> Regalloc.fill_in_missing_names
          (Sopn.get_instr_desc Arch.pointer_data Arch.msf_size Arch.asmOp)
     |> Prog.refresh_i_loc_f

@@ -1292,14 +1292,14 @@ register allocation: cannot allocate cf into CF, the variable is already allocat
 
 fail/register_allocation/x86-64/bug_309.jazz:
 
-"fail/register_allocation/x86-64/bug_309.jazz", line 6 (2-19):
+"fail/register_allocation/x86-64/bug_309.jazz", line 5 (2-16):
 compilation error:
-register allocation: variable CF must be allocated to register CF due to architectural constraints; this register already holds conflicting variable: cf
+register allocation: variable cf must be allocated to register CF due to architectural constraints; this register already holds conflicting variable: CF
 
 fail/register_allocation/x86-64/bug_310.jazz:
 
 compilation error:
-register allocation: variables { valid; valid; valid } remain unallocated
+register allocation: variables { valid } remain unallocated
 
 fail/register_allocation/x86-64/bug_421.jazz:
 
@@ -1341,9 +1341,9 @@ Not enough slots for saving callee-saved registers; annotate the function with â
 
 fail/register_allocation/x86-64/conflicting_register.jazz:
 
-"fail/register_allocation/x86-64/conflicting_register.jazz", line 9 (0-27):
+"fail/register_allocation/x86-64/conflicting_register.jazz", line 7 (0-24):
 compilation error:
-register allocation: variable CF must be allocated to register CF due to architectural constraints; this register already holds conflicting variable: cf
+register allocation: variable cf must be allocated to register CF due to architectural constraints; this register already holds conflicting variable: CF
 
 fail/register_allocation/x86-64/conflicting_variables.jazz:
 
