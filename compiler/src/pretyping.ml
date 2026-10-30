@@ -923,6 +923,9 @@ let mul_info =
 let div_info = mk_op_s_k_info (mk_op2 (fun s k -> Odiv(s, k)) WIdiv)
 let mod_info = mk_op_s_k_info (mk_op2 (fun s k -> Omod(s, k)) WImod)
 
+let max_info = mk_op_s_k_info (mk_op2 (fun s k -> Omax(s,k)) WImax)
+let min_info = mk_op_s_k_info (mk_op2 (fun s k -> Omin(s,k)) WImin)
+
 let land_info = mk_logic_info (fun k -> Oland k)
 let lor_info  = mk_logic_info (fun k -> Olor  k)
 let lxor_info = mk_logic_info (fun k -> Olxor k)
@@ -970,6 +973,8 @@ let op2_of_pop2 exn ty (op : S.peop2) =
   | `Mul  c -> op2_of_ty exn op None c ty mul_info
   | `Div(s, c) -> op2_of_ty exn op (tt_osign s) c ty div_info
   | `Mod(s, c) -> op2_of_ty exn op (tt_osign s) c ty mod_info
+  | `Max(s, c) -> op2_of_ty exn op (tt_osign s) c ty max_info
+  | `Min(s, c) -> op2_of_ty exn op (tt_osign s) c ty min_info
 
   | `BAnd c -> op2_of_ty exn op None c (ensure_word exn ty) land_info
   | `BOr  c -> op2_of_ty exn op None c (ensure_word exn ty) lor_info
@@ -1103,6 +1108,7 @@ let tt_op2 (loc1, (e1, ety1)) (loc2, (e2, ety2))
       | `And   | `Or    -> P.etbool
       | `ShR _ | `ShL _ | `ROR _ | `ROL _ -> ety1
       | `Add _ | `Sub _ | `Mul _ | `Div _ | `Mod _
+      | `Max _ | `Min _
         | `BAnd _ | `BOr _ | `BXOr _
         | `Eq _ | `Neq _ | `Lt _ | `Le _ | `Gt _ | `Ge _ ->
         max_ty ety1 ety2 |> oget ~exn in
@@ -1221,20 +1227,28 @@ let array_of_string s =
 let create_min_e _pd loc args =
   if List.length args == 2 then
     let (e1,t1), (e2,t2) = List.at args 0, List.at args 1 in
-    let e1 = cast_int loc None e1 t1 in
-    let e2 = cast_int loc None e2 t2 in
-    let c = P.Papp2 ((Olt Cmp_int), e1, e2) in
-    P.Pif (Bty Int,c, e1,e2), P.etint
+    if t1 <> t2 then rs_tyerror ~loc (TypeMismatch (t2,t1));
+    match t1 with
+    | CoreIdent.ETint ->
+      P.Papp2 (Omin (W.Signed, Op_int), e1, e2), P.etint
+    | CoreIdent.ETword (Some s, ws) ->
+      P.Papp2 (Omin (s, (Op_w ws)), e1, e2), P.etwi s ws
+    | _ ->
+      rs_tyerror ~loc (StringError "min operator only support int or word types")
   else
     rs_tyerror ~loc (InvalidArgCount(2, List.length args))
 
 let create_max_e _pd loc args =
   if List.length args == 2 then
     let (e1,t1), (e2,t2) = List.at args 0, List.at args 1 in
-    let e1 = cast_int loc None e1 t1 in
-    let e2 = cast_int loc None e2 t2 in
-    let c = P.Papp2 ((Olt Cmp_int), e2, e1) in
-    P.Pif (Bty Int,c, e1,e2), P.etint
+    if t1 <> t2 then rs_tyerror ~loc (TypeMismatch (t2,t1));
+    match t1 with
+    | CoreIdent.ETint ->
+      P.Papp2 (Omax (W.Signed, Op_int), e1, e2), P.etint
+    | CoreIdent.ETword (Some s, ws) ->
+      P.Papp2 (Omax (s, (Op_w ws)), e1, e2), P.etwi s ws
+    | _ ->
+      rs_tyerror ~loc (StringError "max operator only support int or word types")
   else
     rs_tyerror ~loc (InvalidArgCount(2, List.length args))
 
@@ -2009,7 +2023,19 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((pannot,pi) : S.pinstr) : 'asm 
     match ls, eqop, pe, ocp with
     | ls, `Raw, { L.pl_desc = S.PECall (f, args); pl_loc = el }, None when is_combine_flags f ->
       tt_assign ~tag:E.AT_inline env_lhs env_rhs ls `Raw (L.mk_loc el (S.PECombF(f, args))) None
-
+    (* Convert a call to min/max to an assign of the binop min/max*)
+    | ls, `Raw, { L.pl_desc = S.PECall (f, e1::e2::[]); pl_loc = el }, None
+      when Map.mem (L.unloc f) extra_op_map
+      ->
+      begin
+        match L.unloc f with
+        | "min" ->
+          tt_assign env_lhs env_rhs ls `Raw (L.mk_loc el (S.PEOp2 ((`Min (None, None)), (e1,e2)))) None
+        | "max" ->
+          tt_assign env_lhs env_rhs ls `Raw (L.mk_loc el (S.PEOp2 ((`Max (None, None)), (e1,e2)))) None
+        | _ ->
+          assert false
+      end
     | ls, `Raw, { L.pl_desc = S.PECall (f, args); pl_loc = el }, None ->
       let (f,fsig) = tt_fun env_rhs f in
       let lvs, is = tt_lvalues arch_info env_lhs (L.loc pi) ls None fsig.fs_tout in

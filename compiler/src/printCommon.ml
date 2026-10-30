@@ -101,6 +101,8 @@ let string_of_wiop2 sg sz = function
   | WIsub -> "-" ^ string_of_wi_cast sg sz
   | WIdiv -> "/" ^ string_of_wi_cast sg sz
   | WImod -> "%" ^ string_of_wi_cast sg sz
+  | WImax -> "max"
+  | WImin -> "min"
 
   | WIshr -> ">>" ^ string_of_wi_cast sg sz
   | WIshl -> "<<" ^ string_of_wi_cast sg sz
@@ -121,6 +123,8 @@ let string_of_op2 = function
   | Osub k -> "-" ^ string_of_op_kind k
   | Odiv(s, k) -> "/" ^ string_of_div_kind s k
   | Omod(s, k) -> "%" ^ string_of_div_kind s k
+  | Omax(_) -> "max"
+  | Omin(_) -> "min"
   | Oland w -> "&"  ^ string_of_w_cast w
   | Olor  w -> "|"  ^ string_of_w_cast w
   | Olxor w -> "^"  ^ string_of_w_cast w
@@ -260,6 +264,10 @@ type priority =
 let priority_min = OpPmin
 let priority_ternary = OpPternary
 
+type notation =
+  | OpNinfix
+  | OpNcall
+
 let priority_of_wop1 = function
   | WIwint_of_int _ | WIint_of_wint _ | WIword_of_wint _ | WIwint_of_word _
   | WIwint_ext _ ->
@@ -276,6 +284,7 @@ let priority_of_op1 = function
 let priority_of_wop2 = function
   | WIadd | WIsub -> OpPsum
   | WImul | WIdiv | WImod -> OpPprod
+  | WImax | WImin -> OpPmin
   | WIshl | WIshr -> OpPshift
   | WIeq | WIneq -> OpPeq
   | WIlt | WIle | WIgt | WIge -> OpPcmp
@@ -286,6 +295,7 @@ let priority_of_op2 = function
   | Oor -> OpPbor
   | Oadd _ | Osub _ | Ovadd _ | Ovsub _ -> OpPsum
   | Omul _ | Odiv _ | Omod _ | Ovmul _ -> OpPprod
+  | Omax _ | Omin _ -> OpPmin
   | Oland _ -> OpPand
   | Olor _ -> OpPor
   | Olxor _ -> OpPxor
@@ -293,6 +303,15 @@ let priority_of_op2 = function
       OpPshift
   | Olt _ | Ole _ | Ogt _ | Oge _ -> OpPcmp
   | Owi2 (_, _, iop) -> priority_of_wop2 iop
+
+let notation_of_wop2 = function
+  | WImax | WImin -> OpNcall
+  | _ -> OpNinfix
+
+let notation_of_op2 = function
+  | Omax _ | Omin _ -> OpNcall
+  | Owi2 (_, _, iop) -> notation_of_wop2 iop
+  | _ -> OpNinfix
 
 type associativity = Left | NoAssoc | Right
 

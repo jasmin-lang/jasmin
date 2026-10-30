@@ -121,6 +121,8 @@ Definition sem_wiop2_total (sign : signedness) (sz : wsize) ( o : wiop2) :
   | WIsub => (fun x y =>  x - y)%w
   | WIdiv => signed (@wdiv sz) (@wdivi sz) sign
   | WImod => signed (@wmod sz) (@wmodi sz) sign
+  | WImax => (fun x y => wmax sign x y)%w
+  | WImin => (fun x y => wmin sign x y)%w
 
   | WIshl => @sem_shl sz
   | WIshr => signed (@sem_shr sz) (@sem_sar sz) sign
@@ -156,6 +158,11 @@ Definition sem_sop2_total (o: sop2) :
   | Odiv u (Op_w s) => signed (@wdiv s) (@wdivi s) u
   | Omod u Op_int   => signed Z.modulo Z.rem u
   | Omod u (Op_w s) => signed (@wmod s) (@wmodi s) u
+
+  | Omax u Op_int   => Z.max
+  | Omax u (Op_w s) =>  (fun x y => wmax u x y)
+  | Omin u Op_int   =>  Z.min
+  | Omin u (Op_w s) => (fun x y => wmin u x y)
 
   | Oland s       => @wand s
   | Olor  s       => @wor s
