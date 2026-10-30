@@ -1331,24 +1331,6 @@ Proof.
   exists vm2 => //; apply: (uincl_on_union hu hu2); [ apply: vrvsP hw | apply: vrvsP hw2].
 Qed.
 
-Lemma write_lval_undef gd l v s1 s2 sz :
-  write_lval true gd l v s1 = ok s2 ->
-  type_of_val v = cword sz ->
-  exists w: word sz, v = Vword w.
-Proof.
-  move=> Hw Ht.
-  rewrite /type_of_val in Ht.
-  case: v Ht Hw=> //=.
-  + move=> sz' w [<-] _; by exists w.
-  case => //= ?? [<-] /=.
-  case: l => /=.
-  + by move => _ ? /write_noneP [].
-  + by rewrite /write_var; t_xrbindP => > /set_varP [].
-  + by t_xrbindP.
-  + by move => al aa ws [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
-  by move => aa ws len [] [vt vn] /= ? e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
-Qed.
-
 (* MOVE THIS *)
 Section Expr.
 
