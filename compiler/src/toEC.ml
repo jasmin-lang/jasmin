@@ -1440,44 +1440,6 @@ let ty_sopn pd msfsz asmOp op es =
     List.map Conv.ty_of_cty (Sopn.sopn_tout pd msfsz asmOp op),
     List.map Conv.ty_of_cty (Sopn.sopn_tin pd msfsz asmOp op)
 
-(* This code replaces for loop that modify the loop counter by while loop,
-   it would be nice to prove in Coq the validity of the transformation *)
-
-let is_write_lv x = function
-  | Lnone _ | Lmem _ -> false
-  | Lvar x' | Laset(_, _, _, x', _) | Lasub (_, _, _, x', _) ->
-    V.equal x x'.L.pl_desc
-
-let is_write_lvs x = List.exists (is_write_lv x)
-
-let rec is_write_i x i =
-  match i.i_desc with
-  | Cassgn (lv,_,_,_) ->
-    is_write_lv x lv
-  | Copn(lvs,_,_,_) | Ccall(lvs, _, _) | Csyscall(lvs,_,_) ->
-    is_write_lvs x lvs
-  | Cassert _ -> false
-  | Cif(_, c1, c2) | Cwhile(_, c1, _, _, c2) ->
-    is_write_c x c1 || is_write_c x c2
-  | Cfor(x',_,c) ->
-    V.equal x x'.L.pl_desc || is_write_c x c
-
-and is_write_c x c = List.exists (is_write_i x) c
-
-let rec remove_for_i i =
-  let i_desc =
-    match i.i_desc with
-    | Cassgn _ | Copn _ | Ccall _ | Csyscall _ | Cassert _ -> i.i_desc
-    | Cif(e, c1, c2) -> Cif(e, remove_for c1, remove_for c2)
-    | Cwhile(a, c1, e, loc, c2) -> Cwhile(a, remove_for c1, e, loc, remove_for c2)
-    | Cfor(j,r,c) ->
-      let jd = j.pl_desc in
-      assert (not (is_write_c jd c)); (* toec_for removes writes to index var *)
-      Cfor(j, r, remove_for c)
-  in
-  { i with i_desc }
-and remove_for c = List.map remove_for_i c
-
 let ty_lval = function
   | Lnone (_, ty) -> ty
   | Lvar x -> (L.unloc x).v_ty
@@ -1597,7 +1559,6 @@ module type EcLeakage = sig
   val ec_leaks_opn: Env.t -> exprs -> ec_instr list
   val ec_leaking_if: Env.t -> expr -> (Env.t -> ec_stmt) -> (Env.t -> ec_stmt) -> ec_stmt
   val ec_leaking_while: Env.t -> expr -> (Env.t -> ec_stmt) -> ec_stmt
-  val ec_leaking_for: Env.t -> (Env.t -> ec_stmt) -> expr -> expr -> ec_stmt -> ec_expr -> ec_stmt -> ec_stmt
   val ec_leaks_lvs: Env.t -> lvals -> ec_stmt
   val global_leakage_vars: Env.t -> (ec_modty * ec_modty) list
   val leakage_imports: Env.t -> ec_item list
@@ -1614,7 +1575,6 @@ module EcLeakNormal(EE: EcExpression): EcLeakage = struct
   let ec_leaking_if env e c1 c2 = [ESif (EE.toec_expr env e, c1 env, c2 env)]
   let ec_leaking_while env e c =
     [ESwhile (EE.toec_expr env e, c env)]
-  let ec_leaking_for env c _e1 _e2 init cond i_upd = init @ [ESwhile (cond, c env @ i_upd)]
   let ec_leaks_lvs _env _lvs = []
   let global_leakage_vars _env = []
   let leakage_imports _env = []
@@ -1669,15 +1629,6 @@ module EcLeakConstantTimeGlobal(EE: EcExpression): EcLeakage = struct
   let ec_leaking_while env e c =
     let le = leak_cond env e in
     le @ [ESwhile (EE.toec_expr env e, (c env @ le))]
-
-  let ec_leaking_for env c e1 e2 init cond i_upd =
-    let leaks = List.map (toec_expr env) (leaks_es (Env.pd env) [e1;e2]) in
-    ec_addleaks [
-        Eapp (ec_ident "LeakAddr", [Elist leaks]);
-        Eapp (ec_ident "LeakFor", [Etuple [toec_expr env e1; toec_expr env e2]])
-        ] @
-    init @
-    [ESwhile (cond, c env @ i_upd)]
 
   let leaks_lval pd = function
     | Lnone _ | Lvar _ -> []
@@ -1799,17 +1750,6 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
       leaking_c @ push_leak vleak_cond (leaklist (leak_cond env e))
     )] @
     push_leak (leakacc env) (leaklist ([leaklistv vleak_cond; leaklistv leak_c]))
-
-  let leak_for_bounds env e1 e2 =
-    leaks_es env [e1; e2] @ leak_val env e1 @ leak_val env e2
-
-  let ec_leaking_for env c e1 e2 init cond i_upd =
-    let leak_c = Env.create_aux env "leak_b" leakv_ty in
-    reset_leak leak_c @
-    ec_addleaks env (leak_for_bounds env e1 e2) @
-    init @
-    [ESwhile (cond, leak_block env c leak_c @ i_upd)] @
-    push_leak (leakacc env) (leaklistv leak_c)
 
   let global_leakage_vars _env = []
 
@@ -1967,30 +1907,7 @@ struct
           assert (List.is_empty c1); (* c1 is empty after toec_while. *)
           let c env = toec_cmd asmOp env c in
           ec_leaking_while env e c
-      | Cfor (i, (d,e1,e2), c) ->
-          let env = Env.new_aux_range env in
-          (* decreasing for loops have bounds swaped *)
-          let e1, e2 = if d = UpTo then e1, e2 else e2, e1 in
-          let init, ec_e2 =
-              match e2 with
-              (* Can be generalized to the case where e2 is not modified by c and i *)
-              | Pconst _ -> ([], toec_expr env e2)
-              | _ ->
-                  let aux = Env.create_aux env "inc" "int" in
-                  let init = ESasgn ([LvIdent [aux]], toec_expr env e2) in
-                  let ec_e2 = ec_ident aux in
-                  [init], ec_e2 in
-          let ec_i = [ec_vars env (L.unloc i)] in
-          let lv_i = [LvIdent ec_i] in
-          let init  = init @ [ESasgn (lv_i, toec_expr env e1)] in
-          let ec_i1, ec_i2 =
-              if d = UpTo then Eident ec_i , ec_e2
-              else ec_e2, Eident ec_i in
-          let i_upd_op = Infix (if d = UpTo then "+" else "-") in
-          let i_upd = [ESasgn (lv_i, Eop2 (i_upd_op, Eident ec_i, Econst (Z.of_int 1)))] in
-          let c env = toec_cmd asmOp env c in
-          let cond = Eop2 (Infix "<", ec_i1, ec_i2) in
-          ec_leaking_for env c e1 e2 init cond i_upd
+      | Cfor _ -> assert false (* the for loops are removed by for_to_while *)
 
   (* ------------------------------------------------------------------- *)
   (* Function extraction *)
@@ -1998,7 +1915,6 @@ struct
   let var2ec_var env x = (List.hd [ec_vars env x], toec_ty env x.v_ty)
 
   let toec_fun asmOp env f =
-      let f = { f with f_body = remove_for f.f_body } in
       let locals = Sv.elements (locals f) in
       let env = List.fold_left Env.set_var env (f.f_args @ locals) in
       (* Limit the scope of changes for aux variables to the current function. *)
