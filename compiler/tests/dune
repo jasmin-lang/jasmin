@@ -20,4 +20,5 @@
   (deps
     ../jasminc
     (glob_files_rec warning/*)
+    (glob_files_rec comments/*)
     (glob_files_rec fail/linter/*)))

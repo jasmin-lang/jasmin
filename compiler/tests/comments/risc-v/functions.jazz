@@ -1,0 +1,32 @@
+#[comment = "inline function: no label of its own"]
+inline
+fn twice(reg u32 x) -> reg u32 {
+  x <<= 1;
+  return x;
+}
+
+#[comment = "local function"]
+fn incr(reg u32 x) -> reg u32 {
+  #[comment = "first statement"] x += 1;
+  return x;
+}
+
+#[comment = "export with a stack frame\nsecond line"]
+export
+fn framed(reg u32 x) -> reg u32 {
+  stack u32[1] s;
+  reg u32 y;
+  s[0] = x;
+  x = twice(x);
+  x = incr(x);
+  y = s[0];
+  x += y;
+  return x;
+}
+
+#[comment = "export without a stack frame"]
+export
+fn frameless(reg u32 x) -> reg u32 {
+  #[comment = "first statement"] x += 1;
+  return x;
+}

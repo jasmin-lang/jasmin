@@ -75,6 +75,17 @@ module Make(Target : AsmTarget) : S
     let function_symbol name decl =
         if decl.asm_fd_export then mangle name else name
 
+    (* One comment line per line of each text. *)
+    let pp_comment_annot annot =
+        match Annot.has_comment_annot annot with
+        | None | Some [] -> []
+        | Some texts ->
+            List.map (fun s -> Comment s)
+              (List.concat_map (String.split_on_char '\n') texts)
+
+    let pp_function_comment_annot decl =
+        pp_comment_annot (FInfo.user_annot decl.asm_fd_info)
+
     let pp_function_header (name:string) decl =
         let name = function_symbol name decl in
         (if Glob_options.use_function_sections ()
@@ -85,7 +96,8 @@ module Make(Target : AsmTarget) : S
            then [ Header (".type", [name; "%function"]) ]
            else [])
         @ Label name
-        :: (if decl.asm_fd_export then Target.function_header else [])
+        :: pp_function_comment_annot decl
+        @ (if decl.asm_fd_export then Target.function_header else [])
 
     let pp_function_tail name decl =
         let name = function_symbol name decl in

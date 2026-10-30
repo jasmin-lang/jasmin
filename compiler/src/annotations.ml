@@ -63,3 +63,17 @@ let has_wint annot =
     if String.equal s sint then Some Wsize.Signed
     else if String.equal s uint then Some Unsigned
     else None) annot
+
+(* -------------------------------------------------------------------- *)
+
+let comment_annot = "comment"
+
+let get_comment_annot (annot : annotations) : string list option =
+  let texts =
+    List.filter_map (fun (k, a) ->
+      match a with
+      | Some { Location.pl_desc = Astring s; _ }
+        when String.equal (Location.unloc k) comment_annot -> Some s
+      | _ -> None) annot
+  in
+  if texts = [] then None else Some texts
