@@ -776,6 +776,22 @@ Definition hoare_fun_body_hyp (Pf : PreF) fn (Qf : PostF) Qerr :=
           & rhoare Q (finalize_funcall fd) (Qf fn fs) Qerr]]
   end.
 
+Definition hoare_fun_body_hyp_pre_post_noQerr (Pf : PreF) fn (Qf : PostF) Qerr :=
+  forall fs,
+  Pf fn fs ->
+  (forall e, Qerr e -> rInvErr (estate0 fs) e) /\
+  match get_fundef (p_funcs p) fn with
+  | None => Qerr ErrType
+  | Some fd =>
+    [/\ forall e, sem_pre p  fn fs = Error e -> Qerr e
+      , forall fr e, Qf fn fs fr -> sem_post p fn fs.(fvals) fr = Error e -> Qerr e
+      & exists (P Q : Pred_c),
+        [/\ rhoare (Pf fn) (initialize_funcall p ev fd) P Qerr
+          , hoare P fd.(f_body) Q
+          , (forall s e, Q s -> Qerr e -> rInvErr (estate0 fs) e)
+          & rhoare Q (finalize_funcall fd) (Qf fn fs) Qerr]]
+  end.
+
 Lemma preInv_Throw e : preInv (subevent void (Throw e)) = invErr e.
 Proof. by rewrite /preInv /subevent /resum /fromErr mid12. Qed.
 
@@ -814,6 +830,47 @@ Proof.
   + move => ? ?; subst.
     rewrite /isem_post Post => //=.
     by apply lutt_Ret.
+  move => ????; subst.
+  by apply lutt_Ret.
+Qed.
+
+Lemma hoare_fun_body_pre_post_noQerr Pf fn Qf Qerr :
+  hoare_fun_body_hyp_pre_post_noQerr Pf fn Qf Qerr ->
+  hoare_f_body Pf fn Qf.
+Proof.
+  move=> hf; rewrite /hoare_f_body /isem_fun_body.
+  apply khoare_ioP => fs hPf; have [herr {}hf] := hf _ hPf.
+  apply khoare_read with (fun fd => get_fundef (p_funcs p) fn = Some fd).
+  + rewrite /kget_fundef => ??.
+    case: get_fundef hf => /= [fd | ] h; first by apply lutt_Ret.
+    apply lutt_Vis => //.
+    by rewrite preInv_Throw; apply herr.
+  move=> fd hfd; move: hf; rewrite hfd => -[Pre Post [P] [Q] [hinit hbody hQerr hfin]].
+  apply khoare_read with PredT.
+  + move => ? ?; subst.
+    rewrite /isem_pre.
+    case hsem: (sem_pre _ _ _) => [ [] | e]; first by apply lutt_Ret.
+    apply lutt_Vis => //. rewrite preInv_Throw. apply: herr (Pre _ hsem).
+  move => _ _.
+  apply khoare_read with P.
+  + move=> _ ->; have := hinit _ hPf.
+    case: initialize_funcall => [s | e] h; first by apply lutt_Ret.
+    apply lutt_Vis => //.
+    by rewrite preInv_Throw; apply herr.
+    move => s1 hs1.
+  eapply khoare_read.
+  + move => s hpre'.
+    by apply hbody.
+  move => s hQ.
+  eapply khoare_read.
+  + move => s' hpre'.
+    by apply: (khoare_iresult hQerr hfin).
+  move => s' hQf.
+  apply khoare_read with PredT.
+  + move => ? ?; subst.
+    rewrite /isem_post.
+    case hsem: (sem_post _ _ _) => [ [] | e]; first by apply lutt_Ret.
+    apply lutt_Vis => //. rewrite preInv_Throw. apply: herr (Post _ _ hQf hsem).
   move => ????; subst.
   by apply lutt_Ret.
 Qed.
@@ -873,6 +930,22 @@ Definition hoare_fun_body_hyp_rec Pf fn Qf Qerr :=
           & rhoare Q (finalize_funcall fd) (Qf fn fs) Qerr]]
   end.
 
+Definition hoare_fun_body_hyp_rec_pre_post_noQerr Pf fn Qf Qerr :=
+  forall fs,
+  Pf fn fs ->
+  (forall e, Qerr e -> rInvErr (estate0 fs) e) /\
+  match get_fundef (p_funcs p) fn with
+  | None => Qerr ErrType
+  | Some fd =>
+    [/\ forall e, sem_pre p  fn fs = Error e -> Qerr e
+      , forall fr e, Qf fn fs fr -> sem_post p fn fs.(fvals) fr = Error e -> Qerr e
+      & exists (P Q : Pred_c),
+        [/\ rhoare (Pf fn) (initialize_funcall p ev fd) P Qerr
+          , hoare_rec P fd.(f_body) Q
+          , (forall s e, Q s -> Qerr e -> rInvErr (estate0 fs) e)
+          & rhoare Q (finalize_funcall fd) (Qf fn fs) Qerr]]
+  end.
+
 Lemma weak_pre  (T : Type) (e : (recCall +' E) T) :
   preInv (iE0 := invEvent_recCall spec) e ->
   sum_prepred (preD spec) preInv e.
@@ -905,6 +978,20 @@ Proof.
     have := hoare_fun_body (iE0 := invEvent_recCall spec) (hbody fn) hpre.
     apply lutt_weaken; auto using weak_pre, weak_post.
   have := hoare_fun_body (iE0 := invEvent_recCall spec) (hbody fn) hpre.
+  apply lutt_weaken; auto using weak_pre, weak_post.
+Qed.
+
+Lemma ihoare_fun_pre_post_noQerr Qerr :
+  (forall fn, hoare_fun_body_hyp_rec_pre_post_noQerr preF fn postF Qerr) ->
+  forall fn, ihoare_f p ev preF fn postF.
+Proof.
+  move=> hbody fn fs hpre.
+  apply interp_mrec_lutt with (DPEv := preD spec) (DPAns := postD spec).
+  + move=> {hpre fn fs}.
+    move=> ? [ii_ fn fs] /= hpre.
+    have := hoare_fun_body_pre_post_noQerr (iE0 := invEvent_recCall spec) (hbody fn) hpre.
+    apply lutt_weaken; auto using weak_pre, weak_post.
+  have := hoare_fun_body_pre_post_noQerr (iE0 := invEvent_recCall spec) (hbody fn) hpre.
   apply lutt_weaken; auto using weak_pre, weak_post.
 Qed.
 

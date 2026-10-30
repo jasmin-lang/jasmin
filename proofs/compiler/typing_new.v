@@ -221,15 +221,15 @@ Definition check_global_decl (gd : glob_decl) : cexec unit :=
                     in if c then Error global_mismatch else ok tt
   end.
 
-Definition check_contract (tyin tyout : list atype) (fc : fun_contract) : cexec unit :=
-  Let _ := check_lvals (map Lvar (f_iparams fc)) tyin in
-  Let _ := check_lvals (map Lvar (f_ires fc)) tyout in
+Definition check_contract (tyins tyouts : list atype) (fc : fun_contract) : cexec unit :=
+  Let _ := check_lvals (map Lvar fc.(f_iparams)) tyins in
+  Let _ := check_lvals (map Lvar fc.(f_ires)) tyouts in
   Let _ := allM (fun '(_, a) => check_eassert a) fc.(f_pre) in
   allM (fun '(_, a) => check_eassert a) fc.(f_post).
 
 Definition check_fun (p : ufun_decls) (func : ufun_decl) : cexec unit := 
   let fd := snd func in
-  let res := map (Pvar \o mk_gvar) fd.(f_res) in
+  let res := map (Pvar \o mk_lvar) fd.(f_res) in
   Let _ := check_lvals (map Lvar fd.(f_params)) fd.(f_tyin) in
   Let _ := check_exprs ty_expr res fd.(f_tyout) in
   Let _ := check_cmd check_instr p fd.(f_body) in

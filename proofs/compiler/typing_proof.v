@@ -95,6 +95,16 @@ Proof.
   apply: rbind_noerrty => //; exact: ih.
 Qed.
 
+(* Lemma Forall2_mapM2_ok {aT bT} (R : aT -> bT -> Prop) (f : aT -> bT -> result error unit) la lb :
+  List.Forall2 R la lb ->
+  (forall a b, R a b -> f a b = ok tt) ->
+  mapM2 ErrType f la lb = ok tt.
+Proof.
+  elim => {la lb} //= a b la lb hR _ ih hf.
+  apply: rbind_noerrty => [| ? _]; first exact: hf.
+  apply: rbind_noerrty => //; exact: ih.
+Qed. *)
+
 Lemma In_rev {A : Type} (x : A) (l : seq A) : List.In x l -> List.In x (rev l).
 Proof.
   elim: l => //= a l ih [<- | /ih h]; rewrite rev_cons -cats1 List.in_app_iff.
@@ -108,14 +118,16 @@ Section WITH_PARAMS.
 Existing Instance nosubword.
 Existing Instance progUnit.
 Existing Instance indirect_c.
+Existing Instance sCP_unit.
+Existing Instance withassert.
 
 Context
   {asm_op syscall_state : Type}
   {wa  : WithAssert}
   {ep  : EstateParams syscall_state}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
-  {scP : semCallParams}.
+  {sip : SemInstrParams asm_op syscall_state}.
+
 
 (* Inversion lemmas for the type checker *)
 
@@ -579,14 +591,32 @@ Context {iE0 : InvEvent E0}.
     preF_ := fun fn fs =>
             (exists fd, get_fun (p_funcs p) fn = ok fd /\
               List.Forall2 (fun t v => subctype t (type_of_val v))
-                                      (map eval_atype (f_tyin fd)) (fvals fs))
-            /\ sem_pre p fn fs = ok tt ;
+                                      (map eval_atype (f_tyin fd)) (fvals fs));
     postF_ := fun fn fs fs' =>
             (exists fd, get_fun (p_funcs p) fn = ok fd /\
               List.Forall2 (fun t v => subctype t (type_of_val v))
-                                      (map eval_atype (f_tyout fd)) (fvals fs'))
-            /\ sem_post p fn (fvals fs) fs' = ok tt ;
+                                      (map eval_atype (f_tyout fd)) (fvals fs'));
   |}.
+
+Lemma preF_tyin fn fd fs :
+  preF fn fs ->
+  get_fun (p_funcs p) fn = ok fd ->
+  List.Forall2 (fun t v => subctype t (type_of_val v))
+               (map eval_atype (f_tyin fd)) (fvals fs).
+Proof.
+  move=> [fd0 [Hget_fun0 HF] Hget_fun].
+  move: Hget_fun0. by rewrite Hget_fun => -[->].
+Qed.
+
+Lemma postF_tyout fn fd fs fs' :
+  postF fn fs fs' ->
+  get_fun (p_funcs p) fn = ok fd ->
+  List.Forall2 (fun t v => subctype t (type_of_val v))
+               (map eval_atype (f_tyout fd)) (fvals fs').
+Proof.
+  move=> [fd0 [Hget_fun0 HF] Hget_fun].
+  move: Hget_fun0. by rewrite Hget_fun => -[->].
+Qed.
 
 Lemma get_fun_In (fds : ufun_decls) fn f :
   get_fun fds fn = ok f -> List.In (fn, f) fds.
@@ -615,7 +645,7 @@ Context (Hgd: allM check_global_decl (p_globs p) = ok tt)
 Lemma check_funsP fn fd :
   get_fun (p_funcs p) fn = ok fd ->
   [/\ check_lvals (map Lvar (f_params fd)) (f_tyin fd) = ok tt,
-       check_exprs ty_expr (map (Pvar \o mk_gvar) (f_res fd)) (f_tyout fd) = ok tt,
+       check_exprs ty_expr (map (Pvar \o mk_lvar) (f_res fd)) (f_tyout fd) = ok tt,
        check_cmd check_instr (p_funcs p) (f_body fd) = ok tt
      & oapp (check_contract (f_tyin fd) (f_tyout fd)) (ok tt) (f_contract fd) = ok tt ].
 Proof using Hfns.
@@ -623,7 +653,18 @@ Proof using Hfns.
   by t_xrbindP => h1 h2 h3 h4 _.
 Qed.
 
-Lemma sem_eassert_progress a s :
+Lemma check_contractP fc tyins tyouts :
+  check_contract tyins tyouts fc = ok tt ->
+  [/\ check_lvals (map Lvar fc.(f_iparams)) tyins = ok tt,
+      check_lvals (map Lvar fc.(f_ires)) tyouts = ok tt, 
+      allM (fun '(_, a) => check_eassert a) fc.(f_pre) = ok tt
+    & allM (fun '(_, a) => check_eassert a) fc.(f_post) = ok tt].
+Proof.
+  rewrite /check_contract. t_xrbindP => *.
+  by split.
+Qed.
+
+Lemma check_eassertP a s :
   check_eassert a = ok tt ->
   sem_eassert (p_globs p) s a <> Error ErrType.
 Proof using Hgd.
@@ -656,7 +697,6 @@ Let Pi_r (i: instr_r) :=
   forall ii, Pi (MkI ii i).
 
 Lemma check_cmdP:
-  (forall ii fn, hoare_f_ii p ev preF ii fn postF) ->
   (forall c, (check_cmd check_instr (p_funcs p) c) = ok tt ->
   hoare p ev PredT c PredT).
 Proof using Hgd.
@@ -681,7 +721,7 @@ Proof using Hgd.
       + apply: (truncate_val_has_type Hvv').
     - apply: rhoare_noerrty => [s _ | //].
       apply: (write_lval_progress Hgd Hvty Htyx).
-  - (*Copn*) admit.
+  - (*Copn*) admit.    
   - (*Csyscall*) admit.
   - (*Cassert*) admit.
   - (*Cif)*)
@@ -708,7 +748,7 @@ Proof using Hgd.
         t_xrbindP => tye Htye /check_typeP /subatype_subctype Hsub /=.
         apply: (ty_expr_progress Hgd Htye) => //.
       - apply: (check_exprs_subctype Hes Hsem).
-    - move=> s vs _ Hvs. split. exists f. by split. admit.
+    - move=> s vs _ Hvs. exists f. by split.
     - move=> vs Hvs. apply rhoare_noerrty => [s _ | ] //.
       rewrite /sem_pre/dc_truncate_val.
       case: ifP => Haa //.
@@ -730,7 +770,7 @@ Proof using Hgd.
         move: (allMP HIn Hpre) => /= Hchk.
         rewrite /sem_assert/assert.
         apply rbind_noerrty => [| ? _]; first by rewrite (negbFE Haa).
-        apply rbind_noerrty => [| b _]; first apply: sem_eassert_progress Hchk.
+        apply rbind_noerrty => [| b _]; first apply: check_eassertP Hchk.
         apply rbind_noerrty => //; by case: b.
 Admitted.
 
@@ -738,39 +778,114 @@ End CMD.
 
 Notation fun_safe fn := (khoare_io (preF fn) (isem_fun p ev fn) (postF fn)).
 
+Lemma get_fun_eq gd fn fd fd':
+  get_fun gd fn = ok fd ->
+  get_fun gd fn = ok fd' ->
+  fd = fd'.
+Proof.
+  move => /get_funP H1 /get_funP.
+  rewrite H1. congruence.
+Qed.
+
 Lemma ty_prog_safe:
   check_prog p = ok tt ->
   forall fn, fun_safe fn.
 Proof.
   rewrite /check_prog.
   t_xrbindP=>Hgd /check_funsP Hfns _.
-  apply: (ihoare_fun (Qerr := noerrty)).
-  rewrite /hoare_fun_body_hyp_rec.
-  move=> fn0 fs [[fd0 [Hfn0p Hargs]] Hpre]; split; move=> //.
-  move: (Hfns _ _ Hfn0p).
-  move => [Hf_params Hf_res Hf_body Hf_contract].
+  apply: (ihoare_fun_pre_post_noQerr (Qerr := noerrty)).
+  rewrite /hoare_fun_body_hyp_rec_pre_post_noQerr.
+  move=> fn fs [fd [Hfnp Hargs_ty]]. split; move=> //.
+  move: (Hfns _ _ Hfnp).
+  move => [/check_lvals_vars_subctype Hf_params Hf_res Hf_body Hf_contract].
   clear Hfns.
-  apply get_funP in Hfn0p.
-  rewrite Hfn0p.
-  split=> // [fs' HpostF|].
-rewrite /sem_post.
-  case: ifP => // (*TODO change this to _ if aa is not needed for sem_post*) /negbFE Haa.
-  rewrite Hfn0p.
-  case Hcon: (f_contract _) => //.
-  move: Hf_contract; rewrite Hcon => //= Hf_contract.
-  Search List.Forall2 mapM2.
-  Search rbind ok.
-
-
-
-  admit.
-  exists PredT , PredT.
-  split => //.
-  admit.
-  apply: (check_cmdP Hgd) => //.
-  admit.
-Admitted.
-
+  rewrite /sem_pre /sem_post.
+  rewrite (get_funP Hfnp).
+  split => [e | fs' e [fd' [Hfnp' Hres_ty]] |] => //.
+  - case: ifP => // /negbFE Ha.
+    move: Hf_contract.
+    rewrite /oapp.
+    case: (f_contract _) => // f_contract.
+    rewrite /check_contract.
+    t_xrbindP => /check_lvals_vars_subctype Hf_iparams _ /allMP Hf_pre _ HErr He;
+    move: HErr; rewrite He.
+    rewrite /dc_truncate_val => /=.
+    apply rbind_noerrty => [| vs /mapM2_truncate_val_type Hvs].
+    - apply (Forall2_mapM2_noerrty Hargs_ty).
+      exact: truncate_val_noerrty.
+    - apply: rbind_noerrty => [| s _].
+      - rewrite /write_vars. apply: (fold2_noerrty _ write_var_noerrty).
+        apply: (Forall2_trans _ Hf_iparams Hvs) => ???? -> //.
+      - apply rbind_noerrty => //.
+        apply: mapM_noerrty => -[lbl ea] Hin.
+        have Hcheckpre := (Hf_pre _ Hin).
+        rewrite /sem_assert /assert /=.
+        rewrite Ha /=.
+        apply rbind_noerrty => [| b Hsem] //=; first by apply check_eassertP.
+        apply: rbind_noerrty => //.
+        case: ifP => //.
+  - move: Hres_ty. 
+    move : (get_fun_eq Hfnp Hfnp') => <- Hres_ty.
+    case: ifP => // /negbFE Ha.
+    move: Hf_contract.
+    rewrite /oapp.
+    case: (f_contract _) => // f_contract.
+    rewrite /check_contract.
+    t_xrbindP => /check_lvals_vars_subctype Hf_iparams /check_lvals_vars_subctype Hf_ires /allMP Hf_pre /allMP Hf_post HErr He;
+    move: HErr; rewrite He.
+    rewrite /dc_truncate_val => /=.
+    apply rbind_noerrty => [| vs /mapM2_truncate_val_type Hvs].
+    - apply (Forall2_mapM2_noerrty Hargs_ty).
+      exact: truncate_val_noerrty.
+    - rewrite /write_vars. 
+      apply: rbind_noerrty => [|s _].
+      - apply: (fold2_noerrty _ write_var_noerrty).
+        apply: (Forall2_trans _ Hf_iparams Hvs) => ???? -> //.
+      - apply rbind_noerrty => [|s' _].
+        - apply: (fold2_noerrty _ write_var_noerrty).
+          apply: (Forall2_trans _ Hf_ires Hres_ty) => ???.
+          apply: subctype_trans.
+        - apply: rbind_noerrty => //. 
+          apply: mapM_noerrty => -[lbl ea] Hin.
+          have Hcheckpost := (Hf_post _ Hin).
+          rewrite /sem_assert /assert /=.
+          rewrite Ha /=.
+          apply rbind_noerrty => [| b Hsem] //=; first by apply check_eassertP.
+          apply: rbind_noerrty => //.
+          case: ifP => //.
+  - exists PredT , PredT.
+    split => //.
+    - rewrite /initialize_funcall.
+      apply: rhoare_noerrty=> // fs0 /preF_tyin /(_ Hfnp) Hf_tyin.
+      rewrite /dc_truncate_val /=.
+      apply: rbind_noerrty => [|vs /mapM2_truncate_val_type Hvs].
+      - apply: (Forall2_mapM2_noerrty Hf_tyin). 
+        exact: truncate_val_noerrty.
+      - rewrite /write_vars. apply: (fold2_noerrty _ write_var_noerrty).
+        apply: (Forall2_trans _ Hf_params Hvs) => ???? -> //.
+    - apply: (check_cmdP Hgd) => //.
+    - rewrite /finalize_funcall.
+      apply: rhoare_noerrty => [s _ | s fs0 _].
+      - rewrite -(sem_pexprs_get_var _ (p_globs p)).
+        - apply: rbind_noerrty => /=.
+          rewrite /sem_pexprs.
+          apply: mapM_noerrty => e Hin. 
+          have [ty _ Hchk] := fold2_In ( Hf_res) Hin.
+          move: Hchk. rewrite /check_expr. t_xrbindP => tye Htye _.
+          exact: (ty_expr_progress Hgd Htye).
+        - rewrite /dc_truncate_val. 
+          t_xrbindP => vs. rewrite /sem_pexprs. move=> Hsem.
+          apply rbind_noerrty => //=.
+          have Hvs_tyout := (check_exprs_subctype Hf_res Hsem).
+          apply (Forall2_mapM2_noerrty Hvs_tyout).
+          exact: truncate_val_noerrty.
+      - rewrite /dc_truncate_val /=.
+        t_xrbindP => vs Hsem vs_truncated /mapM2_truncate_val_type Htrunc <-.
+        rewrite -(sem_pexprs_get_var _ (p_globs p)) in Hsem.
+        exists fd; split; move=> //=.
+        apply: (Forall2_impl _ Htrunc).
+        move => ?? <- //.
+Qed.
 
 End IT.
 
