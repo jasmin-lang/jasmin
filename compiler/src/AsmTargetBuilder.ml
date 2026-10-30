@@ -64,7 +64,7 @@ module Make(Target : AsmTarget) : S
 
     (* Mach-O has neither the ".size" directive nor the sections used below;
        only ELF (and COFF) targets get them. *)
-    let elf_target () = not (is_target_system_macos ())
+    let elf_target () = not (is_target_macho ())
 
     (* The symbol under which a function is emitted, on every system. An
        exported function is mangled and declared global; a function that is
@@ -116,7 +116,7 @@ module Make(Target : AsmTarget) : S
     let pp_data_segment_body globs names = Asm_utils.format_glob_data globs names
 
     let data_segment_section () =
-      if is_target_system_macos () then
+      if is_target_macho () then
         [ Header (".section", [ "__TEXT"; "__const" ]) ]
       else [ Header (".section", [ ".rodata"; "\"a\""; "%progbits" ]) ]
 
@@ -138,7 +138,7 @@ module Make(Target : AsmTarget) : S
         let data_segment = pp_data_segment asm.asm_globs asm.asm_glob_names in
         let compiler_ident = Header (".ident", [Format.asprintf "\"%s\"" Glob_options.version_string]) in
         let stack_note_segment =
-          if is_target_system_macos () then [] else [
+          if is_target_macho () then [] else [
               Header (".section", [ "\".note.GNU-stack\""; "\"\""; "%progbits" ]);
             ]
         in

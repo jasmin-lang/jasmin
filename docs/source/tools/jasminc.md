@@ -17,10 +17,18 @@ making it easier to understand and debug the program.
 
 Declassification instructions are emitted as comments in the assembly output.
 
+The `-system macosx|linux` option selects the target platform; the default is
+the system `jasminc` was built on. It decides what belongs to the platform: on
+macOS, the symbol of an exported function gets a leading underscore, as the C
+compiler expects. The `-format elf|mach-o` option selects the object format of
+the output: the syntax of the assembler (local labels, relocation operators)
+and the sections. Its default follows the system: `mach-o` with `-system
+macosx`, `elf` otherwise.
+
 When the `-function-sections` option is given, each function is emitted in a
 section of its own, named `.text.<name>`, so that a linker invoked with
 `--gc-sections` drops the functions that are not reached. The option applies to
-ELF targets only and is ignored when the target system is macOS.
+ELF output only and is ignored for Mach-O.
 
 The linker is then free to place a function and its callers at any distance,
 and when a callee is out of the range of a direct branch, it routes the call

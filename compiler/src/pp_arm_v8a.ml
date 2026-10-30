@@ -1,7 +1,7 @@
 (* Assembly printer for ARMv8-A (AArch64).
 
-   GNU assembler syntax, with Mach-O relocation operators when the target
-   system is macOS (see [pp_ADR]). Each operand is printed as the
+   GNU assembler syntax, with Mach-O relocation operators when the object
+   format is Mach-O (see [pp_ADR]). Each operand is printed as the
    instruction description requests it ([pp_arg]): a general-purpose
    register in its 32-bit W form or its 64-bit X form, by the size it is
    paired with; a shift amount with the name of the shift ([lsl #3]),
@@ -109,7 +109,7 @@ let pp_mnemonic (ARMv8A_op (mn, _) as op) =
    [:lo12:sym]; Mach-O ones [sym@PAGE] and [sym@PAGEOFF]. *)
 let pp_ADR dst p =
   let page, pageoff =
-    if is_target_system_macos () then
+    if is_target_macho () then
       let pp_reloc r =
         Format.asprintf "%s@@%s+%a" global_datas_label r Z.pp_print (Conv.z_of_int32 p)
       in

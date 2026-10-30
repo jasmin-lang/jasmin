@@ -189,6 +189,26 @@ let () = set_target_system Config.target_system
 
 let is_target_system_macos () = !target_system = MacOS
 
+(* The object format of the assembly output: the syntax of the assembler and
+   the sections it knows. Unless it is set explicitly, it follows the target
+   system: Mach-O on macOS, ELF otherwise. *)
+type object_format =
+  | Elf
+  | MachO
+
+let target_format : object_format option ref = ref None
+
+let set_target_format fmt =
+  target_format :=
+    match fmt with
+    | "mach-o" -> Some MachO
+    | _ -> Some Elf
+
+let is_target_macho () =
+  match !target_format with
+  | Some fmt -> fmt = MachO
+  | None -> is_target_system_macos ()
+
 (* -------------------------------------------------------------------- *)
 type model =
   | ConstantTime

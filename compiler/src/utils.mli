@@ -103,6 +103,8 @@ val pp_string : string pp
 (* -------------------------------------------------------------------- *)
 val set_target_system: string -> unit
 val is_target_system_macos : unit -> bool
+val set_target_format: string -> unit
+val is_target_macho : unit -> bool
 
 (* -------------------------------------------------------------------- *)
 type model = 

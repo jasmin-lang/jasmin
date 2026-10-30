@@ -18,9 +18,14 @@ DLL=${DIR}/jasmin.so
 if [ -d "${DIR}" ]; then rm -r ${DIR}; fi
 mkdir -p $DIR
 
-# Whether the arguments select macOS, whose objects are Mach-O
-MACOS=no
-(echo $@ | grep -q -e "-system[ =]macosx") && MACOS=yes
+# Whether the arguments select the Mach-O object format: explicitly, or
+# through macOS without an explicit ELF format
+MACHO=no
+if echo $@ | grep -q -e "-format[ =]mach-o"
+then MACHO=yes
+elif echo $@ | grep -q -e "-system[ =]macosx" && ! echo $@ | grep -q -e "-format[ =]elf"
+then MACHO=yes
+fi
 
 set -x
 
@@ -36,12 +41,15 @@ elif [ $ARCH = "riscv" ]
 then
      # +m enables integer multiplication
      ASARGS="--triple=riscv32 --mcpu=generic-rv32 -mattr=+m"
-elif [ $ARCH = "armv8a" ] && [ $MACOS = yes ]
+elif [ $ARCH = "armv8a" ] && [ $MACHO = yes ]
 then
     ASARGS="--triple=arm64-apple-macos"
 elif [ $ARCH = "armv8a" ]
 then
     ASARGS="--triple=aarch64"
+elif [ $MACHO = yes ]
+then
+    ASARGS="--triple=x86_64-apple-macos"
 else
     ASARGS="--triple=x86_64"
 fi
@@ -49,5 +57,5 @@ fi
 llvm-mc $ASARGS --filetype=obj -o ${OBJ} ${ASM}
 
 # Compile as a shared library, except for ARMv7 for which it is known not to work,
-# and on macOS since ld.lld only links ELF objects
-[ $ARCH = "arm-m4" ] || [ $MACOS = yes ] || ld.lld -shared -o ${DLL} ${OBJ}
+# and for Mach-O since ld.lld only links ELF objects
+[ $ARCH = "arm-m4" ] || [ $MACHO = yes ] || ld.lld -shared -o ${DLL} ${OBJ}
