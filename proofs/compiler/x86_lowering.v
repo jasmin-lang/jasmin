@@ -368,7 +368,7 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
     end
 
   | Pif t e e1 e2 =>
-    if atype_of_lval x is aword _ then
+    if ty is aword _ then
       k16 (wsize_of_lval x) (LowerIf t e e1 e2)
     else
       LowerAssgn
