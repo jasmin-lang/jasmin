@@ -27,6 +27,7 @@ Module Import E.
   Definition arity_mismatch := typing_error (pp_s "arity mismatch").
   Definition unknown_function := typing_error (pp_s "Unknown function").
   Definition global_mismatch := typing_error (pp_s "global variable type value mismatch").
+  Definition invalid_intrinsics := typing_error (pp_s "invalid intrinsics type").
 
 End E.
 
@@ -182,7 +183,8 @@ Fixpoint check_instr (p : ufun_decls) (i : instr) : cexec unit :=
                             (sopn_tin (pd := pd) (msfsz := msfsz) sop ,
                              sopn_tout (pd := pd) (msfsz := msfsz) sop) in
                           Let _ := check_exprs ty_expr es tins in
-                          check_lvals xs tout
+                          Let _ := check_lvals xs tout in
+                          if (sopn_i_valid sop) then ok tt else Error E.array_expected
     | Csyscall xs o es => let s := syscall_sig_u o in
                           let tins := scs_tin s in
                           let tout := scs_tout s in

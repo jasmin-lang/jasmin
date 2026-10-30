@@ -628,6 +628,7 @@ Definition string_of_sopn o : string := str (get_instr_desc o) tt.
 
 Definition sopn_tin o : list atype := tin (get_instr_desc o).
 Definition sopn_tout o : list atype := tout (get_instr_desc o).
+Definition sopn_i_valid o : bool := i_valid (get_instr_desc o).
 
 Definition sopn_sem_ o := semi (get_instr_desc o).
 Definition sopn_sem o : exec _ :=
