@@ -1,6 +1,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import compiler_util psem psem_facts.
-Require Import toec_prog toec_for_proof toec_while_proof.
+Require Import toec_prog toec_for_proof toec_while_proof for_to_while_proof.
 
 Section PROOF.
 
@@ -32,9 +32,15 @@ Lemma toec_t fn :
   wiequiv_f p' p ev ev
     (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
 Proof using rE_trans fresh_var_ident Hp.
+  move: Hp; rewrite /toec_prog; t_xrbindP => pf hpf hp'.
+  have hf : wiequiv_f pf p ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
+  - eapply (wiequiv_f_trans rpreF_trans_eq_eq_eq).
+    2: eapply toec_for_l; exact hpf.
+    2: apply toec_while_l.
+    by move=> > ?? [?->->].
   eapply (wiequiv_f_trans rpreF_trans_eq_eq_eq).
-  2: eapply toec_for_l; exact Hp.
-  2: apply toec_while_l.
+  2: exact: (for_to_while_l ev hp').
+  2: exact: hf.
   by move=> > ?? [?->->].
 Qed.
 
