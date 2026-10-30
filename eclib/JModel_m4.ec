@@ -164,8 +164,11 @@ abbrev [-printing] ORR = ORR_32.
 op ORRScc x y g n z c o = if g then ORRS x y else (n, z, c, o).
 op ORRcc x y g o = if g then ORR x y else o.
 
+op ROR_C (wn : W32.t) (shift : int) =
+  W32.msb (ror wn shift).
+
 op RORS (x: W32.t) (i: W8.t) : bool * bool * bool * W32.t =
-  with_nzc (ror x (to_uint i)).
+  with_nzc_shift W32.ror ROR_C x i.
 op ROR x i = let (_n, _z, _c, r) = RORS x i in r.
 op RORScc x i g n z c o = if g then RORS x i else (n, z, c, o).
 op RORcc x i g o = if g then ROR x i else o.

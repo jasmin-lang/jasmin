@@ -60,12 +60,10 @@ op UDIV_32 (x y: W32.t) : W32.t = x \udiv y.
 (* Comparisons. *)
 
 op CMN_32 (x y: W32.t) : bool * bool * bool * bool =
-  let r = x + y in
-  nzcv r (to_uint x + to_uint y) (to_sint x + to_sint y).
+  let (n, z, c, v, _) = ADDS_32 x y in (n, z, c, v).
 
 op CMP_32 (x y: W32.t) : bool * bool * bool * bool =
-  let r = x - y in
-  nzcv r (to_uint x - to_uint y) (to_sint x - to_sint y).
+  let (n, z, c, v, _) = SUBS_32 x y in (n, z, c, v).
 
 (* -------------------------------------------------------------------- *)
 (* Logical (results; the flag-setting forms are architecture-specific). *)
