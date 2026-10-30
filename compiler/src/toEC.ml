@@ -363,6 +363,7 @@ type ec_op2 =
     | ArrayGet
     | Plus
     | Infix of string
+    | Prefix of string
 
 type ec_op3 =
     | Ternary
@@ -695,6 +696,13 @@ let fmt_op2 fmt op =
     Format.fprintf fmt "\\v%s%iu%i" s (int_of_velem ve) (int_of_ws ws)
   in
 
+  let fmt_min_max fmt op sg k =
+    match sg, k with
+    | Signed, Op_w _ -> Format.fprintf fmt "s%s" op
+    | Unsigned, Op_w _ -> Format.fprintf fmt "u%s" op
+    | _ , Op_int -> Format.fprintf fmt "%s" op
+  in
+
   match op with
   | Obeq   -> Format.fprintf fmt "="
   | Oand   -> Format.fprintf fmt "/\\"
@@ -706,8 +714,8 @@ let fmt_op2 fmt op =
 
   | Osub  _ -> Format.fprintf fmt "-"
 
-  | Omin _ -> Format.fprintf fmt "min"
-  | Omax _ -> Format.fprintf fmt "max"
+  | Omin (sg, k) -> fmt_min_max fmt "min" sg k
+  | Omax (sg, k) -> fmt_min_max fmt "max" sg k
 
   | Oland _ -> Format.fprintf fmt "`&`"
   | Olor  _ -> Format.fprintf fmt "`|`"
@@ -760,6 +768,7 @@ and pp_ec_op2 fmt (op2, e1, e2) =
     | ArrayGet -> Format.fprintf fmt "@[%a.[%a]@]"
     | Plus -> Format.fprintf fmt "@[(%a +@ %a)@]"
     | Infix s -> (fun pp1 e1 -> Format.fprintf fmt "@[(%a %s@ %a)@]" pp1 e1 s)
+    | Prefix s -> Format.fprintf fmt "@[(%s@ %a %a)@]" s
     in
     (f fmt) pp_ec_ast_expr e1 pp_ec_ast_expr e2
 
@@ -1549,8 +1558,8 @@ module EcExpression(EA: EcArray): EcExpression = struct
           let t1, t2 = fst (Operators.type_of_op2 op2) in
           let te1 = (Conv.ty_of_cty t1, e1) in
           let te2 = (Conv.ty_of_cty t2, e2) in
-          let e_op_name = Format.asprintf "%a" fmt_op2 op2 in
-          Eapp (ec_ident e_op_name, List.map (toec_cast env) [te1;te2])
+          let op = Prefix (Format.asprintf "%a" fmt_op2 op2) in
+          Eop2 (op, toec_cast env te1, toec_cast env te2)
       | Papp2 (op2, e1, e2) ->
           let t1, t2 = fst (Operators.type_of_op2 op2) in
           let te1 = (Conv.ty_of_cty t1, e1) in
