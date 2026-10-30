@@ -411,7 +411,10 @@ Instance armv8a_decl : arch_decl register register_ext xregister rflag condt :=
 (* Calling convention (AAPCS64).
    There is a single convention: AAPCS64 is the same on Linux, macOS and
    Windows for everything Jasmin uses (arguments in R0-R7, results in
-   R0/R1, callee-saved R19-R30). The only platform-dependent register is
+   R0/R1, callee-saved R19-R29). x29, the frame pointer, is never allocated
+   (see reserved_regs in compiler/src/armv8a_arch_full.ml), since Apple
+   platforms require it to always address a valid frame record. The only
+   other platform-dependent register is
    x18 (reserved on Windows, on Apple platforms and under
    shadow-call-stack Linux), and it is excluded from the register file
    altogether (see the [register] declaration above), so this convention
@@ -435,13 +438,15 @@ Definition armv8a_call_conv : calling_convention :=
    ; call_reg_ret_uniq := erefl true
    |}.
 
+(* R29 (x29), the frame pointer, is never allocated (see reserved_regs in
+   compiler/src/armv8a_arch_full.ml), so it carries no argument either. *)
 Definition armv8a_internal_call_conv : internal_calling_convention :=
   {| icall_reg   :=
       [:: R0; R1; R2; R3; R4; R5; R6; R7;
           R8; R9; R10; R11; R12; R13; R14; R15;
           R16; R17;
           R19; R20; R21; R22; R23; R24;
-          R25; R26; R27; R28; R29 ]
+          R25; R26; R27; R28 ]
    ; icall_regx  := [::]
    ; icall_xreg  := [::]
    ; icall_rflag := [:: CF; NF; ZF; VF ]

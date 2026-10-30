@@ -77,4 +77,6 @@ module X86 (Lowering_params : X86_input) :
   include Lowering_params
 
   let internal_call_conv = X86_decl.x86_internal_call_conv
+
+  let reserved_regs = []
 end

@@ -77,4 +77,6 @@ module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch
   let max_store_size = Wsize.U32
 
   let internal_call_conv = Arm_decl.arm_internal_call_conv
+
+  let reserved_regs = []
 end
