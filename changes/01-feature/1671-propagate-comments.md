@@ -1,0 +1,2 @@
+- Propagate comment annotations #[comment = "comment"] in functions before the global symbol in assembly. Instruction annotations are ignored for now.
+  ([PR #1671](https://github.com/jasmin-lang/jasmin/pull/1671)).
