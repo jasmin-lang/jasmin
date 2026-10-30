@@ -591,6 +591,23 @@ mem_bound ∊ [0; 0]
 
 Program is not safe!
 
+File fail/x86-64/bug_1309.jazz (on arch x86-64):
+Analyzing function f
+
+
+*** Possible Safety Violation(s):
+  f return: bounded memory range of x
+  
+Memory ranges:
+  mem_x: [-1/0; inf]
+  
+* Rel:
+{inv_x ≥ 0, inv_x ≤ 18446744073709551615}
+
+
+
+Program is not safe!
+
 File fail/x86-64/carry_flags_err.jazz (on arch x86-64):
 Analyzing function test
 
