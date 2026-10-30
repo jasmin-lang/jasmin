@@ -1,0 +1,94 @@
+/* Exercises #declassify under varied control flow (if/else, while, for,
+   nested for, function calls, whole-array and array-cell declassification),
+   to stress the EasyCrypt "declassify" leakage-extraction mode.
+*/
+
+export fn declassify_if(reg u32 x) -> reg u32 {
+  reg u32 y;
+  if (x > 0) {
+    y = x;
+    #declassify(y);
+  } else {
+    y = 0;
+    #declassify(y);
+  }
+  return y;
+}
+
+export fn declassify_while(reg u32 x) -> reg u32 {
+  reg u32 y;
+  y = x;
+  while (y > 0) {
+    #declassify(y);
+    y -= 1;
+  }
+  return y;
+}
+
+export fn declassify_for(reg u32 x) -> reg u32 {
+  inline int i;
+  reg u32 acc;
+  acc = x;
+  for i = 0 to 10 {
+    acc += 1;
+    #declassify(acc);
+  }
+  for i = 10 downto 0 {
+    acc -= 1;
+  }
+  return acc;
+}
+
+export fn declassify_nested_for(reg u32 x) -> reg u32 {
+  inline int i j;
+  reg u32 acc;
+  acc = x;
+  for i = 0 to 3 {
+    for j = 0 to 3 {
+      acc += 1;
+      #declassify(acc);
+    }
+  }
+  return acc;
+}
+
+export fn declassify_array(reg u32 x) -> reg u32 {
+  stack u32[4] a;
+  reg u32 r;
+  inline int i;
+  for i = 0 to 4 {
+    a[i] = x;
+  }
+  #declassify(a);
+  r = a[0];
+  return r;
+}
+
+export fn declassify_cell_in_loop(reg u32 x) -> reg u32 {
+  stack u32[4] a;
+  reg u32 v;
+  reg u32 r;
+  inline int i;
+  for i = 0 to 4 {
+    a[i] = x;
+    v = a[i];
+    #declassify(v);
+  }
+  r = a[0];
+  return r;
+}
+
+fn declassify_helper(reg u32 x) -> reg u32 {
+  #declassify(x);
+  return x;
+}
+
+export fn declassify_call_in_loop(reg u32 x) -> reg u32 {
+  inline int i;
+  reg u32 acc;
+  acc = x;
+  for i = 0 to 5 {
+    acc = declassify_helper(acc);
+  }
+  return acc;
+}
