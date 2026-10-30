@@ -1,0 +1,22 @@
+// d is read at each iteration. a becomes undefined at the first iteration,
+// b at the second, d at the third: the fourth iteration reads an undefined
+// value.
+export
+fn main() -> reg u32 {
+  stack u32[1] a b d;
+  stack u8[1] c;
+  reg u32 x;
+  a = #randombytes(a);
+  b = #randombytes(b);
+  d = #randombytes(d);
+  x = 0;
+  while {
+    c = #randombytes(c);
+  } (c[0] != 0) {
+    x = d[0];
+    d = b;
+    b = a;
+    ArrayInit(a);
+  }
+  return x;
+}

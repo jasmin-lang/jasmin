@@ -1,0 +1,19 @@
+// The loop of fail/common/loop_init.jazz without ArrayInit: d stays defined.
+export
+fn main() -> reg u32 {
+  stack u32[1] a b d;
+  stack u8[1] c;
+  reg u32 x;
+  a = #randombytes(a);
+  b = #randombytes(b);
+  d = #randombytes(d);
+  x = 0;
+  while {
+    c = #randombytes(c);
+  } (c[0] != 0) {
+    x = d[0];
+    d = b;
+    b = a;
+  }
+  return x;
+}
