@@ -70,6 +70,8 @@ val pp_var_i : Format.formatter -> Expr.var_i -> unit
 type priority
 (** Priority levels of operators *)
 
+type notation = OpNinfix | OpNcall (** Notation of the operators *)
+
 type associativity = Left | NoAssoc | Right  (** Associativity of operators *)
 
 val associativity : priority -> associativity
@@ -86,6 +88,9 @@ val priority_of_op2 : Operators.sop2 -> priority
 
 val priority_ternary : priority
 (** Priority level of the ternary “_ ? _ : _” operator *)
+
+val notation_of_op2 : Operators.sop2 -> notation
+(** Notation of binary operators *)
 
 val optparent :
   Format.formatter ->

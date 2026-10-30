@@ -144,8 +144,8 @@ let string_of_peop2 : peop2 -> string =
   | `Mul c -> f c "*"
   | `Div c -> g c "/"
   | `Mod c -> g c "%"
-  | `Max c -> g c "max"
-  | `Min c -> g c "min"
+  | `Max _ -> "max"
+  | `Min _ -> "min"
 
   | `BAnd c -> f c "&"
   | `BOr  c -> f c "|"

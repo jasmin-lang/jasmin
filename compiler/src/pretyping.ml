@@ -1230,9 +1230,9 @@ let create_min_e _pd loc args =
     if t1 <> t2 then rs_tyerror ~loc (TypeMismatch (t2,t1));
     match t1 with
     | CoreIdent.ETint ->
-      P.Papp2 (Omin (W.Signed, Op_int), e2, e1), P.etint
+      P.Papp2 (Omin (W.Signed, Op_int), e1, e2), P.etint
     | CoreIdent.ETword (Some s, ws) ->
-      P.Papp2 (Omin (s, (Op_w ws)), e2, e1), P.etwi s ws
+      P.Papp2 (Omin (s, (Op_w ws)), e1, e2), P.etwi s ws
     | _ ->
       rs_tyerror ~loc (StringError "min operator only support int or word types")
   else
@@ -1244,9 +1244,9 @@ let create_max_e _pd loc args =
     if t1 <> t2 then rs_tyerror ~loc (TypeMismatch (t2,t1));
     match t1 with
     | CoreIdent.ETint ->
-      P.Papp2 (Omax (W.Signed, Op_int), e2, e1), P.etint
+      P.Papp2 (Omax (W.Signed, Op_int), e1, e2), P.etint
     | CoreIdent.ETword (Some s, ws) ->
-      P.Papp2 (Omax (s, (Op_w ws)), e2, e1), P.etwi s ws
+      P.Papp2 (Omax (s, (Op_w ws)), e1, e2), P.etwi s ws
     | _ ->
       rs_tyerror ~loc (StringError "max operator only support int or word types")
   else
