@@ -806,7 +806,8 @@ HB.instance Definition _ := hasDecEq.Build asm_typed_reg asm_typed_reg_eq_axiom.
 (* Function declaration                                                 *)
 
 Record asm_fundef := XFundef
-  { asm_fd_align : wsize
+  { asm_fd_info  : fun_info
+  ; asm_fd_align : wsize
   ; asm_fd_arg   : asm_typed_regs
   ; asm_fd_body  : asm_code
   ; asm_fd_res   : asm_typed_regs
