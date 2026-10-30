@@ -112,18 +112,10 @@ let set_color c =
 let idirs = ref []
 
 let set_idirs s =
-  let colons = String.count_char s ':' in
-  let equals = String.count_char s '=' in
-  let idir =
-    match (equals, colons) with
-    | 1, 0 -> String.split ~by:"=" s
-    | 0, 1 ->
-       warning Deprecated Location.i_dummy
-         "Use of colon in path:ident is deprecated: use an equal sign instead";
-       String.split ~by:":" s
-    | _, _ ->
-       hierror ~loc:Lnone ~kind:"parsing arguments"
-         "bad format for -I : ident=path expected"
+  if String.count_char s '=' <> 1 then
+    hierror ~loc:Lnone ~kind:"parsing arguments"
+      "bad format for -I : ident=path expected";
+  let idir = String.split ~by:"=" s
   in
   idirs := idir :: !idirs
 
