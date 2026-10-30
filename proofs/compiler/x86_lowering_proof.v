@@ -167,19 +167,6 @@ Section PROOF.
   by case: e => // -[] // ? [] // [] // [] //=; case: eqP => // ->.
   Qed.
 
-  Lemma write_lval_word l sz v s s':
-    atype_of_lval l = aword sz →
-    write_lval true gd l v s = ok s' →
-    ∃ sz', type_of_val v = cword sz'.
-  Proof.
-  case: l => /= [ _ [] // sz' | [[vt vn] vi] | al sz' vi e | al aa sz' [[vt vn] vi] e |  aa sz' len [[vt vn] vi] e ] /=.
-  - case => ->; case: v => //=; eauto => -[] //=; eauto.
-  - move => ->; case: v => //=; eauto => -[] //=; eauto.
-  - move => [->]; t_xrbindP => ?? _ _ ? /to_wordI [ws [? [??]]]; subst => /=; eauto.
-  - by move => ->; apply: on_arr_varP.
-  by move => ->; apply: on_arr_varP.
-  Qed.
-
   Section LOWER_CONDITION.
 
   Context (vi : var_info).
@@ -552,7 +539,7 @@ Section PROOF.
           eval_atype ty = cword sz , (U16 ≤ sz)%CMP & (sz ≤ U64)%CMP]
     | LowerCond => True
     | LowerIf t a e1 e2 =>
-      size_16_64 (wsize_of_lval l) ∧ e = Pif t a e1 e2 ∧ wsize_of_lval l = wsize_of_atype ty ∧ ∃ sz', atype_of_lval l = aword sz'
+      size_16_64 (wsize_of_lval l) ∧ e = Pif t a e1 e2 ∧ wsize_of_lval l = wsize_of_atype ty ∧ ∃ sz', ty = aword sz'
     | LowerLea sz l =>
       ((U16 ≤ sz)%CMP && (sz ≤ U64)%CMP ∧ check_scale (lea_scale l) ∧
        Sv.Subset (read_lea l) (read_e e) ∧
@@ -1114,7 +1101,7 @@ Section PROOF.
       by rewrite /= -!/(wrepr U128 _) !wrepr_unsigned.
      (* Pif *)
      rewrite /size_16_64.
-     by case: atype_of_lval => // w hv; case: andP => // - [] /andP[] -> -> /eqP <-; eauto.
+     by case: ty {Hv'} => // w hv; case: andP => // - [] /andP[] -> -> /eqP <-; eauto.
   Local Transparent convertible.
   Qed.
 
@@ -1421,7 +1408,7 @@ Section PROOF.
       by rewrite map_cat esem_cat hs2'' /= /sem_assgn he' /= hty /= hw3.
 
     (* LowerIf *)
-    + move=> t cond e1 e2 [Hsz64] [He] [Hsz] [sz' Ht]; subst e.
+    + move=> t cond e1 e2 [Hsz64] [He] [Hsz] [sz Ht]; subst e ty.
       set x := lower_condition _ _ _.
       have Hcond: x = lower_condition fv (var_info_of_lval l) cond by [].
       move: x Hcond=> [i e'] Hcond.
@@ -1440,12 +1427,10 @@ Section PROOF.
       rewrite read_eE read_eE -/(read_e _).
       move=> /disjoint_union [He /disjoint_union [He1 He2]].
       rewrite (eeq_exc_sem_pexpr He1 Heq' Hv1) (eeq_exc_sem_pexpr He2 Heq' Hv2) /=.
-      have [sz Hvt] := write_lval_word Ht Hw'.
-      have [w Hvw] := write_lval_undef Hw' Hvt; subst.
+      have [w [] sz'' [] w' [] /truncate_wordP[hle ?] hw' ? ] := truncate_val_typeE hty.
+      subst w v'.
       rewrite /exec_sopn /= !computational_eq_refl /x86_CMOVcc.
-      have /= hty' := truncate_val_has_type hty.
-      rewrite Hsz64 Hsz (wsize_of_atypeP (esym hty')) /=.
-      have [sz'' [w' [_ /truncate_wordP[hle ?] hw']]]:= truncate_valI hty; subst.
+      rewrite Hsz64 Hsz /=.
       have : exists w1 w2, to_word sz v1 = ok w1 /\ to_word sz v2 = ok w2 /\
                             (if b then w1 else w2) = zero_extend sz w'.
       + case: (b) hw' => ?; subst.
