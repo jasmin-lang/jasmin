@@ -1,4 +1,4 @@
-File fail/arm-m4/array-export.jazz (on arch arm-m4):
+File fail/arm-m4/array-export.jazz (on arch cortex-m4):
 Analyzing function main
 
 
@@ -18,7 +18,7 @@ mem_i ∊ [0; 0]
 
 Program is not safe!
 
-File fail/arm-m4/bad_align.jazz (on arch arm-m4):
+File fail/arm-m4/bad_align.jazz (on arch cortex-m4):
 Analyzing function main
 
 
@@ -36,7 +36,7 @@ mem_pt ∊ [0; 5]
 
 Program is not safe!
 
-File fail/arm-m4/bad_align2.jazz (on arch arm-m4):
+File fail/arm-m4/bad_align2.jazz (on arch cortex-m4):
 Analyzing function main
 
 
@@ -54,7 +54,7 @@ mem_pt ∊ [0; 60]
 
 Program is not safe!
 
-File fail/arm-m4/loop2.jazz (on arch arm-m4):
+File fail/arm-m4/loop2.jazz (on arch cortex-m4):
 Analyzing function poly1305
 
 
@@ -86,7 +86,7 @@ Analyzing function array
 
 Program is not safe!
 
-File fail/common/array-len3.jazz (on arch arm-m4):
+File fail/common/array-len3.jazz (on arch cortex-m4):
 Analyzing function array
 
 
@@ -128,7 +128,7 @@ Analyzing function bad_read
 
 Program is not safe!
 
-File fail/common/array_init.jazz (on arch arm-m4):
+File fail/common/array_init.jazz (on arch cortex-m4):
 Analyzing function bad_read
 
 
@@ -174,7 +174,7 @@ mem_b ∊ [0; 0]
 
 Program is not safe!
 
-File fail/common/fail_land.jazz (on arch arm-m4):
+File fail/common/fail_land.jazz (on arch cortex-m4):
 Analyzing function BS2POLVECq
 
 
@@ -228,7 +228,7 @@ mem_b ∊ [0; 0]
 
 Program is not safe!
 
-File fail/common/fail_land2.jazz (on arch arm-m4):
+File fail/common/fail_land2.jazz (on arch cortex-m4):
 Analyzing function BS2POLVECq
 
 
@@ -282,7 +282,7 @@ mem_x ∊ [0; 0]
 
 Program is not safe!
 
-File fail/common/init-join.jazz (on arch arm-m4):
+File fail/common/init-join.jazz (on arch cortex-m4):
 Analyzing function main
 
 
@@ -337,7 +337,7 @@ mem_t ∊ [0; 0]
 
 Program is not safe!
 
-File fail/common/not_in_bounds.jazz (on arch arm-m4):
+File fail/common/not_in_bounds.jazz (on arch cortex-m4):
 Analyzing function f
 
 
@@ -389,7 +389,7 @@ Analyzing function wint_overflow
 
 Program is not safe!
 
-File fail/common/wint_overflow.jazz (on arch arm-m4):
+File fail/common/wint_overflow.jazz (on arch cortex-m4):
 Analyzing function wint_overflow
 
 
