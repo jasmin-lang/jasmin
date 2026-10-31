@@ -705,9 +705,7 @@ Proof.
     set Pi := fun i =>
       forall s,
        interp (ctx_cond (cond fstate (RecCall dummy_instr_info fn1 fs1)) F)
-
-
-         (isem_i_body (sem_F := sem_fun_rec E) p ev i s) ≈
+          (isem_i_body (sem_F := sem_fun_rec E) p ev i s) ≈
        isem_i_body (sem_F:= sem_fun_inline do_inline fn1) p ev i s.
     set Pr := fun i => forall ii, Pi (MkI ii i).
     set Pc := fun c =>
