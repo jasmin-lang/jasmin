@@ -308,6 +308,9 @@ Proof. by done. Qed.
 
 End WRITE.
 
+Lemma write_c_assgn1 ii lv tg ty e : Sv.Equal (write_c [:: MkI ii (Cassgn lv tg ty e)]) (vrv lv).
+Proof. clear -ii lv tg ty e; by rewrite write_c_cons write_Ii write_i_assgn write_c_nil; SvD.fsetdec. Qed.
+
 (* ** Compute read variables
  * -------------------------------------------------------------------- *)
 
@@ -1287,6 +1290,48 @@ rewrite !nth_wrange; first lia; last first.
 apply/leP/Nat2Z.inj_lt; rewrite Z2Nat.id; last lia.
 move/leP/Nat2Z.inj_lt: lti; try rewrite -Z2Nat.inj_succ; last lia.
 by rewrite Z2Nat.id; lia.
+Qed.
+
+Lemma wrange_UpTo_ziota n1 n2 : wrange UpTo n1 n2 = ziota n1 (n2 - n1).
+Proof. by rewrite /wrange ziotaE. Qed.
+
+Lemma wrange_DownTo_ziota n1 n2 :
+  wrange DownTo n1 n2 = map Z.opp (ziota (- n2) (n2 - n1)).
+Proof.
+  rewrite /wrange ziotaE -map_comp /comp /=.
+  apply eq_map => i /=; ring.
+Qed.
+
+Lemma wrange_recU n1 n2 :
+  wrange UpTo n1 n2 =
+    if (n1 <? n2)%Z then n1 :: wrange UpTo (n1 + 1) n2 else [::].
+Proof.
+  case: ZltP => h; last first.
+  - rewrite /wrange; have -> : Z.to_nat (n2 - n1) = 0%N.
+    + by apply: Z_to_nat_le0; lia.
+    done.
+  rewrite wrange_UpTo_ziota.
+  have -> : n2 - n1 = Z.succ (n2 - n1 - 1) by ring.
+  rewrite (ziotaS_cons n1); last lia.
+  rewrite wrange_UpTo_ziota.
+  by have -> : n2 - (n1 + 1) = n2 - n1 - 1 by ring.
+Qed.
+
+Lemma wrange_recD n1 n2 :
+  wrange DownTo n1 n2 =
+    if (n1 <? n2)%Z then n2 :: wrange DownTo n1 (n2 - 1) else [::].
+Proof.
+  case: ZltP => h; last first.
+  - rewrite /wrange; have -> : Z.to_nat (n2 - n1) = 0%N.
+    + by apply: Z_to_nat_le0; lia.
+    done.
+  rewrite wrange_DownTo_ziota.
+  have -> : n2 - n1 = Z.succ (n2 - n1 - 1) by ring.
+  rewrite (ziotaS_cons (- n2)); last lia.
+  rewrite wrange_DownTo_ziota /=.
+  congr (_ :: _); first ring.
+  have -> : - n2 + 1 = - (n2 - 1) by ring.
+  by have -> : n2 - n1 - 1 = n2 - 1 - n1 by ring.
 Qed.
 
 End WRANGE.
