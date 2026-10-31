@@ -31,25 +31,31 @@ Context {atoI : arch_toIdent}.
 (* -------------------------------------------------------------------- *)
 (* Fresh variables. *)
 (* This pass is parameterized by four variable names that will be used to
-   create variables for the processor flags. *)
+   create variables for the processor flags, and one for a scratch register
+   that holds an immediate an instruction cannot take as an operand (the
+   value of a store). *)
 
 Definition fv_NF (fv : fresh_vars) := fv "__n__"%string abool.
 Definition fv_ZF (fv : fresh_vars) := fv "__z__"%string abool.
 Definition fv_CF (fv : fresh_vars) := fv "__c__"%string abool.
 Definition fv_VF (fv : fresh_vars) := fv "__v__"%string abool.
+Definition fv_TMP (fv : fresh_vars) := fv "__wtmp__"%string (aword U64).
 
 Definition all_fresh_vars (fv : fresh_vars) : seq Ident.ident :=
-  [:: fv_NF fv; fv_ZF fv; fv_CF fv; fv_VF fv ].
+  [:: fv_NF fv; fv_ZF fv; fv_CF fv; fv_VF fv; fv_TMP fv ].
 
 Definition fvNF (fv : fresh_vars) : var := vbool (fv_NF fv).
 Definition fvZF (fv : fresh_vars) : var := vbool (fv_ZF fv).
 Definition fvCF (fv : fresh_vars) : var := vbool (fv_CF fv).
 Definition fvVF (fv : fresh_vars) : var := vbool (fv_VF fv).
+Definition fvTMP (fv : fresh_vars) : var :=
+  {| vtype := aword U64; vname := fv_TMP fv |}.
 
 Definition fresh_flags (fv : fresh_vars) : seq var :=
   [:: fvNF fv; fvZF fv; fvCF fv; fvVF fv ].
 
-Definition fvars (fv : fresh_vars) : Sv.t := sv_of_list id (fresh_flags fv).
+Definition fvars (fv : fresh_vars) : Sv.t :=
+  sv_of_list id (fvTMP fv :: fresh_flags fv).
 
 
 (* -------------------------------------------------------------------- *)
@@ -520,6 +526,20 @@ Definition lower_store (ws : wsize) (e : pexpr) : option (armv8a_asm_op * seq pe
   | _ => None
   end.
 
+(* A64 has no store of an immediate. A constant stored to memory is first
+   moved to the scratch register, whose low [ws] bits are then stored.
+   Precondition:
+   - [lv] is in memory (as for [lower_store]). *)
+Definition lower_store_imm (vi : var_info) (ws : wsize) (e : pexpr) :
+  option (seq instr_r * (armv8a_asm_op * seq pexpr)) :=
+  let%opt c := is_wconst ws e in
+  let%opt mn := store_mn_of_wsize ws in
+  let osz := if (ws <= U16)%CMP then U64 else ws in
+  let tmp := {| v_var := fvTMP fv; v_info := vi |} in
+  let imm := wconst (zero_extend U64 c) in
+  Some ([:: Copn [:: Lvar tmp ] AT_none (Oasm (ExtOp (Oarmv8a_smart_li U64))) [:: imm ] ],
+        (ARMv8A_op mn (opts_at osz), [:: Plvar tmp ])).
+
 (* Convert an assignment into an architecture-specific operation. *)
 Definition lower_cassgn_word
   (lv : lval) (ws : wsize) (e : pexpr) : option (seq instr_r * copn_args) :=
@@ -527,8 +547,11 @@ Definition lower_cassgn_word
   let%opt (pre, op, es) :=
     if is_lval_in_memory lv
     then
-      let%opt (aop, es) := lower_store ws e in
-      no_pre (le_issue_aop aop es)
+      if lower_store ws e is Some (aop, es)
+      then no_pre (le_issue_aop aop es)
+      else
+        let%opt (pre, (aop, es)) := lower_store_imm vi ws e in
+        Some (pre, Oasm (BaseOp (None, aop)), es)
     else lower_pexpr vi ws e
   in
   Some (pre, ([:: lv ], op, es)).
