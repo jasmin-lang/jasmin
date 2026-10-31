@@ -1,0 +1,8 @@
+/* UMULL is not DIT on the Cortex-M3. */
+#[ct="secret * secret -> secret"]
+export fn umull(reg u32 x y) -> reg u32 {
+  reg u32 hi lo;
+  lo, hi = #UMULL(x, y);
+  lo ^= hi;
+  return lo;
+}
