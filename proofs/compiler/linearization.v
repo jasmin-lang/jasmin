@@ -54,6 +54,20 @@ Definition assign_remains (ii : instr_info) (lv: lval) (e: pexpr) :=
       pp_s "More information may be found online: https://jasmin-lang.readthedocs.io/en/stable/misc/faq.html#linearization"
   ]).
 
+(* An argument, destination or condition of an instruction that the target
+   architecture cannot take as it is. After stack allocation, this is usually
+   a memory access nested in a larger expression, such as the zero-extension
+   of a byte load, or in the address of another access; stack variables and
+   globals are memory accesses by then. *)
+Definition invalid_operand (ii : instr_info) (what: string) (e: pp_error) :=
+  gen_error false (Some ii)
+    (pp_nobox [:: pp_s what; PPEbreak;
+      e; PPEbreak;
+      pp_s "of this instruction cannot be expressed in the target architecture."; PPEbreak;
+      pp_s "The usual cause is a memory access (for instance to a stack variable, a global or an array element) inside a larger expression:"; PPEbreak;
+      pp_s "load it into a register variable first."
+  ]).
+
 End E.
 
 
@@ -354,13 +368,17 @@ Section EXPR.
   Definition to_fexpr (e: pexpr) : fexpr :=
     if fexpr_of_pexpr e is Some r then r else Fconst 0.
 
-  Let error msg := E.gen_error true (Some ii) (pp_s msg).
+  Definition check_fexpr (e: pexpr) :=
+    check_Some (fun what => E.invalid_operand ii what (pp_e e))
+      fexpr_of_pexpr "The condition" e.
 
-  Definition check_fexpr := check_Some error fexpr_of_pexpr "check_fexpr".
+  Definition check_rexpr (e: pexpr) :=
+    check_Some (fun what => E.invalid_operand ii what (pp_e e))
+      rexpr_of_pexpr "The argument" e.
 
-  Definition check_rexpr := check_Some error rexpr_of_pexpr "check_rexpr".
-
-  Definition check_lexpr := check_Some error lexpr_of_lval "check_lexpr".
+  Definition check_lexpr (x: lval) :=
+    check_Some (fun what => E.invalid_operand ii what (pp_lv x))
+      lexpr_of_lval "The destination" x.
 
 End EXPR.
 

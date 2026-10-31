@@ -1,0 +1,5 @@
+export fn entry(reg ptr u32[2] p, reg u32 x) -> reg u32 {
+  reg u32 r;
+  if ((p[0] == x) || (p[1] <s x)) { r = 1; } else { r = 2; }
+  return r;
+}
