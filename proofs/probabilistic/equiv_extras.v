@@ -9,25 +9,13 @@ From Paco Require Import paco.
 From ITree Require Import
   ITree
   ITreeFacts
-  Basics.HeterogeneousRelations
-  Interp.Recursion
-  Eq.Paco2
-  Events.Exception
-  Events.FailFacts
+  Basics.HeterogeneousRelations 
   Eq.Rutt
-  Eq.RuttFacts
-  EqAxiom.
-
-From mathcomp Require Import word_ssrZ ssreflect ssrfun ssrbool eqtype.
-
-Require Import rutt_extras xrutt xrutt_facts. 
+  Eq.RuttFacts.
 
 Import Monads.
 Import MonadNotation.
 Local Open Scope monad_scope.
-
-
-(** Lemmas about gpaco2 *)
 
 
 Lemma gpaco2_tau E0 V1 V2 b1 b2 (RR : V1 -> V2 -> Prop)
@@ -41,10 +29,6 @@ Proof.
   intro K3; gstep; red.
   econstructor; auto.
 Qed.  
-
-
-(** Lemmas about eutt, rutt and xrutt, mainly about weakening and
-   strengthening the relations. *)
 
 (* weakening eqit to eutt. probably already proved somewhere *)
 Lemma eqit2eutt {E: Type -> Type} {T1 T2} RR {b1 b2}
@@ -142,5 +126,3 @@ Proof.
   }  
 Qed.
 
-
-(*** lemmas about translate and eqit *)

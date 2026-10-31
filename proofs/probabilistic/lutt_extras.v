@@ -33,11 +33,7 @@ Notation execS := utils.exec.
 (* True as a predicate*)
 Notation TrueP := (fun=>True).
 
-
-(*** axiomatic version of some library lemmas *)
-Section AxSec.
-  
-
+(*** axiomatic version of bind_ret_l *)
 Lemma bind_ret_l_Eq {E R S} (r : R) (k : R -> itree E S) :
   ITree.bind (Ret r) k = (k r).
 Proof.
@@ -45,16 +41,10 @@ Proof.
 Qed.
 
 
-End AxSec.
-
-
 Section ImgEquivSec.
 
 Context {E1 E2 : Type -> Type} (F: E2 ~> E1)
         {T1 T2 : Type} (R: T1 -> T2 -> Prop).
-
-(* ITree image with respect to an event transformer F *)
-
 
 (* t1 is the rutt image of t2 when every event in t1 is the image by F
    of an event in t2.  *)
@@ -66,7 +56,6 @@ Definition rutt_img (t1 : itree E1 T1) (t2 : itree E2 T2) : Prop :=
                JMeq u1 u2)
        R t1 t2.
 
-
 End ImgEquivSec.
 
 
@@ -74,15 +63,12 @@ Section SafeSec.
 
 Context {E : Type -> Type} {P: forall T0, E T0 -> Prop}.
 
-(*** Safety with respect to a predicate P on events and a predicate R
-     on values. psafe implies that every event in the tree satisfies
-     P, and every returned value satisfies R. *)
-
+(** psafe implies that every event in the tree satisfies P, and every
+    returned value satisfies R. *)
 Definition psafe (T : Type) (R : T -> Prop) (t t' : itree E T) :=
   rutt (REv_eq P)
        (RAns_eq (fun T0 : Type => fun=> TrueP))
        (R_eq R) t t'.
-
 
 End SafeSec.
 
@@ -91,22 +77,15 @@ Section Safe_sec1R.
   
 Context {E1 E2 : Type -> Type}.
   
-
-(***** alternative definition of safety, by lifting the event
-       signature of an error-free tree. here E1 generalizes error
-       events. *)
-
-
+(** t12 is safe wrt E1 *)
 Definition rutt_inr (T1 T2 : Type) (R: T1 -> T2 -> Prop)
   (t12 : itree (E1 +' E2) T1) (t2 : itree E2 T2) : Prop :=
   @rutt_img  (E1 +' E2) E2 (fun _ e => inr1 e) T1 T2 R t12 t2. 
-
 
 Definition is_inlB T (e: (E1 +' E2) T) : bool :=
   match e with
   | inl1 _ => true
   | inr1 _ => false end.             
-
 
 End Safe_sec1R.
 
@@ -128,10 +107,7 @@ Definition ok_ret_rel {T1 T2} (RR: T1 -> T2 -> Prop) :
              | (utils.Ok x', utils.Ok y') => RR x' y'
              | _ => False end.
 
-(* RENAME
-general safety lemma (E does not need to be void). similar to
-   aux_gen_rutt_lemma1, but this is a preservation result wrt H1 *)
-Lemma (* aux_gen_rutt_lemma2 *) exec_rutt_eqit
+Lemma exec_rutt_eqit
   (PreR: prerel E E)
   (PostR: postrel E E)
   (V1 V2 : Type)
@@ -163,7 +139,6 @@ Proof.
   punfold H0. red in H0.
   simpl in *.
   hinduction H0 before CIH.
-
   { intros t1 t2 H H0 H1; simpl.
     setoid_rewrite interp_exec_Ret.
     gstep; red.
@@ -183,14 +158,12 @@ Proof.
     setoid_rewrite interp_exec_vis.
     setoid_rewrite interp_exec_vis in H1.
     destruct e as [e1 | e1] eqn: was_e ; simpl in *; simpl.    
-
     { destruct e1; simpl in *.
       setoid_rewrite bind_ret_l in H1.
       punfold H1; red in H1.
       dependent destruction H1.
       eapply RRel_hyp in H1; intuition auto.
     }  
-
     unfold lift_ktree_ in H1.
     setoid_rewrite bind_vis in H1.
     punfold H1; red in H1.
@@ -199,12 +172,10 @@ Proof.
     econstructor.
     intro v1.
     unfold Datatypes.id; simpl.
-    dependent destruction H1.
+    dependent destruction H1. 
     specialize (H2 v1 v1).
-    
     assert (PostR u u e1 v1 e1 v1) as K2.
     { eapply PostR_hyp; auto. }
-   
     setoid_rewrite bind_ret_l_Eq.
     setoid_rewrite bind_ret_l_Eq in H2.
     specialize (H2 K2); pclearbot.
@@ -215,7 +186,6 @@ Proof.
     eapply rutt_inv_Tau_l in H2.
     eapply rutt_inv_Tau_r in H2; auto.
   }
-
   { intros t0 t2 H H1 H2; simpl.
     setoid_rewrite interp_exec_tau.
     setoid_rewrite tau_euttge; auto.
@@ -224,7 +194,6 @@ Proof.
     setoid_rewrite tau_euttge in H2.
     setoid_rewrite (itree_eta t1) in H2. auto.
   }
-
   { intros t1 t0 H H1 H2; simpl.
     setoid_rewrite interp_exec_tau.
     setoid_rewrite tau_euttge; auto.
@@ -255,10 +224,9 @@ Proof.
   intros H H0.
   eapply simple_rutt_eutt; eauto.
   eapply rutt2eutt in H0.
-  eapply eqit_bind'.
-  
+  eapply eqit_bind'.  
   - instantiate (1 := ok_ret_rel RR); simpl.
-    eapply exec_rutt_eqit in H; eauto.                                   
+    eapply exec_rutt_eqit in H; eauto.                                 
   - intros r1 r2 H1.
     setoid_rewrite <- eqit_Ret.
     unfold ok_ret_rel in H1.
@@ -327,8 +295,7 @@ Proof.
           econstructor. auto.
        }   
       }
-    }
-    
+    }    
     intros u1 u2 H3.
     destruct u1; simpl in *; try intuition auto.
     destruct u2; simpl in *; try intuition auto.
@@ -346,14 +313,12 @@ Proof.
     gfinal; left.
     eapply CIH; eauto.
   }
-
   { intros t0 t2 H0 H1; simpl.
     setoid_rewrite interp_exec_tau.
     setoid_rewrite tau_euttge.
     setoid_rewrite (itree_eta t1).
     eapply IHruttF; eauto.
   }
-
   { intros t1 t0 H1 H2; simpl.
     setoid_rewrite interp_exec_tau.
     setoid_rewrite tau_euttge.
@@ -362,8 +327,8 @@ Proof.
   }
 Qed.  
 
-Lemma ruttNL_absurd V1 (RR: V1 -> V1 -> Prop)
-               B (e : ErrEvent B) (k1 : B -> itree (ErrEvent +' E) V1) :
+Lemma ruttNL_absurd V1 (RR: V1 -> V1 -> Prop) B
+  (e : ErrEvent B) (k1 : B -> itree (ErrEvent +' E) V1) :
   forall t1' : itree (ErrEvent +' E) V1,
       rutt (REv_eq (fun (T : Type) (e : (ErrEvent +' E) T) => ~~ is_inlB e))
         (RAns_eq (fun T : Type => fun=> TrueP)) RR 
@@ -442,17 +407,14 @@ Proof.
     { destruct H2 as [t1' H2].
       eapply ruttNL_absurd; eauto. }
     intuition auto.    
-    econstructor; auto.
-    
+    econstructor; auto.    
     { unfold REv_eq; simpl.
       split; eauto.
       exists erefl; simpl; auto.
     }
-
     { intros a b H4.
       gfinal; left.
       eapply CIH; eauto.
-
       { destruct H2 as [t0 H2].
         eapply ruttNL_vis_inv; eauto.
       }          
@@ -465,7 +427,6 @@ Proof.
       }
     }
   }
-
   { intros t0 t2 H1 H2; simpl.
     setoid_rewrite tau_euttge.
     setoid_rewrite (itree_eta t1).
