@@ -14,7 +14,7 @@ let pp_syscall (o : _ Syscall_t.syscall_t) =
    object file. On ELF (and COFF) targets the assembler treats a symbol whose
    name starts with ".L" as such an assembler-local label; on Mach-O the
    convention is a bare "L" prefix. *)
-let local_label_prefix () = if is_target_system_macos () then "L" else ".L"
+let local_label_prefix () = if is_target_macho () then "L" else ".L"
 
 let string_of_label name p =
   Format.asprintf "%s%s$%a" (local_label_prefix ()) (escape name) Z.pp_print (Conv.z_of_pos p)
@@ -50,6 +50,8 @@ let pp_call_target ((fn, lbl) : Label.remote_label) =
 let text_section name =
   Header (".section", [ ".text." ^ name; "\"ax\""; "%progbits" ])
 
+(* The C compiler of Apple platforms prefixes the symbol of a C function with
+   an underscore: this belongs to the platform, not to the object format. *)
 let mangle x =
   if is_target_system_macos () then
     Format.asprintf "_%s" x

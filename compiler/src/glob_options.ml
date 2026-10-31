@@ -27,10 +27,10 @@ let function_sections = ref false
 
 (* Whether every function is laid out in a section of its own. Mach-O has no
    ELF sections, and the directives that go with them do not exist there, so
-   the option is silently ignored on that system: the output of a macOS
-   target never depends on it. *)
+   the option is silently ignored in that format: Mach-O output never depends
+   on it. *)
 let use_function_sections () =
-  !function_sections && not (is_target_system_macos ())
+  !function_sections && not (is_target_macho ())
 
 let verbosity = ref 1
 
@@ -216,6 +216,7 @@ let options = [
     "-call-conv", Arg.Symbol (["windows"; "linux"], set_cc), " Select calling convention (default depends on host architecture)";
     "-arch", Arg.Symbol (List.map fst architectures, set_target_arch), " Select target arch (default is x86-64)";
     "-system", Arg.Symbol (["macosx"; "linux"], set_target_system), " Select target system (default is "^ Config.target_system^")";
+    "-format", Arg.Symbol (["elf"; "mach-o"], set_target_format), " Select the object format of the assembly output (default is mach-o on macosx, elf otherwise)";
     "-function-sections", Arg.Set function_sections, " Place each function in its own section (ELF only)";
     "-stack-zero",
       Arg.Symbol (List.map fst stack_zero_strategies, set_stack_zero_strategy),
