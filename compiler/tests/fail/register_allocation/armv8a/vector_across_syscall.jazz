@@ -1,0 +1,14 @@
+// A system call preserves no V register (AAPCS64 only preserves the low 64
+// bits of V8-V15): a vector cannot stay in a register across #randombytes.
+export
+fn vector_across_syscall(reg u64 p) {
+    reg u128 a;
+    reg u64 b;
+    stack u8[16] t;
+
+    a = [:u128 p];
+    t = #randombytes(t);
+    [:u128 p + 16] = a;
+    b = (64u)t[0];
+    [:u8 p + 32] = b;
+}
