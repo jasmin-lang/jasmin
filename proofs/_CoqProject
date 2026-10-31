@@ -244,3 +244,6 @@ lang/waes.v
 lang/warray_.v
 lang/word.v
 lang/wsize.v
+
+itrees/tfam_iso.v
+itrees/eutt_extras.v
