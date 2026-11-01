@@ -179,12 +179,10 @@ Fixpoint check_instr (p : ufun_decls) (i : instr) : cexec unit :=
     | Cassgn x _ ty e => Let _ := check_expr ty_expr e ty in
                           check_lval x ty
     | Copn xs _ sop es => let (tins , tout) :=
-    (* TODO see if you can not pass it explicitely here too *)
-                            (sopn_tin (pd := pd) (msfsz := msfsz) sop ,
-                             sopn_tout (pd := pd) (msfsz := msfsz) sop) in
+                            (sopn_tin sop , sopn_tout sop) in
                           Let _ := check_exprs ty_expr es tins in
                           Let _ := check_lvals xs tout in
-                          if (sopn_i_valid sop) then ok tt else Error E.array_expected
+                          if (sopn_i_valid sop) then ok tt else Error E.invalid_intrinsics
     | Csyscall xs o es => let s := syscall_sig_u o in
                           let tins := scs_tin s in
                           let tout := scs_tout s in
