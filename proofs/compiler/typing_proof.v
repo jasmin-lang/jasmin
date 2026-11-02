@@ -633,11 +633,12 @@ Context {iE0 : InvEvent E0}.
   {|
     preF_ := fun fn fs =>
             (exists fd, get_fun (p_funcs p) fn = ok fd /\
-              List.Forall2 (fun t v => subctype t (type_of_val v))
+              List.Forall2 (fun t v => (*TODO see if this can become equality too*) 
+                                      subctype t (type_of_val v))
                                       (map eval_atype (f_tyin fd)) (fvals fs));
     postF_ := fun fn fs fs' =>
             (exists fd, get_fun (p_funcs p) fn = ok fd /\
-              List.Forall2 (fun t v => subctype t (type_of_val v))
+              List.Forall2 (fun t v => t == (type_of_val v))
                                       (map eval_atype (f_tyout fd)) (fvals fs'));
   |}.
 
@@ -655,7 +656,7 @@ Qed.
 Lemma postF_tyout fn fd fs fs' :
   postF fn fs fs' ->
   get_fun (p_funcs p) fn = ok fd ->
-  List.Forall2 (fun t v => subctype t (type_of_val v))
+  List.Forall2 (fun (t : ctype) v => t == (type_of_val v))
                (map eval_atype (f_tyout fd)) (fvals fs').
 Proof.
   move=> [fd0 [Hget_fun0 HF] Hget_fun].
@@ -827,7 +828,7 @@ Proof using Hgd.
   - (*Cwhile*) admit.
   - (*Ccall*)
     move=> xs fn es ii.
-    rewrite /check_cmd /allM /=. t_xrbindP => f Hgetfun Hes Hxs _.
+    rewrite /check_cmd /allM /=. t_xrbindP => f Hgetfun Hes /check_lvalsP Hxs _.
     apply (hoare_call (Qerr:=noerrty) (Pf:=preF) (Qf:=postF)
                       (Rv:=List.Forall2 (fun t v => subctype t (type_of_val v)) (map eval_atype (f_tyin f)))) => //.
     - apply: rhoare_noerrty => [s _ | /= s vs _ Hsem] /=.
@@ -847,8 +848,8 @@ Proof using Hgd.
       move=> /mapM2_truncate_val_type Hvs'ty.
       apply: rbind_noerrty => [| s' _].
       - rewrite /write_vars.
-        apply: (fold2_noerrty (R:=fun x v => subctype (eval_atype (ty_var x)) (type_of_val v))).
-        apply: (Forall2_trans _ Hchk_iparams Hvs'ty) => ty x v Hsub -> //.
+        apply: (fold2_noerrty (R:=fun x v => subctype (eval_atype (ty_var x)) (type_of_val v)));
+        first by apply: (Forall2_trans _ Hchk_iparams Hvs'ty) => ty x v Hsub ->.
         move=> x v ?. apply: write_var_noerrty.
       - apply: rbind_noerrty => //.
         apply: mapM_noerrty => -[lbl ea] HIn.
@@ -857,11 +858,47 @@ Proof using Hgd.
         apply rbind_noerrty => [| ? _]; first by rewrite (negbFE Haa).
         apply rbind_noerrty => [| b _]; first apply: check_eassertP Hchk.
         apply rbind_noerrty => //; by case: b.
-    - 
-    - admit.
+    - move => vs fs fs' Hvs Hfn Hpost_f.
+      have Hf_tyout := postF_tyout Hpost_f Hgetfun.
+      apply: rhoare_noerrty => // _ _.
+      rewrite /sem_post/dc_truncate_val.
+      case: ifP => // /negbFE Haa.
+      move: (allMP (In_rev (get_fun_In Hgetfun)) Hfns).
+      rewrite /check_fun/oapp. t_xrbindP => /= Hchk_params Hchk_res Hchk_body Hoapp _.
+      move: Hgetfun.
+      move => /get_funP ->.
+      move: Hoapp.
+      case Hf_contract: f_contract => [f_contr |] //.
+      rewrite /check_contract. t_xrbindP => /check_lvals_vars_subctype Hchk_iparams /check_lvals_vars_subctype Hchk_ires Hf_pre Hf_post.
+      apply: rbind_noerrty => [|vs' /=]; first exact: (Forall2_mapM2_noerrty Hvs truncate_val_noerrty).
+      move=> /mapM2_truncate_val_type Hvs'ty.
+      rewrite /write_vars.
+      apply: rbind_noerrty => [| s' _].
+      - apply: (fold2_noerrty (R:=fun x v => subctype (eval_atype (ty_var x)) (type_of_val v)));
+        first by apply: (Forall2_trans _ Hchk_iparams Hvs'ty) => ty x v Hsub ->.
+        move=> x v ?. apply: write_var_noerrty.
+      - apply: rbind_noerrty.
+        - apply: (fold2_noerrty (R:=fun x v => subctype (eval_atype (ty_var x)) (type_of_val v)));
+          first by apply: (Forall2_trans _ Hchk_ires Hf_tyout) => ty x v Hsub /eqP <-.
+          move=> x v ?. apply: write_var_noerrty.
+        - move=> s'' Hf. apply: rbind_noerrty => //. apply: mapM_noerrty => -[lbl ea] HIn.
+          move: (allMP HIn Hf_post) => /= Hchk.
+          rewrite /sem_assert/assert.
+          apply rbind_noerrty => [| ? _]; first by rewrite Haa.
+          apply rbind_noerrty => [| b _]; first apply: check_eassertP Hchk.
+          apply rbind_noerrty => //; by case: b.
+    - move => fs fs' HpreF HpostF s _ /=.
+      have Hf_tyout := postF_tyout HpostF Hgetfun.
+      have Hty : List.Forall2 (fun ty v => type_of_val v = eval_atype ty) (f_tyout f) (fvals fs').
+      - apply: (Forall2_trans _ (map_Forall2 eval_atype (f_tyout f)) Hf_tyout).
+        by move=> ??? <- /eqP ->.
+      case Hupd: (upd_estate _ _ _ _ _) => //. 
+      move: Hupd; rewrite /upd_estate/write_lvals.
+      move => Hf ?. subst. 
+      apply: (fold2_noerrty (R := fun x v => forall s, write_lval true (p_globs p) x v s <> Error ErrType) _ _ Hf); last by move => *.
+      apply: (Forall2_trans _ Hxs Hty) => ty x v Hchk Hv s'.
+      exact: (write_lval_progress _ Hv _).
 Admitted.
-
-
 End CMD.
 
 Notation fun_safe fn := (khoare_io (preF fn) (isem_fun p ev fn) (postF fn)).
@@ -931,8 +968,7 @@ Proof.
         apply: (Forall2_trans _ Hf_iparams Hvs) => ???? -> //.
       - apply rbind_noerrty => [|s' _].
         - apply: (fold2_noerrty _ write_var_noerrty).
-          apply: (Forall2_trans _ Hf_ires Hres_ty) => ???.
-          apply: subctype_trans.
+          by apply: (Forall2_trans _ Hf_ires Hres_ty) => ??? ? /eqP <-.
         - apply: rbind_noerrty => //. 
           apply: mapM_noerrty => -[lbl ea] Hin.
           have Hcheckpost := (Hf_post _ Hin).
