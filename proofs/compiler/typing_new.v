@@ -26,6 +26,7 @@ Module Import E.
   Definition check_type_failed := typing_error (pp_s "check type failed").
   Definition arity_mismatch := typing_error (pp_s "arity mismatch").
   Definition unknown_function := typing_error (pp_s "Unknown function").
+  Definition undefined_global := typing_error (pp_s "Global variable not defined").
   Definition global_mismatch := typing_error (pp_s "global variable type value mismatch").
   Definition invalid_intrinsics := typing_error (pp_s "invalid intrinsics type").
 
@@ -83,6 +84,15 @@ Definition check_type (te : atype (*actual type*)) (ty : atype (*expected type*)
           pp_hov [:: pp_s "subatype ty te ="; pp_s (if b then "true" else "false")%string]]))
   else ok tt.
 
+Section WITH_GLOBS.
+
+Context (gd : glob_decls).
+
+Definition check_var (x: gvar) : cexec unit := 
+  if (is_lvar x) then ok tt else
+                              if get_global_value gd (x.(gv)) is Some ga 
+                              then ok tt else Error E.undefined_global.
+
 Definition check_int (te : atype) : cexec unit := check_type te (aint).
 
 Definition check_ptr (te : atype) : cexec unit := check_type te (aword Uptr).
@@ -95,6 +105,7 @@ Definition check_exprs_ (ty_expr : pexpr -> cexec atype) (es : seq pexpr) (tys :
   fold2 E.arity_mismatch (fun e ty _ => check_expr_ ty_expr e ty) es tys tt.
 
 Definition ty_get_set_ (ty_expr : pexpr -> cexec atype) (ws : wsize) (x : gvar) (e' : pexpr) : cexec atype :=
+  Let _ := check_var x in
   let tx := ty_gvar x in
   Let te := ty_expr e' in
   Let _ := check_array tx in
@@ -102,6 +113,7 @@ Definition ty_get_set_ (ty_expr : pexpr -> cexec atype) (ws : wsize) (x : gvar) 
   ok (aword ws).
 
 Definition ty_get_set_sub_ (ty_expr : pexpr -> cexec atype) (ws : wsize) (len : Z) (x : gvar) (e' : pexpr) : cexec atype := 
+  Let _ := check_var x in
   let tx := ty_gvar x in
   Let te := ty_expr e' in
   Let _ := check_array tx in
@@ -118,7 +130,8 @@ Fixpoint ty_expr (e : pexpr) : cexec atype :=
     | Pconst _ => ok aint
     | Pbool _ => ok abool
     | Parr_init ws len => ok (aarr ws len)
-    | Pvar x => ok (ty_gvar x)
+    | Pvar x => Let _ := check_var x in
+                ok (ty_gvar x)
     | Pget _ _ ws x e => ty_get_set_ ty_expr ws x e
     | Psub _ ws len x e => ty_get_set_sub_ ty_expr ws len x e
     | Pload _ ws e =>     ty_load_store_ ty_expr ws e
@@ -149,8 +162,8 @@ Definition ty_lval (x : lval): cexec atype :=
     | Lnone _ ty => ok ty
     | Lvar x' => ok (ty_var x')
     | Lmem _ ws _ e => ty_load_store ws e 
-    | Laset _ _ ws x' e => ty_get_set ws (mk_gvar x') e 
-    | Lasub _ ws len x' e => ty_get_set_sub ws len (mk_gvar x') e
+    | Laset _ _ ws x' e => ty_get_set ws (mk_lvar x') e 
+    | Lasub _ ws len x' e => ty_get_set_sub ws len (mk_lvar x') e
   end.
 
 Definition check_lval (x : lval) (ty : atype) : cexec unit :=
@@ -198,7 +211,7 @@ Fixpoint check_instr (p : ufun_decls) (i : instr) : cexec unit :=
     | Cif e c1 c2 => Let _ := check_expr e abool in
                       Let _ := check_cmd check_instr p c1 in
                       check_cmd check_instr p c2
-    | Cfor i (_ ,e1 ,e2) c => Let _ := check_expr (Pvar (mk_gvar i)) aint in
+    | Cfor i (_ ,e1 ,e2) c => Let _ := check_expr (Pvar (mk_lvar i)) aint in
                               Let _ := check_expr e1 aint in
                               Let _ := check_expr e2 aint in
                               check_cmd check_instr p c
@@ -242,11 +255,13 @@ Definition check_fun (p : ufun_decls) (func : ufun_decl) : cexec unit :=
   Let _ := oapp (check_contract fd.(f_tyin) fd.(f_tyout)) (ok tt) fd.(f_contract) in
   ok tt.
 
+End WITH_GLOBS.
+
 Definition check_prog (p : uprog): cexec unit :=
   let gds := p.(p_globs) in
   let funcs := p.(p_funcs) in
   Let _ := allM check_global_decl gds in
-  Let _ := allM (check_fun funcs) (rev funcs) in
+  Let _ := allM (check_fun gds funcs) (rev funcs) in
   ok tt.
 
 

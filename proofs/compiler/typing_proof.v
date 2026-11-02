@@ -128,6 +128,24 @@ Context
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}.
 
+Section GLOBALS.
+
+Context {gd : glob_decls}.
+
+Notation check_var      := (check_var gd).
+Notation ty_expr        := (ty_expr gd).
+Notation check_expr     := (check_expr gd).
+Notation check_exprs    := (check_exprs gd).
+Notation ty_get_set     := (ty_get_set gd).
+Notation ty_get_set_sub := (ty_get_set_sub gd).
+Notation ty_load_store  := (ty_load_store gd).
+Notation ty_lval        := (ty_lval gd).
+Notation check_lval     := (check_lval gd).
+Notation check_lvals    := (check_lvals gd).
+Notation check_eassert  := (check_eassert gd).
+Notation check_instr    := (check_instr gd).
+Notation check_contract := (check_contract gd).
+Notation check_fun      := (check_fun gd).
 
 (* Inversion lemmas for the type checker *)
 
@@ -150,11 +168,21 @@ Proof.
   case: t => // ws n _ ; exists ws, n.
 Qed.
 
-Lemma check_global_declP (gd : glob_decl) :
-  check_global_decl gd = ok tt ->
-  type_of_val (gv2val gd.2) = eval_atype (vtype gd.1).
+Lemma check_varP x :
+  check_var x = ok tt ->
+  is_lvar x = false ->
+  exists ga, assoc gd (gv x) = Some ga.
 Proof.
-  rewrite /check_global_decl. case: gd => x [ws w | len a] /=;
+  rewrite /check_var /get_global_value => H Hlv.
+  move: H; rewrite Hlv.
+  by case: (assoc gd (gv x)) => [ga|] // _; exists ga.
+Qed.
+
+Lemma check_global_declP (g : glob_decl) :
+  check_global_decl g = ok tt ->
+  type_of_val (gv2val g.2) = eval_atype (vtype g.1).
+Proof.
+  rewrite /check_global_decl. case: g => x [ws w | len a] /=;
     by case: (vtype x) => //= >; case: ifP => // /eqP ->.
 Qed.
 
@@ -311,26 +339,27 @@ Proof.
   by rewrite Htyx => /compat_valEl [t ->].
 Qed.
 
-Lemma on_arr_gvar_noerrty {T} gd vm x ws n (f : forall len, WArray.array len -> exec T) :
+Lemma on_arr_gvar_noerrty {T} vm x ws n (f : forall len, WArray.array len -> exec T) :
   (forall g, List.In g gd -> check_global_decl g = ok tt) ->
+  check_var x = ok tt ->
   ty_gvar x = aarr ws n ->
   (forall (t : WArray.array (arr_size ws n)), f _ t <> Error ErrType) ->
   on_arr_var (get_gvar true gd vm x) f <> Error ErrType.
 Proof.
-  move=> Hgd Htyx Hf; rewrite /get_gvar; case: ifP => _.
+  move=> Hgd /check_varP Hx Htyx Hf; rewrite /get_gvar; case: ifP => Hlv.
   - exact: on_arr_var_noerrty Htyx Hf.
-  rewrite /get_global /get_global_value /=.
-  case Hassoc: (assoc gd (gv x)) => [p|] //=.
-  have Hp := check_global_declP (Hgd _ (assoc_mem' Hassoc)).
+  have [ga E] := Hx Hlv.
+  rewrite /get_global /get_global_value E /=.
+  have Hp := check_global_declP (Hgd _ (assoc_mem' E)).
   move: Hp; rewrite /ty_gvar /ty_var in Htyx; rewrite Htyx => /= Hp.
   rewrite Hp eqxx /=.
-  by move: Hp => /type_of_valI [a ->]; exact: Hf.
+  by move: Hp => /type_of_valI [a ->]; exact: Hf.  
 Qed.
 
 Section EXPR.
 (* Expr Preservation *)
 
-Lemma ty_expr_preserves (gd : glob_decls) (s : estate) e ty v :
+Lemma ty_expr_preserves (s : estate) e ty v :
   ty_expr e = ok ty ->
   sem_pexpr true gd s e = ok v ->
   type_of_val v = eval_atype ty.
@@ -349,9 +378,9 @@ Proof.
     | t e e1 e2
     ] /=.
   1-3: by move=> [<-] [<-].
-  2-3: by rewrite /ty_get_set /ty_get_set_ /ty_get_set_sub /ty_get_set_sub_; t_xrbindP=> _ _ _ _ <-;
+  2-3: by rewrite /ty_get_set /ty_get_set_ /ty_get_set_sub /ty_get_set_sub_; t_xrbindP=> _ _ _ _ _ <-;
        rewrite /on_arr_var; t_xrbindP=> -[] // len a; t_xrbindP=> _ _ _ _ _ ? _ <-.
-  - by move=> [<-] /get_gvar_compat [] /compat_val_defined -> /eqP.
+  - t_xrbindP => _. by move=> <- /get_gvar_compat [] /compat_val_defined -> /eqP.
   - by rewrite /ty_load_store /ty_load_store_; t_xrbindP=> _ _ _ <- _ _ _ _ ? _ <-.
   - rewrite /= /type_of_op1 /sem_sop1.
     by case: op => [ | | | | | | [] | ? []] //=; t_xrbindP => *; subst.
@@ -368,7 +397,7 @@ Proof.
 Qed.
 
 (* Expr Progress *)
-Lemma check_exprs_subctype gd s es tins vs :
+Lemma check_exprs_subctype s es tins vs :
   check_exprs es tins = ok tt ->
   mapM (sem_pexpr true gd s) es = ok vs ->
   List.Forall2 (fun t v => subctype t (type_of_val v)) (map eval_atype tins) vs.
@@ -381,7 +410,7 @@ Proof.
     apply (subatype_subctype Hsub).
 Qed.
 
-Lemma sem_to_int_noerrty gd s e tye :
+Lemma sem_to_int_noerrty s e tye :
   ty_expr e = ok tye ->
   check_int tye = ok tt ->
   sem_pexpr true gd s e <> Error ErrType ->
@@ -392,7 +421,7 @@ Proof.
   by apply: (of_val_noerrty (t := cint)); rewrite Htv -Htyeint.
 Qed.
 
-Lemma sem_to_bool_noerrty gd s e tye :
+Lemma sem_to_bool_noerrty s e tye :
   ty_expr e = ok tye ->
   check_type tye abool = ok tt ->
   sem_pexpr true gd s e <> Error ErrType ->
@@ -403,7 +432,7 @@ Proof.
   by apply: (of_val_noerrty (t := cbool)); rewrite Htv -Htyebool.
 Qed.
 
-Lemma sem_to_pointer_noerrty gd s e tye:
+Lemma sem_to_pointer_noerrty s e tye:
   ty_expr e = ok tye ->
   check_type tye (aword Uptr) = ok tt ->
   sem_pexpr true gd s e <> Error ErrType ->
@@ -414,7 +443,7 @@ Proof.
   by apply: (of_val_noerrty (t := (cword Uptr))); rewrite Htv Hsub.
 Qed.
 
-Lemma sem_truncate_val_noerrty gd s e ty t :
+Lemma sem_truncate_val_noerrty s e ty t :
   sem_pexpr true gd s e <> Error ErrType ->
   ty_expr e = ok ty ->
   check_type ty t = ok tt ->
@@ -426,7 +455,7 @@ Proof.
   apply/truncate_val_noerrty. rewrite Hvty. by apply subatype_subctype.
 Qed.
 
-Lemma ty_expr_progress (gd : glob_decls) (s : estate) (e : pexpr) (ty : atype) :
+Lemma ty_expr_progress (s : estate) (e : pexpr) (ty : atype) :
   allM check_global_decl gd = ok tt ->
   ty_expr e = ok ty ->
   sem_pexpr true gd s e <> Error ErrType.
@@ -435,20 +464,21 @@ Proof.
   elim: e ty =>
     [ | | | x | ??? x e IH | ??? x e IH | ? ws e IH
     | op e IHe | op e1 IHe1 e2 IHe2 | op es H | t e1 IHe1 e2 IHe2 e3 IHe3 ] ty //=.
-  - rewrite /= /get_gvar /get_var /get_global /get_global_value => _ /=.
-    case: (is_lvar x).
+  - t_xrbindP => /check_varP Hx _ /=.
+    rewrite /get_gvar /get_var /get_global /get_global_value.
+    case Hlv: (is_lvar x).
     - by case: (is_defined (evm s).[gv x]).
-    - case E: (assoc gd (gv x)) => [p|] //.
-      by move: (check_global_declP (Hgd _ (assoc_mem' E))) => /= /eqP ->.
+    have [ga E] := Hx Hlv.
+    by rewrite E /=; move: (check_global_declP (Hgd _ (assoc_mem' E))) => /= /eqP ->.
   - rewrite /ty_get_set /ty_get_set_.
-    t_xrbindP => tye Htye /check_arrayP [ws [n Htyx]] HtyeInt _.
-    apply (on_arr_gvar_noerrty Hgd Htyx) => t'.
+    t_xrbindP => Hx tye Htye /check_arrayP [ws [n Htyx]] HtyeInt _.
+    apply (on_arr_gvar_noerrty Hgd Hx Htyx) => t'.
     apply: rbind_noerrty => [|i _]; first exact: sem_to_int_noerrty Htye HtyeInt (IH _ Htye).
     apply: rbind_noerrty => [| _ _ //].
     exact: read_noerrty.
   - rewrite /ty_get_set_sub /ty_get_set_sub_.
-    t_xrbindP => tye Htye /check_arrayP [ws [n Htyx]] HtyeInt _.
-    apply (on_arr_gvar_noerrty Hgd Htyx) => t'.
+    t_xrbindP => Hx tye Htye /check_arrayP [ws [n Htyx]] HtyeInt _.
+    apply (on_arr_gvar_noerrty Hgd Hx Htyx) => t'.
     apply: rbind_noerrty => [|i _]; first exact: sem_to_int_noerrty Htye HtyeInt (IH _ Htye).
     apply: rbind_noerrty => [| _ _ //].
     rewrite /WArray.get_sub.
@@ -509,7 +539,7 @@ Proof.
   by case: ifP.
 Qed.
 
-Lemma write_lval_progress x v s gd ty :
+Lemma write_lval_progress x v s ty :
   allM check_global_decl gd = ok tt ->
   type_of_val v = eval_atype ty ->
   check_lval x ty = ok tt ->
@@ -532,7 +562,7 @@ Proof.
     apply: rbind_noerrty => [/(of_val_noerrty Hsubc) //| ??].
     by apply: rbind_noerrty => [|//]; exact: write_noerrty.
   - rewrite /ty_get_set /ty_get_set_.
-    t_xrbindP => ?? Hty2 /check_arrayP [ws' [n Htyarr]] Hcint <- /check_typeP/subatype_subctype.
+    t_xrbindP => ? _ ? Hty2 /check_arrayP [ws' [n Htyarr]] Hcint <- /check_typeP/subatype_subctype.
     rewrite -Hvty => Hsubc /=.
     apply: (on_arr_var_noerrty Htyarr) => t.
     apply: rbind_noerrty => [|??].
@@ -542,7 +572,7 @@ Proof.
     apply: write_var_noerrty.
     by move: Htyarr; rewrite /ty_gvar /ty_var /= => -> /=; rewrite eqxx.
   - rewrite /ty_get_set_sub /ty_get_set_sub_.
-    t_xrbindP => ?? Hty2 /check_arrayP [ws' [n Htyarr]] Hcint <- /check_typeP/subatype_subctype.
+    t_xrbindP => ? _ ? Hty2 /check_arrayP [ws' [n Htyarr]] Hcint <- /check_typeP/subatype_subctype.
     rewrite -Hvty => Hsubc /=.
     apply: (on_arr_var_noerrty Htyarr) => t.
     apply: rbind_noerrty => [|??].
@@ -554,6 +584,9 @@ Proof.
 Qed.
 
 
+End GLOBALS.
+
+
 Section IT.
 
 Context
@@ -561,6 +594,21 @@ Context
   {wE : with_Error E E0}
   {p  : prog}
   {ev : extra_val_t}.
+
+Notation check_var      := (check_var (p_globs p)).
+Notation ty_expr        := (ty_expr (p_globs p)).
+Notation check_expr     := (check_expr (p_globs p)).
+Notation check_exprs    := (check_exprs (p_globs p)).
+Notation ty_get_set     := (ty_get_set (p_globs p)).
+Notation ty_get_set_sub := (ty_get_set_sub (p_globs p)).
+Notation ty_load_store  := (ty_load_store (p_globs p)).
+Notation ty_lval        := (ty_lval (p_globs p)).
+Notation check_lval     := (check_lval (p_globs p)).
+Notation check_lvals    := (check_lvals (p_globs p)).
+Notation check_eassert  := (check_eassert (p_globs p)).
+Notation check_instr    := (check_instr (p_globs p)).
+Notation check_contract := (check_contract (p_globs p)).
+Notation check_fun      := (check_fun (p_globs p)).
 
 Definition noerrty err : Prop :=
   err <> ErrType.
