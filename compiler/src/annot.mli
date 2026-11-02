@@ -88,5 +88,3 @@ val ensure_uniq1 :
 
 val consume :
   string -> Annotations.annotations -> Annotations.annotations
-
-val has_comment_annot : Annotations.annotations -> string list option
