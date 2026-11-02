@@ -22,10 +22,10 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import compiler_util psem psem_facts.
-Require Import wint_int toec_for toec_while normalize_calls contracts_to_asserts safety
-  explicit_init simplify_asserts assert_facts typing_check dead_code dead_args toec_prog.
+Require Import wint_int toec_for toec_while for_to_while normalize_calls contracts_to_asserts
+  safety explicit_init simplify_asserts assert_facts typing_check dead_code dead_args toec_prog.
 Require Import wint_int_proof normalize_calls_proof contracts_to_asserts_proof safety_proof
-  toec_while_proof toec_for_proof explicit_init_proof simplify_asserts_proof
+  toec_while_proof toec_for_proof for_to_while_proof explicit_init_proof simplify_asserts_proof
   assert_facts_proof typing_check_proof dead_code_total_proof dead_args_proof.
 
 Section PROOF.
@@ -72,12 +72,14 @@ Lemma common_tgt_src (wi2i : bool) (p pc : uprog) :
     (fun _ _ => common_rel wi2i (vs_pre fsig.1)) fn fn
     (fun _ _ _ _ => common_rel wi2i (vs_post fsig.2)).
 Proof using rE_trans.
-  move=> + fn fd hfd fsig; rewrite /toec_uprog_common; t_xrbindP => pi hpi pn hpn hpc.
+  move=> + fn fd hfd fsig; rewrite /toec_uprog_common; t_xrbindP => pi hpi pn hpn pf hpf hpc.
   have hc : wiequiv_f_ withassert withassert partial partial pc pi ev ev
       (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
-  - apply: (wiequiv_f_trans_eq_r (wa2 := withassert) (sm2 := partial)
+  - apply: (wiequiv_f_trans_eq_r (wa2 := withassert) (sm2 := partial) (p2 := pf)).
+    + exact: (for_to_while_l (rE := rE) ev hpc).
+    apply: (wiequiv_f_trans_eq_r (wa2 := withassert) (sm2 := partial)
              (p2 := toec_while_prog pn)).
-    + exact: (toec_for_l (rE := rE) ev hpc).
+    + exact: (toec_for_l (rE := rE) ev hpf).
     apply: (wiequiv_f_trans_eq_r (wa2 := withassert) (sm2 := partial) (p2 := pn)).
     + exact: (toec_while_l (rE := rE) pn ev).
     exact: (normalize_calls_l (rE := rE) ev hpn).

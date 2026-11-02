@@ -1,5 +1,5 @@
-Require Import wint_int toec_for toec_while normalize_calls contracts_to_asserts safety
-  explicit_init simplify_asserts assert_facts typing_check dead_args drop_asserts.
+Require Import wint_int toec_for toec_while for_to_while normalize_calls contracts_to_asserts
+  safety explicit_init simplify_asserts assert_facts typing_check dead_args drop_asserts.
 Import compiler_util expr.
 
 #[local] Instance toec_LoopCounter : LoopCounter :=
@@ -16,13 +16,14 @@ Context (get_info : _uprog -> Sv.t * (var -> option (signedness * var))).
 (* The passes common to both extractions: the words annotated [wint] become
    integers when [wi2i] holds (on a program without [wint], [wi2i_prog] is the
    identity); then the destinations of the calls are normalised, so that the
-   results of a call are in distinct variables, and the loops are put in the
-   form that EasyCrypt expects. *)
+   results of a call are in distinct variables, the loops are put in the
+   form that EasyCrypt expects, and the [for] loops become [while] loops. *)
 Definition toec_uprog_common (wi2i : bool) (p : _uprog) : cexec _uprog :=
   Let p := if wi2i then wi2i_prog get_info p else ok p in
   Let p := normalize_calls_prog (pT := progUnit) fresh_var_ident p in
   let p := toec_while_prog (pT := progUnit) p in
-  toec_for_prog (pT := progUnit) fresh_var_ident p.
+  Let p := toec_for_prog (pT := progUnit) fresh_var_ident p in
+  for_to_while_prog (pT := progUnit) fresh_var_ident p.
 
 (* The plain extraction: the common passes, then the assertions of the source
    are removed. *)
