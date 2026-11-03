@@ -94,12 +94,10 @@ let pp_arg (a : (register, Arch_utils.empty, Arch_utils.empty, rflag, condt) pp_
       else Some (Format.asprintf "%s %s" sk (pp_imm n))
   | PPa_shift _ -> assert false
 
-let pp_mnemonic (ARMv8A_op (mn, _) as op) =
+let pp_mnemonic op =
   let id = instr_desc Armv8a_decl.armv8a_decl Armv8a_instr_decl.armv8a_op_decl (None, op) in
   let pp = id.id_pp_asm [] in
-  match mn with
-  | UXTW -> "mov" (* [UXTW] is written [MOV <Wd>, <Wn>]. *)
-  | _ -> String.lowercase_ascii pp.pp_aop_name
+  String.lowercase_ascii pp.pp_aop_name
 
 (* Split an [ADR] instruction to a global symbol into an [ADRP]/[ADD]
    pair using :lo12: relocations. *)

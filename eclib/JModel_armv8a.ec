@@ -201,8 +201,6 @@ op UXTB_32 (x: W8.t)  : W32.t = W32.of_int (W8.to_uint x).
 op UXTH_64 (x: W16.t) : W64.t = W64.of_int (W16.to_uint x).
 op UXTH_32 (x: W16.t) : W32.t = W32.of_int (W16.to_uint x).
 
-op UXTW (x: W32.t) : W64.t = W64.of_int (W32.to_uint x).
-
 (* -------------------------------------------------------------------- *)
 (* Bit manipulation. *)
 
