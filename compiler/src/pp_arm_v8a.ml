@@ -3,8 +3,11 @@
    GNU assembler (ELF) syntax. Each operand is printed as the instruction
    description requests it ([pp_arg]): a general-purpose register in its
    32-bit W form or its 64-bit X form, by the size it is paired with; a
-   shift amount with the name of the shift ([lsl #3]), omitted when it is
-   zero. Immediate values are printed as nonnegative integers. *)
+   SIMD&FP register as a vector with its arrangement, the number and size
+   of its lanes ([v0.16b], [v0.4s], [v0.2s], ...), or in its 128-bit
+   scalar form ([q0]); a shift amount with the name of the shift
+   ([lsl #3]), omitted when it is zero. Immediate values are printed as
+   nonnegative integers. *)
 
 open Arch_decl
 open Utils
@@ -60,12 +63,39 @@ let pp_reg_address addr =
   let addr = parse_reg_address arch addr in
   pp_reg_address_aux addr.base addr.displacement addr.offset addr.scale
 
+let pp_xreg = hash_to_string arch.toS_x.to_string
+
+(* A SIMD&FP register [v<n>]: as a vector with the given arrangement
+   ([v<n>.16b]), or through its 128-bit scalar view ([q<n>]). *)
+let pp_xregister ?arrangement r =
+  let v = pp_xreg r in
+  match arrangement with
+  | Some arr -> Format.asprintf "%s.%s" v arr
+  | None -> "q" ^ String.sub v 1 (String.length v - 1)
+
+(* The element size specifier of lanes of [ve] bits ([b], [h], [s], [d],
+   [q]). *)
+let element_size (ve : Wsize.wsize) =
+  match ve with
+  | U8 -> "b"
+  | U16 -> "h"
+  | U32 -> "s"
+  | U64 -> "d"
+  | U128 -> "q"
+  | U256 -> assert false
+
+(* The arrangement of a vector of size [ws] with lanes of [ve] bits: the
+   number of lanes and the element size ([8b], [16b], [4s], [1q], ...). *)
+let vector_arrangement ve ws =
+  let lanes = Prog.int_of_ws ws / Prog.int_of_ws ve in
+  Format.asprintf "%d%s" lanes (element_size ve)
+
 let pp_condt = hash_to_string string_of_condt
 
 (* A64 has no conditional execution: a condition is always a proper operand
    (CSEL, CSET, ...), declared last in the argument list, so it is printed
    in place like any other operand. *)
-let pp_asm_arg ?(wform = false) (arg : (register, Arch_utils.empty, Arch_utils.empty, rflag, condt) asm_arg) =
+let pp_asm_arg ?(wform = false) ?arrangement (arg : (register, Arch_utils.empty, xregister, rflag, condt) asm_arg) =
   match arg with
   | Condt ct -> pp_condt ct
   | Imm (ws, w) -> pp_imm (Conv.z_unsigned_of_word ws w)
@@ -80,25 +110,27 @@ let pp_asm_arg ?(wform = false) (arg : (register, Arch_utils.empty, Arch_utils.e
         ~internal:true
         "memory operand relative to the instruction pointer"
   | ImmRip _ -> assert false (* Only on the ARM M-profile. *)
-  | XReg _ -> .
+  | XReg r -> pp_xregister ?arrangement r
 
 (* -------------------------------------------------------------------- *)
 
 (* An operand, as the instruction description requests it. *)
-let pp_arg (a : (register, Arch_utils.empty, Arch_utils.empty, rflag, condt) pp_arg) =
+let pp_arg (a : (register, Arch_utils.empty, xregister, rflag, condt) pp_arg) =
   match a with
   | PPa_full (ws, a) -> Some (pp_asm_arg ~wform:(Wsize.size_8_32 ws) a)
+  | PPa_vec (ve, ws, a) ->
+      Some (pp_asm_arg ~arrangement:(vector_arrangement ve ws) a)
   | PPa_shift (sk, Imm (ws, n)) ->
       let n = Conv.z_unsigned_of_word ws n in
       if Z.equal n Z.zero then None
       else Some (Format.asprintf "%s %s" sk (pp_imm n))
   | PPa_shift _ -> assert false
 
-let pp_mnemonic (ARMv8A_op (mn, _) as op) =
+let pp_mnemonic op =
   let id = instr_desc Armv8a_decl.armv8a_decl Armv8a_instr_decl.armv8a_op_decl (None, op) in
   let pp = id.id_pp_asm [] in
-  match mn with
-  | UXTW -> "mov" (* [UXTW] is written [MOV <Wd>, <Wn>]. *)
+  match op with
+  | ARMv8A_op (UXTW, _) -> "mov" (* [UXTW] is written [MOV <Wd>, <Wn>]. *)
   | _ -> String.lowercase_ascii pp.pp_aop_name
 
 (* Split an [ADR] instruction to a global symbol into an [ADRP]/[ADD]
@@ -110,7 +142,7 @@ let pp_ADR dst addr =
 module Armv8aTarget : AsmTargetBuilder.AsmTarget with
   type reg = Armv8a_decl.register
   and type regx = Arch_utils.empty
-  and type xreg = Arch_utils.empty
+  and type xreg = Armv8a_decl.xregister
   and type rflag = Arm_common.rflag
   and type cond = Arm_common.condt
   and type asm_op = armv8a_asm_op
@@ -118,7 +150,7 @@ module Armv8aTarget : AsmTargetBuilder.AsmTarget with
 
   type reg = Armv8a_decl.register
   type regx = Arch_utils.empty
-  type xreg = Arch_utils.empty
+  type xreg = Armv8a_decl.xregister
   type rflag = Arm_common.rflag
   type cond = Arm_common.condt
   type asm_op = armv8a_asm_op

@@ -186,18 +186,22 @@ Definition armv8a_set_up_sp_register
 Definition armv8a_tmp  : Ident.ident := vname (v_var vtmpi).
 Definition armv8a_tmp2 : Ident.ident := vname (v_var vtmp2i).
 
-Definition armv8a_lmove (_ : wsize) (xd xs : var_i) :=
-  ([:: LLvar xd], Oarmv8a (ARMv8A_op MOV default_opts), [:: Rexpr (Fvar xs)]).
+(* Moves, loads and stores of whole registers: X registers ([reg_size])
+   and SIMD&FP registers ([U128]), the latter for the callee-saved vector
+   registers and for spilling. *)
+Definition armv8a_lmove (ws : wsize) (xd xs : var_i) :=
+  let op := if ws == U128 then ARMv8A_vop VMOV VE8 U128 else ARMv8A_op MOV default_opts in
+  ([:: LLvar xd], Oarmv8a op, [:: Rexpr (Fvar xs)]).
 
-Definition armv8a_check_ws ws := ws == reg_size.
+Definition armv8a_check_ws ws := (ws == reg_size) || (ws == U128).
 
 Definition armv8a_lstore (ws : wsize) (xd : var_i) (ofs : Z) (xs : var_i) :=
-  let mn := STR in
-  ([:: Store Aligned ws (faddv Uptr xd (fconst ws ofs))], Oarmv8a (ARMv8A_op mn default_opts), [:: Rexpr (Fvar xs)]).
+  let op := if ws == U128 then ARMv8A_vop VSTR VE8 U128 else ARMv8A_op STR default_opts in
+  ([:: Store Aligned ws (faddv Uptr xd (fconst Uptr ofs))], Oarmv8a op, [:: Rexpr (Fvar xs)]).
 
 Definition armv8a_lload (ws : wsize) (xd : var_i) (xs : var_i) (ofs : Z) :=
-  let mn := LDR in
-  ([:: LLvar xd], Oarmv8a (ARMv8A_op mn default_opts), [:: Load Aligned ws (faddv Uptr xs (fconst ws ofs))]).
+  let op := if ws == U128 then ARMv8A_vop VLDR VE8 U128 else ARMv8A_op LDR default_opts in
+  ([:: LLvar xd], Oarmv8a op, [:: Load Aligned ws (faddv Uptr xs (fconst Uptr ofs))]).
 
 (* A saved register of size [ws] is stored to or loaded from [SP + ofs]
    directly only when LDR and STR can encode [ofs] for that size, the
@@ -214,9 +218,16 @@ Definition is_save_slot_offset (ws : wsize) (ofs : Z) : bool := is_ldst_offset w
    cannot be reloaded directly: the saved registers are restored first (relative
    to the still-live SP), then the saved stack pointer is loaded into the scratch
    register X17 and copied to SP with a MOV (which reaches SP via the SP[]
-   accessor). Large offsets are materialized into X17 as in [lloads_imm_dfl]. *)
+   accessor). Large offsets are materialized into X17 as in [lloads_imm_dfl].
+   [rspi] is always the 64-bit stack pointer. The saved registers may be
+   128-bit vector registers, which the check on their size ([armv8a_check_ws])
+   must accept, so it does not constrain the size of [rspi]: a non-64-bit
+   [rspi] is restored by the default sequence, which is correct for any
+   size. *)
 Definition armv8a_lloads (rspi : var_i) (to_restore : seq (var * Z)) (spofs : Z) :
     seq fopn_args :=
+  if vtype rspi != aword Uptr then lloads_dfl armv8a_lload rspi to_restore spofs
+  else
   let restore_regs :=
     if all (fun '(x, ofs) => is_save_slot_offset (wsize_of_atype (vtype x)) ofs) to_restore then
       map (fun '(x, ofs) =>
@@ -435,6 +446,9 @@ Definition armv8a_is_move_op (o : asm_op_t) : bool :=
     if o \in [:: MOV; LDR; STR; STRH; STRB ] then
       ~~ has_shift opts
     else false
+
+  | BaseOp (None, ARMv8A_vop o _ _) =>
+      o \in [:: VMOV; VLDR; VSTR ]
 
   | ExtOp Oarmv8a_SLHmove => true
 

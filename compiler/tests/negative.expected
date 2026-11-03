@@ -1284,6 +1284,11 @@ fail/register_allocation/arm-m4/too_many_ret.jazz:
 compilation error in function too_many_ret:
 register allocation: too many return values according to the ABI (only 2 available on this architecture)
 
+fail/register_allocation/armv8a/vector_across_syscall.jazz:
+
+compilation error:
+register allocation: cannot solve the register allocation problem.
+
 fail/register_allocation/x86-64/already_allocated.jazz:
 
 "fail/register_allocation/x86-64/already_allocated.jazz", line 10 (0-22):
@@ -2185,4 +2190,4 @@ Statistics:
 	Pretyping:  65
 	Parsing:     5
 	Typing:      5
-	Compile:   250
+	Compile:   251

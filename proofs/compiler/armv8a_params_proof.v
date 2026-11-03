@@ -310,19 +310,21 @@ Qed.
 
 Lemma armv8a_lmove_correct : lmove_correct armv8a_liparams.
 Proof.
-  move=> xd xs ws w s /eqP hws htxd; t_xrbindP => z hget htr; subst.
+  move=> xd xs ws w s hws htxd; t_xrbindP => z hget htr.
   rewrite /armv8a_liparams /lip_lmove /armv8a_lmove /= hget /=.
-  rewrite /exec_sopn /= htr /= /set_var /=.
-  by case: vtype htxd.
+  case/orP: hws => /eqP ?; subst ws.
+  1-2: rewrite /exec_sopn /= htr /= /set_var /=.
+  1-2: by case: vtype htxd.
 Qed.
 
 Lemma armv8a_lstore_correct : lstore_correct_aux armv8a_check_ws armv8a_lstore.
 Proof.
-  move=> xd xs ofs ws w wp s m /eqP hchk; t_xrbindP; subst ws.
+  move=> xd xs ofs ws w wp s m /orP hchk; t_xrbindP.
   move=> vd hgetd htrd vs hgets htrs hwr.
-  rewrite /armv8a_lstore /= hgets hgetd /= /exec_sopn /= htrs /=.
-  rewrite /sem_sop2 /= htrd /= !truncate_word_u /= truncate_word_u /=.
-  by rewrite zero_extend_u hwr.
+  case: hchk => /eqP ?; subst ws.
+  1-2: rewrite /armv8a_lstore /= hgets hgetd /= /exec_sopn /= htrs /=.
+  1-2: rewrite /sem_sop2 /= htrd /= !truncate_word_u /=.
+  1-2: by rewrite truncate_word_u /= ?zero_extend_u hwr.
 Qed.
 
 Lemma armv8a_smart_addi_correct : ladd_imm_correct_aux ARMv8AFopn_smart_addi.
@@ -343,10 +345,10 @@ Lemma armv8a_lload_correct :
   lload_correct_aux (lip_check_ws armv8a_liparams) armv8a_lload.
 Proof.
   move=> xd xs ofs ws top s w vm hcheck; t_xrbindP => ? hgets hto hread hset.
-  move/eqP: hcheck => ?; subst ws.
-  rewrite /armv8a_lload /= hgets /= /sem_sop2 /= hto /= !truncate_word_u /=
-    truncate_word_u /= hread /=.
-  by rewrite /exec_sopn /= truncate_word_u /= zero_extend_u hset.
+  case/orP: hcheck => /eqP ?; subst ws.
+  1-2: rewrite /armv8a_lload /= hgets /= /sem_sop2 /= hto /= !truncate_word_u /=
+         truncate_word_u /= hread /=.
+  1-2: by rewrite /exec_sopn /= truncate_word_u /= ?zero_extend_u hset.
 Qed.
 
 Lemma armv8a_tmp_correct : lip_tmp armv8a_liparams <> lip_tmp2 armv8a_liparams.
@@ -389,11 +391,16 @@ Qed.
 Lemma armv8a_lloads_correct : lloads_correct armv8a_liparams.
 Proof.
   move=> rspi to_save ofs s top vm2 /= hnin hnin2 hne hget.
+  case: (vtype rspi =P aword Uptr) => hty; last first.
+  - rewrite /armv8a_lloads ifT; last by apply/eqP.
+    exact: (lloads_dfl_correct armv8a_lload_correct hnin hnin2 hne hget).
+  rewrite /armv8a_lloads ifN; last by rewrite negbK hty.
   rewrite foldM_cat /=; t_xrbindP => vm_r hf.
   case heqt: (vtype rspi) => [|||ws] //=; t_xrbindP
-    => vm2' wsx hwsx hchk w_sp hread hset heqv.
+    => vm2' wsx hwsx _ w_sp hread hset heqv.
   subst wsx vm2.
-  move/eqP: (hchk) => ?; subst ws.
+  have ? : ws = reg_size by move: heqt; rewrite hty => -[<-].
+  subst ws.
   move/set_varP: hset => [_ _ ?]; subst vm2'.
 
   have hsetvar : forall (vm : Vm.t) (w : word Uptr),
@@ -457,7 +464,6 @@ Proof.
     case: eqP => [heqz | _]; first by case: (hz (esym heqz)).
     by rewrite heqa //; apply/Sv.singleton_spec.
 
-  rewrite /lip_lloads /armv8a_lloads.
   rewrite /sem_fopns_args foldM_cat -!/sem_fopns_args.
   case hall: (all (fun '(x, ofs1) => is_save_slot_offset (constant_prop.wsize_of_atype (vtype x)) ofs1) to_save).
 
@@ -1197,11 +1203,16 @@ Definition armv8a_is_move_opP op vx v :
   -> exec_sopn (Oasm op) [:: vx ] = ok v
   -> values_uincl v [:: vx ].
 Proof.
-  case: op => [[[] // [mn opt]] | [] //] /=; last first.
-  + move=> _; rewrite /exec_sopn /=.
-    t_xrbindP=> t w /to_wordI' [ws [wx [hle ??]]] ? ?; subst.
-    constructor; last by constructor.
-    exact: word_uincl_zero_ext.
+  case: op => [[[] // [mn opt | vmn ve vsz]] | [] //] /=.
+  2: case: vmn => // _; rewrite /exec_sopn /sopn_sem /=; t_xrbindP.
+  2-4: move=> _ + <-; rewrite /armv8a_vop_valid /= orbF => /andP [_ /eqP ?].
+  2-4: subst vsz.
+  2-4: move=> z w /to_wordI' [ws' [wx [hle ? ?]]] [<-] <-; subst vx w.
+  2-4: by constructor; last constructor; exact: word_uincl_zero_ext.
+  2: move=> _; rewrite /exec_sopn /=.
+  2: t_xrbindP=> t w /to_wordI' [ws [wx [hle ??]]] ? ?; subst.
+  2: constructor; last by constructor.
+  2: exact: word_uincl_zero_ext.
   case: ifP => // hmn /negPf hs.
   case: opt hmn hs => sho sz hmn /= hs.
   case: sho hs => [sk | ] hs; first by [].
