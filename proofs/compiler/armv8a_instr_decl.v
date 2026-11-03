@@ -137,7 +137,6 @@ Variant armv8a_mnemonic : Type :=
 | SXTW                           (* Sign extend word *)
 | UXTB                           (* Zero extend byte *)
 | UXTH                           (* Zero extend halfword *)
-| UXTW                           (* Zero extend word *)
 
 (* Comparisons *)
 | CMP                            (* Compare *)
@@ -187,7 +186,7 @@ Definition armv8a_mnemonics : seq armv8a_mnemonic :=
     ; RBIT; REV; REV16; REV32; CLZ; CLS
     ; BFC; BFI; BFXIL; SBFX; UBFX; EXTR
     ; MOV; MOVN; MOVZ; MOVK; ADR
-    ; SXTB; SXTH; SXTW; UXTB; UXTH; UXTW
+    ; SXTB; SXTH; SXTW; UXTB; UXTH
     ; CMP; CMN; TST
     ; CSEL; CSINC; CSINV; CSNEG; CSET; CSETM
     ; LDR; LDRB; LDRH; LDRSB; LDRSH; LDRSW; LDP
@@ -335,7 +334,6 @@ Definition string_of_armv8a_mnemonic (mn : armv8a_mnemonic) : string :=
   | SXTW => "SXTW"
   | UXTB => "UXTB"
   | UXTH => "UXTH"
-  | UXTW => "UXTW"
   | CMP => "CMP"
   | CMN => "CMN"
   | TST => "TST"
@@ -2019,7 +2017,8 @@ Definition armv8a_MOVK_instr : instr_desc_t :=
 (* -------------------------------------------------------------------- *)
 (* Extensions.
    [in_ws] is the width of the extracted low bits; the result is extended
-   to the operand size. SXTW and UXTW only exist in the X form. *)
+   to the operand size. SXTW only exists in the X form; the zero extension
+   of a word is a MOV in the W form, extended (armv8a_lowering.v). *)
 
 Definition armv8a_extend_semi
   {ws : wsize} (sign : bool) (ws' : wsize) (wn : word ws) : word ws' :=
@@ -2152,19 +2151,6 @@ Definition armv8a_UXTB_instr : instr_desc_t := mk_extend_instr UXTB U8 false osz
      The description of UBFM gives the operational pseudocode for this instruction.
 *)
 Definition armv8a_UXTH_instr : instr_desc_t := mk_extend_instr UXTH U16 false osz_valid.
-(* [C6.2.281 MOV (register)] ARM DDI 0487 M.a, p. 2413
-   Move register value  This instruction copies the value in a source register
-   to the destination register.  This is an alias of ORR (shifted register).
-   This means:  • The encodings in this description are named to match the
-   encodings of ORR (shifted register). • The description of ORR (shifted
-   register) gives the operational pseudocode, any CONSTRAINED UNPREDICTABLE
-   behavior, and any operational information for this instruction.
-   Note: The ARM ARM defines no UXTW entry: UXTW #0 is equivalent to a 32-bit register MOV (alias of ORR (shifted register)), whose 32-bit result is zero-extended to 64 bits; the MOV (register) entry is recorded here in its place.
-   Syntax: MOV <Xd>, <Xm>  ==  ORR <Xd>, XZR, <Xm>
-   Operation (ASL):
-     The description of ORR (shifted register) gives the operational pseudocode for this instruction.
-*)
-Definition armv8a_UXTW_instr : instr_desc_t := mk_extend_instr UXTW U32 false (osz == U64).
 
 (* -------------------------------------------------------------------- *)
 (* Bit-manipulation instructions. *)
@@ -3109,7 +3095,6 @@ Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
   | SXTW => armv8a_SXTW_instr
   | UXTB => armv8a_UXTB_instr
   | UXTH => armv8a_UXTH_instr
-  | UXTW => armv8a_UXTW_instr
   | CMP => armv8a_CMP_instr
   | CMN => armv8a_CMN_instr
   | TST => armv8a_TST_instr
