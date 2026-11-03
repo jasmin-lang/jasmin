@@ -9,15 +9,17 @@ let rec check_dir check_file archs prefix errors =
 and check_path check_file archs prefix errors filename =
   let path = Filename.concat prefix filename in
   if Sys.is_directory path then
+    (* A directory is named after an architecture, current or former name
+       (the tests of the Cortex-M4 are in arm-m4). *)
     let archs =
       try
         List.assoc filename
-          (("x86-64", X86_64 :: archs)
-           :: List.map (fun c -> (c.Arm_mcore.name, ARM_M c :: archs)) Arm_mcore.all
+          (List.map
+             (fun (name, arch) -> (name, arch :: archs))
+             (architectures @ deprecated_architectures)
            @ [
-               ("armv8a", ARMv8A :: archs);
                ("risc-v", RISCV :: archs);
-               ("common", List.map snd architectures);
+               ("common", all_architectures);
              ])
       with Not_found -> archs
     in

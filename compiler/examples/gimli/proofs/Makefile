@@ -8,10 +8,10 @@ all: gimli_arm.ec gimli_arm_ct.ec gimli_armv8a.ec gimli_armv8a_ct.ec gimli_x86.e
 	easycrypt runtest $(ECARGS) ec.config $@
 
 gimli_arm.ec: ../arm-m4/gimli.jazz
-	$(JASMIN2EC) --arch=arm-m4 -o $@ $^
+	$(JASMIN2EC) --arch=cortex-m4 -o $@ $^
 
 gimli_arm_ct.ec: ../arm-m4/gimli.jazz
-	$(JASMIN2EC) --arch=arm-m4 --model=CT -o $@ $^
+	$(JASMIN2EC) --arch=cortex-m4 --model=CT -o $@ $^
 
 gimli_armv8a.ec: ../armv8a/gimli.jazz
 	$(JASMIN2EC) --arch=armv8a -o $@ $^

@@ -81,7 +81,9 @@ let set_callee_saved_strategy s =
 let target_arch = ref X86_64
 
 let set_target_arch a =
-  target_arch := try List.assoc a architectures with Not_found -> assert false
+  match architecture_of_string a with
+  | Some arch -> target_arch := arch
+  | None -> raise (Arg.Bad ("unknown architecture " ^ a))
 
 type x86_assembly_style = [`ATT | `Intel ]
 let assembly_style : x86_assembly_style ref = ref `ATT
@@ -214,7 +216,9 @@ let options = [
     "-intel", Arg.Unit (set_syntax `Intel), " Use intel syntax (default is AT&T)"; 
     "-ATT", Arg.Unit (set_syntax `ATT), " Use AT&T syntax (default is AT&T)"; 
     "-call-conv", Arg.Symbol (["windows"; "linux"], set_cc), " Select calling convention (default depends on host architecture)";
-    "-arch", Arg.Symbol (List.map fst architectures, set_target_arch), " Select target arch (default is x86-64)";
+    "-arch", Arg.String set_target_arch,
+      Printf.sprintf "{%s} Select target arch (default is x86-64)"
+        (String.concat "|" (List.map fst architectures));
     "-system", Arg.Symbol (["macosx"; "linux"], set_target_system), " Select target system (default is "^ Config.target_system^")";
     "-function-sections", Arg.Set function_sections, " Place each function in its own section (ELF only)";
     "-stack-zero",

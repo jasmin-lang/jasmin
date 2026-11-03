@@ -368,7 +368,7 @@ export fn copy_u32(reg ptr u32[1] d s) -> reg ptr u32[1] {
 }
 ~~~
 
-When targeting the `arm-m4` architecture, the compiler produces the following
+When targeting the `cortex-m4` architecture, the compiler produces the following
 code. After the call to `forget`, the register `r1` no longer contains the
 value loaded from memory.
 
