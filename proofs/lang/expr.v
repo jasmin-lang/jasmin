@@ -91,6 +91,9 @@ Definition eand e1 e2 : pexpr := Papp2 Oand e1 e2.
 Definition eeq e1 e2 : pexpr := Papp2 Obeq e1 e2.
 Definition eneq e1 e2 : pexpr := enot (eeq e1 e2).
 Definition eaddw w e1 e2 : pexpr := Papp2 (Oadd (Op_w w)) e1 e2.
+Definition eaddi e1 e2 : pexpr := Papp2 (Oadd Op_int) e1 e2.
+Definition esubi e1 e2 : pexpr := Papp2 (Osub Op_int) e1 e2.
+Definition elti e1 e2 : pexpr := Papp2 (Olt Cmp_int) e1 e2.
 
 Definition cf_of_condition (op : sop2) : option (combine_flags * wsize) :=
   match op with
