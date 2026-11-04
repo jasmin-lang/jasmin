@@ -1,0 +1,10 @@
+/* MUL, MLA and MLS are DIT on the Cortex-M3. */
+#[ct="secret * secret * secret -> secret"]
+export fn mul(reg u32 x y z) -> reg u32 {
+  reg u32 r;
+  r = x * y;
+  r = #MUL(r, z);
+  r = #MLA(r, x, y);
+  r = #MLS(r, x, z);
+  return r;
+}
