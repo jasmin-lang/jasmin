@@ -180,24 +180,14 @@ Module Export OtherDefs.
 
 Definition is_abool t := if t is abool then true else false.
 
-Lemma is_aboolP t : reflect (t=abool) (is_abool t).
-Proof. by case: t => /=; constructor. Qed.
-
 Definition is_aword t := if t is aword _ then true else false.
 
 Definition is_aarr t := if t is aarr _ _ then true else false.
 
 Definition is_not_aarr t := ~~is_aarr t.
 
-Lemma is_aarrP ty : reflect (exists ws n, ty = aarr ws n) (is_aarr ty).
-Proof. by case: ty; constructor; eauto => -[?] [?]. Qed.
-
 Definition is_word_type (t:atype) :=
   if t is aword sz then Some sz else None.
-
-Lemma is_word_typeP ty ws :
-  is_word_type ty = Some ws -> ty = aword ws.
-Proof. by case: ty => //= w [->]. Qed.
 
 Definition is_cword t := if t is cword _ then true else false.
 Definition is_carr t := if t is carr _ then true else false.
@@ -211,9 +201,6 @@ Definition arr_size (ws:wsize) (len:Z)  :=
 
 Lemma arr_sizeE ws len : arr_size ws len = (wsize_size ws * len)%Z.
 Proof. done. Qed.
-
-Lemma gt0_arr_size ws len : (0 < len)%Z -> (0 < arr_size ws len)%Z.
-Proof. by move=> ?; rewrite arr_sizeE; apply Z.mul_pos_pos. Qed.
 
 Opaque arr_size.
 
@@ -243,101 +230,22 @@ Proof. by case: t => //=. Qed.
 #[global]
 Hint Resolve convertible_refl : core.
 
-Lemma convertible_sym ty1 ty2 : convertible ty1 ty2 -> convertible ty2 ty1.
-Proof.
-  case: ty1 ty2 => [||ws1 n1|ws1] [||ws2 n2|ws2] //=.
-  + by rewrite eq_sym.
-  by rewrite eq_sym.
-Qed.
-
-Lemma convertible_trans ty2 ty1 ty3 :
-  convertible ty1 ty2 -> convertible ty2 ty3 -> convertible ty1 ty3.
-Proof.
-  case: ty1 ty2 => [||ws1 n1|ws1] [||ws2 n2|ws2] //=.
-  + by move=> /eqP ->.
-  by move=> /eqP ->.
-Qed.
-
-Lemma convertible_eval_atype ty1 ty2 :
-  convertible ty1 ty2 ->
-  eval_atype ty1 = eval_atype ty2.
-Proof.
-  case: ty1 ty2 => [||ws1 n1|ws1] [||ws2 n2|ws2] //=.
-  + by move=> /eqP <-.
-  by move=> /eqP [<-].
-Qed.
-
-Lemma all2_convertible_eval_atype tys1 tys2 :
-  all2 convertible tys1 tys2 ->
-  map eval_atype tys1 = map eval_atype tys2.
-Proof.
-  elim: tys1 tys2 => [|ty1 tys1 ih1] [|ty2 tys2] //=.
-  by move=> /andP [/convertible_eval_atype -> /ih1 ->].
-Qed.
-
 Definition subatype (t t': atype) :=
   match t with
   | aword w => if t' is aword w' then (w ≤ w')%CMP else false
   | _ => convertible t t'
   end.
 
-Lemma subatypeE ty ty' :
-  subatype ty ty' →
-  match ty' return Prop with
-  | aword sz' => ∃ sz, ty = aword sz ∧ (sz ≤ sz')%CMP
-  | _         => convertible ty ty'
-end.
-Proof.
-  case: ty => [||ws n|ws]; try by move/eqP => <-.
-  + by case: ty'.
-  by case: ty' => //; eauto.
-Qed.
-
-Lemma subatypeEl ty ty' :
-  subatype ty ty' →
-  match ty return Prop with
-  | aword sz => ∃ sz', ty' = aword sz' ∧ (sz ≤ sz')%CMP
-  | _        => convertible ty ty'
-  end.
-Proof.
-  case: ty => [||ws n|ws] //=.
-  by case: ty' => //; eauto.
-Qed.
-
 Lemma subatype_refl ty : subatype ty ty.
 Proof. case: ty => //=. Qed.
 #[global]
 Hint Resolve subatype_refl : core.
-
-Lemma subatype_trans ty2 ty1 ty3 :
-  subatype ty1 ty2 -> subatype ty2 ty3 -> subatype ty1 ty3.
-Proof.
-  case: ty1 => //= [/eqP<-|/eqP<-|ws1 n1|ws1] //.
-  + by case: ty2 => //= ws2 n2 /eqP ->.
-  by case: ty2 => //= ws2 hle; case: ty3 => //= ws3; apply: cmp_le_trans hle.
-Qed.
-
-Lemma is_aword_subatype t1 t2 : subatype t1 t2 -> is_aword t1 = is_aword t2.
-Proof.
-  by case: t1 => //= [/eqP <-|/eqP <-|??|?] //; case:t2.
-Qed.
 
 Definition subctype (t t': ctype) :=
   match t with
   | cword w => if t' is cword w' then (w ≤ w')%CMP else false
   | _ => t == t'
   end.
-
-Lemma subctypeE ty ty' :
-  subctype ty ty' →
-  match ty' with
-  | cword sz' => ∃ sz, ty = cword sz ∧ (sz ≤ sz')%CMP
-  | _         => ty = ty'
-end.
-Proof.
-  case: ty => [||n|ws]; try by move/eqP => <-.
-  by case: ty' => //; eauto.
-Qed.
 
 Lemma subctypeEl ty ty' :
   subctype ty ty' →
@@ -361,14 +269,6 @@ Proof.
   case: ty1 => //= [/eqP<-|/eqP<-|n1|ws1] //.
   + by case: ty2 => //= n2 /eqP ->.
   by case: ty2 => //= ws2 hle; case: ty3 => //= ws3; apply: cmp_le_trans hle.
-Qed.
-
-Lemma subatype_subctype ty1 ty2 :
-  subatype ty1 ty2 ->
-  subctype (eval_atype ty1) (eval_atype ty2).
-Proof.
-  case: ty1 ty2 => [||ws1 n1|ws1] [||ws2 n2|ws2] //=.
-  by move=> /eqP <-.
 Qed.
 
 (* -------------------------------------------------------------------- *)

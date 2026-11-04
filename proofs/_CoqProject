@@ -34,9 +34,12 @@
 -R toEC Jasmin
 
 ssrmisc/oseq.v
+ssrmisc/oseq_facts.v
 ssrmisc/seq_extra.v
+ssrmisc/seq_extra_facts.v
 3rdparty/ssrring.v
 3rdparty/xseq.v
+3rdparty/xseq_facts.v
 arch/arch_decl.v
 arch/arch_decl_facts.v
 arch/arch_extra.v
@@ -110,6 +113,7 @@ compiler/jasmin_compiler.v
 compiler/lea.v
 compiler/lea_proof.v
 compiler/linear_util.v
+compiler/linear_util_lemmas.v
 compiler/linearization.v
 compiler/load_constants_in_cond.v
 compiler/load_constants_in_cond_proof.v
@@ -196,6 +200,7 @@ lang/linear.v
 lang/linear_facts.v
 lang/linear_sem.v
 lang/low_memory.v
+lang/low_memory_facts.v
 lang/lowering_lemmas.v
 lang/memory_example.v
 lang/memory_model.v
@@ -220,6 +225,7 @@ lang/sem_op_typed_facts.v
 lang/sem_one_varmap_facts.v
 lang/sem_params.v
 lang/sem_type.v
+lang/sem_type_facts.v
 lang/sha256.v
 lang/shift_kind.v
 lang/sopn.v
@@ -231,15 +237,21 @@ lang/stack_zero_strategy.v
 lang/strings.v
 lang/syscall.v
 lang/syscall_sem.v
+lang/syscall_sem_facts.v
 lang/tagged.v
 lang/type.v
+lang/type_facts.v
 lang/utils.v
+lang/utils_facts.v
 lang/values.v
+lang/values_facts.v
 lang/var.v
 lang/varmap.v
+lang/varmap_facts.v
 lang/waes.v
 lang/warray_.v
 lang/word.v
+lang/word_facts.v
 lang/wsize.v
 toEC/toec_for.v
 toEC/toec_for_proof.v
