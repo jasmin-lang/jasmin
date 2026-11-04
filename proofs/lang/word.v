@@ -269,18 +269,6 @@ Definition wle sz (sg: signedness) : word sz → word sz → bool :=
   | Signed => λ x y, (srepr x <=? srepr y)%Z
   end.
 
-Definition wgt sz (sg: signedness) : word sz → word sz → bool :=
-  match sg with
-  | Unsigned => λ x y, (urepr x >? urepr y)%Z
-  | Signed => λ x y, (srepr x >? srepr y)%Z
-  end.
-
-Definition wge sz (sg: signedness) : word sz → word sz → bool :=
-  match sg with
-  | Unsigned => λ x y, (urepr x >=? urepr y)%Z
-  | Signed => λ x y, (srepr x >=? srepr y)%Z
-  end.
-
 Definition wnot sz (w: word sz) : word sz :=
   wxor w (-1%w)%w.
 
@@ -1819,7 +1807,7 @@ Definition wmax sg sz (x y : word sz) :=
   if wlt sg x y then y else x.
 
 Definition wmin sg sz (x y : word sz) :=
-  if wgt sg x y then y else x.
+  if wlt sg y x then y else x.
 
 (* -------------------------------------------------------------------*)
 
@@ -2411,42 +2399,4 @@ Proof.
   rewrite Zquot.Zquot_opp_r; split; rewrite Z.opp_le_mono Z.opp_involutive.
   + apply: Z.quot_le_upper_bound; Lia.nia.
   apply Z.quot_le_lower_bound; Lia.nia.
-Qed.
-
-(* ----------------------------------------------- *)
-
-Lemma wlt_eq_cmp si (sz: wsize) (x y: word sz) :
-  ((int_of_word si x ?= int_of_word si y) == Lt) = wlt si x y.
-Proof.
-  case: si; auto.
-Qed.
-
-Lemma wgt_eq_cmp si (sz: wsize) (x y: word sz) :
-  ((int_of_word si x ?= int_of_word si y) == Gt) = wgt si x y.
-Proof.
-  case: si; auto.
-Qed.
-
-Lemma wrepr_max si sz x y :
-  wrepr sz (Z.max (int_of_word si x) (int_of_word si y)) =  wmax si x y.
-Proof.
-  rewrite /Z.max /wmax.
-  destruct (_ ?= _) eqn:H;
-  by rewrite wrepr_int_of_word -wlt_eq_cmp H.
-Qed.
-
-Lemma wrepr_min si sz x y :
-  wrepr sz (Z.min (int_of_word si x) (int_of_word si y)) = wmin si x y.
-Proof.
-  rewrite /Z.min /wmin.
-  destruct (_ ?= _) eqn:H;
-  by rewrite wrepr_int_of_word -wgt_eq_cmp H.
-Qed.
-
-
-Lemma wgt_wlt si (sz: wsize) (x y: word sz) :
-  wgt si x y = wlt si y x.
-Proof.
-  case: si;
-  by rewrite /wlt /wgt Z.gtb_ltb.
 Qed.

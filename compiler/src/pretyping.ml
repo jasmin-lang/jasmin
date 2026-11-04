@@ -1224,23 +1224,16 @@ let array_of_string s =
   P.(Papp1 (op_word_of_int (Word, W.Unsigned) W.U8, Pconst z))
 
 (* -------------------------------------------------------------------- *)
-let create_min_e _pd loc args =
+let create_min_max_e op _pd loc args =
   if List.length args == 2 then
     let (e1,t1), (e2,t2) = List.at args 0, List.at args 1 in
-    tt_op2 (loc, (e1, t1)) (loc, (e2,t2)) (L.mk_loc loc (`Min (None,None)))
-  else
-    rs_tyerror ~loc (InvalidArgCount(2, List.length args))
-
-let create_max_e _pd loc args =
-  if List.length args == 2 then
-    let (e1,t1), (e2,t2) = List.at args 0, List.at args 1 in
-    tt_op2 (loc, (e1, t1)) (loc, (e2,t2)) (L.mk_loc loc (`Max (None,None)))
+    tt_op2 (loc, (e1, t1)) (loc, (e2,t2)) (L.mk_loc loc op)
   else
     rs_tyerror ~loc (InvalidArgCount(2, List.length args))
 
 let extra_op_map = Map.of_seq @@ List.to_seq [
-  ("min", create_min_e);
-  ("max", create_max_e);
+  ("min", create_min_max_e (`Min (None, None)));
+  ("max", create_min_max_e (`Max (None, None)));
 ]
 
 (* -------------------------------------------------------------------- *)

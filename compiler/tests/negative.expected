@@ -2025,6 +2025,10 @@ fail/typing/x86-64/lval_param.jazz:
 
 "fail/typing/x86-64/lval_param.jazz", line 4 (3-4): param variables are not allowed here
 
+fail/typing/x86-64/nomax.jazz:
+
+"fail/typing/x86-64/nomax.jazz", line 2 (18-21): no operator max for these types ui64 * si64
+
 fail/typing/x86-64/non_inline_stack_arg.jazz:
 
 "fail/typing/x86-64/non_inline_stack_arg.jazz", line 1 (19-20):
@@ -2260,7 +2264,7 @@ Allowed args are:
 
 Statistics:
 	Annots:      6
-	Pretyping:  73
+	Pretyping:  74
 	Parsing:     6
 	Typing:      5
 	Compile:   256

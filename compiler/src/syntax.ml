@@ -146,7 +146,6 @@ let string_of_peop2 : peop2 -> string =
   | `Mod c -> g c "%"
   | `Max _ -> "max"
   | `Min _ -> "min"
-
   | `BAnd c -> f c "&"
   | `BOr  c -> f c "|"
   | `BXOr c -> f c "^"
@@ -239,7 +238,7 @@ module SPrinter = struct
     | `Mul _ | `Div _ | `Mod _ -> Pmul
     | `And -> Pand
     | `Or -> Por
-    | `Min _ | `Max _ -> Pmin
+    | `Min _ | `Max _ -> assert false
     | `BAnd _ -> Pbwand
     | `BOr _ -> Pbwor
     | `BXOr _ -> Pbwxor
