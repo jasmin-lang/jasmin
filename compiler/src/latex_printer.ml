@@ -75,8 +75,7 @@ let pp_op2 fmt =
   | `Mul s -> f s "*"
   | `Div s -> g s "/"
   | `Mod s -> g s "\\%"
-  | `Min s -> g s "min%"
-  | `Max s -> g s "max%"
+  | `Min _ | `Max _ -> assert false
   | `And -> ret "&&"
   | `Or -> ret "||"
   | `BAnd s -> f s "&"

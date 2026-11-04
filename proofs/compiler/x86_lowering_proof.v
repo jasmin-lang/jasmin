@@ -853,15 +853,15 @@ Section PROOF.
        case: andP => // - [] /andP[] -> -> /eqP <-.
        split; eauto.
        * clear; rewrite read_e_Papp2; SvD.fsetdec.
-       exists (wgt u (zero_extend sz z1) (zero_extend sz z2)).
-       * by rewrite /= /sem_sop2 ok_v1 ok_v2 /= !truncate_word_le // wgt_wlt.
+       exists (wlt u (zero_extend sz z2) (zero_extend sz z1)).
+       * by rewrite /= /sem_sop2 ok_v1 ok_v2 /= !truncate_word_le.
        exists (Vword (zero_extend sz z2)).
        * by rewrite ok_v2 /truncate_val /= truncate_word_le.
        exists (Vword (zero_extend sz z1)).
        * by rewrite ok_v1 /truncate_val /= truncate_word_le.
        subst v.
-       rewrite /wmin //= .
-       by case wgt => //=.
+       by rewrite /wmin; case: ifP.
+
        (* Omax Op_w sz *)
      + rewrite /= /sem_sop2 //=. t_xrbindP => v1 ok_v1 v2 ok_v2.
        move => ? /to_wordI' [w1] [z1] [hle1 ??]; subst.
@@ -874,14 +874,14 @@ Section PROOF.
        split; eauto.
        * clear; rewrite read_e_Papp2; SvD.fsetdec.
        exists (wlt u (zero_extend sz z1) (zero_extend sz z2)).
-       * by rewrite /= /sem_sop2 ok_v1 ok_v2 /= !truncate_word_le // wgt_wlt.
+       * by rewrite /= /sem_sop2 ok_v1 ok_v2 /= !truncate_word_le.
        exists (Vword (zero_extend sz z2)).
        * by rewrite ok_v2 /truncate_val /= truncate_word_le.
        exists (Vword (zero_extend sz z1)).
        * by rewrite ok_v1 /truncate_val /= truncate_word_le.
        subst v.
-       rewrite /wmax //= .
-       by case wlt => //=.
+       by rewrite /wmax; case: ifP.
+
       (* Oland Op_w *)
       + case handn : is_andn => [[a1 a2] | ].
         + move=> he.
