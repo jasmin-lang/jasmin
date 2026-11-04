@@ -980,6 +980,20 @@ Proof.
   by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
 Qed.
 
+Lemma wequiv_if_left P Q ii e c1 c2 c :
+  (forall b, wequiv (fun s1 s2 => P s1 s2 /\ sem_cond (p_globs p1) e s1 = ok b)
+               (if b then c1 else c2) c Q) ->
+  wequiv P [:: MkI ii (Cif e c1 c2)] c Q.
+Proof.
+  move=> h s1 s2 hP /=.
+  rewrite /isem_cond.
+  case heq: (sem_cond (p_globs p1) e s1) => [b | err] /=.
+  + by rewrite bind_ret_r bind_ret_l; apply: (h b).
+  rewrite bind_bind bind_vis.
+  apply xrutt_CutL => //.
+  by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
+Qed.
+
 Lemma wequiv_for P0 P Pi ii1 i1 d lo1 hi1 c1 ii2 i2 lo2 hi2 c2 :
   (forall s1 s2, P0 s1 s2 -> P s1 s2) ->
   wrequiv P0 (sem_bound (p_globs p1) lo1 hi1) (sem_bound (p_globs p2) lo2 hi2) eq ->
@@ -1035,6 +1049,17 @@ Lemma wequiv_for_eq P0 P Pi ii1 i1 d lo1 hi1 c1 ii2 i2 lo2 hi2 c2 :
 Proof.
   move=> hP0P hbound; apply wequiv_for_uincl => //.
   by apply: wrequiv_weaken hbound => // > <-; apply List_Forall2_refl.
+Qed.
+
+Lemma wequiv_for_empty P Q ii i d lo hi c :
+  (forall s1 s2, P s1 s2 ->
+     exists2 bounds, sem_bound (p_globs p2) lo hi s2 = ok bounds &
+       wrange d bounds.1 bounds.2 = [::] /\ Q s1 s2) ->
+  wequiv P [::] [:: MkI ii (Cfor i (d, lo, hi) c)] Q.
+Proof.
+  move=> h s1 s2 /h [bounds hb [he hQ]].
+  rewrite /isem_cmd_ /= /isem_bound hb /= bind_ret_l he /= bind_ret_l.
+  exact: xrutt_Ret.
 Qed.
 
 Lemma wequiv_while_full I I' ii1 al1 e1 inf1 c1 c1' ii2 al2 e2 inf2 c2 c2' :
@@ -1994,6 +2019,22 @@ Proof.
   apply wkequiv_weaken => //.
   + by move=> > [].
   by move=> ?? [] [] ?? [].
+Qed.
+
+(* What the states satisfy before the commands, up to the variables that they
+   write. *)
+Lemma wequiv_frame (A B F : rel_c) c1 c2 :
+  wequiv p1 p2 ev1 ev2 A c1 c2 B ->
+  wequiv p1 p2 ev1 ev2 (fun s1 s2 => A s1 s2 /\ F s1 s2) c1 c2
+    (fun s1 s2 => B s1 s2 /\
+       exists s1_ s2_, [/\ F s1_ s2_, s1_.(evm) =[\ write_c c1] s1.(evm)
+                         & s2_.(evm) =[\ write_c c2] s2.(evm)]).
+Proof.
+  move=> h s1 s2 [hA hF].
+  have h1 := wequiv_write2 (wequiv_write1 h (s1_ := s1)) (s2_ := s2).
+  apply: (wequiv_weaken (P1 := fun s1' s2' => s1' = s1 /\ s2' = s2) _ _ h1) => //.
+  + by move=> ?? [-> ->].
+  by move=> s1' s2' [hs2 [hs1 hB]]; split => //; exists s1, s2.
 Qed.
 
 End WEQUIV_WRITE.
