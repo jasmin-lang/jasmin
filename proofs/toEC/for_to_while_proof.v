@@ -14,6 +14,8 @@ Require dead_code_proof.
 
 Local Open Scope Z_scope.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Section LIVE.
 
 Context {asm_op syscall_state : Type} {sip : SemInstrParams asm_op syscall_state}.
