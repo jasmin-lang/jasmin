@@ -234,7 +234,7 @@ Proof.
   by case: vtype htxd.
 Qed.
 
-Lemma x86_lstore_correct : lstore_correct_aux x86_check_ws x86_lstore.
+Lemma x86_lstore_correct : lstore_correct_aux x86_check_store_ws x86_lstore.
 Proof.
   move=> xd xs ofs ws w wp s m _ hgetd hgets hwr.
   apply: x86_lassign_correct => /=; first by apply hgets.
@@ -242,8 +242,11 @@ Proof.
   by rewrite hgetd /= /sem_sop2 /= hto /= !truncate_word_u /= truncate_word_u /= hwr.
 Qed.
 
+Lemma x86_check_store_ws_correct ws : x86_check_ws ws -> x86_check_store_ws ws.
+Proof. done. Qed.
+
 Lemma x86_lstores_correct : lstores_correct x86_liparams.
-Proof. apply/lstores_dfl_correct/x86_lstore_correct. Qed.
+Proof. exact: (lstores_dfl_correct x86_lstore_correct x86_check_store_ws_correct). Qed.
 
 Lemma x86_lload_correct : lload_correct_aux (lip_check_ws x86_liparams) x86_lload.
 Proof.
@@ -277,6 +280,7 @@ Definition x86_hliparams {call_conv : calling_convention} : h_linearization_para
     spec_lip_lloads               := x86_lloads_correct;
     spec_lip_tmp                  := x86_tmp_correct;
     spec_lip_check_ws             := x86_check_ws_correct;
+    spec_lip_check_store_ws       := x86_check_store_ws_correct;
   |}.
 
 Lemma x86_ok_lip_tmp :
