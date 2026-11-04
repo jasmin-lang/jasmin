@@ -695,17 +695,6 @@ Definition pp_arm_op_shapes
    All descriptions have [id_msb_flag] as [MSB_MERGE], but since all
    instructions have a 32-bit output, this is irrelevant. *)
 
-(* The mnemonics of the DSP extension (ARMv7E-M). *)
-Definition is_dsp_mnemonic (mn : arm_mnemonic) : bool :=
-  match mn with
-  | UMAAL | SMMUL | SMMULR | SMUL_hw _ _ | SMLA_hw _ _ | SMULW_hw _ => true
-  | _ => false
-  end.
-
-(* The mnemonics the core has. *)
-Definition arm_mnemonic_available {core : arm_core} (mn : arm_mnemonic) : bool :=
-  ~~ is_dsp_mnemonic mn || core_dsp.
-
 Section ARM_INSTR.
 
 Context
@@ -1118,7 +1107,7 @@ Definition arm_UMAAL_instr : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true; IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := arm_mnemonic_available mn;
+    id_valid := core_dsp;
     id_doit := DOIT;
     id_wf := refl_equal;
   |}.
@@ -1229,7 +1218,7 @@ Definition arm_SMMUL_instr : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := arm_mnemonic_available mn;
+    id_valid := core_dsp;
     id_doit := DOIT;
     id_wf := refl_equal;
   |}.
@@ -1256,7 +1245,7 @@ Definition arm_SMMULR_instr : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := arm_mnemonic_available mn;
+    id_valid := core_dsp;
     id_doit := DOIT;
     id_wf := refl_equal;
   |}.
@@ -1292,7 +1281,7 @@ Definition arm_smul_hw_instr hwn hwm : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := arm_mnemonic_available mn;
+    id_valid := core_dsp;
     id_doit := DOIT;
     id_wf := refl_equal;
   |}.
@@ -1324,7 +1313,7 @@ Definition arm_smla_hw_instr hwn hwm : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := arm_mnemonic_available mn;
+    id_valid := core_dsp;
     id_doit := DOIT;
     id_wf := refl_equal;
   |}.
@@ -1355,7 +1344,7 @@ Definition arm_smulw_hw_instr hw : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := arm_mnemonic_available mn;
+    id_valid := core_dsp;
     id_doit := DOIT;
     id_wf := refl_equal;
   |}.
