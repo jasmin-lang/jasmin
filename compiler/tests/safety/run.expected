@@ -86,6 +86,20 @@ Analyzing function array
 
 Program is not safe!
 
+File fail/common/array-len3.jazz (on arch cortex-m3):
+Analyzing function array
+
+
+*** Possible Safety Violation(s):
+  "fail/common/array-len3.jazz", line 37 (4-15): is_init blk[i]
+  
+* Rel:
+⊤
+
+
+
+Program is not safe!
+
 File fail/common/array-len3.jazz (on arch cortex-m4):
 Analyzing function array
 
@@ -128,6 +142,20 @@ Analyzing function bad_read
 
 Program is not safe!
 
+File fail/common/array_init.jazz (on arch cortex-m3):
+Analyzing function bad_read
+
+
+*** Possible Safety Violation(s):
+  "fail/common/array_init.jazz", line 8 (2-11): is_init t[0]
+  
+* Rel:
+⊤
+
+
+
+Program is not safe!
+
 File fail/common/array_init.jazz (on arch cortex-m4):
 Analyzing function bad_read
 
@@ -157,6 +185,24 @@ Analyzing function bad_read
 Program is not safe!
 
 File fail/common/fail_land.jazz (on arch x86-64):
+Analyzing function BS2POLVECq
+
+
+*** Possible Safety Violation(s):
+  "fail/common/fail_land.jazz", line 11 (25-51): termination
+  
+Memory ranges:
+  mem_b: [0; 0]
+  
+* Rel:
+{inv_b ≤ 4294967295, inv_b ≥ 0, mem_b = 0}
+mem_b ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/fail_land.jazz (on arch cortex-m3):
 Analyzing function BS2POLVECq
 
 
@@ -228,6 +274,24 @@ mem_b ∊ [0; 0]
 
 Program is not safe!
 
+File fail/common/fail_land2.jazz (on arch cortex-m3):
+Analyzing function BS2POLVECq
+
+
+*** Possible Safety Violation(s):
+  "fail/common/fail_land2.jazz", line 10 (25-51): termination
+  
+Memory ranges:
+  mem_b: [0; 0]
+  
+* Rel:
+{inv_b ≥ 0, inv_b ≤ 4294967295, mem_b = 0}
+mem_b ∊ [0; 0]
+
+
+
+Program is not safe!
+
 File fail/common/fail_land2.jazz (on arch cortex-m4):
 Analyzing function BS2POLVECq
 
@@ -265,6 +329,24 @@ mem_b ∊ [0; 0]
 Program is not safe!
 
 File fail/common/init-join.jazz (on arch x86-64):
+Analyzing function main
+
+
+*** Possible Safety Violation(s):
+  main return: is_init r
+  
+Memory ranges:
+  mem_x: [0; 0]
+  
+* Rel:
+{inv_x ≥ 0, inv_x ≤ 4294967295, mem_x = 0}
+mem_x ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/init-join.jazz (on arch cortex-m3):
 Analyzing function main
 
 
@@ -337,6 +419,25 @@ mem_t ∊ [0; 0]
 
 Program is not safe!
 
+File fail/common/not_in_bounds.jazz (on arch cortex-m3):
+Analyzing function f
+
+
+*** Possible Safety Violation(s):
+  "fail/common/not_in_bounds.jazz", line 2 (2-12): in_bound: t[- 1] (length 8 U8)
+  "fail/common/not_in_bounds.jazz", line 3 (2-11): in_bound: t[2] (length 8 U8)
+  
+Memory ranges:
+  mem_t: [0; 0]
+  
+* Rel:
+{mem_t = 0}
+mem_t ∊ [0; 0]
+
+
+
+Program is not safe!
+
 File fail/common/not_in_bounds.jazz (on arch cortex-m4):
 Analyzing function f
 
@@ -376,6 +477,20 @@ mem_t ∊ [0; 0]
 Program is not safe!
 
 File fail/common/wint_overflow.jazz (on arch x86-64):
+Analyzing function wint_overflow
+
+
+*** Possible Safety Violation(s):
+  "fail/common/wint_overflow.jazz", line 3 (28-48): 137 ∈ [-128; 127]
+  
+* Rel:
+⊤
+
+
+
+Program is not safe!
+
+File fail/common/wint_overflow.jazz (on arch cortex-m3):
 Analyzing function wint_overflow
 
 

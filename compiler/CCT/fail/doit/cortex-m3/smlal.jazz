@@ -1,0 +1,9 @@
+/* SMLAL is not DIT on the Cortex-M3. */
+#[ct="secret * secret -> secret"]
+export fn smlal(reg u32 x y) -> reg u32 {
+  reg u32 hi lo;
+  hi = x; lo = y;
+  lo, hi = #SMLAL(lo, hi, x, y);
+  lo ^= hi;
+  return lo;
+}
