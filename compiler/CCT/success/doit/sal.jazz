@@ -1,0 +1,8 @@
+// SAL and SHL are the same instruction, which is DOIT.
+#[ct = "secret × secret → secret"]
+export fn shift_left(reg u64 a, reg u8 c) -> reg u64 {
+    ?{}, a = #SAL_64(a, 3);
+    c &= 63;
+    ?{}, a = #SAL_64(a, c);
+    return a;
+}

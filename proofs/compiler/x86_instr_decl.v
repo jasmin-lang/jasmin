@@ -1226,7 +1226,7 @@ Definition Ox86_SHR_instr :=
   mk_instr_ww8_b5w_0c0 "SHR" x86_SHR_t (init_shift 1) check_ror (prim_8_64 SHR) size_8_64 DOIT (pp_iname_w_8 "shr").
 
 Definition Ox86_SAL_instr :=
-  mk_instr_ww8_b5w_0c0 "SAL" x86_SHL_t (init_shift 1) check_ror (prim_8_64 SAL) size_8_64 NOT_DOIT (pp_iname_w_8 "sal").
+  mk_instr_ww8_b5w_0c0 "SAL" x86_SHL_t (init_shift 1) check_ror (prim_8_64 SAL) size_8_64 DOIT (pp_iname_w_8 "sal").
 
 Definition x86_SAR_t sz (v: word sz) (i: u8) : sem_ltuple_t (b5w_ty sz) :=
   let i := wand i (x86_shift_mask sz) in
