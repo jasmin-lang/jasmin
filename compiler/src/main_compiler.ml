@@ -86,6 +86,17 @@ let main () =
       else prog
     in
 
+    (* PSTATE.DIT only exists on armv8a ([-dit] is rejected on the other
+       architectures by [check_options]). *)
+    if !target_arch <> Architecture.ARMv8A then
+      List.iter
+        (fun fd ->
+          if fd.f_annot.FInfo.dit then
+            warning Always (Location.i_loc0 fd.f_loc)
+              "the “dit” annotation is ignored on %s"
+              (Architecture.architecture_to_string !target_arch))
+        (snd prog);
+
     if to_warn Linter then begin
       let open Linter in
       let (_globs, funcs) = prog in
@@ -160,6 +171,16 @@ let main () =
       let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug) e in
       raise (HiError e)
     | Utils0.Ok asm ->
+      (* The assembly printer gets the annotations of each function. *)
+      let f_annot =
+        let tbl = Hf.create 17 in
+        List.iter (fun fd -> Hf.add tbl fd.f_name fd.f_annot) (snd prog);
+        fun fn ->
+          try Hf.find tbl fn
+          with Not_found ->
+            hierror ~loc:Lnone ~funname:fn.fn_name ~kind:"compiler error"
+              ~internal:true "invalid annotation table."
+      in
       if !Glob_options.print_export_info_json then begin
         Format.printf "%a" (fun fmt ->
           PrintExportInfo.pp_export_info_json
@@ -171,10 +192,10 @@ let main () =
       if !outfile <> "" then begin
         BatFile.with_file_out !outfile (fun out ->
           let fmt = BatFormat.formatter_of_out_channel out in
-          Format.fprintf fmt "%a%!" Arch.pp_asm asm);
+          Format.fprintf fmt "%a%!" (Arch.pp_asm f_annot) asm);
           if !debug then Format.eprintf "assembly listing written@."
       end else if List.mem Compiler.Assembly !print_list then
-          Format.printf "%a%!" Arch.pp_asm asm
+          Format.printf "%a%!" (Arch.pp_asm f_annot) asm
     | exception Annot.AnnotationError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
     end
   with

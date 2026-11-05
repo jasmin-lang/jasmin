@@ -134,15 +134,38 @@ module Armv8aTarget : AsmTargetBuilder.AsmTarget with
   (* A64 instructions must be 4-byte aligned. *)
   let function_directives = [ Instr (".p2align", ["2"]) ]
 
-  (* The return address (X30) is saved on the stack around the body of
-     export functions; SP must stay 16-byte aligned. *)
-  let function_header =
+  (* With [-dit] or [#[dit]], an export function sets PSTATE.DIT (FEAT_DIT)
+     for its body and restores the caller's value. DIT is named by its
+     encoding, so no Armv8.4 target is needed, and x16 (IP0) is scratch.
+     Arm needs no barrier after the write; Apple asks for a speculation
+     barrier, here DSB SY; ISB as for [#init_msf]. *)
+  let dit = "s3_3_c4_c2_5"
+
+  let dit_enter =
     [
-      Instr ("str", [ "x30"; "[sp, #-16]!" ])
+      Instr ("mrs", [ "x16"; dit ]);
+      Instr ("str", [ "x16"; "[sp, #-16]!" ]);
+      Instr ("mov", [ "x16"; "#0x1000000" ]);
+      Instr ("msr", [ dit; "x16" ]);
+      Instr ("dsb", [ "sy" ]);
+      Instr ("isb", [])
     ]
 
-  let function_tail =
+  let dit_leave =
     [
+      Instr ("ldr", [ "x16"; "[sp], #16" ]);
+      Instr ("msr", [ dit; "x16" ])
+    ]
+
+  (* The return address (X30) is saved on the stack around the body of
+     export functions; SP must stay 16-byte aligned. *)
+  let function_header (annot : FInfo.f_annot) =
+    Instr ("str", [ "x30"; "[sp, #-16]!" ])
+    :: (if annot.dit then dit_enter else [])
+
+  let function_tail (annot : FInfo.f_annot) =
+    (if annot.dit then dit_leave else [])
+    @ [
       Instr ("ldr", [ "x30"; "[sp], #16" ]);
       Instr ("ret", [])
     ]
@@ -207,4 +230,5 @@ end
 
 module Armv8aBuilder = AsmTargetBuilder.Make(Armv8aTarget)
 
-let print_prog fmt prog = PrintASM.pp_asm fmt (Armv8aBuilder.asm_of_prog prog)
+let print_prog f_annot fmt prog =
+  PrintASM.pp_asm fmt (Armv8aBuilder.asm_of_prog f_annot prog)

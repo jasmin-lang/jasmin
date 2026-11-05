@@ -18,6 +18,14 @@
   "warning/x86-64/reg_const_ptr.jazz", line 2 (9-10)
   warning: no need to return a [reg const ptr] r
 
+  $ ../jasminc warning/x86-64/dit.jazz
+  "warning/x86-64/dit.jazz", line 1 (0) to line 5 (1)
+  warning: the “dit” annotation is ignored on x86-64
+
+  $ ../jasminc -dit warning/x86-64/dit.jazz
+  Error: Option -dit is only supported on armv8a.
+  [1]
+
   $ ../jasminc -wall -until_cstexp fail/linter/dead_variables.jazz
   "fail/linter/dead_variables.jazz", line 6 (8-18)
   warning: Instruction only assigns dead variables

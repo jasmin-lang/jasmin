@@ -18,8 +18,8 @@ module type AsmTarget = sig
     val text_alignment      : asm_element list
     val data_segment_header : asm_element list
     val function_directives : asm_element list
-    val function_header     : asm_element list
-    val function_tail       : asm_element list
+    val function_header     : FInfo.f_annot -> asm_element list
+    val function_tail       : FInfo.f_annot -> asm_element list
     val pp_instr_r          : Name.t -> (reg, regx, xreg, rflag, cond, asm_op) Arch_decl.asm_i_r -> asm_element list
 
 end
@@ -32,7 +32,9 @@ module type S = sig
     type cond
     type asm_op
 
-    val asm_of_prog : (reg,regx,xreg,rflag,cond,asm_op) asm_prog -> asm_element list
+    val asm_of_prog :
+      (funname -> FInfo.f_annot) ->
+      (reg,regx,xreg,rflag,cond,asm_op) asm_prog -> asm_element list
 end
 
 module Make(Target : AsmTarget) : S
@@ -75,7 +77,7 @@ module Make(Target : AsmTarget) : S
     let function_symbol name decl =
         if decl.asm_fd_export then mangle name else name
 
-    let pp_function_header (name:string) decl =
+    let pp_function_header (name:string) f_annot decl =
         let name = function_symbol name decl in
         (if Glob_options.use_function_sections ()
          then text_section name :: Target.text_alignment
@@ -85,23 +87,24 @@ module Make(Target : AsmTarget) : S
            then [ Header (".type", [name; "%function"]) ]
            else [])
         @ Label name
-        :: (if decl.asm_fd_export then Target.function_header else [])
+        :: (if decl.asm_fd_export then Target.function_header f_annot else [])
 
-    let pp_function_tail name decl =
+    let pp_function_tail name f_annot decl =
         let name = function_symbol name decl in
-        (if decl.asm_fd_export then Target.function_tail else [])
+        (if decl.asm_fd_export then Target.function_tail f_annot else [])
         @ (if elf_target ()
            then [ Header (".size", [name; Format.asprintf ".-%s" name]) ]
            else [])
 
-    let pp_function (fname,decl) =
+    let pp_function annot_of (fname,decl) =
         let name = escape fname.fn_name in
-        let headers = pp_function_header name decl in
+        let f_annot = annot_of fname in
+        let headers = pp_function_header name f_annot decl in
         let body = pp_body name decl in
-        let tail = pp_function_tail name decl in
+        let tail = pp_function_tail name f_annot decl in
         headers @ body @ tail
 
-    let pp_functions funcs = List.concat_map pp_function funcs
+    let pp_functions annot_of funcs = List.concat_map (pp_function annot_of) funcs
 
     let pp_function_decl (name, decl : CoreIdent.funname * (_,_,_,_,_,_) asm_fundef) =
         if decl.asm_fd_export then
@@ -131,10 +134,10 @@ module Make(Target : AsmTarget) : S
       else
         []
 
-    let asm_of_prog (asm: (reg,regx,xreg,rflag,cond,asm_op) asm_prog) : asm_element list =
+    let asm_of_prog annot_of (asm: (reg,regx,xreg,rflag,cond,asm_op) asm_prog) : asm_element list =
         let headers = Target.headers in
         let functions_head = pp_functions_decl asm.asm_funcs in
-        let functions_body = pp_functions asm.asm_funcs in
+        let functions_body = pp_functions annot_of asm.asm_funcs in
         let data_segment = pp_data_segment asm.asm_globs asm.asm_glob_names in
         let compiler_ident = Header (".ident", [Format.asprintf "\"%s\"" Glob_options.version_string]) in
         let stack_note_segment =

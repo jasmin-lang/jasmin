@@ -409,9 +409,9 @@ and type asm_op = X86_instr_decl.x86_op
 
   let function_directives = []
 
-  let function_header = []
+  let function_header _ = []
 
-  let function_tail = [Instr ("ret", [])]
+  let function_tail _ = [Instr ("ret", [])]
 
   let text_alignment = [ Header (".p2align", ["5"]) ]
 
@@ -432,9 +432,9 @@ module TranslateIntel = X86AsmTranslate(IntelSyntax)
 module ATTPrinter = AsmTargetBuilder.Make(TranslateATT)
 module InterPrinter = AsmTargetBuilder.Make(TranslateIntel)
 
-let asm_of_prog (asm : X86_instr_decl.x86_prog) =
+let asm_of_prog f_annot (asm : X86_instr_decl.x86_prog) =
   match !Glob_options.assembly_style with
-  | `ATT -> ATTPrinter.asm_of_prog asm
-  | `Intel -> InterPrinter.asm_of_prog asm
+  | `ATT -> ATTPrinter.asm_of_prog f_annot asm
+  | `Intel -> InterPrinter.asm_of_prog f_annot asm
 
-let print_prog fmt p = PrintASM.pp_asm fmt (asm_of_prog p)
+let print_prog f_annot fmt p = PrintASM.pp_asm fmt (asm_of_prog f_annot p)
