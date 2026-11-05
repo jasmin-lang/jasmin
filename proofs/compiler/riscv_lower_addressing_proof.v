@@ -152,7 +152,7 @@ Proof using ok_p'.
   have [vm2 hsem eq_vm2] :
      exists2 vm2 : Vm.t env, sem_sopn (p_globs p) o (with_vm s1 vm1) xs als es = ok (with_vm s2 vm2) & evm s2 =[X] vm2.
     move: ok_s2; rewrite /sem_sopn; t_xrbindP => vs vr hes hex hw.
-    have [|vm2 hw2 heq2] := write_lvals_eq_on (fun _ => erefl) _ hw eq_vm1; first by clear -hsub; SvD.fsetdec.
+    have [|vm2 hw2 heq2] := write_lvals_eq_on _ hw eq_vm1; first by clear -hsub; SvD.fsetdec.
     exists vm2; last by apply: eq_onI heq2; clear; SvD.fsetdec.
     rewrite  -(read_es_eq_on _ _ (s := X)) //; last first.
     + by move=> z;rewrite read_esE => hz;apply eq_vm1; clear -hsub hz; SvD.fsetdec.
@@ -240,9 +240,10 @@ Proof using ok_p' tmp_nin htytmp.
     split => //; first by clear; SvD.fsetdec.
     by rewrite /read_rvs /= read_rvE; clear -hsub; SvD.fsetdec.
   + move=> xs tg o als es ii hsub.
-    apply (wequiv_opn_esem (sip:=sip)) => s t s' /st_relP [-> /= _ heq] hopn.
+    apply (wequiv_opn_esem (sip:=sip)) => s t s' /st_relP [-> /= heq] hopn.
     have [vm2 h ?]:= Hopn_aux hopn htytmp tmp_nin hsub heq.
-    by eexists; first apply h.
+    eexists; first by apply h.
+    by apply st_relP.
   + move=> xs sc es ii; rewrite !read_writeE => hsub.
     by apply (wequiv_syscall_rel_eq (sip:=sip)) with checker_st_eq_on X => //=; split=> //; clear -hsub; SvD.fsetdec.
   + by move=> ? ii ?; apply wequiv_noassert with (ev1:=ev) (ii:=ii).
@@ -269,6 +270,9 @@ Proof using ok_p' tmp_nin htytmp.
 Qed.
 
 End REC.
+
+(* FIXME: move *)
+#[local] Hint Resolve st_eq_on_refl : core.
 
 Lemma it_lower_addressing_progP fn:
   wiequiv_f p p' ev ev (rpreF (eS:=eq_spec)) fn fn (rpostF (eS:=eq_spec)).

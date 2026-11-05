@@ -117,7 +117,7 @@ Proof using Hp freshX.
   case => t' ok_t' htt'.
   have [ sub' ok_sub' sub_sub' ] := WArray.uincl_get_sub htt' ok_sub.
   have : evm s <=[read_e ofs] vm by apply: uincl_onI hvm; clear -hX; SvD.fsetdec.
-  move => /sem_pexpr_uincl_on -/(_ _ _ _ (fun _ => erefl) ok_vofs) [] vofs' ok_vofs' /value_uinclE ?; subst vofs'.
+  move => /sem_pexpr_uincl_on -/(_ _ _ _ ok_vofs) [] vofs' ok_vofs' /value_uinclE ?; subst vofs'.
   eexists; split.
   - rewrite /= /sem_assgn.
      rewrite /= -eq_globs ok_t' /= ok_vofs' /= ok_sub' /=.
@@ -293,10 +293,10 @@ Proof using Hp.
   case => // blen b; rewrite /get_gvar /= => ok_b hab.
   have hvm' : evm s1 <=[ read_e ofs ] vm1.
   - by apply: uincl_onI hvm; clear -hsub dstX; SvD.fsetdec.
-  case: (sem_pexpr_uincl_on (fun _ => erefl) hvm' ok_ofs) => ? ok_ofs' /value_uinclE ?; subst.
+  case: (sem_pexpr_uincl_on hvm' ok_ofs) => ? ok_ofs' /value_uinclE ?; subst.
   have [ z2' hset' z2z2' ] := WArray.uincl_set_sub hab z1z1' hset.
   have {}z2z2' : value_uincl (Varr z2) (Varr z2') by [].
-  have! := (write_var_uincl_on (fun _ => erefl) z2z2' hw hvm).
+  have! := (write_var_uincl_on z2z2' hw hvm).
   case => vm2 hw' hvm2.
   exists vm2.
   + by apply: uincl_onI hvm2; clear -dstX; SvD.fsetdec.
@@ -383,10 +383,11 @@ Proof using Hp.
     t_xrbindP => -[sx sc] hgets /=.
     t_xrbindP => -[tx tc] hgett.
     t_xrbindP => htx <-.
-    apply wequiv_opn_esem => s t s' /st_relP [-> /= _ hu].
+    apply wequiv_opn_esem => s t s' /st_relP [-> /= hu].
     rewrite /sem_sopn (is_copyP heq); t_xrbindP => vs' vs hes hcopy hxs.
     have [vm2 ??]:= esem_array_copy freshX hsub hgets hgett htx hu hes hcopy hxs.
-    by exists (with_vm s' vm2).
+    exists (with_vm s' vm2) => //.
+    by apply st_relP.
   + move=> ???? fi X; rewrite vars_I_syscall /vars_lvals /= => freshX hsub _ [<-].
     apply wequiv_syscall_rel_uincl with checker_st_uincl_on X => //.
     + by split => //; clear -hsub; SvD.fsetdec.
@@ -453,7 +454,7 @@ Proof using Hp.
   have [t -> hst] := [elaborate fs_uincl_initialize hin hex hpar eq_extra hfsu hinit].
   exists t => //.
   exists (st_uincl_on X), (st_uincl_on X); split => //.
-  + by case: hst; split.
+  + by case/st_relP: hst => ??; apply st_relP; split.
   2: {
     apply wrequiv_weaken with (st_uincl_on (vars_l (f_res fd1))) fs_uincl => //.
     + apply st_rel_weaken => vm1 vm2; apply uincl_onI.

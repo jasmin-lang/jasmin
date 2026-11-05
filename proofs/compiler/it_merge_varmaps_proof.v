@@ -410,7 +410,7 @@ Lemma check_eP wdb ii I e s t v u : check_e ii I e = ok u ->
   exists2 v', sem_pexpr wdb (p_globs p) t e = ok v' & value_uincl v v'.
 Proof.
   rewrite /check_e/check_fv => /assertP/Sv.is_empty_spec hd sim sem.
-  have := sem_pexpr_uincl_on (vm2 := evm t) (fun _ => erefl) _ sem.
+  have := sem_pexpr_uincl_on (vm2 := evm t) _ sem.
   rewrite (with_vm_m (mvm_scs sim) (mvm_mem sim)) with_vm_same; apply.
   by move=> x hx; apply (mvm_vmap sim); clear -hd hx; SvD.fsetdec.
 Qed.
@@ -435,7 +435,7 @@ Lemma check_lvP_match_estate ii I x O s1 s2 t1 v v': check_lv ii I x = ok O ->
   exists2 t2, write_lval true (p_globs p) x v' t1 = ok t2 & match_estate O s2 t2.
 Proof.
   rewrite /check_lv /check_fv; t_xrbindP => /Sv.is_empty_spec hd <- hsim hw hu.
-  have []:= write_uincl_on (vm1 := evm t1) (fun _ => erefl) _ hu hw.
+  have []:= write_uincl_on (vm1 := evm t1) _ hu hw.
   + move=> z hz; apply (mvm_vmap hsim); clear -hd hz; SvD.fsetdec.
   move=> vm2; rewrite (with_vm_m (mvm_scs hsim) (mvm_mem hsim)) with_vm_same => hw' hs.
   exists (with_vm s2 vm2) => //;split => // z hz.

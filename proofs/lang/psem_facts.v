@@ -342,7 +342,7 @@ Lemma write_var_eq_ex env wdb X (x:var_i) v (s1 s2 : estate env) (vm1 : Vm.t env
     evm s2 =[\X] vm2.
 Proof.
   move=> hw eq_vm1.
-  have [vm2 hw2 eq_vm2] := write_var_eq_on1 vm1 (fun _ => erefl) hw.
+  have [vm2 hw2 eq_vm2] := write_var_eq_on1 vm1 hw.
   exists vm2 => //.
   move=> y y_in.
   case: (Sv_memP y (Sv.singleton x)) => y_in'.
@@ -362,7 +362,7 @@ Lemma write_lval_eq_ex env wdb gd X x v (s1 s2 : estate env) vm1 :
 Proof.
   move=> hdisj hw eq_vm1.
   have eq_vm1' := eq_ex_disjoint_eq_on eq_vm1 hdisj.
-  have [vm2 hw2 eq_vm2] := write_lval_eq_on1 (fun _ => erefl) eq_vm1' hw.
+  have [vm2 hw2 eq_vm2] := write_lval_eq_on1 eq_vm1' hw.
   exists vm2 => //.
   move=> y y_in.
   case: (Sv_memP y (vrv x)) => y_in'.
@@ -382,7 +382,7 @@ Lemma write_lvals_eq_ex env wdb gd X xs vs (s1 s2 : estate env) vm1 :
 Proof.
   move=> hdisj hw eq_vm1.
   have eq_vm1' := eq_ex_disjoint_eq_on eq_vm1 hdisj.
-  have [vm2 hw2 eq_vm2] := write_lvals_eq_on (fun _ => erefl) (@SvD.F.Subset_refl _) hw eq_vm1'.
+  have [vm2 hw2 eq_vm2] := write_lvals_eq_on (@SvD.F.Subset_refl _) hw eq_vm1'.
   exists vm2 => //.
   move=> y y_in.
   case: (Sv_memP y (Sv.union (vrvs xs) (read_rvs xs))) => y_in'.

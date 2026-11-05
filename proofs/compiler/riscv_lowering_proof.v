@@ -628,15 +628,17 @@ Proof.
   (* Assgn *)
   + move=> x tg ty e ii.
     apply (wequiv_assgn_esem (sip:=sip)).
-    move=> s t s' /st_relP [-> /= _ heq] hsem.
+    move=> s t s' /st_relP [-> /= heq] hsem.
     have [vm2 -> ?]:= esem_vm_eq  (sip:=sip) eq_globs (Hassgn_esem ii hsem) heq.
-    by eexists; first reflexivity.
+    eexists; first by reflexivity.
+    by apply st_relP.
   (* Copn *)
   + move=> lvs tag op als es ii.
     apply (wequiv_opn_esem (sip:=sip)).
-    move => s t s' /st_relP [-> /= _ heq] hsem.
+    move => s t s' /st_relP [-> /= heq] hsem.
     have [vm2 -> ?]:= esem_vm_eq  (sip:=sip) eq_globs (Hopn_esem ii tag hsem) heq.
-    by eexists; first reflexivity.
+    eexists; first by reflexivity.
+    by apply st_relP.
   (* Syscall *)
   + move=> xs o es ii.
     by apply (wequiv_syscall_rel_eq (sip:=sip)) with
@@ -659,6 +661,9 @@ Proof.
 Qed.
 
 End REC.
+
+(* FIXME: move *)
+#[local] Hint Resolve st_eq_refl : core.
 
 (* Remark: excepted the case of Cassgn and Copn, the proof if the same than the arm one *)
 Lemma it_lower_callP fn :

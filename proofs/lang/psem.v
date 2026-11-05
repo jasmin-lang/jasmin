@@ -80,7 +80,7 @@ Context
   {dc: DirectCall}.
 
 Lemma st_eq_refl env d (s : estate env) : st_eq d s s.
-Proof. by split. Qed.
+Proof. by split=> //; exists erefl. Qed.
 Hint Resolve st_eq_refl : core.
 
 Section PROG.
@@ -89,31 +89,37 @@ Context (p p': prog) (ev ev': extra_val_t).
 
 Context (eq_globs: p_globs p = p_globs p').
 
-Lemma st_eq_sem_pexpr env wdb d e :
-  wrequiv (st_eq d) ((sem_pexpr (env:=env) wdb (p_globs p))^~ e) ((sem_pexpr (env:=env) wdb (p_globs p'))^~ e) eq.
+Lemma st_eq_sem_pexpr env1 env2 wdb d e :
+  wrequiv (st_eq d) ((sem_pexpr (env:=env1) wdb (p_globs p))^~ e) ((sem_pexpr (env:=env2) wdb (p_globs p'))^~ e) eq.
 Proof using eq_globs.
-  move=> s t v /st_relP [-> /=] heq hvm; rewrite eq_globs.
+  move=> s t v /[dup] /st_rel_env_eq ?; subst env2.
+  move=> /st_relP [-> /=] hvm; rewrite eq_globs.
   rewrite -sem_pexpr_ext_eq //; eauto.
 Qed.
 
 Lemma st_eq_sem_pexprs env1 env2 wdb d es :
   wrequiv (st_eq d) ((sem_pexprs (env:=env1) wdb (p_globs p))^~ es) ((sem_pexprs (env:=env2) wdb (p_globs p'))^~ es) eq.
 Proof using eq_globs.
-  move=> s t v /st_relP [-> /=] heq hvm; rewrite eq_globs.
+  move=> s t v /[dup] /st_rel_env_eq ?; subst env2.
+  move=> /st_relP [-> /=] hvm; rewrite eq_globs.
   by rewrite -sem_pexprs_ext_eq //; eauto.
 Qed.
 
 Lemma st_eq_write_lvals env1 env2 wdb d x v d':
   wrequiv (st_eq d) (fun s => write_lvals (env:=env1) wdb (p_globs p) s x v) (fun s => write_lvals (env:=env2) wdb (p_globs p') s x v) (st_eq d').
 Proof using eq_globs.
-  rewrite eq_globs => s t s' /st_relP [-> /=] heq h1 h2.
-  by have [vm2 h ->] := write_lvars_ext_eq heq h1 h2; eexists; eauto.
+  rewrite eq_globs => s t s' /[dup] /st_rel_env_eq ?; subst env2.
+  move=> /st_relP [-> /=] h1 h2.
+  have [vm2 h ->] := write_lvars_ext_eq h1 h2.
+  eexists; first by reflexivity.
+  by apply st_relP.
 Qed.
 
 Lemma st_eq_sem_eassert env1 env2 d e :
   wrequiv (st_eq d) ((sem_eassert (env:=env1) (p_globs p))^~ e) ((sem_eassert (env:=env2) (p_globs p'))^~ e) eq.
 Proof using eq_globs.
-  move=> s t v /st_relP [-> /=] heq hvm; rewrite eq_globs.
+  move=> s t v /[dup] /st_rel_env_eq ?; subst env2.
+  move=> /st_relP [-> /=] hvm; rewrite eq_globs.
   by rewrite -sem_eassert_ext_eq //; eauto.
 Qed.
 
@@ -156,7 +162,7 @@ Proof using eq_globs.
   + by move=> > hc1 hc2 ii; apply wequiv_if_rel_eq with checker_st_eq tt tt tt.
   + by move=> > hc ii; apply wequiv_for_rel_eq with checker_st_eq tt tt.
   + by move=> > hc hc' ii; apply wequiv_while_rel_eq with checker_st_eq tt.
-  by move=> ?????; apply wequiv_call_rel_eq with checker_st_eq tt => //.
+  by move=> ?????; apply wequiv_call_rel_eq with checker_st_eq tt.
 Qed.
 
 End FUN.
@@ -191,29 +197,29 @@ Proof using eq_globs.
     by have [vm1' -> /=] := hi _ _ _ hsi heq; apply: hc hsc.
   + move=> x tg ty e ii s1 s2 vm1 /=; rewrite /sem_assgn -eq_globs; t_xrbindP.
     move=> v he v' htr hw heq.
-    rewrite -(sem_pexpr_ext_eq true (p_globs p) _ (fun _ => erefl) heq) he /= htr /=.
-    by have [vm2 ??] := write_lvar_ext_eq (fun _ => erefl) heq hw; exists vm2.
+    rewrite -(sem_pexpr_ext_eq true (p_globs p) _ heq) he /= htr /=.
+    by have [vm2 ??] := write_lvar_ext_eq heq hw; exists vm2.
   + move=> xs t o als es ii s1 s2 vm1 /=; rewrite /sem_sopn -eq_globs; t_xrbindP.
     move=> vs' vs hes hop hw heq.
-    rewrite -(sem_pexprs_ext_eq true (p_globs p) _ (fun _ => erefl) heq) hes /= hop /=.
-    by have [vm2 ??] := write_lvars_ext_eq (fun _ => erefl) heq hw; exists vm2.
+    rewrite -(sem_pexprs_ext_eq true (p_globs p) _ heq) hes /= hop /=.
+    by have [vm2 ??] := write_lvars_ext_eq heq hw; exists vm2.
   + move=> xs o es ii s1 s2 vm1 /=; rewrite /sem_syscall -eq_globs /upd_estate; t_xrbindP.
     move=> vs hes fs ho hw heq.
-    rewrite -(sem_pexprs_ext_eq true (p_globs p) _ (fun _ => erefl) heq) hes /= ho /= /upd_estate.
-    by have /(_ _ heq) [vm2 ??]:= write_lvars_ext_eq (fun _ => erefl) _ hw; exists vm2.
+    rewrite -(sem_pexprs_ext_eq true (p_globs p) _ heq) hes /= ho /= /upd_estate.
+    by have /(_ _ heq) [vm2 ??]:= write_lvars_ext_eq _ hw; exists vm2.
   + move=> e c1 c2 hc1 hc2 ii s1 s2 vm1 /=; rewrite /sem_cond -eq_globs; t_xrbindP.
     move=> b v he hb hc heq.
-    rewrite -(sem_pexpr_ext_eq true (p_globs p) _ (fun _ => erefl) heq) he /= hb /= => {hb}.
+    rewrite -(sem_pexpr_ext_eq true (p_globs p) _ heq) he /= hb /= => {hb}.
     by case: b hc heq; [apply hc1 | apply hc2].
   move=>  i d lo hi c hc ii s1 s2 vm1 /=; rewrite /sem_bound -eq_globs; t_xrbindP.
   move=> ??? hlo htol ?? hhi htoh <- hf heq.
-  rewrite -!(sem_pexpr_ext_eq true (p_globs p) _ (fun _ => erefl) heq) hlo hhi /= htol htoh /=.
+  rewrite -!(sem_pexpr_ext_eq true (p_globs p) _ heq) hlo hhi /= htol htoh /=.
   clear hlo hhi.
   elim: wrange s1 vm1 hf heq => [ | j js hrec] s1 vm1 /=.
   + by move=> [<-] ?; eexists; eauto.
   t_xrbindP.
   move=> s11 s12 hw hsc hf heq.
-  have [vm2 /= heq1 -> /=] := [elaborate write_lvar_ext_eq (x:=Lvar i) (v:=Vint j) (gd:=[::]) (fun _ => erefl) heq hw].
+  have [vm2 /= heq1 -> /=] := [elaborate write_lvar_ext_eq (x:=Lvar i) (v:=Vint j) (gd:=[::]) heq hw].
   have [vm3 ] := hc _ _ _ hsc heq1.
   by rewrite /esem => -> /=; apply: hrec.
 Qed.
@@ -245,18 +251,18 @@ Lemma st_eq_finalize env fd fd' :
   f_res fd = f_res fd' ->
   wrequiv (st_eq tt) (finalize_funcall fd (env:=env)) (finalize_funcall fd' (env:=env)) eq.
 Proof using spp. (* FIXME: can probably be proved without spp *)
-  rewrite /finalize_funcall => <- <- <- s t fs' [h1 h2 h3 h4].
+  rewrite /finalize_funcall => <- <- <- s t fs' /st_relP [-> heq].
   t_xrbindP => vs.
   rewrite -!(sem_pexprs_get_var _ [::]).
-  rewrite (sem_pexprs_ext_eq _ _ _ h3 h4).
-  case: s t h1 h2 h3 h4 => scs mem vm1 [/= _ _ vm2] <- <- h3 h4 -> /= ? -> <- /=.
+  rewrite (sem_pexprs_ext_eq _ _ _ heq).
+  move=> -> /= ? -> <- /=.
   eexists; eauto.
 Qed.
 
 Lemma wiequiv_f_eq fn :
   wiequiv_f p p ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
 Proof.
-  rewrite /wiequiv_f; apply wequiv_fun_ind => {}fn _ {}vals _ fs _ [<- [<- <-]] fd hget.
+rewrite /wiequiv_f; apply wequiv_fun_ind => {}fn _ {}vals _ fs _ [<- [<- <-]] fd hget.
 exists fd => // env1 env2 s1 ?; exists s1 => //; exists (st_eq tt), (st_eq tt).
 split=> //; first exact/wequiv_rec_st_eq.
 exact/st_eq_finalize.
@@ -279,11 +285,16 @@ Context
 
 Definition st_eq_on env1 env2 X := st_rel (env1:=env1) (env2:=env2) eq_on X.
 
+Lemma st_eq_on_refl env X (s : estate env) : st_eq_on X s s.
+Proof. by split=> //; exists erefl. Qed.
+
 Lemma read_es_st_eq_on env1 env2 gd wdb es X :
   Sv.Subset (read_es es) X ->
   wrequiv (st_eq_on (env1:=env1) (env2:=env2) X) ((sem_pexprs wdb gd)^~ es) ((sem_pexprs wdb gd)^~ es) eq.
 Proof.
-  move=> hsub s t v [????]; rewrite (eq_on_sem_pexprs _ (s' := t)) //.
+  move=> hsub s t v /[dup] /st_rel_env_eq ?; subst env2.
+  move=> /st_relP [-> hvm].
+  rewrite (eq_on_sem_pexprs _ (s' := with_vm s (evm t))) //.
   + by move => ->; eauto.
   by apply: (eq_onI hsub).
 Qed.
@@ -292,7 +303,9 @@ Lemma read_eassert_st_eq_on env1 env2 gd e X :
   Sv.Subset (read_eassert e) X ->
   wrequiv (st_eq_on (env1:=env1) (env2:=env2) X) ((sem_eassert gd)^~ e) ((sem_eassert gd)^~ e) eq.
 Proof.
-  move=> hsub s t b [????]. rewrite (eq_on_sem_eassert _ (s' := t)) //.
+  move=> hsub s t b /[dup] /st_rel_env_eq ?; subst env2.
+  move=> /st_relP [-> hvm].
+  rewrite (eq_on_sem_eassert _ (s' := with_vm s (evm t))) //.
   + by move => ->; eauto.
   by apply: (eq_onI hsub).
 Qed.
@@ -304,8 +317,11 @@ Lemma write_lvals_st_eq_on env1 env2 gd wdb xs vs X :
     (λ s1 : estate env1, write_lvals wdb gd s1 xs vs) (λ s2 : estate env2, write_lvals wdb gd s2 xs vs)
     (st_eq_on (Sv.union (vrvs xs) X)).
 Proof.
-  move=> hsub s [?? vm] s' [/= <- <- heq hvm] hw.
-  by have [vm' -> ? ] := write_lvals_eq_on heq hsub hw hvm; eexists; eauto.
+  move=> hsub s t s' /[dup] /st_rel_env_eq ?; subst env2.
+  move=> /st_relP [-> hvm] hw.
+  have [vm' -> ? ] := write_lvals_eq_on hsub hw hvm.
+  eexists; first by reflexivity.
+  by apply st_relP.
 Qed.
 
 Definition check_es_st_eq_on (X:Sv.t) (es1 es2 : pexprs) (X':Sv.t) :=
@@ -340,8 +356,9 @@ Lemma read_es_st_uincl_on env1 env2 gd wdb es X :
   Sv.Subset (read_es es) X ->
   wrequiv (st_uincl_on (env1:=env1) (env2:=env2) X) ((sem_pexprs wdb gd)^~ es) ((sem_pexprs wdb gd)^~ es) (values_uincl).
 Proof.
-  move=> hsub s t v /st_relP [-> /= h1 h2].
-  by apply: sem_pexprs_uincl_on => //; apply: uincl_onI h2.
+  move=> hsub s t v /[dup] /st_rel_env_eq ?; subst env2.
+  move=> /st_relP [-> /= hincl].
+  by apply: sem_pexprs_uincl_on => //; apply: uincl_onI hincl.
 Qed.
 
 Lemma write_lvals_st_uincl_on env1 env2 gd wdb xs X vs1 vs2 :
@@ -352,9 +369,11 @@ Lemma write_lvals_st_uincl_on env1 env2 gd wdb xs X vs1 vs2 :
     (λ s1 : estate env1, write_lvals wdb gd s1 xs vs1) (λ s2 : estate env2, write_lvals wdb gd s2 xs vs2)
     (st_uincl_on (Sv.union (vrvs xs) X)).
 Proof.
-  move=> hsub hu s t s' /st_relP [-> /= h1 h2] hw.
-  have [vm2 ? ->]:= write_lvals_uincl_on h1 hsub hu hw h2.
-  by eexists; eauto.
+  move=> hsub hu s t s' /[dup] /st_rel_env_eq ?; subst env2.
+  move=> /st_relP [-> /= hincl] hw.
+  have [vm2 ? ->]:= write_lvals_uincl_on hsub hu hw hincl.
+  eexists; first by reflexivity.
+  by apply st_relP.
 Qed.
 
 Lemma check_esP_R_st_uincl_on env1 env2 X es1 es2 X':
@@ -372,13 +391,13 @@ Lemma st_eq_on_finalize env fd fd' :
   f_res fd = f_res fd' ->
   wrequiv (st_eq_on (env1:=env) (env2:=env) (vars_l (f_res fd))) (finalize_funcall fd (env:=env)) (finalize_funcall fd' (env:=env)) eq.
 Proof using spp. (* FIXME: can probably be proved without spp *)
-  rewrite /finalize_funcall => <- <- <- /= s t fs [hscs hmem heq hvm].
+  rewrite /finalize_funcall => <- <- <- /= s t fs /st_relP [-> hvm] /=.
   t_xrbindP => vs hget vs' htr <-.
   move: hget; rewrite -(sem_pexprs_get_var _ [::]) => hres.
-  rewrite (eq_on_sem_pexprs (~~ direct_call) [::] (fun _ => erefl) hmem (eq_onI _ hvm)) in hres.
+  rewrite (eq_on_sem_pexprs (~~ direct_call) (s':=with_vm s (evm t)) [::] (s:=s) erefl (eq_onI _ hvm)) in hres.
   2: by rewrite vars_l_read_es.
   rewrite sem_pexprs_get_var in hres.
-  rewrite hres /= htr /= hscs hmem; eexists; eauto.
+  rewrite hres /= htr /=; eexists; eauto.
 Qed.
 
 Section PROG.
@@ -570,7 +589,10 @@ Context
 
 Lemma read_es_st_uincl env1 env2 d gd wdb es :
   wrequiv (st_uincl (env1:=env1) (env2:=env2) d) ((sem_pexprs wdb gd)^~ es) ((sem_pexprs wdb gd)^~ es) values_uincl.
-Proof. by move=> s t vs /st_relP [/= -> h1 h2]; apply sem_pexprs_uincl. Qed.
+Proof.
+  move=> s t vs /[dup] /st_rel_env_eq ?; subst env2.
+  by move=> /st_relP [/= -> h1 h2]; apply sem_pexprs_uincl.
+Qed.
 
 Lemma write_lvals_st_uincl env1 env2 d d' gd wdb xs vs1 vs2 :
   values_uincl vs1 vs2 ->
@@ -579,8 +601,11 @@ Lemma write_lvals_st_uincl env1 env2 d d' gd wdb xs vs1 vs2 :
     (λ s1 : estate env1, write_lvals wdb gd s1 xs vs1) (λ s2 : estate env2, write_lvals wdb gd s2 xs vs2)
     (st_uincl d').
 Proof.
-  move=> hu s t s' /st_relP [/= -> h1 h2] hw.
-  by have [vm' -> ?] := writes_uincl h1 h2 hu hw; eexists; eauto.
+  move=> hu s t s' /[dup] /st_rel_env_eq ?; subst env2.
+  move=> /st_relP [/= -> hincl] hw.
+  have [vm' -> ?] := writes_uincl hincl hu hw.
+  eexists; first by reflexivity.
+  by apply st_relP.
 Qed.
 
 Section PROG.
@@ -666,7 +691,9 @@ Proof.
   t_xrbindP => vs htr s0 -> hw.
   have [vs' -> {}hu /=] := mapM2_dc_truncate_val htr hu.
   have [vm] := [elaborate write_vars_uincl (vm_uincl_refl (evm s0)) hu hw].
-  by rewrite with_vm_same => -> ? /=; eexists; eauto.
+  rewrite with_vm_same => -> ? /=.
+  eexists; first by reflexivity.
+  by apply st_relP.
 Qed.
 
 (* TODO: Can we generalize this to different semantic ? *)
@@ -676,7 +703,7 @@ Lemma fs_uincl_finalize env fd fd' :
   f_res fd = f_res fd' ->
   wrequiv (st_uincl (env1:=env) (env2:=env) tt) (finalize_funcall fd (env:=env)) (finalize_funcall fd' (env:=env)) fs_uincl.
 Proof.
-  rewrite /finalize_funcall => <- <- <- /= s t fs [<- <- heq hvm].
+  rewrite /finalize_funcall => <- <- <- /= s t fs /st_relP [-> hvm].
   t_xrbindP => vs hget vs' htr <-.
   have [vs1 -> hu /=] := get_var_is_uincl hvm hget.
   have [vs1' -> {}hu /=] := mapM2_dc_truncate_val htr hu.
@@ -689,10 +716,10 @@ Lemma fs_uincl_on_finalize env fd fd' :
   f_res fd = f_res fd' ->
   wrequiv (st_uincl_on (env1:=env) (env2:=env) (vars_l (f_res fd))) (finalize_funcall fd (env:=env)) (finalize_funcall fd' (env:=env)) fs_uincl.
 Proof using spp. (* FIXME: can probably be proved without spp *)
-  rewrite /finalize_funcall => <- <- <- /= s t fs /st_relP [-> /= heq hvm].
+  rewrite /finalize_funcall => <- <- <- /= s t fs /st_relP [-> /= hvm].
   t_xrbindP => vs hget vs' htr <-.
   move: hget; rewrite -(sem_pexprs_get_var _ [::]) => hres.
-  have [| vres1 + hu]:= sem_pexprs_uincl_on heq (uincl_onI _ hvm) hres.
+  have [| vres1 + hu]:= sem_pexprs_uincl_on (uincl_onI _ hvm) hres.
   + by rewrite vars_l_read_es.
   rewrite sem_pexprs_get_var /= => -> /=.
   have [vs1' -> {}hu /=] := mapM2_dc_truncate_val htr hu.
@@ -748,11 +775,11 @@ Definition check_lvals_eq_cmd (_:unit) lvs1 lvs2 (_:unit) : Prop := all2 eq_lval
 Lemma check_esP_R_st_eq_cmd env1 env2 (d:unit) es1 es2 (d':unit) :
   check_es_eq_cmd d es1 es2 d' →
   ∀ s1 s2,
-    st_rel (env1:=env1) (env2:=env2) (λ env1 env2 (_ : unit), vm_uincl (env1:=env1) (env2:=env2)) d s1 s2 →
-    st_rel (env1:=env1) (env2:=env2) (λ env1 env2 (_ : unit), vm_uincl (env1:=env1) (env2:=env2)) d' s1 s2.
+    st_rel (env1:=env1) (env2:=env2) (λ env (_ : unit), vm_uincl (env:=env)) d s1 s2 →
+    st_rel (env1:=env1) (env2:=env2) (λ env (_ : unit), vm_uincl (env:=env)) d' s1 s2.
 Proof. by move=> ?; apply st_rel_weaken. Qed.
 
-Definition checker_eq_cmd : Checker_e (st_rel (λ env1 env2 (_ : unit), vm_uincl (env1:=env1) (env2:=env2))) :=
+Definition checker_eq_cmd : Checker_e (st_rel (λ env (_ : unit), vm_uincl (env:=env))) :=
   {| check_es := check_es_eq_cmd;
      check_lvals := check_lvals_eq_cmd;
      check_esP_rel := check_esP_R_st_eq_cmd |}.
@@ -760,14 +787,17 @@ Definition checker_eq_cmd : Checker_e (st_rel (λ env1 env2 (_ : unit), vm_uincl
 Lemma checker_eq_cmdP : Checker_uincl p p' checker_eq_cmd.
 Proof using eq_globs.
   constructor; rewrite -eq_globs.
-  + move=> env1 env2 wdb _ d es1 es2 d' /wdb_ok_eq <- hes s t vs1 /st_relP [-> /= heq huincl] hvs1.
-    have [vs2 hvs2 hincl]:= sem_pexprs_uincl heq huincl hvs1.
+  + move=> env1 env2 wdb _ d es1 es2 d' /wdb_ok_eq <- hes s t vs1 /[dup] /st_rel_env_eq ?; subst env2.
+    move=> /st_relP [-> /= huincl] hvs1.
+    have [vs2 hvs2 hincl]:= sem_pexprs_uincl huincl hvs1.
     rewrite (eq_exprsP _ _ _ hes) in hvs2.
     by exists vs2.
-  move=> env1 env2 wdb _ d xs1 xs2 d' /wdb_ok_eq <- hxs vs1 vs2 hincl s t s' /st_relP [-> /= heq huincl] hs'.
-  have [vm2 {}hs' {}huincl] := writes_uincl heq huincl hincl hs'.
+  move=> env1 env2 wdb _ d xs1 xs2 d' /wdb_ok_eq <- hxs vs1 vs2 hincl s t s' /[dup] /st_rel_env_eq ?; subst env2.
+  move=> /st_relP [-> /= huincl] hs'.
+  have [vm2 {}hs' {}huincl] := writes_uincl huincl hincl hs'.
   rewrite (eq_lvalsP _ _ _ _ hxs) in hs'.
-  by exists (with_vm s' vm2).
+  exists (with_vm s' vm2) => //.
+  by apply st_relP.
 Qed.
 #[local] Hint Resolve checker_eq_cmdP : core.
 

@@ -860,20 +860,15 @@ case: fd; case: fd'; rewrite /lower_fd.
 by t_xrbindP=> /= > -> ? -> *; subst.
 Qed.
 
-(* FIXME: cannot use equality because we need to have two envs due to [check_esP_rel].
-   We could also use dependent equality, but this is ugly. *)
-(* FIXME: use st_rel? *)
+(* FIXME: st_rel (eq) instead of st_eq == st_rel (vm_eq) ? ne change pas gd chose *)
 Definition st_eq env1 env2 (senv : Env.t) (s : estate env1) (t : estate env2) : Prop :=
-  exists vm2, [/\ env_get env1 =1 env_get env2, t = with_vm s vm2, vm_eq s.(evm) vm2 & wf_env senv (p_globs p) s].
+  st_eq tt s t /\ wf_env senv (p_globs p) s.
 
-Lemma env_le_st_eq env1 env2 senv senv' s t :
+Lemma env_le_st_eq env senv senv' s t :
   Env.le senv senv' ->
-  st_eq (env1:=env1) (env2:=env2) senv' s t ->
+  st_eq (env1:=env) (env2:=env) senv' s t ->
   st_eq senv s t.
-Proof.
-  move=> /wf_env_le h [vm2 [? -> heq /h{}h]].
-  by exists vm2; split.
-Qed.
+Proof. by move=> /wf_env_le h [? /h{}h]. Qed.
 
 Definition check_es_env (senv : Env.t) (es es' : seq pexpr) (senv' : Env.t) :=
   es = es' /\ Env.le senv' senv.
@@ -886,7 +881,11 @@ Lemma check_es_envP env1 env2 senv es es' senv' :
   forall s t,
     st_eq (env1:=env1) (env2:=env2) senv s t ->
     st_eq senv' s t.
-Proof. move=> [_ hle] s t. exact: env_le_st_eq hle. Qed.
+Proof.
+  move=> [_ hle] s t.
+  move=> /[dup] -[/st_rel_env_eq ? _]; subst env2.
+  exact: env_le_st_eq hle.
+Qed.
 
 #[local]
 Instance Checker_env : Checker_e st_eq :=
@@ -901,13 +900,16 @@ Instance Checker_env : Checker_e st_eq :=
 Instance Checker_envP : Checker_eq p p' Checker_env.
 Proof using hp.
 split.
-- rewrite hp_globs => env1 env2 wdb _ d es _ _ /wdb_ok_eq <- [<- _] s1 s2 vs [vm2 [heq -> heqvm hwf]].
-  rewrite (sem_pexprs_ext_eq _ _ _ heq heqvm) => ->.
+- rewrite hp_globs => env1 env2 wdb _ d es _ _ /wdb_ok_eq <- [<- _] s1 s2 vs /[dup] -[/st_rel_env_eq ? _]; subst env2.
+  move=> [/st_relP [-> heqvm] _].
+  rewrite (sem_pexprs_ext_eq _ _ _ heqvm) => ->.
   by exists vs.
-rewrite hp_globs => env1 env2 ? _ senv xs _ senv' /wdb_ok_eq <- [<- hle] vs s s2 s' [vm2 [heq -> heqvm hchk]] hwrite.
-have [vm2' heq' hwrite'] := write_lvars_ext_eq heq heqvm hwrite.
+rewrite hp_globs => env1 env2 ? _ senv xs _ senv' /wdb_ok_eq <- [<- hle] vs s s2 s' /[dup] -[/st_rel_env_eq ? _]; subst env2.
+move=> [/st_relP [-> heqvm] hchk] hwrite.
+have [vm2' heqvm' hwrite'] := write_lvars_ext_eq heqvm hwrite.
 exists (with_vm s' vm2') => //.
-exists vm2'; split=> //; apply: (wf_env_le hle).
+split; first by apply st_relP.
+apply: (wf_env_le hle).
 exact: wf_env_after_assign_vars hchk hwrite.
 Qed.
 
@@ -955,37 +957,40 @@ Lemma it_lower_opn xs tg op als es : Pi_r (Copn xs tg op als es).
 Proof using hshparams hp.
 move=> ii senv senv' i' ii' /=; case: is_OslhP => [slho|?] /=; last first.
 - move=> [<-] [<- <-]; apply wequiv_opn_eq => //.
-  + rewrite hp_globs; move=> s _ vs [vm2 [_ -> heq _]].
-    rewrite (sem_pexprs_ext_eq _ _ _ (fun _ => erefl) heq) => ->; by exists vs.
-  rewrite hp_globs => vs s _ s' [vm2 [_ -> heq hwf]] hwrite.
-  have [vm2' heq' hwrite'] := write_lvars_ext_eq (fun _ => erefl) heq hwrite.
+  + rewrite hp_globs; move=> s t vs [/st_relP [-> heq] _].
+    rewrite (sem_pexprs_ext_eq _ _ _ heq) => ->; by exists vs.
+  rewrite hp_globs => vs s t s' [/st_relP [-> heq] hwf] hwrite.
+  have [vm2' heq' hwrite'] := write_lvars_ext_eq heq hwrite.
   exists (with_vm s' vm2') => //.
-  exists vm2'; split=> //; exact: wf_env_after_assign_vars hwf hwrite.
+  split; first by apply st_relP.
+  exact: wf_env_after_assign_vars hwf hwrite.
 rewrite /lower_slho; t_xrbindP=> hchk _ [[[xs' op'] als'] es'] hargs <- ??;
   subst ii' i'.
-apply wequiv_opn_esem => s ? s' [vm2 [_ -> heq hwf]].
+apply wequiv_opn_esem => s t s' [/st_relP [-> heq] hwf].
 rewrite /sem_sopn; t_xrbindP=> res args hsemes hexec hwrite.
 case: is_protect_ptrP hargs hchk hexec => {slho} [[ws sz]|slho] /=; t_xrbindP.
 - move=> ????; subst xs' op' als' es'.
   rewrite /sem_sopn; t_xrbindP=> /(check_e_msfP true hwf) + <-.
   move: args hsemes; rewrite /exec_sopn /=; destruct_opn_args=> /= hsemes.
   rewrite hp_globs /sopn_sem_ /= /se_protect_ptr_fail_sem /se_protect_ptr_sem
-    -(sem_pexprs_ext_eq _ _ _ (fun _ => erefl) heq) hsemes (mapM_nth (Pconst 0%Z) (Vint 0) (n := 1) hsemes);
+    -(sem_pexprs_ext_eq _ _ _ heq) hsemes (mapM_nth (Pconst 0%Z) (Vint 0) (n := 1) hsemes);
     last by rewrite (size_mapM hsemes).
   case: als => //=.
   move=> [->] _ [<-] ?? /= -> /= ?.
   rewrite truncate_word_u /= => - _ [->] ?; subst res.
   move: xs hwrite; rewrite /write_lvals; destruct_opn_args=> {}s' hwrite [<-].
-  have [vm2' heq' hwrite'] := write_lvar_ext_eq (fun _ => erefl) heq hwrite.
-  rewrite hwrite'; exists (with_vm s' vm2') => //; exists vm2'; split=> //.
+  have [vm2' heq' hwrite'] := write_lvar_ext_eq heq hwrite.
+  rewrite hwrite'; exists (with_vm s' vm2') => //.
+  split; first by apply st_relP.
   exact: wf_env_after_assign_vars1 hwf hwrite.
 move=> hlower hchk hexec; rewrite hp_globs.
 have [+ hw] := lower_slhoP hshparams hwf hchk hlower hsemes hexec hwrite.
 rewrite /sem_sopn; t_xrbindP=> {}res {}args {}hsemes {}hexec {}hwrite.
-rewrite -(sem_pexprs_ext_eq _ _ _ (fun _ => erefl) heq) hsemes /= hexec /=.
-have [vm2' heq' hwrite'] := write_lvars_ext_eq (fun _ => erefl) heq hwrite.
+rewrite -(sem_pexprs_ext_eq _ _ _ heq) hsemes /= hexec /=.
+have [vm2' heq' hwrite'] := write_lvars_ext_eq heq hwrite.
 rewrite hwrite' /=.
-by exists (with_vm s' vm2') => //; exists vm2'; split=> //.
+exists (with_vm s' vm2') => //.
+by split=> //; apply st_relP.
 Qed.
 
 Lemma lower_it_if e c1 c2 : Pc c1 -> Pc c2 -> Pi_r (Cif e c1 c2).
@@ -993,16 +998,17 @@ Proof using hp.
 move=> hc1 hc2 ii senv senv' /=; t_xrbindP=> _ _ hmeme senv1 hchk1 senv2 hchk2 <- _
   c1' hc1' c2' hc2' <- <- <-.
 apply wequiv_if_full.
-- rewrite hp_globs => s _ b [vm2 [_ -> heq hwf]].
+- rewrite hp_globs => s t b [/st_relP [-> heq] hwf].
   rewrite /sem_cond; t_xrbindP=> v hsem hb.
-  rewrite -(sem_pexpr_ext_eq _ _ _ (fun _ => erefl) heq) hsem /=.
+  rewrite -(sem_pexpr_ext_eq _ _ _ heq) hsem /=.
   by exists b.
 move=> b; apply (
   wequiv_weaken
     (P2 := st_eq (Env.update_cond senv (if b then e else enot e)))
     (Q2 := st_eq (if b then senv1 else senv2))
 ).
-- move=> s _ [[vm2 [_ -> heq hwf]] /sem_cond_sem_pexpr hseme _]; exists vm2; split=> //.
+- move=> s t [[/st_relP [-> heq] hwf] /sem_cond_sem_pexpr hseme _].
+  split; first by apply st_relP.
   apply: (wf_env_update_cond hwf); by case: b hseme => //= ->.
 - move=> ??; apply: env_le_st_eq; by case: b (EnvP.meet_le senv1 senv2) => -[].
 case: b; [exact: hc1 hchk1 hc1' | exact: hc2 hchk2 hc2'].
@@ -1035,15 +1041,17 @@ have {hcheck2 hc2'} {}hc2 := hc2 _ _ _ hcheck2 hc2'.
 eapply wequiv_weaken;
   last apply (wequiv_while_full (I := st_eq senv_fix) (I' := st_eq senv1)) => //.
 - move=> ??; exact: env_le_st_eq hle.
-- move=> s _ [[vm2 [_ -> heq hwf]] /sem_cond_sem_pexpr hseme _]; exists vm2; split=> //.
+- move=> s t [[/st_relP [-> heq] hwf] /sem_cond_sem_pexpr hseme _].
+  split; first by apply st_relP.
   apply: wf_env_update_cond => //=; by rewrite hseme.
-- rewrite hp_globs => s _ b [vm2 [_ -> heq _]].
+- rewrite hp_globs => s t b [/st_relP [-> heq] _].
   rewrite /sem_cond; t_xrbindP=> v hsem hb.
-  rewrite -(sem_pexpr_ext_eq _ _ _ (fun _ => erefl) heq) hsem /=.
+  rewrite -(sem_pexpr_ext_eq _ _ _ heq) hsem /=.
   by exists b.
   eapply (wequiv_weaken (P2 := st_eq (Env.update_cond senv1 e)));
     only 3: exact: hc2.
-- move=> s _ [[vm2 [_ -> heq hwf]] /sem_cond_sem_pexpr hseme _]; exists vm2; split=> //.
+- move=> s t [[/st_relP [-> heq] hwf] /sem_cond_sem_pexpr hseme _].
+  split; first by apply st_relP.
   exact: wf_env_update_cond.
 move=> ??; exact: env_le_st_eq hle2.
 Qed.
@@ -1058,15 +1066,16 @@ t_xrbindP=> _ _ ? hchkes hchkxs <- <-; apply (
     (Rvals := eq)
     (Rv := fun vs vs' => vs = vs' /\ List.Forall2 slh_t_spec vs (fun_info fn).1)
 ) => //.
-- rewrite hp_globs => s _ vs [vm2 [_ -> heq hwf]] hsemes /=.
-  rewrite -(sem_pexprs_ext_eq _ _ _ (fun _ => erefl) heq).
+- rewrite hp_globs => s t vs [/st_relP [-> heq] hwf] hsemes /=.
+  rewrite -(sem_pexprs_ext_eq _ _ _ heq).
  exists vs => //; split=> //.
   exact: check_f_argsP hwf hchkes hsemes.
-- by move=> s _ vals _ vs _ [vm2 [_ -> heq _]] <- [<- hvs].
+- by move=> s t vals _ vs _ [/st_relP [-> heq] _] <- [<- hvs].
 - by move=> ??; apply: wequiv_fun_rec.
-move=> _ _ fs _ fr _ [_ _ _ hpre] [<- hpos] s _ s' [vm2 [_ -> heq [hmsf hvars]]] hwrite.
-have [vm2' heq' hwrite'] := write_lvars_ext_eq (s1:=with_scs (with_mem _ _) _) (fun _ => erefl) heq hwrite.
-exists (with_vm s' vm2'); first (by rewrite hp_globs); exists vm2'; split=> //.
+move=> _ _ fs _ fr _ [_ _ _ hpre] [<- hpos] s t s' [/st_relP [-> heq] [hmsf hvars]] hwrite.
+have [vm2' heq' hwrite'] := write_lvars_ext_eq (s1:=with_scs (with_mem _ _) _) heq hwrite.
+exists (with_vm s' vm2'); first (by rewrite hp_globs).
+split; first by apply st_relP.
 apply: (check_f_lvsP _ hchkxs hpos hwrite); split=> //.
 case: Env.cond hvars => [c|//] [hsemc hmem]; split=> //.
 by rewrite (use_memP _ (s2 := s) _ _ hmem).
@@ -1110,8 +1119,10 @@ apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) c senv senv' c' => //;
       (de := senv)
       (de' := Env.after_assign_vars Env.empty (vrvs xs))
   ) => //.
-  - by move=> > [vm2 [_ -> _ _]].
-  - by move=> > [vm2 [_ -> heq _]]; exists vm2; split=> //.
+  - by move=> > [/st_relP [-> _] _].
+  - move=> > [/st_relP [-> heq] _].
+    split=> //.
+    by apply st_relP.
   - split=> //. exact: EnvP.le_refl.
   exact: wrequiv_eq.
 
@@ -1135,8 +1146,8 @@ exists fd' => //. rewrite hals => s hs; exists s.
 
 exists (st_eq senv), (st_eq senv'); split => //.
 (* Precondition *)
-- exists s.(evm); split => //.
-  + by rewrite with_vm_same.
+- split.
+  + by apply st_relP; split=> //; rewrite with_vm_same.
   move: hs; rewrite /initialize_funcall; t_xrbindP=> args hargs s0 hs0 hwrite.
   apply: (init_envP _ henv hargs hwrite (wf_env_empty _ _)).
   apply: htin.
@@ -1147,10 +1158,10 @@ exists (st_eq senv), (st_eq senv'); split => //.
 - exact: it_lower_code hchk hlower.
 
 (* Finalize *)
-clear s hs fs htin; move=> s _ fs [vm2 [_ -> heq hwf]].
+clear s hs fs htin; move=> s t fs [/st_relP [-> heq] hwf].
 rewrite /finalize_funcall htyout hret hextra.
 t_xrbindP=> res hres res' hres' ?; subst fs.
-rewrite -(sem_pexprs_get_var _ p.(p_globs)) -(sem_pexprs_ext_eq _ _ _ (fun _ => erefl) heq)
+rewrite -(sem_pexprs_get_var _ p.(p_globs)) -(sem_pexprs_ext_eq _ _ _ heq)
   sem_pexprs_get_var hres /= hres' /=.
 eexists=> //; split=> //; exact: check_resP hwf htout hres hres'.
 Qed.

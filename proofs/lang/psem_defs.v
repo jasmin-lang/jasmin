@@ -53,13 +53,11 @@ Definition get_global env gd g : exec value :=
     else type_error
   else type_error.
 
-Section WSW.
-Context {wsw:WithSubWord}.
-
 (* ** State
  * ------------------------------------------------------------------------- *)
 
 Record estate
+  {wsw : WithSubWord}
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
   (env : env_t) := Estate
@@ -69,7 +67,14 @@ Record estate
     evm  : Vm.t env
   }.
 
-Arguments Estate {syscall_state}%_type_scope {ep} _ _ _ _%_vm_scope.
+Arguments Estate {wsw} {syscall_state}%_type_scope {ep} {env} _ _ _%_vm_scope.
+
+Definition with_vm {wsw1 wsw2} {syscall_state} {ep : EstateParams syscall_state}
+    env1 env2 (s : estate (wsw:=wsw1) env1) (vm : Vm.t (wsw:=wsw2) env2) :=
+  {| escs := s.(escs); emem := s.(emem); evm := vm |}.
+
+Section WSW.
+Context {wsw:WithSubWord}.
 
 (* ** Variable map
  * -------------------------------------------------------------------- *)
@@ -99,9 +104,6 @@ Context
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
   (env : env_t).
-
-Definition with_vm env2 (s:estate env) (vm : Vm.t env2) :=
-  {| escs := s.(escs); emem := s.(emem); evm := vm |}.
 
 Definition with_mem (s:estate env) m :=
   {| escs := s.(escs); emem := m; evm := s.(evm) |}.

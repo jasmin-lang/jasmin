@@ -215,8 +215,8 @@ Section WITH_PARAMS.
         have /(_ x) := write_vars_defined ok_va ok_s.
         rewrite -hparams all_cat /= eqxx andbF => /(_ erefl).
         case => v [] v' [] ok_v get_x.
-        have /(_ _ (evm t)) := get_var_uincl _ get_x.
-        case: (hu) => _ _ _ vms_vmt /(_ vms_vmt).
+        have /(_ (evm t)) := get_var_uincl _ get_x.
+        case/st_relP: (hu) => _ vms_vmt /(_ vms_vmt).
         case => vt {} get_x v_vt.
         have := value_uincl_truncate_r v_vt ok_v.
         case => vt' ok_vt'.
@@ -225,7 +225,7 @@ Section WITH_PARAMS.
           rewrite /write_var /set_var (truncate_val_DB _ ok_vt') (truncate_val_truncatable ok_vt') /=.
           reflexivity.
         split; last by exists fs.
-        case: hu; split => //.
+        case/st_relP: hu => -> ?; apply st_relP; split => //.
         apply: (vm_uinclT vms_vmt).
         apply: vm_uincl_set_r; last reflexivity.
         rewrite (truncate_val_vm_truncate_val ok_vt').
@@ -246,7 +246,7 @@ Section WITH_PARAMS.
       rewrite -catA => /(_ hres).
       rewrite -{2}(cat0s [::]) -cat1s; apply wequiv_cat.
       apply wequiv_assign_right.
-      move => s t [] ? [] [] ?? _ hst [] fs.
+      move => s t [] ? [] /st_relP [] -> /= hst [] fs.
       case/and3P: (do_insert) => _  _ /eqP wt_res.
       rewrite /finalize_funcall; t_xrbindP => vr ok_vr vr'.
       rewrite wt_res => ok_vr' ?.
@@ -268,7 +268,7 @@ Section WITH_PARAMS.
       eexists; first reflexivity.
       split; first reflexivity.
       split; last by eexists.
-      split => //=.
+      apply st_relP; split => //=.
       apply: (vm_uinclT hst).
       apply: vm_uincl_set_r; last reflexivity.
       rewrite (truncate_val_vm_truncate_val ok_vt').

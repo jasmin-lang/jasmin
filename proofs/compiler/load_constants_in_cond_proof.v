@@ -182,10 +182,10 @@ Proof using Hp.
     move=> [c e'] hcond; t_xrbindP => c1' hc1' c2' hc2' <-; rewrite !read_writeE => hsub.
     rewrite map_cat.
     apply wequiv_if_esem with (st_eq_on X).
-    + move=> s t v /st_relP [-> /= _ heq] he.
+    + move=> s t v /st_relP [-> /= heq] he.
       have [ |vm' [???]] := process_conditionP hcond he _ heq.
       + by clear -hsub; SvD.fsetdec.
-      by eexists; split;eauto.
+      by eexists; split;eauto; apply st_relP.
     by move=> []; [apply hc1 | apply hc2]; move => //; clear -hsub; SvD.fsetdec.
   + move=> x dir lo hi c hc ii c_; t_xrbindP => c' hc' <-; rewrite !read_writeE => hsub.
     apply wequiv_for_rel_eq with checker_st_eq_on X X => //.
@@ -196,10 +196,10 @@ Proof using Hp.
     move=> c1' hc1' c2' hc2' <-; rewrite !read_writeE => hsub.
     apply wequiv_while_esem with (st_eq_on X).
     + by apply hc1 => //; clear -hsub; SvD.fsetdec.
-    + move=> s t v /st_relP [-> /= _ heq] he.
+    + move=> s t v /st_relP [-> /= heq] he.
       have [ |vm' [???]] := process_conditionP hcond he _ heq.
       + by clear -hsub; SvD.fsetdec.
-      by eexists; split;eauto.
+      by eexists; split;eauto; apply st_relP.
     by apply hc2 => //; clear -hsub; SvD.fsetdec.
   move=> xs fn als es ii _ [<-]; rewrite !read_writeE => hsub.
   apply wequiv_call_rel_eq with checker_st_eq_on X => //.
@@ -223,7 +223,7 @@ Proof using Hp.
   move=> hc' ?; subst fd'.
   exists (with_body fd c') => //.
   move=> s /(eq_initialize (p':=p') (fd':=with_body fd c')) -> //; last by rewrite -hp'.
-  exists s => //=; exists (st_eq_on X), (st_eq_on X); split => //; last first.
+  exists s => //=; exists (st_eq_on X), (st_eq_on X); split; first apply st_eq_on_refl; last first.
   + apply wrequiv_weaken with (st_eq_on (vars_l (f_res (with_body fd c')))) eq => //.
     + by apply st_rel_weaken => ??; apply eq_onI; rewrite /= /X vars_l_read_es; clear; SvD.fsetdec.
     by apply: (st_eq_on_finalize (fd':=with_body fd c')).

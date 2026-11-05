@@ -211,10 +211,7 @@ Section PROOF.
     eexists; split; first done.
     2-5: rewrite /= /get_gvar /=; by t_get_var.
     rewrite /= /with_vm /=.
-    split.
-    - by rewrite escs_with_vm.
-    - by rewrite emem_with_vm.
-    - done.
+    apply st_relP; split=> //.
     move=> x hx.
     rewrite !Vm.setP_neq //;
       apply/eqP => ?;
@@ -1225,6 +1222,11 @@ Section PROOF.
     by eexists.
   Qed.
 
+  Lemma eq_exc_fresh_refl env (s : estate env) : eq_exc_fresh s s.
+  Proof. by apply eeq_excR. Qed.
+  (* FIXME: move? *)
+  #[local] Hint Resolve eq_exc_fresh_refl : core.
+
   Lemma opn_5flags_correct env vi ii (s : estate env) a t o cf r xs ys m sz s' :
     disj_fvars (read_es a) →
     disj_fvars (vars_lvals [:: cf ; r ]) →
@@ -1244,7 +1246,7 @@ Section PROOF.
         with_vm s
         (evm s).[wtmp <- Vword (pwrepr64 n)].
       assert (eq_exc_fresh s ℓ) as e.
-      + subst ℓ; case:(s) => ?? /=;split => //.
+      + subst ℓ; apply st_relP; split=> //=.
         by apply eq_exS, vmap_eq_except_set, multiplicand_in_fv.
       assert (disj_fvars (read_e x) ∧ disj_fvars (read_es z)) as dxz.
       { eapply disj_fvars_m in da.
@@ -1348,7 +1350,7 @@ Section PROOF.
           with_vm s1'
           (evm s1').[ wtmp <- Vword (zero_extend tw vw) ].
         assert (eq_exc_fresh s1' ℓ) as dℓ.
-        + subst ℓ; case:(s1') => ?? /=; split => //.
+        + subst ℓ; apply st_relP; split => //.
           by apply eq_exS, vmap_eq_except_set, multiplicand_in_fv.
         case: (eeq_exc_write_lval Hdisjl dℓ Hw') => ℓ' hℓ' dℓ'.
         eexists; split.
@@ -1463,7 +1465,7 @@ Section PROOF.
         with_vm s1'
             (evm s1').[ wtmp <- Vword (wrepr U64 d)].
       have hsi : eq_exc_fresh s1' si.
-      + by rewrite /si; case: (s1') => ?? /=; split => //= k hk; rewrite Vm.setP_neq //; apply/eqP => ?; subst k; apply: hk; exact: multiplicand_in_fv.
+      + by rewrite /si; apply st_relP; split => //= k hk; rewrite Vm.setP_neq //; apply/eqP => ?; subst k; apply: hk; exact: multiplicand_in_fv.
       have [si' Hwi hsi'] := eeq_exc_write_lval Hdisjl hsi Hw'.
       eexists; split.
       + rewrite /= /sem_sopn /exec_sopn /= truncate_word_u /= wrepr_unsigned -/(pwrepr64 _) write_var_eq_type //=.
@@ -1561,11 +1563,11 @@ Section PROOF.
             /semi_to_atype computational_eq_refl
             hva /= hwa /x86_CQO /= write_var_eq_type.
         + by rewrite get_var_eq //= cmp_le_refl orbT.
-        + by split => //; apply eq_exS, vmap_eq_except_set; apply multiplicand_in_fv.
+        + by apply st_relP; split => //; apply eq_exS, vmap_eq_except_set; apply multiplicand_in_fv.
         + by rewrite /= /sem_sopn /exec_sopn /sopn_sem /sopn_sem_ /=
                                          /Oset0_instr hle2 /= write_var_eq_type.
         + by rewrite /= get_var_eq /= cmp_le_refl orbT ?wrepr0.
-        split => //.
+        apply st_relP; split => //.
         by apply eq_exS, vmap_eq_except_set; apply multiplicand_in_fv.
       have [hwa1 [s3 [hsem heqe] {hdiv}]]:= hdiv _ heq1 Hdisjl Hdisje.
       exists s3;split.
@@ -1736,7 +1738,8 @@ Section PROOF.
     rewrite/lower_addcarry /=.
     set default := [:: Copn _ _ _ _ _ ].
     have hdefault : ∃ so', esem p' ev [seq MkI ii i | i <- default] si' = ok so' ∧ eq_exc_fresh so so'.
-    + by repeat econstructor; rewrite /= /sem_sopn hx /= hv /= ho.
+    + eexists; split; last by apply eq_exc_fresh_refl.
+      by rewrite /= /sem_sopn hx /= hv /= ho.
     case: ifP => // hsz64.
     generalize (lower_addcarry_classifyP sub xs es); case: lower_addcarry_classify => //.
     move => [[[[vi op] es'] cf] r] [? [x' [y' [b [?]]]]] C; subst.
@@ -1811,7 +1814,7 @@ Section PROOF.
         set s2'' := with_vm s1'
            (evm s1').[ wtmp <- Vword (zero_extend sz w1) ].
         have Heq: eq_exc_fresh s1' s2''.
-          split=> //.
+          apply st_relP; split=> //.
           rewrite /s2'' /= => x Hx.
           rewrite Vm.setP_neq //.
           apply/eqP=> Habs; apply: Hx; rewrite -Habs //.
@@ -1838,7 +1841,7 @@ Section PROOF.
         set wtmp := {| v_var := _ |}.
         set s2'' := with_vm s1' (evm s1').[ wtmp <- Vword (zero_extend sz w2) ].
         have Heq: eq_exc_fresh s1' s2''.
-        * split=> //.
+        * apply st_relP; split=> //.
           rewrite /s2'' /= => x Hx.
           rewrite Vm.setP_neq //.
           apply/eqP=> Habs; apply: Hx; rewrite -Habs //.

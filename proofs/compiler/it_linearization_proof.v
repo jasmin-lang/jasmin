@@ -1688,7 +1688,7 @@ Section PROOF.
       move: ok_s' => /=; t_xrbindP => ofs ev ok_ev ok_ofs w ok_w m' ok_m' _{s'}.
       move: ok_t' => /=.
       have /= ok_ev' := match_mem_gen_sem_pexpr M ok_ev.
-      have /(_ _ X) := sem_pexpr_uincl (fun _ => erefl) _ ok_ev'.
+      have /(_ _ X) := sem_pexpr_uincl _ ok_ev'.
       case => ev' -> /of_value_uincl_te h /=.
       have {h} /= -> /= := (h (cword _) _ ok_ofs).
       t_xrbindP => w' ok_w' tm' ok_tm' <-{t'} /=.
@@ -3061,9 +3061,9 @@ End ILSTEPS_END.
     rewrite -(bind_ret_r (iresult _)); apply xrutt_bind_iresult_left => /= ks2.
     rewrite /sem_sopn p_globs_nil; t_xrbindP => s2 vxs ves hes hex ok_s2 ?; subst ks2.
     rewrite /eval_instr /=.
-    have [ vs' /(match_mem_gen_sem_pexprs M1) /chk_es ok_vs' vs_vs' ] := sem_pexprs_uincl (fun _ => erefl) X1 hes.
+    have [ vs' /(match_mem_gen_sem_pexprs M1) /chk_es ok_vs' vs_vs' ] := sem_pexprs_uincl X1 hes.
     have [ rs' ok_rs' rs_rs' ] := vuincl_exec_opn vs_vs' hex.
-    have [ vm2 /(match_mem_gen_write_lvals M1) [ m2 ok_s2' M2 ] ok_vm2 ] := writes_uincl (fun _ => erefl) X1 rs_rs' ok_s2.
+    have [ vm2 /(match_mem_gen_write_lvals M1) [ m2 ok_s2' M2 ] ok_vm2 ] := writes_uincl X1 rs_rs' ok_s2.
     have {} ok_s2'' := chk_xs _ _ _ ok_s2'.
     rewrite SC1 in ok_vs', ok_s2', ok_s2''; rewrite ok_vs' /= ok_rs'/= ok_s2'' /=.
     rewrite mix_ilsteps_b0 => //=; last by rewrite hpc addn1.
@@ -3173,7 +3173,7 @@ End ILSTEPS_END.
     have [ves' hes' uves] := get_vars_uincl X1 hes.
     have [vs' /= ho' uvs]:= exec_syscallP hex uves.
     have [m' {}ho' mm]:= match_mem_gen_exec_syscall M1 ho'.
-    have /(_ _ (vm_after_syscall_uincl X1)) := writes_uincl (fun _ => erefl) _ uvs ok_s2.
+    have /(_ _ (vm_after_syscall_uincl X1)) := writes_uincl _ uvs ok_s2.
     move=> [] vm2 /= /(match_mem_gen_write_lvals mm) [ m2 /= ok_s2' M2 ] ok_vm2 .
     rewrite SC1 in ho'.
     rewrite hes' /= ho' /= ok_s2' /=.
@@ -3221,7 +3221,7 @@ End ILSTEPS_END.
   Proof using linear_ok.
     rewrite p_globs_nil => -[M _ U _ _ _ _ _] /check_fexprP [] f ok_f ok_e.
     rewrite /to_fexpr ok_f.
-    have [ ? /(match_mem_gen_sem_pexpr M) + /value_uinclE ?]:= sem_pexpr_uincl (fun _ => erefl) U ok_e; subst.
+    have [ ? /(match_mem_gen_sem_pexpr M) + /value_uinclE ?]:= sem_pexpr_uincl U ok_e; subst.
     apply: fexpr_of_pexprP ok_f.
   Qed.
 

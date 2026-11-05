@@ -260,7 +260,8 @@ Section PROOF.
     apply wequiv_fun_ind => {}fn _ vals _ fs _ [<- <- <- hin] fd hfd; exists fd => //.
     + by apply get_dead_calls.
     move=> /= s hinit.
-    exists s=> //; exists (st_eq tt), (st_eq tt); split => //; last by apply st_eq_finalize.
+    exists s=> //; exists (st_eq tt), (st_eq tt); split; last by apply st_eq_finalize.
+    + by apply st_eq_refl.
     apply it_dead_calls_callP_rec.
     move=> n hn; apply: pfxp.
     by apply: live_calls_in hfd n hn.

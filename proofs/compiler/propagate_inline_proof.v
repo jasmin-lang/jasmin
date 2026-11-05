@@ -277,24 +277,22 @@ Lemma pi_esP es vs :
     values_uincl vs vs'.
 Proof using hvalid. case: pi_eP_and => _ h; apply h. Qed.
 
-Context env2 (vm:Vm.t env2) (hu: evm s <=1 vm).
+Context (vm:Vm.t env) (hu: evm s <=1 vm).
 
 Lemma pi_eP_uincl e v :
-  env_get env =1 env_get env2 ->
   sem_pexpr wdb gd s e = ok v ->
   exists2 v', sem_pexpr wdb gd (with_vm s vm) (pi_e pi e) = ok v' & value_uincl v v'.
 Proof using hvalid hu.
-  move=> heq /pi_eP [v'] /(sem_pexpr_uincl heq hu) [v'' ? h2] h1.
+  move=> /pi_eP [v'] /(sem_pexpr_uincl hu) [v'' ? h2] h1.
   exists v'' => //; apply: value_uincl_trans h1 h2.
 Qed.
 
 Lemma pi_esP_uincl es vs :
-  env_get env =1 env_get env2 ->
   sem_pexprs wdb gd s es = ok vs ->
   exists2 vs', sem_pexprs wdb gd (with_vm s vm) (pi_es pi es) = ok vs' &
     values_uincl vs vs'.
 Proof using hvalid hu.
-  move=> heq /pi_esP [vs'] /(sem_pexprs_uincl heq hu) [vs'' ? h2] h1.
+  move=> /pi_esP [vs'] /(sem_pexprs_uincl hu) [vs'' ? h2] h1.
   exists vs'' => //; apply: values_uincl_trans h1 h2.
 Qed.
 
@@ -389,8 +387,7 @@ Proof.
   by have [vm' hw'' hu']:= write_uincl hu huv hw'; exists vm'.
 Qed.
 
-Lemma pi_lvsP_uincl env1 env2 wdb pi (s : estate env1) (vm : Vm.t env2) s' xs vs vs':
-  env_get env1 =1 env_get env2 ->
+Lemma pi_lvsP_uincl env wdb pi (s : estate env) (vm : Vm.t env) s' xs vs vs':
   evm s <=1 vm -> values_uincl vs vs' ->
   valid_pi s pi ->
   write_lvals wdb gd s xs vs = ok s' ->
@@ -399,9 +396,9 @@ Lemma pi_lvsP_uincl env1 env2 wdb pi (s : estate env1) (vm : Vm.t env2) s' xs vs
       valid_pi s' (pi_lvs pi xs).1
     & write_lvals wdb gd (with_vm s vm) (pi_lvs pi xs).2 vs' = ok (with_vm s' vm') ].
 Proof.
-  move=> heq hu huv hvalid hw.
+  move=> hu huv hvalid hw.
   have [hvalid' hw'] := pi_lvsP hvalid hw.
-  by have [vm' hw'' hu']:= writes_uincl heq hu huv hw'; exists vm'.
+  by have [vm' hw'' hu']:= writes_uincl hu huv hw'; exists vm'.
 Qed.
 
 End Global.
@@ -514,7 +511,7 @@ Section PROOF.
     case heq: pi_lv => [pi' x'] [] <- /=; t_xrbindP.
     move=> v he v' htr hwr hu hval; rewrite /sem_assgn -eq_globs.
     have [vpe hvpe hupe] := pi_eP hval he.
-    have [ve hve huve] := sem_pexpr_uincl (fun _ => erefl) hu hvpe.
+    have [ve hve huve] := sem_pexpr_uincl hu hvpe.
     have hue := value_uincl_trans hupe huve.
     have [ve' htr' hue']:= value_uincl_truncate hue htr.
     have [vm' ] := pi_lvP_uincl hu hue' hval hwr.
@@ -565,35 +562,43 @@ Section PROOF.
      ; check_esP_rel := check_esP_R_pi
     |}.
 
-  Lemma st_piP env1 env2 d (s : estate env1) (t : estate env2) :
-    st_pi d s t ↔ [/\ t = with_vm s (evm t), env_get env1 =1 env_get env2, evm s <=1 evm t & valid_pi gd s d].
+  Lemma st_piP env d (s : estate env) (t : estate env) :
+    st_pi d s t ↔ [/\ t = with_vm s (evm t), evm s <=1 evm t & valid_pi gd s d].
   Proof.
-    by case: s t => scs1 mem1 vm1 [scs2 mem2 vm2] /=; split => -[[/= -> ->]].
+    split.
+    + by move=> [/st_relP [??] ?].
+    move=> [???].
+    by split=> //; apply st_relP.
   Qed.
 
-  Lemma pi_esPe env1 env2 d wdb es :
-    wrequiv (st_pi d) ((sem_pexprs (env:=env1) wdb gd)^~ es)
-      ((sem_pexprs (env:=env2) wdb (p_globs p2))^~ (pi_es d es)) values_uincl.
+  Lemma pi_esPe env d wdb es :
+    wrequiv (st_pi d) ((sem_pexprs (env:=env) wdb gd)^~ es)
+      ((sem_pexprs (env:=env) wdb (p_globs p2))^~ (pi_es d es)) values_uincl.
   Proof using hcomp.
-    by move=> s t vs /st_piP [-> heq /=] hu hval; rewrite -eq_globs; apply pi_esP_uincl.
+    by move=> s t vs /st_piP [-> /=] hu hval; rewrite -eq_globs; apply pi_esP_uincl.
   Qed.
 
-  Lemma pi_lvsPe env1 env2 d wdb xs vs1 vs2 :
+  Lemma pi_lvsPe env d wdb xs vs1 vs2 :
     values_uincl vs1 vs2 ->
-    wrequiv (st_pi d) (fun s => write_lvals (env:=env1) wdb (p_globs p1) s xs vs1)
-                      (fun s => write_lvals (env:=env2) wdb (p_globs p2) s (pi_lvs d xs).2 vs2)
+    wrequiv (st_pi d) (fun s => write_lvals (env:=env) wdb (p_globs p1) s xs vs1)
+                      (fun s => write_lvals (env:=env) wdb (p_globs p2) s (pi_lvs d xs).2 vs2)
             (st_pi (pi_lvs d xs).1).
   Proof using hcomp.
-    move=> hu s t s' /st_piP [-> /= heq hvmu hval] hw; rewrite -eq_globs.
-    have [vm' [{}hvmu {}hval ->]] := pi_lvsP_uincl heq hvmu hu hval hw.
-    by eexists; first reflexivity.
+    move=> hu s t s' /st_piP [-> /= hvmu hval] hw; rewrite -eq_globs.
+    have [vm' [{}hvmu {}hval ->]] := pi_lvsP_uincl hvmu hu hval hw.
+    eexists; first by reflexivity.
+    by split=> //; apply st_relP.
   Qed.
 
   Lemma checker_piP : Checker_uincl p1 p2 checker_pi.
   Proof using hcomp.
     constructor.
-    + by move=> > /wdb_ok_eq <- [_ ->]; apply pi_esPe.
-    move=> > /wdb_ok_eq <- [-> ->]; apply pi_lvsPe.
+    + move=> env1 env2 > /wdb_ok_eq <- [_ ->].
+      move=> +++ /[dup] -[/st_rel_env_eq ? _]; subst env2.
+      by apply pi_esPe.
+    move=> env1 env2 > /wdb_ok_eq <- [-> ->].
+    move=> ++++++ /[dup] -[/st_rel_env_eq ? _]; subst env2.
+    by apply pi_lvsPe.
   Qed.
   #[local] Hint Resolve checker_piP : core.
 
@@ -624,9 +629,10 @@ Section PROOF.
       by apply wequiv_cons with (st_pi di.1).
     + move=> x tg ty e ii d di hpi.
       apply wequiv_assgn_esem.
-      move=> s t s' /st_piP[-> /= _ hu hval] hsem.
+      move=> s t s' /st_piP[-> /= hu hval] hsem.
       have [vm2 [hu' hval' -> /= ]]:= Hassgn_aux hpi hsem hu hval.
-      by eexists; first reflexivity.
+      eexists; first by reflexivity.
+      by apply st_piP.
     + move=> xs tg o als es ii d di /=.
       case heq: pi_lvs => [d' xs'] [<-] /=.
       apply wequiv_opn_rel_uincl with checker_pi d => //.

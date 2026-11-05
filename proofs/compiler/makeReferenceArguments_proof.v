@@ -129,7 +129,7 @@ Context
       t_xrbindP => vt ht vst hts <- {vst'}.
       rewrite read_rvs_cons vrvs_cons => leX /=.
       t_xrbindP => s1' hw hws eqvm.
-      have [|vm1' hw' eqvm']:= write_lval_eq_on (fun _ => erefl) _ hw eqvm; first by clear -leX; SvD.fsetdec.
+      have [|vm1' hw' eqvm']:= write_lval_eq_on _ hw eqvm; first by clear -leX; SvD.fsetdec.
       case: (ih _ vm1' _ _ hts _ hws _).
       - by clear -leX; SvD.fsetdec.
       - by apply: eq_onI eqvm'; clear; SvD.fsetdec.
@@ -156,7 +156,7 @@ Context
     set I := mk_ep_i ii lv (vtype y) y.
     have [vm1' semI eqvm1']:
      exists2 vm1', esem_i p' ev I (with_vm s1 vmy) = ok (with_vm s1' vm1') & evm s1' =[X]  vm1'.
-    + have [ | vm1' hwvm1 eqvm1' ]:= write_lval_eq_on (X:=X) (fun _ => erefl) _ hw eqvmy; first by clear -leX; SvD.fsetdec.
+    + have [ | vm1' hwvm1 eqvm1' ]:= write_lval_eq_on (X:=X) _ hw eqvmy; first by clear -leX; SvD.fsetdec.
       exists vm1'; last by apply: eq_onI eqvm1'; clear; SvD.fsetdec.
       rewrite /= /sem_assgn semy /= (truncate_val_idem ht) /=.
       by rewrite -eq_globs.
@@ -191,7 +191,7 @@ Context
     have nwm_pi : ~~ lv_write_mem lv by case: (lv) wflv.
     have heqm  := lv_write_memP nwm_pi H3.
     have heqs  := lv_write_scsP H3.
-    have [{nwm_pi} vm3 hw3 hvm3] := write_lvals_eq_on (fun _ => erefl) (@SvP.MP.subset_refl _) hws heqr.
+    have [{nwm_pi} vm3 hw3 hvm3] := write_lvals_eq_on (@SvP.MP.subset_refl _) hws heqr.
     have hy : sem_pexpr true (p_globs p') (with_vm s1' vm3) (Plvar y) = ok v.
     + rewrite -H; rewrite /=; apply: (get_gvar_eq_on _ _ (@SvP.MP.subset_refl _)) => //.
       rewrite /read_gvar /= => y' /SvD.F.singleton_iff ?; subst y'.
@@ -220,7 +220,7 @@ Context
       apply: on_arr_varP => sz t htyx hget.
       rewrite /write_var.
       t_xrbindP=>  zi vi he hvi t1 -> t1' hsub vms3 hset ?; subst s3; rewrite /on_arr_var.
-      rewrite (@get_var_eq_on _ _ _ _ (Sv.singleton x) (evm s1)) => //; first last.
+      rewrite (@get_var_eq_on _ _ _ (Sv.singleton x) (evm s1)) => //; first last.
       + by move=> z hz; have := vrvsP hw3; rewrite !evm_with_vm => -> //; clear -hwr hz; SvD.fsetdec.
       + by clear; SvD.fsetdec.
       rewrite hget /=.
@@ -373,10 +373,10 @@ Context
     rewrite read_Ii read_i_opn /write_I /write_I_rec vrvs_recE => hsub hvm1.
     move: He; rewrite eq_globs /sem_sopn Let_Let.
     t_xrbindP => vs Hsem_pexprs res Hexec_sopn hw.
-    case: (write_lvals_eq_on (fun _ => erefl) _ hw hvm1); first by clear -hsub; SvD.fsetdec.
+    case: (write_lvals_eq_on _ hw hvm1); first by clear -hsub; SvD.fsetdec.
     move=> vm2 hw' eq_s2_vm2; exists vm2.
     + by apply: (eq_onI _ eq_s2_vm2); clear; SvD.fsetdec.
-    rewrite /sem_sopn /= Let_Let -(read_es_eq_on _ _ (fun _ => erefl) (s := X)); last first.
+    rewrite /sem_sopn /= Let_Let -(read_es_eq_on _ _ (s := X)); last first.
     + by rewrite read_esE; apply: (eq_onI _ hvm1); clear -hsub; SvD.fsetdec.
     by rewrite Hsem_pexprs /= Hexec_sopn /= hw'.
     }
@@ -385,10 +385,10 @@ Context
     rewrite read_Ii read_i_opn /write_I /write_I_rec vrvs_recE => hsub hvm1.
     move: He; rewrite eq_globs /sem_sopn Let_Let.
     t_xrbindP => vs Hsem_pexprs res Hexec_sopn hw.
-    case: (write_lvals_eq_on (fun _ => erefl) _ hw hvm1); first by clear -hsub; SvD.fsetdec.
+    case: (write_lvals_eq_on _ hw hvm1); first by clear -hsub; SvD.fsetdec.
     move=> vm2 hw' eq_s2_vm2; exists vm2.
     + by apply: (eq_onI _ eq_s2_vm2); clear; SvD.fsetdec.
-    rewrite /sem_sopn /= Let_Let -(read_es_eq_on _ _ (fun _ => erefl) (s := X)); last first.
+    rewrite /sem_sopn /= Let_Let -(read_es_eq_on _ _ (s := X)); last first.
     + by rewrite read_esE; apply: (eq_onI _ hvm1); clear -hsub; SvD.fsetdec.
     by rewrite Hsem_pexprs /= Hexec_sopn /= hw'.
   Qed.
@@ -463,15 +463,17 @@ Context
       apply wequiv_assgn_rel_eq with checker_st_eq_on X => //.
       1,2: by split => //; clear -hsub; SvD.fsetdec.
     + move=> xs tg o als es ii X c' hup hsub.
-      apply wequiv_opn_esem => s1 s2 t /st_relP [-> /= _ heq] ho.
+      apply wequiv_opn_esem => s1 s2 t /st_relP [-> /= heq] ho.
       have [vm2 ??] := sem_sopn_update_i ho hup hsub heq.
-      by exists (with_vm t vm2).
+      exists (with_vm t vm2) => //.
+      by apply st_relP.
     + move=> xs sc es ii X c' hup hsub.
-      apply wequiv_syscall_esem => s1 s2 t /st_relP [-> /= _ heq].
+      apply wequiv_syscall_esem => s1 s2 t /st_relP [-> /= heq].
       rewrite /sem_syscall /fexec_syscall /mk_fstate / upd_estate; t_xrbindP.
       move=> ? hes ? [[??]?] /= ho [<-] /= hw.
       have [vm2 ??] := sem_syscall_update_i hes ho hw hup hsub heq.
-      by exists (with_vm t vm2).
+      exists (with_vm t vm2) => //.
+      by apply st_relP.
     + move=> a ii X c' /= [<-] hsub.
       by apply wequiv_noassert.
     + move=> e c1 c2 hc1 hc2 ii X c' /=; t_xrbindP.
@@ -496,7 +498,7 @@ Context
     case heq : get_fundef => [fd | //] /=.
     t_xrbindP=> _ params' hparams returns' hreturns <-.
     t_xrbindP=> -[pl eargs] plE; t_xrbindP=> -[lvaout ep] epE [] <-.
-    rewrite !read_writeE => hsub s t /st_relP [-> /= _ heqX].
+    rewrite !read_writeE => hsub s t /st_relP [-> /= heqX].
     rewrite Eqit.bind_ret_r /isem_pexprs.
     case hes : (sem_pexprs true (p_globs p) s es) => [ves | e]; last first.
     + rewrite /= Eqit.bind_vis.
@@ -527,7 +529,8 @@ Context
     + by clear -hsub; SvD.fsetdec.
     move=> /= -> /(esem_i_bodyP (sem_F := sem_fun_rec _)) hsem eq_s2_vm2 /=.
     rewrite Eqit.bind_ret_l hsem /=.
-    by apply xrutt.xrutt_Ret.
+    apply xrutt.xrutt_Ret.
+    by apply st_relP.
   Qed.
 
   End REC.
@@ -545,18 +548,18 @@ Context
     rewrite /update_fd; t_xrbindP.
     set X := Sv.union _ _ => c' hc' <- s1 hinit.
     exists s1 => //.
-    exists (st_eq_on X), (st_eq_on X); split => //; last first.
+    exists (st_eq_on X), (st_eq_on X); split; first apply st_eq_on_refl; last first.
     + move: hinit; rewrite /initialize_funcall; t_xrbindP.
       move=> vargs hvargs _ _ _ {s1}.
       rewrite /finalize_funcall => s1 s2 o1 heqon.
       t_xrbindP => vres.
       rewrite -(sem_pexprs_get_var _ [::]) => hres.
-      case: heqon => hscs hmem _ hvm.
-      rewrite (eq_on_sem_pexprs (~~ direct_call) [::] (fun _ => erefl) hmem (eq_onI _ hvm)) in hres.
+      case/st_relP: heqon => -> /= hvm.
+      rewrite (eq_on_sem_pexprs (~~ direct_call) (s':=with_vm s1 (evm s2)) [::] (s:=s1) erefl (eq_onI _ hvm)) in hres.
       2: by rewrite /X /= /Plvar; clear; SvD.fsetdec.
       rewrite sem_pexprs_get_var in hres.
       rewrite hres /= => vres' hvres <-.
-      rewrite hvres /= -hscs -hmem.
+      rewrite hvres /=.
       eexists; split; eauto.
       exists fd => //. exists vres.
       have -> // : [seq i.2 | i <- map2 mk_info (f_res fd) (f_tyout fd)] = f_tyout fd.

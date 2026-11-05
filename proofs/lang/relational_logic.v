@@ -13,7 +13,8 @@ From ITree Require Import
   Eq.Rutt
   Eq.RuttFacts.
 
-From mathcomp Require Import ssreflect ssrfun ssrbool.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
+From mathcomp Require Import word_ssrZ.
 
 Import Monads.
 Import MonadNotation.
@@ -847,15 +848,35 @@ Qed.
 Section ST_REL.
 
 Context (D:Type).
-Context (R : forall env1 env2, D -> vm1_t env1 -> vm2_t env2 -> Prop).
+Context (R : forall env, D -> vm1_t env -> vm2_t env -> Prop).
 
 Definition st_rel env1 env2 (d : D) (s : estate1 env1) (t : estate2 env2) :=
-  [/\ escs s = escs t, emem s = emem t, env_get env1 =1 env_get env2 & R d (evm s) (evm t)%vm].
+  [/\ escs s = escs t, emem s = emem t & exists (heq : env1 = env2), R d (ecast i (vm1_t i) heq (evm s)) (evm t)].
 
 Lemma st_rel_weaken env1 env2 d d' :
-  (forall (vm1 : vm1_t env1) (vm2 : vm2_t env2), R d vm1 vm2 -> R d' vm1 vm2) ->
+  (forall (vm1 : vm1_t env1) (vm2 : vm2_t env1), R d vm1 vm2 -> R d' vm1 vm2) ->
   forall (s1 : estate1 env1) (s2 : estate2 env2), st_rel d s1 s2 -> st_rel d' s1 s2.
-Proof. by move => h s1 s2 [???]; split => //; apply h. Qed.
+Proof.
+  move=> h s1 s2 [?? [heq ?]]; subst env2.
+  by split=> //; exists erefl; apply h.
+Qed.
+
+Lemma st_rel_env_eq {env1 env2} {d} {s : estate1 env1} {t : estate2 env2} :
+  st_rel d s t -> env1 = env2.
+Proof.
+  by move=> [_ _ [+ _]].
+Qed.
+
+Lemma st_relP env d (s : estate1 env) (t : estate2 env) :
+  st_rel d s t <-> [/\ t = with_vm s (evm t) & R d (evm s) (evm t)].
+Proof.
+  rewrite (surj_estate s) (surj_estate t) /=.
+  split.
+  + move=> [/= <- <- [heq +]].
+    by rewrite (Eqdep_dec.UIP_dec (fun _ _ => Bool.reflect_dec _ _ eqP) heq erefl).
+  move=> [[<- <-] h].
+  by split=> //; exists erefl.
+Qed.
 
 Context (Rv : values -> values -> Prop).
 
@@ -873,7 +894,10 @@ Lemma upd_st_rel env1 env2 wdb1 wdb2 gd1 gd2 d d' xs1 xs2 :
        (st_rel (env1 := env1) (env2 := env2) d)
        (upd_estate wdb1 gd1 xs1 fs1) (upd_estate wdb2 gd2 xs2 fs2)
        (st_rel d')).
-Proof. by move=> h fs1 fs2 [h1 h2 /h{}h]; rewrite /upd_estate h1 h2 => s t s' [??? hvm]; apply h. Qed.
+Proof.
+  move=> h fs1 fs2 [h1 h2 /h{}h]; rewrite /upd_estate h1 h2 => s t s' [?? [heq ?]].
+  by apply h; split=> //; exists heq.
+Qed.
 
 Lemma upd_st_eq env1 env2 wdb1 wdb2 gd1 gd2 d d' xs1 xs2 :
   (forall vs,
@@ -886,9 +910,15 @@ Lemma upd_st_eq env1 env2 wdb1 wdb2 gd1 gd2 d d' xs1 xs2 :
        (st_rel (env1 := env1) (env2 := env2) d)
        (upd_estate wdb1 gd1 xs1 fs) (upd_estate wdb2 gd2 xs2 fs)
        (st_rel d')).
-Proof. by move=> h fs; rewrite /upd_estate => s t s' [??? hvm]; apply h. Qed.
+Proof.
+  move=> h fs; rewrite /upd_estate => s t s' [?? [heq ?]].
+  by apply h; split=> //; exists heq.
+Qed.
 
 End ST_REL.
+
+#[global] Arguments st_rel_env_eq {_ _ _ _ _ _ _} _.
+#[global] Arguments st_relP {_ _ _ _ _ _}.
 
 Definition fs_uincl := fs_rel values_uincl.
 
@@ -1766,7 +1796,7 @@ End REL.
 Section ST_REL.
 
 Context {D:Type}.
-Context (R : forall env1 env2, D -> vm1_t env1 -> vm2_t env2 -> Prop).
+Context (R : forall env, D -> vm1_t env -> vm2_t env -> Prop).
 
 Context {ce : Checker_e (st_rel R)}.
 
@@ -1835,8 +1865,8 @@ Context {cu:Checker_eq (R:=st_rel R)}.
 
 Lemma wequiv_if_rel_eq env1 env2 d de d1 d2 d' ii e c1 c2 ii' e' c1' c2' :
   check_es d [::e] [::e'] de ->
-  (forall (vm1 : vm1_t env1) (vm2 : vm2_t env2), R d1 vm1 vm2 -> R d' vm1 vm2) ->
-  (forall (vm1 : vm1_t env1) (vm2 : vm2_t env2), R d2 vm1 vm2 -> R d' vm1 vm2) ->
+  (forall (vm1 : vm1_t env1) (vm2 : vm2_t env1), R d1 vm1 vm2 -> R d' vm1 vm2) ->
+  (forall (vm1 : vm1_t env1) (vm2 : vm2_t env1), R d2 vm1 vm2 -> R d' vm1 vm2) ->
   wequiv (env1:=env1) (env2:=env2) (st_rel R de) c1 c1' (st_rel R d1) ->
   wequiv (env1:=env1) (env2:=env2) (st_rel R de) c2 c2' (st_rel R d2) ->
   wequiv (env1:=env1) (env2:=env2) (st_rel R d) [:: MkI ii (Cif e c1 c2)] [:: MkI ii' (Cif e' c1' c2')] (st_rel R d').
@@ -1847,7 +1877,7 @@ Qed.
 
 Lemma wequiv_for_rel_eq env1 env2 d0 d dhi di ii i dir lo hi c ii' i' lo' hi' c':
   check_es d0 [::lo; hi] [::lo'; hi'] dhi ->
-  (∀ (vm1 : vm1_t env1) (vm2 : vm2_t env2), R dhi vm1 vm2 → R d vm1 vm2) ->
+  (∀ (vm1 : vm1_t env1) (vm2 : vm2_t env1), R dhi vm1 vm2 → R d vm1 vm2) ->
   check_lvals d [::Lvar i] [::Lvar i'] di ->
   wequiv (env1:=env1) (env2:=env2) (st_rel R di) c c' (st_rel R d) ->
   wequiv (env1:=env1) (env2:=env2) (st_rel R d0) [:: MkI ii (Cfor i (dir, lo, hi) c)] [:: MkI ii' (Cfor i' (dir, lo', hi') c')] (st_rel R d).
@@ -1889,7 +1919,7 @@ End EQ.
 
 End ST_REL.
 
-Notation _vm_eq := (fun env1 env2 (_:unit) => vm_eq (wsw1:=wsw1) (wsw2:=wsw2) (env1:=env1) (env2:=env2)).
+Notation _vm_eq := (fun env (_:unit) => vm_eq (wsw1:=wsw1) (wsw2:=wsw2) (env:=env)).
 Definition st_eq := st_rel _vm_eq.
 
 Definition check_es_st_eq (_:unit) (es1 es2 : pexprs) (_:unit) := es1 = es2.
@@ -1915,7 +1945,7 @@ Definition checker_a_st_eq : Checker_a (st_rel _vm_eq) :=
   {| check_a := check_a_st_eq
    ; check_aP_rel := check_aP_st_eq |}.
 
-Notation _vm_uincl := (fun env1 env2 (_:unit) => vm_uincl (wsw1:=wsw1) (wsw2:=wsw2) (env1:=env1) (env2:=env2)).
+Notation _vm_uincl := (fun env (_:unit) => vm_uincl (wsw1:=wsw1) (wsw2:=wsw2) (env:=env)).
 Definition st_uincl := st_rel _vm_uincl.
 
 Lemma check_esP_R_st_uincl env1 env2 (d : unit) (es1 es2 : pexprs) (d' : unit) :
@@ -2327,7 +2357,7 @@ Proof.
 Qed.
 
 Lemma wequiv_call_rel_uincl
-  {D : Type} [R : forall [env1 env2], D → vm1_t env1 → vm2_t env2 → Prop] {ce : Checker_e (st_rel R)} {cu : Checker_uincl p1 p2 (R:=st_rel R)}
+  {D : Type} [R : forall [env], D → vm1_t env → vm2_t env → Prop] {ce : Checker_e (st_rel R)} {cu : Checker_uincl p1 p2 (R:=st_rel R)}
   env d de d' ii1 xs1 fn1 als1 es1 ii2 xs2 fn2 als2 es2 :
   [seq eval env i | i <- als1] = [seq eval env i | i <- als2] ->
   check_es d es1 es2 de →
@@ -2340,7 +2370,7 @@ Proof.
 Qed.
 
 Lemma wequiv_call_rel_eq
-  {D : Type} [R : forall [env1 env2], D → vm1_t env1 → vm2_t env2 → Prop] {ce : Checker_e (st_rel R)} {cu : Checker_eq p1 p2 (R:=st_rel R)}
+  {D : Type} [R : forall [env], D → vm1_t env → vm2_t env → Prop] {ce : Checker_e (st_rel R)} {cu : Checker_eq p1 p2 (R:=st_rel R)}
   env d de d' ii1 xs1 fn1 als1 es1 ii2 xs2 fn2 als2 es2 :
   [seq eval env i | i <- als1] = [seq eval env i | i <- als2] ->
   check_es d es1 es2 de →
@@ -2409,14 +2439,6 @@ Arguments wequiv_fun_rec {_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _}.
 
 Notation wiequiv   := (wequiv (sem_F1 := sem_fun_full) (sem_F2 := sem_fun_full)).
 
-Lemma st_relP {syscall_state : Type} {ep : EstateParams syscall_state} {wsw : WithSubWord}
-  D (R : forall [env1 env2], D -> Vm.t env1 -> Vm.t env2 -> Prop) env1 env2 d (s : estate env1) (t : estate env2) :
-  st_rel R d s t <-> [/\ t = with_vm s (evm t), env_get env1 =1 env_get env2 & R d (evm s) (evm t)].
-Proof.
-  rewrite (surj_estate s) (surj_estate t) /=.
-  by split => [ [/= <- <-] | [[<- <-] ?]].
-Qed.
-
 Notation EventRels E0 := (EventRels2 E0 E0).
 
 Section SYSCALL.
@@ -2445,7 +2467,7 @@ Context {E E0 : Type -> Type} {sem_F1 sem_F2 : sem_Fun E} {wE: with_Error E E0} 
 Context (p1 p2 : prog) (ev1 ev2: extra_val_t).
 
 Context {D : Type}
-        {R : forall env1 env2, D -> Vm.t env1 -> Vm.t env2 -> Prop}
+        {R : forall env, D -> Vm.t env -> Vm.t env -> Prop}
         {ce : Checker_e (st_rel R)}.
 
 Lemma wequiv_syscall_rel_uincl {cu: Checker_uincl p1 p2 (ce:=ce)} env d de d' ii1 xs1 sc es1 ii2 xs2 es2 :

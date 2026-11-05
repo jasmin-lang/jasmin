@@ -96,10 +96,11 @@ Section PROOF.
       set c' := (unroll_cmd _ _).1.
       apply wkequiv_bind with (st_eq tt).
       + apply wkequiv_iresult.
-        move=> s t s' /st_relP [-> /= _ heq] hw.
+        move=> s t s' /st_relP [-> /= heq] hw.
         rewrite /sem_assgn /= (write_var_Z hw) /=.
-        have [vm2 /= ??] := [elaborate write_lvar_ext_eq (gd := [::]) (x:= Lvar i) (fun _ => erefl) heq hw].
-        by exists (with_vm s' vm2).
+        have [vm2 /= ??] := [elaborate write_lvar_ext_eq (gd := [::]) (x:= Lvar i) heq hw].
+        exists (with_vm s' vm2) => //.
+        by apply st_relP.
       apply (wkequiv_eutt_r
               (F2 := fun s => Monad.bind (isem_cmd_ p' ev c' s)
                       [eta isem_cmd_ p' ev (flatten [seq assgn ii i (Pconst n) :: c' | n <- js])])).
@@ -111,6 +112,9 @@ Section PROOF.
   Qed.
 
   End REC.
+
+  (* FIXME : move *)
+  #[local] Hint Resolve st_eq_refl : core.
 
   Lemma it_unroll_callP fn :
     wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).

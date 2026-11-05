@@ -32,7 +32,7 @@ Lemma estate_sim_scs env (e : estate_n env) (e' : estate_s env) scs :
   estate_sim (with_scs e scs) (with_scs e' scs).
 Proof. by case => *; constructor. Qed.
 
-Lemma estate_sim_mem env (e : estate_n env) (e' : estate env) m :
+Lemma estate_sim_mem env (e : estate_n env) (e' : estate_s env) m :
   estate_sim e e' ->
   estate_sim (with_mem e m) (with_mem e' m).
 Proof. by case => *; constructor. Qed.
@@ -40,18 +40,16 @@ Proof. by case => *; constructor. Qed.
 Lemma vmap0_sim env : (Vm.init (wsw:= nosubword) env =1 Vm.init (wsw:= withsubword) env)%vm.
 Proof. by move=> x; rewrite !Vm.initP. Qed.
 
-Lemma get_var_sim env1 env2 (vm : vmap_n env1) (vm' : vmap_s env2) :
+Lemma get_var_sim env (vm : vmap_n env) (vm' : vmap_s env) :
   (vm =1 vm')%vm →
   ∀ x, get_var true vm x = get_var true vm' x.
 Proof. by move=> heq x; rewrite /get_var heq. Qed.
 
-Lemma get_gvar_sim env1 env2 gd (vm : vmap_n env1) (vm' : vmap_s env2) :
-  env_get env1 =1 env_get env2 ->
+Lemma get_gvar_sim env gd (vm : vmap_n env) (vm' : vmap_s env) :
   (vm =1 vm')%vm →
   ∀ x, get_gvar true gd vm x = get_gvar true gd vm' x.
 Proof.
-move => heq h x; rewrite /get_gvar (get_var_sim h).
-by rewrite /get_global (eval_atype_ext heq).
+by move => h x; rewrite /get_gvar (get_var_sim h).
 Qed.
 
 Lemma vm_truncate_val_sim t v :
@@ -64,14 +62,12 @@ Proof.
   by move=> [ws' [-> ]] /=.
 Qed.
 
-Lemma vmap_set_sim env1 env2 (vm : vmap_n env1) (vm' : vmap_s env2) x v:
-  env_get env1 =1 env_get env2 ->
+Lemma vmap_set_sim env (vm : vmap_n env) (vm' : vmap_s env) x v:
   (vm =1 vm')%vm →
-  truncatable true (wsw:=nosubword) (eval_atype env2 (vtype x)) v →
+  truncatable true (wsw:=nosubword) (eval_atype env (vtype x)) v →
   (vm.[x <- v] =1 vm'.[x <- v])%vm.
 Proof.
-  move => heq hvm hv y; rewrite !Vm.setP.
-  rewrite (eval_atype_ext heq).
+  move => hvm hv y; rewrite !Vm.setP.
   by rewrite vm_truncate_val_sim // hvm.
 Qed.
 
@@ -84,24 +80,21 @@ Proof.
   by move=> [ws' [-> _ _]] /=.
 Qed.
 
-Lemma set_var_sim env1 env2 (vm1 : vmap_n env1) (vm1' : vmap_s env2) x v vm2 :
-  env_get env1 =1 env_get env2 ->
+Lemma set_var_sim env (vm1 : vmap_n env) (vm1' : vmap_s env) x v vm2 :
   (vm1 =1 vm1')%vm →
   set_var true vm1 x v = ok vm2 →
   ∃ vm2',
     (vm2 =1 vm2')%vm ∧
     set_var true vm1' x v = ok vm2'.
 Proof.
-  move=> heq hsim /set_varP [hdb /[dup]htr /truncatable_sim htr' ->].
-  rewrite (eval_atype_ext heq) in htr'.
+  move=> hsim /set_varP [hdb /[dup]htr /truncatable_sim htr' ->].
   rewrite (set_var_truncate hdb htr') //; eexists; split; last by eauto.
-  apply vmap_set_sim => //.
-  by rewrite -(eval_atype_ext heq).
+  by apply vmap_set_sim.
 Qed.
 
 Section SEM_PEXPR_SIM.
 
-  Context env1 env2 (s : estate_n env1) (s': estate env2) (hs: estate_sim s s').
+  Context env (s : estate_n env) (s': estate_s env) (hs: estate_sim s s').
 
   Let P e : Prop :=
     ∀ v,
@@ -115,47 +108,40 @@ Section SEM_PEXPR_SIM.
 
   Lemma sem_pexpr_s_sim : (∀ e, P e) ∧ (∀ es, Q es).
   Proof using hs.
-    case: hs => ? hmem heq hsim.
-    apply: pexprs_ind_pair; subst P Q; split => //=; t_xrbindP.
+    subst P Q; case/st_relP: hs => -> /= hsim.
+    apply: pexprs_ind_pair; split => //=; t_xrbindP.
     + by move=> ? he ? hes ?? /he -> ? /hes -> <-.
-    + move=> ws n _ <-.
-      by rewrite (eval_ext heq).
     + by move=> ?? <-;apply/esym/get_gvar_sim.
-    1,2: move=> > he ?; rewrite /on_arr_var /on_arr_var (get_gvar_sim _ heq hsim);
-         t_xrbindP => -[] // > ->; t_xrbindP => > /he -> /= -> ? /=.
-    2: rewrite -(eval_ext heq).
-    1,2: by move=> -> <-.
-    + by move=> > he >; rewrite hmem => /he -> /= -> > /= -> <-.
-    + move=> > he > /he -> /=.
-      by rewrite (sem_sop1_ext heq).
-    + move=> > he1 > he2 > /he1 -> > /he2 -> /=.
-      by rewrite (sem_sop2_ext heq).
-    + move=> > hes > /hes; rewrite /sem_pexprs => -> /=.
-      by rewrite (sem_opN_ext heq).
-    move=> > he > he1 > he2 > /he -> /= -> > /he1 ->.
-    rewrite (eval_atype_ext heq).
-    by move=> /= -> > /he2 -> /= -> <-.
+    1,2: by move=> > he ?; rewrite /on_arr_var /on_arr_var (get_gvar_sim _ hsim);
+         t_xrbindP => -[] // > ->; t_xrbindP => > /he -> /= -> ? /= -> <-.
+    + by move=> > he > /he -> /= -> > /= -> <-.
+    + by move=> > he > /he ->.
+    + by move=> > he1 > he2 > /he1 -> > /he2 ->.
+    + by move=> > hes > /hes; rewrite /sem_pexprs => ->.
+    by move=> > he > he1 > he2 > /he -> /= -> > /he1 -> /= -> > /he2 -> /= -> <-.
   Qed.
 
 End SEM_PEXPR_SIM.
 
-Definition sem_pexpr_sim env1 env2 s e v s' h :=
-  (@sem_pexpr_s_sim env1 env2 s s' h).1 e v.
+Definition sem_pexpr_sim env s e v s' h :=
+  (@sem_pexpr_s_sim env s s' h).1 e v.
 
-Definition sem_pexprs_sim env1 env2 s es vs s' h :=
-  (@sem_pexpr_s_sim env1 env2 s s' h).2 es vs.
+Definition sem_pexprs_sim env s es vs s' h :=
+  (@sem_pexpr_s_sim env s s' h).2 es vs.
 
-Lemma write_var_sim env1 env2 (s1 : estate_n env1) x v (s2 : estate_n env1) (s1':estate env2) :
+Lemma write_var_sim env (s1 : estate_n env) x v (s2 : estate_n env) (s1' : estate_s env) :
   estate_sim s1 s1' →
   write_var true x v s1 = ok s2 →
   ∃ s2', estate_sim s2 s2' ∧ write_var true x v s1' = ok s2'.
 Proof.
-case => hscs hm heq hvm; rewrite /write_var; t_xrbindP => vm hw <- {s2}.
-case: (set_var_sim heq hvm hw) => vm' [hvm' ->].
-by eexists; split; split.
+case/st_relP => -> /= hvm.
+rewrite /write_var; t_xrbindP => vm hw <- {s2}.
+case: (set_var_sim hvm hw) => vm' [hvm' ->].
+eexists; split; last by reflexivity.
+by apply st_relP.
 Qed.
 
-Corollary write_vars_sim env (s1 : estate_n env) xs vs s2 (s1' : estate env) :
+Corollary write_vars_sim env (s1 : estate_n env) xs vs s2 (s1' : estate_s env) :
   estate_sim s1 s1' →
   write_vars true xs vs s1 = ok s2 →
   ∃ s2', estate_sim s2 s2' ∧ write_vars true xs vs s1' = ok s2'.
@@ -165,34 +151,35 @@ elim: xs vs s1 s1' s2.
 by move => x xs ih [] // v vs s1 s1' s3 hss'1 /=; apply: rbindP => s2 /(write_var_sim hss'1) [s2'] [hss'2 ->] /(ih _ _ _ _ hss'2).
 Qed.
 
-Lemma write_lval_sim env1 env2 (s1 : estate_n env1) x v s2 (s1' : estate env2) :
+Lemma write_lval_sim env (s1 : estate_n env) x v s2 (s1' : estate env) :
   estate_sim s1 s1' →
   write_lval true gd x v s1 = ok s2 →
   ∃ s2', estate_sim s2 s2' ∧ write_lval true gd x v s1' = ok s2'.
 Proof.
-case => hscs hm heq hvm; case: x => /=.
+move=> /[dup] /st_relP [-> /= hvm] hsim.
+case: x => /=.
 - move => _ ty; rewrite /write_none.
-  rewrite -(eval_atype_ext heq).
-  by t_xrbindP => /truncatable_sim -> -> <-; exists s1'.
-- move => x; exact: write_var_sim.
-- move => al sz vi e; t_xrbindP => ? ?;
-    rewrite hm  => /(sem_pexpr_sim (And4 hscs hm heq hvm))
+  by t_xrbindP => /truncatable_sim -> -> <-; exists (with_vm s1 (evm s1')).
+- by move => x; apply: write_var_sim.
+- move => al sz vi e; t_xrbindP => ? ? /(sem_pexpr_sim hsim)
         -> /= -> ? -> ? /= -> <- /=.
-  by eexists; split; split.
+  eexists; split; last by reflexivity.
+  by apply st_relP.
 - move => al aa ws x e.
   rewrite /on_arr_var /on_arr_var (get_var_sim hvm) /write_var.
   t_xrbindP => -[] // n t -> /=; t_xrbindP => ??
-      /(sem_pexpr_sim (And4 hscs hm heq hvm)) -> /= -> ? -> /= ? -> ? /(set_var_sim heq hvm) /= [vm' [h ->]] <-.
-  by eexists; split; split.
+      /(sem_pexpr_sim hsim) -> /= -> ? -> /= ? -> ? /(set_var_sim hvm) /= [vm' [h ->]] <-.
+  eexists; split; last by reflexivity.
+  by apply st_relP.
 move => aa ws ofs x e.
 rewrite /on_arr_var (get_var_sim hvm) /write_var; t_xrbindP => t -> /=.
-case: t => // n t; t_xrbindP => ?? /(sem_pexpr_sim (And4 hscs hm heq hvm)) -> /= ->.
-rewrite (eval_ext heq) => ? -> /= ? -> ? /(set_var_sim heq hvm).
+case: t => // n t; t_xrbindP => ?? /(sem_pexpr_sim hsim) -> /= -> ? -> /= ? -> ? /(set_var_sim hvm).
 case => vm' [] h /= -> <- /=.
-by eexists; split; split.
+eexists; split; last by reflexivity.
+by apply st_relP.
 Qed.
 
-Corollary write_lvals_sim env1 env2 (s1 : estate_n env1) xs vs s2 (s1' : estate env2) :
+Corollary write_lvals_sim env (s1 : estate_n env) xs vs s2 (s1' : estate_s env) :
   estate_sim s1 s1' →
   write_lvals true gd s1 xs vs = ok s2 →
   ∃ s2', estate_sim s2 s2' ∧ write_lvals true gd s1' xs vs = ok s2'.
@@ -214,8 +201,10 @@ Lemma checker_st_uinclP : Checker_eq p p (checker_st_eq (wsw1:=nosubword) (wsw2:
 Proof.
   constructor.
   + move=> env1 env2 _ _ [] es1 es2 [] /wdb_ok_eq_true [-> ->] <- s1 s2 vs1 hsim he.
+    have ? := st_rel_env_eq hsim; subst env2.
     by have := sem_pexprs_sim hsim he; eauto.
   move=> env1 env2 _ _ d xs1 xs2 d' /wdb_ok_eq_true [-> ->] <- vs s1 s2 s1' hsim hw.
+  have ? := st_rel_env_eq hsim; subst env2.
   have [?[]]:= write_lvals_sim hsim hw; eauto.
 Qed.
 #[local] Hint Resolve checker_st_uinclP : core.
@@ -283,9 +272,9 @@ Proof.
     have [s2'' [] /=]:= write_vars_sim hs hw; eauto.
   move=> [s2 h1 h2]; exists s2 => //.
   exists estate_sim, estate_sim; split => //; last first.
-  + move=> s1' s2' fs1' [hscs hmem heq hvm]; rewrite /finalize_funcall.
+  + move=> s1' s2' fs1' /st_relP [-> /= hvm]; rewrite /finalize_funcall.
     t_xrbindP => vs.
-    rewrite /get_var_is (mapM_ext (λ (x : var_i) _, get_var_sim hvm x)) hfinal hscs hmem => -> /=.
+    rewrite /get_var_is (mapM_ext (λ (x : var_i) _, get_var_sim hvm x)) hfinal => -> /=.
     by move=> ? -> <- /=; eauto.
   exact: it_psem_call_rec.
 Qed.
@@ -309,7 +298,7 @@ Lemma it_psem_call_u (p:uprog) ev fn :
 Proof.
   apply (it_psem_call (sCP := fun wsw => sCP_unit (wsw := wsw))) => //=.
   move=> _ ???? [<-]; eexists; eauto.
-  by split => //= x; rewrite !Vm.initP.
+  by apply st_relP; split => //= x; rewrite !Vm.initP.
 Qed.
 
 Lemma it_psem_call_s (p:sprog) ev fn :
@@ -322,7 +311,7 @@ Proof.
   have hsim : st_eq (wsw1:= nosubword) (wsw2:= withsubword) tt
                  {| escs := scs; emem := mem'; evm := Vm.init env |}
                  {| escs := scs; emem := mem'; evm := Vm.init env |}.
-  + by split => //= ?; rewrite !Vm.initP.
+  + by apply st_relP; split => //= ?; rewrite !Vm.initP.
   have [s' [hsim' hw']] := write_vars_sim hsim hw.
   by exists s'.
 Qed.

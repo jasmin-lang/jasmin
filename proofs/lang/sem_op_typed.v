@@ -44,13 +44,6 @@ Definition sem_sop1_typed env (o : sop1) :
 
 Arguments sem_sop1_typed : clear implicits.
 
-Definition zlsl (x i : Z) : Z :=
-  if (0 <=? i)%Z then (x * 2^i)%Z
-  else (x / 2^(-i))%Z.
-
-Definition zasr (x i : Z) : Z :=
-  zlsl x (-i).
-
 Definition sem_shift (shift:forall {s}, word s -> Z -> word s) s (v:word s) (i:u8) :=
   let i :=  wunsigned i in
   shift v i.

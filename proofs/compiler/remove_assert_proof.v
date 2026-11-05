@@ -23,25 +23,27 @@ Section REMOVE_ASSERT.
 
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
-(*   #[local] Notation st_eq := (st_rel (λ _ : unit, eq) tt). *)
+  #[local] Notation st_eq := (st_rel (λ (_ : env_t) (_ : unit), eq) tt).
 
-(*   Lemma st_rel_eq env1 env2 d (s1 : estate env1) (s2 : estate env2) : st_rel (λ env1 env2 (_ : unit), vm_eq (env1:=env1) (env2:=env2)) d s1 s2 → s1 = s2. *)
-(*   Proof. by case: s1 s2 => ??? [] ??? [] /= <- <- <-. Qed. *)
+  Lemma st_rel_eq env d (s1 s2 : estate env) : st_rel (λ (_ : env_t) (_ : unit), eq) d s1 s2 → s1 = s2.
+  Proof. by case: s1 s2 => [???] [???] /st_relP /= [[<- <-] <-]. Qed.
 
-  Program Instance checker_ra_eq : Checker_e st_eq :=
+  Lemma st_eq_refl env (s : estate env) : st_eq s s.
+  Proof. by apply st_relP; rewrite with_vm_same. Qed.
+  #[local] Hint Resolve st_eq_refl : core.
+
+  Program Instance checker_ra_eq : Checker_e (st_rel (λ (_ : env_t) (_ : unit), eq)) :=
     {| check_es _ x y _ := x = y; check_lvals _ x y _ := x = y; |}.
 
   Instance checker_ra_eqP : Checker_eq p p' checker_ra_eq.
   Proof using remove_assert_ok.
     rewrite -remove_assert_ok.
     constructor.
-    - move=> > /wdb_ok_eq <- <- > /st_relP [] -> heq1 heq2.
-      simpl.
-      rewrite (sem_pexprs_ext_eq _ _ _ heq1 heq2). move=> ->.
-      eexists; reflexivity.
-    move=> > /wdb_ok_eq <- <- > /st_relP [] -> heq1 heq2.
-    move=> /(write_lvars_ext_eq heq1 heq2). move=> [vm2 h1 h2].
-    eexists (with_vm _ vm2) => //. done.
+    - move => env1 env2 > /wdb_ok_eq <- <- > /[dup] /st_rel_env_eq ?; subst env2.
+      by move=> /st_rel_eq <-; eauto.
+    move => env1 env2 > /wdb_ok_eq <- <- > /[dup] /st_rel_env_eq ?; subst env2.
+    move=> /st_rel_eq <- -> /=; eexists; first reflexivity.
+    by apply st_relP; rewrite with_vm_same.
   Qed.
   #[local] Hint Resolve checker_ra_eqP : core.
 
@@ -50,18 +52,18 @@ Section REMOVE_ASSERT.
   Context (env : env_t).
 
   Let Pi (i: instr) :=
-      wequiv_rec (env1:=env) (env2:=env) (wa1:=withassert) (wa2:=noassert) p p' ev ev eq_spec (st_eq tt) [::i] (remove_assert_i i) (st_eq tt).
+      wequiv_rec (env1:=env) (env2:=env) (wa1:=withassert) (wa2:=noassert) p p' ev ev eq_spec st_eq [::i] (remove_assert_i i) st_eq.
 
   Let Pi_r (i: instr_r) := forall ii, Pi (MkI ii i).
 
   Let Pc (c: cmd) :=
-      wequiv_rec (env1:=env) (env2:=env) (wa1:=withassert) (wa2:=noassert) p p' ev ev eq_spec (st_eq tt) c (remove_assert_c remove_assert_i c) (st_eq tt).
+      wequiv_rec (env1:=env) (env2:=env) (wa1:=withassert) (wa2:=noassert) p p' ev ev eq_spec st_eq c (remove_assert_c remove_assert_i c) st_eq.
 
   Lemma it_remove_assert_progP_rec c : Pc c.
   Proof using remove_assert_ok.
     apply: (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) => // {c}.
     + by apply wequiv_nil.
-    + by move=> i c hi hc; rewrite -cat1s; apply wequiv_cat with (st_eq tt).
+    + by move=> i c hi hc; rewrite -cat1s; apply wequiv_cat with st_eq.
     + by move => >; apply wequiv_assgn_rel_eq with checker_ra_eq tt.
     + by move => >; apply wequiv_opn_rel_eq with checker_ra_eq tt.
     + move => >; apply wequiv_syscall_rel_eq_core with checker_ra_eq tt => //.
@@ -80,19 +82,6 @@ Section REMOVE_ASSERT.
 
   End REC.
 
-  Lemma finalize_funcall_ext_eq env fd (s : estate env) (vm : Vm.t env) :
-    (evm s =1 vm)%vm ->
-    finalize_funcall fd s = finalize_funcall fd (with_vm s vm).
-  Proof.
-    move=> heq.
-    rewrite /finalize_funcall /=.
-    have ->: get_var_is (negb direct_call) (evm s) (f_res fd) = get_var_is (negb direct_call) vm (f_res fd).
-    + elim: fd.(f_res) => [|x res ih] //=.
-      rewrite ih. f_equal.
-      rewrite /get_var. rewrite heq //.
-    done.
-  Qed.
-
   Lemma it_remove_assert_progP fn :
     wiequiv_f (wa1 := withassert) (wa2 := noassert) p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
   Proof using remove_assert_ok.
@@ -104,8 +93,8 @@ Section REMOVE_ASSERT.
     move=> _; split => //.
     move=> s1 hinit; exists s1 => //=.
     + by apply: eq_initialize hinit => //; rewrite eq_p_extra.
-    exists (st_eq tt), (st_eq tt); split => //; cycle -1.
-    + move=> ?? fr /st_relP [-> _ heq] hfin. rewrite -(finalize_funcall_ext_eq _ heq). by exists fr.
+    exists st_eq, st_eq; split => //; cycle -1.
+    + by move=> ?? fr /st_rel_eq <- hfin; exists fr.
     exact: it_remove_assert_progP_rec.
   Qed.
 

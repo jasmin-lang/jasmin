@@ -1191,7 +1191,7 @@ Proof using uniq_funname rE_trans.
     rewrite /with_vm /= in hws_.
     rewrite /estate0 /=. rewrite -map_comp hws_. eexists. reflexivity. done.
   move=> [vm2_ hws_ hvalid_].
-  have [|/= vm2 hws' huincl] := writes_uincl (vm1:=evm t) (fun _ => erefl) _ huvs' hws_.
+  have [|/= vm2 hws' huincl] := writes_uincl (vm1:=evm t) _ huvs' hws_.
   + by apply vm_uincl_init.
   have heqt: (with_vm (estate0 env (mk_fstate vs s)) (evm t)) = t.
   + by move: hpre => /st_relP [-> /=].
@@ -1239,13 +1239,13 @@ Proof using uniq_funname rE_trans.
   + move=> ??; apply.
   move=> S1 S2 S3 S1' S3' [k1 k2 _ k3] [? /st_relP /= k4]; subst.
   move=> [S2'] [k1' k2' _ k3'] [? /st_relP /= k4'].
-  move: k4' => [-> _ k4']. move=> /=. split=> //.
+  move: k4' => [-> k4']. move=> /=. split=> //.
   move: k3' => [k31 k32].
   split=> /=.
   + move=> ?? /k31 ->. simpl in k4'. done.
   move=> ? /k32{}k32 /k32 ->. simpl in k4'. done.
   simpl. (exists (with_vm s1 vm2_)).
-  split. done. done. done. done. simpl. rewrite with_vm_idem. split. done. split. done. done. done. simpl. done.
+  split. done. done. done. done. simpl. rewrite with_vm_idem. split. done. apply st_relP; split=> //.
  
   (*
   apply xrutt_facts.xrutt_bind with
@@ -1327,7 +1327,7 @@ Proof using uniq_funname rE_trans.
   have /(_ _ _ X1 xs xs X1 _ _ _ hu _ t' _ _ hws) [||]:= checker_st_uincl_onP_.(ucheck_lvalsP) wdb_ok_true.
   + split => //; first by clear;SvD.fsetdec.
     by subst X1; rewrite !read_writeE; clear; SvD.fsetdec.
-  + subst X1. split => //= z hz.
+  + subst X1. split => //=; exists erefl => z hz.
     rewrite -h3; last first.
     + move/disjointP: hdisj => /(_ z).
       rewrite /locals_p vrvs_recE read_cE write_c_recE vars_l_read_es.
@@ -1337,7 +1337,7 @@ Proof using uniq_funname rE_trans.
     + move/disjointP: hdisj => /(_ z).
       rewrite /locals_p vrvs_recE read_cE write_c_recE vars_l_read_es.
       by move: hz; clear; SvD.fsetdec.
-    by case: hpre => _ _ _; apply.
+    by case/st_relP: hpre => _; apply.
   move=> t1' hws1 hpost.
   have hdisjr : disjoint (vrvs xs) (read_es [seq Plvar i | i <- f_res ffd']).
   + apply/disjointP => z; rewrite vars_l_read_es => hz.
@@ -1405,8 +1405,8 @@ Proof using uniq_funname inline_fd_ok rE_trans.
       [elaborate fs_uincl_initialize (p:=p1) (p':=p2) (fd:=fd) (fd':= with_body fd c')
                  (fs:= fs1) (fs':= fs2) erefl erefl erefl erefl hu hinit].
   exists s1' => //.
-  exists (st_uincl_on X1), (st_uincl_on X2); split => //;
-    first (by case hus1 => ?? h; split); last first.
+  exists (st_uincl_on X1), (st_uincl_on X2); split;
+    first (by case/st_relP:hus1 => ? h; apply st_relP; split); last first.
   + have := [elaborate fs_uincl_on_finalize (env:=(create_env (f_al fd) vals1)) (fd:=fd) (fd':= with_body fd c') erefl erefl erefl].
     by apply wrequiv_weaken => //; apply st_rel_weaken => ??; rewrite /X2 vars_l_read_es.
   apply it_inline_fd_aux_rec. done.

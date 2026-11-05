@@ -173,8 +173,8 @@ Proof.
   assert (h := write_vars_uincl (vm_uincl_refl (evm s0)) hu hw).
   case: h=> vm1; rewrite with_vm_same => /(write_vars_weak false) -> {}hu.
   eexists; first reflexivity.
-  exists (st_uincl tt), (st_uincl tt); split => // {s hw hu vm1 hinit vs htra s0 hscs hmem fs1 fs2}; last first.
-  + move=> s t fr1 [hscs hmem _ hle2]; rewrite /finalize_funcall; t_xrbindP.
+  exists (st_uincl tt), (st_uincl tt); (split; first by apply st_relP) => {s hw hu vm1 hinit vs htra s0 hscs hmem fs1 fs2}; last first.
+  + move=> s t fr1 /st_relP [-> /= hle2]; rewrite /finalize_funcall; t_xrbindP.
     move=> vres hgetr vres' htrr <-.
     have [vres2 /= hgetr2 hu2] := get_var_is_uincl hle2 hgetr.
     have -> /= : get_var_is false (evm t) (f_res fd) = ok vres2.
@@ -183,7 +183,7 @@ Proof.
       by move=> > /get_varP [-> _ _] > /hrec' -> <-.
     rewrite (mapM2_dc_truncate_weak hu2 htrr) /=.
     eexists; first reflexivity.
-    split => //=; first by rewrite hmem.
+    split => //=.
     by apply: values_uincl_trans hu2; apply: mapM2_dc_truncate_value_uincl htrr.
   exact: it_indirect_to_direct_rec.
 Qed.

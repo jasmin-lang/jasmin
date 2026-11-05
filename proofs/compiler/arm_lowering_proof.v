@@ -158,7 +158,7 @@ Lemma estate_of_condition_mn_eq_fv env mn (s : estate env) w0 w1 :
   -> eq_fv s (estate_of_condition_mn mn s w0 w1).
 Proof.
   case: mn => // _.
-  all: split => // x hx.
+  all: apply st_relP; split => // x hx.
   all: rewrite /=.
   all: rewrite !Vm.setP_neq; first reflexivity.
 
@@ -1634,7 +1634,7 @@ Opaque esem.
       by rewrite esem1.
     have [vm hsem1 heq]:= lower_copnP hfve hcopn h.
     exists (with_vm s1' vm); first by rewrite esem1.
-    case: hs11=> ??? hvm; split => //=.
+    case/st_relP: hs11 => -> /= hvm; apply st_relP; split => //=.
     by move=> z hz; rewrite heq; apply hvm.
   (* Syscall *)
   + move=> xs o es ii.
@@ -1682,7 +1682,8 @@ Proof using fv_correct.
   eexists; first reflexivity.
   move=> s.
   move=> /(eq_initialize (fd':= with_body fd (lower_cmd (f_body fd)))) -/(_ p' erefl erefl erefl erefl) hinit.
-  exists s => //; exists (eq_fv (env:=_)), (eq_fv (env:=_)); split => //=; last by apply st_eq_ex_finalize.
+  exists s => //; exists (eq_fv (env:=_)), (eq_fv (env:=_)); split => /=; last by apply st_eq_ex_finalize.
+  + by apply st_relP; split=> //; rewrite with_vm_same.
   exact: it_lower_callP_rec.
 Qed.
 

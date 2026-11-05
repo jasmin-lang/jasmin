@@ -28,7 +28,7 @@ Notation gd := (p_globs p).
 
 Section E.
 
-  Context env1 env2 (s:estate env1) (vm:Vm.t env2) (heq_ : env_get env1 =1 env_get env2) (hincl : evm s <=1 vm) (wdb : bool).
+  Context env (s:estate env) (vm:Vm.t env) (hincl : evm s <=1 vm) (wdb : bool).
 
   Let s' := with_vm s vm.
 
@@ -43,24 +43,22 @@ Section E.
       exists2 vs', sem_pexprs wdb gd s' (map wi2w_e es) = ok vs' & values_uincl vs vs'.
 
   Lemma wi2w_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
-  Proof using heq_ hincl.
+  Proof using hincl.
     apply: pexprs_ind_pair; subst P Q; split => //=; t_xrbindP.
     + by move=> _ <-; exists [::].
     + move=> e he es hes ? v /he [v' -> /= hu] vs /hes [vs' -> /= hus] <-.
       by eexists; [reflexivity | constructor].
-    1-2: move=> > ->; by eexists; [reflexivity | eauto].
-    + move=> ws n _ <-. rewrite (eval_ext heq_). eexists; [reflexivity|eauto].
+    1-3: move=> > ->; by eexists; [reflexivity | eauto].
     + by move=> x v; apply: get_gvar_uincl.
     + move=> al aa sz x e he v.
-      apply: on_arr_gvarP => n t1 wt /(get_gvar_uincl heq_ hincl) [_] -> /value_uinclE [t2] -> htu.
+      apply: on_arr_gvarP => n t1 wt /(get_gvar_uincl hincl) [_] -> /value_uinclE [t2] -> htu.
       t_xrbindP => i ve /he [v' -> +] /to_intI ?; subst ve.
       move=> /value_uinclE ?; subst v' => ? /= /(WArray.uincl_get htu) -> <- /=.
       by (eexists; first reflexivity) => /=.
     + move=> aa sz len x e he v.
-      apply: on_arr_gvarP => n t1 wt /(get_gvar_uincl heq_ hincl) [_] -> /value_uinclE [t2] -> htu.
+      apply: on_arr_gvarP => n t1 wt /(get_gvar_uincl hincl) [_] -> /value_uinclE [t2] -> htu.
       t_xrbindP => i ve /he [v' -> +] /to_intI ?; subst ve.
-      move=> /value_uinclE -> /= ? /(WArray.uincl_get_sub htu) [t'].
-      rewrite -(eval_ext heq_) => -> ht'u <- /=.
+      move=> /value_uinclE -> /= ? /(WArray.uincl_get_sub htu) [t'] -> ht'u <- /=.
       by (eexists; first reflexivity) => /=.
     + move=> al sz e he v a ve.
       move=> /he [v' -> +] /to_wordI [sz' [w' [? htr]]]; subst.
@@ -107,12 +105,12 @@ Section E.
            rewrite (wrepr_add, wrepr_mul, wrepr_sub) !wrepr_int_of_word.
       1-2: by move=> > -> > -> /= > -> <- /=; (eexists; first reflexivity) => /=.
       + move=> > -> w2 -> /= > /wint_of_intP /= [-> _] <-; (eexists; first reflexivity).
-        rewrite /zlsl /sem_shl /sem_shift /sem_op_typed.zlsl; case: ifPn => /ZleP ?.
+        rewrite /zlsl /sem_shl /sem_shift; case: ifPn => /ZleP ?.
         + by rewrite wrepr_mul wrepr_int_of_word GRing.mulrC wshl_sem.
         by have := wunsigned_range w2; Lia.lia.
       + rewrite /mk_sem_wishift; case: si => /= w1 -> w2 -> > /=;
         move=> /wint_of_intP [-> ?] <-;  (eexists; first reflexivity) => /=;
-        rewrite /sem_sar /sem_shr /sem_shift ?wsar_alt /wsar_naive ?wshr_alt /wshr_naive /zasr /zlsl /sem_op_typed.zasr /sem_op_typed.zlsl;
+        rewrite /sem_sar /sem_shr /sem_shift ?wsar_alt /wsar_naive ?wshr_alt /wshr_naive /zasr /zlsl;
         have [h _ ] := wunsigned_range w2;
         (case: ZleP;
         [ case/Zle_lt_or_eq: h; first Lia.lia;
@@ -125,42 +123,38 @@ Section E.
       1-4: move=> > -> > -> > /= [<-] <-; (eexists; first reflexivity) => /=;
            case: si => //=; rewrite ?(Z.gtb_ltb, Z.geb_leb) //.
     + move=> op es hes v vs /hes [vs']; rewrite /sem_pexprs => -> /= hus hs.
-      rewrite -(sem_opN_ext heq_).
       by rewrite (vuincl_sem_opN hus hs); eexists; first reflexivity.
 
     move=> t e he e1 he1 e2 he2 v b v0 /he [v0' -> hu0].
     move=> /to_boolI => ?; subst v0.
     have ? := value_uinclE hu0; subst v0'.
     move=> v1_ v1 /he1 [v1' -> hu1] htr1 v2_ v2 /he2 [v2'-> hu2] htr2 /= <-.
-    rewrite -(eval_atype_ext heq_).
     have [? -> ?]:= value_uincl_truncate hu1 htr1.
     have [? -> ?] /= := value_uincl_truncate hu2 htr2.
     by eexists; first reflexivity; case b.
   Qed.
 
   Lemma wi2w_eP : ∀ e, P e.
-  Proof using heq_ hincl. by case wi2w_e_esP. Qed.
+  Proof using hincl. by case wi2w_e_esP. Qed.
 
   Lemma wi2w_esP : ∀ e, Q e.
-  Proof using heq_ hincl. by case wi2w_e_esP. Qed.
+  Proof using hincl. by case wi2w_e_esP. Qed.
 
 End E.
 
-Lemma wi2w_lvalP env1 env2 wdb lv (s s' : estate env1) (vm : Vm.t env2) v1 v2 :
-  env_get env1 =1 env_get env2 ->
+Lemma wi2w_lvalP env wdb lv (s s' : estate env) (vm : Vm.t env) v1 v2 :
   evm s <=1 vm ->
   value_uincl v1 v2 ->
   write_lval wdb gd lv v1 s = ok s' ->
   exists2 vm', write_lval wdb gd (wi2w_lv lv) v2 (with_vm s vm) = ok (with_vm s' vm') &
                evm s' <=1 vm'.
 Proof.
-  move=> heq.
   case: lv => [ vi ty | x | al w vi e | al aa sz x e | aa sz len x e] /=.
-  + move=> hu hvu hw. rewrite -(eval_atype_ext heq) (uincl_write_none _ hvu hw).
+  + move=> hu hvu hw; rewrite (uincl_write_none _ hvu hw).
     by have [-> _ _] := write_noneP hw; eauto.
   + by apply write_var_uincl.
   + move=> hu hvu; t_xrbindP.
-    move=> ?? /(wi2w_eP heq hu) [? -> hu2] /to_wordI [?[?[? htr2]]] /=; subst.
+    move=> ?? /(wi2w_eP hu) [? -> hu2] /to_wordI [?[?[? htr2]]] /=; subst.
     have [? [? [? hw2 {hu2}]]]:= value_uinclE hu2; subst => /=.
     have -> := word_uincl_truncate hw2 htr2.
     move=> ? /to_wordI [?[?[? htr3]]] /=; subst.
@@ -168,7 +162,7 @@ Proof.
     have -> /= := word_uincl_truncate hw3 htr3.
     by move=> m' -> <- /=; exists vm.
   + move=> hu hvu; apply on_arr_varP; t_xrbindP; rewrite /on_arr_var.
-    move=> ?? hty /(get_var_uincl hu) [? -> hu1] ?? /(wi2w_eP heq hu) [? -> hu2] /to_intI ?; subst.
+    move=> ?? hty /(get_var_uincl hu) [? -> hu1] ?? /(wi2w_eP hu) [? -> hu2] /to_intI ?; subst.
     have [? ? htu]:= value_uinclE hu1; subst => /=.
     have ? := value_uinclE hu2; subst => /=.
     move=> ? /to_wordI [?[?[? htr3]]] /=; subst.
@@ -177,30 +171,27 @@ Proof.
     move=> ? /(WArray.uincl_set htu) [? [-> htu']] /=.
     by apply write_var_uincl.
   move=> hu hvu; apply on_arr_varP; t_xrbindP; rewrite /on_arr_var.
-  move=> ?? hty /(get_var_uincl hu) [? -> hu1] ?? /(wi2w_eP heq hu) [? -> hu2] /to_intI ?; subst.
+  move=> ?? hty /(get_var_uincl hu) [? -> hu1] ?? /(wi2w_eP hu) [? -> hu2] /to_intI ?; subst.
   have [? ? htu {hu1} ]:= value_uinclE hu1; subst => /=.
   have ? := value_uinclE hu2; subst => /=.
   move=> ? /to_arrI ?; subst.
   have [? ? htu']:= value_uinclE hvu; subst => /=.
-  rewrite -(eval_ext heq).
   rewrite WArray.castK /=.
   move=> ? /(WArray.uincl_set_sub htu htu') [? -> ?] /=.
   by apply write_var_uincl.
 Qed.
 
-Lemma wi2w_lvalsP env1 env2 wdb lvs (s s' : estate env1) (vm : Vm.t env2) vs1 vs2 :
-  env_get env1 =1 env_get env2 ->
+Lemma wi2w_lvalsP env wdb lvs (s s' : estate env) (vm : Vm.t env) vs1 vs2 :
   evm s <=1 vm ->
   values_uincl vs1 vs2 ->
   write_lvals wdb gd s lvs vs1 = ok s' ->
   exists2 vm', write_lvals wdb gd (with_vm s vm) (map wi2w_lv lvs) vs2 = ok (with_vm s' vm') &
                evm s' <=1 vm'.
 Proof.
-  move=> heq.
   elim: lvs s vm vs1 vs2 => /= [ | x xs Hrec] s1 vm1 vs1 vs2 Hvm [] //=.
   + by move=> [] <-;eauto.
   move=> {vs1 vs2} v1 v2 vs1 vs2 Hv Hvs;apply: rbindP => s1'.
-  by move=> /(wi2w_lvalP heq Hvm Hv) []vm2 -> Hvm2 /(Hrec _ _ _ _ Hvm2 Hvs).
+  by move=> /(wi2w_lvalP Hvm Hv) []vm2 -> Hvm2 /(Hrec _ _ _ _ Hvm2 Hvs).
 Qed.
 
 Section Internal.
@@ -231,11 +222,14 @@ Definition checker_wi2w : Checker_e st_uincl :=
 Lemma checker_wi2wP : Checker_uincl p p' checker_wi2w.
 Proof.
   constructor.
-  + move=> env1 env2 wdb _ d es1 es2 d' /wdb_ok_eq <- -> s t vs1 /st_relP [-> /= heq hu] hes.
-    by apply (wi2w_esP heq hu hes).
-  move=> env1 env2 wdb _ d xs1 xs2 d' /wdb_ok_eq <- -> vs1 vs2 hvu s t s' /st_relP [-> /= heq hu] hw.
-  have [vm' -> {}hu] := wi2w_lvalsP heq hu hvu hw.
-  by eexists; first reflexivity.
+  + move=> env1 env2 wdb _ d es1 es2 d' /wdb_ok_eq <- -> s t vs1 /[dup] /st_rel_env_eq ?; subst env2.
+    move=> /st_relP [-> /= hu] hes.
+    by apply (wi2w_esP hu hes).
+  move=> env1 env2 wdb _ d xs1 xs2 d' /wdb_ok_eq <- -> vs1 vs2 hvu s t s' /[dup] /st_rel_env_eq ?; subst env2.
+  move=> /st_relP [-> /= hu] hw.
+  have [vm' -> {}hu] := wi2w_lvalsP hu hvu hw.
+  eexists; first by reflexivity.
+  by apply st_relP.
 Qed.
 #[local] Hint Resolve checker_wi2wP : core.
 
