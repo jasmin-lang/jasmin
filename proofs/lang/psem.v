@@ -286,7 +286,7 @@ Lemma read_es_st_eq_on gd wdb es X :
 Proof.
   move=> hsub s t v [???];rewrite (eq_on_sem_pexprs _ (s' := t)) //.
   + by move => ->; eauto.
-  by apply: (eq_onI hsub).
+  by apply/eq_on_mode/(eq_onI hsub).
 Qed.
 
 Lemma write_lvals_st_eq_on gd wdb xs vs X :

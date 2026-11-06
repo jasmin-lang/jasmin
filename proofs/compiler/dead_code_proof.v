@@ -390,7 +390,7 @@ Section PROOF.
     have [vm2 Hvm2 /= Hvm2'] := Hws _ Hsub Hv'' => Hv'.
     have [vm3 Hws' /= Hvm'] := writes_uincl (vm_uincl_refl _) Hv' Hvm2'.
     rewrite Hws' /=; eexists; first reflexivity; split => //.
-    apply : (@uincl_onT _ vm2).
+    apply : (uincl_onT (vm2 := vm2)).
     + by apply: uincl_onI Hvm2; rewrite read_rvsE; clear; SvD.fsetdec.
     by move=> z Hin; apply Hvm'.
   Qed.

@@ -635,10 +635,12 @@ Section EQ_ON_MODE.
 
 Context {sm : SemMode}.
 
-Lemma get_var_eq_on wdb s vm' vm v: Sv.In v s -> vm =[s]  vm' -> get_var wdb vm v = get_var wdb vm' v.
-Proof. by move=> hin hvm; rewrite /get_var (Vm.get_eq_mode (hvm _ hin)). Qed.
+Lemma get_var_eq_on wdb s vm' vm v :
+  Sv.In v s -> eq_on (sm := sm) s vm vm' -> get_var wdb vm v = get_var wdb vm' v.
+Proof. by move=> hin hvm; rewrite /get_var (hvm _ hin). Qed.
 
-Lemma get_gvar_eq_on wdb s gd vm' vm v: Sv.Subset (read_gvar v) s -> vm =[s]  vm' ->
+Lemma get_gvar_eq_on wdb s gd vm' vm v :
+  Sv.Subset (read_gvar v) s -> eq_on (sm := sm) s vm vm' ->
   get_gvar wdb gd vm v = get_gvar wdb gd vm' v.
 Proof.
   rewrite /read_gvar /get_gvar; case: ifP => // _ hin.
@@ -646,14 +648,14 @@ Proof.
 Qed.
 
 Lemma on_arr_var_eq_on wdb s' X s A x (f: ∀ n, WArray.array n → exec A) :
-   evm s =[X] evm s' -> Sv.In x X ->
+   eq_on (sm := sm) X (evm s) (evm s') -> Sv.In x X ->
    on_arr_var (get_var wdb (evm s) x) f = on_arr_var (get_var wdb (evm s') x) f.
 Proof.
   by move=> Heq Hin;rewrite /on_arr_var;rewrite (get_var_eq_on _ Hin Heq).
 Qed.
 
 Lemma on_arr_gvar_eq_on wdb s' gd X s A x (f: ∀ n, WArray.array n → exec A) :
-   evm s =[X] evm s' -> Sv.Subset (read_gvar x) X ->
+   eq_on (sm := sm) X (evm s) (evm s') -> Sv.Subset (read_gvar x) X ->
    on_arr_var (get_gvar wdb gd (evm s) x) f = on_arr_var (get_gvar wdb gd (evm s') x) f.
 Proof.
   move=> Heq; rewrite /get_gvar /read_gvar;case:ifP => _ Hin //.
@@ -683,18 +685,18 @@ Section READ_E_ES_EQ_ON.
   Context (wdb : bool) (gd : glob_decls) (s1 : estate) (vm' : Vm.t).
 
   Let P e : Prop :=
-    ∀ s, evm s1 =[read_e_rec s e]  vm' →
+    ∀ s, eq_on (sm := sm) (read_e_rec s e) (evm s1) vm' →
          sem_pexpr wdb gd s1 e = sem_pexpr wdb gd (with_vm s1 vm') e.
 
   Let Q es : Prop :=
-    ∀ s, evm s1 =[read_es_rec s es] vm' →
+    ∀ s, eq_on (sm := sm) (read_es_rec s es) (evm s1) vm' →
          sem_pexprs wdb gd s1 es = sem_pexprs wdb gd (with_vm s1 vm') es.
 
   Lemma read_e_es_eq_on : (∀ e, P e) * (∀ es, Q es).
   Proof.
     apply: pexprs_ind_pair; split; subst P Q => //=.
     - move => e rec es ih s Heq /=.
-      have Heq' : evm s1 =[read_e_rec s e] vm'.
+      have Heq' : eq_on (sm := sm) (read_e_rec s e) (evm s1) vm'.
       + apply: (eq_onI _ Heq); rewrite /= read_esE; SvD.fsetdec.
       move: rec => /(_ _ Heq') ->.
       case: (sem_pexpr _ _ _ e) => //= v.
@@ -728,7 +730,7 @@ Definition read_e_eq_on wdb gd s vm' s1 e :=
   (read_e_es_eq_on wdb gd s1 vm').1 e s.
 
 Lemma read_e_eq_on_empty wdb gd vm s e :
-  evm s =[ read_e_rec Sv.empty e ]  vm
+  eq_on (sm := sm) (read_e_rec Sv.empty e) (evm s) vm
   -> sem_pexpr wdb gd s e = sem_pexpr wdb gd (with_vm s vm) e.
 Proof. exact: read_e_eq_on. Qed.
 
@@ -736,13 +738,13 @@ Definition read_es_eq_on wdb gd es s s1 vm' :=
   (read_e_es_eq_on wdb gd s1 vm').2 es s.
 
 Lemma read_es_eq_on_empty wdb gd es s vm :
-  evm s =[ read_es_rec Sv.empty es ]  vm
+  eq_on (sm := sm) (read_es_rec Sv.empty es) (evm s) vm
   -> sem_pexprs wdb gd s es = sem_pexprs wdb gd (with_vm s vm) es.
 Proof. exact: read_es_eq_on. Qed.
 
 Corollary eq_on_sem_pexpr wdb s' gd s e :
   emem s = emem s' →
-  evm s =[read_e e] evm s' →
+  eq_on (sm := sm) (read_e e) (evm s) (evm s') →
   sem_pexpr wdb gd s e = sem_pexpr wdb gd s' e.
 Proof.
   move=> eq_mem /read_e_eq_on ->; rewrite (sem_pexpr_with_scs _ gd _ (escs s')).
@@ -751,7 +753,7 @@ Qed.
 
 Corollary eq_on_sem_pexprs wdb s' gd s es :
   emem s = emem s' →
-  evm s =[read_es es] evm s' →
+  eq_on (sm := sm) (read_es es) (evm s) (evm s') →
   sem_pexprs wdb gd s es = sem_pexprs wdb gd s' es.
 Proof.
   move=> eq_mem /read_es_eq_on ->; rewrite (sem_pexprs_with_scs _ gd _ (escs s')).
@@ -766,15 +768,16 @@ Lemma eq_on_sem_eassert s' gd s e :
   sem_eassert gd s e = sem_eassert gd s' e.
 Proof.
   move=> hmem; elim: e.
-  + by move=> e; rewrite read_eassert_Pexpr /= => /(eq_on_sem_pexpr (sm := total) true gd hmem) ->.
-  + move=> o es; rewrite read_eassert_PappN /= => hes.
-    have := eq_on_sem_pexprs (sm := total) true gd hmem hes.
+  + move=> e; rewrite read_eassert_Pexpr /= => /(eq_on_mode (sm := total)).
+    by move=> /(eq_on_sem_pexpr true gd hmem) ->.
+  + move=> o es; rewrite read_eassert_PappN /= => /(eq_on_mode (sm := total)) hes.
+    have := eq_on_sem_pexprs true gd hmem hes.
     by rewrite /sem_pexprs => ->.
   + move=> x; rewrite read_eassert_Pis_var_init /= => hx.
     by rewrite /is_var_init (hx x) //; clear; SvD.fsetdec.
   + move=> e1 e2; rewrite read_eassert_Pis_mem_init /= => h.
     rewrite !(eq_on_sem_pexpr (sm := total) true gd hmem) ?hmem //;
-    by apply: eq_onI h; clear; SvD.fsetdec.
+    by apply/eq_on_mode/(eq_onI _ h); clear; SvD.fsetdec.
   move=> e1 he1 e2 he2.
   rewrite read_eassert_Pand /= => h.
   rewrite he1 ?he2 //;
@@ -806,7 +809,7 @@ Proof.
 Qed.
 
 Lemma use_memP_eq_on gd s1 s2 e:
-  evm s1 =[read_e e] evm s2 ->
+  eq_on (sm := sm) (read_e e) (evm s1) (evm s2) ->
   ~~use_mem e ->
   sem_pexpr wdb gd s1 e = sem_pexpr wdb gd s2 e.
 Proof.
@@ -876,7 +879,7 @@ Proof.
 Qed.
 
 Lemma write_lval_eq_on1 wdb gd s1 s2 vm1 x v:
-  s1.(evm) =[read_rv x] vm1 ->
+  eq_on (sm := sm) (read_rv x) s1.(evm) vm1 ->
   write_lval wdb gd x v s1 = ok s2 ->
   exists2 vm2,
     write_lval wdb gd x v (with_vm s1 vm1) = ok (with_vm s2 vm2) &
@@ -912,7 +915,7 @@ Lemma write_lval_eq_on wdb gd X x v s1 s2 vm1 :
    evm s2 =[Sv.union (vrv x) X] vm2.
 Proof.
   move=> hsub hw1 heq1.
-  have [vm2 hw2 heq2]:= write_lval_eq_on1 (eq_onI hsub heq1) hw1.
+  have [vm2 hw2 heq2]:= write_lval_eq_on1 (eq_on_mode (eq_onI hsub heq1)) hw1.
   exists vm2 => //; apply: (eq_on_union heq1 heq2); [apply: vrvP hw1 | apply: vrvP hw2].
 Qed.
 
@@ -1451,12 +1454,12 @@ Proof. by case: sem_pexpr_wdb_and. Qed.
 Lemma sem_pexpr_ext_eq e vm :
   (evm s =1 vm)%vm ->
   sem_pexpr wdb gd s e = sem_pexpr wdb gd (with_vm s vm) e.
-Proof. by move=> heq; apply/read_e_eq_on_empty/vm_eq_eq_on. Qed.
+Proof. by move=> heq; apply/read_e_eq_on_empty/eq_on_mode/vm_eq_eq_on. Qed.
 
 Lemma sem_pexprs_ext_eq es vm :
   (evm s =1 vm)%vm ->
   sem_pexprs wdb gd s es = sem_pexprs wdb gd (with_vm s vm) es.
-Proof. by move=> heq; apply/read_es_eq_on_empty/vm_eq_eq_on. Qed.
+Proof. by move=> heq; apply/read_es_eq_on_empty/eq_on_mode/vm_eq_eq_on. Qed.
 
 Lemma sem_eassert_ext_eq e vm :
   (evm s =1 vm)%vm ->
