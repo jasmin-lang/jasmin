@@ -114,6 +114,9 @@ Lemma truncatable_type_of wdb v :
   truncatable wdb (type_of_val v) v.
 Proof. by apply subctype_truncatable. Qed.
 
+Lemma truncatable_bool wdb v : truncatable wdb cbool v -> type_of_val v = cbool.
+Proof. by case: v => //= -[]. Qed.
+
 (* TODO: rename this lemma and its siblings; vm_truncate_val -> truncatable *)
 Lemma vm_truncate_valE_wdb wdb ty v :
   truncatable wdb ty v ->

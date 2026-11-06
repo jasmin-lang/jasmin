@@ -607,6 +607,13 @@ Proof.
     => ->.
 Qed.
 
+Lemma mapM2_truncate_val_has_type tys vs vs' :
+  mapM2 ErrType truncate_val tys vs = ok vs' -> List.map type_of_val vs' = tys.
+Proof.
+  elim: tys vs vs' => [|ty tys ih] [|v vs] vs' //=; first by move=> [<-].
+  by t_xrbindP => v' /truncate_val_has_type <- vs'' /ih <- <-.
+Qed.
+
 Lemma truncate_val_subctype_eq ty v v' :
   truncate_val ty v = ok v' ->
   subctype (type_of_val v) ty ->
