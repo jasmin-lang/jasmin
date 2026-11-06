@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype finfun.
 Require Import psem psem_facts compiler_util constant_prop constant_prop_proof.
 Require Export propagate_inline.
 

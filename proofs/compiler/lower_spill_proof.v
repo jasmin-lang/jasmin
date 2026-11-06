@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype finfun.
 Require Import psem compiler_util.
 Require Import pseudo_operator sopn lower_spill.
 Import Utf8 Uint63.
@@ -50,7 +50,7 @@ Definition valid_env env1 env2 (S:spill_info) (senv : spill_env) (vm1 : Vm.t env
   Sv.In x S.(X) /\
   exists2 sx, (forall ii, get_spill S ii x = ok sx) & vm2.[x] = vm2.[sx].
 
-Lemma update_lvP env1 env2 S wdb gd senv lv (s1 s1' : estate env1) (vm2 : Vm.t env2) v :
+Lemma update_lvP (env1 env2 : env_t) S wdb gd senv lv (s1 s1' : estate env1) (vm2 : Vm.t env2) v :
   env1 =1 env2 ->
   valid_env S senv (evm s1) vm2 ->
   write_lval wdb gd lv v s1  = ok s1' ->

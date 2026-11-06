@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype finfun.
 Require Import psem compiler_util.
 Require Export allocation.
 
@@ -20,72 +20,11 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {LC : LoopCounter}.
 
-Definition eq_alloc env1 env2 (r:M.t) (vm1 : Vm.t env1) (vm2 : Vm.t env2) :=
+Definition eq_alloc (env1 env2 : env_t) (r:M.t) (vm1 : Vm.t env1) (vm2 : Vm.t env2) :=
     [/\ env1 =1 env2,
         (forall x, ~Sv.In x (M.mset r) -> vm1.[x] = undef_addr (eval_atype env1 x.(vtype))) &
         (forall x x', M.get r x = Some x' ->
                       value_uincl vm1.[x] vm2.[x'])].
-
-Lemma eval_ext env1 env2 :
-  env1 =1 env2 ->
-  eval env1 =1 eval env2.
-Proof.
-  move=> heq.
-  elim=> //=.
-  + by move=> ? <-.
-  + by move=> ? <- ? <-.
-  + by move=> ? <- ? <-.
-  + by move=> ? <- ? <-.
-  + by move=> ?? <- ? <-.
-  + by move=> ?? <- ? <-.
-  + by move=> ? <- ? <-.
-  by move=> ? <- ? <-.
-Qed.
-
-Lemma eval_atype_ext env1 env2 :
-  env1 =1 env2 ->
-  eval_atype env1 =1 eval_atype env2.
-Proof.
-  move=> heq.
-  case=> //= ws len.
-  by rewrite (eval_ext heq).
-Qed.
-
-Lemma sem_sop1_ext env1 env2 :
-  env1 =1 env2 ->
-  sem_sop1 env1 =2 sem_sop1 env2.
-Proof.
-  move=> heq o v.
-  case: o => //=.
-  + by case.
-  by move=> ?; case.
-Qed.
-
-Lemma sem_sop2_ext env1 env2 :
-  env1 =1 env2 ->
-  sem_sop2 env1 =3 sem_sop2 env2.
-Proof.
-  move=> heq o v1 v2.
-  case: o => //=.
-  4-5:move=> ?. 14:move=> ??.
-  all: by case.
-Qed.
-
-Lemma sem_opN_ext env1 env2 :
-  env1 =1 env2 ->
-  sem_opN env1 =2 sem_opN env2.
-Proof.
-  move=> heq o vs.
-  case: o => //=.
-  + move=> ws p.
-    rewrite /sem_opN /=.
-    move: (esym _) (esym _); rewrite !map_nseq /= => e1 e2.
-    by rewrite (Eqdep_dec.UIP_dec (List.list_eq_dec ctype_eqb_OK_sumbool) e1 e2).
-  move=> z.
-  rewrite /sem_opN /=.
-  move: (esym _) (esym _); rewrite !map_nseq /= => e1 e2.
-  by rewrite (Eqdep_dec.UIP_dec (List.list_eq_dec ctype_eqb_OK_sumbool) e1 e2).
-Qed.
 
 Lemma eq_alloc_empty env: eq_alloc M.empty (Vm.init env) (Vm.init env).
 Proof. by split => * //; rewrite Vm.initP. Qed.

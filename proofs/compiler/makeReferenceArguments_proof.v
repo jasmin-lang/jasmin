@@ -359,7 +359,7 @@ Context
       move => vm' [] sem_pl ok_vs' hvm'.
       have X_xs : Sv.Subset (Sv.union (read_rvs xs) (vrvs xs)) X by clear -hsub; SvD.fsetdec.
       have := make_epilogueP ok_epilogue X_xs ok_xs (vres := [:: Varr a; Varr b]) _ (eq_onT hvm hvm').
-      case; first by rewrite /truncate_val /= (no_var_alP hno _ (sopn.create_env [::] [::])) !WArray.castK.
+      case; first by rewrite /truncate_val /= (no_var_alP hno _ (create_env [::] [::])) !WArray.castK.
       move => vm2 [] s2' [] ok_s2' sem_el hvm2.
       exists vm2; first by [].
       rewrite esem_cat sem_pl /=.

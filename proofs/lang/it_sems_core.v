@@ -104,10 +104,6 @@ Definition isem_bound env (lo hi : pexpr) (s : estate env) : itree E (Z * Z) :=
 Definition isem_assert env (a: assertion) (s: estate env) : itree E unit :=
   iresult (sem_assert (p_globs p) s a).
 
-Definition create_env (als : seq (Uint63.int * Ident.ident)) (vals : seq Z) :=
-  let l := zip (map fst als) vals in
-  fun (i:Uint63.int) => odflt 0%Z (xseq.assoc l i).
-
 (* TODO: use estate0 ? *)
 Definition sem_pre {dc: DirectCall} (P : prog) (fn:funname) vals (fs: fstate) :=
   if ~~assert_allowed then ok tt

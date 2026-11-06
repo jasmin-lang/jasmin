@@ -51,10 +51,6 @@ Definition map_safe_cond {A B} (f : A -> B) c :=
 Definition eval_safe_cond env c :=
   map_safe_cond (fun al => eval env al) c.
 
-Definition create_env (als : seq (Uint63.int * Ident.ident)) (vals : seq Z) :=
-  let l := zip (map fst als) vals in
-  fun (i:Uint63.int) => odflt 0%Z (xseq.assoc l i).
-
 Fixpoint dep_type (n : nat) (A : Type) (B : seq A -> Type) : Type :=
   match n with
   | 0%nat => B [::]

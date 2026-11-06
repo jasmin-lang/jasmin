@@ -13,7 +13,7 @@ From ITree Require Import
   Eq.Rutt
   Eq.RuttFacts.
 
-From mathcomp Require Import ssreflect ssrfun ssrbool.
+From mathcomp Require Import ssreflect ssrfun ssrbool finfun.
 
 Import Monads.
 Import MonadNotation.
@@ -849,7 +849,7 @@ Section ST_REL.
 Context (D:Type).
 Context (R : forall env1 env2, D -> vm1_t env1 -> vm2_t env2 -> Prop).
 
-Definition st_rel env1 env2 (d : D) (s : estate1 env1) (t : estate2 env2) :=
+Definition st_rel (env1 env2 : env_t) (d : D) (s : estate1 env1) (t : estate2 env2) :=
   [/\ escs s = escs t, emem s = emem t, env1 =1 env2 & R d (evm s) (evm t)%vm].
 
 Lemma st_rel_weaken env1 env2 d d' :

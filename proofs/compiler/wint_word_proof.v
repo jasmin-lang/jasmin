@@ -1,7 +1,7 @@
 Require Import compiler_util psem psem_facts.
 Require Import wint_word allocation_proof.
 Import Utf8.
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype finfun ssralg.
 
 Section PROOF.
 
@@ -28,7 +28,7 @@ Notation gd := (p_globs p).
 
 Section E.
 
-  Context env1 env2 (s:estate env1) (vm:Vm.t env2) (heq_ : env1 =1 env2) (hincl : evm s <=1 vm) (wdb : bool).
+  Context (env1 env2 : env_t) (s:estate env1) (vm:Vm.t env2) (heq_ : env1 =1 env2) (hincl : evm s <=1 vm) (wdb : bool).
 
   Let s' := with_vm s vm.
 

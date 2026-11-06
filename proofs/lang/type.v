@@ -1,7 +1,7 @@
 (* ** Imports and settings *)
 From elpi.apps Require Import derive.std.
 From HB Require Import structures.
-From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype.
+From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype choice fintype finfun.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith Lia Wellfounded.
 Require Import gen_map utils strings ident.
@@ -386,8 +386,39 @@ Proof. by move=> ?; rewrite arr_sizeE; apply Z.mul_pos_pos. Qed.
 
 Opaque arr_size.
 
-Definition env_t := Uint63.int -> Z.
-Definition empty_env : env_t := fun _ => 0%Z.
+Definition nat_of_int (i : Uint63.int) :=
+  Z.to_nat (Uint63.to_Z i).
+
+Definition int_of_nat (n : nat) :=
+  Uint63.of_Z (Z.of_nat n).
+
+Definition nat_wB := Z.to_nat Uint63.wB.
+
+Definition int_of_ord (k : 'I_nat_wB) := int_of_nat k.
+
+Lemma nat_of_int_bound i : ssrnat.leq (S (nat_of_int i)) nat_wB.
+Proof.
+  rewrite /nat_of_int /nat_wB.
+  apply /ssrnat.ltP.
+  have ? := Uint63.to_Z_bounded i.
+  by apply Z2Nat.inj_lt; lia.
+Qed.
+
+Definition ord_of_int (i : Uint63.int) := Ordinal (nat_of_int_bound i).
+
+Lemma ord_of_intK : cancel ord_of_int int_of_ord.
+Proof.
+  move=> i.
+  rewrite /int_of_ord /= /int_of_nat /nat_of_int.
+  rewrite Z2Nat.id; last by have := Uint63.to_Z_bounded i; lia.
+  by apply Uint63Axioms.of_to_Z.
+Qed.
+
+HB.instance Definition _ :=
+  Finite.copy Uint63.int (can_type ord_of_intK).
+
+Definition env_t := {ffun Uint63.int -> Z}.
+Definition empty_env : env_t := [ffun _ => 0%Z].
 
 Section EVAL.
 
@@ -491,7 +522,7 @@ End NO_VAR.
 
 Section EXT.
 
-Lemma eval_ext env1 env2 :
+Lemma eval_ext (env1 env2 : env_t) :
   env1 =1 env2 ->
   eval env1 =1 eval env2.
 Proof.
@@ -507,7 +538,7 @@ Proof.
   by move=> ? <- ? <-.
 Qed.
 
-Lemma eval_atype_ext env1 env2 :
+Lemma eval_atype_ext (env1 env2 : env_t) :
   env1 =1 env2 ->
   eval_atype env1 =1 eval_atype env2.
 Proof.
@@ -637,14 +668,6 @@ Fixpoint is_poly al :=
   | ALAdd al1 al2 | ALSub al1 al2 | ALMul al1 al2 => is_poly al1 && is_poly al2
   | ALDiv _ _ _ | ALMod _ _ _ | ALShl _ _ | ALShr _ _ => false
   end.
-
-Lemma uint_eqb_spec : Equality.axiom Uint63.eqb.
-Proof.
-  move=> x y; apply (iffP (Uint63.eqbP _ _)); last by move=> ->.
-  by move=> /Uint63.to_Z_inj.
-Qed.
-
-HB.instance Definition _ := hasDecEq.Build Uint63.int uint_eqb_spec.
 
 (* advanced check when these are polynomials, otherwise just [==] *)
 Definition compare_array_length '(ws, al) '(ws', al') :=
@@ -1066,9 +1089,9 @@ Proof.
   by exists (S k).
 Qed.
 
-Definition create_env (als : seq (Uint63.int * Ident.ident)) (vals : seq Z) :=
+Definition create_env (als : seq (Uint63.int * Ident.ident)) (vals : seq Z) : env_t :=
   let l := zip (map fst als) vals in
-  fun (i:Uint63.int) => odflt 0%Z (xseq.assoc l i).
+  [ffun i : Uint63.int => odflt 0%Z (xseq.assoc l i)].
 
 Lemma subst_alP env l als al al' :
   subst_al (xseq.assoc (zip [seq i.1 | i <- l] als)) al = Some al' ->
@@ -1077,7 +1100,7 @@ Proof.
   elim: al al' => /=.
   + by move=> z _ [<-] /=.
   + move=> i _ al' hassoc.
-    rewrite /create_env.
+    rewrite /create_env ffunE.
     have hsize := size_map (eval env) als.
     have [k [_ hnth ->]] := assoc_zip_Some (esym hsize) hassoc.
     by rewrite seq_extra.onth_map hnth /=.

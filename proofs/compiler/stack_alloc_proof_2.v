@@ -3565,7 +3565,7 @@ Proof using P'_globs hshparams hsaparams is_move_opP.
   + rewrite esem1 /=.
     rewrite /sem_sopn P'_globs.
     have [va' [ok_va' hop']] := exec_sopn_truncate_val hop.
-    have htyin: [seq eval_atype env i | i <- tin] = [seq eval_atype (sopn.create_env (al (get_instr_desc o)) (map (eval env) als)) i | i <- sopn_tin o].
+    have htyin: [seq eval_atype env i | i <- tin] = [seq eval_atype (create_env (al (get_instr_desc o)) (map (eval env) als)) i | i <- sopn_tin o].
     + elim: (sopn_tin o) (tin) htin => [|ty tys ih] /=.
       + by move=> _ [<-].
       rewrite {2}/subst_ty_err.

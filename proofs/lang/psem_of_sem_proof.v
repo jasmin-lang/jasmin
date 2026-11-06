@@ -1,6 +1,6 @@
 Require Import psem psem_facts it_sems_core relational_logic.
 Import Utf8.
-From mathcomp Require Import ssreflect ssrfun ssrbool.
+From mathcomp Require Import ssreflect ssrfun ssrbool finfun.
 
 #[local] Existing Instance indirect_c.
 Section PROOF.
@@ -45,7 +45,7 @@ Lemma get_var_sim env1 env2 (vm : vmap_n env1) (vm' : vmap_s env2) :
   ∀ x, get_var true vm x = get_var true vm' x.
 Proof. by move=> heq x; rewrite /get_var heq. Qed.
 
-Lemma get_gvar_sim env1 env2 gd (vm : vmap_n env1) (vm' : vmap_s env2) :
+Lemma get_gvar_sim (env1 env2 : env_t) gd (vm : vmap_n env1) (vm' : vmap_s env2) :
   env1 =1 env2 ->
   (vm =1 vm')%vm →
   ∀ x, get_gvar true gd vm x = get_gvar true gd vm' x.

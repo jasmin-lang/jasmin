@@ -1,4 +1,4 @@
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype finfun ssralg.
 
 Require Import
   expr
@@ -863,7 +863,7 @@ Qed.
 (* FIXME: cannot use equality because we need to have two envs due to [check_esP_rel].
    We could also use dependent equality, but this is ugly. *)
 (* FIXME: use st_rel? *)
-Definition st_eq env1 env2 (senv : Env.t) (s : estate env1) (t : estate env2) : Prop :=
+Definition st_eq (env1 env2 : env_t) (senv : Env.t) (s : estate env1) (t : estate env2) : Prop :=
   exists vm2, [/\ env1 =1 env2, t = with_vm s vm2, vm_eq s.(evm) vm2 & wf_env senv (p_globs p) s].
 
 Lemma env_le_st_eq env1 env2 senv senv' s t :

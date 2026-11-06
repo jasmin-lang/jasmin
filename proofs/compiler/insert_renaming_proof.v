@@ -159,8 +159,8 @@ Section WITH_PARAMS.
 
     End REC.
 
-    Definition st_uincl_at_init fd vals (s t : estate (it_sems_core.create_env (f_al fd) vals)) :=
-      st_uincl tt s t ∧ ∃ fs, initialize_funcall p ev fd (it_sems_core.create_env (f_al fd) vals) fs = ok s.
+    Definition st_uincl_at_init fd vals (s t : estate (create_env (f_al fd) vals)) :=
+      st_uincl tt s t ∧ ∃ fs, initialize_funcall p ev fd (create_env (f_al fd) vals) fs = ok s.
 
     Theorem it_insert_renaming_callP fn :
       wiequiv_f p p' ev ev pre_incl fn fn post_incl.

@@ -1,7 +1,7 @@
 (* * Jasmin semantics with “partial values”. *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype finfun ssralg.
 Require Import xseq.
 Require Export type expr gen_map warray_ sem_type sem_op_typed values varmap expr_facts low_memory syscall_sem psem_defs.
 Require Export
@@ -617,7 +617,7 @@ Qed.
 Lemma get_var_eq_on env1 env2 wdb s (vm' : Vm.t env1) (vm : Vm.t env2) v: Sv.In v s -> vm =[s]  vm' -> get_var wdb vm v = get_var wdb vm' v.
 Proof. by move=> hin hvm;rewrite /get_var hvm. Qed.
 
-Lemma sem_sop1_ext env1 env2 :
+Lemma sem_sop1_ext (env1 env2 : env_t) :
   env1 =1 env2 ->
   sem_sop1 env1 =2 sem_sop1 env2.
 Proof.
@@ -627,7 +627,7 @@ Proof.
   by move=> ?; case.
 Qed.
 
-Lemma sem_sop2_ext env1 env2 :
+Lemma sem_sop2_ext (env1 env2 : env_t) :
   env1 =1 env2 ->
   sem_sop2 env1 =3 sem_sop2 env2.
 Proof.
@@ -637,7 +637,7 @@ Proof.
   all: by case.
 Qed.
 
-Lemma sem_opN_ext env1 env2 :
+Lemma sem_opN_ext (env1 env2 : env_t) :
   env1 =1 env2 ->
   sem_opN env1 =2 sem_opN env2.
 Proof.
@@ -779,7 +779,7 @@ Proof.
   by case: s' eq_mem => /= > <-.
 Qed.
 
-Lemma sem_opN_safety_ext env1 env2 :
+Lemma sem_opN_safety_ext (env1 env2 : env_t) :
   env1 =1 env2 ->
   sem_opN_safety env1 =1 sem_opN_safety env2.
 Proof.
@@ -842,7 +842,7 @@ Proof.
 Qed.
 
 (* FIXME this is close to write_var_spec but less specified *)
-Lemma write_var_eq_on1 env1 env2 wdb x v (s1 s2 : estate env1) vm1:
+Lemma write_var_eq_on1 (env1 env2 : env_t) wdb x v (s1 s2 : estate env1) vm1:
   env1 =1 env2 ->
   write_var wdb x v s1 = ok s2 ->
   exists2 vm2 : Vm.t env2,
@@ -855,7 +855,7 @@ Proof.
   by rewrite !with_vm_idem.
 Qed.
 
-Lemma write_var_eq_on env1 env2 wdb X x v (s1 s2 : estate env1) vm1:
+Lemma write_var_eq_on (env1 env2 : env_t) wdb X x v (s1 s2 : estate env1) vm1:
   env1 =1 env2 ->
   write_var wdb x v s1 = ok s2 ->
   evm s1 =[X] vm1 ->
@@ -912,7 +912,7 @@ Proof.
   exists vm2 => //; apply: (eq_on_union heq1 heq2); [apply: vrvP hw1 | apply: vrvP hw2].
 Qed.
 
-Lemma write_lvals_eq_on env1 env2 wdb gd X xs vs (s1 s2 : estate env1) vm1 :
+Lemma write_lvals_eq_on (env1 env2 : env_t) wdb gd X xs vs (s1 s2 : estate env1) vm1 :
   env1 =1 env2 ->
   Sv.Subset (read_rvs xs) X ->
   write_lvals wdb gd s1 xs vs = ok s2 ->
@@ -1211,7 +1211,7 @@ Proof.
   by move=> -> ?; eexists; eauto.
 Qed.
 
-Lemma write_var_uincl_on1 env1 env2 wdb (s1 s2 : estate env1) vm1 v1 v2 (x : var_i) :
+Lemma write_var_uincl_on1 (env1 env2 : env_t) wdb (s1 s2 : estate env1) vm1 v1 v2 (x : var_i) :
   env1 =1 env2 ->
   value_uincl v1 v2 ->
   write_var wdb x v1 s1 = ok s2 ->
@@ -1423,7 +1423,7 @@ Proof.
   exact.
 Qed.
 
-Lemma write_lval_uincl_on env1 env2 wdb gd X x v1 v2 (s1 s2 : estate env1) vm1 :
+Lemma write_lval_uincl_on (env1 env2 : env_t) wdb gd X x v1 v2 (s1 s2 : estate env1) vm1 :
   env1 =1 env2 ->
   Sv.Subset (read_rv x) X ->
   value_uincl v1 v2 ->
@@ -1438,7 +1438,7 @@ Proof.
   exists vm2 => //; apply: (uincl_on_union hu hu2); [ apply: vrvP hw | apply: vrvP hw2].
 Qed.
 
-Lemma write_lvals_uincl_on env1 env2 wdb gd X x v1 v2 (s1 s2 : estate env1) vm1 :
+Lemma write_lvals_uincl_on (env1 env2 : env_t) wdb gd X x v1 v2 (s1 s2 : estate env1) vm1 :
   env1 =1 env2 ->
   Sv.Subset (read_rvs x) X ->
   values_uincl v1 v2 ->
