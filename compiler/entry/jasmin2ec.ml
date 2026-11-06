@@ -50,13 +50,19 @@ let extract_to_file prog arch pd msfsz asmOp model amodel global_options
 
 let parse_and_extract arch call_conv idirs =
   let module A = (val CoreArchFactory.get_arch_module arch call_conv) in
-  let extract model amodel global_options safety via_safety specs functions
-      array_dir output pass file =
+  let extract model amodel global_options safety no_wi2i specs
+      functions array_dir output pass file =
+    (* The extraction for safety relates its result to the source program. *)
+    if safety && pass > Compiler.ParamsExpansion then
+      hierror ~loc:Lnone ~kind:"extraction error"
+        "the extraction for safety (--safety) starts from the source program: \
+         it does not accept --after";
     let prog = parse_and_compile (module A) pass file idirs in
+    let wi2i = not no_wi2i in
     let prog =
-      if safety then Compile.do_toec_safety (module A) ~fnames:functions prog
-      else if via_safety then Compile.do_toec_via_safety (module A) prog
-      else Compile.do_toec (module A) prog
+      if safety then
+        Compile.do_toec_safety (module A) ~wi2i ~fnames:functions prog
+      else Compile.do_toec (module A) ~wi2i prog
     in
     try
       extract_to_file prog arch A.reg_size A.msf_size A.asmOp model amodel
@@ -64,12 +70,12 @@ let parse_and_extract arch call_conv idirs =
     with Annot.AnnotationError (loc, code) ->
       hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
   in
-  fun model amodel global_options safety via_safety specs functions array_dir
-      output pass file warn ->
+  fun model amodel global_options safety no_wi2i specs functions
+      array_dir output pass file warn ->
     if not warn then nowarning ();
     match
-      extract model amodel global_options safety via_safety specs functions
-        array_dir output pass file
+      extract model amodel global_options safety no_wi2i specs
+        functions array_dir output pass file
     with
     | () -> ()
     | exception HiError e ->
@@ -188,15 +194,13 @@ let safety =
   in
   Arg.(value & flag & info [ "safety" ] ~doc)
 
-let via_safety =
+let no_wi2i =
   let doc =
-    "Plain extraction (without $(b,--safety)) through the passes of the
-     extraction for safety: the assertions are then removed, and the
-     variables that these passes introduce, the masks and the copies of the
-     arguments and of the results of the calls to the functions with a
-     contract. The result is the plain extraction."
+    "Do not turn the machine words of the types siN and uiN into integers
+     (pass wint_int): the program must have none, as after
+     $(b,--after=wintword)."
   in
-  Arg.(value & flag & info [ "via-safety-chain" ] ~doc)
+  Arg.(value & flag & info [ "no-wi2i" ] ~doc)
 
 let safety_specs =
   let doc =
@@ -259,6 +263,7 @@ let () =
   Cmd.v info
     Term.(
       const parse_and_extract $ arch $ call_conv $ idirs $ model $ array_model
-      $ global_model $ safety $ via_safety $ safety_specs $ functions $ array_dir $ output $ after_pass
+      $ global_model $ safety $ no_wi2i $ safety_specs $ functions
+      $ array_dir $ output $ after_pass
       $ file $ warn)
   |> Cmd.eval |> exit

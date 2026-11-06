@@ -2,9 +2,9 @@
 
    [jasmin2ec] extracts a Jasmin program [up] for safety with
    [toec_uprog_safety], which gives [p'], printed in EasyCrypt; its first
-   pass, [wi2i_prog], turns the machine words annotated [wint] into integers,
-   giving [pi]. The compiler compiles [up] itself into the assembly program
-   [xp].
+   passes ([toec_uprog_common]) give [pc], the machine words annotated [wint]
+   being turned into integers when [wi2i] holds. The compiler compiles [up]
+   itself into the assembly program [xp].
 
    [toec_compiler_tgt_src]: for an export function [fn], every run of [p']
    in the semantics of EasyCrypt (the mode [total_init], the assertions
@@ -12,10 +12,10 @@
    to the initial state of [xp], corresponds to a run of [xp] that does not
    fail. The results are related through the run of [up] that links them:
    - [safety_wi_pre], [safety_wi_post]: the arguments and results of [p']
-     are those of [pi], up to the masks of the arrays and to the positions
-     that [dead_args] keeps ([safety_spec]), and those of [pi] are those of
-     [up], the words annotated [wint] being read as integers ([vs_pre],
-     [vs_post]);
+     are those of [pc], up to the masks of the arrays and to the positions
+     that [dead_args] keeps ([safety_spec]), and those of [pc] are those of
+     [up], the words annotated [wint] being read as integers when [wi2i]
+     holds ([common_rel]);
    - [full_pre], [full_post]: those of [up] and the assembly state, as in
      [it_compile_prog_to_asmP].
    It composes [toec_uprog_safety_tgt_src] (from [p'] to [up]) and
@@ -23,7 +23,8 @@
    the run on its right does not fail when the run on its left does not fail
    ([wkequiv_io]), so that they compose by [wkequiv_io_trans].
 
-   [toec_compiler_scalars_tgt_src] is the case of a function whose
+   [toec_compiler_scalars_tgt_src] is the case, with [wi2i_prog], of a
+   function whose
    parameters and results are not arrays and whose signature [dead_args]
    keeps (the variables are protected, as those of the export functions are
    in [Compile.do_toec_safety]): the arguments and the results of [p'] are
@@ -73,7 +74,7 @@ Definition isem_ec (p : uprog) (fn : funname) (fs : fstate) :
 
 (* The parameters of [Compile.do_toec_safety]. *)
 Context
-  (fresh_var_ident fresh_removable_ident : v_kind -> instr_info -> string -> atype -> Ident.ident)
+  (fresh_var_ident fresh_copy_ident : v_kind -> instr_info -> string -> atype -> Ident.ident)
   (mask : var -> var)
   (protect : funname -> var -> bool)
   (dead_info : (funname -> var -> bool) -> _uprog ->
@@ -87,19 +88,19 @@ Hypothesis asm_op_tout :
 
 Section FN.
 
-Context (up : uprog) (xp : asm_prog) (info : keep_info) (p8 : uprog) (fn : funname)
-  (fsig : seq (extended_type Z) * seq (extended_type Z)) (xfd : asm_fundef).
+Context (wi2i : bool) (up : uprog) (xp : asm_prog) (info : keep_info) (p8 : uprog)
+  (fn : funname) (fsig : seq (extended_type Z) * seq (extended_type Z)) (xfd : asm_fundef).
 
 (* The arguments [fs'] of [p'] and the initial state [t] of [xp] are related
    through arguments [fs] of [up]. *)
 Definition toec_pre (fs' : fstate) (t : asmmem) : Prop :=
-  exists2 fs, safety_wi_pre info p8 fsig fn fn fs' fs & full_pre up xp fn xfd fs t.
+  exists2 fs, safety_wi_pre wi2i info p8 fsig fn fn fs' fs & full_pre up xp fn xfd fs t.
 
 Definition toec_post (fs' : fstate) (t : asmmem) (fr' : fstate) (t' : asmmem) : Prop :=
   exists fs fr,
-    [/\ safety_wi_pre info p8 fsig fn fn fs' fs,
+    [/\ safety_wi_pre wi2i info p8 fsig fn fn fs' fs,
         full_pre up xp fn xfd fs t,
-        safety_wi_post info p8 fsig fn fn fs' fs fr' fr
+        safety_wi_post wi2i info p8 fsig fn fn fs' fs fr' fr
       & full_post cparams up xp fn xfd fs t fr t'].
 
 (* Without arrays and with the signature kept by [dead_args]: the arguments
@@ -128,35 +129,35 @@ End FN.
    fail, with results related through a run of [up]. The masks are fresh in
    the program that [explicit_init] receives and the input of [dead_args] is
    well typed, as in [toec_uprog_safety_tgt_src]. *)
-Theorem toec_compiler_tgt_src entries (up p' : uprog) xp fn fd :
-  toec_uprog_safety fresh_var_ident get_info fresh_removable_ident mask protect dead_info up = ok p' ->
+Theorem toec_compiler_tgt_src (wi2i : bool) entries (up p' : uprog) xp fn fd :
+  toec_uprog_safety fresh_var_ident get_info fresh_copy_ident wi2i mask protect dead_info up
+    = ok p' ->
   compile_prog_to_asm aparams cparams entries up = ok xp ->
   fn \in entries ->
   get_fundef (p_funcs up) fn = Some fd ->
   let fsig := (build_sig (get_info up).2 (fn, fd)).2 in
-  exists pi p5 p6 info xfd,
+  exists p5 p6 info xfd,
   let p8 := assert_facts_prog (simplify_asserts_prog p6) in
-  [/\ wi2i_prog get_info up = ok pi,
-      toec_uprog_pre_init fresh_var_ident fresh_removable_ident pi = ok p5,
+  [/\ toec_uprog_pre_init fresh_var_ident fresh_copy_ident get_info wi2i up = ok p5,
       explicit_init_prog mask p5 = ok p6,
       dead_args_info (LC := toec_LoopCounter) protect (dead_info protect) p8 = ok (p', info),
       get_fundef xp.(asm_funcs) fn = Some xfd,
       xfd.(asm_fd_export) &
       mask_ok mask p5 -> total_ok p8 ->
       wkequiv_io
-        (toec_pre up xp info p8 fn fsig xfd)
+        (toec_pre wi2i up xp info p8 fn fsig xfd)
         (isem_ec p' fn)
         (isem_asm xp fn)
-        (toec_post up xp info p8 fn fsig xfd)].
+        (toec_post wi2i up xp info p8 fn fsig xfd)].
 Proof using asm_op_tout haparams print_linearP print_sprogP print_uprogP.
   move=> hp' hxp hfn hfd fsig.
-  have [pi [p5 [p6 [info [hpi h5 h6 h9 hsafe]]]]] :=
+  have [p5 [p6 [info [h5 h6 h9 hsafe]]]] :=
     toec_uprog_safety_tgt_src (asm_op := extended_op) (ep := ep_of_asm_e) (spp := spp_of_asm_e)
       (sip := sip_of_asm_e) (E := ErrEvent) (wE := with_Error0) (rE := HandlerContract)
       (rE_trans := HandlerContract_trans) tt asm_op_tout hp'.
   have [xfd [hxfd hexp hcomp]] :=
     it_compile_prog_to_asmP haparams print_uprogP print_sprogP print_linearP hxp hfn.
-  exists pi, p5, p6, info, xfd; split => // hmask hok.
+  exists p5, p6, info, xfd; split => // hmask hok.
   apply: (wkequiv_io_trans (rE12 := HandlerContract) (rE23 := HandlerContract)
             (rE_trans := HandlerContract_trans) _ _ (hsafe hmask hok fn fd hfd) hcomp).
   - by move=> fs' t [fs hp1 hp2]; exists fs.
@@ -196,7 +197,8 @@ Proof. by elim: xs tys => [|x xs ih] [|ty tys] //= /andP [+ /ih ->]; case: ty. Q
    arrays and whose variables are protected, the arguments and the results of
    [p'] are those of [up], read through [wi2i]. *)
 Theorem toec_compiler_scalars_tgt_src entries (up p' : uprog) xp fn fd :
-  toec_uprog_safety fresh_var_ident get_info fresh_removable_ident mask protect dead_info up = ok p' ->
+  toec_uprog_safety fresh_var_ident get_info fresh_copy_ident true mask protect dead_info up
+    = ok p' ->
   compile_prog_to_asm aparams cparams entries up = ok xp ->
   fn \in entries ->
   get_fundef (p_funcs up) fn = Some fd ->
@@ -204,10 +206,9 @@ Theorem toec_compiler_scalars_tgt_src entries (up p' : uprog) xp fn fd :
   all (fun ty => is_not_carr (eval_atype ty)) fd.(f_tyout) ->
   (forall x, protect fn x) ->
   let fsig := (build_sig (get_info up).2 (fn, fd)).2 in
-  exists pi p5 p6 xfd,
+  exists p5 p6 xfd,
   let p8 := assert_facts_prog (simplify_asserts_prog p6) in
-  [/\ wi2i_prog get_info up = ok pi,
-      toec_uprog_pre_init fresh_var_ident fresh_removable_ident pi = ok p5,
+  [/\ toec_uprog_pre_init fresh_var_ident fresh_copy_ident get_info true up = ok p5,
       explicit_init_prog mask p5 = ok p6,
       get_fundef xp.(asm_funcs) fn = Some xfd,
       xfd.(asm_fd_export) &
@@ -219,8 +220,8 @@ Theorem toec_compiler_scalars_tgt_src entries (up p' : uprog) xp fn fd :
         (toec_scalars_post up xp fn fsig xfd)].
 Proof using asm_op_tout haparams print_linearP print_sprogP print_uprogP.
   move=> hp' hxp hfn hfd htyin htyout hpr fsig.
-  have [pi [p5 [p6 [info [xfd]]]]] := toec_compiler_tgt_src hp' hxp hfn hfd.
-  move=> /= [hpi h5 h6 h9 hxfd hexp hall]; exists pi, p5, p6, xfd; split => // hmask hok.
+  have [p5 [p6 [info [xfd]]]] := toec_compiler_tgt_src hp' hxp hfn hfd.
+  move=> /= [h5 h6 h9 hxfd hexp hall]; exists p5, p6, xfd; split => // hmask hok.
   have [hkp hkr] :=
     dead_args_info_protected (asm_op := extended_op)
       (sip := @sip_of_asm_e _ _ _ _ _ _ _ asm_e syscall_state sc_sem) hpr h9.

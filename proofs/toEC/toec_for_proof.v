@@ -14,7 +14,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
-  {sm : SemMode}.
+  .
 
 #[local] Existing Instance nosubword.
 #[local] Existing Instance indirect_c.
@@ -30,7 +30,15 @@ Lemma st_eq_on_pexprs gs:
   forall wdb V es,
     Sv.Subset (read_es es) V ->
     wrequiv (st_eq_on V) ((sem_pexprs wdb gs)^~ es) ((sem_pexprs wdb gs)^~ es) eq.
-Proof. by move=> ????; apply: read_es_st_eq_on. Qed.
+Proof using sip wa.
+  move=> ? V e HV s t v [] H1 H2 H3 H.
+  exists v; last done.
+  rewrite -H (escs_emem_with_vm H1 H2).
+  symmetry.
+  apply read_es_eq_on_empty.
+  rewrite read_esE => el Hel.
+  apply H3, HV. SvD.fsetdec.
+Qed.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
@@ -125,10 +133,8 @@ Lemma wequiv_for_rename X ii dir lo hi c c' x x' :
 Proof using Hp.
   move=> HX Hx /Sv_memP Hx' Hty Hc.
   apply wequiv_for
-    with (Pi := fun s t =>
-      [/\ st_eq_on (Sv.remove x X) s t,
-          Vm.get (sm := partial) (evm s) x' = Vm.get (sm := partial) (evm t) x
-        & is_defined (Vm.get (sm := partial) (evm t) x)]).
+    with (Pi := fun s t => st_eq_on (Sv.remove x X) s t
+                           /\ (evm s).[x'] = (evm t).[x]).
   { done. }
   { rewrite eq_globs.
     apply wrequiv_sem_bound.
@@ -152,14 +158,13 @@ Proof using Hp.
         rewrite (write_getP_neq _ Hwrite) ?Vm.setP_neq ?Hvm //.
         2,3: apply/negP=>/eqP Heq; subst.
         1-3: clear -Hx' Hel; SvD.fsetdec.
-      + by case: (write_getP_eq Hwrite) => _ _ h; rewrite /= Vm.setP_eq h Hty.
-      case: (write_getP_eq Hwrite) => _ + _; rewrite /= Vm.setP_eq Hty.
-      by case: eval_atype.
+      + case: (write_getP_eq Hwrite).
+        by rewrite Vm.setP_eq Hty.
   }
   { rewrite -[c]@cat0s -cat1s.
     apply wequiv_cat with (R := st_eq_on X); last assumption.
     apply wequiv_assign_left.
-    move=> si1 si2 so1 [[Hscs Hmem Hvm] Hvm_index Hdef].
+    move=> si1 si2 so1 [[Hscs Hmem Hvm] Hvm_index].
     apply rbindP => v.
     apply: rbindP => - [] _ [=Hv]; subst v.
     apply rbindP => v' Hval Hwrite.
@@ -172,12 +177,9 @@ Proof using Hp.
         apply: rbindP Hwrite => s'vm.
         apply: rbindP => -[] _.
         apply: rbindP => -[] _ [= <-] [= <-].
-        have hg : Vm.get (sm := sm) (evm si1) x' = Vm.get (sm := partial) (evm so1) x.
-        * by rewrite Vm.get_modeE Hvm_index Hdef andbF.
-        rewrite hg in Hval.
-        rewrite /= Vm.setP_eq Hty -(truncate_val_subctype_eq Hval).
-        * by rewrite -Hty; exact (vm_truncate_val_get _ _).
-        * by rewrite getP_subctype.
+        rewrite -Hvm_index Vm.setP_eq Hty -(truncate_val_subctype_eq Hval).
+        * exact (vm_truncate_val_get _ _).
+        * by rewrite Hvm_index getP_subctype.
       + move/eqP: h => h.
         rewrite -(vrvP Hwrite).
         apply Hvm. clear -h Hel; SvD.fsetdec.
@@ -267,22 +269,6 @@ Proof using Hp.
   }
 Qed.
 
-(* [st_eq_on_finalize] in any mode. *)
-Lemma st_eq_on_finalize_sm (fd fd' : ufundef) :
-  f_tyout fd = f_tyout fd' ->
-  f_extra fd = f_extra fd' ->
-  f_res fd = f_res fd' ->
-  wrequiv (st_eq_on (vars_l (f_res fd))) (finalize_funcall fd) (finalize_funcall fd') eq.
-Proof using spp.
-  rewrite /finalize_funcall => <- <- <- /= s t fs [hscs hmem hvm].
-  t_xrbindP => vs hget vs' htr <-.
-  move: hget; rewrite -(sem_pexprs_get_var _ [::]) => hres.
-  rewrite (eq_on_sem_pexprs _ _ hmem (eq_on_mode (eq_onI _ hvm))) in hres.
-  2: by rewrite vars_l_read_es.
-  rewrite sem_pexprs_get_var in hres.
-  rewrite hres /= htr /= hscs hmem; eexists; eauto.
-Qed.
-
 Lemma toec_for_l fn :
   wiequiv_f p' p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof using Hp.
@@ -307,7 +293,7 @@ Proof using Hp.
     + rewrite /vars_fd. SvD.fsetdec.
     + move: Hfd. rewrite /toec_for_fun. by t_xrbindP => c Hc <-.
   - eapply wrequiv_weaken.
-    3: apply st_eq_on_finalize_sm; by case: (toec_for_fun_inv Hfd).
+    3: apply st_eq_on_finalize; by case: (toec_for_fun_inv Hfd).
     + move=> ?? [] H1 H2 H3.
       split; try done.
       eapply eq_onI; last exact H3.
@@ -319,22 +305,3 @@ Proof using Hp.
 Qed.
 
 End PROOF.
-
-#[local] Existing Instance progUnit.
-#[local] Existing Instance nosubword.
-#[local] Existing Instance indirect_c.
-
-(* The direction from the source to the transformed program: when the source
-   runs without failure, the transformed program runs with the same results.
-   The plain extraction through the passes of the extraction for safety
-   relies on it ([toec_safety_proof]). Not proved yet. *)
-Axiom toec_for_src_tgt :
-  forall {asm_op syscall_state : Type} {wa : WithAssert} {ep : EstateParams syscall_state}
-    {spp : SemPexprParams} {sip : SemInstrParams asm_op syscall_state}
-    {E E0 : Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}
-    (fresh_var_ident : v_kind -> instr_info -> string -> atype -> Ident.ident)
-    (p p' : uprog) (ev : extra_val_t),
-  toec_for_prog fresh_var_ident p = ok p' ->
-  forall fn,
-  wiequiv_f (sm1 := total) (sm2 := total)
-    p p' ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).

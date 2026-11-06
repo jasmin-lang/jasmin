@@ -2216,29 +2216,4 @@ Definition mask_ok (mask : var -> var) (p : uprog) : Prop :=
     & forall fn fd ci, get_fundef (p_funcs p) fn = Some fd -> f_contract fd = Some ci ->
       forall x y, Sv.In y (vars_l (f_iparams ci ++ f_ires ci)) -> mask x <> y].
 
-(* [mask_spec] from the original program to the instrumented one. *)
-Definition mask_spec_src_tgt : EquivSpec :=
-  {| rpreF_ := fun fn1 fn2 fs1 fs2 => fn1 = fn2 /\ mask_fs fs2 fs1
-   ; rpostF_ := fun fn1 fn2 fs1 fs2 fr1 fr2 => mask_fs fr2 fr1 |}.
-
 End DEFS.
-
-(* The direction from the original program to the instrumented one: when the
-   original program runs without failure in the total mode, the instrumented
-   program runs in the mode [total_init], from the same arguments followed by
-   masks that describe them, and ends with related results. The plain
-   extraction through the passes of the extraction for safety relies on it
-   ([toec_safety_proof]). Not proved yet. *)
-Axiom explicit_init_src_tgt :
-  forall {asm_op syscall_state : Type} {ep : EstateParams syscall_state}
-    {spp : SemPexprParams} {sip : SemInstrParams asm_op syscall_state}
-    {wa : WithAssert}
-    {E E0 : Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}
-    (mask : var -> var) (p p' : uprog) (ev : extra_val_t),
-  assert_allowed ->
-  mask_ok mask p ->
-  (forall o : asm_op_t, all is_not_carr (map eval_atype (tout (asm_op_instr o)))) ->
-  explicit_init_prog mask p = ok p' ->
-  forall fn,
-  wiequiv_f (sm1 := total) (sm2 := total_init) p p' ev ev
-    (rpreF (eS := mask_spec_src_tgt)) fn fn (rpostF (eS := mask_spec_src_tgt)).

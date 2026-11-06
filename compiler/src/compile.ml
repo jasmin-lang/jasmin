@@ -95,6 +95,17 @@ let toec_wint_info ((_, fds) : ('info, 'asm) prog) =
   let cfv = Conv.csv_of_sv fv in
   (m, fun _ -> (cfv, info))
 
+(* The oracle of the extractions: [wi2i_prog] runs when [wi2i] holds;
+   otherwise, the program must have no machine word annotated [wint], which
+   the printer to EasyCrypt does not handle. *)
+let toec_get_info wi2i prog =
+  let wint, get_info = toec_wint_info prog in
+  if not (wi2i || Mv.is_empty wint) then
+    hierror ~loc:Lnone ~kind:"extraction error"
+      "the variables of the types siN and uiN must be turned into integers \
+       (wint_int) or into words (wint_word, as after --after=wintword)";
+  get_info
+
 (* -------------------------------------------------------------------- *)
 let toec_freshvar vk ii = Conv.fresh_var_ident vk ii (Uint63.of_int 0)
 
@@ -107,12 +118,12 @@ let do_toec
        and type rflag = rflag
        and type cond = cond
        and type asm_op = asm_op
-       and type extra_op = extra_op) prog =
-  let _, get_info = toec_wint_info prog in
+       and type extra_op = extra_op) ?(wi2i = true) prog =
+  let get_info = toec_get_info wi2i prog in
   let cp = Conv.cuprog_of_prog prog in
   let cp =
     Toec_prog.toec_uprog Arch.asmOp Arch.pointer_data Arch.msf_size
-      toec_freshvar get_info cp in
+      toec_freshvar get_info wi2i cp in
   let cp = catch_error cp in
   Conv.prog_of_cuprog cp
 
@@ -167,7 +178,8 @@ let do_toec_safety
    (type asm_op extra_op)
     (module Arch : Arch_full.Arch
        with type asm_op = asm_op
-       and type extra_op = extra_op) ?(fnames = []) ((_, fds) as prog) =
+       and type extra_op = extra_op) ?(wi2i = true) ?(fnames = [])
+    ((_, fds) as prog) =
   let fresh_removable, mask = toec_removable () in
   (* The parameters and results kept by [Dead_args]: those of the entries; the
      dead ones are computed by [DeadArgs]. *)
@@ -181,43 +193,11 @@ let do_toec_safety
       ~protect:(fun fd x -> protect fd.f_name (Conv.cvar_of_var x))
       fds
   in
-  let _, get_info = toec_wint_info prog in
+  let get_info = toec_get_info wi2i prog in
   let cp = Conv.cuprog_of_prog prog in
   let cp =
     Toec_prog.toec_uprog_safety Arch.asmOp Arch.pointer_data Arch.msf_size
-      toec_freshvar get_info fresh_removable mask protect dead_info cp in
-  Conv.prog_of_cuprog (catch_error cp)
-
-let do_toec_via_safety
-   (type asm_op extra_op)
-    (module Arch : Arch_full.Arch
-       with type asm_op = asm_op
-       and type extra_op = extra_op) ((_, fds) as prog) =
-  let fresh_removable, mask = toec_removable () in
-  let wint, get_info = toec_wint_info prog in
-  (* The variables removed: those annotated, and the variables of the
-     contracts, which are not variables of their function and which
-     [contracts_to_asserts] introduces in its body; those annotated [wint]
-     are replaced by their integer variable. *)
-  let wi2i x = match Mv.find_opt x wint with Some (_, xi) -> xi | None -> x in
-  let contract_vars =
-    List.fold_left
-      (fun s fd ->
-        match fd.f_contract with
-        | None -> s
-        | Some ci ->
-          List.fold_left (fun s x -> Sv.add (wi2i (L.unloc x)) s) s
-            (ci.f_iparams @ ci.f_ires))
-      Sv.empty fds
-  in
-  let removable cx =
-    let x = Conv.var_of_cvar cx in
-    Annotations.has_removable x.v_annot || Sv.mem x contract_vars
-  in
-  let cp = Conv.cuprog_of_prog prog in
-  let cp =
-    Toec_prog.toec_uprog_via_safety Arch.asmOp Arch.pointer_data Arch.msf_size
-      toec_freshvar get_info fresh_removable mask removable cp in
+      toec_freshvar get_info fresh_removable wi2i mask protect dead_info cp in
   Conv.prog_of_cuprog (catch_error cp)
 
 (*--------------------------------------------------------------------- *)
