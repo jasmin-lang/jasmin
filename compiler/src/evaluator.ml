@@ -68,10 +68,8 @@ let init_estate ep spp p ii fn scs0 m alargs vargs =
   let f = BatOption.get (get_fundef p.p_funcs fn) in
   let gd = p.p_globs in
   let env =
-    let l = List.combine f.f_al alargs in
-    fun x -> List.find (fun ((n, _), _) -> x = n) l |> snd
+    List.combine (List.map fst f.f_al) alargs
   in
-  let env : env_t = Obj.magic env in
   let vargs = exn_exec ii (mapM2 ErrType truncate_val (List.map (eval_atype env) f.f_tyin) vargs) in
   BatOption.may (fun fc -> exec_pre ep spp env ii fc gd scs0 m vargs) f.f_contract;
   let s_estate = { escs = scs0; emem = m; evm = Vm.init nosubword env} in

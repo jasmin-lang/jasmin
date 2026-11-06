@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype finfun.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
 From mathcomp Require Import div ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import seq_extra psem psem_facts compiler_util low_memory.
@@ -221,7 +221,7 @@ Definition wft_DEF vars (vme : Vm.t env) :=
 Fixpoint sem_sexpr (vme : Vm.t env) (e : sexpr) :=
   match e with
   | Sconst z => ok (Vint z)
-  | Slvar n x => ok (Vint (env n))
+  | Slvar n x => ok (Vint (env_get env n))
   | Svar v => get_var true vme v
   | Sof_int ws e =>
     Let v := sem_sexpr vme e in

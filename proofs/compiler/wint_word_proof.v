@@ -1,7 +1,7 @@
 Require Import compiler_util psem psem_facts.
 Require Import wint_word allocation_proof.
 Import Utf8.
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype finfun ssralg.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 
 Section PROOF.
 
@@ -28,7 +28,7 @@ Notation gd := (p_globs p).
 
 Section E.
 
-  Context (env1 env2 : env_t) (s:estate env1) (vm:Vm.t env2) (heq_ : env1 =1 env2) (hincl : evm s <=1 vm) (wdb : bool).
+  Context env1 env2 (s:estate env1) (vm:Vm.t env2) (heq_ : env_get env1 =1 env_get env2) (hincl : evm s <=1 vm) (wdb : bool).
 
   Let s' := with_vm s vm.
 
@@ -147,7 +147,7 @@ Section E.
 End E.
 
 Lemma wi2w_lvalP env1 env2 wdb lv (s s' : estate env1) (vm : Vm.t env2) v1 v2 :
-  env1 =1 env2 ->
+  env_get env1 =1 env_get env2 ->
   evm s <=1 vm ->
   value_uincl v1 v2 ->
   write_lval wdb gd lv v1 s = ok s' ->
@@ -189,7 +189,7 @@ Proof.
 Qed.
 
 Lemma wi2w_lvalsP env1 env2 wdb lvs (s s' : estate env1) (vm : Vm.t env2) vs1 vs2 :
-  env1 =1 env2 ->
+  env_get env1 =1 env_get env2 ->
   evm s <=1 vm ->
   values_uincl vs1 vs2 ->
   write_lvals wdb gd s lvs vs1 = ok s' ->

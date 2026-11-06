@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype finfun.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import psem psem_facts compiler_util constant_prop constant_prop_proof.
 Require Export propagate_inline.
 
@@ -280,7 +280,7 @@ Proof using hvalid. case: pi_eP_and => _ h; apply h. Qed.
 Context env2 (vm:Vm.t env2) (hu: evm s <=1 vm).
 
 Lemma pi_eP_uincl e v :
-  env =1 env2 ->
+  env_get env =1 env_get env2 ->
   sem_pexpr wdb gd s e = ok v ->
   exists2 v', sem_pexpr wdb gd (with_vm s vm) (pi_e pi e) = ok v' & value_uincl v v'.
 Proof using hvalid hu.
@@ -289,7 +289,7 @@ Proof using hvalid hu.
 Qed.
 
 Lemma pi_esP_uincl es vs :
-  env =1 env2 ->
+  env_get env =1 env_get env2 ->
   sem_pexprs wdb gd s es = ok vs ->
   exists2 vs', sem_pexprs wdb gd (with_vm s vm) (pi_es pi es) = ok vs' &
     values_uincl vs vs'.
@@ -390,7 +390,7 @@ Proof.
 Qed.
 
 Lemma pi_lvsP_uincl env1 env2 wdb pi (s : estate env1) (vm : Vm.t env2) s' xs vs vs':
-  env1 =1 env2 ->
+  env_get env1 =1 env_get env2 ->
   evm s <=1 vm -> values_uincl vs vs' ->
   valid_pi s pi ->
   write_lvals wdb gd s xs vs = ok s' ->
@@ -566,7 +566,7 @@ Section PROOF.
     |}.
 
   Lemma st_piP env1 env2 d (s : estate env1) (t : estate env2) :
-    st_pi d s t ↔ [/\ t = with_vm s (evm t), env1 =1 env2, evm s <=1 evm t & valid_pi gd s d].
+    st_pi d s t ↔ [/\ t = with_vm s (evm t), env_get env1 =1 env_get env2, evm s <=1 evm t & valid_pi gd s d].
   Proof.
     by case: s t => scs1 mem1 vm1 [scs2 mem2 vm2] /=; split => -[[/= -> ->]].
   Qed.

@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype finfun ssralg.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith.
 Require Import xseq.
@@ -309,8 +309,8 @@ Module RGP. Section PROOFS.
   Hypothesis uniq_gd : uniq (map fst gd).
   Notation P' := {|p_globs := gd; p_funcs := fds; p_extra := p_extra P |}.
 
-  Definition valid (env1 env2 : env_t) (m:venv) (s1 : estate env1) (s2 : estate env2) :=
-    [/\ s1.(escs) = s2.(escs), s1.(emem) = s2.(emem), env1 =1 env2,
+  Definition valid env1 env2 (m:venv) (s1 : estate env1) (s2 : estate env2) :=
+    [/\ s1.(escs) = s2.(escs), s1.(emem) = s2.(emem), env_get env1 =1 env_get env2,
         (forall x, ~~is_glob_var x -> value_uincl (evm s1).[x] (evm s2).[x]),
         (forall x g, Mvar.get m x = Some g -> is_glob_var x) &
         (forall x g,

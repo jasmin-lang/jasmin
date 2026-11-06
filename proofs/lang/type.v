@@ -1,9 +1,10 @@
 (* ** Imports and settings *)
 From elpi.apps Require Import derive.std.
 From HB Require Import structures.
-From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype choice fintype finfun.
+From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith Lia Wellfounded.
+Require Import seq_extra.
 Require Import gen_map utils strings ident.
 Require Export wsize.
 Import Utf8.
@@ -386,39 +387,17 @@ Proof. by move=> ?; rewrite arr_sizeE; apply Z.mul_pos_pos. Qed.
 
 Opaque arr_size.
 
-Definition nat_of_int (i : Uint63.int) :=
-  Z.to_nat (Uint63.to_Z i).
-
-Definition int_of_nat (n : nat) :=
-  Uint63.of_Z (Z.of_nat n).
-
-Definition nat_wB := Z.to_nat Uint63.wB.
-
-Definition int_of_ord (k : 'I_nat_wB) := int_of_nat k.
-
-Lemma nat_of_int_bound i : ssrnat.leq (S (nat_of_int i)) nat_wB.
+Lemma uint_eqb_spec : Equality.axiom Uint63.eqb.
 Proof.
-  rewrite /nat_of_int /nat_wB.
-  apply /ssrnat.ltP.
-  have ? := Uint63.to_Z_bounded i.
-  by apply Z2Nat.inj_lt; lia.
+  move=> x y; apply (iffP (Uint63.eqbP _ _)); last by move=> ->.
+  by move=> /Uint63.to_Z_inj.
 Qed.
 
-Definition ord_of_int (i : Uint63.int) := Ordinal (nat_of_int_bound i).
+HB.instance Definition _ := hasDecEq.Build Uint63.int uint_eqb_spec.
 
-Lemma ord_of_intK : cancel ord_of_int int_of_ord.
-Proof.
-  move=> i.
-  rewrite /int_of_ord /= /int_of_nat /nat_of_int.
-  rewrite Z2Nat.id; last by have := Uint63.to_Z_bounded i; lia.
-  by apply Uint63Axioms.of_to_Z.
-Qed.
-
-HB.instance Definition _ :=
-  Finite.copy Uint63.int (can_type ord_of_intK).
-
-Definition env_t := {ffun Uint63.int -> Z}.
-Definition empty_env : env_t := [ffun _ => 0%Z].
+Definition env_t := seq (Uint63.int * Z).
+Definition empty_env : env_t := [::].
+Definition env_get (env:env_t) i := odflt 0%Z (xseq.assoc env i).
 
 Section EVAL.
 
@@ -442,7 +421,7 @@ Definition signed {A:Type} (fu fs:A) s :=
 Fixpoint eval_rec (al:array_length) : Z :=
   match al with
   | ALConst z => z
-  | ALVar n _ => env n
+  | ALVar n _ => env_get env n
   | ALNeg al => - eval_rec al
   | ALAdd al1 al2 => eval_rec al1 + eval_rec al2
   | ALSub al1 al2 => eval_rec al1 - eval_rec al2
@@ -522,8 +501,8 @@ End NO_VAR.
 
 Section EXT.
 
-Lemma eval_ext (env1 env2 : env_t) :
-  env1 =1 env2 ->
+Lemma eval_ext env1 env2 :
+  env_get env1 =1 env_get env2 ->
   eval env1 =1 eval env2.
 Proof.
   move=> heq.
@@ -538,8 +517,8 @@ Proof.
   by move=> ? <- ? <-.
 Qed.
 
-Lemma eval_atype_ext (env1 env2 : env_t) :
-  env1 =1 env2 ->
+Lemma eval_atype_ext env1 env2 :
+  env_get env1 =1 env_get env2 ->
   eval_atype env1 =1 eval_atype env2.
 Proof.
   move=> heq.
@@ -717,7 +696,7 @@ Qed.
 Fixpoint eval_mono (env : env_t) (mono : list (Uint63.int * Ident.ident)) : Z :=
   match mono with
   | [::] => 1
-  | x :: mono => env x.1 * eval_mono env mono
+  | x :: mono => env_get env x.1 * eval_mono env mono
   end.
 
 Fixpoint eval_expand (env : env_t) terms : Z :=
@@ -728,12 +707,12 @@ Fixpoint eval_expand (env : env_t) terms : Z :=
   end.
 
 Lemma insert_mono_correct env x mono :
-  eval_mono env (insert_mono x mono) = (env x.1 * eval_mono env mono)%Z.
+  eval_mono env (insert_mono x mono) = (env_get env x.1 * eval_mono env mono)%Z.
 Proof.
   elim: mono => [|x2 mono ih] //=.
   case: bvar_cmp => //=.
   rewrite ih.
-  move: (env _) (env _).
+  move: (env_get env _) (env_get env _).
   by lia.
 Qed.
 
@@ -997,8 +976,6 @@ Qed.
 
 Section SUBST.
 
-Require Import seq_extra.
-
 Section DEF.
 
 (* When [f x] returns [None], we preserve [x]. Is this reasonable?
@@ -1090,8 +1067,7 @@ Proof.
 Qed.
 
 Definition create_env (als : seq (Uint63.int * Ident.ident)) (vals : seq Z) : env_t :=
-  let l := zip (map fst als) vals in
-  [ffun i : Uint63.int => odflt 0%Z (xseq.assoc l i)].
+  zip (map fst als) vals.
 
 Lemma subst_alP env l als al al' :
   subst_al (xseq.assoc (zip [seq i.1 | i <- l] als)) al = Some al' ->
@@ -1100,7 +1076,7 @@ Proof.
   elim: al al' => /=.
   + by move=> z _ [<-] /=.
   + move=> i _ al' hassoc.
-    rewrite /create_env ffunE.
+    rewrite /env_get /create_env.
     have hsize := size_map (eval env) als.
     have [k [_ hnth ->]] := assoc_zip_Some (esym hsize) hassoc.
     by rewrite seq_extra.onth_map hnth /=.

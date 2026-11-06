@@ -11,19 +11,12 @@
 type t
 
 val of_int : int -> t
+val equal      : t -> t -> bool
+val compares : t -> t -> int
 
 val hash : t -> int
 val to_string : t -> string
 
-val l_sl    : t -> t -> t
-val l_sr    : t -> t -> t
-val l_and   : t -> t -> t
-val l_or    : t -> t -> t
-
 val add     : t -> t -> t
-val sub     : t -> t -> t
 
-val equal      : t -> t -> bool
 val le      : t -> t -> bool
-
-val compares : t -> t -> int

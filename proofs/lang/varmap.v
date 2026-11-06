@@ -1,4 +1,4 @@
-From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype finfun ssralg.
+From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import ZArith Setoid Morphisms.
 Require Export var type values.
@@ -882,7 +882,7 @@ Section REL_EQUIV.
   Proof. move => he ho j hj; rewrite he ?ho; SvD.fsetdec. Qed.
 
   Lemma vm_rel_set_var env1 env2 (wdb:bool) (P : var -> Prop) (vm1 vm1' : Vm.t env1) (vm2 : Vm.t env2) x v1 v2 :
-    env1 =1 env2 ->
+    env_get env1 =1 env_get env2 ->
     value_uincl v1 v2 ->
     vm_rel value_uincl (fun z => x <> z /\ P z) vm1 vm2 ->
     set_var wdb vm1 x v1 = ok vm1' ->
@@ -947,7 +947,7 @@ Section REL_EQUIV.
   Proof. by move=> hvu hu; apply vm_rel_set_r => //; apply: vm_relI hu; SvD.fsetdec. Qed.
 
   Lemma uincl_on_set_var env1 env2 (wdb:bool) s (vm1 vm1' : Vm.t env1) (vm2 : Vm.t env2) x v1 v2 :
-    env1 =1 env2 ->
+    env_get env1 =1 env_get env2 ->
     value_uincl v1 v2 ->
     vm1 <=[Sv.remove x s] vm2 ->
     set_var wdb vm1 x v1 = ok vm1' ->
@@ -1051,7 +1051,7 @@ Section REL_EQUIV.
   Proof. move=> /set_varP [??->] z hz; rewrite Vm.setP_neq //; apply/eqP; SvD.fsetdec. Qed.
 
   Lemma set_var_eq_on1 env1 env2 wdb x v (vm1 vm2 : Vm.t env1) (vm1' : Vm.t env2) :
-    env1 =1 env2 ->
+    env_get env1 =1 env_get env2 ->
     set_var wdb vm1  x v = ok vm2 ->
     set_var wdb vm1' x v = ok vm1'.[x <- v] /\ vm2 =[Sv.singleton x] vm1'.[x <- v].
   Proof.

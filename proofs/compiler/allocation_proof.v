@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype finfun.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 Require Import psem compiler_util.
 Require Export allocation.
 
@@ -20,8 +20,8 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {LC : LoopCounter}.
 
-Definition eq_alloc (env1 env2 : env_t) (r:M.t) (vm1 : Vm.t env1) (vm2 : Vm.t env2) :=
-    [/\ env1 =1 env2,
+Definition eq_alloc env1 env2 (r:M.t) (vm1 : Vm.t env1) (vm2 : Vm.t env2) :=
+    [/\ env_get env1 =1 env_get env2,
         (forall x, ~Sv.In x (M.mset r) -> vm1.[x] = undef_addr (eval_atype env1 x.(vtype))) &
         (forall x x', M.get r x = Some x' ->
                       value_uincl vm1.[x] vm2.[x'])].

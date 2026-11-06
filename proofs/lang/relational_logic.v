@@ -13,7 +13,7 @@ From ITree Require Import
   Eq.Rutt
   Eq.RuttFacts.
 
-From mathcomp Require Import ssreflect ssrfun ssrbool finfun.
+From mathcomp Require Import ssreflect ssrfun ssrbool.
 
 Import Monads.
 Import MonadNotation.
@@ -849,8 +849,8 @@ Section ST_REL.
 Context (D:Type).
 Context (R : forall env1 env2, D -> vm1_t env1 -> vm2_t env2 -> Prop).
 
-Definition st_rel (env1 env2 : env_t) (d : D) (s : estate1 env1) (t : estate2 env2) :=
-  [/\ escs s = escs t, emem s = emem t, env1 =1 env2 & R d (evm s) (evm t)%vm].
+Definition st_rel env1 env2 (d : D) (s : estate1 env1) (t : estate2 env2) :=
+  [/\ escs s = escs t, emem s = emem t, env_get env1 =1 env_get env2 & R d (evm s) (evm t)%vm].
 
 Lemma st_rel_weaken env1 env2 d d' :
   (forall (vm1 : vm1_t env1) (vm2 : vm2_t env2), R d vm1 vm2 -> R d' vm1 vm2) ->
@@ -2411,7 +2411,7 @@ Notation wiequiv   := (wequiv (sem_F1 := sem_fun_full) (sem_F2 := sem_fun_full))
 
 Lemma st_relP {syscall_state : Type} {ep : EstateParams syscall_state} {wsw : WithSubWord}
   D (R : forall [env1 env2], D -> Vm.t env1 -> Vm.t env2 -> Prop) env1 env2 d (s : estate env1) (t : estate env2) :
-  st_rel R d s t <-> [/\ t = with_vm s (evm t), env1 =1 env2 & R d (evm s) (evm t)].
+  st_rel R d s t <-> [/\ t = with_vm s (evm t), env_get env1 =1 env_get env2 & R d (evm s) (evm t)].
 Proof.
   rewrite (surj_estate s) (surj_estate t) /=.
   by split => [ [/= <- <-] | [[<- <-] ?]].
