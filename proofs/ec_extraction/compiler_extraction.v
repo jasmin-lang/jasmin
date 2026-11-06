@@ -21,12 +21,12 @@ Definition create_safety_asserts (p: _uprog): result compiler_util.pp_error_loc 
   (* First add the safety conditions *)
   let p := insert_cast_prog p in
   let p := print_uprog "insert cast " p in
-  Let p := sc_prog p in
-  let p := print_uprog "safety assert" p in
   (* This make the arguments and destinations of function call uniq variable.
      Similar to make reference argument *)
   Let p := extra_vars_call_prog create_var p in
   let p := print_uprog "extra vars call" p in
+  Let p := sc_prog p in
+  let p := print_uprog "safety assert" p in
   (* Introduce the boolean variables that encode is_var_init and is_arr_init *)
   let p := rm_var_init_prog B p in
   let p := print_uprog "var init" p in
