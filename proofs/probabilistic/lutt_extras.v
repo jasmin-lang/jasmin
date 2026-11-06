@@ -17,8 +17,6 @@ From ITree Require Import
   Eq.Rutt
   Eq.RuttFacts.
 
-From ITree Require Import EqAxiom.
-
 From mathcomp Require Import word_ssrZ ssreflect ssrfun ssrbool eqtype.
 
 Require Import utils rutt_extras it_exec equiv_extras core_logics 
@@ -30,16 +28,22 @@ Local Open Scope monad_scope.
 
 Notation execS := utils.exec.
 
-(* True as a predicate*)
+(* True as a predicate *)
 Notation TrueP := (fun=>True).
 
-(*** axiomatic version of bind_ret_l *)
-Lemma bind_ret_l_Eq {E R S} (r : R) (k : R -> itree E S) :
-  ITree.bind (Ret r) k = (k r).
+Lemma gpaco2_bind_ret_l E0 V1 V2 b1 b2 (RR : V1 -> V2 -> Prop)
+  (r : itree E0 V1 -> itree E0 V2 -> Prop) V3 V4
+  (k1: V3 -> itree E0 V1) (k2: V4 -> itree E0 V2) (v1: V3) (v2: V4) :
+  gpaco2 (eqit_ RR b1 b2 Datatypes.id)
+         (eqitC RR b1 b2) r r (k1 v1) (k2 v2) ->
+  gpaco2 (eqit_ RR b1 b2 Datatypes.id)
+    (eqitC RR b1 b2) r r (ITree.bind (Ret v1) k1)
+    (ITree.bind (Ret v2) k2).
 Proof.
-  eapply bisimulation_is_eq; eapply bind_ret_l; auto.
-Qed.
-
+  intros H; pclearbot.
+  setoid_rewrite bind_ret_l; auto.
+Qed.  
+  
 
 Section ImgEquivSec.
 
@@ -132,8 +136,8 @@ Proof.
   setoid_rewrite (itree_eta t2) in H0.
   setoid_rewrite (itree_eta t1).
   setoid_rewrite (itree_eta t1) in H0.
-  setoid_rewrite (itree_eta_ t1) in H1.  
-  setoid_rewrite (itree_eta_ t2) in H1.  
+  setoid_rewrite (itree_eta t1) in H1.  
+  setoid_rewrite (itree_eta t2) in H1.  
   remember (observe t1) as ot1.
   remember (observe t2) as ot2.
   punfold H0. red in H0.
@@ -168,23 +172,22 @@ Proof.
     setoid_rewrite bind_vis in H1.
     punfold H1; red in H1.
     setoid_rewrite bind_vis.
-    gstep; red.
-    econstructor.
-    intro v1.
-    unfold Datatypes.id; simpl.
-    dependent destruction H1. 
-    specialize (H2 v1 v1).
+    gstep; red; econstructor.
+    intro v1; unfold Datatypes.id; simpl.
     assert (PostR u u e1 v1 e1 v1) as K2.
     { eapply PostR_hyp; auto. }
-    setoid_rewrite bind_ret_l_Eq.
-    setoid_rewrite bind_ret_l_Eq in H2.
-    specialize (H2 K2); pclearbot.
+    dependent destruction H1. 
+    specialize (H2 v1 v1 K2); pclearbot.
+    eapply rutt_cong_eutt in H2; first last.
+    { setoid_rewrite bind_ret_l.
+      setoid_rewrite tau_euttge; reflexivity.
+    }
+    setoid_rewrite bind_ret_l in H2.
+    setoid_rewrite tau_euttge in H2; auto.       
+    eapply gpaco2_bind_ret_l.
     eapply gpaco2_tau; eauto.
-    gfinal. left.
-    eapply CIH.
+    gfinal; left; eapply CIH; auto.
     specialize (REL v1); pclearbot; auto.
-    eapply rutt_inv_Tau_l in H2.
-    eapply rutt_inv_Tau_r in H2; auto.
   }
   { intros t0 t2 H H1 H2; simpl.
     setoid_rewrite interp_exec_tau.
