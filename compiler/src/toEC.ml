@@ -1799,13 +1799,6 @@ struct
   (* ------------------------------------------------------------------- *)
   (* Extraction of lvals *)
 
-  let ec_lvals env xs =
-    let ec_lval env = function
-      | Lnone _ | Lmem _ | Laset _ | Lasub _ -> assert false
-      | Lvar x  -> LvIdent [ec_vars env (L.unloc x)]
-    in
-    List.map (ec_lval env) xs
-
   let toec_lval1 env lv e =
       match lv with
       | Lnone _ -> assert false
@@ -1825,8 +1818,6 @@ struct
           EA.toec_lasub env (aa, ws, len, x, toec_expr env e1) e
           )
 
-  let lvals_are_vars lvs = List.for_all (function Lvar _ -> true | _ -> false) lvs
-
   (* ------------------------------------------------------------------- *)
   (* Instruction extraction *)
 
@@ -1836,36 +1827,29 @@ struct
       let e = e |> ec_zeroext (etyo, etyi) |> ec_cast env (ty_lval lv, etyo) in
       toec_lval1 env lv e
 
-  let ec_assgn_f env lvs etyso etysi f =
-    let stmt = if lvals_are_vars lvs && (List.map ty_lval lvs) = etyso && etyso = etysi then
-      [f (ec_lvals env lvs)]
-      else
-      let ec_typs = (List.map (toec_ty env) etysi) in
-      let env = Env.new_aux_range env in
-      let auxs = List.map (Env.create_aux env "aux") ec_typs in
-      let s2lv s = LvIdent [s] in
-      let call = f (List.map s2lv auxs) in
-      let ec_auxs = List.map ec_ident auxs in
-      let assgn lv (ets, e) = ec_assgn env lv ets e in
-      let tyauxs = List.combine (List.combine etyso etysi) ec_auxs in
-      let assgn_auxs = List.map2 assgn lvs tyauxs in
-      call :: assgn_auxs
+  (* The destinations of a call, of a system call or of an operator with
+     several outputs, where [otys] are the output types and [etys] the types
+     of the results of the EasyCrypt procedure or operator. The pass
+     normalize_calls makes them variables of the output types, pairwise
+     distinct, or [_], which [Regalloc.fill_in_missing_names] replaces by
+     fresh variables. [etys] differs from [otys] only for an operator that
+     extends the size of its outputs ([BaseOp (Some ws, _)]): its EasyCrypt
+     operator returns the outputs at their base size, so a destination of an
+     extended output receives an auxiliary variable, then its extension.
+     Returns the EasyCrypt destinations and these extensions. *)
+  let ec_dests env lvs otys etys =
+    let env = Env.new_aux_range env in
+    let dest lv (oty, ety) =
+      assert (ty_lval lv = oty);
+      match lv with
+      | Lvar x when oty = ety -> LvIdent [ec_vars env (L.unloc x)], []
+      | Lvar _ ->
+        let aux = Env.create_aux env "aux" (toec_ty env ety) in
+        LvIdent [aux], [ec_assgn env lv (oty, ety) (ec_ident aux)]
+      | Lnone _ | Lmem _ | Laset _ | Lasub _ -> assert false
     in
-    (ec_leaks_lvs env lvs) @ stmt
-
-  let ec_pcall env lvs leak_lvs otys f args =
-    if lvals_are_vars lvs && (List.map ty_lval lvs) = otys then
-      (ec_leaks_lvs env lvs) @ [EScall (leak_lvs @ ec_lvals env lvs, f, args)]
-    else
-      ec_assgn_f env lvs otys otys (fun lvals -> EScall (leak_lvs @ lvals, f, args))
-
-  let ec_expr_assgn env lvs etyso etysi e =
-    if lvals_are_vars lvs && (List.map ty_lval lvs) = etyso && etyso = etysi then
-      (ec_leaks_lvs env lvs) @ [ESasgn (ec_lvals env lvs, e)]
-    else if List.length lvs = 1 then
-      (ec_leaks_lvs env lvs) @ [ec_assgn env (List.hd lvs) (List.hd etyso, List.hd etysi) e]
-    else
-      ec_assgn_f env lvs etyso etysi (fun lvals -> ESasgn (lvals, e))
+    let dests, exts = List.split (List.map2 dest lvs (List.combine otys etys)) in
+    dests, List.flatten exts
 
   let ec_syscall env o =
     match o with
@@ -1886,9 +1870,10 @@ struct
           (ec_leaks_es env [e]) @
           [toec_lval1 env lv (ec_ident "witness")]
       | Cassgn (lv, _, _, e) ->
-          let tys = [ty_expr e] in
+          let ty = ty_expr e in
           (ec_leaks_es env [e]) @
-          ec_expr_assgn env [lv] tys tys (toec_expr env e)
+          (ec_leaks_lvs env [lv]) @
+          [ec_assgn env lv (ty, ty) (toec_expr env e)]
       | Copn ([], _, op, es) ->
           (ec_leaks_opn env es) @
           [EScomment (Format.sprintf "Erased call to %s" (ec_opn (Env.pd env) (Env.msfsz env) asmOp op))]
@@ -1900,22 +1885,30 @@ struct
           let ec_op op = ec_ident (ec_opn (Env.pd env) (Env.msfsz env) asmOp op) in
           let ec_e op = Eapp (ec_op op, List.map (toec_cast env) (List.combine itys es)) in
           (ec_leaks_opn env es) @
-          (ec_expr_assgn env lvs otys otys' (ec_e op'))
+          begin match lvs, otys, otys' with
+          | [lv], [oty], [oty'] ->
+            (ec_leaks_lvs env lvs) @ [ec_assgn env lv (oty, oty') (ec_e op')]
+          | _ ->
+            let dests, exts = ec_dests env lvs otys otys' in
+            ESasgn (dests, ec_e op') :: exts
+          end
       | Ccall (lvs, f, es) ->
           let env = Env.new_aux_range env in
           let otys, itys = Env.get_funtype env f in
           let args = List.map (toec_cast env) (List.combine itys es) in
           let leak_lvs = ec_leak_call_lvs env in
+          let dests, _ = ec_dests env lvs otys otys in
           (ec_leaks_es env es) @
-          (ec_pcall env lvs leak_lvs otys [Env.get_funname env f] args) @
+          [EScall (leak_lvs @ dests, [Env.get_funname env f], args)] @
           (ec_leak_call_acc env)
       | Csyscall (lvs, o, es) ->
           let s = Syscall.syscall_sig_u o in
           let otys = List.map Conv.ty_of_cty s.scs_tout in
           let itys =  List.map Conv.ty_of_cty s.scs_tin in
           let args = List.map (toec_cast env) (List.combine itys es) in
+          let dests, _ = ec_dests env lvs otys otys in
           (ec_leaks_es env es) @
-          (ec_pcall env lvs [] otys [ec_syscall env o] args)
+          [EScall (dests, [ec_syscall env o], args)]
       | Cassert _a -> [(* TODO *)]
       | Cif (e, c1, c2) ->
           let c1 env = toec_cmd asmOp env c1 in
