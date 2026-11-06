@@ -415,6 +415,27 @@ Proof. done. Qed.
 Lemma esem1 p ev s i : esem p ev [::i] s = esem_i p ev i s.
 Proof. by rewrite esem_cons; case: esem_i. Qed.
 
+(* Instructions whose semantics is a function of the state. *)
+Definition basic_i (i : instr) : bool :=
+  let: MkI _ ir := i in
+  match ir with
+  | Cassgn _ _ _ _ | Copn _ _ _ _ | Csyscall _ _ _ => true
+  | _ => false
+  end.
+
+Lemma esem_basic_errorP p ev c s e :
+  all basic_i c -> esem p ev c s = Error e -> isem_cmd_ p ev c s ≈ iresult (Error e).
+Proof.
+  elim: c s => [|i c ih] s; first by [].
+  move=> /andP [hb hbs]; rewrite esem_cons.
+  have -> : isem_cmd_ p ev (i :: c) s = ITree.bind (isem_i_body p ev i s) (isem_cmd_ p ev c).
+  + by [].
+  have -> : isem_i_body p ev i s = iresult (esem_i p ev i s) by case: i hb => ? [].
+  case: esem_i => [s1 | e1] /=.
+  + by rewrite bind_ret_l; apply ih.
+  by move=> [<-]; rewrite bind_throw; reflexivity.
+Qed.
+
 Lemma eEForOne p ev s1 s1' s2 s3 i w ws c :
   write_var true i (Vint w) s1 = ok s1' ->
   esem p ev c s1' = ok s2 ->

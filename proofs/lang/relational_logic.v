@@ -692,6 +692,22 @@ Proof.
   by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
 Qed.
 
+(* A command made of basic instructions on the left is related to any
+   command through the functional semantics. *)
+Lemma wequiv_basic_esem (P Q : rel_c) c1 c2 :
+  all basic_i c1 ->
+  wrequiv P (esem (wa:=wa1) (sm:=sm1) p1 ev1 c1) (esem (wa:=wa2) (sm:=sm2) p2 ev2 c2) Q ->
+  wequiv P c1 c2 Q.
+Proof.
+  move=> hb h s t hP.
+  destruct (esem (wa:=wa1) (sm:=sm1) p1 ev1 c1 s) as [s' | e] eqn:heq.
+  + have [t' h2 hQ] := h s t s' hP heq.
+    rewrite (esem_i_bodyP heq) (esem_i_bodyP h2).
+    by apply xrutt.xrutt_Ret.
+  rewrite (esem_basic_errorP hb heq) /=; apply xrutt_CutL => //.
+  by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
+Qed.
+
 Lemma wequiv_opn (Rve Rvo : rel_vs) P Q ii1 xs1 at1 o1 es1 ii2 xs2 at2 o2 es2 :
   wrequiv P (fun s => sem_pexprs1 true (p_globs p1) s es1)
             (fun s => sem_pexprs2 true (p_globs p2) s es2) Rve ->

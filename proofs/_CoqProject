@@ -243,6 +243,8 @@ lang/word.v
 lang/wsize.v
 toEC/for_to_while.v
 toEC/for_to_while_proof.v
+toEC/normalize_calls.v
+toEC/normalize_calls_proof.v
 toEC/safety.v
 toEC/safety_proof.v
 toEC/toec_for.v

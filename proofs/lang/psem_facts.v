@@ -66,6 +66,20 @@ Proof.
   by t_xrbindP => ? /lv_write_scsP -> /ih.
 Qed.
 
+(* Only [_] or a boolean variable can receive a boolean. *)
+Lemma write_lval_bool gd lv b s s' :
+  write_lval true gd lv (Vbool b) s = ok s' ->
+  (exists vi ty, lv = Lnone vi ty) \/ exists2 y, lv = Lvar y & vtype y = abool.
+Proof.
+  case: lv => /=.
+  + by move=> vi ty _; left; eauto.
+  + move=> y; rewrite /write_var /set_var; t_xrbindP => _ _ htr _ _; right; exists y => //.
+    by case: (vtype y) htr.
+  + by move=> ????; t_xrbindP.
+  + by move=> ?????; apply: on_arr_varP => ????; t_xrbindP.
+  by move=> ?????; apply: on_arr_varP => ????; t_xrbindP.
+Qed.
+
 (* sem_stack_stable and sem_validw_stable both for uprog and sprog *)
 (* inspired by sem_one_varmap_facts *)
 
