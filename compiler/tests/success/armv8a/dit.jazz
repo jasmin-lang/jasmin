@@ -1,0 +1,37 @@
+fn add(reg u64 a b) -> reg u64 {
+  a += b;
+  return a;
+}
+
+#[dit]
+export fn dit_add(reg u64 a b) -> reg u64 {
+  a = add(a, b);
+  return a;
+}
+
+#[dit=no]
+export fn no_dit_add(reg u64 a b) -> reg u64 {
+  a += b;
+  return a;
+}
+
+export fn plain_add(reg u64 a b) -> reg u64 {
+  a += b;
+  return a;
+}
+
+#[dit, stackzero=unrolled]
+export fn dit_stack_zero(reg u64 p) {
+  stack u64 s;
+  reg u64 x;
+  x = [p];
+  s = x;
+  x = s;
+  [p] = x;
+}
+
+#[dit=yes]
+export fn dit_randombytes(reg ptr u8[8] r) -> reg ptr u8[8] {
+  r = #randombytes(r);
+  return r;
+}

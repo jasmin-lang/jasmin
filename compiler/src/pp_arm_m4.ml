@@ -223,7 +223,7 @@ and type asm_op = arm_op
       Label global_datas_label
     ]
 
-  let function_tail =
+  let function_tail _ =
     (* TODO_ARM: Review. *)
     [ Instr ("pop", [ "{pc}" ]) ]
 
@@ -232,7 +232,7 @@ and type asm_op = arm_op
       Header (".thumb_func", [])
     ]
 
-  let function_header =
+  let function_header _ =
     [
         Instr ("push", [pp_brace (pp_register LR)])
     ]
@@ -305,7 +305,7 @@ and type asm_op = arm_op
 
 end
 
-let print_prog core fmt prog =
+let print_prog core f_annot fmt prog =
   let module C = struct let core = core end in
   let module ArmBuilder = AsmTargetBuilder.Make (ArmTarget (C)) in
-  PrintASM.pp_asm fmt (ArmBuilder.asm_of_prog prog)
+  PrintASM.pp_asm fmt (ArmBuilder.asm_of_prog f_annot prog)

@@ -28,13 +28,15 @@ module type AsmTarget = sig
     val function_directives : asm_element list
     (** Meta-data to print before the function definition *)
 
-    (* Start of the function*)
-    val function_header     : PrintASM.asm_element list
-
-    (* Function return instructions
+    (* Start of the function, given the annotations of the function.
     It is called only on exported functions.
     *)
-    val function_tail       : PrintASM.asm_element list
+    val function_header     : FInfo.f_annot -> PrintASM.asm_element list
+
+    (* Function return instructions, given the annotations of the function.
+    It is called only on exported functions.
+    *)
+    val function_tail       : FInfo.f_annot -> PrintASM.asm_element list
 
     (* Pretty print of instruction*)
     val pp_instr_r : CoreIdent.Name.t -> (reg, regx, xreg, rflag, cond, asm_op) Arch_decl.asm_i_r -> PrintASM.asm_element list
@@ -54,12 +56,15 @@ module type S = sig
     (*
         Entrypoint of assembly printer : generate a list of instructions defined in PrintASM module.
         args :
+            - the annotations of each function, by name
             - asm_prog : assembly program
         returns :
             - asm_line list : assembly program
 
     *)
-    val asm_of_prog : (reg, regx, xreg, rflag, cond, asm_op) Arch_decl.asm_prog -> PrintASM.asm_element list
+    val asm_of_prog :
+      (CoreIdent.funname -> FInfo.f_annot) ->
+      (reg, regx, xreg, rflag, cond, asm_op) Arch_decl.asm_prog -> PrintASM.asm_element list
 end
 
 (**
