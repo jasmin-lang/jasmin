@@ -1,0 +1,20 @@
+/* Conditional assignments between registers are conditional selects. */
+export
+fn csel(reg u32 x y z) -> reg u32 {
+    reg bool b;
+    b = x == y;
+    x = z if b;
+    x = (x < y) ? y : x;
+    z = (x <s z) ? x : z;
+    x += z;
+    return x;
+}
+
+/* A conditional assignment of an expression is still conditional execution. */
+export
+fn cond_add(reg u32 x y) -> reg u32 {
+    reg bool b;
+    b = x == y;
+    x = x + y if b;
+    return x;
+}
