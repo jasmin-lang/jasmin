@@ -75,6 +75,12 @@ module Make(Target : AsmTarget) : S
     let function_symbol name decl =
         if decl.asm_fd_export then mangle name else name
 
+    let pp_function_comment decl =
+        let (_, f_annot, _, _) = decl.asm_fd_info in
+        match f_annot.FInfo.comment with
+        | None -> []
+        | Some s -> List.map (fun l -> Comment l) (String.split_on_char '\n' s)
+
     let pp_function_header (name:string) decl =
         let name = function_symbol name decl in
         (if Glob_options.use_function_sections ()
@@ -85,7 +91,8 @@ module Make(Target : AsmTarget) : S
            then [ Header (".type", [name; "%function"]) ]
            else [])
         @ Label name
-        :: (if decl.asm_fd_export then Target.function_header else [])
+        :: pp_function_comment decl
+        @ (if decl.asm_fd_export then Target.function_header else [])
 
     let pp_function_tail name decl =
         let name = function_symbol name decl in
