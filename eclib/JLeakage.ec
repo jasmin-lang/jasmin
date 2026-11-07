@@ -6,7 +6,6 @@ require import JMemory JWord.
 type leakage_glob_t = [
   | LeakAddr of address list
   | LeakCond of bool
-  | LeakFor  of (int * int)
 ].
 
 type leakages_glob_t = leakage_glob_t list.

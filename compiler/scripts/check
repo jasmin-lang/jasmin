@@ -18,6 +18,10 @@ DLL=${DIR}/jasmin.so
 if [ -d "${DIR}" ]; then rm -r ${DIR}; fi
 mkdir -p $DIR
 
+# Whether the arguments select macOS, whose objects are Mach-O
+MACOS=no
+(echo $@ | grep -q -e "-system[ =]macosx") && MACOS=yes
+
 set -x
 
 $(dirname $0)/../jasminc -g -system linux -o ${ASM} "$@"
@@ -25,13 +29,16 @@ $(dirname $0)/../jasminc -g -system linux -o ${ASM} "$@"
 # Succeed early if it’s not the case (i.e., do not try to assemble the result)
 (echo $@ | grep -q fail) && exit 0
 
-if [ $ARCH = "arm-m4" ]
+if [ $ARCH = "cortex-m4" ]
 then
     ASARGS="--triple=armv7m --mcpu=cortex-m4"
 elif [ $ARCH = "riscv" ]
 then
      # +m enables integer multiplication
      ASARGS="--triple=riscv32 --mcpu=generic-rv32 -mattr=+m"
+elif [ $ARCH = "armv8a" ] && [ $MACOS = yes ]
+then
+    ASARGS="--triple=arm64-apple-macos"
 elif [ $ARCH = "armv8a" ]
 then
     ASARGS="--triple=aarch64"
@@ -41,5 +48,6 @@ fi
 
 llvm-mc $ASARGS --filetype=obj -o ${OBJ} ${ASM}
 
-# Compile as a shared library, except for ARMv7 for which it is known not to work
-[ $ARCH = "arm-m4" ] || ld.lld -shared -o ${DLL} ${OBJ}
+# Compile as a shared library, except for ARMv7 for which it is known not to work,
+# and on macOS since ld.lld only links ELF objects
+[ $ARCH = "cortex-m4" ] || [ $MACOS = yes ] || ld.lld -shared -o ${DLL} ${OBJ}

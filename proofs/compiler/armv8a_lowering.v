@@ -210,13 +210,18 @@ Definition sext_mn (ws ws' : wsize) : option armv8a_mnemonic :=
   | _ => None
   end.
 
-Definition uext_mn (ws ws' : wsize) : option armv8a_mnemonic :=
+Definition uext_mn (ws' : wsize) : option armv8a_mnemonic :=
   match ws' with
   | U8 => Some UXTB
   | U16 => Some UXTH
-  | U32 => if ws == U64 then Some UXTW else None
   | _ => None
   end.
+
+(* The zero extension of a word to 64 bits is a MOV in the W form, whose
+   result is zero-extended: writing a W register clears the upper 32 bits of
+   the X register. *)
+Definition zext_word_op : sopn :=
+  Oasm (BaseOp (Some U64, ARMv8A_op MOV (opts_at U32))).
 
 Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : low_expr :=
   let%opt _ := chk_ws_reg ws in
@@ -242,8 +247,10 @@ Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : low_expr :=
       then
         let%opt mn := uload_mn ws ws' in
         le_issue mn ws [:: e ]
+      else if (ws == U64) && (ws' == U32)
+      then le_issue_sopn zext_word_op [:: e ]
       else
-        let%opt mn := uext_mn ws ws' in
+        let%opt mn := uext_mn ws' in
         le_issue mn ws [:: e ]
   | Olnot ws0 =>
       let%opt _ := oassert (ws0 == ws) in

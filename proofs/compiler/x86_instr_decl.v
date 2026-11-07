@@ -1226,7 +1226,7 @@ Definition Ox86_SHR_instr :=
   mk_instr_ww8_b5w_0c0 "SHR" x86_SHR_t (init_shift 1) check_ror (prim_8_64 SHR) size_8_64 DOIT (pp_iname_w_8 "shr").
 
 Definition Ox86_SAL_instr :=
-  mk_instr_ww8_b5w_0c0 "SAL" x86_SHL_t (init_shift 1) check_ror (prim_8_64 SAL) size_8_64 NOT_DOIT (pp_iname_w_8 "sal").
+  mk_instr_ww8_b5w_0c0 "SAL" x86_SHL_t (init_shift 1) check_ror (prim_8_64 SAL) size_8_64 DOIT (pp_iname_w_8 "sal").
 
 Definition x86_SAR_t sz (v: word sz) (i: u8) : sem_ltuple_t (b5w_ty sz) :=
   let i := wand i (x86_shift_mask sz) in
@@ -1933,21 +1933,21 @@ Definition Ox86_VMOVHPD_instr :=
   mk_instr_pp "VMOVHPD" (w_ty U128) (w_ty U64) [:: Eu 1] [:: Eu 0] MSB_CLEAR x86_VMOVHPD check_movpd 2 NOT_DOIT (primM VMOVHPD) (pp_name_ty "vmovhpd" [::U64;U128]).
 
 Definition x86_VPMINS (ve: velem) sz (x y : word sz) : tpl (w_ty sz) :=
-  wmin Signed ve x y.
+  wvmin Signed ve x y.
 
 Definition Ox86_VPMINS_instr  :=
   mk_ve_instr_w2_w_120 "VPMINS" x86_VPMINS check_xmm_xmm_xmmm (primV_8_32 VPMINS)
   (fun ve sz => size_8_32 ve && size_128_256 sz) (fun ve => if ve is VE32 then NOT_DOIT else DOIT) (pp_viname "vpmins").
 
 Definition x86_VPMINU (ve: velem) sz (x y : word sz) : tpl (w_ty sz) :=
-  wmin Unsigned ve x y.
+  wvmin Unsigned ve x y.
 
 Definition Ox86_VPMINU_instr  :=
   mk_ve_instr_w2_w_120 "VPMINU" x86_VPMINU check_xmm_xmm_xmmm (primV_8_32 VPMINU)
   (fun ve sz => size_8_32 ve && size_128_256 sz) (fun=> DOIT) (pp_viname "vpminu").
 
 Definition x86_VPMAXS (ve: velem) sz (x y : word sz) : tpl (w_ty sz) :=
-  wmax Signed ve x y.
+  wvmax Signed ve x y.
 
 Definition Ox86_VPMAXS_instr  :=
   mk_ve_instr_w2_w_120 "VPMAXS" x86_VPMAXS check_xmm_xmm_xmmm (primV_8_32 VPMAXS)
@@ -1955,7 +1955,7 @@ Definition Ox86_VPMAXS_instr  :=
   (pp_viname "vpmaxs").
 
 Definition x86_VPMAXU (ve: velem) sz (x y : word sz) : tpl (w_ty sz) :=
-  wmax Unsigned ve x y.
+  wvmax Unsigned ve x y.
 
 Definition Ox86_VPMAXU_instr  :=
   mk_ve_instr_w2_w_120 "VPMAXU" x86_VPMAXU check_xmm_xmm_xmmm (primV_8_32 VPMAXU)

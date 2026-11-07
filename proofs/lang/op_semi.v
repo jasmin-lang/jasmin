@@ -43,6 +43,7 @@ Definition wiop2_safe (sg : signedness) (sz : wsize) (o : wiop2) : seq safety_co
       [:: sc_wi_range sg sz
             (IOp2 (Osub Op_int) (sc_toint sg sz 0) (sc_toint sg sz 1))]
   | WIdiv | WImod => sc_divmod sg sz 0 1
+  | WImax | WImin => [::]
   | WIshl =>
       [:: sc_wi_range sg sz
             (IOp2 (Olsl Op_int) (sc_toint sg sz 0) (sc_toint Unsigned U8 1))]

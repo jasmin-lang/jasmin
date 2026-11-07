@@ -7,7 +7,19 @@ let arch =
   let doc =
     Format.asprintf "The target architecture (%s)" (Arg.doc_alts_enum alts)
   in
-  let arch = Arg.enum alts in
+  let parse s =
+    match Architecture.architecture_of_string s with
+    | Some arch -> Ok arch
+    | None ->
+        Error
+          (`Msg
+             (Format.asprintf "invalid value '%s', expected one of %s" s
+                (String.concat ", " (List.map fst alts))))
+  in
+  let print fmt arch =
+    Format.pp_print_string fmt (Architecture.architecture_to_string arch)
+  in
+  let arch = Arg.conv (parse, print) in
   Arg.(value & opt arch Architecture.X86_64 & info [ "arch" ] ~doc)
 
 let call_conv =
