@@ -61,6 +61,10 @@ module type Core_arch = sig
   val is_ct_asm_extra : extra_op -> bool
 
   val internal_call_conv : (reg, regx, xreg, rflag, cond) internal_calling_convention
+
+  (* Registers the register allocator never assigns, besides the stack
+     pointer. *)
+  val reserved_regs : reg list
 end
 
 module type Arch = sig
@@ -172,8 +176,8 @@ module Arch_from_Core_arch (A : Core_arch) :
 
   let allocatable =
     let good_order = mk_allocatable (Arch_decl.registers arch_decl) callee_save_reg in
-    (* be sure that rsp is not used *)
-    List.filter (fun r -> r <> rsp) good_order
+    (* be sure that rsp and the reserved registers are not used *)
+    List.filter (fun r -> r <> rsp && not (List.mem r reserved_regs)) good_order
 
   let extra_allocatable =
     mk_allocatable (Arch_decl.registerxs arch_decl) callee_save_regx
