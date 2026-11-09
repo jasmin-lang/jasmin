@@ -1,8 +1,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import expr compiler_util.
 
-Set Printing Implicit.
-
 (* Make the implicit truncations of expressions explicit. *)
 
 Section TOEC_CAST.
