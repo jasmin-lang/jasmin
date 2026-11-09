@@ -79,12 +79,12 @@ Definition keep_vars (fn : funname) (o : option (seq bool)) (xs : seq var_i) :=
     if all id k then None else Some k
   else None.
 
-Definition params_keep (p : _uprog) (fn : funname) : option (seq bool) :=
-  if get_fundef (p_funcs p) fn is Some fd then keep_vars fn (dead_info p fn).1 fd.(f_params)
+Definition params_keep (info : funname -> option (seq bool) * option (seq bool)) (p : _uprog) (fn : funname) : option (seq bool) :=
+  if get_fundef (p_funcs p) fn is Some fd then keep_vars fn (info fn).1 fd.(f_params)
   else None.
 
-Definition res_keep (p : _uprog) (fn : funname) : option (seq bool) :=
-  if get_fundef (p_funcs p) fn is Some fd then keep_vars fn (dead_info p fn).2 fd.(f_res)
+Definition res_keep (info : funname -> option (seq bool) * option (seq bool)) (p : _uprog) (fn : funname) : option (seq bool) :=
+  if get_fundef (p_funcs p) fn is Some fd then keep_vars fn (info fn).2 fd.(f_res)
   else None.
 
 Section ARGS.
@@ -143,8 +143,9 @@ Definition update_info kp kr (info : keep_info) : keep_info :=
    parameters and the results it kept. *)
 Definition dead_args_round (p : _uprog) :
   cexec (_uprog * bool * (funname -> option (seq bool)) * (funname -> option (seq bool))) :=
-  let kp := params_keep p in
-  let kr := res_keep p in
+  let info := dead_info p in
+  let kp := params_keep info p in
+  let kr := res_keep info p in
   let p1 := map_prog_name (pT := progUnit) (rm_params_fd kp) p in
   Let p2 := dead_code_prog_tokeep (pT := progUnit) (fun _ => false) (fun _ fi => fi) false kr p1 in
   Let _ := allM (fun f => add_funname f.1 (check_params kp kr f.1 f.2)) (p_funcs p) in

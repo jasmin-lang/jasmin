@@ -776,8 +776,8 @@ have : forall k, get_fundef info0 fn = Some k -> all id k.1 && all id k.2.
 elim: fuel p info0 => [|n ih] p0 i0 hi /=.
 - move=> [_ <-]; rewrite /kparams /kres.
   by case: get_fundef hi => // k /(_ _ erefl) /andP.
-have hupd : forall kp kr, kp = params_keep protect dead_info p0 ->
-  kr = res_keep protect dead_info p0 ->
+have hupd : forall kp kr, kp = params_keep protect (dead_info p0) p0 ->
+  kr = res_keep protect (dead_info p0) p0 ->
   forall k, get_fundef (update_info kp kr i0) fn = Some k -> all id k.1 && all id k.2.
 - move=> kp kr -> -> k; rewrite /update_info /get_fundef assoc_mapE; last by move=> ? [].
   have hk : forall o xs, keep_vars protect fn o xs = None.
@@ -786,7 +786,7 @@ have hupd : forall kp kr, kp = params_keep protect dead_info p0 ->
   rewrite /= /params_keep /res_keep; case: get_fundef => [fd|]; rewrite ?hk /=.
   1,2: by move: (hi k); rewrite /get_fundef; case: assoc => //= -[k1 k2] h [?]; subst k; apply: h.
 t_xrbindP => -[[[p2 ch] kp] kr] hr.
-have [-> ->] : kp = params_keep protect dead_info p0 /\ kr = res_keep protect dead_info p0.
+have [-> ->] : kp = params_keep protect (dead_info p0) p0 /\ kr = res_keep protect (dead_info p0) p0.
 - by move: hr; rewrite /dead_args_round; t_xrbindP => ?? _ _ _ <- <-.
 have hi' := hupd _ _ erefl erefl.
 case: ch hr => _; first by apply: ih.
