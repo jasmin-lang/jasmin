@@ -1,0 +1,10 @@
+fn f(reg u32 a) -> reg u32 {
+  return a;
+}
+
+export fn main(reg u32 z, reg u64 x y) -> reg u32 {
+  z = z + y;
+  z = y <u 0 ? x : z;
+  z = f(x);
+  return z;
+}
