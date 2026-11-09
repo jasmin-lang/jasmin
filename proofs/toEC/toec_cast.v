@@ -1,12 +1,9 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import expr compiler_util.
 
-Local Open Scope seq_scope.
-Local Open Scope Z_scope.
-
 Set Printing Implicit.
 
-(* Make all implicit truncations explicit. *)
+(* Make the implicit truncations of expressions explicit. *)
 
 Section TOEC_CAST.
 
@@ -77,6 +74,16 @@ Definition toec_cast_lv (x : lval) : lval :=
   | Lasub aa ws len x e => Lasub aa ws len x (toec_cast_te aint e)
   end.
 
+Fixpoint toec_cast_ea (a : eassert) : eassert :=
+  match a with
+  | Pexpr e => Pexpr (toec_cast_te abool e)
+  | PappN_safety o es => PappN_safety o (toec_cast_es (type_of_opN_safety o).1 es)
+  | Pis_var_init _ => a
+  | Pis_mem_init e1 e2 =>
+      Pis_mem_init (toec_cast_te (aword Uptr) e1) (toec_cast_te aint e2)
+  | Pand a1 a2 => Pand (toec_cast_ea a1) (toec_cast_ea a2)
+  end.
+
 Section FUNSIG.
 
 Context (fun_tyin : funname -> seq atype).
@@ -95,7 +102,7 @@ Fixpoint toec_cast_i (i : instr) : instr :=
             (toec_cast_es (scs_tin (syscall_sig_u o)) es)
       | Ccall xs f es =>
           Ccall (map toec_cast_lv xs) f (toec_cast_es (fun_tyin f) es)
-      | Cassert _ => ir
+      | Cassert a => Cassert (a.1, toec_cast_ea a.2)
       | Cif e c1 c2 => Cif (toec_cast_te abool e) (rec_c c1) (rec_c c2)
       | Cfor x (d, lo, hi) c =>
           Cfor x (d, toec_cast_te aint lo, toec_cast_te aint hi) (rec_c c)
