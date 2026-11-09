@@ -1836,6 +1836,11 @@ struct
 
   let ec_assgn env lv (etyo, etyi) e =
       let e = e |> ec_zeroext (etyo, etyi) |> ec_cast env (ty_lval lv, etyo) in
+      (* FIXME: assignments created by this file come after toec_cast, so their
+        truncations are added here. Remove once they are created in Rocq. *)
+      let e = match ty_lval lv with
+        | Bty (U _) as ty -> ec_zeroext (ty, etyo) e
+        | _ -> e in
       toec_lval1 env lv e
 
   let ec_assgn_f env lvs etyso etysi f =
