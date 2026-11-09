@@ -12,8 +12,8 @@ after the label of the function, one comment line per line of text.
   incr:
   // local function
 
-  $ ../jasminc -arch arm-m4 $F -o arm-m4.s 2> /dev/null
-  $ grep -E "$COMMENTS" arm-m4.s
+  $ ../jasminc -arch cortex-m4 $F -o cortex-m4.s 2> /dev/null
+  $ grep -E "$COMMENTS" cortex-m4.s
   main:
   // export function
   // second line

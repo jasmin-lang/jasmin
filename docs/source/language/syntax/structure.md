@@ -236,6 +236,38 @@ function parameters (resp. function returned variables).
 
 [The assertions (`<expr_assert>`) are described in a dedicated section.](./code.md#assertions)
 
+### Comment annotations
+
+A function definition can be annotated with a comment, which the compiler
+copies into the generated assembly, right after the label of the function.
+
+For instance,
+```
+#[comment = "copies the contents of x
+to the address p + 8"]
+export
+fn copy_to_memory(reg u64 x, reg u64 p) {
+    [p + 8] = x;
+}
+```
+annotates the export function `copy_to_memory` with a comment of two lines.
+When compiled for x86-64, the assembly of `copy_to_memory` is
+```
+	.global	copy_to_memory
+	.type	copy_to_memory, %function
+copy_to_memory:
+// copies the contents of x
+// to the address p + 8
+	movq	%rdi, 8(%rsi)
+	ret
+	.size	copy_to_memory, .-copy_to_memory
+```
+where each line of the comment becomes an assembly comment.
+A function accepts at most one `comment` annotation, and its value must be a
+string.
+Since inline functions do not appear in the assembly, their comments are lost.
+Comment annotations on instructions are ignored for now.
+
 ## Namespaces
 
 Jasmin features a simple namespace system, with a syntax similar to that of C++.

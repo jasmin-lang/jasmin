@@ -757,14 +757,14 @@ Definition assemble_fd (rip rsp : var) (fd : lfundef) :=
   Let arg := mapM typed_reg_of_vari fd.(lfd_arg) in
   Let res := mapM typed_reg_of_vari fd.(lfd_res) in
   let fd :=
-    {| asm_fd_info := lfd_info fd
-     ; asm_fd_align := lfd_align fd
+    {| asm_fd_align := lfd_align fd
      ; asm_fd_arg := arg
      ; asm_fd_body := fd'
      ; asm_fd_res := res
      ; asm_fd_export := lfd_export fd
      ; asm_fd_total_stack := lfd_total_stack fd
      ; asm_fd_align_args := lfd_align_args fd
+     ; asm_fd_info := lfd_info fd
     |} in
 
   Let _ := assert (check_call_conv fd)
