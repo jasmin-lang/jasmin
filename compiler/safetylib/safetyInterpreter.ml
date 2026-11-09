@@ -106,6 +106,7 @@ type safe_cond =
   | InRange of expr * expr * expr (* InRange a b c ≡ c ∈ [a; b] *)
 
   | Valid       of wsize * expr (* allocated memory region *)
+  | BoundedRange of var (* bounded range of the accesses through an input pointer *)
   | AlignedPtr  of wsize * expr (* aligned pointer *)
   | AlignedExpr of wsize * expr (* aligned expression *)
 
@@ -164,6 +165,8 @@ let rec pp_safety_cond fmt = function
 
   | Valid (sz, e) ->
     Format.fprintf fmt "is_valid %a u%a" pp_expr e pp_ws sz
+  | BoundedRange x ->
+    Format.fprintf fmt "bounded memory range of %a" pp_var x
 
   | AlignedPtr (sz, e) ->
     Format.fprintf fmt "aligned pointer %a u%a" pp_expr e pp_ws sz
@@ -319,6 +322,8 @@ let safe_op2 o e1 e2 =
   | Odiv (_, Op_w s) -> [notZero (s, e2) (* FIXME this is not sufficiant case Signed *) ]
   | Omod (_, Op_w s) -> [notZero (s, e2) (* FIXME this is not sufficiant case Signed *) ]
 
+  | Omin _ | Omax _ -> []
+
   | Ovadd _ | Ovsub _ | Ovmul _
   | Ovlsr _ | Ovlsl _ | Ovasr _ -> []
   | Owi2(sg, sz, o) ->
@@ -328,6 +333,7 @@ let safe_op2 o e1 e2 =
     | WIsub -> [in_wint_range sg sz (to_int_op2 sg sz (Osub Op_int) e1 e2)]
     | WIdiv -> [notZero (sz, e2) (* FIXME this is not sufficiant case Signed *) ]
     | WImod -> [notZero (sz, e2) (* FIXME this is not sufficiant case Signed *) ]
+    | WImax | WImin -> []
     | WIshl ->
         let e = Papp2 (Olsl (Op_w sz), e1, e2) in
         [in_wint_range sg sz (wint_to_int sg sz e)]
@@ -859,7 +865,7 @@ end = struct
       end
 
     (* These are checked elsewhere *)
-    | AlignedPtr _ | AlignedExpr _ | Valid _ | Termination _ -> true
+    | AlignedPtr _ | AlignedExpr _ | Valid _ | BoundedRange _ | Termination _ -> true
 
   let is_safe state cond =
     let res = is_safe state cond in
@@ -2043,6 +2049,17 @@ end = struct
       (* We check the safety conditions of the return *)
       let conds = safe_return main_decl in
       let final_st = check_safety final_st (InReturn main_decl.f_name) conds in
+
+      (* The memory ranges are the regions that the input pointers must
+         point to: no memory region satisfies an unbounded range. *)
+      let final_st =
+        List.filter_map (fun (MemLoc x as m) ->
+            let itv = AbsDom.bound_variable final_st.abs (MmemRange m) in
+            if Scalar.is_infty itv.inf = 0 && Scalar.is_infty itv.sup = 0
+            then None
+            else Some (InReturn main_decl.f_name, BoundedRange x))
+          final_st.env.m_locs
+        |> add_violations final_st in
 
       debug(fun () -> Format.eprintf "%a" pp_violations final_st.violations);
       print_mem_ranges final_st;

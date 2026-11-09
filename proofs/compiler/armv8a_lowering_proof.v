@@ -627,22 +627,20 @@ Proof.
        by rewrite ?zero_extend_u).
 
   (* Case: [Ozeroext]. *)
-  - move: hw => /sem_sop1I /= [w' [?] [hw' [?] hw]].
+  { move: hw => /sem_sop1I /= [w' [?] [hw' [?] hw]].
     move: hw => /Vword_inj [?]; subst ws'.
     move=> /= ?; subst.
     move=> /oassertP [/eqP ? h]; subst ws0.
     move: h => /oassertP [hlt h]; move: h.
-    case: (is_load e);
-      (apply: obindP => mn hmn [??]; subst op' es;
+    case: (is_load e); last case: andP => [[/eqP ? /eqP ?] | _].
+    2: move=> [??]; subst op' es ws ws''.
+    1,3: apply: obindP => mn hmn [??]; subst op' es;
        case/orP: hwsx' => /eqP ?; subst ws;
-       move: hmn; case: ws'' hlt hfve w' hw' => //= hlt hfve w' hw' [?]; subst mn;
-       (split; last by split);
-       clear hfve;
-       rewrite /= hseme {hseme} /=;
-       (eexists; first reflexivity);
-       rewrite /exec_sopn /= hw' {hw'} /=;
-       by rewrite ?zero_extend_u).
-
+       move: hmn; case: ws'' hlt hfve w' hw' => //= hlt hfve w' hw' [?]; subst mn.
+    all: (split; last by split); clear hfve;
+      rewrite /= hseme /=; (eexists; first reflexivity);
+      by rewrite /exec_sopn /= hw' /= /armv8a_MOV_semi zero_extend_idem.
+  }
   (* Case: [Olnot]. *)
   - move: hw => /sem_sop1I /= [w' [?] [hw' [?] hw]].
     move: hw => /Vword_inj [?]; subst ws'.

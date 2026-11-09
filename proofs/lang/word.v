@@ -1797,11 +1797,17 @@ Definition wpcmpgt ve sz (w1 w2: word sz) : word sz :=
 Definition wminmax1 ve (cmp : word ve -> word ve -> bool) (x y : word ve) : word ve :=
   if cmp x y then x else y.
 
-Definition wmin sg ve sz (x y : word sz) :=
+Definition wvmin sg ve sz (x y : word sz) :=
   lift2_vec ve (wminmax1 (wlt sg)) sz x y.
 
-Definition wmax sg ve sz (x y : word sz) :=
+Definition wvmax sg ve sz (x y : word sz) :=
   lift2_vec ve (wminmax1 (fun u v => wlt sg v u)) sz x y.
+
+Definition wmax sg sz (x y : word sz) :=
+  if wlt sg x y then y else x.
+
+Definition wmin sg sz (x y : word sz) :=
+  if wlt sg y x then y else x.
 
 (* -------------------------------------------------------------------*)
 
@@ -2394,4 +2400,3 @@ Proof.
   + apply: Z.quot_le_upper_bound; Lia.nia.
   apply Z.quot_le_lower_bound; Lia.nia.
 Qed.
-

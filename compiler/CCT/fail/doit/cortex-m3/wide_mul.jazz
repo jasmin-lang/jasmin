@@ -1,0 +1,8 @@
+/* The wide multiplication is compiled to UMULL. */
+#[ct="secret * secret -> secret"]
+export fn wide_mul(reg u32 x y) -> reg u32 {
+  reg u32 hi lo;
+  hi, lo = x * y;
+  lo ^= hi;
+  return lo;
+}
