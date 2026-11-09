@@ -212,6 +212,21 @@ Proof.
   all: by apply: rbindP => i /(toec_cast_te_of_valP (ty := aint)) ->.
 Qed.
 
+Lemma toec_cast_eassertP s a b :
+  sem_eassert gd s (toec_cast_ea a) = ok b -> sem_eassert gd s a = ok b.
+Proof.
+  elim: a b => [e | o es | x | e1 e2 | a1 ih1 a2 ih2] b /=.
+  - exact: (toec_cast_te_of_valP (ty := abool)).
+  - t_xrbindP => vs' /(toec_cast_esP erefl) [vs hvs hr] hb.
+    rewrite -/(sem_pexprs true gd s es) hvs /=.
+    by rewrite /sem_opN_safety -(cast_rels_app_sopn _ hr).
+  - by [].
+  - apply: rbindP => lo /(toec_cast_te_of_valP (ty := aword Uptr)) ->.
+    by apply: rbindP => sz /(toec_cast_te_of_valP (ty := aint)) ->.
+  t_xrbindP => b1 /ih1 -> b2 /ih2 -> <-.
+  done.
+Qed.
+
 Lemma toec_cast_lvsP wdb xs vs :
   wrequiv eq (λ s, write_lvals wdb gd s (map toec_cast_lv xs) vs) (λ s, write_lvals wdb gd s xs vs) eq.
 Proof.
@@ -307,7 +322,8 @@ Proof.
     by apply: toec_cast_lvsP.
   - move=> a ii.
     apply wequiv_assert => ?.
-    by split => // s _ <-.
+    split => // s _ <- /toec_cast_eassertP h.
+    by split.
   - move=> e c1 c2 hc1 hc2 ii.
     apply wequiv_if; last by case.
     exact: toec_cast_condP.
