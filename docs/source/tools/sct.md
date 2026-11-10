@@ -246,6 +246,6 @@ For more examples please have a look at success
 for ARMv8-A. The lowering of these primitives on each architecture, and the
 speculative behaviours that it does not take into account, are described in
 [Lowering of SLH instructions](../compiler/passes/lower_slh).
-[Libjade](https://github.com/formosa-crypto/libjade) a formally
+[Libjade](https://github.com/formosa-crypto/formosa-libjade) a formally
 verified cryptographic library uses this framework to protect its
 implementations from Spectre v1 attack.
