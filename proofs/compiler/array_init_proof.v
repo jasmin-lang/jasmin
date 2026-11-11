@@ -222,7 +222,7 @@ Proof.
    rewrite /finalize_funcall; t_xrbindP => vs hget vs' hmap <-.
    eexists; last by eauto.
    case: h => [<- <- [_ h]].
-   have -> /= : get_var_is (~~ direct_call) (evm t2) (f_res fd') = ok vs.
+   have -> /= : get_var_is (wdb := ~~ direct_call) (evm t2) (f_res fd') = ok vs.
    + by rewrite -hget; apply mapM_ext => // y; rewrite /get_var -h.
    by rewrite hmap.
  }

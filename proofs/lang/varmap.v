@@ -47,7 +47,7 @@ Proof.
   rewrite orbF; right; eauto.
 Qed.
 
-Definition truncatable wdb ty v :=
+Definition truncatable {wdb: enforce_defined_variables} ty v :=
  match v, ty with
  | Vbool _, cbool => true
  | Vint _, cint   => true
@@ -59,12 +59,12 @@ Definition truncatable wdb ty v :=
  | _, _ => false
  end.
 
-Lemma truncatable_arr wdb len a : truncatable wdb (carr len) (@Varr len a).
+Lemma truncatable_arr (wdb: enforce_defined_variables) len a : truncatable (carr len) (@Varr len a).
 Proof. by rewrite /truncatable /= eqxx. Qed.
 
-Lemma truncatable_cword ws (v: word ws) :
-  truncatable true (cword ws) (Vword v).
-Proof. by rewrite /= cmp_le_refl orbT. Qed.
+Lemma truncatable_cword {wdb: enforce_defined_variables} ws (v: word ws) :
+  truncatable (cword ws) (Vword v).
+Proof. by case: wdb => //; rewrite /= cmp_le_refl orbT. Qed.
 
 Definition vm_truncate_val ty v :=
  match v, ty with
@@ -88,18 +88,18 @@ Proof.
   by rewrite cmp_nle_lt => h; rewrite (cmp_lt_le h).
 Qed.
 
-Lemma compat_val_truncatable wdb t v :
+Lemma compat_val_truncatable (wdb: enforce_defined_variables) t v :
   compat_val t v ->
-  truncatable wdb t v.
+  truncatable t v.
 Proof.
   move=> /compat_valE; rewrite /truncatable /=.
   case: v => [b ->|z ->|len a ->|ws w [ws' -> h]|t' i] //=.
   by apply/orP; right; case: sw_allowed h => //= ->.
 Qed.
 
-Lemma subctype_truncatable wdb t v :
+Lemma subctype_truncatable (wdb: enforce_defined_variables) t v :
   subctype t (type_of_val v) ->
-  truncatable wdb t v.
+  truncatable t v.
 Proof.
   rewrite /truncatable.
   case: v => [b|z|len a|ws w|t' i] /=.
@@ -110,13 +110,13 @@ Proof.
   by move=> [? [-> ?]] /=.
 Qed.
 
-Lemma truncatable_type_of wdb v :
-  truncatable wdb (type_of_val v) v.
+Lemma truncatable_type_of (wdb: enforce_defined_variables) v :
+  truncatable (type_of_val v) v.
 Proof. by apply subctype_truncatable. Qed.
 
 (* TODO: rename this lemma and its siblings; vm_truncate_val -> truncatable *)
-Lemma vm_truncate_valE_wdb wdb ty v :
-  truncatable wdb ty v ->
+Lemma vm_truncate_valE_wdb (wdb: enforce_defined_variables) ty v :
+  truncatable ty v ->
   match v with
   | Vbool b => ty = cbool /\ vm_truncate_val ty v = b
   | Vint i => ty = cint /\ vm_truncate_val ty v = i
@@ -144,7 +144,7 @@ Proof.
 Qed.
 
 Lemma vm_truncate_valE ty v :
-  truncatable true ty v ->
+  truncatable (wdb := true) ty v ->
   match v with
   | Vbool b => ty = cbool /\ vm_truncate_val ty v = b
   | Vint i => ty = cint /\ vm_truncate_val ty v = i
@@ -175,8 +175,8 @@ Opaque undef_addr.
 Transparent undef_addr.
 Qed.
 
-Lemma vm_truncate_valEl_wdb wdb ty v :
-  truncatable wdb ty v ->
+Lemma vm_truncate_valEl_wdb (wdb: enforce_defined_variables) ty v :
+  truncatable ty v ->
   let vt := vm_truncate_val ty v in
   match ty with
   | cbool =>
@@ -206,7 +206,7 @@ Proof.
 Qed.
 
 Lemma vm_truncate_valEl ty v :
-  truncatable true ty v ->
+  truncatable (wdb := true) ty v ->
   let vt := vm_truncate_val ty v in
   match ty with
   | cbool =>
@@ -226,8 +226,8 @@ Proof.
 Qed.
 
 Lemma vm_truncate_val_subctype ty v:
-  (sw_allowed -> ~is_cword ty) -> DB true v ->
-  truncatable true ty v ->
+  (sw_allowed -> ~is_cword ty) -> DB (wdb := true) v ->
+  truncatable (wdb := true) ty v ->
   subctype ty (type_of_val v).
 Proof.
   move=> hna hdb htr.
@@ -237,8 +237,8 @@ Proof.
   by rewrite /DB /= => -[] + _ /eqP ?; subst t => /subctypeEl ->.
 Qed.
 
-Lemma vm_truncate_value_uincl wdb t v :
-  truncatable wdb t v → value_uincl (vm_truncate_val t v) v.
+Lemma vm_truncate_value_uincl (wdb: enforce_defined_variables) t v :
+  truncatable t v → value_uincl (vm_truncate_val t v) v.
 Proof.
   move=> /vm_truncate_valE_wdb; case: v.
   1-3: by move=> > [-> ]// ->.
@@ -249,17 +249,17 @@ Proof.
   by move=> > [? ->].
 Qed.
 
-Lemma vm_truncate_val_DB wdb ty v:
-  truncatable wdb ty v ->
-  DB wdb v = DB wdb (vm_truncate_val ty v).
+Lemma vm_truncate_val_DB {wdb: enforce_defined_variables} ty v:
+  truncatable ty v ->
+  DB v = DB (vm_truncate_val ty v).
 Proof.
   case: wdb => //.
   move=> /vm_truncate_valE; case: v => [b [_ ->]| z [_ ->] | len a [_ ->] | ws w | t i [_ ->]] //=.
   by move=> [ws' [_ _ ->]]; case: ifP.
 Qed.
 
-Lemma vm_truncate_val_defined wdb ty v:
-  truncatable wdb ty v ->
+Lemma vm_truncate_val_defined (wdb: enforce_defined_variables) ty v:
+  truncatable ty v ->
   (~~wdb || is_defined v) = (~~wdb || is_defined (vm_truncate_val ty v)).
 Proof.
   case: wdb => //.
@@ -287,25 +287,25 @@ Proof.
 Qed.
 
 Lemma vm_truncate_val_subctype_word v ws:
-  DB true v ->
+  DB (wdb := true) v ->
   subctype (cword ws) (type_of_val v) ->
-  truncatable true (cword ws) v ->
+  truncatable (wdb := true) (cword ws) v ->
   exists2 w : word ws, vm_truncate_val (cword ws) v = Vword w & to_word ws v = ok w.
 Proof.
   move=> hd /subctypeEl [ws' [/type_of_valI [? | [w ?]]]] hle1; subst v => //=.
   rewrite if_zero_extend_w hle1 truncate_word_le //= => ->; eauto.
 Qed.
 
-Lemma to_word_vm_truncate_val wdb ws t v w:
+Lemma to_word_vm_truncate_val (wdb: enforce_defined_variables) ws t v w:
   t = cword ws ->
   to_word ws v = ok w ->
-  [/\ truncatable wdb t v, vm_truncate_val t v = (Vword w), DB wdb v & is_defined v].
+  [/\ truncatable t v, vm_truncate_val t v = (Vword w), DB v & is_defined v].
 Proof. by move=> -> /to_wordI' [sz' [w' [hle -> ->]]] /=; rewrite /truncatable /DB if_zero_extend_w hle !orbT. Qed.
 
-Lemma compat_truncatable wdb ty1 ty2 v:
+Lemma compat_truncatable (wdb: enforce_defined_variables) ty1 ty2 v:
   compat_ctype sw_allowed ty1 ty2 ->
-  truncatable wdb ty1 v ->
-  truncatable wdb ty2 v.
+  truncatable ty1 v ->
+  truncatable ty2 v.
 Proof.
   rewrite /compat_ctype; case: ifP => hwsw; last by move=> /eqP ->; eauto.
   move=> hsub htr.
@@ -366,11 +366,11 @@ Proof.
   by rewrite hsw /=; case: ifP => /=.
 Qed.
 
-Lemma truncatable_subctype (wdb : bool) ty v1 v2 :
+Lemma truncatable_subctype (wdb : enforce_defined_variables) ty v1 v2 :
   (wdb -> ~sw_allowed -> is_cword ty -> ~is_defined v1 -> subctype ty (type_of_val v2)) ->
-  truncatable wdb ty v1 ->
+  truncatable ty v1 ->
   subctype (type_of_val v1) (type_of_val v2) ->
-  truncatable wdb ty v2.
+  truncatable ty v2.
 Proof.
   move=> + /vm_truncate_valE_wdb; case: v1 => [b | i | p t | ws w | t ht]; rewrite /truncatable.
   1,2: by move=> _ [-> _] /subctypeEl /= /esym /type_of_valI [|[?]]->.
@@ -386,25 +386,25 @@ Proof.
   by case: wdb h => //; case: sw_allowed => //=; apply.
 Qed.
 
-Lemma vm_truncate_val_uincl (wdb : bool) v1 v2 ty:
+Lemma vm_truncate_val_uincl (wdb : enforce_defined_variables) v1 v2 ty:
   (wdb -> ~sw_allowed -> is_cword ty -> ~is_defined v1 -> subctype ty (type_of_val v2)) ->
-  truncatable wdb ty v1 ->
+  truncatable ty v1 ->
   value_uincl v1 v2 ->
-  truncatable wdb ty v2 /\ value_uincl (vm_truncate_val ty v1) (vm_truncate_val ty v2).
+  truncatable ty v2 /\ value_uincl (vm_truncate_val ty v1) (vm_truncate_val ty v2).
 Proof.
   move=> h htr hu; split.
   apply (truncatable_subctype h htr (value_uincl_subctype hu)).
   apply: value_uincl_vm_truncate hu.
 Qed.
 
-Lemma compat_truncate_uincl wdb t1 t2 v1 v2:
+Lemma compat_truncate_uincl (wdb: enforce_defined_variables) t1 t2 v1 v2:
   compat_ctype sw_allowed t1 t2 ->
-  truncatable wdb t1 v1 ->
+  truncatable t1 v1 ->
   value_uincl v1 v2 ->
-  DB wdb v1 ->
-  [/\ truncatable wdb t2 v2,
+  DB v1 ->
+  [/\ truncatable t2 v2,
       value_uincl (vm_truncate_val t1 v1) (vm_truncate_val t2 v2) &
-      DB wdb v2].
+      DB v2].
 Proof.
   move=> hc htr1 hu hdb.
   have [|??]:= vm_truncate_val_uincl _ htr1 hu.
@@ -548,52 +548,52 @@ Proof.
   apply undef_t_subctype.
 Qed.
 
-Definition set_var wdb vm x v :=
-  Let _ := assert (DB wdb v) ErrAddrUndef in
-  Let _ := assert (truncatable wdb (eval_atype (vtype x)) v) ErrType in
+Definition set_var {wdb: enforce_defined_variables} vm x v :=
+  Let _ := assert (DB v) ErrAddrUndef in
+  Let _ := assert (truncatable (eval_atype (vtype x)) v) ErrType in
   ok vm.[x <- v].
 
 (* Ensure that the variable is defined *)
-Definition get_var {sm : SemMode} wdb vm x :=
+Definition get_var {sm : SemMode} {wdb: enforce_defined_variables} vm x :=
   let v := vm.[x]%vm in
   Let _ := assert (~~wdb || is_defined v) ErrAddrUndef in
   ok v.
 
-Definition get_vars wdb vm := mapM (get_var wdb vm).
+Definition get_vars {wdb: enforce_defined_variables} vm := mapM (get_var vm).
 
 Definition vm_initialized_on vm : seq var → Prop :=
-  all (λ x, is_ok (get_var true vm x >>= of_val (eval_atype (vtype x)))).
+  all (λ x, is_ok (get_var (wdb := true) vm x >>= of_val (eval_atype (vtype x)))).
 
-Lemma set_varP wdb vm x v vm' :
-  set_var wdb vm x v = ok vm' <-> [/\ DB wdb v, truncatable wdb (eval_atype (vtype x)) v & vm' = vm.[x <- v]].
+Lemma set_varP (wdb: enforce_defined_variables) vm x v vm' :
+  set_var vm x v = ok vm' <-> [/\ DB v, truncatable (eval_atype (vtype x)) v & vm' = vm.[x <- v]].
 Proof. by rewrite /set_var; split => [ | [-> -> -> //]]; t_xrbindP. Qed.
 
-Lemma set_var_truncate wdb x v :
-  DB wdb v -> truncatable wdb (eval_atype (vtype x)) v ->
-  forall vm, set_var wdb vm x v = ok vm.[x <- v].
+Lemma set_var_truncate (wdb: enforce_defined_variables) x v :
+  DB v -> truncatable (eval_atype (vtype x)) v ->
+  forall vm, set_var vm x v = ok vm.[x <- v].
 Proof. by rewrite /set_var => -> ->. Qed.
 
-Lemma set_var_eq_type wdb x v:
-  DB wdb v -> type_of_val v = eval_atype (vtype x) ->
-  forall vm, set_var wdb vm x v = ok vm.[x <- v].
+Lemma set_var_eq_type (wdb: enforce_defined_variables) x v:
+  DB v -> type_of_val v = eval_atype (vtype x) ->
+  forall vm, set_var vm x v = ok vm.[x <- v].
 Proof. move => h1 h2; apply set_var_truncate => //; rewrite -h2; apply truncatable_type_of. Qed.
 
-Lemma set_varDB wdb vm x v vm' : set_var wdb vm x v = ok vm' -> DB wdb v.
+Lemma set_varDB (wdb: enforce_defined_variables) vm x v vm' : set_var vm x v = ok vm' -> DB v.
 Proof. by move=> /set_varP []. Qed.
 
-Lemma get_varP wdb vm x v : get_var wdb vm x = ok v ->
+Lemma get_varP (wdb: enforce_defined_variables) vm x v : get_var vm x = ok v ->
   [/\ v = vm.[x], ~~wdb || is_defined v & compat_val (eval_atype (vtype x)) v].
 Proof. rewrite/get_var;t_xrbindP => ? <-; split => //; apply Vm.getP. Qed.
 
-Lemma get_var_compat wdb vm x v : get_var wdb vm x = ok v ->
+Lemma get_var_compat (wdb: enforce_defined_variables) vm x v : get_var vm x = ok v ->
    (~~wdb || is_defined v) /\ compat_val (eval_atype (vtype x)) v.
 Proof. by move=>/get_varP []. Qed.
 
 Lemma get_var_undef vm x v ty h :
-  get_var true vm x = ok v -> v <> Vundef ty h.
+  get_var (wdb := true) vm x = ok v -> v <> Vundef ty h.
 Proof. by move=> /get_var_compat [] * ?; subst. Qed.
 
-Lemma get_varI vm x v : get_var true vm x = ok v ->
+Lemma get_varI vm x v : get_var (wdb := true) vm x = ok v ->
   match v with
   | Vbool _ => eval_atype (vtype x) = cbool
   | Vint _ => eval_atype (vtype x) = cint
@@ -605,7 +605,7 @@ Lemma get_varI vm x v : get_var true vm x = ok v ->
   end.
 Proof. by move=> /get_var_compat [] + /compat_valE; case: v. Qed.
 
-Lemma get_varE vm x v : get_var true vm x = ok v ->
+Lemma get_varE vm x v : get_var (wdb := true) vm x = ok v ->
   match eval_atype (vtype x) with
   | cbool => exists b, v = Vbool b
   | cint  => exists i, v = Vint i
@@ -618,8 +618,8 @@ Proof.
   by move=> /get_var_compat [] h1 /compat_valEl h2; case:vtype h2 h1 => [ | | len | ws] // [->|].
 Qed.
 
-Lemma type_of_get_var wdb x vm v :
-  get_var wdb vm x = ok v ->
+Lemma type_of_get_var (wdb: enforce_defined_variables) x vm v :
+  get_var vm x = ok v ->
   subctype (type_of_val v) (eval_atype x.(vtype)).
 Proof.
   by move=> /get_var_compat [] _; rewrite /compat_val /compat_ctype; case: ifP => // _ /eqP <-.
@@ -628,7 +628,7 @@ Qed.
 (* We have a more precise result in the non-word cases. *)
 Lemma type_of_get_var_not_word vm x v :
   (sw_allowed -> ~ is_aword x.(vtype)) ->
-  get_var true vm x = ok v ->
+  get_var (wdb := true) vm x = ok v ->
   type_of_val v = eval_atype x.(vtype).
 Proof.
   move=> h /get_var_compat [] /= hdb; rewrite /compat_val /compat_ctype hdb orbF.
@@ -900,11 +900,11 @@ Section REL_EQUIV.
     x =[Sv.diff o e] z.
   Proof. move => he ho j hj; rewrite he ?ho; SvD.fsetdec. Qed.
 
-  Lemma vm_rel_set_var (wdb:bool) (P : var -> Prop) vm1 vm1' vm2 x v1 v2 :
+  Lemma vm_rel_set_var (wdb: enforce_defined_variables) (P : var -> Prop) vm1 vm1' vm2 x v1 v2 :
     value_uincl v1 v2 ->
     vm_rel value_uincl (fun z => x <> z /\ P z) vm1 vm2 ->
-    set_var wdb vm1 x v1 = ok vm1' ->
-    set_var wdb vm2 x v2 = ok vm2.[x<-v2] /\ vm_rel value_uincl P vm1' vm2.[x<-v2].
+    set_var vm1 x v1 = ok vm1' ->
+    set_var vm2 x v2 = ok vm2.[x<-v2] /\ vm_rel value_uincl P vm1' vm2.[x<-v2].
   Proof.
     move=> hu hvm /set_varP [hdb htr1 ->].
     split.
@@ -934,11 +934,11 @@ Section REL_EQUIV.
     vm1 <=1 vm2.[x <- v].
   Proof. by rewrite !vm_uincl_vm_rel => hvu hu; apply vm_rel_set_r => //; apply: vm_relI hu. Qed.
 
-  Lemma vm_uincl_set_var wdb vm1 vm1' vm2 x v1 v2 :
+  Lemma vm_uincl_set_var (wdb: enforce_defined_variables) vm1 vm1' vm2 x v1 v2 :
     value_uincl v1 v2 ->
     vm1 <=1 vm2 ->
-    set_var wdb vm1 x v1 = ok vm1' ->
-    set_var wdb vm2 x v2 = ok vm2.[x<-v2] /\ vm1' <=1 vm2.[x<-v2].
+    set_var vm1 x v1 = ok vm1' ->
+    set_var vm2 x v2 = ok vm2.[x<-v2] /\ vm1' <=1 vm2.[x<-v2].
   Proof.
     move=> h1 /vm_uincl_vm_rel h2 h3.
     have /(_ (fun _ => True) vm2) [|? /vm_uincl_vm_rel //]:= vm_rel_set_var h1 _ h3.
@@ -963,11 +963,11 @@ Section REL_EQUIV.
     vm1 <=[X] vm2.[x <- v].
   Proof. by move=> hvu hu; apply vm_rel_set_r => //; apply: vm_relI hu; SvD.fsetdec. Qed.
 
-  Lemma uincl_on_set_var (wdb:bool) s vm1 vm1' vm2 x v1 v2 :
+  Lemma uincl_on_set_var (wdb: enforce_defined_variables) s vm1 vm1' vm2 x v1 v2 :
     value_uincl v1 v2 ->
     vm1 <=[Sv.remove x s] vm2 ->
-    set_var wdb vm1 x v1 = ok vm1' ->
-    set_var wdb vm2 x v2 = ok vm2.[x<-v2] /\ vm1' <=[s] vm2.[x<-v2].
+    set_var vm1 x v1 = ok vm1' ->
+    set_var vm2 x v2 = ok vm2.[x<-v2] /\ vm1' <=[s] vm2.[x<-v2].
   Proof. move=> h1 h2; apply vm_rel_set_var => // z hz; apply h2; SvD.fsetdec. Qed.
 
   Lemma eq_ex_set s vm1 vm2 x v1 v2 :
@@ -1006,11 +1006,11 @@ Section REL_EQUIV.
     vm1.[x<-v] <=[\ s] vm2.
   Proof. move=> h1 h2; apply vm_rel_set_l => // z hz; apply h2; SvD.fsetdec. Qed.
 
-  Lemma uincl_ex_set_var (wdb:bool) s vm1 vm1' vm2 x v1 v2 :
+  Lemma uincl_ex_set_var (wdb: enforce_defined_variables) s vm1 vm1' vm2 x v1 v2 :
     value_uincl v1 v2 ->
     vm1 <=[\s] vm2 ->
-    set_var wdb vm1 x v1 = ok vm1' ->
-    set_var wdb vm2 x v2 = ok vm2.[x<-v2] /\ vm1' <=[\ Sv.remove x s] vm2.[x<-v2].
+    set_var vm1 x v1 = ok vm1' ->
+    set_var vm2 x v2 = ok vm2.[x<-v2] /\ vm1' <=[\ Sv.remove x s] vm2.[x<-v2].
   Proof. move=> h1 h2; apply vm_rel_set_var => // ??; apply h2; SvD.fsetdec. Qed.
 
   Lemma uincl_on_vm_uincl vm1 vm2 vm1' vm2' d :
@@ -1061,39 +1061,39 @@ Section REL_EQUIV.
     move => hxY; rewrite -!(t1, t2) //; apply out; SvD.fsetdec.
   Qed.
 
-  Lemma set_var_eq_ex (wdb: bool) (x:var) v vm1 vm2 :
-    set_var wdb vm1 x v = ok vm2 ->
+  Lemma set_var_eq_ex (wdb: enforce_defined_variables) (x:var) v vm1 vm2 :
+    set_var vm1 x v = ok vm2 ->
     vm1 =[\ Sv.singleton x] vm2.
   Proof. move=> /set_varP [??->] z hz; rewrite Vm.setP_neq //; apply/eqP; SvD.fsetdec. Qed.
 
-  Lemma set_var_eq_on1 wdb x v vm1 vm2 vm1':
-    set_var wdb vm1  x v = ok vm2 ->
-    set_var wdb vm1' x v = ok vm1'.[x <- v] /\ vm2 =[Sv.singleton x] vm1'.[x <- v].
+  Lemma set_var_eq_on1 (wdb: enforce_defined_variables) x v vm1 vm2 vm1':
+    set_var vm1  x v = ok vm2 ->
+    set_var vm1' x v = ok vm1'.[x <- v] /\ vm2 =[Sv.singleton x] vm1'.[x <- v].
   Proof.
     move=> /set_varP [hdb htr ->]; split; first by rewrite set_var_truncate.
     move=> z hz; rewrite !Vm.setP; case: eqP => // hne; SvD.fsetdec.
   Qed.
 
-  Lemma set_var_eq_on wdb s x v vm1 vm2 vm1':
-    set_var wdb vm1 x v = ok vm2 ->
+  Lemma set_var_eq_on (wdb: enforce_defined_variables) s x v vm1 vm2 vm1':
+    set_var vm1 x v = ok vm2 ->
     vm1 =[s] vm1' ->
-    set_var wdb vm1' x v = ok vm1'.[x <- v] /\ vm2 =[Sv.add x s] vm1'.[x <- v].
+    set_var vm1' x v = ok vm1'.[x <- v] /\ vm2 =[Sv.add x s] vm1'.[x <- v].
   Proof.
     move=> /[dup] /(set_var_eq_on1 vm1') [hw2 h] hw1 hs.
     split => //; rewrite SvP.MP.add_union_singleton.
     apply: (eq_on_union hs h); apply: set_var_eq_ex; eauto.
   Qed.
 
-  Lemma get_var_uincl_at wdb x vm1 vm2 v1 :
+  Lemma get_var_uincl_at (wdb: enforce_defined_variables) x vm1 vm2 v1 :
     (value_uincl vm1.[x] vm2.[x]) ->
-    get_var wdb vm1 x = ok v1 ->
-    exists2 v2, get_var wdb vm2 x = ok v2 & value_uincl v1 v2.
+    get_var vm1 x = ok v1 ->
+    exists2 v2, get_var vm2 x = ok v2 & value_uincl v1 v2.
   Proof. rewrite /get_var; t_xrbindP => hu /(value_uincl_defined hu) -> <- /=; eauto. Qed.
 
-  Lemma get_var_uincl wdb x vm1 vm2 v1:
+  Lemma get_var_uincl (wdb: enforce_defined_variables) x vm1 vm2 v1:
     vm1 <=1 vm2 ->
-    get_var wdb vm1 x = ok v1 ->
-    exists2 v2, get_var wdb vm2 x = ok v2 & value_uincl v1 v2.
+    get_var vm1 x = ok v1 ->
+    exists2 v2, get_var vm2 x = ok v2 & value_uincl v1 v2.
   Proof. move => /(_ x); exact: get_var_uincl_at. Qed.
 
   Lemma eq_on_uincl_on X vm1 vm2 : vm1 =[X] vm2 -> vm1 <=[X] vm2.
@@ -1155,9 +1155,9 @@ Section REL_EQUIV.
   Lemma vm_uincl_init vm : Vm.init <=1 vm.
   Proof. move=> z; rewrite Vm.initP; apply/compat_value_uincl_undef/Vm.getP. Qed.
 
-  Lemma set_var_spec wdb x v vm1 vm2 vm1' :
-    set_var wdb vm1 x v = ok vm2 ->
-    exists vm2', [/\ set_var wdb vm1' x v = ok vm2', vm1' =[\ Sv.singleton x] vm2'  & vm2'.[x] = vm2.[x]  ].
+  Lemma set_var_spec (wdb: enforce_defined_variables) x v vm1 vm2 vm1' :
+    set_var vm1 x v = ok vm2 ->
+    exists vm2', [/\ set_var vm1' x v = ok vm2', vm1' =[\ Sv.singleton x] vm2'  & vm2'.[x] = vm2.[x]  ].
   Proof.
     move=> /set_varP [hdb htr ->].
     exists vm1'.[x <- v]; split.
@@ -1193,6 +1193,6 @@ End REL_EQUIV.
 #[export] Existing Instance po_uincl_ex.
 #[export] Existing Instance uincl_ex_trans.
 
-#[ global ]Arguments get_var {wsw sm} wdb vm%_vm_scope x.
-#[ global ]Arguments set_var {wsw} wdb vm%_vm_scope x v.
+#[ global ]Arguments get_var {wsw sm wdb} vm%_vm_scope x.
+#[ global ]Arguments set_var {wsw wdb} vm%_vm_scope x v.
 

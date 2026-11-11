@@ -284,7 +284,7 @@ Definition preF (fn1 fn2 : funname) (fs:fstate) (s:estate) :=
          [/\ top_stack_aligned fd m
            , tvm1.[vrsp] = Vword (top_stack m)
            , tvm1.[ vgd ] = Vword global_data
-           , get_var_is false tvm1 fd.(f_params) = ok args'
+           , get_var_is (wdb := false) tvm1 fd.(f_params) = ok args'
            & List.Forall2 value_uincl args args']
       | None => false
       end].
@@ -303,7 +303,7 @@ Definition postF (fn1 fn2 : funname) (fs:fstate) (s:estate) (fs':fstate) (ks:Sv.
          exists res',
           [/\ Sv.Subset k (writefun_ra p var_tmps wrf fn1)
             , Sv.Subset (writefun_RA var_tmps p fn1) k
-            , get_var_is false tvm2 fd.(f_res) = ok res'
+            , get_var_is (wdb := false) tvm2 fd.(f_res) = ok res'
             , tvm1 =[\ writefun_ra p var_tmps wrf fn1 ] tvm2
             , stack_stable (emem s) (emem s')
             , tvm2.[vrsp] = Vword (top_stack m')
@@ -410,10 +410,10 @@ Lemma with_vm_m x y :
   forall vm, with_vm x vm = with_vm y vm.
 Proof. by case: x y => scs m vm [] scs' m' vm' /= -> ->. Qed.
 
-Lemma check_eP wdb ii I e s t v u : check_e ii I e = ok u ->
+Lemma check_eP (wdb: enforce_defined_variables) ii I e s t v u : check_e ii I e = ok u ->
   match_estate I s t ->
-  sem_pexpr wdb (p_globs p) s e = ok v ->
-  exists2 v', sem_pexpr wdb (p_globs p) t e = ok v' & value_uincl v v'.
+  sem_pexpr (p_globs p) s e = ok v ->
+  exists2 v', sem_pexpr (p_globs p) t e = ok v' & value_uincl v v'.
 Proof.
   rewrite /check_e/check_fv => /assertP/Sv.is_empty_spec hd sim sem.
   have := sem_pexpr_uincl_on (vm2 := evm t) _ sem.
@@ -421,10 +421,10 @@ Proof.
   by move=> x hx; apply (mvm_vmap sim); clear -hd hx; SvD.fsetdec.
 Qed.
 
-Lemma check_esP wdb ii I es s t vs u : check_es ii I es = ok u ->
+Lemma check_esP (wdb: enforce_defined_variables) ii I es s t vs u : check_es ii I es = ok u ->
   match_estate I s t ->
-  sem_pexprs wdb (p_globs p) s es = ok vs ->
-  exists2 vs', sem_pexprs wdb (p_globs p) t es = ok vs' & values_uincl vs vs'.
+  sem_pexprs (p_globs p) s es = ok vs ->
+  exists2 vs', sem_pexprs (p_globs p) t es = ok vs' & values_uincl vs vs'.
 Proof.
   rewrite /check_es => hc hsim; elim: es tt hc vs => [ | e es hrec] /=.
   + by move=> _ _ _ [<-]; exists [::].
@@ -436,9 +436,9 @@ Qed.
 
 Lemma check_lvP_match_estate ii I x O s1 s2 t1 v v': check_lv ii I x = ok O ->
   match_estate I s1 t1 ->
-  write_lval true (p_globs p) x v s1 = ok s2 ->
+  write_lval (wdb := true) (p_globs p) x v s1 = ok s2 ->
   value_uincl v v' ->
-  exists2 t2, write_lval true (p_globs p) x v' t1 = ok t2 & match_estate O s2 t2.
+  exists2 t2, write_lval (wdb := true) (p_globs p) x v' t1 = ok t2 & match_estate O s2 t2.
 Proof.
   rewrite /check_lv /check_fv; t_xrbindP => /Sv.is_empty_spec hd <- hsim hw hu.
   have []:= write_uincl_on (vm1 := evm t1) _ hu hw.
@@ -453,9 +453,9 @@ Qed.
 
 Lemma check_lvsP_match_estate ii I xs O s1 s2 t1 vs vs': check_lvs ii I xs = ok O ->
   match_estate I s1 t1 ->
-  write_lvals true (p_globs p) s1 xs vs = ok s2 ->
+  write_lvals (wdb := true) (p_globs p) s1 xs vs = ok s2 ->
   values_uincl vs vs' ->
-  exists2 t2, write_lvals true (p_globs p) t1 xs vs' = ok t2 & match_estate O s2 t2.
+  exists2 t2, write_lvals (wdb := true) (p_globs p) t1 xs vs' = ok t2 & match_estate O s2 t2.
 Proof.
   rewrite /check_lvs.
   elim: xs I s1 s2 t1 vs vs' => /= [ | x xs hrec] I s1 s2 t1 [ | v vs] // vs'_.
@@ -483,9 +483,9 @@ Lemma check_lvP ii I x O s1 s2 t1 v v':
   Sv.Subset (vrv x) W ->
   check_lv ii I x = ok O ->
   merged_vmap_inv I s1 t1 ->
-  write_lval true (p_globs p) x v s1 = ok s2 ->
+  write_lval (wdb := true) (p_globs p) x v s1 = ok s2 ->
   value_uincl v v' ->
-  exists2 t2, write_lval true (p_globs p) x v' t1 = ok t2 & merged_vmap_inv O s2 t2.
+  exists2 t2, write_lval (wdb := true) (p_globs p) x v' t1 = ok t2 & merged_vmap_inv O s2 t2.
 Proof using mvp_not_written.
   move=> hsub hch [] hmatch hstable hw hu.
   have [t2 hw' hmatch'] := check_lvP_match_estate hch hmatch hw hu.
@@ -499,9 +499,9 @@ Lemma check_lvsP ii I xs O s1 s2 t1 vs vs':
   Sv.Subset (vrvs xs) W ->
   check_lvs ii I xs = ok O ->
   merged_vmap_inv I s1 t1 ->
-  write_lvals true (p_globs p) s1 xs vs = ok s2 ->
+  write_lvals (wdb := true) (p_globs p) s1 xs vs = ok s2 ->
   values_uincl vs vs' ->
-  exists2 t2, write_lvals true (p_globs p) t1 xs vs' = ok t2 & merged_vmap_inv O s2 t2.
+  exists2 t2, write_lvals (wdb := true) (p_globs p) t1 xs vs' = ok t2 & merged_vmap_inv O s2 t2.
 Proof using mvp_not_written.
   move=> hsub hch [] hmatch hstable hw hu.
   have [t2 hw' hmatch'] := check_lvsP_match_estate hch hmatch hw hu.
@@ -546,20 +546,20 @@ Proof.
   move=> hni; apply h3; clear -hx; SvD.fsetdec.
 Qed.
 
-Lemma sem_pexprs_get_vars s es xs vs wdb :
+Lemma sem_pexprs_get_vars s es xs vs (wdb: enforce_defined_variables) :
   mapM get_pvar es = ok xs →
-  sem_pexprs wdb (p_globs p) s es = ok vs →
-  get_vars wdb (evm s) xs = ok vs.
+  sem_pexprs (p_globs p) s es = ok vs →
+  get_vars (evm s) xs = ok vs.
 Proof.
   elim: es xs vs => //= [ | e es hes] [ | x xs] // vs; t_xrbindP => //.
   move=> x'; case: e => //= -[ x'' []] // [<-] ? /hes{}hes <- ?; subst.
   by rewrite /get_gvar /= => ? -> /= ? /hes -> <-.
 Qed.
 
-Lemma get_lvar_write_lvals wdb s1 s2 xs xs' vs:
+Lemma get_lvar_write_lvals (wdb: enforce_defined_variables) s1 s2 xs xs' vs:
   mapM get_lvar xs = ok xs' ->
-  write_lvals wdb (p_globs p) s1 xs vs = ok s2 ->
-  write_lvals wdb (p_globs p) s1 (to_lvals xs') vs = ok s2.
+  write_lvals (p_globs p) s1 xs vs = ok s2 ->
+  write_lvals (p_globs p) s1 (to_lvals xs') vs = ok s2.
 Proof.
   elim: xs xs' vs s1 => [ | x xs hrec] /=.
   + by move=> _ [] // s1 [<-] [<-].
@@ -1068,7 +1068,7 @@ Proof using ok_p.
   have [tres ok_tres res_uincl] :
     let: vm := (set_RSP p (free_stack (emem kt2.2)) (kill_vars (ra_vm_return (f_extra fd)) (evm kt2.2))) in
     exists2 tres,
-      get_var_is false vm (f_res fd) = ok tres & values_uincl vres' tres.
+      get_var_is (wdb := false) vm (f_res fd) = ok tres & values_uincl vres' tres.
   - have : forall x, (x \in [seq (v_var i) | i <- f_res fd]) -> ~ Sv.In x DF.
     + move=> x hx; have /Sv_memP: Sv.mem x res by rewrite /res sv_of_listE.
       by move /Sv.is_empty_spec: hdisj; clear; SvD.fsetdec.
@@ -1131,7 +1131,7 @@ Lemma merge_varmaps_export_callP fn:
              ∃ (args' : seq value),
                [/\ tvm1.[vrsp] = Vword (top_stack m)
                  , tvm1.[vgd] = Vword global_data
-                 , get_var_is false tvm1 (f_params fd) = ok args'
+                 , get_var_is (wdb := false) tvm1 (f_params fd) = ok args'
                  & values_uincl args args']
           | None => true
           end])
@@ -1146,7 +1146,7 @@ Lemma merge_varmaps_export_callP fn:
           match get_fundef (p_funcs p) fn with
           | Some fd =>
             ∃ (res' : seq value),
-              get_var_is false tvm2 (f_res fd) = ok res' /\
+              get_var_is (wdb := false) tvm2 (f_res fd) = ok res' /\
               values_uincl res res'
           | None => false
           end]).
@@ -1194,7 +1194,7 @@ Definition ovm_pre fn fs t :=
          ∃ (args' : seq value),
            [/\ tvm1.[vrsp] = Vword (top_stack m)
              , tvm1.[vgd] = Vword global_data
-             , get_var_is false tvm1 (f_params fd) = ok args'
+             , get_var_is (wdb := false) tvm1 (f_params fd) = ok args'
              & values_uincl args args']
       | None => true
       end].
@@ -1208,7 +1208,7 @@ Definition ovm_post fn fs' t' :=
       match get_fundef (p_funcs p) fn with
       | Some fd =>
         ∃ (res' : seq value),
-          get_var_is false tvm2 (f_res fd) = ok res' /\
+          get_var_is (wdb := false) tvm2 (f_res fd) = ok res' /\
           values_uincl res res'
       | None => false
       end].

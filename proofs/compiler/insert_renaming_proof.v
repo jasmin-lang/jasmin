@@ -7,9 +7,9 @@ Section WITH_SUB_WORD.
 
 Context {wsw: WithSubWord}.
 
-Lemma truncate_val_truncatable ty v v' :
+Lemma truncate_val_truncatable (wdb: enforce_defined_variables) ty v v' :
   truncate_val ty v = ok v' →
-  truncatable true ty v'.
+  truncatable ty v'.
 Proof. move/truncate_val_has_type<-; exact: truncatable_type_of. Qed.
 
 Lemma vm_truncate_val_is_truncate_val ty a b :
@@ -81,12 +81,12 @@ Section WITH_PARAMS.
     #[local]
     Notation p' := (insert_renaming_prog insert_renaming_p p).
 
-    Lemma write_vars_defined vs' xs vs s0 s1 :
+    Lemma write_vars_defined (wdb : enforce_defined_variables) vs' xs vs s0 s1 :
       mapM2 ErrType dc_truncate_val (map eval_atype [seq vtype (v_var x) | x <- xs ]) vs' = ok vs ->
-      write_vars true xs vs s0 = ok s1 →
+      write_vars xs vs s0 = ok s1 →
       ∀ y, all (λ x : var_i, v_var x != y) xs = false →
        ∃ v v', [/\ truncate_val (eval_atype (vtype y)) v' = ok v &
-                get_var true (evm s1) y = ok v ].
+                get_var (evm s1) y = ok v ].
     Proof.
       clear.
       elim: xs vs' vs s0 s1; first by [].
@@ -98,10 +98,10 @@ Section WITH_PARAMS.
       case y_in_xs: all y_in_xs; last first.
       - by move => _ /(_ erefl).
       rewrite andbT => /eqP ? _; subst.
-      have -> := write_vars_get_varP_neq true y_in_xs ok_s2.
+      have -> := write_vars_get_varP_neq _ y_in_xs ok_s2.
       have [ _ _ ] := write_get_varP_eq ok_s1.
       have v_defined := truncate_val_defined ok_v.
-      rewrite v_defined (vm_truncate_val_eq (truncate_val_has_type ok_v)) /= => ok_x.
+      rewrite v_defined (vm_truncate_val_eq (truncate_val_has_type ok_v)) orbT /= => ok_x.
       by exists v, v'.
     Qed.
 
@@ -207,7 +207,7 @@ Section WITH_PARAMS.
         case => vt' ok_vt'.
         eexists.
         - rewrite /= /get_gvar /= get_x /= ok_vt' /=.
-          rewrite /write_var /set_var (truncate_val_DB _ ok_vt') (truncate_val_truncatable ok_vt') /=.
+          rewrite /write_var /set_var (truncate_val_DB ok_vt') (truncate_val_truncatable true ok_vt') /=.
           reflexivity.
         split; last by exists fs.
         case: hu; split => //.
@@ -249,7 +249,7 @@ Section WITH_PARAMS.
       rewrite size_map (size_mapM ok_vs) (proj1 (size_mapM2 ok_vs')).
       move => /(_ erefl)[] ? /= [] ??; subst.
       have [vt' ok_vt' v'_vt'] := value_uincl_truncate v_vt ok_v'.
-      rewrite ok_vt' /= /write_var /set_var (truncate_val_DB _ ok_vt') (truncate_val_truncatable ok_vt') /=.
+      rewrite ok_vt' /= /write_var /set_var (truncate_val_DB ok_vt') (truncate_val_truncatable true ok_vt') /=.
       eexists; first reflexivity.
       split; first reflexivity.
       split; last by eexists.

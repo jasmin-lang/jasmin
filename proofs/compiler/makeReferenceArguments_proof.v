@@ -20,6 +20,7 @@ Context
   (fresh_reg_ptr : instr_info → int → string → atype → Ident.ident).
 
   #[local] Existing Instance indirect_c.
+  #[local] Existing Instance do_enforce_defined_variables.
 
   Lemma make_referenceprog_globs (p p' : uprog) :
     makereference_prog fresh_reg_ptr p = ok p' ->
@@ -71,7 +72,7 @@ Context
   Inductive sem_pis ii : estate -> seq pseudo_instr -> values -> estate -> Prop :=
    | SPI_nil : forall s, sem_pis s [::] [::] s
    | SPI_lv  : forall s1 s2 s3 lv pis v vs,
-     write_lval true (p_globs p') lv v s1 = ok s2 ->
+     write_lval (p_globs p') lv v s1 = ok s2 ->
      sem_pis s2 pis vs s3 ->
      sem_pis s1 (PI_lv lv :: pis) (v::vs) s3
    | SPI_i : forall s1 s2 s3 lv ty y pis vs,
@@ -85,7 +86,7 @@ Context
     | [::] => vs = [::] ∧ s3 = s1
     | PI_lv lv :: pis' =>
         ∃ v vs' s2,
-        [/\ vs = v ::vs', write_lval true (p_globs p') lv v s1 = ok s2 & sem_pis ii s2 pis' vs' s3 ]
+        [/\ vs = v ::vs', write_lval (p_globs p') lv v s1 = ok s2 & sem_pis ii s2 pis' vs' s3 ]
     | PI_i lv ty y :: pis' =>
         exists2 s2, esem_i p' ev (mk_ep_i ii lv ty y) s1 = ok s2 & sem_pis ii s2 pis' vs s3
     end.
@@ -119,7 +120,7 @@ Context
     make_pseudo_epilogue fresh_reg_ptr ii X ctr xtys lvs = ok pis ->
     mapM2 ErrType dc_truncate_val (map eval_atype (map snd xtys)) vs = ok vst ->
     Sv.Subset (Sv.union (read_rvs lvs) (vrvs lvs)) X ->
-    write_lvals true (p_globs p) s1 lvs vst = ok s2 ->
+    write_lvals (p_globs p) s1 lvs vst = ok s2 ->
     evm s1 =[X] vm1 ->
     exists2 vm2,sem_pis ii (with_vm s1 vm1) pis vst (with_vm s2 vm2) & evm s2 =[X] vm2.
   Proof using Hp.
@@ -142,11 +143,11 @@ Context
     t_xrbindP => s1' hw hws eqvm.
     have ? := is_reg_ptr_lval_ty hsome; subst ty.
     have [vmy [hw' eqvmy semy]]: exists vmy,
-      [/\ write_lval true (p_globs p') y vt (with_vm s1 vm1) = ok (with_vm s1 vmy),
+      [/\ write_lval (p_globs p') y vt (with_vm s1 vm1) = ok (with_vm s1 vmy),
           evm s1 =[X] vmy &
-          sem_pexpr true (p_globs p') (with_vm s1 vmy) (Plvar y) = ok vt].
+          sem_pexpr (p_globs p') (with_vm s1 vmy) (Plvar y) = ok vt].
     + have heqt := truncate_val_has_type ht.
-      rewrite /= (write_var_eq_type heqt (truncate_val_DB true ht)).
+      rewrite /= (write_var_eq_type heqt (truncate_val_DB ht)).
       eexists; split; first reflexivity.
       move=> z hz; rewrite Vm.setP_neq; first by apply eqvm.
       + by apply/eqP => ?;subst z; clear -hyX hz; SvD.fsetdec.
@@ -168,7 +169,7 @@ Context
     swapable ii pis = ok (lvs, c) ->
     sem_pis ii s1 pis vs s2 ->
     exists s1' vm2,
-      [/\ write_lvals true (p_globs p') s1 lvs vs = ok s1',
+      [/\ write_lvals (p_globs p') s1 lvs vs = ok s1',
           esem p' ev c s1' = ok (with_vm s2 vm2) & (evm s2 =1 vm2)%vm].
   Proof.
     elim: pis lvs c vs s1 => /= [ | pi pis ih] lvs' c' vs s1.
@@ -192,7 +193,7 @@ Context
     have heqm  := lv_write_memP nwm_pi H3.
     have heqs  := lv_write_scsP H3.
     have [{nwm_pi} vm3 hw3 hvm3] := write_lvals_eq_on (@SvP.MP.subset_refl _) hws heqr.
-    have hy : sem_pexpr true (p_globs p') (with_vm s1' vm3) (Plvar y) = ok v.
+    have hy : sem_pexpr (p_globs p') (with_vm s1' vm3) (Plvar y) = ok v.
     + rewrite -H; rewrite /=; apply: (get_gvar_eq_on _ _ (@SvP.MP.subset_refl _)).
       rewrite /read_gvar /= => y' /SvD.F.singleton_iff ?; subst y'.
       have := (disjoint_eq_ons (s:= Sv.singleton y) _ hw3).
@@ -203,7 +204,7 @@ Context
     + move=> x hx; have /= <- := vrvsP hw3; last by clear -hx; SvD.fsetdec.
       rewrite -(vrvsP hws); last by clear -hx; SvD.fsetdec.
       by rewrite -(vrvP H3) //; clear -hx; SvD.fsetdec.
-    have [vmi [hsemi heqv]]: exists vmi, write_lval true (p_globs p') lv v' (with_vm s1' vm3) = ok (with_vm s1' vmi) /\ (evm s1' =1 vmi)%vm.
+    have [vmi [hsemi heqv]]: exists vmi, write_lval (p_globs p') lv v' (with_vm s1' vm3) = ok (with_vm s1' vmi) /\ (evm s1' =1 vmi)%vm.
     + move: H3; rewrite /write_lval.
       move /Sv.is_empty_spec: hwr; move /Sv.is_empty_spec: hrw.
       rewrite /read_I_rec /write_I_rec [X in (Sv.inter (vrvs _) X)]/= /read_gvar
@@ -250,11 +251,11 @@ Context
        Sv.Subset X Y ->
        Sv.Subset (read_es args) X ->
      forall vargs vm1,
-       sem_pexprs true (p_globs p) s args = ok vargs ->
+       sem_pexprs (p_globs p) s args = ok vargs ->
        evm s =[X] vm1 ->
      exists vm2, [/\
       esem p' ev pl (with_vm s vm1) = ok (with_vm s vm2),
-      sem_pexprs true (p_globs p') (with_vm s vm2) args' = ok vargs &
+      sem_pexprs (p_globs p') (with_vm s vm2) args' = ok vargs &
       vm1 =[Y] vm2].
   Proof using Hp.
     elim.
@@ -281,7 +282,7 @@ Context
       have [-> /= hty hdb hdef] : [/\
         truncate_val (eval_atype ty) va = ok va,
         eval_atype (vtype y) = type_of_val va,
-        DB true va & is_defined va].
+        DB va & is_defined va].
       + move=> {haX hX}; case: a E hva => //=.
         + move=> xe; case: ifP => // /and4P=> -[ _ /is_aarrP [ws [len hlen]] hc _] [<-] hget /=.
           have : type_of_val va = carr (arr_size ws len).
@@ -304,11 +305,11 @@ Context
   Lemma make_epilogueP X ii s1 s2 xfty lv lv' ep vres vs vm1 :
     make_epilogue fresh_reg_ptr ii X xfty lv = ok (lv', ep) ->
     Sv.Subset (Sv.union (read_rvs lv) (vrvs lv)) X ->
-    write_lvals true (p_globs p) s1 lv vs = ok s2 ->
+    write_lvals (p_globs p) s1 lv vs = ok s2 ->
     mapM2 ErrType truncate_val (map eval_atype (map snd xfty)) vres = ok vs ->
     evm s1 =[X] vm1 ->
     exists vm2 s2', [/\
-      write_lvals true (p_globs p') (with_vm s1 vm1) lv' vs = ok s2',
+      write_lvals (p_globs p') (with_vm s1 vm1) lv' vs = ok s2',
       esem p' ev ep s2' = ok (with_vm s2 vm2) &
       evm s2 =[X] vm2].
   Proof using Hp.
@@ -380,9 +381,9 @@ Context
   Qed.
 
   Lemma sem_syscall_update_i s1 scs m s2 o xs es ves vs ii X c' vm1 :
-    sem_pexprs true (p_globs p) s1 es = ok ves →
+    sem_pexprs (p_globs p) s1 es = ok ves →
     exec_syscall (pT:=progUnit) (escs s1) (emem s1) o ves = ok (scs, m, vs) →
-    write_lvals true (p_globs p) (with_scs (with_mem s1 m) scs) xs vs = ok s2 →
+    write_lvals (p_globs p) (with_scs (with_mem s1 m) scs) xs vs = ok s2 →
     update_i fresh_reg_ptr p X (MkI ii (Csyscall xs o es)) = ok c' →
     Sv.Subset (Sv.union (read_I (MkI ii (Csyscall xs o es))) (write_I (MkI ii (Csyscall xs o es)))) X →
     evm s1 =[X] vm1 →
@@ -510,7 +511,7 @@ Context
     t_xrbindP=> -[pl eargs] plE; t_xrbindP=> -[lvaout ep] epE [] <-.
     rewrite !read_writeE => hsub s t /st_relP [-> /= heqX].
     rewrite Eqit.bind_ret_r /isem_pexprs.
-    case hes : (sem_pexprs true (p_globs p) s es) => [ves | e]; last first.
+    case hes : (sem_pexprs (p_globs p) s es) => [ves | e]; last first.
     + rewrite /= Eqit.bind_vis.
       apply xrutt.xrutt_CutL => //.
       by rewrite /core_logics.errcutoff /is_error /Subevent.subevent /CategoryOps.resum /fromErr mid12.

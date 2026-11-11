@@ -1080,10 +1080,10 @@ rewrite /lin_sz_pre /lin_pre get_sfd get_lfd; split; first split=> //.
 rewrite /lfd_total_stack -stkmax_tfd_lfd -al_tfd_lfd -exp_tfd_lfd; exact: alloc.
 Qed.
 
-Lemma get_var_is_eq_on wdb s vm vm' xs :
+Lemma get_var_is_eq_on (wdb: enforce_defined_variables) s vm vm' xs :
   Sv.Subset (sv_of_list v_var xs) s ->
   vm =[s] vm' ->
-  get_var_is wdb vm xs = get_var_is wdb vm' xs.
+  get_var_is vm xs = get_var_is vm' xs.
 Proof.
 move=> + hvm; elim: xs => [//|x xs ih].
 rewrite sv_of_list_cons => hxs.

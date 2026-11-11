@@ -54,11 +54,11 @@ Proof.
   clear -hdisj hxxs; SvD.fsetdec.
 Qed.
 
-Lemma eeq_exc_sem_pexprs wdb gd xs es v s0 s1 :
+Lemma eeq_exc_sem_pexprs (wdb: enforce_defined_variables) gd xs es v s0 s1 :
   disjoint (read_es es) xs
   -> st_eq_ex xs s0 s1
-  -> sem_pexprs wdb gd s0 es = ok v
-  -> sem_pexprs wdb gd s1 es = ok v.
+  -> sem_pexprs gd s0 es = ok v
+  -> sem_pexprs gd s1 es = ok v.
 Proof.
   move=> hdisj heq.
   have [hscs hmem hvm] := eeq_exc_disjoint hdisj heq.
@@ -68,18 +68,18 @@ Proof.
   by rewrite -(surj_estate s1).
 Qed.
 
-Lemma eeq_exc_sem_pexpr wdb gd xs e v s0 s1 :
+Lemma eeq_exc_sem_pexpr (wdb: enforce_defined_variables) gd xs e v s0 s1 :
   disjoint (read_e e) xs
   -> st_eq_ex xs s0 s1
-  -> sem_pexpr wdb gd s0 e = ok v
-  -> sem_pexpr wdb gd s1 e = ok v.
+  -> sem_pexpr gd s0 e = ok v
+  -> sem_pexpr gd s1 e = ok v.
 Proof.
   move=> hdisj heq hsem.
 
   have hdisj' : disjoint (read_es [:: e ]) xs.
   - done.
 
-  have hsem' : sem_pexprs wdb gd s0 [:: e ] = ok [:: v ].
+  have hsem' : sem_pexprs gd s0 [:: e ] = ok [:: v ].
   - by rewrite /= hsem.
 
   have := eeq_exc_sem_pexprs hdisj' heq hsem'.
@@ -87,12 +87,12 @@ Proof.
   by t_xrbindP => ? ? <-.
 Qed.
 
-Lemma eeq_exc_write_lvals wdb gd xs s0 s1 s0' ls vs :
+Lemma eeq_exc_write_lvals (wdb: enforce_defined_variables) gd xs s0 s1 s0' ls vs :
   disjoint (vars_lvals ls) xs
   -> st_eq_ex xs s0 s0'
-  -> write_lvals wdb gd s0 ls vs = ok s1
+  -> write_lvals gd s0 ls vs = ok s1
   -> exists2 s1',
-       write_lvals wdb gd s0' ls vs = ok s1' & st_eq_ex xs s1 s1'.
+       write_lvals gd s0' ls vs = ok s1' & st_eq_ex xs s1 s1'.
 Proof.
   move=> hdisj.
   move: s0 s0' => [scs0 mem0 vm0] [scs0' mem0' vm0'].
@@ -123,19 +123,19 @@ Proof.
     exact: hvm.
 Qed.
 
-Lemma eeq_exc_write_lval wdb gd xs s0 s1 s0' l v :
+Lemma eeq_exc_write_lval (wdb: enforce_defined_variables) gd xs s0 s1 s0' l v :
   disjoint (vars_lval l) xs
   -> st_eq_ex xs s0 s0'
-  -> write_lval wdb gd l v s0 = ok s1
+  -> write_lval gd l v s0 = ok s1
   -> exists2 s1',
-       write_lval wdb gd l v s0' = ok s1' & st_eq_ex xs s1 s1'.
+       write_lval gd l v s0' = ok s1' & st_eq_ex xs s1 s1'.
 Proof.
   move=> hdisj heq hwrite.
 
   have hdisj' : disjoint (vars_lvals [:: l ]) xs.
   - done.
 
-  have hwrite' : write_lvals wdb gd s0 [:: l ] [:: v ] = ok s1.
+  have hwrite' : write_lvals gd s0 [:: l ] [:: v ] = ok s1.
   - by rewrite /= hwrite.
 
   have [s1' hwrite1 heq1] := eeq_exc_write_lvals hdisj' heq hwrite'.
@@ -146,10 +146,10 @@ Proof.
   by t_xrbindP => ? ? <-.
 Qed.
 
-Lemma eeq_exc_get_gvar wdb gd s0 s1 (x : gvar) vs :
+Lemma eeq_exc_get_gvar (wdb: enforce_defined_variables) gd s0 s1 (x : gvar) vs :
   ~~ Sv.mem (gv x) vs
   -> st_eq_ex vs s0 s1
-  -> get_gvar wdb gd (evm s0) x = get_gvar wdb gd (evm s1) x.
+  -> get_gvar gd (evm s0) x = get_gvar gd (evm s1) x.
 Proof.
   move=> /Sv_memP hx [hscs hmem hvm].
   rewrite /get_gvar /=.
@@ -158,19 +158,19 @@ Proof.
   by rewrite (hvm _ hx).
 Qed.
 
-Lemma read_es_st_eq_ex gd wdb es X :
+Lemma read_es_st_eq_ex gd (wdb: enforce_defined_variables) es X :
   disjoint (read_es es) X ->
-  wrequiv (st_rel eq_ex X) ((sem_pexprs wdb gd)^~ es) ((sem_pexprs wdb gd)^~ es) eq.
+  wrequiv (st_rel eq_ex X) ((sem_pexprs gd)^~ es) ((sem_pexprs gd)^~ es) eq.
 Proof.
   move=> hdisj s t v hst he; exists v => //.
   by apply (eeq_exc_sem_pexprs hdisj hst he).
 Qed.
 
-Lemma write_lvals_st_eq_ex gd wdb xs vs X :
+Lemma write_lvals_st_eq_ex gd (wdb: enforce_defined_variables) xs vs X :
   disjoint (vars_lvals xs) X ->
   wrequiv
     (st_eq_ex X)
-    (fun s1 => write_lvals wdb gd s1 xs vs) (fun s2 => write_lvals wdb gd s2 xs vs)
+    (fun s1 => write_lvals gd s1 xs vs) (fun s2 => write_lvals gd s2 xs vs)
     (st_eq_ex X).
 Proof. by move=> hdisj s t s'; apply eeq_exc_write_lvals. Qed.
 
@@ -428,17 +428,19 @@ Context
   {wsw : WithSubWord}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
-  {spp : SemPexprParams}.
+  {spp : SemPexprParams}
+  {wdb: enforce_defined_variables}
+.
 
 (* The value of [a & b] when [is_andn a b = Some (x, y)]: the conjunction of
    [y] with the complement of [x], both truncated to the width of the
    operator (the complement commutes with the truncation). *)
-Lemma is_andn_semP wdb gd s ws a b x y v :
+Lemma is_andn_semP gd s ws a b x y v :
   is_andn a b = Some (x, y)
-  -> sem_pexpr wdb gd s (Papp2 (Oland ws) a b) = ok v
+  -> sem_pexpr gd s (Papp2 (Oland ws) a b) = ok v
   -> exists wsx (wx : word wsx) wsy (wy : word wsy),
-       [/\ sem_pexpr wdb gd s x = ok (Vword wx)
-         , sem_pexpr wdb gd s y = ok (Vword wy)
+       [/\ sem_pexpr gd s x = ok (Vword wx)
+         , sem_pexpr gd s y = ok (Vword wy)
          , (ws <= wsx)%CMP
          , (ws <= wsy)%CMP
          & v = Vword (wand (wnot (zero_extend ws wx)) (zero_extend ws wy))
@@ -464,6 +466,15 @@ Proof.
   move: hwa => /to_wordI' [wsy [wy [hley ??]]]; subst va wa.
   exists wsx, wx, wsy, wy; split=> //; first exact: (cmp_le_trans hle hlex).
   by rewrite -wnot_zero_extend // zero_extend_idem // wandC.
+Qed.
+
+Lemma write_Lnone gd x v s s' :
+  isLnone x ->
+  write_lval gd x v s = ok s' ->
+  s = s'.
+Proof.
+  case: x => // ii ty _ /=.
+  by rewrite /write_none /=; t_xrbindP.
 Qed.
 
 End IS_ANDN.

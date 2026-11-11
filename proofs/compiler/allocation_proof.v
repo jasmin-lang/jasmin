@@ -41,13 +41,13 @@ Proof.
   by apply subctype_undef_get.
 Qed.
 
-Lemma check_vP wdb x1 x2 r re vm1 vm2 :
+Lemma check_vP (wdb: enforce_defined_variables) x1 x2 r re vm1 vm2 :
   check_v x1 x2 r = ok re ->
   eq_alloc r vm1 vm2 ->
   eq_alloc re vm1 vm2 /\
   (forall v1 : value,
-     get_var wdb vm1 x1 = ok v1 ->
-     exists v2 : value, get_var wdb vm2 x2 = ok v2 /\ value_uincl v1 v2).
+     get_var vm1 x1 = ok v1 ->
+     exists v2 : value, get_var vm2 x2 = ok v2 /\ value_uincl v1 v2).
 Proof.
   rewrite /check_v;case: M.v_compat_typeP => // hsub.
   case Hget : M.get => [id | ].
@@ -72,13 +72,13 @@ Proof.
   by rewrite (compat_ctype_undef_t (compat_atype_ctype hsub)) (compat_ctype_undef_t (Vm.getP vm2 x2)).
 Qed.
 
-Lemma check_gvP wdb x1 x2 r re gd vm1 vm2 :
+Lemma check_gvP (wdb: enforce_defined_variables) x1 x2 r re gd vm1 vm2 :
   check_gv x1 x2 r = ok re ->
   eq_alloc r vm1 vm2 ->
   eq_alloc re vm1 vm2 /\
   (forall v1 : value,
-     get_gvar wdb gd vm1 x1 = ok v1 ->
-     exists v2 : value, get_gvar wdb gd vm2 x2 = ok v2 /\ value_uincl v1 v2).
+     get_gvar gd vm1 x1 = ok v1 ->
+     exists v2 : value, get_gvar gd vm2 x2 = ok v2 /\ value_uincl v1 v2).
 Proof.
   rewrite /check_gv /get_gvar /is_lvar; case: x1 x2 => x1 k1 [x2 k2] /=.
   t_xrbindP => /eqP ->; case:eqP => _; first by apply check_vP.
@@ -89,15 +89,15 @@ Lemma is_PvarP e ty x : is_Pvar e = Some (ty,x) -> e = Some (ty, Plvar x).
 Proof. by case: e => //= -[? []] //= [] v [] // [<- <-]. Qed.
 
 Section CHECK_EP.
-  Context (wdb : bool) (gd : glob_decls) (vm2 : Vm.t).
+  Context {wdb : enforce_defined_variables} (gd : glob_decls) (vm2 : Vm.t).
 
   Let P e1 : Prop :=
     ∀ e2 r re vm1, check_e e1 e2 r = ok re →
     eq_alloc r vm1 vm2 →
     eq_alloc re vm1 vm2 ∧
     ∀ scs m v1,
-      sem_pexpr wdb gd {| escs := scs; emem := m ; evm := vm1 |} e1 = ok v1 →
-    ∃ v2, sem_pexpr wdb gd {| escs := scs; emem := m ; evm := vm2 |} e2 = ok v2 ∧
+      sem_pexpr gd {| escs := scs; emem := m ; evm := vm1 |} e1 = ok v1 →
+    ∃ v2, sem_pexpr gd {| escs := scs; emem := m ; evm := vm2 |} e2 = ok v2 ∧
           value_uincl v1 v2.
 
   Let Q es1 : Prop :=
@@ -106,8 +106,8 @@ Section CHECK_EP.
     eq_alloc r vm1 vm2 →
     eq_alloc re vm1 vm2 ∧
     ∀ scs m vs1,
-      sem_pexprs wdb gd {| escs := scs; emem := m ; evm := vm1 |} es1 = ok vs1 →
-    ∃ vs2, sem_pexprs wdb gd {| escs := scs; emem := m ; evm := vm2 |} es2 = ok vs2 ∧
+      sem_pexprs gd {| escs := scs; emem := m ; evm := vm1 |} es1 = ok vs1 →
+    ∃ vs2, sem_pexprs gd {| escs := scs; emem := m ; evm := vm2 |} es2 = ok vs2 ∧
            values_uincl vs1 vs2.
 
   Lemma check_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
@@ -126,7 +126,7 @@ Section CHECK_EP.
     - by move => b1 [] // b2 r re vm1; t_xrbindP => /eqP <- -> ?; split=> // ??? [] <-; exists b1.
     - by move => ws1 n1 [] // ws2 n2 r re vm1; t_xrbindP=> /eqP -> <- ?; split => //= ??? [<-]; eauto.
     - move => x1 [] // x2 r re vm1.
-      by move=> /check_gvP Hv /(Hv wdb gd) [Hea H].
+      by move=> /check_gvP Hv /(Hv gd) [Hea H].
     - move => al1 aa1 sz1 x1 e1 He1 [] // al2 aa2 sz2 x2 e2 r re vm1.
       t_xrbindP => r' /andP[] /andP [/eqP ? /eqP ?] /eqP ? Hcv Hce Hea; subst al2 aa2 sz2.
       have [Hea' Hget]:= check_gvP wdb gd Hcv Hea.
@@ -180,8 +180,8 @@ Section CHECK_EP.
 
 End CHECK_EP.
 
-Definition check_eP wdb gd e1 e2 r re vm1 vm2 :=
-  (check_e_esP wdb gd vm2).1 e1 e2 r re vm1.
+Definition check_eP {wdb: enforce_defined_variables} gd e1 e2 r re vm1 vm2 :=
+  (check_e_esP gd vm2).1 e1 e2 r re vm1.
 
 Lemma eq_alloc_set x1 v1  r x2 v2 vm1 vm2 (h:M.v_compat_type x1 x2) :
   eq_alloc r vm1 vm2 ->
@@ -218,13 +218,13 @@ Proof.
   by subst v2 => ->; rewrite vm_truncate_val_get.
 Qed.
 
-Lemma check_varP wdb r1 r1' vm1 vm2 vm1' x1 x2 v1 v2 (h:M.v_compat_type x1 x2):
+Lemma check_varP (wdb: enforce_defined_variables) r1 r1' vm1 vm2 vm1' x1 x2 v1 v2 (h:M.v_compat_type x1 x2):
   eq_alloc r1 vm1 vm2 ->
   @check_var_aux _ x1 x2 r1 h = ok r1' ->
-  set_var wdb vm1 x1 v1 = ok vm1' ->
+  set_var vm1 x1 v1 = ok vm1' ->
   value_uincl v1 v2 ->
   exists2 vm2' : Vm.t,
-    set_var wdb vm2 x2 v2 = ok vm2' & eq_alloc r1' vm1' vm2'.
+    set_var vm2 x2 v2 = ok vm2' & eq_alloc r1' vm1' vm2'.
 Proof.
   rewrite /check_var => Hea -[<-].
   move=> /set_varP [hdb1 htr1 ->] hu.
@@ -232,13 +232,13 @@ Proof.
   by rewrite set_var_truncate //; eexists; eauto; apply eq_alloc_set.
 Qed.
 
-Lemma check_varcP wdb r1 r1' vm1 vm2 vm1' x1 x2 v1 v2 :
+Lemma check_varcP (wdb: enforce_defined_variables) r1 r1' vm1 vm2 vm1' x1 x2 v1 v2 :
   eq_alloc r1 vm1 vm2 ->
   check_varc x1 x2 r1 = ok r1' ->
-  set_var wdb vm1 x1 v1 = ok vm1' ->
+  set_var vm1 x1 v1 = ok vm1' ->
   value_uincl v1 v2 ->
   exists2 vm2' : Vm.t,
-    set_var wdb vm2 x2 v2 = ok vm2' & eq_alloc r1' vm1' vm2'.
+    set_var vm2 x2 v2 = ok vm2' & eq_alloc r1' vm1' vm2'.
 Proof. by rewrite /check_varc; case: M.v_compat_typeP => // h; apply check_varP. Qed.
 
 Lemma eq_alloc_rm r x s vm z :
@@ -254,15 +254,15 @@ Proof.
   rewrite Vm.setP_neq //;by apply: contra Hne => /eqP ->.
 Qed.
 
-Lemma check_lvalP wdb gd r1 r1' x1 x2 e2 s1 s1' vm1 v1 v2 :
+Lemma check_lvalP (wdb: enforce_defined_variables) gd r1 r1' x1 x2 e2 s1 s1' vm1 v1 v2 :
   check_lval e2 x1 x2 r1 = ok r1' ->
   eq_alloc r1 s1.(evm) vm1 ->
   value_uincl v1 v2 ->
   oapp (fun te2 =>
-      sem_pexpr wdb gd (with_vm s1 vm1) te2.2 >>= truncate_val (eval_atype te2.1) = ok v2) true e2 ->
-  write_lval wdb gd x1 v1 s1 = ok s1' ->
+      sem_pexpr gd (with_vm s1 vm1) te2.2 >>= truncate_val (eval_atype te2.1) = ok v2) true e2 ->
+  write_lval gd x1 v1 s1 = ok s1' ->
   exists2 vm1',
-    write_lval wdb gd x2 v2 (with_vm s1 vm1) = ok (with_vm s1' vm1') &
+    write_lval gd x2 v2 (with_vm s1 vm1) = ok (with_vm s1' vm1') &
     eq_alloc r1' s1'.(evm) vm1'.
 Proof.
   case: x1 x2 => /= [ii1 t1 | x1 | al1 sz1 vi1 p1 | al1 aa1 sz1 x1 p1 | aa1 sz1 len1 x1 p1]
@@ -295,7 +295,7 @@ Proof.
 
   + t_xrbindP => /andP[] /eqP -> /eqP -> Hce Hvm1 Hv Happ.
     case: (s1) Hvm1 => scs1 sm1 svm1 /= Hvm1 >.
-    have [Hr1' H/H{H} [ve' [-> ]]]:= check_eP wdb gd Hce Hvm1.
+    have [Hr1' H/H{H} [ve' [-> ]]]:= check_eP gd Hce Hvm1.
     by move=> /of_value_uincl_te h/(h (cword _) _){h} /= -> ?
       /(@of_value_uincl_te (cword _) _ _ _ Hv) /= -> ? /= -> <-; eexists.
   + t_xrbindP => r2 r3 /andP [] /andP[] /eqP -> /eqP -> /eqP -> Hcv Hce Hcva Hvm1 Hv Happ.
@@ -304,7 +304,7 @@ Proof.
     case: vx2 => //= n0 t2 Ht.
     t_xrbindP => we ve.
     case: (s1) Hvm1 Hr3 => scs1 sm1 svm1 /= Hvm1 Hr3.
-    have [Hr1' H/H{H} [ve' [-> ]]]:= check_eP wdb gd Hce Hr3.
+    have [Hr1' H/H{H} [ve' [-> ]]]:= check_eP gd Hce Hr3.
     move=> /of_value_uincl_te h/(h cint _){h} /= -> ?
       /(@of_value_uincl_te (cword _) _ _ _ Hv) /= -> ?
       /(WArray.uincl_set Ht) [? [/= -> Ht2']].
@@ -317,7 +317,7 @@ Proof.
   case: vx2 => //= n0 t2 Ht.
   t_xrbindP => we ve.
   case: (s1) Hvm1 Hr3 => scs1 sm1 svm1 /= Hvm1 Hr3.
-  have [Hr1' H/H{H} [ve' [-> ]]]:= check_eP wdb gd Hce Hr3.
+  have [Hr1' H/H{H} [ve' [-> ]]]:= check_eP gd Hce Hr3.
     move=> /of_value_uincl_te h/(h cint _){h} /= -> ?
       /(@of_value_uincl_te (carr _) _ _ _ Hv) [? /= -> ]
       /(WArray.uincl_set_sub Ht) h ? /h{h} [? /= -> Ht2'].
@@ -387,26 +387,26 @@ Section PROOF.
 
 
 
-  Lemma check_esP wdb e1 e2 r re s vm:
+  Lemma check_esP (wdb: enforce_defined_variables) e1 e2 r re s vm:
     check_es e1 e2 r = ok re ->
     eq_alloc r s.(evm) vm ->
     eq_alloc re s.(evm) vm /\
-    forall v1,  sem_pexprs wdb gd s e1 = ok v1 ->
-    exists v2, sem_pexprs wdb (p_globs p2) (with_vm s vm) e2 = ok v2 /\
+    forall v1,  sem_pexprs gd s e1 = ok v1 ->
+    exists v2, sem_pexprs (p_globs p2) (with_vm s vm) e2 = ok v2 /\
                values_uincl v1 v2.
   Proof using eq_globs.
     case: s => scs mem vm1.
-    rewrite -eq_globs => h1 h2; case (check_e_esP wdb gd vm) => _ /(_ _ _ _ _ _ _ h1 h2) /= [h3 h4].
+    rewrite -eq_globs => h1 h2; case (check_e_esP gd vm) => _ /(_ _ _ _ _ _ _ h1 h2) /= [h3 h4].
     split => // v1; apply h4.
   Qed.
 
-  Lemma check_lvalsP wdb gd xs1 xs2 vs1 vs2 r1 r2 s1 s2 vm1 :
+  Lemma check_lvalsP (wdb: enforce_defined_variables) gd xs1 xs2 vs1 vs2 r1 r2 s1 s2 vm1 :
     check_lvals xs1 xs2 r1 = ok r2 ->
     eq_alloc r1 s1.(evm) vm1 ->
     values_uincl vs1 vs2 ->
-    write_lvals wdb gd s1 xs1 vs1 = ok s2 ->
+    write_lvals gd s1 xs1 vs1 = ok s2 ->
     exists2 vm2,
-      write_lvals wdb gd (with_vm s1 vm1) xs2 vs2 = ok (with_vm s2 vm2) &
+      write_lvals gd (with_vm s1 vm1) xs2 vs2 = ok (with_vm s2 vm2) &
       eq_alloc r2 s2.(evm) vm2.
   Proof.
     elim: xs1 xs2 vs1 vs2 r1 r2 s1 s2 vm1 => [ | x1 xs1 Hrec] [ | x2 xs2] //=
@@ -456,7 +456,7 @@ Section PROOF.
     ∀ s1 s2, st_rel eq_alloc d s1 s2 → st_rel eq_alloc d' s1 s2.
   Proof using spp p1. (* FIXME: we could get rid of p1 *)
     move=> he; apply st_rel_weaken => vm1 vm2 hvm.
-    have [] := check_e_esP true gd vm2.
+    have [] := check_e_esP (wdb := true) gd vm2.
     by move=> _ /(_ _ _ _ _ vm1 _ he hvm) [].
   Qed.
 
@@ -518,7 +518,7 @@ Section PROOF.
       apply wequiv_assgn_core => -[scs1 sm2 svm1] [_ _ svm2] s' [/= <- <- hvm].
       rewrite /sem_assgn; t_xrbindP => v hv v' htr hw.
       move: htr; rewrite (convertible_eval_atype hc) => htr.
-      have [hvm' /(_ _ _ _ hv) [v2 [he2 hu2]]]:= check_eP true gd he hvm.
+      have [hvm' /(_ _ _ _ hv) [v2 [he2 hu2]]]:= check_eP (wdb := true) gd he hvm.
       rewrite -eq_globs he2 /=.
       have [v2' {}htr {}hu2]:= value_uincl_truncate hu2 htr.
       have /(_ _ hvm') [|vm2 Hwv Hvm2] := check_lvalP hx _ hu2 _ hw.

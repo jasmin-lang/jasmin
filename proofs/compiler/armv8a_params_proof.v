@@ -110,7 +110,7 @@ Proof.
       by rewrite GRing.addr0 => -> /=.
     case hlea: mk_lea => [[disp base scale offset]|//] /=.
     case: base hlea => [base|//] hlea.
-    have lea_sem: sem_pexpr true [::] s1 (add e ofs) = ok (Vword (w + pofs)).
+    have lea_sem: sem_pexpr (wdb := true) [::] s1 (add e ofs) = ok (Vword (w + pofs)).
     + by rewrite /= ok_ve ok_vofs /= /sem_sop2 /= ok_w ok_pofs /=.
     have /(_ (cmp_le_refl _)) /(_ (cmp_le_refl _)) := mk_leaP _ _ hlea lea_sem.
     rewrite zero_extend_u /sem_lea /=.
@@ -278,13 +278,13 @@ Proof.
                  (xi := tmp) (y := tmp) (al := al) (s := s1)
                  _ (to_word_get_var hget1).
   + set s2 := with_vm _ _.
-    have hget2 : get_var true (evm s2) vrsp = ok (Vword ts).
+    have hget2 : get_var (wdb := true) (evm s2) vrsp = ok (Vword ts).
     + rewrite get_var_neq; last by [].
       rewrite (get_var_eq_ex _ _ heq1); first by [].
       by apply: Sv_neq_not_in_singleton.
     have -> /= := ARMv8AFopnP.mov_sem_fopn_args (xi := r) _ (to_word_get_var hget2).
     + set s3 := with_vm _ _.
-      have hget3 : get_var true (evm s3) tmp = ok (Vword ts').
+      have hget3 : get_var (wdb := true) (evm s3) tmp = ok (Vword ts').
       + by t_get_var => /=; rewrite htytmp /=.
       have -> /= := ARMv8AFopnP.mov_sem_fopn_args (xi := vrsp) _ (to_word_get_var hget3).
       + set s4 := with_vm _ _.
@@ -369,7 +369,7 @@ Let foldM_restore m1 (top' : word Uptr) :=
     Let ws := if vtype x is aword ws then ok ws else Error ErrType in
     Let _ := assert (armv8a_check_ws ws) ErrType in
     Let w := read m1 Aligned (top' + wrepr Uptr ofs1)%R ws in
-    set_var true vm x (Vword w)).
+    set_var (wdb := true) vm x (Vword w)).
 
 (* A restore [foldM] only modifies the variables it sets. *)
 Lemma lloads_foldM_eq_ex m1 (top' : word Uptr) (l : seq (var * Z)) vm vm' :
@@ -397,14 +397,14 @@ Proof.
   move/set_varP: hset => [_ _ ?]; subst vm2'.
 
   have hsetvar : forall (vm : Vm.t) (w : word Uptr),
-      set_var true vm vtmp2i (Vword w) = ok vm.[v_var vtmp2i <- Vword w].
+      set_var (wdb := true) vm vtmp2i (Vword w) = ok vm.[v_var vtmp2i <- Vword w].
   - by move=> vm w; apply: set_var_eq_type.
   have hconv2 : convertible (vtype (v_var vtmp2i)) (aword reg_size).
   - by vm_compute.
 
   (* The SP-restoring tail, from any varmap holding [top] in [rspi]. *)
   have hsp : forall vmr,
-      get_var true vmr rspi >>= to_word Uptr = ok top ->
+      get_var (wdb := true) vmr rspi >>= to_word Uptr = ok top ->
       exists2 vm,
         sem_fopns_args (with_vm s vmr)
           (if is_save_slot_offset Uptr ofs
@@ -509,13 +509,13 @@ Proof.
     rewrite !Vm.setP heqtx vm_truncate_val_eq //.
     case: eqP => // _.
     by apply: heqa.
-  have hget_r' : get_var true vm_r' rspi >>= to_word Uptr = ok top.
-  - have -> : get_var true vm_r' rspi = get_var true (evm s) rspi.
+  have hget_r' : get_var (wdb := true) vm_r' rspi >>= to_word Uptr = ok top.
+  - have -> : get_var (wdb := true) vm_r' rspi = get_var (wdb := true) (evm s) rspi.
     + rewrite /get_var (lloads_foldM_eq_ex hf'); last first.
       * by have /Sv_memP/sv_of_listP := hnin_reb _ hnin.
       by rewrite heqa //; apply: Sv_neq_not_in_singleton.
     exact: hget.
-  have hgeta2 : get_var true vma (v_var vtmp2i) >>= to_word Uptr
+  have hgeta2 : get_var (wdb := true) vma (v_var vtmp2i) >>= to_word Uptr
                 = ok (top + wrepr Uptr ofs0)%R.
   - by rewrite hgeta /= truncate_word_u.
   have hnin2' : ~~ Sv.mem (v_var vtmp2i)
@@ -574,7 +574,7 @@ Proof. constructor => *; exact: it_lower_callP. Qed.
 (* Lowering of the loads from a global. *)
 
 Lemma armv8a_glob_addrP gd s (y : var_i) e pa :
-  sem_pexpr true gd s e >>= to_pointer = ok pa ->
+  sem_pexpr (wdb := true) gd s e >>= to_pointer = ok pa ->
   vtype y = aword Uptr ->
   sem_sopn gd (Oarmv8a (ARMv8A_op ADR default_opts)) s [:: Lvar y] [:: e]
   = ok (with_vm s (evm s).[y <- Vword pa]).
@@ -682,7 +682,7 @@ Qed.
 Lemma eval_assemble_cond_Pvar ii m rf x r v :
   eqflags m rf
   -> of_var_e ii x = ok r
-  -> get_var true (evm m) x = ok v
+  -> get_var (wdb := true) (evm m) x = ok v
   -> exists2 v',
        value_of_bool (arm_eval_cond (get_rf rf) (condt_of_rflag r)) = ok v'
        & value_uincl v v'.
@@ -720,9 +720,9 @@ Lemma eval_assemble_cond_Obeq ii m rf v x0 x1 r0 r1 v0 v1 :
   is_rflags_GE r0 r1 = true
   -> eqflags m rf
   -> of_var_e ii x0 = ok r0
-  -> get_var true (evm m) x0 = ok v0
+  -> get_var (wdb := true) (evm m) x0 = ok v0
   -> of_var_e ii x1 = ok r1
-  -> get_var true (evm m) x1 = ok v1
+  -> get_var (wdb := true) (evm m) x1 = ok v1
   -> sem_sop2 Obeq v0 v1 = ok v
   -> exists2 v',
        value_of_bool (arm_eval_cond (get_rf rf) GE_ct) = ok v'

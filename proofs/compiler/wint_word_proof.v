@@ -28,19 +28,19 @@ Notation gd := (p_globs p).
 
 Section E.
 
-  Context (s:estate) (vm:Vm.t) (hincl : evm s <=1 vm) (wdb : bool).
+  Context (s:estate) (vm:Vm.t) (hincl : evm s <=1 vm) {wdb : enforce_defined_variables}.
 
   Let s' := with_vm s vm.
 
   Let P e : Prop :=
     ∀ v,
-      sem_pexpr wdb gd s e = ok v →
-      exists2 v', sem_pexpr wdb gd s' (wi2w_e e) = ok v' & value_uincl v v'.
+      sem_pexpr gd s e = ok v →
+      exists2 v', sem_pexpr gd s' (wi2w_e e) = ok v' & value_uincl v v'.
 
   Let Q es : Prop :=
     ∀ vs,
-      sem_pexprs wdb gd s es = ok vs →
-      exists2 vs', sem_pexprs wdb gd s' (map wi2w_e es) = ok vs' & values_uincl vs vs'.
+      sem_pexprs gd s es = ok vs →
+      exists2 vs', sem_pexprs gd s' (map wi2w_e es) = ok vs' & values_uincl vs vs'.
 
   Lemma wi2w_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
   Proof using hincl.
@@ -146,11 +146,11 @@ Section E.
 
 End E.
 
-Lemma wi2w_lvalP wdb lv s s' vm v1 v2 :
+Lemma wi2w_lvalP (wdb: enforce_defined_variables) lv s s' vm v1 v2 :
   evm s <=1 vm ->
   value_uincl v1 v2 ->
-  write_lval wdb gd lv v1 s = ok s' ->
-  exists2 vm', write_lval wdb gd (wi2w_lv lv) v2 (with_vm s vm) = ok (with_vm s' vm') &
+  write_lval gd lv v1 s = ok s' ->
+  exists2 vm', write_lval gd (wi2w_lv lv) v2 (with_vm s vm) = ok (with_vm s' vm') &
                evm s' <=1 vm'.
 Proof.
   case: lv => [ vi ty | x | al w vi e | al aa sz x e | aa sz len x e] /=.
@@ -185,11 +185,11 @@ Proof.
   by apply write_var_uincl.
 Qed.
 
-Lemma wi2w_lvalsP wdb lvs s s' vm vs1 vs2 :
+Lemma wi2w_lvalsP (wdb: enforce_defined_variables) lvs s s' vm vs1 vs2 :
   evm s <=1 vm ->
   values_uincl vs1 vs2 ->
-  write_lvals wdb gd s lvs vs1 = ok s' ->
-  exists2 vm', write_lvals wdb gd (with_vm s vm) (map wi2w_lv lvs) vs2 = ok (with_vm s' vm') &
+  write_lvals gd s lvs vs1 = ok s' ->
+  exists2 vm', write_lvals gd (with_vm s vm) (map wi2w_lv lvs) vs2 = ok (with_vm s' vm') &
                evm s' <=1 vm'.
 Proof.
   elim: lvs s vm vs1 vs2 => /= [ | x xs Hrec] s1 vm1 vs1 vs2 Hvm [] //=.
