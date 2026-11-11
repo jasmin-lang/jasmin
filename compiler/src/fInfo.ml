@@ -11,7 +11,7 @@ type f_annot = {
     stack_align           : wsize option;
     max_call_depth        : Z.t option;
     stack_zero_strategy   : (Stack_zero_strategy.stack_zero_strategy * wsize option) option;
-    comment               : string option;
+    comment               : string list;
     f_user_annot          : annotations;
 }
 
@@ -22,7 +22,7 @@ let f_annot_empty = {
     stack_align           = None;
     max_call_depth        = None;
     stack_zero_strategy   = None;
-    comment               = None;
+    comment               = [];
     f_user_annot          = [];
   }
 

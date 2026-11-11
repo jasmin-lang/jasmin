@@ -77,9 +77,7 @@ module Make(Target : AsmTarget) : S
 
     let pp_function_comment decl =
         let (_, f_annot, _, _) = decl.asm_fd_info in
-        match f_annot.FInfo.comment with
-        | None -> []
-        | Some s -> List.map (fun l -> Comment l) (String.split_on_char '\n' s)
+        List.map (fun l -> Comment l) f_annot.FInfo.comment
 
     let pp_function_header (name:string) decl =
         let name = function_symbol name decl in

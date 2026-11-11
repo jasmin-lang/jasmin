@@ -84,6 +84,7 @@ let process_f_annot loc funname f_cc annot =
          (fun loc nid ->
            Annot.error ~loc "attribute for “%s” should be a string" nid))
       annot
+    |> Option.map_default (String.split_on_char '\n') []
   in
 
   { retaddr_kind;
