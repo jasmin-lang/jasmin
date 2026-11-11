@@ -1443,16 +1443,16 @@ Proof.
   by move=> /SvD.F.add_3; auto.
 Qed.
 
-Lemma valid_state_init_param wdb table rmap vme m0 s1 s2 vnew1' locals1' sao_param (param:var_i) vnew2' locals2' rmap2' alloc_param :
+Lemma valid_state_init_param (wdb: enforce_defined_variables) table rmap vme m0 s1 s2 vnew1' locals1' sao_param (param:var_i) vnew2' locals2' rmap2' alloc_param :
   wf_pmap (lmap locals1' vnew1') rsp rip Slots Addr Writable Align ->
   valid_state (lmap locals1' vnew1') glob_size rsp rip Slots Addr Writable Align P table rmap vme m0 s1 s2 ->
   init_param mglob stack (vnew1', locals1', rmap) sao_param param = ok (vnew2', locals2', rmap2', alloc_param) ->
   forall s1' varg1 varg2,
-    write_var wdb param varg1 s1 = ok s1' ->
+    write_var param varg1 s1 = ok s1' ->
     (forall pi, sao_param = Some pi -> get_pi param = Some (pi, (varg1, varg2))) ->
     value_eq_or_in_mem (emem s2) sao_param varg1 varg2 ->
     exists2 s2',
-      write_var wdb alloc_param.2 varg2 s2 = ok s2' &
+      write_var alloc_param.2 varg2 s2 = ok s2' &
       valid_state (lmap locals2' vnew2') glob_size rsp rip Slots Addr Writable Align P (remove_binding table param) rmap2' vme m0 s1' s2'.
 Proof using hparams.
   clear rsp_align rip_align no_overflow_size.
@@ -1604,14 +1604,14 @@ Proof.
   by clear; SvD.fsetdec.
 Qed.
 
-Lemma valid_state_init_params wdb vme m0 vm1 vm2 :
+Lemma valid_state_init_params (wdb: enforce_defined_variables) vme m0 vm1 vm2 :
   let: s1 := {| escs := scs1; emem := m1; evm := vm1 |} in
   let: s2 := {| escs := scs1; emem := m2; evm := vm2 |} in
   valid_state (lmap locals1 vnew1) glob_size rsp rip Slots Addr Writable Align P empty_table rmap1 vme m0 s1 s2 ->
   forall s1',
-    write_vars wdb params vargs1 s1 = ok s1' ->
+    write_vars params vargs1 s1 = ok s1' ->
     exists2 s2',
-      write_vars wdb (map snd alloc_params) vargs2 s2  = ok s2' &
+      write_vars (map snd alloc_params) vargs2 s2  = ok s2' &
       valid_state (lmap locals2 vnew2) glob_size rsp rip Slots Addr Writable Align P empty_table rmap2 vme m0 s1' s2'.
 Proof using hlayout Huincl hlocal_map hparams.
   clear rsp_align rip_align no_overflow_size.
@@ -2552,7 +2552,7 @@ Notation mem_unchanged_params_fn ms m0 m fn vargs1 vargs2 :=
 Lemma wf_table_table_set_var table x e vm vme :
   Sv.Subset (read_e e) table.(vars) ->
   (forall v1,
-    get_var true vm x = ok v1 ->
+    get_var (wdb := true) vm x = ok v1 ->
     exists2 v2,
       sem_sexpr vme e = ok v2 & value_uincl v1 v2) ->
   wf_table table vme vm ->
@@ -2573,9 +2573,9 @@ Qed.
 
 (* TODO: write_lvar_ext_eq -> rename into write_lval_ext_eq *)
 Lemma wf_table_update_table s1 s2 r e v v' table1 ote table2 oe table3 vme :
-  sem_pexpr true gd s1 e = ok v ->
+  sem_pexpr (wdb := true) gd s1 e = ok v ->
   value_uincl v' v ->
-  write_lval true gd r v' s1 = ok s2 ->
+  write_lval (wdb := true) gd r v' s1 = ok s2 ->
   symbolic_of_pexpr (clone fresh_var_ident) table1 e = ok ote ->
   match ote with
   | Some (table, e) => (table, Some e)
@@ -3198,8 +3198,8 @@ Hypothesis rip_rsp_neq : P'.(p_extra).(sp_rip) <> P'.(p_extra).(sp_rsp).
 *)
 Lemma write_vars_subtype A (l:seq (option A)) params :
   List.Forall2 (fun o (x:var_i) => o <> None -> is_arr_var x) l params ->
-  forall wdb vargs1 s1 s2,
-  write_vars wdb params vargs1 s1 = ok s2 ->
+  forall (wdb: enforce_defined_variables) vargs1 s1 s2,
+  write_vars params vargs1 s1 = ok s2 ->
   Forall3 (fun o (x:var_i) v => o <> None -> subctype (eval_atype x.(vtype)) (type_of_val v)) l params vargs1.
 Proof.
   elim {l params}.

@@ -21,22 +21,24 @@ Section PROOF.
     {sip : SemInstrParams asm_op syscall_state}
     (gd : glob_decls).
 
+  #[local] Existing Instance do_enforce_defined_variables.
+
   (* ---------------------------------------------------------- *)
 
   Definition sem_lea sz vm l : exec (word sz) :=
     Let base :=
-      oapp (fun (x:var_i) => get_var true vm x >>= to_word sz) (ok 0%R) l.(lea_base) in
+      oapp (fun (x:var_i) => get_var vm x >>= to_word sz) (ok 0%R) l.(lea_base) in
     Let offset :=
-      oapp (fun (x:var_i) => get_var true vm x >>= to_word sz) (ok 0%R) l.(lea_offset) in
+      oapp (fun (x:var_i) => get_var vm x >>= to_word sz) (ok 0%R) l.(lea_offset) in
     ok (wrepr sz l.(lea_disp) + (base + (wrepr sz l.(lea_scale) * offset)))%R.
 
   Lemma lea_constP sz w vm : sem_lea sz vm (lea_const w) = ok (wrepr sz w).
   Proof. by rewrite /sem_lea /lea_const /=; f_equal; ssring. Qed.
 
-  Lemma lea_varP x sz vm : sem_lea sz vm (lea_var x) = get_var true vm x >>= to_word sz.
+  Lemma lea_varP x sz vm : sem_lea sz vm (lea_var x) = get_var vm x >>= to_word sz.
   Proof.
     rewrite /sem_lea /lea_var /=.
-    case: (Let _ := get_var _ _ _ in _) => //= w.
+    case: (Let _ := get_var _ _ in _) => //= w.
     by rewrite wrepr0 wrepr1; f_equal; ssring.
   Qed.
 
@@ -153,10 +155,10 @@ Section PROOF.
   Qed.
 
   Lemma mk_leaP s e l sz sz' (w: word sz') :
-    (sz <= Uptr)%CMP -> 
+    (sz <= Uptr)%CMP ->
     (sz ≤ sz')%CMP →
     mk_lea sz e = Some l ->
-    sem_pexpr true gd s e = ok (Vword w) ->
+    sem_pexpr gd s e = ok (Vword w) ->
     sem_lea sz (evm s) l = ok (zero_extend sz w).
   Proof.
     rewrite /mk_lea => h1 h2 /obindI[] f [] /fexpr_of_pexprP h hrec /h.

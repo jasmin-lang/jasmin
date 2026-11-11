@@ -29,7 +29,7 @@ Context (is_load : asm_op -> bool) (glob_addr_op : asm_op).
 
 (* The address computation assigns the pointer to [y]. *)
 Hypothesis glob_addr_opP : forall gd s (y : var_i) e pa,
-  sem_pexpr true gd s e >>= to_pointer = ok pa ->
+  sem_pexpr (wdb := true) gd s e >>= to_pointer = ok pa ->
   vtype y = aword Uptr ->
   sem_sopn gd (Oasm glob_addr_op) s [:: Lvar y] [:: e]
   = ok (with_vm s (evm s).[y <- Vword pa]).
@@ -104,7 +104,7 @@ Proof using dc glob_addr_opP.
   move: (glob_load_dst tmp xs es') => y y_ty hy.
   move: ok_s2; rewrite /sem_sopn /=.
   t_xrbindP => vs _ _ pa ve ok_ve ok_pa w ok_w <- ves ok_ves <- ok_vs ok_s2.
-  have h : sem_pexpr true (p_globs p') s1 e >>= to_pointer = ok pa.
+  have h : sem_pexpr (wdb := true) (p_globs p') s1 e >>= to_pointer = ok pa.
   + by rewrite ok_ve.
   rewrite (@glob_addr_opP _ _ _ _ _ h y_ty) /= /sem_sopn /=.
   rewrite /get_gvar /= get_var_eq y_ty /= cmp_le_refl orbT //= truncate_word_u /= ok_w /=.
@@ -114,7 +114,7 @@ Proof using dc glob_addr_opP.
     have eqX : evm s1 =[X] vm1.
     + by move=> z hz; rewrite Vm.setP_neq //; apply/eqP => ?; subst z.
     move: hsub; rewrite read_es_cons => hsub.
-    have -> : sem_pexprs true (p_globs p') (with_vm s1 vm1) es' = ok ves.
+    have -> : sem_pexprs (wdb := true) (p_globs p') (with_vm s1 vm1) es' = ok ves.
     + rewrite -ok_ves; symmetry; apply: eq_on_sem_pexprs => //.
       by apply: eq_onI eqX; clear -hsub; SvD.fsetdec.
     rewrite /= ok_vs /=.

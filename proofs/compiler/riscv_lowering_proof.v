@@ -52,6 +52,8 @@ Notation lower_prog :=
 
 Notation p' := (lower_prog p).
 
+#[local] Existing Instance do_enforce_defined_variables.
+
 (* -------------------------------------------------------------------- *)
 
 (* TODO: factorize with x86 *)
@@ -68,10 +70,10 @@ Qed.
 (* TODO: factorize with x86 *)
 Lemma check_shift_amountP e sa s z w :
   check_shift_amount e = Some sa ->
-  sem_pexpr true (p_globs p) s e = ok z ->
+  sem_pexpr (p_globs p) s e = ok z ->
   to_word U8 z = ok w ->
   Sv.Subset (read_e sa) (read_e e) /\
-  exists2 n, sem_pexpr true (p_globs p) s sa >>= to_word U8 = ok n & forall f (a: word U32), sem_shift f a w = sem_shift f a (wand n (wrepr U8 31)).
+  exists2 n, sem_pexpr (p_globs p) s sa >>= to_word U8 = ok n & forall f (a: word U32), sem_shift f a w = sem_shift f a (wand n (wrepr U8 31)).
 Proof.
   rewrite /check_shift_amount.
   case en: is_wconst => [ n | ].
@@ -100,11 +102,11 @@ Qed.
 
 #[ local ]
 Lemma Hassgn_op2_generic s e1 e2 v1 v2 op2 v ws v' lv s1 (op2' : sopn) :
-  sem_pexpr true (p_globs p) s e1 = ok v1 ->
-  sem_pexpr true (p_globs p) s e2 = ok v2 ->
+  sem_pexpr (p_globs p) s e1 = ok v1 ->
+  sem_pexpr (p_globs p) s e2 = ok v2 ->
   sem_sop2 op2 v1 v2 = ok v ->
   truncate_val (cword ws) v = ok v' ->
-  write_lval true (p_globs p) lv v' s = ok s1 ->
+  write_lval (p_globs p) lv v' s = ok s1 ->
   i_valid (sopn.get_instr_desc op2') ->
   forall ws1 ws2 ws3 ws1' ws2'
     (eq1 : type_of_op2 op2 = (aword ws1, aword ws2, aword ws3))
@@ -117,8 +119,8 @@ Lemma Hassgn_op2_generic s e1 e2 v1 v2 op2 v ws v' lv s1 (op2' : sopn) :
       forall e1' e2' w1' w2'
         (hcmp1 : (ws1' <= ws1)%CMP)
         (hcmp2 : (ws2' <= ws2)%CMP),
-        sem_pexpr true (p_globs p) s e1' >>= to_word ws1 = ok w1' ->
-        sem_pexpr true (p_globs p) s e2' >>= to_word ws2 = ok w2' ->
+        sem_pexpr (p_globs p) s e1' >>= to_word ws1 = ok w1' ->
+        sem_pexpr (p_globs p) s e2' >>= to_word ws2 = ok w2' ->
         Let w := ecast t (let t := t in _) eq1 (sem_sop2_typed op2) w1 w2 in
         ok (zero_extend ws w)
         = ecast l (sem_prod (map eval_atype l) _) eq2
@@ -148,11 +150,11 @@ Qed.
 
 #[ local ]
 Lemma Hassgn_op2 s e1 e2 v1 v2 op2 v v' lv s1 (op2' : sopn) :
-  sem_pexpr true (p_globs p) s e1 = ok v1 ->
-  sem_pexpr true (p_globs p) s e2 = ok v2 ->
+  sem_pexpr (p_globs p) s e1 = ok v1 ->
+  sem_pexpr (p_globs p) s e2 = ok v2 ->
   sem_sop2 op2 v1 v2 = ok v ->
   truncate_val (cword U32) v = ok v' ->
-  write_lval true (p_globs p) lv v' s = ok s1 ->
+  write_lval (p_globs p) lv v' s = ok s1 ->
   i_valid (sopn.get_instr_desc op2') ->
   forall ws
     (eq1 : type_of_op2 op2 = (aword ws, aword ws, aword ws))
@@ -182,11 +184,11 @@ Qed.
 
 #[ local ]
 Lemma Hassgn_op2_shift s e1 e2 v1 v2 op2 v v' lv s1 (op2' : sopn) :
-  sem_pexpr true (p_globs p) s e1 = ok v1 ->
-  sem_pexpr true (p_globs p) s e2 = ok v2 ->
+  sem_pexpr (p_globs p) s e1 = ok v1 ->
+  sem_pexpr (p_globs p) s e2 = ok v2 ->
   sem_sop2 op2 v1 v2 = ok v ->
   truncate_val (cword U32) v = ok v' ->
-  write_lval true (p_globs p) lv v' s = ok s1 ->
+  write_lval (p_globs p) lv v' s = ok s1 ->
   i_valid (sopn.get_instr_desc op2') ->
   forall ws
     (eq1 : type_of_op2 op2 = (aword ws, aword U8, aword ws))
@@ -197,7 +199,7 @@ Lemma Hassgn_op2_shift s e1 e2 v1 v2 op2 v v' lv s1 (op2' : sopn) :
       to_word ws v1 = ok w1,
       to_word U8 v2 = ok w2 &
       forall e2' w2',
-        sem_pexpr true (p_globs p) s e2' >>= to_word U8 = ok w2' ->
+        sem_pexpr (p_globs p) s e2' >>= to_word U8 = ok w2' ->
         Let w := ecast t (let t := t in _) eq1 (sem_sop2_typed op2) w1 w2 in
         ok (zero_extend U32 w)
         = ecast l (sem_prod (map eval_atype l) _) eq2
@@ -217,8 +219,8 @@ Proof.
 Qed.
 
 Lemma decide_op_reg_immP s e1 e2 v1 v2 op_reg_reg op_reg_imm o es lv s1 :
-  sem_pexpr true (p_globs p) s e1 = ok v1 ->
-  sem_pexpr true (p_globs p) s e2 = ok v2 ->
+  sem_pexpr (p_globs p) s e1 = ok v1 ->
+  sem_pexpr (p_globs p) s e2 = ok v2 ->
   decide_op_reg_imm U32 e1 e2 (op_reg_reg) (op_reg_imm) = Some (o, es) ->
   sem_sopn (p_globs p) (Oasm op_reg_reg) = sem_sopn (p_globs p) (Oasm op_reg_imm) ->
   sem_sopn (p_globs p) (Oasm op_reg_reg) s [:: lv] [:: e1; e2] = ok s1 ->
@@ -234,8 +236,8 @@ Qed.
 
 Lemma minus_insertP e1 e2 s0 ws w :
 insert_minus e1 = Some e2 ->
-Let x := sem_pexpr true (p_globs p) s0 e1 in to_word ws x = ok (w)%R ->
-Let x := sem_pexpr true (p_globs p) s0 e2 in to_word ws x = ok (- w)%R.
+Let x := sem_pexpr (p_globs p) s0 e1 in to_word ws x = ok (w)%R ->
+Let x := sem_pexpr (p_globs p) s0 e2 in to_word ws x = ok (- w)%R.
 Proof.
   case : e1 => // -[] // sz [] // n /= [<-] /=.
   move => /truncate_wordP [hcmp ->].

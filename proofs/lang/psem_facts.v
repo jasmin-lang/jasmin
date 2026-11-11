@@ -15,13 +15,13 @@ Context
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}.
 
-Lemma write_lvals_write_lval wdb gd lv v s :
-  write_lval wdb gd lv v s = write_lvals wdb gd s [:: lv ] [:: v ].
+Lemma write_lvals_write_lval (wdb: enforce_defined_variables) gd lv v s :
+  write_lval gd lv v s = write_lvals gd s [:: lv ] [:: v ].
 Proof. by rewrite /=; case: write_lval. Qed.
 
-Lemma get_write_var_word wdb s s' ws (w : word ws) x :
+Lemma get_write_var_word (wdb: enforce_defined_variables) s s' ws (w : word ws) x :
   eval_atype (vtype (v_var x)) = cword ws
-  -> write_var wdb x (Vword w) s = ok s'
+  -> write_var x (Vword w) s = ok s'
   -> (evm s').[v_var x] = Vword w.
 Proof.
   by move=> hty /write_varP [-> _ _]; rewrite /= Vm.setP_eq /= hty cmp_le_refl !orbT.
@@ -37,16 +37,16 @@ Proof.
   by rewrite /to_lvals map_comp vrvs_Lvar 2!sv_of_list_map sv_of_list_eq_ext.
 Qed.
 
-Lemma write_vars_eq_ex wdb xs vs s s' :
-  write_vars wdb xs vs s = ok s' →
+Lemma write_vars_eq_ex (wdb: enforce_defined_variables) xs vs s s' :
+  write_vars xs vs s = ok s' →
   evm s =[\ sv_of_list v_var xs] evm s' .
 Proof using spp.
   by rewrite (write_vars_lvals _ [::]) => /vrvsP; rewrite vrvs_Lvar.
 Qed.
 
-Lemma write_lvals_emem wdb gd xs ys s vs s' :
+Lemma write_lvals_emem (wdb: enforce_defined_variables) gd xs ys s vs s' :
   mapM get_lvar xs = ok ys →
-  write_lvals wdb gd s xs vs = ok s' →
+  write_lvals gd s xs vs = ok s' →
   emem s' = emem s.
 Proof.
   elim: xs ys vs s; first by move => _ [] // ? _ [] ->.
@@ -54,8 +54,8 @@ Proof.
   by case: x X Y => // x _; rewrite /= /write_var; t_xrbindP => ?? <-.
 Qed.
 
-Lemma write_lvals_escs wdb gd xs s vs s' :
-  write_lvals wdb gd s xs vs = ok s' →
+Lemma write_lvals_escs (wdb: enforce_defined_variables) gd xs s vs s' :
+  write_lvals gd s xs vs = ok s' →
   escs s' = escs s.
 Proof.
   elim: xs vs s => [ | x xs ih] /= [] // => [ _ [->] //| v vs s].
@@ -65,8 +65,8 @@ Qed.
 (* sem_stack_stable and sem_validw_stable both for uprog and sprog *)
 (* inspired by sem_one_varmap_facts *)
 
-Lemma write_lval_stack_stable wdb gd x v s s' :
-  write_lval wdb gd x v s = ok s' →
+Lemma write_lval_stack_stable (wdb: enforce_defined_variables) gd x v s s' :
+  write_lval gd x v s = ok s' →
   stack_stable (emem s) (emem s').
 Proof.
   case: x => [ vi ty | x | al ws vi e | al aa ws x e | aa ws len x e ] /=.
@@ -77,16 +77,16 @@ Proof.
   all: by apply: on_arr_varP; rewrite /write_var; t_xrbindP => ?????????????? <-.
 Qed.
 
-Lemma write_lvals_stack_stable wdb gd xs vs s s' :
-  write_lvals wdb gd s xs vs = ok s' →
+Lemma write_lvals_stack_stable (wdb: enforce_defined_variables) gd xs vs s s' :
+  write_lvals gd s xs vs = ok s' →
   stack_stable (emem s) (emem s').
 Proof.
   elim: xs vs s => [ | x xs ih ] [] //; first by move => ? [<-].
   by move => v vs s /=; t_xrbindP => ? /write_lval_stack_stable -> /ih.
 Qed.
 
-Lemma write_lval_validw wdb gd x v s s' :
-  write_lval wdb gd x v s = ok s' ->
+Lemma write_lval_validw (wdb: enforce_defined_variables) gd x v s s' :
+  write_lval gd x v s = ok s' ->
   validw (emem s) =3 validw (emem s').
 Proof.
   case: x => [ vi ty | x | al ws vi e | al aa ws x e | aa ws len x e ] /=.
@@ -97,8 +97,8 @@ Proof.
   all: by apply: on_arr_varP; rewrite /write_var; t_xrbindP => ?????????????? <-.
 Qed.
 
-Lemma write_lvals_validw wdb gd xs vs s s' :
-  write_lvals wdb gd s xs vs = ok s' ->
+Lemma write_lvals_validw (wdb: enforce_defined_variables) gd xs vs s s' :
+  write_lvals gd s xs vs = ok s' ->
   validw (emem s) =3 validw (emem s').
 Proof.
   elim: xs vs s.
@@ -272,9 +272,9 @@ Lemma esem_validw_stable_sprog (p : sprog) (gd : pointer) s1 c s2 :
 Proof. apply esem_mem_equiv. Qed.
 
 (* ------------------------------------------------------------------- *)
-Lemma cast_wP wdb sz e gd s v :
-  sem_pexpr wdb gd s (Papp1 (Oword_of_int sz) e) = ok v →
-  exists2 v', sem_pexpr wdb gd s (cast_w sz e) = ok v' & value_uincl v v'.
+Lemma cast_wP (wdb: enforce_defined_variables) sz e gd s v :
+  sem_pexpr gd s (Papp1 (Oword_of_int sz) e) = ok v →
+  exists2 v', sem_pexpr gd s (cast_w sz e) = ok v' & value_uincl v v'.
 Proof.
   elim: e v => /=; t_xrbindP => //.
   1, 2: by move => > ->; eauto.
@@ -334,11 +334,11 @@ Context
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}.
 
-Lemma write_var_eq_ex wdb X (x:var_i) v s1 s2 vm1 :
-  write_var wdb x v s1 = ok s2 ->
+Lemma write_var_eq_ex (wdb: enforce_defined_variables) X (x:var_i) v s1 s2 vm1 :
+  write_var x v s1 = ok s2 ->
   evm s1 =[\X] vm1 ->
   exists2 vm2,
-    write_var wdb x v (with_vm s1 vm1) = ok (with_vm s2 vm2) &
+    write_var x v (with_vm s1 vm1) = ok (with_vm s2 vm2) &
     evm s2 =[\X] vm2.
 Proof.
   move=> hw eq_vm1.
@@ -352,12 +352,12 @@ Proof.
   by apply eq_vm1.
 Qed.
 
-Lemma write_lval_eq_ex wdb gd X x v s1 s2 vm1 :
+Lemma write_lval_eq_ex (wdb: enforce_defined_variables) gd X x v s1 s2 vm1 :
   disjoint X (read_rv x) ->
-  write_lval wdb gd x v s1 = ok s2 ->
+  write_lval gd x v s1 = ok s2 ->
   evm s1 =[\ X] vm1 ->
   exists2 vm2 : Vm.t,
-    write_lval wdb gd x v (with_vm s1 vm1) = ok (with_vm s2 vm2) &
+    write_lval gd x v (with_vm s1 vm1) = ok (with_vm s2 vm2) &
     evm s2 =[\ X] vm2.
 Proof.
   move=> hdisj hw eq_vm1.
@@ -372,12 +372,12 @@ Proof.
   by apply eq_vm1.
 Qed.
 
-Lemma write_lvals_eq_ex wdb gd X xs vs s1 s2 vm1 :
+Lemma write_lvals_eq_ex (wdb: enforce_defined_variables) gd X xs vs s1 s2 vm1 :
   disjoint X (read_rvs xs) ->
-  write_lvals wdb gd s1 xs vs = ok s2 ->
+  write_lvals gd s1 xs vs = ok s2 ->
   evm s1 =[\ X] vm1 ->
   exists2 vm2 : Vm.t,
-    write_lvals wdb gd (with_vm s1 vm1) xs vs = ok (with_vm s2 vm2) &
+    write_lvals gd (with_vm s1 vm1) xs vs = ok (with_vm s2 vm2) &
     evm s2 =[\ X] vm2.
 Proof.
   move=> hdisj hw eq_vm1.

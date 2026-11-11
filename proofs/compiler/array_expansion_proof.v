@@ -141,18 +141,18 @@ Context (m : t) (valid : wf_t m).
 
 Section WDB.
 
-Context (wdb : bool).
+Context {wdb : enforce_defined_variables}.
 
 Lemma check_var_get s1 s2 x :
   Sv.mem x (svars m) ->
   eq_alloc m s1 s2 ->
-  get_var wdb (evm s1) x = get_var wdb (evm s2) x.
+  get_var (evm s1) x = get_var (evm s2) x.
 Proof. by move=> /Sv_memP hin -[] _ _ [] heq _; rewrite /get_var /= heq. Qed.
 
 Lemma check_gvar_get s1 s2 x :
   check_gvar m x ->
   eq_alloc m s1 s2 ->
-  get_gvar wdb gd s1.(evm) x = get_gvar wdb gd s2.(evm) x.
+  get_gvar gd s1.(evm) x = get_gvar gd s2.(evm) x.
 Proof. rewrite /get_gvar /check_gvar; case: is_lvar => //=; apply check_var_get. Qed.
 
 Lemma eq_alloc_mem s1 s2 : eq_alloc m s1 s2 -> emem s1 = emem s2.
@@ -164,13 +164,13 @@ Context (s1 s2 : estate) (h : eq_alloc m s1 s2).
 
 Let P e1 :=
   forall e2, expand_e m e1 = ok e2 ->
-  forall v, sem_pexpr wdb gd s1 e1 = ok v ->
-            sem_pexpr wdb gd s2 e2 = ok v.
+  forall v, sem_pexpr gd s1 e1 = ok v ->
+            sem_pexpr gd s2 e2 = ok v.
 
 Let Q es1 :=
   forall es2, expand_es m es1 = ok es2 ->
-  forall v, sem_pexprs wdb gd s1 es1 = ok v ->
-            sem_pexprs wdb gd s2 es2 = ok v.
+  forall v, sem_pexprs gd s1 es1 = ok v ->
+            sem_pexprs gd s2 es2 = ok v.
 
 
 Lemma expand_eP_and : (forall e, P e) /\ (forall es, Q es).
@@ -220,8 +220,8 @@ End EXPR.
 Lemma eq_alloc_write_var s1 s2 (x: var_i) v s1':
    eq_alloc m s1 s2 ->
    Sv.mem x (svars m) ->
-   write_var wdb x v s1 = ok s1' ->
-   ∃ s2' : estate, write_var wdb x v s2 = ok s2' ∧ eq_alloc m s1' s2'.
+   write_var x v s1 = ok s1' ->
+   ∃ s2' : estate, write_var x v s2 = ok s2' ∧ eq_alloc m s1' s2'.
 Proof using valid.
   move=> h; case: (h) => hscs hmem -[heq ha] /=.
   move=> /Sv_memP hin hw.
@@ -240,8 +240,8 @@ Lemma expand_lvP (s1 s2 : estate) :
   eq_alloc m s1 s2 ->
   forall x1 x2, expand_lv m x1 = ok x2 ->
   forall v s1',
-     write_lval wdb gd x1 v s1 = ok s1' ->
-     exists s2', write_lval wdb gd x2 v s2 = ok s2' /\ eq_alloc m s1' s2'.
+     write_lval gd x1 v s1 = ok s1' ->
+     exists s2', write_lval gd x2 v s2 = ok s2' /\ eq_alloc m s1' s2'.
 Proof using valid.
   move=> h; case: (h) => hscs hmem -[heq ha] [] /=.
   + move=> ii ty _ [<-] /= ?? /[dup] /write_noneP [-> _ _] hn.
@@ -307,8 +307,8 @@ Lemma expand_lvsP (s1 s2 : estate) :
   eq_alloc m s1 s2 ->
   forall x1 x2, expand_lvs m x1 = ok x2 ->
   forall vs s1',
-     write_lvals wdb gd s1 x1 vs = ok s1' ->
-     exists s2', write_lvals wdb gd s2 x2 vs = ok s2' /\ eq_alloc m s1' s2'.
+     write_lvals gd s1 x1 vs = ok s1' ->
+     exists s2', write_lvals gd s2 x2 vs = ok s2' /\ eq_alloc m s1' s2'.
 Proof using valid.
   move=> heqa x1 x2 hex; elim: x1 x2 hex s1 s2 heqa => /=.
   + by move=> ? [<-] s1 s2 ? [ | //] ? [<-]; exists s2.
@@ -324,9 +324,9 @@ Opaque ziota.
 Lemma expand_paramsP (s1 s2 : estate) e expdin :
   eq_alloc m s1 s2 ->
   forall es1 es2 vs, mapM2 e (expand_param m) expdin es1 = ok es2 ->
-    sem_pexprs false gd s1 es1 = ok vs ->
+    sem_pexprs (wdb := false) gd s1 es1 = ok vs ->
     exists2 vs', expand_vs expdin vs = ok vs' &
-      sem_pexprs false gd s2 (flatten es2) = ok (flatten vs').
+      sem_pexprs (wdb := false) gd s2 (flatten es2) = ok (flatten vs').
 Proof using valid.
 Local Opaque wsize_size.
   move=> h ?? + /mapM2_Forall3 H; elim: H => [?[<-]|]; first by eexists.
@@ -342,7 +342,7 @@ Local Opaque wsize_size.
     have /is_aarrP [xws [xlen hxty]] := vai.(x_ty).
     have := Vm.getP (evm s1) (gv g). rewrite hxty /= /compat_val /=.
     move => /compat_ctypeE /type_of_valI [x2 /[dup] hg ->].
-    rewrite /sem_pexprs mapM_cat -/(sem_pexprs _ _ _ (flatten _)) => -> /=.
+    rewrite /sem_pexprs mapM_cat -/(sem_pexprs _ _ (flatten _)) => -> /=.
     rewrite expand_vP /=; eexists; eauto.
     rewrite mapM_map /comp /= /get_gvar /get_var /= mapM_ok /=; do 2!f_equal.
     rewrite (wf_ai_elems (v_var (gv g)) vai).
@@ -380,7 +380,7 @@ Lemma wf_write_get s (x:var_i) ai lena (a : WArray.array lena) i len :
   wf_ai m x ai ->
   (0 <= i)%Z -> (i + len <= ai_len ai)%Z ->
   exists2 vm,
-    write_lvals false gd s [seq Lvar {| v_var := znth (v_var x) (ai_elems ai) x0; v_info := v_info x |} | x0 <- ziota i len]
+    write_lvals (wdb := false) gd s [seq Lvar {| v_var := znth (v_var x) (ai_elems ai) x0; v_info := v_info x |} | x0 <- ziota i len]
       [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Unaligned AAscale (ai_ty ai) a i)) | i <- ziota i len] = ok (with_vm s vm) &
     forall y,
       vm.[y] =
@@ -401,7 +401,7 @@ Proof.
   + by apply/andP; split; [apply/ZleP|apply/ZltP]; lia.
   have hin := wf_mem (v_var x) hva hk1.
   rewrite (xi_ty hva hin).
-  have -> /= : (truncatable false (cword (ai_ty ai)) (rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Unaligned AAscale (ai_ty ai) a k)))).
+  have -> /= : (truncatable (wdb := false) (cword (ai_ty ai)) (rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Unaligned AAscale (ai_ty ai) a k)))).
   + by case: WArray.get => //=.
   set s1 := with_vm _ _.
   case: (hrec s1 huni) => vm -> hvm; exists vm => // y; rewrite in_cons.
@@ -420,9 +420,9 @@ Lemma expand_returnP (s1 s2 : estate) expdout :
   eq_alloc m s1 s2 ->
   forall x1 xs2, expand_return m expdout x1 = ok xs2 ->
   forall v vs' s1',
-    write_lval false gd x1 v s1 = ok s1' ->
+    write_lval (wdb := false) gd x1 v s1 = ok s1' ->
     expand_v expdout v = ok vs' ->
-    exists2 s2', write_lvals false gd s2 xs2 vs' = ok s2' &
+    exists2 s2', write_lvals (wdb := false) gd s2 xs2 vs' = ok s2' &
       eq_alloc m s1' s2'.
 Proof using valid.
   move=> heqa.
@@ -505,9 +505,9 @@ Lemma expand_returnsP (s1 s2 : estate) e expdout :
   eq_alloc m s1 s2 ->
   forall xs1 xs2, mapM2 e (expand_return m) expdout xs1 = ok xs2 ->
   forall vs vs' s1',
-    write_lvals false gd s1 xs1 vs = ok s1' ->
+    write_lvals (wdb := false) gd s1 xs1 vs = ok s1' ->
     expand_vs expdout vs = ok vs' ->
-    exists2 s2', write_lvals false gd s2 (flatten xs2) (flatten vs') = ok s2' &
+    exists2 s2', write_lvals (wdb := false) gd s2 (flatten xs2) (flatten vs') = ok s2' &
       eq_alloc m s1' s2'.
 Proof using valid.
   move=> + > /mapM2_Forall3 H; elim: H s1 s2.

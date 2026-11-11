@@ -212,12 +212,12 @@ Definition wft_VARS table :=
 Definition wft_DEF vars vme :=
   forall x,
     Sv.In x vars ->
-    exists2 v, get_var true vme x = ok v & type_of_val v = eval_atype x.(vtype).
+    exists2 v, get_var (wdb := true) vme x = ok v & type_of_val v = eval_atype x.(vtype).
 
 Fixpoint sem_sexpr vme (e : sexpr) :=
   match e with
   | Sconst z => ok (Vint z)
-  | Svar v => get_var true vme v
+  | Svar v => get_var (wdb := true) vme v
   | Sof_int ws e =>
     Let v := sem_sexpr vme e in
     sem_sop1 (Oword_of_int ws) v
@@ -245,7 +245,7 @@ Fixpoint sem_sexpr vme (e : sexpr) :=
 Definition wft_SEM table vme vm1 :=
   forall x e v1,
     Mvar.get table.(bindings) x = Some e ->
-    get_var true vm1 x = ok v1 ->
+    get_var (wdb := true) vm1 x = ok v1 ->
     exists2 v2,
       sem_sexpr vme e = ok v2 &
       value_uincl v1 v2.
@@ -437,7 +437,7 @@ Definition check_gvalid rmap x : option (sub_region * status) :=
 Definition wfr_VAL (rmap:region_map) vme (s1:estate) (s2:estate) :=
   forall x sr status v,
     check_gvalid rmap x = Some (sr, status) ->
-    get_gvar true gd s1.(evm) x = ok v ->
+    get_gvar (wdb := true) gd s1.(evm) x = ok v ->
     eq_sub_region_val (eval_atype x.(gv).(vtype)) vme s2.(emem) sr status v.
 
 Definition valid_pk rmap vme (s2:estate) sr pk : Prop :=
@@ -1120,18 +1120,18 @@ Proof.
   by case: Mvar.get => [[_ _]|//] /= [<- _] /=.
 Qed.
 
-Lemma cast_ptrP wdb gd s e i :
-  sem_pexpr wdb gd s e >>= to_int = ok i ->
-  exists2 v, sem_pexpr wdb gd s (cast_ptr e) = ok v & value_uincl (Vword (wrepr Uptr i)) v.
+Lemma cast_ptrP (wdb: enforce_defined_variables) gd s e i :
+  sem_pexpr gd s e >>= to_int = ok i ->
+  exists2 v, sem_pexpr gd s (cast_ptr e) = ok v & value_uincl (Vword (wrepr Uptr i)) v.
 Proof.
   t_xrbindP => v he hi.
   apply: cast_wP.
   by rewrite /= he /sem_sop1 /= hi.
 Qed.
 
-Lemma mk_ofsP wdb aa sz gd s2 ofs e i :
-  sem_pexpr wdb gd s2 e >>= to_int = ok i ->
-  sem_pexpr wdb gd s2 (mk_ofs aa sz e ofs) = ok (Vword (wrepr Uptr (i * mk_scale aa sz + ofs)%Z)).
+Lemma mk_ofsP (wdb: enforce_defined_variables) aa sz gd s2 ofs e i :
+  sem_pexpr gd s2 e >>= to_int = ok i ->
+  sem_pexpr gd s2 (mk_ofs aa sz e ofs) = ok (Vword (wrepr Uptr (i * mk_scale aa sz + ofs)%Z)).
 Proof.
   rewrite /mk_ofs; case expr_facts.is_constP => /= [? [->] //| {}e he] /=.
   rewrite /sem_sop2 /=.
@@ -1158,11 +1158,11 @@ Section EXPR.
   (* If [x] is a register, it is not impacted by the presence of global
      variables per hypothesis [vs_eq_vm].
   *)
-  Lemma get_var_kindP wdb x v:
+  Lemma get_var_kindP (wdb: enforce_defined_variables) x v:
     get_var_kind pmap x = ok None ->
     ~ Sv.In x.(gv) pmap.(vnew) ->
-    get_gvar wdb gd (evm s) x = ok v ->
-    get_gvar wdb [::] (evm s') x = ok v.
+    get_gvar gd (evm s) x = ok v ->
+    get_gvar [::] (evm s') x = ok v.
   Proof using hvalid.
     rewrite /get_var_kind; case: ifPn => hglob; first by t_xrbindP.
     case hgl : get_local => // _ /(vs_eq_vm hgl) heq.
@@ -1331,13 +1331,13 @@ Section EXPR.
     by move=> /get_sub_region_statusP [-> ->].
   Qed.
 
-  Lemma addr_from_pkP wdb (x:var_i) pk sr ty xi ofs :
+  Lemma addr_from_pkP (wdb: enforce_defined_variables) (x:var_i) pk sr ty xi ofs :
     wf_local x pk ->
     valid_pk rmap vme s' sr pk ->
     wf_sub_region vme sr ty ->
     addr_from_pk pmap x pk = ok (xi, ofs) ->
     exists2 w,
-      get_var wdb (evm s') xi >>= to_pointer = ok w &
+      get_var (evm s') xi >>= to_pointer = ok w &
       sub_region_addr vme sr = ok (w + wrepr _ ofs)%R.
   Proof using hvalid.
     case: pk => //.
@@ -1352,13 +1352,13 @@ Section EXPR.
     by rewrite wrepr0 GRing.addr0.
   Qed.
 
-  Lemma addr_from_vpkP wdb (x:var_i) vpk sr ty xi ofs :
+  Lemma addr_from_vpkP (wdb: enforce_defined_variables) (x:var_i) vpk sr ty xi ofs :
     wf_vpk x vpk ->
     valid_vpk rmap vme s' x sr vpk ->
     wf_sub_region vme sr ty ->
     addr_from_vpk pmap x vpk = ok (xi, ofs) ->
     exists2 w,
-      get_var wdb (evm s') xi >>= to_pointer = ok w &
+      get_var (evm s') xi >>= to_pointer = ok w &
       sub_region_addr vme sr = ok (w + wrepr _ ofs)%R.
   Proof using hvalid.
     case: vpk => [[ofs' ws]|pk].
@@ -1372,16 +1372,16 @@ Section EXPR.
   Let X e : Prop :=
     ∀ ty e' v v2,
       alloc_e pmap rmap e ty = ok e' →
-      sem_pexpr true gd s e = ok v →
+      sem_pexpr (wdb := true) gd s e = ok v →
       truncate_val (eval_atype ty) v = ok v2 ->
-      exists v', sem_pexpr true [::] s' e' = ok v' /\ truncate_val (eval_atype ty) v' = ok v2.
+      exists v', sem_pexpr (wdb := true) [::] s' e' = ok v' /\ truncate_val (eval_atype ty) v' = ok v2.
 
   Let Y es : Prop :=
     ∀ err tys es' vs vs2,
       alloc_es pmap rmap es tys = ok es' →
-      sem_pexprs true gd s es = ok vs →
+      sem_pexprs (wdb := true) gd s es = ok vs →
       mapM2 err truncate_val (map eval_atype tys) vs = ok vs2 ->
-      exists vs', sem_pexprs true [::] s' es' = ok vs' /\ mapM2 err truncate_val (map eval_atype tys) vs' = ok vs2.
+      exists vs', sem_pexprs (wdb := true) [::] s' es' = ok vs' /\ mapM2 err truncate_val (map eval_atype tys) vs' = ok vs2.
 
   Lemma check_varP (x:var_i) t:
     check_var pmap x = ok t ->
@@ -1390,7 +1390,7 @@ Section EXPR.
 
   Lemma get_gvar_word x ws gd vm v :
     x.(gv).(vtype) = aword ws ->
-    get_gvar true gd vm x = ok v ->
+    get_gvar (wdb := true) gd vm x = ok v ->
     exists (ws' : wsize) (w : word ws'), (ws' <= ws)%CMP /\ v = Vword w.
   Proof.
     move=> hty hget.
@@ -1511,7 +1511,7 @@ Section EXPR.
       move: he'; t_xrbindP => _ e1' /he1{he1}.
       rewrite /truncate_val /= hvi /= => /(_ _ erefl) [] v' [] he1'.
       t_xrbindP=> i' hv' ?; subst i'.
-      have h0 : sem_pexpr true [::] s' e1' >>= to_int = ok i.
+      have h0 : sem_pexpr (wdb := true) [::] s' e1' >>= to_int = ok i.
       + by rewrite he1' /= hv'.
       move=> [vpk | ]; last by [].
       t_xrbindP=> hgvk [sr status] hgsub.
@@ -1568,7 +1568,7 @@ Section EXPR.
     + move => o es1 H1 ty e2 v v2.
       t_xrbindP => es1' /H1{}H1 <- ves /H1{}H1 /= hves htr.
       exists v; split=> //.
-      rewrite -/(sem_pexprs _ _ _ _).
+      rewrite -/(sem_pexprs _ _ _).
       have [ves' [htr' hves']] := sem_opN_truncate_val hves.
       have [vs' [-> /mapM2_truncate_value_uincl huincl]] := H1 _ _ htr'.
       by rewrite /= (vuincl_sem_opN huincl hves').
@@ -1838,7 +1838,7 @@ Qed.
 
 Lemma wf_table_symbolic_of_pexpr e table e' table' v1 vme :
   symbolic_of_pexpr table e = ok (Some (table', e')) ->
-  sem_pexpr true gd s e = ok v1 ->
+  sem_pexpr (wdb := true) gd s e = ok v1 ->
   wf_table table vme s.(evm) ->
   exists vme', [/\
     wf_table table' vme' s.(evm),
@@ -2231,8 +2231,8 @@ Proof.
   by apply hsem.
 Qed.
 
-Lemma wf_table_set_lval wdb gd r v s1 s2 table se :
-  write_lval wdb gd r v s1 = ok s2 ->
+Lemma wf_table_set_lval (wdb: enforce_defined_variables) gd r v s1 s2 table se :
+  write_lval gd r v s1 = ok s2 ->
   wf_table table se s1.(evm) ->
   wf_table (remove_binding_lval table r) se s2.(evm).
 Proof.
@@ -3122,7 +3122,7 @@ Lemma wfr_VAL_set_word vars rmap vme s1 s2 sr (x:var_i) ofs mem2 al status ws (r
     disjoint_zrange ofs (size_slot x) p (wsize_size ws) ->
     read mem2 al p ws = read (emem s2) al p ws) ->
   set_word rmap al sr x status ws = ok rmap2 ->
-  truncatable true (eval_atype (vtype x)) v ->
+  truncatable (wdb := true) (eval_atype (vtype x)) v ->
   eq_sub_region_val (eval_atype x.(vtype)) vme mem2 sr status (vm_truncate_val (eval_atype (vtype x)) v) ->
   wfr_VAL rmap2 vme (with_vm s1 (evm s1).[x <- v]) (with_mem s2 mem2).
 Proof using addr_no_overflow disjoint_writable wf_pmap0.
@@ -3242,7 +3242,7 @@ Lemma valid_state_set_word table rmap vme m0 s1 s2 sr (x:var_i) ofs mem2 al
   wf_status vme status ->
   wf_vars_status table.(vars) status ->
   set_word rmap al sr x status ws = ok rmap2 ->
-  truncatable true (eval_atype (vtype x)) v ->
+  truncatable (wdb := true) (eval_atype (vtype x)) v ->
   eq_sub_region_val (eval_atype x.(vtype)) vme mem2 sr status (vm_truncate_val (eval_atype (vtype x)) v) ->
   valid_state (remove_binding table x) rmap2 vme m0 (with_vm s1 (evm s1).[x <- v]) (with_mem s2 mem2).
 Proof using addr_no_overflow disjoint_writable wf_pmap0.
@@ -3420,9 +3420,9 @@ Lemma alloc_lvalP table rmap vme r1 r2 v ty m0 (s1 s2: estate) :
   valid_state table rmap vme m0 s1 s2 ->
   type_of_val v = eval_atype ty ->
   forall s1',
-    write_lval true gd r1 v s1 = ok s1' ->
+    write_lval (wdb := true) gd r1 v s1 = ok s1' ->
     exists2 s2',
-      write_lval true [::] r2.2 v s2 = ok s2' &
+      write_lval (wdb := true) [::] r2.2 v s2 = ok s2' &
       valid_state (remove_binding_lval table r1) r2.1 vme m0 s1' s2'.
 Proof using addr_no_overflow disjoint_writable slot_align wf_pmap0.
   move=> ha hvs htype.
@@ -3480,7 +3480,7 @@ Proof using addr_no_overflow disjoint_writable slot_align wf_pmap0.
   (* Lmem *)
   + move=> al ws vi e1 /=; t_xrbindP => e1' /(alloc_eP hvs) he1 <-.
     move=> s1' w1 v1 /he1 he1' hv1 w hvw mem1 hmem1 <- /=.
-    have {}he1': sem_pexpr true [::] s2 e1' >>= to_pointer = ok w1.
+    have {}he1': sem_pexpr (wdb := true) [::] s2 e1' >>= to_pointer = ok w1.
     + have [ws1 [wv1 [? hwv1]]] := to_wordI hv1; subst.
       move: he1'; rewrite /truncate_val /= hwv1 /= => /(_ _ erefl) [] ve1' [] -> /=.
       by t_xrbindP=> w1' -> ? /=; subst w1'.
@@ -3529,7 +3529,7 @@ Proof using addr_no_overflow disjoint_writable slot_align wf_pmap0.
   move=> al aa ws x e1 /=; t_xrbindP => _ e1' /(alloc_eP hvs) he1.
   move=> hr2 s1'; apply: on_arr_varP => n t hty hxt.
   t_xrbindP => i1 v1 /he1 he1' hi1 w hvw t' htt' /write_varP [? hdb htr]; subst s1'.
-  have {}he1 : sem_pexpr true [::] s2 e1' >>= to_int = ok i1.
+  have {}he1 : sem_pexpr (wdb := true) [::] s2 e1' >>= to_int = ok i1.
   + have ? := to_intI hi1; subst.
     move: he1'; rewrite /truncate_val /= => /(_ _ erefl) [] ve1' [] -> /=.
     by t_xrbindP=> i1' -> ? /=; subst i1'.
@@ -3625,9 +3625,9 @@ Lemma alloc_lvalsP table rmap vme r1 r2 vs ty m0 (s1 s2: estate) :
   valid_state table rmap vme m0 s1 s2 ->
   seq.map type_of_val vs = map eval_atype ty ->
   forall s1',
-    write_lvals true gd s1 r1 vs = ok s1' ->
+    write_lvals (wdb := true) gd s1 r1 vs = ok s1' ->
     exists2 s2',
-      write_lvals true [::] s2 r2.2 vs = ok s2' &
+      write_lvals (wdb := true) [::] s2 r2.2 vs = ok s2' &
       valid_state (foldl remove_binding_lval table r1) r2.1 vme m0 s1' s2'.
 Proof using addr_no_overflow disjoint_writable slot_align wf_pmap0.
   elim: r1 r2 rmap ty vs vme s1 s2 table => //= [|a l IH] r2 rmap [ | ty tys] // [ | v vs] //.
@@ -3681,8 +3681,8 @@ Proof.
   by move: hneq=> /eqP /negPf ->.
 Qed.
 
-Lemma type_of_get_gvar_array wdb gd vm x n (a : WArray.array n) :
-  get_gvar wdb gd vm x = ok (Varr a) ->
+Lemma type_of_get_gvar_array (wdb: enforce_defined_variables) gd vm x n (a : WArray.array n) :
+  get_gvar gd vm x = ok (Varr a) ->
   eval_atype x.(gv).(vtype) = carr n.
 Proof. by move=> /get_gvar_compat; rewrite /compat_val /= orbF => -[_] /compat_ctypeEl. Qed.
 
@@ -3694,14 +3694,14 @@ Proof.
   by move=> _ _ _ _ _ [-> -> -> -> ->].
 Qed.
 
-Lemma addr_from_vpk_pexprP table rmap vme m0 s1 s2 (x : var_i) vpk sr ty e1 ofs wdb :
+Lemma addr_from_vpk_pexprP table rmap vme m0 s1 s2 (x : var_i) vpk sr ty e1 ofs (wdb: enforce_defined_variables) :
   valid_state table rmap vme m0 s1 s2 ->
   wf_vpk x vpk ->
   valid_vpk rmap vme s2 x sr vpk ->
   wf_sub_region vme sr ty ->
   addr_from_vpk_pexpr pmap rmap x vpk = ok (e1, ofs) ->
   exists2 w,
-    sem_pexpr wdb [::] s2 e1 >>= to_pointer = ok w &
+    sem_pexpr [::] s2 e1 >>= to_pointer = ok w &
     sub_region_addr vme sr = ok (w + wrepr _ ofs)%R.
 Proof.
   move=> hvs hwfpk hpk hwf.
@@ -3772,7 +3772,7 @@ Proof.
 Qed.
 
 Lemma wfr_VAL_set_move rmap vme s1 s2 x sr status v :
-  truncatable true (eval_atype (vtype x)) v ->
+  truncatable (wdb := true) (eval_atype (vtype x)) v ->
   eq_sub_region_val (eval_atype x.(vtype)) vme (emem s2) sr status
     (vm_truncate_val (eval_atype (vtype x)) v) ->
   wfr_VAL rmap vme s1 s2 ->
@@ -3824,7 +3824,7 @@ Lemma valid_state_set_move table rmap vme m0 s1 s2 x sr status pk v :
   wf_vars_status table.(vars) status ->
   get_local pmap x = Some pk ->
   valid_pk rmap.(region_var) vme s2 sr pk ->
-  truncatable true (eval_atype (vtype x)) v ->
+  truncatable (wdb := true) (eval_atype (vtype x)) v ->
   eq_sub_region_val (eval_atype x.(vtype)) vme (emem s2) sr status (vm_truncate_val (eval_atype (vtype x)) v) ->
   valid_state (remove_binding table x) (set_move rmap x sr status) vme m0 (with_vm s1 (evm s1).[x <- v]) s2.
 Proof using wf_pmap0.
@@ -3851,7 +3851,7 @@ Lemma valid_state_set_move_regptr table rmap vme m0 s1 s2 x sr status v p addr :
   wf_vars_zone table.(vars) sr.(sr_zone) ->
   wf_vars_status table.(vars) status ->
   get_local pmap x = Some (Pregptr p) ->
-  truncatable true (eval_atype (vtype x)) v ->
+  truncatable (wdb := true) (eval_atype (vtype x)) v ->
   eq_sub_region_val (eval_atype x.(vtype)) vme (emem s2) sr status (vm_truncate_val (eval_atype (vtype x)) v) ->
   valid_state (remove_binding table x) (set_move rmap x sr status) vme m0
        (with_vm s1 (evm s1).[x <- v])
@@ -3877,7 +3877,7 @@ Proof using wf_pmap0.
   + by apply (wfr_VARS_STATUS_set_move_status _ _ status_vars hvarss).
   + by apply (wfr_VAL_set_move htr heqval hval).
   move=> y sry.
-  have htrp : truncatable true (eval_atype (vtype p)) (Vword addr).
+  have htrp : truncatable (wdb := true) (eval_atype (vtype p)) (Vword addr).
   + rewrite (convertible_eval_atype hlocal.(wfr_rtype)).
     by apply (truncatable_type_of true (Vword addr)).
   rewrite Mvar.setP; case: eqP.
@@ -3980,7 +3980,7 @@ Lemma valid_state_set_stack_ptr table rmap vme m0 s1 s2 x s ofs ws cs f paddr me
     disjoint_range paddr Uptr p ws ->
     read mem2 al p ws = read (emem s2) al p ws) ->
   read mem2 Aligned paddr Uptr = ok addr ->
-  truncatable true (eval_atype (vtype x)) v ->
+  truncatable (wdb := true) (eval_atype (vtype x)) v ->
   eq_sub_region_val (eval_atype x.(vtype)) vme (emem s2) sr status (vm_truncate_val (eval_atype (vtype x)) v) ->
   valid_state
     (remove_binding table x)
@@ -4371,8 +4371,8 @@ Lemma valid_state_set_move_sub table rmap vme m0 s1 s2 (x:var_i) srx pk substatu
   wf_status vme substatus ->
   wf_vars_status table.(vars) substatus ->
   Sv.Subset (read_e e') table.(vars) ->
-  sem_sexpr vme e' >>= to_int = sem_pexpr true gd s1 e >>= to_int ->
-  write_lval true gd (Lasub aa ws len x e) v s1 = ok s1' ->
+  sem_sexpr vme e' >>= to_int = sem_pexpr (wdb := true) gd s1 e >>= to_int ->
+  write_lval (wdb := true) gd (Lasub aa ws len x e) v s1 = ok s1' ->
   let ofs := mk_ofs_int aa ws e' in
   let len' := Sconst (arr_size ws len) in
   let statusx := get_var_status rmap srx.(sr_region) x in
@@ -4579,9 +4579,9 @@ Qed.
 
 Lemma alloc_array_moveP vme m0 s1 s2 s1' table1 rmap1 table2 rmap2 ii r tag e v v' n i2 :
   valid_state table1 rmap1 vme m0 s1 s2 ->
-  sem_pexpr true gd s1 e = ok v ->
+  sem_pexpr (wdb := true) gd s1 e = ok v ->
   truncate_val (carr n) v = ok v' ->
-  write_lval true gd r v' s1 = ok s1' ->
+  write_lval (wdb := true) gd r v' s1 = ok s1' ->
   alloc_array_move saparams fresh_var_ident pp_sr pmap table1 rmap1 r tag e = ok (table2, rmap2, i2) →
   ∃ (s2' : estate) (vme' : Vm.t), [/\
     esem_i P' rip (MkI ii i2) s2 = ok s2',
@@ -4600,8 +4600,8 @@ Proof using addr_no_overflow disjoint_writable slot_align wf_pmap0 P'_globs hsap
     wf_status vme' statusy,
     wf_vars_zone table1'.(vars) (sr_zone sry),
     wf_vars_status table1'.(vars) statusy,
-    sem_pexpr true [::] s2 ey >>= to_pointer = ok wey,
-    sem_pexpr true [::] s2 ofsy >>= to_pointer = ok wofsy &
+    sem_pexpr (wdb := true) [::] s2 ey >>= to_pointer = ok wey,
+    sem_pexpr (wdb := true) [::] s2 ofsy >>= to_pointer = ok wofsy &
     sub_region_addr vme' sry = ok (wey + wofsy)%R /\
     eq_sub_region_val (carr n) vme' (emem s2) sry statusy (Varr a)].
   + case: e he He => //=.
@@ -4648,7 +4648,7 @@ Proof using addr_no_overflow disjoint_writable slot_align wf_pmap0 P'_globs hsap
     rewrite hkindy => -[_ [[<-] hpky]].
     have [wey ok_wey haddry] :=
       addr_from_vpk_pexprP true hvs hwfpky hpky hwfy haddr.
-    have ok_i': sem_pexpr true [::] s2 e' >>= to_int = ok i.
+    have ok_i': sem_pexpr (wdb := true) [::] s2 e' >>= to_int = ok i.
     + have htr: truncate_val cint vi = ok (Vint i).
       + by rewrite /truncate_val /= ok_i /=.
       have [vi' [-> +]] := alloc_eP hvs halloc ok_vi htr.
@@ -4768,7 +4768,7 @@ Proof using addr_no_overflow disjoint_writable slot_align wf_pmap0 P'_globs hsap
   t_xrbindP=> -[table1'' e1] /get_symbolic_of_pexprP hsym.
   case hsub: sub_region_status_at_ofs => [srx' statusx'].
   t_xrbindP=> /eqP ? <- <- <-; subst srx'.
-  have []: exists i, sem_pexpr true gd s1 e' >>= to_int = ok i.
+  have []: exists i, sem_pexpr (wdb := true) gd s1 e' >>= to_int = ok i.
   + move: hw; rewrite /write_lval.
     apply: on_arr_varP; t_xrbindP=> ?????? -> /= -> _ _ _ _ _.
     by eexists; reflexivity.
@@ -4779,7 +4779,7 @@ Proof using addr_no_overflow disjoint_writable slot_align wf_pmap0 P'_globs hsap
   + have hsubset' := symbolic_of_pexpr_subset_vars hsym hwft.(wft_vars).
     have {}hvs := valid_state_eq_on vme_eq' hsubset' hwft'' hvs.
     have heq_int:
-      sem_sexpr vme'' e1 >>= to_int = sem_pexpr true gd s1 e' >>= to_int.
+      sem_sexpr vme'' e1 >>= to_int = sem_pexpr (wdb := true) gd s1 e' >>= to_int.
     + have [ve1 ok_ve1 huincl] := hsem.
       rewrite ok_ve1 ok_ve' /= ok_i.
       by apply (of_value_uincl_te (ty:=cint) huincl ok_i).
@@ -4855,11 +4855,11 @@ Qed.
 (* The proof mostly consists in copied parts of alloc_array_moveP. *)
 Lemma alloc_protect_ptrP table vme m0 s1 s2 s1' rmap1 rmap2 ii r tag e msf vmsf v v' n i2 :
   valid_state table rmap1 vme m0 s1 s2 ->
-  sem_pexpr true gd s1 e = ok v ->
-  sem_pexpr true gd s1 msf = ok vmsf ->
+  sem_pexpr (wdb := true) gd s1 e = ok v ->
+  sem_pexpr (wdb := true) gd s1 msf = ok vmsf ->
   truncate_val cty_msf vmsf = ok (@Vword msf_size 0%R) ->
   truncate_val (carr n) v = ok v' ->
-  write_lval true gd r v' s1 = ok s1' ->
+  write_lval (wdb := true) gd r v' s1 = ok s1' ->
   alloc_protect_ptr shparams pmap rmap1 ii r tag e msf = ok (rmap2, i2) ->
   ∃ s2' : estate, esem_i P' rip (MkI ii i2) s2 = ok s2' ∧ valid_state (remove_binding_lval table r) rmap2 vme m0 s1' s2'.
 Proof using addr_no_overflow slot_align wf_pmap0 P'_globs hshparams.
@@ -4873,7 +4873,7 @@ Proof using addr_no_overflow slot_align wf_pmap0 P'_globs hshparams.
     wf_status vme statusy,
     wf_vars_zone table.(vars) sry.(sr_zone),
     wf_vars_status table.(vars) statusy,
-    sem_pexpr true [::] s2 ey >>= to_pointer = ok wey,
+    sem_pexpr (wdb := true) [::] s2 ey >>= to_pointer = ok wey,
     sub_region_addr vme sry = ok wey &
     eq_sub_region_val (carr n) vme (emem s2) sry statusy (Varr a)].
   + case: e he He => //=.
@@ -4975,9 +4975,9 @@ Qed.
 
 Lemma alloc_array_swapP table m0 vme s1 s2 s1' rmap1 rmap2 ws len ii xs tag es va vs i2:
   valid_state table rmap1 vme m0 s1 s2 ->
-  sem_pexprs true gd s1 es = ok va ->
+  sem_pexprs (wdb := true) gd s1 es = ok va ->
   exec_sopn (Opseudo_op (pseudo_operator.Oswap (aarr ws len))) va = ok vs ->
-  write_lvals true gd s1 xs vs = ok s1' ->
+  write_lvals (wdb := true) gd s1 xs vs = ok s1' ->
   alloc_array_swap saparams pmap rmap1 xs tag es = ok (rmap2, i2) ->
   ∃ s2' : estate, esem_i P' rip (MkI ii i2) s2 = ok s2' ∧ valid_state (foldl remove_binding_lval table xs) rmap2 vme m0 s1' s2'.
 Proof using wf_pmap0 hsaparams.
@@ -5040,9 +5040,9 @@ Qed.
 
 Lemma alloc_array_move_initP vme m0 s1 s2 s1' table1 table2 rmap1 rmap2 ii r tag e v v' n i2 :
   valid_state table1 rmap1 vme m0 s1 s2 ->
-  sem_pexpr true gd s1 e = ok v ->
+  sem_pexpr (wdb := true) gd s1 e = ok v ->
   truncate_val (carr n) v = ok v' ->
-  write_lval true gd r v' s1 = ok s1' ->
+  write_lval (wdb := true) gd r v' s1 = ok s1' ->
   alloc_array_move_init saparams fresh_var_ident pp_sr pmap table1 rmap1 r tag e = ok (table2, rmap2, i2) →
   ∃ (s2' : estate) vme', [/\
     esem_i P' rip (MkI ii i2) s2 = ok s2',
@@ -5912,12 +5912,12 @@ Proof.
   by apply: ih hallocs hvarsz' hvarss'.
 Qed.
 
-Lemma alloc_call_arg_aux_uincl table rmap0 rmap vme m0 s1 s2 opi e1 rmap2 bsr e2 wdb v1 :
+Lemma alloc_call_arg_aux_uincl table rmap0 rmap vme m0 s1 s2 opi e1 rmap2 bsr e2 (wdb: enforce_defined_variables) v1 :
   valid_state table rmap0 vme m0 s1 s2 ->
   alloc_call_arg_aux pmap rmap0 rmap opi e1 = ok (rmap2, (bsr, e2)) ->
-  sem_pexpr wdb gd s1 e1 = ok v1 ->
+  sem_pexpr gd s1 e1 = ok v1 ->
   exists v2,
-    sem_pexpr wdb [::] s2 e2 = ok v2 /\
+    sem_pexpr [::] s2 e2 = ok v2 /\
     value_eq_or_in_mem (emem s2) opi v1 v2.
 Proof using wf_pmap0.
   move=> hvs.
@@ -5942,7 +5942,7 @@ Proof using wf_pmap0.
   rewrite get_gvar_nglob // /get_var /= (hgetp _ ok_addr) /= orbT /=.
   eexists; split; first by reflexivity.
   eexists; split; first by reflexivity.
-  have hget' : get_gvar true gd (evm s1) {| gv := x; gs := Slocal |} = ok v1.
+  have hget' : get_gvar (wdb := true) gd (evm s1) {| gv := x; gs := Slocal |} = ok v1.
   + have /is_aarrP [ws [len hty]] := wfr_type (wf_pmap0.(wf_locals) hlx).
     move: hget; rewrite /get_gvar /= => /get_varP [].
     by rewrite /get_var hty => <- ? /compat_valEl [a] ->.
@@ -5953,12 +5953,12 @@ Proof using wf_pmap0.
   by rewrite hvalid.
 Qed.
 
-Lemma alloc_call_args_aux_uincl table rmap vme m0 s1 s2 sao_params args rmap2 l wdb vargs1 :
+Lemma alloc_call_args_aux_uincl table rmap vme m0 s1 s2 sao_params args rmap2 l (wdb: enforce_defined_variables) vargs1 :
   valid_state table rmap vme m0 s1 s2 ->
   alloc_call_args_aux pmap rmap sao_params args = ok (rmap2, l) ->
-  sem_pexprs wdb gd s1 args = ok vargs1 ->
+  sem_pexprs gd s1 args = ok vargs1 ->
   exists vargs2,
-    sem_pexprs wdb [::] s2 (map snd l) = ok vargs2 /\
+    sem_pexprs [::] s2 (map snd l) = ok vargs2 /\
     Forall3 (value_eq_or_in_mem (emem s2)) sao_params vargs1 vargs2.
 Proof using wf_pmap0.
   move=> hvs.
@@ -5977,11 +5977,11 @@ Proof using wf_pmap0.
   by constructor.
 Qed.
 
-Lemma alloc_call_arg_aux_wf table rmap0 rmap vme m0 s1 s2 opi e1 rmap2 e2 wdb vargs vargs' wptrs aligns i :
+Lemma alloc_call_arg_aux_wf table rmap0 rmap vme m0 s1 s2 opi e1 rmap2 e2 (wdb: enforce_defined_variables) vargs vargs' wptrs aligns i :
   valid_state table rmap0 vme m0 s1 s2 ->
   alloc_call_arg_aux pmap rmap0 rmap opi e1 = ok (rmap2, e2) ->
-  sem_pexpr wdb gd s1 e1 = ok (nth (Vbool true) vargs i) ->
-  sem_pexpr wdb [::] s2 e2.2 = ok (nth (Vbool true) vargs' i) ->
+  sem_pexpr gd s1 e1 = ok (nth (Vbool true) vargs i) ->
+  sem_pexpr [::] s2 e2.2 = ok (nth (Vbool true) vargs' i) ->
   nth None wptrs i = omap pp_writable opi ->
   nth U8 aligns i = oapp pp_align U8 opi ->
   (nth None wptrs i = Some true ->
@@ -6012,7 +6012,7 @@ Proof using addr_no_overflow slot_align writable_not_glob wf_pmap0.
   have [addr ok_addr] := wf_sub_region_sub_region_addr hwf.
   rewrite hlx => -[_ [[<-] /=]] hgetp.
   rewrite get_gvar_nglob // /get_var /= (hgetp _ ok_addr) /= orbT /=.
-  have hget' : get_gvar true gd (evm s1) {| gv := x; gs := Slocal |} = ok (nth (Vbool true) vargs i).
+  have hget' : get_gvar (wdb := true) gd (evm s1) {| gv := x; gs := Slocal |} = ok (nth (Vbool true) vargs i).
   + have /is_aarrP [ws [len hty]] := wfr_type (wf_pmap0.(wf_locals) hlx).
     move: hget; rewrite /get_gvar /= => /get_varP [].
     by rewrite /get_var hty => <- ? /compat_valEl [a] ->.
@@ -6054,11 +6054,11 @@ Proof using addr_no_overflow slot_align writable_not_glob wf_pmap0.
   by move=> *; (eapply hdisj; first by congruence); try eassumption; reflexivity.
 Qed.
 
-Lemma alloc_call_args_aux_wf table rmap vme m0 s1 s2 sao_params args rmap2 l wdb vargs1 vargs2 :
+Lemma alloc_call_args_aux_wf table rmap vme m0 s1 s2 sao_params args rmap2 l (wdb: enforce_defined_variables) vargs1 vargs2 :
   valid_state table rmap vme m0 s1 s2 ->
   alloc_call_args_aux pmap rmap sao_params args = ok (rmap2, l) ->
-  sem_pexprs wdb gd s1 args = ok vargs1 ->
-  sem_pexprs wdb [::] s2 (map snd l) = ok vargs2 ->
+  sem_pexprs gd s1 args = ok vargs1 ->
+  sem_pexprs [::] s2 (map snd l) = ok vargs2 ->
   (forall i, nth None (map (omap pp_writable) sao_params) i = Some true ->
     forall j vai vaj (pi pj : word Uptr),
     i <> j ->
@@ -6099,11 +6099,11 @@ Proof using addr_no_overflow slot_align writable_not_glob wf_pmap0.
   exact: hdisj.
 Qed.
 
-Lemma alloc_call_arg_aux_sub_region table rmap0 rmap vme m0 s1 s2 opi e1 rmap2 bsr e2 wdb v1 v2 :
+Lemma alloc_call_arg_aux_sub_region table rmap0 rmap vme m0 s1 s2 opi e1 rmap2 bsr e2 (wdb: enforce_defined_variables) v1 v2 :
   valid_state table rmap0 vme m0 s1 s2 ->
   alloc_call_arg_aux pmap rmap0 rmap opi e1 = ok (rmap2, (bsr, e2)) ->
-  sem_pexpr wdb gd s1 e1 = ok v1 ->
-  sem_pexpr wdb [::] s2 e2 = ok v2 -> [/\
+  sem_pexpr gd s1 e1 = ok v1 ->
+  sem_pexpr [::] s2 e2 = ok v2 -> [/\
     forall b sr, bsr = Some (b, sr) ->
       wf_sub_region vme sr (type_of_val v1)
       /\ (forall addr, sub_region_addr vme sr = ok addr -> v2 = Vword addr) &
@@ -6127,7 +6127,7 @@ Proof using wf_pmap0.
   have [addr ok_addr] := wf_sub_region_sub_region_addr hwf.
   rewrite /get_var_kind /= hlx => -[_ [[<-] /=]] hgetp.
   rewrite get_gvar_nglob // /get_var /= (hgetp _ ok_addr) /= orbT /= => -[<-].
-  have hget' : get_gvar true gd (evm s1) {| gv := x; gs := Slocal |} = ok v1.
+  have hget' : get_gvar (wdb := true) gd (evm s1) {| gv := x; gs := Slocal |} = ok v1.
   + have /is_aarrP [ws [len hty]] := wfr_type (wf_pmap0.(wf_locals) hlx).
     move: hget; rewrite /get_gvar /= => /get_varP [].
     by rewrite /get_var hty => <- ? /compat_valEl [a] ->.
@@ -6209,11 +6209,11 @@ Proof.
   by exists srx2.
 Qed.
 
-Lemma alloc_call_args_aux_sub_region table rmap vme m0 s1 s2 sao_params args rmap2 l wdb vargs1 vargs2 :
+Lemma alloc_call_args_aux_sub_region table rmap vme m0 s1 s2 sao_params args rmap2 l (wdb: enforce_defined_variables) vargs1 vargs2 :
   valid_state table rmap vme m0 s1 s2 ->
   alloc_call_args_aux pmap rmap sao_params args = ok (rmap2, l) ->
-  sem_pexprs wdb gd s1 args = ok vargs1 ->
-  sem_pexprs wdb [::] s2 (map snd l) = ok vargs2 -> [/\
+  sem_pexprs gd s1 args = ok vargs1 ->
+  sem_pexprs [::] s2 (map snd l) = ok vargs2 -> [/\
     Forall3 (fun bsr varg1 varg2 => forall (b:bool) (sr:sub_region), bsr = Some (b, sr) ->
       wf_sub_region vme sr (type_of_val varg1)
       /\ (forall addr, sub_region_addr vme sr = ok addr -> varg2 = Vword addr)) (map fst l) vargs1 vargs2 &
@@ -6454,12 +6454,12 @@ Proof.
 Qed.
 
 (* Full spec *)
-Lemma alloc_call_argsP table rmap vme m0 s1 s2 fn sao_params args rmap2 l wdb vargs1 :
+Lemma alloc_call_argsP table rmap vme m0 s1 s2 fn sao_params args rmap2 l (wdb: enforce_defined_variables) vargs1 :
   valid_state table rmap vme m0 s1 s2 ->
   alloc_call_args pmap rmap fn sao_params args = ok (rmap2, l) ->
-  sem_pexprs wdb gd s1 args = ok vargs1 ->
+  sem_pexprs gd s1 args = ok vargs1 ->
   exists vargs2, [/\
-    sem_pexprs wdb [::] s2 (map snd l) = ok vargs2,
+    sem_pexprs [::] s2 (map snd l) = ok vargs2,
     wf_args (emem s1) (emem s2)
       (map (omap pp_writable) sao_params)
       (map (oapp pp_align U8) sao_params) vargs1 vargs2,
@@ -6720,7 +6720,7 @@ Proof.
   by apply wfr_VARS_STATUS_set_move_status.
 Qed.
 
-Lemma alloc_lval_callP table rmap vme m0 s1 s2 srs r oi rmap2 r2 vargs1 vargs2 vres1 vres2 wdb s1' :
+Lemma alloc_lval_callP table rmap vme m0 s1 s2 srs r oi rmap2 r2 vargs1 vargs2 vres1 vres2 (wdb: enforce_defined_variables) s1' :
   valid_state table rmap vme m0 s1 s2 ->
   alloc_lval_call pmap srs rmap r oi = ok (rmap2, r2) ->
   Forall3 (fun bsr varg1 varg2 => forall (b:bool) (sr:sub_region), bsr = Some (b, sr) ->
@@ -6729,9 +6729,9 @@ Lemma alloc_lval_callP table rmap vme m0 s1 s2 srs r oi rmap2 r2 vargs1 vargs2 v
   List.Forall (fun bsr => forall b sr, bsr = Some (b, sr) -> wf_vars_zone table.(vars) sr.(sr_zone)) (map fst srs) ->
   wf_result vargs1 vargs2 oi vres1 vres2 ->
   value_eq_or_in_mem (emem s2) oi vres1 vres2 ->
-  write_lval wdb gd r vres1 s1 = ok s1' ->
+  write_lval gd r vres1 s1 = ok s1' ->
   exists s2', [/\
-    write_lval wdb [::] r2 vres2 s2 = ok s2' &
+    write_lval [::] r2 vres2 s2 = ok s2' &
     valid_state (remove_binding_lval table r) rmap2 vme m0 s1' s2'].
 Proof using wf_pmap0.
   move=> hvs halloc haddr hvarsz hresult heqinmem hs1'.
@@ -6837,7 +6837,7 @@ Proof.
   by apply: ih hallocs.
 Qed.
 
-Lemma alloc_call_resP table rmap vme m0 s1 s2 srs ret_pos rs rmap2 rs2 vargs1 vargs2 wdb vres1 vres2 s1' :
+Lemma alloc_call_resP table rmap vme m0 s1 s2 srs ret_pos rs rmap2 rs2 vargs1 vargs2 (wdb: enforce_defined_variables) vres1 vres2 s1' :
   valid_state table rmap vme m0 s1 s2 ->
   alloc_call_res pmap rmap srs ret_pos rs = ok (rmap2, rs2) ->
   Forall3 (fun bsr varg1 varg2 => forall (b:bool) (sr:sub_region), bsr = Some (b, sr) ->
@@ -6846,9 +6846,9 @@ Lemma alloc_call_resP table rmap vme m0 s1 s2 srs ret_pos rs rmap2 rs2 vargs1 va
   List.Forall (fun bsr => forall b sr, bsr = Some (b, sr) -> wf_vars_zone table.(vars) sr.(sr_zone)) (map fst srs) ->
   Forall3 (wf_result vargs1 vargs2) ret_pos vres1 vres2 ->
   Forall3 (value_eq_or_in_mem (emem s2)) ret_pos vres1 vres2 ->
-  write_lvals wdb gd s1 rs vres1 = ok s1' ->
+  write_lvals gd s1 rs vres1 = ok s1' ->
   exists s2',
-    write_lvals wdb [::] s2 rs2 vres2 = ok s2' /\
+    write_lvals [::] s2 rs2 vres2 = ok s2' /\
     valid_state (foldl remove_binding_lval table rs) rmap2 vme m0 s1' s2'.
 Proof using wf_pmap0.
   move=> hvs halloc haddr hvarsz hresults.
@@ -6867,15 +6867,15 @@ Proof using wf_pmap0.
   by eexists; split; first by reflexivity.
 Qed.
 
-Lemma check_resultP table rmap vme m0 s1 s2 srs params (sao_return:option nat) res1 res2 wdb vres1 vargs1 vargs2 :
+Lemma check_resultP table rmap vme m0 s1 s2 srs params (sao_return:option nat) res1 res2 (wdb: enforce_defined_variables) vres1 vargs1 vargs2 :
   valid_state table rmap vme m0 s1 s2 ->
   Forall3 (fun osr (x : var_i) v => osr <> None -> subctype (eval_atype x.(vtype)) (type_of_val v)) srs params vargs1 ->
   List.Forall2 (fun osr varg2 => forall sr addr,
     osr = Some sr -> sub_region_addr vme sr = ok addr -> varg2 = Vword addr) srs vargs2 ->
   check_result pmap rmap srs params sao_return res1 = ok res2 ->
-  get_var wdb (evm s1) res1 = ok vres1 ->
+  get_var (evm s1) res1 = ok vres1 ->
   exists vres2, [/\
-    get_var wdb (evm s2) res2 = ok vres2,
+    get_var (evm s2) res2 = ok vres2,
     wf_result vargs1 vargs2 sao_return vres1 vres2 &
     value_eq_or_in_mem (emem s2) sao_return vres1 vres2].
 Proof using wf_pmap0.
@@ -6899,7 +6899,7 @@ Proof using wf_pmap0.
       apply (Forall3_nth hsize None res1 (Vbool true) (nth_not_default heq ltac:(discriminate))).
       by rewrite heq.
     eexists; split; first by reflexivity.
-    have hget' : get_var true (evm s1) res1 = ok vres1.
+    have hget' : get_var (wdb := true) (evm s1) res1 = ok vres1.
     + have /is_aarrP [ws [len hty]] := wfr_type (wf_pmap0.(wf_locals) hlres1).
       move: hget; rewrite /get_gvar /= => /get_varP [].
       by rewrite /get_var hty => <- ? /compat_valEl [a] ->.
@@ -6914,16 +6914,16 @@ Proof using wf_pmap0.
   by have := get_var_kindP hvs hlres1 hnnew hget.
 Qed.
 
-Lemma check_resultsP table rmap vme m0 s1 s2 srs params sao_returns res1 res2 vargs1 vargs2 wdb :
+Lemma check_resultsP table rmap vme m0 s1 s2 srs params sao_returns res1 res2 vargs1 vargs2 (wdb: enforce_defined_variables) :
   valid_state table rmap vme m0 s1 s2 ->
   Forall3 (fun osr (x : var_i) v => osr <> None -> subctype (eval_atype x.(vtype)) (type_of_val v)) srs params vargs1 ->
   List.Forall2 (fun osr varg2 => forall sr addr,
     osr = Some sr -> sub_region_addr vme sr = ok addr -> varg2 = Vword addr) srs vargs2 ->
   check_results pmap rmap srs params sao_returns res1 = ok res2 ->
   forall vres1,
-  get_var_is wdb (evm s1) res1 = ok vres1 ->
+  get_var_is (evm s1) res1 = ok vres1 ->
   exists vres2, [/\
-    get_var_is wdb (evm s2) res2 = ok vres2,
+    get_var_is (evm s2) res2 = ok vres2,
     Forall3 (wf_result vargs1 vargs2) sao_returns vres1 vres2 &
     Forall3 (value_eq_or_in_mem (emem s2)) sao_returns vres1 vres2].
 Proof using wf_pmap0.
@@ -7119,9 +7119,9 @@ Qed.
 Lemma alloc_syscallP ii rmap rs o es rmap2 c table vme m0 s1 s2 ves scs m vs s1' :
   alloc_syscall saparams pmap ii rmap rs o es = ok (rmap2, c) ->
   valid_state table rmap vme m0 s1 s2 ->
-  sem_pexprs true gd s1 es = ok ves ->
+  sem_pexprs (wdb := true) gd s1 es = ok ves ->
   exec_syscall_u (escs s1) (emem s1) o ves = ok (scs, m, vs) ->
-  write_lvals true gd (with_scs (with_mem s1 m) scs) rs vs = ok s1' ->
+  write_lvals (wdb := true) gd (with_scs (with_mem s1 m) scs) rs vs = ok s1' ->
   exists s2',
     esem P' rip c s2 = ok s2' /\
     valid_state (foldl remove_binding_lval table rs) rmap2 vme m0 s1' s2'.

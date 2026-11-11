@@ -13,6 +13,8 @@ Context
   {pT : progT}
   {sCP : forall {wsw : WithSubWord}, semCallParams}.
 
+#[local] Existing Instance do_enforce_defined_variables.
+
 Variable (p:prog) (ev:extra_val_t).
 
 Notation gd := (p_globs p).
@@ -42,18 +44,18 @@ Proof. by move=> x; rewrite !Vm.initP. Qed.
 
 Lemma get_var_sim (vm : vmap_n) (vm' : vmap_s) :
   (vm =1 vm')%vm →
-  ∀ x, get_var true vm x = get_var true vm' x.
+  ∀ x, get_var vm x = get_var vm' x.
 Proof. by move=> heq x; rewrite /get_var heq. Qed.
 
 Lemma get_gvar_sim gd (vm : vmap_n) (vm' : vmap_s) :
   (vm =1 vm')%vm →
-  ∀ x, get_gvar true gd vm x = get_gvar true gd vm' x.
+  ∀ x, get_gvar gd vm x = get_gvar gd vm' x.
 Proof.
 by move => h x; rewrite /get_gvar (get_var_sim h).
 Qed.
 
 Lemma vm_truncate_val_sim t v :
-  truncatable true (wsw:=nosubword) t v →
+  truncatable (wsw:=nosubword) t v →
      vm_truncate_val (wsw:=nosubword) t v =
      vm_truncate_val (wsw:=withsubword) t v.
 Proof.
@@ -64,7 +66,7 @@ Qed.
 
 Lemma vmap_set_sim (vm : vmap_n) (vm' : vmap_s) x v:
   (vm =1 vm')%vm →
-  truncatable true (wsw:=nosubword) (eval_atype (vtype x)) v →
+  truncatable (wsw:=nosubword) (eval_atype (vtype x)) v →
   (vm.[x <- v] =1 vm'.[x <- v])%vm.
 Proof.
   move => hvm hv y; rewrite !Vm.setP.
@@ -72,8 +74,8 @@ Proof.
 Qed.
 
 Lemma truncatable_sim ty v :
-  truncatable true (wsw:= nosubword) ty v ->
-  truncatable true (wsw:= withsubword) ty v.
+  truncatable (wsw:= nosubword) ty v ->
+  truncatable (wsw:= withsubword) ty v.
 Proof.
   move=> /vm_truncate_valE; case: (v) => [b|z|len a|ws w| t i] /=.
   1-3,5: by move=> [-> _] //=; rewrite eqxx.
@@ -82,10 +84,10 @@ Qed.
 
 Lemma set_var_sim (vm1 : vmap_n) (vm1' : vmap_s) x v vm2 :
   (vm1 =1 vm1')%vm →
-  set_var true vm1 x v = ok vm2 →
+  set_var vm1 x v = ok vm2 →
   ∃ vm2',
     (vm2 =1 vm2')%vm ∧
-    set_var true vm1' x v = ok vm2'.
+    set_var vm1' x v = ok vm2'.
 Proof.
   move=> hsim /set_varP [hdb /[dup]htr /truncatable_sim htr' ->].
   rewrite (set_var_truncate hdb htr') //; eexists; split; last by eauto.
@@ -98,13 +100,13 @@ Section SEM_PEXPR_SIM.
 
   Let P e : Prop :=
     ∀ v,
-      sem_pexpr true gd s e = ok v →
-      sem_pexpr true gd s' e = ok v.
+      sem_pexpr gd s e = ok v →
+      sem_pexpr gd s' e = ok v.
 
   Let Q es : Prop :=
     ∀ vs,
-      sem_pexprs true gd s es = ok vs →
-      sem_pexprs true gd s' es = ok vs.
+      sem_pexprs gd s es = ok vs →
+      sem_pexprs gd s' es = ok vs.
 
   Lemma sem_pexpr_s_sim : (∀ e, P e) ∧ (∀ es, Q es).
   Proof using hs.
@@ -131,8 +133,8 @@ Definition sem_pexprs_sim s es vs s' h :=
 
 Lemma write_var_sim s1 x v s2 s1' :
   estate_sim s1 s1' →
-  write_var true x v s1 = ok s2 →
-  ∃ s2', estate_sim s2 s2' ∧ write_var true x v s1' = ok s2'.
+  write_var x v s1 = ok s2 →
+  ∃ s2', estate_sim s2 s2' ∧ write_var x v s1' = ok s2'.
 Proof.
 case => hscs hm hvm; rewrite /write_var; t_xrbindP => vm hw <- {s2}.
 case: (set_var_sim hvm hw) => vm' [hvm' ->].
@@ -141,8 +143,8 @@ Qed.
 
 Corollary write_vars_sim s1 xs vs s2 s1' :
   estate_sim s1 s1' →
-  write_vars true xs vs s1 = ok s2 →
-  ∃ s2', estate_sim s2 s2' ∧ write_vars true xs vs s1' = ok s2'.
+  write_vars xs vs s1 = ok s2 →
+  ∃ s2', estate_sim s2 s2' ∧ write_vars xs vs s1' = ok s2'.
 Proof.
 elim: xs vs s1 s1' s2.
 - by case => // s1 s1' s2 h [<-]; exists s1'.
@@ -151,8 +153,8 @@ Qed.
 
 Lemma write_lval_sim s1 x v s2 s1' :
   estate_sim s1 s1' →
-  write_lval true gd x v s1 = ok s2 →
-  ∃ s2', estate_sim s2 s2' ∧ write_lval true gd x v s1' = ok s2'.
+  write_lval gd x v s1 = ok s2 →
+  ∃ s2', estate_sim s2 s2' ∧ write_lval gd x v s1' = ok s2'.
 Proof.
 case => hscs hm hvm; case: x => /=.
 - move => _ ty; rewrite /write_none.
@@ -176,8 +178,8 @@ Qed.
 
 Corollary write_lvals_sim s1 xs vs s2 s1' :
   estate_sim s1 s1' →
-  write_lvals true gd s1 xs vs = ok s2 →
-  ∃ s2', estate_sim s2 s2' ∧ write_lvals true gd s1' xs vs = ok s2'.
+  write_lvals gd s1 xs vs = ok s2 →
+  ∃ s2', estate_sim s2 s2' ∧ write_lvals gd s1' xs vs = ok s2'.
 Proof.
 elim: xs vs s1 s1'.
 - by case => // ? ? h [<-]; eauto.
