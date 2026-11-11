@@ -77,17 +77,69 @@ Both passes are needed by the plain extraction and by the safety extraction.
     of the loop (it comes from the guard of the current iteration). The
     interval evaluation then reads the facts of the variables. Heavier
     proof: the soundness of the facts a guard gives.
-- **Export the facts.** The facts the pass computes are lost: the
-  postcondition it proves is removed from the code, but the EasyCrypt
-  specification still states it and the EasyCrypt proof redoes the work (the
-  loop invariant `is_init b_x 0 32` of `double_safe` in
-  `compiler/examples/extraction-safety-unit-tests/proofs.ec` is exactly the
-  fact of the pass at the head of the loop). Keep an assertion that the pass
-  reduces to `true` with a label `proved`, and insert at the head of each
-  loop body an assertion `invariant` translating the state of the fixpoint
-  (`Afull x` gives `is_barr_init x 0 len`, `Ainit l` a conjunction on its
-  intervals, `Aconst c` gives `x == c`): a true assertion can be added
-  without changing the theorem, and its truth is the soundness of the
-  abstract state the pass already proves. The printer prints these labels as
-  comments, not as `raise`, and writes in the specification file a proof
-  skeleton, `proc; wp; while (inv); auto => />; smt()`.
+## Safety: assumptions
+
+The postcondition a function proves is removed from the code by
+`simplify_asserts`, but the EasyCrypt specification still states it, and the
+EasyCrypt proof has to establish it again: the loop invariant
+`is_init b_x 0 32` of `double_safe` in
+`compiler/examples/extraction-safety-unit-tests/proofs.ec` serves only the
+postcondition of the specification. The design below keeps such a proved
+assertion in the program as an *assumption*: an assertion whose failure
+EasyCrypt may ignore. The source never contains assumptions; only the passes
+introduce them.
+
+- **Labels.** An assumption is an assertion whose label belongs to a closed
+  list of labels, one per pass that introduces assumptions, kept next to
+  `assertion_label` and distinct from the labels of the source (`"safety"`,
+  the labels of the contracts). Its failure is the error `ErrAssert label`
+  as for any assertion; nothing changes in `expr.v` nor in the semantics.
+- **Hoare logic.** The hypothesis proved in EasyCrypt,
+  `hoare [M.f : pre ==> post | Assert_failure => false]` with
+  `Assume_failure` unconstrained, is `hoare_f` with the instance of `InvErr`
+  that maps an assumption label to `True` and any other error to `False`.
+  No Hoare proof per pass.
+- **Relational logic.** `wequiv` takes a set `K` of *kept* labels: an error
+  of the target whose label is in `K` is not cut off, and has to be matched
+  by an error of the source with the same label. With `K` empty nothing
+  changes, not even the existing proofs, since the relation between errors
+  is never consulted when every error is cut off. A pass proves its
+  judgement with `K` the whole list of assumption labels, its own included:
+  an assumption it inserts has no counterpart in the source, so the
+  obligation is that it holds under the precondition, which is the soundness
+  of the analysis, proved together with the transformation as for the
+  removal of an assertion (`wequiv_assert_right`); an assumption of an
+  earlier pass is copied, matched by the rule for an assertion on both
+  sides, and gives its fact to the continuation, so a later pass never
+  proves it again; an assertion simplified or removed keeps the rules of
+  today. Needed once: `K` in the definitions and the lemmas lifting failing
+  computations, the transitivity under `K` with equality of labels, and a
+  lemma `no_label`: a program without a label never raises its error.
+- **Composition.** The chain gives `wiequiv_f (K := assumptions) Pn P` by
+  transitivity; `P` has no assumption label, so `Pn` raises no kept error;
+  with the EasyCrypt hypothesis `Pn` raises no error at all, and
+  `wiequiv_f_safe_f` gives `safe_f P`. The triple "`Pn` never raises an
+  assumption" is available as a corollary (`lutt_xrutt_trans_r` and
+  `no_label`) but the chain does not need it.
+- **Policy of `simplify_asserts`.** Inserting an assumption and inserting
+  nothing have the same proof obligation, so the choice is a parameter of
+  the pass with no effect on its proof. Default: only the postconditions.
+  `contracts_to_asserts` gives the label `"ensures"` to the assertions it
+  generates for a postcondition (at the exit of the callee and after a call
+  in the caller); for such an assertion the pass emits `assume (proved
+  conjuncts); assert (remaining conjuncts)`, so that `wp` through
+  `if (!post) raise Assume_failure;` gives the postcondition of the
+  specification; any other proved assertion is removed as today. The
+  assumptions at the head and at the exit of a loop, translating the state
+  of the fixpoint (`Afull x` gives `is_barr_init x 0 len`, `Ainit l` a
+  conjunction on its intervals, `Aconst c` gives `x = c`), are an option for
+  a remaining assertion that needs a fact of the analysis, off by default.
+- **Printer.** Two exceptions, `Assert_failure` and `Assume_failure`, the
+  label deciding which one `ec_assert` raises; the specification keeps
+  `| Assert_failure => false`. To check: what EasyCrypt requires of an
+  exception absent from the clause, and whether `| Assume_failure => true`
+  has to be written.
+
+Order of work: the infrastructure of the relational logic first (`K`,
+transitivity, `no_label`, composition), then the labels and the policy in
+the passes, then the printer.
