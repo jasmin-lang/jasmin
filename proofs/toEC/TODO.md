@@ -39,10 +39,12 @@ Both passes are needed by the plain extraction and by the safety extraction.
   change: a printer change of its own, with the corpus replayed before and
   after. Open question: the non-array locals live at entry are never
   initialised (reading one is a safety error in Jasmin).
-- **Hyphenated file names.** The file of `--safety-specs` requires the theory
-  of the extracted file by its capitalised file name; `call-export.jazz`
-  gives `require import Call-export.`, which is not an EasyCrypt identifier.
-  Mangle the theory name, or rename the files.
+- **Name of the output file.** The file of `--safety-specs` requires the
+  theory of the extracted file, named after the file given by `-o`; a name
+  that is not an EasyCrypt identifier (`-o call-export.ec` gives
+  `require import Call-export.`) makes the specification file unusable.
+  `jasmin2ec` should reject such a name with a message when
+  `--safety-specs` is given.
 
 ## Safety: contracts
 
