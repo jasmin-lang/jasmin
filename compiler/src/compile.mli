@@ -58,6 +58,7 @@ val do_toec_safety :
       and type extra_op = 'extra_op) ->
   ?wi2i:bool ->
   ?fnames:string list ->
+  ?default_contracts:bool ->
   (unit, ('asm_op, 'extra_op) Arch_extra.extended_op_gen) prog ->
   (unit, ('asm_op, 'extra_op) Arch_extra.extended_op_gen) prog
 (** The passes of the extraction for safety ([Toec_prog.toec_uprog_safety]):
@@ -66,6 +67,9 @@ val do_toec_safety :
     initialisation state made explicit, each variable getting a mask that the
     assertions read; the program is type checked; last, the dead code,
     parameters and results are removed.
+    When [default_contracts] holds (the default), a function without a
+    contract first gets the default one: its array parameters are initialised
+    on entry and its array results on return.
     The signature of the functions that EasyCrypt may call is kept: the export
     functions, the functions with a contract, the functions that no function
     calls and those named in [fnames]. *)

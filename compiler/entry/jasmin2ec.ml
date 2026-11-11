@@ -50,8 +50,8 @@ let extract_to_file prog arch pd msfsz asmOp model amodel global_options
 
 let parse_and_extract arch call_conv idirs =
   let module A = (val CoreArchFactory.get_arch_module arch call_conv) in
-  let extract model amodel global_options safety no_wi2i specs
-      functions array_dir output pass file =
+  let extract model amodel global_options safety no_wi2i no_default_contracts
+      specs functions array_dir output pass file =
     (* The extraction for safety relates its result to the source program. *)
     if safety && pass > Compiler.ParamsExpansion then
       hierror ~loc:Lnone ~kind:"extraction error"
@@ -61,7 +61,8 @@ let parse_and_extract arch call_conv idirs =
     let wi2i = not no_wi2i in
     let prog =
       if safety then
-        Compile.do_toec_safety (module A) ~wi2i ~fnames:functions prog
+        Compile.do_toec_safety (module A) ~wi2i ~fnames:functions
+          ~default_contracts:(not no_default_contracts) prog
       else Compile.do_toec (module A) ~wi2i prog
     in
     try
@@ -70,12 +71,12 @@ let parse_and_extract arch call_conv idirs =
     with Annot.AnnotationError (loc, code) ->
       hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
   in
-  fun model amodel global_options safety no_wi2i specs functions
-      array_dir output pass file warn ->
+  fun model amodel global_options safety no_wi2i no_default_contracts specs
+      functions array_dir output pass file warn ->
     if not warn then nowarning ();
     match
-      extract model amodel global_options safety no_wi2i specs
-        functions array_dir output pass file
+      extract model amodel global_options safety no_wi2i no_default_contracts
+        specs functions array_dir output pass file
     with
     | () -> ()
     | exception HiError e ->
@@ -190,9 +191,21 @@ let safety =
      become assertions, and the initialisation state of the variables becomes
      explicit (each variable gets a mask). An assertion that does not hold
      raises the exception Assertion_failure: the program is safe when no
-     execution raises it. Requires the $(b,barray) array model."
+     execution raises it. A function without a contract gets the default
+     one, unless $(b,--no-default-contracts) is given: its array parameters
+     are initialised on entry and its array results on return. The contracts
+     are checked by assertions, in the function and around its calls.
+     Requires the $(b,barray) array model."
   in
   Arg.(value & flag & info [ "safety" ] ~doc)
+
+let no_default_contracts =
+  let doc =
+    "With $(b,--safety), leave the functions without a contract as they are:
+     nothing is assumed of their arguments, and their results get no
+     specification."
+  in
+  Arg.(value & flag & info [ "no-default-contracts" ] ~doc)
 
 let no_wi2i =
   let doc =
@@ -205,7 +218,8 @@ let no_wi2i =
 let safety_specs =
   let doc =
     "With $(b,--safety), also write to $(docv) the specification of each
-     extracted function with a contract, as an operator $(i,f)_spec of the
+     extracted function with a contract (every function, unless
+     $(b,--no-default-contracts) is given), as an operator $(i,f)_spec of the
      values of its arguments: a hoare statement on the procedure, without
      proof, whose precondition is the requires clause and whose postcondition
      is the ensures clause, and which states that Assertion_failure is not
@@ -263,7 +277,8 @@ let () =
   Cmd.v info
     Term.(
       const parse_and_extract $ arch $ call_conv $ idirs $ model $ array_model
-      $ global_model $ safety $ no_wi2i $ safety_specs $ functions
+      $ global_model $ safety $ no_wi2i $ no_default_contracts $ safety_specs
+      $ functions
       $ array_dir $ output $ after_pass
       $ file $ warn)
   |> Cmd.eval |> exit

@@ -172,12 +172,45 @@ let toec_safety_vars () =
   in
   (fresh_copy, mask)
 
+(* The default contract of a function: each array parameter is initialised
+   on entry and each array result on return, on all their bytes. Nothing is
+   required of the scalars: the semantics of the calls initialises them. The
+   variables of the contract are named and annotated as the parameters and
+   the results, with the types of the signature, which a result may not have
+   (an array returned at another element size). *)
+let default_contract (fd : ('info, 'asm) func) : 'len gfcontract =
+  let arr_init (x : var_i) =
+    match (L.unloc x).v_ty with
+    | Arr (ws, len) ->
+      let n = arr_size ws len in
+      [ ("safety",
+         PappN_safety (Operators.Ois_arr_init (Conv.cz_of_int n),
+                       [ Pvar (gkvar x); Pconst Z.zero; Pconst (Z.of_int n) ])) ]
+    | Bty _ -> []
+  in
+  let mk loc x ty = L.mk_loc loc (V.mk x.v_name x.v_kind ty x.v_dloc x.v_annot) in
+  let f_iparams = List.map2 (fun x ty -> mk x.v_dloc x ty) fd.f_args fd.f_tyin in
+  let f_ires = List.map2 (fun x ty -> mk (L.loc x) (L.unloc x) ty) fd.f_ret fd.f_tyout in
+  { f_iparams; f_ires;
+    f_pre = List.concat_map arr_init f_iparams;
+    f_post = List.concat_map arr_init f_ires }
+
+(* The functions without a contract get the default one. *)
+let add_default_contracts ((globs, fds) : ('info, 'asm) prog) : ('info, 'asm) prog =
+  let add fd =
+    if Option.is_some fd.f_contract then fd
+    else { fd with f_contract = Some (default_contract fd) }
+  in
+  (globs, List.map add fds)
+
 let do_toec_safety
    (type asm_op extra_op)
     (module Arch : Arch_full.Arch
        with type asm_op = asm_op
        and type extra_op = extra_op) ?(wi2i = true) ?(fnames = [])
-    ((_, fds) as prog) =
+    ?(default_contracts = true) prog =
+  let prog = if default_contracts then add_default_contracts prog else prog in
+  let _, fds = prog in
   let fresh_copy, mask = toec_safety_vars () in
   (* The parameters and results kept by [Dead_args]: those of the entries; the
      dead ones are computed by [DeadArgs]. *)

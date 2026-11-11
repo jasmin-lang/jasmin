@@ -164,3 +164,26 @@ proof.
   while (1 <= i <= 3); 1: by auto => /#.
   by auto.
 qed.
+
+(* ----------------------------------------------------------------------------*)
+require Test_default_contract Test_default_contract_specs.
+require import BArray32.
+
+(* No contract in the source: the default one requires the array to be
+   initialised and ensures that the result is. *)
+lemma double_safe _x _b_x : Test_default_contract_specs.double_spec _x _b_x.
+proof.
+  rewrite /Test_default_contract_specs.double_spec; proc; wp.
+  while (BArray32.is_init b_x 0 32).
+  + auto => /> &m hinit hlt; split; 1: smt(W64.ultE W64.to_uint_cmp W64.of_uintK).
+    by move: hinit; rewrite /BArray32.is_init /#.
+  by auto.
+qed.
+
+(* The calls of [double] check its requires and use its ensures. *)
+lemma twice_safe _x _b_x : Test_default_contract_specs.twice_spec _x _b_x.
+proof.
+  rewrite /Test_default_contract_specs.twice_spec; proc; wp.
+  ecall (double_safe xx b_xx); wp.
+  ecall (double_safe x_0 b_x_0); auto.
+qed.

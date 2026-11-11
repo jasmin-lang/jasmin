@@ -1,0 +1,20 @@
+// No contract in the source: each function gets the default one. [double]
+// requires its array initialised and ensures that its result is; the calls
+// in [twice] check the requires and use the ensures.
+fn double(reg ptr u64[4] x) -> reg ptr u64[4] {
+  reg u64 i t;
+  i = 0;
+  while (i < 4) {
+    t = x[i];
+    t += t;
+    x[i] = t;
+    i += 1;
+  }
+  return x;
+}
+
+export fn twice(reg mut ptr u64[4] x) -> reg ptr u64[4] {
+  x = double(x);
+  x = double(x);
+  return x;
+}

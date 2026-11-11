@@ -173,6 +173,7 @@ let ec_keyword =
  ; "assert" (* No longer a keyword since 2026.03 *)
  ; "return"
  ; "res"
+ ; "arg" (* the arguments of a procedure in a statement about it *)
  ; "equiv"
  ; "hoare"
  ; "ehoare"
