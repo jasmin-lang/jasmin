@@ -491,9 +491,9 @@ Proof. rewrite -(cat1s i c); apply hoare_cat. Qed.
 
 Lemma hoare_assgn (Rv Rtr: Pred_v) (P Q : Pred_c) (Qerr : Pred_err) ii x tg ty e :
   (forall s e, P s -> Qerr e -> rInvErr s e) ->
-  rhoare P (fun s => sem_pexpr true (p_globs p) s e) Rv Qerr ->
+  rhoare P (fun s => sem_pexpr (wdb := true) (p_globs p) s e) Rv Qerr ->
   (forall s, P s -> rhoare Rv (truncate_val (eval_atype ty)) Rtr Qerr) ->
-  (forall v, Rtr v -> rhoare P (write_lval true (p_globs p) x v) Q Qerr) ->
+  (forall v, Rtr v -> rhoare P (write_lval (wdb := true) (p_globs p) x v) Q Qerr) ->
   hoare P [:: MkI ii (Cassgn x tg ty e)] Q.
 Proof.
   move=> herr he htr hwr; rewrite /hoare /isem_cmd_ /=.
@@ -507,9 +507,9 @@ Qed.
 
 Lemma hoare_opn (Rve Rvo : Pred_vs) P Q Qerr ii xs tag o es :
   (forall s e, P s -> Qerr e -> rInvErr s e) ->
-  rhoare P (fun s => sem_pexprs true (p_globs p) s es) Rve Qerr ->
+  rhoare P (fun s => sem_pexprs (wdb := true) (p_globs p) s es) Rve Qerr ->
   (forall s, P s -> rhoare Rve (exec_sopn o) Rvo Qerr) ->
-  (forall vs, Rvo vs -> rhoare P (fun s => write_lvals true (p_globs p) s xs vs) Q Qerr) ->
+  (forall vs, Rvo vs -> rhoare P (fun s => write_lvals (wdb := true) (p_globs p) s xs vs) Q Qerr) ->
   hoare P [:: MkI ii (Copn xs tag o es)] Q.
 Proof.
   move=> herr he ho hwr; rewrite /hoare /isem_cmd_ /=.
@@ -526,11 +526,11 @@ Qed.
 
 Lemma hoare_syscall Rv Ro P Q Qerr ii xs sc es :
   (forall s e, P s -> Qerr e -> rInvErr s e) ->
-  rhoare P (fun s => sem_pexprs true (p_globs p) s es) Rv Qerr ->
+  rhoare P (fun s => sem_pexprs (wdb := true) (p_globs p) s es) Rv Qerr ->
   (forall s, P s ->
      rhoare Rv (fun vs => fexec_syscall sc (mk_fstate vs s)) Ro Qerr) ->
   (forall fs, Ro fs ->
-     rhoare P (upd_estate true (p_globs p) xs fs) Q Qerr) ->
+     rhoare P (upd_estate (wdb := true) (p_globs p) xs fs) Q Qerr) ->
   hoare P [:: MkI ii (Csyscall xs sc es)] Q.
 Proof.
   move=> herr he ho hwr; rewrite /hoare /isem_cmd_ /=.
@@ -600,7 +600,7 @@ Lemma hoare_for_full P Pb Pi Qerr ii i d lo hi c :
   (forall bounds (j:Z),
     Pb bounds ->
     j \in wrange d bounds.1 bounds.2 ->
-    rhoare P (write_var true i (Vint j)) Pi Qerr) ->
+    rhoare P (write_var (wdb := true) i (Vint j)) Pi Qerr) ->
   hoare Pi c P ->
   hoare P [:: MkI ii (Cfor i (d, lo, hi) c)] P.
 Proof.
@@ -618,7 +618,7 @@ Qed.
 Lemma hoare_for P Pi Qerr ii i d lo hi c :
   (forall s e, P s -> Qerr e -> rInvErr s e) ->
   rhoare P (sem_bound (p_globs p) lo hi) PredT Qerr ->
-  (forall (j:Z), rhoare P (write_var true i (Vint j)) Pi Qerr) ->
+  (forall (j:Z), rhoare P (write_var (wdb := true) i (Vint j)) Pi Qerr) ->
   hoare Pi c P ->
   hoare P [:: MkI ii (Cfor i (d, lo, hi) c)] P.
 Proof.
@@ -667,7 +667,7 @@ Qed.
 
 Lemma hoare_call (Pf : PreF) (Qf : PostF) Rv P Q Qerr ii xs fn es :
   (forall s e, P s -> Qerr e -> rInvErr s e) ->
-  rhoare P (fun s => sem_pexprs (~~ direct_call) (p_globs p) s es) Rv Qerr ->
+  rhoare P (fun s => sem_pexprs (wdb := ~~ direct_call) (p_globs p) s es) Rv Qerr ->
   (forall s vs, P s -> Rv vs -> Pf fn (mk_fstate vs s)) ->
   (forall vs, Rv vs -> rhoare PredT (fun s => sem_pre p fn (mk_fstate vs s)) PredT Qerr) ->
   hoare_f_ii Pf ii fn Qf ->
@@ -678,7 +678,7 @@ Lemma hoare_call (Pf : PreF) (Qf : PostF) Rv P Q Qerr ii xs fn es :
         (fun _:estate => sem_post p fn vs fr) PredT Qerr) ->
   (forall fs fr,
     Pf fn fs -> Qf fn fs fr ->
-    rhoare P (upd_estate (~~ direct_call) (p_globs p) xs fr) Q Qerr) ->
+    rhoare P (upd_estate (wdb := ~~ direct_call) (p_globs p) xs fr) Q Qerr) ->
   hoare P [:: MkI ii (Ccall xs fn es)] Q.
 Proof.
   move=> herr hes hPPf hpre hCall hpost hPQf; rewrite /hoare /isem_cmd_ /=.
@@ -713,7 +713,7 @@ Qed.
 (* FIXME: hoare_call seems to be a consequence of this lemma *)
 Lemma hoare_call' (Pf : PreF) (Qf : PostF) Rv P Q Qerr ii xs fn es :
   (forall s e, P s -> Qerr e -> rInvErr s e) ->
-  rhoare P (fun s => sem_pexprs (~~ direct_call) (p_globs p) s es) Rv Qerr ->
+  rhoare P (fun s => sem_pexprs (wdb := ~~ direct_call) (p_globs p) s es) Rv Qerr ->
   (forall s vs, P s -> Rv vs -> Pf fn (mk_fstate vs s)) ->
   (forall vs, Rv vs -> rhoare PredT (fun s => sem_pre p fn (mk_fstate vs s)) PredT Qerr) ->
   hoare_f_ii Pf ii fn Qf ->
@@ -725,7 +725,7 @@ Lemma hoare_call' (Pf : PreF) (Qf : PostF) Rv P Q Qerr ii xs fn es :
   (forall fs fr,
     Pf fn fs -> Qf fn fs fr ->
     rhoare (fun i => P i /\ exists vs, fs = mk_fstate vs i)
-      (upd_estate (~~ direct_call) (p_globs p) xs fr) Q Qerr
+      (upd_estate (wdb := ~~ direct_call) (p_globs p) xs fr) Q Qerr
   )->
   hoare P [:: MkI ii (Ccall xs fn es)] Q.
 Proof.
@@ -924,25 +924,25 @@ Context {E E0: Type -> Type}  {sem_F : sem_Fun E} {wE: with_Error E E0} {iE0 : I
 Context (p : prog) (ev: extra_val_t).
 
 Lemma whoare_assgn (Rv Rtr: Pred_v) (P Q : Pred_c) ii x tg ty e :
-  rhoare P (fun s => sem_pexpr true (p_globs p) s e) Rv PredT ->
+  rhoare P (fun s => sem_pexpr (wdb := true) (p_globs p) s e) Rv PredT ->
   (forall s, P s -> rhoare Rv (truncate_val (eval_atype ty)) Rtr PredT) ->
-  (forall v, Rtr v -> rhoare P (write_lval true (p_globs p) x v) Q PredT) ->
+  (forall v, Rtr v -> rhoare P (write_lval (wdb := true) (p_globs p) x v) Q PredT) ->
   whoare p ev P [:: MkI ii (Cassgn x tg ty e)] Q.
 Proof. by apply hoare_assgn. Qed.
 
 Lemma whoare_opn (Rve Rvo : Pred_vs) P Q ii xs tag o es :
-  rhoare P (fun s => sem_pexprs true (p_globs p) s es) Rve PredT ->
+  rhoare P (fun s => sem_pexprs (wdb := true) (p_globs p) s es) Rve PredT ->
   (forall s, P s -> rhoare Rve (exec_sopn o) Rvo PredT) ->
-  (forall vs, Rvo vs -> rhoare P (fun s => write_lvals true (p_globs p) s xs vs) Q PredT) ->
+  (forall vs, Rvo vs -> rhoare P (fun s => write_lvals (wdb := true) (p_globs p) s xs vs) Q PredT) ->
   whoare p ev P [:: MkI ii (Copn xs tag o es)] Q.
 Proof. by apply hoare_opn. Qed.
 
 Lemma whoare_syscall Rv Ro P Q ii xs sc es :
-  rhoare P (fun s => sem_pexprs true (p_globs p) s es) Rv PredT ->
+  rhoare P (fun s => sem_pexprs (wdb := true) (p_globs p) s es) Rv PredT ->
   (forall s, P s ->
      rhoare Rv (fun vs => fexec_syscall sc (mk_fstate vs s)) Ro PredT) ->
   (forall fs, Ro fs ->
-     rhoare P (upd_estate true (p_globs p) xs fs) Q PredT) ->
+     rhoare P (upd_estate (wdb := true) (p_globs p) xs fs) Q PredT) ->
   whoare p ev P [:: MkI ii (Csyscall xs sc es)] Q.
 Proof. by apply hoare_syscall. Qed.
 
@@ -970,14 +970,14 @@ Lemma whoare_for_full P Pb Pi ii i d lo hi c :
   (forall bounds (j:Z),
     Pb bounds ->
     j \in (wrange d bounds.1 bounds.2) ->
-    rhoare P (write_var true i (Vint j)) Pi PredT) ->
+    rhoare P (write_var (wdb := true) i (Vint j)) Pi PredT) ->
   whoare p ev Pi c P ->
   whoare p ev P [:: MkI ii (Cfor i (d, lo, hi) c)] P.
 Proof. by apply hoare_for_full. Qed.
 
 Lemma whoare_for P Pi ii i d lo hi c :
   rhoare P (sem_bound (p_globs p) lo hi) (fun _ => True) PredT ->
-  (forall (j:Z), rhoare P (write_var true i (Vint j)) Pi PredT) ->
+  (forall (j:Z), rhoare P (write_var (wdb := true) i (Vint j)) Pi PredT) ->
   whoare p ev Pi c P ->
   whoare p ev P [:: MkI ii (Cfor i (d, lo, hi) c)] P.
 Proof. by apply hoare_for. Qed.
@@ -998,12 +998,12 @@ Lemma whoare_while I I' ii al e inf c c' :
 Proof. by apply hoare_while. Qed.
 
 Lemma whoare_call (Pf : PreF) (Qf : PostF) Rv P Q ii xs fn es :
-  rhoare P (fun s => sem_pexprs (~~ direct_call) (p_globs p) s es) Rv PredT ->
+  rhoare P (fun s => sem_pexprs (wdb := ~~ direct_call) (p_globs p) s es) Rv PredT ->
   (forall s vs, P s -> Rv vs -> Pf fn (mk_fstate vs s)) ->
   whoare_f p ev Pf ii fn Qf ->
   (forall fs fr,
     Pf fn fs -> Qf fn fs fr ->
-    rhoare P (upd_estate (~~ direct_call) (p_globs p) xs fr) Q PredT) ->
+    rhoare P (upd_estate (wdb := ~~ direct_call) (p_globs p) xs fr) Q PredT) ->
   whoare p ev P [:: MkI ii (Ccall xs fn es)] Q.
 Proof.
   move=> h1 h2 h3. apply hoare_call with Rv => //.

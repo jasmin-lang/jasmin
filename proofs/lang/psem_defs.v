@@ -74,14 +74,14 @@ Arguments Estate {syscall_state}%_type_scope {ep} _ _ _%_vm_scope.
  * -------------------------------------------------------------------- *)
 
 (* Reading a local variable follows the mode. *)
-Definition get_gvar {sm : SemMode} (wdb : bool) (gd : glob_decls) (vm : Vm.t) (x : gvar) :=
-  if is_lvar x then get_var wdb vm x.(gv)
+Definition get_gvar {sm : SemMode} {wdb : enforce_defined_variables} (gd : glob_decls) (vm : Vm.t) (x : gvar) :=
+  if is_lvar x then get_var vm x.(gv)
   else get_global gd x.(gv).
 
 (* The results of a function call are read in the mode of the semantics: in
    the partial mode a result that is not initialised is a failure of the call,
    in a total mode it is the default value of its type. *)
-Definition get_var_is {sm : SemMode} wdb vm := mapM (fun x => get_var wdb vm (v_var x)).
+Definition get_var_is {sm : SemMode} {wdb: enforce_defined_variables} vm := mapM (fun x => get_var vm (v_var x)).
 
 Definition on_arr_var A (v:exec value) (f:forall n, WArray.array n -> exec A) :=
   Let v := v  in
@@ -90,11 +90,11 @@ Definition on_arr_var A (v:exec value) (f:forall n, WArray.array n -> exec A) :=
   | _ => type_error
   end.
 
-Notation "'Let' ( n , t ) ':=' wdb ',' s '.[' v ']' 'in' body" :=
-  (@on_arr_var _ (get_var wdb s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0, right associativity).
+Notation "'Let' ( n , t ) ':=' s '.[' v ']' 'in' body" :=
+  (@on_arr_var _ (get_var s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0, right associativity).
 
-Notation "'Let' ( n , t ) ':=' wdb ',' gd ',' s '.[' v ']' 'in' body" :=
-  (@on_arr_var _ (get_gvar wdb gd s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, gd at level 0, s at level 0, right associativity).
+Notation "'Let' ( n , t ) ':=' gd ',' s '.[' v ']' 'in' body" :=
+  (@on_arr_var _ (get_gvar gd s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, gd at level 0, s at level 0, right associativity).
 
 Section ESTATE_UTILS.
 
@@ -120,7 +120,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sm : SemMode}
-  (wdb : bool)
+  {wdb : enforce_defined_variables}
   (gd : glob_decls).
 
 Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
@@ -130,14 +130,14 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | Parr_init ws n =>
     let len := arr_size ws n in
     ok (Varr (WArray.empty len))
-  | Pvar v => get_gvar wdb gd s.(evm) v
+  | Pvar v => get_gvar gd s.(evm) v
   | Pget al aa ws x e =>
-      Let (n, t) := wdb, gd, s.[x] in
+      Let (n, t) := gd, s.[x] in
       Let i := sem_pexpr s e >>= to_int in
       Let w := WArray.get al aa ws t i in
       ok (Vword w)
   | Psub aa ws len x e =>
-    Let (n, t) := wdb, gd, s.[x] in
+    Let (n, t) := gd, s.[x] in
     Let i := sem_pexpr s e >>= to_int in
     Let t' := WArray.get_sub aa ws len t i in
     ok (Varr t')
@@ -166,15 +166,15 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
 Definition sem_pexprs s := mapM (sem_pexpr s).
 
 Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
-  Let vm := set_var wdb s.(evm) x v in
+  Let vm := set_var s.(evm) x v in
   ok (with_vm s vm).
 
 Definition write_vars xs vs s :=
   fold2 ErrType write_var xs vs s.
 
 Definition write_none (s : estate) ty v :=
-  Let _ := assert (truncatable wdb ty v) ErrType in
-  Let _ := assert (DB wdb v) ErrAddrUndef in
+  Let _ := assert (truncatable ty v) ErrType in
+  Let _ := assert (DB v) ErrAddrUndef in
   ok s.
 
 Definition write_lval (l : lval) (v : value) (s : estate) : exec estate :=
@@ -187,13 +187,13 @@ Definition write_lval (l : lval) (v : value) (s : estate) : exec estate :=
     Let m := write s.(emem) al p w in
     ok (with_mem s m)
   | Laset al aa ws x i =>
-    Let (n,t) := wdb, s.[x] in
+    Let (n,t) := s.[x] in
     Let i := sem_pexpr s i >>= to_int in
     Let v := to_word ws v in
     Let t := WArray.set t al aa i v in
     write_var x (@to_val (carr n) t) s
   | Lasub aa ws len x i =>
-    Let (n,t) := wdb, s.[x] in
+    Let (n,t) := s.[x] in
     Let i := sem_pexpr s i >>= to_int in
     Let t' := to_arr (arr_size ws len) v in
     Let t := @WArray.set_sub sm n aa ws len t i t' in
@@ -217,14 +217,14 @@ Context
 
 Fixpoint sem_eassert (s : estate) (e : eassert) : exec bool :=
   match e with
-  | Pexpr e => sem_pexpr true gd s e >>= to_bool
+  | Pexpr e => sem_pexpr (wdb := true) gd s e >>= to_bool
   | PappN_safety op es =>
-    Let vs := mapM (sem_pexpr true gd s) es in
+    Let vs := mapM (sem_pexpr (wdb := true) gd s) es in
     sem_opN_safety op vs
   | Pis_var_init x => ok (is_var_init (evm s) x)
   | Pis_mem_init e1 e2 =>
-    Let lo := sem_pexpr true gd s e1 >>= to_pointer in
-    Let sz := sem_pexpr true gd s e2 >>= to_int in
+    Let lo := sem_pexpr (wdb := true) gd s e1 >>= to_pointer in
+    Let sz := sem_pexpr (wdb := true) gd s e2 >>= to_int in
     ok (all (fun i => validr s.(emem) Unaligned (lo + wrepr Uptr i)%w U8) (ziota 0 sz))
   | Pand e1 e2 =>
     Let b1 := sem_eassert s e1 in
@@ -254,7 +254,7 @@ Definition exec_sopn {sm : SemMode} (o:sopn) (vs:values) : exec values :=
   ok (list_ltuple t).
 
 Definition sem_sopn gd o m lvs args :=
-  sem_pexprs true gd m args >>= exec_sopn o >>= write_lvals true gd m lvs.
+  sem_pexprs (wdb := true) gd m args >>= exec_sopn o >>= write_lvals (wdb := true) gd m lvs.
 
 End EXEC_ASM.
 
@@ -263,9 +263,9 @@ End WSW.
 (* Just for extraction *)
 Definition syscall_sem__ := @syscall_sem.exec_syscall_u.
 
-Notation "'Let' ( n , t ) ':=' wdb ',' s '.[' v ']' 'in' body" :=
-  (@on_arr_var _ (get_var wdb s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0, right associativity).
+Notation "'Let' ( n , t ) ':=' s '.[' v ']' 'in' body" :=
+  (@on_arr_var _ (get_var s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0, right associativity).
 
-Notation "'Let' ( n , t ) ':=' wdb ',' gd ',' s '.[' v ']' 'in' body" :=
-  (@on_arr_var _ (get_gvar wdb gd s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, gd at level 0, s at level 0, right associativity).
+Notation "'Let' ( n , t ) ':=' gd ',' s '.[' v ']' 'in' body" :=
+  (@on_arr_var _ (get_gvar gd s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, gd at level 0, s at level 0, right associativity).
 

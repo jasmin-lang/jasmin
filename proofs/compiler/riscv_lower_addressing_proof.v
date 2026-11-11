@@ -81,13 +81,13 @@ Proof.
 Qed.
 
 Lemma compute_addrP ii (tmp : var_i) e prelude ep s1 we :
-  sem_pexpr true p'.(p_globs) s1 e >>= to_pointer = ok we ->
+  sem_pexpr (wdb := true) p'.(p_globs) s1 e >>= to_pointer = ok we ->
   vtype tmp = aword Uptr ->
   compute_addr tmp e = Some (prelude, ep) ->
   exists vm1, [/\
     esem p' ev (map (MkI ii) prelude) s1 = ok (with_vm s1 vm1),
     evm s1 =[\Sv.singleton tmp] vm1 &
-    sem_pexpr true p'.(p_globs) (with_vm s1 vm1) ep >>= to_pointer = ok we ].
+    sem_pexpr (wdb := true) p'.(p_globs) (with_vm s1 vm1) ep >>= to_pointer = ok we ].
 Proof.
   move=> ok_we tmp_ty.
   rewrite /compute_addr.

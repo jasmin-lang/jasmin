@@ -132,7 +132,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     ok (lnext_pc (lset_estate' s1 s'))
   | Lsyscall o =>
     let sig := syscall_sig o in
-    Let ves := get_vars true s1.(lvm) sig.(scs_vin) in
+    Let ves := get_vars (wdb := true) s1.(lvm) sig.(scs_vin) in
     Let: (scs, m, vs) :=
       exec_syscall (semCallParams := sCP_stack) s1.(lscs) s1.(lmem) o ves
     in
@@ -143,14 +143,14 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
         evm := vm_after_syscall s1.(lvm);
       |}
     in
-    Let s' := write_lvals true [::] s (to_lvals sig.(scs_vout)) vs in
+    Let s' := write_lvals (wdb := true) [::] s (to_lvals sig.(scs_vout)) vs in
     ok (lnext_pc (lset_estate' s1 s'))
   | Lcall None d =>
     Let _ := assert (~~ fn_is_export d.1) ErrSemUndef in
     let vrsp := v_var (vid (lp_rsp P)) in
-    Let sp := get_var true s1.(lvm) vrsp >>= to_pointer in
+    Let sp := get_var (wdb := true) s1.(lvm) vrsp >>= to_pointer in
     let nsp := (sp - wrepr Uptr (wsize_size Uptr))%R in
-    Let vm := set_var true s1.(lvm) vrsp (Vword nsp) in
+    Let vm := set_var (wdb := true) s1.(lvm) vrsp (Vword nsp) in
     Let lbl := get_label_after_pc s1 in
     Let p := rencode_label labels (lfn s1, lbl) in
     Let m := write s1.(lmem) Aligned nsp p in
@@ -162,15 +162,15 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     Let _ := assert (~~ fn_is_export d.1) ErrSemUndef in
     Let lbl := get_label_after_pc s1 in
     Let p := rencode_label labels (lfn s1, lbl) in
-    Let vm := set_var true s1.(lvm) r (Vword p) in
+    Let vm := set_var (wdb := true) s1.(lvm) r (Vword p) in
     (* Same as above; [r] is not in [call_kill], which merge_varmaps checks. *)
     eval_jump d (lset_vm s1 (kill_vars call_kill vm))
   | Lret =>
     let vrsp := v_var (vid (lp_rsp P)) in
-    Let sp := get_var true s1.(lvm) vrsp >>= to_pointer in
+    Let sp := get_var (wdb := true) s1.(lvm) vrsp >>= to_pointer in
     let nsp := (sp + wrepr Uptr (wsize_size Uptr))%R in
     Let p  := read s1.(lmem) Aligned sp Uptr in
-    Let vm := set_var true s1.(lvm) vrsp (Vword nsp) in
+    Let vm := set_var (wdb := true) s1.(lvm) vrsp (Vword nsp) in
     Let d := rdecode_label labels p in
     eval_jump d (lset_vm s1 vm)
   | Lalign   => ok (lnext_pc s1)
@@ -182,7 +182,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     eval_jump d s1
   | LstoreLabel x lbl =>
     Let p := rencode_label labels (lfn s1, lbl) in
-    Let vm := set_var true s1.(lvm) x (Vword p) in
+    Let vm := set_var (wdb := true) s1.(lvm) x (Vword p) in
     ok (lnext_pc (lset_vm s1 vm))
   | Lcond e lbl =>
     Let b := sem_fexpr s1.(lvm) e >>= to_bool in

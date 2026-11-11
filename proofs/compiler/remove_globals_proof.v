@@ -25,14 +25,14 @@ Module INCL. Section INCL.
     {sip : SemInstrParams asm_op syscall_state}.
 
   Section INCL_E.
-    Context (wdb : bool) (gd1 gd2 : glob_decls) (s : estate) (hincl : gd_incl gd1 gd2).
+    Context {wdb : enforce_defined_variables} (gd1 gd2 : glob_decls) (s : estate) (hincl : gd_incl gd1 gd2).
     Let P e : Prop :=
-      ∀ v, sem_pexpr wdb gd1 s e = ok v → sem_pexpr wdb gd2 s e = ok v.
+      ∀ v, sem_pexpr gd1 s e = ok v → sem_pexpr gd2 s e = ok v.
     Let Q es : Prop :=
-      ∀ vs, sem_pexprs wdb gd1 s es = ok vs → sem_pexprs wdb gd2 s es = ok vs.
+      ∀ vs, sem_pexprs gd1 s es = ok vs → sem_pexprs gd2 s es = ok vs.
 
     Lemma gd_incl_gvar (x : gvar) (v : value) :
-      get_gvar wdb gd1 (evm s) x = ok v → get_gvar wdb gd2 (evm s) x = ok v.
+      get_gvar gd1 (evm s) x = ok v → get_gvar gd2 (evm s) x = ok v.
     Proof using hincl. by rewrite /get_gvar; case: x => x [] //=; apply: hincl. Qed.
 
     Lemma gd_incl_e_es : (∀ e, P e) ∧ (∀ es, Q es).
@@ -61,10 +61,10 @@ Module INCL. Section INCL.
   Definition gd_incl_es wdb gd1 gd2 s es vs h :=
     (@gd_incl_e_es wdb gd1 gd2 s h).2 es vs.
 
-  Lemma gd_incl_wl wdb gd1 gd2 x v (s1 s2:estate) :
+  Lemma gd_incl_wl (wdb: enforce_defined_variables) gd1 gd2 x v (s1 s2:estate) :
     gd_incl gd1 gd2 ->
-    write_lval wdb gd1 x v s1 = ok s2 ->
-    write_lval wdb gd2 x v s1 = ok s2.
+    write_lval gd1 x v s1 = ok s2 ->
+    write_lval gd2 x v s1 = ok s2.
   Proof.
     move=> hincl;case: x => //=.
     + by move=> al ws vi e;t_xrbindP => ?? /(gd_incl_e hincl) -> /= -> ? -> /= ? -> <-.
@@ -74,10 +74,10 @@ Module INCL. Section INCL.
     by rewrite /write_var; t_xrbindP => ?? /(gd_incl_e hincl) -> /= -> ? -> /= ? -> /= ? -> <-.
   Qed.
 
-  Lemma gd_incl_wls wdb gd1 gd2 xs vs s1 s2 :
+  Lemma gd_incl_wls (wdb: enforce_defined_variables) gd1 gd2 xs vs s1 s2 :
     gd_incl gd1 gd2 ->
-    write_lvals wdb gd1 s1 xs vs = ok s2 ->
-    write_lvals wdb gd2 s1 xs vs = ok s2.
+    write_lvals gd1 s1 xs vs = ok s2 ->
+    write_lvals gd2 s1 xs vs = ok s2.
   Proof.
     move=> hincl;elim: xs vs s1 s2 => //= x xs hrec [|v vs] s1 s2 //=.
     by t_xrbindP => ? /(gd_incl_wl hincl) -> /hrec /= ->.
@@ -328,19 +328,19 @@ Module RGP. Section PROOFS.
   Qed.
 
   Section REMOVE_GLOB_E.
-    Context (wdb : bool) (m: venv) (ii: instr_info) (s1 s2: estate) (hvalid: valid m s1 s2).
+    Context {wdb : enforce_defined_variables} (m: venv) (ii: instr_info) (s1 s2: estate) (hvalid: valid m s1 s2).
 
     Let Pe e : Prop :=
       ∀ e' v,
         remove_glob_e ii m e = ok e' →
-        sem_pexpr wdb gd s1 e = ok v →
-        exists2 v', sem_pexpr wdb gd s2 e' = ok v' & value_uincl v v'.
+        sem_pexpr gd s1 e = ok v →
+        exists2 v', sem_pexpr gd s2 e' = ok v' & value_uincl v v'.
 
     Let Pes es : Prop :=
       ∀ es' vs,
         mapM (remove_glob_e ii m) es = ok es' →
-        sem_pexprs wdb gd s1 es = ok vs →
-        exists2 vs', sem_pexprs wdb gd s2 es' = ok vs' & values_uincl vs vs'.
+        sem_pexprs gd s1 es = ok vs →
+        exists2 vs', sem_pexprs gd s2 es' = ok vs' & values_uincl vs vs'.
 
     Lemma remove_glob_e_esP : (∀ e, Pe e) ∧ (∀ es, Pes es).
     Proof using hvalid.
@@ -441,12 +441,12 @@ Module RGP. Section PROOFS.
   Definition remove_glob_esP wdb m ii s1 s2 es es' vs h :=
     (@remove_glob_e_esP wdb m ii s1 s2 h).2 es es' vs.
 
-  Lemma write_var_remove_uincl wdb (x:var_i) m s1 s2 v v' s1' :
+  Lemma write_var_remove_uincl (wdb: enforce_defined_variables) (x:var_i) m s1 s2 v v' s1' :
     ~~ is_glob_var x ->
     valid m s1 s2 ->
-    write_var wdb x v s1 = ok s1' ->
+    write_var x v s1 = ok s1' ->
     value_uincl v v' ->
-    exists s2', valid m s1' s2' /\ write_var wdb x v' s2 = ok s2'.
+    exists s2', valid m s1' s2' /\ write_var x v' s2 = ok s2'.
   Proof.
     move=> hglob hval /write_varP [-> hdb htr] hv'.
     case: (compat_truncate_uincl (compat_ctype_refl _ _) htr hv' hdb) => htr' hvv' hdb'.
@@ -457,19 +457,19 @@ Module RGP. Section PROOFS.
     by apply/eqP => ?; subst z; rewrite (h2 _ _ hv1) in hglob.
   Qed.
 
-  Lemma write_var_remove wdb (x:var_i) m s1 s2 v s1' :
+  Lemma write_var_remove (wdb: enforce_defined_variables) (x:var_i) m s1 s2 v s1' :
     ~~ is_glob_var x ->
     valid m s1 s2 ->
-    write_var wdb x v s1 = ok s1' ->
-    exists s2', valid m s1' s2' /\ write_var wdb x v s2 = ok s2'.
+    write_var x v s1 = ok s1' ->
+    exists s2', valid m s1' s2' /\ write_var x v s2 = ok s2'.
   Proof. by move => hglob hval hw; apply: (write_var_remove_uincl hglob hval hw). Qed.
 
-  Lemma remove_glob_lvP wdb m ii s1 s1' s2 lv lv' v :
+  Lemma remove_glob_lvP (wdb: enforce_defined_variables) m ii s1 s1' s2 lv lv' v :
     valid m s1 s2 ->
     remove_glob_lv ii m lv = ok lv' ->
-    write_lval wdb gd lv v s1 = ok s1' ->
+    write_lval gd lv v s1 = ok s1' ->
     exists s2',
-      valid m s1' s2' /\ write_lval wdb gd lv' v s2 = ok s2'.
+      valid m s1' s2' /\ write_lval gd lv' v s2 = ok s2'.
   Proof.
     move=> hval; case:(hval) => hscs hmem hm1 hm2 hm3; case:lv => [vi ty|x|al ws vi e|al aa ws x e|aa ws len x e] /=.
     + by move=> [<-] /write_noneP; rewrite /= /write_none => -[-> -> ->]; eauto.
@@ -503,12 +503,12 @@ Module RGP. Section PROOFS.
     by apply: write_var_remove_uincl; eauto.
   Qed.
 
-  Lemma remove_glob_lvsP wdb m ii s1 s1' s2 lv lv' v :
+  Lemma remove_glob_lvsP (wdb: enforce_defined_variables) m ii s1 s1' s2 lv lv' v :
     valid m s1 s2 ->
     mapM (remove_glob_lv ii m) lv = ok lv' ->
-    write_lvals wdb gd s1 lv v = ok s1' ->
+    write_lvals gd s1 lv v = ok s1' ->
     exists2 s2',
-      write_lvals wdb gd s2 lv' v = ok s2'
+      write_lvals gd s2 lv' v = ok s2'
       & valid m s1' s2'.
   Proof.
     elim: lv lv' v s1 s1' s2 => //=.
@@ -636,7 +636,7 @@ Module RGP. Section PROOFS.
 
   Lemma evaluate_bytesP ii xi es vs s:
     evaluate_bytes ii xi es = ok vs ->
-    sem_pexprs true gd s es = ok vs.
+    sem_pexprs (wdb := true) gd s es = ok vs.
   Proof.
     rewrite /evaluate_bytes /sem_pexprs.
     elim: es vs; first by case.
@@ -647,7 +647,7 @@ Module RGP. Section PROOFS.
 
   Lemma array_from_cellsP ii xi len cells arr s bytes :
     array_from_cells ii xi len cells = ok arr →
-    sem_pexprs true gd s cells = ok bytes →
+    sem_pexprs (wdb := true) gd s cells = ok bytes →
     sem_opN (Oarray len) bytes = ok (Varr arr).
   Proof.
     rewrite /array_from_cells; t_xrbindP => ? /evaluate_bytesP - /(_ s) -> h /ok_inj ?; subst.
@@ -783,7 +783,7 @@ Module RGP. Section PROOFS.
     exists (valid (Mvar.empty var)), (valid m'); split => // {hfs fsi hget hinit}; cycle -1.
     + move=> {hs1} s1 s2 {} fs [/= hscse hmem hm _ _]; rewrite /finalize_funcall /=; t_xrbindP.
       move=> vs hget vs' htr <-.
-      have : exists2 vres', get_var_is (~~ direct_call) (evm s2) (f_res fd) = ok vres' & values_uincl vs vres'.
+      have : exists2 vres', get_var_is (wdb := ~~ direct_call) (evm s2) (f_res fd) = ok vres' & values_uincl vs vres'.
       - elim: (f_res fd) (vs) res1 hres1 hget.
         * by move => _ _ _ /ok_inj <-; exists [::]; constructor.
         move => x xs hrec vres0 res1 /=.

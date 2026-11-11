@@ -51,8 +51,8 @@ Let leflags := [seq LLvar f | f <- vflags ].
 
 Lemma store_zero_eval_instr lp ii ws e (ls:lstate) (w1 w2 : word Uptr) m' :
   (ws <= U64)%CMP ->
-  get_var true (lvm ls) vzero = ok (@Vword Uptr 0) ->
-  get_var true (lvm ls) rspi = ok (Vword w1) ->
+  get_var (wdb := true) (lvm ls) vzero = ok (@Vword Uptr 0) ->
+  get_var (wdb := true) (lvm ls) rspi = ok (Vword w1) ->
   sem_fexpr (lvm ls) e >>= to_word Uptr = ok w2 ->
   write (lmem ls) Aligned (w1 + w2)%R (sz:=ws) 0 = ok m' ->
   let i := MkLI ii (store_zero rspi ws e) in
@@ -102,8 +102,8 @@ Qed.
 
 Lemma fopn_sub_eval_instr {lp0 ls ii} {xi y z : var_i} {wy wz : word Uptr} :
   convertible (vtype xi) (aword armv8a_reg_size) ->
-  get_var true (lvm ls) (v_var y) = ok (Vword wy) ->
-  get_var true (lvm ls) (v_var z) = ok (Vword wz) ->
+  get_var (wdb := true) (lvm ls) (v_var y) = ok (Vword wy) ->
+  get_var (wdb := true) (lvm ls) (v_var z) = ok (Vword wz) ->
   let: li := li_of_fopn_args ii (fopn_sub xi y z) in
   let: vm' := (lvm ls).[v_var xi <- Vword (wy - wz)] in
   eval_instr lp0 li ls = ok (lnext_pc (lset_vm ls vm')).

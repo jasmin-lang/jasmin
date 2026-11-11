@@ -53,6 +53,7 @@ Context
   {ep : EstateParams syscall_state}.
 
 #[local] Existing Instance withsubword.
+#[local] Existing Instance do_enforce_defined_variables.
 
 Definition sem_fopn_args (p : seq lexpr * armv8a_asm_op * seq rexpr) (s : estate) :=
   let: (xs,o,es) := p in
@@ -75,8 +76,8 @@ Ltac t_armv8a_op :=
 
 Lemma add_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr} :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
-  get_var true (evm s) (v_var z) >>= to_word Uptr = ok wz ->
+  get_var (evm s) (v_var y) >>= to_word Uptr = ok wy ->
+  get_var (evm s) (v_var z) >>= to_word Uptr = ok wz ->
   let: wx' := Vword (wy + wz)in
   let: vm' := (evm s).[xi <- wx'] in
   sem_fopn_args (ARMv8AFopn_core.add xi y z) s = ok (with_vm s vm').
@@ -88,7 +89,7 @@ Qed.
 
 Lemma addi_sem_fopn_args {s} {xi:var_i} {y imm wy} :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
+  get_var (evm s) (v_var y) >>= to_word Uptr = ok wy ->
   let: wx' := Vword (wy + wrepr reg_size imm)in
   let: vm' := (evm s).[xi <- wx'] in
   sem_fopn_args (ARMv8AFopn_core.addi xi y imm) s = ok (with_vm s vm').
@@ -100,8 +101,8 @@ Qed.
 
 Lemma sub_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr} :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
-  get_var true (evm s) (v_var z) >>= to_word Uptr = ok wz ->
+  get_var (evm s) (v_var y) >>= to_word Uptr = ok wy ->
+  get_var (evm s) (v_var z) >>= to_word Uptr = ok wz ->
   let: wx' := Vword (wy - wz)in
   let: vm' := (evm s).[xi <- wx'] in
   sem_fopn_args (ARMv8AFopn_core.sub xi y z) s = ok (with_vm s vm').
@@ -113,7 +114,7 @@ Qed.
 
 Lemma subi_sem_fopn_args {s} {xi:var_i} {y imm wy} :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
+  get_var (evm s) (v_var y) >>= to_word Uptr = ok wy ->
   let: wx' := Vword (wy - wrepr reg_size imm)in
   let: vm' := (evm s).[xi <- wx'] in
   sem_fopn_args (ARMv8AFopn_core.subi xi y imm) s = ok (with_vm s vm').
@@ -125,7 +126,7 @@ Qed.
 
 Lemma mov_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
+  get_var (evm s) (v_var y) >>= to_word Uptr = ok wy ->
   let: vm' := (evm s).[xi <- Vword wy] in
   sem_fopn_args (ARMv8AFopn_core.mov xi y) s = ok (with_vm s vm').
 Proof.
@@ -136,7 +137,7 @@ Qed.
 
 Lemma andi_sem_fopn_args {s} {xi:var_i} {y imm wy} :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
+  get_var (evm s) (v_var y) >>= to_word Uptr = ok wy ->
   let: wx' := Vword (wand wy (wrepr reg_size imm)) in
   let: vm' := (evm s).[xi <- wx'] in
   sem_fopn_args (ARMv8AFopn_core.andi xi y imm) s = ok (with_vm s vm').
@@ -371,7 +372,7 @@ Qed.
 
 Lemma movk_sem_fopn_args {s} {xi : var_i} {imm sh : Z} {wx : word Uptr} :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
-  get_var true (evm s) (v_var xi) >>= to_word Uptr = ok wx ->
+  get_var (evm s) (v_var xi) >>= to_word Uptr = ok wx ->
   let: w := armv8a_MOVK_semi wx (wrepr U16 imm) (wrepr U8 sh) in
   let: vm' := (evm s).[xi <- Vword w] in
   sem_fopn_args (ARMv8AFopn_core.movk U64 xi imm sh) s = ok (with_vm s vm').
@@ -394,7 +395,7 @@ Lemma li_lsem_1 s (xi : var_i) imm :
   exists vm',
     [/\ sem_fopns_args s lcmd = ok (with_vm s vm')
       , vm' =[\ Sv.singleton xi ] evm s
-      & get_var true vm' xi = ok (Vword (wrepr reg_size imm)) ].
+      & get_var vm' xi = ok (Vword (wrepr reg_size imm)) ].
 Proof.
   move=> hc.
   rewrite /ARMv8AFopn_core.li.
@@ -438,7 +439,7 @@ Proof.
     forall (s' : estate) (sh : Z),
       (16 <= sh)%Z ->
       (sh + 16 <= 64)%Z ->
-      get_var true (evm s') (v_var xi)
+      get_var (evm s') (v_var xi)
         = ok (Vword (wrepr U64 (n mod 2 ^ sh))) ->
       exists vm',
         [/\ sem_fopns_args s'
@@ -447,7 +448,7 @@ Proof.
                else [:: ARMv8AFopn_core.movk U64 xi ((n / 2 ^ sh) mod 2 ^ 16) sh ])
             = ok (with_vm s' vm')
           , vm' =[\ Sv.singleton xi ] evm s'
-          & get_var true vm' xi
+          & get_var vm' xi
             = ok (Vword (wrepr U64 (n mod 2 ^ (sh + 16)))) ].
   - move=> s' sh hsh16 hsh64 hget.
     have h2sh : (0 < 2 ^ sh)%Z by apply: Z.pow_pos_nonneg; lia.
@@ -475,7 +476,7 @@ Proof.
   rewrite !orbF (movz_sem_fopn_args hc) /=.
   rewrite armv8a_MOVZ_semiE //.
   set s1 := with_vm s _.
-  have hget1 : get_var true (evm s1) (v_var xi)
+  have hget1 : get_var (evm s1) (v_var xi)
     = ok (Vword (wrepr U64 (n mod 2 ^ 16))).
   - by t_get_var; rewrite (convertible_eval_atype hc).
 
@@ -543,7 +544,7 @@ Qed.
 
 Lemma movk_sem_fopn_args_w32 {s} {xi : var_i} {imm sh : Z} {wx : word U32} :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
-  get_var true (evm s) (v_var xi) >>= to_word U32 = ok wx ->
+  get_var (evm s) (v_var xi) >>= to_word U32 = ok wx ->
   let: w := armv8a_MOVK_semi wx (wrepr U16 imm) (wrepr U8 sh) in
   let: vm' := (evm s).[xi <- Vword w] in
   sem_fopn_args (ARMv8AFopn_core.movk U32 xi imm sh) s = ok (with_vm s vm').
@@ -563,7 +564,7 @@ Lemma li_lsem_1_w32 s (xi : var_i) imm :
   exists vm',
     [/\ sem_fopns_args s lcmd = ok (with_vm s vm')
       , vm' =[\ Sv.singleton xi ] evm s
-      & get_var true vm' xi = ok (Vword (wrepr U32 imm)) ].
+      & get_var vm' xi = ok (Vword (wrepr U32 imm)) ].
 Proof.
   move=> hc.
   rewrite /ARMv8AFopn_core.li.
@@ -606,7 +607,7 @@ Proof.
   rewrite (movz_sem_fopn_args_w32 hc) /=.
   rewrite armv8a_MOVZ_semiE //.
   set s1 := with_vm s _.
-  have hget1 : get_var true (evm s1) (v_var xi)
+  have hget1 : get_var (evm s1) (v_var xi)
     = ok (Vword (wrepr U32 (n mod 2 ^ 16))).
   - by t_get_var; rewrite (convertible_eval_atype hc).
   have hchunk : (n mod 2 ^ (16 + 16)
@@ -641,11 +642,11 @@ Opaque ARMv8AFopn_core.li.
 Lemma smart_mov_sem_fopns_args s (w : word armv8a_reg_size) (xi:var_i) y :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
   let: lc := ARMv8AFopn_core.smart_mov xi y in
-  get_var true (evm s) y >>= to_word Uptr = ok w ->
+  get_var (evm s) y >>= to_word Uptr = ok w ->
   exists vm,
     [/\ sem_fopns_args s lc = ok (with_vm s vm)
       , vm =[\ Sv.singleton xi ] evm s
-      & get_var true vm xi >>= to_word Uptr = ok w ].
+      & get_var vm xi >>= to_word Uptr = ok w ].
 Proof.
   move=> hc hgety.
   rewrite /ARMv8AFopn_core.smart_mov /=.
@@ -667,15 +668,15 @@ Lemma gen_smart_opi_sem_fopn_args
   (op_sem_fopn_args :
     forall {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr},
       convertible xi.(vtype) (aword armv8a_reg_size) ->
-      get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy
-      -> get_var true (evm s) (v_var z) >>= to_word Uptr = ok wz
+      get_var (evm s) (v_var y) >>= to_word Uptr = ok wy
+      -> get_var (evm s) (v_var z) >>= to_word Uptr = ok wz
       -> let: wx' := Vword (op wy wz)in
       let: vm' := (evm s).[xi <- wx'] in
       sem_fopn_args (on_reg xi y z) s = ok (with_vm s vm'))
   (opi_sem_fopn_args :
     forall {s} {xi:var_i} {y imm wy},
       convertible xi.(vtype) (aword armv8a_reg_size) ->
-      get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy
+      get_var (evm s) (v_var y) >>= to_word Uptr = ok wy
       -> let: wx' := Vword (op wy (wrepr reg_size imm)) in
      let: vm' := (evm s).[xi <- wx'] in
      sem_fopn_args (on_imm xi y imm) s = ok (with_vm s vm'))
@@ -685,11 +686,11 @@ Lemma gen_smart_opi_sem_fopn_args
   convertible xi.(vtype) (aword armv8a_reg_size) ->
   let: lc := ARMv8AFopn_core.gen_smart_opi on_reg on_imm is_small neutral tmp xi y imm in
   is_small imm \/ v_var tmp <> v_var y ->
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok w ->
+  get_var (evm s) (v_var y) >>= to_word Uptr = ok w ->
   exists vm',
     [/\ sem_fopns_args s lc = ok (with_vm s vm')
       , vm' =[\ Sv.add xi (Sv.singleton tmp) ] evm s
-      & get_var true vm' xi = ok (Vword (op w (wrepr reg_size imm))) ].
+      & get_var vm' xi = ok (Vword (op w (wrepr reg_size imm))) ].
 Proof.
   move=> hc1 hc2 hcond hgety.
   rewrite /ARMv8AFopn_core.gen_smart_opi.

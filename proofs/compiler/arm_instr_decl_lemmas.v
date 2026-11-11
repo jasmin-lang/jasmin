@@ -129,6 +129,8 @@ Context
   {pT : progT}
   {sCP : semCallParams}.
 
+#[local] Existing Instance do_enforce_defined_variables.
+
 Definition truncate_args
   (op : sopn) (vargs : seq value) : exec (seq value) :=
   mapM2 ErrType truncate_val (map eval_atype (sopn_tout op)) vargs.
@@ -217,14 +219,14 @@ Lemma sem_i_conditional
   in
   let aop := Oarm (ARM_op mn opts) in
   id_valid (mn_desc (set_is_conditional opts) mn)
-  -> sem_pexprs true (p_globs p) s0 args = ok vargs
-  -> sem_pexpr true (p_globs p) s0 c = ok (Vbool b)
-  -> sem_pexprs true (p_globs p) s0 prev = ok vprev
+  -> sem_pexprs (p_globs p) s0 args = ok vargs
+  -> sem_pexpr (p_globs p) s0 c = ok (Vbool b)
+  -> sem_pexprs (p_globs p) s0 prev = ok vprev
   -> truncate_args aop vprev = ok vprev'
   -> exec_sopn aop vargs = ok vres
   -> (if b
-      then write_lvals true (p_globs p) s0 lvs vres = ok s1
-      else write_lvals true (p_globs p) s0 lvs vprev' = ok s1)
+      then write_lvals (p_globs p) s0 lvs vres = ok s1
+      else write_lvals (p_globs p) s0 lvs vprev' = ok s1)
   -> let aop' := Oarm (ARM_op mn (set_is_conditional opts)) in
      let ir := Copn lvs tag aop' (args ++ c :: prev) in
      esem_i p ev (MkI ii ir) s0 = ok s1.
@@ -232,7 +234,7 @@ Proof.
   move=> opts aop hvalid hsemargs hsemc hsemprev htruncprev hexec hwrite.
 
   rewrite /= /sem_sopn /=.
-  rewrite /sem_pexprs mapM_cat /= -2![mapM _ _]/(sem_pexprs _ _ _ _).
+  rewrite /sem_pexprs mapM_cat /= -2![mapM _ _]/(sem_pexprs _ _ _).
   rewrite hsemargs hsemc hsemprev {hsemargs hsemc hsemprev} /=.
 
   case: b hwrite => hwrite.

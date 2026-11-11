@@ -161,7 +161,10 @@ Definition is_word v := is_cword (type_of_val v).
 Lemma is_wordI v : is_word v → subctype (cword U8) (type_of_val v).
 Proof. by case: v => // [> | [] > //] _; exact: wsize_le_U8. Qed.
 
-Definition DB wdb v :=
+Class enforce_defined_variables := wdb: bool.
+Definition do_enforce_defined_variables : enforce_defined_variables := true.
+
+Definition DB {wdb: enforce_defined_variables} v :=
   ~~wdb || (is_defined v || (type_of_val v == cbool)).
 
 (* ** Test for extension of values
@@ -528,8 +531,8 @@ Proof.
   by move=> [? [? [-> _]]].
 Qed.
 
-Lemma value_uincl_DB wdb v1 v2 :
-  value_uincl v1 v2 -> DB wdb v1 -> DB wdb v2.
+Lemma value_uincl_DB {wdb: enforce_defined_variables} v1 v2 :
+  value_uincl v1 v2 -> DB v1 -> DB v2.
 Proof.
   case: wdb => //.
   case: v1 => [b | z| len t| ws w | t i] /value_uinclE; try by move=> ->.
@@ -661,7 +664,7 @@ Qed.
 Lemma truncate_val_defined ty v v' : truncate_val ty v = ok v' -> is_defined v'.
 Proof. by move=> /truncate_valI; case: v'. Qed.
 
-Lemma truncate_val_DB wdb ty v v' : truncate_val ty v = ok v' -> DB wdb v'.
+Lemma truncate_val_DB {wdb: enforce_defined_variables} ty v v' : truncate_val ty v = ok v' -> DB v'.
 Proof. by case: wdb => //; move=> /truncate_valI; case: v'. Qed.
 
 (* ----------------------------------------------------------------------- *)

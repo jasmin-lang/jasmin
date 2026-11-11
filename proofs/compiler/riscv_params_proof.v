@@ -54,6 +54,7 @@ Context
 
 #[local] Existing Instance withsubword.
 #[local] Existing Instance direct_c.
+#[local] Existing Instance do_enforce_defined_variables.
 
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc hypotheses. *)
@@ -91,7 +92,7 @@ Proof.
       by rewrite GRing.addr0 => -> /=.
     case hlea: mk_lea => [[disp base scale offset]|//] /=.
     case: base hlea => [base|//] hlea.
-    have lea_sem: sem_pexpr true [::] s1 (add e ofs) = ok (Vword (w + pofs)).
+    have lea_sem: sem_pexpr [::] s1 (add e ofs) = ok (Vword (w + pofs)).
     + by rewrite /= ok_ve ok_vofs /= /sem_sop2 /= ok_w ok_pofs /=.
     have /(_ (cmp_le_refl _)) /(_ (cmp_le_refl _)) := mk_leaP _ _ hlea lea_sem.
     rewrite zero_extend_u /sem_lea /=.
@@ -226,12 +227,12 @@ Local Opaque sem_fopn_args.
         (if sz != 0%Z then RISCVFopn.smart_subi rsp r sz else [::])
       = ok (with_vm s vm1),
     vm1 =[\Sv.singleton rsp] vm0 &
-    get_var true vm1 rsp = ok (Vword (ts - wrepr reg_size sz))].
+    get_var vm1 rsp = ok (Vword (ts - wrepr reg_size sz))].
   + case: eqP => [->|_] /=.
     + rewrite wrepr0 GRing.subr0.
       exists vm0; split=> //.
       by t_get_var.
-    have hget': get_var true vm0 r = ok (Vword ts).
+    have hget': get_var vm0 r = ok (Vword ts).
     + by t_get_var; rewrite (convertible_eval_atype hc).
     apply:
       (RISCVFopnP.smart_subi_sem_fopn_args _ _

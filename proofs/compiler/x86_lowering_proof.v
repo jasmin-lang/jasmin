@@ -31,6 +31,8 @@ Section PROOF.
     {syscall_state : Type} {sc_sem : syscall_sem syscall_state}
     {pT: progT} {sCP: semCallParams}.
 
+  #[local] Existing Instance do_enforce_defined_variables.
+
   Variable p : prog.
   Variable ev : extra_val_t.
   Notation gd := (p_globs p).
@@ -119,7 +121,7 @@ Section PROOF.
 
 
   Lemma type_of_get_gvar vm sz vn vi vs v:
-    get_gvar true gd vm {| gv := {| v_var := {| vtype := aword sz; vname := vn |} ; v_info := vi |} ; gs := vs |} = ok v ->
+    get_gvar gd vm {| gv := {| v_var := {| vtype := aword sz; vname := vn |} ; v_info := vi |} ; gs := vs |} = ok v ->
     ∃ sz', type_of_val v = cword sz' ∧ (sz' ≤ sz)%CMP.
   Proof. by move=> /type_of_get_gvar_sub /= /subctypeE. Qed.
 
@@ -140,10 +142,10 @@ Section PROOF.
   Qed.
 
   Lemma add_inc_dec_classifyP s sz (a b : pexpr) w1 (z1: word w1) w2 (z2 : word w2) :
-    sem_pexprs true gd s [:: a; b] = ok [:: Vword z1; Vword z2] ->
+    sem_pexprs gd s [:: a; b] = ok [:: Vword z1; Vword z2] ->
     match add_inc_dec_classify sz a b with
-    | AddInc y => exists sz' (w: word sz'), (sz' = w1 ∨ sz' = w2) ∧ sem_pexpr true gd s y = ok (Vword w) /\ zero_extend sz w + 1 = zero_extend sz z1 + zero_extend sz z2
-    | AddDec y => exists sz' (w: word sz'), (sz' = w1 ∨ sz' = w2) ∧ sem_pexpr true gd s y = ok (Vword w) /\ zero_extend sz w - 1 = zero_extend sz z1 + zero_extend sz z2
+    | AddInc y => exists sz' (w: word sz'), (sz' = w1 ∨ sz' = w2) ∧ sem_pexpr gd s y = ok (Vword w) /\ zero_extend sz w + 1 = zero_extend sz z1 + zero_extend sz z2
+    | AddDec y => exists sz' (w: word sz'), (sz' = w1 ∨ sz' = w2) ∧ sem_pexpr gd s y = ok (Vword w) /\ zero_extend sz w - 1 = zero_extend sz z1 + zero_extend sz z2
     | AddNone => True
     end%R.
   Proof.
@@ -189,12 +191,12 @@ Section PROOF.
   Definition write_lflags s bof bcf bsf bpf bzf :
     let: vs := map Vbool [:: bof; bcf; bsf; bpf; bzf ] in
     exists s',
-      [/\ write_lvals true gd s lflags vs = ok s'
+      [/\ write_lvals gd s lflags vs = ok s'
         , eq_exc_fresh s s'
-        , get_var true (evm s') vof = ok (Vbool bof)
-        , get_var true (evm s') vcf = ok (Vbool bcf)
-        , get_var true (evm s') vsf = ok (Vbool bsf)
-        & get_var true (evm s') vzf = ok (Vbool bzf)
+        , get_var (evm s') vof = ok (Vbool bof)
+        , get_var (evm s') vcf = ok (Vbool bcf)
+        , get_var (evm s') vsf = ok (Vbool bsf)
+        & get_var (evm s') vzf = ok (Vbool bzf)
       ].
   Proof using fvars_correct.
     eexists; split; first done.
@@ -217,8 +219,8 @@ Section PROOF.
     let bsf := SF_of_word wdiff in
     let bzf := ZF_of_word wdiff in
     (ws <= U64)%CMP ->
-    sem_pexpr true gd s e0 = ok v0 ->
-    sem_pexpr true gd s e1 = ok v1 ->
+    sem_pexpr gd s e0 = ok v0 ->
+    sem_pexpr gd s e1 = ok v1 ->
     to_word ws v0 = ok w0 ->
     to_word ws v1 = ok w1 ->
     exists s',
@@ -227,7 +229,7 @@ Section PROOF.
       let: b := sem_combine_flags cf bof bcf bsf bzf in
       [/\ esem p' ev [:: MkI ii i ] s = ok s'
         , eq_exc_fresh s s'
-        & sem_pexpr true gd s' e = ok (Vbool b)
+        & sem_pexpr gd s' e = ok (Vbool b)
       ].
   Proof using fvars_correct.
     move=> wdiff bof bcf bsf bzf hws hseme0 hseme1 hw0 hw1.
@@ -247,11 +249,11 @@ Section PROOF.
   Lemma lower_condition_corr ii i e e' s1 cond :
     (i, e') = lower_condition fv vi e ->
     forall s1', eq_exc_fresh s1 s1' ->
-    sem_pexpr true gd s1' e = ok cond ->
+    sem_pexpr gd s1' e = ok cond ->
     exists s2',
       [/\ esem p' ev (map (MkI ii) i) s1' = ok s2'
         , eq_exc_fresh s1 s2'
-        & sem_pexpr true gd s2' e' = ok cond
+        & sem_pexpr gd s2' e' = ok cond
       ].
   Proof using fvars_correct.
     move=> Hcond s1' Hs1' He.
@@ -365,16 +367,16 @@ Section PROOF.
   Proof. by move=> h; rewrite /size_128_256 h wsize_ge_U256. Qed.
 
   Lemma mulr_ok l sz w1 w2 (z1 : word w1) (z2:word w2) e1 e2 o e' s s':
-    sem_pexpr true gd s e1 = ok (Vword z1) ->
-    sem_pexpr true gd s e2 = ok (Vword z2) ->
+    sem_pexpr gd s e1 = ok (Vword z1) ->
+    sem_pexpr gd s e2 = ok (Vword z2) ->
     (sz ≤ w1)%CMP ->
     (sz ≤ w2)%CMP ->
     (U16 ≤ sz)%CMP && (sz ≤ U64)%CMP ->
-    write_lval true gd l (Vword (zero_extend sz z1 * zero_extend sz z2)) s = ok s'->
+    write_lval gd l (Vword (zero_extend sz z1 * zero_extend sz z2)) s = ok s'->
     mulr sz e1 e2 = (o, e') ->
     Sv.Subset (read_es e') (read_e (Papp2 (Omul (Op_w sz )) e1 e2))
-      ∧ Let x := Let x := sem_pexprs true gd s e' in exec_sopn (Ox86 o) x
-        in write_lvals true gd s
+      ∧ Let x := Let x := sem_pexprs gd s e' in exec_sopn (Ox86 o) x
+        in write_lvals gd s
              [:: Lnone (var_info_of_lval l) abool; Lnone (var_info_of_lval l) abool;
                  Lnone (var_info_of_lval l) abool; Lnone (var_info_of_lval l) abool;
                  Lnone (var_info_of_lval l) abool; l] x = ok s'.
@@ -410,10 +412,10 @@ Section PROOF.
 
   Lemma check_shift_amountP sz e sa s z w :
     check_shift_amount sz e = Some sa →
-    sem_pexpr true gd s e = ok z →
+    sem_pexpr gd s e = ok z →
     to_word U8 z = ok w →
     Sv.Subset (read_e sa) (read_e e) ∧
-    exists2 n, sem_pexpr true gd s sa >>= to_word U8 = ok n & ∀ f (a: word sz), sem_shift f a w = sem_shift f a (wand n (x86_shift_mask sz)).
+    exists2 n, sem_pexpr gd s sa >>= to_word U8 = ok n & ∀ f (a: word sz), sem_shift f a w = sem_shift f a (wand n (x86_shift_mask sz)).
   Proof.
     rewrite /check_shift_amount.
     case en: is_wconst => [ n | ].
@@ -446,8 +448,8 @@ Section PROOF.
 
   Lemma check_wide_shift_amountP ve e a s w :
     check_wide_shift_amount ve e = Some a →
-    sem_pexpr true gd s e = ok w →
-    exists2 n, sem_pexpr true gd s a >>= to_word U128 >>= @truncate_word U64 _ = ok n & w = Vword (zero_extend U128 n).
+    sem_pexpr gd s e = ok w →
+    exists2 n, sem_pexpr gd s a >>= to_word U128 >>= @truncate_word U64 _ = ok n & w = Vword (zero_extend U128 n).
   Proof.
     case: e => // - [] // [] //.
     - case => // z /=; case: andP; last by [].
@@ -489,29 +491,29 @@ Section PROOF.
     lia.
   Qed.
 
-  Lemma lower_cassgn_classifyP e l s s' v ty v' (Hs: sem_pexpr true gd s e = ok v)
+  Lemma lower_cassgn_classifyP e l s s' v ty v' (Hs: sem_pexpr gd s e = ok v)
       (Hv': truncate_val (eval_atype ty) v = ok v')
-      (Hw: write_lval true gd l v' s = ok s'):
+      (Hw: write_lval gd l v' s = ok s'):
     match lower_cassgn_classify ty e l with
     | LowerMov _ =>
       exists2 sz, eval_atype ty = cword sz & (sz ≤ U64)%CMP ∧
       ∃ sz' (w : word sz'), (sz ≤ sz')%CMP ∧ v = Vword w
     | LowerCopn o a =>
-      sem_pexprs true gd s a >>= exec_sopn o = ok [:: v' ]
+      sem_pexprs gd s a >>= exec_sopn o = ok [:: v' ]
     | LowerInc o a =>
-      ∃ b1 b2 b3 b4, sem_pexprs true gd s [:: a] >>= exec_sopn o = ok [:: Vbool b1; Vbool b2; Vbool b3; Vbool b4; v']
+      ∃ b1 b2 b3 b4, sem_pexprs gd s [:: a] >>= exec_sopn o = ok [:: Vbool b1; Vbool b2; Vbool b3; Vbool b4; v']
     | LowerFopn _ o e' _ =>
       let vi := var_info_of_lval l in
       let f  := Lnone vi abool in
       Sv.Subset (read_es e') (read_e e) ∧
-      sem_pexprs true gd s e' >>= exec_sopn o >>=
-      write_lvals true gd s [:: f; f; f; f; f; l] = ok s'
+      sem_pexprs gd s e' >>= exec_sopn o >>=
+      write_lvals gd s [:: f; f; f; f; f; l] = ok s'
     | LowerDiscardFlags n op e' =>
       let f := Lnone (var_info_of_lval l) abool in
       Sv.Subset (read_es e') (read_e e)
-      /\ sem_pexprs true gd s e'
+      /\ sem_pexprs gd s e'
          >>= exec_sopn op
-         >>= write_lvals true gd s (nseq n f ++ [:: l ]) = ok s'
+         >>= write_lvals gd s (nseq n f ++ [:: l ]) = ok s'
     | LowerDivMod p u sz o a b =>
       let vi := var_info_of_lval l in
       let f  := Lnone vi abool in
@@ -521,29 +523,29 @@ Section PROOF.
         | DM_Snd => [:: f; f; f; f; f; Lnone vi (aword sz); l]
         end in
       [/\ (exists (va:value)(wa:word sz),
-          [/\ (sem_pexpr true gd s a) = ok va,
+          [/\ (sem_pexpr gd s a) = ok va,
                to_word sz va = ok wa &
             (forall s1,
              eq_exc_fresh s s1 ->
              disj_fvars (vars_lval l) ->
              disj_fvars (read_e e) ->
-             [/\ (sem_pexpr true gd s1 a) = ok va &
+             [/\ (sem_pexpr gd s1 a) = ok va &
              exists s1',
-              (Let vb := (sem_pexpr true gd s1 b) in
+              (Let vb := (sem_pexpr gd s1 b) in
                let v0 : word sz :=
                  if u is Unsigned then 0%R
                  else if msb wa then (-1)%R else 0%R in
                exec_sopn o [::Vword v0; va; vb] >>=
-                 write_lvals true gd s1 lv) = ok s1' /\
+                 write_lvals gd s1 lv) = ok s1' /\
                eq_exc_fresh s' s1'])]),
           eval_atype ty = cword sz , (U16 ≤ sz)%CMP & (sz ≤ U64)%CMP]
     | LowerCond => True
     | LowerIf t a e1 e2 =>
       [/\ size_16_64 (wsize_of_lval l)
         , Sv.Subset (Sv.union (read_e e1) (read_e e2)) (read_e e)
-        , exists2 b, sem_pexpr true gd s a >>= to_bool = ok b &
-          exists2 trv1, sem_pexpr true gd s e1 >>= truncate_val (eval_atype t) = ok trv1 &
-          exists2 trv2, sem_pexpr true gd s e2 >>= truncate_val (eval_atype t) = ok trv2 &
+        , exists2 b, sem_pexpr gd s a >>= to_bool = ok b &
+          exists2 trv1, sem_pexpr gd s e1 >>= truncate_val (eval_atype t) = ok trv1 &
+          exists2 trv2, sem_pexpr gd s e2 >>= truncate_val (eval_atype t) = ok trv2 &
           v = if b then trv1 else trv2
         ,  wsize_of_lval l = wsize_of_atype ty & ∃ sz', ty = aword sz' ]
     | LowerLea sz l =>
@@ -552,7 +554,7 @@ Section PROOF.
        exists w: word sz,
         v' = Vword w /\ sem_lea sz (evm s) l = ok w)
     | LowerConcat hi lo =>
-      sem_pexprs true gd s [:: hi ; lo ] >>= exec_sopn (Oasm (ExtOp Oconcat128)) = ok [:: v' ]
+      sem_pexprs gd s [:: hi ; lo ] >>= exec_sopn (Oasm (ExtOp Oconcat128)) = ok [:: v' ]
     | LowerAssgn => True
     end.
   Proof.
@@ -885,7 +887,7 @@ Section PROOF.
       (* Oland Op_w *)
       + case handn : is_andn => [[a1 a2] | ].
         + move=> he.
-          have : sem_pexpr true gd s (Papp2 (Oland sz) (Papp1 (Olnot sz) a1) a2) = ok v /\
+          have : sem_pexpr gd s (Papp2 (Oland sz) (Papp1 (Olnot sz) a1) a2) = ok v /\
                  Sv.Subset (read_es [:: a1; a2]) (read_e (Papp2 (Oland sz) e1 e2)).
           + have [wsx [wx [wsy [wy [hx hy hwsx hwsy ?]]]]] := is_andn_semP handn he; subst v.
             split.
@@ -1185,9 +1187,9 @@ Section PROOF.
   Lemma opn_5flags_correct vi ii s a t o cf r xs ys m sz s' :
     disj_fvars (read_es a) →
     disj_fvars (vars_lvals [:: cf ; r ]) →
-    sem_pexprs true gd s a = ok xs →
+    sem_pexprs gd s a = ok xs →
     exec_sopn o xs = ok ys →
-    write_lvals true gd s [:: Lnone_b vi ; cf ; Lnone_b vi ; Lnone_b vi ; Lnone_b vi ; r] ys = ok s' →
+    write_lvals gd s [:: Lnone_b vi ; cf ; Lnone_b vi ; Lnone_b vi ; Lnone_b vi ; r] ys = ok s' →
     ∃ s'',
     esem p' ev [seq MkI ii i | i <- opn_5flags fv m sz vi cf r t o a] s = ok s''
     ∧ eq_exc_fresh s' s''.
@@ -1215,8 +1217,8 @@ Section PROOF.
       rewrite /= /sem_sopn /= -/ℓ LetK.
       move: hx; rewrite /sem_pexprs /=; t_xrbindP => y hy z' z1 hz1 ? ?; subst z' xs.
       rewrite (eeq_exc_sem_pexpr dx e hy) /=.
-      fold (sem_pexprs true gd s) in hz1.
-      rewrite /get_gvar get_var_eq /= cmp_le_refl orbT -/(sem_pexprs true gd ℓ) //.
+      fold (sem_pexprs gd s) in hz1.
+      rewrite /get_gvar get_var_eq /= cmp_le_refl orbT -/(sem_pexprs gd ℓ) //.
       rewrite (eeq_exc_sem_pexprs dz e hz1) /=.
       move: hr.
       apply opn_no_immP.
@@ -1242,9 +1244,9 @@ Section PROOF.
   Qed.
 
   Lemma reduce_wconstP s e sz sz' (v: word sz') :
-    sem_pexpr true gd s e = ok (Vword v) →
+    sem_pexpr gd s e = ok (Vword v) →
     ∃ sw (w: word sw),
-      sem_pexpr true gd s (reduce_wconst sz e) = ok (Vword w) ∧
+      sem_pexpr gd s (reduce_wconst sz e) = ok (Vword w) ∧
       (cmp_min sz sz' ≤ sw)%CMP ∧
       zero_extend sz v = zero_extend sz w.
   Proof.
@@ -1261,8 +1263,8 @@ Section PROOF.
 
   Lemma mov_wsP (p1: prog) ii s1 e ws tag i x w s2 :
     (ws <= U64)%CMP ->
-    (Let i' := sem_pexpr true (p_globs p1) s1 e in to_word ws i') = ok i
-    -> write_lval true (p_globs p1) x (Vword i) s1 = ok s2
+    (Let i' := sem_pexpr (p_globs p1) s1 e in to_word ws i') = ok i
+    -> write_lval (p_globs p1) x (Vword i) s1 = ok s2
     -> esem_i p1 w (MkI ii (mov_ws ws x e tag)) s1 = ok s2.
   Proof.
     by move=> hws he hx; rewrite /mov_ws; case: ifP => [ /andP [] _ h | _] /=;
@@ -1331,8 +1333,8 @@ Section PROOF.
       set ob := oapp Plvar _ b; set oo := oapp Plvar _ o.
       have [wb [wo [Hwb Hwo Ew ]]]:
         exists (wb wo: word sz),
-          [/\ sem_pexpr true gd s1' ob >>= to_word sz = ok wb,
-              sem_pexpr true gd s1' oo >>= to_word sz = ok wo &
+          [/\ sem_pexpr gd s1' ob >>= to_word sz = ok wb,
+              sem_pexpr gd s1' oo >>= to_word sz = ok wo &
               w = (wrepr sz d + (wb + (wrepr sz sc * wo)))%R].
       + move: Hslea; rewrite /sem_lea /=; t_xrbindP => wb Hwb wo Hwo H.
         exists wb, wo; split.
@@ -1348,7 +1350,7 @@ Section PROOF.
       set elea := Papp2 (Oadd (Op_w sz)) (wconst (wrepr Uptr d)) (Papp2 (Oadd (Op_w sz)) ob (Papp2 (Omul (Op_w sz)) (wconst (wrepr Uptr sc)) oo)).
       case /andP: hsz => hsz1 hsz2.
       have Hlea :
-        Let vs := sem_pexprs true gd s1' [:: elea ] in
+        Let vs := sem_pexprs gd s1' [:: elea ] in
         exec_sopn (Ox86 (LEA sz)) vs = ok [:: Vword w ].
       + rewrite /sem_pexprs /= Hvb Hvo /= /exec_sopn /= computational_eq_refl /sem_sop2 /= !truncate_word_le // /=.
         rewrite Hwb Hwo /= truncate_word_u /= truncate_word_u /= truncate_word_u /= /x86_LEA /size_16_64 hsz1 hsz2 /=.
@@ -1368,7 +1370,7 @@ Section PROOF.
         case Heq : mulr => [o1 e'].
         move: Hvb; rewrite Eob /= /sem_sop1 /= => -[?]; subst vb.
         have [sz1 [w1 [hle1 ??]]]:= to_wordI' Hwo;subst vo wo.
-        have Hsc1 : sem_pexpr true gd s1' (wconst (wrepr Uptr sc)) = ok (Vword (wrepr Uptr sc)).
+        have Hsc1 : sem_pexpr gd s1' (wconst (wrepr Uptr sc)) = ok (Vword (wrepr Uptr sc)).
         + by rewrite /wconst /= /sem_sop1 /= wrepr_unsigned.
         move: Hwb; rewrite /= truncate_word_u wrepr_unsigned => -[?];subst wb.
         rewrite wrepr0 !GRing.add0r GRing.mulrC in Hw'.
@@ -1494,7 +1496,7 @@ Section PROOF.
       move: hdiv; set va0 := Vword (match u with Signed => _ | _ => _ end) => hdiv.
       have [s1'1 [hsem1 hget heq1]]: exists s1'1,
         [/\ esem_i p' ev (MkI ii i1) s1' = ok s1'1,
-            get_var true (evm s1'1) (v_var vf) = ok va0 &
+            get_var (evm s1'1) (v_var vf) = ok va0 &
             eq_exc_fresh s1' s1'1].
       + rewrite /i1 /va0; case: (u); eexists; split.
         + by rewrite /i1 /= /sem_sopn /exec_sopn /= computational_eq_refl
@@ -1595,9 +1597,9 @@ Section PROOF.
   Qed.
 
   Lemma sem_pexprs_dec2 s e1 e2 v1 v2:
-    sem_pexprs true gd s [:: e1; e2] = ok [:: v1; v2] ->
-      sem_pexpr true gd s e1 = ok v1 /\
-      sem_pexpr true gd s e2 = ok v2.
+    sem_pexprs gd s [:: e1; e2] = ok [:: v1; v2] ->
+      sem_pexpr gd s e1 = ok v1 /\
+      sem_pexpr gd s e2 = ok v2.
   Proof.
     rewrite /sem_pexprs /=.
     t_xrbindP=> v1' -> [] // v1'' [] // v2' -> []<- <- []<-.
@@ -1605,10 +1607,10 @@ Section PROOF.
   Qed.
 
   Lemma sem_pexprs_dec3 s e1 e2 e3 v1 v2 v3:
-    sem_pexprs true gd s [:: e1; e2; e3] = ok [:: v1; v2; v3] ->
-      sem_pexpr true gd s e1 = ok v1 /\
-      sem_pexpr true gd s e2 = ok v2 /\
-      sem_pexpr true gd s e3 = ok v3.
+    sem_pexprs gd s [:: e1; e2; e3] = ok [:: v1; v2; v3] ->
+      sem_pexpr gd s e1 = ok v1 /\
+      sem_pexpr gd s e2 = ok v2 /\
+      sem_pexpr gd s e3 = ok v3.
   Proof.
     rewrite /sem_pexprs /=.
     t_xrbindP=> v1' -> [] // v2' [] // v3' [] // v4' Hv4' [] // v5' [] // v6' Hv6' []<- []<- <- <- []<- <-.
@@ -1616,7 +1618,7 @@ Section PROOF.
   Qed.
 
   Lemma write_lvals_dec2_s s1 s2 v1 v2 xs:
-    write_lvals true gd s1 xs [:: v1; v2] = ok s2 ->
+    write_lvals gd s1 xs [:: v1; v2] = ok s2 ->
     exists x1 x2, xs = [:: x1; x2].
   Proof.
     move: xs=> [] // x1 [] //=.
@@ -1628,7 +1630,7 @@ Section PROOF.
   Qed.
 
   Lemma sem_pexprs_dec2_s s es v1 v2:
-    sem_pexprs true gd s es = ok [:: v1; v2] ->
+    sem_pexprs gd s es = ok [:: v1; v2] ->
     exists e1 e2, es = [:: e1; e2].
   Proof.
     move: es=> [] // e1 [] //.
@@ -1663,10 +1665,10 @@ Section PROOF.
     eq_exc_fresh si si' →
     disj_fvars (vars_lvals xs) →
     disj_fvars (read_es es) →
-    sem_pexprs true gd si' es = ok x →
+    sem_pexprs gd si' es = ok x →
     let: op := if sub then sopn_subcarry else sopn_addcarry in
     exec_sopn (op sz) x = ok v →
-    write_lvals true gd si' xs v = ok so →
+    write_lvals gd si' xs v = ok so →
     ∃ so',
       esem p' ev (map (MkI ii) (lower_addcarry fv sz sub xs t es)) si' = ok so' ∧
       eq_exc_fresh so so'.
@@ -1682,11 +1684,11 @@ Section PROOF.
     assert (
         disj_fvars (read_es es') ∧
           ∃ x',
-          sem_pexprs true gd si' es' = ok x' ∧
+          sem_pexprs gd si' es' = ok x' ∧
           ∃ v',
           exec_sopn (Ox86 (op sz)) x' = ok v' ∧
           let f := Lnone_b vi in
-          write_lvals true gd si' [:: f ; cf ; f ; f ; f ; r ] v' = ok so) as D.
+          write_lvals gd si' [:: f ; cf ; f ; f ; f ; r ] v' = ok so) as D.
     {
       clear - hsz64 des hx hv C ho.
       case: C => [ [? [? [? ?]]] | [cfi [?[?[? ?]]]]]; subst; apply (conj des).

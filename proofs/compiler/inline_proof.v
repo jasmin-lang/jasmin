@@ -150,9 +150,9 @@ End SUBSET.
 Lemma assgn_tuple_Lvar (p:uprog) (ev:unit) ii (xs:seq var_i) flag tys es vs vs' s s' :
   let xs := map Lvar xs in
   disjoint (vrvs xs) (read_es es) ->
-  sem_pexprs true (p_globs p) s es = ok vs ->
+  sem_pexprs (wdb := true) (p_globs p) s es = ok vs ->
   mapM2 ErrType dc_truncate_val (map eval_atype tys) vs = ok vs' ->
-  write_lvals true (p_globs p) s xs vs' = ok s' ->
+  write_lvals (wdb := true) (p_globs p) s xs vs' = ok s' ->
   esem p ev (assgn_tuple ii xs flag tys es) s = ok s'.
 Proof.
   rewrite /disjoint /assgn_tuple /is_true Sv.is_empty_spec.
@@ -172,9 +172,9 @@ Qed.
 Lemma assgn_tuple_Pvar (p:uprog) ev ii xs flag tys rxs vs vs' s s' :
   let es := map Plvar rxs in
   disjoint (vrvs xs) (read_es es) ->
-  get_var_is true (evm s) rxs = ok vs ->
+  get_var_is (wdb := true) (evm s) rxs = ok vs ->
   mapM2 ErrType dc_truncate_val (map eval_atype tys) vs = ok vs' ->
-  write_lvals true (p_globs p) s xs vs' = ok s' ->
+  write_lvals (wdb := true) (p_globs p) s xs vs' = ok s' ->
   esem p ev (assgn_tuple ii xs flag tys es) s = ok s'.
 Proof.
   rewrite /disjoint /assgn_tuple /is_true Sv.is_empty_spec.

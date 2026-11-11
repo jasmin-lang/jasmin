@@ -49,6 +49,7 @@ Section Section.
 
 #[local] Existing Instance withsubword.
 #[local] Existing Instance direct_c.
+#[local] Existing Instance do_enforce_defined_variables.
 
 Context
   {core : arm_core}
@@ -103,7 +104,7 @@ Proof.
       by rewrite GRing.addr0 => -> /=.
     case hlea: mk_lea => [[disp base scale offset]|//] /=.
     case: base hlea => [base|//] hlea.
-    have lea_sem: sem_pexpr true [::] s1 (add e ofs) = ok (Vword (w + pofs)).
+    have lea_sem: sem_pexpr [::] s1 (add e ofs) = ok (Vword (w + pofs)).
     + by rewrite /= ok_ve ok_vofs /= /sem_sop2 /= ok_w ok_pofs /=.
     have /(_ (cmp_le_refl _)) /(_ (cmp_le_refl _)) := mk_leaP _ _ hlea lea_sem.
     rewrite zero_extend_u /sem_lea /=.
@@ -249,11 +250,11 @@ Proof.
   have -> /= := ARMFopnP.align_sem_fopn_args ntmp vi3 al
                  (y:= tmp) (s:= s1) (to_word_get_var hget1).
   set s2 := with_vm _ _.
-  have hget2 : get_var true (evm s2) rsp = ok (Vword ts).
+  have hget2 : get_var (evm s2) rsp = ok (Vword ts).
   + by t_get_var; rewrite (get_var_eq_ex _ _ heq1) //; apply/Sv_neq_not_in_singleton.
   have -> /= := ARMFopnP.mov_sem_fopn_args (xi:=r) hc (to_word_get_var hget2).
   set s3 := with_vm _ _.
-  have hget3 : get_var true (evm s3) tmp = ok (Vword ts').
+  have hget3 : get_var (evm s3) tmp = ok (Vword ts').
   + by t_get_var.
   have -> /= := ARMFopnP.mov_sem_fopn_args (xi:=rsp) erefl (to_word_get_var hget3).
   set s4 := with_vm _ _.
@@ -374,7 +375,7 @@ Proof. constructor => *; exact: it_lower_callP. Qed.
 (* Lowering of the loads from a global. *)
 
 Lemma arm_glob_addrP gd s (y : var_i) e pa :
-  sem_pexpr true gd s e >>= to_pointer = ok pa ->
+  sem_pexpr gd s e >>= to_pointer = ok pa ->
   vtype y = aword Uptr ->
   sem_sopn gd (Oasm (ExtOp Oarm_glob_addr)) s [:: Lvar y] [:: e]
   = ok (with_vm s (evm s).[y <- Vword pa]).
@@ -486,7 +487,7 @@ Qed.
 Lemma eval_assemble_cond_Pvar ii m rf x r v :
   eqflags m rf
   -> of_var_e ii x = ok r
-  -> get_var true (evm m) x = ok v
+  -> get_var (evm m) x = ok v
   -> exists2 v',
        value_of_bool (arm_eval_cond (get_rf rf) (condt_of_rflag r)) = ok v'
        & value_uincl v v'.
@@ -524,9 +525,9 @@ Lemma eval_assemble_cond_Obeq ii m rf v x0 x1 r0 r1 v0 v1 :
   is_rflags_GE r0 r1 = true
   -> eqflags m rf
   -> of_var_e ii x0 = ok r0
-  -> get_var true (evm m) x0 = ok v0
+  -> get_var (evm m) x0 = ok v0
   -> of_var_e ii x1 = ok r1
-  -> get_var true (evm m) x1 = ok v1
+  -> get_var (evm m) x1 = ok v1
   -> sem_sop2 Obeq v0 v1 = ok v
   -> exists2 v',
        value_of_bool (arm_eval_cond (get_rf rf) GE_ct) = ok v' & value_uincl v v'.

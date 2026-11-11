@@ -49,6 +49,12 @@ End LOWERING.
 (* -------------------------------------------------------------------- *)
 (* Patterns shared by the lowering passes of the back-ends. *)
 
+Definition isLnone x : bool :=
+  match x with
+  | Lnone _ _ => true
+  | _ => false
+  end.
+
 (* A complemented operand [!a], at any width: the operator that consumes it
    truncates it to its own width, which commutes with the complement. *)
 Definition is_lnot (e : pexpr) : option pexpr :=

@@ -43,10 +43,13 @@ Section PROOF.
     by move => ->.
   Qed.
 
-  Lemma write_var_Z i (z: Z) s s' :
-    write_var true i z s = ok s' ->
+  Lemma write_var_Z (wdb: enforce_defined_variables) i (z: Z) s s' :
+    write_var i z s = ok s' ->
     eval_atype (vtype i) = cint.
-  Proof. by case: i => - [[] x]. Qed.
+  Proof.
+    rewrite /write_var /set_var /DB orbT /=.
+    by case: vtype.
+Qed.
 
   Section IT.
 
