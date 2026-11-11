@@ -234,6 +234,7 @@ Context
   (agparams : asm_gen_params).
 
 Notation assemble_cond := (agp_assemble_cond agparams).
+#[local] Existing Instance do_enforce_defined_variables.
 
 Lemma xscale_ok ii z sc :
   scale_of_z ii z = ok sc ->
@@ -420,7 +421,7 @@ Qed.
 
 Lemma var_of_flagP rip m s f v ty vt:
   lom_eqv rip m s
-  -> get_var (wdb := true) (evm m) (to_var f) = ok v
+  -> get_var (evm m) (to_var f) = ok v
   -> of_val ty v = ok vt
   -> exists2 v' : value,
       Let b := st_get_rflag s f in ok (Vbool b) = ok v'
@@ -434,7 +435,7 @@ Qed.
 
 Lemma var_of_regP rip E m s r v ty vt:
   lom_eqv rip m s
-  -> get_var (wdb := true) (evm m) (to_var r) = ok v
+  -> get_var (evm m) (to_var r) = ok v
   -> of_val ty v = ok vt
   -> exists2 v' : value,
       Ok E (Vword ((asm_reg s) r)) = ok v'
@@ -443,7 +444,7 @@ Proof. move=> lom /(getreg lom) hg /(of_value_uincl hg) <-; eauto. Qed.
 
 Lemma var_of_regP_eq rip m s (r:reg_t) v vt:
   lom_eqv rip m s
-  -> get_var (wdb := true) (evm m) (to_var r) = ok v
+  -> get_var (evm m) (to_var r) = ok v
   -> to_pointer v = ok vt
   -> asm_reg s r = vt.
 Proof.
@@ -585,7 +586,7 @@ Qed.
 
 Lemma lom_eqv_write_var f rip s xs (x : var_i) sz (w : word sz) s' r :
   lom_eqv rip s xs
-  -> write_var (wdb := true) x (Vword w) s = ok s'
+  -> write_var x (Vword w) s = ok s'
   -> to_var r = x
   -> lom_eqv rip s' (mem_write_reg f r w xs).
 Proof.
@@ -725,7 +726,7 @@ Proof.
     case: ty hty vt hw => //= sz _ vt hw.
     rewrite truncate_word_u /= heq1 hc => /xreg_of_varI {heq1 hc}.
     case: a => // r h; have {h}/=h := of_varI h; subst x.
-    + have hw' : write_var (wdb := true) {| v_var := to_var r; v_info := xii|} (Vword vt) m = ok m' by done.
+    + have hw' : write_var {| v_var := to_var r; v_info := xii|} (Vword vt) m = ok m' by done.
       have /(_ r erefl) := lom_eqv_write_var msb_flag hlom hw'; eauto.
     + move: hw; t_xrbindP => vm /set_varP [_ htr ->] <-.
       eexists; split; first reflexivity.
@@ -2099,7 +2100,7 @@ Proof using hagparams ok_p'.
       apply: eval_jumpP; last by apply hjump.
       rewrite /st_update_next /=.
       apply: lom_eqv_veneer_kill.
-      have : write_var (wdb := true) xlr (Vword ptr) (to_estate ls) = ok {| escs := lscs ls; emem := lmem ls; evm := vm |}.
+      have : write_var xlr (Vword ptr) (to_estate ls) = ok {| escs := lscs ls; emem := lmem ls; evm := vm |}.
       + by rewrite /write_var /= hset.
       have {}heqlr := of_varI heqlr.
       by move=> /(lom_eqv_write_var MSB_CLEAR hloeq) -/(_ _ heqlr).
@@ -2121,7 +2122,7 @@ Proof using hagparams ok_p'.
     apply: lom_eqv_veneer_kill.
     set vrspi := {| v_var := to_var ad_rsp; v_info := dummy_var_info |}.
     set vmsp := (X in lom_eqv _ {| escs := _; emem := _; evm := X |} _).
-    have : write_var (wdb := true) vrspi (Vword (wsp -  wrepr reg_size (wsize_size reg_size))) (to_estate ls) = ok {| escs := lscs ls; emem := lmem ls; evm := vmsp |}.
+    have : write_var vrspi (Vword (wsp -  wrepr reg_size (wsize_size reg_size))) (to_estate ls) = ok {| escs := lscs ls; emem := lmem ls; evm := vmsp |}.
     + rewrite /vmsp /write_var /= /to_estate //= /with_vm /=.
       by have [ ->] := to_var_rsp.
     move=> /(lom_eqv_write_var MSB_CLEAR hloeq) -/(_ ad_rsp erefl).
@@ -2141,7 +2142,7 @@ Proof using hagparams ok_p'.
     apply: eval_jumpP; last by apply hjump.
     set vi := {| v_var := to_var ad_rsp; v_info := dummy_var_info |}.
     set ls1 := (X in to_estate X).
-    have : write_var (wdb := true) vi (Vword (wsp +  wrepr reg_size (wsize_size reg_size))) (to_estate ls) = ok {| escs := lscs ls; emem := lmem ls; evm := lvm ls1 |}.
+    have : write_var vi (Vword (wsp +  wrepr reg_size (wsize_size reg_size))) (to_estate ls) = ok {| escs := lscs ls; emem := lmem ls; evm := lvm ls1 |}.
     + rewrite /write_var /= /to_estate //= /with_vm /=.
       by have [ ->] := to_var_rsp.
     move=> /(lom_eqv_write_var MSB_CLEAR hloeq) -/(_ ad_rsp erefl).

@@ -5,13 +5,13 @@ Require Import psem.
 Section SEM_EXPR.
 (* Semantic of expressions *)
 
-  Context {wsw : WithSubWord} {pd: PointerData}.
+  Context {wsw : WithSubWord} {pd: PointerData} {wdb: enforce_defined_variables}.
   Context (m: mem) (vm: Vm.t).
 
   Fixpoint sem_fexpr (e: fexpr) : exec value :=
     match e with
     | Fconst z => ok (Vint z)
-    | Fvar x => get_var (wdb := true) vm x
+    | Fvar x => get_var vm x
     | Fapp1 op a => Let v := sem_fexpr a in sem_sop1 op v
     | Fapp2 op a b=> Let v := sem_fexpr a in Let w := sem_fexpr b in sem_sop2 op v w
     | Fif a b c => Let u := sem_fexpr a >>= to_bool in Let v := sem_fexpr b >>= to_bool in Let w := sem_fexpr c >>= to_bool in ok (Vbool (if u then v else w))
@@ -29,6 +29,7 @@ Section SEM.
 
 Context
   {wsw : WithSubWord} {syscall_state : Type}
+  {wdb : enforce_defined_variables}
   {ep : EstateParams syscall_state}.
 
 Definition write_lexpr e v (s: estate) : exec estate :=
@@ -39,7 +40,7 @@ Definition write_lexpr e v (s: estate) : exec estate :=
       Let m := write (emem s) al p w in
       ok (with_mem s m)
   | LLvar x =>
-      Let vm := set_var (wdb := true) (evm s) x v in
+      Let vm := set_var (evm s) x v in
       ok (with_vm s vm)
   end.
 

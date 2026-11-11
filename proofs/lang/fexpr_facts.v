@@ -39,12 +39,12 @@ Context
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
-  (wdb : bool)
+  {wdb : enforce_defined_variables}
   (gd : glob_decls).
 
 Lemma fexpr_of_pexprP s e f v :
   fexpr_of_pexpr e = Some f →
-  sem_pexpr (wdb := true) gd s e = ok v →
+  sem_pexpr gd s e = ok v →
   sem_fexpr (evm s) f = ok v.
 Proof.
   elim: e f v => //=.
@@ -72,7 +72,7 @@ Qed.
 
 Lemma rexpr_of_pexprP s e r v :
   rexpr_of_pexpr e = Some r →
-  sem_pexpr (wdb := true) gd s e = ok v →
+  sem_pexpr gd s e = ok v →
   sem_rexpr (emem s) (evm s) r = ok v.
 Proof.
   elim/rexpr_of_pexpr_ind: (rexpr_of_pexpr e).
@@ -83,7 +83,7 @@ Qed.
 
 Lemma lexpr_of_lvalP x d s v s' :
   lexpr_of_lval x = Some d →
-  write_lval (wdb := true) gd x v s = ok s' →
+  write_lval gd x v s = ok s' →
   write_lexpr d v s = ok s'.
 Proof.
   case: x => //.
