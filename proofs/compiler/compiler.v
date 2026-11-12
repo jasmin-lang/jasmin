@@ -115,8 +115,8 @@ Variant compiler_step :=
   | PropagateInline             : compiler_step
   | SLHLowering                 : compiler_step
   | NameHoles                   : compiler_step
-  | LowerAddressing             : compiler_step
   | StackAllocation             : compiler_step
+  | LowerAddressing             : compiler_step
   | RemoveReturn                : compiler_step
   | RegAllocation               : compiler_step
   | DeadCode_RegAllocation      : compiler_step
@@ -153,8 +153,8 @@ Definition compiler_step_list := [::
   ; PropagateInline
   ; SLHLowering
   ; NameHoles
-  ; LowerAddressing
   ; StackAllocation
+  ; LowerAddressing
   ; RemoveReturn
   ; RegAllocation
   ; DeadCode_RegAllocation
