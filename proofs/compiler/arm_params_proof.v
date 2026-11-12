@@ -296,14 +296,17 @@ Proof.
   by case: vtype htxd.
 Qed.
 
-Lemma arm_lstore_correct : lstore_correct_aux arm_check_ws arm_lstore.
+Lemma arm_lstore_correct : lstore_correct_aux arm_check_store_ws arm_lstore.
 Proof.
-  move=> xd xs ofs ws w wp s m /eqP hchk; t_xrbindP; subst ws.
-  move=> vd hgetd htrd vs hgets htrs hwr.
-  rewrite /arm_lstore /= hgets hgetd /= /exec_sopn /= htrs /=.
-  rewrite /sem_sop2 /= htrd /= !truncate_word_u /= truncate_word_u /=.
-  by rewrite zero_extend_u hwr.
+  move=> xd xs ofs ws w wp s m hchk; t_xrbindP => vd hgetd htrd vs hgets htrs hwr.
+  case: ws w hchk htrs hwr => // w _ htrs hwr.
+  all: rewrite /arm_lstore /= hgets hgetd /= /exec_sopn /= htrs /=.
+  all: rewrite /sem_sop2 /= htrd /= !truncate_word_u /= truncate_word_u /=.
+  all: by rewrite zero_extend_u hwr.
 Qed.
+
+Lemma arm_check_store_ws_correct ws : arm_check_ws ws -> arm_check_store_ws ws.
+Proof. by move=> /eqP ->. Qed.
 
 Lemma arm_smart_addi_correct : ladd_imm_correct_aux ARMFopn.smart_addi.
 Proof.
@@ -314,8 +317,9 @@ Qed.
 Lemma arm_lstores_correct : lstores_correct arm_liparams.
 Proof.
   apply/lstores_imm_dfl_correct.
-  + by apply arm_lstore_correct.
-  apply arm_smart_addi_correct.
+  + exact: arm_lstore_correct.
+  + exact: arm_check_store_ws_correct.
+  exact: arm_smart_addi_correct.
 Qed.
 
 Lemma arm_lload_correct : lload_correct_aux (lip_check_ws arm_liparams) arm_lload.
@@ -354,6 +358,7 @@ Definition arm_hliparams :
     spec_lip_lloads               := arm_lloads_correct;
     spec_lip_tmp                  := arm_tmp_correct;
     spec_lip_check_ws             := arm_check_ws_correct;
+    spec_lip_check_store_ws       := arm_check_store_ws_correct;
   |}.
 
 Lemma arm_ok_lip_tmp :
