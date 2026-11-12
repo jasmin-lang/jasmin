@@ -83,7 +83,31 @@ Keeping `x18` out of the allocation pool is the only safe choice across these
 platforms. On a platform where `x18` is a plain temporary this merely forgoes
 one scratch register; correctness is unaffected.
 
-## 4. The stack pointer must stay 16-byte aligned
+## 4. The frame pointer (x29) is never allocated
+
+`x29` is an ordinary register to the architecture, but AAPCS64 makes it the
+frame pointer and lets each platform decide how strictly frame records are
+maintained:
+
+> AAPCS64, *The Frame Pointer*: "A platform shall mandate the minimum level of
+> conformance with respect to the maintenance of frame records." The strongest
+> levels "require the frame pointer to address a valid frame record at all
+> times", some functions being allowed not to create a record of their own.
+>
+> Apple, *Writing ARM64 Code for Apple Platforms*:
+> "The frame pointer register (x29) must always address a valid frame record."
+
+A function that does not create a frame record leaves `x29` pointing to its
+caller's record, which meets this rule. A function that uses `x29` as a scratch
+register does not: while it runs, a stack walker (debugger, profiler, crash
+reporter) follows whatever value it holds. So `x29` stays in the register file
+(it is callee-saved, and a prologue could later build a frame record in it),
+but register allocation never assigns it (`reserved_regs` in
+`compiler/src/armv8a_arch_full.ml`), and it is not in
+`armv8a_internal_call_conv`. This holds on every platform; where the platform
+does not require it, it forgoes one register.
+
+## 5. The stack pointer must stay 16-byte aligned
 
 Whenever `SP` is used as the base of a memory access it must be 16-byte aligned.
 This is an **architectural** check (an exception), not just an ABI convention:
@@ -114,7 +138,7 @@ need not be a multiple of 16. The backend therefore:
 
 The extra padding lands at the top of the frame and is never accessed.
 
-## 5. The stack pointer cannot be an LDR destination
+## 6. The stack pointer cannot be an LDR destination
 
 Because a load writes its result through the general-purpose `X[]` accessor, and
 register number 31 in that accessor is `ZR` (§2), an A64 `LDR` can never write
@@ -138,6 +162,7 @@ then loads the saved `SP` into `X17` and issues `MOV SP, X17`.
 |---|---|---|
 | Omit `XZR` | `armv8a_decl.v` — `register`, `registers`, `register_to_string` | Arm ARM B1.2, p. B1-206 |
 | Omit `x18` | `armv8a_decl.v` — `register`, `registers`, `armv8a_internal_call_conv` | AAPCS64 IHI 0055F; Apple ABI |
+| Never allocate `x29` | `armv8a_arch_full.ml`: `reserved_regs`; `armv8a_decl.v`: `armv8a_internal_call_conv` | AAPCS64 *The Frame Pointer*; Apple ABI |
 | Round frames to 16 | `armv8a_params.v` — `round_up_16`, `armv8a_allocate_stack_frame`, `armv8a_free_stack_frame` | Arm ARM D1.4.10.2 (RRDMXG, RTFVSM) |
 | Re-align frames ≥ 16 | `armv8a_params.v` — `armv8a_set_up_sp_register` | Arm ARM D1.4.10.2; AAPCS64 |
 | Restore `SP` via scratch + `MOV` | `armv8a_params.v` — `armv8a_lloads` | Arm ARM B1.2, p. B1-206 |
