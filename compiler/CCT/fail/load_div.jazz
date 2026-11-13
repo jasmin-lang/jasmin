@@ -1,0 +1,5 @@
+#[ct = "public → secret"]
+fn half(reg u64 x) -> reg u64 {
+  x = [x] / 2;
+  return x;
+}
