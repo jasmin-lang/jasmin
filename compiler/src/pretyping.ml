@@ -298,6 +298,11 @@ module Env : sig
 
   val decls : 'asm env -> (unit, 'asm) P.pmod_item list
 
+  type loader
+  val empty_loader : loader
+  val loader_add_from : loader -> string * string -> loader
+  val resolve_file : loader -> Path.t -> A.pident option -> L.t option -> string -> Path.t * Path.t
+
   val add_from : 'asm env -> string * string -> 'asm env
 
   val enter_file : 'asm env -> A.pident option -> L.t option -> string -> ('asm env * string) option
@@ -339,7 +344,7 @@ module Env : sig
 
   module Modules : sig
     val push : 'asm store -> A.pident -> A.symbol -> 'asm store
-    val get : 'asm store -> A.pident -> ((string * 'asm global_bindings * bool) list * ((string * 'asm global_bindings * bool) list * 'asm global_bindings)) * string L.located
+    val get : 'asm store -> A.pident -> string L.located
   end
 
   module Funs : sig
@@ -490,34 +495,35 @@ end  = struct
        let merged = merge_bindings (ns1,bs1) next
        in { st with s_bindings = (ns, merged, false) :: stack, bot }
 
-  let add_from env (name, filename) =
+  let loader_add_from loader (name, filename) =
     let p = Path.of_string filename in
     let ap =
       if Path.is_absolute p then p
-      else Path.concat env.e_loader.idir p in
-    begin match Map.find name env.e_loader.from with
+      else Path.concat loader.idir p in
+    begin match Map.find name loader.from with
     | ap' ->
       if ap <> ap' then
         hierror ~loc:Lnone ~kind:"compilation" "cannot bind %s with %s it is already bound to %s"
           name (Path.to_string ap) (Path.to_string ap')
     | exception Not_found -> ()
     end;
-    {env with e_loader =
-       { env.e_loader with from = Map.add name ap env.e_loader.from }}
+    { loader with from = Map.add name ap loader.from }
 
-  let enter_file env from ploc filename =
+  let add_from env x =
+    {env with e_loader = loader_add_from env.e_loader x}
+
+  let resolve_file loader current_dir from ploc filename =
     let ploc = match ploc with None -> Lnone | Some l -> Lone l in
     let p = Path.of_string filename in
-    let loader = env.e_loader in
     let current_dir =
       match from with
-      | None -> List.hd loader.dirs
+      | None -> current_dir
       | Some name ->
           if Path.is_absolute p then
             hierror ~loc:ploc ~kind:"typing"
               "cannot use absolute path in from %s require \"%s\""
                  (L.unloc name) filename;
-          try Map.find (L.unloc name) env.e_loader.from
+          try Map.find (L.unloc name) loader.from
           with Not_found ->
             rs_tyerror ~loc:(L.loc name) (string_error "unknown name %s" (L.unloc name)) in
     let p =
@@ -527,7 +533,11 @@ end  = struct
     let ap =
       if Path.is_absolute p then p
       else Path.concat loader.idir p in
-    let ap = Path.normalize_in_tree ap in
+    p, Path.normalize_in_tree ap
+
+  let enter_file env from ploc filename =
+    let loader = env.e_loader in
+    let p, ap = resolve_file loader (List.hd loader.dirs) from ploc filename in
     let namespace = fully_qualified (fst env.e_store.s_bindings) "<>" in
     if List.mem ap (Map.find_default [] namespace loader.loaded) then None
     else
@@ -682,32 +692,14 @@ end  = struct
         in {st with s_bindings = binds}
 
 
-  let find_module (x: A.symbol) (st: 'asm store) =
-    let stack, bot = st.s_bindings in
-    let rec loop l x =
-      function
-      | [] -> None
-      | (ns, top, b) :: stack ->
-        match Map.find x (top.gb_modules) with
-        | exception Not_found -> loop ((ns,top,b)::l) x stack
-        | v -> Some ((l,(ns,top,b)::stack), v)
-    in match loop [] x stack with
-       | None -> 
-         (match Map.Exceptionless.find x (bot.gb_modules) with
-          | None -> None
-          | Some v -> Some ((stack,([],bot)),v)
-         )
-       | Some ((l,stack),v) -> Some ((l, (stack,bot)), v)
-
     let get (st: 'asm store) (id: A.pident) =
-      let m = find_module (L.unloc id) st in
-      match m with
+      match find (fun b -> b.gb_modules) (L.unloc id) st with
       | None ->
         rs_tyerror  ~loc:(L.loc id) (ModuleNotFound (L.unloc id))
-      | Some (bs,e) ->
+      | Some e ->
         if !Glob_options.debug
         then Printf.eprintf "got_module \"%s\"\n%!" (L.unloc e);
-        (bs,e)
+        e
 
   end
 

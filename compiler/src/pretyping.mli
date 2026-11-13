@@ -79,6 +79,11 @@ module Env : sig
   val empty_store : 'asm store
   val empty : 'asm env
   val decls : 'asm env -> (unit, 'asm) Prog.pmod_item list
+  type loader
+  val empty_loader : loader
+  val loader_add_from : loader -> string * string -> loader
+  val resolve_file : loader -> BatPathGen.OfString.t -> A.pident option -> L.t option -> string -> BatPathGen.OfString.t * BatPathGen.OfString.t
+
   val add_from : 'asm env -> string * string -> 'asm env
   val dependencies : 'asm env -> string list list
 
@@ -97,7 +102,7 @@ module Env : sig
 
   module Modules : sig
     val push : 'asm store -> A.pident -> A.symbol -> 'asm store
-    val get : 'asm store -> A.pident -> ((string * 'asm global_bindings * bool) list * ((string * 'asm global_bindings * bool) list * 'asm global_bindings)) * string L.located
+    val get : 'asm store -> A.pident -> string L.located
   end
 
   module Funs : sig
