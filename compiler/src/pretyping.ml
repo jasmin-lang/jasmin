@@ -844,14 +844,30 @@ let canon_expr (e: P.pexpr): P.pexpr =
   let rec poly e =
     match e with
     | P.Pconst z -> [([], z)]
-    | P.Papp1 (Oneg Op_int, e1) -> mul [([], Z.minus_one)] (poly e1)
-    | P.Papp2 (Oadd Op_int, e1, e2) -> add (poly e1) (poly e2)
-    | P.Papp2 (Osub Op_int, e1, e2) -> add (poly e1) (mul [([], Z.minus_one)] (poly e2))
-    | P.Papp2 (Omul Op_int, e1, e2) -> mul (poly e1) (poly e2)
-    | P.Papp1 (o, e1) -> atom (P.Papp1 (o, expr (poly e1)))
-    | P.Papp2 (o, e1, e2) -> atom (P.Papp2 (o, expr (poly e1), expr (poly e2)))
+    | P.Papp1 (o, e1) -> op1 o (poly e1)
+    | P.Papp2 (o, e1, e2) -> op2 o (poly e1) (poly e2)
     | _ -> atom e
+  and op1 o p =
+    match o with
+    | Oneg Op_int -> mul [([], Z.minus_one)] p
+    | _ -> atom (P.Papp1 (o, expr p))
+  and op2 o p1 p2 =
+    let rem c = List.map (fun (m, a) -> (m, Z.erem a c)) p1 in
+    let pow2 c = [([], Z.shift_left Z.one (Z.to_int c))] in
+    match o, expr p2 with
+    | Oadd Op_int, _ -> add p1 p2
+    | Osub Op_int, _ -> add p1 (mul [([], Z.minus_one)] p2)
+    | Omul Op_int, _ -> mul p1 p2
+    | Olsl Op_int, P.Pconst c when Z.geq c Z.zero -> mul p1 (pow2 c)
+    | Oasr Op_int, P.Pconst c when Z.geq c Z.zero -> op2 (Odiv (W.Unsigned, Op_int)) p1 (pow2 c)
+    | Odiv (_, Op_int), P.Pconst c when Z.gt c Z.zero && List.for_all (fun (_, a) -> Z.equal (Z.rem a c) Z.zero) p1 ->
+      List.map (fun (m, a) -> (m, Z.div a c)) p1
+    | Omod (W.Unsigned, Op_int), P.Pconst c when Z.gt c Z.zero -> atom (P.Papp2 (o, expr (rem c), P.Pconst c))
+    | _ -> atom (P.Papp2 (o, expr p1, expr p2))
   and atom e =
+    match Subst.int_of_expr e with
+    | z -> [([], z)]
+    | exception _ ->
     let k = key e in
     atoms := (k, e) :: !atoms;
     [([k], Z.one)]
@@ -938,7 +954,11 @@ let check_sig_lvs ?(prim=false) loc sig_ lvs =
   if nlvs <> nsig_ then
     rs_tyerror ~loc:(loc ()) (InvalidLvalCount(nlvs, nsig_));
 
-  List.map2 (fun ty (_,flv,vty) -> flv (prim_arr_ty prim ty vty)) sig_ lvs
+  List.map2 (fun ty (l,flv,vty) ->
+    (match ty, vty with
+     | P.ETarr _, Some (P.ETarr _ as t) when not prim -> check_ty_eq ~loc:l ~from:ty ~to_:t
+     | _ -> ());
+    flv (prim_arr_ty prim ty vty)) sig_ lvs
 
 
 (* -------------------------------------------------------------------- *)
@@ -967,6 +987,7 @@ let max_ty ty1 ty2 =
       Some(ETword(None, Utils0.cmp_min W.wsize_cmp w1 w2))
   (* Do not allow implicite cast on wint, this is important for the pass wint_int *)
   | ETword(Some _b, _w1), ETword(Some _b2, _w2) -> None
+  | ETarr (ws1, e1), ETarr (ws2, e2) when !Glob_options.modular_jazz && arr_size_equal ws1 e1 ws2 e2 -> Some ty1
   | _, _ -> None
 
 let tt_vsize_op loc op (vs:S.vsize) (ve:S.vesize)  =
@@ -1496,76 +1517,6 @@ let extra_op_map = Map.of_seq @@ List.to_seq [
 
 (* -------------------------------------------------------------------- *)
 
-let rec norm_expr (e: P.pexpr): P.pexpr =
-  match e with
-  | Papp1 (Oneg Op_int, e1) ->
-    norm_oneg_expr e1
-  | Papp2 (Omul Op_int, e1, e2) ->
-    norm_omul_expr e1 e2
-  | Papp2 (Oadd Op_int, e1, e2) ->
-    norm_oadd_expr e1 e2
-  | Papp2 (Osub Op_int, e1, e2) ->
-    norm_osub_expr e1 e2
-  | Papp2 (Odiv (s,Op_int), e1, e2) ->
-    norm_odiv_expr s e1 e2
-  | Papp2 (Omod (s,Op_int), e1, e2) ->
-    norm_omod_expr s e1 e2
-  | _ -> e
-and norm_oneg_expr e =
-  match e with
-  | Pconst i -> Pconst (Z.neg i)
-  | Papp1 (Oneg Op_int, e1) ->
-    norm_expr e1
-  | Papp2 (Omul Op_int, e1, e2) ->
-    Papp2 (Omul Op_int, norm_expr (Papp1 (Oneg Op_int, e1)), norm_expr e2)
-  | Papp2 (Oadd Op_int, e1, e2) ->
-    Papp2 (Oadd Op_int, norm_expr (Papp1 (Oneg Op_int, e1)), norm_expr (Papp1 (Oneg Op_int, e2)))
-  | Papp2 (Osub Op_int, e1, e2) ->
-    Papp2 (Oadd Op_int, norm_expr (Papp1 (Oneg Op_int, e1)), norm_expr e2)
-  | _ -> Papp1 (Oneg Op_int, e)
-and norm_omul_expr e1 e2 =
-  let e1 = norm_expr e1
-  in let e2 = norm_expr e2
-  in match e1, e2 with
-  | Pconst i1, Pconst i2 ->
-    Pconst (Z.mul i1 i2)
-  | Pconst i1, Papp2 (Omul Op_int, Pconst i21, e22) ->
-    Papp2 (Omul Op_int, Pconst (Z.mul i1 i21), e22)
-  | _, Pconst i2 ->
-    norm_omul_expr (Pconst i2) e1
-  | _, _ ->
-    Papp2 (Omul Op_int, e1, e2)
-and norm_oadd_expr e1 e2 =
-  let e1 = norm_expr e1
-  in let e2 = norm_expr e2
-  in match e1, e2 with
-  | Pconst i1, Pconst i2 ->
-    Pconst (Z.add i1 i2)
-  | Pconst i1, Papp2 (Oadd Op_int, Pconst i21, e22) ->
-    Papp2 (Oadd Op_int, Pconst (Z.add i1 i21), e22)
-  | _, Pconst i2 ->
-    norm_oadd_expr (Pconst i2) e1
-  | _, _ ->
-    Papp2 (Oadd Op_int, e1, e2)
-and norm_osub_expr e1 e2 =
-  norm_expr (Papp2 (Oadd Op_int, e1, Papp1 (Oneg Op_int, e2)))
-and norm_odiv_expr s e1 e2 =
-  let e1 = norm_expr e1
-  in let e2 = norm_expr e2
-  in match e1, e2 with
-  | Pconst i1, Pconst i2 ->
-    Pconst (Z.div i1 i2)
-  | _, _ ->
-    Papp2 (Odiv (s,Op_int), e1, e2)
-and norm_omod_expr s e1 e2 =
-  let e1 = norm_expr e1
-  in let e2 = norm_expr e2
-  in match e1, e2 with
-  | Pconst i1, Pconst i2 ->
-    Pconst (Z.erem i1 i2)
-  | _, _ ->
-    Papp2 (Omod (s,Op_int), e1, e2)
-
 let mjazz_size e v = if !Glob_options.modular_jazz then canon_expr (Option.default e v) else e
 
 (* -------------------------------------------------------------------- *)
@@ -1661,7 +1612,7 @@ let rec tt_expr pd ?(mode=`AllVar) (st : 'asm Env.store) pe =
     | _  ->
       let op1 e = tt_op1 (L.loc pe, (e,ety)) (L.mk_loc (L.loc pe) op) in
       let e,t = op1 e in
-      e, t, Option.map (fun p -> norm_expr (fst (op1 p))) p
+      e, t, Option.map (fun p -> canon_expr (fst (op1 p))) p
     end
 
   | S.PEOp2 (pop, (pe1, pe2)) ->
@@ -1670,7 +1621,7 @@ let rec tt_expr pd ?(mode=`AllVar) (st : 'asm Env.store) pe =
     let e,t = tt_op2 (L.loc pe1, (e1,t1)) (L.loc pe2, (e2,t2)) (L.mk_loc (L.loc pe) pop)
     in begin match e, p1, p2 with
       | Papp2 (op, _, _), Some p1, Some p2 ->
-        let p = norm_expr (Papp2 (op, p1, p2))
+        let p = canon_expr (Papp2 (op, p1, p2))
         in e, t, Some p
       | _, _, _ -> e, t, None
     end
@@ -2465,6 +2416,12 @@ let rec tt_instr arch_info (st : 'asm Env.store) ((pannot,pi) : S.pinstr) : 'asm
 
   | ls, `Raw, { pl_desc = PEPrim (f, args) }, None ->
       let p = tt_prim arch_info.asmOp f in
+      (match p, ls, args with
+       | Sopn.Opseudo_op (Ocopy _), (_, [lv]), [a] when !Glob_options.modular_jazz ->
+         let _, _, vty = tt_lvalue arch_info.pd st_lhs lv in
+         let _, ety, _ = tt_expr arch_info.pd st_rhs a in
+         Option.may (fun t -> check_ty_eq ~loc:(L.loc a) ~from:ety ~to_:t) vty
+       | _ -> ());
       let tlvs, tes, arguments = prim_sig arch_info.asmOp p in
       let lvs, einstr = tt_lvalues ~prim:true arch_info st_lhs (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast ~prim:true arch_info.pd st_rhs (L.loc pi) args tes in

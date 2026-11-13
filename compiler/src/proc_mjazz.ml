@@ -773,6 +773,10 @@ and mt_moduleapp arch_info menv mname modfuncname margs =
              (NonExistentMod (L.unloc modfunc)) in
     let full_name = qualify (MEnv.fully_qualified_modname menv.MEnv.me_store) (L.unloc mname) in 
     let ground_module = List.for_all identity menv.MEnv.me_gmod   in
+    if List.length modinfo.mi_params <> List.length margs then
+      rs_mjazzerror ~loc:(L.loc modfuncname)
+        (MJazzStringError (Printf.sprintf "module %s expects %d argument(s) but %d were given"
+           (L.unloc modfuncname) (List.length modinfo.mi_params) (List.length margs)));
     let margs = mt_margs arch_info.pd menv modinfo.mi_params margs in
     let sub v =
       match List.find_opt (fun (p, _) -> match p with M.Param x -> P.PV.equal x (L.unloc v.P.gv) | _ -> false) (List.combine modinfo.mi_params margs) with
@@ -877,7 +881,7 @@ let rec add_instance_gexpr new_vars inst_subst expr =
         let ge1 = add_instance_gexpr new_vars inst_subst ge1 in
         let ge2 = add_instance_gexpr new_vars inst_subst ge2 in
         let ge3 = add_instance_gexpr new_vars inst_subst ge3 in
-        P.Pif (ty, ge1,ge2,ge3)
+        P.Pif (Subst.gsubst_ty (fun (P.PE s) -> P.PE (add_instance_gexpr new_vars inst_subst s)) ty, ge1,ge2,ge3)
     | Parr_init (ws, P.PE size) -> Parr_init (ws, P.PE (add_instance_gexpr new_vars inst_subst size))
     | _ -> expr
 and get_new_var new_vars inst_subst (v:'len P.ggvar) = 

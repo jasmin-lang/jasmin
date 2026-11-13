@@ -7,6 +7,8 @@ val gsubst_ty : ('len1 -> 'len2) -> 'len1 gty -> 'len2 gty
 
 val psubst_e : (pexpr_ ggvar -> pexpr) -> pexpr -> pexpr
 
+val int_of_expr : ?loc:L.t -> pexpr -> Z.t
+
 (* apply a substitution within a function *)
 val subst_func : ('ty gvar_i -> 'ty gexpr) -> ('ty, 'info, 'asm) gfunc -> ('ty, 'info, 'asm) gfunc
 

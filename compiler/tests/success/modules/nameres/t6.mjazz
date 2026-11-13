@@ -1,0 +1,8 @@
+from Lib open "t0.mjazz" as T
+
+module B = T::M1(4);
+
+fn g(reg ptr u64[10] a) -> reg ptr u64[10] {
+  a = B::f(a);
+  return a;
+}

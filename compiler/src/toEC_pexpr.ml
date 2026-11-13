@@ -492,7 +492,7 @@ type ec_item =
     | Itheory of bool * string
     | IendTheory of string
     | IopA of string * ec_modty
-    | Iclone of bool * string * string * ((string * ec_expr) list) * ((string * string) list)
+    | Iclone of bool * string * string * ((string * ec_expr) list) * ((string * string) list) * string
 type ec_prog = ec_item list
 
 module type EnvT = sig
@@ -1158,15 +1158,19 @@ let pp_ec_item fmt it =
     Format.fprintf fmt "@[end %s.@]" th
     | IopA (op, mt) ->
     Format.fprintf fmt "@[op %s : %s.@]" op mt
-  | Iclone (import, mold, mnew, args,theories) ->
+  | Iclone (import, mold, mnew, args,theories,prefix) ->
+    let pp_rename fmt = function
+      | "" -> ()
+      | p -> Format.fprintf fmt "@ rename [theory] \"^([A-Za-z]*Array[A-Za-z]*S[0-9]+)$\" as \"%s$1\"" p in
     if args = [] && theories = [] then 
-      Format.fprintf fmt "@[clone %s as %s.@]" mold mnew
+      Format.fprintf fmt "@[clone %s as %s%a.@]" mold mnew pp_rename prefix
     else
-      Format.fprintf fmt "@[clone%s %s as %s with %a%s%a.@]"
+      Format.fprintf fmt "@[clone%s %s as %s with %a%s%a%a.@]"
         (if import then " import" else "") mold mnew
         (pp_list ",@ " (fun fmt (s, e) -> Format.fprintf fmt "op %s <= %a" s pp_ec_ast_expr e)) args
         (if args <> [] && theories <> [] then ",\n " else "")
         (pp_list ",@ " (fun fmt (s, e) -> Format.fprintf fmt "theory %s <= %s" s e)) theories
+        pp_rename prefix
 
 let pp_ec_prog fmt (prog:ec_prog) = Format.fprintf fmt "@[<v>%a@]" (pp_list "@ @ " pp_ec_item) prog
 
@@ -1554,15 +1558,15 @@ module EcArrayOld : EcArray = struct
           e1
       in
       let i = Env.create_name env "i" in
-      let aw_get len = 
+      let aw_get ws len = 
         match get_int len with
         | Some len -> ec_WArray env (len* int_of_ws ws / 8 )
         | None -> 
           let size = Papp2 (Omul Op_int, pexpr_of_pexpr_ len , icnst (int_of_ws ws /8)) in
           ec_PWArray env (PE size)
       in
-      let at = Eapp (Eident[aw_get len; "get8"], [ec_initi env (e, len, ws); Eop2 (Infix "-", ec_ident i, start)]) in
-      let ae = Eapp (Eident[aw_get n; "get8"], [ec_initi_var env (x, n, xws); ec_ident i]) in
+      let at = Eapp (Eident[aw_get ws len; "get8"], [ec_initi env (e, len, ws); Eop2 (Infix "-", ec_ident i, start)]) in
+      let ae = Eapp (Eident[aw_get xws n; "get8"], [ec_initi_var env (x, n, xws); ec_ident i]) in
       let len8 =
         match get_int len with
         | Some len ->ec_int (len * int_of_ws ws / 8)
@@ -1570,9 +1574,9 @@ module EcArrayOld : EcArray = struct
           toec_expr env (arr_size_pexpr_ ws len)
       in
       let in_range = Eop3 (InORange, start, ec_ident i, Eop2 (Plus, start, len8)) in
-      let ainit = Eident [aw_get n; "init8"] in
+      let ainit = Eident [aw_get xws n; "init8"] in
       let a = Eapp (ainit, [Efun1 (i, Eop3 (If, in_range, at, ae))]) in
-      let wag = Eident [aw_get n; Format.sprintf "get%i" (int_of_ws xws)] in
+      let wag = Eident [aw_get xws n; Format.sprintf "get%i" (int_of_ws xws)] in
       Eapp (ec_Array_init env n, [Eapp (wag, [a])])
 
   let onarray_ty = onarray_ty_dfl
@@ -1841,7 +1845,7 @@ let ty_sopn pd msfsz asmOp op (es: pexpr list) =
     let l = List.map ty_expr es in
     l, l
   | Sopn.Opseudo_op (Pseudo_operator.Oswap _) ->
-    let l = List.map ty_expr es in
+    let l = match List.map ty_expr es with [Arr _ as t; Arr _] -> [t; t] | l -> l in
     l, l
   | _ ->
     List.map Conv.pty_of_cty (Sopn.sopn_tout pd msfsz asmOp op),
@@ -2549,7 +2553,9 @@ struct
           let env = Env.new_aux_range env in
           let otys, itys = Env.get_funtype env f in
           let concrete ty ty' = match ty, ty' with
-            | Arr (_, n), Arr (_, n') when get_int n = None || get_int n' = None -> ty'
+            | Arr (ws, n), Arr (ws', n') when get_int n = None || get_int n' = None ->
+              if ws = ws' then ty'
+              else Arr (ws, PE (Pretyping.canon_expr (Papp2 (Odiv (Unsigned, Op_int), arr_size_pexpr_ ws' n', icnst (size_of_ws ws)))))
             | _ -> ty in
           let otys = List.map2 concrete otys (List.map ty_lval lvs) in
           let itys = List.map2 concrete itys (List.map ty_expr es) in
@@ -2749,12 +2755,14 @@ struct
     | ByteArray n -> ["size",toec_expr env (pexpr_of_pexpr_ n)],[] 
     | SubByteArray s ->
       Env.add_ASBArray env s;
-      [],["Asmall", ec_PBArray env s.sizes ; "Abig", ec_PBArray env s.sizeb]
+      let arr n = match get_int n with Some n -> ec_BArray env n | None -> ec_PBArray env n in
+      [],["Asmall", arr s.sizes ; "Abig", arr s.sizeb]
     | SubArray s ->
       let _ = Env.add_SubArray env s.sizes s.sizeb in
       [("sizeS",  toec_expr env (pexpr_of_pexpr_ s.sizes)); 
        ("sizeB", toec_expr env (pexpr_of_pexpr_ s.sizeb))],
-      [("ArrayS",  ec_PArray env s.sizes) ; ("ArrayB", ec_PArray env s.sizeb)]
+      let arr n = match get_int n with Some n -> ec_Array env n | None -> ec_PArray env n in
+      [("ArrayS",  arr s.sizes) ; ("ArrayB", arr s.sizeb)]
     | ArrayWords s ->
       begin match get_int s.sizew with
       | Some sizew ->
@@ -2799,10 +2807,14 @@ struct
           let aw = ArrayWords{sizew= (PE (icnst sizew)); sizea = size} in
           Env.abstract_name env aw
         end in
+        let sz size sizew =
+          match Env.get_alias env (ArrayWords{sizew= (PE (icnst sizew)); sizea = size}) with
+          | Some a when get_int size = None -> Eident [a; "sizeA"]
+          | _ -> toec_expr env (pexpr_of_pexpr_ size) in
       [("sizeWS",  toec_expr env (pexpr_of_pexpr_ s.sizews));
        ("sizeWB", toec_expr env (pexpr_of_pexpr_ s.sizewb));
-       ("sizeS", toec_expr env (pexpr_of_pexpr_ s.sizes));
-       ("sizeB", toec_expr env (pexpr_of_pexpr_ s.sizeb))],
+       ("sizeS", sz s.sizes sizews);
+       ("sizeB", sz s.sizeb sizewb)],
         [
           "WordS", Format.sprintf "W%i" (8*sizews);
           "WordB", Format.sprintf "W%i" (8*sizewb);
@@ -3064,7 +3076,7 @@ struct
           | ma when is_abstract ma
                     && Env.get_alias env ma = None
                     && not (Aarraytheory.mem ma (Env.abstract_array_theories env)) ->
-            Env.add_alias env ma (ma_name' ^ "." ^ arr)
+            Env.add_alias env ma (ma_name' ^ "." ^ ma_name' ^ "_" ^ arr)
           | _ -> ()
         ) (Env.get_module_arrays env mapp.ma_func)
 
@@ -3084,14 +3096,15 @@ struct
           let env = Env.add_module_module env mapp.ma_name new_name in
           Env.set_mod_mod env new_name mm mapp.ma_name 
       ) env (Env.get_module_modules env mapp.Mprog.ma_func) in
+      let prefix = if m.params <> [] && List.for_all (function Mprog.MaParam _ -> true | _ -> false) mapp.ma_args then ma_name' ^ "_" else "" in
       let theories = List.filter_map( fun (ma, arr) ->
            let ma = subst_ma env mapp ma_params ma in
-           if Env.get_alias env ma = Some (ma_name' ^ "." ^ arr) then None
+           if Env.get_alias env ma = Some (ma_name' ^ "." ^ prefix ^ arr) then None
            else Some (arr, ma_pexpr_to_string env ma)
       ) (Env.get_module_arrays env mapp.Mprog.ma_func) in
       let env, modappf = modapp_f env m mapp mod_arg in
       let abstract_ops = List.concat (List.map2 (toec_modulearg env) mapp.ma_args ma_params) in
-      env,[Iclone(false,ma_func', ma_name', abstract_ops ,theories)] @ modappf
+      env,[Iclone(false,ma_func', ma_name', abstract_ops ,theories,prefix)] @ modappf
 
     let rec toec_item env m modf_args (mod_arg,asmOp,imports,go,eval_glob) =
       function
@@ -3196,7 +3209,7 @@ struct
       let init_abstract_arrays = List.map (fun (ma,i) -> 
         let t, arr = fmt_abstract_array_theory ma i in
         let ops,theories = get_array_params env ma in
-        Iclone(true,t, arr, ops,theories)
+        Iclone(true,t, arr, ops,theories,"")
       ) (Aarraytheory.to_list (Env.abstract_array_theories env)) in
 
       let alias_imports = match List.map snd (Aarraytheory.to_list (Env.array_alias env)) with

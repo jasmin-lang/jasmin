@@ -1,0 +1,27 @@
+module M1 with param int n; {
+  fn id(reg ptr u64[n] a) -> reg ptr u64[n] { return a; }
+  fn half(reg ptr u64[n / 2] a) -> reg ptr u64[n / 2] { return a; }
+}
+
+module M2 with param int c; {
+  module B = M1(2 * c + 2);
+  module C = M1(c + c);
+  fn g(reg ptr u64[(2 + 2 * c) / 2] a) -> reg ptr u64[(c + c + 2) / 2] {
+    a = B::half(a);
+    return a;
+  }
+  fn h(reg ptr u64[2 * c] a) -> reg ptr u64[c + c] {
+    a = C::id(a);
+    return a;
+  }
+}
+
+module A = M2(3);
+module D = M1(6);
+
+fn ground(reg ptr u64[4] a, reg ptr u64[6] b, reg ptr u64[3] c) -> reg ptr u64[4], reg ptr u64[6], reg ptr u64[3] {
+  a = A::g(a);
+  b = A::h(b);
+  c = D::half(c);
+  return a, b, c;
+}

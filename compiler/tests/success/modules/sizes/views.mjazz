@@ -1,0 +1,29 @@
+module M1 with param int n; {
+  fn view32(reg mut ptr u64[n] a) -> reg ptr u32[2 * n] { return a; }
+  fn sw(reg mut ptr u64[n] a, reg mut ptr u8[8 * n] b) -> reg ptr u64[n], reg ptr u8[8 * n] { a, b = #swap(a, b); return a, b; }
+  fn ite(reg ptr u64[n] a, reg ptr u32[2 * n] b, reg u64 c) -> reg ptr u64[n] { a = c == 0 ? a : b; return a; }
+  fn sub(reg mut ptr u64[2 * n] a, reg ptr u64[n] b) -> reg ptr u64[2 * n] { a[n:n] = b; b = a[0:n]; return a; }
+  fn sub_u8(reg mut ptr u64[n] t, reg ptr u8[16] r) -> reg ptr u64[n] { t.[:u8 8 * n - 16 : 16] = r; return t; }
+  fn sub_const(reg mut ptr u64[n] t) -> reg ptr u64[n] {
+    reg ptr u64[1] r;
+    r = t[0:1]; r = #randombytes(r); t[0:1] = r;
+    return t;
+  }
+}
+
+module M2 with param int c; {
+  module B = M1(2 * c);
+  fn g(reg mut ptr u64[c + c] a) -> reg ptr u8[16 * c] {
+    a = B::view32(a);
+    return a;
+  }
+}
+
+module A = M1(3);
+module C = M2(3);
+
+fn ground(reg mut ptr u32[6] a, reg mut ptr u16[24] b) -> reg ptr u8[24], reg ptr u64[6] {
+  a = A::view32(a);
+  b = C::g(b);
+  return a, b;
+}

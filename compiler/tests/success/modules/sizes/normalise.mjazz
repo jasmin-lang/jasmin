@@ -1,0 +1,20 @@
+module M1 with param int n; param int m; {
+  param int h = n / 2;
+  param int q = 2 * h + 1;
+  param int r = q - 1;
+
+  fn neg(reg ptr u64[-(-n)] a) -> reg ptr u64[n] { return a; }
+  fn square(reg ptr u64[n * n - m * m] a) -> reg ptr u64[(n - m) * (n + m)] { return a; }
+  fn div_exact(reg ptr u64[4 * n / 2] a) -> reg ptr u64[2 * n] { return a; }
+  fn div_sum(reg ptr u64[n / 2 + n / 2] a) -> reg ptr u64[2 * (n / 2)] { return a; }
+  fn modulo(reg ptr u64[(4 * n + 6) % 4] a) -> reg ptr u64[2] { return a; }
+  fn modulo_sym(reg ptr u64[n % 3] a) -> reg ptr u64[n % (1 + 2)] { return a; }
+  fn shl(reg ptr u64[n << (2 - 1)] a) -> reg ptr u64[2 * n] { return a; }
+  fn shl_sum(reg ptr u64[(n << 1) + (n << 1)] a) -> reg ptr u64[4 * n] { return a; }
+  fn shr(reg ptr u64[n >> 1] a) -> reg ptr u64[n / 2] { return a; }
+  fn local_params(reg ptr u64[q] a) -> reg ptr u64[1 + h + h] { return a; }
+  fn local_params2(reg ptr u64[r] a) -> reg ptr u64[2 * (n / 2)] { return a; }
+}
+
+module A = M1(8, 2);
+module B = M1(7, 3);
