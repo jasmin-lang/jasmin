@@ -333,7 +333,7 @@ let is_ct_sopn is_ct_asm (o : 'a Sopn.sopn) =
    Remark we need the property: [env' <= env => env |- e : lvl => env' |- e : lvl]
  *)
 
-let rec ty_expr ~(public:bool) env (e:expr) =
+let rec ty_expr ~loc ~(public:bool) env (e:expr) =
   match e with
   | Pconst _ | Pbool _ | Parr_init _ -> env, Public
 
@@ -341,50 +341,54 @@ let rec ty_expr ~(public:bool) env (e:expr) =
 
   | Pget (_, _, _, x, i) | Psub (_, _, _, x, i) ->
     let env, ty = Env.gget ~public env x in
-    let env, _  = ty_expr ~public:true env i in
+    let env, _  = ty_expr ~loc ~public:true env i in
     env, ty
 
   | Pload (_, _, i) ->
-    let env, _ = ty_expr ~public:true env i in
+    let env, _ = ty_expr ~loc ~public:true env i in
+    if public then
+      error ~loc:loc.L.base_loc
+        "%a has type secret it needs to be public"
+        (Printer.pp_expr ~debug:false) e;
     env, Secret
 
   | Papp1(o, e)        ->
     let public = public || not (is_ct_op1 o) in
-    ty_expr ~public env e
+    ty_expr ~loc ~public env e
   | Papp2(o, e1, e2)   ->
     let public = public || not (is_ct_op2 o) in
-    ty_exprs_max ~public env [e1; e2]
+    ty_exprs_max ~loc ~public env [e1; e2]
   | PappN(o, es)       ->
     let public = public || not (is_ct_opN o) in
-    ty_exprs_max ~public env es
-  | Pif(_, e1, e2, e3) -> ty_exprs_max ~public env [e1; e2; e3]
+    ty_exprs_max ~loc ~public env es
+  | Pif(_, e1, e2, e3) -> ty_exprs_max ~loc ~public env [e1; e2; e3]
 
-and ty_exprs ~public env es =
-  List.map_fold (ty_expr ~public) env es
+and ty_exprs ~loc ~public env es =
+  List.map_fold (ty_expr ~loc ~public) env es
 
-and ty_exprs_max ~public env es =
-  let env, lvls = ty_exprs ~public env es in
+and ty_exprs_max ~loc ~public env es =
+  let env, lvls = ty_exprs ~loc ~public env es in
   env, Lvl.maxs lvls
 
 (* -----------------------------------------------------------*)
-let ty_lval env x lvl =
+let ty_lval ~loc env x lvl =
   match x with
   | Lnone _ -> env
   | Lvar x -> Env.set env x lvl
   | Lmem(_, _, _, i) ->
-    let env, _ = ty_expr ~public:true env i in
+    let env, _ = ty_expr ~loc ~public:true env i in
     env
   | Laset(_, _, _, x, i) | Lasub(_, _, _, x, i) ->
     (* x[i] = e is x = x[i <- e] *)
     let env, xlvl = Env.get ~public:false env x in
-    let env, _    = ty_expr ~public:true env i in
+    let env, _    = ty_expr ~loc ~public:true env i in
     Env.set env x (Lvl.max xlvl lvl)
 
-let ty_lvals env xs lvls =
-  List.fold_left2 ty_lval env xs lvls
+let ty_lvals ~loc env xs lvls =
+  List.fold_left2 (ty_lval ~loc) env xs lvls
 
-let ty_lvals1 env xs lvl =
-  List.fold_left (fun env x -> ty_lval env x lvl) env xs
+let ty_lvals1 ~loc env xs lvl =
+  List.fold_left (fun env x -> ty_lval ~loc env x lvl) env xs
 
 (* -----------------------------------------------------------*)
 let lvl_of_level =
@@ -523,32 +527,32 @@ let rec ty_instr is_ct_asm fenv env i =
   let env1 =
   match i.i_desc with
   | Cassgn(x, _, _, e) ->
-    let env, lvl = ty_expr ~public:false env e in
-    ty_lval env x lvl
+    let env, lvl = ty_expr ~loc ~public:false env e in
+    ty_lval ~loc env x lvl
 
   | Copn (_, _, Sopn.Opseudo_op (Odeclassify _), [ e ]) ->
      declassify_expr ~loc env e
 
   | Copn(xs, _, o, es) ->
     let public = not (is_ct_sopn is_ct_asm o) in
-    let env, lvl = ty_exprs_max ~public env es in
-    ty_lvals1 env xs lvl
+    let env, lvl = ty_exprs_max ~loc ~public env es in
+    ty_lvals1 ~loc env xs lvl
 
   | Csyscall(xs, RandomBytes _, es) ->
-    let env, _ = ty_exprs_max ~public:true env es in
-    ty_lvals1 env xs Secret
+    let env, _ = ty_exprs_max ~loc ~public:true env es in
+    ty_lvals1 ~loc env xs Secret
 
   (* We ignore the contents of assertion *)
   | Cassert _ -> env
 
   | Cif(e, c1, c2) ->
-    let env, _ = ty_expr ~public:true env e in
+    let env, _ = ty_expr ~loc ~public:true env e in
     let env1 = ty_cmd is_ct_asm fenv env c1 in
     let env2 = ty_cmd is_ct_asm fenv env c2 in
     Env.max env1 env2
 
   | Cfor(x, (_, e1, e2), c) ->
-    let env, _ = ty_exprs ~public:true env [e1; e2] in
+    let env, _ = ty_exprs ~loc ~public:true env [e1; e2] in
     let rec loop env =
       let env1 = Env.set env x Public in
       let env1 = ty_cmd is_ct_asm fenv env1 c in (*  env |- x = p; c : env1 <= env  *)
@@ -565,7 +569,7 @@ let rec ty_instr is_ct_asm fenv env i =
 
     let rec loop env =
       let env1 = ty_cmd is_ct_asm fenv env c1 in   (* env |- c1 : env1 *)
-      let env1,_ = ty_expr ~public:true env1 e in
+      let env1,_ = ty_expr ~loc ~public:true env1 e in
       let env2 = ty_cmd is_ct_asm fenv env1 c2 in  (* env1 |- c2 : env2 *)
       if Env.le env2 env then env1
       else loop (Env.max env2 env) in
@@ -574,10 +578,10 @@ let rec ty_instr is_ct_asm fenv env i =
   | Ccall (xs, f, es) ->
     let fty = get_fun is_ct_asm fenv f in
     (* Check the arguments *)
-    let do_e env e lvl = ty_expr ~public:(lvl=Public) env e in
+    let do_e env e lvl = ty_expr ~loc ~public:(lvl=Public) env e in
     let env, elvls = List.map_fold2 do_e env es fty.tyin in
     let olvls = instanciate_fty fty elvls in
-    ty_lvals env xs olvls
+    ty_lvals ~loc env xs olvls
   in
   if !Glob_options.debug then
     Format.eprintf "%a: @[<v>before %a@ after %a@]@." L.pp_loc (i.i_loc.base_loc) Env.pp env Env.pp env1;
