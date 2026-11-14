@@ -658,6 +658,16 @@ Proof.
   by eexists; reflexivity.
 Qed.
 
+Lemma of_val_truncate_val t t' v v' :
+  subctype t' t -> truncate_val t v = ok v' -> of_val t' v' = of_val t' v.
+Proof.
+  move=> hsub htr.
+  have [v2 htr'] := subctype_truncate_val hsub htr.
+  have := subctype_truncate_val_idem hsub htr htr'.
+  move: htr'; rewrite /truncate_val; t_xrbindP.
+  by move=> x -> <- x' -> /to_val_inj ->.
+Qed.
+
 Lemma truncate_val_defined ty v v' : truncate_val ty v = ok v' -> is_defined v'.
 Proof. by move=> /truncate_valI; case: v'. Qed.
 

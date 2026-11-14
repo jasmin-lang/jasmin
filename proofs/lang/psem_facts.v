@@ -44,6 +44,10 @@ Proof using spp.
   by rewrite (write_vars_lvals _ [::]) => /vrvsP; rewrite vrvs_Lvar.
 Qed.
 
+Section WRITE_MODE.
+
+Context {sm : SemMode}.
+
 Lemma write_lvals_emem wdb gd xs ys s vs s' :
   mapM get_lvar xs = ok ys →
   write_lvals wdb gd s xs vs = ok s' →
@@ -65,6 +69,7 @@ Qed.
 (* sem_stack_stable and sem_validw_stable both for uprog and sprog *)
 (* inspired by sem_one_varmap_facts *)
 
+(* True in both modes: the total memory write does not move the stack either. *)
 Lemma write_lval_stack_stable wdb gd x v s s' :
   write_lval wdb gd x v s = ok s' →
   stack_stable (emem s) (emem s').
@@ -106,6 +111,8 @@ Proof.
   move => x xs ih [] // v vs s /=; t_xrbindP => ? /write_lval_validw h /ih.
   by move=> h1 al p ws; rewrite h h1.
 Qed.
+
+End WRITE_MODE.
 
 Lemma alloc_free_stack_stable m1 ws sz ioff sz' m2 m2' m3 :
   alloc_stack_spec m1 ws sz ioff sz' m2 ->
@@ -414,3 +421,30 @@ Proof.
 Qed.
 
 End EQ_EX.
+
+Section SYSCALL_U.
+
+Context
+  {wsw : WithSubWord}
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {sip : SemInstrParams asm_op syscall_state}.
+
+#[local] Existing Instance progUnit.
+#[local] Existing Instance sCP_unit.
+
+(* The unit syscall semantics does not touch the memory and returns values of
+   the declared output types. *)
+Lemma syscall_u_toutP o fs fs2 :
+  fexec_syscall o fs = ok fs2 ->
+  fmem fs = fmem fs2 /\
+  List.map type_of_val fs2.(fvals) = map eval_atype (scs_tout (syscall_sig_u o)).
+Proof.
+  rewrite /fexec_syscall.
+  t_xrbindP => -[[scs m_] vs_] + [<-] /=.
+  case: o => ws len /=; rewrite /exec_getrandom_u.
+  t_xrbindP => a ha t ht heq.
+  by move=> <- /= _ <- <-.
+Qed.
+
+End SYSCALL_U.

@@ -211,6 +211,7 @@ lang/pseudo_operator.v
 lang/psem_facts.v
 lang/relational_logic.v
 lang/safety_common.v
+lang/safety_common_proof.v
 lang/safety_cond.v
 lang/safety_cond_facts.v
 lang/sem_one_varmap.v
@@ -243,6 +244,8 @@ lang/word.v
 lang/wsize.v
 toEC/for_to_while.v
 toEC/for_to_while_proof.v
+toEC/safety.v
+toEC/safety_proof.v
 toEC/toec_for.v
 toEC/toec_for_proof.v
 toEC/toec_prog.v

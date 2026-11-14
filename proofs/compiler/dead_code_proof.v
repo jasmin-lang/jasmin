@@ -295,7 +295,7 @@ Section PROOF.
     split => //;first (by case: hu1 => *; split); last first.
     + move=> s2 s2' fr /st_relP [-> /= hu2].
       rewrite /finalize_funcall; t_xrbindP => vres.
-      have /= <-:= @sem_pexprs_get_var _ _ _ _ _ gd s2 => hvres vrestr htr <-.
+      have /= <-:= @sem_pexprs_get_var _ _ _ _ _ _ gd s2 => hvres vrestr htr <-.
       have hvres' : sem_pexprs (~~direct_call) gd s2 [seq Plvar i | i <- fn_keep_only onfun fn res] =
              ok (fn_keep_only onfun fn vres).
       + rewrite /fn_keep_only /=; case: onfun => [tokeep | //].
