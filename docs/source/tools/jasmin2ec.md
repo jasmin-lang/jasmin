@@ -40,8 +40,14 @@ accesses are expanded into anonymous functions instead of using the functions of
 the EasyCrypt library.
 
 By specifying `--model=CT`, the extracted EasyCrypt model allows to verify that
-the Jasmin program satisfies the cryptographic constant time property, as an alternative to `jasmin-ct`.
-For more explanation on how to verify that a program is constant time, see the [Constant-time verification](ct) page.
+the Jasmin program satisfies the cryptographic constant time property, as an
+alternative to `jasmin-ct`. For more explanation on how to verify that a program
+is constant time, see the [Constant-time verification](ct) page.
+
+The `--model=declassify` allows to only leak declassified (via the `#declassify`
+pseudo-operator) values in a flat list. Along with the CT checker, this allows
+to prove security of an implementation by focusing solely on its declassified
+values, instead of the whole CT leakage.
 
 The `--global-model` parameter selects how global variables are extracted: as
 abbreviations (`abbrev`, the default), as operators (`op`), or as operators

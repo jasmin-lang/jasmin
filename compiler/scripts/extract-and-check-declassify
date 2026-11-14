@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+# Expects two arguments:
+# 1. a target architecture
+# 2. a jasmin source file name
+
+set -e
+
+ROOT_DIR=tests/results/extraction
+DIR=$ROOT_DIR/${2%.jazz}/$1
+ECLIB=$(dirname $0)/../../eclib
+DECLASSIFY=${DIR}/jasmin_declassify.ec
+
+if [ -d "${DIR}" ]; then rm -r ${DIR}; fi
+mkdir -p $DIR
+
+ARCH="--arch=$1"
+
+set -x
+set -o xtrace
+
+$(dirname $0)/../jasmin2ec ${ARCH} -o ${DECLASSIFY} -m declassify "$2"
+
+easycrypt -I Jasmin:${ECLIB} ${ECARGS} ${DECLASSIFY}
