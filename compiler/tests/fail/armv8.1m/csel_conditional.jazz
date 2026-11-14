@@ -1,0 +1,7 @@
+export
+fn csel(reg u32 x y) -> reg u32 {
+    reg bool n z c v;
+    n, z, c, v = #CMP(x, y);
+    x = #CSELcc(x, y, z, c, x);
+    return x;
+}
