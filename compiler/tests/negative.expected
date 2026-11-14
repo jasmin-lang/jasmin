@@ -1,3 +1,14 @@
+fail/annotation/armv8a/dit_bad_value.jazz:
+
+"fail/annotation/armv8a/dit_bad_value.jazz", line 1 (6-11): attribute for “dit” should be one of “yes”, “no”
+default is “yes”
+
+fail/annotation/armv8a/dit_not_export.jazz:
+
+"fail/annotation/armv8a/dit_not_export.jazz", line 1 (0) to line 5 (1):
+unexpected annotation in function f:
+dit only applies to export functions
+
 fail/annotation/x86-64/calldepth.jazz:
 
 "fail/annotation/x86-64/calldepth.jazz", line 3 (0) to line 8 (1):
@@ -2263,8 +2274,8 @@ Allowed args are:
   reg, (reg | mem)
 
 Statistics:
-	Annots:      6
+	Annots:      7
 	Pretyping:  74
 	Parsing:     6
 	Typing:      5
-	Compile:   256
+	Compile:   257

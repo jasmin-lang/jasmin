@@ -6,6 +6,7 @@ type cli_error =
    | FileNotFound of string
    | FileIsDirectory of string
    | FilePathNotFound of string
+   | UnsupportedOption of string * string
 
 val pp_cli_error : cli_error -> string
 

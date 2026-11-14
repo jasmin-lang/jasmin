@@ -17,6 +17,15 @@ making it easier to understand and debug the program.
 
 Declassification instructions are emitted as comments in the assembly output.
 
+On ARMv8-A, the `-dit` option makes every export function set PSTATE.DIT,
+the data independent timing mode, for its body and restore the caller's value
+on return; `#[dit]` and `#[dit=no]` turn this on or off for one export
+function. The code then requires FEAT_DIT (mandatory from Armv8.4) and uses 16
+more bytes of stack. The `#randombytes` callee runs with PSTATE.DIT set and
+must not clear it. An export function inlined into another one runs in the
+mode of the latter. On the other architectures, `-dit` is an error and the
+annotation is ignored, with a warning.
+
 When the `-function-sections` option is given, each function is emitted in a
 section of its own, named `.text.<name>`, so that a linker invoked with
 `--gc-sections` drops the functions that are not reached. The option applies to
