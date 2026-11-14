@@ -50,12 +50,12 @@ Definition valid_env (S:spill_info) (env : spill_env) (vm1 vm2 : Vm.t) :=
   Sv.In x S.(X) /\
   exists2 sx, (forall ii, get_spill S ii x = ok sx) & vm2.[x] = vm2.[sx].
 
-Lemma update_lvP S wdb gd env lv s1 s1' vm2 v :
+Lemma update_lvP S (wdb: enforce_defined_variables) gd env lv s1 s1' vm2 v :
   valid_env S env (evm s1) vm2 ->
-  write_lval wdb gd lv v s1  = ok s1' ->
+  write_lval gd lv v s1  = ok s1' ->
   Sv.Subset (vars_lval lv) S.(X) ->
   exists2 vm2',
-    write_lval wdb gd lv v (with_vm s1 vm2) = ok (with_vm s1' vm2') &
+    write_lval gd lv v (with_vm s1 vm2) = ok (with_vm s1' vm2') &
     valid_env S (update_lv env lv) (evm s1') vm2'.
 Proof.
   move=> [heqon hspill] hw hsub.
@@ -74,12 +74,12 @@ Proof.
   by move: hsub; rewrite /vars_lval; clear; SvD.fsetdec.
 Qed.
 
-Lemma update_lvsP S wdb gd env lvs s1 s1' vm2 vs :
+Lemma update_lvsP S (wdb: enforce_defined_variables) gd env lvs s1 s1' vm2 vs :
   valid_env S env (evm s1) vm2 ->
-  write_lvals wdb gd s1 lvs vs = ok s1' ->
+  write_lvals gd s1 lvs vs = ok s1' ->
   Sv.Subset (vars_lvals lvs) S.(X) ->
   exists2 vm2',
-    write_lvals wdb gd (with_vm s1 vm2) lvs vs = ok (with_vm s1' vm2') &
+    write_lvals gd (with_vm s1 vm2) lvs vs = ok (with_vm s1' vm2') &
     valid_env S (update_lvs env lvs) (evm s1') vm2'.
 Proof.
   elim: lvs vs env s1 vm2.
@@ -93,19 +93,19 @@ Proof.
   by move=> vm2' -> hval'; exists vm2'.
 Qed.
 
-Lemma valid_env_e S wdb gd env e s1 vm2 :
+Lemma valid_env_e S (wdb: enforce_defined_variables) gd env e s1 vm2 :
   valid_env S env (evm s1) vm2 ->
   Sv.Subset (read_e e) S.(X) ->
-  sem_pexpr wdb gd s1 e = sem_pexpr wdb gd (with_vm s1 vm2) e.
+  sem_pexpr gd s1 e = sem_pexpr gd (with_vm s1 vm2) e.
 Proof.
   move=> [heq hval] hX; apply: eq_on_sem_pexpr => //.
   move=> x hx; rewrite heq //; clear -hX hx; SvD.fsetdec.
 Qed.
 
-Lemma valid_env_es S wdb gd env es s1 vm2 :
+Lemma valid_env_es S (wdb: enforce_defined_variables) gd env es s1 vm2 :
   valid_env S env (evm s1) vm2 ->
   Sv.Subset (read_es es) S.(X) ->
-  sem_pexprs wdb gd s1 es = sem_pexprs wdb gd (with_vm s1 vm2) es.
+  sem_pexprs gd s1 es = sem_pexprs gd (with_vm s1 vm2) es.
 Proof.
   move=> [heq hval] hX; apply: eq_on_sem_pexprs => //.
   move=> x hx; rewrite heq //; clear -hX hx; SvD.fsetdec.
@@ -142,7 +142,7 @@ Proof.
 Qed.
 
 Lemma spill_xP S ii x i env env' s vx vt vm :
-  get_gvar true gd (evm s) (mk_lvar x) = ok vx ->
+  get_gvar (wdb:= true) gd (evm s) (mk_lvar x) = ok vx ->
   truncate_val (eval_atype (vtype x)) vx = ok vt ->
   Sv.Subset (read_gvar (mk_lvar x)) S.(X) ->
   valid_env S env (evm s) vm ->
@@ -175,7 +175,7 @@ Proof using spill_prog_ok.
 Qed.
 
 Lemma spill_esP S ii tys es c env env' s vs vs' vm :
-  sem_pexprs true gd s es = ok vs ->
+  sem_pexprs (wdb := true) gd s es = ok vs ->
   mapM2 ErrType truncate_val (map eval_atype tys) vs = ok vs' ->
   Sv.Subset (read_es es) S.(X) ->
   valid_env S env (evm s) vm ->
@@ -199,7 +199,7 @@ Proof using spill_prog_ok.
 Qed.
 
 Lemma unspill_xP S ii x i env s vx vt vm :
-  get_gvar true gd (evm s) (mk_lvar x) = ok vx ->
+  get_gvar (wdb := true) gd (evm s) (mk_lvar x) = ok vx ->
   truncate_val (eval_atype (vtype x)) vx = ok vt ->
   valid_env S env (evm s) vm ->
   unspill_x S.(get_spill) ii env x = ok i ->
@@ -228,7 +228,7 @@ Proof.
 Qed.
 
 Lemma unspill_esP S ii tys es c env s vs vs' vm :
-  sem_pexprs true gd s es = ok vs ->
+  sem_pexprs (wdb := true) gd s es = ok vs ->
   mapM2 ErrType truncate_val (map eval_atype tys) vs = ok vs' ->
   valid_env S env (evm s) vm ->
   unspill_es S.(get_spill) ii env tys es = ok c ->

@@ -91,10 +91,10 @@ Definition isem_while_loop (c1 : cmd) (e:pexpr) (c2: cmd) (s : Sv.t * estate) :
 End SEM_C.
 
 Definition sem_syscall (p : prog) (o : syscall_t) (s : estate) :=
-  Let ves := get_vars true s.(evm) (syscall_sig o).(scs_vin) in
+  Let ves := get_vars (wdb := true) s.(evm) (syscall_sig o).(scs_vin) in
   Let fs := fexec_syscall (scP:= sCP_stack) o (mk_fstate ves s) in
   let s:= with_vm s (vm_after_syscall s.(evm)) in
-  upd_estate true (p_globs p) (to_lvals (syscall_sig o).(scs_vout)) fs s.
+  upd_estate (wdb := true) (p_globs p) (to_lvals (syscall_sig o).(scs_vout)) fs s.
 
 Notation add_fv fv :=
   (Result.map (aT:=estate) (rT:=Sv.t * estate) (fun (s:estate) => (fv, s))).

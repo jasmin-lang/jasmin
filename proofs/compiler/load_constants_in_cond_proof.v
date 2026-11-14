@@ -38,13 +38,13 @@ Section BODY.
 
 Context (X : Sv.t).
 
-Lemma process_constantP_aux wdb ii n ws e c e' W s v :
+Lemma process_constantP_aux (wdb: enforce_defined_variables) ii n ws e c e' W s v :
   process_constant fresh_reg ii n ws e = (c, e', W) ->
-  sem_pexpr wdb gd s e = ok v ->
+  sem_pexpr gd s e = ok v ->
   exists vm,
     [/\ esem p' ev (map (MkI ii) c) s = ok (with_vm s vm),
         evm s =[\W] vm, Sv.Subset (read_e e') (Sv.union W (read_e e)) &
-        sem_pexpr wdb gd' (with_vm s vm) e' = ok v].
+        sem_pexpr gd' (with_vm s vm) e' = ok v].
 Proof using Hp.
   rewrite /process_constant; case: is_wconst_of_sizeP => [z | ]; last first.
   + move=> _ [<- -> <-] he; exists (evm s); split => //; rewrite ?with_vm_same.
@@ -63,19 +63,19 @@ Proof using Hp.
   by rewrite /get_gvar /= get_var_set /= ?cmp_le_refl !orbT //= eqxx.
 Qed.
 
-Lemma process_constantP wdb ii n ws e c e' W s v vm :
+Lemma process_constantP (wdb: enforce_defined_variables) ii n ws e c e' W s v vm :
   process_constant fresh_reg ii n ws e = (c, e', W) ->
-  sem_pexpr wdb gd s e = ok v ->
+  sem_pexpr gd s e = ok v ->
   Sv.Subset (read_e e) X ->
   evm s =[X] vm ->
   disjoint W X ->
   exists vm',
     [/\ esem p' ev (map (MkI ii) c) (with_vm s vm) = ok (with_vm s vm'),
         evm s =[X] vm', Sv.Subset (read_e e') (Sv.union W (read_e e)) &
-        sem_pexpr wdb gd' (with_vm s vm') e' = ok v].
+        sem_pexpr gd' (with_vm s vm') e' = ok v].
 Proof using Hp.
   move=> he hse hsub heq /disjoint_sym hdisj.
-  have {}hse: sem_pexpr wdb gd (with_vm s vm) e = ok v.
+  have {}hse: sem_pexpr gd (with_vm s vm) e = ok v.
   + rewrite -hse; apply eq_on_sem_pexpr => //.
     by apply/eq_onS;apply: eq_onI hsub heq.
   have [vm' []]:= process_constantP_aux he hse.
@@ -84,26 +84,26 @@ Proof using Hp.
   by move/disjointP: hdisj; apply.
 Qed.
 
-Lemma process_conditionP wdb ii e c e' s v vm:
+Lemma process_conditionP (wdb: enforce_defined_variables) ii e c e' s v vm:
   process_condition fresh_reg X ii e = ok (c, e') ->
-  sem_pexpr wdb gd s e = ok v ->
+  sem_pexpr gd s e = ok v ->
   Sv.Subset (read_e e) X ->
   evm s =[X] vm ->
   exists vm',
     [/\ esem p' ev (map (MkI ii) c) (with_vm s vm) = ok (with_vm s vm'),
         evm s =[X] vm' &
-        sem_pexpr wdb gd' (with_vm s vm') e' = ok v].
+        sem_pexpr gd' (with_vm s vm') e' = ok v].
 Proof using Hp.
   rewrite /process_condition.
   have Hdfl :
    Ok pp_error_loc ([::], e) = ok (c, e')
-   → sem_pexpr wdb gd s e = ok v
+   → sem_pexpr gd s e = ok v
    → Sv.Subset (read_e e) X
    → evm s =[X] vm
    → ∃ vm' : Vm.t,
       [/\ esem p' ev [seq MkI ii i | i <- c] (with_vm s vm) = ok (with_vm s vm'),
           evm s =[X] vm'
-          & sem_pexpr wdb gd' (with_vm s vm') e' = ok v].
+          & sem_pexpr gd' (with_vm s vm') e' = ok v].
   + move=> [<- <-] he hsub hX; exists vm; split => //.
     rewrite -he eq_globs; apply eq_on_sem_pexpr => //.
     by apply/eq_onS;apply: eq_onI hsub hX.
@@ -116,7 +116,7 @@ Proof using Hp.
   have [hsub1 hsub2]: Sv.Subset (read_e e1) X /\ Sv.Subset (read_e e2) X.
   + by split; clear -hsub; SvD.fsetdec.
   have [vm1 [hsem1 heqon1 hsube1 {}he1]] := process_constantP heq3 he1 hsub1 heq hd1.
-  have {}he2 : sem_pexpr wdb gd (with_vm s vm1) e2 = ok v2.
+  have {}he2 : sem_pexpr gd (with_vm s vm1) e2 = ok v2.
   + rewrite -he2; apply eq_on_sem_pexpr => //.
     by apply/eq_onS;apply: eq_onI hsub2 heqon1.
   have [vm2 [hsem2 hee hsube2]]:= process_constantP_aux heq4 he2.
@@ -126,7 +126,7 @@ Proof using Hp.
   + apply: (eq_onT heqon1).
     by move=> y hy; apply hee; move/disjoint_sym/disjointP: hd2; apply.
   rewrite he2.
-  have -> // : sem_pexpr wdb gd' (with_vm s vm2) e1' = ok v1.
+  have -> // : sem_pexpr gd' (with_vm s vm2) e1' = ok v1.
   rewrite -he1; apply eq_on_sem_pexpr => //.
   apply/eq_onS; apply: (eq_ex_disjoint_eq_on hee).
   apply/disjoint_sym/(disjoint_w hsube1)/union_disjoint => //.

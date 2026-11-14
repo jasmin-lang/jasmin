@@ -27,14 +27,14 @@ Context
 
 Section GLOB_DEFS.
 
-Context (wdb : bool) (gd: glob_decls).
+Context {wdb : enforce_defined_variables} (gd: glob_decls).
 
 Definition eqok_w (e1 e2:pexpr) st :=
-  forall v, sem_pexpr wdb gd st e1 = ok v -> sem_pexpr wdb gd st e2 = ok v.
+  forall v, sem_pexpr gd st e1 = ok v -> sem_pexpr gd st e2 = ok v.
 
 Definition eqok (e1 e2:pexpr) st :=
-  forall v, sem_pexpr wdb gd st e1 = ok v ->
-    exists v', sem_pexpr wdb gd st e2 = ok v' /\ value_uincl v v'.
+  forall v, sem_pexpr gd st e1 = ok v ->
+    exists v', sem_pexpr gd st e2 = ok v' /\ value_uincl v v'.
 
 Lemma eqok_weaken e1 e2 st : eqok_w e1 e2 st -> eqok e1 e2 st.
 Proof. by move=> h v /h h';exists v. Qed.
@@ -112,13 +112,13 @@ Proof. by case: e => //= ? [->]. Qed.
 
 Lemma of_exprP rho t e v :
   of_expr t e = ok v ->
-  Let x := sem_pexpr wdb gd rho e in of_val t x = ok v.
+  Let x := sem_pexpr gd rho e in of_val t x = ok v.
 Proof.
   case: t v => //= [b /e2boolP -> | z /e2intP -> | w] // v.
   by rewrite /e2word; case heq : is_wconst => [w' | ] // [<-]; apply is_wconstP.
 Qed.
 
-Lemma to_exprP rho t (v:sem_t t) e : to_expr v = ok e -> sem_pexpr wdb gd rho e = ok (to_val v).
+Lemma to_exprP rho t (v:sem_t t) e : to_expr v = ok e -> sem_pexpr gd rho e = ok (to_val v).
 Proof.
   case: t v => //= [b | z | ws w] [<-] //=.
   by rewrite /sem_sop1 /= wrepr_unsigned.
@@ -352,7 +352,7 @@ Lemma is_cmp_constP s ty e z :
   | Cmp_int => e = Pconst z
   | Cmp_w sg sz =>
     exists2 x,
-    sem_pexpr wdb gd s e = ok x &
+    sem_pexpr gd s e = ok x &
     exists2 w,
     to_word sz x = ok w &
     match sg with
@@ -477,7 +477,7 @@ Qed.
 
 Lemma app_sopnP T0 ts o es x s :
   @app_sopn T0 ts o es = ok x ->
-  sem_pexprs wdb gd s es >>= values.app_sopn ts o = ok x.
+  sem_pexprs gd s es >>= values.app_sopn ts o = ok x.
 Proof.
   elim: ts es o => /= [ | t ts ih ].
   + by case=> // _ -> [<-].
@@ -489,7 +489,7 @@ Proof.
 Qed.
 
 Lemma s_opNP op s es :
-  sem_pexpr wdb gd s (s_opN op es) = sem_pexpr wdb gd s (PappN op es).
+  sem_pexpr gd s (s_opN op es) = sem_pexpr gd s (PappN op es).
 Proof.
 
 Opaque app_sopn values.app_sopn.
@@ -520,7 +520,7 @@ Lemma valid_cpm_empty vm :
 Proof. move=> x n. by rewrite Mvar.get0. Qed.
 
 Definition eqoks e1 e2 st :=
-  ∀ vs, sem_pexprs wdb gd st e1 = ok vs → exists2 vs', sem_pexprs wdb gd st e2 = ok vs' & values_uincl vs vs'.
+  ∀ vs, sem_pexprs gd st e1 = ok vs → exists2 vs', sem_pexprs gd st e2 = ok vs' & values_uincl vs vs'.
 
 Definition valid_globs (globs: globals) : Prop :=
   if globs is Some f then
@@ -539,7 +539,7 @@ Section CONST_PROP_EP.
     - by move => ? [<-]; exists [::].
     - move => e rec es ih ?; rewrite /sem_pexprs /=.
       apply: rbindP => v /rec [v'] [->] hu.
-      apply: rbindP => vs /ih{ih}; rewrite -/(sem_pexprs wdb gd s _) => - [vs'] -> hrec [<-] /=.
+      apply: rbindP => vs /ih{ih}; rewrite -/(sem_pexprs gd s _) => - [vs'] -> hrec [<-] /=.
       by eexists; [reflexivity | constructor].
     - move => [x []] v; rewrite /= /get_gvar /=; last first.
       + case: globs Gvalid; last by eauto.
@@ -559,7 +559,7 @@ Section CONST_PROP_EP.
       apply: on_arr_gvarP => n t wt ok_x.
       t_xrbindP => z w /(He _) {He} [v'] [] ok_v' /[swap] /to_intI ? /value_uinclE; subst => ?; subst.
       move => a ha ?; subst.
-      have default : ∃ v' : value, sem_pexpr wdb gd s (Pget al aa sz x (const_prop_e globs m e)) = ok v' ∧ value_uincl (Vword a) v'.
+      have default : ∃ v' : value, sem_pexpr gd s (Pget al aa sz x (const_prop_e globs m e)) = ok v' ∧ value_uincl (Vword a) v'.
       + by rewrite /= /on_arr_var ok_x /= ok_v' /= ha /=; eexists; split; [ reflexivity | simpl ].
       case x_glob: is_glob; last exact: default.
       case: globs default Gvalid ok_v'; last by [].
@@ -615,7 +615,7 @@ Definition empty_const_prop_eP e s :=
   const_prop_eP (e := e) (s := s) (valid_cpm_empty _) (I : valid_globs None).
 
 Lemma remove_cpm1P x v m s1 s1' :
-  write_var wdb x v s1 = ok s1' ->
+  write_var x v s1 = ok s1' ->
   valid_cpm (evm s1) m ->
   valid_cpm (evm s1') (Mvar.remove m x).
 Proof.
@@ -633,10 +633,10 @@ Qed.
 
 Lemma add_cpmP s1 s1' m x e tag ty v1 v v' :
   wdb ->
-  sem_pexpr wdb gd s1 e = ok v1 ->
+  sem_pexpr gd s1 e = ok v1 ->
   value_uincl v v1 ->
   truncate_val (eval_atype ty) v = ok v' ->
-  write_lval wdb gd x v' s1 = ok s1' ->
+  write_lval gd x v' s1 = ok s1' ->
   valid_cpm (evm s1') m ->
   valid_cpm (evm s1') (add_cpm m x tag ty e).
 Proof.
@@ -682,9 +682,9 @@ Qed.
 Lemma const_prop_rvP globs s1 s2 m x v:
   valid_cpm (evm s1) m ->
   valid_globs globs ->
-  write_lval wdb gd x v s1 = Ok error s2 ->
+  write_lval gd x v s1 = Ok error s2 ->
   valid_cpm (evm s2) (const_prop_rv globs m x).1 /\
-  write_lval wdb gd (const_prop_rv globs m x).2 v s1 = ok s2.
+  write_lval gd (const_prop_rv globs m x).2 v s1 = ok s2.
 Proof.
   case:x => [ii t | x | al sz vi p | al aa sz x p | aa sz len x p] /= Hv Gv; t_xrbindP.
   + by move=> H; have [??]:= write_noneP H; subst s2.
@@ -700,9 +700,9 @@ Qed.
 Lemma const_prop_rvsP globs s1 s2 m x v:
   valid_cpm (evm s1) m ->
   valid_globs globs ->
-  write_lvals wdb gd s1 x v = Ok error s2 ->
+  write_lvals gd s1 x v = Ok error s2 ->
   valid_cpm (evm s2) (const_prop_rvs globs m x).1 /\
-  write_lvals wdb gd s1 (const_prop_rvs globs m x).2 v = ok s2.
+  write_lvals gd s1 (const_prop_rvs globs m x).2 v = ok s2.
 Proof.
   elim: x v m s1 s2 => [ | x xs Hrec] [ | v vs] //= m s1 s2 Hm Gv.
   + by move=> [<-].
@@ -967,9 +967,9 @@ Definition valid_uincl (m : cpm) (vm1 vm2 : Vm.t) :=
 
 Definition cmpl_inv (m : cpm) := st_rel valid_uincl m.
 
-Lemma const_prop_ePe m wdb e :
-  wrequiv (cmpl_inv m) ((sem_pexpr wdb gd)^~ e)
-    ((sem_pexpr wdb (p_globs p'))^~ (const_prop_e None m e)) value_uincl.
+Lemma const_prop_ePe m (wdb: enforce_defined_variables) e :
+  wrequiv (cmpl_inv m) ((sem_pexpr gd)^~ e)
+    ((sem_pexpr (p_globs p'))^~ (const_prop_e None m e)) value_uincl.
 Proof.
   move=> s t v /st_relP [-> /=] [hval hvm].
   move=> /(const_prop_eP hval valid_without_globals) [v' [he' u1]].
@@ -977,9 +977,9 @@ Proof.
   exists vs2 => //; apply: value_uincl_trans u1 u2.
 Qed.
 
-Lemma const_prop_esPe m wdb es :
-  wrequiv (cmpl_inv m) ((sem_pexprs wdb gd)^~ es)
-    ((sem_pexprs wdb (p_globs p'))^~ [seq const_prop_e None m i | i <- es]) values_uincl.
+Lemma const_prop_esPe m (wdb: enforce_defined_variables) es :
+  wrequiv (cmpl_inv m) ((sem_pexprs gd)^~ es)
+    ((sem_pexprs (p_globs p'))^~ [seq const_prop_e None m i | i <- es]) values_uincl.
 Proof.
   move=> s t vs /st_relP [-> /=] [hval hvm].
   move=> /(const_prop_esP hval valid_without_globals) [vs' hes' u1].
@@ -987,10 +987,10 @@ Proof.
   exists vs2 => //; apply: values_uincl_trans u1 u2.
 Qed.
 
-Lemma const_prop_rvsPe m wdb xs vs1 vs2 :
+Lemma const_prop_rvsPe m (wdb: enforce_defined_variables) xs vs1 vs2 :
   values_uincl vs1 vs2 ->
-  wrequiv (cmpl_inv m) (fun s => write_lvals wdb (p_globs p) s xs vs1)
-                       (fun s => write_lvals wdb (p_globs p') s (const_prop_rvs None m xs).2 vs2)
+  wrequiv (cmpl_inv m) (fun s => write_lvals (p_globs p) s xs vs1)
+                       (fun s => write_lvals (p_globs p') s (const_prop_rvs None m xs).2 vs2)
           (cmpl_inv (const_prop_rvs None m xs).1).
 Proof.
   move=> hu s t s' /st_relP [-> /=] [hval hvm] hw.

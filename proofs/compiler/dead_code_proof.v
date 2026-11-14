@@ -65,9 +65,9 @@ Section PROOF.
   Qed.
 
   Local Lemma Hassgn_esem_aux ii x tag ty e O s1 s2 vm1 v v' :
-    sem_pexpr true gd s1 e = ok v ->
+    sem_pexpr (wdb := true) gd s1 e = ok v ->
     truncate_val (eval_atype ty) v = ok v' ->
-    write_lval true gd x v' s1 = ok s2 ->
+    write_lval (wdb := true) gd x v' s1 = ok s2 ->
     (evm s1) <=[read_rv_rec (read_e_rec (Sv.diff O (write_i (Cassgn x tag ty e))) e) x] vm1 →
     exists2 vm2, evm s2 <=[O] vm2 &
       esem p' ev [:: MkI ii (Cassgn x tag ty e)] (with_vm s1 vm1) = ok (with_vm s2 vm2).
@@ -85,8 +85,8 @@ Section PROOF.
     by rewrite /= /sem_assgn -?eq_globs Hv'' /= Ht /= Hw2.
   Qed.
 
-  Local Lemma Hwrite_disj wdb s1 s2 s x v:
-    write_lval wdb gd x v s1 = ok s2 ->
+  Local Lemma Hwrite_disj (wdb: enforce_defined_variables) s1 s2 s x v:
+    write_lval gd x v s1 = ok s2 ->
     disjoint s (vrv x) ->
     ~~ lv_write_mem x ->
     [/\ escs s1 = escs s2, evm s1 =[s] evm s2 & emem s1 = emem s2].
@@ -95,8 +95,8 @@ Section PROOF.
     by apply: disjoint_eq_on Hdisj Hw.
   Qed.
 
-  Local Lemma Hwrites_disj wdb s1 s2 s x v:
-    write_lvals wdb gd s1 x v = ok s2 ->
+  Local Lemma Hwrites_disj (wdb: enforce_defined_variables) s1 s2 s x v:
+    write_lvals gd s1 x v = ok s2 ->
     disjoint s (vrvs x) ->
     ~~ has lv_write_mem x ->
     [/\ escs s1 = escs s2, evm s1 =[s] evm s2 & emem s1 = emem s2].
@@ -141,9 +141,9 @@ Section PROOF.
   Qed.
 
   Local Lemma Hopn_esem_aux O ii xs t o es v vs s1 s2 vm1:
-    sem_pexprs true gd s1 es = ok vs ->
+    sem_pexprs (wdb := true) gd s1 es = ok vs ->
     exec_sopn o vs = ok v ->
-    write_lvals true gd s1 xs v = ok s2 ->
+    write_lvals (wdb := true) gd s1 xs v = ok s2 ->
     evm s1 <=[read_es_rec (read_rvs_rec (Sv.diff O (vrvs xs)) xs) es]  vm1 →
     exists2 vm2, evm s2 <=[O]  vm2 &
        esem p' ev [:: MkI ii (Copn xs t o es)] (with_vm s1 vm1) = ok (with_vm s2 vm2).
@@ -217,14 +217,14 @@ Section PROOF.
     by exists sv2.
   Qed.
 
-  Lemma write_lvals_keep_only wdb tokeep xs I O xs' s1 s2 vs vs' vm1:
+  Lemma write_lvals_keep_only (wdb: enforce_defined_variables) tokeep xs I O xs' s1 s2 vs vs' vm1:
      check_keep_only xs tokeep O = ok (I, xs') ->
      values_uincl (keep_only vs tokeep) vs' ->
-     write_lvals wdb gd s1 xs vs = ok s2 ->
+     write_lvals gd s1 xs vs = ok s2 ->
      evm s1 <=[I]  vm1 ->
      ∃ vm2,
              evm s2 <=[O]  vm2
-             ∧ write_lvals wdb gd (with_vm s1 vm1) xs' vs' =
+             ∧ write_lvals gd (with_vm s1 vm1) xs' vs' =
                ok (with_vm s2 vm2).
   Proof.
     elim: tokeep xs xs' I s1 vs vm1 vs'=> [ | b tokeep ih] [ | x xs] //= xs' I s1 [ | v vs] // vm1 vs'.
@@ -296,7 +296,7 @@ Section PROOF.
     + move=> s2 s2' fr /st_relP [-> /= hu2].
       rewrite /finalize_funcall; t_xrbindP => vres.
       have /= <-:= @sem_pexprs_get_var _ _ _ _ _ gd s2 => hvres vrestr htr <-.
-      have hvres' : sem_pexprs (~~direct_call) gd s2 [seq Plvar i | i <- fn_keep_only onfun fn res] =
+      have hvres' : sem_pexprs (wdb := ~~direct_call) gd s2 [seq Plvar i | i <- fn_keep_only onfun fn res] =
              ok (fn_keep_only onfun fn vres).
       + rewrite /fn_keep_only /=; case: onfun => [tokeep | //].
         move: hvres; clear.

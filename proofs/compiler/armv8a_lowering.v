@@ -548,8 +548,6 @@ Definition lower_cassgn_bool (lv : lval) (tag : assgn_tag) (e : pexpr) : option 
 (* -------------------------------------------------------------------- *)
 (* Lowering of architecture-specific operations. *)
 
-Definition isLnone x : bool := if x is Lnone _ _ then true else false.
-
 Definition lower_add_carry
   (lvs : seq lval) (es : seq pexpr) : option copn_args :=
   match lvs, es with

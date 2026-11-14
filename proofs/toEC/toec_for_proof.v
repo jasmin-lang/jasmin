@@ -27,9 +27,9 @@ Lemma escs_emem_with_vm :
 Proof. by move=> [???] [???] /= -> ->. Qed.
 
 Lemma st_eq_on_pexprs gs:
-  forall wdb V es,
+  forall (wdb: enforce_defined_variables) V es,
     Sv.Subset (read_es es) V ->
-    wrequiv (st_eq_on V) ((sem_pexprs wdb gs)^~ es) ((sem_pexprs wdb gs)^~ es) eq.
+    wrequiv (st_eq_on V) ((sem_pexprs gs)^~ es) ((sem_pexprs gs)^~ es) eq.
 Proof using sip wa.
   move=> ? V e HV s t v [] H1 H2 H3 H.
   exists v; last done.

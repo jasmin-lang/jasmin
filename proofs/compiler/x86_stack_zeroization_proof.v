@@ -188,7 +188,7 @@ Proof using lt_0_stk_max halign le_ws_ws_align hstack hsmall hbody rsp_nin.
       last by move=> /= h; apply /rsp_nin /sv_of_listP;
       rewrite !in_cons /= -h eqxx /= ?orbT.
     do 5 rewrite (@get_var_neq _ _ _ rspi) //.
-    rewrite [get_var _ _ rspi]/get_var hsr.(sr_rsp) /=.
+    rewrite [get_var _ rspi]/get_var hsr.(sr_rsp) /=.
     rewrite /sem_sop2 /= (truncate_word_u top) /=.
     rewrite get_var_eq //= !truncate_word_u /= truncate_word_u /=.
     rewrite add_wordE sub_wordE.
@@ -463,7 +463,7 @@ Proof using lt_0_stk_max halign le_ws_ws_align hstack hlarge hbody rsp_nin.
     apply: (lsem_n_eval_lin1 (n:=7) hbody) => //=.
     rewrite /eval_instr /=.
     do 6 rewrite (@get_var_neq _ _ _ vlri) //.
-    rewrite [get_var _ _ vlri]/get_var hsr.(srll_vlr) /=.
+    rewrite [get_var _ vlri]/get_var hsr.(srll_vlr) /=.
     rewrite /exec_sopn /= truncate_word_u /= computational_eq_refl /x86_VMOVDQ.
     rewrite wsize_nle_u64_size_128_256 /=; last by apply /negbTE /negP.
     rewrite get_var_eq //=.
@@ -1025,7 +1025,7 @@ Local Opaque wsize_size Z.of_nat.
       rewrite Z.mul_comm -(proj2 (Z.div_exact _ _ _)) //.
       by move: halign; rewrite is_alignE WArray.p_to_zE => /eqP.
     rewrite /eval_instr /=.
-    rewrite [get_var _ _ vlri]/get_var hsr.(srul_vlr) /=.
+    rewrite [get_var _ vlri]/get_var hsr.(srul_vlr) /=.
     rewrite /exec_sopn /= (@truncate_word_u ws) /= computational_eq_refl /x86_VMOVDQ.
     rewrite wsize_nle_u64_size_128_256 /=; last by apply /negbTE /negP.
     rewrite /get_var /= hsr.(sr_rsp) /sem_sop2 /= !truncate_word_u /= truncate_word_u /=.

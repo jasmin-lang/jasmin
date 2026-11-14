@@ -43,27 +43,27 @@ Definition kget_fundef (funcs: fun_decls) (fn: funname) :
     ktree E fstate fundef :=
   fun _ => ioget ErrType (get_fundef funcs fn).
 
-Definition iwrite_var (wdb : bool) (x : var_i) (v : value) (s : estate) :
+Definition iwrite_var {wdb : enforce_defined_variables} (x : var_i) (v : value) (s : estate) :
     itree E estate :=
-  iresult (write_var wdb x v s).
+  iresult (write_var x v s).
 
-Definition iwrite_lval (wdb : bool) (gd : glob_decls) (x : lval)
+Definition iwrite_lval {wdb : enforce_defined_variables} (gd : glob_decls) (x : lval)
     (v : value) (s : estate) : itree E estate :=
-  iresult (write_lval wdb gd x v s).
+  iresult (write_lval gd x v s).
 
-Definition iwrite_lvals (wdb : bool) (gd : glob_decls) (xs : lvals)
+Definition iwrite_lvals {wdb : enforce_defined_variables} (gd : glob_decls) (xs : lvals)
     (vs : values) (s : estate) : itree E estate :=
-  iresult (write_lvals wdb gd s xs vs).
+  iresult (write_lvals gd s xs vs).
 
-Definition isem_pexprs (wdb : bool) (gd : glob_decls) (es: pexprs)
+Definition isem_pexprs {wdb : enforce_defined_variables} (gd : glob_decls) (es: pexprs)
     (s : estate) : itree E values :=
-  iresult (sem_pexprs wdb gd s es).
+  iresult (sem_pexprs gd s es).
 
 Definition sem_assgn  (x : lval) (tg : assgn_tag) (ty : atype) (e : pexpr)
     (s : estate) : exec estate :=
-  Let v := sem_pexpr true (p_globs p) s e in
+  Let v := sem_pexpr (wdb := true) (p_globs p) s e in
   Let v' := truncate_val (eval_atype ty) v in
-  write_lval true (p_globs p) x v' s.
+  write_lval (wdb := true) (p_globs p) x v' s.
 
 Definition fexec_syscall (o : syscall_t) (fs:fstate) : exec fstate :=
   Let: (scs, m, vs) := exec_syscall fs.(fscs) fs.(fmem) o fs.(fvals) in
@@ -72,21 +72,21 @@ Definition fexec_syscall (o : syscall_t) (fs:fstate) : exec fstate :=
 Definition mk_fstate (vs:values) (s:estate) :=
   {| fscs := escs s; fmem:= emem s; fvals := vs |}.
 
-Definition upd_estate wdb (gd : glob_decls) (xs:lvals) (fs : fstate)
+Definition upd_estate {wdb: enforce_defined_variables} (gd : glob_decls) (xs:lvals) (fs : fstate)
     (s:estate) :=
-  write_lvals wdb gd (with_scs (with_mem s fs.(fmem)) fs.(fscs)) xs fs.(fvals).
+  write_lvals gd (with_scs (with_mem s fs.(fmem)) fs.(fscs)) xs fs.(fvals).
 
 Definition sem_syscall (xs : lvals) (o : syscall_t) (es : pexprs)
     (s : estate) : exec estate :=
-  Let ves := sem_pexprs true (p_globs p) s es in
+  Let ves := sem_pexprs (wdb := true) (p_globs p) s es in
   Let fs := fexec_syscall o (mk_fstate ves s) in
-  upd_estate true (p_globs p) xs fs s.
+  upd_estate (wdb := true) (p_globs p) xs fs s.
 
 Definition sem_cond (gd : glob_decls) (e : pexpr) (s : estate) : exec bool :=
-  (sem_pexpr true gd s e >>= to_bool)%result.
+  (sem_pexpr (wdb := true) gd s e >>= to_bool)%result.
 
 Lemma sem_cond_sem_pexpr gd e s b :
-  sem_cond gd e s = ok b -> sem_pexpr true gd s e = ok (Vbool b).
+  sem_cond gd e s = ok b -> sem_pexpr (wdb := true) gd s e = ok (Vbool b).
 Proof. rewrite /sem_cond /=; by t_xrbindP=> _ -> /to_boolI ->. Qed.
 
 Definition isem_cond (e : pexpr) (s : estate) : itree E bool :=
@@ -94,8 +94,8 @@ Definition isem_cond (e : pexpr) (s : estate) : itree E bool :=
 
 Definition sem_bound (gd : glob_decls) (lo hi : pexpr) (s : estate) :
     exec (Z * Z) :=
-  (Let vlo := sem_pexpr true gd s lo >>= to_int in
-  Let vhi := sem_pexpr true gd s hi >>= to_int in
+  (Let vlo := sem_pexpr (wdb := true) gd s lo >>= to_int in
+  Let vhi := sem_pexpr (wdb := true) gd s hi >>= to_int in
   ok (vlo, vhi))%result.
 
 Definition isem_bound (lo hi : pexpr) (s : estate) : itree E (Z * Z) :=
@@ -110,7 +110,7 @@ Definition sem_pre {dc: DirectCall} (P : prog) (fn:funname) (fs: fstate) :=
     match f.(f_contract) with
     | Some ci =>
       Let vargs := mapM2 ErrType dc_truncate_val (map eval_atype f.(f_tyin)) fs.(fvals) in
-      Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate fs.(fscs) fs.(fmem) Vm.init) in
+      Let s := write_vars (wdb := ~~direct_call) ci.(f_iparams) vargs (Estate fs.(fscs) fs.(fmem) Vm.init) in
       Let _ := mapM (sem_assert (p_globs P) s) ci.(f_pre) in
       ok tt
     | None => ok tt
@@ -126,8 +126,8 @@ Definition sem_post {dc: DirectCall} (P : prog) (fn:funname) (vargs' : values) (
     match f.(f_contract) with
     | Some ci =>
       Let vargs := mapM2 ErrType dc_truncate_val (map eval_atype f.(f_tyin)) vargs' in
-      Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate fs.(fscs) fs.(fmem) Vm.init) in
-      Let s :=  write_vars (~~direct_call) ci.(f_ires) fs.(fvals) s in
+      Let s := write_vars (wdb := ~~direct_call) ci.(f_iparams) vargs (Estate fs.(fscs) fs.(fmem) Vm.init) in
+      Let s :=  write_vars (wdb := ~~direct_call) ci.(f_ires) fs.(fvals) s in
       Let _ := mapM (sem_assert (p_globs P) s) ci.(f_post) in
       ok tt
     | None => ok tt
@@ -163,7 +163,7 @@ Local Notation exit_loop s := (ret (inr s)).
 Definition isem_for_round (i : var_i) (c : cmd)
   (w: Z) (k: estate -> itree E estate) (s: estate) :
     itree E estate :=
-  s <- iwrite_var true i (Vint w) s ;;
+  s <- iwrite_var (wdb := true) i (Vint w) s ;;
   s <- isem_foldr c s ;; k s.
 
 Definition isem_for_loop (i : var_i) (c : cmd) (ls : list Z)
@@ -223,12 +223,12 @@ Fixpoint isem_i_body (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
     isem_for_loop isem_i_body p ev i c (wrange d bounds.1 bounds.2) s
 
   | Ccall xs fn args =>
-    vargs <- isem_pexprs  (~~direct_call) (p_globs p) args s;;
+    vargs <- isem_pexprs  (wdb := ~~direct_call) (p_globs p) args s;;
     let fi := mk_fstate vargs s in
     isem_pre p fn fi;;
     fs <- sem_fun p ev ii fn fi ;;
     isem_post p fn vargs fs;;
-    iresult (upd_estate (~~direct_call) (p_globs p) xs fs s)
+    iresult (upd_estate (wdb := ~~direct_call) (p_globs p) xs fs s)
 
   end.
 (* similar, for commands *)
@@ -317,10 +317,10 @@ Definition initialize_funcall (p : prog) (ev : extra_val_t) (fd : fundef) (fs : 
   let sinit := estate0 fs in
   Let vargs' := mapM2 ErrType dc_truncate_val (map eval_atype fd.(f_tyin)) fs.(fvals) in
   Let s0 := init_state fd.(f_extra) (p_extra p) ev sinit in
-  write_vars (~~direct_call) fd.(f_params) vargs' s0.
+  write_vars (wdb := ~~direct_call) fd.(f_params) vargs' s0.
 
 Definition finalize_funcall (fd : fundef) (s:estate) : exec fstate :=
-  Let vres := get_var_is (~~ direct_call) s.(evm) fd.(f_res) in
+  Let vres := get_var_is (wdb := ~~ direct_call) s.(evm) fd.(f_res) in
   Let vres' := mapM2 ErrType dc_truncate_val (map eval_atype fd.(f_tyout)) vres in
   let scs := s.(escs) in
   let m := finalize fd.(f_extra) s.(emem) in
@@ -363,7 +363,7 @@ Fixpoint esem_i (p : prog) (ev : extra_val_t) (i : instr) (s : estate) :
   | Cfor i (d, lo, hi) c =>
     Let bounds := sem_bound (p_globs p) lo hi s in
     foldM (fun j s =>
-      Let s := write_var true i (Vint j) s in
+      Let s := write_var (wdb := true) i (Vint j) s in
       foldM (esem_i p ev) s c)
      s (wrange d bounds.1 bounds.2)
 
@@ -375,7 +375,7 @@ Definition esem (p : prog) (ev : extra_val_t) (c : cmd) (s : estate) :=
 
 Definition esem_for p ev i c :=
   foldM (fun j s =>
-      Let s := write_var true i (Vint j) s in
+      Let s := write_var (wdb := true) i (Vint j) s in
       foldM (esem_i p ev) s c).
 
 Lemma esem_i_bodyP p ev c s s' :
@@ -415,7 +415,7 @@ Lemma esem1 p ev s i : esem p ev [::i] s = esem_i p ev i s.
 Proof. by rewrite esem_cons; case: esem_i. Qed.
 
 Lemma eEForOne p ev s1 s1' s2 s3 i w ws c :
-  write_var true i (Vint w) s1 = ok s1' ->
+  write_var (wdb := true) i (Vint w) s1 = ok s1' ->
   esem p ev c s1' = ok s2 ->
   esem_for p ev i c s2 ws = ok s3 ->
   esem_for p ev i c s1 (w :: ws) = ok s3.

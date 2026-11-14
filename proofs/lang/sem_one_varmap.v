@@ -28,6 +28,7 @@ The semantic predicates are indexed by a set of variables which is *precisely* t
  *)
 
 #[local] Existing Instance withsubword.
+#[local] Existing Instance do_enforce_defined_variables.
 
 Definition kill_var (x: var) (vm: Vm.t) : Vm.t :=
   vm.[x <- undef_addr (eval_atype (vtype x))].
@@ -133,9 +134,9 @@ with sem_I : Sv.t → estate → instr → estate → Prop :=
 
 with sem_i : instr_info → Sv.t → estate → instr_r → estate → Prop :=
 | Eassgn ii s1 s2 (x:lval) tag ty e v v' :
-    sem_pexpr true gd s1 e = ok v →
+    sem_pexpr gd s1 e = ok v →
     truncate_val (eval_atype ty) v = ok v' →
-    write_lval true gd x v' s1 = ok s2 →
+    write_lval gd x v' s1 = ok s2 →
     sem_i ii (vrv x) s1 (Cassgn x tag ty e) s2
 
 | Eopn ii s1 s2 t o xs es:
@@ -143,32 +144,32 @@ with sem_i : instr_info → Sv.t → estate → instr_r → estate → Prop :=
     sem_i ii (vrvs xs) s1 (Copn xs t o es) s2
 
 | Esyscall ii s1 scs m s2 o xs es ves vs:
-    get_vars true s1.(evm) (syscall_sig o).(scs_vin) = ok ves ->
+    get_vars s1.(evm) (syscall_sig o).(scs_vin) = ok ves ->
     exec_syscall (semCallParams:= sCP_stack) s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
-    write_lvals true gd {| escs := scs; emem := m; evm := vm_after_syscall s1.(evm) |}
+    write_lvals gd {| escs := scs; emem := m; evm := vm_after_syscall s1.(evm) |}
        (to_lvals (syscall_sig o).(scs_vout)) vs = ok s2 →
     sem_i ii (Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout)))) s1 (Csyscall xs o es) s2
 
 | Eif_true ii k s1 s2 e c1 c2 :
-    sem_pexpr true gd s1 e = ok (Vbool true) →
+    sem_pexpr gd s1 e = ok (Vbool true) →
     sem k s1 c1 s2 →
     sem_i ii k s1 (Cif e c1 c2) s2
 
 | Eif_false ii k s1 s2 e c1 c2 :
-    sem_pexpr true gd s1 e = ok (Vbool false) →
+    sem_pexpr gd s1 e = ok (Vbool false) →
     sem k s1 c2 s2 →
     sem_i ii k s1 (Cif e c1 c2) s2
 
 | Ewhile_true ii k k' krec s1 s2 s3 s4 a c e ei c' :
     sem k s1 c s2 →
-    sem_pexpr true gd s2 e = ok (Vbool true) →
+    sem_pexpr gd s2 e = ok (Vbool true) →
     sem k' s2 c' s3 →
     sem_I krec s3 (MkI ii (Cwhile a c e ei c')) s4 →
     sem_i ii (Sv.union (Sv.union k k') krec) s1 (Cwhile a c e ei c') s4
 
 | Ewhile_false ii k s1 s2 a c e ei c' :
     sem k s1 c s2 →
-    sem_pexpr true gd s2 e = ok (Vbool false) →
+    sem_pexpr gd s2 e = ok (Vbool false) →
     sem_i ii k s1 (Cwhile a c e ei c') s2
 
 | Ecall ii k s1 s2 s2' res f args :
@@ -206,7 +207,7 @@ Variant sem_export_call_conclusion (scs: syscall_state_t) (m: mem) (fd: sfundef)
     alloc_stack m fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_ioff) fd.(f_extra).(sf_stk_extra_sz) = ok m1 &
 (*    all2 check_ty_val fd.(f_tyin) args & *)
     sem k {| escs := scs; emem := m1 ; evm := set_RSP m1 (ra_undef_vm_none fd.(f_extra).(sf_save_stack) var_tmp vm) |} fd.(f_body) {| escs:= scs'; emem := m2 ; evm := vm2 |} &
-    get_var_is false vm2 fd.(f_res) = ok res' &
+    get_var_is (wdb := false) vm2 fd.(f_res) = ok res' &
     values_uincl res res' &
  (*   all2 check_ty_val fd.(f_tyout) res' & *)
     valid_RSP m2 vm2 &
@@ -219,7 +220,7 @@ Variant sem_export_call (gd: @extra_val_t progStack)  (scs: syscall_state_t) (m:
       disjoint (sv_of_list fst fd.(f_extra).(sf_to_save)) (sv_of_list v_var fd.(f_res)) &
       ~~ Sv.mem vrsp (sv_of_list v_var fd.(f_res)) &
     ∀ vm args',
-      get_var_is false vm fd.(f_params) = ok args' →
+      get_var_is (wdb := false) vm fd.(f_params) = ok args' →
       values_uincl args args' →
       valid_RSP m vm →
       vm.[vgd] = Vword gd →
@@ -256,21 +257,21 @@ Lemma sem_iE ii k s i s' :
   match i with
   | Cassgn x tag ty e =>
     k = vrv x ∧
-    exists2 v', sem_pexpr true gd s e >>= truncate_val (eval_atype ty) = ok v' & write_lval true gd x v' s = ok s'
+    exists2 v', sem_pexpr gd s e >>= truncate_val (eval_atype ty) = ok v' & write_lval gd x v' s = ok s'
   | Copn xs t o es => k = vrvs xs ∧ sem_sopn gd o s xs es = ok s'
-  | Csyscall xs o es => 
-    k = Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout))) /\  
+  | Csyscall xs o es =>
+    k = Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout))) /\
     ∃ scs m ves vs,
-     [/\ get_vars true s.(evm) (syscall_sig o).(scs_vin) = ok ves,
+     [/\ get_vars s.(evm) (syscall_sig o).(scs_vin) = ok ves,
          exec_syscall (semCallParams:= sCP_stack) s.(escs) s.(emem) o ves = ok (scs, m, vs) &
-         write_lvals true gd {| escs := scs; emem := m; evm := vm_after_syscall s.(evm) |}
+         write_lvals gd {| escs := scs; emem := m; evm := vm_after_syscall s.(evm) |}
            (to_lvals (syscall_sig o).(scs_vout)) vs = ok s']
   | Cassert _ => False
   | Cif e c1 c2 =>
-    exists2 b, sem_pexpr true gd s e = ok (Vbool b) & sem k s (if b then c1 else c2) s'
+    exists2 b, sem_pexpr gd s e = ok (Vbool b) & sem k s (if b then c1 else c2) s'
   | Cwhile a c e ei c' =>
     ∃ kc si b,
-       [/\ sem kc s c si, sem_pexpr true gd si e = ok (Vbool b) &
+       [/\ sem kc s c si, sem_pexpr gd si e = ok (Vbool b) &
                             if b then ex3_3 (λ k' krec _, k = Sv.union (Sv.union kc k') krec) (λ k' _ sj, sem k' si c' sj) (λ _ krec sj, sem_I krec sj (MkI ii (Cwhile a c e ei c')) s') else si = s' ∧ kc = k ]
   | Ccall res f args =>
     exists2 s2,
@@ -346,9 +347,9 @@ Section SEM_IND.
 
   Definition sem_Ind_assgn : Prop :=
     ∀ (ii: instr_info) (s1 s2 : estate) (x : lval) (tag : assgn_tag) ty (e : pexpr) v v',
-      sem_pexpr true gd s1 e = ok v →
+      sem_pexpr gd s1 e = ok v →
       truncate_val (eval_atype ty) v = ok v' →
-      write_lval true gd x v' s1 = ok s2 →
+      write_lval gd x v' s1 = ok s2 →
       Pi_r ii (vrv x) s1 (Cassgn x tag ty e) s2.
 
   Definition sem_Ind_opn : Prop :=
@@ -358,26 +359,26 @@ Section SEM_IND.
 
   Definition sem_Ind_syscall : Prop :=
     ∀ (ii: instr_info) (s1 s2 : estate) (o : syscall_t) (xs : lvals) (es : pexprs) scs m ves vs,
-      get_vars true s1.(evm) (syscall_sig o).(scs_vin) = ok ves ->
+      get_vars s1.(evm) (syscall_sig o).(scs_vin) = ok ves ->
       exec_syscall (semCallParams:= sCP_stack) s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
-      write_lvals true gd {| escs := scs; emem := m; evm := vm_after_syscall s1.(evm) |}
+      write_lvals gd {| escs := scs; emem := m; evm := vm_after_syscall s1.(evm) |}
         (to_lvals (syscall_sig o).(scs_vout)) vs = ok s2 →
       Pi_r ii (Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout)))) s1 (Csyscall xs o es) s2.
 
   Definition sem_Ind_if_true : Prop :=
     ∀ (ii: instr_info) (k: Sv.t) (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
-    sem_pexpr true gd s1 e = ok (Vbool true) →
+    sem_pexpr gd s1 e = ok (Vbool true) →
     sem k s1 c1 s2 → Pc k s1 c1 s2 → Pi_r ii k s1 (Cif e c1 c2) s2.
 
   Definition sem_Ind_if_false : Prop :=
     ∀ (ii: instr_info) (k: Sv.t) (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
-    sem_pexpr true gd s1 e = ok (Vbool false) →
+    sem_pexpr gd s1 e = ok (Vbool false) →
     sem k s1 c2 s2 → Pc k s1 c2 s2 → Pi_r ii k s1 (Cif e c1 c2) s2.
 
   Definition sem_Ind_while_true : Prop :=
     ∀ (ii: instr_info) (k k' krec: Sv.t) (s1 s2 s3 s4 : estate) a (c : cmd) (e : pexpr) (ei : instr_info) (c' : cmd),
     sem k s1 c s2 → Pc k s1 c s2 →
-    sem_pexpr true gd s2 e = ok (Vbool true) →
+    sem_pexpr gd s2 e = ok (Vbool true) →
     sem k' s2 c' s3 → Pc k' s2 c' s3 →
     sem_I krec s3 (MkI ii (Cwhile a c e ei c')) s4 →
     Pi krec s3 (MkI ii (Cwhile a c e ei c')) s4 →
@@ -387,7 +388,7 @@ Section SEM_IND.
     ∀ (ii: instr_info) (k: Sv.t) (s1 s2 : estate) a (c : cmd) (e : pexpr) (ei: instr_info) (c' : cmd),
     sem k s1 c s2 →
     Pc k s1 c s2 →
-    sem_pexpr true gd s2 e = ok (Vbool false) →
+    sem_pexpr gd s2 e = ok (Vbool false) →
     Pi_r ii k s1 (Cwhile a c e ei c') s2.
 
   Hypotheses

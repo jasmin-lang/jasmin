@@ -49,6 +49,8 @@ Context
   {ep : EstateParams syscall_state}
   {atoI : arch_toIdent}.
 
+#[local] Existing Instance do_enforce_defined_variables.
+
 Definition sem_fopn_args (p : seq lexpr * riscv_op * seq rexpr) (s : estate) :=
   let: (xs,o,es) := p in
   Let args := sem_rexprs s es in
@@ -62,8 +64,8 @@ Definition sem_fopns_args := foldM sem_fopn_args.
 
 Lemma add_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr} :
   convertible xi.(vtype) (aword riscv_reg_size) ->
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
-  get_var true (evm s) (v_var z) >>= to_word Uptr = ok wz ->
+  get_var (evm s) (v_var y) >>= to_word Uptr = ok wy ->
+  get_var (evm s) (v_var z) >>= to_word Uptr = ok wz ->
   let: wx' := Vword (wy + wz)in
   let: vm' := (evm s).[xi <- wx'] in
   sem_fopn_args (RISCVFopn_core.add xi y z) s = ok (with_vm s vm').
@@ -75,7 +77,7 @@ Qed.
 
 Lemma addi_sem_fopn_args {s} {xi:var_i} {y imm wy} :
   convertible xi.(vtype) (aword riscv_reg_size) ->
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
+  get_var (evm s) (v_var y) >>= to_word Uptr = ok wy ->
   let: wx' := Vword (wy + wrepr reg_size imm)in
   let: vm' := (evm s).[xi <- wx'] in
   sem_fopn_args (RISCVFopn_core.addi xi y imm) s = ok (with_vm s vm').
@@ -87,8 +89,8 @@ Qed.
 
 Lemma sub_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr} :
   convertible xi.(vtype) (aword riscv_reg_size) ->
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
-  get_var true (evm s) (v_var z) >>= to_word Uptr = ok wz ->
+  get_var (evm s) (v_var y) >>= to_word Uptr = ok wy ->
+  get_var (evm s) (v_var z) >>= to_word Uptr = ok wz ->
   let: wx' := Vword (wy - wz)in
   let: vm' := (evm s).[xi <- wx'] in
   sem_fopn_args (RISCVFopn_core.sub xi y z) s = ok (with_vm s vm').
@@ -101,7 +103,7 @@ Qed.
 
 Lemma subi_sem_fopn_args {s} {xi:var_i} {y imm wy} :
   convertible xi.(vtype) (aword riscv_reg_size) ->
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
+  get_var (evm s) (v_var y) >>= to_word Uptr = ok wy ->
   let: wx' := Vword (wy - wrepr reg_size imm)in
   let: vm' := (evm s).[xi <- wx'] in
   sem_fopn_args (RISCVFopn_core.subi xi y imm) s = ok (with_vm s vm').
@@ -119,7 +121,7 @@ Proof.
 
 Lemma mov_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} :
   convertible xi.(vtype) (aword riscv_reg_size) ->
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
+  get_var (evm s) (v_var y) >>= to_word Uptr = ok wy ->
   let: vm' := (evm s).[xi <- Vword wy] in
   sem_fopn_args (RISCVFopn_core.mov xi y) s = ok (with_vm s vm').
 Proof.
@@ -286,11 +288,11 @@ Qed.
 Lemma smart_mov_sem_fopns_args s (w : wreg) (xi:var_i) y :
   convertible xi.(vtype) (aword riscv_reg_size) ->
   let: lc := RISCVFopn_core.smart_mov xi y in
-  get_var true (evm s) y >>= to_word Uptr = ok w ->
+  get_var (evm s) y >>= to_word Uptr = ok w ->
   exists vm,
     [/\ sem_fopns_args s lc = ok (with_vm s vm)
       , vm =[\ Sv.singleton xi ] evm s
-      & get_var true vm xi >>= to_word Uptr = ok w ].
+      & get_var vm xi >>= to_word Uptr = ok w ].
 Proof.
   move=> hc hgety.
   rewrite /RISCVFopn_core.smart_mov /=.
@@ -312,15 +314,15 @@ Lemma gen_smart_opi_sem_fopn_args
   (op_sem_fopn_args :
     forall {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr},
       convertible xi.(vtype) (aword riscv_reg_size) ->
-      get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy
-      -> get_var true (evm s) (v_var z) >>= to_word Uptr = ok wz
+      get_var (evm s) (v_var y) >>= to_word Uptr = ok wy
+      -> get_var (evm s) (v_var z) >>= to_word Uptr = ok wz
       -> let: wx' := Vword (op wy wz)in
       let: vm' := (evm s).[xi <- wx'] in
       sem_fopn_args (on_reg xi y z) s = ok (with_vm s vm'))
   (opi_sem_fopn_args :
     forall {s} {xi:var_i} {y imm wy},
       convertible xi.(vtype) (aword riscv_reg_size) ->
-      get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy
+      get_var (evm s) (v_var y) >>= to_word Uptr = ok wy
       -> let: wx' := Vword (op wy (wrepr reg_size imm)) in
      let: vm' := (evm s).[xi <- wx'] in
      sem_fopn_args (on_imm xi y imm) s = ok (with_vm s vm'))
@@ -329,12 +331,12 @@ Lemma gen_smart_opi_sem_fopn_args
   convertible (vtype tmp) (aword Uptr) ->
   convertible xi.(vtype) (aword riscv_reg_size) ->
   let: lc := RISCVFopn_core.gen_smart_opi on_reg on_imm is_small neutral tmp xi y imm in
-  is_small imm \/ v_var tmp <> v_var y -> 
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok w -> 
+  is_small imm \/ v_var tmp <> v_var y ->
+  get_var (evm s) (v_var y) >>= to_word Uptr = ok w ->
   exists vm',
     [/\ sem_fopns_args s lc = ok (with_vm s vm')
       , vm' =[\ Sv.add xi (Sv.singleton tmp) ] evm s
-      & get_var true vm' xi = ok (Vword (op w (wrepr reg_size imm))) ].
+      & get_var vm' xi = ok (Vword (op w (wrepr reg_size imm))) ].
 Proof.
   move=> hc1 hc2 hcond hgety.
   rewrite /RISCVFopn_core.gen_smart_opi.

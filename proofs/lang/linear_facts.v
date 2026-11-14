@@ -34,6 +34,7 @@ Ltac simpl_size :=
 Section WITH_PARAMS.
 
 #[local] Existing Instance withsubword.
+#[local] Existing Instance do_enforce_defined_variables.
 
 Context
   {asm_op syscall_state : Type}

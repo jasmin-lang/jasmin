@@ -67,8 +67,8 @@ Let vtemp := mk_var_i (to_var X12).
 
 Lemma store_zero_eval_instr lp ii ws (v: var_i) off (ls:lstate) (w1 w2 : word Uptr) m' :
   (ws <= U32)%CMP ->
-  get_var true (lvm ls) vzero = ok (@Vword Uptr 0) ->
-  get_var true (lvm ls) v = ok (Vword w1) ->
+  get_var (wdb := true) (lvm ls) vzero = ok (@Vword Uptr 0) ->
+  get_var (wdb := true) (lvm ls) v = ok (Vword w1) ->
   write (lmem ls) Aligned (w1 + wrepr _ off)%R (sz:=ws) 0 = ok m' ->
   let i := MkLI ii (store_zero ws v off) in
   eval_instr lp i ls = ok (lnext_pc (lset_mem ls m')).
