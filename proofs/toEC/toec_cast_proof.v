@@ -220,7 +220,7 @@ Proof.
   elim: a b => [e | o es | x | e1 e2 | a1 ih1 a2 ih2] b /=.
   - exact: (toec_cast_te_of_valP (ty := abool)).
   - t_xrbindP => vs' /(toec_cast_esP erefl) [vs hvs hr] hb.
-    rewrite -/(sem_pexprs true gd s es) hvs /=.
+    rewrite -/(sem_pexprs (wdb := true) gd s es) hvs /=.
     by rewrite /sem_opN_safety -(cast_rels_app_sopn _ hr).
   - by [].
   - apply: rbindP => lo /(toec_cast_te_of_valP (ty := aword Uptr)) ->.
