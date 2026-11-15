@@ -64,7 +64,7 @@ Qed.
 
 (* Only [_] or a boolean variable can receive a boolean. *)
 Lemma write_lval_bool gd lv b s s' :
-  write_lval true gd lv (Vbool b) s = ok s' ->
+  write_lval (wdb := true) gd lv (Vbool b) s = ok s' ->
   (exists vi ty, lv = Lnone vi ty) \/ exists2 y, lv = Lvar y & vtype y = abool.
 Proof.
   case: lv => /=.
