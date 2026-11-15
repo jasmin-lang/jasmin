@@ -1,0 +1,4 @@
+export fn entry(reg ptr u32[2] p, reg u32 x) -> reg ptr u32[2] {
+  p[(uint) p[0]] = x;
+  return p;
+}
