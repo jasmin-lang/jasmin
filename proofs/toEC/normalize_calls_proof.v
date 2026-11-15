@@ -137,20 +137,20 @@ Context
    variable it reads is read in [t] through the renaming. *)
 Section RENAME.
 
-Context (r : Mvar.t var) (wdb : bool) (gd : glob_decls) (t s : estate) (R : Sv.t).
+Context (r : Mvar.t var) {wdb : enforce_defined_variables} (gd : glob_decls) (t s : estate) (R : Sv.t).
 Hypothesis hmem : emem t = emem s.
 Hypothesis hR : forall z, Sv.In z R -> (evm t).[odflt z (Mvar.get r z)] = (evm s).[z].
 
 Let P e :=
-  Sv.Subset (read_e e) R -> sem_pexpr wdb gd t (rename_e r e) = sem_pexpr wdb gd s e.
+  Sv.Subset (read_e e) R -> sem_pexpr gd t (rename_e r e) = sem_pexpr gd s e.
 
 Let Q es :=
   Sv.Subset (read_es es) R ->
-  sem_pexprs wdb gd t (map (rename_e r) es) = sem_pexprs wdb gd s es.
+  sem_pexprs gd t (map (rename_e r) es) = sem_pexprs gd s es.
 
 Lemma rename_gvarP x :
   Sv.Subset (read_gvar x) R ->
-  get_gvar wdb gd (evm t) (rename_gvar r x) = get_gvar wdb gd (evm s) x.
+  get_gvar gd (evm t) (rename_gvar r x) = get_gvar gd (evm s) x.
 Proof using hR sip wa.
   rewrite /rename_gvar /get_gvar /read_gvar; case: ifP => hl /= hsub.
   2: by rewrite hl.
@@ -173,7 +173,7 @@ Proof using hR hmem sip wa.
   - by move=> op e he hz; rewrite he.
   - move=> op e1 he1 e2 he2 hsub; rewrite /read_e /= read_eE in hsub.
     rewrite he1 ?he2 //; rewrite /read_e; SvD.fsetdec.
-  - by move=> op es hes hz; rewrite -!/(sem_pexprs _ _ _ _) hes.
+  - by move=> op es hes hz; rewrite -!/(sem_pexprs _ _ _) hes.
   move=> ty e he e1 he1 e2 he2 hsub; rewrite /read_e /= !read_eE in hsub.
   rewrite he ?he1 ?he2 //; rewrite /read_e; SvD.fsetdec.
 Qed.
@@ -207,8 +207,8 @@ Qed.
 
 Lemma write_var_rel (x y : var_i) v (t s t' : estate) :
   vtype x = vtype y ->
-  write_var true x v t = ok t' ->
-  exists2 s', write_var true y v s = ok s' &
+  write_var (wdb := true) x v t = ok t' ->
+  exists2 s', write_var (wdb := true) y v s = ok s' &
     [/\ escs t' = escs t /\ emem t' = emem t, escs s' = escs s /\ emem s' = emem s,
         (evm t').[x] = (evm s').[y],
         evm s' = (evm s).[y <- v]
@@ -233,16 +233,16 @@ Lemma defer_writeP gd r lv v (t s t' : estate) :
   escs t = escs s -> emem t = emem s ->
   type_of_val v <> cbool ->
   (forall z, Sv.In z (read_rv lv) -> read_rel r (evm t) (evm s) z) ->
-  write_lval true gd (rename_lval r lv) v t = ok t' ->
-  exists2 s', write_lval true gd lv v s = ok s' &
+  write_lval (wdb := true) gd (rename_lval r lv) v t = ok t' ->
+  exists2 s', write_lval (wdb := true) gd lv v s = ok s' &
     [/\ escs t' = escs s', emem t' = emem s'
       & forall y, Sv.In y (vrv lv) ->
           vtype y <> abool /\ (evm t').[y] = (evm s').[y]].
 Proof using sip wa.
   move=> hscs hmem hv hr.
-  have hre : forall e, Sv.Subset (read_e e) (read_rv lv) -> sem_pexpr true gd t (rename_e r e) = sem_pexpr true gd s e.
+  have hre : forall e, Sv.Subset (read_e e) (read_rv lv) -> sem_pexpr (wdb := true) gd t (rename_e r e) = sem_pexpr (wdb := true) gd s e.
   + move=> e hsub.
-    exact: ((rename_e_esP true gd hmem (fun z hz => read_rel_get (hr z hz))).1 e hsub).
+    exact: ((rename_e_esP (wdb := true) gd hmem (fun z hz => read_rel_get (hr z hz))).1 e hsub).
   case: lv hr hre => /=.
   + move=> ?? _ _; rewrite /write_none; t_xrbindP => h1 h2 <-.
     rewrite h1 h2; eexists; first reflexivity.
@@ -260,7 +260,7 @@ Proof using sip wa.
   all: have hx : Sv.In x (read_e_rec (Sv.add x Sv.empty) e) by rewrite read_eE; SvD.fsetdec.
   all: have := hr x hx; rewrite /read_rel.
   all: case: Mvar.get => [y [_ hxb] | heq]; first by rewrite hxb in htyx.
-  all: have hget' : get_var true (evm s) x = ok (Varr a)
+  all: have hget' : get_var (wdb := true) (evm s) x = ok (Varr a)
          by move: hget; rewrite /get_var heq.
   all: have he : Sv.Subset (read_e e) (read_e_rec (Sv.add x Sv.empty) e)
          by rewrite read_eE; SvD.fsetdec.
@@ -297,10 +297,10 @@ Lemma nc_destsP fii ii X tg (TF : estate) lvs touts r acc acc' xs c vs (W U S U'
   Sv.Subset (vars_lvals lvs) X ->
   List.map type_of_val vs = map eval_atype touts ->
   dests_match arrays_by_size lvs touts ->
-  write_lvals true (p_globs p') W xs vs = ok TF ->
+  write_lvals (wdb := true) (p_globs p') W xs vs = ok TF ->
   esem p' ev c U = ok U' ->
   nc_inv X r lvs touts TF U S ->
-  exists2 S', write_lvals true (p_globs p') S lvs vs = ok S' & st_eq_on X U' S'.
+  exists2 S', write_lvals (wdb := true) (p_globs p') S lvs vs = ok S' & st_eq_on X U' S'.
 Proof.
   elim: lvs touts r acc acc' xs c vs W U S =>
     [|lv lvs ih] [|ty touts] r acc acc' xs c vs W U S /=.
@@ -485,7 +485,7 @@ Lemma nc_inv_init fii ii X tg lvs touts r acc acc' xs c vs (W S TF : estate) :
      [/\ writes_flag z lvs touts, ~ Sv.In y X, Sv.In y acc & (evm W).[y] = (evm S).[z]]) ->
   (forall z, writes_flag z lvs touts -> read_before_write z lvs touts ->
      Mvar.get r z <> None) ->
-  write_lvals true (p_globs p') W xs vs = ok TF ->
+  write_lvals (wdb := true) (p_globs p') W xs vs = ok TF ->
   nc_inv X r lvs touts TF TF S.
 Proof using wa.
   move=> hnc hsub [hsc hme] hX hr hdom hW.
@@ -584,9 +584,9 @@ Lemma normalize_destsP fii ii X tg lvs touts pre xs post vs
   st_eq_on X t0 s ->
   esem p' ev pre t0 = ok t ->
   escs W = escs S /\ emem W = emem S -> evm W = evm t -> evm S = evm s ->
-  write_lvals true (p_globs p) W xs vs = ok TF ->
+  write_lvals (wdb := true) (p_globs p) W xs vs = ok TF ->
   esem p' ev post TF = ok U' ->
-  exists2 S', write_lvals true (p_globs p) S lvs vs = ok S' & st_eq_on X U' S'.
+  exists2 S', write_lvals (wdb := true) (p_globs p) S lvs vs = ok S' & st_eq_on X U' S'.
 Proof using Hp.
   move=> hnd hsub htys [h1 h2 h3] hpre [hW1 hW2] hWt hSs hW hpost.
   move: hnd; rewrite /normalize_dests; case: ifP => hneed.
@@ -668,8 +668,8 @@ Lemma nc_call X ii xs1 xs2 f es c1 (R Q : rel_c) :
   Sv.Subset (read_es es) X ->
   (forall t s, R t s -> st_eq_on X t s) ->
   (forall fr t s t', R t s -> results_typed f fr ->
-     (Let t1 := upd_estate true (p_globs p') xs1 fr t in esem p' ev c1 t1) = ok t' ->
-     exists2 s', upd_estate true (p_globs p) xs2 fr s = ok s' & Q t' s') ->
+     (Let t1 := upd_estate (wdb := true) (p_globs p') xs1 fr t in esem p' ev c1 t1) = ok t' ->
+     exists2 s', upd_estate (wdb := true) (p_globs p) xs2 fr s = ok s' & Q t' s') ->
   wequiv_rec p' p ev ev nc_spec R
     (MkI ii (Ccall xs1 f es) :: c1) [:: MkI ii (Ccall xs2 f es)] Q.
 Proof using Hp.
@@ -763,7 +763,7 @@ Proof using Hp.
     move=> t s U' [t0 hts0 hpre].
     have [h1 h2 h3] := normalize_dests_pre hnd hsubl hts0 hpre.
     rewrite esem_cons /= /sem_sopn; t_xrbindP => TF vs ves hves hvs hW hpost.
-    have hves' : sem_pexprs true (p_globs p) s es = ok ves.
+    have hves' : sem_pexprs (wdb := true) (p_globs p) s es = ok ves.
     + rewrite -eq_globs -hves; symmetry; apply: eq_on_sem_pexprs => //.
       by apply: eq_onI h3.
     rewrite eq_globs in hW.
@@ -782,7 +782,7 @@ Proof using Hp.
     move=> t s U' [t0 hts0 hpre].
     have [h1 h2 h3] := normalize_dests_pre hnd hsubl hts0 hpre.
     rewrite esem_cons /= /sem_syscall; t_xrbindP => TF ves hves fs hfs hW hpost.
-    have hves' : sem_pexprs true (p_globs p) s es = ok ves.
+    have hves' : sem_pexprs (wdb := true) (p_globs p) s es = ok ves.
     + rewrite -eq_globs -hves; symmetry; apply: eq_on_sem_pexprs => //.
       by apply: eq_onI h3; SvD.fsetdec.
     have hfs' : mk_fstate ves t = mk_fstate ves s by rewrite /mk_fstate h1 h2.
