@@ -99,11 +99,11 @@ Qed.
 
 Section EXPR.
 
-Context (wdb : bool) (s : estate).
+Context {wdb : enforce_defined_variables} (s : estate).
 
 Lemma cast_eP ty e v' :
-  sem_pexpr wdb gd s (cast_e ty e) = ok v' ->
-  exists2 v, sem_pexpr wdb gd s e = ok v & cast_rel ty v' v.
+  sem_pexpr gd s (cast_e ty e) = ok v' ->
+  exists2 v, sem_pexpr gd s e = ok v & cast_rel ty v' v.
 Proof.
   rewrite /cast_e /cast_top.
   case: eqP => _; first by exists v'.
@@ -119,8 +119,8 @@ Proof.
 Qed.
 
 Lemma cast_esP tys es vs' :
-  sem_pexprs wdb gd s (cast_es tys es) = ok vs' ->
-  exists2 vs, sem_pexprs wdb gd s es = ok vs & cast_rels tys vs' vs.
+  sem_pexprs gd s (cast_es tys es) = ok vs' ->
+  exists2 vs, sem_pexprs gd s es = ok vs & cast_rels tys vs' vs.
 Proof.
   elim: tys es vs' => [|ty tys ih] [|e es] vs';
     try by move=> h; exists vs' => //; apply cast_rels_refl.
@@ -130,8 +130,8 @@ Proof.
 Qed.
 
 Lemma toec_cast_recP :
-  (∀ e v, sem_pexpr wdb gd s (toec_cast_rec e) = ok v -> sem_pexpr wdb gd s e = ok v) ∧
-  (∀ es vs, sem_pexprs wdb gd s (map toec_cast_rec es) = ok vs -> sem_pexprs wdb gd s es = ok vs).
+  (∀ e v, sem_pexpr gd s (toec_cast_rec e) = ok v -> sem_pexpr gd s e = ok v) ∧
+  (∀ es vs, sem_pexprs gd s (map toec_cast_rec es) = ok vs -> sem_pexprs gd s es = ok vs).
 Proof.
   apply: pexprs_ind_pair.
   split => //=.
@@ -153,7 +153,7 @@ Proof.
     by rewrite /= /sem_sop2 hv1 hv2.
   - move=> o es hes v.
     t_xrbindP => vs' /cast_esP [vs /hes hvs hr].
-    by rewrite -/(sem_pexprs wdb gd s es) hvs /= /sem_opN (cast_rels_app_sopn _ hr).
+    by rewrite -/(sem_pexprs gd s es) hvs /= /sem_opN (cast_rels_app_sopn _ hr).
   move=> ty b hb e1 he1 e2 he2 v.
   t_xrbindP.
   move=> bv vb /cast_eP [vb' /hb -> /= ->] -> /=.
@@ -163,23 +163,23 @@ Qed.
 
 End EXPR.
 
-Lemma toec_cast_teP wdb ty e :
-  wrequiv eq (λ s, sem_pexpr wdb gd s (toec_cast_te ty e)) (λ s, sem_pexpr wdb gd s e) (cast_rel ty).
+Lemma toec_cast_teP (wdb: enforce_defined_variables) ty e :
+  wrequiv eq (λ s, sem_pexpr gd s (toec_cast_te ty e)) (λ s, sem_pexpr gd s e) (cast_rel ty).
 Proof.
-  move=> s _ v' <- /cast_eP [v /(toec_cast_recP _ _).1 hv hr].
+  move=> s _ v' <- /cast_eP [v /(toec_cast_recP _).1 hv hr].
   by exists v.
 Qed.
 
-Lemma toec_cast_esP wdb tys es :
-  wrequiv eq (λ s, sem_pexprs wdb gd s (toec_cast_es tys es)) (λ s, sem_pexprs wdb gd s es) (cast_rels tys).
+Lemma toec_cast_esP (wdb: enforce_defined_variables) tys es :
+  wrequiv eq (λ s, sem_pexprs gd s (toec_cast_es tys es)) (λ s, sem_pexprs gd s es) (cast_rels tys).
 Proof.
-  move=> s _ vs' <- /cast_esP [vs /(toec_cast_recP _ _).2 hvs hr].
+  move=> s _ vs' <- /cast_esP [vs /(toec_cast_recP _).2 hvs hr].
   by exists vs.
 Qed.
 
-Lemma toec_cast_te_of_valP wdb s ty e x :
-  (sem_pexpr wdb gd s (toec_cast_te ty e) >>= of_val (eval_atype ty)) = ok x ->
-  (sem_pexpr wdb gd s e >>= of_val (eval_atype ty)) = ok x.
+Lemma toec_cast_te_of_valP (wdb: enforce_defined_variables) s ty e x :
+  (sem_pexpr gd s (toec_cast_te ty e) >>= of_val (eval_atype ty)) = ok x ->
+  (sem_pexpr gd s e >>= of_val (eval_atype ty)) = ok x.
 Proof. by t_xrbindP => v' /(toec_cast_teP erefl) [v -> /= <-]. Qed.
 
 Lemma toec_cast_condP e :
@@ -200,8 +200,8 @@ Proof.
   by apply: rbindP => zhi /(toec_cast_te_of_valP (ty := aint)) ->.
 Qed.
 
-Lemma toec_cast_lvP wdb x v :
-  wrequiv eq (write_lval wdb gd (toec_cast_lv x) v) (write_lval wdb gd x v) eq.
+Lemma toec_cast_lvP (wdb: enforce_defined_variables) x v :
+  wrequiv eq (write_lval gd (toec_cast_lv x) v) (write_lval gd x v) eq.
 Proof.
   move=> s _ s' <- h.
   exists s' => //.
@@ -227,8 +227,8 @@ Proof.
   done.
 Qed.
 
-Lemma toec_cast_lvsP wdb xs vs :
-  wrequiv eq (λ s, write_lvals wdb gd s (map toec_cast_lv xs) vs) (λ s, write_lvals wdb gd s xs vs) eq.
+Lemma toec_cast_lvsP (wdb: enforce_defined_variables) xs vs :
+  wrequiv eq (λ s, write_lvals gd s (map toec_cast_lv xs) vs) (λ s, write_lvals gd s xs vs) eq.
 Proof.
   move=> s _ s' <- h.
   exists s' => //.
