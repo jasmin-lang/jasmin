@@ -1174,7 +1174,7 @@ Proof using dc fv_correct.
 
     have [s2' hwrite12' hs21] :
       exists2 s2',
-        write_lval true (p_globs p) lv
+        write_lval (p_globs p) lv
           (Vword (if b then zero_extend reg_size w0 else zero_extend reg_size w1)) s1'
           = ok s2'
         & eq_fv s1 s2'.
