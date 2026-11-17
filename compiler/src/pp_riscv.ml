@@ -108,13 +108,13 @@ module RiscVTarget: AsmTarget
 
   let function_directives = []
 
-  let function_header =
+  let function_header _ =
     [
       Instr ("addi", [ pp_register SP; pp_register SP; "-4"]);
       Instr ("sw", [ pp_register RA;  pp_reg_address_aux (pp_register SP) None None None])
     ]
 
-  let function_tail =
+  let function_tail _ =
     [
       Instr ("lw", [ pp_register RA;  pp_reg_address_aux (pp_register SP) None None None]);
       Instr ("addi", [ pp_register SP; pp_register SP; "4"]);

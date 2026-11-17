@@ -18,8 +18,8 @@ module type AsmTarget = sig
     val text_alignment      : asm_element list
     val data_segment_header : asm_element list
     val function_directives : asm_element list
-    val function_header     : asm_element list
-    val function_tail       : asm_element list
+    val function_header     : FInfo.f_annot -> asm_element list
+    val function_tail       : FInfo.f_annot -> asm_element list
     val pp_instr_r          : Name.t -> (reg, regx, xreg, rflag, cond, asm_op) Arch_decl.asm_i_r -> asm_element list
 
 end
@@ -75,9 +75,12 @@ module Make(Target : AsmTarget) : S
     let function_symbol name decl =
         if decl.asm_fd_export then mangle name else name
 
-    let pp_function_comment decl =
+    let f_annot decl =
         let (_, f_annot, _, _) = decl.asm_fd_info in
-        List.map (fun l -> Comment l) f_annot.FInfo.comment
+        f_annot
+
+    let pp_function_comment decl =
+        List.map (fun l -> Comment l) (f_annot decl).FInfo.comment
 
     let pp_function_header (name:string) decl =
         let name = function_symbol name decl in
@@ -90,11 +93,11 @@ module Make(Target : AsmTarget) : S
            else [])
         @ Label name
         :: pp_function_comment decl
-        @ (if decl.asm_fd_export then Target.function_header else [])
+        @ (if decl.asm_fd_export then Target.function_header (f_annot decl) else [])
 
     let pp_function_tail name decl =
         let name = function_symbol name decl in
-        (if decl.asm_fd_export then Target.function_tail else [])
+        (if decl.asm_fd_export then Target.function_tail (f_annot decl) else [])
         @ (if elf_target ()
            then [ Header (".size", [name; Format.asprintf ".-%s" name]) ]
            else [])

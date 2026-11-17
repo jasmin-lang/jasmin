@@ -409,9 +409,9 @@ and type asm_op = X86_instr_decl.x86_op
 
   let function_directives = []
 
-  let function_header = []
+  let function_header _ = []
 
-  let function_tail = [Instr ("ret", [])]
+  let function_tail _ = [Instr ("ret", [])]
 
   let text_alignment = [ Header (".p2align", ["5"]) ]
 

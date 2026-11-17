@@ -180,6 +180,7 @@ let eq_f_annot x y =
   && Option.eq ~eq:Wsize.wsize_eqb x.stack_align y.stack_align
   && Option.eq ~eq:Z.equal x.max_call_depth y.max_call_depth
   && x.stack_zero_strategy = y.stack_zero_strategy
+  && x.dit = y.dit
   && eq_annotations x.f_user_annot y.f_user_annot
 
 let eq_contract x y =

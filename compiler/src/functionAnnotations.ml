@@ -78,6 +78,19 @@ let process_f_annot loc funname f_cc annot =
     | Some szs, _ -> Some (szs, size)
   in
 
+  let dit =
+    match Annot.ensure_uniq1 "dit" (Annot.bool true) annot with
+    | None -> FInfo.is_export f_cc && !Glob_options.dit
+    | Some dit ->
+        if not (FInfo.is_export f_cc) then
+          hierror
+            ~loc:(Lone loc)
+            ~funname
+            ~kind:"unexpected annotation"
+            "dit only applies to export functions";
+        dit
+  in
+
   let comment = Annot.filter_attribute "comment" Annot.string annot |> List.map snd in
 
   { retaddr_kind;
@@ -86,6 +99,7 @@ let process_f_annot loc funname f_cc annot =
     stack_align           = Annot.ensure_uniq1 "stackalign"     (Annot.wsize None)   annot;
     max_call_depth        = Annot.ensure_uniq1 "calldepth"      (Annot.pos_int None) annot;
     stack_zero_strategy;
+    dit;
     comment;
     f_user_annot          = annot;
   }

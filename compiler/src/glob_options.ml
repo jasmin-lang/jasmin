@@ -69,6 +69,7 @@ let set_stack_zero_strategy s =
   stack_zero_strategy := Some (List.assoc s stack_zero_strategies)
 let stack_zero_size = ref None
 let set_stack_zero_size s = stack_zero_size := Some (Annot.ws_of_string s)
+let dit = ref false
 
 let callee_saved_strategy_options =
   [ "tight", CSS_Tight; "pessimistic", CSS_Pessimistic; "optimistic", CSS_Optimistic ]
@@ -227,6 +228,7 @@ let options = [
     "-stack-zero-size",
       Arg.Symbol (List.map fst Annot.ws_strings, set_stack_zero_size),
       " Select stack zeroization size for export functions";
+    "-dit", Arg.Set dit, " Set PSTATE.DIT in export functions (armv8a)";
     "-pliveness", Arg.Set print_liveness, " Print liveness information during register allocation"
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 
