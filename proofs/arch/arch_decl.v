@@ -813,6 +813,7 @@ Record asm_fundef := XFundef
   ; asm_fd_export: bool
   ; asm_fd_total_stack: Z
   ; asm_fd_align_args : seq wsize
+  ; asm_fd_info  : fun_info
   }.
 
 Record asm_prog : Type :=
