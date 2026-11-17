@@ -1,4 +1,4 @@
-(* Assembly printer for ARMv7-M (Cortex-M3 and Cortex-M4).
+(* Assembly printer for ARMv7-M (Cortex-M3 and Cortex-M4) and ARMv8.1-M.
 
 We always use the Unified Assembly Language (UAL).
 Each operand is printed as the instruction description requests it
@@ -59,7 +59,7 @@ let pp_condt = hash_to_string string_of_condt
 
 let pp_asm_arg (arg : (register, Arch_utils.empty, Arch_utils.empty, rflag, condt) asm_arg) =
   match arg with
-  | Condt _ -> None
+  | Condt c -> Some (pp_condt c)
   | Imm (ws, w) -> Some (pp_imm (Conv.z_unsigned_of_word ws w))
   | Reg r -> Some (pp_register r)
   | Regx _ -> .
@@ -80,12 +80,12 @@ let pp_asm_arg (arg : (register, Arch_utils.empty, Arch_utils.empty, rflag, cond
 
 let pp_set_flags opts = if opts.set_flags then "s" else ""
 
-(* We assume the only condition in the argument list is the one we need to
-   print. *)
-let pp_conditional args =
-  match List.opick (is_Condt arch) args with
-  | Some ct -> pp_condt ct
-  | None -> ""
+(* The condition of a conditional instruction ([PP_ct]): a suffix of the
+   mnemonic, and the [it] instruction before it. *)
+let pp_conditional pp =
+  match pp.pp_aop_ext with
+  | PP_ct (Condt ct) -> pp_condt ct
+  | _ -> ""
 
 (* An operand, as the instruction description requests it. *)
 let pp_arg (a : (register, Arch_utils.empty, Arch_utils.empty, rflag, condt) pp_arg) =
@@ -96,17 +96,13 @@ let pp_arg (a : (register, Arch_utils.empty, Arch_utils.empty, rflag, condt) pp_
 let pp_mnemonic_ext op_decl (ARM_op (_, opts) as op) suff args =
   let id = instr_desc Arm_decl.arm_decl op_decl (None, op) in
   let pp = id.id_pp_asm args in
-  Format.asprintf "%s%s%s%s" pp.pp_aop_name suff (pp_set_flags opts) (pp_conditional args)
+  Format.asprintf "%s%s%s%s" pp.pp_aop_name suff (pp_set_flags opts) (pp_conditional pp)
 
 (* To conform to the Unified Assembly Language (UAL) of ARM, IT instructions
    must be introduced *in addition* to conditional suffixes. *)
-let get_IT i =
-  match i with
-  | AsmOp (_, args) -> begin
-      match List.opick (is_Condt arch) args with
-      | None -> []
-      | Some c -> [ Instr ("it", [ pp_condt c ]) ]
-    end
+let get_IT pp =
+  match pp.pp_aop_ext with
+  | PP_ct (Condt c) -> [ Instr ("it", [ pp_condt c ]) ]
   | _ -> []
 
 module ArgChecker : sig
@@ -189,6 +185,7 @@ end = struct
     | SMMUL | SMMULR | SMUL_hw _ | SMLA_hw _ | SMULW_hw _ | BFC | BFI | ASR
     | LSL | LSR | ROR | REV | REV16 | REVSH | MOVT | UBFX | UXTB | UXTH
     | SBFX | SXTB | SXTH | CLZ | LDR | LDRB | LDRH | LDRSB | LDRSH | STR | STRB | STRH
+    | CSEL | CSINC | CSINV | CSNEG
       -> ""
 end
 
@@ -300,7 +297,7 @@ and type asm_op = arm_op
         let suff = ArgChecker.check_args op full_args in
         let name = pp_mnemonic_ext op_decl op suff args in
         let args = List.filter_map pp_arg pp.pp_aop_args in
-        get_IT i @ [ Instr (name, args) ]
+        get_IT pp @ [ Instr (name, args) ]
 
 
 end
