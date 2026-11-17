@@ -42,6 +42,7 @@ any pass, but the type system can be more precise after some step of compilation
 The usual leakage model for constant-time considers that only conditional instructions and load/store
 instructions leak. This option allows to consider a stronger model where non Data Independent Timing instructions
 leak. In this model, secret data can only be applied to Data Independent Timing instructions ([DOIT](https://www.intel.com/content/www/us/en/developer/articles/technical/software-security-guidance/best-practices/data-operand-independent-timing-isa-guidance.html) for Intel, [DIT](https://developer.arm.com/documentation/ddi0595/2020-12/AArch64-Registers/DIT--Data-Independent-Timing) for Arm and [Zkt](https://github.com/riscv/riscv-crypto/blob/main/doc/scalar/riscv-crypto-scalar-zkt.adoc) for RISC-V).
+On ARMv8-A, these instructions are guaranteed to have data independent timing only while PSTATE.DIT is set: see the `-dit` option of [jasminc](./jasminc.md).
   - `--infer`
 Infer security contracts. This can be used for development purpose but should not be used for production.
   - `--print`
