@@ -680,7 +680,7 @@ Proof.
   + have [t' h2 hQ] := h s t s' hP heq.
     rewrite (esem_i_bodyP heq) (esem_i_bodyP h2).
     by apply xrutt.xrutt_Ret.
-  rewrite (esem_basic_errorP hb heq) /=; apply xrutt_CutL => //.
+  rewrite (esem_basicP _ _ _ hb) heq /=; apply xrutt_CutL => //.
   by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
 Qed.
 
