@@ -6,6 +6,7 @@ fn incr(reg u32 x) -> reg u32 {
 
 #[comment = "export function
 second line"]
+#[comment = "another comment"]
 export
 fn main(reg u32 x) -> reg u32 {
   x = incr(x);
