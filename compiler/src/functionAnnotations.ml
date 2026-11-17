@@ -79,13 +79,12 @@ let process_f_annot loc funname f_cc annot =
   in
 
   let comment =
-    Annot.ensure_uniq1 "comment"
+    Annot.filter_attribute "comment"
       (Annot.on_attribute ~on_string:(fun _ _ s -> s)
          (fun loc nid ->
            Annot.error ~loc "attribute for “%s” should be a string" nid))
       annot
-    |> Option.map_default (Str.split_delim (Str.regexp "\r?\n")) []
-    |> List.map (fun str -> String.nreplace ~str ~sub:"\r" ~by:"\\r")
+    |> List.map snd
   in
 
   { retaddr_kind;

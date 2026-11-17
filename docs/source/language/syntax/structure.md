@@ -251,6 +251,7 @@ fn incr(reg u32 x) -> reg u32 {
 
 #[comment = "export function
 second line"]
+#[comment = "another comment"]
 export
 fn main(reg u32 x) -> reg u32 {
   x = incr(x);
@@ -258,14 +259,15 @@ fn main(reg u32 x) -> reg u32 {
 }
 ```
 annotates the local function `incr` with a one-line comment and the export
-function `main` with a comment of two lines.
+function `main` with two comments, the first of two lines.
 When compiled for x86-64, the assembly is
 ```
 	.global	main
 	.type	main, %function
 main:
-// export function
-// second line
+/* export function
+second line */
+/* another comment */
 	movq	%rsp, %rsi
 	andq	$-8, %rsp
 	movl	%edi, %eax
@@ -276,15 +278,16 @@ main:
 	.size	main, .-main
 	.type	incr, %function
 incr:
-// local function
+/* local function */
 .Lincr$1:
 	incl	%eax
 	ret
 	.size	incr, .-incr
 ```
-where each line of the comment becomes an assembly comment.
-A function accepts at most one `comment` annotation, and its value must be a
-string.
+where each annotation becomes an assembly comment `/* … */`, in the order of the
+annotations.
+The value of a `comment` annotation must be a string that does not contain
+`*/`.
 Since inline functions do not appear in the assembly, their comments are lost.
 Comment annotations on instructions are ignored for now.
 
