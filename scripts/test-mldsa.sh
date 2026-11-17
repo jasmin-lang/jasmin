@@ -2,7 +2,7 @@
 
 set -e
 
-REPO=formosa-crypto
+REPO=vbgl
 NAME=formosa-mldsa
 BRANCH=main
 

@@ -1,7 +1,7 @@
 #!/bin/sh
 
-REPO=formosa-crypto
-NAME=libjade
+REPO=jasmin-experiments
+NAME=libjade-legacy
 BRANCH=main
 
 FILE="$NAME.tar.gz"
@@ -18,7 +18,7 @@ export EXCLUDE=""
 
 echo "Info: $MAKELINE (EXCLUDE=$EXCLUDE)"
 
-curl -v -o $FILE https://codeload.github.com/$REPO/$NAME/tar.gz/$BRANCH
+curl -v -o $FILE https://gitlab.inria.fr/$REPO/$NAME/-/archive/$BRANCH/$NAME-$BRANCH.tar.bz2
 tar xvf $FILE
 rm -rf libjade/
 mv $ROOT libjade

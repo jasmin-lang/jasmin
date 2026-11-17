@@ -2,8 +2,8 @@
 
 set -e
 
-REPO=formosa-crypto
-NAME=formosa-mlkem
+REPO=vbgl
+NAME=hakyber
 BRANCH=main
 
 FILE="$NAME.tar.gz"
