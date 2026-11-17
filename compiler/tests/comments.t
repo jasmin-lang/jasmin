@@ -1,19 +1,22 @@
 A #[comment = "…"] annotation on a function is printed in the assembly, right
-after the label of the function, one comment line per line of text.
+after the label of the function, one block comment per annotation.
 
   $ ../jasminc -arch x86-64 -system linux success/common/comment_annotations.jazz -o out.s
-  $ grep -E '^[[:alnum:]_]*:$|^//' out.s
+  $ awk '/^(main|incr):$/ { p = 1 } /^\t|^\./ { p = 0 } p' out.s
   main:
-  // export function
-  // second line
+  /* export function
+  second line */
+  /* another comment */
   incr:
-  // local function
+  /* local function */
 
-A line ends with a newline, possibly preceded by a carriage return. Any other
-carriage return is printed as text: some assemblers (e.g., LLVM) end the comment
-at a carriage return and would read the rest of the line as code.
+A comment that contains "*/" would end the block comment early and have the rest
+of the line read as code, so it is refused.
 
-  $ ../jasminc -arch x86-64 success/common/comment_carriage_return.jazz -o cr.s
-  $ grep '^//' cr.s
-  // one\rtwo
-  // three
+  $ cat > end.jazz << EOF
+  > #[comment = "one */ ret /* two"]
+  > export fn f(reg u32 x) -> reg u32 { return x; }
+  > EOF
+  $ ../jasminc -arch x86-64 end.jazz -o end.s
+  assembly printing: the comment “one */ ret /* two” contains “*/”
+  [1]
