@@ -42,6 +42,10 @@ val none :
   Annotations.annotation ->
   unit
 
+val string :
+  Annotations.annotation ->
+  string
+
 val int :
   Z.t option ->
   Annotations.annotation ->
