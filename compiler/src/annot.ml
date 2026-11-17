@@ -66,6 +66,12 @@ let none ((id, _) as arg) =
       error ~loc "attribute for “%s” should be empty" (L.unloc id))
     arg
 
+let string arg =
+  on_attribute
+    ~on_string:(fun _loc _nid s -> s)
+    (fun loc nid -> error ~loc "attribute for “%s” should be a string" nid)
+    arg
+
 let int dfl arg =
   let error loc nid =
     error_attribute loc nid Format.pp_print_string "an integer" Z.pp_print dfl

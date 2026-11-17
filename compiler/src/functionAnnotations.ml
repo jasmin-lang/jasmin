@@ -78,14 +78,7 @@ let process_f_annot loc funname f_cc annot =
     | Some szs, _ -> Some (szs, size)
   in
 
-  let comment =
-    Annot.filter_attribute "comment"
-      (Annot.on_attribute ~on_string:(fun _ _ s -> s)
-         (fun loc nid ->
-           Annot.error ~loc "attribute for “%s” should be a string" nid))
-      annot
-    |> List.map snd
-  in
+  let comment = Annot.filter_attribute "comment" Annot.string annot |> List.map snd in
 
   { retaddr_kind;
     stack_allocation_size = Annot.ensure_uniq1 "stackallocsize" (Annot.pos_int None) annot;
