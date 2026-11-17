@@ -220,7 +220,7 @@ and type asm_op = arm_op
       Label global_datas_label
     ]
 
-  let function_tail =
+  let function_tail _ =
     (* TODO_ARM: Review. *)
     [ Instr ("pop", [ "{pc}" ]) ]
 
@@ -229,7 +229,7 @@ and type asm_op = arm_op
       Header (".thumb_func", [])
     ]
 
-  let function_header =
+  let function_header _ =
     [
         Instr ("push", [pp_brace (pp_register LR)])
     ]

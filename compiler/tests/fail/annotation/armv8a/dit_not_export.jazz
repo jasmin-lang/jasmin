@@ -1,0 +1,10 @@
+#[dit]
+fn f(reg u64 a) -> reg u64 {
+  a += 1;
+  return a;
+}
+
+export fn main(reg u64 a) -> reg u64 {
+  a = f(a);
+  return a;
+}

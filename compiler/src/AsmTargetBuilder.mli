@@ -28,13 +28,15 @@ module type AsmTarget = sig
     val function_directives : asm_element list
     (** Meta-data to print before the function definition *)
 
-    (* Start of the function*)
-    val function_header     : PrintASM.asm_element list
-
-    (* Function return instructions
+    (* Start of the function, given the annotations of the function.
     It is called only on exported functions.
     *)
-    val function_tail       : PrintASM.asm_element list
+    val function_header     : FInfo.f_annot -> PrintASM.asm_element list
+
+    (* Function return instructions, given the annotations of the function.
+    It is called only on exported functions.
+    *)
+    val function_tail       : FInfo.f_annot -> PrintASM.asm_element list
 
     (* Pretty print of instruction*)
     val pp_instr_r : CoreIdent.Name.t -> (reg, regx, xreg, rflag, cond, asm_op) Arch_decl.asm_i_r -> PrintASM.asm_element list

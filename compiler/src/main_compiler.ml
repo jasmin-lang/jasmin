@@ -86,6 +86,17 @@ let main () =
       else prog
     in
 
+    (* PSTATE.DIT only exists on armv8a ([-dit] is rejected on the other
+       architectures by [check_options]). *)
+    if !target_arch <> Architecture.ARMv8A then
+      List.iter
+        (fun fd ->
+          if fd.f_annot.FInfo.dit then
+            warning Always (Location.i_loc0 fd.f_loc)
+              "the “dit” annotation is ignored on %s"
+              (Architecture.architecture_to_string !target_arch))
+        (snd prog);
+
     if to_warn Linter then begin
       let open Linter in
       let (_globs, funcs) = prog in

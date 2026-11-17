@@ -8,6 +8,7 @@ type cli_error =
   | FileNotFound of string
   | FileIsDirectory of string
   | FilePathNotFound of string
+  | UnsupportedOption of string * string
 
 let pp_cli_error ie =
   match ie with
@@ -19,6 +20,8 @@ let pp_cli_error ie =
   | FileNotFound s -> Format.asprintf "File %s not found" s
   | FileIsDirectory s -> Format.asprintf "File %s is a directory" s
   | FilePathNotFound s -> Format.asprintf "Path for file %s doesn't exist" s
+  | UnsupportedOption (opt, arch) ->
+      Format.asprintf "Option %s is only supported on %s" opt arch
 
 exception CLIerror of cli_error
 
@@ -63,5 +66,8 @@ let check_options () =
   if !target_arch = RISCV
     then warning Experimental Location.i_dummy
       "support of the RISC-V architecture is experimental";
+
+  if !dit && !target_arch <> ARMv8A
+    then raise (CLIerror (UnsupportedOption ("-dit", "armv8a")));
 
   chk_out_file outfile

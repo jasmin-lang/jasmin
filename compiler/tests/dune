@@ -20,7 +20,8 @@
   (deps
     ../jasminc
     (glob_files_rec warning/*)
-    (glob_files_rec fail/linter/*)))
+    (glob_files_rec fail/linter/*)
+    success/armv8a/dit.jazz))
 
 (cram
   (applies_to comments)

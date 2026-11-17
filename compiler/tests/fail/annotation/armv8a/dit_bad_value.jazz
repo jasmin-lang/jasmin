@@ -1,0 +1,5 @@
+#[dit=maybe]
+export fn main(reg u64 a) -> reg u64 {
+  a += 1;
+  return a;
+}
