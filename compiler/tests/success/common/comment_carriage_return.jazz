@@ -1,0 +1,5 @@
+#[comment = "one\rtwo\r\nthree"]
+export
+fn f(reg u32 x) -> reg u32 {
+  return x;
+}
