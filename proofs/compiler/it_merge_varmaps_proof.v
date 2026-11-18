@@ -441,7 +441,7 @@ Lemma check_lvP_match_estate ii I x O s1 s2 t1 v v': check_lv ii I x = ok O ->
   exists2 t2, write_lval (wdb := true) (p_globs p) x v' t1 = ok t2 & match_estate O s2 t2.
 Proof.
   rewrite /check_lv /check_fv; t_xrbindP => /Sv.is_empty_spec hd <- hsim hw hu.
-  have []:= write_uincl_on (vm1 := evm t1) _ hu hw.
+  have []:= write_lval_uincl_on1 (vm1 := evm t1) _ hu hw.
   + move=> z hz; apply (mvm_vmap hsim); clear -hd hz; SvD.fsetdec.
   move=> vm2; rewrite (with_vm_m (mvm_scs hsim) (mvm_mem hsim)) with_vm_same => hw' hs.
   exists (with_vm s2 vm2) => //;split => // z hz.

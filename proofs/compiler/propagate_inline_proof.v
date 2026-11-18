@@ -384,7 +384,7 @@ Lemma pi_lvP_uincl (wdb: enforce_defined_variables) pi s vm s' x v v':
 Proof.
   move=> hu huv hvalid hw.
   have [hvalid' hw'] := pi_lvP hvalid hw.
-  by have [vm' hw'' hu']:= write_uincl hu huv hw'; exists vm'.
+  by have [vm' hw'' hu']:= write_lval_uincl hu huv hw'; exists vm'.
 Qed.
 
 Lemma pi_lvsP_uincl (wdb: enforce_defined_variables) pi s vm s' xs vs vs':
@@ -398,7 +398,7 @@ Lemma pi_lvsP_uincl (wdb: enforce_defined_variables) pi s vm s' xs vs vs':
 Proof.
   move=> hu huv hvalid hw.
   have [hvalid' hw'] := pi_lvsP hvalid hw.
-  by have [vm' hw'' hu']:= writes_uincl hu huv hw'; exists vm'.
+  by have [vm' hw'' hu']:= write_lvals_uincl hu huv hw'; exists vm'.
 Qed.
 
 End Global.

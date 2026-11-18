@@ -574,7 +574,7 @@ Lemma write_lvals_st_uincl d d' gd (wdb: enforce_defined_variables) xs vs1 vs2 :
     (st_uincl d').
 Proof.
   move=> hu s t s' /st_relP [/= -> h] hw.
-  by have [vm' -> ?] := writes_uincl h hu hw; eexists; eauto.
+  by have [vm' -> ?] := write_lvals_uincl h hu hw; eexists; eauto.
 Qed.
 
 Section PROG.
@@ -755,7 +755,7 @@ Proof using eq_globs.
     rewrite (eq_exprsP _ _ _ hes) in hvs2.
     by exists vs2.
   move=> wdb _ d xs1 xs2 d' /wdb_ok_eq <- hxs vs1 vs2 hincl s t s' /st_relP [-> /= huincl] hs'.
-  have [vm2 {}hs' {}huincl] := writes_uincl huincl hincl hs'.
+  have [vm2 {}hs' {}huincl] := write_lvals_uincl huincl hincl hs'.
   rewrite (eq_lvalsP _ _ _ _ hxs) in hs'.
   by exists (with_vm s' vm2).
 Qed.

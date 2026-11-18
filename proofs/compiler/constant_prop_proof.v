@@ -995,7 +995,7 @@ Lemma const_prop_rvsPe m (wdb: enforce_defined_variables) xs vs1 vs2 :
 Proof.
   move=> hu s t s' /st_relP [-> /=] [hval hvm] hw.
   have [hval' hw'] := const_prop_rvsP hval valid_without_globals hw.
-  have [vm2 -> hvm2] := writes_uincl hvm hu hw'.
+  have [vm2 -> hvm2] := write_lvals_uincl hvm hu hw'.
   eexists => //.
 Qed.
 
@@ -1129,7 +1129,7 @@ Local Opaque opp_word.
     have [v1' -> /= uv1']:= sem_pexpr_uincl hvm1 H.
     have [v2 htr2 hv']:= value_uincl_truncate U htr.
     have [v3 -> /= hv3]:= value_uincl_truncate uv1' htr2.
-    have [vm2 -> hvm2]:= write_uincl hvm1 (value_uincl_trans hv' hv3) Hw'.
+    have [vm2 -> hvm2]:= write_lval_uincl hvm1 (value_uincl_trans hv' hv3) Hw'.
     eexists; first reflexivity.
     split => //; split => //.
     by apply: add_cpmP H U htr Hw' Hm'.
@@ -1148,7 +1148,7 @@ Local Opaque opp_word.
       move=> /(const_prop_rvsP hval valid_without_globals) [] hval' hw;
       have [vs2 hs u2]:= sem_pexprs_uincl hu Hes';
       have [ vs3 ho' vs_vs3 ] := vuincl_exec_opn (values_uincl_trans Us u2) Ho;
-      have [vm2 {}hw U]:= writes_uincl hu vs_vs3 hw;
+      have [vm2 {}hw U]:= write_lvals_uincl hu vs_vs3 hw;
       move: hs => /=; t_xrbindP => _ ze he <- ?; subst vs2 => /=;
       move: ho'; rewrite ?he /exec_sopn /= /se_move_sem; t_xrbindP;
       move=> z z0 h ? /= ?; subst vs3 z;
