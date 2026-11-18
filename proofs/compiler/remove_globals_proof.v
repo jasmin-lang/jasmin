@@ -689,7 +689,7 @@ Module RGP. Section PROOFS.
     + t_xrbindP => x' /(remove_glob_lvP hval) h <- <-.
       rewrite /= /sem_assgn ok_w /=.
       have [ w' -> v_w' /= ] := value_uincl_truncate v_w htr.
-      have [ vm ] := write_uincl (vm_uincl_refl _) v_w' hw.
+      have [ vm ] := write_lval_uincl (vm_uincl_refl _) v_w' hw.
       rewrite with_vm_same => {} hw' le_vm.
       move: h => /(_ true _ w' hw')[] s2' [] hval' ->.
       eexists; first reflexivity.
@@ -754,7 +754,7 @@ Module RGP. Section PROOFS.
       exact: remove_glob_esP hval hes hses.
     move=> > /wdb_ok_eq <- [<- hxs] vs vs' vs_vs' s1 s2 s1' hval hw.
     have [ s2' hw' hval' ]  :=  remove_glob_lvsP hval hxs hw.
-    have := writes_uincl (vm_uincl_refl _) vs_vs' hw'.
+    have := write_lvals_uincl (vm_uincl_refl _) vs_vs' hw'.
     rewrite with_vm_same => - [] vm -> le_vm.
     eexists; first reflexivity.
     exact: valid_vm_uincl.

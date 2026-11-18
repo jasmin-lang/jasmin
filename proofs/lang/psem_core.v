@@ -1150,7 +1150,7 @@ Proof.
   by apply: vm_truncate_val_subctype htr.
 Qed.
 
-Lemma write_uincl_on (wdb: enforce_defined_variables) gd s1 s2 vm1 r v1 v2:
+Lemma write_lval_uincl_on1 (wdb: enforce_defined_variables) gd s1 s2 vm1 r v1 v2:
   s1.(evm) <=[read_rv r] vm1 ->
   value_uincl v1 v2 ->
   write_lval gd r v1 s1 = ok s2 ->
@@ -1189,7 +1189,7 @@ Proof.
   by rewrite to_arrK /= => ? /hu -/(_ _ h){hu h} [? -> ?] /= /write_var_uincl_on; apply => //; rewrite Htx.
 Qed.
 
-Corollary write_uincl (wdb: enforce_defined_variables) gd s1 s2 vm1 r v1 v2:
+Corollary write_lval_uincl (wdb: enforce_defined_variables) gd s1 s2 vm1 r v1 v2:
   s1.(evm) <=1 vm1 ->
   value_uincl v1 v2 ->
   write_lval gd r v1 s1 = ok s2 ->
@@ -1198,12 +1198,12 @@ Corollary write_uincl (wdb: enforce_defined_variables) gd s1 s2 vm1 r v1 v2:
     s2.(evm) <=1 vm2.
 Proof.
   move => hvm hv ok_s2.
-  case: (write_uincl_on (vm_uincl_uincl_on hvm) hv ok_s2) => vm2 ok_vm2 hvm2.
+  case: (write_lval_uincl_on1 (vm_uincl_uincl_on hvm) hv ok_s2) => vm2 ok_vm2 hvm2.
   exists vm2; first exact: ok_vm2.
   apply: (uincl_on_vm_uincl hvm hvm2);[ apply: vrvP ok_s2 | apply: vrvP ok_vm2].
 Qed.
 
-Lemma writes_uincl_on (wdb: enforce_defined_variables) gd s1 s2 vm1 r v1 v2:
+Lemma write_lvals_uincl_on1 (wdb: enforce_defined_variables) gd s1 s2 vm1 r v1 v2:
   s1.(evm) <=[read_rvs r] vm1 ->
   values_uincl v1 v2 ->
   write_lvals gd s1 r v1 = ok s2 ->
@@ -1216,7 +1216,7 @@ Proof.
   move: Hvm1; rewrite read_rvs_cons => /uincl_on_union_and[] hr hrs.
   move=> v1 v2 vs1 vs2 Hv Hforall.
   apply: rbindP => z ok_z ok_s2.
-  have [ vm2 ok_vm2 Hvm2 ] := write_uincl_on hr Hv ok_z.
+  have [ vm2 ok_vm2 Hvm2 ] := write_lval_uincl_on1 hr Hv ok_z.
   have h : evm z <=[read_rvs rs] vm2.
   + move => x hx.
     case: (Sv_memP x (vrv r)); first exact: Hvm2.
@@ -1231,7 +1231,7 @@ Proof.
   exact: Hvm2.
 Qed.
 
-Corollary writes_uincl (wdb: enforce_defined_variables) gd s1 s2 vm1 r v1 v2:
+Corollary write_lvals_uincl (wdb: enforce_defined_variables) gd s1 s2 vm1 r v1 v2:
   s1.(evm) <=1 vm1 ->
   values_uincl v1 v2 ->
   write_lvals gd s1 r v1 = ok s2 ->
@@ -1240,7 +1240,7 @@ Corollary writes_uincl (wdb: enforce_defined_variables) gd s1 s2 vm1 r v1 v2:
     s2.(evm) <=1 vm2.
 Proof.
   move => hvm hv ok_s2.
-  case: (writes_uincl_on (vm_uincl_uincl_on hvm) hv ok_s2) => vm2 ok_vm2 hvm2.
+  case: (write_lvals_uincl_on1 (vm_uincl_uincl_on hvm) hv ok_s2) => vm2 ok_vm2 hvm2.
   exists vm2; first exact: ok_vm2.
   apply: (uincl_on_vm_uincl hvm hvm2); [apply: vrvsP ok_s2 | apply: vrvsP ok_vm2].
 Qed.
@@ -1314,7 +1314,7 @@ Lemma write_lval_uincl_on (wdb: enforce_defined_variables) gd X x v1 v2 s1 s2 vm
                      write_lval gd x v2 (with_vm s1 vm1) = ok (with_vm s2 vm2).
 Proof.
   move=> hX hvu hw hu.
-  have [vm2 hw2 hu2] := write_uincl_on (uincl_onI hX hu) hvu hw.
+  have [vm2 hw2 hu2] := write_lval_uincl_on1 (uincl_onI hX hu) hvu hw.
   exists vm2 => //; apply: (uincl_on_union hu hu2); [ apply: vrvP hw | apply: vrvP hw2].
 Qed.
 
@@ -1327,7 +1327,7 @@ Lemma write_lvals_uincl_on (wdb: enforce_defined_variables) gd X x v1 v2 s1 s2 v
                      write_lvals gd (with_vm s1 vm1) x v2 = ok (with_vm s2 vm2).
 Proof.
   move=> hX hvu hw hu.
-  have [vm2 hw2 hu2] := writes_uincl_on (uincl_onI hX hu) hvu hw.
+  have [vm2 hw2 hu2] := write_lvals_uincl_on1 (uincl_onI hX hu) hvu hw.
   exists vm2 => //; apply: (uincl_on_union hu hu2); [ apply: vrvsP hw | apply: vrvsP hw2].
 Qed.
 

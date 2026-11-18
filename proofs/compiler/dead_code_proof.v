@@ -239,9 +239,9 @@ Section PROOF.
       have [|vm2 [heqO hws']] := ih xs xs1 I1 s1' vs vm1' l' hc H3 hws.
       + by apply: uincl_onI heq'; rewrite read_rvE; clear; SvD.fsetdec.
       have Hvm : vm_uincl (evm (with_vm s1 vm1)) vm1. done.
-      have [vm3 Hw' Hvm']:= write_uincl Hvm H1 hw'. rewrite Hw' /=. rewrite /with_vm /=.
+      have [vm3 Hw' Hvm']:= write_lval_uincl Hvm H1 hw'. rewrite Hw' /=. rewrite /with_vm /=.
       have Hv' : values_uincl l' l' by done.
-      have [vm4 Hws' /= Hvm'']:= writes_uincl Hvm' Hv' hws'.
+      have [vm4 Hws' /= Hvm'']:= write_lvals_uincl Hvm' Hv' hws'.
       exists vm4;rewrite /=; split=> //=.
       by apply: (uincl_onT heqO) => z hin; apply: Hvm''.
     case:andP => //= -[hd hnmem] [??] hv s1' hw hws heqI; subst I1 xs1.
@@ -388,7 +388,7 @@ Section PROOF.
     + by rewrite read_rvsE; clear; SvD.fsetdec.
     have Hv'' : values_uincl vs1 vs1 by done.
     have [vm2 Hvm2 /= Hvm2'] := Hws _ Hsub Hv'' => Hv'.
-    have [vm3 Hws' /= Hvm'] := writes_uincl (vm_uincl_refl _) Hv' Hvm2'.
+    have [vm3 Hws' /= Hvm'] := write_lvals_uincl (vm_uincl_refl _) Hv' Hvm2'.
     rewrite Hws' /=; eexists; first reflexivity; split => //.
     apply : (@uincl_onT _ vm2).
     + by apply: uincl_onI Hvm2; rewrite read_rvsE; clear; SvD.fsetdec.
