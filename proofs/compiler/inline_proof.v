@@ -388,7 +388,7 @@ Proof using uniq_funname inline_fd_ok.
   move=> vst hes' huvs.
   have [vst' htr' huvs'] := mapM2_dc_truncate_val htr huvs.
   rewrite (write_vars_lvals _ (p_globs p1)) in hws.
-  have [|/= vm2 hws' huincl] := writes_uincl (vm1:=evm t) _ huvs' hws.
+  have [|/= vm2 hws' huincl] := write_lvals_uincl (vm1:=evm t) _ huvs' hws.
   + by apply vm_uincl_init.
   have heqt: (with_vm (estate0 (mk_fstate vs s)) (evm t)) = t.
   + by move: hpre => /st_relP [-> /=].

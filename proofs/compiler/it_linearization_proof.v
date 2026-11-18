@@ -1715,7 +1715,7 @@ Section PROOF.
     - case => // ?? [] -> [] -> _ _; reflexivity.
     move => v v' vs vs' v_v' vs_vs' ih [] // x xs s t /=.
     apply: rbindP => s1 ok_s1 ok_s' ok_t' E X M.
-    have [ vm ok_vm X' ] := write_uincl X v_v' ok_s1.
+    have [ vm ok_vm X' ] := write_lval_uincl X v_v' ok_s1.
     have [ m' ok_t1 M' ] := match_mem_gen_write_lval M ok_vm.
     move: ok_t'.
     rewrite (surj_estate t) -E ok_t1 /= => ok_t'.
@@ -3211,7 +3211,7 @@ End ILSTEPS_END.
     rewrite /eval_instr /=.
     have [ vs' /(match_mem_gen_sem_pexprs M1) /chk_es ok_vs' vs_vs' ] := sem_pexprs_uincl X1 hes.
     have [ rs' ok_rs' rs_rs' ] := vuincl_exec_opn vs_vs' hex.
-    have [ vm2 /(match_mem_gen_write_lvals M1) [ m2 ok_s2' M2 ] ok_vm2 ] := writes_uincl X1 rs_rs' ok_s2.
+    have [ vm2 /(match_mem_gen_write_lvals M1) [ m2 ok_s2' M2 ] ok_vm2 ] := write_lvals_uincl X1 rs_rs' ok_s2.
     have {} ok_s2'' := chk_xs _ _ _ ok_s2'.
     rewrite SC1 in ok_vs', ok_s2', ok_s2''; rewrite ok_vs' /= ok_rs'/= ok_s2'' /=.
     rewrite mix_ilsteps_b0 => //=; last by rewrite hpc addn1.
@@ -3321,7 +3321,7 @@ End ILSTEPS_END.
     have [ves' hes' uves] := get_vars_uincl X1 hes.
     have [vs' /= ho' uvs]:= exec_syscallP hex uves.
     have [m' {}ho' mm]:= match_mem_gen_exec_syscall M1 ho'.
-    have /(_ _ (vm_after_syscall_uincl X1)) := writes_uincl _ uvs ok_s2.
+    have /(_ _ (vm_after_syscall_uincl X1)) := write_lvals_uincl _ uvs ok_s2.
     move=> [] vm2 /= /(match_mem_gen_write_lvals mm) [ m2 /= ok_s2' M2 ] ok_vm2 .
     rewrite SC1 in ho'.
     rewrite hes' /= ho' /= ok_s2' /=.
