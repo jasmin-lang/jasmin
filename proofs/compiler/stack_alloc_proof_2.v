@@ -2571,7 +2571,6 @@ Proof.
   by apply hsem.
 Qed.
 
-(* TODO: write_lvar_ext_eq -> rename into write_lval_ext_eq *)
 Lemma wf_table_update_table s1 s2 r e v v' table1 ote table2 oe table3 vme :
   sem_pexpr (wdb := true) gd s1 e = ok v ->
   value_uincl v' v ->

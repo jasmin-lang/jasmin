@@ -1385,7 +1385,7 @@ Lemma sem_eassert_ext_eq e vm :
    sem_eassert gd s e = sem_eassert gd (with_vm s vm) e.
 Proof. by move=> heq; apply/eq_on_sem_eassert. Qed.
 
-Lemma write_lvar_ext_eq x v s1 s2 vm1 :
+Lemma write_lval_ext_eq x v s1 s2 vm1 :
   (evm s1 =1 vm1)%vm ->
   write_lval gd x v s1 = ok s2 ->
   exists2 vm2, evm s2 =1 vm2 & write_lval gd x v (with_vm s1 vm1) = ok (with_vm s2 vm2).
@@ -1401,7 +1401,7 @@ Proof.
   by apply: vrvP hw2.
 Qed.
 
-Lemma write_lvars_ext_eq xs vs s1 s2 vm1 :
+Lemma write_lvals_ext_eq xs vs s1 s2 vm1 :
   (evm s1 =1 vm1)%vm ->
   write_lvals gd s1 xs vs = ok s2 ->
   exists2 vm2, evm s2 =1 vm2 & write_lvals gd (with_vm s1 vm1) xs vs = ok (with_vm s2 vm2).
