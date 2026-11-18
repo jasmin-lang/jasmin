@@ -107,7 +107,7 @@ Lemma st_eq_write_lvals (wdb: enforce_defined_variables) d x v d':
   wrequiv (st_eq d) (fun s => write_lvals (p_globs p) s x v) (fun s => write_lvals (p_globs p') s x v) (st_eq d').
 Proof using eq_globs.
   rewrite eq_globs => s t s' /st_relP [-> /=] h1 h2.
-  by have [vm2 h ->] := write_lvars_ext_eq h1 h2; eexists; eauto.
+  by have [vm2 h ->] := write_lvals_ext_eq h1 h2; eexists; eauto.
 Qed.
 
 Lemma st_eq_sem_eassert d e :
@@ -189,15 +189,15 @@ Proof using eq_globs.
   + move=> x tg ty e ii s1 s2 vm1 /=; rewrite /sem_assgn -eq_globs; t_xrbindP.
     move=> v he v' htr hw heq.
     rewrite -(sem_pexpr_ext_eq (p_globs p) _ heq) he /= htr /=.
-    by have [vm2 ??] := write_lvar_ext_eq heq hw; exists vm2.
+    by have [vm2 ??] := write_lval_ext_eq heq hw; exists vm2.
   + move=> xs t o es ii s1 s2 vm1 /=; rewrite /sem_sopn -eq_globs; t_xrbindP.
     move=> vs' vs hes hop hw heq.
     rewrite -(sem_pexprs_ext_eq (p_globs p) _ heq) hes /= hop /=.
-    by have [vm2 ??] := write_lvars_ext_eq heq hw; exists vm2.
+    by have [vm2 ??] := write_lvals_ext_eq heq hw; exists vm2.
   + move=> xs o es ii s1 s2 vm1 /=; rewrite /sem_syscall -eq_globs /upd_estate; t_xrbindP.
     move=> vs hes fs ho hw heq.
     rewrite -(sem_pexprs_ext_eq (p_globs p) _ heq) hes /= ho /= /upd_estate.
-    by have /(_ _ heq) [vm2 ??]:= write_lvars_ext_eq _ hw; exists vm2.
+    by have /(_ _ heq) [vm2 ??]:= write_lvals_ext_eq _ hw; exists vm2.
   + move=> e c1 c2 hc1 hc2 ii s1 s2 vm1 /=; rewrite /sem_cond -eq_globs; t_xrbindP.
     move=> b v he hb hc heq.
     rewrite -(sem_pexpr_ext_eq (p_globs p) _ heq) he /= hb /= => {hb}.
@@ -210,7 +210,7 @@ Proof using eq_globs.
   + by move=> [<-] ?; eexists; eauto.
   t_xrbindP.
   move=> s11 s12 hw hsc hf heq.
-  have [vm2 /= heq1 -> /=] := [elaborate write_lvar_ext_eq (x:=Lvar i) (v:=Vint j) (gd:=[::]) heq hw].
+  have [vm2 /= heq1 -> /=] := [elaborate write_lval_ext_eq (x:=Lvar i) (v:=Vint j) (gd:=[::]) heq hw].
   have [vm3 ] := hc _ _ _ hsc heq1.
   by rewrite /esem => -> /=; apply: hrec.
 Qed.
