@@ -1,2 +1,3 @@
 param int N = 16385;
-require "reg_ptr_template.jinc"
+type usize = u32;
+require "../../common/reg_ptr_template.jinc"

@@ -1,11 +1,3 @@
-// sub-reg ptr with variable index (unscaled)
+type usize = u32;
 
-export fn main (reg ptr u32[2] r, reg u32 i) -> reg u32 {
-  reg ptr u32[1] r2;
-  reg u32 res;
-
-  r2 = r.[i:1]; // ADD
-  res = r2.[0];
-
-  return res;
-}
+require "../common/reg_ptr_unscaled.jinc"
