@@ -1,6 +1,0 @@
-export
-fn neg(reg u32 x) -> reg u32 {
-  x = x;
-  x = -x;
-  return x;
-}
