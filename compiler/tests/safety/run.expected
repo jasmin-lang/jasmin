@@ -482,6 +482,106 @@ mem_x ∊ [0; 0]
 
 Program is not safe!
 
+File fail/common/loop_init.jazz (on arch x86-64):
+Analyzing function main
+
+
+*** Possible Safety Violation(s):
+  "fail/common/loop_init.jinc", line 6 (4-21): is_init p[0]
+  
+Memory ranges:
+  mem_a: [0; 0]
+  mem_x: [0; 0]
+  
+* Rel:
+{inv_x ≥ 0, inv_x ≤ 4294967295, mem_a = 0, mem_x = 0}
+mem_a ∊ [0; 0]
+mem_x ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/loop_init.jazz (on arch cortex-m3):
+Analyzing function main
+
+
+*** Possible Safety Violation(s):
+  "fail/common/loop_init.jinc", line 6 (4-21): is_init p[0]
+  
+Memory ranges:
+  mem_a: [0; 0]
+  mem_x: [0; 0]
+  
+* Rel:
+{inv_x ≥ 0, inv_x ≤ 4294967295, mem_a = 0, mem_x = 0}
+mem_a ∊ [0; 0]
+mem_x ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/loop_init.jazz (on arch cortex-m4):
+Analyzing function main
+
+
+*** Possible Safety Violation(s):
+  "fail/common/loop_init.jinc", line 6 (4-21): is_init p[0]
+  
+Memory ranges:
+  mem_a: [0; 0]
+  mem_x: [0; 0]
+  
+* Rel:
+{inv_x ≥ 0, inv_x ≤ 4294967295, mem_a = 0, mem_x = 0}
+mem_a ∊ [0; 0]
+mem_x ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/loop_init.jazz (on arch armv8.1m):
+Analyzing function main
+
+
+*** Possible Safety Violation(s):
+  "fail/common/loop_init.jinc", line 6 (4-21): is_init p[0]
+  
+Memory ranges:
+  mem_a: [0; 0]
+  mem_x: [0; 0]
+  
+* Rel:
+{inv_x ≥ 0, inv_x ≤ 4294967295, mem_a = 0, mem_x = 0}
+mem_a ∊ [0; 0]
+mem_x ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/loop_init.jazz (on arch riscv):
+Analyzing function main
+
+
+*** Possible Safety Violation(s):
+  "fail/common/loop_init.jinc", line 6 (4-21): is_init p[0]
+  
+Memory ranges:
+  mem_a: [0; 0]
+  mem_x: [0; 0]
+  
+* Rel:
+{inv_x ≥ 0, inv_x ≤ 4294967295, mem_a = 0, mem_x = 0}
+mem_a ∊ [0; 0]
+mem_x ∊ [0; 0]
+
+
+
+Program is not safe!
+
 File fail/common/not_in_bounds.jazz (on arch x86-64):
 Analyzing function f
 
