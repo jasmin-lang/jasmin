@@ -302,6 +302,7 @@ module type InitT = sig
   val copy_init      : t -> mvar -> mvar -> t
   val is_init        : t -> mvar list -> t
   val check_init     : t -> mvar -> bool
+  val is_included    : t -> t -> bool
     
   val size           : t -> int
   val print          : Format.formatter -> t -> unit
@@ -332,6 +333,9 @@ module Init : InitT = struct
   
   let check_init t v = Mm.find_default false v t
   let copy_init t l e = Mm.add l (check_init t e) t
+
+  (* Every variable initialized in [t'] is initialized in [t]. *)
+  let is_included t t' = Mm.for_all (fun k b' -> not b' || check_init t k) t'
                             
   let size t = Mm.cardinal t
 
@@ -500,7 +504,6 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
                |> Mbv.add f_bv dnum in
     { t with bool = bool }
 
-  (* No need to check anything on t.init and t'.init. *)
   let is_included : t -> t -> bool = fun t t' ->
     let check_b b b_opt' = 
       let b' = match b_opt' with
@@ -511,6 +514,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     (AbsNum.R.is_included t.num t'.num)
     && (for_all2 check_b t.bool t'.bool)
     && (Pt.is_included t.points_to t'.points_to)
+    && (Init.is_included t.init t'.init)
 
   let is_bottom : t -> bool = fun t -> AbsNum.R.is_bottom t.num
 
