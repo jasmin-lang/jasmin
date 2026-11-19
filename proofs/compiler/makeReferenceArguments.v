@@ -22,40 +22,40 @@ Definition with_id vi ii ctr id ty :=
   {| v_var := {| vtype := ty; vname := fresh_reg_ptr ii ctr id ty |};
      v_info := vi |}.
 
-Definition is_reg_ptr_expr doit ii ctr id ty e :=
+Definition is_reg_ptr_expr doit ii ctr id e :=
   match e with
   | Pvar x' =>
-    if [&& doit, is_aarr (vtype x'.(gv)), convertible ty (vtype x'.(gv)) & (is_glob x' || ~~is_reg_ptr x'.(gv))] then
-      Some (with_id x'.(gv).(v_info) ii ctr id ty)
+    if [&& doit, is_aarr (vtype x'.(gv)) & (is_glob x' || ~~is_reg_ptr x'.(gv))] then
+      Some (with_id x'.(gv).(v_info) ii ctr id x'.(gv).(vtype))
     else None
   | Psub _ ws len x' _ =>
-    if doit && (convertible ty (aarr ws len)) then
-      Some (with_id x'.(gv).(v_info) ii ctr id ty)
+    if doit then
+      Some (with_id x'.(gv).(v_info) ii ctr id (aarr ws len))
     else None
   | _      => None
   end.
 
-Definition is_reg_ptr_lval doit ii ctr id ty r :=
+Definition is_reg_ptr_lval doit ii ctr id r :=
   match r with
   | Lvar x' =>
-    if doit && ~~is_reg_ptr x' then
-          Some (with_id x'.(v_info) ii ctr id ty)
+    if [&& doit, is_aarr (vtype x') & ~~is_reg_ptr x'] then
+          Some (with_id x'.(v_info) ii ctr id x'.(vtype))
     else None
-  | Lasub _ _ _ x' _ =>
-    if doit then Some (with_id x'.(v_info) ii ctr id ty) else None
+  | Lasub _ ws len x' _ =>
+    if doit then Some (with_id x'.(v_info) ii ctr id (aarr ws len)) else None
   | _      => None
   end.
 
 Fixpoint make_prologue ii (X:Sv.t) ctr xtys es :=
   match xtys, es with
   | [::], [::] => ok ([::], [::])
-  | (doit, id, ty)::xtys, e::es =>
-    match is_reg_ptr_expr doit ii ctr id ty e with
+  | (doit, id)::xtys, e::es =>
+    match is_reg_ptr_expr doit ii ctr id e with
     | Some y =>
       Let _ := assert (~~Sv.mem y X) (make_ref_error ii "bad fresh id (prologue)") in
       Let pes := make_prologue ii (Sv.add y X) (Uint63.succ ctr) xtys es in
       let: (p,es') := pes in
-      ok (MkI ii (Cassgn (Lvar y) AT_rename ty e) :: p, Plvar y :: es')
+      ok (MkI ii (Cassgn (Lvar y) AT_rename y.(vtype) e) :: p, Plvar y :: es')
     | None =>
       Let pes := make_prologue ii X ctr xtys es in
       let: (p,es') := pes in
@@ -71,13 +71,13 @@ Variant pseudo_instr :=
 Fixpoint make_pseudo_epilogue (ii:instr_info) (X:Sv.t) ctr xtys rs :=
   match xtys, rs with
   | [::], [::] => ok ([::])
-  | (doit, id, ty)::xtys, r::rs =>
-     match is_reg_ptr_lval doit ii ctr id ty r with
+  | (doit, id)::xtys, r::rs =>
+     match is_reg_ptr_lval doit ii ctr id r with
      | Some y =>
        Let _ := assert (~~Sv.mem y X)
                        (make_ref_error ii "bad fresh id (epilogue)") in
        Let pis := make_pseudo_epilogue ii X (Uint63.succ ctr) xtys rs in
-       ok (PI_lv (Lvar y) :: (PI_i r ty y) :: pis)
+       ok (PI_lv (Lvar y) :: (PI_i r y.(vtype) y) :: pis)
      | None =>
        Let pis :=  make_pseudo_epilogue ii X ctr xtys rs in
        ok (PI_lv r :: pis)
@@ -122,57 +122,21 @@ Definition update_c (update_i : instr -> cexec cmd) (c:cmd) :=
   ok (flatten ls).
 
 Definition mk_info (x:var_i) (ty:atype) :=
-  (is_reg_ptr x, Ident.id_name x.(vname), ty).
+  (is_reg_ptr x, Ident.id_name x.(vname)).
 
 Definition get_sig ii fn :=
   if get_fundef p.(p_funcs) fn is Some fd then
-      ok (fd.(f_al),
-           map2 mk_info fd.(f_params) fd.(f_tyin),
+      ok (map2 mk_info fd.(f_params) fd.(f_tyin),
            map2 mk_info fd.(f_res) fd.(f_tyout))
   else Error (E.make_ref_error ii "unknown function").
 
 Definition get_syscall_sig o :=
   let: s := syscall.syscall_sig_u o in
-  (map (fun ty => (is_aarr ty, "__p__"%string, ty)) s.(scs_tin),
-   map (fun ty => (is_aarr ty, "__p__"%string, ty)) s.(scs_tout)).
+  (map (fun ty => (is_aarr ty, "__p__"%string)) s.(scs_tin),
+   map (fun ty => (is_aarr ty, "__p__"%string)) s.(scs_tout)).
 
 Definition is_swap_op (op: sopn) : option atype :=
   if op is Opseudo_op (pseudo_operator.Oswap (aarr _ _ as ty)) then Some ty else None.
-
-Definition subst_sig ii (al : seq (Uint63.int * Ident.ident)) alargs '((params,returns) : seq (bool * string * atype) * seq (bool * string * atype)) :=
-  let f :=
-    let als := zip (map fst al) alargs in
-    assoc als
-  in
-  let subst :=
-    mapM (fun '(b, s, ty) =>
-      Let ty := o2r (make_ref_error ii "subst_sig") (subst_ty f ty) in
-      ok (b, s, ty))
-  in
-  Let params := subst params in
-  Let returns := subst returns in
-  ok (params, returns).
-
-
-Fixpoint no_var_al (al : array_length) :=
-  match al with
-  | ALConst _ => true
-  | ALVar _ _ => false
-  | ALNeg al => no_var_al al
-  | ALAdd al1 al2
-  | ALSub al1 al2
-  | ALMul al1 al2
-  | ALDiv _ al1 al2
-  | ALMod _ al1 al2
-  | ALShl al1 al2
-  | ALShr al1 al2 => no_var_al al1 && no_var_al al2
-  end.
-
-Definition no_var_ty ty :=
-  match ty with
-  | aarr _ al => no_var_al al
-  | _ => true
-  end.
 
 Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
   let (ii,ir) := i in
@@ -180,7 +144,7 @@ Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
   | Copn xs tg op als es =>
       if is_swap_op op is Some ty then
         if no_var_ty ty then
-          let sig := (true, "__swap__"%string, ty) in
+          let sig := (true, "__swap__"%string) in
           let sig := [:: sig; sig ] in
           Let: (prologue, es) := make_prologue ii X 0 sig es in
           Let: (xs, epilogue) := make_epilogue ii X sig xs in
@@ -202,8 +166,7 @@ Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
     Let c' := update_c (update_i X) c' in
     ok [::MkI ii (Cwhile a c e info c')]
   | Ccall xs fn als es =>
-    Let: (al, params,returns) := get_sig ii fn in
-    Let: (params, returns) := subst_sig ii al als (params, returns) in
+    Let: (params,returns) := get_sig ii fn in
     Let pres := make_prologue ii X 0 params es in
     let: (prologue, es) := pres in
     Let xsep := make_epilogue ii X returns xs in

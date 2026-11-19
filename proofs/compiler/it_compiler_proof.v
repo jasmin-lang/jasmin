@@ -623,11 +623,7 @@ apply: wiequiv_f_trans_EE_EU;
   first exact: (it_dead_calls_err_seqP ok_pd _ ok_fn).
 apply: wiequiv_f_trans_EU_EU; first exact: it_live_range_splittingP ok_pe.
 apply: wiequiv_f_trans_UU_EU; first exact: (it_remove_init_fdPu is_reg_array).
-apply: wiequiv_f_trans_EE_EU.
-- move=> vals1 vals2.
-  apply: (wkequiv_io_weaken (P := rpreF (eS := mra_spec _) fn fn vals1 vals2)) => //.
-  2:{ have := it_makeReferenceArguments_callP (siparams:=sip_of_asm_e) _ ok_pf. apply. }
-  by move=> ???? [_ [<- <-]] [<-].
+apply: wiequiv_f_trans_EE_EU; first exact: (it_makeReferenceArguments_callP (siparams:=sip_of_asm_e) _ ok_pf).
 apply: wiequiv_f_trans_UU_EU; first exact: it_indirect_to_direct.
 apply: wiequiv_f_trans_EE_EU; first exact: (it_expand_callP ok_pg ok_fn).
 apply: wiequiv_f_trans_EU_EU; first exact: it_live_range_splittingP ok_ph.
