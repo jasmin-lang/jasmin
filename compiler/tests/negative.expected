@@ -1703,17 +1703,49 @@ fail/stack_allocation/arm-m4/bug_1384b.jazz:
 compilation error in function stack_bool:
 stack allocation: cannot allocate in the stack the variable “b” of type bool
 
-fail/stack_allocation/arm-m4/cannot_compute_address.jazz:
+fail/stack_allocation/common/cannot_compute_address.jazz:
 
-"fail/stack_allocation/arm-m4/cannot_compute_address.jazz", line 6 (2-4):
+"fail/stack_allocation/common/cannot_compute_address.jazz", line 6 (2-14):
+compilation error in function main:
+asmgen: instruction LEA_64 is given incompatible args.
+Allowed args are:
+  reg, mem
+
+fail/stack_allocation/common/cannot_compute_address.jazz:
+
+"fail/stack_allocation/common/cannot_compute_address.jazz", line 6 (2-4):
 compilation error in function main:
 stack allocation: cannot compute address sp
                   the address computation in the right-hand side is too complex,
                   an intermediate variable might be needed
 
-fail/stack_allocation/risc-v/cannot_compute_address.jazz:
+fail/stack_allocation/common/cannot_compute_address.jazz:
 
-"fail/stack_allocation/risc-v/cannot_compute_address.jazz", line 6 (2-4):
+"fail/stack_allocation/common/cannot_compute_address.jazz", line 6 (2-4):
+compilation error in function main:
+stack allocation: cannot compute address sp
+                  the address computation in the right-hand side is too complex,
+                  an intermediate variable might be needed
+
+fail/stack_allocation/common/cannot_compute_address.jazz:
+
+"fail/stack_allocation/common/cannot_compute_address.jazz", line 6 (2-4):
+compilation error in function main:
+stack allocation: cannot compute address sp
+                  the address computation in the right-hand side is too complex,
+                  an intermediate variable might be needed
+
+fail/stack_allocation/common/cannot_compute_address.jazz:
+
+"fail/stack_allocation/common/cannot_compute_address.jazz", line 6 (2-4):
+compilation error in function main:
+stack allocation: cannot compute address sp
+                  the address computation in the right-hand side is too complex,
+                  an intermediate variable might be needed
+
+fail/stack_allocation/common/cannot_compute_address.jazz:
+
+"fail/stack_allocation/common/cannot_compute_address.jazz", line 6 (2-4):
 compilation error in function main:
 stack allocation: cannot compute address sp
                   the address computation in the right-hand side is too complex,
@@ -2353,4 +2385,4 @@ Statistics:
 	Pretyping:  84
 	Parsing:     7
 	Typing:      5
-	Compile:   262
+	Compile:   266

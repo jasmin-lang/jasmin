@@ -1,2 +1,2 @@
 param int N = 1025;
-require "large_internal_stack_template.jinc"
+require "../../common/large_internal_stack_template.jinc"
