@@ -480,16 +480,16 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.print_uprog =
         (fun s p ->
           pp_cuprog s p;
-          p);
+          Utils0.Ok ());
       Compiler.print_sprog =
         (fun s p ->
           warn_extra s p;
           eprint s pp_csprog p;
-          p);
+          Utils0.Ok ());
       Compiler.print_linear =
         (fun s p ->
           eprint s pp_linear p;
-          p);
+          Utils0.Ok ());
       Compiler.refresh_instr_info;
       Compiler.warning;
       Compiler.fresh_var_ident = Conv.fresh_var_ident;
