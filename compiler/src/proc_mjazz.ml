@@ -757,7 +757,7 @@ and mt_file_loc arch_info from menv fname =
 
 and mt_file arch_info menv from loc fname open_ =
   match MEnv.enter_file menv from loc fname with
-  | menv, None -> menv
+  | menv, None -> if open_ then MEnv.open_modules [fmodule_name fname] menv else menv
   | menv, Some (ast,saved) ->
     let requires = 
       List.fold_left (fun acc item ->
