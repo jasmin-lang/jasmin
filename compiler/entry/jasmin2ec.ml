@@ -42,15 +42,16 @@ let extract_to_file prog mprog arch pd msfsz asmOp model amodel global_options
         if not mjazz then 
             ignore (ToEC.extract prog arch pd msfsz asmOp model amodel global_options fnames array_dir (List.hd fmt))
         else
+          let equiv = equiv && mfile_ec = None in
+          let base = Filename.remove_extension (Option.default "" outfile) in
+          let name f = String.capitalize_ascii (Filename.basename f) in
+          let with_file f p =
+            let out = open_out (f ^ ".ec") in
+            BatPervasives.finally (fun () -> close_out out) p (Format.formatter_of_out_channel out) in
+          let flat_names =
+            if equiv then with_file (base ^ "_flat") (ToEC.extract prog arch pd msfsz asmOp model amodel global_options [] array_dir) else [] in
           let mod_names = ToEC_pexpr.extract_modular mprog arch pd msfsz asmOp model amodel global_options fnames array_dir fmt in
-          if equiv && mfile_ec = None then
-            let base = Filename.remove_extension (Option.get outfile) in
-            let name f = String.capitalize_ascii (Filename.basename f) in
-            let with_file f p =
-              let out = open_out (f ^ ".ec") in
-              BatPervasives.finally (fun () -> close_out out) p (Format.formatter_of_out_channel out) in
-            let flat_names =
-              with_file (base ^ "_flat") (ToEC.extract prog arch pd msfsz asmOp model amodel global_options [] array_dir) in
+          if equiv then
             with_file (base ^ "_equiv")
               (ToEC_pexpr.extract_equiv arch model (name (base ^ "_flat")) [name base] flat_names mod_names)
       )
