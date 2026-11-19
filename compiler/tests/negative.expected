@@ -2233,6 +2233,10 @@ fail/x86-64/cast_msb_merge.jazz:
 
 "fail/x86-64/cast_msb_merge.jazz", line 3 (2-30): primitive operator ADD_16 does not support zero-extension to 32
 
+fail/x86-64/comment.jazz:
+
+assembly printing: the comment “*/ ret /*” contains “*/”
+
 fail/x86-64/ignored_zero_extension.jazz:
 
 "fail/x86-64/ignored_zero_extension.jazz", line 3 (2-36): primitive operator AND_64 does not support zero-extension to 64
@@ -2385,4 +2389,5 @@ Statistics:
 	Pretyping:  84
 	Parsing:     7
 	Typing:      5
+	Asm print:   1
 	Compile:   266

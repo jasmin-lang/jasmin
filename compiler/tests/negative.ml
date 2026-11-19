@@ -63,11 +63,14 @@ type counters = {
   mutable pretyping : int;
   mutable parsing : int;
   mutable typing : int;
+  mutable asmprint : int;
   mutable hi : int;
 }
 
+exception AsmPrintError of hierror
+
 let counters : counters =
-  { annot = 0; pretyping = 0; parsing = 0; typing = 0; hi = 0 }
+  { annot = 0; pretyping = 0; parsing = 0; typing = 0; asmprint = 0; hi = 0 }
 
 let check_file_on_arch path errors arch =
   let exception Did_not_fail in
@@ -85,7 +88,14 @@ let check_file_on_arch path errors arch =
        | Utils0.Error e ->
            let e = Conv.error_of_cerror (Printer.pp_err ~debug:false) e in
            raise (HiError e)
-       | Utils0.Ok _asm -> raise Did_not_fail
+       | Utils0.Ok asm ->
+           let empty_formatter =
+             Format.make_formatter (fun _ _ _ -> ()) Fun.id
+           in
+           begin match Arch.pp_asm empty_formatter asm with
+           | exception HiError e -> raise (AsmPrintError e)
+           | () -> raise Did_not_fail
+           end
      with
     | Annot.AnnotationError (loc, code) ->
         printf "%a: %t\n\n" Location.pp_loc loc code;
@@ -100,6 +110,9 @@ let check_file_on_arch path errors arch =
     | Typing.TyError (loc, msg) ->
         printf "%a: %s\n\n" Location.pp_iloc loc msg;
         counters.typing <- counters.typing + 1
+    | AsmPrintError err ->
+        printf "%a\n\n" pp_hierror err;
+        counters.asmprint <- counters.asmprint + 1
     | HiError err ->
         printf "%a\n\n" pp_hierror err;
         counters.hi <- counters.hi + 1);
@@ -120,7 +133,8 @@ let () =
      \tPretyping: %3d\n\
      \tParsing: %5d\n\
      \tTyping: %6d\n\
+     \tAsm print: %3d\n\
      \tCompile: %5d@."
     counters.annot counters.pretyping counters.parsing counters.typing
-    counters.hi;
+    counters.asmprint counters.hi;
   exit result
