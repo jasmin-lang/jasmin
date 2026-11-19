@@ -1,0 +1,2 @@
+#[comment = "*/ ret /*"]
+export fn id() {}
