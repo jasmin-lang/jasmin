@@ -23,7 +23,6 @@ type mjazzerror =
   | NonExistentMod of M.modulename
   | InnerPModule of M.modulename
   | MJazzNYS
-  | MJazzInternal of string
   | MJazzStringError of string
 
 exception MJazzError of L.t * mjazzerror
@@ -43,6 +42,9 @@ let mjazzerror ~loc (code: mjazzerror) =
 let rs_mjazzerror ~loc (code: mjazzerror) =
   raise (mjazzerror ~loc code)
 
+let debug fmt =
+  if !Glob_options.debug then Format.eprintf fmt else Format.ifprintf Format.err_formatter fmt
+
 let pp_mjazzerror fmt = function
   | MJazzIncompatibleNS ->
     F.fprintf fmt "'NameSpace' feature incompatible with MJazz"
@@ -54,8 +56,6 @@ let pp_mjazzerror fmt = function
     F.fprintf fmt "parametric module (%s) is not supported" m
   | MJazzNYS ->
     F.fprintf fmt "feature not yet supported in MJazz"
-  | MJazzInternal s ->
-    F.fprintf fmt "%s" s
   | MJazzStringError s ->
     F.fprintf fmt "%s" s
 
@@ -92,6 +92,16 @@ let fmodule_name (fname: string) : M.modulename =
 (* -------------------------------------------------------------------- *)
 
 
+
+let pp_pprog ~debug fmt p =
+  let pp_opn _ _ = () in
+  Format.fprintf fmt "@[<v>%a@]"
+    (pp_list "@ @ " (Printer.pp_pitem ~debug (Printer.pp_pexpr_ ~debug) pp_opn Printer.pp_pvar)) (List.rev p)
+
+let pp_mpprog ~debug fmt p =
+  let pp_opn _ _ = () in
+  Format.fprintf fmt "@[<v>%a@]"
+    (Printer.pp_gmprog ~debug true (Printer.pp_pexpr_ ~debug) pp_opn Printer.pp_pvar) p
 
 module MEnv = struct
 
@@ -146,6 +156,11 @@ module MEnv = struct
        ; me_processed = []
        }
 
+  let find_modinfo ~loc menv name =
+    match Map.find name menv.me_env with
+    | exception Not_found -> rs_mjazzerror ~loc (NonExistentMod name)
+    | minfo -> minfo
+
   let upd_store
       (f: 'asm Env.store -> 'asm Env.store)
       (menv: 'asm menv)
@@ -155,22 +170,16 @@ module MEnv = struct
   let add_decls menv l =
     match menv.me_decls with
     | [] ->
-      rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "(add) non-existent decls")
+      rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "(add) non-existent decls")
     | x::xs -> 
       { menv with me_decls = (l@x)::xs }
 
   let pop_ldecls menv =
     match menv.me_decls with
     | [] ->
-      rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "(pop) non-existent decls")
+      rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "(pop) non-existent decls")
     | x::xs -> 
       { menv with me_decls = xs }, x
-
-
-let pp_pprog ~debug fmt p =
-  let pp_opn _ _ = () in
-  Format.fprintf fmt "@[<v>%a@]"
-    (pp_list "@ @ " (Printer.pp_pitem ~debug (Printer.pp_pexpr_ ~debug) pp_opn Printer.pp_pvar)) (List.rev p)
 
   let upd_storedecls
       (f: 'asm Env.store -> 'asm Env.store * (unit, 'asm) P.pmod_item list)
@@ -178,9 +187,7 @@ let pp_pprog ~debug fmt p =
     : 'asm menv =
     let st, l = f menv.me_store
     in 
-    if !Glob_options.debug
-    then
-       Format.eprintf "Updated program: @.%a@." (pp_pprog ~debug:true) l;
+    debug "Updated program: @.%a@." (pp_pprog ~debug:true) l;
       let menv = add_decls menv (List.map (fun x->M.MdItem x) l)
       in { menv with  me_store = st }
 
@@ -190,7 +197,7 @@ let pp_pprog ~debug fmt p =
     in let new_stack =
          match stack with
          | [] ->
-           rs_mjazzerror ~loc:(L.loc mname) (MJazzInternal "malformed e_bindings")
+           rs_mjazzerror ~loc:(L.loc mname) (MJazzStringError "malformed e_bindings")
          | top::rest -> top::(L.unloc mname, gb)::rest
     in { menv with me_cur = { menv.me_cur with e_bindings = new_stack, bot } }
 *)
@@ -200,7 +207,7 @@ let pp_pprog ~debug fmt p =
   let fully_qualified_modname st =
     match Env.bindings st with
     | [], _ -> 
-      rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "empty module stack")
+      rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "empty module stack")
     | (ns,_,_)::xs, _ ->
       List.fold_left (fun nn (n,_,o) -> if o then nn else qualify n nn) ns xs
 
@@ -239,51 +246,37 @@ let pp_pprog ~debug fmt p =
     List.fold_left_map next st params
 
 
+  let unqualified_name n =
+    match BatString.split_on_string ~by:"::" n with
+    | [] -> n
+    | names -> List.last names
+
   let push_ground_modparam (st: 'asm Env.store) arg mparam =
     match arg,mparam with
     | Mprog.MaParam x, Mprog.Param x' -> 
       let ty = P.gety_of_gty x'.v_ty in
-      let new_name = match BatString.split_on_string ~by:"::" x'.v_name with
-        | [] -> x'.v_name
-        | names -> List.hd (List.rev names)
-      in
+      let new_name = unqualified_name x'.v_name in
       let x' = P.PV.mk (new_name) W.Const x'.v_ty (x'.v_dloc) [] in
       Env.Vars.push_param st (x', ty, x,x) |> fst
     | Mprog.MaGlob x, Mprog.Glob x' ->
       let ty = P.gety_of_gty x'.v_ty in
-      let new_name = match BatString.split_on_string ~by:"::" x'.v_name with
-        | [] -> x'.v_name
-        | names -> List.hd (List.rev names)
-      in
+      let new_name = unqualified_name x'.v_name in
       let x' = P.PV.mk (new_name) W.Const x'.v_ty (x'.v_dloc) [] in
       let x = { Prog.gv = x; gs  = E.Sglob;} in
       Env.Vars.push_global st (x', ty, P.GEword (Pvar x)) |> fst
     | Mprog.MaFun f, Fun f' ->
       let fs_tin = f'.fs_tyin |> List.map P.gety_of_gty in
       let fs_tout = f'.fs_tyout |> List.map P.gety_of_gty in
-      let new_name = match BatString.split_on_string ~by:"::" f'.name.fn_name with
-        | [] -> f'.name.fn_name
-        | names -> List.hd (List.rev names)
-      in
+      let new_name = unqualified_name f'.name.fn_name in
       let f_name = P.F.mk new_name in
       Env.Funs.push st {f with f_name} { fs_tin ; fs_tout } |> fst
     |_, _ ->
       rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Type error: wrong type of module argument")
 
-  let rec push_ground_modparams (st: 'asm Env.store) =
-    function
-    | [],_ 
-    | _, [] -> st
-    | a::args, p::params ->
-      let st = push_ground_modparam st a p
-      in let st  = push_ground_modparams st (args,params)
-      in st
-
   let enter_ground_module modname args mparams menv =
     let menv = upd_store (Env.enter_namespace modname) menv in
-    let st = push_ground_modparams menv.me_store (args,mparams) in
-    if !Glob_options.debug
-      then (Printf.eprintf "\nENTER ground %s #mparams %d \n%!" (L.unloc modname) (List.length mparams));
+    let st = List.fold_left2 push_ground_modparam menv.me_store args mparams in
+    debug "\nENTER ground %s #mparams %d \n%!" (L.unloc modname) (List.length mparams);
     { menv with 
       me_store = st
     ; me_decls = []::menv.me_decls
@@ -292,8 +285,7 @@ let pp_pprog ~debug fmt p =
   let enter_module pd modname mparams menv =
     let menv = upd_store (Env.enter_namespace modname) menv
     in let st, plist = push_modparams pd menv.me_store mparams
-    in if !Glob_options.debug
-      then (Printf.eprintf "\nENTER %s #mparams %d,%d \n%!" (L.unloc modname) (List.length mparams) (List.length plist));
+    in debug "\nENTER %s #mparams %d,%d \n%!" (L.unloc modname) (List.length mparams) (List.length plist);
     { menv with 
       me_store = st
     ; me_gmod = menv.me_gmod && mparams = []
@@ -301,50 +293,18 @@ let pp_pprog ~debug fmt p =
     }
     , plist
 
-
-let pp_mpprog ~debug fmt p =
-  let pp_opn _ _ = () in
-  Format.fprintf fmt "@[<v>%a@]"
-    (Printer.pp_gmprog ~debug true (Printer.pp_pexpr_ ~debug) pp_opn Printer.pp_pvar) p
-
-let exit_module_moduleapp menv mname modname add_module: 'asm menv =
-   let rec loop = function
+  let rec exit_bindings mparams = function
       | [], _ ->
-        rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "empty module stack")
+        rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "empty module stack")
       | (_,_,true) :: _, _ ->
-        rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "unexpected opened module at top of stack")
-      | (m1,bs1,false) :: [], bot ->
-        let merged = Env.merge_bindings (m1,bs1) bot in 
-        ([], merged), []
-      | top :: (m, _,true) :: stack, bot ->
-        let bs, omods = loop (top::stack, bot)
-        in bs, m::omods
-      | (m1, bs1, false) :: (m2, bs2, false) :: stack, bot ->
-        let merged = Env.merge_bindings (m1,bs1) bs2 in
-        ((m2, merged, false) :: stack, bot), []
-        in let glob_bs, _ = loop (Env.bindings menv.me_store)
-        in let menv = { menv with
-                    me_store = Env.update_bindings menv.me_store glob_bs
-                  }
-      in
-      if add_module then upd_store (fun st -> Env.Modules.push st mname modname) menv
-      else menv
-
-
-  (** exit of a non-toplevel module *)
-  let exit_module mname mparams imports mbody scope (menv: 'asm menv): 'asm menv =
-    let rec loop = function
-      | [], _ ->
-        rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "empty module stack")
-      | (_,_,true) :: _, _ ->
-        rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "unexpected opened module at top of stack")
+        rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "unexpected opened module at top of stack")
       | (m1,bs1,false) :: [], bot ->
         if mparams = [] (* defs in functors are not accessible! *)
         then let merged = Env.merge_bindings (m1,bs1) bot
           in ([], merged), []
         else ([],bs1), []
       | top :: (m, _,true) :: stack, bot ->
-        let bs, omods = loop (top::stack, bot)
+        let bs, omods = exit_bindings mparams (top::stack, bot)
         in bs, m::omods
       | (m1, bs1, false) :: (m2, bs2, false) :: stack, bot ->
         if mparams = [] (* defs in functors are not accessible! *)
@@ -353,15 +313,23 @@ let exit_module_moduleapp menv mname modname add_module: 'asm menv =
           ((m2, merged, false) :: stack, bot), []
         else
           ((m2,bs2,false)::stack, bot), []
-    in let modname = fully_qualified_modname menv.me_store
-    in if !Glob_options.debug
-    then Printf.eprintf "Exiting module \"%s\" (fullname=%s)\n%!" (L.unloc mname) modname;
-    let glob_bs, mod_omods = loop (Env.bindings menv.me_store)
+
+  let exit_module_moduleapp menv mname modname add_module: 'asm menv =
+    let glob_bs, _ = exit_bindings [] (Env.bindings menv.me_store) in
+    let menv = { menv with me_store = Env.update_bindings menv.me_store glob_bs } in
+    if add_module then upd_store (fun st -> Env.Modules.push st mname modname) menv
+    else menv
+
+
+  (** exit of a non-toplevel module *)
+  let exit_module mname mparams imports mbody scope (menv: 'asm menv): 'asm menv =
+    let modname = fully_qualified_modname menv.me_store
+    in debug "Exiting module \"%s\" (fullname=%s)\n%!" (L.unloc mname) modname;
+    let glob_bs, mod_omods = exit_bindings mparams (Env.bindings menv.me_store)
     in let _, mod_bs, _ = List.hd (fst (Env.bindings menv.me_store))
     in let menv, mdecls = pop_ldecls menv
     in 
-      if !Glob_options.debug
-      then Format.eprintf "Updated program: @.%a@." (pp_mpprog ~debug:true) mdecls;
+      debug "Updated program: @.%a@." (pp_mpprog ~debug:true) mdecls;
       let modinfo =
          { mi_store = mod_bs
          ; mi_params = mparams
@@ -382,11 +350,11 @@ let exit_module_moduleapp menv mname modname add_module: 'asm menv =
 
   (* suspend processing of current file (if any) *)
   let save_filectxt menv modname =
-    if !Glob_options.debug then Printf.eprintf "save filectxt \"%s\" \n%!" modname;
+    debug "save filectxt \"%s\" \n%!" modname;
     let newtopbs = modname, Env.empty_gb, false
     in match Env.bindings menv.me_store with
     | [], bot -> (* no filectxt to save *)
-      if !Glob_options.debug then Printf.eprintf "clean ctxt!\n";
+      debug "clean ctxt!\n";
       let me_store = Env.update_bindings menv.me_store ([newtopbs], bot) in
       let menv =
         { menv with 
@@ -408,7 +376,7 @@ let exit_module_moduleapp menv mname modname add_module: 'asm menv =
 
   let enter_file menv from ploc fname =
     let modname = 
-      if !Glob_options.debug then Printf.eprintf "enter-file \"%s\" \n%!" fname;
+      debug "enter-file \"%s\" \n%!" fname;
       fmodule_name fname
     in let loc = match ploc with None -> Lnone | Some l -> Lone l
     in let current_dir =
@@ -423,8 +391,7 @@ let exit_module_moduleapp menv mname modname add_module: 'asm menv =
             modname);
     match List.find_opt (fun x -> fst x = modname) menv.me_processed with
     | Some _ ->
-      if !Glob_options.debug
-      then Printf.eprintf "reusing AST for \"%s\" \n%!" modname;
+      debug "reusing AST for \"%s\" \n%!" modname;
       menv, None
     | None -> 
       let ast = Parseio.parse_program ~name:(Path.to_string ap)
@@ -443,25 +410,21 @@ let exit_module_moduleapp menv mname modname add_module: 'asm menv =
                    }
         in menv, Some (ast,saved)
 
-let add_opened modname menv =
-  let add_opened_bs minfo st =
-    match Env.bindings st with
-    | [], _ ->
-      rs_mjazzerror ~loc:(L._dummy)
-        (MJazzStringError "(Internal Error) non-existent toplevel module")
-    | x::xs, bot ->
-      if minfo.mi_params = []
-      then Env.update_bindings  st (x::(modname, minfo.mi_store, true)::xs, bot)
-      else rs_mjazzerror ~loc:(L._dummy)
-          (MJazzStringError "(Internal Error) cannot open parametric module")
-  in match Map.find modname menv.me_env with
-  | exception Not_found ->
-    rs_mjazzerror ~loc:(L._dummy)
-      (NonExistentMod modname)
-  | minfo -> 
-    { menv with
-      me_store = add_opened_bs minfo menv.me_store
-    }
+  let add_opened modname menv =
+    let add_opened_bs minfo st =
+      match Env.bindings st with
+      | [], _ ->
+        rs_mjazzerror ~loc:(L._dummy)
+          (MJazzStringError "(Internal Error) non-existent toplevel module")
+      | x::xs, bot ->
+        if minfo.mi_params = []
+        then Env.update_bindings  st (x::(modname, minfo.mi_store, true)::xs, bot)
+        else rs_mjazzerror ~loc:(L._dummy)
+            (MJazzStringError "(Internal Error) cannot open parametric module")
+    in let minfo = find_modinfo ~loc:L._dummy menv modname in
+      { menv with
+        me_store = add_opened_bs minfo menv.me_store
+      }
 
   let rec collect_opennings modm l = function
       | [] -> l
@@ -477,12 +440,8 @@ let add_opened modname menv =
     let add_module = ref true in
     List.fold_left (fun menv m -> 
     let stack, bot = Env.bindings menv.me_store in 
-       let s_bindings = match Map.find m menv.me_env with
-                | exception Not_found ->
-                  rs_mjazzerror ~loc:(L._dummy)
-                    (NonExistentMod m)
-                | minfo -> ((L.unloc m'), minfo.mi_store, false)::stack, bot 
-      in 
+       let minfo = find_modinfo ~loc:L._dummy menv m in
+       let s_bindings = ((L.unloc m'), minfo.mi_store, false)::stack, bot in
       let full_name = qualify (fully_qualified_modname menv.me_store) (L.unloc m') in
       let me_store = Env.update_bindings menv.me_store s_bindings in 
       let menv = { menv with me_store } in
@@ -531,8 +490,7 @@ end
 
 
 let mt_margs pd menv mparams margs =
-  if !Glob_options.debug
-  then (Printf.eprintf "\nTypeCheck ModApp %d,%d \n%!" (List.length mparams) (List.length margs));
+  debug "\nTypeCheck ModApp %d,%d \n%!" (List.length mparams) (List.length margs);
   let rec tc_list loc l1 l2 =
     match l1, l2 with
     | [], [] -> ()
@@ -592,18 +550,12 @@ let has_instance insts args =
   List.exists (fun i -> List.for_all2 equal_args i.MEnv.in_args args) insts
 
 
-let rename_module_bindings sub _ full_name _ modfunc (st:'asm global_bindings) =
+let rename_module_bindings sub full_name modfunc (st:'asm global_bindings) =
   let sub_len (P.PE e) = P.PE (canon_expr (Subst.psubst_e sub e)) in
   let sub_ety = function P.ETarr (ws, n) -> P.ETarr (ws, sub_len n) | ty -> ty in
   let rename_value v =
     String.concat "" [full_name;(String.sub v (String.length modfunc) (String.length v - String.length modfunc))]
   in
-  let rename_bindings f m =
-    List.fold_left (fun acc k -> 
-      let value = Map.find k m in
-      let renamed_value = f value in
-      Map.add k renamed_value acc
-    ) Map.empty (BatList.of_enum (Map.keys m)) in
   let f_funs (func, sig_) =
     let new_f_name = P.F.mk (rename_value (func.f_name.fn_name)) in
     let f_pfunc = 
@@ -626,9 +578,9 @@ let rename_module_bindings sub _ full_name _ modfunc (st:'asm global_bindings) =
   in
   let f_modules modname = L.mk_loc (L.loc modname) (rename_value (L.unloc modname))
   in
-  let gb_funs = rename_bindings f_funs st.gb_funs in
-  let gb_vars = rename_bindings f_vars st.gb_vars in
-  let gb_modules = rename_bindings f_modules st.gb_modules in
+  let gb_funs = Map.map f_funs st.gb_funs in
+  let gb_vars = Map.map f_vars st.gb_vars in
+  let gb_modules = Map.map f_modules st.gb_modules in
   { st with
       gb_funs;
       gb_vars;
@@ -641,14 +593,13 @@ let merge_instances (menv:'asm MEnv.menv) (menv': 'asm MEnv.menv) =
       Some {minfo with MEnv.mi_instances = minfo'.MEnv.mi_instances}) menv.me_env menv'.me_env in
   { menv with me_env }
 
+let set_instances (menv:'asm MEnv.menv) modfunc modinfo mi_instances =
+  { menv with me_env = Map.add modfunc { modinfo with MEnv.mi_instances } menv.me_env }
 
 let rec add_instance_module (arch_info:'asm P.arch_info) (menv: 'asm MEnv.menv) full_name modfunc modfuncname margs modinfo =
     if has_instance modinfo.MEnv.mi_instances margs then
           let add_alias i = if List.for_all2 equal_args i.MEnv.in_args margs then { i with MEnv.in_aliases = full_name :: i.in_aliases } else i in
-          let instances = List.map add_alias modinfo.mi_instances in
-          let new_modinfo = { modinfo with mi_instances = instances } in
-          let me_env = Map.add (L.unloc modfunc) new_modinfo menv.me_env
-          in {menv with me_env = me_env}
+          set_instances menv (L.unloc modfunc) modinfo (List.map add_alias modinfo.mi_instances)
     else
           let stack, bot = modinfo.MEnv.mi_scope in
           let menv' = { menv with
@@ -661,9 +612,7 @@ let rec add_instance_module (arch_info:'asm P.arch_info) (menv: 'asm MEnv.menv) 
           let menv' = List.fold_left (mt_item arch_info) menv' modinfo.mi_ast in
           let menv = merge_instances menv menv' in
           let instances = { MEnv.in_args = margs; in_aliases = [full_name]; in_name = iname } :: modinfo.mi_instances
-          in let new_modinfo = { modinfo with mi_instances = instances }
-          in let me_env = Map.add (L.unloc modfunc) new_modinfo menv.me_env
-          in {menv with me_env = me_env}
+          in set_instances menv (L.unloc modfunc) modinfo instances
 
 and mt_item (arch_info:'asm P.arch_info) (menv: 'asm MEnv.menv) mitem : 'asm MEnv.menv =
   match L.unloc mitem with
@@ -679,8 +628,7 @@ and mt_item (arch_info:'asm P.arch_info) (menv: 'asm MEnv.menv) mitem : 'asm MEn
     in let menv = MEnv.exit_module mname mparams [] body scope menv
     in menv
   | S.PModuleApp (mname, modfunc, margs) ->
-    if !Glob_options.debug
-    then (Printf.eprintf "\nModApp %s=%s(...) \n%!" (L.unloc mname) (L.unloc modfunc));
+    debug "\nModApp %s=%s(...) \n%!" (L.unloc mname) (L.unloc modfunc);
     mt_moduleapp arch_info menv mname modfunc margs
   | S.POpen (mname, None) ->
     let m = Env.Modules.get menv.me_store mname
@@ -709,12 +657,7 @@ and mt_item (arch_info:'asm P.arch_info) (menv: 'asm MEnv.menv) mitem : 'asm MEn
 
 and mt_moduleapp arch_info menv mname modfuncname margs =
     let modfunc = Env.Modules.get menv.me_store modfuncname in
-    let modinfo =
-         match Map.find (L.unloc modfunc) menv.me_env with
-         | modi -> modi
-         | exception Not_found ->
-           rs_mjazzerror ~loc:(L.loc modfunc)
-             (NonExistentMod (L.unloc modfunc)) in
+    let modinfo = MEnv.find_modinfo ~loc:(L.loc modfunc) menv (L.unloc modfunc) in
     let full_name = qualify (MEnv.fully_qualified_modname menv.MEnv.me_store) (L.unloc mname) in 
     let ground_module = menv.MEnv.me_gmod in
     if List.length modinfo.mi_params <> List.length margs then
@@ -726,7 +669,7 @@ and mt_moduleapp arch_info menv mname modfuncname margs =
       match List.find_opt (fun (p, _) -> match p with M.Param x -> P.PV.equal x (L.unloc v.P.gv) | _ -> false) (List.combine modinfo.mi_params margs) with
       | Some (_, M.MaParam e) -> e
       | _ -> P.Pvar v in
-    let mi_store = rename_module_bindings sub (L.unloc mname) full_name (L.unloc modfuncname) (L.unloc modfunc) modinfo.mi_store in
+    let mi_store = rename_module_bindings sub full_name (L.unloc modfunc) modinfo.mi_store in
     let s_bindings = match Env.bindings menv.me_store with
       |  stack, bot -> ((L.unloc mname), mi_store, false)::stack, bot
       in
@@ -734,7 +677,7 @@ and mt_moduleapp arch_info menv mname modfuncname margs =
     let me_env = Map.foldi (fun m ml me_env ->
       let minfo = Map.find (L.unloc ml) menv.me_env in
       let name = qualify full_name m in 
-      let mi_store = rename_module_bindings sub (L.unloc mname) full_name (L.unloc modfuncname) (L.unloc modfunc) minfo.mi_store in
+      let mi_store = rename_module_bindings sub full_name (L.unloc modfunc) minfo.mi_store in
       Map.add name {minfo with mi_store;MEnv.mi_params = [] } me_env 
     ) modinfo.mi_store.gb_modules me_env in
     let menv =
@@ -772,19 +715,11 @@ and mt_file arch_info menv from loc fname open_ =
     let menv = List.fold_left (mt_item arch_info) menv ast
     in MEnv.exit_file menv requires saved open_
 
-let mt_mprogram arch_info menv (fname: string) =
-  let menv = mt_file arch_info menv None None fname true
-  in menv
-
 
 
 (* -------------------------------------------------------------------- *)
 (*                      External API                                    *)
 (* -------------------------------------------------------------------- *)
-
-let parse_mfile arch_info idirs fname =
-  let menv = MEnv.empty idirs
-  in mt_mprogram arch_info menv fname
 
 (* Maps an abstract module prefix to a concrete instance prefix *)
 let replace_with_instance (inst_subst:string*string) (name:string) =
@@ -951,20 +886,18 @@ let rec add_instance_instr new_vars new_funcs inst_subst (instr:('len,'info,'asm
     { instr with i_desc; i_annot }
 
 let add_instance_item new_vars new_funcs (inst_subst:string*string) item =
+  let rename v =
+    let v' = P.PV.mk (replace_with_instance inst_subst v.P.v_name) v.v_kind v.v_ty v.v_dloc v.v_annot in
+    v', Map.add v'.v_name v' new_vars in
   match item with 
   | P.MIfun f ->
-      let new_vars', f_args = List.fold_left (fun (nv, args) arg ->
-            let nv', arg' = get_new_gvar nv inst_subst arg in
-            (nv', args @ [arg'])
-            ) (new_vars, []) f.f_args in
+      let new_vars', f_args = List.fold_left_map (fun nv -> get_new_gvar nv inst_subst) new_vars f.f_args in
       let f_tyin = List.map (fun ty -> change_ty new_vars' inst_subst ty) f.f_tyin in
       let f_tyout = List.map (fun ty -> change_ty new_vars' inst_subst ty ) f.f_tyout in
-      let new_vars', f_ret = List.fold_left (fun (nv, rets) v ->
-            let v' = L.unloc v in
-            let nv', v' = get_new_gvar nv inst_subst v' in
-            let v' = L.mk_loc (L.loc v) v' in
-            (nv', rets @ [v'])
-            ) (new_vars', []) f.f_ret in
+      let new_vars', f_ret = List.fold_left_map (fun nv v ->
+            let nv', v' = get_new_gvar nv inst_subst (L.unloc v) in
+            nv', L.mk_loc (L.loc v) v'
+            ) new_vars' f.f_ret in
       let new_vars' = Prog.Spv.fold (fun v nv -> get_new_gvar nv inst_subst v |> fst) (Prog.plocals f) new_vars' in
       let f_body = List.map (add_instance_instr new_vars' new_funcs inst_subst) f.f_body in
       let new_name = replace_with_instance inst_subst f.f_name.P.fn_name in
@@ -972,49 +905,31 @@ let add_instance_item new_vars new_funcs (inst_subst:string*string) item =
       let new_funcs = Map.add new_name f' new_funcs in
       new_vars, new_funcs, P.MIfun f'
   | P.MIglobal (v, ge) ->
-      let new_name = replace_with_instance inst_subst v.v_name in
-      let v' = P.PV.mk new_name v.v_kind v.v_ty v.v_dloc v.v_annot in
-      let ge = add_instance_ggexpr new_vars inst_subst ge in
-      let new_vars = Map.add new_name v' new_vars in
-      new_vars, new_funcs, P.MIglobal (v', ge)
+      let v', new_vars' = rename v in
+      new_vars', new_funcs, P.MIglobal (v', add_instance_ggexpr new_vars inst_subst ge)
   | P.MIparam (v, e) ->
-      let new_name = replace_with_instance inst_subst v.v_name in
-      let v' = P.PV.mk new_name v.v_kind v.v_ty v.v_dloc v.v_annot in
-      let e = add_instance_gexpr new_vars inst_subst e in
-      let new_vars = Map.add new_name v' new_vars in
-      new_vars, new_funcs, P.MIparam (v', e)
+      let v', new_vars' = rename v in
+      new_vars', new_funcs, P.MIparam (v', add_instance_gexpr new_vars inst_subst e)
 
 (* Creates aliases for the variables/functions of a generated module instance
    e.g., For `module A = M(y)`, this maps `A::x` to the concrete instance variable `M::0::x` *)
 let add_new_items (new_vars:(string,P.pvar) Utils.Map.t) new_funcs module_name instance_name (store:'asm global_bindings) =
-  let new_vars = List.fold_left (fun new_vars (name,(v,_,_)) -> 
-      let name_var_instance = module_name ^ "::" ^ name in
-      let vi_name = replace_with_instance instance_name v.P.v_name in
-      match Map.find_opt vi_name new_vars with
-      | Some v' ->  Map.add name_var_instance v' new_vars
-      | None -> rs_mjazzerror ~loc:v.v_dloc (MJazzStringError ("Variable " ^ vi_name ^ " not found"))
-    ) new_vars (Map.bindings store.gb_vars)
-   in 
-   let new_funcs = List.fold_left (fun new_funcs (name,(pfs,_)) ->
-      let name_func_instance = module_name ^ "::" ^ name in
-      let fi_name = replace_with_instance instance_name pfs.f_name.fn_name in
-      match Map.find_opt fi_name new_funcs with
-      | Some f ->  Map.add name_func_instance f new_funcs
-      | None -> rs_mjazzerror ~loc:pfs.f_loc (MJazzStringError ("Function " ^ fi_name ^ " not found"))
-    ) new_funcs (Map.bindings store.gb_funs)
-  in
-  new_vars, new_funcs
+  let add kind name_loc items acc =
+    List.fold_left (fun acc (name, item) ->
+      let i_name, loc = name_loc item in
+      let i_name = replace_with_instance instance_name i_name in
+      match Map.find_opt i_name acc with
+      | Some x -> Map.add (module_name ^ "::" ^ name) x acc
+      | None -> rs_mjazzerror ~loc (MJazzStringError (kind ^ " " ^ i_name ^ " not found"))
+    ) acc (Map.bindings items) in
+  let new_vars = add "Variable" (fun (v,_,_) -> v.P.v_name, v.v_dloc) store.gb_vars new_vars in
+  new_vars, add "Function" (fun (pfs,_) -> pfs.f_name.fn_name, pfs.f_loc) store.gb_funs new_funcs
   
 let instance_names : (string * string) list ref = ref []
 
 let rec init_instance menv generated inst_subst new_vars new_funcs args mname =
     let modfunc = Env.Modules.get menv.MEnv.me_store (L.mk_loc (L._dummy) mname) in
-    let modinfo =
-      match Map.find (L.unloc modfunc) menv.me_env with
-      | modi -> modi
-      | exception Not_found ->
-        rs_mjazzerror ~loc:(L.loc modfunc)
-          (NonExistentMod (L.unloc modfunc)) in
+    let modinfo = MEnv.find_modinfo ~loc:(L.loc modfunc) menv (L.unloc modfunc) in
     let inst_param new_vars new_funcs mp arg = 
       match mp, arg with
       | Mprog.Param v, Mprog.MaParam e -> 
@@ -1038,26 +953,16 @@ let rec init_instance menv generated inst_subst new_vars new_funcs args mname =
         end
       | _ , _ -> rs_mjazzerror ~loc:(L._dummy) (MJazzStringError "Mismatch between module parameters and arguments") 
     in
-    let rec inst_params new_vars new_funcs m a =
-      match m, a with
-      | mp::mps , arg::args ->
+    let new_vars, new_funcs, items' =
+      List.fold_left2 (fun (new_vars, new_funcs, items) mp arg ->
         let new_vars, new_funcs, p = inst_param new_vars new_funcs mp arg in
-        let new_vars', new_funcs', p' = inst_params new_vars new_funcs mps args in
-        new_vars', new_funcs', p@p'
-      | _ , _ -> new_vars, new_funcs, []
-    in 
-    let new_vars, new_funcs, items' = inst_params new_vars new_funcs modinfo.mi_params args in
+        new_vars, new_funcs, items @ p) (new_vars, new_funcs, []) modinfo.mi_params args in
     let generated, new_vars, new_funcs, body = mprog_topprog menv generated new_vars new_funcs inst_subst (List.rev modinfo.mi_decls) in
     generated, new_vars, new_funcs, items' @ body
 
 and init_modapp menv generated new_vars new_funcs inst_subst ma_name ma_func =
   let modfunc = Env.Modules.get menv.MEnv.me_store (L.mk_loc (L._dummy) ma_func) in
-  let modinfo =
-      match Map.find (L.unloc modfunc) menv.me_env with
-      | modi -> modi
-      | exception Not_found ->
-        rs_mjazzerror ~loc:(L.loc modfunc)
-          (NonExistentMod (L.unloc modfunc)) in
+  let modinfo = MEnv.find_modinfo ~loc:(L.loc modfunc) menv (L.unloc modfunc) in
   let mname = replace_with_instance inst_subst ma_name in
   match List.find_opt (fun i -> List.mem mname i.MEnv.in_aliases) modinfo.mi_instances with
   | None -> assert false
@@ -1117,12 +1022,9 @@ let instantiate_pprog menv =
 
 (* Parses (modular) program and resolves instantiation *)
 let parse_file arch_info idirs fname =
-  let menv = parse_mfile arch_info idirs fname
+  let menv = mt_file arch_info (MEnv.empty idirs) None None fname true
   in let deps: Path.t list =
        List.map (fun x->snd x) menv.me_processed in
-  if !Glob_options.debug then 
-    Format.eprintf "Updated program: @.%a@."
-    (Printer.pp_gmprog ~debug:true true (Printer.pp_pexpr_ ~debug:true) (fun _ _ -> ()) Printer.pp_pvar)
-    (List.hd menv.me_decls);
+  debug "Updated program: @.%a@." (pp_mpprog ~debug:true) (List.hd menv.me_decls);
   deps, [], instantiate_pprog menv , List.rev (List.hd menv.me_decls)
 

@@ -15,7 +15,6 @@ type mjazzerror =
   | NonExistentMod of M.modulename
   | InnerPModule of M.modulename
   | MJazzNYS
-  | MJazzInternal of string
   | MJazzStringError of string
 
 exception MJazzError of L.t * mjazzerror
