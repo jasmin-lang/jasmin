@@ -57,6 +57,10 @@ module type Core_arch = sig
   val is_ct_asm_extra : extra_op -> bool
 
   val internal_call_conv : (reg, regx, xreg, rflag, cond) internal_calling_convention
+
+  (* Registers the register allocator never assigns, besides the stack
+     pointer. *)
+  val reserved_regs : reg list
 end
 
 module type Arch = sig

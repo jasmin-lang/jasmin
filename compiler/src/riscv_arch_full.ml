@@ -67,4 +67,6 @@ module Riscv (Lowering_params : Riscv_input) : Arch_full.Core_arch
   let max_store_size = Wsize.U32
 
   let internal_call_conv = Riscv_decl.riscv_internal_call_conv
+
+  let reserved_regs = []
 end

@@ -68,5 +68,14 @@ module Armv8a (Lowering_params : Armv8a_input) = struct
 
   let internal_call_conv = Armv8a_decl.armv8a_internal_call_conv
 
+  (* x29 is the frame pointer. AAPCS64 ("The Frame Pointer") lets each
+     platform decide whether it must always address a valid frame record;
+     Apple platforms require it, while allowing some functions, such as leaf
+     functions, not to create a record of their own
+     ("Writing ARM64 code for Apple platforms"). A function that never writes
+     x29 leaves its caller's frame record there, which meets that rule, so
+     x29 is kept out of register allocation on every platform. *)
+  let reserved_regs = [ Armv8a_decl.R29 ]
+
   include Lowering_params
 end
