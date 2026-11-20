@@ -239,8 +239,8 @@ Definition checker_st_rel' : Checker_e (st_rel' vm_eq_novar) :=
 
 Definition length_spec :=
 {|
-  rpreF_ := fun (fn1 fn2 : funname) (vals1 vals2 : seq Z) (fs1 fs2 : fstate) => fn1 = fn2 /\ (* vals2 = [::] /\ *) fs1 = fs2;
-  rpostF_ := fun (fn1 _ : funname) (_ _ : seq Z) (_ _ fr1 fr2 : fstate) => fr1 = fr2
+  rpreF_ := fun (fn1 fn2 : funname) valfs1 valfs2 => fn1 = fn2 /\ (* vals2 = [::] /\ *) valfs1.2 = valfs2.2;
+  rpostF_ := fun (fn1 _ : funname) _ _ (fr1 fr2 : fstate) => fr1 = fr2
 |}.
 
 Section REC.
@@ -315,8 +315,7 @@ End REC.
 Lemma toto fn :
   wiequiv_f p p' ev ev (rpreF (eS:= length_spec)) fn fn (rpostF (eS:=length_spec)).
 Proof using Hp.
-  rewrite /wiequiv_f.
-  apply wequiv_fun_ind => {}fn _ vals1 vals2 fs _ [<- <-] fd hget1.
+  apply wequiv_fun_ind => {}fn _ vals1 vals2 fs /= _ [<- <-] fd hget1.
   move: Hp; rewrite /remove_length_prog; t_xrbindP=> fds' hfds' ok_p' /=.
   have [fd' ok_fd' hget2] := get_map_cfprog_gen hfds' hget1.
   rewrite -{1}ok_p' hget2.
@@ -418,7 +417,7 @@ Qed.
 Lemma remove_length_progP fn :
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=length_spec)).
 Proof using Hp.
-  apply wiequiv_f_weaken with (rpreF (eS:=length_spec)) (rpostF (eS:=length_spec)) => //=.
+  apply wkequiv_io_weaken with (rpreF (eS:=length_spec) fn fn) (rpostF (eS:=length_spec) fn fn) => //=.
   tauto.
   apply toto.
 Qed.

@@ -572,13 +572,12 @@ rewrite /live_range_splitting; t_xrbindP.
 rewrite !print_uprogP => ok_p' pa ok_pa; rewrite print_uprogP => ?; subst pa.
 move: p ok_p' ok_pa => [fs gd ep] /= ok_p' ok_pa.
 apply: wiequiv_f_trans_UU_EU; first exact: (it_alloc_call_uprogP _ _ ok_p').
-move=> vals1 vals2.
 apply: (
   wkequiv_io_weaken
-    (P := pre_incl fn fn vals1 vals2)
-    (Q := post_incl fn fn vals1 vals2)
+    (P := pre_incl fn fn)
+    (Q := post_incl fn fn)
 ) => //.
-- move=> ? _ [_ [<- <-]]; split=> //; split=> //; exact: values_uincl_refl.
+- move=> ? _ [/= _ [<- <-]]; split=> //; split=> //; exact: values_uincl_refl.
 apply: it_sem_refl_EU_UU.
 exact: (it_dead_code_callPu (sip:=sip_of_asm_e) (hap_is_move_opP haparams) ev ok_pa (fn := fn)).
 Qed.
@@ -638,10 +637,9 @@ apply: wiequiv_f_trans_UU_EU; first exact: (it_pi_callP _ ok_pj).
 apply: wiequiv_f_trans_EE_EU;
   first exact: (it_lower_call_export (hap_hshp haparams) _ ok_pp ok_fn).
 
-move=> vals1 vals2.
 apply: wkequiv_io_weaken; last exact: wiequiv_f_eq.
 1-3: done.
-move=> ???? [_ [<- <-]] <-; split=> //; exact: values_uincl_refl.
+by move=> ???? _ <-; split=> //; exact: values_uincl_refl.
 Qed.
 
 End FIRST_PART.
@@ -701,7 +699,7 @@ apply: (
        (sip := sip_of_asm_e) (hap_is_move_opP haparams) _ ok_pa)
 ).
 - exact: rpreF_trans_eq_eq_eq.
-- move=> ??? s1 s2 _ r1 r3 _ [_ [<- <-]] [r2 [?? hvals2] [?? hvals3]].
+- move=> valfs1 valfs2 valfs3 r1 r3 /= _ _ [r2 [?? hvals2] [?? hvals3]].
   split; only 1,2: congruence.
   exact: values_uincl_trans hvals2 hvals3.
 rewrite -{1}(surj_prog (pT := progStack) pa).
@@ -722,8 +720,8 @@ apply: (
     (it_dead_code_callPs
        (sip := sip_of_asm_e) (hap_is_move_opP haparams) _ ok_p')
        ).
-- move=> vals1 ? s1 s2 [_ [<- <-]]; exists vals1, s1 => //; split=> //; exact: fs_uinclR.
-- move=> ??? s1 _ s3 r1 r3 [_ [<- <-]] _ [r2 [?? hvals2] [?? hvals3]].
+- move=> valfs1 valfs2 [/= _ [<- <-]]; exists valfs1 => //; split=> //; exact: fs_uinclR.
+- move=> valfs1 _ valfs3 r1 r3 _ _ [r2 [?? hvals2] [?? hvals3]].
   split; only 1,2: congruence.
   exact: values_uincl_trans hvals2 hvals3.
 apply: (
@@ -733,10 +731,10 @@ apply: (
     _ _
     (remove_length_progP (siparams:=sip_of_asm_e) ok_pr _ (fn:=fn))
 ).
-- move=> ???? /= [_ [<- ?]]. eexists _, _. split.
-  split. done. split. reflexivity. reflexivity.
+- move=> ?? /= [_ [<- ?]]. eexists _. split.
+  split. done. split. reflexivity.
     split. done. done.
-- move=> ???????? /=. move=> [_ [<- <-]].
+- move=> ????? /=. move=> [_ [<- <-]].
   move=> [_ [_ ?]]. move=> [_ <-]. done.
 exact: (it_sem_uincl_f (sCP := sCP_stack) p' ev (fn := fn)).
 Qed.
@@ -759,25 +757,25 @@ Definition wf_args_s fn ms mt vs vt :=
 Definition it_extend_mem ms mt := extend_mem ms mt rip (sp_globs (p_extra sp)).
 
 Definition front_end_pre : relPreF :=
-  fun fn fn' vals1 vals2 s t =>
-    let: args := fvals s in
-    let: argt := fvals t in
-    let: ms := fmem s in
-    let: mt := fmem t in
+  fun fn fn' valfs1 valfs2 =>
+    let: args := fvals valfs1.2 in
+    let: argt := fvals valfs2.2 in
+    let: ms := fmem valfs1.2 in
+    let: mt := fmem valfs2.2 in
     [/\ fn = fn'
-      , vals1 = vals2
+      , valfs1.1 = valfs2.1
       , alloc_ok sp fn mt
       , wf_args_s fn ms mt args argt
       , Forall3 (value_eq_or_in_mem mt) (get_wptrs up fn) args argt
       , it_extend_mem ms mt
-      & fscs s = fscs t ].
+      & fscs valfs1.2 = fscs valfs2.2 ].
 
 Definition front_end_post : relPostF :=
-  fun fn _ vals1 vals2 s t s' t' =>
-    let: args := fvals s in
-    let: argt := fvals t in
-    let: ms := fmem s in
-    let: mt := fmem t in
+  fun fn _ valfs1 valfs2 s' t' =>
+    let: args := fvals valfs1.2 in
+    let: argt := fvals valfs2.2 in
+    let: ms := fmem valfs1.2 in
+    let: mt := fmem valfs2.2 in
     let: ress := fvals s' in
     let: rest := fvals t' in
     let: ms' := fmem s' in
@@ -827,8 +825,8 @@ apply: (
     _ _
     (it_compiler_first_part ok_p1 ok_fn)
 ).
-- move=> vals1 ? s1 ? [? _]; by exists vals1, s1.
-- move=> ??? s1 _ s3 r1 r3 [_ [<- <-]] [_ heq halloc hwf hptr hmem hscs] [] r2
+- move=> valfs1 valfs2 [? _]; by exists valfs1.
+- move=> [vals1 fs1] [??] [vals3 fs3] r1 r3 /= [_ [<- <-]] [_ heq halloc hwf hptr hmem hscs] [] r2
     [hscs1 hmem1 hval1] [] hptr' hres hmem' hparams hscs'.
   split=> //.
   + apply: Forall2_trans hptr'; first exact: value_uincl_value_in_mem_trans.
@@ -856,7 +854,7 @@ apply: (
        (hap_hshp haparams) (hap_hsap haparams) (hap_is_move_opP haparams)
        ok_p2 ev (rip := rip))
 ).
-- move=> vals1 vals3 s1 s3 [] [_ heq hok hwf hptr hmem hscs] _; exists vals3, s3; split => //; split=> //.
+- move=> valfs1 valfs3 [] [_ heq hok hwf hptr hmem hscs] _; exists valfs3; split => //.
   + by rewrite -p2_p1_extra p2_p3_extra -sp_p3_extra.
   + move: hwf; rewrite /wf_args_s /get_wptrs get_fd /= check_params.
     rewrite /size_glob sp_p3_extra -p2_p3_extra p2_p1_extra.
@@ -874,17 +872,17 @@ apply: (
     have :=
       compiler_third_part_alloc_ok print_sprogP ok_sp hok get_fd3.
     by rewrite -fd2_fd3_extra.
-- move=> vals1 vals2 vals3 s1 s2 _ r1 r3 [<- hscs_s1] hmem_s1 hwf_s1 heqinmem halloc [_ [<- <-]] [].
+- move=> [vals1 fs1] [vals2 fs2] [_ _] r1 r3 /= [<- hscs_s1] hmem_s1 hwf_s1 heqinmem halloc [_ [<- <-]] [].
   move=> r2 [hscs1 m'_mi' vr2_wf vr2_eqinmem U] [hscs2 hmem2 vr_vr1].
   set rminfo := fun fn => _ in vr_vr1.
-  set va := fvals s1.
-  set va' := fvals s2.
+  set va := fvals fs1.
+  set va' := fvals fs2.
   set vr := fvals r1.
   set vr1 := fvals r1.
   set vr2 := fvals r2.
-  set m := fmem s1.
-  set mi := fmem s2.
-  set m' := fmem s1.
+  set m := fmem fs1.
+  set mi := fmem fs2.
+  set m' := fmem fs1.
   set mi' := fmem r2.
   have hle1: n <= size fd.(f_params) by apply find_size.
   have [/esym size_vr1 /esym size_vr2] := Forall3_size vr2_wf.
@@ -976,7 +974,7 @@ apply: (
     (it_compiler_third_part ok_sp)
 ).
 - exact: rpreF_trans_eq_eq_eq.
-by move=> ??? s1 _ _ r1 r3 [_ [<- <-]] [_ [<- <-]] [_ <-] [hscs hmem] h'.
+by move=> valfs1 ?? r1 r3 _ _ [_ <-] [hscs hmem] h'.
 Qed.
 
 End FRONT_END.
@@ -1808,7 +1806,7 @@ have [fs_sp [? hsp_scs hsp_eqinmem hsp_uincl hsp_ptr_eq]] :
       by case: wptr.
 
 subst mi.
-have/(FE _ tt) h_fe : front_end_pre up sp (asm_rip xm) fn fn vals vals fs fs_sp.
+have/(FE _ tt) h_fe : front_end_pre up sp (asm_rip xm) fn fn (vals, fs) (vals, fs_sp).
 - split.
   - reflexivity.
 

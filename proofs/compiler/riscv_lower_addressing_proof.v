@@ -266,7 +266,7 @@ Proof using ok_p' tmp_nin htytmp.
   apply (wequiv_call_rel_eq (sip:=sip)) with checker_st_eq_on X => //.
   + by split => //; clear -hsub; SvD.fsetdec.
   + by split => //; clear -hsub; SvD.fsetdec.
-  by move=> ?????; apply: (wequiv_fun_rec (spec := eq_spec)).
+  by move=> ???; apply: (wequiv_fun_rec (spec := eq_spec)).
 Qed.
 
 End REC.
@@ -277,8 +277,7 @@ End REC.
 Lemma it_lower_addressing_progP fn:
   wiequiv_f p p' ev ev (rpreF (eS:=eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof using ok_p'.
-  rewrite /wiequiv_f.
-  apply wequiv_fun_ind => {}fn _ vals _ fs _ [<- [<- <-]] fd hget.
+  apply wequiv_fun_ind => {}fn _ vals _ fs _ [/= <- [<- <-]] fd hget.
   move: ok_p'; rewrite /lower_addressing_prog.
   set tmp := {| v_var := _; v_info := _ |}.
   t_xrbindP=> funcs ok_funcs hp'.

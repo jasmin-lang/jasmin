@@ -242,7 +242,7 @@ Proof using hsyscall.
   + by move=> > hc ii; apply wequiv_for_rel_eq with checker_st_eq tt tt.
   + by move=> > hc hc' ii; apply wequiv_while_rel_eq with checker_st_eq tt.
   move=> ?????; apply wequiv_call_rel_eq with checker_st_eq tt => //.
-  by move=> ???? [<- <-]; apply: wequiv_fun_rec.
+  by move=> ?? [<- <-]; apply: wequiv_fun_rec.
 Qed.
 
 End REC.
@@ -264,8 +264,7 @@ Lemma it_psem_call :
     wiequiv_f (wsw1:=nosubword) (wsw2:=withsubword) p p ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
   move=> hsyscall hinitstate hfinal fn.
-  rewrite /wiequiv_f.
-  apply wequiv_fun_ind => {}fn _ vals _ fs _ [<- [<- <-]] fd ->; exists fd => //= s1 hinit.
+  apply wequiv_fun_ind => {}fn _ vals _ fs _ [/= <- [<- <-]] fd ->; exists fd => //= s1 hinit.
   have : exists2 s2 : estate_s _, initialize_funcall p ev fd (create_env (f_al fd) vals) fs = ok s2 & estate_sim s1 s2.
   + move: hinit; rewrite /initialize_funcall.
     t_xrbindP => > -> s1' /hinitstate [s2'] /= -> hs hw.

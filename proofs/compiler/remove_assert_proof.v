@@ -77,7 +77,7 @@ Section REMOVE_ASSERT.
       by apply wequiv_while_rel_eq with checker_ra_eq tt.
     move=> >.
     apply wequiv_call_rel_eq_wa with checker_ra_eq tt => //.
-    move=> ???? [<- <-]; exact/wequiv_fun_rec.
+    move=> ?? [<- <-]; exact/wequiv_fun_rec.
   Qed.
 
   End REC.
@@ -85,9 +85,8 @@ Section REMOVE_ASSERT.
   Lemma it_remove_assert_progP fn :
     wiequiv_f (wa1 := withassert) (wa2 := noassert) p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
   Proof using remove_assert_ok.
-    rewrite /wiequiv_f.
     apply wequiv_fun_ind_wa => {fn}.
-    move=> fn _ vals _ fs ft [<- [<- <-]] fd hget.
+    move=> fn _ vals _ fs ft [/= <- [<- <-]] fd hget.
     rewrite -{1 2}remove_assert_ok get_map_prog hget /=.
     eexists; first reflexivity.
     move=> _; split => //.

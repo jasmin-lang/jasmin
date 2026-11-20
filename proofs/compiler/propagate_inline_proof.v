@@ -669,15 +669,14 @@ Section PROOF.
     + move=> > [] [h1 h2 h3] hval; split => //.
       by apply/valid_pi_with_scs/valid_pi_remove_m.
     + by rewrite /check_lvals /= /check_lvals_pi heq.
-    by move=> ?????; apply: wequiv_fun_rec.
+    by move=> ???; apply: wequiv_fun_rec.
   Qed.
 
   End REC.
 
   Lemma it_pi_callP fn : wiequiv_f p1 p2 ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
   Proof using hcomp.
-    rewrite /wiequiv_f.
-    apply wequiv_fun_ind => {}fn _ vals _ fs ft [<- [<- hfsu]] fd1 hget.
+    apply wequiv_fun_ind => {}fn _ vals _ fs ft [/= <- [<- hfsu]] fd1 hget.
     have [fd2 hfun ->] := all_checked hget.
     exists fd2 => // {hget}.
     have [hal hin hout hex hpar hres [dc_ hc hbody]] :

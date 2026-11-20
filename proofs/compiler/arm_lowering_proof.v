@@ -1667,7 +1667,7 @@ Opaque esem.
   (* Call *)
   move=> xs fn als es ii /disj_fvars_vars_I_Ccall [hdisjx hdisje] /=.
   apply (wequiv_call_rel_eq (sip:=sip)) with checker_st_eq_ex fvars => //.
-  by move=> ?????; apply: (wequiv_fun_rec (spec := eq_spec)).
+  by move=> ???; apply: (wequiv_fun_rec (spec := eq_spec)).
 Qed.
 
 End REC.
@@ -1675,13 +1675,12 @@ End REC.
 Lemma it_lower_callP fn :
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof using fv_correct.
-  rewrite /wiequiv_f.
-  apply wequiv_fun_ind => {}fn _ vals _ fs _ [<- [<- <-]] fd hget.
+  apply wequiv_fun_ind => {}fn _ vals _ fs _ [/= <- [<- <-]] fd hget.
   have [_ hfvres hfvc] := disj_fvars_get_fundef hget.
   rewrite get_map_prog hget /= /lower_fd.
   eexists; first reflexivity.
   move=> s.
-  move=> /(eq_initialize (fd':= with_body fd (lower_cmd (f_body fd)))) -/(_ p' erefl erefl erefl erefl) hinit.
+  move=> /(eq_initialize (sip:=sip_of_asm_e) (fd':= with_body fd (lower_cmd (f_body fd)))) -/(_ p' erefl erefl erefl erefl) hinit.
   exists s => //; exists (eq_fv (env:=_)), (eq_fv (env:=_)); split => /=; last by apply st_eq_ex_finalize.
   + by apply st_relP; split=> //; rewrite with_vm_same.
   exact: it_lower_callP_rec.

@@ -202,8 +202,8 @@ Section PROOF.
 
   Definition dc_spec :=
    {|
-     rpreF_ := λ (fn1 fn2 : funname) (vals1 vals2 : seq Z) (fs1 fs2 : fstate), [/\ fn1 = fn2, vals1 = vals2, fs1 = fs2 & Sf.In fn1 K] ;
-     rpostF_ := λ (_ _ : funname) (_ _ : seq Z) (_ _ fr1 fr2 : fstate), fr1 = fr2
+     rpreF_ := λ (fn1 fn2 : funname) valfs1 valfs2, [/\ fn1 = fn2, valfs1.1 = valfs2.1, valfs1.2 = valfs2.2 & Sf.In fn1 K] ;
+     rpostF_ := λ (_ _ : funname) _ _ (fr1 fr2 : fstate), fr1 = fr2
   |}.
 
   #[local] Lemma _checker_st_eqP : Checker_eq p p' checker_st_eq.
@@ -257,7 +257,7 @@ Section PROOF.
     wiequiv_f p p' ev ev (rpreF (eS:= dc_spec)) fn fn (rpostF (eS:=dc_spec)).
   Proof using pfxp.
     rewrite /wiequiv_f.
-    apply wequiv_fun_ind => {}fn _ vals _ fs _ [<- <- <- hin] fd hfd; exists fd => //.
+    apply wequiv_fun_ind => {}fn _ vals _ fs _ /= [<- <- <- hin] fd hfd; exists fd => //.
     + by apply get_dead_calls.
     move=> /= s hinit.
     exists s=> //; exists (st_eq tt), (st_eq tt); split; last by apply st_eq_finalize.
@@ -302,7 +302,7 @@ Lemma it_dead_calls_errP (s : Sf.t) (p p': prog) :
   wiequiv_f p p' ev ev (rpreF (eS := eq_spec)) f f (rpostF (eS := eq_spec)).
 Proof.
 rewrite /dead_calls_err.
-case: ifP => // /SfD.F.subset_2 pfx [] <- f ev hin vals _ fs _ [_ [<- <-]].
+case: ifP => // /SfD.F.subset_2 pfx [] <- f ev hin valfs _ [/= _ [<- <-]].
 apply: it_dead_calls_callP => //; split => //.
 exact: live_calls_subset.
 Qed.

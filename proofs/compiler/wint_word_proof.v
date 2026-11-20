@@ -258,7 +258,7 @@ Proof.
   + by move=> v dir lo hi c hc ii; apply wequiv_for_rel_uincl with checker_wi2w tt tt.
   + by move=> a c e ii' c' hc hc' ii; apply wequiv_while_rel_uincl with checker_wi2w tt.
   move=> xs f als es ii; apply wequiv_call_rel_uincl with checker_wi2w tt => //.
-  by move=> ?????; apply: wequiv_fun_rec.
+  by move=> ???; apply: wequiv_fun_rec.
 Qed.
 
 End REC.
@@ -266,10 +266,9 @@ End REC.
 Lemma it_wi2w_call_internalP fn :
   wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
-  rewrite /wiequiv_f.
-  apply wequiv_fun_ind => {}fn _ vals _ fs ft [<- [<- hfsu]] fd hget.
+  apply wequiv_fun_ind => {}fn _ vals _ fs ft [/= <- [<- hfsu]] fd hget.
   exists (wi2w_fun fd).
-  + by rewrite get_map_prog hget.
+  + by rewrite (get_map_prog (pT:=progUnit)) hget.
   move=> /= s hinit.
   have [t -> hu] :=
     [elaborate fs_uincl_initialize (p':=p') (fd:=fd) (fd':=wi2w_fun fd) erefl erefl erefl erefl hfsu hinit].
@@ -294,10 +293,8 @@ Proof using rE0_trans.
   have := [elaborate it_alloc_call_uprogP ev (p_globs p) ok_pv (fn:= fn)].
   have := [elaborate it_wi2w_call_internalP (fn:=fn)].
   apply wiequiv_f_trans => //.
-  + by move=> vals1 vals2 fs1 fs2 hpre; exists vals1, fs1 => //; split => //; split => //; apply List_Forall2_refl.
-  move=> ?????? fr1 fr3 _ _ [fr2] [heq1 heq2 hu1] [heq3 heq4 hu2]; split.
-  + by rewrite heq1. + by rewrite heq2.
-  by apply: values_uincl_trans hu1 hu2.
+  + exact: rpreF_trans_uincl_uincl_uincl.
+  exact: rpostF_trans_uincl_uincl_uincl_uincl.
 Qed.
 
 End IT.

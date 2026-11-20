@@ -1133,7 +1133,7 @@ Proof using uniq_funname rE_trans.
     apply wequiv_call_rel_uincl with checker_st_uincl_on X1; subst X1 => //=.
     + by split => //; rewrite !read_writeE; clear; SvD.fsetdec.
     + by split => //; rewrite !read_writeE; clear; SvD.fsetdec.
-    move=> vals1 vals2 i1 i2 h; rewrite /= /do_inline eqxx hinline /=.
+    move=> valfs1 valfs2 h; rewrite /= /do_inline eqxx hinline /=.
     exact/(wequiv_fun_rec (p1 := p1) (p2 := p2)).
   rewrite /check_disjoint.
   t_xrbindP => ffd /get_funP hffd ffd' hsubst.
@@ -1364,10 +1364,10 @@ Qed.
 Lemma it_inline_fd_aux fn' :
   wiequiv_f p1 p2 ev ev (rpreF (eS:=uincl_spec)) fn' fn' (rpostF (eS:=uincl_spec)).
 Proof using uniq_funname inline_fd_ok rE_trans.
-  move=> vals1 vals2 fs1 fs2 hpre.
+  move=> valfs1 valfs2 hpre.
   rewrite (isem_call_inline p1 ev do_inline).
-  move: vals1 vals2 fs1 fs2 hpre.
-  apply wequiv_fun_ind => fn1 ? vals1 vals2 fs1 fs2 [<- [<- hu]] fd1 hfd1.
+  move: valfs1 valfs2 hpre.
+  apply wequiv_fun_ind => fn1 ? vals1 vals2 fs1 fs2 [/= <- [<- hu]] fd1 hfd1.
   have : if fn1 == fn then fd1 = fd /\ get_fundef (p_funcs p2) fn1 = Some fd' else get_fundef (p_funcs p2) fn1 = Some fd1.
   + move: hfd1; rewrite /p1 /p2 /get_fundef /= !assoc_cat.
     move: (uniq_funname); rewrite /pfuncs map_cat cat_uniq => /and3P [_ hhas _].
@@ -1390,7 +1390,7 @@ Proof using uniq_funname inline_fd_ok rE_trans.
                          (sem_fun (sem_Fun := sem_fun_rec E) p1 ev ii fn vals fs).
     + move=> ii fn2 fs /=; rewrite /do_inline; case: eqP => //= ?; reflexivity.
     rewrite (isem_cmd_ext h) => {h}.
-    by move: s t; apply it_sem_uincl_aux => // ???????; apply: wequiv_fun_rec.
+    by move: s t; apply it_sem_uincl_aux => // ?????; apply: wequiv_fun_rec.
   (* Second it works for fn1 *)
   move=> ? [? ->]; subst fn1 fd1; exists fd' => //.
   have : exists2 Xc,
@@ -1441,8 +1441,8 @@ Proof using rE_trans.
   have /(_ _ fn) := it_inline_fd_aux p (ev := ev) huniq' hinline.
   have := hrec fn; rewrite -catA /=.
   apply wiequiv_f_trans => //.
-  + by move=> vals1 vals2 fs1 fs2 [_ [<- ?]]; exists vals1, fs1.
-  move=> _ _ _ _ _ _ fr1 fr3 _ _ [fr2].
+  + by move=> valfs1 valfs2 [_ [<- ?]]; exists valfs1.
+  move=> _ _ _ fr1 fr3 _ _ [fr2].
   rewrite /fs_uincl /fs_rel => -[-> -> h1] [-> -> h2]; split => //.
   apply: values_uincl_trans h1 h2.
 Qed.

@@ -88,7 +88,7 @@ Proof.
   + by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
   + by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.
   move=> xs fn als es ii; apply wequiv_call_rel_uincl with checker_st_uincl tt => //.
-  move=> ?????; exact/wequiv_fun_rec.
+  move=> ???; exact/wequiv_fun_rec.
 Qed.
 
 End REC.
@@ -96,7 +96,7 @@ End REC.
 Lemma it_remove_init_fdP fn : wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
  rewrite /wiequiv_f.
- apply wequiv_fun_ind => {}fn _ vals _ fs ft [<- [<- hfsu]] fd hget.
+ apply wequiv_fun_ind => {}fn _ vals _ fs ft [/= <- [<- hfsu]] fd hget.
  exists (remove_init_fd is_reg_array fd).
  + by rewrite get_map_prog hget.
  move=> /= s hinit.
@@ -246,9 +246,9 @@ End REC.
 
 Lemma it_add_init_callP fn : wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof.
- apply: wequiv_fun_ind => {}fn _ vals _ fs _ [<- [<- <-]] fd hget.
- exists (add_init_fd fd).
- + by rewrite get_map_prog hget.
+ apply: wequiv_fun_ind => {}fn _ vals _ fs _ [/= <- [<- <-]] fd hget.
+ exists (add_init_fd (fd : fundef (pT:=progUnit))).
+ + by rewrite (get_map_prog (pT:=progUnit)) hget.
  move=> {hget}.
  rewrite /add_init_fd /=.
  set I := (I in add_init_c _ I _).

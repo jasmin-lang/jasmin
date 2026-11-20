@@ -158,7 +158,7 @@ Module INCL. Section INCL.
     + by move=> > hc ii; apply wequiv_for_rel_eq with checker_equal tt tt.
     + by move=> > hc hc' ii; apply wequiv_while_rel_eq with checker_equal tt.
     move=> ?????; apply wequiv_call_rel_eq with checker_equal tt => //.
-    by move=> ?????; apply: wequiv_fun_rec.
+    by move=> ???; apply: wequiv_fun_rec.
   Qed.
 
   End REC.
@@ -170,7 +170,7 @@ Module INCL. Section INCL.
 
   Lemma it_gd_incl_fun fn : wiequiv_f P1 P2 ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
   Proof using hincl.
-    apply: wequiv_fun_ind => {}fn _ vals _ fs ft [<- [<- <-]] fd ->.
+    apply: wequiv_fun_ind => {}fn _ vals _ fs ft [/= <- [<- <-]] fd ->.
     exists fd => //= s1 hinit; exists s1 => //.
     exists (st_equal tt), (st_equal tt); split => //; last by move=> s t vs /st_equalP <- ->; eexists; eauto.
     exact: it_gd_incl_fun_rec.
@@ -851,16 +851,16 @@ Module RGP. Section PROOFS.
     move=> xs fn als es ii d dc_ /=; t_xrbindP => xs' hxs' es' hes' <- /=.
     apply wequiv_call_rel_uincl_R with (checker_valid ii) d d => //.
     + by move=> > []. + by move=> > /st_relP [??]; apply st_relP.
-    by move => ?????; apply: wequiv_fun_rec.
+    by move => ???; apply: wequiv_fun_rec.
   Qed.
 
   End REC.
 
   Lemma it_remove_glob_call fn : wiequiv_f P P' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
   Proof using fds_ok uniq_gd.
-    apply: wequiv_fun_ind => {}fn _ vals _ fs fs' [<- [<- hfs]] fd hget.
+    apply: wequiv_fun_ind => {}fn _ vals _ fs fs' [/= <- [<- hfs]] fd hget.
     have [fd' [hget' hfd']]:= get_fundefP hget.
-    have fsi := fs_uincl_initialize (fd := fd) (fd' := fd').
+    have fsi := fs_uincl_initialize (fd := (fd : fundef (pT:=progUnit))) (fd' := fd').
     exists fd' => //.
     move: hfd'; rewrite /remove_glob_fundef; t_xrbindP => _tt hparams res1 hres1 [m' c'] hrm ?;subst fd' => /=.
     move=> s1 /fsi /= /(_ _ _ erefl erefl erefl erefl hfs)[] s1' hinit hs1.
@@ -903,8 +903,8 @@ Module RGP. Section PROOFS.
     have h2 := it_remove_glob_call (P:=P1) ev hfds huniq (wE:=wE) (rE:=rE0) (fn:=fn).
     move: h1 h2.
     apply wiequiv_f_trans => //.
-    + by move=> vals1 vals2 fs1 fs2 [] _ [] <- <-; exists vals1, fs1 => //; split => //; exact: fs_uinclR.
-    by move=> ?????? fs1 fs3 _ _ [fs2] <-.
+    + by move=> valfs1 valfs2 /= [] _ [] <- <-; exists valfs1 => //; split => //; exact: fs_uinclR.
+    by move=> ??? fs1 fs3 _ _ [fs2] <-.
   Qed.
 
   End IT.

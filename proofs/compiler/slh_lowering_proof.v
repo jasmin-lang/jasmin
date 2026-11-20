@@ -917,15 +917,15 @@ Qed.
 Instance slh_spec : EquivSpec :=
   {|
     rpreF_ :=
-      fun fn fn' vals vals' fs fs' =>
+      fun fn fn' valfs valfs' =>
         [/\ fn = fn'
-          , vals = vals'
-          , fs = fs'
-          & size (fun_info fn).1 = size (fvals fs) ->
-            List.Forall2 slh_t_spec (fvals fs) (fun_info fn).1
+          , valfs.1 = valfs'.1
+          , valfs.2 = valfs'.2
+          & size (fun_info fn).1 = size (fvals valfs.2) ->
+            List.Forall2 slh_t_spec (fvals valfs.2) (fun_info fn).1
         ];
     rpostF_ :=
-      fun fn _ _ _ _ _ fs fs' =>
+      fun fn _ _ _ fs fs' =>
         [/\ fs = fs' & List.Forall2 slh_t_spec (fvals fs) (fun_info fn).2 ];
   |}.
 
@@ -1072,7 +1072,7 @@ t_xrbindP=> _ _ ? hchkes hchkxs <- <-; apply (
   exact: check_f_argsP hwf hchkes hsemes.
 - by move=> s t vals _ vs _ [/st_relP [-> heq] _] <- [<- hvs].
 - by move=> ??; apply: wequiv_fun_rec.
-move=> _ _ fs _ fr _ [_ _ _ hpre] [<- hpos] s t s' [/st_relP [-> heq] [hmsf hvars]] hwrite.
+move=> /= _ _ fs _ fr _ [_ _ _ hpre] [<- hpos] s t s' [/st_relP [-> heq] [hmsf hvars]] hwrite.
 have [vm2' heq' hwrite'] := write_lvars_ext_eq (s1:=with_scs (with_mem _ _) _) heq hwrite.
 exists (with_vm s' vm2'); first (by rewrite hp_globs).
 split; first by apply st_relP.
@@ -1134,7 +1134,7 @@ End REC.
 
 Lemma it_lower_call {fn} : wiequiv_f p p' ev ev rpreF fn fn rpostF.
 Proof using hshparams hp.
-apply: wequiv_fun_ind => {}fn ? ?? fs ? [<- <- <- htin] fd
+apply: wequiv_fun_ind => {}fn ? ?? fs ? /= [<- <- <- htin] fd
   /(get_map_cfprog_name_gen hp_body) [] fd' /lower_fdP [].
 rewrite /check_fd /= (surjective_pairing (fun_info _)).
 t_xrbindP=> senv henv senv' hchk htout _ _ hals htyin hparams hlower htyout hret hextra
@@ -1171,9 +1171,9 @@ Lemma it_lower_call_export {fn} :
   wiequiv_f p p' ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
 Proof using hshparams hp.
 move: hp; rewrite /lower_slh_prog; t_xrbindP=> /allP h _ _ _ /h {}h.
-apply: wiequiv_f_weaken it_lower_call => //.
-- by move=> vals _ s _ [_ [<- <-]]; split=> // /all_is_slh_none /(_ h).
-by move=> _ _ _ _ o1 _ _ [<- _] /=.
+apply: wkequiv_io_weaken it_lower_call => //.
+- by move=> /= valfs _ [_ [<- <-]]; split=> // /all_is_slh_none /(_ h).
+by move=> _ _ o1 _ _ [<- _] /=.
 Qed.
 
 End IT.

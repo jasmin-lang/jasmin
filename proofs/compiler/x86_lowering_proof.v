@@ -1967,7 +1967,7 @@ Section PROOF.
     (* Call *)
     move=> xs fn als es ii /disj_fvars_vars_I_Ccall [hdisjx hdisje] /=.
     apply (wequiv_call_rel_eq (sip:=sip)) with checker_st_eq_ex fvars => //.
-    by move=> ?????; apply: (wequiv_fun_rec (spec := eq_spec)).
+    by move=> ???; apply: (wequiv_fun_rec (spec := eq_spec)).
   Qed.
 
   End REC.
@@ -1976,15 +1976,14 @@ Section PROOF.
   Lemma it_lower_callP fn :
     wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
   Proof using fvars_correct.
-    rewrite /wiequiv_f.
-    apply wequiv_fun_ind => {}fn _ vals _ fs _ [<- [<- <-]] fd hget.
+    apply wequiv_fun_ind => {}fn _ vals _ fs _ [/= <- [<- <-]] fd hget.
     have := fvars_fun hget.
     move=> /disjoint_union [Hdisjp /disjoint_union [Hdisjr Hdisjc]].
     rewrite get_map_prog hget /= /lower_fd.
     eexists; first reflexivity.
     move=> s.
     set c' := lowering.lower_cmd _ _ _ _.
-    move=> /(eq_initialize (fd':= with_body fd c')) -/(_ p' erefl erefl erefl erefl) hinit.
+    move=> /(eq_initialize (sip:=sip_of_asm_e) (fd':= with_body fd c')) -/(_ p' erefl erefl erefl erefl) hinit.
     exists s=> //; exists (eq_exc_fresh (env:=_)), (eq_exc_fresh (env:=_)); split => //=; last by apply st_eq_ex_finalize.
     subst c'; move: (f_body fd) Hdisjc.
     exact: it_lower_callP_rec.

@@ -679,8 +679,8 @@ Definition vs_expand_post fn vs1 vs2 :=
 
 Definition exp_spec :=
   {|
-    rpreF_ := λ (fn1 fn2 : funname) (vals1 vals2 : seq Z) (fs1 fs2 : fstate), fn1 = fn2 ∧ vals1 = vals2 /\ fs_rel (vs_expand_pre fn1) fs1 fs2;
-    rpostF_ := λ (fn1 _ : funname) (_ _ : seq Z) (_ _ fr1 fr2 : fstate), fs_rel (vs_expand_post fn1) fr1 fr2
+    rpreF_ := λ (fn1 fn2 : funname) valfs1 valfs2, fn1 = fn2 ∧ valfs1.1 = valfs2.1 /\ fs_rel (vs_expand_pre fn1) valfs1.2 valfs2.2;
+    rpostF_ := λ (fn1 _ : funname) _ _ (fr1 fr2 : fstate), fs_rel (vs_expand_post fn1) fr1 fr2
   |}.
 
 Section CMD.
@@ -786,9 +786,8 @@ End CMD.
 Lemma it_expand_callP_aux fn :
   wiequiv_f p1 p2 ev ev (rpreF (eS:=exp_spec)) fn fn (rpostF (eS:=exp_spec)).
 Proof using Hcomp Hstep1.
-  rewrite /wiequiv_f.
   apply wequiv_fun_ind => {}fn _ vals _ fs1 fs2
-    [<- [<- [hscs hmem [[expdin expdout] hexpd [vs /= hexpv hflat]]]]]
+    [/= <- [<- [hscs hmem [[expdin expdout] hexpd [vs /= hexpv hflat]]]]]
     fd hget1.
   have [fd1 [fd2 [m [inout [hget2 hsigs /=]]]]]:= all_checked hget1.
   rewrite /expand_fsig; t_xrbindP => -[mt finf].
@@ -876,14 +875,14 @@ Proof using Hcomp.
       by rewrite /expand_tyv; case: Mvar.get => //; t_xrbindP => _ <-.
     move/mapM2_Forall3: hz1; elim => //= > + _ ->.
     by rewrite /expand_tyv; case: Mvar.get => //; t_xrbindP => _ <-.
-  apply wiequiv_f_weaken with (rpreF (eS:=exp_spec s1)) (rpostF (eS:=exp_spec s1)) => //.
-  + move=> vals _ fs1 fs2 [] [_ [<- <-]] _ [s]; rewrite /initialize_funcall; t_xrbindP.
+  apply wkequiv_io_weaken with (rpreF (eS:=exp_spec s1) f f) (rpostF (eS:=exp_spec s1) f f) => //.
+  + move=> valfs1 valfs2 [] [/= _ [<- <-]] _ [s]; rewrite /initialize_funcall; t_xrbindP.
     move=> vs htri _ _ _; split => //; split => //; split => //.
     eexists; first exact hgets.
-    exists [seq [:: x] | x <- (fvals fs1)] => /=.
-    + by elim: (f_tyin fd) (fvals fs1) vs htri => [[]|> hrec []]//=; t_xrbindP=> > /hrec ->.
+    exists [seq [:: x] | x <- (fvals valfs1.2)] => /=.
+    + by elim: (f_tyin fd) (fvals valfs1.2) vs htri => [[]|> hrec []]//=; t_xrbindP=> > /hrec ->.
     by rewrite flatten_seq1.
-  move=> _ _ _ _ [scs1 mem1 vs1] [scs2 mem2 vs2] _ [/= <- <- [x]]; rewrite hget => -[?]; subst x.
+  move=> _ _ [scs1 mem1 vs1] [scs2 mem2 vs2] _ [/= <- <- [x]]; rewrite hget => -[?]; subst x.
   move=> [hsz [x]]; rewrite hgets /= => -[?]; subst x => /=.
   move=> [vs1'] + ->.
   have -> : expand_vs (map (fun=> None) (f_tyout fd)) vs1 = ok [seq [:: x] | x <- vs1].

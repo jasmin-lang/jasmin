@@ -503,7 +503,7 @@ Context
     repeat setoid_rewrite Eqit.bind_ret_l.
     rewrite /isem_pexprs eval_args' /= Eqit.bind_ret_l Eqit.bind_bind.
     set fs1 := mk_fstate ves s; set fs2 := mk_fstate ves (with_vm s vmx).
-    apply xrutt_facts.xrutt_bind with (post_eq f f [seq eval env i | i <- als] [seq eval env i | i <- als] fs1 fs2);
+    apply xrutt_facts.xrutt_bind with (post_eq f f ([seq eval env i | i <- als], fs1) ([seq eval env i | i <- als], fs2));
       first exact/(wequiv_fun_rec (ev1 := ev) (ev2 := ev)).
     move=> fr _ <-.
     rewrite /upd_estate.
@@ -523,7 +523,7 @@ Context
   Lemma it_makeReferenceArguments_callP fn :
     wiequiv_f p p' ev ev pre_eq fn fn post_eq.
   Proof using Hp.
-    apply: wequiv_fun_ind => {}fn _ vals _ fs _ [<- [<- <-]] fd hget.
+    apply: wequiv_fun_ind => {}fn _ vals _ fs _ [/= <- [<- <-]] fd hget.
     move: Hp; rewrite /makereference_prog; t_xrbindP.
     move=> pfuncs' hmap heq.
     have [fd' hfd' hget'] := get_map_cfprog_gen hmap hget.

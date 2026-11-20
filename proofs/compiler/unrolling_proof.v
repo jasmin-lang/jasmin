@@ -108,7 +108,7 @@ Section PROOF.
       by apply wkequiv_bind with (st_eq tt).
     + by move=> > hc hc' ii /=; surjpairing; apply wequiv_while_rel_eq with checker_st_eq tt.
     move=> ????? /=; surjpairing; apply wequiv_call_rel_eq with checker_st_eq tt => //.
-    by move=> ?????; apply: wequiv_fun_rec.
+    by move=> ???; apply: wequiv_fun_rec.
   Qed.
 
   End REC.
@@ -119,8 +119,7 @@ Section PROOF.
   Lemma it_unroll_callP fn :
     wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
   Proof.
-    rewrite /wiequiv_f.
-    apply wequiv_fun_ind => {}fn _ vals _ fs _ [<- [<- <-]] fd hfd.
+    apply wequiv_fun_ind => {}fn _ vals _ fs _ [/= <- [<- <-]] fd hfd.
     exists (unroll_fun (fn, fd)).1.2.
     + by apply: p'_get_fundef hfd.
     move=> /= s {hfd} hinit.

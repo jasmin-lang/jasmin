@@ -1240,7 +1240,7 @@ Proof.
     by apply: remove_cpm_write1 hc' => //; rewrite write_i_while; clear; SvD.fsetdec.
   move=> xs f als es ii m /=.
   rewrite (surjective_pairing (const_prop_rvs _ _ _)) /=.
-  apply wequiv_call_rel_uincl with checker_cp m => // ?????.
+  apply wequiv_call_rel_uincl with checker_cp m => // ???.
   exact: wequiv_fun_rec.
 Qed.
 
@@ -1248,11 +1248,10 @@ End REC.
 
 Lemma it_const_prop_callP fn : wiequiv_f p p' ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
-  rewrite /wiequiv_f.
-  apply wequiv_fun_ind => {}fn _ vals _ fs ft [<- [<- hfsu]] fd hget.
+  apply wequiv_fun_ind => {}fn _ vals _ fs ft [/= <- [<- hfsu]] fd hget.
   exists (const_prop_fun (p_globs p) fd).
   + by rewrite get_map_prog hget.
-  move=> {hget} env1 env2 s1 hinit; subst env1 env2. (* FIXME: playing with these local defs is painful, here /= is too aggressive *)
+  move=> {hget} s1 hinit.
   set env := create_env _ _.
   have [hin hout hex hpar hres] :
       [/\ f_tyin fd = f_tyin (const_prop_fun gd fd)

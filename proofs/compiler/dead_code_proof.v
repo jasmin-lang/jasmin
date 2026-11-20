@@ -259,8 +259,8 @@ Section PROOF.
   #[local] Hint Resolve checker_st_uincl_onP : core.
 
   Definition dc_spec := {|
-    rpreF_ := fun fn1 fn2 vals1 vals2 fs1 fs2 => fn1 = fn2 /\ vals1 = vals2 /\ fs_uincl fs1 fs2;
-    rpostF_ := fun fn1 _ _ _ _ _ fr1 fr2 =>
+    rpreF_ := fun fn1 fn2 valfs1 valfs2 => fn1 = fn2 /\ valfs1.1 = valfs2.1 /\ fs_uincl valfs1.2 valfs2.2;
+    rpostF_ := fun fn1 _ _ _ fr1 fr2 =>
       fs_rel (fun vres vres' => values_uincl (fn_keep_only onfun fn1 vres) vres') fr1 fr2
    |}.
 
@@ -372,8 +372,7 @@ Section PROOF.
   Lemma it_dead_code_callP fn :
     wiequiv_f p p' ev ev (rpreF (eS:= dc_spec)) fn fn (rpostF (eS:=dc_spec)).
   Proof using is_move_opP dead_code_ok.
-    rewrite /wiequiv_f.
-    apply wequiv_fun_ind => {}fn _ vals _ fs ft [<- [<- hfsu]] fd hget.
+    apply wequiv_fun_ind => {}fn _ vals _ fs ft [/= <- [<- hfsu]] fd hget.
     have dcok : map_cfprog_name (dead_code_fd is_move_op apply_ret_annot do_nop onfun) (p_funcs p) = ok (p_funcs p').
     + by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? ? <-.
     have [fd' hfd' hget'] := get_map_cfprog_name_gen dcok hget.
@@ -425,9 +424,9 @@ Lemma it_dead_code_tokeep_callPu (p p': uprog) apply_ret_annot do_nop onfun fn e
   dead_code_prog_tokeep is_move_op apply_ret_annot do_nop onfun p = ok p' ->
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=dc_spec onfun)).
 Proof using is_move_opP.
-  move=> hd vals1 vals2.
+  move=> hd.
   apply wkequiv_io_weaken with
-   (rpreF (eS:= dc_spec onfun) fn fn vals1 vals2) (rpostF (eS:=dc_spec onfun) fn fn vals1 vals2) => //=.
+   (rpreF (eS:= dc_spec onfun) fn fn) (rpostF (eS:=dc_spec onfun) fn fn) => //=.
   + by move=> ?? [_ [<- <-]]; split.
   apply (it_dead_code_callP ev hd).
 Qed.
@@ -436,9 +435,9 @@ Lemma it_dead_code_tokeep_callPs (p p': sprog) apply_ret_annot do_nop onfun fn w
   dead_code_prog_tokeep is_move_op apply_ret_annot do_nop onfun p = ok p' ->
   wiequiv_f p p' wrip wrip (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=dc_spec onfun)).
 Proof using is_move_opP.
-  move=> hd vals1 vals2.
+  move=> hd.
   apply wkequiv_io_weaken with
-   (rpreF (eS:= dc_spec onfun) fn fn vals1 vals2) (rpostF (eS:=dc_spec onfun) fn fn vals1 vals2) => //=.
+   (rpreF (eS:= dc_spec onfun) fn fn) (rpostF (eS:=dc_spec onfun) fn fn) => //=.
   + by move=> ?? [_ [<- <-]]; split.
   apply (it_dead_code_callP wrip hd).
 Qed.

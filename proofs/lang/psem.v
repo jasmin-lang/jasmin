@@ -149,7 +149,7 @@ Let Pi_r i := forall ii, Pi (MkI ii i).
 Let Pc c := wequiv p p' ev ev' (st_eq (env1:=env) (env2:=env) tt) c c (st_eq (env1:=env) (env2:=env) tt).
 
 Lemma wequiv_st_eq c :
-  (forall ii f, wequiv_f_ii p p' ev ev' (λ (_ _ : funname) vals1 vals2 fs1 fs2, vals1 = vals2 /\ fs1 = fs2) ii ii f f (λ (_ _ : funname) (_ _ : seq Z) (_ _ : fstate), eq)) ->
+  (forall ii f, wequiv_f_ii p p' ev ev' (λ (_ _ : funname) valfs1 valfs2, valfs1.1 = valfs2.1 /\ valfs1.2 = valfs2.2) ii ii f f (λ (_ _ : funname) (_ _ : seq Z * fstate), eq)) ->
   Pc c.
 Proof using eq_globs.
   move=> hf; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}.
@@ -233,7 +233,7 @@ Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 Lemma wequiv_rec_st_eq env c : wequiv_rec (env1:=env) (env2:=env) p p' ev ev' eq_spec (st_eq tt) c c (st_eq tt).
 Proof using eq_globs.
   apply wequiv_st_eq.
-  by move=> ii f vals1 vals2 s t [<- <-]; apply xrutt_facts.xrutt_trigger.
+  by move=> ii f [vals1 fs1] [vals2 fs2] [<- <-]; apply xrutt_facts.xrutt_trigger.
 Qed.
 
 End REC.
@@ -260,16 +260,16 @@ Proof using spp. (* FIXME: can probably be proved without spp *)
 Qed.
 
 Lemma wiequiv_f_eq fn :
-  wiequiv_f p p ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
+  wiequiv_f p p ev ev pre_eq fn fn post_eq.
 Proof.
-rewrite /wiequiv_f; apply wequiv_fun_ind => {}fn _ {}vals _ fs _ [<- [<- <-]] fd hget.
-exists fd => // env1 env2 s1 ?; exists s1 => //; exists (st_eq tt), (st_eq tt).
+apply wequiv_fun_ind => {}fn _ {}vals _ fs _ [/= <- [<- <-]] fd hget.
+exists fd => // s1 ?; exists s1 => //; exists (st_eq tt), (st_eq tt).
 split=> //; first exact/wequiv_rec_st_eq.
 exact/st_eq_finalize.
 Qed.
 
 Lemma wiequiv_st_eq env c : wiequiv (env1:=env) (env2:=env) p p ev ev (st_eq tt) c c (st_eq tt).
-Proof. by apply wequiv_st_eq => // ii f ?????; apply wiequiv_f_eq. Qed.
+Proof. by apply wequiv_st_eq => // ii f ???; apply wiequiv_f_eq. Qed.
 
 End WIEQUIV_F.
 
@@ -457,7 +457,7 @@ Let Pc c :=
 
 Lemma it_read_cP_aux c X :
   (forall ii fn,
-     wequiv_f_ii p p' ev ev' (λ (_ _ : funname) vals1 vals2 fs1 fs2, vals1 = vals2 /\ fs1 = fs2) ii ii fn fn (λ _ _ _ _ _ _, eq)) ->
+     wequiv_f_ii p p' ev ev' (λ (_ _ : funname) valfs1 valfs2, valfs1.1 = valfs2.1 /\ valfs1.2 = valfs2.2) ii ii fn fn (λ _ _ _ _, eq)) ->
   Sv.Subset (read_c c) X ->
   wequiv p p' ev ev' (st_eq_on (env1:=env) (env2:=env) X) c c (st_eq_on X).
 Proof using eq_globs.
@@ -510,7 +510,7 @@ Lemma it_read_cP_rec X c :
   wequiv_rec p p' ev ev' eq_spec (st_eq_on (env1:=env) (env2:=env) X) c c (st_eq_on X).
 Proof using eq_globs.
   apply it_read_cP_aux.
-  by move=> ii f vals1 vals2 s t [<- <-]; apply xrutt_facts.xrutt_trigger.
+  by move=> ii f valfs1 valfs2 [<- <-]; apply xrutt_facts.xrutt_trigger.
 Qed.
 
 End REC.
@@ -527,8 +527,8 @@ Lemma it_read_cP X c :
   Sv.Subset (read_c c) X ->
   wiequiv p p ev ev (st_eq_on (env1:=env) (env2:=env) X) c c (st_eq_on X).
 Proof.
-  apply it_read_cP_aux => //= ii fn vals1 vals2 i1 i2 h.
-  have /(_ vals1 vals2 i1 i2) := [elaborate wiequiv_f_eq p ev (fn:=fn)].
+  apply it_read_cP_aux => //= ii fn valfs1 valfs2 h.
+  have /(_ valfs1 valfs2) := [elaborate wiequiv_f_eq p ev (fn:=fn)].
   by apply.
 Qed.
 
@@ -638,7 +638,7 @@ Let Pc c :=
 
 Lemma it_sem_uincl_aux c :
   (forall ii fn,
-     wequiv_f_ii p p' ev ev' (λ (_ _ : funname) vals1 vals2 fs1 fs2, vals1 = vals2 /\ fs_uincl fs1 fs2) ii ii fn fn (λ _ _ _ _  _ _, fs_uincl)) ->
+     wequiv_f_ii p p' ev ev' (λ (_ _ : funname) valfs1 valfs2, valfs1.1 = valfs2.1 /\ fs_uincl valfs1.2 valfs2.2) ii ii fn fn (λ _ _  _ _, fs_uincl)) ->
   wequiv p p' ev ev' (st_uincl (env1:=env) (env2:=env) tt) c c (st_uincl tt).
 Proof using eq_globs.
   move=> hfn; apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}.
@@ -664,8 +664,8 @@ Context (p : prog) (ev: extra_val_t).
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
 Definition uincl_spec : EquivSpec :=
-  {| rpreF_ := fun (fn1 fn2 : funname) (vals1 vals2 : seq Z) (fs1 fs2 : fstate) => fn1 = fn2 /\ vals1 = vals2 /\ fs_uincl fs1 fs2
-   ; rpostF_ := fun (fn1 fn2 : funname) (vals1 vals2 : seq Z) (fs1 fs2 fr1 fr2: fstate) => fs_uincl fr1 fr2 |}.
+  {| rpreF_ := fun (fn1 fn2 : funname) valfs1 valfs2 => fn1 = fn2 /\ valfs1.1 = valfs2.1 /\ fs_uincl valfs1.2 valfs2.2
+   ; rpostF_ := fun (fn1 fn2 : funname) valfs1 valfs2 (fr1 fr2: fstate) => fs_uincl fr1 fr2 |}.
 
 Lemma eq_initialize env p' fd fd' fs s:
   f_tyin fd = f_tyin fd' ->
@@ -729,17 +729,17 @@ Qed.
 Lemma it_sem_uincl_f fn :
   wiequiv_f p p ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
-rewrite /wiequiv_f. apply wequiv_fun_ind => {}fn _ vals _ fs1 fs2 [<- [<- hu]] fd ->.
-exists fd => // env1 env2 s /(fs_uincl_initialize erefl erefl erefl erefl hu) [t] -> {}hu.
+apply wequiv_fun_ind => {}fn _ vals _ fs1 fs2 [/= <- [<- hu]] fd ->.
+exists fd => // s /(fs_uincl_initialize erefl erefl erefl erefl hu) [t] -> {}hu.
 exists t => //; exists (st_uincl tt), (st_uincl tt); split=> //.
-+ apply it_sem_uincl_aux => // ii fn' vals1' vals2' fs1' fs2' h; exact/wequiv_fun_rec.
++ apply it_sem_uincl_aux => // ii fn' valfs1' valfs2' h; exact/wequiv_fun_rec.
 exact/fs_uincl_finalize.
 Qed.
 
 Lemma it_sem_uincl env c :
   wiequiv (env1:=env) (env2:=env) p p ev ev (st_uincl tt) c c (st_uincl tt).
 Proof.
-  by apply it_sem_uincl_aux => // ? fn ???? h; apply it_sem_uincl_f.
+  by apply it_sem_uincl_aux => // ? fn ?? h; apply it_sem_uincl_f.
 Qed.
 
 End REFL.
@@ -756,7 +756,7 @@ Lemma it_sem_uincl_rec env c :
   wequiv_rec (env1:=env) (env2:=env) p p' ev ev' uincl_spec (st_uincl tt) c c (st_uincl tt).
 Proof using eq_globs.
   apply it_sem_uincl_aux => //.
-  by move=> ii f vals1 vals2 s t [? hu]; apply xrutt_facts.xrutt_trigger.
+  by move=> ii f valfs1 valfs2 [? hu]; apply xrutt_facts.xrutt_trigger.
 Qed.
 
 End REC.
@@ -818,7 +818,7 @@ Let Pc c :=
 
 Lemma it_eq_cmdP_aux c :
   (forall ii ii' fn,
-     wequiv_f_ii p p' ev ev' (λ (_ _ : funname) vals1 vals2 fs1 fs2, vals1 = vals2 /\ fs_uincl fs1 fs2) ii ii' fn fn (λ _ _ _ _ _ _, fs_uincl)) ->
+     wequiv_f_ii p p' ev ev' (λ (_ _ : funname) valfs1 valfs2, valfs1.1 = valfs2.1 /\ fs_uincl valfs1.2 valfs2.2) ii ii' fn fn (λ _ _ _ _, fs_uincl)) ->
   forall c', eq_cmd c c' ->
   wequiv p p' ev ev' (st_uincl (env1:=env) (env2:=env) tt) c c' (st_uincl (env1:=env) (env2:=env) tt).
 Proof using eq_globs.
@@ -868,7 +868,7 @@ Lemma it_eq_cmdP_rec env c c' :
   wequiv_rec p p' ev ev' uincl_spec (st_uincl (env1:=env) (env2:=env) tt) c c' (st_uincl (env1:=env) (env2:=env) tt).
 Proof using eq_globs.
   apply it_eq_cmdP_aux => //.
-  by move=> ii ii' f vals1 vals2 s t hu; apply xrutt_facts.xrutt_trigger.
+  by move=> ii ii' f valfs1 valfs2 hu; apply xrutt_facts.xrutt_trigger.
 Qed.
 
 End REC.
@@ -910,8 +910,8 @@ apply: (
     (rpostF23 := rpostF (eS := uincl_spec))
     _ _ h
 ).
-- move=> vals1 vals3 fs1 s3 [<- [<- hincl]]; by exists vals1, fs1.
-- move=> vals1 vals2 vals3 fs1 fs2 fs3 fr1 fr3 [<- [<- <-]] [_ [<- hincl]] [s2' [?? hincl1'] [?? hincl2']].
+- move=> valfs1 valfs3 [/= <- [<- hincl]]; by exists valfs1.
+- move=> valfs1 valfs2 valfs3 fr1 fr3 [/= <- [<- <-]] [_ [_ hincl]] [s2' [?? hincl1'] [?? hincl2']].
   split; [congruence | congruence|].
   exact: values_uincl_trans hincl1' hincl2'.
 exact: it_sem_uincl_f.
@@ -922,8 +922,11 @@ Lemma it_sem_refl_EE_UU :
   wiequiv_f (rpreF (eS := uincl_spec)) fn1 fn2 (rpostF (eS := uincl_spec)).
 Proof using rE_trans.
   move=> h; apply: it_sem_refl_EU_UU.
-  apply: wiequiv_f_weaken h => //.
-  move=> ?????? [_ [_ <-]] <- /=.
+  apply: (
+           wkequiv_io_weaken
+             (P := rpreF (eS := eq_spec) fn1 fn2)
+             (Q := rpostF (eS := eq_spec) fn1 fn2)
+         ) => //= ???? _ <-.
   exact: fs_uinclR.
 Qed.
 
@@ -947,85 +950,86 @@ Context
   {fn1 fn2 fn3 : funname}
 .
 
-Lemma rpreF_trans_eq_eq_eq vals1 vals3 fs1 fs3 :
-  pre_eq fn1 fn2 vals1 vals3 fs1 fs3 ->
-  exists vals2 fs2,
-    pre_eq fn1 fn2 vals1 vals2 fs1 fs2
-    /\ pre_eq fn1 fn2 vals2 vals3 fs2 fs3.
-Proof. move=> [<- [<- <-]]; by exists vals1, fs1. Qed.
+Lemma rpreF_trans_eq_eq_eq valfs1 valfs3 :
+  pre_eq fn1 fn2 valfs1 valfs3 ->
+  exists2 valfs2,
+    pre_eq fn1 fn2 valfs1 valfs2
+    & pre_eq fn1 fn2 valfs2 valfs3.
+Proof. move=> [/= <- [<- <-]]; by exists valfs1. Qed.
 
-Lemma rpreF_trans_eq_uincl_eq vals1 vals3 fs1 fs3 :
-  pre_eq fn1 fn2 vals1 vals3 fs1 fs3 ->
-  exists vals2 fs2,
-    pre_incl fn1 fn2 vals1 vals2 fs1 fs2
-    /\ pre_eq fn1 fn2 vals2 vals3 fs2 fs3.
-Proof. by move=> [<- [<- <-]]; exists vals1, fs1; split=> //; exact: fs_uinclR. Qed.
+Lemma rpreF_trans_eq_uincl_eq valfs1 valfs3 :
+  pre_eq fn1 fn2 valfs1 valfs3 ->
+  exists2 valfs2,
+    pre_incl fn1 fn2 valfs1 valfs2
+    & pre_eq fn1 fn2 valfs2 valfs3.
+Proof. by move=> [/= <- [<- <-]]; exists valfs1 => //; exact: fs_uinclR. Qed.
 
-Lemma rpreF_trans_uincl_uincl_uincl vals1 vals3 fs1 fs3 :
-  pre_incl fn1 fn2 vals1 vals3 fs1 fs3 ->
-  exists vals2 fs2,
-    pre_incl fn1 fn2 vals1 vals2 fs1 fs2
-    /\ pre_incl fn1 fn2 vals2 vals3 fs2 fs3.
-Proof. by move=> [<- [<- ?]]; exists vals1, fs1; split=> //; exact: fs_uinclR. Qed.
+Lemma rpreF_trans_uincl_uincl_uincl valfs1 valfs3 :
+  pre_incl fn1 fn2 valfs1 valfs3 ->
+  exists2 valfs2,
+    pre_incl fn1 fn2 valfs1 valfs2
+    & pre_incl fn1 fn2 valfs2 valfs3.
+Proof. by move=> [/= <- [<- ?]]; exists valfs1 => //; exact: fs_uinclR. Qed.
 
-Lemma rpostF_trans_eq_eq_eq_uincl vals1 vals2 vals3 fs1 fs2 fs3 r1 r3 :
-  pre_eq fn1 fn2 vals1 vals2 fs1 fs2 ->
-  pre_eq fn2 fn3 vals2 vals3 fs2 fs3 ->
+Lemma rpostF_trans_eq_eq_eq_uincl valfs1 valfs2 valfs3 r1 r3 :
+  pre_eq fn1 fn2 valfs1 valfs2 ->
+  pre_eq fn2 fn3 valfs2 valfs3 ->
   rcompose
-    (post_eq fn1 fn2 vals1 vals2 fs1 fs2)
-    (post_incl fn2 fn3 vals2 vals3 fs2 fs3)
+    (post_eq fn1 fn2 valfs1 valfs2)
+    (post_incl fn2 fn3 valfs2 valfs3)
     r1 r3 ->
-  post_incl fn1 fn3 vals1 vals3 fs1 fs3 r1 r3.
-Proof. by move=> [<- [<- h1]] [<- [<- <-]] [] _ <-. Qed.
+  post_incl fn1 fn3 valfs1 valfs3 r1 r3.
+Proof. by move=> _ _ [] _ <-. Qed.
 
-Lemma rpostF_trans_uincl_uincl_uincl_uincl vals1 vals2 vals3 fs1 fs2 fs3 r1 r3 :
-  pre_incl fn1 fn2 vals1 vals2 fs1 fs2 ->
-  pre_incl fn2 fn3 vals2 vals3 fs2 fs3 ->
+(* FIXME: the two first hyps are never used ?? *)
+Lemma rpostF_trans_uincl_uincl_uincl_uincl valfs1 valfs2 valfs3 r1 r3 :
+  pre_incl fn1 fn2 valfs1 valfs2 ->
+  pre_incl fn2 fn3 valfs2 valfs3 ->
   rcompose
-    (post_incl fn1 fn2 vals1 vals2 fs1 fs2)
-    (post_incl fn2 fn3 vals2 vals3 fs2 fs3)
+    (post_incl fn1 fn2 valfs1 valfs2)
+    (post_incl fn2 fn3 valfs2 valfs3)
     r1 r3 ->
-  post_incl fn1 fn3 vals1 vals3 fs1 fs3 r1 r3.
+  post_incl fn1 fn3 valfs1 valfs3 r1 r3.
 Proof.
-move=> [<- [<- h1]] [<- [<- h2]] [] r2 [?? hvals1] [?? hvals2]; split.
+move=> _ _ [] r2 [?? hvals1] [?? hvals2]; split.
 1-2: congruence. exact: values_uincl_trans hvals1 hvals2.
 Qed.
 
-Lemma rpostF_trans_eq_eq_uincl_uincl vals1 vals2 vals3 fs1 fs2 fs3 r1 r3 :
-  pre_eq fn1 fn2 vals1 vals2 fs1 fs2 ->
-  pre_eq fn2 fn3 vals2 vals3 fs2 fs3 ->
+Lemma rpostF_trans_eq_eq_uincl_uincl valfs1 valfs2 valfs3 r1 r3 :
+  pre_eq fn1 fn2 valfs1 valfs2 ->
+  pre_eq fn2 fn3 valfs2 valfs3 ->
   rcompose
-    (post_incl fn1 fn2 vals1 vals2 fs1 fs2)
-    (post_incl fn2 fn3 vals2 vals3 fs2 fs3)
+    (post_incl fn1 fn2 valfs1 valfs2)
+    (post_incl fn2 fn3 valfs2 valfs3)
     r1 r3 ->
-  post_incl fn1 fn3 vals1 vals3 fs1 fs3 r1 r3.
+  post_incl fn1 fn3 valfs1 valfs3 r1 r3.
 Proof.
-move=> [<- [<- _]] [<- [<- <-]] [] {}fs3 [?? hvals1] [?? hvals2]; split.
+move=> _ _ [] {}fs3 [?? hvals1] [?? hvals2]; split.
 1-2: congruence. exact: values_uincl_trans hvals1 hvals2.
 Qed.
 
-Lemma rpostF_trans_uincl_eq_uincl_uincl vals1 vals2 vals3 fs1 fs2 fs3 r1 r3 :
-  pre_incl fn1 fn2 vals1 vals2 fs1 fs2 ->
-  pre_eq fn2 fn3 vals2 vals3 fs2 fs3 ->
+Lemma rpostF_trans_uincl_eq_uincl_uincl valfs1 valfs2 valfs3 r1 r3 :
+  pre_incl fn1 fn2 valfs1 valfs2 ->
+  pre_eq fn2 fn3 valfs2 valfs3 ->
   rcompose
-    (post_incl fn1 fn2 vals1 vals2 fs1 fs2)
-    (post_incl fn2 fn3 vals2 vals3 fs2 fs3)
+    (post_incl fn1 fn2 valfs1 valfs2)
+    (post_incl fn2 fn3 valfs2 valfs3)
     r1 r3 ->
-  post_incl fn1 fn3 vals1 vals3 fs1 fs3 r1 r3.
+  post_incl fn1 fn3 valfs1 valfs3 r1 r3.
 Proof.
-move=> [<- [<- _]] [<- [<- <-]] [] {}fs3 [?? hvals1] [?? hvals2]; split.
+move=> _ _ [] {}fs3 [?? hvals1] [?? hvals2]; split.
 1-2: congruence. exact: values_uincl_trans hvals1 hvals2.
 Qed.
 
-Lemma rpostF_trans_eq_uincl_eq_uincl vals1 vals2 vals3 fs1 fs2 fs3 r1 r3 :
-  pre_eq fn1 fn2 vals1 vals2 fs1 fs2 ->
-  pre_incl fn2 fn3 vals2 vals3 fs2 fs3 ->
+Lemma rpostF_trans_eq_uincl_eq_uincl valfs1 valfs2 valfs3 r1 r3 :
+  pre_eq fn1 fn2 valfs1 valfs2 ->
+  pre_incl fn2 fn3 valfs2 valfs3 ->
   rcompose
-    (post_eq fn1 fn2 vals1 vals2 fs1 fs2)
-    (post_incl fn2 fn3 vals2 vals3 fs2 fs3)
+    (post_eq fn1 fn2 valfs1 valfs2)
+    (post_incl fn2 fn3 valfs2 valfs3)
     r1 r3 ->
-  post_incl fn1 fn3 vals1 vals3 fs1 fs3 r1 r3.
-Proof. by move=> [<- [<- _]] [<- [<- [?? hvals1]]] [] _ <- [?? hvals2]. Qed.
+  post_incl fn1 fn3 valfs1 valfs3 r1 r3.
+Proof. by move=> _ _ [] _ <- [?? hvals2]. Qed.
 
 End REL_COMPOSE.
 

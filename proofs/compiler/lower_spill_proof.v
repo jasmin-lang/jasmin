@@ -541,7 +541,7 @@ Proof using spill_prog_ok.
   apply wequiv_call_rel_eq with checker_st_ve senv => //.
   + split => //; clear -hsub; SvD.fsetdec.
   + split => //; clear -hsub; SvD.fsetdec.
-  by move=> ?? fs fs' [<- <-]; exact/wequiv_fun_rec.
+  by move=> valfs valfs' [<- <-]; exact/wequiv_fun_rec.
 Qed.
 
 End REC.
@@ -552,7 +552,7 @@ Lemma it_lower_spill_fdP fn :
   wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof using spill_prog_ok.
   rewrite /wiequiv_f.
-  apply wequiv_fun_ind => {}fn _ vals _ fs _ [<- [<- <-]] fd hget.
+  apply wequiv_fun_ind => {}fn _ vals _ fs _ [/= <- [<- <-]] fd hget.
   have spillok : map_cfprog_name (spill_fd fresh_var_ident spill_to_mmx) (p_funcs p) = ok (p_funcs p').
   + by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? ? <-.
   have [fd' hfd'1 hfd'2] := get_map_cfprog_name_gen spillok hget.

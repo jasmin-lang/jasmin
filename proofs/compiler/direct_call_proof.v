@@ -154,7 +154,7 @@ Proof.
   + by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
   + by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.
   move=> xs fn als es ii; apply wequiv_call_rel_uincl with checker_st_uincl tt => //.
-  by move=> ?????; apply: wequiv_fun_rec.
+  by move=> ???; apply: wequiv_fun_rec.
 Qed.
 
 End REC.
@@ -163,8 +163,7 @@ Lemma it_indirect_to_direct fn :
   wiequiv_f (dc1:=indirect_c) (dc2:=direct_c)
     p p ev ev (rpreF (eS:=uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
 Proof.
-  rewrite /wiequiv_f.
-  apply wequiv_fun_ind => {}fn _ vals _ fs1 fs2 [<-] [<-] [hscs hmem hu] fd hget.
+  apply wequiv_fun_ind => {}fn _ vals _ fs1 fs2 /= [<-] [<-] [hscs hmem hu] fd hget.
   exists fd => //= s.
   rewrite /initialize_funcall; t_xrbindP => vs htra s0 hinit hw.
   have -> /= := mapM2_dc_truncate_weak hu htra.

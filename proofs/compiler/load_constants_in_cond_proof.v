@@ -205,7 +205,7 @@ Proof using Hp.
   apply wequiv_call_rel_eq with checker_st_eq_on X => //.
   + by split => //; clear -hsub; SvD.fsetdec.
   + by split => //; clear -hsub; SvD.fsetdec.
-  by move=> ?????; apply: wequiv_fun_rec.
+  by move=> ???; apply: wequiv_fun_rec.
 Qed.
 
 End REC.
@@ -213,8 +213,7 @@ End REC.
 Lemma it_load_constants_progP_aux fn:
   wiequiv_f p p' ev ev (rpreF (eS:=eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof using Hp.
-  rewrite /wiequiv_f.
-  apply wequiv_fun_ind => {}fn _ vals _ fs _ [<-] [<-] <- fd hget.
+  apply wequiv_fun_ind => {}fn _ vals _ fs _ /= [<-] [<-] <- fd hget.
   move: Hp; rewrite /load_constants_prog; t_xrbindP => funcs Hmap hp'.
   case: (get_map_cfprog_gen Hmap hget) => fd' Hupdate hget'.
   rewrite -{1}hp' /= hget'.

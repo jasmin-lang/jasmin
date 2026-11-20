@@ -154,7 +154,7 @@ Section WITH_PARAMS.
       - by move=> > hc ii; apply wequiv_for_rel_uincl with checker_st_uincl tt tt.
       - by move=> > ?? ii; apply wequiv_while_rel_uincl with checker_st_uincl tt.
       move=> xs fn als es ii; apply wequiv_call_rel_uincl with checker_st_uincl tt => //.
-      by move=> ?????; apply hrec. (* FIXME: why not wequiv_fun_rec? *)
+      by move=> ???; apply hrec. (* FIXME: why not wequiv_fun_rec? *)
     Qed.
 
     End REC.
@@ -165,9 +165,7 @@ Section WITH_PARAMS.
     Theorem it_insert_renaming_callP fn :
       wiequiv_f p p' ev ev pre_incl fn fn post_incl.
     Proof.
-      rewrite /wiequiv_f => vals1 vals2.
-      apply wequiv_fun_ind' => {} fn ? vals _ fs ft [] <- [] <- hfsu fd hget.
-      move=> {vals1 vals2}.
+      apply wequiv_fun_ind' => {} fn ? vals _ fs ft /= [] <- [] <- hfsu fd hget.
       exists (insert_renaming_fd insert_renaming_p fd).
       - by rewrite get_map_prog hget.
       move => _; split => //= s hinit.

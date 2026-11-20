@@ -569,7 +569,7 @@ Section PROOF.
     move=> xs f als es ii dead_vars r1 r2 ii2 [] // xs2 f2 als2 es2 /=.
     t_xrbindP => re /eqP <- /eqP <- hces hcxs.
     apply wequiv_call_rel_uincl with checker_alloc re => //.
-    by move=> ?????; apply: wequiv_fun_rec.
+    by move=> ???; apply: wequiv_fun_rec.
   Qed.
 
   End REC.
@@ -577,8 +577,7 @@ Section PROOF.
   Lemma it_alloc_callP fn :
     wiequiv_f p1 p2 ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
   Proof using init_allocP check_f_extraP Hcheck eq_globs.
-    rewrite /wiequiv_f.
-    apply wequiv_fun_ind => {}fn _ vals _ fs ft [<- [<- hfsu]] fd hget.
+    apply wequiv_fun_ind => {}fn _ vals _ fs ft [/= <- [<- hfsu]] fd hget.
     have [fd2 [Hget2 /=]]:= all_checked hget.
     t_xrbindP => /and4P [] _ /eqP hal htyin htyout r0 Hcinit r1 /check_f_extraP[] Hcparams hinit hfinalize r2 Hcc r3 Hcres _.
     exists fd2 => // s11 Hi.
