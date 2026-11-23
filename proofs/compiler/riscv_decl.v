@@ -144,7 +144,8 @@ Notation rflag := empty.
 #[only(eqbOK)] derive
 Variant riscv_caimm_cond :=
   | CAimmC_riscv_12bits_signed
-  | CAimmC_riscv_5bits_unsigned.
+  | CAimmC_riscv_5bits_unsigned
+  | CAimmC_riscv_2bits_unsigned.
 
 #[ export ]
 Instance eqTC_riscv_caimm_cond : eqTypeC riscv_caimm_cond :=
@@ -158,12 +159,16 @@ Definition riscv_check_CAimm (checker : riscv_caimm_cond) ws (w : word ws) : boo
   | CAimmC_riscv_5bits_unsigned =>
      let i := wunsigned w in
      (i <=? 31)%Z
+  | CAimmC_riscv_2bits_unsigned =>
+     let i := wunsigned w in
+     (i <=? 3)%Z
   end.
 
 Definition riscv_caimm_cond_pp (checker : riscv_caimm_cond) : string :=
   match checker with
   | CAimmC_riscv_12bits_signed => "[-2048, 2047]"
   | CAimmC_riscv_5bits_unsigned => "[0, 31]"
+  | CAimmC_riscv_2bits_unsigned => "[0, 3]"
   end%string.
 
 (* Memory-argument conditions (see [camem_cond] in arch_decl.v).
