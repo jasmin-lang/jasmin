@@ -1,5 +1,5 @@
 param bool FULL = true;
-require "../../fail/common/slice_init.jinc"
+require "../../fail/x86-64/slice_init.jinc"
 
 u32[2] G = { 0, 1 };
 
