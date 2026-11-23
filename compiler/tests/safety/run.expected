@@ -1062,3 +1062,83 @@ mem_y ∊ [0; 0]
 
 Program is not safe!
 
+File fail/x86-64/slice_init.jazz (on arch x86-64):
+Analyzing function string_value
+
+
+*** Possible Safety Violation(s):
+  "fail/x86-64/slice_init.jazz", line 13 (2-11): in_bound: a[x] (length 32 U8)
+  
+* Rel:
+⊤
+
+
+
+Program is not safe!
+
+Analyzing function string_offset
+
+
+*** Possible Safety Violation(s):
+  "fail/x86-64/slice_init.jinc", line 54 (2-25): is_init t[0]
+  
+* Rel:
+⊤
+
+
+
+Program is not safe!
+
+Analyzing function copy_in_loop
+
+
+*** Possible Safety Violation(s):
+  "fail/x86-64/slice_init.jinc", line 40 (4-21): is_init b[0]
+  
+Memory ranges:
+  mem_off: [0; 0]
+  mem_x: [0; 0]
+  
+* Rel:
+{inv_off ≥ 0, inv_x ≥ 0, inv_x ≤ 4294967295, inv_off ≤ 4294967295, mem_off = 0, mem_x = 0}
+mem_off ∊ [0; 0]
+mem_x ∊ [0; 0]
+
+
+
+Program is not safe!
+
+Analyzing function copy_into
+
+
+*** Possible Safety Violation(s):
+  "fail/x86-64/slice_init.jinc", line 25 (2-19): is_init t[1]
+  
+Memory ranges:
+  mem_off: [0; 0]
+  
+* Rel:
+{inv_off ≥ 0, inv_off ≤ 4294967295, mem_off = 0}
+mem_off ∊ [0; 0]
+
+
+
+Program is not safe!
+
+Analyzing function copy_from
+
+
+*** Possible Safety Violation(s):
+  "fail/x86-64/slice_init.jinc", line 12 (2-19): is_init e[0]
+  
+Memory ranges:
+  mem_off: [0; 0]
+  
+* Rel:
+{inv_off ≥ 0, inv_off ≤ 4294967295, mem_off = 0}
+mem_off ∊ [0; 0]
+
+
+
+Program is not safe!
+
