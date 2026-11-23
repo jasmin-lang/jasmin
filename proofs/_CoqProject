@@ -245,5 +245,6 @@ lang/warray_.v
 lang/word.v
 lang/wsize.v
 
-itrees/tfam_iso.v
-itrees/eutt_extras.v
+compiler/stack_alloc_OOM.v
+compiler/stack_alloc_proof_1_OOM.v
+compiler/stack_alloc_proof_2_OOM.v
