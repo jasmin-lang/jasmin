@@ -1,0 +1,15 @@
+param bool FULL = false;
+require "slice_init.jinc"
+
+// t[0] is 90 ("Z") when a is read, so the read is out of bounds.
+export fn string_value() -> reg u32 {
+  stack u8[1] t;
+  stack u32[8] a;
+  inline int i;
+  for i = 0 to 8 { a[i] = i; }
+  t[0] = 5;
+  t[0 : 1] = "Z";
+  reg u32 x = (32u) t[0];
+  x = a[x];
+  return x;
+}

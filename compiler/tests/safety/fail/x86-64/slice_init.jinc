@@ -1,0 +1,58 @@
+// Without FULL, one cell of each source is never written.
+
+// With off = 1, e[0] gets the undefined s[1].
+export fn copy_from(reg u32 off) -> reg u32 {
+  stack u32[2] s;
+  stack u32[1] e;
+  s[0] = 0;
+  if FULL { s[1] = 1; }
+  e[0] = 2;
+  off &= 1;
+  e = s[off : 1];
+  reg u32 x = e[0];
+  return x;
+}
+
+// With off = 1, t[1] gets the undefined u[0].
+export fn copy_into(reg u32 off) -> reg u32 {
+  stack u32[2] t;
+  stack u32[1] u;
+  t[0] = 0;
+  t[1] = 1;
+  if FULL { u[0] = 2; }
+  off &= 1;
+  t[off : 1] = u;
+  reg u32 x = t[1];
+  return x;
+}
+
+// With off = 1, a[0] is undefined at the end of the first iteration, b[0] at
+// the end of the second, and the third iteration reads b[0].
+export fn copy_in_loop(reg u32 off, reg u32 x) -> reg u32 {
+  stack u32[1] a b;
+  stack u32[2] s;
+  s[0] = 0;
+  if FULL { s[1] = 1; }
+  a[0] = 2;
+  b[0] = 3;
+  off &= 1;
+  while (x >s 0) {
+    reg u32 y = b[0];
+    x |= y;
+    b = a;
+    a = s[off : 1];
+    x -= 1;
+  }
+  return x;
+}
+
+// The string is written into t[1], t[2] and t[3].
+export fn string_offset() -> reg u32 {
+  stack u8[4] t;
+  if FULL { t[0] = 0; }
+  t[1 : 3] = "abc";
+  reg u32 x = (32u) t[0];
+  reg u32 y = (32u) t[3];
+  x += y;
+  return x;
+}
