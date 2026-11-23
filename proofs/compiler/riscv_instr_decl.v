@@ -202,6 +202,12 @@ Variant riscv_op : Type :=
 | DIVU                           (* Divides two unsigned registers *)
 | REM                            (* Remainder for two signed registers *)
 | REMU                           (* Remainder for two unsigned registers *)
+
+(* AES instructions *)
+| AES32DSI
+| AES32DSMI
+| AES32ESI
+| AES32ESMI
 .
 
 #[ export ]
@@ -603,6 +609,50 @@ Definition riscv_remu_semi (wn wm: ty_r) : ty_r := wmod wn wm.
 Definition riscv_REMU_instr : instr_desc_t := MulTypeInstruction riscv_remu_semi "REMU" "remu" NOT_DOIT. (* Not in Zkt *)
 Definition prim_REMU := ("REMU"%string, primM REMU).
 
+(* Cryptography Extensions: Scalar Instructions *)
+
+(* AES instructions *)
+Definition Zkn_AES_instruction semi jazz_name asm_name : instr_desc_t :=
+  {|
+    id_valid := true;
+    id_doit := DOIT;
+    id_msb_flag := MSB_MERGE;
+    id_tin := [:: lreg; lreg; lword U8 ];
+    id_in := [:: Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lreg ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 4;
+    id_args_kinds := [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAreg ]; [:: CAimm (Some CAimmC_riscv_2bits_unsigned) U8 ]]];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s jazz_name;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_pp_asm := pp_name asm_name;
+    id_wf := refl_equal;
+  |}.
+
+(* AES Decryption *)
+Definition aes32dsi_semi (w1 w2: wreg) (bs: u8) : wreg := (* TODO *) w1.
+Definition aes32dsmi_semi (w1 w2: wreg) (bs: u8) : wreg := (* TODO *) w1.
+
+Definition riscv_AES32DSI_instr := Zkn_AES_instruction aes32dsi_semi "AES32DSI" "aes32dsi".
+Definition prim_AES32DSI := ("AES32DSI"%string, primM AES32DSI).
+
+Definition riscv_AES32DSMI_instr := Zkn_AES_instruction aes32dsmi_semi "AES32DSMI" "aes32dsmi".
+Definition prim_AES32DSMI := ("AES32DSMI"%string, primM AES32DSMI).
+
+(* AES Encryption *)
+Definition aes32esi_semi (w1 w2: wreg) (bs: u8) : wreg := (* TODO *) w1.
+Definition aes32esmi_semi (w1 w2: wreg) (bs: u8) : wreg := (* TODO *) w1.
+
+Definition riscv_AES32ESI_instr := Zkn_AES_instruction aes32esi_semi "AES32ESI" "aes32esi".
+Definition prim_AES32ESI := ("AES32ESI"%string, primM AES32ESI).
+
+Definition riscv_AES32ESMI_instr := Zkn_AES_instruction aes32esmi_semi "AES32ESMI" "aes32esmi".
+Definition prim_AES32ESMI := ("AES32ESMI"%string, primM AES32ESMI).
 
 (* -------------------------------------------------------------------- *)
 (* Description of instructions. *)
@@ -643,6 +693,10 @@ Definition riscv_instr_desc (mn : riscv_op) : instr_desc_t :=
   | DIVU => riscv_DIVU_instr
   | REM => riscv_REM_instr
   | REMU => riscv_REMU_instr
+  | AES32DSI => riscv_AES32DSI_instr
+  | AES32DSMI => riscv_AES32DSMI_instr
+  | AES32ESI => riscv_AES32ESI_instr
+  | AES32ESMI => riscv_AES32ESMI_instr
   end.
 
 Definition riscv_prim_string : seq (string * prim_constructor riscv_op) := [::
@@ -679,7 +733,11 @@ Definition riscv_prim_string : seq (string * prim_constructor riscv_op) := [::
   prim_DIV;
   prim_DIVU;
   prim_REM;
-  prim_REMU
+  prim_REMU;
+  prim_AES32DSI;
+  prim_AES32DSMI;
+  prim_AES32ESI;
+  prim_AES32ESMI
 ].
 
 #[ export ]

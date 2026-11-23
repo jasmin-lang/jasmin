@@ -69,3 +69,9 @@ abbrev [-printing] DIVU (x y : W32.t) : W32.t = if y = W32.of_int(0) then W32.of
 
 abbrev [-printing] REM = W32.(\smod).
 abbrev [-printing] REMU = W32.(\umod).
+
+(* Zknd & Zkne: AES instructions *)
+op AES32DSI : W32.t -> W32.t -> W8.t -> W32.t.
+op AES32DSMI : W32.t -> W32.t -> W8.t -> W32.t.
+op AES32ESI : W32.t -> W32.t -> W8.t -> W32.t.
+op AES32ESMI : W32.t -> W32.t -> W8.t -> W32.t.

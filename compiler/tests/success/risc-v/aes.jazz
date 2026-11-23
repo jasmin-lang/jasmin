@@ -1,0 +1,8 @@
+export fn zkned(reg u32 x) -> reg u32 {
+  reg u32 r = 0;
+  r = #AES32ESI(r, x, 0);
+  r = #AES32ESMI(r, x, 1);
+  r = #AES32DSMI(r, x, 2);
+  r = #AES32DSI(r, x, 3);
+  return r;
+}
