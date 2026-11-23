@@ -1,0 +1,14 @@
+param bool FULL = true;
+require "../../fail/x86-64/slice_init.jinc"
+
+u32[2] G = { 0, 1 };
+
+// Global arrays are initialized.
+export fn copy_from_global(reg u32 off) -> reg u32 {
+  stack u32[1] e;
+  e[0] = 2;
+  off &= 1;
+  e = G[off : 1];
+  reg u32 x = e[0];
+  return x;
+}
