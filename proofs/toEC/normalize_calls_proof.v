@@ -3,6 +3,8 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssrnat seq.
 Require Import compiler_util psem psem_facts.
 Require Import normalize_calls.
 
+Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
+
 Section SYNTAX.
 
 Context (fresh_var_ident : v_kind -> instr_info -> PrimInt63.int -> string -> atype -> Ident.ident).
