@@ -1741,6 +1741,7 @@ Proof using hparams.
   by t_xrbindP.
 Qed.
 
+(* HERE: SIZE constraints *)
 (* [m2] is (at least) [m1] augmented with data [data] at address [rip]. *)
 Record extend_mem (m1 m2:mem) (rip:pointer) (data:seq u8) := {
   em_no_overflow : no_overflow rip (Z.of_nat (size data));
@@ -2519,6 +2520,7 @@ Definition sf_total_stack e :=
     e.(sf_stk_max) + wsize_size e.(sf_align) - 1
   else e.(sf_stk_max).
 
+(* HERE *)
 Definition alloc_ok (SP:sprog) fn m2 :=
   forall fd, get_fundef (p_funcs SP) fn = Some fd ->
   allocatable_stack m2 (sf_total_stack fd.(f_extra)) /\
@@ -3526,6 +3528,9 @@ Qed.
 
 End SEM.
 
+
+(******************* FROM HERE ******************************************)
+
 Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
@@ -3953,6 +3958,9 @@ Qed.
 
 End CMD.
 
+
+(**** EVEN MORE, FROM HERE (wiequiv_f) *************************)
+
 Lemma it_check_cP fn : wiequiv_f P P' tt rip (rpreF (eS:=sa_spec)) fn fn (rpostF (eS:=sa_spec)).
 Proof using no_overflow_glob_size hmap P'_globs hshparams hsaparams is_move_opP Halloc_fd rip_rsp_neq.
   apply wequiv_fun_ind => {}fn _ [scs1 m1 vargs1] [_ m2 vargs2] [<- /= <-] hext hargs heqinmem_args hok fd hfd.
@@ -4214,6 +4222,9 @@ Proof.
   by apply: get_map_cfprog_name_gen hmap.
 Qed.
 
+
+(******** FROM HERE: PROG ************************************************)
+
 (* Here are informal descriptions of the predicates used in the theorem.
 
    - extend_mem m1 m2 rip data: [m2] is a memory that contains at least [m1]
@@ -4228,6 +4239,7 @@ Qed.
        if the argument is a reg ptr, the array in the source can be read in
        memory in the target);
 
+   HERE: SIZE constraint.
    - alloc_ok: the call is possible in the target (there is enough space in the
        stack, and the top of the stack is aligned if the callee is not an export function);
 
@@ -4258,7 +4270,7 @@ Theorem it_alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn 
                   (map (oapp pp_align U8) (oracle fn).(sao_params))
                   (fvals fs1) (fvals fs2)
         , Forall3 (value_eq_or_in_mem (fmem fs2)) (oracle fn).(sao_params) (fvals fs1) (fvals fs2)
-        & alloc_ok SP fn (fmem fs2) ])
+        & (* HERE *) alloc_ok SP fn (fmem fs2) ])
      fn fn
     (fun fn _ fs1 fs2 fr1 fr2 =>
         [/\ fscs fr1 = fscs fr2

@@ -7081,6 +7081,10 @@ Proof.
   by apply incl_status_clear_status_idempotent.
 Qed.
 
+
+(********************************************************************)
+
+
 Lemma wfr_VARS_ZONE_alloc_syscall ii rmap rs o es rmap2 c vars :
   alloc_syscall saparams pmap ii rmap rs o es = ok (rmap2, c) ->
   wfr_VARS_ZONE vars rmap ->
