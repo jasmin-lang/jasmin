@@ -571,9 +571,15 @@ Module MemoryI : MemoryT.
     memory_model.top_stack m = top_stack m.
   Proof. exact: _top_stackE. Qed.
 
+  Section WRITE_MODE.
+
+  Context {sm : SemMode}.
+
+  (* The fields a write leaves alone do not depend on the mode: a write only
+     changes [data]. *)
   Lemma write_mem_invariant T (P: mem → T) :
     (∀ m p v,
-      is_alloc m p →
+      is_total || is_alloc m p →
       P {| data := Mz.set (data m) (wunsigned p) v;
            alloc := alloc m;
            stk_root := stk_root m;
@@ -591,14 +597,16 @@ Module MemoryI : MemoryT.
     by move=> ?? hrec; rewrite {2}/set; t_xrbindP => ?? /K h <- /hrec <-.
   Qed.
 
+  Lemma write_mem_stable m m' al p s (v:word s) :
+    write m al p v = ok m' -> stack_stable m m'.
+  Proof. by move => ok_m'; split => /=; exact: write_mem_invariant ok_m'. Qed.
+
+  End WRITE_MODE.
+
   Lemma top_stack_write_mem m al p s (v: word s) m' :
     write m al p v = ok m' →
     top_stack m = top_stack m'.
   Proof. by apply write_mem_invariant. Qed.
-
-  Lemma write_mem_stable m m' al p s (v:word s) :
-    write m al p v = ok m' -> stack_stable m m'.
-  Proof. by move => ok_m'; split => /=; exact: write_mem_invariant ok_m'. Qed.
 
   (** Allocation *)
   Lemma footprint_of_stack_pos (m: mem) :
