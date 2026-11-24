@@ -654,19 +654,27 @@ Lemma wequiv_assgn_uincl (P Q : rel_c) ii1 x1 tg1 ty e1 ii2 x2 tg2 e2 :
   wequiv P [:: MkI ii1 (Cassgn x1 tg1 ty e1)] [:: MkI ii2 (Cassgn x2 tg2 ty e2)] Q.
 Proof. move=> he; apply wequiv_assgn with value_uincl => // *; apply wrequiv_truncate_val. Qed.
 
+(* A command made of basic instructions on the left is related to any
+   command through the functional semantics. *)
+Lemma wequiv_basic_esem (P Q : rel_c) c1 c2 :
+  all basic_i c1 ->
+  wrequiv P (esem (wa:=wa1) p1 ev1 c1) (esem (wa:=wa2) p2 ev2 c2) Q ->
+  wequiv P c1 c2 Q.
+Proof.
+  move=> hb h s t hP.
+  destruct (esem (wa:=wa1) p1 ev1 c1 s) as [s' | e] eqn:heq.
+  + have [t' h2 hQ] := h s t s' hP heq.
+    rewrite (esem_i_bodyP heq) (esem_i_bodyP h2).
+    by apply xrutt.xrutt_Ret.
+  rewrite (esem_basicP _ _ _ hb) heq /=; apply xrutt_CutL => //.
+  by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
+Qed.
+
 Lemma wequiv_assgn_esem (P Q : rel_c) ii1 x1 tg1 ty e1 c2 :
   wrequiv P (sem_assgn p1 x1 tg1 ty e1)
             (esem p2 ev2 c2) Q ->
   wequiv P [:: MkI ii1 (Cassgn x1 tg1 ty e1)] c2 Q.
-Proof.
-  move=> h s t hP /=.
-  case heq: sem_assgn => [s' | e] /=.
-  + rewrite bind_ret_r.
-    have [t' /esem_i_bodyP -> hQ /=] := h s t s' hP heq.
-    by apply xrutt.xrutt_Ret.
-  rewrite bind_ret_r; apply xrutt_CutL => //.
-  by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
-Qed.
+Proof. by move=> h; apply wequiv_basic_esem => // s t s' hP; rewrite esem1; apply h. Qed.
 
 Lemma wequiv_opn (Rve Rvo : rel_vs) P Q ii1 xs1 at1 o1 es1 ii2 xs2 at2 o2 es2 :
   wrequiv P (fun s => sem_pexprs (wdb := true) (p_globs p1) s es1)
@@ -716,15 +724,7 @@ Lemma wequiv_opn_esem (P Q : rel_c) ii1 xs1 tg1 o1 es1 c2 :
   wrequiv P (fun s => sem_sopn (p_globs p1) o1 s xs1 es1)
             (esem p2 ev2 c2) Q ->
   wequiv P [:: MkI ii1 (Copn xs1 tg1 o1 es1)] c2 Q.
-Proof.
-  move=> h s t hP /=.
-  case heq: sem_sopn => [s' | e] /=.
-  + rewrite bind_ret_r.
-    have [t' /esem_i_bodyP -> hQ /=] := h s t s' hP heq.
-    by apply xrutt.xrutt_Ret.
-  rewrite bind_ret_r; apply xrutt_CutL => //.
-  by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
-Qed.
+Proof. by move=> h; apply wequiv_basic_esem => // s t s' hP; rewrite esem1; apply h. Qed.
 
 Lemma wequiv_syscall Rv Ro P Q ii1 xs1 sc1 es1 ii2 xs2 sc2 es2 :
   wrequiv P (fun s => sem_pexprs (wdb := true) (p_globs p1) s es1)
@@ -767,15 +767,7 @@ Lemma wequiv_syscall_esem (P Q : rel_c) ii1 xs1 sc1 es1 c2 :
   wrequiv P (sem_syscall p1 xs1 sc1 es1)
             (esem p2 ev2 c2) Q ->
   wequiv P [:: MkI ii1 (Csyscall xs1 sc1 es1)] c2 Q.
-Proof.
-  move=> h s t hP /=.
-  case heq: sem_syscall => [s' | e] /=.
-  + rewrite bind_ret_r.
-    have [t' /esem_i_bodyP -> hQ /=] := h s t s' hP heq.
-    by apply xrutt.xrutt_Ret.
-  rewrite bind_ret_r; apply xrutt_CutL => //.
-  by rewrite /errcutoff /is_error /subevent /resum /fromErr mid12.
-Qed.
+Proof. by move=> h; apply wequiv_basic_esem => // s t s' hP; rewrite esem1; apply h. Qed.
 
 Lemma wequiv_assert_esem (P Q : rel_c) ii1 a1 c2 :
   wrequiv P (fun (s:estate1) => Let _ := sem_assert (wsw:=wsw1) (wa:=wa1) (p_globs p1) s a1 in ok s)

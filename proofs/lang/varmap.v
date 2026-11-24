@@ -114,6 +114,9 @@ Lemma truncatable_type_of (wdb: enforce_defined_variables) v :
   truncatable (type_of_val v) v.
 Proof. by apply subctype_truncatable. Qed.
 
+Lemma truncatable_bool (wdb: enforce_defined_variables) v : truncatable cbool v -> type_of_val v = cbool.
+Proof. by case: v => //= -[]. Qed.
+
 (* TODO: rename this lemma and its siblings; vm_truncate_val -> truncatable *)
 Lemma vm_truncate_valE_wdb (wdb: enforce_defined_variables) ty v :
   truncatable ty v ->
