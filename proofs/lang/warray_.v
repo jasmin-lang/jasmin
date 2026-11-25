@@ -142,10 +142,10 @@ Module WArray.
     Lemma valid8_set sm m i w m' i' : set8 sm m i w = ok m' -> in_bound m' i' = in_bound m i'.
     Proof. by []. Qed.
 
-    Lemma get_noerrty m p e : get8 m p = Error e -> e <> ErrType.
+    Lemma get_noerrty m p e : get8 partial m p = Error e -> e <> ErrType.
     Proof. rewrite /get8 /assert. repeat case: ifP => _ //=; congruence. Qed.
 
-    Lemma set_noerrty m p e w : set8 m p w = Error e -> e <> ErrType.
+    Lemma set_noerrty m p e w : set8 partial m p w = Error e -> e <> ErrType.
     Proof. rewrite /set8 /assert. repeat case: ifP => _ //=; congruence. Qed.
 
     Lemma set8P m i w i' m' :

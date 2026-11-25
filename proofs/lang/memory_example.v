@@ -208,10 +208,10 @@ Module MemoryI : MemoryT.
   Lemma valid8_set_dom m p : is_alloc m p -> set_dom m p.
   Proof. by []. Qed.
 
-  Lemma get_noerrty m p e : get m p = Error e -> e <> ErrType.
+  Lemma get_noerrty m p e : get partial m p = Error e -> e <> ErrType.
   Proof. rewrite /get /assert. case: ifP => _ //= h. congruence. Qed.
   
-  Lemma set_noerrty m p e w : set m p w = Error e -> e <> ErrType.
+  Lemma set_noerrty m p e w : set partial m p w = Error e -> e <> ErrType.
   Proof. rewrite /set /assert. case: ifP => _ //= h. congruence. Qed.
 
   #[ global ]

@@ -32,24 +32,16 @@ let ty_var (x: var) =
 
 let ty_gvar (x: int ggvar) = ty_var (L.unloc x.gv)
 
-(* -------------------------------------------------------------------- *)
-
-let check_length loc len =
-  if len <= 0 then
-    error loc "the length should be strictly positive"
-
-(* -------------------------------------------------------------------- *)
-
 let type_of_op1 op =
-  let tin,tout = E.type_of_op1 op in
+  let tin,tout = Operators.type_of_op1 op in
   Conv.ty_of_cty tin, Conv.ty_of_cty tout
 
 let type_of_op2 op =
-  let (tin1,tin2),tout = E.type_of_op2 op in
+  let (tin1,tin2),tout = Operators.type_of_op2 op in
   (Conv.ty_of_cty tin1, Conv.ty_of_cty tin2), Conv.ty_of_cty tout
 
 let type_of_opN op =
-  let tins, tout = E.type_of_opN op in
+  let tins, tout = Operators.type_of_opN op in
   List.map Conv.ty_of_cty tins, Conv.ty_of_cty tout
 
 (* Return the type of the expression but do not type check it *)
@@ -69,27 +61,12 @@ let type_of_expr e =
 
 (* -------------------------------------------------------------------- *)
 
-(* -------------------------------------------------------------------- *)
-
 let cexec_unwapper res = 
   match res with
   | Utils0.Ok x -> x
   | Utils0.Error s ->
       error L.i_dummy "typing error : %a"
         (Printer.pp_err ~debug:false) s.Compiler_util.pel_msg
-
-let conv_res res = Conv.ty_of_cty (cexec_unwapper res)
-
-let ty_expr_wrapper pd e =
-  let ce = Conv.cexpr_of_expr e in
-    conv_res (T.ty_expr pd ce)
-
-let ty_expr pd _loc e = ty_expr_wrapper pd e
-
-(* -------------------------------------------------------------------- *)
-
-let ty_lval_wrapper pd x = conv_res (T.ty_lval pd (Conv.clval_of_lval x))
-let ty_lval pd _loc = ty_lval_wrapper pd
 
 let check_prog pd msfsz asmOp p =
   let prog = Expr.to_uprog asmOp (Conv.cuprog_of_prog p) in

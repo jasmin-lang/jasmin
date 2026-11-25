@@ -38,25 +38,6 @@ Context `{asmop : asmOp}.
 Context {pd : PointerData}.
 Context {msfsz : MSFsize}.
 
-
-Notation vp := (Mvar.t var).
-
-(* Definition type_of_expr (e : pexpr) : atype :=
-    match e with
-    | Pconst _ => aint
-    | Pbool _ => abool
-    | Parr_init ws len => aarr ws len
-    | Pvar x => x.(gv).(v_var).(vtype)
-    | Pget _ _ ws _ _ => aword ws
-    | Psub _ ws len _ _ => aarr ws len
-    | Pload _ ws _ => aword ws
-    | Papp1 o _ => snd (type_of_op1 o)
-    | Papp2 o _ _ => let '(_, _, tout) := type_of_op2 o in
-                    tout
-    | PappN o _ => snd (type_of_opN o)
-    | Pif ty _ _ _ => ty
-end. *)
-
 Definition ty_var (x : var_i) : atype := x.(v_var).(vtype).
 Definition ty_gvar (x : gvar) : atype := ty_var x.(gv).
 
@@ -229,7 +210,6 @@ Definition check_global_decl (gd : glob_decl) : cexec unit :=
   match d with 
     | Gword ws _ => let c := match ty with
                               | aword ws' => ws != ws'
-                              (* | aword ws' => negb (ws <= ws')%CMP *)
                               | _ => true 
                             end
                     in if c then Error global_mismatch else ok tt
