@@ -1,0 +1,44 @@
+/* A64 has no store of an immediate: a constant stored to memory or to a
+   stack array goes through a scratch register, for every access size. */
+export fn store_imm(reg u64 p i) -> reg u64 {
+  stack u8[16] buf;
+  reg u64 r;
+  inline int j;
+
+  for j = 0 to 16 { buf[j] = 0; }
+
+  i &= 15;
+  buf[i] = 0x80;
+  [:u8 p + i] = 0x80;
+  [:u16 p + 2] = 0xbeef;
+  [:u32 p + 4] = 0;
+  [:u64 p + 8] = 0x0123456789abcdef;
+
+  r = (64u) buf[0];
+  return r;
+}
+
+/* Negative constants, at every size, and a stack scalar. */
+export fn store_imm_neg(reg u64 p) -> reg u64 {
+  stack u16 s;
+  reg u64 r;
+
+  [:u64 p] = -1;
+  [:u32 p + 8] = -1;
+  [:u8 p + 12] = -1;
+  s = 0x8001;
+
+  r = (64u) s;
+  return r;
+}
+
+/* A store at a run-time index inside a loop. */
+export fn store_imm_loop(reg u64 p n) {
+  reg u64 i;
+
+  i = 0;
+  while (i < n) {
+    [:u32 p + 4 * i] = 0xffff0001;
+    i += 1;
+  }
+}
