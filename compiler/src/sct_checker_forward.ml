@@ -626,7 +626,8 @@ let content_ty = function
 
 let rec ty_expr env venv loc (e:expr) : vty =
   match e with
-  | Pconst _ | Pbool _ | Parr_init _ -> Env.dpublic env
+  | Pconst _ | Pbool _ -> Env.dpublic env
+  | Parr_init _ -> Direct (Env.transient env)
 
   | Pvar x -> Env.gget venv x
 
@@ -1279,10 +1280,10 @@ let init_constraint fenv f =
       | None ->
         begin match x.v_kind with
         | Const -> Env.dpublic env
-        | (Stack Direct | Reg (_, Direct)) when is_local -> Direct (Env.secret2 env)
+        | (Stack Direct | Reg (_, Direct)) when is_local -> Direct (Env.transient env)
         | (Stack Direct | Reg (_, Direct)) -> Direct (Env.fresh2 env)
-        | (Stack (Pointer _) | Reg (_, Pointer _)) when is_local -> Indirect(Env.secret2 env, Env.fresh2 env)
-        | (Stack (Pointer _) | Reg (_, Pointer _)) -> Indirect(Env.fresh2 env, Env.fresh2 env)
+        | (Stack (Pointer _) | Reg (_, Pointer _)) when is_local -> Indirect (Env.transient env, Env.fresh2 env)
+        | (Stack (Pointer _) | Reg (_, Pointer _)) -> Indirect (Env.fresh2 env, Env.fresh2 env)
         | Inline -> Env.dpublic env
         | Global -> Env.dpublic env (* unsure *)
         end
