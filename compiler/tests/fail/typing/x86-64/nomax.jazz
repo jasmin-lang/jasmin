@@ -1,0 +1,3 @@
+export fn bad_max(reg ui64 x, reg si64 y) -> reg u64 {
+  reg u64 r = 0 + max(x, y);
+}

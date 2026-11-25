@@ -49,8 +49,10 @@ Section Section.
 
 #[local] Existing Instance withsubword.
 #[local] Existing Instance direct_c.
+#[local] Existing Instance do_enforce_defined_variables.
 
 Context
+  {core : arm_core}
   {atoI  : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
@@ -102,7 +104,7 @@ Proof.
       by rewrite GRing.addr0 => -> /=.
     case hlea: mk_lea => [[disp base scale offset]|//] /=.
     case: base hlea => [base|//] hlea.
-    have lea_sem: sem_pexpr true [::] s1 (add e ofs) = ok (Vword (w + pofs)).
+    have lea_sem: sem_pexpr [::] s1 (add e ofs) = ok (Vword (w + pofs)).
     + by rewrite /= ok_ve ok_vofs /= /sem_sop2 /= ok_w ok_pofs /=.
     have /(_ (cmp_le_refl _)) /(_ (cmp_le_refl _)) := mk_leaP _ _ hlea lea_sem.
     rewrite zero_extend_u /sem_lea /=.
@@ -248,11 +250,11 @@ Proof.
   have -> /= := ARMFopnP.align_sem_fopn_args ntmp vi3 al
                  (y:= tmp) (s:= s1) (to_word_get_var hget1).
   set s2 := with_vm _ _.
-  have hget2 : get_var true (evm s2) rsp = ok (Vword ts).
+  have hget2 : get_var (evm s2) rsp = ok (Vword ts).
   + by t_get_var; rewrite (get_var_eq_ex _ _ heq1) //; apply/Sv_neq_not_in_singleton.
   have -> /= := ARMFopnP.mov_sem_fopn_args (xi:=r) hc (to_word_get_var hget2).
   set s3 := with_vm _ _.
-  have hget3 : get_var true (evm s3) tmp = ok (Vword ts').
+  have hget3 : get_var (evm s3) tmp = ok (Vword ts').
   + by t_get_var.
   have -> /= := ARMFopnP.mov_sem_fopn_args (xi:=rsp) erefl (to_word_get_var hget3).
   set s4 := with_vm _ _.
@@ -295,14 +297,17 @@ Proof.
   by case: vtype htxd.
 Qed.
 
-Lemma arm_lstore_correct : lstore_correct_aux arm_check_ws arm_lstore.
+Lemma arm_lstore_correct : lstore_correct_aux arm_check_store_ws arm_lstore.
 Proof.
-  move=> xd xs ofs ws w wp s m /eqP hchk; t_xrbindP; subst ws.
-  move=> vd hgetd htrd vs hgets htrs hwr.
-  rewrite /arm_lstore /= hgets hgetd /= /exec_sopn /= htrs /=.
-  rewrite /sem_sop2 /= htrd /= !truncate_word_u /= truncate_word_u /=.
-  by rewrite zero_extend_u hwr.
+  move=> xd xs ofs ws w wp s m hchk; t_xrbindP => vd hgetd htrd vs hgets htrs hwr.
+  case: ws w hchk htrs hwr => // w _ htrs hwr.
+  all: rewrite /arm_lstore /= hgets hgetd /= /exec_sopn /= htrs /=.
+  all: rewrite /sem_sop2 /= htrd /= !truncate_word_u /= truncate_word_u /=.
+  all: by rewrite zero_extend_u hwr.
 Qed.
+
+Lemma arm_check_store_ws_correct ws : arm_check_ws ws -> arm_check_store_ws ws.
+Proof. by move=> /eqP ->. Qed.
 
 Lemma arm_smart_addi_correct : ladd_imm_correct_aux ARMFopn.smart_addi.
 Proof.
@@ -313,8 +318,9 @@ Qed.
 Lemma arm_lstores_correct : lstores_correct arm_liparams.
 Proof.
   apply/lstores_imm_dfl_correct.
-  + by apply arm_lstore_correct.
-  apply arm_smart_addi_correct.
+  + exact: arm_lstore_correct.
+  + exact: arm_check_store_ws_correct.
+  exact: arm_smart_addi_correct.
 Qed.
 
 Lemma arm_lload_correct : lload_correct_aux (lip_check_ws arm_liparams) arm_lload.
@@ -353,6 +359,7 @@ Definition arm_hliparams :
     spec_lip_lloads               := arm_lloads_correct;
     spec_lip_tmp                  := arm_tmp_correct;
     spec_lip_check_ws             := arm_check_ws_correct;
+    spec_lip_check_store_ws       := arm_check_store_ws_correct;
   |}.
 
 Lemma arm_ok_lip_tmp :
@@ -373,7 +380,7 @@ Proof. constructor => *; exact: it_lower_callP. Qed.
 (* Lowering of the loads from a global. *)
 
 Lemma arm_glob_addrP gd s (y : var_i) e pa :
-  sem_pexpr true gd s e >>= to_pointer = ok pa ->
+  sem_pexpr gd s e >>= to_pointer = ok pa ->
   vtype y = aword Uptr ->
   sem_sopn gd (Oasm (ExtOp Oarm_glob_addr)) s [:: Lvar y] [:: e]
   = ok (with_vm s (evm s).[y <- Vword pa]).
@@ -485,7 +492,7 @@ Qed.
 Lemma eval_assemble_cond_Pvar ii m rf x r v :
   eqflags m rf
   -> of_var_e ii x = ok r
-  -> get_var true (evm m) x = ok v
+  -> get_var (evm m) x = ok v
   -> exists2 v',
        value_of_bool (arm_eval_cond (get_rf rf) (condt_of_rflag r)) = ok v'
        & value_uincl v v'.
@@ -523,9 +530,9 @@ Lemma eval_assemble_cond_Obeq ii m rf v x0 x1 r0 r1 v0 v1 :
   is_rflags_GE r0 r1 = true
   -> eqflags m rf
   -> of_var_e ii x0 = ok r0
-  -> get_var true (evm m) x0 = ok v0
+  -> get_var (evm m) x0 = ok v0
   -> of_var_e ii x1 = ok r1
-  -> get_var true (evm m) x1 = ok v1
+  -> get_var (evm m) x1 = ok v1
   -> sem_sop2 Obeq v0 v1 = ok v
   -> exists2 v',
        value_of_bool (arm_eval_cond (get_rf rf) GE_ct) = ok v' & value_uincl v v'.

@@ -25,8 +25,14 @@ let pp_instr fmt name params =
   | [] -> Format.fprintf fmt "\t%s" name (* In case there is no params, we do not print a tab*)
   | _ ->  Format.fprintf fmt "\t%-*s\t%s" iwidth name (String.concat ", " params)
 
+(* A block comment is the one comment syntax that GNU as and LLVM accept on
+   every target. A "*/" in the text would end it early and the rest of the
+   line would be read as code, so it is refused. *)
 let pp_comment fmt comment =
-  Format.fprintf fmt "// %s" comment
+  if String.exists comment "*/" then
+    hierror ~loc:Lnone ~kind:"assembly printing"
+      "the comment “%s” contains “*/”" comment;
+  Format.fprintf fmt "/* %s */" comment
 
 let pp_bytes fmt =
   List.iteri (fun i byte ->

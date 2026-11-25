@@ -106,6 +106,7 @@ Definition x86_lmove ws (xd xs: var_i) :=
   x86_lassign (LLvar xd) ws (Rexpr (Fvar xs)).
 
 Definition x86_check_ws (_: wsize) := true.
+Definition x86_check_store_ws (_: wsize) := true.
 
 Definition x86_lstore (ws: wsize) (xd : var_i) (ofs : Z) (xs :  var_i) :=
   x86_lassign (Store Aligned ws (faddv Uptr xd (fconst Uptr ofs))) ws (Rexpr (Fvar xs)).
@@ -125,6 +126,7 @@ Definition x86_liparams : linearization_params :=
     lip_set_up_sp_register := x86_set_up_sp_register;
     lip_lmove := x86_lmove;
     lip_check_ws := x86_check_ws;
+    lip_check_store_ws := x86_check_store_ws;
     lip_lstore := x86_lstore;
     lip_lload := x86_lload;
     lip_lstores := lstores_dfl x86_lstore;

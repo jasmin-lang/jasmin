@@ -52,7 +52,7 @@ Section STACK_ZEROIZATION.
 
 Context {vinfo : one_varmap.veneer_info}.
 
-Context {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
+Context {core : arm_core} {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
 Context {call_conv : calling_convention}.
 
 Section RSP.
@@ -69,9 +69,9 @@ Let leflags := [seq LLvar f | f <- vflags ].
 
 Lemma store_zero_eval_instr lp ii ws e (ls:lstate) (w1 w2 : word Uptr) m' :
   (ws <= U32)%CMP ->
-  get_var true (lvm ls) vzero = ok (@Vword Uptr 0) ->
-  get_var true (lvm ls) rspi = ok (Vword w1) ->
-  sem_fexpr (lvm ls) e >>= to_word Uptr = ok w2 ->
+  get_var (wdb := true) (lvm ls) vzero = ok (@Vword Uptr 0) ->
+  get_var (wdb := true) (lvm ls) rspi = ok (Vword w1) ->
+  sem_fexpr (wdb := true) (lvm ls) e >>= to_word Uptr = ok w2 ->
   write (lmem ls) Aligned (w1 + w2)%R (sz:=ws) 0 = ok m' ->
   let i := MkLI ii (store_zero rspi ws e) in
   eval_instr lp i ls = ok (lnext_pc (lset_mem ls m')).

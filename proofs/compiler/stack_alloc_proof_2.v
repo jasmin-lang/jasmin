@@ -1110,7 +1110,7 @@ Proof using hlayout.
     + by move=> <- _.
     by move=> _; apply hnew.
   + move=> p.
-    case harr: is_aarr => //=.
+    case harr: is_arr_var => //=.
     case: Sv_memP => [//|hnnew2].
     case heq0: Mvar.get => //.
     case hty: convertible => [|//] /= [<- <- _].
@@ -1162,7 +1162,7 @@ Proof using hlayout.
     have ?: p <> y by congruence.
     by move=> /SvD.F.add_3; auto.
   move=> s z f.
-  case harr: is_aarr => //.
+  case harr: is_arr_var => //.
   case heq: Mvar.get => [[ofs ws]|//].
   case: Sv_memP => [//|hnnew2].
   case: eqP => [//|hneq0].
@@ -1288,7 +1288,7 @@ Proof using hlayout.
     rewrite Mvar.setP.
     by case: eqP; first by congruence.
   + move=> p.
-    case harr: is_aarr => //=.
+    case harr: is_arr_var => //=.
     case: Sv_memP => [//|hnnew2].
     case heq0: Mvar.get => //.
     case hty: convertible => [|//] /= [<- <- <-].
@@ -1299,7 +1299,7 @@ Proof using hlayout.
     rewrite Mvar.setP.
     by case: eqP; first by congruence.
   move=> s cs f.
-  case harr: is_aarr => //.
+  case harr: is_arr_var => //.
   case heq: Mvar.get => [[ofs ws]|//].
   case: Sv_memP => [//|hnnew2].
   case: eqP => [//|hneq0].
@@ -1443,16 +1443,16 @@ Proof.
   by move=> /SvD.F.add_3; auto.
 Qed.
 
-Lemma valid_state_init_param wdb table rmap vme m0 s1 s2 vnew1' locals1' sao_param (param:var_i) vnew2' locals2' rmap2' alloc_param :
+Lemma valid_state_init_param (wdb: enforce_defined_variables) table rmap vme m0 s1 s2 vnew1' locals1' sao_param (param:var_i) vnew2' locals2' rmap2' alloc_param :
   wf_pmap (lmap locals1' vnew1') rsp rip Slots Addr Writable Align ->
   valid_state (lmap locals1' vnew1') glob_size rsp rip Slots Addr Writable Align P table rmap vme m0 s1 s2 ->
   init_param mglob stack (vnew1', locals1', rmap) sao_param param = ok (vnew2', locals2', rmap2', alloc_param) ->
   forall s1' varg1 varg2,
-    write_var wdb param varg1 s1 = ok s1' ->
+    write_var param varg1 s1 = ok s1' ->
     (forall pi, sao_param = Some pi -> get_pi param = Some (pi, (varg1, varg2))) ->
     value_eq_or_in_mem (emem s2) sao_param varg1 varg2 ->
     exists2 s2',
-      write_var wdb alloc_param.2 varg2 s2 = ok s2' &
+      write_var alloc_param.2 varg2 s2 = ok s2' &
       valid_state (lmap locals2' vnew2') glob_size rsp rip Slots Addr Writable Align P (remove_binding table param) rmap2' vme m0 s1' s2'.
 Proof using hparams.
   clear rsp_align rip_align no_overflow_size.
@@ -1604,14 +1604,14 @@ Proof.
   by clear; SvD.fsetdec.
 Qed.
 
-Lemma valid_state_init_params wdb vme m0 vm1 vm2 :
+Lemma valid_state_init_params (wdb: enforce_defined_variables) vme m0 vm1 vm2 :
   let: s1 := {| escs := scs1; emem := m1; evm := vm1 |} in
   let: s2 := {| escs := scs1; emem := m2; evm := vm2 |} in
   valid_state (lmap locals1 vnew1) glob_size rsp rip Slots Addr Writable Align P empty_table rmap1 vme m0 s1 s2 ->
   forall s1',
-    write_vars wdb params vargs1 s1 = ok s1' ->
+    write_vars params vargs1 s1 = ok s1' ->
     exists2 s2',
-      write_vars wdb (map snd alloc_params) vargs2 s2  = ok s2' &
+      write_vars (map snd alloc_params) vargs2 s2  = ok s2' &
       valid_state (lmap locals2 vnew2) glob_size rsp rip Slots Addr Writable Align P empty_table rmap2 vme m0 s1' s2'.
 Proof using hlayout Huincl hlocal_map hparams.
   clear rsp_align rip_align no_overflow_size.
@@ -1724,7 +1724,7 @@ Proof using hparams.
 Qed.
 
 Lemma init_params_aarr :
-  List.Forall2 (fun opi (x:var_i) => opi <> None -> is_aarr x.(vtype)) sao.(sao_params) params.
+  List.Forall2 (fun opi (x:var_i) => opi <> None -> is_arr_var x) sao.(sao_params) params.
 Proof using hparams.
   elim: sao.(sao_params) params vnew1 locals1 rmap1 vnew2 locals2 rmap2 alloc_params hparams.
   + by move=> [|//] _ _ _ _ _ _ _ _.
@@ -2552,7 +2552,7 @@ Notation mem_unchanged_params_fn ms m0 m fn vargs1 vargs2 :=
 Lemma wf_table_table_set_var table x e vm vme :
   Sv.Subset (read_e e) table.(vars) ->
   (forall v1,
-    get_var true vm x = ok v1 ->
+    get_var (wdb := true) vm x = ok v1 ->
     exists2 v2,
       sem_sexpr vme e = ok v2 & value_uincl v1 v2) ->
   wf_table table vme vm ->
@@ -2571,11 +2571,10 @@ Proof.
   by apply hsem.
 Qed.
 
-(* TODO: write_lvar_ext_eq -> rename into write_lval_ext_eq *)
 Lemma wf_table_update_table s1 s2 r e v v' table1 ote table2 oe table3 vme :
-  sem_pexpr true gd s1 e = ok v ->
+  sem_pexpr (wdb := true) gd s1 e = ok v ->
   value_uincl v' v ->
-  write_lval true gd r v' s1 = ok s2 ->
+  write_lval (wdb := true) gd r v' s1 = ok s2 ->
   symbolic_of_pexpr (clone fresh_var_ident) table1 e = ok ote ->
   match ote with
   | Some (table, e) => (table, Some e)
@@ -3193,13 +3192,13 @@ Qed.
 Hypothesis rip_rsp_neq : P'.(p_extra).(sp_rip) <> P'.(p_extra).(sp_rsp).
 
 (* could probably be written
-   Forall2 (fun x v2 => is_aarr x.(vtype) -> size_slot x <= size_val v) l params
+   Forall2 (fun x v2 => is_arr_var x -> size_slot x <= size_val v) l params
    But maybe more complex to use?
 *)
 Lemma write_vars_subtype A (l:seq (option A)) params :
-  List.Forall2 (fun o (x:var_i) => o <> None -> is_aarr x.(vtype)) l params ->
-  forall wdb vargs1 s1 s2,
-  write_vars wdb params vargs1 s1 = ok s2 ->
+  List.Forall2 (fun o (x:var_i) => o <> None -> is_arr_var x) l params ->
+  forall (wdb: enforce_defined_variables) vargs1 s1 s2,
+  write_vars params vargs1 s1 = ok s2 ->
   Forall3 (fun o (x:var_i) v => o <> None -> subctype (eval_atype x.(vtype)) (type_of_val v)) l params vargs1.
 Proof.
   elim {l params}.
@@ -3256,7 +3255,7 @@ Corollary alloc_stack_spec_value_eq_or_in_mem m2 fn vargs1 vargs2 ws sz ioff sz'
 Proof.
   move=> heqinmem hass.
   apply: read_incl_value_eq_or_in_mem heqinmem.
-  by move=> p w ok_w; rewrite -(hass.(ass_read_old8) (readV ok_w)).
+  by move=> p w ok_w; rewrite -(hass.(ass_read_old8) (read_validw ok_w)).
 Qed.
 
 Lemma alloc_stack_spec_extend_mem m1 m2 ws sz ioff sz' m3 :
@@ -4112,7 +4111,7 @@ Proof using no_overflow_glob_size hmap P'_globs hshparams hsaparams is_move_opP 
   move=> s1' s2' fr1 [vme] [hvs''' hstable hext''' hvalw hvalw'] _.
   rewrite /finalize_funcall; t_xrbindP => vres1 hvres1 vres1' hvres1' <- {fr1} /=.
   (* get_var of results *)
-  have harr: List.Forall2 (fun osr (x : var_i) => osr <> None -> is_aarr (vtype x)) (map fst alloc_params) (f_params fd).
+  have harr: List.Forall2 (fun osr (x : var_i) => osr <> None -> is_arr_var x) (map fst alloc_params) (f_params fd).
   + by apply: (Forall2_trans _ (init_params_alloc_params_not_None hparams) (init_params_aarr hparams)); auto.
   have hsub' := write_vars_subtype harr hs1.
   have haddr := init_params_alloc_params rsp hargs'' heqinmem_args'' hparams vme.

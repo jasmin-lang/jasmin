@@ -88,6 +88,16 @@ Definition undef_addr t :=
   | t0 => undef_v t0 erefl
   end.
 
+(* The default value of a type: what an uninitialised variable reads as in
+   the [total] mode. *)
+Definition dfl_val (t : ctype) : value :=
+  match t with
+  | cbool => Vbool false
+  | cint => Vint 0
+  | cword ws => Vword (0%w : word ws)
+  | carr n => Varr (WArray.empty n)
+  end.
+
 Definition values := seq value.
 
 Definition is_defined v := if v is Vundef _ _ then false else true.
@@ -151,7 +161,10 @@ Definition is_word v := is_cword (type_of_val v).
 Lemma is_wordI v : is_word v → subctype (cword U8) (type_of_val v).
 Proof. by case: v => // [> | [] > //] _; exact: wsize_le_U8. Qed.
 
-Definition DB wdb v :=
+Class enforce_defined_variables := wdb: bool.
+Definition do_enforce_defined_variables : enforce_defined_variables := true.
+
+Definition DB {wdb: enforce_defined_variables} v :=
   ~~wdb || (is_defined v || (type_of_val v == cbool)).
 
 (* ** Test for extension of values
@@ -518,8 +531,8 @@ Proof.
   by move=> [? [? [-> _]]].
 Qed.
 
-Lemma value_uincl_DB wdb v1 v2 :
-  value_uincl v1 v2 -> DB wdb v1 -> DB wdb v2.
+Lemma value_uincl_DB {wdb: enforce_defined_variables} v1 v2 :
+  value_uincl v1 v2 -> DB v1 -> DB v2.
 Proof.
   case: wdb => //.
   case: v1 => [b | z| len t| ws w | t i] /value_uinclE; try by move=> ->.
@@ -597,6 +610,13 @@ Proof.
     => ->.
 Qed.
 
+Lemma mapM2_truncate_val_has_type tys vs vs' :
+  mapM2 ErrType truncate_val tys vs = ok vs' -> List.map type_of_val vs' = tys.
+Proof.
+  elim: tys vs vs' => [|ty tys ih] [|v vs] vs' //=; first by move=> [<-].
+  by t_xrbindP => v' /truncate_val_has_type <- vs'' /ih <- <-.
+Qed.
+
 Lemma truncate_val_subctype_eq ty v v' :
   truncate_val ty v = ok v' ->
   subctype (type_of_val v) ty ->
@@ -651,7 +671,7 @@ Qed.
 Lemma truncate_val_defined ty v v' : truncate_val ty v = ok v' -> is_defined v'.
 Proof. by move=> /truncate_valI; case: v'. Qed.
 
-Lemma truncate_val_DB wdb ty v v' : truncate_val ty v = ok v' -> DB wdb v'.
+Lemma truncate_val_DB {wdb: enforce_defined_variables} ty v v' : truncate_val ty v = ok v' -> DB v'.
 Proof. by case: wdb => //; move=> /truncate_valI; case: v'. Qed.
 
 (* ----------------------------------------------------------------------- *)

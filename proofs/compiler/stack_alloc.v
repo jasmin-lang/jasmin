@@ -1873,7 +1873,7 @@ Definition add_alloc globals stack (xpk:var * ptr_kind_init) (lrx: Mvar.t ptr_ki
           else Error (stk_ierror_no_var "invalid slot")
         end
       | PIstkptr x' cs xp =>
-        if ~~ is_aarr x.(vtype) then
+        if ~~ is_arr_var x then
           Error (stk_ierror_no_var "a stk ptr variable must be an array")
         else
         match Mvar.get stack x' with
@@ -1892,7 +1892,7 @@ Definition add_alloc globals stack (xpk:var * ptr_kind_init) (lrx: Mvar.t ptr_ki
           else Error (stk_ierror_no_var "invalid ptr kind")
         end
       | PIregptr p =>
-        if ~~ is_aarr x.(vtype) then
+        if ~~ is_arr_var x then
           Error (stk_ierror_no_var "a reg ptr variable must be an array")
         else
         if Sv.mem p sv then Error (stk_ierror_no_var "invalid reg pointer already exists")
@@ -1983,7 +1983,7 @@ Definition init_param (mglob stack : Mvar.t (Z * wsize)) accu pi (x:var_i) :=
   | Some pi =>
     Let _ := assert (convertible (vtype pi.(pp_ptr)) (aword Uptr)) (stk_ierror_no_var "bad ptr type") in
     Let _ := assert (~~Sv.mem pi.(pp_ptr) disj) (stk_ierror_no_var "duplicate region") in
-    Let _ := assert (is_aarr x.(vtype)) (stk_ierror_no_var "bad reg ptr type") in
+    Let _ := assert (is_arr_var x) (stk_ierror_no_var "bad reg ptr type") in
     if Mvar.get lmap pi.(pp_ptr) is Some _ then Error (stk_ierror_no_var "a pointer is equal to a local var")
     else if Mvar.get mglob x is Some _ then Error (stk_ierror_no_var "a region is both glob and param")
     else if Mvar.get stack x is Some _ then Error (stk_ierror_no_var "a region is both stack and param")

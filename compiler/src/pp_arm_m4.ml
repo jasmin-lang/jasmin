@@ -1,6 +1,8 @@
-(* Assembly printer for ARM Cortex M4 (ARMv7-M).
+(* Assembly printer for ARMv7-M (Cortex-M3 and Cortex-M4) and ARMv8.1-M.
 
 We always use the Unified Assembly Language (UAL).
+Each operand is printed as the instruction description requests it
+([pp_arg]): a shift amount with the name of the shift ([lsl #3]).
 Immediate values (denoted <imm>) are always nonnegative integers.
 *)
 
@@ -57,7 +59,7 @@ let pp_condt = hash_to_string string_of_condt
 
 let pp_asm_arg (arg : (register, Arch_utils.empty, Arch_utils.empty, rflag, condt) asm_arg) =
   match arg with
-  | Condt _ -> None
+  | Condt c -> Some (pp_condt c)
   | Imm (ws, w) -> Some (pp_imm (Conv.z_unsigned_of_word ws w))
   | Reg r -> Some (pp_register r)
   | Regx _ -> .
@@ -78,37 +80,29 @@ let pp_asm_arg (arg : (register, Arch_utils.empty, Arch_utils.empty, rflag, cond
 
 let pp_set_flags opts = if opts.set_flags then "s" else ""
 
-(* We assume the only condition in the argument list is the one we need to
-   print. *)
-let pp_conditional args =
-  match List.opick (is_Condt arch) args with
-  | Some ct -> pp_condt ct
-  | None -> ""
+(* The condition of a conditional instruction ([PP_ct]): a suffix of the
+   mnemonic, and the [it] instruction before it. *)
+let pp_conditional pp =
+  match pp.pp_aop_ext with
+  | PP_ct (Condt ct) -> pp_condt ct
+  | _ -> ""
 
-let pp_shift_kind = hash_to_string string_of_shift_kind
+(* An operand, as the instruction description requests it. *)
+let pp_arg (a : (register, Arch_utils.empty, Arch_utils.empty, rflag, condt) pp_arg) =
+  match a with
+  | PPa_full (_, a) -> pp_asm_arg a
+  | PPa_shift (sk, a) -> Option.map (Format.asprintf "%s %s" sk) (pp_asm_arg a)
 
-let pp_shift (ARM_op (_, opts)) args =
-  match opts.has_shift with
-  | None ->
-      args
-  | Some sk ->
-      let sh = pp_shift_kind sk in
-      List.modify_last (Format.asprintf "%s %s" sh) args
-
-let pp_mnemonic_ext (ARM_op (_, opts) as op) suff args =
-  let id = instr_desc Arm_decl.arm_decl Arm_instr_decl.arm_op_decl (None, op) in
+let pp_mnemonic_ext op_decl (ARM_op (_, opts) as op) suff args =
+  let id = instr_desc Arm_decl.arm_decl op_decl (None, op) in
   let pp = id.id_pp_asm args in
-  Format.asprintf "%s%s%s%s" pp.pp_aop_name suff (pp_set_flags opts) (pp_conditional args)
+  Format.asprintf "%s%s%s%s" pp.pp_aop_name suff (pp_set_flags opts) (pp_conditional pp)
 
 (* To conform to the Unified Assembly Language (UAL) of ARM, IT instructions
    must be introduced *in addition* to conditional suffixes. *)
-let get_IT i =
-  match i with
-  | AsmOp (_, args) -> begin
-      match List.opick (is_Condt arch) args with
-      | None -> []
-      | Some c -> [ Instr ("it", [ pp_condt c ]) ]
-    end
+let get_IT pp =
+  match pp.pp_aop_ext with
+  | PP_ct (Condt c) -> [ Instr ("it", [ pp_condt c ]) ]
   | _ -> []
 
 module ArgChecker : sig
@@ -116,7 +110,10 @@ module ArgChecker : sig
      arguments.
      The immediates were checked in assembly generation
      ([CAimmC_arm_wencoding] in arm_decl.v): an unencodable one here is an
-     internal error. *)
+     internal error.
+     The arguments are the operands printed in full ([PPa_full]): the shift
+     amount of a shifted-register form ([PPa_shift]) takes no part in the
+     check nor in the choice of the suffix. *)
   val check_args :
     arm_op ->
     (Wsize.wsize * (register, Arch_utils.empty, Arch_utils.empty, rflag, condt) asm_arg)
@@ -188,10 +185,12 @@ end = struct
     | SMMUL | SMMULR | SMUL_hw _ | SMLA_hw _ | SMULW_hw _ | BFC | BFI | ASR
     | LSL | LSR | ROR | REV | REV16 | REVSH | MOVT | UBFX | UXTB | UXTH
     | SBFX | SXTB | SXTH | CLZ | LDR | LDRB | LDRH | LDRSB | LDRSH | STR | STRB | STRH
+    | CSEL | CSINC | CSINV | CSNEG
       -> ""
 end
 
-module ArmTarget : AsmTargetBuilder.AsmTarget with
+module ArmTarget (C : sig val core : arm_core end) :
+AsmTargetBuilder.AsmTarget with
 type reg = Arm_decl.register
 and type regx = Arch_utils.empty
 and type xreg = Arch_utils.empty
@@ -199,6 +198,10 @@ and type rflag = Arm_common.rflag
 and type cond = Arm_common.condt
 and type asm_op = arm_op
 = struct
+
+  (* The descriptors of the core, built once: [arm_op_decl] builds the
+     table of the intrinsics. *)
+  let op_decl = Arm_instr_decl.arm_op_decl C.core
 
   type reg = Arm_decl.register
   type regx = Arch_utils.empty
@@ -282,21 +285,24 @@ and type asm_op = arm_op
         declassify_mem arch len a
 
     | AsmOp (op, args) ->
-        let id = instr_desc arm_decl arm_op_decl (None, op) in
+        let id = instr_desc arm_decl op_decl (None, op) in
         let pp = id.id_pp_asm args in
         (* We need to perform the check even if we don't use the suffix, for
            instance for [LDR] or [STR]. *)
-        let suff = ArgChecker.check_args op pp.pp_aop_args in
-        let name = pp_mnemonic_ext op suff args in
-        let args =
-          List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args
+        let full_args =
+          List.filter_map
+            (function PPa_full (ws, a) -> Some (ws, a) | PPa_shift _ -> None)
+            pp.pp_aop_args
         in
-        let args = pp_shift op args in
-        get_IT i @ [ Instr (name, args) ]
+        let suff = ArgChecker.check_args op full_args in
+        let name = pp_mnemonic_ext op_decl op suff args in
+        let args = List.filter_map pp_arg pp.pp_aop_args in
+        get_IT pp @ [ Instr (name, args) ]
 
 
 end
 
-module ArmBuilder = AsmTargetBuilder.Make(ArmTarget)
-
-let print_prog fmt prog = PrintASM.pp_asm fmt (ArmBuilder.asm_of_prog prog)
+let print_prog core fmt prog =
+  let module C = struct let core = core end in
+  let module ArmBuilder = AsmTargetBuilder.Make (ArmTarget (C)) in
+  PrintASM.pp_asm fmt (ArmBuilder.asm_of_prog prog)

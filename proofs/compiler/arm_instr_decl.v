@@ -1,7 +1,10 @@
 (* ARM Cortex-M4 instruction set
 
-   These are the THUMB instructions of ARMv7-M, the instruction set of the M4
-   processor. *)
+   These are the THUMB instructions of ARMv7-M, the instruction set of the M3
+   processor, and of its DSP extension (ARMv7E-M), implemented by the M4
+   processor.
+   They are also instructions of ARMv8.1-M (e.g., the M55 processor), which
+   has others: see [arm_version] in arm_decl.v. *)
 
 From elpi.apps Require Import derive.std.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
@@ -134,6 +137,12 @@ Variant arm_mnemonic : Type :=
 | SXTH                           (* Extract a halfword and sign extend *)
 | CLZ                            (* Count leading zeros. *)
 
+(* Conditional selects (ARMv8.1-M only) *)
+| CSEL                           (* Conditional select *)
+| CSINC                          (* Conditional select increment *)
+| CSINV                          (* Conditional select invert *)
+| CSNEG                          (* Conditional select negate *)
+
 (* Comparison *)
 | CMP                            (* Compare *)
 | TST                            (* Test *)
@@ -165,6 +174,7 @@ Definition arm_mnemonics : seq arm_mnemonic :=
     ; AND; BFC; BFI; BIC; EOR; MVN; ORR
     ; ASR; LSL; LSR; ROR; REV; REV16; REVSH
     ; MOV; MOVT; UBFX; UXTB; UXTH; SBFX; SXTB; SXTH; CLZ
+    ; CSEL; CSINC; CSINV; CSNEG
     ; CMP; TST; CMN
     ; LDR; LDRB; LDRH; LDRSB; LDRSH
     ; STR; STRB; STRH
@@ -197,6 +207,10 @@ Definition has_shift_mnemonics : seq arm_mnemonic :=
 
 Definition condition_mnemonics : seq arm_mnemonic :=
   [:: CMP; TST ].
+
+(* The mnemonics that cannot be conditional: the conditional selects. *)
+Definition unconditional_mnemonics : seq arm_mnemonic :=
+  [:: CSEL; CSINC; CSINV; CSNEG ].
 
 Definition always_has_shift_mnemonics : seq (arm_mnemonic * shift_kind) :=
   [:: (UXTB, SROR); (UXTH, SROR); (SXTB, SROR); (SXTH, SROR) ].
@@ -285,6 +299,10 @@ Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
   | SXTB => "SXTB"
   | SXTH => "SXTH"
   | CLZ => "CLZ"
+  | CSEL => "CSEL"
+  | CSINC => "CSINC"
+  | CSINV => "CSINV"
+  | CSNEG => "CSNEG"
   | CMP => "CMP"
   | TST => "TST"
   | LDR => "LDR"
@@ -513,7 +531,16 @@ Definition mk_cond (single_cycle : bool) (idt : instr_desc_t) : instr_desc_t :=
     id_safe := map (sc_guarded (size (id_tin idt))) (id_safe idt);
     id_err := id_err idt;
     id_init := map (sc_guarded (size (id_tin idt))) (id_init idt);
-    id_pp_asm := id_pp_asm idt;
+    (* The guard is not an operand: it is printed as the condition of the
+       mnemonic ([PP_ct]). *)
+    id_pp_asm := fun args =>
+      let p := id_pp_asm idt (take (id_nargs idt) args) in
+      {|
+        pp_aop_name := pp_aop_name p;
+        pp_aop_ext :=
+          if drop (id_nargs idt) args is c :: _ then PP_ct c else pp_aop_ext p;
+        pp_aop_args := pp_aop_args p;
+      |};
     id_valid := id_valid idt;
     id_doit := if single_cycle then id_doit idt else NOT_DOIT;
     id_wf := mk_cond_wf idt;
@@ -603,13 +630,18 @@ Definition mk_shifted
     id_safe := id_safe idt;
     id_err := id_err idt;
     id_init := id_init idt;
-    id_pp_asm := id_pp_asm idt;
+    (* The shift amount is printed after the operands of the base
+       instruction, with the name of the shift: [lsl #3]. *)
+    id_pp_asm := pp_append_shift sk (id_nargs idt) (id_pp_asm idt);
     id_valid := id_valid idt;
     id_doit := id_doit idt;
     id_wf := shifted_wf idt;
   |}.
 
 Arguments mk_shifted : clear implicits.
+
+Definition ak_reg_reg_reg_cond : i_args_kinds :=
+  [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAreg ]; [:: CAcond ] ] ].
 
 Definition ak_reg_reg_imm_ ew :=
   [:: [:: [:: CAreg]; [:: CAreg]; [:: CAimm (Some (CAimmC_arm_wencoding ew)) reg_size]]].
@@ -656,11 +688,27 @@ Definition pp_arm_op
   {|
     pp_aop_name := string_of_arm_mnemonic mn;
     pp_aop_ext := PP_name;
-    pp_aop_args := map (fun a => (reg_size, a)) args;
+    pp_aop_args := map (PPa_full reg_size) args;
   |}.
+
+(* An instruction whose operands are printed with the given shapes. *)
+Definition pp_arm_op_shapes
+  (mn : arm_mnemonic) (shapes : seq pp_shape) : asm_args -> pp_asm_op :=
+  pp_op_shapes (string_of_arm_mnemonic mn) shapes.
 
 (* -------------------------------------------------------------------- *)
 (* Instruction semantics and description. *)
+(* Data independent timing ([id_doit]): the Cortex-M4 has no architectural
+   notion of it, so the classification follows the cycle counts of the
+   Cortex-M4 Technical Reference Manual (Arm DDI 0439B), Table 3-1
+   "Cortex-M4 instruction set summary" and Table 3-2 "Cortex-M4 DSP
+   instruction set summary". Every instruction described here takes a fixed
+   number of cycles, one for most of them, except SDIV and UDIV: "2 to 12",
+   the division "terminates when the divide calculation completes, with the
+   number of cycles required dependent on the values of the input operands".
+   The lists of instructions with data independent timing of the A-profile
+   (CPSR.DIT) and of ARMv8.1-M (AIRCR.DIT) describe other processors and do
+   not apply to the Cortex-M4. *)
 (* Data instructions descriptions are defined first as setting flags, and
    without shifts.
    Then, depending on [set_flags], the description is updated with [drop_nzcv].
@@ -680,8 +728,28 @@ Definition pp_arm_op
 Section ARM_INSTR.
 
 Context
+  {core : arm_core}
   (opts : arm_options).
 
+(* Data independent timing.
+   The descriptions below carry the classification of the Cortex-M4; MVN,
+   whose classification differs on ARMv8.1-M, carries both.
+
+   ARMv8.1-M defines data independent timing in the DIT extension (Armv8-M
+   Architecture Reference Manual, DDI0553B.z, B3.34): when AIRCR.DIT is 1,
+   the execution time of the instructions whose description has a "Data
+   Independent Timing behavior" paragraph does not depend on the values of
+   their operands. Every instruction described here has such a paragraph,
+   for every form of the mnemonic (immediate, register, shifted register,
+   flag setting), except:
+   - MVN (C2.4.128, C2.4.129), SDIV and UDIV;
+   - the forms of ADD and SUB that read SP (C2.4.3, C2.4.4, C2.4.237,
+     C2.4.238); they are classified with the other forms, since their
+     operands, the stack pointer and an offset in the stack, make an
+     address, which the constant-time checker already requires to be
+     public;
+   - for the loads and the stores, the execution time is independent of the
+     value that is loaded or stored, not of the address. *)
 Let string_of_arm_mnemonic mn :=
       (string_of_arm_mnemonic mn
         ++ (if set_flags opts then "S" else "")
@@ -890,7 +958,7 @@ Definition arm_SDIV_instr : instr_desc_t :=
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
+    id_doit := NOT_DOIT; (* 2 to 12 cycles, depending on the operands. *)
     id_wf := refl_equal;
   |}.
 
@@ -996,7 +1064,7 @@ Definition arm_RSB_instr : instr_desc_t :=
       id_init := [:: IBool true; IBool true; IBool true; IBool true; IBool true ];
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
-      id_doit := NOT_DOIT; (* Not DIT *)
+      id_doit := DOIT;
       id_wf := refl_equal;
     |}
   in
@@ -1033,7 +1101,7 @@ Definition arm_UDIV_instr : instr_desc_t :=
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
+    id_doit := NOT_DOIT; (* 2 to 12 cycles, depending on the operands. *)
     id_wf := refl_equal;
   |}.
 
@@ -1061,7 +1129,7 @@ Definition arm_UMULL_instr : instr_desc_t :=
     id_init := [:: IBool true; IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := DOIT;
+    id_doit := if core_long_mul_dit then DOIT else NOT_DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1088,8 +1156,8 @@ Definition arm_UMAAL_instr : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true; IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
+    id_valid := core_dsp;
+    id_doit := DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1117,7 +1185,7 @@ Definition arm_UMLAL_instr : instr_desc_t :=
     id_init := [:: IBool true; IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := DOIT;
+    id_doit := if core_long_mul_dit then DOIT else NOT_DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1145,7 +1213,7 @@ Definition arm_SMULL_instr : instr_desc_t :=
     id_init := [:: IBool true; IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := DOIT;
+    id_doit := if core_long_mul_dit then DOIT else NOT_DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1173,7 +1241,7 @@ Definition arm_SMLAL_instr : instr_desc_t :=
     id_init := [:: IBool true; IBool true ];
     id_pp_asm := pp_arm_op mn opts;
     id_valid := true;
-    id_doit := DOIT;
+    id_doit := if core_long_mul_dit then DOIT else NOT_DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1199,8 +1267,8 @@ Definition arm_SMMUL_instr : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
+    id_valid := core_dsp;
+    id_doit := DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1226,8 +1294,8 @@ Definition arm_SMMULR_instr : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
+    id_valid := core_dsp;
+    id_doit := DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1262,8 +1330,8 @@ Definition arm_smul_hw_instr hwn hwm : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
+    id_valid := core_dsp;
+    id_doit := DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1294,8 +1362,8 @@ Definition arm_smla_hw_instr hwn hwm : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
+    id_valid := core_dsp;
+    id_doit := DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1325,8 +1393,8 @@ Definition arm_smulw_hw_instr hw : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_pp_asm := pp_arm_op mn opts;
-    id_valid := true;
-    id_doit := NOT_DOIT; (* Not DIT *)
+    id_valid := core_dsp;
+    id_doit := DOIT;
     id_wf := refl_equal;
   |}.
 
@@ -1545,7 +1613,7 @@ Definition arm_MVN_instr : instr_desc_t :=
       id_init := [:: IBool true; IBool true; IBool false; IBool true ];
       id_pp_asm := pp_arm_op mn opts;
       id_valid := true;
-      id_doit := DOIT;
+      id_doit := match core_version with ARMv7M => DOIT | ARMv8_1M => NOT_DOIT end;
       id_wf := refl_equal;
     |}
   in
@@ -1790,7 +1858,7 @@ Definition arm_REVSH_semi (w : ty_r) : ty_r :=
 
 Definition arm_REV_instr   := mk_rev_instr REV   arm_REV_semi   DOIT.
 Definition arm_REV16_instr := mk_rev_instr REV16 arm_REV16_semi DOIT.
-Definition arm_REVSH_instr := mk_rev_instr REVSH arm_REVSH_semi NOT_DOIT. (* Not DIT *)
+Definition arm_REVSH_instr := mk_rev_instr REVSH arm_REVSH_semi DOIT.
 
 Definition arm_MOV_semi_t (wn : ty_r) : ty_nzc_r_t :=
   (:: NF_of_word wn, ZF_of_word wn, undefined_flag & wn).
@@ -1923,7 +1991,9 @@ Definition arm_UXTB_instr : instr_desc_t :=
     id_safe := [::];
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
-    id_pp_asm := pp_arm_op mn opts;
+    (* The rotation amount is printed with the name of the shift: [ror #8]. *)
+    id_pp_asm :=
+      pp_arm_op_shapes mn [:: pp_full reg_size; pp_full reg_size; pp_shift SROR ];
     id_valid := true;
     id_doit := DOIT;
     id_wf := refl_equal;
@@ -1949,7 +2019,9 @@ Definition arm_UXTH_instr : instr_desc_t :=
     id_safe := [::];
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
-    id_pp_asm := pp_arm_op mn opts;
+    (* The rotation amount is printed with the name of the shift: [ror #8]. *)
+    id_pp_asm :=
+      pp_arm_op_shapes mn [:: pp_full reg_size; pp_full reg_size; pp_shift SROR ];
     id_valid := true;
     id_doit := DOIT;
     id_wf := refl_equal;
@@ -2007,7 +2079,9 @@ Definition arm_SXTB_instr : instr_desc_t :=
     id_safe := [::];
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
-    id_pp_asm := pp_arm_op mn opts;
+    (* The rotation amount is printed with the name of the shift: [ror #8]. *)
+    id_pp_asm :=
+      pp_arm_op_shapes mn [:: pp_full reg_size; pp_full reg_size; pp_shift SROR ];
     id_valid := true;
     id_doit := DOIT;
     id_wf := refl_equal;
@@ -2033,7 +2107,9 @@ Definition arm_SXTH_instr : instr_desc_t :=
     id_safe := [::];
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
-    id_pp_asm := pp_arm_op mn opts;
+    (* The rotation amount is printed with the name of the shift: [ror #8]. *)
+    id_pp_asm :=
+      pp_arm_op_shapes mn [:: pp_full reg_size; pp_full reg_size; pp_shift SROR ];
     id_valid := true;
     id_doit := DOIT;
     id_wf := refl_equal;
@@ -2045,6 +2121,44 @@ Definition arm_CMP_semi_t (wn wm : ty_r) : ty_nzcv_t :=
       (wn + wmnot + 1)%w
       (wunsigned wn + wunsigned wmnot + 1)%Z
       (wsigned wn + wsigned wmnot + 1)%Z.
+
+(* Conditional selects, ARMv8.1-M only (Armv8-M Architecture Reference Manual,
+   DDI0553B.z, C2.4.45 CSEL, C2.4.48 CSINC, C2.4.49 CSINV, C2.4.50 CSNEG):
+   the destination gets the first source when the condition holds, and the
+   second one, respectively unchanged, incremented, inverted and negated,
+   otherwise. They are not permitted in IT blocks, do not set the flags, and
+   have data independent timing. In the manual, register 15 as a source
+   denotes the zero register; it is not described here. *)
+Definition mk_csel_instr (mn : arm_mnemonic) (semi : wreg -> wreg -> bool -> ty_r)
+  : instr_desc_t :=
+  let tin := [:: lreg; lreg; lbool ] in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := tin;
+    id_in := [:: Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lreg ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 4;
+    id_args_kinds := ak_reg_reg_reg_cond;
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_pp_asm := pp_arm_op mn opts;
+    id_valid :=
+      [&& if core_version is ARMv8_1M then true else false,
+          ~~ set_flags opts & ~~ is_conditional opts ];
+    id_doit := DOIT;
+    id_wf := refl_equal;
+  |}.
+
+Definition arm_CSEL_instr := mk_csel_instr CSEL arm_CSEL_semi.
+Definition arm_CSINC_instr := mk_csel_instr CSINC arm_CSINC_semi.
+Definition arm_CSINV_instr := mk_csel_instr CSINV arm_CSINV_semi.
+Definition arm_CSNEG_instr := mk_csel_instr CSNEG arm_CSNEG_semi.
 
 Definition arm_CMP_instr : instr_desc_t :=
   let mn := CMP in
@@ -2284,6 +2398,10 @@ Definition mn_desc (mn : arm_mnemonic) : instr_desc_t :=
   | SXTB => arm_SXTB_instr
   | SXTH => arm_SXTH_instr
   | CLZ => arm_CLZ_instr
+  | CSEL => arm_CSEL_instr
+  | CSINC => arm_CSINC_instr
+  | CSINV => arm_CSINV_instr
+  | CSNEG => arm_CSNEG_instr
   | CMP => arm_CMP_instr
   | TST => arm_TST_instr
   | LDR => arm_load_instr LDR
@@ -2307,7 +2425,10 @@ Arguments arm_extend_semi {ws} sign ws' wn /.
    summary", in a system with zero wait states.
    Not single-cycle: MLA and MLS (2 cycles), the loads and the stores (2
    cycles; neighboring ones can pipeline their address and data phases), and
-   the divisions (2 to 12 cycles). *)
+   the divisions (2 to 12 cycles).
+   The table also holds for the Cortex-M3 (Technical Reference Manual, Arm
+   DDI 0337), except the long multiplications UMULL, SMULL, UMLAL and SMLAL,
+   which are not DIT there. *)
 Definition arm_single_cycle (mn : arm_mnemonic) : bool :=
   match mn with
   | ADD | ADC | MUL | SUB | SBC | RSB | UMULL | UMAAL | UMLAL | SMULL | SMLAL
@@ -2315,6 +2436,7 @@ Definition arm_single_cycle (mn : arm_mnemonic) : bool :=
   | AND | BFC | BFI | BIC | EOR | MVN | ORR
   | ASR | LSL | LSR | ROR | REV | REV16 | REVSH
   | MOV | MOVT | UBFX | UXTB | UXTH | SBFX | SXTB | SXTH | CLZ
+  | CSEL | CSINC | CSINV | CSNEG
   | CMP | TST | CMN
     => true
   | MLA | MLS | SDIV | UDIV
@@ -2323,15 +2445,24 @@ Definition arm_single_cycle (mn : arm_mnemonic) : bool :=
     => false
   end.
 
-Definition arm_instr_desc (o : arm_op) : instr_desc_t :=
+(* On ARMv8.1-M, data independent timing "only applies if the instruction
+   passes its Condition code check" (DDI0553B.z, B3.34, rule R_DNPM): the
+   execution time of a conditional instruction depends on its condition. *)
+Definition arm_cond_doit {core : arm_core} (mn : arm_mnemonic) : bool :=
+  match core_version with
+  | ARMv7M => arm_single_cycle mn
+  | ARMv8_1M => false
+  end.
+
+Definition arm_instr_desc {core : arm_core} (o : arm_op) : instr_desc_t :=
   let '(ARM_op mn opts) := o in
   let x := mn_desc opts mn in
   if is_conditional opts
-  then mk_cond (arm_single_cycle mn) x
+  then mk_cond (arm_cond_doit mn) x
   else x.
 
-Definition arm_prim_string : seq (string * prim_constructor arm_op) :=
-  Eval compute in
+Definition arm_prim_string {core : arm_core}
+  : seq (string * prim_constructor arm_op) :=
   let mk_prim mn sf ic :=
     let hs := xseq.assoc always_has_shift_mnemonics mn in
     let opts := {| set_flags := sf; is_conditional := ic; has_shift := hs; |} in
@@ -2345,15 +2476,27 @@ Definition arm_prim_string : seq (string * prim_constructor arm_op) :=
         (~~ [&& sf, ic & mn == MUL ])
         "this mnemonic cannot both set flags and be conditional"%string
     in
-    ok (ARM_op mn opts)
+    Let _ :=
+      assert
+        [|| ~~ ic | mn \notin unconditional_mnemonics ]
+        "this mnemonic cannot be conditional"%string
+    in
+    let op := ARM_op mn opts in
+    Let _ :=
+      assert
+        (id_valid (arm_instr_desc op))
+        "this instruction is not available on this core"%string
+    in
+    ok op
   in
   map (fun mn => (string_of_arm_mnemonic mn, PrimARM (mk_prim mn))) cenum.
 
 #[ export ]
-Instance arm_op_decl : asm_op_decl arm_op :=
+Instance arm_op_decl {core : arm_core} : asm_op_decl arm_op :=
   {|
     instr_desc_op := arm_instr_desc;
     prim_string := arm_prim_string;
   |}.
 
-Definition arm_prog := @asm_prog _ _ _ _ _ _ _ arm_op_decl.
+Definition arm_prog {core : arm_core} :=
+  @asm_prog _ _ _ _ _ _ _ arm_op_decl.

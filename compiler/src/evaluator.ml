@@ -56,12 +56,12 @@ let withassert = Sem_params.withassert
 
 let exec_pre ep spp ii fc gd escs emem (vargs:value list) =
   let s1 = exn_exec ii (write_vars nosubword ep true fc.f_iparams vargs {escs; emem; evm = Vm.init nosubword}) in
-  List.iter (fun pa -> exn_exec ii (sem_assert nosubword withassert ep spp gd s1 pa)) fc.f_pre
+  List.iter (fun pa -> exn_exec ii (sem_assert nosubword withassert ep spp Utils0.partial gd s1 pa)) fc.f_pre
 
 let exec_post ep spp ii fc gd escs emem (vargs:value list) (vres: value list) =
   let s1 = exn_exec ii (write_vars nosubword ep true fc.f_iparams vargs {escs; emem; evm = Vm.init nosubword}) in
   let s1 = exn_exec ii (write_vars nosubword ep true fc.f_ires vres s1) in
-  List.iter (fun pa -> exn_exec ii (sem_assert nosubword withassert ep spp gd s1 pa)) fc.f_post
+  List.iter (fun pa -> exn_exec ii (sem_assert nosubword withassert ep spp Utils0.partial gd s1 pa)) fc.f_post
 
 let init_estate ep spp p ii fn scs0 m vargs =
   let f = BatOption.get (get_fundef p.p_funcs fn) in
@@ -74,7 +74,7 @@ let init_estate ep spp p ii fn scs0 m vargs =
 
 let finalize_estate ep spp p ii f vargs (s: _ estate) =
   let gd = p.p_globs in
-  let vres = exn_exec ii (mapM (fun (x:var_i) -> get_var nosubword true s.evm x.v_var) f.f_res) in
+  let vres = exn_exec ii (mapM (fun (x:var_i) -> get_var nosubword Utils0.partial true s.evm x.v_var) f.f_res) in
   let vres = exn_exec ii (mapM2 ErrType truncate_val (List.map Type.eval_atype f.f_tyout) vres) in
   BatOption.may (fun fc -> exec_post ep spp ii fc gd s.escs s.emem vargs vres) f.f_contract;
   s.escs, s.emem, vres
@@ -89,7 +89,7 @@ let return ep spp s =
   | Scall(ii,f, vargs, xs,vm1,c,stk) ->
     let escs, emem, vres = finalize_estate ep spp s.s_prog ii f vargs s.s_estate in
     let gd = s.s_prog.p_globs in
-    let s1 = exn_exec ii (write_lvals nosubword ep spp true gd {escs; emem; evm = vm1 } xs vres) in
+    let s1 = exn_exec ii (write_lvals nosubword ep spp Utils0.partial true gd {escs; emem; evm = vm1 } xs vres) in
     { s with
       s_cmd = c;
       s_estate = s1;
@@ -114,9 +114,9 @@ let small_step1 ep spp sip s =
     match ir with
 
     | Cassgn(x,_,ty,e) ->
-      let v  = exn_exec ii (sem_pexpr nosubword ep spp true gd s1 e) in
+      let v  = exn_exec ii (sem_pexpr nosubword ep spp Utils0.partial true gd s1 e) in
       let v' = exn_exec ii (truncate_val (eval_atype ty) v) in
-      let s2 = exn_exec ii (write_lval nosubword ep spp true gd x v' s1) in
+      let s2 = exn_exec ii (write_lval nosubword ep spp Utils0.partial true gd x v' s1) in
       { s with s_cmd = c; s_estate = s2 }
 
     | Copn(xs,_,op,es) ->
@@ -124,24 +124,24 @@ let small_step1 ep spp sip s =
       { s with s_cmd = c; s_estate = s2 }
 
     | Csyscall(xs,o, es) ->
-      let ves = exn_exec ii (sem_pexprs nosubword ep spp true gd s1 es) in
+      let ves = exn_exec ii (sem_pexprs nosubword ep spp Utils0.partial true gd s1 es) in
       let ((scs, m), vs) =
         exn_exec ii (syscall_sem__ sip._sc_sem ep._pd s1.escs s1.emem o ves) in
-      let s2 = exn_exec ii (write_lvals nosubword ep spp true gd {escs = scs; emem = m; evm = s1.evm} xs vs) in
+      let s2 = exn_exec ii (write_lvals nosubword ep spp Utils0.partial true gd {escs = scs; emem = m; evm = s1.evm} xs vs) in
       { s with s_cmd = c; s_estate = s2 }
 
     | Cassert (p,a) ->
-      let _ = exn_exec ii (sem_assert nosubword withassert ep spp gd s1 (p, a)) in
+      let _ = exn_exec ii (sem_assert nosubword withassert ep spp Utils0.partial gd s1 (p, a)) in
       { s with s_cmd = c }
 
     | Cif(e,c1,c2) ->
-      let b = of_val_b ii (exn_exec ii (sem_pexpr nosubword ep spp true gd s1 e)) in
+      let b = of_val_b ii (exn_exec ii (sem_pexpr nosubword ep spp Utils0.partial true gd s1 e)) in
       let c = (if b then c1 else c2) @ c in
       { s with s_cmd = c }
 
     | Cfor (i,((d,lo),hi), body) ->
-      let vlo = of_val_z ii (exn_exec ii (sem_pexpr nosubword ep spp true gd s1 lo)) in
-      let vhi = of_val_z ii (exn_exec ii (sem_pexpr nosubword ep spp true gd s1 hi)) in
+      let vlo = of_val_z ii (exn_exec ii (sem_pexpr nosubword ep spp Utils0.partial true gd s1 lo)) in
+      let vhi = of_val_z ii (exn_exec ii (sem_pexpr nosubword ep spp Utils0.partial true gd s1 hi)) in
       let rng = wrange d vlo vhi in
       let s =
         {s with s_cmd = []; s_stk = Sfor(ii, i, rng, body, c, s.s_stk) } in
@@ -151,7 +151,7 @@ let small_step1 ep spp sip s =
       { s with s_cmd = c1 @ MkI(ii, Cif(e, c2@[i],[])) :: c }
 
     | Ccall(xs,fn,es) ->
-      let vargs = exn_exec ii (sem_pexprs nosubword ep spp true gd s1 es) in
+      let vargs = exn_exec ii (sem_pexprs nosubword ep spp Utils0.partial true gd s1 es) in
       let f, vargs, s_estate = init_estate ep spp s.s_prog ii fn s1.escs s1.emem  vargs in
       let stk = Scall(ii,f, vargs, xs, s1.evm, c, s.s_stk) in
       {s with s_cmd = f.f_body;
@@ -229,10 +229,10 @@ let pp_val fmt v =
     Format.fprintf fmt "@[[";
     for i = 0 to ni-2 do
       let i = Conv.cz_of_int i in
-      Format.fprintf fmt "%a;@ " pp_res (WArray.get n Aligned AAscale U8 t i);
+      Format.fprintf fmt "%a;@ " pp_res (WArray.get Utils0.partial n Aligned AAscale U8 t i);
     done;
     if 0 < ni then
-      pp_res fmt (WArray.get n Aligned AAscale U8 t (Conv.cz_of_int (ni-1)));
+      pp_res fmt (WArray.get Utils0.partial n Aligned AAscale U8 t (Conv.cz_of_int (ni-1)));
     Format.fprintf fmt "]@]";
   | Vword(ws, w) -> pp_word fmt ws w
   | Vundef ty -> pp_undef fmt ty

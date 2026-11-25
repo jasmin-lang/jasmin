@@ -1,8 +1,8 @@
 open Jasmin.Utils
 
 val check_dir :
-  (architecture list -> string -> 'a -> 'a) ->
-  architecture list ->
+  (Jasmin.Architecture.architecture list -> string -> 'a -> 'a) ->
+  Jasmin.Architecture.architecture list ->
   string ->
   'a ->
   'a

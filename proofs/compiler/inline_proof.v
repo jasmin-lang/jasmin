@@ -150,9 +150,9 @@ End SUBSET.
 Lemma assgn_tuple_Lvar (p:uprog) (ev:unit) ii (xs:seq var_i) flag tys es vs vs' s s' :
   let xs := map Lvar xs in
   disjoint (vrvs xs) (read_es es) ->
-  sem_pexprs true (p_globs p) s es = ok vs ->
+  sem_pexprs (wdb := true) (p_globs p) s es = ok vs ->
   mapM2 ErrType dc_truncate_val (map eval_atype tys) vs = ok vs' ->
-  write_lvals true (p_globs p) s xs vs' = ok s' ->
+  write_lvals (wdb := true) (p_globs p) s xs vs' = ok s' ->
   esem p ev (assgn_tuple ii xs flag tys es) s = ok s'.
 Proof.
   rewrite /disjoint /assgn_tuple /is_true Sv.is_empty_spec.
@@ -172,9 +172,9 @@ Qed.
 Lemma assgn_tuple_Pvar (p:uprog) ev ii xs flag tys rxs vs vs' s s' :
   let es := map Plvar rxs in
   disjoint (vrvs xs) (read_es es) ->
-  get_var_is true (evm s) rxs = ok vs ->
+  get_var_is (wdb := true) (evm s) rxs = ok vs ->
   mapM2 ErrType dc_truncate_val (map eval_atype tys) vs = ok vs' ->
-  write_lvals true (p_globs p) s xs vs' = ok s' ->
+  write_lvals (wdb := true) (p_globs p) s xs vs' = ok s' ->
   esem p ev (assgn_tuple ii xs flag tys es) s = ok s'.
 Proof.
   rewrite /disjoint /assgn_tuple /is_true Sv.is_empty_spec.
@@ -388,7 +388,7 @@ Proof using uniq_funname inline_fd_ok.
   move=> vst hes' huvs.
   have [vst' htr' huvs'] := mapM2_dc_truncate_val htr huvs.
   rewrite (write_vars_lvals _ (p_globs p1)) in hws.
-  have [|/= vm2 hws' huincl] := writes_uincl (vm1:=evm t) _ huvs' hws.
+  have [|/= vm2 hws' huincl] := write_lvals_uincl (vm1:=evm t) _ huvs' hws.
   + by apply vm_uincl_init.
   have heqt: (with_vm (estate0 (mk_fstate vs s)) (evm t)) = t.
   + by move: hpre => /st_relP [-> /=].

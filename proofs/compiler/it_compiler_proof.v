@@ -74,21 +74,18 @@ Context
   (haparams : h_architecture_params aparams)
   (cparams : compiler_params).
 
-Hypothesis print_uprogP : forall s p, cparams.(print_uprog) s p = p.
-Hypothesis print_sprogP : forall s p, cparams.(print_sprog) s p = p.
-Hypothesis print_linearP : forall s p, cparams.(print_linear) s p = p.
 
 #[local] Existing Instance progUnit.
 
 Lemma compiler_third_part_meta entries (p p' : sprog) :
   compiler_third_part aparams cparams entries p = ok p' ->
   p_extra p' = p_extra p.
-Proof using sc_sem print_sprogP.
+Proof using sc_sem.
   rewrite /compiler_third_part.
-  t_xrbindP => pa hpa _ pb hpb.
+  t_xrbindP => pa hpa _ _ _ pb hpb _.
   have! [_ ok_pa] := (dead_code_prog_tokeep_meta hpa).
   have! [] := (dead_code_prog_tokeep_meta hpb).
-  rewrite !print_sprogP /= => _ ok_pb <- {p'}.
+  rewrite /= => _ ok_pb <- {p'}.
   by rewrite ok_pb ok_pa.
 Qed.
 
@@ -97,11 +94,11 @@ Lemma compiler_third_part_invariants entries p p' :
   forall fn fd, get_fundef p.(p_funcs) fn = Some fd ->
   exists fd', get_fundef p'.(p_funcs) fn = Some fd' /\
   fd.(f_extra).(sf_align_args) = fd'.(f_extra).(sf_align_args).
-Proof using sc_sem print_sprogP.
+Proof using sc_sem.
   rewrite /compiler_third_part.
-  t_xrbindP => pa hpa.
-  rewrite 2!print_sprogP /= => check_pa pb hpb.
-  rewrite print_sprogP => <-{p'}.
+  t_xrbindP => pa hpa _ _.
+  rewrite /= => check_pa pb hpb.
+  move=> _ <-{p'}.
   move=> fn fd ok_fd.
   have [fda ok_fda get_fda] := [elaborate
     dead_code_prog_tokeep_get_fundef hpa ok_fd].
@@ -216,9 +213,6 @@ Context
   (haparams : h_architecture_params aparams)
   (cparams : compiler_params).
 
-Hypothesis print_uprogP : forall s p, cparams.(print_uprog) s p = p.
-Hypothesis print_sprogP : forall s p, cparams.(print_sprog) s p = p.
-Hypothesis print_linearP : forall s p, cparams.(print_linear) s p = p.
 
 #[local]
 Existing Instance progUnit.
@@ -227,10 +221,10 @@ Lemma compiler_third_part_alloc_ok entries (p p' : sprog) (fn: funname) (m: mem)
   compiler_third_part aparams cparams entries p = ok p' →
   alloc_ok p' fn m →
   alloc_ok p fn m.
-Proof using print_sprogP.
+Proof using.
   rewrite /compiler_third_part; t_xrbindP=> pa ok_pa.
-  rewrite !print_sprogP => ok_pb pc ok_pc.
-  rewrite print_sprogP => <- {p'}.
+  move=> _ _ ok_pb pc ok_pc.
+  move=> _ <- {p'}.
   rewrite /alloc_ok => alloc_pc fd get_fd.
   have [fda ok_fda get_fda] := [elaborate
     (dead_code_prog_tokeep_get_fundef ok_pa get_fd)].
@@ -293,11 +287,11 @@ Lemma compiler_back_end_meta entries (p: sprog) (tp: lprog) :
      lp_rsp tp = p.(p_extra).(sp_rsp) &
      lp_globs tp = p.(p_extra).(sp_globs)
   ].
-Proof using sc_sem print_linearP.
+Proof using sc_sem.
   rewrite /compiler_back_end; t_xrbindP => _ _ lp ok_lp.
-  rewrite print_linearP => zp ok_zp.
-  rewrite print_linearP => tp' ok_tp.
-  rewrite print_linearP => ?; subst tp'.
+  move=> _ zp ok_zp.
+  move=> _ tp' ok_tp.
+  move=> _ ?; subst tp'.
   have! [<- [<- [<- _]]] := (tunnel_program_invariants ok_tp).
   have! [<- <- <-] := (stack_zeroization_lprog_invariants ok_zp).
   split.
@@ -310,7 +304,7 @@ Qed.
 Lemma compiler_back_end_to_asm_meta entries (p : sprog) (xp : asm_prog) :
   compiler_back_end_to_asm aparams cparams entries p = ok xp
   -> asm_globs xp = (sp_globs (p_extra p)).
-Proof using sc_sem print_linearP.
+Proof using sc_sem.
   rewrite /compiler_back_end_to_asm.
   t_xrbindP=> tp /compiler_back_end_meta[] _ _ <-.
   by move=> /assemble_progP [_ <-].
@@ -334,12 +328,12 @@ Lemma enough_stack_space_alloc_ok
   -> (wunsigned (stack_limit m) <= wunsigned (top_stack m'))%Z
   -> enough_stack_space xp fn (top_stack m) m'
   -> alloc_ok sp fn m.
-Proof using print_linearP.
+Proof using.
   rewrite /compiler_back_end_to_asm /compiler_back_end.
   t_xrbindP => ? /allMP ok_export _ lp ok_lp.
-  rewrite print_linearP => zp ok_zp.
-  rewrite print_linearP => tp ok_tp.
-  rewrite print_linearP => <- ok_xp /InP ok_fn M S.
+  move=> _ zp ok_zp.
+  move=> _ tp ok_tp.
+  move=> _ <- ok_xp /InP ok_fn M S.
   move => fd get_fd.
   move: ok_export => /(_ _ ok_fn); rewrite get_fd => /assertP export.
   split; last by rewrite export.
@@ -382,15 +376,15 @@ Lemma compiler_back_end_to_asm_get_fundef entries sp xp fn :
     get_fundef xp.(asm_funcs) fn = Some xd,
     xd.(asm_fd_export) &
     sfd.(f_extra).(sf_align_args) = xd.(asm_fd_align_args)].
-Proof using sc_sem print_linearP.
+Proof using sc_sem.
   move=> ok_xp ok_fn.
   move: ok_xp; rewrite /compiler_back_end_to_asm.
   t_xrbindP=> lp ok_lp ok_xp.
   move: ok_lp; rewrite /compiler_back_end.
-  t_xrbindP=> hcheck _ lp1 ok_lp1 lp2.
-  rewrite print_linearP => ok_lp2 lp3.
-  rewrite print_linearP => ok_lp3.
-  rewrite print_linearP => ?; subst lp.
+  t_xrbindP=> hcheck _ lp1 ok_lp1 _ lp2.
+  move=> ok_lp2 _ lp3.
+  move=> ok_lp3 _.
+  move=> ?; subst lp.
 
   have [sfd [get_sfd ranone]]:
     exists sfd,
@@ -436,9 +430,6 @@ Context
   (aparams : architecture_params)
   (haparams : h_architecture_params aparams)
   (cparams : compiler_params)
-  (print_uprogP : forall s p, cparams.(print_uprog) s p = p)
-  (print_sprogP : forall s p, cparams.(print_sprog) s p = p)
-  (print_linearP : forall s p, cparams.(print_linear) s p = p)
 .
 
 Definition of_void1 {A T} (e : void1 A) : T := match e with end.
@@ -529,9 +520,9 @@ Lemma it_inliningP {to_keep p p' ev fn} :
   inlining cparams to_keep p = ok p' ->
   wiequiv_f (dc1 := indirect_c) (dc2 := indirect_c)
     p p' ev ev pre_incl fn fn post_incl.
-Proof using print_uprogP.
-rewrite /inlining; t_xrbindP=> hfn p0 hp0 p1.
-rewrite !print_uprogP => hp1 ?; subst p'.
+Proof using.
+rewrite /inlining; t_xrbindP=> hfn p0 hp0 _ p1.
+move=> hp1 _ ?; subst p'.
 apply: wiequiv_f_trans_UU_UU; first exact: it_inline_call_errP hp0.
 apply: it_sem_refl_EE_UU; exact: (it_dead_calls_err_seqP hp1 _ hfn).
 Qed.
@@ -566,9 +557,9 @@ Lemma it_live_range_splittingP {dc : DirectCall} (p p': uprog) fn ev :
   live_range_splitting aparams cparams p = ok p' ->
   wiequiv_f (dc1 := dc) (dc2 := dc)
     p p' ev ev pre_eq fn fn post_incl.
-Proof using haparams print_uprogP.
+Proof using haparams.
 rewrite /live_range_splitting; t_xrbindP.
-rewrite !print_uprogP => ok_p' pa ok_pa; rewrite print_uprogP => ?; subst pa.
+move=> _ _ _ ok_p' pa ok_pa _ ?; subst pa.
 move: p ok_p' ok_pa => [fs gd ep] /= ok_p' ok_pa.
 apply: wiequiv_f_trans_UU_EU; first exact: (it_alloc_call_uprogP _ _ ok_p').
 apply: (
@@ -589,19 +580,19 @@ Lemma it_compiler_first_part {entries p p' ev fn} :
     (wsw1 := nosubword) (wsw2 := withsubword)
     (dc1 := indirect_c) (dc2 := direct_c)
     p p' ev ev pre_eq fn fn post_incl.
-Proof using haparams print_uprogP.
-rewrite /compiler_first_part; t_xrbindP => paw.
-rewrite print_uprogP => ok_paw pa0.
-rewrite !print_uprogP => ok_pa0 pb.
-rewrite print_uprogP => ok_pb pa ok_pa pc ok_pc ok_puc ok_puc'.
-rewrite !print_uprogP => pd ok_pd.
-rewrite !print_uprogP => pe ok_pe.
-rewrite !print_uprogP => pf ok_pf.
-rewrite !print_uprogP => pg ok_pg.
-rewrite !print_uprogP => ph ok_ph pi ok_pi.
-rewrite !print_uprogP => plc ok_plc.
-rewrite !print_uprogP => ok_fvars pj ok_pj pp.
-rewrite !print_uprogP => ok_pp check_pp <- {p'} ok_fn.
+Proof using haparams.
+rewrite /compiler_first_part; t_xrbindP => _ paw.
+move=> ok_paw _ _ pa0.
+move=> ok_pa0 _ _ pb.
+move=> ok_pb _ pa ok_pa pc ok_pc ok_puc ok_puc'.
+move=> _ pd ok_pd.
+move=> _ pe ok_pe.
+move=> _ pf ok_pf.
+move=> _ pg ok_pg.
+move=> _ ph ok_ph pi ok_pi.
+move=> _ plc ok_plc.
+move=> _ ok_fvars _ pj ok_pj _ pp.
+move=> ok_pp _ _ check_pp <- {p'} ok_fn.
 
 apply: (wiequiv_f_trans_EE_EU (wsw2:=nosubword) (dc2:=indirect_c)).
 + by apply: (it_remove_assert_progP (dc:=indirect_c) (sip:=sip_of_asm_e) (pT:=progUnit) (wsw:=nosubword) ev).
@@ -621,10 +612,7 @@ apply: wiequiv_f_trans_EE_EU;
   first exact: (it_dead_calls_err_seqP ok_pd _ ok_fn).
 apply: wiequiv_f_trans_EU_EU; first exact: it_live_range_splittingP ok_pe.
 apply: wiequiv_f_trans_UU_EU; first exact: (it_remove_init_fdPu is_reg_array).
-apply: wiequiv_f_trans_EE_EU.
-- apply: (wkequiv_io_weaken (P := rpreF (eS := mra_spec _) fn fn)) => //;
-    last exact: (it_makeReferenceArguments_callP _ ok_pf).
-  by move=> ???? [_ <-] [<-].
+apply: wiequiv_f_trans_EE_EU; first exact: (it_makeReferenceArguments_callP _ ok_pf).
 apply: wiequiv_f_trans_UU_EU; first exact: it_indirect_to_direct.
 apply: wiequiv_f_trans_EE_EU; first exact: (it_expand_callP ok_pg ok_fn).
 apply: wiequiv_f_trans_EU_EU; first exact: it_live_range_splittingP ok_ph.
@@ -689,11 +677,11 @@ Lemma it_compiler_third_part {rp fn} :
   compiler_third_part aparams cparams rp p = ok p' ->
   wiequiv_f (scP1 := sCP_stack) (scP2 := sCP_stack)
     p p' ev ev pre_eq fn fn (post_dc rp).
-Proof using haparams print_sprogP.
+Proof using haparams.
 rewrite /compiler_third_part; t_xrbindP=> pa ok_pa.
-rewrite !print_sprogP.
+move=> _ _.
 set pb := {| p_funcs := regalloc _ _; |} => ok_pb pc ok_p'.
-rewrite print_sprogP => ?; subst pc.
+move=> _ ?; subst pc.
 apply: (
   wiequiv_f_trans
     (scP1 := sCP_stack) (scP2 := sCP_stack) (scP3 := sCP_stack)
@@ -793,17 +781,17 @@ Lemma it_compiler_front_endP {ev fn} :
     (wa1 := withassert) (wa2 := noassert)
     (dc1 := indirect_c) (dc2 := direct_c)
     up sp ev rip rpreF fn fn rpostF.
-Proof using haparams print_uprogP print_sprogP.
-rewrite /compiler_front_end; t_xrbindP=> p1 ok_p1 check_p1 p2 ok_p2 p3.
-rewrite print_sprogP => ok_p3 p4.
+Proof using haparams.
+rewrite /compiler_front_end; t_xrbindP=> p1 ok_p1 check_p1 p2 ok_p2 _ p3.
+move=> ok_p3 _ p4.
 set rp := fun (fn : funname) => _.
-rewrite print_sprogP => ok_sp ? ok_fn; subst p4.
+move=> ok_sp ? ok_fn; subst p4.
 apply: (wequiv_fun_get (scP1 := sCP_unit) (scP2 := sCP_stack)) => /= fd get_fd.
 
 have [mglob ok_mglob] := [elaborate alloc_prog_get_fundef ok_p2 ].
 have [_ p2_p3_extra] :=
   hlap_lower_address_prog_invariants (hap_hlap haparams) ok_p3.
-have sp_p3_extra := [elaborate compiler_third_part_meta print_sprogP ok_sp ].
+have sp_p3_extra := [elaborate compiler_third_part_meta ok_sp ].
 have p2_p1_extra := [elaborate alloc_prog_sp_globs ok_p2 ].
 have [] := check_wf_ptrP check_p1 ok_fn get_fd.
 set n := find _ _.
@@ -833,7 +821,7 @@ move: h => /(_ _ _ get_fd1)[] fd2 /[dup] ok_fd2 h get_fd2.
 have [fd3 get_fd3 [_ _ _ _ _ fd2_fd3_extra]] :=
   hlap_lower_address_fd_invariants (hap_hlap haparams) ok_p3 get_fd2.
 have [fd4 [get_fd4 fd3_fd4_align]] :=
-  compiler_third_part_invariants print_sprogP ok_sp get_fd3.
+  compiler_third_part_invariants ok_sp get_fd3.
 
 apply: (
   wiequiv_f_trans
@@ -861,7 +849,7 @@ apply: (
     by move=> _ ? <-; apply isSome_omap.
   + rewrite /alloc_ok get_fd2 => _ [<-].
     have :=
-      compiler_third_part_alloc_ok print_sprogP ok_sp hok get_fd3.
+      compiler_third_part_alloc_ok ok_sp hok get_fd3.
     by rewrite -fd2_fd3_extra.
 - move=> s1 s2 _ r1 r3 [hscs_s1] hmem_s1 hwf_s1 heqinmem halloc [_ <-] [].
   move=> r2 [hscs1 m'_mi' vr2_wf vr2_eqinmem U] [hscs2 hmem2 vr_vr1].
@@ -1080,10 +1068,10 @@ rewrite /lin_sz_pre /lin_pre get_sfd get_lfd; split; first split=> //.
 rewrite /lfd_total_stack -stkmax_tfd_lfd -al_tfd_lfd -exp_tfd_lfd; exact: alloc.
 Qed.
 
-Lemma get_var_is_eq_on wdb s vm vm' xs :
+Lemma get_var_is_eq_on (wdb: enforce_defined_variables) s vm vm' xs :
   Sv.Subset (sv_of_list v_var xs) s ->
   vm =[s] vm' ->
-  get_var_is wdb vm xs = get_var_is wdb vm' xs.
+  get_var_is vm xs = get_var_is vm' xs.
 Proof.
 move=> + hvm; elim: xs => [//|x xs ih].
 rewrite sv_of_list_cons => hxs.
@@ -1245,7 +1233,7 @@ split.
     move=> /(zbetween_trans bottom_instack).
     rewrite -/(between _ _ _ _) -pointer_range_between => /pointer_rangeP hpr.
     have/negP := stack_region_is_free hpr; apply.
-    by rewrite valid (readV ok_w).
+    by rewrite valid (read_validw ok_w).
   + by move=> pr /mmem_o23.(valid_incl); rewrite mmz_o34.(valid_eq).
   by move=> pr; rewrite -mmz_o34.(valid_eq); apply: mmem_o23.(valid_stk).
 - by rewrite scs_o12 scs_o23 scs_o34.
@@ -1341,13 +1329,13 @@ Lemma it_compiler_back_endP {fn} :
           (isem_stack sp rip fn)
           (isem_linear tp fn)
           (back_end_post fn lfd) ].
-Proof using haparams print_linearP rsp_in_callee_saved.
-move=> /[dup] /(compiler_back_end_meta print_linearP)
+Proof using haparams rsp_in_callee_saved.
+move=> /[dup] /compiler_back_end_meta
   [rip_tp_sp rsp_tp_sp gd_tp_sp].
 rewrite /compiler_back_end; t_xrbindP => ok_export checked_p lp ok_lp.
-rewrite print_linearP => zp ok_zp.
-rewrite print_linearP => tp' ok_tp.
-rewrite print_linearP => ?; subst tp'.
+move=> _ zp ok_zp.
+move=> _ tp' ok_tp.
+move=> _ ?; subst tp'.
 move=> /InP ok_fn.
 
 move: ok_export; rewrite /check_export /= => /allMP - /(_ _ ok_fn).
@@ -1395,7 +1383,7 @@ have {}wovm : [elaborate
 
 (* Linearization *)
 have cs_not_arr :
-  forall x, Sv.In x one_varmap.callee_saved -> ~ is_aarr (vtype x).
+  forall x, Sv.In x one_varmap.callee_saved -> ~ is_arr_var x.
 + by move=> x /sv_of_listP /mapP [/= r _ ->]; case: r.
 have wlin := [elaborate
   linear_exportcallP
@@ -1588,17 +1576,17 @@ Lemma it_compiler_back_end_to_asmP {fn} :
           (isem_asm xp fn)
           (back_end_to_asm_post fn xfd)
    ].
-Proof using haparams print_linearP.
+Proof using haparams.
 rewrite /compiler_back_end_to_asm; t_xrbindP=> lp ok_lp ok_xp ok_fn.
 have [disj_rip ok_lp_rsp ok_globs ok_funcs] := assemble_progP ok_xp.
-have [_ meta_rsp _] := compiler_back_end_meta print_linearP ok_lp.
+have [_ meta_rsp _] := compiler_back_end_meta ok_lp.
 have rsp_in_callee_saved :
     Sv.In (vid sp.(p_extra).(sp_rsp)) one_varmap.callee_saved.
 - rewrite -meta_rsp -ok_lp_rsp.
   apply/sv_of_listP.
   exact: (map_f var_of_asm_typed_reg callee_saved_has_rsp).
 have cs_not_arr :
-  forall x, Sv.In x one_varmap.callee_saved -> ~ is_aarr (vtype x).
+  forall x, Sv.In x one_varmap.callee_saved -> ~ is_arr_var x.
 - move=> x /sv_of_listP /mapP [/= r _ ->]; by case: r.
 
 have [lfd [get_lfd lfd_export w_be]] :=
@@ -1731,10 +1719,10 @@ Lemma it_compile_prog_to_asmP {fn} :
           (isem_asm xp fn)
           (full_post fn xfd)
    ].
-Proof using haparams print_uprogP print_sprogP print_linearP.
+Proof using haparams.
 rewrite /compile_prog_to_asm; t_xrbindP => sp ok_sp ok_xp ok_fn.
 have [sfd [xfd [get_sfd get_xfd xfd_export align_args_eq]]] :=
-  compiler_back_end_to_asm_get_fundef print_linearP ok_xp ok_fn.
+  compiler_back_end_to_asm_get_fundef ok_xp ok_fn.
 exists xfd; split => //.
 move=> fs xm hpre.
 case: hpre => mi [hmga hesp hscs_eq hrsp_eq hwfa hfuim].
@@ -1801,11 +1789,11 @@ have/(FE _ tt) h_fe : front_end_pre up sp (asm_rip xm) fn fn fs fs_sp.
 - split.
   - reflexivity.
 
-  - apply: [elaborate enough_stack_space_alloc_ok print_linearP ok_xp ok_fn hmga.(ma_stack_range)].
+  - apply: [elaborate enough_stack_space_alloc_ok ok_xp ok_fn hmga.(ma_stack_range)].
     by rewrite -(ss_top_stack hmga.(ma_stack_stable)).
 
   - rewrite /wf_args_s /size_glob.
-    rewrite -(compiler_back_end_to_asm_meta print_linearP ok_xp).
+    rewrite -(compiler_back_end_to_asm_meta ok_xp).
     rewrite /get_align_args get_sfd /= align_args_eq.
     move=> i; move: (hwfa i); rewrite /wf_args_x /get_asm_align_args get_xfd /= /wf_arg.
     case hptr: (nth None (get_wptrs up fn) i) => [writable|//].
@@ -1830,7 +1818,7 @@ have/(FE _ tt) h_fe : front_end_pre up sp (asm_rip xm) fn fn fs fs_sp.
     + by rewrite -hfssp_j_eq; exact: hfssp_j.
   - exact: hsp_eqinmem. (* Forall3 (value_eq_or_in_mem (fmem fs_sp)) ... *)
   - have := hmga.(ma_extend_mem).
-    by rewrite (compiler_back_end_to_asm_meta print_linearP ok_xp).
+    by rewrite (compiler_back_end_to_asm_meta ok_xp).
   by rewrite hsp_scs. (* fscs fs = fscs fs_sp  <- STEP 1 hsp_scs. *)
 
 have hvalidw_u :=
@@ -1892,7 +1880,7 @@ apply: xrutt_weaken_v1;
 - move=> fs' xm' [] fs_sp' h_fe_post h_be_post; split.
   + have [hmem_s [hmem_u [_ _ hext _ _]]] := h_fe_post.
     have [[hrip_eq hss_xm] [_ hmm _ _]] := h_be_post.
-    have hglobs := compiler_back_end_to_asm_meta print_linearP ok_xp.
+    have hglobs := compiler_back_end_to_asm_meta ok_xp.
     exists (fmem fs_sp'); split.
     - rewrite -hrip_eq hglobs; exact: hext.
     - exact hmm.

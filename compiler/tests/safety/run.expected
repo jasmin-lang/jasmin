@@ -1,4 +1,4 @@
-File fail/arm-m4/array-export.jazz (on arch arm-m4):
+File fail/arm-m4/array-export.jazz (on arch cortex-m4):
 Analyzing function main
 
 
@@ -18,7 +18,7 @@ mem_i ∊ [0; 0]
 
 Program is not safe!
 
-File fail/arm-m4/bad_align.jazz (on arch arm-m4):
+File fail/arm-m4/bad_align.jazz (on arch cortex-m4):
 Analyzing function main
 
 
@@ -36,7 +36,7 @@ mem_pt ∊ [0; 5]
 
 Program is not safe!
 
-File fail/arm-m4/bad_align2.jazz (on arch arm-m4):
+File fail/arm-m4/bad_align2.jazz (on arch cortex-m4):
 Analyzing function main
 
 
@@ -54,7 +54,7 @@ mem_pt ∊ [0; 60]
 
 Program is not safe!
 
-File fail/arm-m4/loop2.jazz (on arch arm-m4):
+File fail/arm-m4/loop2.jazz (on arch cortex-m4):
 Analyzing function poly1305
 
 
@@ -86,7 +86,35 @@ Analyzing function array
 
 Program is not safe!
 
-File fail/common/array-len3.jazz (on arch arm-m4):
+File fail/common/array-len3.jazz (on arch cortex-m3):
+Analyzing function array
+
+
+*** Possible Safety Violation(s):
+  "fail/common/array-len3.jazz", line 37 (4-15): is_init blk[i]
+  
+* Rel:
+⊤
+
+
+
+Program is not safe!
+
+File fail/common/array-len3.jazz (on arch cortex-m4):
+Analyzing function array
+
+
+*** Possible Safety Violation(s):
+  "fail/common/array-len3.jazz", line 37 (4-15): is_init blk[i]
+  
+* Rel:
+⊤
+
+
+
+Program is not safe!
+
+File fail/common/array-len3.jazz (on arch armv8.1m):
 Analyzing function array
 
 
@@ -128,7 +156,35 @@ Analyzing function bad_read
 
 Program is not safe!
 
-File fail/common/array_init.jazz (on arch arm-m4):
+File fail/common/array_init.jazz (on arch cortex-m3):
+Analyzing function bad_read
+
+
+*** Possible Safety Violation(s):
+  "fail/common/array_init.jazz", line 8 (2-11): is_init t[0]
+  
+* Rel:
+⊤
+
+
+
+Program is not safe!
+
+File fail/common/array_init.jazz (on arch cortex-m4):
+Analyzing function bad_read
+
+
+*** Possible Safety Violation(s):
+  "fail/common/array_init.jazz", line 8 (2-11): is_init t[0]
+  
+* Rel:
+⊤
+
+
+
+Program is not safe!
+
+File fail/common/array_init.jazz (on arch armv8.1m):
 Analyzing function bad_read
 
 
@@ -174,7 +230,43 @@ mem_b ∊ [0; 0]
 
 Program is not safe!
 
-File fail/common/fail_land.jazz (on arch arm-m4):
+File fail/common/fail_land.jazz (on arch cortex-m3):
+Analyzing function BS2POLVECq
+
+
+*** Possible Safety Violation(s):
+  "fail/common/fail_land.jazz", line 11 (25-51): termination
+  
+Memory ranges:
+  mem_b: [0; 0]
+  
+* Rel:
+{inv_b ≤ 4294967295, inv_b ≥ 0, mem_b = 0}
+mem_b ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/fail_land.jazz (on arch cortex-m4):
+Analyzing function BS2POLVECq
+
+
+*** Possible Safety Violation(s):
+  "fail/common/fail_land.jazz", line 11 (25-51): termination
+  
+Memory ranges:
+  mem_b: [0; 0]
+  
+* Rel:
+{inv_b ≤ 4294967295, inv_b ≥ 0, mem_b = 0}
+mem_b ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/fail_land.jazz (on arch armv8.1m):
 Analyzing function BS2POLVECq
 
 
@@ -228,7 +320,43 @@ mem_b ∊ [0; 0]
 
 Program is not safe!
 
-File fail/common/fail_land2.jazz (on arch arm-m4):
+File fail/common/fail_land2.jazz (on arch cortex-m3):
+Analyzing function BS2POLVECq
+
+
+*** Possible Safety Violation(s):
+  "fail/common/fail_land2.jazz", line 10 (25-51): termination
+  
+Memory ranges:
+  mem_b: [0; 0]
+  
+* Rel:
+{inv_b ≥ 0, inv_b ≤ 4294967295, mem_b = 0}
+mem_b ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/fail_land2.jazz (on arch cortex-m4):
+Analyzing function BS2POLVECq
+
+
+*** Possible Safety Violation(s):
+  "fail/common/fail_land2.jazz", line 10 (25-51): termination
+  
+Memory ranges:
+  mem_b: [0; 0]
+  
+* Rel:
+{inv_b ≥ 0, inv_b ≤ 4294967295, mem_b = 0}
+mem_b ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/fail_land2.jazz (on arch armv8.1m):
 Analyzing function BS2POLVECq
 
 
@@ -282,7 +410,43 @@ mem_x ∊ [0; 0]
 
 Program is not safe!
 
-File fail/common/init-join.jazz (on arch arm-m4):
+File fail/common/init-join.jazz (on arch cortex-m3):
+Analyzing function main
+
+
+*** Possible Safety Violation(s):
+  main return: is_init r
+  
+Memory ranges:
+  mem_x: [0; 0]
+  
+* Rel:
+{inv_x ≥ 0, inv_x ≤ 4294967295, mem_x = 0}
+mem_x ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/init-join.jazz (on arch cortex-m4):
+Analyzing function main
+
+
+*** Possible Safety Violation(s):
+  main return: is_init r
+  
+Memory ranges:
+  mem_x: [0; 0]
+  
+* Rel:
+{inv_x ≥ 0, inv_x ≤ 4294967295, mem_x = 0}
+mem_x ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/init-join.jazz (on arch armv8.1m):
 Analyzing function main
 
 
@@ -318,6 +482,106 @@ mem_x ∊ [0; 0]
 
 Program is not safe!
 
+File fail/common/loop_init.jazz (on arch x86-64):
+Analyzing function main
+
+
+*** Possible Safety Violation(s):
+  "fail/common/loop_init.jinc", line 6 (4-21): is_init p[0]
+  
+Memory ranges:
+  mem_a: [0; 0]
+  mem_x: [0; 0]
+  
+* Rel:
+{inv_x ≥ 0, inv_x ≤ 4294967295, mem_a = 0, mem_x = 0}
+mem_a ∊ [0; 0]
+mem_x ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/loop_init.jazz (on arch cortex-m3):
+Analyzing function main
+
+
+*** Possible Safety Violation(s):
+  "fail/common/loop_init.jinc", line 6 (4-21): is_init p[0]
+  
+Memory ranges:
+  mem_a: [0; 0]
+  mem_x: [0; 0]
+  
+* Rel:
+{inv_x ≥ 0, inv_x ≤ 4294967295, mem_a = 0, mem_x = 0}
+mem_a ∊ [0; 0]
+mem_x ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/loop_init.jazz (on arch cortex-m4):
+Analyzing function main
+
+
+*** Possible Safety Violation(s):
+  "fail/common/loop_init.jinc", line 6 (4-21): is_init p[0]
+  
+Memory ranges:
+  mem_a: [0; 0]
+  mem_x: [0; 0]
+  
+* Rel:
+{inv_x ≥ 0, inv_x ≤ 4294967295, mem_a = 0, mem_x = 0}
+mem_a ∊ [0; 0]
+mem_x ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/loop_init.jazz (on arch armv8.1m):
+Analyzing function main
+
+
+*** Possible Safety Violation(s):
+  "fail/common/loop_init.jinc", line 6 (4-21): is_init p[0]
+  
+Memory ranges:
+  mem_a: [0; 0]
+  mem_x: [0; 0]
+  
+* Rel:
+{inv_x ≥ 0, inv_x ≤ 4294967295, mem_a = 0, mem_x = 0}
+mem_a ∊ [0; 0]
+mem_x ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/loop_init.jazz (on arch riscv):
+Analyzing function main
+
+
+*** Possible Safety Violation(s):
+  "fail/common/loop_init.jinc", line 6 (4-21): is_init p[0]
+  
+Memory ranges:
+  mem_a: [0; 0]
+  mem_x: [0; 0]
+  
+* Rel:
+{inv_x ≥ 0, inv_x ≤ 4294967295, mem_a = 0, mem_x = 0}
+mem_a ∊ [0; 0]
+mem_x ∊ [0; 0]
+
+
+
+Program is not safe!
+
 File fail/common/not_in_bounds.jazz (on arch x86-64):
 Analyzing function f
 
@@ -337,7 +601,45 @@ mem_t ∊ [0; 0]
 
 Program is not safe!
 
-File fail/common/not_in_bounds.jazz (on arch arm-m4):
+File fail/common/not_in_bounds.jazz (on arch cortex-m3):
+Analyzing function f
+
+
+*** Possible Safety Violation(s):
+  "fail/common/not_in_bounds.jazz", line 2 (2-12): in_bound: t[- 1] (length 8 U8)
+  "fail/common/not_in_bounds.jazz", line 3 (2-11): in_bound: t[2] (length 8 U8)
+  
+Memory ranges:
+  mem_t: [0; 0]
+  
+* Rel:
+{mem_t = 0}
+mem_t ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/not_in_bounds.jazz (on arch cortex-m4):
+Analyzing function f
+
+
+*** Possible Safety Violation(s):
+  "fail/common/not_in_bounds.jazz", line 2 (2-12): in_bound: t[- 1] (length 8 U8)
+  "fail/common/not_in_bounds.jazz", line 3 (2-11): in_bound: t[2] (length 8 U8)
+  
+Memory ranges:
+  mem_t: [0; 0]
+  
+* Rel:
+{mem_t = 0}
+mem_t ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/common/not_in_bounds.jazz (on arch armv8.1m):
 Analyzing function f
 
 
@@ -389,7 +691,35 @@ Analyzing function wint_overflow
 
 Program is not safe!
 
-File fail/common/wint_overflow.jazz (on arch arm-m4):
+File fail/common/wint_overflow.jazz (on arch cortex-m3):
+Analyzing function wint_overflow
+
+
+*** Possible Safety Violation(s):
+  "fail/common/wint_overflow.jazz", line 3 (28-48): 137 ∈ [-128; 127]
+  
+* Rel:
+⊤
+
+
+
+Program is not safe!
+
+File fail/common/wint_overflow.jazz (on arch cortex-m4):
+Analyzing function wint_overflow
+
+
+*** Possible Safety Violation(s):
+  "fail/common/wint_overflow.jazz", line 3 (28-48): 137 ∈ [-128; 127]
+  
+* Rel:
+⊤
+
+
+
+Program is not safe!
+
+File fail/common/wint_overflow.jazz (on arch armv8.1m):
 Analyzing function wint_overflow
 
 
@@ -591,6 +921,23 @@ mem_bound ∊ [0; 0]
 
 Program is not safe!
 
+File fail/x86-64/bug_1309.jazz (on arch x86-64):
+Analyzing function f
+
+
+*** Possible Safety Violation(s):
+  f return: bounded memory range of x
+  
+Memory ranges:
+  mem_x: [-1/0; inf]
+  
+* Rel:
+{inv_x ≥ 0, inv_x ≤ 18446744073709551615}
+
+
+
+Program is not safe!
+
 File fail/x86-64/carry_flags_err.jazz (on arch x86-64):
 Analyzing function test
 
@@ -710,6 +1057,86 @@ Memory ranges:
 {inv_y ≥ 0, inv_x ≥ 0, inv_x ≤ 65535, inv_y ≤ 65535, mem_x = 0, mem_y = 0}
 mem_x ∊ [0; 0]
 mem_y ∊ [0; 0]
+
+
+
+Program is not safe!
+
+File fail/x86-64/slice_init.jazz (on arch x86-64):
+Analyzing function string_value
+
+
+*** Possible Safety Violation(s):
+  "fail/x86-64/slice_init.jazz", line 13 (2-11): in_bound: a[x] (length 32 U8)
+  
+* Rel:
+⊤
+
+
+
+Program is not safe!
+
+Analyzing function string_offset
+
+
+*** Possible Safety Violation(s):
+  "fail/x86-64/slice_init.jinc", line 54 (2-25): is_init t[0]
+  
+* Rel:
+⊤
+
+
+
+Program is not safe!
+
+Analyzing function copy_in_loop
+
+
+*** Possible Safety Violation(s):
+  "fail/x86-64/slice_init.jinc", line 40 (4-21): is_init b[0]
+  
+Memory ranges:
+  mem_off: [0; 0]
+  mem_x: [0; 0]
+  
+* Rel:
+{inv_off ≥ 0, inv_x ≥ 0, inv_x ≤ 4294967295, inv_off ≤ 4294967295, mem_off = 0, mem_x = 0}
+mem_off ∊ [0; 0]
+mem_x ∊ [0; 0]
+
+
+
+Program is not safe!
+
+Analyzing function copy_into
+
+
+*** Possible Safety Violation(s):
+  "fail/x86-64/slice_init.jinc", line 25 (2-19): is_init t[1]
+  
+Memory ranges:
+  mem_off: [0; 0]
+  
+* Rel:
+{inv_off ≥ 0, inv_off ≤ 4294967295, mem_off = 0}
+mem_off ∊ [0; 0]
+
+
+
+Program is not safe!
+
+Analyzing function copy_from
+
+
+*** Possible Safety Violation(s):
+  "fail/x86-64/slice_init.jinc", line 12 (2-19): is_init e[0]
+  
+Memory ranges:
+  mem_off: [0; 0]
+  
+* Rel:
+{inv_off ≥ 0, inv_off ≤ 4294967295, mem_off = 0}
+mem_off ∊ [0; 0]
 
 
 

@@ -530,7 +530,7 @@ Notation mk_ve_instr_ww128_w_120 name semi check prc valid doit pp_asm := ((fun 
 
 Definition max_32 (sz:wsize) := if (sz <= U32)%CMP then sz else U32.
 
-Definition map_sz (sz:wsize) (a:asm_args) := List.map (fun a => (sz,a)) a.
+Definition map_sz (sz:wsize) (a:asm_args) := map (PPa_full sz) a.
 
 Definition pp_name name sz args :=
   {| pp_aop_name := name;
@@ -540,7 +540,7 @@ Definition pp_name name sz args :=
 Definition pp_name_ty name (ws:seq wsize) args :=
  {| pp_aop_name := name;
     pp_aop_ext  := PP_name;
-    pp_aop_args := zip ws args; |}.
+    pp_aop_args := pp_fulls ws args; |}.
 
 Definition pp_iname name sz args :=
   {| pp_aop_name := name;
@@ -560,17 +560,17 @@ Definition pp_viname name ve sz args :=
 Definition pp_viname_ww_128 name ve sz args :=
   {| pp_aop_name := name;
      pp_aop_ext  := PP_viname ve false;
-     pp_aop_args := zip [:: sz; sz; U128 ] args; |}.
+     pp_aop_args := pp_fulls [:: sz; sz; U128 ] args; |}.
 
 Definition pp_iname_w_8 name sz args :=
   {| pp_aop_name := name;
      pp_aop_ext  := PP_iname sz;
-     pp_aop_args := zip [::sz; U8] args; |}.
+     pp_aop_args := pp_fulls [::sz; U8] args; |}.
 
 Definition pp_iname_ww_8 name sz args :=
   {| pp_aop_name := name;
      pp_aop_ext  := PP_iname sz;
-     pp_aop_args := zip [::sz;sz; U8] args; |}.
+     pp_aop_args := pp_fulls [::sz;sz; U8] args; |}.
 
 Definition get_ct args :=
   match args with
@@ -684,7 +684,7 @@ Definition pp_movsx szs szd args :=
   let ext := if (szd == szs) || (szd == U64) && (szs == U32) then "xd"%string else "x"%string in
   {| pp_aop_name := "movs";
      pp_aop_ext  := PP_iname2 ext szs szd;
-     pp_aop_args := zip [::szd; szs] args; |}.
+     pp_aop_args := pp_fulls [::szd; szs] args; |}.
 
 Definition size_MOVSX szi szo :=
   match szi with
@@ -702,7 +702,7 @@ Definition Ox86_MOVSX_instr             :=
 Definition pp_movzx szs szd args :=
   {| pp_aop_name := "movz";
      pp_aop_ext  := PP_iname2 "x" szs szd;
-     pp_aop_args := zip [::szd; szs] args; |}.
+     pp_aop_args := pp_fulls [::szd; szs] args; |}.
 
 Definition size_MOVZX szi szo :=
   match szi with
@@ -1226,7 +1226,7 @@ Definition Ox86_SHR_instr :=
   mk_instr_ww8_b5w_0c0 "SHR" x86_SHR_t (init_shift 1) check_ror (prim_8_64 SHR) size_8_64 DOIT (pp_iname_w_8 "shr").
 
 Definition Ox86_SAL_instr :=
-  mk_instr_ww8_b5w_0c0 "SAL" x86_SHL_t (init_shift 1) check_ror (prim_8_64 SAL) size_8_64 NOT_DOIT (pp_iname_w_8 "sal").
+  mk_instr_ww8_b5w_0c0 "SAL" x86_SHL_t (init_shift 1) check_ror (prim_8_64 SAL) size_8_64 DOIT (pp_iname_w_8 "sal").
 
 Definition x86_SAR_t sz (v: word sz) (i: u8) : sem_ltuple_t (b5w_ty sz) :=
   let i := wand i (x86_shift_mask sz) in
@@ -1393,7 +1393,7 @@ Definition Ox86_VMOVDQU_instr :=
 Definition pp_vpmovx name ve sz ve' sz' args :=
   {| pp_aop_name := name;
      pp_aop_ext  := PP_viname2 ve ve';
-     pp_aop_args := zip [:: sz' ; sz ] args; |}.
+     pp_aop_args := pp_fulls [:: sz' ; sz ] args; |}.
 
 (* How many elements of size ve in a vector of size ws *)
 Definition vector_size (ve: velem) (ws: wsize) : option Z :=
@@ -1502,7 +1502,7 @@ Definition check_vpextr (_:wsize) :=  [:: [:: rm; xmm; i U8] ].
 Definition pp_viname_t name ve (ts:seq wsize) args :=
   {| pp_aop_name := name;
      pp_aop_ext  := PP_viname ve false;
-     pp_aop_args := zip ts args; |}.
+     pp_aop_args := pp_fulls ts args; |}.
 
 Definition x86_nelem_mask (sze szc:wsize) : u8 :=
   wrepr U8 (two_power_nat (wsize_log2 szc - wsize_log2 sze) - 1).
@@ -1523,7 +1523,7 @@ Definition pp_vpinsr ve args :=
   let rs := match ve with VE8 | VE16 | VE32 => U32 | VE64 => U64 end in
   {| pp_aop_name := "vpinsr";
      pp_aop_ext  := PP_viname ve false;
-     pp_aop_args := zip [::U128; U128; rs; U8] args; |}.
+     pp_aop_args := pp_fulls [::U128; U128; rs; U8] args; |}.
 
 Definition check_vpinsr (_:wsize) :=  [:: [:: xmm; xmm; rm; i U8] ].
 
@@ -1721,7 +1721,7 @@ Definition Ox86_VSHUFPS_instr :=
 Definition pp_vpbroadcast ve sz args :=
   {| pp_aop_name := "vpbroadcast";
      pp_aop_ext  := PP_viname ve false;
-     pp_aop_args := zip [::sz; wsize_of_velem ve] args; |}.
+     pp_aop_args := pp_fulls [::sz; wsize_of_velem ve] args; |}.
 
 Definition check_xmm_xmmm (_:wsize) := [:: [:: xmm; xmmm]].
 
@@ -1933,21 +1933,21 @@ Definition Ox86_VMOVHPD_instr :=
   mk_instr_pp "VMOVHPD" (w_ty U128) (w_ty U64) [:: Eu 1] [:: Eu 0] MSB_CLEAR x86_VMOVHPD check_movpd 2 NOT_DOIT (primM VMOVHPD) (pp_name_ty "vmovhpd" [::U64;U128]).
 
 Definition x86_VPMINS (ve: velem) sz (x y : word sz) : tpl (w_ty sz) :=
-  wmin Signed ve x y.
+  wvmin Signed ve x y.
 
 Definition Ox86_VPMINS_instr  :=
   mk_ve_instr_w2_w_120 "VPMINS" x86_VPMINS check_xmm_xmm_xmmm (primV_8_32 VPMINS)
   (fun ve sz => size_8_32 ve && size_128_256 sz) (fun ve => if ve is VE32 then NOT_DOIT else DOIT) (pp_viname "vpmins").
 
 Definition x86_VPMINU (ve: velem) sz (x y : word sz) : tpl (w_ty sz) :=
-  wmin Unsigned ve x y.
+  wvmin Unsigned ve x y.
 
 Definition Ox86_VPMINU_instr  :=
   mk_ve_instr_w2_w_120 "VPMINU" x86_VPMINU check_xmm_xmm_xmmm (primV_8_32 VPMINU)
   (fun ve sz => size_8_32 ve && size_128_256 sz) (fun=> DOIT) (pp_viname "vpminu").
 
 Definition x86_VPMAXS (ve: velem) sz (x y : word sz) : tpl (w_ty sz) :=
-  wmax Signed ve x y.
+  wvmax Signed ve x y.
 
 Definition Ox86_VPMAXS_instr  :=
   mk_ve_instr_w2_w_120 "VPMAXS" x86_VPMAXS check_xmm_xmm_xmmm (primV_8_32 VPMAXS)
@@ -1955,7 +1955,7 @@ Definition Ox86_VPMAXS_instr  :=
   (pp_viname "vpmaxs").
 
 Definition x86_VPMAXU (ve: velem) sz (x y : word sz) : tpl (w_ty sz) :=
-  wmax Unsigned ve x y.
+  wvmax Unsigned ve x y.
 
 Definition Ox86_VPMAXU_instr  :=
   mk_ve_instr_w2_w_120 "VPMAXU" x86_VPMAXU check_xmm_xmm_xmmm (primV_8_32 VPMAXU)

@@ -115,8 +115,8 @@ Variant compiler_step :=
   | PropagateInline             : compiler_step
   | SLHLowering                 : compiler_step
   | NameHoles                   : compiler_step
-  | LowerAddressing             : compiler_step
   | StackAllocation             : compiler_step
+  | LowerAddressing             : compiler_step
   | RemoveReturn                : compiler_step
   | RegAllocation               : compiler_step
   | DeadCode_RegAllocation      : compiler_step
@@ -153,8 +153,8 @@ Definition compiler_step_list := [::
   ; PropagateInline
   ; SLHLowering
   ; NameHoles
-  ; LowerAddressing
   ; StackAllocation
+  ; LowerAddressing
   ; RemoveReturn
   ; RegAllocation
   ; DeadCode_RegAllocation
@@ -191,9 +191,11 @@ Record compiler_params
   removereturn     : _sprog -> (funname -> option (seq bool));
   regalloc         : seq _sfun_decl -> seq _sfun_decl;
   remove_wint_annot: funname -> _ufundef -> _ufundef;
-  print_uprog      : compiler_step -> _uprog -> _uprog;
-  print_sprog      : compiler_step -> _sprog -> _sprog;
-  print_linear     : compiler_step -> lprog -> lprog;
+  (* Printers are allowed to fail to ensure extraction keeps them and in the
+     right order. *)
+  print_uprog      : compiler_step -> _uprog -> cexec unit;
+  print_sprog      : compiler_step -> _sprog -> cexec unit;
+  print_linear     : compiler_step -> lprog -> cexec unit;
   refresh_instr_info: funname -> _ufundef -> _ufundef;
   warning          : instr_info -> warning_msg -> instr_info;
   insert_renaming  : fun_info -> bool;
@@ -259,77 +261,77 @@ Definition var_tmps : Sv.t := Sv.add var_tmp2 (Sv.singleton var_tmp).
 
 Definition live_range_splitting (p: uprog) : cexec uprog :=
   let pv := split_live_ranges_prog p in
-  let pv := cparams.(print_uprog) Splitting pv in
+  Let _ := cparams.(print_uprog) Splitting pv in
   let pv := renaming_prog pv in
-  let pv := cparams.(print_uprog) Renaming pv in
+  Let _ := cparams.(print_uprog) Renaming pv in
   let pv := remove_phi_nodes_prog pv in
-  let pv := cparams.(print_uprog) RemovePhiNodes pv in
+  Let _ := cparams.(print_uprog) RemovePhiNodes pv in
   let pv := map_prog_name (refresh_instr_info cparams) pv in
   Let _ := check_uprog (wsw:= withsubword) cparams.(dead_vars_ufd) p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
   Let pv := dead_code_prog (ap_is_move_op aparams) pv false in
-  let p := cparams.(print_uprog) DeadCode_Renaming pv in
-  ok p.
+  Let _ := cparams.(print_uprog) DeadCode_Renaming pv in
+  ok pv.
 
 Definition inlining (to_keep: seq funname) (p: uprog) : cexec uprog :=
   Let p := inline_prog_err cparams.(extend_iinfo) p in
-  let p := cparams.(print_uprog) Inlining p in
+  Let _ := cparams.(print_uprog) Inlining p in
 
   Let p := dead_calls_err_seq to_keep p in
-  let p := cparams.(print_uprog) RemoveUnusedFunction p in
+  Let _ := cparams.(print_uprog) RemoveUnusedFunction p in
   ok p.
 
 Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :=
 
   let p := remove_assert_prog p in
-  let p := cparams.(print_uprog) RemoveAssertion p in
+  Let _ := cparams.(print_uprog) RemoveAssertion p in
 
   Let p := wi2w_prog (wsw:=withsubword) cparams.(remove_wint_annot) cparams.(dead_vars_ufd) p in
-  let p := cparams.(print_uprog) WintWord p in
+  Let _ := cparams.(print_uprog) WintWord p in
 
   let p := insert_renaming_prog cparams.(insert_renaming) p in
-  let p := cparams.(print_uprog) InsertRenaming p in
+  Let _ := cparams.(print_uprog) InsertRenaming p in
 
   Let p := array_copy_prog (λ k ii, cparams.(fresh_var_ident) k ii 0) p in
-  let p := cparams.(print_uprog) ArrayCopy p in
+  Let _ := cparams.(print_uprog) ArrayCopy p in
 
   let p := add_init_prog p in
-  let p := cparams.(print_uprog) AddArrInit p in
+  Let _ := cparams.(print_uprog) AddArrInit p in
 
   Let p :=
     spill_prog
       (fresh_var_ident cparams)
       (spill_to_mmx cparams)
       p in
-  let p := cparams.(print_uprog) LowerSpill p in
+  Let _ := cparams.(print_uprog) LowerSpill p in
 
   Let p := inlining to_keep p in
 
   Let p := unroll_loop (ap_is_move_op aparams) p in
   Let: tt := check_no_for_loop p in
   Let: tt := check_no_inline_instr p in
-  let p := cparams.(print_uprog) Unrolling p in
+  Let _ := cparams.(print_uprog) Unrolling p in
 
   Let p := dead_calls_err_seq to_keep p in
-  let p := cparams.(print_uprog) RemoveUnusedFunction p in
+  Let _ := cparams.(print_uprog) RemoveUnusedFunction p in
 
   Let pv := live_range_splitting p in
 
   let pr := remove_init_prog is_reg_array pv in
-  let pr := cparams.(print_uprog) RemoveArrInit pr in
+  Let _ := cparams.(print_uprog) RemoveArrInit pr in
 
   Let pa := makereference_prog (fresh_var_ident cparams (Reg (Normal, Pointer Writable))) pr in
-  let pa := cparams.(print_uprog) MakeRefArguments pa in
+  Let _ := cparams.(print_uprog) MakeRefArguments pa in
 
   Let pe := expand_prog cparams.(expand_fd) to_keep pa in
-  let pe := cparams.(print_uprog) RegArrayExpansion pe in
+  Let _ := cparams.(print_uprog) RegArrayExpansion pe in
 
   Let pe := live_range_splitting pe in
 
   Let pg := remove_glob_prog pe in
-  let pg := cparams.(print_uprog) RemoveGlobal pg in
+  Let _ := cparams.(print_uprog) RemoveGlobal pg in
 
   Let pp := load_constants_prog (fresh_var_ident cparams (Reg (Normal, Direct))) aparams.(ap_plp) pg in
-  let pp := cparams.(print_uprog) LoadConstantsInCond pp in
+  Let _ := cparams.(print_uprog) LoadConstantsInCond pp in
 
   Let _ :=
     assert
@@ -344,16 +346,16 @@ Definition compiler_first_part (to_keep: seq funname) (p: uprog) : cexec uprog :
       (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0)
       pp
   in
-  let p := cparams.(print_uprog) LowerInstruction p in
+  Let _ := cparams.(print_uprog) LowerInstruction p in
 
   Let p := propagate_inline.pi_prog p in
-  let p := cparams.(print_uprog) PropagateInline p in
+  Let _ := cparams.(print_uprog) PropagateInline p in
 
   Let p := lower_slh_prog shparams (cparams.(slh_info) p) to_keep p in
-  let p := cparams.(print_uprog) SLHLowering p in
+  Let _ := cparams.(print_uprog) SLHLowering p in
 
   let pf := map_prog_name cparams.(fill_in_missing_names_ufd) p in
-  let pf := cparams.(print_uprog) NameHoles pf in
+  Let _ := cparams.(print_uprog) NameHoles pf in
   Let _ := check_uprog (wsw:= withsubword) cparams.(dead_vars_ufd) p.(p_extra) p.(p_funcs) pf.(p_extra) pf.(p_funcs) in
 
   ok pf.
@@ -370,15 +372,15 @@ Definition compiler_third_part (returned_params: funname -> option (seq (option 
     end
   in
   Let pr := dead_code_prog_tokeep (ap_is_move_op aparams) cparams.(apply_ret_annot) false rminfo ps in
-  let pr := cparams.(print_sprog) RemoveReturn pr in
+  Let _ := cparams.(print_sprog) RemoveReturn pr in
 
   let pa := {| p_funcs := cparams.(regalloc) pr.(p_funcs) ; p_globs := pr.(p_globs) ; p_extra := pr.(p_extra) |} in
   let pa := map_prog_name (pT := progStack) cparams.(fill_in_missing_names_sfd) pa in
-  let pa : sprog := cparams.(print_sprog) RegAllocation pa in
+  Let _ := cparams.(print_sprog) RegAllocation pa in
   Let _ := check_sprog (wsw:= withsubword) cparams.(dead_vars_sfd) pr.(p_extra) pr.(p_funcs) pa.(p_extra) pa.(p_funcs) in
 
   Let pd := dead_code_prog (ap_is_move_op aparams) pa true in
-  let pd := cparams.(print_sprog) DeadCode_RegAllocation pd in
+  Let _ := cparams.(print_sprog) DeadCode_RegAllocation pd in
 
   ok pd.
 
@@ -450,10 +452,10 @@ Definition compiler_front_end (entries: seq funname) (p: uprog) : cexec sprog :=
       (ao_stack_alloc ao)
       pl
   in
-  let ps : sprog := cparams.(print_sprog) StackAllocation ps in
+  Let _ := cparams.(print_sprog) StackAllocation ps in
 
   Let ps := (ap_lap aparams).(lap_lower_address) (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0) ps in
-  let ps := cparams.(print_sprog) LowerAddressing ps in
+  Let _ := cparams.(print_sprog) LowerAddressing ps in
 
   let returned_params fn :=
     if fn \in entries then Some (ao_stack_alloc ao fn).(sao_return) else None
@@ -476,7 +478,7 @@ Definition compiler_back_end entries (pd: sprog) :=
   (* linearisation                     *)
   Let _ := merge_varmaps.check pd var_tmps in
   Let pl := linear_prog liparams pd in
-  let pl := cparams.(print_linear) Linearization pl in
+  Let _ := cparams.(print_linear) Linearization pl in
   (* stack zeroization                 *)
   let szs_of_fn fn :=
     match cparams.(stack_zero_info) fn with
@@ -496,10 +498,10 @@ Definition compiler_back_end entries (pd: sprog) :=
     end
   in
   Let pl := stack_zeroization_lprog aparams.(ap_szp) szs_of_fn pl in
-  let pl := cparams.(print_linear) StackZeroization pl in
+  Let _ := cparams.(print_linear) StackZeroization pl in
   (* tunneling                         *)
   Let pl := tunnel_program pl in
-  let pl := cparams.(print_linear) Tunneling pl in
+  Let _ := cparams.(print_linear) Tunneling pl in
 
   ok pl.
 

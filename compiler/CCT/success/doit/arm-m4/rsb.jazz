@@ -1,0 +1,7 @@
+/* RSB takes one cycle on the Cortex-M4 (Technical Reference Manual,
+   Table 3-1): its execution time does not depend on its operands. */
+#[ct="secret * secret -> secret"]
+export fn rsb(reg u32 x y) -> reg u32 {
+  x = #RSB(x, y);
+  return x;
+}

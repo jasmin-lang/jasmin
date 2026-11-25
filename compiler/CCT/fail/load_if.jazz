@@ -1,0 +1,8 @@
+#[ct = "public → secret"]
+fn branch(reg u64 p) -> reg u64 {
+  reg u64 r = 0;
+  if [p] == 0 {
+    r = 1;
+  }
+  return r;
+}

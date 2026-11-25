@@ -78,12 +78,15 @@ let process_f_annot loc funname f_cc annot =
     | Some szs, _ -> Some (szs, size)
   in
 
+  let comment = Annot.filter_attribute "comment" Annot.string annot |> List.map snd in
+
   { retaddr_kind;
     stack_allocation_size = Annot.ensure_uniq1 "stackallocsize" (Annot.pos_int None) annot;
     stack_size            = Annot.ensure_uniq1 "stacksize"      (Annot.pos_int None) annot;
     stack_align           = Annot.ensure_uniq1 "stackalign"     (Annot.wsize None)   annot;
     max_call_depth        = Annot.ensure_uniq1 "calldepth"      (Annot.pos_int None) annot;
     stack_zero_strategy;
+    comment;
     f_user_annot          = annot;
   }
 

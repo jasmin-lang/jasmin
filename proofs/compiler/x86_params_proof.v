@@ -41,6 +41,7 @@ Require Export x86_params.
 Set SsrOldRewriteGoalsOrder.  (* change Set to Unset when porting the file, then remove the line when requiring MathComp >= 2.6 *)
 
 #[local] Existing Instance direct_c.
+#[local] Existing Instance do_enforce_defined_variables.
 
 Section Section.
 Context {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
@@ -55,9 +56,9 @@ Context {wsw: WithSubWord}.
 
 Lemma lea_ptrP P' s1 ii e i x tag ofs w s2 pofs :
   P'.(p_globs) = [::]
-  -> (Let i' := sem_pexpr true [::] s1 e in to_pointer i') = ok i
-  -> (Let i' := sem_pexpr true [::] s1 ofs in to_pointer i') = ok pofs
-  -> write_lval true [::] x (Vword (i + pofs)) s1 = ok s2
+  -> (Let i' := sem_pexpr [::] s1 e in to_pointer i') = ok i
+  -> (Let i' := sem_pexpr [::] s1 ofs in to_pointer i') = ok pofs
+  -> write_lval [::] x (Vword (i + pofs)) s1 = ok s2
   -> esem_i (pT := progStack) P' w (MkI ii (lea_ptr x e tag ofs)) s1 = ok s2.
 Proof.
   move=> P'_globs he ok_pofs hx.
@@ -69,10 +70,10 @@ Qed.
 
 Lemma x86_mov_ofsP_aux P' s1 e i x tag ofs w mk s2 ii ins pofs :
   p_globs P' = [::]
-  -> (Let i' := sem_pexpr true [::] s1 e in to_pointer i') = ok i
-  -> (Let i' := sem_pexpr true [::] s1 ofs in to_pointer i') = ok pofs
+  -> (Let i' := sem_pexpr [::] s1 e in to_pointer i') = ok i
+  -> (Let i' := sem_pexpr [::] s1 ofs in to_pointer i') = ok pofs
   -> sap_mov_ofs x86_saparams x tag mk e ofs = Some ins
-  -> write_lval true [::] x (Vword (i + pofs)) s1 = ok s2
+  -> write_lval [::] x (Vword (i + pofs)) s1 = ok s2
   -> esem_i (pT := progStack) P' w (MkI ii ins) s1 = ok s2.
 Proof.
   move=> P'_globs he ok_pofs.
@@ -199,7 +200,7 @@ Proof.
   + rewrite /vm2; case: eqP => hsz //=.
     rewrite get_var_neq // hget /= /sem_sop2 /= !truncate_word_u /=.
     by rewrite /exec_sopn /= sub_wordE truncate_word_u /=.
-  have -> /= : get_var true vm2 vrsp = ok (Vword (ts - wrepr U64 sz)).
+  have -> /= : get_var vm2 vrsp = ok (Vword (ts - wrepr U64 sz)).
   + rewrite /vm2; case: eqP => ? /=.
     + by subst sz; rewrite get_var_neq // hget wrepr0 GRing.subr0.
     by rewrite get_var_eq.
@@ -234,7 +235,7 @@ Proof.
   by case: vtype htxd.
 Qed.
 
-Lemma x86_lstore_correct : lstore_correct_aux x86_check_ws x86_lstore.
+Lemma x86_lstore_correct : lstore_correct_aux x86_check_store_ws x86_lstore.
 Proof.
   move=> xd xs ofs ws w wp s m _ hgetd hgets hwr.
   apply: x86_lassign_correct => /=; first by apply hgets.
@@ -242,8 +243,11 @@ Proof.
   by rewrite hgetd /= /sem_sop2 /= hto /= !truncate_word_u /= truncate_word_u /= hwr.
 Qed.
 
+Lemma x86_check_store_ws_correct ws : x86_check_ws ws -> x86_check_store_ws ws.
+Proof. done. Qed.
+
 Lemma x86_lstores_correct : lstores_correct x86_liparams.
-Proof. apply/lstores_dfl_correct/x86_lstore_correct. Qed.
+Proof. exact: (lstores_dfl_correct x86_lstore_correct x86_check_store_ws_correct). Qed.
 
 Lemma x86_lload_correct : lload_correct_aux (lip_check_ws x86_liparams) x86_lload.
 Proof.
@@ -277,6 +281,7 @@ Definition x86_hliparams {call_conv : calling_convention} : h_linearization_para
     spec_lip_lloads               := x86_lloads_correct;
     spec_lip_tmp                  := x86_tmp_correct;
     spec_lip_check_ws             := x86_check_ws_correct;
+    spec_lip_check_store_ws       := x86_check_store_ws_correct;
   |}.
 
 Lemma x86_ok_lip_tmp :
@@ -815,19 +820,19 @@ Opaque cat.
 
   have /(_ m2) [|s2 -> hlo2] /= :=
     assemble_opsP eval_assemble_cond hmap1 erefl _ hlo0.
-  + have -> /=: get_var true vm0 (to_var xr) = ok (Vword (s.(asm_xreg) xr)).
+  + have -> /=: get_var vm0 (to_var xr) = ok (Vword (s.(asm_xreg) xr)).
     + by rewrite /get_var /vm0 Vm.setP_eq /=.
     have -> /= : sem_rexpr (emem m) vm0 emsf = ok vmsf.
     + by rewrite -hemsf; apply: free_vars_rP.
     rewrite /exec_sopn /= hmsf /= !truncate_word_le // /= /x86_VPINSR /=.
     have -> : wand (wrepr U8 0) (x86_nelem_mask U64 U128) = wrepr U8 0.
     + by apply/wunsigned_inj/(wand_modulo _ 1).
-    have -> /=: get_var true vm1 (to_var xr) = ok (Vword v1).
+    have -> /=: get_var vm1 (to_var xr) = ok (Vword v1).
     + by rewrite /get_var /vm0 Vm.setP_eq /=.
     have -> /= : sem_rexpr (emem m) vm1 emsf = ok vmsf.
     + rewrite -hemsf; apply: free_vars_rP.
       apply/(eq_onT (vm2:= vm0)) => //.
-      by apply/eq_onS/(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v1)).
+      by apply/eq_onS/(set_var_disjoint_eq_on (x:= to_var xr) (v:= Vword v1)).
     rewrite /exec_sopn /= hmsf /= !truncate_word_u /= /x86_VPINSR /=.
     have -> : wand (wrepr U8 1) (x86_nelem_mask U64 U128) = wrepr U8 1.
     + by apply/wunsigned_inj/(wand_modulo _ 1).
@@ -869,15 +874,15 @@ Transparent cat.
   pose (vm4 := (vm3 .[ to_var yr <- Vword v4])).
   have /(_ (with_vm m vm4)) [|s' -> hlo4] /= :=
     assemble_opsP eval_assemble_cond hmap3 erefl _ hlo3.
-  + have -> /=: get_var true vm3 (to_var xr) = ok (Vword v3).
+  + have -> /=: get_var vm3 (to_var xr) = ok (Vword v3).
     + by rewrite /get_var /vm3 Vm.setP_eq /= wsize_ge_U256.
     have -> /= : sem_rexpr (emem m) vm3 ew = ok vw.
     + rewrite -hew; apply: free_vars_rP.
       apply/eq_onS/(eq_onT (vm2:= vm2)); [ apply/(eq_onT (vm2:= vm1)); [ apply/(eq_onT (vm2:= vm0)) | ] | ].
-      + by apply(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v0)).
-      + by apply(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v1)).
-      + by apply(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v2)).
-      apply/(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v3)) => //.
+      + by apply(set_var_disjoint_eq_on (x:= to_var xr) (v:= Vword v0)).
+      + by apply(set_var_disjoint_eq_on (x:= to_var xr) (v:= Vword v1)).
+      + by apply(set_var_disjoint_eq_on (x:= to_var xr) (v:= Vword v2)).
+      apply/(set_var_disjoint_eq_on (x:= to_var xr) (v:= Vword v3)) => //.
     by rewrite /exec_sopn /= truncate_word_u hw /= !computational_eq_refl
       /x86_VPOR /size_128_256 Hws' /= (wsize_ge_U256 ws) /=.
   exists s' => //; apply: lom_eqv_ext hlo4 => z /=.

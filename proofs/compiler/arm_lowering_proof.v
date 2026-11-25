@@ -60,6 +60,7 @@ Section PROOF.
 Context
   {wsw : WithSubWord}
   {dc : DirectCall}
+  {core : arm_core}
   {atoI : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
@@ -70,6 +71,8 @@ Context
   (warning : instr_info -> warning_msg -> instr_info)
   (fv : fresh_vars)
   (fv_correct : fvars_correct (all_fresh_vars fv) (fvars fv) (p_funcs p)).
+
+#[local] Existing Instance do_enforce_defined_variables.
 
 Notation fvars := (fvars fv).
 Notation lower_pexpr := (lower_pexpr fv).
@@ -174,7 +177,7 @@ Lemma sem_condition_mn ii vi tag mn s es ws0 ws1 (w0 : word ws0) (w1 : word ws1)
   mn \in condition_mnemonics
   -> (reg_size <= ws0)%CMP
   -> (reg_size <= ws1)%CMP
-  -> sem_pexprs true (p_globs p) s es = ok [:: Vword w0; Vword w1 ]
+  -> sem_pexprs (p_globs p) s es = ok [:: Vword w0; Vword w1 ]
   -> let w0' := zero_extend reg_size w0 in
      let w1' := zero_extend reg_size w1 in
      let aop := Oarm (ARM_op mn default_opts) in
@@ -212,8 +215,8 @@ Proof. by decide equality. Qed.
 
 Lemma lower_condition_Papp2P vi s op e0 e1 mn e es v0 v1 v :
   lower_condition_Papp2 fv vi op e0 e1 = Some (mn, e, es)
-  -> sem_pexpr true (p_globs p) s e0 = ok v0
-  -> sem_pexpr true (p_globs p) s e1 = ok v1
+  -> sem_pexpr (p_globs p) s e0 = ok v0
+  -> sem_pexpr (p_globs p) s e1 = ok v1
   -> sem_sop2 op v0 v1 = ok v
   -> exists (ws0 ws1 : wsize) (w0 : word ws0) (w1 : word ws1),
       let w0' := zero_extend reg_size w0 in
@@ -221,8 +224,8 @@ Lemma lower_condition_Papp2P vi s op e0 e1 mn e es v0 v1 v :
       [/\ mn \in condition_mnemonics
         , (reg_size <= ws0)%CMP
         , (reg_size <= ws1)%CMP
-        , sem_pexprs true (p_globs p) s es = ok [:: Vword w0; Vword w1 ]
-        & sem_pexpr true (p_globs p) (estate_of_condition_mn mn s w0' w1') e = ok v
+        , sem_pexprs (p_globs p) s es = ok [:: Vword w0; Vword w1 ]
+        & sem_pexpr (p_globs p) (estate_of_condition_mn mn s w0' w1') e = ok v
       ].
 Proof using fv_correct.
   move=> h hseme0 hseme1 hsemop.
@@ -320,11 +323,11 @@ Lemma sem_lower_condition_pexpr vi tag s0 s0' ii e v lvs aop es c :
   lower_condition_pexpr fv vi e = Some (lvs, aop, es, c)
   -> eq_fv s0 s0'
   -> disj_fvars (read_e e)
-  -> sem_pexpr true (p_globs p) s0 e = ok v
+  -> sem_pexpr (p_globs p) s0 e = ok v
   -> exists s1',
        [/\ esem p' ev [:: MkI ii (Copn lvs tag aop es) ] s0' = ok s1'
          , eq_fv s0 s1'
-         & sem_pexpr true (p_globs p) s1' c = ok v
+         & sem_pexpr (p_globs p) s1' c = ok v
        ].
 Proof using fv_correct.
   apply: obindP => -[[op e0] e1] /is_Papp2P ?; subst.
@@ -356,11 +359,11 @@ Lemma sem_lower_condition vi s0 s0' ii e v pre e' :
   lower_condition fv vi e = (pre, e')
   -> eq_fv s0 s0'
   -> disj_fvars (read_e e)
-  -> sem_pexpr true (p_globs p) s0 e = ok v
+  -> sem_pexpr (p_globs p) s0 e = ok v
   -> exists s1',
        [/\ esem p' ev (map (MkI ii) pre) s0' = ok s1'
          , eq_fv s0 s1'
-         & sem_pexpr true (p_globs p) s1' e' = ok v
+         & sem_pexpr (p_globs p) s1' e' = ok v
        ].
 Proof using fv_correct.
   move=> h hs00 hfv hseme.
@@ -388,11 +391,11 @@ Qed.
 Lemma get_arg_shiftP s e ws v e' sh n :
   get_arg_shift ws [:: e ] = Some (e', sh, n)
   -> disj_fvars (read_e e)
-  -> sem_pexpr true (p_globs p) s e = ok v
+  -> sem_pexpr (p_globs p) s e = ok v
   -> exists ws1 (wbase : word ws1) (wsham : word U8),
        [/\ (ws <= ws1)%CMP
-         , sem_pexpr true (p_globs p) s e' = ok (Vword wbase)
-         , sem_pexpr true (p_globs p) s n = ok (Vword wsham)
+         , sem_pexpr (p_globs p) s e' = ok (Vword wbase)
+         , sem_pexpr (p_globs p) s n = ok (Vword wsham)
          , to_word reg_size v
            = ok (shift_op sh (zero_extend reg_size wbase) (wunsigned wsham))
          & (disj_fvars (read_e e') /\ disj_fvars (read_e n))
@@ -491,7 +494,7 @@ Definition ok_lower_pexpr_aux
   (s : estate) (ws ws' : wsize) (op : sopn) (es : seq pexpr) (w : word ws') :
   Prop :=
   (exists2 vs,
-     sem_pexprs true (p_globs p) s es = ok vs
+     sem_pexprs (p_globs p) s es = ok vs
      & exec_sopn op vs = ok [:: Vword (zero_extend ws w) ])
   /\ inv_lower_pexpr_aux ws op es.
 
@@ -501,7 +504,7 @@ Definition Plower_pexpr_aux (e : pexpr) : Prop :=
     lower_pexpr_aux ws e = Some (aop, es)
     -> (ws <= ws')%CMP
     -> disj_fvars (read_e e)
-    -> sem_pexpr true (p_globs p) s e = ok (Vword w)
+    -> sem_pexpr (p_globs p) s e = ok (Vword w)
     -> ok_lower_pexpr_aux s ws aop es w.
 
 Lemma lower_PvarP gx :
@@ -531,7 +534,7 @@ Proof.
   case: e => // [ al aa ws x| al ws] e s ws' ws'' aop es w.
   all: rewrite /lower_pexpr_aux /lower_load.
   all: move=> /chk_ws_regP [? [??]] hws hfve; subst ws' aop es.
-  all: rewrite /sem_pexpr -/(sem_pexpr _ _ s e).
+  all: rewrite /sem_pexpr -/(sem_pexpr _ s e).
 
   - apply: on_arr_gvarP => n t hty ok_t.
     apply: rbindP => idx.
@@ -570,7 +573,7 @@ Proof.
   move=> s ws ws' op' es w.
   move=> h hws hfve.
 
-  rewrite /sem_pexpr -/(sem_pexpr _ _ s e).
+  rewrite /sem_pexpr -/(sem_pexpr _ s e).
   t_xrbindP=> v hseme hw.
 
   move: h.
@@ -602,7 +605,7 @@ Proof.
       all: move=> [? ?]; subst op' es.
       all: split; last done.
       all: clear hfve.
-      all: rewrite /= -/(sem_pexpr _ _ s (Pload _ _ _)).
+      all: rewrite /= -/(sem_pexpr _ s (Pload _ _ _)).
       all: rewrite hseme {hseme} /=.
       all: eexists; first reflexivity.
       all: rewrite /exec_sopn /=.
@@ -620,7 +623,7 @@ Proof.
       all: move=> [? ?]; subst op' es.
       all: split; last done.
       all: clear hfve.
-      all: rewrite /= -/(sem_pexpr _ _ s (Pload _ _ _)).
+      all: rewrite /= -/(sem_pexpr _ s (Pload _ _ _)).
       all: rewrite hseme {hseme} /=.
       all: eexists; first reflexivity.
       all: rewrite /exec_sopn /=.
@@ -743,8 +746,8 @@ Ltac rewrite_exec :=
 Lemma with_shift_unop s eb ea ts (b: word ts) (a: u8) x vs sh opts r :
   (U32 ≤ ts)%CMP ->
   has_shift opts = None ->
-  sem_pexpr true (p_globs p) s eb = ok (Vword b) ->
-  sem_pexpr true (p_globs p) s ea = ok (Vword a) ->
+  sem_pexpr (p_globs p) s eb = ok (Vword b) ->
+  sem_pexpr (p_globs p) s ea = ok (Vword a) ->
   to_word reg_size x = ok (shift_op sh (zero_extend reg_size b) (wunsigned a)) ->
   exec_sopn (Oasm (BaseOp (None, ARM_op MVN opts))) [:: x & vs] = ok r ->
   exec_sopn (Oasm (BaseOp (None, ARM_op MVN (with_shift opts sh) ))) [:: Vword b, Vword a & vs] = ok r.
@@ -762,8 +765,8 @@ Lemma with_shift_binop mn s eb ea ts (b: word ts) (a: u8) x y vs sh opts r :
   mn \in [:: ADD; SUB; RSB; AND; BIC; EOR; ORR; CMP; TST] ->
   (U32 ≤ ts)%CMP ->
   has_shift opts = None ->
-  sem_pexpr true (p_globs p) s eb = ok (Vword b) ->
-  sem_pexpr true (p_globs p) s ea = ok (Vword a) ->
+  sem_pexpr (p_globs p) s eb = ok (Vword b) ->
+  sem_pexpr (p_globs p) s ea = ok (Vword a) ->
   to_word reg_size y = ok (shift_op sh (zero_extend reg_size b) (wunsigned a)) ->
   exec_sopn (Oasm (BaseOp (None, ARM_op mn opts))) [:: x, y & vs] = ok r ->
   exec_sopn (Oasm (BaseOp (None, ARM_op mn (with_shift opts sh) ))) [:: x, Vword b, Vword a & vs] = ok r.
@@ -783,8 +786,8 @@ Lemma with_shift_terop mn s eb ea ts (b: word ts) (a: u8) x y z vs sh opts r :
   mn \in [:: ADC; SBC ] ->
   (U32 ≤ ts)%CMP ->
   has_shift opts = None ->
-  sem_pexpr true (p_globs p) s eb = ok (Vword b) ->
-  sem_pexpr true (p_globs p) s ea = ok (Vword a) ->
+  sem_pexpr (p_globs p) s eb = ok (Vword b) ->
+  sem_pexpr (p_globs p) s ea = ok (Vword a) ->
   to_word reg_size y = ok (shift_op sh (zero_extend reg_size b) (wunsigned a)) ->
   exec_sopn (Oasm (BaseOp (None, ARM_op mn opts))) [:: x, y, z & vs] = ok r ->
   exec_sopn (Oasm (BaseOp (None, ARM_op mn (with_shift opts sh) ))) [:: x, Vword b, z, Vword a & vs] = ok r.
@@ -818,14 +821,14 @@ Lemma lower_Papp2_BICP s ws'' ws' e0 e1 x y v0 v1 (w : word ws') :
   -> (reg_size <= ws')%CMP
   -> disj_fvars (read_e e0)
   -> disj_fvars (read_e e1)
-  -> sem_pexpr true (p_globs p) s e0 = ok v0
-  -> sem_pexpr true (p_globs p) s e1 = ok v1
+  -> sem_pexpr (p_globs p) s e0 = ok v0
+  -> sem_pexpr (p_globs p) s e1 = ok v1
   -> sem_sop2 (Oland ws'') v0 v1 = ok (Vword w)
   -> ok_lower_pexpr_aux s reg_size
        (Oasm (BaseOp (None, ARM_op BIC default_opts))) [:: y; x ] w.
 Proof.
   move=> handn hws hfve0 hfve1 hseme0 hseme1 hsemop.
-  have hsem : sem_pexpr true (p_globs p) s (Papp2 (Oland ws'') e0 e1) = ok (Vword w)
+  have hsem : sem_pexpr (p_globs p) s (Papp2 (Oland ws'') e0 e1) = ok (Vword w)
     by rewrite /= hseme0 hseme1 /= hsemop.
   have [wsx [wx [wsy [wy [hx hy hwsx hwsy /Vword_inj [?]]]]]] := is_andn_semP handn hsem.
   subst ws' => /= ?; subst w.
@@ -844,7 +847,7 @@ Proof.
   move=> h hws hfve hseme.
 
   move: hseme.
-  rewrite /sem_pexpr -!/(sem_pexpr _ _ s _).
+  rewrite /sem_pexpr -!/(sem_pexpr _ s _).
   t_xrbindP=> v0 hseme0 v1 hseme1 hsemop.
 
   move: hfve => /disj_fvars_read_e_Papp2 [hfve0 hfve1].
@@ -1085,8 +1088,8 @@ Lemma sem_i_lower_pexpr_aux s0 s1 s0' ws ws' ii e op es (w : word ws') lv tag :
   -> (ws <= ws')%CMP
   -> disj_fvars (read_e e)
   -> disj_fvars (vars_lval lv)
-  -> sem_pexpr true (p_globs p) s0 e = ok (Vword w)
-  -> write_lval true (p_globs p) lv (Vword (zero_extend ws w)) s0 = ok s1
+  -> sem_pexpr (p_globs p) s0 e = ok (Vword w)
+  -> write_lval (p_globs p) lv (Vword (zero_extend ws w)) s0 = ok s1
   -> exists2 s1',
        esem_i p' ev (MkI ii (Copn [:: lv ] tag op es)) s0' = ok s1'
        & eq_fv s1 s1'.
@@ -1122,8 +1125,8 @@ Lemma sem_lower_pexpr
   -> (ws <= ws')%CMP
   -> disj_fvars (read_e e)
   -> disj_fvars (vars_lval lv)
-  -> sem_pexpr true (p_globs p) s0 e = ok (Vword w)
-  -> write_lval true (p_globs p) lv (Vword (zero_extend ws w)) s0 = ok s1
+  -> sem_pexpr (p_globs p) s0 e = ok (Vword w)
+  -> write_lval (p_globs p) lv (Vword (zero_extend ws w)) s0 = ok s1
   -> exists2 s1',
        let cmd := map (MkI ii) (pre ++ [:: Copn [:: lv ] tag op es ]) in
        esem p' ev cmd s0' = ok s1' & eq_fv s1 s1'.
@@ -1148,6 +1151,58 @@ Proof using dc fv_correct.
 
   rewrite /lower_pexpr.
   move=> /oassertP [] /eqP ?; subst ws0.
+  case: ifP => [/and4P [hcsel /eqP ? _ _] | _].
+
+  - (* ARMv8.1-M: conditional select. *)
+    subst ws.
+    case hc: lower_condition => [pre' c'] [? ? ?]; subst pre aop es.
+    rename pre' into pre.
+
+    move: hseme.
+    rewrite /=.
+    rewrite /truncate_val /=.
+    t_xrbindP=> b vb hsemc hb v0' v0 hseme0 w0' hw0 ? v1' v1 hseme1 w1' hw1 ? hw;
+      subst v0' v1'.
+    move: hb => /to_boolI ?; subst vb.
+    move: hw0 => /to_wordI [ws0 [w0 [? /truncate_wordP [hws0 ?]]]]; subst v0 w0'.
+    move: hw1 => /to_wordI [ws1 [w1 [? /truncate_wordP [hws1 ?]]]]; subst v1 w1'.
+
+    move: hfve => /disj_fvars_read_e_Pif [hfvc hfve0 hfve1].
+
+    have [s1' [hsem01' hs10 hsemc']] := sem_lower_condition ii hc hs00 hfvc hsemc.
+    clear hc hs00 hfvc hsemc.
+
+    have [s2' hwrite12' hs21] :
+      exists2 s2',
+        write_lval (p_globs p) lv
+          (Vword (if b then zero_extend reg_size w0 else zero_extend reg_size w1)) s1'
+          = ok s2'
+        & eq_fv s1 s2'.
+    {
+      case: b hw hsemc' => hw _.
+      all: move: hw => /Vword_inj [?]; subst ws'.
+      all: move=> /= ?; subst w.
+      all: rewrite zero_extend_u in hwrite.
+      all: have [s2' hwrite12' hs21] := eeq_exc_write_lval hfvlv hs10 hwrite.
+      all: exists s2'; last exact: hs21.
+      all: exact: hwrite12'.
+    }
+
+    exists s2'; last exact: hs21.
+    Opaque esem esem_i.
+    rewrite map_cat esem_cat hsem01' /= esem1.
+    Transparent esem esem_i.
+    clear hsem01'.
+    rewrite /= /sem_sopn /=.
+    rewrite (eeq_exc_sem_pexpr hfve0 hs10 hseme0) /=
+            (eeq_exc_sem_pexpr hfve1 hs10 hseme1) /=
+            hsemc' /=.
+    rewrite /exec_sopn /sopn_sem /sopn_sem_ /=.
+    move: hcsel; rewrite /arm_lower_csel => hcsel; rewrite hcsel /=.
+    rewrite (truncate_word_le _ hws0) (truncate_word_le _ hws1) /=.
+    rewrite /arm_CSEL_semi.
+    by have := hwrite12'; case: (b) => /= ->.
+
   case h: lower_pexpr_aux => [[op es']|] //.
   case hcond: sopn_set_is_conditional => [op' | //].
   case hc: lower_condition => [pre' c'] [? ? ?]; subst pre aop es.
@@ -1176,8 +1231,8 @@ Proof using dc fv_correct.
   have [s2' hwrite12' hs21] :
     exists2 s2',
       (if b
-       then write_lvals true (p_globs p) s1' [:: lv ] vres = ok s2'
-       else write_lvals true (p_globs p) s1' [:: lv ] vprev' = ok s2')
+       then write_lvals (p_globs p) s1' [:: lv ] vres = ok s2'
+       else write_lvals (p_globs p) s1' [:: lv ] vprev' = ok s2')
       & eq_fv s1 s2'.
   {
     case: b hw hsemc' => hw _.
@@ -1197,9 +1252,13 @@ Opaque esem esem_i.
   case: op hopts h hcond hexeces htout => //= -[[[//|] [mn opts]] | [] // ws''].
   - move: opts => [sf ic osh].
     set opts := {| set_flags := _; |}.
-    move=> /= /andP [/negPf ? /negPf ?] h [?] hexeces htout; subst op' sf ic.
+    move=> /= /andP [/negPf ? /negPf ?] h.
+    case: ifP => // hmn [?] hexeces htout; subst op' sf ic.
     apply: (sem_i_conditional (p := p') ev ii tag _ _ hsemc' _ _ hexeces hwrite12').
-    - by case: (mn); case: (osh).
+    - move: hexeces; rewrite /exec_sopn /sopn_sem /=.
+      have -> : id_valid (mn_desc (set_is_conditional opts) mn) = id_valid (mn_desc opts mn).
+      + by subst opts; move: hmn; case: (mn) => //; case: (osh).
+      by case: id_valid.
     - exact: (eeq_exc_sem_pexprs hfves hs10 hsemes).
     - by rewrite /= (eeq_exc_sem_pexpr hfve1 hs10 hseme1).
     rewrite /truncate_args /truncate_val /=.
@@ -1208,7 +1267,7 @@ Opaque esem esem_i.
 
   move=> _ h [?] hexeces htout; subst op'.
 Transparent esem esem_i.
-  rewrite /= /sem_sopn /= /sem_pexprs mapM_cat /= -/(sem_pexprs _ _ _ _) /=.
+  rewrite /= /sem_sopn /= /sem_pexprs mapM_cat /= -/(sem_pexprs _ _ _) /=.
   rewrite (eeq_exc_sem_pexprs hfves hs10 hsemes) /= hsemc' /=
     (eeq_exc_sem_pexpr hfve1 hs10 hseme1) /=.
   clear hfves hfve1 hs10 hsemes hsemc' hseme1.
@@ -1230,8 +1289,8 @@ Lemma sem_i_lower_store s0 s1 s0' ws ws' ii e aop es (w : word ws') lv tag :
   -> eq_fv s0 s0'
   -> (ws <= ws')%CMP
   -> disj_fvars (read_e e)
-  -> sem_pexpr true (p_globs p) s0 e = ok (Vword w)
-  -> write_lval true (p_globs p) lv (Vword (zero_extend ws w)) s0' = ok s1
+  -> sem_pexpr (p_globs p) s0 e = ok (Vword w)
+  -> write_lval (p_globs p) lv (Vword (zero_extend ws w)) s0' = ok s1
   -> esem_i p' ev (MkI ii (Copn [:: lv ] tag (Oarm aop) es)) s0' = ok s1.
 Proof.
   move=> h hs00 hws hfv hseme hwrite.
@@ -1297,9 +1356,9 @@ Qed.
 
 Lemma lower_cassgn_wordP ii s0 lv tag ws e v v' s0' s1' pre lvs op es :
   lower_cassgn_word fv lv ws e = Some (pre, (lvs, op, es))
-  -> sem_pexpr true (p_globs p) s0 e = ok v
+  -> sem_pexpr (p_globs p) s0 e = ok v
   -> truncate_val (cword ws) v = ok v'
-  -> write_lval true (p_globs p) lv v' s0' = ok s1'
+  -> write_lval (p_globs p) lv v' s0' = ok s1'
   -> eq_fv s0 s0'
   -> disj_fvars (read_e e)
   -> disj_fvars (vars_lval lv)
@@ -1338,9 +1397,9 @@ Qed.
 
 Lemma lower_cassgn_boolP ii s0 lv tag e v v' s0' s1' irs :
   lower_cassgn_bool fv lv tag e = Some irs
-  -> sem_pexpr true (p_globs p) s0 e = ok v
+  -> sem_pexpr (p_globs p) s0 e = ok v
   -> truncate_val cbool v = ok v'
-  -> write_lval true (p_globs p) lv v' s0' = ok s1'
+  -> write_lval (p_globs p) lv v' s0' = ok s1'
   -> eq_fv s0 s0'
   -> disj_fvars (read_e e)
   -> disj_fvars (vars_lval lv)
@@ -1405,15 +1464,6 @@ Proof.
   symmetry; apply/eqP.
   have := wunsigned_range w.
   lia.
-Qed.
-
-Lemma write_Lnone wdb gd x v s s' :
-  isLnone x ->
-  write_lval wdb gd x v s = ok s' ->
-  s = s'.
-Proof.
-  case: x => // ii ty _ /=.
-  by rewrite /write_none /=; t_xrbindP.
 Qed.
 
 Lemma lower_add_carryP s0 s1 ii lvs tag es lvs' op' es' :

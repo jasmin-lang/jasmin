@@ -236,6 +236,61 @@ function parameters (resp. function returned variables).
 
 [The assertions (`<expr_assert>`) are described in a dedicated section.](./code.md#assertions)
 
+### Comment annotations
+
+A function definition can be annotated with a comment, which the compiler
+copies into the generated assembly, right after the label of the function.
+
+For instance,
+```
+#[comment = "local function"]
+fn incr(reg u32 x) -> reg u32 {
+  x += 1;
+  return x;
+}
+
+#[comment = "export function
+second line"]
+#[comment = "another comment"]
+export
+fn main(reg u32 x) -> reg u32 {
+  x = incr(x);
+  return x;
+}
+```
+annotates the local function `incr` with a one-line comment and the export
+function `main` with two comments, the first of two lines.
+When compiled for x86-64, the assembly is
+```
+	.global	main
+	.type	main, %function
+main:
+/* export function
+second line */
+/* another comment */
+	movq	%rsp, %rsi
+	andq	$-8, %rsp
+	movl	%edi, %eax
+	call	.Lincr$1
+.Lmain$1:
+	movq	%rsi, %rsp
+	ret
+	.size	main, .-main
+	.type	incr, %function
+incr:
+/* local function */
+.Lincr$1:
+	incl	%eax
+	ret
+	.size	incr, .-incr
+```
+where each annotation becomes an assembly comment `/* … */`, in the order of the
+annotations.
+The value of a `comment` annotation must be a string that does not contain
+`*/`.
+Since inline functions do not appear in the assembly, their comments are lost.
+Comment annotations on instructions are ignored for now.
+
 ## Namespaces
 
 Jasmin features a simple namespace system, with a syntax similar to that of C++.

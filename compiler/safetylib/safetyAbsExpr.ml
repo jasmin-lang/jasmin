@@ -84,6 +84,8 @@ let remove_Owi2 o =
     | WIsub -> Osub(Op_w sz)
     | WImod -> Omod(sg, Op_w sz)
     | WIdiv -> Odiv(sg, Op_w sz)
+    | WImax -> Omax(sg, Op_w sz)
+    | WImin -> Omin(sg, Op_w sz)
     | WIshr -> if sg = Signed then Oasr (Op_w sz) else Olsr sz
     | WIshl -> Olsl(Op_w sz)
     | WIeq  -> Oeq(Op_w sz)
@@ -152,6 +154,7 @@ let op2_to_abs_binop op2 = match op2 with
   | Odiv (Signed, _) -> AB_Unknown
   | Odiv _ -> AB_Arith Texpr1.Div
 
+  | Omin _ | Omax _ -> AB_Unknown
   | Olsr _ -> AB_Wop (Wshift Unsigned_right)
   | Olsl (Op_w _) -> AB_Wop (Wshift Unsigned_left)
   | Olsl Op_int -> AB_Unknown
@@ -754,6 +757,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
     | Ogt k -> (Tcons1.SUP, k)
     | Oge k -> (Tcons1.SUPEQ, k)
 
+    | Omin _ | Omax _
     | Ovadd (_, _) | Ovsub (_, _) | Ovmul (_, _)
     | Ovlsr (_, _) | Ovlsl (_, _) | Ovasr (_, _) -> assert false
     | Owi2 _ -> assert false
@@ -801,6 +805,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
         | Olxor _ | Olsr _ | Olsl _ | Oasr _ -> assert false
 
         | Ovadd (_, _) | Ovsub (_, _) | Ovmul (_, _)
+        | Omin _ | Omax _
         | Ovlsr (_, _) | Ovlsl (_, _) | Ovasr (_, _) -> assert false
 
         | Obeq ->
@@ -1203,6 +1208,23 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
     | MLvars(_, mvs) -> List.fold_left remove_array_contents_mv abs mvs
     | MLasub(_, _ms) -> failwith "Not implemented (explicit array init of a slice)"
 
+  (* The byte cells of the slice of [x] of [len] bytes at offset [off] *)
+  let slice_cells x off len =
+    List.init (max 0 len) (fun i -> AarraySlice (x, U8, off + i))
+
+  (* The byte cells of [ms], or of its whole array if the offset is unknown *)
+  let slice_range (ms : int option gmsub) =
+    match ms.ms_offset with
+    | Some off -> slice_cells ms.ms_v off (ms.ms_len * size_of_ws ms.ms_ws)
+    | None -> arr_full_range ms.ms_v
+
+  (* Are all the cells that a copy from [ms] may read initialized?
+     Global arrays are fully initialized. *)
+  let slice_init abs (ms : int option gmsub) =
+    match ms.ms_sc with
+    | Expr.Sglob -> true
+    | Expr.Slocal -> List.for_all (AbsDom.check_init abs) (slice_range ms)
+
   (* Array slice assignment. Does the numerical assignments.
      Remark: array elements do not need to be tracked in the point-to
      abstraction. *)
@@ -1213,16 +1235,21 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
       and rhs = { rhs with ms_offset = roff } in
       assign_slice_aux abs lhs rhs
 
-    (* If any offset is unknown, we need to forget the array content. *)
-    | _, _ -> array_contents lhs.ms_v |> AbsDom.forget_list abs
+    (* If any offset is unknown, we need to forget the array content.
+       Moreover, if a cell that the copy may read is not initialized, the
+       written cells may not be either. *)
+    | _, _ ->
+      let abs = array_contents lhs.ms_v |> AbsDom.forget_list abs in
+      if slice_init abs rhs then abs
+      else slice_range lhs |> List.map (fun at -> Mlocal at) |> AbsDom.remove_vars abs
 
   let init_slice abs lhs es =
     match lhs.ms_offset with
     | None -> array_contents lhs.ms_v |> AbsDom.forget_list abs
     | Some loff ->
-       List.fold_lefti (fun abs i e ->
-           AbsDom.is_init abs (AarraySlice (lhs.ms_v, U8, i))
-         ) abs es
+       let cells = slice_cells lhs.ms_v loff (List.length es) in
+       let abs = List.map (fun at -> Mlocal at) cells |> AbsDom.forget_list abs in
+       List.fold_left AbsDom.is_init abs cells
 
   let omvar_is_offset = function
     | MLvar (_, MvarOffset _) -> true

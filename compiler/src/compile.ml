@@ -127,10 +127,12 @@ let do_toec
        and type rflag = rflag
        and type cond = cond
        and type asm_op = asm_op
-       and type extra_op = extra_op) prog =
-  let freshvar = (fun vk ii -> Conv.fresh_var_ident vk ii (Uint63.of_int 0)) in
+       and type extra_op = extra_op) ~arrays_by_size prog =
   let cp = Conv.cuprog_of_prog prog in
-  let cp = Toec_prog.toec_uprog Arch.asmOp freshvar cp in
+  let cp =
+    Toec_prog.toec_uprog Arch.asmOp Arch.pointer_data Arch.msf_size
+      Conv.fresh_var_ident arrays_by_size cp
+  in
   let cp = catch_error cp in
   Conv.prog_of_cuprog cp
 
@@ -480,16 +482,16 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.print_uprog =
         (fun s p ->
           pp_cuprog s p;
-          p);
+          Utils0.Ok ());
       Compiler.print_sprog =
         (fun s p ->
           warn_extra s p;
           eprint s pp_csprog p;
-          p);
+          Utils0.Ok ());
       Compiler.print_linear =
         (fun s p ->
           eprint s pp_linear p;
-          p);
+          Utils0.Ok ());
       Compiler.refresh_instr_info;
       Compiler.warning;
       Compiler.fresh_var_ident = Conv.fresh_var_ident;

@@ -1,0 +1,9 @@
+#[ct = "public → secret"]
+fn count(reg u64 p) -> reg u64 {
+  reg u64 r = 0;
+  while ([p] == 0) {
+    [p] -= 1;
+    r += 1;
+  }
+  return r;
+}

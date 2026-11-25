@@ -54,6 +54,7 @@ Context
 
 #[local] Existing Instance withsubword.
 #[local] Existing Instance direct_c.
+#[local] Existing Instance do_enforce_defined_variables.
 
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc hypotheses. *)
@@ -91,7 +92,7 @@ Proof.
       by rewrite GRing.addr0 => -> /=.
     case hlea: mk_lea => [[disp base scale offset]|//] /=.
     case: base hlea => [base|//] hlea.
-    have lea_sem: sem_pexpr true [::] s1 (add e ofs) = ok (Vword (w + pofs)).
+    have lea_sem: sem_pexpr [::] s1 (add e ofs) = ok (Vword (w + pofs)).
     + by rewrite /= ok_ve ok_vofs /= /sem_sop2 /= ok_w ok_pofs /=.
     have /(_ (cmp_le_refl _)) /(_ (cmp_le_refl _)) := mk_leaP _ _ hlea lea_sem.
     rewrite zero_extend_u /sem_lea /=.
@@ -226,12 +227,12 @@ Local Opaque sem_fopn_args.
         (if sz != 0%Z then RISCVFopn.smart_subi rsp r sz else [::])
       = ok (with_vm s vm1),
     vm1 =[\Sv.singleton rsp] vm0 &
-    get_var true vm1 rsp = ok (Vword (ts - wrepr reg_size sz))].
+    get_var vm1 rsp = ok (Vword (ts - wrepr reg_size sz))].
   + case: eqP => [->|_] /=.
     + rewrite wrepr0 GRing.subr0.
       exists vm0; split=> //.
       by t_get_var.
-    have hget': get_var true vm0 r = ok (Vword ts).
+    have hget': get_var vm0 r = ok (Vword ts).
     + by t_get_var; rewrite (convertible_eval_atype hc).
     apply:
       (RISCVFopnP.smart_subi_sem_fopn_args _ _
@@ -272,13 +273,14 @@ Proof.
   by case: vtype htxd.
 Qed.
 
-Lemma riscv_lstore_correct : lstore_correct_aux riscv_check_ws riscv_lstore.
+Lemma riscv_lstore_correct : lstore_correct_aux riscv_check_store_ws riscv_lstore.
 Proof.
-  move=> xd xs ofs ws w wp s m /eqP hchk; t_xrbindP; subst ws.
+  move=> xd xs ofs ws w wp s m hchk; t_xrbindP.
   move=> vd hgetd htrd vs hgets htrs hwr.
   rewrite /riscv_lstore /= hgets hgetd /= /exec_sopn /= htrs /=.
   rewrite /sem_sop2 /= htrd /= !truncate_word_u /= truncate_word_u /=.
-  by rewrite zero_extend_u hwr.
+  have -> : (ws <= U32)%CMP := hchk.
+  by rewrite /= !computational_eq_refl /= zero_extend_u truncate_word_u /= hwr.
 Qed.
 
 Lemma riscv_smart_addi_correct : ladd_imm_correct_aux RISCVFopn.smart_addi.
@@ -287,11 +289,15 @@ Proof.
   by apply: RISCVFopnP.smart_addi_sem_fopn_args hget => //; right.
 Qed.
 
+Lemma riscv_check_store_ws_correct ws : riscv_check_ws ws -> riscv_check_store_ws ws.
+Proof. by move=> /eqP ->. Qed.
+
 Lemma riscv_lstores_correct : lstores_correct riscv_liparams.
 Proof.
   apply/lstores_imm_dfl_correct.
-  + by apply riscv_lstore_correct.
-  apply riscv_smart_addi_correct.
+  + exact: riscv_lstore_correct.
+  + exact: riscv_check_store_ws_correct.
+  exact: riscv_smart_addi_correct.
 Qed.
 
 Lemma riscv_lload_correct : lload_correct_aux (lip_check_ws riscv_liparams) riscv_lload.
@@ -332,6 +338,7 @@ Definition riscv_hliparams :
     spec_lip_lloads               := riscv_lloads_correct;
     spec_lip_tmp                  := riscv_tmp_correct;
     spec_lip_check_ws             := riscv_check_ws_correct;
+    spec_lip_check_store_ws       := riscv_check_store_ws_correct;
   |}.
 
 Lemma riscv_ok_lip_tmp :

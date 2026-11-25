@@ -43,10 +43,13 @@ Section PROOF.
     by move => ->.
   Qed.
 
-  Lemma write_var_Z i (z: Z) s s' :
-    write_var true i z s = ok s' ->
+  Lemma write_var_Z (wdb: enforce_defined_variables) i (z: Z) s s' :
+    write_var i z s = ok s' ->
     eval_atype (vtype i) = cint.
-  Proof. by case: i => - [[] x]. Qed.
+  Proof.
+    rewrite /write_var /set_var /DB orbT /=.
+    by case: vtype.
+Qed.
 
   Section IT.
 
@@ -104,7 +107,7 @@ Section PROOF.
       + apply wkequiv_iresult.
         move=> s t s' /st_relP [-> /= heq] hw.
         rewrite /= (write_var_Z hw) /=.
-        have [vm2 /= ??] := [elaborate write_lvar_ext_eq (gd := [::]) (x:= Lvar i) heq hw].
+        have [vm2 /= ??] := [elaborate write_lval_ext_eq (gd := [::]) (x:= Lvar i) heq hw].
         by exists (with_vm s' vm2).
       apply (wkequiv_eutt_r
               (F2 := fun s => Monad.bind (isem_cmd_ p' ev c' s)

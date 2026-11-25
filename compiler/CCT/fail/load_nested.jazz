@@ -1,0 +1,5 @@
+#[ct = "public → secret"]
+fn nested(reg u64 x) -> reg u64 {
+  x = [[x]];
+  return x;
+}

@@ -24,6 +24,50 @@ Require Export arm_expand_imm.
  * This is a description of the base architecture (no extensions).
  *)
 
+(* -------------------------------------------------------------------- *)
+(* Versions of the architecture.
+
+ * ARMv8.1-M with the Main and DSP extensions (as implemented by the ARM
+ * Cortex-M55 processor) has the instructions of ARMv7-M that are described in
+ * arm_instr_decl.v, and others; the reference is the Armv8-M Architecture
+ * Reference Manual (DDI0553B.z).
+ *)
+
+Variant arm_version : Type :=
+| ARMv7M
+| ARMv8_1M.
+
+(* -------------------------------------------------------------------- *)
+(* The core: what distinguishes the processors that run this instruction
+   set. The instruction descriptions (arm_instr_decl.v) describe the
+   instructions; the core says which ones it has. *)
+
+Class arm_core :=
+  {
+    (* The version of the architecture: which instructions exist, and the
+       classification of their timing. *)
+    core_version : arm_version;
+    (* The DSP extension (ARMv7E-M) is implemented. *)
+    core_dsp : bool;
+    (* The long multiplications (UMULL, SMULL, UMLAL, SMLAL) have
+       data-independent timing. *)
+    core_long_mul_dit : bool;
+  }.
+
+(* Cortex-M4: ARMv7E-M; every multiplication takes one cycle. *)
+Definition cortex_m4 : arm_core :=
+  {| core_version := ARMv7M; core_dsp := true; core_long_mul_dit := true; |}.
+
+(* Cortex-M3: ARMv7-M, without the DSP extension; the long multiplications
+   terminate early, depending on the magnitude of the operands (Cortex-M3
+   Technical Reference Manual, DDI 0337, instruction timings). *)
+Definition cortex_m3 : arm_core :=
+  {| core_version := ARMv7M; core_dsp := false; core_long_mul_dit := false; |}.
+
+(* ARMv8.1-M with the Main and DSP extensions (Cortex-M55, M85). *)
+Definition armv8_1m : arm_core :=
+  {| core_version := ARMv8_1M; core_dsp := true; core_long_mul_dit := true; |}.
+
 (* --------------------------------------------- *)
 Definition arm_reg_size  := U32.
 Definition arm_xreg_size := U64.
@@ -101,14 +145,6 @@ Canonical shift_kind_eqType := @ceqT_eqType _ eqTC_shift_kind.
 
 Definition shift_kinds :=
   [:: SLSL; SLSR; SASR; SROR ].
-
-Definition string_of_shift_kind (sk : shift_kind) : string :=
-  match sk with
-  | SLSL => "lsl"
-  | SLSR => "lsr"
-  | SASR => "asr"
-  | SROR => "ror"
-  end.
 
 Definition check_shift_amount (sk: shift_kind) (z: Z) : bool :=
   let: (lo, hi) := shift_amount_bounds sk in

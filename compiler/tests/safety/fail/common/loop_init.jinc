@@ -1,0 +1,13 @@
+// With RESET, a is uninitialized at the end of the first iteration, p at the
+// end of the second, and the third iteration reads p[0].
+export fn main(reg ptr u32[1] a, reg u32 x) -> reg u32 {
+  reg ptr u32[1] p = a;
+  while (x >s 0) {
+    reg u32 y = p[0];
+    x |= y;
+    p = a;
+    if RESET { ArrayInit(a); }
+    x -= 1;
+  }
+  return x;
+}

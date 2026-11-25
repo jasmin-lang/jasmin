@@ -1,7 +1,7 @@
 open Jasmin
 open Prog
 open Utils
-
+open Architecture
 module Make (Arch : SafetyArch.SafetyArch) : sig
   val analyze :
     ?fmt:Format.formatter ->
@@ -44,9 +44,9 @@ let get_arch_with_analyze arch call_conv : (module ArchWithAnalyze) =
 
         let analyze = Safety.analyze
       end)
-  | ARM_M4 ->
+  | ARM_M c ->
       (module struct
-        module C = CoreArchFactory.Core_arch_ARM
+        module C = (val CoreArchFactory.core_arch_arm c)
         module A = Arch_full.Arch_from_Core_arch (C)
         module Safety = Make (Arm_safety.Arm_safety (A))
 

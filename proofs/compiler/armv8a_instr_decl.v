@@ -137,7 +137,6 @@ Variant armv8a_mnemonic : Type :=
 | SXTW                           (* Sign extend word *)
 | UXTB                           (* Zero extend byte *)
 | UXTH                           (* Zero extend halfword *)
-| UXTW                           (* Zero extend word *)
 
 (* Comparisons *)
 | CMP                            (* Compare *)
@@ -187,7 +186,7 @@ Definition armv8a_mnemonics : seq armv8a_mnemonic :=
     ; RBIT; REV; REV16; REV32; CLZ; CLS
     ; BFC; BFI; BFXIL; SBFX; UBFX; EXTR
     ; MOV; MOVN; MOVZ; MOVK; ADR
-    ; SXTB; SXTH; SXTW; UXTB; UXTH; UXTW
+    ; SXTB; SXTH; SXTW; UXTB; UXTH
     ; CMP; CMN; TST
     ; CSEL; CSINC; CSINV; CSNEG; CSET; CSETM
     ; LDR; LDRB; LDRH; LDRSB; LDRSH; LDRSW; LDP
@@ -335,7 +334,6 @@ Definition string_of_armv8a_mnemonic (mn : armv8a_mnemonic) : string :=
   | SXTW => "SXTW"
   | UXTB => "UXTB"
   | UXTH => "UXTH"
-  | UXTW => "UXTW"
   | CMP => "CMP"
   | CMN => "CMN"
   | TST => "TST"
@@ -543,7 +541,9 @@ Definition mk_shifted
     id_err := id_err idt;
     id_init := id_init idt;
     id_doit := id_doit idt;
-    id_pp_asm := id_pp_asm idt;
+    (* The shift amount is printed after the operands of the base
+       instruction, with the name of the shift: [lsl #3]. *)
+    id_pp_asm := pp_append_shift sk (id_nargs idt) (id_pp_asm idt);
     (* The descriptor itself rejects a shift kind that the instruction
        does not admit (ROR on the arithmetic class). *)
     id_valid := id_valid idt && shift_allowed mn sk;
@@ -556,15 +556,15 @@ Arguments mk_shifted : clear implicits.
 (* -------------------------------------------------------------------- *)
 (* Printing. *)
 
-(* The [wsize] paired with each argument is the width of the register form
-   to print: W for widths up to [U32], X for [U64]. It only matters for
+(* Each argument is printed as a register of the width of the operand size:
+   W for widths up to [U32], X for [U64]. The width only matters for
    register operands. *)
 Definition pp_armv8a_op
   (mn : armv8a_mnemonic) (opts : armv8a_options) (args : seq asm_arg) : pp_asm_op :=
   {|
     pp_aop_name := string_of_armv8a_mnemonic mn;
     pp_aop_ext := PP_name;
-    pp_aop_args := map (fun a => (opts_size opts, a)) args;
+    pp_aop_args := map (PPa_full (opts_size opts)) args;
   |}.
 
 (* Same as [pp_armv8a_op] with an explicit width per argument, for the
@@ -575,9 +575,8 @@ Definition pp_armv8a_op_szs
   {|
     pp_aop_name := string_of_armv8a_mnemonic mn;
     pp_aop_ext := PP_name;
-    pp_aop_args := zip szs args;
+    pp_aop_args := pp_fulls szs args;
   |}.
-
 
 (* -------------------------------------------------------------------- *)
 (* Instruction descriptions.
@@ -1932,7 +1931,11 @@ Definition mk_movw_instr mn (semi : word U16 -> word U8 -> ty_w osz)
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_doit := DOIT;
-    id_pp_asm := pp_armv8a_op mn opts;
+    (* The halfword shift is printed as [LSL #<sh>], and dropped when it is
+       zero. *)
+    id_pp_asm :=
+      pp_op_shapes (string_of_armv8a_mnemonic mn)
+        [:: pp_full osz; pp_full U16; pp_shift SLSL ];
     id_valid := osz_valid;
     id_wf := refl_equal;
   |}.
@@ -2003,7 +2006,9 @@ Definition armv8a_MOVK_instr : instr_desc_t :=
     id_err := ErrSemUndef;
     id_init := [:: IBool true ];
     id_doit := DOIT;
-    id_pp_asm := pp_armv8a_op mn opts;
+    id_pp_asm :=
+      pp_op_shapes (string_of_armv8a_mnemonic mn)
+        [:: pp_full osz; pp_full U16; pp_shift SLSL ];
     id_valid := osz_valid;
     id_wf := refl_equal;
   |}.
@@ -2012,7 +2017,8 @@ Definition armv8a_MOVK_instr : instr_desc_t :=
 (* -------------------------------------------------------------------- *)
 (* Extensions.
    [in_ws] is the width of the extracted low bits; the result is extended
-   to the operand size. SXTW and UXTW only exist in the X form. *)
+   to the operand size. SXTW only exists in the X form; the zero extension
+   of a word is a MOV in the W form, extended (armv8a_lowering.v). *)
 
 Definition armv8a_extend_semi
   {ws : wsize} (sign : bool) (ws' : wsize) (wn : word ws) : word ws' :=
@@ -2145,19 +2151,6 @@ Definition armv8a_UXTB_instr : instr_desc_t := mk_extend_instr UXTB U8 false osz
      The description of UBFM gives the operational pseudocode for this instruction.
 *)
 Definition armv8a_UXTH_instr : instr_desc_t := mk_extend_instr UXTH U16 false osz_valid.
-(* [C6.2.281 MOV (register)] ARM DDI 0487 M.a, p. 2413
-   Move register value  This instruction copies the value in a source register
-   to the destination register.  This is an alias of ORR (shifted register).
-   This means:  • The encodings in this description are named to match the
-   encodings of ORR (shifted register). • The description of ORR (shifted
-   register) gives the operational pseudocode, any CONSTRAINED UNPREDICTABLE
-   behavior, and any operational information for this instruction.
-   Note: The ARM ARM defines no UXTW entry: UXTW #0 is equivalent to a 32-bit register MOV (alias of ORR (shifted register)), whose 32-bit result is zero-extended to 64 bits; the MOV (register) entry is recorded here in its place.
-   Syntax: MOV <Xd>, <Xm>  ==  ORR <Xd>, XZR, <Xm>
-   Operation (ASL):
-     The description of ORR (shifted register) gives the operational pseudocode for this instruction.
-*)
-Definition armv8a_UXTW_instr : instr_desc_t := mk_extend_instr UXTW U32 false (osz == U64).
 
 (* -------------------------------------------------------------------- *)
 (* Bit-manipulation instructions. *)
@@ -2452,10 +2445,7 @@ Definition mk_csel_instr mn (semi : word osz -> word osz -> bool -> ty_w osz)
          result = X[m, datasize];
      X[d, datasize] = result;
 *)
-Definition armv8a_CSEL_semi {ws : wsize} (wn wm : word ws) (b : bool) : ty_w ws :=
-  if b then wn else wm.
-
-Definition armv8a_CSEL_instr := mk_csel_instr CSEL (armv8a_CSEL_semi (ws := osz)).
+Definition armv8a_CSEL_instr := mk_csel_instr CSEL (arm_CSEL_semi (ws := osz)).
 
 (* [C6.2.141 CSINC] ARM DDI 0487 M.a, p. 2144
    Conditional select increment  This instruction returns, in the destination
@@ -2471,10 +2461,7 @@ Definition armv8a_CSEL_instr := mk_csel_instr CSEL (armv8a_CSEL_semi (ws := osz)
          result = X[m, datasize] + 1;
      X[d, datasize] = result;
 *)
-Definition armv8a_CSINC_semi {ws : wsize} (wn wm : word ws) (b : bool) : ty_w ws :=
-  if b then wn else (wm + 1)%w.
-
-Definition armv8a_CSINC_instr := mk_csel_instr CSINC (armv8a_CSINC_semi (ws := osz)).
+Definition armv8a_CSINC_instr := mk_csel_instr CSINC (arm_CSINC_semi (ws := osz)).
 
 (* [C6.2.142 CSINV] ARM DDI 0487 M.a, p. 2146
    Conditional select invert  This instruction returns, in the destination
@@ -2490,10 +2477,7 @@ Definition armv8a_CSINC_instr := mk_csel_instr CSINC (armv8a_CSINC_semi (ws := o
          result = NOT(X[m, datasize]);
      X[d, datasize] = result;
 *)
-Definition armv8a_CSINV_semi {ws : wsize} (wn wm : word ws) (b : bool) : ty_w ws :=
-  if b then wn else wnot wm.
-
-Definition armv8a_CSINV_instr := mk_csel_instr CSINV (armv8a_CSINV_semi (ws := osz)).
+Definition armv8a_CSINV_instr := mk_csel_instr CSINV (arm_CSINV_semi (ws := osz)).
 
 (* [C6.2.143 CSNEG] ARM DDI 0487 M.a, p. 2148
    Conditional select negation  This instruction returns, in the destination
@@ -2509,10 +2493,7 @@ Definition armv8a_CSINV_instr := mk_csel_instr CSINV (armv8a_CSINV_semi (ws := o
          result = NOT(X[m, datasize]) + 1;
      X[d, datasize] = result;
 *)
-Definition armv8a_CSNEG_semi {ws : wsize} (wn wm : word ws) (b : bool) : ty_w ws :=
-  if b then wn else (wnot wm + 1)%w.
-
-Definition armv8a_CSNEG_instr := mk_csel_instr CSNEG (armv8a_CSNEG_semi (ws := osz)).
+Definition armv8a_CSNEG_instr := mk_csel_instr CSNEG (arm_CSNEG_semi (ws := osz)).
 
 (* The conditional set aliases take only a destination and a condition.
    The condition operand is the one written in the alias: the assembler
@@ -3102,7 +3083,6 @@ Definition mn_desc (mn : armv8a_mnemonic) : instr_desc_t :=
   | SXTW => armv8a_SXTW_instr
   | UXTB => armv8a_UXTB_instr
   | UXTH => armv8a_UXTH_instr
-  | UXTW => armv8a_UXTW_instr
   | CMP => armv8a_CMP_instr
   | CMN => armv8a_CMN_instr
   | TST => armv8a_TST_instr

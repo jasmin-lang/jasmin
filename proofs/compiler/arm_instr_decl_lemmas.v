@@ -103,7 +103,7 @@ Proof.
   by apply: sem_prod_eq_refl.
 Qed.
 
-Lemma ignore_has_shift mn sf ic hs hs' :
+Lemma ignore_has_shift {core : arm_core} mn sf ic hs hs' :
   mn \notin has_shift_mnemonics
   -> let opts :=
        {| set_flags := sf; is_conditional := ic; has_shift := hs; |}
@@ -122,11 +122,14 @@ Section WITH_PARAMS.
 
 Context
   {wsw : WithSubWord}
+  {core : arm_core}
   {atoI : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
   {pT : progT}
   {sCP : semCallParams}.
+
+#[local] Existing Instance do_enforce_defined_variables.
 
 Definition truncate_args
   (op : sopn) (vargs : seq value) : exec (seq value) :=
@@ -169,7 +172,7 @@ Proof.
                 (h2 : id_tout (mn_desc fflags mn) = id_tout (mn_desc tflags mn)),
          cast_op h1 h2 (id_semi (mn_desc fflags mn)) = id_semi (mn_desc tflags mn).
   + move: hvalid; rewrite /fflags /tflags.
-    by case: mn; case sf; case osk => [s | ] //; split => //;
+    by case: mn; case sf; case osk => [s | ] //=; rewrite ?andbF //; split => //;
          exists erefl, erefl.
   move=> [-> [hin [hout hcast]]].
   rewrite /semi /semi_to_atype_t /=.
@@ -216,14 +219,14 @@ Lemma sem_i_conditional
   in
   let aop := Oarm (ARM_op mn opts) in
   id_valid (mn_desc (set_is_conditional opts) mn)
-  -> sem_pexprs true (p_globs p) s0 args = ok vargs
-  -> sem_pexpr true (p_globs p) s0 c = ok (Vbool b)
-  -> sem_pexprs true (p_globs p) s0 prev = ok vprev
+  -> sem_pexprs (p_globs p) s0 args = ok vargs
+  -> sem_pexpr (p_globs p) s0 c = ok (Vbool b)
+  -> sem_pexprs (p_globs p) s0 prev = ok vprev
   -> truncate_args aop vprev = ok vprev'
   -> exec_sopn aop vargs = ok vres
   -> (if b
-      then write_lvals true (p_globs p) s0 lvs vres = ok s1
-      else write_lvals true (p_globs p) s0 lvs vprev' = ok s1)
+      then write_lvals (p_globs p) s0 lvs vres = ok s1
+      else write_lvals (p_globs p) s0 lvs vprev' = ok s1)
   -> let aop' := Oarm (ARM_op mn (set_is_conditional opts)) in
      let ir := Copn lvs tag aop' (args ++ c :: prev) in
      esem_i p ev (MkI ii ir) s0 = ok s1.
@@ -231,7 +234,7 @@ Proof.
   move=> opts aop hvalid hsemargs hsemc hsemprev htruncprev hexec hwrite.
 
   rewrite /= /sem_sopn /=.
-  rewrite /sem_pexprs mapM_cat /= -2![mapM _ _]/(sem_pexprs _ _ _ _).
+  rewrite /sem_pexprs mapM_cat /= -2![mapM _ _]/(sem_pexprs _ _ _).
   rewrite hsemargs hsemc hsemprev {hsemargs hsemc hsemprev} /=.
 
   case: b hwrite => hwrite.

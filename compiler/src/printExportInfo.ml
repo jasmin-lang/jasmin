@@ -1,4 +1,5 @@
 open Utils
+open Architecture
 open Prog
 open PrintCommon
 open Printer

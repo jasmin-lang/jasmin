@@ -50,6 +50,8 @@ Qed.
 
 Section FUNCTION.
 
+#[local] Existing Instance do_enforce_defined_variables.
+
 Context (fi : fun_info).
 
 Local Definition vi :=
@@ -69,7 +71,7 @@ Opaque arr_size.
 
 Lemma get_sourceP ii es src pfx s vm ves :
   get_source fresh_var_ident X ii es = ok (src, pfx) →
-  sem_pexprs true gd s es = ok ves →
+  sem_pexprs gd s es = ok ves →
   Sv.Subset (read_es es) X →
   evm s <=[X] vm →
   not_tmp (read_gvar src) ∧
@@ -79,7 +81,7 @@ Lemma get_sourceP ii es src pfx s vm ves :
         [/\
            esem p2 ev pfx (with_vm s vm) = ok (with_vm s vm1),
            evm s <=[X] vm1 &
-           exists2 v', get_gvar true gd vm1 src = ok v' & value_uincl v v' ].
+           exists2 v', get_gvar gd vm1 src = ok v' & value_uincl v v' ].
 Proof using Hp freshX.
   case: es => // e [] //.
   case: e => //.
@@ -107,7 +109,7 @@ Proof using Hp freshX.
   split.
   - by split => [ | ?] /Sv.singleton_spec.
   exists (Varr sub); first by [].
-  have : exists2 t' : WArray.array len', get_gvar true gd vm {| gv := x; gs := xs |} = ok (Varr t') & WArray.uincl t t'.
+  have : exists2 t' : WArray.array len', get_gvar gd vm {| gv := x; gs := xs |} = ok (Varr t') & WArray.uincl t t'.
   - case: xs ok_t hX; last by exists t.
     rewrite /get_gvar /get_var /read_gvar /=.
     t_xrbindP => ok_x ok_t hX.
@@ -133,7 +135,7 @@ Lemma array_copyP ii (dst: var_i) ws n src s vm1 (t t': WArray.array (arr_size w
   convertible (vtype dst) (aarr ws n) →
   not_tmp (read_gvar src) →
   evm s <=[X] vm1 →
-  get_gvar true gd vm1 src = ok (Varr t) →
+  get_gvar gd vm1 src = ok (Varr t) →
   WArray.copy t = ok t' →
   ∃ vm2, [/\
     evm s <=[Sv.remove dst X] vm2,
@@ -214,7 +216,7 @@ Opaque esem.
     + by rewrite write_var_eq_type.
     have fresh_not_y : {| vtype := aint; vname := fresh_counter fi |} ≠ gv src.
     + by move=> heqy; move: ok_t => /= /type_of_get_gvar /= /compat_ctypeEl; rewrite -heqy.
-    have! := (ok_t : sem_pexpr true gd (with_vm s vm1) (Pvar src) = ok (Varr t)).
+    have! := (ok_t : sem_pexpr gd (with_vm s vm1) (Pvar src) = ok (Varr t)).
     case/(sem_pexpr_uincl_on (vm2 := vm1')).
     + by apply: uincl_onI hvm1'; rewrite read_e_var; clear; SvD.fsetdec.
     move=> _v hv /value_uinclE [yv ? hty']; subst _v.
@@ -258,7 +260,7 @@ Opaque array_copy.
 
 Lemma get_targetP ii xs dst sfx s1 len (t' t'': WArray.array len) s2 vm1 :
   get_target fresh_var_ident X ii xs = ok (dst, sfx) →
-  write_lvals true gd s1 xs [:: Varr t'] = ok s2 →
+  write_lvals gd s1 xs [:: Varr t'] = ok s2 →
   Sv.Subset (read_rvs xs) X →
   evm s1 <=[Sv.remove dst X] vm1 →
   vm1.[dst] = Varr t'' →
@@ -285,7 +287,7 @@ Proof using Hp.
   rewrite /on_arr_var; t_xrbindP => - [] // alen a ok_a; t_xrbindP => iofs vofs ok_ofs /to_intI ?; subst vofs.
   move=> z1 /to_arrI /Varr_inj[] ?? z2 hset hw ?; subst.
   rewrite read_rvs_cons read_rvs_nil /= read_eE => hsub hvm ok_dst t't''.
-  have : get_gvar true gd (evm s1) (mk_lvar x) = ok (Varr a) := ok_a.
+  have : get_gvar gd (evm s1) (mk_lvar x) = ok (Varr a) := ok_a.
   case/(get_gvar_uincl_at (vm2 := vm1)).
   - by apply: hvm => /=; clear -hsub dstX; SvD.fsetdec.
   case => // blen b; rewrite /get_gvar /= => ok_b hab.
@@ -309,9 +311,9 @@ Lemma esem_array_copy ii xs es ws n sx sc tx tc s s' vm vs vs' :
   get_target fresh_var_ident X ii xs = ok (tx, tc) ->
   convertible (vtype tx) (aarr ws n) ->
   evm s <=[X] vm ->
-  sem_pexprs true gd s es = ok vs ->
+  sem_pexprs gd s es = ok vs ->
   exec_sopn (sopn_copy ws n) vs = ok vs' ->
-  write_lvals true gd s xs vs' = ok s' ->
+  write_lvals gd s xs vs' = ok s' ->
   exists2 vm2,
     esem p2 ev (sc ++ array_copy fresh_var_ident fi ii tx ws n sx ++ tc) (with_vm s vm) = ok (with_vm s' vm2) &
     evm s' <=[X] vm2.

@@ -23,10 +23,10 @@ Context
 Definition mov_ofs_correct (mov_ofs : lval → assgn_tag → mov_kind → pexpr → pexpr → option instr_r) :=
   forall (P' : sprog) ev s1 e w ofs pofs x tag mk ii ins s2,
     p_globs P' = [::]
-    -> sem_pexpr true [::] s1 e >>= to_pointer = ok w
-    -> sem_pexpr true [::] s1 ofs >>= to_pointer = ok pofs
+    -> sem_pexpr (wdb := true) [::] s1 e >>= to_pointer = ok w
+    -> sem_pexpr (wdb := true) [::] s1 ofs >>= to_pointer = ok pofs
     -> mov_ofs x tag mk e ofs = Some ins
-    -> write_lval true [::] x (Vword (w + pofs)) s1 = ok s2
+    -> write_lval (wdb := true) [::] x (Vword (w + pofs)) s1 = ok s2
     -> exists2 vm2, esem_i P' ev (MkI ii ins) s1 = ok (with_vm s2 vm2) & evm s2 =1 vm2.
 
 Definition immediate_correct (immediate : var_i → Z → instr_r) :=

@@ -12,4 +12,4 @@ module type ArchWithAnalyze = sig
 end
 
 val get_arch_with_analyze :
-  Utils.architecture -> Glob_options.call_conv -> (module ArchWithAnalyze)
+  Architecture.architecture -> Glob_options.call_conv -> (module ArchWithAnalyze)

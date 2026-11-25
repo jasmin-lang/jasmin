@@ -1,7 +1,7 @@
 From elpi.apps Require Import derive.std.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-From Coq Require Import ZArith.
+From Coq Require Import ZArith String.
 Require Import utils.
 
 #[only(eqbOK)] derive
@@ -12,6 +12,15 @@ Variant shift_kind :=
 | SROR.
 
 HB.instance Definition _ := hasDecEq.Build shift_kind shift_kind_eqb_OK.
+
+(* The name of a shift in the assembly syntax of AArch32 and AArch64. *)
+Definition string_of_shift_kind (sk : shift_kind) : string :=
+  match sk with
+  | SLSL => "lsl"
+  | SLSR => "lsr"
+  | SASR => "asr"
+  | SROR => "ror"
+  end%string.
 
 (* Inclusive bounds on the immediate shift amount of an AArch32 (A32/T32)
    shifted-register operand. Unlike AArch64 (see [check_shift_amount] in

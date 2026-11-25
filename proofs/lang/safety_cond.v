@@ -152,10 +152,12 @@ Proof. by apply: sub_all => c; apply: safety_cond_wt_cat. Qed.
 (* -------------------------------------------------------------------- *)
 (* ** Checking the conditions                                            *)
 
-(* The safety check: if one of the conditions fails, the operation raises the
-   error it declares. *)
-Definition check_safe (vs : values) (safe : seq safety_cond) (err : error) : exec unit :=
-  if all (safety_cond_holds vs) safe then ok tt else Error err.
+(* The safety check: in the [partial] mode, if one of the conditions fails,
+   the operation raises the error it declares; in the [total] mode nothing is
+   checked. *)
+Definition check_safe {sm : SemMode} (vs : values) (safe : seq safety_cond) (err : error) :
+    exec unit :=
+  if is_total || all (safety_cond_holds vs) safe then ok tt else Error err.
 
 (* The arguments are collected, as values, in [vs] along the [sem_prod], and
    [P] is applied to them and to the result. *)
@@ -172,10 +174,10 @@ Arguments mk_semi_aux {T T'} P vs tin _ : assert.
 
 (* An operation with exactly one output: the conditions are checked on the
    arguments, then the total semantics is returned. *)
-Definition mk_sem_op (tin : seq ctype) (t : ctype) (safe : seq safety_cond) (err : error)
-    (f : sem_prod tin (sem_t t)) : sem_prod tin (exec (sem_t t)) :=
+Definition mk_sem_op {sm : SemMode} (tin : seq ctype) (t : ctype) (safe : seq safety_cond)
+    (err : error) (f : sem_prod tin (sem_t t)) : sem_prod tin (exec (sem_t t)) :=
   mk_semi_aux (fun vs r => Let _ := check_safe vs safe err in ok r) [::] tin f.
-Arguments mk_sem_op {tin t} safe err f : assert.
+Arguments mk_sem_op {sm tin t} safe err f : assert.
 
 (* -------------------------------------------------------------------- *)
 (* ** The library of conditions                                          *)
@@ -286,9 +288,10 @@ Qed.
 (* The cells of an array of [len] words of size [ws] are all initialised
    exactly when each of the [len] words can be read. *)
 Lemma all_init_getE ws len (t : WArray.array (arr_size ws len)) :
-  all (WArray.is_init t) (ziota 0 (arr_size ws len))
+  WArray.all_init t 0 (arr_size ws len)
   = all (fun i => is_ok (WArray.get Unaligned AAscale ws t i)) (ziota 0 len).
 Proof.
+rewrite /WArray.all_init.
 have hws := wsize_size_pos ws.
 apply/idP/idP => [/allP h | /allP h]; apply/allP.
 + move=> i; rewrite in_ziota !zify => hi.

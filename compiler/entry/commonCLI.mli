@@ -1,7 +1,7 @@
 open Jasmin
 open Cmdliner
 
-val arch : Utils.architecture Term.t
+val arch : Architecture.architecture Term.t
 val call_conv : Glob_options.call_conv Term.t
 val idirs : (string * string) list Term.t
 val warn : bool Term.t

@@ -1,0 +1,9 @@
+/* UMLAL is not DIT on the Cortex-M3. */
+#[ct="secret * secret -> secret"]
+export fn umlal(reg u32 x y) -> reg u32 {
+  reg u32 hi lo;
+  hi = x; lo = y;
+  lo, hi = #UMLAL(lo, hi, x, y);
+  lo ^= hi;
+  return lo;
+}

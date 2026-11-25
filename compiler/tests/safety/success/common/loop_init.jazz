@@ -1,0 +1,2 @@
+param bool RESET = false;
+require "../../fail/common/loop_init.jinc"

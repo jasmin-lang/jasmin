@@ -1,0 +1,6 @@
+export fn f (reg u64 x) -> reg u64 {
+  x -= 1;
+  [x] = 2;
+  reg u64 res = 0;
+  return res;
+}
