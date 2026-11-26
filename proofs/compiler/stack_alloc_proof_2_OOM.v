@@ -3535,6 +3535,7 @@ Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
+(* HERE: this is the spec used by xrutt in it_check_cP *)
 Definition sa_pre fn1 fn2 fs1 fs2 :=
   [/\ fn1 = fn2
     , fscs fs1 = fscs fs2
@@ -3961,6 +3962,8 @@ End CMD.
 
 (**** EVEN MORE, FROM HERE (wiequiv_f) *************************)
 
+(* HERE: this is where things must change: the bisimulation needs to
+   account for OOM *)
 Lemma it_check_cP fn : wiequiv_f P P' tt rip (rpreF (eS:=sa_spec)) fn fn (rpostF (eS:=sa_spec)).
 Proof using no_overflow_glob_size hmap P'_globs hshparams hsaparams is_move_opP Halloc_fd rip_rsp_neq.
   apply wequiv_fun_ind => {}fn _ [scs1 m1 vargs1] [_ m2 vargs2] [<- /= <-] hext hargs heqinmem_args hok fd hfd.
@@ -3993,7 +3996,11 @@ Proof using no_overflow_glob_size hmap P'_globs hshparams hsaparams is_move_opP 
     1-3: by apply/ZleP.
     move: hok; rewrite /alloc_ok => /(_ _ hfd2) /=; rewrite /allocatable_stack /sf_total_stack /= => -[hallocatable hal].
     move: hmax; rewrite /sao_frame_size.
-    case: is_RAnone hal hallocatable => [_|-> //] hallocatable hmax; last by apply /ZleP; lia.
+    case: is_RAnone hal hallocatable => [_|-> //] hallocatable hmax; last by apply /ZleP; lia. 
+   (*
+    case: is_RAnone hal hallocatable => [_|-> //] hallocatable hmax.
+    admit. apply /ZleP.
+    *)
     case: is_align; last by apply /ZleP; lia.
     apply /ZleP.
     have := round_ws_range (sao_align (local_alloc fn)) (sao_size (local_alloc fn) + sao_extra_size (local_alloc fn)).
