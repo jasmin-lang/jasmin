@@ -882,10 +882,8 @@ Proof using Hgd Hfns.
 
           rewrite /WArray.fill.
           apply: rbind_noerrty => [| ? _].
-          - admit.
-            (* have H1 := get_random_size (escs s) (arr_size ws len). 
-            by rewrite H1 eqxx. *)
-
+          - have H1 := get_random_size (escs s) (arr_size ws len). 
+            by rewrite H1 eqxx.
           - apply: rbind_noerrty => //.
             rewrite /WArray.fill_aux/WArray.set.
             apply: foldM_noerrty => a b.

@@ -38,7 +38,9 @@ Definition syscall_sig_s {pd:PointerData} (o:syscall_t) : syscall_sig_t :=
 (* -------------------------------------------------------------------- *)
 (* For the semantic                                                     *)
 Class syscall_sem (syscall_state : Type) := {
-  get_random : syscall_state -> Z -> syscall_state * seq u8
+  get_random : syscall_state -> Z -> syscall_state * seq u8;
+  get_random_size :
+    forall scs len, size (get_random scs len).2 = Z.to_nat len;
 }.
 
 
