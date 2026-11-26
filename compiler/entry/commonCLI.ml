@@ -73,7 +73,7 @@ let parse_and_compile (type asm_op extra_op)
   in
   let prog =
     try Compile.preprocess Arch.pointer_data Arch.msf_size Arch.asmOp pprog
-    with Typing_mix.TyError (loc, code) ->
+    with Typing_wrapper.TyError (loc, code) ->
       hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
   in
 

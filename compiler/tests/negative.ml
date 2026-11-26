@@ -107,7 +107,7 @@ let check_file_on_arch path errors arch =
         printf "%a: %s\n\n" Location.pp_loc loc
           (Option.default "parse error" msg);
         counters.parsing <- counters.parsing + 1
-    | Typing_mix.TyError (loc, msg) ->
+    | Typing_wrapper.TyError (loc, msg) ->
         printf "%a: %s\n\n" Location.pp_iloc loc msg;
         counters.typing <- counters.typing + 1
     | AsmPrintError err ->

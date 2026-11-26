@@ -37,16 +37,16 @@ let rec fix_length_eassert e =
   | Pexpr _ -> e
   | PappN_safety (o, es) ->
     let e = List.hd es in
-    let ty = Typing_mix.type_of_expr e in
+    let ty = Typing_wrapper.type_of_expr e in
     let len = Conv.cz_of_int (size_of ty) in
     let o = match o with Ois_arr_init _ -> Operators.Ois_arr_init len | Ois_barr_init _ -> Ois_barr_init len in
     PappN_safety(o, es)
   | Pis_var_init _ | Pis_mem_init _ -> e
   | Pand(e1, e2) -> Pand (fix_length_eassert e1, fix_length_eassert e2)
 
-let rec iac_stmt pd is = List.map (iac_instr pd) is
-and iac_instr pd i = { i with i_desc = iac_instr_r pd i.i_loc i.i_desc }
-and iac_instr_r pd loc ir =
+let rec iac_stmt pd gd is = List.map (iac_instr pd gd) is
+and iac_instr pd gd i = { i with i_desc = iac_instr_r pd gd i.i_loc i.i_desc }
+and iac_instr_r pd gd loc ir =
   match ir with
   | Cassgn (x, t, _, e) ->
     begin match is_array_copy x e with
@@ -57,14 +57,14 @@ and iac_instr_r pd loc ir =
           let op = Pseudo_operator.Ocopy(ws, Conv.cz_of_int n) in
           Copn([x], t, Sopn.Opseudo_op op, [e])
     end
-  | Cif (b, th, el) -> Cif (b, iac_stmt pd th, iac_stmt pd el)
-  | Cfor (i, r, s) -> Cfor (i, r, iac_stmt pd s)
-  | Cwhile (a, c1, t, info, c2) -> Cwhile (a, iac_stmt pd c1, t, info, iac_stmt pd c2)
+  | Cif (b, th, el) -> Cif (b, iac_stmt pd gd th, iac_stmt pd gd el)
+  | Cfor (i, r, s) -> Cfor (i, r, iac_stmt pd gd s)
+  | Cwhile (a, c1, t, info, c2) -> Cwhile (a, iac_stmt pd gd c1, t, info, iac_stmt pd gd c2)
   | Copn (xs,t,o,es) ->
 
     begin match o, xs with
     | Sopn.Opseudo_op(Pseudo_operator.Ospill(o,_)), _ ->
-      let tys = List.map (fun e -> Conv.cty_of_ty (Typing.ty_expr pd loc e)) es in
+      let tys = List.map (fun e -> Conv.cty_of_ty (Typing_wrapper.ty_expr pd gd loc e)) es in
       Copn(xs,t, Sopn.Opseudo_op(Pseudo_operator.Ospill(o, tys)), es)
 
     | Sopn.Opseudo_op(Pseudo_operator.Ocopy(ws, _)), [x] ->
@@ -72,7 +72,7 @@ and iac_instr_r pd loc ir =
       let xn = size_of_lval x in
       let wsn = size_of_ws ws in
       if xn mod wsn <> 0 then
-        Typing_mix.error loc
+        Typing_wrapper.error loc
           "the destination %a has size %i: it should be a multiple of %i"
           (Printer.pp_lval ~debug:false) x
           xn wsn
@@ -83,7 +83,7 @@ and iac_instr_r pd loc ir =
     | Sopn.Opseudo_op(Ocopy _), _ -> assert false
     | Sopn.Opseudo_op(Pseudo_operator.Oswap _), x::_ ->
       (* Fix the type it is dummy for the moment *)
-      let ty = Conv.cty_of_ty (Typing.ty_lval pd loc x) in
+      let ty = Conv.cty_of_ty (Typing_wrapper.ty_lval pd gd loc x) in
       Copn(xs, t, Sopn.Opseudo_op(Pseudo_operator.Oswap ty), es)
     | Sopn.Opseudo_op(Pseudo_operator.Oswap _), [] -> assert false
     | Sopn.Oslh (SLHprotect_ptr _), [Lvar x] ->
@@ -94,7 +94,7 @@ and iac_instr_r pd loc ir =
     | Sopn.Oslh (SLHprotect_ptr _), _ -> assert false
     | Sopn.Opseudo_op (Odeclassify _), _ ->
       let arg = List.hd es in
-      let ty = Conv.cty_of_ty (Typing.ty_expr pd loc arg) in
+      let ty = Conv.cty_of_ty (Typing_wrapper.ty_expr pd gd loc arg) in
       Copn(xs, t, Sopn.Opseudo_op (Odeclassify ty), es)
     | Sopn.Opseudo_op (Onop | Odeclassify_mem _ | Omulu _ | Oaddcarry _ | Osubcarry _), _
     | Sopn.Oslh (SLHinit|SLHupdate|SLHmove|SLHprotect _|SLHprotect_ptr_fail _), _
@@ -107,7 +107,7 @@ and iac_instr_r pd loc ir =
       (* Fix the size it is dummy for the moment *)
       let ty =
         match xs with
-        | [x] -> Typing.ty_lval pd loc x
+        | [x] -> Typing_wrapper.ty_lval pd gd loc x
         | _ -> assert false in
       let ws, len = array_kind ty in
       Csyscall(xs, Syscall_t.RandomBytes (ws, Conv.cz_of_int len), es)
@@ -124,10 +124,10 @@ let fix_length_contract fc =
     f_pre = doit fc.f_pre;
     f_post = doit fc.f_post }
 
-let iac_func pd f =
-  { f with f_body = iac_stmt pd f.f_body;
+let iac_func pd gd f =
+  { f with f_body = iac_stmt pd gd f.f_body;
            f_contract = Option.map fix_length_contract f.f_contract}
 
 let doit pd (p:(unit, 'asm) Prog.prog) : (unit, 'asm) Prog.prog =
-  (fst p, List.map (iac_func pd) (snd p))
+  (fst p, List.map (iac_func pd (fst p)) (snd p))
 

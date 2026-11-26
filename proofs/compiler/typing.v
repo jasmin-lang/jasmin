@@ -22,13 +22,22 @@ Module Import E.
     pel_internal := false
   |}.
 
-  Definition array_expected := typing_error (pp_s "array expected").
-  Definition check_type_failed := typing_error (pp_s "check type failed").
-  Definition arity_mismatch := typing_error (pp_s "arity mismatch").
-  Definition unknown_function := typing_error (pp_s "Unknown function").
+  Definition array_expected := typing_error (pp_s "array expected"). (* caught by pretyping *)
+  Definition arity_mismatch := typing_error (pp_s "arity mismatch"). (* caught by pretyping *)
+  Definition unknown_function := typing_error (pp_s "Unknown function"). (* caught by pretyping *)
   Definition undefined_global := typing_error (pp_s "Global variable not defined").
   Definition global_mismatch := typing_error (pp_s "global variable type value mismatch").
   Definition invalid_intrinsics := typing_error (pp_s "invalid intrinsics type").
+
+  Definition pp_atype (t : atype) : pp_error :=
+  match t with
+  | abool => pp_s "bool"
+  | aint => pp_s "int"
+  | aword ws => pp_s ("u" ++ string_of_wsize ws)%string
+  | aarr ws len =>
+      pp_nobox [:: pp_s ("u" ++ string_of_wsize ws)%string;
+                   pp_s "["; pp_z len; pp_s "]"]
+  end.
 
 End E.
 
@@ -44,17 +53,6 @@ Definition ty_gvar (x : gvar) : atype := ty_var x.(gv).
 Definition check_array (te : atype) : cexec unit :=
   if te is aarr _ _ then ok tt else Error E.array_expected.
 
-(* Debug rendering of a type for error messages *)
-Definition pp_atype (t : atype) : pp_error :=
-  match t with
-  | abool => pp_s "bool"
-  | aint => pp_s "int"
-  | aword ws => pp_s ("u" ++ string_of_wsize ws)%string
-  | aarr ws len =>
-      pp_nobox [:: pp_s ("u" ++ string_of_wsize ws)%string;
-                   pp_s "["; pp_z len; pp_s "]"]
-  end.
-
 Definition check_type (te : atype (*actual type*)) (ty : atype (*expected type*)) (*expected wsize <= actual wsize*): cexec unit :=
   let b := subatype ty te in
   if negb b then
@@ -65,7 +63,7 @@ Definition check_type (te : atype (*actual type*)) (ty : atype (*expected type*)
           pp_hov [:: pp_s "subatype ty te ="; pp_s (if b then "true" else "false")%string]]))
   else ok tt.
 
-Section WITH_GLOBS.
+Section GLOBALS.
 
 Context (gd : glob_decls).
 
@@ -235,7 +233,7 @@ Definition check_fun (p : ufun_decls) (func : ufun_decl) : cexec unit :=
   Let _ := oapp (check_contract fd.(f_tyin) fd.(f_tyout)) (ok tt) fd.(f_contract) in
   ok tt.
 
-End WITH_GLOBS.
+End GLOBALS.
 
 Definition check_prog (p : uprog): cexec unit :=
   let gds := p.(p_globs) in

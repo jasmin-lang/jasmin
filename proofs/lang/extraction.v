@@ -89,4 +89,4 @@ Separate Extraction
   compiler
   wint_int
   toec_prog
-  typing_new.
+  typing.

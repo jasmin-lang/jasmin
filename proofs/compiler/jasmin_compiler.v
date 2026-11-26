@@ -8,4 +8,4 @@ Require armv8a_params.
 Require sem_params_of_arch_extra.
 Require wint_int.
 Require toec_prog.
-Require typing_new.
+Require typing.

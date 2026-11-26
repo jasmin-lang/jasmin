@@ -45,7 +45,7 @@ val clval_of_lval : Prog.lval -> Expr.lval
 val cexpr_of_expr : Prog.expr -> Expr.pexpr
 val expr_of_cexpr : Expr.pexpr -> expr
 
-val cufdef_of_fdef : ('info, 'asm) func -> Var0.funname * 'asm Expr._ufundef
+val cufdef_of_fdef : (unit, 'asm) func -> Var0.funname * 'asm Expr._ufundef
 val fdef_of_cufdef : Var0.funname * 'asm Expr._ufundef -> (unit, 'asm) func
 
 val cuprog_of_prog : (unit, 'asm) prog -> 'asm Expr._uprog

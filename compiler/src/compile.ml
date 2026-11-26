@@ -6,7 +6,7 @@ let preprocess pd msfsize asmOp p =
   let p =
     p |> Subst.remove_params |> Insert_copy_and_fix_length.doit pd
   in
-  Typing_mix.check_prog pd msfsize asmOp p;
+  Typing_wrapper.check_prog pd msfsize asmOp p;
   p
 
 (* -------------------------------------------------------------------- *)

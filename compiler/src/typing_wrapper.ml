@@ -1,7 +1,7 @@
 (* -------------------------------------------------------------------- *)
 open Utils
 open Prog
-module T = Typing_new
+module T = Typing
 
 (* -------------------------------------------------------------------- *)
 exception TyError of L.i_loc * string
@@ -61,14 +61,25 @@ let type_of_expr e =
 
 (* -------------------------------------------------------------------- *)
 
-let cexec_unwapper res = 
+let cexec_unwapper loc res =
   match res with
   | Utils0.Ok x -> x
   | Utils0.Error s ->
-      error L.i_dummy "typing error : %a"
+      error loc "typing error : %a"
         (Printer.pp_err ~debug:false) s.Compiler_util.pel_msg
+
+let cglob_decls (gd : global_decl list) : Global.glob_decl list =
+  List.map (fun (x, g) -> (Conv.cvar_of_var x, g)) gd
+
+let ty_expr pd gd loc e =
+  Conv.ty_of_cty
+    (cexec_unwapper loc (T.ty_expr pd (cglob_decls gd) (Conv.cexpr_of_expr e)))
+
+let ty_lval pd gd loc x =
+  Conv.ty_of_cty
+    (cexec_unwapper loc (T.ty_lval pd (cglob_decls gd) (Conv.clval_of_lval x)))
 
 let check_prog pd msfsz asmOp p =
   let prog = Expr.to_uprog asmOp (Conv.cuprog_of_prog p) in
-  cexec_unwapper (T.check_prog asmOp pd msfsz prog)
+  cexec_unwapper L.i_dummy (T.check_prog asmOp pd msfsz prog)
 (* -------------------------------------------------------------------- *)
