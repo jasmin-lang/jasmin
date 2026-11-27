@@ -2001,6 +2001,7 @@ Notation alloc_fd   := (alloc_fd shparams saparams is_move_op fresh_var_ident pp
 Notation alloc_i    := (alloc_i shparams saparams is_move_op fresh_var_ident pp_sr).
 Notation alloc_prog := (alloc_prog shparams saparams is_move_op fresh_var_ident pp_sr).
 
+(* HERE: this already gives us sao_max_size. COULD BE NONE. *)
 Variable (local_alloc : funname -> stk_alloc_oracle_t).
 Hypothesis Halloc_fd : forall fn fd,
   get_fundef P.(p_funcs) fn = Some fd ->
@@ -2969,6 +2970,9 @@ Proof.
   by clear -hsz hextra; lia.
 Qed.
 
+(* HERE: already problematic, since  *)
+(* gblocks > context root >= stack root >= stack top > stack limit >= 0 *)
+(* if the required memory is large, it should go negative. *)
 Lemma alloc_fd_max_size_ge0 pex fn fd fd' :
   alloc_fd pex mglob local_alloc fn fd = ok fd' ->
   0 <= (local_alloc fn).(sao_max_size).
@@ -3565,7 +3569,7 @@ End SEM.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
+Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}. 
 
 Definition sa_pre fn1 fn2 fs1 fs2 :=
   [/\ fn1 = fn2
@@ -3613,12 +3617,16 @@ Definition st_sa_pre table rmap vme s s' :=
 Definition st_sa_post table1 table2 rmap2 vme s s' :=
   exists2 vme', st_sa_pre table2 rmap2 vme' s s' & vme =[vars table1] vme'.
 
+(* Print wequiv_rec. Print wequiv. Print wkequiv. *)
+
+(* HERE: uses xrutt. *)
 Let Pi i1 :=
   forall table1 rmap1 table2 rmap2 vme c2,
   alloc_i pmap local_alloc P sao (table1, rmap1) i1 = ok (table2, rmap2, c2) ->
   wf_table_vars table1 rmap1 ->
   wequiv_rec P P' tt rip sa_spec
-     (st_sa_pre table1 rmap1 vme) [::i1] c2 (st_sa_post table1 table2 rmap2 vme).
+    (st_sa_pre table1 rmap1 vme) [::i1] c2
+    (st_sa_post table1 table2 rmap2 vme).
 
 Let Pi_r i := forall ii, Pi (MkI ii i).
 
@@ -3699,7 +3707,7 @@ Proof.
   by apply: subset_vars_wft_DEF hvs'.(vs_wf_table).(wft_def).
 Qed.
 
-(* HERE: weaken hwf_sao *)
+(* HERE: weaken hwf_sao. uses xrutt through Pc. *)
 Lemma it_check_cP_aux : forall c1, Pc c1.
 Proof using P'_globs hshparams hsaparams is_move_opP Halloc_fd hwf_pmap hwf_Slots wk_hwf_sao.
   apply (cmd_rect (Pr:=Pi_r) (Pi:=Pi) (Pc:=Pc)) => //; subst Pi_r Pc Pi => /=.
@@ -3860,7 +3868,8 @@ Proof using P'_globs hshparams hsaparams is_move_opP Halloc_fd hwf_pmap hwf_Slot
               ∀ sr : sub_region, bsr = Some (true, sr) → sub_region_cleared rmap1 vme sr)
            [seq i.1 | i <- es] vargs1].
   have [fd2 halloc hfd2] := Halloc_fd hfd1.
-  have hmax := alloc_fd_max_size_ge0 halloc.
+(* HERE: good thing not to need this lemma! *)  
+(*  have hmax := alloc_fd_max_size_ge0 halloc. *)
   move: halloc hfd2; rewrite /alloc_fd.
   t_xrbindP=> {}fd2 _ <- hfd2.
   have halloc_ok: alloc_ok P' fn (emem s2).
@@ -4003,11 +4012,6 @@ Qed.
 
 End CMD.
 
-(*
-Check @wequiv_fun_ind.
-Locate wkequiv_io.
-Print CategoryKleisli.Kleisli.
-*)
 
 (**** EVEN MORE, FROM HERE (wiequiv_f) *************************)
 
@@ -4025,61 +4029,15 @@ Lemma wk_alloc_stack_complete m ws sz ioff sz' :
 *)
 
 (* HERE: this is where things must change: the bisimulation needs to
-   account for OOM *)
+   account for OOM. depends on xrutt through wequiv. *)
 Lemma it_check_cP fn : wiequiv_f P P' tt rip (rpreF (eS:=sa_spec)) fn fn (rpostF (eS:=sa_spec)).
 Proof using no_overflow_glob_size hmap P'_globs hshparams hsaparams is_move_opP Halloc_fd rip_rsp_neq.
-  apply wequiv_fun_ind => {}fn _ [scs1 m1 vargs1] [_ m2 vargs2] [<- /= <-] hext hargs heqinmem_args hok fd hfd.
+  apply wequiv_fun_ind => {}fn _ [scs1 m1 vargs1] [_ m2 vargs2] [<- /= <-]
+                            hext hargs heqinmem_args hok fd hfd.  
   have [fd2 halloc hfd2] := Halloc_fd hfd.
   exists fd2 => //.
-
+  (* unfold wequiv, wkequiv, wkequiv_io. (* shows xrutt *) *)
   move: halloc.
-
-(* 
-intros H st0 H0.
-eexists. admit.
-eexists. eexists.
-split.
-admit.
-unfold wequiv, wkequiv, wkequiv_io.
-intros.
-admit.
-unfold wrequiv, wrequiv_io.
-intros.
-eexists.
-admit.
-unfold sa_post.
-split.
-admit.
-econstructor.
-unfold no_overflow.
-unfold wbase.
-admit.
-admit.
-admit.
-unfold validw. unfold valid8. unfold disjoint_zrange. simpl.
-unfold memory_model.disjoint_zrange.
-admit.
-unfold validw.
-admit.
-admit.
-Print Forall3.
-Print wf_results.
-Print wf_result.
-unfold wf_result.
-admit.
-Print value_eq_or_in_mem_res.
-unfold value_eq_or_in_mem.
-unfold sao_return.
-admit.
-unfold mem_unchanged_params_fn.
-admit.
-admit.
-admit.
-Print stack_stable.  simpl.
-econstructor.
-*)
-
-(***)
   rewrite /alloc_fd /alloc_fd_aux /=.
   t_xrbindP=> fd2' stack hlayout [[locals1 rmap1] vnew1] hlocal_map.
   t_xrbindP=> -[[[vnew2 locals2] rmap2] alloc_params] hparams.
@@ -4096,18 +4054,16 @@ econstructor.
   have heqinmem_args1 := mapM2_dc_truncate_value_uincl hvargs1'.
   have hptreq := mapM2_truncate_val_ptr_eq heqinmem_args hvargs2'.
 
-  (* init_state *)
+  (* init_state. HERE: the critical hyp is halloc_stk. Actually, we
+     should abstract from this, take it an hypothesis. *)
   have [m2' halloc_stk]: exists m2',
       alloc_stack m2 (sao_align (local_alloc fn))
         (sao_size (local_alloc fn)) (sao_ioff (local_alloc fn))
         (sao_extra_size (local_alloc fn)) = ok m2'.
-  admit.
-  (*
-  { Locate Memory.alloc_stack_complete.
-    Locate MemoryI.
-    apply Memory.alloc_stack_complete.
+
+  { apply Memory.alloc_stack_complete.
     (* seems to refer to the frame:
-    Print stk_alloc_oracle_t. *)
+       Print stk_alloc_oracle_t. *)
     have [h1 h2 _] := init_stack_layoutP hlayout.
     apply /and4P; split.
     1-3: by apply/ZleP.
@@ -4115,8 +4071,6 @@ econstructor.
     rewrite /alloc_ok => /(_ _ hfd2) /=.
 
     rewrite /allocatable_stack /sf_total_stack /= => -[_ hal].
-
-    Check @is_RAnone. 
     
     move: hmax. rewrite /sao_frame_size.
     
@@ -4132,32 +4086,45 @@ econstructor.
     admit. (* 2CHECK *) 
     (* by lia. *)
   } 
-*) 
+
+  (* HERE: hass: alloc_stack_spec; it relies on halloc_stk. alloc_stk
+  in itself is not critical, but alloc_stack_spec is. Check
+  ass_above_limit.*)  
   have hass := Memory.alloc_stackP halloc_stk.
+
+  (* HERE: problem in fex, and already in hfd2: too strong *)
   set fex := {| sf_align := _ |} in hfd2.
   set rsp := top_stack m2'.
   set vrsp' := {| vtype := spointer; vname := P'.(p_extra).(sp_rsp); |}.
   set vrip' := {| vtype := spointer; vname := P'.(p_extra).(sp_rip); |}.
 
+  (* HERE: hinit relies on halloc_stk *)  
   have hinit:
-    init_stk_state fex (p_extra P') rip {| escs := scs1; emem := m2; evm := Vm.init |} =
-    ok
-      {|
-        escs := scs1;
-        emem := m2';
-        evm := Vm.init
+    init_stk_state fex (p_extra P') rip
+                   {| escs := scs1; emem := m2; evm := Vm.init |} =
+    ok {| escs := scs1;
+          emem := m2';
+          evm := Vm.init
           .[ vrsp' <- Vword rsp]
           .[ vrip' <- Vword rip];
-      |}.
-  + by rewrite /init_stk_state halloc_stk /= write_var_eq_type //= write_var_eq_type.
+       |}.
+(* Print init_stk_state.
+   Print sf_stk_extra_sz.
+*)
+  { + by rewrite /init_stk_state halloc_stk
+           /= write_var_eq_type //= write_var_eq_type. }
+  
   have hover := ass_no_overflow hass.
+  (* HERE: double check. 
+     Print no_overflow. *)  
   have hargs'' := alloc_stack_spec_wf_args hargs' hass.
-  have heqinmem_args'' := alloc_stack_spec_value_eq_or_in_mem heqinmem_args' hass.
+  have heqinmem_args'' :=
+    alloc_stack_spec_value_eq_or_in_mem heqinmem_args' hass.
   have hext' := alloc_stack_spec_extend_mem hext hass.
 
   have hdisj_glob_locals:
     disjoint_zrange rip glob_size rsp (sao_size (local_alloc fn)).
-  + move=> hlt1 hlt2.
+  { move=> hlt1 hlt2.
     apply disjoint_zrange_sym.
     apply disjoint_zrange_U8 => //.
     move=> k hk.
@@ -4171,12 +4138,13 @@ econstructor.
     apply disjoint_zrange_sym.
     split=> //.
     by apply: (no_overflow_incl hb).
+  }  
   have hdisj_locals_params:
     Forall3 (fun opi varg1 varg2 => forall pi, opi = Some pi ->
       forall (p:pointer), varg2 = Vword p ->
       disjoint_zrange rsp (local_alloc fn).(sao_size) p (size_val varg1))
     (sao_params (local_alloc fn)) vargs1' vargs2'.
-  + apply (nth_Forall3 None (Vbool true) (Vbool true)).
+  { apply (nth_Forall3 None (Vbool true) (Vbool true)).
     + by have [? _] := Forall3_size heqinmem_args'.
     + by have [_ ?] := Forall3_size heqinmem_args'.
     move=> i hi pi hpi p hp hlt hpos.
@@ -4186,7 +4154,8 @@ econstructor.
     apply disjoint_zrange_U8 => //.
     + by apply hargp.(wap_no_overflow).
     move=> k hk.
-    have hb: between p (size_val (nth (Vbool true) vargs1' i)) (p + wrepr _ k) U8.
+    have hb: between p (size_val (nth (Vbool true) vargs1' i))
+               (p + wrepr _ k) U8.
     + apply: between_byte hk.
       + by apply hargp.(wap_no_overflow).
       by apply zbetween_refl.
@@ -4194,57 +4163,34 @@ econstructor.
     apply disjoint_zrange_sym.
     split=> //.
     by apply: no_overflow_incl hb hargp.(wap_no_overflow).
+  }
 
   have hsub := write_vars_subtype (init_params_aarr hparams) hs1. (* 'backported' from write_vars of args *)
   set vxlen := (fresh_reg _ _ _) in halloc.
+
+  (* HERE: could be problematic.   
+     Check @init_stk_state_valid_state. *) 
   have /= hvs := init_stk_state_valid_state hlayout hover
     scs1 hargs' hsub hlocal_map hparams hext hass refl_equal rip_rsp_neq.
-  have hpmap := init_params_wf_pmap hlayout rsp vargs1' vargs2' hlocal_map hparams.
+  have hpmap := init_params_wf_pmap hlayout rsp vargs1' vargs2'
+                  hlocal_map hparams.
   have hslots := Hwf_Slots hlayout hover hdisj_glob_locals hext.(em_align)
     hass.(ass_align_stk) hargs' hsub hparams hdisj_locals_params.
 
-  (* write_vars of args *)
-  have [s2 hs2 hvs'] := valid_state_init_params hlayout heqinmem_args'' hlocal_map hparams hvs hs1.
-  have hext'': extend_mem (emem s1) (emem s2) rip global_data.
-  + have /= <- := write_vars_memP hs1.
-    by have /= <- := write_vars_memP hs2.
 
- (*   
-  have hsao: wf_sao rsp (emem s2) (local_alloc fn).    
-  { have /= <- := write_vars_memP hs2.
-    split.
-    + rewrite /enough_size /allocatable_stack.
-      split; first by lia.
-      rewrite /top_stack hass.(ass_frames) /= hass.(ass_limit).
-      move: hok; rewrite /alloc_ok => /(_ _ hfd2) /= []; rewrite /allocatable_stack /sf_total_stack /=.
-      have hsize := init_stack_layout_size_ge0 hlayout.
-      assert (hge := wunsigned_range (stack_limit m2)).
-      have hpos := wsize_size_pos (sao_align (local_alloc fn)).
-      move: hmax; rewrite /sao_frame_size.
-      case: is_RAnone.
-      + move=> hmax hok _.
-        have hbound: 0 <= sao_size (local_alloc fn) + sao_extra_size (local_alloc fn)
-                  /\ sao_size (local_alloc fn) + sao_extra_size (local_alloc fn) <= wunsigned (top_stack m2).
-      + admit. (* 2CHECK *)
-        (* by lia. *)
-        have := @top_stack_after_alloc_bounded _ _ (local_alloc fn).(sao_align) _ hbound.
-        admit. (* 2CHECK *)
-        (* by lia. *)    
-      move=> hmax hok1 hok2.
-      rewrite (top_stack_after_aligned_alloc _ (hok2 _)) //.
-      rewrite wunsigned_add.
-        admit. (* ; first by lia. *)
-        split.
-        admit. (* ;  first by lia. *)
-      assert (hrange := wunsigned_range (top_stack m2)).
-      have [? _] := round_ws_range (sao_align (local_alloc fn)) (sao_size (local_alloc fn) + sao_extra_size (local_alloc fn)).
-      by lia.
-      by apply hass.(ass_align_stk).
+  (* Check @valid_state_init_params. *)
+  (* write_vars of args *)
+  have [s2 hs2 hvs'] := valid_state_init_params hlayout heqinmem_args''
+                          hlocal_map hparams hvs hs1.
+  have hext'': extend_mem (emem s1) (emem s2) rip global_data.
+  { have /= <- := write_vars_memP hs1.
+    by have /= <- := write_vars_memP hs2.
   }
-  *)  
-    
+
+  (* HERE: now basically trivial *)
   have hsao: is_align rsp (local_alloc fn).(sao_align).
-  { by apply hass.(ass_align_stk). } 
+  { by apply hass.(ass_align_stk). }
+  
   exists s2; first by rewrite hvargs2' /= hinit.
   move: hvs'.
   set pmap := (X in valid_state X).
@@ -4253,16 +4199,36 @@ econstructor.
   set Addr1 := (X in valid_state _ _ _ _ _ X).
   set Writ1 := (X in valid_state _ _ _ _ _ _ X).
   set Alig1 := (X in valid_state _ _ _ _ _ _ _ X).
-  exists (st_sa_pre pmap rsp1 Slots1 Addr1 Writ1 Alig1 m2 (emem s2) (emem s1) (emem s2) empty_table rmap2 Vm.init).
-  exists (st_sa_post pmap rsp1 Slots1 Addr1 Writ1 Alig1 m2 (emem s2) (emem s1) (emem s2) empty_table table3 rmap3 Vm.init).
+  
+  exists (st_sa_pre pmap rsp1 Slots1 Addr1 Writ1 Alig1 
+           m2 (emem s2) (emem s1) (emem s2) empty_table rmap2 Vm.init).
+  exists (st_sa_post pmap rsp1 Slots1 Addr1 Writ1 Alig1 
+            m2 (emem s2) (emem s1) (emem s2) empty_table table3 rmap3 Vm.init).
+  (* unfold st_sa_pre.
+     Print extend_mem. *)
+  (* Print valid_state. seems ok ?? *)
+  (* unfold st_sa_post, st_sa_pre. *)
+  
   split => //.
-  (* execution of the body. HERE: need to weaken it_check_cP_aux *)
-  + apply: it_check_cP_aux => //.
+  
+  { (* HERE: we come to wequiv, that is to xrutt; we should be able to
+     distinguish the OOM case. *)
+    unfold wequiv, wkequiv, wkequiv_io. 
+    (* execution of the body. HERE: need to weaken it_check_cP_aux. 
+      NOTICE: this eliminates xrutt  *)
+    apply: it_check_cP_aux => //.
     + exact hsao. 
     + exact halloc.
-    by apply: valid_state_wf_table_vars hvs'.
+      by apply: valid_state_wf_table_vars hvs'.
+  }
+
+  (* HERE: still to be analysed. but in principle, we should need to
+     discharge it easily in case of OOM. basically, this should be done
+     by using st_sa_pre. *)
+  unfold wrequiv, wrequiv_io. unfold st_sa_post, st_sa_pre.
   move=> s1' s2' fr1 [vme] [hvs''' hstable hext''' hvalw hvalw'] _.
-  rewrite /finalize_funcall; t_xrbindP => vres1 hvres1 vres1' hvres1' <- {fr1} /=.
+  rewrite /finalize_funcall; t_xrbindP =>
+            vres1 hvres1 vres1' hvres1' <- {fr1} /=.
   (* get_var of results *)
   have harr: List.Forall2 (fun osr (x : var_i) => osr <> None -> is_arr_var x) (map fst alloc_params) (f_params fd).
   + by apply: (Forall2_trans _ (init_params_alloc_params_not_None hparams) (init_params_aarr hparams)); auto.
@@ -4404,6 +4370,8 @@ Section IT.
 
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
+(* Print wiequiv_f. Print wkequiv_io. -> uses xrutt *)
+
 Theorem it_alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn :
   alloc_prog shparams saparams is_move_op fresh_var_ident pp_sr nrip nrsp data oracle_g oracle P = ok SP ->
   forall ev rip,
@@ -4416,7 +4384,8 @@ Theorem it_alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn 
                   (map (oapp pp_align U8) (oracle fn).(sao_params))
                   (fvals fs1) (fvals fs2)
         , Forall3 (value_eq_or_in_mem (fmem fs2)) (oracle fn).(sao_params) (fvals fs1) (fvals fs2)
-        & (* HERE *) alloc_ok SP fn (fmem fs2) ])
+          & (* HERE: here you probably want the REAL alloc_ok *)
+            alloc_ok SP fn (fmem fs2) ])
      fn fn
     (fun fn _ fs1 fs2 fr1 fr2 =>
         [/\ fscs fr1 = fscs fr2
@@ -4475,3 +4444,4 @@ Proof.
 Qed.
 
 End HSAPARAMS.
+

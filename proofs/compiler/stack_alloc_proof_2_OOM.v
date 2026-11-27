@@ -3990,7 +3990,7 @@ Proof using no_overflow_glob_size hmap P'_globs hshparams hsaparams is_move_opP 
   have [m2' halloc_stk]: exists m2',
     alloc_stack m2 (sao_align (local_alloc fn)) (sao_size (local_alloc fn)) (sao_ioff (local_alloc fn))
                    (sao_extra_size (local_alloc fn)) = ok m2'.
-  + apply Memory.alloc_stack_complete.
+  { apply Memory.alloc_stack_complete.
     have [h1 h2 _] := init_stack_layoutP hlayout.
     apply /and4P; split.
     1-3: by apply/ZleP.
@@ -4003,8 +4003,10 @@ Proof using no_overflow_glob_size hmap P'_globs hshparams hsaparams is_move_opP 
     *)
     case: is_align; last by apply /ZleP; lia.
     apply /ZleP.
-    have := round_ws_range (sao_align (local_alloc fn)) (sao_size (local_alloc fn) + sao_extra_size (local_alloc fn)).
+    have := round_ws_range (sao_align (local_alloc fn))
+              (sao_size (local_alloc fn) + sao_extra_size (local_alloc fn)).
     by lia.
+  }  
   have hass := Memory.alloc_stackP halloc_stk.
   set fex := {| sf_align := _ |} in hfd2.
   set rsp := top_stack m2'.
