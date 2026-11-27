@@ -4084,7 +4084,7 @@ Proof using no_overflow_glob_size hmap P'_globs hshparams hsaparams is_move_opP 
   have hsao: wf_sao rsp (emem s2) (local_alloc fn).
   + have /= <- := write_vars_memP hs2.
     split.
-    + rewrite /enough_size /allocatable_stack.
+    { rewrite /enough_size /allocatable_stack.
       split; first by lia.
       rewrite /top_stack hass.(ass_frames) /= hass.(ass_limit).
       move: hok; rewrite /alloc_ok => /(_ _ hfd2) /= []; rewrite /allocatable_stack /sf_total_stack /=.
@@ -4106,7 +4106,8 @@ Proof using no_overflow_glob_size hmap P'_globs hshparams hsaparams is_move_opP 
       assert (hrange := wunsigned_range (top_stack m2)).
       have [? _] := round_ws_range (sao_align (local_alloc fn)) (sao_size (local_alloc fn) + sao_extra_size (local_alloc fn)).
       by lia.
-   by apply hass.(ass_align_stk).
+   }   
+   { by apply hass.(ass_align_stk). }
   exists s2; first by rewrite hvargs2' /= hinit.
   move: hvs'.
   set pmap := (X in valid_state X).

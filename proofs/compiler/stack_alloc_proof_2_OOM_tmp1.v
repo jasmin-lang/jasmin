@@ -4243,9 +4243,8 @@ econstructor.
   }
   *)  
     
-  have hsao: is_align rsp (local_alloc fn).(sao_align).    
-  admit.
-    
+  have hsao: is_align rsp (local_alloc fn).(sao_align).
+  { by apply hass.(ass_align_stk). } 
   exists s2; first by rewrite hvargs2' /= hinit.
   move: hvs'.
   set pmap := (X in valid_state X).
