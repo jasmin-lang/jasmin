@@ -39,7 +39,8 @@ then
 elif [ $ARCH = "riscv" ]
 then
      # +m enables integer multiplication
-     ASARGS="--triple=riscv32 --mcpu=generic-rv32 -mattr=+m"
+     # +zkn enables AES NIST extensions
+     ASARGS="--triple=riscv32 --mcpu=generic-rv32 -mattr=+m -mattr=+zkn"
 elif [ $ARCH = "armv8a" ] && [ $MACOS = yes ]
 then
     ASARGS="--triple=arm64-apple-macos"

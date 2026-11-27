@@ -92,10 +92,10 @@ Definition pp_name name args :=
      no instruction carries any timing guarantee, and checking a program
      under the DOIT policy is only meaningful for Zkt hardware. *)
 
-Definition RTypeInstruction ws semi jazz_name asm_name (doit : doit_t) : instr_desc_t :=
+Definition RTypeInstruction_ext valid ws semi jazz_name asm_name (doit : doit_t) : instr_desc_t :=
   let tin := [:: lreg; lword ws ] in
   {|
-      id_valid := true;
+      id_valid := valid;
       id_doit := doit;
       id_msb_flag := MSB_MERGE;
       id_tin := tin;
@@ -114,6 +114,8 @@ Definition RTypeInstruction ws semi jazz_name asm_name (doit : doit_t) : instr_d
       id_pp_asm := pp_name asm_name; (* how to print it in asm *)
       id_wf := refl_equal;
   |}.
+
+Definition RTypeInstruction := RTypeInstruction_ext true.
 
 Definition ITypeInstruction chk_imm ws semi jazz_name asm_name (doit : doit_t) : instr_desc_t :=
   let tin := [:: lreg; lword ws ] in
@@ -200,6 +202,12 @@ Variant riscv_op : Type :=
 | DIVU                           (* Divides two unsigned registers *)
 | REM                            (* Remainder for two signed registers *)
 | REMU                           (* Remainder for two unsigned registers *)
+
+(* AES instructions *)
+| AES32DSI
+| AES32DSMI
+| AES32ESI
+| AES32ESMI
 .
 
 #[ export ]
@@ -558,21 +566,24 @@ Definition riscv_STORE_instr ws : instr_desc_t :=
 Definition prim_STORE := ("STORE"%string, primP STORE).
 
 
+(* A “multiplication instruction” is a special case of R-Type instruction that is only valid when the M extension is enabled. *)
+Definition MulTypeInstruction := RTypeInstruction_ext riscv32_core_has_M.
+
 (* RISC-V 32M Multiply instructions (operators). *)
 Definition riscv_mul_semi (wn wm: ty_r) : ty_r := (wn * wm)%w.
-Definition riscv_MUL_instr : instr_desc_t := RTypeInstruction riscv_mul_semi "MUL" "mul" DOIT.
+Definition riscv_MUL_instr : instr_desc_t := MulTypeInstruction riscv_mul_semi "MUL" "mul" DOIT.
 Definition prim_MUL := ("MUL"%string, primM MUL).
 
 Definition riscv_mulh_semi (wn wm: ty_r) : ty_r := wmulhs wn wm.
-Definition riscv_MULH_instr : instr_desc_t := RTypeInstruction riscv_mulh_semi "MULH" "mulh" DOIT.
+Definition riscv_MULH_instr : instr_desc_t := MulTypeInstruction riscv_mulh_semi "MULH" "mulh" DOIT.
 Definition prim_MULH := ("MULH"%string, primM MULH).
 
 Definition riscv_mulhu_semi (wn wm: ty_r) : ty_r := wmulhu wn wm.
-Definition riscv_MULHU_instr : instr_desc_t := RTypeInstruction riscv_mulhu_semi "MULHU" "mulhu" DOIT.
+Definition riscv_MULHU_instr : instr_desc_t := MulTypeInstruction riscv_mulhu_semi "MULHU" "mulhu" DOIT.
 Definition prim_MULHU := ("MULHU"%string, primM MULHU).
 
 Definition riscv_mulhsu_semi (wn wm: ty_r) : ty_r := wmulhsu wn wm.
-Definition riscv_MULHSU_instr : instr_desc_t := RTypeInstruction riscv_mulhsu_semi "MULHSU" "mulhsu" DOIT.
+Definition riscv_MULHSU_instr : instr_desc_t := MulTypeInstruction riscv_mulhsu_semi "MULHSU" "mulhsu" DOIT.
 Definition prim_MULHSU := ("MULHSU"%string, primM MULHSU).
 
 
@@ -581,23 +592,67 @@ Definition prim_MULHSU := ("MULHSU"%string, primM MULHSU).
 (* Division by zero is specified, it must return all bits set *)
 Definition riscv_div_semi (wn wm: ty_r) : ty_r :=
   if wm == 0%w then (-1%w)%w else wdivi wn wm.
-Definition riscv_DIV_instr : instr_desc_t := RTypeInstruction riscv_div_semi "DIV" "div" NOT_DOIT. (* Not in Zkt *)
+Definition riscv_DIV_instr : instr_desc_t := MulTypeInstruction riscv_div_semi "DIV" "div" NOT_DOIT. (* Not in Zkt *)
 Definition prim_DIV := ("DIV"%string, primM DIV).
 
 (* Division by zero is specified, it must return all bits set *)
 Definition riscv_divu_semi (wn wm: ty_r) : ty_r :=
   if wm == 0%w then (-1%w)%w else wdiv wn wm.
-Definition riscv_DIVU_instr : instr_desc_t := RTypeInstruction riscv_divu_semi "DIVU" "divu" NOT_DOIT. (* Not in Zkt *)
+Definition riscv_DIVU_instr : instr_desc_t := MulTypeInstruction riscv_divu_semi "DIVU" "divu" NOT_DOIT. (* Not in Zkt *)
 Definition prim_DIVU := ("DIVU"%string, primM DIVU).
 
 Definition riscv_rem_semi (wn wm: ty_r) : ty_r := wmodi wn wm.
-Definition riscv_REM_instr : instr_desc_t := RTypeInstruction riscv_rem_semi "REM" "rem" NOT_DOIT. (* Not in Zkt *)
+Definition riscv_REM_instr : instr_desc_t := MulTypeInstruction riscv_rem_semi "REM" "rem" NOT_DOIT. (* Not in Zkt *)
 Definition prim_REM := ("REM"%string, primM REM).
 
 Definition riscv_remu_semi (wn wm: ty_r) : ty_r := wmod wn wm.
-Definition riscv_REMU_instr : instr_desc_t := RTypeInstruction riscv_remu_semi "REMU" "remu" NOT_DOIT. (* Not in Zkt *)
+Definition riscv_REMU_instr : instr_desc_t := MulTypeInstruction riscv_remu_semi "REMU" "remu" NOT_DOIT. (* Not in Zkt *)
 Definition prim_REMU := ("REMU"%string, primM REMU).
 
+(* Cryptography Extensions: Scalar Instructions *)
+
+(* AES instructions *)
+Definition Zkn_AES_instruction semi jazz_name asm_name : instr_desc_t :=
+  {|
+    id_valid := true;
+    id_doit := DOIT;
+    id_msb_flag := MSB_MERGE;
+    id_tin := [:: lreg; lreg; lword U8 ];
+    id_in := [:: Ea 1; Ea 2; Ea 3 ];
+    id_tout := [:: lreg ];
+    id_out := [:: Ea 0 ];
+    id_semi_total := semi;
+    id_nargs := 4;
+    id_args_kinds := [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAreg ]; [:: CAimm (Some CAimmC_riscv_2bits_unsigned) U8 ]]];
+    id_eq_size := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s jazz_name;
+    id_safe := [::];
+    id_err := ErrSemUndef;
+    id_init := [:: IBool true ];
+    id_pp_asm := pp_name asm_name;
+    id_wf := refl_equal;
+  |}.
+
+(* AES Decryption *)
+Definition aes32dsi_semi (w1 w2: wreg) (bs: u8) : wreg := (* TODO *) w1.
+Definition aes32dsmi_semi (w1 w2: wreg) (bs: u8) : wreg := (* TODO *) w1.
+
+Definition riscv_AES32DSI_instr := Zkn_AES_instruction aes32dsi_semi "AES32DSI" "aes32dsi".
+Definition prim_AES32DSI := ("AES32DSI"%string, primM AES32DSI).
+
+Definition riscv_AES32DSMI_instr := Zkn_AES_instruction aes32dsmi_semi "AES32DSMI" "aes32dsmi".
+Definition prim_AES32DSMI := ("AES32DSMI"%string, primM AES32DSMI).
+
+(* AES Encryption *)
+Definition aes32esi_semi (w1 w2: wreg) (bs: u8) : wreg := (* TODO *) w1.
+Definition aes32esmi_semi (w1 w2: wreg) (bs: u8) : wreg := (* TODO *) w1.
+
+Definition riscv_AES32ESI_instr := Zkn_AES_instruction aes32esi_semi "AES32ESI" "aes32esi".
+Definition prim_AES32ESI := ("AES32ESI"%string, primM AES32ESI).
+
+Definition riscv_AES32ESMI_instr := Zkn_AES_instruction aes32esmi_semi "AES32ESMI" "aes32esmi".
+Definition prim_AES32ESMI := ("AES32ESMI"%string, primM AES32ESMI).
 
 (* -------------------------------------------------------------------- *)
 (* Description of instructions. *)
@@ -638,6 +693,10 @@ Definition riscv_instr_desc (mn : riscv_op) : instr_desc_t :=
   | DIVU => riscv_DIVU_instr
   | REM => riscv_REM_instr
   | REMU => riscv_REMU_instr
+  | AES32DSI => riscv_AES32DSI_instr
+  | AES32DSMI => riscv_AES32DSMI_instr
+  | AES32ESI => riscv_AES32ESI_instr
+  | AES32ESMI => riscv_AES32ESMI_instr
   end.
 
 Definition riscv_prim_string : seq (string * prim_constructor riscv_op) := [::
@@ -674,7 +733,11 @@ Definition riscv_prim_string : seq (string * prim_constructor riscv_op) := [::
   prim_DIV;
   prim_DIVU;
   prim_REM;
-  prim_REMU
+  prim_REMU;
+  prim_AES32DSI;
+  prim_AES32DSMI;
+  prim_AES32ESI;
+  prim_AES32ESMI
 ].
 
 #[ export ]
