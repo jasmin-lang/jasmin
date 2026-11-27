@@ -2019,11 +2019,19 @@ Definition enough_size m sao :=
   let sz := sao_frame_size sao in
   allocatable_stack m (sao.(sao_max_size) - sz).
 
-(* HERE *)
+(* HERE: for weak version, replace with is_align.  
+ *)
 Record wf_sao rsp m sao := {
   wf_sao_size     : enough_size m sao;
   wf_sao_align    : is_align rsp sao.(sao_align);
 }.
+
+(* HERE: NEW (not so useful, though); NOTICE: we also need to weaken
+   stk_alloc_oracle_t, by optionizing sao_max_size. 
+   Print stk_alloc_oracle_t. *)
+Definition wk_wf_sao (rsp: word Uptr) (sao: stk_alloc_oracle_t) : bool
+  := is_align rsp sao.(sao_align).
+
 
 (* HERE *)
 Lemma stack_stable_wf_sao rsp m1 m2 sao :
@@ -2035,6 +2043,7 @@ Proof.
   rewrite /enough_size /allocatable_stack.
   by rewrite -(ss_top_stack hss) -(ss_limit hss).
 Qed.
+
 
 Section SYNTACTIC_INVARIANTS.
 
@@ -2529,10 +2538,9 @@ Definition sf_total_stack e :=
     e.(sf_stk_max) + wsize_size e.(sf_align) - 1
   else e.(sf_stk_max).
 
+(*
 Print top_stack.
 Print is_RAnone.
-
-(*
 Print allocatable_stack.
 Locate allocatable_stack.
 Locate top_stack.
@@ -2543,7 +2551,7 @@ Print sf_total_stack.
 (* HERE: allocatable_stack needs to go. it requires that the frame
    allocation determiend by (sf_total_stack fd.(f_extra)) is within the
    bounds of m2 *)
-Definition alloc_ok (SP:sprog) fn m2 :=
+Definition alloc_ok (SP: sprog) fn m2 :=
   forall fd, get_fundef (p_funcs SP) fn = Some fd ->
   True /\           
  (* allocatable_stack m2 (sf_total_stack fd.(f_extra)) /\ *)
@@ -3418,7 +3426,8 @@ Let ePi_r s1 (i1:instr_r) s2 :=
   alloc_i pmap local_alloc P sao (table1, rmap1) (MkI ii1 i1) = ok (table2, rmap2, c2) ->
   forall vme m0 s1', valid_state pmap glob_size rsp rip Slots Addr Writable Align P table1 rmap1 vme m0 s1 s1' ->
   extend_mem (emem s1) (emem s1') rip global_data ->
-  wf_sao rsp (emem s1') sao ->
+(*  wf_sao rsp (emem s1') sao -> *)
+  wk_wf_sao rsp sao ->
   exists s2' vme', [/\
     esem P' rip c2 s1' = ok s2',
     valid_state pmap glob_size rsp rip Slots Addr Writable Align P table2 rmap2 vme' m0 s2 s2' &
@@ -3589,9 +3598,10 @@ Context (pmap : pos_map) (rsp : word Uptr) (Slots : Sv.t) (Addr : slot → word 
 Context (hwf_pmap : wf_pmap pmap rsp rip Slots Addr Writable Align)
         (hwf_Slots : wf_Slots Slots Addr Writable Align).
 
-Context (m0 m0' : mem) (mi mi' : mem)(sao : stk_alloc_oracle_t).
+Context (m0 m0' : mem) (mi mi' : mem) (sao : stk_alloc_oracle_t).
 (* HERE: to be weakened *)
-Context (hwf_sao : wf_sao rsp m0' sao).
+(* Context (hwf_sao : wf_sao rsp m0' sao). *)
+Context (wk_hwf_sao : wk_wf_sao rsp sao).
 
 Definition st_sa_pre table rmap vme s s' :=
   [/\ valid_state pmap glob_size rsp rip Slots Addr Writable Align P table rmap vme m0 s s'
@@ -3691,7 +3701,7 @@ Qed.
 
 (* HERE: weaken hwf_sao *)
 Lemma it_check_cP_aux : forall c1, Pc c1.
-Proof using P'_globs hshparams hsaparams is_move_opP Halloc_fd hwf_pmap hwf_Slots hwf_sao.
+Proof using P'_globs hshparams hsaparams is_move_opP Halloc_fd hwf_pmap hwf_Slots wk_hwf_sao.
   apply (cmd_rect (Pr:=Pi_r) (Pi:=Pi) (Pc:=Pc)) => //; subst Pi_r Pc Pi => /=.
   + move=> table1 rmap1 table2 rmap2 vme _ [<- <- <-] _.
     by apply wequiv_nil; exists vme.
@@ -3705,14 +3715,16 @@ Proof using P'_globs hshparams hsaparams is_move_opP Halloc_fd hwf_pmap hwf_Slot
   (* Assgn *)
   + move=> x tg ty e ii table1 rmap1 table2 rmap2 vm2 c2 h [hwf_vars hwf_varsz hwf_status].
     apply wequiv_assgn_esem => s1 s2 s1' [hvalid hstable hext hvalw hvalw'].
-    rewrite /sem_assgn; t_xrbindP => v he v' htr hw.
-    have := Hassgn_aux he htr hw hwf_pmap hwf_Slots h hvalid hext (stack_stable_wf_sao hstable hwf_sao).
+    rewrite /sem_assgn; t_xrbindP => v he v' htr hw.    
+   have := Hassgn_aux he htr hw hwf_pmap hwf_Slots h hvalid hext wk_hwf_sao.
+    (* (stack_stable_wf_sao hstable hwf_sao). *)
     apply: it_check_cP_concl => //.
     by apply: write_lval_validw hw.
   (* Opn *)
   + move=> xs t o es ii table1 rmap1 table2 rmap2 vm2 c2 h [hwf_vars hwf_varsz hwf_status].
     apply wequiv_opn_esem => s1 s2 s1' [hvalid hstable hext hvalw hvalw'] hopn.
-    have := Hopn_aux hopn hwf_pmap hwf_Slots h hvalid hext (stack_stable_wf_sao hstable hwf_sao).
+    have := Hopn_aux hopn hwf_pmap hwf_Slots h hvalid hext wk_hwf_sao.
+              (* (stack_stable_wf_sao hstable hwf_sao). *)
     apply: it_check_cP_concl => //.
     apply: (esem_i_validw_stable_uprog (p:=P) (ev:= tt) (c:= (MkI ii (Copn xs t o es)))).
     by rewrite /= hopn.
@@ -3721,7 +3733,9 @@ Proof using P'_globs hshparams hsaparams is_move_opP Halloc_fd hwf_pmap hwf_Slot
     apply wequiv_syscall_esem => s1 s2 s1' [hvalid hstable hext hvalw hvalw'] /[dup] hsemu.
     rewrite /sem_syscall; t_xrbindP => vs hes [scs mem vs'].
     rewrite /fexec_syscall; t_xrbindP => /= -[[scs' mem'] vs2] /= hex [???] hup; subst scs' mem' vs2.
-    have := Hsyscall_aux hes hex hup hwf_pmap hwf_Slots h hvalid hext (stack_stable_wf_sao hstable hwf_sao).
+    have := Hsyscall_aux hes hex hup hwf_pmap hwf_Slots h hvalid hext
+              wk_hwf_sao.
+           (*   (stack_stable_wf_sao hstable hwf_sao). *)
     apply: it_check_cP_concl => //.
     apply: (esem_i_validw_stable_uprog (p:=P) (ev:= tt) (c:= (MkI ii (Csyscall xs o es)))).
     by rewrite /= hsemu.
@@ -3850,17 +3864,23 @@ Proof using P'_globs hshparams hsaparams is_move_opP Halloc_fd hwf_pmap hwf_Slot
   move: halloc hfd2; rewrite /alloc_fd.
   t_xrbindP=> {}fd2 _ <- hfd2.
   have halloc_ok: alloc_ok P' fn (emem s2).
-  + rewrite /alloc_ok hfd2 => _ [<-] /=.
-    have hsao := stack_stable_wf_sao hstable hwf_sao.
-    split.
-    + rewrite /allocatable_stack /sf_total_stack /=.
+  + rewrite /alloc_ok hfd2 => _ [<-] /=.      
+    (*  have hsao := stack_stable_wf_sao hstable hwf_sao. *)
+    split; auto.
+  (*  + rewrite /allocatable_stack /sf_total_stack /=.
       case: is_RAnone ra_none => [//|_].
       move: hsao.(wf_sao_size); rewrite /enough_size /allocatable_stack.
-      by lia.
+      by lia. *)
     move=> _.
+    unfold wk_wf_sao in wk_hwf_sao; simpl in *.
+    move : wk_hwf_sao.
+    have /vs_top_stack -> := hvs.
+    by apply is_align_m.
+(*    eapply wk_wf_sao.
     have := hsao.(wf_sao_align).
     have /vs_top_stack -> := hvs.
     by apply is_align_m.
+*)
 
   apply wequiv_call_core_wa with sa_pre sa_post Rv => //.
   + move => _ _ vargs1 [-> ->] hvargs1.
@@ -3983,10 +4003,11 @@ Qed.
 
 End CMD.
 
-
+(*
 Check @wequiv_fun_ind.
 Locate wkequiv_io.
 Print CategoryKleisli.Kleisli.
+*)
 
 (**** EVEN MORE, FROM HERE (wiequiv_f) *************************)
 
@@ -4238,7 +4259,7 @@ econstructor.
   split => //.
   (* execution of the body. HERE: need to weaken it_check_cP_aux *)
   + apply: it_check_cP_aux => //.
-    + admit. (* exact hsao. *)
+    + exact hsao. 
     + exact halloc.
     by apply: valid_state_wf_table_vars hvs'.
   move=> s1' s2' fr1 [vme] [hvs''' hstable hext''' hvalw hvalw'] _.
