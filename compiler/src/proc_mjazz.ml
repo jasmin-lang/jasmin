@@ -530,9 +530,8 @@ let mt_margs pd menv mparams margs =
                 | None -> rs_mjazzerror ~loc:(L.loc v) 
                            (MJazzStringError ("Function"^func.f_name.fn_name^" not defined"))
                 end in
-      let tres, targs = f_sig func in
-      tc_list (L.loc v) pf.fs_tyin targs;
-      tc_list (L.loc v) pf.fs_tyout tres;
+      tc_list (L.loc v) pf.fs_tyin func.f_tyin;
+      tc_list (L.loc v) pf.fs_tyout func.f_tyout;
       M.MaFun f
     | M.Fun _, _ ->
       rs_mjazzerror ~loc:(L.loc pe)

@@ -560,9 +560,7 @@ end  = struct
     let rec loop x =
       function
       | [] -> None
-      | (ns, top, _) :: stack ->
-        if !Glob_options.debug
-        then Printf.eprintf "%s: %s \n\n" ns (Map.keys (proj top) |> List.of_enum |> String.concat "," );
+      | (_, top, _) :: stack ->
         match Map.find x (proj top) with
         | exception Not_found -> loop x stack
         | v -> Some v
@@ -1806,9 +1804,6 @@ let tt_lvalue pd (st : 'asm Env.store) { L.pl_desc = pl; L.pl_loc = loc; } =
     loc, (fun _ -> P.Lmem (al, ct, eloc, e)), Some (P.etw ct)
 
 (* -------------------------------------------------------------------- *)
-let f_sig (f: 'asm pfuncsig) =
-  f.f_tyout, f.f_tyin
-  
 let prim_sig asmOp p : 'a P.gety list * 'a P.gety list * Sopn.arg_desc list =
   let f = conv_cty in
   let o = Sopn.asm_op_instr asmOp p in
@@ -2913,19 +2908,14 @@ let rec tt_item (arch_info : 'asm P.arch_info) (env : 'asm Env.env) pt : 'asm En
   | S.PTypeAlias (id, pannot, ty) ->
       let annot = pannot_to_annotations pannot in
       Env.upd_store (tt_typealias arch_info id annot ty) env
-  | S.PModule (_, _, _) ->
+  | S.PModule _ | S.PModuleApp _ ->
       hierror
-        ~loc:Lnone
-        ~kind:"compilation"
-        "modules only supported in `-mjazz` mode"     
-  | S.PModuleApp (_, _, _) ->
-      hierror
-        ~loc:Lnone
+        ~loc:(Lone (L.loc pt))
         ~kind:"compilation"
         "modules only supported in `-mjazz` mode"     
   | S.POpen _ | S.POpenFile _ ->
       hierror
-        ~loc:Lnone
+        ~loc:(Lone (L.loc pt))
         ~kind:"compilation"
         "open clause only supported in `-mjazz` mode"
 

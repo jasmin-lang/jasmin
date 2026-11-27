@@ -126,8 +126,6 @@ end
 
 val qualify : string -> string -> string
 
-val f_sig : 'asm pfuncsig -> P.pty list * P.pty list
-
 type tt_mode = [ `AllVar | `OnlyParam | `NoParam ]
 
 val tt_type : W.wsize -> 'asm Env.store -> S.ptype -> P.epty
