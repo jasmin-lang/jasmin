@@ -17,18 +17,7 @@ let error loc fmt =
     bfmt fmt
 
 (* -------------------------------------------------------------------- *)
-let ty_var (x: var) =
-  let ty = x.v_ty in
-  begin match ty with
-  | Arr(_, n) ->
-      if (n < 1) then
-        error (L.i_loc0 x.v_dloc)
-          "the variable %a has type %a, its array size should be positive"
-          (Printer.pp_var ~debug:false) x PrintCommon.pp_ty ty
-  | _ -> ()
-  end;
-  ty
-
+let ty_var (x: var) = x.v_ty
 
 let ty_gvar (x: int ggvar) = ty_var (L.unloc x.gv)
 

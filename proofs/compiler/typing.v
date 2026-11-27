@@ -32,10 +32,7 @@ Module Import E.
                    pp_s "["; pp_z len; pp_s "]"]
   end.
 
-  (* The messages follow the ones of the former OCaml type checker (typing.ml).
-     The location is added by check_instr (add_iinfo) and check_fun (add_finfo). *)
-
-    (* "<pp> has type <te> while <ty> is expected" *)
+  (* "<pp> has type <te> while <ty> is expected" *)
   Definition type_mismatch (pp : pp_error) (te ty : atype) :=
     typing_error (pp_box [:: pp; pp_s "has type"; pp_atype te;
                              pp_s "while"; pp_atype ty; pp_s "is expected"]).
@@ -50,7 +47,6 @@ Module Import E.
     typing_error (pp_box [:: pp_s "the expression"; pp_e e; pp_s "has type";
                              pp_atype te; pp_s "while an array is expected"]).
 
-  (* [msg] is "expressions" or "left values" *)
   Definition arity_mismatch (msg : string) (n : nat) := (* caught by pretyping *)
     typing_error (pp_box [:: pp_s "invalid number of"; pp_s msg;
                              pp_z (Z.of_nat n); pp_s "expected"]).

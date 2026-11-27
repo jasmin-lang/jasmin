@@ -2062,6 +2062,10 @@ fail/typing/x86-64/arg_wrong_size.jazz:
 
 "fail/typing/x86-64/arg_wrong_size.jazz", line 14 (2-15): the expression tab has type u64[2] while u64[1] is expected
 
+fail/typing/x86-64/array_expected.jazz:
+
+"fail/typing/x86-64/array_expected.jazz", line 3 (6-7): the expression has type u64 instead of array
+
 fail/typing/x86-64/bug_488.jazz:
 
 "fail/typing/x86-64/bug_488.jazz", line 2 (7-18): primitive “VPMULH” only accepts the following size annotations: _8u16,
@@ -2078,6 +2082,10 @@ fail/typing/x86-64/conditional_not_bool.jazz:
 fail/typing/x86-64/conditional_op_mismatch.jazz:
 
 "fail/typing/x86-64/conditional_op_mismatch.jazz", line 4 (14-15): the expression has type u64 instead of bool
+
+fail/typing/x86-64/declassify_not_bool.jazz:
+
+"fail/typing/x86-64/declassify_not_bool.jazz", line 2 (2-25): the expression x has type u64 while bool is expected
 
 fail/typing/x86-64/export_reg_array_res.jazz:
 
@@ -2173,6 +2181,10 @@ fail/typing/x86-64/subarray_non_const_len.jazz:
 
 "fail/typing/x86-64/subarray_non_const_len.jazz", line 5 (6-7): only param variables are allowed here
 
+fail/typing/x86-64/unknown_function.jazz:
+
+"fail/typing/x86-64/unknown_function.jazz", line 2 (6-7): unknown function: `g'
+
 fail/typing/x86-64/unsupported_primitive.jazz:
 
 "fail/typing/x86-64/unsupported_primitive.jazz", line 4 (10-19): can not recognize the primitive
@@ -2191,6 +2203,10 @@ fail/typing/x86-64/write_constant_pointer_subproc_array.jazz:
 "fail/typing/x86-64/write_constant_pointer_subproc_array.jazz", line 2 (2-4):
 compilation error in function foo:
 stack allocation: cannot write to the constant pointer px targetting px
+
+fail/typing/x86-64/xchg_128.jazz:
+
+"fail/typing/x86-64/xchg_128.jazz", line 5 (2-25): invalid operator, please report
 
 fail/unroll/x86-64/bug_150.jazz:
 
@@ -2386,8 +2402,8 @@ Allowed args are:
 
 Statistics:
 	Annots:      7
-	Pretyping:  84
+	Pretyping:  86
 	Parsing:     7
-	Typing:      5
+	Typing:      7
 	Asm print:   1
 	Compile:   266
