@@ -61,11 +61,17 @@ let type_of_expr e =
 
 (* -------------------------------------------------------------------- *)
 
+let loc_of_error loc (e : Compiler_util.pp_error_loc) =
+  match e.Compiler_util.pel_ii, e.Compiler_util.pel_fi with
+  | Some (i_loc, _), _ -> i_loc
+  | None, Some (f_loc, _, _, _) -> L.i_loc0 f_loc
+  | None, None -> loc
+
 let cexec_unwapper loc res =
   match res with
   | Utils0.Ok x -> x
   | Utils0.Error s ->
-      error loc "typing error : %a"
+      error (loc_of_error loc s) "%a"
         (Printer.pp_err ~debug:false) s.Compiler_util.pel_msg
 
 let cglob_decls (gd : global_decl list) : Global.glob_decl list =

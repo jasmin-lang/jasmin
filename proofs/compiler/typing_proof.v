@@ -153,19 +153,19 @@ Qed.
 
 (* Inversion lemmas for the type checker *)
 
-Lemma check_typeP te ty : check_type te ty = ok tt -> subatype ty te.
+Lemma check_typeP err te ty : check_type err te ty = ok tt -> subatype ty te.
 Proof. by rewrite /check_type; case: ifP => // /negbFE. Qed.
 
-Lemma check_ptrP t :
-  check_ptr t = ok tt ->
+Lemma check_ptrP e t :
+  check_ptr e t = ok tt ->
   exists2 ws, t = aword ws & (Uptr <= ws)%CMP.
 Proof.
   by rewrite /check_ptr => /check_typeP;
   case: t => // ws ?; exists ws.
 Qed.
 
-Lemma check_arrayP t :
-  check_array t = ok tt ->
+Lemma check_arrayP x t :
+  check_array x t = ok tt ->
   exists ws n, t = aarr ws n.
 Proof.
   by rewrite /check_array;
@@ -207,11 +207,11 @@ Lemma check_lvalP x ty :
 Proof.
   rewrite /check_lval/ty_lval.
   case: x => [? tx Hchk | v Hchk| ??? e | ????? | ?????] //=.
-  - exists tx => //. exact: check_typeP.
-  - exists (ty_var v) => //. exact: check_typeP.
-  - t_xrbindP => te Htyls Hchkty. exists te => //. exact: check_typeP.
-  - t_xrbindP => te Htygs Hchkty. exists te => //. exact: check_typeP.
-  - t_xrbindP => te Htygs Hchkty. exists te => //. exact: check_typeP.
+  - exists tx => //. exact: check_typeP Hchk.
+  - exists (ty_var v) => //. exact: check_typeP Hchk.
+  - t_xrbindP => te Htyls Hchkty. exists te => //. exact: check_typeP Hchkty.
+  - t_xrbindP => te Htygs Hchkty. exists te => //. exact: check_typeP Hchkty.
+  - t_xrbindP => te Htygs Hchkty. exists te => //. exact: check_typeP Hchkty.
 Qed.
 
 Lemma check_lvals_vars_subctype (xs : seq var_i) tys :
@@ -467,7 +467,9 @@ Lemma check_exprs_subctype s es tins vs :
   mapM (sem_pexpr gd s) es = ok vs ->
   List.Forall2 (fun t v => subctype t (type_of_val v)) (map eval_atype tins) vs.
 Proof.
-  elim: es tins vs => [|e es IH] [|tin tins'] vs; rewrite /check_exprs /check_exprs_ //=.
+  rewrite /check_exprs /check_exprs_. 
+  set err := E.arity_mismatch _ _. clearbody err.
+  elim: es tins vs => [|e es IH] [|tin tins'] vs //=.
   - by move=> _ [<-].
   - rewrite /check_expr /check_expr_. t_xrbindP => tye Htye /check_typeP Hsub Hc v Hs vs' Hmap <-.
     apply List.Forall2_cons; last apply (IH _ _ Hc Hmap).
@@ -477,7 +479,7 @@ Qed.
 
 Lemma sem_to_int_noerrty s e tye :
   ty_expr e = ok tye ->
-  check_int tye = ok tt ->
+  check_int e tye = ok tt ->
   sem_pexpr gd s e <> Error ErrType ->
   (Let x := sem_pexpr gd s e in to_int x) <> Error ErrType.
 Proof.
@@ -486,9 +488,9 @@ Proof.
   by apply: (of_val_noerrty (t := cint)); rewrite Htv -Htyeint.
 Qed.
 
-Lemma sem_to_bool_noerrty s e tye :
+Lemma sem_to_bool_noerrty s e tye err :
   ty_expr e = ok tye ->
-  check_type tye abool = ok tt ->
+  check_type err tye abool = ok tt ->
   sem_pexpr gd s e <> Error ErrType ->
   (Let x := sem_pexpr gd s e in to_bool x) <> Error ErrType.
 Proof.
@@ -497,9 +499,9 @@ Proof.
   by apply: (of_val_noerrty (t := cbool)); rewrite Htv -Htyebool.
 Qed.
 
-Lemma sem_to_pointer_noerrty s e tye:
+Lemma sem_to_pointer_noerrty s e tye err :
   ty_expr e = ok tye ->
-  check_type tye (aword Uptr) = ok tt ->
+  check_type err tye (aword Uptr) = ok tt ->
   sem_pexpr gd s e <> Error ErrType ->
   (Let x := sem_pexpr gd s e in to_pointer x) <> Error ErrType.
 Proof.
@@ -508,10 +510,10 @@ Proof.
   by apply: (of_val_noerrty (t := (cword Uptr))); rewrite Htv Hsub.
 Qed.
 
-Lemma sem_truncate_val_noerrty s e ty t :
+Lemma sem_truncate_val_noerrty s e ty t err :
   sem_pexpr gd s e <> Error ErrType ->
   ty_expr e = ok ty ->
-  check_type ty t = ok tt ->
+  check_type err ty t = ok tt ->
   (Let v := sem_pexpr gd s e in truncate_val (eval_atype t) v) <>
     Error ErrType.
 Proof.
@@ -1085,7 +1087,7 @@ Proof.
           rewrite /sem_assert /assert /=.
           apply rbind_noerrty => [| b Hsem] //=; first by apply check_eassertP.
           apply: rbind_noerrty => //.
-          case: ifP => //.
+          by case: ifP.
   - exists PredT , PredT.
     split => //.
     - rewrite /initialize_funcall.
@@ -1102,7 +1104,7 @@ Proof.
       - rewrite -(sem_pexprs_get_var _ (p_globs p)).
         - apply: rbind_noerrty => /=; first by apply: (check_exprs_progress Hgd Hf_res).
           rewrite /dc_truncate_val. 
-          t_xrbindP => vs. rewrite /sem_pexprs. move=> Hsem.
+          t_xrbindP => vs. rewrite /sem_pexprs=> Hsem.
           apply rbind_noerrty => //=.
           have Hvs_tyout := (check_exprs_subctype Hf_res Hsem).
           apply (Forall2_mapM2_noerrty Hvs_tyout).
@@ -1110,9 +1112,8 @@ Proof.
       - rewrite /dc_truncate_val /=.
         t_xrbindP => vs Hsem vs_truncated /mapM2_truncate_val_type Htrunc <-.
         rewrite -(sem_pexprs_get_var _ (p_globs p)) in Hsem.
-        exists fd; split; move=> //=.
-        apply: (Forall2_impl _ Htrunc).
-        move => ?? <- //.
+        exists fd; split=> //=.
+        apply: (Forall2_impl _ Htrunc) => ?? <- //.
 Qed.
 
 End PROG.
