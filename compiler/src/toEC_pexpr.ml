@@ -26,7 +26,7 @@ module Ms = Map.Make(Scmp)
 (* Array theories in eclib *)
 
 type 'len arraywords = {
-  sizew: 'len; (* in bytes *)
+  sizew: int; (* in bytes *)
   sizea: 'len;
 }
 
@@ -36,21 +36,21 @@ type 'len subarray = {
 }
 
 type 'len subarraydirect = {
-  sizew: 'len; (* in bytes *)
+  sizew: int; (* in bytes *)
   sizes: 'len;
   sizeb: 'len;
 }
 
 type 'len subarraycast = {
-  sizews: 'len; (* in bytes *)
-  sizewb: 'len; (* in bytes *)
+  sizews: int; (* in bytes *)
+  sizewb: int; (* in bytes *)
   sizes: 'len;
   sizeb: 'len;
 }
 
 type 'len arrayaccesscast = {
-  sizews: 'len; (* in bytes *)
-  sizewb: 'len; (* in bytes *)
+  sizews: int; (* in bytes *)
+  sizewb: int; (* in bytes *)
   sizeb: 'len;
 }
 
@@ -79,31 +79,31 @@ module AbsATcmp = struct
     | Array n -> Array (f n)
     | WArray n -> WArray (f n)
     | ByteArray n -> ByteArray (f n)
-    | ArrayWords a -> ArrayWords { sizew = f a.sizew; sizea = f a.sizea }
+    | ArrayWords a -> ArrayWords { sizew = a.sizew; sizea = f a.sizea }
     | SubArray a -> SubArray { sizes = f a.sizes; sizeb = f a.sizeb }
     | SubByteArray a -> SubByteArray { sizes = f a.sizes; sizeb = f a.sizeb }
-    | SubArrayDirect a -> SubArrayDirect { sizew = f a.sizew; sizes = f a.sizes; sizeb = f a.sizeb }
-    | SubArrayCast a -> SubArrayCast { sizews = f a.sizews; sizewb = f a.sizewb; sizes = f a.sizes; sizeb = f a.sizeb }
-    | ArrayAccessCast a -> ArrayAccessCast { sizews = f a.sizews; sizewb = f a.sizewb; sizeb = f a.sizeb }
+    | SubArrayDirect a -> SubArrayDirect { sizew = a.sizew; sizes = f a.sizes; sizeb = f a.sizeb }
+    | SubArrayCast a -> SubArrayCast { sizews = a.sizews; sizewb = a.sizewb; sizes = f a.sizes; sizeb = f a.sizeb }
+    | ArrayAccessCast a -> ArrayAccessCast { sizews = a.sizews; sizewb = a.sizewb; sizeb = f a.sizeb }
   let compare a1 a2 =
   match a1, a2 with
   | Array e1, Array e2 -> if Prog.pexpr__equal e1 e2 then 0 else compare e1 e2
   | WArray e1, WArray e2 -> if Prog.pexpr__equal e1 e2 then 0 else compare e1 e2
   | ByteArray e1, ByteArray e2 -> if Prog.pexpr__equal e1 e2 then 0 else compare e1 e2
   | ArrayWords aw1, ArrayWords aw2 -> 
-    if Prog.pexpr__equal aw1.sizew aw2.sizew && Prog.pexpr__equal aw1.sizea aw2.sizea then 0 else compare a1 a2
+    if aw1.sizew = aw2.sizew && Prog.pexpr__equal aw1.sizea aw2.sizea then 0 else compare a1 a2
   | SubByteArray s1, SubByteArray s2
   | SubArray s1, SubArray s2 ->
     if Prog.pexpr__equal s1.sizes s2.sizes && Prog.pexpr__equal s1.sizeb s2.sizeb then 0 else compare a1 a2
   | SubArrayDirect s1, SubArrayDirect s2 ->
-    if Prog.pexpr__equal s1.sizes s2.sizes && Prog.pexpr__equal s1.sizeb s2.sizeb && Prog.pexpr__equal s1.sizew s2.sizew
+    if Prog.pexpr__equal s1.sizes s2.sizes && Prog.pexpr__equal s1.sizeb s2.sizeb && s1.sizew = s2.sizew
     then 0 else compare a1 a2
   | SubArrayCast s1, SubArrayCast s2 ->
     if Prog.pexpr__equal s1.sizes s2.sizes && Prog.pexpr__equal s1.sizeb s2.sizeb && 
-       Prog.pexpr__equal s1.sizews s2.sizews && Prog.pexpr__equal s1.sizewb s2.sizewb
+       s1.sizews = s2.sizews && s1.sizewb = s2.sizewb
     then 0 else compare a1 a2
   | ArrayAccessCast s1, ArrayAccessCast s2 ->
-    if Prog.pexpr__equal s1.sizewb s2.sizewb && Prog.pexpr__equal s1.sizeb s2.sizeb && Prog.pexpr__equal s1.sizews s2.sizews
+    if s1.sizewb = s2.sizewb && Prog.pexpr__equal s1.sizeb s2.sizeb && s1.sizews = s2.sizews
     then 0 else compare a1 a2
   | _ , _ -> compare a1 a2
 end
@@ -615,7 +615,7 @@ module Env: EnvT = struct
       let size = Papp2 (Omul Op_int ,icnst sizew , pexpr_of_pexpr_ sizea) in
       add_AWArray env (PE size);
       add_AArray env sizea;
-      register env (ArrayWords {sizew = PE (icnst sizew); sizea})
+      register env (ArrayWords {sizew; sizea})
 
   let add_SubArray env sizes sizeb =
     let addSubArrayA sizes sizeb =
@@ -640,7 +640,7 @@ module Env: EnvT = struct
       env.array_theories := Sarraytheory.add (SubArrayDirect {sizew; sizes; sizeb}) !(env.array_theories);
       fmt_array_theory (SubArrayDirect {sizew; sizes; sizeb})
     | _,_ -> 
-      let theory = SubArrayDirect {sizew = PE (icnst sizew); sizes; sizeb} in
+      let theory = SubArrayDirect {sizew; sizes; sizeb} in
       register env theory;
       abstract_name env theory
 
@@ -653,7 +653,7 @@ module Env: EnvT = struct
       env.array_theories := Sarraytheory.add (theory) !(env.array_theories);
       fmt_array_theory (theory)
     | _,_ ->
-      let theory = SubArrayCast {sizews = PE (icnst sizews); sizewb = PE (icnst sizewb); sizes; sizeb} in
+      let theory = SubArrayCast {sizews; sizewb; sizes; sizeb} in
       register env theory;
       abstract_name env theory
 
@@ -665,7 +665,7 @@ module Env: EnvT = struct
       env.array_theories := Sarraytheory.add (theory) !(env.array_theories);
       fmt_array_theory (theory)
     | None ->
-      let theory = ArrayAccessCast {sizews = PE (icnst sizews); sizewb = PE (icnst sizewb); sizeb} in
+      let theory = ArrayAccessCast {sizews; sizewb; sizeb} in
       register env theory;
       abstract_name env theory
 
@@ -2644,7 +2644,7 @@ struct
     let aw sizew size =
       match get_int size with
       | Some sizea -> fmt_array_theory (ArrayWords{sizew; sizea})
-      | None -> Env.abstract_name env (ArrayWords{sizew = PE (icnst sizew); sizea = size}) in
+      | None -> Env.abstract_name env (ArrayWords{sizew; sizea = size}) in
     function
     | Array n -> ["size",toec_expr env (pexpr_of_pexpr_ n)],[]
     | WArray n -> ["size",toec_expr env (pexpr_of_pexpr_ n)],[]
@@ -2658,67 +2658,51 @@ struct
        ("sizeB", toec_expr env (pexpr_of_pexpr_ s.sizeb))],
       [("ArrayS",  ec_Array_any env s.sizes) ; ("ArrayB", ec_Array_any env s.sizeb)]
     | ArrayWords s ->
-      begin match get_int s.sizew with
-      | Some sizew ->
-        let _ = Env.add_ArrayWords env sizew s.sizea in
-        let size = Papp2 (Omul Op_int, icnst sizew, pexpr_of_pexpr_ s.sizea ) in
-        [("sizeW",  toec_expr env (pexpr_of_pexpr_ s.sizew)); 
+      let _ = Env.add_ArrayWords env s.sizew s.sizea in
+      let size = Papp2 (Omul Op_int, icnst s.sizew, pexpr_of_pexpr_ s.sizea ) in
+      [("sizeW",  ec_int s.sizew);
        ("sizeA", toec_expr env (pexpr_of_pexpr_ s.sizea))],
-        [
-          "Word", Format.sprintf "W%i" (8*sizew);
-          "ArrayN", ec_PArray env s.sizea;
-          "WArrayN", ec_PWArray env (PE size)
-        ]
-      | None -> assert false
-      end
+      [
+        "Word", Format.sprintf "W%i" (8*s.sizew);
+        "ArrayN", ec_PArray env s.sizea;
+        "WArrayN", ec_PWArray env (PE size)
+      ]
     | SubArrayDirect s ->
-      begin match get_int s.sizew with
-      | Some sizew ->
-        let _ = Env.add_SubArrayDirect env sizew s.sizes s.sizeb in
-        [("sizeW",  toec_expr env (pexpr_of_pexpr_ s.sizew)); 
-        ("sizeS", toec_expr env (pexpr_of_pexpr_ s.sizes));
-        ("sizeB", toec_expr env (pexpr_of_pexpr_ s.sizeb))],
-        [
-          "Word", Format.sprintf "W%i" (8*sizew);
-          "ArrayWordsS", aw sizew s.sizes;
-          "ArrayWordsB", aw sizew s.sizeb
-        ]
-      | None -> assert false
-      end
-    | SubArrayCast s ->
-      begin match get_int s.sizews, get_int s.sizewb with
-      | Some sizews, Some sizewb ->
-        let _ = Env.add_SubArrayCast env sizews sizewb s.sizes s.sizeb in
-        let sz size sizew =
-          match Env.get_alias env (ArrayWords{sizew= (PE (icnst sizew)); sizea = size}) with
-          | Some a when get_int size = None -> Eident [a; "sizeA"]
-          | _ -> toec_expr env (pexpr_of_pexpr_ size) in
-      [("sizeWS",  toec_expr env (pexpr_of_pexpr_ s.sizews));
-       ("sizeWB", toec_expr env (pexpr_of_pexpr_ s.sizewb));
-       ("sizeS", sz s.sizes sizews);
-       ("sizeB", sz s.sizeb sizewb)],
-        [
-          "WordS", Format.sprintf "W%i" (8*sizews);
-          "WordB", Format.sprintf "W%i" (8*sizewb);
-          "ArrayWordsS", aw sizews s.sizes;
-          "ArrayWordsB", aw sizewb s.sizeb
-        ]
-      | _ -> assert false
-      end
-    | ArrayAccessCast s -> 
-      begin match get_int s.sizews, get_int s.sizewb with
-      | Some sizews, Some sizewb ->
-        let _ = Env.add_ArrayAccessCast env sizews sizewb s.sizeb in
-      [("sizeWS",  toec_expr env (pexpr_of_pexpr_ s.sizews));
-       ("sizeWB", toec_expr env (pexpr_of_pexpr_ s.sizewb));
+      let _ = Env.add_SubArrayDirect env s.sizew s.sizes s.sizeb in
+      [("sizeW",  ec_int s.sizew);
+       ("sizeS", toec_expr env (pexpr_of_pexpr_ s.sizes));
        ("sizeB", toec_expr env (pexpr_of_pexpr_ s.sizeb))],
-        [
-          "WordS", Format.sprintf "W%i" (8*sizews);
-          "WordB", Format.sprintf "W%i" (8*sizewb);
-          "ArrayWordsB", aw sizewb s.sizeb
-        ]
-      | _ -> assert false
-      end
+      [
+        "Word", Format.sprintf "W%i" (8*s.sizew);
+        "ArrayWordsS", aw s.sizew s.sizes;
+        "ArrayWordsB", aw s.sizew s.sizeb
+      ]
+    | SubArrayCast s ->
+      let _ = Env.add_SubArrayCast env s.sizews s.sizewb s.sizes s.sizeb in
+      let sz size sizew =
+        match Env.get_alias env (ArrayWords{sizew; sizea = size}) with
+        | Some a when get_int size = None -> Eident [a; "sizeA"]
+        | _ -> toec_expr env (pexpr_of_pexpr_ size) in
+      [("sizeWS",  ec_int s.sizews);
+       ("sizeWB", ec_int s.sizewb);
+       ("sizeS", sz s.sizes s.sizews);
+       ("sizeB", sz s.sizeb s.sizewb)],
+      [
+        "WordS", Format.sprintf "W%i" (8*s.sizews);
+        "WordB", Format.sprintf "W%i" (8*s.sizewb);
+        "ArrayWordsS", aw s.sizews s.sizes;
+        "ArrayWordsB", aw s.sizewb s.sizeb
+      ]
+    | ArrayAccessCast s -> 
+      let _ = Env.add_ArrayAccessCast env s.sizews s.sizewb s.sizeb in
+      [("sizeWS",  ec_int s.sizews);
+       ("sizeWB", ec_int s.sizewb);
+       ("sizeB", toec_expr env (pexpr_of_pexpr_ s.sizeb))],
+      [
+        "WordS", Format.sprintf "W%i" (8*s.sizews);
+        "WordB", Format.sprintf "W%i" (8*s.sizewb);
+        "ArrayWordsB", aw s.sizewb s.sizeb
+      ]
 
   let rec subst_expr_arr env (v_arg:string) (v_exp:pexpr) (e:pexpr) = 
     match e with
@@ -2751,33 +2735,14 @@ struct
     | SubByteArray s -> ec_SBArray_any env s
     | SubArray s -> Env.add_SubArray env s.sizes s.sizeb
     | ArrayWords s ->
-      begin match get_int s.sizew, get_int s.sizea with
-      | Some sizew, Some sizea -> 
-        Env.add_ArrayWords env sizew s.sizea;
-        fmt_array_theory (ArrayWords{sizew; sizea})
-      | Some sw, None -> 
-        Env.add_ArrayWords env sw s.sizea;
-        Env.abstract_name env (ArrayWords s)
-      | _ -> assert false
+      Env.add_ArrayWords env s.sizew s.sizea;
+      begin match get_int s.sizea with
+      | Some sizea -> fmt_array_theory (ArrayWords{sizew = s.sizew; sizea})
+      | None -> Env.abstract_name env (ArrayWords s)
       end
-    | SubArrayDirect s ->
-      begin match get_int s.sizew with
-      | Some sw ->
-        Env.add_SubArrayDirect env sw s.sizes s.sizeb;
-      | _ -> assert false
-      end
-    | SubArrayCast s ->
-      begin match get_int s.sizews, get_int s.sizewb with
-      | Some sws, Some swb ->
-        Env.add_SubArrayCast env sws swb s.sizes s.sizeb;
-      | _ -> assert false
-      end
-    | ArrayAccessCast s -> 
-      begin match get_int s.sizews, get_int s.sizewb with
-      | Some sws, Some swb ->
-        Env.add_ArrayAccessCast env sws swb s.sizeb;
-      | _ -> assert false
-      end      
+    | SubArrayDirect s -> Env.add_SubArrayDirect env s.sizew s.sizes s.sizeb
+    | SubArrayCast s -> Env.add_SubArrayCast env s.sizews s.sizewb s.sizes s.sizeb
+    | ArrayAccessCast s -> Env.add_ArrayAccessCast env s.sizews s.sizewb s.sizeb
 
     let modapp_f env m mapp mod_arg = 
       let sc_app = if mod_arg = [] then "" else "(" ^ String.concat ", " (List.map fst mod_arg) ^ ")" in
