@@ -252,3 +252,16 @@ Definition riscv_internal_call_conv : internal_calling_convention :=
    ; icall_xreg  := [::]
    ; icall_rflag := [::]
   |}.
+
+(** Available extensions *)
+Class riscv32_core :=
+  {
+    riscv32_core_has_M: bool;
+  }.
+
+(* A default instance with all know extensions enabled. *)
+#[global]
+Instance riscv32_core_full : riscv32_core :=
+  {
+    riscv32_core_has_M := true;
+  }.

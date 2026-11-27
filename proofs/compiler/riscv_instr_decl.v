@@ -92,10 +92,10 @@ Definition pp_name name args :=
      no instruction carries any timing guarantee, and checking a program
      under the DOIT policy is only meaningful for Zkt hardware. *)
 
-Definition RTypeInstruction ws semi jazz_name asm_name (doit : doit_t) : instr_desc_t :=
+Definition RTypeInstruction_ext valid ws semi jazz_name asm_name (doit : doit_t) : instr_desc_t :=
   let tin := [:: lreg; lword ws ] in
   {|
-      id_valid := true;
+      id_valid := valid;
       id_doit := doit;
       id_msb_flag := MSB_MERGE;
       id_tin := tin;
@@ -114,6 +114,8 @@ Definition RTypeInstruction ws semi jazz_name asm_name (doit : doit_t) : instr_d
       id_pp_asm := pp_name asm_name; (* how to print it in asm *)
       id_wf := refl_equal;
   |}.
+
+Definition RTypeInstruction := RTypeInstruction_ext true.
 
 Definition ITypeInstruction chk_imm ws semi jazz_name asm_name (doit : doit_t) : instr_desc_t :=
   let tin := [:: lreg; lword ws ] in
@@ -558,21 +560,24 @@ Definition riscv_STORE_instr ws : instr_desc_t :=
 Definition prim_STORE := ("STORE"%string, primP STORE).
 
 
+(* A “multiplication instruction” is a special case of R-Type instruction that is only valid when the M extension is enabled. *)
+Definition MulTypeInstruction := RTypeInstruction_ext riscv32_core_has_M.
+
 (* RISC-V 32M Multiply instructions (operators). *)
 Definition riscv_mul_semi (wn wm: ty_r) : ty_r := (wn * wm)%w.
-Definition riscv_MUL_instr : instr_desc_t := RTypeInstruction riscv_mul_semi "MUL" "mul" DOIT.
+Definition riscv_MUL_instr : instr_desc_t := MulTypeInstruction riscv_mul_semi "MUL" "mul" DOIT.
 Definition prim_MUL := ("MUL"%string, primM MUL).
 
 Definition riscv_mulh_semi (wn wm: ty_r) : ty_r := wmulhs wn wm.
-Definition riscv_MULH_instr : instr_desc_t := RTypeInstruction riscv_mulh_semi "MULH" "mulh" DOIT.
+Definition riscv_MULH_instr : instr_desc_t := MulTypeInstruction riscv_mulh_semi "MULH" "mulh" DOIT.
 Definition prim_MULH := ("MULH"%string, primM MULH).
 
 Definition riscv_mulhu_semi (wn wm: ty_r) : ty_r := wmulhu wn wm.
-Definition riscv_MULHU_instr : instr_desc_t := RTypeInstruction riscv_mulhu_semi "MULHU" "mulhu" DOIT.
+Definition riscv_MULHU_instr : instr_desc_t := MulTypeInstruction riscv_mulhu_semi "MULHU" "mulhu" DOIT.
 Definition prim_MULHU := ("MULHU"%string, primM MULHU).
 
 Definition riscv_mulhsu_semi (wn wm: ty_r) : ty_r := wmulhsu wn wm.
-Definition riscv_MULHSU_instr : instr_desc_t := RTypeInstruction riscv_mulhsu_semi "MULHSU" "mulhsu" DOIT.
+Definition riscv_MULHSU_instr : instr_desc_t := MulTypeInstruction riscv_mulhsu_semi "MULHSU" "mulhsu" DOIT.
 Definition prim_MULHSU := ("MULHSU"%string, primM MULHSU).
 
 
@@ -581,21 +586,21 @@ Definition prim_MULHSU := ("MULHSU"%string, primM MULHSU).
 (* Division by zero is specified, it must return all bits set *)
 Definition riscv_div_semi (wn wm: ty_r) : ty_r :=
   if wm == 0%w then (-1%w)%w else wdivi wn wm.
-Definition riscv_DIV_instr : instr_desc_t := RTypeInstruction riscv_div_semi "DIV" "div" NOT_DOIT. (* Not in Zkt *)
+Definition riscv_DIV_instr : instr_desc_t := MulTypeInstruction riscv_div_semi "DIV" "div" NOT_DOIT. (* Not in Zkt *)
 Definition prim_DIV := ("DIV"%string, primM DIV).
 
 (* Division by zero is specified, it must return all bits set *)
 Definition riscv_divu_semi (wn wm: ty_r) : ty_r :=
   if wm == 0%w then (-1%w)%w else wdiv wn wm.
-Definition riscv_DIVU_instr : instr_desc_t := RTypeInstruction riscv_divu_semi "DIVU" "divu" NOT_DOIT. (* Not in Zkt *)
+Definition riscv_DIVU_instr : instr_desc_t := MulTypeInstruction riscv_divu_semi "DIVU" "divu" NOT_DOIT. (* Not in Zkt *)
 Definition prim_DIVU := ("DIVU"%string, primM DIVU).
 
 Definition riscv_rem_semi (wn wm: ty_r) : ty_r := wmodi wn wm.
-Definition riscv_REM_instr : instr_desc_t := RTypeInstruction riscv_rem_semi "REM" "rem" NOT_DOIT. (* Not in Zkt *)
+Definition riscv_REM_instr : instr_desc_t := MulTypeInstruction riscv_rem_semi "REM" "rem" NOT_DOIT. (* Not in Zkt *)
 Definition prim_REM := ("REM"%string, primM REM).
 
 Definition riscv_remu_semi (wn wm: ty_r) : ty_r := wmod wn wm.
-Definition riscv_REMU_instr : instr_desc_t := RTypeInstruction riscv_remu_semi "REMU" "remu" NOT_DOIT. (* Not in Zkt *)
+Definition riscv_REMU_instr : instr_desc_t := MulTypeInstruction riscv_remu_semi "REMU" "remu" NOT_DOIT. (* Not in Zkt *)
 Definition prim_REMU := ("REMU"%string, primM REMU).
 
 
