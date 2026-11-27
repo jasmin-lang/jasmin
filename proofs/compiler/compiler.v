@@ -33,6 +33,7 @@ Require Import
   propagate_inline
   slh_lowering
   remove_globals
+  remove_length
   remove_assert
   stack_alloc
   stack_zeroization
@@ -120,6 +121,7 @@ Variant compiler_step :=
   | RemoveReturn                : compiler_step
   | RegAllocation               : compiler_step
   | DeadCode_RegAllocation      : compiler_step
+  | RemoveLength                : compiler_step
   | Linearization               : compiler_step
   | StackZeroization            : compiler_step
   | Tunneling                   : compiler_step
@@ -158,6 +160,7 @@ Definition compiler_step_list := [::
   ; RemoveReturn
   ; RegAllocation
   ; DeadCode_RegAllocation
+  ; RemoveLength
   ; Linearization
   ; StackZeroization
   ; Tunneling
@@ -273,7 +276,7 @@ Definition live_range_splitting (p: uprog) : cexec uprog :=
   ok pv.
 
 Definition inlining (to_keep: seq funname) (p: uprog) : cexec uprog :=
-  Let p := inline_prog_err cparams.(extend_iinfo) p in
+  Let p := inline_prog_err (fun vk => cparams.(fresh_var_ident) vk dummy_instr_info) cparams.(extend_iinfo) p in
   Let _ := cparams.(print_uprog) Inlining p in
 
   Let p := dead_calls_err_seq to_keep p in
@@ -382,7 +385,10 @@ Definition compiler_third_part (returned_params: funname -> option (seq (option 
   Let pd := dead_code_prog (ap_is_move_op aparams) pa true in
   Let _ := cparams.(print_sprog) DeadCode_RegAllocation pd in
 
-  ok pd.
+  Let pr := remove_length_prog (pT := progStack) pd in
+  Let _ := cparams.(print_sprog) RemoveLength pr in
+
+  ok pr.
 
 (* returns None if not reg ptr, Some false if reg const ptr, Some true if reg mut ptr *)
 Definition wptr_status (x : var_i) :=

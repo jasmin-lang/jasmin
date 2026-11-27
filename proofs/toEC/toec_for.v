@@ -31,8 +31,8 @@ Fixpoint toec_for_i (V : Sv.t) (i : instr) : cexec instr :=
   let 'MkI ii ir := i in
   Let ir' :=
     match ir with
-    | Cassgn _ _ _ _ | Copn _ _ _ _ | Csyscall _ _ _
-    | Cassert _      | Ccall _ _ _ => ok ir
+    | Cassgn _ _ _ _ | Copn _ _ _ _ _ | Csyscall _ _ _
+    | Cassert _      | Ccall _ _ _ _ => ok ir
     | Cif e c1 c2 =>
         Let c1 := ec_for_c c1 in
         Let c2 := ec_for_c c2 in

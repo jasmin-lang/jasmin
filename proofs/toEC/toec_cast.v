@@ -93,13 +93,13 @@ Fixpoint toec_cast_i (i : instr) : instr :=
       match ir with
       | Cassgn x tg ty e =>
           Cassgn (toec_cast_lv x) tg ty (toec_cast_te ty e)
-      | Copn xs tg o es =>
-          Copn (map toec_cast_lv xs) tg o (toec_cast_es (sopn_tin o) es)
+      | Copn xs tg o als es =>
+          Copn (map toec_cast_lv xs) tg o als (toec_cast_es (sopn_tin o) es)
       | Csyscall xs o es =>
           Csyscall (map toec_cast_lv xs) o
             (toec_cast_es (scs_tin (syscall_sig_u o)) es)
-      | Ccall xs f es =>
-          Ccall (map toec_cast_lv xs) f (toec_cast_es (fun_tyin f) es)
+      | Ccall xs f als es =>
+          Ccall (map toec_cast_lv xs) f als (toec_cast_es (fun_tyin f) es)
       | Cassert a => Cassert (a.1, toec_cast_ea a.2)
       | Cif e c1 c2 => Cif (toec_cast_te abool e) (rec_c c1) (rec_c c2)
       | Cfor x (d, lo, hi) c =>

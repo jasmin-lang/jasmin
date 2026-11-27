@@ -162,7 +162,7 @@ HB.instance Definition _ := hasDecEq.Build opN_safety opN_safety_eqb_OK.
  * -------------------------------------------------------------------- *)
 
 (* Type of unany operators: input, output *)
-Definition etype_of_wiop1 {len:Type} (s: signedness) (o:wiop1) : extended_type len * extended_type len :=
+Definition etype_of_wiop1 (s: signedness) (o:wiop1) : extended_type * extended_type :=
   match o with
   | WIwint_of_int  sz => (tint, twint s sz)
   | WIint_of_wint  sz => (twint s sz, tint)
@@ -188,14 +188,14 @@ Definition type_of_opk (k:op_kind) :=
   | Op_w sz => aword sz
   end.
 
-Definition etype_of_opk {len} (k:op_kind) : extended_type len :=
+Definition etype_of_opk (k:op_kind) : extended_type :=
   match k with
   | Op_int => tint
   | Op_w sz => tword sz
   end.
 
 (* Type of unany operators: input, output *)
-Definition etype_of_op1 {len} (o: sop1) : extended_type len * extended_type len :=
+Definition etype_of_op1 (o: sop1) : extended_type * extended_type :=
   match o with
   | Oword_of_int sz => (tint, tword sz)
   | Oint_of_word _ sz => (tword sz, tint)
@@ -222,8 +222,8 @@ Definition type_of_op1 (o: sop1) : atype * atype :=
   end.
 
 (* Type of binany operators: inputs, output *)
-Definition etype_of_wiop2 {len} s sz (o : wiop2) :
-  extended_type len * extended_type len * extended_type len :=
+Definition etype_of_wiop2 s sz (o : wiop2) :
+  extended_type * extended_type * extended_type :=
   match o with
   | WIadd | WImul | WIsub | WIdiv | WImod | WImax | WImin =>
     let t := twint s sz in (t, t, t)
@@ -265,7 +265,7 @@ Definition opk_of_cmpk k :=
   end.
 
 (* Type of binany operators: inputs, output *)
-Definition etype_of_op2 {len} (o : sop2) : extended_type len * extended_type len * extended_type len :=
+Definition etype_of_op2 (o : sop2) : extended_type * extended_type * extended_type :=
  match o with
   | Obeq | Oand | Oor => (tbool, tbool, tbool)
   | Oadd k | Omul k | Osub k | Odiv _ k | Omod _ k | Omax _ k | Omin _ k =>
@@ -322,12 +322,12 @@ Definition type_of_opN (op: opN) : seq atype * atype :=
   | Opack ws p =>
     let n := nat_of_wsize ws %/ nat_of_pelem p in
     (nseq n aint, aword ws)
-  | Oarray len => (nseq (Z.to_nat len) (aword U8), aarr U8 len)
+  | Oarray len => (nseq (Z.to_nat len) (aword U8), aarr U8 (ALConst len))
   | Ocombine_flags c => (tin_combine_flags, abool)
   end.
 
 (* Type of the predicates of the safety conditions: inputs, output *)
 Definition type_of_opN_safety (op: opN_safety) : seq atype * atype :=
   (match op with
-   | Ois_arr_init len | Ois_barr_init len => [:: aarr U8 len; aint; aint]
+   | Ois_arr_init len | Ois_barr_init len => [:: aarr U8 (ALConst len); aint; aint]
    end, abool).

@@ -84,8 +84,8 @@ end = struct
   and mk_instr_r fn st = match st with
     | Cassgn (lv, tag, ty, e) ->
       Cassgn (mk_lval fn lv, tag, ty, mk_expr fn e)
-    | Copn (lvls, tag, opn, exprs) ->
-      Copn (mk_lvals fn lvls, tag, opn, mk_exprs fn exprs)
+    | Copn (lvls, tag, opn, als, exprs) ->
+      Copn (mk_lvals fn lvls, tag, opn, als, mk_exprs fn exprs)
     | Cassert (msg, e) ->
        Cassert (msg, mk_eassert fn e)
     | Csyscall (lvls, o, exprs) ->
@@ -94,8 +94,8 @@ end = struct
       Cif (mk_expr fn e, mk_stmt fn st, mk_stmt fn st')
     | Cfor (v, r, st) ->
       Cfor (mk_v_loc fn v, mk_range fn r, mk_stmt fn st)
-    | Ccall (lvs, c_fn, es) ->
-      Ccall (mk_lvals fn lvs, c_fn, mk_exprs fn es)
+    | Ccall (lvs, c_fn, als, es) ->
+      Ccall (mk_lvals fn lvs, c_fn, als, mk_exprs fn es)
     | Cwhile (a, st1, e, (info, _), st2) ->
       Cwhile (a, mk_stmt fn st1, mk_expr fn e, (info, mk_info ()), mk_stmt fn st2)
 
@@ -345,7 +345,7 @@ end = struct
   and pa_flag_setfrom_i v i = match i.i_desc with
     | Cassgn _ -> None
 
-    | Copn (lvs, _, opn, es) ->
+    | Copn (lvs, _, opn, _, es) ->
       if flag_mem_lvs v lvs then
         (* Check if this is a comparison operation *)
         let cmp_opt = match opn with
@@ -382,14 +382,14 @@ end = struct
     | Cwhile (_, c1, _, _, c2) ->
       pa_flag_setfrom v (List.rev_append c1 (List.rev c2))
 
-    | Ccall (lvs, _, _) | Csyscall(lvs, _, _) ->
+    | Ccall (lvs, _, _, _) | Csyscall(lvs, _, _) ->
       if flag_mem_lvs v lvs then raise Flag_set_from_failure else None
 
   let rec pa_instr fn (prog : ('info, 'asm) prog option) st instr =
     match instr.i_desc with
     | Cassgn (lv, _, _, e) -> pa_lv st lv e
 
-    | Copn (lvs, _, _, es) | Csyscall(lvs, _, es) -> List.fold_left (fun st lv ->
+    | Copn (lvs, _, _, _, es) | Csyscall(lvs, _, es) -> List.fold_left (fun st lv ->
         List.fold_left (fun st e -> pa_lv st lv e) st es) st lvs
 
     | Cassert _ -> st
@@ -447,7 +447,7 @@ end = struct
       pa_stmt fn prog st' (List.append c1 c2)
       |> set_ct st.ct
 
-    | Ccall (lvs, fn', es) ->
+    | Ccall (lvs, fn', _, es) ->
       let st = { st with cfg = add_call st.cfg fn fn' } in
       let f_decl = get_fun_def (oget prog) fn' |> oget in
 
@@ -559,7 +559,7 @@ end = struct
     | Cfor (v,(_,e1,e2),st) ->
       let sv = collect_vars_is (Sv.add (L.unloc v) sv) st in
       collect_vars_es sv [e1;e2]
-    | Copn (lvs, _, _, es) | Csyscall(lvs, _, es) ->
+    | Copn (lvs, _, _, _, es) | Csyscall(lvs, _, es) ->
       let sv = collect_vars_lvs sv lvs in
       collect_vars_es sv es
     | Cassgn (lv, _, _, e) ->

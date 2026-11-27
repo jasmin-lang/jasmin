@@ -60,7 +60,7 @@ Lemma sem_fopn_equiv o s :
 Proof.
   case: o => -[xs o] es /=; case: sem_rexprs => //= >.
   rewrite /exec_sopn /=; case: id_valid => //=.
-  rewrite /semi /semi_to_atype_t /=.
+  rewrite /semi /semi_to_atype_t /= /create_env /= -/empty_env.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.
   by case: app_sopn.
@@ -188,7 +188,7 @@ Proof.
       (is_small := is_arith_small) (neutral := Some 0%Z)
       (@ARMv8AFopn_coreP.add_sem_fopn_args _ _)
       (@ARMv8AFopn_coreP.addi_sem_fopn_args _ _)].
-  move=> /(_ _ xi xi y imm s w) [] //.
+  move=> /(_ _ xi xi y imm _ s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.addr0.
   move=> vm' [hsem heq heqx]; exists vm'; split => //=.
   by apply: eq_exI heq; clear; SvD.fsetdec.
@@ -210,7 +210,7 @@ Proof.
       (is_small := is_arith_small) (neutral := Some 0%Z)
       (@ARMv8AFopn_coreP.sub_sem_fopn_args _ _)
       (@ARMv8AFopn_coreP.subi_sem_fopn_args _ _)].
-  move=> /(_ _ xi xi y imm s w) [] //.
+  move=> /(_ _ xi xi y imm _ s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.subr0.
   move=> vm' [hsem heq heqx]; exists vm'; split => //=.
   by apply: eq_exI heq; clear; SvD.fsetdec.
@@ -233,7 +233,7 @@ Proof.
       (is_small := is_arith_small) (neutral := Some 0%Z)
       (@ARMv8AFopn_coreP.add_sem_fopn_args _ _)
       (@ARMv8AFopn_coreP.addi_sem_fopn_args _ _)].
-  move=> /(_ _ tmp xi xi imm s w) [] //.
+  move=> /(_ _ tmp xi xi imm _ s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.addr0.
   + by right => h; rewrite h in hne.
   move=> vm' [hsem heq heqx]; exists vm'; split => //=.
@@ -257,7 +257,7 @@ Proof.
       (is_small := is_arith_small) (neutral := Some 0%Z)
       (@ARMv8AFopn_coreP.sub_sem_fopn_args _ _)
       (@ARMv8AFopn_coreP.subi_sem_fopn_args _ _)].
-  move=> /(_ _ tmp xi xi imm s w) [] //.
+  move=> /(_ _ tmp xi xi imm _ s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.subr0.
   + by right => h; rewrite h in hne.
   move=> vm' [hsem heq heqx]; exists vm'; split => //=.

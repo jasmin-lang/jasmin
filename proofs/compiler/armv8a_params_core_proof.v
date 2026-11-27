@@ -55,7 +55,7 @@ Context
 #[local] Existing Instance withsubword.
 #[local] Existing Instance do_enforce_defined_variables.
 
-Definition sem_fopn_args (p : seq lexpr * armv8a_asm_op * seq rexpr) (s : estate) :=
+Definition sem_fopn_args env (p : seq lexpr * armv8a_asm_op * seq rexpr) (s : estate env) :=
   let: (xs,o,es) := p in
   Let args := sem_rexprs s es in
   let op := instr_desc_op o in
@@ -64,7 +64,7 @@ Definition sem_fopn_args (p : seq lexpr * armv8a_asm_op * seq rexpr) (s : estate
   let res := list_ltuple t in
   write_lexprs xs res s.
 
-Definition sem_fopns_args := foldM sem_fopn_args.
+Definition sem_fopns_args env := foldM (sem_fopn_args (env:=env)).
 
 Ltac t_armv8a_op :=
   rewrite /sem_fopn_args /get_gvar /=;
@@ -74,7 +74,7 @@ Ltac t_armv8a_op :=
   rewrite ?zero_extend_u ?addn1;
   t_simpl_rewrites.
 
-Lemma add_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr} :
+Lemma add_sem_fopn_args env {s:estate env} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr} :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
   get_var (evm s) (v_var y) >>= to_word Uptr = ok wy ->
   get_var (evm s) (v_var z) >>= to_word Uptr = ok wz ->
@@ -87,7 +87,7 @@ Proof.
   by rewrite /= set_var_truncate // (convertible_eval_atype hc).
 Qed.
 
-Lemma addi_sem_fopn_args {s} {xi:var_i} {y imm wy} :
+Lemma addi_sem_fopn_args env {s:estate env} {xi:var_i} {y imm wy} :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
   get_var (evm s) (v_var y) >>= to_word Uptr = ok wy ->
   let: wx' := Vword (wy + wrepr reg_size imm)in
@@ -99,7 +99,7 @@ Proof.
   by rewrite /= set_var_truncate // (convertible_eval_atype hc).
 Qed.
 
-Lemma sub_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr} :
+Lemma sub_sem_fopn_args env {s:estate env} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr} :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
   get_var (evm s) (v_var y) >>= to_word Uptr = ok wy ->
   get_var (evm s) (v_var z) >>= to_word Uptr = ok wz ->
@@ -112,7 +112,7 @@ Proof.
   by rewrite /= /armv8a_SUB_semi sub_wordE set_var_truncate // (convertible_eval_atype hc).
 Qed.
 
-Lemma subi_sem_fopn_args {s} {xi:var_i} {y imm wy} :
+Lemma subi_sem_fopn_args env {s:estate env} {xi:var_i} {y imm wy} :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
   get_var (evm s) (v_var y) >>= to_word Uptr = ok wy ->
   let: wx' := Vword (wy - wrepr reg_size imm)in
@@ -124,7 +124,7 @@ Proof.
   by rewrite /= /armv8a_SUB_semi sub_wordE set_var_truncate // (convertible_eval_atype hc).
 Qed.
 
-Lemma mov_sem_fopn_args {s} {xi:var_i} {y} {wy : word Uptr} :
+Lemma mov_sem_fopn_args env {s:estate env} {xi:var_i} {y} {wy : word Uptr} :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
   get_var (evm s) (v_var y) >>= to_word Uptr = ok wy ->
   let: vm' := (evm s).[xi <- Vword wy] in
@@ -135,7 +135,7 @@ Proof.
   by rewrite /= /armv8a_MOV_semi set_var_truncate // (convertible_eval_atype hc).
 Qed.
 
-Lemma andi_sem_fopn_args {s} {xi:var_i} {y imm wy} :
+Lemma andi_sem_fopn_args env {s:estate env} {xi:var_i} {y imm wy} :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
   get_var (evm s) (v_var y) >>= to_word Uptr = ok wy ->
   let: wx' := Vword (wand wy (wrepr reg_size imm)) in
@@ -348,7 +348,7 @@ Qed.
 (* -------------------------------------------------------------------- *)
 (* Semantics of the MOVZ/MOVN/MOVK builders at register size. *)
 
-Lemma movz_sem_fopn_args {s} {xi : var_i} {imm sh : Z} :
+Lemma movz_sem_fopn_args env {s:estate env} {xi : var_i} {imm sh : Z} :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
   let: w := armv8a_MOVZ_semi (ws := U64) (wrepr U16 imm) (wrepr U8 sh) in
   let: vm' := (evm s).[xi <- Vword w] in
@@ -359,7 +359,7 @@ Proof.
   by rewrite /= set_var_truncate // (convertible_eval_atype hc).
 Qed.
 
-Lemma movn_sem_fopn_args {s} {xi : var_i} {imm sh : Z} :
+Lemma movn_sem_fopn_args env {s:estate env} {xi : var_i} {imm sh : Z} :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
   let: w := armv8a_MOVN_semi (ws := U64) (wrepr U16 imm) (wrepr U8 sh) in
   let: vm' := (evm s).[xi <- Vword w] in
@@ -370,7 +370,7 @@ Proof.
   by rewrite /= set_var_truncate // (convertible_eval_atype hc).
 Qed.
 
-Lemma movk_sem_fopn_args {s} {xi : var_i} {imm sh : Z} {wx : word Uptr} :
+Lemma movk_sem_fopn_args env {s:estate env} {xi : var_i} {imm sh : Z} {wx : word Uptr} :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
   get_var (evm s) (v_var xi) >>= to_word Uptr = ok wx ->
   let: w := armv8a_MOVK_semi wx (wrepr U16 imm) (wrepr U8 sh) in
@@ -389,7 +389,7 @@ Opaque ARMv8AFopn_core.movk.
 (* -------------------------------------------------------------------- *)
 (* Immediate materialization. *)
 
-Lemma li_lsem_1 s (xi : var_i) imm :
+Lemma li_lsem_1 env (s:estate env) (xi : var_i) imm :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
   let: lcmd := ARMv8AFopn_core.li U64 xi imm in
   exists vm',
@@ -436,7 +436,7 @@ Proof.
   (* Case: general MOVZ/MOVK chain. Invariant: after treating the chunk at
      position [sh], the register holds [wrepr U64 (n mod 2 ^ (sh + 16))]. *)
   have hstep :
-    forall (s' : estate) (sh : Z),
+    forall (s' : estate env) (sh : Z),
       (16 <= sh)%Z ->
       (sh + 16 <= 64)%Z ->
       get_var (evm s') (v_var xi)
@@ -481,18 +481,19 @@ Proof.
   - by t_get_var; rewrite (convertible_eval_atype hc).
 
   (* Chunk at position 16. *)
-  rewrite /sem_fopns_args foldM_cat -!/sem_fopns_args.
+  rewrite /sem_fopns_args foldM_cat -!/(sem_fopns_args _ _).
   have [vm2 [-> hvm2 hget2]] := hstep s1 16%Z ltac:(lia) ltac:(lia) hget1.
   rewrite /=.
   set s2 := with_vm s1 vm2.
 
   (* Chunk at position 32. *)
-  rewrite /sem_fopns_args foldM_cat -!/sem_fopns_args.
+  rewrite /sem_fopns_args foldM_cat -!/(sem_fopns_args _ _).
   have [vm3 [-> hvm3 hget3]] := hstep s2 32%Z ltac:(lia) ltac:(lia) hget2.
   rewrite /=.
   set s3 := with_vm s2 vm3.
 
   (* Chunk at position 48. *)
+  rewrite -/(sem_fopns_args _ _).
   have [vm4 [-> hvm4 hget4]] := hstep s3 48%Z ltac:(lia) ltac:(lia) hget3.
 
   exists vm4; split.
@@ -520,7 +521,7 @@ Transparent ARMv8AFopn_core.movn.
 Transparent ARMv8AFopn_core.movk.
 Transparent ARMv8AFopn_core.li.
 
-Lemma movz_sem_fopn_args_w32 {s} {xi : var_i} {imm sh : Z} :
+Lemma movz_sem_fopn_args_w32 env {s:estate env} {xi : var_i} {imm sh : Z} :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
   let: w := armv8a_MOVZ_semi (ws := U32) (wrepr U16 imm) (wrepr U8 sh) in
   let: vm' := (evm s).[xi <- Vword w] in
@@ -531,7 +532,7 @@ Proof.
   by rewrite /= set_var_truncate // (convertible_eval_atype hc).
 Qed.
 
-Lemma movn_sem_fopn_args_w32 {s} {xi : var_i} {imm sh : Z} :
+Lemma movn_sem_fopn_args_w32 env {s:estate env} {xi : var_i} {imm sh : Z} :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
   let: w := armv8a_MOVN_semi (ws := U32) (wrepr U16 imm) (wrepr U8 sh) in
   let: vm' := (evm s).[xi <- Vword w] in
@@ -542,7 +543,7 @@ Proof.
   by rewrite /= set_var_truncate // (convertible_eval_atype hc).
 Qed.
 
-Lemma movk_sem_fopn_args_w32 {s} {xi : var_i} {imm sh : Z} {wx : word U32} :
+Lemma movk_sem_fopn_args_w32 env {s:estate env} {xi : var_i} {imm sh : Z} {wx : word U32} :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
   get_var (evm s) (v_var xi) >>= to_word U32 = ok wx ->
   let: w := armv8a_MOVK_semi wx (wrepr U16 imm) (wrepr U8 sh) in
@@ -558,7 +559,7 @@ Opaque ARMv8AFopn_core.movz.
 Opaque ARMv8AFopn_core.movn.
 Opaque ARMv8AFopn_core.movk.
 
-Lemma li_lsem_1_w32 s (xi : var_i) imm :
+Lemma li_lsem_1_w32 env (s:estate env) (xi : var_i) imm :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
   let: lcmd := ARMv8AFopn_core.li U32 xi imm in
   exists vm',
@@ -639,7 +640,7 @@ Proof.
 Qed.
 Opaque ARMv8AFopn_core.li.
 
-Lemma smart_mov_sem_fopns_args s (w : word armv8a_reg_size) (xi:var_i) y :
+Lemma smart_mov_sem_fopns_args env (s:estate env) (w : word armv8a_reg_size) (xi:var_i) y :
   convertible xi.(vtype) (aword armv8a_reg_size) ->
   let: lc := ARMv8AFopn_core.smart_mov xi y in
   get_var (evm s) y >>= to_word Uptr = ok w ->
@@ -666,7 +667,7 @@ Lemma gen_smart_opi_sem_fopn_args
   (is_small : Z -> bool)
   (neutral : option Z)
   (op_sem_fopn_args :
-    forall {s} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr},
+    forall env {s:estate env} {xi:var_i} {y} {wy : word Uptr} {z} {wz : word Uptr},
       convertible xi.(vtype) (aword armv8a_reg_size) ->
       get_var (evm s) (v_var y) >>= to_word Uptr = ok wy
       -> get_var (evm s) (v_var z) >>= to_word Uptr = ok wz
@@ -674,14 +675,14 @@ Lemma gen_smart_opi_sem_fopn_args
       let: vm' := (evm s).[xi <- wx'] in
       sem_fopn_args (on_reg xi y z) s = ok (with_vm s vm'))
   (opi_sem_fopn_args :
-    forall {s} {xi:var_i} {y imm wy},
+    forall env {s:estate env} {xi:var_i} {y imm wy},
       convertible xi.(vtype) (aword armv8a_reg_size) ->
       get_var (evm s) (v_var y) >>= to_word Uptr = ok wy
       -> let: wx' := Vword (op wy (wrepr reg_size imm)) in
      let: vm' := (evm s).[xi <- wx'] in
      sem_fopn_args (on_imm xi y imm) s = ok (with_vm s vm'))
   (neutral_ok : if neutral is Some z then forall w, op w (wrepr _ z) = w else true)
-  (tmp : var_i) (xi : var_i) y imm s (w : word armv8a_reg_size) :
+  (tmp : var_i) (xi : var_i) y imm env (s : estate env) (w : word armv8a_reg_size) :
   convertible (vtype tmp) (aword Uptr) ->
   convertible xi.(vtype) (aword armv8a_reg_size) ->
   let: lc := ARMv8AFopn_core.gen_smart_opi on_reg on_imm is_small neutral tmp xi y imm in
@@ -703,14 +704,14 @@ Proof.
   move=> hne; have -> : (if neutral is Some n then (imm =? n)%Z else false) = false.
   + by case: (neutral) hne => // n; case: ZeqbP => [->|].
   case: ifP hcond => [_ _ | _ [_|hxy]] //=.
-  - rewrite (opi_sem_fopn_args _ _ _ _ _ hc2 hgety) /=.
+  - rewrite (opi_sem_fopn_args _ _ _ _ _ _ hc2 hgety) /=.
     eexists; split; first reflexivity; last by t_get_var; rewrite (convertible_eval_atype hc2).
     by move=> z hin; rewrite Vm.setP_neq //; apply/eqP; clear -hin; SvD.fsetdec.
   have [vm [hsem hvm hgett]] := li_lsem_1 s (xi:=tmp) imm hc1.
-  rewrite /sem_fopns_args -cats1 foldM_cat -!/sem_fopns_args hsem /=.
+  rewrite /sem_fopns_args -cats1 foldM_cat -!/(sem_fopns_args _ _) hsem /=.
   rewrite -(get_var_eq_ex _ _ hvm) in hgety; last by move=> /=; SvD.fsetdec.
   rewrite
-    (op_sem_fopn_args (with_vm s vm) _ _ _ _ (wrepr reg_size imm) hc2 hgety) /with_vm /=;
+    (op_sem_fopn_args _ (with_vm s vm) _ _ _ _ (wrepr reg_size imm) hc2 hgety) /with_vm /=;
     last by rewrite hgett /= truncate_word_u.
   eexists; split; first reflexivity; last by t_get_var; rewrite (convertible_eval_atype hc2).
   move=> z hin.

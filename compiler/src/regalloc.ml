@@ -57,7 +57,7 @@ let fill_in_missing_names
   let rec fill_instr_r =
     function
     | Cassgn (lv, tg, ty, e) -> Cassgn (fill_lv lv, tg, ty, e)
-    | Copn (lvs, tg, op, es) ->
+    | Copn (lvs, tg, op, als, es) ->
        let id = get_opn_descr op in
        let get_arg n =
          List.fold_left2 (fun acc ad e ->
@@ -73,13 +73,13 @@ let fill_in_missing_names
            ) NotForced id.i_in es
        in
        let lvs = List.map2 (set_forced_register get_arg) id.i_out lvs in
-       Copn (lvs, tg, op, es)
+       Copn (lvs, tg, op, als, es)
     | Csyscall (lvs, op, es) -> Csyscall(fill_lvs lvs, op, es)
     | Cassert (msg, e) -> Cassert (msg, e)
     | Cif (e, s1, s2) -> Cif (e, fill_stmt s1, fill_stmt s2)
     | Cfor (i, r, s) -> Cfor (i, r, fill_stmt s)
     | Cwhile (a, s, e, loc, s') -> Cwhile (a, fill_stmt s, e, loc, fill_stmt s')
-    | Ccall (lvs, f, es) -> Ccall (fill_lvs lvs, f, es)
+    | Ccall (lvs, f, al, es) -> Ccall (fill_lvs lvs, f, al, es)
   and fill_instr i = { i with i_desc = fill_instr_r i.i_desc }
   and fill_stmt s = List.map fill_instr s in
   let f_body =
@@ -96,7 +96,7 @@ let string_of_kind =
   | Extra -> "extra (aka mmx)"
   | Vector -> "vector"
   | Flag -> "flag"
-  | Unknown ty -> Format.asprintf "(unknown of type %a)" PrintCommon.pp_ty ty
+  | Unknown ty -> Format.asprintf "(unknown of type %a)" Printer.pp_ty ty
 
 let kind_of_type reg_size k =
   function
@@ -259,7 +259,7 @@ let process_inplace_annotation addv (i: ('info, 'asm) instr) : unit =
   if Annotations.has_symbol "inplace" i.i_annot then
     begin
       match i.i_desc with
-      | Copn ([ Lvar x ], _, _, Pvar { gs = E.Slocal; gv = y } :: _) when kind_i x = kind_i y ->
+      | Copn ([ Lvar x ], _, _, _, Pvar { gs = E.Slocal; gv = y } :: _) when kind_i x = kind_i y ->
          addv i x y
       | Copn _ -> warning Always i.i_loc "ignored “inplace” annotation"
       | _ -> ()
@@ -303,7 +303,7 @@ let collect_equality_constraints_in_func
   let first_pass ii =
     process_inplace_annotation addv ii;
     match ii.i_desc with
-    | Copn (lvs, _, op, es) ->
+    | Copn (lvs, _, op, _, es) ->
         copn_constraints
           ~loc:(Lmore ii.i_loc)
           asmOp
@@ -331,7 +331,7 @@ let collect_equality_constraints_in_func
        end
     | Cassgn _ -> ()
     | Cassert _ -> ()
-    | Ccall (xs, fn, es) ->
+    | Ccall (xs, fn, _als, es) ->
       let get_Pvar a =
         match a with
         | Pvar { gs = Expr.Slocal ; gv } -> gv
@@ -492,7 +492,7 @@ let collect_opn_conflicts pd reg_size asmOp
   let add_one = conflicts_add_one pd reg_size asmOp tbl tr in
   let rec collect_opn_conflicts_instr c i =
     begin match i.i_desc with
-    | Copn (lvs, _, op, es) ->
+    | Copn (lvs, _, op, _, es) ->
       let id = get_instr_desc pd reg_size asmOp op in
       let conflicts = id.conflicts in
       List.fold_left (fun c (a1, a2) ->
@@ -552,7 +552,7 @@ let iter_variables (cb: var -> unit) (f: ('info, 'asm) func) : unit =
     function
     | Cassert (_, e) -> iter_assert e
     | Cassgn (lv, _, _, e) -> iter_lv lv; iter_expr e
-    | (Ccall (lvs, _, es) | Copn (lvs, _, _, es)) | Csyscall(lvs, _ , es) -> iter_lvs lvs; iter_exprs es
+    | (Ccall (lvs, _, _, es) | Copn (lvs, _, _, _, es)) | Csyscall(lvs, _ , es) -> iter_lvs lvs; iter_exprs es
     | (Cwhile (_, s1, e, _, s2) | Cif (e, s1, s2)) -> iter_expr e; iter_stmt s1; iter_stmt s2
     | Cfor _ -> assert false
   and iter_instr { i_desc } = iter_instr_r i_desc
@@ -756,7 +756,7 @@ module Regalloc (Arch : Arch_full.Arch)
       then hierror_reg ~loc:(Lmore loc) "variable %a (declared at %a with type “%a”) must be allocated to register %a from an incompatible bank"
           (Printer.pp_var ~debug:true) x
           L.pp_sloc x.v_dloc
-          PrintCommon.pp_ty x.v_ty
+          Printer.pp_ty x.v_ty
           (Printer.pp_var ~debug:false) y;
       let i =
         try Hv.find vars x
@@ -871,7 +871,7 @@ let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conf
                 let d, flags = split ~ctxt ~num:num_flags flags in d, regs, regxs, xregs, flags
             | Unknown ty ->
               hierror_reg ~loc:(Lmore loc) "unknown type %a for forced register %a"
-                PrintCommon.pp_ty ty (Printer.pp_var ~debug:true) p
+                Printer.pp_ty ty (Printer.pp_var ~debug:true) p
           in
           allocate_one nv vars loc cnf p i d a;
           (regs, regxs, xregs, flags)
@@ -889,7 +889,7 @@ let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conf
     function
     | Cfor (_, _, s)
       -> alloc_stmt s c
-    | Copn (lvs, _, op, es) -> forced_registers loc nv vars tr c lvs op es a
+    | Copn (lvs, _, op, _, es) -> forced_registers loc nv vars tr c lvs op es a
     | Csyscall(lvs, _, es) ->
        let get_a = function Pvar { gv ; gs = Slocal } -> L.unloc gv | _ -> assert false in
        let get_r = function Lvar gv -> L.unloc gv | _ -> assert false in
@@ -902,7 +902,7 @@ let allocate_forced_registers return_addresses nv (vars: int Hv.t) tr (cnf: conf
         -> alloc_stmt s1 c |> alloc_stmt s2
     | Cassgn _ | Cassert _
       -> c
-    | Ccall (lvs, _, es) ->
+    | Ccall (lvs, _, _, es) ->
        (* TODO: check this *)
        (*
        let args = List.map (function Pvar { gv ; gs = Slocal } -> (L.unloc gv) | _ -> assert false) es in
@@ -1113,7 +1113,7 @@ let greedy_allocation
       | Flag -> push_var flags i v
       | Unknown ty ->
           hierror_reg ~loc:Lnone "unable to allocate variable %a: no register bank for type %a"
-            pp_var v PrintCommon.pp_ty ty
+            pp_var v Printer.pp_ty ty
       ) vars;
   two_phase_coloring Arch.allocatable_vars scalars cnf fr a;
   two_phase_coloring Arch.extra_allocatable_vars extra_scalars cnf fr a;

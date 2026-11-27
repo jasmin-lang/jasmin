@@ -28,10 +28,10 @@ Context
 Context (is_load : asm_op -> bool) (glob_addr_op : asm_op).
 
 (* The address computation assigns the pointer to [y]. *)
-Hypothesis glob_addr_opP : forall gd s (y : var_i) e pa,
+Hypothesis glob_addr_opP : forall env gd (s : estate env) (y : var_i) e pa,
   sem_pexpr (wdb := true) gd s e >>= to_pointer = ok pa ->
   vtype y = aword Uptr ->
-  sem_sopn gd (Oasm glob_addr_op) s [:: Lvar y] [:: e]
+  sem_sopn gd (Oasm glob_addr_op) s [:: Lvar y] [::] [:: e]
   = ok (with_vm s (evm s).[y <- Vword pa]).
 
 Context (fresh_reg : string -> atype -> Ident.ident).
@@ -88,9 +88,9 @@ Proof.
   by case: eqP => [ | _]; split => //; [right; split => //; exists xs | left].
 Qed.
 
-Lemma lower_glob_loadP rip tmp s1 s2 t o xs es ii c X :
-  lower_glob_load is_load glob_addr_op rip tmp xs t o es = Some c ->
-  sem_sopn (p_globs p') o s1 xs es = ok s2 ->
+Lemma lower_glob_loadP env rip tmp (s1 s2 : estate env) t o xs als es ii c X :
+  lower_glob_load is_load glob_addr_op rip tmp xs t o als es = Some c ->
+  sem_sopn (p_globs p') o s1 xs als es = ok s2 ->
   vtype tmp = aword Uptr ->
   ~ Sv.In tmp X -> Sv.Subset (Sv.union (read_rvs xs) (read_es es)) X ->
   exists2 vm2,
@@ -106,7 +106,7 @@ Proof using dc glob_addr_opP.
   t_xrbindP => vs _ _ pa ve ok_ve ok_pa w ok_w <- ves ok_ves <- ok_vs ok_s2.
   have h : sem_pexpr (wdb := true) (p_globs p') s1 e >>= to_pointer = ok pa.
   + by rewrite ok_ve.
-  rewrite (@glob_addr_opP _ _ _ _ _ h y_ty) /= /sem_sopn /=.
+  rewrite (@glob_addr_opP _ _ _ _ _ _ h y_ty) /= /sem_sopn /=.
   rewrite /get_gvar /= get_var_eq y_ty /= cmp_le_refl orbT //= truncate_word_u /= ok_w /=.
   case: hy => [? | [[xs' ?] ?]]; subst.
   (* [xs = [e], es] becomes [tmp = e; xs = [tmp], es]. *)
@@ -139,20 +139,20 @@ Proof using dc glob_addr_opP.
   by exists vm2 => // z _; apply: heq2; SvD.fsetdec.
 Qed.
 
-Lemma Hopn_aux rip (tmp : var_i) (s1 s2 : estate) t o xs es ii vm1 X :
-  sem_sopn (p_globs p) o s1 xs es = ok s2 ->
+Lemma Hopn_aux env rip (tmp : var_i) (s1 s2 : estate env) t o xs als es ii vm1 X :
+  sem_sopn (p_globs p) o s1 xs als es = ok s2 ->
   vtype tmp = aword Uptr ->
-  ~ Sv.In tmp X -> Sv.Subset (read_I (MkI ii (Copn xs t o es))) X ->
+  ~ Sv.In tmp X -> Sv.Subset (read_I (MkI ii (Copn xs t o als es))) X ->
   evm s1 =[X] vm1 ->
-  exists2 vm2 : Vm.t,
-    esem p' ev (lower_glob_load_i is_load glob_addr_op rip tmp (MkI ii (Copn xs t o es))) (with_vm s1 vm1)
+  exists2 vm2 : Vm.t env,
+    esem p' ev (lower_glob_load_i is_load glob_addr_op rip tmp (MkI ii (Copn xs t o als es))) (with_vm s1 vm1)
     = ok (with_vm s2 vm2) &
     evm s2 =[X] vm2.
 Proof using dc glob_addr_opP ok_p'.
   rewrite !read_writeE => ok_s2 tmp_ty tmp_nin hsub eq_vm1 /=.
   have [vm2 hsem eq_vm2] :
-     exists2 vm2 : Vm.t,
-       sem_sopn (p_globs p) o (with_vm s1 vm1) xs es = ok (with_vm s2 vm2)
+     exists2 vm2 : Vm.t env,
+       sem_sopn (p_globs p) o (with_vm s1 vm1) xs als es = ok (with_vm s2 vm2)
        & evm s2 =[X] vm2.
   + move: ok_s2; rewrite /sem_sopn; t_xrbindP => vs vr hes hex hw.
     have [|vm2 hw2 heq2] := write_lvals_eq_on _ hw eq_vm1; first by clear -hsub; SvD.fsetdec.
@@ -162,7 +162,7 @@ Proof using dc glob_addr_opP ok_p'.
     by rewrite hes /= hex /= hw2.
   rewrite eq_globs in hsem.
   case hlow: lower_glob_load => [c | ]; last by exists vm2 => //=; rewrite LetK.
-  have [|vm3 hsem3 eq_vm3] := @lower_glob_loadP rip tmp _ _ _ _ _ _ ii _ _ hlow hsem tmp_ty tmp_nin.
+  have [|vm3 hsem3 eq_vm3] := @lower_glob_loadP _ rip tmp _ _ _ _ _ _ _ ii _ _ hlow hsem tmp_ty tmp_nin.
   + by clear -hsub; SvD.fsetdec.
   exists vm3; first by rewrite hsem3 with_vm_idem.
   by apply: eq_onT eq_vm2 eq_vm3.
@@ -180,7 +180,7 @@ Proof using ok_p'. apply checker_st_eq_onP; apply eq_globs. Qed.
 Lemma it_lower_glob_load_progP fn:
   wiequiv_f p p' ev ev (rpreF (eS:=eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof using glob_addr_opP ok_p'.
-  apply wequiv_fun_ind => {}fn _ fs _ [<-] <- fd hget.
+  apply wequiv_fun_ind => {}fn _ vals _ fs _ /= [<-] [<-] <- fd hget.
   move: ok_p'; rewrite /lower_glob_load_prog.
   set rip := {| vtype := _; vname := _ |}.
   set tmp := {| v_var := _; v_info := _ |}.
@@ -197,20 +197,20 @@ Proof using glob_addr_opP ok_p'.
   move=> /(eq_initialize (sip:= sip) (p':=p') (fd':=with_body fd c')) -> //; last by rewrite -hp'.
   exists s; first reflexivity.
   exists (st_eq_on X), (st_eq_on X).
-  split => //=; last first.
+  split => //=; first exact: st_eq_on_refl; last first.
   + apply wrequiv_weaken with (st_eq_on (vars_l (f_res fd))) eq => //.
     + by apply st_rel_weaken => ??; apply eq_onI; rewrite /= /X; clear; SvD.fsetdec.
     by apply: (st_eq_on_finalize (fd':=with_body fd c')).
   clear ok_funcs funcs fs fn hget' tmp_nin1 tmp_nin2 s hp' hget; subst c'.
   have : Sv.Subset (read_c (f_body fd)) X by rewrite /X; clear; SvD.fsetdec.
-  move: rip tmp X tmp_nin htytmp (f_body fd) => rip tmp X tmp_nin htytmp {fd}.
+  move: rip tmp X tmp_nin htytmp (create_env _ _) (f_body fd) => rip tmp X tmp_nin htytmp env {fd vals}.
   set Pi := fun i =>
     Sv.Subset (read_I i) X ->
-    wequiv_rec (sip:=sip) p p' ev ev eq_spec (st_eq_on X) [::i] (lower_glob_load_i is_load glob_addr_op rip tmp i) (st_eq_on X).
+    wequiv_rec (sip:=sip) (env1:=env) (env2:=env) p p' ev ev eq_spec (st_eq_on X) [::i] (lower_glob_load_i is_load glob_addr_op rip tmp i) (st_eq_on X).
   set Pi_r := fun i => forall ii, Pi (MkI ii i).
   set Pc := fun c =>
     Sv.Subset (read_c c) X ->
-    wequiv_rec (sip:=sip) p p' ev ev eq_spec (st_eq_on X) c (lower_glob_load_c is_load glob_addr_op rip tmp c) (st_eq_on X).
+    wequiv_rec (sip:=sip) (env1:=env) (env2:=env) p p' ev ev eq_spec (st_eq_on X) c (lower_glob_load_c is_load glob_addr_op rip tmp c) (st_eq_on X).
   apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //; subst Pi_r Pi Pc => /=.
   + by move=> hsub /=; apply (wequiv_nil (sip:=sip)).
   + move=> i c hi hc; rewrite read_writeE => hsub.
@@ -223,10 +223,10 @@ Proof using glob_addr_opP ok_p'.
     + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
     split => //; first by clear; SvD.fsetdec.
     by rewrite /read_rvs /= read_rvE; clear -hsub; SvD.fsetdec.
-  + move=> xs tg o es ii hsub.
+  + move=> xs tg o als es ii hsub.
     apply (wequiv_opn_esem (sip:=sip)) => s t s' /st_relP [-> /= heq] hopn.
-    have [vm2 h ?] := @Hopn_aux rip tmp _ _ _ _ _ _ _ _ _ hopn htytmp tmp_nin hsub heq.
-    by exists (with_vm s' vm2).
+    have [vm2 h ?] := @Hopn_aux _ rip tmp _ _ _ _ _ _ _ _ _ _ hopn htytmp tmp_nin hsub heq.
+    by exists (with_vm s' vm2) => //; apply/st_relP.
   + move=> xs sc es ii; rewrite !read_writeE => hsub.
     by apply (wequiv_syscall_rel_eq (sip:=sip)) with checker_st_eq_on X => //=; split=> //; clear -hsub; SvD.fsetdec.
   (* Assertions are not allowed: both sides fail. *)
@@ -248,7 +248,7 @@ Proof using glob_addr_opP ok_p'.
     + by split => //; rewrite /read_es /= !read_eE; clear -hsub; SvD.fsetdec.
     + by apply hc1 => //; clear -hsub; SvD.fsetdec.
     by apply hc2 => //; clear -hsub; SvD.fsetdec.
-  move=> xs fn es ii; rewrite !read_writeE => hsub.
+  move=> xs fn als es ii; rewrite !read_writeE => hsub.
   apply (wequiv_call_rel_eq (sip:=sip)) with checker_st_eq_on X => //.
   + by split => //; clear -hsub; SvD.fsetdec.
   + by split => //; clear -hsub; SvD.fsetdec.

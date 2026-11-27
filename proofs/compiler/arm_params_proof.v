@@ -75,7 +75,7 @@ Qed.
 
 Lemma arm_mov_ofsP : mov_ofs_correct arm_saparams.(sap_mov_ofs).
 Proof.
-  move=> P' ev s1 e w ofs pofs x tag mk ii ins s2 P'_globs.
+  move=> env P' ev s1 e w ofs pofs x tag mk ii ins s2 P'_globs.
   t_xrbindP=> ve ok_ve ok_w vofs ok_vofs ok_pofs.
   rewrite /sap_mov_ofs /= /arm_mov_ofs.
   case: mk.
@@ -171,14 +171,14 @@ Qed.
 
 Lemma arm_immediateP : immediate_correct arm_saparams.(sap_immediate).
 Proof.
-  move=> P' ev s ii x z.
+  move=> env P' ev s ii x z.
   case: x => - [] [] // [] // x xi _ /=.
   by rewrite /sem_sopn /= /exec_sopn /= truncate_word_u.
 Qed.
 
 Lemma arm_swapP : swap_correct arm_saparams.(sap_swap).
 Proof.
-  move=> P' ev s ii tag x y z w pz pw hxty hyty hzty hwty hz hw.
+  move=> env P' ev s ii tag x y z w pz pw hxty hyty hzty hwty hz hw.
   rewrite /= /sem_sopn /= /get_gvar /= /get_var /= hz hw /=.
   rewrite /exec_sopn /= !truncate_word_u /= /write_var /set_var /=.
   rewrite (convertible_eval_atype hxty) (convertible_eval_atype hyty) //=.
@@ -278,10 +278,11 @@ Proof.
   by apply: Sv_neq_not_in_singleton.
 Qed.
 
+(* TODO: unused, to be removed? *)
 Lemma uload_mn_of_wsizeP ws ws' mn (w : word ws) (w' : word ws') :
   uload_mn_of_wsize ws = Some mn
   -> truncate_word ws w' = ok w
-  -> exec_sopn (Oarm (ARM_op mn default_opts)) [:: Vword w' ]
+  -> exec_sopn (Oarm (ARM_op mn default_opts)) [::] [:: Vword w' ]
      = ok [:: Vword (zero_extend reg_size w) ].
 Proof.
   case: ws w => w // [?]; subst mn.
@@ -379,10 +380,10 @@ Proof. constructor => *; exact: it_lower_callP. Qed.
 (* ------------------------------------------------------------------------ *)
 (* Lowering of the loads from a global. *)
 
-Lemma arm_glob_addrP gd s (y : var_i) e pa :
+Lemma arm_glob_addrP env gd (s : estate env) (y : var_i) e pa :
   sem_pexpr gd s e >>= to_pointer = ok pa ->
   vtype y = aword Uptr ->
-  sem_sopn gd (Oasm (ExtOp Oarm_glob_addr)) s [:: Lvar y] [:: e]
+  sem_sopn gd (Oasm (ExtOp Oarm_glob_addr)) s [:: Lvar y] [::] [:: e]
   = ok (with_vm s (evm s).[y <- Vword pa]).
 Proof.
   t_xrbindP=> ve ok_ve ok_pa hty.
@@ -511,7 +512,7 @@ Qed.
 Lemma eval_assemble_cond_Onot rf c v v0 v1 :
   value_of_bool (arm_eval_cond (get_rf rf) c) = ok v1
   -> value_uincl v0 v1
-  -> sem_sop1 Onot v0 = ok v
+  -> sem_sop1 empty_env Onot v0 = ok v
   -> exists2 v',
        value_of_bool (arm_eval_cond (get_rf rf) (condt_not c)) = ok v'
        & value_uincl v v'.
@@ -533,7 +534,7 @@ Lemma eval_assemble_cond_Obeq ii m rf v x0 x1 r0 r1 v0 v1 :
   -> get_var (evm m) x0 = ok v0
   -> of_var_e ii x1 = ok r1
   -> get_var (evm m) x1 = ok v1
-  -> sem_sop2 Obeq v0 v1 = ok v
+  -> sem_sop2 empty_env Obeq v0 v1 = ok v
   -> exists2 v',
        value_of_bool (arm_eval_cond (get_rf rf) GE_ct) = ok v' & value_uincl v v'.
 Proof.
@@ -566,7 +567,7 @@ Lemma eval_assemble_cond_Oand rf c c0 c1 v v0 v1 v0' v1' :
   -> value_uincl v0 v0'
   -> value_of_bool (arm_eval_cond (get_rf rf) c1) = ok v1'
   -> value_uincl v1 v1'
-  -> sem_sop2 Oand v0 v1 = ok v
+  -> sem_sop2 empty_env Oand v0 v1 = ok v
   -> exists2 v',
        value_of_bool (arm_eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
 Proof.
@@ -591,7 +592,7 @@ Lemma eval_assemble_cond_Oor rf c c0 c1 v v0 v1 v0' v1' :
   -> value_uincl v0 v0'
   -> value_of_bool (arm_eval_cond (get_rf rf) c1) = ok v1'
   -> value_uincl v1 v1'
-  -> sem_sop2 Oor v0 v1 = ok v
+  -> sem_sop2 empty_env Oor v0 v1 = ok v
   -> exists2 v',
        value_of_bool (arm_eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
 Proof.
@@ -1051,22 +1052,26 @@ End STACK_ZEROIZATION.
 (* ------------------------------------------------------------------------ *)
 (* Shared hypotheses. *)
 
-Definition arm_is_move_opP op vx v :
+Definition arm_is_move_opP op vals vx v :
   ap_is_move_op arm_params op
-  -> exec_sopn (Oasm op) [:: vx ] = ok v
+  -> exec_sopn (Oasm op) vals [:: vx ] = ok v
   -> values_uincl v [:: vx ].
 Proof.
   case: op => // -[[] // [mn opt]] /=.
   case: ifP => // hmn /and3P [/negPf hf /negPf hc /negPf hs].
-  rewrite /exec_sopn /= hc.
+  rewrite /exec_sopn /sopn_sem /sopn_sem_ /= hc.
+  apply: rbindP => semi.
+  apply: rbindP => _ _ [<-] {semi}.
+  case: vals => //=.
+  rewrite /semi_to_atype_t.
+  change (create_env [::] [::]) with empty_env.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.
   clear e1 e2.
   (* To avoid duplication, we prove that [mn] returns [to_word ws vx] for some [ws] *)
   have ->:
-    Let semi := assert (id_valid (mn_desc opt mn)) ErrType >> ok (id_semi (mn_desc opt mn)) in
-    (Let t := app_sopn (map eval_ltype (id_tin (mn_desc opt mn))) semi [:: vx] in
-    ok (list_ltuple t)) =
+    Let t := app_sopn (map eval_ltype (id_tin (mn_desc opt mn))) (id_semi (mn_desc opt mn)) [:: vx] in
+    ok (list_ltuple t) =
       Let ws := if head lbool (id_tout (mn_desc opt mn)) is lword ws then ok ws else type_error in
       Let wx := to_word ws vx in
       ok [:: Vword wx].

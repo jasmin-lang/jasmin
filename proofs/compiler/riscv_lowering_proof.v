@@ -68,7 +68,7 @@ Proof.
 Qed.
 
 (* TODO: factorize with x86 *)
-Lemma check_shift_amountP e sa s z w :
+Lemma check_shift_amountP env e sa (s : estate env) z w :
   check_shift_amount e = Some sa ->
   sem_pexpr (p_globs p) s e = ok z ->
   to_word U8 z = ok w ->
@@ -101,12 +101,13 @@ Proof.
 Qed.
 
 #[ local ]
-Lemma Hassgn_op2_generic s e1 e2 v1 v2 op2 v ws v' lv s1 (op2' : sopn) :
+Lemma Hassgn_op2_generic env (s : estate env) e1 e2 v1 v2 op2 v ws v' lv s1 (op2' : sopn) :
   sem_pexpr (p_globs p) s e1 = ok v1 ->
   sem_pexpr (p_globs p) s e2 = ok v2 ->
-  sem_sop2 op2 v1 v2 = ok v ->
+  sem_sop2 env op2 v1 v2 = ok v ->
   truncate_val (cword ws) v = ok v' ->
   write_lval (p_globs p) lv v' s = ok s1 ->
+  al (sopn.get_instr_desc op2') = [::] ->
   i_valid (sopn.get_instr_desc op2') ->
   forall ws1 ws2 ws3 ws1' ws2'
     (eq1 : type_of_op2 op2 = (aword ws1, aword ws2, aword ws3))
@@ -121,20 +122,23 @@ Lemma Hassgn_op2_generic s e1 e2 v1 v2 op2 v ws v' lv s1 (op2' : sopn) :
         (hcmp2 : (ws2' <= ws2)%CMP),
         sem_pexpr (p_globs p) s e1' >>= to_word ws1 = ok w1' ->
         sem_pexpr (p_globs p) s e2' >>= to_word ws2 = ok w2' ->
-        Let w := ecast t (let t := t in _) eq1 (sem_sop2_typed op2) w1 w2 in
+        Let w := ecast t (let t := t in _) eq1 (sem_sop2_typed env op2) w1 w2 in
         ok (zero_extend ws w)
-        = ecast l (sem_prod (map eval_atype l) _) eq2
-            (ecast l (sem_prod _ (exec (sem_tuple (map eval_atype l)))) eq3
-              (semi (sopn.get_instr_desc op2')))
+        =
+          Let semi := app_dep (semi (sopn.get_instr_desc op2')) [::] in
+          ecast l (sem_prod (map (eval_atype (create_env (al (sopn.get_instr_desc op2')) [::])) l) _) eq2
+            (ecast l (sem_prod _ (exec (sem_tuple (map (eval_atype (create_env (al (sopn.get_instr_desc op2')) [::])) l)))) eq3
+              semi)
             (zero_extend ws1' w1') (zero_extend ws2' w2') ->
-        sem_sopn (p_globs p) op2' s [::lv] [:: e1'; e2'] = ok s1].
+        sem_sopn (p_globs p) op2' s [::lv] [::] [:: e1'; e2'] = ok s1].
 Proof.
-  move=> ok_v1 ok_v2 ok_v htrunc hwrite hvalid ws1 ws2 ws3 ws1' ws2' eq1 eq2 eq3.
+  move=> ok_v1 ok_v2 ok_v htrunc hwrite hal hvalid ws1 ws2 ws3 ws1' ws2' eq1 eq2 eq3.
   move: ok_v.
-  rewrite /sem_sop2 /=; move: (sem_sop2_typed op2).
+  rewrite /sem_sop2 /=; move: (sem_sop2_typed env op2).
   rewrite -> eq1 => /= sem_sop2_typed ok_v.
   rewrite /sem_sopn /= /exec_sopn /= /sopn_sem /sopn_sem_ hvalid /=.
   move: (semi (sopn.get_instr_desc op2')).
+  rewrite hal /=.
   rewrite -> eq2, -> eq3 => semi.
   move: ok_v.
   t_xrbindP=> w1 ok_w1 w2 ok_w2 w ok_w ?; subst.
@@ -149,12 +153,13 @@ Proof.
 Qed.
 
 #[ local ]
-Lemma Hassgn_op2 s e1 e2 v1 v2 op2 v v' lv s1 (op2' : sopn) :
+Lemma Hassgn_op2 env (s : estate env) e1 e2 v1 v2 op2 v v' lv s1 (op2' : sopn) :
   sem_pexpr (p_globs p) s e1 = ok v1 ->
   sem_pexpr (p_globs p) s e2 = ok v2 ->
-  sem_sop2 op2 v1 v2 = ok v ->
+  sem_sop2 env op2 v1 v2 = ok v ->
   truncate_val (cword U32) v = ok v' ->
   write_lval (p_globs p) lv v' s = ok s1 ->
+  al (sopn.get_instr_desc op2') = [::] ->
   i_valid (sopn.get_instr_desc op2') ->
   forall ws
     (eq1 : type_of_op2 op2 = (aword ws, aword ws, aword ws))
@@ -164,17 +169,19 @@ Lemma Hassgn_op2 s e1 e2 v1 v2 op2 v v' lv s1 (op2' : sopn) :
   /\ exists w1 w2, [/\
       to_word ws v1 = ok w1,
       to_word ws v2 = ok w2 &
-      Let w := ecast t (let t := t in _) eq1 (sem_sop2_typed op2) w1 w2 in
+      Let w := ecast t (let t := t in _) eq1 (sem_sop2_typed env op2) w1 w2 in
       ok (zero_extend U32 w)
-      = ecast l (sem_prod (map eval_atype l) _) eq2
-          (ecast l (sem_prod _ (exec (sem_tuple (map eval_atype l)))) eq3
-            (semi (sopn.get_instr_desc op2')))
+      =
+        Let semi := app_dep (semi (sopn.get_instr_desc op2')) [::] in
+        ecast l (sem_prod (map (eval_atype (create_env (al (sopn.get_instr_desc op2')) [::])) l) _) eq2
+          (ecast l (sem_prod _ (exec (sem_tuple (map (eval_atype (create_env (al (sopn.get_instr_desc op2')) [::])) l)))) eq3
+            semi)
           (zero_extend U32 w1) (zero_extend U32 w2) ->
-      sem_sopn (p_globs p) op2' s [::lv] [:: e1; e2] = ok s1].
+      sem_sopn (p_globs p) op2' s [::lv] [::] [:: e1; e2] = ok s1].
 Proof.
-  move=> ok_v1 ok_v2 ok_v htrunc hwrite hvalid ws eq1 eq2 eq3.
+  move=> ok_v1 ok_v2 ok_v htrunc hwrite hal hvalid ws eq1 eq2 eq3.
   have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
-    Hassgn_op2_generic ok_v1 ok_v2 ok_v htrunc hwrite hvalid eq1 eq2 eq3.
+    Hassgn_op2_generic ok_v1 ok_v2 ok_v htrunc hwrite hal hvalid eq1 eq2 eq3.
   split=> //.
   exists w1, w2; split=> //.
   apply sem_correct=> //.
@@ -183,12 +190,13 @@ Proof.
 Qed.
 
 #[ local ]
-Lemma Hassgn_op2_shift s e1 e2 v1 v2 op2 v v' lv s1 (op2' : sopn) :
+Lemma Hassgn_op2_shift env (s : estate env) e1 e2 v1 v2 op2 v v' lv s1 (op2' : sopn) :
   sem_pexpr (p_globs p) s e1 = ok v1 ->
   sem_pexpr (p_globs p) s e2 = ok v2 ->
-  sem_sop2 op2 v1 v2 = ok v ->
+  sem_sop2 env op2 v1 v2 = ok v ->
   truncate_val (cword U32) v = ok v' ->
   write_lval (p_globs p) lv v' s = ok s1 ->
+  al (sopn.get_instr_desc op2') = [::] ->
   i_valid (sopn.get_instr_desc op2') ->
   forall ws
     (eq1 : type_of_op2 op2 = (aword ws, aword U8, aword ws))
@@ -200,17 +208,19 @@ Lemma Hassgn_op2_shift s e1 e2 v1 v2 op2 v v' lv s1 (op2' : sopn) :
       to_word U8 v2 = ok w2 &
       forall e2' w2',
         sem_pexpr (p_globs p) s e2' >>= to_word U8 = ok w2' ->
-        Let w := ecast t (let t := t in _) eq1 (sem_sop2_typed op2) w1 w2 in
+        Let w := ecast t (let t := t in _) eq1 (sem_sop2_typed env op2) w1 w2 in
         ok (zero_extend U32 w)
-        = ecast l (sem_prod (map eval_atype l) _) eq2
-            (ecast l (sem_prod _ (exec (sem_tuple (map eval_atype l)))) eq3
-              (semi (sopn.get_instr_desc op2')))
+        =
+          Let semi := app_dep (semi (sopn.get_instr_desc op2')) [::] in
+          ecast l (sem_prod (map (eval_atype (create_env (al (sopn.get_instr_desc op2')) [::])) l) _) eq2
+            (ecast l (sem_prod _ (exec (sem_tuple (map (eval_atype (create_env (al (sopn.get_instr_desc op2')) [::])) l)))) eq3
+              semi)
             (zero_extend U32 w1) w2' ->
-        sem_sopn (p_globs p) op2' s [::lv] [:: e1; e2'] = ok s1].
+        sem_sopn (p_globs p) op2' s [::lv] [::] [:: e1; e2'] = ok s1].
 Proof.
-  move=> ok_v1 ok_v2 ok_v htrunc hwrite hvalid ws eq1 eq2 eq3.
+  move=> ok_v1 ok_v2 ok_v htrunc hwrite hal hvalid ws eq1 eq2 eq3.
   have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
-    Hassgn_op2_generic ok_v1 ok_v2 ok_v htrunc hwrite hvalid eq1 eq2 eq3.
+    Hassgn_op2_generic ok_v1 ok_v2 ok_v htrunc hwrite hal hvalid eq1 eq2 eq3.
   split=> //.
   exists w1, w2; split=> //.
   move=> e2' w2' ok_w2'; rewrite -(zero_extend_u w2').
@@ -218,13 +228,13 @@ Proof.
   by rewrite ok_v1.
 Qed.
 
-Lemma decide_op_reg_immP s e1 e2 v1 v2 op_reg_reg op_reg_imm o es lv s1 :
+Lemma decide_op_reg_immP env (s : estate env) e1 e2 v1 v2 op_reg_reg op_reg_imm o es lv s1 :
   sem_pexpr (p_globs p) s e1 = ok v1 ->
   sem_pexpr (p_globs p) s e2 = ok v2 ->
   decide_op_reg_imm U32 e1 e2 (op_reg_reg) (op_reg_imm) = Some (o, es) ->
-  sem_sopn (p_globs p) (Oasm op_reg_reg) = sem_sopn (p_globs p) (Oasm op_reg_imm) ->
-  sem_sopn (p_globs p) (Oasm op_reg_reg) s [:: lv] [:: e1; e2] = ok s1 ->
-  sem_sopn (p_globs p) (Oasm o) s [:: lv] es = ok s1.
+  sem_sopn (env:=env) (p_globs p) (Oasm op_reg_reg) = sem_sopn (p_globs p) (Oasm op_reg_imm) ->
+  sem_sopn (p_globs p) (Oasm op_reg_reg) s [:: lv] [::] [:: e1; e2] = ok s1 ->
+  sem_sopn (p_globs p) (Oasm o) s [:: lv] [::] es = ok s1.
 Proof.
   move => ok_v1 ok_v2 + eq_sem.
   rewrite /riscv_lowering.decide_op_reg_imm.
@@ -234,7 +244,7 @@ Proof.
   by move=> [<- <-].
 Qed.
 
-Lemma minus_insertP e1 e2 s0 ws w :
+Lemma minus_insertP env e1 e2 (s0 : estate env) ws w :
 insert_minus e1 = Some e2 ->
 Let x := sem_pexpr (p_globs p) s0 e1 in to_word ws x = ok (w)%R ->
 Let x := sem_pexpr (p_globs p) s0 e2 in to_word ws x = ok (- w)%R.
@@ -246,7 +256,7 @@ Proof.
   by rewrite wopp_zero_extend.
 Qed.
 
-#[local] Lemma Hassgn_esem ii lv tag ty e s0 s1 :
+#[local] Lemma Hassgn_esem env ii lv tag ty e (s0 s1 : estate env) :
   let i := MkI ii (Cassgn lv tag ty e) in
   sem_assgn p lv tag ty e s0 = ok s1 ->
   esem p' ev (lower_i i) s0 = ok s1.
@@ -256,12 +266,12 @@ Proof.
   case h : none_s => [ l | ]; last first.
   + by rewrite /= /sem_assgn /= hseme /= htrunc /= hwrite.
   case : ty htrunc @none_s h => // ws htrunc.
-  case h :  lower_cassgn => [[[lvs op] es] | ] //= [] <- /=.
+  case h :  lower_cassgn => [[[[lvs op] als] es] | ] //= [] <- /=.
   move : h.
   rewrite /lower_cassgn.
   case : is_lval_in_memory.
   + case : ifP => //.
-    move => h_cmp [] <- <- <- /=.
+    move => h_cmp [] <- <- <- <- /=.
     rewrite /sem_sopn /=.
     rewrite hseme /=.
     rewrite /exec_sopn /=.
@@ -275,7 +285,7 @@ Proof.
   + move => g hseme.
     rewrite /lower_Pvar.
     case: eqP => //.
-    move => ?; subst => /= -[] <- <- <-.
+    move => ?; subst => /= -[] <- <- <- <-.
     case: is_var_in_memory.
     + rewrite /sem_sopn /= hseme /= /exec_sopn /=.
       move: htrunc.
@@ -295,7 +305,7 @@ Proof.
     rewrite /lower_load /chk_ws_reg.
     case: eqP => //=.
     move => ?; subst.
-    move=> [] <- <- <-.
+    move=> [] <- <- <- <-.
     + rewrite /sem_sopn /= hseme /= h_getgvar /= z1 /= h_okz2 /= /exec_sopn /=.
       move: htrunc.
       rewrite /truncate_val /=.
@@ -309,7 +319,7 @@ Proof.
     rewrite /lower_load /chk_ws_reg.
     case: eqP => //=.
     move => ?; subst.
-    move=> [] <- <- <-.
+    move=> [] <- <- <- <-.
     + rewrite /sem_sopn /= hseme /= ok_z1 /= hread /= /exec_sopn /=.
       move: htrunc.
       rewrite /truncate_val /=.
@@ -323,7 +333,7 @@ Proof.
     case: s hseme => //.
     + move => w /= hseme.
       case: is_constP hseme => a //= hseme.
-      move=> [] <- <- <-.
+      move=> [] <- <- <- <-.
       rewrite /sem_sopn /= /exec_sopn /= truncate_word_u /=.
       move: hseme htrunc.
       rewrite /sem_sop1 /= => -[] <-.
@@ -336,7 +346,7 @@ Proof.
       case: w hseme => // hseme.
       case hle: (w0 ≤ U32)%CMP => //=.
       case: is_load => //=.
-      move => [] <- <- <-.
+      move => [] <- <- <- <-.
       rewrite /sem_sopn /=.
       move: hseme.
       t_xrbindP.
@@ -354,7 +364,7 @@ Proof.
       case: w hseme => // hseme.
       case hle: (w0 ≤ U16)%CMP => //=.
       case: is_load => //=.
-      move => [] <- <- <-.
+      move => [] <- <- <- <-.
       rewrite /sem_sopn /=.
       move: hseme.
       t_xrbindP.
@@ -370,7 +380,7 @@ Proof.
       by rewrite hwrite.
     + move => ws hseme.
       case: ws hseme => //= hseme.
-      move=> [] <- <- <-.
+      move=> [] <- <- <- <-.
       rewrite /sem_sopn.
       move: hseme.
       t_xrbindP.
@@ -385,7 +395,7 @@ Proof.
       by rewrite hwrite.
     move => o hseme.
     case: o hseme => //= -[] // hseme.
-    move=> [] <- <- <-.
+    move=> [] <- <- <- <-.
     rewrite /sem_sopn.
     move: hseme.
     t_xrbindP.
@@ -411,19 +421,19 @@ Proof.
       move => hcmp1 /=.
       set op2' := Oasm _.
       have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
-      Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
-      move=> [<- <- <-].
+      Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl erefl erefl.
+      move=> [<- <- <- <-].
       by rewrite sem_correct //= wadd_zero_extend.
     - set op2' := Oasm _.
       have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
-      Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
-      move=> [<- <- <-].
+      Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl erefl erefl.
+      move=> [<- <- <- <-].
       by rewrite sem_correct //= wadd_zero_extend.
   + case => //= ws ok_v.
-    move=> [<- <- <-].
+    move=> [<- <- <- <-].
     set op2' := Oasm _.
     have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
-      Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
+      Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl erefl erefl.
     by rewrite sem_correct //= wmul_zero_extend.
   + case => //= ws ok_v.
     rewrite /riscv_lowering.decide_op_reg_imm_neg.
@@ -433,17 +443,17 @@ Proof.
       move => hcmp1 /=.
       case h_insert: insert_minus => [e1' | //].
       set op2' := Oasm _.
-      have [hcmp [w1 [w2] [ok_w1 ok_w2 sem_correct]]] := Hassgn_op2_generic ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
-      move=> [<- <- <-].
+      have [hcmp [w1 [w2] [ok_w1 ok_w2 sem_correct]]] := Hassgn_op2_generic ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl erefl erefl.
+      move=> [<- <- <- <-].
       rewrite (sem_correct _ _ w1 (- w2)%R) => //.
       + by rewrite ok_v1.
       + apply (minus_insertP h_insert).
         by rewrite ok_v2.
       by rewrite /= sub_wordE wadd_zero_extend.
-    move=> [<- <- <-].
+    move=> [<- <- <- <-].
     set op2' := Oasm _.
     have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
-      Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
+      Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl erefl erefl.
     by rewrite sem_correct //= /riscv_sub_semi !sub_wordE wsub_zero_extend.
   + case => // -[] // [] //=.
     + rewrite /sem_sop2 /=.
@@ -452,7 +462,7 @@ Proof.
       case w2_nzero: eq_op => //=.
       case: andb => //.
       move=> _ [<-] ?; subst v.
-      move=> [<- <- <-].
+      move=> [<- <- <- <-].
       rewrite /sem_sopn /= ok_v1 ok_v2 /=.
       rewrite /exec_sopn /= ok_w1 ok_w2 /=.
       rewrite /riscv_div_semi w2_nzero. simpl.
@@ -463,7 +473,7 @@ Proof.
     rewrite sem_sop2_typed_divE orbF /=.
     case w2_nzero: eq_op => //=.
     move=> _ /ok_inj <- ?; subst v.
-    move=> [<- <- <-].
+    move=> [<- <- <- <-].
     rewrite /sem_sopn /= ok_v1 ok_v2 /=.
     rewrite /exec_sopn /= ok_w1 ok_w2 /=.
     rewrite /riscv_divu_semi w2_nzero.
@@ -476,7 +486,7 @@ Proof.
       case: eq_op => //=.
       case: andb => //.
       move=> _ [<-] ?; subst v.
-      move=> [<- <- <-].
+      move=> [<- <- <- <-].
       rewrite /sem_sopn /= ok_v1 ok_v2 /=.
       rewrite /exec_sopn /= ok_w1 ok_w2 /=.
       rewrite /riscv_rem_semi.
@@ -487,65 +497,65 @@ Proof.
     rewrite sem_sop2_typed_modE orbF.
     case: eq_op => //=.
     move=> _ /ok_inj <- ?; subst v.
-    move=> [<- <- <-].
+    move=> [<- <- <- <-].
     rewrite /sem_sopn /= ok_v1 ok_v2 /=.
     rewrite /exec_sopn /= ok_w1 ok_w2 /=.
     rewrite /riscv_div_semi.
     rewrite (truncate_val_subctype_eq htrunc) //.
     by rewrite hwrite.
-  + move=> o ok_v; case h: decide_op_reg_imm => [[ol esi] | ] //= [<- <- <-].
+  + move=> o ok_v; case h: decide_op_reg_imm => [[ol esi] | ] //= [<- <- <- <-].
     rewrite LetK; apply: (decide_op_reg_immP ok_v1 ok_v2 h erefl).
     set op2' := Oasm _.
     have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
-    Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
+    Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl erefl erefl.
     by apply sem_correct; rewrite /= -wand_zero_extend.
-  + move=> o ok_v; case h: decide_op_reg_imm => [[ol esi] | ] //= [<- <- <-].
+  + move=> o ok_v; case h: decide_op_reg_imm => [[ol esi] | ] //= [<- <- <- <-].
     rewrite LetK; apply: (decide_op_reg_immP ok_v1 ok_v2 h erefl).
     set op2' := Oasm _.
     have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
-      Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
+      Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl erefl erefl.
     by apply sem_correct; rewrite /= -wor_zero_extend.
-  + move=> o ok_v; case h: decide_op_reg_imm => [[ol esi] | ] //= [<- <- <-].
+  + move=> o ok_v; case h: decide_op_reg_imm => [[ol esi] | ] //= [<- <- <- <-].
     rewrite LetK; apply: (decide_op_reg_immP ok_v1 ok_v2 h erefl).
     set op2' := Oasm _.
     have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
-      Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
+      Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl erefl erefl.
     by apply sem_correct; rewrite /= -wxor_zero_extend.
   + case => // ok_v.
     case good_shift: check_shift_amount => [ sa | ] //.
-    move=> [<- <- <-].
+    move=> [<- <- <- <-].
     rewrite !fun_if if_same.
     set op2' := Oasm _.
     have [_ [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
-      Hassgn_op2_shift ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
+      Hassgn_op2_shift ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl erefl erefl.
     have [_ [wa ok_wa eq_shift]] := check_shift_amountP good_shift ok_v2 ok_w2.
     by rewrite (sem_correct _ _ ok_wa) //= !zero_extend_u /sem_shr eq_shift.
   + case => // ws ok_v.
     case good_shift: check_shift_amount => [ sa | ] //.
-    move=> [<- <- <-].
+    move=> [<- <- <- <-].
     rewrite !fun_if if_same.
     set op2' := Oasm _.
     have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
-      Hassgn_op2_shift ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
+      Hassgn_op2_shift ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl erefl erefl.
     have [_ [wa ok_wa eq_shift]] := check_shift_amountP good_shift ok_v2 ok_w2.
     rewrite (sem_correct _ _ ok_wa) //.
     rewrite /= zero_extend_wshl //; last by have [? _] := wunsigned_range w2.
     by rewrite -/(sem_shift _ _ _) eq_shift.
   case => // -[] // ok_v.
   case good_shift: check_shift_amount => [ sa | ] //.
-  move=> [<- <- <-].
+  move=> [<- <- <- <-].
   rewrite !fun_if if_same.
   set op2' := Oasm _.
   have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
-    Hassgn_op2_shift ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
+    Hassgn_op2_shift ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl erefl erefl.
   have [_ [wa ok_wa eq_shift]] := check_shift_amountP good_shift ok_v2 ok_w2.
   rewrite (sem_correct _ _ ok_wa) //.
   by rewrite /= !zero_extend_u /sem_sar eq_shift.
 Qed.
 
-#[local] Lemma Hopn_esem ii lvs t op es s0 s1:
-  let i := MkI ii (Copn lvs t op es) in
-  sem_sopn (p_globs p) op s0 lvs es = ok s1 ->
+#[local] Lemma Hopn_esem env ii lvs t op als es (s0 s1 : estate env) :
+  let i := MkI ii (Copn lvs t op als es) in
+  sem_sopn (p_globs p) op s0 lvs als es = ok s1 ->
   esem p' ev (lower_i i) s0 = ok s1.
 Proof.
   move=> /= hsem01.
@@ -564,6 +574,7 @@ Proof.
     t_xrbindP.
     move => vs _ v1 ok_v1 _ v2 ok_v2 <- <-.
     rewrite /exec_sopn /=.
+    case: als => //=.
     t_xrbindP => _ w0 ok_w0 w1 ok_w1 <- <- /=.
     t_xrbindP => s2 ok_s2 {}s1 ok_s1 <-.
     rewrite /sem_sopn /= ok_v1 /= ok_v2 /= /exec_sopn /= ok_w0 /= ok_w1 /= ok_s2 /=.
@@ -579,7 +590,9 @@ Proof.
     by move => [] <- /=; rewrite hsem01.
   rewrite /lower_swap.
   case: ifP => // hcmp.
-  by move => [] <- /=; rewrite LetK.
+  move => [] <- /=; rewrite LetK.
+  case: als hsem01 => //=.
+  rewrite /sem_sopn /exec_sopn /=. by t_xrbindP.
 Qed.
 
 Section IT.
@@ -587,36 +600,30 @@ Section IT.
 Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
 
 #[ local ]
+Lemma checker_st_eqP_ : Checker_eq p p' checker_st_eq.
+Proof. apply checker_st_eqP => //. Qed.
+#[local] Hint Resolve checker_st_eqP_ : core.
+
+Section REC.
+
+Context (env : env_t).
+
+#[ local ]
 Definition Pi_ (i : instr) :=
-  wequiv_rec p p' ev ev eq_spec (st_eq tt) [::i] (lower_i i) (st_eq tt).
+  wequiv_rec (env1:=env) (env2:=env) p p' ev ev eq_spec (st_eq tt) [::i] (lower_i i) (st_eq tt).
 
 #[ local ]
 Definition Pi_r_ (i : instr_r) := forall ii, Pi_ (MkI ii i).
 
 #[ local ]
 Definition Pc_ (c : cmd) :=
-  wequiv_rec p p' ev ev eq_spec (st_eq tt) c (lower_cmd c) (st_eq tt).
+  wequiv_rec (env1:=env) (env2:=env) p p' ev ev eq_spec (st_eq tt) c (lower_cmd c) (st_eq tt).
 
-#[ local ]
-Lemma checker_st_eqP_ : Checker_eq p p' checker_st_eq.
-Proof. apply checker_st_eqP => //. Qed.
-#[local] Hint Resolve checker_st_eqP_ : core.
-
-(* Remark: excepted the case of Cassgn and Copn, the proof if the same than the arm one *)
-Lemma it_lower_callP fn :
-  wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+Lemma it_lower_callP_rec c : Pc_ c.
 Proof.
-  apply wequiv_fun_ind => {}fn _ fs _ [<- <-] fd hget.
-  rewrite get_map_prog hget /= /lower_fd.
-  eexists; first reflexivity.
-  move=> s.
-  set c' := lowering.lower_cmd _ _ _ _.
-  move=> /(eq_initialize (fd':= with_body fd c')) -/(_ p' erefl erefl erefl erefl) hinit.
-  exists s => //; exists (st_eq tt), (st_eq tt); split => //=; last by apply st_eq_finalize.
-  subst c'; move: (f_body fd). clear fn fs fd hget hinit s.
   set sip := sip_of_asm_e.
   have eq_globs : p_globs p' = p_globs p' by [].
-  apply (cmd_rect (Pr := Pi_r_) (Pi:=Pi_) (Pc:=Pc_)) => //; rewrite /Pi_r_ /Pi_ /Pc_.
+  apply (cmd_rect (Pr := Pi_r_) (Pi:=Pi_) (Pc:=Pc_)) => // {c}; rewrite /Pi_r_ /Pi_ /Pc_.
   + by apply (wequiv_nil (sip:=sip)).
   + move=> i c hi hc.
     rewrite -cat1s.
@@ -626,13 +633,15 @@ Proof.
     apply (wequiv_assgn_esem (sip:=sip)).
     move=> s t s' /st_relP [-> /= heq] hsem.
     have [vm2 -> ?]:= esem_vm_eq  (sip:=sip) eq_globs (Hassgn_esem ii hsem) heq.
-    by eexists; first reflexivity.
+    eexists; first by reflexivity.
+    by apply st_relP.
   (* Copn *)
-  + move=> lvs tag op es ii.
+  + move=> lvs tag op als es ii.
     apply (wequiv_opn_esem (sip:=sip)).
     move => s t s' /st_relP [-> /= heq] hsem.
     have [vm2 -> ?]:= esem_vm_eq  (sip:=sip) eq_globs (Hopn_esem ii tag hsem) heq.
-    by eexists; first reflexivity.
+    eexists; first by reflexivity.
+    by apply st_relP.
   (* Syscall *)
   + move=> xs o es ii.
     by apply (wequiv_syscall_rel_eq (sip:=sip)) with
@@ -649,12 +658,30 @@ Proof.
   + move=> al c e ii' c' hc hc' ii /=.
     by apply (wequiv_while_rel_eq (sip:=sip)) with checker_st_eq tt.
   (* Call *)
-  move=> xs fn es ii /=.
+  move=> xs fn als es ii /=.
   apply (wequiv_call_rel_eq (sip:=sip)) with checker_st_eq tt => //.
   by move=> ???; apply: (wequiv_fun_rec (spec := eq_spec)).
+Qed.
+
+End REC.
+
+(* FIXME: move *)
+#[local] Hint Resolve st_eq_refl : core.
+
+(* Remark: excepted the case of Cassgn and Copn, the proof if the same than the arm one *)
+Lemma it_lower_callP fn :
+  wiequiv_f p p' ev ev (rpreF (eS:= eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+Proof.
+  apply wequiv_fun_ind => {}fn _ vals _ fs _ [/= <- [<- <-]] fd hget.
+  rewrite get_map_prog hget /= /lower_fd.
+  eexists; first reflexivity.
+  move=> s.
+  set c' := lowering.lower_cmd _ _ _ _.
+  move=> /(eq_initialize (sip:=sip_of_asm_e) (fd':= with_body fd c')) -/(_ p' erefl erefl erefl erefl) hinit.
+  exists s => //; exists (st_eq tt), (st_eq tt); split => //=; last by apply st_eq_finalize.
+  exact: it_lower_callP_rec.
 Qed.
 
 End IT.
 
 End PROOF.
-

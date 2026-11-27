@@ -68,7 +68,7 @@ end = struct
 
   (* Return sum_{j = 0}^{len - 1} (2^8)^(len - 1 - j) * (U8)v[offset + j] *)
   let rec build_term_array v scope offset len =
-    let slice = AarraySlice (v,U8,offset + len - 1) in
+    let slice = AarraySlice (v,U8,Z.add offset (Z.of_int (len - 1))) in
     let tv = Mvar (of_scope scope slice) in
     let ptwo = Mcst (Coeff.s_of_mpqf (mpq_pow (8 * (len - 1)))) in
     let t = Mbinop (Texpr1.Mul, ptwo, tv, Texpr1.Int, round_typ) in

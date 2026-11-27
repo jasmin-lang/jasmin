@@ -8,6 +8,7 @@ val exec :
   'asm_op Expr.prog ->
   Expr.instr_info ->
   Prog.funname ->
+  BinNums.coq_Z list ->
   Values.values ->
   Low_memory.Memory.mem ->
   Low_memory.Memory.mem * Values.values
@@ -22,6 +23,7 @@ val run :
   ('asm_op, 'extra_op) Arch_extra.extended_op_gen Expr.uprog ->
   Expr.instr_info ->
   CoreIdent.funname ->
+  BinNums.coq_Z list ->
   Values.value list ->
   Low_memory.Memory.mem ->
   Low_memory.Memory.mem * Values.values

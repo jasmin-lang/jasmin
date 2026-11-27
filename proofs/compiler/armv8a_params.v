@@ -62,7 +62,7 @@ Definition armv8a_mov_ofs
   option instr_r :=
   let mk oa :=
     let: (op, args) := oa in
-     Some (Copn [:: x ] tag (Oarmv8a (ARMv8A_op op default_opts)) args) in
+     Some (Copn [:: x ] tag (Oarmv8a (ARMv8A_op op default_opts)) [::] args) in
   match movk with
   | MK_LEA => mk (ADR, [:: if is_zero Uptr ofs then y else add y ofs ])
   | MK_MOV =>
@@ -82,7 +82,7 @@ Definition armv8a_mov_ofs
               (* This allows to remove constraint in register allocation *)
               if is_arith_small lea.(lea_disp) then mk (ADD, [:: Plvar base; cast_const lea.(lea_disp) ])
               else
-                Some (Copn [:: x ] tag (Oasm (ExtOp Oarmv8a_add_large_imm)) [:: Plvar base; cast_const lea.(lea_disp) ])
+                Some (Copn [:: x ] tag (Oasm (ExtOp Oarmv8a_add_large_imm)) [::] [:: Plvar base; cast_const lea.(lea_disp) ])
           | Some base, Some off =>
             if lea.(lea_disp) == 0%Z then
               let%opt scale := Option.map Z.of_nat (shift_of_scale lea.(lea_scale)) in
@@ -91,7 +91,7 @@ Definition armv8a_mov_ofs
                 mk (ADD, [:: Plvar base; Plvar off ])
               else
                 let opts := {| has_shift := Some SLSL; opts_size := U64 |} in
-                Some (Copn [:: x ] tag (Oarmv8a (ARMv8A_op ADD opts)) [:: Plvar base; Plvar off; eword_of_int U8 scale ])
+                Some (Copn [:: x ] tag (Oarmv8a (ARMv8A_op ADD opts)) [::] [:: Plvar base; Plvar off; eword_of_int U8 scale ])
             else None
           end
         end
@@ -102,10 +102,10 @@ Definition armv8a_mov_ofs
   end.
 
 Definition armv8a_immediate (x : var_i) z :=
-  Copn [:: Lvar x ] AT_none (Oasm (ExtOp (Oarmv8a_smart_li reg_size))) [:: cast_const z ].
+  Copn [:: Lvar x ] AT_none (Oasm (ExtOp (Oarmv8a_smart_li reg_size))) [::] [:: cast_const z ].
 
 Definition armv8a_swap t (x y z w : var_i) :=
-  Copn [:: Lvar x; Lvar y] t (Oasm (ExtOp (Oarmv8a_swap reg_size))) [:: Plvar z; Plvar w].
+  Copn [:: Lvar x; Lvar y] t (Oasm (ExtOp (Oarmv8a_swap reg_size))) [::] [:: Plvar z; Plvar w].
 
 Definition armv8a_saparams : stack_alloc_params :=
   {|
@@ -290,25 +290,26 @@ Definition armv8a_loparams : lowering_params :=
 Definition armv8a_sh_lower
   (lvs : seq lval)
   (slho : slh_op)
+  als
   (es : seq pexpr) :
   option copn_args :=
   let O x := Oasm (ExtOp x) in
   let%opt _ := oassert (all (fun lv => ~~ is_lval_in_memory lv) lvs) in
   match slho with
-  | SLHinit => Some (lvs, O Oarmv8a_SLHinit, es)
+  | SLHinit => Some (lvs, O Oarmv8a_SLHinit, als, es)
 
   | SLHupdate =>
     let%opt _ := oassert (all is_csel_arg (behead es)) in
-    Some (Lnone dummy_var_info ty_msf :: lvs, O Oarmv8a_SLHupdate, es)
+    Some (Lnone dummy_var_info ty_msf :: lvs, O Oarmv8a_SLHupdate, als, es)
 
   | SLHmove =>
     let%opt _ := oassert (all is_csel_arg es) in
-    Some (lvs, O Oarmv8a_SLHmove, es)
+    Some (lvs, O Oarmv8a_SLHmove, als, es)
 
   | SLHprotect ws =>
     let%opt _ := oassert ((ws == U32) || (ws == U64)) in
     let%opt _ := oassert (all is_csel_arg es) in
-    Some (lvs, O (Oarmv8a_SLHprotect ws), es)
+    Some (lvs, O (Oarmv8a_SLHprotect ws), als, es)
 
   | SLHprotect_ptr _ _ | SLHprotect_ptr_fail _ _ => None (* Taken into account by stack alloc *)
   end.

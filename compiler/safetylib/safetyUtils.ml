@@ -239,3 +239,18 @@ let split_div sg ws es =
   let hi, lo, d = Utils.as_seq3 es in
   int_of_words sg ws hi lo,
   int_of_word sg ws d
+
+(* Quick port of the safety checker to arrays of non-const length: we fail when encountering
+   such an array. TODO: proper support *)
+let z_of_length len =
+  match len with
+  | CoreIdent.Const len -> len
+  | _ ->
+    Format.eprintf "Arrays of non-const length not supported yet@.";
+    assert false
+
+let int_of_z z =
+  try Z.to_int z
+  with Z.Overflow ->
+    Format.eprintf "Error: cannot analyze a (sub-)array of size %a, it is too large.@." Z.pp_print z;
+    exit 1

@@ -48,18 +48,18 @@ Fixpoint sem_safety_cond (vs : values) (c : safety_cond) : exec value :=
   | IOp1 o c =>
     Let v := sem_safety_cond vs c in
     Let x := of_val _ v in
-    ok (to_val (sem_sop1_total o x))
+    ok (to_val (sem_sop1_total empty_env o x))
   | IOp2 o c1 c2 =>
     Let v1 := sem_safety_cond vs c1 in
     Let v2 := sem_safety_cond vs c2 in
     Let x1 := of_val _ v1 in
     Let x2 := of_val _ v2 in
-    ok (to_val (sem_sop2_total o x1 x2))
+    ok (to_val (sem_sop2_total empty_env o x1 x2))
   | IOpN_safety o c1 c2 c3 =>
     Let v1 := sem_safety_cond vs c1 in
     Let v2 := sem_safety_cond vs c2 in
     Let v3 := sem_safety_cond vs c3 in
-    Let b := app_sopn _ (sem_prod_ok _ (sem_opN_safety_total o)) [:: v1; v2; v3] in
+    Let b := app_sopn _ (sem_prod_ok _ (sem_opN_safety_total empty_env o)) [:: v1; v2; v3] in
     ok (Vbool b)
   end.
 
@@ -83,21 +83,21 @@ Fixpoint safety_cond_type (tin : seq ctype) (c : safety_cond) : option ctype :=
   | IOp1 o c =>
     let t := type_of_op1 o in
     if safety_cond_type tin c is Some t1 then
-      if subctype (eval_atype t.1) t1 then Some (eval_atype t.2) else None
+      if subctype (eval_atype empty_env t.1) t1 then Some (eval_atype empty_env t.2) else None
     else None
   | IOp2 o c1 c2 =>
     let t := type_of_op2 o in
     if safety_cond_type tin c1 is Some t1 then
       if safety_cond_type tin c2 is Some t2 then
-        if subctype (eval_atype t.1.1) t1 && subctype (eval_atype t.1.2) t2
-        then Some (eval_atype t.2) else None
+        if subctype (eval_atype empty_env t.1.1) t1 && subctype (eval_atype empty_env t.1.2) t2
+        then Some (eval_atype empty_env t.2) else None
       else None
     else None
   | IOpN_safety o c1 c2 c3 =>
     if safety_cond_type tin c1 is Some t1 then
       if safety_cond_type tin c2 is Some t2 then
         if safety_cond_type tin c3 is Some t3 then
-          if all2 subctype (map eval_atype (type_of_opN_safety o).1) [:: t1; t2; t3]
+          if all2 subctype (map (eval_atype empty_env) (type_of_opN_safety o).1) [:: t1; t2; t3]
           then Some cbool else None
         else None
       else None
@@ -327,7 +327,7 @@ Qed.
 Lemma safety_cond_type_op1E tin o c :
   safety_cond_type tin (IOp1 o c) =
   if safety_cond_type tin c is Some t1 then
-    if subctype (eval_atype (type_of_op1 o).1) t1 then Some (eval_atype (type_of_op1 o).2)
+    if subctype (eval_atype empty_env (type_of_op1 o).1) t1 then Some (eval_atype empty_env (type_of_op1 o).2)
     else None
   else None.
 Proof. by []. Qed.
@@ -336,9 +336,9 @@ Lemma safety_cond_type_op2E tin o c1 c2 :
   safety_cond_type tin (IOp2 o c1 c2) =
   if safety_cond_type tin c1 is Some t1 then
     if safety_cond_type tin c2 is Some t2 then
-      if subctype (eval_atype (type_of_op2 o).1.1) t1
-         && subctype (eval_atype (type_of_op2 o).1.2) t2
-      then Some (eval_atype (type_of_op2 o).2) else None
+      if subctype (eval_atype empty_env (type_of_op2 o).1.1) t1
+         && subctype (eval_atype empty_env (type_of_op2 o).1.2) t2
+      then Some (eval_atype empty_env (type_of_op2 o).2) else None
     else None
   else None.
 Proof. by []. Qed.

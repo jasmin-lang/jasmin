@@ -43,7 +43,7 @@ module type SafetyArch = sig
 
   val post_opn :
     extended_op ->
-    (int glval) list ->
+    lvals ->
     expr list ->
     btcons list
   (** Post-conditions of operators, that cannot be precisely expressed as an expression of the arguments *)

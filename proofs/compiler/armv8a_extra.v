@@ -49,24 +49,28 @@ Local Notation E n := (sopn.ADExplicit n sopn.ACR_any).
    argument. *)
 Definition Oarmv8a_add_large_imm_instr : instruction_desc :=
   let ty := aword armv8a_reg_size in
-  let cty := eval_atype ty in
+  let cty := eval_atype empty_env ty in
   let ctin := [:: cty; cty] in
   let semi := fun (x y : word armv8a_reg_size) => (x + y)%w in
   {| str    := (fun _ => "add_large_imm"%string)
+   ; al     := [::]
    ; tin    := [:: ty; ty]
    ; i_in   := [:: E 1; E 2]
    ; tout   := [:: ty]
    ; i_out  := [:: E 0]
    ; conflicts := [:: (APout 0, APin 0)]
-   ; i_semi_total := semi
-   ; i_safe := [::]
    ; i_err := ErrSemUndef
-   ; i_init := [:: IBool true ]
    ; i_valid := true
    ; i_doit := DOIT
-   ; i_wf := refl_equal
-   ; semu   := @values.vuincl_app_sopn_v ctin [:: cty]
+   ; i_sem :=
+       instr_sem0
+         {| i_semi_total := semi
+          ; i_safe := [::]
+          ; i_init := [:: IBool true ]
+          ; i_wf := refl_equal
+          ; semu   := @values.vuincl_app_sopn_v ctin [:: cty]
                  (@mk_semi _ ctin [:: cty] [::] ErrSemUndef [:: IBool true ] semi) refl_equal
+         |}
  |}.
 
 Definition smart_li_instr (ws : wsize) : instruction_desc :=
@@ -100,23 +104,27 @@ Definition Oarmv8a_SLHupdate_instr : instruction_desc :=
   let ctin := [:: cbool; cty_msf ] in
   let ctout := [:: cty_msf; cty_msf ] in
   {| str    := pp_s (append "Oarmv8a_" SLHupdate_str)
+   ; al     := [::]
    ; tin    := [:: abool; ty_msf ]
    ; i_in   := [:: E 3; E 1 ]
    ; tout   := [:: ty_msf; ty_msf ]
    ; i_out  := [:: E 2; E 0 ]
    ; conflicts := [:: (APout 0, APin 1) ]
-   ; i_semi_total := armv8a_se_update_sem
-   ; i_safe := [::]
    ; i_err := ErrSemUndef
-   ; i_init := [:: IBool true; IBool true ]
    ; i_valid := true
    ; i_doit := DOIT
-   ; i_wf := refl_equal
-   ; semu   :=
-       @values.vuincl_app_sopn_v ctin ctout
-         (@mk_semi _ ctin ctout [::] ErrSemUndef [:: IBool true; IBool true ]
-            armv8a_se_update_sem)
-         refl_equal
+   ; i_sem :=
+       instr_sem0
+         {| i_semi_total := armv8a_se_update_sem
+          ; i_safe := [::]
+          ; i_init := [:: IBool true; IBool true ]
+          ; i_wf := refl_equal
+          ; semu   :=
+              @values.vuincl_app_sopn_v ctin ctout
+                (@mk_semi _ ctin ctout [::] ErrSemUndef [:: IBool true; IBool true ]
+                   armv8a_se_update_sem)
+                refl_equal
+         |}
  |}.
 
 Definition Oarmv8a_SLHmove_instr : instruction_desc :=

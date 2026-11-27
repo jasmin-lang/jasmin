@@ -101,11 +101,13 @@ Qed.
 
 Lemma compat_atype_ctype sw ty1 ty2 :
   compat_atype sw ty1 ty2 ->
-  compat_ctype sw (eval_atype ty1) (eval_atype ty2).
+  forall env,
+    compat_ctype sw (eval_atype env ty1) (eval_atype env ty2).
 Proof.
-  case: sw => /=.
+  move=> hc env.
+  case: sw hc => /= hc.
   + by apply subatype_subctype.
-  move=> hconv; apply /eqP; move: hconv.
+  apply /eqP.
   by apply convertible_eval_atype.
 Qed.
 

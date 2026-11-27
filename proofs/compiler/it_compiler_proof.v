@@ -43,6 +43,7 @@ Require Import
 
   it_tunneling_proof
   it_linearization_proof
+  remove_length_proof
   it_merge_varmaps_proof
   psem_of_sem_proof
   slh_lowering_proof
@@ -82,9 +83,10 @@ Lemma compiler_third_part_meta entries (p p' : sprog) :
   p_extra p' = p_extra p.
 Proof using sc_sem.
   rewrite /compiler_third_part.
-  t_xrbindP => pa hpa _ _ _ pb hpb _.
+  t_xrbindP => pa hpa _ _ _ pb hpb _ pr hpr _.
   have! [_ ok_pa] := (dead_code_prog_tokeep_meta hpa).
   have! [] := (dead_code_prog_tokeep_meta hpb).
+  move: hpr; rewrite /remove_length_prog; t_xrbindP=> ?? <- /=.
   rewrite /= => _ ok_pb <- {p'}.
   by rewrite ok_pb ok_pa.
 Qed.
@@ -97,8 +99,8 @@ Lemma compiler_third_part_invariants entries p p' :
 Proof using sc_sem.
   rewrite /compiler_third_part.
   t_xrbindP => pa hpa _ _.
-  rewrite /= => check_pa pb hpb.
-  move=> _ <-{p'}.
+  rewrite /= => check_pa pb hpb _.
+  move=> pr hpr _ <-{p'}.
   move=> fn fd ok_fd.
   have [fda ok_fda get_fda] := [elaborate
     dead_code_prog_tokeep_get_fundef hpa ok_fd].
@@ -110,7 +112,10 @@ Proof using sc_sem.
       check_pa get_fda].
   have [fdb ok_fdb get_fdb] := [elaborate
     dead_code_prog_tokeep_get_fundef hpb get_fda'].
-  exists fdb; split=> //.
+  move: hpr; rewrite /remove_length_prog; t_xrbindP => fdrs ok_fdrs <- /=.
+  have [fdr ok_fdr get_fdr] := get_map_cfprog_gen ok_fdrs get_fdb.
+  exists fdr; split=> //.
+  move: ok_fdr; rewrite /remove_length_fd; t_xrbindP => _ <- /=.
   have [_ _ ->] := dead_code_fd_meta ok_fdb.
   have /= [_ _ _ <-] := [elaborate check_fundef_meta check_fda'].
   have [_ _ ->] := dead_code_fd_meta ok_fda.
@@ -223,8 +228,8 @@ Lemma compiler_third_part_alloc_ok entries (p p' : sprog) (fn: funname) (m: mem)
   alloc_ok p fn m.
 Proof using.
   rewrite /compiler_third_part; t_xrbindP=> pa ok_pa.
-  move=> _ _ ok_pb pc ok_pc.
-  move=> _ <- {p'}.
+  move=> _ _ ok_pb pc ok_pc _.
+  move=> pr ok_pr _ <- {p'}.
   rewrite /alloc_ok => alloc_pc fd get_fd.
   have [fda ok_fda get_fda] := [elaborate
     (dead_code_prog_tokeep_get_fundef ok_pa get_fd)].
@@ -232,7 +237,10 @@ Proof using.
     allocation_proof.all_checked (sip := sip_of_asm_e) ok_pb get_fda.
   have [fdc ok_fdc get_fdc] := [elaborate
     (dead_code_prog_tokeep_get_fundef ok_pc get_fdb)].
-  move: (alloc_pc _ get_fdc).
+  move: ok_pr; rewrite /remove_length_prog; t_xrbindP => fdrs ok_fdrs ?; subst pr.
+  have [fdr ok_fdr get_fdr] := get_map_cfprog_gen ok_fdrs get_fdc.
+  move: (alloc_pc _ get_fdr).
+  move: ok_fdr; rewrite /remove_length_fd; t_xrbindP => _ <- /=.
   have [_ _ ->]:= dead_code_fd_meta ok_fdc.
   rewrite /sf_total_stack.
   have [ <- <- <- ] := [elaborate @check_fundef_meta _ _ _ _ _ _ _ _ _ (_, fda) _ _ _ ok_fdb].
@@ -464,6 +472,7 @@ Instance HandlerContract_trans {rE23 rE13} :
 Definition isem_unit
   (p : uprog)
   (fn : funname)
+  vals
   (fs : fstate) :
   itree ErrEvent fstate :=
   it_sems_core.isem_fun
@@ -477,12 +486,13 @@ Definition isem_unit
     (wsw := nosubword)
     (dc := indirect_c)
     (pT := progUnit)
-    p tt fn fs.
+    p tt fn vals fs.
 
 Definition isem_stack
   (sp : sprog)
   (rip : pointer)
   (fn : funname)
+  vals
   (fs : fstate) :
   itree ErrEvent fstate :=
   it_sems_core.isem_fun
@@ -496,7 +506,7 @@ Definition isem_stack
     (wsw := withsubword)
     (dc := direct_c)
     (pT := progStack)
-    sp rip fn fs.
+    sp rip fn vals fs.
 
 Definition isem_linear (lp : lprog) :=
   ilsem_exportcall lp (wE := with_Error0).
@@ -567,7 +577,7 @@ apply: (
     (P := pre_incl fn fn)
     (Q := post_incl fn fn)
 ) => //.
-- move=> ? _ [_ <-]; split=> //; split=> //; exact: values_uincl_refl.
+- move=> ? _ [/= _ [<- <-]]; split=> //; split=> //; exact: values_uincl_refl.
 apply: it_sem_refl_EU_UU.
 exact: (it_dead_code_callPu (sip:=sip_of_asm_e) (hap_is_move_opP haparams) ev ok_pa (fn := fn)).
 Qed.
@@ -612,7 +622,7 @@ apply: wiequiv_f_trans_EE_EU;
   first exact: (it_dead_calls_err_seqP ok_pd _ ok_fn).
 apply: wiequiv_f_trans_EU_EU; first exact: it_live_range_splittingP ok_pe.
 apply: wiequiv_f_trans_UU_EU; first exact: (it_remove_init_fdPu is_reg_array).
-apply: wiequiv_f_trans_EE_EU; first exact: (it_makeReferenceArguments_callP _ ok_pf).
+apply: wiequiv_f_trans_EE_EU; first exact: (it_makeReferenceArguments_callP (siparams:=sip_of_asm_e) _ ok_pf).
 apply: wiequiv_f_trans_UU_EU; first exact: it_indirect_to_direct.
 apply: wiequiv_f_trans_EE_EU; first exact: (it_expand_callP ok_pg ok_fn).
 apply: wiequiv_f_trans_EU_EU; first exact: it_live_range_splittingP ok_ph.
@@ -632,7 +642,7 @@ apply: wiequiv_f_trans_UU_EU; first exact: (it_alloc_call_uprogP _ _ check_pp).
 
 apply: wkequiv_io_weaken; last exact: wiequiv_f_eq.
 1-3: done.
-move=> ???? [_ <-] <-; split=> //; exact: values_uincl_refl.
+by move=> ???? _ <-; split=> //; exact: values_uincl_refl.
 Qed.
 
 End FIRST_PART.
@@ -681,7 +691,7 @@ Proof using haparams.
 rewrite /compiler_third_part; t_xrbindP=> pa ok_pa.
 move=> _ _.
 set pb := {| p_funcs := regalloc _ _; |} => ok_pb pc ok_p'.
-move=> _ ?; subst pc.
+move=> _ pr ok_pr _ ?; subst pr.
 apply: (
   wiequiv_f_trans
     (scP1 := sCP_stack) (scP2 := sCP_stack) (scP3 := sCP_stack)
@@ -691,7 +701,7 @@ apply: (
        (sip := sip_of_asm_e) (hap_is_move_opP haparams) _ ok_pa)
 ).
 - exact: rpreF_trans_eq_eq_eq.
-- move=> s1 s2 _ r1 r3 _ [_ <-] [r2 [?? hvals2] [?? hvals3]].
+- move=> valfs1 valfs2 valfs3 r1 r3 /= _ _ [r2 [?? hvals2] [?? hvals3]].
   split; only 1,2: congruence.
   exact: values_uincl_trans hvals2 hvals3.
 rewrite -{1}(surj_prog (pT := progStack) pa).
@@ -712,10 +722,22 @@ apply: (
     (it_dead_code_callPs
        (sip := sip_of_asm_e) (hap_is_move_opP haparams) _ ok_p')
        ).
-- move=> s1 s2 [_ <-]; exists s1 => //; split=> //; exact: fs_uinclR.
-- move=> s1 _ s3 r1 r3 [_ <-] _ [r2 [?? hvals2] [?? hvals3]].
+- move=> valfs1 valfs2 [/= _ [<- <-]]; exists valfs1 => //; split=> //; exact: fs_uinclR.
+- move=> valfs1 _ valfs3 r1 r3 _ _ [r2 [?? hvals2] [?? hvals3]].
   split; only 1,2: congruence.
   exact: values_uincl_trans hvals2 hvals3.
+apply: (
+  wiequiv_f_trans
+    (scP1 := sCP_stack) (scP2 := sCP_stack) (scP3 := sCP_stack)
+    (rpreF23 := pre_incl) (rpostF23 := post_incl)
+    _ _
+    (remove_length_progP (siparams:=sip_of_asm_e) ok_pr _ (fn:=fn))
+).
+- move=> ?? /= [_ [<- ?]]. eexists _. split.
+  split. done. split. reflexivity.
+    split. done. done.
+- move=> ????? /=. move=> [_ [<- <-]].
+  move=> [_ [_ ?]]. move=> [_ <-]. done.
 exact: (it_sem_uincl_f (sCP := sCP_stack) p' ev (fn := fn)).
 Qed.
 
@@ -737,24 +759,25 @@ Definition wf_args_s fn ms mt vs vt :=
 Definition it_extend_mem ms mt := extend_mem ms mt rip (sp_globs (p_extra sp)).
 
 Definition front_end_pre : relPreF :=
-  fun fn fn' s t =>
-    let: args := fvals s in
-    let: argt := fvals t in
-    let: ms := fmem s in
-    let: mt := fmem t in
+  fun fn fn' valfs1 valfs2 =>
+    let: args := fvals valfs1.2 in
+    let: argt := fvals valfs2.2 in
+    let: ms := fmem valfs1.2 in
+    let: mt := fmem valfs2.2 in
     [/\ fn = fn'
+      , valfs1.1 = valfs2.1
       , alloc_ok sp fn mt
       , wf_args_s fn ms mt args argt
       , Forall3 (value_eq_or_in_mem mt) (get_wptrs up fn) args argt
       , it_extend_mem ms mt
-      & fscs s = fscs t ].
+      & fscs valfs1.2 = fscs valfs2.2 ].
 
 Definition front_end_post : relPostF :=
-  fun fn _ s t s' t' =>
-    let: args := fvals s in
-    let: argt := fvals t in
-    let: ms := fmem s in
-    let: mt := fmem t in
+  fun fn _ valfs1 valfs2 s' t' =>
+    let: args := fvals valfs1.2 in
+    let: argt := fvals valfs2.2 in
+    let: ms := fmem valfs1.2 in
+    let: mt := fmem valfs2.2 in
     let: ress := fvals s' in
     let: rest := fvals t' in
     let: ms' := fmem s' in
@@ -804,8 +827,8 @@ apply: (
     _ _
     (it_compiler_first_part ok_p1 ok_fn)
 ).
-- move=> s1 ? [? _]; by exists s1.
-- move=> s1 _ s3 r1 r3 [_ <-] [_ halloc hwf hptr hmem hscs] [] r2
+- move=> valfs1 valfs2 [? _]; by exists valfs1.
+- move=> [vals1 fs1] [??] [vals3 fs3] r1 r3 /= [_ [<- <-]] [_ heq halloc hwf hptr hmem hscs] [] r2
     [hscs1 hmem1 hval1] [] hptr' hres hmem' hparams hscs'.
   split=> //.
   + apply: Forall2_trans hptr'; first exact: value_uincl_value_in_mem_trans.
@@ -833,7 +856,7 @@ apply: (
        (hap_hshp haparams) (hap_hsap haparams) (hap_is_move_opP haparams)
        ok_p2 ev (rip := rip))
 ).
-- move=> s1 s3 [] [_ hok hwf hptr hmem hscs] _; exists s3 => //; split=> //.
+- move=> valfs1 valfs3 [] [_ heq hok hwf hptr hmem hscs] _; exists valfs3; split => //.
   + by rewrite -p2_p1_extra p2_p3_extra -sp_p3_extra.
   + move: hwf; rewrite /wf_args_s /get_wptrs get_fd /= check_params.
     rewrite /size_glob sp_p3_extra -p2_p3_extra p2_p1_extra.
@@ -851,17 +874,17 @@ apply: (
     have :=
       compiler_third_part_alloc_ok ok_sp hok get_fd3.
     by rewrite -fd2_fd3_extra.
-- move=> s1 s2 _ r1 r3 [hscs_s1] hmem_s1 hwf_s1 heqinmem halloc [_ <-] [].
+- move=> [vals1 fs1] [vals2 fs2] [_ _] r1 r3 /= [<- hscs_s1] hmem_s1 hwf_s1 heqinmem halloc [_ [<- <-]] [].
   move=> r2 [hscs1 m'_mi' vr2_wf vr2_eqinmem U] [hscs2 hmem2 vr_vr1].
   set rminfo := fun fn => _ in vr_vr1.
-  set va := fvals s1.
-  set va' := fvals s2.
+  set va := fvals fs1.
+  set va' := fvals fs2.
   set vr := fvals r1.
   set vr1 := fvals r1.
   set vr2 := fvals r2.
-  set m := fmem s1.
-  set mi := fmem s2.
-  set m' := fmem s1.
+  set m := fmem fs1.
+  set mi := fmem fs2.
+  set m' := fmem fs1.
   set mi' := fmem r2.
   have hle1: n <= size fd.(f_params) by apply find_size.
   have [/esym size_vr1 /esym size_vr2] := Forall3_size vr2_wf.
@@ -953,7 +976,7 @@ apply: (
     (it_compiler_third_part ok_sp)
 ).
 - exact: rpreF_trans_eq_eq_eq.
-by move=> s1 _ _ r1 r3 [_ <-] [_ <-] [_ <-] [hscs hmem] h'.
+by move=> valfs1 ?? r1 r3 _ _ [_ <-] [hscs hmem] h'.
 Qed.
 
 End FRONT_END.
@@ -984,7 +1007,7 @@ Definition zeroized_s fn ms mt mt' :=
   cparams.(stack_zero_info) fn <> None ->
   forall p, zeroized_p ms mt mt' p.
 
-Definition lget_vars (xs : seq var_i) (vm : Vm.t) : seq value :=
+Definition lget_vars (xs : seq var_i) (vm : Vm.t empty_env) : seq value :=
   [seq vm.[v_var x] | x <- xs].
 Definition lget_args (lfd : lfundef) := lget_vars lfd.(lfd_arg).
 Definition lget_res  (lfd : lfundef) := lget_vars lfd.(lfd_res).
@@ -1003,7 +1026,7 @@ Definition back_end_pre lfd s t :=
     , vm_initialized_on vmt lfd.(lfd_callee_saved)
     & allocatable_stack ms (lfd_total_stack lfd) ].
 
-Definition back_end_post fn lfd s t s' t' :=
+Definition back_end_post fn lfd s (t : estate empty_env) s' t' :=
   let: ms := s.(fmem) in
   let: mt := t.(emem) in
   let: ress := s'.(fvals) in
@@ -1017,7 +1040,7 @@ Definition back_end_post fn lfd s t s' t' :=
     & zeroized_s fn ms mt mt' ].
 
 Definition ovm_post'
-  (fn : funname) (i1 : fstate) (i2 : estate) (o1 : fstate) (o2 : estate) :=
+  (fn : funname) (i1 : fstate) (i2 : estate empty_env) (o1 : fstate) (o2 : estate empty_env) :=
   [/\ ovm_post sp fn o1 o2
     & validw i2.(emem) =3 validw o2.(emem) ].
 
@@ -1050,7 +1073,7 @@ move=> rsp_tp_sp rip_tp_sp rsp_tp_lp rip_tp_lp al_tfd_sfd al_tfd_lfd exp_tfd
   exp_tfd_lfd cs_tfd_lfd stkmax_tfd_sfd stkmax_tfd_lfd args_tfd_sfd get_sfd
   get_lfd [hrsp hrip] uvals mmem hscs init alloc.
 set vs' := lget_args tfd i3.(evm) in uvals.
-set i2 := with_vm (estate0 i1) i3.(evm).
+set i2 := with_vm (estate0 empty_env i1) i3.(evm).
 exists i2.
 - split=> //.
   rewrite get_sfd /=; exists vs'; split; last exact: uvals.
@@ -1068,7 +1091,7 @@ rewrite /lin_sz_pre /lin_pre get_sfd get_lfd; split; first split=> //.
 rewrite /lfd_total_stack -stkmax_tfd_lfd -al_tfd_lfd -exp_tfd_lfd; exact: alloc.
 Qed.
 
-Lemma get_var_is_eq_on (wdb: enforce_defined_variables) s vm vm' xs :
+Lemma get_var_is_eq_on (wdb: enforce_defined_variables) s (vm vm' : Vm.t empty_env) xs :
   Sv.Subset (sv_of_list v_var xs) s ->
   vm =[s] vm' ->
   get_var_is vm xs = get_var_is vm' xs.
@@ -1079,14 +1102,14 @@ rewrite /= (get_var_eq_on _ _ hvm); last by clear -hxs; SvD.fsetdec.
 by rewrite ih //; clear -hxs; SvD.fsetdec.
 Qed.
 
-Lemma trans_post_ovm_lin_alloc lfd i2 :
+Lemma trans_post_ovm_lin_alloc lfd (i2 : estate empty_env) :
   lfd_export lfd ->
   allocatable_stack (emem i2) (lfd_total_stack lfd) ->
   allocatable_stack
     i2.(emem) (lfd.(lfd_stk_max) + wsize_size lfd.(lfd_align) - 1).
 Proof. by rewrite /allocatable_stack /lfd_total_stack => ->. Qed.
 
-Lemma trans_post_ovm_lin_alloc' lfd i2 :
+Lemma trans_post_ovm_lin_alloc' lfd (i2 : estate empty_env) :
   let: ts_i2 := top_stack i2.(emem) in
   allocatable_stack (emem i2)
     (lfd_stk_max lfd + wsize_size lfd.(lfd_align) - 1) ->
@@ -1114,7 +1137,7 @@ move=> /and4P [/ZleP stk_sz_pos /ZleP stk_extra_sz_pos _ /ZleP
 split=> //; exact: frame_size_bound stk_sz_pos stk_extra_sz_pos.
 Qed.
 
-Lemma trans_post_ovm_lin_alloc''' lp fn sfd lfd i2 :
+Lemma trans_post_ovm_lin_alloc''' lp fn sfd lfd (i2 : estate empty_env) :
   let: ts_i2 := top_stack i2.(emem) in
   let: sl_i2 := stack_limit i2.(emem) in
   let: sm_lfd := lfd.(lfd_stk_max) in
@@ -1136,7 +1159,7 @@ move: alloc alloc''; rewrite /allocatable_stack.
 by t_lia.
 Qed.
 
-Lemma trans_post_ovm_lin_bottom_instack lfd i2 :
+Lemma trans_post_ovm_lin_bottom_instack lfd (i2 : estate empty_env) :
   let: ts_i2 := top_stack i2.(emem) in
   let: sl_i2 := stack_limit i2.(emem) in
   let: sm_lfd := lfd.(lfd_stk_max) in
@@ -1318,7 +1341,7 @@ Qed.
    (2) lutt_xrutt_trans_l should be stated in weakened form *)
 
 
-Lemma it_compiler_back_endP {fn} :
+Lemma it_compiler_back_endP {fn vals} :
   compiler_back_end aparams cparams entries sp = ok tp ->
   fn \in entries ->
   exists lfd,
@@ -1326,7 +1349,7 @@ Lemma it_compiler_back_endP {fn} :
       , lfd.(lfd_export)
       & wkequiv_io
           (back_end_pre lfd)
-          (isem_stack sp rip fn)
+          (isem_stack sp rip fn vals)
           (isem_linear tp fn)
           (back_end_post fn lfd) ].
 Proof using haparams rsp_in_callee_saved.
@@ -1354,12 +1377,12 @@ have hexp : is_export sp fn by exists fd => //; apply/is_RAnoneP/exp_sfd.
 (* Merge varmaps + mem_equiv *)
 have wovm := [elaborate
   merge_varmaps_export_call_checkP
-    (p := sp) (global_data := rip) (fn := fn) checked_p hexp ] .
+    (p := sp) (global_data := rip) (fn := fn) checked_p vals hexp ] .
 set var_tmps := (X in isem_exportcall_check X) in wovm.
 have {}wovm : [elaborate
   wkequiv_io
     (ovm_pre sp rip fn)
-    (it_sems_core.isem_fun sp rip fn)
+    (it_sems_core.isem_fun sp rip fn vals)
     (isem_exportcall_check var_tmps sp rip fn)
     (ovm_post' fn) ].
 - move=> i1 i2 pre.
@@ -1368,9 +1391,9 @@ have {}wovm : [elaborate
       (preInv (iE0 := trivial_invEvent _) (iEr := trivial_invErr))
       (postInv (iE0 := trivial_invEvent _))
       (fun o1 => validw i1.(fmem) =3 validw o1.(fmem))
-      (it_sems_core.isem_fun sp rip fn i1).
+      (it_sems_core.isem_fun sp rip fn vals i1).
   - have := [elaborate
-      sem_fun_mem_equiv_sprog sp rip (fn := fn) dummy_instr_info (i := i1) I
+      sem_fun_mem_equiv_sprog sp rip (fn := fn) dummy_instr_info (i := i1) vals I
     ].
     by apply: lutt_weaken => // ? [].
   have := lutt_xrutt_trans_l valid (wovm _ _ pre).
@@ -1564,7 +1587,7 @@ Definition back_end_to_asm_post fn xfd (s : fstate) (t : asmmem) (s' : fstate) (
     & zeroized_s fn ms mt mt'
   ].
 
-Lemma it_compiler_back_end_to_asmP {fn} :
+Lemma it_compiler_back_end_to_asmP {fn vals} :
   compiler_back_end_to_asm aparams cparams entries sp = ok xp ->
   fn \in entries ->
   exists xfd,
@@ -1572,7 +1595,7 @@ Lemma it_compiler_back_end_to_asmP {fn} :
       , xfd.(asm_fd_export)
       & wkequiv_io
           (back_end_to_asm_pre xfd)
-          (isem_stack sp rip fn)
+          (isem_stack sp rip fn vals)
           (isem_asm xp fn)
           (back_end_to_asm_post fn xfd)
    ].
@@ -1590,7 +1613,7 @@ have cs_not_arr :
 - move=> x /sv_of_listP /mapP [/= r _ ->]; by case: r.
 
 have [lfd [get_lfd lfd_export w_be]] :=
-  it_compiler_back_endP (tp := lp) rip rsp_in_callee_saved ok_lp
+  it_compiler_back_endP (tp := lp) rip rsp_in_callee_saved (vals:=vals) ok_lp
     ok_fn.
 have [xfd ok_get_xfd ok_xfd] := ok_get_fundef ok_xp get_lfd.
 case/assemble_fdI: (ok_xfd) =>
@@ -1602,7 +1625,7 @@ exists xfd; split => //.
 set rip_id := mk_ptr (lp_rip lp).
 apply: (
   wkequiv_io_trans
-    (P23 := fun (ls : estate) (xm : asmmem) =>
+    (P23 := fun (ls : estate empty_env) (xm : asmmem) =>
       vm_initialized_on (evm ls)
         [seq var_of_asm_typed_reg i | i <- arch_decl.callee_saved]
       /\ lom_eqv rip_id ls xm)
@@ -1707,7 +1730,7 @@ Definition full_post fn xfd (s : fstate) (t : asmmem) (s' : fstate) (t' : asmmem
     , List.Forall2 (value_in_mem mt') (take n ress) (take n argt)
     & values_uincl (drop n ress) rest ].
 
-Lemma it_compile_prog_to_asmP {fn} :
+Lemma it_compile_prog_to_asmP {fn vals} :
   compile_prog_to_asm aparams cparams entries up = ok xp ->
   fn \in entries ->
   exists xfd,
@@ -1715,7 +1738,7 @@ Lemma it_compile_prog_to_asmP {fn} :
       , xfd.(asm_fd_export)
       & wkequiv_io
           (full_pre fn xfd)
-          (isem_unit up fn)
+          (isem_unit up fn vals)
           (isem_asm xp fn)
           (full_post fn xfd)
    ].
@@ -1729,7 +1752,7 @@ case: hpre => mi [hmga hesp hscs_eq hrsp_eq hwfa hfuim].
 have FE := it_compiler_front_endP ok_sp ok_fn.
 
 have [xfd2 [get_xfd2 _ BE]] :=
-  it_compiler_back_end_to_asmP (asm_rip xm) ok_xp ok_fn.
+  it_compiler_back_end_to_asmP (asm_rip xm) (vals:=vals) ok_xp ok_fn.
 
 have heq_xfd : xfd2 = xfd by move: get_xfd2; rewrite get_xfd => [[->]].
 subst xfd2.
@@ -1785,8 +1808,10 @@ have [fs_sp [? hsp_scs hsp_eqinmem hsp_uincl hsp_ptr_eq]] :
       by case: wptr.
 
 subst mi.
-have/(FE _ tt) h_fe : front_end_pre up sp (asm_rip xm) fn fn fs fs_sp.
+have/(FE _ tt) h_fe : front_end_pre up sp (asm_rip xm) fn fn (vals, fs) (vals, fs_sp).
 - split.
+  - reflexivity.
+
   - reflexivity.
 
   - apply: [elaborate enough_stack_space_alloc_ok ok_xp ok_fn hmga.(ma_stack_range)].
@@ -1830,7 +1855,7 @@ have hvalidw_u :=
     (sip := sip_of_asm_e)
     (wsw := nosubword)
     (dc := indirect_c)
-    up tt (fn := fn)] dummy_instr_info fs I.
+    up tt (fn := fn)] dummy_instr_info vals fs I.
 have {}h_fe := lutt_xrutt_trans_l hvalidw_u h_fe.
 clear hvalidw_u.
 
@@ -1842,7 +1867,7 @@ have hvalidw :=
     (sip := sip_of_asm_e)
     (wsw := withsubword)
     (dc := direct_c)
-    sp (asm_rip xm) (fn := fn)] dummy_instr_info fs_sp I.
+    sp (asm_rip xm) (fn := fn)] dummy_instr_info vals fs_sp I.
 have {}h_fe := lutt_xrutt_trans_r hvalidw h_fe.
 clear hvalidw.
 

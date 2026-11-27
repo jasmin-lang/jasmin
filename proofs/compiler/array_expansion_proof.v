@@ -28,7 +28,7 @@ Definition eval_array ws v i :=
   then ok (rdflt undef_w (rmap (@Vword _) (WArray.get Unaligned AAscale ws t i)))
   else type_error.
 
-Definition eq_alloc_vm {wsw : WithSubWord} (m : t) vm1 vm2 :=
+Definition eq_alloc_vm {wsw : WithSubWord} env (m : t) (vm1 vm2 : Vm.t env) :=
   vm1 =[m.(svars)] vm2 /\
   forall x ai xi,
     Mvar.get m.(sarrs) x = Some ai ->
@@ -137,30 +137,31 @@ Local Notation gd := (p_globs p1).
 
 Section Expr.
 
+Context (env : env_t).
 Context (m : t) (valid : wf_t m).
 
 Section WDB.
 
 Context {wdb : enforce_defined_variables}.
 
-Lemma check_var_get s1 s2 x :
+Lemma check_var_get (s1 s2 : estate env) x :
   Sv.mem x (svars m) ->
   eq_alloc m s1 s2 ->
   get_var (evm s1) x = get_var (evm s2) x.
-Proof. by move=> /Sv_memP hin -[] _ _ [] heq _; rewrite /get_var /= heq. Qed.
+Proof. by move=> /Sv_memP hin /st_relP [-> /= [heq _]]; rewrite /get_var heq. Qed.
 
-Lemma check_gvar_get s1 s2 x :
+Lemma check_gvar_get (s1 s2 : estate env) x :
   check_gvar m x ->
   eq_alloc m s1 s2 ->
   get_gvar gd s1.(evm) x = get_gvar gd s2.(evm) x.
 Proof. rewrite /get_gvar /check_gvar; case: is_lvar => //=; apply check_var_get. Qed.
 
-Lemma eq_alloc_mem s1 s2 : eq_alloc m s1 s2 -> emem s1 = emem s2.
+Lemma eq_alloc_mem (s1 s2 : estate env) : eq_alloc m s1 s2 -> emem s1 = emem s2.
 Proof. by case. Qed.
 
 Section EXPR.
 
-Context (s1 s2 : estate) (h : eq_alloc m s1 s2).
+Context (s1 s2 : estate env) (h : eq_alloc m s1 s2).
 
 Let P e1 :=
   forall e2, expand_e m e1 = ok e2 ->
@@ -194,7 +195,7 @@ Proof using valid h.
     t_xrbindP => z /(@aligned_le_read _ _ _ _ _ _ _ _ Unaligned) /=.
     rewrite /aligned_le eqxx => /(_ erefl).
     rewrite -/(WArray.get Unaligned AAscale _ t _) => hw <-.
-    case: h=> _ _ -[_] /(_ _ _ _ hgetx (wf_mem (v_var (gv x)) hai hbound)).
+    case/st_relP: h => -> /= [] _ /(_ _ _ _ hgetx (wf_mem (v_var (gv x)) hai hbound)).
     by rewrite -hx1 /= (wf_index _ hai hbound) /get_gvar /get_var hw /= => -[<-] /=; rewrite orbT.
   + move=> aa sz len x e hrec e2 he e1 /hrec hrec1 <- /=.
     rewrite (check_gvar_get he h) => v.
@@ -217,17 +218,17 @@ Proof using valid h. by case: expand_eP_and. Qed.
 
 End EXPR.
 
-Lemma eq_alloc_write_var s1 s2 (x: var_i) v s1':
+Lemma eq_alloc_write_var (s1 s2 : estate env) (x: var_i) v s1':
    eq_alloc m s1 s2 ->
    Sv.mem x (svars m) ->
    write_var x v s1 = ok s1' ->
-   ∃ s2' : estate, write_var x v s2 = ok s2' ∧ eq_alloc m s1' s2'.
+   ∃ s2' : estate env, write_var x v s2 = ok s2' ∧ eq_alloc m s1' s2'.
 Proof using valid.
-  move=> h; case: (h) => hscs hmem -[heq ha] /=.
+  move=> /st_relP [-> /= [heq ha]].
   move=> /Sv_memP hin hw.
   have [vm2 hw2 heq2]:= write_var_eq_on hw heq.
-  exists (with_vm s1' vm2); split.
-  + have -> // : s2 = with_vm s1 (evm s2) by case: (s2) hscs hmem => ??? /= <- <-.
+  exists (with_vm s1' vm2); split=> //.
+  apply st_relP.
   split => //; split; first by apply: eq_onI heq2; clear; SvD.fsetdec.
   move=> x' ai xi hai hxi.
   have vai := valid hai; move: vai.(x_nin) (vai.(xi_nin) hxi) => hnx' hnxi.
@@ -236,20 +237,22 @@ Proof using valid.
   by apply ha.
 Qed.
 
-Lemma expand_lvP (s1 s2 : estate) :
+Lemma expand_lvP (s1 s2 : estate env) :
   eq_alloc m s1 s2 ->
   forall x1 x2, expand_lv m x1 = ok x2 ->
   forall v s1',
      write_lval gd x1 v s1 = ok s1' ->
      exists s2', write_lval gd x2 v s2 = ok s2' /\ eq_alloc m s1' s2'.
 Proof using valid.
-  move=> h; case: (h) => hscs hmem -[heq ha] [] /=.
+  move=> /[dup] /st_relP [-> /= [heq ha]] h.
+  case=> /=.
   + move=> ii ty _ [<-] /= ?? /[dup] /write_noneP [-> _ _] hn.
-    by exists s2; split => //; apply: uincl_write_none hn.
+    by exists (with_vm s1 (evm s2)); split=> //; apply: uincl_write_none hn.
   + by move=> x; t_xrbindP => _ ? <- /= v1 s1'; apply eq_alloc_write_var.
   + move=> al ws vi e x2; t_xrbindP =>  e' he <- v s1' p /= ve.
-    move=> /(expand_eP h he) -> /= -> /= ? -> /= mem.
-    by rewrite -hmem => -> /= <-; exists (with_mem s2 mem).
+    move=> /(expand_eP h he) -> /= -> /= ? -> /= mem -> /= <-.
+    eexists; split; first by reflexivity.
+    by apply st_relP.
   + move=> al aa ws x e x2.
     case: ifPn => [hin | hnin].
     + t_xrbindP => e' he <- v s1' /=.
@@ -263,12 +266,12 @@ Proof using valid.
     t_xrbindP => w hvw t' ht' /[dup] hw1 /write_varP [? _ htrv]; subst s1'.
     have vai := valid hai; have hin := wf_mem (v_var x) vai hbound.
     move: (vai.(xi_ty) hin) (vai.(xi_nin) hin) => htyi xi_nin.
-    move=> /(f_equal eval_atype) in htyi.
+    move=> /(f_equal (eval_atype env)) in htyi.
     have [htri htrvi hdb hdv]:= to_word_vm_truncate_val wdb htyi hvw.
     set xi := znth (v_var x) (ai_elems ai) i.
-    have hw2 := write_var_truncate (x:= {| v_var := xi; v_info := v_info x |}) hdb htri s2.
+    have /= hw2 := write_var_truncate (x:= {| v_var := xi; v_info := v_info x |}) hdb htri (with_vm s1 (evm s2)).
     eexists; split; first eauto.
-    split => //; split.
+    apply st_relP; split=> //; split.
     + apply: (eq_onT (vm2:= evm s1)).
       + apply eq_onS; apply: (disjoint_eq_on (wdb := wdb) (gd := gd) (r := x) (v := Varr t')) => //.
         by rewrite vrv_var; move/Sv_memP : hnin => hnin; apply/Sv.is_empty_spec; clear -hnin; SvD.fsetdec.
@@ -278,6 +281,7 @@ Proof using valid.
            (wdb := wdb)
            (gd := gd)
            (r := Lvar (VarI xi x.(v_info)))
+           (s1 := with_vm s1 (evm s2))
            (v := v)) => //.
       by rewrite vrv_var /= /xi; apply/Sv.is_empty_spec; clear -xi_nin; SvD.fsetdec.
     move=> x' ai' xi' hx' hxi'.
@@ -303,7 +307,7 @@ Proof using valid.
   by apply (eq_alloc_write_var h hin hw).
 Qed.
 
-Lemma expand_lvsP (s1 s2 : estate) :
+Lemma expand_lvsP (s1 s2 : estate env) :
   eq_alloc m s1 s2 ->
   forall x1 x2, expand_lvs m x1 = ok x2 ->
   forall vs s1',
@@ -321,7 +325,7 @@ End WDB.
 
 Opaque ziota.
 
-Lemma expand_paramsP (s1 s2 : estate) e expdin :
+Lemma expand_paramsP (s1 s2 : estate env) e expdin :
   eq_alloc m s1 s2 ->
   forall es1 es2 vs, mapM2 e (expand_param m) expdin es1 = ok es2 ->
     sem_pexprs (wdb := false) gd s1 es1 = ok vs ->
@@ -338,7 +342,7 @@ Local Opaque wsize_size.
     t_xrbindP=> a1 hga /and3P[/eqP? /eqP ? hloc] + _; subst.
     rewrite /get_gvar /=hloc{hloc} /get_var /=.
     move=> + hrec _ _ [<-] z0 /hrec{hrec}+ <- => + [? ->] /= => <-.
-    have vai := (valid hga); case: h => _ _ -[_ /(_ _ _ _ hga){hga}hgai].
+    have vai := (valid hga); case/st_relP: h => -> /= [_ /(_ _ _ _ hga){hga}hgai].
     have /is_aarrP [xws [xlen hxty]] := vai.(x_ty).
     have := Vm.getP (evm s1) (gv g). rewrite hxty /= /compat_val /=.
     move => /compat_ctypeE /type_of_valI [x2 /[dup] hg ->].
@@ -353,7 +357,7 @@ Local Opaque wsize_size.
   move=> aa ws' len' g ei es >.
   t_xrbindP; case: is_constP=> // i ? [<-].
   move=> a hga.
-  move=> /eqP ? /eqP ? hb /and3P [] /eqP ? /eqP ? hloc ? _ hrec vs z; subst aa ws ws' len es => /=.
+  move=> /eqP ? /eqP ? /and3P [] /eqP ? /eqP ? hloc hb ? _ hrec vs z; subst aa ws ws' len' es => /=.
   move: hb; rewrite !zify => hb.
   have vai := valid hga.
 
@@ -370,13 +374,13 @@ Local Opaque wsize_size.
   rewrite -map_comp; apply eq_in_map => j; rewrite in_ziota /comp /= => /andP [] /ZleP ? /ZltP ?.
   have hbound : (0 <=? i + j)%Z && (i + j <? ai_len a)%Z.
   + by apply /andP; split; [apply/ZleP|apply/ZltP]; nia.
-  case: h => _ _ -[_ /(_ _ _ _ hga){hga}hgai].
+  case/st_relP: h => -> /= [_ /(_ _ _ _ hga){hga}hgai].
   move/hgai: (wf_mem (v_var (gv g)) vai hbound); rewrite -hgx /= => -[<-].
   by rewrite (wf_index _ vai hbound) (WArray.get_sub_get _ hst).
 Local Transparent wsize_size.
 Qed.
 
-Lemma wf_write_get s (x:var_i) ai lena (a : WArray.array lena) i len :
+Lemma wf_write_get (s : estate env) (x:var_i) ai lena (a : WArray.array lena) i len :
   wf_ai m x ai ->
   (0 <= i)%Z -> (i + len <= ai_len ai)%Z ->
   exists2 vm,
@@ -416,7 +420,7 @@ Proof.
 Qed.
 
 Opaque Z.mul.
-Lemma expand_returnP (s1 s2 : estate) expdout :
+Lemma expand_returnP (s1 s2 : estate env) expdout :
   eq_alloc m s1 s2 ->
   forall x1 xs2, expand_return m expdout x1 = ok xs2 ->
   forall v vs' s1',
@@ -445,7 +449,7 @@ Proof using valid.
     rewrite (wf_ai_elems (v_var x) hva) -map_comp /comp.
     have [vm2 -> hvm2 ]:= wf_write_get s2 a hva (Z.le_refl _) (Z.le_refl _).
     eexists; eauto.
-    case heqa => ?? heqv; split => //; split => /=.
+    case/st_relP: heqa => -> /= heqv; apply st_relP; split => //; split => /=.
     + move=> y hin; rewrite hvm2 /= Vm.setP_neq; last by apply/eqP=> ?; subst y; apply (x_nin hva hin).
       case: ifP; last by move=> _; apply heqv.
       rewrite in_ziota /= (zindex_bound y hva).
@@ -459,7 +463,7 @@ Proof using valid.
     by rewrite in_ziota (zindex_bound _ hva) hin hxty vm_truncate_val_eq.
   move => aa ws' len' x e xs2.
   t_xrbindP; case: is_constP => // i _ [<-] ai hga; have hva:= valid hga.
-  move=> /eqP ? /eqP ? hb /andP [] /eqP ? /eqP ? <- va vs' s1'; subst aa a ws' len.
+  move=> /eqP ? /eqP ? /andP [] /eqP ? /eqP ? hb <- va vs' s1'; subst aa a ws' len'.
   move: hb; rewrite !zify => hb.
   have /is_aarrP [xws [xlen hxty]] := hva.(x_ty).
   have /= := Vm.getP (evm s1) x; rewrite hxty => /compat_valEl [a heqx]; rewrite heqx.
@@ -467,25 +471,25 @@ Proof using valid.
   rewrite expand_vP => -[?]; subst vs'.
   have := WArray.set_sub_bound hra.
   rewrite /arr_size /mk_scale.
-  move=> hb'; have [{hb'} h0i hilen'] : (0 <= i /\ i + len' <= ai_len ai)%Z by nia.
+  move=> hb'; have [{hb'} h0i hilen'] : (0 <= i /\ i + len <= ai_len ai)%Z by nia.
   have -> := wf_take_drop (v_var x) hva h0i hilen'.
   rewrite -map_comp /comp.
   have [vm2 ] := wf_write_get s2 ra hva h0i hilen'.
-  rewrite {1 2}(ziota_shift i len') -!map_comp /comp.
+  rewrite {1 2}(ziota_shift i len) -!map_comp /comp.
   have -> :
-   [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Unaligned AAscale (ai_ty ai) ra (i + x0))) | x0 <- ziota 0 len'] =
-   [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Unaligned AAscale (ai_ty ai) sa i0)) | i0 <- ziota 0 len'].
+   [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Unaligned AAscale (ai_ty ai) ra (i + x0))) | x0 <- ziota 0 len] =
+   [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Unaligned AAscale (ai_ty ai) sa i0)) | i0 <- ziota 0 len].
   + apply eq_in_map => j; rewrite in_ziota => /andP [] /ZleP ? /ZltP ?.
     rewrite (WArray.set_sub_get _ hra).
-    have -> : (i <=? i + j)%Z && (i + j <? i + len')%Z; last by do 3!f_equal; ring.
+    have -> : (i <=? i + j)%Z && (i + j <? i + len)%Z; last by do 3!f_equal; ring.
     by apply/andP; split; [apply/ZleP|apply/ZltP]; nia.
   move=> -> hvm2; eexists; eauto.
   have hybound: forall y,
-        (i <=? zindex y (ai_elems ai))%Z && (zindex y (ai_elems ai) <? i + len')%Z ->
+        (i <=? zindex y (ai_elems ai))%Z && (zindex y (ai_elems ai) <? i + len)%Z ->
         (y \in ai_elems ai).
   + move=> y => /andP [/ZleP ? /ZltP ?]; rewrite -(zindex_bound y hva).
     by apply/andP; split; [apply/ZleP|apply/ZltP]; nia.
-  case heqa => ?? heqv; split => //; split => /=.
+  case/st_relP: heqa => -> /= heqv; apply st_relP; split => //; split => /=.
   + move=> y hin; rewrite hvm2 /= Vm.setP_neq; last by apply/eqP=> ?; subst y; apply (x_nin hva hin).
     case: ifP; last by move=> _; apply heqv.
     by rewrite in_ziota /= => /hybound /(xi_nin hva); elim.
@@ -501,7 +505,7 @@ Proof using valid.
   by rewrite hn; have [_ /(_ _ _ _ hga hin)]:= heqv; rewrite heqx.
 Qed.
 
-Lemma expand_returnsP (s1 s2 : estate) e expdout :
+Lemma expand_returnsP (s1 s2 : estate env) e expdout :
   eq_alloc m s1 s2 ->
   forall xs1 xs2, mapM2 e (expand_return m) expdout xs1 = ok xs2 ->
   forall vs vs' s1',
@@ -609,11 +613,11 @@ Proof.
   by move=> h1 h2; have := hget _ _ _ h1 h2; clear -heq; SvD.fsetdec.
 Qed.
 
-Lemma eq_alloc_empty m scs mem :
+Lemma eq_alloc_empty env m scs mem :
   wf_t m ->
-  eq_alloc m {| escs := scs; emem := mem; evm := Vm.init |} {| escs := scs; emem := mem; evm := Vm.init |}.
+  eq_alloc m {| escs := scs; emem := mem; evm := Vm.init env |} {| escs := scs; emem := mem; evm := Vm.init env |}.
 Proof.
-  move=> hwf; split => //; split => //=.
+  move=> hwf; apply st_relP; split => //; split => //=.
   move=> x ai xi /hwf hva hin.
   have /is_aarrP [xws [xlen hxty]] := hva.(x_ty).
   rewrite !Vm.initP hxty (xi_ty hva hin) /=.
@@ -675,27 +679,13 @@ Definition vs_expand_post fn vs1 vs2 :=
 
 Definition exp_spec :=
   {|
-    rpreF_ := λ (fn1 fn2 : funname) (fs1 fs2 : fstate), fn1 = fn2 ∧ fs_rel (vs_expand_pre fn1) fs1 fs2;
-    rpostF_ := λ (fn1 _ : funname) (_ _ fr1 fr2 : fstate), fs_rel (vs_expand_post fn1) fr1 fr2
+    rpreF_ := λ (fn1 fn2 : funname) valfs1 valfs2, fn1 = fn2 ∧ valfs1.1 = valfs2.1 /\ fs_rel (vs_expand_pre fn1) valfs1.2 valfs2.2;
+    rpostF_ := λ (fn1 _ : funname) _ _ (fr1 fr2 : fstate), fs_rel (vs_expand_post fn1) fr1 fr2
   |}.
 
 Section CMD.
 
 Context (m:t) (hwf : wf_t m).
-
-#[ local ]
-Definition Pi_ (i1 : instr) :=
-  forall i2, expand_i fsigs m i1 = ok i2 ->
-  wequiv_rec p1 p2 ev ev exp_spec (eq_alloc m) [::i1] [::i2] (eq_alloc m).
-
-#[ local ]
-Definition Pi_r_ (i : instr_r) := forall ii, Pi_ (MkI ii i).
-
-#[ local ]
-Definition Pc_ (c1 : cmd) :=
-  forall c2,
-   mapM (expand_i fsigs m) c1 = ok c2 ->
-   wequiv_rec p1 p2 ev ev exp_spec (eq_alloc m) c1 c2 (eq_alloc m).
 
 Definition check_es_exp d es1 es2 d' :=
   [/\ d = m, d' = m & expand_es d es1 = ok es2].
@@ -703,9 +693,9 @@ Definition check_es_exp d es1 es2 d' :=
 Definition check_xs_exp d xs1 xs2 d' :=
   [/\ d = m, d' = m & expand_lvs d xs1 = ok xs2].
 
-Lemma check_es_expP_rel d es1 es2 d' :
+Lemma check_es_expP_rel env1 env2 d es1 es2 d' :
   check_es_exp d es1 es2 d' →
-  ∀ [s1 s2 : estate], eq_alloc d s1 s2 → eq_alloc d' s1 s2.
+  ∀ [s1 : estate env1] [s2 : estate env2], eq_alloc d s1 s2 → eq_alloc d' s1 s2.
 Proof. by move=> [-> ->]. Qed.
 
 Definition checker_exp :=
@@ -717,15 +707,33 @@ Definition checker_exp :=
 Lemma checker_exp_eqP : Checker_eq p1 p2 checker_exp.
 Proof using Hcomp hwf.
   split.
-  + move=> wdb1 _ d es1 es2 _ /wdb_ok_eq <- [-> _ hes] s t vs1 heqa he.
-    have {}heqa : eq_alloc m s t by case: heqa; split.
+  + move=> env1 env2 wdb1 _ d es1 es2 _ /wdb_ok_eq <- [-> _ hes] s t vs1 heqa he.
+    have ? := st_rel_env_eq heqa; subst env2.
     by rewrite eq_globs (expand_esP hwf heqa hes he); eauto.
-  move=> wdb1 _ d xs1 xs2 _ /wdb_ok_eq <- [-> -> hxs] vs s t s' heqa hw.
-  have {}heqa : eq_alloc m s t by case: heqa; split.
+  move=> env1 env2 wdb1 _ d xs1 xs2 _ /wdb_ok_eq <- [-> -> hxs] vs s t s' heqa hw.
+  have ? := st_rel_env_eq heqa; subst env2.
   have [t' [{}hw [*]]]:= expand_lvsP hwf heqa hxs hw.
   by rewrite eq_globs; exists t'.
 Qed.
 #[local] Hint Resolve checker_exp_eqP : core.
+
+Section REC.
+
+Context (env : env_t).
+
+#[ local ]
+Definition Pi_ (i1 : instr) :=
+  forall i2, expand_i fsigs m i1 = ok i2 ->
+  wequiv_rec (env1:=env) (env2:=env) p1 p2 ev ev exp_spec (eq_alloc m) [::i1] [::i2] (eq_alloc m).
+
+#[ local ]
+Definition Pi_r_ (i : instr_r) := forall ii, Pi_ (MkI ii i).
+
+#[ local ]
+Definition Pc_ (c1 : cmd) :=
+  forall c2,
+   mapM (expand_i fsigs m) c1 = ok c2 ->
+   wequiv_rec (env1:=env) (env2:=env) p1 p2 ev ev exp_spec (eq_alloc m) c1 c2 (eq_alloc m).
 
 Lemma expand_cP c1 : Pc_ c1.
 Proof using Hcomp hwf.
@@ -738,7 +746,7 @@ Proof using Hcomp hwf.
     apply wequiv_assgn_rel_eq with checker_exp m => //.
     + by split => //=; rewrite he.
     by split => //=; rewrite hx.
-  + move=> xs1 t o es1  ii i2_ /=; t_xrbindP => xs2 hxs es2 hes <-.
+  + move=> xs1 t o als1 es1 ii i2_ /=; t_xrbindP => xs2 hxs es2 hes <-.
     by apply wequiv_opn_rel_eq with checker_exp m.
   + move=> xs1 o es1 ii i2_ /=; t_xrbindP => xs2 hxs es2 hes <-.
     by apply wequiv_syscall_rel_eq with checker_exp m.
@@ -752,47 +760,52 @@ Proof using Hcomp hwf.
   + move=> al c1 e1 ii' c1' hc1 hc1' ii i2_ /=; t_xrbindP => e2 he c2 /hc1{}hc1 c2' /hc1'{}hc1' <-.
     apply wequiv_while_rel_eq with checker_exp m => //.
     by split => //=; rewrite he.
-  move=> xs1 fn es1 ii i2_ /=; t_xrbindP.
+  move=> xs1 fn als1 es1 ii i2_ /=; t_xrbindP.
   case heq: Mf.get => [[expdin expdout] | //]; t_xrbindP.
   move=> _ xs2 hxs <- _ es2 hes <- <-.
-  apply wequiv_call with (rpreF (eS:=exp_spec)) (rpostF (eS:=exp_spec)) (vs_expand_flat expdin).
+  apply wequiv_call with (rpreF (eS:=exp_spec)) (rpostF (eS:=exp_spec)) eq (vs_expand_flat expdin).
   + move=> s t vs1 heqa he; rewrite eq_globs.
     have [vs2 ? ->] := expand_paramsP hwf heqa hes he.
     eexists; first reflexivity.
     by rewrite /vs_expand_flat; exists vs2.
-  + move=> s t vs1 vs2 [?? _] [vs2' hvs ->]; split => //; split => //.
+  + done.
+  + move=> s t vals _ vs1 vs2 /st_relP [-> _] <- [vs2' hvs ->]; split => //; split => //; split=> //.
     eexists; first exact heq.
     by exists vs2' => //.
-  + by move=> ???; apply: wequiv_fun_rec.
-  move=> _ _ fr1 fr2 _ /=; apply upd_st_rel.
+  + by move=> ??; apply: wequiv_fun_rec.
+  move=> _ _ _ _ fr1 fr2 _ /=; apply upd_st_rel.
   move=> vs1 vs2 [_ _ [_ [expd]]]; rewrite heq => -[?]; subst expd => /=.
   move=> [vs' hvs' hflat] s t s' heqa hw; rewrite eq_globs hflat.
   by apply (expand_returnsP hwf heqa hxs hw hvs').
 Qed.
+
+End REC.
 
 End CMD.
 
 Lemma it_expand_callP_aux fn :
   wiequiv_f p1 p2 ev ev (rpreF (eS:=exp_spec)) fn fn (rpostF (eS:=exp_spec)).
 Proof using Hcomp Hstep1.
-  apply wequiv_fun_ind => {}fn _ fs1 fs2 [<-] [hscs hmem] [[expdin expdout]
-    hexpd [vs /= hexpv hflat]] fd hget1.
+  apply wequiv_fun_ind => {}fn _ vals _ fs1 fs2
+    [/= <- [<- [hscs hmem [[expdin expdout] hexpd [vs /= hexpv hflat]]]]]
+    fd hget1.
   have [fd1 [fd2 [m [inout [hget2 hsigs /=]]]]]:= all_checked hget1.
   rewrite /expand_fsig; t_xrbindP => -[mt finf].
   case: fd hget1.
-  move=> finfo fci ftyin fparams fbody ftyout fres fextra hget1.
+  move=> finfo fci fals ftyin fparams fbody ftyout fres fextra hget1.
   set fd := {| f_info := finfo |} => hinit.
+  set env := create_env _ _.
   t_xrbindP => ins hparams outs hres <- ??; subst mt inout.
   t_xrbindP => c hc ?; exists fd1; subst fd1 => // s1.
   rewrite /initialize_funcall /=; t_xrbindP; rewrite /estate0 => vs1 htr hw.
   rewrite -hscs -hmem hflat => {hflat}.
   move: hexpd; rewrite hsigs => -[??]; subst expdin expdout.
-  set (sempty := {| escs := fscs fs1; emem := fmem fs1; evm := Vm.init |}).
+  set (sempty := {| escs := fscs fs1; emem := fmem fs1; evm := Vm.init env |}).
   have hwf := wf_init_map hinit.
   have heqae : eq_alloc m sempty sempty by apply eq_alloc_empty.
   rewrite (write_vars_lvals false gd) in hw.
   have ? := mapM2_dc_truncate_id htr; subst vs1.
-  have -> /= : mapM2 ErrType dc_truncate_val (map eval_atype (flatten [seq x.1.1 | x <- ins])) (flatten vs) = ok (flatten vs).
+  have -> /= : mapM2 ErrType dc_truncate_val (map (eval_atype env) (flatten [seq x.1.1 | x <- ins])) (flatten vs) = ok (flatten vs).
   + move/mapM2_Forall3: hparams (fvals fs1) vs hexpv; elim.
     + by move=> [] //= ? [<-].
     move=> ty x [[tysx xsx] o] tys xs cs0 hexty _ hrec' [] //= v vs ?.
@@ -813,7 +826,7 @@ Proof using Hcomp Hstep1.
   rewrite -(sem_pexprs_get_var false gd) in hgets.
   have [vs' hex]:= expand_paramsP hwf heqa2 (expend_tyv_expand_param hres) hgets.
   rewrite map_comp -map_flatten sem_pexprs_get_var => -> /= {hgets}.
-  have -> /= : mapM2 ErrType dc_truncate_val (map eval_atype (flatten [seq x.1.1 | x <- outs])) (flatten vs') = ok (flatten vs').
+  have -> /= : mapM2 ErrType dc_truncate_val (map (eval_atype env) (flatten [seq x.1.1 | x <- outs])) (flatten vs') = ok (flatten vs').
   + move/mapM2_Forall3: hres {htr} vres vs' hex; elim.
     + by move=> [] //= ? [<-].
     move=> ty x [[tysx xsx] o] tys xs cs0 hexty _ hrec' [] //= v vs' ?.
@@ -863,13 +876,13 @@ Proof using Hcomp.
     move/mapM2_Forall3: hz1; elim => //= > + _ ->.
     by rewrite /expand_tyv; case: Mvar.get => //; t_xrbindP => _ <-.
   apply wkequiv_io_weaken with (rpreF (eS:=exp_spec s1) f f) (rpostF (eS:=exp_spec s1) f f) => //.
-  + move=> fs1 fs2 [] [_ <-] _ [s]; rewrite /initialize_funcall; t_xrbindP.
-    move=> vs htri _ _ _; split => //; split => //.
+  + move=> valfs1 valfs2 [] [/= _ [<- <-]] _ [s]; rewrite /initialize_funcall; t_xrbindP.
+    move=> vs htri _ _ _; split => //; split => //; split => //.
     eexists; first exact hgets.
-    exists [seq [:: x] | x <- (fvals fs1)] => /=.
-    + by elim: (f_tyin fd) (fvals fs1) vs htri => [[]|> hrec []]//=; t_xrbindP=> > /hrec ->.
+    exists [seq [:: x] | x <- (fvals valfs1.2)] => /=.
+    + by elim: (f_tyin fd) (fvals valfs1.2) vs htri => [[]|> hrec []]//=; t_xrbindP=> > /hrec ->.
     by rewrite flatten_seq1.
-  move=> _ _ [scs1 mem1 vs1] [scs2 mem2 vs2] _ /= [/= <- <- [x]]; rewrite hget => -[?]; subst x.
+  move=> _ _ [scs1 mem1 vs1] [scs2 mem2 vs2] _ [/= <- <- [x]]; rewrite hget => -[?]; subst x.
   move=> [hsz [x]]; rewrite hgets /= => -[?]; subst x => /=.
   move=> [vs1'] + ->.
   have -> : expand_vs (map (fun=> None) (f_tyout fd)) vs1 = ok [seq [:: x] | x <- vs1].

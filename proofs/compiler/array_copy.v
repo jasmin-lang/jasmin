@@ -65,8 +65,8 @@ Definition array_copy ii (x: var_i) (ws: wsize) (n: Z) (y: gvar) :=
   let pre :=
     if eq_gvar (mk_lvar x) y
     || is_ptr x
-    then Copn [::] AT_none sopn_nop [::]
-    else Cassgn (Lvar x) AT_none (aarr ws n) (Parr_init ws n) in
+    then Copn [::] AT_none sopn_nop [::] [::]
+    else Cassgn (Lvar x) AT_none (aarr ws (ALConst n)) (Parr_init ws (ALConst n)) in
   [:: MkI ii pre;
       MkI ii
         (Cfor i (UpTo, Pconst 0, Pconst n)
@@ -119,12 +119,12 @@ Fixpoint array_copy_i V (i:instr) : cexec cmd :=
   let:(MkI ii id) := i in
   match id with
   | Cassgn _ _ _ _ => ok [:: i]
-  | Copn xs _ o es =>
+  | Copn xs _ o _ es =>
     match is_copy o with
     | Some (ws, n) =>
       Let: (y, pre) := get_source V ii es in
       Let: (x, post) := get_target V ii xs in
-          Let _ := assert (convertible (vtype x) (aarr ws n))
+          Let _ := assert (convertible (vtype x) (aarr ws (ALConst n)))
                           (pp_internal_error_s_at E.pass ii "bad type for copy") in
           ok (pre ++ array_copy ii x ws n y ++ post)
 
@@ -142,7 +142,7 @@ Fixpoint array_copy_i V (i:instr) : cexec cmd :=
       Let c1 := array_copy_c V array_copy_i c1 in
       Let c2 := array_copy_c V array_copy_i c2 in
       ok [:: MkI ii (Cwhile a c1 e info c2)]
-  | Ccall _ _ _ => ok [:: i]
+  | Ccall _ _ _ _ => ok [:: i]
   end.
 
 End FUNCTION.

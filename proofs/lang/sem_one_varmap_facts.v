@@ -25,10 +25,10 @@ Section STACK_STABLE.
 
 Infix "≡" := stack_stable (at level 40).
 
-Let Pc (_: Sv.t) s1 (_: cmd) s2 : Prop := emem s1 ≡ emem s2.
-Let Pi (_: Sv.t) s1 (_: instr) s2 : Prop := emem s1 ≡ emem s2.
-Let Pi_r (_: instr_info) (_: Sv.t) s1 (_: instr_r) s2 : Prop := emem s1 ≡ emem s2.
-Let Pfun (_: instr_info) (_: Sv.t) s1 (_: funname) s2 : Prop := emem s1 ≡ emem s2.
+Let Pc (_: Sv.t) (s1 : estate empty_env) (_: cmd) (s2 : estate empty_env) : Prop := emem s1 ≡ emem s2.
+Let Pi (_: Sv.t) (s1 : estate empty_env) (_: instr) (s2 : estate empty_env) : Prop := emem s1 ≡ emem s2.
+Let Pi_r (_: instr_info) (_: Sv.t) (s1 : estate empty_env) (_: instr_r) (s2 : estate empty_env) : Prop := emem s1 ≡ emem s2.
+Let Pfun (_: instr_info) (_: Sv.t) (s1 : estate empty_env) (_: funname) (s2 : estate empty_env) : Prop := emem s1 ≡ emem s2.
 
 Lemma Hnil : sem_Ind_nil Pc.
 Proof. by []. Qed.
@@ -43,7 +43,7 @@ Lemma Hassgn : sem_Ind_assgn p Pi_r.
 Proof. by move => ii s1 s2 x tg ty e v v' ok_v ok_v' /write_lval_stack_stable. Qed.
 
 Lemma Hopn : sem_Ind_opn p Pi_r.
-Proof. by move => ii s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => ???? /write_lvals_stack_stable. Qed.
+Proof. by move => ii s1 s2 tg op xs als es; rewrite /sem_sopn; t_xrbindP => ???? /write_lvals_stack_stable. Qed.
 
 Lemma Hsyscall : sem_Ind_syscall p Pi_r.
 Proof.
@@ -181,10 +181,10 @@ Section NOT_WRITTEN.
 
 Local Coercion evm : estate >-> Vm.t.
 
-Let Pc (k: Sv.t) (s1: estate) (_: cmd) (s2: estate) : Prop := s1 =[\ k] s2 .
-Let Pi (k: Sv.t) (s1: estate) (_: instr) (s2: estate) : Prop := s1 =[\ k] s2.
-Let Pi_r (_: instr_info) (k: Sv.t) (s1: estate) (_: instr_r) (s2: estate) : Prop := s1 =[\ k] s2.
-Let Pfun (_: instr_info) (k: Sv.t) (s1: estate) (_: funname) (s2: estate) : Prop := s1 =[\ k] s2.
+Let Pc (k: Sv.t) (s1: estate empty_env) (_: cmd) (s2: estate empty_env) : Prop := s1 =[\ k] s2 .
+Let Pi (k: Sv.t) (s1: estate empty_env) (_: instr) (s2: estate empty_env) : Prop := s1 =[\ k] s2.
+Let Pi_r (_: instr_info) (k: Sv.t) (s1: estate empty_env) (_: instr_r) (s2: estate empty_env) : Prop := s1 =[\ k] s2.
+Let Pfun (_: instr_info) (k: Sv.t) (s1: estate empty_env) (_: funname) (s2: estate empty_env) : Prop := s1 =[\ k] s2.
 
 Local Lemma Hnil_nw : sem_Ind_nil Pc.
 Proof. by []. Qed.
@@ -202,7 +202,7 @@ Lemma Hassgn_nw : sem_Ind_assgn p Pi_r.
 Proof. move => ii s1 s2 x tg ty e v v' ok_v ok_v'; exact: vrvP. Qed.
 
 Lemma Hopn_nw : sem_Ind_opn p Pi_r.
-Proof. move => ii s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => vs' vs ok_vs ok_vs'; exact: vrvsP. Qed.
+Proof. move => ii s1 s2 tg op xs als es; rewrite /sem_sopn; t_xrbindP => vs' vs ok_vs ok_vs'; exact: vrvsP. Qed.
 
 Lemma Hsyscall_nw : sem_Ind_syscall p Pi_r.
 Proof.
@@ -234,7 +234,7 @@ Proof. by []. Qed.
 
 Lemma Hcall_nw : sem_Ind_call p var_tmp Pi_r Pfun.
 Proof.
-  move=> ii k s1 s2 res fn args ?.
+  move=> ii k s1 s2 res fn als args ?.
   rewrite /Pfun /Pi_r /kill_tmp_call /= => h1 x hx.
   have /Sv_memP/negbTE hn : ¬ Sv.In x (fd_tmp_call p fn) by SvD.fsetdec.
   rewrite kill_varsE hn -h1 ?kill_varsE ?hn //; SvD.fsetdec.
@@ -341,10 +341,10 @@ Hypothesis var_tmp_not_magic : disjoint var_tmp (magic_variables p).
    the global-data pointer; merge_varmaps checks it. *)
 Hypothesis call_kill_not_magic : disjoint call_kill (magic_variables p).
 
-Let Pc (k: Sv.t) (_: estate) (_: cmd) (_: estate) : Prop := disjoint k (magic_variables p).
-Let Pi (k: Sv.t) (_: estate) (_: instr) (_: estate) : Prop := disjoint k (magic_variables p).
-Let Pi_r (_: instr_info) (_: Sv.t) (_: estate) (_: instr_r) (_: estate) : Prop := True.
-Let Pfun (_: instr_info) (k: Sv.t) (_: estate) (_: funname) (_: estate) : Prop := disjoint k (magic_variables p).
+Let Pc (k: Sv.t) (_: estate empty_env) (_: cmd) (_: estate empty_env) : Prop := disjoint k (magic_variables p).
+Let Pi (k: Sv.t) (_: estate empty_env) (_: instr) (_: estate empty_env) : Prop := disjoint k (magic_variables p).
+Let Pi_r (_: instr_info) (_: Sv.t) (_: estate empty_env) (_: instr_r) (_: estate empty_env) : Prop := True.
+Let Pfun (_: instr_info) (k: Sv.t) (_: estate empty_env) (_: funname) (_: estate empty_env) : Prop := disjoint k (magic_variables p).
 
 Local Lemma Hnil_pm : sem_Ind_nil Pc.
 Proof.
@@ -493,10 +493,10 @@ Infix "≡" := (λ m1 m2, validw m1 =3 validw m2) (at level 40).
 Instance eqrel_trans A B C : Transitive (@eqrel A B C).
 Proof. by move => x y z xy yz a b; transitivity (y a b). Qed.
 
-Let Pc (_: Sv.t) s1 (_: cmd) s2 : Prop := emem s1 ≡ emem s2.
-Let Pi (_: Sv.t) s1 (_: instr) s2 : Prop := emem s1 ≡ emem s2.
-Let Pi_r (_: instr_info) (_: Sv.t) s1 (_: instr_r) s2 : Prop := emem s1 ≡ emem s2.
-Let Pfun (_: instr_info) (_: Sv.t) s1 (_: funname) s2 : Prop := emem s1 ≡ emem s2.
+Let Pc (_: Sv.t) (s1 : estate empty_env) (_: cmd) (s2 : estate empty_env) : Prop := emem s1 ≡ emem s2.
+Let Pi (_: Sv.t) (s1 : estate empty_env) (_: instr) (s2 : estate empty_env) : Prop := emem s1 ≡ emem s2.
+Let Pi_r (_: instr_info) (_: Sv.t) (s1 : estate empty_env) (_: instr_r) (s2 : estate empty_env) : Prop := emem s1 ≡ emem s2.
+Let Pfun (_: instr_info) (_: Sv.t) (s1 : estate empty_env) (_: funname) (s2 : estate empty_env) : Prop := emem s1 ≡ emem s2.
 
 Lemma validw_stable_nil : sem_Ind_nil Pc.
 Proof. by []. Qed.
@@ -511,7 +511,7 @@ Lemma validw_stable_assgn : sem_Ind_assgn p Pi_r.
 Proof. by move => ii s1 s2 x tg ty e v v' ok_v ok_v' /write_lval_validw. Qed.
 
 Lemma validw_stable_opn : sem_Ind_opn p Pi_r.
-Proof. by move => ii s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => ???? /write_lvals_validw. Qed.
+Proof. by move => ii s1 s2 tg op xs als es; rewrite /sem_sopn; t_xrbindP => ???? /write_lvals_validw. Qed.
 
 Lemma validw_stable_syscall : sem_Ind_syscall p Pi_r.
 Proof. by move => ii s1 s2 o xs es scs m ves vs _ h; have := exec_syscallS h; move=> [_ ho] /write_lvals_validw hw => ???; rewrite ho hw. Qed.

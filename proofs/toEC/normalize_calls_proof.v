@@ -12,13 +12,15 @@ Context (arrays_by_size : bool).
 
 (* An auxiliary variable and a destination that fits hold values of the same
    type as the output. *)
-Lemma aux_type_eval ty : eval_atype (aux_type arrays_by_size ty) = eval_atype ty.
+Lemma aux_type_eval env ty :
+  eval_atype env (aux_type arrays_by_size ty) = eval_atype env ty.
 Proof.
   rewrite /aux_type; case: arrays_by_size ty => // -[] //= ws len.
   by rewrite (arr_sizeE U8) Z.mul_1_l.
 Qed.
 
-Lemma fits_eval ty ty' : fits arrays_by_size ty ty' -> eval_atype ty = eval_atype ty'.
+Lemma fits_eval env ty ty' :
+  fits arrays_by_size ty ty' -> eval_atype env ty = eval_atype env ty'.
 Proof. by rewrite /fits; case: arrays_by_size => [/convertible_eval_atype | /eqP ->]. Qed.
 
 Section FUNDEF.
@@ -107,7 +109,15 @@ Context
 #[local] Existing Instance nosubword.
 #[local] Existing Instance indirect_c.
 
-Lemma write_var_rel (x y : var_i) v (t s t' : estate) :
+(* The components of [st_eq_on] between states of the same environment. *)
+Lemma st_eq_onE env X (t s : estate env) :
+  st_eq_on X t s <-> [/\ escs t = escs s, emem t = emem s & evm t =[X] evm s].
+Proof.
+  split; first by move=> /[dup] -[-> -> _] /st_relP [_ ?].
+  by move=> [h1 h2 h3]; split => //; exists erefl.
+Qed.
+
+Lemma write_var_rel env (x y : var_i) v (t s t' : estate env) :
   vtype x = vtype y ->
   write_var (wdb := true) x v t = ok t' ->
   exists2 s', write_var (wdb := true) y v s = ok s' &
@@ -146,11 +156,11 @@ Qed.
 (* A copy, which writes the truncation of [v] to the type of the destination,
    writes the destination as the original instruction does. A destination
    that is not a flag receives a value that is not a boolean. *)
-Lemma copy_writeP gd lv v w (t s t' : estate) :
+Lemma copy_writeP env gd lv v w (t s t' : estate env) :
   escs t = escs s -> emem t = emem s ->
   type_of_val v <> cbool ->
   (forall z, Sv.In z (read_rv lv) -> (evm t).[z] = (evm s).[z]) ->
-  truncate_val (eval_atype (ty_lval lv)) v = ok w ->
+  truncate_val (eval_atype env (ty_lval lv)) v = ok w ->
   write_lval (wdb := true) gd lv w t = ok t' ->
   exists2 s', write_lval (wdb := true) gd lv v s = ok s' &
     [/\ escs t' = escs s', emem t' = emem s'
@@ -197,18 +207,18 @@ Context (p' : prog) (ev : extra_val_t).
    the first destination of [lvs], [S] the source state before writing it,
    [TF] the target state after the instruction. A flag that a remaining
    position writes holds its final value already. *)
-Definition nc_inv (X : Sv.t) (lvs : lvals) (touts : seq atype) (TF U S : estate) :=
+Definition nc_inv env (X : Sv.t) (lvs : lvals) (touts : seq atype) (TF U S : estate env) :=
   [/\ escs U = escs S /\ emem U = emem S,
       (forall z, Sv.In z X -> ~ Sv.In z (flag_vars lvs touts) ->
          (evm U).[z] = (evm S).[z]),
       (forall a, ~ Sv.In a X -> (evm U).[a] = (evm TF).[a])
     & (forall z, Sv.In z (flag_vars lvs touts) -> (evm U).[z] = (evm TF).[z])].
 
-Lemma nc_destsP fii ii X tg (TF : estate) lvs touts acc acc' xs c vs (W U S U' : estate) :
+Lemma nc_destsP env fii ii X tg (TF : estate env) lvs touts acc acc' xs c vs (W U S U' : estate env) :
   nc_dests fresh_var_ident arrays_by_size fii X ii tg acc lvs touts = ok (acc', xs, c) ->
   Sv.Subset (vars_lvals lvs) X ->
   flags_ok lvs touts ->
-  List.map type_of_val vs = map eval_atype touts ->
+  List.map type_of_val vs = map (eval_atype env) touts ->
   dests_match arrays_by_size lvs touts ->
   write_lvals (wdb := true) (p_globs p') W xs vs = ok TF ->
   esem p' ev c U = ok U' ->
@@ -219,7 +229,7 @@ Proof.
     [|lv lvs ih] [|ty touts] acc acc' xs c vs W U S /=.
   2,3: by move=> _ _ _ _ hf; exfalso; apply: notF hf.
   + move=> [_ <- <-] _ _; case: vs => [|//] _ _ _ [<-] [[h1 h2] h3 _ _]; exists S => //.
-    by split => // z hz; apply: h3 hz _; SvD.fsetdec.
+    by apply/st_eq_onE; split => // z hz; apply: h3 hz _; SvD.fsetdec.
   move=> hnc hsub /andP [hok hoks]; case: vs => [|v vs] //= [htv htys] /andP [hm hms] hW hc.
   move=> [[h1 h2] h3 h4 h5].
   have [hlv hsub'] : Sv.Subset (Sv.union (read_rv lv) (vrv lv)) X /\ Sv.Subset (vars_lvals lvs) X.
@@ -256,9 +266,9 @@ Proof.
     ((forall vi ty', lv <> Lnone vi ty') /\
      esem p' ev (MkI ii (Cassgn lv tg (ty_lval lv) (Plvar a)) :: c2) U = ok U').
   + by case: (lv) hc; eauto; right.
-  + subst lv; move: hm => /fits_eval hm.
+  + subst lv; move: hm => /(fits_eval env) hm.
     move: hW1 => /=; rewrite /write_var /set_var; t_xrbindP => vm1 hdb htr _ _.
-    rewrite /= /write_none hm -(aux_type_eval arrays_by_size ty) -hta htr hdb /=.
+    rewrite /= /write_none hm -(aux_type_eval arrays_by_size env ty) -hta htr hdb /=.
     by apply: (ih touts _ _ _ _ vs W1 U S hnc hsub' hoks htys hms hW' hc); split.
   move: hc => /=; t_xrbindP => U1 hU1 hc.
   move: hU1; rewrite /sem_assgn; t_xrbindP => w0 hw0 w htr hwr.
@@ -285,13 +295,13 @@ Proof.
   move=> z hz; rewrite -hU1 ?h5 // => /hy [] hzb _; apply: hzb; exact: (flag_varsP hz).2.
 Qed.
 
-Lemma nc_inv_init fii ii X tg lvs touts acc acc' xs c vs (W S TF : estate) :
+Lemma nc_inv_init env fii ii X tg lvs touts acc acc' xs c vs (W S TF : estate env) :
   nc_dests fresh_var_ident arrays_by_size fii X ii tg acc lvs touts = ok (acc', xs, c) ->
   st_eq_on X W S ->
   write_lvals (wdb := true) (p_globs p') W xs vs = ok TF ->
   nc_inv X lvs touts TF TF S.
 Proof using wa.
-  move=> hnc [hsc hme hX] hW.
+  move=> hnc /st_eq_onE [hsc hme hX] hW.
   have [_ hvrs] := nc_dests_vrvs hnc.
   have [ys hys] := nc_dests_lvars hnc.
   have hsc' := write_lvals_escs hW; have hme' := write_lvals_emem hys hW.
@@ -305,7 +315,7 @@ Hypothesis Hp : normalize_calls_prog fresh_var_ident arrays_by_size p = ok p'.
 
 Lemma normalize_calls_fd_inv f f' :
   normalize_calls_fd fresh_var_ident arrays_by_size p f = ok f' ->
-  [/\ f_info f = f_info f', f_contract f = f_contract f', f_tyin f = f_tyin f',
+  [/\ f_info f = f_info f', f_contract f = f_contract f', f_al f = f_al f', f_tyin f = f_tyin f',
       f_params f = f_params f', f_tyout f = f_tyout f', f_res f = f_res f'
     & f_extra f = f_extra f'].
 Proof. by rewrite /normalize_calls_fd; t_xrbindP => ?? <-. Qed.
@@ -329,32 +339,48 @@ Proof using Hp.
   by case: normalize_calls_prog_inv => H _ _; exact H.
 Qed.
 
-Lemma normalize_calls_sem_pre fn fs :
-  sem_pre p' fn fs = ok tt -> sem_pre p fn fs = ok tt.
+Lemma normalize_calls_sem_pre fn vals fs :
+  sem_pre p' fn vals fs = ok tt -> sem_pre p fn vals fs = ok tt.
 Proof using Hp.
   rewrite /sem_pre eq_globs.
   move: (normalize_calls_get_fundef fn).
   case: get_fundef => [fd [fd' H1 ->]| -> //].
-  by case: (normalize_calls_fd_inv H1) => _ -> ->.
+  by case: (normalize_calls_fd_inv H1) => _ -> -> ->.
 Qed.
 
-Lemma normalize_calls_sem_post fn vs fr :
-  sem_post p' fn vs fr = ok tt -> sem_post p fn vs fr = ok tt.
+Lemma normalize_calls_sem_post fn vals vs fr :
+  sem_post p' fn vals vs fr = ok tt -> sem_post p fn vals vs fr = ok tt.
 Proof using Hp.
   rewrite /sem_post eq_globs.
   move: (normalize_calls_get_fundef fn).
   case: get_fundef => [fd [fd' H1 ->]| -> //].
-  by case: (normalize_calls_fd_inv H1) => _ -> ->.
+  by case: (normalize_calls_fd_inv H1) => _ -> -> ->.
 Qed.
 
-(* The results of a call have the types of the outputs of the callee. *)
-Definition results_typed (fn : funname) (fr : fstate) :=
+(* The results of a call have the types of the outputs of the callee, whose
+   length variables hold [vals]. *)
+Definition results_typed (fn : funname) (vals : seq Z) (fr : fstate) :=
   forall fd, get_fundef (p_funcs p) fn = Some fd ->
-    List.map type_of_val (fvals fr) = map eval_atype (f_tyout fd).
+    List.map type_of_val (fvals fr) =
+    map (eval_atype (create_env (f_al fd) vals)) (f_tyout fd).
 
 Definition nc_spec : EquivSpec :=
-  {| rpreF_ := fun fn1 fn2 fs1 fs2 => fn1 = fn2 /\ fs1 = fs2
-   ; rpostF_ := fun fn1 fn2 fs1 fs2 fr1 fr2 => fr1 = fr2 /\ results_typed fn2 fr2 |}.
+  {| rpreF_ := fun fn1 fn2 valfs1 valfs2 =>
+       fn1 = fn2 /\ valfs1.1 = valfs2.1 /\ valfs1.2 = valfs2.2
+   ; rpostF_ := fun fn1 fn2 valfs1 valfs2 fr1 fr2 =>
+       fr1 = fr2 /\ results_typed fn2 valfs2.1 fr2 |}.
+
+(* The instantiated output types denote the output types in the environment
+   of the lengths. *)
+Lemma subst_toutsP env ii l als touts touts' :
+  subst_touts ii l als touts = ok touts' ->
+  map (eval_atype env) touts' =
+  map (eval_atype (create_env l (map (eval env) als))) touts.
+Proof.
+  rewrite /subst_touts; elim: touts touts' => [|t touts ih] touts' /=; first by move=> [<-].
+  t_xrbindP => t' /o2rP /(subst_tyP env) ht ts /ih hts <-.
+  by rewrite /= ht hts.
+Qed.
 
 #[local] Lemma checker_st_eq_onP' : Checker_eq p' p checker_st_eq_on.
 Proof using Hp. by apply checker_st_eq_onP; rewrite eq_globs. Qed.
@@ -365,10 +391,10 @@ Proof using Hp. by apply checker_a_st_eq_onP; rewrite eq_globs. Qed.
 
 (* The rewriting of the destinations of an instruction: [W] and [S] are the
    states in which its outputs are written. *)
-Lemma normalize_destsP fii ii X tg lvs touts xs post vs (W S TF U' : estate) :
+Lemma normalize_destsP env fii ii X tg lvs touts xs post vs (W S TF U' : estate env) :
   normalize_dests fresh_var_ident arrays_by_size fii X ii tg lvs touts = ok (xs, post) ->
   Sv.Subset (vars_lvals lvs) X ->
-  List.map type_of_val vs = map eval_atype touts ->
+  List.map type_of_val vs = map (eval_atype env) touts ->
   st_eq_on X W S ->
   write_lvals (wdb := true) (p_globs p) W xs vs = ok TF ->
   esem p' ev post TF = ok U' ->
@@ -381,13 +407,13 @@ Proof using Hp.
     apply: (nc_destsP hnc hsub hok htys _ hW hpost (nc_inv_init hnc hWS hW)).
     by case/andP: hneed.
   move=> [? ?]; subst xs post; move: hpost => [?]; subst U'.
-  case: hWS => hW1 hW2 hWS.
+  case/st_eq_onE: hWS => hW1 hW2 hWS.
   have [|vm2 hS' heq] := write_lvals_eq_on _ hW hWS.
   + by move: hsub; rewrite /vars_lvals; SvD.fsetdec.
   have hWS' : with_vm W (evm S) = S.
   + by move: hW1 hW2; clear; case: W S => ??? [???] /= <- <-.
   rewrite hWS' in hS'.
-  exists (with_vm TF vm2) => //; split => //=.
+  exists (with_vm TF vm2) => //; apply/st_eq_onE; split => //=.
   by apply: eq_onI heq; SvD.fsetdec.
 Qed.
 
@@ -412,17 +438,18 @@ Qed.
 
 Context {E E0 : Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
-Lemma nc_call X ii xs1 xs2 f es c1 (Q : rel_c) :
+Lemma nc_call env X ii xs1 xs2 f als es c1 (Q : rel_c env env) :
   all basic_i c1 ->
   Sv.Subset (read_es es) X ->
-  (forall fr t s t', st_eq_on X t s -> results_typed f fr ->
+  (forall fr (t s t' : estate env), st_eq_on X t s ->
+     results_typed f (map (eval env) als) fr ->
      (Let t1 := upd_estate (wdb := true) (p_globs p') xs1 fr t in esem p' ev c1 t1) = ok t' ->
      exists2 s', upd_estate (wdb := true) (p_globs p) xs2 fr s = ok s' & Q t' s') ->
   wequiv_rec p' p ev ev nc_spec (st_eq_on X)
-    (MkI ii (Ccall xs1 f es) :: c1) [:: MkI ii (Ccall xs2 f es)] Q.
+    (MkI ii (Ccall xs1 f als es) :: c1) [:: MkI ii (Ccall xs2 f als es)] Q.
 Proof using Hp.
   move=> hb hes hpost' t s hRts.
-  have [h1 h2 h3] := hRts.
+  have /st_eq_onE [h1 h2 h3] := hRts.
   rewrite /isem_cmd_ /= bind_ret_r.
   rewrite bind_bind /isem_pexprs eq_globs.
   have hes' : evm t =[read_es es] evm s by apply: eq_onI h3.
@@ -433,14 +460,15 @@ Proof using Hp.
   rewrite !bind_ret_l bind_bind /isem_pre.
   have hfs : mk_fstate vs t = mk_fstate vs s by rewrite /mk_fstate h1 h2.
   rewrite hfs.
-  case hpre: (sem_pre p' f (mk_fstate vs s)) => [[] | e].
+  case hpre: (sem_pre p' f _ (mk_fstate vs s)) => [[] | e].
   2: rewrite /iresult bind_throw; apply xrutt.xrutt_CutL => //.
   2: by rewrite /core_logics.errcutoff /is_error /Subevent.subevent /CategoryOps.resum /fromErr mid12.
   rewrite (normalize_calls_sem_pre hpre) !bind_ret_l bind_bind.
-  apply xrutt_facts.xrutt_bind with (rpostF (eS := nc_spec) f f (mk_fstate vs s) (mk_fstate vs s)).
-  + by apply (wequiv_fun_rec (p1 := p') (p2 := p) (ev1 := ev) (ev2 := ev)).
+  apply xrutt_facts.xrutt_bind with (rpostF (eS := nc_spec) f f
+    (map (eval env) als, mk_fstate vs s) (map (eval env) als, mk_fstate vs s)).
+  + by apply (wequiv_fun_rec (p1 := p') (p2 := p) (ev1 := ev) (ev2 := ev) (i1 := (_, _)) (i2 := (_, _))).
   move=> fr _ [<- htyped] /=; rewrite /isem_post.
-  case hpost: (sem_post p' f vs fr) => [[] | e].
+  case hpost: (sem_post p' f _ vs fr) => [[] | e].
   2: rewrite bind_bind /iresult bind_throw; apply xrutt.xrutt_CutL => //.
   2: by rewrite /core_logics.errcutoff /is_error /Subevent.subevent /CategoryOps.resum /fromErr mid12.
   rewrite (normalize_calls_sem_post hpost) !bind_ret_l.
@@ -457,113 +485,121 @@ Proof using Hp.
 Qed.
 
 Let Pi (i : instr) :=
-  forall fii X c', Sv.Subset (vars_I i) X ->
+  forall env fii X c', Sv.Subset (vars_I i) X ->
   normalize_calls_i fresh_var_ident arrays_by_size p fii X i = ok c' ->
-  wequiv_rec p' p ev ev nc_spec (st_eq_on X) c' [:: i] (st_eq_on X).
+  wequiv_rec (env1 := env) (env2 := env) p' p ev ev nc_spec (st_eq_on X) c' [:: i] (st_eq_on X).
 
 Let Pi_r (ir : instr_r) := forall ii, Pi (MkI ii ir).
 
 Let Pc (c : cmd) :=
-  forall fii X c', Sv.Subset (vars_c c) X ->
+  forall env fii X c', Sv.Subset (vars_c c) X ->
   normalize_calls_c (normalize_calls_i fresh_var_ident arrays_by_size p fii X) c = ok c' ->
-  wequiv_rec p' p ev ev nc_spec (st_eq_on X) c' c (st_eq_on X).
+  wequiv_rec (env1 := env) (env2 := env) p' p ev ev nc_spec (st_eq_on X) c' c (st_eq_on X).
 
 Lemma normalize_calls_body : forall c, Pc c.
 Proof using Hp.
   apply (cmd_rect (Pr := Pi_r) (Pi := Pi)).
   + done.
-  + by move=> fii X c' _ [<-]; apply wequiv_nil.
-  + move=> i c Hi Hc fii X c' hsub /=.
+  + by move=> env fii X c' _ [<-]; apply wequiv_nil.
+  + move=> i c Hi Hc env fii X c' hsub /=.
     t_xrbindP => ci hci cc hcc <-.
     rewrite vars_c_cons in hsub.
     rewrite -cat1s; apply wequiv_cat with (st_eq_on X).
-    + by apply: (Hi _ _ _ _ hci); SvD.fsetdec.
-    by apply: (Hc _ _ _ _ hcc); SvD.fsetdec.
-  { move=> x tg ty e ii fii X c' hsub [<-].
+    + by apply: (Hi _ _ _ _ _ hci); SvD.fsetdec.
+    by apply: (Hc _ _ _ _ _ hcc); SvD.fsetdec.
+  { move=> x tg ty e ii env fii X c' hsub [<-].
     rewrite vars_I_assgn /vars_lval in hsub.
     apply wequiv_assgn_rel_eq with checker_st_eq_on X => //.
     all: by split; try done; rewrite /read_es /read_rvs /=; SvD.fsetdec. }
-  { move=> xs tg o es ii fii X c' hsub /=.
+  { move=> xs tg o als es ii env fii X c' hsub /=.
     rewrite vars_I_opn in hsub.
     case: ifP => _; last first.
     + move=> [<-]; apply wequiv_opn_rel_eq with checker_st_eq_on X => //.
       + by split => //; SvD.fsetdec.
       by split; move: hsub; rewrite /vars_lvals; SvD.fsetdec.
-    rewrite /normalize_dests_i; t_xrbindP => -[xs' post] hnd [<-].
+    rewrite /normalize_dests_i; t_xrbindP => touts htouts -[xs' post] hnd [<-].
     have hsubl : Sv.Subset (vars_lvals xs) X by SvD.fsetdec.
     apply wequiv_basic_esem; first by rewrite /= (normalize_dests_basic hnd).
-    move=> t s U' hts; have [h1 h2 h3] := hts.
+    move=> t s U' hts; have /st_eq_onE [h1 h2 h3] := hts.
     rewrite esem_cons /= /sem_sopn; t_xrbindP => TF vs ves hves hvs hW hpost.
     have hves' : sem_pexprs (wdb := true) (p_globs p) s es = ok ves.
     + rewrite -eq_globs -hves; symmetry; apply: eq_on_sem_pexprs => //.
       by apply: eq_onI h3; SvD.fsetdec.
     rewrite eq_globs in hW.
-    have [S' hS' heq] := normalize_destsP hnd hsubl (sopn_toutP hvs) hts hW hpost.
+    have htys : List.map type_of_val vs = map (eval_atype env) touts.
+    + by rewrite (sopn_toutP hvs) (subst_toutsP env htouts).
+    have [S' hS' heq] := normalize_destsP hnd hsubl htys hts hW hpost.
     by exists S' => //; rewrite hves' /= hvs /= hS'. }
-  { move=> xs o es ii fii X c' hsub /=.
+  { move=> xs o es ii env fii X c' hsub /=.
     rewrite /normalize_dests_i; t_xrbindP => -[xs' post] hnd [<-].
     rewrite vars_I_syscall in hsub.
     have hsubl : Sv.Subset (vars_lvals xs) X by SvD.fsetdec.
     apply wequiv_basic_esem; first by rewrite /= (normalize_dests_basic hnd).
-    move=> t s U' hts; have [h1 h2 h3] := hts.
+    move=> t s U' hts; have /st_eq_onE [h1 h2 h3] := hts.
     rewrite esem_cons /= /sem_syscall; t_xrbindP => TF ves hves fs hfs hW hpost.
     have hves' : sem_pexprs (wdb := true) (p_globs p) s es = ok ves.
     + rewrite -eq_globs -hves; symmetry; apply: eq_on_sem_pexprs => //.
       by apply: eq_onI h3; SvD.fsetdec.
     have hfs' : mk_fstate ves t = mk_fstate ves s by rewrite /mk_fstate h1 h2.
     have [_ htys] := syscall_u_toutP hfs.
+    have {}htys : List.map type_of_val (fvals fs) =
+      map (eval_atype env) (scs_tout (syscall_sig_u o)) by rewrite htys; case: (o).
     move: hW; rewrite /upd_estate eq_globs => hW.
-    have [S' hS' heq] := normalize_destsP hnd hsubl htys
-      (W := with_scs (with_mem t (fmem fs)) (fscs fs))
-      (S := with_scs (with_mem s (fmem fs)) (fscs fs)) (And3 erefl erefl h3) hW hpost.
+    have hWS : st_eq_on X (with_scs (with_mem t (fmem fs)) (fscs fs))
+      (with_scs (with_mem s (fmem fs)) (fscs fs)) by apply/st_eq_onE.
+    have [S' hS' heq] := normalize_destsP hnd hsubl htys hWS hW hpost.
     by exists S' => //; rewrite hves' /= -hfs' hfs /= /upd_estate hS'. }
-  { move=> a ii fii X c' hsub [<-].
+  { move=> a ii env fii X c' hsub [<-].
     rewrite vars_I_assert in hsub.
     eapply wequiv_assert_rel_eq with checker_a_st_eq_on => //.
     by split; try done; SvD.fsetdec. }
-  { move=> e c1 c2 Hc1 Hc2 ii fii X c' hsub /=.
+  { move=> e c1 c2 Hc1 Hc2 ii env fii X c' hsub /=.
     t_xrbindP => c1' hc1 c2' hc2 <-.
     rewrite vars_I_if in hsub.
     apply wequiv_if_rel_eq with checker_st_eq_on X X X => //.
     + by split; try done; SvD.fsetdec.
-    + by apply: (Hc1 _ _ _ _ hc1); SvD.fsetdec.
-    by apply: (Hc2 _ _ _ _ hc2); SvD.fsetdec. }
-  { move=> v dir lo hi c Hc ii fii X c' hsub /=.
+    + by apply: (Hc1 _ _ _ _ _ hc1); SvD.fsetdec.
+    by apply: (Hc2 _ _ _ _ _ hc2); SvD.fsetdec. }
+  { move=> v dir lo hi c Hc ii env fii X c' hsub /=.
     t_xrbindP => c1' hc <-.
     rewrite vars_I_for in hsub.
     apply wequiv_for_rel_eq with checker_st_eq_on X X => //.
     + by split => //; rewrite /read_es /= read_eE; SvD.fsetdec.
     + by split; try done; SvD.fsetdec.
-    by apply: (Hc _ _ _ _ hc); SvD.fsetdec. }
-  { move=> a c e info c' Hc Hc' ii fii X c'' hsub /=.
+    by apply: (Hc _ _ _ _ _ hc); SvD.fsetdec. }
+  { move=> a c e info c' Hc Hc' ii env fii X c'' hsub /=.
     t_xrbindP => c1' hc c2' hc' <-.
     rewrite vars_I_while in hsub.
     apply wequiv_while_rel_eq with checker_st_eq_on X => //.
     + by split; try done; SvD.fsetdec.
-    + by apply: (Hc _ _ _ _ hc); SvD.fsetdec.
-    by apply: (Hc' _ _ _ _ hc'); SvD.fsetdec. }
-  move=> xs f es ii fii X c' hsub /=.
-  rewrite /normalize_dests_i; t_xrbindP => fd /o2rP hfd -[xs' post] hnd [<-].
+    + by apply: (Hc _ _ _ _ _ hc); SvD.fsetdec.
+    by apply: (Hc' _ _ _ _ _ hc'); SvD.fsetdec. }
+  move=> xs f als es ii env fii X c' hsub /=.
+  rewrite /normalize_dests_i; t_xrbindP => fd /o2rP hfd touts htouts -[xs' post] hnd [<-].
   rewrite vars_I_call in hsub.
   have hsubl : Sv.Subset (vars_lvals xs) X by SvD.fsetdec.
   apply (nc_call (X := X)); first by apply: normalize_dests_basic hnd.
   + by SvD.fsetdec.
-  move=> fr t s U' [h1 h2 h3] htyped; t_xrbindP => TF hW hpost.
+  move=> fr t s U' /st_eq_onE [h1 h2 h3] htyped; t_xrbindP => TF hW hpost.
   move: hW; rewrite /upd_estate eq_globs => hW.
-  have [S' hS' heq] := normalize_destsP hnd hsubl (htyped _ hfd)
-    (W := with_scs (with_mem t (fmem fr)) (fscs fr))
-    (S := with_scs (with_mem s (fmem fr)) (fscs fr)) (And3 erefl erefl h3) hW hpost.
+  have htys : List.map type_of_val (fvals fr) = map (eval_atype env) touts.
+  + by rewrite (htyped _ hfd) (subst_toutsP env htouts).
+  have hWS : st_eq_on X (with_scs (with_mem t (fmem fr)) (fscs fr))
+    (with_scs (with_mem s (fmem fr)) (fscs fr)) by apply/st_eq_onE.
+  have [S' hS' heq] := normalize_destsP hnd hsubl htys hWS hW hpost.
   by exists S'.
 Qed.
 
-Lemma normalize_calls_finalize fn fd fd' fs :
+Lemma normalize_calls_finalize fn fd fd' vals fs :
   get_fundef (p_funcs p) fn = Some fd ->
   normalize_calls_fd fresh_var_ident arrays_by_size p fd = ok fd' ->
-  wrequiv (st_eq_on (vars_fd fd)) (finalize_funcall fd') (finalize_funcall fd)
-    (rpostF (eS := nc_spec) fn fn fs fs).
+  let env := create_env (f_al fd) vals in
+  wrequiv (st_eq_on (vars_fd fd))
+    (finalize_funcall fd' (env := env)) (finalize_funcall fd (env := env))
+    (rpostF (eS := nc_spec) fn fn (vals, fs) (vals, fs)).
 Proof using spp.
-  move=> hget hfd; rewrite /finalize_funcall.
-  case: (normalize_calls_fd_inv hfd) => _ _ _ _ <- <- <- t s fr [h1 h2 h3].
+  move=> hget hfd env; rewrite /finalize_funcall.
+  case: (normalize_calls_fd_inv hfd) => _ _ _ _ _ <- <- <- t s fr /st_eq_onE [h1 h2 h3].
   t_xrbindP => vs hvs vs' htr <-.
   move: hvs; rewrite -(sem_pexprs_get_var _ [::]) => hvs.
   rewrite (eq_on_sem_pexprs (~~ direct_call) [::] h2 (eq_onI _ h3)) in hvs.
@@ -577,17 +613,18 @@ Qed.
 Lemma normalize_calls_nc fn :
   wiequiv_f p' p ev ev (rpreF (eS := nc_spec)) fn fn (rpostF (eS := nc_spec)).
 Proof using Hp.
-  apply wequiv_fun_ind_wa => {}fn fn' fsi fs [<- <-] fd' H.
+  apply wequiv_fun_ind_wa => {}fn fn' vals vals' fsi fs [<- [/= <- <-]] fd' H.
   move: (normalize_calls_get_fundef fn); case hget: get_fundef => [fd|]; last by rewrite H.
   move=> [fd'_ Hfd Hfn]; move: Hfn; rewrite H => -[?]; subst fd'_.
   exists fd; first done.
   move=> Hsem; split; first by apply: normalize_calls_sem_pre.
-  move=> si hinit; exists si.
+  have hal : f_al fd = f_al fd' by case: (normalize_calls_fd_inv Hfd).
+  rewrite -hal /= => si hinit; exists si.
   + move: hinit; rewrite /initialize_funcall.
-    case: (normalize_calls_fd_inv Hfd) => _ _ <- <- _ _ <-.
+    case: (normalize_calls_fd_inv Hfd) => _ _ _ <- <- _ _ <-.
     by case: normalize_calls_prog_inv => _ _ ->.
   exists (st_eq_on (vars_fd fd)), (st_eq_on (vars_fd fd)); split.
-  + done.
+  + exact: st_eq_on_refl.
   + move: Hfd; rewrite /normalize_calls_fd; t_xrbindP => c hc <-.
     by apply: normalize_calls_body hc; rewrite /vars_fd; SvD.fsetdec.
   + exact: normalize_calls_finalize hget Hfd.

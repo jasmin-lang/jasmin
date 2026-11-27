@@ -161,10 +161,10 @@ Fixpoint pi_i (pi:pimap) (i:instr) :=
     let pi := set_lv pi x tag e in
     ok (pi, MkI ii (Cassgn x tag ty e))
 
-  | Copn xs tag o es =>
+  | Copn xs tag o als es =>
     let es := pi_es pi es in
     let (pi, xs) := pi_lvs pi xs in
-    ok (pi, MkI ii (Copn xs tag o es))
+    ok (pi, MkI ii (Copn xs tag o als es))
 
   | Csyscall xs o es =>
     let es := pi_es pi es in
@@ -194,10 +194,10 @@ Fixpoint pi_i (pi:pimap) (i:instr) :=
     let:(pi, c1, e, c2) := pic in
     ok (pi, MkI ii (Cwhile a c1 e info c2))
 
-  | Ccall xs f es =>
+  | Ccall xs f als es =>
     let es := pi_es pi es in
     let (pi, xs) := pi_lvs (remove_m pi) xs in
-    ok (pi, MkI ii (Ccall xs f es))
+    ok (pi, MkI ii (Ccall xs f als es))
 
   end.
 

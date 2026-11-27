@@ -32,7 +32,7 @@ Definition check_shift_amount e :=
       if is_wconst U8 b is Some n
       then if n == wrepr U8 31 then Some a else None
       else None
-  | _ => None 
+  | _ => None
   end.
 
 Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : option(riscv_extended_op * pexprs) :=
@@ -49,7 +49,7 @@ Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : option(riscv_exten
   | Ozeroext U32 ws' =>
       let%opt _ := oassert (ws' <= U16)%CMP in
       let%opt _ := oassert (is_load e) in
-      Some (BaseOp(None, LOAD Unsigned ws'), [:: e ])    
+      Some (BaseOp(None, LOAD Unsigned ws'), [:: e ])
   | Olnot U32 =>
       Some(BaseOp (None, NOT), [:: e])
   | Oneg (Op_w U32) =>
@@ -60,10 +60,10 @@ Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : option(riscv_exten
 
 (* RISC-V only handles immediates lower than 2ˆ12 for I type instructions *)
 Definition decide_op_reg_imm
-  (ws : wsize) (e0 e1: pexpr) (op_reg_reg op_reg_imm : riscv_extended_op) : 
+  (ws : wsize) (e0 e1: pexpr) (op_reg_reg op_reg_imm : riscv_extended_op) :
   option (riscv_extended_op * pexprs) :=
   match is_wconst ws e1 with
-  | Some (word) => 
+  | Some (word) =>
     if is_arith_small (wsigned word) then
     Some(op_reg_imm, [::e0; e1])
     else None
@@ -71,18 +71,18 @@ Definition decide_op_reg_imm
   end.
 
 Definition insert_minus  (e1: pexpr) : option pexpr :=
-match e1 with  
-  | Papp1 (Oword_of_int sz) (Pconst n) => 
+match e1 with
+  | Papp1 (Oword_of_int sz) (Pconst n) =>
     Some(Papp1 (Oword_of_int sz) (Pconst (- n)))
   | _ => None
 end.
 
 (* RISC-V only handles immediates lower than 2ˆ12 for I type instructions *)
 Definition decide_op_reg_imm_neg
-  (ws : wsize) (e0 e1: pexpr) (op_reg_reg op_reg_imm : riscv_extended_op) : 
+  (ws : wsize) (e0 e1: pexpr) (op_reg_reg op_reg_imm : riscv_extended_op) :
   option (riscv_extended_op * pexprs) :=
   match is_wconst ws e1 with
-  | Some (word) => 
+  | Some (word) =>
     if is_arith_small_neg (wsigned word) then
     let%opt e1:= insert_minus e1 in
     Some(op_reg_imm, [::e0; e1])
@@ -138,8 +138,8 @@ Definition lower_load (ws: wsize) (e: pexpr) : option(riscv_extended_op * pexprs
      + a stack variable. *)
 Definition lower_Pvar (ws : wsize) (v : gvar) : option(riscv_extended_op * pexprs) :=
     (* For now, only 32 bits can be read from memory or upon move, signed / unsigned has no effect on load or move *)
-    if ws != U32 
-        then None 
+    if ws != U32
+        then None
     else
         let op := if is_var_in_memory (gv v) then LOAD Signed U32 else MV in
         Some (BaseOp (None, op), [:: Pvar v ]).
@@ -148,10 +148,10 @@ Definition lower_Pvar (ws : wsize) (v : gvar) : option(riscv_extended_op * pexpr
 Definition lower_cassgn
   (lv : lval) (ws : wsize) (e : pexpr) : option (copn_args) :=
   if is_lval_in_memory lv
-    then 
+    then
       if (ws <= U32)%CMP
         then
-          Some ([:: lv], Oriscv (STORE ws), [:: e])
+          Some ([:: lv], Oriscv (STORE ws), [::], [:: e])
         else
           None
   else
@@ -164,44 +164,44 @@ Definition lower_cassgn
     | Papp2 op a b => lower_Papp2 ws op a b
     | _ => None
     end
-    in Some ([:: lv], Oasm op, e).
+    in Some ([:: lv], Oasm op, [::], e).
 
-Definition lower_swap ty lvs es : option (seq copn_args) := 
+Definition lower_swap ty lvs als es : option (seq copn_args) :=
   match ty with
-  | aword sz => 
-    if (sz <= U32)%CMP then 
-      Some([:: (lvs, Oasm (ExtOp (SWAP sz)), es)])
+  | aword sz =>
+    if (sz <= U32)%CMP then
+      Some([:: (lvs, Oasm (ExtOp (SWAP sz)), [::], es)])
     else None
-  | aarr _ _ => 
-      Some([:: (lvs, Opseudo_op (Oswap ty), es)])
+  | aarr _ _ =>
+      Some([:: (lvs, Opseudo_op (Oswap ty), als, es)])
   | _ => None
   end.
 
-Definition lower_mulu (lvs : seq lval) (es : seq pexpr) : option (seq copn_args):=  
+Definition lower_mulu (lvs : seq lval) (es : seq pexpr) : option (seq copn_args):=
   match lvs, es with
   | [:: Lvar r1; Lvar r2 ], [:: Pvar x ; Pvar y ] =>
     if (r1 == x.(gv):>var) || (r1 == y.(gv):>var) then
     None
     else
-    (* Arbitrary choice : r1 computed before r2*)  
+    (* Arbitrary choice : r1 computed before r2*)
     Some [::
-      ([:: Lvar r1], Oasm(BaseOp (None, MULHU)), es);
-      ([:: Lvar r2], Oasm(BaseOp (None, MUL)), es)]
+      ([:: Lvar r1], Oasm(BaseOp (None, MULHU)), [::], es);
+      ([:: Lvar r2], Oasm(BaseOp (None, MUL)), [::], es)]
   | _, _ => None
   end.
 
 Definition lower_pseudo_operator
-  (lvs : seq lval) (op : pseudo_operator) (es : seq pexpr) : option (seq copn_args) :=
+  (lvs : seq lval) (op : pseudo_operator) als (es : seq pexpr) : option (seq copn_args) :=
   match op with
-  | Oswap ty => lower_swap ty lvs es
+  | Oswap ty => lower_swap ty lvs als es
   | Omulu U32 => lower_mulu lvs es
   | _ => None
   end.
 
 Definition lower_copn
-  (lvs : seq lval) (op : sopn) (es : seq pexpr) : option (seq copn_args) :=
+  (lvs : seq lval) (op : sopn) als (es : seq pexpr) : option (seq copn_args) :=
   match op with
-  | Opseudo_op pop => lower_pseudo_operator lvs pop es
+  | Opseudo_op pop => lower_pseudo_operator lvs pop als es
   | _ => None
   end.
 
@@ -217,8 +217,8 @@ Fixpoint lower_i (i : instr) : cmd :=
       let oirs :=
         match ty with
         | aword ws =>
-            let%opt (lvs, op, es) := lower_cassgn lv ws e in
-            Some ([:: Copn lvs tg op es ])
+            let%opt (lvs, op, als, es) := lower_cassgn lv ws e in
+            Some ([:: Copn lvs tg op als es ])
         | _ => None
         end
       in
@@ -227,10 +227,10 @@ Fixpoint lower_i (i : instr) : cmd :=
       map (MkI ii) irs
 
  (* Copn : "assembly" instruction pattern matching, required for pseudo instructions or extra instructions *)
-  | Copn lvs tag op es =>
+  | Copn lvs tag op als es =>
       let seq_ir :=
-        if lower_copn lvs op es is Some l
-        then map (fun '(lvs', op', es') => Copn lvs' tag op' es') l
+        if lower_copn lvs op als es is Some l
+        then map (fun '(lvs', op', als', es') => Copn lvs' tag op' als' es') l
         else [:: ir]
       in map (MkI ii) seq_ir
 

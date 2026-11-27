@@ -1,6 +1,6 @@
 open Prog
 
-type range = int * int
+type range = Z.t * length
 type sub_slice_kind =
   | Exact of range
     (* the range is exact *)
@@ -8,6 +8,8 @@ type sub_slice_kind =
     (* the precise offset is not known, we remember its alignment *)
 
 type slice = { in_var : var ; scope : E.v_scope ; kind : sub_slice_kind }
+
+val eq_slice : slice -> slice -> bool
 
 type alias = slice Mv.t
 

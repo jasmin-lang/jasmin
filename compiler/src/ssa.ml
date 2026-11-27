@@ -36,9 +36,9 @@ let rec written_vars_instr_r allvars w =
     -> written_vars_stmt allvars w s
   | Cassert _ -> w
   | Cassgn (x, _, _, _) -> written_vars_lvar allvars w x
-  | Copn (xs, _, _, _)
+  | Copn (xs, _, _, _, _)
   | Csyscall(xs,_,_)
-  | Ccall (xs, _, _)
+  | Ccall (xs, _, _, _)
     -> written_vars_lvars allvars w xs
   | Cif (_, s1, s2)
   | Cwhile (_, s1, _, _, s2)
@@ -61,18 +61,18 @@ let split_live_ranges (allvars: bool) (f: ('info, 'asm) func) : (unit, 'asm) fun
       let e = rename_expr m e in
       let m, y = rename_lval allvars (m, []) x in
       m, Cassgn (List.hd y, tg, ty, e)
-    | Copn (xs, tg, op, es) ->
+    | Copn (xs, tg, op, als, es) ->
       let es = List.map (rename_expr m) es in
       let m, ys = rename_lvals allvars m xs in
-      m, Copn (ys, tg, op, es)
+      m, Copn (ys, tg, op, als, es)
     | Csyscall (xs, op, es) ->
       let es = List.map (rename_expr m) es in
       let m, ys = rename_lvals allvars m xs in
       m, Csyscall(ys, op, es)
-    | Ccall (xs, n, es) ->
+    | Ccall (xs, n, als, es) ->
       let es = List.map (rename_expr m) es in
       let m, ys = rename_lvals allvars m xs in
-      m, Ccall (ys, n, es)
+      m, Ccall (ys, n, als, es)
     | Cfor _ -> assert false
     | Cassert _ -> assert false (* no more for loop and assertion *)
     | Cif (e, s1, s2) ->

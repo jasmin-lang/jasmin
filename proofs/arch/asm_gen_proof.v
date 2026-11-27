@@ -84,7 +84,7 @@ Definition of_rbool (v : rflagv) :=
   if v is Def b then Vbool b else undef_b.
 
 (* -------------------------------------------------------------------- *)
-Definition eqflags (m: estate) (rf: rflagmap) : Prop :=
+Definition eqflags (m: estate empty_env) (rf: rflagmap) : Prop :=
   ∀ (f: rflag), value_uincl (evm m).[to_var f] (of_rbool (rf f)).
 
 Variant disj_rip rip :=
@@ -94,7 +94,7 @@ Variant disj_rip rip :=
     (∀ (r:xreg_t), to_var r <> rip) &
     (∀ (f:rflag_t), to_var f <> rip).
 
-Variant lom_eqv rip (m : estate) (lom : asmmem) :=
+Variant lom_eqv rip (m : estate empty_env) (lom : asmmem) :=
   | MEqv of
       escs m = asm_scs lom
     & emem m = asm_mem lom
@@ -352,7 +352,7 @@ Proof.
   by rewrite (is_zeroext16E h1).
 Qed.
 
-Lemma rip_slice_semP vm k f v :
+Lemma rip_slice_semP (vm : Vm.t empty_env) k f v :
   sem_fexpr vm (rip_slice_fexpr k f) = ok v ->
   exists sz (w : word sz),
     [/\ (Uptr <= sz)%CMP, sem_fexpr vm f = ok (Vword w)
@@ -806,7 +806,7 @@ Lemma compile_asm_opn_aux (condspec : assemble_cond_spec) rip ii (loargs : seq a
   let csa := check_sopn_args agparams rip ii loargs args in
   let csd := check_sopn_dests agparams rip ii loargs lvs in
   sem_rexprs m args = ok xs
-  -> exec_sopn (Oasm (BaseOp op)) xs = ok ys
+  -> exec_sopn (Oasm (BaseOp op)) [::] xs = ok ys
   -> write_lexprs lvs ys m = ok m'
   -> csa (zip (id_in id) (id_tin id))
   -> csd (zip (id_out id) (id_tout id))
@@ -814,12 +814,13 @@ Lemma compile_asm_opn_aux (condspec : assemble_cond_spec) rip ii (loargs : seq a
   -> lom_eqv rip m s
   -> exists2 s', exec_instr_op id loargs s = ok s' & lom_eqv rip m' s'.
 Proof.
-  move=> id ; rewrite /exec_sopn /sopn_sem.
+  move=> id ; rewrite /exec_sopn /sopn_sem /=.
   t_xrbindP => Hxs _ hval <- vt Hvt <-{ys} Hm' Hargs Hdest Hid Hlomeqv.
   rewrite /exec_instr_op /eval_instr_op Hid /=.
   move: hval => /=; rewrite -/id => -> /=.
   move: vt Hvt Hm'; rewrite /sopn_sem /sopn_sem_ /get_instr_desc /= -/id => {Hid}.
   rewrite /semi /= /semi_to_atype_t.
+  change (create_env [::] [::]) with empty_env.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2; clear e1 e2.
   case: id Hargs Hdest => /= id_valid msb_flag id_tin
@@ -848,7 +849,7 @@ Qed.
 Definition assemble_extra_correct op : Prop :=
   forall rip ii lvs args m xs ys m' s ops ops',
     sem_rexprs m args = ok xs
-    -> exec_sopn (Oasm (ExtOp op)) xs = ok ys
+    -> exec_sopn (Oasm (ExtOp op)) [::] xs = ok ys
     -> write_lexprs lvs ys m = ok m'
     -> to_asm ii op lvs args = ok ops
     -> mapM (assemble_asm_args agparams rip ii) ops = ok ops'
@@ -878,7 +879,7 @@ Lemma compile_asm_opn rip ii (loargs : seq asm_arg) op m s args lvs xs ys m' :
   let csa := check_sopn_args agparams rip ii loargs args in
   let csd := check_sopn_dests agparams rip ii loargs lvs in
   sem_rexprs m args = ok xs
-  -> exec_sopn (Oasm (BaseOp op)) xs = ok ys
+  -> exec_sopn (Oasm (BaseOp op)) [::] xs = ok ys
   -> write_lexprs lvs ys m = ok m'
   -> csa (zip (id_in id) (id_tin id))
   -> csd (zip (id_out id) (id_tout id))
@@ -1277,7 +1278,7 @@ Qed.
 
 Lemma assemble_asm_opP rip ii op lvs args op' asm_args s m xs ys m' :
   sem_rexprs m args = ok xs ->
-  exec_sopn (Oasm (BaseOp op)) xs = ok ys ->
+  exec_sopn (Oasm (BaseOp op)) [::] xs = ok ys ->
   write_lexprs lvs ys m = ok m' ->
   assemble_asm_op agparams rip ii op lvs args = ok (op', asm_args) ->
   lom_eqv rip m s ->
@@ -1291,7 +1292,7 @@ Qed.
 
 Lemma assemble_sopnP rip ii op lvs args ops m xs ys m' s:
   sem_rexprs m args = ok xs ->
-  exec_sopn op xs = ok ys ->
+  exec_sopn op [::] xs = ok ys ->
   write_lexprs lvs ys m = ok m' ->
   assemble_sopn agparams rip ii op lvs args = ok ops ->
   lom_eqv rip m s ->
@@ -1741,7 +1742,7 @@ Proof using hagparams ok_p'.
       Sv.In x syscall_kill ->
       ~ Sv.In x R ->
       ~~ is_arr_var x ->
-      (evm s).[x] = undef_addr (eval_atype (vtype x)).
+      (evm s).[x] = undef_addr (eval_atype empty_env (vtype x)).
   - move=> x /Sv_memP hin hnin.
     have [<-] := get_var_eq_ex false hnin (vrvsP hw).
     rewrite /get_var kill_varsE hin; by case: (vtype x).
@@ -2307,7 +2308,7 @@ Section VMAP_SET_VARS.
   Let T_eqType := @ceqT_eqType T _. Canonical T_eqType.
   Context (fromT: T -> sem_olt t).
 
-  Definition vmap_set_vars : Vm.t -> seq T -> Vm.t :=
+  Definition vmap_set_vars : Vm.t empty_env -> seq T -> Vm.t empty_env :=
     foldl (fun vm x => vm.[to_var x <- oto_val (fromT x)]).
 
   Lemma get_var_vmap_set_vars_other vm xs y :
@@ -2336,7 +2337,7 @@ Section VMAP_SET_VARS.
     - move=> /(_ erefl) ih _ vm; exact: ih.
     rewrite orbF => _ /eqP <-{x} vm /=.
     rewrite get_var_vmap_set_vars_other.
-    +  by rewrite Vm.setP_eq vm_truncate_val_eq // type_of_oto_val atype_of_ltypeP.
+    + by rewrite Vm.setP_eq vm_truncate_val_eq // type_of_oto_val (atype_of_ltypeP empty_env).
     apply/allP => x x_xs.
     apply/eqP => h; have ? := inj_to_var h.
     subst x.
@@ -2352,8 +2353,8 @@ Definition vmap_of_asm_mem
   let pword_of_regx rx := (asm_regx s rx: sem_olt (lword reg_size)) in
   let pword_of_xreg xr := (asm_xreg s xr: sem_olt (lword xreg_size)) in
   let pbool_of_flag f  := (if asm_flag s f is Def b then Some b else None : sem_olt lbool) in
-  let vm := Vm.init.[mk_ptr rsp <- Vword sp]
-                   .[mk_ptr rip <- Vword (asm_rip s)] in
+  let vm := (Vm.init empty_env).[mk_ptr rsp <- Vword sp]
+                               .[mk_ptr rip <- Vword (asm_rip s)] in
   let vm := vmap_set_vars pword_of_reg vm registers in
   let vm := vmap_set_vars pword_of_regx vm registerxs in
   let vm := vmap_set_vars pword_of_xreg vm xregisters in
@@ -2387,7 +2388,7 @@ Proof.
 Qed.
 
 Definition estate_of_asm_mem
-  (sp : word Uptr) (rip rsp : Ident.ident) (s : asmmem) : estate :=
+  (sp : word Uptr) (rip rsp : Ident.ident) (s : asmmem) : estate empty_env :=
   {| escs := asm_scs s; emem := asm_mem s; evm := vmap_of_asm_mem sp rip rsp s; |}.
 
 Lemma lom_eqv_estate_of_asm_mem sp rip rsp s :
@@ -2423,9 +2424,9 @@ Proof.
    by move=> r; rewrite -heq; auto.
 Qed.
 
-Definition sem_sopn_t '(o, xs, es) s :=
+Definition sem_sopn_t '(o, xs, es) (s:estate empty_env) :=
   Let args := sem_rexprs s es in
-  Let res := exec_sopn (Oasm (BaseOp o)) args in
+  Let res := exec_sopn (Oasm (BaseOp o)) [::] args in
   write_lexprs xs res s.
 
 Definition sem_sopns := foldM sem_sopn_t.

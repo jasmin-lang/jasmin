@@ -65,13 +65,13 @@ Section WRITE1.
   Fixpoint write_i_rec s (i:instr_r) :=
     match i with
     | Cassgn x _ _ _  => vrv_rec s x
-    | Copn xs _ _ _   => vrvs_rec s xs
+    | Copn xs _ _ _ _   => vrvs_rec s xs
     | Csyscall xs o _ => vrvs_rec (Sv.union s syscall_kill) (to_lvals (syscall_sig o).(scs_vout))
     | Cassert _       => s
     | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
     | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
     | Cwhile _ c _ _ c' => foldl write_I_rec (foldl write_I_rec s c') c
-    | Ccall _ fn _    => Sv.union s (writefun_ra_call fn)
+    | Ccall _ fn _ _    => Sv.union s (writefun_ra_call fn)
     end
   with write_I_rec s i :=
     match i with
@@ -158,7 +158,7 @@ Section CHECK.
     | Cassgn x tag ty e =>
       Let _ := check_e ii D e in
       check_lv ii D x
-    | Copn xs tag o es =>
+    | Copn xs tag o als es =>
       Let _ := check_es ii D es in
       check_lvs ii D xs
     | Csyscall xs o es =>
@@ -187,7 +187,7 @@ Section CHECK.
       if is_false e then check_c (check_i sz) D c
       else wloop (check_i sz) ii c (read_e e) c' loop_counter D
 
-    | Ccall xs fn es =>
+    | Ccall xs fn als es =>
       if get_fundef (p_funcs p) fn is Some fd then
         let tmp := tmp_call (f_extra fd) in
         Let _ := check_es ii (Sv.union D tmp) es in
@@ -221,6 +221,7 @@ Section CHECK.
     assert (~~Sv.mem r J) (E.gen_error true None (pp_box [::pp_s "the function depends on its"; pp_s name; pp_var r])).
 
   Definition check_fd (fn:funname) (fd: sfundef) :=
+    Let _ := assert (fd.(f_al) == [::]) (E.gen_error true None (pp_s "length variables remain")) in
     let params := sv_of_list v_var fd.(f_params) in
     let DI := Sv.inter params (ra_undef fd var_tmp) in
     Let D := check_cmd fd.(f_extra).(sf_align) DI fd.(f_body) in

@@ -93,3 +93,5 @@ val modulus : wsize -> Z.t
 
 val split_div : signedness -> wsize -> exprs -> expr * expr
 
+val z_of_length : length -> Z.t
+val int_of_z : Z.t -> int

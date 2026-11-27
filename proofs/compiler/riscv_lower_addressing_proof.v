@@ -80,7 +80,7 @@ Proof.
   by case: scale => // -[|[|[|[]|]|]|] //= [<-]; rewrite /riscv_sll_semi wshl_sem.
 Qed.
 
-Lemma compute_addrP ii (tmp : var_i) e prelude ep s1 we :
+Lemma compute_addrP env ii (tmp : var_i) e prelude ep (s1 : estate env) we :
   sem_pexpr (wdb := true) p'.(p_globs) s1 e >>= to_pointer = ok we ->
   vtype tmp = aword Uptr ->
   compute_addr tmp e = Some (prelude, ep) ->
@@ -139,18 +139,18 @@ Proof. by case: es => [//|] [] // _ _ _ [] //= [-> -> ->]. Qed.
 
 Let sip := sip_of_asm_e.
 
-Lemma Hopn_aux (s1 s2 : estate) (t : assgn_tag) (o : sopn) (xs : lvals) (es : pexprs) (ii : instr_info) (tmp : var_i) (vm1 : Vm.t) X:
-  sem_sopn (p_globs p) o s1 xs es = ok s2 ->
+Lemma Hopn_aux env (s1 s2 : estate env) (t : assgn_tag) (o : sopn) (xs : lvals) als (es : pexprs) (ii : instr_info) (tmp : var_i) (vm1 : Vm.t env) X:
+  sem_sopn (p_globs p) o s1 xs als es = ok s2 ->
   vtype tmp = aword Uptr ->
-  ~ Sv.In tmp X -> Sv.Subset (read_I (MkI ii (Copn xs t o es))) X ->
+  ~ Sv.In tmp X -> Sv.Subset (read_I (MkI ii (Copn xs t o als es))) X ->
   evm s1 =[X] vm1 ->
-  exists2 vm2 : Vm.t,
-    esem p' ev (lower_addressing_i tmp (MkI ii (Copn xs t o es)))  (with_vm s1 vm1) = ok (with_vm s2 vm2) &
+  exists2 vm2 : Vm.t env,
+    esem p' ev (lower_addressing_i tmp (MkI ii (Copn xs t o als es)))  (with_vm s1 vm1) = ok (with_vm s2 vm2) &
     evm s2 =[X] vm2.
 Proof using ok_p'.
   rewrite !read_writeE => ok_s2 tmp_ty tmp_nin hsub eq_vm1 /=.
   have [vm2 hsem eq_vm2] :
-     exists2 vm2 : Vm.t, sem_sopn (p_globs p) o (with_vm s1 vm1) xs es = ok (with_vm s2 vm2) & evm s2 =[X] vm2.
+     exists2 vm2 : Vm.t env, sem_sopn (p_globs p) o (with_vm s1 vm1) xs als es = ok (with_vm s2 vm2) & evm s2 =[X] vm2.
     move: ok_s2; rewrite /sem_sopn; t_xrbindP => vs vr hes hex hw.
     have [|vm2 hw2 heq2] := write_lvals_eq_on _ hw eq_vm1; first by clear -hsub; SvD.fsetdec.
     exists vm2; last by apply: eq_onI heq2; clear; SvD.fsetdec.
@@ -159,7 +159,7 @@ Proof using ok_p'.
     by rewrite hes /= hex /= hw2.
   rewrite eq_globs in hsem.
   have: [elaborate exists2 vm2,
-    esem p' ev [:: MkI ii (Copn xs t o es)] (with_vm s1 vm1) = ok (with_vm s2 vm2) &
+    esem p' ev [:: MkI ii (Copn xs t o als es)] (with_vm s1 vm1) = ok (with_vm s2 vm2) &
     evm s2 =[X] vm2].
   + by exists vm2 => //=; rewrite LetK.
 
@@ -170,7 +170,7 @@ Proof using ok_p'.
     t_xrbindP => -[] // v [] /=; last by t_xrbindP.
     t_xrbindP=> vs ok_vs ok_v ? we ve ok_ve ok_we w ok_w
       m2 ok_m2 <- /= [eq_scs ??]; subst vm2 m2.
-    have /(_ (with_vm s1 vm1) we) := compute_addrP ii _ tmp_ty hcompute.
+    have /(_ _ (with_vm s1 vm1) we) := compute_addrP ii _ tmp_ty hcompute.
     rewrite ok_ve /= ok_we.
     move=> /(_ erefl) [vm1' [hsem1' eq_vm1' ok_ep]].
     exists vm1'.
@@ -188,7 +188,7 @@ Proof using ok_p'.
   case hcompute: compute_addr => [[prelude ep]|//] _.
   move: hsem; rewrite /sem_sopn /=.
   t_xrbindP=> /= vs _ _ we ve ok_ve ok_we w ok_w <- <- ok_vs ok_vm2.
-  have /(_ (with_vm s1 vm1) we) := compute_addrP ii _ tmp_ty hcompute.
+  have /(_ _ (with_vm s1 vm1) we) := compute_addrP ii _ tmp_ty hcompute.
   rewrite ok_ve /= ok_we.
   move=> /(_ erefl) [vm1' [hsem1' eq_vm1' ok_ep]].
   have [|vm1'' ok_vm1'' eq_vm1''] := write_lvals_eq_ex _ ok_vm2 eq_vm1'.
@@ -201,17 +201,83 @@ Qed.
 
 Section IT.
 
-Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
-
 #[ local ]
 Lemma checker_st_eq_onP_ : Checker_eq p p' checker_st_eq_on.
 Proof using ok_p'. apply checker_st_eq_onP; apply eq_globs. Qed.
 #[local] Hint Resolve checker_st_eq_onP_ : core.
 
+Context {E E0: Type -> Type} {wE : with_Error E E0} {rE0 : EventRels E0}.
+
+Section REC.
+
+Context (env : env_t) (tmp : var_i) (X : Sv.t).
+
+Hypothesis tmp_nin : ~Sv.In tmp X.
+Hypothesis htytmp : vtype tmp = aword Uptr.
+
+Let Pi i :=
+  Sv.Subset (read_I i) X ->
+  wequiv_rec (sip:=sip) (env1:=env) (env2:=env) p p' ev ev eq_spec (st_eq_on X) [::i] (lower_addressing_i tmp i) (st_eq_on X).
+
+Let Pi_r := fun i => forall ii, Pi (MkI ii i).
+
+Let Pc c :=
+  Sv.Subset (read_c c) X ->
+  wequiv_rec (sip:=sip) (env1:=env) (env2:=env) p p' ev ev eq_spec (st_eq_on X) c (lower_addressing_c tmp c) (st_eq_on X).
+
+Lemma it_lower_addressing_progP_rec c : Pc c.
+Proof using ok_p' tmp_nin htytmp.
+  apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}; subst Pi_r Pi Pc => /=.
+  + by move=> hsub /=; apply (wequiv_nil (sip:=sip)).
+  + move=> i c hi hc; rewrite read_writeE => hsub.
+    rewrite -cat1s.
+    apply (wequiv_cat (sip:=sip)) with (st_eq_on X).
+    + by apply hi => //; clear -hsub; SvD.fsetdec.
+    apply hc; last by clear -hsub; SvD.fsetdec.
+  + move=> x tg ty e ii; rewrite !read_writeE => hsub.
+    apply (wequiv_assgn_rel_eq (sip:=sip)) with checker_st_eq_on X => //.
+    + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
+    split => //; first by clear; SvD.fsetdec.
+    by rewrite /read_rvs /= read_rvE; clear -hsub; SvD.fsetdec.
+  + move=> xs tg o als es ii hsub.
+    apply (wequiv_opn_esem (sip:=sip)) => s t s' /st_relP [-> /= heq] hopn.
+    have [vm2 h ?]:= Hopn_aux hopn htytmp tmp_nin hsub heq.
+    eexists; first by apply h.
+    by apply st_relP.
+  + move=> xs sc es ii; rewrite !read_writeE => hsub.
+    by apply (wequiv_syscall_rel_eq (sip:=sip)) with checker_st_eq_on X => //=; split=> //; clear -hsub; SvD.fsetdec.
+  + by move=> ? ii ?; apply wequiv_noassert with (ev1:=ev) (ii:=ii).
+  + move=> e c1 c2 hc1 hc2 ii; rewrite !read_writeE => hsub.
+    apply (wequiv_if_rel_eq (sip:=sip)) with checker_st_eq_on X X X => //.
+    + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
+    + by apply hc1; clear -hsub; SvD.fsetdec.
+    by apply hc2; clear -hsub; SvD.fsetdec.
+  + move=> x dir lo hi c hc ii; rewrite !read_writeE => hsub.
+    apply (wequiv_for_rel_eq (sip:=sip)) with checker_st_eq_on X X => //.
+    + by split => //; rewrite /read_es /= !read_eE; clear -hsub; SvD.fsetdec.
+    + by split => //; rewrite /read_rvs /=; clear; SvD.fsetdec.
+    by apply hc => //; clear -hsub; SvD.fsetdec.
+  + move=> a c1 e ii' c2 hc1 hc2 ii; rewrite !read_writeE => hsub.
+    apply (wequiv_while_rel_eq (sip:=sip)) with checker_st_eq_on X => //.
+    + by split => //; rewrite /read_es /= !read_eE; clear -hsub; SvD.fsetdec.
+    + by apply hc1 => //; clear -hsub; SvD.fsetdec.
+    by apply hc2 => //; clear -hsub; SvD.fsetdec.
+  move=> xs fn als es ii; rewrite !read_writeE => hsub.
+  apply (wequiv_call_rel_eq (sip:=sip)) with checker_st_eq_on X => //.
+  + by split => //; clear -hsub; SvD.fsetdec.
+  + by split => //; clear -hsub; SvD.fsetdec.
+  by move=> ???; apply: (wequiv_fun_rec (spec := eq_spec)).
+Qed.
+
+End REC.
+
+(* FIXME: move *)
+#[local] Hint Resolve st_eq_on_refl : core.
+
 Lemma it_lower_addressing_progP fn:
   wiequiv_f p p' ev ev (rpreF (eS:=eq_spec)) fn fn (rpostF (eS:=eq_spec)).
 Proof using ok_p'.
-  apply wequiv_fun_ind => {}fn _ fs _ [<-] <- fd hget.
+  apply wequiv_fun_ind => {}fn _ vals _ fs _ [/= <- [<- <-]] fd hget.
   move: ok_p'; rewrite /lower_addressing_prog.
   set tmp := {| v_var := _; v_info := _ |}.
   t_xrbindP=> funcs ok_funcs hp'.
@@ -233,53 +299,7 @@ Proof using ok_p'.
     by apply: (st_eq_on_finalize (fd':=with_body fd c')).
   clear ok_funcs funcs fs fn hget' tmp_nin1 tmp_nin2 s hp' hget; subst c'.
   have : Sv.Subset (read_c (f_body fd)) X by rewrite /X; clear; SvD.fsetdec.
-  move: tmp X tmp_nin htytmp (f_body fd) => tmp X tmp_nin htytmp {fd}.
-  set Pi := fun i =>
-    Sv.Subset (read_I i) X ->
-    wequiv_rec (sip:=sip) p p' ev ev eq_spec (st_eq_on X) [::i] (lower_addressing_i tmp i) (st_eq_on X).
-  set Pi_r := fun i => forall ii, Pi (MkI ii i).
-  set Pc := fun c =>
-    Sv.Subset (read_c c) X ->
-    wequiv_rec (sip:=sip) p p' ev ev eq_spec (st_eq_on X) c (lower_addressing_c tmp c) (st_eq_on X).
-  apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //; subst Pi_r Pi Pc => /=.
-  + by move=> hsub /=; apply (wequiv_nil (sip:=sip)).
-  + move=> i c hi hc; rewrite read_writeE => hsub.
-    rewrite -cat1s.
-    apply (wequiv_cat (sip:=sip)) with (st_eq_on X).
-    + by apply hi => //; clear -hsub; SvD.fsetdec.
-    apply hc; last by clear -hsub; SvD.fsetdec.
-  + move=> x tg ty e ii; rewrite !read_writeE => hsub.
-    apply (wequiv_assgn_rel_eq (sip:=sip)) with checker_st_eq_on X => //.
-    + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
-    split => //; first by clear; SvD.fsetdec.
-    by rewrite /read_rvs /= read_rvE; clear -hsub; SvD.fsetdec.
-  + move=> xs tg o es ii hsub.
-    apply (wequiv_opn_esem (sip:=sip)) => s t s' /st_relP [-> /= heq] hopn.
-    have [vm2 h ?]:= Hopn_aux hopn htytmp tmp_nin hsub heq.
-    by eexists; first apply h.
-  + move=> xs sc es ii; rewrite !read_writeE => hsub.
-    by apply (wequiv_syscall_rel_eq (sip:=sip)) with checker_st_eq_on X => //=; split=> //; clear -hsub; SvD.fsetdec.
-  + by move=> ? ii ?; apply wequiv_noassert with (ev1:=ev) (ii:=ii).
-  + move=> e c1 c2 hc1 hc2 ii; rewrite !read_writeE => hsub.
-    apply (wequiv_if_rel_eq (sip:=sip)) with checker_st_eq_on X X X => //.
-    + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
-    + by apply hc1; clear -hsub; SvD.fsetdec.
-    by apply hc2; clear -hsub; SvD.fsetdec.
-  + move=> x dir lo hi c hc ii; rewrite !read_writeE => hsub.
-    apply (wequiv_for_rel_eq (sip:=sip)) with checker_st_eq_on X X => //.
-    + by split => //; rewrite /read_es /= !read_eE; clear -hsub; SvD.fsetdec.
-    + by split => //; rewrite /read_rvs /=; clear; SvD.fsetdec.
-    by apply hc => //; clear -hsub; SvD.fsetdec.
-  + move=> a c1 e ii' c2 hc1 hc2 ii; rewrite !read_writeE => hsub.
-    apply (wequiv_while_rel_eq (sip:=sip)) with checker_st_eq_on X => //.
-    + by split => //; rewrite /read_es /= !read_eE; clear -hsub; SvD.fsetdec.
-    + by apply hc1 => //; clear -hsub; SvD.fsetdec.
-    by apply hc2 => //; clear -hsub; SvD.fsetdec.
-  move=> xs fn es ii; rewrite !read_writeE => hsub.
-  apply (wequiv_call_rel_eq (sip:=sip)) with checker_st_eq_on X => //.
-  + by split => //; clear -hsub; SvD.fsetdec.
-  + by split => //; clear -hsub; SvD.fsetdec.
-  by move=> ???; apply: (wequiv_fun_rec (spec := eq_spec)).
+  exact: it_lower_addressing_progP_rec.
 Qed.
 
 End IT.

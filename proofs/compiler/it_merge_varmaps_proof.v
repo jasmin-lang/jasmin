@@ -36,7 +36,7 @@ Context
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}.
 
-Lemma init_stk_stateI fex pex gd s s' :
+Lemma init_stk_stateI fex pex gd (s s' : estate empty_env) :
   pex.(sp_rip) != pex.(sp_rsp) →
   init_stk_state fex pex gd s = ok s' →
   [/\
@@ -45,7 +45,7 @@ Lemma init_stk_stateI fex pex gd s s' :
     alloc_stack s.(emem) fex.(sf_align) fex.(sf_stk_sz) fex.(sf_stk_ioff) fex.(sf_stk_extra_sz) = ok (emem s'),
     (evm s').[vid pex.(sp_rsp)] = Vword (top_stack (emem s')) &
     forall (x:var), x <> vid pex.(sp_rip) -> x <> vid pex.(sp_rsp) ->
-              (evm s').[x] = Vm.init.[x]].
+              (evm s').[x] = (Vm.init empty_env).[x]].
 Proof.
   move => /eqP checked_sp_rip.
   apply: rbindP => m ok_m [<-] /=; split => //.
@@ -135,10 +135,10 @@ Proof using ok_p.
   move: ok_p; rewrite /fd_tmp_call /check; t_xrbindP => _ _ _ _ ? ok_prog.
   have /(_ f) := get_map_cfprog_name_gen ok_prog.
   case: get_fundef => // fd /(_ _ erefl) [? ].
-  by rewrite /check_fd /=; t_xrbindP => ? _ _ _ _ _ _ /disjoint_sym.
+  by rewrite /check_fd /=; t_xrbindP => _ ? _ _ _ _ _ _ /disjoint_sym.
 Qed.
 
-Lemma kill_vars_tmp_call_rsp fn vm :
+Lemma kill_vars_tmp_call_rsp fn (vm : Vm.t empty_env) :
   (kill_vars (fd_tmp_call p fn) vm).[vrsp] = vm.[vrsp].
 Proof using ok_p.
   rewrite kill_varsE; case: ifP => // /Sv_memP.
@@ -147,7 +147,7 @@ Proof using ok_p.
   rewrite /magic_variables /vrsp /=; clear; SvD.fsetdec.
 Qed.
 
-Lemma kill_vars_tmp_call_rip fn vm :
+Lemma kill_vars_tmp_call_rip fn (vm : Vm.t empty_env) :
   (kill_vars (fd_tmp_call p fn) vm).[vgd] = vm.[vgd].
 Proof using ok_p.
   rewrite kill_varsE; case: ifP => // /Sv_memP.
@@ -176,13 +176,13 @@ Proof.
   - rewrite /Pc. by clear; SvD.fsetdec.
   - by move => i c' hi hc' s; rewrite /write_c /= !hc' -/write_I hi; clear; SvD.fsetdec.
   - by move => x tg ty e s; rewrite /write_i /write_i_rec -vrv_recE.
-  - by move => xs tg op es s; rewrite /write_i /write_i_rec -vrvs_recE.
+  - by move => xs tg op als es s; rewrite /write_i /write_i_rec -vrvs_recE.
   - by move => xs op es s; rewrite /write_i /write_i_rec !vrvs_recE; clear; SvD.fsetdec.
   - by move=> a s; rewrite /write_i /write_i_rec; clear; SvD.fsetdec.
   - by move => e c1 c2 h1 h2 s; rewrite /write_i /write_i_rec -!/write_c_rec -/write_c !h1 h2; clear; SvD.fsetdec.
   - by move => v d lo hi body h s; rewrite /write_i /write_i_rec -!/write_c_rec !h; clear; SvD.fsetdec.
   - by move => a c1 e ei c2  h1 h2 s; rewrite /write_i /write_i_rec -!/write_c_rec -/write_c !h1 h2; clear; SvD.fsetdec.
-  by move=> xs fn es s; rewrite /write_i /write_i_rec; clear; SvD.fsetdec.
+  by move=> xs fn als es s; rewrite /write_i /write_i_rec; clear; SvD.fsetdec.
 Qed.
 
 Lemma write_I_recE ii i s :
@@ -252,7 +252,7 @@ Proof.
   exact: ih ok_xs.
 Qed.
 
-Record match_estate (D: Sv.t) (s t: estate) : Prop :=
+Record match_estate (D: Sv.t) (s t: estate empty_env) : Prop :=
   MVM {
     mvm_scs  : escs s = escs t;
     mvm_mem  : emem s = emem t;
@@ -271,7 +271,7 @@ Lemma match_estateI X X' s t :
 Proof. by move => hle [?? hvm]; split => //; apply: uincl_exI hle hvm. Qed.
 
 (* Precondition for function *)
-Definition preF (fn1 fn2 : funname) (fs:fstate) (s:estate) :=
+Definition preF (fn1 fn2 : funname) (fs:fstate) (s:estate empty_env) :=
   [/\ fn1 = fn2
     , fscs fs = escs s
     , fmem fs = emem s
@@ -290,7 +290,7 @@ Definition preF (fn1 fn2 : funname) (fs:fstate) (s:estate) :=
       end].
 
 (* Postcondition for function *)
-Definition postF (fn1 fn2 : funname) (fs:fstate) (s:estate) (fs':fstate) (ks:Sv.t * estate) :=
+Definition postF (fn1 fn2 : funname) (fs:fstate) (s:estate empty_env) (fs':fstate) (ks:Sv.t * estate empty_env) :=
    let (k, s') := (ks.1, ks.2) in
    [/\ fscs fs' = escs s'
      , fmem fs' = emem s'
@@ -314,12 +314,12 @@ Definition postF (fn1 fn2 : funname) (fs:fstate) (s:estate) (fs':fstate) (ks:Sv.
 
 Definition PreF {T1 T2} (d1 : recCall T1) (d2 : recCallK T2) : Prop :=
   match d1, d2 with
-  | RecCall _ fn1 fs1, RecCallK fn2 s2 => preF fn1 fn2 fs1 s2
+  | RecCall _ fn1 _ fs1, RecCallK fn2 s2 => preF fn1 fn2 fs1 s2
   end.
 
 Definition PostF {T1 T2} (d1 : recCall T1) (t1: T1) (d2 : recCallK T2) (t2: T2) : Prop :=
   match d1 in recCall T1_ return T1_ -> T2 -> Prop with
-  | RecCall _ fn1 fs1 =>
+  | RecCall _ fn1 _ fs1 =>
     match d2 in recCallK T2_ return fstate -> T2_ -> Prop with
     | RecCallK fn2 s2 => postF fn1 fn2 fs1 s2
     end
@@ -340,10 +340,10 @@ Context {E_l E0_l : Type -> Type} {wE_l: with_Error E_l E0_l}
 Context (sem_F1 : sem_Fun (pT:= progStack) E_l)
         (sem_F2 : sem_FunK E_r).
 
-Context (hcall : forall ii1 fn1 fn2,
+Context (hcall : forall ii1 fn1 fn2 vals,
     wkequiv_io
       (preF fn1 fn2)
-      (sem_fun (sem_Fun := sem_F1) p global_data ii1 fn1)
+      (sem_fun (sem_Fun := sem_F1) p global_data ii1 fn1 vals)
       (sem_funK (sem_FunK := sem_F2) p fn2)
       (postF fn1 fn2)).
 
@@ -352,16 +352,16 @@ Context (m0:mem)
         (W:Sv.t)
         (mvp_not_written: disjoint W (magic_variables p)).
 
-Record merge_vmap_stable (t:estate) :=
+Record merge_vmap_stable (t:estate empty_env) :=
   { mvs_stable: stack_stable m0 (emem t)
   ; mvs_top_stack: (evm t).[vrsp] = Vword (top_stack (emem t))
   ; mvs_global_data : (evm t).[ vgd ] = Vword global_data
   ; mvs_stack_aligned : is_align (top_stack (emem t)) sz
   }.
 
-Record merged_vmap_inv (X:Sv.t) (s:estate) (t:estate) :=
+Record merged_vmap_inv (X:Sv.t) (s:estate empty_env) (t:estate empty_env) :=
   { mvi_match : match_estate X s t
-  ; mvi_stable: merge_vmap_stable (t:estate)
+  ; mvi_stable: merge_vmap_stable (t:estate empty_env)
   }.
 
 Definition Pc (c:cmd) :=
@@ -404,10 +404,10 @@ Definition Pi_r (i:instr_r) :=
            & Sv.Subset kt2.1 (write_i i)]).
 
 (* TODO: move this *)
-Lemma with_vm_m x y :
+Lemma with_vm_m env (x y : estate env) :
   escs x = escs y →
   emem x = emem y →
-  forall vm, with_vm x vm = with_vm y vm.
+  forall (vm : Vm.t env), with_vm x vm = with_vm y vm.
 Proof. by case: x y => scs m vm [] scs' m' vm' /= -> ->. Qed.
 
 Lemma check_eP (wdb: enforce_defined_variables) ii I e s t v u : check_e ii I e = ok u ->
@@ -465,7 +465,7 @@ Proof.
   by have [t2 -> /= ?] := hrec _ _ _ _ _ _ hxs hsim' hws uvs; exists t2.
 Qed.
 
-Lemma merge_vmap_stable_trans (t1 t2:estate) X:
+Lemma merge_vmap_stable_trans (t1 t2:estate empty_env) X:
   Sv.Subset X W ->
   merge_vmap_stable t1 ->
   stack_stable (emem t1) (emem t2) ->
@@ -546,7 +546,7 @@ Proof.
   move=> hni; apply h3; clear -hx; SvD.fsetdec.
 Qed.
 
-Lemma sem_pexprs_get_vars s es xs vs (wdb: enforce_defined_variables) :
+Lemma sem_pexprs_get_vars (s : estate empty_env) es xs vs (wdb: enforce_defined_variables) :
   mapM get_pvar es = ok xs →
   sem_pexprs (p_globs p) s es = ok vs →
   get_vars (evm s) xs = ok vs.
@@ -556,7 +556,7 @@ Proof.
   by rewrite /get_gvar /= => ? -> /= ? /hes -> <-.
 Qed.
 
-Lemma get_lvar_write_lvals (wdb: enforce_defined_variables) s1 s2 xs xs' vs:
+Lemma get_lvar_write_lvals (wdb: enforce_defined_variables) (s1 s2 : estate empty_env) xs xs' vs:
   mapM get_lvar xs = ok xs' ->
   write_lvals (p_globs p) s1 xs vs = ok s2 ->
   write_lvals (p_globs p) s1 (to_lvals xs') vs = ok s2.
@@ -640,7 +640,7 @@ Proof using ok_p hcall mvp_not_written.
     rewrite hw; exists (vrv x, t2) => //=; split => //.
     by apply: (vrvP hw).
   (* opn *)
-  + move=> xs t o es ii I O.
+  + move=> xs t o als es ii I O.
     rewrite /write_i /= => hsub; t_xrbindP => he hx s1 t1 hinv1.
     apply xrutt_iresult => s2; rewrite /sem_sopn.
     t_xrbindP => ws vs ok_v ok_ws ok_s2.
@@ -752,7 +752,7 @@ Proof using ok_p hcall mvp_not_written.
       by apply: eq_exI hex3; clear; SvD.fsetdec.
     by move: hsubw hsub3; rewrite !write_i_while; clear; SvD.fsetdec.
   (* call *)
-  move=> xs f es ii I O.
+  move=> xs f als es ii I O.
   rewrite /write_i /= => /SvSubset_and [_] /SvSubset_and [] hsubra hsubtmp.
   case hget : get_fundef => [ fd | //].
   t_xrbindP => hches hal halles hallxs hdisj <-.
@@ -791,12 +791,12 @@ Proof using ok_p hcall mvp_not_written.
   rewrite /is_disjoint_magic hget.
   have -> /= : disjoint (ra_vm (f_extra fd) Sv.empty) (magic_variables p).
   + have [_] := checkP ok_p hget.
-    rewrite /check_fd; t_xrbindP => k _ _ _ _ + _ _ _.
+    rewrite /check_fd; t_xrbindP => _ k _ _ _ _ + _ _ _.
     move=> /disjoint_union [_]; rewrite hget.
     move=> /disjoint_union [] /disjoint_union [] + _ _.
     rewrite /ra_vm; case: sf_return_address => //.
     by apply: disjoint_w; clear;SvD.fsetdec.
-  rewrite !bind_ret_l; apply (xrutt_facts.xrutt_bind hf).
+  rewrite !bind_ret_l; apply (xrutt_facts.xrutt_bind (hf _)).
   move=> s2 kt2 [] /= hscs hmem; rewrite hget => -[res'] [hsub' /Sv.subset_spec hsubk hget' heqex hstable hrsp hgd hu].
   rewrite /upd_estate.
   case hws : write_lvals => [s3 | e] /=; last first.
@@ -846,23 +846,23 @@ End CMD.
 
 Context {E E0 : Type -> Type} {wE: with_Error E E0} {rE0 : EventRels E0}.
 
-Lemma merge_varmaps_funP fn1 fn2 :
+Lemma merge_varmaps_funP fn1 fn2 vals :
   wkequiv_io
     (preF fn1 fn2)
-    (sem_fun (sem_Fun := sem_fun_full) p global_data dummy_instr_info fn1)
+    (sem_fun (sem_Fun := sem_fun_full) p global_data dummy_instr_info fn1 vals)
     (it_sems_one_varmap.isem_fun var_tmps p fn2)
     (postF fn1 fn2).
 Proof using ok_p.
   move=> fs1 t1 hpre /=.
   rewrite /isem_fun /isem_fun_def /it_sems_one_varmap.isem_fun /it_sems_one_varmap.isem_fun_def.
-  have {}hpre : PreF (RecCall dummy_instr_info fn1 fs1) (RecCallK fn2 t1) by done.
+  have {}hpre : PreF (RecCall dummy_instr_info fn1 vals fs1) (RecCallK fn2 t1) by done.
   apply: (xrutt_facts.mrec_xrutt (RPreInv:= @PreF) (RPostInv := @PostF) _ hpre).
-  move=> {fn1 fn2 fs1 t1 hpre} _ _ [ii fn fs1] [_ t1] [<-] /= hscs hmem.
+  move=> {fn1 fn2 vals fs1 t1 hpre} _ _ [ii fn vals fs1] [_ t1] [<-] /= hscs hmem.
   case hget: get_fundef => [fd | //] [vs] [hal hrsp hgd hgetvs hu].
   rewrite /isem_fun_body /it_sems_one_varmap.isem_fun_body.
   rewrite /kget_fundef hget /= /isem_pre /isem_post /= !bind_ret_l.
   have [hvalra ]:= checkP ok_p hget.
-  rewrite /check_fd; t_xrbindP => D.
+  rewrite /check_fd; t_xrbindP => /eqP AL D.
   set ID := (ID in check_cmd _ ID _).
   set DF := Sv.union _ D.
   set res := sv_of_list v_var (f_res fd).
@@ -871,7 +871,9 @@ Proof using ok_p.
     checked_params RSP_not_result preserved_magic
     checked_save_stack htmp_call_magic checked_ra.
   rewrite /iresult.
-  case hinit: (initialize_funcall p global_data fd fs1) => [s1 | e] /=; last first.
+  have ->: create_env (f_al fd) vals = empty_env.
+  + by rewrite AL; case: vals.
+  case hinit: (initialize_funcall p global_data fd empty_env) => [s1 | e] /=; last first.
   + rewrite bind_throw. eapply lcutoff_wE.
   rewrite bind_ret_l.
   move: hinit; rewrite /initialize_funcall /init_state /=.
@@ -943,12 +945,12 @@ Proof using ok_p.
     apply/andP; split; [apply/eqP | apply/eqP ]; intuition.
   rewrite ok_m' /= !bind_ret_l.
   set t1' := (t1' in it_sems_one_varmap.isem_cmd _ _ _ t1').
-  have hfun : ∀ (ii1 : instr_info) (fn1 fn2 : funname),
+  have hfun : ∀ (ii1 : instr_info) (fn1 fn2 : funname) vals,
       wkequiv_io (preF fn1 fn2)
-        (sem_fun (sem_Fun:= sem_fun_rec _) p global_data ii1 fn1)
+        (sem_fun (sem_Fun:= sem_fun_rec _) p global_data ii1 fn1 vals)
         (sem_funK (sem_FunK :=  it_sems_one_varmap.sem_funK_rec _) p fn2)
         (postF fn1 fn2).
-  + move=> ii1 fn1 fn2 s t hpre /=.
+  + move=> ii1 fn1 fn2 vals1 s t hpre /=.
     apply xrutt.xrutt_Vis => // s' t' /= hpost.
     by apply xrutt.xrutt_Ret.
   have hdisj_w : disjoint (write_c (f_body fd)) (magic_variables p).
@@ -967,7 +969,7 @@ Proof using ok_p.
       + rewrite Vm.setP_eq -(write_vars_eq_ex ok_s1) ?vrsp_v ?vm_truncate_val_eq //.
         by case: (not_written_magic checked_params).
       rewrite /= Vm.setP_neq; last by rewrite eq_sym.
-      have huninit : ¬ Sv.In z params → z ≠ vgd → (evm s1).[z] = undef_addr (eval_atype (vtype z)).
+      have huninit : ¬ Sv.In z params → z ≠ vgd → (evm s1).[z] = undef_addr (eval_atype empty_env (vtype z)).
       + move => h zgd; rewrite -(write_vars_eq_ex ok_s1) // hvmap0 //; last by apply/eqP.
         by apply Vm.initP.
       have hz : value_uincl (evm s1).[z] (evm t1).[z].
@@ -1117,7 +1119,7 @@ Proof using ok_p.
   by rewrite /writefun_ra hget => -[+ _]; clear; SvD.fsetdec.
 Qed.
 
-Lemma merge_varmaps_export_callP fn:
+Lemma merge_varmaps_export_callP fn vals :
   is_export p fn →
   wkequiv
     (fun fs t =>
@@ -1135,7 +1137,7 @@ Lemma merge_varmaps_export_callP fn:
                  & values_uincl args args']
           | None => true
           end])
-    (isem_fun p global_data fn)
+    (isem_fun p global_data fn vals)
     (it_sems_one_varmap.isem_exportcall var_tmps p global_data fn)
     (fun fs' t' =>
       [/\ fscs fs' = escs t'
@@ -1154,7 +1156,7 @@ Proof using ok_p.
   case => fd ok_fd Export fs t; rewrite ok_fd /= => -[] hscs hmem /= [args'] [ hrsp hvgd hargs huargs].
   rewrite /isem_exportcall.
   case: (checkP ok_p ok_fd)=> _ok_wrf.
-  rewrite /check_fd; t_xrbindP => D.
+  rewrite /check_fd; t_xrbindP => _ D.
   rewrite /top_stack_aligned Export.
   set ID := (ID in check_c _ ID _).
   set DF := Sv.union _ D.
@@ -1168,8 +1170,8 @@ Proof using ok_p.
     by rewrite /top_stack_aligned Export.
   rewrite ok_fd /= bind_ret_l.
   rewrite RSP_not_result Export to_save_not_result hvgd value_eqb_refl //= bind_ret_l.
-  rewrite -(bind_ret_r (isem_fun p global_data fn fs)).
-  apply (xrutt_facts.xrutt_bind hsem).
+  rewrite -(bind_ret_r (isem_fun p global_data fn vals fs)).
+  apply (xrutt_facts.xrutt_bind (hsem _)).
   move=> s rt [hscs' hmem']; rewrite ok_fd => /= -[vres'] [hsub hsubk hget' hex hstable hrsp' hvgd' hures].
   have -> : Sv.subset (Sv.inter callee_saved (Sv.union rt.1 (ra_undef fd var_tmps)))
               (sv_of_list fst (sf_to_save (f_extra fd))).
@@ -1183,7 +1185,7 @@ Proof using ok_p.
   by rewrite /= bind_ret_l; apply xrutt.xrutt_Ret; split => //; exists vres'; split.
 Qed.
 
-Definition ovm_pre fn fs t :=
+Definition ovm_pre fn fs (t : estate empty_env) :=
   [/\ fscs fs = escs t
     , fmem fs = emem t
     & let: m := fmem fs in
@@ -1199,7 +1201,7 @@ Definition ovm_pre fn fs t :=
       | None => true
       end].
 
-Definition ovm_post fn fs' t' :=
+Definition ovm_post fn fs' (t' : estate empty_env) :=
   [/\ fscs fs' = escs t'
     , fmem fs' = emem t'
     & let: m' := fmem fs' in
@@ -1213,15 +1215,15 @@ Definition ovm_post fn fs' t' :=
       | None => false
       end].
 
-Lemma merge_varmaps_export_call_checkP fn:
+Lemma merge_varmaps_export_call_checkP fn vals :
   is_export p fn →
   wkequiv
     (ovm_pre fn)
-    (isem_fun p global_data fn)
+    (isem_fun p global_data fn vals)
     (it_sems_one_varmap.isem_exportcall_check var_tmps p global_data fn)
     (ovm_post fn).
 Proof using ok_p.
-  move=> /merge_varmaps_export_callP => h fs s /h.
+  move=> /merge_varmaps_export_callP => h fs s /h -/(_ vals).
   have -> // : isem_exportcall var_tmps p global_data fn s ≈ isem_exportcall_check var_tmps p global_data fn s.
   rewrite /isem_exportcall /isem_exportcall_check.
   case ok_fd : (get_fundef (p_funcs p) fn) => [fd | ] /=; last first.

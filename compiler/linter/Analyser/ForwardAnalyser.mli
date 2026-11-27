@@ -108,6 +108,7 @@ module type Logic =
       Jasmin.Location.i_loc ->
       Jasmin.Prog.lvals ->
       Jasmin.CoreIdent.funname ->
+      Jasmin.Prog.length list ->
       Jasmin.Prog.exprs -> domain -> domain Annotation.annotation
 
     (**
@@ -137,6 +138,7 @@ module type Logic =
       Jasmin.Prog.lvals ->
       Jasmin.Expr.assgn_tag ->
       'asm Jasmin.Sopn.sopn ->
+      Jasmin.Prog.length list ->
       Jasmin.Prog.exprs -> domain -> domain Annotation.annotation
 
     (**

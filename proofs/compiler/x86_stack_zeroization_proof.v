@@ -93,7 +93,7 @@ Proof using halign le_ws_ws_align.
   by rewrite GRing.addrN.
 Qed.
 
-Record state_rel_unrolled_small vars s1 s2 n (p:word Uptr) := {
+Record state_rel_unrolled_small vars (s1 s2 : estate empty_env) n (p:word Uptr) := {
   sr_scs : s1.(escs) = s2.(escs);
   sr_mem : mem_equiv s1.(emem) s2.(emem);
   sr_mem_valid : forall p, between top stk_max p U8 -> validw s2.(emem) Aligned p U8;
@@ -180,14 +180,15 @@ Proof using lt_0_stk_max halign le_ws_ws_align hstack hsmall hbody rsp_nin.
     apply: (lsem_n_eval_lin1 (n:=6) hbody) => //=.
     rewrite /eval_instr /=.
     rewrite wrepr0.
-    have -> /=: exec_sopn (Ox86 (MOV ws)) [:: @Vword ws 0] = ok [:: @Vword ws 0].
-    + rewrite /exec_sopn /= truncate_word_u /= computational_eq_refl.
-      rewrite /x86_MOV.
-      by rewrite /size_8_64 hsmall /=.
-    rewrite (@get_var_neq _ _ _ rspi);
+    have -> /=: exec_sopn (Ox86 (MOV ws)) [::] [:: @Vword ws 0] = ok [:: @Vword ws 0].
+    + rewrite /exec_sopn /= truncate_word_u /=.
+      rewrite /size_8_64 hsmall /=.
+      rewrite computational_eq_refl.
+      by rewrite /x86_MOV.
+    rewrite (@get_var_neq _ _ _ _ rspi);
       last by move=> /= h; apply /rsp_nin /sv_of_listP;
       rewrite !in_cons /= -h eqxx /= ?orbT.
-    do 5 rewrite (@get_var_neq _ _ _ rspi) //.
+    do 5 rewrite (@get_var_neq _ _ _ _ rspi) //.
     rewrite [get_var _ rspi]/get_var hsr.(sr_rsp) /=.
     rewrite /sem_sop2 /= (truncate_word_u top) /=.
     rewrite get_var_eq //= !truncate_word_u /= truncate_word_u /=.
@@ -303,7 +304,7 @@ Proof using lt_0_stk_max halign le_ws_ws_align hstack hlabel hsmall hbody rsp_ni
   by rewrite -addnS.
 Qed.
 
-Lemma loop_small_initP (s1 : estate) :
+Lemma loop_small_initP s1 :
   valid_between s1.(emem) top stk_max ->
   s1.(evm).[rspi] = Vword ptr ->
   exists s2,
@@ -363,7 +364,7 @@ Local Opaque wsize_size.
 Local Transparent wsize_size.
 Qed.
 
-Lemma loop_small_finalP (s1 s2 : estate) :
+Lemma loop_small_finalP s1 s2 :
   state_rel_loop_small loop_small_vars s1 s2 0 top ->
   exists s3,
     lsem_n lp (endpc lp fn)
@@ -393,7 +394,7 @@ Proof using hbody rsp_nin.
   by rewrite Vm.setP_eq.
 Qed.
 
-Lemma loop_smallP (s1 : estate) :
+Lemma loop_smallP s1 :
   valid_between s1.(emem) top stk_max ->
   s1.(evm).[rspi] = Vword ptr ->
   exists s2,
@@ -462,10 +463,11 @@ Proof using lt_0_stk_max halign le_ws_ws_align hstack hlarge hbody rsp_nin.
       by rewrite /of_estate /= /lnext_pc /= -addnS.
     apply: (lsem_n_eval_lin1 (n:=7) hbody) => //=.
     rewrite /eval_instr /=.
-    do 6 rewrite (@get_var_neq _ _ _ vlri) //.
+    do 6 rewrite (@get_var_neq _ _ _ _ vlri) //.
     rewrite [get_var _ vlri]/get_var hsr.(srll_vlr) /=.
-    rewrite /exec_sopn /= truncate_word_u /= computational_eq_refl /x86_VMOVDQ.
+    rewrite /exec_sopn /= truncate_word_u /= /sopn_sem /sopn_sem_ /=.
     rewrite wsize_nle_u64_size_128_256 /=; last by apply /negbTE /negP.
+    rewrite computational_eq_refl /x86_VMOVDQ.
     rewrite get_var_eq //=.
     rewrite get_var_neq;
       last by move=> h; apply /rsp_nin /sv_of_listP;
@@ -584,7 +586,7 @@ Proof using lt_0_stk_max halign le_ws_ws_align hstack hlabel hlarge hbody rsp_ni
   by rewrite -addnS.
 Qed.
 
-Lemma loop_large_initP (s1 : estate) :
+Lemma loop_large_initP s1 :
   valid_between s1.(emem) top stk_max ->
   s1.(evm).[rspi] = Vword ptr ->
   exists s2,
@@ -601,7 +603,7 @@ Local Opaque wsize_size.
       by rewrite /of_estate /= /lnext_pc /= -addn1.
     apply: (lsem_n_eval_lin (n:=1) hbody) => //=.
     * rewrite /eval_instr /=.
-      have -> /=: exec_sopn (Oasm (ExtOp (Oset0 ws))) [::] = ok [:: @Vword ws 0].
+      have -> /=: exec_sopn (Oasm (ExtOp (Oset0 ws))) [::] [::] = ok [:: @Vword ws 0].
       + rewrite /exec_sopn /=.
         rewrite /Oset0_instr.
         by move /negP/negPf : hlarge => -> /=.
@@ -654,7 +656,7 @@ Local Opaque wsize_size.
 Local Transparent wsize_size.
 Qed.
 
-Lemma loop_large_finalP (s1 s2 : estate) :
+Lemma loop_large_finalP s1 s2 :
   state_rel_loop_large loop_large_vars s1 s2 0 top ->
   exists s3,
     lsem_n lp (endpc lp fn)
@@ -686,7 +688,7 @@ Proof using hbody rsp_nin.
   by rewrite Vm.setP_eq.
 Qed.
 
-Lemma loop_largeP (s1 : estate) :
+Lemma loop_largeP s1 :
   valid_between s1.(emem) top stk_max ->
   s1.(evm).[rspi] = Vword ptr ->
   exists s2,
@@ -706,7 +708,7 @@ Qed.
 
 End LARGE.
 
-Lemma loopP (s1 : estate) cmd vars cmd' :
+Lemma loopP s1 cmd vars cmd' :
   x86_stack_zero_loop rspn lbl ws_align ws stk_max = (cmd, vars) ->
   is_linear_of lp fn (lc ++ cmd ++ cmd') ->
   ~ Sv.In rspi vars ->
@@ -789,10 +791,11 @@ Local Opaque wsize_size Z.of_nat.
       by move: halign; rewrite is_alignE WArray.p_to_zE => /eqP.
     rewrite /eval_instr /=.
     rewrite wrepr0.
-    have -> /=: exec_sopn (Ox86 (MOV ws)) [:: @Vword ws 0] = ok [:: @Vword ws 0].
-    + rewrite /exec_sopn /= truncate_word_u /= computational_eq_refl.
-      rewrite /x86_MOV.
-      by rewrite /size_8_64 hsmall /=.
+    have -> /=: exec_sopn (Ox86 (MOV ws)) [::] [:: @Vword ws 0] = ok [:: @Vword ws 0].
+    + rewrite /exec_sopn /= truncate_word_u /=.
+      rewrite /size_8_64 hsmall /=.
+      rewrite computational_eq_refl.
+      by rewrite /x86_MOV.
     rewrite /get_var /= hsr.(sr_rsp) /sem_sop2 /=.
     rewrite !truncate_word_u /= truncate_word_u /=.
     rewrite hm' /=.
@@ -868,7 +871,7 @@ Proof using lt_0_stk_max halign le_ws_ws_align hstack hsmall hbody.
   by apply (lsem_n_trans hsem3).
 Qed.
 
-Lemma unrolled_small_initP (s1 : estate) :
+Lemma unrolled_small_initP s1 :
   valid_between s1.(emem) top stk_max ->
   s1.(evm).[rspi] = Vword ptr ->
   exists s2,
@@ -914,7 +917,7 @@ Local Opaque wsize_size.
 Local Transparent wsize_size.
 Qed.
 
-Lemma unrolled_small_finalP (s1 s2 : estate) :
+Lemma unrolled_small_finalP s1 s2 :
   state_rel_unrolled_small unrolled_small_vars s1 s2 0 top ->
   exists s3,
     lsem_n lp (endpc lp fn)
@@ -947,7 +950,7 @@ Proof using hbody rsp_nin.
   by rewrite Vm.setP_eq.
 Qed.
 
-Lemma unrolled_smallP (s1 : estate) :
+Lemma unrolled_smallP s1 :
   valid_between s1.(emem) top stk_max ->
   s1.(evm).[rspi] = Vword ptr ->
   exists s2,
@@ -1026,8 +1029,9 @@ Local Opaque wsize_size Z.of_nat.
       by move: halign; rewrite is_alignE WArray.p_to_zE => /eqP.
     rewrite /eval_instr /=.
     rewrite [get_var _ vlri]/get_var hsr.(srul_vlr) /=.
-    rewrite /exec_sopn /= (@truncate_word_u ws) /= computational_eq_refl /x86_VMOVDQ.
+    rewrite /exec_sopn /= (@truncate_word_u ws) /= /sopn_sem /sopn_sem_ /=.
     rewrite wsize_nle_u64_size_128_256 /=; last by apply /negbTE /negP.
+    rewrite computational_eq_refl /x86_VMOVDQ.
     rewrite /get_var /= hsr.(sr_rsp) /sem_sop2 /= !truncate_word_u /= truncate_word_u /=.
     rewrite hm' /=.
     by rewrite /of_estate /= /lnext_pc /= -addnS.
@@ -1102,7 +1106,7 @@ Proof using lt_0_stk_max halign le_ws_ws_align hstack hlarge hbody.
   by apply (lsem_n_trans hsem3).
 Qed.
 
-Lemma unrolled_large_initP (s1 : estate) :
+Lemma unrolled_large_initP s1 :
   valid_between s1.(emem) top stk_max ->
   s1.(evm).[rspi] = Vword ptr ->
   exists s2,
@@ -1119,7 +1123,7 @@ Local Opaque wsize_size.
       by rewrite /of_estate /= /lnext_pc /= -addn1.
     apply: (lsem_n_eval_lin (n:=1) hbody) => //=.
     * rewrite /eval_instr /=.
-      have -> /=: exec_sopn (Oasm (ExtOp (Oset0 ws))) [::] = ok [:: @Vword ws 0].
+      have -> /=: exec_sopn (Oasm (ExtOp (Oset0 ws))) [::] [::] = ok [:: @Vword ws 0].
       + rewrite /exec_sopn /=.
         rewrite /Oset0_instr.
         by move /negP/negPf : hlarge => -> /=.
@@ -1159,7 +1163,7 @@ Local Opaque wsize_size.
 Local Transparent wsize_size.
 Qed.
 
-Lemma unrolled_large_finalP (s1 s2 : estate) :
+Lemma unrolled_large_finalP s1 s2 :
   state_rel_unrolled_large unrolled_large_vars s1 s2 0 top ->
   exists s3,
     lsem_n lp (endpc lp fn)
@@ -1194,7 +1198,7 @@ Proof using hbody rsp_nin.
   by rewrite Vm.setP_eq.
 Qed.
 
-Lemma unrolled_largeP (s1 : estate) :
+Lemma unrolled_largeP s1 :
   valid_between s1.(emem) top stk_max ->
   s1.(evm).[rspi] = Vword ptr ->
   exists s2,
@@ -1214,7 +1218,7 @@ Qed.
 
 End LARGE.
 
-Lemma unrolledP (s1 : estate) cmd vars :
+Lemma unrolledP s1 cmd vars :
   x86_stack_zero_unrolled rspn ws_align ws stk_max = (cmd, vars) ->
   is_linear_of lp fn (lc ++ cmd) ->
   ~ Sv.In rspi vars ->

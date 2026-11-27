@@ -1,0 +1,12 @@
+param int n = 3;
+
+export fn main{n}(reg ptr u64[n] x) -> reg ptr u64[n] {
+  return x;
+}
+
+/*
+export fn main(reg ptr u64[n] x) -> reg ptr u64[n] {
+  reg u64 n = 2;
+  x[0] = 1;
+  return x;
+}*/

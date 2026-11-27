@@ -37,13 +37,13 @@ and live_d weak d (s_o: Sv.t) =
       else s_o in
     s_i, s_o, Cassgn(x, tg, ty, e)
 
-  | Copn(xs,t,o,es) ->
+  | Copn(xs,t,o,als,es) ->
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
     let s_o =
      if weak
      then weak_dep_lvs s_o xs
      else s_o in
-    s_i, s_o, Copn(xs,t,o,es)
+    s_i, s_o, Copn(xs,t,o,als,es)
 
   | Cassert (msg, e) ->
      let s_i = Sv.union (vars_a e) s_o in
@@ -75,9 +75,9 @@ and live_d weak d (s_o: Sv.t) =
     let s_i, se, (c,c') = loop s_o in
     s_i, s_o, Cwhile(a, c, e, (info, se), c')
 
-  | Ccall(xs,f,es) ->
+  | Ccall(xs,f,als,es) ->
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
-    s_i, (if weak then weak_dep_lvs s_o xs else s_o), Ccall(xs,f,es)
+    s_i, (if weak then weak_dep_lvs s_o xs else s_o), Ccall(xs,f,als,es)
 
   | Csyscall(xs,o,es) ->
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
@@ -105,7 +105,7 @@ let iter_call_sites (cbf: L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit)
                     (f: (Sv.t * Sv.t, 'asm) func) : unit =
   iter_instr (fun i ->
       match i.i_desc with
-      | Ccall (xs, fn, _) -> cbf i.i_loc fn xs i.i_info
+      | Ccall (xs, fn, _, _) -> cbf i.i_loc fn xs i.i_info
       | Csyscall (xs, op, _) -> cbs i.i_loc op xs i.i_info
       | (Cassgn _ | Copn _ | Cif _ | Cfor _ | Cwhile _ | Cassert _) -> ()
     ) f.f_body

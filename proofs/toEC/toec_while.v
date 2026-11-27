@@ -26,8 +26,8 @@ Definition toec_while_c (ec_while_i : instr -> cmd) (c : cmd) : cmd :=
 Fixpoint toec_while_i (i : instr) : cmd :=
   let 'MkI ii ir := i in
   match ir with
-  | Cassgn _ _ _ _ | Copn _ _ _ _ | Csyscall _ _ _
-  | Cassert _      | Ccall _ _ _ => [:: i]
+  | Cassgn _ _ _ _ | Copn _ _ _ _ _ | Csyscall _ _ _
+  | Cassert _      | Ccall _ _ _ _ => [:: i]
   | Cif e c1 c2 =>
       let c1 := toec_while_c toec_while_i c1 in
       let c2 := toec_while_c toec_while_i c2 in

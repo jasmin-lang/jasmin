@@ -62,10 +62,10 @@ Definition is_glob (x:gvar) := x.(gs) == Sglob.
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
-| Parr_init : wsize -> Z → pexpr
+| Parr_init : wsize -> array_length → pexpr
 | Pvar   :> gvar -> pexpr
 | Pget   : aligned -> arr_access -> wsize -> gvar -> pexpr -> pexpr
-| Psub   : arr_access -> wsize -> Z -> gvar -> pexpr -> pexpr
+| Psub   : arr_access -> wsize -> array_length -> gvar -> pexpr -> pexpr
 | Pload  : aligned -> wsize -> pexpr -> pexpr
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
@@ -118,7 +118,7 @@ Variant lval : Type :=
 | Lvar  `(var_i)
 | Lmem  of aligned & wsize & var_info & pexpr
 | Laset of aligned & arr_access & wsize & var_i & pexpr
-| Lasub of arr_access & wsize & Z & var_i & pexpr.
+| Lasub of arr_access & wsize & array_length & var_i & pexpr.
 
 Coercion Lvar : var_i >-> lval.
 
@@ -214,13 +214,13 @@ Context `{asmop:asmOp}.
 
 Inductive instr_r :=
 | Cassgn   : lval -> assgn_tag -> atype -> pexpr -> instr_r
-| Copn     : lvals -> assgn_tag -> sopn -> pexprs -> instr_r
+| Copn     : lvals -> assgn_tag -> sopn -> seq array_length -> pexprs -> instr_r
 | Csyscall : lvals -> syscall_t -> pexprs -> instr_r
 | Cassert  : assertion -> instr_r
 | Cif      : pexpr -> seq instr -> seq instr  -> instr_r
 | Cfor     : var_i -> range -> seq instr -> instr_r
 | Cwhile   : align -> seq instr -> pexpr -> instr_info -> seq instr -> instr_r
-| Ccall    : lvals -> funname -> pexprs -> instr_r
+| Ccall    : lvals -> funname -> seq array_length -> pexprs -> instr_r
 
 with instr := MkI : instr_info -> instr_r ->  instr.
 
@@ -237,13 +237,13 @@ Section CMD_RECT.
   Hypothesis Hnil : Pc [::].
   Hypothesis Hcons: forall i c, Pi i -> Pc c -> Pc (i::c).
   Hypothesis Hasgn: forall x tg ty e, Pr (Cassgn x tg ty e).
-  Hypothesis Hopn : forall xs t o es, Pr (Copn xs t o es).
+  Hypothesis Hopn : forall xs t o als es, Pr (Copn xs t o als es).
   Hypothesis Hsyscall : forall xs o es, Pr (Csyscall xs o es).
   Hypothesis Hassert : forall a, Pr (Cassert a).
   Hypothesis Hif  : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Hypothesis Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
   Hypothesis Hwhile : forall a c e info c', Pc c -> Pc c' -> Pr (Cwhile a c e info c').
-  Hypothesis Hcall: forall xs f es, Pr (Ccall xs f es).
+  Hypothesis Hcall: forall xs f als es, Pr (Ccall xs f als es).
 
   Section C.
   Variable instr_rect : forall i, Pi i.
@@ -262,13 +262,13 @@ Section CMD_RECT.
   with instr_r_Rect (i:instr_r) : Pr i :=
     match i return Pr i with
     | Cassgn x tg ty e => Hasgn x tg ty e
-    | Copn xs t o es => Hopn xs t o es
+    | Copn xs t o als es => Hopn xs t o als es
     | Csyscall xs o es => Hsyscall xs o es
     | Cassert a => Hassert a
     | Cif e c1 c2  => @Hif e c1 c2 (cmd_rect_aux instr_Rect c1) (cmd_rect_aux instr_Rect c2)
     | Cfor i (dir,lo,hi) c => @Hfor i dir lo hi c (cmd_rect_aux instr_Rect c)
     | Cwhile a c e info c'   => @Hwhile a c e info c' (cmd_rect_aux instr_Rect c) (cmd_rect_aux instr_Rect c')
-    | Ccall xs f es => @Hcall xs f es
+    | Ccall xs f als es => @Hcall xs f als es
     end.
 
   Definition cmd_rect := cmd_rect_aux instr_Rect.
@@ -315,6 +315,7 @@ Record fun_contract := MkContra {
 Record _fundef (extra_fun_t: Type) := MkFun {
   f_info   : fun_info;
   f_contract : option fun_contract;
+  f_al     : seq (Uint63.int * Ident.ident);
   f_tyin   : seq atype;
   f_params : seq var_i;
   f_body   : cmd;
@@ -499,6 +500,7 @@ Definition to_sprog (p:_sprog) : sprog := p.
 Definition with_body eft (fd:_fundef eft) (body : cmd) := {|
   f_info     := fd.(f_info);
   f_contract := fd.(f_contract);
+  f_al       := fd.(f_al);
   f_tyin     := fd.(f_tyin);
   f_params   := fd.(f_params);
   f_body     := body;
@@ -510,6 +512,7 @@ Definition with_body eft (fd:_fundef eft) (body : cmd) := {|
 Definition swith_extra {_: PointerData} (fd:ufundef) f_extra : sfundef := {|
   f_info     := fd.(f_info);
   f_contract := fd.(f_contract);
+  f_al       := fd.(f_al);
   f_tyin     := fd.(f_tyin);
   f_params   := fd.(f_params);
   f_body     := fd.(f_body);
@@ -647,13 +650,13 @@ Definition lv_write_mem (r:lval) : bool :=
 Fixpoint write_i_rec s (i:instr_r) :=
   match i with
   | Cassgn x _ _ _  => vrv_rec s x
-  | Copn xs _ _ _   => vrvs_rec s xs
+  | Copn xs _ _ _ _   => vrvs_rec s xs
   | Csyscall xs _ _ => vrvs_rec s xs
   | Cassert _       => s
   | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
   | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
   | Cwhile _ c _ _ c' => foldl write_I_rec (foldl write_I_rec s c') c
-  | Ccall x _ _   => vrvs_rec s x
+  | Ccall x _ _ _   => vrvs_rec s x
   end
 with write_I_rec s i :=
   match i with
@@ -748,7 +751,7 @@ Definition read_easserts := read_easserts_rec Sv.empty.
 Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
   match i with
   | Cassgn x _ _ e => read_rv_rec (read_e_rec s e) x
-  | Copn xs _ _ es => read_es_rec (read_rvs_rec s xs) es
+  | Copn xs _ _ _ es => read_es_rec (read_rvs_rec s xs) es
   | Csyscall xs _ es => read_es_rec (read_rvs_rec s xs) es
   | Cassert a => read_eassert_rec s a.2
   | Cif b c1 c2 =>
@@ -762,7 +765,7 @@ Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
     let s := foldl read_I_rec s c in
     let s := foldl read_I_rec s c' in
     read_e_rec s e
-  | Ccall xs _ es => read_es_rec (read_rvs_rec s xs) es
+  | Ccall xs _ _ es => read_es_rec (read_rvs_rec s xs) es
   end
 with read_I_rec (s:Sv.t) (i:instr) : Sv.t :=
   match i with
@@ -859,8 +862,8 @@ Fixpoint eq_instr_r (i1 i2:instr_r) :=
   match i1, i2 with
   | Cassgn x1 tag1 ty1 e1, Cassgn x2 tag2 ty2 e2 =>
      (tag1 == tag2) && (ty1 == ty2) && eq_lval x1 x2 && eq_expr e1 e2
-  | Copn x1 tag1 o1 e1, Copn x2 tag2 o2 e2 =>
-     all2 eq_lval x1 x2 && (tag1 == tag2) && (o1 == o2) && all2 eq_expr e1 e2
+  | Copn x1 tag1 o1 als1 e1, Copn x2 tag2 o2 als2 e2 =>
+     all2 eq_lval x1 x2 && (tag1 == tag2) && (o1 == o2) && (als1 == als2) && all2 eq_expr e1 e2
   | Csyscall xs1 o1 es1, Csyscall xs2 o2 es2 =>
      all2 eq_lval xs1 xs2 && (o1 == o2) && all2 eq_expr es1 es2
   | Cassert a1, Cassert a2 => (a1.1 == a2.1) && eq_eassert a1.2 a2.2
@@ -870,8 +873,8 @@ Fixpoint eq_instr_r (i1 i2:instr_r) :=
     (v_var i1 == v_var i2) && (dir1 == dir2) && eq_expr lo1 lo2 && eq_expr hi1 hi2 && all2 eq_instr c1 c2
   | Cwhile a1 c1 e1 _ c1' , Cwhile a2 c2 e2 _ c2' =>
     (a1 == a2) && all2 eq_instr c1 c2 && eq_expr e1 e2 && all2 eq_instr c1' c2'
-  | Ccall x1 f1 arg1, Ccall x2 f2 arg2 =>
-    all2 eq_lval x1 x2 && (f1 == f2) && all2 eq_expr arg1 arg2
+  | Ccall x1 f1 als1 arg1, Ccall x2 f2 als2 arg2 =>
+    all2 eq_lval x1 x2 && (f1 == f2) && (als1 == als2) && all2 eq_expr arg1 arg2
   | _, _ => false
   end
 with eq_instr i1 i2 :=
@@ -894,7 +897,7 @@ Definition is_false (e: pexpr) : bool :=
 Definition is_zero sz (e: pexpr) : bool :=
   if e is Papp1 (Oword_of_int sz') (Pconst Z0) then sz' == sz else false.
 
-Notation copn_args := (seq lval * sopn * seq pexpr)%type (only parsing).
+Notation copn_args := (seq lval * sopn * seq array_length * seq pexpr)%type (only parsing).
 
 Definition instr_of_copn_args
   {asm_op : Type}
@@ -902,4 +905,4 @@ Definition instr_of_copn_args
   (tg : assgn_tag)
   (args : copn_args)
   : instr_r :=
-  Copn args.1.1 tg args.1.2 args.2.
+  Copn args.1.1.1 tg args.1.1.2 args.1.2 args.2.

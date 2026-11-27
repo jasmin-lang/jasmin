@@ -129,9 +129,9 @@ Record h_architecture_params
     (* Shared across multiple passes. *)
 
     hap_is_move_opP :
-      forall op vx v,
+      forall op vals vx v,
         ap_is_move_op aparams op
-        -> exec_sopn (Oasm op) [:: vx ] = ok v
+        -> exec_sopn (Oasm op) vals [:: vx ] = ok v
         -> values_uincl v [:: vx ];
   }.
 

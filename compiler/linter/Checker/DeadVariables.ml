@@ -30,7 +30,7 @@ let create_dv_error_instr loc =
 (* Instructions with an AT_keep tag are not treated as dead *)
 let has_keep_tag =
   function
-  | Cassgn (_, tag, _, _) | Copn (_, tag, _, _) -> tag = AT_keep
+  | Cassgn (_, tag, _, _) | Copn (_, tag, _, _, _) -> tag = AT_keep
   | Csyscall _ | Cif _ | Cfor _ | Cwhile _ | Ccall _ | Cassert _ -> false
 
 let check_func func =

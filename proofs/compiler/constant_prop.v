@@ -53,7 +53,7 @@ Definition to_expr (t:ctype) : sem_t t -> exec pexpr :=
 Definition ssem_sop1 (o: sop1) (e: pexpr) : pexpr :=
   let r :=
     Let x := of_expr _ e in
-    Let v := sem_sop1_typed o x in
+    Let v := sem_sop1_typed empty_env o x in
     to_expr v in
   match r with
   | Ok e => e
@@ -64,7 +64,7 @@ Definition ssem_sop2 (o: sop2) (e1 e2: pexpr) : pexpr :=
   let r :=
     Let x1 := of_expr _ e1 in
     Let x2 := of_expr _ e2 in
-    Let v  := sem_sop2_typed o x1 x2 in
+    Let v  := sem_sop2_typed empty_env o x1 x2 in
     to_expr v in
   match r with
   | Ok e => e
@@ -288,7 +288,7 @@ Definition app_sopn := app_sopn of_expr.
 Arguments app_sopn {A} ts _ _.
 
 Definition s_opN (op:opN) (es:pexprs) : pexpr :=
-  match op, app_sopn _ (sem_opN_typed op) es with
+  match op, app_sopn _ (sem_opN_typed empty_env op) es with
   | Opack ws _, Ok w => Papp1 (Oword_of_int ws) (Pconst (wunsigned w))
   | Ocombine_flags _, Ok b => Pbool b
   | _, _ => PappN op es
@@ -481,15 +481,15 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     let m := add_cpm m x tag ty e in
     (m, [:: MkI ii (Cassgn x tag ty e)])
 
-  | Copn xs t o es =>
+  | Copn xs t o als es =>
     (* TODO: Improve this *)
     let es := map (const_prop_e without_globals m) es in
     let (m,xs) := const_prop_rvs without_globals m xs in
     let ir :=
       if is_update_imm xs o es is Some (x, b, e) then
-        if b then Copn [:: x ] AT_none (Oslh SLHmove) [:: e ]
+        if b then Copn [:: x ] AT_none (Oslh SLHmove) [::] [:: e ]
         else Cassgn x AT_none ty_msf (wconst (sz := msf_size) (-1%w)%w)
-      else (Copn xs t o es)
+      else (Copn xs t o als es)
     in
     (m, [:: MkI ii ir ])
 
@@ -533,10 +533,10 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
       end in
     (m', cw)
 
-  | Ccall xs f es =>
+  | Ccall xs f als es =>
     let es := map (const_prop_e without_globals m) es in
     let (m,xs) := const_prop_rvs without_globals m xs in
-    (m, [:: MkI ii (Ccall xs f es) ])
+    (m, [:: MkI ii (Ccall xs f als es) ])
 
   end
 

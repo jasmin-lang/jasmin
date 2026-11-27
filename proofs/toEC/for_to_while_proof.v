@@ -87,7 +87,7 @@ move: c; apply (cmd_rect (Pr := Li_r) (Pi := Li) (Pc := Lc)) => //; rewrite /Li_
   by rewrite read_c_cons /=; move: hi => /=; clear -hc; SvD.fsetdec.
 + move=> x tg ty e ii V O I c_ /= [<- _].
   by rewrite read_Ii read_i_assgn read_rvE read_eE; clear; SvD.fsetdec.
-+ move=> xs t o es ii V O I c_ /= [<- _].
++ move=> xs t o als es ii V O I c_ /= [<- _].
   by rewrite read_Ii read_i_opn read_esE read_rvsE; clear; SvD.fsetdec.
 + move=> xs o es ii V O I c_ /= [<- _].
   by rewrite read_Ii read_i_syscall read_esE read_rvsE; clear; SvD.fsetdec.
@@ -111,7 +111,7 @@ move: c; apply (cmd_rect (Pr := Li_r) (Pi := Li) (Pc := Lc)) => //; rewrite /Li_
   rewrite read_Ii read_i_while; apply: h => s0 s1 sic.
   t_xrbindP => -[I1 c1_'] /hc1 h1 /=; t_xrbindP => -[I2 c2_'] /hc2 h2.
   by move=> [<- <-] /=; rewrite read_eE in h1; split; clear -h1 h2; SvD.fsetdec.
-move=> xs f es ii V O I c_ /= [<- _].
+move=> xs f als es ii V O I c_ /= [<- _].
 by rewrite read_Ii read_i_call read_esE read_rvsE; clear; SvD.fsetdec.
 Qed.
 
@@ -209,12 +209,24 @@ Context (fresh_var_ident : v_kind -> instr_info -> string -> atype -> Ident.iden
 Context (p p' : prog) (ev : extra_val_t).
 Hypothesis Hp : for_to_while_prog fresh_var_ident p = ok p'.
 
-Notation wequiv_ftw := (wequiv_rec p' p ev ev eq_spec).
+Section BODY.
+
+Context (env : env_t).
+
+Notation wequiv_ftw := (wequiv_rec (env1 := env) (env2 := env) p' p ev ev eq_spec).
+
+(* The components of [st_eq_on] between states of the same environment. *)
+Lemma st_eq_onE X (t s : estate env) :
+  st_eq_on X t s <-> [/\ escs t = escs s, emem t = emem s & evm t =[X] evm s].
+Proof.
+split; first by move=> /[dup] -[-> -> _] /st_relP [_ ?].
+by move=> [h1 h2 h3]; split => //; exists erefl.
+Qed.
 
 (* A [while] loop of the transformed program against a [for] loop of the
    source: [R js] relates the states at the head of the loop, [js] being the
    indices that the [for] loop has still to run. *)
-Lemma wequiv_while_for (R : seq Z -> rel_c) (Rj : Z -> seq Z -> rel_c) (P Q : rel_c)
+Lemma wequiv_while_for (R : seq Z -> rel_c env env) (Rj : Z -> seq Z -> rel_c env env) (P Q : rel_c env env)
     ii a cond inf body ii' x d lo hi c :
   (forall t s b, P t s -> sem_cond (p_globs p') cond t = ok b ->
      exists2 bnds, sem_bound (p_globs p) lo hi s = ok bnds & R (wrange d bnds.1 bnds.2) t s) ->
@@ -246,7 +258,7 @@ apply xrutt_facts.xrutt_bind with (RR := R js); first exact: hbody hRj.
 by move=> t2 s2 hR2; rewrite bind_ret_l; apply xrutt.xrutt_add_Tau_l; exact: ih.
 Qed.
 
-Lemma eltiI gd s e1 e2 bc :
+Lemma eltiI gd (s : estate env) e1 e2 bc :
   sem_cond gd (elti e1 e2) s = ok bc ->
   exists z1 z2, [/\ sem_pexpr gd s e1 >>= to_int = ok z1,
     sem_pexpr gd s e2 >>= to_int = ok z2 & bc = (z1 <? z2)%Z].
@@ -256,10 +268,10 @@ move=> /= -[<-] /= [<-].
 by exists w1, w2; rewrite h1 h2.
 Qed.
 
-Lemma sem_assgn_intP (pp : prog) t t' (x : var_i) e :
+Lemma sem_assgn_intP (pp : prog) (t t' : estate env) (x : var_i) e :
   sem_assgn pp (Lvar x) AT_none aint e t = ok t' ->
   exists z, [/\ sem_pexpr (p_globs pp) t e >>= to_int = ok z,
-    eval_atype (vtype x) = cint & t' = with_vm t (evm t).[x <- Vint z]].
+    eval_atype env (vtype x) = cint & t' = with_vm t (evm t).[x <- Vint z]].
 Proof.
 rewrite /sem_assgn; t_xrbindP => v hv v' htr /=.
 move: htr; rewrite /truncate_val /=; t_xrbindP => z hz <- /write_varP [-> hdb htr].
@@ -267,8 +279,8 @@ exists z; split => //; first by rewrite hv.
 by move: htr; rewrite /truncatable; case: eval_atype => //= _ /eqP.
 Qed.
 
-Lemma get_var_set_int (vm : Vm.t) (y : var) z :
-  eval_atype (vtype y) = cint -> get_var vm.[y <- Vint z] y = ok (Vint z).
+Lemma get_var_set_int (vm : Vm.t env) (y : var) z :
+  eval_atype env (vtype y) = cint -> get_var vm.[y <- Vint z] y = ok (Vint z).
 Proof. by move=> hty; rewrite /get_var Vm.setP_eq hty. Qed.
 
 Lemma ftw_globs : p_globs p' = p_globs p.
@@ -287,15 +299,15 @@ Lemma loop_boundP ii V W x sfx e V0 cb b :
 Proof using Hp.
 rewrite /loop_bound; case hs: stable_bound.
 + move: hs => /andP [/disjointP hdis hnm] [<- <- <-] hW he; split => //.
-  move=> I hI heI; apply wequiv_nil => t s [hscs hmem hvm]; split => //.
+  move=> I hI heI; apply wequiv_nil => t s /[dup] ? /st_eq_onE [hscs hmem hvm]; split => //.
   by rewrite ftw_globs (eq_on_sem_pexpr _ _ hmem (eq_onI heI hvm)).
 t_xrbindP => /Sv_memP hb <- <- <- hW he.
 split => //; first by clear; SvD.fsetdec.
 + by rewrite /read_e /= /read_gvar /=; clear; SvD.fsetdec.
 + by move=> z; move: hb; rewrite /read_e /= /read_gvar /=; clear -hW; SvD.fsetdec.
-move=> I hI heI; apply wequiv_assign_left => t t' s [hscs hmem hvm] /sem_assgn_intP [z [hz hty ->]].
+move=> I hI heI; apply wequiv_assign_left => t t' s /st_eq_onE [hscs hmem hvm] /sem_assgn_intP [z [hz hty ->]].
 split.
-+ split => //= y hy; rewrite Vm.setP_neq; first exact: hvm.
++ apply/st_eq_onE; split => //= y hy; rewrite Vm.setP_neq; first exact: hvm.
   by apply/eqP => heq; apply: hb; rewrite /= heq; exact: hI hy.
 rewrite -ftw_globs -(eq_on_sem_pexpr _ _ hmem (eq_onI heI hvm)) hz /=.
 by rewrite /get_gvar /= get_var_set_int.
@@ -316,7 +328,7 @@ case: d; rewrite /rng /in_rng /next_idx.
 by rewrite {1}wrange_recD.
 Qed.
 
-Lemma eaddiP gd s e1 e2 z1 z2 :
+Lemma eaddiP gd (s : estate env) e1 e2 z1 z2 :
   sem_pexpr gd s e1 >>= to_int = ok z1 ->
   sem_pexpr gd s e2 >>= to_int = ok z2 ->
   sem_pexpr gd s (eaddi e1 e2) >>= to_int = ok (z1 + z2)%Z.
@@ -325,7 +337,7 @@ t_xrbindP => v1 h1 /to_intI ? v2 h2 /to_intI ?; subst v1 v2.
 by rewrite /= h1 h2.
 Qed.
 
-Lemma esubiP gd s e1 e2 z1 z2 :
+Lemma esubiP gd (s : estate env) e1 e2 z1 z2 :
   sem_pexpr gd s e1 >>= to_int = ok z1 ->
   sem_pexpr gd s e2 >>= to_int = ok z2 ->
   sem_pexpr gd s (esubi e1 e2) >>= to_int = ok (z1 - z2)%Z.
@@ -347,13 +359,13 @@ Proof.
 by case: d.
 Qed.
 
-Lemma sem_lvar_int gd t (x : var_i) k :
+Lemma sem_lvar_int gd (t : estate env) (x : var_i) k :
   get_var (evm t) x = ok (Vint k) -> sem_pexpr gd t (Plvar x) >>= to_int = ok k.
 Proof.
 by move=> h; rewrite /= /get_gvar /= h.
 Qed.
 
-Lemma cond_ofP gd t d (x : var_i) b k vb bc :
+Lemma cond_ofP gd (t : estate env) d (x : var_i) b k vb bc :
   get_var (evm t) x = ok (Vint k) ->
   sem_pexpr gd t b >>= to_int = ok vb ->
   sem_cond gd (cond_of d x b) t = ok bc -> bc = in_rng d k vb.
@@ -363,7 +375,7 @@ by case: d; rewrite /cond_of /in_rng => /eltiI [z1 [z2 [h1 h2 ->]]];
   move: h1 h2; rewrite ?hx ?hb => -[->] [->].
 Qed.
 
-Lemma step_ofP gd t d (x : var_i) k :
+Lemma step_ofP gd (t : estate env) d (x : var_i) k :
   get_var (evm t) x = ok (Vint k) ->
   sem_pexpr gd t (step_of d x) >>= to_int = ok (next_idx d k).
 Proof.
@@ -371,13 +383,13 @@ move=> /(sem_lvar_int gd) hx.
 by case: d; [apply: eaddiP hx _ | apply: esubiP hx _].
 Qed.
 
-Lemma get_var_int vm (y : var) k :
+Lemma get_var_int (vm : Vm.t env) (y : var) k :
   vm.[y] = Vint k -> get_var vm y = ok (Vint k).
 Proof.
 by move=> h; rewrite /get_var h.
 Qed.
 
-Lemma vm_get_int vm (y : var) k : vm.[y] = Vint k -> eval_atype (vtype y) = cint.
+Lemma vm_get_int (vm : Vm.t env) (y : var) k : vm.[y] = Vint k -> eval_atype env (vtype y) = cint.
 Proof.
 by move=> h; have := Vm.getP vm y; rewrite h => /compat_valE.
 Qed.
@@ -423,7 +435,7 @@ apply wequiv_cat with (fun t s => exists kst, [/\ st_eq_on (Sv.remove x s1) t s,
     sem_pexpr (p_globs p') t b >>= to_int = sem_pexpr (p_globs p) s eb >>= to_int
   & g -> exists vb, sem_pexpr (p_globs p') t b >>= to_int = ok vb /\ in_rng d kst vb]).
 + apply wequiv_assign_left => t t' s [heq hb hg] /sem_assgn_intP [z [hz hty ->]].
-  case: heq => hscs hmem hvm.
+  case/st_eq_onE: heq => hscs hmem hvm.
   have hzs : sem_pexpr (p_globs p) s eo >>= to_int = ok z.
   + by rewrite -ftw_globs -(eq_on_sem_pexpr _ _ hmem (eq_onI _ hvm)) //; clear; SvD.fsetdec.
   have hbt : sem_pexpr (p_globs p') (with_vm t (evm t).[x <- Vint z]) b =
@@ -431,7 +443,7 @@ apply wequiv_cat with (fun t s => exists kst, [/\ st_eq_on (Sv.remove x s1) t s,
   + apply use_memP_eq_on => //; move=> y hy /=.
     by rewrite Vm.setP_neq //; apply/eqP => ?; subst y.
   exists z; rewrite hbt; split => //.
-  + split => //= y hy; rewrite Vm.setP_neq; first by apply hvm; clear -hy; SvD.fsetdec.
+  + apply/st_eq_onE; split => //= y hy; rewrite Vm.setP_neq; first by apply hvm; clear -hy; SvD.fsetdec.
     by apply/eqP => ?; subst y; clear -hy; SvD.fsetdec.
   + by rewrite Vm.setP_eq hty.
   move=> /hg [kst [vb [hk hvb hin]]]; exists vb; split => //.
@@ -458,13 +470,13 @@ apply (wequiv_while_for
   rewrite rngE; case: ifP => hin //; split => //; exists k, vb; split => //; first by rewrite hin.
   move=> /hg [hkst [? | [hpx hprev]]]; first by subst k; rewrite hkst in hin.
   by have ? := in_rng_last hprev (negbT hin); subst k.
-+ move=> j js t s [k [vb [kst [[hscs hmem hvm] hvb hx hjs hg]]]].
++ move=> j js t s [k [vb [kst [/st_eq_onE [hscs hmem hvm] hvb hx hjs hg]]]].
   move: hjs; rewrite rngE; case: ifP => // hin [? ?]; subst j js.
   have hty := vm_get_int hx.
   exists (with_vm s (evm s).[x <- Vint k]).
   + by apply: write_var_eq_type => //; rewrite hty.
   exists vb, kst; split => //; last by move=> /hg [].
-  + split => //= y hy; case: (v_var x =P y) => [<- | hne].
+  + apply/st_eq_onE; split => //= y hy; case: (v_var x =P y) => [<- | hne].
     + by rewrite Vm.setP_eq hty /= hx.
     by rewrite Vm.setP_neq; [apply hvm; clear -hy hne; SvD.fsetdec | apply/eqP].
   by rewrite /= Vm.setP_eq hty.
@@ -489,7 +501,7 @@ move=> /sem_assgn_intP [z [hz hty ->]].
 move: hz; rewrite (step_ofP _ _ (get_var_int hxt)) => -[?]; subst z.
 have hprev : prev_idx d (next_idx d j) = j by case: (d); rewrite /prev_idx /next_idx; lia.
 exists (next_idx d j), vb, kst; split => //.
-+ case: heq => hscs hmem hvm; split => //= y hy; rewrite Vm.setP_neq; first exact: hvm.
++ case/st_eq_onE: heq => hscs hmem hvm; apply/st_eq_onE; split => //= y hy; rewrite Vm.setP_neq; first exact: hvm.
   by apply/eqP => ?; subst y; clear -hy; SvD.fsetdec.
 + rewrite -hvb; congr (_ >>= _); apply use_memP_eq_on => //; move=> y hy /=.
   by rewrite Vm.setP_neq //; apply/eqP => ?; subst y.
@@ -551,13 +563,13 @@ case: Sv_memP => hxO; last first.
     by apply: st_rel_weaken heq => ??; apply eq_onI; clear -heoI hs1I; SvD.fsetdec.
   move=> t s [k [vb [heq _ _ _ _]]].
   by apply: st_rel_weaken heq => ??; apply eq_onI; clear -hOs1 hxO; SvD.fsetdec.
-have hval : forall t s bc, st_eq_on I t s ->
+have hval : forall (t s : estate env) bc, st_eq_on I t s ->
   sem_pexpr (p_globs p') t b >>= to_int = sem_pexpr (p_globs p) s eb >>= to_int ->
   sem_cond (p_globs p') (elti lo0 hi0) t = ok bc ->
   exists z1 z2, [/\ sem_bound (p_globs p) lo hi s = ok (z1, z2), bc = (z1 <? z2)%Z,
     sem_pexpr (p_globs p') t b >>= to_int = ok (if d is UpTo then z2 else z1)
   & sem_pexpr (p_globs p) s eo >>= to_int = ok (if d is UpTo then z1 else z2)].
-+ move=> t s bc [hscs hmem hvm] hb /eltiI [z1 [z2 [h1 h2 ->]]].
++ move=> t s bc /st_eq_onE [hscs hmem hvm] hb /eltiI [z1 [z2 [h1 h2 ->]]].
   have heo : sem_pexpr (p_globs p') t eo = sem_pexpr (p_globs p) s eo.
   + by rewrite ftw_globs (eq_on_sem_pexpr _ _ hmem (eq_onI heoI hvm)).
   exists z1, z2; move: h1 h2 hb heo; rewrite /sem_bound /lo0 /hi0 /eo /eb.
@@ -577,7 +589,7 @@ eapply wequiv_cat; first (eapply wequiv_weaken; last exact: hWT).
   move=> _; exists (if d is UpTo then z1 else z2), (if d is UpTo then z2 else z1); split => //.
   by move: hbc; rewrite /in_rng; case: (d).
 + by move=> t s h; exact h.
-apply wequiv_assign_left => t t' s [k [vb [[hscs hmem hvm] hvb hxt hin /(_ erefl) [? hxs]]]].
+apply wequiv_assign_left => t t' s [k [vb [/st_eq_onE [hscs hmem hvm] hvb hxt hin /(_ erefl) [? hxs]]]].
 subst k; move=> /sem_assgn_intP [z [hz hty ->]].
 have ? : z = prev_idx d vb.
 + move: hz; rewrite /hi0 /lo0 /prev_idx; case: (d) => /=.
@@ -587,7 +599,7 @@ have ? : z = prev_idx d vb.
   have h1 : sem_pexpr (p_globs p') t (Pconst 1) >>= to_int = ok 1%Z by [].
   have := eaddiP hvb h1.
   by rewrite /eaddi /= => -> [].
-subst z; split => //= y hy; case: (v_var x =P y) => [<- | hne].
+subst z; apply/st_eq_onE; split => //= y hy; case: (v_var x =P y) => [<- | hne].
 + by rewrite Vm.setP_eq hty /= hxs.
 rewrite Vm.setP_neq; last by apply/eqP.
 by apply: hvm; clear -hy hne hOs1; SvD.fsetdec.
@@ -624,14 +636,15 @@ move=> /(get_map_cfprog_name_gen' ftw_funcs) [fd hfd ->]; exists fd => //.
 by move: hfd; rewrite /for_to_while_fd; t_xrbindP => -[I c] h <-; exists I.
 Qed.
 
-Lemma ftw_sem_pre fn fs : sem_pre p' fn fs = ok tt -> sem_pre p fn fs = ok tt.
+Lemma ftw_sem_pre fn vals fs : sem_pre p' fn vals fs = ok tt -> sem_pre p fn vals fs = ok tt.
 Proof using Hp.
 rewrite /sem_pre ftw_globs; have := get_map_cfprog_name_gen_aux fn ftw_funcs.
 case: get_fundef => [fd [fd' + ->] | -> //].
 by rewrite /for_to_while_fd; t_xrbindP => ?? <-.
 Qed.
 
-Lemma ftw_sem_post fn vs fr : sem_post p' fn vs fr = ok tt -> sem_post p fn vs fr = ok tt.
+Lemma ftw_sem_post fn vals vs fr :
+  sem_post p' fn vals vs fr = ok tt -> sem_post p fn vals vs fr = ok tt.
 Proof using Hp.
 rewrite /sem_post ftw_globs; have := get_map_cfprog_name_gen_aux fn ftw_funcs.
 case: get_fundef => [fd [fd' + ->] | -> //].
@@ -675,7 +688,7 @@ move: c; apply (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) => //; rewrite /Pi_
     (read_rv_rec (read_e_rec (Sv.diff O (vrv x)) e) x) => //=.
   + by split => //; rewrite /read_es /= read_rvE !read_eE; clear; SvD.fsetdec.
   by split => //; rewrite /read_rvs /vrvs /= !read_rvE ?read_eE; clear; SvD.fsetdec.
-+ move=> xs tg o es ii V O I c' _ _ /= [<- <-].
++ move=> xs tg o als es ii V O I c' _ _ /= [<- <-].
   apply wequiv_opn_rel_eq with checker_st_eq_on
     (read_es_rec (read_rvs_rec (Sv.diff O (vrvs xs)) xs) es) => //=.
   + by split => //; rewrite read_esE read_rvsE; clear; SvD.fsetdec.
@@ -727,27 +740,29 @@ move: c; apply (cmd_rect (Pr := Pi_r) (Pi := Pi) (Pc := Pc)) => //; rewrite /Pi_
   + by split => //; rewrite /read_es /= !read_eE; clear; SvD.fsetdec.
   apply wequiv_weaken with (st_eq_on s') (st_eq_on sv1) => //.
   by apply st_rel_weaken => ??; apply eq_onI; rewrite read_eE; clear -hs'; SvD.fsetdec.
-move=> xs f es ii V O I c' _ _ /= [<- <-].
+move=> xs f als es ii V O I c' _ _ /= [<- <-].
 apply wequiv_call_rel_eq_wa with checker_st_eq_on
   (read_es_rec (read_rvs_rec (Sv.diff O (vrvs xs)) xs) es) => //.
 + by split => //; rewrite read_esE read_rvsE; clear; SvD.fsetdec.
 + by split => //; rewrite read_esE read_rvsE; clear; SvD.fsetdec.
-+ by move=> s1 s2 vs [h1 h2 _]; rewrite /mk_fstate h1 h2; apply ftw_sem_pre.
-+ by move=> ?? ->; exact: wequiv_fun_rec.
-by move=> vs fr; apply ftw_sem_post.
++ by move=> vals s1 s2 vs [h1 h2 _]; rewrite /mk_fstate h1 h2; apply ftw_sem_pre.
++ by move=> ?? [h1 h2]; exact: wequiv_fun_rec.
+by move=> vals vs fr; apply ftw_sem_post.
 Qed.
+
+End BODY.
 
 Lemma ftw_callP fn :
   wiequiv_f p' p ev ev (rpreF (eS := eq_spec)) fn fn (rpostF (eS := eq_spec)).
 Proof using Hp.
-apply wequiv_fun_ind_wa => {}fn _ fs _ [<- <-] fd' hget'.
+apply wequiv_fun_ind_wa => {}fn _ vals _ fs _ [<- [/= <- <-]] fd' hget'.
 have [fd hget [I [hbody hfd']]] := ftw_get_fundef hget'.
 exists fd => // hpre; split; first exact: ftw_sem_pre.
-move=> s hinit; exists s.
-+ by move: hinit; rewrite hfd'.
+rewrite hfd' /= => s hinit; exists s => //.
 exists (st_eq_on I), (st_eq_on (read_es [seq Plvar i | i <- f_res fd])); split => //.
++ exact: st_eq_on_refl.
 + apply: ftw_cP hbody; rewrite ?vars_l_read_es /vars_fd; clear; SvD.fsetdec.
-+ rewrite hfd' /finalize_funcall /= => t t' fr [hscs hmem hvm].
++ rewrite /finalize_funcall /= => t t' fr /st_eq_onE [hscs hmem hvm].
   t_xrbindP => vs hgv vs' htr <-.
   move: hgv; rewrite -(sem_pexprs_get_var _ [::]) => hres.
   rewrite (eq_on_sem_pexprs _ _ hmem (eq_onI _ hvm)) in hres; last by [].

@@ -15,12 +15,12 @@ Context
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}.
 
-Lemma write_lvals_write_lval (wdb: enforce_defined_variables) gd lv v s :
+Lemma write_lvals_write_lval env (wdb: enforce_defined_variables) gd lv v (s : estate env) :
   write_lval gd lv v s = write_lvals gd s [:: lv ] [:: v ].
 Proof. by rewrite /=; case: write_lval. Qed.
 
-Lemma get_write_var_word (wdb: enforce_defined_variables) s s' ws (w : word ws) x :
-  eval_atype (vtype (v_var x)) = cword ws
+Lemma get_write_var_word env (wdb: enforce_defined_variables) (s s' : estate env) ws (w : word ws) x :
+  eval_atype env (vtype (v_var x)) = cword ws
   -> write_var x (Vword w) s = ok s'
   -> (evm s').[v_var x] = Vword w.
 Proof.
@@ -37,14 +37,14 @@ Proof.
   by rewrite /to_lvals map_comp vrvs_Lvar 2!sv_of_list_map sv_of_list_eq_ext.
 Qed.
 
-Lemma write_vars_eq_ex (wdb: enforce_defined_variables) xs vs s s' :
+Lemma write_vars_eq_ex env (wdb: enforce_defined_variables) xs vs (s s' : estate env) :
   write_vars xs vs s = ok s' →
   evm s =[\ sv_of_list v_var xs] evm s' .
 Proof using spp.
   by rewrite (write_vars_lvals _ [::]) => /vrvsP; rewrite vrvs_Lvar.
 Qed.
 
-Lemma write_lvals_emem (wdb: enforce_defined_variables) gd xs ys s vs s' :
+Lemma write_lvals_emem env (wdb: enforce_defined_variables) gd xs ys (s : estate env) vs s' :
   mapM get_lvar xs = ok ys →
   write_lvals gd s xs vs = ok s' →
   emem s' = emem s.
@@ -54,7 +54,7 @@ Proof.
   by case: x X Y => // x _; rewrite /= /write_var; t_xrbindP => ?? <-.
 Qed.
 
-Lemma write_lvals_escs (wdb: enforce_defined_variables) gd xs s vs s' :
+Lemma write_lvals_escs env (wdb: enforce_defined_variables) gd xs (s : estate env) vs s' :
   write_lvals gd s xs vs = ok s' →
   escs s' = escs s.
 Proof.
@@ -65,7 +65,7 @@ Qed.
 (* sem_stack_stable and sem_validw_stable both for uprog and sprog *)
 (* inspired by sem_one_varmap_facts *)
 
-Lemma write_lval_stack_stable (wdb: enforce_defined_variables) gd x v s s' :
+Lemma write_lval_stack_stable env (wdb: enforce_defined_variables) gd x v (s s' : estate env) :
   write_lval gd x v s = ok s' →
   stack_stable (emem s) (emem s').
 Proof.
@@ -77,7 +77,7 @@ Proof.
   all: by apply: on_arr_varP; rewrite /write_var; t_xrbindP => ?????????????? <-.
 Qed.
 
-Lemma write_lvals_stack_stable (wdb: enforce_defined_variables) gd xs vs s s' :
+Lemma write_lvals_stack_stable env (wdb: enforce_defined_variables) gd xs vs (s s' : estate env) :
   write_lvals gd s xs vs = ok s' →
   stack_stable (emem s) (emem s').
 Proof.
@@ -85,7 +85,7 @@ Proof.
   by move => v vs s /=; t_xrbindP => ? /write_lval_stack_stable -> /ih.
 Qed.
 
-Lemma write_lval_validw (wdb: enforce_defined_variables) gd x v s s' :
+Lemma write_lval_validw env (wdb: enforce_defined_variables) gd x v (s s' : estate env) :
   write_lval gd x v s = ok s' ->
   validw (emem s) =3 validw (emem s').
 Proof.
@@ -97,7 +97,7 @@ Proof.
   all: by apply: on_arr_varP; rewrite /write_var; t_xrbindP => ?????????????? <-.
 Qed.
 
-Lemma write_lvals_validw (wdb: enforce_defined_variables) gd xs vs s s' :
+Lemma write_lvals_validw env (wdb: enforce_defined_variables) gd xs vs (s s' : estate env) :
   write_lvals gd s xs vs = ok s' ->
   validw (emem s) =3 validw (emem s').
 Proof.
@@ -161,7 +161,7 @@ Variable ev : extra_val_t.
 
 Infix "≡" := mem_equiv (at level 40).
 
-Hypothesis init_finalize_mem_equiv : forall s1 s2 m2 ef,
+Hypothesis init_finalize_mem_equiv : forall env (s1 s2 : estate env) m2 ef,
   init_state ef P.(p_extra) ev s1 = ok s2 ->
   emem s2 ≡ m2 ->
   emem s1 ≡ finalize ef m2.
@@ -176,10 +176,10 @@ Proof.
 Qed.
 
 Let Pc (c: cmd) : Prop :=
-  forall s1 s2, esem P ev c s1 = ok s2 → emem s1 ≡ emem s2.
+  forall env (s1 s2 : estate env), esem P ev c s1 = ok s2 → emem s1 ≡ emem s2.
 
 Let Pi (i: instr) : Prop :=
-  forall s1 s2, esem_i P ev i s1 = ok s2 → emem s1 ≡ emem s2.
+  forall env (s1 s2 : estate env), esem_i P ev i s1 = ok s2 → emem s1 ≡ emem s2.
 
 Let Pr (i : instr_r) : Prop :=
   forall ii, Pi (MkI ii i).
@@ -188,26 +188,26 @@ Lemma mem_equiv_MkI i ii : Pr i → Pi (MkI ii i).
 Proof. done. Qed.
 
 Lemma mem_equiv_nil : Pc [::].
-Proof. by move=> ?? /= [<-]. Qed.
+Proof. by move=> env ?? /= [<-]. Qed.
 
 Lemma mem_equiv_cons i c : Pi i -> Pc c -> Pc [:: i & c].
-Proof. move=> hi hc ?? /=; t_xrbindP => ? /hi ? /hc ?; etransitivity; eassumption. Qed.
+Proof. move=> hi hc env ?? /=; t_xrbindP => ? /hi ? /hc ?; etransitivity; eassumption. Qed.
 
 Lemma mem_equiv_assgn x tg ty e : Pr (Cassgn x tg ty e).
 Proof.
- move => ii s1 s2 /=; rewrite /sem_assgn.
+ move => ii env s1 s2 /=; rewrite /sem_assgn.
  by t_xrbindP => ???? /[dup] /write_lval_validw ? /write_lval_stack_stable.
 Qed.
 
-Lemma mem_equiv_opn xs t o es : Pr (Copn xs t o es).
+Lemma mem_equiv_opn xs t o als es : Pr (Copn xs t o als es).
 Proof.
-  move => ii s1 s2 /=; rewrite /sem_sopn.
+  move => ii env s1 s2 /=; rewrite /sem_sopn.
   by t_xrbindP => ???? /[dup] /write_lvals_validw ? /write_lvals_stack_stable.
 Qed.
 
 Lemma mem_equiv_syscall xs o es : Pr (Csyscall xs o es).
 Proof.
-  move=> ii s1 s2 /=; rewrite /sem_syscall /fexec_syscall; t_xrbindP.
+  move=> ii env s1 s2 /=; rewrite /sem_syscall /fexec_syscall; t_xrbindP.
   move=> ??? [[??]?] /= h [<-].
   have [ho1 ho2]:= exec_syscallS h.
   move=> /[dup] /write_lvals_validw /= ho3 /write_lvals_stack_stable /= ?.
@@ -220,11 +220,11 @@ Lemma mem_equiv_assert a : Pr (Cassert a).
 Proof. done. Qed.
 
 Lemma mem_equiv_if e c1 c2 : Pc c1 → Pc c2 → Pr (Cif e c1 c2).
-Proof. move=> h1 h2 ii s1 s2 /=; t_xrbindP => ??; case: ifP => ?; [apply h1 | apply h2]. Qed.
+Proof. move=> h1 h2 ii env s1 s2 /=; t_xrbindP => ??; case: ifP => ?; [apply h1 | apply h2]. Qed.
 
 Lemma mem_equiv_for v dir lo hi c : Pc c → Pr (Cfor v (dir, lo, hi) c).
 Proof.
-  move=> h ii s1 s2 /=; t_xrbindP => ? _.
+  move=> h ii env s1 s2 /=; t_xrbindP => ? _.
   elim: wrange s1 => /=; t_xrbindP.
   + by move=> ? <-.
   move=> ?? hrec ??? /write_var_memP A /h B /hrec C.
@@ -234,10 +234,10 @@ Qed.
 Lemma mem_equiv_while a c e info c' : Pc c → Pc c' → Pr (Cwhile a c e info c').
 Proof. done. Qed.
 
-Lemma mem_equiv_call xs f es : Pr (Ccall xs f es).
+Lemma mem_equiv_call xs f als es : Pr (Ccall xs f als es).
 Proof. done. Qed.
 
-Lemma esem_i_mem_equiv s1 c s2 :
+Lemma esem_i_mem_equiv env (s1 : estate env) c s2 :
   esem_i P ev c s1 = ok s2 → emem s1 ≡ emem s2.
 Proof.
   apply (instr_Rect mem_equiv_MkI mem_equiv_nil mem_equiv_cons
@@ -245,7 +245,7 @@ Proof.
                     mem_equiv_if mem_equiv_for mem_equiv_while mem_equiv_call).
 Qed.
 
-Lemma esem_mem_equiv s1 c s2 :
+Lemma esem_mem_equiv env (s1 : estate env) c s2 :
   esem P ev c s1 = ok s2 → emem s1 ≡ emem s2.
 Proof.
   apply (cmd_rect mem_equiv_MkI mem_equiv_nil mem_equiv_cons
@@ -255,24 +255,24 @@ Qed.
 
 End MEM_EQUIV.
 
-Lemma esem_i_stack_stable_uprog (p : uprog) (ev : unit) s1 c s2 :
+Lemma esem_i_stack_stable_uprog env (p : uprog) (ev : unit) (s1 : estate env) c s2 :
   esem_i p ev c s1 = ok s2 → stack_stable (emem s1) (emem s2).
 Proof. apply esem_i_mem_equiv. Qed.
 
-Lemma esem_i_validw_stable_uprog (p : uprog) (ev : unit) s1 c s2 :
+Lemma esem_i_validw_stable_uprog env (p : uprog) (ev : unit) (s1 : estate env) c s2 :
   esem_i p ev c s1 = ok s2 → validw (emem s1) =3 validw (emem s2).
 Proof. apply esem_i_mem_equiv. Qed.
 
-Lemma esem_stack_stable_sprog (p : sprog) (gd : pointer) s1 c s2 :
+Lemma esem_stack_stable_sprog env (p : sprog) (gd : pointer) (s1 : estate env) c s2 :
   esem p gd c s1 = ok s2 -> stack_stable (emem s1) (emem s2).
 Proof. apply esem_mem_equiv. Qed.
 
-Lemma esem_validw_stable_sprog (p : sprog) (gd : pointer) s1 c s2 :
+Lemma esem_validw_stable_sprog env (p : sprog) (gd : pointer) (s1 : estate env) c s2 :
   esem p gd c s1 = ok s2 -> validw (emem s1) =3 validw (emem s2).
 Proof. apply esem_mem_equiv. Qed.
 
 (* ------------------------------------------------------------------- *)
-Lemma cast_wP (wdb: enforce_defined_variables) sz e gd s v :
+Lemma cast_wP env (wdb: enforce_defined_variables) sz e gd (s : estate env) v :
   sem_pexpr gd s (Papp1 (Oword_of_int sz) e) = ok v →
   exists2 v', sem_pexpr gd s (cast_w sz e) = ok v' & value_uincl v v'.
 Proof.
@@ -334,7 +334,7 @@ Context
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}.
 
-Lemma write_var_eq_ex (wdb: enforce_defined_variables) X (x:var_i) v s1 s2 vm1 :
+Lemma write_var_eq_ex env (wdb: enforce_defined_variables) X (x:var_i) v (s1 s2 : estate env) (vm1 : Vm.t env) :
   write_var x v s1 = ok s2 ->
   evm s1 =[\X] vm1 ->
   exists2 vm2,
@@ -352,11 +352,11 @@ Proof.
   by apply eq_vm1.
 Qed.
 
-Lemma write_lval_eq_ex (wdb: enforce_defined_variables) gd X x v s1 s2 vm1 :
+Lemma write_lval_eq_ex env (wdb: enforce_defined_variables) gd X x v (s1 s2 : estate env) vm1 :
   disjoint X (read_rv x) ->
   write_lval gd x v s1 = ok s2 ->
   evm s1 =[\ X] vm1 ->
-  exists2 vm2 : Vm.t,
+  exists2 vm2 : Vm.t env,
     write_lval gd x v (with_vm s1 vm1) = ok (with_vm s2 vm2) &
     evm s2 =[\ X] vm2.
 Proof.
@@ -372,11 +372,11 @@ Proof.
   by apply eq_vm1.
 Qed.
 
-Lemma write_lvals_eq_ex (wdb: enforce_defined_variables) gd X xs vs s1 s2 vm1 :
+Lemma write_lvals_eq_ex env (wdb: enforce_defined_variables) gd X xs vs (s1 s2 : estate env) vm1 :
   disjoint X (read_rvs xs) ->
   write_lvals gd s1 xs vs = ok s2 ->
   evm s1 =[\ X] vm1 ->
-  exists2 vm2 : Vm.t,
+  exists2 vm2 : Vm.t env,
     write_lvals gd (with_vm s1 vm1) xs vs = ok (with_vm s2 vm2) &
     evm s2 =[\ X] vm2.
 Proof.
@@ -392,12 +392,12 @@ Proof.
   by apply eq_vm1.
 Qed.
 
-Lemma sem_sopn_eq_ex X gd o xs es s1 s2 vm1 :
+Lemma sem_sopn_eq_ex env X gd o xs als es (s1 s2 : estate env) (vm1 : Vm.t env) :
   disjoint X (Sv.union (read_rvs xs) (read_es es)) ->
-  sem_sopn gd o s1 xs es = ok s2 ->
+  sem_sopn gd o s1 xs als es = ok s2 ->
   evm s1 =[\X] vm1 ->
   exists2 vm2,
-    sem_sopn gd o (with_vm s1 vm1) xs es = ok (with_vm s2 vm2) &
+    sem_sopn gd o (with_vm s1 vm1) xs als es = ok (with_vm s2 vm2) &
     evm s2 =[\X] vm2.
 Proof.
   move=> hdisj hsem eq_vm1.
@@ -431,7 +431,7 @@ Context
 Lemma syscall_u_toutP o fs fs2 :
   fexec_syscall o fs = ok fs2 ->
   fmem fs = fmem fs2 /\
-  List.map type_of_val fs2.(fvals) = map eval_atype (scs_tout (syscall_sig_u o)).
+  List.map type_of_val fs2.(fvals) = map (eval_atype empty_env) (scs_tout (syscall_sig_u o)).
 Proof.
   rewrite /fexec_syscall.
   t_xrbindP => -[[scs m_] vs_] + [<-] /=.

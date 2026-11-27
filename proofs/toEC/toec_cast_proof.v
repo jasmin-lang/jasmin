@@ -28,7 +28,7 @@ Notation p' := (toec_cast_prog p).
 Notation gd := (p_globs p).
 
 Definition cast_rel (ty : atype) (v' v : value) : Prop :=
-  of_val (eval_atype ty) v' = of_val (eval_atype ty) v.
+  forall env, of_val (eval_atype env ty) v' = of_val (eval_atype env ty) v.
 Arguments cast_rel ty v' v /.
 
 Fixpoint cast_rels (tys : seq atype) (vs' vs : values) : Prop :=
@@ -40,41 +40,42 @@ Fixpoint cast_rels (tys : seq atype) (vs' vs : values) : Prop :=
 Lemma cast_rels_refl tys vs : cast_rels tys vs vs.
 Proof. by elim: tys vs => [|ty tys ih] [|v vs] //=. Qed.
 
-Lemma cast_rel_truncate_val ty v' v :
+Lemma cast_rel_truncate_val env ty v' v :
   cast_rel ty v' v ->
-  truncate_val (eval_atype ty) v' = truncate_val (eval_atype ty) v.
+  truncate_val (eval_atype env ty) v' = truncate_val (eval_atype env ty) v.
 Proof. by rewrite /truncate_val => ->. Qed.
 
-Lemma cast_rels_truncate_vals tys vs' vs :
+Lemma cast_rels_truncate_vals env tys vs' vs :
   cast_rels tys vs' vs ->
-  mapM2 ErrType dc_truncate_val (map eval_atype tys) vs' =
-  mapM2 ErrType dc_truncate_val (map eval_atype tys) vs.
+  mapM2 ErrType dc_truncate_val (map (eval_atype env) tys) vs' =
+  mapM2 ErrType dc_truncate_val (map (eval_atype env) tys) vs.
 Proof.
   elim: tys vs' vs => [|ty tys ih] [|v' vs'] [|v vs] //=; try by move=> ->.
-  move=> [/cast_rel_truncate_val h /ih ->].
+  move=> [/(cast_rel_truncate_val env) h /ih ->].
   by rewrite /dc_truncate_val /= h.
 Qed.
 
-Lemma cast_rels_app_sopn {A} tys (f : sem_prod (map eval_atype tys) (exec A)) vs' vs :
+Lemma cast_rels_app_sopn {A} env tys (f : sem_prod (map (eval_atype env) tys) (exec A)) vs' vs :
   cast_rels tys vs' vs ->
-  app_sopn (map eval_atype tys) f vs' = app_sopn (map eval_atype tys) f vs.
+  app_sopn (map (eval_atype env) tys) f vs' = app_sopn (map (eval_atype env) tys) f vs.
 Proof.
   elim: tys f vs' vs => [|ty tys ih] f [|v' vs'] [|v vs] //=; try by move=> ->.
-  move=> [-> /ih{}ih].
+  move=> [/(_ env) -> /ih{}ih].
   case: of_val => [x|//] /=.
   exact: ih.
 Qed.
 
-Lemma cast_rels_exec_sopn o vs' vs :
-  cast_rels (sopn_tin o) vs' vs -> exec_sopn o vs' = exec_sopn o vs.
+Lemma cast_rels_exec_sopn o vals vs' vs :
+  cast_rels (sopn_tin o) vs' vs -> exec_sopn o vals vs' = exec_sopn o vals vs.
 Proof.
   move=> h.
   rewrite /exec_sopn.
   case: sopn_sem => //= semi.
+  case: app_dep => //= semi'.
   by rewrite (cast_rels_app_sopn _ h).
 Qed.
 
-Lemma cast_rels_fexec_syscall o vs' vs s :
+Lemma cast_rels_fexec_syscall env o vs' vs (s : estate env) :
   cast_rels (scs_tin (syscall_sig_u o)) vs' vs ->
   fexec_syscall o (mk_fstate vs' s) = fexec_syscall o (mk_fstate vs s).
 Proof.
@@ -101,7 +102,7 @@ Qed.
 
 Section EXPR.
 
-Context {wdb : enforce_defined_variables} (s : estate).
+Context {wdb : enforce_defined_variables} env (s : estate env).
 
 Lemma cast_eP ty e v' :
   sem_pexpr gd s (cast_e ty e) = ok v' ->
@@ -141,10 +142,10 @@ Proof.
     by t_xrbindP => v /he -> {}vs /hes -> <-.
   1-2: move=> > he v.
   1-2: apply on_arr_var_le => n t r /=.
-  1-2: t_xrbindP => i vi /cast_eP [v0 /he -> /= ->] -> /=.
+  1-2: t_xrbindP => i vi /cast_eP [v0 /he -> /(_ env) /= ->] -> /=.
   1-2: by move=> ? -> <-.
   - move=> al sz e he v.
-    t_xrbindP => ptr vp /cast_eP [v' /he -> /= ->] -> /=.
+    t_xrbindP => ptr vp /cast_eP [v' /he -> /(_ env) /= ->] -> /=.
     by move=> ? -> <-.
   - move=> o e he v.
     t_xrbindP => v1 /cast_eP [v1' /he -> hv1].
@@ -158,41 +159,41 @@ Proof.
     by rewrite -/(sem_pexprs gd s es) hvs /= /sem_opN (cast_rels_app_sopn _ hr).
   move=> ty b hb e1 he1 e2 he2 v.
   t_xrbindP.
-  move=> bv vb /cast_eP [vb' /hb -> /= ->] -> /=.
-  move=> v1 v1t /cast_eP [v1' /he1 -> /cast_rel_truncate_val ->] /= -> /=.
-  by move=> v2 v2t /cast_eP [v2' /he2 -> /cast_rel_truncate_val ->] /= -> <-.
+  move=> bv vb /cast_eP [vb' /hb -> /(_ env) /= ->] -> /=.
+  move=> v1 v1t /cast_eP [v1' /he1 -> /(cast_rel_truncate_val env) ->] /= -> /=.
+  by move=> v2 v2t /cast_eP [v2' /he2 -> /(cast_rel_truncate_val env) ->] /= -> <-.
 Qed.
 
 End EXPR.
 
-Lemma toec_cast_teP (wdb: enforce_defined_variables) ty e :
-  wrequiv eq (λ s, sem_pexpr gd s (toec_cast_te ty e)) (λ s, sem_pexpr gd s e) (cast_rel ty).
+Lemma toec_cast_teP env (wdb: enforce_defined_variables) ty e :
+  wrequiv eq (λ s : estate env, sem_pexpr gd s (toec_cast_te ty e)) (λ s, sem_pexpr gd s e) (cast_rel ty).
 Proof.
   move=> s _ v' <- /cast_eP [v /(toec_cast_recP _).1 hv hr].
   by exists v.
 Qed.
 
-Lemma toec_cast_esP (wdb: enforce_defined_variables) tys es :
-  wrequiv eq (λ s, sem_pexprs gd s (toec_cast_es tys es)) (λ s, sem_pexprs gd s es) (cast_rels tys).
+Lemma toec_cast_esP env (wdb: enforce_defined_variables) tys es :
+  wrequiv eq (λ s : estate env, sem_pexprs gd s (toec_cast_es tys es)) (λ s, sem_pexprs gd s es) (cast_rels tys).
 Proof.
   move=> s _ vs' <- /cast_esP [vs /(toec_cast_recP _).2 hvs hr].
   by exists vs.
 Qed.
 
-Lemma toec_cast_te_of_valP (wdb: enforce_defined_variables) s ty e x :
-  (sem_pexpr gd s (toec_cast_te ty e) >>= of_val (eval_atype ty)) = ok x ->
-  (sem_pexpr gd s e >>= of_val (eval_atype ty)) = ok x.
+Lemma toec_cast_te_of_valP env (wdb: enforce_defined_variables) (s : estate env) ty e x :
+  (sem_pexpr gd s (toec_cast_te ty e) >>= of_val (eval_atype env ty)) = ok x ->
+  (sem_pexpr gd s e >>= of_val (eval_atype env ty)) = ok x.
 Proof. by t_xrbindP => v' /(toec_cast_teP erefl) [v -> /= <-]. Qed.
 
-Lemma toec_cast_condP e :
-  wrequiv eq (sem_cond gd (toec_cast_te abool e)) (sem_cond gd e) eq.
+Lemma toec_cast_condP env e :
+  wrequiv eq (sem_cond (env:=env) gd (toec_cast_te abool e)) (sem_cond gd e) eq.
 Proof.
   move=> s _ b <- /(toec_cast_te_of_valP (ty := abool)).
   by exists b.
 Qed.
 
-Lemma toec_cast_boundP lo hi :
-  wrequiv eq (sem_bound gd (toec_cast_te aint lo) (toec_cast_te aint hi)) (sem_bound gd lo hi) eq.
+Lemma toec_cast_boundP env lo hi :
+  wrequiv eq (sem_bound (env:=env) gd (toec_cast_te aint lo) (toec_cast_te aint hi)) (sem_bound gd lo hi) eq.
 Proof.
   move=> s _ r <- h.
   exists r => //.
@@ -202,8 +203,8 @@ Proof.
   by apply: rbindP => zhi /(toec_cast_te_of_valP (ty := aint)) ->.
 Qed.
 
-Lemma toec_cast_lvP (wdb: enforce_defined_variables) x v :
-  wrequiv eq (write_lval gd (toec_cast_lv x) v) (write_lval gd x v) eq.
+Lemma toec_cast_lvP env (wdb: enforce_defined_variables) x v :
+  wrequiv eq (write_lval (env:=env) gd (toec_cast_lv x) v) (write_lval gd x v) eq.
 Proof.
   move=> s _ s' <- h.
   exists s' => //.
@@ -214,7 +215,7 @@ Proof.
   all: by apply: rbindP => i /(toec_cast_te_of_valP (ty := aint)) ->.
 Qed.
 
-Lemma toec_cast_eassertP s a b :
+Lemma toec_cast_eassertP env (s : estate env) a b :
   sem_eassert gd s (toec_cast_ea a) = ok b -> sem_eassert gd s a = ok b.
 Proof.
   elim: a b => [e | o es | x | e1 e2 | a1 ih1 a2 ih2] b /=.
@@ -229,8 +230,8 @@ Proof.
   done.
 Qed.
 
-Lemma toec_cast_lvsP (wdb: enforce_defined_variables) xs vs :
-  wrequiv eq (λ s, write_lvals gd s (map toec_cast_lv xs) vs) (λ s, write_lvals gd s xs vs) eq.
+Lemma toec_cast_lvsP env (wdb: enforce_defined_variables) xs vs :
+  wrequiv eq (λ s : estate env, write_lvals gd s (map toec_cast_lv xs) vs) (λ s, write_lvals gd s xs vs) eq.
 Proof.
   move=> s _ s' <- h.
   exists s' => //.
@@ -240,57 +241,62 @@ Proof.
 Qed.
 
 Definition cast_spec : EquivSpec :=
-  {| rpreF_ := fun fn1 fn2 fs1 fs2 =>
-       fn1 = fn2 /\ fs_rel (cast_rels (fun_tyin_of p fn1)) fs1 fs2
+  {| rpreF_ := fun fn1 fn2 valfs1 valfs2 =>
+       [/\ fn1 = fn2, valfs1.1 = valfs2.1
+          & fs_rel (cast_rels (fun_tyin_of p fn1)) valfs1.2 valfs2.2]
    ; rpostF_ := fun _ _ _ _ fr1 fr2 => fr1 = fr2 |}.
 
 (* Functions only see their arguments after truncation. *)
-Lemma cast_spec_truncate fn fd fs1 fs2 :
+Lemma cast_spec_truncate env fn fd fs1 fs2 :
   get_fundef (p_funcs p) fn = Some fd ->
   fs_rel (cast_rels (fun_tyin_of p fn)) fs1 fs2 ->
-  mapM2 ErrType dc_truncate_val (map eval_atype (f_tyin fd)) (fvals fs1) =
-  mapM2 ErrType dc_truncate_val (map eval_atype (f_tyin fd)) (fvals fs2).
+  mapM2 ErrType dc_truncate_val (map (eval_atype env) (f_tyin fd)) (fvals fs1) =
+  mapM2 ErrType dc_truncate_val (map (eval_atype env) (f_tyin fd)) (fvals fs2).
 Proof. by rewrite /fun_tyin_of => -> [_ _ /cast_rels_truncate_vals]. Qed.
 
-Lemma toec_cast_sem_pre fn fs1 fs2 :
+Lemma toec_cast_sem_pre fn vals fs1 fs2 :
   fs_rel (cast_rels (fun_tyin_of p fn)) fs1 fs2 ->
-  sem_pre p' fn fs1 = sem_pre p fn fs2.
+  sem_pre p' fn vals fs1 = sem_pre p fn vals fs2.
 Proof.
   move=> hfs.
   have [hscs hmem _] := hfs.
   rewrite /sem_pre get_map_prog.
   case hfd: get_fundef => [fd|//] /=.
-  by rewrite (cast_spec_truncate hfd hfs) hscs hmem.
+  by rewrite (cast_spec_truncate _ hfd hfs) hscs hmem.
 Qed.
 
-Lemma toec_cast_sem_post fn fs1 fs2 fr :
+Lemma toec_cast_sem_post fn vals fs1 fs2 fr :
   fs_rel (cast_rels (fun_tyin_of p fn)) fs1 fs2 ->
-  sem_post p' fn (fvals fs1) fr = sem_post p fn (fvals fs2) fr.
+  sem_post p' fn vals (fvals fs1) fr = sem_post p fn vals (fvals fs2) fr.
 Proof.
   move=> hfs.
   rewrite /sem_post get_map_prog.
   case hfd: get_fundef => [fd|//] /=.
-  by rewrite (cast_spec_truncate hfd hfs).
+  by rewrite (cast_spec_truncate _ hfd hfs).
 Qed.
 
-Lemma toec_cast_initialize fn fd fs1 fs2 :
+Lemma toec_cast_initialize env fn fd fs1 fs2 :
   get_fundef (p_funcs p) fn = Some fd ->
   fs_rel (cast_rels (fun_tyin_of p fn)) fs1 fs2 ->
-  initialize_funcall p' ev (toec_cast_fun (fun_tyin_of p) fd) fs1 =
-  initialize_funcall p ev fd fs2.
+  initialize_funcall p' ev (toec_cast_fun (fun_tyin_of p) fd) env fs1 =
+  initialize_funcall p ev fd env fs2.
 Proof.
   move=> hfd hfs.
   have [hscs hmem _] := hfs.
-  by rewrite /initialize_funcall /= /estate0 (cast_spec_truncate hfd hfs) hscs hmem.
+  by rewrite /initialize_funcall /= /estate0 (cast_spec_truncate _ hfd hfs) hscs hmem.
 Qed.
 
+Section BODY.
+
+Context (env : env_t).
+
 Let Pi (i : instr) :=
-  wequiv_rec p' p ev ev cast_spec eq [:: toec_cast_i (fun_tyin_of p) i] [:: i] eq.
+  wequiv_rec (env1:=env) (env2:=env) p' p ev ev cast_spec eq [:: toec_cast_i (fun_tyin_of p) i] [:: i] eq.
 
 Let Pi_r (i : instr_r) := forall ii, Pi (MkI ii i).
 
 Let Pc (c : cmd) :=
-  wequiv_rec p' p ev ev cast_spec eq
+  wequiv_rec (env1:=env) (env2:=env) p' p ev ev cast_spec eq
     (toec_cast_c (toec_cast_i (fun_tyin_of p)) c) c eq.
 
 Lemma toec_cast_cP : ∀ c, Pc c.
@@ -307,10 +313,11 @@ Proof.
       by apply/wrequiv_eq_fun/cast_rel_truncate_val.
     move=> v _ <-.
     by apply toec_cast_lvP.
-  - move=> xs tg o es ii.
-    apply wequiv_opn with (cast_rels (sopn_tin o)) eq.
+  - move=> xs tg o als es ii.
+    apply wequiv_opn with eq (cast_rels (sopn_tin o)) eq.
     + exact: toec_cast_esP.
-    + move=> _ _ _.
+    + done.
+    + move=> _ _ vals _ _ <-.
       by apply/wrequiv_eq_fun/cast_rels_exec_sopn.
     move=> vs _ <-.
     by apply toec_cast_lvsP.
@@ -337,39 +344,44 @@ Proof.
   - move=> a c e ii' c' hc hc' ii.
     apply wequiv_while => //.
     exact: toec_cast_condP.
-  move=> xs f es ii.
+  move=> xs f als es ii.
   apply wequiv_call_wa with
     (Pf := rpreF (eS := cast_spec)) (Qf := rpostF (eS := cast_spec))
-    (Rv := cast_rels (fun_tyin_of p f)).
+    (Rvals := eq) (Rv := cast_rels (fun_tyin_of p f)).
   - exact: toec_cast_esP.
-  - move=> s _ vs' vs <- hr.
-    by rewrite (toec_cast_sem_pre (fs2 := mk_fstate vs s)).
-  - by move=> s _ vs' vs <- hr.
-  - move=> fs' fs fr _ [_ hfs] <-.
-    by rewrite (toec_cast_sem_post _ hfs).
+  - done.
+  - move=> vals _ s _ vs' vs <- <- hr.
+    by rewrite (toec_cast_sem_pre _ (fs2 := mk_fstate vs s)).
+  - by move=> s _ vals _ vs' vs <- <- hr.
+  - move=> vals _ fs' fs fr _ [_ /= <- hfs] <-.
+    by rewrite (toec_cast_sem_post _ _ hfs).
   - move=> ???.
     by apply wequiv_fun_rec.
-  move=> _ _ fr _ _ <- s _ s' <-.
+  move=> _ _ _ _ fr _ _ <- s _ s' <-.
   by apply: toec_cast_lvsP.
 Qed.
+
+End BODY.
 
 Lemma toec_cast_f fn :
   wiequiv_f p' p ev ev (rpreF (eS := cast_spec)) fn fn (rpostF (eS := cast_spec)).
 Proof.
-  apply wequiv_fun_ind_wa => {}fn _ fs1 fs2 [<- hfs] fd'.
+  apply wequiv_fun_ind_wa => {}fn _ vals vals' fs1 fs2 [<- hvals hfs] fd'.
+  have {hvals} <- : vals = vals' := hvals.
+  have {}hfs : fs_rel (cast_rels (fun_tyin_of p fn)) fs1 fs2 := hfs.
   rewrite get_map_prog.
   case hfd: get_fundef => [fd | //] [<-].
   exists fd => //.
-  rewrite (toec_cast_sem_pre hfs).
-  split => // s.
-  rewrite (toec_cast_initialize hfd hfs) => hinit.
+  rewrite (toec_cast_sem_pre _ hfs).
+  split => //= s.
+  rewrite (toec_cast_initialize _ hfd hfs) => hinit.
   exists s => //.
   exists eq, eq.
   split => //.
   - exact: toec_cast_cP.
   - exact: wrequiv_eq.
   move=> fr _ <-.
-  by rewrite (toec_cast_sem_post _ hfs).
+  by rewrite (toec_cast_sem_post _ _ hfs).
 Qed.
 
 Lemma toec_cast_l fn :
@@ -377,7 +389,7 @@ Lemma toec_cast_l fn :
 Proof.
   have := toec_cast_f (fn := fn).
   apply: wkequiv_io_weaken => //.
-  move=> fs _ [_ <-].
+  move=> [vals fs] _ [_ [/= <- <-]].
   split => //.
   split => //.
   by apply cast_rels_refl.

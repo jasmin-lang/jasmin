@@ -15,7 +15,7 @@ module type Logic = sig
 
   val forget : var_i -> domain -> domain annotation
 
-  val funcall : Location.i_loc -> lvals -> funname -> exprs -> domain -> domain annotation
+  val funcall : Location.i_loc -> lvals -> funname -> length list -> exprs -> domain -> domain annotation
 
   val syscall :
        Location.i_loc
@@ -39,6 +39,7 @@ module type Logic = sig
     -> lvals
     -> E.assgn_tag
     -> 'asm Sopn.sopn
+    -> length list
     -> exprs
     -> domain
     -> domain annotation
@@ -202,15 +203,15 @@ struct
       (annotation : annot) : (annot, 'asm) instr_r * annot =
       match instr with
       | Cassgn (lv, tag, ty, expr) -> analyse_assign loc lv tag ty expr annotation
-      | Copn (lvs, tag, sopn, es) ->
-          let annotation = Annotation.bind annotation (L.opn loc lvs tag sopn es) in
-          (Copn (lvs, tag, sopn, es), annotation)
+      | Copn (lvs, tag, sopn, als, es) ->
+          let annotation = Annotation.bind annotation (L.opn loc lvs tag sopn als es) in
+          (Copn (lvs, tag, sopn, als, es), annotation)
       | Cassert (msg, e) ->
           let annotation = Annotation.bind annotation (L.assertion loc msg e) in
           (Cassert (msg, e), annotation)
-      | Ccall (lvs, fn, es) ->
-          let annotation = Annotation.bind annotation (L.funcall loc lvs fn es) in
-          (Ccall (lvs, fn, es), annotation)
+      | Ccall (lvs, fn, al, es) ->
+          let annotation = Annotation.bind annotation (L.funcall loc lvs fn al es) in
+          (Ccall (lvs, fn, al, es), annotation)
       | Csyscall (lvs, sc, es) ->
           let annotation = Annotation.bind annotation (L.syscall loc lvs sc es) in
           (Csyscall (lvs, sc, es), annotation)

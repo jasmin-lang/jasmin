@@ -108,13 +108,13 @@ type 'len assertion = string * 'len gassert
 type ('len, 'info, 'asm) ginstr_r =
   | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
   (* turn 'asm Sopn.sopn into 'sopn? could be useful to ensure that we remove things statically *)
-  | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
+  | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len list * 'len gexprs
   | Csyscall of 'len glvals * (Wsize.wsize * BinNums.coq_Z) Syscall_t.syscall_t * 'len gexprs
   | Cassert of 'len assertion
   | Cif    of 'len gexpr * ('len, 'info, 'asm) gstmt * ('len, 'info, 'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len, 'info, 'asm) gstmt
   | Cwhile of E.align * ('len, 'info, 'asm) gstmt * 'len gexpr * (IInfo.t * 'info) * ('len, 'info, 'asm) gstmt
-  | Ccall  of 'len glvals * funname * 'len gexprs
+  | Ccall  of 'len glvals * funname * 'len list * 'len gexprs
 
 and ('len,'info,'asm) ginstr = {
     i_desc : ('len, 'info, 'asm) ginstr_r;
@@ -150,6 +150,7 @@ type ('len, 'info, 'asm) gfunc = {
     f_contract: 'len gfcontract option;
     f_cc   : FInfo.call_conv;
     f_name : funname;
+    f_al : (Uint63.t * 'len gvar) list;
     f_tyin : 'len gty list;
     f_args : 'len gvar list;
     f_body : ('len, 'info, 'asm) gstmt;
@@ -187,9 +188,6 @@ and   plval  = pexpr_ glval
 and   plvals = pexpr_ glvals
 and   pexpr  = pexpr_ gexpr
 and   pexpr_ = PE of pexpr [@@unboxed]
-
-
-type range = int grange
 
 type epty   = pexpr_ gety
 
@@ -252,20 +250,23 @@ let ws_of_ety = function
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized expression                                              *)
 
-type ty    = int gty
-type var   = int gvar
-type var_i = int gvar_i
-type lval  = int glval
-type lvals = int glval list
-type expr  = int gexpr
-type exprs = int gexpr list
-type eassert = int gassert
-type ('info, 'asm) instr = (int, 'info, 'asm) ginstr
-type ('info, 'asm) instr_r = (int,'info,'asm) ginstr_r
-type ('info, 'asm) stmt  = (int, 'info, 'asm) gstmt
+type ty    = length gty
+type var   = length gvar
+type var_i = length gvar_i
+type lval  = length glval
+type lvals = length glval list
+type expr  = length gexpr
+type exprs = length gexpr list
+type eassert = length gassert
 
-type ('info, 'asm) func     = (int, 'info, 'asm) gfunc
-type ('info, 'asm) mod_item = (int, 'info, 'asm) gmod_item
+type range = length grange
+
+type ('info, 'asm) instr = (length, 'info, 'asm) ginstr
+type ('info, 'asm) instr_r = (length,'info,'asm) ginstr_r
+type ('info, 'asm) stmt  = (length, 'info, 'asm) gstmt
+
+type ('info, 'asm) func     = (length, 'info, 'asm) gfunc
+type ('info, 'asm) mod_item = (length, 'info, 'asm) gmod_item
 type global_decl           = var * Global.glob_value
 type ('info,'asm) prog     = global_decl list * ('info, 'asm) func list
 
@@ -275,6 +276,146 @@ module Hv = Hash.Make (V)
 
 let var_of_ident (x: CoreIdent.var) : var = x
 let ident_of_var (x:var) : CoreIdent.var = x
+
+(* -------------------------------------------------------------------- *)
+(* Convertibility between length expressions                            *)
+
+let rec insert_mono x mono =
+  match mono with
+  | [] -> [x]
+  | y :: mono' ->
+      if x <= y then x :: mono
+      else y :: insert_mono x mono'
+
+let add_term ((coeff, _) as cm) terms =
+  if Z.equal coeff Z.zero then terms else cm :: terms
+
+let rec insert_term ((coeff, mono) as cm) terms =
+  match terms with
+  | [] -> [cm]
+  | ((coeff', mono') as cm') :: terms' ->
+    if mono < mono' then cm :: terms
+    else if mono = mono' then add_term (Z.add coeff coeff', mono) terms'
+    else cm' :: insert_term cm terms'
+let insert_term ((coeff, _) as cm) terms =
+  if Z.equal coeff Z.zero then terms else insert_term cm terms
+
+let expanded_form len =
+  let rec expanded_form terms coeff mono poly =
+    match poly with
+    | Const n -> let coeff = Z.mul n coeff in insert_term (coeff, mono) terms
+    | Var (n, x) -> let mono = insert_mono (n, x) mono in insert_term (coeff, mono) terms
+    | Neg e -> expanded_form terms (Z.neg coeff) mono e
+    | Add (e1, e2) -> expanded_form (expanded_form terms coeff mono e1) coeff mono e2
+    | Sub (e1, e2) -> expanded_form (expanded_form terms coeff mono e1) (Z.neg coeff) mono e2
+    | Mul (Const n, e) -> let coeff = Z.mul n coeff in expanded_form terms coeff mono e
+    | Mul (Var (n, x), e) -> let mono = insert_mono (n, x) mono in expanded_form terms coeff mono e
+    | Mul (Neg e1, e2) -> expanded_form terms (Z.neg coeff) mono (Mul (e1, e2))
+    | Mul (Add (e11, e12), e2) -> expanded_form terms coeff mono (Add (Mul (e11, e2), Mul (e12, e2)))
+    | Mul (Sub (e11, e12), e2) -> expanded_form terms coeff mono (Sub (Mul (e11, e2), Mul (e12, e2)))
+    | Mul (Mul (e11, e12), e2) -> expanded_form terms coeff mono (Mul (e11, Mul (e12, e2)))
+    | Mul ((Div _ | Mod _ | Shl _ | Shr _), _) -> []
+    | Div _ | Mod _ | Shl _ | Shr _ -> []
+  in
+  expanded_form [] Z.one [] len
+
+let rec is_poly al =
+  match al with
+  | Const _ | Var _ -> true
+  | Neg al -> is_poly al
+  | Add (al1, al2) | Sub (al1, al2) | Mul (al1, al2) -> is_poly al1 && is_poly al2
+  | Div _ | Mod _ | Shl _ | Shr _ -> false
+
+let size_of_ws = function
+  | U8   -> 1
+  | U16  -> 2
+  | U32  -> 4
+  | U64  -> 8
+  | U128 -> 16
+  | U256 -> 32
+
+(* FIXME: [=] might be too strict *)
+let compare_array_length (ws, al) (ws', al') =
+  if is_poly al && is_poly al' then
+    let ef = expanded_form (Mul (Const (Z.of_int (size_of_ws ws)), al)) in
+    let ef' = expanded_form (Mul (Const (Z.of_int (size_of_ws ws')), al')) in
+    ef = ef'
+  else
+    (ws = ws') && (al = al')
+
+let convertible ty1 ty2 =
+  match ty1, ty2 with
+  | Bty ty1, Bty ty2 -> ty1 = ty2
+  | Arr (ws1, len1), Arr (ws2, len2) -> compare_array_length (ws1, len1) (ws2, len2)
+  | Bty _, Arr _ | Arr _, Bty _ -> false
+
+(* -------------------------------------------------------------------- *)
+(* Conversions between standard and length expressions                  *)
+
+(* Returns [None] if [e] is too complex *)
+let rec al_of_expr e =
+  match e with
+  | Pconst n -> Some (Const n)
+  | Pvar x ->
+      if is_gkvar x then
+        let x = L.unloc x.gv in
+        Some (Var (x.v_id, x))
+      else None
+  | Papp1 (Oneg Op_int, e) ->
+      begin match al_of_expr e with
+      | Some e -> Some (Neg e)
+      | None -> None
+      end
+  | Papp2 (Oadd Op_int, e1, e2) ->
+      begin match al_of_expr e1, al_of_expr e2 with
+      | Some e1, Some e2 -> Some (Add (e1, e2))
+      | _ -> None
+      end
+  | Papp2 (Osub Op_int, e1, e2) ->
+      begin match al_of_expr e1, al_of_expr e2 with
+      | Some e1, Some e2 -> Some (Sub (e1, e2))
+      | _ -> None
+      end
+  | Papp2 (Omul Op_int, e1, e2) ->
+      begin match al_of_expr e1, al_of_expr e2 with
+      | Some e1, Some e2 -> Some (Mul (e1, e2))
+      | _ -> None
+      end
+  | Papp2 (Odiv (sg, Op_int), e1, e2) ->
+      begin match al_of_expr e1, al_of_expr e2 with
+      | Some e1, Some e2 -> Some (Div (sg, e1, e2))
+      | _ -> None
+      end
+  | Papp2 (Omod (sg, Op_int), e1, e2) ->
+      begin match al_of_expr e1, al_of_expr e2 with
+      | Some e1, Some e2 -> Some (Mod (sg, e1, e2))
+      | _ -> None
+      end
+  | Papp2 (Olsl Op_int, e1, e2) ->
+      begin match al_of_expr e1, al_of_expr e2 with
+      | Some e1, Some e2 -> Some (Shl (e1, e2))
+      | _ -> None
+      end
+  | Papp2 (Oasr Op_int, e1, e2) ->
+      begin match al_of_expr e1, al_of_expr e2 with
+      | Some e1, Some e2 -> Some (Shr (e1, e2))
+      | _ -> None
+      end
+  | _ -> None
+
+(* Used for printing only *)
+let rec expr_of_al al =
+  match al with
+  | Const n -> Pconst n
+  | Var (_n, x) -> Pvar (gkvar (L.mk_loc L._dummy x))
+  | Neg al -> Papp1 (Oneg Op_int, expr_of_al al)
+  | Add (al1, al2) -> Papp2 (Oadd Op_int, expr_of_al al1, expr_of_al al2)
+  | Sub (al1, al2) -> Papp2 (Osub Op_int, expr_of_al al1, expr_of_al al2)
+  | Mul (al1, al2) -> Papp2 (Omul Op_int, expr_of_al al1, expr_of_al al2)
+  | Div (sg, al1, al2) -> Papp2 (Odiv (sg, Op_int), expr_of_al al1, expr_of_al al2)
+  | Mod (sg, al1, al2) -> Papp2 (Omod (sg, Op_int), expr_of_al al1, expr_of_al al2)
+  | Shl (al1, al2) -> Papp2 (Olsl Op_int, expr_of_al al1, expr_of_al al2)
+  | Shr (al1, al2) -> Papp2 (Oasr Op_int, expr_of_al al1, expr_of_al al2)
 
 (* -------------------------------------------------------------------- *)
 (* used variables                                                       *)
@@ -316,13 +457,13 @@ let rvars_as f s es = List.fold_left (fun s (_, a) -> rvars_a f s a) s es
 let rec rvars_i f s i =
   match i.i_desc with
   | Cassgn(x, _, _, e)  -> rvars_e f (rvars_lv f s x) e
-  | Copn(x,_,_,e)  | Csyscall (x, _, e) -> rvars_es f (rvars_lvs f s x) e
+  | Copn(x,_,_,_,e)  | Csyscall (x, _, e) -> rvars_es f (rvars_lvs f s x) e
   | Cassert(_, e) -> rvars_a f s e
   | Cif(e,c1,c2)   -> rvars_c f (rvars_c f (rvars_e f s e) c1) c2
   | Cfor(x,(_,e1,e2), c) ->
     rvars_c f (rvars_e f (rvars_e f (f (L.unloc x) s) e1) e2) c
   | Cwhile(_, c, e, _, c') -> rvars_c f (rvars_e f (rvars_c f s c') e) c
-  | Ccall(x,_,e) -> rvars_es f (rvars_lvs f s x) e
+  | Ccall(x,_,_,e) -> rvars_es f (rvars_lvs f s x) e
 
 and rvars_c f s c =  List.fold_left (rvars_i f) s c
 
@@ -365,8 +506,7 @@ let vars_fc_contract fc =
 
 let locals fc =
   let s1 = params fc in
-  let s2 = Sv.diff (vars_fc fc) s1 in
-  Sv.filter V.is_local s2
+  Sv.diff (vars_fc fc) s1
 
 let written_lv s =
   function
@@ -379,9 +519,9 @@ let written_lv s =
 let rec written_vars_i ((v, f) as acc) i =
   match i.i_desc with
   | Cassgn(x, _, _, _) -> written_lv v x, f
-  | Copn(xs, _, _, _) | Csyscall(xs, _, _)
+  | Copn(xs, _, _, _, _) | Csyscall(xs, _, _)
     -> List.fold_left written_lv v xs, f
-  | Ccall(xs, fn, _) ->
+  | Ccall(xs, fn, _, _) ->
      List.fold_left written_lv v xs, Mf.modify_def [] fn (fun old -> i.i_loc :: old) f
   | Cassert (_, _) -> v, f
   | Cif(_, s1, s2)
@@ -425,14 +565,6 @@ let refresh_i_loc_p (p:('info, 'asm) prog) : ('info, 'asm) prog =
 
 let int_of_ws = Annotations.int_of_ws
 
-let size_of_ws = function
-  | U8   -> 1
-  | U16  -> 2
-  | U32  -> 4
-  | U64  -> 8
-  | U128 -> 16
-  | U256 -> 32
-
 let string_of_ws = Annotations.string_of_ws
 
 let wsize_lt ws1 ws2 = Wsize.wsize_cmp ws1 ws2 = Datatypes.Lt
@@ -464,12 +596,16 @@ let ws_of_ty = function
   | Bty (U ws) -> ws
   | _ -> assert false
 
-let arr_size ws i = size_of_ws ws * i
+let arr_size ws i = Z.mul (Z.of_int (size_of_ws ws)) i
 
 let size_of t =
   match t with
-  | Bty (U ws) -> size_of_ws ws
-  | Arr (ws', n) -> arr_size ws' n
+  | Bty (U ws) -> Const (Z.of_int (size_of_ws ws))
+  | Arr (ws, n) ->
+      begin match n with
+      | Const n -> Const (arr_size ws n)
+      | _ -> Mul (Const (Z.of_int (size_of_ws ws)), n)
+      end
   | _ -> assert false
 
 (* -------------------------------------------------------------------- *)
@@ -507,12 +643,12 @@ let is_var = function
 
 let access_offset aa ws i =
   match aa with
-  | Warray_.AAscale -> size_of_ws ws * i
+  | Warray_.AAscale -> arr_size ws i
   | Warray_.AAdirect -> i
 
 let get_ofs aa ws e =
   match e with
-  | Pconst i -> Some (access_offset aa ws (Z.to_int i))
+  | Pconst i -> Some (access_offset aa ws i)
   | _ -> None
 
 (* -------------------------------------------------------------------- *)
@@ -553,7 +689,7 @@ let is_inline annot cc =
 
 let rec spilled_i s i =
   match i.i_desc with
-  | Copn(_, _, Sopn.Opseudo_op (Pseudo_operator.Ospill _), es) -> rvars_es Sv.add s es
+  | Copn(_, _, Sopn.Opseudo_op (Pseudo_operator.Ospill _), _, es) -> rvars_es Sv.add s es
   | Cassgn _ | Csyscall _ | Ccall _ | Copn _ | Cassert _ -> s
   | Cif(_e, c1, c2)  -> spilled_c (spilled_c s c1) c2
   | Cfor(_, _, c)    -> spilled_c s c
@@ -565,7 +701,7 @@ let spilled fc = spilled_c Sv.empty fc.f_body
 
 let assigns = function
   | Cassgn (x, _, _, _) -> written_lv Sv.empty x
-  | Copn (xs, _, _, _) | Csyscall (xs, _, _) | Ccall (xs, _, _) ->
+  | Copn (xs, _, _, _, _) | Csyscall (xs, _, _) | Ccall (xs, _, _, _) ->
       List.fold_left written_lv Sv.empty xs
   | Cif _ | Cwhile _ | Cassert _ | Cfor _ -> Sv.empty
 
@@ -576,7 +712,7 @@ let is_lmem = function
 let has_effect = function
   | Csyscall _ | Ccall _ -> true
   | Cassgn (x, _, _, _) -> is_lmem x
-  | Copn (xs, _, _, _) -> List.exists is_lmem xs
+  | Copn (xs, _, _, _, _) -> List.exists is_lmem xs
   | Cassert _ | Cif _ | Cwhile _ | Cfor _ -> false
 
 (* -------------------------------------------------------------------- *)

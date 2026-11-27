@@ -211,11 +211,12 @@ Definition expand_param (m : t) ex (e : pexpr) : cexec _ :=
     | Psub aa ws' len' x e =>
       Let i := o2r (reg_error (gv x) "(the index is not a constant)") (is_const e) in
       Let ai := o2r (reg_error (gv x) "(not a reg array)") (Mvar.get m.(sarrs) (gv x)) in
+
       Let _ := assert (aa == AAscale) (reg_error (gv x) "(the default scale must be used)") in
       Let _ := assert (ai.(ai_ty) == ws') (reg_error (gv x) "(the default scale must be used)") in
-      Let _ := assert ((0 <=? i) && (i + len' <=? ai.(ai_len)))%Z (reg_error (gv x) "(the sub-array overflows)") in
-      Let _ := assert [&& ws' == ws, len == len' & is_lvar x]
+      Let _ := assert [&& ws' == ws, len' == ALConst len & is_lvar x]
                       (reg_error (gv x) "(type mismatch)") in
+      Let _ := assert ((0 <=? i) && (i + len <=? ai.(ai_len)))%Z (reg_error (gv x) "(the sub-array overflows)") in
       let elems := take (Z.to_nat len) (drop (Z.to_nat i) (ai_elems ai)) in
       let vi := v_info (gv x) in
       ok (map (fun v => Pvar (mk_lvar (VarI v vi))) elems)
@@ -241,9 +242,9 @@ Definition expand_return m ex x :=
       Let ai := o2r (reg_error x "(not a reg array)") (Mvar.get m.(sarrs) x) in
       Let _ := assert (aa == AAscale) (reg_error x "(the default scale must be used)") in
       Let _ := assert (ai.(ai_ty) == ws') (reg_error x "(the default scale must be used)") in
-      Let _ := assert ((0 <=? i) && (i + len' <=? ai.(ai_len)))%Z (reg_error x "(the sub-array overflows)") in
-      Let _ := assert [&& ws' == ws & len == len']
+      Let _ := assert [&& ws' == ws & len' == ALConst len]
                       (reg_error x "(type mismatch)") in
+      Let _ := assert ((0 <=? i) && (i + len <=? ai.(ai_len)))%Z (reg_error x "(the sub-array overflows)") in
       let vi := v_info x in
       let elems := take (Z.to_nat len) (drop (Z.to_nat i) (ai_elems ai)) in
       ok (map (fun v => Lvar (VarI v vi)) elems)
@@ -268,10 +269,10 @@ Fixpoint expand_i (m : t) (i : instr) : cexec instr :=
     Let e := add_iinfo ii (expand_e m e) in
     ok (MkI ii (Cassgn x tag ty e))
 
-  | Copn xs tag o es =>
+  | Copn xs tag o als es =>
     Let xs := add_iinfo ii (expand_lvs m xs) in
     Let es := add_iinfo ii (expand_es m es) in
-    ok (MkI ii (Copn xs tag o es))
+    ok (MkI ii (Copn xs tag o als es))
 
   | Csyscall xs o es =>
     Let xs := add_iinfo ii (expand_lvs m xs) in
@@ -300,11 +301,11 @@ Fixpoint expand_i (m : t) (i : instr) : cexec instr :=
     Let c' := mapM (expand_i m) c' in 
     ok (MkI ii (Cwhile a c e info c'))
 
-  | Ccall xs fn es =>
+  | Ccall xs fn als es =>
     if Mf.get fsigs fn is Some (expdin, expdout) then
       Let xs := add_iinfo ii (rmap flatten (mapM2 length_mismatch (expand_return m) expdout xs)) in
       Let es := add_iinfo ii (rmap flatten (mapM2 length_mismatch (expand_param m) expdin es)) in
-      ok (MkI ii (Ccall xs fn es))
+      ok (MkI ii (Ccall xs fn als es))
     else Error (reg_ierror_no_var "function not found")
   end.
 
@@ -323,7 +324,7 @@ Definition expand_tyv m b s ty v :=
 Definition expand_fsig fi (entries : seq funname) (fname: funname) (fd: ufundef) :=
   Let x := init_map (fi fname fd) in
   match fd with
-  | MkFun _ ci tyin params c tyout res ef =>
+  | MkFun _ ci als tyin params c tyout res ef =>
     let '(m, fi) := x in
     let exp := ~~(fname \in entries) in
     Let ins  := mapM2 length_mismatch (expand_tyv m exp "the parameters") tyin params in
@@ -334,16 +335,16 @@ Definition expand_fsig fi (entries : seq funname) (fname: funname) (fd: ufundef)
     let tyout  := map (fun x => fst (fst x)) outs in
     let res    := map (fun x => snd (fst x)) outs in
     let outs   := map snd outs in
-    ok (MkFun fi ci (flatten tyin) (flatten params) c (flatten tyout) (flatten res) ef,
+    ok (MkFun fi ci als (flatten tyin) (flatten params) c (flatten tyout) (flatten res) ef,
         m, (ins, outs))
   end.
 
 Definition expand_fbody (fname: funname) (fs: ufundef * t) :=
   let (fd, m) := fs in
   match fd with
-  | MkFun fi ci tyin params c tyout res ef =>
+  | MkFun fi ci als tyin params c tyout res ef =>
     Let c := mapM (expand_i m) c in
-    ok (MkFun fi ci tyin params c tyout res ef)
+    ok (MkFun fi ci als tyin params c tyout res ef)
   end.
 
 End FSIGS.

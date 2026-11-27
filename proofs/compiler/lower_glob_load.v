@@ -39,7 +39,7 @@ Definition is_glob_addr (e : pexpr) : bool :=
   else false.
 
 Definition glob_addr (x : var_i) (e : pexpr) : instr_r :=
-  Copn [:: Lvar x ] AT_none (Oasm glob_addr_op) [:: e ].
+  Copn [:: Lvar x ] AT_none (Oasm glob_addr_op) [::] [:: e ].
 
 (* The variable that receives the address. *)
 Definition glob_load_dst (xs : lvals) (es' : pexprs) : var_i :=
@@ -47,13 +47,13 @@ Definition glob_load_dst (xs : lvals) (es' : pexprs) : var_i :=
     if vtype x == aword Uptr then x else tmp
   else tmp.
 
-Definition lower_glob_load xs t o es : option (seq instr_r) :=
+Definition lower_glob_load xs t o als es : option (seq instr_r) :=
   if o is Oasm op then
     if is_load op then
       if es is Pload al ws e :: es' then
         if is_glob_addr e then
           let x := glob_load_dst xs es' in
-          Some [:: glob_addr x e; Copn xs t o (Pload al ws (Plvar x) :: es') ]
+          Some [:: glob_addr x e; Copn xs t o als (Pload al ws (Plvar x) :: es') ]
         else None
       else None
     else None
@@ -62,12 +62,12 @@ Definition lower_glob_load xs t o es : option (seq instr_r) :=
 Fixpoint lower_glob_load_i (i: instr) :=
   let (ii,ir) := i in
   match ir with
-  | Copn xs t o es =>
-    if lower_glob_load xs t o es is Some c then map (MkI ii) c else [:: i ]
+  | Copn xs t o als es =>
+    if lower_glob_load xs t o als es is Some c then map (MkI ii) c else [:: i ]
   | Cassgn _ _ _ _
   | Csyscall _ _ _
   | Cassert _
-  | Ccall _ _ _ => [:: i]
+  | Ccall _ _ _ _ => [:: i]
   | Cif b c1 c2 =>
     let c1 := List.flat_map lower_glob_load_i c1 in
     let c2 := List.flat_map lower_glob_load_i c2 in

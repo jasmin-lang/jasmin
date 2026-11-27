@@ -68,7 +68,7 @@ let rec gsubst_i (flen: ?loc:L.t -> 'len1 -> 'len2) f i =
       let x = gsubst_lval flen f x in
       let ty = gsubst_ty (flen ?loc:None) ty in
       Cassgn(x, tg, ty, e)
-    | Copn(x,t,o,e)   -> Copn(gsubst_lvals flen f x, t, o, gsubst_es flen f e)
+    | Copn(x,t,o,als,e)   -> Copn(gsubst_lvals flen f x, t, o, List.map (flen ?loc:None) als, gsubst_es flen f e)
     | Csyscall(x,o,e)   -> Csyscall(gsubst_lvals flen f x, o, gsubst_es flen f e)
     | Cassert (msg, e)  -> Cassert (msg, gsubst_a flen f e)
     | Cif(e,c1,c2)  -> Cif(gsubst_e flen f e, gsubst_c flen f c1, gsubst_c flen f c2)
@@ -76,7 +76,7 @@ let rec gsubst_i (flen: ?loc:L.t -> 'len1 -> 'len2) f i =
         Cfor(gsubst_vdest f x, (d, gsubst_e flen f e1, gsubst_e flen f e2), gsubst_c flen f c)
     | Cwhile(a, c, e, loc, c') ->
       Cwhile(a, gsubst_c flen f c, gsubst_e flen f e, loc, gsubst_c flen f c')
-    | Ccall(x,fn,e) -> Ccall(gsubst_lvals flen f x, fn, gsubst_es flen f e) in
+    | Ccall(x,fn,als,e) -> Ccall(gsubst_lvals flen f x, fn, List.map (flen ?loc:None) als, gsubst_es flen f e) in
   { i with i_desc }
 
 and gsubst_c flen f c = List.map (gsubst_i flen f) c
@@ -92,6 +92,7 @@ let gsubst_cf_contract flen f c =
 let gsubst_func (flen: ?loc:L.t -> 'len1 -> 'len2) f fc =
   let dov v = L.unloc (gsubst_vdest f (L.mk_loc L._dummy v)) in
   { fc with
+    f_al = List.map (fun (n, x) -> (n, dov x)) fc.f_al;
     f_tyin = List.map (gsubst_ty (flen ?loc:None)) fc.f_tyin;
     f_contract = Option.map (gsubst_cf_contract flen f) fc.f_contract;
     f_args = List.map dov fc.f_args;
@@ -117,27 +118,35 @@ let psubst_ty f (ty: pty) : pty =
   | Bty ty -> Bty ty
   | Arr(ty, e) -> Arr(ty, psubst_e_ f e)
 
+let psubst_ety f (ty: epty) : epty =
+  match ty with
+  | ETbool | ETint | ETword _ -> ty
+  | ETarr(ty, e) -> ETarr(ty, psubst_e_ f e)
+
 let psubst_v subst =
   let subst = ref subst in
   let rec aux v : pexpr =
     let k = v.gs in
-    let v = v.gv in
-    let v_ = v.L.pl_desc in
+    let gv = v.gv in
+    let v_ = gv.L.pl_desc in
     let e =
       try Mpv.find v_ !subst
       with Not_found ->
-        assert (not (PV.is_glob v_));
+        (* length variables are unchanged *)
+        if PV.is_length_var v_ then
+          Pvar v
+        else
         let ty = psubst_ty aux v_.v_ty in
         let v' = PV.mk v_.v_name v_.v_kind ty v_.v_dloc v_.v_annot in
-        let v = {v with L.pl_desc = v'} in
-        let v = { gv = v; gs = k } in
+        let gv = {gv with L.pl_desc = v'} in
+        let v = { gv ; gs = k } in
         let e = Pvar v in
         subst := Mpv.add v_ e !subst;
         e in
     match e with
     | Pvar x ->
       let k = x.gs in
-      let x = {x.gv with L.pl_loc = L.loc v} in
+      let x = {x.gv with L.pl_loc = L.loc gv} in
       let x = {gv = x; gs = k} in
       Pvar x
     | _      -> e in
@@ -189,9 +198,9 @@ let psubst_prog (prog:('info, 'asm) pprog) =
 
 (* ---------------------------------------------------------------- *)
 (* Simplify type                                                    *)
-let int_of_op1 ?loc =
+let al_of_op1 ?loc =
   function
-  | Oneg Op_int -> Z.neg
+  | Oneg Op_int -> (fun e -> Neg e), Z.neg
   | o -> hierror ?loc "unary operator %s not supported in array sizes" (PrintCommon.string_of_op1 ~debug:false o)
 
 let shift_left ?loc (x: Z.t) (y: Z.t) : Z.t =
@@ -206,35 +215,39 @@ let shift_right ?loc (x: Z.t) (y: Z.t) : Z.t =
 
 let zremu (x : Z.t) (y : Z.t) = Z.(of_int (sign y) * erem (of_int (sign y) * x) y)
 
-let int_of_op2 ?loc o =
+let al_of_op2 ?loc o =
   match o with
-  | Oadd Op_int -> Z.add
-  | Omul Op_int -> Z.mul
-  | Osub Op_int -> Z.sub
-  | Odiv(sg, Op_int) -> if sg = Unsigned then Z.fdiv else Z.div
-  | Omod(sg, Op_int) -> if sg = Unsigned then zremu else Z.rem
-  | Olsl Op_int -> shift_left ?loc
-  | Oasr Op_int -> shift_right ?loc
+  | Oadd Op_int -> (fun e1 e2 -> Add (e1, e2)), Z.add
+  | Omul Op_int -> (fun e1 e2 -> Mul (e1, e2)), Z.mul
+  | Osub Op_int -> (fun e1 e2 -> Sub (e1, e2)), Z.sub
+  | Odiv(sg, Op_int) -> (fun e1 e2 -> Div (sg, e1, e2)), if sg = Unsigned then Z.fdiv else Z.div
+  | Omod(sg, Op_int) -> (fun e1 e2 -> Mod (sg, e1, e2)), if sg = Unsigned then zremu else Z.rem
+  | Olsl Op_int -> (fun e1 e2 -> Shl (e1, e2)), shift_left ?loc
+  | Oasr Op_int -> (fun e1 e2 -> Shr (e1, e2)), shift_right ?loc
   | _     -> hierror ?loc "operator %s not allowed in array size (only standard arithmetic operators and modulo are allowed)" (PrintCommon.string_of_op2 o)
 
-let rec int_of_expr ?loc e =
+let rec al_of_expr ?loc e =
   match e with
-  | Pconst i -> i
+  | Pconst n -> Const n
+  | Pvar x -> assert (is_gkvar x); let xv = L.unloc x.gv in Var (xv.v_id, GV.cast xv)
   | Papp1 (o, e1) ->
-     int_of_op1 ?loc o @@ int_of_expr ?loc e1
+      let op, opint = al_of_op1 ?loc o in
+      begin match al_of_expr ?loc e1 with
+      | Const n1 -> Const (opint n1)
+      | e1 -> op e1
+      end
   | Papp2 (o, e1, e2) ->
-      let op = int_of_op2 ?loc o in
-      op (int_of_expr ?loc e1) (int_of_expr ?loc e2)
-  | Pbool _ | Parr_init _ | Pvar _
+      let op, opint = al_of_op2 ?loc o in
+      begin match al_of_expr ?loc e1, al_of_expr ?loc e2 with
+      | Const n1, Const n2 -> Const (opint n1 n2)
+      | e1, e2 -> op e1 e2
+      end
+  | Pbool _ | Parr_init _
   | Pget _ | Psub _ | Pload _ | PappN _ | Pif _ ->
-      hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions are allowed)" (Printer.pp_pexpr ~debug:false) e
-
+      hierror ?loc "expression %a not allowed in array size (only standard arithmetic expressions are allowed)" (Printer.pp_pexpr ~debug:false) e
 
 let isubst_len ?loc (PE e) =
-  let z = int_of_expr ?loc e in
-  try Z.to_int z
-  with Z.Overflow ->
-    hierror ?loc "cannot define a (sub-)array of size %a, this number is too big" Z.pp_print z
+  al_of_expr ?loc e
 
 let isubst_ty ?loc = function
   | Bty ty -> Bty ty
@@ -296,6 +309,7 @@ let isubst_prog glob prog =
     let f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret in
     let fc = {
         fc with
+        f_al = List.map (fun (n, x) -> (n, GV.cast x)) fc.f_al;
         f_tyin = List.map isubst_ty fc.f_tyin;
         f_contract = Option.map (gsubst_cf_contract isubst_len subst_v) fc.f_contract;
         f_args;
@@ -368,15 +382,21 @@ let remove_params (prog : ('info, 'asm) pprog) =
           hierror ~loc:x.v_dloc "the expression assigned to global variable %a must evaluate to a constant word"
             (Printer.pp_var ~debug:false) x
         end
-      | Arr (_ws, n), GEarray es when List.length es <> n ->
-         let m = List.length es in
-         hierror ~loc:x.v_dloc "array size mismatch for global variable %a: %d %s given (%d expected)"
-           (Printer.pp_var ~debug:false) x
-           (List.length es)
-           (if m > 1 then "values" else "value")
-           n
       | Arr (ws, n), GEarray es ->
-        let len = Conv.cz_of_int (arr_size ws n) in
+        let n =
+          match n with
+          | Const n -> n
+          | _ -> assert false (* impossible per typing? *)
+        in
+        if not (Z.equal (Z.of_int (List.length es)) n) then
+          let m = List.length es in
+           hierror ~loc:x.v_dloc "array size mismatch for global variable %a: %d %s given (%a expected)"
+             (Printer.pp_var ~debug:false) x
+             (List.length es)
+             (if m > 1 then "values" else "value")
+             Z.pp_print n
+        else
+        let len = Conv.cz_of_z (arr_size ws n) in
         let mk_word_i i e =
           try mk_word ws e
           with NotAConstantExpr ->

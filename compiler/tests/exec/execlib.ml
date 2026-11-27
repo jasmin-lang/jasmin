@@ -33,7 +33,7 @@ let init_memory ms =
   | Utils0.Error _err -> assert false
   | Utils0.Ok m -> m
 
-let exec (fs, prog) ms f args =
+let exec (fs, prog) ms f vals args =
   let f = Hashtbl.find fs f in
   let m = init_memory ms in
   let res =
@@ -41,7 +41,7 @@ let exec (fs, prog) ms f args =
       Evaluator.run
         (module Arch)
         (Expr.to_uprog Arch.asmOp prog)
-        IInfo.dummy f args m
+        IInfo.dummy f vals args m
     with
     | _m, res -> Ok res
     | exception Evaluator.Eval_error (_, err) -> Error err

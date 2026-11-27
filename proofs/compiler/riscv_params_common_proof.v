@@ -52,6 +52,7 @@ Proof.
   case: o => -[xs o] es /=; case: sem_rexprs => //= >.
   rewrite /exec_sopn /=; case: id_valid => //=.
   rewrite /semi /semi_to_atype_t /=.
+  change (create_env [::] [::]) with empty_env.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.
   by case: app_sopn.
@@ -187,7 +188,7 @@ Proof.
   move=> hc hor hget; rewrite -sem_fopns_equiv.
   have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small) (neutral:= Some 0%Z)
              (@RISCVFopn_coreP.add_sem_fopn_args _ _ _) (@RISCVFopn_coreP.addi_sem_fopn_args _ _ _)].
-  move=> /(_ _ xi xi y imm s w) [] //.
+  move=> /(_ _ xi xi y imm _ s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.addr0.
   move=> vm' [hsem heq heqx] ; exists vm'; split => //=.
   by apply: eq_exI heq; clear; SvD.fsetdec.
@@ -207,7 +208,7 @@ Proof.
   move=> hor hget; rewrite -sem_fopns_equiv.
   have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small_neg) (neutral:= Some 0%Z)
               (@RISCVFopn_coreP.sub_sem_fopn_args _ _ _) (@RISCVFopn_coreP.subi_sem_fopn_args _ _ _)].
-  move=> /(_ _ xi xi y imm s w) [] //.
+  move=> /(_ _ xi xi y imm _ s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.subr0.
   move=> vm' [hsem heq heqx] ; exists vm'; split => //=.
   apply: eq_exI heq; rewrite /xi /=; clear; SvD.fsetdec.
@@ -228,7 +229,7 @@ Proof.
   move=> hne hty hget; rewrite -sem_fopns_equiv.
   have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small) (neutral:= Some 0%Z)
              (@RISCVFopn_coreP.add_sem_fopn_args _ _ _) (@RISCVFopn_coreP.addi_sem_fopn_args _ _ _)].
-  move=> /(_ _ tmp xi xi imm s w) [] //.
+  move=> /(_ _ tmp xi xi imm _ s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.addr0.
   + by right => h; rewrite h in hne.
   move=> vm' [hsem heq heqx] ; exists vm'; split => //=.
@@ -250,7 +251,7 @@ Proof.
   move=> hne hty hget; rewrite -sem_fopns_equiv.
   have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small_neg) (neutral:= Some 0%Z)
               (@RISCVFopn_coreP.sub_sem_fopn_args _ _ _) (@RISCVFopn_coreP.subi_sem_fopn_args _ _ _)].
-  move=> /(_ _ tmp xi xi imm s w) [] //.
+  move=> /(_ _ tmp xi xi imm _ s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.subr0.
   + by right => h; rewrite h in hne.
   move=> vm' [hsem heq heqx] ; exists vm'; split => //=.

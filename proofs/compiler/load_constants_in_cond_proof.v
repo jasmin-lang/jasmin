@@ -38,7 +38,7 @@ Section BODY.
 
 Context (X : Sv.t).
 
-Lemma process_constantP_aux (wdb: enforce_defined_variables) ii n ws e c e' W s v :
+Lemma process_constantP_aux env (wdb: enforce_defined_variables) ii n ws e c e' W (s : estate env) v :
   process_constant fresh_reg ii n ws e = (c, e', W) ->
   sem_pexpr gd s e = ok v ->
   exists vm,
@@ -63,7 +63,7 @@ Proof using Hp.
   by rewrite /get_gvar /= get_var_set /= ?cmp_le_refl !orbT //= eqxx.
 Qed.
 
-Lemma process_constantP (wdb: enforce_defined_variables) ii n ws e c e' W s v vm :
+Lemma process_constantP env (wdb: enforce_defined_variables) ii n ws e c e' W (s : estate env) v (vm : Vm.t env) :
   process_constant fresh_reg ii n ws e = (c, e', W) ->
   sem_pexpr gd s e = ok v ->
   Sv.Subset (read_e e) X ->
@@ -84,7 +84,7 @@ Proof using Hp.
   by move/disjointP: hdisj; apply.
 Qed.
 
-Lemma process_conditionP (wdb: enforce_defined_variables) ii e c e' s v vm:
+Lemma process_conditionP env (wdb: enforce_defined_variables) ii e c e' (s : estate env) v (vm : Vm.t env) :
   process_condition fresh_reg X ii e = ok (c, e') ->
   sem_pexpr gd s e = ok v ->
   Sv.Subset (read_e e) X ->
@@ -100,7 +100,7 @@ Proof using Hp.
    → sem_pexpr gd s e = ok v
    → Sv.Subset (read_e e) X
    → evm s =[X] vm
-   → ∃ vm' : Vm.t,
+   → ∃ vm' : Vm.t env,
       [/\ esem p' ev [seq MkI ii i | i <- c] (with_vm s vm) = ok (with_vm s vm'),
           evm s =[X] vm'
           & sem_pexpr gd' (with_vm s vm') e' = ok v].
@@ -143,34 +143,23 @@ Lemma checker_st_eq_onP_ : Checker_eq p p' checker_st_eq_on.
 Proof using Hp. by apply checker_st_eq_onP; rewrite eq_globs. Qed.
 #[local] Hint Resolve checker_st_eq_onP_ : core.
 
-Lemma it_load_constants_progP_aux fn:
-  wiequiv_f p p' ev ev (rpreF (eS:=eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+Section REC.
+
+Context (env : env_t) (X : Sv.t).
+
+Let Pi i :=
+  forall c', load_constants_i fresh_reg X i = ok c' -> Sv.Subset (read_I i) X ->
+  wequiv_rec (env1:=env) (env2:=env) p p' ev ev eq_spec (st_eq_on X) [::i] c' (st_eq_on X).
+
+Let Pi_r i := forall ii, Pi (MkI ii i).
+
+Let Pc c :=
+  forall c', load_constants_c (load_constants_i fresh_reg X) c = ok c' -> Sv.Subset (read_c c) X ->
+  wequiv_rec (env1:=env) (env2:=env) p p' ev ev eq_spec (st_eq_on X) c c' (st_eq_on X).
+
+Lemma it_load_constants_progP_aux_rec c : Pc c.
 Proof using Hp.
-  apply wequiv_fun_ind => {}fn _ fs _ [<-] <- fd hget.
-  move: Hp; rewrite /load_constants_prog; t_xrbindP => funcs Hmap hp'.
-  case: (get_map_cfprog_gen Hmap hget) => fd' Hupdate hget'.
-  rewrite -{1}hp' /= hget'.
-  move: Hupdate; rewrite /load_constants_fd.
-  t_xrbindP => c'; set X := (X in load_constants_i _ X).
-  move=> hc' ?; subst fd'.
-  exists (with_body fd c') => //.
-  move=> s /(eq_initialize (p':=p') (fd':=with_body fd c')) -> //; last by rewrite -hp'.
-  exists s => //=; exists (st_eq_on X), (st_eq_on X); split => //; last first.
-  + apply wrequiv_weaken with (st_eq_on (vars_l (f_res (with_body fd c')))) eq => //.
-    + by apply st_rel_weaken => ??; apply eq_onI; rewrite /= /X vars_l_read_es; clear; SvD.fsetdec.
-    by apply: (st_eq_on_finalize (fd':=with_body fd c')).
-  clear s fn hget hget' fs funcs Hmap hp'.
-  have : Sv.Subset (read_c (f_body fd)) X.
-  + by rewrite /X; clear; SvD.fsetdec.
-  move: X c' hc' => X; move: (f_body fd) => {fd}.
-  set Pi := fun i =>
-    forall c', load_constants_i fresh_reg X i = ok c' -> Sv.Subset (read_I i) X ->
-    wequiv_rec p p' ev ev eq_spec (st_eq_on X) [::i] c' (st_eq_on X).
-  set Pi_r := fun i => forall ii, Pi (MkI ii i).
-  set Pc := fun c =>
-    forall c', load_constants_c (load_constants_i fresh_reg X) c = ok c' -> Sv.Subset (read_c c) X ->
-    wequiv_rec p p' ev ev eq_spec (st_eq_on X) c c' (st_eq_on X).
-  apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //; subst Pi_r Pi Pc => /=.
+  apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}; subst Pi_r Pi Pc => /=.
   + by move=> c_ [<-] _; apply wequiv_nil.
   + move=> i c hi hc c_.
     rewrite /load_constants_c /=; t_xrbindP.
@@ -184,7 +173,7 @@ Proof using Hp.
     + by split => //; rewrite /read_es /= read_eE; clear -hsub; SvD.fsetdec.
     split => //; first by clear; SvD.fsetdec.
     by rewrite /read_rvs /= read_rvE; clear -hsub; SvD.fsetdec.
-  + move=> xs tg o es ii _ [<-]; rewrite !read_writeE => hsub.
+  + move=> xs tg o als es ii _ [<-]; rewrite !read_writeE => hsub.
     by apply wequiv_opn_rel_eq with checker_st_eq_on X => //=; split=> //; clear -hsub; SvD.fsetdec.
   + move=> xs sc es ii _ [<-]; rewrite !read_writeE => hsub.
     by apply wequiv_syscall_rel_eq with checker_st_eq_on X => //=; split=> //; clear -hsub; SvD.fsetdec.
@@ -196,7 +185,7 @@ Proof using Hp.
     + move=> s t v /st_relP [-> /= heq] he.
       have [ |vm' [???]] := process_conditionP hcond he _ heq.
       + by clear -hsub; SvD.fsetdec.
-      by eexists; split;eauto.
+      by eexists; split;eauto; apply st_relP.
     by move=> []; [apply hc1 | apply hc2]; move => //; clear -hsub; SvD.fsetdec.
   + move=> x dir lo hi c hc ii c_; t_xrbindP => c' hc' <-; rewrite !read_writeE => hsub.
     apply wequiv_for_rel_eq with checker_st_eq_on X X => //.
@@ -210,13 +199,37 @@ Proof using Hp.
     + move=> s t v /st_relP [-> /= heq] he.
       have [ |vm' [???]] := process_conditionP hcond he _ heq.
       + by clear -hsub; SvD.fsetdec.
-      by eexists; split;eauto.
+      by eexists; split;eauto; apply st_relP.
     by apply hc2 => //; clear -hsub; SvD.fsetdec.
-  move=> xs fn es ii _ [<-]; rewrite !read_writeE => hsub.
+  move=> xs fn als es ii _ [<-]; rewrite !read_writeE => hsub.
   apply wequiv_call_rel_eq with checker_st_eq_on X => //.
   + by split => //; clear -hsub; SvD.fsetdec.
   + by split => //; clear -hsub; SvD.fsetdec.
   by move=> ???; apply: wequiv_fun_rec.
+Qed.
+
+End REC.
+
+Lemma it_load_constants_progP_aux fn:
+  wiequiv_f p p' ev ev (rpreF (eS:=eq_spec)) fn fn (rpostF (eS:=eq_spec)).
+Proof using Hp.
+  apply wequiv_fun_ind => {}fn _ vals _ fs _ /= [<-] [<-] <- fd hget.
+  move: Hp; rewrite /load_constants_prog; t_xrbindP => funcs Hmap hp'.
+  case: (get_map_cfprog_gen Hmap hget) => fd' Hupdate hget'.
+  rewrite -{1}hp' /= hget'.
+  move: Hupdate; rewrite /load_constants_fd.
+  t_xrbindP => c'; set X := (X in load_constants_i _ X).
+  move=> hc' ?; subst fd'.
+  exists (with_body fd c') => //.
+  move=> s /(eq_initialize (p':=p') (fd':=with_body fd c')) -> //; last by rewrite -hp'.
+  exists s => //=; exists (st_eq_on X), (st_eq_on X); split; first apply st_eq_on_refl; last first.
+  + apply wrequiv_weaken with (st_eq_on (vars_l (f_res (with_body fd c')))) eq => //.
+    + by apply st_rel_weaken => ??; apply eq_onI; rewrite /= /X vars_l_read_es; clear; SvD.fsetdec.
+    by apply: (st_eq_on_finalize (fd':=with_body fd c')).
+  clear s fn hget hget' fs funcs Hmap hp'.
+  have : Sv.Subset (read_c (f_body fd)) X.
+  + by rewrite /X; clear; SvD.fsetdec.
+  exact: it_load_constants_progP_aux_rec.
 Qed.
 
 End IT.

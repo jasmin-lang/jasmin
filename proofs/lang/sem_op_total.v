@@ -24,9 +24,9 @@ Import Utf8.
 (* Total semantics of the [wint] unary operators. Where the partial semantics
    fails ([WIwint_of_int] and [WIneg] on an out-of-range result) the value is
    the one of the corresponding operation on words, i.e. modular arithmetic. *)
-Definition sem_wiop1_total (sign : signedness) (o: wiop1) :
+Definition sem_wiop1_total env (sign : signedness) (o: wiop1) :
   let t := type_of_wiop1 o in
-  let t := (eval_atype t.1, eval_atype t.2) in
+  let t := (eval_atype env t.1, eval_atype env t.2) in
   sem_t t.1 -> sem_t t.2 :=
   match o with
   | WIwint_of_int sz => wrepr sz
@@ -44,9 +44,9 @@ Arguments sem_wiop1_total : clear implicits.
 
 (* Total counterpart of [sem_sop1_typed]: the same functions, without the
    [ok]; only the [Owi1] cases really change. *)
-Definition sem_sop1_total (o : sop1) :
+Definition sem_sop1_total env (o : sop1) :
   let t := type_of_op1 o in
-  let t := (eval_atype t.1, eval_atype t.2) in
+  let t := (eval_atype env t.1, eval_atype env t.2) in
   sem_t t.1 -> sem_t t.2 :=
   match o with
   | Oword_of_int sz => wrepr sz
@@ -57,7 +57,7 @@ Definition sem_sop1_total (o : sop1) :
   | Olnot sz => @wnot sz
   | Oneg Op_int => Z.opp
   | Oneg (Op_w sz) => -%w
-  | Owi1 sign o => sem_wiop1_total sign o
+  | Owi1 sign o => sem_wiop1_total env sign o
   end.
 
 Arguments sem_sop1_total : clear implicits.
@@ -110,9 +110,9 @@ Definition mk_sem_wicmp_total sign sz (o:Z -> Z -> bool) (w1 w2 : word sz) : boo
    are the corresponding operations on words (modular arithmetic), the shifts
    are the word shifts and the divisions are the unguarded ones (division by
    zero is zero). *)
-Definition sem_wiop2_total (sign : signedness) (sz : wsize) ( o : wiop2) :
+Definition sem_wiop2_total env (sign : signedness) (sz : wsize) ( o : wiop2) :
   let t := type_of_wiop2 sz o in
-  let t := (eval_atype t.1.1, eval_atype t.1.2, eval_atype t.2) in
+  let t := (eval_atype env t.1.1, eval_atype env t.1.2, eval_atype env t.2) in
   sem_t t.1.1 -> sem_t t.1.2 -> sem_t t.2 :=
   match o with
 
@@ -139,9 +139,9 @@ Arguments sem_wiop2_total : clear implicits.
 
 (* Total counterpart of [sem_sop2_typed]: the same functions, without the
    [ok]; only the divisions on words and the [Owi2] cases really change. *)
-Definition sem_sop2_total (o: sop2) :
+Definition sem_sop2_total env (o: sop2) :
   let t := type_of_op2 o in
-  let t := (eval_atype t.1.1, eval_atype t.1.2, eval_atype t.2) in
+  let t := (eval_atype env t.1.1, eval_atype env t.1.2, eval_atype env t.2) in
   sem_t t.1.1 -> sem_t t.1.2 -> sem_t t.2 :=
   match o with
   | Obeq => @eq_op bool
@@ -196,7 +196,7 @@ Definition sem_sop2_total (o: sop2) :
   | Ovlsl ve ws     => sem_vshl ve
   | Ovasr ve ws     => sem_vsar ve
 
-  | Owi2 s sz o => sem_wiop2_total s sz o
+  | Owi2 s sz o => sem_wiop2_total env s sz o
   end.
 
 Arguments sem_sop2_total : clear implicits.
@@ -214,9 +214,9 @@ Definition sem_combine_flags (cf : combine_flags) (b0 b1 b2 b3 : bool) : bool :=
 (* Total counterpart of [sem_opN_typed], which is already total
    ([sem_opN_typed_ok]); [WArray.fill] cannot fail on the length it is applied
    to, but the failure has to be discarded syntactically. *)
-Definition sem_opN_total (o: opN) :
+Definition sem_opN_total env (o: opN) :
   let t := type_of_opN o in
-  let t := (map eval_atype t.1, eval_atype t.2) in
+  let t := (map (eval_atype env) t.1, eval_atype env t.2) in
   sem_prod t.1 (sem_t t.2) :=
   match o with
   | Opack sz pe =>
@@ -239,9 +239,9 @@ End WITH_PARAMS.
 
 (* The predicates of the safety conditions have no condition of their own:
    their semantics is total ([sem_prod_ok] lifts it for [app_sopn]). *)
-Definition sem_opN_safety_total (o: opN_safety) :
+Definition sem_opN_safety_total env (o: opN_safety) :
   let t := type_of_opN_safety o in
-  let t := (map eval_atype t.1, eval_atype t.2) in
+  let t := (map (eval_atype env) t.1, eval_atype env t.2) in
   sem_prod t.1 (sem_t t.2) :=
   match o with
   | Ois_arr_init alen =>

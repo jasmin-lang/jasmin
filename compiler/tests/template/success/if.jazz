@@ -1,0 +1,28 @@
+inline fn f{N}(reg ptr u64[N] s, reg u64 n) -> reg ptr u64[N] {
+  reg u64 i = 0;
+  while (i < n) {
+    s[i] += 2;
+    i += 1;
+  }
+  stack u64[4] s2;
+  if (n < 20) {
+    s = s;
+  } else {
+    s = s;
+  }
+  reg u64 tmp = s2[0];
+  s[0] = tmp;
+  return s;
+}
+
+export fn main () -> reg u64 {
+  stack u64[10] s;
+  inline int i;
+  for i = 0 to 10 {
+    s[i] = i;
+  }
+  reg u64 len = 10;
+  s = f(s, len);
+  reg u64 res = s[0];
+  return res;
+}

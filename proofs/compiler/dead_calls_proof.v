@@ -27,14 +27,14 @@ with i_Calls_r (i : instr_r) {struct i} : Sf.t :=
 
   match i with
   | Cassgn _ _ _ _
-  | Copn   _ _ _ _
+  | Copn   _ _ _ _ _
   | Csyscall _ _ _
   | Cassert _
     => Sf.empty
   | Cif    _  c1 c2   => Sf.union (c_Calls c1) (c_Calls c2)
   | Cfor   _  _  c1   => c_Calls c1
   | Cwhile _ c1 _ _ c2 => Sf.union (c_Calls c1) (c_Calls c2)
-  | Ccall _ f _ => Sf.singleton f
+  | Ccall _ f _ _ => Sf.singleton f
   end.
 
 Definition c_Calls (cmd : cmd) :=
@@ -49,8 +49,8 @@ Lemma i_Calls_asgn lv tg ty e :
   i_Calls_r (Cassgn lv tg ty e) = Sf.empty.
 Proof. by []. Qed.
 
-Lemma i_Calls_opn lv t op es :
-  i_Calls_r (Copn lv t op es) = Sf.empty.
+Lemma i_Calls_opn lv t op als es :
+  i_Calls_r (Copn lv t op als es) = Sf.empty.
 Proof. by []. Qed.
 
 Lemma i_Calls_syscall lv op es :
@@ -69,8 +69,8 @@ Lemma i_Calls_while a c1 e ei c2 :
   i_Calls_r (Cwhile a c1 e ei c2) = Sf.union (c_Calls c1) (c_Calls c2).
 Proof. by []. Qed.
 
-Lemma i_Calls_call lv f es :
-  i_Calls_r (Ccall lv f es) = Sf.singleton f.
+Lemma i_Calls_call lv f als es :
+  i_Calls_r (Ccall lv f als es) = Sf.singleton f.
 Proof. by []. Qed.
 
 Lemma c_Calls_nil : c_Calls [::] = Sf.empty.
@@ -98,8 +98,8 @@ Lemma c_callsE c i : Sf.Equal (c_calls c i) (Sf.union c (c_Calls i)).
 Proof.
 move: c.
 apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /=
-  [ i0 ii Hi | | i0 c0 Hi Hc | x t ty e | xs t o es | xs o es | a | e c1 c2 Hc1 Hc2
-    | v dir lo hi c0 Hc | a c0 e ei c' Hc Hc' | ii xs f es ] c /=.
+  [ i0 ii Hi | | i0 c0 Hi Hc | x t ty e | xs t o als es | xs o es | a | e c1 c2 Hc1 Hc2
+    | v dir lo hi c0 Hc | a c0 e ei c' Hc Hc' | ii xs f als es ] c /=.
 + by apply Hi.
 + rewrite CallsE; clear; SfD.fsetdec.
 + rewrite CallsE Hc Hi; clear; SfD.fsetdec.
@@ -202,32 +202,31 @@ Section PROOF.
 
   Definition dc_spec :=
    {|
-     rpreF_ := λ (fn1 fn2 : funname) (fs1 fs2 : fstate), [/\ fn1 = fn2, fs1 = fs2 & Sf.In fn1 K] ;
-     rpostF_ := λ (_ _ : funname) (_ _ fr1 fr2 : fstate), fr1 = fr2
+     rpreF_ := λ (fn1 fn2 : funname) valfs1 valfs2, [/\ fn1 = fn2, valfs1.1 = valfs2.1, valfs1.2 = valfs2.2 & Sf.In fn1 K] ;
+     rpostF_ := λ (_ _ : funname) _ _ (fr1 fr2 : fstate), fr1 = fr2
   |}.
-
-  Let Pi (i:instr) :=
-    def_incl (i_Calls i) ->
-    wequiv_rec p p' ev ev dc_spec (st_eq tt) [::i] [::i] (st_eq tt).
-
-  Let Pi_r i := forall ii, Pi (MkI ii i).
-
-  Let Pc (c:cmd) :=
-    def_incl (c_Calls c) ->
-    wequiv_rec p p' ev ev dc_spec (st_eq tt) c c (st_eq tt).
 
   #[local] Lemma _checker_st_eqP : Checker_eq p p' checker_st_eq.
   Proof. by apply checker_st_eqP. Qed.
 
   #[local] Hint Resolve _checker_st_eqP : core.
 
-  Lemma it_dead_calls_callP fn :
-    wiequiv_f p p' ev ev (rpreF (eS:= dc_spec)) fn fn (rpostF (eS:=dc_spec)).
+  Section REC.
+
+  Context (env : env_t).
+
+  Let Pi (i:instr) :=
+    def_incl (i_Calls i) ->
+    wequiv_rec (env1:=env) (env2:=env) p p' ev ev dc_spec (st_eq tt) [::i] [::i] (st_eq tt).
+
+  Let Pi_r i := forall ii, Pi (MkI ii i).
+
+  Let Pc (c:cmd) :=
+    def_incl (c_Calls c) ->
+    wequiv_rec (env1:=env) (env2:=env) p p' ev ev dc_spec (st_eq tt) c c (st_eq tt).
+
+  Lemma it_dead_calls_callP_rec c : Pc c.
   Proof using pfxp.
-    apply wequiv_fun_ind => {}fn _ fs _ [<- <- hin] fd hfd; exists fd => //.
-    + by apply get_dead_calls.
-    move=> s hinit.
-    exists s=> //; exists (st_eq tt), (st_eq tt); split => //; last by apply st_eq_finalize.
     apply (cmd_rect (Pi:=Pi) (Pr:=Pi_r) (Pc:=Pc)) => //; rewrite /Pi_r /Pi /Pc.
     + by move=> ??; apply wequiv_nil.
     + move=> > hi hc; rewrite CallsE => /def_incl_union [??].
@@ -246,10 +245,24 @@ Section PROOF.
       apply wequiv_while_rel_eq with checker_st_eq tt => //.
       + by apply hc.
       by apply hc'.
-    + move=> >; rewrite !CallsE => hfin.
-      apply wequiv_call_rel_eq with checker_st_eq tt => //.
-      move=> ???; apply: wequiv_fun_rec; split => //.
-      by move: hfin; rewrite /def_incl; SfD.fsetdec.
+    move=> >; rewrite !CallsE => hfin.
+    apply wequiv_call_rel_eq with checker_st_eq tt => //.
+    move=> > [??]; apply: wequiv_fun_rec; split => //.
+    by move: hfin; rewrite /def_incl; SfD.fsetdec.
+  Qed.
+
+  End REC.
+
+  Lemma it_dead_calls_callP fn :
+    wiequiv_f p p' ev ev (rpreF (eS:= dc_spec)) fn fn (rpostF (eS:=dc_spec)).
+  Proof using pfxp.
+    rewrite /wiequiv_f.
+    apply wequiv_fun_ind => {}fn _ vals _ fs _ /= [<- <- <- hin] fd hfd; exists fd => //.
+    + by apply get_dead_calls.
+    move=> /= s hinit.
+    exists s=> //; exists (st_eq tt), (st_eq tt); split; last by apply st_eq_finalize.
+    + by apply st_eq_refl.
+    apply it_dead_calls_callP_rec.
     move=> n hn; apply: pfxp.
     by apply: live_calls_in hfd n hn.
   Qed.
@@ -289,7 +302,7 @@ Lemma it_dead_calls_errP (s : Sf.t) (p p': prog) :
   wiequiv_f p p' ev ev (rpreF (eS := eq_spec)) f f (rpostF (eS := eq_spec)).
 Proof.
 rewrite /dead_calls_err.
-case: ifP => // /SfD.F.subset_2 pfx [] <- f ev hin fs _ [_ <-].
+case: ifP => // /SfD.F.subset_2 pfx [] <- f ev hin valfs _ [/= _ [<- <-]].
 apply: it_dead_calls_callP => //; split => //.
 exact: live_calls_subset.
 Qed.

@@ -81,7 +81,7 @@ Qed.
 
 Lemma armv8a_mov_ofsP : mov_ofs_correct armv8a_saparams.(sap_mov_ofs).
 Proof.
-  move=> P' ev s1 e w ofs pofs x tag mk ii ins s2 P'_globs.
+  move=> env P' ev s1 e w ofs pofs x tag mk ii ins s2 P'_globs.
   t_xrbindP=> ve ok_ve ok_w vofs ok_vofs ok_pofs.
   rewrite /sap_mov_ofs /= /armv8a_mov_ofs.
   case: mk.
@@ -177,14 +177,14 @@ Qed.
 
 Lemma armv8a_immediateP : immediate_correct armv8a_saparams.(sap_immediate).
 Proof.
-  move=> P' ev s ii x z hty.
+  move=> env P' ev s ii x z hty.
   rewrite /= /sem_sopn /= /exec_sopn /= truncate_word_u /=.
   by rewrite /write_var set_var_eq_type ?hty.
 Qed.
 
 Lemma armv8a_swapP : swap_correct armv8a_saparams.(sap_swap).
 Proof.
-  move=> P' ev s ii tag x y z w pz pw hxty hyty hzty hwty hz hw.
+  move=> env P' ev s ii tag x y z w pz pw hxty hyty hzty hwty hz hw.
   rewrite /= /sem_sopn /= /get_gvar /= /get_var /= hz hw /=.
   rewrite /exec_sopn /= !truncate_word_u /= /write_var /set_var /=.
   rewrite (convertible_eval_atype hxty) (convertible_eval_atype hyty) //=.
@@ -212,7 +212,7 @@ Lemma sem_fopns_args_1 s (a : fopn_args) :
   sem_fopns_args s [:: a ] = sem_fopn_args a s.
 Proof. by rewrite /sem_fopns_args /=; case: sem_fopn_args. Qed.
 
-Lemma bind_ok_estate (s1 : estate) (f : estate -> exec estate) :
+Lemma bind_ok_estate (s1 : estate empty_env) (f : estate empty_env -> exec (estate empty_env)) :
   (Let s2 := ok s1 in f s2) = f s1.
 Proof. by []. Qed.
 
@@ -371,7 +371,7 @@ Section LLOADS.
 Notation vtmp2i := (mk_var_i (to_var R17)).
 
 Let foldM_restore m1 (top' : word Uptr) :=
-  foldM (fun '(x, ofs1) (vm : Vm.t) =>
+  foldM (fun '(x, ofs1) (vm : Vm.t empty_env) =>
     Let ws := if vtype x is aword ws then ok ws else Error ErrType in
     Let _ := assert (armv8a_check_ws ws) ErrType in
     Let w := read m1 Aligned (top' + wrepr Uptr ofs1)%R ws in
@@ -402,7 +402,7 @@ Proof.
   move/eqP: (hchk) => ?; subst ws.
   move/set_varP: hset => [_ _ ?]; subst vm2'.
 
-  have hsetvar : forall (vm : Vm.t) (w : word Uptr),
+  have hsetvar : forall (vm : Vm.t empty_env) (w : word Uptr),
       set_var (wdb := true) vm vtmp2i (Vword w) = ok vm.[v_var vtmp2i <- Vword w].
   - by move=> vm w; apply: set_var_eq_type.
   have hconv2 : convertible (vtype (v_var vtmp2i)) (aword reg_size).
@@ -580,10 +580,10 @@ Proof. constructor => *; exact: it_lower_callP. Qed.
 (* ------------------------------------------------------------------------ *)
 (* Lowering of the loads from a global. *)
 
-Lemma armv8a_glob_addrP gd s (y : var_i) e pa :
+Lemma armv8a_glob_addrP env gd (s : estate env) (y : var_i) e pa :
   sem_pexpr (wdb := true) gd s e >>= to_pointer = ok pa ->
   vtype y = aword Uptr ->
-  sem_sopn gd (Oarmv8a (ARMv8A_op ADR default_opts)) s [:: Lvar y] [:: e]
+  sem_sopn gd (Oarmv8a (ARMv8A_op ADR default_opts)) s [:: Lvar y] [::] [:: e]
   = ok (with_vm s (evm s).[y <- Vword pa]).
 Proof.
   t_xrbindP=> ve ok_ve ok_pa hty.
@@ -708,7 +708,7 @@ Qed.
 Lemma eval_assemble_cond_Onot rf c v v0 v1 :
   value_of_bool (arm_eval_cond (get_rf rf) c) = ok v1
   -> value_uincl v0 v1
-  -> sem_sop1 Onot v0 = ok v
+  -> sem_sop1 empty_env Onot v0 = ok v
   -> exists2 v',
        value_of_bool (arm_eval_cond (get_rf rf) (condt_not c)) = ok v'
        & value_uincl v v'.
@@ -730,7 +730,7 @@ Lemma eval_assemble_cond_Obeq ii m rf v x0 x1 r0 r1 v0 v1 :
   -> get_var (wdb := true) (evm m) x0 = ok v0
   -> of_var_e ii x1 = ok r1
   -> get_var (wdb := true) (evm m) x1 = ok v1
-  -> sem_sop2 Obeq v0 v1 = ok v
+  -> sem_sop2 empty_env Obeq v0 v1 = ok v
   -> exists2 v',
        value_of_bool (arm_eval_cond (get_rf rf) GE_ct) = ok v'
        & value_uincl v v'.
@@ -764,7 +764,7 @@ Lemma eval_assemble_cond_Oand rf c c0 c1 v v0 v1 v0' v1' :
   -> value_uincl v0 v0'
   -> value_of_bool (arm_eval_cond (get_rf rf) c1) = ok v1'
   -> value_uincl v1 v1'
-  -> sem_sop2 Oand v0 v1 = ok v
+  -> sem_sop2 empty_env Oand v0 v1 = ok v
   -> exists2 v',
        value_of_bool (arm_eval_cond (get_rf rf) c) = ok v'
        & value_uincl v v'.
@@ -790,7 +790,7 @@ Lemma eval_assemble_cond_Oor rf c c0 c1 v v0 v1 v0' v1' :
   -> value_uincl v0 v0'
   -> value_of_bool (arm_eval_cond (get_rf rf) c1) = ok v1'
   -> value_uincl v1 v1'
-  -> sem_sop2 Oor v0 v1 = ok v
+  -> sem_sop2 empty_env Oor v0 v1 = ok v
   -> exists2 v',
        value_of_bool (arm_eval_cond (get_rf rf) c) = ok v'
        & value_uincl v v'.
@@ -1146,37 +1146,39 @@ End ASM_GEN.
 Lemma armv8a_spec_shp_lower :
   slh_lowering_proof.spec_shp_lower (slh_lowering.shp_lower armv8a_shparams).
 Proof.
-  move=> s s' gd lvs slho es args res lvs' op' es'.
+  move=> env s s' gd lvs slho als es args res lvs' op' als' es'.
   rewrite /= /armv8a_sh_lower; case: all => //=.
   case: slho => [||| ws ||] //=.
   (* SLHinit *)
-  + move=> [<- <- <-] _ hes hexec hw.
+  + move=> [<- <- <- <-] _ hes hexec hw.
     rewrite /sem_sopn hes /=.
     by move: hexec; rewrite /exec_sopn /= => ->.
   (* SLHupdate *)
-  + case: all => //= -[<- <- <-] hargs hes hexec hw.
+  + case: all => //= -[<- <- <- <-] hargs hes hexec hw.
     rewrite /sem_sopn hes /=.
     move: hargs hexec; case: args {hes} => // vb [|vmsf [|??]] /= [->];
-      rewrite /exec_sopn /=; t_xrbindP=> //.
+      rewrite /exec_sopn /=; case: als => //=; t_xrbindP=> //.
     move=> t w hw' ? ?; subst t res.
     by rewrite hw' /= hw.
   (* SLHmove *)
-  + case: all => //= -[<- <- <-] _ hes hexec hw.
+  + case: all => //= -[<- <- <- <-] _ hes hexec hw.
     rewrite /sem_sopn hes /=.
     by move: hexec; rewrite /exec_sopn /= => ->.
   (* SLHprotect *)
   case hws: ((ws == U32) || (ws == U64)) => //=.
-  case: all => //= -[<- <- <-] hargs hes hexec hw.
+  case: all => //= -[<- <- <- <-] hargs hes hexec hw.
   rewrite /sem_sopn hes /=.
+  move: hexec; rewrite /exec_sopn /=; case: als => //= hexec.
   case: args hargs hexec {hes} => // vx [|vmsf [|??]] /=; first by case.
-  2: by rewrite /exec_sopn /=; t_xrbindP.
+  2: by t_xrbindP.
   move=> [_ [<-] hv].
+  rewrite hws /=.
+  t_xrbindP=> t w hw' wm hwm ? ?; subst t res.
+  move/to_wordI: hv => [sz [w0] [? /truncate_wordP [hle hze]]]; subst vmsf.
   case/orP: hws => /eqP ?; subst ws.
-  all: rewrite /exec_sopn /=; t_xrbindP=> t w hw' wm hwm ? ?; subst t res.
-  all: move/to_wordI: hv => [sz [w0] [? /truncate_wordP [hle hze]]]; subst vmsf.
   all: rewrite hw' /= truncate_word_le ?(cmp_le_trans _ hle) //.
   all: rewrite -(zero_extend_idem (s2 := U64)) // -hze zero_extend0 /=.
-  all: by rewrite /armv8a_se_protect_sem worC wor0.
+  all: by move: hw; rewrite /armv8a_se_protect_sem /se_protect_sem worC wor0.
 Qed.
 
 Lemma armv8a_hshp : slh_lowering_proof.h_sh_params (ap_shp armv8a_params).
@@ -1199,31 +1201,33 @@ End STACK_ZEROIZATION.
 (* ------------------------------------------------------------------------ *)
 (* Shared hypotheses. *)
 
-Definition armv8a_is_move_opP op vx v :
+Definition armv8a_is_move_opP op vals vx v :
   ap_is_move_op armv8a_params op
-  -> exec_sopn (Oasm op) [:: vx ] = ok v
+  -> exec_sopn (Oasm op) vals [:: vx ] = ok v
   -> values_uincl v [:: vx ].
 Proof.
   case: op => [[[] // [mn opt]] | [] //] /=; last first.
-  + move=> _; rewrite /exec_sopn /=.
+  + move=> _; rewrite /exec_sopn /=; case: vals => //=.
     t_xrbindP=> t w /to_wordI' [ws [wx [hle ??]]] ? ?; subst.
     constructor; last by constructor.
     exact: word_uincl_zero_ext.
   case: ifP => // hmn /negPf hs.
   case: opt hmn hs => sho sz hmn /= hs.
   case: sho hs => [sk | ] hs; first by [].
-  rewrite /exec_sopn /=.
+  rewrite /exec_sopn /sopn_sem /sopn_sem_ /=.
+  apply: rbindP => semi.
+  apply: rbindP => _ _ [<-] {semi}.
+  case: vals => //=.
+  rewrite /semi_to_atype_t.
+  change (create_env [::] [::]) with empty_env.
   move: (computational_eq _) (computational_eq _) => e1 e2.
   rewrite <- e1, <- e2.
   clear e1 e2.
   (* To avoid duplication, we prove that [mn] returns [to_word ws vx] for
      some [ws]. *)
   have ->:
-    Let semi := assert (id_valid (mn_desc {| has_shift := None; opts_size := sz |} mn)) ErrType >>
-                ok (id_semi (mn_desc {| has_shift := None; opts_size := sz |} mn)) in
-    (Let t := app_sopn (map eval_ltype (id_tin (mn_desc {| has_shift := None; opts_size := sz |} mn))) semi [:: vx] in
+    (Let t := app_sopn (map eval_ltype (id_tin (mn_desc {| has_shift := None; opts_size := sz |} mn))) (id_semi (mn_desc {| has_shift := None; opts_size := sz |} mn)) [:: vx] in
     ok (list_ltuple t)) =
-      Let _ := assert (id_valid (mn_desc {| has_shift := None; opts_size := sz |} mn)) ErrType in
       Let ws := if head lbool (id_tout (mn_desc {| has_shift := None; opts_size := sz |} mn)) is lword ws
                 then ok ws else type_error in
       Let wx := to_word ws vx in
@@ -1232,7 +1236,7 @@ Proof.
       case: sz => //=;
       case: to_word => //= ?;
       rewrite /armv8a_MOV_semi ?zero_extend_u.
-  t_xrbindP=> _ ws0 _ w0 hw0 hv.
+  t_xrbindP=> ws0 _ w0 hw0 hv.
   move/to_wordI: hw0 => [ws [w [? htr]]]; subst vx.
   rewrite -hv.
   constructor=> //=.

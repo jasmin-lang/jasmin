@@ -42,14 +42,14 @@ by case: (w2 == 0%w); case: ((wsigned w1 == wmin_signed sz) && (w2 == (-1)%R)).
 Qed.
 
 (* The divisions on words. *)
-Lemma sem_sop2_typed_divE sg sz (w1 w2 : word sz) :
-  sem_sop2_typed (Odiv sg (Op_w sz)) w1 w2 =
+Lemma sem_sop2_typed_divE env sg sz (w1 w2 : word sz) :
+  sem_sop2_typed env (Odiv sg (Op_w sz)) w1 w2 =
   (if ((w2 == 0) || [&& sg == Signed, wsigned w1 == wmin_signed sz & w2 == -1%w])%w
    then Error ErrArith else ok (signed wdiv wdivi sg w1 w2)).
 Proof. by rewrite /sem_sop2_typed mk_sem_op2E divmod_eq. Qed.
 
-Lemma sem_sop2_typed_modE sg sz (w1 w2 : word sz) :
-  sem_sop2_typed (Omod sg (Op_w sz)) w1 w2 =
+Lemma sem_sop2_typed_modE env sg sz (w1 w2 : word sz) :
+  sem_sop2_typed env (Omod sg (Op_w sz)) w1 w2 =
   (if ((w2 == 0) || [&& sg == Signed, wsigned w1 == wmin_signed sz & w2 == -1%w])%w
    then Error ErrArith else ok (signed wmod wmodi sg w1 w2)).
 Proof. by rewrite /sem_sop2_typed mk_sem_op2E divmod_eq. Qed.
@@ -62,10 +62,10 @@ Section WITH_PARAMS.
 Context {cfcd : FlagCombinationParams}.
 
 (* [opN] carries no condition: it never fails. *)
-Lemma sem_opN_typed_ok (op : opN) :
-  sem_forall (@is_ok _ _) _ (sem_opN_typed op).
+Lemma sem_opN_typed_ok env (op : opN) :
+  sem_forall (@is_ok _ _) _ (sem_opN_typed env op).
 Proof.
-apply: (sem_forall_eq (g := sem_prod_ok _ (sem_opN_total op)));
+apply: (sem_forall_eq (g := sem_prod_ok _ (sem_opN_total env op)));
   first exact: mk_sem_op_nil.
 apply: (sem_forall_m (P := fun r => exists t, r = ok t)); last exact: sem_prod_ok_ok.
 by move=> r [t ->].

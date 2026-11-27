@@ -173,6 +173,11 @@ let pp_optional_comment fmt s =
   if s <> "" then
     Format.fprintf fmt " /* %s */" s
 
+let pp_optional_al pp_len fmt al =
+  if al = [] then ()
+  else
+    F.fprintf fmt "{%a}" (pp_list ",@ " pp_len) al
+
 let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
   F.fprintf fmt "%a" pp_info (i.i_loc, i.i_info);
   F.fprintf fmt "%a" pp_annotations i.i_annot;
@@ -191,9 +196,10 @@ let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
       (pp_gtype pp_len) ty
       (pp_tag tg)
 
-  | Copn(x, t, o, e) ->
-    F.fprintf fmt "@[<hov 2>%a%a#%a(%a);%a@]"
+  | Copn(x, t, o, als, e) ->
+    F.fprintf fmt "@[<hov 2>%a%a#%a%a(%a);%a@]"
       (pp_glvs ~debug pp_len pp_var) x pp_cast_opn o pp_opn o
+      (pp_optional_al pp_len) als
       (pp_ges ~debug pp_len pp_var) e
       pp_optional_comment (pp_tag t)
 
@@ -244,12 +250,12 @@ let rec pp_gi ~debug pp_info pp_len pp_opn pp_var fmt i =
       (pp_ge ~debug pp_len pp_var) e
       (pp_cblock ~debug pp_info pp_len pp_opn pp_var) c'
 
-  | Ccall(x, f, e) ->
+  | Ccall(x, f, al, e) ->
     let pp_x fmt = function
       | [] -> ()
       | x -> F.fprintf fmt "%a" (pp_glvs ~debug pp_len pp_var) x in
-    F.fprintf fmt "@[<hov 2>%a%s(%a);@]"
-      pp_x x f.fn_name (pp_ges ~debug pp_len pp_var) e
+    F.fprintf fmt "@[<hov 2>%a%s%a(%a);@]"
+      pp_x x f.fn_name (pp_optional_al pp_len) al (pp_ges ~debug pp_len pp_var) e
 
 (* -------------------------------------------------------------------- *)
 and pp_gc ~debug pp_info pp_len pp_opn pp_var fmt c =
@@ -299,8 +305,9 @@ let pp_header_ pp_size pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_size in
   let ret = List.map L.unloc fd.f_ret in
   let set_var_type x ty = GV.mk x.v_name x.v_kind ty x.v_dloc x.v_annot in
-  F.fprintf fmt "fn %s @[(%a)@] -> @[(%a)@]"
+  F.fprintf fmt "fn %s%a @[(%a)@] -> @[(%a)@]"
     fd.f_name.fn_name
+    (pp_optional_al pp_var) (List.map snd fd.f_al)
     (pp_list ",@ " pp_vd) fd.f_args
     (pp_return_type pp_size) (List.combine fd.f_ret_info.ret_annot (List.map2 set_var_type ret fd.f_tyout))
 
@@ -384,6 +391,25 @@ let pp_pprog ~debug pd msfsize asmOp fmt p =
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_pitem ~debug (pp_pexpr_ ~debug) pp_opn pp_pvar)) (List.rev p)
 
+let pp_var ~debug =
+    if debug then
+      fun fmt x -> F.fprintf fmt "%s.%s" x.v_name (string_of_uid x.v_id)
+    else
+      fun fmt x -> F.fprintf fmt "%s" x.v_name
+
+let pp_dvar ~debug fmt x =
+  let pp_dloc fmt d =
+    if not (L.isdummy d) then F.fprintf fmt " (defined at %a)" L.pp_loc d
+  in
+  F.fprintf fmt "%a%a" (pp_var ~debug) x pp_dloc x.v_dloc
+
+let rec pp_expr ~debug fmt e =
+  pp_ge ~debug pp_len (pp_var ~debug) fmt e
+and pp_len fmt len =
+  pp_expr ~debug:false fmt (Prog.expr_of_al len)
+
+let pp_ty = pp_gtype pp_len
+
 let pp_fun_ ~debug ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in
   let pp_locals = Option.default (fun fmt -> Sv.iter (F.fprintf fmt "%a;@ " pp_vd)) pp_locals in
@@ -403,21 +429,6 @@ let pp_fun_ ~debug ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
 
 let pp_fun ~debug ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
   pp_fun_ ~debug ?pp_locals ~pp_info pp_opn pp_var fmt fd
-
-let pp_var ~debug =
-    if debug then
-      fun fmt x -> F.fprintf fmt "%s.%s" x.v_name (string_of_uid x.v_id)
-    else
-      fun fmt x -> F.fprintf fmt "%s" x.v_name
-
-let pp_dvar ~debug fmt x =
-  let pp_dloc fmt d =
-    if not (L.isdummy d) then F.fprintf fmt " (defined at %a)" L.pp_loc d
-  in
-  F.fprintf fmt "%a%a" (pp_var ~debug) x pp_dloc x.v_dloc
-
-let pp_expr ~debug fmt e =
-  pp_ge ~debug pp_len (pp_var ~debug) fmt e
 
 let pp_eassert ~debug fmt e =
   pp_ga ~debug pp_len (pp_var ~debug) fmt e

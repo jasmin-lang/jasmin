@@ -4,6 +4,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
 
 Require Export sopn_semi values.
 Require Import
+  ident
   pseudo_operator
   sem_type
   shift_kind
@@ -35,75 +36,127 @@ Variant doit_t :=
   | DOIT
   | NOT_DOIT.
 
+Fixpoint dep_type (n : nat) (A : Type) (B : seq A -> Type) : Type :=
+  match n with
+  | 0%nat => B [::]
+  | S n => forall (a : A), dep_type n (fun l => B (a :: l))
+  end.
+
+Fixpoint app_dep n A (B : seq A -> Type) : dep_type n B -> forall l : seq A, exec (B l) :=
+  match n with
+  | 0%nat => fun (b : B [::]) (l : seq A) => if l is [::] then ok b else type_error
+  | S n => fun (f : forall (a : A), _) (l : seq A) =>
+    if l is a :: l then app_dep (f a) l else type_error
+  end.
+
+Fixpoint dep_map n A (B C : seq A -> Type) (f : forall l, B l -> C l) :
+    dep_type n B -> dep_type n C :=
+  match n return dep_type n B -> dep_type n C with
+  | 0%nat => fun b => f [::] b
+  | S n => fun g a => dep_map (fun l => f (a :: l)) (g a)
+  end.
+
+(* The semantics of an instruction, once its array lengths are known: [tin] and
+   [tout] are the types of its arguments and results, [err] is the error raised
+   when one of the safety conditions does not hold. *)
+Record instr_sem (tin tout : seq ctype) (err : error) := mkInstrSem {
+  (* Total semantics: no error can be raised and the boolean outputs are plain
+     booleans (no [None]); the semantics of the instruction is obtained from it
+     by [mk_semi], see [semi] below. *)
+  i_semi_total : sem_prod tin (sem_tuple_t tout);
+  i_safe   : seq safety_cond;
+  (* One initialisation condition per output: the output is defined exactly
+     when its condition holds on the arguments. *)
+  i_init   : seq safety_cond;
+  (* Extra properties ensuring that previous information are consistent:
+     the safety and initialisation conditions are well typed, there is one
+     initialisation condition per output, and the error is not a type error *)
+  i_wf         : [&& all (safety_cond_wt tin) i_safe,
+                     all (safety_cond_wt tin) i_init,
+                     ssrnat.eqn (size i_init) (size tout) & ~~ is_ErrType err];
+    (* the semantics is monotone with respect to [value_uincl] *)
+  semu     : forall vs vs' v,
+                values_uincl vs vs' ->
+                app_sopn_v (mk_semi i_safe err i_init i_semi_total) vs = ok v ->
+                exists2 v', app_sopn_v (mk_semi i_safe err i_init i_semi_total) vs' = ok v'
+                  & values_uincl v v';
+}.
+
+Arguments mkInstrSem {tin tout err} & i_semi_total i_safe i_init i_wf semu.
+Arguments semu {tin tout err} _ [vs vs' v] _ _.
+
 Record instruction_desc := mkInstruction {
   str      : unit -> string;
+  (* The array lengths the instruction is parameterized by: its types, its
+     semantics and its conditions depend on their values. *)
+  al       : seq (Uint63.int * Ident.ident);
   tin      : list atype;
   i_in     : seq arg_desc;
   tout     : list atype;
   i_out    : seq arg_desc;
   conflicts: seq (arg_position * arg_position);
-  (* Total semantics: no error can be raised and the boolean outputs are plain
-     booleans (no [None]); the semantics of the instruction is obtained from it
-     by [mk_semi], see [semi] below. *)
-  i_semi_total : sem_prod (map eval_atype tin) (sem_tuple_t (map eval_atype tout));
   (* This field allows to ensure the validity of the instruction,
      it is usefull when the its name allows to encode more instructions than the real existing one.
      See field id_valid in arch/arch_decl.v
   *)
   i_valid  : bool;
-  i_safe   : seq safety_cond;
   (* The error raised when one of the safety conditions does not hold. *)
   i_err    : error;
-  (* One initialisation condition per output: the output is defined exactly
-     when its condition holds on the arguments. *)
-  i_init   : seq safety_cond;
   (* Whether the operator has data operand independent timing, i.e. it is
      implemented using only DOIT (Intel) / DIT (ARM) instructions.
      See field id_doit in arch/arch_decl.v.
      Pseudo operators and SLH operators are compiled to DOIT instructions
      only, but this needs to be checked manually. *)
   i_doit   : doit_t;
-  (* Extra properties ensuring that previous information are consistent:
-     the safety and initialisation conditions are well typed, there is one
-     initialisation condition per output, and the error is not a type error *)
-  i_wf         : [&& all (safety_cond_wt (map eval_atype tin)) i_safe,
-                     all (safety_cond_wt (map eval_atype tin)) i_init,
-                     ssrnat.eqn (size i_init) (size tout) & ~~ is_ErrType i_err];
-    (* the semantics is monotone with respect to [value_uincl] *)
-  semu     : forall vs vs' v,
-                values_uincl vs vs' ->
-                app_sopn_v (mk_semi i_safe i_err i_init i_semi_total) vs = ok v ->
-                exists2 v', app_sopn_v (mk_semi i_safe i_err i_init i_semi_total) vs' = ok v'
-                  & values_uincl v v';
+  i_sem    : dep_type (size al) (fun vals =>
+               let env := create_env al vals in
+               instr_sem (map (eval_atype env) tin) (map (eval_atype env) tout) i_err);
 }.
+
+(* The semantics of an instruction that has no array length. *)
+Definition instr_sem0 (tin tout : seq atype) (err : error)
+    (s : instr_sem (map (eval_atype empty_env) tin) (map (eval_atype empty_env) tout) err) :
+    dep_type 0 (fun vals =>
+      let env := create_env [::] vals in
+      instr_sem (map (eval_atype env) tin) (map (eval_atype env) tout) err) :=
+  s.
+Arguments instr_sem0 {tin tout err} & s.
 
 (* The semantics of an instruction: the safety conditions are checked on the
    arguments, then the total semantics is filtered by the initialisation
    conditions. *)
 Definition semi {sm : SemMode} (i : instruction_desc) :
-    sem_prod (map eval_atype i.(tin)) (exec (sem_tuple (map eval_atype i.(tout)))) :=
-  mk_semi i.(i_safe) i.(i_err) i.(i_init) i.(i_semi_total).
+    dep_type (size i.(al)) (fun vals =>
+      let env := create_env i.(al) vals in
+      sem_prod (map (eval_atype env) i.(tin)) (exec (sem_tuple (map (eval_atype env) i.(tout))))) :=
+  dep_map
+    (fun vals s => mk_semi s.(i_safe) i.(i_err) s.(i_init) s.(i_semi_total))
+    i.(i_sem).
 Arguments semi {sm} !i /.
 
-Arguments semu _ [vs vs' v] _ _.
+Notation mk_instr_sem ctin ctout semi_total safe err init :=
+  {| i_semi_total := semi_total;
+     i_safe       := safe;
+     i_init       := init;
+     i_wf         := refl_equal;
+     semu         := @vuincl_app_sopn_v ctin ctout
+                       (@mk_semi _ ctin ctout safe err init semi_total) refl_equal;
+  |}.
 
 Notation mk_instr_desc str tin i_in tout i_out semi_total safe err init valid doit :=
   {| str          := str;
+     al           := [::];
      tin          := tin;
      i_in         := i_in;
      tout         := tout;
      i_out        := i_out;
      conflicts    := [::];
-     i_semi_total := semi_total;
-     i_safe       := safe;
      i_err        := err;
-     i_init       := init;
      i_valid      := valid;
      i_doit       := doit;
-     i_wf         := refl_equal;
-     semu         := @vuincl_app_sopn_v (map eval_atype tin) (map eval_atype tout)
-                       (@mk_semi _ (map eval_atype tin) (map eval_atype tout)
-                          safe err init semi_total) refl_equal;
+     i_sem        :=
+       instr_sem0 (mk_instr_sem (map (eval_atype empty_env) tin) (map (eval_atype empty_env) tout)
+         semi_total safe err init);
   |}.
 
 (* For an instruction without safety condition. *)
@@ -272,27 +325,30 @@ Qed.
 (* Reading the array is the only condition, and the output is always
    defined. *)
 Lemma copy_wf ws p :
-  [&& all (safety_cond_wt (map eval_atype [:: aarr ws p])) [:: sc_all_init ws p 0],
-      all (safety_cond_wt (map eval_atype [:: aarr ws p])) [:: IBool true],
-      ssrnat.eqn (size [:: IBool true]) (size [:: aarr ws p])
+  [&& all (safety_cond_wt (map (eval_atype empty_env) [:: aarr ws (ALConst p)])) [:: sc_all_init ws p 0],
+      all (safety_cond_wt (map (eval_atype empty_env) [:: aarr ws (ALConst p)])) [:: IBool true],
+      ssrnat.eqn (size [:: IBool true]) (size [:: aarr ws (ALConst p)])
     & ~~ is_ErrType ErrAddrUndef].
 Proof. by rewrite /= andbT safety_cond_wt_all_init. Qed.
 
-Definition Ocopy_instr ws p :=
+Definition Ocopy_instr ws len :=
   {| str      := pp_sz "copy" ws;
-     tin      := [:: aarr ws p];
+     al       := [::];
+     tin      := [:: aarr ws (ALConst len)];
      i_in     := [:: E 1];
-     tout     := [:: aarr ws p];
+     tout     := [:: aarr ws (ALConst len)];
      i_out    := [:: E 0];
      conflicts:= [::];
-     i_semi_total := @copy_total ws p;
      i_valid  := true;
      i_doit   := DOIT;
-     i_safe   := [:: sc_all_init ws p 0];
      i_err    := ErrAddrUndef;
-     i_init   := [:: IBool true];
-     i_wf         := copy_wf ws p;
-     semu     := @copy_semu ws p;
+     i_sem    :=
+       instr_sem0 {| i_semi_total := @copy_total ws len;
+          i_safe   := [:: sc_all_init ws len 0];
+          i_init   := [:: IBool true];
+          i_wf         := copy_wf ws len;
+          semu     := @copy_semu ws len;
+       |};
   |}.
 
 (* The arguments a constant semantics collects do not change its result. *)
@@ -327,40 +383,46 @@ by rewrite (@app_sopn_mk_semi_const _ _ _ _ (ok tt) tys [::] [::] vs vs' u
 Qed.
 
 Definition Odeclassify_instr ty :=
-  let cty := eval_atype ty in
+  let cty := eval_atype empty_env ty in (* FIXME: empty_env *)
   {| str      := pp_s (string_of_pseudo_operator (Odeclassify ty));
+    al       := [::];
     tin      := [:: ty ];
     i_in     := [:: E 0 ];
     tout     := [:: ];
     i_out    := [:: ];
     conflicts:= [::];
-    i_semi_total := sem_prod_const [:: cty ] tt;
-    i_safe   := [:: ];
     i_err    := ErrSemUndef;
-    i_init   := [:: ];
     i_valid  := true;
     i_doit   := DOIT;
-    i_wf         := refl_equal;
-    semu     := @const_semu [:: cty ];
+    i_sem    :=
+      instr_sem0 {| i_semi_total := sem_prod_const [:: cty ] tt;
+         i_safe   := [:: ];
+         i_init   := [:: ];
+         i_wf         := refl_equal;
+         semu     := @const_semu [:: cty ];
+      |};
   |}.
 
 Definition Odeclassify_mem_instr len :=
   let ty := aword Uptr in
-  let cty := eval_atype ty in
+  let cty := eval_atype empty_env ty in (* FIXME: empty_env? *)
   {| str      := pp_s (string_of_pseudo_operator (Odeclassify_mem len));
+    al       := [::];
     tin      := [:: ty ];
     i_in     := [:: E 0 ];
     tout     := [:: ];
     i_out    := [:: ];
     conflicts:= [::];
-    i_semi_total := sem_prod_const [:: cty ] tt;
-    i_safe   := [:: ];
     i_err    := ErrSemUndef;
-    i_init   := [:: ];
     i_valid  := true;
     i_doit   := DOIT;
-    i_wf         := refl_equal;
-    semu     := @const_semu [:: cty ];
+    i_sem    :=
+      instr_sem0 {| i_semi_total := sem_prod_const [:: cty ] tt;
+         i_safe   := [:: ];
+         i_init   := [:: ];
+         i_wf         := refl_equal;
+         semu     := @const_semu [:: cty ];
+      |};
   |}.
 
 Definition Onop_instr :=
@@ -397,21 +459,24 @@ Definition Osubcarry_instr sz :=
            [:: IBool true; IBool true] true DOIT.
 
 Definition Ospill_instr o (tys:seq atype) :=
-  let ctys := map eval_atype tys in
+  let ctys := map (eval_atype empty_env) tys in (* FIXME: empty_env *)
   {| str      := (fun _ => string_of_pseudo_operator (Ospill o tys));
+     al       := [::];
      tin      := tys;
      i_in     := mapi (fun i _ => E i) tys;
      tout     := [:: ];
      i_out    := [:: ];
      conflicts:= [::];
-     i_semi_total := sem_prod_const ctys tt;
-     i_safe   := [:: ];
      i_err    := ErrSemUndef;
-     i_init   := [:: ];
      i_valid  := true;
      i_doit   := DOIT;
-     i_wf         := refl_equal;
-     semu     := @const_semu ctys;
+     i_sem    :=
+       instr_sem0 {| i_semi_total := sem_prod_const ctys tt;
+          i_safe   := [:: ];
+          i_init   := [:: ];
+          i_wf         := refl_equal;
+          semu     := @const_semu ctys;
+       |};
   |}.
 
 Lemma value_uincl_oto_val ty (z z' : sem_t ty) :
@@ -442,21 +507,24 @@ by repeat constructor; apply: value_uincl_oto_val.
 Qed.
 
 Definition Oswap_instr ty :=
-  let cty := eval_atype ty in
+  let cty := eval_atype empty_env ty in (* FIXME: empty_env *)
   {| str    := (fun _ => "swap"%string);
+     al     := [::];
      tin    := [:: ty; ty];
      i_in   := [:: E 0; E 1]; (* this info is relevant *)
      tout   := [:: ty; ty];
      i_out  := [:: E 0; E 1]; (* this info is relevant *)
      conflicts:= [::];
-     i_semi_total := fun x y => (y, x);
-     i_safe := [::];
      i_err  := ErrSemUndef;
-     i_init := [:: IBool true; IBool true];
      i_valid := true;
      i_doit := DOIT;
-     i_wf         := refl_equal;
-     semu   := @swap_semu cty;
+     i_sem    :=
+       instr_sem0 {| i_semi_total := fun x y => (y, x);
+          i_safe := [::];
+          i_init := [:: IBool true; IBool true];
+          i_wf         := refl_equal;
+          semu   := @swap_semu cty;
+       |};
   |}.
 
 Definition pseudo_op_get_instr_desc (o : pseudo_operator) : instruction_desc :=
@@ -545,22 +613,25 @@ Qed.
 
 Definition SLHprotect_ptr_str := "protect_ptr"%string.
 Definition SLHprotect_ptr_instr ws n :=
-  let tin := [:: aarr ws n; ty_msf ] in
+  let tin := [:: aarr ws (ALConst n); ty_msf ] in
   let semi := @se_protect_ptr_sem (arr_size ws n) in
   {| str      := pp_s SLHprotect_ptr_str;
+     al       := [::];
      tin      := tin;
      i_in     := [:: E 0; E 1 ]; (* this info is irrelevant *)
-     tout     := [:: aarr ws n ];
+     tout     := [:: aarr ws (ALConst n) ];
      i_out    := [:: E 2 ]; (* this info is irrelevant *)
      conflicts:=[::];
-     i_semi_total := semi;
-     i_safe   := [::];
      i_err    := ErrSemUndef;
-     i_init   := [:: IBool true ];
      i_valid  := true;
      i_doit   := DOIT;
-     i_wf         := refl_equal;
-     semu     := @protect_ptr_semu (arr_size ws n);
+     i_sem    :=
+       instr_sem0 {| i_semi_total := semi;
+          i_safe   := [::];
+          i_init   := [:: IBool true ];
+          i_wf         := refl_equal;
+          semu     := @protect_ptr_semu (arr_size ws n);
+       |};
   |}.
 
 Lemma protect_ptr_fail_semu n vs vs' v:
@@ -584,9 +655,9 @@ Qed.
 (* The only safety condition is that the MSF is zero, and the output is
    always defined. *)
 Lemma protect_ptr_fail_wf ws n :
-  [&& all (safety_cond_wt (map eval_atype [:: aarr ws n; ty_msf])) [:: sc_is_zero msf_size 1],
-      all (safety_cond_wt (map eval_atype [:: aarr ws n; ty_msf])) [:: IBool true],
-      ssrnat.eqn (size [:: IBool true]) (size [:: aarr ws n])
+  [&& all (safety_cond_wt (map (eval_atype empty_env) [:: aarr ws (ALConst n); ty_msf])) [:: sc_is_zero msf_size 1],
+      all (safety_cond_wt (map (eval_atype empty_env) [:: aarr ws (ALConst n); ty_msf])) [:: IBool true],
+      ssrnat.eqn (size [:: IBool true]) (size [:: aarr ws (ALConst n)])
     & ~~ is_ErrType ErrSemUndef].
 Proof. by rewrite /= !andbT safety_cond_wt_is_zero. Qed.
 
@@ -594,19 +665,22 @@ Definition SLHprotect_ptr_fail_str := "protect_ptr_fail"%string.
 Definition SLHprotect_ptr_fail_instr ws n :=
   let len := arr_size ws n in
   {| str      := pp_s SLHprotect_ptr_fail_str;
-     tin      := [:: aarr ws n; ty_msf ];
+     al       := [::];
+     tin      := [:: aarr ws (ALConst n); ty_msf ];
      i_in     := [:: E 0; E 1 ]; (* this info is irrelevant *)
-     tout     := [:: aarr ws n ];
+     tout     := [:: aarr ws (ALConst n) ];
      i_out    := [:: E 2 ]; (* this info is irrelevant *)
      conflicts:=[::];
-     i_semi_total := fun (t : WArray.array len) (_ : wmsf) => t;
-     i_safe   := [:: sc_is_zero msf_size 1];
      i_err    := ErrSemUndef;
-     i_init   := [:: IBool true ];
      i_valid  := true;
      i_doit   := DOIT;
-     i_wf         := protect_ptr_fail_wf ws n;
-     semu     := @protect_ptr_fail_semu len;
+     i_sem    :=
+       instr_sem0 {| i_semi_total := fun (t : WArray.array len) (_ : wmsf) => t;
+          i_safe   := [:: sc_is_zero msf_size 1];
+          i_init   := [:: IBool true ];
+          i_wf         := protect_ptr_fail_wf ws n;
+          semu     := @protect_ptr_fail_semu len;
+       |};
   |}.
 
 Definition slh_op_instruction_desc  (o : slh_op) : instruction_desc :=

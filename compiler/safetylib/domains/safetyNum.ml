@@ -581,7 +581,7 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
       | Mglobal (AarraySlice (gv,ws,offset)) 
       | Mlocal  (AarraySlice (gv,ws,offset)) ->
         List.fold_right (fun j ves ->
-            let p = offset + j in
+            let p = Z.(offset + of_int j) in
             let mvj = AarraySlice (gv, U8, p) in
             let mvj = match v with
               | Mglobal _ -> Mglobal mvj

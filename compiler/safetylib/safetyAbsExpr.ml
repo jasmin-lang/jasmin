@@ -15,25 +15,25 @@ open SafetyConstr
 type 'a gmsub = { ms_v      : var;
                   ms_sc     : Expr.v_scope;
                   ms_ws     : wsize;
-                  ms_len    : int;
+                  ms_len    : Z.t;
                   ms_offset : 'a; }
 
 (* - [{ms_v; ms_ws; ms_len; Some ms_offset}] is the slice
      [8*ms_offset; 8*ms_offset + ms_ws * ms_len[ of ms_v.
      Note that the offset is not scaled on the word-size.
    - if [ms_offset] is not, the slices starts at an unknown offset. *)
-type msub = int gmsub
+type msub = Z.t gmsub
 
 (*-------------------------------------------------------------------------*)
 let check_msub ms =
   let gv = ms.ms_v in
   (* array size, in bytes   *)
-  let arr_size = arr_range gv * (size_of_ws (arr_size gv)) in
+  let arr_size = Z.(arr_range gv * of_int (size_of_ws (arr_size gv))) in
   (* sub-array size, in bytes * *)
-  let sub_size = ms.ms_len * (size_of_ws ms.ms_ws) in
+  let sub_size = Z.(ms.ms_len * of_int (size_of_ws ms.ms_ws)) in
   let offset = ms.ms_offset in
   (* The sub-array indeed fits in the lhs array.  *)
-  assert (0 <= offset && offset + sub_size <= arr_size)
+  assert (Z.leq Z.zero offset && Z.leq Z.(offset + sub_size) arr_size)
 
 let check_msubo ms = match ms.ms_offset with
   | None -> ()
@@ -44,7 +44,7 @@ let msub_of_arr gv sc =
                ms_sc     = sc;
                ms_ws     = arr_size gv;
                ms_len    = arr_range gv;
-               ms_offset = Some 0; } in
+               ms_offset = Some Z.zero; } in
   check_msubo msub;
   msub
 
@@ -219,7 +219,7 @@ let print_not_word_expr e =
   Format.eprintf "@[<v>Should be a word expression:@;\
                   @[%a@]@;Type:@;@[%a@]@]@."
     (Printer.pp_expr ~debug:(!Glob_options.debug)) e
-    (PrintCommon.pp_ty) (Conv.ty_of_cty (Conv.cty_of_ty (ty_expr e)))
+    Printer.pp_ty (Conv.ty_of_cty (Conv.cty_of_ty (ty_expr e)))
 
 let check_is_int v =
   let gv = L.unloc v.gv in
@@ -227,7 +227,7 @@ let check_is_int v =
   | Bty Int -> ()
   | _ ->
     Format.eprintf "%s should be an int but is a %a@."
-      gv.v_name PrintCommon.pp_ty gv.v_ty;
+      gv.v_name Printer.pp_ty gv.v_ty;
     raise (Aint_error "Bad type")
 
 let check_is_word v =
@@ -236,7 +236,7 @@ let check_is_word v =
   | Bty (U _) -> ()
   | _ ->
     Format.eprintf "%s should be a word but is a %a@."
-      gv.v_name PrintCommon.pp_ty gv.v_ty;
+      gv.v_name Printer.pp_ty gv.v_ty;
     raise (Aint_error "Bad type")
 
 
@@ -251,12 +251,12 @@ type mlvar =
   (* If there is uncertainty on the lvalue where
      the assignement takes place. *)
 
-  | MLasub of minfo * int option gmsub
+  | MLasub of minfo * Z.t option gmsub
   (* None is used if the offset is not determined *)
 
 let pp_offset fmt = function
   | None   -> Format.fprintf fmt "??"
-  | Some i -> Format.fprintf fmt "%d" i
+  | Some i -> Format.fprintf fmt "%a" Z.pp_print i
 
 let pp_mlvar fmt = function
   | MLnone -> Format.fprintf fmt "MLnone"
@@ -267,11 +267,11 @@ let pp_mlvar fmt = function
       info.i_instr_number
       (pp_list pp_mvar) mvs
   | MLasub (info,msub) ->
-    Format.fprintf fmt "MLasub (%d) @[<hov 2>%a.[(u%d)%a : %d]@]"
+    Format.fprintf fmt "MLasub (%d) @[<hov 2>%a.[(u%d)%a : %a]@]"
       info.i_instr_number
       (Printer.pp_var ~debug:false) msub.ms_v
       (int_of_ws msub.ms_ws)
-      pp_offset msub.ms_offset msub.ms_len
+      pp_offset msub.ms_offset Z.pp_print msub.ms_len
 
 
 (*********************)
@@ -419,9 +419,10 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
 
   (*-------------------------------------------------------------------------*)
   let arr_full_range x =
-    List.init
-      (max 0 (arr_range x * size_of_ws (arr_size x)))
-      (fun i -> AarraySlice (x, U8, i))
+    let arr_size =
+      int_of_z Z.(max zero (arr_range x * of_int (size_of_ws (arr_size x))))
+    in
+    List.init arr_size (fun i -> AarraySlice (x, U8, Z.of_int i))
 
   (* let abs_arr_range_at abs x acc ws ei = match aeval_cst_int abs ei with
    *   | Some i ->
@@ -437,10 +438,10 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
   let sub_arr_range x acc ws len i =
     let init_offset = access_offset acc ws i in
     let wss = size_of_ws ws in
-    List.init (max 0 len) (fun j -> AarraySlice (x, ws, init_offset + wss * j))
+    List.init (int_of_z (Z.max Z.zero len)) (fun j -> AarraySlice (x, ws, Z.add init_offset (Z.of_int (wss * j))))
 
   let abs_sub_arr_range_at abs x acc ws len ei =
-    match Option.map Z.to_int (aeval_cst_zint abs ei) with
+    match aeval_cst_zint abs ei with
     | Some i ->
       sub_arr_range x acc ws len i
     | None -> arr_full_range x
@@ -463,8 +464,9 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
       | Pvar x -> mvar_of_var x :: acc
 
       | Pget(_, access,ws,x,ei) ->
-        abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws 1   ei @ acc
+        abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws Z.one ei @ acc
       | Psub (access, ws, len, x, ei) ->
+        let len = z_of_length len in
         abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws len ei @ acc
 
       | Papp1 (_, e1) -> aux acc e1
@@ -659,7 +661,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
 
     | Pget(_, access,ws,x,ei) ->
       begin
-        match abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws 1 ei with
+        match abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws Z.one ei with
         | [] -> (* nonpositive length *) top_linexpr abs ws_e
         | [mv] ->
           let lin = Mtexpr.var mv in
@@ -1033,7 +1035,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
           let ws, arr = Conv.to_array v.v_ty p t in
           List.mapi (fun j w ->
               let sexpr = sexpr_from_simple_expr (mtexpr_of_z w) in
-              let offset = access_offset Warray_.AAscale ws j in
+              let offset = access_offset Warray_.AAscale ws (Z.of_int j) in
               let mv = Mglobal (AarraySlice (v, ws, offset)) in
               (mv,sexpr)
             ) (Array.to_list arr)
@@ -1056,14 +1058,15 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
 
     | Laset (_, acc, ws, x, ei) ->
       begin
-        match abs_sub_arr_range abs (L.unloc x,Expr.Slocal) acc ws 1 ei with
+        match abs_sub_arr_range abs (L.unloc x,Expr.Slocal) acc ws Z.one ei with
         | [] -> (* nonpositive length *) MLnone
         | [mv] -> MLvar (loc, mv)
         | _ as mvs -> MLvars (loc, mvs)
       end
 
     | Lasub (acc, ws, len, x, ei) ->
-      let offset = match aeval_cst_int abs ei with
+      let len = z_of_length len in
+      let offset = match aeval_cst_zint abs ei with
         | Some i -> Some (access_offset acc ws i)
         | None -> None in
       let msub = { ms_v      = L.unloc x;
@@ -1074,7 +1077,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
 
       MLasub (loc, msub)
 
-  let apply_offset_expr abs outv info (inv : int ggvar) offset_expr =
+  let apply_offset_expr abs outv info (inv : length ggvar) offset_expr =
     (* Global variable cannot alias to a input pointer. *)
     assert (inv.gs = Expr.Slocal);
     let inv = L.unloc inv.gv in
@@ -1132,16 +1135,17 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
 
   let slice_subtype lhs rhs =
     (* left slice size, in bytes *)
-    let lhs_size = lhs.ms_len * (size_of_ws lhs.ms_ws) in
+    let lhs_size = Z.(lhs.ms_len * of_int (size_of_ws lhs.ms_ws)) in
     (* right slice slize, in bytes *)
-    let rhs_size = rhs.ms_len * (size_of_ws rhs.ms_ws) in
+    let rhs_size = Z.(rhs.ms_len * of_int (size_of_ws rhs.ms_ws)) in
     (* The array on the rhs must be larger than the sub-array to
        be filled on the lhs (extra values are ignored). *)
-    lhs_size <= rhs_size
+    Z.leq lhs_size rhs_size
 
   let msub_of_sub_expr abs = function
     | Psub (acc, ws, len, ggv, ei) ->
-      let offset = match aeval_cst_int abs ei with
+      let len = z_of_length len in
+      let offset = match aeval_cst_zint abs ei with
         | Some i -> Some (access_offset acc ws i)
         | None -> None in
       { ms_v      = L.unloc ggv.gv;
@@ -1163,11 +1167,11 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
     (* We do the copy *)
     let vevs = List.map (fun i ->
         let i = access_offset Warray_.AAscale ws i in
-        let vi  = Mlocal (AarraySlice (lgv,ws,lhs.ms_offset + i))  in
+        let vi  = Mlocal (AarraySlice (lgv,ws,Z.add lhs.ms_offset i))  in
         (* [rhs.ms_offset] is not to be scaled on the word size. *)
-        let eiv = Mlocal (AarraySlice (rgv,ws,rhs.ms_offset + i)) in
+        let eiv = Mlocal (AarraySlice (rgv,ws,Z.add rhs.ms_offset i)) in
         (vi, eiv)
-      ) (List.init (max 0 len) (fun i -> i)) in
+      ) (List.init (int_of_z Z.(max zero len)) (fun i -> Z.of_int i)) in
 
     let ves = List.map (fun (v,eiv) ->
         let ei = sexpr_from_simple_expr (Mtexpr.var eiv) in
@@ -1193,7 +1197,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
 
   (* The variables representing the contents of a slice *)
   let slice_contents x ws n =
-    List.init (size_of_ws ws) (fun i -> Mlocal (AarraySlice (x, U8, n + i)))
+    List.init (size_of_ws ws) (fun i -> Mlocal (AarraySlice (x, U8, Z.(n + of_int i))))
 
   let remove_array_contents_mv abs =
     function
@@ -1210,17 +1214,17 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
 
   (* The byte cells of the slice of [x] of [len] bytes at offset [off] *)
   let slice_cells x off len =
-    List.init (max 0 len) (fun i -> AarraySlice (x, U8, off + i))
+    List.init (int_of_z (Z.max Z.zero len)) (fun i -> AarraySlice (x, U8, Z.add off (Z.of_int i)))
 
   (* The byte cells of [ms], or of its whole array if the offset is unknown *)
-  let slice_range (ms : int option gmsub) =
+  let slice_range (ms : Z.t option gmsub) =
     match ms.ms_offset with
-    | Some off -> slice_cells ms.ms_v off (ms.ms_len * size_of_ws ms.ms_ws)
+    | Some off -> slice_cells ms.ms_v off Z.(ms.ms_len * of_int (size_of_ws ms.ms_ws))
     | None -> arr_full_range ms.ms_v
 
   (* Are all the cells that a copy from [ms] may read initialized?
      Global arrays are fully initialized. *)
-  let slice_init abs (ms : int option gmsub) =
+  let slice_init abs (ms : Z.t option gmsub) =
     match ms.ms_sc with
     | Expr.Sglob -> true
     | Expr.Slocal -> List.for_all (AbsDom.check_init abs) (slice_range ms)
@@ -1247,7 +1251,7 @@ module AbsExpr (Arch : SafetyArch.SafetyArch) (AbsDom : AbsNumBoolType) = struct
     match lhs.ms_offset with
     | None -> array_contents lhs.ms_v |> AbsDom.forget_list abs
     | Some loff ->
-       let cells = slice_cells lhs.ms_v loff (List.length es) in
+       let cells = slice_cells lhs.ms_v loff (Z.of_int (List.length es)) in
        let abs = List.map (fun at -> Mlocal at) cells |> AbsDom.forget_list abs in
        List.fold_left AbsDom.is_init abs cells
 

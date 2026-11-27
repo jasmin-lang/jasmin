@@ -141,14 +141,16 @@ Definition is_swap_op (op: sopn) : option atype :=
 Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
   let (ii,ir) := i in
   match ir with
-  | Copn xs tg op es =>
+  | Copn xs tg op als es =>
       if is_swap_op op is Some ty then
-        let sig := (true, "__swap__"%string) in
-        let sig := [:: sig; sig ] in
-        Let: (prologue, es) := make_prologue ii X 0 sig es in
-        Let: (xs, epilogue) := make_epilogue ii X sig xs in
-        let tg := if [&& size prologue == 2 & size epilogue == 2] then AT_inline else tg in
-        ok (prologue ++ MkI ii (Copn xs tg (Opseudo_op (pseudo_operator.Oswap ty)) es) :: epilogue)
+        if no_var_ty ty then
+          let sig := (true, "__swap__"%string) in
+          let sig := [:: sig; sig ] in
+          Let: (prologue, es) := make_prologue ii X 0 sig es in
+          Let: (xs, epilogue) := make_epilogue ii X sig xs in
+          let tg := if [&& size prologue == 2 & size epilogue == 2] then AT_inline else tg in
+          ok (prologue ++ MkI ii (Copn xs tg (Opseudo_op (pseudo_operator.Oswap ty)) als es) :: epilogue)
+        else ok [:: i ]
       else ok [:: i ]
   | Cassgn _ _ _ _
   | Cassert _ => ok [:: i ]
@@ -163,13 +165,13 @@ Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
     Let c  := update_c (update_i X) c in
     Let c' := update_c (update_i X) c' in
     ok [::MkI ii (Cwhile a c e info c')]
-  | Ccall xs fn es =>
+  | Ccall xs fn als es =>
     Let: (params,returns) := get_sig ii fn in
     Let pres := make_prologue ii X 0 params es in
     let: (prologue, es) := pres in
     Let xsep := make_epilogue ii X returns xs in
     let: (xs, epilogue) := xsep in
-    ok (prologue ++ MkI ii (Ccall xs fn es) :: epilogue)
+    ok (prologue ++ MkI ii (Ccall xs fn als es) :: epilogue)
   | Csyscall xs o es =>
     let: (params,returns) := get_syscall_sig o in
     Let: (prologue, es) := make_prologue ii X 0 params es in

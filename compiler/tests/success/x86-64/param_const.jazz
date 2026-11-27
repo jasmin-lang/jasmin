@@ -1,0 +1,13 @@
+// This is made to test whether we correctly simplify constant expressions.
+
+param int N = 3;
+
+export fn main () -> reg u64 {
+  stack u64[N+1+N*N<<2] s; // N+1+N*N<<2 = 52
+  reg ptr u64[52] r;
+  r = s;
+  r[0] = 1;
+  s = r;
+  reg u64 res = s[0];
+  return res;
+}

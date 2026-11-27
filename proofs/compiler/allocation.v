@@ -440,7 +440,7 @@ Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
   | Pbool  b1, Pbool  b2 =>
     Let _ := assert (b1 == b2) error_e in ok m
   | Parr_init ws1 n1, Parr_init ws2 n2 =>
-    Let _  := assert (arr_size ws1 n1 == arr_size ws2 n2) error_e in ok m
+    Let _  := assert (convertible (aarr ws1 n1) (aarr ws2 n2)) error_e in ok m
   | Pvar   x1, Pvar   x2 => check_gv x1 x2 m
   | Pget al1 aa1 w1 x1 e1, Pget al2 aa2 w2 x2 e2 =>
     Let _ := assert ((al1 == al2) && (aa1 == aa2) && (w1 == w2)) error_e in
@@ -573,16 +573,18 @@ Fixpoint check_i (i1 i2:instr_r) r :=
       Let _ := assert (convertible ty1 ty2) (alloc_error "bad type in assignment") in
       check_e e1 e2 r >>= check_lval (Some (ty2,e2)) x1 x2
 
-    | Copn xs1 _ o1 es1, Copn xs2 _ o2 es2 =>
+    | Copn xs1 _ o1 als1 es1, Copn xs2 _ o2 als2 es2 =>
       Let _ := assert (o1 == o2) (alloc_error "operators not equals") in
+      Let _ := assert (als1 == als2) (alloc_error "lengths not equal") in
       check_es es1 es2 r >>= check_lvals xs1 xs2
 
     | Csyscall xs1 o1 es1, Csyscall xs2 o2 es2 =>
       Let _ := assert (o1 == o2) (alloc_error "syscall not equals") in
       check_es es1 es2 r >>= check_lvals xs1 xs2
 
-    | Ccall x1 f1 arg1, Ccall x2 f2 arg2 =>
+    | Ccall x1 f1 als1 arg1, Ccall x2 f2 als2 arg2 =>
       Let _ := assert (f1 == f2) (alloc_error "functions not equals") in
+      Let _ := assert (als1 == als2) (alloc_error "length arguments not equal") in
       check_es arg1 arg2 r >>= check_lvals x1 x2
 
     | Cif e1 c11 c12, Cif e2 c21 c22 =>
@@ -634,7 +636,7 @@ Definition check_fundef (ep1 ep2 : extra_prog_t) (f1 f2: funname * fundef) (_:Da
   let (fn1,fd1) := f1 in
   let (fn2,fd2) := f2 in
   add_funname fn1 (add_finfo fd1.(f_info) (
-    Let _ := assert [&& fn1 == fn2, all2 convertible fd1.(f_tyin) fd2.(f_tyin) & all2 convertible fd1.(f_tyout) fd2.(f_tyout) ]
+    Let _ := assert [&& fn1 == fn2, fd1.(f_al) == fd2.(f_al), all2 convertible fd1.(f_tyin) fd2.(f_tyin) & all2 convertible fd1.(f_tyout) fd2.(f_tyout) ]
                         (E.error "functions not equal") in
     Let r := init_alloc fd1.(f_extra) ep1 ep2 in
     Let r := check_f_extra r fd1.(f_extra) fd2.(f_extra) fd1.(f_params) fd2.(f_params) in

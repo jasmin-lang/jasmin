@@ -41,6 +41,9 @@ Module Import E.
   Definition unknown_fun_error (ii : instr_info) :=
     pp_internal_error_s_at pass ii "call to an unknown function".
 
+  Definition subst_error (ii : instr_info) :=
+    pp_internal_error_s_at pass ii "an output type cannot be instantiated".
+
   Definition flag_error (ii : instr_info) := {|
     pel_msg :=
       pp_box [:: pp_s "a flag is written twice, or a destination reads a flag";
@@ -71,7 +74,7 @@ Definition fits (t t' : atype) : bool :=
 (* The type of the auxiliary variable receiving an output of type [t]. *)
 Definition aux_type (t : atype) : atype :=
   if arrays_by_size then
-    if t is aarr ws len then aarr U8 (arr_size ws len) else t
+    if t is aarr ws len then aarr U8 (ALMul (ALConst (wsize_size ws)) len) else t
   else t.
 
 (* A flag position: a boolean variable receiving a boolean output. *)
@@ -184,6 +187,13 @@ Definition normalize_dests (ii : instr_info) (tg : assgn_tag)
     ok (xs, c)
   else ok (lvs, [::]).
 
+(* The output types [touts], whose length variables are [l], at an
+   instruction that gives them the lengths [als]. *)
+Definition subst_touts (ii : instr_info) (l : seq (int * Ident.ident))
+  (als : seq array_length) (touts : seq atype) : cexec (seq atype) :=
+  let f := xseq.assoc (zip (map fst l) als) in
+  mapM (fun t => o2r (E.subst_error ii) (subst_ty f t)) touts.
+
 (* The instruction built by [mk] on the new destinations, followed by the
    instructions to run after. *)
 Definition normalize_dests_i (ii : instr_info) (tg : assgn_tag)
@@ -213,16 +223,18 @@ Fixpoint normalize_calls_i (i : instr) : cexec cmd :=
   match ir with
   | Cassgn _ _ _ _ | Cassert _ => ok [:: i]
   (* an operator with a single destination is printed as an assignment *)
-  | Copn lvs tg o es =>
+  | Copn lvs tg o als es =>
     if 1 < size lvs then
-      normalize_dests_i ii tg lvs (sopn_tout o) (fun xs => Copn xs tg o es)
+      Let touts := subst_touts ii (al (get_instr_desc o)) als (sopn_tout o) in
+      normalize_dests_i ii tg lvs touts (fun xs => Copn xs tg o als es)
     else ok [:: i]
   | Csyscall lvs o es =>
     normalize_dests_i ii AT_none lvs (scs_tout (syscall_sig_u o))
       (fun xs => Csyscall xs o es)
-  | Ccall lvs f es =>
+  | Ccall lvs f als es =>
     Let fd := o2r (E.unknown_fun_error ii) (get_fundef (p_funcs p) f) in
-    normalize_dests_i ii AT_none lvs (f_tyout fd) (fun xs => Ccall xs f es)
+    Let touts := subst_touts ii (f_al fd) als (f_tyout fd) in
+    normalize_dests_i ii AT_none lvs touts (fun xs => Ccall xs f als es)
   | Cif e c1 c2 =>
     Let c1 := nc_c c1 in
     Let c2 := nc_c c2 in

@@ -20,11 +20,12 @@ Section PROOF.
     {spp : SemPexprParams}
     {sip : SemInstrParams asm_op syscall_state}
     {wdb : enforce_defined_variables}
+    (env : env_t)
     (gd : glob_decls).
 
   (* ---------------------------------------------------------- *)
 
-  Definition sem_lea sz vm l : exec (word sz) :=
+  Definition sem_lea sz (vm : Vm.t env) l : exec (word sz) :=
     Let base :=
       oapp (fun (x:var_i) => get_var vm x >>= to_word sz) (ok 0%R) l.(lea_base) in
     Let offset :=

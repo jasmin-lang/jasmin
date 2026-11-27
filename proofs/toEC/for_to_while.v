@@ -106,7 +106,7 @@ Fixpoint for_to_while_i (V : Sv.t) (i : instr) (s : Sv.t) {struct i} :
   | Cassgn x _ _ e =>
     ok (read_rv_rec (read_e_rec (Sv.diff s (write_i ir)) e) x, [:: i])
 
-  | Copn xs _ _ es | Csyscall xs _ es | Ccall xs _ es =>
+  | Copn xs _ _ _ es | Csyscall xs _ es | Ccall xs _ _ es =>
     ok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i])
 
   | Cassert a => ok (read_eassert_rec s a.2, [:: i])

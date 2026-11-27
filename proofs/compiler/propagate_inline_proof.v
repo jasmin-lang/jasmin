@@ -102,7 +102,7 @@ Context (gd : glob_decls).
 
 Section SCFC.
 
-Context (s : estate) {wdb: enforce_defined_variables}.
+Context env (s : estate env) {wdb: enforce_defined_variables}.
 
 Lemma snotE e b:
   sem_pexpr gd s e = ok (Vbool b) ->
@@ -184,7 +184,7 @@ Qed.
 
 Lemma scfcP c es vs v :
   sem_pexprs gd s es = ok vs
-  -> sem_opN (Ocombine_flags c) vs = ok v
+  -> sem_opN env (Ocombine_flags c) vs = ok v
   -> sem_pexpr gd s (scfc c es) = ok v.
 Proof.
   move=> h.
@@ -204,18 +204,18 @@ Qed.
 
 End SCFC.
 
-Record valid_pi (s : estate) (pi : pimap) :=
+Record valid_pi env (s : estate env) (pi : pimap) :=
   { vpi_ok :
      forall x c,
        Mvar.get pi x = Some c ->
        exists2 v', sem_pexpr (wdb := true) gd s c.(pi_def) = ok v' & value_uincl (evm s).[x] v' }.
 
-Lemma valid_pi_empty s : valid_pi s piempty.
+Lemma valid_pi_empty env (s : estate env) : valid_pi s piempty.
 Proof. by constructor => ??; rewrite Mvar.get0. Qed.
 
 Section Expr.
 
-Context (s : estate) (pi : pimap) (hvalid : valid_pi s pi) {wdb : enforce_defined_variables}.
+Context env (s : estate env) (pi : pimap) (hvalid : valid_pi s pi) {wdb : enforce_defined_variables}.
 
 Let P e : Prop :=
   forall v, sem_pexpr gd s e = ok v ->
@@ -277,7 +277,7 @@ Lemma pi_esP es vs :
     values_uincl vs vs'.
 Proof using hvalid. case: pi_eP_and => _ h; apply h. Qed.
 
-Context (vm:Vm.t) (hu: evm s <=1 vm).
+Context (vm:Vm.t env) (hu: evm s <=1 vm).
 
 Lemma pi_eP_uincl e v :
   sem_pexpr gd s e = ok v ->
@@ -299,7 +299,7 @@ Qed.
 End Expr.
 
 
-Lemma write_var_valid_pi (wdb: enforce_defined_variables) s s' pi x v :
+Lemma write_var_valid_pi env (wdb: enforce_defined_variables) (s s' : estate env) pi x v :
   valid_pi s pi ->
   write_var x v s = ok s' ->
   valid_pi s' (remove pi x) /\
@@ -316,7 +316,7 @@ Proof.
   by apply/eqP => ?; subst z; apply hnin; rewrite h /= pi_fv_ok.
 Qed.
 
-Lemma valid_pi_remove_m s pi m :
+Lemma valid_pi_remove_m env (s : estate env) pi m :
   valid_pi s pi ->
   valid_pi (with_mem s m) (remove_m pi).
 Proof.
@@ -329,7 +329,7 @@ Proof.
   by rewrite hm.
 Qed.
 
-Lemma pi_lvP (wdb: enforce_defined_variables) pi s s' x v :
+Lemma pi_lvP env (wdb: enforce_defined_variables) pi (s s' : estate env) x v :
   valid_pi s pi ->
   write_lval gd x v s = ok s' ->
   valid_pi s' (pi_lv pi x).1 /\
@@ -359,7 +359,7 @@ Proof.
   by apply write_var_valid_pi.
 Qed.
 
-Lemma pi_lvsP (wdb: enforce_defined_variables) pi s s' xs vs :
+Lemma pi_lvsP env (wdb: enforce_defined_variables) pi (s s' : estate env) xs vs :
   valid_pi s pi ->
   write_lvals gd s xs vs = ok s' ->
   valid_pi s' (pi_lvs pi xs).1 /\
@@ -373,7 +373,7 @@ Proof.
   by rewrite /= hw1.
 Qed.
 
-Lemma pi_lvP_uincl (wdb: enforce_defined_variables) pi s vm s' x v v':
+Lemma pi_lvP_uincl env (wdb: enforce_defined_variables) pi (s : estate env) (vm : Vm.t env) s' x v v':
   evm s <=1 vm -> value_uincl v v' ->
   valid_pi s pi ->
   write_lval gd x v s = ok s' ->
@@ -387,7 +387,7 @@ Proof.
   by have [vm' hw'' hu']:= write_lval_uincl hu huv hw'; exists vm'.
 Qed.
 
-Lemma pi_lvsP_uincl (wdb: enforce_defined_variables) pi s vm s' xs vs vs':
+Lemma pi_lvsP_uincl env (wdb: enforce_defined_variables) pi (s : estate env) (vm : Vm.t env) s' xs vs vs':
   evm s <=1 vm -> values_uincl vs vs' ->
   valid_pi s pi ->
   write_lvals gd s xs vs = ok s' ->
@@ -437,13 +437,13 @@ Section PROOF.
     by move=> ->; left; exists x0.
   Qed.
 
-  Lemma valid_pi_with_scs s pi scs : valid_pi gd s pi -> valid_pi gd (with_scs s scs) pi.
+  Lemma valid_pi_with_scs env (s : estate env) pi scs : valid_pi gd s pi -> valid_pi gd (with_scs s scs) pi.
   Proof.
     move=> [] h; constructor => m c h1.
     by have := h _ _ h1; rewrite -sem_pexpr_with_scs.
   Qed.
 
-  Lemma valid_pi_incl s pi1 pi2 : incl pi1 pi2 -> valid_pi gd s pi2 -> valid_pi gd s pi1.
+  Lemma valid_pi_incl env (s : estate env) pi1 pi2 : incl pi1 pi2 -> valid_pi gd s pi2 -> valid_pi gd s pi1.
   Proof.
     move=> hincl hv; constructor => x c hg.
     have [c' [hg' heq]] := inclP hincl hg.
@@ -499,12 +499,12 @@ Section PROOF.
     by apply/(incl_trans h3)/incl_merge_l.
   Qed.
 
-  Lemma Hassgn_aux s1 s2 ii x tag ty e pi pi2 vm1:
+  Lemma Hassgn_aux env (s1 s2 : estate env) ii x tag ty e pi pi2 vm1:
     pi_i pi (MkI ii (Cassgn x tag ty e)) = ok pi2 →
     sem_assgn p1 x tag ty e s1 = ok s2 ->
     evm s1 <=1 vm1 →
     valid_pi gd s1 pi →
-    ∃ vm2 : Vm.t,
+    ∃ vm2 : Vm.t env,
       [/\ evm s2 <=1  vm2, valid_pi gd s2 pi2.1 & esem_i p2 ev pi2.2 (with_vm s1 vm1) = ok (with_vm s2 vm2)].
   Proof using hcomp.
     rewrite /= /sem_assgn.
@@ -541,7 +541,7 @@ Section PROOF.
 
   Context {E E0: Type -> Type} {wE : with_Error E E0} {rE : EventRels E0}.
 
-  Definition st_pi pi s1 s2 :=
+  Definition st_pi env1 env2 pi (s1 : estate env1) (s2 : estate env2) :=
     st_uincl tt s1 s2 /\ valid_pi gd s1 pi.
 
   Definition check_es_pi pi es1 es2 pi' :=
@@ -551,9 +551,9 @@ Section PROOF.
     pi' = (pi_lvs pi xs1).1 /\
     xs2 = (pi_lvs pi xs1).2.
 
-  Lemma check_esP_R_pi d es1 es2 d' :
+  Lemma check_esP_R_pi env1 env2 d es1 es2 d' :
     check_es_pi d es1 es2 d' →
-    ∀ s1 s2, st_pi d s1 s2 → st_pi d' s1 s2.
+    ∀ (s1 : estate env1) (s2 : estate env2), st_pi d s1 s2 → st_pi d' s1 s2.
   Proof. by move=> [<- _]. Qed.
 
   Definition checker_pi : Checker_e st_pi :=
@@ -562,76 +562,68 @@ Section PROOF.
      ; check_esP_rel := check_esP_R_pi
     |}.
 
-  Lemma st_piP d s t : st_pi d s t ↔ [/\ t = with_vm s (evm t), evm s <=1 evm t & valid_pi gd s d].
+  Lemma st_piP env d (s : estate env) (t : estate env) :
+    st_pi d s t ↔ [/\ t = with_vm s (evm t), evm s <=1 evm t & valid_pi gd s d].
   Proof.
-    by case: s t => scs1 mem1 vm1 [scs2 mem2 vm2] /=; split => -[[/= -> ->]].
+    split.
+    + by move=> [/st_relP [??] ?].
+    move=> [???].
+    by split=> //; apply st_relP.
   Qed.
 
-  Lemma pi_esPe d (wdb: enforce_defined_variables) es :
-    wrequiv (st_pi d) ((sem_pexprs gd)^~ es)
-      ((sem_pexprs (p_globs p2))^~ (pi_es d es)) values_uincl.
+  Lemma pi_esPe env d (wdb: enforce_defined_variables) es :
+    wrequiv (st_pi d) ((sem_pexprs (env:=env) gd)^~ es)
+      ((sem_pexprs (env:=env) (p_globs p2))^~ (pi_es d es)) values_uincl.
   Proof using hcomp.
     by move=> s t vs /st_piP [-> /=] hu hval; rewrite -eq_globs; apply pi_esP_uincl.
   Qed.
 
-  Lemma pi_lvsPe d (wdb: enforce_defined_variables) xs vs1 vs2 :
+  Lemma pi_lvsPe env d (wdb: enforce_defined_variables) xs vs1 vs2 :
     values_uincl vs1 vs2 ->
-    wrequiv (st_pi d) (fun s => write_lvals (p_globs p1) s xs vs1)
-                      (fun s => write_lvals (p_globs p2) s (pi_lvs d xs).2 vs2)
+    wrequiv (st_pi d) (fun s => write_lvals (env:=env) (p_globs p1) s xs vs1)
+                      (fun s => write_lvals (env:=env) (p_globs p2) s (pi_lvs d xs).2 vs2)
             (st_pi (pi_lvs d xs).1).
   Proof using hcomp.
     move=> hu s t s' /st_piP [-> /= hvmu hval] hw; rewrite -eq_globs.
     have [vm' [{}hvmu {}hval ->]] := pi_lvsP_uincl hvmu hu hval hw.
-    by eexists; first reflexivity.
+    eexists; first by reflexivity.
+    by split=> //; apply st_relP.
   Qed.
 
   Lemma checker_piP : Checker_uincl p1 p2 checker_pi.
   Proof using hcomp.
     constructor.
-    + by move=> > /wdb_ok_eq <- [_ ->]; apply pi_esPe.
-    move=> > /wdb_ok_eq <- [-> ->]; apply pi_lvsPe.
+    + move=> env1 env2 > /wdb_ok_eq <- [_ ->].
+      move=> +++ /[dup] -[/st_rel_env_eq ? _]; subst env2.
+      by apply pi_esPe.
+    move=> env1 env2 > /wdb_ok_eq <- [-> ->].
+    move=> ++++++ /[dup] -[/st_rel_env_eq ? _]; subst env2.
+    by apply pi_lvsPe.
   Qed.
   #[local] Hint Resolve checker_piP : core.
+
+  Section REC.
+
+  Context (env : env_t).
 
   Let Pi i :=
     forall d di,
       pi_i d i = ok di ->
-      wequiv_rec p1 p2 ev ev uincl_spec (st_pi d) [::i] [::di.2] (st_pi di.1).
+      wequiv_rec (env1:=env) (env2:=env) p1 p2 ev ev uincl_spec (st_pi d) [::i] [::di.2] (st_pi di.1).
 
   Let Pi_r i := forall ii, Pi (MkI ii i).
 
   Let Pc c :=
     forall d dc,
       pi_c pi_i d c = ok dc ->
-      wequiv_rec p1 p2 ev ev uincl_spec (st_pi d) c dc.2 (st_pi dc.1).
+      wequiv_rec (env1:=env) (env2:=env) p1 p2 ev ev uincl_spec (st_pi d) c dc.2 (st_pi dc.1).
 
-  Lemma st_pi_incl d d' : incl d' d -> ∀ s1 s2, st_pi d s1 s2 → st_pi d' s1 s2.
+  Lemma st_pi_incl d d' : incl d' d -> ∀ (s1 s2 : estate env), st_pi d s1 s2 → st_pi d' s1 s2.
   Proof. by move=> hincl s1 s2 [hu hval]; split => //; apply: valid_pi_incl hval. Qed.
 
-  Lemma it_pi_callP fn : wiequiv_f p1 p2 ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
+  Lemma it_pi_callP_rec c : Pc c.
   Proof using hcomp.
-    apply wequiv_fun_ind => {}fn _ fs ft [<- hfsu] fd1 hget.
-    have [fd2 hfun ->] := all_checked hget.
-    exists fd2 => // {hget}.
-    have [hin hout hex hpar hres [dc_ hc hbody]] :
-        [/\ f_tyin fd1 = f_tyin fd2
-          , f_tyout fd1 = f_tyout fd2
-          , f_extra fd1 = f_extra fd2
-          , f_params fd1 = f_params fd2
-          , f_res fd1 = f_res fd2
-          & exists2 dc, pi_c pi_i piempty (f_body fd1) = ok dc & f_body fd2 = dc.2
-         ].
-    + move: hfun; rewrite /pi_fun; case fd1 => /= >; t_xrbindP => di -> <- /=; split => //.
-      by exists di.
-    move=> s1 hinit.
-    have [t1 -> hst1] := [elaborate fs_uincl_initialize hin hex hpar eq_p_extra hfsu hinit].
-    exists t1 => //; exists (st_pi piempty), (st_pi dc_.1); split => //; last first.
-    + apply wrequiv_weaken with (st_uincl tt) fs_uincl => //.
-      + by move=> > [].
-      by apply fs_uincl_finalize.
-    rewrite hbody => {hbody hfun hin hout hex hpar hres hinit hst1 s1 t1 hfsu fs ft fd2 fn}.
-    move: (f_body fd1) piempty dc_ hc => {fd1}.
-    apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => //.
+    apply (cmd_rect (Pr := Pi_r) (Pi:=Pi) (Pc:=Pc)) => // {c}.
     + by move=> d di [<-] /=; apply wequiv_nil.
     + move=> i c hi hc d dc_ /=; t_xrbindP => di /hi{}hi dc1 /hc{}hc <- /=.
       by apply wequiv_cons with (st_pi di.1).
@@ -639,8 +631,9 @@ Section PROOF.
       apply wequiv_assgn_esem.
       move=> s t s' /st_piP[-> /= hu hval] hsem.
       have [vm2 [hu' hval' -> /= ]]:= Hassgn_aux hpi hsem hu hval.
-      by eexists; first reflexivity.
-    + move=> xs tg o es ii d di /=.
+      eexists; first by reflexivity.
+      by apply st_piP.
+    + move=> xs tg o als es ii d di /=.
       case heq: pi_lvs => [d' xs'] [<-] /=.
       apply wequiv_opn_rel_uincl with checker_pi d => //.
       by rewrite /check_lvals /= /check_lvals_pi heq.
@@ -669,7 +662,7 @@ Section PROOF.
       + by apply st_pi_incl.
       apply wequiv_while_rel_uincl with checker_pi d' => //.
       by apply wequiv_weaken with (st_pi d') (st_pi d2) => //; apply st_pi_incl.
-    move=> xs fn es ii d di /=.
+    move=> xs fn als es ii d di /=.
     case heq: pi_lvs => [d' xs'] [<-] /=.
     apply wequiv_call_rel_uincl_R with checker_pi d (remove_m d) => //.
     + by move=> > /st_piP [-> /=].
@@ -677,6 +670,35 @@ Section PROOF.
       by apply/valid_pi_with_scs/valid_pi_remove_m.
     + by rewrite /check_lvals /= /check_lvals_pi heq.
     by move=> ???; apply: wequiv_fun_rec.
+  Qed.
+
+  End REC.
+
+  Lemma it_pi_callP fn : wiequiv_f p1 p2 ev ev (rpreF (eS:= uincl_spec)) fn fn (rpostF (eS:=uincl_spec)).
+  Proof using hcomp.
+    apply wequiv_fun_ind => {}fn _ vals _ fs ft [/= <- [<- hfsu]] fd1 hget.
+    have [fd2 hfun ->] := all_checked hget.
+    exists fd2 => // {hget}.
+    have [hal hin hout hex hpar hres [dc_ hc hbody]] :
+        [/\ f_al fd1 = f_al fd2
+          , f_tyin fd1 = f_tyin fd2
+          , f_tyout fd1 = f_tyout fd2
+          , f_extra fd1 = f_extra fd2
+          , f_params fd1 = f_params fd2
+          , f_res fd1 = f_res fd2
+          & exists2 dc, pi_c pi_i piempty (f_body fd1) = ok dc & f_body fd2 = dc.2
+         ].
+    + move: hfun; rewrite /pi_fun; case fd1 => /= >; t_xrbindP => di -> <- /=; split => //.
+      by exists di.
+    move=> /= s1 hinit.
+    rewrite -hal.
+    have [t1 -> hst1] := [elaborate fs_uincl_initialize hin hex hpar eq_p_extra hfsu hinit].
+    exists t1 => //; exists (st_pi piempty), (st_pi dc_.1); split => //; last first.
+    + apply wrequiv_weaken with (st_uincl tt) fs_uincl => //.
+      + by move=> > [].
+      by apply fs_uincl_finalize.
+    rewrite hbody.
+    exact: it_pi_callP_rec.
   Qed.
 
   End IT.

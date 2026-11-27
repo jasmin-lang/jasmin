@@ -45,13 +45,13 @@ Context (m: var -> option (signedness * var)).
 
 Definition safety_asserts := seq eassert.
 
-Definition esubtype (ty1 ty2 : extended_type Z) :=
+Definition esubtype (ty1 ty2 : extended_type) :=
  match ty1, ty2 with
  | ETword None w, ETword None w' => (w ≤ w')%CMP
  | ETword (Some sg) w, ETword (Some sg') w' => (sg == sg') && (w == w')
  | ETint, ETint => true
  | ETbool, ETbool => true
- | ETarr ws l, ETarr ws' l' => arr_size ws l == arr_size ws' l'
+ | ETarr ws al, ETarr ws' al' => convertible (aarr ws al) (aarr ws' al')
  | _, _ => false
  end.
 
@@ -64,17 +64,17 @@ Fixpoint aands es :=
   | e::es => Pand e (aands es)
   end.
 
-Definition to_etype sg (t:atype) : extended_type Z :=
+Definition to_etype sg (t:atype) : extended_type :=
   match t with
   | abool    => tbool
   | aint     => tint
   | aarr ws l => tarr ws l
-  | aword ws => ETword _ sg ws
+  | aword ws => ETword sg ws
   end.
 
 Definition sign_of_var x := Option.map fst (m x).
 
-Definition etype_of_var x : extended_type Z :=
+Definition etype_of_var x : extended_type :=
   to_etype (sign_of_var x) (vtype x).
 
 Definition sign_of_gvar (x : gvar) :=
@@ -83,13 +83,13 @@ Definition sign_of_gvar (x : gvar) :=
 
 Definition etype_of_gvar x := to_etype (sign_of_gvar x) (vtype (gv x)).
 
-Definition sign_of_etype (ty: extended_type Z) : option signedness :=
+Definition sign_of_etype (ty: extended_type) : option signedness :=
   match ty with
   | ETword (Some s) _ => Some s
   | _ => None
   end.
 
-Fixpoint etype_of_expr (e:pexpr) : extended_type Z :=
+Fixpoint etype_of_expr (e:pexpr) : extended_type :=
   match e with
   | Pconst _ => tint
   | Pbool _ => tbool

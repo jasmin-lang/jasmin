@@ -9,7 +9,7 @@ Require Import expr compiler_util.
 Definition type_of_glob_value (gv: glob_value) : atype :=
   match gv with
   | Gword ws _ => aword ws
-  | Garr p _ => aarr U8 p
+  | Garr n _ => aarr U8 (ALConst n)
   end.
 
 Local Open Scope seq_scope.
@@ -62,7 +62,7 @@ Section REMOVE.
     end.
 
   Definition check (gv: glob_value) (gd: glob_decl) : bool :=
-    (convertible (type_of_glob_value gv) (vtype gd.1)) && (check_data gd.2 gv).
+    [&& convertible (type_of_glob_value gv) (vtype gd.1), no_var_ty (vtype gd.1) & check_data gd.2 gv].
 
   Definition find_glob ii (xi: var_i) (gd: glob_decls) (gv: glob_value) :=
     let test gd := if check gv gd then Some gd.1 else None in
@@ -88,7 +88,7 @@ Section REMOVE.
 
   Definition array_from_cells ii x (len: Z) (cells: pexprs) : result pp_error_loc (WArray.array len) :=
     Let bytes := evaluate_bytes ii x cells in
-    match sem_opN (Oarray len) bytes >>= to_arr len with
+    match sem_opN empty_env (Oarray len) bytes >>= to_arr len with
     | Ok array => Ok _ array
     | Error _ => Error (rm_glob_error_gen ii x [:: pp_s "cannot fill the array"])
     end.
@@ -111,7 +111,7 @@ Section REMOVE.
         else ok gd
       | _ => ok gd
       end
-    | Copn _ _ _ _ | Csyscall _ _ _ | Cassert _ | Ccall _ _ _ => ok gd
+    | Copn _ _ _ _ _ | Csyscall _ _ _ | Cassert _ | Ccall _ _ _ _ => ok gd
     | Cif _ c1 c2 =>
       Let gd := foldM extend_glob_i gd c1 in
       foldM extend_glob_i gd c2
@@ -280,7 +280,7 @@ Section REMOVE.
                   ok (Mvar.set env x g, [::])
                 else Error (rm_glob_error ii xi)
               | PappN (Oarray len) cells =>
-                  if convertible (vtype x) (aarr U8 len) then
+                  if convertible (vtype x) (aarr U8 (ALConst len)) then
                     Let array := array_from_cells ii x len cells in
                     Let g := find_glob ii xi gd (Garr array) in
                     ok (Mvar.set env x g, [::])
@@ -294,10 +294,10 @@ Section REMOVE.
             Let lv := remove_glob_lv ii env lv in
             ok (env, [::MkI ii (Cassgn lv tag ty e)])
           end
-        | Copn lvs tag o es =>
+        | Copn lvs tag o als es =>
           Let lvs := mapM (remove_glob_lv ii env) lvs in
           Let es  := mapM (remove_glob_e ii env) es in
-          ok (env, [::MkI ii (Copn lvs tag o es)])
+          ok (env, [::MkI ii (Copn lvs tag o als es)])
         | Csyscall lvs o es =>
           Let lvs := mapM (remove_glob_lv ii env) lvs in
           Let es  := mapM (remove_glob_e ii env) es in
@@ -333,10 +333,10 @@ Section REMOVE.
             Let envc := loop check_c loop_counter env in
             let: (env, c) := envc in
             ok (env, [::MkI ii (Cfor xi (d,e1,e2) c)])
-        | Ccall lvs fn es =>
+        | Ccall lvs fn als es =>
           Let lvs := mapM (remove_glob_lv ii env) lvs in
           Let es  := mapM (remove_glob_e ii env) es in
-          ok (env, [::MkI ii (Ccall lvs fn es)])
+          ok (env, [::MkI ii (Ccall lvs fn als es)])
         end
       end.
 
