@@ -55,14 +55,14 @@ output corruption: #public
  constraints:
 
 
-modmsf safe_access : #public * #secret ->
-#secret
+modmsf safe_access : #public * #poly = { n = d, s = secret} ->
+#poly = { n = d, s = secret}
 output corruption: #public
  constraints:
 
 
-modmsf safe_direct_access : #public * #secret ->
-#secret
+modmsf safe_direct_access : #public * #poly = { n = d, s = secret} ->
+#poly = { n = d, s = secret}
 output corruption: #public
  constraints:
 
@@ -264,19 +264,6 @@ output corruption: #public
  constraints:
 
 
-File movmsf.jazz:
-modmsf reset_msf :  ->
-#msf
-output corruption: #public
- constraints:
-
-
-modmsf main : #transient ->
-
-output corruption: #public
- constraints:
-
-
 File paper.jazz:
 modmsf fig3a : #[ptr = transient, val = transient] *
                #[ptr = transient, val = secret] * #transient ->
@@ -355,6 +342,25 @@ output corruption: #transient
 modmsf spill2 : #public * #secret ->
 #public
 output corruption: #transient
+ constraints:
+
+
+File uninitialized_transient.jazz:
+modmsf indirect_param_ok : #[ptr = transient, val = { n = ?811, s = secret}] ->
+#poly = { n = ?811, s = ?811}
+output corruption: #public
+ constraints:
+
+
+modmsf direct_local_ok :  ->
+#secret
+output corruption: #public
+ constraints:
+
+
+modmsf indirect_local_ok : #secret ->
+#secret
+output corruption: #public
  constraints:
 
 

@@ -1,0 +1,32 @@
+fn indirect_param_ok(reg ptr u64[4] p) -> reg u64 {
+  reg u64 m r;
+  m = #init_msf();
+  r = p[0];
+  return r;
+}
+
+fn direct_local_ok() -> reg u64 {
+  reg u64 x;
+  x = 0; // written before the fence
+  _ = #init_msf();
+  x = [x]; // now public: safe
+  return x;
+}
+
+#[sct="secret -> secret"]
+export fn indirect_local_ok(reg u64 sec) -> reg u64 {
+  #[keep] reg u64 h = sec; // dead register, could be reused by p's storage
+  stack u64[4] s;
+  reg ptr u64[4] p;
+  reg u64 r m;
+  reg u64 i = 0;
+  s[0] = sec;
+  while (i < 1) {
+    p = s; // weak update, but always hit
+    i += 1;
+  }
+  m = #init_msf();
+  p = #protect_ptr(p, m); // p is transient here, and can be protected
+  r = p[0];
+  return r;
+}

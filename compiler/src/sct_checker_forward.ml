@@ -375,7 +375,7 @@ module Env : sig
 
   val empty : env -> venv
   val constraints : env -> C.constraints
-  val add_var : env -> venv -> var -> vty -> venv
+  val add_var : written:bool -> env -> venv -> var -> vty -> venv
   val public    : env -> Lvl.t
   val secret    : env -> Lvl.t
 
@@ -391,7 +391,7 @@ module Env : sig
 
   val fresh2 : ?name:string -> env -> VlPairs.t
 
-  val set_ty : env -> venv -> var_i -> vty -> venv
+  val set_ty : ?written:bool -> env -> venv -> var_i -> vty -> venv
   val set_init_msf : env -> venv -> var_i option -> venv
 
   val max : env -> venv -> venv -> venv
@@ -422,6 +422,10 @@ end = struct
   type venv = {
       vtype : vty Mv.t;
       vars : Sv.t;
+      written : Sv.t (* variables whose type was set by an actual
+        assignment, as opposed to still holding their declaration-time
+        placeholder type; used by [set_init_msf] to avoid laundering the
+        speculative taint of not-yet-written locals through the fence *);
       resulting_corruption : VlPairs.t;
       public2 : VlPairs.t (* needed in 'get'. This is dirty.
         Ideally, env and venv should be merged, but this requires
@@ -452,6 +456,7 @@ end = struct
   let empty env =
     { vtype = Mv.empty;
       vars = Sv.empty;
+      written = Sv.empty;
       resulting_corruption = fresh2 env;
       public2 = public2 env;
     }
@@ -471,7 +476,7 @@ end = struct
     | Indirect (l1, x1), Indirect (l2, x2) -> VlPairs.add_le l1 l2; VlPairs.add_le x1 x2
     | _ -> assert false
 
-  let init_ty env venv x xty =
+  let init_ty ~written env venv x xty =
       (* warning Always (L.i_loc0 x.v_dloc) "initialising variable %a" pp_var x; *)
     let nxty =
       let public2 = public2 env in
@@ -489,27 +494,34 @@ end = struct
     in
     { venv with
         vtype = Mv.add x nxty venv.vtype;
-        vars = Sv.add x venv.vars
+        vars = Sv.add x venv.vars;
+        written = if written then Sv.add x venv.written else venv.written
     }
 
-  let add_var env venv x vty =
+  let add_var ~written env venv x vty =
     assert (not (Mv.mem x venv.vtype));
-    try init_ty env venv x vty
+    try init_ty ~written env venv x vty
     with Lvl.Unsat _unsat ->
       error ~loc:(x.v_dloc)
         "invalid security annotations for %a, this leads to invalid constraints"
            pp_var x
 
-  let set_ty env venv x nxty =
-    init_ty env venv (L.unloc x) nxty
+  let set_ty ?(written=true) env venv x nxty =
+    init_ty ~written env venv (L.unloc x) nxty
 
-  (* Initialises type for InitMsf operations. Acts as a Fence operator *)
+  (* [#init_msf();] acts as a fence operator. Only the security types of
+     previously-written variables are changed.
+     This also the types of unwritten variables to model possible register/stack
+     reuse that fences do not protect agaist. *)
   let set_init_msf env venv ms =
     let venv =
       match ms with
       | Some ms -> set_ty env venv ms (dpublic env)
       | None -> venv in
-    let operate_fence _ = function
+    let operate_fence x ty =
+      if not (Sv.mem x venv.written) then ty
+      else
+        match ty with
         | Direct le -> Direct (VlPairs.normalise le)
         | Indirect(lp, le) -> Indirect(VlPairs.normalise lp, VlPairs.normalise le)
     in
@@ -535,6 +547,7 @@ end = struct
     in
     { venv1 with
       vtype = Mv.merge merge_var venv1.vtype venv2.vtype;
+      written = Sv.inter venv1.written venv2.written;
       resulting_corruption = merge venv1.resulting_corruption venv2.resulting_corruption
     }
 
@@ -596,7 +609,8 @@ end = struct
   let venv_forget lv x =
     { x with
       vtype = Mv.filter (fun k _ -> Sv.mem k lv) x.vtype;
-      vars = Sv.inter x.vars lv }
+      vars = Sv.inter x.vars lv;
+      written = Sv.inter x.written lv }
 
 end
 
@@ -626,7 +640,8 @@ let content_ty = function
 
 let rec ty_expr env venv loc (e:expr) : vty =
   match e with
-  | Pconst _ | Pbool _ | Parr_init _ -> Env.dpublic env
+  | Pconst _ | Pbool _ -> Env.dpublic env
+  | Parr_init _ -> Direct (Env.transient env)
 
   | Pvar x -> Env.gget venv x
 
@@ -846,7 +861,7 @@ end
 (* Type checking of lvalue                                   *)
 type msf_e = MSF.t * Env.venv
 
-let ty_lval env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
+let ty_lval ?(written=true) env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
   (* First path the type ety to make it consistant with the variable info *)
   match x with
   | Lnone _ -> msf_e
@@ -864,7 +879,7 @@ let ty_lval env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
           then Indirect(lp, le)
           else Direct le in
       let msf = MSF.update msf (L.unloc x) in
-      let venv = Env.set_ty env venv x xty in
+      let venv = Env.set_ty ~written env venv x xty in
       msf, venv
 
   | Lmem(_, _, vi, i) ->
@@ -964,6 +979,10 @@ and ty_instr_r is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
 
   | Cassgn(mso, _, _, (Pvar x as msi)) when MSF.is_msf msf x.gv ->
     move_msf ~loc env msf_e mso msi
+
+  | Cassgn(x, _, _, (Parr_init _ as e)) ->
+    let ety = ty_expr env venv loc e in
+    ty_lval ~written:false env msf_e x ety
 
   | Cassgn(x, _, _, e) ->
     let ety = ty_expr env venv loc e in
@@ -1279,10 +1298,10 @@ let init_constraint fenv f =
       | None ->
         begin match x.v_kind with
         | Const -> Env.dpublic env
-        | (Stack Direct | Reg (_, Direct)) when is_local -> Direct (Env.secret2 env)
+        | (Stack Direct | Reg (_, Direct)) when is_local -> Direct (Env.transient env)
         | (Stack Direct | Reg (_, Direct)) -> Direct (Env.fresh2 env)
-        | (Stack (Pointer _) | Reg (_, Pointer _)) when is_local -> Indirect(Env.secret2 env, Env.fresh2 env)
-        | (Stack (Pointer _) | Reg (_, Pointer _)) -> Indirect(Env.fresh2 env, Env.fresh2 env)
+        | (Stack (Pointer _) | Reg (_, Pointer _)) when is_local -> Indirect (Env.transient env, Env.fresh2 env)
+        | (Stack (Pointer _) | Reg (_, Pointer _)) -> Indirect (Env.fresh2 env, Env.fresh2 env)
         | Inline -> Env.dpublic env
         | Global -> Env.dpublic env (* unsure *)
         end
@@ -1359,7 +1378,7 @@ let init_constraint fenv f =
                  pp_var x stransient
         end lvls
       end;
-    let venv = Env.add_var env venv x vty in
+    let venv = Env.add_var ~written:true env venv x vty in
     let ty = if msf then IsMsf else IsNormal vty in
     venv, ty in
 
@@ -1380,7 +1399,7 @@ let init_constraint fenv f =
   (* init type for local *)
   let do_local x venv =
     let _, vty = mk_vty x.v_dloc ~is_local:true ~msf:false x [] None in
-    Env.add_var env venv x vty in
+    Env.add_var ~written:false env venv x vty in
 
   let venv = Sv.fold do_local (locals f) venv in
 
