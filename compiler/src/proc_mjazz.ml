@@ -726,64 +726,28 @@ let replace_with_instance (inst_subst:string*string) (name:string) =
   let (_, new_name) = String.replace ~str:name ~sub:original ~by:instance in
   new_name
 
-let rec add_instance_gexpr new_vars inst_subst expr =  
-    match expr with
-    | P.Pvar v ->
-        let v' = get_new_var new_vars inst_subst v in
-        P.Pvar v'
-    | Pget (a,aa,ws,v,ge) ->
-        let ge = add_instance_gexpr new_vars inst_subst ge in
-        let v' = get_new_var new_vars inst_subst v in
-        P.Pget (a,aa,ws,v',ge)
-    | Psub(aa,ws,size,v,ge) ->
-        let ge = add_instance_gexpr new_vars inst_subst ge in
-        let v' = get_new_var new_vars inst_subst v in
-        let P.PE size = size in
-        P.Psub(aa,ws,P.PE (add_instance_gexpr new_vars inst_subst size),v',ge)
-    | Pload(a,ws,ge) ->
-        let ge = add_instance_gexpr new_vars inst_subst ge in
-        P.Pload(a,ws,ge)
-    | Papp1(o,ge) ->
-        let ge = add_instance_gexpr new_vars inst_subst ge in
-        P.Papp1(o,ge)
-    | Papp2(o,ge1,ge2) ->
-        let ge1 = add_instance_gexpr new_vars inst_subst ge1 in
-        let ge2 = add_instance_gexpr new_vars inst_subst ge2 in
-        P.Papp2(o,ge1,ge2)
-    | PappN(o,ges) ->
-        let ges = List.map (add_instance_gexpr new_vars inst_subst) ges in
-        P.PappN(o,ges)
-    | Pif (ty, ge1,ge2,ge3) ->
-        let ge1 = add_instance_gexpr new_vars inst_subst ge1 in
-        let ge2 = add_instance_gexpr new_vars inst_subst ge2 in
-        let ge3 = add_instance_gexpr new_vars inst_subst ge3 in
-        P.Pif (Subst.gsubst_ty (fun (P.PE s) -> P.PE (add_instance_gexpr new_vars inst_subst s)) ty, ge1,ge2,ge3)
-    | Parr_init (ws, P.PE size) -> Parr_init (ws, P.PE (add_instance_gexpr new_vars inst_subst size))
-    | _ -> expr
-and get_new_var new_vars inst_subst (v:'len P.ggvar) = 
+let get_new_var new_vars inst_subst (v:'len P.ggvar) = 
   let v' = L.unloc v.gv in
   let name = replace_with_instance inst_subst v'.v_name in
   begin match Map.find_opt v'.v_name new_vars with
-  | Some new_var -> {gv = L.mk_loc (L.loc v.gv) new_var; gs = v.gs}
+  | Some new_var -> {P.gv = L.mk_loc (L.loc v.gv) new_var; gs = v.gs}
   | None -> 
     begin match Map.find_opt name new_vars with
-    | Some new_var -> {gv = L.mk_loc (L.loc v.gv) new_var; gs = v.gs}
+    | Some new_var -> {P.gv = L.mk_loc (L.loc v.gv) new_var; gs = v.gs}
     | None -> v
     end
   end
 
+let add_instance_gexpr new_vars inst_subst =
+  Subst.psubst_e (fun v -> P.Pvar (get_new_var new_vars inst_subst v))
 
 let add_instance_ggexpr new_vars inst_subst expr =  
     match expr with
     | P.GEword e -> P.GEword (add_instance_gexpr new_vars inst_subst e)
     | P.GEarray es -> P.GEarray (List.map (add_instance_gexpr new_vars inst_subst) es)
 
-let change_ty new_vars inst_subst ty =
-  match ty with
-  | P.Bty _ -> ty
-  | P.Arr (size,P.PE e) -> 
-      let ty' = P.Arr (size,P.PE (add_instance_gexpr new_vars inst_subst e)) in
-      ty'
+let change_ty new_vars inst_subst =
+  Subst.gsubst_ty (fun (P.PE e) -> P.PE (add_instance_gexpr new_vars inst_subst e))
 
 let get_new_gvar new_vars inst_subst (v:'len P.gvar) = 
   match Map.find_opt v.v_name new_vars with 
@@ -795,92 +759,27 @@ let get_new_gvar new_vars inst_subst (v:'len P.gvar) =
     new_vars, v'
 
 
-let get_new_lvar new_vars inst_subst (lv:'len P.glval) =
-  match lv with
-  | Lvar  v ->
-    let v' = {P.gv=v; P.gs =Slocal} in
-    P.Lvar ((get_new_var new_vars inst_subst v').gv)
-  | Lmem (a,ws,l,e) ->
-    let e' = add_instance_gexpr new_vars inst_subst e in
-    P.Lmem (a,ws,l,e')
-  | Laset (al,acc,ws,v,e) ->
-      let v' = {P.gv=v; P.gs =Slocal} in
-      let v' = (get_new_var new_vars inst_subst v').gv in
-      let e' = add_instance_gexpr new_vars inst_subst e in
-      P.Laset (al,acc,ws,v',e')
-  | Lasub (acc,ws,size,v,e) ->
-      let v' = {P.gv=v; P.gs =Slocal} in
-      let v' = (get_new_var new_vars inst_subst v').gv in
-      let e' = add_instance_gexpr new_vars inst_subst e in
-      let P.PE size = size in
-      P.Lasub (acc,ws,P.PE (add_instance_gexpr new_vars inst_subst size),v',e')
-  | _ -> lv
-
-let rec add_instance_instr new_vars new_funcs inst_subst (instr:('len,'info,'asm) P.ginstr) =
-  let i_desc, i_annot = 
+let rec rename_calls new_funcs inst_subst (instr:('len,'info,'asm) P.ginstr) =
+  let rename = List.map (rename_calls new_funcs inst_subst) in
+  let i_desc, i_annot =
     match instr.i_desc with
-    | Cassgn (lv,at,ty,e) ->
-        let lv' = get_new_lvar new_vars inst_subst lv in
-        let e' = add_instance_gexpr new_vars inst_subst e in
-        P.Cassgn (lv',at,change_ty new_vars inst_subst ty,e'), instr.i_annot
-    | Copn (lvs, at,o,es) ->
-        let lvs' = List.map (get_new_lvar new_vars inst_subst) lvs in
-        let es' = List.map (add_instance_gexpr new_vars inst_subst) es in
-        Copn (lvs', at,o,es'), instr.i_annot
-    | Csyscall(lvs,sc,es) ->
-        let lvs' = List.map (get_new_lvar new_vars inst_subst) lvs in
-        let es' = List.map (add_instance_gexpr new_vars inst_subst) es in
-        P.Csyscall(lvs',sc,es'), instr.i_annot
-    | Cassert(s,ga) -> 
-        let rec add_instance_gassert =
-          function
-            | P.Pexpr e -> P.Pexpr (add_instance_gexpr new_vars inst_subst e)
-            | PappN_safety (o,ges) -> PappN_safety (o, List.map (add_instance_gexpr new_vars inst_subst) ges)
-            | Pis_var_init v ->
-              let v' = {P.gv=v; P.gs =Slocal} in
-              let v' = (get_new_var new_vars inst_subst v').gv in
-              Pis_var_init v'
-            | Pis_mem_init (e1,e2) ->
-              let e1' = add_instance_gexpr new_vars inst_subst e1 in
-              let e2' = add_instance_gexpr new_vars inst_subst e2 in
-              Pis_mem_init (e1',e2')
-            | Pand (ga1,ga2) -> 
-              let ga1' = add_instance_gassert ga1 in
-              let ga2' = add_instance_gassert ga2 in
-              Pand (ga1',ga2')
-        in 
-        P.Cassert(s,add_instance_gassert ga), instr.i_annot
-    | Cif (e,s1,s2) ->
-      let e' = add_instance_gexpr new_vars inst_subst e in
-      let s1' = List.map (add_instance_instr new_vars new_funcs inst_subst) s1 in
-      let s2' = List.map (add_instance_instr new_vars new_funcs inst_subst) s2 in
-      P.Cif (e',s1',s2'), instr.i_annot
-    | Cfor (v,(d,e1,e2),s) ->
-      let v' = {P.gv=v; P.gs =Slocal} in
-      let v' = (get_new_var new_vars inst_subst v').gv in
-      let e1' = add_instance_gexpr new_vars inst_subst e1 in
-      let e2' = add_instance_gexpr new_vars inst_subst e2 in
-      let s' = List.map (add_instance_instr new_vars new_funcs inst_subst) s in
-      P.Cfor (v',(d,e1',e2'),s'), instr.i_annot
-    | Cwhile(a,s1,e,ii,s2) ->
-      let e' = add_instance_gexpr new_vars inst_subst e in
-      let s1' = List.map (add_instance_instr new_vars new_funcs inst_subst) s1 in
-      let s2' = List.map (add_instance_instr new_vars new_funcs inst_subst) s2 in
-      P.Cwhile(a,s1',e',ii,s2'), instr.i_annot
+    | Cif (e,s1,s2) -> P.Cif (e, rename s1, rename s2), instr.i_annot
+    | Cfor (v,r,s) -> P.Cfor (v, r, rename s), instr.i_annot
+    | Cwhile (a,s1,e,ii,s2) -> P.Cwhile (a, rename s1, e, ii, rename s2), instr.i_annot
     | Ccall (lvs,fname,es) ->
-      let lvs' = List.map (get_new_lvar new_vars inst_subst) lvs in
-      let es' = List.map (add_instance_gexpr new_vars inst_subst) es in
       let name = replace_with_instance inst_subst fname.fn_name in
-      match Map.find_opt name new_funcs with
+      begin match Map.find_opt name new_funcs with
       | Some f ->
         let is_inline = f.P.f_cc = FInfo.Internal || FInfo.is_export f.P.f_cc in
         let is_inline = is_inline || Annotations.has_symbol "inline" instr.i_annot in
         let annot = if is_inline
                     then Annotations.add_symbol ~loc:instr.i_loc.base_loc "inline" instr.i_annot
                     else instr.i_annot in
-        P.Ccall (lvs',f.Prog.f_name,es'), annot
+        P.Ccall (lvs,f.Prog.f_name,es), annot
       | None -> 
-        P.Ccall (lvs',fname,es'), instr.i_annot
+        P.Ccall (lvs,fname,es), instr.i_annot
+      end
+    | d -> d, instr.i_annot
     in
     { instr with i_desc; i_annot }
 
@@ -890,17 +789,15 @@ let add_instance_item new_vars new_funcs (inst_subst:string*string) item =
     v', Map.add v'.v_name v' new_vars in
   match item with 
   | P.MIfun f ->
-      let new_vars', f_args = List.fold_left_map (fun nv -> get_new_gvar nv inst_subst) new_vars f.f_args in
-      let f_tyin = List.map (fun ty -> change_ty new_vars' inst_subst ty) f.f_tyin in
-      let f_tyout = List.map (fun ty -> change_ty new_vars' inst_subst ty ) f.f_tyout in
-      let new_vars', f_ret = List.fold_left_map (fun nv v ->
-            let nv', v' = get_new_gvar nv inst_subst (L.unloc v) in
-            nv', L.mk_loc (L.loc v) v'
-            ) new_vars' f.f_ret in
-      let new_vars' = Prog.Spv.fold (fun v nv -> get_new_gvar nv inst_subst v |> fst) (Prog.plocals f) new_vars' in
-      let f_body = List.map (add_instance_instr new_vars' new_funcs inst_subst) f.f_body in
+      let add_var nv v = get_new_gvar nv inst_subst v |> fst in
+      let new_vars' = List.fold_left add_var new_vars f.f_args in
+      let new_vars' = List.fold_left (fun nv v -> add_var nv (L.unloc v)) new_vars' f.f_ret in
+      let new_vars' = Prog.Spv.fold (fun v nv -> add_var nv v) (Prog.plocals f) new_vars' in
+      let f' = Subst.gsubst_func (fun ?loc:_ (P.PE e) -> P.PE (add_instance_gexpr new_vars' inst_subst e))
+          (fun v -> P.Pvar (get_new_var new_vars' inst_subst v)) f in
+      let f_body = List.map (rename_calls new_funcs inst_subst) f'.f_body in
       let new_name = replace_with_instance inst_subst f.f_name.P.fn_name in
-      let f' = {f with P.f_name = P.F.mk (new_name); f_args;f_tyin;f_tyout;f_ret;f_body} in
+      let f' = {f' with P.f_name = P.F.mk (new_name); f_body} in
       let new_funcs = Map.add new_name f' new_funcs in
       new_vars, new_funcs, P.MIfun f'
   | P.MIglobal (v, ge) ->
