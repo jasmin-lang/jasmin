@@ -76,3 +76,10 @@ Failed as expected main: "fail/speculative-stack-leak.jazz", line 32 (2) to line
 File spill.jazz:
 Failed as expected spill2: "fail/spill.jazz", line 13 (5-8):
                            speculative constant type checker: pub has type #transient but should be at most #public
+File uninitialized_transient.jazz:
+Failed as expected ptr_local_leak: "fail/uninitialized_transient.jazz", line 34 (2-19):
+                                   speculative constant type checker: p has type #[ptr = transient, val = { n = ?369, s = secret}] but should be at most #public
+Failed as expected array_reuse: "fail/uninitialized_transient.jazz", line 22 (3-4):
+                                speculative constant type checker: i has type #transient but should be at most #public
+Failed as expected direct_local_leak: "fail/uninitialized_transient.jazz", line 6 (2-10):
+                                      speculative constant type checker: x has type #transient but should be at most #public

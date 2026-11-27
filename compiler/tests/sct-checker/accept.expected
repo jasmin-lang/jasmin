@@ -345,6 +345,25 @@ output corruption: #transient
  constraints:
 
 
+File uninitialized_transient.jazz:
+modmsf indirect_param_ok : #[ptr = transient, val = { n = ?811, s = secret}] ->
+#poly = { n = ?811, s = ?811}
+output corruption: #public
+ constraints:
+
+
+modmsf direct_local_ok :  ->
+#secret
+output corruption: #public
+ constraints:
+
+
+modmsf indirect_local_ok : #secret ->
+#secret
+output corruption: #public
+ constraints:
+
+
 File unused-msf.jazz:
 nomodmsf unused_msf : #msf ->
 

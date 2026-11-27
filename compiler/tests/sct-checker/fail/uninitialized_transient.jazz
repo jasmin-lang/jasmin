@@ -1,0 +1,37 @@
+#[sct="secret -> ()"]
+fn direct_local_leak(reg u64 sec) {
+  #[keep] reg u64 h = sec; // dead register holding secret data
+  reg u64 x;
+  _ = #init_msf();
+  x = [x]; // x may alias h's register
+}
+
+param int N = 4;
+
+#[sct="secret -> secret"]
+export fn array_reuse(reg u64 sec) -> reg u64 {
+  stack u64[N] p;
+  ArrayInit(p);
+  _ = #init_msf();
+  reg u64 i = 0;
+  while (i < N) {
+    p[i] = 0; // weak update
+    i += 1;
+  }
+  i = p[0];
+  [i] = 0; // i is unsafe as an address
+  return sec;
+}
+
+#[sct="transient * secret -> secret"]
+export fn ptr_local_leak(reg u64 pub, reg u64 sec) -> reg u64 {
+  _ = #init_msf();
+  reg u64 i = 0;
+  stack u64[1] s; s[0] = 0;
+  #[keep] reg u64 x = sec; // dead register with secret data
+  reg ptr u64[1] p;
+  while (i < 1) { #[keep] p = s; i += 1; } // p could alias x's register
+  reg u64 y = p[0]; // p's ptr component is still transient
+  y += pub; y += sec;
+  return y;
+}
