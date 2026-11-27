@@ -77,7 +77,6 @@ Definition ty_gvar (x : gvar) : atype := ty_var x.(gv).
 Definition check_array (x : gvar) (te : atype) : cexec unit :=
   if te is aarr _ _ then ok tt else Error (E.array_expected (Pvar x) te).
 
-(* [err] is the error to report, built by the caller (it knows the expression) *)
 Definition check_type (err : pp_error_loc) (te : atype (*actual type*)) (ty : atype (*expected type*)) (*expected wsize <= actual wsize*): cexec unit :=
   let b := subatype ty te in
   if negb b then Error err
@@ -264,18 +263,5 @@ Definition check_prog (p : uprog): cexec unit :=
   Let _ := allM check_global_decl gds in
   Let _ := allM (check_fun gds funcs) (rev funcs) in
   ok tt.
-
-
-
   
 End TYPING.
-
-
-
-
-
-
-
-
-
-
